@@ -4,6 +4,34 @@
 working tool until v3 is proven and archived** (user constraint). This doc is the
 canonical v3 plan. Experiments live in `runs/studio-v3-experiments/`.
 
+**P0 ✅ GO (2026-06-12, `65bcdd7`) — the load-bearing risk (R1) is CLEARED.** A
+shared proxy `d3d8.dll` loaded into the real port, captured the full call stream +
+dedup'd resources into a binary container (`tools/trace_studio_v3/`), and a separate
+`replay.exe` re-rendered a real title frame through real D3D8 **bit-identically** (0
+differing bytes / 0 pixels / max delta 0, vs both the proxy reference AND the port's
+own screenshot; 4884 calls / 666 draws / 4 textures replayed). Capturing the d3d
+command stream + resources IS sufficient to re-render frames exactly as the game did.
+**Remaining de-risks:** R2 retail-side proxy loadability (SteamStub-unpacked exe +
+Frida spawn); the VB/IB-backed 3D path (P0c was 2D UP draws only); cross-frame
+content-hash dedup at session scale; then the P1–P4 build.
+
+**3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
+(not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
+learnings: (1) **present-count can't target a post-load frame** (turbo load-stretch is
+nondeterministic) — fixed by triggering the capture finalize on the app's own
+`GetBackBuffer` readback, which aligns capture to the harness's `--capture-frames` in
+sim-frame space (landed in the proxy; the first such frame in a Continue/Load trace is
+the first house frame). (2) **"capture from frame 0 + replay all" is impractical for a
+long (post-load) target**: recording the multi-thousand-frame load-stretch ballooned the
+container to **963 MB** and the 9p-mount writes throttled the port so it never reached the
+target frame. → P1 MUST add: **windowed capture** (record a window, not from 0) + a
+**full device-state snapshot at the window start** (R4: GetRenderState-all + transforms +
+tss + current bindings, so the window replays without prior frames); **local-disk
+container writes** (not 9p, mirroring D2); **content-hash resource dedup** (pointer-dedup
+also breaks across scene transitions when a freed texture's pointer is reused — a window
+sidesteps it, content-hash closes it). WSLENV note: WSL env vars don't cross to the
+Windows exe unless in `WSLENV`; the proxy reads config next to the dll instead.
+
 ## Mandate (user, 2026-06-12)
 - **Radical, order-of-magnitude better — not a slight improvement over v2** ("otherwise
   it's not worth thousands of lines"). Try radical ideas; the d3d-state-replay is the
@@ -114,6 +142,20 @@ per-panel seek, no `window_start==0` no-op trap. Loads can stretch one side arbi
 the next gameplay segment re-syncs at its anchor by construction. Gaps are explicit and
 honest (E3: 218 port-only / 98 retail-only, vs 3660 silently-wrong in v2).
 
+**Kill the sync push-pull dance (first-class goal, user 2026-06-12).** The v2 pain isn't
+just slow captures — it's the manual whack-a-mole of lining both sides up frame-by-frame,
+fighting load/wait-time differences. v3 dissolves it by design, not by disciplining the
+human: (1) **never frame-match by hand** — anchor *semantic events* (the engine already
+emits LOADING_END / HOUSE_FREEROAM / dialogue anchors) and JOIN on `(anchor, offset)`; you
+never reproduce a loading time, because loads live *between* anchors and may differ freely,
+only gameplay offsets (deterministic under turbo) must match. (2) **Sync once, reuse
+forever** — retail captured + joined once; a port-side fix re-slices the SAME cached+joined
+retail (no re-dance, no re-drive). (3) **Replay both sides** → frames reproduced
+deterministically, removing GPU/driver/timing variance from the comparison. (4) **Honest
+gaps, never silent mispairing** — where the join genuinely can't pair, the tool SHOWS the
+hole and names the anchor; the human's only job becomes "do the anchors fire on the same
+events?", which the tool checks for them.
+
 ### 5. Capture speed — retail captured ONCE, then sliced
 - **Window-aware early-exit**: stop retail when the last in-window frame is captured (kills
   E4's ~100 s post-window over-run).
@@ -154,8 +196,12 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   full call+resource stream for the PORT only, for a few frames, + a replayer + a
   screenshot-equality check. **Acceptance: one real frame replays bit-exact.** Go/no-go on
   the whole replay bet. *(Also answers R2 if extended to retail.)*
-- **P1 — Full capture + binary container + dedup**, both sides via the shared proxy.
-  Measure real resource volume (closes E1). Retail full-extent capture + cache.
+- **P1 — Capture-at-scale (the 3D-test learnings).** Windowed capture + a device-state
+  snapshot at window start (R4) so a post-load target replays without the load-stretch;
+  local-disk container writes; content-hash resource dedup; `GetBackBuffer`-aligned frame
+  targeting (landed). THEN re-run the 3D HOUSE + multi-scene tests to bit-exact (proves the
+  VB/IB path + scene transitions). Measure real resource volume (closes E1). Retail
+  full-extent capture + cache.
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
   E3 prototype into the real pairing authority.
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.

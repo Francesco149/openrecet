@@ -370,6 +370,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   frame-stamped port `audio.jsonl`, retail voice/file-SE hook + `se_NNN_idXXXX`
   names, studio sessions now carry `port/audio.jsonl`, folded into `trace_studio
   triage`. First catch = item-display queue #7. `findings/audio-trace-diff.md`.
+- **TRACE STUDIO v3 (new parallel arc, 2026-06-12) — "capture the render program,
+  not its output".** Radical rebuild to kill v2's three pains (slow captures, sync
+  whack-a-mole, fragile diffs) at the root: a shared **proxy `d3d8.dll`** captures the
+  exact D3D8 command stream + dedup'd resources (both sides) → **replay re-renders each
+  frame bit-exactly** (display + oracle) → **sync by stored `(anchor,offset)` identity**
+  → integrated **semantic diff** (which draw/state/texture). **P0 ✅ GO (`65bcdd7`):**
+  bit-exact capture→replay proven on a real port frame (0 px diff). Built in isolation
+  under `tools/trace_studio_v3/`; **v2 stays the working tool until v3 is proven +
+  archived.** Plan + experiment data + P1 next steps (windowed capture, content-hash
+  dedup, retail-side proxy, 3D/multi-scene tests): **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
