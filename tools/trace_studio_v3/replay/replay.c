@@ -137,15 +137,14 @@ int main(int argc, char **argv)
     fclose(f);
     fprintf(stderr, "replayed: %u resources, %u calls (%u draws)\n", nres, ncalls, ndraws);
 
-    /* read back the backbuffer, identical to the proxy/capture_backbuffer path */
-    IDirect3DSurface8 *surf = NULL;
-    CK(IDirect3DDevice8_GetBackBuffer(dev, 0, D3DBACKBUFFER_TYPE_MONO, &surf), "GetBackBuffer");
-    D3DLOCKED_RECT lr = {0};
-    CK(IDirect3DSurface8_LockRect(surf, &lr, NULL, D3DLOCK_READONLY), "LockRect");
-    uint32_t rb = W * 4;
-    unsigned char *mine = malloc((size_t)rb * H);
-    for (uint32_t r = 0; r < H; r++) memcpy(mine + (size_t)r*rb, (unsigned char*)lr.pBits + (size_t)r*lr.Pitch, rb);
-    IDirect3DSurface8_UnlockRect(surf); IDirect3DSurface8_Release(surf);
+    /* read back the backbuffer via the SAME shared helper the proxy used for the
+     * reference (CopyRects through a lockable sysmem surface) — so both frames are
+     * read back bit-identically and the compare is fair, and so a non-lockable
+     * replay backbuffer (retail params: flags=0x0) reads back at all. */
+    uint32_t rb = W * 4, gw = 0, gh = 0;
+    unsigned char *mine = orv3_readback_bgra(dev, &gw, &gh);
+    if (!mine) { fprintf(stderr, "FAIL readback (GetBackBuffer/CopyRects/Lock)\n"); return 2; }
+    if (gw != W || gh != H) { fprintf(stderr, "readback dims %ux%u != %ux%u\n", gw, gh, W, H); return 2; }
 
     /* write out.raw for visual inspection */
     FILE *of = fopen(outpath, "wb"); if (of) { fwrite(&W,4,1,of); fwrite(&H,4,1,of); fwrite(mine,1,(size_t)rb*H,of); fclose(of); }

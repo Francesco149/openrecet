@@ -66,12 +66,50 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevi
 /* ── logging ── */
 static FILE     *g_log;
 static HINSTANCE g_self;
+
+/* ── config (a key=value file NEXT TO the dll) ──
+ * WSL env vars don't cross to the Windows exe (WSLENV), and a Frida-spawned
+ * retail inherits frida-server's environment, not the WSL driver's — so getenv
+ * can't configure the proxy for retail. Instead it reads `v3proxy.cfg` from the
+ * dll's OWN directory (the driver writes it into the same app dir the proxy is
+ * staged in, before spawn). Recognized keys:
+ *   capframe=N   present-count frame to finalize (default: GetBackBuffer trigger)
+ *   out=PATH     Windows dir for the container/log/reference (default LOCALAPPDATA)
+ * getenv stays honored as a fallback (harmless for the port, which uses neither). */
+static char     g_cfg_out[MAX_PATH];
+static unsigned g_cfg_capframe = 0xFFFFFFFFu;
+static int      g_cfg_loaded;
+static void load_cfg(void)
+{
+    if (g_cfg_loaded) return;
+    g_cfg_loaded = 1;
+    char dll[MAX_PATH]; DWORD n = GetModuleFileNameA(g_self, dll, sizeof dll);
+    if (!n || n >= sizeof dll) return;
+    char *slash = strrchr(dll, '\\');
+    if (!slash) return;
+    slash[1] = 0;  /* keep the dll's dir + trailing '\' */
+    char cfg[MAX_PATH + 16]; snprintf(cfg, sizeof cfg, "%sv3proxy.cfg", dll);
+    FILE *f = fopen(cfg, "r"); if (!f) return;
+    char line[MAX_PATH + 32];
+    while (fgets(line, sizeof line, f)) {
+        char *eq = strchr(line, '='); if (!eq) continue;
+        *eq = 0; char *key = line, *val = eq + 1;
+        size_t vl = strlen(val);
+        while (vl && (val[vl-1]=='\n' || val[vl-1]=='\r' || val[vl-1]==' ' || val[vl-1]=='\t')) val[--vl] = 0;
+        if      (!strcmp(key, "capframe")) g_cfg_capframe = (unsigned)strtoul(val, NULL, 0);
+        else if (!strcmp(key, "out") && *val) { snprintf(g_cfg_out, sizeof g_cfg_out, "%s", val); CreateDirectoryA(g_cfg_out, NULL); }
+    }
+    fclose(f);
+}
+
 /* Resolve output to Windows-LOCAL NTFS (never the \\wsl.localhost 9p mount —
  * writing the container there throttles the engine to a crawl). Default
  * %LOCALAPPDATA%\openrecet\v3 (same fast-disk pattern the port uses for se.pack);
  * WSL reads it back via /mnt/c/...  OPENRECET_V3_OUT overrides. */
 static void proxy_out_path(char *out, size_t n, const char *leaf)
 {
+    load_cfg();
+    if (g_cfg_out[0]) { snprintf(out, n, "%s\\%s", g_cfg_out, leaf); return; }
     const char *env = getenv("OPENRECET_V3_OUT");
     if (env && *env) { snprintf(out, n, "%s\\%s", env, leaf); return; }
     static char base[MAX_PATH]; static int inited;
@@ -91,7 +129,11 @@ static void proxy_out_path(char *out, size_t n, const char *leaf)
 static void proxy_log(const char *fmt, ...)
 {
     if (!g_log) { char p[MAX_PATH+32]; proxy_out_path(p, sizeof p, "v3proxy.log");
-        g_log = fopen(p, "w"); if (!g_log) return; setvbuf(g_log, NULL, _IOLBF, 0); }
+        g_log = fopen(p, "w"); if (!g_log) return; setvbuf(g_log, NULL, _IONBF, 0); }
+    /* unbuffered: msvcrt treats _IOLBF as full-buffering, so a hard device.kill
+     * (how the harness reaps a spawned retail/port) would lose every buffered
+     * line and leave a 0-byte log even though the proxy ran. Unbuffered keeps the
+     * log a faithful record of a capture that was killed mid-run. */
     va_list ap; va_start(ap, fmt); vfprintf(g_log, fmt, ap); va_end(ap);
 }
 
@@ -275,23 +317,20 @@ static int snap_ib(IDirect3DIndexBuffer8 *ib)
     return id;
 }
 
-/* read back the device backbuffer -> {u32 w,h, w*h*4 BGRA} (mirrors capture_backbuffer) */
+/* read back the device backbuffer -> {u32 w,h, w*h*4 BGRA} via the shared
+ * CopyRects-through-sysmem helper (works for retail's non-lockable backbuffer) */
 static int readback_raw(IDirect3DDevice8 *dev, const char *path)
 {
-    IDirect3DSurface8 *surf = NULL;
-    if (FAILED(IDirect3DDevice8_GetBackBuffer(dev, 0, D3DBACKBUFFER_TYPE_MONO, &surf))) return 0;
-    D3DSURFACE_DESC d = {0}; IDirect3DSurface8_GetDesc(surf, &d);
-    D3DLOCKED_RECT lr = {0};
-    if (FAILED(IDirect3DSurface8_LockRect(surf, &lr, NULL, D3DLOCK_READONLY))) {
-        IDirect3DSurface8_Release(surf); return 0; }
+    uint32_t w = 0, h = 0;
+    uint8_t *px = orv3_readback_bgra(dev, &w, &h);
+    if (!px) { proxy_log("readback FAILED (GetBackBuffer/CopyRects/Lock)\n"); return 0; }
     FILE *fp = fopen(path, "wb");
     if (fp) {
-        uint32_t w = d.Width, h = d.Height;
         fwrite(&w, 4, 1, fp); fwrite(&h, 4, 1, fp);
-        for (uint32_t r = 0; r < h; r++) fwrite((uint8_t*)lr.pBits + (size_t)r*lr.Pitch, 1, w*4, fp);
+        fwrite(px, 1, (size_t)w * h * 4u, fp);
         fclose(fp);
     }
-    IDirect3DSurface8_UnlockRect(surf); IDirect3DSurface8_Release(surf);
+    free(px);
     return fp != NULL;
 }
 
@@ -342,7 +381,9 @@ __declspec(dllexport) IDirect3D8 * WINAPI Direct3DCreate8(UINT SDKVersion)
 {
     load_real_d3d8(); if (!g_realCreate) return NULL;
     IDirect3D8 *real = g_realCreate(SDKVersion); if (!real) return NULL;
-    const char *cf = getenv("OPENRECET_V3_CAPFRAME"); if (cf && *cf) g_capframe = (unsigned)atoi(cf);
+    load_cfg();
+    if (g_cfg_capframe != 0xFFFFFFFFu) g_capframe = g_cfg_capframe;     /* cfg (retail path) */
+    const char *cf = getenv("OPENRECET_V3_CAPFRAME"); if (cf && *cf) g_capframe = (unsigned)atoi(cf);  /* env override */
     WrapD3D *w = (WrapD3D*)calloc(1, sizeof *w);
     w->lpVtbl = &g_IDirect3D8_vt; w->real = real; w->refs = 1;
     proxy_log("Direct3DCreate8 wrapped (capframe=%u)\n", g_capframe);
@@ -502,7 +543,12 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8 *This, UINT bb, D3DBACKBUFFER_TYPE type, IDirect3DSurface8 **pp)
 { WrapDev *w = (WrapDev*)This;
   HRESULT hr = w->real->lpVtbl->GetBackBuffer(w->real, bb, type, pp);
-  if (CAP && g_present_count >= 1) { proxy_log("GetBackBuffer trigger @ frame %u\n", g_frame); finalize_capture(w->real); }
+  /* The GetBackBuffer trigger is the FALLBACK target (the port's path: capture
+   * the frame the app reads back for its own screenshot). When a capframe is set
+   * (the retail/cfg path) it is authoritative — don't let retail's own internal
+   * GetBackBuffer calls finalize early. */
+  if (CAP && g_capframe == 0xFFFFFFFFu && g_present_count >= 1) {
+      proxy_log("GetBackBuffer trigger @ frame %u\n", g_frame); finalize_capture(w->real); }
   return hr; }
 
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)

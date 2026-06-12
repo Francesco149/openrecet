@@ -13,6 +13,8 @@
 #define ORV3_FORMAT_H
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define ORV3_MAGIC   0x33565241u   /* "ARV3" */
 #define ORV3_VERSION 1u
@@ -66,5 +68,39 @@ static inline void orv3_wbytes(FILE *f, const void *p, uint32_t n) { fwrite(&n, 
 
 /* tiny read helpers (replayer) */
 static inline uint32_t orv3_ru(FILE *f) { uint32_t v = 0; if (fread(&v, 4, 1, f) != 1) return 0xffffffffu; return v; }
+
+/* ── shared backbuffer readback (proxy reference + replayer output) ──
+ * Returns a freshly malloc'd, tightly-packed w*h*4 BGRA buffer (caller frees) and
+ * reports the backbuffer dims. The backbuffer may be NON-lockable — retail ships
+ * its swapchain with present flags=0x0 (no D3DPRESENTFLAG_LOCKABLE_BACKBUFFER), so
+ * a direct LockRect fails — so we bounce the backbuffer through a lockable sysmem
+ * image surface via CopyRects (the exact path the v2 Frida agent uses to grab
+ * retail frames). The port (flags=0x1, lockable) reads back identically through
+ * this same path. Using ONE helper on both the capture (reference) and replay
+ * (output) sides guarantees the two frames are read back bit-identically, so the
+ * compare is fair. Only compiled where d3d8 + COBJMACROS are in scope. */
+#ifdef IDirect3DDevice8_CopyRects
+static inline uint8_t *orv3_readback_bgra(IDirect3DDevice8 *dev, uint32_t *ow, uint32_t *oh)
+{
+    IDirect3DSurface8 *bb = NULL, *sys = NULL; uint8_t *dst = NULL;
+    if (FAILED(IDirect3DDevice8_GetBackBuffer(dev, 0, D3DBACKBUFFER_TYPE_MONO, &bb)) || !bb) return NULL;
+    D3DSURFACE_DESC d = {0}; IDirect3DSurface8_GetDesc(bb, &d);
+    if (SUCCEEDED(IDirect3DDevice8_CreateImageSurface(dev, d.Width, d.Height, d.Format, &sys)) && sys
+     && SUCCEEDED(IDirect3DDevice8_CopyRects(dev, bb, NULL, 0, sys, NULL))) {
+        D3DLOCKED_RECT lr = {0};
+        if (SUCCEEDED(IDirect3DSurface8_LockRect(sys, &lr, NULL, D3DLOCK_READONLY))) {
+            uint32_t rb = d.Width * 4u;
+            dst = (uint8_t*)malloc((size_t)rb * d.Height);
+            if (dst) for (uint32_t r = 0; r < d.Height; r++)
+                memcpy(dst + (size_t)r*rb, (const uint8_t*)lr.pBits + (size_t)r*lr.Pitch, rb);
+            IDirect3DSurface8_UnlockRect(sys);
+        }
+    }
+    if (sys) IDirect3DSurface8_Release(sys);
+    IDirect3DSurface8_Release(bb);
+    if (dst) { *ow = d.Width; *oh = d.Height; }
+    return dst;
+}
+#endif
 
 #endif
