@@ -46,6 +46,27 @@ STAGED_DLL = ROOT / "build" / "d3d8.dll"
 SCENARIO_TEST = ROOT / "tools" / "scenario-test.py"
 DEFAULT_SCENARIO = "house-loaded-display-pinned"
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import v3cache                                                         # noqa: E402
+
+
+def caprange_of(scenario: str) -> tuple[int, int] | None:
+    """(start, count) from the scenario's {caprange:[start,count]} line, or None.
+    The caprange start IS the window's offset-since-anchor (offset0) for the stored
+    identity — the same offset the retail arm uses ⇒ a matching join key."""
+    import json
+    trace = ROOT / "tests" / "scenarios" / scenario / "trace.jsonl"
+    for raw in trace.read_text().splitlines():
+        line = raw.strip()
+        if line.startswith("{") and '"caprange"' in line:
+            try:
+                d = json.loads(line)
+                if "caprange" in d:
+                    return int(d["caprange"][0]), int(d["caprange"][1])
+            except (ValueError, KeyError, IndexError):
+                pass
+    return None
+
 
 def localappdata_v3() -> Path:
     """%LOCALAPPDATA%\\openrecet\\v3 as a WSL path (where the proxy writes)."""
@@ -74,6 +95,12 @@ def main() -> int:
                          "v3proxy.cfg instead of the GetBackBuffer MULTI trigger — "
                          "the SAME present-window keep mode retail uses. Proves WINDOW "
                          "mode bit-exact on the local (fast) port. e.g. --window 944:44")
+    ap.add_argument("--anchor", default="HOUSE_FREEROAM",
+                    help="canonical join anchor for the stored identity — must match the "
+                         "retail side so orv3_sync.py pairs them (default %(default)s; the "
+                         "caprange's base anchor, e.g. HOUSE_FREEROAM == LOADING_END here).")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="skip caching the capture + its stored identity (MULTI mode only).")
     args = ap.parse_args()
 
     win_start = win_count = None
@@ -137,6 +164,25 @@ def main() -> int:
               f"would be {n*ref_mb:.0f} MB (resources stored once, frames ≈ free)")
     if n == 0:
         raise SystemExit("[fail] proxy loaded but kept 0 frames — does the scenario have a {caprange}?")
+
+    # Cache the capture + its STORED identity (P2 sync-by-identity + slice cache):
+    # MULTI (caprange) mode only — the window is anchor-relative (offset0 = the
+    # caprange start), so kept frame k is (anchor#occ, offset0+k), the join key the
+    # retail side shares. (--window is a raw present-count test mode with no anchor
+    # identity ⇒ not cached.) orv3_sync.py pairs this with the retail entry.
+    if win_start is None and not args.no_cache:
+        cr = caprange_of(args.scenario)
+        if cr is None:
+            print(f"[cache] no {{caprange}} in {args.scenario} — skipping identity cache")
+        else:
+            offset0, cr_count = cr
+            arm = {"anchor": args.anchor, "offset": offset0, "count": cr_count}
+            trace = ROOT / "tests" / "scenarios" / args.scenario / "trace.jsonl"
+            dest, ident = v3cache.preserve_live(args.scenario, "port", args.anchor,
+                                                offset0, trace, arm)
+            print(f"[cache] stored port → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
+                  f"offsets {ident.offset0}..{ident.offset0 + ident.count - 1}, "
+                  f"present {ident.present_first}..{ident.present_first + ident.count - 1})")
 
     if args.no_verify:
         print("[skip] --no-verify: not replaying")

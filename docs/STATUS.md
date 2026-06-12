@@ -440,6 +440,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   content-addressed slice cache (capture retail once, slice sub-windows zero-re-drive) +
   window-aware early-exit (kill the post-window over-run) → sync-by-identity (E3 `(anchor,offset)`
   join as the real alignment authority). Plan: **`plans/trace-studio-v3.md`** (P2 section).
+  **P2 IN PROGRESS (2026-06-12) — window-aware early-exit + sync-by-identity + slice cache, all
+  proven on real port+retail HOUSE captures.** (1) **Window-aware early-exit (`1f54dd8`):** the
+  agent schedules shutdown 2 frames past the armed window end (proxy present-counter == agent
+  frame-counter, the same Present clock), reusing the `max_frames_reached` teardown — the HOUSE
+  drive stops at frame 14158 instead of grinding to max_frames 22000 (~7800 over-run frames gone),
+  **48/48 BIT-EXACT in 53 s** (was multi-minute); a no-op for v2 (gated on an armed v3 window).
+  (2) **`orv3.py`** Python container reader + **bit-exact slicer** — re-emits any sub-window `[a,b)`
+  as a standalone container (pulls forward dedup'd resources first defined before the slice);
+  proven: slice `[10,20)` frame 0 replays **0 differing bytes** vs the original ref. (3)
+  **`v3cache.py`** content-addressed cache + **STORED identity** — copies the transient
+  `%LOCALAPPDATA%` capture into a keyed entry (`runs/studio-v3-cache/<scen>-<key>/{port,retail}/` +
+  `v3meta.json`); the key hashes only retail's pixel-determining inputs (trace + arm) so a port fix
+  never invalidates the retail cache. (4) **`orv3_sync.py`** the **sync-by-identity JOIN** (the v3
+  alignment authority): **48/48 ALIGNED, 0 gaps** on the real HOUSE window — port present 619..666,
+  retail 14108..14155, a **+13489-frame load stretch**, every frame paired by `(HOUSE_FREEROAM,
+  offset 120..167)`; **naive absolute-present pairing = 0/48** (the v2-class frame-number scheme is
+  hopeless across the load stretch). Writes `pairs.json` (computed once, for the future diff/seek/
+  state/marks). Both drivers (`house_capture`/`port_capture`) now auto-cache with identity.
+  **REMAINING in P2:** the cache-HIT reuse path (slice a cached full-extent retail window without
+  re-driving — reader/slicer extraction done, drivers need the cache check + slice-serve).
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

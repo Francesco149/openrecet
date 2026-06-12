@@ -131,6 +131,38 @@ key by trace-hash, slice sub-windows with zero re-drives; + window-aware early-e
 post-window over-run). Then the E3 stored-`(anchor,offset)` pairing becomes the real alignment
 authority. See P2 below.
 
+**P2 IN PROGRESS (2026-06-12) — window-aware early-exit + sync-by-identity + slice cache, all
+proven on real port+retail HOUSE captures.** Four pieces landed:
+1. **Window-aware early-exit (`1f54dd8`).** When the agent arms the v3 window it now schedules a
+   shutdown 2 frames past the window end (the proxy present-counter and the agent frame-counter are
+   the same Present clock — the bit-exact landing proves it), reusing the `max_frames_reached`
+   teardown. The HOUSE drive stopped at frame 14158 instead of grinding to max_frames 22000 (~7800
+   frames of E4 over-run gone) — **48/48 BIT-EXACT in 53 s** (was multi-minute). Gated on an armed
+   v3 window ⇒ a no-op for every v2 capture.
+2. **`orv3.py` — Python container reader + bit-exact slicer.** Parses the flat container into
+   per-frame sections (present-count, byte range, resources referenced/defined) and re-emits any
+   sub-window `[a,b)` as a STANDALONE container, pulling forward content-hash-dedup'd resources
+   first defined before the slice. Proven: slice `[10,20)` of the retail HOUSE container → 10-frame
+   standalone container, frame 0 replays **0 differing bytes** vs the original ref_010. (Slicing is
+   logical for the replayer — it renders any kept index from the full container — but the re-emit
+   makes a sub-window a self-contained cache unit.)
+3. **`v3cache.py` — content-addressed cache + STORED identity.** Copies a finished proxy capture
+   (transient `%LOCALAPPDATA%`) into a keyed persistent entry (`runs/studio-v3-cache/<scen>-<key>/
+   {port,retail}/`) + a `v3meta.json` identity. The key hashes ONLY retail's pixel-determining
+   inputs (trace + arm spec) so a port-side fix never invalidates the retail cache. Kept frame k's
+   identity = `(anchor#occ, offset0+k)`.
+4. **`orv3_sync.py` — the sync-by-identity JOIN (the v3 alignment authority).** Pairs port↔retail
+   by stored identity. **Proven on the real HOUSE window: 48/48 ALIGNED, 0 honest gaps** — port
+   present 619..666, retail 14108..14155, a **+13489-frame load stretch**, yet every frame pairs by
+   `(HOUSE_FREEROAM, offset 120..167)`. Contrast: **naive absolute-present pairing = 0/48** (zero
+   shared presents — the v2-class frame-number scheme is hopeless across the load stretch). The
+   join writes `pairs.json` (computed once, read by the future diff/seek/state/marks). Both capture
+   drivers (`house_capture.py`/`port_capture.py`) now auto-cache with identity on success.
+**Still in P2:** the retail FULL-EXTENT capture + slice-don't-re-drive loop (cache a generous
+window once, slice sub-windows zero-re-drive — the reader+slicer already do the extraction; needs
+the cache-hit reuse path in the drivers) + the early-exit's killable post-window over-run is now
+moot for the *fixed* window but the cache makes a *re-window* free.
+
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
 learnings: (1) **present-count can't target a post-load frame** (turbo load-stretch is
@@ -424,6 +456,13 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   cache** (capture retail's window once, key by trace-hash, slice sub-windows with zero re-drives)
   + a **window-aware early-exit** (stop the retail drive at the last in-window frame — kills E4's
   ~100 s post-window over-run the house drive currently pays).
+  **PARTIAL (2026-06-12) — see the "P2 IN PROGRESS" block above.** Landed + proven on real port+
+  retail HOUSE captures: the **window-aware early-exit** (`1f54dd8`, 48/48 in 53 s), the
+  **`orv3.py`** reader + bit-exact slicer, the **`v3cache.py`** content-addressed cache + stored
+  identity, and the **`orv3_sync.py`** identity JOIN (**48/48 ALIGNED vs 0/48 naive** across a
+  +13489-frame load stretch). REMAINING: the cache-HIT reuse path (slice a cached full-extent
+  retail window without re-driving) — the reader/slicer extraction is done; the drivers need to
+  check the cache + serve a slice instead of re-capturing.
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.

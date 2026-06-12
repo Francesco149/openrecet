@@ -51,6 +51,7 @@ from pathlib import Path
 # under the nix devshell this driver runs in.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import retail_capture as rc                                            # noqa: E402
+import v3cache                                                         # noqa: E402
 
 ROOT      = Path(__file__).resolve().parent.parent.parent
 PROXY_SRC = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
@@ -210,10 +211,23 @@ def main() -> int:
         raise SystemExit(f"[fail] proxy kept 0 frames — anchor didn't arm in time or the "
                          f"window ran past the budget. Raise --max-frames / lower --offset.{hint}")
 
+    rc_code = 0
     if args.no_verify:
         print("[skip] --no-verify: not replaying")
-        return 0
-    return rc.replay_verify(v3, n)
+    else:
+        rc_code = rc.replay_verify(v3, n)
+
+    # Cache the capture under a content key + its STORED identity (P2 sync-by-
+    # identity + slice cache): retail kept frame k is (anchor#occ, offset+k). The
+    # port side (port_capture.py) caches the matching window under the same key;
+    # orv3_sync.py JOINs them by identity — load-stretch-immune (E3).
+    arm = {"anchor": args.anchor, "offset": args.offset, "count": args.count}
+    dest, ident = v3cache.preserve_live(args.scenario, "retail", args.anchor,
+                                        args.offset, trace_path, arm, src=v3)
+    print(f"[cache] stored retail → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
+          f"offsets {ident.offset0}..{ident.offset0 + ident.count - 1}, "
+          f"present {ident.present_first}..{ident.present_first + ident.count - 1})")
+    return rc_code
 
 
 if __name__ == "__main__":
