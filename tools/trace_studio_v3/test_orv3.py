@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import orv3        # noqa: E402
 import orv3_sync   # noqa: E402
+import orv3_view   # noqa: E402
 import v3cache     # noqa: E402
 
 
@@ -154,12 +155,32 @@ def test_extent_lookup() -> None:
     print("  OK extent lookup: containment, widest-pick, stale-key + wrong-anchor filtered out")
 
 
+def test_merge_offsets() -> None:
+    """The viewer timeline (orv3_view): merge both sides' identity offsets into one
+    ordered column list, classifying single-sided columns as HONEST, named gaps —
+    never dropping or silently mispairing one (the v2 sync bug class)."""
+    # fully aligned: every column has both sides, no gaps
+    rows = orv3_view.merge_offsets({120, 121, 122}, {120, 121, 122})
+    assert [r["offset"] for r in rows] == [120, 121, 122]
+    assert all(r["gap"] is None for r in rows)
+    # port has an extra offset (retail-side gap); retail has an extra (port-side gap)
+    rows = orv3_view.merge_offsets({120, 121, 122}, {121, 122, 123})
+    assert [r["offset"] for r in rows] == [120, 121, 122, 123]      # union, sorted
+    by = {r["offset"]: r for r in rows}
+    assert by[120]["gap"] == "retail" and by[120]["has_port"] and not by[120]["has_retail"]
+    assert by[123]["gap"] == "port" and by[123]["has_retail"] and not by[123]["has_port"]
+    assert by[121]["gap"] is None and by[122]["gap"] is None
+    print("  OK merge_offsets: union/sorted columns, honest gap named by the MISSING side")
+
+
 def main() -> int:
     test_parse()
     test_slice()
     test_join()
     test_extent_lookup()
-    print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup")
+    test_merge_offsets()
+    print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup "
+          "+ view timeline merge")
     return 0
 
 
