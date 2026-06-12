@@ -32,12 +32,18 @@ static LPDIRECT3DDEVICE9 g_dev = nullptr;
 static D3DPRESENT_PARAMETERS g_pp;
 
 // ── the loaded view ──
+// one genuinely-divergent texture in a frame's draw-program (orv3_draws material_diff)
+struct DivTex { std::string tex; int port_tris = 0, retail_tris = 0, port_draws = 0, retail_draws = 0; };
 struct Col {
     int offset = 0, port_idx = -1, retail_idx = -1;
     int port_present = -1, retail_present = -1;
     int port_draws = -1, retail_draws = -1, port_calls = -1, retail_calls = -1;
     std::string gap;                 // "", "port", or "retail"
     int gt8 = -1, maxd = 0; double meanabs = 0;   // computed diff metric (gt8<0 = not computed)
+    // baked draw-program semantic diff (orv3_draws → view.json)
+    std::string draw_verdict;        // "ALIGNED" | "BATCHING" | "DIVERGENT" | "" (gap/none)
+    int port_tris = -1, retail_tris = -1, n_textures = -1, n_batched = -1;
+    std::vector<DivTex> divergent;
 };
 static std::vector<Col> g_cols;
 static OrV3Replay *g_port = nullptr, *g_retail = nullptr;
@@ -48,6 +54,11 @@ static int g_load_stretch = 0;
 static std::string g_scenario, g_anchor, g_verdict;
 static bool g_show[3] = {true, true, true};   // port, retail, diff
 static const int AMP = 6;
+// draw-stepping (N3): render only the first g_draw_step draws of each side (render_upto)
+// so a frame can be watched building up draw-by-draw / a divergent draw isolated.
+static bool g_step_on = false;
+static int  g_draw_step = 0;
+static Col  g_stepmetric;            // scratch diff metric while stepping (don't clobber the column)
 
 static void destroy_device();
 
@@ -115,17 +126,24 @@ static void precompute_metrics()
     }
 }
 
+// the draw budget for one side at the current step (clamped to its draw count; -1 = all)
+static int step_budget(int ndraws) { return (g_step_on && ndraws >= 0 && g_draw_step < ndraws) ? g_draw_step : -1; }
+static int col_maxdraws(const Col &c) { int m = c.port_draws > c.retail_draws ? c.port_draws : c.retail_draws; return m > 0 ? m : 0; }
+
 // render column `i` into the three panel textures (+ refresh its diff image/metric).
+// When stepping, each side renders only its first g_draw_step draws (render_upto), the
+// diff is the STEPPED diff, and the precomputed full-frame column metric is preserved
+// (a scratch Col absorbs the stepped metric so the ribbon heat never gets corrupted).
 static void show_column(int i)
 {
     if (i < 0 || i >= (int)g_cols.size()) return;
     g_cur = i;
     Col &c = g_cols[i];
-    const uint8_t *p = c.port_idx >= 0 ? orv3_replay_render(g_port, c.port_idx) : nullptr;
-    const uint8_t *r = c.retail_idx >= 0 ? orv3_replay_render(g_retail, c.retail_idx) : nullptr;
+    const uint8_t *p = c.port_idx   >= 0 ? orv3_replay_render_upto(g_port,   c.port_idx,   step_budget(c.port_draws))   : nullptr;
+    const uint8_t *r = c.retail_idx >= 0 ? orv3_replay_render_upto(g_retail, c.retail_idx, step_budget(c.retail_draws)) : nullptr;
     if (p) upload(g_tport, p);
     if (r) upload(g_tretail, r);
-    if (p && r) { diff_into(p, r, g_diffbuf, c); upload(g_tdiff, g_diffbuf); }
+    if (p && r) { Col &m = g_step_on ? g_stepmetric : c; diff_into(p, r, g_diffbuf, m); upload(g_tdiff, g_diffbuf); }
 }
 
 static bool load_view(const char *path)
@@ -158,6 +176,20 @@ static bool load_view(const char *path)
         c.retail_draws = jf.value("retail_draws", json()).is_number() ? jf["retail_draws"].get<int>() : -1;
         c.port_calls = jf.value("port_calls", json()).is_number() ? jf["port_calls"].get<int>() : -1;
         c.retail_calls = jf.value("retail_calls", json()).is_number() ? jf["retail_calls"].get<int>() : -1;
+        // baked draw-program semantic diff (present only on both-sides columns)
+        c.draw_verdict = jf.value("draw_verdict", "");
+        c.port_tris = jf.value("port_tris", json()).is_number() ? jf["port_tris"].get<int>() : -1;
+        c.retail_tris = jf.value("retail_tris", json()).is_number() ? jf["retail_tris"].get<int>() : -1;
+        c.n_textures = jf.value("n_textures", json()).is_number() ? jf["n_textures"].get<int>() : -1;
+        c.n_batched = jf.value("n_batched", json()).is_number() ? jf["n_batched"].get<int>() : -1;
+        if (jf.contains("divergent") && jf["divergent"].is_array())
+            for (auto &jd : jf["divergent"]) {
+                DivTex dt;
+                dt.tex = jd.value("tex", "");
+                dt.port_tris = jd.value("port_tris", 0); dt.retail_tris = jd.value("retail_tris", 0);
+                dt.port_draws = jd.value("port_draws", 0); dt.retail_draws = jd.value("retail_draws", 0);
+                c.divergent.push_back(dt);
+            }
         g_cols.push_back(c);
     }
     if (g_cols.empty()) { fprintf(stderr, "view has no frames\n"); return false; }
@@ -227,6 +259,21 @@ static void draw_ui()
     ImGui::SameLine(); if (ImGui::Button(">|")) seek((int)g_cols.size() - 1);
     ImGui::SameLine(); ImGui::Text("col %d/%d · offset %d", g_cur, (int)g_cols.size() - 1, c.offset);
 
+    // draw-step row (N3): step through draws (render_upto) to watch a frame build up
+    // or isolate a divergent draw. Each side renders its first g_draw_step draws.
+    int maxd = col_maxdraws(c);
+    if (ImGui::Checkbox("draw step", &g_step_on)) { if (g_draw_step > maxd) g_draw_step = maxd; show_column(g_cur); }
+    ImGui::SameLine(); ImGui::BeginDisabled(!g_step_on);
+    ImGui::SetNextItemWidth(-420);
+    if (ImGui::SliderInt("##drawstep", &g_draw_step, 0, maxd, "first %d draws")) { if (g_draw_step < 0) g_draw_step = 0; show_column(g_cur); }
+    ImGui::SameLine(); if (ImGui::Button("draw -")) { if (g_draw_step > 0) g_draw_step--; show_column(g_cur); }
+    ImGui::SameLine(); if (ImGui::Button("draw +")) { if (g_draw_step < maxd) g_draw_step++; show_column(g_cur); }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    int pe = step_budget(c.port_draws) < 0 ? c.port_draws : step_budget(c.port_draws);
+    int re = step_budget(c.retail_draws) < 0 ? c.retail_draws : step_budget(c.retail_draws);
+    ImGui::Text("issuing  port %d/%d · retail %d/%d", pe, c.port_draws, re, c.retail_draws);
+
     // 3-panel row
     int nshow = (g_show[0] ? 1 : 0) + (g_show[1] ? 1 : 0) + (g_show[2] ? 1 : 0);
     if (nshow < 1) nshow = 1;
@@ -259,8 +306,10 @@ static void draw_ui()
     ImGui::SameLine(); ImGui::TextDisabled("worst: offset %d gt8=%dpx", g_cols[worst].offset, g_cols[worst].gt8);
 
     ImGui::Separator();
-    ImGui::Text("identity: %s+%d   |   diff: gt8 %d px · meanabs %.4f · max|d| %d%s",
-                g_anchor.c_str(), c.offset, c.gt8, c.meanabs, c.maxd, c.gap.size() ? "  (GAP)" : "");
+    const Col &dm = g_step_on ? g_stepmetric : c;   // stepped diff vs full-frame diff
+    ImGui::Text("identity: %s+%d   |   diff%s: gt8 %d px · meanabs %.4f · max|d| %d%s",
+                g_anchor.c_str(), c.offset, g_step_on ? " (stepped)" : "",
+                dm.gt8, dm.meanabs, dm.maxd, c.gap.size() ? "  (GAP)" : "");
     if (ImGui::BeginTable("state", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame)) {
         ImGui::TableSetupColumn("field"); ImGui::TableSetupColumn("retail"); ImGui::TableSetupColumn("port");
         ImGui::TableHeadersRow();
@@ -280,7 +329,26 @@ static void draw_ui()
         }
         ImGui::EndTable();
     }
-    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · w worst · n next");
+
+    // draw-program semantic diff (N3): pixels can be ALIGNED while the render PROGRAM
+    // differs — the v3 insight v2 is blind to. Show the material verdict + the
+    // genuinely-divergent textures (one-sided / differing geometry), with an isolate.
+    if (!c.draw_verdict.empty()) {
+        bool va = c.draw_verdict == "ALIGNED", vb = c.draw_verdict == "BATCHING";
+        ImVec4 dvc = va ? ImVec4(0.41f, 0.82f, 0.51f, 1) : vb ? ImVec4(1, 0.85f, 0.4f, 1) : ImVec4(1, 0.55f, 0.33f, 1);
+        ImGui::Text("draw program:"); ImGui::SameLine();
+        ImGui::TextColored(dvc, "%s", c.draw_verdict.c_str()); ImGui::SameLine();
+        ImGui::Text("· %d textures · %d batched (split vs batched, geometry identical)", c.n_textures, c.n_batched);
+        for (size_t k = 0; k < c.divergent.size(); k++) {
+            const DivTex &d = c.divergent[k];
+            const char *side = d.port_tris == 0 ? "retail-only" : d.retail_tris == 0 ? "port-only" : "differs";
+            ImGui::TextColored(ImVec4(1, 0.55f, 0.33f, 1),
+                "  ! %s tex %s : port %dpr/%ddr  retail %dpr/%ddr",
+                side, d.tex.c_str(), d.port_tris, d.port_draws, d.retail_tris, d.retail_draws);
+        }
+    }
+
+    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · w worst · n next");
     ImGui::End();
 }
 
@@ -335,7 +403,7 @@ static void destroy_device()
     if (g_d3d) { g_d3d->Release(); g_d3d = nullptr; }
 }
 
-static int do_shot(const char *out, const char *view, int W, int H)
+static int do_shot(const char *out, const char *view, int W, int H, int col, int draw_step)
 {
     WNDCLASSEXA wc = {sizeof(wc)};
     wc.lpfnWndProc = DefWindowProcA; wc.hInstance = GetModuleHandleA(nullptr);
@@ -344,6 +412,8 @@ static int do_shot(const char *out, const char *view, int W, int H)
     if (!create_device(hwnd, W, H)) { fprintf(stderr, "CreateDevice failed\n"); return 2; }
     imgui_init(hwnd);
     if (view && !load_view(view)) return 2;
+    if (draw_step >= 0) { g_step_on = true; g_draw_step = draw_step; }   // headless draw-step verify
+    if (col > 0) seek(col); else if (g_step_on) show_column(g_cur);      // apply col/step before the shot
     begin_frame(); draw_ui(); end_frame();
 
     IDirect3DSurface9 *bb = nullptr, *sys = nullptr; int rc = 2;
@@ -386,6 +456,10 @@ static void handle_keys()
     if (ImGui::IsKeyPressed(ImGuiKey_3)) g_show[2] = !g_show[2];
     if (ImGui::IsKeyPressed(ImGuiKey_W)) { int wbest = 0; for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].gt8 > g_cols[wbest].gt8) wbest = (int)i; seek(wbest); }
     if (ImGui::IsKeyPressed(ImGuiKey_N)) { for (size_t i = g_cur + 1; i < g_cols.size(); i++) if (g_cols[i].gt8 > 0) { seek((int)i); break; } }
+    // [ ] step draws (engages draw-stepping); clamp to this column's max
+    int maxd = col_maxdraws(g_cols[g_cur]);
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))  { g_step_on = true; if (g_draw_step > 0)    g_draw_step--; show_column(g_cur); }
+    if (ImGui::IsKeyPressed(ImGuiKey_RightBracket)) { g_step_on = true; if (g_draw_step < maxd) g_draw_step++; show_column(g_cur); }
 }
 
 static int do_interactive(const char *view)
@@ -418,10 +492,13 @@ static int do_interactive(const char *view)
 int main(int argc, char **argv)
 {
     const char *shot = nullptr, *view = nullptr;
+    int col = 0, draw_step = -1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--shot") == 0 && i + 1 < argc) shot = argv[++i];
+        else if (strcmp(argv[i], "--col") == 0 && i + 1 < argc) col = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--draw-step") == 0 && i + 1 < argc) draw_step = atoi(argv[++i]);
         else view = argv[i];
     }
-    if (shot) return do_shot(shot, view, 1400, 900);
+    if (shot) return do_shot(shot, view, 1400, 900, col, draw_step);
     return do_interactive(view);
 }
