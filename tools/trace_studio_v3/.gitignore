@@ -4,3 +4,4 @@ proxy/proxy_generated.h
 *.exe
 *.o
 *.bin
+*.bmp

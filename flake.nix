@@ -14,6 +14,12 @@
         # 32-bit mingw cross compiler — Recettear is 32-bit Win32 PE.
         mingw32 = pkgs.pkgsCross.mingw32.buildPackages;
 
+        # Dear ImGui source (Trace Studio v3 native viewer — compiled into the
+        # 32-bit viewer.exe with the Win32 + DX9 backends; ImGui is meant to be
+        # vendored into the app, so we pin the upstream source via nixpkgs and
+        # point the Makefile at $IMGUI_SRC rather than committing it to the repo).
+        imguiSrc = pkgs.imgui.src;
+
         # Python environment for tooling (extractors, test harness, contact sheets).
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           pillow            # image manipulation, contact sheets
@@ -104,6 +110,9 @@
             export MINGW_CC=i686-w64-mingw32-gcc
             export MINGW_AR=i686-w64-mingw32-ar
             export MINGW_STRIP=i686-w64-mingw32-strip
+
+            # Dear ImGui source for the Trace Studio v3 native viewer (tools/trace_studio_v3/viewer).
+            export IMGUI_SRC=${imguiSrc}
 
             # Banner only for an interactive shell (stdout is a tty). Under
             # `nix develop --command <cmd>` stdout is a pipe, so this stays silent
