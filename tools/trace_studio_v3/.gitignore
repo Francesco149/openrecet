@@ -1,0 +1,6 @@
+# generated + build artifacts
+proxy/proxy_generated.h
+*.dll
+*.exe
+*.o
+*.bin
