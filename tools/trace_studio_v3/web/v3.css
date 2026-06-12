@@ -1,0 +1,19 @@
+/* v3.css — small additions on top of the reused v2 /style.css + /studio.css.
+   The v3 viewer is intentionally close to v2; only the bits v2 didn't need. */
+
+/* honest-gap panel placeholder (one side genuinely has no frame at this offset) */
+.tv.missing {
+  width: 100%; aspect-ratio: 4 / 3; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  background: repeating-linear-gradient(45deg, #15171c, #15171c 8px, #1b1e25 8px, #1b1e25 16px);
+  color: var(--warn); border-radius: 4px; font-size: 12px;
+}
+/* images get the same pixelated, full-width treatment as the v2 video panels */
+.vpanel img.tv { width: 100%; display: block; image-rendering: pixelated;
+  background: #000; cursor: crosshair; border-radius: 4px; }
+
+.warn { color: var(--warn); }
+.diffstat { margin-bottom: .5rem; }
+.diffstat b { color: var(--fg); }
+.state tr.neutral td { color: var(--dim); }   /* present row: load-stretch differ is expected */
+.vidblock { min-width: 0; }

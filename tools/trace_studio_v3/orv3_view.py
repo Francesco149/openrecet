@@ -70,10 +70,11 @@ def merge_offsets(port_offsets: set[int], retail_offsets: set[int]) -> list[dict
 
 
 def _side_index(entry: Path):
-    """offset -> (kept-index, present) for a cache entry, from its meta + container."""
+    """offset -> orv3.Frame for a cache entry, keyed by identity offset (meta +
+    container). The Frame carries index/present/draws/calls/res for the state panel."""
     meta = v3cache.load_meta(entry)
     c = orv3.Container.load(entry / "v3cap.bin")
-    return meta, {meta.offset_of(f.index): (f.index, f.present) for f in c.frames}
+    return meta, {meta.offset_of(f.index): f for f in c.frames}
 
 
 def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
@@ -98,20 +99,27 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
         off = row["offset"]
         entry = {"offset": off, "port": None, "retail": None, "diff": None,
                  "gt8": None, "meanabs": None, "maxd": None, "gap": row["gap"],
-                 "port_present": None, "retail_present": None}
+                 "port_present": None, "retail_present": None,
+                 "port_draws": None, "retail_draws": None,
+                 "port_calls": None, "retail_calls": None,
+                 "port_res": None, "retail_res": None}
         prgb = rrgb = None
         if row["has_port"]:
-            k, present = pidx[off]
-            prgb = read_raw_rgb(port_entry / f"v3ref_{k:03d}.raw")
+            pf = pidx[off]
+            prgb = read_raw_rgb(port_entry / f"v3ref_{pf.index:03d}.raw")
             rel = f"port/o{off:04d}.png"
             save_png(prgb, out_dir / rel)
-            entry["port"], entry["port_present"] = rel, present
+            entry["port"], entry["port_present"] = rel, pf.present
+            entry["port_draws"], entry["port_calls"] = pf.n_draws, pf.n_calls
+            entry["port_res"] = len(pf.res_referenced)
         if row["has_retail"]:
-            k, present = ridx[off]
-            rrgb = read_raw_rgb(retail_entry / f"v3ref_{k:03d}.raw")
+            rf = ridx[off]
+            rrgb = read_raw_rgb(retail_entry / f"v3ref_{rf.index:03d}.raw")
             rel = f"retail/o{off:04d}.png"
             save_png(rrgb, out_dir / rel)
-            entry["retail"], entry["retail_present"] = rel, present
+            entry["retail"], entry["retail_present"] = rel, rf.present
+            entry["retail_draws"], entry["retail_calls"] = rf.n_draws, rf.n_calls
+            entry["retail_res"] = len(rf.res_referenced)
         if prgb is not None and rrgb is not None and prgb.shape == rrgb.shape:
             # retail = ground truth (A/left); port = B — matches pixel_diff/v2.
             d, _differ, meanabs = amplified_diff(rrgb, prgb, amp)
