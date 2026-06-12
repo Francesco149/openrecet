@@ -474,7 +474,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   clean out-of-extent error; `--force-port` = **"drove only: port"** (port re-driven 48/48, retail
   sliced 20/20, joined 20/20) — v2's `--only port` loop, now immune to window changes. Lookup logic
   hermetic-unit-tested; `slice_entry`/`sync_entries` factored out of the CLIs (behavior-preserving).
-  **Next → P3 (the viewer: replay-served panels + preserved v2 UX + the semantic diff/pick layer).**
+  **P3 VIEWER — PIVOTED to NATIVE, N0/N1/N2 DONE + user-confirmed (2026-06-12).** A web
+  prototype (PNG-bake + `orv3_serve` + preact `web/`) works but the user rejected it (the
+  bake reintroduces v2's pains: stale PNGs, ~150 MB dup pixels, ~150 ms/frame encode that
+  caps faster-than-realtime replay); kept only as a fallback. The native viewer
+  (`tools/trace_studio_v3/viewer/`, C++/Dear ImGui/d3d9, mingw **i686** to match the real
+  d3d8) replays the container ON DEMAND — the container is the only artifact. **N1
+  `replay_core.{c,h}`** = the proven replayer factored RESIDENT (device + 26 MB resources
+  created once; render any frame on demand) — 48/48 HOUSE regression still bit-exact, and
+  the perf proof that settles the wiring question: **resident per-render = 1.42 ms best**
+  (1083 calls + readback) vs ~620 ms cold (~200×) ⇒ 60 fps+ scrub, faster than realtime.
+  **N2** = the full **port|retail|diff** viewer reading `view.json` (orv3_view `--native`:
+  the identity-join timeline, no bake): panels replayed live (diff CPU-computed, gt8 same
+  law as pixel_diff), diff ribbon (heat/click-seek/worst-next), per-frame state table
+  (present/draws/calls retail-vs-port, diff-highlighted — surfaces the **125-vs-98 draw**
+  divergence that is bit-exact in pixels: identical output from different render programs,
+  invisible to v2), scrub+keys+panel-toggles, honest-gap panels, **synced entirely by
+  stored identity** (no align/renumber/seam). Stack pinned via `flake.nix`
+  ($IMGUI_SRC/$NLOHMANN_JSON_INC); headless `--shot out.bmp` self-verifies with no display.
+  d3d8→d3d9 bridge gotcha: alpha-less backbuffer needs an **X8** texture (A8 ⇒ transparent).
+  **Next → N3 (semantic diff/pick: which draw/state/texture differs — 125-vs-98 first;
+  draw isolation; pixel→draw pick) + a one-command launcher.** Plan: `plans/trace-studio-v3.md` P3.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

@@ -496,7 +496,38 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   nothing re-driven, 20/20 ALIGNED) and drives ONLY what's missing/stale (`--force-port` → "drove
   only: port", retail sliced from cache), guarded by a dir-key re-hash (never serve a stale-trace
   entry) + a port-exe-mtime freshness check (auto-detect a rebuild). **Next → P3 (the viewer).**
-- **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.
+- **P3 — Viewer. PIVOTED to a NATIVE viewer (user call, 2026-06-12) — N0/N1/N2 DONE,
+  user-confirmed.** A first **web** prototype (orv3_view PNG-bake + orv3_serve + the
+  preact SPA, `web/`) works and is KEPT as a fallback, but the user rejected it: the PNG
+  bake reintroduces v2's pains (stale intermediates, ~150 MB of duplicated pixels, a
+  ~150 ms/frame encode that caps the faster-than-realtime replay). The native viewer
+  replays the container ON DEMAND — the container is the only artifact, no bake.
+  - **Stack:** C++ / Dear ImGui (Win32 + DX9 backends) / mingw **i686** (32-bit so the
+    process matches the real 32-bit d3d8.dll the replay core loads). d3d9 hosts the UI;
+    two d3d8 replay cores (port + retail) render frames into d3d9 textures. ImGui +
+    nlohmann_json pinned via `flake.nix` ($IMGUI_SRC / $NLOHMANN_JSON_INC). Headless
+    `--shot out.bmp` mode renders one UI frame offscreen → BMP, so the build loop
+    self-verifies with no display (pushed to the feed each step).
+  - **N0 (`65bcdd7`-era spike):** ImGui+d3d9 window builds + renders headless under
+    WSL→Windows. **N1:** `replay_core.{c,h}` — the proven replayer factored RESIDENT
+    (device + all 26 MB resources created ONCE at open; render any frame on demand);
+    replay.exe slimmed to a thin CLI over it, 48/48 HOUSE regression still BIT-EXACT.
+    **PERF PROOF (settles the wiring-overhead question):** resident per-render = best
+    **1.42 ms** / mean 2.95 ms (1083 calls + readback, 1024×768) vs ~620 ms cold — ~200×;
+    two panels + diff + upload < one 16 ms frame ⇒ 60 fps+ scrub, faster than realtime.
+    The d3d8→d3d9 texture bridge gotcha: the alpha-less backbuffer needs an **X8**R8G8B8
+    texture (an A8 one draws it fully transparent). **N2:** the full 3-panel viewer
+    reading `view.json` (orv3_view `--native`: the identity-join timeline + container
+    paths, NO PNG bake) — port|retail|diff panels (diff CPU-computed, gt8/meanabs same law
+    as pixel_diff), diff ribbon (heat/click-seek/worst-next, metrics precomputed per
+    column), per-frame state table (present/draws/calls retail-vs-port, diff-highlighted —
+    surfaces the 125-vs-98 draw structural divergence), scrub + ,/. arrows Home/End + 1/2/3
+    toggles, honest-gap panels. **Synced ENTIRELY by stored identity** (no align/renumber/
+    seam). **All three user-confirmed 2026-06-12** ("viewer looks great", "diff and state
+    panel look great too").
+  - **Next (P3 tail):** N3 = the semantic diff/pick layer (which draw/state/texture differs
+    — the 125-vs-98 is the first target; draw isolation, pixel→draw picking) + a one-command
+    launcher (drive/slice/sync → view.json → viewer). Then marks/crops parity with v2.
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.
 
