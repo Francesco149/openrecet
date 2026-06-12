@@ -29,6 +29,7 @@ Usage (host tools need the nix prefix):
 """
 import argparse
 import json
+import re
 import subprocess
 import threading
 import time
@@ -118,8 +119,13 @@ def main() -> int:
     mode.add_argument("--arm", metavar="START:COUNT",
                       help="same window, but armed at RUNTIME via the proxy's "
                            "OrV3ArmWindowAt export (Frida NativeFunction) before resume — "
-                           "the delivery path anchor-relative capture uses. Proves the "
-                           "export ABI on the title.")
+                           "proves the export ABI on the title.")
+    mode.add_argument("--arm-anchor", metavar="NAME[+OFF]:COUNT",
+                      help="ANCHOR-RELATIVE: the agent arms OrV3ArmWindowAt(anchor_frame+"
+                           "OFF, COUNT) IN-PROCESS the first time anchor NAME fires "
+                           "(config.v3_arm). The window lands relative to a semantic event, "
+                           "so the nondeterministic load-stretch can't miss it. "
+                           "e.g. BOOT+120:48 (title) or HOUSE_FREEROAM+120:48 (post-load).")
     ap.add_argument("--seconds", type=float, default=12.0,
                     help="wall-clock to let retail turbo-run (must reach the window END).")
     ap.add_argument("--max-frames", type=int, default=8000,
@@ -129,24 +135,37 @@ def main() -> int:
     ap.add_argument("--frida-remote", default=DEFAULT_REMOTE)
     args = ap.parse_args()
 
-    spec = args.window or args.arm
     runtime_arm = args.arm is not None
-    try:
-        s, c = spec.split(":")
-        win_start, win_count = int(s), int(c)
-    except ValueError:
-        raise SystemExit(f"--{'arm' if runtime_arm else 'window'} wants START:COUNT (got {spec!r})")
+    anchor_arm = None
+    win_start = win_count = None
+    if args.arm_anchor is not None:
+        m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)([+-]\d+)?:(\d+)$', args.arm_anchor)
+        if not m:
+            raise SystemExit(f"--arm-anchor wants NAME[+OFF]:COUNT (got {args.arm_anchor!r})")
+        anchor_arm = {"anchor": m.group(1), "offset": int(m.group(2) or 0), "count": int(m.group(3))}
+    else:
+        spec = args.window or args.arm
+        try:
+            s, c = spec.split(":")
+            win_start, win_count = int(s), int(c)
+        except ValueError:
+            raise SystemExit(f"--{'arm' if runtime_arm else 'window'} wants START:COUNT (got {spec!r})")
 
     if not PROXY_SRC.exists():
         raise SystemExit(f"proxy not built: {PROXY_SRC} — `make` in proxy/")
 
     # stage proxy. --window: config travels via v3proxy.cfg (env vars don't cross to
-    # a Frida-spawned exe), read at CreateDevice. --arm: NO cfg (the proxy idles,
-    # dropping every present, until OrV3ArmWindowAt is called at runtime below).
+    # a Frida-spawned exe), read at CreateDevice. --arm / --arm-anchor: NO cfg (the
+    # proxy idles, dropping every present, until OrV3ArmWindowAt is called — at
+    # runtime by this driver, or in-process by the agent when its anchor fires).
     import shutil
     shutil.copy2(PROXY_SRC, PROXY_DLL)
     cfg_path = PROXY_DLL.parent / "v3proxy.cfg"
-    if runtime_arm:
+    if anchor_arm:
+        cfg_path.unlink(missing_ok=True)
+        print(f"[stage] {PROXY_DLL.name} staged (no cfg) → ANCHOR-ARM "
+              f"{anchor_arm['anchor']}+{anchor_arm['offset']}:{anchor_arm['count']} (agent in-process)")
+    elif runtime_arm:
         cfg_path.unlink(missing_ok=True)
         print(f"[stage] {PROXY_DLL.name} staged (no cfg) → RUNTIME-ARM window "
               f"[{win_start},{win_start+win_count}) via OrV3ArmWindowAt")
@@ -167,6 +186,13 @@ def main() -> int:
     def on_message(message, data):
         if message.get("type") == "error":
             log_lines.append(f"[frida-error] {message.get('description','')}")
+            return
+        if message.get("type") == "send":
+            p = message.get("payload") or {}
+            if p.get("kind") == "v3_arm":
+                start, count = p.get("start", 0), p.get("count", 0)
+                print(f"[arm]   agent armed in-process: {p.get('anchor')}@frame {p.get('frame')} "
+                      f"-> window [{start},{start+count})")
 
     dm = frida.get_device_manager()
     try:
@@ -202,6 +228,10 @@ def main() -> int:
         "silent_audio":     True,
         "force_resolution": [res_w, res_h],
     }
+    if anchor_arm:
+        # the agent arms the proxy IN-PROCESS when this anchor fires (config.v3_arm);
+        # implies anchor_trace on the agent side. No explicit NativeFunction arm here.
+        init_cfg["v3_arm"] = anchor_arm
     print(f"[init]  force_resolution={res_w}x{res_h}; "
           f"{json.dumps({k: v for k, v in init_cfg.items() if k != 'force_resolution'})}")
     script.exports_sync.init(init_cfg)

@@ -784,6 +784,17 @@ let g_cap_anchor_unfired   = new Set();  // distinct names not yet fired
 let g_cap_anchor_pending   = new Set();  // resolved target frames pending
 let g_cap_anchor_done_sent = false;
 
+// Trace Studio v3 — anchor-relative capture-proxy arm. When config.v3_arm =
+// {anchor, offset, count} is set, the FIRST time `anchor` fires the agent calls
+// the staged proxy d3d8.dll's OrV3ArmWindowAt(anchor_frame+offset, count) export
+// IN-PROCESS (zero IPC latency), so the proxy keeps the post-load present-window
+// despite the nondeterministic turbo load-stretch (a cfg-fixed present-count only
+// reaches the deterministic-early title). No-op unless the v3 proxy is staged AND
+// v3_arm is set ⇒ a normal v2 capture is never affected. See docs/plans/trace-studio-v3.md.
+let g_v3_arm        = null;   // {anchor:str, offset:int, count:int} | null
+let g_v3_arm_fn     = null;   // NativeFunction(OrV3ArmWindowAt) (lazy-resolved once)
+let g_v3_arm_fired  = false;  // arm exactly once
+
 // TAS P3 retail side — anchor-segmented input forcing (`--input-segtrace`),
 // the deterministic replacement for the `auto_z_spam` hack. The op list is a
 // strict superset of the sparse {frame,mask} input trace: a `{wait:NAME}` op
@@ -3086,11 +3097,38 @@ function anchorCaptureSchedule(name, frame, devicePtr) {
 // needs both to write the port-format raw row {anchor,frame,gframe,rng} so
 // distill --anchor-segments can re-pin RNG per anchor — i.e. a retail-recorded
 // trace replays deterministically the same way a port F2 recording does.
+// Trace Studio v3 anchor-relative arm: on the FIRST firing of the configured
+// anchor, call the staged capture-proxy's OrV3ArmWindowAt(frame+offset, count) so
+// the proxy keeps the present-window [frame+offset, +count). offset>0 ⇒ armed well
+// before the window starts (no race with the per-Present keep-check). In-process ⇒
+// deterministic (no Python round-trip burning frames). Silent once-and-done no-op
+// if the proxy isn't staged (export absent) ⇒ a normal v2 run is unaffected.
+function v3ArmOnAnchor(name, frame) {
+    if (!g_v3_arm || g_v3_arm_fired || name !== g_v3_arm.anchor) return;
+    if (!g_v3_arm_fn) {
+        const m = Process.findModuleByName('d3d8.dll');
+        const fn = m ? m.findExportByName('OrV3ArmWindowAt') : null;
+        if (!fn) {
+            log('v3_arm: OrV3ArmWindowAt not found (proxy d3d8.dll not staged?) — skipped');
+            g_v3_arm_fired = true;   // don't re-probe every anchor
+            return;
+        }
+        g_v3_arm_fn = new NativeFunction(fn, 'void', ['uint', 'uint'], 'stdcall');
+    }
+    const start = (frame + g_v3_arm.offset) >>> 0;
+    g_v3_arm_fn(start, g_v3_arm.count);
+    g_v3_arm_fired = true;
+    log('v3_arm: ' + name + '+' + g_v3_arm.offset + ' @frame ' + frame +
+        ' -> OrV3ArmWindowAt(' + start + ',' + g_v3_arm.count + ')');
+    send({kind: 'v3_arm', anchor: name, frame: frame, start: start, count: g_v3_arm.count});
+}
+
 function sendAnchor(name, frame) {
     let gframe = 0, rng = 0;
     try { gframe = rva(ADDR.var_frame_counter).readU32(); } catch (e) {}
     try { rng    = rva(ADDR.var_lcg_seed).readU32(); } catch (e) {}
     send({kind: 'anchor', anchor: name, frame: frame, gframe: gframe, rng: rng});
+    v3ArmOnAnchor(name, frame);   // studio-v3: arm the capture proxy on its anchor
 }
 
 function anchorTick(frame, devicePtr) {
@@ -5003,6 +5041,18 @@ rpc.exports = {
             }
             if (g_cap_anchor_reqs.length > 0) g_anchor_trace_enabled = true;
         }
+
+        // Trace Studio v3 — anchor-relative capture-proxy arm (opt-in; a silent
+        // no-op without the staged proxy d3d8.dll, so v2 captures are unaffected).
+        // Like capture_at_anchor it needs the anchor poll, so force it on.
+        g_v3_arm = (config.v3_arm && typeof config.v3_arm.anchor === 'string')
+            ? {anchor: config.v3_arm.anchor,
+               offset: (config.v3_arm.offset | 0),
+               count:  (config.v3_arm.count  | 0) || 1}
+            : null;
+        g_v3_arm_fn = null;
+        g_v3_arm_fired = false;
+        if (g_v3_arm) g_anchor_trace_enabled = true;
 
         // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
         // with auto_z_spam to drive a fresh new-game to HOUSE.

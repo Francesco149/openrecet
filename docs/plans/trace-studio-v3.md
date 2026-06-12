@@ -81,17 +81,31 @@ MULTI trigger — retail does **not** read back per frame, so the window is addr
   6 UP-draws/frame CONSTANT (288 total, no accumulation), 5 textures dedup'd, backbuffer
   flags=0x0 (retail non-lockable, CopyRects readback). Finalized in **1.69 s** under turbo.
 
-Mechanism: `capframe`/`capcount` via `v3proxy.cfg` (or env / a future runtime arm); one
-`cb_reset` per present (after a kept `write_frame`, or to drop a non-window frame) keeps `g_cb`
-to the CURRENT frame only. Committed: the proxy WINDOW branch (`d3d8_proxy.c`), `port_capture.py
---window`, and the retail driver `tools/trace_studio_v3/retail_capture.py` (stage proxy + cfg →
-Frida spawn turbo → poll for FINALIZE → pull → replay every frame + assert bit-exact). **The
-capture mechanism for retail full-extent is now PROVEN.**
-**Next: anchor-relative arming** (the proxy's `OrV3ArmWindowAt` export + the agent's anchor
-resolver, so a post-load gameplay window lands despite the nondeterministic load-stretch — a
-fixed present-count only reaches the deterministic-early title) **+ the content-addressed slice
-cache** (capture retail's window ONCE, key by trace-hash, slice sub-windows with zero re-drives)
-→ P2 sync-by-identity.
+Mechanism: `capframe`/`capcount` via `v3proxy.cfg` (or env / a runtime arm); one `cb_reset` per
+present (after a kept `write_frame`, or to drop a non-window frame) keeps `g_cb` to the CURRENT
+frame only. Committed: the proxy WINDOW branch (`d3d8_proxy.c`), `port_capture.py --window`, and
+the retail driver `tools/trace_studio_v3/retail_capture.py` (stage proxy + cfg → Frida spawn
+turbo → poll for FINALIZE → pull → replay every frame + assert bit-exact). **The capture
+mechanism for retail full-extent is now PROVEN.**
+
+**P1 TAIL — ANCHOR-RELATIVE arming ✅ DONE on the title (2026-06-12).** A cfg-fixed present-count
+only reaches the deterministic-early title; a post-load gameplay window's present-count is
+nondeterministic (turbo load-stretch), so the harness arms the proxy LIVE at an anchor. Two
+delivery paths, both proven bit-exact:
+- **`OrV3ArmWindowAt(start,count)` proxy export** (WINAPI/stdcall, undecorated via `--kill-at`):
+  `retail_capture.py --arm 120:48` calls it via Frida `NativeFunction` before resume → 48/48
+  BIT-EXACT. Confirms the export ABI AND that d3d8.dll is a static import (findable pre-resume).
+- **Agent IN-PROCESS arm** (`config.v3_arm = {anchor, offset, count}`): the agent's `sendAnchor`
+  calls `OrV3ArmWindowAt(anchor_frame+offset, count)` the first time the anchor fires — zero IPC
+  latency (no Python round-trip burning frames), so `offset>0` ⇒ armed well before the window
+  starts. `retail_capture.py --arm-anchor BOOT+120:48` → the agent armed `BOOT@frame 0 ->
+  [120,168)` → 48/48 BIT-EXACT. The agent edit is gated on `config.v3_arm` (null default) ⇒ a
+  silent no-op for every v2 capture (node-syntax-checked; this run exercised it end-to-end).
+**Next: drive retail to the HOUSE** (save-virt + input via the v2 `frida_capture`/scenario-test
+machinery — orthogonal, already proven) **and arm at `HOUSE_FREEROAM+120`** for a real post-load
+3D window → the full retail full-extent deliverable. **Then the content-addressed slice cache**
+(capture retail's window ONCE, key by trace-hash, slice sub-windows with zero re-drives) →
+P2 sync-by-identity.
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
