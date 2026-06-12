@@ -51,21 +51,34 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawPrimitiveUP(IDirect3DDe
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawIndexedPrimitiveUP(IDirect3DDevice8*, D3DPRIMITIVETYPE, UINT, UINT, UINT, const void*, D3DFORMAT, const void*, UINT);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetLight(IDirect3DDevice8*, DWORD, const D3DLIGHT8*);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice8*, DWORD, WINBOOL);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8*, UINT, D3DBACKBUFFER_TYPE, IDirect3DSurface8**);
 
 #include "proxy_generated.h"
 
 /* ── logging ── */
 static FILE     *g_log;
 static HINSTANCE g_self;
+/* Resolve output to Windows-LOCAL NTFS (never the \\wsl.localhost 9p mount —
+ * writing the container there throttles the engine to a crawl). Default
+ * %LOCALAPPDATA%\openrecet\v3 (same fast-disk pattern the port uses for se.pack);
+ * WSL reads it back via /mnt/c/...  OPENRECET_V3_OUT overrides. */
 static void proxy_out_path(char *out, size_t n, const char *leaf)
 {
-    const char *dir = getenv("OPENRECET_V3_OUT");
-    if (dir && *dir) { snprintf(out, n, "%s\\%s", dir, leaf); return; }
-    char self[MAX_PATH] = ".";
-    DWORD k = GetModuleFileNameA(g_self, self, sizeof self);
-    while (k && self[k] != '\\' && self[k] != '/') k--;
-    self[k] = 0;
-    snprintf(out, n, "%s\\%s", self, leaf);
+    const char *env = getenv("OPENRECET_V3_OUT");
+    if (env && *env) { snprintf(out, n, "%s\\%s", env, leaf); return; }
+    static char base[MAX_PATH]; static int inited;
+    if (!inited) {
+        const char *lad = getenv("LOCALAPPDATA");
+        if (lad && *lad) {
+            char a[MAX_PATH]; snprintf(a, sizeof a, "%s\\openrecet", lad); CreateDirectoryA(a, NULL);
+            snprintf(base, sizeof base, "%s\\openrecet\\v3", lad); CreateDirectoryA(base, NULL);
+        } else {
+            char tmp[MAX_PATH]; GetTempPathA(sizeof tmp, tmp);
+            snprintf(base, sizeof base, "%sopenrecet_v3", tmp); CreateDirectoryA(base, NULL);
+        }
+        inited = 1;
+    }
+    snprintf(out, n, "%s\\%s", base, leaf);
 }
 static void proxy_log(const char *fmt, ...)
 {
@@ -76,10 +89,11 @@ static void proxy_log(const char *fmt, ...)
 
 /* ── capture state ── */
 static FILE     *g_cap;            /* container file */
-static unsigned  g_capframe = 110; /* target frame (env OPENRECET_V3_CAPFRAME) */
+static unsigned  g_capframe = 0xFFFFFFFFu; /* present-count target; default = never (use the GetBackBuffer trigger) */
 static unsigned  g_frame;          /* present-counted frame index */
 static int       g_capturing;
 static unsigned  g_present_count;
+static long      g_frame_start_pos; /* container offset after DEV_PARAMS; single-frame mode rewinds here each frame */
 /* resource dedup: ptr -> id */
 #define ORV3_MAXRES 4096
 static void     *g_res_ptr[ORV3_MAXRES];
@@ -195,6 +209,19 @@ static int readback_raw(IDirect3DDevice8 *dev, const char *path)
 
 #define CAP (g_capturing && g_cap)
 
+/* finalize the capture: snapshot the reference backbuffer + close the container.
+ * Called either at a present-count target (Present) or when the app reads back
+ * the backbuffer for its own screenshot (GetBackBuffer trigger — aligns capture
+ * to the harness's --capture-frames in sim-frame space). */
+static void finalize_capture(IDirect3DDevice8 *real_dev)
+{
+    if (!CAP) return;
+    char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, "v3ref.raw");
+    readback_raw(real_dev, ref);
+    orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
+    proxy_log("FINALIZE: frames 0..%u (%d resources) + reference\n", g_frame, g_next_resid);
+}
+
 /* ── real d3d8 resolution ── */
 typedef IDirect3D8 *(WINAPI *PFN_Create8)(UINT);
 static HMODULE g_realDll; static PFN_Create8 g_realCreate;
@@ -259,6 +286,7 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3D8_CreateDevice(
         orv3_wu(g_cap, pp->FullScreen_PresentationInterval);
         orv3_wu(g_cap, Adapter); orv3_wu(g_cap, (uint32_t)DeviceType);
         orv3_wu(g_cap, (uint32_t)pp->EnableAutoDepthStencil);
+        g_frame_start_pos = ftell(g_cap);   /* single-frame mode rewinds here */
         g_capturing = 1;
         proxy_log("capture begin: %ux%u bbfmt=%u depth=%u flags=0x%x capframe=%u\n",
                   pp->BackBufferWidth, pp->BackBufferHeight, pp->BackBufferFormat,
@@ -285,13 +313,13 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Present(
 {
     WrapDev *w = (WrapDev*)This;
     if (CAP) {
-        orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
-        if (g_frame == g_capframe) {
-            char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, "v3ref.raw");
-            readback_raw(w->real, ref);
-            orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
-            proxy_log("captured frames 0..%u (%d resources) + reference -> done\n",
-                      g_capframe, g_next_resid);
+        if (g_frame == g_capframe) { orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame); finalize_capture(w->real); }
+        else {
+            /* single-frame mode: this frame wasn't the target (the GetBackBuffer
+             * trigger picks the target); rewind + re-arm for the next frame so the
+             * container only ever holds ONE frame (no load-stretch volume). */
+            fseek(g_cap, g_frame_start_pos, SEEK_SET);
+            g_n_res = 0; g_next_resid = 0;
         }
     }
     g_present_count++;
@@ -364,6 +392,11 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetLight(IDirect3DDevice8 *
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice8 *This, DWORD index, WINBOOL en)
 { if (CAP) { orv3_wu(g_cap, ORV3_LightEnable); orv3_wu(g_cap, index); orv3_wu(g_cap, (uint32_t)en); }
   return ((WrapDev*)This)->real->lpVtbl->LightEnable(((WrapDev*)This)->real, index, en); }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8 *This, UINT bb, D3DBACKBUFFER_TYPE type, IDirect3DSurface8 **pp)
+{ WrapDev *w = (WrapDev*)This;
+  HRESULT hr = w->real->lpVtbl->GetBackBuffer(w->real, bb, type, pp);
+  if (CAP && g_present_count >= 1) { proxy_log("GetBackBuffer trigger @ frame %u\n", g_frame); finalize_capture(w->real); }
+  return hr; }
 
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
 { (void)reserved; if (reason == DLL_PROCESS_ATTACH) { g_self = h; proxy_log("DllMain attach\n"); } return TRUE; }
