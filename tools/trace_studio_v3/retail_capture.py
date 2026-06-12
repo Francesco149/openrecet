@@ -132,6 +132,10 @@ def main() -> int:
                     help="engine-side frame budget handed to the agent (> window end).")
     ap.add_argument("--no-verify", action="store_true",
                     help="capture only; skip the per-frame bit-exact replay check.")
+    ap.add_argument("--keep-proxy", action="store_true",
+                    help="leave d3d8.dll + v3proxy.cfg staged in vendor/unpacked/ "
+                         "(default: unstage on exit — a staged proxy would load into "
+                         "v2 scenario-test --target retail runs).")
     ap.add_argument("--frida-remote", default=DEFAULT_REMOTE)
     args = ap.parse_args()
 
@@ -296,6 +300,12 @@ def main() -> int:
         print(f"[run]   ran {time.monotonic()-t0:.2f}s, detached={detached.is_set()}")
     finally:
         teardown()
+        # unstage the proxy so it can't load into a later v2 scenario-test retail run
+        # (a staged d3d8.dll wraps EVERY spawn of the unpacked exe).
+        if not args.keep_proxy:
+            PROXY_DLL.unlink(missing_ok=True)
+            cfg_path.unlink(missing_ok=True)
+            print(f"[stage] unstaged {PROXY_DLL.name}")
     for ln in log_lines:
         print(ln)
 
