@@ -196,11 +196,17 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   full call+resource stream for the PORT only, for a few frames, + a replayer + a
   screenshot-equality check. **Acceptance: one real frame replays bit-exact.** Go/no-go on
   the whole replay bet. *(Also answers R2 if extended to retail.)*
-- **P1 — Capture-at-scale (the 3D-test learnings).** Windowed capture + a device-state
-  snapshot at window start (R4) so a post-load target replays without the load-stretch;
-  local-disk container writes; content-hash resource dedup; `GetBackBuffer`-aligned frame
-  targeting (landed). THEN re-run the 3D HOUSE + multi-scene tests to bit-exact (proves the
-  VB/IB path + scene transitions). Measure real resource volume (closes E1). Retail
+- **P1 — Capture-at-scale (the 3D-test learnings).** LANDED: local-disk writes,
+  `GetBackBuffer`-aligned frame targeting, **single-frame capture** (rewind per frame; keep
+  only the trigger frame). **Verified bit-exact on the title with NO 0→N history (44 calls,
+  fresh device) → frames are self-contained, so a device-state snapshot is likely
+  UNNEEDED** (R4 downgraded). The remaining blocker for capturing a frame *past a long
+  load*: per-frame **resource snapshotting** throttles the engine through the
+  multi-thousand-frame load. **Fix = two-section container** — capture each frame's calls
+  cheaply (rewinding), snapshot each resource ONCE into a persistent cache (not per frame,
+  not rewound), and at finalize write `[resources][calls]` so the streaming replayer still
+  sees resources first. THEN re-run the 3D HOUSE + multi-scene tests to bit-exact (proves
+  the VB/IB path + scene transitions). Measure real resource volume (closes E1). Retail
   full-extent capture + cache.
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
   E3 prototype into the real pairing authority.
