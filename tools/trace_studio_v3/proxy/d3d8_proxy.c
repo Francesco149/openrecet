@@ -426,6 +426,23 @@ __declspec(dllexport) IDirect3D8 * WINAPI Direct3DCreate8(UINT SDKVersion)
     return (IDirect3D8*)w;
 }
 
+/* ── runtime arm (retail anchor-relative capture) ──
+ * A cfg-fixed present-count only reaches the deterministic-early TITLE; the
+ * post-load gameplay window's present-count is nondeterministic (turbo load-
+ * stretch), so the harness computes it LIVE — anchor present-count + offset — and
+ * calls this to set the window before g_frame reaches `start`. Until armed the
+ * proxy idles (the unset-capframe branch drops every present), so calling this any
+ * time before `start` is fine: g_capframe/g_capcount are plain targets the WINDOW
+ * branch reads. WINAPI(stdcall) + the Makefile's -Wl,--kill-at ⇒ an undecorated
+ * export name for Frida's NativeFunction(addr,'void',['uint','uint'],'stdcall'). */
+__declspec(dllexport) void WINAPI OrV3ArmWindowAt(unsigned start, unsigned count)
+{
+    g_capframe = start;
+    if (count) g_capcount = count;
+    proxy_log("ARM window [%u,%u) via export (now at present %u)\n",
+              g_capframe, g_capframe + g_capcount, g_frame);
+}
+
 /* ── factory custom ── */
 static HRESULT STDMETHODCALLTYPE my_IDirect3D8_QueryInterface(IDirect3D8 *This, REFIID riid, void **ppv)
 {

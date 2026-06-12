@@ -111,9 +111,15 @@ def replay_verify(v3: Path, n: int) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="v3 retail present-window capture + replay verify.")
-    ap.add_argument("--window", metavar="START:COUNT", required=True,
-                    help="present-count window [START, START+COUNT) to keep "
-                         "(e.g. 120:48 = a 48-frame title window).")
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--window", metavar="START:COUNT",
+                      help="present-count window [START, START+COUNT) via v3proxy.cfg "
+                           "(read at CreateDevice). e.g. 120:48 = a 48-frame title window.")
+    mode.add_argument("--arm", metavar="START:COUNT",
+                      help="same window, but armed at RUNTIME via the proxy's "
+                           "OrV3ArmWindowAt export (Frida NativeFunction) before resume — "
+                           "the delivery path anchor-relative capture uses. Proves the "
+                           "export ABI on the title.")
     ap.add_argument("--seconds", type=float, default=12.0,
                     help="wall-clock to let retail turbo-run (must reach the window END).")
     ap.add_argument("--max-frames", type=int, default=8000,
@@ -123,22 +129,30 @@ def main() -> int:
     ap.add_argument("--frida-remote", default=DEFAULT_REMOTE)
     args = ap.parse_args()
 
+    spec = args.window or args.arm
+    runtime_arm = args.arm is not None
     try:
-        s, c = args.window.split(":")
+        s, c = spec.split(":")
         win_start, win_count = int(s), int(c)
     except ValueError:
-        raise SystemExit(f"--window wants START:COUNT (got {args.window!r})")
+        raise SystemExit(f"--{'arm' if runtime_arm else 'window'} wants START:COUNT (got {spec!r})")
 
     if not PROXY_SRC.exists():
         raise SystemExit(f"proxy not built: {PROXY_SRC} — `make` in proxy/")
 
-    # stage proxy + write the present-window cfg next to it (config travels via the
-    # file: env vars don't cross to a Frida-spawned exe).
+    # stage proxy. --window: config travels via v3proxy.cfg (env vars don't cross to
+    # a Frida-spawned exe), read at CreateDevice. --arm: NO cfg (the proxy idles,
+    # dropping every present, until OrV3ArmWindowAt is called at runtime below).
     import shutil
     shutil.copy2(PROXY_SRC, PROXY_DLL)
     cfg_path = PROXY_DLL.parent / "v3proxy.cfg"
-    cfg_path.write_text(f"capframe={win_start}\ncapcount={win_count}\n")
-    print(f"[stage] {PROXY_DLL.name} staged + v3proxy.cfg → WINDOW [{win_start},{win_start+win_count})")
+    if runtime_arm:
+        cfg_path.unlink(missing_ok=True)
+        print(f"[stage] {PROXY_DLL.name} staged (no cfg) → RUNTIME-ARM window "
+              f"[{win_start},{win_start+win_count}) via OrV3ArmWindowAt")
+    else:
+        cfg_path.write_text(f"capframe={win_start}\ncapcount={win_count}\n")
+        print(f"[stage] {PROXY_DLL.name} staged + v3proxy.cfg → WINDOW [{win_start},{win_start+win_count})")
 
     v3 = localappdata_v3()
     v3.mkdir(parents=True, exist_ok=True)
@@ -192,26 +206,66 @@ def main() -> int:
           f"{json.dumps({k: v for k, v in init_cfg.items() if k != 'force_resolution'})}")
     script.exports_sync.init(init_cfg)
 
-    dev.resume(pid)
-    t0 = time.monotonic()
-    deadline = t0 + args.seconds
-    # finalize == the proxy wrote EOF after the last window frame; poll the log so we
-    # can stop early once the window is fully captured (no need to burn the full budget).
-    while time.monotonic() < deadline and not detached.is_set():
-        time.sleep(0.2)
-        if log.exists() and "FINALIZE" in log.read_text(errors="replace"):
-            print(f"[run]   window finalized after {time.monotonic()-t0:.2f}s")
-            break
-    print(f"[run]   ran {time.monotonic()-t0:.2f}s, detached={detached.is_set()}")
+    def teardown():
+        try:
+            script.unload()
+        except Exception as e:
+            print(f"[teardown] script.unload: {e}")
+        try:
+            dev.kill(pid)
+        except Exception as e:
+            print(f"[teardown] device.kill: {e}")
 
+    # Everything from here MUST tear down the spawned retail on any failure — a leak
+    # leaves the proxy holding v3proxy.log open (PermissionError on the next run).
     try:
-        script.unload()
-    except Exception as e:
-        print(f"[teardown] script.unload: {e}")
-    try:
-        dev.kill(pid)
-    except Exception as e:
-        print(f"[teardown] device.kill: {e}")
+        # RUNTIME-ARM: call OrV3ArmWindowAt(start,count) before resume — the proxy
+        # d3d8.dll is mapped at process-init (static import), so the export is
+        # findable now, well before any present reaches `start`. (Anchor-relative
+        # arming computes `start` live from an anchor; here it's fixed to prove the ABI.)
+        if runtime_arm:
+            # Frida 17: the static Module.findExportByName(mod,name) is gone — resolve
+            # via the module instance, the pattern openrecet-agent.js uses.
+            arm_src = (
+                "var m = Process.findModuleByName('d3d8.dll');\n"
+                "var fn = m ? m.findExportByName('OrV3ArmWindowAt') : null;\n"
+                "if (!m)      { send({arm:'err', msg:'d3d8.dll not loaded'}); }\n"
+                "else if (!fn){ send({arm:'err', msg:'OrV3ArmWindowAt not found'}); }\n"
+                "else {\n"
+                "  var arm = new NativeFunction(fn, 'void', ['uint','uint'], 'stdcall');\n"
+                f"  arm({win_start}, {win_count});\n"
+                f"  send({{arm:'ok', start:{win_start}, count:{win_count}}});\n"
+                "}\n")
+            arm_script = session.create_script(arm_src)
+            armed = threading.Event()
+            arm_status = {}
+            def on_arm(message, data):
+                if message.get("type") == "send":
+                    arm_status.update(message.get("payload") or {})
+                    armed.set()
+                elif message.get("type") == "error":
+                    arm_status["err"] = message.get("description", "")
+                    armed.set()
+            arm_script.on("message", on_arm)
+            arm_script.load()
+            armed.wait(timeout=5.0)
+            if arm_status.get("arm") != "ok":
+                raise SystemExit(f"[fail] runtime arm failed: {arm_status}")
+            print(f"[arm]   OrV3ArmWindowAt({win_start},{win_count}) called OK")
+
+        dev.resume(pid)
+        t0 = time.monotonic()
+        deadline = t0 + args.seconds
+        # finalize == the proxy wrote EOF after the last window frame; poll the log so
+        # we can stop early once the window is captured (no need to burn the budget).
+        while time.monotonic() < deadline and not detached.is_set():
+            time.sleep(0.2)
+            if log.exists() and "FINALIZE" in log.read_text(errors="replace"):
+                print(f"[run]   window finalized after {time.monotonic()-t0:.2f}s")
+                break
+        print(f"[run]   ran {time.monotonic()-t0:.2f}s, detached={detached.is_set()}")
+    finally:
+        teardown()
     for ln in log_lines:
         print(ln)
 
