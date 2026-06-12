@@ -794,6 +794,14 @@ let g_cap_anchor_done_sent = false;
 let g_v3_arm        = null;   // {anchor:str, offset:int, count:int} | null
 let g_v3_arm_fn     = null;   // NativeFunction(OrV3ArmWindowAt) (lazy-resolved once)
 let g_v3_arm_fired  = false;  // arm exactly once
+// Window-aware early-exit (studio-v3 P2). >0 ⇒ shut the retail drive down at this
+// frame instead of grinding on to max_frames. Set when the v3 window is armed: after
+// the window's last present the drive has NOTHING left to do but over-run the load
+// budget (sized for the ~13k-frame load-stretch) to max_frames — E4's ~100s of pure
+// waste, re-paid every capture. The proxy present-counter and this agent frame-counter
+// are the same Present clock (the bit-exact window landing proves it), so window-end +
+// a small margin guarantees the proxy has kept the last frame + finalized the container.
+let g_v3_shutdown_frame = 0;
 
 // TAS P3 retail side — anchor-segmented input forcing (`--input-segtrace`),
 // the deterministic replacement for the `auto_z_spam` hack. The op list is a
@@ -1528,6 +1536,14 @@ function installPresentHook(devicePtr) {
                 g_cap_anchor_pending.delete(fn);
             }
             if (g_max_frames > 0 && fn >= g_max_frames) {
+                send({kind: 'max_frames_reached', frame: fn});
+            }
+            // Window-aware early-exit (studio-v3 P2): the v3 capture window is done +
+            // its container finalized, so reuse the max_frames teardown path to stop
+            // the retail drive instead of over-running the load budget to max_frames.
+            if (g_v3_shutdown_frame > 0 && fn >= g_v3_shutdown_frame) {
+                g_v3_shutdown_frame = 0;          // fire once
+                log('v3 early-exit: window captured — shutting down @frame ' + fn);
                 send({kind: 'max_frames_reached', frame: fn});
             }
             // Flush the D3D trace buffer BEFORE bumping the counter —
@@ -3121,6 +3137,12 @@ function v3ArmOnAnchor(name, frame) {
     log('v3_arm: ' + name + '+' + g_v3_arm.offset + ' @frame ' + frame +
         ' -> OrV3ArmWindowAt(' + start + ',' + g_v3_arm.count + ')');
     send({kind: 'v3_arm', anchor: name, frame: frame, start: start, count: g_v3_arm.count});
+    // Window-aware early-exit (P2): the window's last kept present is start+count-1,
+    // where the proxy finalizes the container. Schedule shutdown a couple frames past
+    // it so the retail drive stops instead of over-running to max_frames; +2 covers any
+    // 1-frame skew between the two Present clocks (cost: 2 frames vs ~13k of over-run).
+    g_v3_shutdown_frame = (start + g_v3_arm.count + 2) >>> 0;
+    log('v3_arm: early-exit scheduled @frame ' + g_v3_shutdown_frame);
 }
 
 function sendAnchor(name, frame) {
@@ -5052,6 +5074,7 @@ rpc.exports = {
             : null;
         g_v3_arm_fn = null;
         g_v3_arm_fired = false;
+        g_v3_shutdown_frame = 0;
         if (g_v3_arm) g_anchor_trace_enabled = true;
 
         // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
