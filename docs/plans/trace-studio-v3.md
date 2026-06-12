@@ -166,6 +166,20 @@ events?", which the tool checks for them.
   3–4 min full recapture into a ~30–60 s port-only loop. (This is v2's `--only port`
   generalized so a *window change* no longer forces a retail re-drive.)
 
+### 5b. Retail turbo throughput — measure + uncap (investigate, user 2026-06-12)
+Retail execution is the dominant capture cost (E4), so its turbo frame-rate is the lever.
+**Initial read from the guild run:** 172 s for ~45,081 executed frames ≈ **262 fps avg** —
+but that average is dominated by the cheap post-window over-run (no capture); the *windowed*
+frames carry frame-readback + call-trace (tens-of-k events/frame, the likely heaviest knob)
++ per-frame Frida IPC. **To do:** measure turbo fps in controlled modes — bare run vs
++frame-capture vs +call-trace vs +d3d-trace — to isolate each overhead, and hunt hidden
+throttles (Present vsync/`INTERVAL`, residual real `Sleep`, Frida per-frame message cost,
+audio/DirectShow). **The proxy is the ideal instrument + fix:** it can timestamp every
+`Present` in-process (precise fps histogram, no IPC skew) AND force
+`FullScreen_PresentationInterval = IMMEDIATE` at `CreateDevice` to kill any vsync cap — a
+natural v3 win that also serves the retail-once-cached capture. (262 fps > 60 ⇒ not a hard
+60-Hz vsync cap, but windowed present cost is still worth checking.)
+
 ### 6. Viewer — preserve v2 UX, add a semantic layer
 Keep the htm/preact SPA UX verbatim in feel: 3 lockstep panels (port|retail|diff) +
 filmstrip + diff ribbon + scrub + marks/crops + state table. Frames are served by the
@@ -174,6 +188,45 @@ frame → **semantic diff** (which draw/state/texture differs, `render_diff` +
 `d3d_state_at_draw` integrated), **draw-call picking** (click a pixel → the draw that
 painted it), **draw isolation/wireframe**. This is the "one tool" — capture + pixel diff +
 semantic diff + state, no command-composing between tools.
+
+## Tricks toolbox — dodge the load-stretch + auto-sync (brainstorm, user 2026-06-12)
+Ranked by leverage. The first three are the highest-value; compose them.
+
+**Dodging the load-stretch** (the multi-thousand-frame turbo load that bloats captures,
+scrambles frame-addressing, and dominates retail time):
+- **T-A · Anchor-gated capture (do first).** Stay fully idle (no capture, no resource
+  snapshot) until `LOADING_END` fires, then capture the post-load window. The load still
+  runs but costs nothing to capture; frame-addressing is anchor-relative
+  (`HOUSE_FREEROAM+N`), never present-count. This alone fixes the 3D-test throttle and the
+  targeting problem. The proxy reads the engine's `loading_active` flag (already computed)
+  or the harness signals the anchor.
+- **T-B · Skip-render during load.** While `loading_active`, the proxy no-ops the
+  nowloading draws + Present (sim still pumps — keep it deterministic, only skip GPU work)
+  → the load-pump runs at max speed. Cuts the load's *wall-clock*, not just its capture.
+- **T-C · Process snapshot/restore past the load (radical, biggest win).** Boot+load ONCE,
+  snapshot the writable state at `HOUSE_FREEROAM` (the phase-census already dumps
+  .data/.bss), then RESTORE it to skip boot+load entirely on every subsequent capture —
+  emulator save-state for iteration. Pairs with "retail captured once, cached." Risk:
+  non-memory state (live D3D device, file handles) — restore sim memory while keeping the
+  live device; validate against a cold-boot capture. Could collapse a 3-min retail drive to
+  seconds.
+- **T-D · Patch out the cosmetic load-wait.** If the nowloading duration is a counter/timer
+  (not genuine work), collapse it to 1 frame while preserving the deterministic warmup
+  (NPC RNG etc.). Surgical; needs the load-pump RE.
+
+**Auto-syncing traces** (so the human never frame-matches):
+- **T-E · d3d-stream hash as a content sync key.** Hash each frame's command stream (or a
+  downsampled replay). Identical hash ⇒ identical render ⇒ same moment — pairs frames with
+  ZERO anchors, and *validates* the `(anchor,offset)` join (mismatch = a real desync, named
+  by frame). The d3d stream IS the frame's identity; this is the strongest secondary key.
+- **T-F · Gameplay-only sim-frame counter as the universal clock.** Find a counter that
+  advances 1/frame ONLY during gameplay (frozen through loads) — identical on both sides at
+  the same logical moment regardless of load timing. Join on it directly. Census-discoverable
+  (db054 is load-phase-dependent; the right counter may not be). The cleanest join key if it
+  exists.
+- **T-G · Anchor-relative auto-windowing.** The human writes `HOUSE_FREEROAM+120..168`; the
+  tool resolves it independently on each side. No absolute frames ever cross the human's
+  desk — kills the "lack of discipline reproducing timings" pain by construction.
 
 ## What stays from v2 (reuse, don't rewrite)
 Frida orchestration (spawn/turbo/input/anchors/save-virt), the anchor system, the pin ops
