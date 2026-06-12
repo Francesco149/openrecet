@@ -24,8 +24,21 @@ per-frame calls buffer in memory + drop every Present; resources snapshot ONLY a
 stale/pointer-reuse bug; (2) **device-state-shadow preamble** — R4 (inherited state) was
 real for 3D after all (the frame inherits lighting/blend state ⇒ replayed overbright +
 black-blended), fixed by shadowing every scalar Set and emitting it at each frame boundary.
-Title regression still bit-exact. Details in the P1 phase entry below. **Next: R2 retail-side
-proxy + retail full-extent capture/cache (P1 tail) → P2 sync-by-identity.**
+Title regression still bit-exact. Details in the P1 phase entry below.
+
+**R2 ✅ DONE (2026-06-12, `fe3722a`) — the LAST de-risk before P2 is cleared: the SAME
+proxy d3d8.dll captures BOTH sides.** R2a (loadability): the Windows loader picks up the
+app-local proxy d3d8.dll for `vendor/unpacked/recettear.unpacked.exe` — even loaded from a
+`\\wsl.localhost` UNC path under Frida spawn — and wraps `Direct3DCreate8`+`CreateDevice`;
+**SteamStub/the unpack does NOT interfere**. R2b: the retail **title screen** (frame 120,
+640×480, 5 res, 52 calls, 6 draws) replays **0 px / 0 byte** vs the proxy reference (port
+regression still bit-exact). Two findings now in DEV_PARAMS (matter for P2 diff align):
+**retail renders 640×480** (port 1024×768) and **ships its backbuffer NON-lockable**
+(flags=0x0; port 0x1) ⇒ readback must bounce through a sysmem surface via CopyRects (now a
+shared helper used by proxy + replayer, the same path the v2 agent uses). Config now via a
+`v3proxy.cfg` next to the dll (capframe/out — env vars don't cross to the Frida-spawned exe);
+proxy log made unbuffered (kill-safe). Driver: `tools/trace_studio_v3/r2_retail_probe.py`.
+**Next: retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity.**
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
@@ -249,8 +262,11 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
 ## Risks / open questions
 - **R1 (critical): bit-exact replay.** Prove first (phase 1). If it fails, fall back to
   screenshot-oracle + replay-for-analysis.
-- **R2: proxy-DLL loadability** for the retail unpacked exe (does the loader pick the
-  local d3d8.dll? does SteamStub/the unpack interfere?). Validate in phase 1.
+- **R2 ✅ SOLVED (2026-06-12, `fe3722a`): proxy-DLL loadability + capture for retail.**
+  The loader picks up the app-local proxy d3d8.dll for the unpacked exe (even from a
+  `\\wsl.localhost` UNC path under Frida spawn); SteamStub/the unpack does NOT interfere.
+  A retail title frame captures + replays bit-exact. Surfaced: retail is 640×480 with a
+  NON-lockable backbuffer (CopyRects-via-sysmem readback, now shared by proxy + replayer).
 - **R3: resource-capture overhead** (hashing every lock). Measure; expected cheap given
   dedup, but Lock-heavy frames need a fast hash + a "dirty range" shortcut.
 - **R4 ✅ SOLVED (2026-06-12): inherited state at a sliced window start.** Title was
@@ -297,8 +313,9 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     (38 tex / 4 VB / 4 IB, all D3DPOOL_MANAGED ⇒ lockable, 0 empty), dumped once.
   - Container analyzer: `tools/trace_studio_v3/inspect_cap.py` (structured JSON: dev params,
     resource store, call-op histogram, self-contained-vs-inherited state signals).
-  - **Still TODO in P1:** retail-side proxy loadability (R2) + retail full-extent capture +
-    content-addressed cache.
+  - **R2 ✅ DONE (`fe3722a`):** retail-side proxy loadability + a retail title frame
+    captured/replayed bit-exact. **Still TODO in P1:** retail FULL-EXTENT capture +
+    content-addressed cache (the slice-don't-re-drive cache that unblocks P2).
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
   E3 prototype into the real pairing authority.
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.

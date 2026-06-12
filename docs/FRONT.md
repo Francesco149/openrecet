@@ -365,8 +365,16 @@
   (R4 inherited-state was real for 3D — overbright/black-blended without it; fixed by
   shadowing every scalar Set + emitting at each frame boundary). Title regression still
   bit-exact. Built in isolation under `tools/trace_studio_v3/` (`inspect_cap.py` = container
-  analyzer); **v2 stays the working tool until v3 is proven + archived.** **Next:** R2
-  retail-side proxy + retail full-extent capture/cache → P2 sync-by-identity. Plan +
+  analyzer); **v2 stays the working tool until v3 is proven + archived.** **R2 ✅ DONE
+  (2026-06-12, `fe3722a`) — the SAME proxy d3d8.dll captures BOTH sides.** The Windows loader
+  picks up the app-local proxy for the SteamStub-unpacked retail exe (even from a
+  `\\wsl.localhost` UNC path under Frida spawn — unpack doesn't interfere), and the retail
+  **title** frame (640×480, 5 res, 52 calls) replays **0 px / 0 byte** vs the proxy reference
+  (port regression still bit-exact). Findings now in DEV_PARAMS: **retail is 640×480** (port
+  1024×768) + **non-lockable backbuffer** (flags=0x0) ⇒ CopyRects-via-sysmem readback (shared
+  proxy+replayer helper). Config via `v3proxy.cfg` next to the dll (env vars don't cross to
+  the Frida-spawned exe); kill-safe unbuffered log; driver `r2_retail_probe.py`. **Next:**
+  retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity. Plan +
   experiment data: **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
