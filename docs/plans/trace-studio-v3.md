@@ -525,9 +525,37 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     toggles, honest-gap panels. **Synced ENTIRELY by stored identity** (no align/renumber/
     seam). **All three user-confirmed 2026-06-12** ("viewer looks great", "diff and state
     panel look great too").
-  - **Next (P3 tail):** N3 = the semantic diff/pick layer (which draw/state/texture differs
-    — the 125-vs-98 is the first target; draw isolation, pixel→draw picking) + a one-command
-    launcher (drive/slice/sync → view.json → viewer). Then marks/crops parity with v2.
+  - **N3 — semantic diff/pick layer ✅ DONE (2026-06-13).** "Which draw/state/texture
+    differs", the v2-blind divergence. Five committed units, all feed-demoed + user-praised:
+    - **N3a `render_range(idx,lo,hi)`** (replay_core) — draw isolation: issue only draws in
+      [lo,hi), every state/clear/scene call still issued. [0,K)=prefix (render_upto delegates),
+      [J,J+1)=one draw over the clear. Full-frame regression still BIT-EXACT.
+    - **N3b `orv3_draws.py`** — enumerate a frame's draws WITH the device state in effect
+      (bound tex/VB/IB/FVF + the render/stage states that decide if/how each paints),
+      cross-side-keyed by CONTENT hash (not the per-container id). **material_diff** verdict
+      ALIGNED / BATCHING / DIVERGENT from per-texture triangle totals (batching-robust); baked
+      lean into view.json (orv3_view).
+    - **N3c/e viewer** — a **draw-step** slider (prefix build-up), a **solo** toggle (isolate
+      one draw via render_range), a **draw-program panel** (verdict + the divergent textures),
+      and **pixel→draw pick** (click a panel pixel → linear-scan the prefixes → the owning
+      draw, auto-solo'd). Headless `--col/--draw-step/--solo/--pick` self-verify.
+    - **N3d `orv3_window --view/--launch`** — the one-command loop: drive/slice/sync →
+      view.json → open the viewer (detached). 1.2 s on the cached HOUSE window.
+    - **THE HEADLINE (HOUSE, v2-invisible):** the port-98 / retail-125 draw gap on a
+      pixel-bit-exact frame = **26 batching splits** (per-texture triangle totals IDENTICAL —
+      retail splits what the port batches) **+ 1 genuinely-extra retail draw** (texture `ea99`,
+      80 tris, drawn first, SRCALPHA blend w/ effective src-alpha 0 + ZENABLE off ⇒ **0 px**,
+      proven in true isolation; the port omits it). Pixels ALIGNED, render-program DIVERGENT.
+    - **Perf:** the material-diff bake was re-hashing the ~26 MB resource set per-frame ×96
+      with pure-Python fnv1a (2.5+ MIN); a shared per-container C-speed blake2b `ResHash`
+      → **0.41 s** (350×) — needed before N4's thousands-of-frames trace.
+  - **Next (P3 tail) → N4:** stress-test the whole pipeline on a THOUSANDS-of-frames trace
+    (the merchants-guild UI flow — user-requested 2026-06-13). The 48-frame HOUSE is a toy; a
+    long 2D UI flow with multiple load seams/anchors is the real validation of the window loop,
+    the sync-by-identity join, the material-diff bake, and the viewer's column scaling
+    (precompute_metrics renders 2× per column at open; the ribbon/scrub over thousands of
+    columns). Then marks/crops parity with v2. (Open human-verify: pixel→draw pick's live
+    mouse-click wiring — only the headless `--pick` algorithm path is verified.)
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.
 

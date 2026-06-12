@@ -493,8 +493,33 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   stored identity** (no align/renumber/seam). Stack pinned via `flake.nix`
   ($IMGUI_SRC/$NLOHMANN_JSON_INC); headless `--shot out.bmp` self-verifies with no display.
   d3d8→d3d9 bridge gotcha: alpha-less backbuffer needs an **X8** texture (A8 ⇒ transparent).
-  **Next → N3 (semantic diff/pick: which draw/state/texture differs — 125-vs-98 first;
-  draw isolation; pixel→draw pick) + a one-command launcher.** Plan: `plans/trace-studio-v3.md` P3.
+  **N3 SEMANTIC DIFF/PICK LAYER ✅ DONE (2026-06-13) — "which draw/state/texture
+  differs", the v2-blind divergence.** Landed (a–e, all committed + feed-demoed,
+  user "demo looks great"): **(N3a)** `replay_core` **render_range(idx,lo,hi)** — draw
+  isolation: issue only draws [lo,hi) (state/clear always issued); [0,K)=prefix,
+  [J,J+1)=one draw over the clear; regression bit-exact. **(N3b)** `orv3_draws.py` —
+  enumerate a frame's draws WITH bound state (tex/VB/IB/FVF + render/stage states),
+  cross-side-keyed by CONTENT hash; **material_diff** verdict ALIGNED/BATCHING/DIVERGENT
+  (per-texture triangle totals, batching-robust), baked into view.json. **(N3c/e)** native
+  viewer gains a **draw-step** slider (prefix build-up), **solo** toggle (isolate one
+  draw), a **draw-program panel** (verdict + divergent textures), and **pixel→draw pick**
+  (click a panel pixel → linear-scan prefixes → the draw that painted it, auto-solo'd).
+  **(N3d)** `orv3_window --view/--launch` = the one-command loop (drive/slice/sync →
+  view.json → viewer), 1.2 s on the cached HOUSE window. **THE HEADLINE FINDING (HOUSE,
+  v2-invisible):** the port-98/retail-125 draw gap on a PIXEL-bit-exact frame = **26
+  batching splits** (retail splits draws the port batches; per-texture triangle totals
+  IDENTICAL) **+ 1 genuinely-extra retail draw** (texture `ea99`, 80 tris, drawn FIRST,
+  SRCALPHA-blend with effective src-alpha 0 / ZENABLE off ⇒ paints **0 px**, proven in
+  true isolation; the port omits it). Pixels ALIGNED, render-program DIVERGENT.
+  **Perf fix (necessary for scale):** the material-diff bake was re-hashing the ~26 MB
+  resource set per-frame ×96 with pure-Python fnv1a (2.5+ MIN); a shared per-container
+  C-speed blake2b `ResHash` made it **0.41 s** (350×). **NEXT → N4: stress-test the whole
+  pipeline on a THOUSANDS-of-frames trace (the merchants-guild UI flow) — user-requested
+  2026-06-13** (the 48-frame HOUSE is a toy; the long 2D UI flow with multiple load
+  seams/anchors is the real validation of the window loop / sync-join / viewer column
+  scaling). Pixel→draw pick's live mouse-click wiring is verified only via the headless
+  `--pick` algorithm path — a live click-test is the one open human-verify. Plan:
+  `plans/trace-studio-v3.md` P3.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
