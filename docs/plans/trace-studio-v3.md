@@ -763,6 +763,21 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   `replay/replay_core.c` change, rebuild BOTH `replay/replay.exe` AND `viewer/viewer.exe`** — a
   stale viewer.exe fails container load with "unknown op" the moment a new op (e.g. SetRenderTarget)
   lands in the stream.
+  **P5 viewer fidelity — the DEPTH-surfref reconstruction bug ✅ FIXED 2026-06-13 (`941a4ca`):**
+  after the history fix the viewer STILL showed a "see-through walls, bright outside at the top"
+  artifact when scrubbing to a 3D frame AFTER a pause/blur frame (user-flagged; in-game + the feed
+  pushes were correct). Root cause was replay-side, not the port: the blur binds its RTs with NO
+  depth (`SetRenderTarget(rt,NULL)`), and `resolve_surface` resolved the DEPTH surfref via the LIVE
+  `GetDepthStencilSurface` — NULL while a no-depth RT is bound — so the blur's restore re-bound NULL
+  depth and every frame replayed after it on the RESIDENT device rendered with no depth buffer (no
+  occlusion). A fresh `replay.exe` process never hit it (no prior blur); the resident viewer core,
+  scrubbing many columns, did. Fix: grab the auto depth-stencil ONCE at device-create (while bound)
+  + resolve the DEPTH surfref to that stored surface. Reproduced/regression-tested headlessly with a
+  new **`replay --hist-warm <warm> <idx>`** mode (render one column, then another, on the SAME
+  device — the viewer's resident pattern; warm-vs-fresh must be gt8 0): 3D frame 73%→0, transition
+  50%→0, port self-verify still 240/240. **Lesson: the resident viewer core can leak ANY device
+  state a single fresh replay never exercises — test cross-render idempotency with `--hist-warm`,
+  not just a fresh `--history`.**
 
 ## Honest note on "10×"
 The 10× is on the **iteration loop**, not one axis: retail-caching + window-early-exit kill
