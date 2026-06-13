@@ -1,0 +1,44 @@
+# house-pause-save — open the PAUSE menu (ESC), navigate to SAVE (entry type 3),
+# and press Z (A=0x10) to open the type-3 save submenu.  Derived from house-pause
+# (load fa7c82 → HOUSE free-roam idle, {phasepin 80}+{rngseed [80,19937]}).
+#
+# Nav: the house pause list is [1,6,2,3,4] = Items·Encyclopedia·Options·Save·Exit,
+# default selection index 0 (Items).  Save is index 3 ⇒ THREE downs (the
+# user-recalled "2x down" was off by one; verified via the v3 state panel).
+#   sel 0 Items → (down) 1 Encyclopedia → (down) 2 Options → (down) 3 Save → (A) open.
+#
+# Sync: the pause-menu asset load (FUN_00473a3e, 20 sprites) stretches a DIFFERENT
+# frame count per side (port ~1f, retail ~1800f) AND retail's pause never sets the
+# b150 cursor flag PAUSE_OPEN keys on (so PAUSE_OPEN fires only on the port, and
+# pre-load).  So the nav + caprange rebase on PAUSE_READY — the pause-load-done
+# edge gated on scene mode 9, which fires once post-load on BOTH sides (the menu is
+# navigable) — with a +30 margin for the open-slide (ramp 3→0xc) to settle.
+# PAUSE_READY-relative nav is then identical on both sides → the v3 identity-join
+# pairs the submenu frames cleanly past the (per-side-variable) load seam.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"wait": "PAUSE_READY"}
+{"caprange": [0, 300]}
+{"calltrace": [0, 300]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 43, "buttons": "0x0008"}
+{"frame": 46, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0008"}
+{"frame": 59, "buttons": "0x0000"}
+{"frame": 72, "buttons": "0x0010"}
+{"frame": 75, "buttons": "0x0000"}
+{"frame": 300, "buttons": "0x0000"}

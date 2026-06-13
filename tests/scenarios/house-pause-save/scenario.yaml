@@ -1,0 +1,15 @@
+# house-pause-save — see trace.jsonl.  Opens the in-game PAUSE menu, navigates to
+# the SAVE entry (type 3, index 3 in the house list [1,6,2,3,4]) and presses Z to
+# open the type-3 save submenu (engine FUN_0047f5bc update / FUN_004812e4 render,
+# dispatched from FUN_0047fa76 / FUN_004820ba at sub_anim==10 / sub_anim>0).
+#
+# Synthesised for the PAUSE-MENU M4 arc (docs/plans/pause-menu.md).  The nav +
+# caprange re-anchor to PAUSE_OPEN with a +120-frame margin so retail's slower
+# pause-asset load finishes before the first nav input (load-seam-immune; the v3
+# identity-join pairs the submenu frames by (PAUSE_OPEN, offset)).
+description: |
+  Pause → 3×down to SAVE → Z opens the save submenu.  Capture the PAUSE_OPEN+0..360
+  extent; slice the nav+submenu region (PAUSE_OPEN+~110..) for the port↔retail diff.
+  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause)
+duration_ceiling_ms: 180000

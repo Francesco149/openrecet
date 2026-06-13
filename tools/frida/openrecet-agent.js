@@ -2683,6 +2683,7 @@ function callTraceFlush(frameNumber) {
 const ANCHOR_SCENE_TITLE  = 0;
 const ANCHOR_SCENE_INGAME = 1;
 const ANCHOR_SCENE_MARKET = 6;   // mode 6 — the Market scene (Merchant's Guild + ichiba)
+const ANCHOR_SCENE_PAUSE  = 9;   // mode 9 — the in-game PAUSE menu (DAT_0438b1c0)
 
 function anchorIsHouseFreeroam(scene, loading) {
     return scene === ANCHOR_SCENE_INGAME && !loading;
@@ -3302,6 +3303,16 @@ function anchorTick(frame, devicePtr) {
     if (g_anchor_prev_pause && !pauseActive) {
         sendAnchor('PAUSE_CLOSE', frame);
         anchorCaptureSchedule('PAUSE_CLOSE', frame, devicePtr);
+    }
+    // PAUSE_READY — the pause menu's async asset load (FUN_00473a3e) finished
+    // while paused (scene mode 9): the menu is now navigable. The load-end edge
+    // GATED on scene==9 (so it never fires on the ramp==3 frame). The robust
+    // rebase point for pause-SUBMENU nav: PAUSE_OPEN fires pre-load + only on the
+    // port (retail's pause doesn't set b150), and the pause load stretches a
+    // different frame count per side. Mirror of anchor_trace.c ev_pause_ready.
+    if (pl && !loading && scene === ANCHOR_SCENE_PAUSE) {
+        sendAnchor('PAUSE_READY', frame);
+        anchorCaptureSchedule('PAUSE_READY', frame, devicePtr);
     }
     // TITLE_RETURN — quit to the title/main menu (rising edge of scene == TITLE
     // from any non-TITLE state; the quit-to-title passes through LOADING, so a

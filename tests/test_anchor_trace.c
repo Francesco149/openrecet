@@ -472,6 +472,38 @@ int test_anchor_pause_edges(void)
     return 0;
 }
 
+/* PAUSE_READY fires when the pause menu's async asset load FINISHES while in
+ * pause mode (scene 9): the load-end edge gated on scene==9, so it never fires
+ * on the ramp==3 frame (scene flips to 9 with loading already active) nor on a
+ * non-pause load (the house load ends while scene==1). The robust "pause menu
+ * navigable" sync point a submenu-nav trace rebases on (the pause load stretches
+ * a different frame count per side). */
+int test_anchor_pause_ready(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;             /* INGAME */
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT baseline */
+    /* House load ends while INGAME — must NOT fire PAUSE_READY. */
+    w.loading_active = 1;
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* LOADING_START */
+    w.loading_active = 0;
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* LOADING_END, scene 1 → no PAUSE_READY */
+    /* Enter pause: scene→9 AND the worker marks loading on the SAME frame, so
+     * (scene==9 && !loading) is false here — no premature PAUSE_READY. */
+    w.scene_state = 9; w.loading_active = 1;
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* pause LOADING_START */
+    /* Pause load done while scene==9 → PAUSE_READY. */
+    w.loading_active = 0;
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);   /* 1→0 @ scene 9 → PAUSE_READY */
+
+    T_ASSERT_EQ_I(rec_count(&r, "PAUSE_READY"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "PAUSE_READY")], 4);
+    return 0;
+}
+
 /* TITLE_RETURN fires on the INGAME→TITLE edge (quit to title), the reverse of
  * NEW_GAME. A subsequent TITLE→INGAME fires NEW_GAME, not TITLE_RETURN. */
 int test_anchor_title_return(void)

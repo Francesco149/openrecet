@@ -346,7 +346,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x473991 | FUN_00473991 | 75 | ✓ | worker_load.h |
 | 0x4739dc | FUN_004739dc | 31 | ✓ | worker_load.h |
 | 0x4739fb | FUN_004739fb | 31 | ✓ | worker_load.h |
-| 0x473a3e | FUN_00473a3e | 453 | ✓ | main.c, scene_pause.c, scene_pause.h (+1) |
+| 0x473a3e | FUN_00473a3e | 453 | ✓ | anchor_trace.c, main.c, scene_pause.c (+2) |
 | 0x473c03 | FUN_00473c03 | 9 | ✓ | scene1_intro_dialogue.c |
 | 0x473c15 | FUN_00473c15 | 2476 | ✓ | scene1_preload.c, scene1_preload.h, worker_load.h |
 | 0x4746fc | FUN_004746fc | 48 | ✓ | worker_load.h |

@@ -182,6 +182,23 @@ static int ev_pause_close(const struct anchor_world *p, const struct anchor_worl
     return p->pause_active && !c->pause_active;
 }
 
+/* The in-game PAUSE menu's async asset load (FUN_00473a3e — the 20-sprite pause
+ * load) just COMPLETED while paused (scene mode 9): the menu is now navigable.
+ * Expressed as the load-end edge GATED on the pause mode, so it never fires
+ * prematurely on the ramp==3 frame (scene flips to 9 and the worker marks
+ * loading on the SAME frame ⇒ loading_active is already true there). This is
+ * the robust sync point for pause-SUBMENU navigation: PAUSE_OPEN fires pre-load
+ * AND only on the port (retail's pause never sets the b150 cursor flag the
+ * PAUSE_OPEN edge keys on), and the pause load stretches a DIFFERENT frame count
+ * per side (port ~1f, retail ~1800f), so a nav segment must rebase HERE — not on
+ * PAUSE_OPEN or the recurring LOADING_END. Fires once per pause open. */
+#define ANCHOR_SCENE_PAUSE 9
+static int ev_pause_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->loading_active && !c->loading_active
+        && c->scene_state == ANCHOR_SCENE_PAUSE;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -210,6 +227,7 @@ static const struct anchor_def g_anchors[] = {
     { "FREEROAM_START",        ev_freeroam_start  },
     { "PAUSE_OPEN",            ev_pause_open      },
     { "PAUSE_CLOSE",           ev_pause_close     },
+    { "PAUSE_READY",           ev_pause_ready     },
     { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))

@@ -457,6 +457,7 @@ struct test_case {
     X(anchor_conv_pose_edges) \
     X(anchor_conv_pose_blink) \
     X(anchor_pause_edges) \
+    X(anchor_pause_ready) \
     X(anchor_title_return) \
     X(anchor_jsonl_sink_format) \
     \

@@ -6865,6 +6865,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/anchor_trace.c",
     "src/main.c",
     "src/scene_pause.c",
     "src/scene_pause.h",
