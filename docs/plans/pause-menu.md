@@ -307,8 +307,8 @@ Draw primitives all already in the port: `render_quad_add`
       (2) run the downsample→blur-accumulate→full-screen passes. The exact pass
       geometry/blur taps are now READABLE per-draw via `orv3_rt.py … 41 --full` +
       `orv3_draws.py` (vertex/UV dump) — port from the stream, not the decompile.
-- **M4 — the SAVE submenu (entry type 3) — RENDER ✅ DONE + PIXEL-1:1 2026-06-14**
-  (`7affa5f` render + `351654e` tooling). The card-list render `FUN_0049b556` +
+- **M4 — the SAVE submenu (entry type 3) — RENDER ✅ DONE + PIXEL-1:1 + USER-CONFIRMED 2026-06-14**
+  ("looks good to me"; `7affa5f` render + `351654e` tooling). The card-list render `FUN_0049b556` +
   perm `FUN_0049b537` are ported as **`save_picker.{c,h}`** (shared with the title
   picker), driven by the pause type-3 commit + wrapper `FUN_004812e4` + the
   `sub_anim>0` render dispatch (`scene_pause.c`). Transcribed 1:1 from objdump

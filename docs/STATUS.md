@@ -411,8 +411,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   WHOLE resting pause menu — backdrop + option list + header + calendar + numbers — is now 1:1).
   **PORT-DEBT(pause-xp-anim):** the XP-display animator (shared with the merchant HUD's stubbed
   `set_xp`) stays unported (only matters mid-rank-up).
-  **SAVE submenu (entry type 3) RENDER ✅ DONE + PIXEL-1:1 2026-06-14** (`7affa5f` render +
-  `351654e` tooling; AWAITING the user's visual 1:1). Full status: `plans/pause-menu.md` M4.
+  **SAVE submenu (entry type 3) RENDER ✅ DONE + PIXEL-1:1 + USER-CONFIRMED 2026-06-14**
+  ("looks good to me"; `7affa5f` render + `351654e` tooling). Full status: `plans/pause-menu.md` M4.
   The card-list render `FUN_0049b556` + perm `FUN_0049b537` are ported as **`save_picker.{c,h}`**
   (shared with the title picker), driven by the pause type-3 commit + wrapper `FUN_004812e4` +
   the `sub_anim>0` render dispatch (`scene_pause.c`); transcribed 1:1 from objdump (Ghidra
