@@ -205,12 +205,49 @@ Draw primitives all already in the port: `render_quad_add`
     translucent vignette LOOP L50914-50932 = the radial-blur/zoom build-up), then
     restores the saved RT/depth. At rest (`c99c>3`) it redraws the composited RT
     full-screen (this is **[0]**, alpha `min(c99c·0x16,0xff)`).
-  - **⚠ EXACT passes need P5 (RT-capture tooling) to nail WITHOUT GUESSING** — the
-    decompile confirms the *shape* (RT composite + vignette loop) but the precise
-    blur/darken passes + what's CopyRects'd into `DAT_073de648` (the captured screen)
-    must be read off the actual captured d3d stream, not inferred. See
-    `plans/trace-studio-v3.md` P5. Interim appearance ground-truth: the `--raw-refs`
-    backbuffer readback (a re-drive stores the REAL composited frame).
+  - **✅ EXACT PASSES READ OFF THE REAL STREAM 2026-06-13 (P5 RT-capture tooling
+    landed — the decompile's *shape* is now CONFIRMED + made precise; no guessing).**
+    `orv3_rt.py` on the re-driven retail `house-pause` (v3 cache, RT-format
+    container) gives the mechanism over the ESC frames (offsets 160-161 = window
+    frames 40-41), VERIFIED bit-exact (`replay.exe --verify-hashes` = **240/240**,
+    incl. these RT frames):
+    - **Frame 40 — the CAPTURE is a SCENE RE-RENDER, not a CopyRects.**
+      `SetRenderTarget(RT#56 = DAT_073de648, 1024×768, depth=DEPTH)` →
+      `Clear(0xff000000 black, COLOR|Z)` → **124 draws re-render the entire live
+      scene INTO RT#56** (the 3D house + sprites colorop=5, then the HUD/UI
+      colorop=7 ADD / 8 ADDSIGNED) → `SetRenderTarget(BACKBUFFER, DEPTH)`. So
+      `DAT_073de648` = a fresh re-render of the scene (NO `CopyRects` from the
+      backbuffer anywhere in the pause — the proxy captures CopyRects too; it's
+      simply unused here).
+    - **Frame 41 — the 2-pass BLUR composite (the radial blur), built ONCE:**
+      after the normal live-frame draws to the backbuffer,
+      (A) `SetRenderTarget(RT#57 = DAT_073de64c, 1280×256, depth=NULL)` →
+          `Clear(0xff0000c8 dark blue)` → **1 quad sampling RT#56** (downsample
+          1024×768 → 1280×256);
+      (B) `SetRenderTarget(RT#56, depth=NULL)` → `Clear(0xff173c8c)` → **24 prim
+          (12 quads) sampling RT#57** (the multi-tap blur accumulation, upsampling
+          back into RT#56 — this is the "vignette LOOP" the decompile showed);
+      then `SetRenderTarget(BACKBUFFER, DEPTH)` → **draw#126: 1 full-screen quad
+      sampling RT#56 → backbuffer** (the visible backdrop [0]). All composite draws
+      are colorop=4 (MODULATE), BLEND.
+    - **Rest frames (e.g. frame 119, the resting menu): NO SetRenderTarget** — they
+      just **sample RT#56** (`SetTexture(RT#56)` + full-screen quad, colorop=4,
+      BLEND, alpha `min(c99c·0x16,0xff)`) as draw#0 = **[0]**, then bg_rete / option
+      list / header / calendar / numbers on top (the M2/M2b draws). So the blur is
+      composited once at open; rest frames redraw the static RT#56 with a fade-in
+      alpha. ⇒ **[0] = a full-screen quad sampling RT#56, MODULATE, BLEND, alpha
+      ramp.** Cross-frame: RT#56 is filled at frames 40-41 and sampled forever after
+      — `replay.exe --history <idx>` (cumulative replay) reconstructs it; the
+      per-frame replay shows the [0] backdrop empty/garbage. Ground truth confirmed
+      visually: history-replay of frame 119 = the darkened/blurred house behind
+      Recette + the menu (feed "P5 RT-capture WORKS"), matching the user's
+      description. **Port [0]:** redraw `g_scene_pause` RT (`scene_pause_state`'s
+      captured surface) full-screen MODULATE/BLEND at the c99c alpha — but the
+      backdrop CONTENT (the capture + 2-pass blur) is the M3 dependency: the port
+      must (1) re-render the frozen scene into a screen-sized RT at pause open,
+      (2) run the downsample→blur-accumulate→full-screen passes. The exact pass
+      geometry/blur taps are now READABLE per-draw via `orv3_rt.py … 41 --full` +
+      `orv3_draws.py` (vertex/UV dump) — port from the stream, not the decompile.
 - **M3+ (later arcs):** submenus — Items, Encyclopedia, Options, Save,
   Exit-confirm (the `sub_anim>0` dispatch L83931-83952); the unpause cursor
   restore.

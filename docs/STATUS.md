@@ -374,8 +374,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `1<c99c`, runs every rest frame) before `FUN_004820ba`; tex `3e66` is a **1024×768 X8R8G8B8
   datalen=0** RT (CreateTexture in `FUN_0047ae65`, no file); `replay --upto 119 1` (clear+[0]) =
   **pure black** (replayer can't carry RT content). So `dungeonbord`/`result_bord01` were WRONG
-  candidates. **Open for user (has the game): what does the live pause backdrop look like — black /
-  the dark composite (`0xff173c8c`+vignette) / the frozen scene?** **[4-6]** calendar frame
+  candidates. **✅ RESOLVED 2026-06-13 — the v3 RT-capture tooling (P5) landed, so [0] was READ off
+  the real stream + VERIFIED bit-exact (no guessing):** [0] = a full-screen quad sampling RT#56,
+  MODULATE/BLEND, alpha `min(c99c·0x16,0xff)`; RT#56 is built ONCE at pause-open over 2 frames —
+  (1) the live SCENE is RE-RENDERED into RT#56 (NOT a CopyRects), (2) a 2-pass blur composite
+  (RT#56→1280×256 RT#57 downsample clear `0xff0000c8`, → RT#56 24-prim blur-accumulate clear
+  `0xff173c8c`), then redrawn faded-in every rest frame. So the backdrop is the **darkened,
+  radial-blurred house** (history-replay of frame 119 = the real pause screen, feed "P5 RT-capture
+  WORKS"; `replay --verify-hashes` = 240/240 bit-exact incl. the RT frames). The old "user, what
+  does it look like?" is answered by the capture. Full mechanism + port plan: `pause-menu.md` M3 +
+  quirk §123; tooling: `trace-studio-v3.md` P5. **[4-6]** calendar frame
   (pause.tga MODULATE, L83801-83866) + **[7-9]** numbers (item_win `3392`): gold
   (`scene1_top_hud_draw_number`, ported) + level (`scene1_merchant_hud`, ported) + the weekly
   **quota** `FUN_0048d997` + day-cells (date math FUN_00482059/00482033) — all NEED the save fields

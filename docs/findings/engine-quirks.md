@@ -4658,3 +4658,39 @@ emit, an earlier wrong guess; NOT `FUN_00494a73`'s 1024×512 mid-transition blit
 port already LOADS system.bmp (`g_sysassets.system_bmp`) but doesn't wire `FUN_00453d9c`
 or the gate — a render-program-only gap (no pixel effect), to be ported in the
 loading-screen-fidelity pass (the transition system that arms `DAT_0438bf74`).
+
+## 123. The pause-menu backdrop is a CAPTURED-then-BLURRED render of the live scene into an off-screen render target, built ONCE at pause-open over 2 frames, then redrawn (faded-in) every resting frame — NOT a static "board" asset and NOT a CopyRects screen-grab
+
+Read off the real retail d3d8 command stream (Trace Studio v3 RT capture, scenario
+`house-pause`; `orv3_rt.py`, verified `replay.exe --verify-hashes` = 240/240
+bit-exact). The pause menu's full-screen backdrop ([0], the first draw of every
+resting pause frame) is the engine's screen-sized render target `DAT_073de648`
+(`CreateTexture` usage=RENDERTARGET, DEFAULT pool — datalen=0, no file). It is built
+by `FUN_00454191` (the fade/capture system) across the **two frames at pause-open**:
+
+- **Frame N (the ESC frame) — CAPTURE = a SCENE RE-RENDER (not CopyRects).**
+  `SetRenderTarget(DAT_073de648, depth)` → `Clear(0xff000000, COLOR|Z)` → the entire
+  live scene is RE-DRAWN into the RT (the 3D house + sprites under COLOROP=MODULATE/
+  ADD, the HUD/UI under ADD/ADDSIGNED — ~124 draws, exactly the normal scene program)
+  → `SetRenderTarget(backbuffer, depth)`. So the "captured screen" is a fresh
+  re-render, **NOT** a `CopyRects` of the backbuffer (the engine never CopyRects here).
+- **Frame N+1 — the radial-blur composite, built ONCE (2 passes):** after the normal
+  live frame is drawn to the backbuffer,
+  (A) `SetRenderTarget(DAT_073de64c = 1280×256 RT, depth=NULL)` → `Clear(0xff0000c8
+      dark blue)` → 1 quad sampling `DAT_073de648` (DOWNSAMPLE 1024×768→1280×256);
+  (B) `SetRenderTarget(DAT_073de648, depth=NULL)` → `Clear(0xff173c8c)` → 12 quads
+      (24 tris) sampling `DAT_073de64c` (the multi-tap BLUR ACCUMULATION, upsampling
+      back) — this is the "vignette loop" the decompile showed;
+  then restore backbuffer + draw `DAT_073de648` full-screen (the visible backdrop).
+  All composite draws are COLOROP=MODULATE, ALPHABLEND on.
+- **Resting frames:** NO SetRenderTarget — just `SetTexture(DAT_073de648)` + a
+  full-screen quad (COLOROP=MODULATE, BLEND, alpha `min(c99c·0x16, 0xff)`) as the
+  FIRST draw = the backdrop, then the menu UI on top. So the blur is composited once;
+  rest frames redraw the static RT with a fade-in alpha ramp. The backdrop therefore
+  shows the **darkened, radial-blurred house** (warm interior tones, mean RGB ~
+  [114,105,93] vs an unfilled RT's garbage), NOT black and NOT a static board asset
+  (the earlier `dungeonbord`/`result_bord01` guesses were wrong; tex `3e66` being
+  datalen=0 is exactly because it's an RT). Cross-frame: the RT is filled at the open
+  frames and sampled forever after — a single-frame replay shows it empty; cumulative
+  (history) replay reconstructs it. The two RTs (`DAT_073de648` screen-sized X8R8G8B8,
+  `DAT_073de64c` 1280×256 A8R8G8B8) are created at init by `FUN_0047ae65`.

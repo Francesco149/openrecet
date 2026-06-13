@@ -690,15 +690,42 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     vs-v3-capture call_trace comparison on a rich gameplay session (vs the static HOUSE), then
     the archive move itself.
 
-- **P5 — RENDER-TARGET capture (the RT blind spot — new, 2026-06-13).** **Gap (confirmed, no
-  guess):** the proxy `fwd_`-forwards `CreateRenderTarget`/`SetRenderTarget`/`CopyRects`/
-  `GetRenderTarget`/`GetDepthStencilSurface` (pass-through, NOT recorded), and the format op enum
-  (`orv3_format.h`) has no such ops. So any effect that renders into an OFF-SCREEN render target
-  then samples it — **captured-screen backdrops (the pause-menu [0], `DAT_073de648`), radial-blur
-  / zoom transitions, post-processing** — replays EMPTY: the draws-into-RT aren't target-redirected
-  (they hit the backbuffer or are dropped) and the RT texture stays black (proven: pause [0] tex
-  `3e66` is 1024×768 datalen=0, `replay --upto 119 1` = pure black). The HOUSE/title/guild scenes
-  are bit-exact only because they don't use RTs; the pause backdrop is the first RT effect we hit.
+- **P5 — RENDER-TARGET capture (the RT blind spot) ✅ DONE 2026-06-13 — capture + replay +
+  history, 240/240 bit-exact on the real pause backdrop.** The proxy/replayer/readers now record +
+  reconstruct off-screen render-target effects. **What landed:**
+  - **Format (v3, `orv3_format.h`):** `ORV3_RES_RT_TEX` (id,w,h,fmt,levels,usage — an RT texture,
+    identified by IDENTITY not content: a DEFAULT-pool RT can't be locked, so no pixels stored, its
+    content is produced by the replayed stream), `ORV3_SetRenderTarget` + `ORV3_CopyRects` (citing
+    surfaces by a **SURFREF** `[kind][resid]` — NULL/BACKBUFFER/DEPTH/TEX — the replayer rebuilds the
+    actual surface from the kind; the app's Get* surface handles aren't replayed).
+  - **Proxy (`d3d8_proxy.c`):** `CreateTexture` custom (RT registry of `usage&RENDERTARGET`
+    textures); `SetRenderTarget`/`CopyRects` custom (classify each surface ptr via the cached real
+    backbuffer/depth + `IDirect3DSurface8::GetContainer` for texture-backed RTs — recovers the parent
+    of a surface the app got via `GetSurfaceLevel` at init, which the proxy never saw); `snap_rt_tex`
+    writes `RES_RT_TEX` once by registry; the RT-tex resid is deferred-patched like other binds. The
+    proxy's OWN readback (`orv3_readback_bgra`) runs on `w->real` ⇒ never recorded.
+  - **Python (`orv3.py`):** parse the 3 ops (correct byte-sizing so slice/sync don't break); an
+    RT-tex SURFREF counts as a resource REFERENCE so the slicer pulls the RES_RT_TEX forward;
+    `tex_info` reports RTs. `orv3_draws.py` skips the new ops (the per-column material bake survives
+    RT containers). **`orv3_rt.py` (new):** dumps a frame's RT command program (SetRenderTarget /
+    CopyRects / Clear / draw-runs per target, marking RT-sampling draws) — the "read the mechanism"
+    tool; `--scan` lists RT-using frames.
+  - **Replayer (`replay_core.c`):** create RTs (DEFAULT pool, RENDERTARGET usage); resolve SURFREFs
+    (GetBackBuffer / GetDepthStencilSurface / GetSurfaceLevel) and honor SetRenderTarget + CopyRects;
+    **`orv3_replay_render_history(idx)`** replays [0..idx] cumulatively so cross-frame RT content
+    fills (the per-frame render shows the [0] backdrop empty). `replay.exe --history <idx>` exposes it.
+  **Proof:** the re-driven retail `house-pause` (v3 RT container) **verifies 240/240 bit-exact**
+  (`--verify-hashes`; the in-ORDER sweep accumulates RT content for free, so even the capture frame 40
+  + composite frame 41 + every resting frame match the proxy's reference fnv64). History-replay of the
+  resting menu frame 119 = the REAL darkened/blurred-house pause backdrop (the per-frame replay = empty
+  garbage); the 40 non-RT house frames (0-39) in the same container stay bit-exact ⇒ the non-RT path is
+  unaffected (HOUSE/title regression safe). The decoded pause capture/blur mechanism: `plans/pause-menu.md`
+  M3 + quirk §123.
+  **Original gap (for the record):** the proxy `fwd_`-forwarded the RT calls (pass-through, NOT
+  recorded) and the op enum had no such ops, so an off-screen-RT effect — **captured-screen backdrops
+  (the pause-menu [0], `DAT_073de648`), radial-blur / zoom transitions, post-processing** — replayed
+  EMPTY (pause [0] tex `3e66` 1024×768 datalen=0, `replay --upto 119 1` = pure black). HOUSE/title/guild
+  are bit-exact because they don't use RTs; the pause backdrop is the first RT effect we hit.
   **Why it matters:** porting these 1:1 (no-guess, verifiable) per THE PORTING LOOP needs the v3
   tools to SHOW + DIFF the RT draw program — decompile alone is the "ship render on RE alone" trap
   (cf. the sold-out-text colour miss). **Design (the extension):**
