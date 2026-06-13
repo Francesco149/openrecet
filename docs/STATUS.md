@@ -584,6 +584,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `flow_diff` suite (`--field-timeline`/`--rng-drill`) reads the v3 traces as-is. **CLAUDE.md
   now points the parity loop at v3** (v2 retired). Then the formal **P4** parity-check (reproduce
   a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan: `plans/trace-studio-v3.md` P3/N4/P4.
+- **RENDER-PROGRAM DRILL (using the v3 draw-program panel) — new active parity thread,
+  2026-06-13.** First parity fix found purely from the render-PROGRAM (a divergence on
+  pixel-bit-exact frames, v2-invisible). **Guild conversation bg+keeper double-draw ✅ FIXED
+  (`2a2d84d`):** the port drew bg_guild twice (scene render + the conversation's own bg) +
+  a fully-overdrawn keeper on all 1076 guild conversation frames; retail skips the whole
+  mode-6 scene block when a full-bg conversation covers the screen (`FUN_004547ab` gate
+  `DAT_0438b1c8 && FUN_0046c869()`=n_bg). Gated bg+keeper on the existing
+  `scene1_intro_dialogue_covers_screen()`; bg draws/frame `{0,1,2}`→`{0,1}`, **zero pixel
+  change** (pre/post fnv64 pixel-hash identical at 1749 identities), per-conversation-frame
+  port-only draws 2→0. `findings/merchant-guild-RE.md` "Render-program drill", quirk §122.
+  **Two OPEN draw-program leads** (both v2-invisible): (a) the conversation's retail-only
+  **clear-to-black base** (tex `9fd8`, fullscreen `0xff000000`, FIRST draw, covered by the
+  opaque bg ⇒ 0 px; source `FUN_0046c9a2`/`polybg` layer — DEFERRED until a scene exercises
+  it visibly); (b) the **HOUSE 3D batching divergence** (port 98 vs retail 125 draws; 26+
+  batching splits + the `ea99` 80-tri src-alpha-0 first draw — a separate, larger effort).
+  The drill workflow: `orv3_window <scen> --window OFF:COUNT --view` → `orv3_draws.py
+  <port.bin> <pf> <retail.bin> <rf> --list` (cross-side content-keyed draw diff).
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

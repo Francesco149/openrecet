@@ -462,3 +462,65 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
 Defer (later traces): Sell (mode 3), Fusion (mode 5 / `FUN_00493616`), Expansion (mode 4),
 Talk submenu (mode 2 = window 3), tab-switch (window 2).
 Both are almost certainly more `FUN_004922c0`/event-tick branches (same machinery).
+
+## Render-program drill (v3 native trace studio, 2026-06-13)
+
+Driving `guild-ui-flow` through the v3 viewer's **draw-program panel** (which flags
+when PIXELS are 1:1 but the RENDER PROGRAM differs — invisible to v2's pixel-only
+diff) surfaced two conversation render-program divergences. Probed with
+`tools/trace_studio_v3/orv3_draws.py` (per-draw enumeration + cross-side
+content-keyed diff) over the cached `guild-ui-flow-ffc2d568` window.
+
+**(1) The guild bg + guildmaster were DOUBLE-DRAWN during every conversation —
+✅ FIXED 2026-06-13 (`2a2d84d`).** On the **1076** conversation frames (Talk topics /
+first-visit cutscene) the port drew bg_guild (tex `2780`, 1024×512) **twice** — once
+from `scene_guild_render`'s slot0, and again from the conversation renderer's own bg
+pass (`draw_background`, port of `FUN_0046c9a2`) — plus the guildmaster keeper (slot1,
+dst(-64,32,448,448)), all fully overdrawn by the conversation's opaque bg. **Retail
+draws bg_guild exactly ONCE** per frame (a full-window scan: retail bg-draws/frame =
+`{0:114, 1:2486}`, never 2): its render root **`FUN_004547ab` skips the WHOLE mode-6
+scene block** (`FUN_00490e35 → FUN_00494a73` = guild bg + keeper + menu + HUD) when a
+full-screen-bg conversation covers the screen — the gate is
+`DAT_0438b1c8 != 0 && FUN_0046c869() != 0`, and `FUN_0046c869` returns `DAT_073a3df0`
+(= the active script's `bgset:`/n_bg count). So during a full conversation retail
+renders ONLY the conversation — its own bg + the **guildmaster AS A STANDEE** (a
+separate conversation draw at a *different* dst, NOT the keeper slot) + the box. The
+port's `scene_guild_render` already gated the *menu* on the dialogue state but ALWAYS
+drew bg + keeper (a deliberate "they coincide with retail's cutscene bg + standee"
+note the draw-program trace disproves — the keeper is drawn, fully covered, at a
+different position from retail's standee).
+
+**Fix:** gate the bg + keeper on `!scene1_intro_dialogue_covers_screen()` — the port's
+*existing* port of that exact `FUN_0046c869` gate (`active() && n_bg>0`, already used
+for the INGAME HUD at `main.c:2925`), the same way the menu below is gated. An OVERLAY
+dialogue with no bg (the iv1_9 try-leave reminder, n_bg=0) leaves it false, so the bg +
+keeper stay the menu backdrop (preserves the confirmed `aa773d0` iv1_9 fix). **Pixel-safe
+by construction** (the suppressed draws were fully overdrawn): bg draws/frame went
+`{0:106, 1:567, 2:1076}` → `{0:106, 1:1722}` (**zero** double-draws), and the post-fix
+port is **pixel-bit-identical to the pre-fix port at all 1749 shared identities** (the
+fix changed ZERO pixels — verified by a per-frame fnv64 pixel-hash join, `v3refs.txt`
+keyed by `(anchor,offset)` identity via `v3cache.load_meta`). A conversation frame's
+cross-side draw diff goes from "matched 6, **port-only 2**, retail-only 1" → "matched 5,
+**port-only 0**, retail-only 1".
+
+**(2) Retail lays a CLEAR-TO-BLACK base first in every conversation (tex `9fd8`) —
+DEFERRED LEAD (invisible).** Retail's conversation render's **FIRST** draw on all 1076
+conversation frames is a full-screen **opaque-black** quad (a 128×128 texture stretched
+to 1024×768, diffuse `0xff000000` ⇒ COLOROP=MODULATE→black, SRCALPHA blend, ZENABLE off)
+— a clear-to-black backdrop, immediately covered by the opaque bg (net pixel effect 0).
+The port omits it; it is the SOLE remaining draw-program divergence on a conversation
+frame after fix (1). Source is inside the conversation render `FUN_0046c9a2` (NOT
+`FUN_00494a73`, whose mid-transition black blit modulates the **1024×512** bg texture, a
+different size than this 128×128 quad); the most likely emitter is the `polybg`-gated
+layer block (`DAT_073a3dfc && DAT_0735dd88` → `FUN_00455191`/`scene1_emit_record`).
+**Invisible in the guild** (the opaque bg covers it), so porting is deferred until a
+conversation with a non-covering / semi-transparent event bg (or a fade) is traced and
+the exact emitter + texture source are nailed. Logged as engine-quirk §122.
+
+**(Separately — HOUSE, NOT this fix's class.)** The `house-loaded-display-pinned` HOUSE
+free-roam frame shows a much larger **3D** render-program divergence (port **98** vs
+retail **125** draws; 56 port-only + 83 retail-only after content-matching, 42 matched)
+— heavy `DrawIndexedPrimitive` batching differences in the 3D scene, NOT the guild's
+clean single-layer 2D case. A separate, larger follow-up (the FRONT's "26 batching
+splits + 1 extra `ea99` draw" finding); the `ea99` draw is an 80-tri src-alpha-0 first
+draw, distinct from the guild's 2-tri black base.

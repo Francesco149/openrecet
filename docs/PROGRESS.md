@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-13 — scene-guild: drop the conversation bg+keeper double-draw (v3 render-program drill, `2a2d84d`)
+
+First parity fix found purely through the **v3 draw-program panel** — a render-PROGRAM
+divergence on pixel-bit-exact frames (invisible to v2's pixel diff). Drilling
+`guild-ui-flow` with `orv3_draws.py` showed the port drawing bg_guild (tex `2780`)
+**twice** on every one of the **1076** guild conversation frames (Talk topics /
+first-visit cutscene): once from `scene_guild_render`'s slot0, once from the
+conversation renderer's own `draw_background` (FUN_0046c9a2) — plus a fully-overdrawn
+guildmaster keeper. Retail draws it **once** (full-window scan `{0:114, 1:2486}`, never
+2): its render root `FUN_004547ab` **skips the whole mode-6 scene block** when a
+full-screen-bg conversation covers the screen — gate `DAT_0438b1c8 && FUN_0046c869()`,
+where `FUN_0046c869` returns the active script's n_bg — so a full conversation renders
+ONLY itself (its own bg + the guildmaster as a STANDEE + the box).
+
+- **Fix:** gate `scene_guild_render`'s bg + keeper on the port's *existing*
+  `scene1_intro_dialogue_covers_screen()` — the exact `FUN_0046c869` gate, already used
+  for the INGAME HUD at `main.c:2925` — the same way the guild menu is gated. The iv1_9
+  try-leave reminder (n_bg=0, overlay) keeps it false, so the bg + keeper stay the menu
+  backdrop (the `aa773d0` fix is preserved). +19/−2 in one file.
+- **Verified (cached guild-ui-flow v3 window):** bg draws/frame `{0:106,1:567,2:1076}` →
+  `{0:106,1:1722}` (zero double-draws); the post-fix port is **pixel-bit-identical to the
+  pre-fix port at all 1749 shared identities** (a per-frame fnv64 pixel-hash join keyed by
+  `(anchor,offset)` — the fix changed ZERO pixels); a conversation frame's cross-side draw
+  diff goes port-only **2 → 0** (only the retail-only `9fd8` clear-to-black base remains).
+- **Deferred lead (invisible):** retail lays a full-screen opaque-black quad (tex `9fd8`,
+  128×128 stretched, `0xff000000`, ZENABLE off) as the conversation's FIRST draw on all
+  1076 frames — covered by the opaque bg (0 px), source inside `FUN_0046c9a2` (likely the
+  `polybg`/`FUN_00455191` layer block). Engine-quirk §122; port deferred until a scene
+  exercises it visibly. The HOUSE `ea99` (98-vs-125 draws, 3D batching) is a separate,
+  larger divergence. RE: `findings/merchant-guild-RE.md` "Render-program drill".
+
 ## 2026-06-13 — studio-v3: parse-once container handoff + material-aggregate bake (cached re-window loop perf)
 
 The biggest perf remainder in the v3 **cached re-window loop**: each phase (`orv3_sync`,

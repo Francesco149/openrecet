@@ -4620,3 +4620,37 @@ that gates the cap; label is "Purchase Price-" (buy) / "Sell Price-" (sell) in t
 guild (scene 6), "Base Price-" in the house stand. Relevant to buy-flow steps 3-4
 (the live decrement + Out-Of-Stock + trend are all PORT-DEBT(price-trend) for now;
 the fresh-open list is 1:1). RE: `findings/merchant-guild-RE.md` "BUY FLOW".
+
+## 122. A full-screen-bg conversation REPLACES the scene render (FUN_004547ab skips the whole scene+HUD block), and the conversation lays a clear-to-black full-screen base as its FIRST draw
+
+The render root `FUN_004547ab` renders the live scene+HUD block (per mode:
+`FUN_00490e35` guild / the house renderer / … + `FUN_0040a765` HUD) only when
+`DAT_0438b1c8 != 1 || FUN_0046c869() == 0` — i.e. it **SKIPS that whole block**
+when a dialogue is active (`DAT_0438b1c8 == 1`) AND the active script declares a
+full-screen background (`FUN_0046c869()` returns `DAT_073a3df0` = the script's
+`bgset:`/n_bg count, non-zero). It then unconditionally draws the conversation
+(`FUN_0046c090 → FUN_0046c9a2`). So a "full" conversation (a cutscene / Talk-topic
+carrying `bgset:`) renders **ONLY** the conversation — its own painted bg + the
+speakers AS STANDEES + the text box — with NO scene drawn underneath; an OVERLAY
+dialogue with no `bgset:` (n_bg=0, e.g. the iv1_9 try-leave reminder) leaves the
+scene + HUD drawn behind the box. Confirmed in the guild (mode 6) via the v3
+draw-program capture (`guild-ui-flow`): on the 1076 conversation frames retail
+draws bg_guild **exactly once** (the conversation's own pass) — the guild scene's
+bg/keeper/menu are absent — while on the 1516 menu-rest frames the guild scene
+draws bg_guild first. (The port ports this gate as
+`scene1_intro_dialogue_covers_screen()`, already used for the INGAME HUD; the
+guild scene render now uses it for its bg + keeper too — see merchant-guild-RE.md
+"Render-program drill", `2a2d84d`.)
+
+Additionally, the conversation render's **FIRST** draw on every full-conversation
+frame is a **full-screen opaque-black quad** (a 128×128 texture stretched to the
+backbuffer, diffuse `0xff000000` ⇒ COLOROP=MODULATE to solid black, SRCALPHA
+blend, ZENABLE off) — a clear-to-black base laid down before the painted bg. It is
+immediately covered by the opaque bg, so its net pixel effect is **0** when the bg
+is full-screen + opaque (the common case); it would only show through a smaller /
+semi-transparent event bg or during a fade. Source is inside `FUN_0046c9a2` (NOT
+`FUN_00494a73`, whose mid-transition black blit modulates the 1024×512 bg texture
+— a different size than this 128×128 quad). Likely emitter = the `polybg`-gated
+layer block (`DAT_073a3dfc && DAT_0735dd88` → `FUN_00455191`/scene1_emit_record)
+or a conversation-setup clear; exact pin deferred (it is invisible in every scene
+traced so far). The port omits it — a render-program-only gap, no pixel effect.
