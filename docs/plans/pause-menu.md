@@ -186,9 +186,34 @@ Draw primitives all already in the port: `render_quad_add`
   the RT regardless), and **[4-9] needs the stubbed current-day un-stubbed**.
   [4-9] is still verifiable STRUCTURALLY (draw-program tex/colorop/tri-count +
   geometry-hash, once values load 1:1), just not via a swamped pixel diff.
+- **M3 — the captured-screen BACKDROP [0] + open/close transition (the radial
+  blur) — NOW THE ACTIVE TARGET (user: "port [0] now", 2026-06-13).** [0] is the
+  captured-screen RT redraw; the transition is a radial-blur/zoom the user flagged.
+  **Capture mechanism DECODED (vtable-mapped from the proxy vtable, factual):**
+  device vtable offsets — `+0x50` CreateTexture, `+0x64` CreateRenderTarget, `+0x70`
+  CopyRects, `+0x7c` SetRenderTarget, `+0x80` GetRenderTarget, `+0x84`
+  GetDepthStencilSurface, `+0x90` Clear, `+0x94` SetTransform, `+0xf4` SetTexture.
+  - **RT init `FUN_0047ae65`:** `DAT_073de648` = `CreateTexture(screen W×H, 1 lvl,
+    usage=1 D3DUSAGE_RENDERTARGET, fmt, pool=0 DEFAULT)` → surface `DAT_073de630`;
+    `DAT_073de64c` = `CreateTexture(1280×256, RT)` → surface `DAT_073de634`. Both
+    are render targets (this is why tex `3e66` is datalen=0).
+  - **`FUN_00454191` (called every frame via `FUN_0045404b`):** gate `1<c99c`. At
+    `c99c==3` (open) it builds the composite: GetDepthStencilSurface+GetRenderTarget
+    (save the backbuffer), `SetRenderTarget(DAT_073de634)` (render INTO the 1280×256
+    RT), `Clear(…, 0xff0000c8)` (dark blue), `SetTransform(PROJECTION)`, then
+    composite draws (binds `DAT_073de648`, draws full-screen; a `0x14dcdcdc`
+    translucent vignette LOOP L50914-50932 = the radial-blur/zoom build-up), then
+    restores the saved RT/depth. At rest (`c99c>3`) it redraws the composited RT
+    full-screen (this is **[0]**, alpha `min(c99c·0x16,0xff)`).
+  - **⚠ EXACT passes need P5 (RT-capture tooling) to nail WITHOUT GUESSING** — the
+    decompile confirms the *shape* (RT composite + vignette loop) but the precise
+    blur/darken passes + what's CopyRects'd into `DAT_073de648` (the captured screen)
+    must be read off the actual captured d3d stream, not inferred. See
+    `plans/trace-studio-v3.md` P5. Interim appearance ground-truth: the `--raw-refs`
+    backbuffer readback (a re-drive stores the REAL composited frame).
 - **M3+ (later arcs):** submenus — Items, Encyclopedia, Options, Save,
   Exit-confirm (the `sub_anim>0` dispatch L83931-83952); the unpause cursor
-  restore; the open/close fade transition (`FUN_00454191` body).
+  restore.
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
