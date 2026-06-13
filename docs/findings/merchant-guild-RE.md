@@ -414,11 +414,21 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    Sale" (`0xff00007f`, ×1.0) else "Out Of Stock" (`0xff9b0000`, ×1.2) at (xL+152, rowY−4);
    **mode-6 item bit5** → "Adventurer's Possession" (`0xff00c87f`, ×0.65) at (xL+132, rowY+16).
    Consts from .rdata (name-x 0x519444=120, status-x 0x51965c=152, y-sub 0x51939c=4, scales
-   0x519924=1.2/0x519df0=0.65, Adv offsets 0x519e3c=132/0x519520=20). Gated on cap==0/bit5 ⇒
-   the in-stock list is byte-identical (no regression). **NOT yet studio-exercised** — the
-   guild-ui-flow trace never buys an item to 0 (ends Worn Sword 2 Left / Longsword 1 Left,
-   1:1 both sides; the sell-out, if its later inputs reach it, is past the 7-min capture
-   ceiling). Pending a buy-out trace or a play-verify (OOS-vs-NFS needs the price-trend port).
+   0x519924=1.2/0x519df0=0.65, Adv offsets 0x519e3c=132/0x519520=20).
+   **Colour fix ✅ 1:1-VERIFIED 2026-06-13 (`1049cdd`):** the first pass committed UNVERIFIED
+   and rendered the wrong colour — dark red (COLOROP=MODULATE) vs retail's salmon. The whole
+   buy-list ROW loop draws under **COLOROP=ADDSIGNED** in retail (`FUN_0046b00a` sets
+   `SetTextureStageState(0,COLOROP,ADDSIGNED)` @66607, resets MODULATE @66775 before the
+   description panel) — confirmed via `orv3_draws` (every retail row draw colorop=8, port was
+   4). Ported: ADDSIGNED for the icons+names+status, grey-0x7f passthrough diffuses (= TEXTURE
+   under ADDSIGNED, so white/grey content stays byte-identical) while the `0x9b0000` status
+   diffuse renders salmon. **Exercised on the NEW `guild-buyout` scenario** (max-qty buy out
+   the Worn Sword → cap 0; tight caprange EXTRA_SPRITE_END+480..840): the sold-out frame is
+   **meanabs 0.4→0.04, OOS text RGB [196,156,124] on BOTH sides, row draws colorop=8 both**
+   (draw-match 140→164). **PORT-DEBT:** the `FUN_00468ddc` availability greying (unavailable
+   icon→0x4d4d4d, all.c:66747) + the price-trend tints (`FUN_004361b2`, OOS-vs-NFS split) stay
+   deferred. Lesson: verify a renderable port 1:1 in the trace tools before committing — the
+   diffuse VALUE was right; the inherited COLOROP was the bug (`feedback_verify_1to1_before_done`).
 3. **Item-list nav (mode 0) — ✅ DONE 2026-06-11 (`45f5bca`).** The in-list cursor nav was
    already in `display_menu_update` (the header's PORT-DEBT(A3) note was stale); the new
    `scene_guild_sim` mode-0 block dispatches its return: **r==3** (A-edge) → `guild_buy_price_preview`

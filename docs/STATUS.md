@@ -315,15 +315,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   the dissolve fade. The port armed the fade+flags but stubbed the SE (`PORT-DEBT(door-SE)`);
   un-stubbed (RNG-neutral). `audio_diff` merchants-guild: **missing 2→0, track ALIGNED (9
   sounds)**. Tooling: audio se_play hooks now record `ret_va` (names a SE's caller).
-- **GUILD buy-list SOLD-OUT status overlay ✅ PORTED 2026-06-13 (`d69f3e2`).** The retail
-  buy-row loop tail draws a per-row status overlay Ghidra DROPPED (bare `FUN_0047ca05` at
-  all.c:66703-66708; recovered from objdump @0x46b7f9-0x46b8a3): mode-7 cap==0 → "Out Of
-  Stock" (`0xff9b0000`,×1.2) / "Not For Sale" (`0xff00007f`,×1.0, trend≤−2); mode-6 bit5 →
-  "Adventurer's Possession" (`0xff00c87f`,×0.65). Gated cap==0/bit5 ⇒ in-stock list byte-
-  identical (no regression). **NOT yet studio-exercised:** guild-ui-flow never buys to 0
-  (ends Worn Sword 2 Left / Longsword 1 Left, 1:1 both sides; a sell-out is past the 7-min
-  capture ceiling). Verify by play (buy an item out) or a focused buy-out trace; OOS-vs-NFS
-  needs the price-trend port (FUN_004361b2, still PORT-DEBT). RE: `merchant-guild-RE.md` §2.
+- **GUILD buy-list SOLD-OUT status overlay ✅ PORTED + 1:1-VERIFIED 2026-06-13 (`d69f3e2`
+  text + `1049cdd` colour fix).** The retail buy-row loop tail draws a per-row status overlay
+  Ghidra DROPPED (bare `FUN_0047ca05` at all.c:66703-66708; recovered from objdump
+  @0x46b7f9-0x46b8a3): mode-7 cap==0 → "Out Of Stock" (`0xff9b0000`,×1.2) / "Not For Sale"
+  (`0xff00007f`,×1.0, trend≤−2); mode-6 bit5 → "Adventurer's Possession" (`0xff00c87f`,×0.65).
+  **The colour was wrong first pass (committed unverified — DON'T):** the port drew the rows
+  under COLOROP=MODULATE (dark red) but **retail uses ADDSIGNED** (salmon) — `FUN_0046b00a`
+  sets `SetTextureStageState(0,COLOROP,ADDSIGNED)` @66607, resets MODULATE @66775. Found via
+  the v3 draw panel (`orv3_draws`: every retail row draw colorop=8, port was 4). Fixed: rows
+  under ADDSIGNED + grey-0x7f passthrough diffuses (white/grey content unchanged, the colour
+  diffuses render as retail). **Exercised + verified on the NEW `guild-buyout` scenario** (buy
+  the Worn Sword out to cap 0 → "Out Of Stock"; tight caprange EXTRA_SPRITE_END+480..840 ⇒
+  fast ~108 s port drive): sold-out frame **meanabs 0.4→0.04, OOS text RGB [196,156,124] on
+  BOTH sides, row draws colorop=8 both** (draw-match 140→164). PORT-DEBT: the FUN_00468ddc
+  availability greying (icon 0x4d4d4d) + price-trend tints (FUN_004361b2) stay deferred. RE:
+  `merchant-guild-RE.md` §2. **Lesson (`feedback_verify_1to1_before_done`): always exercise +
+  trace-compare a renderable port before committing — RE of the diffuse value isn't enough
+  without the inherited COLOROP.**
 - **NEW ARC → PAUSE MENU (in-game ESC menu).** Scenario **`house-pause`** added 2026-06-13
   (`0250347`): house-loaded-display-pinned + an `{esc}` at LOADING_END+160. The port SWALLOWS
   in-game ESC (`esc_dispatch.c` → skip_event_arm + SWALLOW — "no in-game pause/menu overlay
