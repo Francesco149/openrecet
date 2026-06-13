@@ -99,7 +99,11 @@ def port_stale(entry: Path) -> bool:
 
 
 def drive_retail(scenario: str, anchor: str, cr_start: int, cr_n: int,
-                 max_frames: int | None, verify: bool, state: bool) -> None:
+                 max_frames: int | None, verify: bool, state: bool) -> int:
+    """Drive + cache the retail full-extent. Returns the driver exit code (does NOT
+    abort): a non-zero code is often a non-bit-exact replay VERIFY (e.g. an unported
+    overlay like the pause menu) AFTER the container was already cached — the caller
+    re-checks the cache and only fails on a true miss (no extent produced)."""
     cmd = [sys.executable, str(HOUSE_DRV), "--scenario", scenario, "--anchor", anchor,
            "--offset", str(cr_start), "--count", str(cr_n)]
     if max_frames is not None:
@@ -110,21 +114,19 @@ def drive_retail(scenario: str, anchor: str, cr_start: int, cr_n: int,
         cmd += ["--state"]
     print(f"[loop]  RETAIL miss → driving full caprange extent [{cr_start},{cr_start + cr_n}) "
           f"(the load-stretch, paid ONCE): {' '.join(cmd[2:])}")
-    r = subprocess.run(cmd, cwd=ROOT)
-    if r.returncode != 0:
-        raise SystemExit(f"[fail] retail drive (house_capture.py) exited {r.returncode}")
+    return subprocess.run(cmd, cwd=ROOT).returncode
 
 
-def drive_port(scenario: str, anchor: str, verify: bool, state: bool) -> None:
+def drive_port(scenario: str, anchor: str, verify: bool, state: bool) -> int:
+    """Drive + cache the port full-extent. Returns the driver exit code (see
+    drive_retail — the caller re-checks the cache before treating it as fatal)."""
     cmd = [sys.executable, str(PORT_DRV), scenario, "--anchor", anchor]
     if not verify:
         cmd += ["--no-verify"]
     if state:
         cmd += ["--state"]
     print(f"[loop]  PORT drive (fast — no load-stretch): {' '.join(cmd[2:])}")
-    r = subprocess.run(cmd, cwd=ROOT)
-    if r.returncode != 0:
-        raise SystemExit(f"[fail] port drive (port_capture.py) exited {r.returncode}")
+    return subprocess.run(cmd, cwd=ROOT).returncode
 
 
 def ensure_side(side: str, scenario: str, anchor: str, req_off: int, req_n: int,
@@ -148,13 +150,21 @@ def ensure_side(side: str, scenario: str, anchor: str, req_off: int, req_n: int,
         entry = None
     if entry is None:
         if side == "retail":
-            drive_retail(scenario, anchor, cr_start, cr_n, max_frames, verify, state)
+            rc = drive_retail(scenario, anchor, cr_start, cr_n, max_frames, verify, state)
         else:
-            drive_port(scenario, anchor, verify, state)
+            rc = drive_port(scenario, anchor, verify, state)
         entry = v3cache.find_extent(scenario, side, anchor, req_off, req_n, trace_path)
         if entry is None:
-            raise SystemExit(f"[fail] {side} drove but produced no extent containing "
+            raise SystemExit(f"[fail] {side} drove (exit {rc}) but produced no extent containing "
                              f"[{req_off},{req_off + req_n}) — check the driver output above")
+        if rc != 0:
+            # The driver cached the extent but exited non-zero — almost always a
+            # non-bit-exact replay VERIFY (an unported/divergent overlay, e.g. the
+            # pause menu), NOT a capture failure. Surface it, then proceed: the whole
+            # point of the run is to INSPECT that divergence in the viewer.
+            print(f"[warn] {side} driver exited {rc} but the extent IS cached → proceeding. "
+                  f"Usually a non-bit-exact replay verify (a finding, not a drive failure); "
+                  f"re-run with --no-verify to skip the check.")
         action = "drove"
     return entry, action
 
