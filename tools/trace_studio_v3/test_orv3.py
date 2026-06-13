@@ -101,6 +101,57 @@ def test_tex_info() -> None:
     print("  OK tex_info: dims + is_rt (asset datalen>0 vs RT datalen==0)")
 
 
+def _surfref(kind: int, rid: int = 0) -> bytes:
+    return _u(kind) + struct.pack("<i", rid)
+
+
+def build_rt_container() -> bytes:
+    """The pause-backdrop shape, minimally: frame 0 defines an RT texture (id 5),
+    targets it (SetRenderTarget), draws into it, restores the backbuffer; frame 1
+    CopyRects the backbuffer INTO the RT then samples the RT (SetTexture) + draws.
+    Mirrors the v3 byte layout (RES_RT_TEX + SURFREF + CopyRects rects/points)."""
+    b = bytearray()
+    b += _u(orv3.MAGIC) + _u(3)                                    # v3 header
+    b += _u(orv3.DEV_PARAMS) + b"".join(_u(x) for x in
+          (1024, 768, 21, 75, 0, 1, 1, 0x40, 0, 0, 1, 1))
+    # frame 0: RES_RT_TEX(id=5, 1024x768, fmt22, levels1, usage=RENDERTARGET=1)
+    b += _u(orv3.RES_RT_TEX) + _u(5) + _u(1024) + _u(768) + _u(22) + _u(1) + _u(1)
+    b += _u(orv3.SetRenderTarget) + _surfref(orv3.SURF_TEX, 5) + _surfref(orv3.SURF_NULL)
+    b += _u(orv3.DrawPrimitive) + _u(4) + _u(0) + _u(2)
+    b += _u(orv3.SetRenderTarget) + _surfref(orv3.SURF_BACKBUFFER) + _surfref(orv3.SURF_DEPTH)
+    b += _u(orv3.Present) + _u(100)
+    # frame 1: CopyRects(backbuffer -> RT 5, one full rect), then sample the RT + draw
+    b += (_u(orv3.CopyRects) + _surfref(orv3.SURF_BACKBUFFER) + _surfref(orv3.SURF_TEX, 5)
+          + _u(1) + struct.pack("<4i", 0, 0, 1024, 768) + struct.pack("<2i", 0, 0))
+    b += _u(orv3.SetTexture) + _u(0) + _u(5) + _u(orv3.DrawPrimitive) + _u(4) + _u(0) + _u(2)
+    b += _u(orv3.Present) + _u(101)
+    b += _u(orv3.EOF)
+    return bytes(b)
+
+
+def test_rt() -> None:
+    """RES_RT_TEX + SetRenderTarget + CopyRects: parse byte-sizing, that an
+    RT-texture surface counts as a resource REFERENCE (so the slicer pulls it
+    forward), and that tex_info reports it as a render target with its usage."""
+    c = orv3.Container(build_rt_container())
+    assert c.version == 3, c.version
+    assert c.n_frames == 2 and c.presents == [100, 101], (c.n_frames, c.presents)
+    assert c.frames[0].res_defined == [5], c.frames[0].res_defined
+    assert c.frames[0].res_referenced == {5}, c.frames[0].res_referenced   # SetRenderTarget(TEX 5)
+    assert c.frames[1].res_referenced == {5}, c.frames[1].res_referenced   # CopyRects dst + SetTexture
+    # the new ops are draws-free but count as calls (state/blit), each frame has 1 draw
+    assert [f.n_draws for f in c.frames] == [1, 1], [f.n_draws for f in c.frames]
+    ti = c.tex_info(5)
+    assert ti == {"w": 1024, "h": 768, "fmt": 22, "datalen": 0, "levels": 1,
+                  "is_rt": True, "usage": 1}, ti
+    # slice [1,2): frame 1 cites RT id5 defined in frame 0 (outside) ⇒ pull forward
+    sl = orv3.Container(c.slice_window(1, 2))
+    assert sl.n_frames == 1 and sl.presents == [101], (sl.n_frames, sl.presents)
+    assert set(sl.resources) == {5}, sl.resources
+    assert sl.tex_info(5)["is_rt"], "RT def must be pulled into the slice"
+    print("  OK rt: RES_RT_TEX/SetRenderTarget/CopyRects parse + surfref ref + slice pull-forward")
+
+
 def test_slice() -> None:
     c = orv3.Container(build_container())
     # slice [1,3): frame 1 binds id0,id1 (defined in frame 0, OUTSIDE the slice) ⇒ must
@@ -404,6 +455,8 @@ def test_load_side() -> None:
 
 def main() -> int:
     test_parse()
+    test_tex_info()
+    test_rt()
     test_slice()
     test_join()
     test_extent_lookup()
@@ -412,9 +465,9 @@ def main() -> int:
     test_draws()
     test_material_agg()
     test_load_side()
-    print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup "
-          "+ view timeline merge + multi-anchor identity + draw semantics + material_agg bake "
-          "+ parse-once handoff")
+    print("OK: orv3 container parse + tex_info + RT ops + slice pull-forward + sync-by-identity join "
+          "+ cache lookup + view timeline merge + multi-anchor identity + draw semantics "
+          "+ material_agg bake + parse-once handoff")
     return 0
 
 

@@ -26,21 +26,27 @@ MAGIC = 0x33565241  # "ARV3"
 
 # record types (mirror orv3_format.h)
 DEV_PARAMS = 1
-RES_TEX, RES_VB, RES_IB = 2, 3, 4
+RES_TEX, RES_VB, RES_IB, RES_RT_TEX = 2, 3, 4, 5
 SetRenderState, SetTextureStageState, SetTransform, SetMaterial = 10, 11, 12, 13
 SetTexture, SetStreamSource, SetIndices, SetVertexShader = 14, 15, 16, 17
 DrawPrimitive, DrawIndexedPrimitive, DrawPrimitiveUP, DrawIndexedPrimitiveUP = 18, 19, 20, 21
-Clear, SetLight, LightEnable, BeginScene, EndScene, Present, EOF = 22, 23, 24, 25, 26, 27, 99
+Clear, SetLight, LightEnable, BeginScene, EndScene, Present = 22, 23, 24, 25, 26, 27
+SetRenderTarget, CopyRects, EOF = 28, 29, 99
+
+# SURFREF kinds (mirror orv3_format.h): the [kind] half of a surface citation
+SURF_NULL, SURF_BACKBUFFER, SURF_DEPTH, SURF_TEX = 0, 1, 2, 3
 
 OPNAME = {
     DEV_PARAMS: "DEV_PARAMS", RES_TEX: "RES_TEX", RES_VB: "RES_VB", RES_IB: "RES_IB",
+    RES_RT_TEX: "RES_RT_TEX",
     SetRenderState: "SetRenderState", SetTextureStageState: "SetTextureStageState",
     SetTransform: "SetTransform", SetMaterial: "SetMaterial", SetTexture: "SetTexture",
     SetStreamSource: "SetStreamSource", SetIndices: "SetIndices", SetVertexShader: "SetVertexShader",
     DrawPrimitive: "DrawPrimitive", DrawIndexedPrimitive: "DrawIndexedPrimitive",
     DrawPrimitiveUP: "DrawPrimitiveUP", DrawIndexedPrimitiveUP: "DrawIndexedPrimitiveUP",
     Clear: "Clear", SetLight: "SetLight", LightEnable: "LightEnable",
-    BeginScene: "BeginScene", EndScene: "EndScene", Present: "Present", EOF: "EOF",
+    BeginScene: "BeginScene", EndScene: "EndScene", Present: "Present",
+    SetRenderTarget: "SetRenderTarget", CopyRects: "CopyRects", EOF: "EOF",
 }
 
 DEV_FIELDS = ("w", "h", "bbfmt", "depthfmt", "windowed", "bbcount",
@@ -122,6 +128,11 @@ class Container:
                 p += dl
                 self.resources[rid] = (t, rec_start, p)
                 res_defined.append(rid)
+            elif t == RES_RT_TEX:
+                rid = u(p); p += 4
+                p += 20                    # w,h,fmt,levels,usage (no pixel data — an RT)
+                self.resources[rid] = (RES_RT_TEX, rec_start, p)
+                res_defined.append(rid)
             elif t == SetRenderState:
                 p += 8
             elif t == SetTextureStageState:
@@ -176,6 +187,23 @@ class Container:
                 p += dl
             elif t == LightEnable:
                 p += 8
+            elif t == SetRenderTarget:
+                for _ in range(2):         # color SURFREF, depth SURFREF
+                    kind = u(p); p += 4
+                    rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                    if kind == SURF_TEX and rid >= 0:
+                        res_ref.add(rid)   # an RT texture's surface ⇒ slice must pull it forward
+                ncalls += 1
+            elif t == CopyRects:
+                for _ in range(2):         # src SURFREF, dst SURFREF
+                    kind = u(p); p += 4
+                    rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                    if kind == SURF_TEX and rid >= 0:
+                        res_ref.add(rid)
+                cnt = u(p); p += 4
+                p += cnt * 16              # rects[cnt] (RECT = 16B)
+                p += cnt * 8               # points[cnt] (POINT = 8B)
+                ncalls += 1
             elif t in (BeginScene, EndScene):
                 pass
             elif t == Present:
@@ -239,16 +267,23 @@ class Container:
         return bytes(out)
 
     def tex_info(self, rid: int) -> dict | None:
-        """(w, h, fmt, datalen, levels, is_rt) of texture `rid` from its stored
-        RES_TEX record, or None if `rid` isn't a texture. datalen==0 ⇒ a
-        dynamically-created RENDER TARGET (no captured pixels) vs a file asset
-        (datalen>0) — the distinction that tells a captured-screen draw from a
-        loaded sprite (this is what nailed the pause-menu [0] backdrop as the
-        captured-screen RT `DAT_073de648`, not a static board asset)."""
+        """(w, h, fmt, datalen, levels, is_rt[, usage]) of texture `rid`, or None
+        if `rid` isn't a texture. A RES_RT_TEX is an EXPLICIT render target (v3 RT
+        capture): is_rt=True, datalen=0, with its creation `usage`. For a plain
+        RES_TEX, is_rt is the legacy heuristic datalen==0 (a DEFAULT-pool texture
+        the proxy couldn't lock) — pre-v3 containers carried the pause backdrop RT
+        this way; v3 records it as RES_RT_TEX instead."""
         entry = self.resources.get(rid)
-        if not entry or entry[0] != RES_TEX:
+        if not entry:
             return None
         d = self.data
+        if entry[0] == RES_RT_TEX:
+            p = entry[1] + 8             # skip [type][id]
+            w, h, fmt, levels, usage = struct.unpack_from("<IIIII", d, p)
+            return {"w": w, "h": h, "fmt": fmt, "datalen": 0, "levels": levels,
+                    "is_rt": True, "usage": usage}
+        if entry[0] != RES_TEX:
+            return None
         p = entry[1] + 8                 # skip [type][id]
         levels = struct.unpack_from("<I", d, p)[0]; p += 4
         w, h, fmt = struct.unpack_from("<III", d, p); p += 12

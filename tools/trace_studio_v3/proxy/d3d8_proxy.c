@@ -64,6 +64,9 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawIndexedPrimitiveUP(IDir
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetLight(IDirect3DDevice8*, DWORD, const D3DLIGHT8*);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice8*, DWORD, WINBOOL);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8*, UINT, D3DBACKBUFFER_TYPE, IDirect3DSurface8**);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateTexture(IDirect3DDevice8*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture8**);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetRenderTarget(IDirect3DDevice8*, IDirect3DSurface8*, IDirect3DSurface8*);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CopyRects(IDirect3DDevice8*, IDirect3DSurface8*, const RECT*, UINT, IDirect3DSurface8*, const POINT*);
 
 #include "proxy_generated.h"
 
@@ -217,6 +220,42 @@ static int dedup_or_write(uint32_t type, const uint8_t *body, size_t bodylen)
     return id;
 }
 
+/* ── render-target texture registry (v3 RT capture) ──
+ * RTs are identified by IDENTITY (the pointer CreateTexture handed back), NOT
+ * content: a DEFAULT-pool RT texture can't be locked (snap_tex would store
+ * datalen=0), and content-hash dedup would alias two same-size RTs and never
+ * carry their (proxy-can't-read) pixels — an RT's content is produced by the
+ * replayed SetRenderTarget/draw/CopyRects stream, not stored. my_CreateTexture
+ * records every usage&RENDERTARGET texture here; snap_tex routes a BOUND RT here
+ * (it's also SetTexture'd as a composite source); classify_surface resolves an RT
+ * surface's parent here. The resid is assigned LAZILY at first reference
+ * (snap_rt_tex), the RES_RT_TEX record written once into the container. */
+typedef struct { void *ptr; uint32_t w, h, fmt, levels, usage; int id; } RtTex;
+#define ORV3_MAXRT 64
+static RtTex g_rt[ORV3_MAXRT]; static int g_n_rt;
+static RtTex *rt_find(void *ptr)
+{ for (int i = 0; i < g_n_rt; i++) if (g_rt[i].ptr == ptr) return &g_rt[i]; return NULL; }
+static void rt_register(void *ptr, uint32_t w, uint32_t h, uint32_t fmt, uint32_t levels, uint32_t usage)
+{
+    if (!ptr || rt_find(ptr) || g_n_rt >= ORV3_MAXRT) return;
+    g_rt[g_n_rt] = (RtTex){ ptr, w, h, fmt, levels ? levels : 1u, usage, -1 };
+    g_n_rt++;
+}
+/* assign+write the RES_RT_TEX (once) for a registered RT texture; return its id
+ * (-1 if not an RT). Body: [w][h][fmt][levels][usage] after [type][id]. */
+static int snap_rt_tex(void *ptr)
+{
+    RtTex *r = rt_find(ptr);
+    if (!r) return -1;
+    if (r->id < 0) {
+        r->id = g_next_resid++;
+        orv3_wu(g_cap, ORV3_RES_RT_TEX); orv3_wu(g_cap, (uint32_t)r->id);
+        orv3_wu(g_cap, r->w); orv3_wu(g_cap, r->h); orv3_wu(g_cap, r->fmt);
+        orv3_wu(g_cap, r->levels); orv3_wu(g_cap, r->usage);
+    }
+    return r->id;
+}
+
 /* In-memory CALL buffer for the CURRENT frame only. Calls accumulate here as
  * they happen; at a frame boundary they are either WRITTEN (a kept window frame,
  * via write_frame) or DROPPED (cb_reset on a load/non-capture frame). Resource
@@ -241,7 +280,7 @@ static void cb_bytes(const void *p, uint32_t n) { cb_u(n); cb_data(p, n); }  /* 
 static void cb_patch_u(size_t off, uint32_t v) { memcpy(g_cb + off, &v, 4); }
 
 /* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at write_frame */
-enum { PEND_TEX = 1, PEND_VB = 2, PEND_IB = 3 };
+enum { PEND_TEX = 1, PEND_VB = 2, PEND_IB = 3, PEND_SURF = 4 };
 typedef struct { int kind; void *ptr; size_t off; } Pending;
 static Pending  *g_pending; static int g_pending_n, g_pending_cap;
 static void pend_push(int kind, void *ptr, size_t off)
@@ -259,6 +298,51 @@ static void cb_resref(int kind, void *ptr)
     if (ptr) pend_push(kind, ptr, off);
 }
 static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; }
+
+/* ── surface identity (v3 RT capture) ──
+ * SetRenderTarget/CopyRects cite IDirect3DSurface8 POINTERS. The replayer can't
+ * re-use the app's pointers, so each surface is recorded as a SURFREF [kind][resid]
+ * the replayer can reconstruct: the backbuffer (GetBackBuffer), the auto depth
+ * (GetDepthStencilSurface), or an RT texture's level-0 surface (GetSurfaceLevel of
+ * tex[resid]). We classify a pointer by: equality with the cached real
+ * backbuffer/depth surfaces (the app's "saved RT" from GetRenderTarget is the same
+ * object) → GetContainer(IID_IDirect3DTexture8) for a texture-backed RT → else an
+ * argument-position default. The app obtained the RT surfaces via GetSurfaceLevel
+ * at init (FUN_0047ae65) — the proxy never saw that call, so GetContainer is how we
+ * recover the parent texture. Cached refs are held for the proxy's lifetime (the
+ * device owns the underlying surfaces; the extra ref is harmless). */
+static IDirect3DSurface8 *g_bb_surf, *g_depth_surf;
+static void ensure_special_surfaces(IDirect3DDevice8 *real)
+{
+    if (!g_bb_surf)    IDirect3DDevice8_GetBackBuffer(real, 0, D3DBACKBUFFER_TYPE_MONO, &g_bb_surf);
+    if (!g_depth_surf) IDirect3DDevice8_GetDepthStencilSurface(real, &g_depth_surf);
+}
+static uint32_t classify_surface(IDirect3DDevice8 *real, IDirect3DSurface8 *surf, int is_depth, void **out_tex)
+{
+    *out_tex = NULL;
+    if (!surf) return ORV3_SURF_NULL;
+    ensure_special_surfaces(real);
+    if (surf == g_bb_surf)    return ORV3_SURF_BACKBUFFER;
+    if (surf == g_depth_surf) return ORV3_SURF_DEPTH;
+    IDirect3DTexture8 *tex = NULL;
+    if (SUCCEEDED(IDirect3DSurface8_GetContainer(surf, &IID_IDirect3DTexture8, (void**)&tex)) && tex) {
+        IDirect3DTexture8_Release(tex);   /* app holds its own ref; we keep only the ptr VALUE */
+        *out_tex = tex;
+        return ORV3_SURF_TEX;
+    }
+    return is_depth ? ORV3_SURF_DEPTH : ORV3_SURF_BACKBUFFER;
+}
+/* emit a SURFREF [kind][resid] into the call buffer. SURF_TEX's resid is the RT
+ * texture's resource id — DEFERRED (snapshotted at write_frame like cb_resref, so
+ * the RES_RT_TEX is written before the calls that cite it); other kinds carry 0. */
+static void cb_surfref(IDirect3DDevice8 *real, IDirect3DSurface8 *surf, int is_depth)
+{
+    void *tex = NULL;
+    uint32_t kind = classify_surface(real, surf, is_depth, &tex);
+    cb_u(kind);
+    if (kind == ORV3_SURF_TEX && tex) { size_t off = g_cb_len; cb_u(0xffffffffu); pend_push(PEND_SURF, tex, off); }
+    else cb_u(0);
+}
 
 /* ── device-state shadow (inherited-state preamble) ──
  * A single frame is SLICED out of a long run, so any scalar state the game set in
@@ -320,6 +404,7 @@ static unsigned prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
 static int snap_tex(IDirect3DBaseTexture8 *bt)
 {
     if (!bt) return -1;
+    if (rt_find((void*)bt)) return snap_rt_tex((void*)bt);   /* RT: identity, not content */
     if (IDirect3DBaseTexture8_GetType(bt) != D3DRTYPE_TEXTURE) return -1;  /* P0: 2D only */
     IDirect3DTexture8 *tex = (IDirect3DTexture8*)bt;
     DWORD levels = IDirect3DTexture8_GetLevelCount(tex);
@@ -423,9 +508,10 @@ static void write_frame(IDirect3DDevice8 *real_dev)
     for (int i = 0; i < g_pending_n; i++) {
         int id = -1;
         switch (g_pending[i].kind) {
-        case PEND_TEX: id = snap_tex((IDirect3DBaseTexture8*)g_pending[i].ptr); break;
-        case PEND_VB:  id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr); break;
-        case PEND_IB:  id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr); break;
+        case PEND_TEX:  id = snap_tex((IDirect3DBaseTexture8*)g_pending[i].ptr); break;
+        case PEND_VB:   id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr); break;
+        case PEND_IB:   id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr); break;
+        case PEND_SURF: id = snap_rt_tex(g_pending[i].ptr); break;   /* RT surface's parent texture */
         }
         cb_patch_u(g_pending[i].off, (uint32_t)id);
     }
@@ -670,6 +756,47 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevi
       g_frame_kept = 1;      /* tell Present this frame is already written */
   }
   return hr; }
+
+/* ── render-target capture (v3) ── CreateTexture (record RT-usage textures so a
+ * bound/targeted RT resolves to a stable id), SetRenderTarget + CopyRects (the
+ * off-screen composite the pause backdrop is built with). All forward verbatim;
+ * recording is gated on CAP. The RT REGISTRY is populated unconditionally (the RTs
+ * are created at init via FUN_0047ae65, before the capture window). */
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateTexture(
+    IDirect3DDevice8 *This, UINT w, UINT h, UINT levels, DWORD usage,
+    D3DFORMAT fmt, D3DPOOL pool, IDirect3DTexture8 **ppTex)
+{
+    WrapDev *wd = (WrapDev*)This;
+    HRESULT hr = wd->real->lpVtbl->CreateTexture(wd->real, w, h, levels, usage, fmt, pool, ppTex);
+    if (SUCCEEDED(hr) && ppTex && *ppTex && (usage & D3DUSAGE_RENDERTARGET)) {
+        rt_register((void*)*ppTex, w, h, (uint32_t)fmt, levels, (uint32_t)usage);
+        proxy_log("RT texture %p created %ux%u fmt=%u levels=%u usage=0x%x\n",
+                  (void*)*ppTex, w, h, (unsigned)fmt, levels, (unsigned)usage);
+    }
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetRenderTarget(
+    IDirect3DDevice8 *This, IDirect3DSurface8 *color, IDirect3DSurface8 *depth)
+{
+    WrapDev *wd = (WrapDev*)This;
+    if (CAP) { cb_u(ORV3_SetRenderTarget); cb_surfref(wd->real, color, 0); cb_surfref(wd->real, depth, 1); }
+    return wd->real->lpVtbl->SetRenderTarget(wd->real, color, depth);
+}
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CopyRects(
+    IDirect3DDevice8 *This, IDirect3DSurface8 *src, const RECT *rects, UINT count,
+    IDirect3DSurface8 *dst, const POINT *points)
+{
+    WrapDev *wd = (WrapDev*)This;
+    if (CAP) {
+        cb_u(ORV3_CopyRects); cb_surfref(wd->real, src, 0); cb_surfref(wd->real, dst, 0);
+        cb_u(count);
+        /* count>0 ⇒ rects+points are non-NULL (D3D8: NULL arrays ⇒ count 0 = whole
+         * surface). Defensive zero-fill keeps the record well-sized regardless. */
+        for (UINT i = 0; i < count; i++) { RECT z = {0};  cb_data(rects  ? &rects[i]  : &z, sizeof(RECT));  }
+        for (UINT i = 0; i < count; i++) { POINT z = {0}; cb_data(points ? &points[i] : &z, sizeof(POINT)); }
+    }
+    return wd->real->lpVtbl->CopyRects(wd->real, src, rects, count, dst, points);
+}
 
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
 { (void)reserved; if (reason == DLL_PROCESS_ATTACH) { g_self = h; proxy_log("DllMain attach\n"); } return TRUE; }

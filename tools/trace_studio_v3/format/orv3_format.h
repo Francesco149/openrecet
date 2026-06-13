@@ -26,13 +26,20 @@
 #include <string.h>
 
 #define ORV3_MAGIC   0x33565241u   /* "ARV3" */
-#define ORV3_VERSION 2u            /* v2: multi-frame window + content-hash dedup */
+#define ORV3_VERSION 3u            /* v3: render-target capture (RT textures + SetRenderTarget + CopyRects) */
 
 enum {
     ORV3_DEV_PARAMS = 1,   /* w,h,bbfmt,depthfmt,windowed,bbcount,presentflags,behavior,interval,adapter,devtype */
     ORV3_RES_TEX    = 2,   /* id,levels, per level: w,h,fmt,datalen,data[] (tight rows) */
     ORV3_RES_VB     = 3,   /* id,size,fvf,datalen,data[] */
     ORV3_RES_IB     = 4,   /* id,size,fmt,datalen,data[] */
+    ORV3_RES_RT_TEX = 5,   /* id,w,h,fmt,levels,usage — a render-target texture (CreateTexture
+                            * usage&RENDERTARGET, D3DPOOL_DEFAULT). NO pixel data: an RT is
+                            * identified by IDENTITY (creation), not content — content-hash dedup
+                            * would alias two same-size RTs and never carry their (unlockable)
+                            * pixels. The replayer recreates it with RENDERTARGET usage; its
+                            * content is produced by the replayed SetRenderTarget/draw/CopyRects
+                            * stream (history mode), not stored. */
 
     ORV3_SetRenderState        = 10,  /* state,value */
     ORV3_SetTextureStageState  = 11,  /* stage,type,value */
@@ -52,7 +59,27 @@ enum {
     ORV3_BeginScene            = 25,
     ORV3_EndScene              = 26,
     ORV3_Present               = 27,  /* frame-end marker, payload: frame index */
+
+    /* ── render-target ops (v3) ── A surface is cited by a SURFREF = two u32s
+     * [kind][resid]: the replayer reconstructs the actual IDirect3DSurface8* from
+     * the kind (the app's GetBackBuffer/GetDepthStencilSurface/GetSurfaceLevel
+     * results are NOT replayed — the replayer holds those handles itself). */
+    ORV3_SetRenderTarget       = 28,  /* color SURFREF, depth SURFREF */
+    ORV3_CopyRects             = 29,  /* src SURFREF, dst SURFREF, count, rects[count*16B], points[count*8B] */
+
     ORV3_EOF                   = 99,
+};
+
+/* SURFREF kinds (the [kind] half of a citation; the [resid] half is the RT
+ * texture's resource id for ORV3_SURF_TEX, else 0). The proxy classifies each
+ * surface pointer at call time (backbuffer/depth refs + IDirect3DSurface8::
+ * GetContainer for texture-backed RTs); level is assumed 0 (the pause RTs are
+ * 1-level, the only RT shape we hit). */
+enum {
+    ORV3_SURF_NULL       = 0,   /* NULL surface (e.g. SetRenderTarget depth = NULL) */
+    ORV3_SURF_BACKBUFFER = 1,   /* the swapchain backbuffer (replayer: GetBackBuffer) */
+    ORV3_SURF_DEPTH      = 2,   /* the auto depth-stencil (replayer: GetDepthStencilSurface) */
+    ORV3_SURF_TEX        = 3,   /* an RT texture's surface (replayer: GetSurfaceLevel(tex[resid],0)) */
 };
 
 static inline int orv3_fmt_bpp(int f)

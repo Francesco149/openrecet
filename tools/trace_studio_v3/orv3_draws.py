@@ -163,6 +163,8 @@ def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None
             p += 4 + 8                  # id, size, fvf/fmt
             dl = u(p); p += 4
             p += dl
+        elif t == orv3.RES_RT_TEX:
+            p += 24                     # id, w, h, fmt, levels, usage (no pixel data)
         elif t == orv3.SetRenderState:
             s = u(p); v = u(p + 4); p += 8
             if s in _RS:
@@ -232,6 +234,12 @@ def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None
             p += dl
         elif t == orv3.LightEnable:
             p += 8
+        elif t == orv3.SetRenderTarget:
+            p += 16                     # color SURFREF + depth SURFREF (2 × [kind][resid])
+        elif t == orv3.CopyRects:
+            p += 16                     # src + dst SURFREF
+            cnt = u(p); p += 4
+            p += cnt * 24               # rects (16B) + points (8B) each
         elif t in (orv3.BeginScene, orv3.EndScene):
             pass
         elif t == orv3.Present:
@@ -348,12 +356,17 @@ def material_agg(c: orv3.Container, frame_index: int, reshash: ResHash) -> Agg:
         elif t in (orv3.RES_VB, orv3.RES_IB):
             p += 12                           # id, size, fvf/fmt
             p += 4 + upk(d, p)[0]             # data
+        elif t == orv3.RES_RT_TEX:            p += 24   # id, w, h, fmt, levels, usage
         elif t == orv3.Clear:
             p += 4 + upk(d, p)[0] * 16 + 16   # count, rects, flags/color/z/stencil
         elif t == orv3.SetLight:
             p += 4                            # index
             p += 4 + upk(d, p)[0]             # light data
         elif t == orv3.LightEnable:           p += 8
+        elif t == orv3.SetRenderTarget:       p += 16   # color + depth SURFREF
+        elif t == orv3.CopyRects:
+            p += 16                           # src + dst SURFREF
+            p += 4 + upk(d, p)[0] * 24        # count, rects(16B)+points(8B) each
         elif t in (orv3.BeginScene, orv3.EndScene):
             pass
         elif t == orv3.Present:
