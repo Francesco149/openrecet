@@ -186,9 +186,42 @@ Draw primitives all already in the port: `render_quad_add`
   the RT regardless), and **[4-9] needs the stubbed current-day un-stubbed**.
   [4-9] is still verifiable STRUCTURALLY (draw-program tex/colorop/tri-count +
   geometry-hash, once values load 1:1), just not via a swamped pixel diff.
-- **M3 — the captured-screen BACKDROP [0] + open/close transition (the radial
-  blur) — NOW THE ACTIVE TARGET (user: "port [0] now", 2026-06-13).** [0] is the
-  captured-screen RT redraw; the transition is a radial-blur/zoom the user flagged.
+- **M3 — the captured-screen BACKDROP [0] + the radial-blur composite ✅ DONE
+  2026-06-13** (`src/screen_rt.{c,h}` + `scene1_fx_overlays.c` FUN_00454191 body +
+  the render_dispatch capture redirect + `render_quad_add_unscaled` = FUN_00404e98).
+  **The port now re-renders the live scene into RT#56 at pause-open (c99c==2),
+  builds the 2-pass radial-blur composite once (c99c==3), and samples the blurred
+  RT#56 full-screen as [0] every rest frame with the open/close fade ramp.**
+  Verified vs the retail v3 cache (`house-pause-f1bf56e7`, re-drove the port over
+  HOUSE_FREEROAM+160:80): the **RT command structure is bit-exact** — frame 40
+  (capture): SetRenderTarget(RT#56 1024x768 fmt22)+Clear 0xff000000+scene draws+
+  restore (2 SetRenderTarget); frame 41 (blur): the live scene to backbuffer, then
+  Pass A (SetRenderTarget RT#57 1280x256 fmt21, Clear 0xff0000c8, 1 quad **2 prim**
+  sampling RT#56), Pass B (SetRenderTarget RT#56, Clear 0xff173c8c, 1 draw **24 prim**
+  = 12 zoom taps sampling RT#57), then [0] (1 quad 2 prim RT#56→backbuffer) — every
+  clear colour + prim count matches retail's frame-40/41 exactly. **Pixel proof
+  (cumulative `replay.exe --history`):** the blur composite frame f41 is
+  **gt8=0.46% / meanabs=0.11 vs retail** (near-identical), and the resting menu f119
+  RIGHT half (the option list / header) matches (Δ≈+2); the f119 LEFT-half brightness
+  (Δ+42 mid-left) is **the missing calendar board [4-6] + numbers [7-9]** (the orv3_draws
+  diff shows port 4 draws / retail 10, the 6 retail-only being tex e5bd calendar + tex
+  3392 glyphs — the M2c PORT-DEBT below, NOT an M3 gap). The capture renders 97 draws/
+  2597 prim into RT#56 vs retail's 124/2677; the 80-prim delta is exactly the known
+  benign HOUSE-batching + the retail-only inert b494 draw (0 px). The empirical blur-tap
+  geometry was read off the retail stream (orv3_rt/orv3_draws) and matches the decompile
+  formula 1:1.
+  **The CLEAR GATE was the load-bearing fix (engine FUN_004547ab L51070):** the backbuffer
+  is NOT cleared while c99c is in **[3,0xc]** — the [0] backdrop (faded in by the c99c·0x16
+  alpha ramp) + menu composite over the PRIOR frame so the blurred backdrop builds up over
+  the captured live scene. The first cut cleared every frame, which (a) wrong-fades and (b)
+  made the partial-alpha ramp frames **non-deterministic vs the carried-forward backbuffer**
+  — the port's own resident `replay.exe --verify-hashes` flagged it: **232/240 (frames
+  162-169 = c99c 4..0xb FAILED)** while retail is 240/240. Skipping the clear for c99c∈[3,0xc]
+  (render_dispatch) → **port self-verify 240/240 BIT-EXACT** (matching retail). This is the
+  authoritative objective proof the backdrop render is deterministic + structurally sound.
+  **Remaining backdrop work = M2c calendar/numbers (below; blocked on the
+  current-day un-stub) + the b1b0==1 system.bmp fade variant + the action-1/2 pause
+  variants (both PORT-DEBT).**
   **Capture mechanism DECODED (vtable-mapped from the proxy vtable, factual):**
   device vtable offsets — `+0x50` CreateTexture, `+0x64` CreateRenderTarget, `+0x70`
   CopyRects, `+0x7c` SetRenderTarget, `+0x80` GetRenderTarget, `+0x84`

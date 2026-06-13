@@ -8,22 +8,22 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  19.3% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  19.4% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
-| verified  |    69 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
-| stubbed   |    15 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   409 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **493** | verified + stubbed + ported                         |
-| unported  |  2055 | exists in engine, never referenced from src/             |
+| verified  |    70 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
+| stubbed   |    14 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
+| ported    |   411 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **495** | verified + stubbed + ported                         |
+| unported  |  2053 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 27 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 26 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -365,36 +365,40 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   direct-frame overlay (port119 vs retail119 — the async load gaps the standard join) shows the
   menu at retail's exact staircase positions (feed "PAUSE MENU M2b"). **Pixel-1:1 confirmation is
   ENTANGLED with M2c:** the missing board background swamps the diff (bg_rete art is black/matching,
-  everything else white = port's cyan clear vs retail's board). **M2c IN PROGRESS — investigation
-  CLOSED a key question 2026-06-13:** retail's resting menu is **10 draws** (orv3_draws on
-  `house-pause-f1bf56e7`#119); the 7 unported are **[0]** the full-screen black backdrop —
-  **✅ NOT a static board asset: it is the CAPTURED-SCREEN RENDER TARGET `DAT_073de648`, drawn by
-  `FUN_00454191` (the fade/capture system), an M3 dependency.** Evidence (4 lines, see
-  `plans/pause-menu.md` M2c): at rest `FUN_004547ab` runs `FUN_0045404b`→`FUN_00454191` (gate
-  `1<c99c`, runs every rest frame) before `FUN_004820ba`; tex `3e66` is a **1024×768 X8R8G8B8
-  datalen=0** RT (CreateTexture in `FUN_0047ae65`, no file); `replay --upto 119 1` (clear+[0]) =
-  **pure black** (replayer can't carry RT content). So `dungeonbord`/`result_bord01` were WRONG
-  candidates. **✅ RESOLVED 2026-06-13 — the v3 RT-capture tooling (P5) landed, so [0] was READ off
-  the real stream + VERIFIED bit-exact (no guessing):** [0] = a full-screen quad sampling RT#56,
-  MODULATE/BLEND, alpha `min(c99c·0x16,0xff)`; RT#56 is built ONCE at pause-open over 2 frames —
-  (1) the live SCENE is RE-RENDERED into RT#56 (NOT a CopyRects), (2) a 2-pass blur composite
-  (RT#56→1280×256 RT#57 downsample clear `0xff0000c8`, → RT#56 24-prim blur-accumulate clear
-  `0xff173c8c`), then redrawn faded-in every rest frame. So the backdrop is the **darkened,
-  radial-blurred house** (history-replay of frame 119 = the real pause screen, feed "P5 RT-capture
-  WORKS"; `replay --verify-hashes` = 240/240 bit-exact incl. the RT frames). The old "user, what
-  does it look like?" is answered by the capture. Full mechanism + port plan: `pause-menu.md` M3 +
-  quirk §123; tooling: `trace-studio-v3.md` P5. **[4-6]** calendar frame
-  (pause.tga MODULATE, L83801-83866) + **[7-9]** numbers (item_win `3392`): gold
-  (`scene1_top_hud_draw_number`, ported) + level (`scene1_merchant_hud`, ported) + the weekly
-  **quota** `FUN_0048d997` + day-cells (date math FUN_00482059/00482033) — all NEED the save fields
-  to load 1:1. **⚠ blocker:** the [4] period-progress bar needs the CURRENT-DAY `_DAT_0438b91c`,
-  **stubbed to 0** in the port (`stage_post_load.c:562`) → un-stub (or read save `+0x2c3f4`) before
-  [4]'s geometry can match. So the old "[0]+[4-9] → clean pixel-1:1" is blocked on M3 ([0]) + the
-  current-day un-stub ([4]); [4-9] is still STRUCTURALLY verifiable via the draw-program panel.
-  **M3:** submenus (the `sub_anim>0` dispatch
-  L83931-83952) + type-4 exit-confirm + unpause cursor-restore + the open/close fade (FUN_00454191
-  body). NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 cursor-snap sets it too) —
-  not pause-exclusive.
+  everything else white = port's cyan clear vs retail's board).
+  **M3 — the captured-screen BACKDROP [0] + the radial-blur composite ✅ DONE 2026-06-13**
+  (`screen_rt.{c,h}` RT infra + `scene1_fx_overlays.c` = FUN_00454191 body + the render_dispatch
+  c99c==2 capture redirect + `render_quad_add_unscaled` = FUN_00404e98). The port now re-renders
+  the live scene into the capture RT (#56) at pause-open (c99c==2), builds the **2-pass radial-blur
+  composite ONCE** (c99c==3: downsample RT#56→1280×256 RT#57 clear `0xff0000c8`, then a 24-prim
+  12-tap zoom-blur RT#57→RT#56 clear `0xff173c8c`), and samples the blurred RT#56 full-screen as
+  **[0]** every rest frame with the open/close fade ramp (`min(c99c·0x16,0xff)`, attenuated past
+  0xc). **Verified vs the retail v3 cache** (re-drove the port over `house-pause` HOUSE_FREEROAM+
+  160:80): the **RT command program is bit-exact** — frame 40 capture = SetRenderTarget(RT#56)+
+  Clear black+scene+restore (2 SRT); frame 41 blur = Pass A (RT#57, clear 0xff0000c8, 2-prim quad
+  RT#56) + Pass B (RT#56, clear 0xff173c8c, **24-prim** RT#57) + [0] (2-prim RT#56→backbuffer),
+  every clear+prim-count matching retail's f40/41. **Pixel proof (`replay.exe --history`):** blur
+  frame f41 = **gt8 0.46% / meanabs 0.11** vs retail (near-identical); resting f119 RIGHT-half (the
+  menu) matches (Δ≈+2). The capture is 97 draws/2597 prim vs retail 124/2677 — the 80-prim delta is
+  the known benign HOUSE batching + the retail-only inert `b494` draw (0 px). **Load-bearing fix —
+  the clear gate (FUN_004547ab L51070): the backbuffer is NOT cleared while c99c∈[3,0xc]** (the
+  backdrop+menu composite over the prior frame so the blur fades IN over the captured scene); the
+  first cut cleared every frame ⇒ the partial-alpha ramp frames were non-deterministic — the port's
+  resident `replay.exe --verify-hashes` caught it (232/240, frames 162-169 FAILED; retail 240/240).
+  Skipping the clear for c99c∈[3,0xc] → **port self-verify 240/240 BIT-EXACT** (the authoritative
+  proof the backdrop render is deterministic + structurally 1:1). RE/empirics:
+  `pause-menu.md` M3; quirk §123; tooling `trace-studio-v3.md` P5. **The M2b "pixel diff is swamped"
+  entanglement is HALF-resolved:** the backdrop is now correct (right half 1:1); the remaining f119
+  LEFT-half diff (Δ+42 mid-left, 43% of the frame) is **just the missing calendar/numbers below**
+  (the orv3_draws diff = port 4 draws / retail 10; the 6 retail-only being the calendar + glyphs).
+  **REMAINING (M2c) — [4-6]** calendar frame (pause.tga `e5bd` MODULATE, L83801-83866) + **[7-9]**
+  numbers (item_win `3392`): gold (`scene1_top_hud_draw_number`, ported) + level
+  (`scene1_merchant_hud`, ported) + weekly **quota** `FUN_0048d997` + day-cells (date math
+  FUN_00482059/00482033). **⚠ blocker:** the [4] period-progress bar needs the CURRENT-DAY
+  `_DAT_0438b91c`, **stubbed to 0** (`stage_post_load.c:562`) → un-stub (or read save `+0x2c3f4`)
+  first. **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the
+  M3 code); submenus (`sub_anim>0` dispatch L83931-83952) + type-4 exit-confirm + unpause
+  cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game

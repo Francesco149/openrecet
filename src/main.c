@@ -54,6 +54,7 @@
 #include "scene_worldmap.h"
 #include "scene_guild.h"
 #include "sysassets.h"
+#include "screen_rt.h"
 #include "sim.h"
 #include "music.h"
 #include "audio.h"
@@ -1582,6 +1583,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * though our scene_title_load_assets call doesn't match the
      * engine's exact ordering — both fire before the first
      * scene_title render, which is all that matters for boot. */
+    /* Engine FUN_00472f5d's head call is FUN_0047ae65 — the screen-capture +
+     * blur render targets (the pause/fade backdrop system).  Create them here,
+     * just before the sysassets body, so the RTs exist by the first pause. */
+    (void)screen_rt_init(g_dev, (uint32_t)g_ini.width, (uint32_t)g_ini.height);
     (void)sysassets_load_all(g_dev);
 
     /* Register the AE8 + B13 + B3E + B82 + BC6 + C4E + C96 secondary-
@@ -2497,6 +2502,7 @@ static void shutdown_render(void)
 {
     d3d_trace_shutdown();
     call_trace_shutdown();
+    screen_rt_reset();   /* release the screen-capture + blur RTs before the device */
     if (g_dev) { IDirect3DDevice8_Release(g_dev); g_dev = NULL; }
     if (g_d3d) { IDirect3D8_Release(g_d3d); g_d3d = NULL; }
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
@@ -2772,11 +2778,33 @@ static void render_dispatch(void)
             clear_argb = scene_ingame_clear_argb();
         }
     }
-    IDirect3DDevice8_Clear(
-        g_dev, 0, NULL,
-        D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-        clear_argb,
-        1.0f, 0);
+    /* Pause-backdrop capture (engine FUN_004547ab else-branch, L51086-51096):
+     * at the open ramp c99c==2 the WHOLE scene re-renders into the capture RT
+     * (#56) instead of the backbuffer — screen_rt_capture_begin redirects the
+     * render target and clears it black, and scene1_fx_overlays restores the
+     * backbuffer after the scene draws.  c99c is non-zero only during a pause,
+     * so this only fires on the single pause-open capture frame (scene_state is
+     * still the underlying scene there — the mode-9 flip lags to c99c==3). */
+    {
+        const int32_t v99c = sim_get_counter_99c();
+        if (v99c == 2 && screen_rt_ready()) {
+            screen_rt_capture_begin(g_dev);   /* SetRenderTarget(RT#56) + Clear black */
+        } else if (v99c >= 3 && v99c <= 0xc) {
+            /* Engine FUN_004547ab L51070: the backbuffer is NOT cleared while the
+             * pause ramp c99c is in [3,0xc].  The [0] backdrop (faded in by the
+             * c99c*0x16 alpha ramp) + the menu composite over the PRIOR frame, so
+             * the blurred backdrop builds up over the captured live scene (the
+             * fade-in).  Clearing here would reset that accumulation every frame
+             * (wrong fade + non-deterministic replay vs the carried-forward
+             * backbuffer). */
+        } else {
+            IDirect3DDevice8_Clear(
+                g_dev, 0, NULL,
+                D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
+                clear_argb,
+                1.0f, 0);
+        }
+    }
     IDirect3DDevice8_BeginScene(g_dev);
 
     /* Engine FUN_004547ab L60: SetRenderState(D3DRS_CULLMODE,

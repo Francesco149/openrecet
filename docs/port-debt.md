@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **25**
-- distinct retiring engine functions: **21**
+- total open debts: **24**
+- distinct retiring engine functions: **20**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 5 | wired call boundary, body incomplete |
+| stub | 4 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -44,7 +44,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044bd0d | 1 |
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
-| FUN_00454191 | 1 |
 | FUN_0045de68 | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
@@ -52,7 +51,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_005031e4 | 1 |
 | M2c | 1 |
 
-## stub (5)
+## stub (4)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -60,7 +59,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
-| FUN_00454191 | src/scene1_fx_overlays.c:9 | outer-gate scaffold only; the 3 inner render |
 
 ## synthetic-data (0)
 

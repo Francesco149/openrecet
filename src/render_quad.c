@@ -205,6 +205,21 @@ int render_quad_add_mirrored(const float dst[4], const float src[4],
     return render_quad_add(dst, mirrored, tex_w, tex_h, diffuse);
 }
 
+/* ─── unscaled add (FUN_00404e98) ────────────────────────────────────── */
+
+int render_quad_add_unscaled(const float dst[4], const float src[4],
+                             uint32_t tex_w, uint32_t tex_h,
+                             uint32_t diffuse)
+{
+    /* The engine pre-divides the dst rect by screen_w/640 (its `* 640.0 /
+     * DAT_005cbc04`) so render_quad_add's later `* screen_w/640` cancels it,
+     * leaving dst literal.  g_screen_w is never 0 (render_quad_init clamps
+     * it to 640), so the division is safe. */
+    const float k = 640.0f / g_screen_w;
+    const float dst2[4] = { dst[0] * k, dst[1] * k, dst[2] * k, dst[3] * k };
+    return render_quad_add(dst2, src, tex_w, tex_h, diffuse);
+}
+
 /* ─── D3D wrappers (Win32 only) ──────────────────────────────────────── */
 
 #ifdef _WIN32

@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **493** (19.3%) — verified 69, stubbed 15, ported 409
-- unported: **2055**
+- touched: **495** (19.4%) — verified 70, stubbed 14, ported 411
+- unported: **2053**
 - orphan refs (in src/, not in function table): 7
 
-## verified (69) — runtime-diffed vs retail
+## verified (70) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -50,6 +50,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x453147 | FUN_00453147 | 362 | ✓ | nowloading.c |
 | 0x4532df | FUN_004532df | 129 | ✓ | sim.c |
 | 0x453e8f | FUN_00453e8f | 444 | ✓ | fade.c |
+| 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x4547ab | FUN_004547ab | 1670 | ✓ | main.c |
 | 0x4552d0 | FUN_004552d0 | 5210 | ✓ | scene1_shop_walker.c |
 | 0x457714 | FUN_00457714 | 5323 | ✓ | scene1_walker_pass_init.c |
@@ -88,7 +89,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (15) — wired, body incomplete
+## stubbed (14) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -99,7 +100,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4427d3 | FUN_004427d3 | 30 | ✓ | scene1_sim.c |
 | 0x4536cb | FUN_004536cb | 1745 | ✓ | sim.c |
 | 0x45404b | FUN_0045404b | 326 | ✓ | scene1_render.c |
-| 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
 | 0x4850ec | FUN_004850ec | 18 | ✓ | scene1_player_ctrl.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (409) — reimplemented, no probe yet
+## ported (411) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -127,6 +127,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404bb8 | FUN_00404bb8 | 84 | ✓ | scene1_camera.c, scene1_camera.h, scene1_overlay.h (+2) |
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ | render_quad.c, render_quad.h, scene_guild.c |
+| 0x404e98 | FUN_00404e98 | 100 | ✓ | render_quad.c, render_quad.h |
 | 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c (+2) |
 | 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h (+1) |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
@@ -329,7 +330,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x471b24 | FUN_00471b24 | 467 | ✓ | d3d_tex_names.h, mesh_load.c, mesh_load.h (+1) |
 | 0x471d45 | FUN_00471d45 | 2777 | ✓ | collision_mesh.c, collision_mesh.h, scene_map_meshes.h (+2) |
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
-| 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+3) |
+| 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+4) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
@@ -366,6 +367,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47aa31 | FUN_0047aa31 | 1 | ✓ | tables_enemylist.c, tables_gousei.c, tables_snews.c |
 | 0x47aa8b | FUN_0047aa8b | 402 | ✓ | main.c |
 | 0x47ac6a | FUN_0047ac6a | 507 | ✓ | main.c |
+| 0x47ae65 | FUN_0047ae65 | 237 | ✓ | main.c, screen_rt.c, screen_rt.h |
 | 0x47af52 | FUN_0047af52 | 413 | ✓ | input.c, input.h, main.c |
 | 0x47b0ef | FUN_0047b0ef | 120 | ✓ | input.c, input.h |
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |

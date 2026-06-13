@@ -4,15 +4,15 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 69,
-  "stubbed": 15,
-  "ported": 409,
-  "unported": 2055,
+  "verified": 70,
+  "stubbed": 14,
+  "ported": 411,
+  "unported": 2053,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 493,
-  "pct_touched": 19.3,
+  "touched": 495,
+  "pct_touched": 19.4,
   "pct_verified": 2.7,
-  "port_debt": 27
+  "port_debt": 26
  },
  "orphan_refs": [
   "0x40f640",
@@ -646,8 +646,11 @@
    "size": 100,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/render_quad.c",
+    "src/render_quad.h"
+   ]
   },
   {
    "va": "0x404efc",
@@ -4207,7 +4210,7 @@
    "size": 1391,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "stubbed",
+   "status": "verified",
    "src": [
     "src/scene1_fx_overlays.c"
    ]
@@ -6540,6 +6543,7 @@
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene1_wide_followup.c",
+    "src/screen_rt.h",
     "src/sysassets.c",
     "src/sysassets.h"
    ]
@@ -7281,8 +7285,12 @@
    "size": 237,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/screen_rt.c",
+    "src/screen_rt.h"
+   ]
   },
   {
    "va": "0x47af52",
