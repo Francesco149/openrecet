@@ -5854,7 +5854,8 @@
    "src": [
     "src/main.c",
     "src/scene1_intro_dialogue.c",
-    "src/scene1_intro_dialogue.h"
+    "src/scene1_intro_dialogue.h",
+    "src/scene_guild.c"
    ]
   },
   {

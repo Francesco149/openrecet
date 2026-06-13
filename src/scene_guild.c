@@ -1172,9 +1172,26 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
      * (single bg blit @ alpha 0xff000000) is PORT-DEBT — not exercised by the
      * first-visit cutscene. */
 
+    /* Retail's FUN_004547ab skips the WHOLE mode-6 scene block (FUN_00490e35 →
+     * FUN_00494a73, the guild bg + guildmaster + menu) when a full-screen-bg
+     * conversation covers the screen — `DAT_0438b1c8 && FUN_0046c869()`
+     * (== scene1_intro_dialogue_covers_screen(), the gate main.c already uses
+     * for the INGAME HUD/scene).  A full conversation (first-visit cutscene /
+     * Talk topic) paints its OWN full-screen bg_guild and draws the guildmaster
+     * as a standee, so drawing the guild bg + keeper underneath is a pure
+     * double-draw (the conversation's opaque bg re-paints the same texture over
+     * them and the keeper is fully overdrawn) — pixel-invisible but a render-
+     * program divergence retail does not have (the conversation also lays a
+     * clear-to-black base first, tex 9fd8 — see merchant-guild-RE.md "render-
+     * program drill").  The menu UI below is already gated on the dialogue
+     * state; gate the bg + keeper the same way.  An OVERLAY dialogue with no bg
+     * (the iv1_9 try-leave reminder, n_bg == 0) leaves covers_screen() false, so
+     * the bg + keeper stay the menu backdrop. */
+    const int conv_owns_bg = scene1_intro_dialogue_covers_screen();
+
     /* slot0: full-screen bg — dst (0,0,640,480), src top-left 640x480 of the
      * 1024x512 bmp (all.c:96191-96201). */
-    if (g_scene_guild[SCENE_GUILD_TEX_BG].tex) {
+    if (!conv_owns_bg && g_scene_guild[SCENE_GUILD_TEX_BG].tex) {
         const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
         const float src[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
         render_quad_bind(d, &g_scene_guild[SCENE_GUILD_TEX_BG]);
@@ -1188,7 +1205,7 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
     /* slot1: the guildmaster (13syounin_01), drawn H-MIRRORED (FUN_00404e61)
      * into dst (-64,32,448,448) from the full 512x512 sprite (all.c:96217-96229,
      * guild variant — DAT_0963c5f0 == 0). */
-    if (s_variant == 0 && g_scene_guild[SCENE_GUILD_TEX_KEEPER].tex) {
+    if (!conv_owns_bg && s_variant == 0 && g_scene_guild[SCENE_GUILD_TEX_KEEPER].tex) {
         const float dst[4] = { -64.0f, 32.0f, 448.0f, 448.0f };
         const float src[4] = { 0.0f, 0.0f, 512.0f, 512.0f };
         render_quad_bind(d, &g_scene_guild[SCENE_GUILD_TEX_KEEPER]);
