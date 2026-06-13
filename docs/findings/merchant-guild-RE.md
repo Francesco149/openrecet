@@ -503,19 +503,28 @@ keyed by `(anchor,offset)` identity via `v3cache.load_meta`). A conversation fra
 cross-side draw diff goes from "matched 6, **port-only 2**, retail-only 1" → "matched 5,
 **port-only 0**, retail-only 1".
 
-**(2) Retail lays a CLEAR-TO-BLACK base first in every conversation (tex `9fd8`) —
-DEFERRED LEAD (invisible).** Retail's conversation render's **FIRST** draw on all 1076
-conversation frames is a full-screen **opaque-black** quad (a 128×128 texture stretched
-to 1024×768, diffuse `0xff000000` ⇒ COLOROP=MODULATE→black, SRCALPHA blend, ZENABLE off)
-— a clear-to-black backdrop, immediately covered by the opaque bg (net pixel effect 0).
-The port omits it; it is the SOLE remaining draw-program divergence on a conversation
-frame after fix (1). Source is inside the conversation render `FUN_0046c9a2` (NOT
-`FUN_00494a73`, whose mid-transition black blit modulates the **1024×512** bg texture, a
-different size than this 128×128 quad); the most likely emitter is the `polybg`-gated
-layer block (`DAT_073a3dfc && DAT_0735dd88` → `FUN_00455191`/`scene1_emit_record`).
-**Invisible in the guild** (the opaque bg covers it), so porting is deferred until a
-conversation with a non-covering / semi-transparent event bg (or a fade) is traced and
-the exact emitter + texture source are nailed. Logged as engine-quirk §122.
+**(2) Retail lays a SCREEN-BLACKOUT layer first in every conversation (tex `9fd8`) —
+SOURCE NAILED 2026-06-13, port deferred to the loading-screen-fidelity pass.** Retail's
+conversation render's **FIRST** draw on all 1076 conversation frames is a full-screen
+**opaque-black** quad (`0xff000000`, SRCBLEND=SRCALPHA/DESTBLEND=INVSRCALPHA, ZENABLE off),
+immediately covered by the opaque bg (net pixel effect 0). **Exact source = `FUN_00453d9c`**
+(@0x453d9c): it runs **UNCONDITIONALLY in the render root `FUN_004547ab`**, AFTER the
+per-mode scene block and BEFORE the dialogue (`FUN_0046c090`) — so on a conversation frame
+(scene block skipped, see (1)) it is the FIRST draw, and on a menu-rest frame it lands after
+the scene's bg (still covered). When `DAT_0438bf74 != 0` it blits **`DAT_073aa188` =
+`bmp/system.bmp`** (the 128×128 "9fd8" system/fade atlas, sampling a solid 6×6 cell at
+src(9,1)-(15,7)) to dst(0,0,640,480) at `0xff000000`. (NOT the `polybg` block / `FUN_00455191`
+— that's a 3D sprite-record emit; the earlier guess was wrong. NOT `FUN_00494a73`, whose
+mid-transition blit uses the 1024×512 bg texture.) **The gate `DAT_0438bf74` is armed by
+`FUN_00452809()`** (a one-line setter) + cleared at render-root points (all.c:49615/50517/
+50633) — it is the screen-blackout/fade flag of the transition/load system. **Port status:**
+the port ALREADY loads system.bmp (`g_sysassets.system_bmp` / sysassets.h), but `FUN_00453d9c`
++ the `DAT_0438bf74` gate (+ `FUN_00452809`'s call chain) are UNPORTED. Since it is a
+fade/transition blackout (invisible whenever the scene/bg is opaque + full-screen, the only
+cases traced), **wire it in the LOADING-SCREEN-FIDELITY pass** (the FRONT's deferred user
+direction — replicate retail's fades/load screens), where the transition system that arms
+`DAT_0438bf74` is RE'd holistically; porting the draw without that gate risks a black flash.
+Logged as engine-quirk §122.
 
 **(Separately — HOUSE, NOT this fix's class.)** The `house-loaded-display-pinned` HOUSE
 free-roam frame shows a much larger **3D** render-program divergence (port **98** vs

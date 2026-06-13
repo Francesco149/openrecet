@@ -314,7 +314,12 @@
   `scene1_intro_dialogue_skip_to_end`) and/or a real post-skip asset reload. Keep
   this in mind whenever touching scene transitions / dialogue-skip teardowns /
   `{caprange}` load seams — it's the same class as the kept-count seam these traces
-  fight. (Confirm + RE it before it graduates to a finding/quirk.)
+  fight. (Confirm + RE it before it graduates to a finding/quirk.) **A concrete fade-system
+  component is now RE'd (2026-06-13, from the render-program drill):** the screen-blackout draw
+  `FUN_00453d9c` (gate `DAT_0438bf74`, armed by `FUN_00452809`, tex `bmp/system.bmp` =
+  `g_sysassets.system_bmp`, ALREADY loaded; draw+gate unported) — blits a full-screen opaque-
+  black quad after the scene block / before the dialogue every frame the blackout flag is set.
+  Wire it here (it's invisible until a transition actually blacks the screen). quirk §122.
 - **Tooling fix (2026-06-10): the caprange.start>0 full-white diff.** A `window_start>0`
   session (`merchants-guild`) showed a fully-white diff over a 1:1 world map — only the
   RETAIL frames were renumbered into label space, the PORT stayed 0-based, so the
@@ -593,10 +598,15 @@
   no dialogue so N/A; the guild gold/clock HUD's `!busy()` gate is correctly call-trace-
   evidenced — FUN_00406d50 fires only pre/post, not a divergence). The `display_menu_render`
   (cc04 / guild buy-list, FUN_0046b00a) render program is clean modulo phase (the guild drill).
-  **Two OPEN draw-program leads** (both v2-invisible): (a) the conversation's retail-only
-  **clear-to-black base** (tex `9fd8`, fullscreen `0xff000000`, FIRST draw, covered by the
-  opaque bg ⇒ 0 px; source `FUN_0046c9a2`/`polybg` layer — DEFERRED until a scene exercises
-  it visibly); (b) the **HOUSE 3D batching divergence** (port 98 vs retail 125 draws; 26+
+  **Two draw-program leads** (both v2-invisible): (a) the retail-only **screen-blackout layer**
+  (tex `9fd8`, fullscreen `0xff000000`, covered by the opaque bg ⇒ 0 px) — **SOURCE NAILED
+  2026-06-13: `FUN_00453d9c`** (runs unconditionally in `FUN_004547ab` after the scene block,
+  before the dialogue ⇒ FIRST draw when the scene is skipped), gate `DAT_0438bf74` (armed by
+  `FUN_00452809`), tex `DAT_073aa188`=`bmp/system.bmp` (the port ALREADY loads it as
+  `g_sysassets.system_bmp`; the draw + gate are unported). It's a fade/transition blackout ⇒
+  **port it in the LOADING-SCREEN-FIDELITY pass** (the user-direction deferred item), where the
+  transition system is RE'd; quirk §122 + merchant-guild-RE.md (2). (b) the **HOUSE 3D batching
+  divergence** (port 98 vs retail 125 draws; 26+
   batching splits + the `ea99` 80-tri src-alpha-0 first draw — a separate, larger effort).
   The drill workflow: `orv3_window <scen> --window OFF:COUNT --view` → `orv3_draws.py
   <port.bin> <pf> <retail.bin> <rf> --list` (cross-side content-keyed draw diff).

@@ -4642,15 +4642,19 @@ draws bg_guild first. (The port ports this gate as
 guild scene render now uses it for its bg + keeper too — see merchant-guild-RE.md
 "Render-program drill", `2a2d84d`.)
 
-Additionally, the conversation render's **FIRST** draw on every full-conversation
-frame is a **full-screen opaque-black quad** (a 128×128 texture stretched to the
-backbuffer, diffuse `0xff000000` ⇒ COLOROP=MODULATE to solid black, SRCALPHA
-blend, ZENABLE off) — a clear-to-black base laid down before the painted bg. It is
-immediately covered by the opaque bg, so its net pixel effect is **0** when the bg
-is full-screen + opaque (the common case); it would only show through a smaller /
-semi-transparent event bg or during a fade. Source is inside `FUN_0046c9a2` (NOT
-`FUN_00494a73`, whose mid-transition black blit modulates the 1024×512 bg texture
-— a different size than this 128×128 quad). Likely emitter = the `polybg`-gated
-layer block (`DAT_073a3dfc && DAT_0735dd88` → `FUN_00455191`/scene1_emit_record)
-or a conversation-setup clear; exact pin deferred (it is invisible in every scene
-traced so far). The port omits it — a render-program-only gap, no pixel effect.
+Additionally, the render root draws a **SCREEN-BLACKOUT layer** — `FUN_00453d9c`
+(@0x453d9c), called UNCONDITIONALLY in `FUN_004547ab` AFTER the per-mode scene block
+and BEFORE the dialogue (`FUN_0046c090`). When `DAT_0438bf74 != 0` it blits
+`DAT_073aa188` = **`bmp/system.bmp`** (a 128×128 system/fade atlas, sampling a solid
+6×6 cell at src(9,1)-(15,7)) to dst(0,0,640,480) at diffuse `0xff000000` (COLOROP=
+MODULATE ⇒ solid black), SRCBLEND=SRCALPHA/DESTBLEND=INVSRCALPHA, ZENABLE off. Because
+it runs after the scene block, it is the **FIRST draw on a full-conversation frame**
+(the scene block is skipped, see above) and lands after the scene's bg on a menu-rest
+frame — either way COVERED by the opaque bg, so net pixel effect **0** in every scene
+traced; it would only show through a smaller / semi-transparent bg or mid-fade. The gate
+`DAT_0438bf74` is armed by `FUN_00452809()` (one-line setter) + cleared at render-root
+points — it is the **transition/load fade flag**. (NOT the `polybg`/`FUN_00455191` 3D
+emit, an earlier wrong guess; NOT `FUN_00494a73`'s 1024×512 mid-transition blit.) The
+port already LOADS system.bmp (`g_sysassets.system_bmp`) but doesn't wire `FUN_00453d9c`
+or the gate — a render-program-only gap (no pixel effect), to be ported in the
+loading-screen-fidelity pass (the transition system that arms `DAT_0438bf74`).
