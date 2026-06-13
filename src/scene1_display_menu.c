@@ -828,6 +828,17 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     const float text_x = xL + 120.0f;    /* const[0x519444] */
     const float icon_x = xL + 72.0f;
 
+    /* The row icons + name/status text draw under COLOROP=ADDSIGNED — the engine
+     * sets SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED) @all.c:66607
+     * before the row loop and resets it to MODULATE @66775 before the description
+     * panel.  CONFIRMED via the v3 draw panel: every row draw is colorop=8 on
+     * retail, was colorop=4 (MODULATE) here.  Under ADDSIGNED (= TEXTURE + DIFFUSE
+     * − 0.5, COLORARG1=TEXTURE / COLORARG2=CURRENT=diffuse) a grey-0x7f diffuse
+     * passes the texture through (white/grey content unchanged) while a coloured
+     * diffuse renders as retail does — the 0x9b0000 "Out Of Stock" becomes the
+     * salmon-red retail draws, not the dark red MODULATE produced. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+
     /* icons first (their own bind per row). */
     for (int r = 0; r < visible; r++) {
         int e    = base + scroll + r;
@@ -849,7 +860,11 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
         const float dst[4] = { icon_x, iy, 32.0f, 32.0f };
         const float src[4] = { (float)((idx % 8) * 32), (float)((idx / 8) * 32),
                                (float)((idx % 8) * 32 + 32), (float)((idx / 8) * 32 + 32) };
-        render_quad_add(dst, src, icon->width, icon->height, 0xffffffffu);
+        /* grey-0x7f diffuse ⇒ ADDSIGNED passthrough (the icon as-is).  PORT-DEBT
+         * (FUN_00468ddc availability): retail greys an unavailable/unaffordable
+         * row's icon to 0xff4d4d4d (all.c:66747); not yet ported — the affordable
+         * in-stock case is grey-0x7f either way. */
+        render_quad_add(dst, src, icon->width, icon->height, 0xff7f7f7fu);
         render_quad_flush(dev);
     }
 
@@ -880,7 +895,11 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
                 snprintf(buf, sizeof buf, "%s", nm);
             }
         }
-        font_draw_text(dev, text_x, ty, buf, 0xffffffffu, 0.8f);
+        /* grey-0x7f diffuse: ADDSIGNED passthrough ⇒ the white glyph, matching
+         * retail's neutral-trend row name (local_14 = grey-0x7f, all.c:66621).
+         * PORT-DEBT(price-trend FUN_004361b2): the up/down/crash trend tints are
+         * not yet ported, so the row name stays the neutral grey here. */
+        font_draw_text(dev, text_x, ty, buf, 0xff7f7f7fu, 0.8f);
 
         /* per-row STATUS overlay (FUN_0046b00a tail, objdump 0x46b7f9-0x46b8a3 —
          * the text-draw calls Ghidra dropped from all.c:66703-66708).  Drawn over
@@ -909,6 +928,10 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
                                "Adventurer's Possession", 0xff00c87fu, 0.65f);
         }
     }
+
+    /* restore COLOROP=MODULATE for the rest of the menu (description panel,
+     * cursor) — the engine does this @all.c:66775, before FUN_00469b3a. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
      * highlighted item's desc/price/possessed (C4b-4a).  Rides x0 (= retail's

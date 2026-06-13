@@ -1,0 +1,18 @@
+# guild-buyout — see trace.jsonl.  Reach the merchant's-guild buy menu (the
+# guild-ui-flow path) and BUY OUT the Worn Sword: hold UP in the qty overlay to
+# max the quantity to full stock (6, affordable at gold 1000 / price 140), so the
+# row's cap hits 0 and the buy list shows the SOLD-OUT status overlay.
+#
+# Exercises the d69f3e2 "Out Of Stock" / "Not For Sale" row overlay for a 1:1
+# port<->retail comparison (the guild-ui-flow trace never sells an item out).
+# Tight caprange EXTRA_SPRITE_END+480..840 (qty-max -> confirm -> sold-out list)
+# keeps the drive fast; join anchor = EXTRA_SPRITE_END (fires on both sides).
+# Canonical pin block inherited from guild-ui-flow ({phasepin 282} +
+# {rngseed [282,19937]} + {tutloadpin 8}).
+description: |
+  Guild buy menu -> max-qty buy of the Worn Sword -> the row sells out (cap 0)
+  -> the buy list draws "Out Of Stock". Capture EXTRA_SPRITE_END+480..840 to
+  compare the sold-out overlay port vs retail.
+max_frames: 26000
+duration_ceiling_ms: 420000
+capture_suppress_loads: true

@@ -102,6 +102,6 @@ _none_
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1081 | the engine frees the shop |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:149 | the trend<-1 ⇒ cap 0 branch is deferred |
-| price-trend | FUN_004361b2 | src/scene1_display_menu.c:897 | neutral (0) until the |
+| price-trend | FUN_004361b2 | src/scene1_display_menu.c:916 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
 
