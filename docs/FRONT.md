@@ -578,6 +578,16 @@
   `scene1_intro_dialogue_covers_screen()`; bg draws/frame `{0,1,2}`→`{0,1}`, **zero pixel
   change** (pre/post fnv64 pixel-hash identical at 1749 identities), per-conversation-frame
   port-only draws 2→0. `findings/merchant-guild-RE.md` "Render-program drill", quirk §122.
+  **Same class FIXED in the INGAME path (`7d119af`):** retail's `FUN_004547ab` skips the
+  WHOLE scene block (3D scene + HUD + overlay + cc04) under a covering cutscene; the port
+  only gated the HUD (right when the 3D walkers were stubs, stale now the 3D render is live).
+  Gated `scene1_render_camera_setup`+overlay+`display_menu_render` on the same
+  `covers_screen()` (one `covers` local); pixel-safe by construction (covers ⟺ full-screen-bg
+  ⟹ scene covered) + verified BYTE-IDENTICAL on `intro-dialogue-lines` (16/30 pass-fail same
+  pre/post; the 30 fails = pre-existing deferred iv1_2 gaps, covers=0 ⇒ no-op there). Formalises
+  retail's structure + prevents the over-draw for any INGAME cutscene over a loaded 3D scene
+  (the traced covering cutscenes — bedroom iv1_1 — are pixel-identical here; the *measured*
+  over-draw removal is the guild's).
   **Two OPEN draw-program leads** (both v2-invisible): (a) the conversation's retail-only
   **clear-to-black base** (tex `9fd8`, fullscreen `0xff000000`, FIRST draw, covered by the
   opaque bg ⇒ 0 px; source `FUN_0046c9a2`/`polybg` layer — DEFERRED until a scene exercises

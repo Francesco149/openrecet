@@ -37,6 +37,19 @@ ONLY itself (its own bg + the guildmaster as a STANDEE + the box).
   `polybg`/`FUN_00455191` layer block). Engine-quirk §122; port deferred until a scene
   exercises it visibly. The HOUSE `ea99` (98-vs-125 draws, 3D batching) is a separate,
   larger divergence. RE: `findings/merchant-guild-RE.md` "Render-program drill".
+- **Same class FIXED in the INGAME path (`7d119af`):** retail's `FUN_004547ab` skips the
+  WHOLE scene block (3D scene `FUN_0045bbf9` + HUD + overlay + the cc04 tail) under a covering
+  cutscene; the port only gated the HUD (correct when the 3D walkers were stubs, stale now the
+  3D render is live), drawing the 3D scene + overlay under the iv1_1 opening bg. Gated
+  `scene1_render_camera_setup` + `scene1_render_overlay` + `display_menu_render` on the same
+  `covers_screen()` the HUD uses (one shared `covers` local; dialogue draw stays unconditional).
+  Pixel-safe by construction (covers_screen ⟺ a full-screen bg ⟹ the scene is covered) and
+  verified **byte-identical** via `scenario-test intro-dialogue-lines --target openrecet` (16
+  pass / 30 fail SAME magnitudes pre/post — iv1_1 caps 0-15 pass both, the 16-45 fails are the
+  pre-existing deferred iv1_2 freeroam-anim gaps where covers=0 ⇒ no-op). Formalises retail's
+  scene-block gate + prevents the over-draw for any INGAME cutscene over a loaded 3D scene; the
+  *measured* over-draw removal is the guild's (the traced covering cutscenes here render no 3D
+  scene, so pixel-identical).
 
 ## 2026-06-13 — studio-v3: parse-once container handoff + material-aggregate bake (cached re-window loop perf)
 
