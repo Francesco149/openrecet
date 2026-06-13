@@ -606,10 +606,14 @@
   `g_sysassets.system_bmp`; the draw + gate are unported). It's a fade/transition blackout ⇒
   **port it in the LOADING-SCREEN-FIDELITY pass** (the user-direction deferred item), where the
   transition system is RE'd; quirk §122 + merchant-guild-RE.md (2). (b) the **HOUSE 3D batching
-  divergence** (port 98 vs retail 125 draws; 26+
-  batching splits + the `ea99` 80-tri src-alpha-0 first draw — a separate, larger effort).
-  The drill workflow: `orv3_window <scen> --window OFF:COUNT --view` → `orv3_draws.py
-  <port.bin> <pf> <retail.bin> <rf> --list` (cross-side content-keyed draw diff).
+  divergence — CHARACTERIZED BENIGN 2026-06-13, no fix needed:** the 98-vs-125 draw gap is
+  benign batching (retail splits what the port batches; per-texture triangle totals identical ⇒
+  same pixels) + 1 retail-only **INERT** first draw (tex `b494`, not `ea99` — that was the
+  imprecise short-hash; 80 tris, `ALPHATEST` pass-only-α0 + SRCALPHA blend ⇒ blends to dst = 0
+  colour, AND `ZWRITEENABLE=0` ⇒ 0 depth — a pure no-op the port harmlessly omits; likely an
+  invisible/α0 entity). So the HOUSE render program has NO real divergence (vs the guild's, which
+  was a real over-draw). The drill workflow: `orv3_window <scen> --window OFF:COUNT --view` →
+  `orv3_draws.py <port.bin> <pf> <retail.bin> <rf> --list` (cross-side content-keyed draw diff).
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
