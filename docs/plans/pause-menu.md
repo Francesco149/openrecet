@@ -323,9 +323,17 @@ Draw primitives all already in the port: `render_quad_add`
     (`000`,`001`,…), and for an OCCUPIED slot a portrait/clock + gold("pix") + "Merchant Level N"
     + SCORE + LOOP + TIME h:mm:ss; EMPTY slots show "NO DATA". This scenario's save occupies
     slot 0 (000, TIME 0:03:50), 001-003 empty. **retail 189 draws vs port 10** at the rested
-    submenu (`orv3_draws` on `house-pause-save-f2254122`). The render `FUN_0049b556` is **SHARED
-    with the title continue-picker** (whose render is the deferred PORT-DEBT in
-    `title_continue_picker.c`) — porting it serves both.
+    submenu (`orv3_draws` on `house-pause-save-f2254122`). **The render `FUN_0049b556` (the
+    save-slot card list) is SHARED between TWO wrappers** (user pointer 2026-06-14: "the save
+    menu renders very similar to the main-menu load — check if they share code" — they DO):
+    `FUN_004812e4` (the pause Save submenu) and **`FUN_0049c644`** (3233 B — the title-screen
+    **Continue/load** picker render, called from `FUN_004547ab`@~L51104 gated on the Continue
+    mode `DAT_09643524==1`). The port's title picker has the LOGIC
+    (`title_continue_picker.c` `FUN_0049a59e`/`FUN_0049b537`) but its render is the **deferred
+    PORT-DEBT(render)** — so porting `FUN_0049b556` as a shared `save_picker` lands BOTH the
+    pause Save submenu AND the title load render. The two wrappers differ only in the params to
+    `FUN_0049b556`: pause `(0, val[cur], val2[cur], c898, c894, save-phase)`; title
+    `(x, cursor, scroll, vscroll, hscroll, confirm-countdown)`.
   - **RE map (the type-3 chain):** nav-commit `FUN_00480614` sel_anim==0xf → `LAB_004806a1`
     shared reset + the **type-3 branch** (clear `c89c`/`c8a0`/`DAT_09643564`; `FUN_0049b537`
     inits the slot-perm `DAT_09643380`[0..99] + count `DAT_005d1bbc`=100; `val[cur]=last_slot`
