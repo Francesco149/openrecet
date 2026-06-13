@@ -16,6 +16,26 @@ truth, not the uncommitted auto-memory.**
 point-in-time memory snapshots (archived under `memory/archive/`) for current state.
 
 ## How we work here (conventions)
+- **THE PORTING LOOP (default workflow — do this yourself, DON'T guess, DON'T ask for
+  what a trace can show). User directive 2026-06-13:**
+  1. **SYNTHESIZE a trace** that reproduces the exact behaviour (record/edit a scenario;
+     `tests/scenarios/`, F2/F3 recorder, or hand-edit the input TAS — e.g. press ESC
+     *later* so the 3D scene is actually rendered when the menu opens). The behaviour you
+     want to port must be ON SCREEN in the capture.
+  2. **ANALYZE** with the v3 tools to pinpoint the EXACT retail behaviour: the **d3d
+     program** (`orv3_window … --launch` viewer, `orv3_draws` per-draw tex/state/RT,
+     `orv3_shot` headless frame/draw render), the **call graph + game-state flow**
+     (`--state`, `flow_diff --verdict`, `call_trace.jsonl`), cross-checked against the
+     decompile/objdump. Ground every claim in a probe, not a guess.
+  3. **PORT it 1:1 — no compromises, no PORT-DEBT** on the behaviour you're actively
+     porting; iterate until bit/structurally identical (draw-program + state + pixels).
+  4. **Only escalate to the human** for COMPLEX GAMEPLAY behaviours that can't be easily
+     synthesized in a trace — never for "what does retail render/do here", which a probe
+     answers.
+  **If the tools CAN'T show you something, IMPROVE the tools until they can** (then it's
+  one command next time) — e.g. the v3 proxy/replayer not capturing
+  `SetRenderTarget`/`CopyRects` ⇒ RT-based effects (pause backdrop, radial-blur
+  transitions, post-processing) replay empty ⇒ extend the capture, don't guess the effect.
 - **Knowledge in the repo; status is derived.** Durable knowledge (conventions, playbooks,
   RE findings, per-function notes) → `docs/`. Keep the `~/.claude` auto-memory **thin and
   pointer-only**. Live status is derived: `docs/FRONT.md`→`STATUS.md`, and the
