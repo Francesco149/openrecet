@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **491** (19.3%) — verified 69, stubbed 15, ported 407
-- unported: **2057**
+- touched: **492** (19.3%) — verified 69, stubbed 15, ported 408
+- unported: **2056**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (407) — reimplemented, no probe yet
+## ported (408) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -128,7 +128,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ | render_quad.c, render_quad.h, scene_guild.c |
 | 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c (+2) |
-| 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h |
+| 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h (+1) |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
 | 0x405a52 | FUN_00405a52 | 162 | ✓ | scene1_dialogue_draw.c, scene1_dialogue_run.c |
@@ -250,7 +250,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
-| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h, scene_pause.c (+2) |
+| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
@@ -384,13 +384,13 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47d2db | FUN_0047d2db | 393 | ✓ | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
-| 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ | scene_pause.c, scene_pause.h |
-| 0x47fa76 | FUN_0047fa76 | 462 | ✓ | scene_pause.c, scene_pause.h |
+| 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ | scene_pause.c, scene_pause.h, sim.c |
+| 0x47fa76 | FUN_0047fa76 | 462 | ✓ | scene_pause.c, scene_pause.h, sim.c |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480614 | FUN_00480614 | 718 | ✓ | scene_pause.c, scene_pause.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ | scene1_merchant_hud.c, scene1_merchant_hud.h, scene_title.c |
-| 0x4820ba | FUN_004820ba | 2455 | ✓ | scene_pause.h |
+| 0x4820ba | FUN_004820ba | 2455 | ✓ | main.c, scene_pause.c, scene_pause.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+4) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
@@ -423,7 +423,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h, scene_pause.c |
 | 0x48cdcc | FUN_0048cdcc | 2058 | ✓ | scene1_player_ctrl.c |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
-| 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
+| 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h, sim.c |
+| 0x48f931 | FUN_0048f931 | 1150 | ✓ | sim.c |
 | 0x48fdaf | FUN_0048fdaf | 148 | ✓ | scene1_display_menu.c |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
 | 0x490259 | FUN_00490259 | 81 | ✓ | save_work.c, save_work.h, scene.c (+3) |

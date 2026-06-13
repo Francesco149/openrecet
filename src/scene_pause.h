@@ -246,6 +246,13 @@ struct IDirect3DDevice8;
  * at boot, after the device is created. Idempotent. */
 void scene_pause_init(struct IDirect3DDevice8 *dev);
 
+/* FUN_004820ba — render the pause menu (mode 9). Called from the render
+ * dispatcher while the slide ramp is in (3, 0xd). Currently draws the
+ * pause_bg_rete backdrop (the menu's full-screen background); the option
+ * list, calendar/gold, portrait, and cursor are PORT-DEBT (see
+ * docs/plans/pause-menu.md M2b/M3). */
+void pause_menu_render(struct IDirect3DDevice8 *dev);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_SCENE_PAUSE_H */

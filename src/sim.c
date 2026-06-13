@@ -51,6 +51,8 @@
                                 * FUN_00406584 (see the INGAME case below). */
 #include "stage_load_pulse.h" /* engine FUN_004693e3 — stage-load animation pulse */
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
+#include "scene_pause.h"  /* the mode-9 pause: ramp==3 arm + pause_menu_update */
+#include "stage_palette.h" /* g_stage_palette->mode (*DAT_068dd2f0 stage type) */
 
 struct sim_player_buttons g_sim_buttons[SIM_NUM_PLAYERS];
 uint32_t                  g_sim_frame_count;
@@ -309,6 +311,21 @@ void sim_step_a(void)
      * DAT_06a49998==3 arm — all unported, all dormant in the captured
      * trace — so the relative order vs the rest of our sim_step_a
      * doesn't matter for trace parity. */
+    /* Engine FUN_004536cb L50465: the pause open-ramp reaching 3 commits the
+     * pause — flip to mode 9, build the menu, and spawn the primary worker
+     * (its case-9 loads the pause assets = the "Now Loading"). The ramp
+     * (g_sim_counter_998) is armed to 1 by pause_dispatch (ESC) and pumped
+     * 1→3 by the render side; this one-shots at 3 (the closing ramp goes
+     * 0xc→0x14→0, never re-hitting 3). */
+    if (sim_get_counter_998() == 3) {
+        g_scene_state = 9;
+        /* Capture the menu-build inputs (DAT_0741bed8 party count =
+         * PORT-DEBT 0; *DAT_068dd2f0 stage type). */
+        pause_set_menu_inputs(0, g_stage_palette ? g_stage_palette->mode : 0);
+        pause_menu_setup();   /* FUN_0047f2f6 */
+        worker_load_spawn();  /* FUN_00452cde — primary worker, case-9 load */
+    }
+
     debug_param_tick();   /* FUN_00405552 — body deferred (gate=0 path) */
     stage_load_pulse_tick(); /* FUN_004693e3 — counter ramp 0..5 */
 
@@ -330,7 +347,16 @@ void sim_step_a(void)
      * state 0xa invokes FUN_0047e711 (unported); state 9 has its own
      * `DAT_06a4997c`-selector path in block 17 (Cs4).
      */
-    switch (g_scene_state) {
+    /* Engine FUN_004536cb L50505: while the pause open/close ramp is active
+     * (g_sim_counter_998 != 0) the normal per-mode scene dispatch is skipped
+     * (`if (DAT_06a49998 != 0) ... goto LAB_00453cfb`) — the underlying scene
+     * freezes through the open/close animation. The mode-9 menu update runs
+     * once the ramp is past 3 (menu visible). */
+    if (sim_get_counter_998() != 0) {
+        if (g_scene_state == 9 && sim_get_counter_998() > 3 && g_pause_action == 0)
+            pause_menu_update();   /* FUN_0047fa76 */
+        /* pause actions 1/2 (FUN_0048dbfb / FUN_0048f931) — PORT-DEBT */
+    } else switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         scene_title_sim_default();
         break;

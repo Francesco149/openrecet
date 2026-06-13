@@ -369,6 +369,7 @@ void pause_menu_update(void)
 #ifdef _WIN32
 
 #include <d3d8.h>
+#include "render_quad.h"   /* render_quad_state_setup / bind / add / flush */
 
 sprite_t g_scene_pause_pause;
 sprite_t g_scene_pause_bg_rete;
@@ -419,10 +420,60 @@ static void scene_pause_body(void)
     scene_pause_load_with(win32_load_fn, g_scene_pause_dev);
 }
 
+/* Primary worker case 9 (objdump 0x4529c6 — the AUTHORITATIVE live path;
+ * the C4E secondary FUN_00452e75 is unreferenced/dead). When the worker is
+ * spawned with g_scene_state==9 (at ramp==3) it sub-dispatches on the pause
+ * action: action 0 (ESC menu) → FUN_00473a3e (the 20-asset pause load).
+ * Actions 1/2 (other entries) = PORT-DEBT. The FPU init (0x435873) is
+ * C4E-only; pause_menu_setup already ran it on the main thread. */
+static void pause_worker_case9(void)
+{
+    if (g_pause_action == 0)
+        scene_pause_load_with(win32_load_fn, g_scene_pause_dev);
+}
+
 void scene_pause_init(struct IDirect3DDevice8 *dev)
 {
     g_scene_pause_dev = (IDirect3DDevice8 *)dev;
+    /* The C4E secondary body (dead in the engine, kept for completeness). */
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, scene_pause_body);
+    /* The LIVE pause-load path: primary worker case 9. */
+    worker_load_set_cb(9, pause_worker_case9);
+}
+
+/* FUN_004820ba — the pause-menu render. M2: the pause_bg_rete backdrop
+ * (engine L83706-83725). The option list (L83726-83787, COLOROP=ADD rows
+ * over pause.tga), the menu header (L83791), the calendar/gold block
+ * (L83801-83930, needs save-state day/gold fields), the portrait + submenu
+ * (L83931+, sub_anim>0), and the cursor tail (L83953-83955) are PORT-DEBT
+ * — see docs/plans/pause-menu.md M2b/M3. */
+void pause_menu_render(struct IDirect3DDevice8 *dev)
+{
+    IDirect3DDevice8 *d = (IDirect3DDevice8 *)dev;
+
+    render_quad_state_setup(d);   /* FUN_0049b425 (engine L83706) */
+
+    /* Backdrop alpha (engine L83708-83713): full unless the selected entry
+     * is Status (type 0) AND the submenu is opening, where it fades by
+     * sub_anim*0x1a. At rest (sub_anim==0) it is always 0xff. */
+    int alpha = 0xff;
+    if (g_pause_entries[g_pause_sel] == 0) {
+        int a = g_pause_sub_anim * 0x1a;
+        if (a > 0xff) a = 0xff;
+        alpha = 0xff - a;
+    }
+
+    /* pause_bg_rete full-screen (engine L83715-83724): dst {0,0,640,480},
+     * src {0,0,640,480}, diffuse = alpha<<24 | 0xffffff. */
+    render_quad_bind(d, &g_scene_pause_bg_rete);   /* SetTexture(0, bg_rete) */
+    {
+        const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+        const float src[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+        render_quad_add(dst, src,
+                        g_scene_pause_bg_rete.width, g_scene_pause_bg_rete.height,
+                        ((uint32_t)alpha << 24) | 0xffffffu);
+    }
+    render_quad_flush(d);          /* FUN_00405354 (engine L83725) */
 }
 
 void scene_pause_reset(void)

@@ -2742,6 +2742,20 @@ static void render_dispatch(void)
      * via pre_3d_trace methodology).  See call_trace_diff.py output. */
     sim_loading_pump();
 
+    /* Engine FUN_004547ab L51057-51064: the pause SLIDE ramp (DAT_06a4999c),
+     * pumped render-side every frame (separate from the 998 ramp in
+     * sim_loading_pump). Direction-gated by g_sim_mode_9a0: opening clamps at
+     * 0xc, closing cycles to 0x14 then wraps to 0. Dormant (0) until ESC arms
+     * the pause; gates the mode-9 pause render below (3 < c99c < 0xd). */
+    {
+        int32_t v99c = sim_get_counter_99c();
+        if (sim_get_mode_9a0() == 0) {
+            if (v99c > 0) { v99c++; if (v99c == 0x14) v99c = 0; sim_set_counter_99c(v99c); }
+        } else {
+            if (v99c > 0) { v99c++; if (v99c > 0xc) v99c = 0xc; sim_set_counter_99c(v99c); }
+        }
+    }
+
     /* Per-state clear color. Engine FUN_004547ab L33-44 derives the
      * scene-1 clear from DAT_068dd2f0's stage palette; we use a fixed
      * placeholder until the stage system ports. Title clear stays at
@@ -3115,6 +3129,20 @@ static void render_dispatch(void)
      * INGAME call; TITLE + other states missed the fallthrough.  See
      * call_trace_diff.py output. */
     scene1_render_fx_tail(g_dev);
+
+    /* Engine FUN_004547ab L51223-51236: the PAUSE MENU (mode 9). Gated on the
+     * slide ramp being in (3, 0xd) and not loading (DAT_06a49958 == 0); the
+     * action selects the variant — action 0 (ESC) → FUN_004820ba. The ramp is
+     * only in that window during a pause, so this is dormant in normal play.
+     * M2: draws the pause_bg_rete backdrop; the option list / calendar / cursor
+     * are PORT-DEBT (see docs/plans/pause-menu.md). */
+    {
+        int32_t v99c = sim_get_counter_99c();
+        if (g_scene_state == 9 && v99c > 3 && v99c < 0xd
+            && !nowloading_is_active() && g_pause_action == 0) {
+            pause_menu_render(g_dev);
+        }
+    }
 
     /* Engine FUN_004547ab L51237-51239: dungeon-clear banner overlay
      * (FUN_0048fe43).  Gated on `state==INGAME || (3 < transition_counter

@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 407,
-  "unported": 2057,
+  "ported": 408,
+  "unported": 2056,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 491,
+  "touched": 492,
   "pct_touched": 19.3,
   "pct_verified": 2.7,
   "port_debt": 26
@@ -683,7 +683,8 @@
    "src": [
     "src/font_draw.c",
     "src/render_quad.c",
-    "src/render_quad.h"
+    "src/render_quad.h",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -4118,7 +4119,6 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/esc_dispatch.c",
     "src/esc_dispatch.h",
     "src/scene_pause.c",
     "src/sim.c",
@@ -7632,7 +7632,8 @@
    "status": "ported",
    "src": [
     "src/scene_pause.c",
-    "src/scene_pause.h"
+    "src/scene_pause.h",
+    "src/sim.c"
    ]
   },
   {
@@ -7671,7 +7672,8 @@
    "status": "ported",
    "src": [
     "src/scene_pause.c",
-    "src/scene_pause.h"
+    "src/scene_pause.h",
+    "src/sim.c"
    ]
   },
   {
@@ -7875,6 +7877,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
+    "src/scene_pause.c",
     "src/scene_pause.h"
    ]
   },
@@ -8633,7 +8637,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_particles_tick.h"
+    "src/scene1_particles_tick.h",
+    "src/sim.c"
    ]
   },
   {
@@ -8723,8 +8728,10 @@
    "size": 1150,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/sim.c"
+   ]
   },
   {
    "va": "0x48fdaf",
