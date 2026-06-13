@@ -45,6 +45,19 @@ def localappdata_v3() -> Path:
     return Path(wsl) / "openrecet" / "v3"
 
 
+def notes_file(scenario: str) -> Path:
+    """The WSL path to a scenario's viewer-notes json (the user's flagged
+    divergences). Lives under %LOCALAPPDATA% — a WINDOWS-LOCAL dir — because the
+    native viewer is a Windows process and CANNOT fopen-WRITE a \\\\wsl.localhost
+    UNC path (the same limitation replay.exe hit). orv3_view writes this file's
+    Windows form into view.json (`notes_path`) for the viewer to read+write;
+    orv3_notes.py reads back this WSL form so Claude can see the flags. One file
+    per scenario, keyed inside by the stable identity label (survives re-windows)."""
+    p = localappdata_v3() / "notes" / f"{scenario}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 @dataclass
 class FrameIdentity:
     """The STORED identity of a cache entry's window.

@@ -65,6 +65,26 @@ static Col  g_stepmetric;            // scratch diff metric while stepping (don'
 static std::string g_pick_side;
 static int g_pick_x = -1, g_pick_y = -1, g_pick_draw = -2;   // -2 none, -1 never-painted, ≥0 draw idx
 
+// ── notes / crop regions (the v2 edits.jsonl "notes" loop, native) ──
+// In note mode the user drags a box on a panel + types a note to flag a divergence
+// for Claude. Persisted to a WINDOWS-LOCAL json (view.json's notes_path) — the viewer
+// is a Windows process and CANNOT fopen-write a \\wsl.localhost UNC path; orv3_notes.py
+// reads the same file from WSL. Keyed by the identity label (stable across re-windows).
+struct Note { int id = 0; std::string label, side, text; int col = -1; bool hasbox = false; float box[4] = {0,0,0,0}; };
+static std::vector<Note> g_notes;
+static std::string g_notes_path;        // Windows-local; "" ⇒ notes unavailable (old view.json)
+static int  g_note_next_id = 1;
+static bool g_note_mode = false;        // drag-to-box arming (vs left-click = pick draw)
+static bool g_show_notes = true;        // overlay existing note boxes on the panels
+struct Draft {                          // the in-progress note (placing a box / typing text)
+    bool placing = false, editing = false, hasbox = false, focus = false;
+    std::string side, label; int col = -1;
+    ImVec2 r0, r1, rmin, rmax;          // drag start/cur + the panel rect, SCREEN space
+    float box[4] = {0,0,0,0};           // capture px
+    char text[512] = {0};
+};
+static Draft g_draft;
+
 static void destroy_device();
 static void show_column(int i);
 
@@ -197,6 +217,81 @@ static void show_column(int i)
     if (p && r) { Col &m = g_step_on ? g_stepmetric : c; diff_into(p, r, g_diffbuf, m); upload(g_tdiff, g_diffbuf); }
 }
 
+// ── notes persistence (json array at g_notes_path, the Windows-local file) ──
+static void load_notes()
+{
+    g_notes.clear(); g_note_next_id = 1;
+    if (g_notes_path.empty()) return;
+    std::ifstream f(g_notes_path.c_str());
+    if (!f) return;                                 // no file yet = no notes (fine)
+    json arr; try { f >> arr; } catch (const std::exception &) { return; }
+    if (!arr.is_array()) return;
+    for (auto &jn : arr) {
+        Note n;
+        n.id = jn.value("id", 0);
+        n.label = jn.value("label", "");
+        n.side = jn.value("side", "");
+        n.text = jn.value("text", "");
+        n.col = jn.value("col", -1);
+        if (jn.contains("box") && jn["box"].is_array() && jn["box"].size() == 4) {
+            n.hasbox = true;
+            for (int k = 0; k < 4; k++) n.box[k] = jn["box"][k].get<float>();
+        }
+        if (n.id >= g_note_next_id) g_note_next_id = n.id + 1;
+        g_notes.push_back(n);
+    }
+}
+
+static void save_notes()
+{
+    if (g_notes_path.empty()) return;
+    json arr = json::array();
+    for (auto &n : g_notes) {
+        json jn = { {"id", n.id}, {"label", n.label}, {"side", n.side},
+                    {"text", n.text}, {"col", n.col} };
+        if (n.hasbox) jn["box"] = { (int)n.box[0], (int)n.box[1], (int)n.box[2], (int)n.box[3] };
+        else jn["box"] = nullptr;
+        arr.push_back(jn);
+    }
+    std::ofstream f(g_notes_path.c_str(), std::ios::trunc);
+    if (!f) { fprintf(stderr, "notes: cannot write %s\n", g_notes_path.c_str()); return; }
+    f << arr.dump(1);
+}
+
+// column whose identity label == `label` (the stable across-window key), or -1.
+static int col_of_label(const std::string &label)
+{
+    if (label.empty()) return -1;
+    for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].label == label) return (int)i;
+    return -1;
+}
+
+// a finished rubber-band drag → the draft's capture-px box (clamped, min/max-ordered).
+// A near-zero drag (a click) becomes a whole-frame note (hasbox=false).
+static void finalize_draft_box()
+{
+    float W = g_draft.rmax.x - g_draft.rmin.x, H = g_draft.rmax.y - g_draft.rmin.y;
+    auto cx = [&](float x){ float v = (x - g_draft.rmin.x) / W * g_w; return v < 0 ? 0 : (v > g_w ? g_w : v); };
+    auto cy = [&](float y){ float v = (y - g_draft.rmin.y) / H * g_h; return v < 0 ? 0 : (v > g_h ? g_h : v); };
+    float x0 = cx(g_draft.r0.x), x1 = cx(g_draft.r1.x), y0 = cy(g_draft.r0.y), y1 = cy(g_draft.r1.y);
+    g_draft.box[0] = x0 < x1 ? x0 : x1; g_draft.box[1] = y0 < y1 ? y0 : y1;
+    g_draft.box[2] = x0 < x1 ? x1 : x0; g_draft.box[3] = y0 < y1 ? y1 : y0;
+    g_draft.hasbox = (g_draft.box[2] - g_draft.box[0] >= 3) || (g_draft.box[3] - g_draft.box[1] >= 3);
+    g_draft.placing = false; g_draft.editing = true; g_draft.focus = true; g_draft.text[0] = 0;
+}
+
+// commit the draft to g_notes + persist. Side "frame" (whole-frame button) records no side.
+static void commit_draft()
+{
+    Note n;
+    n.id = g_note_next_id++; n.label = g_draft.label;
+    n.side = g_draft.side == "frame" ? "" : g_draft.side;
+    n.text = g_draft.text; n.col = g_draft.col; n.hasbox = g_draft.hasbox;
+    for (int k = 0; k < 4; k++) n.box[k] = g_draft.box[k];
+    g_notes.push_back(n); save_notes();
+    g_draft = Draft{};
+}
+
 static bool load_view(const char *path)
 {
     std::ifstream f(path);
@@ -207,6 +302,7 @@ static bool load_view(const char *path)
     g_anchor = m.value("anchor", "");
     g_verdict = m.value("verdict", "");
     g_load_stretch = m.value("load_stretch", 0);
+    g_notes_path = m.value("notes_path", "");   // Windows-local notes file (writable)
     std::string pc = m.value("port_container", ""), rc = m.value("retail_container", "");
     char err[128] = {0};
     g_port = orv3_replay_open(pc.c_str(), err, sizeof err);
@@ -249,6 +345,7 @@ static bool load_view(const char *path)
     g_tport = make_tex(); g_tretail = make_tex(); g_tdiff = make_tex();
     g_diffbuf = (uint8_t *)malloc((size_t)g_w * g_h * 4);
     precompute_metrics();
+    load_notes();
     show_column(0);
     return true;
 }
@@ -278,12 +375,41 @@ static void panel(const char *label, LPDIRECT3DTEXTURE9 tex, bool present, float
     float h = panel_w * g_h / g_w;
     if (present) {
         ImGui::Image((ImTextureID)(intptr_t)tex, ImVec2(panel_w, h));
-        if (rep && ImGui::IsItemClicked()) {
-            ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+        ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        // left-click = pixel→draw pick — UNLESS arming a note (then a click/drag = box).
+        if (!g_note_mode && rep && ImGui::IsItemClicked()) {
             ImVec2 mp = ImGui::GetIO().MousePos;
             int px = (int)((mp.x - mn.x) / (mx.x - mn.x) * g_w);
             int py = (int)((mp.y - mn.y) / (mx.y - mn.y) * g_h);
             do_pick(sidename, rep, frame_idx, ndraws, px, py);
+        }
+        // note mode: drag a crop box on THIS side (rubber-band → text editor on release)
+        if (g_note_mode && !g_notes_path.empty()) {
+            if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0) && !g_draft.placing && !g_draft.editing) {
+                g_draft.placing = true; g_draft.side = sidename; g_draft.col = g_cur;
+                g_draft.label = g_cols[g_cur].label;
+                g_draft.r0 = g_draft.r1 = ImGui::GetIO().MousePos; g_draft.rmin = mn; g_draft.rmax = mx;
+            }
+            if (g_draft.placing && g_draft.side == sidename) {
+                g_draft.r1 = ImGui::GetIO().MousePos;
+                dl->AddRect(g_draft.r0, g_draft.r1, IM_COL32(255, 210, 80, 255), 0, 0, 2.0f);
+                if (ImGui::IsMouseReleased(0)) finalize_draft_box();
+            }
+        }
+        // overlay existing note boxes pinned to THIS column (by label) + side.
+        if (g_show_notes) {
+            const std::string &lbl = g_cols[g_cur].label;
+            for (auto &n : g_notes) {
+                bool here = n.hasbox && n.side == sidename &&
+                            (lbl.empty() ? n.col == g_cur : n.label == lbl);
+                if (!here) continue;
+                ImVec2 a(mn.x + n.box[0] / g_w * (mx.x - mn.x), mn.y + n.box[1] / g_h * (mx.y - mn.y));
+                ImVec2 b(mn.x + n.box[2] / g_w * (mx.x - mn.x), mn.y + n.box[3] / g_h * (mx.y - mn.y));
+                dl->AddRect(a, b, IM_COL32(120, 224, 120, 255), 0, 0, 2.0f);
+                char tag[16]; snprintf(tag, sizeof tag, "#%d", n.id);
+                dl->AddText(ImVec2(a.x + 3, a.y + 2), IM_COL32(140, 240, 140, 255), tag);
+            }
         }
     } else {
         ImVec2 p = ImGui::GetCursorScreenPos();
@@ -324,6 +450,39 @@ static void draw_ui()
     ImGui::SameLine(); if (ImGui::Button(">|")) seek((int)g_cols.size() - 1);
     ImGui::SameLine(); ImGui::Text("col %d/%d · %s", g_cur, (int)g_cols.size() - 1,
                      c.label.size() ? c.label.c_str() : std::to_string(c.offset).c_str());
+
+    // notes toolbar + inline draft editor — flag a divergence for Claude to inspect.
+    // In note mode a drag on a panel becomes a crop box; 'note frame' flags the whole
+    // frame. Persisted to the Windows-local notes file (orv3_notes.py reads it on WSL).
+    ImGui::BeginDisabled(g_notes_path.empty());
+    ImGui::Checkbox("note mode (m)", &g_note_mode);
+    ImGui::SameLine(); ImGui::Checkbox("show notes", &g_show_notes);
+    ImGui::SameLine(); if (ImGui::Button("note frame")) {
+        g_draft = Draft{}; g_draft.editing = true; g_draft.focus = true;
+        g_draft.side = "frame"; g_draft.col = g_cur; g_draft.label = g_cols[g_cur].label;
+    }
+    ImGui::EndDisabled();
+    if (g_notes_path.empty()) {
+        ImGui::SameLine(); ImGui::TextDisabled("(notes need a fresh view.json — re-run orv3_window)");
+    } else if (g_note_mode && !g_draft.editing) {
+        ImGui::SameLine(); ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "drag a box on a panel to flag a region");
+    }
+    if (g_draft.editing) {
+        ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "NEW NOTE");
+        ImGui::SameLine(); ImGui::Text("@ %s [%s]%s:",
+            g_draft.label.empty() ? ("col " + std::to_string(g_draft.col)).c_str() : g_draft.label.c_str(),
+            g_draft.side == "frame" ? "frame" : g_draft.side.c_str(),
+            g_draft.hasbox ? "" : " whole frame");
+        if (g_draft.hasbox) { ImGui::SameLine(); ImGui::TextDisabled("[%.0f,%.0f,%.0f,%.0f]",
+            g_draft.box[0], g_draft.box[1], g_draft.box[2], g_draft.box[3]); }
+        if (g_draft.focus) { ImGui::SetKeyboardFocusHere(); g_draft.focus = false; }
+        ImGui::SetNextItemWidth(-220);
+        bool enter = ImGui::InputText("##ntext", g_draft.text, sizeof g_draft.text, ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::SameLine(); bool save = ImGui::Button("save");
+        ImGui::SameLine(); bool cancel = ImGui::Button("cancel");
+        if (cancel) g_draft = Draft{};
+        else if ((enter || save) && g_draft.text[0]) commit_draft();
+    }
 
     // draw-step row (N3): step through draws (render_upto / render_range) to watch a
     // frame build up (prefix) or ISOLATE one draw (solo) — each side independently.
@@ -435,7 +594,33 @@ static void draw_ui()
         ImGui::SameLine(); if (ImGui::SmallButton("un-pick")) clear_view();
     }
 
-    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · click=pick · f full frame · w worst · n next");
+    // notes list — the flagged-divergence queue (seek to / delete). Claude reads the
+    // same file via orv3_notes.py; this IS the authoritative per-scenario gap list.
+    if (!g_notes_path.empty()) {
+        ImGui::Separator();
+        char hdr[80]; snprintf(hdr, sizeof hdr, "notes (%d)###notes", (int)g_notes.size());
+        if (ImGui::CollapsingHeader(hdr)) {
+            if (g_notes.empty())
+                ImGui::TextDisabled("none yet — toggle 'note mode' + drag a box on a panel, or 'note frame'.");
+            int del = -1;
+            for (size_t i = 0; i < g_notes.size(); i++) {
+                Note &n = g_notes[i];
+                ImGui::PushID((int)i);
+                if (ImGui::SmallButton("seek")) { int ci = col_of_label(n.label); seek(ci >= 0 ? ci : n.col); }
+                ImGui::SameLine(); if (ImGui::SmallButton("del")) del = (int)i;
+                ImGui::SameLine();
+                bool oncur = n.label.empty() ? n.col == g_cur : n.label == g_cols[g_cur].label;
+                ImGui::TextColored(oncur ? ImVec4(0.55f, 0.9f, 0.55f, 1) : ImVec4(0.8f, 0.82f, 0.84f, 1),
+                    "#%d %s%s%s — %s", n.id, n.side.empty() ? "frame" : n.side.c_str(),
+                    n.label.empty() ? "" : (" @" + n.label).c_str(),
+                    n.hasbox ? "" : " (whole)", n.text.c_str());
+                ImGui::PopID();
+            }
+            if (del >= 0) { g_notes.erase(g_notes.begin() + del); save_notes(); }
+        }
+    }
+
+    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · click=pick · f full frame · w worst · n next · m note mode");
     ImGui::End();
 }
 
@@ -546,6 +731,7 @@ static void handle_keys()
     if (ImGui::IsKeyPressed(ImGuiKey_1)) g_show[0] = !g_show[0];
     if (ImGui::IsKeyPressed(ImGuiKey_2)) g_show[1] = !g_show[1];
     if (ImGui::IsKeyPressed(ImGuiKey_3)) g_show[2] = !g_show[2];
+    if (ImGui::IsKeyPressed(ImGuiKey_M) && !g_notes_path.empty()) g_note_mode = !g_note_mode;
     if (ImGui::IsKeyPressed(ImGuiKey_W)) { int wbest = 0; for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].gt8 > g_cols[wbest].gt8) wbest = (int)i; seek(wbest); }
     if (ImGui::IsKeyPressed(ImGuiKey_N)) { for (size_t i = g_cur + 1; i < g_cols.size(); i++) if (g_cols[i].gt8 > 0) { seek((int)i); break; } }
     // [ ] step draws (engages draw-stepping); s toggles solo; clamp to this column's max

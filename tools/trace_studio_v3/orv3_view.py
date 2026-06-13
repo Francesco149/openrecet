@@ -231,6 +231,9 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
         "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
         "port_container": _winpath(port_entry / "v3cap.bin"),
         "retail_container": _winpath(retail_entry / "v3cap.bin"),
+        # Windows-local notes file the viewer reads+writes (UNC paths aren't writable
+        # from the Windows viewer); orv3_notes.py reads the same file from WSL.
+        "notes_path": _winpath(v3cache.notes_file(pmeta.scenario)),
         "offset0": rows[0]["offset"] if rows else None, "count": len(rows),
         "n_gaps": sum(1 for r in rows if r["gap"]), "frames": frames,
     }
