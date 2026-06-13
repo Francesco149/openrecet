@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -41,21 +42,38 @@ def localappdata_v3() -> Path:
 
     Launching cmd.exe from WSL intermittently fails with a vsock error and an
     EMPTY stdout; a good result is an absolute Windows path (C:\\Users\\...).
-    Retry until it resolves so the caller never gets a bogus relative dir (the
-    silent failure mode that turns into a confusing FileNotFoundError later)."""
+    Three resolution tiers, robust to the interop being fully wedged:
+      0. $OPENRECET_V3_DIR override (the escape hatch);
+      1. cmd.exe echo %LOCALAPPDATA% (the canonical resolve; retried);
+      2. a deterministic glob of /mnt/*/Users/*/AppData/Local/openrecet/v3 —
+         the dir is fixed and the proxy already created it, so when cmd.exe is
+         down we just pick the most-recently-written match."""
+    env = os.environ.get("OPENRECET_V3_DIR")
+    if env:
+        return Path(env)
+
     out = ""
     for _ in range(8):
         out = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
                              capture_output=True, text=True, cwd="/mnt/c").stdout.strip()
         if out and out != "%LOCALAPPDATA%" and (":\\" in out or ":/" in out):
-            break
-    else:
-        raise RuntimeError(
-            "localappdata_v3: cmd.exe never returned %LOCALAPPDATA% (WSL interop "
-            f"flaky); last stdout={out!r}")
-    wsl = subprocess.run(["wslpath", "-u", out], capture_output=True, text=True,
-                         check=True).stdout.strip()
-    return Path(wsl) / "openrecet" / "v3"
+            wsl = subprocess.run(["wslpath", "-u", out], capture_output=True,
+                                 text=True, check=True).stdout.strip()
+            return Path(wsl) / "openrecet" / "v3"
+
+    # cmd.exe is wedged — fall back to the deterministic mounted-drive path.
+    cands = sorted(
+        (p for mnt in ("/mnt/c", "/mnt/d", "/mnt/e")
+           for p in Path(mnt, "Users").glob("*/AppData/Local/openrecet/v3")
+           if p.is_dir()),
+        key=lambda p: p.stat().st_mtime, reverse=True)
+    if cands:
+        return cands[0]
+
+    raise RuntimeError(
+        "localappdata_v3: cmd.exe never returned %LOCALAPPDATA% (WSL interop "
+        "flaky) and no /mnt/*/Users/*/AppData/Local/openrecet/v3 fallback exists "
+        f"— set $OPENRECET_V3_DIR. last stdout={out!r}")
 
 
 def notes_file(scenario: str) -> Path:

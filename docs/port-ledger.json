@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 413,
-  "unported": 2051,
+  "ported": 415,
+  "unported": 2049,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 497,
-  "pct_touched": 19.5,
+  "touched": 499,
+  "pct_touched": 19.6,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -931,6 +931,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_picker.c",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
     "src/scene_pause.c",
@@ -7476,7 +7477,8 @@
     "src/choice_box.c",
     "src/font.h",
     "src/font_draw.c",
-    "src/font_draw.h"
+    "src/font_draw.h",
+    "src/save_picker.c"
    ]
   },
   {
@@ -7661,8 +7663,10 @@
    "size": 1171,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_picker.h"
+   ]
   },
   {
    "va": "0x47fa4f",
@@ -7791,8 +7795,12 @@
    "size": 552,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/save_picker.h",
+    "src/scene_pause.c",
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x48150c",
@@ -7856,6 +7864,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_picker.c",
     "src/scene1_merchant_hud.c",
     "src/scene1_merchant_hud.h",
     "src/scene_pause.c",
@@ -8883,6 +8892,8 @@
     "src/main.c",
     "src/save_io.c",
     "src/save_io.h",
+    "src/save_picker.h",
+    "src/scene_pause.c",
     "src/scene_title.c"
    ]
   },
@@ -10022,6 +10033,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_picker.c",
+    "src/save_picker.h",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/title_continue_picker.c",
     "src/title_continue_picker.h"
@@ -10037,6 +10051,8 @@
    "src": [
     "src/font_draw.h",
     "src/save_bank.h",
+    "src/save_picker.c",
+    "src/save_picker.h",
     "src/scene1_merchant_hud.h",
     "src/scene1_top_hud.h",
     "src/scene_title.c",
