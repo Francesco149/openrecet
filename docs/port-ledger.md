@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **495** (19.4%) — verified 70, stubbed 14, ported 411
-- unported: **2053**
+- touched: **497** (19.5%) — verified 70, stubbed 14, ported 413
+- unported: **2051**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (411) — reimplemented, no probe yet
+## ported (413) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -137,7 +137,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x405d70 | FUN_00405d70 | 911 | ✓ | scene1_render.c, scene1_render.h, stage_palette.h |
 | 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h |
 | 0x406584 | FUN_00406584 | 1017 | ✓ | choice_box.c, main.c, scene1_top_hud.c (+6) |
-| 0x406a60 | FUN_00406a60 | 516 | ✓ | scene1_top_hud.c, scene1_top_hud.h, scene_title.c |
+| 0x406a60 | FUN_00406a60 | 516 | ✓ | scene1_top_hud.c, scene1_top_hud.h, scene_pause.c (+1) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c |
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ | main.c |
@@ -391,7 +391,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480614 | FUN_00480614 | 718 | ✓ | scene_pause.c, scene_pause.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
-| 0x481ec3 | FUN_00481ec3 | 368 | ✓ | scene1_merchant_hud.c, scene1_merchant_hud.h, scene_title.c |
+| 0x481ec3 | FUN_00481ec3 | 368 | ✓ | scene1_merchant_hud.c, scene1_merchant_hud.h, scene_pause.c (+1) |
+| 0x482033 | FUN_00482033 | 38 | ✓ | scene_pause.c |
 | 0x482059 | FUN_00482059 | 97 | ✓ | scene_pause.c |
 | 0x4820ba | FUN_004820ba | 2455 | ✓ | main.c, scene_pause.c, scene_pause.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
@@ -426,6 +427,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h, scene_pause.c |
 | 0x48cdcc | FUN_0048cdcc | 2058 | ✓ | scene1_player_ctrl.c |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
+| 0x48d997 | FUN_0048d997 | 218 | ✓ | scene_pause.c |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h, sim.c |
 | 0x48f931 | FUN_0048f931 | 1150 | ✓ | sim.c |
 | 0x48fdaf | FUN_0048fdaf | 148 | ✓ | scene1_display_menu.c |

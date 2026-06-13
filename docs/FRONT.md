@@ -375,14 +375,24 @@
   entanglement is HALF-resolved:** the backdrop is now correct (right half 1:1); the remaining f119
   LEFT-half diff (Δ+42 mid-left, 43% of the frame) is **just the missing calendar/numbers below**
   (the orv3_draws diff = port 4 draws / retail 10; the 6 retail-only being the calendar + glyphs).
-  **REMAINING (M2c) — [4-6]** calendar frame (pause.tga `e5bd` MODULATE, L83801-83866) + **[7-9]**
-  numbers (item_win `3392`): gold (`scene1_top_hud_draw_number`, ported) + level
-  (`scene1_merchant_hud`, ported) + weekly **quota** `FUN_0048d997` + day-cells (date math
-  FUN_00482059/00482033). **⚠ blocker:** the [4] period-progress bar needs the CURRENT-DAY
-  `_DAT_0438b91c`, **stubbed to 0** (`stage_post_load.c:562`) → un-stub (or read save `+0x2c3f4`)
-  first. **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the
-  M3 code); submenus (`sub_anim>0` dispatch L83931-83952) + type-4 exit-confirm + unpause
-  cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
+  **M2c — calendar / merchant-rank XP bar / numbers ✅ DONE + PIXEL-BIT-EXACT 2026-06-13**
+  (`scene_pause.c`: the [4-9] block + helpers `pause_day_index`/`pause_period_end`/
+  `pause_weekly_quota` = FUN_00482033/59/d997). Re-drove the port over HOUSE_FREEROAM+120:240:
+  the resting-menu **draw program is ALIGNED — 10/10 draws matched by content hash, 0 divergent**
+  ([4] panel 6q / [5] today 1q / [6] period-end 3q / [7] quota 6q / [8] gold 4q / [9] level 1q,
+  every tex/colorop/tri/**geometry hash** = retail), and **history-replay pixels are BIT-EXACT
+  (meanabs=0, gt8=0%) across every resting pair** (the pause menu is fully static at rest ⇒ NO
+  phase residue — the entanglement that swamped M2b's diff is GONE). Port self-verify still
+  **240/240 BIT-EXACT** (M3 backdrop preserved). **RE correction:** `_DAT_0438b91c` is the
+  animated **merchant-rank XP** (the bottom-left-HUD value), NOT a "current-day" — [5]/[6]'s
+  `+0x2c3f8`/`+0x2c3fc` are the XP level-start/next thresholds, the real calendar day is CARD_DAY
+  (+0x2c3ec). The stubbed `g_dat_0438b91c` (`stage_post_load.c:562`) is DEAD (no consumer) — NOT
+  touched; the render reads the bank directly, bit-identical at rest. **PENDING the user's visual
+  1:1 confirm** (feed "M2c pause calendar+numbers — port|retail|diff"). **PORT-DEBT(pause-xp-anim):**
+  the XP-display animator (shared with the merchant HUD's stubbed `set_xp`) stays unported (only
+  matters mid-rank-up). **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants
+  (PORT-DEBT in the M3 code); submenus (`sub_anim>0` dispatch L83931-83952) + type-4 exit-confirm +
+  unpause cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game

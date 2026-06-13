@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 24,
+  "total": 23,
   "by_kind": {
    "stub": 4,
    "synthetic-data": 0,
@@ -18,11 +18,10 @@
    "event-probe": 1,
    "focused": 3,
    "house-teardown": 1,
-   "pause-calendar-gold": 1,
    "price-trend": 2,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 20,
+  "retiring_engine_fns": 19,
   "by_engine_fn": {
    "FUN_004361b2": 3,
    "FUN_004176ff": 2,
@@ -42,8 +41,7 @@
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
-   "FUN_005031e4": 1,
-   "M2c": 1
+   "FUN_005031e4": 1
   }
  },
  "tags": [
@@ -117,14 +115,6 @@
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
    "line": 1081,
-   "kind_known": false
-  },
-  {
-   "kind": "pause-calendar-gold",
-   "engine_fn": "M2c",
-   "desc": "the calendar/gold/portrait block",
-   "file": "src/scene_pause.c",
-   "line": 454,
    "kind_known": false
   },
   {

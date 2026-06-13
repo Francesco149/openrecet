@@ -373,6 +373,9 @@ void pause_menu_update(void)
 #include "render_quad.h"   /* render_quad_state_setup / bind / add / flush */
 #include "choice_box.h"          /* choice_box_draw = FUN_0043537e (tail) */
 #include "title_save_dialog.h"   /* the shared cursor + save-dialog frame (tail) */
+#include "save_work.h"           /* save_work_dwords_at / save_work_active_slot (the bank) */
+#include "scene1_top_hud.h"      /* scene1_top_hud_draw_number = FUN_00406a60 (gold/quota) */
+#include "scene1_merchant_hud.h" /* scene1_merchant_hud_draw_level = FUN_00481ec3 (level) */
 
 sprite_t g_scene_pause_pause;
 sprite_t g_scene_pause_bg_rete;
@@ -444,20 +447,102 @@ void scene_pause_init(struct IDirect3DDevice8 *dev)
     worker_load_set_cb(9, pause_worker_case9);
 }
 
+/* ─── calendar / quota date math (engine FUN_00482033/59, FUN_0048d997) ───
+ *
+ * All three read the WORKING save bank by byte offset (engine reads
+ * &DAT_044e3798 + slot*0x2dfc8 + off; the port's save_work_dwords_at(slot)
+ * is that same arena, dword-indexed).  Field map (dword index / byte off):
+ *   gold     3      / 0xc       day      0xb0fb / 0x2c3ec
+ *   pe-cache 0xb0fa / 0x2c3e8   xp-cur   0xb0fd / 0x2c3f4
+ *   xp-start 0xb0fe / 0x2c3f8   xp-end   0xb0ff / 0x2c3fc
+ *   level    0xb100 / 0x2c400   mode     0xb759 / 0x2dd64
+ *   discount byte 0x2bc56.
+ * NB the save_bank.h "DAY_INDEX"(0xb0fe)/"RANK_THRESHOLD"(0xb0ff) names are
+ * the merchant-rank XP start/next-threshold here (FUN_00406xxx XP animator),
+ * NOT calendar fields; the calendar day is CARD_DAY (0xb0fb). */
+
+/* FUN_00482033 (all.c:83631) — the calendar "today" day index for `bank`. */
+static int pause_day_index(const uint32_t *bank)
+{
+    int day  = (int32_t)bank[0xb0fb];      /* +0x2c3ec */
+    int mode = (int32_t)bank[0xb759];      /* +0x2dd64 */
+    if (mode != 2) {
+        if (mode != 3)
+            return day;                     /* normal mode: raw day */
+        day -= 0x24;                        /* mode 3: day - 36 */
+    }
+    return day % 0x23;                      /* mode 2/3: wrap to the 35-day cycle */
+}
+
+/* FUN_00482059 (all.c:83649) — the period-end (next "payment due") day, the
+ * day rounded up to the next week boundary; cached back to +0x2c3e8 (the
+ * engine writes it, idempotent for a given day). */
+static int pause_period_end(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (!bank) return 0;
+    int day  = pause_day_index(bank);
+    int mode = (int32_t)bank[0xb759];
+    int pe;
+    if (mode == 2 || mode == 3) {
+        pe = (day / 7) * 7 + 6;
+    } else if (day == 0) {
+        bank[0xb0fa] = 7;                   /* +0x2c3e8 cache */
+        return 7;
+    } else {
+        pe = ((day - 1) / 7 + 1) * 7;       /* round up to next multiple of 7 */
+    }
+    bank[0xb0fa] = (uint32_t)pe;
+    return pe;
+}
+
+/* FUN_0048d997 (all.c:91012) — the weekly quota number (the payment due by
+ * the period end); halved-by-100 when the discount byte +0x2bc56 is set. */
+static int pause_weekly_quota(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (!bank) return 0;
+    int mode = (int32_t)bank[0xb759];
+    int q = 500000;
+    if (mode == 2) {
+        int week = (int32_t)bank[0xb0fb] / 7;   /* DAT_0450fb84 = day field +0x2c3ec */
+        if (week == 0)      q = 20000;
+        else if (week == 1) q = 80000;
+        else if (week == 2) q = 200000;
+        else if (week == 3) q = 500000;
+        else if (week == 4) q = 1000000;
+        else if (week == 5) q = 2000000;
+        else                q = (week - 3) * 1000000;
+    } else {
+        int pe = pause_period_end();
+        if (pe == 0)        q = 300;
+        else if (pe < 9)    q = 10000;
+        else if (pe < 0x10) q = 30000;          /* < 16 */
+        else if (pe > 0x16) q = (pe > 0x1d) ? 500000   /* > 29: default */
+                                            : 200000;  /* 23..29     */
+        else                q = 80000;          /* 16..22 */
+    }
+    if (((const uint8_t *)bank)[0x2bc56] != 0)  /* discount halves to 1/100 */
+        q /= 100;
+    return q;
+}
+
 /* FUN_004820ba — the pause-menu render.
  *
  * M2  (done): the pause_bg_rete backdrop (engine L83706-83725).
- * M2b (this): the option list (L83726-83789 — COLOROP=ADD icon+label rows
+ * M2b (done): the option list (L83726-83789 — COLOROP=ADD icon+label rows
  *             from pause.tga) + the "PAUSE MENU" header (L83790-83800,
  *             COLOROP=MODULATE) + the shared overlay tail (L83953-83955).
+ * M2c (this): the calendar/gold/level block (L83801-83930, gated sub_anim<10
+ *             → drawn at rest): pause.tga panel + merchant-rank XP bar +
+ *             calendar markers (MODULATE) + item_win number glyphs (gold via
+ *             FUN_00406a60, quota via FUN_00406a60, level via FUN_00481ec3).
+ *             Retail draws [4]=6q panel / [5]=1q today / [6]=3q period-end /
+ *             [7]=quota / [8]=gold / [9]=level.
  *
- * PORT-DEBT(pause-calendar-gold, M2c): the calendar/gold/portrait block
- * (L83801-83930, gated sub_anim<10 → drawn at rest) needs the save-arena
- * day/gold/period fields + the date math (FUN_00482059/00482033) + the
- * level/portrait helpers — retail draws [4-9] there (pause.tga MODULATE +
- * item_win number glyphs). Plus the pre-backdrop fx layer retail draw [0]
- * (tex 3e66, from FUN_0045404b/the FUN_00454191 fade) — separate from this
- * function. The sub_anim>0 submenu dispatch (L83931-83952) = M3 PORT-DEBT.
+ * The pre-backdrop fx layer [0] (the captured/blurred RT) is drawn by the
+ * fade system before this function (M3, done). The sub_anim>0 submenu
+ * dispatch (L83931-83952) is M3+ PORT-DEBT.
  *
  * Geometry/diffuse recovered from objdump 0x4820ba-0x482400 (the decompile
  * dropped the register-built diffuse args + some FP consts; all verified
@@ -572,6 +657,111 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
                         0xffffffffu);
     }
     render_quad_flush(d);                              /* L83800 */
+
+    /* ── calendar / merchant-rank / numbers (engine L83801-83930) ──────────
+     * Still pause.tga, still COLOROP=MODULATE. The whole block slides with
+     * ox = -64*sub_anim (0 at rest) and is gated sub_anim<10. Retail draws
+     * [4]=6q panel / [5]=1q today / [6]=3q period-end, then the item_win
+     * number glyphs [7]=quota / [8]=gold / [9]=level. */
+    if (g_pause_sub_anim < 10) {
+        const float ox = (float)(int)(g_pause_sub_anim * -0x40);   /* local_8 */
+        const uint32_t pw = g_scene_pause_pause.width;
+        const uint32_t ph = g_scene_pause_pause.height;
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+
+        /* ── [4]: 6 quads (engine L83801-83866) ────────────────────────── */
+        /* A — top-left icon: src(720,0)-(768,48) → dst(ox+32,8,48,48). */
+        { const float dst[4]={ox+32.0f,8.0f,48.0f,48.0f},
+                      src[4]={720.0f,0.0f,768.0f,48.0f};
+          render_quad_add(dst,src,pw,ph,0xffffffffu); }
+        /* B — label under it: src(720,368)-(864,416) → dst(ox+32,60,144,48). */
+        { const float dst[4]={ox+32.0f,60.0f,144.0f,48.0f},
+                      src[4]={720.0f,368.0f,864.0f,416.0f};
+          render_quad_add(dst,src,pw,ph,0xffffffffu); }
+        /* C — XP-bar track bg: src(64,432)-(264,472) → dst(ox+176,64,200,40). */
+        { const float dst[4]={ox+176.0f,64.0f,200.0f,40.0f},
+                      src[4]={64.0f,432.0f,264.0f,472.0f};
+          render_quad_add(dst,src,pw,ph,0xffffffffu); }
+        /* D — XP-bar fill (engine L83833-83847): width = (xp_cur-xp_start) /
+         * (xp_end-xp_start) * 142, src(310,432)-(452,472) → dst(ox+214,64,
+         * fill,40). xp_cur = _DAT_0438b91c which, with no XP animating, equals
+         * the value the stage load snapped it to (bank[+0x2c3f4]); see banner. */
+        if (bank) {
+            float cur   = (float)(int32_t)bank[0xb0fd];                  /* +0x2c3f4 */
+            float start = (float)(int32_t)bank[0xb0fe];                  /* +0x2c3f8 */
+            float span  = (float)(int32_t)(bank[0xb0ff] - bank[0xb0fe]); /* +0x2c3fc */
+            if (span < 1.0f) span = 1.0f;
+            float fill = ((cur - start) / span) * 142.0f;
+            const float dst[4]={ox+214.0f,64.0f,fill,40.0f},
+                        src[4]={310.0f,432.0f,452.0f,472.0f};
+            render_quad_add(dst,src,pw,ph,0xffffffffu);
+        }
+        /* E — XP-bar frame (over the fill): src(480,432)-(680,472) →
+         * dst(ox+176,64,200,40). */
+        { const float dst[4]={ox+176.0f,64.0f,200.0f,40.0f},
+                      src[4]={480.0f,432.0f,680.0f,472.0f};
+          render_quad_add(dst,src,pw,ph,0xffffffffu); }
+        /* F — the 380×380 calendar board: src(0,0)-(380,380) → dst(ox,100,380,380). */
+        { const float dst[4]={ox,100.0f,380.0f,380.0f},
+                      src[4]={0.0f,0.0f,380.0f,380.0f};
+          render_quad_add(dst,src,pw,ph,0xffffffffu); }
+        render_quad_flush(d);                              /* L83866 */
+
+        /* ── [5]/[6]: calendar markers (engine L83867-83923) ───────────── */
+        int period_end = pause_period_end();
+        if (period_end != 0 && bank) {
+            /* [5] today marker: cell ((day+4)%7, (day+4)/7), 45px cols /
+             * 48px rows, origin (24,132); x slides with ox, y does not.
+             * src(0,384)-(64,448), 64×64. */
+            int day = pause_day_index(bank);
+            float tx = (float)(((day + 4) % 7) * 0x2d + 0x18) + ox;
+            float ty = (float)(((day + 4) / 7) * 0x30 + 0x84);
+            { const float dst[4]={tx,ty,64.0f,64.0f},
+                          src[4]={0.0f,384.0f,64.0f,448.0f};
+              render_quad_add(dst,src,pw,ph,0xffffffffu); }
+            render_quad_flush(d);                          /* L83882 */
+
+            int mode = (int32_t)bank[0xb759];              /* +0x2dd64 */
+            if (mode != 3) {
+                /* [6] period-end (payment-due) marker + two badge sprites
+                 * over it (engine L83883-83923). */
+                int pe_wk = period_end / 7;
+                int col;
+                if (mode == 2) { pe_wk += 1; col = 3; }
+                else             col = 4;
+                float px = (float)(col * 0x2d + 0x18) + ox;
+                float py = (float)(pe_wk * 0x30 + 0x84) + ox; /* engine adds local_8 to y too (0 at rest) */
+                /* H — period-end marker: src(0,448)-(64,512), 64×64. */
+                { const float dst[4]={px,py,64.0f,64.0f},
+                              src[4]={0.0f,448.0f,64.0f,512.0f};
+                  render_quad_add(dst,src,pw,ph,0xffffffffu); }
+                /* I — badge over it: src(720,48)-(880,136) → dst(px+32,py+32,160,88). */
+                { const float dst[4]={px+32.0f,py+32.0f,160.0f,88.0f},
+                              src[4]={720.0f,48.0f,880.0f,136.0f};
+                  render_quad_add(dst,src,pw,ph,0xffffffffu); }
+                /* J — sub-badge: src(864,368)-(992,424) → dst(px+56,py+56,128,56). */
+                { const float dst[4]={px+56.0f,py+56.0f,128.0f,56.0f},
+                              src[4]={864.0f,368.0f,992.0f,424.0f};
+                  render_quad_add(dst,src,pw,ph,0xffffffffu); }
+                render_quad_flush(d);                      /* L83923 */
+
+                /* [7] quota number near the badge (icon=0, comma=1):
+                 * FUN_00406a60(px+168-24, py+60, quota). */
+                scene1_top_hud_draw_number(d, (px + 168.0f) - 24.0f, py + 60.0f,
+                                           pause_weekly_quota(), 0,
+                                           0xffffffffu, 1);
+            }
+        }
+
+        /* [8] gold (icon=1 "pix", comma=1): FUN_00406a60(ox+256, 28, gold). */
+        if (bank)
+            scene1_top_hud_draw_number(d, ox + 256.0f, 28.0f,
+                                       (int32_t)bank[3], 1, 0xffffffffu, 1);
+        /* [9] merchant level badge (drawn as level+1): FUN_00481ec3(ox+192,64). */
+        if (bank)
+            scene1_merchant_hud_draw_level(d, ox + 192.0f, 64.0f,
+                                           (int32_t)bank[0xb100], 0xffffffffu);
+    }
 
     /* ── shared overlay tail (engine L83953-83955): the choice box, the hand
      * cursor, then the save/load dialog frame. All self-gate (no active box /

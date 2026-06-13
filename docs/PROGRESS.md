@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-13 — pause menu M2c: calendar / merchant-rank XP bar / numbers (pixel-bit-exact)
+
+Ported FUN_004820ba's [4-9] resting-menu block in `scene_pause.c` — the calendar board +
+today/period-end day markers, the merchant-rank XP progress bar, and the gold/quota/level
+number glyphs — plus the three value helpers `pause_day_index` (FUN_00482033),
+`pause_period_end` (FUN_00482059, with the +0x2c3e8 period-end cache write) and
+`pause_weekly_quota` (FUN_0048d997). All read the working save bank directly
+(`save_work_dwords_at(save_work_active_slot())`, dword-indexed), mirroring the engine's
+`puVar3 = &DAT_044e3798 + slot*0x2dfc8` arena reads.
+
+- **RE correction (load-bearing):** the plan had framed the blocker as "[4] needs the
+  CURRENT-DAY `_DAT_0438b91c`, stubbed to 0". That was a mislabel — `_DAT_0438b91c` is the
+  **animated merchant-rank XP** (the value the bottom-left HUD eases toward the rank target;
+  `scene1_merchant_hud.c` had it labelled right). The [5]/[6] `+0x2c3f8`/`+0x2c3fc` fields are
+  the XP **level-start / next-level thresholds** (save_bank.h's "DAY_INDEX"/"RANK_THRESHOLD"
+  names), NOT a calendar period; the real calendar day is CARD_DAY (+0x2c3ec). The stubbed
+  `g_dat_0438b91c` (`stage_post_load.c:562`) is **dead** (no consumer) and was left untouched;
+  at rest (no XP animating in the house) the XP-current bank field (+0x2c3f4) equals
+  `_DAT_0438b91c`, so the direct bank read is bit-identical to retail.
+- **Verified (re-drove the port over `house-pause` HOUSE_FREEROAM+120:240 vs the retail v3
+  cache):** resting-menu **draw program ALIGNED — 10/10 draws matched by content hash, 0
+  divergent** ([4] panel ×12prim=6q / [5] today ×2=1q / [6] period-end ×6=3q / [7] quota
+  ×12=6q / [8] gold ×8=4q / [9] level ×2=1q; every tex/colorop/tri/geometry-hash = retail),
+  and **history-replay pixels BIT-EXACT (meanabs=0.000, gt8=0.000%) across every resting pair**
+  (offsets 100/126/152/177). The pause menu is fully static at rest ⇒ zero phase residue — the
+  missing-board entanglement that swamped M2b's pixel diff is resolved. Port self-verify still
+  **240/240 BIT-EXACT** (M3 backdrop determinism preserved). Host suite 3248 pass / 0 fail.
+- **PORT-DEBT(pause-xp-anim):** the XP-display animator (FUN_00406xxx, shared with the
+  merchant HUD's own never-called `set_xp`) is unported — only matters mid-rank-up.
+- **PENDING:** the user's visual 1:1 confirm (feed "M2c pause calendar+numbers — port|retail|diff").
+- RE/empirics: `plans/pause-menu.md` M2c.
+
 ## 2026-06-13 — scene-guild: drop the conversation bg+keeper double-draw (v3 render-program drill, `2a2d84d`)
 
 First parity fix found purely through the **v3 draw-program panel** — a render-PROGRAM

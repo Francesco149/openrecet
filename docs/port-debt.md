@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **24**
-- distinct retiring engine functions: **20**
+- total open debts: **23**
+- distinct retiring engine functions: **19**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **12 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), pause-calendar-gold (1), price-trend (2), stage-scratch (1).
+> ⚠️  **11 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), price-trend (2), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -49,7 +49,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_005031e4 | 1 |
-| M2c | 1 |
 
 ## stub (4)
 
@@ -102,7 +101,6 @@ _none_
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1081 | the engine frees the shop |
-| pause-calendar-gold | M2c | src/scene_pause.c:454 | the calendar/gold/portrait block |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:149 | the trend<-1 ⇒ cap 0 branch is deferred |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:916 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |

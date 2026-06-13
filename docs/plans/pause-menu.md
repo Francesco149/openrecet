@@ -121,9 +121,34 @@ Draw primitives all already in the port: `render_quad_add`
   Layout matches retail's staircase. **Pixel-1:1 confirmation is entangled with
   M2c** — the missing board background swamps the diff (bg_rete art is black/
   matching; everything else is white because port shows the cyan clear).
-- **M2c — calendar/gold/portrait + the board background (NEXT).** The retail
-  resting-menu draw program is **10 draws** (orv3_draws on `house-pause-f1bf56e7`
-  frame 119):
+- **M2c — calendar / merchant-rank XP bar / numbers ✅ DONE + PIXEL-BIT-EXACT 2026-06-13.**
+  Ported FUN_004820ba's [4-9] block in `scene_pause.c` (the calendar board + day
+  markers, the merchant-rank XP progress bar, and the gold/quota/level number
+  glyphs) + the three value helpers `pause_day_index` (FUN_00482033), `pause_period_end`
+  (FUN_00482059, with the +0x2c3e8 cache write), `pause_weekly_quota` (FUN_0048d997).
+  **Result (re-drove the port over `house-pause` HOUSE_FREEROAM+120:240, joined vs the
+  retail v3 cache):** the resting-menu **draw program is ALIGNED — 10/10 draws matched
+  by content hash, 0 divergent** ([4] panel ×12prim=6q / [5] today ×2=1q / [6] period-end
+  ×6=3q / [7] quota ×12=6q / [8] gold ×8=4q / [9] level ×2=1q — every tex/colorop/
+  tri-count/**geometry hash** identical to retail), and **history-replay pixels are
+  BIT-EXACT (meanabs=0.000, gt8=0.000%) across every resting pair** (offsets 100/126/
+  152/177; the pause menu is fully static at rest ⇒ no phase residue at all). Port
+  self-verify still **240/240 BIT-EXACT** (M3 backdrop determinism preserved).
+  **Key RE correction:** the plan's "[4] period-progress bar needs the CURRENT-DAY
+  `_DAT_0438b91c`" was a mislabel — `_DAT_0438b91c` is the **animated merchant-rank XP**
+  (the global the bottom-left HUD eases toward the rank target; `scene1_merchant_hud.c`
+  had it right). [5]/[6]'s `+0x2c3f8`/`+0x2c3fc` are the **XP level-start/next thresholds**,
+  NOT a calendar period; the real calendar day is CARD_DAY (+0x2c3ec). The stubbed
+  `g_dat_0438b91c` (`stage_post_load.c:562`) is DEAD (no consumer) — NOT touched; the
+  pause render reads the bank directly (`save_work_dwords_at`), and at rest the XP-current
+  bank field (+0x2c3f4) equals the animated `_DAT_0438b91c` (no XP animating in the house),
+  so the read is bit-identical to retail. **PORT-DEBT(pause-xp-anim):** the XP-display
+  animator (FUN_00406xxx, shared with the merchant HUD's own stubbed `set_xp`) stays
+  unported — only matters mid-rank-up, never in this scenario. **PENDING the user's
+  visual 1:1 confirm** (feed: "M2c pause calendar+numbers — port|retail|diff").
+
+  Original RE map (kept for reference). The retail resting-menu draw program is
+  **10 draws** (orv3_draws on `house-pause-f1bf56e7` frame 119):
     - **[0]** tex `3e66`, full-screen 1024×768, MODULATE — the menu's black
       backdrop. **✅ SOURCE RESOLVED 2026-06-13 — it is the CAPTURED-SCREEN RENDER
       TARGET (`DAT_073de648`), drawn by `FUN_00454191` (the fade/capture system),
