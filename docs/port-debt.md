@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **23**
-- distinct retiring engine functions: **19**
+- total open debts: **24**
+- distinct retiring engine functions: **20**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 5 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 6 | reduced control flow / state machine vs retail |
+| simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -42,6 +42,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | 1 |
 | FUN_0043a5d9 | 1 |
 | FUN_0044bd0d | 1 |
+| FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00454191 | 1 |
 | FUN_0045de68 | 1 |
@@ -64,7 +65,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (6)
+## simplified (7)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -72,6 +73,7 @@ _none_
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
+| FUN_00453384 | src/scene_pause.c:206 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:294 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:283 | the engine teardown also restores the |
 

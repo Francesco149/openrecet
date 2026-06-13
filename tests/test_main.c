@@ -1155,6 +1155,21 @@ struct test_case {
     X(scene_pause_state_init_overrides_dirty_state) \
     X(scene_pause_reset_zeroes_state) \
     X(scene_pause_selector_independent_from_siblings) \
+    X(pause_menu_setup_house_list) \
+    X(pause_menu_setup_status_entry) \
+    X(pause_menu_setup_dungeon_entry) \
+    X(pause_menu_setup_status_and_dungeon) \
+    X(pause_menu_setup_dungeon_entry_needs_mode1) \
+    X(pause_dispatch_enter_starts_ramp) \
+    X(pause_dispatch_rejects_unpausable_mode) \
+    X(pause_dispatch_idempotent_while_ramping) \
+    X(pause_dispatch_unpause_when_open) \
+    X(pause_dispatch_no_unpause_before_open) \
+    X(pause_nav_up_down_wrap) \
+    X(pause_nav_a_starts_select_anim) \
+    X(pause_nav_b_closes) \
+    X(pause_update_runs_nav_when_no_submenu) \
+    X(pause_update_ticks_submenu_anim) \
     \
     X(scene_buy_slot_count_is_ten) \
     X(scene_buy_page_count_is_fifty) \

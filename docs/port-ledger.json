@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 403,
-  "unported": 2061,
+  "ported": 407,
+  "unported": 2057,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 487,
-  "pct_touched": 19.1,
+  "touched": 491,
+  "pct_touched": 19.3,
   "pct_verified": 2.7,
-  "port_debt": 25
+  "port_debt": 26
  },
  "orphan_refs": [
   "0x40f640",
@@ -2605,7 +2605,8 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
-    "src/choice_box.h"
+    "src/choice_box.h",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -4119,6 +4120,7 @@
    "src": [
     "src/esc_dispatch.c",
     "src/esc_dispatch.h",
+    "src/scene_pause.c",
     "src/sim.c",
     "src/skip_event.c"
    ]
@@ -4134,6 +4136,8 @@
     "src/esc_dispatch.c",
     "src/scene.h",
     "src/scene1_intro_dialogue.h",
+    "src/scene_pause.c",
+    "src/scene_pause.h",
     "src/skip_event.c"
    ]
   },
@@ -7625,8 +7629,11 @@
    "size": 372,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c",
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x47f46a",
@@ -7661,8 +7668,11 @@
    "size": 462,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c",
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x47fc44",
@@ -7708,8 +7718,11 @@
    "size": 718,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c",
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x4808e2",
@@ -7860,8 +7873,10 @@
    "size": 2455,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x482a51",
@@ -8528,7 +8543,8 @@
    "status": "ported",
    "src": [
     "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.h",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -9683,6 +9699,7 @@
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_title.h",
     "src/title_continue_picker.c",
@@ -10347,6 +10364,7 @@
    "src": [
     "src/save_bank.h",
     "src/scene1_display_menu.c",
+    "src/scene_pause.c",
     "src/scene_title.c"
    ]
   },

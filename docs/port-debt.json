@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 23,
+  "total": 24,
   "by_kind": {
    "stub": 5,
    "synthetic-data": 0,
-   "simplified": 6,
+   "simplified": 7,
    "hardcode": 1,
    "scaffold": 0,
    "force-flag": 0
@@ -21,7 +21,7 @@
    "price-trend": 2,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 19,
+  "retiring_engine_fns": 20,
   "by_engine_fn": {
    "FUN_004361b2": 3,
    "FUN_004176ff": 2,
@@ -35,6 +35,7 @@
    "FUN_00436f97": 1,
    "FUN_0043a5d9": 1,
    "FUN_0044bd0d": 1,
+   "FUN_00453384": 1,
    "FUN_004536cb": 1,
    "FUN_00454191": 1,
    "FUN_0045de68": 1,
@@ -163,6 +164,14 @@
    "desc": "of the 710-line state-entry init this",
    "file": "src/scene1_postload.c",
    "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_00453384",
+   "desc": "the engine has a thicket of mode-1",
+   "file": "src/scene_pause.c",
+   "line": 206,
    "kind_known": true
   },
   {

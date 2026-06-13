@@ -161,6 +161,69 @@ int  scene_pause_slot_dims(int slot, int *out_w, int *out_h);
  * sprite_t handles. Tests only. */
 void scene_pause_reset(void);
 
+/* ─── pause state machine (engine mode 9) ──────────────────────────────
+ *
+ * The in-game ESC pause: FUN_00453384 (trigger) + FUN_0047f2f6 (menu
+ * build) + FUN_0047fa76 (update) + FUN_00480614 (nav). Pure C — the
+ * render half (FUN_004820ba) is Win32. See docs/plans/pause-menu.md.
+ *
+ * Lifecycle: ESC → pause_dispatch(0) starts the ramp (g_sim_counter_998,
+ * dir g_sim_mode_9a0=opening); at ramp==3 the integration layer flips
+ * g_scene_state=9, calls pause_menu_setup, and spawns the primary worker
+ * (case-9 → the 20-asset pause load); the mode-9 update runs
+ * pause_menu_update → pause_menu_nav. */
+
+/* DAT_06a4997c — the pause action: 0 = ESC menu, 1/2 = other entries
+ * (PORT-DEBT). Latched by pause_dispatch. */
+extern int32_t g_pause_action;
+
+/* DAT_06a499a8 — the scene mode to restore on unpause (saved by the
+ * enter-pause path from g_scene_state). */
+extern int32_t g_pause_saved_mode;
+
+/* The menu entry-type list + cursor (engine DAT_074b2844[] / 073e154c /
+ * 074b2878). Entry types: 0=Status 1=Items 2=Options 3=Save 4=Exit
+ * 5=dungeon-only 6=Encyclopedia. */
+#define SCENE_PAUSE_MAX_ENTRIES 8
+extern int32_t g_pause_entries[SCENE_PAUSE_MAX_ENTRIES]; /* DAT_074b2844 */
+extern int32_t g_pause_count;        /* DAT_073e154c — live entry count   */
+extern int32_t g_pause_sel;          /* DAT_074b2878 — selected index      */
+extern int32_t g_pause_sel_anim;     /* DAT_074b2870 — select-press anim    */
+extern int32_t g_pause_sub_anim;     /* DAT_074b2880 — submenu open anim 0..10 */
+extern int32_t g_pause_sub_dir;      /* DAT_074b2884 — 1 opening / 0 closing */
+extern int32_t g_pause_row_spacing;  /* DAT_005cc678 — derived row pitch    */
+extern int32_t g_pause_exit_confirm; /* DAT_074b2830 — return-to-title flow */
+extern int32_t g_pause_frame;        /* _DAT_074b2874 — pause frame counter */
+
+/* Menu-build inputs (engine DAT_0741bed8 = adventurer/party count and
+ * *DAT_068dd2f0 = stage type, 0=HOUSE). The integration layer captures
+ * these from the live game state just before pause_menu_setup; tests set
+ * them directly. Default 0 (the early-tutorial house). */
+void pause_set_menu_inputs(int status_count, int stage_type);
+
+/* FUN_00453384 — the ESC trigger / pause toggle. action 0 = ESC menu.
+ * Starts the open ramp on a pausable resting scene; toggles off (begins
+ * the unpause) when already fully paused. */
+void pause_dispatch(int action);
+
+/* FUN_0047f2f6 — build the menu entry-type list from the captured
+ * inputs + g_pause_saved_mode, reset the cursor/anim, run the FPU
+ * layout init. Called at ramp==3 (mode just flipped to 9). */
+void pause_menu_setup(void);
+
+/* FUN_0047fa76 — the mode-9 per-frame update. Runs the nav when no
+ * submenu is open; ticks the submenu open/close anim otherwise (the
+ * submenu updaters + the exit-confirm flow are PORT-DEBT). */
+void pause_menu_update(void);
+
+/* FUN_00480614 — the menu nav: U/D wrap the cursor, B closes (re-enters
+ * pause_dispatch to unpause), A starts the select anim (the commit →
+ * submenu/exit is PORT-DEBT). Reads g_sim_buttons[0]. */
+void pause_menu_nav(void);
+
+/* Reset the state machine globals (tests + pause_menu_setup share it). */
+void pause_sm_reset(void);
+
 #ifdef _WIN32
 
 #include "sprite.h"

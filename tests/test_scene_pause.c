@@ -16,6 +16,8 @@
 
 #include "scene_pause.h"
 #include "worker_load.h"
+#include "sim.h"      /* ramp counters + g_sim_buttons[0] for the SM tests */
+#include "scene.h"    /* g_scene_state */
 
 /* ─── recording scratchpad for the injected load_fn ──────────────────── */
 
@@ -384,5 +386,249 @@ int test_scene_pause_selector_independent_from_siblings(void)
     g_scene_floor_selector = 0;
     g_scene_jutan_selector = 0;
     T_ASSERT_EQ_I(g_scene_pause_selector, 3);
+    return 0;
+}
+
+/* ─── state machine: menu build (FUN_0047f2f6) ───────────────────────── */
+
+/* Shared setup: clean SM + sim + worker state, in-game at `mode`. */
+static void sm_prep(int mode, int status_count, int stage_type)
+{
+    sim_init();
+    worker_load_reset();
+    pause_sm_reset();
+    g_scene_state = mode;
+    g_pause_saved_mode = mode;
+    pause_set_menu_inputs(status_count, stage_type);
+}
+
+int test_pause_menu_setup_house_list(void)
+{
+    /* House: no party (status 0), stage type 0 → [1,6,2,3,4] = "Items ·
+     * Encyclopedia · Options · Save · Exit Game". */
+    sm_prep(1, /*status*/0, /*stage*/0);
+    pause_menu_setup();
+    T_ASSERT_EQ_I(g_pause_count, 5);
+    int want[] = {1, 6, 2, 3, 4};
+    for (int i = 0; i < 5; i++) T_ASSERT_EQ_I(g_pause_entries[i], want[i]);
+    /* row pitch = (0xb - count) * 0xc */
+    T_ASSERT_EQ_I(g_pause_row_spacing, (0xb - 5) * 0xc);
+    /* cursor + anim reset */
+    T_ASSERT_EQ_I(g_pause_sel, 0);
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0);
+    T_ASSERT_EQ_I(g_pause_sub_anim, 0);
+    return 0;
+}
+
+int test_pause_menu_setup_status_entry(void)
+{
+    /* Party present (DAT_0741bed8 > 0) → type-0 Status leads. */
+    sm_prep(1, /*status*/2, /*stage*/0);
+    pause_menu_setup();
+    T_ASSERT_EQ_I(g_pause_count, 6);
+    int want[] = {0, 1, 6, 2, 3, 4};
+    for (int i = 0; i < 6; i++) T_ASSERT_EQ_I(g_pause_entries[i], want[i]);
+    return 0;
+}
+
+int test_pause_menu_setup_dungeon_entry(void)
+{
+    /* In a dungeon (saved_mode 1 && stage type > 0) → type-5 after Items. */
+    sm_prep(1, /*status*/0, /*stage*/1);
+    pause_menu_setup();
+    T_ASSERT_EQ_I(g_pause_count, 6);
+    int want[] = {1, 5, 6, 2, 3, 4};
+    for (int i = 0; i < 6; i++) T_ASSERT_EQ_I(g_pause_entries[i], want[i]);
+    return 0;
+}
+
+int test_pause_menu_setup_status_and_dungeon(void)
+{
+    sm_prep(1, /*status*/1, /*stage*/3);
+    pause_menu_setup();
+    T_ASSERT_EQ_I(g_pause_count, 7);
+    int want[] = {0, 1, 5, 6, 2, 3, 4};
+    for (int i = 0; i < 7; i++) T_ASSERT_EQ_I(g_pause_entries[i], want[i]);
+    return 0;
+}
+
+int test_pause_menu_setup_dungeon_entry_needs_mode1(void)
+{
+    /* The type-5 gate also requires saved_mode==1; from the guild (mode 6)
+     * even a >0 stage type must NOT add type 5. */
+    sm_prep(6, /*status*/0, /*stage*/2);
+    pause_menu_setup();
+    T_ASSERT_EQ_I(g_pause_count, 5);
+    int want[] = {1, 6, 2, 3, 4};
+    for (int i = 0; i < 5; i++) T_ASSERT_EQ_I(g_pause_entries[i], want[i]);
+    return 0;
+}
+
+/* ─── state machine: trigger (FUN_00453384) ──────────────────────────── */
+
+int test_pause_dispatch_enter_starts_ramp(void)
+{
+    sm_prep(1, 0, 0);
+    pause_dispatch(0);
+    T_ASSERT_EQ_I(sim_get_counter_998(), 1);   /* ramp armed */
+    T_ASSERT_EQ_I(sim_get_counter_99c(), 1);   /* slide ramp armed */
+    T_ASSERT_EQ_I(sim_get_mode_9a0(), 1);      /* direction = opening */
+    T_ASSERT_EQ_I(g_pause_saved_mode, 1);      /* mode saved */
+    T_ASSERT_EQ_I(g_pause_action, 0);
+    /* mode does NOT flip yet — that happens at ramp==3 in the integration
+     * layer, not in the dispatch. */
+    T_ASSERT_EQ_I(g_scene_state, 1);
+    return 0;
+}
+
+int test_pause_dispatch_rejects_unpausable_mode(void)
+{
+    /* Modes 2/3/7/10 are not pausable — no ramp. */
+    int modes[] = {2, 3, 7, 10};
+    for (size_t i = 0; i < sizeof(modes)/sizeof(modes[0]); i++) {
+        sm_prep(modes[i], 0, 0);
+        pause_dispatch(0);
+        if (sim_get_counter_998() != 0)
+            T_FAIL("mode %d started a ramp", modes[i]);
+    }
+    return 0;
+}
+
+int test_pause_dispatch_idempotent_while_ramping(void)
+{
+    /* Once the ramp is armed (998>0), a second dispatch(0) with the same
+     * action is a no-op (ramp != 0 so neither the enter nor the unpause
+     * branch fires — mode still 1, ramp still 1). */
+    sm_prep(1, 0, 0);
+    pause_dispatch(0);
+    pause_dispatch(0);
+    T_ASSERT_EQ_I(sim_get_counter_998(), 1);
+    T_ASSERT_EQ_I(g_scene_state, 1);
+    return 0;
+}
+
+int test_pause_dispatch_unpause_when_open(void)
+{
+    /* Mode 9, ramp fully open (>0xb): dispatch(0) flips back to the saved
+     * mode and sets the closing direction. */
+    sm_prep(1, 0, 0);
+    pause_dispatch(0);            /* enter */
+    g_scene_state = 9;           /* the integration layer would do this at ramp==3 */
+    g_pause_saved_mode = 1;
+    sim_set_counter_998(0xc);    /* fully open */
+    sim_set_mode_9a0(1);
+    pause_dispatch(0);           /* unpause */
+    T_ASSERT_EQ_I(g_scene_state, 1);
+    T_ASSERT_EQ_I(sim_get_mode_9a0(), 0);   /* closing */
+    return 0;
+}
+
+int test_pause_dispatch_no_unpause_before_open(void)
+{
+    /* Mode 9 but ramp not yet past 0xb → no unpause. */
+    sm_prep(1, 0, 0);
+    g_scene_state = 9;
+    g_pause_saved_mode = 1;
+    sim_set_counter_998(5);      /* still opening */
+    pause_dispatch(0);
+    T_ASSERT_EQ_I(g_scene_state, 9);
+    return 0;
+}
+
+/* ─── state machine: nav (FUN_00480614) ──────────────────────────────── */
+
+int test_pause_nav_up_down_wrap(void)
+{
+    sm_prep(1, 0, 0);
+    g_pause_count = 5;
+    g_pause_sel = 0;
+    g_pause_sel_anim = 0;
+
+    /* up from 0 → 4 (held bit 0x4) */
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0x4;
+    pause_menu_nav();
+    T_ASSERT_EQ_I(g_pause_sel, 4);
+
+    /* down from 4 → 0 (held bit 0x8) */
+    g_sim_buttons[0].held = 0x8;
+    pause_menu_nav();
+    T_ASSERT_EQ_I(g_pause_sel, 0);
+
+    /* down from 0 → 1 */
+    pause_menu_nav();
+    T_ASSERT_EQ_I(g_pause_sel, 1);
+    return 0;
+}
+
+int test_pause_nav_a_starts_select_anim(void)
+{
+    sm_prep(1, 0, 0);
+    g_pause_count = 5;
+    g_pause_sel = 2;
+    g_pause_sel_anim = 0;
+    g_sim_buttons[0].pressed = 0x10;   /* A */
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();
+    T_ASSERT_EQ_I(g_pause_sel_anim, 1);  /* anim started */
+    T_ASSERT_EQ_I(g_pause_sel, 2);       /* selection unchanged */
+    return 0;
+}
+
+int test_pause_nav_b_closes(void)
+{
+    /* B (bit 0x20) on a fully-open menu re-enters pause_dispatch → unpause. */
+    sm_prep(1, 0, 0);
+    g_scene_state = 9;
+    g_pause_saved_mode = 1;
+    g_pause_action = 0;
+    sim_set_counter_998(0xc);
+    g_pause_sel_anim = 0;
+    g_sim_buttons[0].pressed = 0x20;   /* B */
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();
+    T_ASSERT_EQ_I(g_scene_state, 1);   /* unpaused */
+    return 0;
+}
+
+/* ─── state machine: update (FUN_0047fa76) ───────────────────────────── */
+
+int test_pause_update_runs_nav_when_no_submenu(void)
+{
+    /* sub_anim < 1 → update runs the nav (down moves the cursor). */
+    sm_prep(1, 0, 0);
+    g_pause_count = 5;
+    g_pause_sel = 0;
+    g_pause_sel_anim = 0;
+    g_pause_sub_anim = 0;
+    g_pause_exit_confirm = 0;
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0x8;   /* down */
+    pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_sel, 1);
+    T_ASSERT_EQ_I(g_pause_frame, 1);  /* frame counter bumped */
+    return 0;
+}
+
+int test_pause_update_ticks_submenu_anim(void)
+{
+    /* sub_anim > 0 → update ticks the open/close anim, NOT the nav. */
+    sm_prep(1, 0, 0);
+    g_pause_count = 5;
+    g_pause_sel = 0;
+    g_pause_sub_anim = 1;
+    g_pause_sub_dir  = 1;   /* opening */
+    g_pause_exit_confirm = 0;
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0x8;   /* down — must be ignored */
+    pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_sub_anim, 2);  /* climbed */
+    T_ASSERT_EQ_I(g_pause_sel, 0);       /* nav did NOT run */
+
+    /* closing direction clamps toward 0 */
+    g_pause_sub_dir = 0;
+    g_pause_sub_anim = 1;
+    pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_sub_anim, 0);
     return 0;
 }

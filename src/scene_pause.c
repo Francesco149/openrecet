@@ -12,6 +12,10 @@
 #include "scene_pause.h"
 
 #include "worker_load.h"
+#include "sim.h"     /* the ramp counters g_sim_counter_998/99c + g_sim_mode_9a0
+                      * (engine DAT_06a49998/9c/a0), g_sim_buttons[0] (input) */
+#include "scene.h"   /* g_scene_state (engine DAT_0438b1c0) */
+#include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -148,6 +152,216 @@ static void scene_pause_state_clear(void)
     g_scene_pause_state_abf8 = 0.0f;
     g_scene_pause_state_ac00 = 0.0f;
     g_scene_pause_state_ac04 = 0.0f;
+    pause_sm_reset();
+}
+
+/* ─── pause state machine (mode 9) ──────────────────────────────────────
+ *
+ * Engine: FUN_00453384 (trigger) + FUN_0047f2f6 (menu build) + FUN_0047fa76
+ * (update) + FUN_00480614 (nav). The ramp counters live in sim.c (already
+ * ported as FUN_004532df, dormant); this module is the setter + consumers.
+ * Pure C — host-tested. See docs/plans/pause-menu.md. */
+
+int32_t g_pause_action      = 0;
+int32_t g_pause_saved_mode  = 0;
+int32_t g_pause_entries[SCENE_PAUSE_MAX_ENTRIES] = { 0 };
+int32_t g_pause_count       = 0;
+int32_t g_pause_sel         = 0;
+int32_t g_pause_sel_anim    = 0;
+int32_t g_pause_sub_anim    = 0;
+int32_t g_pause_sub_dir     = 0;
+int32_t g_pause_row_spacing = 0;
+int32_t g_pause_exit_confirm = 0;
+int32_t g_pause_frame       = 0;
+
+/* Menu-build inputs (engine DAT_0741bed8 + *DAT_068dd2f0). */
+static int g_pause_in_status_count = 0;
+static int g_pause_in_stage_type   = 0;
+
+void pause_set_menu_inputs(int status_count, int stage_type)
+{
+    g_pause_in_status_count = status_count;
+    g_pause_in_stage_type   = stage_type;
+}
+
+void pause_sm_reset(void)
+{
+    g_pause_action       = 0;
+    g_pause_saved_mode   = 0;
+    for (int i = 0; i < SCENE_PAUSE_MAX_ENTRIES; i++) g_pause_entries[i] = 0;
+    g_pause_count        = 0;
+    g_pause_sel          = 0;
+    g_pause_sel_anim     = 0;
+    g_pause_sub_anim     = 0;
+    g_pause_sub_dir      = 0;
+    g_pause_row_spacing  = 0;
+    g_pause_exit_confirm = 0;
+    g_pause_frame        = 0;
+    g_pause_in_status_count = 0;
+    g_pause_in_stage_type   = 0;
+}
+
+/* FUN_00453384 — the ESC trigger / pause toggle.
+ *
+ * PORT-DEBT(simplified, FUN_00453384): the engine has a thicket of mode-1
+ * sub-gates (FUN_00434dd6 overlay, shop/dialogue state DAT_0438cc08/b928,
+ * the choice-box DAT_0438b1c8 path → cursor-snapshot arm) and a multi-clause
+ * toggle gate (the fade dir DAT_0438bf7c, DAT_0438be98/be94). For the resting
+ * free-roam scene none of those fire; we port the plain path. The unpause
+ * restore (cursor snapshot DAT_06a499ac/b0/b4, the FUN_004682d0/00473c03
+ * resume teardown) is deferred — PORT-DEBT(pause-unpause-restore). */
+void pause_dispatch(int action)
+{
+    /* Gate A (L50180): a transition is mid-flight with a DIFFERENT action
+     * queued → reject with the denied beep. */
+    if ((g_scene_state == 9 || sim_get_counter_998() > 0)
+        && g_pause_action != action) {
+        audio_play_se_by_id(0x16a);
+        return;
+    }
+    /* Gate B (L50186): the secondary asset-load worker is busy → bail. */
+    if (worker_load_busy_secondary() != 0)
+        return;
+
+    g_pause_action = action;
+
+    /* cVar4 (L50191): pausable unless the mode is 7/2/3/10. */
+    const int pausable = (g_scene_state != 7 && g_scene_state != 2
+                          && g_scene_state != 3 && g_scene_state != 10);
+    if (!pausable) {
+        audio_play_se_by_id(0x16a);   /* L50246 — the "can't pause" beep */
+        return;
+    }
+
+    /* Toggle gate (L50248): no fade in flight. PORT-DEBT(simplified): the
+     * engine also checks DAT_0438bf7c==0 + DAT_0438be98==0, both 0 on a
+     * resting scene; we gate on the fade sub-counter DAT_06a49990 idle. */
+    if (sim_get_counter_990() != 0)
+        return;
+
+    if (g_scene_state == 9) {
+        /* UNPAUSE (L50252): only once fully open (ramp past 0xb). */
+        if (sim_get_counter_998() > 0xb) {
+            g_scene_state = g_pause_saved_mode;
+            sim_set_mode_9a0(0);     /* direction = closing */
+            /* PORT-DEBT(pause-unpause-restore): the engine resumes the
+             * underlying scene + restores the cursor snapshot here. We do
+             * the mode flip + re-spawn the restored scene's loader (the
+             * "Now Loading" out) and defer the resume teardown. */
+            worker_load_spawn();
+        }
+    } else if (sim_get_counter_998() == 0) {
+        /* ENTER PAUSE (L50292). */
+        sim_set_counter_994(0, sim_get_threshold94());  /* DAT_06a49994 = 0 */
+        if (action == 0)
+            audio_play_se_by_id(0x16b);                 /* pause-open chime */
+        g_pause_saved_mode = g_scene_state;             /* DAT_06a499a8 */
+        sim_set_counter_998(1);                         /* ramp = 1     */
+        sim_set_counter_99c(1);                         /* slide ramp = 1 */
+        sim_set_mode_9a0(1);                            /* dir = opening */
+    }
+}
+
+/* FUN_0047f2f6 — build the menu entry-type list. */
+void pause_menu_setup(void)
+{
+    /* Cursor + anim reset (L81556-81560). The engine also clears ~15
+     * submenu-scratch globals + the DAT_0438b554[0x14] array + calls
+     * FUN_004360b6/FUN_0049f012 — all submenu/render scratch, PORT-DEBT. */
+    g_pause_sel_anim     = 0;
+    g_pause_frame        = 0;
+    g_pause_sel          = 0;
+    g_pause_sub_anim     = 0;
+    g_pause_sub_dir      = 0;
+    g_pause_exit_confirm = 0;
+
+    /* FPU layout consts (engine 0x435873, C4E-only; harmless to set here —
+     * the basic menu may not read them, but a future status sub-screen
+     * does). */
+    scene_pause_state_init();
+
+    /* Default-fill 0..7 (L81585-81589) then overwrite with the real list. */
+    for (int i = 0; i < SCENE_PAUSE_MAX_ENTRIES; i++) g_pause_entries[i] = i;
+
+    /* Entry-type list (L81591-81606). */
+    const int has_status = (g_pause_in_status_count > 0);  /* 0 < DAT_0741bed8 */
+    if (has_status)
+        g_pause_entries[0] = 0;                 /* adventurer Status */
+    const int u = has_status ? 1 : 0;
+    g_pause_entries[u] = 1;                      /* Items */
+    int n = u + 1;
+    if (g_pause_saved_mode == 1 && g_pause_in_stage_type > 0) {
+        g_pause_entries[n] = 5;                  /* dungeon-only */
+        n = u + 2;
+    }
+    g_pause_entries[n + 0] = 6;                  /* Encyclopedia */
+    g_pause_entries[n + 1] = 2;                  /* Options */
+    g_pause_entries[n + 2] = 3;                  /* Save */
+    g_pause_entries[n + 3] = 4;                  /* Exit Game */
+    g_pause_count = n + 4;                       /* DAT_073e154c */
+    g_pause_row_spacing = (0xb - g_pause_count) * 0xc;  /* DAT_005cc678 */
+}
+
+/* FUN_00480614 — the main-menu nav. */
+void pause_menu_nav(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;  /* DAT_073dddd4 */
+    const uint16_t held    = g_sim_buttons[0].held;     /* DAT_073dddd6 */
+
+    if (g_pause_sel_anim < 1) {
+        uint16_t se;
+        if ((pressed & 0x10u) == 0) {            /* A not pressed */
+            if (pressed & 0x20u) {               /* B → close (FUN_0045337b) */
+                pause_dispatch(0);
+                return;
+            }
+            if (held & 0x4u) {                   /* up */
+                g_pause_sel = (g_pause_count - 1 + g_pause_sel) % g_pause_count;
+                audio_play_se_by_id(0x146);
+            }
+            if ((held & 0x8u) == 0)              /* not down → done */
+                return;
+            se = 0x146;                          /* down */
+            g_pause_sel = (g_pause_count + 1 + g_pause_sel) % g_pause_count;
+        } else {                                 /* A → start select anim */
+            g_pause_sel_anim++;
+            se = 0x143;
+        }
+        audio_play_se_by_id(se);
+    } else {
+        /* Select anim running. PORT-DEBT(pause-submenu-*): at sel_anim==0xf
+         * the engine commits the selection — opens a submenu (types
+         * 0/1/2/3/5/6) or starts the type-4 exit confirm. Deferred; we tick
+         * the anim so the press is acknowledged but the menu stays put. */
+        g_pause_sel_anim++;
+    }
+}
+
+/* FUN_0047fa76 — the mode-9 per-frame update. */
+void pause_menu_update(void)
+{
+    /* FUN_0048b6ad() (portrait/clock per-frame) — PORT-DEBT. */
+    if (g_pause_exit_confirm < 1) {
+        if (g_pause_sub_anim < 1) {
+            pause_menu_nav();
+        } else {
+            /* Submenu open/close anim (L82019-82030). The L82031
+             * sub_anim==10 dispatch to the per-type submenu updater is
+             * PORT-DEBT(pause-submenu-*). */
+            if (g_pause_sub_dir == 0) {
+                g_pause_sub_anim--;
+                if (g_pause_sub_anim < 1) g_pause_sub_anim = 0;
+            } else {
+                g_pause_sub_anim++;
+                if (g_pause_sub_anim > 10) g_pause_sub_anim = 10;
+            }
+        }
+    }
+    /* else: exit-confirm (return-to-title) — PORT-DEBT(pause-exit-confirm). */
+
+    g_pause_frame++;   /* _DAT_074b2874 */
+    /* FUN_004356cd() (shared cursor bob/slide) runs from the integration
+     * layer's per-frame cursor tick, as for the other menus. */
 }
 
 /* ─── Win32 worker_load wiring + sprite storage ─────────────────────── */
