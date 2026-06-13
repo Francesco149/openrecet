@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **492** (19.3%) — verified 69, stubbed 15, ported 408
-- unported: **2056**
+- touched: **493** (19.3%) — verified 69, stubbed 15, ported 409
+- unported: **2055**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (408) — reimplemented, no probe yet
+## ported (409) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -390,6 +390,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x480614 | FUN_00480614 | 718 | ✓ | scene_pause.c, scene_pause.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ | scene1_merchant_hud.c, scene1_merchant_hud.h, scene_title.c |
+| 0x482059 | FUN_00482059 | 97 | ✓ | scene_pause.c |
 | 0x4820ba | FUN_004820ba | 2455 | ✓ | main.c, scene_pause.c, scene_pause.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+4) |

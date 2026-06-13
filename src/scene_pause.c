@@ -369,7 +369,10 @@ void pause_menu_update(void)
 #ifdef _WIN32
 
 #include <d3d8.h>
+#include <math.h>          /* sinf — the selected-row flash */
 #include "render_quad.h"   /* render_quad_state_setup / bind / add / flush */
+#include "choice_box.h"          /* choice_box_draw = FUN_0043537e (tail) */
+#include "title_save_dialog.h"   /* the shared cursor + save-dialog frame (tail) */
 
 sprite_t g_scene_pause_pause;
 sprite_t g_scene_pause_bg_rete;
@@ -441,12 +444,24 @@ void scene_pause_init(struct IDirect3DDevice8 *dev)
     worker_load_set_cb(9, pause_worker_case9);
 }
 
-/* FUN_004820ba — the pause-menu render. M2: the pause_bg_rete backdrop
- * (engine L83706-83725). The option list (L83726-83787, COLOROP=ADD rows
- * over pause.tga), the menu header (L83791), the calendar/gold block
- * (L83801-83930, needs save-state day/gold fields), the portrait + submenu
- * (L83931+, sub_anim>0), and the cursor tail (L83953-83955) are PORT-DEBT
- * — see docs/plans/pause-menu.md M2b/M3. */
+/* FUN_004820ba — the pause-menu render.
+ *
+ * M2  (done): the pause_bg_rete backdrop (engine L83706-83725).
+ * M2b (this): the option list (L83726-83789 — COLOROP=ADD icon+label rows
+ *             from pause.tga) + the "PAUSE MENU" header (L83790-83800,
+ *             COLOROP=MODULATE) + the shared overlay tail (L83953-83955).
+ *
+ * PORT-DEBT(pause-calendar-gold, M2c): the calendar/gold/portrait block
+ * (L83801-83930, gated sub_anim<10 → drawn at rest) needs the save-arena
+ * day/gold/period fields + the date math (FUN_00482059/00482033) + the
+ * level/portrait helpers — retail draws [4-9] there (pause.tga MODULATE +
+ * item_win number glyphs). Plus the pre-backdrop fx layer retail draw [0]
+ * (tex 3e66, from FUN_0045404b/the FUN_00454191 fade) — separate from this
+ * function. The sub_anim>0 submenu dispatch (L83931-83952) = M3 PORT-DEBT.
+ *
+ * Geometry/diffuse recovered from objdump 0x4820ba-0x482400 (the decompile
+ * dropped the register-built diffuse args + some FP consts; all verified
+ * 1:1 against the .rdata float table). */
 void pause_menu_render(struct IDirect3DDevice8 *dev)
 {
     IDirect3DDevice8 *d = (IDirect3DDevice8 *)dev;
@@ -456,11 +471,11 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
     /* Backdrop alpha (engine L83708-83713): full unless the selected entry
      * is Status (type 0) AND the submenu is opening, where it fades by
      * sub_anim*0x1a. At rest (sub_anim==0) it is always 0xff. */
-    int alpha = 0xff;
+    int bg_alpha = 0xff;
     if (g_pause_entries[g_pause_sel] == 0) {
         int a = g_pause_sub_anim * 0x1a;
         if (a > 0xff) a = 0xff;
-        alpha = 0xff - a;
+        bg_alpha = 0xff - a;
     }
 
     /* pause_bg_rete full-screen (engine L83715-83724): dst {0,0,640,480},
@@ -471,9 +486,100 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
         const float src[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
         render_quad_add(dst, src,
                         g_scene_pause_bg_rete.width, g_scene_pause_bg_rete.height,
-                        ((uint32_t)alpha << 24) | 0xffffffu);
+                        ((uint32_t)bg_alpha << 24) | 0xffffffu);
     }
     render_quad_flush(d);          /* FUN_00405354 (engine L83725) */
+
+    /* ── option list (engine L83726-83789): icon+label rows from pause.tga
+     * under COLOROP=ADD. Each row r (type t = g_pause_entries[r]) draws a
+     * highlight icon then its text label. The selected row uses the larger
+     * icon and may flash (sel_anim) / slide toward the submenu header
+     * (sub_anim); unselected rows fade out by alpha as the submenu opens. */
+    render_quad_bind(d, &g_scene_pause_pause);     /* SetTexture(0, pause.tga) L83726 */
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP,
+                                          D3DTOP_ADD);    /* L83727 (1,7) */
+    if (g_pause_count != 0) {
+        const uint32_t pw = g_scene_pause_pause.width;
+        const uint32_t ph = g_scene_pause_pause.height;
+        for (int r = 0; r < g_pause_count; r++) {
+            const int t = g_pause_entries[r];
+            float x = (float)((r & 1) * 0x50 + 0x1b0);      /* 432 / 512   */
+            float y = (float)(g_pause_row_spacing * r + 0x20);
+            const int is_sel = (r == g_pause_sel);
+            int flash = 0;                                  /* select-flash grey */
+            int alpha;                                      /* diffuse alpha basis */
+            float isrc[4], idst[4];
+
+            if (is_sel) {
+                if (g_pause_sel_anim > 0)                   /* L83752-83757 */
+                    flash = (int)(sinf((float)g_pause_sel_anim * 3.1415927f
+                                       / 15.0f) * 64.0f);
+                if (g_pause_sub_anim > 0) {                 /* L83758-83762: lerp */
+                    const float k = (float)g_pause_sub_anim;
+                    x = ((32.0f - x) * k) / 10.0f + x;
+                    y = ((-8.0f - y) * k) / 10.0f + y;
+                }
+                isrc[0] = 720.0f; isrc[1] = 240.0f;         /* 160×128 icon */
+                isrc[2] = 880.0f; isrc[3] = 368.0f;
+                idst[0] = x - 32.0f; idst[1] = y - 16.0f;
+                idst[2] = 160.0f;    idst[3] = 128.0f;
+                alpha = 0xff;
+            } else {
+                alpha = 0xff - g_pause_sub_anim * 0x20;     /* L83740 gate   */
+                if (alpha < 0)                              /* row culled    */
+                    continue;
+                isrc[0] = 720.0f; isrc[1] = 144.0f;         /* 96×96 icon    */
+                isrc[2] = 816.0f; isrc[3] = 240.0f;
+                idst[0] = x;      idst[1] = y;
+                idst[2] = 96.0f;  idst[3] = 96.0f;
+            }
+            /* icon diffuse: alpha in the high byte, the flash grey in RGB. */
+            render_quad_add(idst, isrc, pw, ph,
+                            ((uint32_t)alpha << 24)
+                            | ((uint32_t)flash << 16)
+                            | ((uint32_t)flash << 8)
+                            | (uint32_t)flash);
+
+            /* row text label (engine L83773-83782): src column selected by
+             * is_sel, src row by entry type t; dst x-32, y+29, 160×39. */
+            {
+                const float lsrc[4] = {
+                    (float)(is_sel * 0xa0 + 0x180),   /* left  384 / 544 */
+                    (float)(t * 0x28 + 1),            /* top   t*40 + 1  */
+                    (float)(is_sel * 0xa0 + 0x220),   /* right 544 / 704 */
+                    (float)((t * 5 + 5) * 8)          /* bottom t*40 + 40 */
+                };
+                const float ldst[4] = { x - 32.0f, y + 29.0f, 160.0f, 39.0f };
+                render_quad_add(ldst, lsrc, pw, ph,
+                                ((uint32_t)alpha << 24)
+                                | ((uint32_t)flash << 16)
+                                | ((uint32_t)flash << 8)
+                                | (uint32_t)flash);
+            }
+        }
+    }
+    render_quad_flush(d);                              /* L83789 (always)   */
+
+    /* ── "PAUSE MENU" header (engine L83790-83800): one pause.tga quad under
+     * COLOROP=MODULATE, src(64,384)-(320,424) → dst(368,428,256,40), white. */
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP,
+                                          D3DTOP_MODULATE);  /* L83790 (1,4) */
+    {
+        const float src[4] = { 64.0f, 384.0f, 320.0f, 424.0f };
+        const float dst[4] = { 368.0f, 428.0f, 256.0f, 40.0f };
+        render_quad_add(dst, src,
+                        g_scene_pause_pause.width, g_scene_pause_pause.height,
+                        0xffffffffu);
+    }
+    render_quad_flush(d);                              /* L83800 */
+
+    /* ── shared overlay tail (engine L83953-83955): the choice box, the hand
+     * cursor, then the save/load dialog frame. All self-gate (no active box /
+     * cursor hidden / no save dialog ⇒ no-ops in the resting pause), called
+     * unconditionally to match the engine's draw program. */
+    choice_box_draw(d);                  /* FUN_0043537e */
+    title_save_dialog_cursor_render(d);  /* FUN_00435747 */
+    title_save_dialog_render();          /* FUN_00435117 */
 }
 
 void scene_pause_reset(void)
