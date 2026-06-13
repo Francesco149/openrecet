@@ -881,6 +881,33 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
             }
         }
         font_draw_text(dev, text_x, ty, buf, 0xffffffffu, 0.8f);
+
+        /* per-row STATUS overlay (FUN_0046b00a tail, objdump 0x46b7f9-0x46b8a3 —
+         * the text-draw calls Ghidra dropped from all.c:66703-66708).  Drawn over
+         * the row, to the right of the name:
+         *   guild-buy SOLD OUT (s_mode==7 && cap==0): the daily price-trend picks
+         *     "Not For Sale" (trend<=-2, dark-blue 0xff00007f, scale 1.0) else
+         *     "Out Of Stock" (dark-red 0xff9b0000, scale 1.2) at (text_x+32, ty-4);
+         *   ADVENTURER'S POSSESSION (s_mode==6 && item bit5): teal 0xff00c87f,
+         *     scale 0.65, at (text_x+12, ty+16).
+         * Position consts: name x=xL+120, OOS/NFS x=xL+152, Adv x=xL+132, y-sub 4,
+         * Adv y-add 20 (all float consts @0x519444/65c/e3c/39c/520). */
+        if (item >= 0) {
+            if (s_mode == 7 && cnt == 0) {
+                /* PORT-DEBT(price-trend, FUN_004361b2): neutral (0) until the
+                 * daily-market classifier is ported ⇒ trend > -2 ⇒ "Out Of Stock". */
+                const int trend = 0;
+                if (trend <= -2)
+                    font_draw_text(dev, text_x + 32.0f, ty - 4.0f,
+                                   "Not For Sale", 0xff00007fu, 1.0f);
+                else
+                    font_draw_text(dev, text_x + 32.0f, ty - 4.0f,
+                                   "Out Of Stock", 0xff9b0000u, 1.2f);
+            }
+            if (s_mode == 6 && ((item >> 5) & 1))
+                font_draw_text(dev, text_x + 12.0f, ty + 16.0f,
+                               "Adventurer's Possession", 0xff00c87fu, 0.65f);
+        }
     }
 
     /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
@@ -912,6 +939,8 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     /* PORT-DEBT(C4b-4c): per-row type-coloured row text (FUN_004361b2) + the
      * selected-row brightness pulse, and the price-status line, all depend on
      * the daily-market price-trend (region pricing tables) — not yet ported.
+     * (The cap-0 "Out Of Stock"/"Not For Sale" + "Adventurer's Possession" row
+     * status texts ARE ported above; the OOS-vs-NFS split uses the neutral trend.)
      * PORT-DEBT(C3b): the "Exchange with what?" world-projected prompt bubble
      * over the stand is a separate render off a localized message-table string
      * (not an .exe literal). */
