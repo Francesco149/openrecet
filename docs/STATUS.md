@@ -513,13 +513,31 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   true isolation; the port omits it). Pixels ALIGNED, render-program DIVERGENT.
   **Perf fix (necessary for scale):** the material-diff bake was re-hashing the ~26 MB
   resource set per-frame ×96 with pure-Python fnv1a (2.5+ MIN); a shared per-container
-  C-speed blake2b `ResHash` made it **0.41 s** (350×). **NEXT → N4: stress-test the whole
-  pipeline on a THOUSANDS-of-frames trace (the merchants-guild UI flow) — user-requested
-  2026-06-13** (the 48-frame HOUSE is a toy; the long 2D UI flow with multiple load
-  seams/anchors is the real validation of the window loop / sync-join / viewer column
-  scaling). Pixel→draw pick's live mouse-click wiring is verified only via the headless
-  `--pick` algorithm path — a live click-test is the one open human-verify. Plan:
-  `plans/trace-studio-v3.md` P3.
+  C-speed blake2b `ResHash` made it **0.41 s** (350×).
+  **N4 THOUSANDS-of-frames stress ✅ DONE (2026-06-13)** on the new **`guild-ui-flow`**
+  scenario (the v2 buy-flow session's trace promoted; caprange [330,2600], multiple
+  mid-window load seams). Two scale walls fixed first, HOUSE-regression-proven: **hash
+  refs + one-process resident batch verify** (`92cce65` — 8 GB/side of raw refs → a
+  155 KB v3refs.txt; `replay --verify-hashes`) and **per-frame MULTI-ANCHOR identity +
+  arm-spec-stored meta v2** (`1e03b72` — the single-anchor `offset0+index` identity
+  would silently mispair everything past the first seam, and the kept-count-derived
+  cache key could never re-match a suppressed-load window; keys now resolve per frame
+  from the stored anchor stream, aliases tie-break to the base anchor). **Numbers:**
+  port 1785 kept/58 MB/1785 bit-exact; retail **2600/2600 kept**/91 MB/**2600/2600
+  bit-exact** (raw pixels = 7.8 GB); join **1784/1785 paired** across a **+13,272**
+  load stretch and **63 segments**, every gap named (798 = port TAS ends pre-window-end,
+  18 = suppressed load screens, 7 = one alias skew); naive pairing 0. **Pairing proven
+  visually: paired frames deep past seams are bit-identical (gt8=0)**; menu pair = the
+  known accepted phase residue only. Viewer opens 2601 columns in ~15 s. **Two NEW
+  v2-invisible findings:** retail draws a fullscreen SRCALPHA overlay quad LAST
+  (tex `…9fd8`, ~1094 columns, sub-gt8 net effect — port omits; RE the engine layer) +
+  the port double-draws the guild bg (tex `…2780`, 2 draws vs 1, ~1076 columns —
+  invisible overdraw, port cleanup lead). **Follow-ups:** v3 retail drive should skip
+  the v2 PNG/montage bake (~5 of ~13 min); lazy viewer metric precompute; then
+  marks/crops parity → P4 (reproduce a confirmed-1:1 session, then archive v2).
+  Open human-verify: live click-test of pixel→draw pick + a live scrub of the guild
+  view (`orv3_window.py guild-ui-flow --window 330:2600 --launch`). Plan:
+  `plans/trace-studio-v3.md` P3/N4.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

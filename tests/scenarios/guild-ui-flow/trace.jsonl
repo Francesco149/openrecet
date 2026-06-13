@@ -1,0 +1,518 @@
+# anchor-segmented replay: each recorded anchor is a {wait} sync point; inputs/escs after it are relative to it (turbo/jitter-immune).
+# embedded save: 91a7219efd25f8f11fbded624dfdfd25b6cfbfdcc44d9fc5396f329c2fc943bc (override via --save-override on replay; see tools/trace_save.py)
+{"savefile": "_saves/91a7219efd25f8f11fbded624dfdfd25b6cfbfdcc44d9fc5396f329c2fc943bc.sav.gz"}
+{"tutloadpin": 8}
+{"rngseed": [0, 3555691695]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 29, "buttons": "0x0010"}
+{"frame": 34, "buttons": "0x0000"}
+{"frame": 91, "buttons": "0x0004"}
+{"frame": 95, "buttons": "0x0000"}
+{"frame": 104, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 3555691695]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 282}
+{"rngseed": [282, 19937]}
+{"caprange": [330, 2600]}
+{"calltrace": [330, 2600]}
+{"rngseed": [0, 518313397]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0001"}
+{"frame": 62, "buttons": "0x0000"}
+{"frame": 68, "buttons": "0x0004"}
+{"frame": 135, "buttons": "0x0000"}
+{"frame": 152, "buttons": "0x0004"}
+{"frame": 155, "buttons": "0x0000"}
+{"frame": 160, "buttons": "0x0001"}
+{"frame": 174, "buttons": "0x0000"}
+{"frame": 191, "buttons": "0x0010"}
+{"frame": 195, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 3721922559]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 3721922559]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0001"}
+{"frame": 60, "buttons": "0x0000"}
+{"frame": 90, "buttons": "0x0010"}
+{"frame": 93, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 33, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2178904408]}
+{"frame": 0, "buttons": "0x0020"}
+{"frame": 22, "buttons": "0x0000"}
+{"frame": 99, "buttons": "0x0010"}
+{"frame": 102, "buttons": "0x0000"}
+{"frame": 179, "buttons": "0x0010"}
+{"frame": 183, "buttons": "0x0000"}
+{"frame": 257, "buttons": "0x0004"}
+{"frame": 260, "buttons": "0x0000"}
+{"frame": 322, "buttons": "0x0008"}
+{"frame": 325, "buttons": "0x0000"}
+{"frame": 376, "buttons": "0x0001"}
+{"frame": 380, "buttons": "0x0000"}
+{"frame": 403, "buttons": "0x0002"}
+{"frame": 407, "buttons": "0x0000"}
+{"frame": 475, "buttons": "0x0010"}
+{"frame": 479, "buttons": "0x0000"}
+{"frame": 527, "buttons": "0x0010"}
+{"frame": 532, "buttons": "0x0000"}
+{"frame": 569, "buttons": "0x0004"}
+{"frame": 573, "buttons": "0x0000"}
+{"frame": 634, "buttons": "0x0010"}
+{"frame": 638, "buttons": "0x0000"}
+{"frame": 746, "buttons": "0x0001"}
+{"frame": 751, "buttons": "0x0000"}
+{"frame": 793, "buttons": "0x0001"}
+{"frame": 797, "buttons": "0x0000"}
+{"frame": 846, "buttons": "0x0001"}
+{"frame": 850, "buttons": "0x0000"}
+{"frame": 900, "buttons": "0x0001"}
+{"frame": 904, "buttons": "0x0000"}
+{"frame": 951, "buttons": "0x0001"}
+{"frame": 955, "buttons": "0x0000"}
+{"frame": 996, "buttons": "0x0001"}
+{"frame": 1000, "buttons": "0x0000"}
+{"frame": 1043, "buttons": "0x0001"}
+{"frame": 1048, "buttons": "0x0000"}
+{"frame": 1090, "buttons": "0x0001"}
+{"frame": 1094, "buttons": "0x0000"}
+{"frame": 1131, "buttons": "0x0001"}
+{"frame": 1135, "buttons": "0x0000"}
+{"frame": 1179, "buttons": "0x0001"}
+{"frame": 1181, "buttons": "0x0000"}
+{"frame": 1222, "buttons": "0x0001"}
+{"frame": 1225, "buttons": "0x0000"}
+{"frame": 1269, "buttons": "0x0001"}
+{"frame": 1273, "buttons": "0x0000"}
+{"frame": 1318, "buttons": "0x0001"}
+{"frame": 1322, "buttons": "0x0000"}
+{"frame": 1360, "buttons": "0x0001"}
+{"frame": 1364, "buttons": "0x0000"}
+{"frame": 1400, "buttons": "0x0001"}
+{"frame": 1404, "buttons": "0x0000"}
+{"frame": 1471, "buttons": "0x0020"}
+{"frame": 1475, "buttons": "0x0000"}
+{"frame": 1571, "buttons": "0x0008"}
+{"frame": 1576, "buttons": "0x0000"}
+{"frame": 1604, "buttons": "0x0010"}
+{"frame": 1607, "buttons": "0x0000"}
+{"frame": 1676, "buttons": "0x0010"}
+{"frame": 1679, "buttons": "0x0000"}
+{"frame": 1736, "buttons": "0x0004"}
+{"frame": 1741, "buttons": "0x0000"}
+{"frame": 1805, "buttons": "0x0001"}
+{"frame": 1811, "buttons": "0x0000"}
+{"frame": 1822, "buttons": "0x0002"}
+{"frame": 1827, "buttons": "0x0000"}
+{"frame": 1871, "buttons": "0x0010"}
+{"frame": 1875, "buttons": "0x0000"}
+{"frame": 1978, "buttons": "0x0020"}
+{"frame": 1982, "buttons": "0x0000"}
+{"frame": 2043, "buttons": "0x0008"}
+{"frame": 2047, "buttons": "0x0000"}
+{"frame": 2139, "buttons": "0x0010"}
+{"frame": 2143, "buttons": "0x0000"}
+{"frame": 2282, "buttons": "0x0010"}
+{"frame": 2286, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 52, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"frame": 15, "buttons": "0x0000"}
+{"frame": 23, "buttons": "0x0020"}
+{"frame": 64, "buttons": "0x0000"}
+{"frame": 207, "buttons": "0x0010"}
+{"frame": 209, "buttons": "0x0000"}
+{"frame": 310, "buttons": "0x0008"}
+{"frame": 315, "buttons": "0x0000"}
+{"frame": 325, "buttons": "0x0008"}
+{"frame": 329, "buttons": "0x0000"}
+{"frame": 339, "buttons": "0x0008"}
+{"frame": 345, "buttons": "0x0000"}
+{"frame": 356, "buttons": "0x0008"}
+{"frame": 362, "buttons": "0x0000"}
+{"frame": 375, "buttons": "0x0008"}
+{"frame": 380, "buttons": "0x0000"}
+{"frame": 396, "buttons": "0x0008"}
+{"frame": 400, "buttons": "0x0000"}
+{"frame": 413, "buttons": "0x0008"}
+{"frame": 419, "buttons": "0x0000"}
+{"frame": 522, "buttons": "0x0010"}
+{"frame": 526, "buttons": "0x0000"}
+{"frame": 873, "buttons": "0x0008"}
+{"frame": 878, "buttons": "0x0000"}
+{"frame": 896, "buttons": "0x0010"}
+{"frame": 901, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 33, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "PAUSE_OPEN"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 4259957376]}
+{"frame": 0, "buttons": "0x0020"}
+{"frame": 13, "buttons": "0x0000"}

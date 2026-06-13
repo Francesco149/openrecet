@@ -549,13 +549,54 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     - **Perf:** the material-diff bake was re-hashing the ~26 MB resource set per-frame ×96
       with pure-Python fnv1a (2.5+ MIN); a shared per-container C-speed blake2b `ResHash`
       → **0.41 s** (350×) — needed before N4's thousands-of-frames trace.
-  - **Next (P3 tail) → N4:** stress-test the whole pipeline on a THOUSANDS-of-frames trace
-    (the merchants-guild UI flow — user-requested 2026-06-13). The 48-frame HOUSE is a toy; a
-    long 2D UI flow with multiple load seams/anchors is the real validation of the window loop,
-    the sync-by-identity join, the material-diff bake, and the viewer's column scaling
-    (precompute_metrics renders 2× per column at open; the ribbon/scrub over thousands of
-    columns). Then marks/crops parity with v2. (Open human-verify: pixel→draw pick's live
-    mouse-click wiring — only the headless `--pick` algorithm path is verified.)
+  - **N4 — the THOUSANDS-of-frames stress ✅ DONE (2026-06-13)** on the new
+    **`guild-ui-flow`** scenario (= the v2 `merchants-guild-ui-flow` session's working
+    trace promoted to `tests/scenarios/`; caprange `[330,2600]` from `LOADING_END#1`,
+    multiple mid-window load seams, canonical pins). Two scale walls were predicted,
+    hit, and fixed BEFORE the big drive (each regression-proven on the HOUSE cache):
+    - **Hash references + resident batch verify** (`92cce65`): 2600 frames × 3 MB raw
+      refs ≈ 8 GB/side and a replay.exe spawn per frame don't scale. Proxy `refhash=1`
+      writes one fnv1a-64 line per kept frame to `v3refs.txt` (+ a raw every
+      `refraw_every` for forensics); `replay.exe --verify-hashes` renders EVERY frame
+      on the resident core in one process. 2600-frame verify = seconds, refs = 155 KB.
+    - **Per-frame MULTI-ANCHOR identity + stored arm spec, meta v2** (`1e03b72`): the
+      single-anchor `offset0+index` identity silently mispairs everything after the
+      first mid-window seam (port suppresses load frames ⇒ kept set non-contiguous;
+      retail keeps every present), and `find_extent` rebuilding the arm from the KEPT
+      count meant a suppressed-load window could never match its own cache dir.
+      v3meta now stores the run's full anchor stream + the arm verbatim; each kept
+      frame's key resolves from its OWN present (most-recent anchor ≤ present — the
+      E3 design, finally per-frame). Same-frame anchor aliases tie-break to the
+      entry's BASE anchor (symmetric + legacy-compatible; the HOUSE regression caught
+      0/20 → 20/20). Viewer columns are key-ordered, labeled `ANCHOR#occ+delta`.
+    - **The stress numbers:** PORT 1785 kept / 58 MB / **1785/1785 bit-exact** (raw
+      pixels would be 5.4 GB). RETAIL **2600/2600 kept** / 91.2 MB / **2600/2600
+      bit-exact** (vs 7.8 GB), one drive, early-exit. JOIN: **1784/1785 paired**
+      across a **+13,272-frame** load stretch and **63 anchor segments**; every gap
+      NAMED and explained — 798 = the port's TAS replay ends before the armed window
+      (the v2-known "retail triggers past the port replay end"), 18 = load screens
+      the port suppresses, 7 = a one-frame anchor-alias skew at one PAUSE_CLOSE seam.
+      Naive present pairing: **0/1785**. **Pairing correctness proven visually**:
+      paired frames deep past many seams (LOADING_END#2+50, TEXT_ANIM_START#10+5,
+      DLG_LINE_CLEAR#12+20) are **bit-identical (gt8=0)**; the menu pair shows only
+      the v2-known accepted cursor-bob/sparkle phase residue. Viewer opens the
+      2601-column view in ~15 s (metric precompute = 2 renders/pair).
+    - **NEW v2-invisible findings (semantic layer at scale, 1581 DIVERGENT columns):**
+      (1) retail draws a **fullscreen SRCALPHA/INVSRCALPHA overlay quad LAST** (tex
+      `…9fd8`, 128×128 stretched to 1024×768, ZENABLE off) on ~1094 columns — the
+      port omits it; net pixel effect sub-gt8 (paired diff ≈ 0). The `ea99` class,
+      but persistent — RE which engine layer draws it (scene tint/fade?) and whether
+      the port needs it. (2) the **port double-draws the guild background** (tex
+      `…2780` 1024×512: port 2 draws/4 tris vs retail 1/2) on ~1076 columns —
+      pixel-invisible overdraw, port-side cleanup lead.
+    - **Process findings / follow-ups:** the retail drive's wall-clock is DOMINATED
+      by the v2 caprange machinery (≈2.5k PNG conversions + 287 montages ≈ 5 of the
+      ~13 min) — add a v3 drive flag to skip frame/montage baking (the container +
+      hash refs are the only v3 artifacts); viewer metric precompute should go lazy/
+      background at thousands of columns; replay.exe cannot fopen-write
+      `\\wsl.localhost` UNC paths (write to Windows-local scratch). Then marks/crops
+      parity with v2. (Open human-verify: pixel→draw pick's live mouse-click wiring +
+      a live scrub of the 2601-column guild view.)
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.
 

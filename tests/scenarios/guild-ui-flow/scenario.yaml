@@ -1,0 +1,15 @@
+# guild-ui-flow — the merchants-guild BUY-FLOW bench (the v2 session
+# merchants-guild-ui-flow-20260611-052747's working trace, promoted to a
+# scenario for the Trace Studio v3 N4 stress test: a THOUSANDS-of-frames 2D UI
+# window with multiple mid-window load seams).
+#
+# Walks: load save → house → door (load) → world map → guild (load) →
+# first-visit cutscene → main menu → Buy → item list → qty prompt → 2 buys.
+# caprange [330, 2600] anchored at the first LOADING_END; phasepin 282 +
+# rngseed [282,19937] + tutloadpin 8 (the canonical pin block).
+description: |
+  Merchants-guild buy-flow UI bench (v3 N4 stress): 2600-frame caprange across
+  several load seams — house exit, world map, guild entry, cutscene, buy menu.
+max_frames: 26000   # retail load-stretches the prologue ~14k presents before the anchor
+duration_ceiling_ms: 420000
+capture_suppress_loads: true
