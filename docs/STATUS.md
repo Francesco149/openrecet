@@ -367,8 +367,10 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   ENTANGLED with M2c:** the missing board background swamps the diff (bg_rete art is black/matching,
   everything else white = port's cyan clear vs retail's board). **NEXT → M2c:** retail's resting
   menu is **10 draws**; the remaining 7 (orv3_draws on `house-pause-f1bf56e7`#119) are **[0]** the
-  full-screen **board/fx background** (tex `3e66`, MODULATE, drawn BEFORE bg_rete by the
-  render-dispatch tail `FUN_0045404b` — NOT FUN_004820ba; likely dungeonbord/result_bord01),
+  full-screen **static board background** (tex `3e66`, MODULATE, drawn BEFORE bg_rete; STABLE hash
+  across all rest frames — menu is at rest by f80 — so NOT a fade; **NOT FUN_0045404b** which is the
+  captured-screen open/close cross-fade = M3; source still OPEN, resolve FIRST via the viewer
+  **pixel-pick** on the board bg → call_trace, candidates dungeonbord/result_bord01),
   **[4-6]** the calendar frame (pause.tga MODULATE, L83801-83866, `local_8 = sub_anim*-0x40` slide),
   **[7-9]** the **number glyphs** (item_win tex `3392`): gold (`scene1_top_hud_draw_number`, ported;
   retail shows the 10,000,000 tutorial pin), calendar day cells (date math FUN_00482059/00482033),

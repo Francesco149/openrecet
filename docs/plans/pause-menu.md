@@ -124,12 +124,22 @@ Draw primitives all already in the port: `render_quad_add`
 - **M2c — calendar/gold/portrait + the board background (NEXT).** The retail
   resting-menu draw program is **10 draws** (orv3_draws on `house-pause-f1bf56e7`
   frame 119):
-    - **[0]** tex `3e66`, full-screen, MODULATE — the **board/fx background**
-      drawn BEFORE bg_rete, NOT by `FUN_004820ba` but by the render-dispatch
-      tail `FUN_0045404b` (L51221, the fx_tail that also holds the fade
-      `FUN_00454191`). This is the dark-green board the calendar sits on (the
-      cyan-vs-retail-bg diff). Likely `dungeonbord`/`result_bord01`; confirm
-      which + its src/dst by reading `FUN_0045404b`.
+    - **[0]** tex `3e66`, full-screen 640×480, MODULATE, white — the **static
+      board background** behind the whole menu (the dark panel the calendar
+      sits on; the cyan-vs-retail diff). Hash is STABLE across all resting-menu
+      frames (80/100/110/119 — the menu is already at rest by f80) ⇒ a static
+      layer, not a fade. **CORRECTION (was mis-attributed to `FUN_0045404b`):**
+      reading `FUN_0045404b` (0x45404b) shows it is the OPEN/CLOSE
+      **captured-screen cross-fade** — CopyRects the screen → redraw with alpha
+      `0xff − sin(DAT_06a49994·π/DAT_005c5938)`, gated `0 < DAT_06a49994`, tex
+      `DAT_073cb900` → that belongs to **M3 (the fade transition)**, NOT this
+      board. [0]'s real source is still OPEN: candidate assets are `dungeonbord`
+      (`DAT_073a9b08`) / `result_bord01` (`DAT_073d86c8`) — both pause-loaded,
+      but neither has an obvious single full-screen draw (result_bord01 is drawn
+      ×3 near all.c:82959, dungeonbord near 101624). **RESOLVE FIRST in M2c via
+      the viewer pixel-pick** (`orv3_window … --launch`, click the board bg →
+      the draw index → its source via `call_trace.jsonl`) — the canonical v3
+      method; don't keep guessing from static analysis.
     - **[1]** bg_rete · **[2]** option list · **[3]** header (M2/M2b, done).
     - **[4],[5],[6]** tex `e5bd` (pause.tga), MODULATE — the calendar frame +
       labels (engine L83801-83866; `local_8 = sub_anim*-0x40` slide-in x-offset
