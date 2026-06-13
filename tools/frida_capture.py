@@ -1123,6 +1123,23 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 segtrace_ops.append({"frame": int(rec["frame"]), "mask": mask})
         f_log.write(f"[input] loaded {len(segtrace_ops)} segtrace ops from "
                     f"{cfg.input_segtrace_path}\n")
+        if cfg.v3_arm:
+            # A v3 retail drive's capture window is armed by PRESENT-COUNT
+            # (OrV3ArmWindowAt at the anchor), wholly independent of the v2
+            # {caprange}. On a v3 drive the caprange's ONLY effect is to make the
+            # agent read back + write v2 frames that armwait already drops from the
+            # v3 container — pure waste: thousands of GetBackBuffer readbacks + raw
+            # writes + the post-run PNG/montage bake (~5 of ~13 min on a guild drive).
+            # Strip caprange/capstride so a v3 drive's ONLY artifacts are the v3
+            # container + hash refs. Gated on v3_arm ⇒ NO effect on v2 captures, and
+            # none on the PORT path (port_capture goes through scenario-test, not
+            # run_capture(v3_arm=…), and relies on GetBackBuffer AS its keep-trigger).
+            n_before = len(segtrace_ops)
+            segtrace_ops = [o for o in segtrace_ops
+                            if not ("caprange" in o or "capstride" in o)]
+            f_log.write(f"[v3] dropped {n_before - len(segtrace_ops)} v2 caprange/"
+                        f"capstride op(s) — v3_arm set (present-count-armed window; the "
+                        f"v2 readbacks + PNG/montage bake are pure waste on a v3 drive)\n")
 
     # TAS save virtualization (spawn/replay only): create a per-run sandbox and
     # tell the agent to redirect all save.dat/_save.dat I/O into it, so the replay
