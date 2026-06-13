@@ -28,11 +28,17 @@ struct OrV3Replay {
     IDirect3D8 *d3d; IDirect3DDevice8 *dev; HWND hwnd; HINSTANCE hinst;
     uint32_t W, H;
     IDirect3DTexture8      *tex[MAXRES];
+    uint8_t                 is_rt[MAXRES];   /* tex[id] created with RENDERTARGET usage */
     IDirect3DVertexBuffer8 *vb [MAXRES];
     IDirect3DIndexBuffer8  *ib [MAXRES];
     FrameRec *frames; int nframes;
     int has_rt;     /* any frame binds a render target ⇒ cross-frame RT content ⇒
                      * orv3_replay_render_history is required to reconstruct it */
+    IDirect3DSurface8 *autods;  /* the auto depth-stencil, grabbed at create time;
+                                 * the DEPTH surfref resolves to THIS, not the
+                                 * live GetDepthStencilSurface (NULL after a blur
+                                 * binds an RT with no depth → would un-depth the
+                                 * restore + every later frame). */
     uint8_t *buf;   /* last readback (orv3_readback_bgra malloc'd) */
 };
 
@@ -64,7 +70,11 @@ static IDirect3DSurface8 *resolve_surface(OrV3Replay *R, uint32_t kind, int32_t 
     case ORV3_SURF_BACKBUFFER:
         IDirect3DDevice8_GetBackBuffer(R->dev, 0, D3DBACKBUFFER_TYPE_MONO, &s); break;
     case ORV3_SURF_DEPTH:
-        IDirect3DDevice8_GetDepthStencilSurface(R->dev, &s); break;
+        /* the STORED auto depth-stencil, not the live one (which is NULL while an
+         * RT with no depth is bound — the blur). AddRef so the caller can Release. */
+        if (R->autods) { s = R->autods; IDirect3DSurface8_AddRef(s); }
+        else IDirect3DDevice8_GetDepthStencilSurface(R->dev, &s);
+        break;
     case ORV3_SURF_TEX:
         if (resid >= 0 && resid < MAXRES && R->tex[resid])
             IDirect3DTexture8_GetSurfaceLevel(R->tex[resid], 0, &s);
@@ -257,6 +267,9 @@ OrV3Replay *orv3_replay_open(const char *cap_path, char *err, int errlen)
     if (FAILED(IDirect3D8_CreateDevice(R->d3d, adapter, (D3DDEVTYPE)devtype, R->hwnd,
                                        behavior, &pp, &R->dev)))
         FAIL("CreateDevice");
+    /* Grab the auto depth-stencil NOW, while it's bound — the DEPTH surfref must
+     * resolve to it even after a blur unbinds the live one (see resolve_surface). */
+    IDirect3DDevice8_GetDepthStencilSurface(R->dev, &R->autods);
 
     /* pass 1: create every resource + index each kept frame's [start,end) + counts */
     int cap = 16; R->frames = (FrameRec *)malloc(cap * sizeof(FrameRec)); R->nframes = 0;
@@ -356,6 +369,7 @@ void orv3_replay_close(OrV3Replay *r)
         if (r->vb[i])  IDirect3DVertexBuffer8_Release(r->vb[i]);
         if (r->ib[i])  IDirect3DIndexBuffer8_Release(r->ib[i]);
     }
+    if (r->autods) IDirect3DSurface8_Release(r->autods);
     if (r->dev) IDirect3DDevice8_Release(r->dev);
     if (r->d3d) IDirect3D8_Release(r->d3d);
     if (r->hwnd) DestroyWindow(r->hwnd);

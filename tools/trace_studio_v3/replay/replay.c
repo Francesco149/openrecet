@@ -147,6 +147,25 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    /* repro of the resident viewer: render history(warm) FIRST, then history(idx)
+     * on the SAME device, dump idx. If this != a fresh `--history idx`, the
+     * history render leaks device state across calls (the viewer scrubs many
+     * columns on one resident core).  replay <cap.bin> --hist-warm <warm> <idx> [out.raw] */
+    if (strcmp(argv[2], "--hist-warm") == 0) {
+        int warm = argc > 3 ? atoi(argv[3]) : 0;
+        int idx  = argc > 4 ? atoi(argv[4]) : 0;
+        const char *out = argc > 5 ? argv[5] : "v3histwarm.raw";
+        uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
+        orv3_replay_render_history(r, warm);            /* warm the resident device */
+        const uint8_t *buf = orv3_replay_render_history(r, idx);
+        if (!buf) { fprintf(stderr, "hist-warm frame %d failed\n", idx); orv3_replay_close(r); return 2; }
+        FILE *of = fopen(out, "wb");
+        if (of) { fwrite(&W, 4, 1, of); fwrite(&H, 4, 1, of); fwrite(buf, 1, (size_t)W * 4 * H, of); fclose(of); }
+        fprintf(stderr, "frame %d after warming %d -> %s (%ux%u)\n", idx, warm, out, W, H);
+        orv3_replay_close(r);
+        return 0;
+    }
+
     /* draw isolation: render frame idx issuing only its first max_draws draws.
      *   replay <cap.bin> --upto <idx> <max_draws> [out.raw] */
     if (strcmp(argv[2], "--upto") == 0) {
