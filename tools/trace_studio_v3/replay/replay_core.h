@@ -56,6 +56,15 @@ const uint8_t *orv3_replay_render_upto(OrV3Replay *r, int idx, int max_draws);
  * the other side omits). Reads back as orv3_replay_render. */
 const uint8_t *orv3_replay_render_range(OrV3Replay *r, int idx, int lo, int hi);
 
+/* Render kept frame `idx` with cross-frame RENDER-TARGET content correct: replay
+ * frames [0..idx] cumulatively on the resident device (no readback/RT-reset between
+ * them) so an RT filled at an earlier frame is still populated here. Needed for
+ * captured-screen backdrops / blur transitions / post-processing (e.g. the pause
+ * menu [0], whose RT is filled at the open ramp and sampled every resting frame) —
+ * the per-frame `orv3_replay_render` shows those black. For an RT-free container
+ * the result is identical to `orv3_replay_render`. O(idx) per call. */
+const uint8_t *orv3_replay_render_history(OrV3Replay *r, int idx);
+
 void orv3_replay_close(OrV3Replay *r);
 
 #ifdef __cplusplus

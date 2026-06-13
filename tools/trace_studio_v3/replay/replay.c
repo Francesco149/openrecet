@@ -48,6 +48,14 @@ static int verify_hashes(OrV3Replay *r, const char *refs_path)
     uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
     int npass = 0, nfail = 0, ntotal = 0;
     char line[256], first_fail[128] = {0};
+    /* The refs are written IN kept-frame ORDER (0,1,2,…), and we render them in that
+     * same order on the RESIDENT device without resetting between frames — so any
+     * cross-frame RENDER-TARGET content accumulates for free (an RT filled at the
+     * pause-open frame is still populated when a later resting frame samples it).
+     * That makes this O(N) sweep equivalent to per-frame history render, without the
+     * O(N²) cost. (A pure transition frame whose backbuffer is left undefined — drawn
+     * only into an RT, never cleared/covered — is inherently nondeterministic and may
+     * not match; the resting frames that fully cover the backbuffer do.) */
     while (fgets(line, sizeof line, f)) {
         unsigned kept, present, w, h; unsigned long long want;
         if (sscanf(line, "REF %u present=%u w=%u h=%u fnv64=%llx",
@@ -121,6 +129,22 @@ int main(int argc, char **argv)
         int rc = bench(r, idx, iters);
         orv3_replay_close(r);
         return rc;
+    }
+
+    /* render frame idx with cross-frame RENDER-TARGET content (replay [0..idx]
+     * cumulatively) — the captured-screen pause backdrop etc. show black under the
+     * per-frame render but correct here.  replay <cap.bin> --history <idx> [out.raw] */
+    if (strcmp(argv[2], "--history") == 0) {
+        int idx = argc > 3 ? atoi(argv[3]) : 0;
+        const char *out = argc > 4 ? argv[4] : "v3history.raw";
+        uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
+        const uint8_t *buf = orv3_replay_render_history(r, idx);
+        if (!buf) { fprintf(stderr, "render_history frame %d failed\n", idx); orv3_replay_close(r); return 2; }
+        FILE *of = fopen(out, "wb");
+        if (of) { fwrite(&W, 4, 1, of); fwrite(&H, 4, 1, of); fwrite(buf, 1, (size_t)W * 4 * H, of); fclose(of); }
+        fprintf(stderr, "frame %d: history-replayed [0..%d] -> %s (%ux%u)\n", idx, idx, out, W, H);
+        orv3_replay_close(r);
+        return 0;
     }
 
     /* draw isolation: render frame idx issuing only its first max_draws draws.

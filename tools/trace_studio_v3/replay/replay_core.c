@@ -42,11 +42,34 @@ static int op_is_draw(uint32_t op)
     return op == ORV3_DrawPrimitive || op == ORV3_DrawIndexedPrimitive
         || op == ORV3_DrawPrimitiveUP || op == ORV3_DrawIndexedPrimitiveUP;
 }
-/* a "call" = any issued d3d call record (state/draw/clear/light/scene), i.e. not a
- * RES definition and not the Present marker — what per-frame "calls" counts. */
+/* a "call" = any issued d3d call record (state/draw/clear/light/scene/RT), i.e. not
+ * a RES definition and not the Present marker — what per-frame "calls" counts. */
 static int op_is_call(uint32_t op)
 {
-    return op >= ORV3_SetRenderState && op <= ORV3_EndScene;
+    return (op >= ORV3_SetRenderState && op <= ORV3_EndScene)
+        || op == ORV3_SetRenderTarget || op == ORV3_CopyRects;
+}
+
+/* Reconstruct the IDirect3DSurface8* a SURFREF [kind][resid] cites. The app's
+ * surface handles aren't replayable, so we rebuild from kind: the backbuffer
+ * (GetBackBuffer), the auto depth (GetDepthStencilSurface), or an RT texture's
+ * level-0 surface (GetSurfaceLevel of tex[resid] — created with RENDERTARGET usage
+ * by the RES_RT_TEX path). Returns an AddRef'd surface (caller Releases) or NULL. */
+static IDirect3DSurface8 *resolve_surface(OrV3Replay *R, uint32_t kind, int32_t resid)
+{
+    IDirect3DSurface8 *s = NULL;
+    switch (kind) {
+    case ORV3_SURF_BACKBUFFER:
+        IDirect3DDevice8_GetBackBuffer(R->dev, 0, D3DBACKBUFFER_TYPE_MONO, &s); break;
+    case ORV3_SURF_DEPTH:
+        IDirect3DDevice8_GetDepthStencilSurface(R->dev, &s); break;
+    case ORV3_SURF_TEX:
+        if (resid >= 0 && resid < MAXRES && R->tex[resid])
+            IDirect3DTexture8_GetSurfaceLevel(R->tex[resid], 0, &s);
+        break;
+    default: break;   /* ORV3_SURF_NULL */
+    }
+    return s;
 }
 
 /* Walk ONE record at the cursor; advance past it; create the resource iff do_res;
@@ -115,6 +138,17 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
             if (id < MAXRES) R->ib[id] = ib;
         }
         break; }
+    case ORV3_RES_RT_TEX: {   /* a render-target texture (no pixel data — filled by the replayed stream) */
+        uint32_t id = cu(c), w = cu(c), h = cu(c), fmt = cu(c), levels = cu(c), usage = cu(c);
+        if (do_res) {
+            IDirect3DTexture8 *tex = NULL;
+            /* RENDERTARGET usage ⇒ MUST be D3DPOOL_DEFAULT (can't be MANAGED). Its
+             * level-0 surface is bound by SetRenderTarget / sampled by SetTexture. */
+            IDirect3DDevice8_CreateTexture(dev, w, h, levels, usage, (D3DFORMAT)fmt,
+                                           D3DPOOL_DEFAULT, &tex);
+            if (id < MAXRES) R->tex[id] = tex;
+        }
+        break; }
     case ORV3_SetRenderState: { uint32_t s = cu(c), v = cu(c);
         if (do_calls) { IDirect3DDevice8_SetRenderState(dev, (D3DRENDERSTATETYPE)s, v); } break; }
     case ORV3_SetTextureStageState: { uint32_t st = cu(c), t = cu(c), v = cu(c);
@@ -148,6 +182,32 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
         if (do_calls && dl) { IDirect3DDevice8_SetLight(dev, index, (const D3DLIGHT8 *)L); } break; }
     case ORV3_LightEnable: { uint32_t index = cu(c), en = cu(c);
         if (do_calls) { IDirect3DDevice8_LightEnable(dev, index, en); } break; }
+    case ORV3_SetRenderTarget: {
+        uint32_t ck = cu(c); int32_t cr = (int32_t)cu(c);
+        uint32_t dk = cu(c); int32_t dr = (int32_t)cu(c);
+        if (do_calls) {
+            IDirect3DSurface8 *cs = resolve_surface(R, ck, cr);
+            IDirect3DSurface8 *ds = resolve_surface(R, dk, dr);
+            IDirect3DDevice8_SetRenderTarget(dev, cs, ds);
+            if (cs) IDirect3DSurface8_Release(cs);
+            if (ds) IDirect3DSurface8_Release(ds);
+        }
+        break; }
+    case ORV3_CopyRects: {
+        uint32_t sk = cu(c); int32_t sr = (int32_t)cu(c);
+        uint32_t dk = cu(c); int32_t dr = (int32_t)cu(c);
+        uint32_t count = cu(c);
+        const RECT *rects = (const RECT *)c->p; c->p += (size_t)count * sizeof(RECT);
+        const POINT *points = (const POINT *)c->p; c->p += (size_t)count * sizeof(POINT);
+        if (do_calls) {
+            IDirect3DSurface8 *ss = resolve_surface(R, sk, sr);
+            IDirect3DSurface8 *ds = resolve_surface(R, dk, dr);
+            if (ss && ds)
+                IDirect3DDevice8_CopyRects(dev, ss, count ? rects : NULL, count, ds, count ? points : NULL);
+            if (ss) IDirect3DSurface8_Release(ss);
+            if (ds) IDirect3DSurface8_Release(ds);
+        }
+        break; }
     case ORV3_BeginScene: if (do_calls) { IDirect3DDevice8_BeginScene(dev); } break;
     case ORV3_EndScene:   if (do_calls) { IDirect3DDevice8_EndScene(dev);   } break;
     case ORV3_Present: cu(c); return ORV3_Present;
@@ -255,6 +315,33 @@ const uint8_t *orv3_replay_render_upto(OrV3Replay *r, int idx, int max_draws)
 const uint8_t *orv3_replay_render(OrV3Replay *r, int idx)
 {
     return orv3_replay_render_range(r, idx, 0, -1);
+}
+
+const uint8_t *orv3_replay_render_history(OrV3Replay *r, int idx)
+{
+    if (!r || idx < 0 || idx >= r->nframes) return NULL;
+    /* Replay frames [0..idx] in sequence on the resident device WITHOUT readback
+     * or RT-reset between them, so cross-frame render-target content accumulates
+     * (an RT filled at the open-ramp frame is still populated when a later rest
+     * frame samples it — the pause backdrop [0]). For an RT-free container this
+     * equals the single-frame render: each frame's Clear + preamble + per-draw
+     * rebinds overwrite the prior frames, which leave no trace on the backbuffer.
+     * O(idx) per call — for random-access scrub the viewer can cache; an in-ORDER
+     * sweep (verify) gets the same accumulation in O(1) per frame for free. */
+    for (int fi = 0; fi <= idx; fi++) {
+        Cur c = { r->data + r->frames[fi].start, r->data + r->frames[fi].end };
+        int ndrawn = 0;
+        for (;;) {
+            uint32_t op = step(&c, r, /*do_res*/0, /*do_calls*/1, /*lo*/0, /*hi*/-1, &ndrawn);
+            if (op == ORV3_EOF || op == ORV3_Present) break;
+            if (op == 0xfffffffeu) return NULL;
+        }
+    }
+    if (r->buf) { free(r->buf); r->buf = NULL; }
+    uint32_t gw = 0, gh = 0;
+    r->buf = orv3_readback_bgra(r->dev, &gw, &gh);
+    if (!r->buf || gw != r->W || gh != r->H) return NULL;
+    return r->buf;
 }
 
 void orv3_replay_close(OrV3Replay *r)
