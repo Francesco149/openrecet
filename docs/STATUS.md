@@ -353,12 +353,31 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   mode-9 clear (retail clears cyan too — both `0xff17f0ff`; retail covers it with the menu draws,
   so the port is faithfully at "bg_rete drawn, rest pending"). Retail doesn't slice bit-exact
   across the pause's mid-window async load (known v3-replayer limit; verified by direct frame
-  render). **NEXT → M2b:** the pause.tga atlas draws (the option list = COLOROP=ADD rows over
-  pause.tga, src/dst geometry recovered via objdump 0x482300+; the calendar + gold = needs
-  save-state day/gold fields; "PAUSE MENU" text @dst(368,428); cursor) + the open/close fade
-  (FUN_00454191, inside the FUN_0045404b fx_tail). **M3:** submenus (Items/Encyclopedia/Options/
-  Save) + the type-4 exit-confirm + the unpause cursor-restore. NB DAT_0438b150 is the SHARED
-  hand-cursor flag (FUN_00435693 cursor-snap sets it too) — not pause-exclusive.
+  render). **M2b ✅ DONE 2026-06-13 (`e00f622`):** ported the rest of `FUN_004820ba`'s
+  resting-menu draws — the **COLOROP=ADD option-list rows** (Items·Encyclopedia·Options·Save·
+  Exit Game: per-row icon+label from pause.tga; selected row = bigger 160×128 icon + sin-flash +
+  sub_anim slide), the **"PAUSE MENU" header** (COLOROP=MODULATE, src(64,384-320,424)→
+  dst(368,428,256,40)), and the **overlay tail** (choice_box_draw / hand cursor / save-frame — all
+  self-gating no-ops at rest). Geometry+diffuse from objdump 0x4820ba-0x482400 (decompile dropped
+  the register-built diffuse + FP consts; verified vs the .rdata float table). **v3 draw-program
+  1:1:** orv3_draws shows the port's 3 draws now match retail's **[1] bg_rete / [2] option-list
+  (colorop=7 ADD, ×20 tris = 5 icons+5 labels) / [3] header (colorop=4, ×1)** exactly; the
+  direct-frame overlay (port119 vs retail119 — the async load gaps the standard join) shows the
+  menu at retail's exact staircase positions (feed "PAUSE MENU M2b"). **Pixel-1:1 confirmation is
+  ENTANGLED with M2c:** the missing board background swamps the diff (bg_rete art is black/matching,
+  everything else white = port's cyan clear vs retail's board). **NEXT → M2c:** retail's resting
+  menu is **10 draws**; the remaining 7 (orv3_draws on `house-pause-f1bf56e7`#119) are **[0]** the
+  full-screen **board/fx background** (tex `3e66`, MODULATE, drawn BEFORE bg_rete by the
+  render-dispatch tail `FUN_0045404b` — NOT FUN_004820ba; likely dungeonbord/result_bord01),
+  **[4-6]** the calendar frame (pause.tga MODULATE, L83801-83866, `local_8 = sub_anim*-0x40` slide),
+  **[7-9]** the **number glyphs** (item_win tex `3392`): gold (`scene1_top_hud_draw_number`, ported;
+  retail shows the 10,000,000 tutorial pin), calendar day cells (date math FUN_00482059/00482033),
+  Merchant Level badge (`scene1_merchant_hud`, ported). Save-arena fields addressable via `save_work`
+  (gold +0xc, period +0x2c3f8/2c3fc, level +0x2c400, day `_DAT_0438b91c`). Once [0]+[4-9] land the
+  whole menu is cleanly pixel-1:1-verifiable. **M3:** submenus (the `sub_anim>0` dispatch
+  L83931-83952) + type-4 exit-confirm + unpause cursor-restore + the open/close fade (FUN_00454191
+  body). NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 cursor-snap sets it too) —
+  not pause-exclusive.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game

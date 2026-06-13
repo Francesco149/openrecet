@@ -106,13 +106,48 @@ Draw primitives all already in the port: `render_quad_add`
   `pause_menu_setup`, `pause_menu_update`, `pause_menu_nav` + the case-9
   worker callback + host tests. NOT wired into sim/esc/render → zero
   behavior change (avoids an ESC-→-black regression between commits).
-- **M2 — wire + render (visible).** Wire the trigger (esc→dispatch), the
-  ramp consumers (sim mode-9 + ramp==3 spawn; render c99c pump + mode-9
-  render), worker case-9. Port `FUN_004820ba` shell + `FUN_00454191` fade.
-  → ESC opens the menu; verify the OPEN 1:1 vs retail on `house-pause` in
-  v3 (cache `house-pause-f1bf56e7`).
+- **M2 — wire + render the backdrop (done, `aef7d89`).** Wired the trigger
+  (esc→dispatch), the ramp consumers (sim mode-9 + ramp==3 spawn; render c99c
+  pump + mode-9 render), worker case-9, and `pause_menu_render`'s bg_rete
+  backdrop. ESC opens the menu; port re-drives 240/240 bit-exact, draws bg_rete.
+- **M2b — option list + header + cursor tail (done, `e00f622`).** Ported the
+  rest of `FUN_004820ba`'s resting-menu draws: the COLOROP=ADD icon+label rows
+  (Items·Encyclopedia·Options·Save·Exit Game), the "PAUSE MENU" header
+  (COLOROP=MODULATE), and the shared overlay tail (choice box / cursor / save
+  frame — all self-gating). Geometry+diffuse from objdump 0x4820ba-0x482400
+  (decompile dropped the register-built diffuse + FP consts; verified vs .rdata).
+  **v3 draw-program 1:1:** port draws now match retail's [1] bg_rete, [2] option
+  list (colorop=7, ×20 tris = 5 icons+5 labels), [3] header (colorop=4, ×1).
+  Layout matches retail's staircase. **Pixel-1:1 confirmation is entangled with
+  M2c** — the missing board background swamps the diff (bg_rete art is black/
+  matching; everything else is white because port shows the cyan clear).
+- **M2c — calendar/gold/portrait + the board background (NEXT).** The retail
+  resting-menu draw program is **10 draws** (orv3_draws on `house-pause-f1bf56e7`
+  frame 119):
+    - **[0]** tex `3e66`, full-screen, MODULATE — the **board/fx background**
+      drawn BEFORE bg_rete, NOT by `FUN_004820ba` but by the render-dispatch
+      tail `FUN_0045404b` (L51221, the fx_tail that also holds the fade
+      `FUN_00454191`). This is the dark-green board the calendar sits on (the
+      cyan-vs-retail-bg diff). Likely `dungeonbord`/`result_bord01`; confirm
+      which + its src/dst by reading `FUN_0045404b`.
+    - **[1]** bg_rete · **[2]** option list · **[3]** header (M2/M2b, done).
+    - **[4],[5],[6]** tex `e5bd` (pause.tga), MODULATE — the calendar frame +
+      labels (engine L83801-83866; `local_8 = sub_anim*-0x40` slide-in x-offset
+      at rest 0). Geometry in objdump 0x4824aa+.
+    - **[7],[8],[9]** tex `3392` (item_win.tga), MODULATE — the **number glyphs**:
+      gold (`FUN_00406a60(local_8+256, 28, *(puVar3+0xc), 1, white, 1)` →
+      `scene1_top_hud_draw_number`, ALREADY ported), the calendar day cells, the
+      Merchant Level badge (`FUN_00481ec3(local_8+192, 64, *(puVar3+0x2c400))` →
+      `scene1_merchant_hud`, ALREADY ported). Date math = FUN_00482059/00482033.
+      Retail shows gold **10,000,000** (the tutorial infinite-money pin) here.
+  Save-arena fields are addressable (`save_work` bank base + `DAT_0438b1e0`
+  slot, the same `bank*0x2dfc8 + offset` geometry chara_equip uses): gold `+0xc`,
+  calendar period `+0x2c3f8`/`+0x2c3fc`, level `+0x2c400`, a mode `+0x2dd64`,
+  current day `_DAT_0438b91c`. Portrait = `FUN_0048d997` (TBD). Once [0]+[4-9]
+  land, the WHOLE resting menu is cleanly pixel-1:1-verifiable in one diff.
 - **M3+ (later arcs):** submenus — Items, Encyclopedia, Options, Save,
-  Exit-confirm; the unpause cursor restore; the calendar/portrait detail.
+  Exit-confirm (the `sub_anim>0` dispatch L83931-83952); the unpause cursor
+  restore; the open/close fade transition (`FUN_00454191` body).
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
