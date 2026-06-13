@@ -200,12 +200,16 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     way each container parses ONCE here, shared by _side_index, the internal sync, and the
     per-column material bake."""
     import orv3_draws   # local import: the semantic-diff layer (P3 N3)
+    import orv3_state   # local import: the engine-state pillar (the v2 game-state panel)
 
     pside, rside = v3cache.as_side(port_entry), v3cache.as_side(retail_entry)
     pmeta, pidx, pdims, pc = _side_index(pside)
     rmeta, ridx, _, rc = _side_index(rside)
     join = orv3_sync.sync_entries(pside, rside, quiet=True)   # parse-once: reuse loaded sides
     rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
+    # Engine state per identity LABEL (from each side's cached call_trace.jsonl, a
+    # --state drive). Empty {} without --state ⇒ the viewer shows the opt-in hint.
+    state_rows = orv3_state.build_state_rows(pside, rside)
     # one ResHash per container, reused across every column (a resource is hashed once,
     # not per frame) — the difference between a fast bake and a pathological one at scale.
     preshash, rreshash = orv3_draws.ResHash(pc), orv3_draws.ResHash(rc)
@@ -222,6 +226,9 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
         }
         if pf and rf:   # both sides present → the material/draw-program semantic diff
             fr.update(orv3_draws.frame_draw_report(pc, pf.index, rc, rf.index, preshash, rreshash))
+        st = state_rows.get(row["label"])   # {"port": {...}, "retail": {...}} or None
+        if st:
+            fr["state"] = st
         frames.append(fr)
     manifest = {
         "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
@@ -232,7 +239,9 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
         # from the Windows viewer); orv3_notes.py reads the same file from WSL.
         "notes_path": _winpath(v3cache.notes_file(pmeta.scenario)),
         "offset0": rows[0]["offset"] if rows else None, "count": len(rows),
-        "n_gaps": sum(1 for r in rows if r["gap"]), "frames": frames,
+        "n_gaps": sum(1 for r in rows if r["gap"]),
+        "has_state": bool(state_rows),   # the viewer's game-state panel is populated
+        "frames": frames,
     }
     Path(out_path).write_text(json.dumps(manifest, indent=1))
     return manifest

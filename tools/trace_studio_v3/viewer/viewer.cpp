@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <algorithm>
 using json = nlohmann::json;
 
 static LPDIRECT3D9       g_d3d = nullptr;
@@ -45,6 +46,10 @@ struct Col {
     std::string draw_verdict;        // "ALIGNED" | "BATCHING" | "DIVERGENT" | "" (gap/none)
     int port_tris = -1, retail_tris = -1, n_textures = -1, n_batched = -1;
     std::vector<DivTex> divergent;
+    // engine state (the v2 game-state panel): once-per-frame flow-trace fields, port
+    // vs retail, identity-keyed (orv3_state → view.json). Empty unless a --state drive.
+    bool has_state = false;
+    json sport, sretail;             // {field: value} per side (f32-normalised in the bake)
 };
 static std::vector<Col> g_cols;
 static OrV3Replay *g_port = nullptr, *g_retail = nullptr;
@@ -54,6 +59,12 @@ static int g_w = 0, g_h = 0, g_cur = 0;
 static int g_load_stretch = 0;
 static std::string g_scenario, g_anchor, g_verdict;
 static bool g_show[3] = {true, true, true};   // port, retail, diff
+// game-state panel (the v2 StatePanel): once-per-frame engine fields, port-vs-retail,
+// diff-highlighted — populated only by a --state capture (else the opt-in hint shows).
+static bool g_has_state = false;       // any column carries state
+static bool g_show_state = true;       // panel expanded
+static bool g_state_diff_only = false; // show only port≠retail fields
+static char g_state_filter[64] = {0};  // substring filter on field names
 static const int AMP = 6;
 // draw-stepping (N3): render only the first g_draw_step draws of each side (render_upto)
 // so a frame can be watched building up draw-by-draw / a divergent draw isolated.
@@ -334,6 +345,7 @@ static bool load_view(const char *path)
     g_anchor = m.value("anchor", "");
     g_verdict = m.value("verdict", "");
     g_load_stretch = m.value("load_stretch", 0);
+    g_has_state = m.value("has_state", false);
     g_notes_path = m.value("notes_path", "");   // Windows-local notes file (writable)
     std::string pc = m.value("port_container", ""), rc = m.value("retail_container", "");
     char err[128] = {0};
@@ -370,6 +382,11 @@ static bool load_view(const char *path)
                 dt.port_draws = jd.value("port_draws", 0); dt.retail_draws = jd.value("retail_draws", 0);
                 c.divergent.push_back(dt);
             }
+        if (jf.contains("state") && jf["state"].is_object()) {
+            c.has_state = true;
+            c.sport   = jf["state"].value("port", json::object());
+            c.sretail = jf["state"].value("retail", json::object());
+        }
         g_cols.push_back(c);
     }
     if (g_cols.empty()) { fprintf(stderr, "view has no frames\n"); return false; }
@@ -451,6 +468,69 @@ static void panel(const char *label, LPDIRECT3DTEXTURE9 tex, bool present, float
         ImGui::Dummy(ImVec2(panel_w, h));
     }
     ImGui::EndGroup();
+}
+
+// format a state field value for display (readable floats, plain ints/strings).
+static std::string fmt_state_val(const json &v)
+{
+    char b[48];
+    if (v.is_null())           return "-";
+    if (v.is_number_float())   { snprintf(b, sizeof b, "%g", v.get<double>()); return b; }
+    if (v.is_number_integer()) { snprintf(b, sizeof b, "%lld", (long long)v.get<int64_t>()); return b; }
+    if (v.is_boolean())        return v.get<bool>() ? "true" : "false";
+    if (v.is_string())         return v.get<std::string>();
+    return v.dump();
+}
+
+// the GAME-STATE panel — the v2 StatePanel, native. The current column's once-per-frame
+// engine fields (rng/rngcalls, player+companion px/py/anim, title menu, dialogue box),
+// retail vs port, port≠retail rows highlighted, with a name filter + diffs-only toggle.
+// Populated only by a --state capture (else an opt-in hint). Floats are f32-normalised in
+// the bake, so a highlighted row is a REAL divergence (e.g. the rngcalls phase offset),
+// not f32-repr noise. This is the engine-state half of the divergence story the d3d
+// draw-program panel doesn't see — and the bridge to flow_diff (same call_trace.jsonl).
+static void game_state_panel(const Col &c)
+{
+    ImGui::Separator();
+    if (!g_has_state) {
+        ImGui::TextDisabled("game state: (re-drive with --state — house_capture / port_capture / "
+                            "orv3_window --state — to capture the once-per-frame engine fields)");
+        return;
+    }
+    std::vector<std::string> keys;
+    for (auto it = c.sretail.begin(); it != c.sretail.end(); ++it) keys.push_back(it.key());
+    for (auto it = c.sport.begin();   it != c.sport.end();   ++it)
+        if (!c.sretail.contains(it.key())) keys.push_back(it.key());
+    std::sort(keys.begin(), keys.end());
+    int ndiff = 0;
+    for (auto &k : keys)
+        if (c.sport.contains(k) && c.sretail.contains(k) && c.sport[k] != c.sretail[k]) ndiff++;
+    char hdr[96];
+    snprintf(hdr, sizeof hdr, "game state — %d fields, %d differ###gamestate", (int)keys.size(), ndiff);
+    ImGui::SetNextItemOpen(g_show_state, ImGuiCond_Once);
+    if (!ImGui::CollapsingHeader(hdr)) return;
+    if (!c.has_state) { ImGui::TextDisabled("(no engine state at this column — a gap, or outside the state window)"); return; }
+    ImGui::SetNextItemWidth(160); ImGui::InputText("filter##state", g_state_filter, sizeof g_state_filter);
+    ImGui::SameLine(); ImGui::Checkbox("diffs only", &g_state_diff_only);
+    ImGui::SameLine(); ImGui::TextDisabled("(red = port != retail)");
+    if (ImGui::BeginTable("gstate", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame |
+                          ImGuiTableFlags_ScrollY, ImVec2(0, 210))) {
+        ImGui::TableSetupColumn("field"); ImGui::TableSetupColumn("retail"); ImGui::TableSetupColumn("port");
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableHeadersRow();
+        for (auto &k : keys) {
+            if (g_state_filter[0] && k.find(g_state_filter) == std::string::npos) continue;
+            bool hp = c.sport.contains(k), hr = c.sretail.contains(k);
+            bool differ = hp && hr && c.sport[k] != c.sretail[k];
+            if (g_state_diff_only && !differ) continue;
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::TextDisabled("%s", k.c_str());
+            ImVec4 col = differ ? ImVec4(1, 0.42f, 0.42f, 1) : ImVec4(0.84f, 0.86f, 0.88f, 1);
+            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", hr ? fmt_state_val(c.sretail[k]).c_str() : "-");
+            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", hp ? fmt_state_val(c.sport[k]).c_str() : "-");
+        }
+        ImGui::EndTable();
+    }
 }
 
 static void draw_ui()
@@ -618,6 +698,9 @@ static void draw_ui()
                 side, d.tex.c_str(), d.port_tris, d.port_draws, d.retail_tris, d.retail_draws);
         }
     }
+
+    // engine-state panel — the v2 game-state table, port vs retail (needs a --state capture)
+    game_state_panel(c);
 
     // pixel→draw pick readout (+ the un-pick button right where the eye is)
     if (g_pick_draw != -2) {

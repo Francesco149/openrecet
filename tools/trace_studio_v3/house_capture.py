@@ -52,6 +52,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import retail_capture as rc                                            # noqa: E402
 import v3cache                                                         # noqa: E402
+import orv3_state                                                      # noqa: E402
 
 ROOT      = Path(__file__).resolve().parent.parent.parent
 PROXY_SRC = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
@@ -105,6 +106,13 @@ def main() -> int:
                     help="leave d3d8.dll + v3proxy.cfg staged in vendor/unpacked/ "
                          "(default: unstage on exit — a staged proxy would load into "
                          "v2 scenario-test --target retail runs).")
+    ap.add_argument("--state", action="store_true",
+                    help="ALSO capture the once-per-frame engine state (rng / player+"
+                         "companion px/py/anim / title menu / dialogue) into the cached "
+                         "entry's call_trace.jsonl, so the viewer's game-state panel works. "
+                         "OFF by default: the probes emit through the whole pre-window "
+                         "load-stretch (a per-frame send cost), so opt in when chasing a "
+                         "state divergence. Identity-keyed ⇒ joins onto the d3d frames.")
     ap.add_argument("--frida-remote", default=rc.DEFAULT_REMOTE)
     ap.add_argument("--run-dir", type=Path, default=None,
                     help="where run_capture writes its v2 artifacts (anchors.jsonl, "
@@ -159,8 +167,17 @@ def main() -> int:
 
     res_w, res_h = rc.openrecet_screen_dims()
     v3_arm = {"anchor": args.anchor, "offset": int(args.offset), "count": int(args.count)}
+    # --state: a STATE-ONLY call-trace (the 4 once-per-frame VAs, not the heavy
+    # call-graph) → run_dir/call_trace.jsonl, cached + identity-keyed for the panel.
+    state_kw: dict = {}
+    if args.state:
+        vas, fields = orv3_state.state_call_trace_config()
+        state_kw = dict(call_trace=True, call_trace_vas=vas, call_trace_fields=fields)
+        print(f"[state] hooking {len(vas)} once-per-frame state VAs "
+              f"({sum(len(v) for v in fields.values())} fields) → call_trace.jsonl")
     print(f"[run]   retail drive: save_ref={save_ref!r} force_res={res_w}x{res_h} "
-          f"max_frames={scen.max_frames} → run_capture(v3_arm={v3_arm})")
+          f"max_frames={scen.max_frames} → run_capture(v3_arm={v3_arm}"
+          f"{', +state' if args.state else ''})")
     try:
         frida_capture.run_capture(
             scen, run_dir,
@@ -172,6 +189,7 @@ def main() -> int:
             rng_seed=scen.rng_seed,
             suppress_loads=scen.suppress_loads,
             v3_arm=v3_arm,
+            **state_kw,
         )
     finally:
         # Unstage the proxy so it can't load into a later v2 scenario-test retail run.
@@ -229,7 +247,9 @@ def main() -> int:
     arm = {"anchor": args.anchor, "offset": args.offset, "count": args.count}
     dest, ident = v3cache.preserve_live(args.scenario, "retail", args.anchor,
                                         args.offset, trace_path, arm, src=v3,
-                                        anchors_path=run_dir / "anchors.jsonl")
+                                        anchors_path=run_dir / "anchors.jsonl",
+                                        call_trace_path=(run_dir / "call_trace.jsonl"
+                                                         if args.state else None))
     print(f"[cache] stored retail → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
           f"arm {ident.eff_arm_offset}:{ident.eff_arm_count}, kept {ident.count}, "
           f"present {ident.present_first}.., "

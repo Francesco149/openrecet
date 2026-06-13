@@ -172,24 +172,33 @@ def entry_dir(scenario: str, key: str, side: str) -> Path:
     return CACHE_ROOT / f"{scenario}-{key}" / side
 
 
-def store(dest: Path, ident: FrameIdentity, src: Path | None = None) -> Path:
+def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
+          call_trace_path: Path | None = None) -> Path:
     """Copy the live capture (v3cap.bin + references: v3refs.txt hash lines and/or
     v3ref_*.raw) from `src` (default the proxy's %LOCALAPPDATA% dir) into `dest`,
-    and write v3meta.json = the stored identity. Returns `dest`."""
+    and write v3meta.json = the stored identity. Returns `dest`.
+
+    `call_trace_path` (a --state drive's run_dir/call_trace.jsonl) is copied in as the
+    entry's `call_trace.jsonl` sidecar — the engine-state pillar orv3_state.py keys by
+    identity for the viewer's game-state panel. Always cleared first so a no-state
+    re-drive can't leave a stale state file behind the new pixels."""
     src = src or localappdata_v3()
     cap = src / "v3cap.bin"
     if not cap.exists():
         raise FileNotFoundError(f"no live capture at {cap}")
     dest.mkdir(parents=True, exist_ok=True)
-    # clear any stale prior entry so a shorter window can't leave orphan refs
+    # clear any stale prior entry so a shorter window can't leave orphan refs (and a
+    # no-state re-drive can't leave a stale call_trace.jsonl behind fresh pixels)
     for f in [dest / "v3cap.bin", *dest.glob("v3ref_*.raw"),
-              dest / "v3refs.txt", dest / "v3meta.json"]:
+              dest / "v3refs.txt", dest / "v3meta.json", dest / "call_trace.jsonl"]:
         f.unlink(missing_ok=True)
     shutil.copy2(cap, dest / "v3cap.bin")
     for ref in sorted(src.glob("v3ref_*.raw")):
         shutil.copy2(ref, dest / ref.name)
     if (src / "v3refs.txt").exists():
         shutil.copy2(src / "v3refs.txt", dest / "v3refs.txt")
+    if call_trace_path is not None and Path(call_trace_path).exists():
+        shutil.copy2(call_trace_path, dest / "call_trace.jsonl")
     (dest / "v3meta.json").write_text(json.dumps(asdict(ident), indent=1))
     return dest
 
@@ -306,7 +315,8 @@ def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
 def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                   trace_path: Path, arm: dict, *, anchor_occ: int = 1,
                   src: Path | None = None,
-                  anchors_path: Path | None = None) -> tuple[Path, FrameIdentity]:
+                  anchors_path: Path | None = None,
+                  call_trace_path: Path | None = None) -> tuple[Path, FrameIdentity]:
     """Cache the LIVE proxy capture (%LOCALAPPDATA%) under a content key + its
     stored identity, in one call — the mechanism both capture drivers use.
 
@@ -340,7 +350,7 @@ def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                           arm_count=int(arm.get("count", c.n_frames)),
                           anchors=anchors)
     dest = entry_dir(scenario, cache_key(Path(trace_path), arm), side)
-    store(dest, ident, src=src)
+    store(dest, ident, src=src, call_trace_path=call_trace_path)
     return dest, ident
 
 

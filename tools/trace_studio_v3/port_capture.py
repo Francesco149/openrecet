@@ -49,6 +49,7 @@ DEFAULT_SCENARIO = "house-loaded-display-pinned"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v3cache                                                         # noqa: E402
 import v3verify                                                        # noqa: E402
+import orv3_state                                                      # noqa: E402
 
 
 def caprange_of(scenario: str) -> tuple[int, int] | None:
@@ -102,6 +103,12 @@ def main() -> int:
                          "caprange's base anchor, e.g. HOUSE_FREEROAM == LOADING_END here).")
     ap.add_argument("--no-cache", action="store_true",
                     help="skip caching the capture + its stored identity (MULTI mode only).")
+    ap.add_argument("--state", action="store_true",
+                    help="ALSO cache the once-per-frame engine state (the viewer's "
+                         "game-state panel). The port already emits a call_trace.jsonl "
+                         "under the scenario's {calltrace} op; --state slims it to the 4 "
+                         "STATE_VAs + caches it (identity-keyed). Pair with house_capture "
+                         "--state so BOTH sides' state shows. (No --state ⇒ not cached.)")
     ap.add_argument("--raw-refs", action="store_true",
                     help="write a full 3 MB v3ref_NNN.raw per kept frame (legacy). Default is "
                          "refhash=1: a fnv1a-64 line per frame in v3refs.txt + a raw every "
@@ -197,9 +204,21 @@ def main() -> int:
             # kept frame a per-present identity — required across mid-window seams.
             run_dirs = sorted(run_root.glob(f"{args.scenario}-openrecet-*"))
             anchors = (run_dirs[-1] / "anchors.jsonl") if run_dirs else None
+            # --state: slim the port's auto-produced call_trace.jsonl ({calltrace} op)
+            # to the 4 STATE_VAs and cache it as the entry's identity-keyed state sidecar.
+            ct_slim = None
+            if args.state and run_dirs:
+                raw = run_dirs[-1] / "call_trace.jsonl"
+                if raw.exists():
+                    ct_slim = run_root / "state_slim.jsonl"
+                    kept = orv3_state.slim_state_trace(raw, ct_slim)
+                    print(f"[state] slimmed {raw.name} → {kept} STATE-VA lines (cached)")
+                else:
+                    print(f"[state] --state but no {raw} — does the scenario have {{calltrace}}?")
             dest, ident = v3cache.preserve_live(args.scenario, "port", args.anchor,
                                                 offset0, trace, arm,
-                                                anchors_path=anchors)
+                                                anchors_path=anchors,
+                                                call_trace_path=ct_slim)
             print(f"[cache] stored port → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
                   f"arm {ident.eff_arm_offset}:{ident.eff_arm_count}, kept {ident.count}, "
                   f"present {ident.present_first}.., "

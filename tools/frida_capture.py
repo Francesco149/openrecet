@@ -461,7 +461,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # (scenario-test --target both) reach the engine through here instead, so
     # without this the agent armed + emitted events but f_call stayed None and
     # the retail call_trace.jsonl was never written.
-    if (not cfg.call_trace and cfg.input_segtrace_path is not None):
+    # (skip on a v3 drive: a v3 capture is d3d-only by default — the {calltrace} op
+    # would auto-load the heavy ~1979-VA call-graph (120k events / ~11 MB on a HOUSE
+    # window) that v3 never caches. A v3 --state drive sets call_trace=True + the 4
+    # once-per-frame state VAs explicitly (house_capture), so the op is honoured there.)
+    if (not cfg.call_trace and cfg.input_segtrace_path is not None
+            and not getattr(cfg, "v3_arm", None)):
         try:
             if '"calltrace"' in Path(cfg.input_segtrace_path).read_text():
                 cfg.call_trace = True
@@ -1134,12 +1139,18 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             # container + hash refs. Gated on v3_arm ⇒ NO effect on v2 captures, and
             # none on the PORT path (port_capture goes through scenario-test, not
             # run_capture(v3_arm=…), and relies on GetBackBuffer AS its keep-trigger).
+            # ALSO strip {calltrace} UNLESS --state (cfg.call_trace): without state the
+            # op would only re-load the heavy uncached call-graph; WITH --state we KEEP
+            # it, because it window-arms the (state-only) call-trace to the kept frames
+            # so the probes don't flood the pre-window load-stretch.
             n_before = len(segtrace_ops)
             segtrace_ops = [o for o in segtrace_ops
-                            if not ("caprange" in o or "capstride" in o)]
+                            if not ("caprange" in o or "capstride" in o
+                                    or ("calltrace" in o and not cfg.call_trace))]
             f_log.write(f"[v3] dropped {n_before - len(segtrace_ops)} v2 caprange/"
-                        f"capstride op(s) — v3_arm set (present-count-armed window; the "
-                        f"v2 readbacks + PNG/montage bake are pure waste on a v3 drive)\n")
+                        f"capstride{'' if cfg.call_trace else '/calltrace'} op(s) — v3_arm "
+                        f"set ({'state call-trace kept' if cfg.call_trace else 'd3d-only'}; "
+                        f"v2 readbacks + bake are pure waste on a v3 drive)\n")
 
     # TAS save virtualization (spawn/replay only): create a per-run sandbox and
     # tell the agent to redirect all save.dat/_save.dat I/O into it, so the replay
@@ -1524,6 +1535,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 d3d_trace: bool = False,
                 d3d_trace_verts: bool = False,
                 call_trace: bool = False,
+                call_trace_vas: list | None = None,
+                call_trace_fields: dict | None = None,
                 suppress_loads: bool = False,
                 capture_local: bool = True,
                 anchor_trace: bool = False,
@@ -1576,6 +1589,12 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         d3d_trace_frames=(list(scenario.capture_frames)
                           if d3d_trace and scenario.capture_frames else None),
         call_trace=call_trace,
+        # Explicit VA/field subset (studio-v3 --state: just the once-per-frame
+        # state probes). None ⇒ the core runner auto-loads the full bisect-vetted
+        # set + every retail_fields VA (the heavy call-graph). Passing both a VA
+        # list AND a non-None field spec skips that auto-load entirely.
+        call_trace_vas=([int(v) for v in call_trace_vas] if call_trace_vas else None),
+        call_trace_fields=call_trace_fields,
         # Drop frame 0 from the call-trace: on retail every pre-first-Present
         # boot call (CRT/MFC + engine init, 1979 hooks) is buffered and flushed
         # into frame 0 — millions of events that are the boot transient, never a

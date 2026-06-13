@@ -103,7 +103,7 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     out = out or (entry / f"slice-{off_a}-{n}")
     out.mkdir(parents=True, exist_ok=True)
     for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"),
-              out / "v3refs.txt", out / "v3meta.json"]:
+              out / "v3refs.txt", out / "v3meta.json", out / "call_trace.jsonl"]:
         f.unlink(missing_ok=True)
 
     # re-emit the sub-window as a standalone container + copy its references 0-based
@@ -116,6 +116,12 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
         offset0=off_a, count=kept, present_first=cont.frames[a].present,
         arm_offset=off_a, arm_count=n, anchors=meta.anchors)
     (out / "v3meta.json").write_text(json.dumps(asdict(sub), indent=1))
+    # Carry the engine-state sidecar forward (a --state capture). It's identity-keyed
+    # and the view filters by the slice's columns, so the full-extent call_trace.jsonl
+    # serves any sub-window unchanged — out-of-window rows simply match no column.
+    ct = entry / "call_trace.jsonl"
+    if ct.exists():
+        shutil.copy2(ct, out / "call_trace.jsonl")
 
     cap_mb = (out / "v3cap.bin").stat().st_size / 1048576
     say(f"[slice] {meta.side} {meta.anchor}#{meta.anchor_occ}  offsets {off_a}..{off_a + n - 1} "

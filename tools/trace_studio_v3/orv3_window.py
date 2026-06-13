@@ -99,13 +99,15 @@ def port_stale(entry: Path) -> bool:
 
 
 def drive_retail(scenario: str, anchor: str, cr_start: int, cr_n: int,
-                 max_frames: int | None, verify: bool) -> None:
+                 max_frames: int | None, verify: bool, state: bool) -> None:
     cmd = [sys.executable, str(HOUSE_DRV), "--scenario", scenario, "--anchor", anchor,
            "--offset", str(cr_start), "--count", str(cr_n)]
     if max_frames is not None:
         cmd += ["--max-frames", str(max_frames)]
     if not verify:
         cmd += ["--no-verify"]
+    if state:
+        cmd += ["--state"]
     print(f"[loop]  RETAIL miss → driving full caprange extent [{cr_start},{cr_start + cr_n}) "
           f"(the load-stretch, paid ONCE): {' '.join(cmd[2:])}")
     r = subprocess.run(cmd, cwd=ROOT)
@@ -113,10 +115,12 @@ def drive_retail(scenario: str, anchor: str, cr_start: int, cr_n: int,
         raise SystemExit(f"[fail] retail drive (house_capture.py) exited {r.returncode}")
 
 
-def drive_port(scenario: str, anchor: str, verify: bool) -> None:
+def drive_port(scenario: str, anchor: str, verify: bool, state: bool) -> None:
     cmd = [sys.executable, str(PORT_DRV), scenario, "--anchor", anchor]
     if not verify:
         cmd += ["--no-verify"]
+    if state:
+        cmd += ["--state"]
     print(f"[loop]  PORT drive (fast — no load-stretch): {' '.join(cmd[2:])}")
     r = subprocess.run(cmd, cwd=ROOT)
     if r.returncode != 0:
@@ -125,19 +129,28 @@ def drive_port(scenario: str, anchor: str, verify: bool) -> None:
 
 def ensure_side(side: str, scenario: str, anchor: str, req_off: int, req_n: int,
                 cr_start: int, cr_n: int, trace_path: Path, *, force: bool,
-                reuse: bool, max_frames: int | None, verify: bool) -> tuple[Path, str]:
+                reuse: bool, max_frames: int | None, verify: bool,
+                state: bool) -> tuple[Path, str]:
     """Return (full_extent_entry_dir, action) for `side`, driving only on a real miss
-    (or, for the port, a rebuild). action describes what happened, for the report."""
+    (or, for the port, a rebuild; or, with --state, a cache that lacks engine state).
+    action describes what happened, for the report."""
     entry = None if force else v3cache.find_extent(scenario, side, anchor, req_off, req_n, trace_path)
     action = "slice-cached"
     if entry and side == "port" and not reuse and port_stale(entry):
         print(f"[loop]  PORT cache is STALE (build/openrecet.exe rebuilt since capture) → re-drive")
         entry = None
+    # --state but the cached extent was captured without it ⇒ re-drive WITH state
+    # (state isn't in the cache key — it doesn't change pixels — so a same-key entry
+    # may legitimately lack call_trace.jsonl; force the drive to add it).
+    if entry is not None and state and not (entry / "call_trace.jsonl").exists():
+        print(f"[loop]  {side.upper()} cache has no engine state (call_trace.jsonl) but "
+              f"--state requested → re-drive with state")
+        entry = None
     if entry is None:
         if side == "retail":
-            drive_retail(scenario, anchor, cr_start, cr_n, max_frames, verify)
+            drive_retail(scenario, anchor, cr_start, cr_n, max_frames, verify, state)
         else:
-            drive_port(scenario, anchor, verify)
+            drive_port(scenario, anchor, verify, state)
         entry = v3cache.find_extent(scenario, side, anchor, req_off, req_n, trace_path)
         if entry is None:
             raise SystemExit(f"[fail] {side} drove but produced no extent containing "
@@ -180,6 +193,12 @@ def main() -> int:
     ap.add_argument("--force-port", action="store_true", help="re-drive the port even if cached/fresh.")
     ap.add_argument("--reuse-port", action="store_true",
                     help="slice the cached port even if the exe was rebuilt (skip the freshness check).")
+    ap.add_argument("--state", action="store_true",
+                    help="ALSO capture+show the once-per-frame engine state (the viewer's "
+                         "game-state panel: rng / player+companion px/py/anim / menu / dialogue). "
+                         "Drives BOTH sides with --state; a cached extent without state is re-driven "
+                         "to add it (state isn't in the cache key). Negligible capture cost — the "
+                         "probes are window-gated. Off by default (keeps the d3d capture lean).")
     ap.add_argument("--no-verify", action="store_true",
                     help="skip the per-frame bit-exact replay checks (drive + slice).")
     ap.add_argument("--max-frames", type=int, default=None,
@@ -213,10 +232,12 @@ def main() -> int:
     # Per side: cache-hit ⇒ slice; miss/stale ⇒ drive (only what's needed), then slice.
     retail_entry, r_act = ensure_side(
         "retail", args.scenario, args.anchor, req_off, req_n, cr_start, cr_n, trace_path,
-        force=args.force_retail, reuse=False, max_frames=args.max_frames, verify=verify)
+        force=args.force_retail, reuse=False, max_frames=args.max_frames, verify=verify,
+        state=args.state)
     port_entry, p_act = ensure_side(
         "port", args.scenario, args.anchor, req_off, req_n, cr_start, cr_n, trace_path,
-        force=args.force_port, reuse=args.reuse_port, max_frames=args.max_frames, verify=verify)
+        force=args.force_port, reuse=args.reuse_port, max_frames=args.max_frames, verify=verify,
+        state=args.state)
 
     win_dir = WIN_ROOT / args.scenario / f"win-{req_off}-{req_n}"
     retail_win, r_note = materialize_window(retail_entry, req_off, req_n, win_dir / "retail", verify)
