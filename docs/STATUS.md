@@ -582,8 +582,11 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   --align-field db054` runs UNCHANGED on the v3 cache** (HOUSE = ✅ PHASE-CLEAN, rng 48/48
   bit-exact, rngcalls per-frame match) — the whole RNG/phase determinism check, drop-in; the
   `flow_diff` suite (`--field-timeline`/`--rng-drill`) reads the v3 traces as-is. **CLAUDE.md
-  now points the parity loop at v3** (v2 retired). Then the formal **P4** parity-check (reproduce
-  a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan: `plans/trace-studio-v3.md` P3/N4/P4.
+  now points the parity loop at v3** (v2 retired). **P4 CORE CHECK ✅ PASSED 2026-06-13:** the v3
+  HOUSE verdict (`flow_diff --verdict --align-field db054` on the `--state` cache) = ✅ PHASE-CLEAN
+  (33 counters bit-exact, rng 48/48), matching v2's PHASE-CLEAN on the same pinned HOUSE; full
+  formal send-off (byte-level v2-vs-v3 call_trace on a rich session, then the v2-code archive
+  move) is the deliberate user-overseen remainder. Plan: `plans/trace-studio-v3.md` P3/N4/P4.
 - **RENDER-PROGRAM DRILL (using the v3 draw-program panel) — new active parity thread,
   2026-06-13.** First parity fix found purely from the render-PROGRAM (a divergence on
   pixel-bit-exact frames, v2-invisible). **Guild conversation bg+keeper double-draw ✅ FIXED

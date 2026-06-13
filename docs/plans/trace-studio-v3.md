@@ -678,6 +678,17 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   session in v3, verdict matches v2. v2 is ALREADY retired as the working tool (user call
   2026-06-13 — notes was the last gap); P4 is the belt-and-suspenders proof before the v2
   code is physically archived. The perf follow-ups above land first (the iteration loop).
+  - **CORE CHECK ✅ PASSED (2026-06-13):** `flow_diff.py --verdict --align-field db054` on the
+    v3-captured HOUSE cache (`house-loaded-display-pinned-26e5aec3`, `--state` call_trace) =
+    **✅ PHASE-CLEAN** — all 33 house_update counters bit-exact/within-eps, rngcalls ALIGNED,
+    rng **48/48 frames bit-exact**. This matches v2's verdict on the same canonical pinned
+    HOUSE (PHASE-CLEAN), so the v3-captured call-trace feeds the verdict tool equivalently to
+    v2 (the tool + format are unchanged from v2; only the CAPTURE source differs). The
+    render-program pillar is independently exercised (the guild double-draw fix `2a2d84d` +
+    the HOUSE 98-vs-125 draw finding). **Remaining for the FULL formal send-off** (deliberate,
+    user-overseen, since it gates physically archiving the v2 code): a byte-level v2-capture-
+    vs-v3-capture call_trace comparison on a rich gameplay session (vs the static HOUSE), then
+    the archive move itself.
 
 ## Honest note on "10×"
 The 10× is on the **iteration loop**, not one axis: retail-caching + window-early-exit kill
