@@ -307,18 +307,52 @@ Draw primitives all already in the port: `render_quad_add`
       (2) run the downsample→blur-accumulate→full-screen passes. The exact pass
       geometry/blur taps are now READABLE per-draw via `orv3_rt.py … 41 --full` +
       `orv3_draws.py` (vertex/UV dump) — port from the stream, not the decompile.
-- **M4 — the SAVE submenu (entry type 3) ← NEXT (user-requested 2026-06-13, next session).**
-  "add 2x down + Z to open save from pause menu and implement that submenu." The `A`-press
-  (input bit 0x10 = Z) on the **Save** row drives `sel_anim` to commit → `sub_anim` ramps
-  0→10 → at `sub_anim==10` the type-3 dispatch fires (`FUN_004812e4`, the L83949 branch of
-  the render `sub_anim>0` block; the matching update path in `FUN_0047fa76`). Port the type-3
-  submenu update + render (the in-pause save-slot picker / "Save complete" flow).
-  **Trace first:** synthesize a `house-pause`-derived scenario that navigates to Save then
-  presses Z. House entry list = `[1,6,2,3,4]` (Items·Encyclopedia·Options·**Save**·Exit) ⇒
-  Save = index 3; **verify 2×down from the default selection lands on it** before trusting the
-  "2x down + Z" input (the default sel may not be index 1, and the nav doesn't wrap unless at
-  an edge — confirm via the v3 state panel / a quick draw-count probe). The submenu open reuses
-  the `g_pause_sub_anim` ramp the M2c slide already consumes.
+- **M4 — the SAVE submenu (entry type 3) — IN PROGRESS (2026-06-14).** RE + trace +
+  capture DONE; the FUN_0049b556 render port is the remaining (large) piece.
+  - **Trace `house-pause-save` ✅ (committed):** ESC → **3×down** → Z opens the type-3
+    submenu. **Correction: the user said "2x down" but it's 3×down** — house list `[1,6,2,3,4]`,
+    default sel=0 (Items), Save = index 3 (Items→Enc→Opt→Save). **New `PAUSE_READY` anchor**
+    (load-end edge gated on scene==9) is the robust nav sync: PAUSE_OPEN fires PRE-load and
+    only on the port (retail's pause never sets the b150 cursor flag), and the pause asset-load
+    stretches wildly per side (port ~1-156f, **retail ~1800f**). Nav rebased on PAUSE_READY+30;
+    v3 join **299/299** across a +4289-frame stretch. Also fixed a v3 capture-race
+    (`wait_for_capture`, DrvFs FINALIZE visibility). Commits: PAUSE_READY anchor + scenario;
+    the race fix.
+  - **Scope (bigger than the framing):** the Save submenu IS the **full save-file selection
+    screen** — a VERTICAL list of slot cards (RE'd + captured, retail frame on feed): file#
+    (`000`,`001`,…), and for an OCCUPIED slot a portrait/clock + gold("pix") + "Merchant Level N"
+    + SCORE + LOOP + TIME h:mm:ss; EMPTY slots show "NO DATA". This scenario's save occupies
+    slot 0 (000, TIME 0:03:50), 001-003 empty. **retail 189 draws vs port 10** at the rested
+    submenu (`orv3_draws` on `house-pause-save-f2254122`). The render `FUN_0049b556` is **SHARED
+    with the title continue-picker** (whose render is the deferred PORT-DEBT in
+    `title_continue_picker.c`) — porting it serves both.
+  - **RE map (the type-3 chain):** nav-commit `FUN_00480614` sel_anim==0xf → `LAB_004806a1`
+    shared reset + the **type-3 branch** (clear `c89c`/`c8a0`/`DAT_09643564`; `FUN_0049b537`
+    inits the slot-perm `DAT_09643380`[0..99] + count `DAT_005d1bbc`=100; `val[cur]=last_slot`
+    `DAT_056e578c`, `val2[cur]=last_slot-2`) → sub_anim ramp. Update `FUN_0047fa76` sub_anim==10
+    → **`FUN_0047f5bc`** (slot-# picker nav: U/D ±1, L/R ±3, the rolling-number latches
+    `c894`/`c898`, A-commit → overwrite-confirm if occupied / dungeon-save dialog, B-cancel).
+    Render `FUN_004820ba` sub_anim>0 → **`FUN_004812e4`** (wrapper: calls `FUN_0049b556` at
+    rest; + a 2-quad save-progress bar when `c89c>0`) → **`FUN_0049b556`** (2810 B — the card
+    list; center pass renders 5 rows, slot = perm[row+prev-1], y=row·140-92; per-card
+    box/number/portrait/metadata; the wing passes are off-screen at rest). Commit
+    `FUN_004905a8` (working bank → slot bank + checksum + write save.dat/_save.dat) =
+    **M4c PORT-DEBT** (the trace doesn't press A on the picker → never exercised).
+  - **Data ready:** `save_bank.h` already models the 100-bank arena (`save_bank_dwords_at`) +
+    the picker field constants (SCORE 0xb0f7 / LOOP 0xb0f9 / CARD_DAY 0xb0fb / PORTRAIT_ROT
+    0xb0fc / CHAR_LEVEL 0xb100 / GAME_MODE 0xb759 / PLAYTIME 2). Render helpers all exist:
+    `font_draw_text`/`_centered`/`_right` (FUN_0047ca05/d14c/d2db), `render_quad_add`/`_flush`/
+    `_state_setup`, `render_quad_draw_rotated_rect` (FUN_00406241 portrait),
+    `scene1_top_hud_draw_number` (gold), `scene1_merchant_hud_draw_level` (level); textures
+    `g_sysassets.item_win_tga` (DAT_073d8748) + `g_scene_pause_pause`/board.
+  - **NEXT (the render arc):** port `FUN_0049b556` (+ `FUN_0049b537` perm + `FUN_004812e4`
+    wrapper) — best as a shared `save_picker.{c,h}` (title can adopt it later), exercised by the
+    pause type-3 render dispatch + the nav-commit + an inert-then-wired `FUN_0047f5bc`. Verify
+    via the v3 **draw-program panel** (`orv3_draws` — the per-frame pixel self-verify is
+    DIVERGENT here = the known RT-backdrop replayer limit, use `replay.exe --history` + the
+    draw program, like M3) then the user's visual 1:1. **Pixel-1:1 caveat:** the per-frame
+    replayer can't reconstruct the pause RT backdrop ⇒ self-verify FAILS (expected); compare
+    the submenu via the draw program + `--history`.
 - **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
   Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
   fade + action-1/2 pause variants; the unpause cursor restore.

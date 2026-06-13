@@ -411,17 +411,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   WHOLE resting pause menu — backdrop + option list + header + calendar + numbers — is now 1:1).
   **PORT-DEBT(pause-xp-anim):** the XP-display animator (shared with the merchant HUD's stubbed
   `set_xp`) stays unported (only matters mid-rank-up).
-  **→ NEXT ARC (user-requested 2026-06-13, next session): the SAVE submenu (entry type 3).**
-  "add 2x down + Z to open save from pause menu and implement that submenu" — synthesize a
-  `house-pause`-derived trace that navigates to **Save** then presses **Z** (A/confirm, input bit
-  0x10) to open the type-3 submenu, and port `FUN_004820ba`'s `sub_anim>0` type-3 dispatch
-  (L83931-83952 → `FUN_004812e4`) + the save-submenu update/render. **Verify the nav first:** the
-  house entry list is `[1,6,2,3,4]` (Items·Encyclopedia·Options·**Save**·Exit) so Save = index 3;
-  confirm 2×down from the default selection actually lands on it (else adjust the trace / it may
-  start on a non-Items row). The submenu open uses the `g_pause_sub_anim` ramp the M2c slide
-  already consumes. **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants
-  (PORT-DEBT in the M3 code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm +
-  unpause cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
+  **→ ACTIVE ARC: the SAVE submenu (entry type 3) — RE+trace+capture DONE 2026-06-14; the
+  render port is the remaining piece.** Full status: `plans/pause-menu.md` M4. **Trace
+  `house-pause-save` ✅ committed** (ESC → **3×down** [the user said "2x" but Save is index 3 in
+  `[1,6,2,3,4]`] → Z): a new **`PAUSE_READY` anchor** (load-end edge gated on scene==9) syncs the
+  nav past the per-side-variable pause asset-load (port ~1-156f vs **retail ~1800f**; PAUSE_OPEN
+  is no good — pre-load + port-only) — v3 join **299/299** across a +4289-frame stretch; also a
+  v3 capture-race fix (`wait_for_capture`). **Scope (bigger than the framing):** the Save submenu
+  is the **full save-file selection list** — vertical slot cards (file#, and for an occupied slot
+  a portrait + gold + "Merchant Level N" + SCORE/LOOP/TIME, else "NO DATA"); **retail 189 draws vs
+  port 10** at rest (this save occupies slot 000, TIME 0:03:50). The render **`FUN_0049b556` is
+  SHARED with the title continue-picker** (its render is the deferred PORT-DEBT in
+  `title_continue_picker.c`) ⇒ porting it serves both. **NEXT:** port `FUN_0049b556` (+`FUN_0049b537`
+  perm +`FUN_004812e4` wrapper) — likely a shared `save_picker.{c,h}` — driven by the type-3
+  nav-commit (sel_anim==0xf → `FUN_0049b537` + val=last_slot) + update dispatch (sub_anim==10 →
+  `FUN_0047f5bc`) + render dispatch (sub_anim>0). save_bank already models the 100-bank arena +
+  picker fields; all render helpers exist. **M4c PORT-DEBT:** the save COMMIT (`FUN_004905a8` disk
+  write) — the trace opens the picker but never presses A on it, so commit is unexercised. **Verify
+  via the v3 draw-program panel + `replay.exe --history`** (the per-frame replayer can't reconstruct
+  the pause RT backdrop ⇒ the pixel self-verify is DIVERGENT here, expected — M3's known limit).
+  **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
+  code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm + unpause
+  cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game
