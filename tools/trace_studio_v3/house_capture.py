@@ -98,6 +98,9 @@ def main() -> int:
                     help="override the scenario's wall-clock ceiling (ms).")
     ap.add_argument("--no-verify", action="store_true",
                     help="capture only; skip the per-frame bit-exact replay check.")
+    ap.add_argument("--raw-refs", action="store_true",
+                    help="write a full 3 MB v3ref_NNN.raw per kept frame (legacy; default "
+                         "is refhash=1 — fnv1a-64 lines in v3refs.txt + a raw every 500th).")
     ap.add_argument("--keep-proxy", action="store_true",
                     help="leave d3d8.dll + v3proxy.cfg staged in vendor/unpacked/ "
                          "(default: unstage on exit — a staged proxy would load into "
@@ -133,11 +136,13 @@ def main() -> int:
 
     # Stage proxy + armwait cfg. NO capframe: the agent arms the present-window
     # live at the anchor (config.v3_arm → OrV3ArmWindowAt). armwait makes the proxy
-    # idle (keep nothing) until then.
+    # idle (keep nothing) until then. refhash (default): references are fnv1a-64
+    # lines in v3refs.txt + a raw every 500th — the thousands-of-frames shape.
     shutil.copy2(PROXY_SRC, PROXY_DLL)
     cfg_path = PROXY_DLL.parent / "v3proxy.cfg"
-    cfg_path.write_text("armwait=1\n")
-    print(f"[stage] {PROXY_DLL.name} + v3proxy.cfg(armwait=1) → ARM "
+    cfg_lines = ["armwait=1"] + ([] if args.raw_refs else ["refhash=1", "refraw_every=500"])
+    cfg_path.write_text("".join(ln + "\n" for ln in cfg_lines))
+    print(f"[stage] {PROXY_DLL.name} + v3proxy.cfg({','.join(cfg_lines)}) → ARM "
           f"{args.anchor}+{args.offset}:{args.count} (agent in-process)")
 
     # Clear stale capture in the proxy's output dir.
@@ -145,7 +150,7 @@ def main() -> int:
     v3.mkdir(parents=True, exist_ok=True)
     cap = v3 / "v3cap.bin"
     log = v3 / "v3proxy.log"
-    for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3replay_chk.raw"]:
+    for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3refs.txt", v3 / "v3replay_chk.raw"]:
         f.unlink(missing_ok=True)
 
     run_dir = args.run_dir or (ROOT / "runs" / "studio-v3-experiments" /

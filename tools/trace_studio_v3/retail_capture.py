@@ -79,35 +79,11 @@ def openrecet_screen_dims() -> tuple[int, int]:
 
 
 def replay_verify(v3: Path, n: int) -> int:
-    """Replay every kept frame index and assert bit-exact vs its reference."""
-    if not REPLAY_EXE.exists():
-        raise SystemExit(f"replayer not built: {REPLAY_EXE} — `make` in replay/")
-    cap_w = wslpath_w(v3 / "v3cap.bin")
-    chk_w = wslpath_w(v3 / "v3replay_chk.raw")
-    npass = nfail = 0
-    first_fail = None
-    print(f"[verify] replaying all {n} kept frames …")
-    for i in range(n):
-        ref = v3 / f"v3ref_{i:03d}.raw"
-        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(ref), str(i), chk_w],
-                           capture_output=True, text=True)
-        db = None
-        for ln in (r.stdout + r.stderr).splitlines():
-            if "differing bytes" in ln:
-                db = ln.split(":", 1)[1].split("(")[0].strip()
-        if db == "0":
-            npass += 1
-        else:
-            nfail += 1
-            if first_fail is None:
-                first_fail = f"frame {i}: differing bytes={db!r} (exit {r.returncode})"
-    print("=" * 48)
-    print(f"  BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
-    if first_fail:
-        print(f"  first failure: {first_fail}")
-    print(f"  VERDICT: {'ALL FRAMES BIT-EXACT *** GO ***' if nfail == 0 else 'DIVERGENT'}")
-    print("=" * 48)
-    return 0 if nfail == 0 else 1
+    """Replay every kept frame and assert bit-exact vs its reference (hash refs
+    via v3refs.txt when the proxy wrote them, else the per-frame raw loop) —
+    delegated to the shared v3verify module."""
+    import v3verify
+    return v3verify.verify_dir(v3, n)
 
 
 def main() -> int:

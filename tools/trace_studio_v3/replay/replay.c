@@ -2,10 +2,17 @@
  *
  * The render logic now lives in replay_core.{c,h} (resident: device + resources
  * created once, any frame on demand) — shared with the native viewer. This CLI keeps
- * the two jobs the harness relies on:
- *   replay <cap.bin> <ref.raw> [frame-index] [out.raw]   single-frame bit-exact check
- *                                                         (port_capture greps "differing bytes")
- *   replay <cap.bin> --bench [frame-index] [iters]        resident per-render latency
+ * the jobs the harness relies on:
+ *   replay <cap.bin> <ref.raw> [frame-index] [out.raw]    single-frame bit-exact check
+ *                                                          (port_capture greps "differing bytes")
+ *   replay <cap.bin> --verify-hashes <v3refs.txt>         BATCH bit-exact check: render
+ *                                                          every listed frame RESIDENT and
+ *                                                          compare its fnv1a-64 to the
+ *                                                          proxy's refhash line — the
+ *                                                          thousands-of-frames path (no
+ *                                                          per-frame process spawn, no GBs
+ *                                                          of raw references)
+ *   replay <cap.bin> --bench [frame-index] [iters]         resident per-render latency
  *
  * Build: i686-w64-mingw32-gcc (links the REAL d3d8). Run from a dir WITHOUT the
  * proxy d3d8.dll.
@@ -21,6 +28,53 @@
 #include "replay_core.h"
 
 static uint32_t ru(FILE *f) { uint32_t v = 0; if (fread(&v, 4, 1, f) != 1) return 0xffffffffu; return v; }
+
+/* fnv1a-64 — MUST match the proxy's (d3d8_proxy.c) so a refhash line verifies. */
+static uint64_t fnv1a(const void *p, size_t n)
+{
+    const uint8_t *b = (const uint8_t*)p; uint64_t h = 0xcbf29ce484222325ull;
+    for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 0x100000001b3ull; }
+    return h;
+}
+
+/* batch verify vs the proxy's v3refs.txt: render every listed kept frame on the
+ * RESIDENT core and compare fnv1a-64 of the re-rendered pixels to the recorded
+ * hash. One process for the whole window — the only way a thousands-of-frames
+ * container verifies in seconds. */
+static int verify_hashes(OrV3Replay *r, const char *refs_path)
+{
+    FILE *f = fopen(refs_path, "r");
+    if (!f) { fprintf(stderr, "no refs file %s\n", refs_path); return 2; }
+    uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
+    int npass = 0, nfail = 0, ntotal = 0;
+    char line[256], first_fail[128] = {0};
+    while (fgets(line, sizeof line, f)) {
+        unsigned kept, present, w, h; unsigned long long want;
+        if (sscanf(line, "REF %u present=%u w=%u h=%u fnv64=%llx",
+                   &kept, &present, &w, &h, &want) != 5)
+            continue;
+        ntotal++;
+        const char *why = NULL;
+        if (w != W || h != H) why = "dims";
+        const uint8_t *px = why ? NULL : orv3_replay_render(r, (int)kept);
+        if (!why && !px) why = "render-failed";
+        if (!why && fnv1a(px, (size_t)W * H * 4u) != want) why = "hash";
+        if (why) {
+            nfail++;
+            printf("FAIL kept=%u present=%u (%s)\n", kept, present, why);
+            if (!first_fail[0])
+                snprintf(first_fail, sizeof first_fail, "kept=%u present=%u (%s)", kept, present, why);
+        } else {
+            npass++;
+        }
+    }
+    fclose(f);
+    printf("\n==== HASH VERIFY (resident, %d frames) ====\n", ntotal);
+    printf("HASHVERIFY pass=%d fail=%d total=%d\n", npass, nfail, ntotal);
+    if (first_fail[0]) printf("  first failure: %s\n", first_fail);
+    printf("  VERDICT: %s\n", (nfail == 0 && ntotal > 0) ? "ALL FRAMES BIT-EXACT  *** GO ***" : "DIVERGENT");
+    return (nfail == 0 && ntotal > 0) ? 0 : 1;
+}
 
 static int bench(OrV3Replay *r, int idx, int iters)
 {
@@ -52,6 +106,14 @@ int main(int argc, char **argv)
     char err[128] = {0};
     OrV3Replay *r = orv3_replay_open(cappath, err, sizeof err);
     if (!r) { fprintf(stderr, "open failed: %s\n", err); return 2; }
+
+    if (strcmp(argv[2], "--verify-hashes") == 0) {
+        if (argc < 4) { fprintf(stderr, "usage: replay <cap.bin> --verify-hashes <v3refs.txt>\n");
+                        orv3_replay_close(r); return 2; }
+        int rc = verify_hashes(r, argv[3]);
+        orv3_replay_close(r);
+        return rc;
+    }
 
     if (strcmp(argv[2], "--bench") == 0) {
         int idx = argc > 3 ? atoi(argv[3]) : 0;

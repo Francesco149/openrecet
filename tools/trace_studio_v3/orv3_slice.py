@@ -36,6 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import orv3       # noqa: E402
 import v3cache    # noqa: E402
+import v3verify   # noqa: E402
 
 REPLAY_EXE = Path(__file__).resolve().parent / "replay" / "replay.exe"
 
@@ -43,6 +44,27 @@ REPLAY_EXE = Path(__file__).resolve().parent / "replay" / "replay.exe"
 def wslpath_w(p: Path) -> str:
     return subprocess.run(["wslpath", "-w", str(p)], capture_output=True, text=True,
                           check=True).stdout.strip()
+
+
+def slice_refs(entry: Path, out: Path, a: int, b: int) -> None:
+    """Copy the references for kept-index range [a, b) into `out`, renumbered
+    0-based. Handles BOTH shapes: v3refs.txt hash lines (subset + renumber the
+    kept field — the n-frames path) and v3ref_NNN.raw files (copy those that
+    exist; sparse when the capture ran refhash + refraw_every)."""
+    refs = entry / "v3refs.txt"
+    if refs.exists():
+        kept_lines = []
+        for ln in refs.read_text().splitlines():
+            parts = ln.split(maxsplit=2)
+            if len(parts) == 3 and parts[0] == "REF" and parts[1].isdigit():
+                k = int(parts[1])
+                if a <= k < b:
+                    kept_lines.append(f"REF {k - a} {parts[2]}")
+        (out / "v3refs.txt").write_text("".join(ln + "\n" for ln in kept_lines))
+    for i in range(a, b):
+        src = entry / f"v3ref_{i:03d}.raw"
+        if src.exists():
+            shutil.copy2(src, out / f"v3ref_{i - a:03d}.raw")
 
 
 def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
@@ -70,13 +92,13 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     b = a + n
     out = out or (entry / f"slice-{off_a}-{n}")
     out.mkdir(parents=True, exist_ok=True)
-    for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"), out / "v3meta.json"]:
+    for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"),
+              out / "v3refs.txt", out / "v3meta.json"]:
         f.unlink(missing_ok=True)
 
     # re-emit the sub-window as a standalone container + copy its references 0-based
     (out / "v3cap.bin").write_bytes(cont.slice_window(a, b))
-    for i in range(n):
-        shutil.copy2(entry / f"v3ref_{a + i:03d}.raw", out / f"v3ref_{i:03d}.raw")
+    slice_refs(entry, out, a, b)
     sub = v3cache.FrameIdentity(
         side=meta.side, scenario=meta.scenario, anchor=meta.anchor,
         anchor_occ=meta.anchor_occ, anchor_frame=meta.anchor_frame,
@@ -92,32 +114,8 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     if not verify:
         return out, -1, -1
 
-    if not REPLAY_EXE.exists():
-        raise SystemExit(f"replayer not built: {REPLAY_EXE} — `make` in replay/")
-    cap_w = wslpath_w(out / "v3cap.bin")
-    chk_w = wslpath_w(out / "v3slice_chk.raw")
-    npass = nfail = 0
-    first_fail = None
-    say(f"[verify] replaying all {n} sliced frames …")
-    for i in range(n):
-        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(out / f"v3ref_{i:03d}.raw"),
-                            str(i), chk_w], capture_output=True, text=True)
-        db = None
-        for ln in (r.stdout + r.stderr).splitlines():
-            if "differing bytes" in ln:
-                db = ln.split(":", 1)[1].split("(")[0].strip()
-        if db == "0":
-            npass += 1
-        else:
-            nfail += 1
-            if first_fail is None:
-                first_fail = f"slice frame {i} (offset {off_a + i}): differing bytes={db!r}"
-    say("=" * 48)
-    say(f"  SLICE BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
-    if first_fail:
-        say(f"  first failure: {first_fail}")
-    say(f"  VERDICT: {'ALL SLICED FRAMES BIT-EXACT — cache slice is sound' if nfail == 0 else 'DIVERGENT'}")
-    say("=" * 48)
+    npass, nfail, _total = v3verify.verify_counts(out, n, label=f"slice {off_a}:{n}",
+                                                  quiet=quiet)
     return out, npass, nfail
 
 

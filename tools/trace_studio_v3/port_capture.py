@@ -48,6 +48,7 @@ DEFAULT_SCENARIO = "house-loaded-display-pinned"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v3cache                                                         # noqa: E402
+import v3verify                                                        # noqa: E402
 
 
 def caprange_of(scenario: str) -> tuple[int, int] | None:
@@ -101,6 +102,10 @@ def main() -> int:
                          "caprange's base anchor, e.g. HOUSE_FREEROAM == LOADING_END here).")
     ap.add_argument("--no-cache", action="store_true",
                     help="skip caching the capture + its stored identity (MULTI mode only).")
+    ap.add_argument("--raw-refs", action="store_true",
+                    help="write a full 3 MB v3ref_NNN.raw per kept frame (legacy). Default is "
+                         "refhash=1: a fnv1a-64 line per frame in v3refs.txt + a raw every "
+                         "500th — the only shape that scales to thousands-of-frames windows.")
     args = ap.parse_args()
 
     win_start = win_count = None
@@ -123,20 +128,26 @@ def main() -> int:
     cap = v3 / "v3cap.bin"
     log = v3 / "v3proxy.log"
 
-    # stage proxy + clear stale capture. A v3proxy.cfg selects WINDOW mode (present-
-    # count keep, like retail); without it the port runs the GetBackBuffer MULTI
-    # trigger. --window writes the cfg, else ensure none lingers from a prior run.
+    # stage proxy + clear stale capture. A v3proxy.cfg's capframe selects WINDOW
+    # mode (present-count keep, like retail); without one the port runs the
+    # GetBackBuffer MULTI trigger. refhash (default) makes references fnv1a-64
+    # lines in v3refs.txt instead of a 3 MB raw per frame.
     shutil.copy2(PROXY_DLL, STAGED_DLL)
     cfg = STAGED_DLL.parent / "v3proxy.cfg"
+    cfg_lines = [] if args.raw_refs else ["refhash=1", "refraw_every=500"]
     if win_start is not None:
-        cfg.write_text(f"capframe={win_start}\ncapcount={win_count}\n")
+        cfg_lines += [f"capframe={win_start}", f"capcount={win_count}"]
         mode = f"WINDOW [{win_start},{win_start + win_count})"
     else:
-        cfg.unlink(missing_ok=True)
         mode = "MULTI (GetBackBuffer)"
-    for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3replay_chk.raw"]:
+    if cfg_lines:
+        cfg.write_text("".join(ln + "\n" for ln in cfg_lines))
+    else:
+        cfg.unlink(missing_ok=True)
+    for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3refs.txt", v3 / "v3replay_chk.raw"]:
         f.unlink(missing_ok=True)
-    print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  ({mode}, out={v3})")
+    print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  ({mode}, "
+          f"refs={'raw' if args.raw_refs else 'hash'}, out={v3})")
 
     try:
         print(f"[run]   scenario-test {args.scenario} --target openrecet …")
@@ -188,33 +199,7 @@ def main() -> int:
         print("[skip] --no-verify: not replaying")
         return 0
 
-    cap_w = wslpath_w(cap)
-    chk_w = wslpath_w(v3 / "v3replay_chk.raw")
-    npass = nfail = 0
-    first_fail = None
-    print(f"[verify] replaying all {n} kept frames …")
-    for i in range(n):
-        ref = v3 / f"v3ref_{i:03d}.raw"
-        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(ref), str(i), chk_w],
-                           capture_output=True, text=True)
-        db = None
-        for ln in (r.stdout + r.stderr).splitlines():
-            if "differing bytes" in ln:
-                db = ln.split(":", 1)[1].split("(")[0].strip()
-        if db == "0":
-            npass += 1
-        else:
-            nfail += 1
-            if first_fail is None:
-                first_fail = f"frame {i}: differing bytes={db!r} (exit {r.returncode})"
-
-    print("=" * 48)
-    print(f"  BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
-    if first_fail:
-        print(f"  first failure: {first_fail}")
-    print(f"  VERDICT: {'ALL FRAMES BIT-EXACT *** GO ***' if nfail == 0 else 'DIVERGENT'}")
-    print("=" * 48)
-    return 0 if nfail == 0 else 1
+    return v3verify.verify_dir(v3, n, label=f"{args.scenario} port capture")
 
 
 if __name__ == "__main__":

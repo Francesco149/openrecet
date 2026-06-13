@@ -83,20 +83,23 @@ def entry_dir(scenario: str, key: str, side: str) -> Path:
 
 
 def store(dest: Path, ident: FrameIdentity, src: Path | None = None) -> Path:
-    """Copy the live capture (v3cap.bin + v3ref_*.raw) from `src` (default the
-    proxy's %LOCALAPPDATA% dir) into `dest`, and write v3meta.json = the stored
-    identity. Returns `dest`."""
+    """Copy the live capture (v3cap.bin + references: v3refs.txt hash lines and/or
+    v3ref_*.raw) from `src` (default the proxy's %LOCALAPPDATA% dir) into `dest`,
+    and write v3meta.json = the stored identity. Returns `dest`."""
     src = src or localappdata_v3()
     cap = src / "v3cap.bin"
     if not cap.exists():
         raise FileNotFoundError(f"no live capture at {cap}")
     dest.mkdir(parents=True, exist_ok=True)
     # clear any stale prior entry so a shorter window can't leave orphan refs
-    for f in [dest / "v3cap.bin", *dest.glob("v3ref_*.raw"), dest / "v3meta.json"]:
+    for f in [dest / "v3cap.bin", *dest.glob("v3ref_*.raw"),
+              dest / "v3refs.txt", dest / "v3meta.json"]:
         f.unlink(missing_ok=True)
     shutil.copy2(cap, dest / "v3cap.bin")
     for ref in sorted(src.glob("v3ref_*.raw")):
         shutil.copy2(ref, dest / ref.name)
+    if (src / "v3refs.txt").exists():
+        shutil.copy2(src / "v3refs.txt", dest / "v3refs.txt")
     (dest / "v3meta.json").write_text(json.dumps(asdict(ident), indent=1))
     return dest
 

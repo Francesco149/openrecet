@@ -86,12 +86,22 @@ static HINSTANCE g_self;
  *                own, or a leftover agent capture) as a bogus load frame. With
  *                armwait the proxy keeps NOTHING until the runtime arm sets the
  *                present-window, then the WINDOW branch alone decides keeps.
+ *   refhash=1    HASH references instead of raw ones: per kept frame, append a
+ *                line to v3refs.txt (kept#, present, dims, fnv1a-64 of the BGRA
+ *                pixels) and write NO v3ref_NNN.raw. A thousands-of-frames window
+ *                at 3 MB/raw would be GBs of duplicate pixels; the hash carries
+ *                the same bit-exactness check (replay --verify-hashes recomputes
+ *                it over the re-rendered frame).
+ *   refraw_every=N  with refhash: still write a full v3ref_NNN.raw every N kept
+ *                frames (spot-check / divergence forensics anchor). 0 = none.
  *   out=PATH     Windows dir for the container/log/reference (default LOCALAPPDATA)
  * getenv stays honored as a fallback (harmless for the port, which uses neither). */
 static char     g_cfg_out[MAX_PATH];
 static unsigned g_cfg_capframe = 0xFFFFFFFFu;
 static unsigned g_cfg_capcount = 1u;
 static int      g_cfg_armwait;             /* idle until OrV3ArmWindowAt (no MULTI keep) */
+static int      g_cfg_refhash;             /* hash refs into v3refs.txt (no per-frame raw) */
+static unsigned g_cfg_refraw_every;        /* with refhash: full raw every N kept frames (0=never) */
 static int      g_cfg_loaded;
 static void load_cfg(void)
 {
@@ -113,6 +123,8 @@ static void load_cfg(void)
         if      (!strcmp(key, "capframe")) g_cfg_capframe = (unsigned)strtoul(val, NULL, 0);
         else if (!strcmp(key, "capcount")) { g_cfg_capcount = (unsigned)strtoul(val, NULL, 0); if (!g_cfg_capcount) g_cfg_capcount = 1u; }
         else if (!strcmp(key, "armwait"))  g_cfg_armwait = (int)strtoul(val, NULL, 0);
+        else if (!strcmp(key, "refhash"))  g_cfg_refhash = (int)strtoul(val, NULL, 0);
+        else if (!strcmp(key, "refraw_every")) g_cfg_refraw_every = (unsigned)strtoul(val, NULL, 0);
         else if (!strcmp(key, "out") && *val) { snprintf(g_cfg_out, sizeof g_cfg_out, "%s", val); CreateDirectoryA(g_cfg_out, NULL); }
     }
     fclose(f);
@@ -356,21 +368,42 @@ static int snap_ib(IDirect3DIndexBuffer8 *ib)
     return dedup_or_write(ORV3_RES_IB, g_bl, g_bl_len);
 }
 
-/* read back the device backbuffer -> {u32 w,h, w*h*4 BGRA} via the shared
- * CopyRects-through-sysmem helper (works for retail's non-lockable backbuffer) */
-static int readback_raw(IDirect3DDevice8 *dev, const char *path)
+/* per-kept-frame REFERENCE: read back the backbuffer once via the shared
+ * CopyRects-through-sysmem helper (works for retail's non-lockable backbuffer),
+ * then either write the raw {u32 w,h, w*h*4 BGRA} file (default) or — refhash —
+ * append a fnv1a-64 line to v3refs.txt (+ a full raw every refraw_every frames).
+ * v3refs.txt is unbuffered like the log: a hard device.kill keeps every
+ * completed frame's line. */
+static FILE *g_refs;
+static void write_reference(IDirect3DDevice8 *dev, unsigned kept, unsigned present)
 {
     uint32_t w = 0, h = 0;
     uint8_t *px = orv3_readback_bgra(dev, &w, &h);
-    if (!px) { proxy_log("readback FAILED (GetBackBuffer/CopyRects/Lock)\n"); return 0; }
-    FILE *fp = fopen(path, "wb");
-    if (fp) {
-        fwrite(&w, 4, 1, fp); fwrite(&h, 4, 1, fp);
-        fwrite(px, 1, (size_t)w * h * 4u, fp);
-        fclose(fp);
+    if (!px) { proxy_log("readback FAILED (GetBackBuffer/CopyRects/Lock)\n"); return; }
+    int want_raw = !g_cfg_refhash
+                || (g_cfg_refraw_every && (kept % g_cfg_refraw_every) == 0);
+    if (g_cfg_refhash) {
+        if (!g_refs) {
+            char p[MAX_PATH + 32]; proxy_out_path(p, sizeof p, "v3refs.txt");
+            g_refs = fopen(p, "w"); if (g_refs) setvbuf(g_refs, NULL, _IONBF, 0);
+        }
+        if (g_refs) {
+            uint64_t hsh = fnv1a(px, (size_t)w * h * 4u, ORV3_FNV_SEED);
+            fprintf(g_refs, "REF %u present=%u w=%u h=%u fnv64=%016llx\n",
+                    kept, present, w, h, (unsigned long long)hsh);
+        }
+    }
+    if (want_raw) {
+        char leaf[32]; snprintf(leaf, sizeof leaf, "v3ref_%03u.raw", kept);
+        char path[MAX_PATH + 32]; proxy_out_path(path, sizeof path, leaf);
+        FILE *fp = fopen(path, "wb");
+        if (fp) {
+            fwrite(&w, 4, 1, fp); fwrite(&h, 4, 1, fp);
+            fwrite(px, 1, (size_t)w * h * 4u, fp);
+            fclose(fp);
+        }
     }
     free(px);
-    return fp != NULL;
 }
 
 #define CAP (g_capturing && g_cap)
@@ -399,9 +432,7 @@ static void write_frame(IDirect3DDevice8 *real_dev)
     write_shadow_preamble();                       /* inherited scalar state (RES already written above) */
     fwrite(g_cb, 1, g_cb_len, g_cap);              /* this frame's own calls */
     orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
-    char leaf[32]; snprintf(leaf, sizeof leaf, "v3ref_%03u.raw", g_kept);
-    char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, leaf);
-    readback_raw(real_dev, ref);
+    write_reference(real_dev, g_kept, g_frame);
     fflush(g_cap);
     proxy_log("KEEP present-frame %u (kept#%u, %u call-bytes, %d res total)\n",
               g_frame, g_kept, (unsigned)g_cb_len, g_next_resid);
