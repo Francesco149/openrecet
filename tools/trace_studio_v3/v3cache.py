@@ -37,9 +37,22 @@ CACHE_ROOT = ROOT / "runs" / "studio-v3-cache"
 
 def localappdata_v3() -> Path:
     """%LOCALAPPDATA%\\openrecet\\v3 as a WSL path (where the proxy writes the
-    live capture before it's cached)."""
-    out = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
-                         capture_output=True, text=True, cwd="/mnt/c").stdout.strip()
+    live capture before it's cached).
+
+    Launching cmd.exe from WSL intermittently fails with a vsock error and an
+    EMPTY stdout; a good result is an absolute Windows path (C:\\Users\\...).
+    Retry until it resolves so the caller never gets a bogus relative dir (the
+    silent failure mode that turns into a confusing FileNotFoundError later)."""
+    out = ""
+    for _ in range(8):
+        out = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
+                             capture_output=True, text=True, cwd="/mnt/c").stdout.strip()
+        if out and out != "%LOCALAPPDATA%" and (":\\" in out or ":/" in out):
+            break
+    else:
+        raise RuntimeError(
+            "localappdata_v3: cmd.exe never returned %LOCALAPPDATA% (WSL interop "
+            f"flaky); last stdout={out!r}")
     wsl = subprocess.run(["wslpath", "-u", out], capture_output=True, text=True,
                          check=True).stdout.strip()
     return Path(wsl) / "openrecet" / "v3"

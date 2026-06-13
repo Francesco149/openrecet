@@ -27,12 +27,20 @@ def wslpath_w(p: Path) -> str:
 
 
 def _verify_hashes(cap: Path, refs: Path, quiet: bool) -> tuple[int, int, str | None]:
-    r = subprocess.run([str(REPLAY_EXE), wslpath_w(cap), "--verify-hashes",
-                        wslpath_w(refs)], capture_output=True, text=True)
-    out = r.stdout + r.stderr
-    m = re.search(r"HASHVERIFY pass=(\d+) fail=(\d+) total=(\d+)", out)
+    # replay.exe launches from WSL intermittently fail with a vsock error and NO
+    # output (no HASHVERIFY summary).  That is a launch flake, NOT a verify
+    # failure — a real mismatch ALWAYS prints "HASHVERIFY pass=.. fail=.." — so
+    # retrying on a missing summary can't mask a finding.
+    out = ""
+    for _ in range(6):
+        r = subprocess.run([str(REPLAY_EXE), wslpath_w(cap), "--verify-hashes",
+                            wslpath_w(refs)], capture_output=True, text=True)
+        out = r.stdout + r.stderr
+        m = re.search(r"HASHVERIFY pass=(\d+) fail=(\d+) total=(\d+)", out)
+        if m:
+            break
     if not m:
-        return 0, -1, f"--verify-hashes produced no summary (exit {r.returncode}):\n{out[-2000:]}"
+        return 0, -1, f"--verify-hashes produced no summary after retries (exit {r.returncode}):\n{out[-2000:]}"
     npass, nfail = int(m.group(1)), int(m.group(2))
     first = None
     fm = re.search(r"first failure: (.+)", out)
@@ -52,12 +60,18 @@ def _verify_raws(cap: Path, refs_dir: Path, n: int, quiet: bool) -> tuple[int, i
     first = None
     for i in range(n):
         ref = refs_dir / f"v3ref_{i:03d}.raw"
-        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(ref), str(i), chk_w],
-                           capture_output=True, text=True)
+        # Retry the launch (not the comparison) when replay.exe produces no
+        # "differing bytes" line — that's the WSL vsock launch flake, not a real
+        # diff (which always prints the line).
         db = None
-        for ln in (r.stdout + r.stderr).splitlines():
-            if "differing bytes" in ln:
-                db = ln.split(":", 1)[1].split("(")[0].strip()
+        for _ in range(6):
+            r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(ref), str(i), chk_w],
+                               capture_output=True, text=True)
+            for ln in (r.stdout + r.stderr).splitlines():
+                if "differing bytes" in ln:
+                    db = ln.split(":", 1)[1].split("(")[0].strip()
+            if db is not None:
+                break
         if db == "0":
             npass += 1
         else:
