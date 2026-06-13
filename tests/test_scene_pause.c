@@ -18,6 +18,8 @@
 #include "worker_load.h"
 #include "sim.h"      /* ramp counters + g_sim_buttons[0] for the SM tests */
 #include "scene.h"    /* g_scene_state */
+#include "save_picker.h" /* perm init + globals (the type-3 commit) */
+#include "save_bank.h"   /* save_header_set_last_slot (the picker cursor seed) */
 
 /* ─── recording scratchpad for the injected load_fn ──────────────────── */
 
@@ -630,5 +632,108 @@ int test_pause_update_ticks_submenu_anim(void)
     g_pause_sub_anim = 1;
     pause_menu_update();
     T_ASSERT_EQ_I(g_pause_sub_anim, 0);
+    return 0;
+}
+
+/* ─── Save submenu (type 3) commit — FUN_0049b537 + FUN_00480614 L82694 ── */
+
+int test_save_picker_perm_init_identity(void)
+{
+    save_picker_reset();
+    save_picker_perm_init();
+    T_ASSERT_EQ_I(g_save_picker_count, 100);
+    T_ASSERT_EQ_I(g_save_picker_perm[0], 0);
+    T_ASSERT_EQ_I(g_save_picker_perm[42], 42);
+    T_ASSERT_EQ_I(g_save_picker_perm[99], 99);
+    return 0;
+}
+
+/* Drive sel_anim to 0xf with Save selected → the type-3 commit seeds the
+ * picker (perm + cursor=last_slot, scroll=last_slot-2) and opens the submenu. */
+int test_pause_nav_save_commit_opens_picker(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();                 /* house list [1,6,2,3,4] */
+    int save_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 3) save_idx = i;
+    T_ASSERT(save_idx >= 0);
+    g_pause_sel = save_idx;
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+    save_header_set_last_slot(5);
+    save_picker_reset();
+    g_save_picker_restricted = 1;       /* must be cleared by the commit */
+
+    /* A starts the select anim; tick to sel_anim==0xf (the commit frame). */
+    g_sim_buttons[0].pressed = 0x10;    /* A */
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();                   /* 0 → 1 */
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 14; i++)
+        pause_menu_nav();              /* 1 → 15 (0xf) */
+
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
+    T_ASSERT_EQ_I(g_save_picker_count, 100);     /* perm init ran */
+    T_ASSERT_EQ_I(g_save_picker_perm[7], 7);
+    T_ASSERT_EQ_I(g_save_picker_restricted, 0);  /* cleared */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 5);        /* val[0] = last_slot */
+    T_ASSERT_EQ_I(g_pause_save_scroll, 3);        /* val2[0] = last_slot-2 */
+    T_ASSERT_EQ_I(g_pause_save_phase, 0);
+    T_ASSERT_EQ_I(g_pause_sub_anim, 1);           /* opening */
+    T_ASSERT_EQ_I(g_pause_sub_dir, 1);
+    return 0;
+}
+
+/* last_slot < 2 → the scroll clamps to 0 (engine L82703 `if (iVar1 < 0)`). */
+int test_pause_nav_save_commit_scroll_clamps(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();
+    int save_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 3) save_idx = i;
+    g_pause_sel = save_idx;
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+    save_header_set_last_slot(0);        /* 0 - 2 = -2 → clamp 0 */
+    save_picker_reset();
+
+    g_sim_buttons[0].pressed = 0x10;
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 14; i++)
+        pause_menu_nav();
+
+    T_ASSERT_EQ_I(g_pause_save_cursor, 0);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 0);  /* clamped, not -2 */
+    return 0;
+}
+
+/* A non-Save entry (Items, type 1) does NOT open a submenu — PORT-DEBT. */
+int test_pause_nav_nonsave_commit_no_submenu(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();
+    int items_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 1) items_idx = i;
+    T_ASSERT(items_idx >= 0);
+    g_pause_sel = items_idx;
+    save_picker_reset();
+
+    g_sim_buttons[0].pressed = 0x10;
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 14; i++)
+        pause_menu_nav();
+
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
+    T_ASSERT_EQ_I(g_pause_sub_anim, 0);    /* no submenu opened */
+    T_ASSERT_EQ_I(g_save_picker_count, 0); /* perm init did NOT run */
     return 0;
 }

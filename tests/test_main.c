@@ -1171,6 +1171,10 @@ struct test_case {
     X(pause_nav_b_closes) \
     X(pause_update_runs_nav_when_no_submenu) \
     X(pause_update_ticks_submenu_anim) \
+    X(save_picker_perm_init_identity) \
+    X(pause_nav_save_commit_opens_picker) \
+    X(pause_nav_save_commit_scroll_clamps) \
+    X(pause_nav_nonsave_commit_no_submenu) \
     \
     X(scene_buy_slot_count_is_ten) \
     X(scene_buy_page_count_is_fifty) \

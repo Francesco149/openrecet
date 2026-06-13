@@ -195,6 +195,15 @@ extern int32_t g_pause_row_spacing;  /* DAT_005cc678 — derived row pitch    */
 extern int32_t g_pause_exit_confirm; /* DAT_074b2830 — return-to-title flow */
 extern int32_t g_pause_frame;        /* _DAT_074b2874 — pause frame counter */
 
+/* Save submenu (type 3) picker state — seeded by the sel_anim==0xf commit,
+ * read by the render wrapper FUN_004812e4. `cur` is always 0 for Save so the
+ * engine's 4-wide val[]/val2[] collapse to scalars. */
+extern int32_t g_pause_save_cursor;  /* DAT_074b2834 (val[0])  — selected slot */
+extern int32_t g_pause_save_scroll;  /* DAT_074b2820 (val2[0]) — window top    */
+extern int32_t g_pause_save_vscroll; /* DAT_074b2898 (c898)    — column slide  */
+extern int32_t g_pause_save_hscroll; /* DAT_074b2894 (c894)    — row slide     */
+extern int32_t g_pause_save_phase;   /* DAT_074b289c (c89c)    — save anim     */
+
 /* Menu-build inputs (engine DAT_0741bed8 = adventurer/party count and
  * *DAT_068dd2f0 = stage type, 0=HOUSE). The integration layer captures
  * these from the live game state just before pause_menu_setup; tests set

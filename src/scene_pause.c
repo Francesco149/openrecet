@@ -16,6 +16,8 @@
                       * (engine DAT_06a49998/9c/a0), g_sim_buttons[0] (input) */
 #include "scene.h"   /* g_scene_state (engine DAT_0438b1c0) */
 #include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
+#include "save_picker.h" /* FUN_0049b537 perm init + the shared card-list render */
+#include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -174,6 +176,17 @@ int32_t g_pause_row_spacing = 0;
 int32_t g_pause_exit_confirm = 0;
 int32_t g_pause_frame       = 0;
 
+/* Save submenu (type 3) picker state — the Save entry's cursor/scroll + the
+ * slide/save-phase anims. Engine val[0]/val2[0]/c898/c894/c89c (DAT_074b2834/
+ * 2820/2898/2894/289c); `cur` is always 0 for the Save submenu, so val[]/val2[]
+ * collapse to single scalars. Seeded by the type-3 commit, read by the render
+ * wrapper FUN_004812e4. */
+int32_t g_pause_save_cursor  = 0;   /* DAT_074b2834 (val[0])  */
+int32_t g_pause_save_scroll  = 0;   /* DAT_074b2820 (val2[0]) */
+int32_t g_pause_save_vscroll = 0;   /* DAT_074b2898 (c898)    */
+int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
+int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
+
 /* Menu-build inputs (engine DAT_0741bed8 + *DAT_068dd2f0). */
 static int g_pause_in_status_count = 0;
 static int g_pause_in_stage_type   = 0;
@@ -197,6 +210,11 @@ void pause_sm_reset(void)
     g_pause_row_spacing  = 0;
     g_pause_exit_confirm = 0;
     g_pause_frame        = 0;
+    g_pause_save_cursor  = 0;
+    g_pause_save_scroll  = 0;
+    g_pause_save_vscroll = 0;
+    g_pause_save_hscroll = 0;
+    g_pause_save_phase   = 0;
     g_pause_in_status_count = 0;
     g_pause_in_stage_type   = 0;
 }
@@ -329,11 +347,28 @@ void pause_menu_nav(void)
         }
         audio_play_se_by_id(se);
     } else {
-        /* Select anim running. PORT-DEBT(pause-submenu-*): at sel_anim==0xf
-         * the engine commits the selection — opens a submenu (types
-         * 0/1/2/3/5/6) or starts the type-4 exit confirm. Deferred; we tick
-         * the anim so the press is acknowledged but the menu stays put. */
+        /* Select anim running (engine L82637). At sel_anim==0xf the engine
+         * commits the selection (LAB_004806a1: shared reset + per-type init,
+         * then sub_anim++ / sub_dir=1 to open the submenu). Only the Save
+         * submenu (type 3) is ported here; the Status/Items/Options/
+         * Encyclopedia/dungeon submenus + the type-4 exit confirm stay
+         * PORT-DEBT(pause-submenu-*) — for those types we tick the anim but
+         * don't open. */
         g_pause_sel_anim++;
+        if (g_pause_sel_anim == 0xf && g_pause_entries[g_pause_sel] == 3) {
+            /* type-3 branch (engine L82694): clear the save anims, init the
+             * 100-slot perm, seed the cursor from the last-used slot. */
+            g_pause_save_phase   = 0;          /* DAT_074b289c */
+            g_pause_save_vscroll = 0;          /* DAT_074b2898 (c898) */
+            g_pause_save_hscroll = 0;          /* DAT_074b2894 (c894) */
+            g_save_picker_restricted = 0;      /* DAT_09643564 */
+            save_picker_perm_init();           /* FUN_0049b537 */
+            const int last = save_header_get_last_slot();        /* DAT_056e578c */
+            g_pause_save_cursor = last;                           /* val[cur]  */
+            g_pause_save_scroll = (last - 2 < 0) ? 0 : last - 2;  /* val2[cur] */
+            g_pause_sub_anim++;                 /* DAT_074b2880 — open */
+            g_pause_sub_dir = 1;               /* DAT_074b2884 — opening */
+        }
     }
 }
 
@@ -541,12 +576,30 @@ static int pause_weekly_quota(void)
  *             [7]=quota / [8]=gold / [9]=level.
  *
  * The pre-backdrop fx layer [0] (the captured/blurred RT) is drawn by the
- * fade system before this function (M3, done). The sub_anim>0 submenu
- * dispatch (L83931-83952) is M3+ PORT-DEBT.
+ * fade system before this function (M3, done).
+ * M4 (this): the sub_anim>0 submenu dispatch (L83931-83952) — Save (type 3)
+ *            → FUN_004812e4 → the save-slot card list. The other submenu
+ *            renders (Status/Items/Options/Encyclopedia/dungeon) stay
+ *            PORT-DEBT(pause-submenu-*).
  *
  * Geometry/diffuse recovered from objdump 0x4820ba-0x482400 (the decompile
  * dropped the register-built diffuse args + some FP consts; all verified
  * 1:1 against the .rdata float table). */
+
+/* FUN_004812e4 — the pause Save submenu render wrapper. Computes the
+ * save-phase pulse (clamp(c89c-30, 0, 30)) and renders the shared card list.
+ * PORT-DEBT(pause-save-progress): the 2-quad save-progress bar (drawn while
+ * c89c>0, i.e. during a commit) — the commit (FUN_004905a8) isn't ported, so
+ * c89c stays 0 and the bar never shows. */
+static void pause_save_picker_render(IDirect3DDevice8 *d)
+{
+    int phase = g_pause_save_phase - 0x1e;
+    if (phase < 0)    phase = 0;
+    if (phase > 0x1e) phase = 0x1e;
+    save_picker_render(d, 0.0f, g_pause_save_cursor, g_pause_save_scroll,
+                       g_pause_save_vscroll, g_pause_save_hscroll, phase);
+}
+
 void pause_menu_render(struct IDirect3DDevice8 *dev)
 {
     IDirect3DDevice8 *d = (IDirect3DDevice8 *)dev;
@@ -762,6 +815,13 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
             scene1_merchant_hud_draw_level(d, ox + 192.0f, 64.0f,
                                            (int32_t)bank[0xb100], 0xffffffffu);
     }
+
+    /* ── sub_anim>0 submenu dispatch (engine L83931-83952): the open submenu
+     * renders over the (fading) option list. Only Save (type 3) is ported;
+     * Status (0)/Encyclopedia (6)/Options (2)/dungeon (5)/Items (1) renders
+     * stay PORT-DEBT(pause-submenu-*). ── */
+    if (g_pause_sub_anim > 0 && g_pause_entries[g_pause_sel] == 3)
+        pause_save_picker_render(d);     /* FUN_004812e4 */
 
     /* ── shared overlay tail (engine L83953-83955): the choice box, the hand
      * cursor, then the save/load dialog frame. All self-gate (no active box /
