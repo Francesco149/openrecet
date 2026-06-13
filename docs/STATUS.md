@@ -411,25 +411,29 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   WHOLE resting pause menu — backdrop + option list + header + calendar + numbers — is now 1:1).
   **PORT-DEBT(pause-xp-anim):** the XP-display animator (shared with the merchant HUD's stubbed
   `set_xp`) stays unported (only matters mid-rank-up).
-  **→ ACTIVE ARC: the SAVE submenu (entry type 3) — RE+trace+capture DONE 2026-06-14; the
-  render port is the remaining piece.** Full status: `plans/pause-menu.md` M4. **Trace
-  `house-pause-save` ✅ committed** (ESC → **3×down** [the user said "2x" but Save is index 3 in
-  `[1,6,2,3,4]`] → Z): a new **`PAUSE_READY` anchor** (load-end edge gated on scene==9) syncs the
-  nav past the per-side-variable pause asset-load (port ~1-156f vs **retail ~1800f**; PAUSE_OPEN
-  is no good — pre-load + port-only) — v3 join **299/299** across a +4289-frame stretch; also a
-  v3 capture-race fix (`wait_for_capture`). **Scope (bigger than the framing):** the Save submenu
-  is the **full save-file selection list** — vertical slot cards (file#, and for an occupied slot
-  a portrait + gold + "Merchant Level N" + SCORE/LOOP/TIME, else "NO DATA"); **retail 189 draws vs
-  port 10** at rest (this save occupies slot 000, TIME 0:03:50). The render **`FUN_0049b556` is
-  SHARED with the title continue-picker** (its render is the deferred PORT-DEBT in
-  `title_continue_picker.c`) ⇒ porting it serves both. **NEXT:** port `FUN_0049b556` (+`FUN_0049b537`
-  perm +`FUN_004812e4` wrapper) — likely a shared `save_picker.{c,h}` — driven by the type-3
-  nav-commit (sel_anim==0xf → `FUN_0049b537` + val=last_slot) + update dispatch (sub_anim==10 →
-  `FUN_0047f5bc`) + render dispatch (sub_anim>0). save_bank already models the 100-bank arena +
-  picker fields; all render helpers exist. **M4c PORT-DEBT:** the save COMMIT (`FUN_004905a8` disk
-  write) — the trace opens the picker but never presses A on it, so commit is unexercised. **Verify
-  via the v3 draw-program panel + `replay.exe --history`** (the per-frame replayer can't reconstruct
-  the pause RT backdrop ⇒ the pixel self-verify is DIVERGENT here, expected — M3's known limit).
+  **SAVE submenu (entry type 3) RENDER ✅ DONE + PIXEL-1:1 2026-06-14** (`7affa5f` render +
+  `351654e` tooling; AWAITING the user's visual 1:1). Full status: `plans/pause-menu.md` M4.
+  The card-list render `FUN_0049b556` + perm `FUN_0049b537` are ported as **`save_picker.{c,h}`**
+  (shared with the title picker), driven by the pause type-3 commit + wrapper `FUN_004812e4` +
+  the `sub_anim>0` render dispatch (`scene_pause.c`); transcribed 1:1 from objdump (Ghidra
+  dropped the FP consts, SetTexture args, the 4 format strings, the TIME seconds vararg).
+  **Trace `house-pause-save`** (ESC → 3×down → Z; `PAUSE_READY` anchor, v3 join 299/299).
+  **Verified vs the retail v3 cache** (PAUSE_READY+250 at rest, `orv3_shot` per-frame render):
+  the submenu is **PIXEL-1:1 — meanabs 0.13, gt8 0.00%, max 2** (occupied slot-0 card:
+  portrait/clock + Merchant Level 1 + SCORE 0 + LOOP 0 + TIME 0:03:50, + NO-DATA cards +
+  headers all match; feed "M4 pause Save submenu port|retail|diff"). +4 host tests (3253).
+  **DRAW-PROGRAM divergence (OFF-SCREEN, root-caused, accept):** retail draws 3 pages (center +
+  L/R WINGS, gate `DAT_09643520>=10`) where the port draws 1 (3.00× box geometry, zero pixel
+  impact). `DAT_09643520` is the **title continue picker's** open-ramp (left at 10 post-Continue);
+  the port's `title_continue_picker.c` uses instance fields, never ramps the shared global ⇒
+  `g_save_picker_hpage_anim` stays 0. **PORT-DEBT(save-picker-wings)** — closes with the title
+  picker render port (shares `FUN_0049b556`). Quirk §124. **Verify caveat (M3 limit):** the
+  per-frame `--verify-hashes` self-verify is DIVERGENT (can't rebuild the RT backdrop); `orv3_shot`
+  composites it ⇒ its pixel-diff is the valid check. **M4b NEXT — the picker NAV (`FUN_0047f5bc`):**
+  U/D±1 / L/R±3 + slide anims + overwrite-confirm; needs a nav-driving trace. **M4c PORT-DEBT:**
+  the save COMMIT (`FUN_004905a8` disk write) — the trace never presses A. Tooling: `v3cache`
+  `localappdata_v3` got an env override + `/mnt/*/Users/*/...` glob fallback (cmd.exe WSL interop
+  was wedged, blocking the cache step).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

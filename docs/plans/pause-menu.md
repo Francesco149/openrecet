@@ -307,8 +307,36 @@ Draw primitives all already in the port: `render_quad_add`
       (2) run the downsample→blur-accumulate→full-screen passes. The exact pass
       geometry/blur taps are now READABLE per-draw via `orv3_rt.py … 41 --full` +
       `orv3_draws.py` (vertex/UV dump) — port from the stream, not the decompile.
-- **M4 — the SAVE submenu (entry type 3) — IN PROGRESS (2026-06-14).** RE + trace +
-  capture DONE; the FUN_0049b556 render port is the remaining (large) piece.
+- **M4 — the SAVE submenu (entry type 3) — RENDER ✅ DONE + PIXEL-1:1 2026-06-14**
+  (`7affa5f` render + `351654e` tooling). The card-list render `FUN_0049b556` +
+  perm `FUN_0049b537` are ported as **`save_picker.{c,h}`** (shared with the title
+  picker), driven by the pause type-3 commit + wrapper `FUN_004812e4` + the
+  `sub_anim>0` render dispatch (`scene_pause.c`). Transcribed 1:1 from objdump
+  @0x49b556..0x49c050 (Ghidra dropped the FP .rdata consts, the SetTexture texture
+  args, the 4 sprintf format strings, and the TIME seconds vararg — all resolved
+  from .rdata). **Verified vs the retail v3 cache** (`house-pause-save`,
+  PAUSE_READY+250 at rest, `orv3_shot` per-frame render): the submenu is **PIXEL-1:1
+  — meanabs 0.13, gt8 0.00%, max diff 2** (occupied slot-0 card: portrait/clock +
+  Merchant Level 1 + SCORE 0 + LOOP 0 + TIME 0:03:50, + the NO-DATA cards + headers
+  all match; feed "M4 pause Save submenu port|retail|diff"). +4 host tests (3253).
+  **DRAW-PROGRAM divergence (OFF-SCREEN, root-caused):** retail draws **3 pages**
+  (center + left/right WINGS, gate `DAT_09643520>=10`) where the port draws **1**
+  (center) — exactly 3.00× the box geometry (retail 24 vs port 8 box prims), **zero
+  pixel impact** (the wings are off-screen at dst_x ±640). `DAT_09643520` is the
+  **title continue picker's** open-ramp (`FUN_0049a59e`), left at 10 after a
+  Continue-load; the port's `title_continue_picker.c` uses instance fields and never
+  ramps the shared global, so `g_save_picker_hpage_anim` stays 0. **PORT-DEBT(save-
+  picker-wings)** — the faithful fix is to ramp `g_save_picker_hpage_anim` in the
+  port's title continue picker open-anim; it closes when the title picker render is
+  ported (which shares `FUN_0049b556` + drives `DAT_09643520`). Quirk §124.
+  **Verification caveat (M3 limit holds):** the per-frame **self-verify is DIVERGENT**
+  (0/299 hash) — the per-frame replayer can't reconstruct the pause RT backdrop;
+  `orv3_shot`'s frame render DOES composite it, so the pixel-diff above is the valid
+  check (NOT `replay.exe --verify-hashes`). Tooling: `v3cache.localappdata_v3` now
+  has an env override + `/mnt/*/Users/*/AppData/Local/openrecet/v3` glob fallback
+  (cmd.exe WSL interop was wedged, blocking the cache step).
+  - **Original RE/trace notes (kept for reference):** RE + trace + capture were DONE;
+    the FUN_0049b556 render port was the remaining (large) piece.
   - **Trace `house-pause-save` ✅ (committed):** ESC → **3×down** → Z opens the type-3
     submenu. **Correction: the user said "2x down" but it's 3×down** — house list `[1,6,2,3,4]`,
     default sel=0 (Items), Save = index 3 (Items→Enc→Opt→Save). **New `PAUSE_READY` anchor**
@@ -353,20 +381,30 @@ Draw primitives all already in the port: `render_quad_add`
     `_state_setup`, `render_quad_draw_rotated_rect` (FUN_00406241 portrait),
     `scene1_top_hud_draw_number` (gold), `scene1_merchant_hud_draw_level` (level); textures
     `g_sysassets.item_win_tga` (DAT_073d8748) + `g_scene_pause_pause`/board.
-  - **NEXT (the render arc):** port `FUN_0049b556` (+ `FUN_0049b537` perm + `FUN_004812e4`
-    wrapper) — best as a shared `save_picker.{c,h}` (title can adopt it later), exercised by the
-    pause type-3 render dispatch + the nav-commit + an inert-then-wired `FUN_0047f5bc`. Verify
-    via the v3 **draw-program panel** (`orv3_draws` — the per-frame pixel self-verify is
-    DIVERGENT here = the known RT-backdrop replayer limit, use `replay.exe --history` + the
-    draw program, like M3) then the user's visual 1:1. **Pixel-1:1 caveat:** the per-frame
-    replayer can't reconstruct the pause RT backdrop ⇒ self-verify FAILS (expected); compare
-    the submenu via the draw program + `--history`.
+  - **✅ DONE (the render arc, 2026-06-14):** `FUN_0049b556` + `FUN_0049b537` perm +
+    `FUN_004812e4` wrapper ported as `save_picker.{c,h}` (title can adopt it later),
+    exercised by the pause type-3 render dispatch + the nav-commit. **Pixel-1:1 via
+    `orv3_shot`** (gt8 0.00%); the per-frame `--verify-hashes` self-verify is DIVERGENT
+    (the known RT-backdrop replayer limit) so `orv3_shot`'s compositing frame render is
+    the valid check. **M4b NEXT — the picker NAV (`FUN_0047f5bc`):** U/D ±1 / L/R ±3 +
+    the c894/c898 slide anims + the overwrite-confirm dialog + B-cancel; needs a
+    nav-driving trace to verify (the current trace only opens the picker). **The wing
+    fix** (ramp `g_save_picker_hpage_anim` in the title continue picker) rides with the
+    title-picker render port.
 - **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
   Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
   fade + action-1/2 pause variants; the unpause cursor restore.
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
-- `pause-submenu-*` — entering any option (Items/Encyclopedia/Options/Save).
+- `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
 - `pause-unpause-restore` — cursor snapshot/restore (`DAT_06a499ac/b0/b4`).
+- `save-picker-wings` — the OFF-SCREEN left/right wing pages (`save_picker_render`
+  gate `g_save_picker_hpage_anim>=10` = engine `DAT_09643520`): retail draws 3
+  pages, the port 1 (zero pixel impact). The shared global is ramped by the title
+  continue picker (`FUN_0049a59e`); the port's `title_continue_picker.c` uses
+  instance fields and never sets it. Closes with the title picker render port.
+- `save-picker-nav` (M4b) — `FUN_0047f5bc`: U/D±1 / L/R±3 + the c894/c898 slide
+  anims + overwrite-confirm dialog; needs a nav-driving trace to verify.
+- `save-picker-commit` (M4c) — `FUN_004905a8` disk write (the trace never presses A).

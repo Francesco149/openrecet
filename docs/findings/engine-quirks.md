@@ -4694,3 +4694,31 @@ by `FUN_00454191` (the fade/capture system) across the **two frames at pause-ope
   frames and sampled forever after — a single-frame replay shows it empty; cumulative
   (history) replay reconstructs it. The two RTs (`DAT_073de648` screen-sized X8R8G8B8,
   `DAT_073de64c` 1280×256 A8R8G8B8) are created at init by `FUN_0047ae65`.
+
+## 124. The pause SAVE submenu's card list (FUN_0049b556) renders its left/right "wing" pages gated on the TITLE continue picker's open-ramp DAT_09643520 — so whether the off-screen wings draw depends on game-start history, not the pause itself
+
+`FUN_0049b556` (the shared save-slot card list — pause Save submenu AND the
+title Continue/load picker) is a 3-page horizontal carousel: a CENTER page
+(always drawn) plus LEFT and RIGHT wing pages drawn only when `9 < DAT_09643520`
+(objdump @0x49b5dd / @0x49b82d). The wings show the adjacent slot columns,
+positioned at `dst_x = center ± 640` — i.e. OFF-SCREEN at rest, drawn so an L/R
+column slide can reveal them. So when the gate is on, the function emits ~3× the
+draws (e.g. the card-box batch is 24 prims = 12 boxes vs 8 prims = 4 for the
+center alone) with **zero visible-pixel difference**.
+
+The catch: `DAT_09643520` is owned ENTIRELY by the **title continue picker**
+(`FUN_0049a59e` ramps it 0→10 as its own horizontal open-animation; `FUN_0049a3a3`
+zeroes it). The pause Save submenu (`FUN_00480614` commit / `FUN_004812e4` render /
+`FUN_0047f5bc` nav) never touches it. So the pause picker's wings render IFF the
+title left `DAT_09643520` at 10 — i.e. iff you reached the game via the Continue
+picker (which ramps it) rather than a path that left it 0. A retail capture of the
+pause Save submenu on a Continue-loaded save shows all 3 pages; the visible result
+is identical either way (wings are off-screen).
+
+Port consequence (PORT-DEBT save-picker-wings): `save_picker_render` faithfully
+gates on `g_save_picker_hpage_anim` (= DAT_09643520), but the port's
+`title_continue_picker.c` models the picker with instance fields and never ramps
+the shared global, so it stays 0 and the port draws only the center page. Pixel-
+identical to retail; the off-screen wing draws are missing from the draw program.
+The fix rides with the title continue picker render port (which shares
+FUN_0049b556 and drives DAT_09643520).
