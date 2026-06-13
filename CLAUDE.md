@@ -47,52 +47,57 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   ground-truth behavior ONLY (not port/tooling notes).
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, localhost:8777) — push
   images/montages/comparisons with the diff, never eog/explorer. Healthz-check + start it
-  if down at session start. **But if it's inspectable in a live Trace Studio session, point
-  the user at the session URL instead of pushing it to the feed (see the Trace Studio bullet).**
-- **Iterate ON the user's open Trace Studio session — recapture IT, don't spawn a parallel
-  capture (standing workflow, automatic like the llm-feed).** The core parity loop runs on
-  **studio traces**: the user keeps a `trace_studio.py serve --session <name>` open (check
-  `ps`/the serve logs for the live session + port) and watches it. When you tweak a trace
-  (edit its `edit.trace.jsonl` — caprange/pins/inputs) or land a port fix, **re-capture THAT
-  SAME session** (`trace_studio.py recapture <name>` / `capture --only port` for the fast
-  port-fix loop) so the user can refresh and immediately check the result frame-by-frame as
-  you iterate — you both inspect the *same* frames. Do **not** run your own one-off
-  `--session <other>` capture for trace work, and don't pixel-diff in `/tmp` as a substitute
-  for updating the session the user is looking at. **To VERIFY a fix, recapture the session and
-  inspect the studio's OWN aligned output** — `trace_studio triage <session>` (the FIRST stop:
-  first/worst divergent frame + verdict + state in one report), the served session at the URL,
-  or its `diff/frames/` — **never a hand-rolled `/tmp` diff that pairs frames yourself.**
-  (Session frame naming is UNIFIED since 2026-06-09 — both sides + diff are label-named, same
-  name = same moment — but the studio outputs are still the verification surface, not ad-hoc
-  pairing.) **The user flags divergences as NOTES on the working trace (`edits.jsonl`
-  `{"kind":"note","frame":N,"box":[x0,y0,x1,y1]}` — box in capture px): ALWAYS read the
-  session's notes+crops FIRST before composing your own crops or hunting for divergent
-  frames yourself** (user policy 2026-06-10) — they are the authoritative per-session gap
-  list, often sharper than the docs (e.g. they pinned the prompt-bubble slide-in frames).
-  **For anything inspectable IN the session,
-  just remind the user of the session URL — `http://localhost:8778/?session=<name>` (default
-  serve port 8778; confirm the live port via `ps`/serve logs) — rather than composing+pushing
-  a feed montage of it: the studio already shows retail|port|diff + frame scrub, so a push only
-  duplicates what they can already open. Reserve the llm-feed for visuals that are NOT in a
-  studio session** (one-off crops, montages of non-session frames, external images). Caveats: the port-exe singleton mutex stalls *parallel* captures (one at a
-  time); a window/caprange change forces a retail re-capture even under `--only port`
-  (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
-  `recapture-shared-session`. If no serve is up and you start one yourself, launch it
-  via `setsid`/`nohup` — a plain backgrounded serve dies with the tool-call shell
-  (bit us 2026-06-10: the user found the studio down).
-- **ALWAYS phase+RNG-pin AND keep a call-trace on every trace we work on** (user policy
-  2026-06-09) — pin up front so the diff shows REAL gaps, keep the flow-trace so retail
-  ground truth stays probeable. **This is now MECHANISM, not a recipe:** `trace_studio
-  capture` lint-checks every working trace (pin placement, stacked seeds, calltrace span,
-  savefile ref — errors abort, `--no-lint` bypasses) and AUTO-INSERTS the canonical
-  `{phasepin}`+`{rngseed 19937}` block on fresh builds (`--no-auto-pin` for deliberate
-  unpinned phase studies; reused traces are never mutated — the lint tells you what to add).
-  One `{phasepin}` zeros db054 + anim + b154 + rmb shake + the bg-NPC warmup (re-seeded
-  19937) + the sparkle %8 phase; rules + template: `tools/trace_studio/edits/lint.py`
-  docstring + `tests/scenarios/house-loaded-display-pinned/trace.jsonl`. A pin moves BOTH
-  sides → recapture both. Verify via `trace_studio triage <session>` (or `flow_diff
-  --verdict --align-field db054` = ALIGNED). Long retail call-traces are heavy — `drill`
-  dense sub-windows for deep dives — but the base capture KEEPS its call-trace.
+  if down at session start. **But if it's inspectable in the open Trace Studio v3 viewer,
+  remind the user it's there (or to re-`--launch` it) instead of pushing a feed montage that
+  duplicates what they can already scrub (see the Trace Studio bullet).**
+- **The parity loop is Trace Studio v3 — iterate on the SAME window, never one-off captures
+  or `/tmp` pixel-diffs (standing workflow, like the llm-feed). v2 is RETIRED 2026-06-13**
+  (archived under `tools/trace_studio/`, not deleted — see `plans/trace-studio-v3.md`; only
+  fall back on a real blocker). Tooling lives in **`tools/trace_studio_v3/`**; deep how-to is
+  that plan. **One command:** `nix develop --command python3 tools/trace_studio_v3/orv3_window.py
+  <scenario> --window OFFSET:COUNT --launch` — drives ONLY what's missing/stale (retail is
+  captured ONCE, content-addressed-cached, then SLICED for any sub-window — zero re-drive; the
+  port is re-driven only when `build/openrecet.exe` is newer), JOINs port↔retail by **stored
+  identity** `(anchor, offset)` (no hand frame-matching, load-stretch-immune — the v2 sync
+  whack-a-mole is gone), and opens the **native viewer** (`viewer/viewer.exe` — port|retail|diff
+  replayed live from the captured d3d command stream + scrub + diff ribbon + per-frame d3d state).
+  After a port fix, re-run the SAME `orv3_window … --launch` (slices cached retail, re-drives only
+  the port); the user refreshes/re-opens the viewer — you both inspect the same identity-aligned
+  frames. **Verify via the viewer's OWN replayed/identity-synced panels + `pairs.json`, never a
+  `/tmp` diff you pair yourself.** **The user flags divergences as NOTES in the viewer** (note
+  mode `m` → drag a box / "note frame" → type; stored Windows-local, identity-labelled).
+  **ALWAYS read them FIRST** via `orv3_notes.py <scenario> --render [--feed]` (replays the flagged
+  frame port|retail|diff, crops to the box, → feed so you SEE it) — they're the authoritative
+  per-scenario gap list, often sharper than the docs. For anything inspectable in the viewer just
+  remind the user it's open (or to `--launch`); reserve the llm-feed for one-off non-viewer visuals.
+  Caveat: the port-exe singleton mutex stalls *parallel* drives (one retail at a time).
+- **CHASE render-program divergences — v3 sees what v2 (pixels-only) couldn't.** The viewer's
+  **draw-program panel** flags when the PIXELS are 1:1 but the RENDER PROGRAM differs — draw
+  ORDER, batching splits, an extra/doubled draw (per-texture triangle totals; verdict
+  ALIGNED/BATCHING/DIVERGENT; click a pixel → the draw that painted it; `s` solo a draw). **A
+  rendering-order divergence on bit-exact pixels is worth chasing: it makes the port more
+  faithful AND is a lead that our LOGIC may not match retail's order — a latent REAL divergence
+  later even when invisible now.** (Already found: a retail-only 0-px overlay quad, a port
+  double-drawn bg.) **Game-state panel:** `orv3_window … --state` (opt-in, negligible cost — the
+  4 once-per-frame VAs are window-gated) caches each side's `call_trace.jsonl` and the viewer
+  shows engine fields (rng/rngcalls, player+companion px/py/anim, menu, dialogue) port-vs-retail,
+  diff-highlighted (f32-normalised, so a red row is a REAL gap), filter + diffs-only. Same data
+  drives `flow_diff --verdict` (next bullet). **Make every hard-to-see divergence a NEW v3
+  feature** (the state panel, draw-program diff, notes, pixel-pick all came from this) — don't
+  work around a blind spot ad-hoc; close it in the tool so the next divergence is one command away.
+- **ALWAYS phase+RNG-pin every trace we work on** (user policy 2026-06-09) — pin up front so
+  the diff shows REAL gaps. The working scenario traces carry the canonical `{phasepin}` +
+  `{rngseed 19937}` (+`{tutloadpin}`); one `{phasepin}` zeros db054 + anim + b154 + rmb shake +
+  the bg-NPC warmup (re-seeded 19937) + the sparkle %8 phase. A pin moves BOTH sides → re-drive
+  both. Rules + template: `tools/trace_studio/edits/lint.py` docstring +
+  `tests/scenarios/house-loaded-display-pinned/trace.jsonl`. **The RNG/phase verdict is
+  UNCHANGED in v3 — same `flow_diff`, now on the v3 cache:** capture with `orv3_window … --state`
+  (caches each side's `call_trace.jsonl`), then `tools/flow_diff.py --verdict --align-field db054
+  --retail runs/studio-v3-cache/<scen>-<key>/retail/call_trace.jsonl --port …/port/call_trace.jsonl`
+  → ALIGNED / CONST-OFFSET (= phase, accept) / DRIFT (= real logic divergence), with raw-rng
+  bit-exactness + per-frame rngcalls match (the whole `flow_diff` suite — `--field-timeline`,
+  `--rng-drill` — reads the v3 traces unchanged). The 4 once-per-frame state VAs are window-gated;
+  a v3 drive does NOT auto-load the heavy full call-graph (lean by default). `docs/flow-trace-cheatsheet.md`.
 - **Commits:** **commit in logical units as you go, without waiting to be asked** (user
   policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
@@ -145,20 +150,21 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Tracing port↔retail (TAS traces, anchors, d3d-trace, call-trace, save override):**
   `docs/trace-workflow.md`. **Flow-trace cheatsheet (THE state-comparison tool):**
   `docs/flow-trace-cheatsheet.md`.
-- **Render/parity debugging tools:** `trace_studio triage <session>` (START HERE for any
-  session divergence — diff curve → first/worst frame → verdict → field-timeline in one
-  JSON+summary), `tools/flow_diff.py` (`--verdict` RNG/phase
-  determinism + `--field-timeline` + `--rng-drill`; the modern phase_probe replacement),
-  `tools/d3d_state_diff.py` + `tools/render_diff.py` (per-draw command-stream diff),
-  `tools/d3d_state_at_draw.py` (**the reliable device-state-at-draw inspector** —
-  replays a d3d trace carrying the FULL device state FORWARD across frames, since
-  device state is persistent; prints the complete COLOROP/COLORARG/ALPHA/filter/
-  blend pipeline at any draw. **Use this whenever a draw looks wrong but its
-  per-frame state "looks identical" — per-frame state tracking misses INHERITED
-  state** (it cracked the white-UI COLORARG leak: retail sets zero COLORARG, the
-  port's 3D renderers leak it into the 2D UI)),
-  `tools/pixel_diff.py` / `tools/compose_comparison.py` (visual). Playbooks:
-  `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
+- **Render/parity debugging tools:** START at the **Trace Studio v3 viewer** —
+  `tools/trace_studio_v3/orv3_window.py <scenario> --window OFFSET:COUNT --launch` (port|retail|diff
+  replayed live + identity-synced + diff ribbon + the draw-program panel; add `--state` for the
+  game-state panel; flag gaps as notes → `orv3_notes.py <scenario> --render`). Deep how-to:
+  `docs/plans/trace-studio-v3.md`. `tools/flow_diff.py` (`--verdict --align-field db054` RNG/phase
+  determinism — ALIGNED/CONST-OFFSET/DRIFT — on the v3-cached `call_trace.jsonl`, + `--field-timeline`
+  + `--rng-drill`). `tools/d3d_state_at_draw.py` (**the reliable device-state-at-draw inspector** —
+  replays a d3d trace carrying the FULL device state FORWARD across frames, since device state is
+  persistent; prints the complete COLOROP/COLORARG/ALPHA/filter/blend pipeline at any draw. **Use
+  this whenever a draw looks wrong but its per-frame state "looks identical" — per-frame state
+  tracking misses INHERITED state** (it cracked the white-UI COLORARG leak: retail sets zero
+  COLORARG, the port's 3D renderers leak it into the 2D UI)). `tools/pixel_diff.py` /
+  `tools/compose_comparison.py` (visual one-offs). *Legacy v2 d3d-trace tools (`d3d_state_diff.py`/
+  `render_diff.py`) + `trace_studio triage` are superseded by the v3 viewer's draw-program panel.*
+  Playbooks: `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
 - **Decompile/probe traps (read before porting a chip):**
   `docs/reference/decompile-gotchas.md` — the 17 burned-us-once gotchas (Ghidra FPU drops,
   enum value-vs-name, bit-pattern literals, probe timing, diff-before-theories).

@@ -618,9 +618,45 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
       frame pairs incl. UP draws, ALIGNED+DIVERGENT) + `test_load_side` (parse-once /
       idempotent). The slice path benefits too (sync+view re-parse gone, 18× bake); its
       residual cost is the replay verify, not parsing. *(A baked-draws cache was the
-      alternative lever — unneeded now the bake is 0.36 s.)* Viewer metric precompute
-      (~15 s at open) should still go lazy/background; replay.exe cannot fopen-write
-      `\\wsl.localhost` UNC paths (write to Windows-local scratch).
+      alternative lever — unneeded now the bake is 0.36 s.)*
+    - **Viewer metric precompute ✅ DONE (2026-06-13).** The diff-metric fill (2 resident
+      renders + a px loop per column) blocked the open ~15 s at 2601 cols. Moved off the
+      open path: `load_view` no longer precomputes; the interactive loop calls
+      `pump_metrics(8 ms)` per UI frame (a time-budgeted background slice), so the window is
+      responsive instantly and the ribbon colours in over ~1-2 s (header shows "filling diff
+      metrics (N left)"). `show_column` still computes the current column eagerly, so
+      scrubbing/worst-of-seen are never gated. The headless `--shot` path keeps the
+      synchronous `precompute_metrics()` for a full self-verify ribbon. (replay.exe still
+      cannot fopen-write `\\wsl.localhost` UNC paths — write to Windows-local scratch.)
+  - **GAME-STATE PANEL + `--state` capture ✅ DONE + measured (2026-06-13).** The v2 web
+    StatePanel, native + identity-keyed — the engine-state half of the divergence story the
+    d3d draw-program panel can't see. `orv3_state.py` is the pillar: `--state` (on
+    `house_capture`/`port_capture`/`orv3_window`) captures the 4 once-per-frame flow-trace VAs
+    (rng/rngcalls, player+companion px/py/anim, title menu, dialogue) into each side's
+    `call_trace.jsonl`, cached as a sidecar (`v3cache`), carried through slices (`orv3_slice`),
+    re-driven when a same-key cache lacks it (`orv3_window`). `build_state_rows` keys every
+    event by `meta.key_of_present(frame)` — the call-trace frame == the present-count the d3d
+    frames + the join use (verified) — so state slots onto the identity timeline with ZERO new
+    sync logic and composes across the load stretch. `orv3_view` bakes per-column
+    `state{port,retail}` into view.json; the viewer renders a field/retail/port table,
+    diff-highlighted, with a name filter + diffs-only toggle (`--state-diffs` headless). Floats
+    f32-normalised in the bake (`%.9g` display) so a red row is a REAL divergence (a 1-ULP cx
+    gap, the +737 rngcalls phase offset), not f32-repr noise.
+    - **Perf (the measure-first ask): negligible, AND it fixed a latent waste.** The
+      `{calltrace}` op window-gates the probes to the kept frames (HOUSE: 98 events / 36 KB,
+      NONE in the load-stretch; +60 ms / ~1%, within load-stretch noise). Measuring exposed
+      that a v3 drive was auto-loading the FULL ~1979-VA call-graph (120k events / ~11 MB,
+      NEVER cached) from the trace's `{calltrace}` op — fixed: a v3 drive (`v3_arm`) no longer
+      auto-enables call-trace and strips `{calltrace}` UNLESS `--state` (which keeps it to
+      window-gate the 4-VA probes). So the default v3 drive is now LEANER; `--state` is far
+      lighter than the old default. Opt-in per the user's lean-by-default call.
+    - **RNG/phase verdict is a DROP-IN** (the user's "same level as the drill/verdict" ask):
+      `flow_diff.py --verdict --align-field db054 --retail <cache>/retail/call_trace.jsonl
+      --port …/port/call_trace.jsonl` runs UNCHANGED on the v3 `--state` cache — HOUSE =
+      ✅ PHASE-CLEAN (rng 48/48 bit-exact, rngcalls per-frame ALIGNED, the +737 = a constant
+      phase offset). The whole `flow_diff` suite (`--field-timeline`, `--rng-drill`) reads the
+      v3 traces as-is — no flow_diff changes. **v2 is now fully retired as the working tool**
+      (CLAUDE.md's parity-loop bullets point at v3).
   - **NOTES + crop regions ✅ DONE + USER-CONFIRMED (2026-06-13, `db28c34`+`f20b5ea`).**
     The v2 `edits.jsonl` notes loop, native — **the last v2-parity gap**, so v2 is retired
     as the working tool (user call). Note mode (m) → drag a crop box on any panel (or "note

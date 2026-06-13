@@ -544,10 +544,27 @@
   10 s→7 s (rest = fixed nix/python startup); the "~5 min" was a stale pre-ResHash figure.
   Guards: `test_material_agg` + `test_load_side`. (A baked-draws cache was the alt lever —
   unneeded now.) The other big drive-time follow-up — skipping the v2 PNG/montage bake on a
-  v3 retail drive (~5 of ~13 min) — already landed in `4f7cfed`. **Only remaining v3 perf
-  item: lazy viewer metric precompute** (~15 s at open). Then the formal **P4** parity-check
-  (reproduce a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan:
-  `plans/trace-studio-v3.md` P3/N4/P4.
+  v3 retail drive (~5 of ~13 min) — already landed in `4f7cfed`.
+  **Lazy viewer metric precompute ✅ DONE 2026-06-13** (`perf(studio-v3): viewer — background
+  …`) — the diff-metric fill (2 renders/col) moved off the open path to a background pump
+  (~8 ms/UI-frame): the window is responsive instantly + the ribbon colours in over ~1-2 s
+  (was ~15 s of black at 2601 cols); the `--shot` path keeps the synchronous full precompute.
+  **GAME-STATE PANEL + `--state` capture ✅ DONE + measured 2026-06-13** — the v2 StatePanel,
+  native + identity-keyed. `orv3_window/house_capture/port_capture --state` caches each side's
+  `call_trace.jsonl` (the 4 once-per-frame VAs); `orv3_state.py` keys it by `(anchor,offset)`
+  (call-trace frame == present-count, verified); the viewer shows engine fields (rng/rngcalls,
+  player+companion px/py/anim, menu, dialogue) port-vs-retail, diff-highlighted (f32-normalised
+  ⇒ a red row is REAL — a 1-ULP cx gap or the +737 rngcalls phase offset), filter + diffs-only.
+  **Opt-in** (negligible: the probes are window-gated by the `{calltrace}` op — HOUSE 98 events /
+  36 KB, NONE in the load-stretch; +60 ms / ~1%). Measuring it **surfaced + fixed a latent
+  waste**: a v3 drive auto-loaded the heavy ~1979-VA call-graph (120k events / ~11 MB, NEVER
+  cached) from the trace's `{calltrace}` op — now NOT auto-enabled on a v3 drive (lean by
+  default), kept only with `--state` (to window-gate the 4-VA probes). **`flow_diff --verdict
+  --align-field db054` runs UNCHANGED on the v3 cache** (HOUSE = ✅ PHASE-CLEAN, rng 48/48
+  bit-exact, rngcalls per-frame match) — the whole RNG/phase determinism check, drop-in; the
+  `flow_diff` suite (`--field-timeline`/`--rng-drill`) reads the v3 traces as-is. **CLAUDE.md
+  now points the parity loop at v3** (v2 retired). Then the formal **P4** parity-check (reproduce
+  a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan: `plans/trace-studio-v3.md` P3/N4/P4.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
