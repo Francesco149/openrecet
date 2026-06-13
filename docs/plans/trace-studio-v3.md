@@ -690,6 +690,41 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     vs-v3-capture call_trace comparison on a rich gameplay session (vs the static HOUSE), then
     the archive move itself.
 
+- **P5 — RENDER-TARGET capture (the RT blind spot — new, 2026-06-13).** **Gap (confirmed, no
+  guess):** the proxy `fwd_`-forwards `CreateRenderTarget`/`SetRenderTarget`/`CopyRects`/
+  `GetRenderTarget`/`GetDepthStencilSurface` (pass-through, NOT recorded), and the format op enum
+  (`orv3_format.h`) has no such ops. So any effect that renders into an OFF-SCREEN render target
+  then samples it — **captured-screen backdrops (the pause-menu [0], `DAT_073de648`), radial-blur
+  / zoom transitions, post-processing** — replays EMPTY: the draws-into-RT aren't target-redirected
+  (they hit the backbuffer or are dropped) and the RT texture stays black (proven: pause [0] tex
+  `3e66` is 1024×768 datalen=0, `replay --upto 119 1` = pure black). The HOUSE/title/guild scenes
+  are bit-exact only because they don't use RTs; the pause backdrop is the first RT effect we hit.
+  **Why it matters:** porting these 1:1 (no-guess, verifiable) per THE PORTING LOOP needs the v3
+  tools to SHOW + DIFF the RT draw program — decompile alone is the "ship render on RE alone" trap
+  (cf. the sold-out-text colour miss). **Design (the extension):**
+  - **Surfaces become first-class.** `GetRenderTarget`/`GetBackBuffer`/`GetSurfaceLevel`/
+    `CreateRenderTarget` hand back `IDirect3DSurface8*`; the proxy must map each surface handle →
+    (texture-id, level) or (backbuffer) so `SetRenderTarget`/`CopyRects` can be recorded by stable
+    id, not pointer. Wrap or side-table the surfaces.
+  - **New format ops (v3):** `ORV3_CreateRenderTarget` (id, w, h, fmt), `ORV3_SetRenderTarget`
+    (color-surface-id, depth-surface-id), `ORV3_CopyRects` (src-surf-id, rects, dst-surf-id,
+    points). RT textures created with `D3DUSAGE_RENDERTARGET` + `D3DPOOL_DEFAULT` (can't be MANAGED).
+  - **Replayer:** create RTs with RENDERTARGET usage; maintain the surface→target map; honor
+    SetRenderTarget (redirect) + CopyRects (surface blit) + restore the backbuffer at frame end.
+  - **Cross-frame RT content = a HISTORY/cumulative render mode** (`replay --history-upto N`: replay
+    sections [0..N] on the one resident device so an RT filled at the open-ramp frame is still
+    populated at the rest frame N). Needed because the per-frame independent render won't have run
+    the fill frame. (orv3_shot's `--history` was removed pending this.)
+  - **Verify:** the HOUSE/title regressions stay bit-exact (no RTs ⇒ no behaviour change); a pause
+    rest frame's [0] then replays the real captured-darkened-house instead of black, and the
+    draw-program panel shows the RT draws.
+  **Interim ground-truth (no extension):** the proxy's per-frame backbuffer READBACK (`--raw-refs`)
+  stores the REAL composited frame (RT content included, since the menu draws the RT onto the
+  backbuffer); read `v3ref_NNN.raw` directly to SEE retail's true backdrop for analysis/appearance,
+  even before the replayer can re-render it. (The native viewer re-renders, so it shows black until
+  P5 — a known viewer limitation for RT effects.) This is the fast path to confirm the pause
+  backdrop appearance; P5 is what makes it structurally analyzable + viewer-faithful.
+
 ## Honest note on "10×"
 The 10× is on the **iteration loop**, not one axis: retail-caching + window-early-exit kill
 the capture wait; stored-identity kills the sync whack-a-mole; the integrated semantic
