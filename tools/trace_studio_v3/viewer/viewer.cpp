@@ -161,11 +161,23 @@ static void diff_into(const uint8_t *p, const uint8_t *r, uint8_t *out, Col &c)
 // show_column, so scrubbing/worst-of-seen are never gated on the background fill.
 static int g_metric_cursor = 0;   // background fill walks columns once; == size ⇒ done
 
+// render a side's frame in FULL (no draw-stepping): use the cumulative history
+// reconstruction when the container carries cross-frame render-target content (the
+// pause backdrop — RT#56 is filled at the capture/blur frames and sampled by every
+// later rest frame, which the per-frame render shows black), else the cheap
+// per-frame render (identical result for RT-free containers, O(1) vs O(idx)).
+static const uint8_t *render_full(OrV3Replay *rep, int idx)
+{
+    if (idx < 0 || !rep) return nullptr;
+    return orv3_replay_has_rt(rep) ? orv3_replay_render_history(rep, idx)
+                                   : orv3_replay_render(rep, idx);
+}
+
 static bool compute_col_metric(Col &c)
 {
     if (c.port_idx < 0 || c.retail_idx < 0 || c.gt8 >= 0) return false;  // gap / already done
-    const uint8_t *p = orv3_replay_render(g_port, c.port_idx);
-    const uint8_t *r = orv3_replay_render(g_retail, c.retail_idx);
+    const uint8_t *p = render_full(g_port, c.port_idx);
+    const uint8_t *r = render_full(g_retail, c.retail_idx);
     if (!p || !r) return false;
     diff_into(p, r, nullptr, c);
     return true;
@@ -207,7 +219,7 @@ static int issued(int ndraws)
 static const uint8_t *render_side(OrV3Replay *rep, int idx, int ndraws)
 {
     if (idx < 0 || !rep) return nullptr;
-    if (!g_step_on) return orv3_replay_render(rep, idx);
+    if (!g_step_on) return render_full(rep, idx);
     if (g_solo) {
         int j = g_draw_step < 0 ? 0 : (g_draw_step > ndraws - 1 ? ndraws - 1 : g_draw_step);
         return orv3_replay_render_range(rep, idx, j, j + 1);

@@ -31,6 +31,8 @@ struct OrV3Replay {
     IDirect3DVertexBuffer8 *vb [MAXRES];
     IDirect3DIndexBuffer8  *ib [MAXRES];
     FrameRec *frames; int nframes;
+    int has_rt;     /* any frame binds a render target ⇒ cross-frame RT content ⇒
+                     * orv3_replay_render_history is required to reconstruct it */
     uint8_t *buf;   /* last readback (orv3_readback_bgra malloc'd) */
 };
 
@@ -266,6 +268,7 @@ OrV3Replay *orv3_replay_open(const char *cap_path, char *err, int errlen)
         if (op == 0xfffffffeu) FAIL("unknown op in container");
         if (op_is_draw(op)) ndraws++;
         if (op_is_call(op)) ncalls++;
+        if (op == ORV3_SetRenderTarget) R->has_rt = 1;
         if (op == ORV3_Present) {
             if (R->nframes == cap) { cap *= 2; R->frames = (FrameRec *)realloc(R->frames, cap * sizeof(FrameRec)); }
             uint32_t endoff = (uint32_t)(c.p - R->data);
@@ -284,6 +287,7 @@ OrV3Replay *orv3_replay_open(const char *cap_path, char *err, int errlen)
 }
 
 int orv3_replay_count (const OrV3Replay *r) { return r ? r->nframes : 0; }
+int orv3_replay_has_rt(const OrV3Replay *r) { return r ? r->has_rt : 0; }
 int orv3_replay_width (const OrV3Replay *r) { return r ? (int)r->W : 0; }
 int orv3_replay_height(const OrV3Replay *r) { return r ? (int)r->H : 0; }
 int orv3_replay_draws(const OrV3Replay *r, int i) { return (r && i >= 0 && i < r->nframes) ? (int)r->frames[i].draws : -1; }

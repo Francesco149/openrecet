@@ -31,6 +31,13 @@ int orv3_replay_count (const OrV3Replay *r);   /* kept-frame count */
 int orv3_replay_width (const OrV3Replay *r);
 int orv3_replay_height(const OrV3Replay *r);
 
+/* 1 if ANY kept frame binds a render target (SetRenderTarget) ⇒ the container has
+ * cross-frame RT content (e.g. the pause backdrop's captured/blurred screen) and
+ * MUST be reconstructed with orv3_replay_render_history, not the per-frame
+ * orv3_replay_render (which shows RT-bound samples black/garbage). 0 ⇒ per-frame
+ * render is exact and far cheaper. */
+int orv3_replay_has_rt(const OrV3Replay *r);
+
 /* draw/call counts for kept frame `idx` (parsed at open) — the viewer's per-frame
  * "state". -1 if idx out of range. */
 int orv3_replay_draws(const OrV3Replay *r, int idx);
