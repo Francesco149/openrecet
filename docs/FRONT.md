@@ -588,6 +588,11 @@
   retail's structure + prevents the over-draw for any INGAME cutscene over a loaded 3D scene
   (the traced covering cutscenes — bedroom iv1_1 — are pixel-identical here; the *measured*
   over-draw removal is the guild's).
+  **The covers_screen scene-block-gate class is now SYSTEMATICALLY COVERED** across the
+  port's implemented scene modes (INGAME mode-1 + guild mode-6 fixed; worldmap mode-8 draws
+  no dialogue so N/A; the guild gold/clock HUD's `!busy()` gate is correctly call-trace-
+  evidenced — FUN_00406d50 fires only pre/post, not a divergence). The `display_menu_render`
+  (cc04 / guild buy-list, FUN_0046b00a) render program is clean modulo phase (the guild drill).
   **Two OPEN draw-program leads** (both v2-invisible): (a) the conversation's retail-only
   **clear-to-black base** (tex `9fd8`, fullscreen `0xff000000`, FIRST draw, covered by the
   opaque bg ⇒ 0 px; source `FUN_0046c9a2`/`polybg` layer — DEFERRED until a scene exercises
