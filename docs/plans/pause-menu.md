@@ -144,8 +144,9 @@ Draw primitives all already in the port: `render_quad_add`
   bank field (+0x2c3f4) equals the animated `_DAT_0438b91c` (no XP animating in the house),
   so the read is bit-identical to retail. **PORT-DEBT(pause-xp-anim):** the XP-display
   animator (FUN_00406xxx, shared with the merchant HUD's own stubbed `set_xp`) stays
-  unported — only matters mid-rank-up, never in this scenario. **PENDING the user's
-  visual 1:1 confirm** (feed: "M2c pause calendar+numbers — port|retail|diff").
+  unported — only matters mid-rank-up, never in this scenario. **✅ USER-CONFIRMED 1:1
+  2026-06-13** ("can confirm pause menu is fully 1:1 based on the pushes" — parity ledger;
+  the WHOLE resting pause menu is now 1:1). Commit `f3ef342`.
 
   Original RE map (kept for reference). The retail resting-menu draw program is
   **10 draws** (orv3_draws on `house-pause-f1bf56e7` frame 119):
@@ -306,9 +307,21 @@ Draw primitives all already in the port: `render_quad_add`
       (2) run the downsample→blur-accumulate→full-screen passes. The exact pass
       geometry/blur taps are now READABLE per-draw via `orv3_rt.py … 41 --full` +
       `orv3_draws.py` (vertex/UV dump) — port from the stream, not the decompile.
-- **M3+ (later arcs):** submenus — Items, Encyclopedia, Options, Save,
-  Exit-confirm (the `sub_anim>0` dispatch L83931-83952); the unpause cursor
-  restore.
+- **M4 — the SAVE submenu (entry type 3) ← NEXT (user-requested 2026-06-13, next session).**
+  "add 2x down + Z to open save from pause menu and implement that submenu." The `A`-press
+  (input bit 0x10 = Z) on the **Save** row drives `sel_anim` to commit → `sub_anim` ramps
+  0→10 → at `sub_anim==10` the type-3 dispatch fires (`FUN_004812e4`, the L83949 branch of
+  the render `sub_anim>0` block; the matching update path in `FUN_0047fa76`). Port the type-3
+  submenu update + render (the in-pause save-slot picker / "Save complete" flow).
+  **Trace first:** synthesize a `house-pause`-derived scenario that navigates to Save then
+  presses Z. House entry list = `[1,6,2,3,4]` (Items·Encyclopedia·Options·**Save**·Exit) ⇒
+  Save = index 3; **verify 2×down from the default selection lands on it** before trusting the
+  "2x down + Z" input (the default sel may not be index 1, and the nav doesn't wrap unless at
+  an edge — confirm via the v3 state panel / a quick draw-count probe). The submenu open reuses
+  the `g_pause_sub_anim` ramp the M2c slide already consumes.
+- **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
+  Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
+  fade + action-1/2 pause variants; the unpause cursor restore.
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).

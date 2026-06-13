@@ -406,11 +406,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   animated **merchant-rank XP** (the bottom-left-HUD value), NOT a "current-day" — [5]/[6]'s
   `+0x2c3f8`/`+0x2c3fc` are the XP level-start/next thresholds, the real calendar day is CARD_DAY
   (+0x2c3ec). The stubbed `g_dat_0438b91c` (`stage_post_load.c:562`) is DEAD (no consumer) — NOT
-  touched; the render reads the bank directly, bit-identical at rest. **PENDING the user's visual
-  1:1 confirm** (feed "M2c pause calendar+numbers — port|retail|diff"). **PORT-DEBT(pause-xp-anim):**
-  the XP-display animator (shared with the merchant HUD's stubbed `set_xp`) stays unported (only
-  matters mid-rank-up). **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants
-  (PORT-DEBT in the M3 code); submenus (`sub_anim>0` dispatch L83931-83952) + type-4 exit-confirm +
+  touched; the render reads the bank directly, bit-identical at rest. **✅ USER-CONFIRMED 1:1
+  2026-06-13** ("can confirm pause menu is fully 1:1 based on the pushes" — parity ledger; ⇒ the
+  WHOLE resting pause menu — backdrop + option list + header + calendar + numbers — is now 1:1).
+  **PORT-DEBT(pause-xp-anim):** the XP-display animator (shared with the merchant HUD's stubbed
+  `set_xp`) stays unported (only matters mid-rank-up).
+  **→ NEXT ARC (user-requested 2026-06-13, next session): the SAVE submenu (entry type 3).**
+  "add 2x down + Z to open save from pause menu and implement that submenu" — synthesize a
+  `house-pause`-derived trace that navigates to **Save** then presses **Z** (A/confirm, input bit
+  0x10) to open the type-3 submenu, and port `FUN_004820ba`'s `sub_anim>0` type-3 dispatch
+  (L83931-83952 → `FUN_004812e4`) + the save-submenu update/render. **Verify the nav first:** the
+  house entry list is `[1,6,2,3,4]` (Items·Encyclopedia·Options·**Save**·Exit) so Save = index 3;
+  confirm 2×down from the default selection actually lands on it (else adjust the trace / it may
+  start on a non-Items row). The submenu open uses the `g_pause_sub_anim` ramp the M2c slide
+  already consumes. **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants
+  (PORT-DEBT in the M3 code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm +
   unpause cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
