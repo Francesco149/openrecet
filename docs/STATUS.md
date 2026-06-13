@@ -333,22 +333,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `merchant-guild-RE.md` §2. **Lesson (`feedback_verify_1to1_before_done`): always exercise +
   trace-compare a renderable port before committing — RE of the diffuse value isn't enough
   without the inherited COLOROP.**
-- **NEW ARC → PAUSE MENU (in-game ESC menu).** Scenario **`house-pause`** added 2026-06-13
-  (`0250347`): house-loaded-display-pinned + an `{esc}` at LOADING_END+160. The port SWALLOWS
-  in-game ESC (`esc_dispatch.c` → skip_event_arm + SWALLOW — "no in-game pause/menu overlay
-  reachable yet"); retail's ESC (`FUN_00453384`, 821 B) opens the **PAUSE MENU** —
-  user-confirmed in the v3 viewer 2026-06-13 ("it is indeed triggering it"). Captured: a brief
-  **"Now Loading"** (the C4E worker `scene_pause.c` loads pause.tga + sousa/st portraits — the
-  LOADER is already ported, the trigger+UI aren't; the "long gap before the menu pops up" the
-  user saw = this async asset load, a **loading-screen-fidelity** instance) → the menu: calendar
-  (Morchest) + gold + Recette portrait + **Items / Encyclopedia / Options / Save / Exit Game**.
-  v3 join pairs the 42 pre-ESC free-roam frames bit-exact, then port=HOUSE_FREEROAM vs
-  retail=LOADING_START#2 are honest gaps (different states until the port opens the menu too).
-  **Next:** RE `FUN_00453384` (ESC→pause dispatch) + `DAT_0438b150` state machine (NB: b150 is
-  the SHARED hand-cursor flag — `FUN_00435693` cursor-snap sets it too, so PAUSE_OPEN fires for
-  the guild menu/save dialog as well, not only the pause menu) → port the trigger + the pause UI
-  + the "Now Loading" transition. Caveat: the pause-menu frames don't self-replay bit-exact yet
-  (a v3-replayer follow-up). Assets/loader RE: `scene_pause.h` banner.
+- **ACTIVE ARC → PAUSE MENU (in-game ESC menu, mode 9).** Plan + full RE:
+  **`plans/pause-menu.md`**. Scenario **`house-pause`** (`0250347`); v3 cache
+  `house-pause-f1bf56e7` has the retail menu rendered. **M1 ✅ DONE 2026-06-13** (`52133bd`):
+  the pure-C state machine — `pause_dispatch` (FUN_00453384 trigger/toggle), `pause_menu_setup`
+  (FUN_0047f2f6 entry-list build), `pause_menu_update`/`pause_menu_nav` (FUN_0047fa76/00480614).
+  Key RE: the ramp counters ALREADY existed in sim.c (`g_sim_counter_998/99c` + `g_sim_mode_9a0`
+  == DAT_06a49998/9c/a0, ported as the dormant FUN_004532df) — M1 added the SETTER + consumers.
+  Entry list = base **[1,6,2,3,4]** (Items·Encyclopedia·Options·Save·Exit) +type-0 Status when a
+  party exists (DAT_0741bed8>0, PORT-DEBT stub 0) +type-5 in a dungeon (saved_mode==1 &&
+  *DAT_068dd2f0>0). 16 host tests. **M2 ✅ DONE + USER-CONFIRMED 2026-06-13** (`aef7d89`):
+  wired the trigger (esc_dispatch in-game→pause_dispatch, gated on worker idle) + the ramp
+  consumers (sim ramp==3→mode9+setup+worker spawn, dispatch skipped while ramping; render c99c
+  pump + the mode-9 render) + the primary-worker **case-9** load (objdump 0x4529c6 — the LIVE
+  path; the C4E secondary FUN_00452e75 is dead) + `pause_menu_render` drawing the **pause_bg_rete
+  backdrop**. v3: port re-drives **240/240 BIT-EXACT**, at offset 190 renders the pause backdrop
+  (1 draw = bg_rete Recette art) where it used to swallow ESC; retail = 10 draws (full menu).
+  **User-confirmed: "we're rendering the correct artwork for the pause menu."** The cyan is the
+  mode-9 clear (retail clears cyan too — both `0xff17f0ff`; retail covers it with the menu draws,
+  so the port is faithfully at "bg_rete drawn, rest pending"). Retail doesn't slice bit-exact
+  across the pause's mid-window async load (known v3-replayer limit; verified by direct frame
+  render). **NEXT → M2b:** the pause.tga atlas draws (the option list = COLOROP=ADD rows over
+  pause.tga, src/dst geometry recovered via objdump 0x482300+; the calendar + gold = needs
+  save-state day/gold fields; "PAUSE MENU" text @dst(368,428); cursor) + the open/close fade
+  (FUN_00454191, inside the FUN_0045404b fx_tail). **M3:** submenus (Items/Encyclopedia/Options/
+  Save) + the type-4 exit-confirm + the unpause cursor-restore. NB DAT_0438b150 is the SHARED
+  hand-cursor flag (FUN_00435693 cursor-snap sets it too) — not pause-exclusive.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game
