@@ -532,12 +532,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   v2-invisible findings:** retail draws a fullscreen SRCALPHA overlay quad LAST
   (tex `…9fd8`, ~1094 columns, sub-gt8 net effect — port omits; RE the engine layer) +
   the port double-draws the guild bg (tex `…2780`, 2 draws vs 1, ~1076 columns —
-  invisible overdraw, port cleanup lead). **Follow-ups:** v3 retail drive should skip
-  the v2 PNG/montage bake (~5 of ~13 min); lazy viewer metric precompute; then
-  marks/crops parity → P4 (reproduce a confirmed-1:1 session, then archive v2).
-  Open human-verify: live click-test of pixel→draw pick + a live scrub of the guild
-  view (`orv3_window.py guild-ui-flow --window 330:2600 --launch`). Plan:
-  `plans/trace-studio-v3.md` P3/N4.
+  invisible overdraw, port cleanup lead). **Live viewer at 2601 columns
+  ✅ USER-CONFIRMED 2026-06-13** ("works perfectly and scrubs instantly").
+  **Follow-ups:** v3 retail drive should skip the v2 PNG/montage bake (~5 of ~13 min);
+  the CACHED re-window loop is ~5 min at 2600 columns (containers re-parsed in pure
+  Python per phase + per-column draw enumeration — needs a parse-once handoff /
+  baked-draws cache); lazy viewer metric precompute; then marks/crops parity → P4
+  (reproduce a confirmed-1:1 session, then archive v2). Open human-verify: live
+  click-test of pixel→draw pick. Plan: `plans/trace-studio-v3.md` P3/N4.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

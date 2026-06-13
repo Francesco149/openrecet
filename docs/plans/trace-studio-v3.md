@@ -589,14 +589,20 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
       the port needs it. (2) the **port double-draws the guild background** (tex
       `…2780` 1024×512: port 2 draws/4 tris vs retail 1/2) on ~1076 columns —
       pixel-invisible overdraw, port-side cleanup lead.
+    - **Live viewer at 2601 columns ✅ USER-CONFIRMED 2026-06-13** ("works perfectly
+      and scrubs instantly") — the resident-replay scrub model holds at thousands of
+      columns.
     - **Process findings / follow-ups:** the retail drive's wall-clock is DOMINATED
       by the v2 caprange machinery (≈2.5k PNG conversions + 287 montages ≈ 5 of the
       ~13 min) — add a v3 drive flag to skip frame/montage baking (the container +
-      hash refs are the only v3 artifacts); viewer metric precompute should go lazy/
-      background at thousands of columns; replay.exe cannot fopen-write
-      `\\wsl.localhost` UNC paths (write to Windows-local scratch). Then marks/crops
-      parity with v2. (Open human-verify: pixel→draw pick's live mouse-click wiring +
-      a live scrub of the 2601-column guild view.)
+      hash refs are the only v3 artifacts); the CACHED re-window loop is ~5 min at
+      2600 columns ("nothing re-driven" but the 91+58 MB containers are re-parsed in
+      pure Python per phase — sync, view, draws — and the material-diff bake
+      enumerates draws per column) — needs a parse-once container handoff between
+      phases and/or a baked-draws cache; viewer metric precompute (~15 s at open)
+      should go lazy/background; replay.exe cannot fopen-write `\\wsl.localhost` UNC
+      paths (write to Windows-local scratch). Then marks/crops parity with v2.
+      (Open human-verify: pixel→draw pick's live mouse-click wiring.)
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.
 
