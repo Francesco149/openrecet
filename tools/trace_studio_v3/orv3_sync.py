@@ -33,19 +33,19 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import orv3       # noqa: E402
-import v3cache    # noqa: E402
+import v3cache    # noqa: E402  (owns LoadedSide/as_side — the parse-once handoff)
 
 
-def identities(entry: Path):
-    """[(index, key=(anchor,occ,delta), present)] for every kept frame. meta v2
-    (stored anchor stream) resolves each frame's key from its OWN present —
-    most-recent anchor ≤ present — so mid-window load seams re-sync per segment;
-    a legacy entry falls back to the contiguous (anchor, occ, offset0+index)."""
-    meta = v3cache.load_meta(entry)
-    c = orv3.Container.load(entry / "v3cap.bin")
+def identities(side):
+    """[(index, key=(anchor,occ,delta), present)] for every kept frame. `side` is a
+    pre-parsed v3cache.LoadedSide (the parse-once handoff) OR an entry Path/str (parsed
+    now, for the CLI). meta v2 (stored anchor stream) resolves each frame's key from its
+    OWN present — most-recent anchor ≤ present — so mid-window load seams re-sync per
+    segment; a legacy entry falls back to the contiguous (anchor, occ, offset0+index)."""
+    s = v3cache.as_side(side)
+    meta = s.meta
     rows = []
-    for f in c.frames:
+    for f in s.cont.frames:
         key = (meta.key_of_present(f.present) if meta.anchors
                else meta.key_of(f.index))
         rows.append({"index": f.index, "key": list(key), "present": f.present})
@@ -81,14 +81,18 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
                  pairs_path: Path | None = None, quiet: bool = False) -> dict:
     """JOIN two cache entries (port + retail) by stored identity, print the report
     (unless quiet), optionally write pairs.json, and RETURN the join result
-    {verdict, pairs, port_only, retail_only, naive, load_stretch}. The orv3_window
-    orchestrator calls this on the two sub-window slices; main() is a thin CLI wrap."""
+    {verdict, pairs, port_only, retail_only, naive, load_stretch}. `port_entry`/
+    `retail_entry` are parse-once v3cache.LoadedSides (the handoff) OR entry Paths.
+    The orv3_window orchestrator passes LoadedSides (and write_view_json re-calls this
+    with the SAME ones, so the containers never re-parse); main() passes Paths."""
     def say(*a):
         if not quiet:
             print(*a)
 
-    pmeta, prows = identities(port_entry)
-    rmeta, rrows = identities(retail_entry)
+    pside = v3cache.as_side(port_entry)
+    rside = v3cache.as_side(retail_entry)
+    pmeta, prows = identities(pside)
+    rmeta, rrows = identities(rside)
 
     say(f"port   : {pmeta.scenario}  {pmeta.anchor}#{pmeta.anchor_occ}  "
         f"arm-window {pmeta.eff_arm_offset}..{pmeta.eff_arm_offset + pmeta.eff_arm_count - 1}  "
@@ -129,9 +133,9 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
               "retail_only": retail_only, "naive": naive, "load_stretch": load_stretch,
               "anchor": pmeta.anchor}
     if write_pairs:
-        out = pairs_path or (port_entry / "pairs.json")
+        out = pairs_path or (pside.entry / "pairs.json")
         out.write_text(json.dumps({
-            "port_entry": str(port_entry), "retail_entry": str(retail_entry),
+            "port_entry": str(pside.entry), "retail_entry": str(rside.entry),
             "anchor": pmeta.anchor, "verdict": verdict,
             "pairs": pairs, "port_only": port_only, "retail_only": retail_only,
         }, indent=1))

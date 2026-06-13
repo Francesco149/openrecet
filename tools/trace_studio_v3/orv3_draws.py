@@ -279,11 +279,94 @@ def diff_draw_lists(port: list[Draw], retail: list[Draw]) -> list[DrawDelta]:
     return out
 
 
-def material_diff(port: list[Draw], retail: list[Draw]) -> dict:
-    """Compare two draw lists at the MATERIAL level — per bound-texture triangle
-    totals + draw counts — which is robust to batching (the port batches geometry
-    the retail engine splits, so an exact draw-by-draw alignment is noisy, but the
-    per-texture geometry total is invariant). Verdict:
+Agg = dict[int, list[int]]   # tex content-hash -> [triangle total, draw count]
+
+
+def material_agg(c: orv3.Container, frame_index: int, reshash: ResHash) -> Agg:
+    """The MATERIAL aggregate of a kept frame — `{tex_hash: [triangles, draws]}` — the
+    ONLY thing material_diff reads, computed WITHOUT building Draw objects.
+
+    `enumerate_draws` is the per-draw view/pick layer: it also hashes geometry
+    (geo_hash — a pure-Python fnv1a byte-loop over every UP draw's inline vertices)
+    and snapshots rs/tss per draw. The material bake throws ALL of that away, so for
+    the per-column view.json bake (thousands of columns) this walk tracks only the
+    stage-0 texture and sums prim_count per bound texture — an ~18× faster bake with
+    byte-identical material verdicts (test_draws_material_agg cross-checks it against
+    enumerate_draws + material_diff). It is a deliberate perf-critical SUBSET of the
+    record walk in enumerate_draws / orv3.Container._parse: the skip sizes MUST track
+    orv3_format.h alongside both (the cross-check test catches drift)."""
+    if not (0 <= frame_index < c.n_frames):
+        raise IndexError(f"frame {frame_index} out of range (0..{c.n_frames})")
+    f = c.frames[frame_index]
+    d = c.data
+    p, end = f.byte_start, f.byte_end
+    upk = struct.Struct("<I").unpack_from
+    ipk = struct.Struct("<i").unpack_from
+    cur_tex = -1
+    out: Agg = {}
+
+    def add(prim_count: int) -> None:
+        h = reshash.of(cur_tex)
+        t = out.get(h)
+        if t is None:
+            out[h] = [prim_count, 1]
+        else:
+            t[0] += prim_count
+            t[1] += 1
+
+    while p < end:
+        t = upk(d, p)[0]; p += 4
+        # draws first (the hot ops; UP dominates the 2D UI), texture binds next
+        if t == orv3.DrawPrimitiveUP:
+            add(upk(d, p + 4)[0]); p += 12; p += 4 + upk(d, p)[0]
+        elif t == orv3.SetTexture:
+            if upk(d, p)[0] == 0:           # stage 0
+                cur_tex = ipk(d, p + 4)[0]
+            p += 8
+        elif t == orv3.DrawIndexedPrimitive:
+            add(upk(d, p + 16)[0]); p += 20
+        elif t == orv3.DrawPrimitive:
+            add(upk(d, p + 8)[0]); p += 12
+        elif t == orv3.DrawIndexedPrimitiveUP:
+            add(upk(d, p + 12)[0]); p += 20
+            p += 4 + upk(d, p)[0]           # index data
+            p += 4                          # stride
+            p += 4 + upk(d, p)[0]           # vertex data
+        elif t == orv3.SetRenderState:        p += 8
+        elif t == orv3.SetTextureStageState:  p += 12
+        elif t == orv3.SetTransform:          p += 68
+        elif t == orv3.SetMaterial:           p += 68
+        elif t == orv3.SetStreamSource:       p += 12
+        elif t == orv3.SetIndices:            p += 8
+        elif t == orv3.SetVertexShader:       p += 4
+        elif t == orv3.RES_TEX:
+            p += 4                            # id
+            levels = upk(d, p)[0]; p += 4
+            for _ in range(levels):
+                p += 16                       # w,h,fmt,rowbytes
+                p += 4 + upk(d, p)[0]         # data
+        elif t in (orv3.RES_VB, orv3.RES_IB):
+            p += 12                           # id, size, fvf/fmt
+            p += 4 + upk(d, p)[0]             # data
+        elif t == orv3.Clear:
+            p += 4 + upk(d, p)[0] * 16 + 16   # count, rects, flags/color/z/stencil
+        elif t == orv3.SetLight:
+            p += 4                            # index
+            p += 4 + upk(d, p)[0]             # light data
+        elif t == orv3.LightEnable:           p += 8
+        elif t in (orv3.BeginScene, orv3.EndScene):
+            pass
+        elif t == orv3.Present:
+            break
+        else:
+            raise ValueError(f"unexpected op {t} at {p - 4} in frame {frame_index}")
+    return out
+
+
+def _material_report(pt: Agg, rt: Agg) -> dict:
+    """The material verdict + per-texture rows from two per-texture aggregates — the
+    representation `material_diff` (from Draw lists) and the fast bake (`material_agg`)
+    share, so both produce byte-identical reports. Verdict:
 
       ALIGNED   — same textures, same per-texture triangle totals AND draw counts
                   (a true 1:1 draw program).
@@ -293,15 +376,6 @@ def material_diff(port: list[Draw], retail: list[Draw]) -> dict:
                   differ ⇒ a genuine render-program difference (which the viewer's
                   draw-isolation can then confirm visible-or-not).
     """
-    def agg(draws: list[Draw]) -> dict[int, list[int]]:
-        out: dict[int, list[int]] = {}
-        for d in draws:
-            t = out.setdefault(d.tex_hash, [0, 0])
-            t[0] += d.prim_count   # triangles
-            t[1] += 1              # draws
-        return out
-
-    pt, rt = agg(port), agg(retail)
     textures = []
     for h in sorted(set(pt) | set(rt), key=lambda k: -(pt.get(k, [0])[0] + rt.get(k, [0])[0])):
         ptris, pdraws = pt.get(h, [0, 0])
@@ -316,13 +390,29 @@ def material_diff(port: list[Draw], retail: list[Draw]) -> dict:
     verdict = "DIVERGENT" if divergent else ("BATCHING" if batched else "ALIGNED")
     return {
         "verdict": verdict,
-        "port_draws": len(port), "retail_draws": len(retail),
-        "port_tris": sum(d.prim_count for d in port),
-        "retail_tris": sum(d.prim_count for d in retail),
+        "port_draws": sum(v[1] for v in pt.values()), "retail_draws": sum(v[1] for v in rt.values()),
+        "port_tris": sum(v[0] for v in pt.values()), "retail_tris": sum(v[0] for v in rt.values()),
         "n_textures": len(textures), "n_batched": len(batched),
         "divergent": divergent, "batched_textures": [t["tex"] for t in batched],
         "textures": textures,
     }
+
+
+def material_diff(port: list[Draw], retail: list[Draw]) -> dict:
+    """Compare two draw lists at the MATERIAL level — per bound-texture triangle
+    totals + draw counts — robust to batching (the port batches geometry the retail
+    engine splits, so a draw-by-draw alignment is noisy, but the per-texture triangle
+    total is invariant). A thin wrapper over `_material_report`; the per-column bake
+    uses `material_agg` to reach the same report without building Draw objects."""
+    def agg(draws: list[Draw]) -> Agg:
+        out: Agg = {}
+        for d in draws:
+            t = out.setdefault(d.tex_hash, [0, 0])
+            t[0] += d.prim_count   # triangles
+            t[1] += 1              # draws
+        return out
+
+    return _material_report(agg(port), agg(retail))
 
 
 def frame_draw_report(pc: orv3.Container, pidx: int, rc: orv3.Container, ridx: int,
@@ -331,8 +421,14 @@ def frame_draw_report(pc: orv3.Container, pidx: int, rc: orv3.Container, ridx: i
     the genuinely-divergent textures (with their port/retail triangle+draw counts),
     so the viewer can flag a frame whose pixels match but whose render program does
     not. Lean by design (no full per-draw list — that's the on-demand draws sidecar).
-    Pass shared per-container ResHash instances when baking many columns."""
-    md = material_diff(enumerate_draws(pc, pidx, preshash), enumerate_draws(rc, ridx, rreshash))
+    Pass shared per-container ResHash instances when baking many columns.
+
+    Uses `material_agg` (per-texture totals, no Draw objects / no geometry hashing)
+    — the bake reads only the material level, so this is ~18× faster than enumerating
+    full Draw lists across thousands of columns, with byte-identical reports."""
+    preshash = preshash or ResHash(pc)
+    rreshash = rreshash or ResHash(rc)
+    md = _material_report(material_agg(pc, pidx, preshash), material_agg(rc, ridx, rreshash))
     return {
         "draw_verdict": md["verdict"],
         "port_tris": md["port_tris"], "retail_tris": md["retail_tris"],

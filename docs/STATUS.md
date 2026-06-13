@@ -551,11 +551,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   squished pixel font) fixed (`f20b5ea`, user-confirmed). **The parity loop now runs on
   the v3 native viewer:** `orv3_window <scen> --window OFF:COUNT --launch` → drag notes →
   `orv3_notes.py <scen> --render`. Detail → PROGRESS + `plans/trace-studio-v3.md` P3.
-  **Follow-ups (perf, the NEXT arc — user-sanctioned 2026-06-13):** v3 retail drive
-  should skip the v2 PNG/montage bake (~5 of ~13 min — a v3 drive's only artifacts are
-  the container + hash refs); the CACHED re-window loop is ~5 min at 2600 columns
-  (containers re-parsed in pure Python per phase — needs a parse-once handoff /
-  baked-draws cache); lazy viewer metric precompute. Then the formal **P4** parity-check
+  **Follow-ups (perf, the NEXT arc — user-sanctioned 2026-06-13):**
+  **CACHED re-window loop ✅ DONE 2026-06-13** — parse-once container handoff
+  (`v3cache.LoadedSide`/`load_side`/`as_side`: parse meta+container+identity-index ONCE,
+  thread the SAME object through sync→view instead of re-parsing the 91+58 MB containers
+  ~3× per side) + a **material aggregate bake** (`orv3_draws.material_agg` →
+  `{tex_hash:[tris,draws]}` directly, skipping the Draw objects / geo_hash UP byte-loops /
+  rs-tss copies `material_diff` discards). Both **behavior-preserving** (view.json +
+  pairs.json byte-identical pre/post). Numbers (2600-col guild pair): per-column bake
+  **6.71 s→0.36 s (~18×)**, sync+view compute **8.98 s→1.40 s (~6.4×)**, end-to-end loop
+  10 s→7 s (rest = fixed nix/python startup); the "~5 min" was a stale pre-ResHash figure.
+  Guards: `test_material_agg` + `test_load_side`. (A baked-draws cache was the alt lever —
+  unneeded now.) The other big drive-time follow-up — skipping the v2 PNG/montage bake on a
+  v3 retail drive (~5 of ~13 min) — already landed in `4f7cfed`. **Only remaining v3 perf
+  item: lazy viewer metric precompute** (~15 s at open). Then the formal **P4** parity-check
   (reproduce a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan:
   `plans/trace-studio-v3.md` P3/N4/P4.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling

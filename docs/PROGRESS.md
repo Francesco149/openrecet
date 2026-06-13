@@ -7,6 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-13 — studio-v3: parse-once container handoff + material-aggregate bake (cached re-window loop perf)
+
+The biggest perf remainder in the v3 **cached re-window loop**: each phase (`orv3_sync`,
+`orv3_view`, and the view's per-column draws bake) re-parsed the same 91 MB (retail) + 58 MB
+(port) containers in pure Python, and the material-diff bake built full `Draw` lists for every
+column — hashing geometry the verdict never reads. Both fixed, **behavior-preserving** (the
+2600-column guild pair's `view.json` and `pairs.json` are **byte-identical** before/after).
+
+- **Parse-once container handoff.** New `v3cache.LoadedSide` + `load_side` parse a cache entry's
+  meta + container + per-frame identity index ONCE; `as_side` accepts a LoadedSide (pass-through,
+  idempotent) OR a Path (parse now). `orv3_window` now `load_side`s each window side once and
+  threads the SAME object through `sync_entries` → `write_view_json` (which itself re-calls sync) —
+  so the containers parse once per loop, not ~3× per side per phase. `identities` / `sync_entries`
+  / `_side_index` / `write_view_json` all take a LoadedSide-or-Path.
+- **Material aggregate bake.** `orv3_draws.material_agg` walks a kept frame straight to
+  `{tex_hash: [triangles, draws]}` — the only thing `material_diff` reads — with **no Draw
+  objects, no geo_hash** (a pure-Python fnv1a byte-loop over every UP draw's inline vertices, the
+  actual hot cost since the 2D UI is all `DrawPrimitiveUP`), and **no rs/tss copies**. `material_diff`
+  and the fast bake now share one `_material_report(pt, rt)`, so reports are byte-identical;
+  `enumerate_draws` (full per-draw view/pick/CLI layer) is unchanged.
+- **Numbers (2600-col guild pair):** per-column bake **6.71 s → 0.36 s (~18×)**; sync+view
+  **compute 8.98 s → 1.40 s (~6.4×)** (sync 0.74→0.07, view 8.24→0.62, + one 0.71 s parse);
+  end-to-end loop 10 s → 7 s (the rest is fixed nix-devshell + python + numpy/PIL import startup).
+  The plan's "~5 min" was a stale pre-ResHash figure — the loop was already ~10 s.
+- **Guards:** `test_material_agg` (fast bake == `enumerate_draws`+`material_diff` over all frame
+  pairs, including UP draws + distinct-content textures, exercising ALIGNED + DIVERGENT) and
+  `test_load_side` (parse-once meta/container/index; `as_side` idempotent). The slice path benefits
+  too (the sync+view re-parse is gone + the 18× bake); its residual cost is the replay verify.
+
+A baked-draws cache was the sanctioned alternative lever — unneeded now the bake is 0.36 s.
+The sibling drive-time follow-up (skip the v2 PNG/montage bake on a v3 retail drive) already
+landed in `4f7cfed`, so the only remaining v3 perf item is the lazy viewer metric precompute
+(~15 s at open). Plan: `plans/trace-studio-v3.md` P3 follow-ups.
+
 ## 2026-06-13 — studio-v3: viewer NOTES + crop regions → v2 RETIRED as the working tool
 
 The native viewer gains the v2 `edits.jsonl` notes loop — **the last v2-parity gap**, so v2 is

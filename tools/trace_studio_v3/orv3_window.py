@@ -43,11 +43,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import orv3            # noqa: E402
 import orv3_slice      # noqa: E402
 import orv3_sync       # noqa: E402
 import orv3_view       # noqa: E402
-import v3cache         # noqa: E402
+import v3cache         # noqa: E402  (load_side — the parse-once handoff)
 
 ROOT       = Path(__file__).resolve().parent.parent.parent
 SCEN_DIR   = ROOT / "tests" / "scenarios"
@@ -227,16 +226,22 @@ def main() -> int:
     print(f"  retail : {r_act:12s} → {r_note}")
     print(f"  port   : {p_act:12s} → {p_note}")
 
+    # Parse each window side's container ONCE here, then thread the SAME LoadedSide
+    # through sync AND view (view re-calls sync internally) — the parse-once handoff, so
+    # the 91+58 MB containers parse once per loop instead of ~3× per side per phase.
+    pside = v3cache.load_side(port_win)
+    rside = v3cache.load_side(retail_win)
+
     # JOIN the two sub-window slices by stored identity → pairs.json.
     print(f"\n--- sync-by-identity ---")
     win_dir.mkdir(parents=True, exist_ok=True)
-    res = orv3_sync.sync_entries(port_win, retail_win, write_pairs=True,
+    res = orv3_sync.sync_entries(pside, rside, write_pairs=True,
                                  pairs_path=win_dir / "pairs.json")
 
     # one-command tail: emit the native viewer's view.json (+ optionally open it).
     if args.view or args.launch:
         view_path = win_dir / "view.json"
-        vm = orv3_view.write_view_json(port_win, retail_win, view_path)
+        vm = orv3_view.write_view_json(pside, rside, view_path)
         nd = sum(1 for f in vm["frames"] if f.get("draw_verdict") and f["draw_verdict"] != "ALIGNED")
         print(f"\n--- view ---")
         print(f"  wrote {view_path}  ({vm['count']} columns, {vm['n_gaps']} gaps, "

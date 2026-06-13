@@ -592,16 +592,35 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
     - **Live viewer at 2601 columns ✅ USER-CONFIRMED 2026-06-13** ("works perfectly
       and scrubs instantly") — the resident-replay scrub model holds at thousands of
       columns.
-    - **Process findings / follow-ups:** the retail drive's wall-clock is DOMINATED
+    - **Process findings / follow-ups:** ~~the retail drive's wall-clock is DOMINATED
       by the v2 caprange machinery (≈2.5k PNG conversions + 287 montages ≈ 5 of the
-      ~13 min) — add a v3 drive flag to skip frame/montage baking (the container +
-      hash refs are the only v3 artifacts); the CACHED re-window loop is ~5 min at
-      2600 columns ("nothing re-driven" but the 91+58 MB containers are re-parsed in
-      pure Python per phase — sync, view, draws — and the material-diff bake
-      enumerates draws per column) — needs a parse-once container handoff between
-      phases and/or a baked-draws cache; viewer metric precompute (~15 s at open)
-      should go lazy/background; replay.exe cannot fopen-write `\\wsl.localhost` UNC
-      paths (write to Windows-local scratch).
+      ~13 min) — add a v3 drive flag to skip frame/montage baking~~ → **✅ DONE
+      (`4f7cfed`):** a v3 drive (`run_capture(v3_arm=…)`) strips `{caprange}`/`{capstride}`
+      so the agent writes ZERO v2 frames/montages (the container + hash refs are the only
+      v3 artifacts); ~~the CACHED re-window loop is ~5 min at
+      2600 columns~~ → **CACHED re-window loop ✅ DONE (2026-06-13):** the loop was
+      already ~10 s (no-slice) once the ResHash blake2b fix landed — the "~5 min" was a
+      pre-ResHash figure — but the 91+58 MB containers still re-parsed in pure Python
+      ~3× per side (sync, view._side_index, view's internal sync) AND the material-diff
+      bake built full Draw lists per column (hashing geometry the verdict discards). Two
+      fixes, both behavior-preserving (view.json + pairs.json **byte-identical** before/
+      after): (1) **parse-once container handoff** — `v3cache.LoadedSide`/`load_side`
+      parses meta+container+identity-index ONCE; `orv3_window` threads the SAME object
+      through `sync_entries` → `write_view_json` (which re-calls sync), each accepting a
+      LoadedSide OR a Path (`as_side`, idempotent). (2) **material aggregate bake** —
+      `orv3_draws.material_agg` walks a frame to `{tex_hash:[tris,draws]}` directly (no
+      Draw objects, no geo_hash UP byte-loops, no rs/tss copies — all discarded by
+      `material_diff`), feeding a shared `_material_report`. **Numbers (2600-col guild
+      pair):** the per-column bake **6.71 s → 0.36 s (~18×)**; sync+view **compute
+      8.98 s → 1.40 s (~6.4×)** (sync 0.74→0.07, view 8.24→0.62, +0.71 single parse);
+      end-to-end loop 10 s → 7 s (remainder = fixed nix/python/numpy-import startup).
+      Guarded by `test_material_agg` (fast bake == enumerate+material_diff over all
+      frame pairs incl. UP draws, ALIGNED+DIVERGENT) + `test_load_side` (parse-once /
+      idempotent). The slice path benefits too (sync+view re-parse gone, 18× bake); its
+      residual cost is the replay verify, not parsing. *(A baked-draws cache was the
+      alternative lever — unneeded now the bake is 0.36 s.)* Viewer metric precompute
+      (~15 s at open) should still go lazy/background; replay.exe cannot fopen-write
+      `\\wsl.localhost` UNC paths (write to Windows-local scratch).
   - **NOTES + crop regions ✅ DONE + USER-CONFIRMED (2026-06-13, `db28c34`+`f20b5ea`).**
     The v2 `edits.jsonl` notes loop, native — **the last v2-parity gap**, so v2 is retired
     as the working tool (user call). Note mode (m) → drag a crop box on any panel (or "note

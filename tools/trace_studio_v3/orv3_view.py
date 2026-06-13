@@ -33,9 +33,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo tools/ (pixel_diff)
-import orv3        # noqa: E402
 import orv3_sync   # noqa: E402
-import v3cache     # noqa: E402
+import v3cache     # noqa: E402  (owns LoadedSide/as_side — the parse-once handoff)
 
 
 # ── raw frame I/O ──
@@ -86,21 +85,14 @@ def merge_keys(port_keys: set[tuple], retail_keys: set[tuple],
     return rows
 
 
-def _side_index(entry: Path):
+def _side_index(side):
     """(meta, {key: orv3.Frame}, [w,h], Container) for a cache entry, keyed by the
     per-frame identity key (meta v2: most-recent anchor; legacy: offset arithmetic).
     The Frame carries index/present/draws/calls/res for the state panel; dims come
     from DEV_PARAMS; the Container is kept for the per-draw/material semantic diff
-    (orv3_draws)."""
-    meta = v3cache.load_meta(entry)
-    c = orv3.Container.load(entry / "v3cap.bin")
-    dims = [c.dev.get("w"), c.dev.get("h")]
-    idx = {}
-    for f in c.frames:
-        key = (meta.key_of_present(f.present) if meta.anchors
-               else meta.key_of(f.index))
-        idx[key] = f
-    return meta, idx, dims, c
+    (orv3_draws). `side` is a parse-once v3cache.LoadedSide OR an entry Path/str."""
+    s = v3cache.as_side(side)
+    return s.meta, s.index, s.dims, s.cont
 
 
 def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
@@ -113,9 +105,10 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    pmeta, pidx, _, _ = _side_index(port_entry)
-    rmeta, ridx, _, _ = _side_index(retail_entry)
-    join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
+    pside, rside = v3cache.as_side(port_entry), v3cache.as_side(retail_entry)
+    pmeta, pidx, _, _ = _side_index(pside)
+    rmeta, ridx, _, _ = _side_index(rside)
+    join = orv3_sync.sync_entries(pside, rside, quiet=True)   # parse-once: reuse loaded sides
 
     rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
     frames, worst = [], {"offset": None, "label": None, "gt8": -1}
@@ -133,7 +126,7 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
         prgb = rrgb = None
         if row["has_port"]:
             pf = pidx[key]
-            prgb = read_raw_rgb(port_entry / f"v3ref_{pf.index:03d}.raw")
+            prgb = read_raw_rgb(pside.entry / f"v3ref_{pf.index:03d}.raw")
             rel = f"port/c{col:05d}.png"
             save_png(prgb, out_dir / rel)
             entry["port"], entry["port_present"] = rel, pf.present
@@ -141,7 +134,7 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
             entry["port_res"] = len(pf.res_referenced)
         if row["has_retail"]:
             rf = ridx[key]
-            rrgb = read_raw_rgb(retail_entry / f"v3ref_{rf.index:03d}.raw")
+            rrgb = read_raw_rgb(rside.entry / f"v3ref_{rf.index:03d}.raw")
             rel = f"retail/c{col:05d}.png"
             save_png(rrgb, out_dir / rel)
             entry["retail"], entry["retail_present"] = rel, rf.present
@@ -174,8 +167,8 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
         "n_diff": n_diff,
         "n_gaps": sum(1 for r in rows if r["gap"]),
         "worst": worst if worst["offset"] is not None else None,
-        "port_entry": str(port_entry),
-        "retail_entry": str(retail_entry),
+        "port_entry": str(pside.entry),
+        "retail_entry": str(rside.entry),
         "frames": frames,
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1))
@@ -202,12 +195,16 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     container paths (Windows), NO baked images — the viewer replays frames live from
     the containers (the container is the only artifact). Each column carries both
     sides' kept-frame INDEX (what the viewer renders) or an honest gap, plus the
-    per-side draw/call counts + presents for the state panel."""
+    per-side draw/call counts + presents for the state panel. `port_entry`/`retail_entry`
+    are parse-once v3cache.LoadedSides (threaded from orv3_window) OR entry Paths — either
+    way each container parses ONCE here, shared by _side_index, the internal sync, and the
+    per-column material bake."""
     import orv3_draws   # local import: the semantic-diff layer (P3 N3)
 
-    pmeta, pidx, pdims, pc = _side_index(port_entry)
-    rmeta, ridx, _, rc = _side_index(retail_entry)
-    join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
+    pside, rside = v3cache.as_side(port_entry), v3cache.as_side(retail_entry)
+    pmeta, pidx, pdims, pc = _side_index(pside)
+    rmeta, ridx, _, rc = _side_index(rside)
+    join = orv3_sync.sync_entries(pside, rside, quiet=True)   # parse-once: reuse loaded sides
     rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
     # one ResHash per container, reused across every column (a resource is hashed once,
     # not per frame) — the difference between a fast bake and a pathological one at scale.
@@ -229,8 +226,8 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     manifest = {
         "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
         "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
-        "port_container": _winpath(port_entry / "v3cap.bin"),
-        "retail_container": _winpath(retail_entry / "v3cap.bin"),
+        "port_container": _winpath(pside.entry / "v3cap.bin"),
+        "retail_container": _winpath(rside.entry / "v3cap.bin"),
         # Windows-local notes file the viewer reads+writes (UNC paths aren't writable
         # from the Windows viewer); orv3_notes.py reads the same file from WSL.
         "notes_path": _winpath(v3cache.notes_file(pmeta.scenario)),

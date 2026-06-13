@@ -198,6 +198,47 @@ def load_meta(entry: Path) -> FrameIdentity:
     return FrameIdentity(**json.loads((entry / "v3meta.json").read_text()))
 
 
+@dataclass
+class LoadedSide:
+    """A cache entry PARSED ONCE — meta + container + the per-frame identity index —
+    so the 91+58 MB containers parse once per re-window loop, not once per phase.
+
+    v2's pain #1 has a v3 echo: the sync / view / draws phases each re-parsed the same
+    container in pure Python (the `orv3.Container.load` walk is ~0.7 s for a 2600-frame
+    retail container, paid 3× per side). This is the parse-once handoff: the orchestrator
+    `load_side`s each window side once, then threads the SAME object through
+    `orv3_sync.sync_entries` and `orv3_view.write_view_json` (which itself re-calls sync).
+    `index` is keyed by the stored identity (meta v2: most-recent anchor ≤ present;
+    legacy: offset arithmetic) — the join key both the sync and the view timeline use."""
+    entry: Path
+    meta: FrameIdentity
+    cont: "orv3.Container"
+    index: dict          # identity key tuple -> orv3.Frame, in kept-frame order
+
+    @property
+    def dims(self) -> list:
+        return [self.cont.dev.get("w"), self.cont.dev.get("h")]
+
+
+def load_side(entry: Path) -> LoadedSide:
+    """Parse a cache entry's meta + container ONCE and build its identity index."""
+    entry = Path(entry)
+    meta = load_meta(entry)
+    cont = orv3.Container.load(entry / "v3cap.bin")
+    index = {}
+    for f in cont.frames:
+        key = meta.key_of_present(f.present) if meta.anchors else meta.key_of(f.index)
+        index[key] = f
+    return LoadedSide(entry, meta, cont, index)
+
+
+def as_side(x) -> LoadedSide:
+    """Accept a LoadedSide verbatim (parse-once handoff) OR a Path/str (parse it now,
+    for the standalone CLIs). Idempotent, so a function can take either and a caller
+    that already parsed once pays nothing."""
+    return x if isinstance(x, LoadedSide) else load_side(Path(x))
+
+
 # ── cache LOOKUP: find a cached full-extent that a sub-window can be sliced from ──
 # The auto-drive loop (orv3_window.py) asks "is the requested window already in a
 # cached full-extent?" — if so it SLICES (zero re-drive), else it drives. Lookup is a

@@ -287,6 +287,100 @@ def test_draws() -> None:
     print("  OK draws: enumerate (tex/vb/state tracked), material_diff BATCHING/DIVERGENT/ALIGNED")
 
 
+def _up_container() -> bytes:
+    """2 frames of DrawPrimitiveUP / DrawIndexedPrimitiveUP (the 2D-UI hot path the bake
+    walks) over TWO distinct-content textures. Frame 0: texA(4 tris)+texB(2 tris); frame
+    1: texA(3 tris, indexed-UP). Exercises the UP skip arms + a DIVERGENT pair (texA tris
+    differ, texB one-sided)."""
+    b = bytearray()
+    b += _u(orv3.MAGIC) + _u(2)
+    b += _u(orv3.DEV_PARAMS) + b"".join(_u(x) for x in
+          (1024, 768, 21, 75, 0, 1, 1, 0x40, 0, 0, 1, 1))
+
+    def texX(rid: int, fill: int) -> bytes:   # distinct CONTENT per fill ⇒ distinct hash
+        return (_u(orv3.RES_TEX) + _u(rid) + _u(1) + _u(2) + _u(2) + _u(21) + _u(8)
+                + _u(16) + bytes([fill]) * 16)
+
+    def settex(rid: int) -> bytes:
+        return _u(orv3.SetTexture) + _u(0) + _u(rid)
+
+    def up(pc: int, data: bytes = b"\x01\x02\x03\x04\x05\x06") -> bytes:   # DrawPrimitiveUP
+        return _u(orv3.DrawPrimitiveUP) + _u(4) + _u(pc) + _u(16) + _u(len(data)) + data
+
+    def iup(pc: int, idx: bytes = b"\x00\x01\x02\x03",                     # DrawIndexedPrimitiveUP
+            verts: bytes = b"\x07\x08\x09\x0a") -> bytes:
+        return (_u(orv3.DrawIndexedPrimitiveUP) + _u(4) + _u(0) + _u(8) + _u(pc) + _u(101)
+                + _u(len(idx)) + idx + _u(16) + _u(len(verts)) + verts)
+
+    b += texX(0, 0xaa) + texX(1, 0xbb)
+    b += settex(0) + up(4) + settex(1) + up(2) + _u(orv3.Present) + _u(200)
+    b += settex(0) + iup(3) + _u(orv3.Present) + _u(201)
+    b += _u(orv3.EOF)
+    return bytes(b)
+
+
+def test_material_agg() -> None:
+    """The fast per-column bake walk (material_agg) MUST produce results byte-identical
+    to enumerate_draws + material_diff. material_agg is a deliberate perf-critical SUBSET
+    of the record walk (it skips the geo_hash/rs/tss the bake discards — ~18× faster); the
+    cross-checks below are the guard that its skip-size table can't drift from _parse /
+    enumerate_draws unnoticed."""
+    import orv3_draws
+
+    def enum_agg(draws):
+        out: dict[int, list[int]] = {}
+        for d in draws:
+            t = out.setdefault(d.tex_hash, [0, 0])
+            t[0] += d.prim_count
+            t[1] += 1
+        return out
+
+    verdicts = set()
+    for blob in (build_container(), _up_container()):
+        c = orv3.Container(blob)
+        rh = orv3_draws.ResHash(c)
+        # (1) the aggregate itself matches enumerate_draws' aggregation, per frame
+        for fi in range(c.n_frames):
+            assert orv3_draws.material_agg(c, fi, rh) == enum_agg(orv3_draws.enumerate_draws(c, fi, rh)), fi
+        # (2) the full report matches material_diff over every frame pair
+        for i in range(c.n_frames):
+            for j in range(c.n_frames):
+                fast = orv3_draws._material_report(orv3_draws.material_agg(c, i, rh),
+                                                   orv3_draws.material_agg(c, j, rh))
+                slow = orv3_draws.material_diff(orv3_draws.enumerate_draws(c, i, rh),
+                                                orv3_draws.enumerate_draws(c, j, rh))
+                assert fast == slow, (i, j, fast, slow)
+                verdicts.add(fast["verdict"])
+    assert {"ALIGNED", "DIVERGENT"} <= verdicts, verdicts
+    print(f"  OK material_agg: fast bake == enumerate+material_diff (verdicts: {sorted(verdicts)})")
+
+
+def test_load_side() -> None:
+    """The parse-once handoff: load_side parses meta + container + identity index ONCE;
+    as_side passes a LoadedSide through unchanged (idempotent) so sync/view share it."""
+    import json
+    import tempfile
+    from dataclasses import asdict
+
+    with tempfile.TemporaryDirectory() as td:
+        entry = Path(td)
+        (entry / "v3cap.bin").write_bytes(build_container())
+        ident = v3cache.FrameIdentity(
+            side="port", scenario="t", anchor="A", anchor_occ=1, anchor_frame=100,
+            offset0=0, count=3, present_first=100, arm_offset=0, arm_count=3, anchors=None)
+        (entry / "v3meta.json").write_text(json.dumps(asdict(ident)))
+
+        side = v3cache.load_side(entry)
+        assert side.meta.scenario == "t" and side.cont.n_frames == 3
+        assert side.dims == [1024, 768], side.dims
+        # legacy identity keys: (anchor, occ, offset0 + index)
+        assert set(side.index) == {("A", 1, 0), ("A", 1, 1), ("A", 1, 2)}, set(side.index)
+        assert side.index[("A", 1, 2)].present == 102
+        assert v3cache.as_side(side) is side            # idempotent: no re-parse
+        assert v3cache.as_side(entry).cont.n_frames == 3  # Path → parse
+    print("  OK load_side: parse-once meta+container+index; as_side idempotent")
+
+
 def main() -> int:
     test_parse()
     test_slice()
@@ -295,8 +389,11 @@ def main() -> int:
     test_merge_keys()
     test_multi_anchor_identity()
     test_draws()
+    test_material_agg()
+    test_load_side()
     print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup "
-          "+ view timeline merge + multi-anchor identity + draw semantics")
+          "+ view timeline merge + multi-anchor identity + draw semantics + material_agg bake "
+          "+ parse-once handoff")
     return 0
 
 
