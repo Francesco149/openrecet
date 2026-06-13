@@ -38,14 +38,17 @@ import v3cache    # noqa: E402
 
 
 def identities(entry: Path):
-    """[(index, key=(anchor,occ,offset), present)] for every kept frame, from the
-    container's frame count + the entry's stored identity."""
+    """[(index, key=(anchor,occ,delta), present)] for every kept frame. meta v2
+    (stored anchor stream) resolves each frame's key from its OWN present —
+    most-recent anchor ≤ present — so mid-window load seams re-sync per segment;
+    a legacy entry falls back to the contiguous (anchor, occ, offset0+index)."""
     meta = v3cache.load_meta(entry)
     c = orv3.Container.load(entry / "v3cap.bin")
     rows = []
     for f in c.frames:
-        rows.append({"index": f.index, "key": list(meta.key_of(f.index)),
-                     "present": f.present})
+        key = (meta.key_of_present(f.present) if meta.anchors
+               else meta.key_of(f.index))
+        rows.append({"index": f.index, "key": list(key), "present": f.present})
     return meta, rows
 
 
@@ -88,11 +91,13 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
     rmeta, rrows = identities(retail_entry)
 
     say(f"port   : {pmeta.scenario}  {pmeta.anchor}#{pmeta.anchor_occ}  "
-        f"offsets {pmeta.offset0}..{pmeta.offset0 + pmeta.count - 1}  "
-        f"present {prows[0]['present']}..{prows[-1]['present']}  ({len(prows)} frames)")
+        f"arm-window {pmeta.eff_arm_offset}..{pmeta.eff_arm_offset + pmeta.eff_arm_count - 1}  "
+        f"present {prows[0]['present']}..{prows[-1]['present']}  ({len(prows)} kept"
+        f"{', multi-anchor' if pmeta.anchors else ''})")
     say(f"retail : {rmeta.scenario}  {rmeta.anchor}#{rmeta.anchor_occ}  "
-        f"offsets {rmeta.offset0}..{rmeta.offset0 + rmeta.count - 1}  "
-        f"present {rrows[0]['present']}..{rrows[-1]['present']}  ({len(rrows)} frames)")
+        f"arm-window {rmeta.eff_arm_offset}..{rmeta.eff_arm_offset + rmeta.eff_arm_count - 1}  "
+        f"present {rrows[0]['present']}..{rrows[-1]['present']}  ({len(rrows)} kept"
+        f"{', multi-anchor' if rmeta.anchors else ''})")
     load_stretch = rmeta.anchor_frame - pmeta.anchor_frame
     say(f"load stretch (retail anchor − port anchor present-count): {load_stretch:+d} frames")
 

@@ -83,13 +83,23 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
 
     meta = v3cache.load_meta(entry)
     cont = orv3.Container.load(entry / "v3cap.bin")
-    ext_lo, ext_hi = meta.offset0, meta.offset0 + meta.count          # cached extent [lo, hi)
+    # extent containment is in ARM space (the drive request): a mid-window
+    # suppressed load makes kept < armed without shrinking the covered window.
+    ext_lo, ext_hi = meta.eff_arm_offset, meta.eff_arm_offset + meta.eff_arm_count
     if not (ext_lo <= off_a and off_a + n <= ext_hi):
         raise ValueError(f"sub-window offsets [{off_a},{off_a + n}) outside the cached extent "
                          f"[{ext_lo},{ext_hi}) — capture a wider full-extent or narrow the window")
 
-    a = off_a - meta.offset0                                          # kept-index range
-    b = a + n
+    # arm offsets → kept-index range by PRESENT (kept frames may be non-contiguous
+    # in present space once loads are suppressed mid-window; for a contiguous legacy
+    # entry this reduces to off_a - offset0 exactly).
+    from bisect import bisect_left
+    presents = [f.present for f in cont.frames]
+    a = bisect_left(presents, meta.anchor_frame + off_a)
+    b = bisect_left(presents, meta.anchor_frame + off_a + n)
+    if a >= b:
+        raise ValueError(f"sub-window [{off_a},{off_a + n}) contains no kept frames "
+                         f"(all suppressed/load frames?) — widen the window")
     out = out or (entry / f"slice-{off_a}-{n}")
     out.mkdir(parents=True, exist_ok=True)
     for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"),
@@ -99,22 +109,24 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     # re-emit the sub-window as a standalone container + copy its references 0-based
     (out / "v3cap.bin").write_bytes(cont.slice_window(a, b))
     slice_refs(entry, out, a, b)
+    kept = b - a
     sub = v3cache.FrameIdentity(
         side=meta.side, scenario=meta.scenario, anchor=meta.anchor,
         anchor_occ=meta.anchor_occ, anchor_frame=meta.anchor_frame,
-        offset0=off_a, count=n, present_first=cont.frames[a].present)
+        offset0=off_a, count=kept, present_first=cont.frames[a].present,
+        arm_offset=off_a, arm_count=n, anchors=meta.anchors)
     (out / "v3meta.json").write_text(json.dumps(asdict(sub), indent=1))
 
     cap_mb = (out / "v3cap.bin").stat().st_size / 1048576
     say(f"[slice] {meta.side} {meta.anchor}#{meta.anchor_occ}  offsets {off_a}..{off_a + n - 1} "
         f"(kept idx {a}..{b - 1} of {meta.count}) → {out}")
-    say(f"[slice] {n} frames · container {cap_mb:.1f} MB · ZERO retail re-drive "
+    say(f"[slice] {kept} kept frame(s) · container {cap_mb:.1f} MB · ZERO retail re-drive "
         f"(sliced from the cached full-extent)")
 
     if not verify:
         return out, -1, -1
 
-    npass, nfail, _total = v3verify.verify_counts(out, n, label=f"slice {off_a}:{n}",
+    npass, nfail, _total = v3verify.verify_counts(out, kept, label=f"slice {off_a}:{n}",
                                                   quiet=quiet)
     return out, npass, nfail
 

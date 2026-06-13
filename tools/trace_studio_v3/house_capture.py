@@ -228,10 +228,12 @@ def main() -> int:
     # orv3_sync.py JOINs them by identity — load-stretch-immune (E3).
     arm = {"anchor": args.anchor, "offset": args.offset, "count": args.count}
     dest, ident = v3cache.preserve_live(args.scenario, "retail", args.anchor,
-                                        args.offset, trace_path, arm, src=v3)
+                                        args.offset, trace_path, arm, src=v3,
+                                        anchors_path=run_dir / "anchors.jsonl")
     print(f"[cache] stored retail → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
-          f"offsets {ident.offset0}..{ident.offset0 + ident.count - 1}, "
-          f"present {ident.present_first}..{ident.present_first + ident.count - 1})")
+          f"arm {ident.eff_arm_offset}:{ident.eff_arm_count}, kept {ident.count}, "
+          f"present {ident.present_first}.., "
+          f"anchors {'stored' if ident.anchors else 'LEGACY-none'})")
     return rc_code
 
 

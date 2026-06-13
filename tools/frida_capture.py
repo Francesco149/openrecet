@@ -524,8 +524,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     anchors_jsonl = run_dir / "anchors.jsonl"
     # capture_at_anchor forces the anchor poll on the agent side, so record
     # the anchor stream here too even when --anchor-trace wasn't passed.
+    # v3_arm implies anchor_trace on the agent — and the v3 cache needs the
+    # full anchor stream for per-frame (multi-anchor) identity, so record it.
     f_anchor = (anchors_jsonl.open("w", buffering=1)
-                if (cfg.anchor_trace or cfg.capture_at_anchor) else None)
+                if (cfg.anchor_trace or cfg.capture_at_anchor
+                    or getattr(cfg, "v3_arm", None)) else None)
     watch_jsonl = run_dir / "watch.jsonl"
     f_watch = (watch_jsonl.open("w", buffering=1) if cfg.watch else None)
     # frames_meta.jsonl: per-screenshot capture-time sim-state (db054/aframe/…),

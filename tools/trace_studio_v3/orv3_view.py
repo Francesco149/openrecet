@@ -55,29 +55,52 @@ def save_png(rgb: np.ndarray, path: Path) -> None:
 
 
 # ── the identity-keyed timeline (pure; unit-tested) ──
-def merge_offsets(port_offsets: set[int], retail_offsets: set[int]) -> list[dict]:
-    """Merge both sides' identity offsets into the viewer timeline, ordered by the
-    offset (the universal clock). Each column says which sides are present and, when
-    exactly one is, names the HONEST gap. Pure — no filesystem, no images."""
+def merge_anchor_seq(pmeta, rmeta) -> dict[tuple[str, int], int]:
+    """(name, occ) → ordering position, merged across both sides' stored anchor
+    streams (same logical sequence — frame numbers differ, order doesn't; anything
+    one side lacks, e.g. a run that ended early, appends in the other's order)."""
+    seq: dict[tuple[str, int], int] = {}
+    for meta in (pmeta, rmeta):
+        for a in sorted(meta.anchors or [], key=lambda a: (a["frame"], a["name"])):
+            seq.setdefault((a["name"], a["occ"]), len(seq))
+    return seq
+
+
+def merge_keys(port_keys: set[tuple], retail_keys: set[tuple],
+               seq: dict[tuple[str, int], int]) -> list[dict]:
+    """Merge both sides' per-frame identity keys (anchor, occ, delta) into the
+    viewer timeline, ordered chronologically by (anchor firing position, delta).
+    Each column says which sides are present and, when exactly one is, names the
+    HONEST gap. Pure — no filesystem, no images."""
+    def order(k):
+        return (seq.get((k[0], k[1]), len(seq)), k[2])
     rows = []
-    for off in sorted(port_offsets | retail_offsets):
-        hp, hr = off in port_offsets, off in retail_offsets
+    for key in sorted(port_keys | retail_keys, key=order):
+        hp, hr = key in port_keys, key in retail_keys
         rows.append({
-            "offset": off, "has_port": hp, "has_retail": hr,
+            "key": key, "offset": key[2],
+            "label": f"{key[0]}#{key[1]}+{key[2]}",
+            "has_port": hp, "has_retail": hr,
             "gap": None if (hp and hr) else ("retail" if hp else "port"),
         })
     return rows
 
 
 def _side_index(entry: Path):
-    """(meta, {offset: orv3.Frame}, [w,h], Container) for a cache entry, keyed by
-    identity offset. The Frame carries index/present/draws/calls/res for the state
-    panel; dims come from DEV_PARAMS; the Container is kept for the per-draw/material
-    semantic diff (orv3_draws)."""
+    """(meta, {key: orv3.Frame}, [w,h], Container) for a cache entry, keyed by the
+    per-frame identity key (meta v2: most-recent anchor; legacy: offset arithmetic).
+    The Frame carries index/present/draws/calls/res for the state panel; dims come
+    from DEV_PARAMS; the Container is kept for the per-draw/material semantic diff
+    (orv3_draws)."""
     meta = v3cache.load_meta(entry)
     c = orv3.Container.load(entry / "v3cap.bin")
     dims = [c.dev.get("w"), c.dev.get("h")]
-    return meta, {meta.offset_of(f.index): f for f in c.frames}, dims, c
+    idx = {}
+    for f in c.frames:
+        key = (meta.key_of_present(f.present) if meta.anchors
+               else meta.key_of(f.index))
+        idx[key] = f
+    return meta, idx, dims, c
 
 
 def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
@@ -94,13 +117,14 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
     rmeta, ridx, _, _ = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
 
-    rows = merge_offsets(set(pidx), set(ridx))
-    frames, worst = [], {"offset": None, "gt8": -1}
+    rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
+    frames, worst = [], {"offset": None, "label": None, "gt8": -1}
     dims = None
     n_diff = 0
-    for row in rows:
-        off = row["offset"]
-        entry = {"offset": off, "port": None, "retail": None, "diff": None,
+    for col, row in enumerate(rows):
+        key = row["key"]
+        entry = {"offset": row["offset"], "label": row["label"],
+                 "port": None, "retail": None, "diff": None,
                  "gt8": None, "meanabs": None, "maxd": None, "gap": row["gap"],
                  "port_present": None, "retail_present": None,
                  "port_draws": None, "retail_draws": None,
@@ -108,17 +132,17 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
                  "port_res": None, "retail_res": None}
         prgb = rrgb = None
         if row["has_port"]:
-            pf = pidx[off]
+            pf = pidx[key]
             prgb = read_raw_rgb(port_entry / f"v3ref_{pf.index:03d}.raw")
-            rel = f"port/o{off:04d}.png"
+            rel = f"port/c{col:05d}.png"
             save_png(prgb, out_dir / rel)
             entry["port"], entry["port_present"] = rel, pf.present
             entry["port_draws"], entry["port_calls"] = pf.n_draws, pf.n_calls
             entry["port_res"] = len(pf.res_referenced)
         if row["has_retail"]:
-            rf = ridx[off]
+            rf = ridx[key]
             rrgb = read_raw_rgb(retail_entry / f"v3ref_{rf.index:03d}.raw")
-            rel = f"retail/o{off:04d}.png"
+            rel = f"retail/c{col:05d}.png"
             save_png(rrgb, out_dir / rel)
             entry["retail"], entry["retail_present"] = rel, rf.present
             entry["retail_draws"], entry["retail_calls"] = rf.n_draws, rf.n_calls
@@ -128,12 +152,12 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
             d, _differ, meanabs = amplified_diff(rrgb, prgb, amp)
             gt8 = int((np.abs(rrgb.astype(int) - prgb.astype(int)).max(axis=2) > 8).sum())
             maxd = int(np.abs(rrgb.astype(int) - prgb.astype(int)).max())
-            rel = f"diff/o{off:04d}.png"
+            rel = f"diff/c{col:05d}.png"
             save_png(d, out_dir / rel)
             entry.update(diff=rel, gt8=gt8, meanabs=round(meanabs, 4), maxd=maxd)
             n_diff += 1
             if gt8 > worst["gt8"]:
-                worst = {"offset": off, "gt8": gt8}
+                worst = {"offset": row["offset"], "label": row["label"], "gt8": gt8}
             dims = dims or [int(prgb.shape[1]), int(prgb.shape[0])]
         frames.append(entry)
 
@@ -184,16 +208,16 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     pmeta, pidx, pdims, pc = _side_index(port_entry)
     rmeta, ridx, _, rc = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
-    rows = merge_offsets(set(pidx), set(ridx))
+    rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
     # one ResHash per container, reused across every column (a resource is hashed once,
     # not per frame) — the difference between a fast bake and a pathological one at scale.
     preshash, rreshash = orv3_draws.ResHash(pc), orv3_draws.ResHash(rc)
     frames = []
     for row in rows:
-        off = row["offset"]
-        pf, rf = pidx.get(off), ridx.get(off)
+        key = row["key"]
+        pf, rf = pidx.get(key), ridx.get(key)
         fr = {
-            "offset": off, "gap": row["gap"],
+            "offset": row["offset"], "label": row["label"], "gap": row["gap"],
             "port_idx": pf.index if pf else None, "retail_idx": rf.index if rf else None,
             "port_present": pf.present if pf else None, "retail_present": rf.present if rf else None,
             "port_draws": pf.n_draws if pf else None, "retail_draws": rf.n_draws if rf else None,

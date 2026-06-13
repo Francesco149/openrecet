@@ -36,6 +36,7 @@ static D3DPRESENT_PARAMETERS g_pp;
 struct DivTex { std::string tex; int port_tris = 0, retail_tris = 0, port_draws = 0, retail_draws = 0; };
 struct Col {
     int offset = 0, port_idx = -1, retail_idx = -1;
+    std::string label;               // identity key "ANCHOR#occ+delta" (meta v2; may be empty)
     int port_present = -1, retail_present = -1;
     int port_draws = -1, retail_draws = -1, port_calls = -1, retail_calls = -1;
     std::string gap;                 // "", "port", or "retail"
@@ -217,6 +218,7 @@ static bool load_view(const char *path)
     for (auto &jf : m["frames"]) {
         Col c;
         c.offset = jf.value("offset", 0);
+        c.label = jf.value("label", "");
         c.gap = jf.value("gap", json()).is_string() ? jf.value("gap", "") : "";
         c.port_idx = jf.value("port_idx", json()).is_number() ? jf["port_idx"].get<int>() : -1;
         c.retail_idx = jf.value("retail_idx", json()).is_number() ? jf["retail_idx"].get<int>() : -1;
@@ -320,7 +322,8 @@ static void draw_ui()
     if (ImGui::SliderInt("##scrub", &sel, 0, (int)g_cols.size() - 1)) seek(sel);
     ImGui::SameLine(); if (ImGui::Button(">")) seek(g_cur + 1);
     ImGui::SameLine(); if (ImGui::Button(">|")) seek((int)g_cols.size() - 1);
-    ImGui::SameLine(); ImGui::Text("col %d/%d · offset %d", g_cur, (int)g_cols.size() - 1, c.offset);
+    ImGui::SameLine(); ImGui::Text("col %d/%d · %s", g_cur, (int)g_cols.size() - 1,
+                     c.label.size() ? c.label.c_str() : std::to_string(c.offset).c_str());
 
     // draw-step row (N3): step through draws (render_upto / render_range) to watch a
     // frame build up (prefix) or ISOLATE one draw (solo) — each side independently.
@@ -373,12 +376,15 @@ static void draw_ui()
     int worst = 0; for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].gt8 > g_cols[worst].gt8) worst = (int)i;
     if (ImGui::Button("worst (w)")) seek(worst);
     ImGui::SameLine(); if (ImGui::Button("next gt8>0 (n)")) { for (size_t i = g_cur + 1; i < g_cols.size(); i++) if (g_cols[i].gt8 > 0) { seek((int)i); break; } }
-    ImGui::SameLine(); ImGui::TextDisabled("worst: offset %d gt8=%dpx", g_cols[worst].offset, g_cols[worst].gt8);
+    ImGui::SameLine(); ImGui::TextDisabled("worst: %s gt8=%dpx",
+        g_cols[worst].label.size() ? g_cols[worst].label.c_str() : std::to_string(g_cols[worst].offset).c_str(),
+        g_cols[worst].gt8);
 
     ImGui::Separator();
     const Col &dm = g_step_on ? g_stepmetric : c;   // stepped diff vs full-frame diff
-    ImGui::Text("identity: %s+%d   |   diff%s: gt8 %d px · meanabs %.4f · max|d| %d%s",
-                g_anchor.c_str(), c.offset, g_step_on ? " (stepped)" : "",
+    ImGui::Text("identity: %s   |   diff%s: gt8 %d px · meanabs %.4f · max|d| %d%s",
+                c.label.size() ? c.label.c_str() : (g_anchor + "+" + std::to_string(c.offset)).c_str(),
+                g_step_on ? " (stepped)" : "",
                 dm.gt8, dm.meanabs, dm.maxd, c.gap.size() ? "  (GAP)" : "");
     if (ImGui::BeginTable("state", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame)) {
         ImGui::TableSetupColumn("field"); ImGui::TableSetupColumn("retail"); ImGui::TableSetupColumn("port");

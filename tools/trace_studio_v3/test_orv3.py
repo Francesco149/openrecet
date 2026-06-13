@@ -155,22 +155,98 @@ def test_extent_lookup() -> None:
     print("  OK extent lookup: containment, widest-pick, stale-key + wrong-anchor filtered out")
 
 
-def test_merge_offsets() -> None:
-    """The viewer timeline (orv3_view): merge both sides' identity offsets into one
-    ordered column list, classifying single-sided columns as HONEST, named gaps —
-    never dropping or silently mispairing one (the v2 sync bug class)."""
+def test_merge_keys() -> None:
+    """The viewer timeline (orv3_view): merge both sides' per-frame identity KEYS
+    into one chronologically-ordered column list (anchor firing order, then delta),
+    classifying single-sided columns as HONEST, named gaps — never dropping or
+    silently mispairing one (the v2 sync bug class)."""
+    A = ("HOUSE_FREEROAM", 1)
+    seq = {A: 0}
+    k = lambda d: (A[0], A[1], d)
     # fully aligned: every column has both sides, no gaps
-    rows = orv3_view.merge_offsets({120, 121, 122}, {120, 121, 122})
+    rows = orv3_view.merge_keys({k(120), k(121), k(122)}, {k(120), k(121), k(122)}, seq)
     assert [r["offset"] for r in rows] == [120, 121, 122]
     assert all(r["gap"] is None for r in rows)
     # port has an extra offset (retail-side gap); retail has an extra (port-side gap)
-    rows = orv3_view.merge_offsets({120, 121, 122}, {121, 122, 123})
+    rows = orv3_view.merge_keys({k(120), k(121), k(122)}, {k(121), k(122), k(123)}, seq)
     assert [r["offset"] for r in rows] == [120, 121, 122, 123]      # union, sorted
     by = {r["offset"]: r for r in rows}
     assert by[120]["gap"] == "retail" and by[120]["has_port"] and not by[120]["has_retail"]
     assert by[123]["gap"] == "port" and by[123]["has_retail"] and not by[123]["has_port"]
     assert by[121]["gap"] is None and by[122]["gap"] is None
-    print("  OK merge_offsets: union/sorted columns, honest gap named by the MISSING side")
+    assert by[121]["label"] == "HOUSE_FREEROAM#1+121"
+    # MULTI-ANCHOR: columns order by anchor firing position FIRST — a later
+    # anchor's small delta sorts after an earlier anchor's large delta
+    L2 = ("LOADING_END", 2)
+    seq2 = {A: 0, L2: 1}
+    rows = orv3_view.merge_keys({k(500), (L2[0], L2[1], 3)},
+                                {k(500), (L2[0], L2[1], 3)}, seq2)
+    assert [r["label"] for r in rows] == ["HOUSE_FREEROAM#1+500", "LOADING_END#2+3"]
+    print("  OK merge_keys: chronological columns (anchor seq, delta), honest gaps, labels")
+
+
+def test_multi_anchor_identity() -> None:
+    """meta v2 (the E3 design): per-frame identity = (most-recent anchor ≤ the
+    frame's present, occurrence, delta) from the STORED anchor stream — so a
+    mid-window load seam re-syncs per segment; plus the arm-vs-kept split that
+    keeps the cache key + extent checks honest when loads are suppressed."""
+    anchors = [
+        {"name": "BOOT", "occ": 1, "frame": 0},
+        {"name": "LOADING_END", "occ": 1, "frame": 379},
+        {"name": "HOUSE_FREEROAM", "occ": 1, "frame": 379},   # same frame as LOADING_END
+        {"name": "LOADING_START", "occ": 1, "frame": 586},
+        {"name": "LOADING_END", "occ": 2, "frame": 734},
+    ]
+    m = v3cache.FrameIdentity(side="port", scenario="s", anchor="LOADING_END",
+                              anchor_occ=1, anchor_frame=379, offset0=330,
+                              count=100, present_first=709,
+                              arm_offset=330, arm_count=2600, anchors=anchors)
+    # same-frame aliases tie-break to the entry's BASE anchor (here LOADING_END)
+    assert m.key_of_present(379) == ("LOADING_END", 1, 0)
+    assert m.key_of_present(500) == ("LOADING_END", 1, 121)
+    # …and to HOUSE_FREEROAM when THAT is the base (legacy-entry compatibility:
+    # a legacy single-anchor meta keys by its base, so the v2 side must agree)
+    import dataclasses
+    m_hf = dataclasses.replace(m, anchor="HOUSE_FREEROAM")
+    assert m_hf.key_of_present(379) == ("HOUSE_FREEROAM", 1, 0)
+    assert m_hf.key_of_present(500) == ("HOUSE_FREEROAM", 1, 121)
+    assert m_hf.key_of_present(800) == ("LOADING_END", 2, 66)   # non-alias seams unaffected
+    # past the seam: identity re-bases on the in-window anchors
+    assert m.key_of_present(600) == ("LOADING_START", 1, 14)
+    assert m.key_of_present(800) == ("LOADING_END", 2, 66)
+    # before any anchor ≤ present is impossible here (BOOT@0), but the base fallback
+    # exists for an empty stream
+    m_no = v3cache.FrameIdentity(side="port", scenario="s", anchor="X", anchor_occ=1,
+                                 anchor_frame=100, offset0=0, count=1,
+                                 present_first=100)
+    assert m_no.key_of_present(105) == ("X", 1, 5)
+    # anchor_seq: firing order, same-frame pairs both get positions deterministically
+    seq = m.anchor_seq()
+    assert seq[("BOOT", 1)] == 0
+    assert seq[("HOUSE_FREEROAM", 1)] == 1 and seq[("LOADING_END", 1)] == 2
+    assert seq[("LOADING_END", 2)] == 4
+    # ARM-space extent: kept(100) < armed(2600) must NOT shrink the served window
+    assert v3cache.extent_contains(m, 330, 2600)      # the full arm window
+    assert v3cache.extent_contains(m, 2000, 500)      # deep sub-window past kept-count
+    assert not v3cache.extent_contains(m, 329, 10)
+    assert m.eff_arm_offset == 330 and m.eff_arm_count == 2600
+    # legacy meta (no arm fields) falls back to offset0/count
+    leg = _ident(120, 48)
+    assert leg.eff_arm_offset == 120 and leg.eff_arm_count == 48
+    # anchor stream parsing: occurrences count per name in frame order
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+        f.write('{"anchor":"BOOT","frame":0}\n')
+        f.write('{"anchor":"LOADING_END","frame":379}\n')
+        f.write('not json\n')
+        f.write('{"anchor":"LOADING_END","frame":734}\n')
+        path = Path(f.name)
+    st = v3cache.read_anchor_stream(path)
+    path.unlink()
+    assert [(a["name"], a["occ"], a["frame"]) for a in st] == [
+        ("BOOT", 1, 0), ("LOADING_END", 1, 379), ("LOADING_END", 2, 734)]
+    print("  OK multi-anchor identity: per-present keys re-sync at seams, tie-break "
+          "deterministic, arm-space extent, legacy fallback, stream parse")
 
 
 def test_draws() -> None:
@@ -216,10 +292,11 @@ def main() -> int:
     test_slice()
     test_join()
     test_extent_lookup()
-    test_merge_offsets()
+    test_merge_keys()
+    test_multi_anchor_identity()
     test_draws()
     print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup "
-          "+ view timeline merge + draw semantics")
+          "+ view timeline merge + multi-anchor identity + draw semantics")
     return 0
 
 

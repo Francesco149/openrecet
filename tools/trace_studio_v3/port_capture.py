@@ -149,12 +149,16 @@ def main() -> int:
     print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  ({mode}, "
           f"refs={'raw' if args.raw_refs else 'hash'}, out={v3})")
 
+    # dedicated run root so THIS run's artifacts (anchors.jsonl for the meta-v2
+    # identity) are unambiguous — runs/scenarios/ mixes timestamped dirs.
+    run_root = ROOT / "runs" / "studio-v3-experiments" / f"port-{args.scenario}"
     try:
         print(f"[run]   scenario-test {args.scenario} --target openrecet …")
         # ignore scenario-test's pass/fail (golden compare is irrelevant to v3 —
         # we only need the port to run the caprange window so the proxy captures).
         subprocess.run([sys.executable, str(SCENARIO_TEST), args.scenario,
-                        "--target", "openrecet"], cwd=ROOT)
+                        "--target", "openrecet",
+                        "--run-dir-root", str(run_root)], cwd=ROOT)
     finally:
         if not args.keep_proxy:
             STAGED_DLL.unlink(missing_ok=True)
@@ -189,11 +193,17 @@ def main() -> int:
             offset0, cr_count = cr
             arm = {"anchor": args.anchor, "offset": offset0, "count": cr_count}
             trace = ROOT / "tests" / "scenarios" / args.scenario / "trace.jsonl"
+            # meta v2: this run's anchor stream (--anchor-trace-record) gives each
+            # kept frame a per-present identity — required across mid-window seams.
+            run_dirs = sorted(run_root.glob(f"{args.scenario}-openrecet-*"))
+            anchors = (run_dirs[-1] / "anchors.jsonl") if run_dirs else None
             dest, ident = v3cache.preserve_live(args.scenario, "port", args.anchor,
-                                                offset0, trace, arm)
+                                                offset0, trace, arm,
+                                                anchors_path=anchors)
             print(f"[cache] stored port → {dest}  (identity {ident.anchor}#{ident.anchor_occ}, "
-                  f"offsets {ident.offset0}..{ident.offset0 + ident.count - 1}, "
-                  f"present {ident.present_first}..{ident.present_first + ident.count - 1})")
+                  f"arm {ident.eff_arm_offset}:{ident.eff_arm_count}, kept {ident.count}, "
+                  f"present {ident.present_first}.., "
+                  f"anchors {'stored' if ident.anchors else 'LEGACY-none'})")
 
     if args.no_verify:
         print("[skip] --no-verify: not replaying")

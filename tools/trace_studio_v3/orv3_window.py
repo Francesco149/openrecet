@@ -153,7 +153,7 @@ def materialize_window(entry: Path, req_off: int, req_n: int, out: Path,
     extent IS that window, use it directly (already verified at capture); else slice
     + (optionally) re-verify bit-exact. Returns (window_dir, note)."""
     meta = v3cache.load_meta(entry)
-    if (meta.offset0, meta.count) == (req_off, req_n):
+    if (meta.eff_arm_offset, meta.eff_arm_count) == (req_off, req_n):
         return entry, "full-extent (no slice)"
     _out, npass, nfail = orv3_slice.slice_entry(entry, req_off, req_n, out=out,
                                                 verify=verify, quiet=True)

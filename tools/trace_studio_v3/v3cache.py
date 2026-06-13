@@ -47,23 +47,100 @@ def localappdata_v3() -> Path:
 
 @dataclass
 class FrameIdentity:
-    """The STORED identity of a cache entry's window. Each kept frame index k has
-    identity (anchor#occ, offset0 + k) — the v3 pairing key (E3)."""
+    """The STORED identity of a cache entry's window.
+
+    Legacy (single-anchor) shape: each kept frame index k has identity
+    (anchor#occ, offset0 + k) — valid only while the kept set is CONTIGUOUS in
+    present space (one anchor, no mid-window load seams; the HOUSE toy).
+
+    meta v2 (multi-anchor, the plan's E3 design): `anchors` stores the run's full
+    anchor stream [{name, occ, frame}] in the side's keep-trigger clock (port:
+    engine frame == present; retail: agent frame == present). A kept frame's
+    identity is then (most-recent-anchor#occ, present − that anchor's frame) —
+    resolved per frame from its STORED present, so a mid-window load that the port
+    suppresses (kept set skips presents) and retail stretches (kept set includes
+    load frames) still re-syncs at each segment's anchor by construction.
+
+    `arm_offset`/`arm_count` store the DRIVE REQUEST (the caprange / proxy-arm
+    window) verbatim — `count` is the KEPT frame count, which is smaller whenever
+    loads are suppressed mid-window, so the cache-key arm reconstruction must not
+    be derived from it."""
     side: str            # "port" | "retail"
     scenario: str
-    anchor: str          # the semantic anchor the window is relative to (e.g. HOUSE_FREEROAM)
+    anchor: str          # the BASE anchor the window was armed relative to (e.g. HOUSE_FREEROAM)
     anchor_occ: int      # which occurrence of that anchor (1-based)
-    anchor_frame: int    # absolute present-count the anchor fired at (informational/cross-check)
-    offset0: int         # frames-since-anchor of kept frame 0 (the window start offset)
-    count: int           # kept-frame count
-    present_first: int   # absolute present-count of kept frame 0 (== anchor_frame + offset0)
+    anchor_frame: int    # absolute present-count the base anchor fired at
+    offset0: int         # arm-space offset of the window start (== arm_offset)
+    count: int           # KEPT-frame count (≤ arm_count when loads are suppressed)
+    present_first: int   # absolute present-count of kept frame 0
+    arm_offset: int | None = None   # the drive request, verbatim (None = legacy: offset0)
+    arm_count: int | None = None    # the drive request, verbatim (None = legacy: count)
+    anchors: list | None = None     # full anchor stream [{name, occ, frame}] (None = legacy)
 
     def offset_of(self, index: int) -> int:
         return self.offset0 + index
 
     def key_of(self, index: int) -> tuple[str, int, int]:
-        """The join key for kept frame `index`: (anchor, occurrence, offset)."""
+        """LEGACY join key for kept frame `index` (contiguity assumption)."""
         return (self.anchor, self.anchor_occ, self.offset0 + index)
+
+    # ── meta v2: per-frame identity from the stored anchor stream ──
+    def key_of_present(self, present: int) -> tuple[str, int, int]:
+        """The E3 join key for a kept frame at absolute present-count `present`:
+        (most-recent anchor ≤ present, its occurrence, frames-since-it). Anchors on
+        the SAME frame are aliases of one moment; the tie-break must be identical
+        on both sides AND match a legacy single-anchor entry, so: prefer the
+        entry's BASE anchor (both sides arm by the same one — e.g. HOUSE_FREEROAM,
+        which fires the same frame as LOADING_END), else sorted-last name."""
+        best = None
+        for a in self.anchors or []:
+            if a["frame"] <= present:
+                k = (a["frame"], a["name"] == self.anchor, a["name"])
+                if best is None or k > (best["frame"], best["name"] == self.anchor,
+                                        best["name"]):
+                    best = a
+        if best is None:    # no anchor at/before the frame — fall back to the base
+            return (self.anchor, self.anchor_occ, present - self.anchor_frame)
+        return (best["name"], best["occ"], present - best["frame"])
+
+    def anchor_seq(self) -> dict[tuple[str, int], int]:
+        """(name, occ) → firing position, the cross-side TOTAL ORDER for sorting
+        join keys ((anchor position, delta) sorts columns chronologically even
+        though deltas reset at every anchor)."""
+        seq = {}
+        for a in sorted(self.anchors or [], key=lambda a: (a["frame"], a["name"])):
+            seq.setdefault((a["name"], a["occ"]), len(seq))
+        return seq
+
+    @property
+    def eff_arm_offset(self) -> int:
+        return self.offset0 if self.arm_offset is None else self.arm_offset
+
+    @property
+    def eff_arm_count(self) -> int:
+        return self.count if self.arm_count is None else self.arm_count
+
+
+def read_anchor_stream(path: Path) -> list[dict]:
+    """Parse a run's anchors.jsonl ({"anchor": name, "frame": N} per line, both the
+    port's --anchor-trace-record and the retail agent's stream) into the meta-v2
+    anchor list [{name, occ, frame}], occurrences counted per name in frame order."""
+    rows = []
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            d = json.loads(line)
+            rows.append({"name": str(d["anchor"]), "frame": int(d["frame"])})
+        except (ValueError, KeyError):
+            continue
+    rows.sort(key=lambda r: r["frame"])
+    seen: dict[str, int] = {}
+    for r in rows:
+        seen[r["name"]] = seen.get(r["name"], 0) + 1
+        r["occ"] = seen[r["name"]]
+    return rows
 
 
 def cache_key(trace_path: Path, arm: dict | None) -> str:
@@ -118,9 +195,12 @@ def load_meta(entry: Path) -> FrameIdentity:
 # checking it still equals the dir's key proves the entry was captured from THIS trace.
 
 def extent_contains(meta: FrameIdentity, off: int, n: int) -> bool:
-    """Does the cached entry's identity-offset extent [offset0, offset0+count)
-    fully contain the requested sub-window [off, off+n)?"""
-    return meta.offset0 <= off and off + n <= meta.offset0 + meta.count
+    """Does the cached entry's ARM-space extent [arm_offset, arm_offset+arm_count)
+    fully contain the requested sub-window [off, off+n)? Arm space (the drive
+    request), NOT kept count — a mid-window suppressed load makes kept < armed
+    without shrinking the covered window."""
+    lo, hi = meta.eff_arm_offset, meta.eff_arm_offset + meta.eff_arm_count
+    return lo <= off and off + n <= hi
 
 
 def dir_key(scenario: str, entry_parent_name: str) -> str | None:
@@ -158,9 +238,11 @@ def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
         if meta.side != side:
             continue
         key = dir_key(scenario, entry.parent.name)
-        # arm is reconstructible from the stored extent — re-hash the current trace and
-        # require it still equals the dir's key ⇒ the entry is for THIS trace, not stale.
-        arm = {"anchor": meta.anchor, "offset": meta.offset0, "count": meta.count}
+        # arm is reconstructible from the stored ARM SPEC (meta v2) / extent (legacy)
+        # — re-hash the current trace and require it still equals the dir's key ⇒
+        # the entry is for THIS trace, not stale.
+        arm = {"anchor": meta.anchor, "offset": meta.eff_arm_offset,
+               "count": meta.eff_arm_count}
         key_ok = key is not None and cache_key(trace_path, arm) == key
         candidates.append({"dir": entry, "meta": meta, "key_ok": key_ok})
     best = pick_extent(candidates, anchor, off, n)
@@ -169,20 +251,40 @@ def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
 
 def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                   trace_path: Path, arm: dict, *, anchor_occ: int = 1,
-                  src: Path | None = None) -> tuple[Path, FrameIdentity]:
+                  src: Path | None = None,
+                  anchors_path: Path | None = None) -> tuple[Path, FrameIdentity]:
     """Cache the LIVE proxy capture (%LOCALAPPDATA%) under a content key + its
-    stored identity, in one call — the mechanism both capture drivers use. The
-    anchor's absolute present-count is DERIVED from the container (present_first −
-    offset0); present_first = anchor_frame + offset0 by construction, proven equal
-    to the agent's reported arm frame. Returns (dest_dir, identity)."""
+    stored identity, in one call — the mechanism both capture drivers use.
+
+    `anchors_path` (the run's anchors.jsonl) upgrades the entry to meta v2: the
+    full anchor stream is stored so each kept frame's identity resolves per frame
+    (most-recent anchor ≤ its present) — required once a window spans load seams.
+    The base anchor's absolute frame then comes from the STREAM (its anchor_occ'th
+    firing); without a stream it falls back to the legacy derivation
+    (present_first − offset0, valid only for a contiguous kept set).
+    Returns (dest_dir, identity)."""
     src = src or localappdata_v3()
     c = orv3.Container.load(src / "v3cap.bin")
     if not c.frames:
         raise ValueError("live container has no kept frames — nothing to cache")
     present_first = c.frames[0].present
+    anchors = None
+    anchor_frame = present_first - offset0
+    if anchors_path is not None and Path(anchors_path).exists():
+        anchors = read_anchor_stream(Path(anchors_path))
+        base = next((a for a in anchors
+                     if a["name"] == anchor and a["occ"] == anchor_occ), None)
+        if base is not None:
+            anchor_frame = base["frame"]
+        else:
+            print(f"[cache] WARNING: {anchor}#{anchor_occ} not in {anchors_path} — "
+                  f"falling back to legacy anchor_frame derivation")
     ident = FrameIdentity(side=side, scenario=scenario, anchor=anchor,
-                          anchor_occ=anchor_occ, anchor_frame=present_first - offset0,
-                          offset0=offset0, count=c.n_frames, present_first=present_first)
+                          anchor_occ=anchor_occ, anchor_frame=anchor_frame,
+                          offset0=offset0, count=c.n_frames, present_first=present_first,
+                          arm_offset=int(arm.get("offset", offset0)),
+                          arm_count=int(arm.get("count", c.n_frames)),
+                          anchors=anchors)
     dest = entry_dir(scenario, cache_key(Path(trace_path), arm), side)
     store(dest, ident, src=src)
     return dest, ident
