@@ -1,0 +1,23 @@
+# house-pause — HOUSE free-roam idle + an ESC keypress to open the pause menu.
+# Derived from house-loaded-display-pinned: load fa7c82 (HOUSE free-roam, swords
+# on the back stand) → idle → {esc} at LOADING_END+160.  The port swallows
+# in-game ESC (esc_dispatch.c), so the caprange [120,240] captures the GAP:
+# retail's pause menu sliding in vs the port's unchanged free-roam.  Join anchor
+# = LOADING_END (fires both sides; PAUSE_OPEN only fires on retail).
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"caprange": [120, 240]}
+{"calltrace": [120, 240]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"frame": 400, "buttons": "0x0000"}

@@ -1,0 +1,19 @@
+# house-pause — see trace.jsonl.  HOUSE free-roam idle, then an ESC keypress to
+# open the in-game PAUSE menu (retail FUN_00453384 @ 0x453384).  STARTS the
+# pause-menu port arc: the port currently SWALLOWS in-game ESC (esc_dispatch.c
+# routes it to skip_event_arm + SWALLOW — "no in-game pause/menu overlay is
+# reachable yet"), so this trace captures the DIVERGENCE — retail's pause menu
+# vs the port's unchanged free-roam — to RE the pause UI against.
+#
+# Derived from house-loaded-display-pinned (load fa7c82 → HOUSE free-roam idle,
+# {phasepin 80}+{rngseed [80,19937]}); the sparkle capture is replaced by an
+# {esc} at LOADING_END+160 and a widened caprange.  Sync anchor is LOADING_END
+# (== HOUSE_FREEROAM for a loaded save), which fires on BOTH sides — PAUSE_OPEN
+# would only fire on retail (the port never opens the menu), so it can't be the
+# join anchor.
+description: |
+  HOUSE free-roam idle → ESC at +160 → retail opens the pause menu; the port
+  swallows ESC (unported).  Capture LOADING_END+120..360 to compare port vs
+  retail.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+max_frames: 22000   # turbo load-stretch headroom (matches the save-roundtrip runs)
+duration_ceiling_ms: 180000
