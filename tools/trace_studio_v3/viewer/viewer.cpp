@@ -715,6 +715,15 @@ static LRESULT WINAPI WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     if (ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp)) return true;
     if (msg == WM_DESTROY) { PostQuitMessage(0); return 0; }
+    // keep the backbuffer == the client area on resize (else the mouse↔render skew +
+    // non-integer Present scale return — the cursor-offset / squished-font bug).
+    if (msg == WM_SIZE && g_dev && wp != SIZE_MINIMIZED) {
+        g_pp.BackBufferWidth = LOWORD(lp); g_pp.BackBufferHeight = HIWORD(lp);
+        ImGui_ImplDX9_InvalidateDeviceObjects();
+        g_dev->Reset(&g_pp);
+        ImGui_ImplDX9_CreateDeviceObjects();
+        return 0;
+    }
     return DefWindowProcA(h, msg, wp, lp);
 }
 
@@ -750,7 +759,13 @@ static int do_interactive(const char *view)
     wc.lpszClassName = "orv3viewer"; RegisterClassExA(&wc);
     HWND hwnd = CreateWindowA(wc.lpszClassName, "trace studio v3", WS_OVERLAPPEDWINDOW,
                               60, 40, 1400, 920, nullptr, nullptr, wc.hInstance, nullptr);
-    if (!create_device(hwnd, 1400, 920)) { fprintf(stderr, "CreateDevice failed\n"); return 2; }
+    // The backbuffer MUST match the CLIENT area, not the 1400x920 window outer size:
+    // ImGui's DisplaySize + mouse coords are client-space, so a window-sized backbuffer
+    // gets Present-scaled into the (shorter) client area → rendered content sits above
+    // where the mouse registers (clicks land low). Size the device to the client rect.
+    RECT crc; GetClientRect(hwnd, &crc);
+    UINT cw = crc.right - crc.left, ch = crc.bottom - crc.top;
+    if (!create_device(hwnd, cw ? cw : 1400, ch ? ch : 920)) { fprintf(stderr, "CreateDevice failed\n"); return 2; }
     imgui_init(hwnd);
     if (view && !load_view(view)) { fprintf(stderr, "load_view failed\n"); return 2; }
     ShowWindow(hwnd, SW_SHOWDEFAULT); UpdateWindow(hwnd);
