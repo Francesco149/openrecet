@@ -347,7 +347,10 @@
   menu at retail's exact staircase positions (feed "PAUSE MENU M2b"). **Pixel-1:1 confirmation is
   ENTANGLED with M2c:** the missing board background swamps the diff (bg_rete art is black/matching,
   everything else white = port's cyan clear vs retail's board).
-  **M3 — the captured-screen BACKDROP [0] + the radial-blur composite ✅ DONE 2026-06-13**
+  **M3 — the captured-screen BACKDROP [0] + the radial-blur composite ✅ DONE + USER-CONFIRMED 1:1 2026-06-13**
+  (parity ledger; user: in-game "the pause menu looks correct on port", v3 viewer "confirmed 1:1 when
+  settled" + the open animation eyeball-1:1 — the open-anim TIMING can't be frame-confirmed, the port's
+  async pause-asset load shifts it = the load-seam phase pillar, accept)
   (`screen_rt.{c,h}` RT infra + `scene1_fx_overlays.c` = FUN_00454191 body + the render_dispatch
   c99c==2 capture redirect + `render_quad_add_unscaled` = FUN_00404e98). The port now re-renders
   the live scene into the capture RT (#56) at pause-open (c99c==2), builds the **2-pass radial-blur
