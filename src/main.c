@@ -2906,7 +2906,19 @@ static void render_dispatch(void)
                  * 0xc < DAT_06a4999c` — the scene-transition counter — is
                  * BSS-zero in port today, so omitted; revisit when the
                  * scene-transition state machine ports.) */
-                scene1_render_camera_setup(g_dev);
+                /* Engine FUN_004547ab gates the WHOLE scene block (scene + HUD +
+                 * overlay + the cc04 tail), NOT just the HUD, on the cutscene-cover
+                 * flag (DAT_0438b1c8 && FUN_0046c869=n_bg): a full-screen-bg dialogue
+                 * (the iv1_1 opening, bedroom bg) renders ONLY the dialogue, so
+                 * retail skips the 3D scene + overlay underneath. The port only gated
+                 * the HUD (the 3D walkers were stubs when that gate landed); now the
+                 * 3D scene render is live, so drawing it under the opaque iv1_1 bg is
+                 * a covered over-draw retail doesn't do (the guild-bg-double-draw
+                 * class, 2a2d84d). iv1_2 (n_bg=0, over the live HOUSE map) + free-roam
+                 * keep covers=0 and render the scene as before. */
+                const int covers = scene1_intro_dialogue_covers_screen();
+                if (!covers)
+                    scene1_render_camera_setup(g_dev);
                 /* C7j (2026-05-29): FUN_0040a765 2D HUD aggregator,
                  * between the 3D walker and the overlay dispatcher
                  * (engine FUN_004547ab L71).  Entry shell + Passes 1-3
@@ -2922,16 +2934,19 @@ static void render_dispatch(void)
                  * (over the live HOUSE map) and free-roam draw the HUD.  Without
                  * this the HUD wrongly overlaid the opening cutscene's painted bg
                  * (user-reported 2026-06-02). */
-                if (!scene1_intro_dialogue_covers_screen()) {
+                if (!covers) {
                     scene1_hud_render(g_dev);
+                    scene1_render_overlay(g_dev);
+                    /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
+                     * at the tail of the engine's FUN_0045cc85 scene render).  Self-
+                     * gates on the slide counter (no-op when closed), so safe to call
+                     * every HOUSE frame; draws the item_win parchment panel over the
+                     * scene while the menu is up.  Inside the same scene-block gate as
+                     * the engine (FUN_0045cc85 tail is skipped when the cutscene
+                     * covers); the cc04 menu is never up during the iv1_1 opening
+                     * anyway, so this only formalises the structure. */
+                    display_menu_render(g_dev);
                 }
-                scene1_render_overlay(g_dev);
-                /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
-                 * at the tail of the engine's FUN_0045cc85 scene render).  Self-
-                 * gates on the slide counter (no-op when closed), so safe to call
-                 * every HOUSE frame; draws the item_win parchment panel over the
-                 * scene while the menu is up. */
-                display_menu_render(g_dev);
                 /* Opening-prologue / iv1_2 dialogue (FUN_0046c090 → FUN_0046c9a2).
                  * Drawn LAST — AFTER the HUD + overlay — per the engine render
                  * root FUN_004547ab, whose dialogue-active path is
