@@ -751,6 +751,18 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   even before the replayer can re-render it. (The native viewer re-renders, so it shows black until
   P5 — a known viewer limitation for RT effects.) This is the fast path to confirm the pause
   backdrop appearance; P5 is what makes it structurally analyzable + viewer-faithful.
+  **P5 viewer fidelity ✅ DONE 2026-06-13 (`5a9cd05`):** the native viewer re-rendered each column
+  with the per-frame `orv3_replay_render`, which shows RT-bound samples black/garbage — so the
+  pause backdrop reconstructed WRONG (a near-black transition + a stale-backbuffer "shop exterior"
+  fragment), even though the port renders it right in-game (user-flagged scrubbing house-pause).
+  Fix: `replay_core` now flags `has_rt` at open + exposes `orv3_replay_has_rt`; the viewer renders
+  the full column (display + diff metric) via `orv3_replay_render_history` when the container has
+  RT, else the cheap per-frame render (identical for RT-free, O(1) vs O(idx) — large RT-free windows
+  stay fast). Confirmed: transition f162 mean 1.5→96.4, resting f119 70.8→113.6. (Draw-step
+  isolation stays per-frame — inherent; an RT sample there is still black.) **Gotcha: after any
+  `replay/replay_core.c` change, rebuild BOTH `replay/replay.exe` AND `viewer/viewer.exe`** — a
+  stale viewer.exe fails container load with "unknown op" the moment a new op (e.g. SetRenderTarget)
+  lands in the stream.
 
 ## Honest note on "10×"
 The 10× is on the **iteration loop**, not one axis: retail-caching + window-early-exit kill
