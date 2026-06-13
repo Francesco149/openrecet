@@ -601,10 +601,28 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
       enumerates draws per column) — needs a parse-once container handoff between
       phases and/or a baked-draws cache; viewer metric precompute (~15 s at open)
       should go lazy/background; replay.exe cannot fopen-write `\\wsl.localhost` UNC
-      paths (write to Windows-local scratch). Then marks/crops parity with v2.
-      (Open human-verify: pixel→draw pick's live mouse-click wiring.)
-- **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
-  matches v2. **Then** archive v2.
+      paths (write to Windows-local scratch).
+  - **NOTES + crop regions ✅ DONE + USER-CONFIRMED (2026-06-13, `db28c34`+`f20b5ea`).**
+    The v2 `edits.jsonl` notes loop, native — **the last v2-parity gap**, so v2 is retired
+    as the working tool (user call). Note mode (m) → drag a crop box on any panel (or "note
+    frame") → type a note; notes overlay as green boxes pinned to their column by **identity
+    label** (stable across re-windows) + a seek/del list; pick disabled while arming.
+    Persistence dodges the UNC-write limit (the Windows viewer can't fopen-write a
+    `\\wsl.localhost` path): notes go to a WINDOWS-LOCAL `%LOCALAPPDATA%\openrecet\v3\notes\
+    <scenario>.json` (view.json carries `notes_path`; `v3cache.notes_file` resolves it,
+    pre-creating the dir). **`orv3_notes.py`** reads them on WSL: `list` prints the flags;
+    `--render [--id N] [--feed]` replays the flagged frame port|retail|diff via `replay.exe
+    --upto`, crops to the (padded) box, outlines the region, composes a PNG (+feed) so Claude
+    SEES the flag. Cursor/font fix (`f20b5ea`): the interactive viewer sized its d3d9
+    backbuffer to the WINDOW (1400x920) not the CLIENT area, so a non-integer Present
+    downscale skewed the mouse (clicks landed low) + squished the pixel font — fixed by
+    sizing to `GetClientRect` + a `WM_SIZE` reset. Live drag→save→read round-trip + the fix
+    both user-confirmed. **The parity loop now runs on v3:** `orv3_window <scen> --window
+    OFF:COUNT --launch` → drag notes → `orv3_notes.py <scen> --render`.
+- **P4 — Parity-loop parity check** (v2's formal send-off): reproduce a known confirmed-1:1
+  session in v3, verdict matches v2. v2 is ALREADY retired as the working tool (user call
+  2026-06-13 — notes was the last gap); P4 is the belt-and-suspenders proof before the v2
+  code is physically archived. The perf follow-ups above land first (the iteration loop).
 
 ## Honest note on "10×"
 The 10× is on the **iteration loop**, not one axis: retail-caching + window-early-exit kill

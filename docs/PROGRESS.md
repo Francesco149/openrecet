@@ -7,6 +7,34 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-13 — studio-v3: viewer NOTES + crop regions → v2 RETIRED as the working tool
+
+The native viewer gains the v2 `edits.jsonl` notes loop — **the last v2-parity gap**, so v2 is
+now retired as the parity-loop tool (user call: "retire all v2 studio stuff … archived unless we
+hit blockers with v3"). In the viewer: **note mode (m)** → drag a crop box on any panel (or **note
+frame**) → type a note to flag a divergence for Claude; existing notes overlay as green boxes
+pinned to their column by **identity label** (stable across re-windows) + a seek/del list.
+
+- **Persistence dodges the UNC-write limit.** The viewer is a Windows process and can't
+  fopen-write a `\\wsl.localhost` UNC path, so notes go to a WINDOWS-LOCAL json under
+  `%LOCALAPPDATA%\openrecet\v3\notes\<scenario>.json` (one per scenario, keyed inside by the stable
+  identity label). `orv3_view` writes its Windows form into view.json (`notes_path`, pre-creating
+  the dir); `v3cache.notes_file` is the shared resolver.
+- **`orv3_notes.py` (NEW)** reads the flags back on WSL: `list` prints them; `--render [--id N]
+  [--view V] [--feed]` replays the flagged frame port|retail|diff via `replay.exe --upto`, crops to
+  the (padded) box, outlines the exact region, composes a PNG, and optionally pushes it to the
+  llm-feed — so Claude SEES what was flagged. Verified end-to-end on a HOUSE window.
+- **Cursor/font fix (`f20b5ea`).** The interactive viewer created its d3d9 backbuffer at the
+  1400x920 WINDOW size while ImGui reads the mouse + lays out in CLIENT-area coords (~40px shorter);
+  Windows Present-scaled the taller buffer into the client area, a non-integer 920→881 squish that
+  caused BOTH a low cursor (content rendered above the mouse) and a non-pixel-perfect / top-clipped
+  font. Fixed by sizing the device to `GetClientRect` (1:1) + a `WM_SIZE` reset on resize.
+- **Verified:** live drag→save→read round-trip user-confirmed (a real note round-tripped); cursor +
+  font fix user-confirmed. **Parity loop is now** `orv3_window <scen> --window OFF:COUNT --launch` →
+  drag notes → `orv3_notes.py <scen> --render`. Commits `db28c34` (notes) + `f20b5ea` (fix).
+  **Next arc: the perf follow-ups** (skip the v2 bake on v3 retail drives; parse-once container
+  handoff; lazy viewer metric precompute), then the formal P4 parity check as v2's send-off.
+
 ## 2026-06-12 — studio-v3: HOUSE-drive retail full-extent capture (P1 COMPLETE, 48/48 bit-exact)
 
 The Trace Studio v3 P1 (capture-at-scale) is now fully proven on both sides through a real

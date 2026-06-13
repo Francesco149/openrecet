@@ -534,12 +534,30 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   the port double-draws the guild bg (tex `…2780`, 2 draws vs 1, ~1076 columns —
   invisible overdraw, port cleanup lead). **Live viewer at 2601 columns
   ✅ USER-CONFIRMED 2026-06-13** ("works perfectly and scrubs instantly").
-  **Follow-ups:** v3 retail drive should skip the v2 PNG/montage bake (~5 of ~13 min);
-  the CACHED re-window loop is ~5 min at 2600 columns (containers re-parsed in pure
-  Python per phase + per-column draw enumeration — needs a parse-once handoff /
-  baked-draws cache); lazy viewer metric precompute; then marks/crops parity → P4
-  (reproduce a confirmed-1:1 session, then archive v2). Open human-verify: live
-  click-test of pixel→draw pick. Plan: `plans/trace-studio-v3.md` P3/N4.
+  Pixel→draw pick live click-test **also user-confirmed** (the F un-pick keybind).
+- **VIEWER NOTES + CROP REGIONS ✅ DONE + USER-CONFIRMED 2026-06-13** (`db28c34`,
+  `f20b5ea`) — the v2 `edits.jsonl` notes loop, native, and **the last v2-parity gap →
+  v2 is RETIRED as the working tool** (user call 2026-06-13: "retire all v2 studio
+  stuff … archived unless we hit blockers"). In the native viewer: **note mode (m)** →
+  drag a crop box on any panel (or **note frame**) → type a note; notes overlay as green
+  boxes pinned to their column by **identity label** (stable across re-windows) + a
+  seek/del list. Persistence dodges the UNC-write limit (the Windows viewer can't
+  fopen-write `\\wsl.localhost`): notes go to a **Windows-local**
+  `%LOCALAPPDATA%\openrecet\v3\notes\<scenario>.json` (view.json carries its `notes_path`;
+  `v3cache.notes_file`). **`orv3_notes.py`** reads them on WSL — `list` prints the flags,
+  `--render [--id N] [--feed]` replays the flagged frame port|retail|diff, crops to the
+  box, outlines it, composes a PNG (+feed) so Claude SEES the flag. Live drag→save→read
+  round-trip user-confirmed; a window-vs-client backbuffer-size bug (cursor offset +
+  squished pixel font) fixed (`f20b5ea`, user-confirmed). **The parity loop now runs on
+  the v3 native viewer:** `orv3_window <scen> --window OFF:COUNT --launch` → drag notes →
+  `orv3_notes.py <scen> --render`. Detail → PROGRESS + `plans/trace-studio-v3.md` P3.
+  **Follow-ups (perf, the NEXT arc — user-sanctioned 2026-06-13):** v3 retail drive
+  should skip the v2 PNG/montage bake (~5 of ~13 min — a v3 drive's only artifacts are
+  the container + hash refs); the CACHED re-window loop is ~5 min at 2600 columns
+  (containers re-parsed in pure Python per phase — needs a parse-once handoff /
+  baked-draws cache); lazy viewer metric precompute. Then the formal **P4** parity-check
+  (reproduce a confirmed-1:1 session, v3 verdict == v2) as v2's send-off. Plan:
+  `plans/trace-studio-v3.md` P3/N4/P4.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
