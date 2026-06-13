@@ -124,22 +124,32 @@ Draw primitives all already in the port: `render_quad_add`
 - **M2c — calendar/gold/portrait + the board background (NEXT).** The retail
   resting-menu draw program is **10 draws** (orv3_draws on `house-pause-f1bf56e7`
   frame 119):
-    - **[0]** tex `3e66`, full-screen 640×480, MODULATE, white — the **static
-      board background** behind the whole menu (the dark panel the calendar
-      sits on; the cyan-vs-retail diff). Hash is STABLE across all resting-menu
-      frames (80/100/110/119 — the menu is already at rest by f80) ⇒ a static
-      layer, not a fade. **CORRECTION (was mis-attributed to `FUN_0045404b`):**
-      reading `FUN_0045404b` (0x45404b) shows it is the OPEN/CLOSE
-      **captured-screen cross-fade** — CopyRects the screen → redraw with alpha
-      `0xff − sin(DAT_06a49994·π/DAT_005c5938)`, gated `0 < DAT_06a49994`, tex
-      `DAT_073cb900` → that belongs to **M3 (the fade transition)**, NOT this
-      board. [0]'s real source is still OPEN: candidate assets are `dungeonbord`
-      (`DAT_073a9b08`) / `result_bord01` (`DAT_073d86c8`) — both pause-loaded,
-      but neither has an obvious single full-screen draw (result_bord01 is drawn
-      ×3 near all.c:82959, dungeonbord near 101624). **RESOLVE FIRST in M2c via
-      the viewer pixel-pick** (`orv3_window … --launch`, click the board bg →
-      the draw index → its source via `call_trace.jsonl`) — the canonical v3
-      method; don't keep guessing from static analysis.
+    - **[0]** tex `3e66`, full-screen 1024×768, MODULATE — the menu's black
+      backdrop. **✅ SOURCE RESOLVED 2026-06-13 — it is the CAPTURED-SCREEN RENDER
+      TARGET (`DAT_073de648`), drawn by `FUN_00454191` (the fade/capture system),
+      NOT a static board asset.** Four independent lines of evidence:
+      (1) **decompile** — at rest (c99c==0xc) the dispatch `FUN_004547ab` runs
+      `FUN_0045404b`→`FUN_00454191` right BEFORE `FUN_004820ba` (L51221 then
+      L51225). The old correction read `FUN_0045404b`'s OWN draw (gated
+      `0 < DAT_06a49994`, no-op at rest) but MISSED that it calls `FUN_00454191`
+      unconditionally; `FUN_00454191`'s gate is `1 < c99c` (TRUE at rest), so its
+      full-screen draw at L50944-50961 runs every resting frame, binding
+      `DAT_073de648`. (2) `DAT_073de648` is a **CreateTexture render target**
+      (`FUN_0047ae65` L78061-78063: screen-sized `DAT_005cbc04`×`DAT_005cbc08`,
+      surface `DAT_073de630`) — created, never file-loaded. (3) **container dump**
+      (`_texdump`) — tex `3e66` is **1024×768, fmt 22 (X8R8G8B8), datalen=0** (a
+      screen-sized RT with ZERO stored pixels), vs the real assets bg_rete (#58,
+      1024×512, 2 MB) / pause.tga (#59) / item_win (#52, 4 MB) which all carry
+      pixel content. (4) **replayer** — `replay.exe --upto 119 1` (clear + [0]
+      only) renders PURE BLACK (mean 0.0, every pixel 0,0,0) because the per-frame
+      replayer can't carry the RT's captured content across frames. ⇒ **[0] is an
+      M3 dependency (the capture/composite mechanism), not a one-line static draw.**
+      `dungeonbord`/`result_bord01` were the WRONG candidates (they're loaded
+      assets WITH content). **OPEN sub-question for the user** (who has the game):
+      what does the live-retail pause backdrop look like — pure black, the dark
+      composite (`FUN_00454191`'s c99c==3 path clears `0xff173c8c` + draws a
+      `0x14dcdcdc` translucent vignette into the RT), or the frozen scene? The v3
+      replayer can't show it (datalen=0); only real retail or a Frida RT-dump can.
     - **[1]** bg_rete · **[2]** option list · **[3]** header (M2/M2b, done).
     - **[4],[5],[6]** tex `e5bd` (pause.tga), MODULATE — the calendar frame +
       labels (engine L83801-83866; `local_8 = sub_anim*-0x40` slide-in x-offset
@@ -150,11 +160,32 @@ Draw primitives all already in the port: `render_quad_add`
       Merchant Level badge (`FUN_00481ec3(local_8+192, 64, *(puVar3+0x2c400))` →
       `scene1_merchant_hud`, ALREADY ported). Date math = FUN_00482059/00482033.
       Retail shows gold **10,000,000** (the tutorial infinite-money pin) here.
-  Save-arena fields are addressable (`save_work` bank base + `DAT_0438b1e0`
-  slot, the same `bank*0x2dfc8 + offset` geometry chara_equip uses): gold `+0xc`,
-  calendar period `+0x2c3f8`/`+0x2c3fc`, level `+0x2c400`, a mode `+0x2dd64`,
-  current day `_DAT_0438b91c`. Portrait = `FUN_0048d997` (TBD). Once [0]+[4-9]
-  land, the WHOLE resting menu is cleanly pixel-1:1-verifiable in one diff.
+  Save-arena fields are addressable (`save_work_bank_at(slot)` byte base +
+  `DAT_0438b1e0` slot, the same `bank*0x2dfc8 + offset` geometry chara_equip
+  uses): gold `+0xc`, calendar period `+0x2c3f8`/`+0x2c3fc`, level `+0x2c400`,
+  mode `+0x2dd64`, day `+0x2c3ec`, period-end cache `+0x2c3e8` (written by
+  `FUN_00482059`), discount flag `+0x2bc56` (byte; halves the quota). The
+  not-yet-ported helpers are small: `FUN_00482033` (day index, 38 B),
+  `FUN_00482059` (period-end, 97 B), `FUN_0048d997` (the WEEKLY QUOTA number —
+  500000/80000/… by period, halved if `+0x2bc56`; 218 B). Gold (`+0xc`) + level
+  (`+0x2c400`) helpers are ALREADY ported and their fields load 1:1.
+  **⚠ [4-9] value dependency (scoped 2026-06-13):** the calendar period-progress
+  bar in [4] (L83833-83847, width ∝ `_DAT_0438b91c − period_start`) needs the
+  CURRENT-DAY global `_DAT_0438b91c`, which the port **stubs to 0**
+  (`stage_post_load.c:562` "Stage record isn't ported → defaults to 0", loaded
+  from stage-record `+0x2c3f4`). Until un-stubbed (or read directly from save
+  `+0x2c3f4`), [4]'s progress-bar quad geometry will DIVERGE from retail ⇒ the
+  [4] geometry-hash won't match on `orv3_draws`. The quota (`FUN_0048d997`) +
+  day-cells ([5]/[6]) similarly depend on the day field `+0x2c3ec` being loaded.
+  **So [4-9] is NOT a pure-geometry port — verify each draw's field values load
+  1:1 before claiming a draw-program match.**
+  **Milestone reality (corrected 2026-06-13):** the old "once [0]+[4-9] land the
+  whole resting menu is cleanly pixel-1:1-verifiable" is now known to be blocked
+  on TWO fronts the original plan missed: **[0] is the M3 captured-screen RT** (so
+  a clean pixel diff of the backdrop needs M3 AND the v3 replayer can't reproduce
+  the RT regardless), and **[4-9] needs the stubbed current-day un-stubbed**.
+  [4-9] is still verifiable STRUCTURALLY (draw-program tex/colorop/tri-count +
+  geometry-hash, once values load 1:1), just not via a swamped pixel diff.
 - **M3+ (later arcs):** submenus — Items, Encyclopedia, Options, Save,
   Exit-confirm (the `sub_anim>0` dispatch L83931-83952); the unpause cursor
   restore; the open/close fade transition (`FUN_00454191` body).
