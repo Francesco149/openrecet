@@ -296,10 +296,35 @@
   the dissolve fade. The port armed the fade+flags but stubbed the SE (`PORT-DEBT(door-SE)`);
   un-stubbed (RNG-neutral). `audio_diff` merchants-guild: **missing 2→0, track ALIGNED (9
   sounds)**. Tooling: audio se_play hooks now record `ret_va` (names a SE's caller).
+- **GUILD buy-list SOLD-OUT status overlay ✅ PORTED 2026-06-13 (`d69f3e2`).** The retail
+  buy-row loop tail draws a per-row status overlay Ghidra DROPPED (bare `FUN_0047ca05` at
+  all.c:66703-66708; recovered from objdump @0x46b7f9-0x46b8a3): mode-7 cap==0 → "Out Of
+  Stock" (`0xff9b0000`,×1.2) / "Not For Sale" (`0xff00007f`,×1.0, trend≤−2); mode-6 bit5 →
+  "Adventurer's Possession" (`0xff00c87f`,×0.65). Gated cap==0/bit5 ⇒ in-stock list byte-
+  identical (no regression). **NOT yet studio-exercised:** guild-ui-flow never buys to 0
+  (ends Worn Sword 2 Left / Longsword 1 Left, 1:1 both sides; a sell-out is past the 7-min
+  capture ceiling). Verify by play (buy an item out) or a focused buy-out trace; OOS-vs-NFS
+  needs the price-trend port (FUN_004361b2, still PORT-DEBT). RE: `merchant-guild-RE.md` §2.
+- **NEW ARC → PAUSE MENU (in-game ESC menu).** Scenario **`house-pause`** added 2026-06-13
+  (`0250347`): house-loaded-display-pinned + an `{esc}` at LOADING_END+160. The port SWALLOWS
+  in-game ESC (`esc_dispatch.c` → skip_event_arm + SWALLOW — "no in-game pause/menu overlay
+  reachable yet"); retail's ESC (`FUN_00453384`, 821 B) opens the **PAUSE MENU** —
+  user-confirmed in the v3 viewer 2026-06-13 ("it is indeed triggering it"). Captured: a brief
+  **"Now Loading"** (the C4E worker `scene_pause.c` loads pause.tga + sousa/st portraits — the
+  LOADER is already ported, the trigger+UI aren't; the "long gap before the menu pops up" the
+  user saw = this async asset load, a **loading-screen-fidelity** instance) → the menu: calendar
+  (Morchest) + gold + Recette portrait + **Items / Encyclopedia / Options / Save / Exit Game**.
+  v3 join pairs the 42 pre-ESC free-roam frames bit-exact, then port=HOUSE_FREEROAM vs
+  retail=LOADING_START#2 are honest gaps (different states until the port opens the menu too).
+  **Next:** RE `FUN_00453384` (ESC→pause dispatch) + `DAT_0438b150` state machine (NB: b150 is
+  the SHARED hand-cursor flag — `FUN_00435693` cursor-snap sets it too, so PAUSE_OPEN fires for
+  the guild menu/save dialog as well, not only the pause menu) → port the trigger + the pause UI
+  + the "Now Loading" transition. Caveat: the pause-menu frames don't self-replay bit-exact yet
+  (a v3-replayer follow-up). Assets/loader RE: `scene_pause.h` banner.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
-  above) → town scenes off the world map (world-map backlog itself CLOSED 2026-06-08,
-  bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail
-  intro-video force-skip D4 + the prologue mid-load actor-spawn gap,
+  above) → **pause menu** (now started, above) → town scenes off the world map (world-map
+  backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game
+  cross-replay: retail intro-video force-skip D4 + the prologue mid-load actor-spawn gap,
   `findings/conversation-pose-driver.md`) stays queued — hardest, last.
 - **Deferred (polish pass):** faint ambient particle dots (user ref-crops
   2026-06-05); next-line "book" arrow anim frame (draw from per-script-reset

@@ -404,10 +404,21 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    possessed (0) all match; only the price LABEL needed fixing (was "Base Price-"). The
    port FREEZES at the fresh open (no item-nav/qty yet = steps 3-4), so it correctly never
    shows the post-buy states. **PORT-DEBT(price-trend `FUN_004361b2`):** the buy price's
-   daily-market trend factor + the `Out Of Stock`/`Not For Sale`/`Adventurer's Possession`
-   status texts (cap-0/special, all post-buy) are deferred. Talk(2)/Leave(4,5)/Expansion(6)/
-   Fusion(3) dispatches stay PORT-DEBT. Strings: `%s - %d Left` @0x5c785c, `Out Of Stock`
+   daily-market trend factor is deferred. Talk(2)/Leave(4,5)/Expansion(6)/Fusion(3)
+   dispatches stay PORT-DEBT. Strings: `%s - %d Left` @0x5c785c, `Out Of Stock`
    @0x5c78a0, `Not For Sale` @0x5c7890, `Adventurer's Possession` @0x5c78b0.
+   **The per-row STATUS overlay (`Out Of Stock`/`Not For Sale`/`Adventurer's Possession`)
+   ✅ PORTED 2026-06-13 (`d69f3e2`).** Ghidra DROPPED these draws from the decompile (bare
+   `FUN_0047ca05()` at all.c:66703-66708); recovered from objdump @0x46b7f9-0x46b8a3 — the
+   buy-row loop tail draws, to the right of the name: **mode-7 cap==0** → trend≤−2 "Not For
+   Sale" (`0xff00007f`, ×1.0) else "Out Of Stock" (`0xff9b0000`, ×1.2) at (xL+152, rowY−4);
+   **mode-6 item bit5** → "Adventurer's Possession" (`0xff00c87f`, ×0.65) at (xL+132, rowY+16).
+   Consts from .rdata (name-x 0x519444=120, status-x 0x51965c=152, y-sub 0x51939c=4, scales
+   0x519924=1.2/0x519df0=0.65, Adv offsets 0x519e3c=132/0x519520=20). Gated on cap==0/bit5 ⇒
+   the in-stock list is byte-identical (no regression). **NOT yet studio-exercised** — the
+   guild-ui-flow trace never buys an item to 0 (ends Worn Sword 2 Left / Longsword 1 Left,
+   1:1 both sides; the sell-out, if its later inputs reach it, is past the 7-min capture
+   ceiling). Pending a buy-out trace or a play-verify (OOS-vs-NFS needs the price-trend port).
 3. **Item-list nav (mode 0) — ✅ DONE 2026-06-11 (`45f5bca`).** The in-list cursor nav was
    already in `display_menu_update` (the header's PORT-DEBT(A3) note was stale); the new
    `scene_guild_sim` mode-0 block dispatches its return: **r==3** (A-edge) → `guild_buy_price_preview`
