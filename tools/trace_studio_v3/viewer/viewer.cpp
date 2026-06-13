@@ -475,7 +475,9 @@ static std::string fmt_state_val(const json &v)
 {
     char b[48];
     if (v.is_null())           return "-";
-    if (v.is_number_float())   { snprintf(b, sizeof b, "%g", v.get<double>()); return b; }
+    // %.9g: f32 carries ~7 sig digits, so 9 makes a 1-ULP divergence (e.g. cx
+    // 0.600000024 vs 0.599999964) VISIBLE rather than both rounding to "0.6".
+    if (v.is_number_float())   { snprintf(b, sizeof b, "%.9g", v.get<double>()); return b; }
     if (v.is_number_integer()) { snprintf(b, sizeof b, "%lld", (long long)v.get<int64_t>()); return b; }
     if (v.is_boolean())        return v.get<bool>() ? "true" : "false";
     if (v.is_string())         return v.get<std::string>();
@@ -915,6 +917,7 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--col") == 0 && i + 1 < argc) col = atoi(argv[++i]);
         else if (strcmp(argv[i], "--draw-step") == 0 && i + 1 < argc) draw_step = atoi(argv[++i]);
         else if (strcmp(argv[i], "--solo") == 0) g_solo = true;
+        else if (strcmp(argv[i], "--state-diffs") == 0) g_state_diff_only = true;  // headless: show only port≠retail state rows
         else if (strcmp(argv[i], "--pick") == 0 && i + 2 < argc) { pick_x = atoi(argv[++i]); pick_y = atoi(argv[++i]); }
         else view = argv[i];
     }
