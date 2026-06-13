@@ -452,10 +452,16 @@ def summarize_delta(port: list[Draw], retail: list[Draw], deltas: list[DrawDelta
     }
 
 
-def _describe(d: Draw) -> str:
+def _describe(d: Draw, container: "orv3.Container | None" = None) -> str:
     parts = [f"{d.kind()} pt{d.prim_type} ×{d.prim_count}"]
     if d.tex_id >= 0:
-        parts.append(f"tex#{d.tex_id}={d.tex_hash & 0xffff:04x}")
+        tag = f"tex#{d.tex_id}={d.tex_hash & 0xffff:04x}"
+        if container is not None:
+            ti = container.tex_info(d.tex_id)
+            if ti is not None:                 # dims + RT-flag (datalen==0 ⇒ a
+                tag += f"[{ti['w']}x{ti['h']}"  # captured-screen render target,
+                tag += ",RT]" if ti["is_rt"] else ",asset]"  # not a file asset)
+        parts.append(tag)
     else:
         parts.append("tex=none")
     if d.vb_id >= 0:
@@ -487,7 +493,7 @@ def main() -> int:
         else:
             print(f"{args.port_container.name} frame {args.port_frame}: {len(pdraws)} draws")
             for d in pdraws:
-                print(f"  [{d.index:3d}] {_describe(d)}")
+                print(f"  [{d.index:3d}] {_describe(d, pc)}")
         return 0
 
     rc = orv3.Container.load(args.retail_container)
@@ -509,17 +515,17 @@ def main() -> int:
         elif dl.tag == "port_only":
             print(f"  - port-only draws {dl.port}:")
             for i in dl.port:
-                print(f"      P[{i:3d}] {_describe(pdraws[i])}")
+                print(f"      P[{i:3d}] {_describe(pdraws[i], pc)}")
         elif dl.tag == "retail_only":
             print(f"  + retail-only draws {dl.retail}:")
             for j in dl.retail:
-                print(f"      R[{j:3d}] {_describe(rdraws[j])}")
+                print(f"      R[{j:3d}] {_describe(rdraws[j], rc)}")
         elif dl.tag == "replace":
             print(f"  ~ replace: port {dl.port} ↔ retail {dl.retail}")
             for i in dl.port:
-                print(f"      P[{i:3d}] {_describe(pdraws[i])}")
+                print(f"      P[{i:3d}] {_describe(pdraws[i], pc)}")
             for j in dl.retail:
-                print(f"      R[{j:3d}] {_describe(rdraws[j])}")
+                print(f"      R[{j:3d}] {_describe(rdraws[j], rc)}")
     return 0
 
 

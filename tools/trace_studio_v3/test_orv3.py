@@ -80,6 +80,27 @@ def test_parse() -> None:
     print("  OK parse: 3 frames, presents [100,101,102], dedup'd resources {0,1,2}")
 
 
+def test_tex_info() -> None:
+    """tex_info: dims/fmt/datalen by id, and the is_rt flag (datalen==0 ⇒ a
+    captured-screen render target, not a file asset — the pause-[0] distinction)."""
+    c = orv3.Container(build_container())
+    ti = c.tex_info(0)                       # synthetic tex: 2x2 fmt21 datalen=16
+    assert ti == {"w": 2, "h": 2, "fmt": 21, "datalen": 16, "levels": 1, "is_rt": False}, ti
+    assert c.tex_info(1) is None             # id1 is a VB, not a texture
+    assert c.tex_info(99) is None            # unknown id
+
+    # a datalen=0 texture (a render target — no captured pixels) ⇒ is_rt True
+    b = bytearray()
+    b += _u(orv3.MAGIC) + _u(2)
+    b += _u(orv3.DEV_PARAMS) + b"".join(_u(x) for x in (1024, 768, 21, 75, 0, 1, 1, 0x40, 0, 0, 1, 1))
+    b += _u(orv3.RES_TEX) + _u(5) + _u(1) + _u(1024) + _u(768) + _u(22) + _u(0) + _u(0)  # RT
+    b += _u(orv3.SetTexture) + _u(0) + _u(5) + _u(orv3.DrawPrimitive) + _u(4) + _u(0) + _u(2)
+    b += _u(orv3.Present) + _u(100) + _u(orv3.EOF)
+    rt = orv3.Container(bytes(b)).tex_info(5)
+    assert rt["is_rt"] and (rt["w"], rt["h"], rt["datalen"]) == (1024, 768, 0), rt
+    print("  OK tex_info: dims + is_rt (asset datalen>0 vs RT datalen==0)")
+
+
 def test_slice() -> None:
     c = orv3.Container(build_container())
     # slice [1,3): frame 1 binds id0,id1 (defined in frame 0, OUTSIDE the slice) ⇒ must

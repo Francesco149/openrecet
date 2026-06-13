@@ -238,6 +238,25 @@ class Container:
         out += struct.pack("<I", EOF)
         return bytes(out)
 
+    def tex_info(self, rid: int) -> dict | None:
+        """(w, h, fmt, datalen, levels, is_rt) of texture `rid` from its stored
+        RES_TEX record, or None if `rid` isn't a texture. datalen==0 ⇒ a
+        dynamically-created RENDER TARGET (no captured pixels) vs a file asset
+        (datalen>0) — the distinction that tells a captured-screen draw from a
+        loaded sprite (this is what nailed the pause-menu [0] backdrop as the
+        captured-screen RT `DAT_073de648`, not a static board asset)."""
+        entry = self.resources.get(rid)
+        if not entry or entry[0] != RES_TEX:
+            return None
+        d = self.data
+        p = entry[1] + 8                 # skip [type][id]
+        levels = struct.unpack_from("<I", d, p)[0]; p += 4
+        w, h, fmt = struct.unpack_from("<III", d, p); p += 12
+        p += 4                           # rowbytes
+        dl = struct.unpack_from("<I", d, p)[0]
+        return {"w": w, "h": h, "fmt": fmt, "datalen": dl, "levels": levels,
+                "is_rt": dl == 0}
+
 
 def summary(path: str | Path) -> dict:
     """One-line-friendly dict: frame count, present range, dev dims, draws."""

@@ -365,18 +365,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   direct-frame overlay (port119 vs retail119 — the async load gaps the standard join) shows the
   menu at retail's exact staircase positions (feed "PAUSE MENU M2b"). **Pixel-1:1 confirmation is
   ENTANGLED with M2c:** the missing board background swamps the diff (bg_rete art is black/matching,
-  everything else white = port's cyan clear vs retail's board). **NEXT → M2c:** retail's resting
-  menu is **10 draws**; the remaining 7 (orv3_draws on `house-pause-f1bf56e7`#119) are **[0]** the
-  full-screen **static board background** (tex `3e66`, MODULATE, drawn BEFORE bg_rete; STABLE hash
-  across all rest frames — menu is at rest by f80 — so NOT a fade; **NOT FUN_0045404b** which is the
-  captured-screen open/close cross-fade = M3; source still OPEN, resolve FIRST via the viewer
-  **pixel-pick** on the board bg → call_trace, candidates dungeonbord/result_bord01),
-  **[4-6]** the calendar frame (pause.tga MODULATE, L83801-83866, `local_8 = sub_anim*-0x40` slide),
-  **[7-9]** the **number glyphs** (item_win tex `3392`): gold (`scene1_top_hud_draw_number`, ported;
-  retail shows the 10,000,000 tutorial pin), calendar day cells (date math FUN_00482059/00482033),
-  Merchant Level badge (`scene1_merchant_hud`, ported). Save-arena fields addressable via `save_work`
-  (gold +0xc, period +0x2c3f8/2c3fc, level +0x2c400, day `_DAT_0438b91c`). Once [0]+[4-9] land the
-  whole menu is cleanly pixel-1:1-verifiable. **M3:** submenus (the `sub_anim>0` dispatch
+  everything else white = port's cyan clear vs retail's board). **M2c IN PROGRESS — investigation
+  CLOSED a key question 2026-06-13:** retail's resting menu is **10 draws** (orv3_draws on
+  `house-pause-f1bf56e7`#119); the 7 unported are **[0]** the full-screen black backdrop —
+  **✅ NOT a static board asset: it is the CAPTURED-SCREEN RENDER TARGET `DAT_073de648`, drawn by
+  `FUN_00454191` (the fade/capture system), an M3 dependency.** Evidence (4 lines, see
+  `plans/pause-menu.md` M2c): at rest `FUN_004547ab` runs `FUN_0045404b`→`FUN_00454191` (gate
+  `1<c99c`, runs every rest frame) before `FUN_004820ba`; tex `3e66` is a **1024×768 X8R8G8B8
+  datalen=0** RT (CreateTexture in `FUN_0047ae65`, no file); `replay --upto 119 1` (clear+[0]) =
+  **pure black** (replayer can't carry RT content). So `dungeonbord`/`result_bord01` were WRONG
+  candidates. **Open for user (has the game): what does the live pause backdrop look like — black /
+  the dark composite (`0xff173c8c`+vignette) / the frozen scene?** **[4-6]** calendar frame
+  (pause.tga MODULATE, L83801-83866) + **[7-9]** numbers (item_win `3392`): gold
+  (`scene1_top_hud_draw_number`, ported) + level (`scene1_merchant_hud`, ported) + the weekly
+  **quota** `FUN_0048d997` + day-cells (date math FUN_00482059/00482033) — all NEED the save fields
+  to load 1:1. **⚠ blocker:** the [4] period-progress bar needs the CURRENT-DAY `_DAT_0438b91c`,
+  **stubbed to 0** in the port (`stage_post_load.c:562`) → un-stub (or read save `+0x2c3f4`) before
+  [4]'s geometry can match. So the old "[0]+[4-9] → clean pixel-1:1" is blocked on M3 ([0]) + the
+  current-day un-stub ([4]); [4-9] is still STRUCTURALLY verifiable via the draw-program panel.
+  **M3:** submenus (the `sub_anim>0` dispatch
   L83931-83952) + type-4 exit-confirm + unpause cursor-restore + the open/close fade (FUN_00454191
   body). NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 cursor-snap sets it too) —
   not pause-exclusive.
