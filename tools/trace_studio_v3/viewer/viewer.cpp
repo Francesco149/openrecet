@@ -140,15 +140,47 @@ static void diff_into(const uint8_t *p, const uint8_t *r, uint8_t *out, Col &c)
     c.gt8 = (int)gt8; c.maxd = maxd; c.meanabs = sum / (3.0 * N);
 }
 
-// compute the diff metric for EVERY column at load (cheap: ~3ms render ×2 + a px loop),
-// so the diff ribbon + worst-frame are immediately meaningful.
-static void precompute_metrics()
+// ── diff-metric fill: gt8/meanabs per column for the ribbon heat + worst-frame ──
+// Each column needs 2 resident renders (~3 ms) + a px loop. At thousands of columns a
+// synchronous pass at open is ~15 s of black screen, so the interactive viewer fills the
+// metrics in the BACKGROUND (pump_metrics — a time-budgeted slice per UI frame): the
+// window is responsive instantly and the ribbon colours in over ~1-2 s. The headless
+// --shot path still computes synchronously (precompute_metrics) so a self-verify/feed
+// shot shows the full ribbon. The current column is always computed EAGERLY by
+// show_column, so scrubbing/worst-of-seen are never gated on the background fill.
+static int g_metric_cursor = 0;   // background fill walks columns once; == size ⇒ done
+
+static bool compute_col_metric(Col &c)
 {
-    for (auto &c : g_cols) {
-        if (c.port_idx < 0 || c.retail_idx < 0) continue;   // honest gap — no diff
-        const uint8_t *p = orv3_replay_render(g_port, c.port_idx);
-        const uint8_t *r = orv3_replay_render(g_retail, c.retail_idx);
-        if (p && r) diff_into(p, r, nullptr, c);
+    if (c.port_idx < 0 || c.retail_idx < 0 || c.gt8 >= 0) return false;  // gap / already done
+    const uint8_t *p = orv3_replay_render(g_port, c.port_idx);
+    const uint8_t *r = orv3_replay_render(g_retail, c.retail_idx);
+    if (!p || !r) return false;
+    diff_into(p, r, nullptr, c);
+    return true;
+}
+
+static void precompute_metrics() { for (auto &c : g_cols) compute_col_metric(c); }
+
+// both-sides columns still missing a metric (the progress readout / done test).
+static int metrics_pending()
+{
+    int n = 0;
+    for (auto &c : g_cols) if (c.port_idx >= 0 && c.retail_idx >= 0 && c.gt8 < 0) n++;
+    return n;
+}
+
+// advance the background fill for up to `budget_ms`, then yield to the UI. Renders leave
+// the resident cores' buffers on a background column, but the panels show uploaded COPIES
+// (and any seek/pick re-renders the current column), so the display is never corrupted.
+static void pump_metrics(double budget_ms)
+{
+    if (g_metric_cursor >= (int)g_cols.size()) return;
+    LARGE_INTEGER freq, t0, now; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&t0);
+    while (g_metric_cursor < (int)g_cols.size()) {
+        compute_col_metric(g_cols[g_metric_cursor++]);
+        QueryPerformanceCounter(&now);
+        if ((double)(now.QuadPart - t0.QuadPart) * 1000.0 / (double)freq.QuadPart >= budget_ms) break;
     }
 }
 
@@ -344,7 +376,8 @@ static bool load_view(const char *path)
 
     g_tport = make_tex(); g_tretail = make_tex(); g_tdiff = make_tex();
     g_diffbuf = (uint8_t *)malloc((size_t)g_w * g_h * 4);
-    precompute_metrics();
+    g_metric_cursor = 0;        // diff metrics fill in the background (pump_metrics); the
+                                // --shot path calls precompute_metrics() for a full ribbon.
     load_notes();
     show_column(0);
     return true;
@@ -437,6 +470,9 @@ static void draw_ui()
     ImGui::SameLine(); ImGui::TextColored(aligned ? ImVec4(0.41f,0.82f,0.51f,1) : ImVec4(1,0.71f,0.33f,1), "%s", g_verdict.c_str());
     ImGui::SameLine(); ImGui::Text("· %dx%d · %d cols · load stretch %+d · %.0f fps",
                                    g_w, g_h, (int)g_cols.size(), g_load_stretch, ImGui::GetIO().Framerate);
+    if (int mp = metrics_pending()) {   // background diff-metric fill still running
+        ImGui::SameLine(); ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "· filling diff metrics (%d left)", mp);
+    }
 
     // toolbar: panel toggles + scrub
     const char *names[3] = {"port", "retail", "diff"};
@@ -684,6 +720,7 @@ static int do_shot(const char *out, const char *view, int W, int H, int col, int
     if (!create_device(hwnd, W, H)) { fprintf(stderr, "CreateDevice failed\n"); return 2; }
     imgui_init(hwnd);
     if (view && !load_view(view)) return 2;
+    precompute_metrics();   // headless: full ribbon/worst for the self-verify shot
     if (draw_step >= 0) { g_step_on = true; g_draw_step = draw_step; }   // headless draw-step verify
     if (col > 0) seek(col); else if (g_step_on) show_column(g_cur);      // apply col/step before the shot (g_solo may be preset)
     if (pick_x >= 0 && pick_y >= 0) {                                    // headless pixel→draw pick verify (port side)
@@ -779,6 +816,7 @@ static int do_interactive(const char *view)
         }
         if (!running) break;
         begin_frame(); handle_keys(); draw_ui(); end_frame();
+        pump_metrics(8.0);   // background diff-metric fill (~8 ms/frame) — non-blocking open
         g_dev->Present(nullptr, nullptr, nullptr, nullptr);
     }
     shutdown_all(); DestroyWindow(hwnd);
