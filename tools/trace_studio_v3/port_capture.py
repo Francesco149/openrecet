@@ -50,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v3cache                                                         # noqa: E402
 import v3verify                                                        # noqa: E402
 import orv3_state                                                      # noqa: E402
+import retail_capture as rc                                            # noqa: E402  (wait_for_capture)
 
 
 def caprange_of(scenario: str) -> tuple[int, int] | None:
@@ -172,6 +173,10 @@ def main() -> int:
             cfg.unlink(missing_ok=True)
             print(f"[stage] unstaged {STAGED_DLL.name}")
 
+    # The proxy FINALIZEs as the port exits; the DrvFs write can lag a bare
+    # exists() check (race), so wait for the terminal FINALIZE + a settled
+    # v3cap.bin before declaring failure.
+    rc.wait_for_capture(cap, log)
     if not cap.exists() or not log.exists():
         raise SystemExit(f"[fail] no capture produced at {v3} — check the run above")
 

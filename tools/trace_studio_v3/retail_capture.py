@@ -63,6 +63,30 @@ def localappdata_v3() -> Path:
     return Path(wsl) / "openrecet" / "v3"
 
 
+def wait_for_capture(cap: Path, log: Path, timeout: float = 20.0) -> bool:
+    """Poll until the proxy's container is fully written + VISIBLE, or timeout.
+
+    The proxy runs inside the Windows game process and writes v3cap.bin /
+    v3proxy.log to %LOCALAPPDATA% (a DrvFs path); the WSL-side checks read them
+    back over /mnt/c. The proxy FINALIZEs on shutdown (for retail, right as the
+    agent's window early-exit terminates the process), and the cross-boundary
+    write is NOT immediately visible to a WSL stat() — `cap.exists()` can race
+    and read False on a capture that in fact succeeded. Wait for the proxy's
+    terminal "FINALIZE" log line AND a v3cap.bin whose size has settled (two
+    equal polls) before treating the run as done. Returns True once ready."""
+    deadline = time.monotonic() + timeout
+    last_size = -1
+    while time.monotonic() < deadline:
+        finalized = log.exists() and "FINALIZE" in log.read_text(errors="replace")
+        if finalized and cap.exists():
+            size = cap.stat().st_size
+            if size > 0 and size == last_size:
+                return True
+            last_size = size
+        time.sleep(0.4)
+    return cap.exists() and log.exists()
+
+
 def openrecet_screen_dims() -> tuple[int, int]:
     """Resolution the port renders at, from vendor/original/recet.ini `screen=`
     (default 1024×768). Retail's own UNC recet.ini read fails ⇒ would default to

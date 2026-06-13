@@ -199,6 +199,10 @@ def main() -> int:
             print(f"[stage] unstaged {PROXY_DLL.name}")
 
     # ── pull + report + verify ──
+    # The proxy FINALIZEs as the agent terminates retail; the DrvFs write can lag
+    # a bare exists() check (race), so wait for the terminal FINALIZE + a settled
+    # v3cap.bin before declaring failure.
+    rc.wait_for_capture(cap, log)
     if not cap.exists() or not log.exists():
         raise SystemExit(f"[fail] no capture produced at {v3} — the proxy never opened a "
                          f"container. Check {run_dir}/agent.log (did retail spawn? did d3d8.dll load?).")
