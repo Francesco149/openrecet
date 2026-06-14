@@ -1,0 +1,20 @@
+# house-pause-save-commit — see trace.jsonl.  Opens the in-game PAUSE Save submenu
+# (type 3) and COMMITS a save on the occupied home slot 0: A → "Overwriting file?
+# Are you sure?" choice box → A confirms Yes → the 60-frame commit animation
+# (FUN_004905a8 disk write + the save-progress bar + the selected-card save pulse)
+# → back to the resting picker.  Verifies M4c — the FUN_0047f5bc A-branch +
+# FUN_00434def overwrite dialog + FUN_004905a8 commit.
+#
+# The commit drive re-anchors to SAVE_PICKER_READY (sub_anim==10 with Save
+# selected — the picker is navigable) so the per-side-variable pause-asset load
+# seam is immaterial; the v3 identity-join pairs the commit frames by
+# (SAVE_PICKER_READY, offset).  Pinned (phasepin 80) so the pre-ESC free-roam
+# matches 1:1.  The {savefile} sandbox means the commit's disk write never
+# touches the user's real save (the harness captures it for verification).
+description: |
+  Pause → 3×down to SAVE → Z opens the save submenu → A on the occupied home
+  slot 0 → "Overwriting file?" Yes → the commit animation runs → the picker rests
+  showing the re-saved slot.  Capture SAVE_PICKER_READY+0..200; slice for the
+  port↔retail diff of the overwrite dialog + commit anim + progress bar.
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause-save-nav)
+duration_ceiling_ms: 180000

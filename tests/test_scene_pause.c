@@ -20,6 +20,8 @@
 #include "scene.h"    /* g_scene_state */
 #include "save_picker.h" /* perm init + globals (the type-3 commit) */
 #include "save_bank.h"   /* save_header_set_last_slot (the picker cursor seed) */
+#include "save_work.h"   /* working-bank setup (M4c commit source) */
+#include "choice_box.h"  /* the overwrite dialog (M4c A-confirm on an occupied slot) */
 
 /* ─── recording scratchpad for the injected load_fn ──────────────────── */
 
@@ -890,14 +892,97 @@ int test_pause_save_nav_b_closes(void)
     return 0;
 }
 
-/* A is M4c PORT-DEBT (no commit) — phase stays 0, the picker holds. */
-int test_pause_save_nav_a_is_portdebt_noop(void)
+/* ─── Save submenu (type 3) A-COMMIT — FUN_0047f5bc A-branch (M4c) ────────
+ * Seed the picker open with the save bank initialised; A on the cursor's slot
+ * either commits at once (empty) or pops the "Overwriting file." box (occupied). */
+static void commit_prep(int cursor, int occupied)
 {
-    nav_prep(0, 0);
+    nav_prep(cursor, 0);
+    save_bank_arena_clear();
+    save_bank_init_all();
+    g_pause_save_overwrite = 0;
+    /* perm is identity, so the cursor value IS the target bank slot. Set its
+     * playtime (the OCCUPIED dword) for the empty/occupied branch. */
+    save_bank_dwords_at(cursor)[SAVE_BANK_FIELD_OCCUPIED] = (uint32_t)occupied;
+}
+
+/* A on an EMPTY slot commits straight away: phase=1, no dialog. */
+int test_pause_save_a_empty_commits(void)
+{
+    commit_prep(/*cursor=*/3, /*occupied=*/0);
     g_sim_buttons[0].pressed = 0x10;          /* A */
     pause_save_submenu_update();
-    T_ASSERT_EQ_I(g_pause_save_phase, 0);
-    T_ASSERT_EQ_I(g_pause_save_cursor, 0);
+    T_ASSERT_EQ_I(g_pause_save_phase, 1);      /* commit started */
+    T_ASSERT_EQ_I(g_pause_save_overwrite, 0);  /* no overwrite dialog */
+    T_ASSERT_EQ_I(choice_box_active(), 0);
+    return 0;
+}
+
+/* A on an OCCUPIED slot opens the "Overwriting file." box (no commit yet). */
+int test_pause_save_a_occupied_opens_overwrite(void)
+{
+    commit_prep(/*cursor=*/3, /*occupied=*/100);
+    g_sim_buttons[0].pressed = 0x10;          /* A */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_phase, 0);      /* not committing yet */
+    T_ASSERT_EQ_I(g_pause_save_overwrite, 1);  /* dialog armed */
+    T_ASSERT(choice_box_active() != 0);        /* the box is up */
+    return 0;
+}
+
+/* The overwrite box's Yes drives the commit: poll it to confirmation → phase=1.
+ * (Default selection is Yes/option-0, so a single A confirms once interactive.) */
+int test_pause_save_overwrite_yes_commits(void)
+{
+    commit_prep(/*cursor=*/3, /*occupied=*/100);
+    g_sim_buttons[0].pressed = 0x10;          /* A — opens the box */
+    pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 6; i++)               /* ramp the box to interactive */
+        pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0x10;          /* A — confirm Yes */
+    pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0;
+    int guard = 0;
+    while (g_pause_save_phase == 0 && guard++ < 20)  /* close anim → CB_OPT0 → phase=1 */
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_phase, 1);      /* stop AT phase 1 (before commit_tick) */
+    T_ASSERT_EQ_I(g_pause_save_overwrite, 0);  /* dialog consumed */
+    return 0;
+}
+
+/* B on the overwrite box cancels: the box closes, no commit, flags cleared. */
+int test_pause_save_overwrite_b_cancels(void)
+{
+    commit_prep(/*cursor=*/3, /*occupied=*/100);
+    g_sim_buttons[0].pressed = 0x10;          /* A — opens the box */
+    pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 6; i++)               /* ramp to interactive */
+        pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0x20;          /* B — cancel (box is mode 1) */
+    pause_save_submenu_update();
+    g_sim_buttons[0].pressed = 0;
+    int guard = 0;
+    while (g_pause_save_overwrite == 1 && guard++ < 20)
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_phase, 0);      /* no commit */
+    T_ASSERT_EQ_I(g_pause_save_overwrite, 0);  /* dialog dismissed */
+    return 0;
+}
+
+/* The commit counter runs 1→0x3c then wraps to 0 (engine 0x47f73a). Start at
+ * phase 2 so commit_tick only advances the counter (the phase==1 disk write
+ * fires once, at the start of a real commit — not exercised here). */
+int test_pause_save_commit_counter_wraps(void)
+{
+    nav_prep(0, 0);
+    g_pause_save_phase = 2;
+    for (int p = 2; p < 0x3c; p++) {
+        pause_save_submenu_update();          /* phase p → p+1 */
+        T_ASSERT_EQ_I(g_pause_save_phase, p + 1 == 0x3c ? 0 : p + 1);
+    }
+    T_ASSERT_EQ_I(g_pause_save_phase, 0);      /* wrapped at 0x3c */
     return 0;
 }
 

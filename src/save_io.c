@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "save_bank.h"
+#include "save_work.h"   /* the live working arena (commit source) */
 
 int g_save_loaded_known_format = 0;
 
@@ -280,4 +281,26 @@ int save_io_write_arena(const char *primary, const char *backup)
                 backup  ? backup  : "(null)");
     }
     return ok_primary || ok_backup;
+}
+
+int save_io_commit_slot(int slot)
+{
+    /* FUN_004905a8 head (param_1 != -1): merge the live working bank (the
+     * active stage, DAT_0438b1e0) into save bank `slot`, then re-stamp that
+     * bank's checksum. The engine copies 0xb7f2 dwords working→slot and sums
+     * the first 0xb7f0 into [0xb7f1]; save_bank_stamp_checksum does the sum,
+     * so we just memcpy the whole bank first (the magic at 0xb7f0 carries
+     * over with the copy, exactly as the engine's full-bank loop does). */
+    if (slot >= 0) {
+        const uint32_t *src = save_work_dwords_at(save_work_active_slot());
+        uint32_t       *dst = save_bank_dwords_at(slot);
+        if (src && dst) {
+            memcpy(dst, src, (size_t)SAVE_BANK_STRIDE_DWORDS * 4);
+            save_bank_stamp_checksum(slot);
+        }
+    }
+
+    /* FUN_004905a8 tail: write save.dat + _save.dat (the write-dir sandbox
+     * redirect keeps replays off the user's real save). */
+    return save_io_write_arena("save.dat", "_save.dat");
 }

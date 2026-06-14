@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  19.6% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  19.7% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    70 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    14 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   415 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **499** | verified + stubbed + ported                         |
-| unported  |  2049 | exists in engine, never referenced from src/             |
+| ported    |   417 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **501** | verified + stubbed + ported                         |
+| unported  |  2047 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -447,9 +447,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   later pause Save submenu. Fix: the title render now drives the SHARED `g_save_picker_frame`
   (breathe) + mirrors `g_save_picker_hpage_anim` (wings). Re-drove the port ⇒ nav **PIXEL-1:1**
   (gt8 0.000%, was a 22% breathe beat) AND **draw-program 1:1** (0 draw-divergent, was 169). Quirks
-  §124/§125 (retail ground-truth). **M4c NEXT — the A-confirm + COMMIT** (`FUN_004905a8` disk write
-  + the empty-slot commit anim / occupied "Overwriting file?" `FUN_00434def` / dungeon-save warning;
-  needs an A-pressing trace). Tooling: `v3cache`
+  §124/§125 (retail ground-truth).
+  **SAVE submenu A-confirm + COMMIT (M4c) ✅ DONE + PIXEL-1:1 2026-06-14 (user-confirmation pending)**
+  (`scene_pause.c` A-branch/commit_tick/progress-bar + `save_io.c` `save_io_commit_slot`). A on the
+  cursor's slot (`FUN_0047f5bc` 0x47f889): SE 0x143, then an EMPTY slot commits at once
+  (`g_pause_save_phase`=1) / an OCCUPIED slot pops the **"Overwriting file. Are you sure?"** choice box
+  (`FUN_00434def`, the exact single-row string), Yes→commit / No|B→cancel (`choice_box_poll`). The
+  phase>=1 commit (0x47f63f): card-field snapshot (0xb381 type + clear the 0xb75a/0xb78e preview
+  blocks — pixel-invisible, the picker render reads GAME_MODE/SCORE/… not these) + the streamed save
+  jingle + **`save_io_commit_slot`** (= `FUN_004905a8`: working bank → save bank + checksum + write
+  save.dat/_save.dat, `{savefile}`-sandboxed) + the 1→0x3c counter. The **save-progress bar**
+  (`FUN_004812e4` c89c>0): 2 item_win.tga quads over the selected card under ADDSIGNED — empty-bar
+  frame + a fill quad growing with c89c/30, grey pulsing with the −128·sin the card uses, alpha fading
+  past c89c>0x34 (geometry + the dropped sin amplitude from objdump 0x481358-0x481408). **Verified vs
+  the retail v3 cache** (new **`house-pause-save-commit`** trace; `orv3_shot`): **port#N vs retail#N+1
+  (the 1-frame async-pause seam) ~0.12% / meanabs ≤0.10 across the whole window** — dialog (0.07%),
+  commit ramp, progress bar, post-commit card all within M4's accepted breathe/seam envelope; only the
+  dialog-close transition frame elevated (1.86%, the box text 1 frame off at the seam). +6 host tests
+  (3270 pass). **PORT-DEBT(save-commit-dungeon):** the dungeon "Saving here…<BR>" warning
+  (`FUN_00434ceb`) + the `FUN_0047f1a0(0)` town swap (inert in the house); **PORT-DEBT(save-card-type-
+  modes):** the mode-6/0xb card-type branches (un-modeled data, unreachable; pixel-invisible). RE/full
+  status: `plans/pause-menu.md` M4c. Tooling: `v3cache`
   `localappdata_v3` got an env override + `/mnt/*/Users/*/...` glob fallback (cmd.exe WSL interop
   was wedged, blocking the cache step).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3

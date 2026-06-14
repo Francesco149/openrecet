@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-14 — pause menu M4c: the SAVE-picker A-confirm + COMMIT (pixel-1:1)
+
+Ported the in-game pause Save submenu's A-commit — `FUN_0047f5bc`'s A-branch +
+the `FUN_004905a8` disk write + the `FUN_00434def` "Overwriting file." dialog +
+the `FUN_004812e4` save-progress bar.
+
+- **`save_io_commit_slot`** (`save_io.c`) = `FUN_004905a8(slot)`: copy the live working
+  bank (`save_work`, active slot) → save bank `slot`, re-stamp its checksum
+  (`save_bank_stamp_checksum`), write save.dat/_save.dat (the merge the merge-less
+  `save_io_write_arena` = `FUN_004905a8(-1)` had omitted). The `{savefile}` sandbox keeps
+  replays off the real save.
+- **`pause_save_submenu_update`** (`scene_pause.c`): the A-branch — SE 0x143, then an EMPTY
+  slot commits at once (`g_pause_save_phase`=1) while an OCCUPIED slot pops the choice box
+  (`choice_box_open("Overwriting file. Are you sure?", 1, 0)`, the exact single-row string)
+  whose Yes/No drives commit/cancel (`choice_box_poll`); the phase>=1 commit sequence
+  (card-field snapshot + the streamed save jingle + `save_io_commit_slot` + the 1→0x3c
+  counter); the dungeon "Saving here…" warning is inert in the house (PORT-DEBT).
+- **The save-progress bar** (`pause_save_picker_render`): two item_win.tga quads over the
+  selected card under COLOROP=ADDSIGNED — an empty-bar frame + a fill quad growing with
+  c89c/30, grey pulsing with the −128·sin the card uses, alpha fading past c89c>0x34
+  (geometry + the Ghidra-dropped sin amplitude from objdump 0x481358-0x481408).
+
+Verified vs the retail v3 cache on the new **`house-pause-save-commit`** trace
+(ESC→3×down→Z→{wait SAVE_PICKER_READY}→A on slot 0→Yes→commit; `orv3_shot` per-frame):
+**port#N vs retail#N+1 (the 1-frame async-pause seam) ~0.12% / meanabs ≤0.10 across the whole
+window** — the dialog (0.07%), the commit ramp, the progress bar, and the post-commit card
+all within M4's accepted breathe/seam phase envelope; only the dialog-close transition frame
+is elevated (1.86%, the box text 1 frame off at the seam). +6 host tests (3270 pass).
+PORT-DEBT: `save-commit-dungeon` (the dungeon warning + town-state swap),
+`save-card-type-modes` (the mode-6/0xb card-snapshot type — pixel-invisible).
+
 ## 2026-06-13 — pause menu M2c: calendar / merchant-rank XP bar / numbers (pixel-bit-exact)
 
 Ported FUN_004820ba's [4-9] resting-menu block in `scene_pause.c` — the calendar board +

@@ -18,6 +18,9 @@
 #include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
 #include "save_picker.h" /* FUN_0049b537 perm init + the shared card-list render */
 #include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
+#include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
+#include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
+#include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
 
 /* FUN_00435612 — hide the shared hand cursor (DAT_0438b150 = 0), used by the
  * Save-submenu B-cancel. Defined in title_save_dialog.c (pure C); forward-
@@ -192,6 +195,7 @@ int32_t g_pause_save_scroll  = 0;   /* DAT_074b2820 (val2[0]) */
 int32_t g_pause_save_vscroll = 0;   /* DAT_074b2898 (c898)    */
 int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
 int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
+int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — overwrite-confirm dialog up */
 
 /* Menu-build inputs (engine DAT_0741bed8 + *DAT_068dd2f0). */
 static int g_pause_in_status_count = 0;
@@ -221,6 +225,7 @@ void pause_sm_reset(void)
     g_pause_save_vscroll = 0;
     g_pause_save_hscroll = 0;
     g_pause_save_phase   = 0;
+    g_pause_save_overwrite = 0;
     g_pause_in_status_count = 0;
     g_pause_in_stage_type   = 0;
 }
@@ -378,7 +383,61 @@ void pause_menu_nav(void)
     }
 }
 
-/* FUN_0047f5bc (the resting/nav path) — the Save submenu slot-picker nav.
+/* The save-card "type" by game mode (engine 0x47f659-0x47f6e0). Written into
+ * the working bank at commit, copied to the slot. PIXEL-INVISIBLE here — the
+ * picker render (save_picker_render) reads GAME_MODE/SCORE/…, never this
+ * 0xb381 field — but kept faithful so the SAVED bytes match retail. */
+static int pause_save_card_type(void)
+{
+    switch (g_pause_saved_mode) {            /* DAT_06a499a8 (iVar6) */
+    case 1: return (g_pause_in_stage_type > 0) ? 1 : 0;  /* *DAT_068dd2f0>0 ? */
+    case 2: return 2;
+    case 7: return 0;
+    /* mode 6 (the DAT_0963c5f0 guild-rank split → 3/4) + mode 0xb (which copies
+     * the live DAT_0438b5ec/664 dungeon snapshot in) need un-modeled data and
+     * are unreachable from the ported pause Save submenu;
+     * PORT-DEBT(save-card-type-modes). The shared default is 1. */
+    default: return 1;
+    }
+}
+
+/* FUN_0047f5bc commit tail (engine 0x47f63f-0x47f73f) — the phase>=1 sequence:
+ * on the first frame (phase==1) snapshot the card fields + play the jingle +
+ * write the slot to disk; every frame advance the phase 1→0x3c then wrap to 0. */
+static void pause_save_commit_tick(void)
+{
+    if (g_pause_save_phase == 1) {
+        const int tslot  = g_pause_save_cursor;        /* DAT_074b2834[cur] */
+        const int active = save_work_active_slot();    /* DAT_0438b1e0 */
+
+        /* card-snapshot (engine 0x47f648-0x47f6f8): clear the 2 preview blocks
+         * + stamp the card type in the WORKING bank (the commit then copies it
+         * into the slot). */
+        uint32_t *wb = save_work_dwords_at(active);
+        if (wb) {
+            for (int i = 0; i < 0x1e; i++) wb[0xb75a + i] = 0xffffffffu;  /* DAT_04511500 */
+            for (int i = 0; i < 8;    i++) wb[0xb78e + i] = 0xffffffffu;  /* DAT_045115d0 */
+            wb[0xb381] = (uint32_t)pause_save_card_type();                /* DAT_0451059c */
+        }
+
+        /* the streamed save jingle (engine FUN_0049933c @ 0x47f730). */
+        audio_play_se_file("bin/se/01ti/system/01ti_sys04.bin");
+
+        save_header_set_last_slot(tslot);              /* DAT_056e578c */
+
+        /* The engine brackets the write with FUN_0047f172(1)/FUN_0047f1a0(1)
+         * (a working↔scratch backup/restore) + a dungeon-only FUN_0047f1a0(0)
+         * swap. In the HOUSE (non-dungeon) the bracket wraps only the
+         * working→slot copy, which never mutates the working bank ⇒ a provable
+         * no-op; omitted with the dungeon swap as PORT-DEBT(save-commit-dungeon). */
+        save_io_commit_slot(tslot);                    /* FUN_004905a8(tslot) */
+    }
+
+    g_pause_save_phase++;                               /* engine 0x47f73a */
+    if (g_pause_save_phase == 0x3c) g_pause_save_phase = 0;
+}
+
+/* FUN_0047f5bc — the Save submenu slot-picker nav + A-commit.
  *
  * Dispatched from pause_menu_update when the submenu is fully open
  * (sub_anim==10) and the selected entry is Save (type 3). `cur`
@@ -395,30 +454,44 @@ void pause_menu_nav(void)
  *            clamped 0..97) animates it.
  *   B      — cancel: SE 0x13d, drop sub_dir (the submenu slides closed),
  *            clear sel_anim, hide the shared cursor (FUN_00435612).
- *   A      — confirm: M4c PORT-DEBT(save-picker-commit) (see below).
+ *   A      — confirm (M4c, 0x47f889): SE 0x143; an EMPTY slot commits at once
+ *            (phase=1), an OCCUPIED slot pops the "Overwriting file." choice
+ *            box (FUN_00434def), whose Yes/No is polled below.
  *
- * M4c PORT-DEBT — deferred to a trace that presses A (this nav trace never
- * does), and behind the disk write:
- *   - the A-confirm branch (engine 0x47f889): empty slot → phase=1 (the
- *     commit anim) / occupied slot → "Overwriting file? Are you sure?"
- *     (FUN_00434def) + the DAT_074b28a4 response handling (0x47f758);
- *   - the phase>0 commit sequence (0x47f63f) → FUN_004905a8 (the save.dat
- *     write) + the phase 1→0x3c counter;
- *   - the dungeon "Saving here will save your data…" warning (0x47f5da,
- *     gated saved_mode==1 && stage_type>0 — inert in the house where
- *     stage_type==0, so the engine falls straight through to the nav and
- *     skipping it here is exactly equivalent).
- * All three keep g_pause_save_phase at 0 here, so the resting render holds. */
+ * PORT-DEBT(save-commit-dungeon): the dungeon "Saving here will save your
+ * data<BR>as it was prior to entering." warning (engine 0x47f5da, gated
+ * saved_mode==1 && stage_type>0 — inert in the HOUSE where stage_type==0, so
+ * the engine falls straight through and skipping it here is exactly
+ * equivalent) + the FUN_0047f1a0(0) town-state swap; both need a dungeon
+ * save trace. */
 void pause_save_submenu_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;  /* DAT_073dddd4 */
     const uint16_t held    = g_sim_buttons[0].held;     /* DAT_073dddd6 */
 
-    /* phase>0 → the commit animation is running (M4c). At rest phase==0
-     * and we fall through to the nav. (The A-confirm that sets phase=1 is
-     * M4c, so phase stays 0 in the M4b nav.) */
-    if (g_pause_save_phase > 0)
-        return;   /* M4c PORT-DEBT(save-picker-commit) */
+    /* phase>=1 → the commit animation is running (engine: DAT_074b289c >= 1
+     * wraps the whole nav block). Tick the 60-frame sequence and bail. */
+    if (g_pause_save_phase >= 1) {
+        pause_save_commit_tick();
+        return;
+    }
+
+    /* ── overwrite-confirm dialog response (engine 0x47f758, DAT_074b28a4==1).
+     * The "Overwriting file." box is up; poll Yes/No. Yes → start the commit
+     * (phase=1); No → clear the two anim flags the engine resets; busy → hold. */
+    if (g_pause_save_overwrite == 1) {
+        int r = choice_box_poll(pressed, 1);   /* FUN_00434ed2(1) */
+        if (r == CB_OPT0) {                     /* Yes */
+            g_pause_save_phase = 1;
+        } else if (r == CB_OPT1) {              /* No */
+            g_pause_exit_confirm = 0;           /* DAT_074b2830 */
+            g_pause_sel_anim     = 0;           /* DAT_074b2870 */
+        } else {
+            return;                             /* CB_BUSY / CB_INACTIVE: still up */
+        }
+        g_pause_save_overwrite = 0;             /* DAT_074b28a4 = 0 */
+        return;
+    }
 
     /* ── c894 (hscroll) U/D row-slide anim (engine 0x47f793) ─────────────
      * Ramp the counter away from 0; at ±5 commit scroll ±1 and reset. While
@@ -461,8 +534,21 @@ void pause_save_submenu_update(void)
         title_save_dialog_cursor_set_visible(0);  /* FUN_00435612           */
         return;
     }
-    if (pressed & 0x10u)                   /* A → confirm (0x47f889) */
-        return;   /* M4c PORT-DEBT(save-picker-commit / -overwrite) */
+    if (pressed & 0x10u) {                 /* A → confirm (0x47f889) */
+        const int tslot = g_pause_save_cursor;   /* DAT_074b2834[cur], cur=0 */
+        audio_play_se_by_id(0x143);              /* FUN_00499519(0x143) */
+        /* Occupancy = the target slot bank's playtime dword (engine
+         * (&DAT_056e6288)[tslot*0xb7f2]). perm is identity, so val[cur] is the
+         * bank slot directly. Empty → commit now; occupied → confirm box. */
+        const uint32_t *tb = save_bank_dwords_at(tslot);
+        if (!tb || tb[SAVE_BANK_FIELD_OCCUPIED] == 0) {
+            g_pause_save_phase = 1;              /* DAT_074b289c = 1 → commit */
+            return;
+        }
+        choice_box_open("Overwriting file. Are you sure?", /*mode=*/1, /*sel=*/0);
+        g_pause_save_overwrite = 1;              /* DAT_074b28a4 = 1 */
+        return;
+    }
 
     if (held & 0x2u) {                     /* LEFT: cursor -= 3 (0x47f8da) */
         if (g_pause_save_cursor <= 0) return;
@@ -554,6 +640,7 @@ void pause_menu_update(void)
 #include "choice_box.h"          /* choice_box_draw = FUN_0043537e (tail) */
 #include "title_save_dialog.h"   /* the shared cursor + save-dialog frame (tail) */
 #include "save_work.h"           /* save_work_dwords_at / save_work_active_slot (the bank) */
+#include "sysassets.h"           /* g_sysassets.item_win_tga = DAT_073d8748 (save-bar) */
 #include "scene1_top_hud.h"      /* scene1_top_hud_draw_number = FUN_00406a60 (gold/quota) */
 #include "scene1_merchant_hud.h" /* scene1_merchant_hud_draw_level = FUN_00481ec3 (level) */
 
@@ -732,10 +819,8 @@ static int pause_weekly_quota(void)
  * 1:1 against the .rdata float table). */
 
 /* FUN_004812e4 — the pause Save submenu render wrapper. Computes the
- * save-phase pulse (clamp(c89c-30, 0, 30)) and renders the shared card list.
- * PORT-DEBT(pause-save-progress): the 2-quad save-progress bar (drawn while
- * c89c>0, i.e. during a commit) — the commit (FUN_004905a8) isn't ported, so
- * c89c stays 0 and the bar never shows. */
+ * save-phase pulse (clamp(c89c-30, 0, 30)), renders the shared card list, then
+ * (during a commit, c89c>0) the save-progress bar over the selected card. */
 static void pause_save_picker_render(IDirect3DDevice8 *d)
 {
     int phase = g_pause_save_phase - 0x1e;
@@ -743,6 +828,53 @@ static void pause_save_picker_render(IDirect3DDevice8 *d)
     if (phase > 0x1e) phase = 0x1e;
     save_picker_render(d, 0.0f, g_pause_save_cursor, g_pause_save_scroll,
                        g_pause_save_vscroll, g_pause_save_hscroll, phase);
+
+    /* ── the save-progress bar (engine FUN_004812e4 @ 0x481358, gated c89c>0).
+     * Two item_win.tga quads over the selected card under COLOROP=ADDSIGNED:
+     * an empty-bar frame + a fill quad whose width grows with c89c/30. The grey
+     * passthrough pulses with the same sin the selected card uses; alpha fades
+     * out past c89c>0x34. Geometry/consts from objdump 0x481358-0x481408 (the
+     * decompile dropped the −128 sin amplitude + reordered the quad args). */
+    if (g_pause_save_phase > 0) {
+        const sprite_t *iw = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
+        const uint32_t iw_w = iw->width, iw_h = iw->height;
+        const int c89c = g_pause_save_phase;
+
+        float frac = (float)c89c / 30.0f;                 /* local_8 — fill % */
+        if (frac > 1.0f) frac = 1.0f;
+
+        int grey = 0x7f;                                  /* uVar2 */
+        if (c89c > 0x1e)
+            grey = 0x7f - (int)(sinf((float)(c89c - 0x1e) * 3.1415927f / 30.0f)
+                                * -128.0f);
+        int alpha = 0xff;                                 /* iVar1 */
+        if (c89c > 0x34) alpha = c89c * -0x20 + 0x77f;
+        const uint32_t diffuse =
+            ((uint32_t)alpha << 24) | ((uint32_t)grey << 16)
+            | ((uint32_t)grey << 8) | (uint32_t)grey;
+
+        /* y tracks the selected row: (cursor − scroll)·140 + 96 (local_c). */
+        const float by = (float)((g_pause_save_cursor - g_pause_save_scroll) * 0x8c)
+                         + 96.0f;
+
+        render_quad_bind(d, iw);                          /* SetTexture(0, item_win) */
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP,
+                                              D3DTOP_ADDSIGNED);  /* (0,1,8) */
+        {   /* empty-bar frame: dst(180,by,280,40) src(704,896,984,936). */
+            const float dst[4] = { 180.0f, by, 280.0f, 40.0f };
+            const float src[4] = { 704.0f, 896.0f, 984.0f, 936.0f };
+            render_quad_add(dst, src, iw_w, iw_h, diffuse);
+        }
+        {   /* fill: width = frac·280; dst(180,by,W,40) src(704,936,704+W,976). */
+            const float w = frac * 280.0f;
+            const float dst[4] = { 180.0f, by, w, 40.0f };
+            const float src[4] = { 704.0f, 936.0f, 704.0f + w, 976.0f };
+            render_quad_add(dst, src, iw_w, iw_h, diffuse);
+        }
+        render_quad_flush(d);
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP,
+                                              D3DTOP_MODULATE);  /* (0,1,4) */
+    }
 }
 
 void pause_menu_render(struct IDirect3DDevice8 *dev)

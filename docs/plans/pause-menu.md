@@ -419,9 +419,35 @@ Draw primitives all already in the port: `render_quad_add`
     **draw-program 1:1** (0 divergent). See `save-picker-shared-globals` CLOSED below; quirks
     §124/§125. (Originally diagnosed as a deferred-title-render PORT-DEBT — the diff localized
     to ONLY the selected card, proving the nav cursor/scroll was already 1:1.)
-  - **M4c NEXT — the A-confirm + COMMIT:** `FUN_004905a8` disk write + the empty-slot
-    commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog (`FUN_00434def`)
-    + the dungeon-save warning; needs an A-pressing trace.
+  - **M4c — the A-confirm + COMMIT ✅ DONE + PIXEL-1:1 2026-06-14** (`scene_pause.c`
+    A-branch + commit_tick + the progress bar; `save_io.c` `save_io_commit_slot`). A on the
+    cursor's slot (engine 0x47f889): SE 0x143, then an **EMPTY** slot commits at once
+    (`g_pause_save_phase`=1) while an **OCCUPIED** slot pops the **"Overwriting file. Are you
+    sure?"** choice box (`FUN_00434def`, exact string — a single row, no `<BR>`); its Yes/No is
+    polled (`choice_box_poll` = `FUN_00434ed2`) — Yes → phase=1, No/B → cancel. The phase>=1
+    **commit sequence** (engine 0x47f63f): on the first frame, snapshot the card fields
+    (0xb381 type + clear the 0xb75a/0xb78e preview blocks — pixel-invisible, the picker render
+    reads GAME_MODE/SCORE/… not these), play the streamed save jingle
+    (`bin/se/01ti/system/01ti_sys04.bin`), set last_slot, and **`save_io_commit_slot(tslot)`** =
+    `FUN_004905a8`: copy the live working bank → save bank `tslot`, re-stamp its checksum, write
+    save.dat/_save.dat (the `{savefile}` sandbox keeps replays off the real save); then the
+    counter runs 1→0x3c and wraps. The **save-progress bar** (`FUN_004812e4` c89c>0): two
+    item_win.tga quads over the selected card under COLOROP=ADDSIGNED — an empty-bar frame +
+    a fill quad growing with c89c/30, grey pulsing with the same −128·sin the card uses, alpha
+    fading past c89c>0x34 (geometry/the dropped sin amplitude from objdump 0x481358-0x481408).
+    **Verified vs the retail v3 cache** (new trace **`house-pause-save-commit`**: ESC→3×down→Z→
+    {wait SAVE_PICKER_READY}→A on slot 0→A confirms Yes→commit; `orv3_shot` per-frame):
+    **port#N vs retail#N+1 (the 1-frame async-pause seam) is ~0.12% / meanabs ≤0.10 across the
+    whole window** — the Overwriting dialog (0.07%), the commit ramp, the progress bar (0.12%),
+    and the post-commit resting card all match within M4's accepted breathe/seam phase envelope;
+    the only elevated frame is the single dialog-close transition (1.86%, the box text 1 frame
+    off at the seam). +6 host tests (the A empty/occupied branches, the Yes/B response, the
+    counter wrap, the commit-slot merge+checksum). **PORT-DEBT(save-commit-dungeon):** the
+    dungeon "Saving here will save your data<BR>…" warning (`FUN_00434ceb`, gated
+    saved_mode==1 && stage_type>0 — inert in the HOUSE) + the `FUN_0047f1a0(0)` town-state swap;
+    **PORT-DEBT(save-card-type-modes):** the mode-6 (guild-rank) / mode-0xb (live snapshot copy)
+    card-type branches (un-modeled data, unreachable here). Both behind a dungeon/other-mode
+    save trace.
 - **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
   Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
   fade + action-1/2 pause variants; the unpause cursor restore.
@@ -443,7 +469,16 @@ Draw primitives all already in the port: `render_quad_add`
   Re-drove the port: nav **PIXEL-1:1** (worst gt8 0.000%, was a 22% breathe beat) AND
   **draw-program 1:1** (0 draw-divergent, was 169 — the wings now match). Quirks §124/§125
   updated (the divergence is closed; they remain the retail ground-truth).
-- `save-picker-commit` (M4c) — the A-confirm branch: `FUN_004905a8` disk write + the
-  empty-slot commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog
-  (`FUN_00434def`) + the dungeon-save warning (`FUN_00434ceb`). The nav trace never
-  presses A; all behind the disk write.
+- ~~`save-picker-commit`~~ **✅ CLOSED 2026-06-14 (M4c)** — the A-confirm + COMMIT
+  (`FUN_0047f5bc` A-branch + `FUN_004905a8` `save_io_commit_slot` + the `FUN_00434def`
+  overwrite dialog + the `FUN_004812e4` progress bar), pixel-1:1 on `house-pause-save-commit`.
+  See the M4c entry above. Replaced by two narrower debts:
+- `save-commit-dungeon` (M4c residual) — the dungeon "Saving here will save your data<BR>…"
+  warning (`FUN_00434ceb` + the `FUN_00434d6a` poll + the `DAT_074b28a0` gate) and the
+  `FUN_0047f1a0(0)` town-state swap (the `FUN_0047f172(1)`/`FUN_0047f1a0(1)` backup/restore is
+  a provable no-op in the non-dungeon house). Gated saved_mode==1 && stage_type>0 — inert in
+  the house. Needs a dungeon-save trace.
+- `save-card-type-modes` (M4c residual) — the card-snapshot type for game-mode 6 (the
+  `DAT_0963c5f0` guild-rank 3/4 split) + mode 0xb (the live `DAT_0438b5ec`/`664` snapshot copy);
+  un-modeled data, unreachable from the ported pause Save submenu (house = mode 1, type 0). The
+  shared default (1) covers the rest. Pixel-invisible (the picker render doesn't read 0xb381).

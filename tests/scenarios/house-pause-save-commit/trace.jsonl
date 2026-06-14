@@ -1,0 +1,62 @@
+# house-pause-save-commit — open the PAUSE Save submenu (ESC → 3×down → Z), then
+# COMMIT a save: press A (Z) on the occupied home slot 0 → the "Overwriting file?
+# Are you sure?" choice box → A again confirms Yes → the 60-frame commit animation
+# (FUN_004905a8 disk write + the save-progress bar + the selected-card save pulse)
+# → back to the resting picker showing the re-saved slot.  Verifies M4c
+# (FUN_0047f5bc A-branch + FUN_00434def overwrite dialog + FUN_004905a8 commit).
+#
+# Derived from house-pause-save-nav (the open path is identical: load fa7c82 →
+# HOUSE free-roam idle, {phasepin 80}+{rngseed [80,19937]}; ESC → 3×down → Z opens
+# Save; SAVE_PICKER_READY rebases the picker-time inputs past the per-side pause
+# open-ramp).  Initial picker state: slot 0 is the only occupied save, so
+# last_slot==0 ⇒ cursor=0, scroll=0 — the cursor sits on the OCCUPIED house save.
+#
+# Commit drive (relative to SAVE_PICKER_READY):
+#   A @20 : confirm the home slot.  It is occupied (playtime>0) ⇒ FUN_0047f5bc
+#           opens FUN_00434def("Overwriting file?<Are you sure?", 1, 0) with Yes
+#           selected, sets DAT_074b28a4=1, plays SE 0x143.
+#   A @48 : the box is interactive by now (FUN_00434ed2 ramps af34 1→4 over ~4f);
+#           A confirms Yes ⇒ the box close-animates (~7f) then returns 1 ⇒
+#           DAT_074b289c (c89c) = 1 → the commit sequence runs (card snapshot +
+#           the save jingle + FUN_004905a8(0) working→slot 0 copy/checksum/write)
+#           and c89c counts 1→0x3c (60f) driving the progress bar + card pulse.
+#   idle  : c89c wraps 0x3c→0, the picker rests showing the re-saved slot 0.
+# Presses are 3 frames.  The SAVE virtualization ({savefile}) sandboxes the write
+# so the real save is never touched (the harness captures it for verification).
+#
+# Sync — same TWO rebases as house-pause-save-nav: the option-list nav + Z that
+# OPEN the submenu rebase on PAUSE_READY; the commit drive rebases on
+# SAVE_PICKER_READY (sub_anim==10 with Save selected — the picker is navigable).
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"wait": "PAUSE_READY"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 43, "buttons": "0x0008"}
+{"frame": 46, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0008"}
+{"frame": 59, "buttons": "0x0000"}
+{"frame": 72, "buttons": "0x0010"}
+{"frame": 75, "buttons": "0x0000"}
+{"wait": "SAVE_PICKER_READY"}
+{"caprange": [0, 200]}
+{"calltrace": [0, 200]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 20, "buttons": "0x0010"}
+{"frame": 23, "buttons": "0x0000"}
+{"frame": 48, "buttons": "0x0010"}
+{"frame": 51, "buttons": "0x0000"}
+{"frame": 200, "buttons": "0x0000"}

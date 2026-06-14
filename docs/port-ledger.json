@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 415,
-  "unported": 2049,
+  "ported": 417,
+  "unported": 2047,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 499,
-  "pct_touched": 19.6,
+  "touched": 501,
+  "pct_touched": 19.7,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2642,6 +2642,7 @@
    "src": [
     "src/choice_box.c",
     "src/choice_box.h",
+    "src/scene_pause.c",
     "src/skip_event.c",
     "src/skip_event.h"
    ]
@@ -7616,8 +7617,10 @@
    "size": 46,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x47f1a0",
@@ -7625,8 +7628,10 @@
    "size": 46,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x47f1ce",
@@ -9711,6 +9716,7 @@
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_player_ctrl.c",
+    "src/scene_pause.c",
     "src/scene_title.c"
    ]
   },

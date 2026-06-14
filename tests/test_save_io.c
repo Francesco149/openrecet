@@ -14,6 +14,7 @@
 
 #include "save_bank.h"
 #include "save_io.h"
+#include "save_work.h"
 #include "scene_title.h"
 
 /* ─── arena scan ─────────────────────────────────────────────────────── */
@@ -464,6 +465,48 @@ int test_save_io_write_arena_one_null_succeeds(void)
     fclose(fp);
 
     unlink_path(p);
+    return 0;
+}
+
+/* save_io_commit_slot(N) = FUN_004905a8(N): merge the active working bank into
+ * save bank N, re-stamp N's checksum, then write the arena. Sandbox the write to
+ * /tmp so it never touches a real save.dat. */
+int test_save_io_commit_slot_merges_and_writes(void)
+{
+    save_bank_arena_clear();
+    save_bank_init_all();
+    save_work_clear();
+
+    /* Distinct values in the active working bank; the target slot differs. */
+    save_work_set_active_slot(0);
+    uint32_t *wb = save_work_dwords_at(0);
+    wb[SAVE_BANK_FIELD_GOLD]     = 0xCAFE;
+    wb[SAVE_BANK_FIELD_SCORE]    = 12345;
+    wb[SAVE_BANK_FIELD_OCCUPIED] = 7777;
+
+    const int slot = 4;
+    uint32_t *sb = save_bank_dwords_at(slot);
+    sb[SAVE_BANK_FIELD_GOLD]  = 0;
+    sb[SAVE_BANK_FIELD_SCORE] = 0;
+
+    save_io_set_write_dir("/tmp");
+    int rc = save_io_commit_slot(slot);
+    save_io_set_write_dir(NULL);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* Slot now mirrors the working bank, with a valid re-stamped checksum. */
+    T_ASSERT_EQ_I((int)sb[SAVE_BANK_FIELD_GOLD],     0xCAFE);
+    T_ASSERT_EQ_I((int)sb[SAVE_BANK_FIELD_SCORE],    12345);
+    T_ASSERT_EQ_I((int)sb[SAVE_BANK_FIELD_OCCUPIED], 7777);
+    T_ASSERT(save_bank_checksum_ok(slot));
+
+    /* slot < 0 is the merge-less arena write (FUN_004905a8(-1)). */
+    save_io_set_write_dir("/tmp");
+    T_ASSERT_EQ_I(save_io_commit_slot(-1), 1);
+    save_io_set_write_dir(NULL);
+
+    unlink_path("/tmp/save.dat");
+    unlink_path("/tmp/_save.dat");
     return 0;
 }
 

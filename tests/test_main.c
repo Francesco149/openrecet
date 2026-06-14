@@ -1012,6 +1012,7 @@ struct test_case {
     X(save_io_write_arena_writes_both_files) \
     X(save_io_write_arena_null_paths_skipped) \
     X(save_io_write_arena_one_null_succeeds) \
+    X(save_io_commit_slot_merges_and_writes) \
     X(save_io_write_then_load_round_trip) \
     \
     X(save_work_arena_geometry) \
@@ -1184,7 +1185,11 @@ struct test_case {
     X(pause_save_nav_left_pages) \
     X(pause_save_nav_anim_ignores_buttons) \
     X(pause_save_nav_b_closes) \
-    X(pause_save_nav_a_is_portdebt_noop) \
+    X(pause_save_a_empty_commits) \
+    X(pause_save_a_occupied_opens_overwrite) \
+    X(pause_save_overwrite_yes_commits) \
+    X(pause_save_overwrite_b_cancels) \
+    X(pause_save_commit_counter_wraps) \
     X(pause_update_dispatches_save_nav) \
     X(pause_save_picker_navigable_pred) \
     \

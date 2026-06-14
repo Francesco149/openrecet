@@ -102,6 +102,22 @@ void save_io_scan_for_title_menu(scene_title_save_t *out);
  * Pure-C. Uses libc fopen/fwrite/fclose. */
 int save_io_write_arena(const char *primary, const char *backup);
 
+/* Full port of FUN_004905a8(slot) — the in-game "save to slot N" commit.
+ *
+ * When `slot >= 0`: copies the live WORKING bank (save_work, the active slot
+ * = DAT_0438b1e0) into save bank `slot`, re-stamps that bank's trailing
+ * checksum (save_bank_stamp_checksum), THEN writes save.dat/_save.dat (the
+ * arena, honoring the write-dir sandbox). This is the engine's
+ * `FUN_004905a8(param_1 != -1)` path: the bank-merge that the merge-less
+ * save_io_write_arena (== FUN_004905a8(-1)) intentionally omitted.
+ *
+ * When `slot < 0`: just the arena write (identical to
+ * save_io_write_arena("save.dat", "_save.dat")).
+ *
+ * Returns save_io_write_arena's result (1 if either file was written).
+ * Pure-C. */
+int save_io_commit_slot(int slot);
+
 /* Redirect ALL subsequent save_io_write_arena output into `dir` (writes go to
  * <dir>/<basename> instead of the cwd's real save.dat/_save.dat). Pass NULL or
  * "" to clear. Used by the TAS harness so replaying a trace NEVER overwrites the
