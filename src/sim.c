@@ -53,6 +53,8 @@
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 #include "scene_pause.h"  /* the mode-9 pause: ramp==3 arm + pause_menu_update */
 #include "stage_palette.h" /* g_stage_palette->mode (*DAT_068dd2f0 stage type) */
+#include "save_work.h"    /* the live working bank — the per-frame playtime tick */
+#include "save_bank.h"    /* SAVE_BANK_FIELD_PLAYTIME (working dword 2) */
 
 struct sim_player_buttons g_sim_buttons[SIM_NUM_PLAYERS];
 uint32_t                  g_sim_frame_count;
@@ -227,6 +229,18 @@ void sim_step_a(void)
      * pre-3D trace, so the count parity holds, but the body is far
      * from complete. */
     CALL_TRACE_ENTER_STUB(0x4536cbu);
+
+    /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before
+     * font_age_tick AND the worker-busy gate): tick the active working bank's
+     * playtime (dword 2, frames@60) whenever a scene is live. This is the
+     * frames@60 the save card's "TIME h:mm:ss" reads, so it makes the in-game
+     * clock advance + a re-save record more elapsed time. Gated `g_scene_state
+     * != 0` (DAT_0438b1c0 — any non-title scene; counts during the pause menu
+     * too, mode 9, exactly as retail). */
+    if (g_scene_state != 0) {
+        uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        if (wb) wb[SAVE_BANK_FIELD_PLAYTIME]++;
+    }
 
     /* FUN_0047c29d (font_age_tick) — engine L50362, runs BEFORE the
      * worker-busy check. Glyph cache aging keeps ticking even during

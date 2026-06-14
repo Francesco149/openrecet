@@ -478,12 +478,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   the pause menu reseats Recette at the scene SPAWN position** (not where she was paused) =
   the deferred `PORT-DEBT(pause-unpause-restore)` — the engine snapshots her pose at
   pause-open (`DAT_06a499ac/b0/b4`) + restores it on unpause (`FUN_004682d0`/`FUN_00473c03`);
-  the port skips the restore. (2) **the in-game PLAYTIME never advances** (sit a minute, re-save
-  → same `TIME` on the card) = NEW `PORT-DEBT(playtime-ticker)` — retail ticks
-  `working[active].dword[2]++` (the frames@60 playtime the card reads) every frame in
-  `FUN_004536cb` head, gated `g_scene_state != 0`; the port reads but never writes it. Fix =
-  `save_work_dwords_at(save_work_active_slot())[2]++` in the per-frame tick when scene active.
-  Both detailed in `plans/pause-menu.md` PORT-DEBT registry.
+  the port skips the restore. (2) **the in-game PLAYTIME never advanced** (sit a minute,
+  re-save → same `TIME`) = **`PORT-DEBT(playtime-ticker)` ✅ FIXED 2026-06-14** — ported retail's
+  `working[active].dword[2]++` (the frames@60 the card reads) into `sim_step_a`'s head (the
+  `FUN_004536cb` port), gated `g_scene_state != 0`. The port's card TIME now advances (0:03:50→
+  0:04:03 over the commit trace). **Load-dependent-counter caveat:** in a PINNED trace the TIME
+  now lags retail by the load-seam (port 0:04:03 vs retail 0:05:14, retail's slower pause-load
+  ticks ~4260 more frames) — the SAME phase pillar as db054, NOT a logic gap (real gameplay
+  ticks 1/frame). Follow-up: fold the playtime into `{phasepin}` for a frame-exact pinned
+  comparison. Gap (1) detailed in `plans/pause-menu.md` PORT-DEBT registry.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game

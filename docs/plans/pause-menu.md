@@ -464,15 +464,24 @@ Draw primitives all already in the port: `render_quad_add`
   resumed scene comes up fresh. Fix = port the snapshot at `pause_dispatch` (the
   trigger) + the restore on unpause.
 - `playtime-ticker` (NEW, user-observed 2026-06-14 — NOT pause-specific, but noticed via
-  the Save submenu) — **the in-game playtime never advances**, so sitting in the house for
-  a minute and re-saving shows the SAME `TIME h:mm:ss` on the card. Retail increments the
-  working bank's playtime dword each frame: `FUN_004536cb` head does
-  `*(working_base + DAT_0438b1e0*0x2dfc8 + 8) += 1` (= `working[active].dword[2]`, the
-  `SAVE_BANK_FIELD_PLAYTIME` frames@60 field the card's TIME reads) gated on
-  `DAT_0438b1c0 != 0` (g_scene_state — an active scene). The port reads the field
-  (save_picker / scene_title TIME) but never writes it. Fix = `save_work_dwords_at(
-  save_work_active_slot())[2]++` when `g_scene_state != 0`, in the port's per-frame tick
-  (the `FUN_004536cb` equivalent). Then a real save advances + the card TIME ticks.
+  the Save submenu) — **✅ CLOSED 2026-06-14.** The in-game playtime never advanced (sit a
+  minute, re-save → the SAME `TIME h:mm:ss` on the card). Retail increments the working
+  bank's playtime dword each frame at `FUN_004536cb`'s HEAD (L50357-50360, the very first
+  thing — before `font_age_tick` AND the worker-busy gate): `working[active].dword[2] += 1`
+  (= `SAVE_BANK_FIELD_PLAYTIME`, the frames@60 the card's TIME reads) gated `DAT_0438b1c0 != 0`
+  (g_scene_state — any non-title scene, incl. the pause menu mode 9). The port read the field
+  but never wrote it. Fixed by porting it to the head of `sim_step_a` (the `FUN_004536cb`
+  port): `if (g_scene_state != 0) save_work_dwords_at(save_work_active_slot())[2]++`. Verified
+  on `house-pause-save-commit`: the port's post-commit card TIME now ADVANCES (0:03:50 loaded
+  → 0:04:03, +13s over the ~780-frame trace) where it was frozen before. **Load-dependent-
+  counter caveat:** the playtime is now a load-dependent accumulator like db054 — in a PINNED
+  trace the port's card TIME lags retail's (port 0:04:03 vs retail 0:05:14, a ~71s load-seam
+  offset: retail's much slower pause-asset load ticks ~4260 more frames before the commit).
+  This is the SAME load-seam phase pillar as db054, NOT a logic gap (real un-pinned gameplay
+  ticks 1/frame correctly — the user's actual issue is fixed). **Follow-up (clean pinned
+  comparison):** fold the working-bank playtime into `{phasepin}` (pin its origin like db054)
+  so the card TIME matches frame-for-frame in pinned traces. RNG-neutral; +0 host tests
+  needed (sim host build unaffected, 3270 pass).
 - ~~`save-picker-shared-globals`~~ **✅ CLOSED 2026-06-14** (`461d873`). The two
   save-picker globals the TITLE Continue picker drives that the port wasn't sharing into
   a later pause Save submenu: (a) the wing-render gate `g_save_picker_hpage_anim` (engine
