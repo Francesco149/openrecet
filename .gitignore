@@ -63,6 +63,9 @@ __pycache__/
 # ─── Test runs (output of tools/smoke-test.py) ────────────────────────────
 runs/
 
+# ─── Trace Studio v3 "current working trace" pointer (per-build, machine-local) ─
+tools/trace_studio_v3/.studio_current
+
 # ─── Per-user Claude Code permission grants ───────────────────────────────
 .claude/settings.local.json
 

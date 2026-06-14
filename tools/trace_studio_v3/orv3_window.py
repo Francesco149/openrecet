@@ -55,11 +55,25 @@ HOUSE_DRV  = Path(__file__).resolve().parent / "house_capture.py"
 PORT_DRV   = Path(__file__).resolve().parent / "port_capture.py"
 VIEWER_EXE = Path(__file__).resolve().parent / "viewer" / "viewer.exe"
 WIN_ROOT   = ROOT / "runs" / "studio-v3-windows"
+# The "current working trace" pointer the desktop/Start-Menu "OpenRecet Trace
+# Studio" shortcut opens. Rewritten on EVERY window build below, so the shortcut
+# always opens the latest trace we drove — no manual updating. See open_studio.sh
+# + CLAUDE.md "Trace Studio shortcut".
+STUDIO_CURRENT = Path(__file__).resolve().parent / ".studio_current"
 
 
 def wslpath_w(p: Path) -> str:
     return subprocess.run(["wslpath", "-w", str(Path(p).resolve())],
                           capture_output=True, text=True, check=True).stdout.strip()
+
+
+def write_current_pointer(view_path: Path, label: str) -> None:
+    """Record the just-built window as the 'current working trace' for the shortcut
+    (line 1 = the view.json path, line 2 = a human label). Best-effort; never fatal."""
+    try:
+        STUDIO_CURRENT.write_text(f"{view_path.resolve()}\n{label}\n")
+    except OSError as e:
+        print(f"[view]  (couldn't update the studio pointer: {e})")
 
 
 def launch_viewer(view_path: Path) -> None:
@@ -277,6 +291,8 @@ def main() -> int:
         print(f"\n--- view ---")
         print(f"  wrote {view_path}  ({vm['count']} columns, {vm['n_gaps']} gaps, "
               f"{nd} draw-divergent)")
+        # point the "OpenRecet Trace Studio" shortcut at this freshly-built window.
+        write_current_pointer(view_path, f"{args.scenario}  {args.anchor}+{args.window}")
         if args.launch:
             launch_viewer(view_path)
 

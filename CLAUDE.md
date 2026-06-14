@@ -84,7 +84,12 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   After a port fix, re-run the SAME `orv3_window … --launch` (slices cached retail, re-drives only
   the port); the user refreshes/re-opens the viewer — you both inspect the same identity-aligned
   frames. **Verify via the viewer's OWN replayed/identity-synced panels + `pairs.json`, never a
-  `/tmp` diff you pair yourself.** **The user flags divergences as NOTES in the viewer** (note
+  `/tmp` diff you pair yourself.** **Shortcut:** the user has a desktop + Start-Menu
+  **"OpenRecet Trace Studio"** launcher (`open_studio.sh`, installed by `install_shortcut.ps1`)
+  that opens the viewer on the CURRENT working trace. `orv3_window … --view/--launch` AUTO-rewrites
+  its pointer (`tools/trace_studio_v3/.studio_current`) on EVERY build, so it always opens the latest
+  window we drove — **you never manually update it; just drive the window you want the user to see.**
+  **The user flags divergences as NOTES in the viewer** (note
   mode `m` → drag a box / "note frame" → type; stored Windows-local, identity-labelled).
   **ALWAYS read them FIRST** via `orv3_notes.py <scenario> --render [--feed]` (replays the flagged
   frame port|retail|diff, crops to the box, → feed so you SEE it) — they're the authoritative
