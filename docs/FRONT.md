@@ -455,6 +455,16 @@
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
+  **TWO user-observed gaps to fix as we finish the pause menu (2026-06-14):** (1) **exiting
+  the pause menu reseats Recette at the scene SPAWN position** (not where she was paused) =
+  the deferred `PORT-DEBT(pause-unpause-restore)` — the engine snapshots her pose at
+  pause-open (`DAT_06a499ac/b0/b4`) + restores it on unpause (`FUN_004682d0`/`FUN_00473c03`);
+  the port skips the restore. (2) **the in-game PLAYTIME never advances** (sit a minute, re-save
+  → same `TIME` on the card) = NEW `PORT-DEBT(playtime-ticker)` — retail ticks
+  `working[active].dword[2]++` (the frames@60 playtime the card reads) every frame in
+  `FUN_004536cb` head, gated `g_scene_state != 0`; the port reads but never writes it. Fix =
+  `save_work_dwords_at(save_work_active_slot())[2]++` in the per-frame tick when scene active.
+  Both detailed in `plans/pause-menu.md` PORT-DEBT registry.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → **pause menu** (now started, above) → town scenes off the world map (world-map
   backlog itself CLOSED 2026-06-08, bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game

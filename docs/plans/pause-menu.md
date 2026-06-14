@@ -456,7 +456,23 @@ Draw primitives all already in the port: `render_quad_add`
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
 - `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
-- `pause-unpause-restore` — cursor snapshot/restore (`DAT_06a499ac/b0/b4`).
+- `pause-unpause-restore` — the player/camera resume snapshot (`DAT_06a499ac/b0/b4` +
+  the `FUN_004682d0`/`FUN_00473c03` resume teardown), deferred in `pause_dispatch`.
+  **USER-OBSERVED SYMPTOM 2026-06-14: exiting the pause menu reseats Recette at the
+  scene SPAWN position instead of where she was paused** — the engine snapshots her
+  pose at pause-open and restores it on unpause; the port skips the restore so the
+  resumed scene comes up fresh. Fix = port the snapshot at `pause_dispatch` (the
+  trigger) + the restore on unpause.
+- `playtime-ticker` (NEW, user-observed 2026-06-14 — NOT pause-specific, but noticed via
+  the Save submenu) — **the in-game playtime never advances**, so sitting in the house for
+  a minute and re-saving shows the SAME `TIME h:mm:ss` on the card. Retail increments the
+  working bank's playtime dword each frame: `FUN_004536cb` head does
+  `*(working_base + DAT_0438b1e0*0x2dfc8 + 8) += 1` (= `working[active].dword[2]`, the
+  `SAVE_BANK_FIELD_PLAYTIME` frames@60 field the card's TIME reads) gated on
+  `DAT_0438b1c0 != 0` (g_scene_state — an active scene). The port reads the field
+  (save_picker / scene_title TIME) but never writes it. Fix = `save_work_dwords_at(
+  save_work_active_slot())[2]++` when `g_scene_state != 0`, in the port's per-frame tick
+  (the `FUN_004536cb` equivalent). Then a real save advances + the card TIME ticks.
 - ~~`save-picker-shared-globals`~~ **✅ CLOSED 2026-06-14** (`461d873`). The two
   save-picker globals the TITLE Continue picker drives that the port wasn't sharing into
   a later pause Save submenu: (a) the wing-render gate `g_save_picker_hpage_anim` (engine
