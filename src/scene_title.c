@@ -32,6 +32,7 @@
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
 #include "title_save_dialog.h" /* FUN_00434d6a/4356cd/etc. — title-frame cluster */
 #include "title_continue_picker.h" /* continue/load slot picker (DAT_09643524==1) */
+#include "save_picker.h"           /* g_save_picker_frame = _DAT_09643574 (shared breathe) */
 
 scene_title_menu_t  g_scene_title_menu;
 scene_title_anim_t  g_scene_title_anim;
@@ -892,7 +893,12 @@ static void scene_title_settings_render_panel(IDirect3DDevice8 *dev,
  * PORT-DEBT(modetag): the bottom-right game-mode tag (Endless/New Game+/
  * Survival) + the new-game "choose a file" grey-out flag (DAT_096432f4)
  * are not drawn yet (load path never sets them). */
-static uint32_t g_picker_anim_counter;   /* _DAT_09643574 — selected-card shimmer */
+/* The selected-card shimmer counter is the engine's _DAT_09643574 — the SAME
+ * global the pause Save submenu's breathe reads (g_save_picker_frame, save_picker.c).
+ * FUN_0049b556 increments it once per render whether it draws for the title OR the
+ * pause, and never resets it; the port must share the one counter so a Continue-load
+ * (this render runs ~100+ frames) carries its history into a later pause Save submenu
+ * — else that submenu's breathe is phase-offset from retail (quirk §125). */
 
 static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
                                               float param_1, int open)
@@ -915,7 +921,16 @@ static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
     const int pulse      = (int)g_scene_title_anim.fade_counter;
     const int overwrite  = p->overwrite_mode; /* DAT_09643564             */
 
-    g_picker_anim_counter++;
+    g_save_picker_frame++;   /* _DAT_09643574++ (engine 0x49b566) — shared w/ pause */
+
+    /* Mirror the open-anim into the SHARED wing gate g_save_picker_hpage_anim
+     * (engine DAT_09643520 — the ONE global FUN_0049b556 reads to decide whether
+     * to draw the off-screen L/R "wing" pages, ramped by the title picker's own
+     * open-animation FUN_0049a59e). It is never reset, so a Continue-load leaves
+     * it at 10 and a later pause Save submenu draws the same 3 pages retail does
+     * (off-screen wings, zero pixel impact — quirk §124). `open` is the port's
+     * cursor_anim, the same 0→10 slide-in ramp. */
+    g_save_picker_hpage_anim = open;
 
     /* ── PASS 1: card backgrounds (ADDSIGNED, one item_win batch) ── */
     render_quad_bind(dev, iw);
@@ -933,7 +948,7 @@ static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
 
             if (slot == cursor) {
                 alpha  = 0xff;
-                bright = (int)(sinf((float)g_picker_anim_counter * 0.1f) * 32.0f
+                bright = (int)(sinf((float)g_save_picker_frame * 0.1f) * 32.0f
                                + 159.0f);
                 if (overwrite) bright -= 0x40; /* DAT_096432f4 grey-out (modeled as set) */
                 if (pulse > 0) {
