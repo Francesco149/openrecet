@@ -469,9 +469,10 @@
   visibility snapshot). **Verified 1:1 on the new `house-pause-unpause` scenario** (walk RIGHT
   off spawn → ESC → ESC): player px/py **bit-identical port==retail at the walked-to (+3.10,
   +6.04) across all 112 aligned pairs**, never jumping to spawn; resumed-scene pixels match
-  (gt8 0.52% @ mean|abs|=0.00/ch = the benign HOUSE batching). +3 host tests. PENDING USER
-  VISUAL CONFIRMATION (feed pushed). PORT-DEBT remains: the shop-grid unpause rebuild
-  (`FUN_00468338`, inert outside a shop pause) + guild-pause re-init + actions 1/2. (2) **the in-game PLAYTIME never advanced** (sit a minute,
+  (gt8 0.52% @ mean|abs|=0.00/ch = the benign HOUSE batching). +3 host tests. **✅ USER-CONFIRMED
+  1:1 2026-06-15** ("can confirm the pause menu behaves correctly now" — parity ledger; `818af18`).
+  PORT-DEBT remains: the shop-grid unpause rebuild (`FUN_00468338`, inert outside a shop pause) +
+  guild-pause re-init + actions 1/2. **⇒ both user-flagged pause-finish gaps now CLOSED.** (2) **the in-game PLAYTIME never advanced** (sit a minute,
   re-save → same `TIME`) = **`PORT-DEBT(playtime-ticker)` ✅ FIXED 2026-06-14** — ported retail's
   `working[active].dword[2]++` (the frames@60 the card reads) into `sim_step_a`'s head (the
   `FUN_004536cb` port), gated `g_scene_state != 0`. The port's card TIME now advances (0:03:50→

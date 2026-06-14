@@ -478,8 +478,9 @@ Draw primitives all already in the port: `render_quad_add`
   (+3.10,+6.04) across all 112 aligned pairs** (open→unpause→resume; 0 mismatches),
   never jumping to spawn (−0.30,+9.35); the resumed-scene pixels match retail
   (gt8 0.52% @ mean|abs|=0.00/ch = the pre-existing benign HOUSE 98-vs-125 batching).
-  +3 host tests (no-reload / cursor-restore / cursor-stays-hidden). **PENDING USER
-  VISUAL CONFIRMATION** (feed pushed). **Still PORT-DEBT(pause-shop-restore):** the
+  +3 host tests (no-reload / cursor-restore / cursor-stays-hidden). **✅ USER-CONFIRMED
+  1:1 2026-06-15** ("can confirm the pause menu behaves correctly now" — parity ledger).
+  **Still PORT-DEBT(pause-shop-restore):** the
   unpause shop-grid rebuild (`DAT_06a499b8` → `FUN_00468338` full + `FUN_004681d3`
   DAT_0734b96c reset) — inert outside a shop-display pause; and the guild-pause
   re-init (saved_mode==6 → FUN_00490e15) + actions 1/2 (FUN_00473668/672).
