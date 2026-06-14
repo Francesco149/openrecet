@@ -388,7 +388,8 @@ Draw primitives all already in the port: `render_quad_add`
     (the known RT-backdrop replayer limit) so `orv3_shot`'s compositing frame render is
     the valid check. **The wing fix** (ramp `g_save_picker_hpage_anim` in the title
     continue picker) rides with the title-picker render port.
-- **M4b — the picker NAV (`FUN_0047f5bc`) ✅ DONE + NAV PIXEL-1:1 2026-06-14** (`b46858a`).
+- **M4b — the picker NAV (`FUN_0047f5bc`) ✅ DONE + USER-CONFIRMED 1:1 2026-06-14** (`b46858a`+`461d873`;
+  user "can confirm the save picker is 1:1" — parity ledger).
   Ported as **`pause_save_submenu_update`** (`scene_pause.c`), dispatched from
   `pause_menu_update` at sub_anim==10 when Save (type 3) is selected (engine
   `FUN_0047fa76` L82031). Transcribed 1:1 from objdump @0x47f5bc..0x47fa4f: **U/D ±1**

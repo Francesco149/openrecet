@@ -411,7 +411,8 @@
   picker render port (shares `FUN_0049b556`). Quirk §124. **Verify caveat (M3 limit):** the
   per-frame `--verify-hashes` self-verify is DIVERGENT (can't rebuild the RT backdrop); `orv3_shot`
   composites it ⇒ its pixel-diff is the valid check.
-  **SAVE submenu NAV (M4b) ✅ DONE + NAV PIXEL-1:1 2026-06-14** (`b46858a`; awaiting user eyeball).
+  **SAVE submenu NAV (M4b) ✅ DONE + USER-CONFIRMED 1:1 2026-06-14** (`b46858a`+`461d873`; user
+  "can confirm the save picker is 1:1" — parity ledger; ⇒ the save picker render+nav+globals is fully 1:1).
   `FUN_0047f5bc` → `pause_save_submenu_update` (scene_pause.c), dispatched at sub_anim==10 / type-3
   (FUN_0047fa76 L82031): **U/D ±1** cursor + c894 row-slide (→scroll ±1), **L/R ±3** + c898
   column-slide (→scroll ±3, clamp 0..97), **B-cancel** (slides closed); A-confirm/commit = M4c.
