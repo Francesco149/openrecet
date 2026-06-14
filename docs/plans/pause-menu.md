@@ -386,11 +386,46 @@ Draw primitives all already in the port: `render_quad_add`
     exercised by the pause type-3 render dispatch + the nav-commit. **Pixel-1:1 via
     `orv3_shot`** (gt8 0.00%); the per-frame `--verify-hashes` self-verify is DIVERGENT
     (the known RT-backdrop replayer limit) so `orv3_shot`'s compositing frame render is
-    the valid check. **M4b NEXT — the picker NAV (`FUN_0047f5bc`):** U/D ±1 / L/R ±3 +
-    the c894/c898 slide anims + the overwrite-confirm dialog + B-cancel; needs a
-    nav-driving trace to verify (the current trace only opens the picker). **The wing
-    fix** (ramp `g_save_picker_hpage_anim` in the title continue picker) rides with the
-    title-picker render port.
+    the valid check. **The wing fix** (ramp `g_save_picker_hpage_anim` in the title
+    continue picker) rides with the title-picker render port.
+- **M4b — the picker NAV (`FUN_0047f5bc`) ✅ DONE + NAV PIXEL-1:1 2026-06-14** (`b46858a`).
+  Ported as **`pause_save_submenu_update`** (`scene_pause.c`), dispatched from
+  `pause_menu_update` at sub_anim==10 when Save (type 3) is selected (engine
+  `FUN_0047fa76` L82031). Transcribed 1:1 from objdump @0x47f5bc..0x47fa4f: **U/D ±1**
+  cursor + the **c894 row-slide** (±1→±5 over 4 frames → scroll ±1), **L/R ±3** cursor +
+  the **c898 column-slide** (→ scroll ±3, clamped 0..97), **B-cancel** (SE 0x13d, drop
+  sub_dir → the submenu slides closed, hide the cursor `FUN_00435612`). +13 host tests
+  (the nav arithmetic, the dispatch gate, the navigable predicate, the anchor edge).
+  - **New `SAVE_PICKER_READY` anchor** (port `anchor_trace.c` + the frida agent) — fires
+    when the Save submenu becomes navigable (scene 9, sub_anim==10, Save selected). The
+    async pause-asset load makes `PAUSE_READY` land at a per-side-VARIABLE open-ramp phase
+    (port ~1f, retail ~1800f), so `PAUSE_READY`+offset inputs reach the picker at a
+    different *picker-time* per side; rebasing the nav HERE makes the inputs
+    picker-time-relative ⇒ cursor/scroll align 1:1. Trace **`house-pause-save-nav`** (ESC →
+    3×down → Z opens Save; then `{wait SAVE_PICKER_READY}` → DOWN ×5 / UP ×4 scroll → B
+    close; v3 join 239/239).
+  - **Verified vs the retail v3 cache** (`house-pause-save-nav-725d14bb`, SAVE_PICKER_READY
+    +0:240, `orv3_shot` composite render): the nav **cursor/scroll is PIXEL-1:1** — the
+    breathing-aligned nav frames are bit-identical (gt8 **0.000%**) and the **post-close
+    option list is bit-identical across 24+ consecutive frames** (offsets 172-236 gt8 0.000).
+  - **The ONE residual = the SELECTED card's breathe brightness** (`sin(g_save_picker_frame
+    ·0.1)·32`), out of phase between sides. Root: `g_save_picker_frame` (engine
+    `_DAT_09643574`) is **incremented every save-picker render and NEVER reset** (decompile:
+    only `++` @0x49b566 + the sin read — no writer resets it), and it is **SHARED with the
+    title Continue picker render** (`FUN_0049c644`→`FUN_0049b556`). Retail rendered the title
+    picker (the trace navigates Continue → load slot 0, ~100+ frames) so its counter carries
+    that history; the port **defers** the title picker render (PORT-DEBT(render) in
+    `title_continue_picker.c`), so `g_save_picker_frame` starts ~0. ⇒ the breathe pulses out
+    of phase. **NOT a nav bug** — the diff sits ONLY on the selected card (same position both
+    sides, different brightness; the other cards + cursor/scroll match); proven by the peak
+    diff localizing to the cursor card + the troughs/post-close being bit-identical. This is
+    the **same PORT-DEBT root as the wings** (`DAT_09643520`) — both shared save-picker
+    globals carry title-picker history the deferred title render doesn't reproduce; **both
+    close when the title Continue picker render is ported.** Quirk §125. Feed: "M4b … NAV is
+    1:1 — diff is ONLY the selected-card breathe".
+  - **M4c NEXT — the A-confirm + COMMIT:** `FUN_004905a8` disk write + the empty-slot
+    commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog (`FUN_00434def`)
+    + the dungeon-save warning; needs an A-pressing trace.
 - **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
   Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
   fade + action-1/2 pause variants; the unpause cursor restore.
@@ -400,11 +435,17 @@ Draw primitives all already in the port: `render_quad_add`
 - `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
 - `pause-unpause-restore` — cursor snapshot/restore (`DAT_06a499ac/b0/b4`).
-- `save-picker-wings` — the OFF-SCREEN left/right wing pages (`save_picker_render`
-  gate `g_save_picker_hpage_anim>=10` = engine `DAT_09643520`): retail draws 3
-  pages, the port 1 (zero pixel impact). The shared global is ramped by the title
-  continue picker (`FUN_0049a59e`); the port's `title_continue_picker.c` uses
-  instance fields and never sets it. Closes with the title picker render port.
-- `save-picker-nav` (M4b) — `FUN_0047f5bc`: U/D±1 / L/R±3 + the c894/c898 slide
-  anims + overwrite-confirm dialog; needs a nav-driving trace to verify.
-- `save-picker-commit` (M4c) — `FUN_004905a8` disk write (the trace never presses A).
+- `save-picker-shared-globals` (was `save-picker-wings`) — the save-picker globals
+  the TITLE Continue picker render drives that the port's deferred title render
+  (`title_continue_picker.c` PORT-DEBT(render)) doesn't: (a) the wing-render gate
+  `g_save_picker_hpage_anim` (engine `DAT_09643520`) — retail draws 3 pages (center +
+  off-screen L/R wings), the port 1 (zero pixel impact, quirk §124); (b) the breathe
+  counter `g_save_picker_frame` (engine `_DAT_09643574`, never reset) — retail's carries
+  the title-picker frame history so the selected card's breathe (sin·0.1) is phase-offset
+  vs the port (quirk §125). Both are render-diffuse/off-screen only (cursor/scroll/card
+  positions are 1:1); **both close when the title Continue picker render is ported** (it
+  shares `FUN_0049b556` and drives `DAT_09643520`/`_DAT_09643574`).
+- `save-picker-commit` (M4c) — the A-confirm branch: `FUN_004905a8` disk write + the
+  empty-slot commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog
+  (`FUN_00434def`) + the dungeon-save warning (`FUN_00434ceb`). The nav trace never
+  presses A; all behind the disk write.

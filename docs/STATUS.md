@@ -429,9 +429,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `g_save_picker_hpage_anim` stays 0. **PORT-DEBT(save-picker-wings)** — closes with the title
   picker render port (shares `FUN_0049b556`). Quirk §124. **Verify caveat (M3 limit):** the
   per-frame `--verify-hashes` self-verify is DIVERGENT (can't rebuild the RT backdrop); `orv3_shot`
-  composites it ⇒ its pixel-diff is the valid check. **M4b NEXT — the picker NAV (`FUN_0047f5bc`):**
-  U/D±1 / L/R±3 + slide anims + overwrite-confirm; needs a nav-driving trace. **M4c PORT-DEBT:**
-  the save COMMIT (`FUN_004905a8` disk write) — the trace never presses A. Tooling: `v3cache`
+  composites it ⇒ its pixel-diff is the valid check.
+  **SAVE submenu NAV (M4b) ✅ DONE + NAV PIXEL-1:1 2026-06-14** (`b46858a`; awaiting user eyeball).
+  `FUN_0047f5bc` → `pause_save_submenu_update` (scene_pause.c), dispatched at sub_anim==10 / type-3
+  (FUN_0047fa76 L82031): **U/D ±1** cursor + c894 row-slide (→scroll ±1), **L/R ±3** + c898
+  column-slide (→scroll ±3, clamp 0..97), **B-cancel** (slides closed); A-confirm/commit = M4c.
+  **New `SAVE_PICKER_READY` anchor** (port + frida agent) rebases the nav past the per-side-variable
+  pause-OPEN ramp phase (async load) so the inputs are picker-time-relative. Trace
+  `house-pause-save-nav` (ESC→3×down→Z→{wait SAVE_PICKER_READY}→DOWN×5/UP×4→B; join 239/239).
+  **Verified vs the retail v3 cache** (`orv3_shot`): cursor/scroll **PIXEL-1:1** — the
+  breathing-aligned nav frames + the post-close option list are bit-identical (gt8 0.000%). **The
+  one residual = the SELECTED card's breathe brightness** (`sin(g_save_picker_frame·0.1)`),
+  phase-offset because that counter (`_DAT_09643574`, never reset) is SHARED with the title Continue
+  picker render (retail ran it, the port defers) — **same PORT-DEBT root as the wings**
+  (`save-picker-shared-globals`), the diff sits ONLY on the selected card; quirk §125.
+  **M4c NEXT — the A-confirm + COMMIT** (`FUN_004905a8` disk write + the empty-slot commit anim /
+  occupied "Overwriting file?" `FUN_00434def` / dungeon-save warning; needs an A-pressing trace). Tooling: `v3cache`
   `localappdata_v3` got an env override + `/mnt/*/Users/*/...` glob fallback (cmd.exe WSL interop
   was wedged, blocking the cache step).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3

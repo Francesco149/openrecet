@@ -4715,6 +4715,25 @@ picker (which ramps it) rather than a path that left it 0. A retail capture of t
 pause Save submenu on a Continue-loaded save shows all 3 pages; the visible result
 is identical either way (wings are off-screen).
 
+## 125. The save-picker selected-card "breathe" counter (_DAT_09643574) is incremented every save-picker render and NEVER reset — so the breathe phase is game-start history, shared between the pause Save submenu and the title Continue picker
+
+`FUN_0049b556`'s selected card pulses its diffuse by `sin(_DAT_09643574·0.1)·32 +
+159` (objdump @0x49b60f). The counter `_DAT_09643574` is `++`'d once per call at
+the top of the render (@0x49b566) and is **never written anywhere else** (the whole
+decompile has exactly two references: the increment and the sin read — no reset on
+open, on close, or at the type-3 commit). So it is a free-running count of *every
+frame the save-picker card list has rendered since boot*, and — like the wing gate
+`DAT_09643520` (§124) — it is **shared between the two callers**: the pause Save
+submenu (`FUN_004812e4`) and the title Continue/load picker (`FUN_0049c644`). Reach
+the pause Save submenu via the Continue picker (which renders for ~100+ frames while
+you pick a slot) and the breathe is already deep into its ~63-frame (2π/0.1) cycle
+when the submenu opens; reach it another way and it starts near 0. The pulse is a
+±32 brightness wobble on the one selected card — visible, but a function of
+game-start history, not the pause. (Port consequence: the deferred title-picker
+render means the port's counter carries no Continue history, so its breathe is
+phase-offset from a Continue-loaded retail — the `save-picker-shared-globals`
+PORT-DEBT, closed by the title-picker render port.)
+
 Port consequence (PORT-DEBT save-picker-wings): `save_picker_render` faithfully
 gates on `g_save_picker_hpage_anim` (= DAT_09643520), but the port's
 `title_continue_picker.c` models the picker with instance fields and never ramps
