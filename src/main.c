@@ -2723,6 +2723,9 @@ static void render_dispatch(void)
             .pause_active     = (g_scene_pause_state_b150 != 0)
                                 || (player_ctrl_cc04() != 0)
                                 || (g_scene_state == SCENE_STATE_WORLDMAP),
+            /* SAVE_PICKER_READY: the pause Save submenu is open + navigable.
+             * Re-syncs save-picker nav past the per-side pause-open phase. */
+            .save_picker_active = pause_save_picker_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

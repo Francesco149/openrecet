@@ -53,10 +53,12 @@
  *
  * The render is Win32 (D3D); the perm-init + globals are pure C (host-tested).
  *
- * M4c PORT-DEBT: the picker NAV (FUN_0047f5bc — U/D/L/R, the overwrite-confirm
- * dialog, the dungeon-save warning) and the COMMIT (FUN_004905a8 disk write)
- * are not ported — the house-pause-save trace opens the picker but never
- * navigates or presses A, so they are unexercised + unverifiable here.
+ * The picker NAV (FUN_0047f5bc — U/D ±1 / L/R ±3 + the c894/c898 slide anims +
+ * B-cancel) is ported in scene_pause.c as pause_save_submenu_update (M4b).
+ * M4c PORT-DEBT(save-picker-commit / -overwrite): the A-confirm branch (empty
+ * slot → commit / occupied → the "Overwriting file?" dialog), the COMMIT
+ * itself (FUN_004905a8 disk write), and the dungeon-save warning — all behind
+ * an A press the nav trace never makes, and behind the disk write.
  */
 
 #ifndef OPENRECET_SAVE_PICKER_H

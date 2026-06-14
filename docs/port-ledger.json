@@ -2626,6 +2626,7 @@
     "src/choice_box.c",
     "src/choice_box.h",
     "src/scene.h",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/skip_event.c",
     "src/skip_event.h"
@@ -2676,6 +2677,7 @@
    "status": "ported",
    "src": [
     "src/scene1_player_ctrl.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
@@ -7665,7 +7667,10 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/save_picker.h"
+    "src/anchor_trace.h",
+    "src/save_picker.h",
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ]
   },
   {
@@ -8894,6 +8899,7 @@
     "src/save_io.h",
     "src/save_picker.h",
     "src/scene_pause.c",
+    "src/scene_pause.h",
     "src/scene_title.c"
    ]
   },

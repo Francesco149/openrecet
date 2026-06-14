@@ -458,6 +458,7 @@ struct test_case {
     X(anchor_conv_pose_blink) \
     X(anchor_pause_edges) \
     X(anchor_pause_ready) \
+    X(anchor_save_picker_ready) \
     X(anchor_title_return) \
     X(anchor_jsonl_sink_format) \
     \
@@ -1175,6 +1176,17 @@ struct test_case {
     X(pause_nav_save_commit_opens_picker) \
     X(pause_nav_save_commit_scroll_clamps) \
     X(pause_nav_nonsave_commit_no_submenu) \
+    X(pause_save_nav_down_scrolls) \
+    X(pause_save_nav_down_within_window_no_slide) \
+    X(pause_save_nav_up_scrolls) \
+    X(pause_save_nav_bounds_noop) \
+    X(pause_save_nav_right_pages) \
+    X(pause_save_nav_left_pages) \
+    X(pause_save_nav_anim_ignores_buttons) \
+    X(pause_save_nav_b_closes) \
+    X(pause_save_nav_a_is_portdebt_noop) \
+    X(pause_update_dispatches_save_nav) \
+    X(pause_save_picker_navigable_pred) \
     \
     X(scene_buy_slot_count_is_ten) \
     X(scene_buy_page_count_is_fifty) \

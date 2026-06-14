@@ -1,0 +1,17 @@
+# house-pause-save-nav — see trace.jsonl.  Opens the in-game PAUSE Save submenu
+# (type 3) and DRIVES THE PICKER NAV (DOWN ×5 scroll-down, UP ×4 scroll-back,
+# B-close) to verify M4b — the FUN_0047f5bc nav (pause_save_submenu_update):
+# U/D ±1 cursor + the c894 row-slide scroll, and the B-cancel close.
+#
+# The nav + caprange re-anchor to PAUSE_READY (the pause-load-done edge gated on
+# scene mode 9) so the per-side-variable pause-asset load seam is immaterial; the
+# v3 identity-join pairs the submenu frames by (PAUSE_READY, offset).  Slice the
+# nav region (PAUSE_READY+~95.. = submenu open → scroll → close) for the diff.
+# Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+description: |
+  Pause → 3×down to SAVE → Z opens the save submenu → DOWN ×5 / UP ×4 scroll the
+  100-slot list → B closes.  Capture PAUSE_READY+0..360; slice the open+nav region
+  for the port↔retail diff (the render is already pixel-1:1 per cursor/scroll, so
+  a matching nav ⇒ pixel-1:1 scrolling).
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause-save)
+duration_ceiling_ms: 180000

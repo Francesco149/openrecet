@@ -199,6 +199,18 @@ static int ev_pause_ready(const struct anchor_world *p, const struct anchor_worl
         && c->scene_state == ANCHOR_SCENE_PAUSE;
 }
 
+/* The pause SAVE submenu (type 3) just became navigable — sub_anim reached 10
+ * with Save selected (rising edge of save_picker_active). PAUSE_READY syncs the
+ * menu OPEN, but the async pause-asset load makes the open ramp land at a
+ * per-side-variable phase, so PAUSE_READY+offset nav inputs reach the picker at
+ * a DIFFERENT picker-time per side (the selected card breathes out of phase). A
+ * nav segment rebases HERE so the inputs are picker-time-relative on both sides.
+ * Fires once per Save-submenu open. */
+static int ev_save_picker_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->save_picker_active && c->save_picker_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -228,6 +240,7 @@ static const struct anchor_def g_anchors[] = {
     { "PAUSE_OPEN",            ev_pause_open      },
     { "PAUSE_CLOSE",           ev_pause_close     },
     { "PAUSE_READY",           ev_pause_ready     },
+    { "SAVE_PICKER_READY",     ev_save_picker_ready },
     { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))

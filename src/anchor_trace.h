@@ -102,6 +102,17 @@ struct anchor_world {
      * to the menu's own edges instead of drifting between the coarse LOADING
      * anchors (the save→quit-to-title→reload flow). 0 outside the pause menu. */
     int pause_active;
+
+    /* 1 while the pause menu's SAVE submenu (entry type 3) is fully open and
+     * NAVIGABLE (scene mode 9, sub_anim==10, Save selected — the picker nav
+     * FUN_0047f5bc runs). Drives SAVE_PICKER_READY (0→1), the robust sync point
+     * for save-picker navigation: the pause OPEN ramp lands at a per-side-
+     * variable point in the async pause-asset load (so PAUSE_READY+offset inputs
+     * reach the picker at a DIFFERENT picker-time per side — the selected card
+     * breathes sin(g_save_picker_frame·0.1) out of phase). Re-anchoring the nav
+     * HERE makes the inputs picker-time-relative ⇒ cursor/scroll AND breathing
+     * align. 0 outside the open Save submenu. */
+    int save_picker_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

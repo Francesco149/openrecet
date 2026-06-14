@@ -189,9 +189,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434ceb | FUN_00434ceb | 127 | ✓ | title_continue_picker.c |
 | 0x434dbf | FUN_00434dbf | 23 | ✓ | choice_box.c, choice_box.h, main.c |
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, scene_pause.c |
-| 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+3) |
+| 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+4) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, skip_event.c (+1) |
-| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_player_ctrl.c, scene_title.c, skip_event.c (+2) |
+| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_player_ctrl.c, scene_pause.c, scene_title.c (+3) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | main.c, scene_guild.c, scene_worldmap.c (+3) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
@@ -387,7 +387,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47d464 | FUN_0047d464 | 445 | ✓ | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
 | 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ | scene_pause.c, scene_pause.h, sim.c |
-| 0x47f5bc | FUN_0047f5bc | 1171 | ✓ | save_picker.h |
+| 0x47f5bc | FUN_0047f5bc | 1171 | ✓ | anchor_trace.h, save_picker.h, scene_pause.c (+1) |
 | 0x47fa76 | FUN_0047fa76 | 462 | ✓ | scene_pause.c, scene_pause.h, sim.c |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480614 | FUN_00480614 | 718 | ✓ | scene_pause.c, scene_pause.h |
@@ -437,7 +437,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x490259 | FUN_00490259 | 81 | ✓ | save_work.c, save_work.h, scene.c (+3) |
 | 0x4902aa | FUN_004902aa | 84 | ✓ | save_bank.h, save_work.c, save_work.h |
 | 0x4902fe | FUN_004902fe | 682 | ✓ | audio_fade.h, main.c, save_bank.h (+2) |
-| 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+3) |
+| 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+4) |
 | 0x490820 | FUN_00490820 | 348 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x490c78 | FUN_00490c78 | 77 | ✓ | scene1_merchant_hud.c, scene1_render.c, scene1_render.h |
 | 0x490cc6 | FUN_00490cc6 | 99 | ✓ | scene1_render.c |

@@ -1,0 +1,75 @@
+# house-pause-save-nav — open the PAUSE Save submenu (ESC → 3×down → Z), then
+# DRIVE THE PICKER NAV: scroll DOWN through the slot list (the c894 row slide +
+# the occupied slot-0 card scrolling up under the NO-DATA cards), scroll back
+# UP, then B to close.  Verifies M4b (FUN_0047f5bc — pause_save_submenu_update).
+# Derived from house-pause-save (load fa7c82 → HOUSE free-roam idle,
+# {phasepin 80}+{rngseed [80,19937]}); the open path is identical.
+#
+# Initial picker state on open: slot 0 is the only occupied save, so
+# last_slot==0 ⇒ cursor=0, scroll=0.  From there:
+#   DOWN ×5: cursor 0→1→2 (in-window, no slide) →3→4→5 (each crosses the
+#            window bottom ⇒ a c894 slide, scroll 0→1→2→3).
+#   UP  ×4: cursor 5→4→3 (in-window) →2→1 (crosses the window top ⇒ c894
+#            slide, scroll 3→2→1).
+#   B: close the submenu (sub_dir→0, slides back to the option list).
+# Presses are 3 frames, spaced ~14 so each c894 slide (4 frames) settles before
+# the next press (a press mid-slide is swallowed, matching the engine).
+#
+# Sync — TWO rebases.  (1) the option-list nav + Z that OPEN the submenu rebase
+# on PAUSE_READY (the pause-load-done edge gated on scene 9, the M4 sync point).
+# (2) the PICKER NAV rebases on SAVE_PICKER_READY (sub_anim==10 with Save
+# selected — the submenu becomes navigable).  This second rebase is essential:
+# the async pause-asset load makes PAUSE_READY fire at a per-side-VARIABLE point
+# in the open ramp (port ~1f, retail ~1800f), so PAUSE_READY+offset inputs reach
+# the picker at a DIFFERENT picker-time per side, beating the selected card's
+# breathe (sin(g_save_picker_frame·0.1)).  Anchoring the nav on SAVE_PICKER_READY
+# makes the inputs picker-time-relative ⇒ cursor/scroll AND breathe align 1:1.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"wait": "PAUSE_READY"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 43, "buttons": "0x0008"}
+{"frame": 46, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0008"}
+{"frame": 59, "buttons": "0x0000"}
+{"frame": 72, "buttons": "0x0010"}
+{"frame": 75, "buttons": "0x0000"}
+{"wait": "SAVE_PICKER_READY"}
+{"caprange": [0, 240]}
+{"calltrace": [0, 240]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 20, "buttons": "0x0008"}
+{"frame": 23, "buttons": "0x0000"}
+{"frame": 34, "buttons": "0x0008"}
+{"frame": 37, "buttons": "0x0000"}
+{"frame": 48, "buttons": "0x0008"}
+{"frame": 51, "buttons": "0x0000"}
+{"frame": 62, "buttons": "0x0008"}
+{"frame": 65, "buttons": "0x0000"}
+{"frame": 76, "buttons": "0x0008"}
+{"frame": 79, "buttons": "0x0000"}
+{"frame": 92, "buttons": "0x0004"}
+{"frame": 95, "buttons": "0x0000"}
+{"frame": 106, "buttons": "0x0004"}
+{"frame": 109, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0004"}
+{"frame": 123, "buttons": "0x0000"}
+{"frame": 134, "buttons": "0x0004"}
+{"frame": 137, "buttons": "0x0000"}
+{"frame": 160, "buttons": "0x0020"}
+{"frame": 163, "buttons": "0x0000"}
+{"frame": 240, "buttons": "0x0000"}

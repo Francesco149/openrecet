@@ -504,6 +504,34 @@ int test_anchor_pause_ready(void)
     return 0;
 }
 
+/* SAVE_PICKER_READY fires on the rising edge of save_picker_active (the Save
+ * submenu became navigable), once per open. */
+int test_anchor_save_picker_ready(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 9;   /* paused */
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT baseline */
+    /* Submenu opening (sub_anim < 10): not navigable yet → no anchor. */
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);
+    /* Navigable: rising edge → SAVE_PICKER_READY. */
+    w.save_picker_active = 1;
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);
+    /* Held navigable across the nav → no re-fire. */
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);
+    /* B closes (sub_anim ramps down) → not navigable; re-open re-fires. */
+    w.save_picker_active = 0;
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);
+    w.save_picker_active = 1;
+    anchor_trace_tick(&st, 5, w, rec_sink, &r);
+
+    T_ASSERT_EQ_I(rec_count(&r, "SAVE_PICKER_READY"), 2);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "SAVE_PICKER_READY")], 2);
+    return 0;
+}
+
 /* TITLE_RETURN fires on the INGAME→TITLE edge (quit to title), the reverse of
  * NEW_GAME. A subsequent TITLE→INGAME fires NEW_GAME, not TITLE_RETURN. */
 int test_anchor_title_return(void)

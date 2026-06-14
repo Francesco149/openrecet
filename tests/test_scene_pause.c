@@ -737,3 +737,221 @@ int test_pause_nav_nonsave_commit_no_submenu(void)
     T_ASSERT_EQ_I(g_save_picker_count, 0); /* perm init did NOT run */
     return 0;
 }
+
+/* ─── Save submenu (type 3) NAV — FUN_0047f5bc (M4b) ──────────────────────
+ * pause_save_submenu_update is the resting/nav path: U/D ±1, L/R ±3, the
+ * c894/c898 slide anims, B-cancel. Seed the picker directly into the open
+ * state and drive a button per call (the host nav has no auto-repeat gate). */
+
+static void nav_prep(int cursor, int scroll)
+{
+    sim_init();
+    pause_sm_reset();
+    save_picker_reset();
+    g_pause_save_cursor  = cursor;
+    g_pause_save_scroll  = scroll;
+    g_pause_save_vscroll = 0;
+    g_pause_save_hscroll = 0;
+    g_pause_save_phase   = 0;
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0;
+}
+
+/* DOWN moves the cursor within the 5-row window (no slide until cursor-scroll
+ * passes 2), then arms the c894 row slide that commits scroll+1 over 4 ticks. */
+int test_pause_save_nav_down_scrolls(void)
+{
+    nav_prep(0, 0);
+    for (int i = 0; i < 3; i++) {       /* DOWN ×3: cursor 0→1→2→3 */
+        g_sim_buttons[0].held = 0x8;
+        pause_save_submenu_update();
+        g_sim_buttons[0].held = 0;
+    }
+    T_ASSERT_EQ_I(g_pause_save_cursor, 3);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 0);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 1);   /* 3-0 > 2 → row slide armed */
+
+    for (int i = 0; i < 4; i++)               /* hscroll 1→5 → scroll++ */
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 1);     /* committed */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 3);
+    return 0;
+}
+
+/* The first two DOWNs stay inside the window (cursor-scroll ≤ 2) — no slide. */
+int test_pause_save_nav_down_within_window_no_slide(void)
+{
+    nav_prep(0, 0);
+    g_sim_buttons[0].held = 0x8;
+    pause_save_submenu_update();              /* cursor 0→1 */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 1);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+    pause_save_submenu_update();              /* cursor 1→2 (2-0==2) */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 2);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+    return 0;
+}
+
+/* UP above the window arms a -1 row slide that commits scroll-1. */
+int test_pause_save_nav_up_scrolls(void)
+{
+    nav_prep(3, 3);
+    g_sim_buttons[0].held = 0x4;
+    pause_save_submenu_update();              /* cursor 3→2; 2-3<0 → slide */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 2);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, -1);
+    g_sim_buttons[0].held = 0;
+    for (int i = 0; i < 4; i++)               /* hscroll -1→-5 → scroll-- */
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 2);
+    return 0;
+}
+
+/* UP at slot 0 / DOWN at slot 99 are no-ops (engine cursor clamps). */
+int test_pause_save_nav_bounds_noop(void)
+{
+    nav_prep(0, 0);
+    g_sim_buttons[0].held = 0x4;              /* UP at top */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 0);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+
+    nav_prep(99, 97);
+    g_sim_buttons[0].held = 0x8;              /* DOWN at bottom */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 99);
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 0);
+    return 0;
+}
+
+/* RIGHT jumps the cursor +3 and arms the c898 column slide (scroll += 3). */
+int test_pause_save_nav_right_pages(void)
+{
+    nav_prep(0, 0);
+    g_sim_buttons[0].held = 0x1;
+    pause_save_submenu_update();              /* cursor 0→3; 3-0>0 → slide */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 3);
+    T_ASSERT_EQ_I(g_pause_save_vscroll, 1);
+    g_sim_buttons[0].held = 0;
+    for (int i = 0; i < 4; i++)               /* vscroll 1→5 → scroll += 3 */
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_vscroll, 0);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 3);
+    return 0;
+}
+
+/* LEFT needs cursor>0 AND scroll>0; it jumps -3 and slides scroll -= 3
+ * (clamped ≥0). Plain LEFT at slot 0 is a no-op. */
+int test_pause_save_nav_left_pages(void)
+{
+    nav_prep(0, 0);
+    g_sim_buttons[0].held = 0x2;              /* LEFT at top — no-op */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 0);
+    T_ASSERT_EQ_I(g_pause_save_vscroll, 0);
+
+    nav_prep(5, 3);
+    g_sim_buttons[0].held = 0x2;
+    pause_save_submenu_update();              /* cursor 5→2; 2-3<0 → slide */
+    T_ASSERT_EQ_I(g_pause_save_cursor, 2);
+    T_ASSERT_EQ_I(g_pause_save_vscroll, -1);
+    g_sim_buttons[0].held = 0;
+    for (int i = 0; i < 4; i++)
+        pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_vscroll, 0);
+    T_ASSERT_EQ_I(g_pause_save_scroll, 0);     /* 3-3, clamped ≥0 */
+    return 0;
+}
+
+/* A running slide swallows the frame — buttons are not polled mid-anim. */
+int test_pause_save_nav_anim_ignores_buttons(void)
+{
+    nav_prep(3, 0);
+    g_pause_save_hscroll = 1;                  /* a row slide is running */
+    g_sim_buttons[0].held = 0x8;              /* DOWN must be ignored */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 3);     /* unchanged */
+    T_ASSERT_EQ_I(g_pause_save_hscroll, 2);    /* the anim advanced, not nav */
+    return 0;
+}
+
+/* B cancels: drops sub_dir (the submenu slides closed) + clears sel_anim. */
+int test_pause_save_nav_b_closes(void)
+{
+    nav_prep(0, 0);
+    g_pause_sub_dir  = 1;                       /* submenu open */
+    g_pause_sel_anim = 7;
+    g_sim_buttons[0].pressed = 0x20;          /* B */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);         /* closing */
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0);
+    return 0;
+}
+
+/* A is M4c PORT-DEBT (no commit) — phase stays 0, the picker holds. */
+int test_pause_save_nav_a_is_portdebt_noop(void)
+{
+    nav_prep(0, 0);
+    g_sim_buttons[0].pressed = 0x10;          /* A */
+    pause_save_submenu_update();
+    T_ASSERT_EQ_I(g_pause_save_phase, 0);
+    T_ASSERT_EQ_I(g_pause_save_cursor, 0);
+    return 0;
+}
+
+/* pause_save_picker_navigable gates the SAVE_PICKER_READY anchor: scene 9,
+ * sub_anim==10, Save (type 3) selected. */
+int test_pause_save_picker_navigable_pred(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();                        /* [1,6,2,3,4] */
+    int save_idx = -1, items_idx = -1;
+    for (int i = 0; i < g_pause_count; i++) {
+        if (g_pause_entries[i] == 3) save_idx  = i;
+        if (g_pause_entries[i] == 1) items_idx = i;
+    }
+    g_pause_sel = save_idx;
+    g_pause_sub_anim = 10;
+    T_ASSERT_EQ_I(pause_save_picker_navigable(9), 1);   /* all conditions */
+    T_ASSERT_EQ_I(pause_save_picker_navigable(1), 0);   /* wrong scene mode */
+    g_pause_sub_anim = 9;
+    T_ASSERT_EQ_I(pause_save_picker_navigable(9), 0);   /* not fully open */
+    g_pause_sub_anim = 10;
+    g_pause_sel = items_idx;
+    T_ASSERT_EQ_I(pause_save_picker_navigable(9), 0);   /* Items, not Save */
+    return 0;
+}
+
+/* pause_menu_update dispatches the Save nav only when fully open AND Save is
+ * the selected entry; a non-Save type does not drive the picker. */
+int test_pause_update_dispatches_save_nav(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();                        /* [1,6,2,3,4] */
+    int save_idx = -1, items_idx = -1;
+    for (int i = 0; i < g_pause_count; i++) {
+        if (g_pause_entries[i] == 3) save_idx  = i;
+        if (g_pause_entries[i] == 1) items_idx = i;
+    }
+    save_picker_reset();
+    g_pause_save_cursor = 0; g_pause_save_scroll = 0;
+    g_pause_save_hscroll = 0; g_pause_save_vscroll = 0; g_pause_save_phase = 0;
+    g_pause_sub_anim = 10; g_pause_sub_dir = 1;
+
+    /* Save selected → DOWN moves the picker cursor. */
+    g_pause_sel = save_idx;
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0x8;
+    pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 1);
+
+    /* Items selected → the picker nav does NOT run (submenu PORT-DEBT). */
+    g_pause_sel = items_idx;
+    g_pause_sub_anim = 10; g_pause_sub_dir = 1;
+    g_sim_buttons[0].held = 0x8;
+    pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_save_cursor, 1);      /* unchanged */
+    return 0;
+}

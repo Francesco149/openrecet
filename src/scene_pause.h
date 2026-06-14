@@ -230,8 +230,23 @@ void pause_menu_update(void);
  * submenu/exit is PORT-DEBT). Reads g_sim_buttons[0]. */
 void pause_menu_nav(void);
 
+/* FUN_0047f5bc (resting/nav path) — the Save submenu slot-picker nav,
+ * dispatched by pause_menu_update at sub_anim==10 when Save (type 3) is
+ * selected. U/D ±1 + L/R ±3 over the 100-slot list with the c894/c898
+ * slide anims; B cancels. The A-confirm + the commit (FUN_004905a8) are
+ * M4c PORT-DEBT(save-picker-commit). Reads g_sim_buttons[0]; mutates the
+ * g_pause_save_* picker state. */
+void pause_save_submenu_update(void);
+
 /* Reset the state machine globals (tests + pause_menu_setup share it). */
 void pause_sm_reset(void);
+
+/* 1 when the Save submenu (type 3) is fully open + navigable — scene mode 9,
+ * sub_anim==10, Save selected (the picker nav pause_save_submenu_update runs).
+ * The anchor layer uses this for SAVE_PICKER_READY (re-syncing the nav past the
+ * per-side-variable pause-open phase). Takes the scene mode (engine
+ * DAT_0438b1c0) so the host build needn't link the Win32 scene global. */
+int pause_save_picker_navigable(int scene_mode);
 
 #ifdef _WIN32
 

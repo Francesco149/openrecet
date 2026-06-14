@@ -19,6 +19,12 @@
 #include "save_picker.h" /* FUN_0049b537 perm init + the shared card-list render */
 #include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
 
+/* FUN_00435612 — hide the shared hand cursor (DAT_0438b150 = 0), used by the
+ * Save-submenu B-cancel. Defined in title_save_dialog.c (pure C); forward-
+ * declared here so the host-built nav can call it (the full header is included
+ * in the _WIN32 block below for the render). */
+void title_save_dialog_cursor_set_visible(int on);
+
 /* ─── module state ───────────────────────────────────────────────────── */
 
 int32_t g_scene_pause_selector = 0;
@@ -372,6 +378,140 @@ void pause_menu_nav(void)
     }
 }
 
+/* FUN_0047f5bc (the resting/nav path) — the Save submenu slot-picker nav.
+ *
+ * Dispatched from pause_menu_update when the submenu is fully open
+ * (sub_anim==10) and the selected entry is Save (type 3). `cur`
+ * (DAT_074b288c) is always 0 for the pause Save submenu, so the engine's
+ * 4-wide val[]/val2[] (DAT_074b2834/2820) collapse to the scalars
+ * g_pause_save_cursor/scroll. Transcribed from objdump @0x47f5bc..0x47fa4f.
+ *
+ * Nav model (engine 0x47f85f-0x47fa4e):
+ *   U / D  — cursor ±1; when the cursor crosses the 5-row window edge a
+ *            c894 row-slide (g_pause_save_hscroll, ±1→±5 over 4 frames →
+ *            scroll ±1) animates the catch-up.
+ *   L / R  — cursor ±3 (page jump, clamped 0..99); when it crosses the
+ *            window a c898 column-slide (g_pause_save_vscroll, → scroll ±3,
+ *            clamped 0..97) animates it.
+ *   B      — cancel: SE 0x13d, drop sub_dir (the submenu slides closed),
+ *            clear sel_anim, hide the shared cursor (FUN_00435612).
+ *   A      — confirm: M4c PORT-DEBT(save-picker-commit) (see below).
+ *
+ * M4c PORT-DEBT — deferred to a trace that presses A (this nav trace never
+ * does), and behind the disk write:
+ *   - the A-confirm branch (engine 0x47f889): empty slot → phase=1 (the
+ *     commit anim) / occupied slot → "Overwriting file? Are you sure?"
+ *     (FUN_00434def) + the DAT_074b28a4 response handling (0x47f758);
+ *   - the phase>0 commit sequence (0x47f63f) → FUN_004905a8 (the save.dat
+ *     write) + the phase 1→0x3c counter;
+ *   - the dungeon "Saving here will save your data…" warning (0x47f5da,
+ *     gated saved_mode==1 && stage_type>0 — inert in the house where
+ *     stage_type==0, so the engine falls straight through to the nav and
+ *     skipping it here is exactly equivalent).
+ * All three keep g_pause_save_phase at 0 here, so the resting render holds. */
+void pause_save_submenu_update(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;  /* DAT_073dddd4 */
+    const uint16_t held    = g_sim_buttons[0].held;     /* DAT_073dddd6 */
+
+    /* phase>0 → the commit animation is running (M4c). At rest phase==0
+     * and we fall through to the nav. (The A-confirm that sets phase=1 is
+     * M4c, so phase stays 0 in the M4b nav.) */
+    if (g_pause_save_phase > 0)
+        return;   /* M4c PORT-DEBT(save-picker-commit) */
+
+    /* ── c894 (hscroll) U/D row-slide anim (engine 0x47f793) ─────────────
+     * Ramp the counter away from 0; at ±5 commit scroll ±1 and reset. While
+     * an anim runs the buttons are not polled (matches the engine return). */
+    if (g_pause_save_hscroll != 0) {
+        int a = g_pause_save_hscroll;
+        if (a < 0) a -= 1;
+        if (a > 0) a += 1;
+        g_pause_save_hscroll = a;
+        if (a == -5)      { g_pause_save_scroll -= 1; g_pause_save_hscroll = 0; }
+        else if (a == 5)  { g_pause_save_scroll += 1; g_pause_save_hscroll = 0; }
+        return;
+    }
+    /* ── c898 (vscroll) L/R column-slide anim (engine 0x47f7e9) ──────────
+     * At ±5 commit scroll ±3 (clamped 0..97) and reset. */
+    if (g_pause_save_vscroll != 0) {
+        int a = g_pause_save_vscroll;
+        if (a < 0) a -= 1;
+        if (a > 0) a += 1;
+        g_pause_save_vscroll = a;
+        if (a == -5) {
+            g_pause_save_vscroll = 0;
+            g_pause_save_scroll -= 3;
+            if (g_pause_save_scroll < 0) g_pause_save_scroll = 0;
+            return;
+        }
+        if (a == 5) {
+            g_pause_save_scroll += 3;
+            g_pause_save_vscroll = 0;
+            if (g_pause_save_scroll > 0x61) g_pause_save_scroll = 0x61;
+        }
+        return;
+    }
+
+    /* ── buttons (only when no slide anim is in flight) ──────────────────── */
+    if (pressed & 0x20u) {                 /* B → cancel / close (0x47f85f) */
+        audio_play_se_by_id(0x13d);
+        g_pause_sub_dir  = 0;              /* DAT_074b2884 → submenu closes  */
+        g_pause_sel_anim = 0;              /* DAT_074b2870                   */
+        title_save_dialog_cursor_set_visible(0);  /* FUN_00435612           */
+        return;
+    }
+    if (pressed & 0x10u)                   /* A → confirm (0x47f889) */
+        return;   /* M4c PORT-DEBT(save-picker-commit / -overwrite) */
+
+    if (held & 0x2u) {                     /* LEFT: cursor -= 3 (0x47f8da) */
+        if (g_pause_save_cursor <= 0) return;
+        if (g_pause_save_scroll <= 0) return;
+        audio_play_se_by_id(0x146);
+        g_pause_save_cursor -= 3;
+        if (g_pause_save_cursor < 0) g_pause_save_cursor = 0;
+        if (g_pause_save_cursor - g_pause_save_scroll >= 0) return;
+        g_pause_save_vscroll = -1;         /* start the column slide */
+        return;
+    }
+    if (held & 0x1u) {                     /* RIGHT: cursor += 3 (0x47f943) */
+        if (g_pause_save_cursor >= 0x63) return;   /* >= 99 */
+        if (g_pause_save_scroll >= 0x61) return;   /* >= 97 */
+        audio_play_se_by_id(0x146);
+        g_pause_save_cursor += 3;
+        if (g_pause_save_cursor > 0x63) g_pause_save_cursor = 0x63;
+        if (g_pause_save_cursor - g_pause_save_scroll <= 0) return;
+        g_pause_save_vscroll = 1;
+        return;
+    }
+    if (held & 0x4u) {                     /* UP: cursor -= 1 (0x47f9b2) */
+        if (g_pause_save_cursor <= 0) return;
+        audio_play_se_by_id(0x146);
+        g_pause_save_cursor -= 1;
+        if (g_pause_save_cursor - g_pause_save_scroll >= 0) return;
+        g_pause_save_hscroll = -1;         /* start the row slide */
+        return;
+    }
+    if (held & 0x8u) {                     /* DOWN: cursor += 1 (0x47fa00) */
+        if (g_pause_save_cursor >= 0x63) return;   /* >= 99 */
+        audio_play_se_by_id(0x146);
+        g_pause_save_cursor += 1;
+        if (g_pause_save_cursor - g_pause_save_scroll <= 2) return;
+        g_pause_save_hscroll = 1;
+        return;
+    }
+}
+
+/* The Save submenu is open + navigable (the anchor SAVE_PICKER_READY predicate):
+ * scene mode 9, the submenu fully open (sub_anim==10), Save (type 3) selected. */
+int pause_save_picker_navigable(int scene_mode)
+{
+    return scene_mode == 9
+        && g_pause_sub_anim == 10
+        && g_pause_sel >= 0 && g_pause_sel < SCENE_PAUSE_MAX_ENTRIES
+        && g_pause_entries[g_pause_sel] == 3;
+}
+
 /* FUN_0047fa76 — the mode-9 per-frame update. */
 void pause_menu_update(void)
 {
@@ -380,9 +520,7 @@ void pause_menu_update(void)
         if (g_pause_sub_anim < 1) {
             pause_menu_nav();
         } else {
-            /* Submenu open/close anim (L82019-82030). The L82031
-             * sub_anim==10 dispatch to the per-type submenu updater is
-             * PORT-DEBT(pause-submenu-*). */
+            /* Submenu open/close anim (L82019-82030). */
             if (g_pause_sub_dir == 0) {
                 g_pause_sub_anim--;
                 if (g_pause_sub_anim < 1) g_pause_sub_anim = 0;
@@ -390,6 +528,13 @@ void pause_menu_update(void)
                 g_pause_sub_anim++;
                 if (g_pause_sub_anim > 10) g_pause_sub_anim = 10;
             }
+            /* L82031 — once fully open, dispatch to the per-type submenu
+             * updater. Only Save (type 3 → FUN_0047f5bc) is ported; the
+             * dungeon (5)/Items (1)/Status (0)/Encyclopedia (6)/Options (2)
+             * updaters stay PORT-DEBT(pause-submenu-*). */
+            if (g_pause_sub_anim == 10
+                && g_pause_entries[g_pause_sel] == 3)
+                pause_save_submenu_update();
         }
     }
     /* else: exit-confirm (return-to-title) — PORT-DEBT(pause-exit-confirm). */

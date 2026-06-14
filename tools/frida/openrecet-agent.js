@@ -84,6 +84,14 @@ const ADDR = {
     // own edge instead of drifting between the coarse LOADING anchors.
     var_pause_state:     0x0438b150,
 
+    // Pause SAVE submenu state, for the SAVE_PICKER_READY anchor (the picker is
+    // navigable ⇔ scene==9 && sub_anim==10 && entries[sel]==3). Same VAs the
+    // port models (scene_pause.c): sub_anim DAT_074b2880, entry-type list
+    // DAT_074b2844[], selected index DAT_074b2878.
+    var_pause_sub_anim:  0x074b2880,
+    var_pause_entries:   0x074b2844,
+    var_pause_sel:       0x074b2878,
+
     // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
     // presses ESC during a skippable event (the intro dialogues). The {esc}
     // replay path PostMessageA(WM_KEYDOWN,ESC)s into WndProc → here; hooking
@@ -740,6 +748,7 @@ let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line s
 let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player state)
 let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
 let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
+let g_anchor_prev_savepicker = false; // previous-frame Save submenu navigable (type 3)
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3176,6 +3185,16 @@ function anchorTick(frame, devicePtr) {
                       (rva(ADDR.var_player_frame).readS32() === 1);
     // DAT_0438b150 != 0 — the in-game PAUSE menu is open.
     const pauseActive = rva(ADDR.var_pause_state).readS32() !== 0;
+    // SAVE_PICKER_READY: the Save submenu (type 3) is open + navigable —
+    // scene==9, sub_anim==10, Save selected. Mirror of pause_save_picker_navigable.
+    let savePickerActive = false;
+    if (scene === ANCHOR_SCENE_PAUSE &&
+        rva(ADDR.var_pause_sub_anim).readS32() === 10) {
+        const sel = rva(ADDR.var_pause_sel).readS32();
+        if (sel >= 0 && sel < 8)
+            savePickerActive =
+                rva(ADDR.var_pause_entries).add(sel * 4).readS32() === 3;
+    }
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -3188,6 +3207,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_convstate = convState;
         g_anchor_prev_convblink = convBlink;
         g_anchor_prev_pause   = pauseActive;
+        g_anchor_prev_savepicker = savePickerActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3314,6 +3334,15 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('PAUSE_READY', frame);
         anchorCaptureSchedule('PAUSE_READY', frame, devicePtr);
     }
+    // SAVE_PICKER_READY — the pause SAVE submenu just became navigable (rising
+    // edge of savePickerActive). Rebases save-picker nav to a picker-time-
+    // relative sync so the PAUSE_READY open-ramp phase (per-side-variable, async
+    // load) doesn't beat the selected-card breathing. Mirror of
+    // anchor_trace.c ev_save_picker_ready.
+    if (!g_anchor_prev_savepicker && savePickerActive) {
+        sendAnchor('SAVE_PICKER_READY', frame);
+        anchorCaptureSchedule('SAVE_PICKER_READY', frame, devicePtr);
+    }
     // TITLE_RETURN — quit to the title/main menu (rising edge of scene == TITLE
     // from any non-TITLE state; the quit-to-title passes through LOADING, so a
     // strict INGAME→TITLE edge misses it). Anchors the title-menu load-slot
@@ -3332,6 +3361,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_convstate = convState;
     g_anchor_prev_convblink = convBlink;
     g_anchor_prev_pause   = pauseActive;
+    g_anchor_prev_savepicker = savePickerActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────
