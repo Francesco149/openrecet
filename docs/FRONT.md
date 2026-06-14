@@ -429,7 +429,8 @@
   (breathe) + mirrors `g_save_picker_hpage_anim` (wings). Re-drove the port ⇒ nav **PIXEL-1:1**
   (gt8 0.000%, was a 22% breathe beat) AND **draw-program 1:1** (0 draw-divergent, was 169). Quirks
   §124/§125 (retail ground-truth).
-  **SAVE submenu A-confirm + COMMIT (M4c) ✅ DONE + PIXEL-1:1 2026-06-14 (user-confirmation pending)**
+  **SAVE submenu A-confirm + COMMIT (M4c) ✅ DONE + USER-CONFIRMED 1:1 2026-06-14**
+  (user "the push looks good" — parity ledger; ⇒ the save picker render+nav+commit is 1:1)
   (`scene_pause.c` A-branch/commit_tick/progress-bar + `save_io.c` `save_io_commit_slot`). A on the
   cursor's slot (`FUN_0047f5bc` 0x47f889): SE 0x143, then an EMPTY slot commits at once
   (`g_pause_save_phase`=1) / an OCCUPIED slot pops the **"Overwriting file. Are you sure?"** choice box

@@ -1,0 +1,13 @@
+# house-pause-save-commit-empty — see trace.jsonl. The EMPTY-slot commit path
+# ("create a new save"): open the PAUSE Save submenu, DOWN onto the unoccupied
+# slot 1, A → the slot is empty so FUN_0047f5bc commits AT ONCE (no "Overwriting
+# file." dialog) and the was-NO-DATA card fills in. The companion of
+# house-pause-save-commit (the OCCUPIED overwrite path); together they cover both
+# A-confirm branches. QUEUED — not yet driven/verified (the occupied path is the
+# user-confirmed M4c case; this airtightens the empty branch when driven).
+description: |
+  Pause → 3×down to SAVE → Z → DOWN onto empty slot 1 → A → the empty-slot direct
+  commit animation. Capture SAVE_PICKER_READY+0..160; compare the commit anim +
+  the card NO-DATA→occupied transform vs retail (port#N vs retail#N+1 seam).
+max_frames: 22000
+duration_ceiling_ms: 180000
