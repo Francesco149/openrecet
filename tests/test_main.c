@@ -1168,6 +1168,9 @@ struct test_case {
     X(pause_dispatch_idempotent_while_ramping) \
     X(pause_dispatch_unpause_when_open) \
     X(pause_dispatch_no_unpause_before_open) \
+    X(pause_dispatch_unpause_no_reload) \
+    X(pause_dispatch_unpause_restores_cursor) \
+    X(pause_dispatch_unpause_cursor_stays_hidden) \
     X(pause_nav_up_down_wrap) \
     X(pause_nav_a_starts_select_anim) \
     X(pause_nav_b_closes) \

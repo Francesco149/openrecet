@@ -1,0 +1,21 @@
+# house-pause-unpause — see trace.jsonl.  HOUSE free-roam: WALK Recette off her
+# spawn, ESC to open the pause menu, then ESC AGAIN to UNPAUSE, and verify she
+# RESUMES at the walked-to position — NOT re-seated at the scene spawn.
+#
+# Verifies the pause-unpause-restore fix: the port used to re-spawn the load
+# worker on unpause, which re-ran the INGAME case-1 load (scene1_preload_house →
+# scene1_postload_pose_player) and re-seated Recette at the spawn.  The engine
+# never reloads on unpause — it freezes the scene through the open/close ramp and
+# resumes it in place.  The state panel's player px/py must hold the walked-to
+# position across the whole open→close→resume window (a re-seat jumps it to spawn).
+#
+# Unpause + capture re-anchor on PAUSE_READY (the pause-load-done edge gated on
+# scene mode 9) so the per-side-variable pause-asset load seam is immaterial; the
+# v3 identity-join pairs the window by (PAUSE_READY, offset).  Pinned (phasepin 80)
+# so the pre-ESC walk matches 1:1.
+description: |
+  Walk UP off spawn → ESC (pause) → ESC (unpause) → resume.  Capture
+  PAUSE_READY+0..140 (open menu over the frozen scene → close ramp → resumed
+  free-roam); the state panel px/py must stay at the walked-to spot, not spawn.
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause-save)
+duration_ceiling_ms: 180000

@@ -21,12 +21,20 @@
 #include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
 #include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
 #include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
+#include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
+#include "scene_new_game.h"   /* FUN_004682b9 — DAT_0734b9a4 (stage_load_pulse_b) */
+#include "chara_equip.h"      /* FUN_004844ef — re-aggregate equip stats on unpause */
+#include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
 
-/* FUN_00435612 — hide the shared hand cursor (DAT_0438b150 = 0), used by the
- * Save-submenu B-cancel. Defined in title_save_dialog.c (pure C); forward-
- * declared here so the host-built nav can call it (the full header is included
- * in the _WIN32 block below for the render). */
+/* FUN_00435612/625/644/693 — the SHARED hand-cursor snapshot/restore used by the
+ * pause open/close (and the Save-submenu B-cancel). Defined in title_save_dialog.c
+ * (pure C); forward-declared here so the host-built pause_dispatch/nav can call
+ * them (title_save_dialog.h is render-heavy and is only included in the _WIN32
+ * block below for the render). */
 void title_save_dialog_cursor_set_visible(int on);
+int  title_save_dialog_cursor_get_visible(void);
+void title_save_dialog_cursor_capture_target(float *x, float *y);
+void title_save_dialog_cursor_snap(float x, float y);
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -197,6 +205,18 @@ int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
 int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
 int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — overwrite-confirm dialog up */
 
+/* Pause-open resume snapshot (engine DAT_06a499ac/b0/b4/b8/bc) — captured when
+ * the pause opens (pause_dispatch enter), restored on unpause so the underlying
+ * scene resumes EXACTLY as it was: the shared hand cursor's visibility+position
+ * and the stage-load-pulse / shop-display state. The player/camera need no
+ * snapshot — the engine never reloads the scene on unpause (it freezes it
+ * through the open/close ramp and resumes in place), so the position survives. */
+static int32_t g_pause_snap_cursor_vis = 0;  /* DAT_06a499ac = FUN_00435625 */
+static float   g_pause_snap_cursor_x   = 0;  /* DAT_06a499b0 = FUN_00435644 */
+static float   g_pause_snap_cursor_y   = 0;  /* DAT_06a499b4               */
+static int32_t g_pause_snap_pulse      = 0;  /* DAT_06a499b8 = FUN_004682bf */
+static int32_t g_pause_snap_pulse_b    = 0;  /* DAT_06a499bc = FUN_004682b9 */
+
 /* Menu-build inputs (engine DAT_0741bed8 + *DAT_068dd2f0). */
 static int g_pause_in_status_count = 0;
 static int g_pause_in_stage_type   = 0;
@@ -226,6 +246,11 @@ void pause_sm_reset(void)
     g_pause_save_hscroll = 0;
     g_pause_save_phase   = 0;
     g_pause_save_overwrite = 0;
+    g_pause_snap_cursor_vis = 0;
+    g_pause_snap_cursor_x   = 0;
+    g_pause_snap_cursor_y   = 0;
+    g_pause_snap_pulse      = 0;
+    g_pause_snap_pulse_b    = 0;
     g_pause_in_status_count = 0;
     g_pause_in_stage_type   = 0;
 }
@@ -269,25 +294,60 @@ void pause_dispatch(int action)
         return;
 
     if (g_scene_state == 9) {
-        /* UNPAUSE (L50252): only once fully open (ramp past 0xb). */
+        /* UNPAUSE (engine L50252): only once fully open (ramp past 0xb).
+         *
+         * The engine does NOT reload the underlying scene on unpause — it
+         * froze it through the open ramp (the per-mode sim dispatch is skipped
+         * while g_sim_counter_998 != 0) and resumes it IN PLACE once the close
+         * ramp (dir=0) cycles back to 0. Re-spawning the worker (the old
+         * PORT-DEBT) re-ran the INGAME case-1 load = scene1_preload_house,
+         * whose scene1_postload_pose_player re-seated Recette at the scene
+         * SPAWN — the user-observed bug. Run the engine teardown instead
+         * (FUN_00453384 L50254-50283); the assets stay resident (the port's
+         * pause sprites aren't d3d_pool entries, so the close animation keeps
+         * drawing them and a re-pause reloads idempotently). */
         if (sim_get_counter_998() > 0xb) {
-            g_scene_state = g_pause_saved_mode;
-            sim_set_mode_9a0(0);     /* direction = closing */
-            /* PORT-DEBT(pause-unpause-restore): the engine resumes the
-             * underlying scene + restores the cursor snapshot here. We do
-             * the mode flip + re-spawn the restored scene's loader (the
-             * "Now Loading" out) and defer the resume teardown. */
-            worker_load_spawn();
+            g_scene_state = g_pause_saved_mode;            /* DAT_0438b1c0 = DAT_06a499a8 */
+            /* (saved_mode==6 → FUN_00490e15 guild re-init — PORT-DEBT, guild-pause) */
+            stage_load_pulse_set_active(0);                /* FUN_004682d0 */
+            title_save_dialog_cursor_set_visible(0);       /* FUN_00435612 — hide cursor */
+            chara_equip_recompute_aggregate();             /* FUN_004844ef — re-aggregate equip stats */
+            if (action == 0)
+                d3d_pool_release_type(0xc);                /* FUN_00473c03 — free pause assets (type 0xc) */
+            /* (actions 1/2 → FUN_00473668/672 — PORT-DEBT) */
+            sim_set_mode_9a0(0);                            /* DAT_06a499a0 = 0 (closing) */
+            /* Restore the shared hand cursor IFF it was visible at pause
+             * (engine L50274). Inert in HOUSE free-roam (cursor hidden). */
+            if (g_pause_snap_cursor_vis)
+                title_save_dialog_cursor_snap(g_pause_snap_cursor_x,
+                                              g_pause_snap_cursor_y);  /* FUN_00435693 */
+            /* Shop-display restore (engine L50277-50280): only when a shop grid
+             * was active at pause (DAT_06a499b8). Inert in HOUSE/guild-menu
+             * (pulse==0); the full FUN_00468338 rebuild = PORT-DEBT(pause-shop-restore).
+             *   if (g_pause_snap_pulse) { FUN_00468338(g_pause_snap_pulse_b,1); FUN_004682e3(); }
+             * action 0 → FUN_004681d3 (DAT_0734b96c shop-interaction reset) is also
+             * unported (a shop-grid index, 0/inert in HOUSE). */
+            (void)g_pause_snap_pulse; (void)g_pause_snap_pulse_b;
         }
     } else if (sim_get_counter_998() == 0) {
-        /* ENTER PAUSE (L50292). */
+        /* ENTER PAUSE (engine L50292). */
         sim_set_counter_994(0, sim_get_threshold94());  /* DAT_06a49994 = 0 */
         if (action == 0)
             audio_play_se_by_id(0x16b);                 /* pause-open chime */
         g_pause_saved_mode = g_scene_state;             /* DAT_06a499a8 */
+        /* Snapshot the resume state (engine L50298-50302): the shared hand
+         * cursor (visibility + slide-target position) and the stage-load-pulse
+         * / shop state, restored on unpause above. _DAT_06a499c0 (FUN_004681e6)
+         * is write-only in the engine — skipped. */
+        g_pause_snap_cursor_vis = title_save_dialog_cursor_get_visible();   /* DAT_06a499ac = FUN_00435625 */
+        title_save_dialog_cursor_capture_target(&g_pause_snap_cursor_x,
+                                                &g_pause_snap_cursor_y);    /* DAT_06a499b0/b4 = FUN_00435644 */
+        g_pause_snap_pulse   = stage_load_pulse_get_active();               /* DAT_06a499b8 = FUN_004682bf */
+        g_pause_snap_pulse_b = scene_new_game_stage_load_pulse_b_get();     /* DAT_06a499bc = FUN_004682b9 */
         sim_set_counter_998(1);                         /* ramp = 1     */
         sim_set_counter_99c(1);                         /* slide ramp = 1 */
         sim_set_mode_9a0(1);                            /* dir = opening */
+        /* (engine L50306 FUN_004681d3 = DAT_0734b96c reset — unported, inert) */
     }
 }
 

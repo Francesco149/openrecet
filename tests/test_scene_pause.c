@@ -22,6 +22,15 @@
 #include "save_bank.h"   /* save_header_set_last_slot (the picker cursor seed) */
 #include "save_work.h"   /* working-bank setup (M4c commit source) */
 #include "choice_box.h"  /* the overwrite dialog (M4c A-confirm on an occupied slot) */
+#include "stage_load_pulse.h" /* unpause teardown clears the stage-load-pulse flag */
+#include "nowloading.h"  /* the unpause must NOT raise "Now Loading" (no reload) */
+
+/* The SHARED hand-cursor snapshot/restore the pause open/close drives
+ * (title_save_dialog.h is render-heavy; forward-declare the pure-C entry points). */
+void title_save_dialog_cursor_set_visible(int on);
+int  title_save_dialog_cursor_get_visible(void);
+void title_save_dialog_cursor_snap(float x, float y);
+void title_save_dialog_cursor_capture_target(float *x, float *y);
 
 /* ─── recording scratchpad for the injected load_fn ──────────────────── */
 
@@ -536,6 +545,77 @@ int test_pause_dispatch_no_unpause_before_open(void)
     sim_set_counter_998(5);      /* still opening */
     pause_dispatch(0);
     T_ASSERT_EQ_I(g_scene_state, 9);
+    return 0;
+}
+
+/* ─── unpause teardown / resume snapshot (the pause-unpause-restore fix) ── */
+
+/* Drive a mode-9 fully-open pause to the unpause edge from sm_prep. */
+static void open_pause_then(int saved_mode)
+{
+    g_scene_state = 9;
+    g_pause_saved_mode = saved_mode;
+    sim_set_counter_998(0xc);    /* fully open (> 0xb) */
+    sim_set_mode_9a0(1);         /* opening (the unpause flips it to 0) */
+}
+
+int test_pause_dispatch_unpause_no_reload(void)
+{
+    /* The core fix: unpausing must NOT re-spawn the load worker — the old port
+     * did, which re-ran the INGAME case-1 load (scene1_preload_house →
+     * scene1_postload_pose_player) and re-seated the player at the scene spawn.
+     * After the unpause the worker is idle, "Now Loading" is NOT raised, and the
+     * stage-load-pulse flag is cleared (engine FUN_004682d0). */
+    sm_prep(1, 0, 0);
+    pause_dispatch(0);                  /* enter */
+    open_pause_then(1);
+    stage_load_pulse_set_active(1);     /* a pulse was live at pause */
+    worker_load_reset();               /* clear the enter-side gates */
+    nowloading_set_active(0);
+
+    pause_dispatch(0);                  /* unpause */
+
+    T_ASSERT_EQ_I(g_scene_state, 1);             /* resumed the saved mode */
+    T_ASSERT_EQ_I(sim_get_mode_9a0(), 0);        /* closing */
+    T_ASSERT_EQ_I(worker_load_busy(), 0);        /* NO reload worker spawned */
+    T_ASSERT_EQ_I(nowloading_is_active(), 0);    /* no "Now Loading" overlay */
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 0); /* FUN_004682d0 cleared it */
+    return 0;
+}
+
+int test_pause_dispatch_unpause_restores_cursor(void)
+{
+    /* When the hand cursor was VISIBLE at pause (e.g. paused from a menu), the
+     * unpause snaps it back to the captured position (engine L50274 —
+     * DAT_06a499ac/b0/b4 → FUN_00435693). */
+    sm_prep(1, 0, 0);
+    title_save_dialog_cursor_snap(120.0f, 48.0f);  /* visible + positioned */
+    pause_dispatch(0);                 /* enter → snapshots vis=1, pos=(120,48) */
+    open_pause_then(1);
+    title_save_dialog_cursor_set_visible(0);        /* the menu hid it while open */
+
+    pause_dispatch(0);                 /* unpause → restore */
+
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 1);  /* restored visible */
+    float x = -1, y = -1;
+    title_save_dialog_cursor_capture_target(&x, &y);
+    T_ASSERT(x == 120.0f && y == 48.0f);    /* snapped back to the captured pos */
+    return 0;
+}
+
+int test_pause_dispatch_unpause_cursor_stays_hidden(void)
+{
+    /* When the cursor was HIDDEN at pause (HOUSE free-roam), the unpause leaves
+     * it hidden — the cursor-snap restore is gated on the captured visibility,
+     * so there is no spurious re-show. */
+    sm_prep(1, 0, 0);
+    title_save_dialog_cursor_set_visible(0);
+    pause_dispatch(0);                 /* enter → snapshots vis=0 */
+    open_pause_then(1);
+
+    pause_dispatch(0);                 /* unpause */
+
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 0);  /* still hidden */
     return 0;
 }
 

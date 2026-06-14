@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 417,
-  "unported": 2047,
+  "ported": 422,
+  "unported": 2042,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 501,
-  "pct_touched": 19.7,
+  "touched": 506,
+  "pct_touched": 19.9,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2709,6 +2709,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_pause.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -2722,6 +2723,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_pause.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -2738,6 +2740,7 @@
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
@@ -5257,8 +5260,10 @@
    "size": 8,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x4681db",
@@ -5275,8 +5280,10 @@
    "size": 6,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x4681ec",
@@ -5346,8 +5353,10 @@
    "size": 6,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x4682bf",
@@ -5357,6 +5366,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_pause.c",
     "src/stage_load_pulse.h"
    ]
   },
@@ -5404,6 +5414,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_pause.c",
     "src/stage_load_pulse.h"
    ]
   },
@@ -5429,6 +5440,7 @@
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/stage_load_pulse.c",
     "src/stage_load_pulse.h"
    ]
@@ -6734,8 +6746,10 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x473671",
@@ -6884,7 +6898,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_intro_dialogue.c"
+    "src/scene1_intro_dialogue.c",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -9018,8 +9033,10 @@
    "size": 1,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x490e16",

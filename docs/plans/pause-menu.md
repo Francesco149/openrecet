@@ -456,13 +456,33 @@ Draw primitives all already in the port: `render_quad_add`
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
 - `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
-- `pause-unpause-restore` — the player/camera resume snapshot (`DAT_06a499ac/b0/b4` +
-  the `FUN_004682d0`/`FUN_00473c03` resume teardown), deferred in `pause_dispatch`.
-  **USER-OBSERVED SYMPTOM 2026-06-14: exiting the pause menu reseats Recette at the
-  scene SPAWN position instead of where she was paused** — the engine snapshots her
-  pose at pause-open and restores it on unpause; the port skips the restore so the
-  resumed scene comes up fresh. Fix = port the snapshot at `pause_dispatch` (the
-  trigger) + the restore on unpause.
+- ~~`pause-unpause-restore`~~ **✅ CLOSED 2026-06-15** (`scene_pause.c` `pause_dispatch`).
+  **USER-OBSERVED SYMPTOM 2026-06-14: exiting the pause menu reseated Recette at the
+  scene SPAWN position instead of where she was paused.** **RE correction — the cause
+  was NOT a missing player-pose snapshot** (`DAT_06a499ac/b0/b4` are the shared HAND-
+  CURSOR snapshot, not the player): the port **re-spawned the load worker on unpause**
+  (the old `worker_load_spawn()`), which re-ran the INGAME case-1 load
+  (`scene1_preload_house` → `scene1_postload_pose_player`) and re-posed Recette at the
+  spawn. **The engine never reloads on unpause** — it FREEZES the underlying scene
+  through the open ramp (the per-mode sim dispatch is skipped while `DAT_06a49998 != 0`)
+  and RESUMES it in place once the close ramp (dir=0) cycles back to 0. Fix = drop the
+  worker re-spawn and run the engine teardown (`FUN_00453384` L50254-50283):
+  `stage_load_pulse_set_active(0)` (FUN_004682d0) · cursor hide (FUN_00435612) ·
+  `chara_equip_recompute_aggregate` (FUN_004844ef) · `d3d_pool_release_type(0xc)`
+  (FUN_00473c03 — frees the pause assets; a faithful no-op in the port since the pause
+  sprites are static `sprite_t`, not pool entries, so the close animation keeps them) ·
+  dir=0 · the hand-cursor restore (FUN_00435693, gated on the pause-open visibility
+  snapshot DAT_06a499ac/b0/b4 — inert in HOUSE free-roam). **Verified 1:1 on the new
+  `house-pause-unpause` scenario** (walk RIGHT off spawn → ESC pause → ESC unpause):
+  the state panel's player px/py is **bit-identical port==retail at the walked-to
+  (+3.10,+6.04) across all 112 aligned pairs** (open→unpause→resume; 0 mismatches),
+  never jumping to spawn (−0.30,+9.35); the resumed-scene pixels match retail
+  (gt8 0.52% @ mean|abs|=0.00/ch = the pre-existing benign HOUSE 98-vs-125 batching).
+  +3 host tests (no-reload / cursor-restore / cursor-stays-hidden). **PENDING USER
+  VISUAL CONFIRMATION** (feed pushed). **Still PORT-DEBT(pause-shop-restore):** the
+  unpause shop-grid rebuild (`DAT_06a499b8` → `FUN_00468338` full + `FUN_004681d3`
+  DAT_0734b96c reset) — inert outside a shop-display pause; and the guild-pause
+  re-init (saved_mode==6 → FUN_00490e15) + actions 1/2 (FUN_00473668/672).
 - `playtime-ticker` (NEW, user-observed 2026-06-14 — NOT pause-specific, but noticed via
   the Save submenu) — **✅ CLOSED 2026-06-14.** The in-game playtime never advanced (sit a
   minute, re-save → the SAME `TIME h:mm:ss` on the card). Retail increments the working

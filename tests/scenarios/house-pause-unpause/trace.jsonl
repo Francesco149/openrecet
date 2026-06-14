@@ -1,0 +1,35 @@
+# house-pause-unpause — HOUSE free-roam: WALK Recette off her spawn, ESC to
+# pause, then ESC AGAIN to UNPAUSE, and verify she RESUMES at the walked-to
+# position (NOT re-seated at the scene spawn). Verifies the pause-unpause-restore
+# fix (drop the worker re-spawn that re-ran scene1_preload_house's pose_player).
+# Derived from house-pause-save-nav (load fa7c82 -> HOUSE free-roam,
+# {phasepin 80}+{rngseed [80,19937]}; the load preamble is identical).
+#   WALK DOWN (0x0008) frames 10-80 (forward into the open room, well off the
+#     near-the-back-stand spawn) -> idle -> ESC@100 (pause).
+#   {wait PAUSE_READY} -> idle 20 -> ESC@20 (UNPAUSE).
+#   caprange/calltrace [0,140] PAUSE_READY-relative: the open menu (Recette
+#     frozen at the walked-to spot) -> close ramp -> the resumed scene. The
+#     state panel's px/py must HOLD the walked-to position across the unpause
+#     (a re-seat would jump px/py to the scene spawn).
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 10, "buttons": "0x0001"}
+{"frame": 90, "buttons": "0x0000"}
+{"esc": 110}
+{"wait": "PAUSE_READY"}
+{"caprange": [0, 140]}
+{"calltrace": [0, 140]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 20}
+{"frame": 140, "buttons": "0x0000"}

@@ -456,10 +456,22 @@
   code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
   **TWO user-observed gaps to fix as we finish the pause menu (2026-06-14):** (1) **exiting
-  the pause menu reseats Recette at the scene SPAWN position** (not where she was paused) =
-  the deferred `PORT-DEBT(pause-unpause-restore)` — the engine snapshots her pose at
-  pause-open (`DAT_06a499ac/b0/b4`) + restores it on unpause (`FUN_004682d0`/`FUN_00473c03`);
-  the port skips the restore. (2) **the in-game PLAYTIME never advanced** (sit a minute,
+  the pause menu reseated Recette at the scene SPAWN position** (not where she was paused) =
+  `PORT-DEBT(pause-unpause-restore)` **✅ FIXED 2026-06-15** (`scene_pause.c` `pause_dispatch`).
+  **RE correction:** the cause was NOT a missing player-pose snapshot (`DAT_06a499ac/b0/b4`
+  are the shared HAND-CURSOR snapshot) — the port **re-spawned the load worker on unpause**,
+  re-running the INGAME case-1 load (`scene1_preload_house`→`scene1_postload_pose_player`)
+  which re-posed Recette at spawn. The engine NEVER reloads on unpause: it freezes the scene
+  through the open ramp (per-mode dispatch skipped while `g_sim_counter_998 != 0`) and resumes
+  it in place on the close ramp. Fix = drop the worker re-spawn + run the engine teardown
+  (FUN_00453384 L50254-50283: stage-pulse clear / cursor hide / equip re-aggregate /
+  `d3d_pool_release_type(0xc)` asset free / hand-cursor restore gated on the pause-open
+  visibility snapshot). **Verified 1:1 on the new `house-pause-unpause` scenario** (walk RIGHT
+  off spawn → ESC → ESC): player px/py **bit-identical port==retail at the walked-to (+3.10,
+  +6.04) across all 112 aligned pairs**, never jumping to spawn; resumed-scene pixels match
+  (gt8 0.52% @ mean|abs|=0.00/ch = the benign HOUSE batching). +3 host tests. PENDING USER
+  VISUAL CONFIRMATION (feed pushed). PORT-DEBT remains: the shop-grid unpause rebuild
+  (`FUN_00468338`, inert outside a shop pause) + guild-pause re-init + actions 1/2. (2) **the in-game PLAYTIME never advanced** (sit a minute,
   re-save → same `TIME`) = **`PORT-DEBT(playtime-ticker)` ✅ FIXED 2026-06-14** — ported retail's
   `working[active].dword[2]++` (the frames@60 the card reads) into `sim_step_a`'s head (the
   `FUN_004536cb` port), gated `g_scene_state != 0`. The port's card TIME now advances (0:03:50→
