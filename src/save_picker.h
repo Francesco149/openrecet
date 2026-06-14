@@ -18,10 +18,13 @@
  * ── What FUN_0049b556 draws (per visible card) ──
  *   The picker shows a vertical list of save-slot cards. The window is a
  *   3-page horizontal carousel (left wing / center / right wing); only the
- *   CENTER renders at rest, the wings during an L/R column slide
- *   (gated `9 < g_save_picker_hpage_anim`, the title-picker column-slide
- *   counter — 0 at rest). Each page draws 5 rows; for row r the slot index is
- *   `r - 1 + scroll` (so the window of slots scrolls under a fixed 5-row grid).
+ *   CENTER renders unless `9 < g_save_picker_hpage_anim` (engine DAT_09643520,
+ *   the title Continue picker's open-ramp — left at 10 post-Continue, so a
+ *   pause Save submenu reached via Continue draws all 3 pages; the wings sit at
+ *   dst_x ±640 = off-screen, zero pixel impact). The title render
+ *   (scene_title.c) drives that shared global; it is never reset. Each page
+ *   draws 5 rows; for row r the slot index is `r - 1 + scroll` (so the window
+ *   of slots scrolls under a fixed 5-row grid).
  *
  *   Pass 1 (one item_win.tga quad per card, COLOROP=ADDSIGNED): the card
  *   background box, src(0,320)-(640,480) → dst((x-(vscroll<<7)-640)+page,
@@ -72,7 +75,9 @@
  * commit (which calls save_picker_perm_init) is host-testable. */
 extern int32_t g_save_picker_perm[SAVE_PICKER_SLOTS]; /* DAT_09643380 */
 extern int32_t g_save_picker_count;                   /* DAT_005d1bbc — 100 */
-extern int32_t g_save_picker_frame;                   /* _DAT_09643574 — sin phase */
+extern int32_t g_save_picker_frame;                   /* _DAT_09643574 — selected-card
+                                                       * breathe phase; incremented by BOTH
+                                                       * renders (pause + title), never reset */
 extern int32_t g_save_picker_restricted;              /* DAT_09643564 — dim-unavailable flag */
 extern int32_t g_save_picker_hpage_anim;              /* DAT_09643520 — wing-render gate (0 at rest) */
 

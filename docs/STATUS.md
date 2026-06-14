@@ -438,13 +438,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   pause-OPEN ramp phase (async load) so the inputs are picker-time-relative. Trace
   `house-pause-save-nav` (ESC→3×down→Z→{wait SAVE_PICKER_READY}→DOWN×5/UP×4→B; join 239/239).
   **Verified vs the retail v3 cache** (`orv3_shot`): cursor/scroll **PIXEL-1:1** — the
-  breathing-aligned nav frames + the post-close option list are bit-identical (gt8 0.000%). **The
-  one residual = the SELECTED card's breathe brightness** (`sin(g_save_picker_frame·0.1)`),
-  phase-offset because that counter (`_DAT_09643574`, never reset) is SHARED with the title Continue
-  picker render (retail ran it, the port defers) — **same PORT-DEBT root as the wings**
-  (`save-picker-shared-globals`), the diff sits ONLY on the selected card; quirk §125.
-  **M4c NEXT — the A-confirm + COMMIT** (`FUN_004905a8` disk write + the empty-slot commit anim /
-  occupied "Overwriting file?" `FUN_00434def` / dungeon-save warning; needs an A-pressing trace). Tooling: `v3cache`
+  breathing-aligned nav frames + the post-close option list are bit-identical (gt8 0.000%).
+  **`save-picker-shared-globals` ✅ CLOSED same day** (`461d873`, user-requested "fix the selected
+  brightness"): the selected-card breathe (`_DAT_09643574`) + the off-screen wings (`DAT_09643520`)
+  were BOTH the engine's ONE shared render (`FUN_0049b556`) modeled by the port as two divergent
+  copies — the title Continue picker (retail runs it, ~100+ frames) never carried its history into a
+  later pause Save submenu. Fix: the title render now drives the SHARED `g_save_picker_frame`
+  (breathe) + mirrors `g_save_picker_hpage_anim` (wings). Re-drove the port ⇒ nav **PIXEL-1:1**
+  (gt8 0.000%, was a 22% breathe beat) AND **draw-program 1:1** (0 draw-divergent, was 169). Quirks
+  §124/§125 (retail ground-truth). **M4c NEXT — the A-confirm + COMMIT** (`FUN_004905a8` disk write
+  + the empty-slot commit anim / occupied "Overwriting file?" `FUN_00434def` / dungeon-save warning;
+  needs an A-pressing trace). Tooling: `v3cache`
   `localappdata_v3` got an env override + `/mnt/*/Users/*/...` glob fallback (cmd.exe WSL interop
   was wedged, blocking the cache step).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3

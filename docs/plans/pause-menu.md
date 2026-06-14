@@ -408,21 +408,16 @@ Draw primitives all already in the port: `render_quad_add`
     +0:240, `orv3_shot` composite render): the nav **cursor/scroll is PIXEL-1:1** — the
     breathing-aligned nav frames are bit-identical (gt8 **0.000%**) and the **post-close
     option list is bit-identical across 24+ consecutive frames** (offsets 172-236 gt8 0.000).
-  - **The ONE residual = the SELECTED card's breathe brightness** (`sin(g_save_picker_frame
-    ·0.1)·32`), out of phase between sides. Root: `g_save_picker_frame` (engine
-    `_DAT_09643574`) is **incremented every save-picker render and NEVER reset** (decompile:
-    only `++` @0x49b566 + the sin read — no writer resets it), and it is **SHARED with the
-    title Continue picker render** (`FUN_0049c644`→`FUN_0049b556`). Retail rendered the title
-    picker (the trace navigates Continue → load slot 0, ~100+ frames) so its counter carries
-    that history; the port **defers** the title picker render (PORT-DEBT(render) in
-    `title_continue_picker.c`), so `g_save_picker_frame` starts ~0. ⇒ the breathe pulses out
-    of phase. **NOT a nav bug** — the diff sits ONLY on the selected card (same position both
-    sides, different brightness; the other cards + cursor/scroll match); proven by the peak
-    diff localizing to the cursor card + the troughs/post-close being bit-identical. This is
-    the **same PORT-DEBT root as the wings** (`DAT_09643520`) — both shared save-picker
-    globals carry title-picker history the deferred title render doesn't reproduce; **both
-    close when the title Continue picker render is ported.** Quirk §125. Feed: "M4b … NAV is
-    1:1 — diff is ONLY the selected-card breathe".
+  - **The one residual (the SELECTED card's breathe brightness) ✅ FIXED same day** (`461d873`,
+    user "fix the selected brightness"). It was `sin(g_save_picker_frame·0.1)·32` out of phase:
+    `g_save_picker_frame` (engine `_DAT_09643574`, **never reset** — decompile has only `++`
+    @0x49b566 + the sin read) is **SHARED with the title Continue picker render**, which retail
+    runs (the trace navigates Continue, ~100+ frames) but the port modeled with a SEPARATE
+    counter (`g_picker_anim_counter`). Unifying them (the title render increments the shared
+    `g_save_picker_frame`) + mirroring the wing gate ⇒ nav **PIXEL-1:1** (gt8 0.000%) AND
+    **draw-program 1:1** (0 divergent). See `save-picker-shared-globals` CLOSED below; quirks
+    §124/§125. (Originally diagnosed as a deferred-title-render PORT-DEBT — the diff localized
+    to ONLY the selected card, proving the nav cursor/scroll was already 1:1.)
   - **M4c NEXT — the A-confirm + COMMIT:** `FUN_004905a8` disk write + the empty-slot
     commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog (`FUN_00434def`)
     + the dungeon-save warning; needs an A-pressing trace.
@@ -435,16 +430,18 @@ Draw primitives all already in the port: `render_quad_add`
 - `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
 - `pause-unpause-restore` — cursor snapshot/restore (`DAT_06a499ac/b0/b4`).
-- `save-picker-shared-globals` (was `save-picker-wings`) — the save-picker globals
-  the TITLE Continue picker render drives that the port's deferred title render
-  (`title_continue_picker.c` PORT-DEBT(render)) doesn't: (a) the wing-render gate
-  `g_save_picker_hpage_anim` (engine `DAT_09643520`) — retail draws 3 pages (center +
-  off-screen L/R wings), the port 1 (zero pixel impact, quirk §124); (b) the breathe
-  counter `g_save_picker_frame` (engine `_DAT_09643574`, never reset) — retail's carries
-  the title-picker frame history so the selected card's breathe (sin·0.1) is phase-offset
-  vs the port (quirk §125). Both are render-diffuse/off-screen only (cursor/scroll/card
-  positions are 1:1); **both close when the title Continue picker render is ported** (it
-  shares `FUN_0049b556` and drives `DAT_09643520`/`_DAT_09643574`).
+- ~~`save-picker-shared-globals`~~ **✅ CLOSED 2026-06-14** (`461d873`). The two
+  save-picker globals the TITLE Continue picker drives that the port wasn't sharing into
+  a later pause Save submenu: (a) the wing-render gate `g_save_picker_hpage_anim` (engine
+  `DAT_09643520`) and (b) the breathe counter `g_save_picker_frame` (engine `_DAT_09643574`).
+  The port had modeled the engine's ONE render (`FUN_0049b556`) as two divergent copies
+  with separate state (`scene_title.c`'s `g_picker_anim_counter` + local `cursor_anim` vs
+  `save_picker.c`'s globals). Fix: the title render now increments the shared
+  `g_save_picker_frame` (never reset ⇒ carries the Continue history) and mirrors
+  `g_save_picker_hpage_anim = cursor_anim` (its 0→10 open-ramp, left at 10 post-Continue).
+  Re-drove the port: nav **PIXEL-1:1** (worst gt8 0.000%, was a 22% breathe beat) AND
+  **draw-program 1:1** (0 draw-divergent, was 169 — the wings now match). Quirks §124/§125
+  updated (the divergence is closed; they remain the retail ground-truth).
 - `save-picker-commit` (M4c) — the A-confirm branch: `FUN_004905a8` disk write + the
   empty-slot commit anim (phase 1→0x3c) / occupied-slot "Overwriting file?" dialog
   (`FUN_00434def`) + the dungeon-save warning (`FUN_00434ceb`). The nav trace never
