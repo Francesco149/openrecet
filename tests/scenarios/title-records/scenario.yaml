@@ -1,0 +1,10 @@
+# title-records — see trace.jsonl.  The title Records / high-score screen
+# (submenu_state 4, FUN_0049c439) on a crafted save: hidden_char unlocks the
+# code-8 menu row + four distinct record values live in the save header, so the
+# populated "%d pt"/"%d pix" + "Day %d" rows render (not just "--").  DOWN×2 → A.
+# Verifies the dungeonbord board + the 4 label/value rows + the item_win/fuki
+# header chrome render 1:1.  Capture TITLE_RECORDS_READY+0..120.
+description: Title → DOWN×2 → A → Records screen (crafted records, populated 1:1)
+rng_seed: 1
+max_frames: 8000
+duration_ceiling_ms: 180000

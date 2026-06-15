@@ -266,6 +266,15 @@ static int ev_title_encyclopedia_ready(const struct anchor_world *p, const struc
     return !p->title_encyclopedia_active && c->title_encyclopedia_active;
 }
 
+/* The TITLE-screen Records / high-score screen (submenu_state 4) just became
+ * navigable (rising edge of title_records_active). Like TITLE_PICKER_READY: no
+ * async load ⇒ a clean +0-stretch v3 join for the title records render
+ * (FUN_0049c439). Fires once per open. */
+static int ev_title_records_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->title_records_active && c->title_records_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -303,6 +312,7 @@ static const struct anchor_def g_anchors[] = {
     { "TITLE_PICKER_READY",    ev_title_picker_ready },
     { "TITLE_SETTINGS_READY",  ev_title_settings_ready },
     { "TITLE_ENCYCLOPEDIA_READY", ev_title_encyclopedia_ready },
+    { "TITLE_RECORDS_READY",      ev_title_records_ready },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

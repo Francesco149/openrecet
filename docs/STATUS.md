@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  20.5% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  20.6% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    70 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    14 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   439 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **523** | verified + stubbed + ported                         |
-| unported  |  2025 | exists in engine, never referenced from src/             |
+| ported    |   440 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **524** | verified + stubbed + ported                         |
+| unported  |  2024 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -650,8 +650,38 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   at every probed offset, draw-program material verdict 0-divergent), join 119/119 @ +0 stretch**. The
   populated frame's orv3_draws per-DRAW `--list` shows 287 sub-LSB-geometry-hash pairs (icons whose
   carousel-math floats differ sub-pixel but rasterize identically) — accepted (pixels exactly 0 differ,
-  material aggregate ALIGNED), the same class as the picker's 54 sub-LSB px. **PORT-DEBT:** the code-8
-  HIDDEN-character submenu (state 4) stays deferred (separate producer).
+  material aggregate ALIGNED), the same class as the picker's 54 sub-LSB px. (The code-8 submenu
+  — state 4 — is the **Records screen**, now DONE, next bullet; the port author's "HIDDEN-character"
+  name was a misnomer.)
+- **TITLE-SCREEN RENDER ARC → RECORDS / high-score screen (code 8 / submenu_state 4) ✅ DONE +
+  PIXEL-BIT-EXACT 2026-06-16, AWAITING USER 1:1** (`scene_title.c` `scene_title_records_render` =
+  FUN_0049c439 + the code-8 dispatch/state-4 close in `scene_title_sim` + the state-4 render arm in
+  `scene_title_render`). The title menu's **"Survival Score"** row (the port author's `HIDDEN_CHAR`
+  name is a MISNOMER, like `RANKING` was for the encyclopedia — the in-game tile literally reads
+  "SURVIVAL SCORE", dispatch `FUN_0049a59e` code-8 → `FUN_0049c439`). A display-only personal-best
+  panel that slides in like the settings/encyclopedia submenus and closes on A/B: a dungeonbord board
+  (the SAME sheet settings uses) + 4 centered label/value rows under the ADDSIGNED→MODULATE2X dance
+  (grey-0x7f, scale 0.8) — **Record End-game Score `%d pt`** · **Record End-game Money `%d pix`** ·
+  **Survival Hell Record `Day %d`** · **Normal Survival Record `Day %d`** (zero ⇒ `--`), + the
+  item_win/fuki code-8 header chrome. **Key RE find: the four record values are persistent
+  SAVE-HEADER fields, not runtime globals** — `FUN_004905a8` writes the whole arena from
+  `&DAT_056e5770`, so `DAT_056e60f0/f4/f8/fc` sit at arena offsets 0x980/0x984/0x988/0x98c (inside
+  the 0xb10 header), round-trip through save.dat, and are already in the port's `g_arena` at the
+  title — the render reads them straight from `save_arena_base()` (no separate loader; **no
+  PORT-DEBT on the populated path**). New **TITLE_RECORDS_READY** anchor (port + frida; scene 0 /
+  submenu_state 4 / cursor_anim 10 — no async load ⇒ +0-stretch v3 join). **Verified vs the retail
+  v3 cache on `title-records`** (crafted save: `hidden_char` set to unlock code 8 + four DISTINCT
+  record values in the header — `123456 pt / 654321 pix / Day 88 / Day 33` — so the POPULATED `%d`
+  path renders, not just `--`): **PIXEL-BIT-EXACT — 0/786432 px differ** across the whole window
+  (join 119/119 @ +0 stretch, **0 draw-divergent**, each side self-verifies bit-exact 120/120
+  retail · 119/119 port). The pushed port render shows all 4 crafted values exact under the
+  "SURVIVAL SCORE" header. +2 host tests (`records_opens_on_code8` / `records_closes_on_ab`, 3303).
+  RE: `findings/title-records-RE.md`. **PORT-DEBT:** the end-of-game record PRODUCERS
+  (`FUN_0049d8a4`/`FUN_0049db8a` — write the high-watermarks at game-over) stay unported
+  (game-completion arc; the title render is fully 1:1 given the header values, all the title ever
+  reads). **⇒ all title menu submenus that render (picker · settings · encyclopedia · records) are
+  now bit-exact; the remaining title items are Survival (code 6, a game-MODE launcher) + New Game
+  (the "hardest, last" intro/prologue thread).**
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

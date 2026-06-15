@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **523** (20.5%) — verified 70, stubbed 14, ported 439
-- unported: **2025**
+- touched: **524** (20.6%) — verified 70, stubbed 14, ported 440
+- unported: **2024**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (439) — reimplemented, no probe yet
+## ported (440) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -500,8 +500,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | save_picker.c, save_picker.h, scene_pause.c (+3) |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | anchor_trace.c, anchor_trace.h, scene_pause.c (+3) |
+| 0x49c439 | FUN_0049c439 | 523 | ✓ | anchor_trace.c, anchor_trace.h, scene_title.c |
 | 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |
-| 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
+| 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | scene_title.c, sim.c |
 | 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |
 | 0x49de08 | FUN_0049de08 | 6 | ✓ | scene_new_game.h |
 | 0x49de0e | FUN_0049de0e | 10 | ✓ | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h (+2) |

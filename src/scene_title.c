@@ -466,6 +466,23 @@ void scene_title_sim(scene_title_anim_t *anim,
         return;
     }
 
+    /* Records / high-score screen — engine state DAT_09643524 == 4
+     * (FUN_0049a59e L101019).  A display-only panel: either A or B closes it.
+     * On `pressed & (A|B)` (engine `(DAT_073dddd4 & 0x30) != 0`) the engine
+     * plays the menu-back beep 0x143, resets the select countdown, and folds
+     * the panel out — the common LAB_0049aaff close tail `DAT_09643544 = 0;
+     * DAT_09643528 = 1;`.  No hand cursor to hide (Records never showed one).
+     * The fold-out clause above clears submenu_state once cursor_anim hits 0. */
+    if (anim->cursor_anim == 10 && anim->submenu_state == 4) {
+        if (pressed & (SCENE_TITLE_INPUT_A | SCENE_TITLE_INPUT_B)) {
+            audio_play_se_by_id(TITLE_SE_CONFIRM);   /* FUN_00499519(0x143) */
+            anim->select_phase     = 0;              /* DAT_09643544 = 0 */
+            anim->menu_folding_out = 1;              /* DAT_09643528 = 1  */
+        }
+        anim->pulse_phase++;
+        return;
+    }
+
     /* Continue/load slot picker — engine state DAT_09643524 == 1
      * (FUN_0049a59e L100795). A on an occupied slot has already loaded
      * the save into the working arena (title_continue_picker_step);
@@ -641,6 +658,20 @@ void scene_title_sim(scene_title_anim_t *anim,
                         anim->submenu_state    = 3;        /* DAT_09643524 = 3 */
                         anim->menu_folding_out = 0;        /* slide in        */
                         title_save_dialog_cursor_set_visible(1); /* FUN_0043561a */
+                    } else if (code == SCENE_TITLE_MENU_HIDDEN_CHAR) {
+                        /* Engine FUN_0049a59e L101091: code 8 → the Records /
+                         * high-score screen (submenu_state 4, render
+                         * FUN_0049c439).  No setup fn (the record values are
+                         * persistent save-header fields) and NO hand cursor: the
+                         * engine `goto`s the dispatch tail directly, skipping the
+                         * common FUN_0043561a cursor-show the picker/encyclopedia
+                         * take — Records is a display-only panel with no
+                         * navigable rows.  (The port author's "HIDDEN_CHAR" name
+                         * is a misnomer; the dispatch + render are the Records
+                         * screen.) */
+                        anim->submenu_state    = 4;        /* DAT_09643524 = 4 */
+                        anim->submenu_cursor   = 0;        /* DAT_09643530 = 0 */
+                        anim->menu_folding_out = 0;        /* DAT_09643528 = 0 — slide in */
                     } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
                         anim->pending_action = code;
                     }
@@ -793,6 +824,13 @@ int scene_title_encyclopedia_navigable(int scene_mode)
 {
     return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
         && g_scene_title_anim.submenu_state == 3
+        && g_scene_title_anim.cursor_anim == 10;
+}
+
+int scene_title_records_navigable(int scene_mode)
+{
+    return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
+        && g_scene_title_anim.submenu_state == 4
         && g_scene_title_anim.cursor_anim == 10;
 }
 
@@ -970,6 +1008,96 @@ static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
     save_picker_render(dev, param_1, p->cursor, p->scroll,
                        p->vscroll_anim, p->hscroll_anim, phase,
                        &g_tex[SCENE_TITLE_TEX_PAUSE]);
+}
+
+/* ── Records / high-score screen (submenu_state == 4, FUN_0049c439) ──
+ *
+ * Engine FUN_0049c644 dispatches to FUN_0049c439 when cursor_anim > 0 &&
+ * submenu_state == 4 — the title menu's code-8 row.  The port author's
+ * "HIDDEN_CHAR" name is a misnomer (like "RANKING" was for the encyclopedia):
+ * the dispatch + render are unambiguously the personal-best Records screen.  A
+ * dungeonbord board (src 0,0,320,360) slides in from the right exactly like the
+ * settings/encyclopedia panels (slide_x = 640 - cursor_anim·64), with 4 centered
+ * label/value rows under the same ADDSIGNED→MODULATE2X COLOROP dance the settings
+ * panel uses (grey 0xff7f7f7f, scale 0.8):
+ *
+ *   Record End-game Score   "%d pt"  / "-- pt"   (DAT_056e60f4)
+ *   Record End-game Money   "%d pix" / "-- pix"  (DAT_056e60f8)
+ *   Survival Hell Record    "Day %d" / "Day --"  (DAT_056e60fc)
+ *   Normal Survival Record  "Day %d" / "Day --"  (DAT_056e60f0)
+ *
+ * The four record values are persistent save-HEADER fields: the engine's save
+ * arena base is DAT_056e5770 (FUN_004905a8 writes the whole arena from there),
+ * and DAT_056e60f0/f4/f8/fc sit at arena offsets 0x980/0x984/0x988/0x98c — inside
+ * the 0xb10-byte header, so they round-trip through save.dat and are already in
+ * the port's g_arena at the title (no separate loader).  The end-of-game producers
+ * (FUN_0049d8a4/db8a) that WRITE them stay unported until the game-completion arc —
+ * they only matter mid game-over.  0 => "--".
+ *
+ * The caller passes the constant base y 48.0 (0x42400000) as param_2 and a third
+ * arg (DAT_09643530, the submenu cursor) the body ignores — Records has no
+ * navigable rows. */
+static void scene_title_records_render(IDirect3DDevice8 *dev, float slide_x)
+{
+    static const char *const labels[4] = {
+        "Record End-game Score",
+        "Record End-game Money",
+        "Survival Hell Record",
+        "Normal Survival Record",
+    };
+
+    /* board: dungeonbord.tga src(0,0,320,360) → dst(slide_x+160, 80, 320, 360),
+     * MODULATE (engine FUN_0049c439 head). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    title_quad(dev, SCENE_TITLE_TEX_DUNGEON,
+               slide_x + 160.0f, 80.0f, 320.0f, 360.0f,
+               0.0f, 0.0f, 320.0f, 360.0f,
+               0xFFFFFFFFu);
+
+    /* text under MODULATE2X (engine writes ADDSIGNED then MODULATE2X back-to-
+     * back; the second wins — same as the settings panel). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+
+    /* record values from the save-arena header (see header comment). */
+    const int32_t *hdr = (const int32_t *)save_arena_base();
+    const int32_t rec[4] = {
+        hdr[0x261],  /* 0x984 — DAT_056e60f4 end-game score   */
+        hdr[0x262],  /* 0x988 — DAT_056e60f8 end-game money   */
+        hdr[0x263],  /* 0x98c — DAT_056e60fc survival-hell days */
+        hdr[0x260],  /* 0x980 — DAT_056e60f0 normal-survival days */
+    };
+
+    const float text_x = slide_x + 320.0f;   /* engine local_8 = param_1 + 320 */
+    char buf[64];
+    for (int row = 0; row < 4; row++) {
+        const float label_y = (float)row * 76.0f + 128.0f;   /* row*76 + (48+80) */
+        font_draw_text_centered(dev, text_x, label_y,
+                                labels[row], 0xff7f7f7fu, 0.8f);
+        switch (row) {
+        case 0:
+            if (rec[0]) snprintf(buf, sizeof buf, "%d pt",  rec[0]);
+            else        snprintf(buf, sizeof buf, "-- pt");
+            break;
+        case 1:
+            if (rec[1]) snprintf(buf, sizeof buf, "%d pix", rec[1]);
+            else        snprintf(buf, sizeof buf, "-- pix");
+            break;
+        case 2:
+            if (rec[2]) snprintf(buf, sizeof buf, "Day %d", rec[2]);
+            else        snprintf(buf, sizeof buf, "Day --");
+            break;
+        default:
+            if (rec[3]) snprintf(buf, sizeof buf, "Day %d", rec[3]);
+            else        snprintf(buf, sizeof buf, "Day --");
+            break;
+        }
+        font_draw_text_centered(dev, text_x, label_y + 32.0f,
+                                buf, 0xff7f7f7fu, 0.8f);
+    }
+
+    /* restore MODULATE (engine FUN_0049c439 tail). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
 void scene_title_render(IDirect3DDevice8 *dev,
@@ -1228,8 +1356,26 @@ void scene_title_render(IDirect3DDevice8 *dev,
                             &g_tex[SCENE_TITLE_TEX_PAUSE]);
     }
 
-    /* Sub-menu state 4 (the hidden-character / code-8 confirm screen)
-     * intentionally not ported here — its producer hasn't landed. Deferred. */
+    /* Records / high-score screen — engine FUN_0049c644 (state-4 arm)
+     * dispatches to FUN_0049c439 when cursor_anim > 0 && submenu_state == 4.
+     * Slides in from the right like the other submenus (x = 640 -
+     * cursor_anim·64), then draws the same item_win gold tab + the fuki
+     * code-8 menu-item label as a header — identical to the settings chrome
+     * but the fuki source y is code·32 = 256 (settings uses code 2 → 64). The
+     * chrome draws under the MODULATE the records render leaves active. */
+    if ((int)anim->cursor_anim > 0 && anim->submenu_state == 4) {
+        const float ox = 640.0f - (float)(int)anim->cursor_anim * 64.0f;
+        scene_title_records_render(dev, ox);
+
+        title_quad(dev, SCENE_TITLE_TEX_ITEM_WIN,
+                   ox + 200.0f, 48.0f, 240.0f, 80.0f,
+                   448.0f, 816.0f, 688.0f, 896.0f,
+                   0xFFFFFFFFu);
+        title_quad(dev, SCENE_TITLE_TEX_FUKI,
+                   ox + 240.0f, 68.0f, 160.0f, 32.0f,
+                   224.0f, 256.0f, 384.0f, 288.0f,
+                   0xFFFFFFFFu);
+    }
 
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);

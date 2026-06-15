@@ -2747,6 +2747,8 @@ static void render_dispatch(void)
             .title_settings_active = scene_title_settings_navigable(g_scene_state),
             /* TITLE_ENCYCLOPEDIA_READY: the title all-banks 図鑑 is open + navigable. */
             .title_encyclopedia_active = scene_title_encyclopedia_navigable(g_scene_state),
+            /* TITLE_RECORDS_READY: the title Records / high-score screen is open + navigable. */
+            .title_records_active = scene_title_records_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

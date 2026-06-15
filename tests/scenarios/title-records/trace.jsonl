@@ -1,0 +1,34 @@
+# title-records — the title Records / high-score screen (submenu_state 4,
+# FUN_0049c439) on a CRAFTED save: hidden_char set (header dword 6 = unlocks the
+# code-8 menu row) + four distinct record values written into the save HEADER
+# (the engine's DAT_056e60f0/f4/f8/fc = arena 0x980/0x984/0x988/0x98c, persistent
+# save fields), so the POPULATED "%d pt"/"%d pix" + "Day %d" paths render (not
+# just the "--" zero case):
+#   Record End-game Score    123456 pt
+#   Record End-game Money     654321 pix
+#   Survival Hell Record      Day 88
+#   Normal Survival Record    Day 33
+#
+# embedded save: 3a7a3402edb3bc7a43b254656e267d109793fa3a2046f52ee8a3f2f6a6dce853
+#
+# Menu nav: with a save present the title cursor seeds to default_cursor =
+# CONTINUE_ANY; RANKING(7) is the next row and RECORDS(8) the one after
+# (scene_title.c menu_init), so DOWN×2 lands on RECORDS regardless of the exact
+# menu shape; A opens it (submenu_state 4). The crafted save adds no Survival
+# (no adv-cleared) so the shape is [NewGame, ContinueAny*, Ranking, Records,
+# Options, Exit]. TITLE_RECORDS_READY is a +0-stretch join (no async load at the
+# title), like the picker/settings/encyclopedia READY anchors.
+{"savefile": "_saves/3a7a3402edb3bc7a43b254656e267d109793fa3a2046f52ee8a3f2f6a6dce853.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0008"}
+{"frame": 6, "buttons": "0x0000"}
+{"frame": 11, "buttons": "0x0008"}
+{"frame": 12, "buttons": "0x0000"}
+{"frame": 20, "buttons": "0x0010"}
+{"frame": 21, "buttons": "0x0000"}
+{"wait": "TITLE_RECORDS_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

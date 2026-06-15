@@ -13,6 +13,7 @@
 #define INPUT_UP    0x0004
 #define INPUT_DOWN  0x0008
 #define INPUT_A     0x0010
+#define INPUT_B     0x0020
 
 /* Convenience: build a 4-slot fresh menu (the boot default — NEW_GAME,
  * RANKING, OPTIONS, EXIT) for tests that need a menu shape. */
@@ -260,6 +261,79 @@ int test_scene_title_sim_ranking_opens_encyclopedia(void)
     /* The 図鑑 does NOT use the fade / pending_action paths. */
     T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
     T_ASSERT_EQ_U(a.fade_counter,   0u);
+    return 0;
+}
+
+int test_scene_title_sim_records_opens_on_code8(void)
+{
+    /* Code 8 (the title's "Survival Score" row — the port's misnamed
+     * HIDDEN_CHAR) opens the Records / high-score screen in place:
+     * submenu_state → 4 + slide-in, submenu_cursor → 0, and NOT the fade /
+     * pending_action routes the New/Continue/Survival/Exit codes take. Build a
+     * menu with hidden_char set so code 8 is present (it sits right after
+     * RANKING): NEW_GAME, RANKING, RECORDS(8), OPTIONS, EXIT. */
+    scene_title_save_t save = { .hidden_char_unlocked = 1 };
+    scene_title_menu_t m;
+    scene_title_menu_init(&save, &m);
+
+    int ridx = -1;
+    for (int i = 0; i < m.count; i++)
+        if (m.items[i] == SCENE_TITLE_MENU_HIDDEN_CHAR) ridx = i;
+    T_ASSERT(ridx >= 0);
+
+    scene_title_anim_t a;
+    scene_title_anim_init_fresh(&a);
+
+    /* DOWN to the RECORDS row (one move per held frame). */
+    for (int i = 0; i < ridx; i++) scene_title_sim(&a, &m, 0, INPUT_DOWN);
+    T_ASSERT_EQ_U(a.cursor_pos, (unsigned)ridx);
+    T_ASSERT_EQ_I(m.items[a.cursor_pos], SCENE_TITLE_MENU_HIDDEN_CHAR);
+
+    /* A + 14 frames → select_phase latches 0xf → records dispatch. */
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.select_phase,     0xfu);
+    T_ASSERT_EQ_I(a.submenu_state,    4);   /* DAT_09643524 = 4 (records) */
+    T_ASSERT_EQ_I(a.menu_folding_out, 0);   /* DAT_09643528 = 0 → slide in   */
+    T_ASSERT_EQ_I(a.submenu_cursor,   0);   /* DAT_09643530 = 0              */
+    /* Records uses neither the fade nor pending_action. */
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+    T_ASSERT_EQ_U(a.fade_counter,   0u);
+    return 0;
+}
+
+int test_scene_title_sim_records_closes_on_ab(void)
+{
+    /* Once the Records screen is fully open (cursor_anim == 10), A or B folds
+     * it out: select_phase → 0, menu_folding_out → 1 (submenu_state stays 4
+     * until the fold-out ramp reaches cursor_anim == 0). Engine FUN_0049a59e
+     * state-4 close (LAB_0049aaff: DAT_09643544 = 0; DAT_09643528 = 1). */
+    scene_title_save_t save = { .hidden_char_unlocked = 1 };
+    scene_title_menu_t m;
+    scene_title_menu_init(&save, &m);
+    int ridx = -1;
+    for (int i = 0; i < m.count; i++)
+        if (m.items[i] == SCENE_TITLE_MENU_HIDDEN_CHAR) ridx = i;
+    T_ASSERT(ridx >= 0);
+
+    scene_title_anim_t a;
+    scene_title_anim_init_fresh(&a);
+    for (int i = 0; i < ridx; i++) scene_title_sim(&a, &m, 0, INPUT_DOWN);
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_I(a.submenu_state, 4);
+
+    /* Ramp cursor_anim 0→10 (menu_folding_out == 0 climbs it). B is ignored
+     * until fully open. */
+    for (int i = 0; i < 12; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.cursor_anim, 10u);
+    T_ASSERT_EQ_I(a.menu_folding_out, 0);
+
+    /* B closes: fold out + reset the select countdown, submenu_state held. */
+    scene_title_sim(&a, &m, INPUT_B, 0);
+    T_ASSERT_EQ_I(a.menu_folding_out, 1);   /* DAT_09643528 = 1 */
+    T_ASSERT_EQ_U(a.select_phase,     0u);  /* DAT_09643544 = 0 */
+    T_ASSERT_EQ_I(a.submenu_state,    4);   /* still 4 until cursor_anim → 0 */
     return 0;
 }
 

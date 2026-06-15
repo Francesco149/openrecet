@@ -762,6 +762,7 @@ let g_anchor_prev_items = false;   // previous-frame Items submenu navigable (ty
 let g_anchor_prev_titlepicker = false; // previous-frame title Continue/load picker navigable
 let g_anchor_prev_titlesettings = false; // previous-frame title Options/settings submenu navigable
 let g_anchor_prev_titleencyclopedia = false; // previous-frame title all-banks 図鑑 navigable
+let g_anchor_prev_titlerecords = false; // previous-frame title Records / high-score screen navigable
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3225,6 +3226,7 @@ function anchorTick(frame, devicePtr) {
     const titlePickerActive   = (titleSubmenu === 1);   // TITLE_PICKER_READY
     const titleSettingsActive = (titleSubmenu === 2);   // TITLE_SETTINGS_READY
     const titleEncyclopediaActive = (titleSubmenu === 3); // TITLE_ENCYCLOPEDIA_READY
+    const titleRecordsActive  = (titleSubmenu === 4);   // TITLE_RECORDS_READY
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -3244,6 +3246,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_titlepicker = titlePickerActive;
         g_anchor_prev_titlesettings = titleSettingsActive;
         g_anchor_prev_titleencyclopedia = titleEncyclopediaActive;
+        g_anchor_prev_titlerecords = titleRecordsActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3434,6 +3437,14 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('TITLE_ENCYCLOPEDIA_READY', frame);
         anchorCaptureSchedule('TITLE_ENCYCLOPEDIA_READY', frame, devicePtr);
     }
+    // TITLE_RECORDS_READY — the title Records / high-score screen (submenu_state
+    // 4) just became navigable (rising edge). No async load ⇒ a clean v3 join for
+    // the title records render (FUN_0049c439). Mirror of anchor_trace.c
+    // ev_title_records_ready.
+    if (!g_anchor_prev_titlerecords && titleRecordsActive) {
+        sendAnchor('TITLE_RECORDS_READY', frame);
+        anchorCaptureSchedule('TITLE_RECORDS_READY', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -3451,6 +3462,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_titlepicker = titlePickerActive;
     g_anchor_prev_titlesettings = titleSettingsActive;
     g_anchor_prev_titleencyclopedia = titleEncyclopediaActive;
+    g_anchor_prev_titlerecords = titleRecordsActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

@@ -158,6 +158,13 @@ struct anchor_world {
      * load, so a clean +0-stretch v3 join for the title encyclopedia render
      * (FUN_0049f8b8). 0 outside the open encyclopedia. */
     int title_encyclopedia_active;
+
+    /* 1 while the TITLE-screen Records / high-score screen (submenu_state 4) is
+     * fully open + navigable (scene 0, submenu_state == 4, cursor_anim == 10).
+     * Drives TITLE_RECORDS_READY (0→1) — like the picker/settings/encyclopedia,
+     * no async load, so a clean +0-stretch v3 join for the title records render
+     * (FUN_0049c439). 0 outside the open Records screen. */
+    int title_records_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;
