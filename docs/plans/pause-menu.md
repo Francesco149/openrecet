@@ -508,7 +508,8 @@ Draw primitives all already in the port: `render_quad_add`
     y130-179, = the port-only draw b8b7 vs retail's cursor) at the 1-frame async-pause seam — the
     accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292). Feed "Pause ITEMS
     submenu (type 1) — RETAIL | PORT | diff".
-- **Exit-confirm (type 4) — MECHANICS DONE + host-tested 2026-06-15, BLOCKED on the title re-init.**
+- **Exit-confirm (type 4) — ✅ DONE + PIXEL-BIT-EXACT 2026-06-15, AWAITING USER 1:1** (`b32be5d`
+  mechanics + `8303fef` title re-init).
   ESC → 4×down → Z opens the **"Returning to title screen. Are you sure?"** choice box; **No** cancels
   back to the menu, **Yes** quits to the title (fade-out → scene→0 → title load → fade-in). Ported the
   nav-commit type-4 (`FUN_00480614` L82724-82728: `g_pause_exit_confirm=1` + cursor snap, NO submenu —
@@ -517,27 +518,42 @@ Draw primitives all already in the port: `render_quad_add`
   quit sequence (`g_pause_exit_phase` 1→0xf → `fade_phase1_start` fade-out → `fade_is_done` →
   `sim_set_mode_9a0(0)` + `d3d_pool_release_type(0xc)` + `g_scene_state=0` + `worker_load_spawn` +
   `fade_phase_out_start` fade-in). The dialog renders via the shared choice box (pause tail); no new
-  render dispatch. +3 host tests (3295): commit-arms-dialog / No-cancels / Yes-quits-to-scene-0.
-  **Drive on the new `house-pause-exit` trace (ESC→4×down→Z→Z) vs the retail v3 cache:** the **dialog
-  + the fade-out are 1:1** (the port's per-frame brightness tracks retail — dialog mean ~78, black ~0
-  at the fade bottom, the title bright ~190 — the SAME transition), but the **title lands in the WRONG
-  sub-state — the LOAD-GAME card picker is shown OPEN** (the title's `continue_mode`/`DAT_09643524` is
-  stale) where retail shows the title MENU (RECETTEAR logo + New/Load/Continue/Options/Exit). Feed
-  "Pause EXIT (type 4) — quit-to-title: RETAIL title-menu | PORT (load-picker open, WRONG)".
-  **PORT-DEBT(exit-title-reinit):** the engine re-inits the title via the worker **case-0** (title
-  load), which — like the case-1 INGAME loader — is UNREGISTERED in the port, so the post-`scene→0`
-  `worker_load_spawn` is a no-op and the title resumes with stale state. Closing it = port the title
-  re-init (worker case-0), the **same arc as the title-screen render** (which also shares
-  `FUN_0049b556`/the continue picker). Until then the Exit is **NOT claimed 1:1** — the next focused
-  effort. **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (the house/shop D3D resource free) — a
-  faithful no-op here (the port's resource model differs; the title reloads its own assets).
-- **M3+ (later arcs):** the title re-init (above) closes the Exit; then the b1b0==1 system.bmp fade +
-  action-1/2 pause variants; the unpause cursor restore.
+  render dispatch. **The dialog + the fade-out were 1:1 from the first cut** (per-frame brightness
+  tracks retail — dialog ~78, black ~0 at the fade bottom, title ~190 — the SAME transition).
+  - **The title re-init (worker case-0) — ✅ DONE (`8303fef`):** the Yes→title used to land in the
+    WRONG sub-state (the boot Continue-picker left `submenu_state==1` ⇒ the LOAD-GAME card list
+    rendered, not the menu) because the engine's title re-init runs on the primary load **worker
+    case-0** (`LAB_0045293d` case 0 @ 0x452961 = `FUN_004733d5` asset reload + `FUN_0049a3a3` menu
+    reset) which was UNREGISTERED in the port ⇒ `worker_load_spawn` was a no-op + the title resumed
+    stale. Ported `FUN_0049a3a3` as **`scene_title_reinit`** (`scene_title.c`, pure-C) + registered
+    `worker_load_set_cb(0, scene_title_reinit)` at boot (`main.c`). Body: `FUN_00434ce3`
+    (`title_save_dialog_set_active_counter(0)`, DAT_0438b148) · `scene_title_anim_init_fresh` (the
+    DAT_09643518..5c zero block + menu_folding_out=1 → submenu_state=0, continue_mode=0) ·
+    `save_io_scan_for_title_menu`+`scene_title_menu_init` (= `FUN_0049a43d`) + cursor_pos =
+    default_cursor · cursor snap(212,270)+hide (`FUN_00435693`/`FUN_00435612`) ·
+    `music_clear_forced_track` (= `FUN_00499560`: forced_track=-1, paused_b=0). `FUN_004733d5` asset
+    reload = faithful no-op (title textures persist from boot; the Exit's `d3d_pool_release_type(0xc)`
+    frees only pool-tagged assets).
+  - **Verified vs the retail v3 cache** (`house-pause-exit` ESC→4×down→Z→Z, re-drove the port over
+    PAUSE_READY+180..480): the resting title menu is **PIXEL-BIT-EXACT — gt8 0.0000% / meanabs 0 /
+    maxdiff 0** at every settled offset (RECETTEAR logo + NEW/LOAD/Options/Exit; feed "Pause EXIT
+    (type 4) → quit-to-title — FIXED"). The studio auto-join is seam-split here (the port emits no
+    PAUSE_CLOSE on the exit path) so the compare is by **aligned window-index** (port present_first
+    1018 / retail 5292 both land just past their title load ⇒ the whole window is the resting menu),
+    per this scenario's known load-seam — verify by content-matched frames, not the auto-join pairs.
+    +3 host tests (3298): the reinit clears the stale submenu / rebuilds the menu + hides the cursor /
+    runs end-to-end via `worker_load_dispatch_pure(0)`.
+  - **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (the house/shop D3D resource free) — a faithful
+    no-op here (the port's resource model differs; the title reloads its own assets).
+- **M3+ (later arcs):** the title re-init now closes the Exit (above); remaining: the b1b0==1
+  system.bmp fade + action-1/2 pause variants; the unpause cursor restore (already done — see
+  `pause-unpause-restore` below).
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
-- `pause-submenu-*` — the only base submenu left is the **type-4 Exit-confirm** (Items = type 1,
-  Save = M4, Encyclopedia = type 6, Options = type 2 all DONE + 1:1).
+- ~~`pause-submenu-*`~~ **all 5 base entries DONE** (Items = type 1, Encyclopedia = type 6, Options =
+  type 2, Save = M4, Exit = type 4 — all rendered + navigable + verified). Only the Status entry
+  (type 0) stays stubbed, gated on the unported party count (`pause-status-count`).
 - `pause-items-dungeon` — the Items submenu dungeon variant: display_menu **mode 6** (vs the
   house's mode 5) + the place-an-item / use-medicine / equip-readout paths (`FUN_0047ff40`
   DAT_074b28a4!=0 branch + the FUN_0048196b dungeon option loop). Gated saved_mode==1 &&
@@ -550,12 +566,14 @@ Draw primitives all already in the port: `render_quad_add`
   (`scene_title.c` `scene_title_settings_render_panel`) is still a SECOND copy of `FUN_0049c050`;
   it should call the verified shared `settings_panel_render`. Needs a title-settings trace to
   verify the title path before swapping (the render is render-only, no host test covers it).
-- ~~`pause-exit-confirm`~~ **MECHANICS DONE 2026-06-15** (dialog + Yes/No + No-cancel + fade + scene→0,
-  host-tested) — replaced by two narrower debts:
-- `exit-title-reinit` — the Yes→title lands in the WRONG sub-state (load-game picker open vs the title
-  menu): the engine re-inits the title via the worker **case-0** (unregistered in the port, like
-  case-1), so the post-scene→0 `worker_load_spawn` is a no-op. The blocker for claiming the Exit 1:1;
-  closes with the title-screen render / worker case-0 port.
+- ~~`pause-exit-confirm`~~ **DONE 2026-06-15** (dialog + Yes/No + No-cancel + fade + scene→0 +
+  title re-init, host-tested + pixel-bit-exact) — see the Exit-confirm milestone above.
+- ~~`exit-title-reinit`~~ **✅ CLOSED 2026-06-15** (`8303fef`). The Yes→title landed in the WRONG
+  sub-state (load-game picker open vs the title menu) because the engine's title re-init runs on the
+  worker **case-0** (`FUN_004733d5`+`FUN_0049a3a3`), UNREGISTERED in the port ⇒ `worker_load_spawn`
+  was a no-op + the title resumed stale. Ported `FUN_0049a3a3` as `scene_title_reinit` + registered
+  `worker_load_set_cb(0, …)` at boot; the resting title menu is now **pixel-bit-exact** vs retail
+  (gt8 0.0000% on `house-pause-exit`). +3 host tests.
 - `exit-house-teardown` — `FUN_00474d92` (house/shop D3D resource free on quit) — a faithful no-op here.
 - ~~`pause-unpause-restore`~~ **✅ CLOSED 2026-06-15** (`scene_pause.c` `pause_dispatch`).
   **USER-OBSERVED SYMPTOM 2026-06-14: exiting the pause menu reseated Recette at the

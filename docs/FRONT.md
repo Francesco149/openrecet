@@ -520,23 +520,35 @@
   async-pause seam — the accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292).
   **PORT-DEBT(pause-items-dungeon):** the dungeon variant (display_menu mode 6 + place-an-item /
   use-medicine / equip-readout, `FUN_0047ff40` DAT_074b28a4!=0 branch) — needs a dungeon-pause trace.
-  **EXIT-confirm (type 4) — MECHANICS DONE + host-tested, DIALOG USER-CONFIRMED 1:1, BLOCKED on the
-  title re-init 2026-06-15** (`b32be5d`): ESC → 4×down → Z opens the **"Returning to title screen.
+  **EXIT-confirm (type 4) — ✅ DONE + PIXEL-BIT-EXACT 2026-06-15, AWAITING USER 1:1** (`b32be5d`
+  mechanics + `8303fef` title re-init): ESC → 4×down → Z opens the **"Returning to title screen.
   Are you sure?"** choice box — **No** cancels to the menu, **Yes** quits to the title (fade-out →
   scene→0 → title load → fade-in). Ported the nav-commit type-4 (`g_pause_exit_confirm=1` + cursor
   snap, NO submenu) + `pause_exit_confirm_update` (choice_box Yes=1/No=2 + the quit sequence:
   `g_pause_exit_phase` 1→0xf → `fade_phase1_start` → `fade_is_done` → `sim_set_mode_9a0(0)` +
   `d3d_pool_release_type(0xc)` + `g_scene_state=0` + `worker_load_spawn` + `fade_phase_out_start`).
-  +3 host tests (3295); new `house-pause-exit` trace. **The DIALOG + the fade-out are 1:1** (user
-  "can confirm the prompt looks correct"; the port's per-frame brightness tracks retail through the
-  whole transition — dialog ~78, black ~0, title ~190), **BUT the Yes→title lands in the WRONG
-  sub-state — the load-game card picker is shown OPEN** (stale `continue_mode`/DAT_09643524) where
-  retail shows the title MENU. **PORT-DEBT(exit-title-reinit):** the engine re-inits the title via the
-  worker **case-0** (title load), UNREGISTERED in the port (like the case-1 INGAME loader), so the
-  post-scene→0 `worker_load_spawn` is a no-op + the title resumes stale. **The Exit is NOT claimed
-  1:1 until the title re-init (worker case-0) is ported — the SAME arc as the title-screen render**
-  (the next focused effort). **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (house D3D free) —
-  no-op here. ⇒ all 5 base pause entries now interactive; the title re-init closes the Exit.
+  **The DIALOG + the fade-out were 1:1 from the first cut** (user "can confirm the prompt looks
+  correct"; per-frame brightness tracks retail — dialog ~78, black ~0, title ~190). **The
+  title-re-init blocker is now CLOSED (`8303fef`):** the Yes→title used to land in the WRONG sub-state
+  (the boot Continue-picker left `submenu_state==1` ⇒ the load-game card list rendered) because the
+  engine's title re-init runs on the primary load **worker case-0** (`LAB_0045293d` case 0 @ 0x452961
+  = `FUN_004733d5` asset reload + `FUN_0049a3a3` menu reset) which was UNREGISTERED in the port ⇒
+  `worker_load_spawn` was a no-op + the title resumed stale. Ported `FUN_0049a3a3` as
+  **`scene_title_reinit`** (pure-C) + registered `worker_load_set_cb(0, …)` at boot: resets the title
+  anim block (`scene_title_anim_init_fresh` → submenu_state=0, cursor_anim=0, menu_folding_out=1,
+  continue_mode=0), rebuilds the menu (`save_io_scan_for_title_menu`+`scene_title_menu_init` =
+  `FUN_0049a43d`), snaps+hides the shared hand cursor (`FUN_00435693`/`FUN_00435612`), clears the
+  forced BGM (`music_clear_forced_track` = `FUN_00499560`). `FUN_004733d5` reload = faithful no-op
+  (title textures persist from boot; the Exit's `d3d_pool_release_type(0xc)` frees only pool-tagged
+  assets). **Verified vs the retail v3 cache** (`house-pause-exit`, re-drove the port over
+  PAUSE_READY+180..480): the resting title menu is **PIXEL-BIT-EXACT — gt8 0.0000%, meanabs 0,
+  maxdiff 0** at every settled offset (RECETTEAR logo + NEW/LOAD/Options/Exit, not the load-picker;
+  feed "Pause EXIT (type 4) → quit-to-title — FIXED"). The studio auto-join is seam-split (the port
+  emits no PAUSE_CLOSE), so the compare is by aligned window-index, per this scenario's known
+  load-seam. +3 host tests (3298). **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (house D3D
+  free) — faithful no-op here. ⇒ **all 5 base pause entries now interactive + the Exit lands on the
+  correct title menu**; the broader title-screen render arc (the load-PICKER render is already wired
+  + shared via `save_picker`) is the next focused effort.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
