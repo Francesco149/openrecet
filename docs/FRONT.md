@@ -467,8 +467,16 @@
   mode 9 skips the per-mode dispatch; the Save submenu hides its hand cursor so it never surfaced)
   → ported the tick to pause_menu_update's tail (engine L82104); maxed grids → bit-exact,
   house-pause M2/M3 stays bit-exact, no regression, +8 host tests. RE: `findings/encyclopedia-RE.md`.
-  **PORT-DEBT(encyclopedia-detail):** the A-press item-detail overlay `FUN_0046a336` (2722B
-  stat/combine popup) is stubbed — the next milestone. **AWAITING USER 1:1 CONFIRMATION** (feed).
+  **ITEM-DETAIL OVERLAY (`FUN_0046a336`, A-press) ✅ DONE + BIT-EXACT 2026-06-15** (`f51af86`):
+  the item stats card (Title / Type / Effect [equipment ATK/DEF/MAG/MDEF · food Recovers HP/SP ·
+  medicine Gives Max HP] / Base Price / Highest+Lowest Sale Price) over a data_win panel; helpers
+  `enc_category_is`/`enc_hp_recovery`/`enc_sp_recovery`/`enc_maxhp_tier` + exposed
+  `chara_equip_item_stats`. **gt8 0.0000% BIT-EXACT** across the whole open→shown→close window on
+  `house-pause-encyclopedia-detail` (usual save: examine the Worn Sword). Decompile-var trap caught:
+  `local_18`=X-shift / `local_30`=Y-shift (lines 3/4/5 set X=−32, not Y). **PORT-DEBT(encyclopedia-
+  detail-combine):** the combine/recipe icon grid is gated on the adventurer model
+  (`DAT_0741bed8`, the `pause_status_count` stub 0) — closes with the party port. **AWAITING USER
+  1:1 CONFIRMATION** (feed).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
