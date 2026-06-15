@@ -97,6 +97,8 @@ void save_picker_reset(void);
 
 #ifdef _WIN32
 
+#include "sprite.h"   /* sprite_t — the plaque (pause.tga) texture arg */
+
 struct IDirect3DDevice8;
 
 /* FUN_0049b556 — render the save-slot card list.
@@ -106,10 +108,17 @@ struct IDirect3DDevice8;
  *   vscroll  — between-column page slide (param_4; dst shift = vscroll<<7)
  *   hscroll  — within-column row slide (param_5; row shift = hscroll*28)
  *   phase    — save-animation / confirm-countdown (param_6; pulses the cursor)
- * Binds item_win.tga + g_scene_pause_pause internally; leaves COLOROP=MODULATE. */
+ *   plaque   — the "Merchant Level" banner texture (pause.tga = DAT_073d86a8).
+ *              Passed by the caller because its instance differs by scene: the
+ *              pause submenu passes g_scene_pause_pause, the TITLE picker passes
+ *              its own SCENE_TITLE_TEX_PAUSE (g_scene_pause_pause is unloaded at
+ *              the title). Everything else this binds is a sysasset (item_win,
+ *              font) valid in both scenes.
+ * Binds item_win.tga + `plaque` internally; leaves COLOROP=MODULATE. */
 void save_picker_render(struct IDirect3DDevice8 *dev,
                         float x, int cursor, int scroll,
-                        int vscroll, int hscroll, int phase);
+                        int vscroll, int hscroll, int phase,
+                        const sprite_t *plaque);
 
 #endif /* _WIN32 */
 

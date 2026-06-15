@@ -403,7 +403,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47ff40 | FUN_0047ff40 | 911 | ✓ | scene_pause.c, scene_pause.h |
 | 0x480614 | FUN_00480614 | 718 | ✓ | encyclopedia.h, scene_pause.c, scene_pause.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
-| 0x4812e4 | FUN_004812e4 | 552 | ✓ | save_picker.h, scene_pause.c, scene_pause.h |
+| 0x4812e4 | FUN_004812e4 | 552 | ✓ | save_picker.h, scene_pause.c, scene_pause.h (+1) |
 | 0x48150c | FUN_0048150c | 102 | ✓ | scene_pause.c, settings_panel.h |
 | 0x48196b | FUN_0048196b | 415 | ✓ | scene1_display_menu.h, scene_pause.c |
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ | save_picker.c, scene1_merchant_hud.c, scene1_merchant_hud.h (+2) |
@@ -498,7 +498,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | audio_fade.h, d3d_pool.h, main.c (+12) |
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | save_picker.c, save_picker.h, scene_pause.c (+3) |
-| 0x49b556 | FUN_0049b556 | 2810 | ✓ | font_draw.h, save_bank.h, save_picker.c (+5) |
+| 0x49b556 | FUN_0049b556 | 2810 | ✓ | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_pause.c, scene_title.c, settings_panel.c (+1) |
 | 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |

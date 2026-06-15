@@ -567,7 +567,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   load-seam. +3 host tests (3298). **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (house D3D
   free) — faithful no-op here. ⇒ **all 5 base pause entries now interactive + the Exit lands on the
   correct title menu**; the broader title-screen render arc (the load-PICKER render is already wired
-  + shared via `save_picker`) is the next focused effort.
+  + shared via `save_picker`) is the next focused effort — first chip below.
+- **TITLE-SCREEN RENDER ARC → Continue/load PICKER unified onto `save_picker_render` ✅ DONE +
+  BIT-EXACT 2026-06-15, AWAITING USER 1:1.** The title's Continue/LOAD-GAME slot picker
+  (`FUN_0049c644`→`FUN_0049b556`) had its OWN copy of the card-grid render
+  (`scene_title_continue_render_panel`) — a 2nd FUN_0049b556 port that DIVERGED from the verified
+  shared `save_picker_render` (the pause Save submenu's, M4): it (a) skipped the off-screen wing-page
+  rows retail draws (an extra `slot < 0` guard the engine lacks) and (b) **never drew the bottom-right
+  game-mode tag** (`PORT-DEBT(modetag)`). **Unified the title onto `save_picker_render`** (`save_picker.{c,h}`
+  gained a `plaque` param — the "Merchant Level" banner texture differs by scene: pause passes
+  `g_scene_pause_pause`, the title passes its own `SCENE_TITLE_TEX_PAUSE`, since `g_scene_pause_pause`
+  is unloaded at the title; the title wrapper copies its picker state into the shared
+  perm/count/restricted/wing-anim globals) — **closing modetag + the wings + the >999h TIME clamp +
+  the duplicate (−218 lines)**. New **`TITLE_PICKER_READY` anchor** (port `anchor_trace.c` + frida
+  agent — rising edge of scene 0 / submenu_state 1 / cursor_anim 10; the title picker has NO async
+  load so it's a clean +0-stretch join) + v3 `title-load-picker` scenario (converted to a
+  `{caprange}` window). **Verified vs the retail v3 cache** (`title-load-picker-60516ab3`, join
+  119/119 @ +0 stretch): the unification took the draw program **162→193 draws = retail's 193**
+  (matched 160→**190**; the wings now draw like retail) AND tightened pixels **946→54 px / gt8
+  **0.0000% BIT-EXACT** (maxdiff 2 — the 54 sub-LSB px are the rotated-portrait rasterization +
+  the 1-step breathe seam, same accepted class as the pause). +1 host test (3299). The residual 3
+  "replace" draws = the off-screen wing portraits' OOB-perm garbage (invisible, UB on both sides).
+  **PORT-DEBT(title-picker-overwrite):** the code-4/6 new-game "choose a file" overwrite-dim +
+  per-slot avail (`g_save_picker_avail`) stay unported (inert for a normal Continue; needs a
+  new-game-into-slot trace). Follow-ups in the title arc: **`settings-panel-title-adopt`** (the
+  title SETTINGS render should likewise adopt the shared `settings_panel_render`) + the title load
+  CONFIRM (`title-load-confirm`) → in-game load.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

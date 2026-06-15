@@ -47,7 +47,6 @@ void save_picker_reset(void)
 #include <stdio.h>         /* snprintf */
 
 #include "sysassets.h"            /* g_sysassets.item_win_tga = DAT_073d8748 */
-#include "scene_pause.h"          /* g_scene_pause_pause = DAT_073d86a8 (plaque) */
 #include "render_quad.h"          /* bind / add / flush / draw_rotated_rect */
 #include "font_draw.h"            /* font_draw_text / _right = FUN_0047ca05 / 0047d2db */
 #include "scene1_top_hud.h"       /* scene1_top_hud_draw_number = FUN_00406a60 */
@@ -75,7 +74,8 @@ static uint32_t picker_argb(int hi, int lo)
 /* FUN_0049b556 — the card-list render. */
 void save_picker_render(struct IDirect3DDevice8 *dev_in,
                         float x, int cursor, int scroll,
-                        int vscroll, int hscroll, int phase)
+                        int vscroll, int hscroll, int phase,
+                        const sprite_t *plaque)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
     const sprite_t *iw = &g_sysassets.item_win_tga;       /* DAT_073d8748 */
@@ -243,13 +243,14 @@ void save_picker_render(struct IDirect3DDevice8 *dev_in,
             scene1_top_hud_draw_number(dev, CX + 272.0f, CY + 28.0f,
                                        (int32_t)bank[F_GOLD], 1, color, 1);
 
-            /* "Merchant Level" plaque from pause.tga (49bc73). */
-            render_quad_bind(dev, &g_scene_pause_pause);   /* SetTexture(0, pause) */
+            /* "Merchant Level" plaque from pause.tga (49bc73). The texture
+             * instance is the caller's (pause vs title — see save_picker.h). */
+            render_quad_bind(dev, plaque);                 /* SetTexture(0, pause) */
             {
                 const float src[4] = { 720.0f, 368.0f, 864.0f, 416.0f };
                 const float dst[4] = { CX + 160.0f, CY + 60.0f, 144.0f, 48.0f };
-                render_quad_add(dst, src, g_scene_pause_pause.width,
-                                g_scene_pause_pause.height, color);
+                render_quad_add(dst, src, plaque->width,
+                                plaque->height, color);
             }
             render_quad_flush(dev);                         /* 49bcf0 */
 

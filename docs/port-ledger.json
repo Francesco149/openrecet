@@ -7858,7 +7858,8 @@
    "src": [
     "src/save_picker.h",
     "src/scene_pause.c",
-    "src/scene_pause.h"
+    "src/scene_pause.h",
+    "src/scene_title.c"
    ]
   },
   {
@@ -10139,6 +10140,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/anchor_trace.c",
+    "src/anchor_trace.h",
     "src/font_draw.h",
     "src/save_bank.h",
     "src/save_picker.c",

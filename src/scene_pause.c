@@ -1230,7 +1230,8 @@ static void pause_save_picker_render(IDirect3DDevice8 *d)
     if (phase < 0)    phase = 0;
     if (phase > 0x1e) phase = 0x1e;
     save_picker_render(d, 0.0f, g_pause_save_cursor, g_pause_save_scroll,
-                       g_pause_save_vscroll, g_pause_save_hscroll, phase);
+                       g_pause_save_vscroll, g_pause_save_hscroll, phase,
+                       &g_scene_pause_pause);   /* the pause scene's pause.tga */
 
     /* ── the save-progress bar (engine FUN_004812e4 @ 0x481358, gated c89c>0).
      * Two item_win.tga quads over the selected card under COLOROP=ADDSIGNED:
