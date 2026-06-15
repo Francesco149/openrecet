@@ -159,9 +159,12 @@ by+68)` scale 0.52.  **Decompile-var trap:** `local_18` is the X-shift and
 as a Y-shift moves each value up onto the previous line (the bug the first cut
 shipped — caught on the visual diff).
 
-**Verified BIT-EXACT (gt8 0.0000% across the whole open→shown→close window)** on
-`house-pause-encyclopedia-detail` (usual save: examine the Worn Sword — the
-equipment ATK Effect line).  **PORT-DEBT(encyclopedia-detail-combine):** the
+**Verified BIT-EXACT (gt8 0.0000%)** on TWO saves: `house-pause-encyclopedia-detail`
+(usual save: the Worn Sword, whole open→shown→close window) AND
+`house-pause-encyclopedia-max-detail` (the maxed save: examined the first item of
+6 carousel categories — equipment across multiple item types, and the populated
+**Highest/Lowest Sale Price** lines the usual save left as "----"; the combine grid
+correctly does NOT manifest, matching retail).  **PORT-DEBT(encyclopedia-detail-combine):** the
 combine/recipe icon grid (gated on the recruited-adventurer model
 `DAT_0741bed8`/`DAT_07477e74`, the same `pause_status_count` stubbed to 0) is a
 no-op — closes with the adventurer/party port.  The food/medicine Effect
