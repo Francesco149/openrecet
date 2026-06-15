@@ -586,8 +586,22 @@
   (`title-options-522438b9`, 39/39 paired @ +0): draw program **73=73 ALIGNED (0 divergent)**,
   pixels **0/786432 differ — BIT-IDENTICAL** across all settled pairs. +1 host test (3300). (Port
   TAS ran 40 frames vs retail's 120 — a post-wait TAS-length quirk on `@fresh`; the static panel is
-  fully verified on the 39 aligned frames.) Title arc remaining: **`title-load-confirm`** (A on the
-  picker → in-game load).
+  fully verified on the 39 aligned frames.)
+- **TITLE-SCREEN RENDER ARC → LOAD-confirm flow (A on the picker → in-game load) ✅ VERIFIED 1:1
+  BIT-EXACT 2026-06-15, AWAITING USER 1:1.** The picker A-confirm was already fully WIRED
+  (`scene_title.c`: `title_continue_picker_step` → `save_work_load_slot` + `continue_mode=1`/
+  `fade_counter=1`; the fade ramp → `fade_phase1_start` → `fade_is_done` → `scene_post_fade_init`
+  → house) — so this was a flow VERIFICATION, no code change. Converted `title-load-confirm` to a
+  v3 window at `TITLE_PICKER_READY` over the **2nd-A confirm → card-pulse → fade-to-black**.
+  **Verified vs the retail v3 cache** (`title-load-confirm-f00eae67`, +0 stretch): settled 54px /
+  **confirm+card-pulse gt8 0.0000% maxdiff 1** / mid-fade 60px / near-black 1px — all meanabs 0.00,
+  the accepted breathe/seam envelope; draw program 193=193 (same 3 off-screen wing-portrait
+  residuals as the picker). The selected card "lights up" (the `fade_counter` `phase` param the
+  picker unification already carries) + the fade-out match retail frame-for-frame. The window
+  crosses the title→INGAME transition (NEW_GAME/LOADING_END gaps after the fade — the HOUSE arrival
+  is verified separately, bit-clean). ⇒ **all title MAIN-MENU render gaps + the load flow are
+  closed** (picker + settings bit-exact, load-confirm 1:1; New Game flow + the Ranking screen
+  [submenu 3/4, producers not ported] remain as separate non-render arcs).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-15 — title LOAD-confirm flow verified 1:1 (A on picker → fade → load)
+
+The picker A-confirm was already fully wired (`scene_title.c`: `title_continue_picker_step` →
+`save_work_load_slot` + `continue_mode`/`fade_counter`; the fade ramp → `fade_phase1_start` →
+`scene_post_fade_init` → house), so this was a flow VERIFICATION — no code change. Converted
+`title-load-confirm` to a v3 window at `TITLE_PICKER_READY` over the 2nd-A confirm → card-pulse →
+fade-to-black. Verified vs the retail v3 cache (`title-load-confirm-f00eae67`, +0 stretch): settled
+54px / **confirm+card-pulse gt8 0.0000% maxdiff 1** / mid-fade 60px / near-black 1px — all meanabs
+0.00 (the accepted breathe/seam envelope); draw program 193=193 (the same 3 off-screen wing-portrait
+residuals as the picker). The selected card "lights up" (the `fade_counter` `phase` param the picker
+unification carries) + the fade-out match retail frame-for-frame. The window crosses the title→INGAME
+transition (NEW_GAME/LOADING_END gaps after the fade; the HOUSE arrival is verified separately,
+bit-clean). ⇒ all title main-menu render gaps + the load flow are closed.
+
 ## 2026-06-15 — title Options/settings panel adopted onto `settings_panel_render` (bit-identical)
 
 The title's `scene_title_settings_render_panel` was a 2nd copy of FUN_0049c050 (the config

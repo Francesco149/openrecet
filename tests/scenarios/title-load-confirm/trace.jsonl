@@ -1,24 +1,30 @@
-# Title → open LOAD GAME picker → confirm the highlighted (occupied) slot →
-# load into HOUSE free-roam.  Boot→title→picker is deterministic on both sides
-# (cf. title-load-picker @ 60/120), so the absolute-frame captures around the
-# confirm + fade align port↔retail; the HOUSE arrival is anchored (turbo-immune).
+# title-load-confirm — open the LOAD GAME picker, confirm the highlighted
+# (occupied) slot, and watch the title fade out into the load (the title→INGAME
+# transition). The picker A-confirm loads the slot (save_work_load_slot) and
+# arms the title fade: the selected card "lights up" (the fade_counter pulse on
+# the picker render) while the scene-fade quad ramps to black, then
+# scene_post_fade_init swaps to INGAME.
 #
 # Save fa7c82 has a score → the title cursor defaults to CONTINUE_ANY, so the
-# first A (0x0010) opens the picker; a second A (after it settles) confirms the
-# slot under the cursor (last-used slot) and starts the title fade into INGAME.
+# first A (0x0010) opens the picker.
+#
+# v3 sync: anchor at TITLE_PICKER_READY (picker fully open + navigable; the
+# title has NO async load ⇒ +0-stretch, proven by title-load-picker). Press the
+# 2nd A (confirm) at a fixed picker-relative offset (30) and capture the
+# confirm→fade window — the card-pulse + the fade-to-black — which aligns
+# port↔retail by offset. The window ends before scene_post_fade_init's swap to
+# the house load (the HOUSE arrival is verified separately, bit-clean). No
+# {phasepin} (title); fixed rngseed keeps the boot deterministic.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
 {"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
 {"rngseed": [0, 577284034]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 45, "buttons": "0x0010"}
 {"frame": 48, "buttons": "0x0000"}
-{"capture": 130}
-{"frame": 140, "buttons": "0x0010"}
-{"frame": 143, "buttons": "0x0000"}
-{"capture": 150}
-{"capture": 165}
-{"wait": "NEW_GAME"}
+{"wait": "TITLE_PICKER_READY"}
+{"caprange": [0, 90]}
+{"calltrace": [0, 90]}
 {"frame": 0, "buttons": "0x0000"}
-{"wait": "HOUSE_FREEROAM"}
-{"caprange": [10, 12]}
-{"frame": 0, "buttons": "0x0000"}
-{"frame": 120, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0010"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 90, "buttons": "0x0000"}
