@@ -7,6 +7,34 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-16 — title RECORDS / high-score screen (code 8, submenu_state 4) — pixel-bit-exact
+
+The title menu's **"Survival Score"** row (code 8 — the port author's `HIDDEN_CHAR` name is a
+misnomer, same as `RANKING` was for the encyclopedia; the in-game menu tile literally reads
+"SURVIVAL SCORE") opens a display-only personal-best Records panel (`FUN_0049c439`), sliding in
+like the settings/encyclopedia submenus and closing on A/B.
+
+- **scene_title.c**: `scene_title_records_render` (= `FUN_0049c439`) — a dungeonbord board (the
+  same sheet the settings panel uses, src 0,0,320,360) + 4 centered label/value rows under the
+  ADDSIGNED→MODULATE2X COLOROP dance (grey-0x7f, scale 0.8): Record End-game Score `%d pt` / Record
+  End-game Money `%d pix` / Survival Hell Record `Day %d` / Normal Survival Record `Day %d` (zero ⇒
+  `--`). Plus the code-8 dispatch (`submenu_state=4`, cursor 0, NO hand cursor) + the state-4 close
+  (A|B → SE 0x143, fold out) in `scene_title_sim`, and the state-4 render arm + item_win/fuki code-8
+  header chrome in `scene_title_render`.
+- **The record values are persistent SAVE-HEADER fields**, not runtime globals: `FUN_004905a8`
+  writes the whole arena from `&DAT_056e5770`, so `DAT_056e60f0/f4/f8/fc` are at arena offsets
+  0x980/0x984/0x988/0x98c (inside the 0xb10 header) — they round-trip through save.dat and are
+  already in the port's `g_arena` at the title; the render reads them straight from
+  `save_arena_base()` (no separate loader, no PORT-DEBT on the populated path).
+- **TITLE_RECORDS_READY** anchor (port `anchor_trace.c`/`scene_title.c` + frida agent; scene 0 /
+  submenu_state 4 / cursor_anim 10 — no async load ⇒ +0-stretch v3 join).
+- **Verification** (`tests/scenarios/title-records`, crafted save: `hidden_char` + four distinct
+  record values `123456 pt / 654321 pix / Day 88 / Day 33`): vs the retail v3 cache, the records
+  screen is **PIXEL-BIT-EXACT — 0/786432 px differ** across the window (join 119/119 @ +0, 0
+  draw-divergent, both sides self-verify bit-exact). +2 host tests (3303). RE:
+  `findings/title-records-RE.md`. PORT-DEBT: the end-of-game record producers
+  (`FUN_0049d8a4`/`FUN_0049db8a`) stay unported (game-completion arc).
+
 ## 2026-06-16 — title all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) — bit-exact (empty + populated)
 
 The title menu's code-7 row (the port author's "RANKING" is a misnomer — the dispatch
