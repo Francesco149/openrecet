@@ -471,8 +471,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   status: `plans/pause-menu.md` M4c. Tooling: `v3cache`
   `localappdata_v3` got an env override + `/mnt/*/Users/*/...` glob fallback (cmd.exe WSL interop
   was wedged, blocking the cache step).
+  **ENCYCLOPEDIA submenu (type 6) — GRID RENDER + NAV ✅ DONE + PIXEL-BIT-EXACT 2026-06-15**
+  (`src/encyclopedia.{c,h}` = FUN_0049f012 setup / FUN_0049efb8 cursor / FUN_0049f365 nav /
+  FUN_0049f8b8 render; `b7318e7`+`a15e4a8`+`189a103`). The item catalog (図鑑): a 33-category
+  horizontal carousel of 3-column item grids (icon+name, packed-discovered slot table sorted by
+  rank+id), completion %, bottom description, scroll/category arrows. Wired into scene_pause.c
+  (setup in pause_menu_setup, nav-commit type-6 open, sub_anim==10 update / sub_anim>0 render
+  dispatch). **Verified vs the retail v3 cache: gt8 0.0000% BIT-EXACT** on the usual save
+  (house-pause-encyclopedia, ESC→1×down→Z) AND the **hacked MAXED save** (house-pause-encyclopedia-max,
+  f693fbd6 every item discovered — every item's icon+name across the full 33-category carousel
+  matches retail). New **ENCYCLOPEDIA_READY anchor** (port+frida) for clean nav sync (join
+  559/559). **The maxed full-grid nav caught a LATENT pause bug — the shared hand cursor's
+  6-frame slide (FUN_004356cd) was never ticked during mode 9** (sim.c ticks it for modes 1/8/6,
+  mode 9 skips the per-mode dispatch; the Save submenu hides its hand cursor so it never surfaced)
+  → ported the tick to pause_menu_update's tail (engine L82104); maxed grids → bit-exact,
+  house-pause M2/M3 stays bit-exact, no regression, +8 host tests. RE: `findings/encyclopedia-RE.md`.
+  **PORT-DEBT(encyclopedia-detail):** the A-press item-detail overlay `FUN_0046a336` (2722B
+  stat/combine popup) is stubbed — the next milestone. **AWAITING USER 1:1 CONFIRMATION** (feed).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
-  code); the other submenus (Items/Encyclopedia/Options) + type-4 exit-confirm + unpause
+  code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
   **TWO user-observed gaps to fix as we finish the pause menu (2026-06-14):** (1) **exiting
   the pause menu reseated Recette at the scene SPAWN position** (not where she was paused) =
