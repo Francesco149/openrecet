@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 422,
-  "unported": 2042,
+  "ported": 430,
+  "unported": 2034,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 506,
-  "pct_touched": 19.9,
+  "touched": 514,
+  "pct_touched": 20.2,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2677,6 +2677,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene1_player_ctrl.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -2693,6 +2694,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/main.c",
     "src/scene_guild.c",
     "src/scene_worldmap.c",
@@ -4329,6 +4331,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene1_chr_prepass.c",
     "src/scene1_chr_prepass.h",
     "src/scene1_display_menu.c",
@@ -5262,6 +5265,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene_pause.c"
    ]
   },
@@ -5271,8 +5275,10 @@
    "size": 11,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x4681e6",
@@ -5335,8 +5341,10 @@
    "size": 14,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x468294",
@@ -5685,6 +5693,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene1_display_menu.c"
    ]
   },
@@ -5705,8 +5714,11 @@
    "size": 2722,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c",
+    "src/encyclopedia.h"
+   ]
   },
   {
    "va": "0x46add8",
@@ -7493,6 +7505,7 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
+    "src/encyclopedia.c",
     "src/font.h",
     "src/font_draw.c",
     "src/font_draw.h",
@@ -7549,6 +7562,7 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
+    "src/encyclopedia.c",
     "src/font_draw.h",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
@@ -7710,6 +7724,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.h",
     "src/scene_pause.c",
     "src/scene_pause.h",
     "src/sim.c"
@@ -7761,6 +7776,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.h",
     "src/scene_pause.c",
     "src/scene_pause.h"
    ]
@@ -7926,6 +7942,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.h",
     "src/main.c",
     "src/scene_pause.c",
     "src/scene_pause.h"
@@ -8716,8 +8733,10 @@
    "size": 137,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x48ee77",
@@ -8725,8 +8744,10 @@
    "size": 137,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x48ef00",
@@ -9757,6 +9778,7 @@
     "src/audio.h",
     "src/audio_se_names.h",
     "src/choice_box.c",
+    "src/encyclopedia.c",
     "src/scene1_combat_sm.h",
     "src/scene1_per_frame_open.h",
     "src/scene1_player_ctrl.c",
@@ -10420,8 +10442,11 @@
    "size": 90,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c",
+    "src/encyclopedia.h"
+   ]
   },
   {
    "va": "0x49f012",
@@ -10431,6 +10456,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
+    "src/encyclopedia.h",
     "src/save_bank.h",
     "src/scene1_display_menu.c",
     "src/scene_pause.c",
@@ -10443,8 +10470,12 @@
    "size": 1363,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c",
+    "src/encyclopedia.h",
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x49f8b8",
@@ -10452,8 +10483,12 @@
    "size": 2033,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c",
+    "src/encyclopedia.h",
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x4a1cc0",

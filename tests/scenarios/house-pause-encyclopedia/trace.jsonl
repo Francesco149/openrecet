@@ -1,0 +1,39 @@
+# house-pause-encyclopedia — open the PAUSE menu (ESC), navigate to ENCYCLOPEDIA
+# (entry type 6), and press Z (A=0x10) to open the type-6 encyclopedia submenu
+# (engine FUN_0049f365 update / FUN_0049f8b8 render, dispatched from FUN_0047fa76
+# / FUN_004820ba at sub_anim==10 / sub_anim>0).  Derived from house-pause-save
+# (load fa7c82 → HOUSE free-roam idle, {phasepin 80}+{rngseed [80,19937]}).
+#
+# Nav: the house pause list is [1,6,2,3,4] = Items·Encyclopedia·Options·Save·Exit,
+# default selection index 0 (Items).  Encyclopedia is index 1 ⇒ ONE down.
+#   sel 0 Items → (down) 1 Encyclopedia → (A) open.
+#
+# Sync: same as house-pause-save — the pause-menu asset load (FUN_00473a3e)
+# stretches a DIFFERENT frame count per side (port ~1f, retail ~1800f), so the
+# nav + caprange rebase on PAUSE_READY (the pause-load-done edge gated on scene
+# mode 9, fires once post-load on BOTH sides) with a +30 margin for the open-slide
+# (ramp 3→0xc) to settle.  PAUSE_READY-relative nav is then identical per side ⇒
+# the v3 identity-join pairs the submenu frames cleanly past the load seam.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"wait": "PAUSE_READY"}
+{"caprange": [0, 300]}
+{"calltrace": [0, 300]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"frame": 300, "buttons": "0x0000"}

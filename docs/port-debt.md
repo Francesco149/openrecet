@@ -71,7 +71,7 @@ _none_
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_00453384 | src/scene_pause.c:260 | the engine has a thicket of mode-1 |
+| FUN_00453384 | src/scene_pause.c:261 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:310 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:283 | the engine teardown also restores the |
 

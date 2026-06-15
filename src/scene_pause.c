@@ -19,6 +19,7 @@
 #include "save_picker.h" /* FUN_0049b537 perm init + the shared card-list render */
 #include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
 #include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
+#include "encyclopedia.h" /* the type-6 Encyclopedia submenu (FUN_0049f012/f365/f8b8) */
 #include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
 #include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
 #include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
@@ -389,6 +390,10 @@ void pause_menu_setup(void)
     g_pause_entries[n + 3] = 4;                  /* Exit Game */
     g_pause_count = n + 4;                       /* DAT_073e154c */
     g_pause_row_spacing = (0xb - g_pause_count) * 0xc;  /* DAT_005cc678 */
+
+    /* FUN_0049f012(0) (engine L81616) — build the Encyclopedia catalog from the
+     * active bank's discovery store + the item DB.  RNG-neutral / idempotent. */
+    encyclopedia_setup(0);
 }
 
 /* FUN_00480614 — the main-menu nav. */
@@ -426,19 +431,29 @@ void pause_menu_nav(void)
          * PORT-DEBT(pause-submenu-*) — for those types we tick the anim but
          * don't open. */
         g_pause_sel_anim++;
-        if (g_pause_sel_anim == 0xf && g_pause_entries[g_pause_sel] == 3) {
-            /* type-3 branch (engine L82694): clear the save anims, init the
-             * 100-slot perm, seed the cursor from the last-used slot. */
-            g_pause_save_phase   = 0;          /* DAT_074b289c */
-            g_pause_save_vscroll = 0;          /* DAT_074b2898 (c898) */
-            g_pause_save_hscroll = 0;          /* DAT_074b2894 (c894) */
-            g_save_picker_restricted = 0;      /* DAT_09643564 */
-            save_picker_perm_init();           /* FUN_0049b537 */
-            const int last = save_header_get_last_slot();        /* DAT_056e578c */
-            g_pause_save_cursor = last;                           /* val[cur]  */
-            g_pause_save_scroll = (last - 2 < 0) ? 0 : last - 2;  /* val2[cur] */
-            g_pause_sub_anim++;                 /* DAT_074b2880 — open */
-            g_pause_sub_dir = 1;               /* DAT_074b2884 — opening */
+        if (g_pause_sel_anim == 0xf) {
+            const int t = g_pause_entries[g_pause_sel];
+            if (t == 3) {
+                /* type-3 branch (engine L82694): clear the save anims, init the
+                 * 100-slot perm, seed the cursor from the last-used slot. */
+                g_pause_save_phase   = 0;          /* DAT_074b289c */
+                g_pause_save_vscroll = 0;          /* DAT_074b2898 (c898) */
+                g_pause_save_hscroll = 0;          /* DAT_074b2894 (c894) */
+                g_save_picker_restricted = 0;      /* DAT_09643564 */
+                save_picker_perm_init();           /* FUN_0049b537 */
+                const int last = save_header_get_last_slot();        /* DAT_056e578c */
+                g_pause_save_cursor = last;                           /* val[cur]  */
+                g_pause_save_scroll = (last - 2 < 0) ? 0 : last - 2;  /* val2[cur] */
+                g_pause_sub_anim++;                 /* DAT_074b2880 — open */
+                g_pause_sub_dir = 1;               /* DAT_074b2884 — opening */
+            } else if (t == 6) {
+                /* type-6 branch (engine L82671): snap the shared hand cursor to
+                 * the grid's first cell (72,112) and open the submenu.  The
+                 * catalog itself was built in pause_menu_setup (FUN_0049f012). */
+                title_save_dialog_cursor_snap(72.0f, 112.0f);  /* FUN_00435693 */
+                g_pause_sub_anim++;
+                g_pause_sub_dir = 1;
+            }
         }
     }
 }
@@ -675,12 +690,22 @@ void pause_menu_update(void)
                 if (g_pause_sub_anim > 10) g_pause_sub_anim = 10;
             }
             /* L82031 — once fully open, dispatch to the per-type submenu
-             * updater. Only Save (type 3 → FUN_0047f5bc) is ported; the
-             * dungeon (5)/Items (1)/Status (0)/Encyclopedia (6)/Options (2)
-             * updaters stay PORT-DEBT(pause-submenu-*). */
-            if (g_pause_sub_anim == 10
-                && g_pause_entries[g_pause_sel] == 3)
-                pause_save_submenu_update();
+             * updater. Save (type 3 → FUN_0047f5bc) + Encyclopedia (type 6 →
+             * FUN_0049f365) are ported; the dungeon (5)/Items (1)/Status (0)/
+             * Options (2) updaters stay PORT-DEBT(pause-submenu-*). */
+            if (g_pause_sub_anim == 10) {
+                const int t = g_pause_entries[g_pause_sel];
+                if (t == 3) {
+                    pause_save_submenu_update();
+                } else if (t == 6) {
+                    /* engine L82045: close on B (returns 1). */
+                    if (encyclopedia_update() == 1) {
+                        g_pause_sub_dir  = 0;     /* DAT_074b2884 */
+                        g_pause_sel_anim = 0;     /* DAT_074b2870 */
+                        title_save_dialog_cursor_set_visible(0);  /* FUN_00435612 */
+                    }
+                }
+            }
         }
     }
     /* else: exit-confirm (return-to-title) — PORT-DEBT(pause-exit-confirm). */
@@ -1154,11 +1179,19 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
     }
 
     /* ── sub_anim>0 submenu dispatch (engine L83931-83952): the open submenu
-     * renders over the (fading) option list. Only Save (type 3) is ported;
-     * Status (0)/Encyclopedia (6)/Options (2)/dungeon (5)/Items (1) renders
+     * renders over the (fading) option list. Save (type 3) + Encyclopedia
+     * (type 6) are ported; Status (0)/Options (2)/dungeon (5)/Items (1) renders
      * stay PORT-DEBT(pause-submenu-*). ── */
-    if (g_pause_sub_anim > 0 && g_pause_entries[g_pause_sel] == 3)
-        pause_save_picker_render(d);     /* FUN_004812e4 */
+    if (g_pause_sub_anim > 0) {
+        const int t = g_pause_entries[g_pause_sel];
+        if (t == 3) {
+            pause_save_picker_render(d);     /* FUN_004812e4 */
+        } else if (t == 6) {
+            /* engine L83937: FUN_0049f8b8(640 - sub_anim*64, 0) — slides in
+             * from the right, rests at (0,0). */
+            encyclopedia_render(d, 640.0f - (float)(g_pause_sub_anim << 6), 0.0f);
+        }
+    }
 
     /* ── shared overlay tail (engine L83953-83955): the choice box, the hand
      * cursor, then the save/load dialog frame. All self-gate (no active box /

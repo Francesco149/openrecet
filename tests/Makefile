@@ -25,7 +25,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/anchor_trace.c \
                  ../src/call_trace.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
-                 ../src/render_quad.c ../src/scene.c ../src/esc_dispatch.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/scene_guild.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/save_work.c ../src/save_picker.c ../src/title_continue_picker.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
+                 ../src/render_quad.c ../src/scene.c ../src/esc_dispatch.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/scene_guild.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/save_work.c ../src/save_picker.c ../src/encyclopedia.c ../src/title_continue_picker.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \
                  ../src/tables_enemy.c ../src/tables_enemylist.c ../src/tables_event.c \
                  ../src/tables_gousei.c ../src/tables_item.c \

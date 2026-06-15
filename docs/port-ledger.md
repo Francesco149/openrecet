@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **506** (19.9%) — verified 70, stubbed 14, ported 422
-- unported: **2042**
+- touched: **514** (20.2%) — verified 70, stubbed 14, ported 430
+- unported: **2034**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (422) — reimplemented, no probe yet
+## ported (430) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -191,8 +191,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, scene_pause.c |
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+4) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, scene_pause.c (+2) |
-| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_player_ctrl.c, scene_pause.c, scene_title.c (+3) |
-| 0x43561a | FUN_0043561a | 11 | ✓ | main.c, scene_guild.c, scene_worldmap.c (+3) |
+| 0x435612 | FUN_00435612 | 8 | ✓ | encyclopedia.c, scene1_player_ctrl.c, scene_pause.c (+4) |
+| 0x43561a | FUN_0043561a | 11 | ✓ | encyclopedia.c, main.c, scene_guild.c (+4) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435644 | FUN_00435644 | 79 | ✓ | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+7) |
@@ -258,7 +258,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
 | 0x454fe4 | FUN_00454fe4 | 429 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+1) |
 | 0x455191 | FUN_00455191 | 217 | ✓ | scene1_chr_prepass.c, scene1_chr_prepass.h, scene1_emit_record.c (+7) |
-| 0x45526a | FUN_0045526a | 102 | ✓ | scene1_chr_prepass.c, scene1_chr_prepass.h, scene1_display_menu.c (+1) |
+| 0x45526a | FUN_0045526a | 102 | ✓ | encyclopedia.c, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x45672a | FUN_0045672a | 1317 | ✓ | chr_sprite_meta.h, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x456c4f | FUN_00456c4f | 249 | ✓ | scene1_chr_prepass.c, scene1_chr_prepass.h |
 | 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h, scene1_render.c (+3) |
@@ -283,10 +283,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | npc_schedule.h |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | font_draw.c, font_draw.h, scene_guild.c |
-| 0x4681d3 | FUN_004681d3 | 8 | ✓ | scene_pause.c |
+| 0x4681d3 | FUN_004681d3 | 8 | ✓ | encyclopedia.c, scene_pause.c |
+| 0x4681db | FUN_004681db | 11 | ✓ | encyclopedia.c |
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ | scene_pause.c |
 | 0x4681ec | FUN_004681ec | 10 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x468246 | FUN_00468246 | 64 |  | scene1_display_menu.h |
+| 0x468286 | FUN_00468286 | 14 | ✓ | encyclopedia.c |
 | 0x4682b9 | FUN_004682b9 | 6 | ✓ | scene_pause.c |
 | 0x4682bf | FUN_004682bf | 6 | ✓ | scene_pause.c, stage_load_pulse.h |
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ | scene_guild.c, stage_load_pulse.h |
@@ -301,8 +303,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x469a00 | FUN_00469a00 | 131 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x469a83 | FUN_00469a83 | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h |
 | 0x469a9f | FUN_00469a9f | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
-| 0x469abb | FUN_00469abb | 127 | ✓ | scene1_display_menu.c |
+| 0x469abb | FUN_00469abb | 127 | ✓ | encyclopedia.c, scene1_display_menu.c |
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ | scene1_display_menu.c |
+| 0x46a336 | FUN_0046a336 | 2722 | ✓ | encyclopedia.c, encyclopedia.h |
 | 0x46b00a | FUN_0046b00a | 3640 | ✓ | main.c, scene1_display_menu.c, scene1_display_menu.h (+1) |
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
@@ -382,11 +385,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
 | 0x47c474 | FUN_0047c474 | 1425 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
-| 0x47ca05 | FUN_0047ca05 | 454 | ✓ | choice_box.c, font.h, font_draw.c (+2) |
+| 0x47ca05 | FUN_0047ca05 | 454 | ✓ | choice_box.c, encyclopedia.c, font.h (+3) |
 | 0x47cbcb | FUN_0047cbcb | 855 | ✓ | font.h, font_alloc.c, font_alloc.h (+3) |
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ | font.h, font_upload.c, font_upload.h |
 | 0x47d0ea | FUN_0047d0ea | 98 | ✓ | font_draw.c, font_draw.h |
-| 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, font_draw.h, scene1_display_menu.c (+2) |
+| 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, encyclopedia.c, font_draw.h (+3) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
@@ -394,15 +397,15 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47f1a0 | FUN_0047f1a0 | 46 | ✓ | scene_pause.c |
 | 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ | scene_pause.c, scene_pause.h, sim.c |
 | 0x47f5bc | FUN_0047f5bc | 1171 | ✓ | anchor_trace.h, save_picker.h, scene_pause.c (+1) |
-| 0x47fa76 | FUN_0047fa76 | 462 | ✓ | scene_pause.c, scene_pause.h, sim.c |
+| 0x47fa76 | FUN_0047fa76 | 462 | ✓ | encyclopedia.h, scene_pause.c, scene_pause.h (+1) |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
-| 0x480614 | FUN_00480614 | 718 | ✓ | scene_pause.c, scene_pause.h |
+| 0x480614 | FUN_00480614 | 718 | ✓ | encyclopedia.h, scene_pause.c, scene_pause.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
 | 0x4812e4 | FUN_004812e4 | 552 | ✓ | save_picker.h, scene_pause.c, scene_pause.h |
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ | save_picker.c, scene1_merchant_hud.c, scene1_merchant_hud.h (+2) |
 | 0x482033 | FUN_00482033 | 38 | ✓ | scene_pause.c |
 | 0x482059 | FUN_00482059 | 97 | ✓ | scene_pause.c |
-| 0x4820ba | FUN_004820ba | 2455 | ✓ | main.c, scene_pause.c, scene_pause.h |
+| 0x4820ba | FUN_004820ba | 2455 | ✓ | encyclopedia.h, main.c, scene_pause.c (+1) |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+4) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
@@ -437,6 +440,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48d997 | FUN_0048d997 | 218 | ✓ | scene_pause.c |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h, sim.c |
+| 0x48edee | FUN_0048edee | 137 | ✓ | encyclopedia.c |
+| 0x48ee77 | FUN_0048ee77 | 137 | ✓ | encyclopedia.c |
 | 0x48f931 | FUN_0048f931 | 1150 | ✓ | sim.c |
 | 0x48fdaf | FUN_0048fdaf | 148 | ✓ | scene1_display_menu.c |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
@@ -472,7 +477,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, scene1_combat_sm.h (+5) |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+11) |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+12) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499579 | FUN_00499579 | 10 | ✓ | worker_load.c, worker_load.h |
@@ -501,7 +506,10 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
 | 0x49ef78 | FUN_0049ef78 | 64 | ✓ | scene1_display_menu.c |
-| 0x49f012 | FUN_0049f012 | 851 | ✓ | save_bank.h, scene1_display_menu.c, scene_pause.c (+1) |
+| 0x49efb8 | FUN_0049efb8 | 90 | ✓ | encyclopedia.c, encyclopedia.h |
+| 0x49f012 | FUN_0049f012 | 851 | ✓ | encyclopedia.c, encyclopedia.h, save_bank.h (+3) |
+| 0x49f365 | FUN_0049f365 | 1363 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c |
+| 0x49f8b8 | FUN_0049f8b8 | 2033 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c |
 | 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
 | 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |

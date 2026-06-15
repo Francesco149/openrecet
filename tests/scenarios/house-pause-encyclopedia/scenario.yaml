@@ -1,0 +1,16 @@
+# house-pause-encyclopedia — see trace.jsonl.  Opens the in-game PAUSE menu,
+# navigates to the ENCYCLOPEDIA entry (type 6, index 1 in the house list
+# [1,6,2,3,4]) and presses Z to open the type-6 encyclopedia submenu (engine
+# FUN_0049f365 update / FUN_0049f8b8 render, dispatched from FUN_0047fa76 /
+# FUN_004820ba at sub_anim==10 / sub_anim>0).
+#
+# Synthesised for the PAUSE-MENU encyclopedia arc (docs/plans/pause-menu.md M3+).
+# The nav + caprange re-anchor to PAUSE_READY so retail's slower pause-asset load
+# finishes before the first nav input (load-seam-immune; the v3 identity-join
+# pairs the submenu frames by (PAUSE_READY, offset)).
+description: |
+  Pause → 1×down to ENCYCLOPEDIA → Z opens the type-6 submenu.  Capture the
+  PAUSE_READY+0..300 extent; slice the open + resting catalog region for the
+  port↔retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause)
+duration_ceiling_ms: 180000
