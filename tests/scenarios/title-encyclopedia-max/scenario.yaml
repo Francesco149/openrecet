@@ -1,0 +1,8 @@
+# title-encyclopedia-max — see trace.jsonl.  The title all-banks 図鑑 on the
+# MAXED save (every item discovered), DOWN×1 → A.  Exercises the all-banks scan
+# FUN_0049f012(1) + the populated slot grid (icons/names/frames) the @fresh
+# title-encyclopedia leaves empty.  Capture TITLE_ENCYCLOPEDIA_READY+0..120.
+description: Title → DOWN×1 → A → all-banks 図鑑, MAXED save (populated grid 1:1)
+rng_seed: 1
+max_frames: 8000
+duration_ceiling_ms: 180000

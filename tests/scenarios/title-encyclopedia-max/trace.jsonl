@@ -1,0 +1,25 @@
+# title-encyclopedia-max — the title all-banks ENCYCLOPEDIA (図鑑) on the MAXED
+# (hacked) save f693fbd6 (every item discovered). Exercises the title-specific
+# all-banks scan FUN_0049f012(1) + the POPULATED slot grid (icons + names + slot
+# frames) that the empty @fresh title-encyclopedia can't — verifying the catalog
+# aggregation across banks renders 1:1, not just the chrome.
+#
+# embedded save: f693fbd6333f0967dd84ef3b12494eb324945a8631f8dfb1651d34b48ecc230c
+#
+# Menu nav: with a save present the title cursor seeds to default_cursor =
+# CONTINUE_ANY, and RANKING is always the row right after it (scene_title.c
+# menu_init), so DOWN ×1 lands on RANKING regardless of the exact menu shape; A
+# opens the 図鑑 (submenu_state 3). Same TITLE_ENCYCLOPEDIA_READY +0-stretch join
+# as the @fresh trace (no async load at the title).
+{"savefile": "../../traces/save-roundtrip/_saves/f693fbd6333f0967dd84ef3b12494eb324945a8631f8dfb1651d34b48ecc230c.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0008"}
+{"frame": 6, "buttons": "0x0000"}
+{"frame": 15, "buttons": "0x0010"}
+{"frame": 16, "buttons": "0x0000"}
+{"wait": "TITLE_ENCYCLOPEDIA_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

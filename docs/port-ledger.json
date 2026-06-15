@@ -8941,7 +8941,8 @@
    "src": [
     "src/save_bank.h",
     "src/save_work.c",
-    "src/save_work.h"
+    "src/save_work.h",
+    "src/scene_title.c"
    ]
   },
   {

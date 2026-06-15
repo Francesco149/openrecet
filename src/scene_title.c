@@ -36,6 +36,7 @@
 #include "title_continue_picker.h" /* continue/load slot picker (DAT_09643524==1) */
 #include "save_picker.h"           /* g_save_picker_frame = _DAT_09643574 (shared breathe) */
 #include "save_io.h"               /* save_io_scan_for_title_menu (FUN_0049a324) */
+#include "save_work.h"             /* save_work_sync_from_save — populate g_work for the all-banks 図鑑 */
 #include "music.h"                 /* music_clear_forced_track (FUN_00499560) */
 
 scene_title_menu_t  g_scene_title_menu;
@@ -626,6 +627,16 @@ void scene_title_sim(scene_title_anim_t *anim,
                          * _setup already recomputed it to the first grid cell).
                          * (The port author's "RANKING" name is a misnomer — the
                          * dispatch + render are unambiguously the encyclopedia.) */
+                        /* The engine reads ALL banks' discovery from the WORKING
+                         * arena (DAT_044e3798), which it keeps populated from
+                         * save.dat at the title. The port splits save (g_arena)
+                         * from working (g_work) and only copies on game-load, so
+                         * at the title g_work is empty — sync it from the save
+                         * arena first (FUN_004902aa's memcpy step), else the scan
+                         * finds zero discoveries and the grid renders empty.
+                         * (In-game the pause path's working arena is already the
+                         * loaded game, so this is title-only.) */
+                        save_work_sync_from_save();
                         encyclopedia_setup(1);              /* FUN_0049f012(1) */
                         anim->submenu_state    = 3;        /* DAT_09643524 = 3 */
                         anim->menu_folding_out = 0;        /* slide in        */
