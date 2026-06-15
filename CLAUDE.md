@@ -85,10 +85,15 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   the port); the user refreshes/re-opens the viewer — you both inspect the same identity-aligned
   frames. **Verify via the viewer's OWN replayed/identity-synced panels + `pairs.json`, never a
   `/tmp` diff you pair yourself.** **Shortcut:** the user has a desktop + Start-Menu
-  **"OpenRecet Trace Studio"** launcher (`open_studio.sh`, installed by `install_shortcut.ps1`)
-  that opens the viewer on the CURRENT working trace. `orv3_window … --view/--launch` AUTO-rewrites
-  its pointer (`tools/trace_studio_v3/.studio_current`) on EVERY build, so it always opens the latest
-  window we drove — **you never manually update it; just drive the window you want the user to see.**
+  **"OpenRecet Trace Studio"** launcher (a native Windows batch `C:\openrecet-studio\open-studio.bat`,
+  installed by `tools/trace_studio_v3/install-studio-shortcut.sh`) that opens the viewer on the CURRENT
+  working trace. It `start`s the static `viewer.exe` as a first-class Windows process (NOT via
+  `wsl.exe→bash→setsid`, which raced the WSL-session teardown and "sometimes did nothing" —
+  mirror of OpenSummoners' osr_view launcher). `orv3_window … --view/--launch` AUTO-rewrites BOTH
+  pointers on EVERY build — the WSL `tools/trace_studio_v3/.studio_current` and the Windows
+  `C:\openrecet-studio\studio-current.txt` the batch reads — so it always opens the latest window we
+  drove; **you never manually update it; just drive the window you want the user to see.** (Re-run
+  `install-studio-shortcut.sh` after rebuilding the viewer — it refreshes the C:\ copy.)
   **The user flags divergences as NOTES in the viewer** (note
   mode `m` → drag a box / "note frame" → type; stored Windows-local, identity-labelled).
   **ALWAYS read them FIRST** via `orv3_notes.py <scenario> --render [--feed]` (replays the flagged

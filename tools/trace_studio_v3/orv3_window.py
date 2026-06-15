@@ -61,6 +61,15 @@ WIN_ROOT   = ROOT / "runs" / "studio-v3-windows"
 # + CLAUDE.md "Trace Studio shortcut".
 STUDIO_CURRENT = Path(__file__).resolve().parent / ".studio_current"
 
+# The Windows-side launcher (install-studio-shortcut.sh).  The desktop / Start-Menu
+# "OpenRecet Trace Studio" shortcut runs STUDIO_WIN_BAT, which reads STUDIO_WIN_PTR
+# (line 1 = the viewer arg, a \\wsl.localhost UNC path to the window's view.json) and
+# native-`start`s the static viewer — a first-class Windows process, immune to the
+# wsl.exe→bash→setsid teardown race the old open_studio.sh hit.
+STUDIO_WIN_DIR = Path("/mnt/c/openrecet-studio")
+STUDIO_WIN_PTR = STUDIO_WIN_DIR / "studio-current.txt"
+STUDIO_WIN_BAT = STUDIO_WIN_DIR / "open-studio.bat"
+
 
 def wslpath_w(p: Path) -> str:
     return subprocess.run(["wslpath", "-w", str(Path(p).resolve())],
@@ -68,23 +77,45 @@ def wslpath_w(p: Path) -> str:
 
 
 def write_current_pointer(view_path: Path, label: str) -> None:
-    """Record the just-built window as the 'current working trace' for the shortcut
-    (line 1 = the view.json path, line 2 = a human label). Best-effort; never fatal."""
+    """Record the just-built window as the 'current working trace' for the shortcut.
+    Writes TWO pointers, both best-effort: the WSL-side .studio_current (path + label,
+    for WSL tooling/debug) and — if the Windows shortcut is installed — the Windows-side
+    C:\\openrecet-studio\\studio-current.txt (the viewer arg, the \\\\wsl.localhost UNC
+    path to view.json) that open-studio.bat reads.  Never fatal."""
     try:
         STUDIO_CURRENT.write_text(f"{view_path.resolve()}\n{label}\n")
     except OSError as e:
-        print(f"[view]  (couldn't update the studio pointer: {e})")
+        print(f"[view]  (couldn't update the WSL studio pointer: {e})")
+    if STUDIO_WIN_DIR.is_dir():   # only once the shortcut's been installed
+        try:
+            # No trailing newline — cmd's `set /p` reads the path clean.
+            STUDIO_WIN_PTR.write_text(wslpath_w(view_path))
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"[view]  (couldn't update the Windows studio pointer: {e})")
 
 
 def launch_viewer(view_path: Path) -> None:
-    """Open the native viewer on a view.json, DETACHED (own session) so it outlives the
-    loop process — the v3 equivalent of `trace_studio serve` opening the browser."""
+    """Open the native viewer on a view.json, DETACHED as a first-class Windows process
+    (survives this WSL invocation's teardown).  Prefer the installed launcher batch — the
+    EXACT path the desktop shortcut uses, so --launch and the shortcut behave identically
+    (it reads the studio-current.txt pointer write_current_pointer just refreshed).  Fall
+    back to a direct native `start` of the in-tree viewer if the shortcut isn't installed.
+    cwd=/mnt/c keeps cmd off a \\\\wsl.localhost cwd (the harmless UNC-cwd warning)."""
+    if STUDIO_WIN_BAT.exists():
+        subprocess.run(["cmd.exe", "/c", r"C:\openrecet-studio\open-studio.bat"],
+                       cwd="/mnt/c",
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"[view]  launched via the Trace Studio shortcut batch (current trace)")
+        return
     if not VIEWER_EXE.exists():
         print(f"[view]  viewer.exe not built ({VIEWER_EXE}) — "
               f"`nix develop --command make -C tools/trace_studio_v3/viewer`")
         return
-    print(f"[view]  launching viewer: {VIEWER_EXE.name} {view_path.name}")
-    subprocess.Popen([str(VIEWER_EXE), wslpath_w(view_path)], start_new_session=True)
+    print(f"[view]  launching viewer (native start): {VIEWER_EXE.name} {view_path.name}")
+    subprocess.run(["cmd.exe", "/c", "start", "OpenRecet Trace Studio",
+                    wslpath_w(VIEWER_EXE), wslpath_w(view_path)],
+                   cwd="/mnt/c",
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def caprange_of(scenario: str) -> tuple[int, int]:
