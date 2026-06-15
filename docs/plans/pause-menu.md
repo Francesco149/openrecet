@@ -448,13 +448,47 @@ Draw primitives all already in the port: `render_quad_add`
     **PORT-DEBT(save-card-type-modes):** the mode-6 (guild-rank) / mode-0xb (live snapshot copy)
     card-type branches (un-modeled data, unreachable here). Both behind a dungeon/other-mode
     save trace.
-- **M3+ (later arcs):** the OTHER submenus — Items, Encyclopedia, Options — +
+- **Options submenu (type 2) ✅ DONE + BIT-EXACT + USER-CONFIRMED 1:1 2026-06-15** (`b3288b8`
+  render+nav+tests, `fc14f2d` OPTIONS_READY+nav). The config panel: Music/Sound/Voice volume
+  0..9 + Message Speed (SLOW/MED/FAST) + Unread Text Skip (OFF/ON), A/B exit (saving when dirty).
+  - **Shared render `settings_panel.{c,h}` = `FUN_0049c050`** (dungeonbord.tga backdrop src
+    (0,0,320,360)→dst(slide_x+160,base_y+32) MODULATE; 5 rows: left label @(slide_x+208,
+    row*40+base_y+112) + right value @(slide_x+400), selected row 0xff7f7f00 / rest 0xff7f7f7f
+    under COLOROP=MODULATE2X; the "Saving" overlay (savewindow.tga + the word) on a dirty exit).
+    The engine shares this ONE render with the TITLE settings submenu — `g_scene_state==0 ? 6 : 5`
+    rows (title adds a centered "Clear Save Data"). Strings (Music/Sound/Voice/Message Speed/
+    Unread Text Skip; SLOW/MED/FAST; OFF/ON; the %d/%s formats) recovered from the PE .data/.rdata
+    (Ghidra dropped them). The two SetTextureStageState(COLOROP, ADDSIGNED then MODULATE2X) writes
+    are matched (the second wins; font_draw inherits it).
+  - **Update `pause_options_submenu_update` = `FUN_0047fc44`** (`scene_pause.c`): U/D move the
+    cursor row (%5) + SE 0x146 + the 6-frame cursor slide; L/R adjust the current row's value
+    (clamps: audio 0..9, slider3 0..2, slider4 0..1) — Music re-applies the BGM volume
+    (`audio_fade_apply`), Voice (SE-B) is silent, the rest play SE 0x146; A/B exit → dirty (a
+    slider changed, phase 1) ⇒ exit-save (phase 2, `save_io_commit_slot(-1)` = `FUN_004905a8(-1)`)
+    / clean ⇒ exit-no-save (phase 3), then the submenu closes. + the nav-commit type-2 init
+    (row 0, cursor snap 168,168) + the update/render dispatch.
+  - **Verified** vs the retail v3 cache (new **OPTIONS_READY anchor**, join 239/239, 0 draw-
+    divergent): **gt8 0.0000% BIT-EXACT** at every probed offset across `house-pause-options`
+    (resting + the slider nav: cursor on each row + numeric AND word value changes); draw program
+    **56/56 ALIGNED**. +9 host tests (3290). **OPTIONS_READY** is the robust join anchor — it
+    fires AFTER PAUSE_OPEN on both sides, where PAUSE_READY is STRADDLED by PAUSE_OPEN (pre-load
+    port / post-load retail) so a PAUSE_READY window mispairs.
+- **M3+ (later arcs):** the OTHER submenus — **Items (type 1)** — +
   Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
   fade + action-1/2 pause variants; the unpause cursor restore.
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
-- `pause-submenu-*` — entering Items/Encyclopedia/Options (Save = M4, DONE).
+- `pause-submenu-*` — entering **Items (type 1)** (Save = M4, Encyclopedia = type 6,
+  Options = type 2 all DONE + 1:1).
+- `options-config-arena` — the Options exit-save (`save_io_commit_slot(-1)`) writes the save
+  arena but the port's live slider values aren't synced into the save-header config region
+  (config is module state in audio_fade/settings, not the arena buffer) — pixel-invisible,
+  only the written save bytes' config area differs; closes when the config↔arena model unifies.
+- `settings-panel-title-adopt` (cleanup) — the TITLE settings render
+  (`scene_title.c` `scene_title_settings_render_panel`) is still a SECOND copy of `FUN_0049c050`;
+  it should call the verified shared `settings_panel_render`. Needs a title-settings trace to
+  verify the title path before swapping (the render is render-only, no host test covers it).
 - `pause-exit-confirm` — type-4 return-to-title yes/no + teardown.
 - ~~`pause-unpause-restore`~~ **✅ CLOSED 2026-06-15** (`scene_pause.c` `pause_dispatch`).
   **USER-OBSERVED SYMPTOM 2026-06-14: exiting the pause menu reseated Recette at the

@@ -477,8 +477,29 @@
   detail-combine):** the combine/recipe icon grid is gated on the adventurer model
   (`DAT_0741bed8`, the `pause_status_count` stub 0) — closes with the party port. **✅ USER-CONFIRMED
   1:1 2026-06-15** ("can confirm the encyclopedia feels right and looks 1:1 visually" — parity ledger;
-  the WHOLE encyclopedia screen — grid + nav + detail overlay — is now 1:1). ⇒ the next pause
-  submenus are Items (type 1) + Options (type 2) + the type-4 Exit-confirm.
+  the WHOLE encyclopedia screen — grid + nav + detail overlay — is now 1:1).
+  **OPTIONS submenu (type 2) — config-panel render + nav ✅ DONE + BIT-EXACT + USER-CONFIRMED 1:1
+  2026-06-15** (`b3288b8` render+nav+tests, `fc14f2d` OPTIONS_READY+nav trace; user "can confirm its
+  1:1"): the in-game Options menu — Music/Sound/Voice volume 0..9 numerics + Message Speed
+  SLOW/MED/FAST + Unread Text Skip OFF/ON, A/B exit (saving when dirty). Shared render
+  **`settings_panel.{c,h}`** = `FUN_0049c050` (dungeonbord.tga backdrop + 5 rows label+value,
+  selected row yellow / rest grey under MODULATE2X, "Saving" overlay); the engine shares this ONE
+  render with the TITLE settings submenu — `g_scene_state` picks 5 rows (pause) / 6 (title, adds
+  "Clear Save Data"); the label/value/word strings were recovered from the PE .data/.rdata (the
+  decompile dropped them). Update `pause_options_submenu_update` = `FUN_0047fc44` (U/D row %5, L/R
+  adjust the row's slider + per-row SE + clamps — Music re-applies BGM, Voice is silent — A/B
+  dirty/exit-save → `save_io_commit_slot(-1)`) + the nav-commit type-2 init (row 0 + cursor snap
+  168,168). **gt8 0.0000% BIT-EXACT + draw program 56/56 ALIGNED** on `house-pause-options` (resting
+  AND the slider nav: cursor on every row + numeric/word value changes, every probed offset gt8=0).
+  New **OPTIONS_READY anchor** (port+frida) — the robust v3 join anchor (fires AFTER PAUSE_OPEN on
+  both sides; PAUSE_READY is STRADDLED by PAUSE_OPEN ⇒ the window mispaired, the 0-paired desync —
+  join 239/239 once rebased). +9 host tests (3290). **PORT-DEBT(options-config-arena):** the
+  exit-save writes the arena but the port's live slider values aren't synced into the save-header
+  config region (config is module state, pixel-invisible). **Follow-up (tooling/cleanup):** the
+  TITLE settings render (`scene_title.c` `scene_title_settings_render_panel`, still its own copy)
+  should adopt the shared `settings_panel_render` — needs a title-settings trace to verify (the
+  engine's `FUN_0049c050` is ONE function; the pause copy is now the verified shared one).
+  ⇒ the next pause submenus are Items (type 1) + the type-4 Exit-confirm.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
