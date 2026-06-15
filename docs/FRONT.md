@@ -475,8 +475,10 @@
   `house-pause-encyclopedia-detail` (usual save: examine the Worn Sword). Decompile-var trap caught:
   `local_18`=X-shift / `local_30`=Y-shift (lines 3/4/5 set X=−32, not Y). **PORT-DEBT(encyclopedia-
   detail-combine):** the combine/recipe icon grid is gated on the adventurer model
-  (`DAT_0741bed8`, the `pause_status_count` stub 0) — closes with the party port. **AWAITING USER
-  1:1 CONFIRMATION** (feed).
+  (`DAT_0741bed8`, the `pause_status_count` stub 0) — closes with the party port. **✅ USER-CONFIRMED
+  1:1 2026-06-15** ("can confirm the encyclopedia feels right and looks 1:1 visually" — parity ledger;
+  the WHOLE encyclopedia screen — grid + nav + detail overlay — is now 1:1). ⇒ the next pause
+  submenus are Items (type 1) + Options (type 2) + the type-4 Exit-confirm.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
