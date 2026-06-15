@@ -518,7 +518,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   TITLE settings render (`scene_title.c` `scene_title_settings_render_panel`, still its own copy)
   should adopt the shared `settings_panel_render` — needs a title-settings trace to verify (the
   engine's `FUN_0049c050` is ONE function; the pause copy is now the verified shared one).
-  ⇒ the next pause submenus are Items (type 1) + the type-4 Exit-confirm.
+  **ITEMS submenu (type 1) — inventory grid render + nav ✅ DONE + BIT-EXACT 2026-06-15, AWAITING
+  USER 1:1** (`f639d3d`): ESC → Z opens the in-game Items submenu (entry type 1, index 0/default in
+  the house list) — the player's inventory via the display-menu grid (`FUN_0046b00a`) sliding in
+  from the right (Swords tab: Worn Sword/Dark Sword + category banner + the bottom description
+  panel), over the M3 pause backdrop. Engine HOUSE path: setup `FUN_00480614` type-1 (slide-activate
+  `FUN_004682c5` + `display_menu_open(mode 5,1)` inventory scan + cursor snap), update `FUN_0047ff40`
+  (`display_menu_update(1)` grid nav + B-close), render `FUN_0048196b`→`FUN_0046b00a(640-sub_anim*64,
+  0)`. Threaded a `slide_x` param through `display_menu_render` (shop/guild pass 0.0f). **Also FIXED a
+  latent SHARED-display_menu price-label bug the Items submenu exposed:** the engine keys the
+  description price label off the SCENE (`DAT_0438b1c0`) — guild (scene 6) "Purchase/Sell Price-",
+  every other scene "Base Price-" — but the port keyed off the display-menu MODE, and mode 5 is shared
+  by the guild SELL *and* the pause Items, so it mislabeled the pause Items "Sell Price-" (now
+  scene-gated; the guild buy stays "Purchase Price-", unchanged). New **ITEMS_READY anchor** (port +
+  frida) — fires AFTER PAUSE_OPEN on both sides (PAUSE_READY straddle), v3 **join 199/199** across the
+  +4410-frame async pause-load stretch (was 43/199). **Verified vs the retail v3 cache on the new
+  `house-pause-items` trace: the grid + rows + description + the corrected "Base Price-" label are
+  PIXEL-BIT-EXACT** (description panel gt8 0.0000%/0 px; absolute best resting pair gt8 0.0422%); the
+  ONLY residual is the shared hand-cursor's sub-pixel BOB (~330 px, x443-510 y130-179) at the 1-frame
+  async-pause seam — the accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292).
+  **PORT-DEBT(pause-items-dungeon):** the dungeon variant (display_menu mode 6 + place-an-item /
+  use-medicine / equip-readout, `FUN_0047ff40` DAT_074b28a4!=0 branch) — needs a dungeon-pause trace.
+  ⇒ the last base pause submenu is the **type-4 Exit-confirm** ("Returning to title screen?").
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

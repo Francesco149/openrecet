@@ -473,14 +473,54 @@ Draw primitives all already in the port: `render_quad_add`
     **56/56 ALIGNED**. +9 host tests (3290). **OPTIONS_READY** is the robust join anchor — it
     fires AFTER PAUSE_OPEN on both sides, where PAUSE_READY is STRADDLED by PAUSE_OPEN (pre-load
     port / post-load retail) so a PAUSE_READY window mispairs.
-- **M3+ (later arcs):** the OTHER submenus — **Items (type 1)** — +
-  Exit-confirm (type 4, the `sub_anim>0` dispatch L83931-83952); the b1b0==1 system.bmp
-  fade + action-1/2 pause variants; the unpause cursor restore.
+- **Items submenu (type 1) ✅ DONE + BIT-EXACT 2026-06-15, AWAITING USER 1:1** (`f639d3d`). The
+  in-game inventory grid: ESC → Z (Items is index 0/default in the house list) opens the
+  display-menu (`FUN_0046b00a`) sliding in from the right — the player's items grouped by
+  category (Swords tab: Worn Sword/Dark Sword), the category banner, the bottom description panel
+  (Base Price / Number possessed), over the M3 pause backdrop.
+  - **Setup** nav-commit `FUN_00480614` type-1 (L82682-82693): `FUN_004682c5` slide-activate +
+    `display_menu_open(mode 5, 1)` (scans the working-bank inventory → category tabs, snaps the
+    shared hand cursor to the first item). The dungeon variant picks mode 6 (gated saved_mode==1
+    && stage_type>0) ⇒ PORT-DEBT; the house stage_type is 0 so mode 5 is always taken.
+  - **Update** `FUN_0047ff40` (house path, `pause_items_submenu_update`): `display_menu_update(1)`
+    grid nav → 3 pick-up SE 0x143 / 2 CANCEL (B → close: sub_dir=0, sel_anim=0, hide cursor
+    `FUN_00435612`, slide inactive `FUN_004682d0`, SE 0x13d) / 1 CONFIRM (house exits — place-mode
+    is dungeon-only). The place / use-medicine / equip paths (DAT_074b28a4!=0) are PORT-DEBT.
+  - **Render** `FUN_0048196b` → `FUN_0046b00a(640 - sub_anim*64, 0)`: the grid slides in (slide_x
+    640→0 as sub_anim 0→10); the dungeon medicine/equip option loop is gated *DAT_068dd2f0>0
+    (house skips it). Threaded a `slide_x` param (FUN_0046b00a param_1) through
+    `display_menu_render` — the shop (main.c) + guild (scene_guild.c) call sites pass 0.0f.
+  - **Price-label fix (latent SHARED-display_menu bug the Items submenu EXPOSED):** the engine keys
+    the description price label off the SCENE (`DAT_0438b1c0`) — guild (scene 6) buy
+    (`FUN_00491612`==0)→"Purchase Price-" / sell→"Sell Price-", **every other scene→"Base Price-"**.
+    The port keyed off the display-menu MODE, and mode 5 is shared by the guild SELL *and* the
+    pause Items, so it mislabeled the pause Items "Sell Price-". Now scene-gated (scene 6 splits
+    buy/sell by mode 7/5, in lockstep with FUN_00491612); the guild buy stays "Purchase Price-".
+    Caught by the v3 draw-program + pixel diff (the description text diverged), `feedback_verify_1to1`.
+  - **ITEMS_READY anchor** (anchor_trace.c + the frida agent) — the rising edge of "Items submenu
+    navigable" (scene 9, sub_anim==10, Items selected); fires AFTER PAUSE_OPEN on both sides
+    (PAUSE_READY straddle), so the v3 join bridges the +4410-frame async pause-load stretch
+    (**199/199**, was 43/199) and the shared hand-cursor bob aligns picker-time-relative.
+  - **Verified** vs the retail v3 cache on the new `house-pause-items` trace (ESC → Z →
+    {ITEMS_READY} → capture): the grid + item rows + description + the corrected "Base Price-"
+    label are **PIXEL-BIT-EXACT** (description panel gt8 0.0000% / 0 px; absolute best resting pair
+    gt8 0.0422%). The ONLY residual is the shared hand-cursor's sub-pixel BOB (~330 px, x443-510
+    y130-179, = the port-only draw b8b7 vs retail's cursor) at the 1-frame async-pause seam — the
+    accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292). Feed "Pause ITEMS
+    submenu (type 1) — RETAIL | PORT | diff".
+- **M3+ (later arcs):** the LAST base submenu — **Exit-confirm (type 4)** ("Returning to title
+  screen? Are you sure?", the `FUN_0047fa76` DAT_074b2830 branch → quit-to-title teardown +
+  `FUN_004820ba` exit-confirm dispatch); the b1b0==1 system.bmp fade + action-1/2 pause variants;
+  the unpause cursor restore.
 
 ## PORT-DEBT registry (this arc)
 - `pause-status-count` — `DAT_0741bed8` party count stubbed 0 (no Status entry).
-- `pause-submenu-*` — entering **Items (type 1)** (Save = M4, Encyclopedia = type 6,
-  Options = type 2 all DONE + 1:1).
+- `pause-submenu-*` — the only base submenu left is the **type-4 Exit-confirm** (Items = type 1,
+  Save = M4, Encyclopedia = type 6, Options = type 2 all DONE + 1:1).
+- `pause-items-dungeon` — the Items submenu dungeon variant: display_menu **mode 6** (vs the
+  house's mode 5) + the place-an-item / use-medicine / equip-readout paths (`FUN_0047ff40`
+  DAT_074b28a4!=0 branch + the FUN_0048196b dungeon option loop). Gated saved_mode==1 &&
+  *DAT_068dd2f0>0 — inert in the house. Needs a dungeon-pause trace.
 - `options-config-arena` — the Options exit-save (`save_io_commit_slot(-1)`) writes the save
   arena but the port's live slider values aren't synced into the save-header config region
   (config is module state in audio_fade/settings, not the arena buffer) — pixel-invisible,
