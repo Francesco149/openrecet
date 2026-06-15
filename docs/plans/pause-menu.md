@@ -562,10 +562,14 @@ Draw primitives all already in the port: `render_quad_add`
   arena but the port's live slider values aren't synced into the save-header config region
   (config is module state in audio_fade/settings, not the arena buffer) — pixel-invisible,
   only the written save bytes' config area differs; closes when the config↔arena model unifies.
-- `settings-panel-title-adopt` (cleanup) — the TITLE settings render
-  (`scene_title.c` `scene_title_settings_render_panel`) is still a SECOND copy of `FUN_0049c050`;
-  it should call the verified shared `settings_panel_render`. Needs a title-settings trace to
-  verify the title path before swapping (the render is render-only, no host test covers it).
+- ~~`settings-panel-title-adopt`~~ **✅ CLOSED 2026-06-15.** The TITLE settings render
+  (`scene_title.c` `scene_title_settings_render_panel`) was a SECOND copy of `FUN_0049c050`; now a
+  thin wrapper calling the verified shared `settings_panel_render` (passing its own
+  `SCENE_TITLE_TEX_DUNGEON`; savewindow NULL). New `TITLE_SETTINGS_READY` anchor + v3-converted
+  `title-options` scenario; verified vs the retail v3 cache — draw program **73=73 ALIGNED**, pixels
+  **0/786432 differ BIT-IDENTICAL** (the 6-row title variant incl. "Clear Save Data"). +1 host test.
+  PORT-DEBT(title-settings-saving): the dirty-exit "Saving" overlay stays unported (the title doesn't
+  load savewindow.tga ⇒ NULL plaque; inert unless a setting is changed + exited).
 - ~~`pause-exit-confirm`~~ **DONE 2026-06-15** (dialog + Yes/No + No-cancel + fade + scene→0 +
   title re-init, host-tested + pixel-bit-exact) — see the Exit-confirm milestone above.
 - ~~`exit-title-reinit`~~ **✅ CLOSED 2026-06-15** (`8303fef`). The Yes→title landed in the WRONG

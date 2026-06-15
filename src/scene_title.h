@@ -281,6 +281,11 @@ void scene_title_reinit(void);
  * so this is a clean v3 join anchor (picker-time-relative). */
 int scene_title_continue_picker_navigable(int scene_mode);
 
+/* TITLE_SETTINGS_READY anchor source — nonzero when the Options/settings
+ * submenu (submenu_state 2) is fully open + navigable (scene_mode == TITLE,
+ * submenu_state == 2, cursor_anim == 10). No async load ⇒ a clean v3 join. */
+int scene_title_settings_navigable(int scene_mode);
+
 #ifdef _WIN32
 
 #define COBJMACROS

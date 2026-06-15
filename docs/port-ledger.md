@@ -479,7 +479,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x491de0 | FUN_00491de0 | 1248 | ✓ | scene_guild.c |
 | 0x4922c0 | FUN_004922c0 | 4950 | ✓ | scene_guild.c, scene_guild.h, sim.c |
 | 0x493616 | FUN_00493616 | 2613 | ✓ | scene_guild.c |
-| 0x49404b | FUN_0049404b | 2600 | ✓ | scene_guild.c |
+| 0x49404b | FUN_0049404b | 2600 | ✓ | scene_guild.c, scene_title.c |
 | 0x494a73 | FUN_00494a73 | 561 | ✓ | main.c, scene_guild.c, scene_guild.h |
 | 0x49791f | FUN_0049791f | 868 | ✓ | chara_skills.h |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
@@ -499,7 +499,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | save_picker.c, save_picker.h, scene_pause.c (+3) |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |
-| 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_pause.c, scene_title.c, settings_panel.c (+1) |
+| 0x49c050 | FUN_0049c050 | 1001 | ✓ | anchor_trace.c, anchor_trace.h, scene_pause.c (+3) |
 | 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
 | 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |

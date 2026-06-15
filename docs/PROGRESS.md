@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-15 — title Options/settings panel adopted onto `settings_panel_render` (bit-identical)
+
+The title's `scene_title_settings_render_panel` was a 2nd copy of FUN_0049c050 (the config
+panel). The pause Options arc had produced the verified shared `settings_panel_render`; the
+engine shares the ONE FUN_0049c050 between the title (6 rows, adds "Clear Save Data") and the
+pause (5 rows), keyed by `g_scene_state`. Made the title a thin wrapper calling the shared
+render — same single-render structure the engine has.
+
+- **`scene_title_settings_render_panel`** now calls `settings_panel_render(dev,
+  &g_tex[SCENE_TITLE_TEX_DUNGEON], NULL, ox, oy, cursor_row, saving_flag)`: the title passes its
+  own dungeonbord instance; savewindow is NULL (the title doesn't load savewindow.tga ⇒ the
+  dirty-exit "Saving" overlay stays PORT-DEBT, inert unless a setting is changed + exited). This
+  restores fidelity the old copy dropped: the engine's ADDSIGNED→MODULATE2X back-to-back COLOROP
+  writes and the saving overlay.
+- **`TITLE_SETTINGS_READY` anchor** (`anchor_trace.{c,h}`, `main.c`, the frida agent) — rising edge
+  of (scene 0 / submenu_state 2 / cursor_anim 10). Like the picker, no async load ⇒ a clean +0
+  join. The v2-era `title-options` scenario was converted to a v3 `{caprange}` window. +1 host
+  test (3300).
+- **Verified vs the retail v3 cache** (`title-options-522438b9`, 39/39 paired @ +0 stretch): the
+  draw program is **73=73 ALIGNED (0 divergent)** and pixels are **0/786432 differ — BIT-IDENTICAL**
+  across all settled pairs (the 6-row title variant incl. "Clear Save Data"). The settings panel is
+  fully static, so unlike the picker there's no breathe seam — perfectly bit-identical. (The port
+  TAS ran 40 frames vs retail's 120 — a post-wait TAS-length quirk on `@fresh`; the static panel is
+  fully verified on the 39 aligned frames.)
+
 ## 2026-06-15 — title Continue/load PICKER unified onto `save_picker_render` (bit-exact)
 
 The title-screen Continue/LOAD-GAME slot picker (`FUN_0049c644` → `FUN_0049b556`) had its

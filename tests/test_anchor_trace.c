@@ -593,6 +593,33 @@ int test_anchor_title_picker_ready(void)
     return 0;
 }
 
+/* TITLE_SETTINGS_READY fires on the rising edge of title_settings_active (the
+ * Options/settings submenu became navigable), once per open. Distinct from
+ * TITLE_PICKER_READY (which keys submenu_state 1). */
+int test_anchor_title_settings_ready(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 0;   /* TITLE */
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT baseline, TITLE */
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* settings sliding in: no anchor */
+    w.title_settings_active = 1;                  /* fully open + navigable */
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* rising edge → TITLE_SETTINGS_READY */
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* held: no re-fire */
+    w.title_settings_active = 0;                  /* B closes */
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);
+    w.title_settings_active = 1;                  /* re-open re-fires */
+    anchor_trace_tick(&st, 5, w, rec_sink, &r);
+
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_SETTINGS_READY"), 2);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "TITLE_SETTINGS_READY")], 2);
+    /* Settings (submenu_state 2) must NOT fire the picker anchor (submenu_state 1). */
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_PICKER_READY"), 0);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

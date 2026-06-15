@@ -591,9 +591,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   "replace" draws = the off-screen wing portraits' OOB-perm garbage (invisible, UB on both sides).
   **PORT-DEBT(title-picker-overwrite):** the code-4/6 new-game "choose a file" overwrite-dim +
   per-slot avail (`g_save_picker_avail`) stay unported (inert for a normal Continue; needs a
-  new-game-into-slot trace). Follow-ups in the title arc: **`settings-panel-title-adopt`** (the
-  title SETTINGS render should likewise adopt the shared `settings_panel_render`) + the title load
-  CONFIRM (`title-load-confirm`) → in-game load.
+  new-game-into-slot trace).
+- **TITLE-SCREEN RENDER ARC → Options/settings panel adopted onto `settings_panel_render` ✅ DONE +
+  BIT-IDENTICAL 2026-06-15, AWAITING USER 1:1.** The title's `scene_title_settings_render_panel` was
+  a 2nd copy of `FUN_0049c050`; the pause Options arc had produced the verified shared
+  `settings_panel_render` (the engine shares ONE FUN_0049c050 — `g_scene_state` picks 6 title rows
+  [adds "Clear Save Data"] / 5 pause rows). Made the title a thin wrapper calling the shared render
+  with its OWN dungeonbord (`SCENE_TITLE_TEX_DUNGEON`; savewindow NULL ⇒ the dirty-exit "Saving"
+  overlay stays PORT-DEBT, inert for view/nav). Restores fidelity the old copy dropped (the engine's
+  ADDSIGNED→MODULATE2X back-to-back COLOROP + the saving overlay). New **`TITLE_SETTINGS_READY`
+  anchor** (port + frida; scene 0 / submenu_state 2 / cursor_anim 10 — no async load ⇒ +0-stretch
+  join) on the v3-converted `title-options` scenario. **Verified vs the retail v3 cache**
+  (`title-options-522438b9`, 39/39 paired @ +0): draw program **73=73 ALIGNED (0 divergent)**,
+  pixels **0/786432 differ — BIT-IDENTICAL** across all settled pairs. +1 host test (3300). (Port
+  TAS ran 40 frames vs retail's 120 — a post-wait TAS-length quirk on `@fresh`; the static panel is
+  fully verified on the 39 aligned frames.) Title arc remaining: **`title-load-confirm`** (A on the
+  picker → in-game load).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

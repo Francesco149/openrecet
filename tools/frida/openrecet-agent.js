@@ -760,6 +760,7 @@ let g_anchor_prev_encyclopedia = false; // previous-frame Encyclopedia submenu n
 let g_anchor_prev_options = false; // previous-frame Options submenu navigable (type 2)
 let g_anchor_prev_items = false;   // previous-frame Items submenu navigable (type 1)
 let g_anchor_prev_titlepicker = false; // previous-frame title Continue/load picker navigable
+let g_anchor_prev_titlesettings = false; // previous-frame title Options/settings submenu navigable
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3217,10 +3218,11 @@ function anchorTick(frame, devicePtr) {
     // fully open + navigable — scene==0 (TITLE), submenu_state==1, cursor_anim==10
     // (the 0..10 fold-in tween at its cap). Mirror of scene_title_continue_picker
     // _navigable. No async load, so it fires picker-time-relative on both sides.
-    const titlePickerActive =
-        scene === ANCHOR_SCENE_TITLE &&
-        rva(ADDR.var_title_submenu_state).readS32() === 1 &&
-        rva(ADDR.var_title_cursor_anim).readS32() === 10;
+    const titleSubmenu = (scene === ANCHOR_SCENE_TITLE &&
+                          rva(ADDR.var_title_cursor_anim).readS32() === 10)
+                         ? rva(ADDR.var_title_submenu_state).readS32() : 0;
+    const titlePickerActive   = (titleSubmenu === 1);   // TITLE_PICKER_READY
+    const titleSettingsActive = (titleSubmenu === 2);   // TITLE_SETTINGS_READY
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -3238,6 +3240,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_options = optionsActive;
         g_anchor_prev_items = itemsActive;
         g_anchor_prev_titlepicker = titlePickerActive;
+        g_anchor_prev_titlesettings = titleSettingsActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3412,6 +3415,14 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('TITLE_PICKER_READY', frame);
         anchorCaptureSchedule('TITLE_PICKER_READY', frame, devicePtr);
     }
+    // TITLE_SETTINGS_READY — the title Options/settings submenu just became
+    // navigable (rising edge). Like the picker, no async load ⇒ a clean v3 join
+    // for the title settings render (FUN_0049c050). Mirror of
+    // anchor_trace.c ev_title_settings_ready.
+    if (!g_anchor_prev_titlesettings && titleSettingsActive) {
+        sendAnchor('TITLE_SETTINGS_READY', frame);
+        anchorCaptureSchedule('TITLE_SETTINGS_READY', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -3427,6 +3438,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_options = optionsActive;
     g_anchor_prev_items = itemsActive;
     g_anchor_prev_titlepicker = titlePickerActive;
+    g_anchor_prev_titlesettings = titleSettingsActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

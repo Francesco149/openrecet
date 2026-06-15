@@ -9359,7 +9359,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene_guild.c"
+    "src/scene_guild.c",
+    "src/scene_title.c"
    ]
   },
   {
@@ -10160,6 +10161,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/anchor_trace.c",
+    "src/anchor_trace.h",
     "src/scene_pause.c",
     "src/scene_title.c",
     "src/settings_panel.c",

@@ -1,9 +1,29 @@
-# embedded save: 739e8ba655601ba5bf08d447afe1bd0972921fc3fb0e599da8d17cbd1601778b (override via --save-override on replay; see tools/trace_save.py)
-{"frame":0,"buttons":"0x0000"}
-{"frame":5,"buttons":"0x0008"}
-{"frame":6,"buttons":"0x0000"}
-{"frame":10,"buttons":"0x0008"}
-{"frame":11,"buttons":"0x0000"}
-{"frame":15,"buttons":"0x0010"}
-{"frame":16,"buttons":"0x0000"}
+# title-options — open the title-screen Options/settings submenu and view the
+# config panel (FUN_0049c050, ported as the shared settings_panel.{c,h}).
+#
+# Fresh boot (@fresh ⇒ no save): the title menu is [New Game, Ranking, Options,
+# Exit] with the cursor on New Game, so DOWN ×2 lands on Options and A opens the
+# settings submenu (submenu_state 2); the panel slides in (cursor_anim 0→10).
+#
+# v3 sync: anchor the capture at TITLE_SETTINGS_READY — the rising edge of
+# "settings fully open + navigable" (scene 0, submenu_state 2, cursor_anim 10).
+# Like the title picker the settings submenu has NO async asset load, so this
+# fires at the same submenu-relative frame on both sides ⇒ a clean +0-stretch
+# v3 join. Verifies the 6-row TITLE variant of the shared render (adds the
+# centered "Clear Save Data" row 5 the pause 5-row variant doesn't have).
+# No {phasepin} (the title carries no db054 / sim-frame; a fixed rngseed keeps
+# the boot deterministic).
 {"savefile": "@fresh"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0008"}
+{"frame": 6, "buttons": "0x0000"}
+{"frame": 10, "buttons": "0x0008"}
+{"frame": 11, "buttons": "0x0000"}
+{"frame": 15, "buttons": "0x0010"}
+{"frame": 16, "buttons": "0x0000"}
+{"wait": "TITLE_SETTINGS_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

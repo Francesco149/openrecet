@@ -29,6 +29,7 @@
 #include "save_bank.h"    /* save_header_set_*_slider for persistence */
 #include "scene.h"        /* g_scene_state transition on fade complete */
 #include "settings.h"     /* non-audio rows 3 & 4 */
+#include "settings_panel.h" /* the shared FUN_0049c050 render (pause Options arc) */
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
 #include "title_save_dialog.h" /* FUN_00434d6a/4356cd/etc. — title-frame cluster */
 #include "title_continue_picker.h" /* continue/load slot picker (DAT_09643524==1) */
@@ -726,6 +727,18 @@ int scene_title_continue_picker_navigable(int scene_mode)
         && g_scene_title_anim.cursor_anim == 10;
 }
 
+/* TITLE_SETTINGS_READY source — the Options/settings submenu (submenu_state 2)
+ * is fully open and navigable: scene == TITLE, submenu_state == 2, cursor_anim
+ * == 10 (the gate its nav runs under, scene_title.c `cursor_anim == 10 &&
+ * submenu_state == 2`). Like the picker, no async load ⇒ a clean +0-stretch v3
+ * join anchor for the title settings render (FUN_0049c050). */
+int scene_title_settings_navigable(int scene_mode)
+{
+    return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
+        && g_scene_title_anim.submenu_state == 2
+        && g_scene_title_anim.cursor_anim == 10;
+}
+
 #ifdef _WIN32
 
 static sprite_t g_tex[SCENE_TITLE_TEX_COUNT];
@@ -820,112 +833,31 @@ static void title_quad(IDirect3DDevice8 *dev, int slot,
 
 /* ─── settings submenu render (FUN_0049c050) ─────────────────────────
  *
- * Draws the settings panel: dungeonbord BG + 6 row labels + 5 slider
- * value strings + (dormant) Saving overlay. Caller-positioned via the
- * (origin_x, origin_y) pair that the engine derives from cursor_anim
- * for the slide-in animation.
+ * The title settings submenu and the pause Options submenu are the SAME
+ * engine render — FUN_0049c050, called from BOTH the title (FUN_0049c644)
+ * and the pause (FUN_0049404b).  Drive the ONE verified shared port
+ * (settings_panel_render, settings_panel.c — the pause Options arc's, bit-
+ * exact vs retail) instead of a divergent second copy.  g_scene_state picks
+ * the row count: 6 on the title (adds the centered "Clear Save Data") / 5 in
+ * the pause.  This also restores fidelity the old title copy had dropped: the
+ * engine's ADDSIGNED→MODULATE2X back-to-back COLOROP writes (L35-36) and the
+ * dirty-exit "Saving" overlay.
  *
- * Engine quirks reproduced:
- *   - Two SetTextureStageState writes back-to-back at FUN_0049c050 L35-36
- *     (ADDSIGNED=8 then MODULATE2X=5); the second wins. We just write
- *     MODULATE2X once.
- *   - Row count is 5 in-game (when DAT_0438b1c0 != 0) but 6 on the
- *     title scene; this function only services the title path so we
- *     hard-code 6 with a comment for when pause-menu lands.
- *   - The five row-color formulas at L47-76 of FUN_0049c050 are three
- *     different bit-twiddle inlines that all evaluate to the same
- *     yellow/grey pair (0xff7f7f00 / 0xff7f7f7f) — we collapse them.
- *   - "Saving" overlay (param_4 != 0) is dormant in our port because
- *     the settings-exit handler clears `settings_dirty` synchronously
- *     before the next render frame. Engine reproduces a one-frame
- *     visible blip when save IO runs; we drop the visuals entirely
- *     until savewindow.tga loading is wired (would need a boot-time
- *     texture set, not just title-scene assets).
+ * The title passes its own dungeonbord instance (SCENE_TITLE_TEX_DUNGEON);
+ * savewindow is NULL because the title doesn't load savewindow.tga (the
+ * dirty-exit "Saving" overlay stays PORT-DEBT — inert unless a setting is
+ * changed + exited, which the resting/nav scenarios never do).
  *
- * `cursor_row` is the active settings row 0..5. `saving_flag` mirrors
- * the engine's `DAT_09643560 == 2` test — wired through for fidelity
- * even though the branch never fires today.
+ * `cursor_row` = the active settings row 0..5; `saving_flag` mirrors the
+ * engine's `DAT_09643560 == 2` test (passed through for fidelity).
  */
 static void scene_title_settings_render_panel(IDirect3DDevice8 *dev,
                                               float ox, float oy,
                                               int cursor_row,
                                               int saving_flag)
 {
-    static const char *const row_labels[5] = {
-        "Music", "Sound", "Voice", "Message Speed", "Unread Text Skip",
-    };
-    static const char *const slider3_labels[3] = { "SLOW", "MED", "FAST" };
-    static const char *const slider4_labels[2] = { "OFF", "ON" };
-
-    /* Panel BG (320×360 region of dungeonbord.tga) — MODULATE blend
-     * is already active from the caller's restore at L706. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-    title_quad(dev, SCENE_TITLE_TEX_DUNGEON,
-               ox + 160.0f, oy + 32.0f, 320.0f, 360.0f,
-                 0.0f,   0.0f, 320.0f, 360.0f,
-               0xFFFFFFFFu);
-
-    /* Switch to MODULATE2X so the per-row diffuse colors brighten
-     * against the panel BG (engine FUN_0049c050 L36). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
-
-    const int row_count = 6;       /* title scene; in-game would pass 5 */
-    const float label_x = ox + 208.0f;
-    const float label_y = oy + 112.0f;
-
-    for (int i = 0; i < row_count; i++) {
-        const uint32_t color = (i == cursor_row) ? 0xFF7F7F00u
-                                                 : 0xFF7F7F7Fu;
-        if (i == 5) {
-            /* Clear Save Data — centered at (ox+320, oy+312). */
-            font_draw_text_centered(dev, ox + 320.0f, oy + 312.0f,
-                                    "Clear Save Data", color, 1.0f);
-        } else {
-            font_draw_text(dev, label_x, label_y + (float)i * 40.0f,
-                           row_labels[i], color, 1.0f);
-        }
-    }
-
-    /* Slider value column at ox+400 — engine: (param_1_new - 48) + 240. */
-    char buf[16];
-    const float value_x = ox + 400.0f;
-
-    snprintf(buf, sizeof buf, "%d",
-             audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM));
-    font_draw_text(dev, value_x, label_y +   0.0f, buf,
-                   (cursor_row == 0) ? 0xFF7F7F00u : 0xFF7F7F7Fu, 1.0f);
-
-    snprintf(buf, sizeof buf, "%d",
-             audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A));
-    font_draw_text(dev, value_x, label_y +  40.0f, buf,
-                   (cursor_row == 1) ? 0xFF7F7F00u : 0xFF7F7F7Fu, 1.0f);
-
-    snprintf(buf, sizeof buf, "%d",
-             audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B));
-    font_draw_text(dev, value_x, label_y +  80.0f, buf,
-                   (cursor_row == 2) ? 0xFF7F7F00u : 0xFF7F7F7Fu, 1.0f);
-
-    int s3 = settings_get_slider3();
-    if (s3 < 0) s3 = 0; else if (s3 > 2) s3 = 2;
-    font_draw_text(dev, value_x, label_y + 120.0f, slider3_labels[s3],
-                   (cursor_row == 3) ? 0xFF7F7F00u : 0xFF7F7F7Fu, 1.0f);
-
-    int s4 = settings_get_slider4();
-    if (s4 < 0) s4 = 0; else if (s4 > 1) s4 = 1;
-    const uint32_t row4_color = (cursor_row == 4) ? 0xFF7F7F00u
-                                                  : 0xFF7F7F7Fu;
-    font_draw_text(dev, value_x, label_y + 160.0f, slider4_labels[s4],
-                   row4_color, 1.0f);
-
-    /* Dormant "Saving" overlay — see header comment. Engine: L77-90.
-     * `saving_flag` is the only way this branch fires; the settings
-     * exit handler currently clears `settings_dirty` synchronously
-     * so the caller always passes 0. Left wired for future save-IO
-     * port. */
-    (void)saving_flag;
-
-    /* Restore MODULATE — engine: L91. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    settings_panel_render(dev, &g_tex[SCENE_TITLE_TEX_DUNGEON], NULL,
+                          ox, oy, cursor_row, saving_flag);
 }
 
 /* ── Continue / load slot-picker panel (submenu_state == 1) ──

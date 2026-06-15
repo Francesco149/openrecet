@@ -248,6 +248,15 @@ static int ev_title_picker_ready(const struct anchor_world *p, const struct anch
     return !p->title_picker_active && c->title_picker_active;
 }
 
+/* The TITLE-screen Options/settings submenu (submenu_state 2) just became
+ * navigable (rising edge of title_settings_active). Like TITLE_PICKER_READY: no
+ * async load ⇒ a clean +0-stretch v3 join for the title settings render
+ * (FUN_0049c050). Fires once per open. */
+static int ev_title_settings_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->title_settings_active && c->title_settings_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -283,6 +292,7 @@ static const struct anchor_def g_anchors[] = {
     { "ITEMS_READY",           ev_items_ready     },
     { "TITLE_RETURN",          ev_title_return    },
     { "TITLE_PICKER_READY",    ev_title_picker_ready },
+    { "TITLE_SETTINGS_READY",  ev_title_settings_ready },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

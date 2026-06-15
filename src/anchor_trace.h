@@ -144,6 +144,13 @@ struct anchor_world {
      * relative frame on both sides — the clean v3 join anchor for the title
      * Continue/load picker render (FUN_0049b556). 0 outside the open picker. */
     int title_picker_active;
+
+    /* 1 while the TITLE-screen Options/settings submenu (submenu_state 2) is
+     * fully open + navigable (scene 0, submenu_state == 2, cursor_anim == 10).
+     * Drives TITLE_SETTINGS_READY (0→1) — like the picker, no async load, so a
+     * clean +0-stretch v3 join for the title settings render (FUN_0049c050). 0
+     * outside the open settings submenu. */
+    int title_settings_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;
