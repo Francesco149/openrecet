@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 430,
-  "unported": 2034,
+  "ported": 433,
+  "unported": 2031,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 514,
-  "pct_touched": 20.2,
+  "touched": 517,
+  "pct_touched": 20.3,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -635,6 +635,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/render_quad.c",
     "src/render_quad.h",
     "src/scene_guild.c"
@@ -2725,6 +2726,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene_pause.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
@@ -5716,6 +5718,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/chara_equip.c",
+    "src/chara_equip.h",
     "src/encyclopedia.c",
     "src/encyclopedia.h"
    ]
@@ -7562,7 +7566,6 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
-    "src/encyclopedia.c",
     "src/font_draw.h",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
@@ -8108,8 +8111,10 @@
    "size": 85,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x4848c4",
@@ -8117,8 +8122,10 @@
    "size": 132,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x484948",
@@ -8126,8 +8133,10 @@
    "size": 94,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/encyclopedia.c"
+   ]
   },
   {
    "va": "0x4849a6",
@@ -10433,6 +10442,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/encyclopedia.c",
     "src/scene1_display_menu.c"
    ]
   },

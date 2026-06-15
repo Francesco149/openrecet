@@ -269,6 +269,14 @@ static void distribute_slot_stats(uint32_t slot_val, int32_t sum[4])
     }
 }
 
+/* Public entry — the encyclopedia item-detail overlay (FUN_0046a336 Effect line
+ * + the HP/SP recovery getters) distributes an item's stats the same way.
+ * Caller zeroes `sum[4]` first (this ADDS, per the engine). */
+void chara_equip_item_stats(uint32_t slot_val, int32_t sum[4])
+{
+    distribute_slot_stats(slot_val, sum);
+}
+
 /* ─── FUN_004844ef — full chara stat aggregator ─────────────────────── */
 
 void chara_equip_recompute_aggregate(void)

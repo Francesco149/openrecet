@@ -384,11 +384,16 @@ int encyclopedia_update(void)
 
 #ifdef _WIN32
 
-#include "render_quad.h"   /* render_quad_bind/add/flush/state_setup */
-#include "font_draw.h"     /* font_draw_text (FUN_0047ca05) / _centered (FUN_0047d14c) */
+#include "render_quad.h"   /* render_quad_bind/add/flush + _add_mirrored (FUN_00404e61) */
+#include "font_draw.h"     /* font_draw_text / _centered / _right (FUN_0047ca05/d14c/d2db) */
 #include "sysassets.h"     /* g_sysassets.item_win_tga / data_win_tga / item_icons[] */
 #include "scene_pause.h"   /* g_scene_pause_pause (DAT_073d86a8 pause.tga board) */
+#include "chara_equip.h"   /* chara_equip_item_stats (FUN_0048093f) — the detail Effect line */
 #include <stdio.h>
+
+/* FUN_00435644 — capture the shared cursor's resting target (pure-C, in
+ * title_save_dialog.c; declared here for the detail-overlay panel placement). */
+void title_save_dialog_cursor_capture_target(float *x, float *y);
 
 /* FUN_00469abb — comma-grouped number (the price). */
 static void enc_format_number(char *out, size_t n, int v)
@@ -548,12 +553,194 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py)
         encyclopedia_detail_render(d);
 }
 
-/* FUN_0046a336 — the item-detail overlay.  PORT-DEBT(encyclopedia-detail):
- * the big item-detail popup is the next milestone; stubbed so the grid lands
- * first.  The simple open+view trace never presses the detail button. */
+/* ── item-detail overlay helpers (FUN_0049ef78 / FUN_004848c4 / FUN_00484948 /
+ *    FUN_0048486f) ── */
+
+/* FUN_0049ef78 — does the (encoded) item's category name start with `name`? */
+static int enc_category_is(int item_enc, const char *name)
+{
+    int rec = tables_item_find_slot_by_id(&g_item, item_enc >> 6);
+    if (rec < 0) return 0;
+    int c = g_item.records[rec].category;
+    if (c < 0 || c >= ITEM_CATEGORY_COUNT) return 0;
+    return memcmp(g_item.categories[c].singular, name, 4) == 0;
+}
+
+/* FUN_004848c4 — HP recovery (stat slot 0), scaled by the quality nibble. */
+static int enc_hp_recovery(uint32_t item_enc)
+{
+    int32_t s[4] = { 0, 0, 0, 0 };
+    chara_equip_item_stats(item_enc & 0xfffffff0u, s);
+    if ((item_enc & 0xf) != 0 && s[0] > 0)
+        s[0] = (int)((float)s[0]);   /* engine __ftol of (float)s[0] — identity */
+    return s[0];
+}
+
+/* FUN_00484948 — SP recovery (stat slot 1), quality-scaled (·quality/5, ≥1). */
+static int enc_sp_recovery(uint32_t item_enc)
+{
+    int32_t s[4] = { 0, 0, 0, 0 };
+    chara_equip_item_stats(item_enc & 0xfffffff0u, s);
+    if ((item_enc & 0xf) != 0 && s[1] > 0) {
+        int v = (int)((item_enc & 0xf) * s[1]) / 5;
+        if (v < 1) v = 1;
+        return v;
+    }
+    return s[1];
+}
+
+/* FUN_0048486f — the "Gives N Max HP" tier (item ids 0x1005..0x1008 → 2..5). */
+static int enc_maxhp_tier(uint32_t item_enc)
+{
+    int rec = tables_item_find_slot_by_id(&g_item, (int)item_enc >> 6);
+    if (rec < 0) return 0;
+    int id = g_item.records[rec].item_id;
+    if (id == 0x1005) return 2;
+    if (id == 0x1006) return 3;
+    if (id == 0x1007) return 4;
+    if (id == 0x1008) return 5;
+    return 0;
+}
+
+/* Append "<LBL>+%d " / "<LBL>%d " for one stat (the +/- sign drives the label). */
+static int enc_stat_append(char *buf, const char *lbl_pos, const char *lbl_neg, int v)
+{
+    char tmp[32];
+    snprintf(tmp, sizeof tmp, (v < 1) ? lbl_neg : lbl_pos, v);
+    size_t n = strlen(buf);
+    snprintf(buf + n, 256 - n, "%s", tmp);
+    return (int)strlen(buf);
+}
+
+/* FUN_0046a336 — the A-press item-detail overlay: an item stats card (Title /
+ * Type / Effect / Base Price / Highest+Lowest Sale Price), drawn over a
+ * data_win panel.  Reads the tooltip state (g_enc_tooltip_item/mode). */
 void encyclopedia_detail_render(struct IDirect3DDevice8 *d)
 {
-    (void)d;
+    const int item = g_enc_tooltip_item;   /* DAT_0734b998 (id<<6) */
+    const int mode = g_enc_tooltip_mode;   /* DAT_0734b96c (encyclopedia = 3) */
+    uint8_t *bank = save_work_bank_at(save_work_active_slot());
+    int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+
+    /* panel position (capture cursor target, then mode override + mirroring). */
+    float bx = 48.0f, by = 128.0f;
+    title_save_dialog_cursor_capture_target(&bx, &by);   /* FUN_00435644 */
+    if (mode == 2) { bx = 256.0f; by = 120.0f; }
+    if (mode == 3 || mode == 4) { bx = 256.0f; by = 160.0f; }
+    int xwrap = bx > 200.0f;
+    if (xwrap) bx -= 240.0f;
+    int ywrap = by > 220.0f;
+    if (ywrap) by -= 160.0f;
+
+    /* panel background (data_win): src top/bottom by ywrap; mirrored when !xwrap. */
+    sprite_t *dw = &g_sysassets.data_win_tga;
+    render_quad_bind(d, dw);
+    {
+        const float st = ywrap ? 352.0f : 192.0f, sb = ywrap ? 512.0f : 352.0f;
+        const float src[4] = { 0.0f, st, 288.0f, sb };
+        const float dst[4] = { bx, by, 288.0f, 160.0f };
+        if (xwrap) render_quad_add(dst, src, dw->width, dw->height, 0xffffffffu);
+        else { render_quad_add_mirrored(dst, src, dw->width, dw->height, 0xffffffffu); bx += 48.0f; }
+    }
+    if (ywrap) by -= 8.0f;
+
+    /* extra small panel for a cheap item (mode != 4 && base price < 3000). */
+    if (mode != 4 && rec >= 0 && g_item.records[rec].item_id < 3000) {
+        const float src[4] = { 0.0f, 0.0f, 320.0f, 192.0f };
+        const float dst[4] = { 304.0f, 160.0f, 320.0f, 192.0f };
+        render_quad_add(dst, src, dw->width, dw->height, 0xffffffffu);
+    }
+    render_quad_flush(d);
+
+    /* combine/recipe icon grid (mode != 4 && adventurer count > 0) —
+     * PORT-DEBT(encyclopedia-detail-combine): gated on the recruited-adventurer
+     * model (DAT_0741bed8/DAT_07477e74, the same g_pause_in_status_count stubbed
+     * to 0); a no-op for the early-game / no-party saves. */
+
+    /* the 6 stat-card lines. */
+    static const char *const labels[6] = {
+        "Type", "Type", "Effect", "Base Price", "Highest Sale Price", "Lowest Sale Price"
+    };
+    for (int li = 0; li < 6; li++) {
+        char buf[256];
+        if (li == 0) {
+            if (rec < 0) snprintf(buf, sizeof buf, " ");
+            else {
+                int c = g_item.records[rec].category;
+                const char *tag = (c >= 0 && c < ITEM_CATEGORY_COUNT) ? g_item.categories[c].tag : "";
+                snprintf(buf, sizeof buf, "%s %s", g_item.records[rec].singular, tag);
+            }
+        } else {
+            snprintf(buf, sizeof buf, "%s", labels[li]);
+        }
+        /* the label (left, scale 0.65). */
+        font_draw_text(d, bx + 8.0f, (float)(li * 0x14) + by + 26.0f, buf, 0xffffffffu, 0.65f);
+        if (rec < 0) continue;
+
+        int32_t st[4] = { 0, 0, 0, 0 };
+        chara_equip_item_stats((uint32_t)item, st);
+        float xshift = 0.0f, yshift = 0.0f, scalemul = 1.0f;
+        int drawn_value = 1;
+
+        if (li == 1) {
+            int c = g_item.records[rec].category;
+            snprintf(buf, sizeof buf, "%s",
+                     (c >= 0 && c < ITEM_CATEGORY_COUNT) ? g_item.categories[c].singular : "");
+            xshift = -32.0f;
+        } else if (li == 2) {
+            if (enc_category_is(item, "Food")) {
+                int hp = enc_hp_recovery((uint32_t)item), sp = enc_sp_recovery((uint32_t)item);
+                if (hp == 0) {
+                    snprintf(buf, sizeof buf, "Recovers %dSP", sp);
+                } else if (sp != 0) {
+                    if (sp < 0)      { sp = -sp; snprintf(buf, sizeof buf, "Recovers %dHP, Lose %dSP", hp, sp); }
+                    else if (hp < 0) { hp = -hp; snprintf(buf, sizeof buf, "Lose %dHP, Recovers %dSP", hp, sp); }
+                    else             snprintf(buf, sizeof buf, "Recovers %dHP, Recovers %dSP", hp, sp);
+                    /* the combined HP+SP case draws RIGHT-aligned at a fixed spot. */
+                    font_draw_text_right(d, bx + 244.0f, by + 68.0f, buf, 0xffffffffu, 0.52f);
+                    continue;
+                } else {
+                    snprintf(buf, sizeof buf, "Recovers %dHP", hp);
+                }
+            } else if (enc_category_is(item, "Medicines")) {
+                int tier = enc_maxhp_tier((uint32_t)item);
+                if (tier != 0) snprintf(buf, sizeof buf, "Gives %d Max HP", tier);
+                else           snprintf(buf, sizeof buf, "----");
+            } else {
+                /* equipment ATK/DEF/MAG/MDEF. */
+                if (st[0] || st[1] || st[2] || st[3]) {
+                    buf[0] = '\0';
+                    int allfour = (st[0] && st[1] && st[2] && st[3]);
+                    int cnt = 0;
+                    if (st[0]) { enc_stat_append(buf, "ATK+%d ", "ATK%d ", st[0]); cnt++; }
+                    if (st[1]) { enc_stat_append(buf, "DEF+%d ", "DEF%d ", st[1]); cnt++; }
+                    if (st[2]) { enc_stat_append(buf, "MAG+%d ", "MAG%d ", st[2]); cnt++; }
+                    if (st[3]) { enc_stat_append(buf, "MDEF+%d ", "MDEF%d ", st[3]); cnt++; }
+                    if (allfour) { xshift = 56.0f; scalemul = 0.8f; yshift = 2.0f; }
+                    else if (cnt > 2) xshift = 48.0f;
+                } else {
+                    snprintf(buf, sizeof buf, "----");
+                }
+            }
+        } else if (li == 3) {
+            snprintf(buf, sizeof buf, "%d pix", g_item.records[rec].price);
+            xshift = -32.0f;
+        } else if (li == 4 || li == 5) {
+            int v = 0;
+            if (mode != 4 && bank)
+                v = *(int32_t *)(bank + rec * 0x50 + (li == 4 ? 0x13d48 : 0x13d4c));
+            if (mode != 4 && v != 0) snprintf(buf, sizeof buf, "%d pix", v);
+            else                     snprintf(buf, sizeof buf, "----");
+            xshift = -32.0f;
+        } else {
+            drawn_value = 0;
+        }
+
+        if (drawn_value)
+            font_draw_text(d, (bx + 120.0f) - xshift,
+                           (float)(li * 0x14) + yshift + by + 26.0f,
+                           buf, 0xffffffffu, scalemul * 0.65f);
+    }
 }
 
 #endif /* _WIN32 */

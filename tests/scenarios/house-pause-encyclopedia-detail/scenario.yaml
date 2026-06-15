@@ -1,0 +1,8 @@
+# house-pause-encyclopedia-detail — see trace.jsonl.  Opens the Encyclopedia,
+# examines the cursor's item (A/0x40) to pop the item-detail overlay (FUN_0046a336),
+# then closes it.  Verifies the detail stats card 1:1 vs retail.
+description: |
+  Pause → Encyclopedia → {wait ENCYCLOPEDIA_READY} → 0x40 examine (detail overlay)
+  → 0x40 close.  Pinned (phasepin 80).
+max_frames: 22000
+duration_ceiling_ms: 180000

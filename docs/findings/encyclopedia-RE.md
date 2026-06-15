@@ -139,5 +139,30 @@ Fix: call `title_save_dialog_anim_tick()` at the tail of `pause_menu_update`
 maxed grids go to **bit-exact**, house-pause (M2/M3) stays **bit-exact**, the
 usual-save nav is unchanged (slightly better at the slides), 3281 host tests pass.
 
-**PORT-DEBT(encyclopedia-detail):** the A-press item-detail overlay
-`FUN_0046a336` (the big stat/combine popup) is stubbed — the next milestone.
+## The item-detail overlay (`FUN_0046a336`) — A-press popup — DONE + BIT-EXACT
+
+`encyclopedia_detail_render` (encyclopedia.c) + the helpers `enc_category_is`
+(FUN_0049ef78, a 4-char category-name memcmp), `enc_hp_recovery`/`enc_sp_recovery`
+(FUN_004848c4/00484948), `enc_maxhp_tier` (FUN_0048486f), and the exposed
+`chara_equip_item_stats` (FUN_0048093f).  An item STATS CARD over a data_win
+panel: **Title** (`name category-tag`), **Type** (category), **Effect**
+(equipment `ATK+N DEF+N…` / food `Recovers NHP, NSP` / medicine `Gives N Max HP`
+/ `----`), **Base Price**, **Highest Sale Price**, **Lowest Sale Price** (the
+last two from the bank's per-item sale history at byte `rec*0x50 + 0x13d48/4c`).
+
+Panel placement: capture the cursor target → mode override (encyclopedia = mode
+3 → base (256,160)) → mirror (x>200 → −240; y>220 → −160).  Label left @
+`(bx+8, li·20+by+26)` scale 0.65; value left @ `(bx+120 − xshift, …)` scale
+`scalemul·0.65`; the food HP+SP combined line draws right-aligned @ `(bx+244,
+by+68)` scale 0.52.  **Decompile-var trap:** `local_18` is the X-shift and
+`local_30` the Y-shift — lines 3/4/5 set `local_18 = −32` (X, NOT Y); setting it
+as a Y-shift moves each value up onto the previous line (the bug the first cut
+shipped — caught on the visual diff).
+
+**Verified BIT-EXACT (gt8 0.0000% across the whole open→shown→close window)** on
+`house-pause-encyclopedia-detail` (usual save: examine the Worn Sword — the
+equipment ATK Effect line).  **PORT-DEBT(encyclopedia-detail-combine):** the
+combine/recipe icon grid (gated on the recruited-adventurer model
+`DAT_0741bed8`/`DAT_07477e74`, the same `pause_status_count` stubbed to 0) is a
+no-op — closes with the adventurer/party port.  The food/medicine Effect
+branches are transcribed 1:1 but exercised only once a consumable is examined.

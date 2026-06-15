@@ -181,6 +181,11 @@ int32_t chara_equip_get_dat_056db0a8(void);
  * scratch DATs and on g_scene1_combat_damage_base_idle{,_2}. */
 void chara_equip_recompute_aggregate(void);
 
+/* FUN_0048093f — distribute an encoded item-slot value's 4 stats (ATK/DEF/MAG/
+ * MDEF for equipment; HP/SP for consumables) into `sum[4]` (ADDS; zero first).
+ * Used by the encyclopedia item-detail overlay (FUN_0046a336). */
+void chara_equip_item_stats(uint32_t slot_val, int32_t sum[4]);
+
 /* ─── Test helper ─────────────────────────────────────────────────── */
 
 void chara_equip_reset_for_test(void);
