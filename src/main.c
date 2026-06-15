@@ -2726,6 +2726,8 @@ static void render_dispatch(void)
             /* SAVE_PICKER_READY: the pause Save submenu is open + navigable.
              * Re-syncs save-picker nav past the per-side pause-open phase. */
             .save_picker_active = pause_save_picker_navigable(g_scene_state),
+            /* ENCYCLOPEDIA_READY: the pause Encyclopedia submenu is navigable. */
+            .encyclopedia_active = pause_encyclopedia_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

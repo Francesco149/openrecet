@@ -673,6 +673,18 @@ int pause_save_picker_navigable(int scene_mode)
         && g_pause_entries[g_pause_sel] == 3;
 }
 
+/* The Encyclopedia submenu is open + navigable (the anchor ENCYCLOPEDIA_READY
+ * predicate): scene mode 9, sub_anim==10, Encyclopedia (type 6) selected.
+ * Rebases nav past the per-side-variable pause-open ramp (same as the save
+ * picker) so the hand-cursor bob + nav inputs are picker-time-relative. */
+int pause_encyclopedia_navigable(int scene_mode)
+{
+    return scene_mode == 9
+        && g_pause_sub_anim == 10
+        && g_pause_sel >= 0 && g_pause_sel < SCENE_PAUSE_MAX_ENTRIES
+        && g_pause_entries[g_pause_sel] == 6;
+}
+
 /* FUN_0047fa76 — the mode-9 per-frame update. */
 void pause_menu_update(void)
 {

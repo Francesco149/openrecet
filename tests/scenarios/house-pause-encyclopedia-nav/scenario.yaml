@@ -1,0 +1,10 @@
+# house-pause-encyclopedia-nav — see trace.jsonl.  Opens the Encyclopedia submenu
+# (type 6) then exercises the category carousel + cursor nav, rebased on the
+# ENCYCLOPEDIA_READY anchor (so the hand-cursor bob aligns picker-time-relative,
+# like SAVE_PICKER_READY for the save nav).  Verifies the FUN_0049f365 nav state
+# machine 1:1 vs retail.
+description: |
+  Pause → 1×down to Encyclopedia → Z; {wait ENCYCLOPEDIA_READY} → page categories
+  (R/L shoulder), column/edge (Right/Left), rows (Down/Up).  Pinned (phasepin 80).
+max_frames: 22000
+duration_ceiling_ms: 180000

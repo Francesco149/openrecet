@@ -211,6 +211,14 @@ static int ev_save_picker_ready(const struct anchor_world *p, const struct ancho
     return !p->save_picker_active && c->save_picker_active;
 }
 
+/* The Encyclopedia submenu (type 6) just became navigable. Same rebase as
+ * SAVE_PICKER_READY (the async pause load lands the open ramp at a per-side-
+ * variable phase). Fires once per Encyclopedia-submenu open. */
+static int ev_encyclopedia_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->encyclopedia_active && c->encyclopedia_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -241,6 +249,7 @@ static const struct anchor_def g_anchors[] = {
     { "PAUSE_CLOSE",           ev_pause_close     },
     { "PAUSE_READY",           ev_pause_ready     },
     { "SAVE_PICKER_READY",     ev_save_picker_ready },
+    { "ENCYCLOPEDIA_READY",    ev_encyclopedia_ready },
     { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))

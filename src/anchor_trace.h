@@ -113,6 +113,13 @@ struct anchor_world {
      * HERE makes the inputs picker-time-relative ⇒ cursor/scroll AND breathing
      * align. 0 outside the open Save submenu. */
     int save_picker_active;
+
+    /* 1 while the pause menu's ENCYCLOPEDIA submenu (entry type 6) is fully open
+     * and navigable (scene 9, sub_anim==10, Encyclopedia selected). Drives
+     * ENCYCLOPEDIA_READY (0→1) — the same per-side-pause-load rebase the save
+     * picker uses, so the hand-cursor bob + grid nav inputs align picker-time-
+     * relative. 0 outside the open Encyclopedia submenu. */
+    int encyclopedia_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

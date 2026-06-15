@@ -249,6 +249,10 @@ void pause_sm_reset(void);
  * DAT_0438b1c0) so the host build needn't link the Win32 scene global. */
 int pause_save_picker_navigable(int scene_mode);
 
+/* Encyclopedia submenu (type 6) open + navigable — the ENCYCLOPEDIA_READY
+ * anchor predicate (scene 9, sub_anim==10, Encyclopedia selected). */
+int pause_encyclopedia_navigable(int scene_mode);
+
 #ifdef _WIN32
 
 #include "sprite.h"

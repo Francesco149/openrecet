@@ -749,6 +749,7 @@ let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player stat
 let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
 let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
 let g_anchor_prev_savepicker = false; // previous-frame Save submenu navigable (type 3)
+let g_anchor_prev_encyclopedia = false; // previous-frame Encyclopedia submenu navigable (type 6)
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3188,12 +3189,15 @@ function anchorTick(frame, devicePtr) {
     // SAVE_PICKER_READY: the Save submenu (type 3) is open + navigable —
     // scene==9, sub_anim==10, Save selected. Mirror of pause_save_picker_navigable.
     let savePickerActive = false;
+    let encyclopediaActive = false;
     if (scene === ANCHOR_SCENE_PAUSE &&
         rva(ADDR.var_pause_sub_anim).readS32() === 10) {
         const sel = rva(ADDR.var_pause_sel).readS32();
-        if (sel >= 0 && sel < 8)
-            savePickerActive =
-                rva(ADDR.var_pause_entries).add(sel * 4).readS32() === 3;
+        if (sel >= 0 && sel < 8) {
+            const t = rva(ADDR.var_pause_entries).add(sel * 4).readS32();
+            savePickerActive   = (t === 3);
+            encyclopediaActive = (t === 6);   // ENCYCLOPEDIA_READY
+        }
     }
 
     if (!g_anchor_initialized) {
@@ -3208,6 +3212,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_convblink = convBlink;
         g_anchor_prev_pause   = pauseActive;
         g_anchor_prev_savepicker = savePickerActive;
+        g_anchor_prev_encyclopedia = encyclopediaActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3343,6 +3348,12 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('SAVE_PICKER_READY', frame);
         anchorCaptureSchedule('SAVE_PICKER_READY', frame, devicePtr);
     }
+    // ENCYCLOPEDIA_READY — the pause Encyclopedia submenu just became navigable
+    // (rising edge). Same per-side pause-load rebase as SAVE_PICKER_READY.
+    if (!g_anchor_prev_encyclopedia && encyclopediaActive) {
+        sendAnchor('ENCYCLOPEDIA_READY', frame);
+        anchorCaptureSchedule('ENCYCLOPEDIA_READY', frame, devicePtr);
+    }
     // TITLE_RETURN — quit to the title/main menu (rising edge of scene == TITLE
     // from any non-TITLE state; the quit-to-title passes through LOADING, so a
     // strict INGAME→TITLE edge misses it). Anchors the title-menu load-slot
@@ -3362,6 +3373,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_convblink = convBlink;
     g_anchor_prev_pause   = pauseActive;
     g_anchor_prev_savepicker = savePickerActive;
+    g_anchor_prev_encyclopedia = encyclopediaActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────
