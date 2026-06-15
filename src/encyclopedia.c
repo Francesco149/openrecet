@@ -387,7 +387,6 @@ int encyclopedia_update(void)
 #include "render_quad.h"   /* render_quad_bind/add/flush + _add_mirrored (FUN_00404e61) */
 #include "font_draw.h"     /* font_draw_text / _centered / _right (FUN_0047ca05/d14c/d2db) */
 #include "sysassets.h"     /* g_sysassets.item_win_tga / data_win_tga / item_icons[] */
-#include "scene_pause.h"   /* g_scene_pause_pause (DAT_073d86a8 pause.tga board) */
 #include "chara_equip.h"   /* chara_equip_item_stats (FUN_0048093f) — the detail Effect line */
 #include <stdio.h>
 
@@ -430,8 +429,12 @@ static void enc_arrow_down(struct IDirect3DDevice8 *d, float x, float y)
              512.0f, 896.0f, 576.0f, 944.0f);
 }
 
-/* FUN_0049f8b8 — render the catalog at submenu slide offset (px,py). */
-void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py)
+/* FUN_0049f8b8 — render the catalog at submenu slide offset (px,py).
+ * `board` = the pause.tga sprite (completion panel + slot frames); the caller
+ * supplies its per-scene instance (see the header — g_scene_pause_pause is
+ * unloaded at the title). */
+void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py,
+                         sprite_t *board)
 {
     const int catn = g_enc_cat_count;
     if (catn <= 0) return;          /* nothing built (empty save) */
@@ -455,7 +458,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py)
             enc_quad(d, &g_sysassets.item_win_tga, 200.0f, 4.0f, 240.0f, 77.0f,
                      448.0f, 736.0f, 688.0f, 813.0f);
             /* completion panel (pause.tga) dst(px+504, py+88, 128, 256). */
-            enc_quad(d, &g_scene_pause_pause, px + 504.0f, py + 88.0f, 128.0f, 256.0f,
+            enc_quad(d, board, px + 504.0f, py + 88.0f, 128.0f, 256.0f,
                      880.0f, 0.0f, 1008.0f, 256.0f);
             /* completion labels + percent (centered at px+568). */
             int hdr = tables_item_find_slot_by_id(&g_item, g_enc_cat_key[catidx]);
@@ -484,7 +487,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py)
             float gx = (float)(cell % 3) * 149.33334f + panel_x + px + 88.0f;
             float gy = (float)(cell / 3) * 0x58 + py + 80.0f;
             /* slot frame (pause.tga src(880,256,944,320)) 64×64. */
-            enc_quad(d, &g_scene_pause_pause, gx, gy, 64.0f, 64.0f,
+            enc_quad(d, board, gx, gy, 64.0f, 64.0f,
                      880.0f, 256.0f, 944.0f, 320.0f);
             if (g_enc_slot[sidx] == -2) continue;
             int rec = tables_item_find_slot_by_id(

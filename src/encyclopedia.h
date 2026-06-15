@@ -75,8 +75,20 @@ void encyclopedia_cursor_recompute(void);
 int  encyclopedia_update(void);
 
 #ifdef _WIN32
-/* FUN_0049f8b8 — render the catalog at submenu slide offset (px,py). */
-void encyclopedia_render(struct IDirect3DDevice8 *dev, float px, float py);
+
+#include "sprite.h"   /* sprite_t — the pause.tga `board` texture arg */
+
+/* FUN_0049f8b8 — render the catalog at submenu slide offset (px,py).
+ *
+ * `board` = the pause.tga sprite (DAT_073d86a8) used for the completion panel
+ * + slot-cell frames.  The engine reads ONE global, but the port keeps a
+ * per-scene instance: the pause submenu passes &g_scene_pause_pause, the TITLE
+ * 図鑑 passes its own SCENE_TITLE_TEX_PAUSE — g_scene_pause_pause is UNLOADED at
+ * the title (freed on pause teardown, scene_pause.c .tex=0), so binding it there
+ * skips the draws (the 4 missing pause.tga quads = the visible completion board).
+ * Same per-scene-texture split save_picker_render already uses for its plaque. */
+void encyclopedia_render(struct IDirect3DDevice8 *dev, float px, float py,
+                         sprite_t *board);
 
 /* FUN_0046a336 — the A-press item-detail overlay (gated on g_enc_detail). */
 void encyclopedia_detail_render(struct IDirect3DDevice8 *dev);

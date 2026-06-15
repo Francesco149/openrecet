@@ -193,7 +193,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+4) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, scene_pause.c (+2) |
 | 0x435612 | FUN_00435612 | 8 | ✓ | encyclopedia.c, scene1_player_ctrl.c, scene_pause.c (+4) |
-| 0x43561a | FUN_0043561a | 11 | ✓ | encyclopedia.c, main.c, scene_guild.c (+4) |
+| 0x43561a | FUN_0043561a | 11 | ✓ | encyclopedia.c, main.c, scene_guild.c (+5) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435644 | FUN_00435644 | 79 | ✓ | encyclopedia.c, scene_pause.c, skip_event.c (+2) |
 | 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+7) |
@@ -517,8 +517,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49ef78 | FUN_0049ef78 | 64 | ✓ | encyclopedia.c, scene1_display_menu.c |
 | 0x49efb8 | FUN_0049efb8 | 90 | ✓ | encyclopedia.c, encyclopedia.h |
 | 0x49f012 | FUN_0049f012 | 851 | ✓ | encyclopedia.c, encyclopedia.h, save_bank.h (+3) |
-| 0x49f365 | FUN_0049f365 | 1363 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c |
-| 0x49f8b8 | FUN_0049f8b8 | 2033 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c |
+| 0x49f365 | FUN_0049f365 | 1363 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c (+1) |
+| 0x49f8b8 | FUN_0049f8b8 | 2033 | ✓ | anchor_trace.c, anchor_trace.h, encyclopedia.c (+3) |
 | 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
 | 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |

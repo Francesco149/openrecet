@@ -1523,8 +1523,10 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
                                   g_pause_options_phase == 2);
         } else if (t == 6) {
             /* engine L83937: FUN_0049f8b8(640 - sub_anim*64, 0) — slides in
-             * from the right, rests at (0,0). */
-            encyclopedia_render(d, 640.0f - (float)(g_pause_sub_anim << 6), 0.0f);
+             * from the right, rests at (0,0).  Board = the pause scene's
+             * pause.tga (loaded here; the title passes its own instance). */
+            encyclopedia_render(d, 640.0f - (float)(g_pause_sub_anim << 6), 0.0f,
+                                &g_scene_pause_pause);
         }
     }
 
