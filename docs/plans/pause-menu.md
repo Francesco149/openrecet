@@ -508,8 +508,8 @@ Draw primitives all already in the port: `render_quad_add`
     y130-179, = the port-only draw b8b7 vs retail's cursor) at the 1-frame async-pause seam — the
     accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292). Feed "Pause ITEMS
     submenu (type 1) — RETAIL | PORT | diff".
-- **Exit-confirm (type 4) — ✅ DONE + PIXEL-BIT-EXACT 2026-06-15, AWAITING USER 1:1** (`b32be5d`
-  mechanics + `8303fef` title re-init).
+- **Exit-confirm (type 4) — ✅ DONE + USER-CONFIRMED 1:1 2026-06-15** (`b32be5d`
+  mechanics + `8303fef` title re-init; user "Looks 1:1" — parity ledger).
   ESC → 4×down → Z opens the **"Returning to title screen. Are you sure?"** choice box; **No** cancels
   back to the menu, **Yes** quits to the title (fade-out → scene→0 → title load → fade-in). Ported the
   nav-commit type-4 (`FUN_00480614` L82724-82728: `g_pause_exit_confirm=1` + cursor snap, NO submenu —
