@@ -520,7 +520,23 @@
   async-pause seam — the accepted seam/bob phase pillar (same class as M4c). +3 host tests (3292).
   **PORT-DEBT(pause-items-dungeon):** the dungeon variant (display_menu mode 6 + place-an-item /
   use-medicine / equip-readout, `FUN_0047ff40` DAT_074b28a4!=0 branch) — needs a dungeon-pause trace.
-  ⇒ the last base pause submenu is the **type-4 Exit-confirm** ("Returning to title screen?").
+  **EXIT-confirm (type 4) — MECHANICS DONE + host-tested, DIALOG USER-CONFIRMED 1:1, BLOCKED on the
+  title re-init 2026-06-15** (`b32be5d`): ESC → 4×down → Z opens the **"Returning to title screen.
+  Are you sure?"** choice box — **No** cancels to the menu, **Yes** quits to the title (fade-out →
+  scene→0 → title load → fade-in). Ported the nav-commit type-4 (`g_pause_exit_confirm=1` + cursor
+  snap, NO submenu) + `pause_exit_confirm_update` (choice_box Yes=1/No=2 + the quit sequence:
+  `g_pause_exit_phase` 1→0xf → `fade_phase1_start` → `fade_is_done` → `sim_set_mode_9a0(0)` +
+  `d3d_pool_release_type(0xc)` + `g_scene_state=0` + `worker_load_spawn` + `fade_phase_out_start`).
+  +3 host tests (3295); new `house-pause-exit` trace. **The DIALOG + the fade-out are 1:1** (user
+  "can confirm the prompt looks correct"; the port's per-frame brightness tracks retail through the
+  whole transition — dialog ~78, black ~0, title ~190), **BUT the Yes→title lands in the WRONG
+  sub-state — the load-game card picker is shown OPEN** (stale `continue_mode`/DAT_09643524) where
+  retail shows the title MENU. **PORT-DEBT(exit-title-reinit):** the engine re-inits the title via the
+  worker **case-0** (title load), UNREGISTERED in the port (like the case-1 INGAME loader), so the
+  post-scene→0 `worker_load_spawn` is a no-op + the title resumes stale. **The Exit is NOT claimed
+  1:1 until the title re-init (worker case-0) is ported — the SAME arc as the title-screen render**
+  (the next focused effort). **PORT-DEBT(exit-house-teardown):** `FUN_00474d92` (house D3D free) —
+  no-op here. ⇒ all 5 base pause entries now interactive; the title re-init closes the Exit.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
