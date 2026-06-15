@@ -750,6 +750,7 @@ let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
 let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
 let g_anchor_prev_savepicker = false; // previous-frame Save submenu navigable (type 3)
 let g_anchor_prev_encyclopedia = false; // previous-frame Encyclopedia submenu navigable (type 6)
+let g_anchor_prev_options = false; // previous-frame Options submenu navigable (type 2)
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3190,6 +3191,7 @@ function anchorTick(frame, devicePtr) {
     // scene==9, sub_anim==10, Save selected. Mirror of pause_save_picker_navigable.
     let savePickerActive = false;
     let encyclopediaActive = false;
+    let optionsActive = false;
     if (scene === ANCHOR_SCENE_PAUSE &&
         rva(ADDR.var_pause_sub_anim).readS32() === 10) {
         const sel = rva(ADDR.var_pause_sel).readS32();
@@ -3197,6 +3199,7 @@ function anchorTick(frame, devicePtr) {
             const t = rva(ADDR.var_pause_entries).add(sel * 4).readS32();
             savePickerActive   = (t === 3);
             encyclopediaActive = (t === 6);   // ENCYCLOPEDIA_READY
+            optionsActive      = (t === 2);   // OPTIONS_READY
         }
     }
 
@@ -3213,6 +3216,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_pause   = pauseActive;
         g_anchor_prev_savepicker = savePickerActive;
         g_anchor_prev_encyclopedia = encyclopediaActive;
+        g_anchor_prev_options = optionsActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3354,6 +3358,14 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('ENCYCLOPEDIA_READY', frame);
         anchorCaptureSchedule('ENCYCLOPEDIA_READY', frame, devicePtr);
     }
+    // OPTIONS_READY — the pause Options submenu just became navigable (rising
+    // edge). Same per-side pause-load rebase; the robust v3 join anchor for
+    // Options traces (fires AFTER PAUSE_OPEN on both sides). Mirror of
+    // anchor_trace.c ev_options_ready.
+    if (!g_anchor_prev_options && optionsActive) {
+        sendAnchor('OPTIONS_READY', frame);
+        anchorCaptureSchedule('OPTIONS_READY', frame, devicePtr);
+    }
     // TITLE_RETURN — quit to the title/main menu (rising edge of scene == TITLE
     // from any non-TITLE state; the quit-to-title passes through LOADING, so a
     // strict INGAME→TITLE edge misses it). Anchors the title-menu load-slot
@@ -3374,6 +3386,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_pause   = pauseActive;
     g_anchor_prev_savepicker = savePickerActive;
     g_anchor_prev_encyclopedia = encyclopediaActive;
+    g_anchor_prev_options = optionsActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

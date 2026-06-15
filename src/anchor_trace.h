@@ -120,6 +120,14 @@ struct anchor_world {
      * picker uses, so the hand-cursor bob + grid nav inputs align picker-time-
      * relative. 0 outside the open Encyclopedia submenu. */
     int encyclopedia_active;
+
+    /* 1 while the pause menu's OPTIONS submenu (entry type 2) is fully open and
+     * navigable (scene 9, sub_anim==10, Options selected). Drives OPTIONS_READY
+     * (0→1) — the same per-side-pause-load rebase, so the config-panel nav inputs
+     * align picker-time-relative AND the v3 join keys to OPTIONS_READY (which
+     * fires AFTER PAUSE_OPEN on both sides, unlike PAUSE_READY which PAUSE_OPEN
+     * straddles). 0 outside the open Options submenu. */
+    int options_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

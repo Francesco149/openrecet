@@ -219,6 +219,16 @@ static int ev_encyclopedia_ready(const struct anchor_world *p, const struct anch
     return !p->encyclopedia_active && c->encyclopedia_active;
 }
 
+/* The Options submenu (type 2) just became navigable. Same rebase as the other
+ * *_READY anchors. Also the robust v3 join anchor for Options traces: it fires
+ * AFTER PAUSE_OPEN on both sides, so the per-frame identity keys to it
+ * consistently (PAUSE_READY straddles PAUSE_OPEN — pre-load on the port, post-
+ * load on retail — which mispairs the window). Fires once per Options open. */
+static int ev_options_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->options_active && c->options_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -250,6 +260,7 @@ static const struct anchor_def g_anchors[] = {
     { "PAUSE_READY",           ev_pause_ready     },
     { "SAVE_PICKER_READY",     ev_save_picker_ready },
     { "ENCYCLOPEDIA_READY",    ev_encyclopedia_ready },
+    { "OPTIONS_READY",         ev_options_ready   },
     { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))

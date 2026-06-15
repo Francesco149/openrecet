@@ -9,8 +9,10 @@
 # finishes before the first nav input (load-seam-immune; the v3 identity-join
 # pairs the submenu frames by (PAUSE_READY, offset)).
 description: |
-  Pause → 2×down to OPTIONS → Z opens the type-2 submenu.  Capture the
-  PAUSE_READY+0..300 extent; slice the open + resting config panel for the
-  port↔retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+  Pause → 2×down to OPTIONS → Z opens the type-2 submenu; then (rebased on
+  OPTIONS_READY) drive the config-panel nav — cursor down through all 5 rows +
+  change Sound / Message Speed / Unread Text Skip.  Capture the OPTIONS_READY
+  +0..300 extent for the port↔retail diff (drive with --anchor OPTIONS_READY).
+  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
 max_frames: 22000   # turbo load-stretch headroom (matches house-pause)
 duration_ceiling_ms: 180000
