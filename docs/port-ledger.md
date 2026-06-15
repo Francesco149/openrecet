@@ -250,7 +250,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x452f58 | FUN_00452f58 | 491 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+2) |
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
-| 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
+| 0x453373 | FUN_00453373 | 8 | ✓ | main.c, scene_pause.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
@@ -362,7 +362,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4747dc | FUN_004747dc | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+3) |
 | 0x47486a | FUN_0047486a | 142 | ✓ | main.c, scene1_preload.c, scene_jutan.c (+2) |
 | 0x4748f8 | FUN_004748f8 | 169 | ✓ | mesh_load.h, scene1_preload.c, scene_table.c (+2) |
-| 0x474d92 | FUN_00474d92 | 232 | ✓ | scene1_player_ctrl.c |
+| 0x474d92 | FUN_00474d92 | 232 | ✓ | scene1_player_ctrl.c, scene_pause.c |
 | 0x474e7a | FUN_00474e7a | 153 | ✓ | main.c |
 | 0x474f14 | FUN_00474f14 | 58 | ✓ | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
 | 0x474f4f | FUN_00474f4f | 801 | ✓ | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |

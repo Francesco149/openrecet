@@ -4124,6 +4124,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene_pause.c",
     "src/sim.h"
    ]
   },
@@ -7097,7 +7098,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene_pause.c"
    ]
   },
   {

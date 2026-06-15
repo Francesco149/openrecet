@@ -1,0 +1,16 @@
+# house-pause-exit — see trace.jsonl.  Opens the in-game PAUSE menu, navigates
+# to EXIT GAME (type 4, index 4 in the house list [1,6,2,3,4]) and presses Z to
+# open the "Returning to title screen? Are you sure?" choice box, then Z to
+# confirm.  Engine: nav-commit FUN_00480614 type-4 → DAT_074b2830=1; update
+# FUN_0047fa76 dialog branch (FUN_00434def/ed2) → Yes (quit: fade + teardown +
+# title load) / No (cancel).
+#
+# Synthesised for the PAUSE-MENU type-4 Exit-confirm arc (docs/plans/pause-menu.md
+# M3+).  First drive = ANALYSIS: see retail's dialog + the Yes/No default + the
+# quit-to-title transition.  Pinned (phasepin 80) so the pre-ESC free-roam matches.
+description: |
+  Pause → 4×down to EXIT GAME → Z opens the exit-confirm dialog → Z confirms.
+  Capture PAUSE_READY+0..500 to cover the menu nav → dialog → confirm → the
+  fade/title transition.
+max_frames: 30000   # turbo load-stretch headroom + the title-return load
+duration_ceiling_ms: 240000

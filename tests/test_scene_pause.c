@@ -28,6 +28,7 @@
 #include "stage_load_pulse.h" /* unpause teardown clears the stage-load-pulse flag */
 #include "nowloading.h"  /* the unpause must NOT raise "Now Loading" (no reload) */
 #include "scene1_display_menu.h" /* type-1 Items: open/update the inventory grid */
+#include "fade.h"        /* type-4 Exit: fade_tick/fade_reset (the quit-to-title fade) */
 
 /* The SHARED hand-cursor snapshot/restore the pause open/close drives
  * (title_save_dialog.h is render-heavy; forward-declare the pure-C entry points). */
@@ -873,6 +874,100 @@ int test_pause_items_submenu_placemode_guard(void)
     pause_items_submenu_update();
 
     T_ASSERT_EQ_I(g_pause_sub_dir, 1);        /* unchanged — guard returned early */
+    return 0;
+}
+
+/* ─── Exit-confirm (type 4) — FUN_0047fa76 DAT_074b2830 branch + the commit ── */
+
+/* Drive sel_anim to 0xf with Exit Game (type 4) selected → the type-4 commit
+ * arms the exit-confirm dialog (DAT_074b2830=1) but opens NO submenu (the engine
+ * gates sub_anim++ on iVar1<4). */
+int test_pause_nav_exit_commit_arms_dialog(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();                  /* house list [1,6,2,3,4] */
+    int exit_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 4) exit_idx = i;
+    T_ASSERT(exit_idx >= 0);
+    g_pause_sel = exit_idx;
+
+    g_sim_buttons[0].pressed = 0x10;     /* A */
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 14; i++)
+        pause_menu_nav();
+
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
+    T_ASSERT_EQ_I(g_pause_exit_confirm, 1);   /* dialog armed (DAT_074b2830=1) */
+    T_ASSERT_EQ_I(g_pause_exit_phase, 0);     /* not quitting yet */
+    T_ASSERT_EQ_I(g_pause_sub_anim, 0);       /* type-4 opens NO submenu */
+    return 0;
+}
+
+/* B on the exit-confirm dialog cancels: exit_confirm clears, never quits, the
+ * scene stays mode 9. */
+int test_pause_exit_confirm_no_cancels(void)
+{
+    sm_prep(1, 0, 0);
+    g_scene_state = 9;                    /* the pause runs in mode 9 */
+    pause_menu_setup();
+    choice_box_reset();
+    g_pause_exit_confirm = 1;             /* arm the dialog */
+    g_pause_exit_phase   = 0;
+
+    pause_menu_update();                  /* frame 1 opens the box (exit_confirm 1→2) */
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 6; i++)           /* ramp the box to interactive */
+        pause_menu_update();
+    g_sim_buttons[0].pressed = 0x20;      /* B — cancel (box is mode 1) */
+    pause_menu_update();
+    g_sim_buttons[0].pressed = 0;
+    int guard = 0;
+    while (g_pause_exit_confirm != 0 && guard++ < 20)
+        pause_menu_update();
+
+    T_ASSERT_EQ_I(g_pause_exit_confirm, 0);   /* cancelled back to the menu */
+    T_ASSERT_EQ_I(g_pause_exit_phase, 0);     /* never started quitting */
+    T_ASSERT_EQ_I(g_scene_state, 9);          /* still paused */
+    return 0;
+}
+
+/* Yes on the exit-confirm dialog quits to the title: exit_phase ramps 1→0xf →
+ * fade-out → once the fade completes, the scene swaps to TITLE (mode 0). */
+int test_pause_exit_confirm_yes_quits(void)
+{
+    sm_prep(1, 0, 0);
+    g_scene_state = 9;                    /* the pause runs in mode 9 (quit → 0) */
+    pause_menu_setup();
+    choice_box_reset();
+    fade_reset();
+    for (int i = 0; i < g_pause_count; i++)   /* the quit guard needs Exit selected */
+        if (g_pause_entries[i] == 4) g_pause_sel = i;
+    g_pause_exit_confirm = 1;             /* arm the dialog */
+    g_pause_exit_phase   = 0;
+
+    pause_menu_update();                  /* open the box */
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 6; i++)           /* ramp to interactive */
+        pause_menu_update();
+    g_sim_buttons[0].pressed = 0x10;      /* A — confirm Yes (default sel=0) */
+    pause_menu_update();
+    g_sim_buttons[0].pressed = 0;
+    int guard = 0;
+    while (g_pause_exit_phase == 0 && guard++ < 20)   /* close anim → CB_OPT0 → phase=1 */
+        pause_menu_update();
+    T_ASSERT_EQ_I(g_pause_exit_phase, 1);     /* Yes confirmed → quitting */
+
+    /* run the quit sequence: exit_phase 1→0xf starts the fade-out, then the fade
+     * counter advances (sim_step_a ticks it each frame) until done → scene→0. */
+    guard = 0;
+    while (g_scene_state != 0 && guard++ < 80) {
+        pause_menu_update();
+        fade_tick();
+    }
+    T_ASSERT_EQ_I(g_scene_state, 0);          /* → TITLE */
     return 0;
 }
 

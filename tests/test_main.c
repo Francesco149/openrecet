@@ -1182,6 +1182,9 @@ struct test_case {
     X(pause_nav_items_commit_opens_submenu) \
     X(pause_items_submenu_cancel_closes) \
     X(pause_items_submenu_placemode_guard) \
+    X(pause_nav_exit_commit_arms_dialog) \
+    X(pause_exit_confirm_no_cancels) \
+    X(pause_exit_confirm_yes_quits) \
     X(pause_nav_options_commit_inits_row) \
     X(pause_options_cursor_down_wraps) \
     X(pause_options_cursor_up_wraps) \

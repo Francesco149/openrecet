@@ -23,6 +23,7 @@
 #include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
 #include "encyclopedia.h" /* the type-6 Encyclopedia submenu (FUN_0049f012/f365/f8b8) */
 #include "scene1_display_menu.h" /* type-1 Items: display_menu_open/_update/_render (FUN_00468338/00469414/0046b00a) */
+#include "fade.h"         /* type-4 Exit: fade_phase1_start/_is_done/_phase_out_start (FUN_004526f5/4528b3/45281c) */
 #include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
 #include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
 #include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
@@ -196,7 +197,11 @@ int32_t g_pause_sel_anim    = 0;
 int32_t g_pause_sub_anim    = 0;
 int32_t g_pause_sub_dir     = 0;
 int32_t g_pause_row_spacing = 0;
-int32_t g_pause_exit_confirm = 0;
+int32_t g_pause_exit_confirm = 0;   /* DAT_074b2830 — the exit-confirm dialog is up
+                                     * (1 = just opened; ++ each frame while polling) */
+int32_t g_pause_exit_phase   = 0;   /* DAT_073e1550 — the quit-to-title sequence
+                                     * counter (0 = polling Yes/No; >=1 = quitting:
+                                     * fade-out @0xf → teardown + scene→0 + title load) */
 int32_t g_pause_frame       = 0;
 
 /* Save submenu (type 3) picker state — the Save entry's cursor/scroll + the
@@ -259,6 +264,7 @@ void pause_sm_reset(void)
     g_pause_sub_dir      = 0;
     g_pause_row_spacing  = 0;
     g_pause_exit_confirm = 0;
+    g_pause_exit_phase   = 0;
     g_pause_frame        = 0;
     g_pause_save_cursor  = 0;
     g_pause_save_scroll  = 0;
@@ -499,6 +505,17 @@ void pause_menu_nav(void)
                 display_menu_open(dmode, 1);        /* FUN_00468338(mode, 1) */
                 g_pause_sub_anim++;
                 g_pause_sub_dir = 1;
+            } else if (t == 4) {
+                /* type-4 Exit Game (engine FUN_00480614 L82724-82728): arm the
+                 * exit-confirm dialog + snap the shared cursor to (180,228).
+                 * Unlike the other types it does NOT open a submenu (no
+                 * sub_anim++, which the engine gates iVar1<4) — the dialog runs
+                 * through the DAT_074b2830 branch of pause_menu_update instead.
+                 * The engine's _DAT_0741bed4/074b281c/073e1548 clears are inert
+                 * in the house exit path (never read) — skipped. */
+                g_pause_exit_confirm = 1;                       /* DAT_074b2830 = 1 */
+                g_pause_exit_phase   = 0;                        /* DAT_073e1550 reset */
+                title_save_dialog_cursor_snap(180.0f, 228.0f);  /* FUN_00435693 */
             }
         }
     }
@@ -899,6 +916,68 @@ int pause_encyclopedia_navigable(int scene_mode)
         && g_pause_entries[g_pause_sel] == 6;
 }
 
+/* The type-4 Exit-confirm — "Returning to title screen? Are you sure?" → Yes
+ * quits to the title, No cancels back to the menu (engine FUN_0047fa76
+ * L82059-82102, the DAT_074b2830>=1 branch).
+ *
+ *   frame 1 (just armed): pop the choice box (FUN_00434def).
+ *   while polling (exit_phase < 1): FUN_00434ed2 → 1=Yes (start the quit) /
+ *     2=No|B (cancel: clear exit_confirm + sel_anim, back to the menu).
+ *   quitting (exit_phase >= 1): tick the counter; @0xf start the fade-OUT
+ *     (FUN_004526f5); once the fade completes (FUN_004528b3) AND Exit is still
+ *     the selection, run the teardown + scene→TITLE + spawn the title load +
+ *     start the fade-IN (FUN_0045281c).
+ *
+ * The per-scene teardown FUN_00474d92 (saved_mode==1 house) frees the
+ * house/shop D3D resources — PORT-DEBT(exit-house-teardown), a faithful no-op
+ * here (the port's resource model differs; the title reloads its own assets).
+ * The 6/0xb/8 saved-mode teardowns are other scenes (PORT-DEBT).
+ *
+ * PORT-DEBT(exit-title-reinit): the dialog + fade-out + scene→0 are 1:1 (the
+ * port reaches the title through an identical fade, verified vs retail), but the
+ * title lands in the WRONG sub-state — the load-game card picker is shown open
+ * (the title's continue_mode/DAT_09643524 is stale) where retail shows the title
+ * MENU.  The engine re-inits the title via the worker case-0 (title load), which
+ * — like the case-1 INGAME loader — is unregistered in the port, so worker_load_
+ * spawn here is a no-op and the title resumes with stale state.  Closing it needs
+ * the title re-init (worker case-0) ported, the same arc as the title-screen
+ * render.  Until then the Exit is NOT claimed 1:1. */
+static void pause_exit_confirm_update(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 */
+
+    if (g_pause_exit_confirm == 1)
+        choice_box_open("Returning to title screen. Are you sure?",
+                        /*mode=*/1, /*sel=*/0);          /* FUN_00434def */
+    g_pause_exit_confirm++;
+
+    if (g_pause_exit_phase < 1) {
+        if (g_pause_exit_confirm > 1) {
+            const int r = choice_box_poll(pressed, 1);   /* FUN_00434ed2(1) */
+            if (r == 1) {                                /* Yes → quit */
+                g_pause_exit_phase = 1;
+            } else if (r == 2) {                         /* No / B → cancel */
+                g_pause_exit_confirm = 0;                /* DAT_074b2830 = 0 */
+                g_pause_sel_anim     = 0;                /* DAT_074b2870 = 0 */
+            }
+        }
+    } else {
+        g_pause_exit_phase++;
+        if (g_pause_exit_phase == 0xf)
+            fade_phase1_start(0, 0x11);                  /* FUN_004526f5 — fade out */
+        if (g_pause_exit_phase > 0xe && fade_is_done()   /* FUN_004528b3 */
+            && g_pause_sel >= 0 && g_pause_sel < SCENE_PAUSE_MAX_ENTRIES
+            && g_pause_entries[g_pause_sel] == 4) {
+            sim_set_mode_9a0(0);                         /* FUN_00453373 (DAT_06a499a0=0) */
+            /* FUN_00474d92 house teardown = PORT-DEBT(exit-house-teardown). */
+            d3d_pool_release_type(0xc);                  /* FUN_00473c03 — free pause assets */
+            g_scene_state = 0;                           /* DAT_0438b1c0 = 0 → TITLE */
+            worker_load_spawn();                         /* FUN_00452cde — title load */
+            fade_phase_out_start(0, 0x11);               /* FUN_0045281c — fade in */
+        }
+    }
+}
+
 /* FUN_0047fa76 — the mode-9 per-frame update. */
 void pause_menu_update(void)
 {
@@ -938,8 +1017,11 @@ void pause_menu_update(void)
                 }
             }
         }
+    } else {
+        /* exit-confirm (type 4 "Returning to title screen?"): the dialog +
+         * Yes→quit-to-title / No→cancel.  Engine FUN_0047fa76 L82059-82102. */
+        pause_exit_confirm_update();
     }
-    /* else: exit-confirm (return-to-title) — PORT-DEBT(pause-exit-confirm). */
 
     g_pause_frame++;   /* _DAT_074b2874 */
     /* FUN_004356cd (engine L82104) — the shared hand-cursor bob + 6-frame

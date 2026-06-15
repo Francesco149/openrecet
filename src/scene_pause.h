@@ -193,6 +193,7 @@ extern int32_t g_pause_sub_anim;     /* DAT_074b2880 — submenu open anim 0..10
 extern int32_t g_pause_sub_dir;      /* DAT_074b2884 — 1 opening / 0 closing */
 extern int32_t g_pause_row_spacing;  /* DAT_005cc678 — derived row pitch    */
 extern int32_t g_pause_exit_confirm; /* DAT_074b2830 — return-to-title flow */
+extern int32_t g_pause_exit_phase;   /* DAT_073e1550 — the quit-to-title counter */
 extern int32_t g_pause_frame;        /* _DAT_074b2874 — pause frame counter */
 
 /* Save submenu (type 3) picker state — seeded by the sel_anim==0xf commit,
