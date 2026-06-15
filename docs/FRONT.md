@@ -550,7 +550,8 @@
   correct title menu**; the broader title-screen render arc (the load-PICKER render is already wired
   + shared via `save_picker`) is the next focused effort — first chip below.
 - **TITLE-SCREEN RENDER ARC → Continue/load PICKER unified onto `save_picker_render` ✅ DONE +
-  BIT-EXACT 2026-06-15, AWAITING USER 1:1.** The title's Continue/LOAD-GAME slot picker
+  BIT-EXACT + USER-CONFIRMED 1:1 2026-06-15** (user "was able to confirm it was 1:1" in the studio —
+  parity ledger). The title's Continue/LOAD-GAME slot picker
   (`FUN_0049c644`→`FUN_0049b556`) had its OWN copy of the card-grid render
   (`scene_title_continue_render_panel`) — a 2nd FUN_0049b556 port that DIVERGED from the verified
   shared `save_picker_render` (the pause Save submenu's, M4): it (a) skipped the off-screen wing-page
