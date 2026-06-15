@@ -136,6 +136,14 @@ struct anchor_world {
      * (fires AFTER PAUSE_OPEN on both sides, unlike PAUSE_READY which PAUSE_OPEN
      * straddles). 0 outside the open Items submenu. */
     int items_active;
+
+    /* 1 while the TITLE-screen Continue/load slot picker (submenu_state 1) is
+     * fully open and navigable (scene mode 0, submenu_state == 1, cursor_anim
+     * == 10). Drives TITLE_PICKER_READY (0→1). Unlike the pause submenus the
+     * title picker has NO async asset load, so it fires at the same picker-
+     * relative frame on both sides — the clean v3 join anchor for the title
+     * Continue/load picker render (FUN_0049b556). 0 outside the open picker. */
+    int title_picker_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

@@ -275,6 +275,12 @@ void scene_title_sim_default(void);
  * no-op here. */
 void scene_title_reinit(void);
 
+/* TITLE_PICKER_READY anchor source — nonzero when the Continue/load slot
+ * picker (submenu_state 1) is fully open + navigable (scene_mode == TITLE,
+ * submenu_state == 1, cursor_anim == 10). The title picker has no async load,
+ * so this is a clean v3 join anchor (picker-time-relative). */
+int scene_title_continue_picker_navigable(int scene_mode);
+
 #ifdef _WIN32
 
 #define COBJMACROS

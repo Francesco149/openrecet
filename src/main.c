@@ -2741,6 +2741,8 @@ static void render_dispatch(void)
             .options_active = pause_options_navigable(g_scene_state),
             /* ITEMS_READY: the pause Items submenu is open + navigable. */
             .items_active = pause_items_navigable(g_scene_state),
+            /* TITLE_PICKER_READY: the title Continue/load picker is open + navigable. */
+            .title_picker_active = scene_title_continue_picker_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

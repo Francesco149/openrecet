@@ -92,6 +92,13 @@ const ADDR = {
     var_pause_entries:   0x074b2844,
     var_pause_sel:       0x074b2878,
 
+    // TITLE Continue/load picker state, for the TITLE_PICKER_READY anchor (the
+    // picker is navigable ⇔ scene==0 && submenu_state==1 && cursor_anim==10).
+    // Same DATs the port models (scene_title.h): submenu_state DAT_09643524,
+    // cursor_anim DAT_09643520 (the 0..10 fold-in tween).
+    var_title_submenu_state: 0x09643524,
+    var_title_cursor_anim:   0x09643520,
+
     // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
     // presses ESC during a skippable event (the intro dialogues). The {esc}
     // replay path PostMessageA(WM_KEYDOWN,ESC)s into WndProc → here; hooking
@@ -752,6 +759,7 @@ let g_anchor_prev_savepicker = false; // previous-frame Save submenu navigable (
 let g_anchor_prev_encyclopedia = false; // previous-frame Encyclopedia submenu navigable (type 6)
 let g_anchor_prev_options = false; // previous-frame Options submenu navigable (type 2)
 let g_anchor_prev_items = false;   // previous-frame Items submenu navigable (type 1)
+let g_anchor_prev_titlepicker = false; // previous-frame title Continue/load picker navigable
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3205,6 +3213,14 @@ function anchorTick(frame, devicePtr) {
             itemsActive        = (t === 1);   // ITEMS_READY
         }
     }
+    // TITLE_PICKER_READY: the title Continue/load picker (submenu_state 1) is
+    // fully open + navigable — scene==0 (TITLE), submenu_state==1, cursor_anim==10
+    // (the 0..10 fold-in tween at its cap). Mirror of scene_title_continue_picker
+    // _navigable. No async load, so it fires picker-time-relative on both sides.
+    const titlePickerActive =
+        scene === ANCHOR_SCENE_TITLE &&
+        rva(ADDR.var_title_submenu_state).readS32() === 1 &&
+        rva(ADDR.var_title_cursor_anim).readS32() === 10;
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -3221,6 +3237,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_encyclopedia = encyclopediaActive;
         g_anchor_prev_options = optionsActive;
         g_anchor_prev_items = itemsActive;
+        g_anchor_prev_titlepicker = titlePickerActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3386,6 +3403,15 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('TITLE_RETURN', frame);
         anchorCaptureSchedule('TITLE_RETURN', frame, devicePtr);
     }
+    // TITLE_PICKER_READY — the title Continue/load picker just became navigable
+    // (rising edge). No async load (unlike the pause *_READY anchors), so it's a
+    // clean v3 join anchor for the title picker render (FUN_0049b556) — fires at
+    // the same picker-relative frame on both sides. Mirror of anchor_trace.c
+    // ev_title_picker_ready.
+    if (!g_anchor_prev_titlepicker && titlePickerActive) {
+        sendAnchor('TITLE_PICKER_READY', frame);
+        anchorCaptureSchedule('TITLE_PICKER_READY', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -3400,6 +3426,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_encyclopedia = encyclopediaActive;
     g_anchor_prev_options = optionsActive;
     g_anchor_prev_items = itemsActive;
+    g_anchor_prev_titlepicker = titlePickerActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

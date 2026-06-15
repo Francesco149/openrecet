@@ -237,6 +237,17 @@ static int ev_items_ready(const struct anchor_world *p, const struct anchor_worl
     return !p->items_active && c->items_active;
 }
 
+/* The TITLE-screen Continue/load slot picker (submenu_state 1) just became
+ * navigable (rising edge of title_picker_active). The title picker has no async
+ * asset load, so unlike the pause *_READY anchors this fires at the same picker-
+ * relative frame on both sides — the clean v3 join anchor for the title picker
+ * render (FUN_0049b556), making post-open browse inputs + the shared breathe
+ * picker-time-relative regardless of any boot→title skew. Fires once per open. */
+static int ev_title_picker_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->title_picker_active && c->title_picker_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -271,6 +282,7 @@ static const struct anchor_def g_anchors[] = {
     { "OPTIONS_READY",         ev_options_ready   },
     { "ITEMS_READY",           ev_items_ready     },
     { "TITLE_RETURN",          ev_title_return    },
+    { "TITLE_PICKER_READY",    ev_title_picker_ready },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

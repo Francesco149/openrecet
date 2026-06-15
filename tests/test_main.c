@@ -460,6 +460,7 @@ struct test_case {
     X(anchor_pause_ready) \
     X(anchor_save_picker_ready) \
     X(anchor_title_return) \
+    X(anchor_title_picker_ready) \
     X(anchor_jsonl_sink_format) \
     \
     X(dialogue_skips_comments_and_terminates) \

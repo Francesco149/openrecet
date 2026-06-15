@@ -7,6 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-15 — title Continue/load PICKER unified onto `save_picker_render` (bit-exact)
+
+The title-screen Continue/LOAD-GAME slot picker (`FUN_0049c644` → `FUN_0049b556`) had its
+OWN copy of the card-grid render (`scene_title_continue_render_panel`), a 2nd FUN_0049b556
+port that diverged from the verified shared `save_picker_render` (the pause Save submenu's).
+Unified the title onto the shared render — the single-render structure the engine has
+(both `FUN_0049c644` and `FUN_004812e4` call the ONE `FUN_0049b556`), and the lesson of
+`save-picker-shared-globals`.
+
+- **`save_picker_render` gained a `plaque` param** (`save_picker.{c,h}`): the "Merchant Level"
+  banner texture (pause.tga) differs by scene — the pause submenu passes `g_scene_pause_pause`,
+  the title passes its own `SCENE_TITLE_TEX_PAUSE` (because `g_scene_pause_pause` is unloaded at
+  the title; the pause scene owns + frees it). Everything else `save_picker_render` binds is a
+  sysasset (item_win, font) valid in both scenes. The pause call site (`scene_pause.c`) passes
+  `&g_scene_pause_pause` — behavior-identical.
+- **`scene_title_continue_render_panel`** is now a thin wrapper that copies the title picker
+  state (`g_title_continue_picker`) into the shared FUN_0049b556 globals
+  (perm/count/restricted/wing-anim) and calls `save_picker_render` (−218 lines of duplicate).
+  This **closes `PORT-DEBT(modetag)`** (the bottom-right Endless/New Game+/Survival label the
+  old copy never drew), the off-screen wing rows the old copy skipped (an extra `slot < 0`
+  guard the engine lacks), and the >999h TIME clamp.
+- **`TITLE_PICKER_READY` anchor** (`anchor_trace.{c,h}`, `main.c`, the frida agent) — rising
+  edge of (scene 0 / submenu_state 1 / cursor_anim 10). The title picker has NO async asset
+  load (unlike the pause submenus), so it's a clean v3 join anchor (+0 load stretch). +1 host
+  test (3299). The v2-era `title-load-picker` scenario was converted to a v3 `{caprange}` window.
+- **Verified vs the retail v3 cache** (`title-load-picker-60516ab3`, join 119/119 @ +0 stretch):
+  the unification took the draw program **162 → 193 draws = retail's 193** (matched 160 → 190;
+  the wings now draw like retail) AND tightened pixels **946 → 54 differing px**, gt8
+  **0.0000% BIT-EXACT** (maxdiff 2 — the 54 sub-LSB px are the rotated-portrait rasterization +
+  the 1-step breathe seam, the same accepted class as the pause submenus). The residual 3
+  "replace" draws are the off-screen wing-page portraits' OOB-perm garbage (invisible; UB on
+  both sides). **PORT-DEBT(title-picker-overwrite):** the code-4/6 new-game "choose a file"
+  overwrite-dim + per-slot `g_save_picker_avail` stay unported (inert for a normal Continue).
+
 ## 2026-06-14 — pause menu M4c: the SAVE-picker A-confirm + COMMIT (pixel-1:1)
 
 Ported the in-game pause Save submenu's A-commit — `FUN_0047f5bc`'s A-branch +

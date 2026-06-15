@@ -1,15 +1,26 @@
-# Title → open the LOAD GAME slot picker (no confirm; keep it open to view).
+# title-load-picker — open the title-screen Continue/LOAD-GAME slot picker
+# (engine DAT_09643524 == 1, render FUN_0049b556) and view the settled grid.
+#
 # Save fa7c82 has a score, so the title cursor defaults to CONTINUE_ANY and a
-# single A (0x0010) opens the picker.  Captures: slide-in (60) → settled grid
-# (120) → later pulse phases (180/260).  Raw frames align port↔retail because
-# boot→title is deterministic (cf. title-down-press @30/35/50).
+# single A (0x0010) at frame 45 opens the picker; the panel slides in
+# (cursor_anim 0→10) and then idles, breathing (sin(g_save_picker_frame·0.1)).
+#
+# v3 sync: anchor the capture window at TITLE_PICKER_READY — the rising edge of
+# "picker fully open + navigable" (scene 0, submenu_state 1, cursor_anim 10).
+# The title picker has NO async asset load (unlike the pause submenus), so this
+# fires at the same picker-relative frame on both sides; offsets are picker-
+# time-relative ⇒ the shared breathe aligns and the v3 identity-join is clean.
+# No {phasepin} (the title carries no db054 / sim-frame; the picker render is
+# RNG-quiet — a fixed rngseed keeps boot deterministic). Reads fa7c82 (back-
+# table swords; gold/score/day populated) so the slot cards show real fields.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
 {"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
 {"rngseed": [0, 577284034]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 45, "buttons": "0x0010"}
 {"frame": 48, "buttons": "0x0000"}
-{"capture": 60}
-{"capture": 120}
-{"capture": 180}
-{"capture": 260}
-{"frame": 300, "buttons": "0x0000"}
+{"wait": "TITLE_PICKER_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

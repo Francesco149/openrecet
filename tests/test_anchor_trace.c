@@ -560,6 +560,39 @@ int test_anchor_title_return(void)
     return 0;
 }
 
+/* TITLE_PICKER_READY fires on the rising edge of title_picker_active (the title
+ * Continue/load picker became navigable), once per open. Scene stays TITLE
+ * throughout, so no TITLE_RETURN/NEW_GAME interference. */
+int test_anchor_title_picker_ready(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 0;   /* TITLE */
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT baseline, TITLE */
+    /* Picker sliding in (cursor_anim < 10): not navigable yet → no anchor. */
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);
+    /* Fully open + navigable: rising edge → TITLE_PICKER_READY. */
+    w.title_picker_active = 1;
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);
+    /* Held navigable across the browse → no re-fire. */
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);
+    /* B closes (picker slides out) → not navigable; re-open re-fires. */
+    w.title_picker_active = 0;
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);
+    w.title_picker_active = 1;
+    anchor_trace_tick(&st, 5, w, rec_sink, &r);
+
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_PICKER_READY"), 2);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "TITLE_PICKER_READY")], 2);
+    /* The picker is a TITLE-scene overlay — it must NOT fire TITLE_RETURN
+     * (scene never leaves TITLE) nor any pause submenu anchor. */
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_RETURN"), 0);
+    T_ASSERT_EQ_I(rec_count(&r, "SAVE_PICKER_READY"), 0);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {
