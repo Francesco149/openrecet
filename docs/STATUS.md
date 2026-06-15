@@ -621,8 +621,36 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   picker unification already carries) + the fade-out match retail frame-for-frame. The window
   crosses the title→INGAME transition (NEW_GAME/LOADING_END gaps after the fade — the HOUSE arrival
   is verified separately, bit-clean). ⇒ **all title MAIN-MENU render gaps + the load flow are
-  closed** (picker + settings bit-exact, load-confirm 1:1; New Game flow + the Ranking screen
-  [submenu 3/4, producers not ported] remain as separate non-render arcs).
+  closed** (picker + settings bit-exact, load-confirm 1:1; the New Game flow remains a separate
+  non-render arc — the "hardest, last" intro/prologue thread).
+- **TITLE-SCREEN RENDER ARC → all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) ✅ DONE +
+  PIXEL-BIT-EXACT 2026-06-16, AWAITING USER 1:1** (`9d2c435` board refactor + `2d2597c` title
+  integration + `768759f` working-arena fix). The title menu's code-7 row (the port author's
+  "RANKING" is a MISNOMER — the dispatch `FUN_0049a59e` L101130 runs `FUN_0049f012(1)` = the
+  **all-banks encyclopedia setup**, and the render is `FUN_0049f8b8`; both unambiguously the 図鑑).
+  Mostly integration over the just-verified pause encyclopedia: A on code-7 → `encyclopedia_setup(1)`
+  (all-banks vs the pause's `(0)`) + submenu_state 3 + slide-in; per-frame `encyclopedia_update` at
+  cursor_anim==10 (returns 1 on B — plays its own 0x13d, the title layers the menu-back 0x143, folds
+  out, hides the cursor); render `encyclopedia_render(640-cursor_anim*64, 0, board)` gated on
+  cursor_anim>0 && state==3 (identical slide formula to the pause). New **TITLE_ENCYCLOPEDIA_READY**
+  anchor (port + frida; scene 0 / submenu_state 3 / cursor_anim 10 — no async load ⇒ +0-stretch v3
+  join), +1 host test. **TWO real gaps caught by the trace loop (the @fresh case would have hidden
+  both):** (1) **the pause.tga `board` texture** (`g_scene_pause_pause`) is FREED at the title, so
+  the completion-rate board + slot frames vanished (the port skipped the 4 unloaded-texture draws) —
+  fixed by parameterizing the board per-scene (the title passes `SCENE_TITLE_TEX_PAUSE`; same split as
+  the picker plaque); refactored encyclopedia_render to take `board`. (2) **the WORKING arena (g_work,
+  read by the discovery scan via `enc_disc_rec`) is empty at the title** (the port loads save.dat into
+  g_arena — the picker reads it — but only copies to g_work on game-load), so a save with discoveries
+  rendered an EMPTY grid (33 draws vs retail's 464) — fixed by `save_work_sync_from_save()` (the engine
+  keeps its single DAT_044e3798 populated at the title) before the all-banks setup. **Verified vs the
+  retail v3 cache on TWO scenarios:** `title-encyclopedia` (@fresh, empty grid: chrome/bubble/completion
+  0%/arrows) AND `title-encyclopedia-max` (the MAXED save, every item discovered: the populated Swords
+  grid — icons+names, 100% completion, item description) — **both PIXEL-BIT-EXACT (0/786432 px differ
+  at every probed offset, draw-program material verdict 0-divergent), join 119/119 @ +0 stretch**. The
+  populated frame's orv3_draws per-DRAW `--list` shows 287 sub-LSB-geometry-hash pairs (icons whose
+  carousel-math floats differ sub-pixel but rasterize identically) — accepted (pixels exactly 0 differ,
+  material aggregate ALIGNED), the same class as the picker's 54 sub-LSB px. **PORT-DEBT:** the code-8
+  HIDDEN-character submenu (state 4) stays deferred (separate producer).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

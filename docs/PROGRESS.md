@@ -7,6 +7,36 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-16 — title all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) — bit-exact (empty + populated)
+
+The title menu's code-7 row (the port author's "RANKING" is a misnomer — the dispatch
+`FUN_0049a59e` L101130 runs `FUN_0049f012(1)`, the all-banks encyclopedia setup, and the
+render is `FUN_0049f8b8`) opens the 図鑑. Mostly integration over the pause encyclopedia
+(verified bit-exact 2026-06-15), with the all-banks scan (param 1) aggregating discoveries
+across every save bank instead of the current one.
+
+- **scene_title.c**: code-7 dispatch (`encyclopedia_setup(1)` + submenu_state 3 + slide-in +
+  show cursor); per-frame `encyclopedia_update` at cursor_anim==10 (B-close layers the
+  menu-back 0x143 over the nav's own 0x13d, folds out, hides the cursor); render dispatch
+  `encyclopedia_render(640-cursor_anim*64, 0, board)` gated on cursor_anim>0 && state==3.
+- **TITLE_ENCYCLOPEDIA_READY anchor** (anchor_trace + frida; scene 0 / submenu_state 3 /
+  cursor_anim 10 — no async load ⇒ +0-stretch v3 join). +1 host test.
+- **Two real gaps the trace loop caught (the @fresh case hid both):**
+  (1) `encyclopedia_render` bound `g_scene_pause_pause` (pause.tga) for the completion board +
+  slot frames — that instance is FREED at the title, so the draws vanished. Parameterized the
+  board per-scene (title passes `SCENE_TITLE_TEX_PAUSE`); same split the picker plaque uses.
+  (2) The discovery scan reads the WORKING arena (g_work) via `enc_disc_rec`, but at the title
+  the port only loads save.dat into g_arena (the picker's source) — g_work is empty, so a save
+  with discoveries rendered an EMPTY grid (33 draws vs retail's 464). Fixed with
+  `save_work_sync_from_save()` before the all-banks setup (the engine keeps its single
+  DAT_044e3798 populated at the title).
+- **Verified vs the retail v3 cache, two scenarios:** `title-encyclopedia` (@fresh empty grid)
+  and `title-encyclopedia-max` (maxed save, full populated Swords grid + 100% completion +
+  description) — **both PIXEL-BIT-EXACT** (0/786432 px differ at every offset, material verdict
+  0-divergent, join 119/119 @ +0). The populated frame's per-draw `--list` shows 287 sub-LSB
+  geometry-hash pairs (icon carousel floats differ sub-pixel, rasterize identically) — accepted,
+  same class as the picker's 54 sub-LSB px. PORT-DEBT: the code-8 HIDDEN submenu (state 4).
+
 ## 2026-06-15 — title LOAD-confirm flow verified 1:1 (A on picker → fade → load)
 
 The picker A-confirm was already fully wired (`scene_title.c`: `title_continue_picker_step` →
