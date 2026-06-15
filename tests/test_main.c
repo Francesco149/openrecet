@@ -1180,6 +1180,15 @@ struct test_case {
     X(pause_nav_save_commit_opens_picker) \
     X(pause_nav_save_commit_scroll_clamps) \
     X(pause_nav_nonsave_commit_no_submenu) \
+    X(pause_nav_options_commit_inits_row) \
+    X(pause_options_cursor_down_wraps) \
+    X(pause_options_cursor_up_wraps) \
+    X(pause_options_bgm_slider_clamps) \
+    X(pause_options_word_sliders_clamp) \
+    X(pause_options_voice_adjusts) \
+    X(pause_options_exit_dirty_saves_then_closes) \
+    X(pause_options_exit_clean_closes_no_save) \
+    X(pause_options_navigable_predicate) \
     X(pause_save_nav_down_scrolls) \
     X(pause_save_nav_down_within_window_no_slide) \
     X(pause_save_nav_up_scrolls) \

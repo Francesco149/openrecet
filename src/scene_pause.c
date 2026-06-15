@@ -16,6 +16,8 @@
                       * (engine DAT_06a49998/9c/a0), g_sim_buttons[0] (input) */
 #include "scene.h"   /* g_scene_state (engine DAT_0438b1c0) */
 #include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
+#include "audio_fade.h"  /* Music/Sound/Voice sliders + FUN_00499583 BGM re-apply */
+#include "settings.h"    /* Message Speed / Unread Text Skip sliders (slider3/4) */
 #include "save_picker.h" /* FUN_0049b537 perm init + the shared card-list render */
 #include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
 #include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
@@ -36,6 +38,7 @@ void title_save_dialog_cursor_set_visible(int on);
 int  title_save_dialog_cursor_get_visible(void);
 void title_save_dialog_cursor_capture_target(float *x, float *y);
 void title_save_dialog_cursor_snap(float x, float y);
+void title_save_dialog_cursor_slide(float x, float y);  /* FUN_00435710 — 6-frame ease */
 void title_save_dialog_anim_tick(void);   /* FUN_004356cd — cursor bob + slide step */
 
 /* ─── module state ───────────────────────────────────────────────────── */
@@ -207,6 +210,16 @@ int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
 int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
 int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — overwrite-confirm dialog up */
 
+/* Options submenu (type 2) state — the config-panel cursor row + the dirty/exit
+ * phase. Engine row = DAT_074b2834[cur] (aliases the Save cursor's slot, but only
+ * one submenu is open at a time, so a distinct scalar is faithful); cur is 0.
+ * Phase = DAT_074b2890: 0 clean · 1 dirty (a slider changed) · 2 exit-save ·
+ * 3 exit-no-save. The slider VALUES live in the port's config model (audio_fade
+ * for Music/Sound/Voice, settings for Message Speed/Unread Text Skip), so this
+ * struct holds only the menu's own row + phase. */
+int32_t g_pause_options_row   = 0;  /* DAT_074b2834[0] */
+int32_t g_pause_options_phase = 0;  /* DAT_074b2890    */
+
 /* Pause-open resume snapshot (engine DAT_06a499ac/b0/b4/b8/bc) — captured when
  * the pause opens (pause_dispatch enter), restored on unpause so the underlying
  * scene resumes EXACTLY as it was: the shared hand cursor's visibility+position
@@ -248,6 +261,8 @@ void pause_sm_reset(void)
     g_pause_save_hscroll = 0;
     g_pause_save_phase   = 0;
     g_pause_save_overwrite = 0;
+    g_pause_options_row   = 0;
+    g_pause_options_phase = 0;
     g_pause_snap_cursor_vis = 0;
     g_pause_snap_cursor_x   = 0;
     g_pause_snap_cursor_y   = 0;
@@ -452,6 +467,13 @@ void pause_menu_nav(void)
                  * the grid's first cell (72,112) and open the submenu.  The
                  * catalog itself was built in pause_menu_setup (FUN_0049f012). */
                 title_save_dialog_cursor_snap(72.0f, 112.0f);  /* FUN_00435693 */
+                g_pause_sub_anim++;
+                g_pause_sub_dir = 1;
+            } else if (t == 2) {
+                /* type-2 branch (engine L82707): start at row 0 + snap the shared
+                 * hand cursor to the first row (168,168), then open the submenu. */
+                g_pause_options_row = 0;                        /* DAT_074b2834[cur] */
+                title_save_dialog_cursor_snap(168.0f, 168.0f);  /* FUN_00435693 */
                 g_pause_sub_anim++;
                 g_pause_sub_dir = 1;
             }
@@ -664,6 +686,126 @@ void pause_save_submenu_update(void)
     }
 }
 
+/* FUN_0047fc44 — the Options (type 2) config-slider nav + exit/save.
+ *
+ * Dispatched from pause_menu_update at sub_anim==10 when Options is selected.
+ * Five rows: Music / Sound / Voice (volume 0..9, audio_fade) · Message Speed
+ * (0..2, settings slider3) · Unread Text Skip (0..1, settings slider4).
+ *   L / R  — decrement / increment the current row's value (clamped). A change
+ *            marks the menu DIRTY (g_pause_options_phase = 1). Per-row SE: rows
+ *            1/3/4 play 0x146; row 0 (Music) re-applies the BGM volume instead;
+ *            row 2 (Voice) is silent (engine FUN_0047fc44 — its filename-SE
+ *            sibling FUN_0049933c is the title-only variant).
+ *   U / D  — move the cursor row (wrap %5); SE 0x146 + a 6-frame cursor ease to
+ *            (168, row*40+168).
+ *   A / B  — exit: DIRTY → exit-save (phase 2), CLEAN → exit-no-save (phase 3).
+ *            The next frame the phase-2 branch writes save.dat (save_io_commit_
+ *            slot(-1) = FUN_004905a8(0xffffffff)) before the submenu closes.
+ *
+ * Transcribed 1:1 from objdump @0x47fc44 (the slider globals DAT_056e5778/74/7c/
+ * 84/82 are the port's audio_fade/settings model). PORT-DEBT(options-config-arena):
+ * the exit-save writes the arena but the port's live slider values aren't synced
+ * back into the save-header config region (the port models config as module state,
+ * not the arena buffer) — pixel-invisible, only the written save bytes' config
+ * area differs; closes when the config-in-save-arena model is unified. */
+void pause_options_submenu_update(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 */
+    const uint16_t held    = g_sim_buttons[0].held;      /* DAT_073dddd6 */
+
+    /* exit phases (engine 0x47fc4f-0x47fc7d) — committed the frame AFTER A/B. */
+    if (g_pause_options_phase == 2 || g_pause_options_phase == 3) {
+        if (g_pause_options_phase == 2)
+            save_io_commit_slot(-1);                     /* FUN_004905a8(0xffffffff) */
+        audio_play_se_by_id(0x143);                      /* FUN_00499519(0x143) */
+        g_pause_sub_dir   = 0;                            /* DAT_074b2884 → close */
+        g_pause_sel_anim  = 0;                            /* DAT_074b2870 */
+        title_save_dialog_cursor_set_visible(0);          /* FUN_00435612 */
+        g_pause_options_phase = 0;                        /* DAT_074b2890 */
+        return;
+    }
+
+    /* A or B → arm the exit (dirty ⇒ save, clean ⇒ no save) (engine 0x47fc7f). */
+    if (pressed & 0x30u) {
+        title_save_dialog_cursor_set_visible(0);          /* FUN_00435612 */
+        g_pause_options_phase = (g_pause_options_phase != 1) + 2;
+        return;
+    }
+
+    const int row = g_pause_options_row;
+
+    /* LEFT — decrement the current row's value (engine 0x47fc9a). */
+    if (held & 0x2u) {
+        switch (row) {
+        case 0: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM);
+                  if (v > 0) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, v - 1);
+                               audio_fade_apply(AUDIO_FADE_CHANNEL_BGM); /* FUN_00499583 */
+                               g_pause_options_phase = 1; } } break;
+        case 1: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A);
+                  if (v > 0) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, v - 1);
+                               audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        case 2: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B);
+                  if (v > 0) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, v - 1);
+                               g_pause_options_phase = 1; /* silent */ } } break;
+        case 3: { int v = settings_get_slider3();
+                  if (v > 0) { settings_set_slider3(v - 1);
+                               audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        default: { int v = settings_get_slider4();
+                  if (v > 0) { settings_set_slider4(v - 1);
+                               audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        }
+    }
+
+    /* RIGHT — increment the current row's value (engine 0x47fd47). Clamps: audio
+     * rows max 9 (inc while <=8), slider3 max 2 (inc while <=1), slider4 max 1. */
+    if (held & 0x1u) {
+        switch (row) {
+        case 0: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM);
+                  if (v <= 8) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, v + 1);
+                                audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+                                g_pause_options_phase = 1; } } break;
+        case 1: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A);
+                  if (v <= 8) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, v + 1);
+                                audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        case 2: { int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B);
+                  if (v <= 8) { audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, v + 1);
+                                g_pause_options_phase = 1; /* silent */ } } break;
+        case 3: { int v = settings_get_slider3();
+                  if (v <= 1) { settings_set_slider3(v + 1);
+                                audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        default: { int v = settings_get_slider4();
+                  if (v <= 0) { settings_set_slider4(v + 1);
+                                audio_play_se_by_id(0x146); g_pause_options_phase = 1; } } break;
+        }
+    }
+
+    /* UP — cursor row -1 (wrap %5) (engine 0x47fda8). */
+    if (held & 0x4u) {
+        g_pause_options_row = (g_pause_options_row + 4) % 5;
+        audio_play_se_by_id(0x146);
+        title_save_dialog_cursor_slide(168.0f,
+                                       (float)g_pause_options_row * 40.0f + 168.0f);
+    }
+    /* DOWN — cursor row +1 (wrap %5) (engine 0x47fdcc). */
+    if (held & 0x8u) {
+        g_pause_options_row = (g_pause_options_row + 6) % 5;
+        audio_play_se_by_id(0x146);
+        title_save_dialog_cursor_slide(168.0f,
+                                       (float)g_pause_options_row * 40.0f + 168.0f);
+    }
+}
+
+/* The Options submenu is open + navigable (the anchor OPTIONS_READY predicate):
+ * scene mode 9, sub_anim==10, Options (type 2) selected. Rebases nav past the
+ * per-side-variable pause-open ramp (same as the save/encyclopedia pickers). */
+int pause_options_navigable(int scene_mode)
+{
+    return scene_mode == 9
+        && g_pause_sub_anim == 10
+        && g_pause_sel >= 0 && g_pause_sel < SCENE_PAUSE_MAX_ENTRIES
+        && g_pause_entries[g_pause_sel] == 2;
+}
+
 /* The Save submenu is open + navigable (the anchor SAVE_PICKER_READY predicate):
  * scene mode 9, the submenu fully open (sub_anim==10), Save (type 3) selected. */
 int pause_save_picker_navigable(int scene_mode)
@@ -710,6 +852,8 @@ void pause_menu_update(void)
                 const int t = g_pause_entries[g_pause_sel];
                 if (t == 3) {
                     pause_save_submenu_update();
+                } else if (t == 2) {
+                    pause_options_submenu_update();   /* FUN_0047fc44 */
                 } else if (t == 6) {
                     /* engine L82045: close on B (returns 1). */
                     if (encyclopedia_update() == 1) {
@@ -745,6 +889,7 @@ void pause_menu_update(void)
 #include "title_save_dialog.h"   /* the shared cursor + save-dialog frame (tail) */
 #include "save_work.h"           /* save_work_dwords_at / save_work_active_slot (the bank) */
 #include "sysassets.h"           /* g_sysassets.item_win_tga = DAT_073d8748 (save-bar) */
+#include "settings_panel.h"      /* the shared Options config-panel render (FUN_0049c050) */
 #include "scene1_top_hud.h"      /* scene1_top_hud_draw_number = FUN_00406a60 (gold/quota) */
 #include "scene1_merchant_hud.h" /* scene1_merchant_hud_draw_level = FUN_00481ec3 (level) */
 
@@ -1199,12 +1344,22 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
 
     /* ── sub_anim>0 submenu dispatch (engine L83931-83952): the open submenu
      * renders over the (fading) option list. Save (type 3) + Encyclopedia
-     * (type 6) are ported; Status (0)/Options (2)/dungeon (5)/Items (1) renders
-     * stay PORT-DEBT(pause-submenu-*). ── */
+     * (type 6) + Options (type 2) are ported; Status (0)/dungeon (5)/Items (1)
+     * renders stay PORT-DEBT(pause-submenu-*). ── */
     if (g_pause_sub_anim > 0) {
         const int t = g_pause_entries[g_pause_sel];
         if (t == 3) {
             pause_save_picker_render(d);     /* FUN_004812e4 */
+        } else if (t == 2) {
+            /* engine L83941: FUN_0048150c — slide_x = sub_anim*64-640 (≤0,
+             * slides in from the left, rests at 0), base_y 48, row + the
+             * exit-save flag (phase==2 → the "Saving" overlay). */
+            float slide_x = (float)(g_pause_sub_anim << 6) - 640.0f;
+            if (slide_x > 0.0f) slide_x = 0.0f;
+            settings_panel_render(d, &g_scene_pause_dungeonbord,
+                                  &g_sysassets.savewindow_tga,
+                                  slide_x, 48.0f, g_pause_options_row,
+                                  g_pause_options_phase == 2);
         } else if (t == 6) {
             /* engine L83937: FUN_0049f8b8(640 - sub_anim*64, 0) — slides in
              * from the right, rests at (0,0). */

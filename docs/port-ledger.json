@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 433,
-  "unported": 2031,
+  "ported": 434,
+  "unported": 2030,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 517,
+  "touched": 518,
   "pct_touched": 20.3,
   "pct_verified": 2.7,
   "port_debt": 25
@@ -2773,6 +2773,7 @@
    "status": "ported",
    "src": [
     "src/scene1_display_menu.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/sim.c",
@@ -7513,7 +7514,8 @@
     "src/font.h",
     "src/font_draw.c",
     "src/font_draw.h",
-    "src/save_picker.c"
+    "src/save_picker.c",
+    "src/settings_panel.c"
    ]
   },
   {
@@ -7741,7 +7743,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/audio_fade.h"
+    "src/audio_fade.h",
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ]
   },
   {
@@ -7852,8 +7856,11 @@
    "size": 102,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c",
+    "src/settings_panel.h"
+   ]
   },
   {
    "va": "0x481573",
@@ -10127,7 +10134,10 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene_title.c"
+    "src/scene_pause.c",
+    "src/scene_title.c",
+    "src/settings_panel.c",
+    "src/settings_panel.h"
    ]
   },
   {

@@ -205,6 +205,10 @@ extern int32_t g_pause_save_hscroll; /* DAT_074b2894 (c894)    — row slide    
 extern int32_t g_pause_save_phase;   /* DAT_074b289c (c89c)    — save anim     */
 extern int32_t g_pause_save_overwrite; /* DAT_074b28a4 — "Overwriting file." up */
 
+/* Options submenu (type 2) state. */
+extern int32_t g_pause_options_row;    /* DAT_074b2834[0] — config cursor row 0..4 */
+extern int32_t g_pause_options_phase;  /* DAT_074b2890 — 0 clean/1 dirty/2 save/3 nosave */
+
 /* Menu-build inputs (engine DAT_0741bed8 = adventurer/party count and
  * *DAT_068dd2f0 = stage type, 0=HOUSE). The integration layer captures
  * these from the live game state just before pause_menu_setup; tests set
@@ -239,6 +243,12 @@ void pause_menu_nav(void);
  * g_pause_save_* picker state. */
 void pause_save_submenu_update(void);
 
+/* FUN_0047fc44 — the Options (type 2) config-slider nav (sub_anim==10, Options
+ * selected). U/D move the cursor row, L/R adjust the row's value (Music/Sound/
+ * Voice volumes + Message Speed + Unread Text Skip), A/B exit (saving if dirty).
+ * Reads g_sim_buttons[0]; mutates g_pause_options_row/phase + the config model. */
+void pause_options_submenu_update(void);
+
 /* Reset the state machine globals (tests + pause_menu_setup share it). */
 void pause_sm_reset(void);
 
@@ -252,6 +262,10 @@ int pause_save_picker_navigable(int scene_mode);
 /* Encyclopedia submenu (type 6) open + navigable — the ENCYCLOPEDIA_READY
  * anchor predicate (scene 9, sub_anim==10, Encyclopedia selected). */
 int pause_encyclopedia_navigable(int scene_mode);
+
+/* Options submenu (type 2) open + navigable — the OPTIONS_READY anchor
+ * predicate (scene 9, sub_anim==10, Options selected). */
+int pause_options_navigable(int scene_mode);
 
 #ifdef _WIN32
 

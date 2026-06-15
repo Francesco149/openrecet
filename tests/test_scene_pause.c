@@ -19,6 +19,9 @@
 #include "sim.h"      /* ramp counters + g_sim_buttons[0] for the SM tests */
 #include "scene.h"    /* g_scene_state */
 #include "save_picker.h" /* perm init + globals (the type-3 commit) */
+#include "audio_fade.h"  /* Music/Sound/Voice sliders (the Options L/R nav) */
+#include "settings.h"    /* Message Speed / Unread Text Skip sliders */
+#include "save_io.h"     /* save_io_set_write_dir — sandbox the exit-save write */
 #include "save_bank.h"   /* save_header_set_last_slot (the picker cursor seed) */
 #include "save_work.h"   /* working-bank setup (M4c commit source) */
 #include "choice_box.h"  /* the overwrite dialog (M4c A-confirm on an occupied slot) */
@@ -817,6 +820,176 @@ int test_pause_nav_nonsave_commit_no_submenu(void)
     T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
     T_ASSERT_EQ_I(g_pause_sub_anim, 0);    /* no submenu opened */
     T_ASSERT_EQ_I(g_save_picker_count, 0); /* perm init did NOT run */
+    return 0;
+}
+
+/* ─── Options submenu (type 2) — FUN_0047fc44 + the nav-commit init ───────── */
+
+/* Drive sel_anim to 0xf with Options selected → the type-2 init zeroes the row
+ * and opens the submenu (engine L82707). */
+int test_pause_nav_options_commit_inits_row(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();                 /* house list [1,6,2,3,4] */
+    int opt_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 2) opt_idx = i;
+    T_ASSERT(opt_idx >= 0);
+    g_pause_sel = opt_idx;
+    g_pause_options_row = 3;            /* a stale value the commit must zero */
+
+    g_sim_buttons[0].pressed = 0x10;    /* A */
+    g_sim_buttons[0].held    = 0;
+    pause_menu_nav();                   /* 0 → 1 */
+    g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 14; i++)
+        pause_menu_nav();              /* 1 → 15 (0xf) */
+
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
+    T_ASSERT_EQ_I(g_pause_options_row, 0);   /* reset to row 0 */
+    T_ASSERT_EQ_I(g_pause_sub_anim, 1);      /* opening */
+    T_ASSERT_EQ_I(g_pause_sub_dir, 1);
+    return 0;
+}
+
+static void opt_prep(int row)
+{
+    sim_init();
+    pause_sm_reset();
+    audio_fade_reset();
+    settings_reset();
+    g_pause_options_row   = row;
+    g_pause_options_phase = 0;
+    g_sim_buttons[0].pressed = 0;
+    g_sim_buttons[0].held    = 0;
+}
+
+/* DOWN walks the cursor row 0→1→2→3→4→0 (wrap %5). */
+int test_pause_options_cursor_down_wraps(void)
+{
+    opt_prep(0);
+    for (int i = 1; i <= 5; i++) {
+        g_sim_buttons[0].held = 0x8;       /* down */
+        pause_options_submenu_update();
+        g_sim_buttons[0].held = 0;
+        T_ASSERT_EQ_I(g_pause_options_row, i % 5);
+    }
+    return 0;
+}
+
+/* UP from row 0 wraps to row 4. */
+int test_pause_options_cursor_up_wraps(void)
+{
+    opt_prep(0);
+    g_sim_buttons[0].held = 0x4;           /* up */
+    pause_options_submenu_update();
+    T_ASSERT_EQ_I(g_pause_options_row, 4);
+    return 0;
+}
+
+/* Row 0 (Music/BGM): RIGHT increments to max 9, LEFT decrements to min 0; a
+ * change marks the menu dirty (phase 1). */
+int test_pause_options_bgm_slider_clamps(void)
+{
+    opt_prep(0);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 8);
+    g_sim_buttons[0].held = 0x1;           /* right */
+    pause_options_submenu_update();
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 9);
+    T_ASSERT_EQ_I(g_pause_options_phase, 1);   /* dirty */
+    pause_options_submenu_update();            /* already 9 → clamp, no change */
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 9);
+
+    g_sim_buttons[0].held = 0x2;           /* left */
+    for (int i = 0; i < 12; i++) pause_options_submenu_update();
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 0);  /* clamp 0 */
+    return 0;
+}
+
+/* Row 3 (Message Speed) clamps at 2; row 4 (Unread Text Skip) clamps at 1. */
+int test_pause_options_word_sliders_clamp(void)
+{
+    opt_prep(3);
+    settings_set_slider3(0);
+    g_sim_buttons[0].held = 0x1;           /* right */
+    for (int i = 0; i < 5; i++) pause_options_submenu_update();
+    T_ASSERT_EQ_I(settings_get_slider3(), 2);     /* SLOW→MED→FAST, clamp 2 */
+
+    opt_prep(4);
+    settings_set_slider4(0);
+    g_sim_buttons[0].held = 0x1;
+    for (int i = 0; i < 5; i++) pause_options_submenu_update();
+    T_ASSERT_EQ_I(settings_get_slider4(), 1);     /* OFF→ON, clamp 1 */
+    return 0;
+}
+
+/* Row 2 (Voice/SE-B) — the silent row still adjusts its value + marks dirty. */
+int test_pause_options_voice_adjusts(void)
+{
+    opt_prep(2);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, 5);
+    g_sim_buttons[0].held = 0x2;           /* left */
+    pause_options_submenu_update();
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B), 4);
+    T_ASSERT_EQ_I(g_pause_options_phase, 1);
+    return 0;
+}
+
+/* A when DIRTY → exit-save (phase 2); the next tick commits + closes. */
+int test_pause_options_exit_dirty_saves_then_closes(void)
+{
+    opt_prep(0);
+    g_pause_options_phase = 1;             /* dirty */
+    g_pause_sub_dir  = 1;                  /* submenu open */
+    g_pause_sel_anim = 0xf;
+    save_io_set_write_dir("/tmp");         /* sandbox the save.dat write */
+
+    g_sim_buttons[0].pressed = 0x10;       /* A */
+    pause_options_submenu_update();
+    T_ASSERT_EQ_I(g_pause_options_phase, 2);   /* exit-save armed */
+
+    g_sim_buttons[0].pressed = 0;
+    pause_options_submenu_update();             /* commits + closes */
+    T_ASSERT_EQ_I(g_pause_options_phase, 0);
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);          /* submenu closing */
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0);
+
+    save_io_set_write_dir(NULL);
+    return 0;
+}
+
+/* B when CLEAN → exit-no-save (phase 3); the next tick closes (no save). */
+int test_pause_options_exit_clean_closes_no_save(void)
+{
+    opt_prep(0);
+    g_pause_options_phase = 0;             /* clean */
+    g_pause_sub_dir = 1;
+
+    g_sim_buttons[0].pressed = 0x20;       /* B */
+    pause_options_submenu_update();
+    T_ASSERT_EQ_I(g_pause_options_phase, 3);   /* exit-no-save armed */
+
+    g_sim_buttons[0].pressed = 0;
+    pause_options_submenu_update();             /* closes */
+    T_ASSERT_EQ_I(g_pause_options_phase, 0);
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);
+    return 0;
+}
+
+/* The OPTIONS_READY predicate: scene 9, sub_anim==10, Options selected. */
+int test_pause_options_navigable_predicate(void)
+{
+    sm_prep(1, 0, 0);
+    pause_menu_setup();
+    int opt_idx = -1;
+    for (int i = 0; i < g_pause_count; i++)
+        if (g_pause_entries[i] == 2) opt_idx = i;
+    g_pause_sel = opt_idx;
+    g_pause_sub_anim = 10;
+    T_ASSERT_EQ_I(pause_options_navigable(9), 1);
+    T_ASSERT_EQ_I(pause_options_navigable(1), 0);   /* wrong scene */
+    g_pause_sub_anim = 9;
+    T_ASSERT_EQ_I(pause_options_navigable(9), 0);    /* not fully open */
     return 0;
 }
 
