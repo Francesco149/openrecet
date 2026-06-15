@@ -128,6 +128,14 @@ struct anchor_world {
      * fires AFTER PAUSE_OPEN on both sides, unlike PAUSE_READY which PAUSE_OPEN
      * straddles). 0 outside the open Options submenu. */
     int options_active;
+
+    /* 1 while the pause menu's ITEMS submenu (entry type 1) is fully open and
+     * navigable (scene 9, sub_anim==10, Items selected). Drives ITEMS_READY (0→1)
+     * — the same per-side-pause-load rebase, so the grid nav + the shared hand-
+     * cursor bob align picker-time-relative AND the v3 join keys to ITEMS_READY
+     * (fires AFTER PAUSE_OPEN on both sides, unlike PAUSE_READY which PAUSE_OPEN
+     * straddles). 0 outside the open Items submenu. */
+    int items_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

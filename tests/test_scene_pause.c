@@ -27,6 +27,7 @@
 #include "choice_box.h"  /* the overwrite dialog (M4c A-confirm on an occupied slot) */
 #include "stage_load_pulse.h" /* unpause teardown clears the stage-load-pulse flag */
 #include "nowloading.h"  /* the unpause must NOT raise "Now Loading" (no reload) */
+#include "scene1_display_menu.h" /* type-1 Items: open/update the inventory grid */
 
 /* The SHARED hand-cursor snapshot/restore the pause open/close drives
  * (title_save_dialog.h is render-heavy; forward-declare the pure-C entry points). */
@@ -799,18 +800,23 @@ int test_pause_nav_save_commit_scroll_clamps(void)
 }
 
 /* A non-Save entry (Items, type 1) does NOT open a submenu — PORT-DEBT. */
-int test_pause_nav_nonsave_commit_no_submenu(void)
+/* Drive sel_anim to 0xf with Items (type 1) selected → the type-1 init opens the
+ * display-menu inventory grid (mode 5, engine L82682-82693) and the submenu ramp
+ * (sub_anim=1, sub_dir=1).  display_menu_open activates the stage-load-pulse
+ * slide (the observable that it ran); place-mode (DAT_074b28a4) is cleared to 0. */
+int test_pause_nav_items_commit_opens_submenu(void)
 {
     sm_prep(1, 0, 0);
-    pause_menu_setup();
+    pause_menu_setup();                  /* house list [1,6,2,3,4] */
     int items_idx = -1;
     for (int i = 0; i < g_pause_count; i++)
         if (g_pause_entries[i] == 1) items_idx = i;
     T_ASSERT(items_idx >= 0);
     g_pause_sel = items_idx;
-    save_picker_reset();
+    stage_load_pulse_set_active(0);      /* clear so the open's set_active(1) shows */
+    g_pause_save_overwrite = 1;          /* a stale DAT_074b28a4 the commit must zero */
 
-    g_sim_buttons[0].pressed = 0x10;
+    g_sim_buttons[0].pressed = 0x10;     /* A */
     g_sim_buttons[0].held    = 0;
     pause_menu_nav();
     g_sim_buttons[0].pressed = 0;
@@ -818,8 +824,55 @@ int test_pause_nav_nonsave_commit_no_submenu(void)
         pause_menu_nav();
 
     T_ASSERT_EQ_I(g_pause_sel_anim, 0xf);
-    T_ASSERT_EQ_I(g_pause_sub_anim, 0);    /* no submenu opened */
-    T_ASSERT_EQ_I(g_save_picker_count, 0); /* perm init did NOT run */
+    T_ASSERT_EQ_I(g_pause_sub_anim, 1);            /* submenu opening */
+    T_ASSERT_EQ_I(g_pause_sub_dir, 1);             /* opening direction */
+    T_ASSERT_EQ_I(g_pause_save_overwrite, 0);      /* place-mode off (DAT_074b28a4=0) */
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 1); /* display_menu_open ran */
+    return 0;
+}
+
+/* The Items submenu CANCEL path (engine FUN_0047ff40, display_menu_update→2 on a
+ * B press): the submenu closes — sub_dir=0 (slides shut), sel_anim=0, and the
+ * display-menu slide goes inactive (FUN_004682d0). */
+int test_pause_items_submenu_cancel_closes(void)
+{
+    sm_prep(1, 0, 0);
+    display_menu_reset();
+    display_menu_open(5, 1);                  /* the house Items grid (mode 5) */
+    stage_load_pulse_reset_counter_to_5();    /* fully slid in → update accepts input */
+    g_pause_sub_anim  = 10;                   /* submenu fully open */
+    g_pause_sub_dir   = 1;
+    g_pause_sel_anim  = 0xf;
+    g_pause_save_overwrite = 0;               /* place-mode off (house) */
+
+    g_sim_buttons[0].pressed = 0x20;          /* B → CANCEL */
+    g_sim_buttons[0].held    = 0;
+    pause_items_submenu_update();
+
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);                /* submenu slides closed */
+    T_ASSERT_EQ_I(g_pause_sel_anim, 0);
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 0);  /* FUN_004682d0 (slide inactive) */
+    return 0;
+}
+
+/* Place-mode (DAT_074b28a4 != 0, dungeon-only) short-circuits the house update:
+ * the grid nav (display_menu_update) is skipped, so a B press does NOT close the
+ * submenu.  Guards the house early-return path. */
+int test_pause_items_submenu_placemode_guard(void)
+{
+    sm_prep(1, 0, 0);
+    display_menu_reset();
+    display_menu_open(5, 1);
+    stage_load_pulse_reset_counter_to_5();
+    g_pause_sub_anim  = 10;
+    g_pause_sub_dir   = 1;
+    g_pause_save_overwrite = 1;               /* place-mode ON (DAT_074b28a4 != 0) */
+
+    g_sim_buttons[0].pressed = 0x20;          /* B — owned by place-mode, ignored */
+    g_sim_buttons[0].held    = 0;
+    pause_items_submenu_update();
+
+    T_ASSERT_EQ_I(g_pause_sub_dir, 1);        /* unchanged — guard returned early */
     return 0;
 }
 

@@ -229,6 +229,14 @@ static int ev_options_ready(const struct anchor_world *p, const struct anchor_wo
     return !p->options_active && c->options_active;
 }
 
+/* The Items submenu (type 1) just became navigable. Same rebase as the other
+ * *_READY anchors (and the robust v3 join anchor for Items traces — fires AFTER
+ * PAUSE_OPEN on both sides). Fires once per Items-submenu open. */
+static int ev_items_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->items_active && c->items_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -261,6 +269,7 @@ static const struct anchor_def g_anchors[] = {
     { "SAVE_PICKER_READY",     ev_save_picker_ready },
     { "ENCYCLOPEDIA_READY",    ev_encyclopedia_ready },
     { "OPTIONS_READY",         ev_options_ready   },
+    { "ITEMS_READY",           ev_items_ready     },
     { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))

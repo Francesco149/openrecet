@@ -71,7 +71,7 @@ _none_
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_00453384 | src/scene_pause.c:277 | the engine has a thicket of mode-1 |
+| FUN_00453384 | src/scene_pause.c:282 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:310 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:283 | the engine teardown also restores the |
 
@@ -101,7 +101,7 @@ _none_
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1081 | the engine frees the shop |
-| price-trend | FUN_004361b2 | src/scene1_display_menu.c:149 | the trend<-1 ⇒ cap 0 branch is deferred |
-| price-trend | FUN_004361b2 | src/scene1_display_menu.c:916 | neutral (0) until the |
+| price-trend | FUN_004361b2 | src/scene1_display_menu.c:150 | the trend<-1 ⇒ cap 0 branch is deferred |
+| price-trend | FUN_004361b2 | src/scene1_display_menu.c:927 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
 

@@ -22,6 +22,7 @@
 #include "save_bank.h"   /* save_header_get_last_slot = DAT_056e578c */
 #include "save_work.h"   /* save_work_dwords_at / _active_slot — the commit source */
 #include "encyclopedia.h" /* the type-6 Encyclopedia submenu (FUN_0049f012/f365/f8b8) */
+#include "scene1_display_menu.h" /* type-1 Items: display_menu_open/_update/_render (FUN_00468338/00469414/0046b00a) */
 #include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
 #include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
 #include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
@@ -208,7 +209,11 @@ int32_t g_pause_save_scroll  = 0;   /* DAT_074b2820 (val2[0]) */
 int32_t g_pause_save_vscroll = 0;   /* DAT_074b2898 (c898)    */
 int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
 int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
-int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — overwrite-confirm dialog up */
+int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — Save: overwrite-confirm dialog
+                                     * up; Items (type 1): place-mode flag (dungeon-
+                                     * only, always 0 in the house). ONE engine DAT —
+                                     * only one submenu is open at a time, and each
+                                     * open resets it, so the storage is shared. */
 
 /* Options submenu (type 2) state — the config-panel cursor row + the dirty/exit
  * phase. Engine row = DAT_074b2834[cur] (aliases the Save cursor's slot, but only
@@ -474,6 +479,24 @@ void pause_menu_nav(void)
                  * hand cursor to the first row (168,168), then open the submenu. */
                 g_pause_options_row = 0;                        /* DAT_074b2834[cur] */
                 title_save_dialog_cursor_snap(168.0f, 168.0f);  /* FUN_00435693 */
+                g_pause_sub_anim++;
+                g_pause_sub_dir = 1;
+            } else if (t == 1) {
+                /* type-1 Items (engine L82682-82693): open the display menu in
+                 * mode 5 (the house inventory grid) and slide it in from the
+                 * right.  display_menu_open resets+activates the slide
+                 * (stage_load_pulse), scans the working-bank inventory, groups it
+                 * into category tabs, and snaps the shared hand cursor to the
+                 * first item.  The dungeon variant (mode 6, place-mode) is gated
+                 * on saved_mode==1 && stage_type>0 ⇒ PORT-DEBT(pause-items-dungeon);
+                 * the house stage_type is 0 so mode 5 is always taken here.
+                 * DAT_074b288c=1 (the value-array index) is set by the engine but
+                 * inert — the display_menu path uses its OWN cursor, not val[]. */
+                g_pause_save_overwrite = 0;        /* DAT_074b28a4 = 0 (place-mode off) */
+                stage_load_pulse_set_active(1);    /* FUN_004682c5 (DAT_0734b9a0 = 1) */
+                const int dmode =
+                    (g_pause_saved_mode == 1 && g_pause_in_stage_type > 0) ? 6 : 5;
+                display_menu_open(dmode, 1);        /* FUN_00468338(mode, 1) */
                 g_pause_sub_anim++;
                 g_pause_sub_dir = 1;
             }
@@ -795,6 +818,54 @@ void pause_options_submenu_update(void)
     }
 }
 
+/* FUN_0047ff40 — the Items submenu (type 1) update.
+ *
+ * Dispatched from pause_menu_update once the submenu is fully open (sub_anim==10)
+ * and Items (type 1) is selected.  The HOUSE path is just the display-menu grid
+ * nav (display_menu_update) + B-close; the place / use-item paths (placing a
+ * carried item, using medicines, the equip read-out) are dungeon-only — gated on
+ * saved_mode==1 && *DAT_068dd2f0>0 — and stay PORT-DEBT(pause-items-dungeon).
+ *
+ * Engine house path (DAT_074b28a4==0, stage_type 0), r = display_menu_update(1):
+ *   3 — pick-up arm (the Z edge that arms the confirm countdown) → SE 0x143
+ *   2 — CANCEL (B) → close: sub_dir=0 (the submenu slides shut), sel_anim=0,
+ *       hide the shared cursor (FUN_00435612), slide inactive (FUN_004682d0),
+ *       SE 0x13d
+ *   1 — CONFIRM → the engine gates place-mode on saved_mode==1 && stage_type>0;
+ *       the house stage_type is 0 ⇒ it returns (no-op)
+ *   0 — idle / still sliding in. */
+void pause_items_submenu_update(void)
+{
+    /* place-mode (DAT_074b28a4 != 0) is dungeon-only and is never entered in the
+     * house — PORT-DEBT(pause-items-dungeon). */
+    if (g_pause_save_overwrite != 0)
+        return;
+
+    const int r = display_menu_update(1);          /* FUN_00469414(1) */
+    if (r == 3) {
+        audio_play_se_by_id(0x143);                /* pick-up arm SE */
+    } else if (r == 2) {                           /* CANCEL → close the submenu */
+        g_pause_sub_dir  = 0;                      /* DAT_074b2884 */
+        g_pause_sel_anim = 0;                      /* DAT_074b2870 */
+        title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+        stage_load_pulse_set_active(0);            /* FUN_004682d0 (DAT_0734b9a0=0) */
+        audio_play_se_by_id(0x13d);                /* cancel SE */
+    }
+    /* r == 1 (CONFIRM): house stage_type 0 ⇒ the engine's place-mode gate fails
+     * and it returns — no-op here.  r == 0: idle. */
+}
+
+/* The Items submenu is open + navigable (the ITEMS_READY anchor predicate):
+ * scene mode 9, sub_anim==10, Items (type 1) selected.  Rebases nav past the
+ * per-side-variable pause-open ramp (same as the other pause submenus). */
+int pause_items_navigable(int scene_mode)
+{
+    return scene_mode == 9
+        && g_pause_sub_anim == 10
+        && g_pause_sel >= 0 && g_pause_sel < SCENE_PAUSE_MAX_ENTRIES
+        && g_pause_entries[g_pause_sel] == 1;
+}
+
 /* The Options submenu is open + navigable (the anchor OPTIONS_READY predicate):
  * scene mode 9, sub_anim==10, Options (type 2) selected. Rebases nav past the
  * per-side-variable pause-open ramp (same as the save/encyclopedia pickers). */
@@ -845,15 +916,18 @@ void pause_menu_update(void)
                 if (g_pause_sub_anim > 10) g_pause_sub_anim = 10;
             }
             /* L82031 — once fully open, dispatch to the per-type submenu
-             * updater. Save (type 3 → FUN_0047f5bc) + Encyclopedia (type 6 →
-             * FUN_0049f365) are ported; the dungeon (5)/Items (1)/Status (0)/
-             * Options (2) updaters stay PORT-DEBT(pause-submenu-*). */
+             * updater. Save (type 3 → FUN_0047f5bc), Options (type 2 →
+             * FUN_0047fc44), Encyclopedia (type 6 → FUN_0049f365) and Items
+             * (type 1 → FUN_0047ff40, house path) are ported; the dungeon (5)/
+             * Status (0) updaters stay PORT-DEBT(pause-submenu-*). */
             if (g_pause_sub_anim == 10) {
                 const int t = g_pause_entries[g_pause_sel];
                 if (t == 3) {
                     pause_save_submenu_update();
                 } else if (t == 2) {
                     pause_options_submenu_update();   /* FUN_0047fc44 */
+                } else if (t == 1) {
+                    pause_items_submenu_update();     /* FUN_0047ff40 */
                 } else if (t == 6) {
                     /* engine L82045: close on B (returns 1). */
                     if (encyclopedia_update() == 1) {
@@ -1343,13 +1417,19 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
     }
 
     /* ── sub_anim>0 submenu dispatch (engine L83931-83952): the open submenu
-     * renders over the (fading) option list. Save (type 3) + Encyclopedia
-     * (type 6) + Options (type 2) are ported; Status (0)/dungeon (5)/Items (1)
-     * renders stay PORT-DEBT(pause-submenu-*). ── */
+     * renders over the (fading) option list. Save (type 3), Encyclopedia
+     * (type 6), Options (type 2) and Items (type 1) are ported; the Status (0)/
+     * dungeon (5) renders stay PORT-DEBT(pause-submenu-*). ── */
     if (g_pause_sub_anim > 0) {
         const int t = g_pause_entries[g_pause_sel];
         if (t == 3) {
             pause_save_picker_render(d);     /* FUN_004812e4 */
+        } else if (t == 1) {
+            /* engine L83946: FUN_0048196b → FUN_0046b00a(640 - sub_anim*64, 0).
+             * The house path is just the display-menu grid sliding in from the
+             * right (slide_x 640→0 as sub_anim 0→10); the dungeon medicine/equip
+             * option loop is gated on *DAT_068dd2f0>0 ⇒ skipped in the house. */
+            display_menu_render(d, 640.0f - (float)(g_pause_sub_anim << 6));
         } else if (t == 2) {
             /* engine L83941: FUN_0048150c — slide_x = sub_anim*64-640 (≤0,
              * slides in from the left, rests at 0), base_y 48, row + the

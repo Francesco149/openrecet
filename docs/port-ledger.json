@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 434,
-  "unported": 2030,
+  "ported": 437,
+  "unported": 2027,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 518,
-  "pct_touched": 20.3,
+  "touched": 521,
+  "pct_touched": 20.4,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -5390,6 +5390,7 @@
    "status": "ported",
    "src": [
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/stage_load_pulse.h"
    ]
   },
@@ -5647,7 +5648,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
-    "src/scene_guild.c"
+    "src/scene_guild.c",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -5745,7 +5747,8 @@
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
-    "src/scene_guild.c"
+    "src/scene_guild.c",
+    "src/scene_pause.c"
    ]
   },
   {
@@ -7763,8 +7766,11 @@
    "size": 911,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_pause.c",
+    "src/scene_pause.h"
+   ]
   },
   {
    "va": "0x4802cf",
@@ -7886,8 +7892,11 @@
    "size": 415,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.h",
+    "src/scene_pause.c"
+   ]
   },
   {
    "va": "0x481b0a",
@@ -9192,8 +9201,10 @@
    "size": 6,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x491618",

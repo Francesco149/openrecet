@@ -110,11 +110,14 @@ int display_menu_slide(void);
 
 #ifdef _WIN32
 struct IDirect3DDevice8;
-/* FUN_0046b00a(0,0): render the display-stand remove-item menu (the item_win
- * parchment panel + category frame + scroll arrows + item rows + cursor).
- * No-op while the slide counter is 0 (closed).  Wired into the HOUSE render
- * tail after scene1_render_overlay. */
-void display_menu_render(struct IDirect3DDevice8 *dev);
+/* FUN_0046b00a(param_1, 0): render the display-stand remove-item menu (the
+ * item_win parchment panel + category frame + scroll arrows + item rows +
+ * cursor).  No-op while the slide counter is 0 (closed).  `slide_x` is the
+ * engine's param_1, added to the panel x-base (fVar1 = slide_x + 640 -
+ * (DAT_0734b98c<<7)): 0 for the HOUSE shop / guild call sites; 640 -
+ * sub_anim*64 for the pause Items submenu (FUN_0048196b), which slides the grid
+ * in from the right as the submenu opens (sub_anim 0→10 ⇒ slide_x 640→0). */
+void display_menu_render(struct IDirect3DDevice8 *dev, float slide_x);
 #endif
 
 #endif /* OPENRECET_SCENE1_DISPLAY_MENU_H */

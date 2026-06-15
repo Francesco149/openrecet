@@ -249,6 +249,13 @@ void pause_save_submenu_update(void);
  * Reads g_sim_buttons[0]; mutates g_pause_options_row/phase + the config model. */
 void pause_options_submenu_update(void);
 
+/* FUN_0047ff40 — the Items (type 1) inventory-grid nav (sub_anim==10, Items
+ * selected). HOUSE path: one frame of display_menu_update + B-close; the place /
+ * use-item paths are dungeon-only PORT-DEBT(pause-items-dungeon). Reads
+ * g_sim_buttons[0] (via display_menu_update); mutates the display-menu cursor +
+ * the submenu close state. */
+void pause_items_submenu_update(void);
+
 /* Reset the state machine globals (tests + pause_menu_setup share it). */
 void pause_sm_reset(void);
 
@@ -266,6 +273,10 @@ int pause_encyclopedia_navigable(int scene_mode);
 /* Options submenu (type 2) open + navigable — the OPTIONS_READY anchor
  * predicate (scene 9, sub_anim==10, Options selected). */
 int pause_options_navigable(int scene_mode);
+
+/* Items submenu (type 1) open + navigable — the ITEMS_READY anchor predicate
+ * (scene 9, sub_anim==10, Items selected). */
+int pause_items_navigable(int scene_mode);
 
 #ifdef _WIN32
 

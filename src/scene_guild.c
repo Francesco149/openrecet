@@ -1230,7 +1230,7 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
     if (!scene1_intro_dialogue_busy() ||
         (s_menu.mode == 1 && s_menu.entry_tick > 0xe)) {
         scene_guild_menu_render(d);                /* FUN_0049404b — menu panel    */
-        display_menu_render(d);                    /* FUN_0046b00a — item window
+        display_menu_render(d, 0.0f);              /* FUN_0046b00a — item window
                                                     * (Buy/Sell list; no-op while
                                                     * the slide counter is 0).     */
         /* FUN_0043537e (secondary banner) is a no-op at rest. */

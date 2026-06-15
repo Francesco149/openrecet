@@ -34,6 +34,7 @@
 #include "tables_item.h"         /* g_item DB (FUN_004681f6 record lookup) */
 #include "scene1_chr_prepass.h"  /* chr_prepass_sort (FUN_0045526a co-sort) */
 #include "title_save_dialog.h"   /* the SHARED hand cursor (FUN_00435693/710/747) */
+#include "scene.h"               /* g_scene_state (DAT_0438b1c0) — the price-label scene gate */
 #include "audio.h"               /* audio_play_se_by_id (nav SE, no RNG) */
 #include "scene_guild.h"         /* scene_guild_variant (DAT_0963c5f0) for mode-7 buy */
 
@@ -682,11 +683,19 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
         else
             snprintf(num, sizeof num, "%d,%03d,%03d",
                      price / 1000000, (price / 1000) % 1000, price % 1000);
-        /* label by mode (all.c:65687-65697): in the guild (scene 6) buy/sell uses
-         * "Purchase Price-"/"Sell Price-"; the house stand uses "Base Price-". */
-        const char *plabel = (s_mode == 7) ? "Purchase Price- %s"
-                           : (s_mode == 5) ? "Sell Price- %s"
-                           : "Base Price- %s";
+        /* label by SCENE first, not display-menu mode alone (all.c:65687-65697):
+         * the engine keys off DAT_0438b1c0 (g_scene_state).  In the GUILD (scene
+         * 6) it splits on FUN_00491612 — buy(0)→"Purchase Price-" / sell(1)→
+         * "Sell Price-"; EVERY other scene (the house stand scene 1, the pause
+         * Items submenu scene 9, …) shows "Base Price-".  A mode-only label is
+         * WRONG: mode 5 is shared by the guild SELL *and* the pause Items, so it
+         * would mislabel the pause Items "Sell Price-".  FUN_00491612 is unported,
+         * but the guild opens the grid in mode 7 (buy) / mode 5 (sell) IN LOCKSTEP
+         * with it, so s_mode distinguishes them WITHIN scene 6. */
+        const char *plabel =
+            (g_scene_state != 6)   ? "Base Price- %s"        /* house, pause Items */
+          : (s_mode == 7)          ? "Purchase Price- %s"    /* guild buy  */
+                                   : "Sell Price- %s";       /* guild sell */
         snprintf(line, sizeof line, plabel, num);  /* s_…_005c75cc/75e0/75f0 */
         font_draw_text(dev, x0 + 80.0f, 420.0f, line, 0xffffffffu, 0.8f);  /* local_c */
     }
@@ -703,7 +712,7 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
     }
 }
 
-void display_menu_render(struct IDirect3DDevice8 *dev_in)
+void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
 {
     if (dev_in == NULL)
         return;
@@ -718,9 +727,11 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     if (win->tex == NULL)
         return;
 
-    /* slide-in: the window starts 640px right of home and slides 128px/step
-     * (DAT_0734b98c << 7).  param_1 = param_2 = 0 (the HOUSE call site). */
-    const float x0  = (0.0f + 640.0f) - (float)(slide << 7);   /* fVar1 */
+    /* slide-in: the window starts (slide_x+640)px right of home and slides
+     * 128px/step (DAT_0734b98c << 7).  fVar1 = param_1 + 640 - (slide<<7);
+     * param_1 = slide_x (0 at the HOUSE shop / guild call sites; 640-sub_anim*64
+     * for the pause Items submenu), param_2 = 0 (so the y-base stays +40). */
+    const float x0  = (slide_x + 640.0f) - (float)(slide << 7);   /* fVar1 */
     const float xL  = x0 + 240.0f;                             /* local_18 */
     float       y   = 0.0f + 40.0f;                            /* local_40 */
 

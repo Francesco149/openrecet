@@ -1,0 +1,16 @@
+# house-pause-items — see trace.jsonl.  Opens the in-game PAUSE menu and presses
+# Z to open the ITEMS entry (type 1, index 0 / default in the house list
+# [1,6,2,3,4]).  Engine: nav-commit FUN_00480614 type-1 → display_menu_open(5,1);
+# update FUN_0047ff40 (house path); render FUN_0048196b → FUN_0046b00a
+# (display_menu_render) sliding in from the right.
+#
+# Synthesised for the PAUSE-MENU Items arc (docs/plans/pause-menu.md M3+).  The
+# nav + caprange re-anchor to PAUSE_READY so retail's slower pause-asset load
+# finishes before the Z press (load-seam-immune; the v3 identity-join pairs the
+# submenu frames by (PAUSE_READY, offset)).
+description: |
+  Pause → Z opens the type-1 Items submenu (display_menu mode 5).  Capture the
+  PAUSE_READY+0..300 extent; slice the open + resting inventory grid for the
+  port↔retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.
+max_frames: 22000   # turbo load-stretch headroom (matches house-pause)
+duration_ceiling_ms: 180000

@@ -2730,6 +2730,8 @@ static void render_dispatch(void)
             .encyclopedia_active = pause_encyclopedia_navigable(g_scene_state),
             /* OPTIONS_READY: the pause Options submenu is open + navigable. */
             .options_active = pause_options_navigable(g_scene_state),
+            /* ITEMS_READY: the pause Items submenu is open + navigable. */
+            .items_active = pause_items_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
@@ -2994,7 +2996,7 @@ static void render_dispatch(void)
                      * the engine (FUN_0045cc85 tail is skipped when the cutscene
                      * covers); the cc04 menu is never up during the iv1_1 opening
                      * anyway, so this only formalises the structure. */
-                    display_menu_render(g_dev);
+                    display_menu_render(g_dev, 0.0f);
                 }
                 /* Opening-prologue / iv1_2 dialogue (FUN_0046c090 → FUN_0046c9a2).
                  * Drawn LAST — AFTER the HUD + overlay — per the engine render

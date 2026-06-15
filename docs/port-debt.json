@@ -122,7 +122,7 @@
    "engine_fn": "FUN_004361b2",
    "desc": "the trend<-1 \u21d2 cap 0 branch is deferred",
    "file": "src/scene1_display_menu.c",
-   "line": 149,
+   "line": 150,
    "kind_known": false
   },
   {
@@ -130,7 +130,7 @@
    "engine_fn": "FUN_004361b2",
    "desc": "neutral (0) until the",
    "file": "src/scene1_display_menu.c",
-   "line": 916,
+   "line": 927,
    "kind_known": false
   },
   {
@@ -170,7 +170,7 @@
    "engine_fn": "FUN_00453384",
    "desc": "the engine has a thicket of mode-1",
    "file": "src/scene_pause.c",
-   "line": 277,
+   "line": 282,
    "kind_known": true
   },
   {

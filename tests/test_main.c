@@ -1179,7 +1179,9 @@ struct test_case {
     X(save_picker_perm_init_identity) \
     X(pause_nav_save_commit_opens_picker) \
     X(pause_nav_save_commit_scroll_clamps) \
-    X(pause_nav_nonsave_commit_no_submenu) \
+    X(pause_nav_items_commit_opens_submenu) \
+    X(pause_items_submenu_cancel_closes) \
+    X(pause_items_submenu_placemode_guard) \
     X(pause_nav_options_commit_inits_row) \
     X(pause_options_cursor_down_wraps) \
     X(pause_options_cursor_up_wraps) \
