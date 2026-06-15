@@ -624,7 +624,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   closed** (picker + settings bit-exact, load-confirm 1:1; the New Game flow remains a separate
   non-render arc — the "hardest, last" intro/prologue thread).
 - **TITLE-SCREEN RENDER ARC → all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) ✅ DONE +
-  PIXEL-BIT-EXACT 2026-06-16, AWAITING USER 1:1** (`9d2c435` board refactor + `2d2597c` title
+  PIXEL-BIT-EXACT + USER-CONFIRMED 1:1 2026-06-16** (user "can confirm the encyclopedia is 1:1";
+  parity ledger) (`9d2c435` board refactor + `2d2597c` title
   integration + `768759f` working-arena fix). The title menu's code-7 row (the port author's
   "RANKING" is a MISNOMER — the dispatch `FUN_0049a59e` L101130 runs `FUN_0049f012(1)` = the
   **all-banks encyclopedia setup**, and the render is `FUN_0049f8b8`; both unambiguously the 図鑑).
