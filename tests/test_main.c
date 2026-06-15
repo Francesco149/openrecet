@@ -1196,6 +1196,15 @@ struct test_case {
     X(pause_update_dispatches_save_nav) \
     X(pause_save_picker_navigable_pred) \
     \
+    X(encyclopedia_setup_all_discovered) \
+    X(encyclopedia_setup_partial) \
+    X(encyclopedia_update_b_closes) \
+    X(encyclopedia_update_right_moves_column) \
+    X(encyclopedia_update_rshoulder_pages) \
+    X(encyclopedia_anim_commits_at_ten) \
+    X(encyclopedia_down_scrolls_full_grid) \
+    X(encyclopedia_update_detail_toggle) \
+    \
     X(scene_buy_slot_count_is_ten) \
     X(scene_buy_page_count_is_fifty) \
     X(scene_buy_format_string) \

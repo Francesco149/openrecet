@@ -36,6 +36,7 @@ void title_save_dialog_cursor_set_visible(int on);
 int  title_save_dialog_cursor_get_visible(void);
 void title_save_dialog_cursor_capture_target(float *x, float *y);
 void title_save_dialog_cursor_snap(float x, float y);
+void title_save_dialog_anim_tick(void);   /* FUN_004356cd — cursor bob + slide step */
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -723,8 +724,14 @@ void pause_menu_update(void)
     /* else: exit-confirm (return-to-title) — PORT-DEBT(pause-exit-confirm). */
 
     g_pause_frame++;   /* _DAT_074b2874 */
-    /* FUN_004356cd() (shared cursor bob/slide) runs from the integration
-     * layer's per-frame cursor tick, as for the other menus. */
+    /* FUN_004356cd (engine L82104) — the shared hand-cursor bob + 6-frame
+     * slide step.  Retail runs it at the END of FUN_0047fa76 (pause_menu_update)
+     * every menu frame; during mode 9 the per-mode sim dispatch (which ticks
+     * the cursor for modes 1/8/6) is SKIPPED (sim.c counter_998 path), so this
+     * is the ONLY tick that advances the cursor while the pause menu is up.
+     * Without it the Encyclopedia's sliding hand cursor never reaches its nav
+     * target (the save submenu hides the hand cursor, so it never surfaced). */
+    title_save_dialog_anim_tick();
 }
 
 /* ─── Win32 worker_load wiring + sprite storage ─────────────────────── */

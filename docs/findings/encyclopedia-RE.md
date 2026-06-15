@@ -107,5 +107,37 @@ the port over PAUSE_READY+0:300, compared vs the retail v3 cache:
   centering class.  The category-selector batching (port split → retail's single
   4-prim draw) was fixed (bind-once/flush-once).
 
-**Phase 2 (next):** the item-detail overlay `FUN_0046a336` (A-press), then the
-maxed-out-save stress trace (every item rendered + the full nav exercised).
+## Verification (PHASE 2 — maxed-save stress: every item + full-grid nav)
+
+Scenario `house-pause-encyclopedia-max` (the hacked maxed save f693fbd6, every
+item discovered) + the `ENCYCLOPEDIA_READY` anchor (clean per-side pause-load
+rebase, join 559/559).  Pages the whole 33-category carousel with full 3-column
+grids + vertical scroll + column moves.
+
+- **Items render BIT-EXACT.** After the cursor fix below, the resting full grids
+  are **gt8 0.0000%** vs retail across the carousel — every item's icon + name +
+  the completion % + the description match.  The only non-zero frames are the
+  mid-category-SLIDE transients (~3.5%, the moving full-grid carousel offset by
+  the 1-frame async-pause render seam — the accepted load-seam pillar; the
+  resting frames before/after each slide are bit-exact, proving the slide
+  starts/ends on the same cells).
+
+### THE BUG the maxed save caught: the pause cursor was never ticked (mode 9)
+
+On full grids the hand cursor MOVES (Down/Right within the grid); on the sparse
+usual save it never left cell (0,0), so the slide path was never exercised.  The
+maxed grids exposed it: the port cursor LAGGED its (correct) logical state
+because the **6-frame cursor slide (`title_save_dialog_anim_tick` = FUN_004356cd)
+was never ticked during mode 9.**  The engine runs it at the END of every
+`FUN_0047fa76` (pause_menu_update) frame; the port had assumed the integration
+layer (sim.c) did it "like the other menus" — but sim.c ticks the cursor only
+for modes 1/8/6, and during mode 9 the per-mode dispatch is SKIPPED (the
+counter_998 freeze path).  The Save submenu hides the hand cursor (its card-
+breathe uses a separate counter), so this never surfaced before the encyclopedia.
+Fix: call `title_save_dialog_anim_tick()` at the tail of `pause_menu_update`
+(scene_pause.c), matching FUN_0047fa76 L82104.  Verified no regression — the
+maxed grids go to **bit-exact**, house-pause (M2/M3) stays **bit-exact**, the
+usual-save nav is unchanged (slightly better at the slides), 3281 host tests pass.
+
+**PORT-DEBT(encyclopedia-detail):** the A-press item-detail overlay
+`FUN_0046a336` (the big stat/combine popup) is stubbed — the next milestone.

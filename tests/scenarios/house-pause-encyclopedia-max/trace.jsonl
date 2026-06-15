@@ -1,0 +1,74 @@
+# house-pause-encyclopedia-max — the MAXED (hacked) save f693fbd6 (every item
+# discovered), stress-testing the Encyclopedia render: full 3-column grids, every
+# item's icon+name, vertical scroll, the completion %, and the category carousel.
+# Rebased on ENCYCLOPEDIA_READY (clean per-side pause-load sync).
+#
+# Nav after ENCYCLOPEDIA_READY (the user's "select every item + exercise nav"):
+#   scroll the first category (Down 0x0008), column moves (Right 0x0001), then page
+#   the carousel (R-shoulder 0x0080) through every category, ending with L-shoulder
+#   (0x0010) back.  Every item's icon+name renders as each category scrolls past.
+# embedded save: f693fbd6333f0967dd84ef3b12494eb324945a8631f8dfb1651d34b48ecc230c
+{"savefile": "../../traces/save-roundtrip/_saves/f693fbd6333f0967dd84ef3b12494eb324945a8631f8dfb1651d34b48ecc230c.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 80}
+{"rngseed": [80, 19937]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 160}
+{"wait": "PAUSE_READY"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"wait": "ENCYCLOPEDIA_READY"}
+{"caprange": [0, 560]}
+{"calltrace": [0, 560]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0008"}
+{"frame": 33, "buttons": "0x0000"}
+{"frame": 50, "buttons": "0x0008"}
+{"frame": 53, "buttons": "0x0000"}
+{"frame": 70, "buttons": "0x0008"}
+{"frame": 73, "buttons": "0x0000"}
+{"frame": 92, "buttons": "0x0001"}
+{"frame": 95, "buttons": "0x0000"}
+{"frame": 112, "buttons": "0x0001"}
+{"frame": 115, "buttons": "0x0000"}
+{"frame": 134, "buttons": "0x0080"}
+{"frame": 137, "buttons": "0x0000"}
+{"frame": 162, "buttons": "0x0008"}
+{"frame": 165, "buttons": "0x0000"}
+{"frame": 182, "buttons": "0x0080"}
+{"frame": 185, "buttons": "0x0000"}
+{"frame": 210, "buttons": "0x0080"}
+{"frame": 213, "buttons": "0x0000"}
+{"frame": 238, "buttons": "0x0080"}
+{"frame": 241, "buttons": "0x0000"}
+{"frame": 266, "buttons": "0x0080"}
+{"frame": 269, "buttons": "0x0000"}
+{"frame": 294, "buttons": "0x0080"}
+{"frame": 297, "buttons": "0x0000"}
+{"frame": 322, "buttons": "0x0080"}
+{"frame": 325, "buttons": "0x0000"}
+{"frame": 350, "buttons": "0x0080"}
+{"frame": 353, "buttons": "0x0000"}
+{"frame": 378, "buttons": "0x0080"}
+{"frame": 381, "buttons": "0x0000"}
+{"frame": 406, "buttons": "0x0080"}
+{"frame": 409, "buttons": "0x0000"}
+{"frame": 434, "buttons": "0x0080"}
+{"frame": 437, "buttons": "0x0000"}
+{"frame": 462, "buttons": "0x0080"}
+{"frame": 465, "buttons": "0x0000"}
+{"frame": 490, "buttons": "0x0010"}
+{"frame": 493, "buttons": "0x0000"}
+{"frame": 518, "buttons": "0x0010"}
+{"frame": 521, "buttons": "0x0000"}
+{"frame": 560, "buttons": "0x0000"}
