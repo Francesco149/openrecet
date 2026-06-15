@@ -231,6 +231,38 @@ int test_scene_title_sim_pending_action_exit_on_exit_item(void)
     return 0;
 }
 
+int test_scene_title_sim_ranking_opens_encyclopedia(void)
+{
+    /* Code 7 (RANKING — the all-banks 図鑑) on the fresh menu opens the
+     * encyclopedia submenu in place: submenu_state → 3 + slide-in, NOT the
+     * fade / pending_action routes the other codes take. Fresh menu order is
+     * NEW_GAME, RANKING, OPTIONS, EXIT (index 1 = RANKING). The dispatch's
+     * encyclopedia_setup(1) side effect builds an (empty, no-save) catalog —
+     * the assertions are on the title state machine only. */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    scene_title_anim_init_fresh(&a);
+    mk_menu(&m);
+
+    /* DOWN once → cursor on RANKING (index 1). */
+    scene_title_sim(&a, &m, 0, INPUT_DOWN);
+    T_ASSERT_EQ_U(a.cursor_pos, 1u);
+    T_ASSERT_EQ_I(m.items[1], SCENE_TITLE_MENU_RANKING);
+
+    /* A + 14 frames → select_phase latches 0xf → encyclopedia dispatch. */
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) {
+        scene_title_sim(&a, &m, 0, 0);
+    }
+    T_ASSERT_EQ_U(a.select_phase,     0xfu);
+    T_ASSERT_EQ_I(a.submenu_state,    3);   /* DAT_09643524 = 3 (encyclopedia) */
+    T_ASSERT_EQ_I(a.menu_folding_out, 0);   /* DAT_09643528 = 0 → slide in     */
+    /* The 図鑑 does NOT use the fade / pending_action paths. */
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+    T_ASSERT_EQ_U(a.fade_counter,   0u);
+    return 0;
+}
+
 int test_scene_title_sim_fade_counter_advances_after_set(void)
 {
     /* Once `fade_counter` latches, subsequent frames advance it one

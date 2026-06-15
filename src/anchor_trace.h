@@ -151,6 +151,13 @@ struct anchor_world {
      * clean +0-stretch v3 join for the title settings render (FUN_0049c050). 0
      * outside the open settings submenu. */
     int title_settings_active;
+
+    /* 1 while the TITLE-screen all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) is
+     * fully open + navigable (scene 0, submenu_state == 3, cursor_anim == 10).
+     * Drives TITLE_ENCYCLOPEDIA_READY (0→1) — like the picker/settings, no async
+     * load, so a clean +0-stretch v3 join for the title encyclopedia render
+     * (FUN_0049f8b8). 0 outside the open encyclopedia. */
+    int title_encyclopedia_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

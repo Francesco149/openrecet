@@ -257,6 +257,15 @@ static int ev_title_settings_ready(const struct anchor_world *p, const struct an
     return !p->title_settings_active && c->title_settings_active;
 }
 
+/* The TITLE-screen all-banks ENCYCLOPEDIA (図鑑, submenu_state 3) just became
+ * navigable (rising edge of title_encyclopedia_active). Like TITLE_PICKER_READY:
+ * no async load ⇒ a clean +0-stretch v3 join for the title encyclopedia render
+ * (FUN_0049f8b8). Fires once per open. */
+static int ev_title_encyclopedia_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->title_encyclopedia_active && c->title_encyclopedia_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -293,6 +302,7 @@ static const struct anchor_def g_anchors[] = {
     { "TITLE_RETURN",          ev_title_return    },
     { "TITLE_PICKER_READY",    ev_title_picker_ready },
     { "TITLE_SETTINGS_READY",  ev_title_settings_ready },
+    { "TITLE_ENCYCLOPEDIA_READY", ev_title_encyclopedia_ready },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

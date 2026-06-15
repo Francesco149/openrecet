@@ -286,6 +286,11 @@ int scene_title_continue_picker_navigable(int scene_mode);
  * submenu_state == 2, cursor_anim == 10). No async load ⇒ a clean v3 join. */
 int scene_title_settings_navigable(int scene_mode);
 
+/* TITLE_ENCYCLOPEDIA_READY anchor source — nonzero when the all-banks 図鑑
+ * (submenu_state 3) is fully open + navigable (scene_mode == TITLE,
+ * submenu_state == 3, cursor_anim == 10). No async load ⇒ a clean v3 join. */
+int scene_title_encyclopedia_navigable(int scene_mode);
+
 #ifdef _WIN32
 
 #define COBJMACROS

@@ -1,0 +1,34 @@
+# title-encyclopedia — open the title-screen all-banks ENCYCLOPEDIA (図鑑) and
+# view the catalog (FUN_0049f012(1) setup / FUN_0049f365 update / FUN_0049f8b8
+# render — the SAME encyclopedia.{c,h} the pause type-6 submenu uses, here driven
+# from the title's submenu_state 3 with the all-banks scan param 1).
+#
+# Fresh boot (@fresh ⇒ no save): the title menu is [New Game, Ranking, Options,
+# Exit] with the cursor on New Game (verified by title-options). So DOWN ×1 lands
+# on RANKING (row 1 — the "Ranking" label is the port author's misnomer; the
+# dispatch + render are unambiguously the encyclopedia) and A opens the all-banks
+# 図鑑 (submenu_state 3); the catalog slides in from the right (cursor_anim 0→10).
+# A fresh save has no discoveries, so the catalog is the empty-grid baseline (33
+# categories, 0% complete) — it exercises the backdrop, category banner, empty
+# cells, scroll/category arrows, the slide-in, and the shared-cursor placement,
+# all of which must match retail 1:1. (A populated-save variant verifies the
+# all-banks aggregation separately.)
+#
+# v3 sync: anchor the capture at TITLE_ENCYCLOPEDIA_READY — the rising edge of
+# "encyclopedia fully open + navigable" (scene 0, submenu_state 3, cursor_anim
+# 10). Like the title picker/settings the encyclopedia has NO async asset load,
+# so this fires at the same submenu-relative frame on both sides ⇒ a clean
+# +0-stretch v3 join. No {phasepin} (the title carries no db054 / sim-frame; a
+# fixed rngseed keeps the boot deterministic).
+{"savefile": "@fresh"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0008"}
+{"frame": 6, "buttons": "0x0000"}
+{"frame": 15, "buttons": "0x0010"}
+{"frame": 16, "buttons": "0x0000"}
+{"wait": "TITLE_ENCYCLOPEDIA_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

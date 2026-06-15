@@ -1,0 +1,13 @@
+# title-encyclopedia — see trace.jsonl.  Fresh-boot title → DOWN×1 to RANKING
+# (the all-banks 図鑑 menu row) → A opens the encyclopedia submenu (submenu_state
+# 3; engine FUN_0049f012(1) setup / FUN_0049f365 update / FUN_0049f8b8 render).
+#
+# Verifies the title integration of the (already-1:1) encyclopedia render: the
+# code-7 dispatch (encyclopedia_setup(1) all-banks), the cursor_anim slide-in
+# (x = 640 - cursor_anim*64, identical to the pause sub_anim path), the per-frame
+# encyclopedia_update nav, and the close path.  Capture the TITLE_ENCYCLOPEDIA_
+# READY+0..120 window; no async load ⇒ a clean +0-stretch v3 identity join.
+description: Title → DOWN×1 → A → all-banks encyclopedia slides in (FUN_0049f8b8 render)
+rng_seed: 1
+max_frames: 200
+duration_ceiling_ms: 60000

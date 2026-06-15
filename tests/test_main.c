@@ -529,6 +529,7 @@ struct test_case {
     X(scene_title_sim_pending_action_default_is_none) \
     X(scene_title_sim_fade_counter_set_on_new_game) \
     X(scene_title_sim_pending_action_exit_on_exit_item) \
+    X(scene_title_sim_ranking_opens_encyclopedia) \
     X(scene_title_sim_fade_counter_advances_after_set) \
     X(scene_title_sim_cursor_input_ignored_while_select_pending) \
     X(scene_title_sim_cursor_pressed_only_no_held) \

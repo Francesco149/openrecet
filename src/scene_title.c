@@ -25,6 +25,7 @@
 #include "audio.h"        /* audio_play_se_by_id for settings SE feedback */
 #include "audio_fade.h"   /* slider get/set + apply for BGM/SE-A/SE-B rows */
 #include "call_trace.h"   /* CALL_TRACE_ENTER_STUB at scene_title entry points */
+#include "encyclopedia.h" /* the all-banks 図鑑 (FUN_0049f012(1)/f365/f8b8) — title submenu_state 3 */
 #include "fade.h"         /* scene-fade phase-1 trigger + done query */
 #include "save_bank.h"    /* save_header_set_*_slider for persistence */
 #include "scene.h"        /* g_scene_state transition on fade complete */
@@ -437,10 +438,29 @@ void scene_title_sim(scene_title_anim_t *anim,
     }
 
     /* Submenu input — gated on cursor_anim == 10 (fully slid in).
-     * Engine: lines 251-475 of 49a59e.c — only state==2 (settings) is
-     * wired here; states 1/3/4 fall through with no input. */
+     * Engine: lines 251-475 of 49a59e.c — states 2 (settings) and 3
+     * (encyclopedia) are wired here; states 1/4 handled below / deferred. */
     if (anim->cursor_anim == 10 && anim->submenu_state == 2) {
         scene_title_settings_step(anim, pressed, held);
+        anim->pulse_phase++;
+        return;
+    }
+
+    /* All-banks ENCYCLOPEDIA (図鑑) — engine state DAT_09643524 == 3
+     * (FUN_0049a59e L101020). encyclopedia_update (FUN_0049f365) runs the
+     * grid nav off the shared button ring (g_sim_buttons[0]) and returns 1
+     * on B — it plays its OWN close SE 0x13d internally. The title then
+     * layers the menu-back beep 0x143 (FUN_00499519), resets the select
+     * countdown, folds the panel out (slide back to the main menu), and
+     * hides the shared hand cursor (FUN_00435612). The fold-out clause above
+     * clears submenu_state once cursor_anim reaches 0. */
+    if (anim->cursor_anim == 10 && anim->submenu_state == 3) {
+        if (encyclopedia_update() == 1) {
+            audio_play_se_by_id(TITLE_SE_CONFIRM);   /* FUN_00499519(0x143) */
+            anim->select_phase     = 0;              /* DAT_09643544 = 0 */
+            anim->menu_folding_out = 1;              /* DAT_09643528 = 1  */
+            title_save_dialog_cursor_set_visible(0); /* FUN_00435612      */
+        }
         anim->pulse_phase++;
         return;
     }
@@ -596,6 +616,20 @@ void scene_title_sim(scene_title_anim_t *anim,
                             code, save_header_get_last_slot());
                         anim->submenu_state    = 1;
                         anim->menu_folding_out = 0;   /* slide picker in */
+                    } else if (code == SCENE_TITLE_MENU_RANKING) {
+                        /* Engine FUN_0049a59e L101130: code 7 → the all-banks
+                         * ENCYCLOPEDIA (図鑑). FUN_0049f012(1) rebuilds the
+                         * catalog by ORing discovery across EVERY save bank
+                         * (vs the pause's current-bank FUN_0049f012(0)), then
+                         * submenu_state = 3 + slide-in. The common select tail
+                         * FUN_0043561a shows the shared hand cursor (encyclopedia
+                         * _setup already recomputed it to the first grid cell).
+                         * (The port author's "RANKING" name is a misnomer — the
+                         * dispatch + render are unambiguously the encyclopedia.) */
+                        encyclopedia_setup(1);              /* FUN_0049f012(1) */
+                        anim->submenu_state    = 3;        /* DAT_09643524 = 3 */
+                        anim->menu_folding_out = 0;        /* slide in        */
+                        title_save_dialog_cursor_set_visible(1); /* FUN_0043561a */
                     } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
                         anim->pending_action = code;
                     }
@@ -736,6 +770,18 @@ int scene_title_settings_navigable(int scene_mode)
 {
     return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
         && g_scene_title_anim.submenu_state == 2
+        && g_scene_title_anim.cursor_anim == 10;
+}
+
+/* TITLE_ENCYCLOPEDIA_READY source — the all-banks 図鑑 (submenu_state 3) is fully
+ * open + navigable: scene == TITLE, submenu_state == 3, cursor_anim == 10 (the
+ * gate its nav runs under, scene_title.c `cursor_anim == 10 && submenu_state ==
+ * 3`). Like the picker/settings, no async load ⇒ a clean +0-stretch v3 join for
+ * the title encyclopedia render (FUN_0049f8b8). */
+int scene_title_encyclopedia_navigable(int scene_mode)
+{
+    return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
+        && g_scene_title_anim.submenu_state == 3
         && g_scene_title_anim.cursor_anim == 10;
 }
 
@@ -1154,8 +1200,25 @@ void scene_title_render(IDirect3DDevice8 *dev,
                    0xFFFFFFFFu);
     }
 
-    /* Sub-menu states 3 / 4 (confirm / ranking-fade) intentionally not
-     * ported here — their producers haven't landed. Deferred. */
+    /* All-banks ENCYCLOPEDIA (図鑑) — engine FUN_0049c644 L102070 dispatches
+     * to FUN_0049f8b8 when cursor_anim > 0 && submenu_state == 3. The catalog
+     * (built across every save bank by encyclopedia_setup(1) at open) slides in
+     * from the right exactly like the picker/settings: x = 640 - cursor_anim*64
+     * (0 = fully in). The render is the SAME FUN_0049f8b8 the pause Encyclopedia
+     * uses (verified BIT-EXACT there 2026-06-15); the catalog is an OVERLAY (no
+     * full-screen backdrop), so the title town shows through the empty grid. The
+     * pause.tga `board` (completion panel + slot frames) must be the title's OWN
+     * instance — g_scene_pause_pause is unloaded here (same split as the picker
+     * plaque), else the board draws vanish. */
+    if ((int)anim->cursor_anim > 0 && anim->submenu_state == 3) {
+        encyclopedia_render(dev,
+                            640.0f - (float)(int)anim->cursor_anim * 64.0f,
+                            0.0f,
+                            &g_tex[SCENE_TITLE_TEX_PAUSE]);
+    }
+
+    /* Sub-menu state 4 (the hidden-character / code-8 confirm screen)
+     * intentionally not ported here — its producer hasn't landed. Deferred. */
 
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
