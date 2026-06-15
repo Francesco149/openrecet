@@ -654,7 +654,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   — state 4 — is the **Records screen**, now DONE, next bullet; the port author's "HIDDEN-character"
   name was a misnomer.)
 - **TITLE-SCREEN RENDER ARC → RECORDS / high-score screen (code 8 / submenu_state 4) ✅ DONE +
-  PIXEL-BIT-EXACT 2026-06-16, AWAITING USER 1:1** (`scene_title.c` `scene_title_records_render` =
+  PIXEL-BIT-EXACT + USER-CONFIRMED 1:1 2026-06-16** (user "survival score screen looks good to me";
+  parity ledger) (`scene_title.c` `scene_title_records_render` =
   FUN_0049c439 + the code-8 dispatch/state-4 close in `scene_title_sim` + the state-4 render arm in
   `scene_title_render`). The title menu's **"Survival Score"** row (the port author's `HIDDEN_CHAR`
   name is a MISNOMER, like `RANKING` was for the encyclopedia — the in-game tile literally reads
