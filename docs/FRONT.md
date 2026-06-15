@@ -574,7 +574,8 @@
   per-slot avail (`g_save_picker_avail`) stay unported (inert for a normal Continue; needs a
   new-game-into-slot trace).
 - **TITLE-SCREEN RENDER ARC → Options/settings panel adopted onto `settings_panel_render` ✅ DONE +
-  BIT-IDENTICAL 2026-06-15, AWAITING USER 1:1.** The title's `scene_title_settings_render_panel` was
+  BIT-IDENTICAL + USER-CONFIRMED 1:1 2026-06-15** (user "the options panel push also looks correct" —
+  parity ledger). The title's `scene_title_settings_render_panel` was
   a 2nd copy of `FUN_0049c050`; the pause Options arc had produced the verified shared
   `settings_panel_render` (the engine shares ONE FUN_0049c050 — `g_scene_state` picks 6 title rows
   [adds "Clear Save Data"] / 5 pause rows). Made the title a thin wrapper calling the shared render
@@ -588,7 +589,8 @@
   TAS ran 40 frames vs retail's 120 — a post-wait TAS-length quirk on `@fresh`; the static panel is
   fully verified on the 39 aligned frames.)
 - **TITLE-SCREEN RENDER ARC → LOAD-confirm flow (A on the picker → in-game load) ✅ VERIFIED 1:1
-  BIT-EXACT 2026-06-15, AWAITING USER 1:1.** The picker A-confirm was already fully WIRED
+  BIT-EXACT + USER-CONFIRMED 1:1 2026-06-15** (user "can confirm the fade out matches" — parity
+  ledger). The picker A-confirm was already fully WIRED
   (`scene_title.c`: `title_continue_picker_step` → `save_work_load_slot` + `continue_mode=1`/
   `fade_counter=1`; the fade ramp → `fade_phase1_start` → `fade_is_done` → `scene_post_fade_init`
   → house) — so this was a flow VERIFICATION, no code change. Converted `title-load-confirm` to a
