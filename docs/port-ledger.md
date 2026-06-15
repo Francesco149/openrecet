@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **521** (20.4%) — verified 70, stubbed 14, ported 437
-- unported: **2027**
+- touched: **523** (20.5%) — verified 70, stubbed 14, ported 439
+- unported: **2025**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (437) — reimplemented, no probe yet
+## ported (439) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -186,6 +186,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434b32 | FUN_00434b32 | 250 | ✓ | bmp_lzw.c, bmp_lzw.h, storage.c |
 | 0x434c2c | FUN_00434c2c | 125 | ✓ | bmp_lzw.c, bmp_lzw.h |
 | 0x434ca9 | FUN_00434ca9 | 58 | ✓ | bmp_lzw.c, bmp_lzw.h |
+| 0x434ce3 | FUN_00434ce3 | 8 | ✓ | scene_title.c |
 | 0x434ceb | FUN_00434ceb | 127 | ✓ | title_continue_picker.c |
 | 0x434dbf | FUN_00434dbf | 23 | ✓ | choice_box.c, choice_box.h, main.c |
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, scene_pause.c |
@@ -339,7 +340,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+4) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
-| 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
+| 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_pause.c, scene_title.c (+2) |
 | 0x47347d | FUN_0047347d | 215 | ✓ | worker_load.h |
 | 0x47355d | FUN_0047355d | 31 | ✓ | worker_load.h |
 | 0x473585 | FUN_00473585 | 31 | ✓ | worker_load.h |
@@ -487,10 +488,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+12) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
+| 0x499560 | FUN_00499560 | 15 |  | music.c, music.h, scene_title.c |
 | 0x499579 | FUN_00499579 | 10 | ✓ | worker_load.c, worker_load.h |
 | 0x499c63 | FUN_00499c63 | 477 | ✓ | audio.c, audio.h, audio_fade.h (+3) |
-| 0x49a324 | FUN_0049a324 | 127 | ✓ | save_io.c, save_io.h, scene_title.h |
-| 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
+| 0x49a324 | FUN_0049a324 | 127 | ✓ | save_io.c, save_io.h, scene_title.c (+1) |
+| 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ | main.c, music.h, scene_pause.c (+3) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
 | 0x49a585 | FUN_0049a585 | 25 | ✓ | esc_dispatch.c, esc_dispatch.h |
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | audio_fade.h, d3d_pool.h, main.c (+12) |

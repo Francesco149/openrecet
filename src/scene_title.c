@@ -33,6 +33,8 @@
 #include "title_save_dialog.h" /* FUN_00434d6a/4356cd/etc. — title-frame cluster */
 #include "title_continue_picker.h" /* continue/load slot picker (DAT_09643524==1) */
 #include "save_picker.h"           /* g_save_picker_frame = _DAT_09643574 (shared breathe) */
+#include "save_io.h"               /* save_io_scan_for_title_menu (FUN_0049a324) */
+#include "music.h"                 /* music_clear_forced_track (FUN_00499560) */
 
 scene_title_menu_t  g_scene_title_menu;
 scene_title_anim_t  g_scene_title_anim;
@@ -657,6 +659,55 @@ void scene_title_sim_default(void)
      * tick + shake interpolation step.  Runs regardless of which
      * branch the sim took above. */
     title_save_dialog_anim_tick();
+}
+
+/* ─── worker case-0: title re-init (FUN_004733d5 + FUN_0049a3a3) ──────────
+ *
+ * The engine's primary load worker (LAB_0045293d) dispatches on the scene
+ * state; case 0 (TITLE) @ 0x452961 calls FUN_004733d5 then FUN_0049a3a3.
+ * This runs on the worker thread whenever a scene returns to the title
+ * (scene_state→0 + FUN_00452cde), so the title resumes in its resting
+ * main-menu state rather than whatever sub-state it last held.  Before
+ * this was registered, the pause-menu Exit-to-title left the title at its
+ * stale boot-time Continue-picker sub-state (submenu_state==1) and the
+ * load-game card list rendered instead of the menu. */
+void scene_title_reinit(void)
+{
+    /* FUN_004733d5 — title asset (re)load: a faithful no-op (see the
+     * scene_title_reinit banner in scene_title.h — the textures persist
+     * from boot). */
+
+    /* FUN_0049a3a3 body. */
+
+    /* FUN_00434ce3 — DAT_0438b148 = 0 (the save/load dialog ramp counter). */
+    title_save_dialog_set_active_counter(0);
+
+    /* DAT_09643528 = 1 + the DAT_09643518..0964355c zero block: the port
+     * carries this state in scene_title_anim_t, and anim_init_fresh is
+     * exactly that reset (every counter 0, menu_folding_out = 1, submenu_
+     * state = 0, continue_mode = 0). */
+    scene_title_anim_init_fresh(&g_scene_title_anim);
+
+    /* FUN_0049a43d — rebuild the menu entry list from the live save banks
+     * (FUN_0049a324's bitmask), then seed the cursor to the quick-continue
+     * default (engine DAT_09643540, set inside FUN_0049a43d). */
+    {
+        scene_title_save_t save;
+        save_io_scan_for_title_menu(&save);
+        scene_title_menu_init(&save, &g_scene_title_menu);
+        g_scene_title_anim.cursor_pos =
+            (uint32_t)g_scene_title_menu.default_cursor;
+    }
+
+    /* FUN_00435693(_DAT_005d1bc0=212.0, 0x43870000=270.0) then FUN_00435612
+     * — snap the shared hand cursor home, then hide it (the title menu uses
+     * its own fuki cursor glyph, not the shared hand). */
+    title_save_dialog_cursor_snap(212.0f, 270.0f);
+    title_save_dialog_cursor_set_visible(0);
+
+    /* FUN_00499560 — release the in-game forced BGM override so the title
+     * theme re-selects. */
+    music_clear_forced_track();
 }
 
 #ifdef _WIN32

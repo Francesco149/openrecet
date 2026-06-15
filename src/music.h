@@ -164,6 +164,13 @@ typedef struct music_select_ctx {
  * + the pending_swap_clear = 1). Idempotent. */
 void music_init(void);
 
+/* FUN_00499560 (15 B) — clear the forced-track override + the second
+ * pause flag: `forced_track = -1` (DAT_005d1968) and `paused_b = 0`
+ * (DAT_09643120).  The title re-init (FUN_0049a3a3, the worker case-0
+ * "title load") calls this so any in-game forced BGM is released and the
+ * title theme re-selects naturally on return-to-title. */
+void music_clear_forced_track(void);
+
 /* Pure-C selector. Returns the desired track index (or MUSIC_TRACK_NONE
  * to keep the current track, or MUSIC_TRACK_STOP to explicitly stop).
  *

@@ -260,6 +260,21 @@ extern scene_title_anim_t  g_scene_title_anim;
  * calls this when scene state == 0. */
 void scene_title_sim_default(void);
 
+/* Worker case-0 "title load" — the engine re-inits the title screen via
+ * the primary load worker (LAB_0045293d case 0 @ 0x452961 = FUN_004733d5
+ * asset (re)load + FUN_0049a3a3 menu state reset).  Registered with
+ * worker_load_set_cb(0, ...) at boot; runs on the worker thread when a
+ * scene returns to the title (scene_state→0 + worker_load_spawn), e.g.
+ * the pause-menu Exit-to-title.  Resets the stale title sub-state (the
+ * load-game picker / settings overlay) back to the resting main menu,
+ * rebuilds the menu entry list from the current save banks, hides the
+ * shared hand cursor, and releases any in-game forced BGM.  Pure-C: the
+ * port's title textures are loaded once at boot into persistent slots
+ * (only freed at shutdown), and the pause Exit's d3d_pool_release_type
+ * frees only pool-tagged assets, so the FUN_004733d5 reload is a faithful
+ * no-op here. */
+void scene_title_reinit(void);
+
 #ifdef _WIN32
 
 #define COBJMACROS

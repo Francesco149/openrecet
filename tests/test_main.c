@@ -512,6 +512,9 @@ struct test_case {
     X(scene_title_menu_full_unlock_8_items) \
     X(scene_title_menu_hidden_char_only_5_items) \
     X(scene_title_menu_survival_requires_both_flags) \
+    X(scene_title_reinit_clears_stale_submenu) \
+    X(scene_title_reinit_rebuilds_menu_and_hides_cursor) \
+    X(scene_title_reinit_runs_via_worker_case0) \
     \
     X(scene_title_anim_init_fresh_seeds_folding_out) \
     X(scene_title_sim_frame_counter_advances_on_idle) \

@@ -44,6 +44,7 @@
 #include "scene_ingame.h"
 #include "scene_title.h"
 #include "title_save_dialog.h"   /* title_save_dialog_phasepin — cursor bob pin */
+#include "worker_load.h"         /* worker_load_set_cb(0, scene_title_reinit) */
 #include "scene_buy.h"
 #include "scene_floor.h"
 #include "scene_jutan.h"
@@ -1613,6 +1614,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_guild_init(g_dev);   /* mode-6 Merchant's Guild — worker_load case 6 */
     scene_table_init(g_dev);
     scene_sc1_init(g_dev);
+
+    /* Primary worker case-0 (TITLE) — the engine's LAB_0045293d case 0
+     * @ 0x452961 (FUN_004733d5 asset reload + FUN_0049a3a3 menu reset).
+     * Registered as scene_title_reinit so a scene_state→0 transition that
+     * spawns the load worker (the pause-menu Exit-to-title) re-inits the
+     * title to its resting main menu instead of resuming a stale sub-state
+     * (the boot Continue-picker, which left the load-game card list open). */
+    worker_load_set_cb(0, scene_title_reinit);
 
     /* C7c: seed per-stage runtime state for stage 0 (HOUSE / shop).
      * Writes the four scene-1 prop selectors to engine fresh-game

@@ -933,15 +933,13 @@ int pause_encyclopedia_navigable(int scene_mode)
  * here (the port's resource model differs; the title reloads its own assets).
  * The 6/0xb/8 saved-mode teardowns are other scenes (PORT-DEBT).
  *
- * PORT-DEBT(exit-title-reinit): the dialog + fade-out + scene→0 are 1:1 (the
- * port reaches the title through an identical fade, verified vs retail), but the
- * title lands in the WRONG sub-state — the load-game card picker is shown open
- * (the title's continue_mode/DAT_09643524 is stale) where retail shows the title
- * MENU.  The engine re-inits the title via the worker case-0 (title load), which
- * — like the case-1 INGAME loader — is unregistered in the port, so worker_load_
- * spawn here is a no-op and the title resumes with stale state.  Closing it needs
- * the title re-init (worker case-0) ported, the same arc as the title-screen
- * render.  Until then the Exit is NOT claimed 1:1. */
+ * The title re-init is the worker case-0 (TITLE) load — `worker_load_spawn`
+ * here dispatches LAB_0045293d case 0 (= FUN_004733d5 asset reload +
+ * FUN_0049a3a3 menu reset), registered as scene_title_reinit at boot.  It
+ * resets the stale title sub-state (the boot Continue-picker, submenu_state==1)
+ * back to the resting main menu, so Yes→title now lands on the title MENU
+ * pixel-bit-exact vs retail (gt8 0.0000% across the settled title window),
+ * not the load-game card picker.  See scene_title_reinit + pause-menu.md. */
 static void pause_exit_confirm_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 */

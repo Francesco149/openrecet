@@ -11,6 +11,9 @@
  */
 #include "t.h"
 #include "scene_title.h"
+#include "scene.h"             /* g_scene_state */
+#include "title_save_dialog.h" /* shared hand-cursor visibility */
+#include "worker_load.h"       /* case-0 dispatch wiring */
 
 #include <string.h>
 
@@ -219,5 +222,81 @@ int test_scene_title_menu_survival_requires_both_flags(void)
             T_FAIL("Survival appeared in menu without adv-2 cleared bit");
         }
     }
+    return 0;
+}
+
+/* ─── worker case-0 title re-init (FUN_0049a3a3 / scene_title_reinit) ──────
+ *
+ * The pause-menu Exit-to-title bug: the title resumed in a stale sub-state
+ * (the boot Continue-picker, submenu_state==1) so the load-game card list
+ * rendered instead of the resting main menu.  The engine re-inits the
+ * title via the primary load worker case-0; these tests pin the reset. */
+
+/* Put the title anim into a "deep in a stale sub-state" configuration —
+ * what the picker/settings leave behind when a scene transitions away. */
+static void seed_stale_title_anim(void)
+{
+    scene_title_anim_init_fresh(&g_scene_title_anim);
+    g_scene_title_anim.submenu_state    = 1;   /* load-game picker open */
+    g_scene_title_anim.cursor_anim      = 10;  /* fully folded out */
+    g_scene_title_anim.menu_folding_out = 0;   /* folding IN (for a submenu) */
+    g_scene_title_anim.continue_mode    = 1;   /* came in via Continue */
+    g_scene_title_anim.frame_counter    = 0x1234;
+    g_scene_title_anim.cursor_pos       = 7;
+    g_scene_title_anim.select_phase     = 9;
+}
+
+int test_scene_title_reinit_clears_stale_submenu(void)
+{
+    seed_stale_title_anim();
+
+    scene_title_reinit();
+
+    /* The whole sub-state collapses back to the resting main menu. */
+    T_ASSERT_EQ_I(g_scene_title_anim.submenu_state, 0);    /* DAT_09643524 */
+    T_ASSERT_EQ_I(g_scene_title_anim.cursor_anim, 0);      /* DAT_09643520 */
+    T_ASSERT_EQ_I(g_scene_title_anim.menu_folding_out, 1); /* DAT_09643528 */
+    T_ASSERT_EQ_I(g_scene_title_anim.continue_mode, 0);    /* DAT_0438bed4 */
+    T_ASSERT_EQ_I((int)g_scene_title_anim.frame_counter, 0);
+    T_ASSERT_EQ_I((int)g_scene_title_anim.select_phase, 0);
+    return 0;
+}
+
+int test_scene_title_reinit_rebuilds_menu_and_hides_cursor(void)
+{
+    /* A visible hand cursor (left over from an in-game scene) must be
+     * hidden — the title menu draws its own fuki cursor glyph. */
+    title_save_dialog_cursor_set_visible(1);
+    seed_stale_title_anim();
+    g_scene_title_menu.count = 0;   /* clobber so the rebuild is observable */
+
+    scene_title_reinit();
+
+    /* The menu is rebuilt from the (test-empty) save banks → the fresh
+     * 4-item title list (New Game / Ranking / Options / Exit), and the
+     * cursor lands on the default. */
+    T_ASSERT_EQ_I(g_scene_title_menu.count, 4);
+    T_ASSERT_EQ_I((int)g_scene_title_anim.cursor_pos,
+                  g_scene_title_menu.default_cursor);
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 0);
+    return 0;
+}
+
+int test_scene_title_reinit_runs_via_worker_case0(void)
+{
+    /* End-to-end wiring: registering scene_title_reinit as worker case-0
+     * and dispatching with scene_state==0 (the path the pause Exit takes:
+     * scene→0 + worker_load_spawn) must re-init the title. */
+    worker_load_reset();
+    worker_load_set_cb(0, scene_title_reinit);
+
+    g_scene_state = 0;              /* TITLE — what the dispatch reads */
+    seed_stale_title_anim();
+
+    const int ran = worker_load_dispatch_pure(g_scene_state);
+
+    T_ASSERT_EQ_I(ran, 1);                                 /* a cb was found */
+    T_ASSERT_EQ_I(g_scene_title_anim.submenu_state, 0);    /* and it re-init'd */
+    T_ASSERT_EQ_I(g_scene_title_anim.menu_folding_out, 1);
     return 0;
 }

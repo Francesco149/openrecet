@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 437,
-  "unported": 2027,
+  "ported": 439,
+  "unported": 2025,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 521,
-  "pct_touched": 20.4,
+  "touched": 523,
+  "pct_touched": 20.5,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2565,8 +2565,10 @@
    "size": 8,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_title.c"
+   ]
   },
   {
    "va": "0x434ceb",
@@ -6650,6 +6652,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_title.h",
     "src/worker_load.h"
@@ -9849,8 +9852,12 @@
    "size": 15,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/music.c",
+    "src/music.h",
+    "src/scene_title.c"
+   ]
   },
   {
    "va": "0x49956f",
@@ -10002,6 +10009,7 @@
    "src": [
     "src/save_io.c",
     "src/save_io.h",
+    "src/scene_title.c",
     "src/scene_title.h"
    ]
   },
@@ -10014,6 +10022,8 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/music.h",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_title.h",
     "src/worker_load.h"

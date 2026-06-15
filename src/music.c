@@ -107,6 +107,14 @@ void music_init(void)
     g_music.language            = -1;
 }
 
+/* FUN_00499560 @ 0x499560 (15 B) — `DAT_005d1968 = -1; DAT_09643120 = 0;`.
+ * Release the forced-track override and clear the second pause flag. */
+void music_clear_forced_track(void)
+{
+    g_music.forced_track = MUSIC_TRACK_NONE;   /* DAT_005d1968 = 0xffffffff */
+    g_music.paused_b     = 0;                   /* DAT_09643120 = 0 */
+}
+
 /* ─── per-stage BGM (engine state-1 stage switch, 49966a.c:86-150) ──────
  *
  * Maps a stage's `scene_type` (DAT_068dd3fc[stage*0x6cf]) to its BGM track.
