@@ -662,9 +662,10 @@
   (`FUN_0049d8a4`/`FUN_0049db8a` — write the high-watermarks at game-over) stay unported
   (game-completion arc; the title render is fully 1:1 given the header values, all the title ever
   reads).
-- **TITLE-SCREEN RENDER ARC → SURVIVAL difficulty selector (code 6) ✅ DONE + PIXEL-BIT-EXACT
-  2026-06-16, AWAITING USER 1:1** (`2f1eb20` sim+render+anchor+tests+scenario; save_io scan fix +
-  docs pending commit). The title "Survival" row (unlocked when `FUN_0049a324` returns uVar1==3: a
+- **TITLE-SCREEN RENDER ARC → SURVIVAL difficulty selector (code 6) ✅ DONE + PIXEL-BIT-EXACT +
+  USER-CONFIRMED 1:1 2026-06-16** (user "that looks good to me"; parity ledger;
+  `2f1eb20` sim+render+anchor+tests+scenario · `0c489a4` save_io scan fix · `02bc952` toggle+docs).
+  The title "Survival" row (unlocked when `FUN_0049a324` returns uVar1==3: a
   save bank with GAME_MODE==3 + an "adventure-8" item) opens a 2-option difficulty selector
   ("Survival Hell" / "Normal Survival") that slides IN over the **still-visible main menu** — NOT a
   submenu_state, it's its own `DAT_096435{50,54,58,5c}` overlay. **Sim** (`scene_title_survival_
