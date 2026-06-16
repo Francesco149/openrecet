@@ -720,11 +720,31 @@
   1:1.**  RE: `findings/opening-prologue.md` "v3 DRAW-PROGRAM parity".
   **PORT-DEBT(blackout-tut-dispatch):** the guild/tutorial cutscenes (`start_single`/D_TUT* path,
   the same `9fd8` layer per `merchant-guild-RE.md`) dispatch the blackout separately — wire when
-  those scenes are v3-checked.  **Next:** later prologue beats — the iv1_1→iv1_2 seam + iv1_2 (the
-  OVERLAY path: covers=false, the HOUSE 3D scene draws behind, blackout AFTER the scene not [0]).
-  Tooling follow-up: the early-region `CONV_POSE_BLINK` v3-join mispairing (port#84↔retail#21 vs
-  the true +2) inflates the standard verdict — the port's conv-pose-blink anchor may detect
-  differently from the Frida hook before Recette enters the listen pose (render parity unaffected).
+  those scenes are v3-checked.
+  **iv1_2 REGRESSION (my session break) ✅ FIXED 2026-06-17** (`2cd1e71`): the first blackout gate
+  was `D_SCRIPT1|D_LOAD|D_SCRIPT2`, reasoning it stayed armed the whole cutscene — WRONG.  iv1_2 is
+  the OVERLAY path (covers=false), so the opaque blackout drew AFTER the HOUSE scene and BLACKED IT
+  OUT (the Tear/Recette portraits over black vs retail's HOUSE scene, `intro-iv2-gap` golden
+  cap_31).  The blackout is the iv1_1 transition quad ONLY (cleared at the iv1_1 dialogue-end,
+  not re-armed) ⇒ gate = `D_SCRIPT1`.  New `intro-iv2-v3` window caught it; iv1_2 port now renders
+  the HOUSE scene behind the portraits; iv1_1 unchanged.  **(User framing confirmed: the prologue
+  has NO visual gaps — a visual "gap" is a trace artifact, a fade phase, or a session regression;
+  this was the last.)**
+  **v3-JOIN window-relative occurrence ✅ FIXED 2026-06-17** (`e16bd82`): the identity join keyed
+  by GLOBAL anchor occurrence, which mispairs a cutscene window — retail renders the conv-pose/FX/
+  blink during the intro-video+load tail the PORT collapses, so the streams carry asymmetric
+  PRE-base firings (retail's `CONV_POSE_BLINK` fires once at offset −30 before the 21/85/… cadence
+  both share ⇒ every in-window blink is global occ N+1 on retail).  Re-based the occ to the window
+  base anchor (subtract pre-base firings; symmetric windows = no-op, all v3 tests pass +new
+  `test_window_relative_occ`).  intro-prologue-v3 re-join: paired 693→**810**, port-only 121→**4**,
+  draw-divergent 81→**23** (the residual = the +2 fade phase pillar).  **⇒ iv1_1 now joins honest.**
+  **Next (trace-studio): the iv1_2 join is 0/299 paired** — a DEEPER base-anchor bug: the port
+  captures the full run (HF#1@284 + HF#2@1832) while retail captures window-only (its sole HF = the
+  window's), and the base occurrence defaults to #1 instead of resolving to the window's HF#2 — so
+  the sides label iv1_2 by different anchors.  Fix = resolve the base occurrence as the anchor
+  firing ≤ present_first (auto-detect the window's base); the window-relative occ then re-bases both
+  to 1.  Touches core `_store`/base-anchor logic ⇒ re-verify all confirmed scenarios.  iv1_2 itself
+  is visually 1:1 (HOUSE scene + portraits match retail); this only blocks the JOIN verdict.
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
