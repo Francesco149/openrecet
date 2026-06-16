@@ -1,0 +1,81 @@
+# intro-prologue-v3 — opening prologue cutscene, v3 drawcall/flow-parity window.
+#
+# New game → 1st HOUSE_FREEROAM (= the prologue cutscene start: load-overlay
+# drop, still mid-iv1_1 conversation, per anchor_trace.c ev_house_freeroam /
+# FREEROAM_START contrast). The intro-video load-stretch is BEFORE the anchor,
+# so the offset-relative cutscene frames after it are deterministic; the first
+# ~200 frames are line 1 of iv1_1 revealing + settling (NO advance input, so the
+# typewriter plays naturally and the cutscene stays ON SCREEN the whole window —
+# no mid-cutscene iv1_1->iv1_2 load seam this early).
+#
+# Head: spam C (0x10) frames 12..120 to drive title -> NEW game -> into the
+# prologue (same head as intro-dialogue-lines). Then wait HOUSE_FREEROAM, pin
+# phase+RNG at offset 0, caprange+calltrace [0,200].
+#
+# Drive (v3): nix develop --command python3 tools/trace_studio_v3/orv3_window.py \
+#   intro-prologue-v3 --window 0:200 --anchor HOUSE_FREEROAM --max-frames 16000 \
+#   --state --launch
+{"savefile": "_saves/739e8ba655601ba5bf08d447afe1bd0972921fc3fb0e599da8d17cbd1601778b.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 12, "buttons": "0x0010"}
+{"frame": 14, "buttons": "0x0000"}
+{"frame": 16, "buttons": "0x0010"}
+{"frame": 18, "buttons": "0x0000"}
+{"frame": 20, "buttons": "0x0010"}
+{"frame": 22, "buttons": "0x0000"}
+{"frame": 24, "buttons": "0x0010"}
+{"frame": 26, "buttons": "0x0000"}
+{"frame": 28, "buttons": "0x0010"}
+{"frame": 30, "buttons": "0x0000"}
+{"frame": 32, "buttons": "0x0010"}
+{"frame": 34, "buttons": "0x0000"}
+{"frame": 36, "buttons": "0x0010"}
+{"frame": 38, "buttons": "0x0000"}
+{"frame": 40, "buttons": "0x0010"}
+{"frame": 42, "buttons": "0x0000"}
+{"frame": 44, "buttons": "0x0010"}
+{"frame": 46, "buttons": "0x0000"}
+{"frame": 48, "buttons": "0x0010"}
+{"frame": 50, "buttons": "0x0000"}
+{"frame": 52, "buttons": "0x0010"}
+{"frame": 54, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0010"}
+{"frame": 58, "buttons": "0x0000"}
+{"frame": 60, "buttons": "0x0010"}
+{"frame": 62, "buttons": "0x0000"}
+{"frame": 64, "buttons": "0x0010"}
+{"frame": 66, "buttons": "0x0000"}
+{"frame": 68, "buttons": "0x0010"}
+{"frame": 70, "buttons": "0x0000"}
+{"frame": 72, "buttons": "0x0010"}
+{"frame": 74, "buttons": "0x0000"}
+{"frame": 76, "buttons": "0x0010"}
+{"frame": 78, "buttons": "0x0000"}
+{"frame": 80, "buttons": "0x0010"}
+{"frame": 82, "buttons": "0x0000"}
+{"frame": 84, "buttons": "0x0010"}
+{"frame": 86, "buttons": "0x0000"}
+{"frame": 88, "buttons": "0x0010"}
+{"frame": 90, "buttons": "0x0000"}
+{"frame": 92, "buttons": "0x0010"}
+{"frame": 94, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 98, "buttons": "0x0000"}
+{"frame": 100, "buttons": "0x0010"}
+{"frame": 102, "buttons": "0x0000"}
+{"frame": 104, "buttons": "0x0010"}
+{"frame": 106, "buttons": "0x0000"}
+{"frame": 108, "buttons": "0x0010"}
+{"frame": 110, "buttons": "0x0000"}
+{"frame": 112, "buttons": "0x0010"}
+{"frame": 114, "buttons": "0x0000"}
+{"frame": 116, "buttons": "0x0010"}
+{"frame": 118, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}
+{"wait": "HOUSE_FREEROAM"}
+{"phasepin": 0}
+{"rngseed": [0, 19937]}
+{"caprange": [0, 900]}
+{"calltrace": [0, 900]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 900, "buttons": "0x0000"}

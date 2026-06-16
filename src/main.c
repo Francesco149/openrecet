@@ -28,6 +28,7 @@
 #include "scene1_dialogue_run.h"     /* struct ive_runtime (box-anim probe log) */
 #include "scene1_conversation_pose.h"/* CONV_POSE anchor source */
 #include "scene1_dialogue_draw.h"    /* opening-prologue dialogue render pass */
+#include "scene1_fx_overlays.h"      /* scene1_fx_screen_blackout (FUN_00453d9c) */
 #include "input_trace.h"
 #include "input_segtrace.h"
 #include "memsnap.h"
@@ -3033,6 +3034,15 @@ static void render_dispatch(void)
                  * no-op stub called unconditionally below, so dialogue-before-fx_tail
                  * here is visually identical to retail's dialogue-after-fx_tail.
                  * No-op unless a script is active. */
+                /* Engine FUN_004547ab LAB_00454a90: the screen-blackout layer
+                 * (FUN_00453d9c) is drawn AFTER the (conditional) scene block and
+                 * immediately BEFORE the dialogue (FUN_0046c090).  For the iv1_1
+                 * opening (covers ⇒ scene block skipped above) it is retail's draw
+                 * [0]; for iv1_2 it follows the scene.  Gated internally on the
+                 * blackout flag (DAT_0438bf74) so it only fires during the
+                 * prologue cutscene; invisible (0 net px) but matches retail's
+                 * render program (the v3 draw-program parity gap). */
+                scene1_fx_screen_blackout(g_dev);
                 scene1_dialogue_draw(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch
                  * and called unconditionally below — engine has it

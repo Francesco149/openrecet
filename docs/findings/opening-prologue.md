@@ -708,3 +708,48 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
    bounce counter and the standee tween field, vs retail on a synced trace.
    Likely one shared origin-pin fixes multiple anims. Deferred per user
    (alongside dust / NPC-RNG / Tear-wing particles).
+
+## RESOLVED — v3 DRAW-PROGRAM parity: the screen-blackout layer (2026-06-17)
+
+The prologue cutscene was fully ported before Trace Studio v3, so it had never
+been v3-verified for **render-program** parity. New v3 scenario
+**`intro-prologue-v3`** (new game → 1st `HOUSE_FREEROAM` = the iv1_1 cutscene
+start, caprange `[0,900]`, NO advance input so line 0 reveals + holds
+deterministically; canonical `{phasepin 0}`+`{rngseed [0,19937]}`).
+
+**Pixels are bit-exact in the dialogue region** (held-line pair gt8 **0.0000%**,
+meanabs 0) — the prologue dialogue renders 1:1. **But the draw PROGRAM diverged
+on 752/1021 columns:** retail draws an extra **draw [0]** every cutscene frame —
+a full-screen `bmp/system.bmp` (hash `9fd8`) quad the port omitted. This is the
+**screen-blackout layer `FUN_00453d9c`** (gate `DAT_0438bf74`):
+
+- **What:** `FUN_00453d9c` blits a full-screen opaque-black quad (dst
+  (0,0)-(640,480), src (9,1)-(15,7) of system.bmp, diffuse `0xff000000`,
+  SRCALPHA/INVSRCALPHA, COLOROP=MODULATE) when `DAT_0438bf74 != 0`. Under the
+  opaque cutscene bg/scene ⇒ **0 net px** — invisible, but part of retail's
+  render program (so a v2 pixel-diff never saw it; the v3 draw-program panel did).
+- **Render position (FUN_004547ab `LAB_00454a90`):** AFTER the (conditional)
+  scene block, immediately BEFORE the dialogue (`FUN_0046c090`). For iv1_1
+  (`covers_screen` ⇒ scene block skipped) it is retail's draw **[0]**; for iv1_2
+  (overlay) it follows the scene.
+- **Gate `DAT_0438bf74`:** armed (`FUN_00452809`) at the iv1_1 dialogue DISPATCH
+  (the dispatcher's `FUN_00452d07(1)` fade-transition path falls through to the
+  arm; confirmed at all.c:45513-45541, scene1/sub1 = iv1_1), cleared ONLY at the
+  final cutscene-end gate-clear (50517/50633, `DAT_0438b1c8` 1→0). Armed ONCE,
+  never cleared at the iv1_1→iv1_2 seam (gate stays ==2 loading) ⇒ active
+  continuously across the whole prologue cutscene.
+
+**Port (`scene1_fx_screen_blackout` = FUN_00453d9c in `scene1_fx_overlays.c`,
+gated on `scene1_intro_dialogue_blackout_active` = D_SCRIPT1|D_LOAD|D_SCRIPT2,
+called before `scene1_dialogue_draw` in main.c):** re-drive →
+**draw-divergent 752 → 81**, the held-line pair **43=43 draws ALIGNED** (was
+42/43 DIVERGENT) AND still **pixel BIT-IDENTICAL** (the blackout is inert). The
+remaining 81 draw-divergent are the EARLY fade-in region (the `748c` full-screen
+fade-quad at a different alpha — the port fades in FASTER than retail; the
+load-logic/fade-fidelity gap, next).
+
+**PORT-DEBT(blackout-tut-dispatch):** the tutorial/guild cutscenes (the
+`start_single`/`FUN_0044bd0d` → D_TUT* path) dispatch the blackout separately
+and are EXCLUDED from the gate for now — wire + verify when those scenes are v3
+draw-program checked (the guild's `9fd8` divergence is the same layer, noted in
+`merchant-guild-RE.md`).

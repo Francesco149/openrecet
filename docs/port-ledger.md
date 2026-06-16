@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **524** (20.6%) — verified 70, stubbed 14, ported 440
-- unported: **2024**
+- touched: **526** (20.6%) — verified 70, stubbed 14, ported 442
+- unported: **2022**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (440) — reimplemented, no probe yet
+## ported (442) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -239,6 +239,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x451ea7 | FUN_00451ea7 | 1343 | ✓ | audio_mci.h |
 | 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
 | 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c, fade.h, sim.c |
+| 0x452809 | FUN_00452809 | 11 | ✓ | scene1_intro_dialogue.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
 | 0x452d07 | FUN_00452d07 | 55 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.h, scene_guild.c (+3) |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |
@@ -254,6 +255,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, scene_pause.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
+| 0x453d9c | FUN_00453d9c | 243 | ✓ | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+2) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
@@ -311,7 +313,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
-| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.c, scene1_dialogue_draw.h |
+| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.c, scene1_dialogue_draw.h (+1) |
 | 0x46c0ae | FUN_0046c0ae | 487 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |

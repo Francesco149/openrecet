@@ -1,0 +1,21 @@
+# intro-prologue-v3 — opening prologue cutscene, v3 drawcall/flow-parity window.
+#
+# The opening Recette/Tear prologue was fully ported before Trace Studio v3
+# existed, so it has never been v3-verified for pixel/drawcall/flow parity. This
+# scenario stands up a v3 caprange window over the cutscene START (1st
+# HOUSE_FREEROAM) to chase render-program + flow-trace gaps vs retail.
+#
+# Anchor: HOUSE_FREEROAM (load-overlay drop, mid-iv1_1 — the cutscene start).
+# Window [0,200] = line 1 of iv1_1 revealing + settling, no advance input.
+#
+# Drive:
+#   nix develop --command python3 tools/trace_studio_v3/orv3_window.py \
+#     intro-prologue-v3 --window 0:200 --anchor HOUSE_FREEROAM \
+#     --max-frames 16000 --state --launch
+
+description: |
+  New game -> opening prologue cutscene start (1st HOUSE_FREEROAM). v3 window
+  over the first iv1_1 dialogue line for drawcall + flow-trace parity vs retail.
+
+max_frames: 16000  # retail intro-video load-stretch: 1st HOUSE_FREEROAM ~11792
+duration_ceiling_ms: 180000

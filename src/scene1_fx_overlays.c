@@ -34,6 +34,8 @@
 #include "screen_rt.h"
 #include "render_quad.h"
 #include "scene_pause.h"   /* g_pause_action — the blur clear-colour variant */
+#include "sysassets.h"            /* g_sysassets.system_bmp (DAT_073aa188) */
+#include "scene1_intro_dialogue.h" /* the DAT_0438bf74 blackout-active gate   */
 
 /* The 2-pass radial-blur composite (engine FUN_00454191 c99c==3 block,
  * L50874-50943), built ONCE at pause open.  Leaves RT#56 holding the finished
@@ -154,6 +156,34 @@ void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
     }
 }
 
+void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev)
+{
+    /* Port of FUN_00453d9c @ 0x453d9c — the screen-blackout layer.  Called in
+     * the render root (FUN_004547ab LAB_00454a90) AFTER the scene block and
+     * BEFORE the dialogue (FUN_0046c090): for the iv1_1 opening (full-screen bg,
+     * covers_screen ⇒ scene block skipped) this is retail's draw [0]; for iv1_2
+     * (overlay) it sits after the scene.  Draws a FULL-SCREEN opaque-black quad
+     * from bmp/system.bmp when the blackout flag (DAT_0438bf74) is set — under
+     * the opaque cutscene bg/scene ⇒ 0 net px, but part of retail's render
+     * PROGRAM (the v3 draw-program parity gap; pixels stay bit-identical).
+     *
+     * Geometry/blend from the disasm: dst (0,0,640,480) [render_quad_add scales
+     * to the active backbuffer], src (9,1)-(15,7) of system.bmp, diffuse
+     * 0xff000000, SRCALPHA/INVSRCALPHA, COLOROP=MODULATE — i.e. the standard 2D
+     * preset (render_quad_state_setup = FUN_0049b425), which the engine here
+     * sets via the individual SetRenderState calls to the same net state. */
+    IDirect3DDevice8 *d = dev;
+    const sprite_t *sys = &g_sysassets.system_bmp;
+    if (!scene1_intro_dialogue_blackout_active() || sys->tex == NULL)
+        return;
+    render_quad_state_setup(d);                 /* FUN_0049b425 net state */
+    render_quad_bind(d, sys);
+    const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+    const float src[4] = { 9.0f, 1.0f, 15.0f, 7.0f };
+    render_quad_add(dst, src, sys->width, sys->height, 0xff000000u);
+    render_quad_flush(d);
+}
+
 #else  /* !_WIN32 — Linux host-test build (no d3d8) */
 
 void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
@@ -164,6 +194,12 @@ void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
     (void)dev;
     if (1 < sim_get_counter_99c()) { /* Win32-only draws */ }
     if (1 < sim_get_counter_990()) { /* Win32-only draws */ }
+}
+
+void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev)
+{
+    /* Host build: the blackout quad is Win32-only (see the _WIN32 body). */
+    (void)dev;
 }
 
 #endif /* _WIN32 */

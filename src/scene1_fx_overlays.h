@@ -50,4 +50,11 @@ struct IDirect3DDevice8;
  * state today). */
 void scene1_fx_overlays(struct IDirect3DDevice8 *dev);
 
+/* Port of FUN_00453d9c @ 0x453d9c — the screen-blackout layer.  Draws a
+ * full-screen opaque-black quad (bmp/system.bmp) when the opening-prologue
+ * blackout flag (DAT_0438bf74, scene1_intro_dialogue_blackout_active) is set.
+ * Called in the render root just before the cutscene dialogue draw; invisible
+ * (0 net px, under the opaque bg/scene) but part of retail's render program. */
+void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev);
+
 #endif /* OPENRECET_SCENE1_FX_OVERLAYS_H */

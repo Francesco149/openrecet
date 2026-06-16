@@ -83,6 +83,12 @@ int scene1_intro_dialogue_line_present(void);
  * first one's startup seam. */
 int     scene1_intro_dialogue_busy(void);
 
+/* Engine DAT_0438bf74 — the screen-blackout flag, armed at the opening-prologue
+ * dialogue dispatch and active across iv1_1/iv1_2 (the whole cutscene).  Gates
+ * scene1_fx_screen_blackout (FUN_00453d9c), the invisible full-screen black quad
+ * retail draws every cutscene frame (a render-PROGRAM parity layer, 0 net px). */
+int     scene1_intro_dialogue_blackout_active(void);
+
 /* The conversation-pose gate (scene1_conversation_pose).  Equals _active() for the
  * prologue, PLUS the tutorial dialogue's load bracket (D_TUT_LOAD) — retail fires
  * CONV_POSE_START during that bracket, before the box renders. */

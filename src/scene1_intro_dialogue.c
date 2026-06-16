@@ -384,6 +384,30 @@ int scene1_intro_dialogue_busy(void)
     return (g_state != D_IDLE && g_state != D_DONE) ? 1 : 0;
 }
 
+int scene1_intro_dialogue_blackout_active(void)
+{
+    /* Engine DAT_0438bf74 (armed by FUN_00452809): the screen-blackout flag.
+     * Set at the opening-prologue dialogue DISPATCH (the iv1_1 fade-transition
+     * entry — the dispatcher's FUN_00452d07(1) path falls through to
+     * FUN_00452809) and cleared only at the FINAL cutscene-end gate-clear
+     * (FUN_004547ab L50517/50633: DAT_0438b1c8 1->0).  The engine arms it ONCE
+     * and never clears it at the iv1_1->iv1_2 seam (the gate stays ==2 loading,
+     * not 0), so it is active continuously across the prologue scripts iv1_1
+     * (D_SCRIPT1) / iv1_2 (D_SCRIPT2) AND the inter-script load bracket (D_LOAD;
+     * those frames don't draw it anyway — nowloading skips the render dispatch).
+     * Off at D_DONE/free-roam/idle.  Drawn by scene1_fx_screen_blackout
+     * (FUN_00453d9c) just before the dialogue, every cutscene frame — invisible
+     * (full-screen opaque-black quad UNDER the opaque cutscene bg/scene, 0 net
+     * px) but part of retail's render PROGRAM (the v3 draw-program parity gap).
+     *
+     * The tutorial-dialogue path (D_TUT*) dispatches separately (start_single /
+     * FUN_0044bd0d) and is deliberately EXCLUDED here — those scenes (guild
+     * cutscenes etc.) get the blackout wired when they're v3 draw-program
+     * verified.  PORT-DEBT(blackout-tut-dispatch). */
+    return (g_state == D_SCRIPT1 || g_state == D_LOAD || g_state == D_SCRIPT2)
+            ? 1 : 0;
+}
+
 int scene1_intro_dialogue_posing(void)
 {
     /* The conversation-pose gate.  Equals _active() for the prologue (so that
