@@ -255,7 +255,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, scene_pause.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
-| 0x453d9c | FUN_00453d9c | 243 | ✓ | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+2) |
+| 0x453d9c | FUN_00453d9c | 243 | ✓ | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |

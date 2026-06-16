@@ -4203,7 +4203,6 @@
     "src/main.c",
     "src/scene1_fx_overlays.c",
     "src/scene1_fx_overlays.h",
-    "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h"
    ]
   },

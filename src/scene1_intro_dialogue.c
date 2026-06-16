@@ -390,22 +390,25 @@ int scene1_intro_dialogue_blackout_active(void)
      * Set at the opening-prologue dialogue DISPATCH (the iv1_1 fade-transition
      * entry — the dispatcher's FUN_00452d07(1) path falls through to
      * FUN_00452809) and cleared only at the FINAL cutscene-end gate-clear
-     * (FUN_004547ab L50517/50633: DAT_0438b1c8 1->0).  The engine arms it ONCE
-     * and never clears it at the iv1_1->iv1_2 seam (the gate stays ==2 loading,
-     * not 0), so it is active continuously across the prologue scripts iv1_1
-     * (D_SCRIPT1) / iv1_2 (D_SCRIPT2) AND the inter-script load bracket (D_LOAD;
-     * those frames don't draw it anyway — nowloading skips the render dispatch).
-     * Off at D_DONE/free-roam/idle.  Drawn by scene1_fx_screen_blackout
-     * (FUN_00453d9c) just before the dialogue, every cutscene frame — invisible
-     * (full-screen opaque-black quad UNDER the opaque cutscene bg/scene, 0 net
-     * px) but part of retail's render PROGRAM (the v3 draw-program parity gap).
+     * (FUN_004547ab L50517/50633: DAT_0438b1c8 1->0) at the iv1_1 dialogue end.
+     * It is the OPAQUE full-screen black quad of a scene transition, active ONLY
+     * during iv1_1 (D_SCRIPT1) — the transition INTO the bedroom cutscene, whose
+     * covering bg occludes it ([0], 0 net px).
+     *
+     * NOT re-armed for iv1_2 (D_SCRIPT2): iv1_2 is an OVERLAY over the live HOUSE
+     * map (covers_screen==0), so the opaque blackout would draw AFTER the scene
+     * and cover it black.  Retail's iv1_2 plainly renders the HOUSE scene behind
+     * the Tear/Recette portraits (intro-iv2-gap golden cap_31), so retail does
+     * not draw it there; an earlier gate that included D_SCRIPT2 BLACKED OUT the
+     * port's iv1_2 — the intro-iv2-v3 window caught the regression.  D_LOAD (the
+     * iv1_1->iv1_2 seam) draws nothing anyway (nowloading skips the render
+     * dispatch), so the gate is simply D_SCRIPT1.
      *
      * The tutorial-dialogue path (D_TUT*) dispatches separately (start_single /
-     * FUN_0044bd0d) and is deliberately EXCLUDED here — those scenes (guild
-     * cutscenes etc.) get the blackout wired when they're v3 draw-program
-     * verified.  PORT-DEBT(blackout-tut-dispatch). */
-    return (g_state == D_SCRIPT1 || g_state == D_LOAD || g_state == D_SCRIPT2)
-            ? 1 : 0;
+     * FUN_0044bd0d) and is excluded — those scenes (guild cutscenes etc.) get
+     * the blackout wired when they're v3 draw-program verified.
+     * PORT-DEBT(blackout-tut-dispatch). */
+    return (g_state == D_SCRIPT1) ? 1 : 0;
 }
 
 int scene1_intro_dialogue_posing(void)
