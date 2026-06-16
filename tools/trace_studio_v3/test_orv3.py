@@ -321,6 +321,51 @@ def test_multi_anchor_identity() -> None:
           "deterministic, arm-space extent, legacy fallback, stream parse")
 
 
+def test_window_relative_occ() -> None:
+    """The occurrence index is WINDOW-RELATIVE (re-based to the base anchor), so a
+    cutscene's PRE-base load-tail firings — which the two sides capture
+    asymmetrically (retail renders them during the intro-video / load the port
+    collapses) — don't shift the SAME in-window firing to a different occ per side
+    and mispair the window.  This is the opening-prologue gap: retail's
+    CONV_POSE_BLINK fires once at offset −30 (during the load tail) before the
+    cadence the two sides share post-anchor, making every in-window blink global
+    occ N+1 on retail vs N on the port."""
+    base = 379  # the shared base-anchor frame (e.g. HOUSE_FREEROAM)
+    # PORT: base, then blinks at offsets 21, 85 (the post-anchor cadence).
+    port = v3cache.FrameIdentity(
+        side="port", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=1,
+        anchor_frame=base, offset0=0, count=200, present_first=base,
+        arm_offset=0, arm_count=200, anchors=[
+            {"name": "HOUSE_FREEROAM", "occ": 1, "frame": base},
+            {"name": "CONV_POSE_BLINK", "occ": 1, "frame": base + 21},
+            {"name": "CONV_POSE_BLINK", "occ": 2, "frame": base + 85}])
+    # RETAIL: an EXTRA pre-base blink at offset −30 ⇒ every in-window blink's
+    # GLOBAL occ is +1 vs the port (the shared 21/85 blinks are occ 2/3 here).
+    retail = v3cache.FrameIdentity(
+        side="retail", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=1,
+        anchor_frame=base, offset0=0, count=200, present_first=base,
+        arm_offset=0, arm_count=200, anchors=[
+            {"name": "CONV_POSE_BLINK", "occ": 1, "frame": base - 30},
+            {"name": "HOUSE_FREEROAM", "occ": 1, "frame": base},
+            {"name": "CONV_POSE_BLINK", "occ": 2, "frame": base + 21},
+            {"name": "CONV_POSE_BLINK", "occ": 3, "frame": base + 85}])
+    # The SAME in-window moment (offset 50, most-recent blink the one at 21) gets
+    # the SAME key on both sides — window-relative occ 1, NOT global 1 vs 2.
+    assert port.key_of_present(base + 50) == ("CONV_POSE_BLINK", 1, 29)
+    assert retail.key_of_present(base + 50) == ("CONV_POSE_BLINK", 1, 29)
+    # …and at offset 90 (most-recent blink the one at 85): both window-occ 2.
+    assert port.key_of_present(base + 90) == ("CONV_POSE_BLINK", 2, 5)
+    assert retail.key_of_present(base + 90) == ("CONV_POSE_BLINK", 2, 5)
+    # The pre-base blink keeps its GLOBAL occ in the seq (it is outside the window,
+    # present only for ordering — never the best of an in-window frame).
+    assert retail.anchor_seq()[("CONV_POSE_BLINK", 1)] == 0   # the −30 blink, ordered first
+    # A symmetric window (no pre-base firings) is unchanged — the port's blinks
+    # keep occ 1, 2 (pre == 0 ⇒ no-op).
+    assert port.anchor_seq()[("CONV_POSE_BLINK", 2)] == 2
+    print("  OK window-relative occ: pre-base load-tail firings re-base, in-window "
+          "moments pair cross-side; symmetric windows unchanged")
+
+
 def test_draws() -> None:
     """The semantic layer (orv3_draws): enumerate a frame's draws with the device
     state in effect, and the material diff that abstracts batching to a verdict."""
@@ -462,6 +507,7 @@ def main() -> int:
     test_extent_lookup()
     test_merge_keys()
     test_multi_anchor_identity()
+    test_window_relative_occ()
     test_draws()
     test_material_agg()
     test_load_side()

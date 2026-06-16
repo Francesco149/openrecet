@@ -128,14 +128,39 @@ class FrameIdentity:
         """LEGACY join key for kept frame `index` (contiguity assumption)."""
         return (self.anchor, self.anchor_occ, self.offset0 + index)
 
+    def _window_occ(self, entry: dict) -> int:
+        """The occurrence of anchor `entry` RELATIVE TO THE WINDOW BASE
+        (anchor_frame): its stored GLOBAL occ minus the firings of the same name
+        strictly BEFORE the base anchor.  A cutscene's conv-pose / FX / blink can
+        fire during retail's intro-video / load tail BEFORE the base anchor (the
+        frames the PORT collapses), so the two sides' anchor streams have
+        asymmetric PRE-base firings — counting those in the global occ shifts the
+        SAME in-window firing to a different occ on each side (e.g. retail's
+        CONV_POSE_BLINK at offset 21 is global occ 2 because of a load-tail blink
+        at offset −30, while the port's is occ 1) and mispairs the whole window.
+        Window-relative occ re-bases both sides to the shared base anchor.
+
+        A PRE-base entry (frame < anchor_frame — outside the comparison window,
+        present in the stream only for seq ordering, NEVER the most-recent anchor
+        of an in-window frame) keeps its global occ.  A SYMMETRIC window (no
+        pre-base firings — every confirmed HOUSE/guild/pause/title scenario) has
+        pre == 0 ⇒ this is a no-op."""
+        if entry["frame"] < self.anchor_frame:
+            return entry["occ"]
+        pre = sum(1 for a in (self.anchors or [])
+                  if a["name"] == entry["name"] and a["frame"] < self.anchor_frame)
+        return entry["occ"] - pre
+
     # ── meta v2: per-frame identity from the stored anchor stream ──
     def key_of_present(self, present: int) -> tuple[str, int, int]:
         """The E3 join key for a kept frame at absolute present-count `present`:
-        (most-recent anchor ≤ present, its occurrence, frames-since-it). Anchors on
-        the SAME frame are aliases of one moment; the tie-break must be identical
-        on both sides AND match a legacy single-anchor entry, so: prefer the
-        entry's BASE anchor (both sides arm by the same one — e.g. HOUSE_FREEROAM,
-        which fires the same frame as LOADING_END), else sorted-last name."""
+        (most-recent anchor ≤ present, its WINDOW-RELATIVE occurrence, frames-since-
+        it).  Anchors on the SAME frame are aliases of one moment; the tie-break
+        must be identical on both sides AND match a legacy single-anchor entry, so:
+        prefer the entry's BASE anchor (both sides arm by the same one — e.g.
+        HOUSE_FREEROAM, which fires the same frame as LOADING_END), else
+        sorted-last name.  The occ is window-relative (see _window_occ) so a
+        cutscene's pre-base load-tail firings don't shift it across sides."""
         best = None
         for a in self.anchors or []:
             if a["frame"] <= present:
@@ -145,15 +170,16 @@ class FrameIdentity:
                     best = a
         if best is None:    # no anchor at/before the frame — fall back to the base
             return (self.anchor, self.anchor_occ, present - self.anchor_frame)
-        return (best["name"], best["occ"], present - best["frame"])
+        return (best["name"], self._window_occ(best), present - best["frame"])
 
     def anchor_seq(self) -> dict[tuple[str, int], int]:
-        """(name, occ) → firing position, the cross-side TOTAL ORDER for sorting
-        join keys ((anchor position, delta) sorts columns chronologically even
-        though deltas reset at every anchor)."""
+        """(name, window-occ) → firing position, the cross-side TOTAL ORDER for
+        sorting join keys ((anchor position, delta) sorts columns chronologically
+        even though deltas reset at every anchor).  Uses the same window-relative
+        occ as key_of_present so the keys resolve."""
         seq = {}
         for a in sorted(self.anchors or [], key=lambda a: (a["frame"], a["name"])):
-            seq.setdefault((a["name"], a["occ"]), len(seq))
+            seq.setdefault((a["name"], self._window_occ(a)), len(seq))
         return seq
 
     @property
