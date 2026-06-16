@@ -744,9 +744,31 @@ gated on `scene1_intro_dialogue_blackout_active` = D_SCRIPT1|D_LOAD|D_SCRIPT2,
 called before `scene1_dialogue_draw` in main.c):** re-drive →
 **draw-divergent 752 → 81**, the held-line pair **43=43 draws ALIGNED** (was
 42/43 DIVERGENT) AND still **pixel BIT-IDENTICAL** (the blackout is inert). The
-remaining 81 draw-divergent are the EARLY fade-in region (the `748c` full-screen
-fade-quad at a different alpha — the port fades in FASTER than retail; the
-load-logic/fade-fidelity gap, next).
+remaining 81 draw-divergent are the EARLY fade-in region — **NOT a logic gap:
+the load-origin PHASE pillar.**
+
+**Fade-in = a 2-frame phase lead, render BIT-EXACT (verified).** The fade-in
+`748c` quad (the bedroom bg) looked "off by ~1 brightness unit" at matching
+container offsets (94% px differ, mean|abs| ~1.0), but **port offset K is
+pixel-BIT-IDENTICAL with retail offset K+2** at every probed fade frame
+(K=40/60/90/130 → 0/786432 px differ) AND the draw program is **ALIGNED (4=4)**
+at the +2 pairing.  So the port reaches each fade frame exactly **2 frames ahead**
+of retail relative to `HOUSE_FREEROAM` — the port collapses retail's intro-video
+load, so the load-overlay drop (the anchor) lands 2 frames offset from retail's
+fade origin.  This is the accepted CONST-OFFSET phase pillar (same class as
+db054), not a fade bug; the fade LOGIC is data-1:1.  The dialogue region is
++0 bit-exact (the held line absorbs the 2-frame lead once it settles).
+
+**The standard v3 join's 81 "draw-divergent" / 252 gaps are inflated by this
+phase + an early-region anchor mispairing** (the multi-anchor identity keys the
+fade frames by `CONV_POSE_BLINK`, which the join paired ~63 frames apart —
+port#84↔retail#21 — vs the true +2; a join-tooling artifact in the sparse early
+region, NOT a render divergence).  Under correct phase pairing the whole window
+is bit-exact.  **⇒ the prologue first window (iv1_1 line 0) is 1:1: blackout
+drawcall fixed, dialogue +0 bit-exact, fade-in +2 phase-pillar bit-exact.**
+(Follow-up: the `CONV_POSE_BLINK` early-region join mispairing is worth a tooling
+look — the port's conv-pose-blink anchor may detect differently from the Frida
+hook before Recette enters the listen pose; render parity is unaffected.)
 
 **PORT-DEBT(blackout-tut-dispatch):** the tutorial/guild cutscenes (the
 `start_single`/`FUN_0044bd0d` → D_TUT* path) dispatch the blackout separately

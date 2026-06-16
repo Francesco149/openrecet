@@ -696,6 +696,35 @@
   (picker-confirm → load survival mode) stay deferred (survival gameplay arc). **⇒ the title's
   renderable submenus (picker · settings · encyclopedia · records · survival selector) are all
   bit-exact; the last title item is New Game (the "hardest, last" intro/prologue thread).**
+- **ACTIVE ARC → OPENING-PROLOGUE v3 draw-program / flow parity (2026-06-17).** The Recette/Tear
+  opening cutscene was fully ported BEFORE Trace Studio v3, so it had never been v3-verified for
+  render-PROGRAM / flow parity (the user: "the prologue was fully ported way before v3 so there's
+  probably drawcall/flow trace parity gaps"). New v3 scenario **`intro-prologue-v3`** (new game →
+  1st `HOUSE_FREEROAM` = iv1_1 cutscene start, caprange `[0,900]`, NO advance input ⇒ line 0
+  reveals + holds deterministically; canonical `{phasepin 0}`+`{rngseed [0,19937]}`).
+  **SCREEN-BLACKOUT layer ✅ PORTED + VERIFIED 2026-06-17** (`2fa50b3`): the dialogue region was
+  PIXEL-bit-exact but the draw PROGRAM diverged on **752/1021 columns** — retail draws an extra
+  **draw [0]** every cutscene frame the port omitted: the screen-blackout `FUN_00453d9c` (gate
+  `DAT_0438bf74`, tex `bmp/system.bmp`=`9fd8`, full-screen `0xff000000`/SRCALPHA/MODULATE, drawn
+  AFTER the scene block + BEFORE the dialogue at `LAB_00454a90`; for iv1_1's covering bg the scene
+  block is skipped ⇒ it's retail's draw [0]).  Under the opaque cutscene bg ⇒ **0 net px** (v2
+  pixel-diff never saw it — the v3 draw-program panel did).  Ported as `scene1_fx_screen_blackout`
+  (`scene1_fx_overlays.c`) gated on `scene1_intro_dialogue_blackout_active` (D_SCRIPT1|D_LOAD|
+  D_SCRIPT2 — armed once at the iv1_1 dispatch, active across the whole cutscene), called before
+  `scene1_dialogue_draw`.  Re-drive: **draw-divergent 752 → 81**, held-line pair **43=43 ALIGNED**
+  (was DIVERGENT) AND still **pixel BIT-IDENTICAL** (inert).  **The remaining 81 are NOT a gap —
+  the load-origin PHASE pillar:** the fade-in `748c` bg quad is **pixel-bit-identical at port#K vs
+  retail#K+2** (a 2-frame lead — the port collapses retail's intro-video load ⇒ `HOUSE_FREEROAM`
+  lands 2 frames offset from the fade origin; ALIGNED draws at +2), and the dialogue is +0
+  bit-exact (the held line absorbs the lead).  **⇒ the prologue first window (iv1_1 line 0) is
+  1:1.**  RE: `findings/opening-prologue.md` "v3 DRAW-PROGRAM parity".
+  **PORT-DEBT(blackout-tut-dispatch):** the guild/tutorial cutscenes (`start_single`/D_TUT* path,
+  the same `9fd8` layer per `merchant-guild-RE.md`) dispatch the blackout separately — wire when
+  those scenes are v3-checked.  **Next:** later prologue beats — the iv1_1→iv1_2 seam + iv1_2 (the
+  OVERLAY path: covers=false, the HOUSE 3D scene draws behind, blackout AFTER the scene not [0]).
+  Tooling follow-up: the early-region `CONV_POSE_BLINK` v3-join mispairing (port#84↔retail#21 vs
+  the true +2) inflates the standard verdict — the port's conv-pose-blink anchor may detect
+  differently from the Frida hook before Recette enters the listen pose (render parity unaffected).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
