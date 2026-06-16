@@ -48,7 +48,7 @@ void save_io_scan_for_title_menu(scene_title_save_t *out)
      *   has_any_score:        any bank[2] (int32) > 0
      *   has_any_adv_cleared:  any bank[2] > 0 AND bank[0xb759] == 3
      *   has_any_adv8_cleared: any item in the above bank's items list
-     *                         (bank[6..6+bank[0]-1]) has (item >> 6)
+     *                         (bank[6..6+ITEM_COUNT-1]) has (item >> 6)
      *                         in the [0xd49, 0xd50] range
      *
      * The engine drives this on init then caches into local_8 = uVar1
@@ -67,7 +67,12 @@ void save_io_scan_for_title_menu(scene_title_save_t *out)
 
         out->has_any_adv_cleared = 1;
 
-        int32_t count = (int32_t)bank[0];
+        /* Item count is ITEM_COUNT (bank dword 0xaec6 = engine DAT_0450f2b0),
+         * NOT bank[0]. FUN_0049a324 scans `local_c = *piVar3` items where
+         * piVar3 = bank + 0xaec6 and the item base piVar3 - 0xaec0 = bank + 6.
+         * (bank[0] is a zero field — reading it here left the loop a no-op,
+         * which silently never unlocked Survival once GAME_MODE==3.) */
+        int32_t count = (int32_t)bank[SAVE_BANK_FIELD_ITEM_COUNT];
         if (count <= 0) continue;
         /* Cap to a sanity ceiling so a corrupt count doesn't iterate
          * past the bank end. The engine has no cap; we add one because

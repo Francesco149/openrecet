@@ -680,9 +680,37 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   RE: `findings/title-records-RE.md`. **PORT-DEBT:** the end-of-game record PRODUCERS
   (`FUN_0049d8a4`/`FUN_0049db8a` — write the high-watermarks at game-over) stay unported
   (game-completion arc; the title render is fully 1:1 given the header values, all the title ever
-  reads). **⇒ all title menu submenus that render (picker · settings · encyclopedia · records) are
-  now bit-exact; the remaining title items are Survival (code 6, a game-MODE launcher) + New Game
-  (the "hardest, last" intro/prologue thread).**
+  reads).
+- **TITLE-SCREEN RENDER ARC → SURVIVAL difficulty selector (code 6) ✅ DONE + PIXEL-BIT-EXACT
+  2026-06-16, AWAITING USER 1:1** (`2f1eb20` sim+render+anchor+tests+scenario; save_io scan fix +
+  docs pending commit). The title "Survival" row (unlocked when `FUN_0049a324` returns uVar1==3: a
+  save bank with GAME_MODE==3 + an "adventure-8" item) opens a 2-option difficulty selector
+  ("Survival Hell" / "Normal Survival") that slides IN over the **still-visible main menu** — NOT a
+  submenu_state, it's its own `DAT_096435{50,54,58,5c}` overlay. **Sim** (`scene_title_survival_
+  selector_tick` + the code-6 dispatch): ramp `survival_state` 1→8, pressed-edge Hell/Normal toggle
+  + shared hand cursor, B-cancel slide-out → main menu, A-confirm closing ramp (`survival_anim`
+  1→0xf) → save picker (reuses `title_continue_picker_open`, which already models code 6). **Render**
+  (`FUN_0049c644` @ 0x49cbe8, transcribed from objdump — the decompile drops the FPU):
+  `savewindow.tga` backdrop (the choice-box banner; ADDSIGNED grey-127, t=state/8 → dst(320−t·256,
+  288−t·64, t·512, t·128), alpha=(int)(t·255)) + 2 centered labels (x=320, y=264/296, scale 1.0) —
+  selected row pulses `127+sin(survival_anim·π/15)·64`, other flat grey `0x60`. **The porting loop
+  caught a latent save_io bug:** `save_io_scan_for_title_menu` read the menu-scan item count from
+  `bank[0]` instead of `bank[0xaec6]` (ITEM_COUNT) — a no-op loop that NEVER unlocked Survival once
+  GAME_MODE==3; retail unlocked it, the port didn't, and that divergence pinned the fix (latent
+  because no prior save had GAME_MODE==3, so the `bank[0xb759]!=3` test short-circuited first). New
+  **TITLE_SURVIVAL_READY** anchor (scene 0 / submenu_state 0 / cursor_anim 0 / survival_state 8 —
+  no async load ⇒ +0-stretch join) + `title-survival` scenario on a crafted save
+  (`tools/craft_survival_save.py` pokes the unlock onto a bank + restamps the bank checksum, else
+  `save_bank_init_all` resets it on load). **Verified vs the retail v3 cache**
+  (`title-survival-f75dbf74`, join 119/119 @ +0 stretch): the selector at rest is **PIXEL-BIT-EXACT
+  — 0/786432 px differ at every sampled offset across the window, draw program 0 draw-divergent**,
+  each side self-verifies bit-exact (120/120 retail, 119/119 port). The 1-frame anchor offset (port
+  reaches rest at present 42, retail 41) is the same benign title boot-phase seam Records has
+  (retail 120 / port 119 there too). +5 host tests (3308). RE: `findings/title-survival-RE.md`.
+  **PORT-DEBT(survival-picker):** the `FUN_0049b4f4` survival bank-FILTER + the survival game LAUNCH
+  (picker-confirm → load survival mode) stay deferred (survival gameplay arc). **⇒ the title's
+  renderable submenus (picker · settings · encyclopedia · records · survival selector) are all
+  bit-exact; the last title item is New Game (the "hardest, last" intro/prologue thread).**
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).

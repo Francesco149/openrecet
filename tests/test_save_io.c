@@ -85,7 +85,7 @@ int test_save_io_scan_adv8_in_items_list(void)
     uint32_t *bank = save_bank_dwords_at(0);
     bank[2]      = 100;        /* score */
     bank[0xb759] = 3;          /* adv_cleared marker */
-    bank[0]      = 3;          /* item count */
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 3;  /* item count (0xaec6, engine local_c) */
     bank[6]      = 0x100;      /* (0x100 >> 6) = 4 → outside range */
     bank[7]      = 0xd49 << 6; /* exactly 0xd49 after shift */
     bank[8]      = 0x200;      /* outside */
@@ -104,7 +104,7 @@ int test_save_io_scan_adv8_range_full_coverage(void)
     uint32_t *bank = save_bank_dwords_at(7);
     bank[2]      = 1;
     bank[0xb759] = 3;
-    bank[0]      = 1;
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 1;  /* item count (0xaec6, engine local_c) */
 
     for (int shifted = 0xd49; shifted <= 0xd50; shifted++) {
         bank[6] = (uint32_t)(shifted << 6);
