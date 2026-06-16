@@ -13,6 +13,8 @@
 # from the default cursor lands on SURVIVAL; A opens the selector.  It slides in
 # (survival_state 1→8) and pins at 8 — TITLE_SURVIVAL_READY fires there (a
 # +0-stretch join, no async load at the title, like the picker/records anchors).
+# Mid-capture a DOWN (anchor+40) toggles the option Hell→Normal, so the window
+# verifies BOTH highlighted rows + the hand-cursor ease to the Normal row.
 {"savefile": "_saves/83966ab684330c1e9eea184bb0aed31e36cf19bef2862a00efc7492b49fc55b5.sav.gz"}
 {"rngseed": [0, 577284034]}
 {"frame": 0, "buttons": "0x0000"}
@@ -24,4 +26,6 @@
 {"caprange": [0, 120]}
 {"calltrace": [0, 120]}
 {"frame": 0, "buttons": "0x0000"}
+{"frame": 40, "buttons": "0x0008"}
+{"frame": 41, "buttons": "0x0000"}
 {"frame": 120, "buttons": "0x0000"}

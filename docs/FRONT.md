@@ -682,12 +682,15 @@
   **TITLE_SURVIVAL_READY** anchor (scene 0 / submenu_state 0 / cursor_anim 0 / survival_state 8 —
   no async load ⇒ +0-stretch join) + `title-survival` scenario on a crafted save
   (`tools/craft_survival_save.py` pokes the unlock onto a bank + restamps the bank checksum, else
-  `save_bank_init_all` resets it on load). **Verified vs the retail v3 cache**
-  (`title-survival-f75dbf74`, join 119/119 @ +0 stretch): the selector at rest is **PIXEL-BIT-EXACT
-  — 0/786432 px differ at every sampled offset across the window, draw program 0 draw-divergent**,
-  each side self-verifies bit-exact (120/120 retail, 119/119 port). The 1-frame anchor offset (port
-  reaches rest at present 42, retail 41) is the same benign title boot-phase seam Records has
-  (retail 120 / port 119 there too). +5 host tests (3308). RE: `findings/title-survival-RE.md`.
+  `save_bank_init_all` resets it on load); the scenario also toggles Hell→Normal mid-window
+  (DOWN @ anchor+40) to verify BOTH highlighted rows + the cursor ease. **Verified vs the retail v3
+  cache** (`title-survival-a6a6526f`, join 119/119 @ +0 stretch): the selector is **PIXEL-BIT-EXACT
+  — 0/786432 px differ at EVERY offset across the whole window (Hell-selected, Normal-selected, AND
+  the cursor-ease transition), draw program 0 draw-divergent**, each side self-verifies bit-exact
+  (120/120 retail, 119/119 port). The 1-frame anchor offset (port reaches rest at present 42, retail
+  41) is the same benign title boot-phase seam Records has (retail 120 / port 119 there too); the
+  +0-stretch deterministic title keeps even the input-driven toggle/ease in phase. +5 host tests
+  (3308). RE: `findings/title-survival-RE.md`.
   **PORT-DEBT(survival-picker):** the `FUN_0049b4f4` survival bank-FILTER + the survival game LAUNCH
   (picker-confirm → load survival mode) stay deferred (survival gameplay arc). **⇒ the title's
   renderable submenus (picker · settings · encyclopedia · records · survival selector) are all

@@ -93,15 +93,19 @@ on load). Nav UP→A; the selector slides in (1→8) and pins. New
 **`TITLE_SURVIVAL_READY`** anchor (scene 0 / submenu_state 0 / cursor_anim 0 /
 survival_state 8 — no async load ⇒ a +0-stretch join).
 
-Vs the retail v3 cache (`title-survival-f75dbf74`, join 119/119 @ +0 stretch):
-the selector at rest is **PIXEL-BIT-EXACT — 0/786432 px differ** at every
-sampled offset across the window (start/mid/end + a dense sweep), draw program
-**0 draw-divergent**, each side self-verifies bit-exact (120/120 retail, 119/119
-port). The 1-frame anchor offset (port reaches rest at present 42, retail 41) is
-the same benign title boot-phase seam the Records screen has (retail 120 / port
-119 there too); the identity join pairs by absolute present so the at-rest
-frames compare 1:1. Host tests: `survival_opens_on_code6`, `survival_ramps_and_
-pins`, `survival_toggle_option`, `survival_b_cancels`,
+The scenario also presses DOWN mid-window (anchor+40) to toggle Hell→Normal, so
+it verifies BOTH highlighted rows + the hand-cursor ease between them.
+
+Vs the retail v3 cache (`title-survival-a6a6526f`, join 119/119 @ +0 stretch):
+the selector is **PIXEL-BIT-EXACT — 0/786432 px differ at EVERY offset across the
+whole window** (Hell-selected, Normal-selected, AND the cursor-ease transition),
+draw program **0 draw-divergent**, each side self-verifies bit-exact (120/120
+retail, 119/119 port). The 1-frame anchor offset (port reaches rest at present
+42, retail 41) is the same benign title boot-phase seam the Records screen has
+(retail 120 / port 119 there too); the identity join pairs by absolute present,
+and the deterministic +0-stretch title keeps even the input-driven toggle/ease
+fully in phase. Host tests: `survival_opens_on_code6`, `survival_ramps_and_pins`,
+`survival_toggle_option`, `survival_b_cancels`,
 `survival_a_confirms_opens_picker`.
 
 ## PORT-DEBT
