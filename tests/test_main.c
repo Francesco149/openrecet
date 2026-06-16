@@ -532,6 +532,11 @@ struct test_case {
     X(scene_title_sim_ranking_opens_encyclopedia) \
     X(scene_title_sim_records_opens_on_code8) \
     X(scene_title_sim_records_closes_on_ab) \
+    X(scene_title_sim_survival_opens_on_code6) \
+    X(scene_title_sim_survival_ramps_and_pins) \
+    X(scene_title_sim_survival_toggle_option) \
+    X(scene_title_sim_survival_b_cancels) \
+    X(scene_title_sim_survival_a_confirms_opens_picker) \
     X(scene_title_sim_fade_counter_advances_after_set) \
     X(scene_title_sim_cursor_input_ignored_while_select_pending) \
     X(scene_title_sim_cursor_pressed_only_no_held) \

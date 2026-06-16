@@ -2749,6 +2749,8 @@ static void render_dispatch(void)
             .title_encyclopedia_active = scene_title_encyclopedia_navigable(g_scene_state),
             /* TITLE_RECORDS_READY: the title Records / high-score screen is open + navigable. */
             .title_records_active = scene_title_records_navigable(g_scene_state),
+            /* TITLE_SURVIVAL_READY: the title Survival difficulty selector is open + at rest. */
+            .title_survival_active = scene_title_survival_navigable(g_scene_state),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

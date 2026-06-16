@@ -167,6 +167,7 @@ void scene_title_anim_init_fresh(scene_title_anim_t *out)
  * FUN_0049a59e). 0x143 = confirm / back, 0x146 = cursor tick. */
 #define TITLE_SE_CONFIRM   0x0143
 #define TITLE_SE_CURSOR    0x0146
+#define TITLE_SE_CANCEL    0x013d
 
 /* Settings submenu — 6 rows. Codes match the per-row dispatch in
  * FUN_0049a59e lines 371-475. */
@@ -365,6 +366,84 @@ static void scene_title_settings_exit_handler(scene_title_anim_t *anim,
     anim->submenu_state  = 0;
 }
 
+/* ── Survival difficulty selector state machine ──────────────────────────
+ *
+ * Engine FUN_0049a59e L101138-L101195 — the `DAT_09643550 >= 1` arm of the
+ * main-menu `else`.  Runs once per frame while the selector is open
+ * (survival_state >= 1, main menu, cursor_anim == 0); it OWNS input then,
+ * replacing the main-menu nav.  Drives the slide-in ramp 1→8, the
+ * Hell/Normal toggle (with the shared hand cursor), the B-cancel slide-out
+ * 8→0 back to the main menu, and the A-confirm closing ramp (survival_anim
+ * 1→0xf) that hands off to the save picker.  Buttons are pressed-EDGE
+ * (engine DAT_073dddd4): B=0x20, A=0x10, up/down=0xc. */
+static void scene_title_survival_selector_tick(scene_title_anim_t *anim,
+                                               uint16_t pressed)
+{
+    if (anim->survival_anim != 0) {
+        /* A-confirm closing animation (engine L101140-L101166): hide the
+         * shared cursor, ramp survival_anim 1→0xf, then open the save
+         * picker seeded from the last-used slot. */
+        title_save_dialog_cursor_set_visible(0);     /* FUN_00435612 */
+        anim->survival_anim++;
+        if (anim->survival_anim == 0xf) {
+            anim->survival_anim = 0;
+            /* Hand off to the picker. title_continue_picker_open already
+             * models code 6 (cursor→0 + "choose a file" prompt). The
+             * FUN_0049b4f4 survival bank-FILTER and the survival game
+             * LAUNCH stay PORT-DEBT(survival-picker).  survival_state is
+             * deliberately left at 8: the render's `basex = 320 -
+             * cursor_anim·64` slides the panel off-screen as the picker
+             * slides in (the engine never clears it — cancelling the
+             * picker returns to the selector). */
+            title_continue_picker_open(SCENE_TITLE_MENU_SURVIVAL,
+                                       save_header_get_last_slot());
+            anim->submenu_state    = 1;   /* DAT_09643524 = 1 (picker)     */
+            anim->menu_folding_out = 0;   /* DAT_09643528 = 0 (slide in)   */
+            anim->continue_mode    = 0;   /* DAT_0438bed4 = 0              */
+        }
+        return;
+    }
+
+    if (anim->survival_slideout == 0) {
+        /* Slide-in ramp then at-rest input (engine L101168-L101191). */
+        anim->survival_state++;
+        if (anim->survival_state < 9) {
+            return;                       /* still sliding in */
+        }
+        anim->survival_state = 8;         /* pin at rest */
+        title_save_dialog_cursor_set_visible(1);     /* FUN_0043561a */
+
+        if (pressed & TITLE_INPUT_B) {
+            /* B → slide out back to the main menu. */
+            audio_play_se_by_id(TITLE_SE_CANCEL);    /* FUN_00499519(0x13d) */
+            anim->survival_slideout = 1;
+            title_save_dialog_cursor_set_visible(0); /* LAB_0049b162 */
+        } else if (pressed & TITLE_INPUT_A) {
+            /* A → begin the closing animation → picker handoff. */
+            audio_play_se_by_id(TITLE_SE_CONFIRM);   /* FUN_00499519(0x143) */
+            anim->survival_anim = 1;
+            title_save_dialog_cursor_set_visible(0); /* LAB_0049b162 */
+        } else if (pressed & (TITLE_INPUT_UP | TITLE_INPUT_DOWN)) {
+            /* Up/Down toggle Hell↔Normal + ease the hand cursor to the
+             * new row (y = option·0x24 + 272 → 272 or 308). */
+            anim->survival_option ^= 1u;
+            audio_play_se_by_id(TITLE_SE_CURSOR);    /* FUN_00499519(0x146) */
+            const float cy = (float)(int)(anim->survival_option * 0x24u) + 272.0f;
+            title_save_dialog_cursor_slide(170.0f, cy);  /* FUN_00435710 */
+        }
+        return;
+    }
+
+    /* B-cancel slide-out (engine L101193): ramp survival_state 8→0, then
+     * return to the resting main menu (select_phase = 0, fold-out = 1). */
+    anim->survival_state--;
+    if (anim->survival_state == 0) {
+        anim->survival_slideout = 0;
+        anim->select_phase     = 0;       /* DAT_09643544 = 0 */
+        anim->menu_folding_out = 1;       /* DAT_09643528 = 1 */
+    }
+}
+
 void scene_title_sim(scene_title_anim_t *anim,
                      const scene_title_menu_t *menu,
                      uint16_t pressed,
@@ -519,10 +598,26 @@ void scene_title_sim(scene_title_anim_t *anim,
         return;
     }
 
-    /* Main menu input — gated on cursor_anim == 0 && submenu_state == 0.
+    /* Survival difficulty selector (engine FUN_0049a59e: the DAT_09643550
+     * >= 1 arm of the main-menu `else`). It REPLACES the main-menu input
+     * while open. Snapshot the open state FIRST so (a) the code-6 dispatch's
+     * survival_state = 1 (set in the main-menu block below) only engages the
+     * selector NEXT frame — matching the engine's single top-of-frame
+     * `DAT_09643550 < 1` test — and (b) the B-cancel frame that clears
+     * survival_state back to 0 doesn't then also fall into the menu nav. */
+    const int survival_active =
+        (anim->cursor_anim == 0 && anim->submenu_state == 0
+         && anim->survival_state >= 1);
+    if (survival_active) {
+        scene_title_survival_selector_tick(anim, pressed);
+    }
+
+    /* Main menu input — gated on cursor_anim == 0 && submenu_state == 0
+     * (and survival_state == 0: the selector owns input while it's open).
      * Engine: line 491-552 (`else` of all the submenu state branches).
      */
-    if (anim->cursor_anim == 0 && anim->submenu_state == 0) {
+    if (anim->cursor_anim == 0 && anim->submenu_state == 0
+        && anim->survival_state == 0 && !survival_active) {
         if (anim->select_phase == 0) {
             anim->frame_counter++;
 
@@ -672,6 +767,19 @@ void scene_title_sim(scene_title_anim_t *anim,
                         anim->submenu_state    = 4;        /* DAT_09643524 = 4 */
                         anim->submenu_cursor   = 0;        /* DAT_09643530 = 0 */
                         anim->menu_folding_out = 0;        /* DAT_09643528 = 0 — slide in */
+                    } else if (code == SCENE_TITLE_MENU_SURVIVAL) {
+                        /* Engine FUN_0049a59e L101124: code 6 → open the
+                         * Survival difficulty selector. Unlike every other
+                         * row this is NOT a submenu_state — it sets
+                         * survival_state = 1 (the slide-in ramp begins) and
+                         * snaps the shared hand cursor to the top option
+                         * (170, 272). The selector overlays the still-visible
+                         * main menu; scene_title_survival_selector_tick (gated
+                         * on survival_state >= 1, checked BEFORE this block so
+                         * it engages next frame) drives the ramp/nav/confirm. */
+                        anim->survival_state  = 1;     /* DAT_09643550 = 1 */
+                        anim->survival_option = 0;     /* DAT_09643558 = 0 */
+                        title_save_dialog_cursor_snap(170.0f, 272.0f); /* FUN_00435693 */
                     } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
                         anim->pending_action = code;
                     }
@@ -832,6 +940,18 @@ int scene_title_records_navigable(int scene_mode)
     return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
         && g_scene_title_anim.submenu_state == 4
         && g_scene_title_anim.cursor_anim == 10;
+}
+
+int scene_title_survival_navigable(int scene_mode)
+{
+    /* The Survival difficulty selector is its OWN overlay, not a
+     * submenu_state: it's fully open + at rest when survival_state == 8
+     * with the main menu still up (submenu_state 0, cursor_anim 0). No
+     * async load at the title ⇒ a clean +0-stretch v3 join. */
+    return scene_mode == 0   /* ANCHOR_SCENE_TITLE */
+        && g_scene_title_anim.submenu_state == 0
+        && g_scene_title_anim.cursor_anim == 0
+        && g_scene_title_anim.survival_state == 8;
 }
 
 #ifdef _WIN32
@@ -1285,6 +1405,61 @@ void scene_title_render(IDirect3DDevice8 *dev,
                        0.0f, 144.0f, 192.0f, 160.0f,
                        0xFFFFFFFF);
         render_quad_flush(dev);   /* one flush for tiles 1-3 (vcount=18) */
+    }
+
+    /* ── Survival difficulty selector overlay ─────────────────────────
+     * Engine FUN_0049c644 @ 0x49cbe8 (`if (0 < DAT_09643550)`). Drawn over
+     * the still-visible main menu (NOT gated on submenu_state) whenever the
+     * selector is open. Two parts under COLOROP=ADDSIGNED:
+     *
+     *   backdrop — savewindow.tga (g_sysassets, &DAT_073d8dc0), the SAME
+     *     512×128 banner the choice box uses, src(0,0,512,128), diffuse
+     *     grey 0xff7f7f7f, alpha = (int)(t·255). It slides/grows with the
+     *     ramp t = survival_state/8: dst(basex − t·256, 288 − t·64,
+     *     t·512, t·128), where basex = 320 − cursor_anim·64 (= `slide` +
+     *     320; the cursor_anim term slides the panel off-screen left as
+     *     the picker folds in after an A-confirm).
+     *
+     *   two labels ("Survival Hell" y=264, "Normal Survival" y=296),
+     *     centered at basex, scale 1.0, greyscale ARGB. The SELECTED row
+     *     (survival_option) gets a sin-pulse value 127 + sin(survival_anim·
+     *     π/15)·64 (so a bright 127 at rest, flashing during the A-confirm
+     *     close ramp); the other row is a flat grey 0x60. Both carry the
+     *     ramp `alpha`. COLOROP resets to MODULATE at the tail.
+     *
+     * Geometry/consts transcribed from objdump 0x49cbe8-0x49cde6 (the
+     * decompile drops the FPU). See findings/title-survival-RE.md. */
+    if (anim->survival_state > 0) {
+        const float t = (float)(int)anim->survival_state / 8.0f;
+        const float basex = slide + 320.0f;            /* slide = -cursor_anim·64 */
+        const uint32_t alpha = (uint32_t)(int)(t * 255.0f);
+
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                              D3DTOP_ADDSIGNED);
+        sprite_t *bg = &g_sysassets.savewindow_tga;
+        if (bg->tex != NULL) {
+            const float dst[4] = { basex - t * 256.0f, 288.0f - t * 64.0f,
+                                   t * 512.0f, t * 128.0f };
+            const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
+            render_quad_bind(dev, bg);
+            render_quad_add(dst, src, bg->width, bg->height, 0xff7f7f7fu);
+            render_quad_flush(dev);
+        }
+
+        /* selected-row sin pulse (0x40490fdb·1/15 = survival_anim·π/15). */
+        const int pulse = (int)(127.0f
+            + sinf((float)anim->survival_anim * 3.1415927f / 15.0f) * 64.0f);
+        const int c0 = (anim->survival_option == 0) ? pulse : 0x60;
+        const int c1 = (anim->survival_option == 0) ? 0x60  : pulse;
+        const uint32_t col0 = (alpha << 24)
+            | ((uint32_t)c0 << 16) | ((uint32_t)c0 << 8) | (uint32_t)c0;
+        const uint32_t col1 = (alpha << 24)
+            | ((uint32_t)c1 << 16) | ((uint32_t)c1 << 8) | (uint32_t)c1;
+        font_draw_text_centered(dev, basex, 264.0f, "Survival Hell",   col0, 1.0f);
+        font_draw_text_centered(dev, basex, 296.0f, "Normal Survival", col1, 1.0f);
+
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                              D3DTOP_MODULATE);
     }
 
     /* Settings submenu overlay — engine FUN_0049c644 lines 229-256

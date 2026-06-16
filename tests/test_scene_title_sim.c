@@ -431,3 +431,131 @@ int test_scene_title_sim_null_guards(void)
     scene_title_sim(&a,    NULL,  0, 0);   /* no crash */
     return 0;
 }
+
+/* ── Survival difficulty selector (title item code 6) ──────────────────
+ *
+ * Build a menu with the Survival row unlocked (FUN_0049a324 uVar1 == 3:
+ * a save bank with adv-2 cleared AND an adv-8 item) and return its index.
+ * Shape: CONT_HAS_SAVE, NEW_HAS_SAVE, SURVIVAL(2), CONTINUE_ANY,
+ * RANKING, HIDDEN_CHAR, OPTIONS, EXIT. */
+static int mk_survival_menu(scene_title_menu_t *m)
+{
+    scene_title_save_t save = { .has_any_adv_cleared  = 1,
+                                .has_any_adv8_cleared = 1,
+                                .has_any_score        = 1 };
+    scene_title_menu_init(&save, m);
+    for (int i = 0; i < m->count; i++)
+        if (m->items[i] == SCENE_TITLE_MENU_SURVIVAL) return i;
+    return -1;
+}
+
+/* Open the selector + ramp it to its at-rest state (survival_state == 8). */
+static void open_survival_to_rest(scene_title_anim_t *a, scene_title_menu_t *m)
+{
+    int sidx = mk_survival_menu(m);
+    scene_title_anim_init_fresh(a);
+    for (int i = 0; i < sidx; i++) scene_title_sim(a, m, 0, INPUT_DOWN);
+    scene_title_sim(a, m, INPUT_A, 0);                 /* select_phase = 1 */
+    for (int i = 0; i < 14; i++) scene_title_sim(a, m, 0, 0); /* dispatch → state 1 */
+    for (int i = 0; i < 10; i++) scene_title_sim(a, m, 0, 0); /* ramp 1 → 8 (pinned) */
+}
+
+int test_scene_title_sim_survival_opens_on_code6(void)
+{
+    /* Code 6 (SURVIVAL) does NOT open a submenu_state — it sets
+     * survival_state = 1 (the selector slide-in begins) + survival_option
+     * = 0, and takes neither the fade nor pending_action routes. */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    int sidx = mk_survival_menu(&m);
+    T_ASSERT(sidx >= 0);
+    T_ASSERT_EQ_I(m.items[sidx], SCENE_TITLE_MENU_SURVIVAL);
+
+    scene_title_anim_init_fresh(&a);
+    for (int i = 0; i < sidx; i++) scene_title_sim(&a, &m, 0, INPUT_DOWN);
+    T_ASSERT_EQ_U(a.cursor_pos, (unsigned)sidx);
+
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.select_phase,   0xfu);
+    T_ASSERT_EQ_U(a.survival_state,  1u);  /* DAT_09643550 = 1 */
+    T_ASSERT_EQ_U(a.survival_option, 0u);  /* DAT_09643558 = 0 */
+    T_ASSERT_EQ_I(a.submenu_state,   0);   /* NOT a submenu */
+    T_ASSERT_EQ_I(a.pending_action,  SCENE_TITLE_ACTION_NONE);
+    T_ASSERT_EQ_U(a.fade_counter,    0u);
+    return 0;
+}
+
+int test_scene_title_sim_survival_ramps_and_pins(void)
+{
+    /* After opening, survival_state ramps 1 → 8 one per frame, then pins
+     * at 8 (the at-rest open selector). */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    open_survival_to_rest(&a, &m);
+    T_ASSERT_EQ_U(a.survival_state, 8u);
+    /* Holding no input keeps it pinned (the engine re-clamps to 8). */
+    for (int i = 0; i < 5; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.survival_state, 8u);
+    /* Still the main menu underneath (submenu_state 0, cursor_anim 0). */
+    T_ASSERT_EQ_I(a.submenu_state, 0);
+    T_ASSERT_EQ_U(a.cursor_anim,   0u);
+    return 0;
+}
+
+int test_scene_title_sim_survival_toggle_option(void)
+{
+    /* At rest, a pressed-edge UP/DOWN toggles Hell <-> Normal
+     * (survival_option ^= 1). */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    open_survival_to_rest(&a, &m);
+    T_ASSERT_EQ_U(a.survival_option, 0u);
+    scene_title_sim(&a, &m, INPUT_DOWN, 0);   /* pressed-edge */
+    T_ASSERT_EQ_U(a.survival_option, 1u);
+    scene_title_sim(&a, &m, INPUT_UP, 0);
+    T_ASSERT_EQ_U(a.survival_option, 0u);
+    /* Toggling does not leave the selector (still state 8). */
+    T_ASSERT_EQ_U(a.survival_state, 8u);
+    return 0;
+}
+
+int test_scene_title_sim_survival_b_cancels(void)
+{
+    /* B starts the slide-out (survival_slideout = 1); survival_state then
+     * counts 8 → 0 and the selector returns to the resting main menu
+     * (menu_folding_out = 1, select_phase = 0). */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    open_survival_to_rest(&a, &m);
+
+    scene_title_sim(&a, &m, INPUT_B, 0);
+    T_ASSERT_EQ_U(a.survival_slideout, 1u);
+    T_ASSERT_EQ_U(a.survival_state,    8u);   /* B frame doesn't decrement */
+
+    for (int i = 0; i < 10; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.survival_state,    0u);
+    T_ASSERT_EQ_U(a.survival_slideout, 0u);
+    T_ASSERT_EQ_I(a.menu_folding_out,  1);
+    T_ASSERT_EQ_U(a.select_phase,      0u);
+    return 0;
+}
+
+int test_scene_title_sim_survival_a_confirms_opens_picker(void)
+{
+    /* A starts the closing animation (survival_anim 1 → 0xf); at 0xf it
+     * hands off to the save picker (submenu_state = 1, slide in). The
+     * survival bank-FILTER + game launch stay PORT-DEBT(survival-picker). */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    open_survival_to_rest(&a, &m);
+
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    T_ASSERT_EQ_U(a.survival_anim, 1u);
+
+    for (int i = 0; i < 14; i++) scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.survival_anim,    0u);  /* reset after handoff */
+    T_ASSERT_EQ_I(a.submenu_state,    1);   /* DAT_09643524 = 1 (picker) */
+    T_ASSERT_EQ_I(a.menu_folding_out, 0);   /* slide in */
+    return 0;
+}

@@ -165,6 +165,13 @@ struct anchor_world {
      * no async load, so a clean +0-stretch v3 join for the title records render
      * (FUN_0049c439). 0 outside the open Records screen. */
     int title_records_active;
+
+    /* 1 while the TITLE-screen Survival difficulty selector (the code-6 overlay,
+     * NOT a submenu_state) is fully open + at rest (scene 0, submenu_state == 0,
+     * cursor_anim == 0, survival_state == 8). Drives TITLE_SURVIVAL_READY (0→1) —
+     * no async load ⇒ a clean +0-stretch v3 join for the selector render
+     * (FUN_0049c644 @ 0x49cbe8). 0 outside the open selector. */
+    int title_survival_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

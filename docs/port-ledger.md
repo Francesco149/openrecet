@@ -496,7 +496,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
 | 0x49a585 | FUN_0049a585 | 25 | ✓ | esc_dispatch.c, esc_dispatch.h |
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | audio_fade.h, d3d_pool.h, main.c (+12) |
-| 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | title_continue_picker.c, title_continue_picker.h |
+| 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | scene_title.c, title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | save_picker.c, save_picker.h, scene_pause.c (+3) |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | anchor_trace.c, anchor_trace.h, scene_pause.c (+3) |

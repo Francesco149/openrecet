@@ -98,6 +98,7 @@ const ADDR = {
     // cursor_anim DAT_09643520 (the 0..10 fold-in tween).
     var_title_submenu_state: 0x09643524,
     var_title_cursor_anim:   0x09643520,
+    var_title_survival_state: 0x09643550,  // DAT_09643550 — Survival selector ramp (8 = open at rest)
 
     // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
     // presses ESC during a skippable event (the intro dialogues). The {esc}
@@ -763,6 +764,7 @@ let g_anchor_prev_titlepicker = false; // previous-frame title Continue/load pic
 let g_anchor_prev_titlesettings = false; // previous-frame title Options/settings submenu navigable
 let g_anchor_prev_titleencyclopedia = false; // previous-frame title all-banks 図鑑 navigable
 let g_anchor_prev_titlerecords = false; // previous-frame title Records / high-score screen navigable
+let g_anchor_prev_titlesurvival = false; // previous-frame title Survival difficulty selector at rest
 
 // {phasepin} background-window-NPC normalizer (mirrors the port's
 // scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
@@ -3227,6 +3229,14 @@ function anchorTick(frame, devicePtr) {
     const titleSettingsActive = (titleSubmenu === 2);   // TITLE_SETTINGS_READY
     const titleEncyclopediaActive = (titleSubmenu === 3); // TITLE_ENCYCLOPEDIA_READY
     const titleRecordsActive  = (titleSubmenu === 4);   // TITLE_RECORDS_READY
+    // TITLE_SURVIVAL_READY: the Survival difficulty selector (code-6 overlay, NOT a
+    // submenu_state) at rest — scene==0, submenu_state==0, cursor_anim==0,
+    // survival_state==8. Mirror of scene_title_survival_navigable.
+    const titleSurvivalActive =
+        (scene === ANCHOR_SCENE_TITLE
+         && rva(ADDR.var_title_cursor_anim).readS32() === 0
+         && rva(ADDR.var_title_submenu_state).readS32() === 0
+         && rva(ADDR.var_title_survival_state).readS32() === 8);
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -3247,6 +3257,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_titlesettings = titleSettingsActive;
         g_anchor_prev_titleencyclopedia = titleEncyclopediaActive;
         g_anchor_prev_titlerecords = titleRecordsActive;
+        g_anchor_prev_titlesurvival = titleSurvivalActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -3445,6 +3456,14 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('TITLE_RECORDS_READY', frame);
         anchorCaptureSchedule('TITLE_RECORDS_READY', frame, devicePtr);
     }
+    // TITLE_SURVIVAL_READY — the Survival difficulty selector (code-6 overlay) just
+    // reached its at-rest open state (survival_state==8, rising edge). No async load
+    // ⇒ a clean +0-stretch v3 join for the selector render (FUN_0049c644 @ 0x49cbe8).
+    // Mirror of anchor_trace.c ev_title_survival_ready.
+    if (!g_anchor_prev_titlesurvival && titleSurvivalActive) {
+        sendAnchor('TITLE_SURVIVAL_READY', frame);
+        anchorCaptureSchedule('TITLE_SURVIVAL_READY', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -3463,6 +3482,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_titlesettings = titleSettingsActive;
     g_anchor_prev_titleencyclopedia = titleEncyclopediaActive;
     g_anchor_prev_titlerecords = titleRecordsActive;
+    g_anchor_prev_titlesurvival = titleSurvivalActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

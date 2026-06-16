@@ -1,0 +1,27 @@
+# title-survival — the title Survival difficulty selector (the code-6 overlay
+# FUN_0049c644 @ 0x49cbe8; NOT a submenu_state — it slides in OVER the still-
+# visible main menu) on a CRAFTED save that unlocks the Survival menu row.
+#
+# Unlock: FUN_0049a324 returns uVar1 == 3 only when a save bank has GAME_MODE
+# (bank dword 0xb759) == 3 AND an item-table entry with (id>>6) in [0xd49..0xd50]
+# (an "adventure-8" item).  tools/craft_survival_save.py pokes both onto bank 1
+# of the guild save + restamps the bank checksum (else save_bank_init_all resets
+# the tampered bank on load).  embedded save: 83966ab684330c1e9eea184bb0aed31e36cf19bef2862a00efc7492b49fc55b5
+#
+# With Survival unlocked the menu is [CONT_HAS_SAVE, NEW_HAS_SAVE, SURVIVAL(2),
+# CONTINUE_ANY(3=default cursor), RANKING, HIDDEN_CHAR, OPTIONS, EXIT], so UP×1
+# from the default cursor lands on SURVIVAL; A opens the selector.  It slides in
+# (survival_state 1→8) and pins at 8 — TITLE_SURVIVAL_READY fires there (a
+# +0-stretch join, no async load at the title, like the picker/records anchors).
+{"savefile": "_saves/83966ab684330c1e9eea184bb0aed31e36cf19bef2862a00efc7492b49fc55b5.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0004"}
+{"frame": 6, "buttons": "0x0000"}
+{"frame": 20, "buttons": "0x0010"}
+{"frame": 21, "buttons": "0x0000"}
+{"wait": "TITLE_SURVIVAL_READY"}
+{"caprange": [0, 120]}
+{"calltrace": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

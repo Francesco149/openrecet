@@ -275,6 +275,15 @@ static int ev_title_records_ready(const struct anchor_world *p, const struct anc
     return !p->title_records_active && c->title_records_active;
 }
 
+/* TITLE_SURVIVAL_READY — the title Survival difficulty selector (the code-6
+ * overlay) reaches its at-rest fully-open state (survival_state == 8 with the
+ * main menu still up). No async load ⇒ a clean +0-stretch v3 join for the
+ * selector render (FUN_0049c644 @ 0x49cbe8). Fires once per open. */
+static int ev_title_survival_ready(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->title_survival_active && c->title_survival_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -313,6 +322,7 @@ static const struct anchor_def g_anchors[] = {
     { "TITLE_SETTINGS_READY",  ev_title_settings_ready },
     { "TITLE_ENCYCLOPEDIA_READY", ev_title_encyclopedia_ready },
     { "TITLE_RECORDS_READY",      ev_title_records_ready },
+    { "TITLE_SURVIVAL_READY",     ev_title_survival_ready },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

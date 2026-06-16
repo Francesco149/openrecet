@@ -88,6 +88,32 @@ typedef struct {
     uint32_t submenu_cursor;    /* DAT_09643530 */
     int      settings_dirty;    /* DAT_09643560 */
 
+    /* ── Survival difficulty selector (title item code 6) ──
+     *
+     * Selecting "Survival" — present only when FUN_0049a324 returns 3 (a
+     * save bank with GAME_MODE==3 + an "adventure-8" item) — opens a small
+     * 2-option ("Survival Hell" / "Normal Survival") panel that slides IN
+     * over the main menu. It is NOT a submenu_state: the menu stays visible
+     * behind it and these four counters (engine DAT_096435{50,54,58,5c})
+     * drive it independently while submenu_state stays 0.
+     *
+     *   survival_state    DAT_09643550 — 0 closed; 1..8 slide-in ramp,
+     *                     pinned at 8 at rest; counts 8→0 on a B-cancel.
+     *   survival_option   DAT_09643558 — 0 = Survival Hell (top row),
+     *                     1 = Normal Survival (bottom row).
+     *   survival_anim     DAT_0964355c — 0 idle; on A-confirm ramps 1→0xf
+     *                     (the closing animation handing off to the save
+     *                     picker) and drives the selected-row sin pulse.
+     *   survival_slideout DAT_09643554 — 0 normal; 1 once a B-cancel starts
+     *                     the slide-out (survival_state then counts down).
+     *
+     * memset(0) in scene_title_anim_init_fresh leaves all four at 0 =
+     * closed (the engine zeroes them in FUN_0049a3a3's counter block). */
+    uint32_t survival_state;    /* DAT_09643550 */
+    uint32_t survival_option;   /* DAT_09643558 */
+    uint32_t survival_anim;     /* DAT_0964355c */
+    uint32_t survival_slideout; /* DAT_09643554 */
+
     /* Press-dispatch outbox. The pure sim sets `pending_action` to the
      * menu item code (SCENE_TITLE_MENU_*) on the frame `select_phase`
      * reaches 0xf — the moment the engine dispatches a scene transition.
@@ -295,6 +321,12 @@ int scene_title_encyclopedia_navigable(int scene_mode);
  * screen (submenu_state 4) is fully open + navigable (scene_mode == TITLE,
  * submenu_state == 4, cursor_anim == 10). No async load ⇒ a clean v3 join. */
 int scene_title_records_navigable(int scene_mode);
+
+/* TITLE_SURVIVAL_READY anchor source — nonzero when the Survival difficulty
+ * selector (the code-6 overlay; NOT a submenu_state) is fully open + at rest:
+ * scene_mode == TITLE, submenu_state == 0, cursor_anim == 0, survival_state == 8.
+ * No async load ⇒ a clean +0-stretch v3 join. */
+int scene_title_survival_navigable(int scene_mode);
 
 #ifdef _WIN32
 

@@ -1,0 +1,11 @@
+# title-survival — see trace.jsonl.  The title Survival difficulty selector
+# (the code-6 overlay, FUN_0049c644 @ 0x49cbe8 — NOT a submenu_state) on a
+# crafted save that UNLOCKS the Survival row (FUN_0049a324 uVar1 == 3: a bank
+# with GAME_MODE==3 + an adv-8 item).  UP×1 (default cursor CONTINUE_ANY →
+# SURVIVAL) → A opens the selector; it slides in (survival_state 1→8) and
+# rests.  Verifies the savewindow.tga backdrop + the "Survival Hell" / "Normal
+# Survival" labels render 1:1.  Capture TITLE_SURVIVAL_READY+0..120.
+description: Title → UP → A → Survival difficulty selector (Hell/Normal, 1:1)
+rng_seed: 1
+max_frames: 8000
+duration_ceiling_ms: 180000
