@@ -7,6 +7,34 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-17 — v3 JOIN base-anchor auto-detect (iv1_2 0/299 → 152/299 honest) + gap #4 quantified
+
+The `intro-iv2-v3` window (the iv1_2 opening) joined **0/299 paired** — a TOOLING bug, not a render
+gap. `v3cache.preserve_live` resolved the window's base anchor by occurrence #1, but the two sides
+capture a cutscene run ASYMMETRICALLY: the port keeps the full run (`HOUSE_FREEROAM#1`@284 at the
+first house entry + `HOUSE_FREEROAM#2`@1832 at iv1_2) while retail captures window-only (sole
+`HOUSE_FREEROAM`@2986). Occ-#1 pinning labelled the sides by DIFFERENT firings (port window-occ 2,
+retail 1) ⇒ `key_of_present` mispaired every frame.
+
+- **fix** (`ddeb421`, `tools/trace_studio_v3/v3cache.py`): new `resolve_base_anchor()` auto-detects
+  the base as the most-recent firing ≤ `present_first` (the port's HF#2); `_window_occ` re-bases both
+  sides to a shared window-relative occ. A symmetric single-firing window resolves to occ #1
+  unchanged — re-verified a NO-OP across the whole v3 cache (only `intro-iv2-v3` port + one latent
+  `guild-ui-flow` window change; the verified guild N4 join `f1f4bcd3` stays a no-op).
+  +`test_base_anchor_auto_detect`.
+- **honest result:** iv1_2 join **0/299 → 152/299**. The 152 pairs are the shared `CONV_POSE_BLINK`
+  freeroam-counter cadence.
+- **what it reveals — gap #4 quantified.** Even the 152 "pairs" are visually divergent + the dialogue
+  never pairs, because the port SKIPS retail's whole iv1_2 opening: retail fades the scene in from
+  pure black over **240 frames** (`fadeinb:240`, mean 0→132) + standee slides + freeroam opening
+  anims, reaching the dialogue at **+321**; the port pops the scene in (mean 102 @f0, no fade) +
+  reaches the dialogue at **+121** — **~200 frames early**. The already-deferred **gap #4** (iv1_2
+  opening freeroam-sprite anims) + the **`fadeinb:240` fade-from-black** — both the
+  loading-screen-fidelity class. So the iv1_2 OPENING is NOT 1:1 (the port fast-pops it); the iv1_2
+  dialogue/scene render is separately 1:1. The fixed join now MEASURES the gap instead of hiding it
+  behind a 0/299 mispair. RE + mean-vs-frame table: `findings/opening-prologue.md` "v3 JOIN
+  base-anchor bug"; feed montage pushed.
+
 ## 2026-06-17 — shop-door "GO!" tooltip (the free-roam emote bubble, FUN_0040a765) — pixel-1:1
 
 When the player stands at the shop door, retail shows a **"GO!" speech bubble** over their head

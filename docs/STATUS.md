@@ -757,13 +757,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   base anchor (subtract pre-base firings; symmetric windows = no-op, all v3 tests pass +new
   `test_window_relative_occ`).  intro-prologue-v3 re-join: paired 693→**810**, port-only 121→**4**,
   draw-divergent 81→**23** (the residual = the +2 fade phase pillar).  **⇒ iv1_1 now joins honest.**
-  **Next (trace-studio): the iv1_2 join is 0/299 paired** — a DEEPER base-anchor bug: the port
-  captures the full run (HF#1@284 + HF#2@1832) while retail captures window-only (its sole HF = the
-  window's), and the base occurrence defaults to #1 instead of resolving to the window's HF#2 — so
-  the sides label iv1_2 by different anchors.  Fix = resolve the base occurrence as the anchor
-  firing ≤ present_first (auto-detect the window's base); the window-relative occ then re-bases both
-  to 1.  Touches core `_store`/base-anchor logic ⇒ re-verify all confirmed scenarios.  iv1_2 itself
-  is visually 1:1 (HOUSE scene + portraits match retail); this only blocks the JOIN verdict.
+  **v3-JOIN base-anchor bug ✅ FIXED 2026-06-17** (`ddeb421`): the iv1_2 join was 0/299 — a TOOLING
+  bug, not a render gap. `preserve_live` resolved the window's BASE anchor by occurrence #1, but the
+  port captures the full run (HF#1@284 first-house-entry + HF#2@1832 iv1_2) while retail captures
+  window-only (sole HF@2986) ⇒ the sides labelled iv1_2 by DIFFERENT firings (port window-occ 2 vs
+  retail 1) ⇒ every frame mispaired. Fix = `resolve_base_anchor` auto-detects the base as the
+  most-recent firing ≤ present_first (port's HF#2); `_window_occ` re-bases both to occ 1. Re-verified
+  a NO-OP across the WHOLE v3 cache (only intro-iv2-v3 port + one latent guild-ui-flow window change;
+  the verified guild N4 join stays a no-op) + `test_base_anchor_auto_detect`. **iv1_2 now joins
+  HONEST: 0/299 → 152/299.**
+  **What the honest join REVEALS — gap #4 quantified (NOT a tooling artifact, a real deferred port
+  gap).** The 152 pairs are the shared `CONV_POSE_BLINK` freeroam-counter cadence; even those are
+  visually divergent + the dialogue never pairs, because **the port SKIPS retail's whole iv1_2
+  opening**: retail fades the scene in from pure black over **240 frames** (`fadeinb:240`, mean
+  0→132) + standee slides + freeroam opening anims, reaching the dialogue at **+321**; the port pops
+  the scene in (mean 102 @f0, no fade) + reaches the dialogue at **+121** — **~200 frames early**.
+  That's the already-deferred **gap #4** (iv1_2 opening freeroam-sprite anims) + its sibling the
+  **`fadeinb:240` fade-from-black** — both the LOADING-SCREEN-FIDELITY class. So **iv1_2 OPENING is
+  NOT 1:1** (the port fast-pops it); the iv1_2 DIALOGUE/scene render is separately confirmed 1:1
+  (other windows) — this window isolates the opening. Feed: "iv1_2 opening — honest v3 join reveals
+  port skips retail 240f fade-from-black". RE + the mean-vs-frame table: `opening-prologue.md`
+  "v3 JOIN base-anchor bug". **NEXT (user decision): port gap #4 + the fadeinb:240 opening fade
+  (loading-screen-fidelity arc), or accept it deferred and move to another arc.**
 - **SHOP-DOOR "GO!" TOOLTIP ✅ DONE + USER-CONFIRMED 1:1 2026-06-17** (`2fb6085`; parity ledger;
   user "looks good to me"). The user-flagged "tooltip at the door" = the free-roam interaction-
   affordance **emote bubble** (the unported inline block of `FUN_0040a765`, decomp L6900-6932): a

@@ -775,3 +775,49 @@ hook before Recette enters the listen pose; render parity is unaffected.)
 and are EXCLUDED from the gate for now — wire + verify when those scenes are v3
 draw-program checked (the guild's `9fd8` divergence is the same layer, noted in
 `merchant-guild-RE.md`).
+
+## RESOLVED — v3 JOIN base-anchor bug (iv1_2 0/299 → 152/299 honest, 2026-06-17)
+
+The `intro-iv2-v3` window (the iv1_2 opening: HF#2 +0..+299, idle) joined **0/299
+paired** — a pure TOOLING bug, not a render gap. `v3cache.preserve_live` resolved
+the window's BASE anchor by occurrence #1, but the two sides capture the run
+asymmetrically: the **port** keeps the full run (`HOUSE_FREEROAM#1`@284 at the first
+house entry + `HOUSE_FREEROAM#2`@1832 at the iv1_2 cutscene; first kept frame @1833)
+while **retail** captures window-only (its sole `HOUSE_FREEROAM`@2986). Pinning the
+base to occ #1 labelled the sides by DIFFERENT firings (port HF#1@284 → window-occ 2,
+retail HF@2986 → window-occ 1), so `key_of_present` mispaired every frame.
+
+**Fix (`ddeb421`):** `resolve_base_anchor()` auto-detects the base as the MOST-RECENT
+firing ≤ `present_first` (the port's HF#2@1832); `_window_occ` then re-bases both to
+window-occ 1 and the join pairs. A symmetric single-firing window resolves to occ #1
+unchanged — re-verified a NO-OP across the whole v3 cache (only `intro-iv2-v3` port +
+one latent `guild-ui-flow` window change; the verified guild N4 join stays a no-op).
+
+**What the now-honest join reveals — gap #4 quantified.** The 152 pairs are the
+shared `CONV_POSE_BLINK` freeroam-counter cadence (port blink@+21 ↔ retail@+24, a +3
+counter phase the per-blink delta absorbs). But even those "pairs" are VISUALLY
+divergent, and the dialogue never pairs, because the port **skips retail's whole
+iv1_2 opening sequence**:
+
+| frame | retail mean | port mean |   |
+|------:|------------:|----------:|---|
+| f0    | **0.0** (pure black) | **102.5** (already faded in) | retail starts the `fadeinb:240` |
+| f60   | 33.1        | 109.2     | retail mid-fade |
+| f120  | 66.2        | 121.0     | retail mid-fade; **port opens the dialogue (TEXT_ANIM_START +121)** |
+| f240  | 131.9       | 127.5     | retail's fade completes (~the `fadeinb:240` mark) |
+| f299  | 141.5       | 127.5     | retail still pre-dialogue (TEXT_ANIM_START only @ **+321**, past the window) |
+
+So retail fades the iv1_2 scene in from pure black over **240 frames** (`fadeinb:240`,
+the first `iv1_2.ivt` op) + plays the chr:0/chr:1 standee slide-ins + the freeroam
+opening anims, reaching the dialogue at **+321**; the port pops the scene in (no fade)
+and reaches the dialogue at **+121** — **~200 frames early**. This is the
+already-deferred **gap #4** (iv1_2 opening freeroam-sprite anims) PLUS its sibling the
+**`fadeinb:240` fade-from-black** — both the LOADING-SCREEN-FIDELITY class (retail
+fades/animates the opening in, the port fast-pops it). The honest join now MEASURES
+the gap (200-frame compression) instead of hiding it behind a 0/299 mispair.
+
+**⇒ iv1_2 OPENING is NOT 1:1** (the port skips the fade + opening anim). The iv1_2
+DIALOGUE/scene render is separately confirmed 1:1 (other windows); this window
+isolates the opening, which is gap #4 + the fade. NOT a tooling artifact — the
+tooling is now correct; this is a real, known-deferred port gap awaiting the
+loading-screen-fidelity / freeroam-opening-anim port.
