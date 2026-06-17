@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  21.3% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  21.4% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    70 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    14 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   458 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **542** | verified + stubbed + ported                         |
-| unported  |  2006 | exists in engine, never referenced from src/             |
+| ported    |   462 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **546** | verified + stubbed + ported                         |
+| unported  |  2002 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -69,13 +69,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   ask=ftol((float)item.price) since b5a8==2] + the b5a0 arrival ramp scaffold + the b534==1+b51c →
   scripted-tick dispatch). The off-window branches (leave/closing/sold-pause/pose/bubble-pos/fx) are
   tagged PORT-DEBT. +3 host tests reproduce the capture's greeting frame (b56c=1, b5a8=2, base=ask=3000,
-  b534=1); 3329 host pass, exe clean. The scripted machine `FUN_00461c00` itself is a stub here.
-  **NEXT = Chip 2b:** port **`FUN_00461c00`** (the script interpreter: PC `b604` walks
-  `g_tuto[b5b0*200+pc]`; opcodes = dialogue/price-set [base→1200]/PRID-PRIA [`FUN_0045ff11/31` +
-  `FUN_00460161` offer→1536]/conditional GOTO `FUN_004623bc`) + helpers, wiring `customer_haggle` +
-  `tables_tuto`; verify the base→1200 + offer trajectory vs the `34f44b18` cache. Then Chip 3 = render
-  `FUN_0046602e`/`00466b7b` (BARGAIN!! panel — user visual check); a later chip wires the cc08==4 entry
-  (the port doesn't yet reach it) for the integrated flow_diff drive. Plan: RE §3.7/§7.
+  b534=1); 3329 host pass, exe clean.
+  **Chip 2b ✅ LANDED + host-tested (this session):** the SCRIPTED machine **`FUN_00461c00`** ported
+  in full (transcribed from by-address/461c00.c with its literal LAB_* goto structure) + the helpers
+  **`FUN_004623bc`** (GOTO id→PC), **`FUN_0045ff11/31`** (digit count/edit), **`FUN_004622d9`** (the
+  price-confirm poll), and the **`FUN_00460161` binding** (`cs_offer_up` → the pure
+  `customer_haggle.haggle_offer_up` over `g_kyaku.records[b56c]`). The PC `b604` walks
+  `g_tuto[b5b0*200+pc]`; opcodes wired: dialogue (CHR0/1 speaker toggle), price-set (op 2 → base/ask
+  from `g_item` item 2), PRID/PRIA (op 3/4 → digit editor + the offer at the 3→4 Z transition),
+  conditional GOTOs (op 5/6/0xc/0xd/0xe → `cs_goto` on ask/base ratio thresholds), SET_INITIAL/TAGN/
+  TOUT, end. PORT-DEBT: the render/audio/cursor externals (`FUN_0046098f` dialogue-line buffer,
+  `FUN_00499519` SE, `FUN_00435612/693` cursor, details overlay) + the item-menu / sword-select
+  (op 10/0xb) buy-from-customer sub-flows. **+1 host test (`cs_scripted_first_offer`) reproduces the
+  capture trajectory END-TO-END: idle→greeting base=3000 (item 3) → scripted op-2 base→1200 (item 2)
+  → op-4 PRIA + Z → offer `b574`=1536 (=1200·128/100, no f406 override), round `b584`=1.** 3330 host
+  pass, exe clean.
+  **NEXT = Chip 3 (render):** `FUN_0046602e` (shopmode.tga panel + portrait) + `FUN_00466b7b`
+  (BARGAIN!! banner / base price / name-a-price / offer buttons / cursor) — the user visual check.
+  **THEN the cc08==4 ENTRY wiring** (the port's house_update doesn't yet reach cc08==4 — Chip 1/2
+  ported the logic but it's UNwired + no customer spawn): wire the Z-at-counter → f404 → session_init,
+  the per-frame cc08==4 → `customer_service_master_tick`, the `FUN_00461bf6` b5b0 arg, + the load-worker
+  callback → `customer_service_notify_loaded`; that unblocks the integrated `flow_diff` drive (currently
+  the only verification is host tests + the data-layer's own `tables_tuto` tests). Plan: RE §3.7/§7.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:

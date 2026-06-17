@@ -47,9 +47,9 @@ void customer_service_session_init(void);
  * non-free-roam arm).  Owns the arrival/leave anim, the speech-bubble screen
  * position, the patience timers, and the b534 state switch; for the scripted
  * tutorial sell (b51c==1) the b534==1 arm dispatches the scripted machine
- * (FUN_00461c00) every frame.  `pressed`/`held` = the engine button masks
- * DAT_073dddd4 (edge) / DAT_073dddd6 (held-with-repeat). */
-void customer_service_master_tick(uint32_t pressed, uint32_t held);
+ * (FUN_00461c00) every frame.  `cur`/`pressed`/`held` = the engine button masks
+ * DAT_073dddd0 (raw) / DAT_073dddd4 (edge) / DAT_073dddd6 (held-with-repeat). */
+void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held);
 
 /* Load-worker completion (DAT_0438b1cc → 0) — the asset-load worker's callback;
  * the master tick is inert until it fires.  Host tests call it after session_init

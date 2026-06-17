@@ -94,7 +94,7 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| cs-bubble-pos | render chip | src/customer_service.c:467 | the speech-bubble screen position |
+| cs-bubble-pos | render chip | src/customer_service.c:843 | the speech-bubble screen position |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1115 | the engine also zeroes |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1072 | the engine also gates on a |

@@ -17,13 +17,17 @@
 #include "worker_load.h"      /* worker_load_spawn_d3e == FUN_00452d3e */
 #include "tables_kyaku.h"     /* g_kyaku — the customer tuning fields */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
+#include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
+#include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 
-/* ── per-frame input edge/held masks (DAT_073dddd4 pressed / DAT_073dddd6 held) ──
- * The cc08==4 driver reads the engine's button masks: 0x10=Z/A edge, 0x20=X/B,
- * 0x0c=up/down, 0x40=details; held bits 1/2/4/8 = L/R/U/D for the digit editor.
- * Passed into the tick each frame so the logic is host-testable with scripted
- * inputs (the engine reads the DAT_073dddd4/d6 globals directly). */
+/* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
+ * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
+ * accumulated buttons), pressed (DAT_073dddd4, rose this frame: 0x10=Z/A,
+ * 0x20=X/B, 0x0c=up/down, 0x40=details), held (DAT_073dddd6, held-with-repeat:
+ * bits 1/2/4/8 = L/R/U/D for the digit editor).  Passed into the tick each frame
+ * so the logic is host-testable with scripted inputs. */
+static uint32_t s_in_cur;       /* DAT_073dddd0 */
 static uint32_t s_in_pressed;   /* DAT_073dddd4 */
 static uint32_t s_in_held;      /* DAT_073dddd6 */
 
@@ -428,8 +432,379 @@ static void cs_idle_tick(void)
         s_b530 -= 1;
 }
 
-/* ── FUN_00461c00 — the scripted-sell machine.  Ported in Chip 2b. ──────────── */
-static void cs_scripted_tick(void) { }
+/* ── FUN_004623bc — GOTO: scan the script for id==target, set the PC (b604) ────
+ * Walks the file's records from 0; on the first id==target sets b604 to that
+ * index; a sentinel (opcode==-1) before a match leaves b604 unchanged. */
+static void cs_goto(int target_id)
+{
+    struct tuto_record *rec = &g_tuto[s_price_fileidx * TUTO_CONSUMER_STRIDE];
+    int idx = s_b604;                        /* iVar2 = current PC (default) */
+    if (rec[0].opcode != -1) {
+        int i = 0;
+        for (;;) {
+            idx = i;                         /* iVar2 = iVar5 (set before the test) */
+            if (rec[i].id == target_id)
+                break;
+            i++;
+            if (rec[i].opcode == -1)         /* sentinel before match → unchanged */
+                return;
+        }
+    }
+    s_b604 = idx;
+}
+
+/* ── FUN_0045ff11 — count the asking price's decimal digits → b560 ──────────── */
+static void cs_digit_count(void)
+{
+    int n = 0, p = 10;
+    do {
+        if (s_price_ask < p) { s_b560 = n; return; }
+        p *= 10;
+        n += 1;
+    } while (n != 7);
+}
+
+/* ── FUN_0045ff31 — edit the asking-price digit at the cursor (L/R + U/D) ─────
+ * Held bits (DAT_073dddd6): 2=R, 1=L move the cursor (mod 7); 4=U, 8=D ±1 the
+ * digit.  Result clamped ≥1.  PORT-DEBT(cs-ask-gold-cap): the b5a8==0 buy path's
+ * gold ceiling (all.c:58323) never applies on the sell path (b5a8==2). */
+static void cs_digit_edit(void)
+{
+    if (s_in_held & 2) s_b560 = (s_b560 + 8) % 7;   /* R (SE 0x146) */
+    if (s_in_held & 1) s_b560 = (s_b560 + 6) % 7;   /* L */
+    int mul = 1, val = s_price_ask;
+    for (int i = s_b560; i != 0; i -= 1) { val /= 10; mul *= 10; }
+    val %= 10;
+    s_price_ask -= mul * val;
+    if (s_in_held & 4) val += 1;                    /* U */
+    if (s_in_held & 8) val -= 1;                    /* D */
+    s_price_ask += mul * val;
+    if (s_price_ask < 1)
+        s_price_ask = 1;
+}
+
+/* ── FUN_004622d9 — the price-confirm input poll (Yes/No + patience) ──────────
+ * Returns 1 = commit (patience spent), 2 = cancel, 0 = continue.  PORT-DEBT
+ * (cs-poll-fx): the cursor placement (FUN_00435710) + SE (FUN_00499519). */
+static int cs_input_poll(void)
+{
+    int ret = 0;
+    if (s_b58c < 5)
+        s_b58c += 1;
+    if (s_b590 < 1) {
+        if (s_in_pressed & 0x10) {              /* Z */
+            if (s_b540 == 0) s_b590 = 1;        /* Yes → start the commit countdown */
+            else ret = 2;                       /* No → cancel */
+        } else if (s_in_pressed & 0x20) {       /* X → cancel */
+            ret = 2;
+        } else if (s_in_pressed & 0xc) {        /* up/down → toggle Yes/No */
+            s_b540 ^= 1;
+        } else {
+            return 0;
+        }
+    } else {
+        s_b590 += 1;
+        if (0xe < s_b590) { s_b590 = 0xf; ret = 1; }
+    }
+    return ret;
+}
+
+/* ── FUN_00460161 binding — the customer raises its offer (haggle UP) ─────────
+ * Binds the live DAT_0730bXXX / price scalars + the active customer's kyaku
+ * tuning (record b56c = g_kyaku.records[b56c]) to the pure haggle_offer_up math
+ * (src/customer_haggle.c).  trend = FUN_004361b2(b5a4) is PORT-DEBT → neutral 0
+ * (no price tilt, no rng draw); is_tutorial = the f406 override (clears here). */
+static void cs_offer_up(void)
+{
+    int idx = g_scene_buy_current_page;                  /* b56c */
+    if (idx < 0 || idx >= KYAKU_COUNT) idx = 0;           /* defensive */
+    const kyaku_record_t *kr = &g_kyaku.records[idx];
+    haggle_customer_t c = {
+        .initial     = kr->initial,
+        .random      = kr->random,
+        .gullibility = kr->gullibility,
+        .rise1       = kr->rise1,
+        .rise2       = kr->rise2,
+        .budget_low  = kr->budget_low,
+        .budget_high = kr->budget_high,
+    };
+    haggle_state_t st = {
+        .round = s_b584, .offer = s_b574, .work_price = s_b57c,
+        .floor = s_b580, .accept_ref = s_b588,
+    };
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int is_tut = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
+    haggle_offer_up(&st, &c, s_price_base, s_price_ask, 0, is_tut);
+    s_b584 = st.round; s_b574 = st.offer; s_b57c = st.work_price;
+    s_b580 = st.floor; s_b588 = st.accept_ref;
+}
+
+/* ── FUN_00461c00 — the SCRIPTED-sell machine (the customer-service tutorial) ──
+ * The per-frame interpreter dispatched from the master tick's b534==1 arm while
+ * b51c==1.  The PC (b604) walks g_tuto[b5b0*200 + pc]; opcodes interleave Tear's
+ * dialogue (CHR0/CHR1) with the price UI: price-set (op 2 → base/ask from the
+ * offered item), PRID/PRIA (op 3/4 → the digit editor + the customer's offer via
+ * FUN_00460161), and conditional GOTOs (op 5/6/0xc/0xd/0xe → cs_goto on ask/base
+ * ratio thresholds).  Transcribed from docs/decompiled/by-address/461c00.c with
+ * its literal label structure (the b600==0 dispatch falls through into the
+ * b600!=0 continuation handlers via the LAB_* gotos).  Externals that are render/
+ * audio/item-menu are PORT-DEBT no-ops (inert for the state trajectory). */
+static void cs_scripted_tick(void)
+{
+    int recbase = s_price_fileidx * TUTO_CONSUMER_STRIDE;
+    struct tuto_record *r = &g_tuto[recbase + s_b604];
+    int op;
+    int uVar10 = 0;            /* GOTO target id */
+
+    if (r->opcode == -1) {     /* end of script → closing */
+        s_cust_active[0] = 0;
+        s_cust_active[1] = 0;
+        s_b534 = 0xc;
+        s_b55c = 0;
+        return;
+    }
+    /* PORT-DEBT(cs-details-overlay): FUN_004681e6 detail-card open query (0 in
+     * steady state) + the Button-3 item-detail draw (all.c:59767-59783, render). */
+
+    if (s_b600 == 0) {
+        op = r->opcode;
+        s_b600 = 1;
+        if (op != 10) {
+            if (op == 0xb) {                       /* sword-select result */
+                /* PORT-DEBT(cs-sword-select): FUN_00469a9f + the like-attr GOTO. */
+                cs_goto(r->args[1]);
+                s_b600 = 0;
+                s_b608 = -1;
+                goto lab_tail;
+            }
+            if (op == 9) {                         /* TOUT — NPC exits */
+                s_b608 = 5;
+                goto lab_tout_dec;
+            }
+            if (op == 8) {                         /* TAGN — hide target window */
+                s_b5a0 = 0;
+                goto lab_advance;
+            }
+            if (op == 2) {                         /* price-set: base/ask from item 2 */
+                s_b5a0 = 1;
+                s_b5a4 = 0x80;
+                {
+                    int slot = tables_item_find_slot_by_id(&g_item, 2);
+                    int32_t pr = (slot >= 0) ? g_item.records[slot].price : 0;
+                    s_price_runsum = pr;            /* bbc */
+                    s_price_base   = pr;            /* bc0 = bbc */
+                    int slot2 = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+                    int32_t pr2 = (slot2 >= 0) ? g_item.records[slot2].price : 0;
+                    s_price_ask = (int32_t)(float)pr2;   /* ftol((float)price) */
+                }
+                s_price_bb4 = -1;
+                s_b584 = 0;
+                goto lab_advance;
+            }
+            if (op == 6) { uVar10 = r->args[0]; goto lab_goto; }   /* GOTO */
+            if (op == 0x14) {                      /* SET_INITIAL */
+                s_b604 += 1;
+                s_b608 = -1;
+                s_b600 = 0;
+                s_price_bb4 = s_price_ask;
+                goto lab_tail;
+            }
+            if (op == 0xc) {                       /* PRICE compare */
+                if (s_price_ask <= s_price_runsum) { uVar10 = r->args[1]; goto lab_goto; }
+                uVar10 = r->args[0];
+                goto lab_goto;
+            }
+            if (op == 5) {                         /* BUN0 / value compare */
+                float fa = (float)s_price_ask, fb = (float)s_price_runsum;
+                if (s_price_fileidx == 1) {
+                    if (fa <= fb * 0.2f) { uVar10 = r->args[0]; goto lab_goto; }
+                    if (fa < fb * 0.7f)  { uVar10 = r->args[1]; goto lab_goto; }
+                    if (fa < fb * 0.9f)  { uVar10 = r->args[2]; goto lab_goto; }
+                    if (fb <= fa) {
+                        if (s_price_ask == s_price_runsum) { uVar10 = r->args[4]; goto lab_goto; }
+                        if ((double)s_price_runsum * 1.5 <= (double)s_price_ask)
+                            { uVar10 = r->args[6]; goto lab_goto; }
+                        uVar10 = r->args[5];
+                        goto lab_goto;
+                    }
+                } else {
+                    if (fa < fb * 0.5f) { uVar10 = r->args[0]; goto lab_goto; }
+                    if (fa < fb * 0.7f) { uVar10 = r->args[1]; goto lab_goto; }
+                    if (fa < fb)        { uVar10 = r->args[2]; goto lab_goto; }
+                    if (s_price_ask != s_price_runsum) {
+                        if ((double)s_price_runsum * 1.3 <= (double)s_price_ask) {
+                            if ((double)s_price_runsum * 2.0 <= (double)s_price_ask)
+                                { uVar10 = r->args[6]; goto lab_goto; }
+                            uVar10 = r->args[5];
+                            goto lab_goto;
+                        }
+                        uVar10 = r->args[4];
+                        goto lab_goto;
+                    }
+                }
+                uVar10 = r->args[3];
+                goto lab_goto;
+            }
+            if (op == 0xd) {                       /* DISCOUNT compare */
+                if (s_price_bb4 < s_price_ask) { uVar10 = r->args[6]; goto lab_goto; }
+                if (s_price_ask != s_price_bb4) {
+                    float fa = (float)s_price_ask, fb = (float)s_price_runsum;
+                    if (fb * 0.7f <= fa) {
+                        if (fb <= fa) {
+                            if (fa < fb * 1.3f) { uVar10 = r->args[2]; goto lab_goto; }
+                            uVar10 = r->args[3];
+                            goto lab_goto;
+                        }
+                        uVar10 = r->args[1];
+                        goto lab_goto;
+                    }
+                    uVar10 = r->args[0];
+                    goto lab_goto;
+                }
+                if ((float)s_price_ask < (float)s_price_runsum * 1.3f)
+                    { uVar10 = r->args[4]; goto lab_goto; }
+                uVar10 = r->args[5];
+                goto lab_goto;
+            }
+            if (op == 0xe) {                       /* MARKUP compare */
+                if (s_price_ask < s_price_bb4) { uVar10 = r->args[0]; goto lab_goto; }
+                if (s_price_ask == s_price_bb4) {
+                    if ((float)s_price_runsum * 0.5f <= (float)s_price_ask)
+                        { uVar10 = r->args[2]; goto lab_goto; }
+                    uVar10 = r->args[1];
+                    goto lab_goto;
+                }
+                if ((float)s_price_ask < (float)s_price_runsum * 0.9f)
+                    { uVar10 = r->args[3]; goto lab_goto; }
+                uVar10 = r->args[4];
+                goto lab_goto;
+            }
+            if (op == 3) {                         /* PRID — price-window show */
+                cs_digit_count();
+                if (s_b59c == 0) s_b59c = 1;
+                s_cust_active[1] = 0;
+                s_cust_active[0] = 0;
+                s_b600 = 0;
+                s_b608 = 1;
+                goto lab_prid_wait;
+            }
+            if (op != 4) {                         /* dialogue (CHR0=0 / CHR1=1) */
+                s_b55c = 0;
+                /* PORT-DEBT(cs-dialogue-line): FUN_0046098f line setup (the dialogue
+                 * text buffer + the <C>-pause flag b558) — render-side; the b55c-
+                 * gated advance below is driven by the text-reveal render. */
+                if (op == 0 || op == 1) {          /* speaker active flag toggle */
+                    s_cust_active[op ^ 1] = 0;
+                    s_cust_active[op] = 1;
+                }
+                s_b608 = 0;
+                goto lab_b608_dispatch;
+            }
+            /* op == 4: PRIA — price-input wait */
+            if (s_b59c == 0) { cs_digit_count(); s_b59c = 1; }
+            s_b608 = 3;
+            s_cust_active[0] = 0;
+            goto lab_b608_3;
+        }
+        /* op == 10: ITEM menu (PORT-DEBT) */
+        s_b608 = 6;
+        s_price_fileidx = 2;
+        s_cust_active[1] = 0;
+        s_cust_active[0] = 0;
+        goto lab_item_menu;
+    }
+
+    s_b600 += 1;
+lab_b608_dispatch:
+    if (s_b608 == 3) {
+lab_b608_3:
+        s_cust_active[1] = 0;
+        /* PORT-DEBT(cs-cursor): FUN_00435612 cursor reset (render). */
+        if (s_b59c == 0) s_b59c = 1;
+        if ((s_in_pressed & 0x10) == 0) {
+            cs_digit_edit();
+        } else {
+            s_b608 = 4;
+            s_b540 = 0;
+            cs_offer_up();                         /* FUN_00460161 — the customer offer */
+            s_b590 = 0;
+            s_b540 = 0;
+            /* PORT-DEBT(cs-offer-fx): SE 0x143 + FUN_00435693 cursor placement. */
+        }
+    } else {
+        if (s_b608 != 4) {
+            if (s_b608 == 5) {
+                if (s_b600 < 0x20) goto lab_tout_dec;
+                s_b52c += 1;
+                if (s_b52c < 0x20) goto lab_tail;
+            } else {
+                if (s_b608 == 6) goto lab_item_menu;
+                if (s_b608 != 1) {
+                    if (s_b608 != 0) goto lab_check_ret;
+                    /* b608 == 0: dialogue — advance on Z-edge or X-held once revealed. */
+                    if (s_b55c == 0 ||
+                        ((s_in_pressed & 0x10) == 0 && (s_in_cur & 0x20) == 0))
+                        goto lab_tail;
+                    s_b55c = 0;
+                    goto lab_advance_pc;
+                }
+lab_prid_wait:                                     /* b608 == 1 (PRID) */
+                if (s_in_pressed == 0) goto lab_tail;
+                s_b55c = 0;
+            }
+            s_b604 += 1;                            /* b608 ∈ {5,1} fallthrough advance */
+            s_b600 = 0;
+            goto lab_tail;
+        }
+        /* b608 == 4: PRIA price-confirm poll (FUN_004622d9). */
+        {
+            int poll = cs_input_poll();
+            if (poll == 1) {
+                if (s_price_bb4 == -1)
+                    s_price_bb4 = s_price_ask;
+                /* PORT-DEBT(cs-cursor): FUN_00435612. */
+                s_b59c = 0;                          /* LAB_00462253 */
+                goto lab_advance_pc;                 /* → LAB_004622b7 */
+            }
+            if (poll == 2)
+                s_b608 = 3;
+        }
+    }
+lab_check_ret:                                       /* LAB_004622bd */
+    if (s_b608 == 4)
+        return;
+    goto lab_tail;
+
+lab_advance_pc:                                      /* LAB_004622b7: b600=0; b604++ */
+    s_b600 = 0;
+    s_b604 += 1;
+    goto lab_check_ret;
+
+lab_advance:                                        /* LAB_00461dda: op 2/8 → cont */
+    s_b604 += 1;
+    s_b600 = 0;
+    goto lab_b608_dispatch;
+
+lab_goto:                                           /* LAB_00462065 */
+    cs_goto(uVar10);
+    s_b608 = -1;
+    s_b600 = 0;
+    goto lab_tail;
+
+lab_tout_dec:                                       /* LAB_00462200 */
+    s_b52c -= 1;
+    goto lab_tail;
+
+lab_item_menu:                                      /* LAB_00462225 (PORT-DEBT) */
+    /* PORT-DEBT(cs-item-menu): FUN_00469414 item-window pick + FUN_004682d0; the
+     * buy-from-customer item-select flow, not the sell tutorial's price path. */
+    goto lab_tail;
+
+lab_tail:                                           /* LAB_004622c6 */
+    if (s_b58c > 0)
+        s_b58c -= 1;
+    return;
+}
 
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
@@ -438,8 +813,9 @@ static void cs_scripted_tick(void) { }
  * machine (FUN_00461c00) every frame; b534 stays 1 (the kind-machine states are
  * never entered — RE doc §3.7).  `pressed`/`held` = the engine masks DAT_073dddd4
  * /DAT_073dddd6.  PORT-DEBT tags mark the off-window branches (leave/closing/fx). */
-void customer_service_master_tick(uint32_t pressed, uint32_t held)
+void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
 {
+    s_in_cur     = cur;
     s_in_pressed = pressed;
     s_in_held    = held;
 
@@ -520,7 +896,7 @@ void customer_service_reset(void)
     s_b5a4 = s_b600 = s_b604 = s_b608 = 0;
     s_b574 = s_b57c = s_b580 = s_b584 = s_b588 = 0;
     s_b1cc = 0;
-    s_in_pressed = s_in_held = 0;
+    s_in_cur = s_in_pressed = s_in_held = 0;
     s_b5a8 = -1;
     g_scene_buy_current_page = 0;          /* DAT_0730b56c */
     s_price_fileidx = s_price_bb4 = s_price_ask = s_price_runsum = 0;

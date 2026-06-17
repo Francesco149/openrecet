@@ -436,6 +436,7 @@ struct test_case {
     X(cs_session_init_sell_active_queue) \
     X(cs_master_tick_sell_trajectory) \
     X(cs_master_tick_idle_gated_by_load) \
+    X(cs_scripted_first_offer) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

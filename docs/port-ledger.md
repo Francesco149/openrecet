@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **542** (21.3%) — verified 70, stubbed 14, ported 458
-- unported: **2006**
+- touched: **546** (21.4%) — verified 70, stubbed 14, ported 462
+- unported: **2002**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (458) — reimplemented, no probe yet
+## ported (462) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -192,14 +192,14 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, scene_pause.c |
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+4) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, scene_pause.c (+2) |
-| 0x435612 | FUN_00435612 | 8 | ✓ | encyclopedia.c, scene1_player_ctrl.c, scene_pause.c (+4) |
+| 0x435612 | FUN_00435612 | 8 | ✓ | customer_service.c, encyclopedia.c, scene1_player_ctrl.c (+5) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | encyclopedia.c, main.c, scene_guild.c (+5) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435644 | FUN_00435644 | 79 | ✓ | encyclopedia.c, scene_pause.c, skip_event.c (+2) |
-| 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+7) |
-| 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_pause.c, scene_title.c (+4) |
+| 0x435693 | FUN_00435693 | 58 | ✓ | customer_service.c, main.c, scene1_display_menu.c (+8) |
+| 0x435710 | FUN_00435710 | 55 | ✓ | customer_service.c, scene1_display_menu.c, scene_pause.c (+5) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
-| 0x4361b2 | FUN_004361b2 | 532 | ✓ | customer_haggle.h, scene1_display_menu.c, scene1_merchant_hud.c (+1) |
+| 0x4361b2 | FUN_004361b2 | 532 | ✓ | customer_haggle.h, customer_service.c, scene1_display_menu.c (+2) |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.c, collision_house.h, main.c (+20) |
@@ -286,14 +286,18 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.c, customer_service.h, npc_schedule.h |
 | 0x45ff11 | FUN_0045ff11 | 32 | ✓ | customer_service.c |
+| 0x45ff31 | FUN_0045ff31 | 249 | ✓ | customer_service.c |
 | 0x460161 | FUN_00460161 | 622 | ✓ | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4603cf | FUN_004603cf | 675 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h |
+| 0x46098f | FUN_0046098f | 139 | ✓ | customer_service.c |
 | 0x460fa7 | FUN_00460fa7 | 106 | ✓ | customer_service.c |
 | 0x461068 | FUN_00461068 | 667 | ✓ | customer_service.c |
 | 0x461303 | FUN_00461303 | 1167 | ✓ | customer_service.c |
 | 0x461792 | FUN_00461792 | 1124 | ✓ | customer_service.c |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | customer_service.c, customer_service.h, tables_tuto.h |
+| 0x4622d9 | FUN_004622d9 | 227 | ✓ | customer_service.c |
+| 0x4623bc | FUN_004623bc | 71 | ✓ | customer_service.c |
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
@@ -301,7 +305,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c |
 | 0x4681d3 | FUN_004681d3 | 8 | ✓ | customer_service.c, encyclopedia.c, scene_pause.c |
 | 0x4681db | FUN_004681db | 11 | ✓ | encyclopedia.c |
-| 0x4681e6 | FUN_004681e6 | 6 | ✓ | scene_pause.c |
+| 0x4681e6 | FUN_004681e6 | 6 | ✓ | customer_service.c, scene_pause.c |
 | 0x4681ec | FUN_004681ec | 10 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x468246 | FUN_00468246 | 64 |  | scene1_display_menu.h |
 | 0x468286 | FUN_00468286 | 14 | ✓ | encyclopedia.c |
@@ -315,10 +319,10 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x468ddc | FUN_00468ddc | 303 | ✓ | scene1_display_menu.c |
 | 0x469241 | FUN_00469241 | 99 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x46939a | FUN_0046939a | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
-| 0x469414 | FUN_00469414 | 1516 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+2) |
+| 0x469414 | FUN_00469414 | 1516 | ✓ | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
 | 0x469a00 | FUN_00469a00 | 131 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x469a83 | FUN_00469a83 | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h |
-| 0x469a9f | FUN_00469a9f | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
+| 0x469a9f | FUN_00469a9f | 28 | ✓ | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+1) |
 | 0x469abb | FUN_00469abb | 127 | ✓ | encyclopedia.c, scene1_display_menu.c |
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ | scene1_display_menu.c |
 | 0x46a336 | FUN_0046a336 | 2722 | ✓ | chara_equip.c, chara_equip.h, encyclopedia.c (+1) |
@@ -503,7 +507,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, scene1_combat_sm.h (+5) |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+12) |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+13) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499560 | FUN_00499560 | 15 |  | music.c, music.h, scene_title.c |

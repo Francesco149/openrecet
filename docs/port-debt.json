@@ -52,7 +52,7 @@
    "engine_fn": "render chip",
    "desc": "the speech-bubble screen position",
    "file": "src/customer_service.c",
-   "line": 467,
+   "line": 843,
    "kind_known": false
   },
   {

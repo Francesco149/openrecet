@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 458,
-  "unported": 2006,
+  "ported": 462,
+  "unported": 2002,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 542,
-  "pct_touched": 21.3,
+  "touched": 546,
+  "pct_touched": 21.4,
   "pct_verified": 2.7,
   "port_debt": 26
  },
@@ -2680,6 +2680,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/encyclopedia.c",
     "src/scene1_player_ctrl.c",
     "src/scene_pause.c",
@@ -2744,6 +2745,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene_guild.c",
@@ -2775,6 +2777,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -2904,6 +2907,7 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.h",
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
     "src/scene_guild.c"
@@ -4912,8 +4916,10 @@
    "size": 249,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x46002a",
@@ -5003,8 +5009,10 @@
    "size": 139,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460a1a",
@@ -5159,8 +5167,10 @@
    "size": 227,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x4623bc",
@@ -5168,8 +5178,10 @@
    "size": 71,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x462403",
@@ -5343,6 +5355,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene_pause.c"
    ]
   },
@@ -5697,6 +5710,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
@@ -5737,6 +5751,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c"
@@ -9873,6 +9888,7 @@
     "src/audio.h",
     "src/audio_se_names.h",
     "src/choice_box.c",
+    "src/customer_service.c",
     "src/encyclopedia.c",
     "src/scene1_combat_sm.h",
     "src/scene1_per_frame_open.h",

@@ -5,10 +5,13 @@
  * path; its order/count must match retail for LCG parity).
  */
 #include "t.h"
+#include <string.h>
 #include "../src/customer_service.h"
 #include "../src/save_work.h"
 #include "../src/save_bank.h"
 #include "../src/tables_item.h"
+#include "../src/tables_kyaku.h"
+#include "../src/tables_tuto.h"
 #include "../src/rng.h"
 
 /* DAT_0450f406 / f404 byte offsets within a slot bank (rel. save_work_dwords_at). */
@@ -133,7 +136,7 @@ int test_cs_master_tick_sell_trajectory(void)
     customer_service_notify_loaded();          /* release the asset-load gate */
 
     for (int i = 0; i < 200; i++)
-        customer_service_master_tick(0, 0);    /* no input → idle climbs to greeting */
+        customer_service_master_tick(0, 0, 0);    /* no input → idle climbs to greeting */
 
     int b5a8 = customer_service_b5a8();
     int b56c = customer_service_b56c();
@@ -165,14 +168,74 @@ int test_cs_master_tick_idle_gated_by_load(void)
     customer_service_session_init();           /* sets b1cc=2 (loading) */
 
     for (int i = 0; i < 200; i++)
-        customer_service_master_tick(0, 0);
+        customer_service_master_tick(0, 0, 0);
     T_ASSERT_EQ_I(customer_service_b534(), 0);  /* still idle — load not done */
     T_ASSERT_EQ_I(customer_service_b5a8(), -1); /* selector never ran */
 
     customer_service_notify_loaded();
     for (int i = 0; i < 200; i++)
-        customer_service_master_tick(0, 0);
+        customer_service_master_tick(0, 0, 0);
     T_ASSERT_EQ_I(customer_service_b534(), 1);  /* now reaches the greeting */
     T_ASSERT_EQ_I(customer_service_b5a8(), 2);
+    return 0;
+}
+
+/* Chip 2b — the scripted machine FUN_00461c00 drives the price/offer flow.
+ * Minimal script (file 0): [op 2 price-set, op 4 PRIA, sentinel].  With item 2 →
+ * price 1200 and kyaku[1] initial=128/random=0, the customer's first offer is
+ * 1200·128/100 = 1536 (no f406 override) — the BIT-EXACT capture's b574 value.
+ * Drives the full path: idle → greeting (base 3000, item 3 via b5a4=0xc0) →
+ * scripted op 2 (base→1200, item 2) → op 4 PRIA, Z → FUN_00460161 offer 1536. */
+int test_cs_scripted_first_offer(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+
+    /* borrow the shared DBs: g_item id 3→3000 (greeting), id 2→1200 (op 2);
+     * g_kyaku[1] tuning; g_tuto[0..2] script. Restore all at the end. */
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0], sv_r1 = g_item.records[1];
+    kyaku_record_t sv_k1 = g_kyaku.records[1];
+    struct tuto_record sv_t0 = g_tuto[0], sv_t1 = g_tuto[1], sv_t2 = g_tuto[2];
+
+    g_item.count = 2;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    memset(&g_item.records[1], 0, sizeof g_item.records[1]);
+    g_item.records[0].item_id = 3; g_item.records[0].price = 3000;
+    g_item.records[1].item_id = 2; g_item.records[1].price = 1200;
+    g_kyaku.records[1].initial = 128;
+    g_kyaku.records[1].random  = 0;
+    memset(&g_tuto[0], 0, sizeof g_tuto[0]);
+    memset(&g_tuto[1], 0, sizeof g_tuto[1]);
+    memset(&g_tuto[2], 0, sizeof g_tuto[2]);
+    g_tuto[0].id = 0; g_tuto[0].opcode = 2;     /* price-set */
+    g_tuto[1].id = 1; g_tuto[1].opcode = 4;     /* PRIA */
+    g_tuto[2].id = 2; g_tuto[2].opcode = -1;    /* sentinel */
+
+    customer_service_session_init();
+    customer_service_notify_loaded();
+
+    int greet_base = 0;
+    for (int i = 0; i < 160; i++) {             /* idle → greeting → scripted op 2 */
+        customer_service_master_tick(0, 0, 0);
+        if (customer_service_b534() == 1 && greet_base == 0)
+            greet_base = customer_service_base_price();   /* item 3 = 3000 */
+    }
+    int base_after_op2 = customer_service_base_price();    /* op 2 → item 2 = 1200 */
+    customer_service_master_tick(0, 0x10, 0);   /* op 4 PRIA + Z → compute offer */
+
+    int offer = customer_service_offer();
+    int round = customer_service_round();
+
+    g_item.count = sv_cnt; g_item.records[0] = sv_r0; g_item.records[1] = sv_r1;
+    g_kyaku.records[1] = sv_k1;
+    g_tuto[0] = sv_t0; g_tuto[1] = sv_t1; g_tuto[2] = sv_t2;
+
+    T_ASSERT_EQ_I(greet_base, 3000);            /* greeting item 3 */
+    T_ASSERT_EQ_I(base_after_op2, 1200);        /* scripted op 2 → item 2 */
+    T_ASSERT_EQ_I(offer, 1536);                 /* 1200 · 128/100, no f406 override */
+    T_ASSERT_EQ_I(round, 1);                    /* haggle round 0 → 1 */
     return 0;
 }
