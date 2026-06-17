@@ -21,15 +21,27 @@
   scenario **`house-customer-tutorial`** (user recording rec-20260617-051426: LOAD cad868 → walk to
   the sell counter → the haggle tutorial that alternates Tear's dialogue with the BARGAIN!! price UI
   → first real customer). Full RE: **`findings/customer-service-haggle-RE.md`**. **Entire cc08==4
-  subsystem is unported.** Landed 2026-06-17 night (autonomous): (1) the **`{wait,timeout}` harness
-  unblock** (`47cdd8c`) — the port collapses retail's 3-load prologue into 1, stalling the segtrace;
-  a port-only wait-timeout skips the load-cycle waits it never reproduces so the SAME trace drives
-  both (port now captures 1200/1200 BIT-EXACT, v3 join occurrence-aware port HF#1≡retail#3); (2) the
-  **haggle math** `src/customer_haggle.{c,h}` (`d0ac215`) — budget/accept-reject/offer up+down,
-  DISASM-exact (the decompile + first-pass RE had the rng-driven floor/accept-ref wrong), +9 host
-  tests, NOT yet wired. **NEXT (with the user for the visual check):** entry (cc08 1→4, the f406
-  forced-sale auto-arrival) → master tick `FUN_00462403` + sell machine `FUN_00463cfb` (wire the math)
-  → render `FUN_0046602e`/`00466b7b` (BARGAIN!! panel, v3 content-match) → Tear's dialogue. Plan: RE §7.
+  subsystem is unported.** Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
+  unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
+  `src/customer_haggle.{c,h}` (`d0ac215`, DISASM-exact, +9 host tests). **2026-06-17 day (this session):**
+  (A) ⚠ **CORRECTION — the tutorial haggle is kind-2 `FUN_004658ab`, NOT kind-4 `FUN_00463cfb`**
+  (proven by a fresh BIT-EXACT retail state capture; kind 4 is the *player-initiated* sell w/
+  item-select, never reached in the tutorial). `FUN_004658ab` is simpler (greeting→offer→decision→
+  accept, no item-select; decision = `offer<ask`→reject/pushback else `FUN_00460672`, no
+  `FUN_0045ecc0` budget gate). Shared math unaffected. RE doc **§3.5/§3.6** = the corrected machine
+  + the full entry→idle→greeting→machine flow + the Chip-2 function inventory.
+  (B) extended the **0x48670f probe** (`retail_fields.json`) with the customer-service state
+  (b534/b5a8/b56c/b574/b584/b590/ask/base/…) + **captured BIT-EXACT ground truth** (offset 0:2700,
+  2700/2700) → cache `runs/studio-v3-cache/house-customer-tutorial-34f44b18/retail`. Empirical
+  timeline: cc08=4 entered during the load; greeting b534=1@off90 (b524>0x77 & b52c>=0x20, base price
+  computed there); arrival anim b5a0@off969; first customer offer b574=1536/b584=1@off2440.
+  (C) **Chip 1 ✅ LANDED + host-tested** (`db9f02f`): `src/customer_service.{c,h}` — the entry
+  `FUN_0045edaa` tutorial path (forced kyaku 13, the load-bearing 1-RNG customer-count draw, queue +
+  eligible setup, asset-load worker spawn), +3 host tests. **NEXT = Chip 2 (a fresh effort):** master
+  tick `FUN_00462403` (arrival/leave anim + bubble pos + patience + b534 switch + b5a8 dispatch) +
+  the kind selector `FUN_00461303` + the machine **`FUN_004658ab`**, wiring the §4 math; verify state
+  vs the `34f44b18` capture via `flow_diff` (port must emit the haggle fields when cc08==4). Then
+  Chip 3 = render `FUN_0046602e`/`00466b7b` (BARGAIN!! panel — the user visual check). Plan: RE §3.6/§7.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:

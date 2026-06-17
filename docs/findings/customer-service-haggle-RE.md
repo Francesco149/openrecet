@@ -159,6 +159,33 @@ all.c~59100-59720 sets `b5a8=2` + `b534` — the kind/greeting trigger, still to
 the master-tick chip). The haggle math binds the customer tuning fields from **kyaku 13's
 record** regardless of the index.
 
+## 3.6 entry → idle → greeting → machine flow (RESOLVED 2026-06-17) + function inventory
+
+The per-frame master tick `FUN_00462403` (60136) drives, by `DAT_0730b534`:
+- **b534==0 IDLE** (all.c:60670-61027): `b524`++ each frame. `FUN_00461068`(667B,@b524==0x14)
+  customer-walk setup; the **story-event probe** (b524==0x32, the `FUN_0044ba2c(kind)` story
+  triggers — inert for kyaku 13/tutorial); `FUN_00461303`(1167B) / `FUN_00461792`(1124B) =
+  the **transaction-kind selector** (sets `b5a8` — **2 for the tutorial**); queue-advance at
+  b524==0x3c. **The greeting trigger (all.c:61002-61021): `b524 > 0x77 (119)` AND `b52c >= 0x20
+  (32)` → `b534 = 1`**, and the BASE PRICE is computed there: `bbc = item_base (095d37d4[id*0xb3]
+  via FUN_004681f6)`, `bc0 (base) = bbc * bc4 (count)`, `bb8 (ask) = ftol(...)`, `b584 = 0`.
+  (Matches the capture: b534 0→1 at off 90 ⇔ b524≈152.)
+- **b534==1 GREETING** (master tick, all.c:60398-60425): first frame `FUN_00460a1a(rec,0,0)`
+  (greeting line); Z (`b55c` set & 0x10) → `b534 = 2`.
+- **b534>=2 → FUN_004658ab** (the b5a8==2 machine, §3.5): greeting 2 → offer 6 → decision 0xf
+  → accept 7 / reject 9 / pushback 8 → closing 0xb/10 (back in the master tick).
+
+**Chip-2 function inventory (the master-tick + machine port):** master `FUN_00462403`(5618B,
+the arrival/leave anim + bubble pos `DAT_0438cc38/3c/40` + patience + the b534 switch + b5a8
+dispatch), kind selector `FUN_00461303`(1167B)/`FUN_00461792`(1124B), walk setup
+`FUN_00461068`(667B), the **machine `FUN_004658ab`**(62461), input poll `FUN_004622d9`(60044),
+digit count/edit `FUN_0045ff11`/`FUN_0045ff31`, line picker `FUN_00460a1a` + `FUN_00460f16`,
+accept side-effects `FUN_00460d52`/`FUN_004606fc`/`FUN_00460b93`/`FUN_00460b3a`/`FUN_00460083`/
+`FUN_0046002a`. Wire the §4 math at FUN_004658ab states 2→6/8→6 (`FUN_00460161`) + 0xf
+(`FUN_00460672`). **Verify** state evolution vs the BIT-EXACT capture cache
+`runs/studio-v3-cache/house-customer-tutorial-34f44b18/retail` via `flow_diff` on the extended
+0x48670f probe (the port must emit b534/b5a8/b574/ask/base/b584/b590 when cc08==4).
+
 ## 4. Haggle math — ✅ PORTED `src/customer_haggle.{c,h}` (DISASM-EXACT, +9 host tests)
 
 **The Ghidra decompile is WRONG here — it dropped the x87 stack AND mis-rendered the
