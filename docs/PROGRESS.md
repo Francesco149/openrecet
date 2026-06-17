@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-17 PM — INTRO v3 parity VERIFIED 1:1 + `orv3_draws --material` + stale gaps closed
+
+Closing pass over the opening prologue (user reframe: "not whether visuals are missing — whether
+things are out of phase / not rendered faithfully / a logic approximation that should be closed").
+
+- **`orv3_draws --material` (`164eae5`)** — the CLI printed only the per-draw alignment, whose
+  ALIGNED/DIVERGENT is swamped by the benign HOUSE-3D batching (iv1_2 overlays the live 3D shop ⇒
+  port 88 / retail 115 draws). Exposed the batching-robust MATERIAL verdict already in the module
+  (per-texture triangle totals → ALIGNED / BATCHING / DIVERGENT) — every run now prints it first,
+  `--material` prints only it. "Fix the known diff so we can see real divergences."
+- **Render verified FAITHFUL both cutscenes:** iv1_1 ALIGNED (0 divergent, pure 2D); iv1_2 = 4 benign
+  batched + 1 inert `b494` (0 px, HOUSE-wide) — NO retail-only effect texture ⇒ the **anger-marks /
+  radial-lines "gap" is NOT a render gap**.
+- **Phase verified IN-PHASE (visible window)** from the cached anchor streams: dialogue +121/+156 on
+  both, `CONV_POSE_BLINK` 21/85/149 on both. The only diff is invisible (retail poses the chibis
+  ~41f before HF#2 under the load overlay = the conv-pose producer PORT-DEBT, 0 px).
+- **Stale ledger rows CLOSED:** text-fade-on-dismiss = already ported (user); **iv1_1→iv1_2 is a
+  plain fade-to-black-and-back, NOT a shatter/melt grid** (user ground-truth — the RE'd `FUN_0045281c`
+  shatter is some other transition; corrected in `opening-prologue.md`).
+- ⇒ **opening prologue is verified 1:1** modulo the DEFERRED next-line book-arrow phase (user-OK).
+- **NEXT (queued):** the SHOP CUSTOMER SELLING LOOP — user recorded the tutorial trace
+  `runs/recordings/rec-20260617-051426.raw.jsonl` (counter tooltip → Z → customer-service tutorial,
+  dialogue ↔ haggle → first real customer). Convert to a v3 scenario + RE the haggle subsystem.
+
 ## 2026-06-17 — v3 base-anchor auto-detect (`ddeb421`) + iv1_2 mis-armed-retail CORRECTION
 
 `v3cache.preserve_live` resolved a window's BASE anchor by occurrence #1; new

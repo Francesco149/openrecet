@@ -783,6 +783,34 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   RE/correction: `opening-prologue.md`. **Lesson (`feedback_verify_1to1_before_done`): eyeball both
   cached sides render the SAME scene before trusting any join verdict — a join pairs by anchor
   identity and will happily pair two unrelated cutscenes that share an anchor name.**
+  **INTRO V3 PARITY — VERIFIED COMPLETE + stale gaps CLOSED 2026-06-17 PM** (user: "we can /clear
+  and move onto the new trace"). Closing pass over the prologue, reframed by the user as "not whether
+  visuals are missing — whether things are out of phase / not rendered faithfully / a logic
+  approximation that should be closed": (1) **render program verified FAITHFUL on BOTH cutscenes**
+  via the new `orv3_draws --material` (the batching-robust per-texture verdict, `164eae5`) — iv1_1 =
+  **ALIGNED** (0 divergent: pure 2D bedroom, no HOUSE-3D batching); iv1_2 = the 88-vs-115 draw swamp
+  collapses to **4 benign batched + 1 inert `b494` (0 px) — NO retail-only effect texture**, identical
+  at every probed offset ⇒ the anger-marks/radial-lines "gap" is **NOT a render gap** (ledger row
+  resolved). (2) **Phase verified IN-PHASE in the visible window** (from the cached anchor streams rel
+  HF#2): dialogue `TEXT_ANIM_START/END` = +121/+156 on BOTH; `CONV_POSE_BLINK` cadence 21/85/149 on
+  BOTH. The only phase difference is INVISIBLE — retail poses the chibis ~41f before HF#2 (under the
+  load overlay), the port at load-end (`CONV_POSE_START` +1) = the documented conv-pose producer debt
+  (derived talk-flag + load-end chibi spawn vs the real `FUN_00470a46` + mid-load spawn); 0 pixel
+  impact, left as PORT-DEBT. (3) **Stale ledger rows CLOSED:** text-fade-on-dismiss = **already ported**
+  (user); the iv1_1→iv1_2 transition is a **plain fade-to-black-and-back, NOT a shatter/melt grid**
+  (user ground-truth — the RE'd `FUN_0045281c` shatter machinery is NOT this seam; engine-quirks +
+  opening-prologue.md corrected). **Remaining intro gap (DEFERRED, user-OK):** the next-line "book"
+  arrow anim slight phase mismatch (`rt->blink` not in `{phasepin}`) — the only thing the user still
+  flags. ⇒ **the opening prologue is verified 1:1 (render faithful + in-phase) modulo the deferred
+  book-arrow phase.**
+- **NEXT ARC (queued for next session) → SHOP CUSTOMER SELLING LOOP** — the core Recettear gameplay
+  (customers enter → browse displayed items → haggle/sell), currently **0% ported** (no customer NPC /
+  haggle / transaction; the `DAT_0438cc08==4` shop-open path + `FUN_0047019f`/`FUN_0041ee24` are
+  stubbed). The user RECORDED the tutorial trace 2026-06-17: **`runs/recordings/rec-20260617-051426.raw.jsonl`**
+  — walk to the counter → a "GO!"-style tooltip → press Z → the customer-service tutorial (alternating
+  dialogue ↔ price haggling) → stops after the tutorial ends + the first real customer enters. Next
+  session: convert the raw recording to a `{caprange}` v3 scenario, RE the customer-spawn/browse/haggle
+  subsystem, port the first chip.
 - **SHOP-DOOR "GO!" TOOLTIP ✅ DONE + USER-CONFIRMED 1:1 2026-06-17** (`2fb6085`; parity ledger;
   user "looks good to me"). The user-flagged "tooltip at the door" = the free-roam interaction-
   affordance **emote bubble** (the unported inline block of `FUN_0040a765`, decomp L6900-6932): a

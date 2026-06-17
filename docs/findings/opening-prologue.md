@@ -852,3 +852,40 @@ Re-drove retail (`orv3_window intro-iv2-v3 --window 0:300 --force-retail
 
 The occurrence-aware arm also generalizes: any future cutscene-sequence window (a 2nd+
 firing of a recurring anchor) now captures the right scene on retail automatically.
+
+## RESOLVED — INTRO V3 PARITY VERIFIED 1:1 + transition correction (2026-06-17 PM)
+
+Closing pass over the prologue, with the user reframing the bar: "the question isn't whether
+visuals are missing — it's whether things are out of phase / not rendered faithfully / a logic
+approximation that should be closed." Result: the opening prologue is **verified 1:1 (render
+faithful + in-phase)**, modulo the one deferred book-arrow phase.
+
+**Render program — FAITHFUL on both cutscenes (new tool: `orv3_draws --material`, `164eae5`).**
+The CLI printed only the per-draw alignment, whose ALIGNED/DIVERGENT is swamped by the benign
+HOUSE-3D batching (iv1_2 overlays the live 3D shop ⇒ port 88 / retail 115 draws — retail splits
+what the port batches, pixel-identical). The fix surfaces the batching-robust MATERIAL verdict
+already in the module (per-texture triangle totals → ALIGNED / BATCHING / DIVERGENT):
+- **iv1_1 (bedroom): ALIGNED, 0 divergent** at every offset — pure 2D, no 3D batching, no b494.
+- **iv1_2 (shop): 4 benign batched + exactly 1 DIVERGENT = the known inert `b494`** (80 tris,
+  ALPHATEST-α0 + ZWRITE=0 ⇒ 0 px; HOUSE-wide, not intro), at every offset. **NO retail-only
+  effect texture** ⇒ the anger-marks/radial-lines "gap" is NOT a render gap (ledger row resolved).
+
+**Phase — IN-PHASE in the visible window** (from the cached `intro-iv2-v3` anchor streams, rel
+HF#2): `TEXT_ANIM_START/END` = +121/+156 on BOTH; `CONV_POSE_BLINK` = 21/85/149 on BOTH. The only
+difference is INVISIBLE — retail's `CONV_POSE_START` fires ~41f BEFORE HF#2 (a retail-only blink at
+−41: the chibis are spawned + posed under the load overlay), the port at HF#2+1. = the conv-pose
+producer debt (`conversation-pose-driver.md` §"Blink-phase"): the port's derived talk-flag +
+load-end chibi spawn vs retail's `FUN_00470a46` + mid-load spawn. Left PORT-DEBT — 0 pixel impact
+(it happens under the load overlay).
+
+**CORRECTION — the iv1_1→iv1_2 transition is a plain FADE, not a shatter/melt grid.** User
+ground-truth (playing retail): "I don't see any melt effect between the 2 intro dialogues, it just
+fades to black and back." So the `FUN_0045281c`/`004526f5` 10×10 shatter/melt grid RE'd in
+§"RESOLVED — the script-load / gate / transition subsystem" is **NOT the visible iv1_1→iv1_2 seam**
+(that machinery belongs to some other transition); the seam is the 3-quad MODULATE fade (the
+`417a`/`748c`/`5d80` quads over the ~240 load frames). The port's fade is adequate — the user flags
+no gap. **Do NOT port the shatter grid for this seam.**
+
+**Stale gaps CLOSED:** text-fade-to-transparent on dismiss = **already ported** (user-confirmed).
+The only remaining flagged item is the next-line **book-arrow anim phase** (`rt->blink` not in
+`{phasepin}`) — DEFERRED, user-OK.
