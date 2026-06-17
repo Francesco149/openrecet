@@ -26,10 +26,16 @@ cutscenes; the "240f fade" was iv1_1's load-transition (3 quads `417a`/`748c`/`5
 0/300 RT frames), not iv1_2's — and `fadeinb`/`fadeoutb` ARE genuine compiler no-ops (decompile
 confirms; the port mirrors them).
 
-**REAL next step:** make the retail v3 arm OCCURRENCE-AWARE (arm at the Nth firing matching the
-scenario's `{wait}` count, here HF#2) + re-drive retail with high `--retail-max-frames` to actually
-capture iv1_2; only then can the iv1_2 opening/join be judged. RE + correction:
-`findings/opening-prologue.md`. Lesson (`feedback_verify_1to1_before_done`): eyeball both cached
+**RESOLVED same day (`869375f` + re-drive):** made the retail v3 arm OCCURRENCE-AWARE — the agent's
+`v3ArmOnAnchor` counts firings + arms at the occ-th; `house_capture --arm-occ` defaults to AUTO =
+`wait_occ` = the count of `{wait:<anchor>}` ops in the trace (⇒ 2 for iv1_2, 1 for every unique-anchor
+scenario = no-op; not in the cache key). Re-drove retail (`--force-retail --max-frames 40000`): retail
+now arms at HF#2 present 5329 = the SHOP (Recette+Tear, "Sorry Tear, I kept you waiting"), matching the
+port. **Join 279/299** (genuine iv1_2-vs-iv1_2), **paired frames PIXEL-1:1** (settled 0.2–0.5% mean 0;
+opening ~1.1% converging = load-origin phase, port ~1f ahead). port self-verify 299/299 bit-exact. ⇒
+**the iv1_2 opening IS 1:1** — the "240f fade / gap #4" was a phantom of the mis-armed iv1_1 capture
+(`fadeinb` is a genuine no-op). The occurrence-aware arm generalizes to any cutscene-sequence window.
+RE: `findings/opening-prologue.md`. Lesson (`feedback_verify_1to1_before_done`): eyeball both cached
 sides are the same scene before trusting a join verdict.
 
 ## 2026-06-17 — shop-door "GO!" tooltip (the free-roam emote bubble, FUN_0040a765) — pixel-1:1

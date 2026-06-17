@@ -822,3 +822,33 @@ retail side is wrong.
 **Lesson (`feedback_verify_1to1_before_done`):** eyeball that BOTH cached sides render
 the same scene before trusting any join verdict — a join pairs by anchor identity and
 will happily pair two unrelated cutscenes that share an anchor name.
+
+### RESOLVED — occurrence-aware retail arm + re-drive (iv1_2 IS 1:1, 2026-06-17)
+
+`869375f` made the retail v3 arm OCCURRENCE-AWARE: the agent's `v3ArmOnAnchor` counts
+firings and arms at the occ-th; `house_capture --arm-occ` defaults to AUTO =
+`wait_occ(trace, anchor)` = the count of `{wait:<anchor>}` ops (the segtrace lands the
+caprange on the Nth firing, so retail arms there). intro-iv2-v3 → occ 2; every
+unique-anchor scenario → 1 (no-op). occ is NOT in the cache key (it's a deterministic
+function of the trace, which is already hashed), so existing keys are untouched.
+
+Re-drove retail (`orv3_window intro-iv2-v3 --window 0:300 --force-retail
+--max-frames 40000`): retail now arms at **HF#2 present 5329 = the SHOP** (Recette+Tear,
+"Sorry Tear, I kept you waiting"), matching the port. Results:
+
+- **Join 279/299** — genuine iv1_2-vs-iv1_2 (port present 1848.., retail 5329.., +3482
+  stretch). The 20/21 gaps are the load-origin opening ramp (port keyed CONV_POSE_START,
+  retail HOUSE_FREEROAM for the first ~20 frames before the shared CONV_POSE_BLINK
+  cadence).
+- **Paired frames PIXEL-1:1**: settled (dialogue open) port#159 vs retail#160 = 0.23% px
+  differ, mean|abs| 0.00; the opening ramp port#0..10 ≈ 1.1% mean|abs| 0.1–0.27,
+  CONVERGING to bit-exact = the load-origin phase pillar (port ~1 frame ahead, the same
+  class as iv1_1's +2). port self-verify 299/299 bit-exact; retail 299/300 (1
+  non-deterministic frame @ present 5513, accept).
+- **⇒ the iv1_2 OPENING IS 1:1.** The earlier "240f fade / gap #4" was a PHANTOM of the
+  mis-armed iv1_1 capture: `fadeinb` is a genuine compiler no-op (the port mirrors it),
+  and that 240-frame bedroom fade was iv1_1's load-transition, never iv1_2's. The FRONT's
+  original "iv1_2 visually 1:1" is now v3-CONFIRMED.
+
+The occurrence-aware arm also generalizes: any future cutscene-sequence window (a 2nd+
+firing of a recurring anchor) now captures the right scene on retail automatically.
