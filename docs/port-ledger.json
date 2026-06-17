@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 462,
-  "unported": 2002,
+  "ported": 465,
+  "unported": 1999,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 546,
-  "pct_touched": 21.4,
+  "touched": 549,
+  "pct_touched": 21.5,
   "pct_verified": 2.7,
   "port_debt": 26
  },
@@ -4896,7 +4896,8 @@
    "src": [
     "src/customer_service.c",
     "src/customer_service.h",
-    "src/npc_schedule.h"
+    "src/npc_schedule.h",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -5145,8 +5146,11 @@
    "size": 10,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.h",
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x461c00",
@@ -5192,7 +5196,8 @@
    "status": "ported",
    "src": [
     "src/customer_service.c",
-    "src/customer_service.h"
+    "src/customer_service.h",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -5275,7 +5280,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/customer_service.h"
    ]
   },
   {
@@ -5293,8 +5299,10 @@
    "size": 5305,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.h"
+   ]
   },
   {
    "va": "0x468034",
@@ -6199,7 +6207,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_conversation_pose.c"
+    "src/scene1_conversation_pose.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -8319,8 +8328,10 @@
    "size": 228,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x4851e2",

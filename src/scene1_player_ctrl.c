@@ -36,6 +36,7 @@
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) — mode 8 = world map (T1) */
 #include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
+#include "customer_service.h"    /* cc08==4 customer-service session_init / master_tick */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -1151,6 +1152,58 @@ int player_ctrl_worldmap_exit_stage2(void)
 int  player_ctrl_worldmap_exit_armed(void) { return s_worldmap_exit_armed; }
 void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
 
+/* ── sell-counter customer-service entry (the bVar3 Z-arm, FUN_0048670f) ──────
+ *
+ * bVar3 (all.c:87542-87551): the player stands at the SELL COUNTER facing it.
+ * Counter rect by shop tier (DAT_04510578): tier<3 → X∈(-5,0), Z>6.9; tier>=3 →
+ * X∈(5.7,10.7), Z>15.  Facing octant: the world angle DAT_056db05c ∈
+ * (-1.8849558, -1.2566371) (≈ -π/2 ± 0.1π, looking "down" at the counter).
+ *
+ * Z-arm (all.c:87680-87695): `if (bVar3) { if (f3ff==0) <counter menu> else {
+ * f404=1; FUN_00461bf6(idx); cc08=4; FUN_0045edaa(); } }`.  We take the sell
+ * branch directly: set the sell-active flag (f404), seed the script-file index
+ * (FUN_00461bf6 — all captured entry sites push 2), flip cc08=4, and run the
+ * session init (the f404 sell-active scripted-sell path, RE §3.7).
+ *
+ * PORT-DEBT(cs-entry-flags): the engine gates bVar3 on DAT_0450f3fd[slot]==1
+ * (a customer queued) and the sell branch on DAT_0450f3ff[slot]!=0 — both set by
+ * the unported tutorial-cutscene machinery (iv1_7, RE §5) during the prologue,
+ * not the save.  Until that lands we enter the sell directly on the position +
+ * facing + Z, which is what the recorded prologue does (the player walks to the
+ * counter + presses Z).  Retire when the iv1_7 flag-set is ported.
+ * PORT-DEBT(cs-counter-menu): the f3ff==0 branch (cc08=0, the counter-display
+ * menu FUN_004850fe) is a different feature — not the sell. */
+#define PC_F404_SELL_ACTIVE_BYTE_OFF  0x2bc6c   /* DAT_0450f404 — sell-active flag */
+
+static int player_ctrl_cc08_sell_counter_enter(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+
+    /* counter rect by shop tier.  PORT-DEBT(cs-counter-tier): only the tier<3
+     * tutorial rect is handled; the tier>=3 (X∈[5.7,10.7], Z>15) rect lands with
+     * the larger-shop tiers. */
+    int tier = (int)bank[SHOP_DISPLAY_TIER_SELECTOR];
+    if (tier >= 3)
+        return 0;
+    float px = g_scene1_player_pos[0];
+    float pz = g_scene1_player_pos[2];
+    if (!(px < 0.0f && px > -5.0f && pz > 6.9f))
+        return 0;
+    /* facing the counter (DAT_056db05c octant window). */
+    if (!(s_player_facing > -1.8849558f && s_player_facing < -1.2566371f))
+        return 0;
+
+    /* enter customer service (the sell branch).  Set the sell-active flag in the
+     * working bank so session_init takes the f404 scripted-sell path. */
+    ((uint8_t *)bank)[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;   /* DAT_0450f404 = 1 */
+    customer_service_set_script_file(2);                   /* FUN_00461bf6(2) → b5b0 */
+    s_cc08 = 4;                                            /* DAT_0438cc08 = 4 */
+    customer_service_session_init();                       /* FUN_0045edaa */
+    return 1;
+}
+
 /* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
  * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
  * interaction).  The wired sub-paths are the **shop-door exit** (the bVar17
@@ -1177,6 +1230,15 @@ static int player_ctrl_cc08_dpad_interact(void)
             return 1;   /* consume the frame (engine goto LAB_004890d1). */
         }
     }
+
+    /* ── sell-counter → customer-service entry (the bVar3 Z-arm, all.c:87680-
+     * 87695) — checked AFTER the door (bVar17) and BEFORE the display-stand open,
+     * matching the engine order.  Z while standing at the sell counter facing it
+     * enters the cc08==4 customer-service / haggle mode: set the sell-active flag
+     * (f404), seed the script-file index (FUN_00461bf6(2)), flip cc08=4, and run
+     * the session init (FUN_0045edaa → the sell-active scripted-sell path). */
+    if (player_ctrl_cc08_sell_counter_enter())
+        return 1;   /* entered customer service: consume the frame. */
 
     int cbfc = shop_display_cbfc();
     if (cbfc == -1)                          /* no display cell highlighted */
@@ -1573,6 +1635,40 @@ static void player_ctrl_cc08_freeroam_arm(void)
  * that lands the dispatch on the tail, faithful to the engine's gotos. */
 static void player_ctrl_cc08_unported_arm(void)
 {
+    /* ── cc08==4 customer-service / haggle arm (FUN_0048670f all.c:87366-87434) ──
+     * The per-frame driver while the sell/haggle mode is active.  The engine runs
+     * the customer/player arrival anim (the f405 walk-toward vs at-counter pose),
+     * then FUN_0047019f() + FUN_00462403() (the master tick).
+     *
+     * Load-gate release: session_init spawned the d3e asset-load worker (b1cc=2;
+     * the master tick is inert + the render off while it loads).  The engine's
+     * worker BODY (LAB_00452ae8/b13) writes DAT_0438b1cc=1 when the load
+     * completes — the port models that in worker_load (g_worker_sec_state_1cc).
+     * Mirror it into the customer-service load gate (notify_loaded → b1cc=1) once
+     * the secondary worker is no longer pending, so the master tick + render
+     * activate exactly when retail's do (at LOADING_END). */
+    if (s_cc08 == 4) {
+        if (customer_service_b1cc() == 2 && g_worker_sec_state_1cc != 2)
+            customer_service_notify_loaded();
+
+        /* PORT-DEBT(cs-arrival-anim): the f405 player/companion arrival anim +
+         * the X-position ramp (all.c:87366-87434) — sets panim 5/6 + slides px
+         * toward the counter.  Secondary to the haggle state machine (affects the
+         * px/panim flow-trace fields, not b534/b5a8/base/ask/b574); port it when
+         * those fields are chased.  FUN_0047019f (the 0x47019f customer pump) is
+         * likewise deferred (unported; functions.csv). */
+
+        /* the master tick (FUN_00462403): owns the b534 state switch + the
+         * scripted-sell dispatch.  cur/pressed/held = the engine button masks
+         * DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
+        customer_service_master_tick(g_sim_buttons[0].cur,
+                                     g_sim_buttons[0].pressed,
+                                     g_sim_buttons[0].held);
+        return;
+    }
+    /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by
+     * transitions the port doesn't make yet; inert no-op (the engine's common
+     * tail LAB_004893ff). */
 }
 
 /* ── FUN_0048670f prologue: shop-display "目玉商品" sparkle emitter ──────────
@@ -1679,9 +1775,11 @@ void scene1_player_ctrl_tick(void)
      * it surfaced as a PHANTOM companion-facing coct 6/4 "divergence" (the live
      * free-roam rows are bit-identical to retail; the pose rows are not).  See
      * docs/findings/flow-trace-cheatsheet.md. */
-    if (s_actor_char[0] != -1 && s_cc08 == 1 &&
-        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
-        !scene1_intro_dialogue_posing()) {
+    if (s_actor_char[0] != -1 &&
+        ((s_cc08 == 1 &&
+          !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
+          !scene1_intro_dialogue_posing())
+         || s_cc08 == 4)) {
         CALL_TRACE_BEGIN(0x48670fu);
         {
             const int32_t *r0 = s_actor_record[0];
@@ -1708,6 +1806,10 @@ void scene1_player_ctrl_tick(void)
              * same relative phase after {phasepin} (the dust↔sparkle RNG-order
              * question; engine-quirks §112). */
             CALL_TRACE_I32("gsim", (int32_t)g_sim_frame_count);
+            /* the INGAME interaction state id (DAT_0438cc08): 1=free-roam,
+             * 4=customer-service/haggle, 0x32=counter, … — the retail probe's key
+             * dispatch field (was port-omitted; flow_diff now compares it). */
+            CALL_TRACE_I32("cc08", s_cc08);
             /* shop-display interaction state (the cc04==1 remove-item menu): the
              * sub-state gate + the highlighted display cell the open gate fires
              * off of.  Mirrors the retail 0x48670f hook's cc04/cbfc/cc00 fields
@@ -1727,6 +1829,24 @@ void scene1_player_ctrl_tick(void)
                                  + gcol + grow * SHOP_DISPLAY_GRID_STRIDE];
                 CALL_TRACE_I32("gridc", gv);
             }
+            /* customer-service / haggle state (cc08==4) — the retail 0x48670f
+             * probe's DAT_0730bXXX + DAT_005c6bXX fields (tools/flow/
+             * retail_fields.json).  0/-1 in free-roam (no session); populated
+             * once the sell mode is entered.  These are what flow_diff --verdict
+             * checks for the customer-service trajectory (greeting b534=1@off90,
+             * base 3000→1200, offer b574=1536/b584=1@off2440). */
+            CALL_TRACE_I32("b534", customer_service_b534());
+            CALL_TRACE_I32("b5a8", customer_service_b5a8());
+            CALL_TRACE_I32("b56c", customer_service_b56c());
+            CALL_TRACE_I32("b574", customer_service_offer());
+            CALL_TRACE_I32("b584", customer_service_round());
+            CALL_TRACE_I32("b590", customer_service_b590());
+            CALL_TRACE_I32("ask",  customer_service_player_ask());
+            CALL_TRACE_I32("base", customer_service_base_price());
+            CALL_TRACE_I32("b520", customer_service_b520());
+            CALL_TRACE_I32("b5a0", customer_service_arrival_anim());
+            CALL_TRACE_I32("b524", customer_service_b524());
+            CALL_TRACE_I32("b544", customer_service_b544());
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
              * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn

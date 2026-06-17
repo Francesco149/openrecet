@@ -52,7 +52,7 @@
    "engine_fn": "render chip",
    "desc": "the speech-bubble screen position",
    "file": "src/customer_service.c",
-   "line": 843,
+   "line": 852,
    "kind_known": false
   },
   {
@@ -68,7 +68,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1115,
+   "line": 1116,
    "kind_known": false
   },
   {
@@ -76,7 +76,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1072,
+   "line": 1073,
    "kind_known": false
   },
   {
@@ -124,7 +124,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1138,
+   "line": 1139,
    "kind_known": false
   },
   {

@@ -303,11 +303,13 @@ void customer_service_session_init(void)
     worker_load_spawn_d3e(0);
 }
 
-/* Load-worker completion (DAT_0438b1cc → 0): the cc08==4 asset-load worker's
- * callback calls this when the customer-service assets finish loading; the master
- * tick is a no-op until it fires.  PORT-DEBT(cs-load-phase): wire to the real d3e
- * worker callback at integration; host tests call it to release the load gate. */
-void customer_service_notify_loaded(void) { s_b1cc = 0; }
+/* Load-worker completion (DAT_0438b1cc 2 → 1): the cc08==4 asset-load worker's
+ * callback calls this when the customer-service assets finish loading.  The
+ * engine's d3e worker BODY (LAB_00452ae8/b13) writes DAT_0438b1cc = 1 — NOT 0 —
+ * which is the state BOTH the master tick (runs while != 2) AND the render
+ * (FUN_0046602e draws while == 1) read.  The wiring (scene1_player_ctrl) calls
+ * this once the d3e worker is no longer pending; host tests call it directly. */
+void customer_service_notify_loaded(void) { s_b1cc = 1; }
 
 /* ── accessors ─────────────────────────────────────────────────────────────── */
 int32_t customer_service_b534(void)        { return s_b534; }
@@ -318,6 +320,13 @@ int32_t customer_service_b5a8(void)        { return s_b5a8; }
 int32_t customer_service_b56c(void)        { return g_scene_buy_current_page; }
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
+int32_t customer_service_b520(void)        { return s_b520; }
+int32_t customer_service_b524(void)        { return s_b524; }
+int32_t customer_service_b544(void)        { return s_b544; }
+int32_t customer_service_b590(void)        { return s_b590; }
+int32_t customer_service_b1cc(void)        { return s_b1cc; }
+int32_t customer_service_active(void)      { return s_cs_active; }
+void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
 
 int32_t customer_service_queue_kyaku(int entry)
 {

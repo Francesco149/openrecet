@@ -74,6 +74,30 @@ int32_t customer_service_b56c(void);
 int32_t customer_service_arrival_anim(void);
 int32_t customer_service_round(void);
 
+/* Remaining once-per-frame flow-trace fields the retail 0x48670f probe
+ * declares (tools/flow/retail_fields.json): leave/dissolve phase (DAT_0730b520),
+ * idle frame counter (DAT_0730b524), per-state sub-frame timer (DAT_0730b544),
+ * and patience (DAT_0730b590). */
+int32_t customer_service_b520(void);
+int32_t customer_service_b524(void);
+int32_t customer_service_b544(void);
+int32_t customer_service_b590(void);
+
+/* Load-phase gate (DAT_0438b1cc): 2 = the cc08==4 asset-load worker (d3e) is
+ * running (master tick inert, render off); 1 = loaded (master tick + render
+ * active).  Read by the render gate (FUN_0046602e: `b1cc==1`) and the engine
+ * wiring's load-release check. */
+int32_t customer_service_b1cc(void);
+
+/* Customer-service-active flag (DAT_0438b7b0) — set on session init, read by
+ * both render functions (FUN_0046602e/FUN_00466b7b gate on `b7b0 != 0`). */
+int32_t customer_service_active(void);
+
+/* The active dialogue/script-file index (DAT_005c6bb0) — set at the cc08==4
+ * entry sites by FUN_00461bf6(idx) BEFORE session_init.  Selects the tuto
+ * script block g_tuto[idx*200+pc] the scripted machine walks. */
+void    customer_service_set_script_file(int32_t idx);
+
 /* ── test / debug hooks ────────────────────────────────────────────────────
  * Reset the whole state block (BSS-equivalent) — host tests call this between
  * cases so a prior session's leftovers don't bleed in. */
