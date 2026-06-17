@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-17 — shop-door "GO!" tooltip (the free-roam emote bubble, FUN_0040a765) — pixel-1:1
+
+When the player stands at the shop door, retail shows a **"GO!" speech bubble** over their head
+(the user-flagged "tooltip at the door"). It is the free-roam interaction-affordance **emote
+bubble** — the unported inline block of `FUN_0040a765` (decomp L6900-6932), driven by the
+`db000`/`db004` door-zone gauge in `house_update` (L87591-87596). Both the driver and the draw
+were gaps; the trigger predicate (`bVar17`) was already RE'd + ported (the T1 door exit).
+
+- **driver** (`scene1_player_ctrl.c`): the stub `player_ctrl_cc08_proximity_detect` now runs the
+  bVar17 door-zone ramp — at the door (`player_ctrl_at_shop_door`) set `db004=7` + ramp `db000`
+  up to 10; off it ramp it down to 0. Factored the ramp into the pure host-testable
+  `player_ctrl_emote_ramp_step` (mirrors `player_ctrl_pulse_counters`) + `player_ctrl_emote_level/type`
+  accessors. The bVar3 NPC-approach prompt path (db004 0/1) stays a faithful no-op (no live customers).
+- **render** (`scene1_hud.c`): `scene1_hud_emote_bubble` draws the `db004` cell of `hpmp_base.tga`
+  (`((db004%4)·48+320, (db004/4)·48)` → cell (464,48) = the baked GO!-bubble sprite) at the
+  projected player head (`b778·0.1+4.0+py`, via the new `scene1_camera_class_off_z` accessor),
+  scaled in by the `db000` sin slide-in (overshoot then settle to 32×32), under COLOROP=MODULATE.
+  Called after `scene1_merchant_hud_render` (engine order `FUN_00409925` → bubble).
+- **verified** on the new **`house-door`** scenario (Continue the guild save → free-roam → walk to
+  the door + HOLD, no Z; caprange LOADING_END+140..260, pinned) vs the retail v3 cache (join
+  120/120 ALIGNED, +2543 stretch): the GO! bubble region is **pixel-1:1 (meanabs 0.084/px, 1 px>40
+  at the settled offset 259)** and the ramp-in matches retail. **USER-CONFIRMED 1:1.** +4 host
+  tests (3312). `2fb6085`. Closes the `town-map-RE` door-tooltip follow-up. `PORT-DEBT(door-proximity)`
+  (the FUN_005031e4 sqrt<1.8 radius) unchanged — the X>2.895 subset reproduces the deliberate approach.
+
 ## 2026-06-16 — title RECORDS / high-score screen (code 8, submenu_state 4) — pixel-bit-exact
 
 The title menu's **"Survival Score"** row (code 8 — the port author's `HIDDEN_CHAR` name is a

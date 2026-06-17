@@ -745,6 +745,21 @@
   firing ≤ present_first (auto-detect the window's base); the window-relative occ then re-bases both
   to 1.  Touches core `_store`/base-anchor logic ⇒ re-verify all confirmed scenarios.  iv1_2 itself
   is visually 1:1 (HOUSE scene + portraits match retail); this only blocks the JOIN verdict.
+- **SHOP-DOOR "GO!" TOOLTIP ✅ DONE + USER-CONFIRMED 1:1 2026-06-17** (`2fb6085`; parity ledger;
+  user "looks good to me"). The user-flagged "tooltip at the door" = the free-roam interaction-
+  affordance **emote bubble** (the unported inline block of `FUN_0040a765`, decomp L6900-6932): a
+  single `hpmp_base.tga` cell (db004=7 → src (464,48), the baked **GO!** sprite) projected at the
+  player head, scaled in by the **db000 0→10 gauge** (sin overshoot → settle 32×32), COLOROP=MODULATE.
+  Driver = the bVar17 door-zone ramp in `house_update` (L87591-87596), ported into the stub
+  `player_ctrl_cc08_proximity_detect` (+ the pure `player_ctrl_emote_ramp_step`); draw =
+  `scene1_hud_emote_bubble` (after `scene1_merchant_hud_render`). New **`house-door`** scenario
+  (walk to the door + HOLD; caprange LOADING_END+140..260, pinned 282) → re-drove the port vs the
+  retail v3 cache (join 120/120 ALIGNED): the bubble region is **pixel-1:1 (meanabs 0.084/px)** + the
+  ramp-in matches. +4 host tests (3312). Closes the `town-map-RE` door-tooltip follow-up. **Small
+  follow-ups (PORT-DEBT, deferred):** the **bVar3 NPC-approach prompts** (db004 0/1 — talk / talk-
+  with-pending-customer; faithful no-op, no live customers in the port yet) + `PORT-DEBT(door-
+  proximity, FUN_005031e4)` (the sqrt<1.8 radius — the X>2.895 subset reproduces the deliberate
+  approach). The same bubble system serves the DUNGEON combat prompt (db004=4, `scene1_combat_sm`).
   **M3+ (later):** the b1b0==1 system.bmp fade + action-1/2 pause variants (PORT-DEBT in the M3
   code); the other submenus (Items/Options) + type-4 exit-confirm + unpause
   cursor-restore. NB DAT_0438b150 is the SHARED hand-cursor flag (FUN_00435693 sets it too).
