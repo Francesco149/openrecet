@@ -433,6 +433,9 @@ struct test_case {
     X(cs_session_init_tutorial_queue) \
     X(cs_session_init_draws_exactly_one_rng) \
     X(cs_session_init_reentry_rebuilds) \
+    X(cs_session_init_sell_active_queue) \
+    X(cs_master_tick_sell_trajectory) \
+    X(cs_master_tick_idle_gated_by_load) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 452,
-  "unported": 2012,
+  "ported": 458,
+  "unported": 2006,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 536,
-  "pct_touched": 21.0,
+  "touched": 542,
+  "pct_touched": 21.3,
   "pct_verified": 2.7,
-  "port_debt": 25
+  "port_debt": 26
  },
  "orphan_refs": [
   "0x40f640",
@@ -3438,6 +3438,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene_guild.c",
     "src/scene_worldmap.c"
    ]
@@ -4900,8 +4901,10 @@
    "size": 32,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x45ff31",
@@ -4939,7 +4942,8 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.c",
-    "src/customer_haggle.h"
+    "src/customer_haggle.h",
+    "src/customer_service.c"
    ]
   },
   {
@@ -5080,8 +5084,10 @@
    "size": 106,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x461011",
@@ -5098,8 +5104,10 @@
    "size": 667,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x461303",
@@ -5107,8 +5115,10 @@
    "size": 1167,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x461792",
@@ -5116,8 +5126,10 @@
    "size": 1124,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x461bf6",
@@ -5136,6 +5148,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
+    "src/customer_service.h",
     "src/tables_tuto.h"
    ]
   },
@@ -5165,6 +5179,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/customer_service.h"
    ]
   },
@@ -6678,8 +6693,10 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x4733d5",
@@ -8656,6 +8673,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_particles_tick.h",

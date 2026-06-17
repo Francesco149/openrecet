@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 23,
+  "total": 24,
   "by_kind": {
    "stub": 4,
    "synthetic-data": 0,
@@ -12,6 +12,7 @@
    "force-flag": 0
   },
   "unknown_kinds": {
+   "cs-bubble-pos": 1,
    "deferred": 1,
    "door-exit-reset": 1,
    "door-proximity": 1,
@@ -21,7 +22,7 @@
    "price-trend": 2,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 19,
+  "retiring_engine_fns": 20,
   "by_engine_fn": {
    "FUN_004361b2": 3,
    "FUN_004176ff": 2,
@@ -41,10 +42,19 @@
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
-   "FUN_005031e4": 1
+   "FUN_005031e4": 1,
+   "render chip": 1
   }
  },
  "tags": [
+  {
+   "kind": "cs-bubble-pos",
+   "engine_fn": "render chip",
+   "desc": "the speech-bubble screen position",
+   "file": "src/customer_service.c",
+   "line": 467,
+   "kind_known": false
+  },
   {
    "kind": "deferred",
    "engine_fn": "FUN_0046c9a2",

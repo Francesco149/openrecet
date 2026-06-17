@@ -24,24 +24,39 @@
   subsystem is unported.** Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
   `src/customer_haggle.{c,h}` (`d0ac215`, DISASM-exact, +9 host tests). **2026-06-17 day (this session):**
-  (A) ⚠ **CORRECTION — the tutorial haggle is kind-2 `FUN_004658ab`, NOT kind-4 `FUN_00463cfb`**
-  (proven by a fresh BIT-EXACT retail state capture; kind 4 is the *player-initiated* sell w/
-  item-select, never reached in the tutorial). `FUN_004658ab` is simpler (greeting→offer→decision→
-  accept, no item-select; decision = `offer<ask`→reject/pushback else `FUN_00460672`, no
-  `FUN_0045ecc0` budget gate). Shared math unaffected. RE doc **§3.5/§3.6** = the corrected machine
-  + the full entry→idle→greeting→machine flow + the Chip-2 function inventory.
+  (A) ⚠⚠ **CORRECTION² (2026-06-17 PM, USER-CONFIRMED) — the tutorial sell is the SCRIPTED machine
+  `FUN_00461c00` (`b51c==1` path), NOT `FUN_004658ab`** (RE doc **§3.7**, supersedes §3.5/§3.6's
+  machine choice). Proven from the SAME `34f44b18` capture: **b534 only ever ∈{0,1}** (the
+  kind-machine states 2/6/0xf are never entered), `b544` climbs 2350+ without resetting, yet
+  base/`b5a0`/`b574` all change *during* b534==1 — only `FUN_00461c00` (dispatched from the master
+  tick's b534==1 arm when `b51c!=0`) does that. `b56c=1`/`b5a8=2` come from `FUN_0045edaa`'s
+  **sell-active (f404) else-branch** + `FUN_00461303`'s f404 head (the f406 tutorial branch would
+  give b56c=13); offer `1536 = base 1200×1.28` with NO f406 override clinches the f404 path.
+  **Corroborated by the port's own `tables_tuto.{c,h}`** (already parses `tuto1..3.txt` + names
+  `FUN_00461c00` as the consumer). §3.5 inferred FUN_004658ab from b5a8==2 alone and missed the b51c gate.
   (B) extended the **0x48670f probe** (`retail_fields.json`) with the customer-service state
   (b534/b5a8/b56c/b574/b584/b590/ask/base/…) + **captured BIT-EXACT ground truth** (offset 0:2700,
   2700/2700) → cache `runs/studio-v3-cache/house-customer-tutorial-34f44b18/retail`. Empirical
   timeline: cc08=4 entered during the load; greeting b534=1@off90 (b524>0x77 & b52c>=0x20, base price
   computed there); arrival anim b5a0@off969; first customer offer b574=1536/b584=1@off2440.
-  (C) **Chip 1 ✅ LANDED + host-tested** (`db9f02f`): `src/customer_service.{c,h}` — the entry
-  `FUN_0045edaa` tutorial path (forced kyaku 13, the load-bearing 1-RNG customer-count draw, queue +
-  eligible setup, asset-load worker spawn), +3 host tests. **NEXT = Chip 2 (a fresh effort):** master
-  tick `FUN_00462403` (arrival/leave anim + bubble pos + patience + b534 switch + b5a8 dispatch) +
-  the kind selector `FUN_00461303` + the machine **`FUN_004658ab`**, wiring the §4 math; verify state
-  vs the `34f44b18` capture via `flow_diff` (port must emit the haggle fields when cc08==4). Then
-  Chip 3 = render `FUN_0046602e`/`00466b7b` (BARGAIN!! panel — the user visual check). Plan: RE §3.6/§7.
+  (C) **Chip 1 ✅ LANDED** (`db9f02f`): `src/customer_service.{c,h}` — the entry `FUN_0045edaa` (the
+  forced-kyaku-13 f406 branch + the load-bearing 1-RNG customer-count draw + worker spawn). NB the
+  CAPTURE uses the OTHER (f404 sell-active) branch — see Chip 2a.
+  **Chip 2a ✅ LANDED + host-tested (2026-06-17 PM, this session):** the corrected scripted-sell
+  scaffold — `FUN_0045edaa`'s **sell-active else-branch** (`b51c=1`, queue[0..2]={kyaku:1,kind:0},
+  count=3), `FUN_00461303`'s **f404 head** (`b56c`=queue[0].kyaku=1, `b5a8`=2, offered handle
+  `b5a4`=0xc0→item id 3), and the **master tick `FUN_00462403` skeleton** (idle b524 counter +
+  greeting trigger b524>0x77&b52c>=0x20 → b534=1 + base/ask compute [base=item.price·count;
+  ask=ftol((float)item.price) since b5a8==2] + the b5a0 arrival ramp scaffold + the b534==1+b51c →
+  scripted-tick dispatch). The off-window branches (leave/closing/sold-pause/pose/bubble-pos/fx) are
+  tagged PORT-DEBT. +3 host tests reproduce the capture's greeting frame (b56c=1, b5a8=2, base=ask=3000,
+  b534=1); 3329 host pass, exe clean. The scripted machine `FUN_00461c00` itself is a stub here.
+  **NEXT = Chip 2b:** port **`FUN_00461c00`** (the script interpreter: PC `b604` walks
+  `g_tuto[b5b0*200+pc]`; opcodes = dialogue/price-set [base→1200]/PRID-PRIA [`FUN_0045ff11/31` +
+  `FUN_00460161` offer→1536]/conditional GOTO `FUN_004623bc`) + helpers, wiring `customer_haggle` +
+  `tables_tuto`; verify the base→1200 + offer trajectory vs the `34f44b18` cache. Then Chip 3 = render
+  `FUN_0046602e`/`00466b7b` (BARGAIN!! panel — user visual check); a later chip wires the cc08==4 entry
+  (the port doesn't yet reach it) for the integrated flow_diff drive. Plan: RE §3.7/§7.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:

@@ -16,7 +16,16 @@
 #include "scene_buy.h"        /* g_scene_buy_current_page == engine DAT_0730b56c */
 #include "worker_load.h"      /* worker_load_spawn_d3e == FUN_00452d3e */
 #include "tables_kyaku.h"     /* g_kyaku — the customer tuning fields */
+#include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
+
+/* ── per-frame input edge/held masks (DAT_073dddd4 pressed / DAT_073dddd6 held) ──
+ * The cc08==4 driver reads the engine's button masks: 0x10=Z/A edge, 0x20=X/B,
+ * 0x0c=up/down, 0x40=details; held bits 1/2/4/8 = L/R/U/D for the digit editor.
+ * Passed into the tick each frame so the logic is host-testable with scripted
+ * inputs (the engine reads the DAT_073dddd4/d6 globals directly). */
+static uint32_t s_in_pressed;   /* DAT_073dddd4 */
+static uint32_t s_in_held;      /* DAT_073dddd6 */
 
 /* ── save-bank byte offsets of the customer-service flags (rel. DAT_044e3798) ──
  * DAT_0450f400 = displays-suppressed (PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF 0x2bc68),
@@ -91,11 +100,39 @@ static int32_t s_b5cc;   /* DAT_0730b5cc — sub-menu open */
 static int32_t s_b5d0;   /* DAT_0730b5d0 — pose state */
 static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
 
+/* ── master-tick + scripted-machine scalar state (Chip 2) ─────────────────────
+ * The subset of the DAT_0730bXXX block the master tick (FUN_00462403) + the
+ * scripted-sell machine (FUN_00461c00) drive beyond Chip 1's entry set. */
+static int32_t s_b540;   /* DAT_0730b540 — digit cursor / Yes-No toggle */
+static int32_t s_b544;   /* DAT_0730b544 — per-state sub-frame timer (==1 first frame) */
+static int32_t s_b548;   /* DAT_0730b548 — dialogue-advance scratch */
+static int32_t s_b54c;   /* DAT_0730b54c — per-line voice/file id [0] */
+static int32_t s_b550;   /* DAT_0730b550 — per-line scratch [1] */
+static int32_t s_b55c;   /* DAT_0730b55c — line-done / Z-advance gate */
+static int32_t s_b560;   /* DAT_0730b560 — price-digit cursor (FUN_0045ff11) */
+static int32_t s_b570;   /* DAT_0730b570 — the item slot being transacted */
+static int32_t s_b5a4;   /* DAT_0730b5a4 — offered-item handle (id = b5a4>>6) */
+static int32_t s_b600;   /* DAT_0730b600 — script step phase (0 = first frame) */
+static int32_t s_b604;   /* DAT_0730b604 — script program counter */
+static int32_t s_b608;   /* DAT_0730b608 — script sub-state */
+/* haggle working state (the FUN_00460161 binding; driven in Chip 2b). */
+static int32_t s_b574;   /* DAT_0730b574 — customer's current offer */
+static int32_t s_b57c;   /* DAT_0730b57c — working price (seeded = base) */
+static int32_t s_b580;   /* DAT_0730b580 — haggle floor */
+static int32_t s_b584;   /* DAT_0730b584 — haggle round (0 = first offer) */
+static int32_t s_b588;   /* DAT_0730b588 — accept-test reference */
+/* load-worker phase (DAT_0438b1cc): 2 = the cc08==4 asset-load worker (d3e) is
+ * running ⇒ the master tick is inert until the load callback clears it. */
+static int32_t s_b1cc;   /* DAT_0438b1cc */
+
 /* shared price scalars (DAT_005c6bXX). */
 static int32_t s_price_fileidx;  /* DAT_005c6bb0 — active dialogue-file index */
+static int32_t s_price_bb4;      /* DAT_005c6bb4 — committed/prev asking price (-1 = none) */
 static int32_t s_price_ask;      /* DAT_005c6bb8 — player's asking price */
-static int32_t s_price_runsum;   /* DAT_005c6bbc — running base-price sum */
-static int32_t s_price_base;     /* DAT_005c6bc0 — base/reference price */
+static int32_t s_price_runsum;   /* DAT_005c6bbc — running base-price sum / item base */
+static int32_t s_price_base;     /* DAT_005c6bc0 — base/reference price (= runsum*count) */
+static int32_t s_price_bc4;      /* DAT_005c6bc4 — item count (base = runsum*count) */
+static int32_t s_price_bc8;      /* DAT_005c6bc8 — alt item handle (-1 = none) */
 static int32_t s_price_cursor;   /* DAT_005c6bcc — item-pick cursor */
 
 /* customer-service-active global (DAT_0438b7b0) — set 1 on session init. */
@@ -237,20 +274,46 @@ void customer_service_session_init(void)
             cs_load_eligible_portraits(s_eligible);  /* FUN_0046f8ba */
         }
     } else {
-        /* PORT-DEBT(cs-sell-active): the sell-active (f404) re-entry path
-         * (all.c:58234-58249) — sets b51c=1 + queue[*]=1; not the tutorial path. */
+        /* ── SELL-ACTIVE / scripted-sell path (all.c:58234-58248) ──────────────
+         * The player-initiated sell (Z at the counter sets f404) — and the
+         * customer-service TUTORIAL runs here too (it's a SCRIPTED sell driven by
+         * FUN_00461c00 reading g_tuto, NOT the live kind-machine FUN_004658ab —
+         * RE doc §3.7).  Latches b51c=1 (the master tick's b534==1 arm then
+         * dispatches the scripted machine every frame), and seeds a 3-deep queue
+         * of placeholder customers (kyaku=1, kind=0).  The on-screen customer +
+         * the haggle tuning come from the script + the offered item, not kyaku 1
+         * (matches the BIT-EXACT capture: b56c=1, b5a8=2). */
+        s_b51c = 1;                          /* DAT_0730b51c = 1 */
+        for (int e = 0; e < 3; e++) {        /* aca0..ace8 = queue[0..2] */
+            s_queue[e * CS_QUEUE_STRIDE + 0] = 1;   /* kyaku = 1 */
+            s_queue[e * CS_QUEUE_STRIDE + 2] = 0;   /* kind  = 0 (item_slot left = e) */
+        }
+        s_queue_count = 3;                   /* DAT_0730ac98 = 3 */
+        for (int i = 0; i < CS_ROSTER_PERM_N; i++)  /* b1a8[i] = i */
+            s_roster_perm[i] = i;
     }
 
     /* FUN_00452d3e(0) (all.c:58250): spawn the customer-service asset-load worker
      * (DAT_0438b1cc = 2 = "loading" — the master tick is inert until it clears). */
+    s_b1cc = 2;
     worker_load_spawn_d3e(0);
 }
 
+/* Load-worker completion (DAT_0438b1cc → 0): the cc08==4 asset-load worker's
+ * callback calls this when the customer-service assets finish loading; the master
+ * tick is a no-op until it fires.  PORT-DEBT(cs-load-phase): wire to the real d3e
+ * worker callback at integration; host tests call it to release the load gate. */
+void customer_service_notify_loaded(void) { s_b1cc = 0; }
+
 /* ── accessors ─────────────────────────────────────────────────────────────── */
-int32_t customer_service_b534(void)       { return s_b534; }
+int32_t customer_service_b534(void)        { return s_b534; }
 int32_t customer_service_player_ask(void)  { return s_price_ask; }
-int32_t customer_service_offer(void)       { return s_item_pick[0]; /* placeholder */ }
+int32_t customer_service_offer(void)       { return s_b574; }
 int32_t customer_service_base_price(void)  { return s_price_base; }
+int32_t customer_service_b5a8(void)        { return s_b5a8; }
+int32_t customer_service_b56c(void)        { return g_scene_buy_current_page; }
+int32_t customer_service_arrival_anim(void){ return s_b5a0; }
+int32_t customer_service_round(void)       { return s_b584; }
 
 int32_t customer_service_queue_kyaku(int entry)
 {
@@ -274,8 +337,171 @@ int32_t customer_service_eligible(int i)
     return s_eligible[i];
 }
 
-/* master tick — ported in the next chip. */
-void customer_service_master_tick(void) { }
+/* ── FUN_00461303 f404 head — the sell-active kind selector ──────────────────
+ * The only branch the scripted sell reaches (all.c:59312-59317): bind the active
+ * customer (b56c/b570 from the queue head) + the offered-item handle and select
+ * the b5a8==2 dispatch.  Returns 1 on this path.
+ * PORT-DEBT(cs-kind-select-full): the f406 / roster-scan / buysell-debug branches
+ * (all.c:59319-59514) are the autonomous-customer path, not the sell. */
+static int cs_kind_select(void)
+{
+    int e = s_roster_perm[s_b318];
+    g_scene_buy_current_page = s_queue[e * CS_QUEUE_STRIDE + 0]; /* b56c = queue[*].kyaku */
+    s_b570                   = s_queue[e * CS_QUEUE_STRIDE + 1]; /* b570 = queue[*].item_slot */
+    s_b5a4 = 0xc0;                                               /* offered-item handle */
+    s_b5a8 = 2;
+    return 1;
+}
+
+/* ── greeting base/ask (FUN_00462403 @ 0x46343d-0x463503) ────────────────────
+ * Run the frame the idle promotes b534 0→1.  base = item.price·count;
+ * ask = ftol((float)item.price) when b5a8==2 (the sell path), else
+ * ftol((float)item.price·(float)count).  item = the offered handle (b5a4>>6),
+ * resolved via FUN_004681f6 → g_item.records[slot].price (= DAT_095d37d4[slot*0xb3]). */
+static void cs_greeting_base_ask(void)
+{
+    int slot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+    int32_t item_base = (slot >= 0) ? g_item.records[slot].price : 0;
+    s_price_runsum = item_base;                          /* bbc */
+    s_price_base   = item_base * s_price_bc4;             /* bc0 = bbc·count */
+    if (s_b5a8 == 2)
+        s_price_ask = (int32_t)(float)item_base;          /* ftol((float)base) */
+    else
+        s_price_ask = (int32_t)((float)item_base * (float)s_price_bc4);
+    s_b584 = 0;
+}
+
+/* ── queue advance (FUN_00462403 b524==0x3c, the f404 path) ──────────────────
+ * The sell-active dispatch (all.c:60886-61000): bump the per-customer counter and
+ * run the kind selector (b5b0∉{1,2} ⇒ FUN_00461303 → b5a8=2).  b520 leave only
+ * arms once the queue is exhausted (inert in the captured window: b528≤1<count+1).
+ * PORT-DEBT(cs-queue-advance-fileidx): b5b0==1 → FUN_00461792, ==2 → FUN_00460fa7. */
+static void cs_queue_advance(void)
+{
+    s_price_bb4 = -1;                       /* DAT_005c6bb4 = 0xffffffff */
+    s_b528 += 1;
+    if (s_queue_count + 1 <= s_b528)        /* f406==0 on this path */
+        s_b520 = 1;
+    if (s_b318 < s_queue_count) {
+        s_price_bc4 = 1;                    /* bc4 = count = 1 */
+        s_b564 = 0;
+        if (s_price_fileidx != 2 && s_price_fileidx != 1)
+            cs_kind_select();               /* FUN_00461303 → b5a8=2, b56c=1, b5a4=0xc0 */
+    }
+    s_price_bc8 = -1;                       /* DAT_005c6bc8 = 0xffffffff */
+    s_b54c = 0;
+    s_b550 = 0;
+    /* worker respawn (b520==0 && b56c>0) — already spawned at session init. */
+}
+
+/* ── idle (FUN_00462403 b534==0, all.c:60670-61027) ─────────────────────────
+ * The pre-greeting idle: a frame counter (b524) gates the walk-setup (0x14),
+ * story-event probe (0x32, inert — eligible list all -1), queue advance (0x3c),
+ * and finally the greeting trigger (b524>0x77 AND b52c>=0x20 → b534=1 + base/ask). */
+static void cs_idle_tick(void)
+{
+    s_b524 += 1;
+    /* b524==10: FUN_004733cc() — PORT-DEBT(cs-idle-asset-refresh). */
+    if (s_b524 == 0x14) {
+        /* (b528&1)==0 || f404 → skip the walk setup (the sell path has f404 set)
+         * AND skip the rest of the idle this frame (engine `goto LAB_0046350e`).
+         * PORT-DEBT(cs-walk-setup): FUN_00461068 (autonomous customer walk). */
+        if (s_b530 > 0)
+            s_b530 -= 1;
+        return;
+    }
+    /* b524==0x32 story-event probe — inert (eligible list all -1 on the sell
+     * path); PORT-DEBT(cs-story-probe): the FUN_0044ba2c story triggers. */
+    if (s_b524 == 0x3c)
+        cs_queue_advance();
+    if (0x77 < s_b524) {
+        s_b52c += 1;
+        s_b530 += 1;
+        if (s_b52c < 0x20)
+            return;
+        s_b544 = 0;
+        s_b534 = 1;
+        cs_greeting_base_ask();
+        return;
+    }
+    if (s_b530 > 0)                          /* LAB_0046350e */
+        s_b530 -= 1;
+}
+
+/* ── FUN_00461c00 — the scripted-sell machine.  Ported in Chip 2b. ──────────── */
+static void cs_scripted_tick(void) { }
+
+/* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
+ * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
+ * Owns the per-frame timers + the arrival-anim ramp, then the b534 state switch.
+ * For the scripted tutorial sell (b51c==1) the b534==1 arm dispatches the scripted
+ * machine (FUN_00461c00) every frame; b534 stays 1 (the kind-machine states are
+ * never entered — RE doc §3.7).  `pressed`/`held` = the engine masks DAT_073dddd4
+ * /DAT_073dddd6.  PORT-DEBT tags mark the off-window branches (leave/closing/fx). */
+void customer_service_master_tick(uint32_t pressed, uint32_t held)
+{
+    s_in_pressed = pressed;
+    s_in_held    = held;
+
+    if (s_b1cc == 2)                         /* asset-load worker running → inert */
+        return;
+    /* PORT-DEBT(cs-debug-leave): the b5e4==1 debug-skip branch (all.c:60168-60186). */
+
+    s_b5b4 += 1;
+    if (s_b53c > 0) { s_b53c += 1; if (0x4f < s_b53c) s_b53c = 0; }
+    /* FUN_0048a833() — PORT-DEBT(cs-misc-tick): per-frame housekeeping, no cc08 state. */
+    if (s_b5d0 == 0) s_b5d4 = 0;
+    else if (s_b5d4 < 0xf) s_b5d4 += 1;
+    /* PORT-DEBT(cs-pose-anim): the b278/b27c on-screen-customer pose timers
+     * (all.c:60198-60234) — inert for the state trajectory. */
+
+    if (s_b51c == 0 && s_b534 != 0xf && s_b58c > 0)
+        s_b58c -= 1;
+
+    /* arrival-anim ramp (all.c:60238-60255): once the script starts it (b5a0>0),
+     * climb to 0x3c.  The '!' sparkle emit + arrival SE are gated on b564 (==0
+     * here) ⇒ inert; PORT-DEBT(cs-arrival-fx) for the bubble particle + the SE. */
+    if (s_b5a0 > 0 && s_b5a0 < 0x3c)
+        s_b5a0 += 1;
+    /* PORT-DEBT(cs-payout-anim): the b5c0 sale-payout coin anim (post-sale). */
+    /* PORT-DEBT(cs-bubble-pos, render chip): the speech-bubble screen position
+     * DAT_0438cc38/3c/40 — pure float placement, not in the trajectory probe. */
+
+    /* greeting-skip on Z while a <C>-tagged line is paused (all.c:60318-60324). */
+    if (s_b558 == 1 && s_b55c != 0 && (s_in_pressed & 0x10)) {
+        s_b548 = 0;
+        s_b558 = 0;
+        s_b55c = 0;
+        return;
+    }
+
+    if (s_b520 != 0) {
+        /* PORT-DEBT(cs-leave): the leave/dissolve → queue-advance / cc08 reset
+         * (all.c:60325-60396); b520==0 in the captured window. */
+        return;
+    }
+
+    if (s_b534 != 0) {
+        if (s_b534 == 1) {
+            if (s_b51c != 0) {
+                s_b544 += 1;
+                if (s_b544 == 1) { s_b600 = 0; s_b604 = 0; s_b608 = 0; }
+                cs_scripted_tick();           /* FUN_00461c00 (the scripted sell) */
+                return;
+            }
+            /* PORT-DEBT(cs-generic-greeting): the b51c==0 live-greeting arm
+             * (all.c:60409-60425) → b534=2 → FUN_004658ab; unused by the scripted
+             * tutorial sell (b51c==1). */
+            return;
+        }
+        /* PORT-DEBT(cs-closing-states): b534 ∈ {0x1e,10,0xb,0x15,0x14,0xc,0xd}
+         * closing / sold-pause / queue-advance + the b5a8 live-machine dispatch
+         * (all.c:60427-60668) — reached at script end (b534→0xc), beyond window. */
+        return;
+    }
+
+    cs_idle_tick();
+}
 
 /* ── customer_service_reset — clear the whole state block (test hook / BSS) ──── */
 void customer_service_reset(void)
@@ -290,8 +516,14 @@ void customer_service_reset(void)
     s_b53c = s_b558 = s_b564 = s_b568 = s_b58c = s_b590 = s_b594 = s_b598 = 0;
     s_b59c = s_b5a0 = s_b5ac = s_b5b0 = s_b5b4 = s_b5b8 = s_b5bc = s_b5c0 = 0;
     s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = 0;
+    s_b540 = s_b544 = s_b548 = s_b54c = s_b550 = s_b55c = s_b560 = s_b570 = 0;
+    s_b5a4 = s_b600 = s_b604 = s_b608 = 0;
+    s_b574 = s_b57c = s_b580 = s_b584 = s_b588 = 0;
+    s_b1cc = 0;
+    s_in_pressed = s_in_held = 0;
     s_b5a8 = -1;
-    s_price_fileidx = s_price_ask = s_price_runsum = s_price_base = 0;
-    s_price_cursor = 0;
+    g_scene_buy_current_page = 0;          /* DAT_0730b56c */
+    s_price_fileidx = s_price_bb4 = s_price_ask = s_price_runsum = 0;
+    s_price_base = s_price_bc4 = s_price_bc8 = s_price_cursor = 0;
     s_cs_active = 0;
 }

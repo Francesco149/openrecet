@@ -45,9 +45,16 @@ void customer_service_session_init(void);
 /* ── per-frame master tick — FUN_00462403 ──────────────────────────────────
  * Run every frame while cc08==4 (dispatched from the player-controller's
  * non-free-roam arm).  Owns the arrival/leave anim, the speech-bubble screen
- * position (DAT_0438cc38/3c/40), the patience timers, and the b534 state switch;
- * dispatches the transaction states to the SELL machine (b5a8==4). */
-void customer_service_master_tick(void);
+ * position, the patience timers, and the b534 state switch; for the scripted
+ * tutorial sell (b51c==1) the b534==1 arm dispatches the scripted machine
+ * (FUN_00461c00) every frame.  `pressed`/`held` = the engine button masks
+ * DAT_073dddd4 (edge) / DAT_073dddd6 (held-with-repeat). */
+void customer_service_master_tick(uint32_t pressed, uint32_t held);
+
+/* Load-worker completion (DAT_0438b1cc → 0) — the asset-load worker's callback;
+ * the master tick is inert until it fires.  Host tests call it after session_init
+ * to release the load gate. */
+void customer_service_notify_loaded(void);
 
 /* Read the active customer-service SELL sub-state (DAT_0730b534) — for the
  * render dispatch + the flow-trace state probe. */
@@ -58,6 +65,14 @@ int32_t customer_service_b534(void);
 int32_t customer_service_player_ask(void);
 int32_t customer_service_offer(void);
 int32_t customer_service_base_price(void);
+
+/* Flow-trace / render state: the transaction-type selector (DAT_0730b5a8),
+ * active customer record index (DAT_0730b56c), arrival-anim counter
+ * (DAT_0730b5a0), and haggle round (DAT_0730b584). */
+int32_t customer_service_b5a8(void);
+int32_t customer_service_b56c(void);
+int32_t customer_service_arrival_anim(void);
+int32_t customer_service_round(void);
 
 /* ── test / debug hooks ────────────────────────────────────────────────────
  * Reset the whole state block (BSS-equivalent) — host tests call this between

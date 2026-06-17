@@ -186,6 +186,53 @@ accept side-effects `FUN_00460d52`/`FUN_004606fc`/`FUN_00460b93`/`FUN_00460b3a`/
 `runs/studio-v3-cache/house-customer-tutorial-34f44b18/retail` via `flow_diff` on the extended
 0x48670f probe (the port must emit b534/b5a8/b574/ask/base/b584/b590 when cc08==4).
 
+## 3.7 ⚠⚠ CORRECTION (2026-06-17 PM, EMPIRICAL — supersedes §3.5/§3.6's machine choice): the tutorial sell is the **SCRIPTED machine `FUN_00461c00` (`b51c==1` path)**, NOT `FUN_004658ab`
+
+§3.5/§3.6 concluded "tutorial = kind-2 `FUN_004658ab`" from `b5a8==2` alone — that inference is
+**wrong**: it missed the `DAT_0730b51c` gate. The BIT-EXACT capture cache
+`house-customer-tutorial-34f44b18/retail` (the SAME one §3.5 read) proves the haggle is driven by
+the **scripted-sell machine `FUN_00461c00`** the whole window. Decisive evidence (extracted from
+the `0x48670f` probe's `call_trace.jsonl`, all 2490 once-per-frame rows):
+- **`b534` only ever takes values {0,1}** — the kind-machine states (2/6/0xf/7/8/9) are NEVER
+  entered. `b544` (per-state timer) climbs to 2350+ **without ever resetting** while `b534`≡1.
+- Yet **`base`, `b5a0` (arrival ramp 0→60), and `b574` all change *during* `b534==1`** (base
+  1000→3000@off90→1200@off969; offer `b574=1536`/`b584=1`@off2440). The ONLY `b534==1` driver
+  that mutates those is **`FUN_00461c00`** (dispatched from the master tick's `b534==1` arm when
+  `b51c!=0`, all.c:60406; it sets base/ask via its opcode-2, `b5a0=1`, and `b574` via
+  `FUN_00460161` at opcode-4 / all.c:59981). The plain greeting (`b51c==0`) recomputes none of these.
+- **`b56c==1`** (not 13): set by `FUN_00461303`'s **`f404` sell-active branch** (all.c:59312-59317
+  → `b56c=queue[0].kyaku`, `b5a8=2`, `b5a4=0xc0`), and that queue head is `1` only via
+  `FUN_0045edaa`'s **sell-active else-branch** (all.c:58234 → `b51c=1`, `queue[*]={kyaku:1}`,
+  `count=3`). The f406 *tutorial* branch would give `b56c=13`; the roster scan would give a real
+  kyaku id. So **`f404` is set, `f406` is NOT**.
+- **Math check (clincher):** offer `1536 = base 1200 × 1.28` ⇒ `FUN_00460161` round-0 with
+  `init_eff≈128` and **NO `f406` override** (the override would force `work·1.5 = 1800`). Confirms
+  `f406` clear ⇒ sell-active / `b51c` path.
+- **Corroborated by the port itself:** `src/tables_tuto.h` already names **`FUN_00461c00` (line
+  59759) as the consumer** of the `DAT_005d1fc8` script table, parsing `data/tuto1..3.txt` with
+  exactly the opcode vocab (`CHR0/CHR1` dialogue, `PRID`/`PRIA` price cues, `GOTO`, `BUN0`, …) that
+  `FUN_00461c00` dispatches. The scripted tutorial-sell data layer is **already built + host-tested**.
+
+**Consequence for the port:** this capture window (off 0:2700) is the **scripted tutorial sell**
+(greeting → arrival → first scripted offer; only reaches round 1). `FUN_004658ab` (the live kind-2
+customer machine) is **not exercised here** — it would be the "first real customer" *after* the
+tutorial+closing (beyond this window; needs a re-windowed capture). The corrected Chip-2 inventory:
+- **Entry:** `FUN_0045edaa` **sell-active else-branch** (`b51c=1`, `queue[0..2]={kyaku:1,kind:0}`,
+  `count=3`) — currently PORT-DEBT in `customer_service.c` (Chip 1 ported only the f406 branch).
+- **Kind selector** `FUN_00461303` **f404 case** (the 6-line head: `b56c/b570` from queue, `b5a4=0xc0`,
+  `b5a8=2`, return 1).
+- **Master tick** `FUN_00462403` (arrival ramp `b5a0`, bubble pos, the `b534==1 && b51c` →
+  `FUN_00461c00` dispatch, the b524 idle/greeting trigger).
+- **The scripted machine `FUN_00461c00`** (1753B, all.c:59745) — the real core: PC `_DAT_0730b604`
+  walks `g_tuto[b5b0*200 + pc]`; opcodes = dialogue (`FUN_0046098f`), price-set, `PRID`/`PRIA`
+  (`FUN_0045ff11`/`31` digit + `FUN_00460161` offer), conditional `GOTO` (`FUN_004623bc`) on ask/base
+  ratio thresholds. Wire `customer_haggle` (`FUN_00460161`) + `tables_tuto` (`g_tuto`).
+- Helpers `FUN_004623bc` (GOTO target lookup), `FUN_0046098f` (dialogue-line setup), `FUN_0045ff11/31`,
+  `FUN_004622d9` (input poll).
+**Verify** the b534/b5a8/b56c/base/ask/b574/b584/b5a0 trajectory above vs the `34f44b18` cache via
+`flow_diff`. `b5b0` (`DAT_005c6bb0`, the script-file index) is set by `FUN_00461bf6` at the cc08=4
+entry sites (house_update 87048/87149/87463/87692) — determine its tutorial value when porting.
+
 ## 4. Haggle math — ✅ PORTED `src/customer_haggle.{c,h}` (DISASM-EXACT, +9 host tests)
 
 **The Ghidra decompile is WRONG here — it dropped the x87 stack AND mis-rendered the
