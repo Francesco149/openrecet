@@ -1183,6 +1183,56 @@ int test_player_door_predicate_rejects_inside(void)
     return 0;
 }
 
+/* ── the "GO!" door tooltip ramp (db000/db004, all.c:87591-87596) ── */
+
+int test_player_emote_ramp_up_to_cap(void)
+{
+    /* at the door: type set to the affordance cell, level ramps 0→10 then caps. */
+    int level = 0, type = 0;
+    for (int i = 0; i < 15; i++)
+        player_ctrl_emote_ramp_step(1, 7, &level, &type);
+    if (type != 7)
+        T_FAIL("at-door must set db004=7 (got %d)", type);
+    if (level != 10)
+        T_FAIL("level must ramp up to the cap 10 (got %d)", level);
+    return 0;
+}
+
+int test_player_emote_ramp_one_per_frame(void)
+{
+    /* one step per frame: level 0→1→2 (the sin slide-in reads this gauge). */
+    int level = 0, type = 0;
+    player_ctrl_emote_ramp_step(1, 7, &level, &type);
+    if (level != 1) T_FAIL("first step must give level 1 (got %d)", level);
+    player_ctrl_emote_ramp_step(1, 7, &level, &type);
+    if (level != 2) T_FAIL("second step must give level 2 (got %d)", level);
+    return 0;
+}
+
+int test_player_emote_ramp_down_to_floor(void)
+{
+    /* off the door: level ramps back down to 0 and floors (the bubble slides out). */
+    int level = 10, type = 7;
+    for (int i = 0; i < 15; i++)
+        player_ctrl_emote_ramp_step(0, 7, &level, &type);
+    if (level != 0)
+        T_FAIL("level must ramp down to the floor 0 (got %d)", level);
+    /* db004 is NOT cleared on the way down — the cell holds while it slides out. */
+    if (type != 7)
+        T_FAIL("type must hold its cell on the slide-out (got %d)", type);
+    return 0;
+}
+
+int test_player_emote_ramp_idle_off_door_noop(void)
+{
+    /* off the door with level already 0: a no-op (no underflow). */
+    int level = 0, type = 0;
+    player_ctrl_emote_ramp_step(0, 7, &level, &type);
+    if (level != 0) T_FAIL("off-door at level 0 must stay 0 (got %d)", level);
+    if (type != 0)  T_FAIL("off-door must not write db004 (got %d)", type);
+    return 0;
+}
+
 int test_player_worldmap_exit_arm_sets_flags_and_fade(void)
 {
     /* arm (all.c:87637-87648): sets DAT_074b2ec4 and kicks the phase-1 dissolve

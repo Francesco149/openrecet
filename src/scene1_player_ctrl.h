@@ -398,6 +398,19 @@ int  player_ctrl_worldmap_exit_stage2(void);
 int  player_ctrl_worldmap_exit_armed(void);  /* test accessor */
 void player_ctrl_worldmap_exit_reset(void);  /* test reset */
 
+/* Free-roam interaction-affordance emote bubble (DAT_056db000 / DAT_056db004) —
+ * the "GO!" door tooltip + talk/pick-up prompts.  `level` (0..10) is the slide-in
+ * gauge the bubble's sin scale + visible gate read; `type` is the hpmp_base.tga
+ * cell (7 = the shop door).  Driven by player_ctrl_cc08_proximity_detect (the
+ * bVar17 door-zone ramp), consumed by the FUN_0040a765 draw (scene1_hud.c). */
+int  player_ctrl_emote_level(void);          /* DAT_056db000 */
+int  player_ctrl_emote_type(void);           /* DAT_056db004 */
+
+/* Pure ramp step (host-testable): at an affordance → set `type`, ramp `level` up
+ * to 10; off it → ramp `level` down to 0.  See scene1_player_ctrl.c. */
+void player_ctrl_emote_ramp_step(int at_affordance, int affordance_type,
+                                 int *level, int *type);
+
 /*
  * ── W1: the per-frame player-controller tick (FUN_0048670f entry) ─────────
  *

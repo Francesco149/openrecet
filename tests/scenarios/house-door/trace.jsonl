@@ -1,0 +1,41 @@
+# house-door — the shop-door "go!" tooltip window (port-the-door-tooltip arc).
+# Continue the guild save → HOUSE free-roam → walk RIGHT/UP/UP/RIGHT to the shop
+# door → HOLD there (NO Z) so the door affordance tooltip (db004=7, the
+# hpmp_base.tga cell at (464,48), ramped by db000 0→10) slides in and is held
+# on screen.  Synthesized from guild-ui-flow's door-walk with the Z@191 removed
+# (the Z would trigger the world-map exit; we want to dwell at the door instead).
+# Canonical pin {phasepin 282}+{rngseed [282,19937]}+{tutloadpin 8} (mirrors the
+# guild traces — same save + preamble).  Join anchor = LOADING_END (== HOUSE_FREEROAM
+# for the house scene; fires both sides).  The port currently draws NO tooltip
+# (db000 ramp + the FUN_0040a765 emote-bubble draw are unported) ⇒ this window
+# captures the gap: retail's "go!" bubble vs the port's bare free-roam.
+# embedded save: 91a7219efd25f8f11fbded624dfdfd25b6cfbfdcc44d9fc5396f329c2fc943bc
+{"savefile": "_saves/91a7219efd25f8f11fbded624dfdfd25b6cfbfdcc44d9fc5396f329c2fc943bc.sav.gz"}
+{"tutloadpin": 8}
+{"rngseed": [0, 3555691695]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 29, "buttons": "0x0010"}
+{"frame": 34, "buttons": "0x0000"}
+{"frame": 91, "buttons": "0x0004"}
+{"frame": 95, "buttons": "0x0000"}
+{"frame": 104, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 3555691695]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"phasepin": 282}
+{"rngseed": [282, 19937]}
+{"caprange": [140, 260]}
+{"calltrace": [140, 260]}
+{"rngseed": [0, 518313397]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 56, "buttons": "0x0001"}
+{"frame": 62, "buttons": "0x0000"}
+{"frame": 68, "buttons": "0x0004"}
+{"frame": 135, "buttons": "0x0000"}
+{"frame": 152, "buttons": "0x0004"}
+{"frame": 155, "buttons": "0x0000"}
+{"frame": 160, "buttons": "0x0001"}
+{"frame": 174, "buttons": "0x0000"}
+{"frame": 280, "buttons": "0x0000"}

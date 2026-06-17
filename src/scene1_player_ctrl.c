@@ -391,6 +391,21 @@ static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-me
 static int   s_db048            = 0;              /* DAT_056db048 */
 static int   s_db04c            = 0;              /* DAT_056db04c */
 
+/* DAT_056db000 / DAT_056db004 — the free-roam INTERACTION-AFFORDANCE emote
+ * bubble (the "GO!" door tooltip + the talk/pick-up prompts).  Driven per frame
+ * by the bVar17 door-zone / bVar3 NPC-approach detection in house_update
+ * (all.c:87491-87596), consumed by the FUN_0040a765 emote-bubble draw
+ * (all.c:6900-6932, scene1_hud.c).
+ *   s_emote_level (db000, 0..10) — the slide-in gauge: ramps up while a prompt
+ *     is in range, down off it; the bubble's sin(level·π/8) scale + the visible
+ *     (level!=0) gate read it.
+ *   s_emote_type  (db004)         — which prompt: the hpmp_base.tga cell index
+ *     ((type%4)·48+320, (type/4)·48).  7 = the shop-door "GO!" (the only path the
+ *     port drives today); 0/1 = talk / talk-with-pending-customer (faithful
+ *     no-op here — no live customers); 4 = the dungeon combat prompt (combat_sm). */
+static int   s_emote_level      = 0;              /* DAT_056db000 */
+static int   s_emote_type       = 0;              /* DAT_056db004 */
+
 /* Per-frame latch: set when player_ctrl_b850_move() ticks the companion inline
  * (the free-roam walk path, mirroring the engine's FUN_0048a833-nested-in-
  * FUN_0048b850).  scene1_sim.c reads it after scene1_player_ctrl_tick() to run
@@ -977,14 +992,65 @@ static int player_ctrl_cc08_customer_escalate(void)
     return 0;
 }
 
-/* proximity / approach detection (961-1082): reads the nearest-customer and
- * item-pickup positions vs the player to raise the talk / pick-up affordance
- * bools and tick the approach timers (DAT_0438be7c/be80, the db000 gauge).  With
- * no live customer or item the affordances stay false and the only writes are to
- * approach-timer globals that don't feed back into this frame's walk → no-op. */
+/* world-map door-exit bank flags (T1; all.c:87531/87643, rec-relative like the
+ * display flags above, base DAT_044e3798 → DAT_0450f3f2 == 0x2bc5a):
+ *   DAT_0450f3f7 — door "already exited" guard (part of bVar17)
+ *   DAT_0450f3f9 — world-map tutorial gate (read by the world-map init FUN_0049de20)
+ *   DAT_0450f3fa — "first exit ever" latch. */
+#define PC_DOOR_EXITED_BYTE_OFF       0x2bc5f   /* DAT_0450f3f7 */
+#define PC_WORLDMAP_TUTORIAL_BYTE_OFF 0x2bc61   /* DAT_0450f3f9 */
+#define PC_DOOR_FIRSTEXIT_BYTE_OFF    0x2bc62   /* DAT_0450f3fa */
+
+/* proximity / approach detection (the bVar17/bVar3 block, all.c:87491-87596) —
+ * the cc04==0 free-roam pass that raises the interaction-affordance emote bubble
+ * (db000/db004; the "GO!" door tooltip + the talk/pick-up prompts).
+ *
+ * Ported: the **shop-door** path (bVar17).  While the player stands in the door
+ * zone (player_ctrl_at_shop_door) the engine sets db004=7 and ramps db000 up to
+ * 10 (LAB_00488906); off the door — and in every gated case the engine routes to
+ * LAB_004885eb (carrying / scene-intro anim / no affordance) — it ramps db000
+ * down toward 0.  db000 is the bubble's slide-in gauge, db004 its cell.
+ *
+ * Faithful no-ops (no live customer/item writer in the port — the same debt the
+ * old stub carried): the bVar3 NPC-approach path (db004 0/1) and its DAT_0438be7c/
+ * be80 approach timers.  The b928 scene-intro early branches reduce to the
+ * decrement here (db000 ramps down), matching the engine in steady free-roam. */
 static void player_ctrl_cc08_proximity_detect(void)
 {
+    /* bVar17: at the shop door zone — only when not carrying (the engine's
+     * `if (DAT_056db048 != 0) goto LAB_004885eb` gate at all.c:87524). */
+    int at_door = 0;
+    if (s_db048 == 0) {
+        const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        int exited = (bank != NULL)
+                   ? ((const uint8_t *)bank)[PC_DOOR_EXITED_BYTE_OFF] : 0;
+        at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
+                                           s_player_facing, exited);
+    }
+
+    player_ctrl_emote_ramp_step(at_door, 7, &s_emote_level, &s_emote_type);
 }
+
+/* Pure emote-bubble ramp step (the LAB_00488906 / LAB_004885eb tails, all.c:
+ * 87591-87596), factored out for host testing (mirrors player_ctrl_pulse_counters):
+ * at an affordance — set the cell `type` and ramp `level` up to 10; off it — ramp
+ * `level` down to 0.  `type` is left untouched off the affordance (the engine only
+ * writes db004 on the LAB_00488906 path), so the bubble holds its cell as it slides out. */
+void player_ctrl_emote_ramp_step(int at_affordance, int affordance_type,
+                                 int *level, int *type)
+{
+    if (at_affordance) {
+        *type = affordance_type;                   /* DAT_056db004 = the affordance cell */
+        if (*level < 10)                           /* DAT_056db000++ (cap 10) */
+            (*level)++;
+    } else if (*level > 0) {                        /* LAB_004885eb decrement */
+        (*level)--;
+    }
+}
+
+/* Emote-bubble accessors for the FUN_0040a765 draw (scene1_hud.c). */
+int player_ctrl_emote_level(void) { return s_emote_level; }
+int player_ctrl_emote_type(void)  { return s_emote_type; }
 
 /* Bank-byte offsets of the shop-display open-gate flags (relative to the working
  * record base DAT_044e3798), read off the active bank like the sparkle/item
@@ -995,15 +1061,6 @@ static void player_ctrl_cc08_proximity_detect(void)
 #define PC_SHOP_DISPLAY_CHANGED_BYTE_OFF  0x2bc60   /* DAT_0450f3f8 — "display changed" */
 #define PC_SHOP_DISPLAY_BACKROW_BYTE_OFF  0x2bc63   /* DAT_0450f3fb — back-row (cc00==0) dirty */
 #define PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF 0x2bc65  /* DAT_0450f3fd — all stands stocked (iv1_6) */
-
-/* world-map door-exit bank flags (T1; all.c:87531/87643, rec-relative like the
- * display flags above, base DAT_044e3798 → DAT_0450f3f2 == 0x2bc5a):
- *   DAT_0450f3f7 — door "already exited" guard (part of bVar17)
- *   DAT_0450f3f9 — world-map tutorial gate (read by the world-map init FUN_0049de20)
- *   DAT_0450f3fa — "first exit ever" latch. */
-#define PC_DOOR_EXITED_BYTE_OFF       0x2bc5f   /* DAT_0450f3f7 */
-#define PC_WORLDMAP_TUTORIAL_BYTE_OFF 0x2bc61   /* DAT_0450f3f9 */
-#define PC_DOOR_FIRSTEXIT_BYTE_OFF    0x2bc62   /* DAT_0450f3fa */
 
 /* ── T1: shop-door exit → world map (engine FUN_0048670f) ──────────────────
  *

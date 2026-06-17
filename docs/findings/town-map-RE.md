@@ -53,8 +53,27 @@ frame 435  LOADING_END                             (world-map assets loaded, mod
 
 **Step by step:**
 
-1. **Door tooltip.** While the player stands in the door zone (`bVar17` in `house_update`),
-   retail shows a "press Z" prompt — the user's "tooltip at the door".
+1. **Door tooltip ✅ PORTED + USER-CONFIRMED 1:1 2026-06-17.** While the player stands in
+   the door zone (`bVar17` in `house_update`), retail shows a **"GO!" speech bubble** over
+   the player's head — the user's "tooltip at the door" (NOT a "press Z" prompt). It is the
+   free-roam interaction-affordance **emote bubble** (`FUN_0040a765` inline, decomp L6900-6932):
+   a single `bmp/hpmp_base.tga` (`DAT_073cc920`, 512×512) cell, **cell = `((db004%4)·48+320,
+   (db004/4)·48)` → for the door `db004==7` ⇒ src (464,48) 48×48** (the baked GO!-bubble-with-tail
+   sprite), drawn under COLOROP=MODULATE at the player's projected head
+   (`FUN_00490c78(px, b778·0.1+4.0+py, pz)`, guard view-z<0), scaled in by the **`db000` gauge**:
+   `db000<8` → a `sin(db000·π/8)` overshoot (`w18=(sin+t)·48`, `w14=(2−sin−t)·48`, `yoff=sin·32`,
+   `t=db000/8`); `db000>=8` → settled 32×32. dst `{px−w14, (py−w18·0.7)−yoff, w14, w18}`.
+   **The gauge is driven by the door-zone detection** (`house_update` L87591-87596): at the door
+   `db004=7` + `db000++` (cap 10); off it `db000--` (floor 0). Ported as
+   `player_ctrl_cc08_proximity_detect` (the gauge) + `scene1_hud_emote_bubble` (the draw), the
+   pure ramp `player_ctrl_emote_ramp_step`. Verified on the **`house-door`** scenario (walk to
+   the door, HOLD; caprange LOADING_END+140..260): the GO! bubble region is **pixel-1:1 vs the
+   retail v3 cache (meanabs 0.084/px, 1 px>40 at the settled offset 259)**, ramp-in timing
+   matches; residual = the load-seam player-position phase the bubble correctly follows + the
+   pre-existing HOUSE player-model batching. The bVar3 NPC-approach prompt path (db004 0/1) +
+   its `DAT_0438be7c/be80` approach timers stay faithful no-ops (no live customers).
+   `PORT-DEBT(door-proximity, FUN_005031e4)` (the sqrt<1.8 radius) unchanged — the deliberate
+   approach satisfies the X>2.895 subset. See `scene1_hud.c` / `scene1_player_ctrl.c`.
 
    **Door-zone predicate `bVar17`** (RE'd, `house_update` `all.c:87491`–`87539`, the
    `DAT_0438cc04==0` free-roam branch; shop = stage-type 0):
@@ -75,8 +94,8 @@ frame 435  LOADING_END                             (world-map assets loaded, mod
    So the **shop door zone = free-roam, player X (`DAT_056da1d8`) > 2.895, facing
    (`_DAT_056db05c`) ≈ +π/2 (±0.1π), not-already-exited (`DAT_0450f3f7[slot]==0`), and the
    `FUN_005031e4()<1.8` gate**. `DAT_056da1d8`/`1e0` = player world X/Z; `_DAT_056db05c` =
-   player facing angle (engine-quirks §111). *(The tooltip renderer itself is a follow-up; T1
-   gates the trigger on this same predicate.)*
+   player facing angle (engine-quirks §111). *(The tooltip renderer is now ported — the "GO!"
+   emote bubble, §1 step 1; the door-zone ramp shares this same predicate.)*
 
 2. **Door Z-handler** — `house_update` `FUN_0048670f` @ `all.c:87637`:
    ```c
@@ -431,8 +450,9 @@ into the first both-capture (Phase 0.1/0.2 of the plan):
 2. **Confirm the tutorial branch** actually taken in the recording: read `DAT_0450f3f9` /
    `DAT_0450f408` / `DAT_09643588[0..6]` on retail right after the world-map loads (expect
    `f3f9=1` → dest 3 = 2, rest 0).
-3. **The door zone test (`bVar17`)** + the tooltip renderer — the exact position predicate
-   and the prompt draw (for T1's tooltip follow-up).
+3. ~~**The door zone test (`bVar17`)** + the tooltip renderer~~ **✅ DONE 2026-06-17** — the
+   `bVar17` predicate (ported as `player_ctrl_at_shop_door`) drives both the exit AND the "GO!"
+   emote-bubble tooltip (§1 step 1); the draw is pixel-1:1 vs the retail v3 cache.
 4. **Fade duration** (the 16-frame Z→LOADING_START gap) — confirm it's `FUN_004526f5`'s
    dissolve, not an intermediate door animation.
 5. **Destination names** (which index is Guild vs Market vs Adventurer's Guild, etc.) — read

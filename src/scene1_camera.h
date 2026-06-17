@@ -97,6 +97,10 @@ extern int g_scene1_camera_stage_view_mode;
  * production keeps it 0. */
 extern float g_scene1_camera_z_roll;
 
+/* Live per-class camera z-offset (engine `_DAT_0438b778`).  The FUN_0040a765
+ * emote-bubble draw projects the player head at world-Y `off_z·0.1 + 4.0 + py`. */
+float scene1_camera_class_off_z(void);
+
 /* Initialise camera state.  Sets the first-frame flag (engine
  * `_DAT_0438cc68 = 1`) so the first `scene1_camera_pose_compute()` call
  * snap-copies instead of lerping.  Idempotent — every call resets the

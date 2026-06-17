@@ -1,0 +1,14 @@
+# house-door — see trace.jsonl.  Continue the guild save → HOUSE free-roam →
+# walk to the shop door → HOLD (no Z) so the door "go!" affordance tooltip
+# (FUN_0040a765 emote bubble: db004=7, hpmp_base.tga cell (464,48), ramped by
+# the db000 0→10 door-zone gauge) slides in and is held on screen.  The port
+# draws no tooltip yet (the db000 ramp + the bubble draw are unported), so the
+# window captures the gap to RE/port against.  Synthesized from guild-ui-flow's
+# door walk with the Z@191 removed.  Sync anchor = LOADING_END (== HOUSE_FREEROAM).
+description: |
+  HOUSE free-roam → walk to the shop door → hold.  caprange LOADING_END+140..260
+  captures the door "go!" tooltip (retail draws it; the port does not yet).
+  Pinned (phasepin 282 + rngseed [282,19937] + tutloadpin 8) like the guild traces.
+max_frames: 22000   # turbo load-stretch headroom (Continue → free-roam, same as guild)
+duration_ceiling_ms: 180000
+capture_suppress_loads: true

@@ -3456,6 +3456,10 @@ struct test_case {
     X(player_door_predicate_rejects_already_exited) \
     X(player_door_predicate_rejects_wrong_facing) \
     X(player_door_predicate_rejects_inside) \
+    X(player_emote_ramp_up_to_cap) \
+    X(player_emote_ramp_one_per_frame) \
+    X(player_emote_ramp_down_to_floor) \
+    X(player_emote_ramp_idle_off_door_noop) \
     X(player_worldmap_exit_arm_sets_flags_and_fade) \
     X(player_worldmap_exit_stage2_transitions_on_fade_done) \
     \

@@ -9052,6 +9052,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_hud.c",
     "src/scene1_merchant_hud.c",
     "src/scene1_render.c",
     "src/scene1_render.h"

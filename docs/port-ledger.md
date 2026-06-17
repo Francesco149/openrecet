@@ -459,7 +459,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4902fe | FUN_004902fe | 682 | ✓ | audio_fade.h, main.c, save_bank.h (+2) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+4) |
 | 0x490820 | FUN_00490820 | 348 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
-| 0x490c78 | FUN_00490c78 | 77 | ✓ | scene1_merchant_hud.c, scene1_render.c, scene1_render.h |
+| 0x490c78 | FUN_00490c78 | 77 | ✓ | scene1_hud.c, scene1_merchant_hud.c, scene1_render.c (+1) |
 | 0x490cc6 | FUN_00490cc6 | 99 | ✓ | scene1_render.c |
 | 0x490d29 | FUN_00490d29 | 84 | ✓ | scene1_render.c, scene1_render.h |
 | 0x490e15 | FUN_00490e15 | 1 | ✓ | scene_pause.c |
