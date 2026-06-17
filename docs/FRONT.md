@@ -738,7 +738,9 @@
   base anchor (subtract pre-base firings; symmetric windows = no-op, all v3 tests pass +new
   `test_window_relative_occ`).  intro-prologue-v3 re-join: paired 693→**810**, port-only 121→**4**,
   draw-divergent 81→**23** (the residual = the +2 fade phase pillar).  **⇒ iv1_1 now joins honest.**
-  **iv1_2 v3 JOIN ✅ FIXED + VERIFIED 1:1 2026-06-17** (two tooling fixes + a re-drive).
+  **iv1_2 v3 JOIN ✅ FIXED + USER-CONFIRMED 1:1 2026-06-17** (parity ledger; user "can confirm this
+  is bit exact and synchronized other than the known book animation remainder" — the book-arrow
+  next-line anim is the lone DEFERRED residual, `rt->blink` not yet in `{phasepin}`). Two fixes + a re-drive.
   The iv1_2 join was 0/299 — and my FIRST fix attempt mis-diagnosed it. Both pieces, in order:
   (1) **`ddeb421` base-anchor auto-detect** (VALID, KEEP): `preserve_live` resolved a window's BASE
   anchor by occurrence #1; `resolve_base_anchor` now auto-detects it as the most-recent firing ≤
