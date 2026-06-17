@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 448,
-  "unported": 2016,
+  "ported": 452,
+  "unported": 2012,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 532,
-  "pct_touched": 20.9,
+  "touched": 536,
+  "pct_touched": 21.0,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -3978,6 +3978,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene_buy.h",
     "src/worker_load.c"
    ]
@@ -4888,6 +4889,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/customer_service.h",
     "src/npc_schedule.h"
    ]
@@ -5183,6 +5185,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/customer_service.h"
    ]
   },
@@ -5219,8 +5222,10 @@
    "size": 1289,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x465db4",
@@ -5241,8 +5246,10 @@
    "size": 2668,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x466a9a",
@@ -5297,6 +5304,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/encyclopedia.c",
     "src/scene_pause.c"
    ]
@@ -6112,8 +6120,10 @@
    "size": 90,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x46f914",
@@ -7709,8 +7719,10 @@
    "size": 296,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x47f2f6",

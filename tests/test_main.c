@@ -430,6 +430,9 @@ struct test_case {
     X(haggle_offer_up_tutorial_override) \
     X(haggle_offer_down_round0_invariants) \
     X(haggle_offer_down_special_vendor_x5) \
+    X(cs_session_init_tutorial_queue) \
+    X(cs_session_init_draws_exactly_one_rng) \
+    X(cs_session_init_reentry_rebuilds) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

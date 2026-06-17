@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **532** (20.9%) — verified 70, stubbed 14, ported 448
-- unported: **2016**
+- touched: **536** (21.0%) — verified 70, stubbed 14, ported 452
+- unported: **2012**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (448) — reimplemented, no probe yet
+## ported (452) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -242,7 +242,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x452809 | FUN_00452809 | 11 | ✓ | scene1_intro_dialogue.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
 | 0x452d07 | FUN_00452d07 | 55 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.h, scene_guild.c (+3) |
-| 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |
+| 0x452d3e | FUN_00452d3e | 71 | ✓ | customer_service.c, scene_buy.h, worker_load.c |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ | scene1_preload.h, scene_walls.h, worker_load.c |
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ | scene_floor.h, worker_load.c |
 | 0x452dfd | FUN_00452dfd | 60 | ✓ | scene_jutan.h, worker_load.c |
@@ -284,15 +284,17 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
-| 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.h, npc_schedule.h |
+| 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.c, customer_service.h, npc_schedule.h |
 | 0x460161 | FUN_00460161 | 622 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x4603cf | FUN_004603cf | 675 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.h |
-| 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.h |
+| 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
+| 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | font_draw.c, font_draw.h, scene_guild.c |
-| 0x4681d3 | FUN_004681d3 | 8 | ✓ | encyclopedia.c, scene_pause.c |
+| 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c |
+| 0x4681d3 | FUN_004681d3 | 8 | ✓ | customer_service.c, encyclopedia.c, scene_pause.c |
 | 0x4681db | FUN_004681db | 11 | ✓ | encyclopedia.c |
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ | scene_pause.c |
 | 0x4681ec | FUN_004681ec | 10 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
@@ -329,6 +331,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
+| 0x46f8ba | FUN_0046f8ba | 90 | ✓ | customer_service.c |
 | 0x47019f | FUN_0047019f | 486 | ✓ | scene1_conversation_pose.c |
 | 0x470385 | FUN_00470385 | 246 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c |
 | 0x47047b | FUN_0047047b | 296 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h |
@@ -404,6 +407,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
 | 0x47f172 | FUN_0047f172 | 46 | ✓ | scene_pause.c |
 | 0x47f1a0 | FUN_0047f1a0 | 46 | ✓ | scene_pause.c |
+| 0x47f1ce | FUN_0047f1ce | 296 | ✓ | customer_service.c |
 | 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ | scene_pause.c, scene_pause.h, sim.c |
 | 0x47f5bc | FUN_0047f5bc | 1171 | ✓ | anchor_trace.h, save_picker.h, scene_pause.c (+1) |
 | 0x47fa76 | FUN_0047fa76 | 462 | ✓ | encyclopedia.h, scene_pause.c, scene_pause.h (+1) |
