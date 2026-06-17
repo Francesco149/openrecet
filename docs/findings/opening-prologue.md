@@ -776,48 +776,49 @@ and are EXCLUDED from the gate for now — wire + verify when those scenes are v
 draw-program checked (the guild's `9fd8` divergence is the same layer, noted in
 `merchant-guild-RE.md`).
 
-## RESOLVED — v3 JOIN base-anchor bug (iv1_2 0/299 → 152/299 honest, 2026-06-17)
+## v3 base-anchor auto-detect (`ddeb421`) + the iv1_2 MIS-ARMED RETAIL capture (2026-06-17)
 
-The `intro-iv2-v3` window (the iv1_2 opening: HF#2 +0..+299, idle) joined **0/299
-paired** — a pure TOOLING bug, not a render gap. `v3cache.preserve_live` resolved
-the window's BASE anchor by occurrence #1, but the two sides capture the run
-asymmetrically: the **port** keeps the full run (`HOUSE_FREEROAM#1`@284 at the first
-house entry + `HOUSE_FREEROAM#2`@1832 at the iv1_2 cutscene; first kept frame @1833)
-while **retail** captures window-only (its sole `HOUSE_FREEROAM`@2986). Pinning the
-base to occ #1 labelled the sides by DIFFERENT firings (port HF#1@284 → window-occ 2,
-retail HF@2986 → window-occ 1), so `key_of_present` mispaired every frame.
+**The tooling fix (KEEP, valid):** `v3cache.preserve_live` resolved a window's BASE
+anchor by occurrence #1; `resolve_base_anchor()` now auto-detects it as the
+MOST-RECENT firing ≤ `present_first`, so a side that captures multiple firings of the
+base anchor re-bases correctly (via `_window_occ`). Re-verified a NO-OP across the
+whole v3 cache (fixes a latent `guild-ui-flow` window; every confirmed scenario
+unchanged) + `test_base_anchor_auto_detect`.
 
-**Fix (`ddeb421`):** `resolve_base_anchor()` auto-detects the base as the MOST-RECENT
-firing ≤ `present_first` (the port's HF#2@1832); `_window_occ` then re-bases both to
-window-occ 1 and the join pairs. A symmetric single-firing window resolves to occ #1
-unchanged — re-verified a NO-OP across the whole v3 cache (only `intro-iv2-v3` port +
-one latent `guild-ui-flow` window change; the verified guild N4 join stays a no-op).
+**CORRECTION (my first interpretation was WRONG — recorded so it isn't re-trusted).**
+I first read the base-anchor fix as taking the iv1_2 join `0/299 → 152/299 honest`
+and "quantifying gap #4" (a 240-frame fade the port skips). **That conclusion is
+false: the two cached sides are DIFFERENT cutscenes.** Visual proof —
+`orv3_shot intro-iv2-v3:port --frame 0` = the **SHOP** (iv1_2, 3D HOUSE, gold HUD,
+Recette+Tear), but `…:retail --frame 299` = the **BEDROOM** (iv1_1, 2D bg — Tear, a
+bed, a mushroom, the round window).
 
-**What the now-honest join reveals — gap #4 quantified.** The 152 pairs are the
-shared `CONV_POSE_BLINK` freeroam-counter cadence (port blink@+21 ↔ retail@+24, a +3
-counter phase the per-blink delta absorbs). But even those "pairs" are VISUALLY
-divergent, and the dialogue never pairs, because the port **skips retail's whole
-iv1_2 opening sequence**:
+- **Root cause:** the `intro-iv2-v3` trace waits for the **2nd** `HOUSE_FREEROAM`
+  (HF#2 = iv1_2). The PORT replays the segtrace and captures at HF#2 = the shop ✓.
+  But the **retail v3 arm is occurrence-BLIND** — `house_capture` "arms the proxy the
+  first time the anchor fires", so retail armed **HF#1 = iv1_1 = the bedroom** ✗
+  (retail meta: `anchor_frame 2986`, the first HF). The base-anchor "fix" then paired
+  iv1_1-retail against iv1_2-port: the "152 pairs" are coincidental `CONV_POSE_BLINK`
+  cadence matches ACROSS different cutscenes, meaningless.
+- **The "fadeinb:240 fade" was iv1_1's, not iv1_2's.** `fadeinb`/`fadeoutb` ARE
+  genuine COMPILER no-ops (decompile `0x46e…`: the parser sets only the
+  line-recognised flag `local_8=1`, emits no command — the port mirrors this
+  correctly). The bedroom fade I measured is the **iv1_1 inter-script LOAD-TRANSITION**:
+  0/300 frames use render targets, and retail composites 3 transition quads
+  (`417a[1024×512]` / `748c[640×480]` / `5d80[512×512]`, MODULATE) over ~240 frames to
+  cover the load (port#60 = 88 live-scene draws vs retail#60 = 4 transition quads),
+  then the live scene arrives. That's the load-transition (gap #16 region), the FRONT's
+  deferred loading-screen-fidelity class — observed here only because retail was
+  mis-armed onto iv1_1.
 
-| frame | retail mean | port mean |   |
-|------:|------------:|----------:|---|
-| f0    | **0.0** (pure black) | **102.5** (already faded in) | retail starts the `fadeinb:240` |
-| f60   | 33.1        | 109.2     | retail mid-fade |
-| f120  | 66.2        | 121.0     | retail mid-fade; **port opens the dialogue (TEXT_ANIM_START +121)** |
-| f240  | 131.9       | 127.5     | retail's fade completes (~the `fadeinb:240` mark) |
-| f299  | 141.5       | 127.5     | retail still pre-dialogue (TEXT_ANIM_START only @ **+321**, past the window) |
+**REAL fix (the genuine next step):** make the retail v3 arm OCCURRENCE-AWARE — arm at
+the Nth firing matching the scenario's `{wait}` count (HF#2 for iv1_2), not the first —
+then re-drive retail with high `--retail-max-frames` (the prologue load-stretches; HF#2
+is well past HF#1's present 2986) to actually capture iv1_2 (shop). Only then can the
+iv1_2 opening/join parity be judged. The iv1_2 REGRESSION fix + the iv1_2
+dialogue/scene "visually 1:1" stand (port-side / other windows); only THIS window's
+retail side is wrong.
 
-So retail fades the iv1_2 scene in from pure black over **240 frames** (`fadeinb:240`,
-the first `iv1_2.ivt` op) + plays the chr:0/chr:1 standee slide-ins + the freeroam
-opening anims, reaching the dialogue at **+321**; the port pops the scene in (no fade)
-and reaches the dialogue at **+121** — **~200 frames early**. This is the
-already-deferred **gap #4** (iv1_2 opening freeroam-sprite anims) PLUS its sibling the
-**`fadeinb:240` fade-from-black** — both the LOADING-SCREEN-FIDELITY class (retail
-fades/animates the opening in, the port fast-pops it). The honest join now MEASURES
-the gap (200-frame compression) instead of hiding it behind a 0/299 mispair.
-
-**⇒ iv1_2 OPENING is NOT 1:1** (the port skips the fade + opening anim). The iv1_2
-DIALOGUE/scene render is separately confirmed 1:1 (other windows); this window
-isolates the opening, which is gap #4 + the fade. NOT a tooling artifact — the
-tooling is now correct; this is a real, known-deferred port gap awaiting the
-loading-screen-fidelity / freeroam-opening-anim port.
+**Lesson (`feedback_verify_1to1_before_done`):** eyeball that BOTH cached sides render
+the same scene before trusting any join verdict — a join pairs by anchor identity and
+will happily pair two unrelated cutscenes that share an anchor name.

@@ -7,33 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
-## 2026-06-17 — v3 JOIN base-anchor auto-detect (iv1_2 0/299 → 152/299 honest) + gap #4 quantified
+## 2026-06-17 — v3 base-anchor auto-detect (`ddeb421`) + iv1_2 mis-armed-retail CORRECTION
 
-The `intro-iv2-v3` window (the iv1_2 opening) joined **0/299 paired** — a TOOLING bug, not a render
-gap. `v3cache.preserve_live` resolved the window's base anchor by occurrence #1, but the two sides
-capture a cutscene run ASYMMETRICALLY: the port keeps the full run (`HOUSE_FREEROAM#1`@284 at the
-first house entry + `HOUSE_FREEROAM#2`@1832 at iv1_2) while retail captures window-only (sole
-`HOUSE_FREEROAM`@2986). Occ-#1 pinning labelled the sides by DIFFERENT firings (port window-occ 2,
-retail 1) ⇒ `key_of_present` mispaired every frame.
+`v3cache.preserve_live` resolved a window's BASE anchor by occurrence #1; new
+`resolve_base_anchor()` auto-detects it as the most-recent firing ≤ `present_first`, so a side that
+captures multiple firings of the base anchor re-bases correctly via `_window_occ`. Re-verified a
+NO-OP across the whole v3 cache (fixes a latent `guild-ui-flow` window; every confirmed scenario
+unchanged) + `test_base_anchor_auto_detect`. **KEEP — a valid tooling fix.**
 
-- **fix** (`ddeb421`, `tools/trace_studio_v3/v3cache.py`): new `resolve_base_anchor()` auto-detects
-  the base as the most-recent firing ≤ `present_first` (the port's HF#2); `_window_occ` re-bases both
-  sides to a shared window-relative occ. A symmetric single-firing window resolves to occ #1
-  unchanged — re-verified a NO-OP across the whole v3 cache (only `intro-iv2-v3` port + one latent
-  `guild-ui-flow` window change; the verified guild N4 join `f1f4bcd3` stays a no-op).
-  +`test_base_anchor_auto_detect`.
-- **honest result:** iv1_2 join **0/299 → 152/299**. The 152 pairs are the shared `CONV_POSE_BLINK`
-  freeroam-counter cadence.
-- **what it reveals — gap #4 quantified.** Even the 152 "pairs" are visually divergent + the dialogue
-  never pairs, because the port SKIPS retail's whole iv1_2 opening: retail fades the scene in from
-  pure black over **240 frames** (`fadeinb:240`, mean 0→132) + standee slides + freeroam opening
-  anims, reaching the dialogue at **+321**; the port pops the scene in (mean 102 @f0, no fade) +
-  reaches the dialogue at **+121** — **~200 frames early**. The already-deferred **gap #4** (iv1_2
-  opening freeroam-sprite anims) + the **`fadeinb:240` fade-from-black** — both the
-  loading-screen-fidelity class. So the iv1_2 OPENING is NOT 1:1 (the port fast-pops it); the iv1_2
-  dialogue/scene render is separately 1:1. The fixed join now MEASURES the gap instead of hiding it
-  behind a 0/299 mispair. RE + mean-vs-frame table: `findings/opening-prologue.md` "v3 JOIN
-  base-anchor bug"; feed montage pushed.
+**CORRECTION (same day): my first read of this — "iv1_2 join 0/299 → 152/299 honest, gap #4 fade
+quantified" — was WRONG; recorded so it isn't re-trusted.** The two cached `intro-iv2-v3` sides are
+DIFFERENT cutscenes: `orv3_shot intro-iv2-v3:port --frame 0` = the SHOP (iv1_2, 3D HOUSE, gold HUD)
+but `…:retail --frame 299` = the BEDROOM (iv1_1, 2D bg — Tear, bed, mushroom). The trace waits for
+the 2nd HOUSE_FREEROAM (HF#2 = iv1_2); the PORT captures HF#2 (shop ✓) but the **retail v3 arm is
+occurrence-BLIND** (`house_capture` "arms the first time the anchor fires") so retail armed HF#1 =
+iv1_1 (bedroom ✗). The "152 pairs" were coincidental CONV_POSE_BLINK matches across different
+cutscenes; the "240f fade" was iv1_1's load-transition (3 quads `417a`/`748c`/`5d80` over ~240f,
+0/300 RT frames), not iv1_2's — and `fadeinb`/`fadeoutb` ARE genuine compiler no-ops (decompile
+confirms; the port mirrors them).
+
+**REAL next step:** make the retail v3 arm OCCURRENCE-AWARE (arm at the Nth firing matching the
+scenario's `{wait}` count, here HF#2) + re-drive retail with high `--retail-max-frames` to actually
+capture iv1_2; only then can the iv1_2 opening/join be judged. RE + correction:
+`findings/opening-prologue.md`. Lesson (`feedback_verify_1to1_before_done`): eyeball both cached
+sides are the same scene before trusting a join verdict.
 
 ## 2026-06-17 — shop-door "GO!" tooltip (the free-roam emote bubble, FUN_0040a765) — pixel-1:1
 
