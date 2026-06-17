@@ -213,6 +213,29 @@ def read_anchor_stream(path: Path) -> list[dict]:
     return rows
 
 
+def resolve_base_anchor(anchors: list[dict], name: str,
+                        present_first: int) -> tuple[int, int] | None:
+    """Auto-detect the WINDOW's base anchor from the stored stream: the MOST-RECENT
+    firing of `name` at a frame ≤ `present_first` (the first kept frame's present).
+    Returns (frame, occurrence), or None if `name` never fires at/before the window.
+
+    Why not just occurrence #1: the two sides capture the run ASYMMETRICALLY. For a
+    cutscene window the PORT keeps the full run (e.g. HOUSE_FREEROAM#1 at the first
+    house entry + HOUSE_FREEROAM#2 at the cutscene) while RETAIL captures window-only
+    (its sole HOUSE_FREEROAM = the window's). Pinning the base to occ #1 then labels
+    the two sides by DIFFERENT firings (port HF#1@284, retail HF@2986) ⇒
+    key_of_present mispairs EVERY frame (the iv1_2 0/299). A window is based on the
+    firing at or before its first kept frame; picking that (and letting _window_occ
+    re-base it to a shared window-relative occ) pairs the sides. A symmetric
+    single-firing window resolves to occ #1 unchanged — a no-op for every confirmed
+    HOUSE/guild/pause/title scenario."""
+    cands = [a for a in anchors if a["name"] == name and a["frame"] <= present_first]
+    if not cands:
+        return None
+    base = max(cands, key=lambda a: a["frame"])
+    return base["frame"], base["occ"]
+
+
 def cache_key(trace_path: Path, arm: dict | None) -> str:
     """8-hex content key over the retail-determining inputs: the scenario trace
     bytes + the arm spec (anchor/offset/count). Save bytes are referenced BY the
@@ -393,13 +416,16 @@ def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
     anchor_frame = present_first - offset0
     if anchors_path is not None and Path(anchors_path).exists():
         anchors = read_anchor_stream(Path(anchors_path))
-        base = next((a for a in anchors
-                     if a["name"] == anchor and a["occ"] == anchor_occ), None)
+        # The window's base is AUTO-DETECTED (most-recent firing ≤ present_first),
+        # NOT assumed to be occ #1 — the two sides capture the run asymmetrically
+        # (the port keeps the full run, retail window-only), so occ #1 can name a
+        # DIFFERENT firing per side and mispair the whole window. See resolve_base_anchor.
+        base = resolve_base_anchor(anchors, anchor, present_first)
         if base is not None:
-            anchor_frame = base["frame"]
+            anchor_frame, anchor_occ = base
         else:
-            print(f"[cache] WARNING: {anchor}#{anchor_occ} not in {anchors_path} — "
-                  f"falling back to legacy anchor_frame derivation")
+            print(f"[cache] WARNING: no {anchor} firing ≤ present {present_first} in "
+                  f"{anchors_path} — falling back to legacy anchor_frame derivation")
     ident = FrameIdentity(side=side, scenario=scenario, anchor=anchor,
                           anchor_occ=anchor_occ, anchor_frame=anchor_frame,
                           offset0=offset0, count=c.n_frames, present_first=present_first,

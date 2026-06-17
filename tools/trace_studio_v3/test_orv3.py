@@ -366,6 +366,49 @@ def test_window_relative_occ() -> None:
           "moments pair cross-side; symmetric windows unchanged")
 
 
+def test_base_anchor_auto_detect() -> None:
+    """The window's BASE anchor is auto-detected (most-recent firing ≤ the first kept
+    frame's present), NOT assumed to be occurrence #1. The opening prologue's iv1_2
+    window exposed this: the PORT captures the full run (HOUSE_FREEROAM#1 at the first
+    house entry @284 + HOUSE_FREEROAM#2 at the iv1_2 cutscene @1832; first kept frame
+    @1833) while RETAIL captures window-only (its sole HOUSE_FREEROAM @2986). Pinning
+    the base to occ #1 made the port label in-window frames by HF#1@284 (→ window-occ
+    2) and retail by HF@2986 (→ window-occ 1) ⇒ 0/299 paired. Auto-detect picks the
+    port's HF#2@1832 (the firing ≤ present_first 1833); _window_occ re-bases both to
+    window-occ 1, and the join pairs."""
+    p_anchors = [{"name": "HOUSE_FREEROAM", "occ": 1, "frame": 284},
+                 {"name": "HOUSE_FREEROAM", "occ": 2, "frame": 1832}]
+    r_anchors = [{"name": "HOUSE_FREEROAM", "occ": 1, "frame": 2986}]
+    # the window base is the firing AT OR BEFORE the first kept frame, not occ #1
+    assert v3cache.resolve_base_anchor(p_anchors, "HOUSE_FREEROAM", 1833) == (1832, 2)
+    assert v3cache.resolve_base_anchor(r_anchors, "HOUSE_FREEROAM", 2986) == (2986, 1)
+    # a symmetric single-firing window still resolves to occ #1 (no-op)
+    assert v3cache.resolve_base_anchor(r_anchors, "HOUSE_FREEROAM", 3500) == (2986, 1)
+    # no firing ≤ present (window armed before the anchor) / empty stream ⇒ None (legacy)
+    assert v3cache.resolve_base_anchor(r_anchors, "HOUSE_FREEROAM", 2000) is None
+    assert v3cache.resolve_base_anchor([], "HOUSE_FREEROAM", 100) is None
+
+    # end-to-end: build both metas as preserve_live now would (auto-detected base),
+    # and confirm the SAME in-window moment gets the SAME window-relative key.
+    pf, po = v3cache.resolve_base_anchor(p_anchors, "HOUSE_FREEROAM", 1833)
+    port = v3cache.FrameIdentity(
+        side="port", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=po,
+        anchor_frame=pf, offset0=0, count=299, present_first=1833,
+        arm_offset=0, arm_count=300, anchors=p_anchors)
+    rf, ro = v3cache.resolve_base_anchor(r_anchors, "HOUSE_FREEROAM", 2986)
+    retail = v3cache.FrameIdentity(
+        side="retail", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=ro,
+        anchor_frame=rf, offset0=0, count=300, present_first=2986,
+        arm_offset=0, arm_count=300, anchors=r_anchors)
+    # 50 frames past each side's base → identical window-occ-1 key (was 2 vs 1 before)
+    assert port.key_of_present(1832 + 50) == ("HOUSE_FREEROAM", 1, 50)
+    assert retail.key_of_present(2986 + 50) == ("HOUSE_FREEROAM", 1, 50)
+    # the pre-window HF#1@284 never wins for an in-window port frame (more-recent HF#2)
+    assert port.key_of_present(1832 + 1)[1] == 1
+    print("  OK base-anchor auto-detect: window base = most-recent firing ≤ "
+          "present_first; iv1_2 cross-side keys pair (port HF#2, retail HF#1 → occ 1)")
+
+
 def test_draws() -> None:
     """The semantic layer (orv3_draws): enumerate a frame's draws with the device
     state in effect, and the material diff that abstracts batching to a verdict."""
@@ -508,6 +551,7 @@ def main() -> int:
     test_merge_keys()
     test_multi_anchor_identity()
     test_window_relative_occ()
+    test_base_anchor_auto_detect()
     test_draws()
     test_material_agg()
     test_load_side()
