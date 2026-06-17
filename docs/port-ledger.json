@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 442,
-  "unported": 2022,
+  "ported": 446,
+  "unported": 2018,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 526,
-  "pct_touched": 20.6,
+  "touched": 530,
+  "pct_touched": 20.8,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2903,6 +2903,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_haggle.h",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
     "src/scene_guild.c"
@@ -4864,8 +4865,11 @@
    "size": 82,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_haggle.c",
+    "src/customer_haggle.h"
+   ]
   },
   {
    "va": "0x45ed12",
@@ -4929,8 +4933,11 @@
    "size": 622,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_haggle.c",
+    "src/customer_haggle.h"
+   ]
   },
   {
    "va": "0x4603cf",
@@ -4938,8 +4945,11 @@
    "size": 675,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_haggle.c",
+    "src/customer_haggle.h"
+   ]
   },
   {
    "va": "0x460672",
@@ -4947,8 +4957,11 @@
    "size": 138,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_haggle.c",
+    "src/customer_haggle.h"
+   ]
   },
   {
    "va": "0x4606fc",
@@ -6287,6 +6300,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_haggle.h",
     "src/rng.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
@@ -22764,6 +22778,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_haggle.h",
     "src/diff_entry.c",
     "src/diff_entry.h",
     "src/npc_schedule.c",

@@ -421,6 +421,16 @@ struct test_case {
     X(segtrace_memsnap_parses_and_fires_resolved) \
     X(segtrace_no_wait_is_absolute) \
     X(segtrace_wait_rebases_on_anchor) \
+    X(haggle_budget_ceiling) \
+    X(haggle_decide_bands) \
+    X(haggle_decide_small_ref_collapses_accept) \
+    X(haggle_offer_up_round0_invariants_and_draws) \
+    X(haggle_offer_up_round0_trend_and_norandom_draws) \
+    X(haggle_offer_up_round0_no_draws_when_random0_trend0) \
+    X(haggle_offer_up_tutorial_override) \
+    X(haggle_offer_down_round0_invariants) \
+    X(haggle_offer_down_special_vendor_x5) \
+    \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \
     X(segtrace_wait_timeout_anchor_still_resolves_first) \

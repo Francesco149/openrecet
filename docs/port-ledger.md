@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **526** (20.6%) — verified 70, stubbed 14, ported 442
-- unported: **2022**
+- touched: **530** (20.8%) — verified 70, stubbed 14, ported 446
+- unported: **2018**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (442) — reimplemented, no probe yet
+## ported (446) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -199,7 +199,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+7) |
 | 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_pause.c, scene_title.c (+4) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
-| 0x4361b2 | FUN_004361b2 | 532 | ✓ | scene1_display_menu.c, scene1_merchant_hud.c, scene_guild.c |
+| 0x4361b2 | FUN_004361b2 | 532 | ✓ | customer_haggle.h, scene1_display_menu.c, scene1_merchant_hud.c (+1) |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.c, collision_house.h, main.c (+20) |
@@ -283,7 +283,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
+| 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | npc_schedule.h |
+| 0x460161 | FUN_00460161 | 622 | ✓ | customer_haggle.c, customer_haggle.h |
+| 0x4603cf | FUN_004603cf | 675 | ✓ | customer_haggle.c, customer_haggle.h |
+| 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | font_draw.c, font_draw.h, scene_guild.c |
 | 0x4681d3 | FUN_004681d3 | 8 | ✓ | encyclopedia.c, scene_pause.c |
@@ -332,7 +336,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x470a46 | FUN_00470a46 | 766 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ | rng.h, scene1_combat_sm.c, scene1_combat_sm.h (+6) |
+| 0x471089 | FUN_00471089 | 34 | ✓ | customer_haggle.h, rng.h, scene1_combat_sm.c (+7) |
 | 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | d3d_tex_names.h, scene1_dungeon_clear_banner.c, scene1_preload.c (+13) |
@@ -551,7 +555,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |
 | 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
-| 0x5041f6 | FUN_005041f6 | 30 | ✓ | diff_entry.c, diff_entry.h, npc_schedule.c (+9) |
+| 0x5041f6 | FUN_005041f6 | 30 | ✓ | customer_haggle.h, diff_entry.c, diff_entry.h (+10) |
 | 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ | rng.h |
 
