@@ -816,9 +816,10 @@ let g_cap_anchor_done_sent = false;
 // despite the nondeterministic turbo load-stretch (a cfg-fixed present-count only
 // reaches the deterministic-early title). No-op unless the v3 proxy is staged AND
 // v3_arm is set ⇒ a normal v2 capture is never affected. See docs/plans/trace-studio-v3.md.
-let g_v3_arm        = null;   // {anchor:str, offset:int, count:int} | null
+let g_v3_arm        = null;   // {anchor:str, offset:int, count:int, occ:int} | null
 let g_v3_arm_fn     = null;   // NativeFunction(OrV3ArmWindowAt) (lazy-resolved once)
 let g_v3_arm_fired  = false;  // arm exactly once
+let g_v3_arm_count  = 0;      // firings of the arm anchor so far (arm on the occ-th)
 // Window-aware early-exit (studio-v3 P2). >0 ⇒ shut the retail drive down at this
 // frame instead of grinding on to max_frames. Set when the v3 window is armed: after
 // the window's last present the drive has NOTHING left to do but over-run the load
@@ -3147,6 +3148,17 @@ function anchorCaptureSchedule(name, frame, devicePtr) {
 // if the proxy isn't staged (export absent) ⇒ a normal v2 run is unaffected.
 function v3ArmOnAnchor(name, frame) {
     if (!g_v3_arm || g_v3_arm_fired || name !== g_v3_arm.anchor) return;
+    // Arm at the OCC-th firing (1-based). The anchor recurs (HOUSE_FREEROAM fires
+    // once per house entry — iv1_1 then iv1_2), so a cutscene-sequence window must
+    // skip the earlier firings and arm at the one the scenario's {wait}s land on,
+    // else the retail capture grabs the WRONG cutscene (iv1_2 grabbing iv1_1's
+    // bedroom — see opening-prologue.md). occ defaults to 1 ⇒ first firing as before.
+    g_v3_arm_count += 1;
+    if (g_v3_arm_count < g_v3_arm.occ) {
+        log('v3_arm: ' + name + ' occ ' + g_v3_arm_count + '/' + g_v3_arm.occ +
+            ' @frame ' + frame + ' — waiting for the armed occurrence');
+        return;
+    }
     if (!g_v3_arm_fn) {
         const m = Process.findModuleByName('d3d8.dll');
         const fn = m ? m.findExportByName('OrV3ArmWindowAt') : null;
@@ -5232,10 +5244,17 @@ rpc.exports = {
         g_v3_arm = (config.v3_arm && typeof config.v3_arm.anchor === 'string')
             ? {anchor: config.v3_arm.anchor,
                offset: (config.v3_arm.offset | 0),
-               count:  (config.v3_arm.count  | 0) || 1}
+               count:  (config.v3_arm.count  | 0) || 1,
+               // OCCURRENCE to arm at (1-based): the anchor may recur (HOUSE_FREEROAM
+               // fires once per house entry — iv1_1 then iv1_2 on a new game), so a
+               // cutscene-sequence window must arm at the Nth firing matching the
+               // scenario's {wait} count, not the first. Default 1 ⇒ no change for
+               // every unique-anchor scenario (PAUSE_READY / *_READY fire once).
+               occ:    (config.v3_arm.occ | 0) || 1}
             : null;
         g_v3_arm_fn = null;
         g_v3_arm_fired = false;
+        g_v3_arm_count = 0;
         g_v3_shutdown_frame = 0;
         if (g_v3_arm) g_anchor_trace_enabled = true;
 

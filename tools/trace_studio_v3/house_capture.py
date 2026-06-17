@@ -42,6 +42,7 @@ Usage (host tools need the nix prefix):
 """
 import argparse
 import importlib.util
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -58,6 +59,26 @@ ROOT      = Path(__file__).resolve().parent.parent.parent
 PROXY_SRC = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
 PROXY_DLL = ROOT / "vendor" / "unpacked" / "d3d8.dll"
 SCEN_DIR  = ROOT / "tests" / "scenarios"
+
+
+def wait_occ(trace_path: Path, anchor: str) -> int:
+    """The OCCURRENCE of `anchor` the scenario's caprange lands on = the number of
+    `{"wait": "<anchor>"}` ops in the trace (each consumes one rising edge, so the
+    caprange after the Nth {wait} is at the anchor's Nth firing). The port replays
+    the segtrace and naturally captures that firing; retail's proxy arm must match it.
+    Returns max(1, count) — a trace with no {wait:<anchor>} still arms at the first."""
+    n = 0
+    for raw in trace_path.read_text().splitlines():
+        line = raw.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("wait") == anchor:
+            n += 1
+    return max(1, n)
 
 
 def load_scenario(name: str):
@@ -91,6 +112,14 @@ def main() -> int:
     ap.add_argument("--count", type=int, default=48,
                     help="present-window length in frames (default %(default)s; matches the "
                          "port's proven 48-frame HOUSE window).")
+    ap.add_argument("--arm-occ", type=int, default=0,
+                    help="which OCCURRENCE (1-based) of --anchor to arm the retail proxy at. "
+                         "The anchor can recur (HOUSE_FREEROAM fires once per house entry — "
+                         "iv1_1 then iv1_2 on a new game), so a cutscene-sequence window must "
+                         "arm at the Nth firing the scenario's {wait}s land on, not the first "
+                         "(else retail captures the WRONG cutscene). Default 0 = AUTO: derive "
+                         "it from the count of {wait:<anchor>} ops in the scenario trace "
+                         "(==1 for every unique-anchor scenario ⇒ unchanged).")
     ap.add_argument("--max-frames", type=int, default=None,
                     help="override the scenario's engine-side frame budget. Retail load-"
                          "stretches, so the budget must exceed the anchor frame + offset + "
@@ -166,7 +195,18 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     res_w, res_h = rc.openrecet_screen_dims()
-    v3_arm = {"anchor": args.anchor, "offset": int(args.offset), "count": int(args.count)}
+    # OCCURRENCE to arm at: explicit --arm-occ, else AUTO = the count of {wait:<anchor>}
+    # ops in the scenario trace (the segtrace lands the caprange on the Nth firing of
+    # the anchor, so retail must arm there too — else it grabs an earlier cutscene's
+    # firing, e.g. iv1_2's window arming on iv1_1's HOUSE_FREEROAM). ==1 for every
+    # unique-anchor scenario ⇒ no behaviour change there.
+    arm_occ = int(args.arm_occ) if args.arm_occ else wait_occ(trace_path, args.anchor)
+    v3_arm = {"anchor": args.anchor, "offset": int(args.offset), "count": int(args.count),
+              "occ": arm_occ}
+    if arm_occ != 1:
+        print(f"[arm]   {args.anchor} occurrence = {arm_occ} "
+              f"({'explicit --arm-occ' if args.arm_occ else 'auto from trace {wait} count'}) "
+              f"— retail will arm at firing #{arm_occ}")
     # --state: a STATE-ONLY call-trace (the 4 once-per-frame VAs, not the heavy
     # call-graph) → run_dir/call_trace.jsonl, cached + identity-keyed for the panel.
     state_kw: dict = {}
