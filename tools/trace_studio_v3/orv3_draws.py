@@ -494,6 +494,10 @@ def main() -> int:
     ap.add_argument("retail_container", type=Path, nargs="?")
     ap.add_argument("retail_frame", type=int, nargs="?")
     ap.add_argument("--list", action="store_true", help="print every draw, not just the diff")
+    ap.add_argument("--material", action="store_true",
+                    help="print ONLY the batching-robust MATERIAL verdict (per-texture "
+                         "triangle totals) — benign split/batch reads BATCHING, so only a "
+                         "REAL render-program change shows; skips the swamped per-draw diff")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -514,14 +518,37 @@ def main() -> int:
     rdraws = enumerate_draws(rc, rframe)
     deltas = diff_draw_lists(pdraws, rdraws)
     summary = summarize_delta(pdraws, rdraws, deltas)
+    md = material_diff(pdraws, rdraws)
     if args.json:
-        print(json.dumps(summary, indent=1))
+        print(json.dumps({"summary": summary, "material": md}, indent=1))
         return 0
+
+    # MATERIAL verdict first — the batching-robust answer (per-texture triangle
+    # totals). A benign split/batch (retail issues finer draws for the SAME geometry,
+    # e.g. the HOUSE 3D scene) reads BATCHING; only a genuine render-program change
+    # (a one-sided texture, or a shared texture whose triangle total differs) reads
+    # DIVERGENT. The raw per-draw alignment below is swamped by benign batching, so
+    # this line is the one that tells you whether there is a REAL divergence.
+    print(f"material verdict: {md['verdict']}  "
+          f"(port {md['port_draws']} draws/{md['port_tris']} tris, "
+          f"retail {md['retail_draws']} draws/{md['retail_tris']} tris; "
+          f"{md['n_textures']} textures, {md['n_batched']} batched, {len(md['divergent'])} divergent)")
+    if md["divergent"]:
+        print("  REAL divergences (per-texture triangle totals differ — chase these):")
+        for t in md["divergent"]:
+            side = ("retail-only" if t["port_tris"] == 0 else
+                    "port-only" if t["retail_tris"] == 0 else "tris-differ")
+            print(f"    tex …{t['tex'][-4:]}  port {t['port_tris']}tris/{t['port_draws']}draws  "
+                  f"retail {t['retail_tris']}tris/{t['retail_draws']}draws  [{side}]")
+    if args.material:
+        return 0
+    print()
+
     print(f"port frame {args.port_frame}: {len(pdraws)} draws   "
           f"retail frame {rframe}: {len(rdraws)} draws")
     print(f"matched {summary['matched']}  port-only {len(summary['port_only'])}  "
           f"retail-only {len(summary['retail_only'])}  "
-          f"{'ALIGNED' if summary['aligned'] else 'DIVERGENT'}")
+          f"{'ALIGNED' if summary['aligned'] else 'DIVERGENT'} (per-draw; see material verdict above)")
     for dl in deltas:
         if dl.tag == "equal":
             print(f"  = {len(dl.port):3d} matched draws (port {dl.port[0]}..{dl.port[-1]})")
