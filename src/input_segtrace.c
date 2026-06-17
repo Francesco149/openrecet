@@ -248,7 +248,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
-        int      got_tutloadpin = 0;
+        int      got_tutloadpin = 0, got_wait_timeout = 0;
+        uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
         uint32_t cr_start = 0, cr_count = 0;
@@ -281,6 +282,11 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             } else if (klen == 4 && memcmp(ks, "wait", 4) == 0) {
                 if (!parse_string(&p, end, waitname, sizeof waitname)) return 0;
                 got_wait = 1;
+            } else if (klen == 7 && memcmp(ks, "timeout", 7) == 0) {
+                /* {wait:NAME, timeout:N} — skip the wait after N frames if the
+                 * anchor never fires (cross-target load-structure bridge). */
+                if (!parse_number(&p, end, &wait_timeout_val)) return 0;
+                got_wait_timeout = 1;
             } else if (klen == 7 && memcmp(ks, "capture", 7) == 0) {
                 if (!parse_number(&p, end, &capture)) return 0;
                 got_capture = 1;
@@ -409,6 +415,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (cur->has_wait) return 0;            /* two waits, no entries? */
             memcpy(cur->wait, waitname, sizeof cur->wait);
             cur->has_wait = 1;
+            cur->wait_timeout = got_wait_timeout ? wait_timeout_val : 0;
             cur = push_segment(out);
             if (!cur) return 0;
         } else if (got_capture) {
@@ -745,6 +752,26 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 st->base = af; st->base_arm = af; st->cur_entry = 0;
                 strncpy(st->base_anchor, s->wait, sizeof st->base_anchor - 1);
                 st->base_anchor[sizeof st->base_anchor - 1] = '\0';
+                rearm_setrngs(st, st->cur_seg);
+                rearm_escs(st, st->cur_seg);
+                rearm_gframes(st, st->cur_seg);
+                rearm_phasepins(st, st->cur_seg);
+                rearm_memsnaps(st, st->cur_seg);
+                schedule_captures(st, st->cur_seg, capture_cb, user);
+                schedule_calltraces(st, st->cur_seg);
+                schedule_capranges(st, st->cur_seg);
+                continue;  /* re-evaluate the next segment this same frame */
+            }
+            /* Cross-target optional wait: the anchor hasn't fired within
+             * wait_timeout frames of entering this segment (base_arm = the last
+             * resolved anchor's frame).  Skip it WITHOUT adopting a new base, so
+             * the next segment's frames/caprange stay relative to the last
+             * RESOLVED anchor.  Bridges the port collapsing a retail load-cycle
+             * burst into fewer loads (the load-cycle waits the port never fires).
+             * base_arm <= frame always (set on resolve), so no unsigned wrap. */
+            if (s->wait_timeout > 0 && frame - st->base_arm >= s->wait_timeout) {
+                st->cur_seg++;
+                st->cur_entry = 0;
                 rearm_setrngs(st, st->cur_seg);
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);

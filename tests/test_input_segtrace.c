@@ -512,3 +512,57 @@ int test_segtrace_memsnap_parses_and_fires_resolved(void)
     input_segtrace_free(&st);
     return 0;
 }
+
+int test_segtrace_wait_timeout_skips_without_rebasing(void)
+{
+    /* A {wait,timeout} whose anchor never fires is SKIPPED after `timeout`
+     * frames WITHOUT adopting a new base — the next segment stays relative to
+     * the last RESOLVED anchor.  This is the cross-target load-burst bridge:
+     * a retail recording carries load-cycle waits the PORT collapses into one
+     * load; the port skips the ones it never fires and still lands its inputs
+     * on the post-load free-roam.  seg0 resolves on LOADING_END@500; seg1 +
+     * seg2 wait on anchors that never fire (timeout 60) → skipped, base kept at
+     * 500; seg3's LEFT lands at base+10 = 510. */
+    const char buf[] =
+        "{\"wait\":\"LOADING_END\"}\n"                       /* seg0 → resolves @500 */
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"wait\":\"LOADING_START\",\"timeout\":60}\n"      /* seg1: never fires → skip */
+        "{\"frame\":0,\"buttons\":\"0x0001\"}\n"             /* (skipped — load-cycle input) */
+        "{\"wait\":\"LOADING_END\",\"timeout\":60}\n"        /* seg2: same anchor, not > base → skip */
+        "{\"frame\":10,\"buttons\":\"0x0002\"}\n";           /* seg3: LEFT at base+10 */
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 4);
+    T_ASSERT_EQ_U(st.segs[1].wait_timeout, 60);   /* parsed onto the right segment */
+    T_ASSERT_EQ_U(st.segs[2].wait_timeout, 60);
+    T_ASSERT_EQ_U(st.segs[0].wait_timeout, 0);    /* no-timeout default preserved */
+    /* LOADING_END @500 resolves seg0 → base = 500; seg1 frame 0 = 0x0000 */
+    input_segtrace_on_anchor(&st, "LOADING_END", 500);
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 500, NULL, NULL), 0x0000);
+    /* parked on seg1's LOADING_START wait; not yet timed out (559-500 = 59 < 60) */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 559, NULL, NULL), 0x0000);
+    /* @560 (= 500+60) seg1 times out → skip (base kept 500); same frame seg2's
+     * LOADING_END can't resolve (no firing > base_arm 500) → also times out →
+     * seg3 active, base STILL 500, LEFT at base+10 = 510 (already passed). */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 560, NULL, NULL), 0x0002);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_wait_timeout_anchor_still_resolves_first(void)
+{
+    /* A {wait,timeout} whose anchor DOES fire before the timeout resolves
+     * normally (adopts the new base) — retail, which reproduces every load,
+     * never hits the timeout. */
+    const char buf[] =
+        "{\"wait\":\"LOADING_START\",\"timeout\":60}\n"
+        "{\"frame\":3,\"buttons\":\"0x0004\"}\n";           /* UP at base+3 */
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    /* anchor fires @40 (< 60-frame timeout from entry @0) → base = 40 */
+    input_segtrace_on_anchor(&st, "LOADING_START", 40);
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 40, NULL, NULL), 0x0000);
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 43, NULL, NULL), 0x0004); /* UP at base+3 = 43 */
+    input_segtrace_free(&st);
+    return 0;
+}

@@ -204,6 +204,18 @@ struct seg_segment {
     size_t            n_memsnaps, cap_memsnaps;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
+    /* Optional {wait} timeout (frames since the segment was entered). 0 = wait
+     * forever (default).  When >0 and the anchor has not fired within this many
+     * frames, the segtrace SKIPS the wait and advances WITHOUT adopting a new
+     * base — so the next segment's frames/caprange stay relative to the last
+     * RESOLVED anchor.  This bridges a CROSS-TARGET load-structure mismatch: a
+     * recording captured on retail can carry load-cycle anchors (LOADING_START/
+     * END burst) that the PORT collapses into fewer loads (the "port loads
+     * faster" phase pillar); the port skips the load-cycle waits it never
+     * reproduces and still lands the tutorial inputs on the post-load free-roam.
+     * Port-only: the Frida retail agent ignores the field and follows every
+     * anchor (it DOES reproduce all the loads), so the same trace drives both. */
+    uint32_t          wait_timeout;
 };
 
 #define SEGTRACE_MAX_FIRED 24       /* distinct anchor names we can track */

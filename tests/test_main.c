@@ -422,6 +422,8 @@ struct test_case {
     X(segtrace_no_wait_is_absolute) \
     X(segtrace_wait_rebases_on_anchor) \
     X(segtrace_double_anchor_resolves_successively) \
+    X(segtrace_wait_timeout_skips_without_rebasing) \
+    X(segtrace_wait_timeout_anchor_still_resolves_first) \
     X(segtrace_spam_until_anchor_short_circuits) \
     X(segtrace_capture_scheduled_at_base_plus_n) \
     X(segtrace_calltrace_resolves_to_windows) \

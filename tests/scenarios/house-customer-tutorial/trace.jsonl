@@ -19,17 +19,17 @@
 {"frame": 66, "buttons": "0x0002"}
 {"frame": 75, "buttons": "0x0000"}
 {"frame": 156, "buttons": "0x0010"}
-{"wait": "LOADING_START"}
+{"wait": "LOADING_START", "timeout": 60}
 {"rngseed": [0, 608851275]}
 {"frame": 0, "buttons": "0x0010"}
-{"wait": "LOADING_END"}
+{"wait": "LOADING_END", "timeout": 60}
 {"rngseed": [0, 110612738]}
 {"frame": 0, "buttons": "0x0010"}
 {"frame": 1, "buttons": "0x0000"}
-{"wait": "LOADING_START"}
+{"wait": "LOADING_START", "timeout": 60}
 {"rngseed": [0, 4205791973]}
 {"frame": 0, "buttons": "0x0000"}
-{"wait": "LOADING_END"}
+{"wait": "LOADING_END", "timeout": 60}
 {"rngseed": [0, 944461261]}
 {"caprange": [2000, 1200]}
 {"calltrace": [2000, 1200]}
