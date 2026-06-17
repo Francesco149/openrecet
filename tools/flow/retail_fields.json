@@ -183,6 +183,97 @@
           "_note": "DAT_0438bea4 \u2014 selected furniture index for display-management mode 2; FUN_0048940e(bea4,dir) loads/saves that furniture's item grid \u2194 scratch."
         },
         {
+          "name": "b1e0",
+          "src": "global",
+          "va": "0x438b1e0",
+          "type": "i32",
+          "_note": "DAT_0438b1e0 \u2014 active save-slot index (the per-slot save-bank stride is *0x2dfc8). Lets the probe resolve slot-relative flags (f406/f404) off-line."
+        },
+        {
+          "name": "b534",
+          "src": "global",
+          "va": "0x730b534",
+          "type": "i32",
+          "_note": "DAT_0730b534 \u2014 the customer-service SELL sub-state (cc08==4): 1 greeting, 2 sell-greeting, 3 item-select, 4 price-setup, 5 first-offer, 6 reaction, 0xf HAGGLE DECISION, 7 accept, 8/0x28 pushback, 9 reject, 0x10/0x11 counter, 0x12 leave, 10/0xb/0xc/0xd closing, 0x14/0x15 queue-advance, 0x1e sold-pause. Owned by FUN_00462403/FUN_00463cfb."
+        },
+        {
+          "name": "b5a8",
+          "src": "global",
+          "va": "0x730b5a8",
+          "type": "i32",
+          "_note": "DAT_0730b5a8 \u2014 transaction-type selector dispatched at FUN_00462403:60563 (4=SELL/haggle FUN_00463cfb, 1=buy, 0/2/5 other kinds, 3=chat). -1 at session init."
+        },
+        {
+          "name": "b56c",
+          "src": "global",
+          "va": "0x730b56c",
+          "type": "i32",
+          "_note": "DAT_0730b56c \u2014 active customer kyaku-record index (record = &DAT_06a5ea90 + idx*0x2c670). Tutorial forces 0xd (kyaku 13 'Woman')."
+        },
+        {
+          "name": "b574",
+          "src": "global",
+          "va": "0x730b574",
+          "type": "i32",
+          "_note": "DAT_0730b574 \u2014 the customer's current OFFERED price (haggle math output)."
+        },
+        {
+          "name": "b584",
+          "src": "global",
+          "va": "0x730b584",
+          "type": "i32",
+          "_note": "DAT_0730b584 \u2014 haggle round counter (0 = first offer, ++ per round)."
+        },
+        {
+          "name": "b590",
+          "src": "global",
+          "va": "0x730b590",
+          "type": "i32",
+          "_note": "DAT_0730b590 \u2014 patience (0..0xf; 0xf forces a decision in FUN_004622d9)."
+        },
+        {
+          "name": "ask",
+          "src": "global",
+          "va": "0x5c6bb8",
+          "type": "i32",
+          "_note": "DAT_005c6bb8 \u2014 player's asking price (the input/accumulated number shown in the BARGAIN!! panel)."
+        },
+        {
+          "name": "base",
+          "src": "global",
+          "va": "0x5c6bc0",
+          "type": "i32",
+          "_note": "DAT_005c6bc0 \u2014 base/reference price (sum of item DB base prices)."
+        },
+        {
+          "name": "b520",
+          "src": "global",
+          "va": "0x730b520",
+          "type": "i32",
+          "_note": "DAT_0730b520 \u2014 leave/dissolve phase (0 active, 1 leaving, 2 dissolving \u2192 FUN_004526f5 tile fade)."
+        },
+        {
+          "name": "b5a0",
+          "src": "global",
+          "va": "0x730b5a0",
+          "type": "i32",
+          "_note": "DAT_0730b5a0 \u2014 customer arrival-anim counter (0..0x3c; the enter slide + the '!' bubble emit)."
+        },
+        {
+          "name": "b524",
+          "src": "global",
+          "va": "0x730b524",
+          "type": "i32",
+          "_note": "DAT_0730b524 \u2014 the b534==0 idle-state frame counter (++ each idle frame; gates the story-event probe at ==0x32)."
+        },
+        {
+          "name": "b544",
+          "src": "global",
+          "va": "0x730b544",
+          "type": "i32",
+          "_note": "DAT_0730b544 \u2014 per-state sub-frame timer (==1 = first frame of a b534 state; resets on every transition)."
+        },
+        {
           "name": "cbfc",
           "src": "global",
           "va": "0x438cbfc",

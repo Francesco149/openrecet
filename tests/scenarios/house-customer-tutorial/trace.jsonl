@@ -31,8 +31,8 @@
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "LOADING_END", "timeout": 60}
 {"rngseed": [0, 944461261]}
-{"caprange": [2000, 1200]}
-{"calltrace": [2000, 1200]}
+{"caprange": [0, 2700]}
+{"calltrace": [0, 2700]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 164, "buttons": "0x0020"}
 {"frame": 1794, "buttons": "0x0000"}

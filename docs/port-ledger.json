@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 446,
-  "unported": 2018,
+  "ported": 448,
+  "unported": 2016,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 530,
-  "pct_touched": 20.8,
+  "touched": 532,
+  "pct_touched": 20.9,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -4888,6 +4888,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.h",
     "src/npc_schedule.h"
    ]
   },
@@ -5160,8 +5161,10 @@
    "size": 5618,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.h"
+   ]
   },
   {
    "va": "0x4639f5",
@@ -5178,8 +5181,10 @@
    "size": 3371,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.h"
+   ]
   },
   {
    "va": "0x464a26",
@@ -8490,6 +8495,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.h",
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",

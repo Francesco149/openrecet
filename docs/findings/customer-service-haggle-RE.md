@@ -113,6 +113,52 @@ Transaction dispatch by **`DAT_0730b5a8`** (60563):
 `FUN_004622d9` (all.c:60044) player input poll: patience++ ; Z→1(commit if patience spent),
 X→2(cancel), up/down→toggle `DAT_0730b540` + cursor; patience≥0xf forces 1.
 
+## 3.5 ⚠ CORRECTION (2026-06-17, EMPIRICAL): the tutorial sell uses **kind-2 `FUN_004658ab`**, NOT kind-4 `FUN_00463cfb`
+
+The §3 table maps `b5a8==4 → SELL FUN_00463cfb`, and §3 explicitly never deep-read kinds
+0/2/5. **The captured retail state proves the customer-service tutorial runs under `b5a8==2`
+(→ `FUN_004658ab`)** the whole time — `FUN_00463cfb` (kind 4) is never reached in the
+tutorial (it is the *player-initiated* sell with the item-select sub-menu, a later/different
+flow). The haggle MATH is shared (both call `FUN_00460161`/`00460672`), so §4 is unaffected;
+the STATE-MACHINE wrapper to port for the tutorial is **`FUN_004658ab`** (all.c:62461), which
+is SIMPLER than `FUN_00463cfb`:
+
+- **No item-select / price-setup states** (2/3/4 of the kind-4 machine). The customer already
+  wants a specific displayed item; the player only names a price. States: 2 greeting → 6
+  reaction → 0xf decision → 7 accept / 8 pushback / 9 reject (+ the leave/closing 0xb/10 in
+  the master tick).
+- **Decision (state 0xf, all.c:62600):** `FUN_004622d9()` poll (1 commit / 2 cancel→6 / 0
+  cont). On commit: if **`b574(offer) < b8(ask)`** → (`ask < b580(floor)` OR tutorial `f406` →
+  state 8 pushback) else state 9 reject (−stock); else (offer ≥ ask) → if `base·0.8 < ask` OR
+  not-`f404` → `FUN_00460672()` (its 1/2/0 result only tunes the kyaku like-count +5/+2/+1, the
+  accept is already decided by offer≥ask) + `FUN_00460e50()`→b53c → **state 7 ACCEPT**; else
+  state 8. **`FUN_004658ab` does NOT call `FUN_0045ecc0` (budget ceiling) — that gate is kind-4
+  only.**
+- **Math wiring:** state 2→6 `FUN_00460161()`(offer-up) + `FUN_0045ff11()`(digit count); state
+  6 holds `FUN_0045ff31()`(digit edit, U/D/L/R on the price) while Z is up, Z → state 0xf; state
+  8→6 `FUN_00460161()` again (offer rises each round).
+- **Details overlay** (prologue, `FUN_004681e6()!=0`): Button-3 opens the item-detail card
+  (`FUN_004681db`/`FUN_00468286`, SE 0x2c6) — same as the buy flow's pressed&0x40 overlay.
+
+**Empirical timeline** (cache `house-customer-tutorial-34f44b18/retail`, **offset 0:2700, 2700
+frames BIT-EXACT**; probe = the extended `retail_fields.json` 0x48670f, +b534/b5a8/b56c/b574/
+b584/b590/ask/base/b520/b5a0/b524/b544/b1e0):
+
+| offset | event |
+|---|---|
+| 0 | cc08 **already 4** (entered during the load — master tick gated on `DAT_0438b1cc==2`), b534=0, **b5a8=2**, **b56c=1**, ask=base=1000, b524 already counting (61) |
+| 90 | b534 0→**1** (greeting); ask=base=3000 |
+| 969 | b5a0 ramps 1→60 (customer **arrival** slide); ask=base=1200 |
+| 2345 | ask→1300 (player named a price) |
+| 2440 | **b574=1536, b584=1** — the FIRST customer offer (round 1), the BARGAIN!! panel (raw 2920) |
+
+**`b56c==1` but the on-screen customer is kyaku 13 ("Woman", silver hair — visually confirmed).**
+So `b56c` is NOT the kyaku id directly — it indexes the queue/active-record slot; the entry's
+`queue[0].kyaku=0xd` is reached through that indirection (the arrival/queue-advance logic at
+all.c~59100-59720 sets `b5a8=2` + `b534` — the kind/greeting trigger, still to deep-read for
+the master-tick chip). The haggle math binds the customer tuning fields from **kyaku 13's
+record** regardless of the index.
+
 ## 4. Haggle math — ✅ PORTED `src/customer_haggle.{c,h}` (DISASM-EXACT, +9 host tests)
 
 **The Ghidra decompile is WRONG here — it dropped the x87 stack AND mis-rendered the
