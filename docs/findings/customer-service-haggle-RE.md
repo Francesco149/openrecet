@@ -113,38 +113,57 @@ Transaction dispatch by **`DAT_0730b5a8`** (60563):
 `FUN_004622d9` (all.c:60044) player input poll: patience++ ; Z→1(commit if patience spent),
 X→2(cancel), up/down→toggle `DAT_0730b540` + cursor; patience≥0xf forces 1.
 
-## 4. Haggle math (EXACT — FP consts from `.rdata`; Ghidra dropped x87 → read from disasm)
+## 4. Haggle math — ✅ PORTED `src/customer_haggle.{c,h}` (DISASM-EXACT, +9 host tests)
 
-Floats: `0.5 0x51935c, 2.0 0x519314, 0.1 0x5193a0, 0.35 0x519bc4, 0.45 0x519b58, 100.0 0x519368,
-1.0 0x519364, 1.5 0x5198e0, 0.2 0x5198d8, 65.0 0x519cd8, 0.65 0x519df0, 5.0 0x51953c`;
-`FUN_00460672`: `1.005 0x519e08, 0.995 0x519e00, 1.05 0x5198ac, 0.95 0x519df8`.
+**The Ghidra decompile is WRONG here — it dropped the x87 stack AND mis-rendered the
+rng-driven values as deterministic.** Transcribed from the unpacked disasm; every const
+decoded from `.rdata`; the LCG-draw ORDER is replicated (load-bearing for RNG parity).
+`u` below = `rng_next_unit()` = `FUN_00471089` = `(rng_next15()&0x7fff)/32768.0` (0..1);
+`rng` = `rng_next15()` = `FUN_005041f6`. ftol = x87 truncate-toward-zero.
 
-**`FUN_00460161`** (offer UP, all.c:58422). `P = DAT_0730b57c` (init = base `bc0`).
-`t = FUN_004361b2(DAT_0730b5a4)` = item price-trend level (**unported PORT-DEBT daily-market
-classifier — default t=0 makes the tilt a no-op**). `trendf = (float)t`. Trend-tilt:
-- t≥1: `P = ftol(P·(0.5·trendf + 2.0))`
-- t≤−2: `P = ftol(P·(0.1·trendf + 0.35))`
-- t==−1: `P = ftol(P·(0.1·trendf + 0.45))`  (t==0 unchanged)
+Float consts (all verified): `0.5=0x51935c 2.0=0x519314 0.1=0x5193a0 0.35=0x519bc4
+0.45=0x519b58 1.0=0x519364 100.0=0x519368 0.0=0x519320 1.5=0x5198e0 0.2=0x5198d8 65.0=0x519cd8
+0.65=0x519df0 0.03=0x519900 0.05=0x5198f8 5.0=0x51953c 32768.0=0x519ef8`;
+`FUN_00460672`: `1.005f=0x519e08 0.995d=0x519e00 1.05f=0x5198ac 0.95d=0x519df8` (×1.005/×1.05 are
+FLOAT/DWORD, ×0.995/×0.95 are DOUBLE/QWORD).
 
-Round 0 (`b584==0`): `b580(floor) = ftol(P·(trendf·0.1+1.0))`;
-`init=(float)record[+0x51c8]`; if `record[+0x51cc](random)>0`: `init += (rng%(2·random+1)) − random`;
-**`b574(offer) = ftol(P·init/100.0)`**; `b588 = ftol(P·(trendf·0.1+1.0))`.
+**`FUN_00460161` offer UP** — `P=b57c` (seeded = base `bc0`). `t=FUN_004361b2(b5a4)` price-trend
+(**PORT-DEBT — default 0 ⇒ no tilt, no rng draw**). The tilt is **RNG-DRIVEN** (the RE first-pass
+missed this), the trend only picks the branch:
+- t≥1:  `b57c = ftol((u·0.5 + 2.0)·b57c)`  ← draws 1 u
+- t≤−2: `b57c = ftol((u·0.1 + 0.35)·b57c)` ← draws 1 u
+- t==−1:`b57c = ftol((u·0.1 + 0.45)·b57c)` ← draws 1 u   (t==0: unchanged, NO draw)
 
-Round ≥1 (`b584!=0`): `rate = (round==2 ? rise1(+0x51c0) : rise2(+0x51c4))`; `b574 += ftol(P·rate/100)`.
-Gullibility (騙): `g=record[+0x51bc]`; if `g>2`: `h=g/2; g_eff=(rng%h)+h` else `g_eff=g`;
-`step = ftol(((bb8 − b574)·g_eff)/100)`; clamp `step ≤ bc0·0.5`; if `step>0`: `b574 += step`.
-If tutorial (`DAT_0450f406`): `b574 = ftol(P·1.5)`. `b584++`.
+Round 0 (`b584==0`), draws in ORDER:
+- `b580 (floor) = ftol((u + 2.0)·b57c)`                       ← **rng**, NOT 1.0+0.1·trend
+- `init_eff = initial(+0x51c8)`; if `random(+0x51cc)>0`: `init_eff += (rng%(2·random+1)) − random`
+- `b574 (offer) = ftol(b57c · init_eff / 100.0)`
+- `b588 (accept_ref) = ftol((u·0.1 + 1.0)·b57c)`             ← **rng**, NOT deterministic
+- `b584++`
 
-**`FUN_004603cf`** (counter DOWN, all.c:58487): mirror; round-0 uses 65.0/0.65; rounds SUBTRACT
-rise1/rise2 + gullibility; if `DAT_0730b56c==0x12` ask `bb8` & base pre-scaled ×5.0.
+Round ≥1 (`b584!=0`): `rate=(round==2 ? rise1(+0x51c0) : rise2(+0x51c4))`; `b574 += ftol(rate·b57c/100)`;
+gullibility `g=+0x51bc`: if `g>2` `h=g/2; g_eff=(rng%h)+h` (1 rng) else `g_eff=g`;
+`step = ((bb8 − b574)·g_eff)/100`; clamp `step ≤ base·0.5`; if `step>0`: `b574 += ftol(step)`;
+if tutorial (`f406[slot]`): `b574 = ftol(b57c·1.5)` (LAST, overwrites); `b584++`.
 
-**Accept/reject `FUN_00460672`** (all.c:58549): `m=DAT_0730b588`; `lo1=ftol(m·1.005)`,
-`hi1=ftol(m·0.995)`, `lo2=ftol(m·1.05)`, `hi2=ftol(m·0.95)`; if `m<110` then `hi1:=lo1`.
-With `ask=bb8`: `ask∈[lo1,hi1]`→**1 ACCEPT**; else `ask∈[lo2,hi2]`→**2 COUNTER**; else→**0 REJECT**.
+**`FUN_004603cf` offer DOWN** — same tilt. Round 0: if `b56c==0x12` `b57c=ftol(b57c·5.0)`,
+`bb8=ftol(bb8·5.0)`; `b580 = ftol((u·0.1 + 0.2)·b57c)`; same `init_eff`;
+`b574 = ftol(b57c·(65.0 − (init_eff − 100.0))/100)` = `·(165 − init_eff)/100` (seeds LOW);
+`b588 = ftol((u·0.1 + 0.65)·b57c)`. Round ≥1: `b574 −= ftol((u·0.03 + 0.05)·base)` (an EXTRA random
+decrement, **draws 1 u** — distinct from UP); `b574 −= ftol(rate·b57c/100)`; gullibility step, and
+`if step<0: b574 += ftol(step)` (NO clamp, no tutorial override).
 
-**Budget `FUN_0045ecc0(idx,slot)`** (all.c:57284, pure int): `v = clamp(market_price[slot]/10, max 10)`;
-`ceiling = budget_low + (budget_high − budget_low)·v/10`. In 0xf, ask rejected (→0x28) if
-`ask > ceiling·N·1.2` (61737).
+**Accept/reject `FUN_00460672`** — `m=b588`: `iVar1=ftol(m·1.005f)`, `iVar2=ftol(m·0.995d)`,
+`iVar3=ftol(m·1.05f)`, `iVar4=ftol(m·0.95d)`; if `m<110` then `iVar2:=iVar1`. With `ask=bb8`:
+`iVar2 ≤ ask ≤ iVar1`→**1 ACCEPT**; else `iVar4 ≤ ask ≤ iVar3`→**2 COUNTER**; else→**0 REJECT**.
+(1.005f/1.05f round DOWN ⇒ the upper edges are ftol(m·1.005)−1 e.g. 1607/1679 for m=1600.)
+
+**Budget `FUN_0045ecc0(idx,slot)`** (pure int): `v = clamp(market_price/10, max 10)`;
+`ceiling = budget_low + (budget_high − budget_low)·v/10`. market_price = the int16 at save-bank
+dword **0xb484 + slot** (`DAT_045109a8`). In state 0xf, ask rejected (→0x28) if `ask > ceiling·N·1.2`.
+
+**NOT yet wired** into the (unported) cc08==4 state machine — exact-edge FP is x87(port)≡x87(retail)
+by construction; a Frida pure-function-diff is the recommended belt-and-suspenders follow-up.
 
 ## 5. Tutorial scripting (iv cutscenes bracket the live haggle)
 
@@ -188,6 +207,22 @@ item-select sub-menu reuses `item_win.tga`/`data_win.tga` via `FUN_0046b00a` (po
 
 ## 7. Port status & plan
 
+**Landed 2026-06-17:** the harness ({wait,timeout} cross-target load-burst bridge, `47cdd8c` —
+the port now drives the retail recording + v3-joins, occurrence-aware) + the **haggle math**
+(`src/customer_haggle.{c,h}`, `d0ac215` — budget/accept-reject/offer up+down, disasm-exact, +9 host
+tests, NOT yet wired). **Remaining (the next-session queue, all ✗):**
+1. **Entry** — cc08 1→4. The tutorial haggle AUTO-STARTS (shows ~440f before the recorded Z, so it's
+   an auto-arrival site, the `f406` forced sale — NOT the Z-press path). Port the `f406` branch of
+   `FUN_0045edaa` (forces kyaku 13) + the cc08=4 set in `FUN_0048670f` + the session-state scaffolding.
+2. **Master tick** `FUN_00462403` (arrival anim, bubble pos, patience, the b534 switch) + **sell
+   machine** `FUN_00463cfb` (greeting→item-select→price-setup→offer→decision→accept/leave), wiring the
+   §4 math at states 5/6/0xf.
+3. **Render** `FUN_0046602e` (shopmode.tga panel + portrait) + `FUN_00466b7b` (BARGAIN!! banner, base
+   price, name-a-price, offer buttons, cursor) — verify via v3 content-match vs the cached retail
+   haggle frame (the join is PARTIAL 440/1200 by the load-seam; content-match specific game states).
+4. **Tutorial dialogue** (Tear's `FUN_00460a1a` lines overlaid on the haggle).
+
+Original census (pre-port):
 Entire subsystem ✗ (only `npc_schedule.h:64` comment-ref; ledger ✓ for FUN_0045edaa is stale).
 Reusable: `tables_kyaku` (haggle fields loaded; suspicion proven unused), `tables_buysell`
 (g_buysell override the forced path reads), `scene_buy.{c,h}` (shopmode/chrname/icon loaders, dormant),

@@ -7,6 +7,41 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-17 night — CUSTOMER-SERVICE / HAGGLE tutorial: harness unblock + haggle math (autonomous)
+
+Started the SHOP CUSTOMER-SERVICE / price-haggle tutorial arc from the user recording
+`rec-20260617-051426` (LOAD cad868 — a save with the display items already set up to fire the 2
+display-tutorial dialogues that unlock haggling → walk to the sell counter → the customer-service
+tutorial that alternates Tear's dialogue with the BARGAIN!! price-haggle UI → first real customer).
+
+- **RE map** (`docs/findings/customer-service-haggle-RE.md`, `e35a3fe`): the entire cc08==4
+  subsystem is unported. Entry (`FUN_0048670f` bVar3 + `FUN_0045edaa` → cc08=4), master tick
+  `FUN_00462403`, sell machine `FUN_00463cfb`, the haggle math, the `FUN_0046602e`/`00466b7b`
+  render, the iv1_7/iv1_8 cutscene gates. Scenario `house-customer-tutorial`; retail captured
+  BIT-EXACT, the BARGAIN!! haggle (base price 1600, name-a-price, Tear's "...the base price serves
+  as your default") confirmed as the target.
+- **HARNESS UNBLOCK — `{wait,timeout}` (`47cdd8c`):** the recording is a retail playthrough and the
+  port collapses retail's 3-load prologue into 1 (the accepted "port loads faster" phase pillar), so
+  the port's segtrace stalled forever on a `{wait LOADING_START}` for a load it never reproduces →
+  **0 frames captured**. Added an optional `{wait:NAME, timeout:N}`: skip the wait after N frames
+  WITHOUT adopting a new base (next segment stays relative to the last RESOLVED anchor). Port-only —
+  the Frida retail agent ignores it and follows every anchor, so the SAME trace drives both and the
+  time-scale mismatch never bites. Port now drives the full caprange **1200/1200 BIT-EXACT** and the
+  v3 join is occurrence-aware (**port HOUSE_FREEROAM#1 ≡ retail #3**, +2736 load-stretch; 440/1200
+  paired, the rest honest load-seam gaps). +2 host tests. **This unblocks the whole arc.**
+- **HAGGLE MATH (`d0ac215`)** — `src/customer_haggle.{c,h}`: budget (`FUN_0045ecc0`), accept/reject
+  (`FUN_00460672`), offer up (`FUN_00460161`) + down (`FUN_004603cf`), **transcribed 1:1 from the
+  unpacked DISASM** — the Ghidra decompile (and the first-pass RE) were WRONG: the floor `b580` and
+  accept-ref `b588` are **rng-driven** (`(u+2.0)·P`, `(u·0.1+1.0)·P`), not deterministic, and the
+  trend tilt is `(u·0.5+2.0)·P` etc. Every FP const decoded from `.rdata`; the LCG-draw ORDER is
+  replicated (load-bearing for RNG parity). +9 host tests (3323 pass) on kyaku 13 (the tutorial
+  customer: init 120/random 3/gull 20/rise 10/budget 3000-300000) + base 1600. Tested building block,
+  **NOT yet wired** into the (unported) state machine; x87(port)≡x87(retail) by construction, a Frida
+  pure-function-diff is the recommended follow-up. RE §4 corrected with the disasm-accurate formulas.
+- **NEXT (next session, with the user for the visual 1:1 check):** entry (cc08 1→4, the f406
+  forced-sale auto-arrival) → master tick + sell machine (wire the §4 math) → render (BARGAIN!! panel,
+  verify via v3 content-match) → Tear's tutorial dialogue. Plan: `customer-service-haggle-RE.md` §7.
+
 ## 2026-06-17 PM — INTRO v3 parity VERIFIED 1:1 + `orv3_draws --material` + stale gaps closed
 
 Closing pass over the opening prologue (user reframe: "not whether visuals are missing — whether

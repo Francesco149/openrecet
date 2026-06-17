@@ -36,6 +36,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-
   byte-exact CLOSED, x87 invariant, T1–T12 tooling roadmap, milestone-ladder KPI).
   Read it before re-litigating strategy or building new parity tooling.
+- **ACTIVE ARC → SHOP CUSTOMER-SERVICE / price-haggle tutorial** (the cc08==4 selling mode),
+  scenario **`house-customer-tutorial`** (user recording rec-20260617-051426: LOAD cad868 → walk to
+  the sell counter → the haggle tutorial that alternates Tear's dialogue with the BARGAIN!! price UI
+  → first real customer). Full RE: **`findings/customer-service-haggle-RE.md`**. **Entire cc08==4
+  subsystem is unported.** Landed 2026-06-17 night (autonomous): (1) the **`{wait,timeout}` harness
+  unblock** (`47cdd8c`) — the port collapses retail's 3-load prologue into 1, stalling the segtrace;
+  a port-only wait-timeout skips the load-cycle waits it never reproduces so the SAME trace drives
+  both (port now captures 1200/1200 BIT-EXACT, v3 join occurrence-aware port HF#1≡retail#3); (2) the
+  **haggle math** `src/customer_haggle.{c,h}` (`d0ac215`) — budget/accept-reject/offer up+down,
+  DISASM-exact (the decompile + first-pass RE had the rng-driven floor/accept-ref wrong), +9 host
+  tests, NOT yet wired. **NEXT (with the user for the visual check):** entry (cc08 1→4, the f406
+  forced-sale auto-arrival) → master tick `FUN_00462403` + sell machine `FUN_00463cfb` (wire the math)
+  → render `FUN_0046602e`/`00466b7b` (BARGAIN!! panel, v3 content-match) → Tear's dialogue. Plan: RE §7.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:
