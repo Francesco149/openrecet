@@ -130,16 +130,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `{wait LOADING_END}` (occ2 = master-tick start, both sides) → inputs occ2-relative (+60). **Port:
   `b574=1536 b584=1` (round 1) @ occ2+2501, with greeting/op2(occ2+1030)/ask→1300(occ2+2406) on
   retail's EXACT offsets.**
-  **OPEN — retail offer is `1548`≠1536 (RNG-pillar gap from a LOAD-STRUCTURE divergence):** retail
-  spawns TWO d3e loads (occ2 @ entry, occ3 @ occ2+60), the port spawns ONE — the 2nd is
-  **`FUN_00452d3e()`@all.c:60999** (`b520==0 && b56c>0`, the queued-customer asset load) in the master
-  tick; the port ported only the `session_init` spawn (58250). occ3 sets `b1cc=2` (master tick inert
-  ~1-2f), so the port (no occ3) runs those frames ⇒ its haggle RNG is ~2f-shifted ⇒ the first-offer
-  tilt differs (port 1536 = the recording; retail-free-run 1548). A shared `{rngseed}` can't fix both
-  (forcing the occ3 value at occ2+60 gives the PORT 1560). **NEXT — Chip 2d: port `FUN_00452d3e@60999`**
-  (the 2nd d3e load + `b1cc=2` gate) so both sides pause for occ3 ⇒ offer 1536 on both; THEN the 5
-  `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait + `FUN_00466b7b` BARGAIN!! UI
-  + `FUN_00465db4` glyphs). Full diagnosis: `findings/customer-service-haggle-RE.md` §8.3.
+  **Chip 2d ✅ LANDED + VERIFIED (`99214a8`) — occ3 ported, but §8.3's occ3-hypothesis is REFUTED; the
+  offer (1536) is unchanged.** Ported `FUN_00452d3e(1)` at the master-tick queue-advance tail
+  (all.c:60998-61000; param **1** by disasm `0x463435 push 0x1`, the b13 thread proc). Re-drove the port
+  (bit-exact 2698/2698): the port **now emits `LOADING_START/END` occ3 @ frame 687-688** (occ2+61,
+  1-frame inert) — matching retail's occ3 @ 3060-3061 (occ2+59, 1-frame). The occ3 durations MATCH, yet
+  the port's offer stays `b574=1536` (retail fe530872 = 1548) ⇒ **occ3 was NOT the cause.**
+  **REAL BLOCKER — a per-frame RNG-RATE gap in cc08==4 (the trace is MISSING its `{phasepin}`).** What's
+  1:1: base=1200, ask=1300, b56c=1, b5a8=2, b534=1, AND the offer fires at the **IDENTICAL occ2-relative
+  offset (occ2+2501) on both** (proven via the `0x47be92` rng-probe + `0x48670f` state-probe joined on
+  occ2). But between occ2 and the offer **retail draws 25051 rng, the port only 13812** — offer
+  `1200·init_eff/100`, init_eff 129(retail)/128(port) = a 1-step phase diff downstream of an ~11000-draw
+  gap. Rate: retail `7`/frame baseline +`31`@8 (=10/f); port `1`/frame +`7`@4th +`25`@8 (=5.5/f). The
+  8-frame +24 spike MATCHES (sparkle); the gap is the BASELINE — the **6 bg-window-NPCs** (`scene1_bg_npc.c`)
+  at a different drift/respawn PHASE (NOT frozen — the port's rate is continuous across the cc08 1→4 seam).
+  **Root cause: NO `{phasepin}` in the trace** (policy violation); one re-seeds the bg-NPC warmup to 19937
+  on both sides ⇒ same spawn ⇒ same respawn cadence ⇒ aligned rng. **The 1536 is a VALID retail value**
+  (exactly matches the older `34f44b18` retail cache) ⇒ RNG/phase pillar; the haggle MATH is confirmed
+  correct. **NEXT:** (1) add `{phasepin N}`+`{rngseed [N,19937]}`+`{tutloadpin 8}` (template
+  `house-loaded-display-pinned`), re-drive both, re-measure; (2) if a residual remains, rng-drill the
+  cc08==4 window; (3) THEN the 5 `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait +
+  `FUN_00466b7b` BARGAIN!! UI + `FUN_00465db4` glyphs). Full diagnosis: `findings/customer-service-haggle-RE.md` §8.4.
   **v3 TOOLING ✅ FIXED 2026-06-18 (`ec6b494`): the port drive no longer dumps BMPs** — it was leaking
   ~8 GB/run of unused screenshots (MULTI keep-trigger piggybacked on `capture_backbuffer()`'s readback);
   `--capture-trigger-only` fires the GetBackBuffer keep-trigger but writes no BMP (v3 reconstructs from
