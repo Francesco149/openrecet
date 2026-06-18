@@ -145,15 +145,18 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   8-frame +24 spike MATCHES (sparkle). **NOT the bg-NPCs (hypothesis tested + REFUTED):** the port's rate
   is bursty AND continuous across the cc08 1→4 seam, AND retail's own HOUSE free-roam is ALSO bursty
   (`house-loaded-display-pinned`, cc08==1: 4.8/f `[7,1,1,19,…]`) = same shape as the port ⇒ the bg-NPC
-  rng MATCHES. Retail's SMOOTH `7`/frame is cc08==4-ONLY, **constant from off 0 (b534==0 idle, pre-greeting)**
-  ⇒ an idle/prologue customer-sim consumer the port stubs (suspects: the prologue "customer-spawn refresh"
-  = scene1_bg_npc "no customers", `FUN_00461068` cs-walk-setup, `FUN_0047019f` the skipped cc08==4 pump).
-  This is a **DRIFT (missing-consumer logic gap), NOT an accepted RNG pillar** — the COUNT differs (port
-  draws half), not just the seed origin; the 1536 matching `34f44b18` is phase coincidence (the haggle
-  FORMULA is right, init_eff's draw lands wrong). **NEXT:** (1) **rng-drill the cc08==4 idle window
-  (off 0–150, per-callsite `ret_va`)** to name the smooth-7/frame consumer; (2) **port it** so the per-frame
-  cc08==4 rng matches ⇒ the offer aligns; (3) add the missing `{phasepin}` (separate policy gap, does NOT
-  fix this); (4) THEN the 5 `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait +
+  rng MATCHES. Retail's SMOOTH `7`/frame is cc08==4-ONLY, **constant from off 0 (b534==0 idle, pre-greeting)**.
+  **CONSUMER IDENTIFIED (static, high-confidence): `FUN_0047019f`** — the cc08==4 on-screen-character pump
+  the port SKIPS (PORT-DEBT(cs-arrival-anim)). The cc08==4 arm calls it EVERY frame (all.c:87432) before the
+  master tick; it loops over the character array `DAT_073a6ea8` calling `FUN_0046fbee` (3 rng/char) per active
+  actor (player+companion+customer ≈ 7/frame). Ruled out: master-tick rng is conditional (haggle states,
+  ported); the prologue customer-spawn (`FUN_0046f914`) is gated `f404==0` (inert here); `FUN_00461068` fires
+  once at b524==0x14. This is a **DRIFT (missing-consumer logic gap), NOT an accepted RNG pillar** — the COUNT
+  differs (port draws half); the 1536 matching `34f44b18` is phase coincidence (the FORMULA is right,
+  init_eff's draw lands wrong). **NEXT — Chip 2e: port `FUN_0047019f`** (the `DAT_073a6ea8` character pump +
+  per-char `FUN_0046fbee` arrival-anim/rng; a SIZEABLE arc = the cc08==4 character sim) ⇒ closes the rng gap +
+  the offer aligns; (opt) rng-drill to confirm the count; the missing `{phasepin}` is a separate policy gap
+  (does NOT fix this); THEN the 5 `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait +
   `FUN_00466b7b` BARGAIN!! UI + `FUN_00465db4` glyphs). Full diagnosis: `findings/customer-service-haggle-RE.md` §8.4.
   **v3 TOOLING ✅ FIXED 2026-06-18 (`ec6b494`): the port drive no longer dumps BMPs** — it was leaking
   ~8 GB/run of unused screenshots (MULTI keep-trigger piggybacked on `capture_backbuffer()`'s readback);

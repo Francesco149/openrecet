@@ -588,15 +588,23 @@ keep drifting/respawning at the same cadence.  And **retail's HOUSE FREE-ROAM (c
 `[7,1,1,19,7,1,1,1,…]` = the SAME bursty bg-NPC shape as the port.  So the **bg-NPC drift/respawn rng
 MATCHES between port and retail**; the bursts are the shared, correct bg-NPC consumer.
 
-**ROOT CAUSE — retail runs an EXTRA, SMOOTH ~6–7 rng/frame consumer that is PRESENT ONLY during cc08==4
-and that the port STUBS.**  Retail's cc08==4 baseline is `7` EVERY frame (not bursty) — i.e. on top of
-(or in place of) the bursty bg-NPC stream there is a constant per-frame draw absent from both retail's
-own free-roam and the port.  It is **constant from the very first cc08==4 frame (off 0, b534==0 idle —
-BEFORE the greeting/arrival)**, so it is an IDLE/prologue consumer, not the haggle math.  Prime suspect:
-the **per-frame customer/queue simulation** the port tags PORT-DEBT — e.g. the prologue's *"periodic
-customer-spawn refresh"* (`scene1_bg_npc.c` comment: "stays inert — no customers"), which retail
-exercises because the sell session has queued customers, and/or `FUN_00461068` (cs-walk-setup) /
-`FUN_0047019f` (the 0x47019f customer pump the cc08==4 arm currently skips, PORT-DEBT(cs-arrival-anim)).
+**ROOT CAUSE — `FUN_0047019f` (the cc08==4 on-screen-character pump) — the port SKIPS it entirely
+(PORT-DEBT(cs-arrival-anim)).**  Retail's cc08==4 baseline is `7` SMOOTH/frame (not bursty), constant
+from the FIRST cc08==4 frame (off 0, b534==0 idle, BEFORE greeting/arrival) ⇒ an idle/prologue consumer.
+Narrowed by static analysis (high confidence):
+- The cc08==4 arm (all.c:87432-87433) calls **`FUN_0047019f()` THEN `FUN_00462403()` every frame.**
+  The port's cc08==4 arm (`scene1_player_ctrl.c`) ports only the master tick (`FUN_00462403`) and
+  **skips `FUN_0047019f`** (the arm comment: "FUN_0047019f … is likewise deferred (unported)").
+- `FUN_0047019f` (0x47019f, 486 B, all.c:69510) **loops over the on-screen-character array
+  `DAT_073a6ea8`** (stride 0x24, ≤30 slots) calling **`FUN_0046fbee` per active character** — and
+  `FUN_0046fbee` (1457 B) draws **3 rng (1 `rng_next_unit` + 2 `rng_next15`)** per char.  The player +
+  companion + the arriving customer ⇒ ~2-3 active chars × ~3 = the smooth ~7/frame, present every cc08==4
+  frame including the idle (the characters are resident before the haggle).
+- **Alternatives RULED OUT:** the master tick `FUN_00462403` DOES draw rng (2 unit + 2 rng15) but those
+  are CONDITIONAL (haggle/arrival states, already ported + wired) — NOT the smooth idle stream.  The
+  prologue *"customer-spawn refresh"* (`FUN_0046f914`) is gated `f404=='\0'` (all.c:69562) ⇒ INERT in
+  the sell-active tutorial (f404==1).  `FUN_00461068` (cs-walk-setup) fires ONCE at b524==0x14, not
+  per-frame.  So **`FUN_0047019f` is the only cc08==4-only per-frame rng draw the port omits.**
 
 **This is a REAL LOGIC GAP, not an accepted RNG/phase pillar.**  The methodology accepts an RNG offset
 only when the consumption COUNT matches and just the seed/phase ORIGIN differs.  Here the COUNT differs
@@ -606,14 +614,20 @@ correct (`1200·init_eff/100`), yet init_eff's rng draw lands on the wrong LCG v
 cc08==4 draws are missing upstream.  (The per-anchor `{rngseed}` re-pins bound the drift per PAUSE_OPEN
 round, but the first offer sits in the occ2→PAUSE_OPEN#1 segment and diverges.)
 
-**NEXT (corrected):**
-1. **rng-drill the cc08==4 IDLE window (off 0–150, b534==0, pre-greeting)** to pin the SMOOTH 7/frame
-   consumer by per-callsite `ret_va`: drive retail with the rng-caller hook (`tools/frida/openrecet-agent.js`
-   + `flow_diff.py --rng-drill`), aggregate the ret_vas of the ~7 draws/frame, and map them to the
-   engine fn the port stubs.  It is constant from frame 3001 ⇒ the suspects are the prologue
-   customer-spawn refresh, `FUN_00461068`, and `FUN_0047019f` (cc08==4 arm).
-2. **Port that consumer** (currently PORT-DEBT customer simulation) so the port draws the same per-frame
-   cc08==4 rng ⇒ the offer (and every later round's rng) aligns.
+**NEXT (corrected) — Chip 2e: port `FUN_0047019f` (the cc08==4 on-screen-character pump):**
+1. **(optional, to nail the exact per-frame count) rng-drill** the cc08==4 idle window (per-callsite
+   `ret_va`, `frida_capture.py --rng-callsites` + `flow_diff.py --rng-drill`) — should show the ~7/frame
+   coming from `FUN_0046fbee` (called by `FUN_0047019f`).  Caveat: `--rng-callsites` keys off the
+   `{phasepin}` (this trace has none) — use its absolute `[lo,hi)` mode over [occ2, occ2+150], or add the
+   phasepin first.  The static case above is already high-confidence, so this is confirmation, not
+   discovery.
+2. **Port `FUN_0047019f`** = the on-screen-character pump (`DAT_073a6ea8` array, stride 0x24) + its
+   per-char `FUN_0046fbee` (the f405 player/companion/customer arrival-anim integrate + the ~3 rng/char)
+   + `FUN_00482a71` (chr_anim_tick, already ported).  Skip the `f404==0` periodic-spawn branch
+   (`FUN_0046f914`, inert here).  Wire it into the cc08==4 arm BEFORE the master tick (matching
+   all.c:87432).  This retires PORT-DEBT(cs-arrival-anim) AND closes the rng-rate gap ⇒ the offer (and
+   every later round's rng) aligns.  NB this is a SIZEABLE arc (the cc08==4 character simulation), not a
+   one-liner — it models the customer/player/companion on-screen actors during the haggle.
 3. The trace ALSO lacks `{phasepin}` (separate real policy gap — add `{phasepin N}`+`{rngseed [N,19937]}`
    +`{tutloadpin 8}` for clean db054/anim/sparkle phase), but that is NOT the cause of THIS rng-rate gap
    (the bg-NPC pattern already matches), so it will not by itself converge the offer.
