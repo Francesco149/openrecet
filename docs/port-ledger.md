@@ -362,7 +362,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+4) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
-| 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
+| 0x47333b | FUN_0047333b | 145 | ✓ | customer_service.c, main.c, scene_buy.c (+2) |
 | 0x4733cc | FUN_004733cc | 9 | ✓ | customer_service.c |
 | 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_pause.c, scene_title.c (+2) |
 | 0x47347d | FUN_0047347d | 215 | ✓ | worker_load.h |

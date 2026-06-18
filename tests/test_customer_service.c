@@ -133,10 +133,17 @@ int test_cs_master_tick_sell_trajectory(void)
     g_item.records[0].price   = 3000;
 
     customer_service_session_init();
-    customer_service_notify_loaded();          /* release the asset-load gate */
 
-    for (int i = 0; i < 200; i++)
+    /* Play the role of the worker thread: release each d3e asset-load gate the
+     * frame after it spawns (mirrors the cc08==4 arm's notify bridge).  Both the
+     * session-init load AND the second/occ3 load (FUN_00452d3e(1), spawned at
+     * b524==0x3c) re-arm b1cc=2; in the host build no thread runs, so the test
+     * drives the completion.  Released at the tick HEAD ⇒ no frozen frames. */
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
         customer_service_master_tick(0, 0, 0);    /* no input → idle climbs to greeting */
+    }
 
     int b5a8 = customer_service_b5a8();
     int b56c = customer_service_b56c();
@@ -172,9 +179,14 @@ int test_cs_master_tick_idle_gated_by_load(void)
     T_ASSERT_EQ_I(customer_service_b534(), 0);  /* still idle — load not done */
     T_ASSERT_EQ_I(customer_service_b5a8(), -1); /* selector never ran */
 
-    customer_service_notify_loaded();
-    for (int i = 0; i < 200; i++)
+    /* Release the gates and drive on: the session-init load AND the occ3 load
+     * (FUN_00452d3e(1) at b524==0x3c) both re-arm b1cc=2; play the worker each
+     * frame (mirrors the cc08==4 arm) so the idle reaches the greeting. */
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
         customer_service_master_tick(0, 0, 0);
+    }
     T_ASSERT_EQ_I(customer_service_b534(), 1);  /* now reaches the greeting */
     T_ASSERT_EQ_I(customer_service_b5a8(), 2);
     return 0;
@@ -215,10 +227,11 @@ int test_cs_scripted_first_offer(void)
     g_tuto[2].id = 2; g_tuto[2].opcode = -1;    /* sentinel */
 
     customer_service_session_init();
-    customer_service_notify_loaded();
 
     int greet_base = 0;
     for (int i = 0; i < 160; i++) {             /* idle → greeting → scripted op 2 */
+        if (customer_service_b1cc() == 2)       /* release each d3e load gate (incl. occ3) */
+            customer_service_notify_loaded();
         customer_service_master_tick(0, 0, 0);
         if (customer_service_b534() == 1 && greet_base == 0)
             greet_base = customer_service_base_price();   /* item 3 = 3000 */
@@ -237,5 +250,35 @@ int test_cs_scripted_first_offer(void)
     T_ASSERT_EQ_I(base_after_op2, 1200);        /* scripted op 2 → item 2 */
     T_ASSERT_EQ_I(offer, 1536);                 /* 1200 · 128/100, no f406 override */
     T_ASSERT_EQ_I(round, 1);                    /* haggle round 0 → 1 */
+    return 0;
+}
+
+/* Chip 2d — the SECOND d3e asset-load (occ3, FUN_00452d3e(1)) fires from the
+ * master-tick queue-advance (b524==0x3c) once a customer is queued (b56c>0) and
+ * no leave is in progress (b520==0).  It re-arms the load gate (b1cc=2), pausing
+ * the master tick the same way retail does — the load-structure fix that aligns
+ * the haggle-window frame count / RNG with retail (RE §8.3).  Verifies the gate
+ * re-arms at exactly b524==0x3c with the queued customer bound. */
+int test_cs_occ3_second_load_gates_at_queue_advance(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+
+    customer_service_session_init();            /* first (session-init) load: b1cc=2 */
+    customer_service_notify_loaded();           /* release it → master tick active */
+
+    /* Drive the idle; catch the frame the gate re-arms (the occ3 spawn). */
+    int rearmed_at_b524 = -1;
+    for (int i = 0; i < 70; i++) {
+        customer_service_master_tick(0, 0, 0);
+        if (customer_service_b1cc() == 2) {     /* occ3 re-armed the gate */
+            rearmed_at_b524 = customer_service_b524();
+            break;
+        }
+    }
+    T_ASSERT_EQ_I(rearmed_at_b524, 0x3c);       /* fires at the queue-advance frame */
+    T_ASSERT_EQ_I(customer_service_b56c(), 1);  /* the b56c>0 queued-customer gate */
     return 0;
 }

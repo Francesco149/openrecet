@@ -6712,6 +6712,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/main.c",
     "src/scene_buy.c",
     "src/scene_buy.h",

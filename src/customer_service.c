@@ -407,7 +407,20 @@ static void cs_queue_advance(void)
     s_price_bc8 = -1;                       /* DAT_005c6bc8 = 0xffffffff */
     s_b54c = 0;
     s_b550 = 0;
-    /* worker respawn (b520==0 && b56c>0) — already spawned at session init. */
+    /* FUN_00452d3e(1) (all.c:60998-61000) — the SECOND d3e load (occ3): a queued
+     * customer (b56c>0) with no leave in progress (b520==0) ⇒ spawn the
+     * queued-customer asset-load worker.  param=1 (disasm 0x463435 `push 0x1`,
+     * NOT session_init's `push 0x0`) picks the b13 thread proc (FUN_0047333b, the
+     * per-page buy-phase loader), distinct from session_init's param-0 (ae8) load.
+     * Sets DAT_0438b1cc=2 → the master tick goes inert until the worker clears it
+     * (the cc08==4 arm bridges g_worker_sec_state_1cc → notify_loaded → b1cc=1).
+     * Retail spawns this ~b524==0x3c; the port had only the session_init spawn, so
+     * its haggle-window frame count / RNG was ~1-2f shifted vs retail (offer tilt
+     * 1536 vs retail-free-run 1548).  Porting it matches the load structure.  RE §8.3. */
+    if (s_b520 == 0 && g_scene_buy_current_page > 0) {
+        s_b1cc = 2;                          /* DAT_0438b1cc = 2 (master-tick inert gate) */
+        worker_load_spawn_d3e(1);            /* FUN_00452d3e(1) */
+    }
 }
 
 /* ── idle (FUN_00462403 b534==0, all.c:60670-61027) ─────────────────────────
