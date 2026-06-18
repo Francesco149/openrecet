@@ -358,3 +358,48 @@ sequence decoded, but the multi-term grouping (esp. the `P·(c1·trend+c2)` tilt
 pure-function-diff'd vs retail (Frida) on a few `(base,init,random,gullibility,rise1/2)` tuples at
 port time. State-table arrows read directly from the decompile (solid). b5a8 kinds 0/2/5
 (non-sell/buy machines) not deep-read (out of scope for the sell tutorial).
+
+## 8. cc08==4 WIRED (2026-06-18) + the trace-replay BLOCKER (post-load walk-input eaten)
+
+**Landed (`7e163bb`):** the cc08==4 subsystem is now wired into the engine loop —
+`scene1_player_ctrl.c`: the bVar3 **Z-at-counter entry** (counter rect X(-5,0)/Z>6.9
+tier<3 + facing octant + Z → bank `f404`=1, `FUN_00461bf6(2)`, cc08=4, `session_init`;
+PORT-DEBT(cs-entry-flags) on the f3fd/f3ff customer-queued gate set by the unported
+customer-spawn / iv1_7 machinery), the **cc08==4 per-frame arm** (d3e load-gate release +
+`customer_service_master_tick`; PORT-DEBT(cs-arrival-anim) on the f405 pose + px ramp), the
+`notify_loaded`→`b1cc=1` fix (the engine d3e worker BODY value the master tick AND render
+both read), and the broadened `0x48670f` call-trace (cc08 + b534/b5a8/b56c/base/ask/b574/
+b584/b590/b520/b5a0/b524/b544). 3330 host tests pass.
+
+**THE SCENARIO IS A *LOAD* TRACE (user-confirmed 2026-06-18):** Continue → loads `cad868`
+(slot 0, the **pre-tutorial-entry** shop state — items placed but the runtime f404/f3fd/f406
+flags are 0; later slots 1-5 in the same .sav have them, = post-tutorial saves) → drop at the
+shop **back-center** (px −0.30, pz 9.35, facing +π/2) → walk LEFT + turn to the sell counter
+→ Z initiates the scripted haggle tutorial → 5 rounds (the `PAUSE_OPEN` episodes) → closing
+dialogue (`CONV_POSE`/`TEXT_ANIM`) → first real customer.  NOT a new-game prologue.
+
+**BLOCKER (the port can't reach cc08==4 in this trace yet):** driving the port shows it stays
+**cc08==1 the whole window**, player **frozen at the back-center pose-init** (px −0.30, facing
++π/2, panim 0).  Frame-by-frame: post-load the port renders HOUSE from ~f310 but **free-roam
+(cc08==1) doesn't begin until f466** — a ~156-frame gap with NO active fade and NO
+`dialogue_tick` (it never fires).  The `0x48670f` emit + the walk arm share the gate
+`s_cc08==1 && !intro_dialogue_active/_loading/_posing`; it only clears at f466, so the port is
+in a **dialogue posing/loading state (or cc08≠1) for ~156 frames after the Continue-load**,
+which gates the walk arm OFF.  The recorded walk/turn input is **relative frame 66-156 to the
+LOADING_END anchor** — it fires DURING that gap and is wasted; only the Z@156 lands as free-roam
+begins.  ⇒ the player never turns/walks to the counter ⇒ the bVar3 entry never fires ⇒ the
+caprange's haggle-inputs then drive free-roam movement (the player drifts to the door).  Retail's
+post-load gap is short (the walk input lands in free-roam), so it reaches the counter.
+
+This is the known PORT-DEBT (`scene1_player_ctrl.c:1814` "cc08 timing — it should flip to 1
+only at the real free-roam boundary FUN_004850ec, after the prologue"): after a Continue-load
+the port's free-roam boundary lands ~156 frames late (lingering `intro_dialogue` posing/loading
+or a late cc08=1).  **The NEXT step is to fix the post-load free-roam-boundary timing** (WHY is
+`intro_dialogue_posing()`/`_loading()` true — or cc08≠1 — for ~156 frames after a Continue-load
+with no cutscene?  Likely the port emits the `LOADING_END` anchor at raw load-complete while
+retail emits it at the free-roam boundary — align the anchor emit, OR shorten the post-load
+settle) so the walk input lands in free-roam — THEN the bVar3 entry fires + the state machine/
+render can be verified.  The cc08==4 logic itself is host-verified (`test_cs_scripted_first_offer`
+= capture trajectory 1:1).  Per user direction (2026-06-18): port the full tutorial up to the
+first real customer; don't move to real (kind-2) haggling until this trace plays in full on
+both sides.
