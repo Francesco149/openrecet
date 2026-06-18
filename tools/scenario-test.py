@@ -384,7 +384,8 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
                          d3d_trace: bool = False,
                          d3d_trace_verts: bool = False,
                          call_trace: bool = False,
-                         capture_local: bool = False) -> dict:
+                         capture_local: bool = False,
+                         trigger_only: bool = False) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace.
 
     capture_local (D2): write capture BMPs to a Windows-local NTFS staging dir
@@ -451,6 +452,13 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             # the capture path is unaffected.
             "--hidden",
         ]
+    # Trace Studio v3 proxy drive: fire the GetBackBuffer keep-trigger but write
+    # NO BMPs (the staged d3d8 proxy reconstructs frames from the draw-call stream;
+    # the per-frame screenshot is v2-style waste v3 never reads). --capture-to stays
+    # so the lockable backbuffer + run paths are unchanged. Spot-check BMP runs leave
+    # this off. See src/main.c g_capture_trigger_only.
+    if trigger_only:
+        child_args.append("--capture-trigger-only")
     # TAS save interception (port). The trace's {savefile} op selects the boot
     # save; writes ALWAYS go to a per-run sandbox so a replay can never overwrite
     # the user's real save.dat. See tools/trace_save.py + src/input_segtrace.h.
@@ -1007,6 +1015,14 @@ def main(argv: list[str] | None = None) -> int:
                          "~3x smaller. Falls back to the direct path if the local "
                          "root can't be derived. (Port only; retail ships frames "
                          "over the Frida message path.)")
+    ap.add_argument("--capture-trigger-only", action="store_true",
+                    help="Trace Studio v3 proxy drive: fire the per-frame "
+                         "GetBackBuffer keep-trigger the staged d3d8 proxy "
+                         "piggybacks on, but write NO BMPs (v3 reconstructs frames "
+                         "from the captured draw-call stream — the screenshot is "
+                         "v2-style waste, ~5 GB/run of pixels v3 never reads). Used "
+                         "by port_capture.py so a v3 drive doesn't dump the window. "
+                         "Leave off for spot-check / golden BMP runs.")
     args = ap.parse_args(argv)
 
     if args.target in ("openrecet", "both"):
@@ -1065,7 +1081,8 @@ def main(argv: list[str] | None = None) -> int:
                         d3d_trace=args.d3d_trace,
                         d3d_trace_verts=args.d3d_trace_verts,
                         call_trace=args.call_trace,
-                        capture_local=args.capture_local)
+                        capture_local=args.capture_local,
+                        trigger_only=args.capture_trigger_only)
                 _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
                       f"captured={len(m['captured_frames'])}/{_exp}")
@@ -1161,7 +1178,8 @@ def main(argv: list[str] | None = None) -> int:
                 d3d_trace=args.d3d_trace,
                 d3d_trace_verts=args.d3d_trace_verts,
                 call_trace=args.call_trace,
-                capture_local=args.capture_local)
+                capture_local=args.capture_local,
+                        trigger_only=args.capture_trigger_only)
         _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{_exp}")

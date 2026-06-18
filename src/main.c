@@ -149,6 +149,17 @@ static unsigned         g_capture_count     = 0;     /* monotonic capture index 
 static int              g_frame_loading_active      = 0; /* set per-frame */
 static int              g_capture_suppress_loads     = 0; /* --capture-suppress-loads */
 static int              g_capture_suppress_cutscene = 0; /* D4, default off */
+/* --capture-trigger-only (Trace Studio v3): the staged d3d8 proxy keeps each
+ * window frame by piggybacking on this exe's per-frame GetBackBuffer readback
+ * (d3d8_proxy.c MULTI mode); v3 reconstructs frames from the captured DRAW-CALL
+ * stream (v3cap.bin), NOT from a backbuffer screenshot.  So a v3 drive only needs
+ * the GetBackBuffer CALL (the proxy's keep-trigger) — the LockRect + multi-MB BMP
+ * write is pure v2-style waste (~5 GB/run of pixels v3 never reads).  When set,
+ * capture_backbuffer() fires GetBackBuffer (proxy keeps the frame) then returns,
+ * skipping the readback + file write.  --capture-to stays set so the lockable
+ * backbuffer + run paths are unchanged; the explicit BMP write (the spot-check
+ * path) is the only thing suppressed. */
+static int              g_capture_trigger_only      = 0; /* --capture-trigger-only */
 
 /* --show-sprite <name>: load an asset at startup via sprite_load (the
  * engine-style loader — disk first, storage overlay fallback) and draw
@@ -3358,6 +3369,10 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(dir_buf, val, (int)sizeof(dir_buf));
                 g_capture_dir = dir_buf;
             }
+        } else if (lstrcmpA(tok, "--capture-trigger-only") == 0) {
+            /* v3 proxy drive: fire the GetBackBuffer keep-trigger but write no
+             * BMPs (the draw-call stream is the capture). See g_capture_trigger_only. */
+            g_capture_trigger_only = 1;
         } else if (lstrcmpA(tok, "--capture-every-ms") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {
@@ -3953,6 +3968,17 @@ static void capture_backbuffer(void)
     IDirect3DSurface8 *surf = NULL;
     if (FAILED(IDirect3DDevice8_GetBackBuffer(
             g_dev, 0, D3DBACKBUFFER_TYPE_MONO, &surf))) return;
+
+    /* Trace Studio v3: the GetBackBuffer call above is the staged proxy's
+     * frame-keep trigger (it has already snapshotted the frame from the
+     * draw-call shadow in its hook).  v3 needs nothing more from us — skip the
+     * LockRect + multi-MB BMP write that would otherwise dump the whole window
+     * as v2-style pixels v3 never reads.  (--capture-frames spot-checks leave
+     * this off and still write their handful of BMPs.) */
+    if (g_capture_trigger_only) {
+        IDirect3DSurface8_Release(surf);
+        return;
+    }
 
     D3DSURFACE_DESC desc = {0};
     if (FAILED(IDirect3DSurface8_GetDesc(surf, &desc))) {

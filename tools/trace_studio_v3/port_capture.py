@@ -166,6 +166,11 @@ def main() -> int:
         # we only need the port to run the caprange window so the proxy captures).
         subprocess.run([sys.executable, str(SCENARIO_TEST), args.scenario,
                         "--target", "openrecet",
+                        # v3 reconstructs frames from the proxy's draw-call stream,
+                        # so the port drive must NOT dump per-frame BMPs (the staged
+                        # proxy still keeps each frame via the GetBackBuffer trigger).
+                        # Without this every v3 drive leaked ~5 GB of unused pixels.
+                        "--capture-trigger-only",
                         "--run-dir-root", str(run_root)], cwd=ROOT)
     finally:
         if not args.keep_proxy:
