@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-18 — customer-tutorial TRACE-REPLAY blocker ROOT-CAUSED + FIXED (segtrace timeout ate the walk)
+
+The `house-customer-tutorial` port drive stayed `cc08==1` the whole window — the player frozen at
+the post-load pose-init, never reaching the sell counter, so the `cc08==4` haggle entry never
+fired. RE §8's first pass blamed the **cc08 / LOADING_END timing** ("the port emits LOADING_END at
+raw load-complete, free-roam starts 156f later, the walk fires in the dead gap"). **Probing proved
+that wrong** and found a TAS-replay (tooling) bug instead.
+
+- **Probe:** a throwaway `_probe-cust-load` scenario (the Continue-load + walk+Z segment) with an
+  early `{calltrace}` over the walk window, reading the always-on `0x452cde` (worker-spawn) /
+  `0x4850ec` (cc08-set) / `0x48670f` (free-roam) VAs. Found: the port's Continue-load fires
+  `LOADING_END`+`HOUSE_FREEROAM`@~f476 with `cc08=1` set ONE frame before (`pose_house_standing`
+  runs in the primary-worker body) — so **LOADING_END IS the free-roam boundary**, no dialogue gap,
+  no late cc08. Driving the walk segment ALONE (truncated trace), the player walks px −0.30→−1.50 to
+  the counter and Z@rel156 flips **cc08→4**, 3/3 runs, load-stretch-immune (LOADING_END
+  f476/f483/f491 all reach + enter).
+- **Real cause — `input_segtrace.c` `{wait,timeout}`:** a `{wait}` CLOSES a segment; the walk
+  segment `[rel0, rel66=walk, rel75=release, rel156=Z]` is terminated by
+  `{wait LOADING_START, timeout 60}` (the d3e haggle-asset load the Z spawns). The replayer measured
+  the timeout from segment ENTRY (`base_arm` = LOADING_END frame), firing at **rel60 — BEFORE the
+  segment's own walk@rel66 / Z@rel156** — so it skipped the segment entirely. The walk never
+  applied ⇒ frozen ⇒ no counter ⇒ no cc08==4. (The truncated probe worked only because it had no
+  trailing `{wait}`; bumping the timeout 60→220 (> the rel156 span) also restored everything.) This
+  is a refinement of `47cdd8c`'s cross-target optional-wait feature.
+- **FIX (`input_segtrace.c`):** measure the optional-wait timeout from the segment's LAST entry
+  (`base + entries[n-1].frame + wait_timeout`), not segment entry — a segment's recorded inputs must
+  ALL apply before its terminating wait can time out (the timeout's intent is "hold the last input N
+  frames waiting for the optional anchor"). Entries are ascending and `base==base_arm`, so this only
+  ever DELAYS a timeout — a no-op when the last entry is at rel0, which is every OTHER committed
+  timeout-wait (audited), so the blast radius is exactly this scenario. +1 host regression test
+  (`test_segtrace_wait_timeout_after_last_entry`); 3331 host pass.
+- **Validated end-to-end:** the extended probe with the committed **timeout 60** now reaches the d3e
+  `LOADING_START` + **cc08==4**, 2/2 across load-stretch. The FULL committed `house-customer-tutorial`
+  drive now fires the 2nd `LOADING_START/END` (the entry's d3e load — it stalled at 1 before) and the
+  caprange call-trace shows **cc08 {1: 157, 4: 1034}, first cc08==4 @f630** (haggle active) where the
+  pre-fix run was `{1: 2351}` (stuck). NEXT: verify the caprange haggle window vs the retail v3 cache
+  + port Chip 3 (the BARGAIN!! UI). RE: `findings/customer-service-haggle-RE.md` §8.
+
 ## 2026-06-17 night — CUSTOMER-SERVICE / HAGGLE tutorial: harness unblock + haggle math (autonomous)
 
 Started the SHOP CUSTOMER-SERVICE / price-haggle tutorial arc from the user recording

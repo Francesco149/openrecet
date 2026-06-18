@@ -566,3 +566,38 @@ int test_segtrace_wait_timeout_anchor_still_resolves_first(void)
     input_segtrace_free(&st);
     return 0;
 }
+
+int test_segtrace_wait_timeout_after_last_entry(void)
+{
+    /* REGRESSION (customer-tutorial walk eaten): a segment whose own recorded
+     * inputs extend PAST its terminating wait's timeout must still apply them —
+     * the timeout countdown starts at the LAST entry, not at segment entry.
+     * Here seg1 walks at base+66 then Zs at base+156 under a timeout-60; the
+     * old code timed out at base+60 (before the walk) and skipped both inputs.
+     * The fix delays the timeout to last-entry(156)+60 = base+216, so the walk
+     * and Z land before it can fire. */
+    const char buf[] =
+        "{\"wait\":\"LOADING_END\"}\n"                     /* seg0 → resolves @100 */
+        "{\"frame\":66,\"buttons\":\"0x0002\"}\n"          /* seg1: LEFT (walk) at base+66 */
+        "{\"frame\":75,\"buttons\":\"0x0000\"}\n"          /* seg1: release at base+75 */
+        "{\"frame\":156,\"buttons\":\"0x0010\"}\n"         /* seg1: Z (enter) at base+156 */
+        "{\"wait\":\"LOADING_START\",\"timeout\":60}\n";   /* seg1 wait (optional) */
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 3);   /* seg0(wait) seg1(entries+wait) seg2(empty tail) */
+    T_ASSERT_EQ_U(st.segs[1].wait_timeout, 60);
+    /* LOADING_END @100 → base = 100 */
+    input_segtrace_on_anchor(&st, "LOADING_END", 100);
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 100, NULL, NULL), 0x0000);
+    /* OLD bug: at base+60 = 160 the wait timed out and skipped seg1's inputs.
+     * Fixed: the walk LANDS at base+66 = 166 (well past 160). */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 166, NULL, NULL), 0x0002); /* LEFT applied */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 175, NULL, NULL), 0x0000); /* release */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 256, NULL, NULL), 0x0010); /* Z applied (base+156) */
+    /* Timeout now fires at last-entry(base+156) + 60 = base+216 = 316; the Z
+     * mask stays held through it (spam-until-anchor), and with no LOADING_START
+     * and no further segment the held Z persists. */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 320, NULL, NULL), 0x0010);
+    input_segtrace_free(&st);
+    return 0;
+}

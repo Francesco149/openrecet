@@ -91,15 +91,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   in full on BOTH sides before moving to real (kind-2) haggling.** ⚠ **The scenario is a *LOAD*
   (Continue) trace, NOT new-game** (loads cad868 slot 0 = pre-entry shop state → walk to counter →
   scripted haggle → 5 rounds → closing dialogue → first customer).
-  **NEXT = THE TRACE-REPLAY BLOCKER (RE §8):** driving the port stays cc08==1 the whole window —
-  the **post-load free-roam boundary lands ~233 frames late** (load worker spawn f231 → cc08=1 set
-  f464), so the recorded walk/turn inputs (relative frames 66-156 to the `LOADING_END` anchor) all
-  fire BEFORE free-roam and are wasted ⇒ the player never reaches the counter ⇒ the bVar3 entry never
-  fires. **FIX FIRST:** the post-load `LOADING_END`-anchor-emit / free-roam-boundary timing (the port
-  emits LOADING_END at raw load-complete; retail emits it at the free-roam boundary — align them, or
-  shorten the 233-frame post-load settle) so the walk input lands in free-roam. THEN the entry fires
-  and the state-machine + render (Chip 3: `FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI)
-  can be ported + verified. Full diagnosis + frame data: `findings/customer-service-haggle-RE.md` §8.
+  **TRACE-REPLAY BLOCKER ✅ ROOT-CAUSED + FIXED 2026-06-18 — it was a SEGTRACE (tooling) bug, NOT
+  the cc08/LOADING_END timing the first pass guessed.** Probed via a `_probe-cust-load` scenario +
+  an early `{calltrace}` over the walk window (the always-on `0x452cde`/`0x4850ec`/`0x48670f` VAs):
+  on the port the Continue-load fires `LOADING_END`+`HOUSE_FREEROAM`@~f476 with `cc08=1` set 1 frame
+  before — so **LOADING_END IS the free-roam boundary** (no 156f dialogue gap; the "f310 HOUSE
+  render" was just the load-fade window). Driving the walk segment ALONE the player walks px
+  −0.30→−1.50 to the counter and the Z@rel156 flips **cc08→4** (3/3, load-stretch-immune). The real
+  cause: `input_segtrace.c` measured the `{wait LOADING_START, timeout 60}` timeout from segment
+  ENTRY, so it fired at **rel60 — before the segment's own walk@rel66/Z@rel156** — eating them ⇒
+  player frozen ⇒ no counter ⇒ no cc08==4. **FIX (`input_segtrace.c`):** measure the optional-wait
+  timeout from the segment's LAST entry (a segment's recorded inputs must all apply before its
+  terminating wait can time out); +1 host regression test (3331 pass); only ever DELAYS a timeout
+  (no-op for every other committed timeout-wait, all rel0). **Validated end-to-end**: the extended
+  probe with the committed timeout-60 now reaches the d3e `LOADING_START` + **cc08==4**, 2/2 across
+  load-stretch; the full committed scenario now fires the 2nd `LOADING_START/END` (the entry's d3e
+  load) where it stalled at 1 before. **NEXT:** drive the FULL scenario + verify the caprange haggle
+  window (cc08==4 master tick + scripted-sell) vs the retail v3 cache, then port **Chip 3**
+  (`FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI) for the 5 `PAUSE_OPEN` rounds +
+  closing dialogue. Full diagnosis + frame data: `findings/customer-service-haggle-RE.md` §8.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:

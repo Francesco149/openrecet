@@ -763,13 +763,28 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 continue;  /* re-evaluate the next segment this same frame */
             }
             /* Cross-target optional wait: the anchor hasn't fired within
-             * wait_timeout frames of entering this segment (base_arm = the last
-             * resolved anchor's frame).  Skip it WITHOUT adopting a new base, so
-             * the next segment's frames/caprange stay relative to the last
-             * RESOLVED anchor.  Bridges the port collapsing a retail load-cycle
-             * burst into fewer loads (the load-cycle waits the port never fires).
-             * base_arm <= frame always (set on resolve), so no unsigned wrap. */
-            if (s->wait_timeout > 0 && frame - st->base_arm >= s->wait_timeout) {
+             * wait_timeout frames AFTER this segment's LAST recorded input.
+             * Skip it WITHOUT adopting a new base, so the next segment's
+             * frames/caprange stay relative to the last RESOLVED anchor.
+             * Bridges the port collapsing a retail load-cycle burst into fewer
+             * loads (the load-cycle waits the port never fires).
+             *
+             * Origin is the last entry's frame (base + last), NOT segment entry
+             * (base_arm): a segment's recorded inputs must ALL apply before its
+             * terminating wait can time out.  Measuring from segment entry ate
+             * the customer-tutorial walk@rel66 + Z@rel156 under a timeout-60 —
+             * the timeout fired at rel60, BEFORE the walk, so the player never
+             * reached the counter / entered cc08==4.  The timeout's intent is
+             * "hold the last input N frames waiting for the optional anchor", so
+             * the countdown starts at that input.  Entries are ascending and
+             * base==base_arm, so base+last+timeout is always >= the old
+             * base_arm+timeout: this only ever DELAYS a timeout (a no-op when the
+             * last entry is at rel0).  Add form (not frame-base sub) since the
+             * last entry may still be in the future — no unsigned wrap. */
+            uint32_t to_origin = st->base
+                + (s->n_entries > 0
+                       ? s->entries[s->n_entries - 1].frame : 0);
+            if (s->wait_timeout > 0 && frame >= to_origin + s->wait_timeout) {
                 st->cur_seg++;
                 st->cur_entry = 0;
                 rearm_setrngs(st, st->cur_seg);

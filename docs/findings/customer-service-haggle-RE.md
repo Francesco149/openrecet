@@ -359,7 +359,7 @@ pure-function-diff'd vs retail (Frida) on a few `(base,init,random,gullibility,r
 port time. State-table arrows read directly from the decompile (solid). b5a8 kinds 0/2/5
 (non-sell/buy machines) not deep-read (out of scope for the sell tutorial).
 
-## 8. cc08==4 WIRED (2026-06-18) + the trace-replay BLOCKER (post-load walk-input eaten)
+## 8. cc08==4 WIRED (2026-06-18) + the trace-replay BLOCKER ✅ FIXED (segtrace timeout ate the walk)
 
 **Landed (`7e163bb`):** the cc08==4 subsystem is now wired into the engine loop —
 `scene1_player_ctrl.c`: the bVar3 **Z-at-counter entry** (counter rect X(-5,0)/Z>6.9
@@ -378,28 +378,51 @@ shop **back-center** (px −0.30, pz 9.35, facing +π/2) → walk LEFT + turn to
 → Z initiates the scripted haggle tutorial → 5 rounds (the `PAUSE_OPEN` episodes) → closing
 dialogue (`CONV_POSE`/`TEXT_ANIM`) → first real customer.  NOT a new-game prologue.
 
-**BLOCKER (the port can't reach cc08==4 in this trace yet):** driving the port shows it stays
-**cc08==1 the whole window**, player **frozen at the back-center pose-init** (px −0.30, facing
-+π/2, panim 0).  Frame-by-frame: post-load the port renders HOUSE from ~f310 but **free-roam
-(cc08==1) doesn't begin until f466** — a ~156-frame gap with NO active fade and NO
-`dialogue_tick` (it never fires).  The `0x48670f` emit + the walk arm share the gate
-`s_cc08==1 && !intro_dialogue_active/_loading/_posing`; it only clears at f466, so the port is
-in a **dialogue posing/loading state (or cc08≠1) for ~156 frames after the Continue-load**,
-which gates the walk arm OFF.  The recorded walk/turn input is **relative frame 66-156 to the
-LOADING_END anchor** — it fires DURING that gap and is wasted; only the Z@156 lands as free-roam
-begins.  ⇒ the player never turns/walks to the counter ⇒ the bVar3 entry never fires ⇒ the
-caprange's haggle-inputs then drive free-roam movement (the player drifts to the door).  Retail's
-post-load gap is short (the walk input lands in free-roam), so it reaches the counter.
+**BLOCKER ✅ ROOT-CAUSED + FIXED 2026-06-18 — it was a TAS-REPLAY (tooling) bug, NOT the cc08 /
+LOADING_END timing the first pass hypothesized.**  The cc08==4 entry + walk-to-counter work
+fine; the SEGTRACE replayer was eating the walk input.
 
-This is the known PORT-DEBT (`scene1_player_ctrl.c:1814` "cc08 timing — it should flip to 1
-only at the real free-roam boundary FUN_004850ec, after the prologue"): after a Continue-load
-the port's free-roam boundary lands ~156 frames late (lingering `intro_dialogue` posing/loading
-or a late cc08=1).  **The NEXT step is to fix the post-load free-roam-boundary timing** (WHY is
-`intro_dialogue_posing()`/`_loading()` true — or cc08≠1 — for ~156 frames after a Continue-load
-with no cutscene?  Likely the port emits the `LOADING_END` anchor at raw load-complete while
-retail emits it at the free-roam boundary — align the anchor emit, OR shorten the post-load
-settle) so the walk input lands in free-roam — THEN the bVar3 entry fires + the state machine/
-render can be verified.  The cc08==4 logic itself is host-verified (`test_cs_scripted_first_offer`
-= capture trajectory 1:1).  Per user direction (2026-06-18): port the full tutorial up to the
-first real customer; don't move to real (kind-2) haggling until this trace plays in full on
-both sides.
+*The earlier (wrong) hypothesis* was "the port emits LOADING_END at raw load-complete (~f310)
+while free-roam starts ~156f later (f466), so the walk fires in a dead gap."  **Empirically
+FALSE** (probed via a truncated `_probe-cust-load` scenario + an early `{calltrace}` over the
+walk window, reading the always-on `0x452cde` worker-spawn / `0x4850ec` cc08-set / `0x48670f`
+free-roam VAs): on the port the Continue-load fires **`LOADING_START`@f231 → `LOADING_END` +
+`HOUSE_FREEROAM`@~f476**, and `cc08=1` (FUN_004850ec) is set **1 frame BEFORE** that
+(`pose_house_standing` runs in the primary worker body @~f475).  So LOADING_END IS the free-roam
+boundary — the anchor is emitted correctly, cc08 is 1 right there, no 156-frame dialogue gap (no
+`dialogue_tick` ever fires; the "f310 HOUSE renders" was just the load-fade window behind an
+still-active overlay).  Driving the walk segment ALONE (truncated trace, no trailing `{wait}`),
+the player walks px −0.30→−1.50 to the counter (panim 1, turns to face −X) and the Z@rel156
+flips **cc08→4** — 3/3 runs, load-stretch-immune (LOADING_END f476/f483/f491, all reach the
+counter + enter cc08==4).
+
+*The REAL cause* — `input_segtrace.c`'s `{wait,timeout}` semantics.  A `{wait}` CLOSES a segment
+(it's the terminator); the walk segment is `entries[rel0, rel66=walk, rel75=release,
+rel156=Z]` terminated by **`{wait LOADING_START, timeout 60}`** (the d3e haggle-asset load the
+Z is supposed to spawn).  The replayer measured the timeout from **segment ENTRY** (`base_arm` =
+LOADING_END frame), so it fired at **rel60 — BEFORE the segment's own walk@rel66 and Z@rel156** —
+skipping the segment entirely.  ⇒ the walk/Z never applied ⇒ player frozen at the pose-init ⇒
+no counter ⇒ no cc08==4.  The truncated probe worked only because it had no trailing `{wait}` to
+time out.  On RETAIL the recording's LOADING_START fired (the entry spawned the load) before any
+timeout effect mattered; the port's premature timeout is the divergence.  (Confirmed by bumping
+the trace's timeout 60→220 (> the rel156 span): the walk + Z + cc08==4 + the d3e LOADING_START
+all return.)
+
+**FIX (`input_segtrace.c`, tooling):** measure the optional-wait timeout from the segment's LAST
+entry (`base + entries[n-1].frame + wait_timeout`), not from segment entry — a segment's recorded
+inputs must ALL apply before its terminating wait can time out (the timeout's intent is "hold the
+last input N frames waiting for the optional anchor").  Entries are ascending and `base==base_arm`,
+so this only ever DELAYS a timeout (a no-op when the last entry is at rel0 — every OTHER committed
+timeout-wait), so the blast radius is exactly this scenario.  +1 host regression test
+(`test_segtrace_wait_timeout_after_last_entry`); 3331 host pass.  **Validated end-to-end**: the
+EXTENDED probe with the committed **timeout 60** now reaches `LOADING_START`@~f608/661 (the d3e
+load) + **cc08==4**, 2/2 runs across load-stretch.  The cc08==4 logic itself stays host-verified
+(`test_cs_scripted_first_offer` = capture trajectory 1:1).
+
+**NEXT** (per user direction 2026-06-18, port the full tutorial up to the first real customer):
+with the walk/entry unblocked, drive the FULL committed scenario and verify the **caprange haggle
+window** — the cc08==4 master tick + the scripted-sell machine vs the retail v3 cache
+(`runs/studio-v3-cache/house-customer-tutorial-34f44b18/retail`), then port **Chip 3** (the
+`FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI) so the 5 `PAUSE_OPEN` haggle rounds +
+the closing dialogue play on both sides.  Don't move to real (kind-2) haggling until this trace
+plays in full on both sides.
