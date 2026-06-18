@@ -633,3 +633,70 @@ round, but the first offer sits in the occ2→PAUSE_OPEN#1 segment and diverges.
    (the bg-NPC pattern already matches), so it will not by itself converge the offer.
 4. Chip 2d STAYS — occ3 is a correct, faithful port independent of the offer value.
 THEN the 5 PAUSE_OPEN rounds + closing, THEN Chip 3 (render).
+
+## 8.5 ⚠ §8.4 REFUTED BY PROBES (2026-06-19) — the cc08==4 idle consumer is the PARTICLE SYSTEM, NOT FUN_0047019f/FUN_0046fbee. The floor-walker array is EMPTY; the gap is ambient-particle integration the port lacks.
+
+§8.4's "port `FUN_0047019f`" plan was a STATIC-ANALYSIS GUESS. Five probes this session
+disprove it. **DON'T port FUN_0047019f for the rng gap — it draws ~nothing here.**
+
+**The probes (all on `house-customer-tutorial`, occ2-relative):**
+1. **rng-drill WITH `{phasepin}`** (the §8.4 recipe) → blamed `FUN_00447f4f` @ ~4.3/f +
+   `FUN_0046fbee`. **Both wrong** — the phasepin's bg-NPC warmup re-seed CONTAMINATES the
+   very rates it measures (it re-runs the 180× `FUN_0046f2a3` warmup + its spawn effects).
+   *Lesson: never rng-drill through a `{phasepin}` — it fabricates consumers.*
+2. **Array dump** (`DAT_073a6ea8` slots via a temp 0x48670f field-probe extension):
+   **the floor-walker array is EMPTY in the tutorial** — `DAT_005c7dd0=8` is the eligible-
+   *roster* count, but **0 slots are active** (the spawn `FUN_0046f914` is `f404==0`-gated,
+   inert when `f404==1`). ⇒ `FUN_0047019f`'s loop body NEVER runs; `FUN_0046fbee` is never
+   called ⇒ **drawing it is a no-op.** (§8.4 inferred "~3 chars" from the contaminated drill.)
+3. **CLEAN per-frame rngcalls** (win-0-240, the committed trace, NO phasepin, from the
+   `0x47be92` sched probe): **retail cc08==4 idle draws `7` SMOOTH/frame + `31` every 8th**
+   (the 8th = `7`+`24` sparkle). This IS the real §8.4 pattern — confirmed, un-contaminated.
+   (The PORT side of that same capture reads `rngcalls` FROZEN at 1408 / rng-state = the
+   *title* seed 208096806 — a **broken port `0x47be92` probe** in this scenario; ignore the
+   port column here, use the RE-doc port baseline.)
+4. **CLEAN rng-callsites drill** — needed a new `{rngcs:[off,len]}` segtrace op (lands this
+   session: `tools/frida/openrecet-agent.js` + `tools/frida_capture.py`) that arms the
+   who-consumed-the-LCG drill at an absolute frame **WITHOUT the phasepin reset**. Over 300
+   un-contaminated idle frames the smooth stream decomposes (accounting for the
+   `rng_next_unit`→`rng_next15` double-count the drill shows as the `0xbfb1533` proxy):
+   - `FUN_00442cef` — **1 `rng_next15`/frame** (the scene tick; the port HAS this).
+   - **code @ `0x44a750`** — **~5 `rng_next_unit`/frame** (6 callsites). This is the
+     DOMINANT smooth consumer and **the gap.**
+   - `FUN_0048670f`+`FUN_00414345` — the **8th-frame sparkle** (+24; the port HAS this).
+   - `FUN_0046f2a3` — bg-NPC, ~1/f (the port HAS this, matches).
+5. **`0x44a750` identity** — `objdump`: no `call` anywhere in the exe targets `0x44a4xx-7xx`,
+   and there is no prologue/`ret` boundary near it ⇒ it is reached by an **internal jump**
+   inside the 11826-byte blob `functions.csv` labels `FUN_00447f4f` (`0x447f4f`). That blob
+   is the **3D particle pool** code (pool `DAT_069b2f80`, stride 0x94, type@+0x30
+   `DAT_069b2fb0`); `0x44a750` is a **camera-yaw-trig particle-behavior branch** (uses the
+   camera global `0x73de39c`, sin/cos `FUN_00503a44/994`). The per-frame DRIVER that reaches
+   it is the **particle integrator `FUN_0040fb3a`** (0x40fb3a, the 8071 B integrator that
+   walks the pool every frame and re-emits sub-particles — all.c:9184-9583+, calls
+   `FUN_00447f4f` @ 9803/9886/10654). *(A direct `0x447f4f`-entry call-trace hook read 0
+   calls, consistent with the rng arriving via the integrator's internal path, not a fresh
+   top-level `scene1_spawn(...)`.)*
+
+**CONCLUSION — the real gap:** in cc08==4 idle, retail has **ambient particles resident in
+the 3D pool** that the **integrator `FUN_0040fb3a` updates ~5 rng/frame**. The port draws
+less because **its pool is empty in cc08==4 idle** — the cc08==4 ambient-particle SPAWN (the
+seed) is unported (it is NOT `session_init`/`FUN_0045edaa`/`FUN_00461bf6` — those have no
+`FUN_00447f4f` call). The port already HAS the integrator (`scene1_particles_tick.c` =
+`FUN_0040fb3a`) and the spawn (`scene1_spawn` = `FUN_00447f4f`); the missing piece is
+**whatever cc08==4 effect seeds the pool**, + then the integrator's rng flows for free.
+
+**STILL OPEN (next probe):** name the cc08==4 ambient-particle EMITTER + its type/position.
+The `0x447f4f`-entry call-trace hook this session was silently overridden by the
+retail_fields.json VA-merge (`frida_capture.py:488-503`) so its ret_va was never captured —
+re-probe with `--no-call-trace-fields` (or hook `FUN_0040fb3a` and read the pool's live
+particle types). Candidates: a cc08==4 counter/customer ambiance spawned during the d3e load
+or the first master-tick frames.
+
+**STRATEGIC REFRAME:** the port's offer is **`1536`, which MATCHES the user RECORDING + the
+host test** (`cs_scripted_first_offer`); the `1548` §8.3/§8.4 chased is the *free-run* retail
+value (no recording). So the rng-rate gap is a **downstream-parity** concern (keeps the 5
+rounds + closing in sync) — NOT a visible offer bug. Decide per the human: (a) drill the
+emitter + port the cc08==4 ambient particles; (b) pivot to the VISIBLE **Chip 3** (the
+`FUN_0046602e` portrait + `FUN_00466b7b` BARGAIN!! panel + `FUN_00465db4` glyphs); or (c)
+log the rng-rate gap as a known divergence and proceed. **PORT-DEBT(cs-arrival-anim) stays —
+but it is NOT the rng-gap cause; do not conflate them again.**

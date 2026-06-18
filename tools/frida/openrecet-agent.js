@@ -877,7 +877,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
                          setrngs: [], escs: [], phasepins: [], pokes: [],
-                         memsnaps: [],
+                         memsnaps: [], rngcs: [],
                          wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
@@ -929,6 +929,15 @@ function segtraceBuildSegments(ops) {
             const ct = op.calltrace;
             segs[segs.length - 1].calltraces.push(
                 Array.isArray(ct) ? [ct[0] | 0, ct[1] | 0] : [0, ct | 0]);
+        } else if (op && op.rngcs !== undefined) {
+            // {rngcs:N} or {rngcs:[start,len]} — arm the rng-callsites who-
+            // consumed-the-LCG drill over [base+start, base+start+len) WITHOUT
+            // the phasepin's bg-NPC re-seed / gsim-zero (a CLEAN measurement;
+            // the phasepin contaminates the very rates being measured). Still
+            // needs --rng-callsites N on the CLI to install the LCG hooks.
+            const rc = op.rngcs;
+            segs[segs.length - 1].rngcs.push(
+                Array.isArray(rc) ? [rc[0] | 0, rc[1] | 0] : [0, rc | 0]);
         } else if (op && op.rngseed !== undefined && Array.isArray(op.rngseed)) {
             // {rngseed:[frame,value]} — force DAT_006023a0 to `value` at the
             // base-relative `frame`, mirroring the port's rng_seed() so both
@@ -1025,6 +1034,14 @@ function segtraceOnSegmentEnter(seg) {
         g_ct_windows.push([lo, hi]);
         log('segtrace: call-trace armed for frames ' + lo + '..' + hi +
             ' (base+' + start + '..base+' + (start + len) + ')');
+    }
+    for (let i = 0; i < (seg.rngcs || []).length; i++) {
+        const start = seg.rngcs[i][0], len = seg.rngcs[i][1];
+        g_rng_cs_lo = g_segtrace_base + start;
+        g_rng_cs_hi = g_rng_cs_lo + len;
+        g_rng_cs_buf = {}; g_rng_cs_flushed = false;
+        log('segtrace: rng-callsites armed (CLEAN, no phasepin) for frames '
+            + g_rng_cs_lo + '..' + g_rng_cs_hi + ' (base+' + start + ')');
     }
 }
 

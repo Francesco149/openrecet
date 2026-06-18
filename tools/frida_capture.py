@@ -1061,6 +1061,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 ct = rec["calltrace"]
                 segtrace_ops.append({"calltrace": (
                     [int(ct[0]), int(ct[1])] if isinstance(ct, list) else int(ct))})
+            elif "rngcs" in rec:
+                # {rngcs:N} or {rngcs:[start,len]} — arm the rng-callsites drill
+                # anchor-relative WITHOUT a phasepin (clean measurement). Needs
+                # --rng-callsites N on the CLI to install the LCG hooks.
+                rc = rec["rngcs"]
+                segtrace_ops.append({"rngcs": (
+                    [int(rc[0]), int(rc[1])] if isinstance(rc, list) else int(rc))})
             elif "rngseed" in rec:
                 # Force the engine LCG (DAT_006023a0) to value at base+frame —
                 # mirrors the port's rng_seed() so both targets share one RNG
