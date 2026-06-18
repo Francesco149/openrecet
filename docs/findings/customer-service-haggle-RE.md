@@ -426,3 +426,56 @@ window** — the cc08==4 master tick + the scripted-sell machine vs the retail v
 `FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI) so the 5 `PAUSE_OPEN` haggle rounds +
 the closing dialogue play on both sides.  Don't move to real (kind-2) haggling until this trace
 plays in full on both sides.
+
+## 8.1 The full-window drive (2026-06-18) — fileidx BUG ✅ FIXED, then the reveal-advance BLOCKER
+
+**Drove the port over the full caprange `[0,2700]` with `--state`** (orv3_window, retail sliced
+from cache, port re-driven), then compared the customer-service state trajectory vs the retail
+cache by aligning on the cc08==4 entry (db054 is the WRONG clock here — it freezes during cc08==4,
+so `flow_diff --align-field db054` finds only 1 common frame; align on the entry + compare the
+b534/b5a8/b56c/base/ask/b574/b584 *values* instead).  Port self-verify 1743/1743 BIT-EXACT.
+
+**Retail trajectory** (entry frame 3195; b524 already 61 at the first traced frame ⇒ session_init
+ran ~61f before the probe — the d3e load gates the house_update probe, so the cc08-offset origin is
+~61f behind the master tick's b524): greeting `b534→1`@off+90 `base=3000 ask=3000 b56c=1 b5a8=2`;
+op2 `base→1200`@off+969 (= `b5a0` arrival start); first offer `b574=1536 b584=1`@off+2440.
+
+**BUG 1 — the entry seeded fileidx 2, not 0 ✅ FIXED (`2f360ff`).**  The port showed the greeting
+firing with `b5a8=-1 b56c=0 base=-1` (garbage) and the offer NEVER — the customer was never bound.
+Root cause: `player_ctrl_cc08_sell_counter_enter` called `set_script_file(2)`, so `cs_queue_advance`'s
+f404 sell-active branch took `b5b0==2 → FUN_00460fa7` (sets `b5a8=1`) and SKIPPED the kind-select.
+Retail shows `b5a8=2`, which ONLY comes from `FUN_00461303` (the `fileidx∉{1,2}` branch).
+**Disassembly is decisive:** the player-Z entry (the one THIS walk-to-counter scenario uses) is at
+0x488bb6-0x488bd8 and pushes **0** (`488bbf: push 0x0` → `DAT_005c6bb0=0`).  The OTHER three 461bf6
+sites (0x48756a/0x4877b6/0x4884c7 = the autonomous / cutscene customer arrivals) push 2 — an earlier
+note (§RE correction²) conflated those with the player-Z entry.  The host test passed only because it
+uses the fileidx=0 reset default.  Fix → `set_script_file(0)`: greeting now binds 1:1
+(`base=3000 ask=3000 b56c=1 b5a8=2`, off+153 vs retail off+90 = the load-phase origin, accept).
+
+**BLOCKER 2 — the scripted machine stalls at the FIRST dialogue line (Chip 2c, unported).**  After
+BUG 1, `b534→1`/greeting is correct but `b544` climbs while `base` stays 3000 and op2/`b5a0`/the
+offer NEVER fire — the script never advances past its opening dialogue.  The advance gate
+(`cs_scripted_tick`, the `b608==0` dialogue case) is `b55c != 0 && (Z-edge || X-held)`, but **`b55c`
+(text-reveal-complete) is RENDER-COUPLED and stubbed**:
+  - `b55c=1` is set in **`FUN_00465db4`@all.c:62835** (the dialogue text reveal-render) when the
+    char-walk reaches the line's null *within the budget* AND `b544>0`.
+  - That render is called from **`FUN_00466b7b`@all.c:63744** (the BARGAIN-UI render) with
+    **`param_6 = DAT_0730b548`** (disasm `467d22: push ds:0x730b548`) — i.e. the **reveal budget IS
+    `b548`**, so the rate is **1 display-char / frame** (SJIS 2-byte lead = 1 char, FUN_00465db4
+    62845).  ⇒ `b55c=1` ⟺ `b548 ≥ sjis_char_count(line up to <C>)`.
+  - `b548` increments in the master-tick pose section **all.c:60198-60234** (once per *active* speaker
+    `cust_active[i]≠0` per frame, gated on the pose-in being settled `b278[i]==0xf`; the pose-in is a
+    ~15f ramp `b278` 0→0xf BEFORE the reveal starts).  The port tagged this whole region
+    `PORT-DEBT(cs-pose-anim)` "inert for the trajectory" — it is NOT inert: it drives `b548→b55c`.
+  - `FUN_0046098f`@all.c:58723 (the line buffer, also stubbed) copies `g_tuto[pc].text` into `b31c`,
+    splits at `<C>` (sets `b558=1` + stashes the post-`<C>` tail in `b41c`), zeroes `b548`.  The port's
+    `struct tuto_record` ALREADY carries `text[0x100]` (tables_tuto.h), so the line + its char-count
+    are available with no new parsing.
+
+**Chip 2c = port the dialogue reveal / script-advance:** FUN_0046098f (line setup + `<C>`→b558) +
+un-stub the master-tick pose section (b278 pose-in timers + b548 reveal counter, gated on cust_active)
++ the reveal-complete (`b55c=1` when `b548 ≥ char_count`, `b544>0`) + the `<C>`-pause (b558) continue.
+This is the gateway: without it the script can't reach op2 / the offer / the 5 rounds / closing.  It
+is verifiable purely on the call_trace state (op2 `base→1200`@~off969, offer `1536`@~off2440 vs
+retail) BEFORE any visual render.  Chip 3 (the visual: FUN_0046602e panel/portrait + the FUN_00466b7b
+BARGAIN price panel + the FUN_00465db4 glyph draw) renders what Chip 2c advances.
