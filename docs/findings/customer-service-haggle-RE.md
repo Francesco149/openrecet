@@ -550,7 +550,7 @@ rounds + closing, THEN Chip 3 (render).  **v3 tooling note:** the port drive no 
 (`ec6b494`, proxy-only via `--capture-trigger-only`) — full-window drive is 29 s, 0 BMPs, replay
 2699/2699 bit-exact.
 
-## 8.4 Chip 2d LANDED (`99214a8`) — occ3 ported & verified, but the offer is UNCHANGED (1536); §8.3's occ3 hypothesis is REFUTED — the real gap is a per-frame RNG-RATE divergence in cc08==4 (the missing `{phasepin}`)
+## 8.4 Chip 2d LANDED (`99214a8`) — occ3 ported & verified, but the offer is UNCHANGED (1536); §8.3's occ3 hypothesis is REFUTED — the real gap is a cc08==4-SPECIFIC per-frame RNG consumer the port STUBS (a real logic gap, NOT bg-NPC phase / NOT a phasepin)
 
 **Chip 2d landed + verified faithful.** Ported `FUN_00452d3e(1)` at the master-tick queue-advance
 tail (all.c:60998-61000); param **1** confirmed by disasm (`0x463435 push 0x1`, NOT session_init's
@@ -575,35 +575,47 @@ LOADING_END occ2, port frame 626 / retail 3001.)
 ~11000-draw gap).  The offer `b574 = ftol(1200·init_eff/100)`; **init_eff = 129 (retail→1548) vs 128
 (port→1536)** = a 1-step rng-phase difference, the downstream symptom of the 11000-draw gap.  Per-frame
 rate (period-8):
-- **retail** = `7` baseline EVERY frame + a `31`-spike every 8th ⇒ **10/frame** (cycle `[7×7, 31] = 80`).
-- **port**   = `1` baseline + `7` every 4th frame + a `25`-spike every 8th ⇒ **5.5/frame** (cycle
-  `[1×5, 7×2, 25] = 44`).
+- **retail (cc08==4)** = `7` SMOOTH baseline EVERY frame + a `31`-spike every 8th ⇒ **10/frame**.
+- **port (cc08==4)**   = `1` baseline + a `7`-burst every 4th frame + a `25`-spike every 8th ⇒ **5.5/frame**.
 
 The **8-frame +24 spike MATCHES** (retail 31−7=24, port 25−1=24 — the sparkle emitter, present on both).
-The gap is the BASELINE: retail draws `7` EVERY frame; the port draws `6` only every 4th frame.  This is
-the **bg-window-NPC** (the 6 townsfolk, `scene1_bg_npc.c`) drift/respawn cadence — **NOT** frozen during
-cc08==4 (the port's rate is CONTINUOUS across the cc08 1→4 transition, frame 625→626: same period-8
-pattern before and after), just at a DIFFERENT phase than retail.
 
-**ROOT CAUSE — the trace has NO `{phasepin}`** (grep: 0 occurrences), a **policy violation** ("ALWAYS
-phase+RNG-pin every trace we work on").  One `{phasepin}` re-seeds **the bg-NPC warmup to 19937 on BOTH
-sides** ⇒ identical NPC spawn positions/velocities ⇒ identical deterministic drift + identical
-boundary-cross RESPAWN cadence ⇒ aligned per-frame rng.  Without it the two sides' 6 NPCs are at
-different phases ⇒ different respawn cadence ⇒ the rng-rate gap ⇒ the offer's init_eff lands on a
-different LCG value.
+**It is NOT the bg-window-NPCs (hypothesis tested + REFUTED).** The port's per-frame rate is BURSTY
+(`1` + a `7`-burst every 4th + a `25`-burst every 8th) and **CONTINUOUS across the cc08 1→4 transition**
+(frame 625→626, identical period-8 pattern before/after) ⇒ the bg NPCs are NOT frozen by cc08==4, they
+keep drifting/respawning at the same cadence.  And **retail's HOUSE FREE-ROAM (cc08==1) is ALSO bursty**
+— measured in `house-loaded-display-pinned-26e5aec3/retail` (cc08==1): `4.8/frame`, pattern
+`[7,1,1,19,7,1,1,1,…]` = the SAME bursty bg-NPC shape as the port.  So the **bg-NPC drift/respawn rng
+MATCHES between port and retail**; the bursts are the shared, correct bg-NPC consumer.
 
-**The 1536 is a VALID retail value** — it EXACTLY matches the older retail cache `34f44b18` (also
-`b574=1536`, same base/ask 1200/1300).  fe530872's `1548` is a different-anchoring capture.  So the
-offer sits in the **RNG/phase pillar** (load-phase + bg-NPC-phase sensitive); the haggle MATH is
-confirmed correct (it reproduces a real retail value to the unit).
+**ROOT CAUSE — retail runs an EXTRA, SMOOTH ~6–7 rng/frame consumer that is PRESENT ONLY during cc08==4
+and that the port STUBS.**  Retail's cc08==4 baseline is `7` EVERY frame (not bursty) — i.e. on top of
+(or in place of) the bursty bg-NPC stream there is a constant per-frame draw absent from both retail's
+own free-roam and the port.  It is **constant from the very first cc08==4 frame (off 0, b534==0 idle —
+BEFORE the greeting/arrival)**, so it is an IDLE/prologue consumer, not the haggle math.  Prime suspect:
+the **per-frame customer/queue simulation** the port tags PORT-DEBT — e.g. the prologue's *"periodic
+customer-spawn refresh"* (`scene1_bg_npc.c` comment: "stays inert — no customers"), which retail
+exercises because the sell session has queued customers, and/or `FUN_00461068` (cs-walk-setup) /
+`FUN_0047019f` (the 0x47019f customer pump the cc08==4 arm currently skips, PORT-DEBT(cs-arrival-anim)).
+
+**This is a REAL LOGIC GAP, not an accepted RNG/phase pillar.**  The methodology accepts an RNG offset
+only when the consumption COUNT matches and just the seed/phase ORIGIN differs.  Here the COUNT differs
+(the port draws ~HALF), so it is a DRIFT (missing consumer) to FIX.  The port's 1536 coincidentally
+equals the older `34f44b18` retail capture, but that is phase coincidence — the haggle FORMULA is
+correct (`1200·init_eff/100`), yet init_eff's rng draw lands on the wrong LCG value because ~11000
+cc08==4 draws are missing upstream.  (The per-anchor `{rngseed}` re-pins bound the drift per PAUSE_OPEN
+round, but the first offer sits in the occ2→PAUSE_OPEN#1 segment and diverges.)
 
 **NEXT (corrected):**
-1. **Add the canonical pin** to `tests/scenarios/house-customer-tutorial/trace.jsonl`: `{phasepin N}`
-   + `{rngseed [N,19937]}` + `{tutloadpin 8}` (mirror the buy-flow / item-display-2 traces; template
-   `tests/scenarios/house-loaded-display-pinned/trace.jsonl` + `tools/trace_studio/edits/lint.py`).
-   A phasepin moves BOTH sides ⇒ re-drive both.  Re-measure: the bg-NPC respawn cadence should align ⇒
-   the per-frame rng ⇒ the offer (expect convergence, OR a CONST-OFFSET phase residual to accept).
-2. If a residual rng gap survives the pin, **rng-drill** the cc08==4 window (per-callsite `ret_va`) to
-   pinpoint the remaining consumer (bg-NPC per-frame vs a browsing-customer AI the port stubs).
-3. Chip 2d STAYS — occ3 is a correct, faithful port independent of the offer value.
+1. **rng-drill the cc08==4 IDLE window (off 0–150, b534==0, pre-greeting)** to pin the SMOOTH 7/frame
+   consumer by per-callsite `ret_va`: drive retail with the rng-caller hook (`tools/frida/openrecet-agent.js`
+   + `flow_diff.py --rng-drill`), aggregate the ret_vas of the ~7 draws/frame, and map them to the
+   engine fn the port stubs.  It is constant from frame 3001 ⇒ the suspects are the prologue
+   customer-spawn refresh, `FUN_00461068`, and `FUN_0047019f` (cc08==4 arm).
+2. **Port that consumer** (currently PORT-DEBT customer simulation) so the port draws the same per-frame
+   cc08==4 rng ⇒ the offer (and every later round's rng) aligns.
+3. The trace ALSO lacks `{phasepin}` (separate real policy gap — add `{phasepin N}`+`{rngseed [N,19937]}`
+   +`{tutloadpin 8}` for clean db054/anim/sparkle phase), but that is NOT the cause of THIS rng-rate gap
+   (the bg-NPC pattern already matches), so it will not by itself converge the offer.
+4. Chip 2d STAYS — occ3 is a correct, faithful port independent of the offer value.
 THEN the 5 PAUSE_OPEN rounds + closing, THEN Chip 3 (render).

@@ -117,20 +117,24 @@
   (bit-exact 2698/2698): the port **now emits `LOADING_START/END` occ3 @ frame 687-688** (occ2+61,
   1-frame inert) — matching retail's occ3 @ 3060-3061 (occ2+59, 1-frame). The occ3 durations MATCH, yet
   the port's offer stays `b574=1536` (retail fe530872 = 1548) ⇒ **occ3 was NOT the cause.**
-  **REAL BLOCKER — a per-frame RNG-RATE gap in cc08==4 (the trace is MISSING its `{phasepin}`).** What's
+  **REAL BLOCKER — a cc08==4-SPECIFIC per-frame RNG consumer the port STUBS (a real logic gap).** What's
   1:1: base=1200, ask=1300, b56c=1, b5a8=2, b534=1, AND the offer fires at the **IDENTICAL occ2-relative
   offset (occ2+2501) on both** (proven via the `0x47be92` rng-probe + `0x48670f` state-probe joined on
-  occ2). But between occ2 and the offer **retail draws 25051 rng, the port only 13812** — offer
-  `1200·init_eff/100`, init_eff 129(retail)/128(port) = a 1-step phase diff downstream of an ~11000-draw
-  gap. Rate: retail `7`/frame baseline +`31`@8 (=10/f); port `1`/frame +`7`@4th +`25`@8 (=5.5/f). The
-  8-frame +24 spike MATCHES (sparkle); the gap is the BASELINE — the **6 bg-window-NPCs** (`scene1_bg_npc.c`)
-  at a different drift/respawn PHASE (NOT frozen — the port's rate is continuous across the cc08 1→4 seam).
-  **Root cause: NO `{phasepin}` in the trace** (policy violation); one re-seeds the bg-NPC warmup to 19937
-  on both sides ⇒ same spawn ⇒ same respawn cadence ⇒ aligned rng. **The 1536 is a VALID retail value**
-  (exactly matches the older `34f44b18` retail cache) ⇒ RNG/phase pillar; the haggle MATH is confirmed
-  correct. **NEXT:** (1) add `{phasepin N}`+`{rngseed [N,19937]}`+`{tutloadpin 8}` (template
-  `house-loaded-display-pinned`), re-drive both, re-measure; (2) if a residual remains, rng-drill the
-  cc08==4 window; (3) THEN the 5 `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait +
+  occ2). But between occ2 and the offer **retail draws 25051 rng, the port only 13812** (~half) — offer
+  `1200·init_eff/100`, init_eff 129(retail)/128(port) = a 1-step phase diff downstream of the ~11000-draw
+  gap. Rate: retail `7` SMOOTH/frame +`31`@8 (=10/f); port `1`/frame +`7`@4th-frame +`25`@8 (=5.5/f). The
+  8-frame +24 spike MATCHES (sparkle). **NOT the bg-NPCs (hypothesis tested + REFUTED):** the port's rate
+  is bursty AND continuous across the cc08 1→4 seam, AND retail's own HOUSE free-roam is ALSO bursty
+  (`house-loaded-display-pinned`, cc08==1: 4.8/f `[7,1,1,19,…]`) = same shape as the port ⇒ the bg-NPC
+  rng MATCHES. Retail's SMOOTH `7`/frame is cc08==4-ONLY, **constant from off 0 (b534==0 idle, pre-greeting)**
+  ⇒ an idle/prologue customer-sim consumer the port stubs (suspects: the prologue "customer-spawn refresh"
+  = scene1_bg_npc "no customers", `FUN_00461068` cs-walk-setup, `FUN_0047019f` the skipped cc08==4 pump).
+  This is a **DRIFT (missing-consumer logic gap), NOT an accepted RNG pillar** — the COUNT differs (port
+  draws half), not just the seed origin; the 1536 matching `34f44b18` is phase coincidence (the haggle
+  FORMULA is right, init_eff's draw lands wrong). **NEXT:** (1) **rng-drill the cc08==4 idle window
+  (off 0–150, per-callsite `ret_va`)** to name the smooth-7/frame consumer; (2) **port it** so the per-frame
+  cc08==4 rng matches ⇒ the offer aligns; (3) add the missing `{phasepin}` (separate policy gap, does NOT
+  fix this); (4) THEN the 5 `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait +
   `FUN_00466b7b` BARGAIN!! UI + `FUN_00465db4` glyphs). Full diagnosis: `findings/customer-service-haggle-RE.md` §8.4.
   **v3 TOOLING ✅ FIXED 2026-06-18 (`ec6b494`): the port drive no longer dumps BMPs** — it was leaking
   ~8 GB/run of unused screenshots (MULTI keep-trigger piggybacked on `capture_backbuffer()`'s readback);
