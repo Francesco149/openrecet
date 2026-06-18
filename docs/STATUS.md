@@ -122,16 +122,30 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   greeting→dialogue→**op2** (base 3000→1200, arrival `b5a0`) @off+1026, **greeting→op2 span 873 vs
   retail 879 = 6 frames over ~880 (~1:1 reveal timing)**. 3331 host tests pass; port self-verify
   1743/1743 BIT-EXACT.
-  **OPEN — the offer `1536` is WINDOW-BLOCKED (a trace-anchor/load-seam issue, NOT logic):** the
-  port's cc08 run is 1812 frames vs retail's 2489; the haggle Z (fixed segment-frame 2440) lands at
-  cc08-off ~1806 (port) vs off+2440 (retail), so the port's script is ~634f short of PRIA at the Z.
-  The op2-span being 1:1 proves the rate is right — the shortfall is the cc08-entry-to-Z window
-  length. **NEXT:** add a **cc08-entry anchor** (`anchor_trace` + the retail Frida agent) and
-  re-anchor the caprange/calltrace + haggle inputs on it so both windows open at the cc08 entry ⇒
-  verify the offer + the 5 `PAUSE_OPEN` rounds + closing, THEN port **Chip 3** (`FUN_0046602e`
-  panel/portrait + `FUN_00466b7b` BARGAIN!! UI + the `FUN_00465db4` glyph draw — the render is what
-  the user sees retail doing in the viewer). Full diagnosis + frame data:
-  `findings/customer-service-haggle-RE.md` §8 / §8.1 / §8.2.
+  **CUSTOMER_SERVICE_ENTER anchor + re-window ✅ LANDED 2026-06-18 (`e72daa8`) — the offer fires on
+  the PORT (was window-blocked).** Added the `CUSTOMER_SERVICE_ENTER` anchor (cc08 non-4→4) to the
+  port (`anchor_trace`) + retail agent, and re-anchored the haggle window on it: the old
+  `{wait LOADING_START/END, timeout 60}` chain expected retail's SECOND d3e load (occ3) the port lacks
+  ⇒ the port's window opened ~158f off and the Z missed PRIA. New: `{wait CUSTOMER_SERVICE_ENTER}` →
+  `{wait LOADING_END}` (occ2 = master-tick start, both sides) → inputs occ2-relative (+60). **Port:
+  `b574=1536 b584=1` (round 1) @ occ2+2501, with greeting/op2(occ2+1030)/ask→1300(occ2+2406) on
+  retail's EXACT offsets.**
+  **OPEN — retail offer is `1548`≠1536 (RNG-pillar gap from a LOAD-STRUCTURE divergence):** retail
+  spawns TWO d3e loads (occ2 @ entry, occ3 @ occ2+60), the port spawns ONE — the 2nd is
+  **`FUN_00452d3e()`@all.c:60999** (`b520==0 && b56c>0`, the queued-customer asset load) in the master
+  tick; the port ported only the `session_init` spawn (58250). occ3 sets `b1cc=2` (master tick inert
+  ~1-2f), so the port (no occ3) runs those frames ⇒ its haggle RNG is ~2f-shifted ⇒ the first-offer
+  tilt differs (port 1536 = the recording; retail-free-run 1548). A shared `{rngseed}` can't fix both
+  (forcing the occ3 value at occ2+60 gives the PORT 1560). **NEXT — Chip 2d: port `FUN_00452d3e@60999`**
+  (the 2nd d3e load + `b1cc=2` gate) so both sides pause for occ3 ⇒ offer 1536 on both; THEN the 5
+  `PAUSE_OPEN` rounds + closing, THEN **Chip 3** (`FUN_0046602e` portrait + `FUN_00466b7b` BARGAIN!! UI
+  + `FUN_00465db4` glyphs). Full diagnosis: `findings/customer-service-haggle-RE.md` §8.3.
+  **v3 TOOLING ✅ FIXED 2026-06-18 (`ec6b494`): the port drive no longer dumps BMPs** — it was leaking
+  ~8 GB/run of unused screenshots (MULTI keep-trigger piggybacked on `capture_backbuffer()`'s readback);
+  `--capture-trigger-only` fires the GetBackBuffer keep-trigger but writes no BMP (v3 reconstructs from
+  the draw-call stream). Full-window port drive: 29 s, 0 BMPs, replay 2699/2699 bit-exact. Drive WITHOUT
+  `--launch` when autonomous (it opens the blocking viewer; the user opens the studio themselves).
+  `plans/trace-studio-v3.md` "CORRECTION — port MULTI drive was leaking…".
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:

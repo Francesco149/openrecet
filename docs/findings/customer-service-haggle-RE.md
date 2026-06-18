@@ -515,3 +515,37 @@ to op2/arrival; op2→PRID→PRIA→offer reuses the host-tested (`cs_scripted_f
 now-verified dialogue reveal, so it should reach `1536` once the window covers it.  THEN Chip 3
 (the render) — and PORT-DEBT(cs-reveal-in-render) folds the `cs_dialogue_reveal_tick` count into the
 real FUN_00465db4 glyph-walk at that point.
+
+## 8.3 CUSTOMER_SERVICE_ENTER anchor LANDED (2026-06-18, `e72daa8`) — port offer fires; retail offer 1548≠1536 = the unported 2nd d3e load
+
+**Landed:** the `CUSTOMER_SERVICE_ENTER` anchor (cc08 non-4→4) on the port (`anchor_trace.{c,h}` +
+main.c snapshot + host test) AND the retail Frida agent (`openrecet-agent.js`, `var_cc08 0x0438cc08`),
+and re-windowed the haggle segment on it.  The old `{wait LOADING_START/END, timeout 60}` chain
+expected retail's SECOND d3e load (occ3) the port lacks ⇒ the port's window opened ~158f off and the
+Z missed PRIA.  New structure: `{wait CUSTOMER_SERVICE_ENTER}` → `{wait LOADING_END}` (occ2 = the
+d3e-load-end = master-tick start, both sides) → caprange/calltrace/inputs occ2-relative (+60 from the
+old occ3-relative values).
+
+**Port ✅:** the offer FIRES — `b574=1536 b584=1` (round 1) @ occ2+2501, with greeting (occ2+157),
+op2/base→1200 (occ2+1030) and ask→1300 (occ2+2406) all on retail's EXACT offsets.  Verified via the
+fast trigger-only port drive (full-turbo, no BMP-stall perturbation).
+
+**OPEN — retail offer is `1548`, not `1536` (an RNG-pillar gap from a LOAD-STRUCTURE divergence, NOT
+haggle logic):** the new retail v3 drive (cache `fe530872`, anchor CUSTOMER_SERVICE_ENTER) reaches the
+offer with the SAME base/ask (1200/1300) but `b574=1548`.  Root cause: **retail spawns TWO d3e loads
+(occ2 @ entry, occ3 @ occ2+60), the port spawns ONE.**  The 2nd is **`FUN_00452d3e()` @ all.c:60999**,
+gated `(DAT_0730b520==0) && (0 < DAT_0730b56c)` (a queued customer ⇒ load its assets), in the master
+tick — the port ported only the `session_init` spawn (all.c:58250).  occ3 sets `b1cc=2` ⇒ the master
+tick goes inert for the load's ~1-2 frames; the port (no occ3) runs those frames, so its haggle-window
+RNG consumption is shifted ~2 frames vs retail ⇒ the first-offer RNG tilt differs (1536 vs 1548).  The
+port's 1536 MATCHES the recording (the old occ3-anchored retail cache + the host test both give 1536);
+the new retail 1548 is the free-run-without-the-occ3-reseed.  A shared frame-keyed `{rngseed}` CANNOT
+fix both (occ2+60 is occ3-end on retail but a plain frame on the port — forcing the recorded occ3
+value there gives the PORT 1560).
+
+**NEXT — Chip 2d: port the 2nd d3e load (`FUN_00452d3e@60999`)** — add the `b520==0 && b56c>0` spawn +
+`b1cc=2` gate to the port's master tick so the port also pauses ~1-2f for occ3 ⇒ the load structure
+(and the haggle-window frame count / RNG) matches retail ⇒ offer 1536 on both.  THEN the 5 PAUSE_OPEN
+rounds + closing, THEN Chip 3 (render).  **v3 tooling note:** the port drive no longer dumps BMPs
+(`ec6b494`, proxy-only via `--capture-trigger-only`) — full-window drive is 29 s, 0 BMPs, replay
+2699/2699 bit-exact.
