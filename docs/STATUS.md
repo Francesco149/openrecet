@@ -106,10 +106,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (no-op for every other committed timeout-wait, all rel0). **Validated end-to-end**: the extended
   probe with the committed timeout-60 now reaches the d3e `LOADING_START` + **cc08==4**, 2/2 across
   load-stretch; the full committed scenario now fires the 2nd `LOADING_START/END` (the entry's d3e
-  load) where it stalled at 1 before. **NEXT:** drive the FULL scenario + verify the caprange haggle
-  window (cc08==4 master tick + scripted-sell) vs the retail v3 cache, then port **Chip 3**
-  (`FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI) for the 5 `PAUSE_OPEN` rounds +
-  closing dialogue. Full diagnosis + frame data: `findings/customer-service-haggle-RE.md` §8.
+  load) where it stalled at 1 before.
+  **FULL-WINDOW DRIVE + 2 STATE FIXES LANDED 2026-06-18 (this session) — the cc08==4 state machine
+  is now verified ~1:1 to the customer arrival.** Drove the port over the full caprange `[0,2700]`
+  with `--state` vs the retail cache `34f44b18` (align on the cc08 entry, NOT db054 — it freezes in
+  cc08==4). (1) **fileidx BUG ✅ FIXED (`2f360ff`)**: the player-Z sell-counter entry seeded
+  `set_script_file(2)` → `cs_queue_advance` took the `b5b0==2→FUN_00460fa7` (b5a8=1) path + SKIPPED
+  the kind-select ⇒ the customer never bound (b5a8=-1, b56c=0, base=-1, no offer). Disasm of the
+  entry (0x488bbf `push 0x0`) + retail's `b5a8=2` (only from `FUN_00461303`, fileidx∉{1,2}) ⇒
+  fileidx=**0**; the "push 2" sites are the OTHER (autonomous) entries. → greeting binds 1:1
+  (`base=3000 ask=3000 b56c=1 b5a8=2`). (2) **Chip 2c ✅ LANDED (`5c48508`)**: the dialogue
+  text-reveal / script-advance (`FUN_0046098f` line-load + `<C>` split, the master-tick pose section
+  `b278`+`b548` reveal counter @60198-60234 was wrongly stubbed inert, the `b55c` reveal-complete =
+  the `FUN_00465db4`@62835 count with budget=`b548` ⇒ **1 char/frame**). → the script now advances
+  greeting→dialogue→**op2** (base 3000→1200, arrival `b5a0`) @off+1026, **greeting→op2 span 873 vs
+  retail 879 = 6 frames over ~880 (~1:1 reveal timing)**. 3331 host tests pass; port self-verify
+  1743/1743 BIT-EXACT.
+  **OPEN — the offer `1536` is WINDOW-BLOCKED (a trace-anchor/load-seam issue, NOT logic):** the
+  port's cc08 run is 1812 frames vs retail's 2489; the haggle Z (fixed segment-frame 2440) lands at
+  cc08-off ~1806 (port) vs off+2440 (retail), so the port's script is ~634f short of PRIA at the Z.
+  The op2-span being 1:1 proves the rate is right — the shortfall is the cc08-entry-to-Z window
+  length. **NEXT:** add a **cc08-entry anchor** (`anchor_trace` + the retail Frida agent) and
+  re-anchor the caprange/calltrace + haggle inputs on it so both windows open at the cc08 entry ⇒
+  verify the offer + the 5 `PAUSE_OPEN` rounds + closing, THEN port **Chip 3** (`FUN_0046602e`
+  panel/portrait + `FUN_00466b7b` BARGAIN!! UI + the `FUN_00465db4` glyph draw — the render is what
+  the user sees retail doing in the viewer). Full diagnosis + frame data:
+  `findings/customer-service-haggle-RE.md` §8 / §8.1 / §8.2.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:
