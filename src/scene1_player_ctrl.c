@@ -1162,8 +1162,13 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
  * Z-arm (all.c:87680-87695): `if (bVar3) { if (f3ff==0) <counter menu> else {
  * f404=1; FUN_00461bf6(idx); cc08=4; FUN_0045edaa(); } }`.  We take the sell
  * branch directly: set the sell-active flag (f404), seed the script-file index
- * (FUN_00461bf6 — all captured entry sites push 2), flip cc08=4, and run the
- * session init (the f404 sell-active scripted-sell path, RE §3.7).
+ * (FUN_00461bf6 — this player-Z entry pushes **0**, objdump 0x488bbf `push 0x0`
+ * → DAT_005c6bb0=0; the OTHER entry sites at 0x48756a/0x4877b6/0x4884c7 — the
+ * autonomous/cutscene arrivals — push 2, which is what an earlier note conflated),
+ * flip cc08=4, and run the session init (the f404 sell-active scripted-sell path,
+ * RE §3.7).  fileidx=0 is load-bearing: cs_queue_advance dispatches FUN_00461303
+ * (b5a8=2, the kind-select) on fileidx∉{1,2}, but FUN_00460fa7 (b5a8=1) on
+ * fileidx==2 — the retail capture shows b5a8=2, so fileidx MUST be 0.
  *
  * PORT-DEBT(cs-entry-flags): the engine gates bVar3 on DAT_0450f3fd[slot]==1
  * (a customer queued) and the sell branch on DAT_0450f3ff[slot]!=0 — both set by
@@ -1198,7 +1203,7 @@ static int player_ctrl_cc08_sell_counter_enter(void)
     /* enter customer service (the sell branch).  Set the sell-active flag in the
      * working bank so session_init takes the f404 scripted-sell path. */
     ((uint8_t *)bank)[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;   /* DAT_0450f404 = 1 */
-    customer_service_set_script_file(2);                   /* FUN_00461bf6(2) → b5b0 */
+    customer_service_set_script_file(0);                   /* FUN_00461bf6(0) → DAT_005c6bb0 */
     s_cc08 = 4;                                            /* DAT_0438cc08 = 4 */
     customer_service_session_init();                       /* FUN_0045edaa */
     return 1;

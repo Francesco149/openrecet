@@ -291,9 +291,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4603cf | FUN_004603cf | 675 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x46098f | FUN_0046098f | 139 | ✓ | customer_service.c |
-| 0x460fa7 | FUN_00460fa7 | 106 | ✓ | customer_service.c |
+| 0x460fa7 | FUN_00460fa7 | 106 | ✓ | customer_service.c, scene1_player_ctrl.c |
 | 0x461068 | FUN_00461068 | 667 | ✓ | customer_service.c |
-| 0x461303 | FUN_00461303 | 1167 | ✓ | customer_service.c |
+| 0x461303 | FUN_00461303 | 1167 | ✓ | customer_service.c, scene1_player_ctrl.c |
 | 0x461792 | FUN_00461792 | 1124 | ✓ | customer_service.c |
 | 0x461bf6 | FUN_00461bf6 | 10 | ✓ | customer_service.h, scene1_player_ctrl.c |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | customer_service.c, customer_service.h, tables_tuto.h |

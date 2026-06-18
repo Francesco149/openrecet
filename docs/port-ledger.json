@@ -5095,7 +5095,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -5126,7 +5127,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
