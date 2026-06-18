@@ -2713,6 +2713,11 @@ static void render_dispatch(void)
             .conv_pose_state  = scene1_conversation_pose_player_state(),
             .conv_pose_blink  = scene1_conversation_pose_player_blink(),
             .intro_done       = scene1_intro_dialogue_done(),
+            /* CUSTOMER_SERVICE_ENTER: cc08==4 selling mode active (Z at the sell
+             * counter). The unambiguous sync point for the haggle window — the
+             * {wait:LOADING_END} the trace used before resolved to a different
+             * physical load per side. */
+            .cc08             = player_ctrl_cc08(),
             /* PAUSE_OPEN/CLOSE = "a modal interaction menu is up" (the recorder's
              * DAT_0438b150 cursor-visible signal).  Three engine menus drive it:
              * the pause menu (scene_pause's b150 mirror), the in-house

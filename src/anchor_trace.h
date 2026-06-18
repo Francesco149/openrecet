@@ -96,6 +96,16 @@ struct anchor_world {
      * This is the anchor to rebase a recorded free-roam walk onto. */
     int intro_done;
 
+    /* The in-game interaction state DAT_0438cc08 (player_ctrl_cc08): 1 free-roam,
+     * 4 = the in-shop customer-service / price-haggle SELLING mode is active (the
+     * player Z'd at the sell counter). Drives CUSTOMER_SERVICE_ENTER (non-4 → 4) —
+     * the unambiguous "selling mode up" sync point for a haggle trace. The generic
+     * {wait:LOADING_END} can't sync the haggle window: several loads fire (the
+     * Continue-load, the cc08==4 d3e asset load) and that wait resolves to a
+     * DIFFERENT physical load per side, so a caprange rebased on it opens at a
+     * different cc08-offset on each side. 0/1 outside selling mode. */
+    int32_t cc08;
+
     /* 1 while the in-game PAUSE menu is open (engine DAT_0438b150 != 0; set 1 by
      * scene_pause_state_init, cleared 0 on close). Drives PAUSE_OPEN (0→1) /
      * PAUSE_CLOSE (1→0) so the save/pause-menu navigation in a TAS trace re-syncs

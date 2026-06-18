@@ -464,6 +464,7 @@ struct test_case {
     X(anchor_first_tick_emits_only_boot) \
     X(anchor_boot_loading_end) \
     X(anchor_market_enter) \
+    X(anchor_customer_service_enter) \
     X(anchor_new_game_to_house) \
     X(anchor_house_freeroam_fires_once) \
     X(anchor_reentrant_loading) \

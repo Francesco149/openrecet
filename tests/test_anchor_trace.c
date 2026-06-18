@@ -104,6 +104,37 @@ int test_anchor_market_enter(void)
     return 0;
 }
 
+/* CUSTOMER_SERVICE_ENTER fires on the rising edge of cc08 into 4 (the in-shop
+ * customer-service / price-haggle SELLING mode — the player Z'd at the sell
+ * counter). An edge, not a one-shot: staying in cc08==4 doesn't re-fire; the
+ * 1→4 (free-roam→selling) transition fires it just like 0→4. */
+int test_anchor_customer_service_enter(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;            /* INGAME */
+    w.cc08 = 1;                   /* free-roam */
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT, baseline cc08=1 */
+    anchor_trace_tick(&st, 5, w, rec_sink, &r);   /* still free-roam: nothing */
+    w.cc08 = 4;                                    /* Z at counter → selling mode */
+    anchor_trace_tick(&st, 9, w, rec_sink, &r);   /* CUSTOMER_SERVICE_ENTER@9 */
+
+    int cs_idx = -1;
+    for (int i = 0; i < r.n; i++)
+        if (strcmp(r.name[i], "CUSTOMER_SERVICE_ENTER") == 0) cs_idx = i;
+    T_ASSERT(cs_idx >= 0);
+    T_ASSERT_EQ_U(r.frame[cs_idx], 9);
+
+    /* edge: still cc08==4 next frame → no re-fire */
+    int before = r.n;
+    anchor_trace_tick(&st, 12, w, rec_sink, &r);
+    for (int i = before; i < r.n; i++)
+        T_ASSERT(strcmp(r.name[i], "CUSTOMER_SERVICE_ENTER") != 0);
+    return 0;
+}
+
 /* The new-game → house flow: TITLE→INGAME, then the load overlay raises
  * and drops. NEW_GAME and HOUSE_FREEROAM bracket the load. */
 int test_anchor_new_game_to_house(void)

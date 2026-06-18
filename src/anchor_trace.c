@@ -73,6 +73,22 @@ static int ev_market_enter(const struct anchor_world *p, const struct anchor_wor
         && c->scene_state == ANCHOR_SCENE_MARKET;
 }
 
+/* The in-shop customer-service / price-haggle SELLING mode (cc08==4) became
+ * active: the player Z'd at the sell counter (FUN_004850ec set DAT_0438cc08=4)
+ * and customer_service_session_init ran. The generic LOADING_END can't sync the
+ * haggle window — several loads fire (the Continue-load, then the cc08==4 d3e
+ * asset load) and a {wait:LOADING_END} resolves to a DIFFERENT physical load per
+ * side (port: the Continue-load ~157f before the entry; retail: the d3e load AT
+ * the entry), so a caprange rebased on LOADING_END opens at a different cc08-
+ * offset on each side. CUSTOMER_SERVICE_ENTER is the SPECIFIC, unambiguous
+ * "selling mode up" sync point a haggle trace {wait}s on so the offer/round
+ * frames line up (off+2440 both sides). Fires once per counter entry. */
+#define ANCHOR_CC08_SELLING 4
+static int ev_customer_service_enter(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->cc08 != ANCHOR_CC08_SELLING && c->cc08 == ANCHOR_CC08_SELLING;
+}
+
 static int ev_text_anim_start(const struct anchor_world *p, const struct anchor_world *c)
 {
     /* A new dialogue line begins its typewriter reveal. The engine forces
@@ -298,6 +314,7 @@ static const struct anchor_def g_anchors[] = {
     { "LOADING_END",     ev_loading_end     },
     { "HOUSE_FREEROAM",  ev_house_freeroam  },
     { "MARKET_ENTER",    ev_market_enter    },
+    { "CUSTOMER_SERVICE_ENTER", ev_customer_service_enter },
     { "TEXT_ANIM_START", ev_text_anim_start },
     { "TEXT_ANIM_END",   ev_text_anim_end   },
     { "EXTRA_SPRITE_START",    ev_fx_start    },

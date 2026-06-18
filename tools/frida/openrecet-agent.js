@@ -269,6 +269,11 @@ const ADDR = {
                                        // once-per-cycle CONV_POSE_BLINK sync
                                        // (frame 3 is also cell 39 but a different
                                        // cycle phase: next blink +26 vs +38).
+    var_cc08:              0x0438cc08, // i32 DAT_0438cc08 — in-game interaction
+                                       // state: 1 free-roam, 4 = the cc08==4
+                                       // customer-service / price-haggle SELLING
+                                       // mode (Z at the sell counter). Drives
+                                       // CUSTOMER_SERVICE_ENTER (non-4 → 4).
 
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
@@ -755,6 +760,7 @@ let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
 let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line shown)
 let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player state)
 let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
+let g_anchor_prev_cc08      = 0;     // previous-frame DAT_0438cc08 (interaction state)
 let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
 let g_anchor_prev_savepicker = false; // previous-frame Save submenu navigable (type 3)
 let g_anchor_prev_encyclopedia = false; // previous-frame Encyclopedia submenu navigable (type 6)
@@ -3211,6 +3217,8 @@ function anchorTick(frame, devicePtr) {
     const convState = rva(ADDR.var_player_state).readS32();
     const convBlink = (convState === 6) &&
                       (rva(ADDR.var_player_frame).readS32() === 1);
+    // DAT_0438cc08 — in-game interaction state (4 = cc08==4 selling mode).
+    const cc08 = rva(ADDR.var_cc08).readS32();
     // DAT_0438b150 != 0 — the in-game PAUSE menu is open.
     const pauseActive = rva(ADDR.var_pause_state).readS32() !== 0;
     // SAVE_PICKER_READY: the Save submenu (type 3) is open + navigable —
@@ -3260,6 +3268,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_linep   = linePresent;
         g_anchor_prev_convstate = convState;
         g_anchor_prev_convblink = convBlink;
+        g_anchor_prev_cc08    = cc08;
         g_anchor_prev_pause   = pauseActive;
         g_anchor_prev_savepicker = savePickerActive;
         g_anchor_prev_encyclopedia = encyclopediaActive;
@@ -3311,6 +3320,16 @@ function anchorTick(frame, devicePtr) {
     if (ps !== ANCHOR_SCENE_MARKET && scene === ANCHOR_SCENE_MARKET) {
         sendAnchor('MARKET_ENTER', frame);
         anchorCaptureSchedule('MARKET_ENTER', frame, devicePtr);
+    }
+    // CUSTOMER_SERVICE_ENTER — the cc08==4 in-shop customer-service / price-haggle
+    // SELLING mode became active (DAT_0438cc08 non-4 -> 4; the player Z'd at the
+    // sell counter). The unambiguous haggle-window sync point: a {wait:LOADING_END}
+    // resolves to a DIFFERENT physical load per side (Continue-load vs the cc08==4
+    // d3e asset load), so a caprange rebased on it opens at a different cc08-offset
+    // on each side. Mirrors anchor_trace.c ev_customer_service_enter.
+    if (g_anchor_prev_cc08 !== 4 && cc08 === 4) {
+        sendAnchor('CUSTOMER_SERVICE_ENTER', frame);
+        anchorCaptureSchedule('CUSTOMER_SERVICE_ENTER', frame, devicePtr);
     }
     // TEXT_ANIM_START — a new dialogue line begins its typewriter reveal: the
     // reveal counter is forced to 1 (DAT_073a3e00, 0x46c9a2). It only equals 1
@@ -3485,6 +3504,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_linep   = linePresent;
     g_anchor_prev_convstate = convState;
     g_anchor_prev_convblink = convBlink;
+    g_anchor_prev_cc08    = cc08;
     g_anchor_prev_pause   = pauseActive;
     g_anchor_prev_savepicker = savePickerActive;
     g_anchor_prev_encyclopedia = encyclopediaActive;

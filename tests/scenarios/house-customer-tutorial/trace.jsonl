@@ -19,32 +19,34 @@
 {"frame": 66, "buttons": "0x0002"}
 {"frame": 75, "buttons": "0x0000"}
 {"frame": 156, "buttons": "0x0010"}
-{"wait": "LOADING_START", "timeout": 60}
+# cc08==4 haggle window re-anchored on CUSTOMER_SERVICE_ENTER (2026-06-18): the
+# old {wait LOADING_START/END, timeout 60} chain expected a SECOND d3e asset load
+# (retail occ3 @ CSE+60) the PORT lacks (port has ONE d3e load) — so on the port
+# the 2nd-load waits timed out and the caprange/inputs opened at the wrong frame
+# (offer never fired).  CUSTOMER_SERVICE_ENTER (cc08→4) fires once, same instant on
+# both sides; LOADING_END right after it is the d3e-load-end = master-tick start
+# (occ2, port@640/retail@3134).  Inputs are master-tick(occ2)-relative: shifted +60
+# from the old occ3-relative values (occ3 = occ2+60), so the offer Z lands at the
+# script's PRIA on BOTH sides (offer b574=1536 @ occ2+2501).
+{"wait": "CUSTOMER_SERVICE_ENTER"}
 {"rngseed": [0, 608851275]}
 {"frame": 0, "buttons": "0x0010"}
-{"wait": "LOADING_END", "timeout": 60}
+{"wait": "LOADING_END"}
 {"rngseed": [0, 110612738]}
-{"frame": 0, "buttons": "0x0010"}
-{"frame": 1, "buttons": "0x0000"}
-{"wait": "LOADING_START", "timeout": 60}
-{"rngseed": [0, 4205791973]}
-{"frame": 0, "buttons": "0x0000"}
-{"wait": "LOADING_END", "timeout": 60}
-{"rngseed": [0, 944461261]}
 {"caprange": [0, 2700]}
 {"calltrace": [0, 2700]}
 {"frame": 0, "buttons": "0x0000"}
-{"frame": 164, "buttons": "0x0020"}
-{"frame": 1794, "buttons": "0x0000"}
-{"frame": 1861, "buttons": "0x0001"}
-{"frame": 1864, "buttons": "0x0000"}
-{"frame": 2066, "buttons": "0x0020"}
-{"frame": 2182, "buttons": "0x0000"}
-{"frame": 2321, "buttons": "0x0001"}
-{"frame": 2325, "buttons": "0x0000"}
-{"frame": 2345, "buttons": "0x0004"}
-{"frame": 2348, "buttons": "0x0000"}
-{"frame": 2440, "buttons": "0x0010"}
+{"frame": 224, "buttons": "0x0020"}
+{"frame": 1854, "buttons": "0x0000"}
+{"frame": 1921, "buttons": "0x0001"}
+{"frame": 1924, "buttons": "0x0000"}
+{"frame": 2126, "buttons": "0x0020"}
+{"frame": 2242, "buttons": "0x0000"}
+{"frame": 2381, "buttons": "0x0001"}
+{"frame": 2385, "buttons": "0x0000"}
+{"frame": 2405, "buttons": "0x0004"}
+{"frame": 2408, "buttons": "0x0000"}
+{"frame": 2500, "buttons": "0x0010"}
 {"wait": "PAUSE_OPEN"}
 {"rngseed": [0, 615637847]}
 {"frame": 0, "buttons": "0x0010"}
