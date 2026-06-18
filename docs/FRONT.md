@@ -65,13 +65,22 @@
   capture trajectory END-TO-END: idle→greeting base=3000 (item 3) → scripted op-2 base→1200 (item 2)
   → op-4 PRIA + Z → offer `b574`=1536 (=1200·128/100, no f406 override), round `b584`=1.** 3330 host
   pass, exe clean.
-  **NEXT = Chip 3 (render):** `FUN_0046602e` (shopmode.tga panel + portrait) + `FUN_00466b7b`
-  (BARGAIN!! banner / base price / name-a-price / offer buttons / cursor) — the user visual check.
-  **THEN the cc08==4 ENTRY wiring** (the port's house_update doesn't yet reach cc08==4 — Chip 1/2
-  ported the logic but it's UNwired + no customer spawn): wire the Z-at-counter → f404 → session_init,
-  the per-frame cc08==4 → `customer_service_master_tick`, the `FUN_00461bf6` b5b0 arg, + the load-worker
-  callback → `customer_service_notify_loaded`; that unblocks the integrated `flow_diff` drive (currently
-  the only verification is host tests + the data-layer's own `tables_tuto` tests). Plan: RE §3.7/§7.
+  **cc08==4 ENTRY/dispatch/call-trace WIRED 2026-06-18 (`7e163bb`)** — the bVar3 Z-at-counter
+  entry (f404→session_init→cc08=4), the per-frame master-tick dispatch, the `notify_loaded`→b1cc=1
+  fix, the broadened 0x48670f call-trace (cc08 + the cs fields). 3330 host tests pass. **USER
+  DIRECTION 2026-06-18: port the FULL tutorial up to the first real customer; this trace must play
+  in full on BOTH sides before moving to real (kind-2) haggling.** ⚠ **The scenario is a *LOAD*
+  (Continue) trace, NOT new-game** (loads cad868 slot 0 = pre-entry shop state → walk to counter →
+  scripted haggle → 5 rounds → closing dialogue → first customer).
+  **NEXT = THE TRACE-REPLAY BLOCKER (RE §8):** driving the port stays cc08==1 the whole window —
+  the **post-load free-roam boundary lands ~233 frames late** (load worker spawn f231 → cc08=1 set
+  f464), so the recorded walk/turn inputs (relative frames 66-156 to the `LOADING_END` anchor) all
+  fire BEFORE free-roam and are wasted ⇒ the player never reaches the counter ⇒ the bVar3 entry never
+  fires. **FIX FIRST:** the post-load `LOADING_END`-anchor-emit / free-roam-boundary timing (the port
+  emits LOADING_END at raw load-complete; retail emits it at the free-roam boundary — align them, or
+  shorten the 233-frame post-load settle) so the walk input lands in free-roam. THEN the entry fires
+  and the state-machine + render (Chip 3: `FUN_0046602e` panel/portrait + `FUN_00466b7b` BARGAIN!! UI)
+  can be ported + verified. Full diagnosis + frame data: `findings/customer-service-haggle-RE.md` §8.
 - **ACTIVE ARC → ITEM-DISPLAY interaction flow** on trace-studio session
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:
