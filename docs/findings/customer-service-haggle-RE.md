@@ -700,3 +700,56 @@ emitter + port the cc08==4 ambient particles; (b) pivot to the VISIBLE **Chip 3*
 `FUN_0046602e` portrait + `FUN_00466b7b` BARGAIN!! panel + `FUN_00465db4` glyphs); or (c)
 log the rng-rate gap as a known divergence and proceed. **PORT-DEBT(cs-arrival-anim) stays —
 but it is NOT the rng-gap cause; do not conflate them again.**
+
+## 8.6 USER DIRECTION 2026-06-19 → render the cc08==4 SCENE first (the port shows NO customer-service view at all — it stays in free-roam). The state machine is invisible.
+
+**User redirect (chosen over §8.5's options a/b/c):** "we don't even get to the haggling
+tutorial dialogue yet … port that to be 1:1 up to the actual haggling UI first," and "we
+already render other dialogue correctly btw so inspect retail's render path, see if it
+differs from normal dialogue, port gap if so." So the rng gap is DEFERRED; the front is the
+**cc08==4 visual scene render.**
+
+**Confirmed visually (feed "cc08==4 tutorial dialogue gap"):** at a b534==1 dialogue frame
+(offset ~250, base=3000), RETAIL renders the **customer-service STAGE** — a front/counter
+camera angle, **Recette + Tear as large 2D character art**, and a **dialogue box** (speaker
+"Tear" + the typewriter line "actually sell things to…"). The PORT renders the **free-roam
+top-down HOUSE** (the "Button 4: Change Camera" HUD is up) — i.e. **the port's cc08==4 render
+is entirely unported; it never leaves the free-roam presentation** even though the cc08==4
+STATE machine (master tick, offers, b534 reveal) runs correctly underneath. So Chips 1/2a-e
+built an INVISIBLE state machine.
+
+**It is NOT the normal dialogue path** (the user's question, answered by probe): retail's
+normal `dialogue_tick` `FUN_0046c320` fires **0×** in cc08==4 (v3 `--state` drive over the
+window — only `0x48670f`/`0x47be92` ever hit). The cc08==4 dialogue is the **scripted
+machine's own render**: the text reveal the port already advances (Chip 2c, `b548`) is drawn
+by **`FUN_00466b7b`** (calls the glyph renderer `FUN_00465db4` = the PORT'S EXISTING
+`font_draw_text_box`, used for the guild bubble — reusable!) with the reveal budget; the
+characters/panel by **`FUN_0046602e`** (gated `b1cc==1 && b7b0!=0`). Draw-program diff at the
+frame: retail 179 draws / 2761 tris vs port 105 / 2599 — retail-only = a big panel quad
+(`b494`, 80 tris) + ~23 extra font-atlas glyph quads (the dialogue line) + the 2D character
+sprites.
+
+**The render dispatch** (who calls the cs render): `FUN_0046602e` ← `FUN_00409925`
+(0x409925, 3434 B); `FUN_00466b7b` ← `FUN_0040a765` (0x40a765, 7558 B) — both in the 2D-UI /
+overlay render system. So the port's 2D-UI render needs a cc08==4 branch dispatching to the
+cs render, the same way it already dispatches the guild/menu/dialogue overlays.
+
+**PORT PLAN (the fresh arc):**
+1. **The cc08==4 scene presentation / camera** — the dispatch arm all.c:87366-87434 the port
+   STUBS as `PORT-DEBT(cs-arrival-anim)` sets the stage camera + the player/companion pose
+   (`DAT_056daafc` anim=5, `DAT_056dab00` octant, `DAT_056da1d8/1e0` camera, `DAT_056db05c`
+   angle). Port it so the view switches from free-roam top-down to the counter angle.
+2. **`FUN_0046602e`** (2668 B) — the 2D Recette/Tear character art + the cs panel; gate
+   `b1cc==1 && b7b0!=0`. Wire into the port's 2D-UI render (mirror of `FUN_00409925`).
+3. **`FUN_00466b7b`** (5305 B) — the dialogue box + the typewriter text via the EXISTING
+   `font_draw_text_box` (`FUN_00465db4`) with budget `b548` (already counted by Chip 2c);
+   speaker-name + box. This is "Tear's dialogue." (The BARGAIN!! PRICE layout is the later
+   part of the same fn — do the dialogue-text part first, price after, per the user order.)
+4. Verify in Trace Studio v3 (identity-align on the cc08==4 entry, NOT the LOADING_END anchor
+   — the port carries ~157 pre-cc08 walk frames so same-offset frames are mismatched; the
+   port's b534==1 starts ~off+153, retail ~off+90).
+
+**NB the frame-pairing caveat:** the v3 identity join (LOADING_END anchor) pairs the port's
+pre-cc08 WALK frame with retail's cc08==4 DIALOGUE frame (load-stretch + the 157-frame walk).
+Render-compare by cc08-entry-relative offset, or just eyeball a port b534==1 frame vs a retail
+b534==1 frame directly.

@@ -20,8 +20,17 @@
 - **ACTIVE ARC → SHOP CUSTOMER-SERVICE / price-haggle tutorial** (the cc08==4 selling mode),
   scenario **`house-customer-tutorial`** (user recording rec-20260617-051426: LOAD cad868 → walk to
   the sell counter → the haggle tutorial that alternates Tear's dialogue with the BARGAIN!! price UI
-  → first real customer). Full RE: **`findings/customer-service-haggle-RE.md`**. **Entire cc08==4
-  subsystem is unported.** Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
+  → first real customer). Full RE: **`findings/customer-service-haggle-RE.md`**.
+  **★ CURRENT FRONT (2026-06-19, user redirect) — RENDER THE cc08==4 SCENE.** The cc08==4 STATE
+  machine works (Chips 1/2a-e: master tick, offers, b534 reveal) but it is **INVISIBLE — the port
+  never leaves the free-roam top-down view in cc08==4** (confirmed vs retail's customer-service
+  stage: counter camera + Recette/Tear 2D art + the "Tear" dialogue box). NORMAL `dialogue_tick`
+  fires 0× here — it's the scripted machine's own render (`FUN_00466b7b` text via the EXISTING
+  `font_draw_text_box`/`FUN_00465db4` + `FUN_0046602e` characters/panel; dispatched from the 2D-UI
+  render `FUN_00409925`/`FUN_0040a765`) + the camera/pose (the stubbed `PORT-DEBT(cs-arrival-anim)`
+  arm all.c:87366-87434). **Plan + the frame-pairing caveat: RE §8.6.** The **rng-rate gap is
+  DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the recording, so it's
+  a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
   `src/customer_haggle.{c,h}` (`d0ac215`, DISASM-exact, +9 host tests). **2026-06-17 day (this session):**
   (A) ⚠⚠ **CORRECTION² (2026-06-17 PM, USER-CONFIRMED) — the tutorial sell is the SCRIPTED machine
