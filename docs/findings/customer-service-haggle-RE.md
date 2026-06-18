@@ -479,3 +479,39 @@ This is the gateway: without it the script can't reach op2 / the offer / the 5 r
 is verifiable purely on the call_trace state (op2 `base→1200`@~off969, offer `1536`@~off2440 vs
 retail) BEFORE any visual render.  Chip 3 (the visual: FUN_0046602e panel/portrait + the FUN_00466b7b
 BARGAIN price panel + the FUN_00465db4 glyph draw) renders what Chip 2c advances.
+
+## 8.2 Chip 2c LANDED (`5c48508`) — script advances to op2/arrival ~1:1; the offer is window-blocked
+
+**Chip 2c works.** Re-drove the port over the full caprange and compared the state trajectory to
+the retail cache: the script now advances greeting → opening dialogue → **op2** (base 3000→1200,
+customer arrival `b5a0` ramps 1→0x3c) at **off+1026** (retail off+969).  Crucially the
+**greeting→op2 SPAN is 873 frames (port) vs 879 (retail) = 6 frames over ~880 (0.7%)** — the
+1-char/frame reveal + the pose-gap timing is essentially 1:1.  (`b534→1` greeting binds
+`base=3000 ask=3000 b56c=1 b5a8=2`, off+153 vs retail off+90 = the load-phase origin, accept.)
+
+**The offer (`b574=1536`) still doesn't appear — but it is OUTSIDE the port's captured run, not a
+logic stall.**  Empirics: the port's cc08==4 run is frames 634-2446 = **1812 frames**; retail's is
+3195-5684 = **2489 frames**.  The offer is at retail **off+2440** (frame 5635) — beyond the port's
+1812-frame run (ends off+1812).  Root cause = a **LOAD-SEAM / anchor-occurrence misalignment**, NOT
+the customer-service code:
+  - The v3 join matches port `HOUSE_FREEROAM#2` ↔ retail `#1` (load-stretch makes the sides emit a
+    different number of HOUSE_FREEROAM events), but WITHIN the matched anchor the cc08 entry sits at
+    a different offset: the port's calltrace window opens at frame 477 (cc08==1, **157 pre-cc08
+    walk frames in-window**) and cc08→4 at 634; retail's window OPENS at the cc08 entry (frame 3195,
+    0 pre-cc08).  Worse, the port's run *ends* ~520 window-frames earlier than retail's.
+  - Net: the haggle Z is at a fixed segment-frame (2440), which lands at **cc08-off ~1806 on the
+    port vs off+2440 on retail** — so the port's script is ~634 frames short of PRIA when the Z
+    arrives ⇒ no offer.  The port loads faster, so fewer frames elapse between the cc08 entry and
+    the fixed-segment-frame Z; the same span gives the script less time on the port.
+  - The op2-span being 1:1 (873 vs 879) proves the reveal RATE is right; the shortfall is purely
+    the cc08-entry-to-Z window length, i.e. the trace alignment.
+
+**NEXT (the offer-verification fix, a tooling/scenario task, NOT port logic):** add a
+**customer-service-entry anchor** (emit on cc08→4 in `anchor_trace` + the retail Frida agent) and
+re-anchor the caprange/calltrace + the haggle inputs on IT, so both sides' windows open at the cc08
+entry and the Z's cc08-offset matches (off+2440 both sides).  Then the offer/round-1 (and the 5
+PAUSE_OPEN rounds) can be verified.  The customer-service STATE machine itself is confirmed correct
+to op2/arrival; op2→PRID→PRIA→offer reuses the host-tested (`cs_scripted_first_offer`) path + the
+now-verified dialogue reveal, so it should reach `1536` once the window covers it.  THEN Chip 3
+(the render) — and PORT-DEBT(cs-reveal-in-render) folds the `cs_dialogue_reveal_tick` count into the
+real FUN_00465db4 glyph-walk at that point.
