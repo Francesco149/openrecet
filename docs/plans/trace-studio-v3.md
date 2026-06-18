@@ -65,6 +65,23 @@ path stays single-frame (R2 regression BIT-EXACT). Replayer renders any kept-fra
 `tools/trace_studio_v3/port_capture.py` (stage proxy → scenario-test → pull from LOCALAPPDATA
 → replay every frame + assert bit-exact + report dedup); `inspect_cap.py` multi-frame aware.
 
+**CORRECTION — port MULTI drive was leaking ~8 GB of unused BMPs/run ✅ FIXED 2026-06-18
+(`ec6b494`).** The MULTI keep-trigger above ("GetBackBuffer keeps EVERY caprange frame")
+piggybacks on the exe's OWN per-frame screenshot readback (`capture_backbuffer()` →
+GetBackBuffer + LockRect + BMP `fopen`/write), because `scenario-test` always passes
+`--capture-to`. But v3 reconstructs frames from the DRAW-CALL stream (`v3cap.bin`); the
+proxy only needs the GetBackBuffer **call** (its `write_frame` runs in the hook, from the
+shadow). So every port drive was dumping the whole window as v2-style BMPs (~1800/run,
+1024×768×4 ⇒ ~8 GB) that nothing in v3 reads — the exact pixel-dump v3 exists to kill.
+Fix: `--capture-trigger-only` (src/main.c) — `capture_backbuffer()` fires GetBackBuffer
+(proxy keeps the frame) then returns, skipping the readback + write; `--capture-to` stays
+(lockable backbuffer + paths unchanged). Opt-in, threaded `scenario-test` → `port_capture`
+(v2/golden BMP runs untouched; `--capture-frames` spot-checks still write their handful).
+Proven: `house-customer-tutorial` port drive keeps 2699 frames (139 MB vs 8097 MB of raw
+pixels), replay 2699/2699 BIT-EXACT, **0 BMPs** (was 1752–1815); the bare drive is 29 s
+(was an 8-min duration-ceiling kill). **Retail was already clean** (armwait +
+OrV3ArmWindowAt present-window keep, no GetBackBuffer trigger).
+
 **P1 TAIL — RETAIL present-WINDOW keep mode ✅ DONE (2026-06-12).** The single-frame retail
 present-count path is generalized to a **WINDOW** `[capframe, capframe+capcount)`: the proxy
 keeps EVERY present in the window into the SAME multi-frame container the port uses, drops the
