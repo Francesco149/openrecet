@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 465,
-  "unported": 1999,
+  "ported": 466,
+  "unported": 1998,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 549,
-  "pct_touched": 21.5,
+  "touched": 550,
+  "pct_touched": 21.6,
   "pct_verified": 2.7,
   "port_debt": 26
  },
@@ -5269,6 +5269,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/font_draw.c",
     "src/font_draw.h",
     "src/scene_guild.c"
@@ -5303,6 +5304,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/customer_service.h"
    ]
   },
@@ -5522,6 +5524,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
@@ -5676,8 +5679,10 @@
    "size": 73,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x46939a",

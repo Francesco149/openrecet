@@ -109,10 +109,13 @@ static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
  * scripted-sell machine (FUN_00461c00) drive beyond Chip 1's entry set. */
 static int32_t s_b540;   /* DAT_0730b540 — digit cursor / Yes-No toggle */
 static int32_t s_b544;   /* DAT_0730b544 — per-state sub-frame timer (==1 first frame) */
-static int32_t s_b548;   /* DAT_0730b548 — dialogue-advance scratch */
+static int32_t s_b548;   /* DAT_0730b548 — text-reveal budget (climbs 1 display-char/frame) */
 static int32_t s_b54c;   /* DAT_0730b54c — per-line voice/file id [0] */
 static int32_t s_b550;   /* DAT_0730b550 — per-line scratch [1] */
 static int32_t s_b55c;   /* DAT_0730b55c — line-done / Z-advance gate */
+static char        s_line_buf[0x100];   /* DAT_0730b31c — the active (pre-<C>) line text */
+static char        s_line_tail[0x100];  /* DAT_0730b41c — the post-<C> continuation */
+static const char *s_b270;              /* DAT_0730b270 — the active line pointer */
 static int32_t s_b560;   /* DAT_0730b560 — price-digit cursor (FUN_0045ff11) */
 static int32_t s_b570;   /* DAT_0730b570 — the item slot being transacted */
 static int32_t s_b5a4;   /* DAT_0730b5a4 — offered-item handle (id = b5a4>>6) */
@@ -548,6 +551,10 @@ static void cs_offer_up(void)
     s_b580 = st.floor; s_b588 = st.accept_ref;
 }
 
+/* the dialogue-line loader (FUN_0046098f), defined below the master tick but
+ * called from the scripted machine's dialogue op. */
+static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg);
+
 /* ── FUN_00461c00 — the SCRIPTED-sell machine (the customer-service tutorial) ──
  * The per-frame interpreter dispatched from the master tick's b534==1 arm while
  * b51c==1.  The PC (b604) walks g_tuto[b5b0*200 + pc]; opcodes interleave Tear's
@@ -699,9 +706,9 @@ static void cs_scripted_tick(void)
             }
             if (op != 4) {                         /* dialogue (CHR0=0 / CHR1=1) */
                 s_b55c = 0;
-                /* PORT-DEBT(cs-dialogue-line): FUN_0046098f line setup (the dialogue
-                 * text buffer + the <C>-pause flag b558) — render-side; the b55c-
-                 * gated advance below is driven by the text-reveal render. */
+                /* FUN_0046098f: load the line text, split at <C>, reset b548.  The
+                 * b55c-gated advance below is driven by cs_dialogue_reveal_tick. */
+                cs_dialogue_line_setup(r->text, op, r->chr_arg);
                 if (op == 0 || op == 1) {          /* speaker active flag toggle */
                     s_cust_active[op ^ 1] = 0;
                     s_cust_active[op] = 1;
@@ -815,6 +822,95 @@ lab_tail:                                           /* LAB_004622c6 */
     return;
 }
 
+/* ── FUN_0046098f — load a dialogue line into the active buffer ───────────────
+ * The dialogue op (CHR0/CHR1) calls this with the line text (g_tuto[pc].text),
+ * the speaker index (0/1 → the b54c/b550 panel-sprite slot), and the per-line
+ * voice/sprite id (chr_arg).  Copies the text into s_line_buf, SPLITS at a "<C>"
+ * tag (sets b558=1 = a mid-line pause and stashes the post-<C> tail in
+ * s_line_tail), and zeroes the reveal budget b548.  b270 points at the visible
+ * text (the source when there is no <C>, else the truncated s_line_buf). */
+static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg)
+{
+    if (idx == 0) s_b54c = chr_arg;          /* (&DAT_0730b54c)[idx] = chr_arg */
+    else          s_b550 = chr_arg;
+    s_b558 = 0;
+    s_b548 = 0;
+    s_b270 = text;
+    int i = 0;
+    for (;;) {
+        char c = text[i];
+        if (c == '\0')                       /* no <C> → b270 stays = source */
+            return;
+        s_line_buf[i] = c;
+        if (c == '<' && text[i + 1] == 'C')
+            break;
+        i++;
+        if (i == 0x100)
+            return;
+    }
+    s_line_buf[i] = '\0';                     /* truncate the visible text at '<' */
+    s_b558 = 1;
+    if (i != 0x100) {                         /* copy the tail after "<C>" */
+        int j = 0;
+        for (;;) {
+            char c = text[i + 3];             /* skip the 3 chars "<C>" */
+            s_line_tail[j] = c;
+            if (c == '\0')
+                break;
+            j++;
+            i++;
+            if (i == 0x100)
+                break;
+        }
+    }
+    s_b270 = s_line_buf;
+}
+
+/* ── FUN_00465db4 reveal-complete (the b55c half) — all.c:62828-62836 ─────────
+ * The engine sets DAT_0730b55c=1 as a SIDE EFFECT of the speech-bubble text
+ * RENDER (FUN_00466b7b @63744 calls FUN_00465db4 with budget = DAT_0730b548):
+ * it walks the active line consuming b548 display-chars (an SJIS 2-byte char =
+ * a lead byte that costs no budget + a trail that costs 1; "<BR>" = a free row
+ * break) and, when the line's '\0' is reached within the budget AND b544>0,
+ * sets b55c=1 — the gate the scripted machine's dialogue advance reads.  We run
+ * the COUNT here (no draw) at the master-tick HEAD, using b548 as it stood at
+ * the end of the prior frame (== the value retail's prior-frame render saw), so
+ * the b534==1 dispatch later this frame reads the same b55c retail does.
+ * Only SETS b55c (never clears — the dispatch clears it when it loads a line).
+ * PORT-DEBT(cs-reveal-in-render): fold this into the Chip 3 FUN_0046602e/66b7b
+ * render port so it is the same call site/glyph-walk, not a state-side replica. */
+static void cs_dialogue_reveal_tick(void)
+{
+    if (s_cust_active[0] == 0 && s_cust_active[1] == 0)   /* no active speaker */
+        return;
+    if (s_b270 == NULL)
+        return;
+    int budget = s_b548;
+    const char *p = s_b270;
+    int in_lead = 0;
+    for (int guard = 0; guard < 0x200; guard++) {
+        char c = *p;
+        if (c == '\0') {                     /* whole line revealed */
+            if (s_b544 > 0)
+                s_b55c = 1;
+            return;
+        }
+        if (c == '<' && p[1] == 'B' && p[2] == 'R') {   /* "<BR>" row break — free */
+            p += 4;
+            continue;
+        }
+        if (c < 0 && in_lead == 0) {
+            in_lead = 1;                     /* SJIS lead byte — costs no budget */
+        } else {
+            in_lead = 0;
+            budget -= 1;
+            if (budget < 1)                  /* budget exhausted before the end */
+                return;
+        }
+        p += 1;
+    }
+}
+
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
  * Owns the per-frame timers + the arrival-anim ramp, then the b534 state switch.
@@ -832,13 +928,47 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         return;
     /* PORT-DEBT(cs-debug-leave): the b5e4==1 debug-skip branch (all.c:60168-60186). */
 
+    /* text-reveal-complete (b55c): in retail this is a side effect of the prior
+     * frame's speech-bubble render; replicate it at the tick HEAD off the b548 the
+     * prior frame left, so the b534==1 dispatch below reads retail's b55c. */
+    cs_dialogue_reveal_tick();
+
     s_b5b4 += 1;
     if (s_b53c > 0) { s_b53c += 1; if (0x4f < s_b53c) s_b53c = 0; }
     /* FUN_0048a833() — PORT-DEBT(cs-misc-tick): per-frame housekeeping, no cc08 state. */
     if (s_b5d0 == 0) s_b5d4 = 0;
     else if (s_b5d4 < 0xf) s_b5d4 += 1;
-    /* PORT-DEBT(cs-pose-anim): the b278/b27c on-screen-customer pose timers
-     * (all.c:60198-60234) — inert for the state trajectory. */
+
+    /* on-screen-customer pose timers + the dialogue REVEAL budget (all.c:60198-
+     * 60234).  b278/b27c (= s_item_pick[1]/[2]) ramp each speaker's pose in
+     * (0→0xf) while active / out (→0) when not; the reveal budget b548 climbs
+     * 1/frame per ACTIVE speaker — but the whole block is gated on `settled`
+     * (bVar12): while an INACTIVE speaker is still posing OUT (b278>0) the budget
+     * is held, which is the inter-line gap retail shows between dialogue lines.
+     * PORT-DEBT(cs-target-window-spawn): the (settled && b5b0!=0) →
+     * FUN_00469351/FUN_00468338 target-window asset spawn (render-side; b5b0==0
+     * on the tutorial sell path, so inert). */
+    {
+        int settled = 1;                         /* bVar12 (init true, 60167) */
+        for (int i = 0; i < 2; i++) {
+            if (s_cust_active[i] == 0 && s_item_pick[1 + i] > 0) {
+                settled = 0;
+                s_item_pick[1 + i] -= 1;         /* b278[i] pose-out ramp down */
+            }
+        }
+        int b59c_prev = s_b59c;
+        if (s_b59c == 0 && s_b598 > 0) { s_b598 -= 1; settled = 0; }
+        if (settled) {
+            for (int i = 0; i < 2; i++) {
+                if (s_cust_active[i] != 0) {
+                    if (s_item_pick[1 + i] < 0xf)
+                        s_item_pick[1 + i] += 1;  /* b278[i] pose-in ramp up */
+                    s_b548 += 1;                  /* reveal budget +1/active speaker */
+                }
+            }
+            if (b59c_prev > 0 && s_b598 < 0xf) s_b598 += 1;
+        }
+    }
 
     if (s_b51c == 0 && s_b534 != 0xf && s_b58c > 0)
         s_b58c -= 1;
@@ -852,8 +982,11 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     /* PORT-DEBT(cs-bubble-pos, render chip): the speech-bubble screen position
      * DAT_0438cc38/3c/40 — pure float placement, not in the trajectory probe. */
 
-    /* greeting-skip on Z while a <C>-tagged line is paused (all.c:60318-60324). */
+    /* <C>-pause continue (all.c:60318-60324): a <C>-tagged line is fully revealed
+     * (b558==1, b55c) and Z pressed → switch the active pointer to the post-<C>
+     * tail (b41c) and restart the reveal (b548=0). */
     if (s_b558 == 1 && s_b55c != 0 && (s_in_pressed & 0x10)) {
+        s_b270 = s_line_tail;
         s_b548 = 0;
         s_b558 = 0;
         s_b55c = 0;
@@ -902,6 +1035,8 @@ void customer_service_reset(void)
     s_b59c = s_b5a0 = s_b5ac = s_b5b0 = s_b5b4 = s_b5b8 = s_b5bc = s_b5c0 = 0;
     s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = 0;
     s_b540 = s_b544 = s_b548 = s_b54c = s_b550 = s_b55c = s_b560 = s_b570 = 0;
+    s_b270 = NULL;
+    s_line_buf[0] = s_line_tail[0] = '\0';
     s_b5a4 = s_b600 = s_b604 = s_b608 = 0;
     s_b574 = s_b57c = s_b580 = s_b584 = s_b588 = 0;
     s_b1cc = 0;

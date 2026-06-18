@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **549** (21.5%) — verified 70, stubbed 14, ported 465
-- unported: **1999**
+- touched: **550** (21.6%) — verified 70, stubbed 14, ported 466
+- unported: **1998**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (465) — reimplemented, no probe yet
+## ported (466) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -302,9 +302,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_player_ctrl.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
-| 0x465db4 | FUN_00465db4 | 634 | ✓ | font_draw.c, font_draw.h, scene_guild.c |
+| 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, font_draw.c, font_draw.h (+1) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h |
-| 0x466b7b | FUN_00466b7b | 5305 | ✓ | customer_service.h |
+| 0x466b7b | FUN_00466b7b | 5305 | ✓ | customer_service.c, customer_service.h |
 | 0x4681d3 | FUN_004681d3 | 8 | ✓ | customer_service.c, encyclopedia.c, scene_pause.c |
 | 0x4681db | FUN_004681db | 11 | ✓ | encyclopedia.c |
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ | customer_service.c, scene_pause.c |
@@ -316,10 +316,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ | scene_guild.c, scene_pause.c, stage_load_pulse.h |
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ | scene_pause.c, stage_load_pulse.h |
-| 0x468338 | FUN_00468338 | 2490 | ✓ | main.c, scene1_display_menu.c, scene1_display_menu.h (+5) |
+| 0x468338 | FUN_00468338 | 2490 | ✓ | customer_service.c, main.c, scene1_display_menu.c (+6) |
 | 0x468d22 | FUN_00468d22 | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+2) |
 | 0x468ddc | FUN_00468ddc | 303 | ✓ | scene1_display_menu.c |
 | 0x469241 | FUN_00469241 | 99 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
+| 0x469351 | FUN_00469351 | 73 | ✓ | customer_service.c |
 | 0x46939a | FUN_0046939a | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x469414 | FUN_00469414 | 1516 | ✓ | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
 | 0x469a00 | FUN_00469a00 | 131 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
