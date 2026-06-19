@@ -149,26 +149,33 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   crisp + aligned.  Resolve with truly bit-aligned frames once the side-by-side join lands (below); could
   still be a non-bit-aligned-frame artifact (cursor-pulse / +1f phase), so confirm before chasing.
   **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
-  properly on this") — ROOT-CAUSED 2026-06-19 (autonomous), and it is NOT the load-stretch per se.**  The
-  haggle **DOES align occ2/CSE-relative within 1-2 frames** — proven from the cached `--state` traces, ask
-  transitions occ2-relative: 3000 @153(port)/151(retail), 1200 @1029/1030, 1300 @2405/2406 (base identical).
-  So the data is alignable; the EXACT identity-join just keys it wrong.  **Real cause:** `key_of_present`
-  (orv3_sync.py) keys each frame on the MOST-RECENT anchor ≤ present, which for every haggle frame is
-  **HOUSE_FREEROAM occ3** (port @699 / retail @2354) — a LOAD re-anchor emitted by the cc08==4 asset-swap
-  LOADING_END, NOT a stable gameplay resync.  The occ2→occ3 load span differs per side (port 62f / retail
-  60f) and that phase rides into the occ3-relative delta, so the EXACT (anchor,occ,delta) match fails for
-  nearly all frames ⇒ 119/2698 paired (the survivors are the few where the phase rounds to 0).  The TRUE
-  semantic resync is **CUSTOMER_SERVICE_ENTER** (cc08 1→4, port @636 / retail @2293, in BOTH streams) and it
-  aligns within 1f (port haggle abs3042 = CSE+2406, retail abs4700 = CSE+2407).  `--anchor CSE` didn't help
-  because it only changes the window's BASE anchor, not which anchor `key_of_present` picks PER FRAME (still
-  occ3).  **NEXT-SESSION T-task (pick one):** (a) have the join SKIP the HOUSE_FREEROAM re-anchors that fire
-  inside a cc08-load window so CSE stays the most-recent anchor for the haggle (cleanest); or (b) give the
-  join a small per-anchor CONSTANT-OFFSET tolerance (mirror flow_diff `--align-anchor` constant-offset) so a
-  1-3f load-phase doesn't break the exact match; or (c) a cc08-aware `key_of_present` that prefers CSE over
-  intervening load re-anchors.  Any of these → the viewer's identity-synced panels pair the haggle port|retail
-  and the ADDSIGNED fix (and future cc08 work) is verifiable in-tool.  **Meanwhile** the content-match-by-
-  occ2-offset recipe works NOW: render port idx (occ2_port − present_first + N) vs retail idx (occ2_retail −
-  present_first + N) for the same haggle offset N (orv3_shot --frame; this session used N≈2406 → port 2405 /
+  properly on this") — ROOT-CAUSED + CORE FIX LANDED 2026-06-19 (autonomous, `--join-anchor`).**  The data
+  was ALWAYS alignable: the haggle aligns occ2/CSE-relative within a CONSTANT phase (the `b544` monotonic
+  counter is port = retail+2 across the WHOLE window — off 200/600/1000/1500/2000/2400 all +2, no drift; and
+  measured from the post-load HOUSE_FREEROAM that +2 CANCELS the occ2→load-HF spacing diff (62f port / 60f
+  retail) → phase 0).  **Real cause (NOT the load-stretch, NOT a per-frame phase): a WINDOW-OCC MISMATCH.**
+  The two sides' windows armed on DIFFERENT occurrences of the base anchor — port on HOUSE_FREEROAM#2 (@637,
+  the post-cc08 asset-load HF, since the port's shorter prologue puts present_first there) but retail on
+  HOUSE_FREEROAM#1 (@2137, post-prologue) — so `_window_occ` re-based each to a different SEMANTIC origin and
+  the shared post-load HF became window-occ **2** on the port vs **3** on retail ⇒ the (anchor,occ,delta) keys
+  never matched ⇒ 119/2698.  Empirically proven by re-keying both sides from CUSTOMER_SERVICE_ENTER (occ-1 on
+  BOTH, port @636 / retail @2293): **2498/2698 pair** (the rest = honest load-region gaps).  **FIX LANDED:**
+  `FrameIdentity.key_of_present_rebased(present, origin_anchor)` + opt-in `orv3_sync --join-anchor NAME`
+  (default None → byte-identical, zero regression; +`test_rebased_join`, 14 v3 tests pass).  `orv3_sync
+  <port> <retail> --join-anchor CUSTOMER_SERVICE_ENTER` now reports 2498 + writes the correct pairs.json.
+  **REMAINING (next-session, ~5 functions, all opt-in pass-through — touches the SHARED viewer manifest path
+  so worth a review): thread `join_anchor` into the VIEWER's view.json so the native panels use it** — (1)
+  `v3cache.load_side(entry, join_anchor=None)` → build `s.index` with `key_of_present_rebased` (the viewer's
+  columns come from `s.index` via `_side_index`/`merge_keys`, NOT pairs.json); (2) `orv3_view.write_view_json`
+  + `build_view` → accept + pass `join_anchor` to their internal `sync_entries`; (3) `orv3_state.collect` /
+  `build_state_rows` → use `key_of_present_rebased` so the STATE-panel labels match the rebased columns; (4)
+  `orv3_window` → add `--join-anchor` CLI, call `load_side(..., join_anchor)` + `write_view_json(...,
+  join_anchor)`; (merge_anchor_seq ordering is best-effort with a safe fallback — the dominant (HF,2,delta)
+  bucket self-orders by delta, so likely no change needed; verify).  Validate: `orv3_window
+  house-customer-tutorial --window 0:2700 --state --join-anchor CUSTOMER_SERVICE_ENTER --view` → view.json
+  should show ~2498 paired columns (vs 119) with state-panel rows aligned.  **Meanwhile** the content-match-
+  by-occ2-offset recipe works NOW: render port idx (occ2_port − present_first + N) vs retail idx (occ2_retail
+  − present_first + N) for the same haggle offset N (orv3_shot --frame; this session used N≈2406 → port 2405 /
   retail 2563, both ask=1300, 1:1).
   Remaining cs-render PORT-DEBT: per-line pose precision; cs-render-priceinput (b5d0 digit-entry, inert);
   cs-price-trend (FUN_004361b2 High/Low tint→0); cs-haggle-prompt-live (b51c==0 live machine); extend the
