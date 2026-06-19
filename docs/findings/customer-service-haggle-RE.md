@@ -928,3 +928,30 @@ house-customer-tutorial-a361c768, the camera-eye/lookat probe):** camex/camez/ca
 14.135) vs retail (-2.836, 14.109)).  3335 host tests pass; free-roam camera unaffected (the
 stage_class global defaults 0).  PORT-DEBT(cs-cam-tier): the tier-2/3 eye-height (b778) ramps
 to 25/29 are stubbed (tutorial is tier 0).
+
+## 8.8 FULL-TRACE DIAGNOSTIC (2026-06-19) — the cc08==4 trajectory is largely 1:1; the remaining SYNC blocker is the §8.5 RNG-RATE gap (port draws HALF retail's rng)
+
+Drove the FULL port `0:2700` state window vs the retail `a361c768` cache (cc08-entry aligned,
++1-frame probe phase) and compared the whole haggle trajectory to the first customer.  **What's
+1:1:** `panim`, `b584`(round), `b590` ALIGNED every frame; the camera (camlx/camlz) bit-exact at
+the settled view (off 90+); the haggle base/ask trajectory matches (idle→greeting 3000→op2 1200,
+aligned by ~off 300) modulo the master-tick-start phase (the binding/greeting fire a few frames
+apart — port greeting @off154 vs retail @off150, a reveal-timing residual, not a logic gap).
+**The +1-frame "phase" is a PROBE-TIMING asymmetry, NOT a logic/render gap:** retail reads the
+0x48670f payload at Present-onEnter (post-render, agent.js:1562); the port reads it at
+CALL_TRACE_BEGIN (top of the tick, pre-arm).  The ANCHOR is recorded post-sim on BOTH (main.c:2772
+/ agent Present), so the **d3d RENDER is frame-aligned** — the studio's apparent "camera off" is
+the arrival RAMP frames (mid-hop), not a real offset; the SETTLED camera is exact.
+
+**THE blocker — the §8.5 rng-rate gap, CONFIRMED with the current build:** in cc08==4 the **port
+draws ~5.53 rng/frame, retail ~10.02/frame** (constant rates, measured over 2000 frames).  The
+~4.5/f gap is the cc08==4 ambient-particle integrator (`FUN_0040fb3a` re-emitting via the 0x44a750
+camera-yaw behavior for **type-0x43** resident particles — the integrator checks
+`(&DAT_069b2fb0)[i*0x25]==0x43`).  This desyncs everything rng-driven: the **first-customer offer
+diverges ONLY at the end** (`b574` port 1536 vs retail 1548 @off2500 — init_eff 128 vs 129, a
+1-step phase off the rng gap) + the resident particles (a subtle visual).  Template-0x43 particles
+are spawned by `FUN_004147d5`/`FUN_00447f4f`(template 0x43) gated on object-type fields
+(`+0xa58`∈{0xb,0x28}) in FUN_004279cf/FUN_0042b6b7 — but the cc08==4 resident set is persistent
+(NOT freshly spawned in-window, per §8.5's "0 top-level calls"), so the seed needs a pool-dump
+probe (in progress) to pin its origin.  **Until the gap closes, the trace is "structurally 1:1"
+(camera+anim+state+dialogue verified) with the rng-driven offer/particles as the known residual.**
