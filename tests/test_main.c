@@ -1276,6 +1276,8 @@ struct test_case {
     X(scene_buy_b13_null_load_fn_returns_count_only) \
     X(scene_buy_b13_does_not_load_singletons) \
     X(scene_buy_reset_zeroes_state) \
+    X(scene_buy_parse_stage_grp_lines) \
+    X(scene_buy_parse_stage_clamps_and_counts) \
     \
     X(scene_worldmap_count_is_four) \
     X(scene_worldmap_filename_table_full_order) \

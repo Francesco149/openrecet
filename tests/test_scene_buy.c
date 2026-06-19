@@ -473,3 +473,51 @@ int test_scene_buy_reset_zeroes_state(void)
     T_ASSERT_EQ_I(g_scene_buy_names[49][9][0],  0);
     return 0;
 }
+
+/* ─── per-stage grp: parser (FUN_00475270 block #4) ──────────────────── */
+
+int test_scene_buy_parse_stage_grp_lines(void)
+{
+    scene_buy_reset();
+    /* A customer `file:` data buffer: two grp standee lines (2-digit NN,
+     * ':' at +5, path at +6), a comment, plus se/msg arms that are ignored. */
+    const char *buf =
+        "grp00:ivent/01recette_04.tga\r\n"
+        "grp01:ivent/02tear_01.tga\r\n"
+        "/comment line\r\n"
+        "se00:foo.wav\r\n"
+        "msg00:hello\r\n";
+    scene_buy_parse_stage_buffer(5, buf, strlen(buf));
+
+    T_ASSERT_EQ_I(g_scene_buy_count[5], 2);   /* two grp lines */
+    if (strcmp(g_scene_buy_names[5][0], "ivent/01recette_04.tga") != 0)
+        T_FAIL("slot 0: got '%s'", g_scene_buy_names[5][0]);
+    if (strcmp(g_scene_buy_names[5][1], "ivent/02tear_01.tga") != 0)
+        T_FAIL("slot 1: got '%s'", g_scene_buy_names[5][1]);
+    return 0;
+}
+
+int test_scene_buy_parse_stage_clamps_and_counts(void)
+{
+    scene_buy_reset();
+    /* count tracks EVERY grp line (engine +0x5144), but names are stored
+     * only for slots < SCENE_BUY_SLOT_COUNT; a grp NN past the cap bumps
+     * count without an OOB write.  Also exercise a bare-\n terminator. */
+    const char *buf =
+        "grp00:a.tga\r\n"
+        "grp09:b.tga\r\n"
+        "grp15:c.tga\n";
+    scene_buy_parse_stage_buffer(3, buf, strlen(buf));
+
+    T_ASSERT_EQ_I(g_scene_buy_count[3], 3);
+    if (strcmp(g_scene_buy_names[3][0], "a.tga") != 0)
+        T_FAIL("slot 0: got '%s'", g_scene_buy_names[3][0]);
+    if (strcmp(g_scene_buy_names[3][9], "b.tga") != 0)
+        T_FAIL("slot 9: got '%s'", g_scene_buy_names[3][9]);
+
+    /* out-of-range page / null buffer are no-ops (memory safety). */
+    scene_buy_parse_stage_buffer(-1, buf, strlen(buf));
+    scene_buy_parse_stage_buffer(SCENE_BUY_PAGE_COUNT, buf, strlen(buf));
+    scene_buy_parse_stage_buffer(0, 0, 0);
+    return 0;
+}

@@ -9,6 +9,7 @@
 #include "scene_buy.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "worker_load.h"
@@ -27,6 +28,58 @@ static const char *const g_scene_buy_path_fmt = "bmp/%s";
 const char *scene_buy_format_string(void)
 {
     return g_scene_buy_path_fmt;
+}
+
+/* ── per-stage character-sprite NAME parser (FUN_00475270 block #4 grp arm) ──
+ * all.c:74568-74716.  Pure parse of ONE customer's `file:` data buffer into the
+ * per-page standee-NAME table the AE8/B13 workers load.  The startup driver
+ * (tables.c: stage_files) reads each customer's file via storage and calls this;
+ * keeping the parse pure (no storage) lets the host suite test it + keeps
+ * scene_buy.o free of the storage link dep.
+ *
+ *   `grpNN:<path>` → g_scene_buy_names[rec][NN] = <path>, g_scene_buy_count[rec]++
+ *
+ * (NN two digits, ':' at +5, path at +6 — exactly the engine's local_27c+0x26.)
+ * Poses are 512² standees under bmp/ (e.g. ivent/01recette_NN.tga); the actual
+ * filenames come from the user's data files.  Without this the names table is
+ * empty ⇒ both loaders see count==0 ⇒ no character art (text-only scene).
+ *
+ * PORT-DEBT(cs-stage-msg): the `seNN:` + `msg%02d:` arms (the customer's normal
+ * per-line dialogue + its per-line grp/se index) are NOT parsed — the tutorial
+ * uses the SCRIPTED machine's dialogue and its CHR ops drive b54c/b550 directly.
+ *
+ * NOTE the engine name table is 20 slots/record but the sprite array is 10/page
+ * (flat); a record with >10 grp slots bleeds into the next page engine-side.  The
+ * port clamps storage to SCENE_BUY_SLOT_COUNT (the dense low slots the tutorial
+ * uses); count still tracks every grp line so the loader's clamp matches. */
+void scene_buy_parse_stage_buffer(int rec, const char *buf, size_t len)
+{
+    if (rec < 0 || rec >= SCENE_BUY_PAGE_COUNT || !buf) return;
+    const char *end = buf + len;
+    const char *p = buf;
+    while (p < end && *p) {
+        char line[512];
+        int n = 0;
+        while (p < end && *p && *p != '\r' && *p != '\n' && n < (int)sizeof(line) - 1)
+            line[n++] = *p++;
+        line[n] = '\0';
+        while (p < end && (*p == '\r' || *p == '\n')) p++;   /* eat terminator(s) */
+        if (line[0] == '\0' || line[0] == '/') continue;     /* blank / comment */
+
+        if (line[0] == 'g' && line[1] == 'r' && line[2] == 'p') {
+            int nn = atoi(line + 3);
+            if (nn >= 0 && nn < SCENE_BUY_SLOT_COUNT) {
+                const char *fn = line + 6;
+                int k = 0;
+                while (fn[k] != '\0' && k < 255) {
+                    g_scene_buy_names[rec][nn][k] = fn[k];
+                    k++;
+                }
+                g_scene_buy_names[rec][nn][k] = '\0';
+            }
+            g_scene_buy_count[rec] += 1;             /* +0x5144: every grp line */
+        }
+    }
 }
 
 /* ─── shared page-loop helper ────────────────────────────────────────── */

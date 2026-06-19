@@ -7251,6 +7251,8 @@
     "src/main.c",
     "src/scene1_overlay_table.h",
     "src/scene1_walker_pass_init.h",
+    "src/scene_buy.c",
+    "src/scene_buy.h",
     "src/tables.c",
     "src/tables.h",
     "src/tables_buysell.c",

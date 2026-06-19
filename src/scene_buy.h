@@ -96,6 +96,7 @@
 #define OPENRECET_SCENE_BUY_H
 
 #include <stdint.h>
+#include <stddef.h>   /* size_t (scene_buy_parse_stage_buffer) */
 
 /* Per-page block count. Engine init loop end-address: (0x0730fdb4 -
  * 0x06a63bd4) / 0x2c670 = 50. */
@@ -142,6 +143,14 @@ int  scene_buy_b13_load_with(scene_buy_load_fn load_fn, void *userdata);
 /* Engine sprintf format (`bmp/%s`). Same literal at engine .rdata
  * 0x5c864c (AE8) and 0x5c8680 (B13); we expose one getter. */
 const char *scene_buy_format_string(void);
+
+/* Per-stage character-sprite NAME parser — engine FUN_00475270 block #4
+ * (the `grpNN:` arm).  Pure parse of ONE customer's `file:` data buffer into
+ * g_scene_buy_names[rec][*] + g_scene_buy_count[rec] (the standee filenames the
+ * AE8/B13 workers load).  The storage-backed driver lives in tables.c (called
+ * from tables_load_all after the kyaku + chara tables); kept pure here so the
+ * host suite can test it without the storage link dep. */
+void scene_buy_parse_stage_buffer(int rec, const char *buf, size_t len);
 
 /* Reset module state — clears all per-page globals and (on Win32)
  * zeroes the destination sprite_t handles. Tests only. */

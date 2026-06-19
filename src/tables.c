@@ -33,6 +33,7 @@
 #include "tables_gousei.h"
 #include "tables_item.h"
 #include "tables_kyaku.h"
+#include "scene_buy.h"      /* scene_buy_load_stage_files — cc08==4 standee names */
 #include "tables_model.h"
 #include "tables_news.h"
 #include "tables_oder.h"
@@ -560,6 +561,27 @@ static void load_tuto_loop(void)
     (void)total;
 }
 
+/* Per-stage character-sprite NAME driver (FUN_00475270 block #4): for each
+ * defined customer, read its `file:` data file via storage and parse the
+ * `grpNN:` standee lines into the scene_buy name table (the cc08==4 character
+ * art).  Sets g_scene_buy_valid for every defined customer (engine: the flag is
+ * raised by the kyaku.txt parse).  The pure parse lives in scene_buy.c. */
+static void load_stage_files(void)
+{
+    for (int rec = 0; rec < KYAKU_COUNT && rec < SCENE_BUY_PAGE_COUNT; rec++) {
+        const kyaku_record_t *kr = &g_kyaku.records[rec];
+        if (!kr->active) continue;
+        g_scene_buy_valid[rec] = 1;
+        if (kr->file_path[0] == '\0') continue;
+
+        unsigned char *buf = NULL;
+        size_t got = load_via_storage(kr->file_path, &buf);
+        if (got == 0) continue;            /* missing file → no standees (no-op) */
+        scene_buy_parse_stage_buffer(rec, (const char *)buf, got);
+        free(buf);
+    }
+}
+
 void tables_load_all(void)
 {
     /* Order matches FUN_00475270 exactly. Some later loaders may
@@ -571,6 +593,10 @@ void tables_load_all(void)
     load_kyaku_txt();
     load_enemy_txt();
     load_chara_txt();
+    /* Per-stage character-sprite NAME parse (FUN_00475270 block #4): after
+     * kyaku.txt + chara.txt, before buysell.txt — populates the cc08==4
+     * customer-service standee name table from each customer's `file:` data. */
+    load_stage_files();
     load_buysell_txt();
     load_oder_txt();
     load_model_txt();
