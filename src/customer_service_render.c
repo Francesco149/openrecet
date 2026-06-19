@@ -345,10 +345,10 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                 if (s.b51c != 0) {
                     const char *t; uint32_t pc;
                     if (s.price_fileidx == 1) {
-                        t = "What should I pay?";
+                        t = "What should I pay?...";          /* DAT_005c6e28 */
                         pc = ((uint32_t)alpha << 24) | 0xffff37u;   /* yellow */
                     } else {
-                        t = "How much should I?";
+                        t = "How much should I?...";          /* DAT_005c6e40 */
                         pc = ((uint32_t)alpha << 24) | 0xffffffu;   /* white */
                     }
                     font_draw_text_centered(dev, 312.0f, 250.0f, t, pc, 1.0f);
