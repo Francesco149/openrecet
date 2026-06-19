@@ -46,13 +46,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   fires 0×; it's the scripted machine's own render). **Chip 3a ✅ LANDED 2026-06-19 — the DIALOGUE
   BOX + typewriter line now render** (`src/customer_service_render.c`: FUN_0046602e a/b/c +
   FUN_00466b7b §6, dispatched into FUN_00409925/FUN_0040a765; typewriter via the EXISTING
-  `font_draw_text_box`). v3-verified `house-customer-tutorial-a361c768` (port 105→152 draws, retail
-  161); feed "cc08==4 render — Chip 3a". **NEXT — Chip 3b: the big Recette/Tear CHARACTER ART**
-  (`g_scene_buy_sprites` empty — needs the UNPORTED startup `grp:` per-stage file parser
-  FUN_00475270 block#4 to populate `g_scene_buy_names`/count + a 10→20 slot expansion; this is the
-  dominant remaining visual + the "Tear" slot-1 name plate); **Chip 3c: the counter camera/pose**
-  (the stubbed `PORT-DEBT(cs-arrival-anim)` arm all.c:87366-87434); then FUN_00466b7b §1-5 (the
-  haggle price/BARGAIN/buttons UI, "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7.**
+  `font_draw_text_box`). v3-verified `house-customer-tutorial-a361c768`; feed "cc08==4 render — Chip 3a". **Chip 3b ✅
+  LANDED 2026-06-19 — the big Recette/Tear CHARACTER ART now renders** (`fed54cf`): ported the
+  UNPORTED startup `grp:` per-stage file parser (FUN_00475270 block#4 → `scene_buy_parse_stage_buffer`
+  + the `tables.c` driver) that populates `g_scene_buy_names`/count from each customer's `file:` data;
+  AE8 loads page 0 (Recette/Tear), B13 page b56c (customer). v3-verified: the port now draws the
+  standees over the dialogue box (feed "Chip 3b: CHARACTER ART renders"); +2 host tests. **NEXT —
+  Chip 3c: the counter camera/pose** (the stubbed `PORT-DEBT(cs-arrival-anim)` arm all.c:87366-87434;
+  retail ramps the player pos to the counter view, port stays where the walk stopped); the **"Tear"
+  slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
+  index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
+  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7.**
   The **rng-rate gap is DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the
   recording, so it's a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**

@@ -771,11 +771,18 @@ b534==1): the port renders *"and then they will come over to the counter to say 
 **105→152** (retail 161). Was: nothing (free-roam top-down only). Feed: "cc08==4 render — Chip 3a".
 
 **REMAINING GAPS (the v3 material verdict, port 1001 vs retail 1114):**
-1. **The big character art (Recette/Tear 2D sprites) — Chip 3b, the dominant visual.** The two
-   512² sprites come from `g_scene_buy_sprites[page][slot]` (page 0 via the AE8 worker =
-   shopkeeper/Recette+Tear; page b56c via B13 = the customer), loaded from `g_scene_buy_names`
-   (filenames). **The port NEVER populates the names → tex==0 → cs_quad skips them.** The retail
-   WRITER is a **startup per-stage `grp:` file parser** the port has NOT implemented:
+1. **The big character art (Recette/Tear 2D sprites) — Chip 3b ✅ LANDED (`fed54cf`).** Ported the
+   `grp:` parser (`scene_buy_parse_stage_buffer` + the `tables.c load_stage_files` driver) — the
+   port now populates `g_scene_buy_names`/count from each defined customer's `file:` data at startup,
+   and AE8/B13 load the standees (v3-verified: Recette+Tear render over the dialogue box; +2 host
+   tests). PORT-DEBT(cs-stage-msg): the `seNN:`/`msg%02d:` arms (customer's normal dialogue + the
+   per-line grp/se index) are NOT parsed (the tutorial uses the scripted machine). NOTE the names
+   table holds 20 slots/record engine-side but the port clamps storage to SCENE_BUY_SLOT_COUNT=10
+   (the dense low slots; count still tracks every grp line so the loader clamp matches) — expand if
+   a customer needs poses ≥10. _Original analysis (kept for reference):_ The two 512² sprites come
+   from `g_scene_buy_sprites[page][slot]` (page 0 via AE8 = shopkeeper/Recette+Tear; page b56c via
+   B13 = the customer), loaded from `g_scene_buy_names`. The retail WRITER is a **startup per-stage
+   `grp:` file parser**:
    **FUN_00475270 block #4 (all.c:74568-74716)** — for each customer record (stride 0x2c670, 50
    records) with valid(+0x514c)!=0, it opens the record's `file:` data file (+0x5044, captured by
    the port's `tables_kyaku.c apply_file_path`) and parses lines: **`grpNN:` → names[NN]+count**
