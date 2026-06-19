@@ -37,6 +37,11 @@ int   g_scene1_camera_char_mode        = 0;     /* new-game HOUSE: record+0x2ce0
                                                  * entry (scene1_postload_load_
                                                  * house_phase2_inputs). */
 int   g_scene1_camera_stage_view_mode  = 0;     /* HOUSE BSS-zero */
+/* Engine DAT_0438b4e8 — the camera stage-CLASS.  0 = the player-follow
+ * (free-roam), 1 = the cc08==4 customer-service cinematic counter camera
+ * (FUN_00462403 sets it + writes the cinematic eye/lookat; FUN_00441c3e's
+ * class-1 branch then uses those verbatim).  2/3 = dungeon variants. */
+int   g_scene1_camera_stage_class      = 0;
 float g_scene1_camera_z_roll           = 0.0f;  /* _DAT_006051c4 */
 
 int   g_scene1_camera_sample_counter   = 0;     /* engine DAT_0438bfa8 */
@@ -135,7 +140,7 @@ void scene1_camera_pose_compute(void)
      * deferred to Cc.2; class 2/3 are dungeon variants — port the
      * arithmetic for completeness so the stage-class writer doesn't
      * surprise us when it lands. */
-    const int stage_class = 0;  /* _DAT_0438b4e8 BSS-zero for HOUSE */
+    int stage_class = g_scene1_camera_stage_class;  /* _DAT_0438b4e8 */
     if (stage_class == 0) {
         if (uVar2 < 2) {
             g_class_off_x = 0.0f;
@@ -281,6 +286,18 @@ void scene1_camera_pose_compute(void)
     float eye_y = g_class_off_z + g_eyey_add + cinematic + lookat_y;
     float eye_z = bias_z - radius_xz * cosf(yaw);
 
+    /* stage_class==1 (FUN_00441c3e @0x441880): the cc08==4 customer-service
+     * cinematic counter camera.  customer_service's master tick (via
+     * scene1_camera_cs_counter_cam) has ALREADY written the smoothed eye/lookat
+     * to a fixed per-tier counter target, so use them verbatim instead of the
+     * player-follow above — the Block-H lerp below then re-reads the same values
+     * (a no-op, matching the engine's pass-through).  Verified vs retail:
+     * tier-0 lookat (-3.0, 0.0), eye (-3.0, 14.0) at the settled counter view. */
+    if (stage_class == 1) {
+        eye_x    = g_smooth_eye[0];    eye_y    = g_smooth_eye[1];    eye_z    = g_smooth_eye[2];
+        lookat_x = g_smooth_lookat[0]; lookat_y = g_smooth_lookat[1]; lookat_z = g_smooth_lookat[2];
+    }
+
     /* Block H (L188-L204) — smoothing lerp / first-frame snap. */
     if (g_first_frame == 0) {
         g_smooth_eye[0]    = (eye_x    - g_smooth_eye[0])    * 0.2f + g_smooth_eye[0];
@@ -316,6 +333,49 @@ void scene1_camera_pose_compute(void)
      * engine `_DAT_073de328` + `_DAT_073de330`. */
     g_scene1_camera_anchor[0] = g_scene1_camera_lookat[0];
     g_scene1_camera_anchor[1] = g_scene1_camera_lookat[2];
+}
+
+/* ─── FUN_00462403 cinematic block: the cc08==4 customer-service COUNTER camera ─
+ *
+ * (all.c:60280-60314.)  During customer service the engine DECOUPLES the camera
+ * from the player and pins the lookat to a fixed per-shop-tier counter target
+ * (NOT the player position — that's why the player can ramp to px=-4.5 while the
+ * camera holds the counter framing), orbits the eye by the same HOUSE radius the
+ * free-roam camera uses, and flags stage_class=1 so scene1_camera_pose_compute
+ * passes these values straight through.  Called from customer_service's master
+ * tick each cc08==4 frame.  Verified vs retail (house-customer-tutorial-a361c768):
+ * tier-0 lookat smooths to (-3.0, 0.0), eye to (-3.0, 14.0) at the settled view. */
+void scene1_camera_cs_counter_cam(int shop_tier)
+{
+    /* lookat target by shop tier (engine local_8 = lookat X, local_c = lookat Z). */
+    float look_x_t = -3.0f, look_z_t = 0.0f;          /* tier 0 / default */
+    if (shop_tier == 1)      { look_x_t = 0.0f; look_z_t =  0.0f; }
+    else if (shop_tier == 2) { look_x_t = 5.5f; look_z_t = -1.0f; } /* +b778 ramp→25: PORT-DEBT(cs-cam-tier) */
+    else if (shop_tier == 3) { look_x_t = 5.5f; look_z_t =  5.5f; } /* +b778 ramp→29: PORT-DEBT(cs-cam-tier) */
+
+    /* smooth lookat x/z toward the target at 0.1/frame (engine 0.1 lerp on
+     * _DAT_0438cc50/58).  lookat y (_DAT_0438cc54) is left frozen at its last
+     * free-roam value, exactly as the engine does. */
+    g_smooth_lookat[0] = (look_x_t - g_smooth_lookat[0]) * 0.1f + g_smooth_lookat[0];
+    g_smooth_lookat[2] = (look_z_t - g_smooth_lookat[2]) * 0.1f + g_smooth_lookat[2];
+
+    g_scene1_camera_stage_class = 1;                  /* DAT_0438b4e8 = 1 */
+
+    /* eye = lookat + the HOUSE orbital offset (radius = class_off_y + radius_add,
+     * the same params the free-roam camera uses; yaw = the camera yaw).  These
+     * read the previous frame's class offsets — stable in cc08==4 (char_mode 0). */
+    float yaw    = g_scene1_camera_yaw;
+    float radius = g_class_off_y + g_radius_add;
+    g_smooth_eye[0] = radius * sinf(yaw) + g_smooth_lookat[0];
+    g_smooth_eye[1] = g_class_off_z + g_eyey_add + g_smooth_lookat[1];
+    g_smooth_eye[2] = g_smooth_lookat[2] - radius * cosf(yaw);
+}
+
+/* Reset to the free-roam player-follow camera (stage_class 0) — called from the
+ * cc08==1 free-roam arm so the camera resumes tracking after customer service. */
+void scene1_camera_set_freeroam_class(void)
+{
+    g_scene1_camera_stage_class = 0;
 }
 
 /* ─── FUN_004424e7 angle / orientation helper ─────────────────────────── */

@@ -299,7 +299,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | customer_service.c, customer_service.h, tables_tuto.h |
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ | customer_service.c |
-| 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_player_ctrl.c |
+| 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_camera.c (+2) |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, font_draw.c (+2) |

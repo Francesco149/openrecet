@@ -41,13 +41,19 @@
   BIT-EXACT vs retail across all 2569 cc08==4 frames** under a constant +1-frame arrival-origin
   PHASE shift (CONST-OFFSET, accept). Also gated the room px-clamp on cc08!=4 (FUN_00486435) +
   advance the player anim via chr_anim_tick (rng-free). 3335 host pass. **NEXT (note #3 follow-up):
-  the camera FRAMING residual** — at the settled counter view the render still differs ~25px/91%px
-  though px/pz/char_mode/view_mode all match retail; the cause is a camera input NOT in the probe
-  (eye/lookat smoothing, the bias_z≤1 clamp, or retail decoupling the cam target during cc08==4) —
-  extend the 0x48670f probe with the camera eye/lookat (both sides) + diff. **Then** the **"Tear"
+  the camera FRAMING residual** ✅ ROOT-CAUSED + PORTED as **Chip 3d (the cc08==4 cinematic COUNTER
+  camera, RE §8.7.3).** It was a real NEW camera mode (user: "investigate this new camera mode"):
+  retail's master tick (`FUN_00462403`) DECOUPLES the camera from the player and pins the lookat to
+  a FIXED per-shop-tier counter target (tier-0 (-3.0, 0.0), eye (-3.0, 14.0)) with `stage_class=1`;
+  the port had stubbed those eye writes as "cs-bubble-pos" + hardcoded stage_class 0 (player-follow
+  → over-pan to -4.5). Ported `scene1_camera_cs_counter_cam` + the class-1 pass-through + the
+  master-tick call + the free-roam reset; added a camera eye/lookat probe (both sides). **v3-VERIFIED
+  BIT-EXACT** camex/camez/camlx/camlz = (-3.0, 14.0, -3.0, 0.0) at the settled view (off 80-120),
+  ramp within the +1-frame phase. 3335 host pass. PORT-DEBT(cs-cam-tier): tier-2/3 eye-height ramps.
+  **NEXT:** the **"Tear"
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
   index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
-  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7/§8.7.2.**
+  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7/§8.7.2/§8.7.3.**
   The **rng-rate gap is DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the
   recording, so it's a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**

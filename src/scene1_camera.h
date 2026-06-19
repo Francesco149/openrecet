@@ -91,6 +91,20 @@ extern int g_scene1_camera_char_mode;
  * `[-5, -1]` x / `≤1` z clamp. */
 extern int g_scene1_camera_stage_view_mode;
 
+/* Engine DAT_0438b4e8 — the camera stage-CLASS.  0 = free-roam player-follow,
+ * 1 = the cc08==4 customer-service cinematic counter camera (see
+ * scene1_camera_cs_counter_cam).  2/3 = dungeon variants. */
+extern int g_scene1_camera_stage_class;
+
+/* The cc08==4 customer-service COUNTER camera (FUN_00462403 @60280) — pins the
+ * lookat to a fixed per-tier counter target + flags stage_class=1.  Called each
+ * cc08==4 frame from customer_service's master tick. */
+void scene1_camera_cs_counter_cam(int shop_tier);
+
+/* Reset stage_class to 0 (free-roam player-follow) — called from the cc08==1
+ * free-roam arm so the camera resumes tracking after customer service. */
+void scene1_camera_set_freeroam_class(void);
+
 /* Z-roll constant (engine: `_DAT_006051c4`).  Cc.0 verified this lands
  * in BSS-zero in the unpacked exe.  Tests can set a non-zero value to
  * exercise the `RotZ` post-multiply inside `scene1_camera_build_view_matrix`;

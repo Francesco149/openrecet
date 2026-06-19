@@ -894,3 +894,37 @@ the bias_z clamp (`if (bias_z>1) bias_z=1` — pz=8.6 clamps to 1 on both, so th
 shop-front not the counter), or retail decoupling/fixing the camera target during cc08==4 rather
 than tracking the player to -4.5.  **Next:** extend the 0x48670f probe with the camera eye/lookat
 (both sides), re-capture, and diff — then the framing residual resolves to a concrete field.
+
+### 8.7.3 Chip 3d LANDED (2026-06-19) — the cc08==4 cinematic COUNTER camera (the §8.7.2 residual ROOT-CAUSED + ported; camera now BIT-EXACT at the settled view)
+
+**The §8.7.2 residual was a genuine NEW camera mode the user flagged ("investigate this new
+camera mode").**  Extended the 0x48670f probe with the final camera eye/lookat (engine
+`_DAT_073de31c/324/328/330`) + char_mode on BOTH sides; the diff was decisive: at the settled
+counter view the **port follows the player** (lookat (-4.5, 1.0), eye (-4.5, 15.0)) while **retail
+pins a FIXED counter target** (lookat (-3.0, 0.0), eye (-3.0, 14.0)), `char_mode`=0 on both (NOT
+the cause).
+
+**RE — the cc08==4 cinematic counter camera (`FUN_00462403` all.c:60280-60314):** the
+customer-service master tick DECOUPLES the camera from the player — it pins the lookat to a fixed
+per-**shop-tier** counter target (`iVar8 = (&DAT_04510578)[slot*0xb7f2]` = the tier): **tier 0/def
+→ (X -3.0, Z 0.0)**, tier 1 → (0, 0), tier 2 → (5.5, -1.0)+eye-height ramp→25, tier 3 → (5.5,
+5.5)+ramp→29 — smoothing `_DAT_0438cc50/58` toward it at **0.1/frame**, then orbits the eye
+(`cc38 = (b774+b695ef70)·sin(yaw)+cc50`, `cc40 = cc58-(…)·cos(yaw)`, radius `b774+b695ef70`=14),
+and sets **`DAT_0438b4e8` (stage_class) = 1**.  The camera function `FUN_00441c3e`'s class-1 branch
+(0x441880) then uses those cinematic eye/lookat VERBATIM (its 0.2 lerp re-reads the same values =
+no-op) instead of the player-follow.  **The port had stubbed the master-tick cc38/3c/40 writes as
+"cs-bubble-pos" (a misread — they're the camera EYE) and hardcoded `stage_class = 0`** (always
+player-follow), so the camera tracked the player to -4.5.
+
+**PORT (`d?`):** `scene1_camera_cs_counter_cam(tier)` (new, scene1_camera.c — writes the smoothed
+eye/lookat + sets stage_class=1, reusing the validated free-roam radius/eye-height params) + the
+**`stage_class==1` pass-through** in `scene1_camera_pose_compute` (the global replaces the
+hardcoded 0) + the **master-tick call** in `customer_service_master_tick` (replacing the
+"cs-bubble-pos" stub, tier from the save bank) + the **free-roam reset** (`s_cc08 != 4 →
+scene1_camera_set_freeroam_class()` so the camera resumes tracking after CS).  **VERIFIED (v3,
+house-customer-tutorial-a361c768, the camera-eye/lookat probe):** camex/camez/camlx/camlz =
+**(-3.0, 14.0, -3.0, 0.0) BIT-EXACT vs retail at the settled view (off 80-120)**; the ramp (off
+0-50) tracks retail within the same +1-frame arrival-origin phase (e.g. off20 port (-2.797,
+14.135) vs retail (-2.836, 14.109)).  3335 host tests pass; free-roam camera unaffected (the
+stage_class global defaults 0).  PORT-DEBT(cs-cam-tier): the tier-2/3 eye-height (b778) ramps
+to 25/29 are stubbed (tutorial is tier 0).

@@ -1900,6 +1900,15 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_F32("px",    g_scene1_player_pos[0]);
             CALL_TRACE_F32("py",    g_scene1_player_pos[1]);
             CALL_TRACE_F32("pz",    g_scene1_player_pos[2]);
+            /* Chip 3c camera-framing probe (engine _DAT_073de31c..330 = the
+             * final smoothed eye/lookat): chasing the cc08==4 counter-camera
+             * residual (RE §8.7.2 — px/pz match retail but the framing differs).
+             * Joined to the retail 0x48670f probe's camex/camez/camlx/camlz. */
+            CALL_TRACE_F32("camex", g_scene1_camera_eye[0]);
+            CALL_TRACE_F32("camez", g_scene1_camera_eye[2]);
+            CALL_TRACE_F32("camlx", g_scene1_camera_lookat[0]);
+            CALL_TRACE_F32("camlz", g_scene1_camera_lookat[2]);
+            CALL_TRACE_I32("cmode", g_scene1_camera_char_mode);
             CALL_TRACE_I32("poct",  r0[CHR_ACTOR_FACING]);
             CALL_TRACE_F32("pang",  s_player_facing);
             CALL_TRACE_I32("panim", r0[CHR_ACTOR_ANIM]);
@@ -2066,6 +2075,12 @@ void scene1_player_ctrl_tick(void)
      * tracks the cc08 event state = the talk flag), so suppressing the walk whenever
      * the pose holds the actor is the faithful fix (symptom: the iv1_5/iv1_6
      * shop-display tutorial CONV_POSE_BLINK cadence was port 40 vs retail 64). */
+    /* camera stage-class: the cc08==4 master tick sets it to 1 (the cinematic
+     * counter cam); every other state is the free-roam player-follow.  Reset it
+     * here so the camera resumes tracking the moment customer service ends. */
+    if (s_cc08 != 4)
+        scene1_camera_set_freeroam_class();
+
     if (s_cc08 == 1 &&
         !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
         !scene1_intro_dialogue_posing())

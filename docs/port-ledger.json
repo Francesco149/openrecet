@@ -12,7 +12,7 @@
   "touched": 550,
   "pct_touched": 21.6,
   "pct_verified": 2.7,
-  "port_debt": 26
+  "port_debt": 25
  },
  "orphan_refs": [
   "0x40f640",
@@ -5201,6 +5201,8 @@
    "src": [
     "src/customer_service.c",
     "src/customer_service.h",
+    "src/scene1_camera.c",
+    "src/scene1_camera.h",
     "src/scene1_player_ctrl.c"
    ]
   },

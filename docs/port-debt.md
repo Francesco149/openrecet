@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **24**
-- distinct retiring engine functions: **20**
+- total open debts: **23**
+- distinct retiring engine functions: **19**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **12 tag(s) use an unknown kind**: cs-bubble-pos (1), deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), price-trend (2), stage-scratch (1).
+> ⚠️  **11 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), price-trend (2), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -49,7 +49,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_005031e4 | 1 |
-| render chip | 1 |
 
 ## stub (4)
 
@@ -94,7 +93,6 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| cs-bubble-pos | render chip | src/customer_service.c:1025 | the speech-bubble screen position |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1120 | the engine also zeroes |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1077 | the engine also gates on a |

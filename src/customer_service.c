@@ -20,6 +20,7 @@
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
+#include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
 
 /* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
  * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
@@ -1022,8 +1023,21 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     if (s_b5a0 > 0 && s_b5a0 < 0x3c)
         s_b5a0 += 1;
     /* PORT-DEBT(cs-payout-anim): the b5c0 sale-payout coin anim (post-sale). */
-    /* PORT-DEBT(cs-bubble-pos, render chip): the speech-bubble screen position
-     * DAT_0438cc38/3c/40 — pure float placement, not in the trajectory probe. */
+
+    /* the cc08==4 COUNTER camera (all.c:60280-60314).  Pin the lookat to the
+     * fixed per-shop-tier counter target + orbit the eye, flag stage_class=1 so
+     * the camera function (scene1_camera_pose_compute) uses it instead of the
+     * player-follow.  (DAT_0438cc38/3c/40 — the old "cs-bubble-pos" note here —
+     * is the camera EYE, not a speech-bubble position.)  Shop tier from the save
+     * bank, like session_init.  v3-verified vs retail: tier-0 lookat (-3.0, 0.0),
+     * eye (-3.0, 14.0). */
+    {
+        const uint8_t *bank =
+            (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        int tier = (bank != NULL)
+                 ? (int)((const int32_t *)bank)[SHOP_DISPLAY_TIER_SELECTOR] : 0;
+        scene1_camera_cs_counter_cam(tier);
+    }
 
     /* <C>-pause continue (all.c:60318-60324): a <C>-tagged line is fully revealed
      * (b558==1, b55c) and Z pressed → switch the active pointer to the post-<C>
