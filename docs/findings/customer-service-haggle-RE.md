@@ -808,3 +808,48 @@ b534==1): the port renders *"and then they will come over to the counter to say 
 4. **FUN_00466b7b sections 1-5** (pose panel + speech line / arrival panel + price labels /
    BARGAIN!! price / choice buttons): PORT-DEBT(cs-render-rest) — the "actual haggling UI" the
    user ordered AFTER the dialogue (appears in the haggle rounds, not the intro dialogue).
+
+### 8.7.1 USER NOTES (2026-06-19, after Chip 3a/3b verify) + Chip 3c RE (camera/pose/arrival anim)
+
+The user verified Chip 3a/3b 1:1-correct (feed + studio) and flagged 2 viewer notes (the
+authoritative gap list):
+- **#1 `HOUSE_FREEROAM#1+79` "exclamation tooltip we don't render"** — a "!" speech bubble above
+  Recette's head, in FREE-ROAM (frame 3157, BEFORE the cs entry at 3234) as she's at the counter.
+  Likely the free-roam interaction/approach emote (the port has the emote-bubble system in
+  scene1_hud_emote_bubble = FUN_0040a765 inline — investigate why this "!" isn't emitted; it's
+  NOT the cs section-c b53c bubble, which is post-load 2D-overlay).
+- **#2/#3 `HOUSE_FREEROAM#2+12/+32` "recet jumps on stool"** — the cs ARRIVAL animation: Recette
+  hops onto the merchant stool behind the counter + the camera ZOOMS to the counter view (note #3
+  shows retail much more zoomed than the port's wide top-down).  = **Chip 3c, the camera/pose arm**.
+
+**Chip 3c RE — the cc08==4 camera/pose arm (all.c:87366-87434, objdump 0x487e8a-0x488085) FULLY
+DECODED, ready to port:**
+- Gates: **f405 = save_record[0x2bc6d]** (arrival-complete), **f407 = save_record[0x2bc6f]**
+  (companion-arrival).  esi = the save record base (DAT_044e3798 + slot·0x2dfc8).
+- **f405==0 (arriving):**
+  - `DAT_056db05c = -DAT_073de39c` (player facing angle = -camera_yaw).
+  - **player octant `DAT_056dab00` = ftol((( (DAT_056db05c+yaw) + π/8)/2π)·8 + 8) & 7**.  Since
+    `DAT_056db05c+yaw = -yaw+yaw = 0`, this is **a FIXED 0** (ftol(0.5+8)=8, &7=0) — Recette faces
+    octant 0.  Consts: 0x519b78=π/8(0.3926991), 0x519398=2π(6.2831853), 0x519378=8.0; 0x503954=__ftol.
+  - if f407==0: `DAT_056dab58 = DAT_056dab00` (companion octant = 0).
+  - if `DAT_056daafc != 5`: reset the actor-0 anim record (`DAT_056daaf8=0` FRAME, `DAT_056daaf4=0`
+    COUNTER, `DAT_056daaf0=0.0` TIMER) + set **anim 5** (`DAT_056daae8=5` ANIM, `DAT_056daafc=5`
+    STATE).  Anim 5 = the stool-jump.  (Map the DAT fields to the port's CHR_ACTOR_* in
+    s_actor_record[0]; verify the offsets — wrong breaks the free-roam anim.)
+  - `DAT_056db04c++` (port `s_db04c`); **if `>10`: camera-pos ramp** by shop tier
+    `iVar7 = (&DAT_068dd3fc)[DAT_0438b4dc·0x6cf]` (= 0x1b3c-stride per shop): tier<3 → X_target=0,
+    Z_target=6.9; tier 3-4 → X=10.7, Z=15.0.  Then ramp the player pos (= camera target,
+    g_scene1_player_pos): if `da1e0 < Z_target+1.69`: `da1e0 += 0.05`; if `Z_target+1.7 < da1e0`:
+    `da1e0 -= 0.05`; if `X_target-4.5 < da1d8`: `da1d8 -= 0.125`; `da1dc = 0.5`.  (Tier-0 tutorial:
+    da1e0 9.35→8.6, da1d8 -1.5→-4.5, da1dc→0.5.)  Consts: 0x5198f8=0.05, 0x519a64=1.7, 0x519f8c=1.69,
+    0x519a1c=4.5, 0x51998c=0.125, 0x51935c=0.5, 0x519f90=6.9, 0x519f94=10.7, 0x5194e4=15.0.
+- **f405!=0 (arrived):** set anim 6 (056daafc) + companion anim 4 (056dab54) + octant by
+  `da1d8 <= _DAT_056da1f0 ? (dab00=6, db05c=π/2) : (dab00=2, db05c=-π/2)` (objdump 0x487fed-0x488075).
+- then `FUN_0047019f()` (the char pump — §8.5 EMPTY in the tutorial, PORT-DEBT) + `FUN_00462403()`
+  (master tick, already ported).
+- **Port site:** scene1_player_ctrl.c:1659 (the PORT-DEBT(cs-arrival-anim) stub in the cc08==4 arm),
+  BEFORE customer_service_master_tick.  Port equivalents: yaw=DAT_073de39c, facing=DAT_056db05c,
+  octant=DAT_056dab00, companion octant=DAT_056dab58, anim=s_actor_record[0], s_db04c, player
+  pos=g_scene1_player_pos (da1d8/dc/e0), f405/f407=save bank.  **Verify:** Recette jumps on stool +
+  camera zooms to counter (notes #2/#3), without breaking the free-roam walk anim.  Risk: the
+  actor-record field mapping + the player-pos ramp interacting with the controller.
