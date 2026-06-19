@@ -143,8 +143,24 @@
   arrival-origin phase (the "not perfectly synchronized" — UI phase-0, sprites 1 anim-frame off, can't
   co-align); (b) the ~2px per-glyph prompt/markup text precision (`per-line pose precision` PORT-DEBT); (c) the
   honest load-region join gaps.  Open cc08 PORT-DEBT (unexercised here): cs-price-trend, cs-render-priceinput,
-  cs-haggle-prompt-live, and the **manga-lines (集中線) RT effect** (note #8 — needs a v3 SetRenderTarget
-  capture extension; the next fresh cc08 arc).  Note #1 (free-roam "!" tooltip) = separate pre-cc08 gap.
+  cs-haggle-prompt-live.  **Manga-lines (集中線): per the user (2026-06-20) ALREADY PORTED for this scene** —
+  NOT a remaining gap (an earlier autonomous note wrongly listed it as "the next arc"; the RE §8.8 / note-#8
+  "RT-replays-empty" caveat is a v3 TOOL limitation, not an in-game miss — reconcile that doc note).
+  **★ NOTE #1 — sell-counter "!" affordance emote ✅ FIXED 2026-06-20 (autonomous; user: "the last major
+  remainder for this trace"):** the free-roam "!" interaction prompt above Recette at the counter.  The
+  emote-bubble RENDER (`scene1_hud_emote_bubble` = FUN_0040a765) was already generic over db004; only the EMIT
+  was missing — `player_ctrl_cc08_proximity_detect` drove just the door "GO!" (bVar17→type 7).  Ported the
+  **bVar3 counter affordance** (all.c:87542-87588): factored the position+facing predicate into
+  `player_ctrl_at_sell_counter()` (shared with the Z-entry), and raise db000 + set **db004=0** (the "!" cell;
+  not the be7c NPC-approach type 1 — no live customer ⇒ be7c never arms) when at the counter (door wins;
+  carrying suppresses).  **v3-verified on `house-customer-walk-probe` (port idx100 at the counter, px∈(-5,0)
+  pz=9.35 facing -π/2): the "!" speech bubble bit-matches retail's note-#1 cell** (feed "note #1 FIXED"; Tear's
+  red "+" emote is on both sides too).  Shares PORT-DEBT(cs-entry-flags) with the Z-entry (the DAT_0450f3fd
+  customer-queued gate, unported iv1_7); PORT-DEBT(emote-npc-approach) = the be7c/type-1 NPC path.  Pending
+  user re-confirm.  3337 host pass.
+  **→ NEXT (user directive 2026-06-20): EXTEND the trace into the actual CUSTOMER DIALOGUE** — past the first
+  customer's arrival into the real haggle/dialogue.  The cc08==4 haggle-UI render + the "!" tooltip are done
+  for this trace.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
   1-frame anim phase bleeding into the band edge, and (c) a small ~2px per-glyph text-precision residual on the
