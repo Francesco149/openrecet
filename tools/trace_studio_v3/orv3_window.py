@@ -263,6 +263,11 @@ def main() -> int:
     ap.add_argument("--launch", action="store_true",
                     help="emit view.json AND open the native viewer on it (implies --view). "
                          "The one-command loop: drive/slice/sync → view → viewer.")
+    ap.add_argument("--join-anchor", default=None, metavar="NAME",
+                    help="re-base the identity join (pairs.json + view.json columns + state "
+                         "panel) on this anchor when the two sides' windows armed on different "
+                         "occurrences of the base anchor — e.g. CUSTOMER_SERVICE_ENTER for the "
+                         "cc08==4 haggle (119→2498 paired). See FRONT 'side-by-side tooling'.")
     args = ap.parse_args()
 
     try:
@@ -312,12 +317,13 @@ def main() -> int:
     print(f"\n--- sync-by-identity ---")
     win_dir.mkdir(parents=True, exist_ok=True)
     res = orv3_sync.sync_entries(pside, rside, write_pairs=True,
-                                 pairs_path=win_dir / "pairs.json")
+                                 pairs_path=win_dir / "pairs.json",
+                                 join_anchor=args.join_anchor)
 
     # one-command tail: emit the native viewer's view.json (+ optionally open it).
     if args.view or args.launch:
         view_path = win_dir / "view.json"
-        vm = orv3_view.write_view_json(pside, rside, view_path)
+        vm = orv3_view.write_view_json(pside, rside, view_path, join_anchor=args.join_anchor)
         nd = sum(1 for f in vm["frames"] if f.get("draw_verdict") and f["draw_verdict"] != "ALIGNED")
         print(f"\n--- view ---")
         print(f"  wrote {view_path}  ({vm['count']} columns, {vm['n_gaps']} gaps, "

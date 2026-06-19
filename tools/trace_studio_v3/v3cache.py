@@ -341,6 +341,18 @@ class LoadedSide:
     def dims(self) -> list:
         return [self.cont.dev.get("w"), self.cont.dev.get("h")]
 
+    def reindex(self, join_anchor: str | None) -> dict:
+        """A fresh {key: Frame} index keyed by key_of_present_rebased on `join_anchor`
+        (the opt-in side-by-side join — see orv3_sync --join-anchor / FRONT cc08==4).
+        Returns the DEFAULT self.index when join_anchor is falsy or the meta has no
+        anchor stream (so callers can pass it unconditionally).  Recomputed from
+        cont.frames — cheap (the container parse already happened); the view layer
+        uses this so the viewer's columns/state pair under the re-based join."""
+        if not join_anchor or not self.meta.anchors:
+            return self.index
+        return {self.meta.key_of_present_rebased(f.present, join_anchor): f
+                for f in self.cont.frames}
+
 
 def load_side(entry: Path) -> LoadedSide:
     """Parse a cache entry's meta + container ONCE and build its identity index."""

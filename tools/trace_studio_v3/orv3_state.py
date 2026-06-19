@@ -93,12 +93,14 @@ def slim_state_trace(src: Path, dst: Path) -> int:
     return kept
 
 
-def collect(call_trace_path: Path, meta) -> dict:
+def collect(call_trace_path: Path, meta, join_anchor: str | None = None) -> dict:
     """{identity_key_tuple: {field: value}} for one side's call_trace.jsonl, keyed by
     STORED identity. The call-trace `frame` is the engine/agent frame == the present-
     count the anchor stream + d3d frames use, so meta.key_of_present(frame) gives the
     SAME key the d3d frame at that present resolves to. Merges all STATE_VAS events at
-    a frame into one field dict (mirrors v2 tools/trace_studio/analysis/state.py)."""
+    a frame into one field dict (mirrors v2 tools/trace_studio/analysis/state.py).
+    `join_anchor` (opt-in) keys via key_of_present_rebased so the state-panel labels
+    match the re-based view columns (see orv3_sync --join-anchor)."""
     path = Path(call_trace_path)
     if not path.exists() or not meta.anchors:   # need the stored anchor stream (meta v2)
         return {}
@@ -113,7 +115,9 @@ def collect(call_trace_path: Path, meta) -> dict:
             if isinstance(f, dict):
                 merged.update({k: _norm_f32(v) for k, v in f.items()})
         if merged:
-            out[meta.key_of_present(int(fr))] = merged
+            key = (meta.key_of_present_rebased(int(fr), join_anchor) if join_anchor
+                   else meta.key_of_present(int(fr)))
+            out[key] = merged
     return out
 
 
@@ -129,19 +133,20 @@ def _norm_f32(v):
     return v
 
 
-def build_state_rows(port_side, retail_side) -> dict:
+def build_state_rows(port_side, retail_side, join_anchor: str | None = None) -> dict:
     """{label: {"port": {...fields...}, "retail": {...}}} for both sides' state, keyed
     by the identity LABEL the view columns use. `port_side`/`retail_side` are parse-once
     v3cache.LoadedSides (threaded from orv3_window) OR entry Paths. Empty {} when neither
     side carries a call_trace.jsonl (a drive without --state) — the viewer then shows the
-    '(re-drive with --state)' hint, exactly like v2's '(capture with --call-trace)'."""
+    '(re-drive with --state)' hint, exactly like v2's '(capture with --call-trace)'.
+    `join_anchor` (opt-in) keys via the re-based join so labels match the view columns."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import v3cache
     pside, rside = v3cache.as_side(port_side), v3cache.as_side(retail_side)
     rows: dict = {}
-    for key, f in collect(pside.entry / "call_trace.jsonl", pside.meta).items():
+    for key, f in collect(pside.entry / "call_trace.jsonl", pside.meta, join_anchor).items():
         rows.setdefault(label_of(key), {})["port"] = f
-    for key, f in collect(rside.entry / "call_trace.jsonl", rside.meta).items():
+    for key, f in collect(rside.entry / "call_trace.jsonl", rside.meta, join_anchor).items():
         rows.setdefault(label_of(key), {})["retail"] = f
     return rows
 

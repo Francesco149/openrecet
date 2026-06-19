@@ -190,7 +190,8 @@ def _winpath(p: Path) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dict:
+def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path,
+                    join_anchor: str | None = None) -> dict:
     """Emit the NATIVE viewer's lean manifest: the identity-join timeline + the two
     container paths (Windows), NO baked images — the viewer replays frames live from
     the containers (the container is the only artifact). Each column carries both
@@ -205,11 +206,13 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     pside, rside = v3cache.as_side(port_entry), v3cache.as_side(retail_entry)
     pmeta, pidx, pdims, pc = _side_index(pside)
     rmeta, ridx, _, rc = _side_index(rside)
-    join = orv3_sync.sync_entries(pside, rside, quiet=True)   # parse-once: reuse loaded sides
+    if join_anchor:   # opt-in re-based join — re-key the columns (and state below) from
+        pidx, ridx = pside.reindex(join_anchor), rside.reindex(join_anchor)   # a shared anchor
+    join = orv3_sync.sync_entries(pside, rside, quiet=True, join_anchor=join_anchor)
     rows = merge_keys(set(pidx), set(ridx), merge_anchor_seq(pmeta, rmeta))
     # Engine state per identity LABEL (from each side's cached call_trace.jsonl, a
     # --state drive). Empty {} without --state ⇒ the viewer shows the opt-in hint.
-    state_rows = orv3_state.build_state_rows(pside, rside)
+    state_rows = orv3_state.build_state_rows(pside, rside, join_anchor)
     # one ResHash per container, reused across every column (a resource is hashed once,
     # not per frame) — the difference between a fast bake and a pathological one at scale.
     preshash, rreshash = orv3_draws.ResHash(pc), orv3_draws.ResHash(rc)
