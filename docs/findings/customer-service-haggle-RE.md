@@ -753,3 +753,51 @@ cs render, the same way it already dispatches the guild/menu/dialogue overlays.
 pre-cc08 WALK frame with retail's cc08==4 DIALOGUE frame (load-stretch + the 157-frame walk).
 Render-compare by cc08-entry-relative offset, or just eyeball a port b534==1 frame vs a retail
 b534==1 frame directly.
+
+## 8.7 Chip 3a LANDED (2026-06-19) — the cc08==4 DIALOGUE BOX now renders; character art + camera are Chip 3b/3c
+
+**Chip 3a ✅ LANDED + v3-VERIFIED** (`src/customer_service_render.c` new, + the snapshot
+accessor `customer_service_get_render_state` + the two HUD dispatch sites): the port now draws
+the haggle **dialogue box + typewriter line**. Ported FUN_0046602e sections (a) letterbox bars
+/ (b) the two 512² character sprites (NULL-tex-guarded) / (c) the '!' bubble, and FUN_00466b7b
+**section 6** — the offer-card backdrop (shopmode.tga) + speaker name plate (chrname.tga, slot 0)
++ Z-prompt + the **typewriter line via the existing `font_draw_text_box`** (FUN_00465db4, x=250/130
+y=346 scale 1.0 budget b548). Dispatch: `customer_service_render_chars` at the TOP of FUN_00409925
+(scene1_merchant_hud), `customer_service_render_overlay` AFTER the top HUD in FUN_0040a765
+(scene1_hud, gated INGAME && HOUSE — FUN_00466b7b is at all.c:7044, *after* FUN_00406d50@6980).
+Reuse: `ive_box_scale` == FUN_0046c86f (the pop-in wobble, already 1:1 in scene1_dialogue_run.c).
+**Verified** (`house-customer-tutorial-a361c768`, port frame 1582 vs retail 4192, both cc08==4
+b534==1): the port renders *"and then they will come over to the counter to say for…"* — draws
+**105→152** (retail 161). Was: nothing (free-roam top-down only). Feed: "cc08==4 render — Chip 3a".
+
+**REMAINING GAPS (the v3 material verdict, port 1001 vs retail 1114):**
+1. **The big character art (Recette/Tear 2D sprites) — Chip 3b, the dominant visual.** The two
+   512² sprites come from `g_scene_buy_sprites[page][slot]` (page 0 via the AE8 worker =
+   shopkeeper/Recette+Tear; page b56c via B13 = the customer), loaded from `g_scene_buy_names`
+   (filenames). **The port NEVER populates the names → tex==0 → cs_quad skips them.** The retail
+   WRITER is a **startup per-stage `grp:` file parser** the port has NOT implemented:
+   **FUN_00475270 block #4 (all.c:74568-74716)** — for each customer record (stride 0x2c670, 50
+   records) with valid(+0x514c)!=0, it opens the record's `file:` data file (+0x5044, captured by
+   the port's `tables_kyaku.c apply_file_path`) and parses lines: **`grpNN:` → names[NN]+count**
+   (record+0x44 = `g_scene_buy_names`, +0x5144 = `g_scene_buy_count`, NN≤0x13), `seNN:` →
+   se-names (+0x1444, ≤0x3b), `msg%02d:` → the per-line dialogue text (+0x6e70) + the per-line
+   grp/se index (+0x194/`DAT_06a63c68` / +0xaf4). Pose filenames are `bmp/<grp>` e.g.
+   `ivent/01recette_NN.tga` / `ivent/02tear_NN.tga` (512²), read at runtime from the user's data
+   files (NOT in the repo). Plan: port the `grp` parser (+ msg/se) into a startup step driven
+   from `tables_load_all` after `tables_parse_kyaku`; **expand `scene_buy` names to 20 slots/record**
+   (grp NN 0-19; sprites stay flat 10/page — left idx=b54c, right idx=b550+b56c*10, render already
+   does `sprites[flat/10][flat%10]`); then AE8/B13 load the art. Also wire b54c/b550 from the
+   tuto script's CHR ops (the port sets `s_b54c=chr_arg`; verify chr_arg == the grp slot). Full RE:
+   the `ae83062f` agent report (per-stage parser = the standee-names writer, a NEW finding).
+2. **The "Tear" name plate (slot-1)** — PORT-DEBT(cs-nameplate-slot1): the right-speaker name
+   plate uses the customer-record name index (`*(&DAT_06a5ea90 + b56c*0x2c670)`); deferred with
+   the customer record (Chip 3b). Slot-0 (fixed cell 0,32-128,64) is ported.
+3. **The counter CAMERA/pose — Chip 3c.** The port stays in free-roam top-down; retail's cc08==4
+   arm (all.c:87366-87434, objdump 0x487e..0x488085, PORT-DEBT(cs-arrival-anim) in
+   scene1_player_ctrl.c:1659) sets the player octant (`DAT_056dab00`=ftol(-yaw)&7) + facing
+   (`DAT_056db05c`) + anim 5 (arrival)→6 (at counter) + companion anim 4, and ramps the player
+   pos `DAT_056da1d8`(X−0.125/f)/`056da1e0`(Z±0.05/f toward tier-based target)/`056da1dc`=0.5 once
+   `DAT_056db04c>10`. Best done WITH the character art (zoomed counter view + characters together).
+4. **FUN_00466b7b sections 1-5** (pose panel + speech line / arrival panel + price labels /
+   BARGAIN!! price / choice buttons): PORT-DEBT(cs-render-rest) — the "actual haggling UI" the
+   user ordered AFTER the dialogue (appears in the haggle rounds, not the intro dialogue).

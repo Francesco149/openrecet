@@ -22,15 +22,20 @@
   the sell counter → the haggle tutorial that alternates Tear's dialogue with the BARGAIN!! price UI
   → first real customer). Full RE: **`findings/customer-service-haggle-RE.md`**.
   **★ CURRENT FRONT (2026-06-19, user redirect) — RENDER THE cc08==4 SCENE.** The cc08==4 STATE
-  machine works (Chips 1/2a-e: master tick, offers, b534 reveal) but it is **INVISIBLE — the port
-  never leaves the free-roam top-down view in cc08==4** (confirmed vs retail's customer-service
-  stage: counter camera + Recette/Tear 2D art + the "Tear" dialogue box). NORMAL `dialogue_tick`
-  fires 0× here — it's the scripted machine's own render (`FUN_00466b7b` text via the EXISTING
-  `font_draw_text_box`/`FUN_00465db4` + `FUN_0046602e` characters/panel; dispatched from the 2D-UI
-  render `FUN_00409925`/`FUN_0040a765`) + the camera/pose (the stubbed `PORT-DEBT(cs-arrival-anim)`
-  arm all.c:87366-87434). **Plan + the frame-pairing caveat: RE §8.6.** The **rng-rate gap is
-  DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the recording, so it's
-  a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
+  machine works (Chips 1/2a-e) but was **INVISIBLE** (port stayed in free-roam top-down). Retail's
+  stage = counter camera + Recette/Tear 2D art + the "Tear" dialogue box (NORMAL `dialogue_tick`
+  fires 0×; it's the scripted machine's own render). **Chip 3a ✅ LANDED 2026-06-19 — the DIALOGUE
+  BOX + typewriter line now render** (`src/customer_service_render.c`: FUN_0046602e a/b/c +
+  FUN_00466b7b §6, dispatched into FUN_00409925/FUN_0040a765; typewriter via the EXISTING
+  `font_draw_text_box`). v3-verified `house-customer-tutorial-a361c768` (port 105→152 draws, retail
+  161); feed "cc08==4 render — Chip 3a". **NEXT — Chip 3b: the big Recette/Tear CHARACTER ART**
+  (`g_scene_buy_sprites` empty — needs the UNPORTED startup `grp:` per-stage file parser
+  FUN_00475270 block#4 to populate `g_scene_buy_names`/count + a 10→20 slot expansion; this is the
+  dominant remaining visual + the "Tear" slot-1 name plate); **Chip 3c: the counter camera/pose**
+  (the stubbed `PORT-DEBT(cs-arrival-anim)` arm all.c:87366-87434); then FUN_00466b7b §1-5 (the
+  haggle price/BARGAIN/buttons UI, "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7.**
+  The **rng-rate gap is DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the
+  recording, so it's a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
   `src/customer_haggle.{c,h}` (`d0ac215`, DISASM-exact, +9 host tests). **2026-06-17 day (this session):**
   (A) ⚠⚠ **CORRECTION² (2026-06-17 PM, USER-CONFIRMED) — the tutorial sell is the SCRIPTED machine
