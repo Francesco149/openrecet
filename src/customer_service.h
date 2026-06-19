@@ -98,6 +98,46 @@ int32_t customer_service_active(void);
  * script block g_tuto[idx*200+pc] the scripted machine walks. */
 void    customer_service_set_script_file(int32_t idx);
 
+/* ── cc08==4 SCENE RENDER (FUN_0046602e + FUN_00466b7b) ─────────────────────
+ * The retail customer-service stage is drawn by two 2D-overlay functions the
+ * port wires into its HUD render path (customer_service_render.c):
+ *   - FUN_0046602e (the 2D character art + letterbox bars + offer panel),
+ *     called at the TOP of the merchant HUD aggregator FUN_00409925.
+ *   - FUN_00466b7b (the haggle dialogue box + typewriter line + BARGAIN!!
+ *     price layout), called from the 2D-UI overlay render FUN_0040a765.
+ * Both read a once-per-frame snapshot of the DAT_0730bXXX / DAT_005c6bXX state
+ * (the engine's render reads those globals directly).  Full spec:
+ * docs/findings/customer-service-haggle-RE.md §8.6. */
+struct cs_render_state {
+    int32_t b1cc, cs_active;        /* DAT_0438b1cc / DAT_0438b7b0 — gates */
+    int32_t b52c, b530, b53c;       /* sprite-slide / letterbox / flash */
+    int32_t b540, b548, b55c, b558; /* Yes-No / reveal budget / line-done */
+    int32_t b54c, b550, b56c;       /* per-speaker sprite-slot / record idx */
+    int32_t b560, b564;             /* price-digit cursor / showcase enable */
+    int32_t b58c, b590, b598, b59c; /* button delay / patience / BARGAIN anim */
+    int32_t b5a0, b5a4, b5a8;       /* arrival anim / offered handle / mode */
+    int32_t b5b4, b5bc, b5c0, b5c8; /* blink / arrival banner / list scroll */
+    int32_t b5d0, b5d4, b5d8, b5dc; /* pose state / timer / want-idx / rows */
+    int32_t b51c;                   /* scripted-sell flag */
+    int32_t cust_active[2];         /* DAT_06a5ea70/74 — on-screen speakers */
+    int32_t pose_timer[2];          /* DAT_0730b278/b27c — pose-in counters */
+    int32_t item_pick[18];          /* DAT_0730b274 — {id,col,row}×6 */
+    int32_t price_ask, price_base;  /* DAT_005c6bb8 / DAT_005c6bc0 */
+    int32_t price_count;            /* DAT_005c6bc4 — item count */
+    int32_t price_fileidx;          /* DAT_005c6bb0 — script-file / prompt sel */
+    int32_t price_bc8, price_cursor;/* DAT_005c6bc8 / DAT_005c6bcc */
+    const char *line;               /* DAT_0730b270 — active visible line */
+};
+void customer_service_get_render_state(struct cs_render_state *out);
+
+#ifdef _WIN32
+struct IDirect3DDevice8;
+/* FUN_0046602e — 2D character art + letterbox + offer panel. */
+void customer_service_render_chars(struct IDirect3DDevice8 *dev);
+/* FUN_00466b7b — haggle dialogue box + typewriter line + BARGAIN!! price. */
+void customer_service_render_overlay(struct IDirect3DDevice8 *dev);
+#endif
+
 /* ── test / debug hooks ────────────────────────────────────────────────────
  * Reset the whole state block (BSS-equivalent) — host tests call this between
  * cases so a prior session's leftovers don't bleed in. */

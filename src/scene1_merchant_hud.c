@@ -7,6 +7,7 @@
  */
 
 #include "scene1_merchant_hud.h"
+#include "customer_service.h"   /* customer_service_render_chars (FUN_0046602e) */
 
 /* ─── game-state inputs (see header; defaults = new-game HOUSE) ─────────── */
 
@@ -221,6 +222,12 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* E.2 probe — FUN_00409925 @ 0x409925 (this is its body, L124+). */
     CALL_TRACE_ENTER(0x409925u);
+
+    /* FUN_0046602e (all.c:6423) — the cc08==4 customer-service character art +
+     * letterbox + bubble.  Called FIRST in FUN_00409925, before the b1c0-gated
+     * tooltip (and before this fn's own item_win early-return); self-gated on
+     * b1cc==1 && b7b0!=0 so it's inert outside the selling mode. */
+    customer_service_render_chars(dev);
 
     /* FUN_00409925 front (asm 0x409925-0x409cf0): the item tooltip over the
      * faced display stand — drawn first, then the level badge below. */

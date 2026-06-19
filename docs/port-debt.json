@@ -52,7 +52,7 @@
    "engine_fn": "render chip",
    "desc": "the speech-bubble screen position",
    "file": "src/customer_service.c",
-   "line": 995,
+   "line": 1025,
    "kind_known": false
   },
   {
@@ -164,7 +164,7 @@
    "engine_fn": "FUN_004361b2",
    "desc": "C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported).",
    "file": "src/scene1_merchant_hud.c",
-   "line": 201,
+   "line": 202,
    "kind_known": true
   },
   {
@@ -212,7 +212,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "C3b furniture-stand tooltip branch (name + \"%d/%d\" slot count) not rendered; item branch only.",
    "file": "src/scene1_merchant_hud.c",
-   "line": 184,
+   "line": 185,
    "kind_known": true
   },
   {

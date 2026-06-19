@@ -103,6 +103,8 @@ static int32_t s_b5c8;   /* DAT_0730b5c8 — item-list scroll */
 static int32_t s_b5cc;   /* DAT_0730b5cc — sub-menu open */
 static int32_t s_b5d0;   /* DAT_0730b5d0 — pose state */
 static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
+static int32_t s_b5d8;   /* DAT_0730b5d8 — resolved want-list line index (render) */
+static int32_t s_b5dc;   /* DAT_0730b5dc — button-row count (render) */
 
 /* ── master-tick + scripted-machine scalar state (Chip 2) ─────────────────────
  * The subset of the DAT_0730bXXX block the master tick (FUN_00462403) + the
@@ -330,6 +332,34 @@ int32_t customer_service_b590(void)        { return s_b590; }
 int32_t customer_service_b1cc(void)        { return s_b1cc; }
 int32_t customer_service_active(void)      { return s_cs_active; }
 void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
+
+/* Once-per-frame render-state snapshot (FUN_0046602e + FUN_00466b7b inputs). */
+void customer_service_get_render_state(struct cs_render_state *o)
+{
+    if (!o) return;
+    o->b1cc = s_b1cc;          o->cs_active = s_cs_active;
+    o->b52c = s_b52c;          o->b530 = s_b530;       o->b53c = s_b53c;
+    o->b540 = s_b540;          o->b548 = s_b548;       o->b55c = s_b55c;
+    o->b558 = s_b558;
+    o->b54c = s_b54c;          o->b550 = s_b550;       o->b56c = g_scene_buy_current_page;
+    o->b560 = s_b560;          o->b564 = s_b564;
+    o->b58c = s_b58c;          o->b590 = s_b590;       o->b598 = s_b598;
+    o->b59c = s_b59c;
+    o->b5a0 = s_b5a0;          o->b5a4 = s_b5a4;       o->b5a8 = s_b5a8;
+    o->b5b4 = s_b5b4;          o->b5bc = s_b5bc;       o->b5c0 = s_b5c0;
+    o->b5c8 = s_b5c8;
+    o->b5d0 = s_b5d0;          o->b5d4 = s_b5d4;       o->b5d8 = s_b5d8;
+    o->b5dc = s_b5dc;          o->b51c = s_b51c;
+    o->cust_active[0] = s_cust_active[0];
+    o->cust_active[1] = s_cust_active[1];
+    o->pose_timer[0]  = s_item_pick[1];  /* DAT_0730b278 */
+    o->pose_timer[1]  = s_item_pick[2];  /* DAT_0730b27c */
+    for (int i = 0; i < CS_ITEMPICK_N * 3; i++) o->item_pick[i] = s_item_pick[i];
+    o->price_ask = s_price_ask;          o->price_base = s_price_base;
+    o->price_count = s_price_bc4;        o->price_fileidx = s_price_fileidx;
+    o->price_bc8 = s_price_bc8;          o->price_cursor = s_price_cursor;
+    o->line = s_b270;
+}
 
 int32_t customer_service_queue_kyaku(int entry)
 {

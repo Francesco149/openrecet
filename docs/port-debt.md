@@ -55,7 +55,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00409925 | src/scene1_merchant_hud.c:184 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
+| FUN_00409925 | src/scene1_merchant_hud.c:185 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
@@ -70,7 +70,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
-| FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
+| FUN_004361b2 | src/scene1_merchant_hud.c:202 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:310 | retail freezes the *entire |
@@ -94,7 +94,7 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| cs-bubble-pos | render chip | src/customer_service.c:995 | the speech-bubble screen position |
+| cs-bubble-pos | render chip | src/customer_service.c:1025 | the speech-bubble screen position |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1116 | the engine also zeroes |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1073 | the engine also gates on a |

@@ -661,6 +661,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service_render.c",
     "src/render_quad.c",
     "src/render_quad.h",
     "src/scene1_fps.c",
@@ -685,6 +686,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service_render.c",
     "src/font_draw.c",
     "src/render_quad.c",
     "src/render_quad.h",
@@ -5270,6 +5272,7 @@
    "status": "ported",
    "src": [
     "src/customer_service.c",
+    "src/customer_service_render.c",
     "src/font_draw.c",
     "src/font_draw.h",
     "src/scene_guild.c"
@@ -5284,7 +5287,9 @@
    "status": "ported",
    "src": [
     "src/customer_service.c",
-    "src/customer_service.h"
+    "src/customer_service.h",
+    "src/customer_service_render.c",
+    "src/scene1_merchant_hud.c"
    ]
   },
   {
@@ -5305,7 +5310,9 @@
    "status": "ported",
    "src": [
     "src/customer_service.c",
-    "src/customer_service.h"
+    "src/customer_service.h",
+    "src/customer_service_render.c",
+    "src/scene1_hud.c"
    ]
   },
   {
@@ -5995,6 +6002,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service_render.c",
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_top_hud.c",

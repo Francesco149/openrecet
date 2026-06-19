@@ -128,8 +128,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ | encyclopedia.c, render_quad.c, render_quad.h (+1) |
 | 0x404e98 | FUN_00404e98 | 100 | ✓ | render_quad.c, render_quad.h |
-| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c (+2) |
-| 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h (+1) |
+| 0x404efc | FUN_00404efc | 562 | ✓ | customer_service_render.c, render_quad.c, render_quad.h (+3) |
+| 0x405354 | FUN_00405354 | 76 | ✓ | customer_service_render.c, font_draw.c, render_quad.c (+2) |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
 | 0x405a52 | FUN_00405a52 | 162 | ✓ | scene1_dialogue_draw.c, scene1_dialogue_run.c |
@@ -302,9 +302,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_player_ctrl.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
-| 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, font_draw.c, font_draw.h (+1) |
-| 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h |
-| 0x466b7b | FUN_00466b7b | 5305 | ✓ | customer_service.c, customer_service.h |
+| 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, font_draw.c (+2) |
+| 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+1) |
+| 0x466b7b | FUN_00466b7b | 5305 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+1) |
 | 0x4681d3 | FUN_004681d3 | 8 | ✓ | customer_service.c, encyclopedia.c, scene_pause.c |
 | 0x4681db | FUN_004681db | 11 | ✓ | encyclopedia.c |
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ | customer_service.c, scene_pause.c |
@@ -339,7 +339,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c869 | FUN_0046c869 | 6 | ✓ | main.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h (+1) |
-| 0x46c86f | FUN_0046c86f | 307 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h, scene1_top_hud.c (+1) |
+| 0x46c86f | FUN_0046c86f | 307 | ✓ | customer_service_render.c, scene1_dialogue_run.c, scene1_dialogue_run.h (+2) |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |

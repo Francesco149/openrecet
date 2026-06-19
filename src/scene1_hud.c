@@ -93,6 +93,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene1_maplight.h"  /* scene1_current_stage_record (DAT_068dd2f0) */
 #include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
 #include "scene1_merchant_hud.h"  /* FUN_00409925 body — bottom-left Merchant Level HUD */
+#include "customer_service.h"     /* customer_service_render_overlay (FUN_00466b7b) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_emote_level/type (db000/db004)        */
 #include "scene1_render.h"        /* scene1_project_world (FUN_00490c78)               */
 #include "scene1_camera.h"        /* scene1_camera_class_off_z (b778)                  */
@@ -308,6 +309,12 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
     scene1_top_hud_camera_hint(dev_in);
 
     scene1_top_hud_render(dev_in);
+
+    /* FUN_00466b7b (all.c:7044) — the cc08==4 haggle dialogue box + typewriter
+     * line + BARGAIN!! price.  Engine draws it AFTER the top HUD (FUN_00406d50
+     * @6980), gated on INGAME && HOUSE; self-gated on b7b0 inside. */
+    if (scene_mode == 1 && stage_type == 0)
+        customer_service_render_overlay(dev_in);
 }
 
 #endif /* _WIN32 */
