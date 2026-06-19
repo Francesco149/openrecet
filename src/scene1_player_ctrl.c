@@ -1006,34 +1006,66 @@ static int player_ctrl_cc08_customer_escalate(void)
 #define PC_WORLDMAP_TUTORIAL_BYTE_OFF 0x2bc61   /* DAT_0450f3f9 */
 #define PC_DOOR_FIRSTEXIT_BYTE_OFF    0x2bc62   /* DAT_0450f3fa */
 
+/* bVar3 (all.c:87542-87551): does the player stand at the SELL COUNTER facing it?
+ * Counter rect by shop tier (DAT_04510578): tier<3 → X∈(-5,0), Z>6.9 (the only
+ * tier handled — PORT-DEBT(cs-counter-tier); tier>=3 is X∈[5.7,10.7], Z>15).
+ * Facing: the world angle DAT_056db05c ∈ (-1.8849558, -1.2566371) (≈ -π/2 ± 0.1π,
+ * looking "down" at the counter).  Shared by the Z-entry
+ * (player_ctrl_cc08_sell_counter_enter) AND the free-roam "!" affordance emote
+ * (player_ctrl_cc08_proximity_detect).  PORT-DEBT(cs-entry-flags): the engine also
+ * gates on DAT_0450f3fd[slot]==1 (a customer queued, set by the unported iv1_7
+ * cutscene — never set in the port), so we detect on position + facing alone,
+ * which the recorded prologue (walk to counter) exercises. */
+static int player_ctrl_at_sell_counter(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    int tier = (int)bank[SHOP_DISPLAY_TIER_SELECTOR];
+    if (tier >= 3)
+        return 0;
+    float px = g_scene1_player_pos[0];
+    float pz = g_scene1_player_pos[2];
+    if (!(px < 0.0f && px > -5.0f && pz > 6.9f))
+        return 0;
+    return (s_player_facing > -1.8849558f && s_player_facing < -1.2566371f);
+}
+
 /* proximity / approach detection (the bVar17/bVar3 block, all.c:87491-87596) —
  * the cc04==0 free-roam pass that raises the interaction-affordance emote bubble
- * (db000/db004; the "GO!" door tooltip + the talk/pick-up prompts).
+ * (db000/db004; the "GO!" door tooltip + the sell-counter "!" prompt).
  *
- * Ported: the **shop-door** path (bVar17).  While the player stands in the door
- * zone (player_ctrl_at_shop_door) the engine sets db004=7 and ramps db000 up to
- * 10 (LAB_00488906); off the door — and in every gated case the engine routes to
- * LAB_004885eb (carrying / scene-intro anim / no affordance) — it ramps db000
+ * Ported: the **shop-door** path (bVar17 → db004=7) AND the **sell-counter** path
+ * (bVar3 → db004=0).  The engine checks bVar17 FIRST (door wins); else if bVar3
+ * (at the counter facing it) it ramps up the "!" (LAB_00488906); off both — and
+ * when carrying (DAT_056db048 != 0) — it routes to LAB_004885eb and ramps db000
  * down toward 0.  db000 is the bubble's slide-in gauge, db004 its cell.
  *
- * Faithful no-ops (no live customer/item writer in the port — the same debt the
- * old stub carried): the bVar3 NPC-approach path (db004 0/1) and its DAT_0438be7c/
- * be80 approach timers.  The b928 scene-intro early branches reduce to the
- * decrement here (db000 ramps down), matching the engine in steady free-roam. */
+ * The counter cell is **0** (not 1): db004=1 is the NPC-approach prompt gated on
+ * the DAT_0438be7c approach timer (all.c:87588), which stays 0 here — no live
+ * customer is at the counter in free-roam (she arrives only after Z→cc08=4), so
+ * (&DAT_0450f407)[iVar15] (NPC present) is 0 ⇒ be7c never arms ⇒ db004=0.  The
+ * be7c NPC-approach path + the b928 scene-intro early branches remain
+ * PORT-DEBT(emote-npc-approach) — inert with no live customer/item writer. */
 static void player_ctrl_cc08_proximity_detect(void)
 {
-    /* bVar17: at the shop door zone — only when not carrying (the engine's
-     * `if (DAT_056db048 != 0) goto LAB_004885eb` gate at all.c:87524). */
-    int at_door = 0;
+    /* Only when not carrying (the engine's `if (DAT_056db048 != 0) goto
+     * LAB_004885eb` gate at all.c:87524 — carrying suppresses the affordance). */
+    int at_door = 0, at_counter = 0;
     if (s_db048 == 0) {
         const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
         int exited = (bank != NULL)
                    ? ((const uint8_t *)bank)[PC_DOOR_EXITED_BYTE_OFF] : 0;
         at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
                                            s_player_facing, exited);
+        if (!at_door)                              /* door wins (engine: !bVar17) */
+            at_counter = player_ctrl_at_sell_counter();
     }
 
-    player_ctrl_emote_ramp_step(at_door, 7, &s_emote_level, &s_emote_type);
+    if (at_door)
+        player_ctrl_emote_ramp_step(1, 7, &s_emote_level, &s_emote_type);
+    else
+        player_ctrl_emote_ramp_step(at_counter, 0, &s_emote_level, &s_emote_type);
 }
 
 /* Pure emote-bubble ramp step (the LAB_00488906 / LAB_004885eb tails, all.c:
@@ -1186,22 +1218,10 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
 
 static int player_ctrl_cc08_sell_counter_enter(void)
 {
+    if (!player_ctrl_at_sell_counter())     /* bVar3: tier<3, counter rect + facing */
+        return 0;
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (bank == NULL)
-        return 0;
-
-    /* counter rect by shop tier.  PORT-DEBT(cs-counter-tier): only the tier<3
-     * tutorial rect is handled; the tier>=3 (X∈[5.7,10.7], Z>15) rect lands with
-     * the larger-shop tiers. */
-    int tier = (int)bank[SHOP_DISPLAY_TIER_SELECTOR];
-    if (tier >= 3)
-        return 0;
-    float px = g_scene1_player_pos[0];
-    float pz = g_scene1_player_pos[2];
-    if (!(px < 0.0f && px > -5.0f && pz > 6.9f))
-        return 0;
-    /* facing the counter (DAT_056db05c octant window). */
-    if (!(s_player_facing > -1.8849558f && s_player_facing < -1.2566371f))
         return 0;
 
     /* enter customer service (the sell branch).  Set the sell-active flag in the

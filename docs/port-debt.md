@@ -94,13 +94,13 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1120 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1077 | the engine also gates on a |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1152 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1109 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1143 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1175 | the engine frees the shop |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:150 | the trend<-1 ⇒ cap 0 branch is deferred |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:927 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
