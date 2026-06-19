@@ -243,6 +243,12 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                 if (low4 > 0) snprintf(namebuf, sizeof namebuf, "%s+%d", iname, low4);
                 else          snprintf(namebuf, sizeof namebuf, "%s", iname);
             }
+            /* COLOROP=ADDSIGNED for the trend-tinted text (asm 0x467143):
+             * under ADDSIGNED the grey 0x7f7f7f diffuse passes the texture at
+             * full brightness; the port's default render_quad MODULATE
+             * (render_quad.c:269) would HALVE it (the dim-text bug). */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_ADDSIGNED);
             font_draw_text_centered(dev, 304.0f, 80.0f, namebuf, tcol, 0.8f);
             /* "Base Price NNN" (304,168) scale 0.6. */
             cs_format_grouped(numbuf, sizeof numbuf, s.price_base);
@@ -251,6 +257,10 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             /* "Showcase Item" (304,64) scale 0.8 when b564. */
             if (s.b564 != 0)
                 font_draw_text_centered(dev, 304.0f, 64.0f, "Showcase Item", tcol, 0.8f);
+            /* reset to MODULATE before the icon (asm 0x467233) — the item icon
+             * + data_win frame are MODULATE on both sides. */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_MODULATE);
             /* the item icon (280,96,48,48) from the category atlas, cell=subindex
              * (cleared to 0 when the b5a4 detail bit 0x10 is set). */
             if (islot >= 0) {
@@ -294,6 +304,12 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             cs_quad(dev, sm, dst, src, ((uint32_t)alpha << 24) | 0xffffffu, 0);
         }
         if (s.b598 >= 0xa) {
+            /* COLOROP=ADDSIGNED for the number/cursor/prompt/markup (asm
+             * 0x467493): the grey 0x7f7f7f number + cursor pass the texture at
+             * full brightness; the default MODULATE halved them (the dim bug).
+             * The banner panel above stays MODULATE (asm draws it pre-bracket). */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_ADDSIGNED);
             /* the big asking-price number (176,290), grey 0x7f7f7f under ADDSIGNED. */
             cs_draw_price_number(dev, 176.0f, 290.0f, s.price_ask,
                                  ((uint32_t)alpha << 24) | 0x7f7f7fu);
@@ -337,6 +353,9 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                 font_draw_text_right(dev, 400.0f, 342.0f, full,
                                      ((uint32_t)alpha << 24) | 0xffffffu, 0.8f);
             }
+            /* reset to MODULATE after the markup (asm 0x4675d3). */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_MODULATE);
         }
     }
 
@@ -362,6 +381,12 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                     col = ((uint32_t)a << 24) | 0x7f7f7fu;
                 }
             }
+            /* COLOROP=ADDSIGNED for the panel + label (asm 0x4677d6, set
+             * per-button AFTER the faded-out `continue` so a culled button
+             * skips the bracket like retail's js skip): both the grey item_win
+             * panel and the label render at full brightness. */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_ADDSIGNED);
             /* the item_win button panel (src {400,240,640,304}). */
             {
                 const sprite_t *iw = &g_sysassets.item_win_tga;  /* DAT_073d8748 */
@@ -377,6 +402,9 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             else             label = (i == 0) ? "Okay!"        : "Start Again";
             float ly = ybase + (i == 0 ? 12.0f : 60.0f);
             font_draw_text_centered(dev, 312.0f, ly, label, col, 1.0f);
+            /* reset to MODULATE (asm 0x4678f3, per button). */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_MODULATE);
         }
     }
 
