@@ -1,0 +1,22 @@
+# house-customer-tutorial — the in-shop CUSTOMER-SERVICE / price-haggling
+# tutorial (the first-customer selling tutorial).  Converted from the user's
+# recording rec-20260617-051426 (NEW_GAME → prologue → walk to the sell
+# counter → tooltip → Z initiates the customer-service tutorial that alternates
+# scripted dialogue with price-haggle steps → first real customer).
+#
+# Anchor map (raw recording frames): prologue 0-480 (3 HOUSE_FREEROAM loads);
+# tutorial 480-9678.  Five "PAUSE_OPEN" episodes (raw 2920/4785/6099/7344/8386)
+# = the haggle/menu UI opening; closing dialogue cutscene 8966-9614; back to
+# free-roam ("first real customer") 9617/9678.
+#
+# Base anchor = the 3rd HOUSE_FREEROAM (== LOADING_END, raw 480) = tutorial
+# start.  Milestone-1 caprange [2200,2760] = the counter approach (RIGHT@2321
+# UP@2345 in offset space) → tooltip → Z initiate (A@2440) → first haggle UI
+# (PAUSE_OPEN @offset 2440 = raw 2920).  Widen / re-anchor the caprange as the
+# milestones advance through the 5 haggle rounds + the closing cutscene.
+description: |
+  In-shop customer-service / price-haggling tutorial (first-customer selling).
+  Milestone-1 window: counter approach → Z initiate → first haggle UI.
+max_frames: 40000   # retail load-stretches the new-game prologue heavily before the base anchor
+duration_ceiling_ms: 480000
+capture_suppress_loads: true

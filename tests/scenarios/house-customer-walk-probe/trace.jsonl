@@ -1,0 +1,27 @@
+# anchor-segmented replay: each recorded anchor is a {wait} sync point; inputs/escs after it are relative to it (turbo/jitter-immune).
+# embedded save: cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78 (override via --save-override on replay; see tools/trace_save.py)
+{"savefile": "../_saves/cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78.sav.gz"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 100, "buttons": "0x0000"}
+{"wait": "TITLE_PICKER_READY"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 66, "buttons": "0x0010"}
+{"frame": 70, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1501087713]}
+{"caprange": [0, 230]}
+{"calltrace": [0, 230]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 66, "buttons": "0x0002"}
+{"frame": 75, "buttons": "0x0000"}
+{"frame": 156, "buttons": "0x0010"}
+{"wait": "CUSTOMER_SERVICE_ENTER"}
+{"rngseed": [0, 608851275]}
+{"frame": 0, "buttons": "0x0010"}
+{"wait": "LOADING_END"}
