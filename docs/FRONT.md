@@ -123,12 +123,17 @@
   NUMBER: dim→bright").  The top-INFO panel (TARGET/Longsword/icon/Base Price 1,200) is **also 1:1** at this
   matched frame — an earlier "panel differs" read was a FRAME-MISMATCH artifact (port idx 2697 = occ2+2697
   vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.  The BRIGHTNESS/CONTENT gap is CLOSED.
-  **Residual (pre-existing, NOT the dim bug — my COLOROP edit changes no geometry): a ~2px per-glyph
-  ghosting on the prompt + markup TEXT lines** ("How much should I?", "108% Of Base Price") in the matched-
-  frame diff — a global x/y shift does NOT collapse it (so not screen-shake phase), it's the documented
-  `per-line pose precision` PORT-DEBT (font centering / right-align width).  The '1300' digits themselves are
-  crisp + aligned.  Resolve with truly bit-aligned frames once the side-by-side join lands (below); could
-  still be a non-bit-aligned-frame artifact (cursor-pulse / +1f phase), so confirm before chasing.
+  **Residual (pre-existing, NOT the dim bug — my COLOROP edit changes no geometry): a central-UI-band diff**
+  on the IDENTITY-matched pair (port idx2405 ↔ retail idx2562, via the new --join-anchor join — note my first
+  manual guess was retail 2563, off by 1).  The band (~10.9% px>64) is identical vs retail 2562 AND 2563, so
+  it is NOT a frame-mismatch.  BUT the band CONFLATES two things: (a) the digit CURSOR, which pulses per-frame
+  via `b5b4` (legit phase — needs a b5b4-aligned frame to zero out), and (b) a ~2px per-glyph ghosting on the
+  prompt + markup TEXT ("How much should I?" @467664 / "% Of Base Price" right-aligned nearby) that a global
+  shift does NOT collapse = likely real `per-line pose precision` PORT-DEBT (font centering / right-align
+  width / scale).  The '1300' digits themselves are crisp + aligned (the dim fix is clean).  **NEXT: isolate
+  (b) from (a) on the now-working side-by-side viewer** (scrub to equal b5b4, solo the text draws) before
+  chasing — and if real, cross-ref the 467664 prompt + the markup right-align draw scale vs the port's
+  font_draw_text_centered/_right.
   **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
   properly on this") — ROOT-CAUSED + CORE FIX LANDED 2026-06-19 (autonomous, `--join-anchor`).**  The data
   was ALWAYS alignable: the haggle aligns occ2/CSE-relative within a CONSTANT phase (the `b544` monotonic
