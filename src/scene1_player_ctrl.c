@@ -32,6 +32,7 @@
 #include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc), g_sim_buttons (edge mask) */
 #include "stage_load_pulse.h"    /* display-menu open/close slide (FUN_004693e3 ramp) */
 #include "scene1_combat_sm.h"    /* g_scene1_combat_dat_056da1b8 (sparkle owner) */
+#include "scene1_camera.h"       /* g_scene1_camera_stage_view_mode (DAT_068dd3fc[stage*0x6cf]) */
 #include "fade.h"                /* FUN_004526f5/0045281c/004528b3 — the door dissolve fade + load */
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) — mode 8 = world map (T1) */
 #include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
@@ -745,11 +746,14 @@ int player_ctrl_facing_octant(float angle, float cam_yaw)
 
 void player_ctrl_house_room_clamp(float *px, float *pz)
 {
-    /* FUN_00486435 small-room arm ((&DAT_04510578)[...] < 3). cc08 != 4 holds
-     * in the controllable state, so the px stop is unconditional here. */
+    /* FUN_00486435 small-room arm ((&DAT_04510578)[...] < 3).  The pz front
+     * stop (≤9.5) is unconditional, but the px left stop (≥-1.5 when pz>7) is
+     * gated on `cc08 != 4` in the engine — the cc08==4 customer-service arrival
+     * ramp (Chip 3c) deliberately slides the player past it to px=-4.5 for the
+     * counter camera view, so the clamp must let it through there. */
     if (*pz > 9.5f)
         *pz = 9.5f;
-    if (*pz > 7.0f && *px < -1.5f)
+    if (s_cc08 != 4 && *pz > 7.0f && *px < -1.5f)
         *px = -1.5f;
 }
 
@@ -1631,6 +1635,103 @@ static void player_ctrl_cc08_freeroam_arm(void)
     }
 }
 
+/* ── Chip 3c: the cc08==4 player/companion ARRIVAL anim + camera ramp ────────
+ * (FUN_0048670f all.c:87366-87434, objdump 0x487e8a-0x488085).  Retires
+ * PORT-DEBT(cs-arrival-anim).  Recette hops onto the merchant stool (anim 5)
+ * and the camera target (= g_scene1_player_pos) ramps from the walk-stop to the
+ * counter view; once she has "arrived" the at-counter pose (anim 6) settles and
+ * the companion takes anim 4.  Gates read the live save bank: f405 (0x2bc6d) =
+ * player-arrival-complete, f407 (0x2bc6f) = companion-arrival-complete.  Ground
+ * truth: the retail house-customer-tutorial-fe530872 cache (poct 0, pang -π,
+ * panim 5; px -1.5→-4.5 @0.125/f and pz 9.35→8.6 @0.05/f once db04c>10, py→0.5).
+ *
+ * The f406 tutorial entry (all.c:87485) sets cc08=4 WITHOUT setting f405, so the
+ * tutorial always runs the arriving branch (the jump + zoom the user flagged in
+ * viewer notes #2/#3); the arrived branch ports the autonomous-entry path that
+ * pre-sets f405=1 (e.g. the cc08==0x1e arm at all.c:87047) for faithfulness. */
+#define PC_F405_ARRIVED_BYTE_OFF            0x2bc6d   /* DAT_0450f405 — player arrival-complete */
+#define PC_F407_COMPANION_ARRIVED_BYTE_OFF  0x2bc6f   /* DAT_0450f407 — companion arrival-complete */
+
+static void player_ctrl_cs_arrival_tick(void)
+{
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int f405 = (bank != NULL) && bank[PC_F405_ARRIVED_BYTE_OFF] != 0;
+    int f407 = (bank != NULL) && bank[PC_F407_COMPANION_ARRIVED_BYTE_OFF] != 0;
+    union { float f; int32_t i; } z = { .f = 0.0f };
+
+    if (!f405) {
+        /* ── arriving (all.c:87367-87405): the stool jump + camera ramp ── */
+        /* player facing angle = -camera_yaw (DAT_056db05c = -DAT_073de39c). */
+        s_player_facing = -g_scene1_camera_yaw;
+        /* octant DAT_056dab00 = ftol(((facing+yaw) + π/8)/2π · 8 + 8) & 7.  With
+         * facing = -yaw, facing+yaw == 0 ⇒ ftol(0.5+8)=8, &7 = 0 (the __ftol arg
+         * Ghidra dropped at 0x487e9e; consts π/8=0x519b78, 2π=0x519398, 8=0x519378).
+         * Computed (not hard-0) to stay faithful if the facing ever drifts. */
+        {
+            float a = (s_player_facing + g_scene1_camera_yaw + 0.3926991f)
+                      / 6.2831853f * 8.0f + 8.0f;
+            s_actor_record[0][CHR_ACTOR_FACING] = (int32_t)a & 7;
+        }
+        if (!f407)   /* companion octant DAT_056dab58 = player octant */
+            s_actor_record[2][CHR_ACTOR_FACING] = s_actor_record[0][CHR_ACTOR_FACING];
+
+        if (s_actor_record[0][CHR_ACTOR_STATE] != 5) {   /* DAT_056daafc != 5 */
+            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;     /* _DAT_056daaf8 */
+            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;     /* DAT_056daaf4 */
+            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;   /* _DAT_056daaf0 */
+            s_actor_record[0][CHR_ACTOR_ANIM]    = 5;     /* DAT_056daae8 = 5 (stool jump) */
+            s_actor_record[0][CHR_ACTOR_STATE]   = 5;     /* DAT_056daafc = 5 */
+        }
+
+        s_db04c++;                                        /* DAT_056db04c++ */
+        if (s_db04c > 10) {
+            /* camera-pos ramp by scene_type (DAT_068dd3fc[stage*0x6cf]).  The
+             * tutorial HOUSE view_mode 0 (<3) → x_target 0, z_target 6.9. */
+            float x_target = 0.0f, z_target = 0.0f;
+            int view_mode = g_scene1_camera_stage_view_mode;
+            if (view_mode >= 0) {
+                if (view_mode < 3)      { x_target = 0.0f;  z_target = 6.9f;  }
+                else if (view_mode < 5) { x_target = 10.7f; z_target = 15.0f; }
+            }
+            if (g_scene1_player_pos[2] < z_target + 1.69f)   /* da1e0 += 0.05 */
+                g_scene1_player_pos[2] += 0.05f;
+            if (z_target + 1.7f < g_scene1_player_pos[2])    /* da1e0 -= 0.05 */
+                g_scene1_player_pos[2] -= 0.05f;
+            if (x_target - 4.5f < g_scene1_player_pos[0])    /* da1d8 -= 0.125 */
+                g_scene1_player_pos[0] -= 0.125f;
+            g_scene1_player_pos[1] = 0.5f;                   /* da1dc = 0x3f000000 */
+        }
+    } else {
+        /* ── arrived (all.c:87406-87432): settle to the at-counter pose ── */
+        if (s_actor_record[0][CHR_ACTOR_STATE] != 6) {   /* DAT_056daafc != 6 */
+            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;     /* _DAT_056daaf8 */
+            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;   /* _DAT_056daaf0 */
+            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;     /* DAT_056daaf4 */
+            s_actor_record[0][CHR_ACTOR_ANIM]    = 6;     /* DAT_056daae8 = 6 */
+            s_actor_record[0][CHR_ACTOR_STATE]   = 6;     /* DAT_056daafc = 6 */
+        }
+        if (s_actor_record[2][CHR_ACTOR_STATE] != 4) {   /* DAT_056dab54 != 4 */
+            s_actor_record[2][CHR_ACTOR_FRAME]   = 0;     /* _DAT_056dab50 */
+            s_actor_record[2][CHR_ACTOR_TIMER]   = z.i;   /* _DAT_056dab48 */
+            s_actor_record[2][CHR_ACTOR_COUNTER] = 0;     /* _DAT_056dab4c */
+            s_actor_record[2][CHR_ACTOR_ANIM]    = 4;     /* _DAT_056dab40 = 4 */
+            s_actor_record[2][CHR_ACTOR_STATE]   = 4;     /* DAT_056dab54 = 4 */
+        }
+        /* face toward the companion side (player X vs companion X = da1f0). */
+        if (g_scene1_player_pos[0] <= g_scene1_actor_pos[2][0]) {
+            s_actor_record[0][CHR_ACTOR_FACING] = 6;      /* DAT_056dab00 = 6 */
+            s_player_facing = 1.5707964f;                 /* DAT_056db05c = π/2 */
+        } else {
+            s_actor_record[0][CHR_ACTOR_FACING] = 2;      /* DAT_056dab00 = 2 */
+            s_player_facing = -1.5707964f;                /* DAT_056db05c = -π/2 */
+        }
+    }
+    /* FUN_0047019f() — the cc08==4 on-screen-character pump; EMPTY in the
+     * tutorial (the floor-walker array DAT_073a6ea8 has 0 active slots, §8.5),
+     * a no-op here.  PORT-DEBT(cs-char-pump) for the autonomous-customer stages. */
+}
+
 /* The unported cc08 dispatch arms (FUN_0048670f all.c:358-918): the event /
  * camera / counter / menu / dialogue states (0,2,3,4,0xa,0xf,0x10,0x11,0x12,
  * 0x17,0x1e,0x32).  Each is reached only by a state transition the port doesn't
@@ -1656,12 +1757,10 @@ static void player_ctrl_cc08_unported_arm(void)
         if (customer_service_b1cc() == 2 && g_worker_sec_state_1cc != 2)
             customer_service_notify_loaded();
 
-        /* PORT-DEBT(cs-arrival-anim): the f405 player/companion arrival anim +
-         * the X-position ramp (all.c:87366-87434) — sets panim 5/6 + slides px
-         * toward the counter.  Secondary to the haggle state machine (affects the
-         * px/panim flow-trace fields, not b534/b5a8/base/ask/b574); port it when
-         * those fields are chased.  FUN_0047019f (the 0x47019f customer pump) is
-         * likewise deferred (unported; functions.csv). */
+        /* Chip 3c: the f405 player/companion arrival anim + the camera-pos ramp
+         * (all.c:87367-87432, BEFORE the master tick) — sets panim 5/6 + the
+         * octant + slides g_scene1_player_pos toward the counter view. */
+        player_ctrl_cs_arrival_tick();
 
         /* the master tick (FUN_00462403): owns the b534 state switch + the
          * scripted-sell dispatch.  cur/pressed/held = the engine button masks
@@ -1669,6 +1768,15 @@ static void player_ctrl_cc08_unported_arm(void)
         customer_service_master_tick(g_sim_buttons[0].cur,
                                      g_sim_buttons[0].pressed,
                                      g_sim_buttons[0].held);
+
+        /* advance the player sprite anim: retail's draw leaf FUN_0045a56f ticks
+         * every drawn actor each frame (pcnt++ + frame-by-LUT, the stool jump
+         * holding at its last frame).  The cc08==4 arm itself does not call it,
+         * but the per-frame draw does — so the port mirrors it here, matching the
+         * fe530872 cache (panim 5, pframe 0→8 every ~6 counts, pcnt monotonic).
+         * The companion is advanced by scene1_companion_ctrl_tick (the scene1_sim
+         * non-walk fallback, which runs because b850_move didn't this frame). */
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
         return;
     }
     /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by

@@ -853,3 +853,44 @@ DECODED, ready to port:**
   pos=g_scene1_player_pos (da1d8/dc/e0), f405/f407=save bank.  **Verify:** Recette jumps on stool +
   camera zooms to counter (notes #2/#3), without breaking the free-roam walk anim.  Risk: the
   actor-record field mapping + the player-pos ramp interacting with the controller.
+
+### 8.7.2 Chip 3c LANDED (2026-06-19) — the cc08==4 arrival anim + camera ramp; the PLAYER POSE/POS is BIT-EXACT 1:1.  The CAMERA FRAMING has a residual (separate, probe-needed).
+
+Ported FUN_0048670f's cc08==4 arrival arm (all.c:87367-87432) into
+`scene1_player_ctrl.c::player_ctrl_cs_arrival_tick`, dispatched in the cc08==4 arm BEFORE
+`customer_service_master_tick`; retires the player-pose part of PORT-DEBT(cs-arrival-anim).
+- **f405==0 (arriving)** branch: player facing = `-camera_yaw`; octant 0 (the `ftol` formula
+  collapses to 0 since `facing+yaw==0`); anim 5 (stool jump) on the `daafc!=5` gate; companion
+  octant = player octant when `f407==0`; the `db04c>10` camera-pos ramp by `scene_type` (HOUSE
+  view_mode 0 <3 → x_target 0/z_target 6.9): `px -=0.125` to -4.5, `pz ±=0.05` to 8.6, `py=0.5`.
+- **f405!=0 (arrived)** branch ported for faithfulness (anim 6 + companion anim 4 + side-facing
+  octant); the tutorial's f406 entry leaves f405=0, so it always arrives (never this branch).
+- **Also:** gated the room-bounds **px-clamp on `cc08!=4`** (FUN_00486435 itself gates the px
+  stop so the ramp can slide past -1.5 in cc08==4; the port's clamp had assumed cc08!=4); and
+  advance the player sprite anim each frame via `chr_anim_tick` (mirroring retail's draw-leaf
+  FUN_0045a56f — pcnt++ + frame-by-LUT; the companion is advanced by the scene1_sim non-walk
+  fallback).  No RNG consumed (chr_anim_tick is rng-free), so the haggle stream is untouched.
+
+**VERIFICATION (v3 `house-customer-tutorial-a361c768`, --state, aligned on the cc08-entry
+anchor):** the player arrival fields **`panim/pframe/pcnt/poct/px/py/pz` are BIT-EXACT to retail
+across ALL 2569 cc08==4 frames** under a constant **+1-frame shift** (0/2569 mismatches; the raw
++0 trace had only the ramp/anim shifted 1 frame — the px/pz/py values + cadence are otherwise
+identical, e.g. off100 port==retail px/py/pz = -4.5/0.5/8.6).  The +1 is the **arrival-origin
+PHASE pillar** (load-stretch: the port enters cc08==4 ~1 frame off retail relative to the anchor;
+the f406 entry gotos the tail + `FUN_0045edaa` writes no anim, so it is NOT an arm-logic gap) —
+accept as CONST-OFFSET.  **The arrival ARM logic is confirmed data-1:1.**  Build clean, 3335 host
+tests pass.  Visual: the port now renders Recette on the merchant stool (anim 5) at the counter
+view (feed "cc08==4 Chip 3c arrival").
+
+**OPEN — the camera FRAMING residual (note #3 follow-up).**  At the settled counter view (offset
+~100, both `px=-4.5 pz=8.6` bit-exact, `char_mode` loads 0 on both per scene1_postload.c:399,
+`stage_view_mode`=0) the rendered frames still differ ~25px / 91% px (`orv3_shot` pixel_diff at
+the identity-paired frame).  The shift is small (same shop, same angle, slightly panned) — the
+big "wide-top-down → counter-zoom" gap the user flagged is CLOSED by the position ramp (the camera
+follows `g_scene1_player_pos` to -4.5), but a residual framing offset remains that is **NOT
+explained by any probed field** (px/pz/py/char_mode/view_mode all match).  Candidate causes (need
+a camera **eye/lookat** probe on both sides to disambiguate): the camera smoothing eye-history,
+the bias_z clamp (`if (bias_z>1) bias_z=1` — pz=8.6 clamps to 1 on both, so the look-at z is the
+shop-front not the counter), or retail decoupling/fixing the camera target during cc08==4 rather
+than tracking the player to -4.5.  **Next:** extend the 0x48670f probe with the camera eye/lookat
+(both sides), re-capture, and diff — then the framing residual resolves to a concrete field.

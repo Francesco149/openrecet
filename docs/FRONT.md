@@ -32,12 +32,22 @@
   UNPORTED startup `grp:` per-stage file parser (FUN_00475270 block#4 → `scene_buy_parse_stage_buffer`
   + the `tables.c` driver) that populates `g_scene_buy_names`/count from each customer's `file:` data;
   AE8 loads page 0 (Recette/Tear), B13 page b56c (customer). v3-verified: the port now draws the
-  standees over the dialogue box (feed "Chip 3b: CHARACTER ART renders"); +2 host tests. **NEXT —
-  Chip 3c: the counter camera/pose** (the stubbed `PORT-DEBT(cs-arrival-anim)` arm all.c:87366-87434;
-  retail ramps the player pos to the counter view, port stays where the walk stopped); the **"Tear"
+  standees over the dialogue box (feed "Chip 3b: CHARACTER ART renders"); +2 host tests. **Chip 3c
+  ✅ LANDED 2026-06-19 — the cc08==4 ARRIVAL anim + camera ramp; PLAYER POSE/POS BIT-EXACT 1:1**
+  (`player_ctrl_cs_arrival_tick` in scene1_player_ctrl.c, the FUN_0048670f all.c:87367-87432 arm;
+  retires the player-pose part of PORT-DEBT(cs-arrival-anim)): Recette faces octant 0, hops on the
+  merchant stool (anim 5), and `g_scene1_player_pos` ramps to the counter (px −1.5→−4.5 @0.125/f,
+  pz 9.35→8.6 @0.05/f, py→0.5 once db04c>10) — **v3-verified `panim/pframe/pcnt/poct/px/py/pz`
+  BIT-EXACT vs retail across all 2569 cc08==4 frames** under a constant +1-frame arrival-origin
+  PHASE shift (CONST-OFFSET, accept). Also gated the room px-clamp on cc08!=4 (FUN_00486435) +
+  advance the player anim via chr_anim_tick (rng-free). 3335 host pass. **NEXT (note #3 follow-up):
+  the camera FRAMING residual** — at the settled counter view the render still differs ~25px/91%px
+  though px/pz/char_mode/view_mode all match retail; the cause is a camera input NOT in the probe
+  (eye/lookat smoothing, the bias_z≤1 clamp, or retail decoupling the cam target during cc08==4) —
+  extend the 0x48670f probe with the camera eye/lookat (both sides) + diff. **Then** the **"Tear"
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
   index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
-  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7.**
+  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7/§8.7.2.**
   The **rng-rate gap is DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the
   recording, so it's a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
