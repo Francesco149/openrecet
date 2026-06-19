@@ -177,9 +177,29 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   red "+" emote is on both sides too).  Shares PORT-DEBT(cs-entry-flags) with the Z-entry (the DAT_0450f3fd
   customer-queued gate, unported iv1_7); PORT-DEBT(emote-npc-approach) = the be7c/type-1 NPC path.  Pending
   user re-confirm.  3337 host pass.
-  **→ NEXT (user directive 2026-06-20): EXTEND the trace into the actual CUSTOMER DIALOGUE** — past the first
-  customer's arrival into the real haggle/dialogue.  The cc08==4 haggle-UI render + the "!" tooltip are done
-  for this trace.
+  **★ CAMERA-HINT OVERLAP ✅ FIXED 2026-06-20 (user-flagged):** the bottom-right "Button 4: Change Camera"
+  free-roam hint (`scene1_top_hud_camera_hint`, FUN_00409925 tail) drew during cc08==4, OVERLAPPING the
+  haggle's own "Button 3: Item Details" at the same (440,440) data_win slot.  Retail gates it on
+  `b1c8==0 && DAT_0438b4e8==0`; b4e8 (a menu/overlay flag the port treats as 0 in free-roam) is set while an
+  overlay owns the hint slot, incl. cc08==4 — mirrored via the cs-active flag `!customer_service_active()`.
+  v3-verified (idx2405): bottom-right shows ONLY "Button 3: Item Details" == retail.  PORT-DEBT(camera-hint-
+  b4e8): the other b4e8 menu/transition states aren't tracked.
+  **⚠ ISSUE — the 2nd-haggle BUY round uses the SELL ui/logic (user-flagged 2026-06-20: "tear always says the
+  price is higher than base even if I set it lower … using the sell ui when it's supposed to use the buy
+  ui").  ROOT-CAUSED from the code: the port has NO BUY PATH.**  `b5a8` (transaction type) is only ever set to
+  **2 (sell)** (FUN_00461303) and `price_fileidx` only to 0/2 at entry — never the buy values **b5a8=0 /
+  fileidx=1**.  The tuto SCRIPT + the prompt are both indexed by fileidx (0→tuto1 / "How much should I?…" /
+  sell; **1→tuto2 / "What should I pay?…" / buy**), and the threshold-GOTO comparison (`cs_goto` on ask/base)
+  is the sell direction — so a buy round runs the sell script + sell thresholds ⇒ "higher than base" even when
+  the player offers low.  Retail HAS the buy path (decompile: `DAT_005c6bb0==1` @59843; the `b5a8==0` buy
+  gold-cap @58323; `customer_haggle.c` already has the down-direction math FUN_004603cf/`offer_down`).  **FIX
+  = port the BUY round** (b5a8=0 + fileidx=1 + tuto2 + the buy thresholds + the buy gold-cap), triggered by the
+  2nd customer (one SELLING to Recette).  A sizeable arc, and the 2nd haggle is PAST the current caprange
+  [0,2700] (after the 1st customer's load @trace line 105) ⇒ must be captured to diagnose + verify.
+  **→ NEXT (user directive 2026-06-20): EXTEND the trace into the CUSTOMER DIALOGUE / the BUY round** — widen
+  the caprange past the first customer's load to the 2nd PAUSE_OPEN (~line 130), re-drive port+retail, diagnose
+  the buy-round divergence in-tool, then port the buy mode.  The cc08==4 SELL haggle-UI render + the "!"
+  tooltip + the camera-hint overlap are DONE for this trace.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
   1-frame anim phase bleeding into the band edge, and (c) a small ~2px per-glyph text-precision residual on the
