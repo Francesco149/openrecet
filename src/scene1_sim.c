@@ -167,7 +167,15 @@ void scene1_ingame_default_arm_tick(void)
      * still re-checks the live cc04 for the menu-OPEN frame, set mid-frame). */
     if (!player_ctrl_companion_ticked()) {
         scene1_companion_ctrl_tick();
-        if (cc04_at_dispatch == 0)
+        /* db054 advances ONLY in free-roam: the engine bumps it at the
+         * FUN_0048b850 tail, which does NOT run in cc08==4 (customer service) —
+         * so retail's db054 FREEZES there (verified: frozen at 156).  The
+         * companion wing-glow sparkle gate is `db054 % 4 == 0`, so a frozen db054
+         * (156 % 4 == 0) emits the type-0x1f particle EVERY frame, vs every 4th
+         * while it keeps incrementing — this is the cc08==4 ambient-particle rng
+         * the port was under-drawing (~5.5/f vs retail ~10/f).  Freeze it here to
+         * match (RE §8.8 — the resolved §8.5 rng-rate gap). */
+        if (cc04_at_dispatch == 0 && player_ctrl_cc08() != 4)
             scene1_companion_ctrl_advance_phase();
     }
 

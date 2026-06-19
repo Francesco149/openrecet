@@ -958,8 +958,22 @@ TYPE 0x1f (NOT 0x43 — §8.5's 0x43 was a red herring): 7 @cc08=1 (the counter 
 FUN_0040fb3a @0x40fb3a line 10090: pos += vel, vel *= 0.97, vel.y -= 0.001, die at life==0x20=32
 frames — the **integration is rng-FREE**).  So the ~4.5/f rng is at **SPAWN** (random pos/vel): a
 **continuous ~1/frame emitter** (31 alive × 32-frame life ⇒ ~1 spawned/frame) that the port
-LACKS in cc08==4.  Likely the stubbed **PORT-DEBT(cs-arrival-fx)** (the master-tick '!' sparkle /
-ambient emit gated on `b564`, all.c:60238-60255) or a cc08-scene ambient emitter.  **NEXT (probe
-in progress):** the FUN_00447f4f/FUN_004279cf spawn-hook pins the exact emitter + caller → port
-it.  **Until then the trace is "structurally 1:1" (camera+anim+state+dialogue verified) with the
-rng-driven offer/particles as the known residual.**
+LACKS in cc08==4.
+
+**★ RESOLVED (2026-06-19) — the emitter is Tear's COMPANION wing-glow sparkle; the gap is a db054
+FREEZE the port missed.**  A spawn-hook (FUN_00447f4f onEnter, template + caller) pinned every
+type-0x1f spawn to **caller 0x48b393 = FUN_0048a833 (the COMPANION controller) +0xb60** — Tear
+drops a type-0x1f particle at her cam-yaw-offset position (LAB_0048b2a0), gated on
+`DAT_0438b8f8 != 0 || DAT_056db054 % 4 == 0`.  The port HAS this emit (`co_emit_wing_sparkle`,
+scene1_companion_ctrl.c) but at **1/4 the rate**, because: **retail FREEZES db054 in cc08==4**
+(the engine bumps db054 at the free-roam-only FUN_0048b850 tail, which doesn't run in cc08==4) —
+**frozen at 156, and 156 % 4 == 0 ⇒ the sparkle fires EVERY frame**; the port kept INCREMENTING
+db054 (scene1_sim.c's non-walk companion fallback advanced it), so `db054%4==0` held only every 4th
+frame.  **FIX (`scene1_sim.c`):** gate the db054 advance on `player_ctrl_cc08() != 4` — freeze it
+in customer service like retail.  **VERIFIED:** db054 now frozen at **156** (port==retail), the
+cc08==4 rng rate **5.53→10.03/f == retail 10.02/f**, the type-0x1f particles emit every frame.
+3335 host tests pass; only cc08==4 is affected (free-roam/dialogue db054 unchanged).  The
+first-customer **offer is non-deterministic** (recording 1536 / free-run capture 1548 / post-fix
+1572 — retail itself varies run-to-run; §8.5), so the RATE+order matching is the correct goal, not
+a single value.  **The cc08==4 trace is now rng-rate-1:1** (camera+anim+state+particles+rng-rate
+verified); residuals = the non-deterministic offer phase + the few-frame dialogue-reveal timing.
