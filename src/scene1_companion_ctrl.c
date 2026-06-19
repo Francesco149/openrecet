@@ -168,12 +168,83 @@ static void co_emit_wing_sparkle(const int32_t *rec, const float *comp)
                  CO_SPARKLE_TYPE, CO_SPARKLE_SCALE, 0);
 }
 
+/* ── cc08==4 (sell-active / f404) AT-COUNTER pose — FUN_0048a833's `local_c != 0`
+ * branch (by-address 0x48ace7-0x48aeda, objdump 2026-06-19) ──────────────────
+ * When the shop enters customer-service mode the companion (Tear — the tutorial's
+ * first "customer") leaves the free-roam spring-follow and instead walks to a
+ * fixed offset BESIDE the player at the counter (player.x ± 1.3, player.z),
+ * holding the at-counter "ready" pose (canim 4 = the engine's anim id 4) facing
+ * the player (octant 2 or 6).  The approach is a flat 0.1/frame lerp (NOT the
+ * spring); the Y target is sin(db054·0.04)·0.2 + 3.0 — note NO ground_y term,
+ * unlike the free-roam bob (asm 0x48ad65-0x48ad93; the at-counter Y sits at a
+ * fixed height).
+ *
+ * The branch consumes NO rng (sqrt/sin/atan2/ftol only), so the carefully aligned
+ * haggle stream (RE §8.8) is untouched; the wing-sparkle that DOES draw rng is
+ * emitted by the shared tail in scene1_companion_ctrl_tick, unchanged.
+ *
+ * Target actor = the player (engine local_2c = (*DAT_068dd2f0>0); *DAT_068dd2f0==0
+ * in the tutorial — a single companion, no extra followers — so local_2c=0 and the
+ * post-move facing-copy at 0x48b284 is skipped, leaving the 2/6 at-counter facing).
+ * Consts: 0x519b90=1.3, 0x519314=2.0, 0x5193a0=0.1, 0x5198c4=0.04, 0x5198d8=0.2,
+ * 0x519438=3.0.  Walk-facing octant reuses the shared player_ctrl_facing_octant. */
+#define CO_COUNTER_OFFSET   1.3f    /* .rdata 0x519b90 — ±X beside the player */
+#define CO_COUNTER_ARRIVE   2.0f    /* .rdata 0x519314 — dist < this ⇒ arrived */
+#define CO_COUNTER_MOVE     0.1f    /* .rdata 0x5193a0 — approach lerp /frame */
+#define CO_ANIM_COUNTER     4       /* the at-counter ready pose (engine anim 4) */
+
+static void co_at_counter_tick(int32_t *rec, float *comp, const float *player)
+{
+    /* canim 4 — reset the sprite cycle on the transition in from free-roam
+     * (co_set_anim is a no-op once held). */
+    co_set_anim(rec, CO_ANIM_COUNTER);
+
+    /* target a fixed offset on the side the companion already stands (engine
+     * `comp.x <= player.x ? player.x-1.3 (oct 6) : player.x+1.3 (oct 2)`). */
+    float target_x;
+    if (comp[0] > player[0]) {
+        target_x = player[0] + CO_COUNTER_OFFSET;
+        rec[CHR_ACTOR_FACING] = 2;
+    } else {
+        target_x = player[0] - CO_COUNTER_OFFSET;
+        rec[CHR_ACTOR_FACING] = 6;
+    }
+    float target_z = player[2];
+    float bob_y = sinf((float)s_bob_counter * CO_BOB_FREQ) * CO_BOB_AMP
+                  + CO_BOB_OFFSET;          /* no ground_y term (asm 0x48ad93) */
+
+    float dx = target_x - comp[0];
+    float dy = bob_y    - comp[1];
+    float dz = target_z - comp[2];
+    float dist = sqrtf(dx * dx + dz * dz);  /* horizontal only (dy excluded) */
+
+    /* dist ≥ 2.0 → still walking in: walk anim 1 + octant from the approach
+     * angle; else arrived → hold anim 4.  (The tutorial is < 2.0 from frame 1, so
+     * the walk branch is faithful-but-unexercised here; it serves the autonomous-
+     * customer stages.)  Note: while walking the engine re-sets 4 then 1 each
+     * frame — co_set_anim reproduces that (resets the cycle every walk frame). */
+    if (dist >= CO_COUNTER_ARRIVE) {
+        co_set_anim(rec, CO_ANIM_MOVING);
+        rec[CHR_ACTOR_FACING] =
+            player_ctrl_facing_octant(atan2f(dx, dz), g_scene1_camera_yaw);
+    } else {
+        co_set_anim(rec, CO_ANIM_COUNTER);
+    }
+
+    /* approach the target at a flat 0.1/frame (engine `comp += delta·0.1`). */
+    comp[0] += dx * CO_COUNTER_MOVE;
+    comp[1] += dy * CO_COUNTER_MOVE;
+    comp[2] += dz * CO_COUNTER_MOVE;
+}
+
 void scene1_companion_ctrl_tick(void)
 {
     /* Engine path: FUN_0048a833 (the companion dispatcher) → FUN_0048a4d1 (the
      * spring-follow helper) for the free-roam case.  The dispatcher's other
      * branches (intro standing-pose, random-wander) are retail-only (gated
-     * behind the unported §60 event-gate) — see FINDINGS.md. */
+     * behind the unported §60 event-gate) — see FINDINGS.md.  The cc08==4
+     * (sell-active) at-counter branch (co_at_counter_tick) is FUN_0048a833's own
+     * `local_c != 0` arm — see below. */
     CALL_TRACE_ENTER(0x48a4d1u);
 
     if (player_ctrl_actor_char(CO_ACTOR) == -1)   /* companion not live */
@@ -183,6 +254,29 @@ void scene1_companion_ctrl_tick(void)
     const int32_t *prec   = player_ctrl_actor_record(CO_TARGET);   /* player record */
     float         *comp   = g_scene1_actor_pos[CO_ACTOR];
     const float   *player = g_scene1_actor_pos[CO_TARGET];
+
+    /* cc08==4 (sell-active): the companion is the haggle CUSTOMER — run the
+     * at-counter branch (FUN_0048a833 local_c!=0) instead of the free-roam
+     * spring-follow.  The player arrival arm (player_ctrl_cs_arrival_tick, run
+     * earlier this frame via scene1_player_ctrl_tick) wrote the companion octant
+     * = 0; this overwrites it to the at-counter 2/6, exactly as retail (where
+     * FUN_0048a833 runs from the master tick AFTER the arrival arm).  db054 is
+     * frozen (RE §8.8) so the wing-sparkle gate (db054%4==0) still fires every
+     * frame; the at-counter move/pose draws no rng. */
+    if (player_ctrl_cc08() == 4) {
+        int prev_animsel = rec[CO_REC_ANIMSEL];
+        co_at_counter_tick(rec, comp, player);
+        /* advance the sprite anim on a non-transition frame (mirrors the
+         * free-roam tail + the player); skip the frame canim transitioned in
+         * (co_set_anim reset the cycle to frame 0). */
+        if (rec[CO_REC_ANIMSEL] == prev_animsel)
+            chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
+        /* wing-glow sparkle (FUN_0048a833 tail) — db054 frozen at 156 in cc08==4
+         * ⇒ %4==0 emits every frame (the RE §8.8 rng-rate match). */
+        if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
+            co_emit_wing_sparkle(rec, comp);
+        return;
+    }
 
     float pre_x = comp[0], pre_z = comp[2];   /* for the moved-delta anim test */
 

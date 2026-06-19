@@ -929,6 +929,48 @@ house-customer-tutorial-a361c768, the camera-eye/lookat probe):** camex/camez/ca
 stage_class global defaults 0).  PORT-DEBT(cs-cam-tier): the tier-2/3 eye-height (b778) ramps
 to 25/29 are stubbed (tutorial is tier 0).
 
+### 8.7.4 Chip 3e LANDED (2026-06-19) — the cc08==4 COMPANION (Tear) at-counter pose; canim 4 + position BIT-EXACT 1:1 (notes #8/#9 fix)
+
+**The note #8/#9 gap (the 3D companion) ✅ PORTED.**  Diagnosis (FRONT, `02d89d4`): the cc08==4
+dialogue STATE is bit-identical port==retail, so the gap is the **3D COMPANION (Tear, actor 2):
+retail walks her to the at-counter "ready" pose `canim=4` at (-3.2, 8.6) octant 2, the port left
+her at the free-roam `canim=0` (-3.0, 8.8) octant 0** — the port ran the free-roam spring-follow
+through cc08==4 instead of the customer-service branch.
+
+**RE — FUN_0048a833's `local_c != 0` (at-counter) branch** (by-address 0x48ace7-0x48aeda, objdump
+2026-06-19; consts verified: 0x519b90=1.3, 0x519314=2.0, 0x5193a0=0.1, 0x5198c4=0.04, 0x5198d8=0.2,
+0x519438=3.0).  `local_c` is set 1 when **f404 (sell-active) is set** (also db048∈{0xe,0xf}); the
+`else` arm:
+- **canim 4** (`DAT_056dab54/40`, reset cycle on transition) — the at-counter ready pose.
+- **target** beside the player: `comp.x <= player.x ? (player.x−1.3, oct 6) : (player.x+1.3, oct 2)`;
+  `target_z = player.z`.  Tutorial: comp.x(-3.0) > player.x(-4.5) ⇒ **+1.3, octant 2, target (-3.2,
+  player.z)**.
+- **Y target** `sin(db054·0.04)·0.2 + 3.0` — **no ground_y term** (unlike the free-roam bob).
+- `dist = √(dx²+dz²)`; **dist ≥ 2.0 → walk anim 1 + octant from atan2(dx,dz)** (the shared
+  `player_ctrl_facing_octant`); else hold anim 4.  Tutorial is < 2.0 from frame 1 (walk branch
+  unexercised here — it serves the autonomous-customer stages).
+- **move 0.1/frame**: `comp += delta·0.1` (a flat lerp, NOT the spring).
+- **No RNG** (sqrt/sin/atan2/ftol only) ⇒ the §8.8 haggle stream is untouched; the wing-sparkle
+  (which DOES draw rng, frozen-db054 every-frame, §8.8) is emitted by the shared tail, unchanged.
+
+**Port** (`scene1_companion_ctrl.c::co_at_counter_tick`, branched in `scene1_companion_ctrl_tick`
+on `player_ctrl_cc08()==4`): the companion is ticked once/frame via the scene1_sim non-walk
+fallback, so the cc08==4 branch takes over there.  The player arrival arm
+(`player_ctrl_cs_arrival_tick`, run earlier this frame) writes the companion octant=0; the
+at-counter branch overwrites it to 2/6, exactly as retail (where FUN_0048a833 runs from the master
+tick AFTER the arrival arm).  +2 host tests (`companion_at_counter_pose/_settle`); 3337 pass.
+
+**VERIFICATION (v3, house-customer-tutorial-a361c768, --state, cc08-entry aligned, the
+cx/cz/coct/canim probe):** over all **2546 cc08==4 frames — `canim` 2546/2546 BIT-EXACT (4),
+`coct` 2546/2546 BIT-EXACT (2), and `cx/cz` settled (off≥120) BIT-EXACT (max |Δ|=0.0000) at
+(-3.2, 8.6)**.  The ramp transient (off 10-110) trails by the **inherited player-px arrival phase**
+(px is a clean CONST-OFFSET: shift −3 ⇒ 101/101 px-exact, no drift — the accepted Chip-3c pillar);
+the companion correctly lerps toward `px+1.3 @0.1/f` (self-consistent on both sides), so it inherits
+that phase and re-converges bit-exact at settle.  **The companion logic is confirmed data-1:1.**
+Visual (feed "cc08==4 companion at-counter pose — Chip 3e"): the port renders the counter view with
+Recette+Tear; the remaining visible diff is the **manga-lines (集中線) radial effect = note #8, the
+RT-based follow-up** (replays empty in v3 — needs the v3 RT-capture extension).
+
 ## 8.8 FULL-TRACE DIAGNOSTIC (2026-06-19) — the cc08==4 trajectory is largely 1:1; the remaining SYNC blocker is the §8.5 RNG-RATE gap (port draws HALF retail's rng)
 
 Drove the FULL port `0:2700` state window vs the retail `a361c768` cache (cc08-entry aligned,

@@ -3465,6 +3465,8 @@ struct test_case {
     X(companion_velocity_clamp) \
     X(companion_wing_sparkle_emit) \
     X(companion_wing_sparkle_period) \
+    X(companion_at_counter_pose) \
+    X(companion_at_counter_settle) \
     X(conversation_pose_faces_tear_left) \
     X(conversation_pose_faces_tear_right) \
     X(conversation_pose_equal_x_takes_left_branch) \

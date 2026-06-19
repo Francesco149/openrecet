@@ -136,6 +136,55 @@ int test_companion_wing_sparkle_emit(void)
     return 0;
 }
 
+/* cc08==4 (sell-active): the companion takes the AT-COUNTER branch (FUN_0048a833
+ * local_c!=0) instead of the spring-follow — canim 4 (the ready pose), faces the
+ * player (octant 2 when she stands to his +x side), and steps 0.1/frame toward a
+ * point 1.3 beside the player on her side.  RE §8.7.4 (notes #8/#9). */
+int test_companion_at_counter_pose(void)
+{
+    setup(-4.5f, 8.6f);                     /* player at the counter */
+    player_ctrl_debug_set_cc08(4);          /* sell-active → at-counter branch */
+    g_scene1_actor_pos[2][0] = -3.0f;       /* companion on the player's +x side */
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = 8.8f;
+    const int32_t *rec = player_ctrl_actor_record(2);
+
+    scene1_companion_ctrl_tick();
+
+    if (rec[CHR_ACTOR_ANIM] != 4)   T_FAIL("at-counter → canim 4 (got %d)", rec[CHR_ACTOR_ANIM]);
+    if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("companion +x of player → octant 2 (got %d)",
+                                            rec[CHR_ACTOR_FACING]);
+    /* target_x = player.x + 1.3 = -3.2; dx = -0.2; x += dx·0.1 = -0.02 → -3.02.
+     * target_z = player.z = 8.6; dz = -0.2; z += -0.02 → 8.78.  (No spring; flat
+     * 0.1/f lerp.)  dist = √0.08 ≈ 0.28 < 2.0 → arrived (anim 4, not walk 1). */
+    T_NEAR(g_scene1_actor_pos[2][0], -3.02f);
+    T_NEAR(g_scene1_actor_pos[2][2], 8.78f);
+    return 0;
+}
+
+/* The at-counter lerp converges on (player.x + 1.3, player.z) and holds canim 4 /
+ * octant 2 — the settled pose the v3 state probe found bit-exact vs retail
+ * (cx/cz → -3.2/8.6). */
+int test_companion_at_counter_settle(void)
+{
+    setup(-4.5f, 8.6f);
+    player_ctrl_debug_set_cc08(4);
+    g_scene1_actor_pos[2][0] = -3.0f;
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = 8.8f;
+    const int32_t *rec = player_ctrl_actor_record(2);
+
+    for (int i = 0; i < 120; i++) {
+        scene1_companion_ctrl_tick();
+        /* db054 is FROZEN in cc08==4 (RE §8.8) — do NOT advance the phase. */
+    }
+    T_NEAR(g_scene1_actor_pos[2][0], -3.2f);   /* player.x(-4.5) + 1.3 */
+    T_NEAR(g_scene1_actor_pos[2][2], 8.6f);    /* player.z */
+    if (rec[CHR_ACTOR_ANIM] != 4)   T_FAIL("settled → canim 4 held");
+    if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("settled → octant 2 held");
+    return 0;
+}
+
 /* The emit fires every 4th frame (db054 % 4 == 0), riding the bob counter: ticks
  * 0 and 4 emit, 1/2/3 don't.  Five ticks → two sparkles. */
 int test_companion_wing_sparkle_period(void)
