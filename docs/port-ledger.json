@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 467,
-  "unported": 1997,
+  "ported": 468,
+  "unported": 1996,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 551,
-  "pct_touched": 21.6,
+  "touched": 552,
+  "pct_touched": 21.7,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -1807,8 +1807,10 @@
    "size": 2118,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_top_hud.c"
+   ]
   },
   {
    "va": "0x42439e",
@@ -3139,7 +3141,8 @@
    "status": "ported",
    "src": [
     "src/scene1_sim.c",
-    "src/scene1_sim.h"
+    "src/scene1_sim.h",
+    "src/scene1_top_hud.c"
    ]
   },
   {

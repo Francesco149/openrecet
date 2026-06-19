@@ -107,6 +107,7 @@ void scene1_top_hud_tooltip_reset(void)
 #include "sysassets.h"
 #include "scene1_intro_dialogue.h"   /* dialogue-active gate for the camera hint */
 #include "scene.h"                   /* g_scene_state / SCENE_STATE_WORLDMAP — tooltip gate */
+#include "customer_service.h"        /* customer_service_active — cc08==4 camera-hint gate */
 #include "call_trace.h"
 
 #ifndef M_PI_F
@@ -273,9 +274,12 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
  * DAT_073d8678): src (288,352)-(488,384), dst (440,440) size 200x32.
  *
  * Gate: `DAT_0438b1c8 == 0 && DAT_0438b4e8 == 0` — drawn only when NO dialogue
- * is active (so it's hidden during the iv1_1/iv1_2 cutscenes, which show the
- * "[ESC] Event Skip" hint instead, and appears in free-roam).  DAT_0438b4e8 is
- * a transient menu/transition flag (BSS-zero in free-roam), treated as 0. */
+ * AND no menu/overlay is active (hidden during the iv1_1/iv1_2 cutscenes, which
+ * show the "[ESC] Event Skip" hint instead; appears in free-roam).  DAT_0438b4e8
+ * is a transient menu/transition flag set while an overlay owns the bottom-right
+ * hint slot — notably the cc08==4 customer-service haggle, whose own UI draws
+ * "Button 3: Item Details" at the SAME (440,440) slot.  Without the b4e8 gate the
+ * port drew BOTH and they overlapped (user-flagged). */
 void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev_in)
 {
     if (!dev_in) return;
@@ -283,6 +287,12 @@ void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev_in)
 
     /* DAT_0438b1c8 == 0: no dialogue active. */
     if (scene1_intro_dialogue_active()) return;
+    /* DAT_0438b4e8 == 0: no menu/overlay owns the hint slot.  The port mirrors
+     * the cc08==4 customer-service case via the cs-active flag (DAT_0438b7b0):
+     * its UI draws the "Button 3: Item Details" hint here instead.  PORT-DEBT
+     * (camera-hint-b4e8): the OTHER b4e8 menu/transition states
+     * (FUN_00423b58/FUN_004426a7) aren't tracked yet — generalise when b4e8 lands. */
+    if (customer_service_active()) return;
 
     const sprite_t *tex = &g_sysassets.data_win_tga;
     if (!tex->tex) return;

@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **551** (21.6%) — verified 70, stubbed 14, ported 467
-- unported: **1997**
+- touched: **552** (21.7%) — verified 70, stubbed 14, ported 468
+- unported: **1996**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (467) — reimplemented, no probe yet
+## ported (468) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -167,6 +167,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x41f319 | FUN_0041f319 | 340 | ✓ | scene1_combat_sm.h |
 | 0x41f46d | FUN_0041f46d | 57 | ✓ | scene1_combat_sm.h |
 | 0x42353c | FUN_0042353c | 330 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x423b58 | FUN_00423b58 | 2118 | ✓ | scene1_top_hud.c |
 | 0x42b6b7 | FUN_0042b6b7 | 4590 | ✓ | scene1_particles_tick.c |
 | 0x42e791 | FUN_0042e791 | 676 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h |
 | 0x42ea35 | FUN_0042ea35 | 2135 | ✓ | scene1_sim.c |
@@ -212,7 +213,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x441aab | FUN_00441aab | 403 | ✓ | scene1_render.c |
 | 0x441c3e | FUN_00441c3e | 2217 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
-| 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
+| 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h, scene1_top_hud.c |
 | 0x4427f1 | FUN_004427f1 | 90 | ✓ | scene1_sim.c, scene1_tutorial_dispatch.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
