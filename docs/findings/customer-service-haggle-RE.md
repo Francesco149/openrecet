@@ -1019,3 +1019,69 @@ first-customer **offer is non-deterministic** (recording 1536 / free-run capture
 1572 — retail itself varies run-to-run; §8.5), so the RATE+order matching is the correct goal, not
 a single value.  **The cc08==4 trace is now rng-rate-1:1** (camera+anim+state+particles+rng-rate
 verified); residuals = the non-deterministic offer phase + the few-frame dialogue-reveal timing.
+
+## 8.9 Chip 3f LANDED (2026-06-19) — the dialogue NAMEPLATE (slot-1) + the HAGGLE UI (FUN_00466b7b §2-4) render 1:1
+
+User-flagged 2 remaining tutorial gaps: (1) "dialogue character names not showing for a lot of the
+lines", (2) "haggling ui missing entirely". Both ported + v3-verified this session.
+
+### Nameplate slot-1 (`feb2254`) — retires PORT-DEBT(cs-nameplate-slot1)
+FUN_00466b7b §6 (the per-speaker pose loop) draws BOTH speakers' name plates from `chrname.tga`
+(`DAT_073cc8d0` = `g_scene_buy_chrname`), alpha = `pose_timer[slot]*0x20 - 0xe1`:
+- **slot 0** (left, Recette): FIXED cell src {0,32,128,64} → dst {308,300,128,32}. (Was already ported.)
+- **slot 1** (right, the customer): the cell is indexed by the **kyaku record's name_index** =
+  `*(int*)(&DAT_06a5ea90 + DAT_0730b56c*0x2c670)` (all.c:63 466b7b 427-443). Layout: `ni<=0x15` →
+  col=`ni/7`, src.top=`(ni%7)*32`; `ni>0x15` → col=`(ni-0x16)/8`, src.top=`((ni-0x16)%8)*32 + 256`;
+  src.left=`col*128`; cell 128×32 → dst {204,300,128,32}.
+The port already parses `name_index` (`tables_kyaku` from `名前番号:`); the snapshot now carries
+`cust_name_index = g_kyaku.records[b56c].name_index` and the render computes the cell. So customer
+(slot-1) lines now show the name plate (was: only Recette's lines did).
+
+### Haggle UI FUN_00466b7b §2-4 (`12d668e`) — retires PORT-DEBT(cs-render-rest)
+The scripted tutorial sell drives these (verified state: b5a0→0x3c, b598→0xf, b58c→5, b59c=1, ask=1300,
+base=1200). **b5d0 (the autonomous "name a price" digit panel, §1 + FUN_0046602e e) is NEVER set on
+the scripted path** ⇒ inert (PORT-DEBT(cs-render-priceinput)).
+
+- **§2 price-INFO panel (b5a0)** (466b7b 131-250): armed by script op-2 (price-set), ramped to 0x3c by
+  the master tick. Slide-in `slide = sin(b5a0*2.5132742/15)/sin(2.5132742)` (=1 once b5a0≥0xf);
+  arrival flash `pa = 0x7f - ftol(sin((b5a0-0x1e)*π/15)*-128)` for 0x1e<b5a0<0x2e. Backdrop = shopmode
+  src {432,0,607,175} → dst {304-slide·88, 120-slide·88, slide·176, slide·176}, grey 0xff7f7f7f
+  (ADDSIGNED). At b5a0≥0x26: the item-name line (304,80 / 0.8), "Base Price N,NNN" (304,168 / 0.6,
+  comma-grouped via `FUN_00469abb`), "Showcase Item" (304,64 / 0.8 if b564), the item icon (cat atlas
+  `item_icons[category]`, cell=subindex, dst {280,96,48,48}), the data_win frame (src {288,320,480,352}
+  → dst {440,440,192,32}).
+- **§3 BARGAIN!! banner (b598)** (466b7b 251-311): armed by b59c (PRID/PRIA), ramped by the master
+  tick. `FUN_0046c86f(b598, &bx, &by, &alpha, b59c==0)`; alpha 0xff (or 0x7f while a speaker poses).
+  Banner = shopmode src {0,0,432,176} → dst {284-bx·220, 306-by·88, bx·432, by·176}. At b598≥0xa: the
+  asking-price NUMBER via **`FUN_00468034`** (new port — `"%7d"`, 7 cells, shopmode digit row src-y
+  352-392, 32×40 @ 36px pitch +8 after cells 0/3/6) at (176,290) grey 0x7f7f7f; the digit cursor
+  (shopmode {448,176,496,224} → {cx,288,32,48}, cx=`409-b560·0x24` − group gaps, pulse
+  `0x7f-ftol((sin(b5b4·0.2)+1)·-32)`); the prompt (b51c≠0: fileidx==1 → "What should I pay?" yellow
+  0xffff37, else "How much should I?" white) at (312,250 / 1.0) gated `b598==0xf||b59c>0`; the markup
+  "`(ask/base)·100`% Of Base Price" right-aligned at (400,342 / 0.8).
+- **§4 BUTTONS (b58c)** (466b7b 312-381): b58c climbs to 5 during the PRIA confirm poll. ybase =
+  (b5a8==3 ? 186 : 362). Per button i∈{0,1}: panel = item_win src {400,240,640,304} → dst
+  {312-scale·96, i·0x30+ybase+24-scale·24, scale·192, scale·48}, scale=`b58c·0.2`; col grey (selected
+  0xff7f7f7f else dim 0xb97f7f7f). While b590≥1 the selected button pulses
+  (`0x7f-ftol(sin(b590·π/15)·-128)`) and the other shrinks+fades (`scale=1-b590·0.1`, alpha
+  `0xff-b590·0x19`, skip if <0). Label (b5a8==3 → "Accept Order"/"Refuse", else "Okay!"/"Start Again")
+  centered x=312 / 1.0 at ybase+(i==0?12:60).
+
+**Const recovery:** the decompile drops the x87 FP consts (NaN garbage / dropped call args); recovered
+the trend tint (objdump `467104` `mov $0xff7f7f7f` for trend 0; >0 red 0xffff0000/0xffff4d4d, <0 blue
+0xff0000ff/0xff4d4dff), the panel ramps, the cursor/button pulses, and every `flds 0x519XXX` geometry
+const via the new **`tools/decode_exe_const.py`** (VA→float over the PE sections). Text helpers map to
+the existing `font_draw_text_centered` (FUN_0047d14c), `font_draw_text_right` (FUN_0047d2db),
+`font_draw_text` (FUN_0047ca05); the number formatters to `cs_format_grouped` (FUN_00469abb, comma
+groups) + `snprintf` (FUN_005038ff); item lookup to `tables_item_find_slot_by_id` (FUN_004681f6).
+
+**v3-VERIFIED 1:1** (`house-customer-tutorial`, content-matched at ask=1300/base=1200, port kept 2552
+vs retail 2563): the BARGAIN!! banner, "Base Price 1,200", the "1 300" number, "108% Of Base Price",
+and Okay!/Start-Again all render bit-identical to retail (feed "cc08==4 haggle UI ported"). 3337 host
+pass. The 0x48670f probe gained b598/b59c/b58c/b560/b540 so the v3 state panel + flow_diff verify the
+UI — but the RETAIL Frida hook still lacks b598/b58c (the port-side state matches retail's ask/base/
+b5a0; extending the retail hook for full state-panel parity is a noted follow-up).
+
+**Remaining cs-render PORT-DEBT:** cs-render-priceinput (b5d0 digit panel, inert on the scripted path),
+cs-price-trend (FUN_004361b2 High/Low tint → 0), cs-haggle-prompt-live (the b51c==0 live-machine
+prompt), cs-stage-msg (per-line grp/se), the FUN_0046602e (d) item-want panel (b56c∈[2,9], inert).

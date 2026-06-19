@@ -83,10 +83,31 @@
   effect** — needs a v3 RT-capture extension first to even replay it (improve the tool, then port).
   Frame-sync residual: port b1cc
   clears at CSE-off 3, retail off 1 (2f) — load-duration phase; the "frames not synced" the user saw.
-  **NEXT:** the **"Tear"
-  slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
-  index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
-  "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7/§8.7.2/§8.7.3.**
+  **★ DIALOGUE NAMEPLATE (slot-1) ✅ LANDED 2026-06-19 (`feb2254`) — the user-flagged "names not
+  showing for a lot of the lines."** FUN_00466b7b §6 drew the left-speaker (Recette) name plate from
+  the fixed chrname.tga cell {0,32,128,64} but STUBBED the right speaker (the customer): retail indexes
+  the cell by the active kyaku record's name_index (`*(int*)(&DAT_06a5ea90 + b56c*0x2c670)`, the
+  record's first field — already parsed by `tables_kyaku` from 名前番号:).  Snapshot now carries
+  `cust_name_index = g_kyaku.records[b56c].name_index`; the slot-1 branch computes the chrname cell
+  (low range ≤0x15 = 7 rows/col, high range 8 rows/col at src-y +256) at dst (204,300).  Retires
+  PORT-DEBT(cs-nameplate-slot1).  3337 host pass.
+  **★ HAGGLE UI (FUN_00466b7b §2-4) ✅ LANDED 2026-06-19 (`12d668e`) — the user-flagged "haggling ui
+  missing entirely."** Ported the three blocks the scripted tutorial sell exercises: **§2 price-INFO
+  panel (b5a0)** = the shopmode reference panel (slide-in + arrival flash) + "Base Price N,NNN"
+  (comma-grouped) + the showcase item name/icon + data_win frame; **§3 BARGAIN!! banner (b598)** = the
+  shopmode banner + the asking-price NUMBER (new `FUN_00468034` port — 7-cell %7d digit row, shopmode
+  y352, 36px pitch +8 group gap) + the digit cursor + the "What should I pay?"/"How much should I?"
+  prompt + the "NN% Of Base Price" markup; **§4 BUTTONS (b58c)** = the 2 item_win panels + Okay!/
+  Start-Again labels (select-pulse / fade-out).  All geometry/colour/scale objdump-transcribed via the
+  new **`tools/decode_exe_const.py`** (the decompile drops x87: trend tint trend-0→grey 0x7f7f7f, the
+  ramps, the cursor pulse).  Broadened the 0x48670f probe with b598/b59c/b58c/b560/b540.  **v3-VERIFIED
+  1:1** content-matched at ask=1300/base=1200 (port kept 2552 vs retail 2563): the BARGAIN banner, Base
+  Price 1,200, the "1 300" number, "108% Of Base Price", Okay!/Start-Again all render bit-identical
+  (feed "cc08==4 haggle UI ported").  Retires PORT-DEBT(cs-render-rest).  **NEXT:** per-line pose
+  precision; PORT-DEBT(cs-render-priceinput) (b5d0 autonomous digit-entry, inert in the tutorial),
+  cs-price-trend (FUN_004361b2 High/Low tint), cs-haggle-prompt-live (the b51c==0 live-machine
+  response); extend the RETAIL 0x48670f hook with b598/b58c for full state-panel parity.
+  **Plan + caveat: RE §8.6/§8.7/§8.7.2/§8.7.3/§8.9.**
   The **rng-rate gap ✅ RESOLVED 2026-06-19** (`8cd0389`, RE §8.8): §8.5's deep open problem cracked
   via a pool-dump + spawn-hook probe — the cc08==4 ambient particles are **type-0x1f, emitted by
   Tear's COMPANION controller** (FUN_0048a833 wing-glow sparkle, gated `db054%4==0`). Root cause:
