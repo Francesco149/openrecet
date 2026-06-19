@@ -214,7 +214,10 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
         if (s.b5a0 > 0x1e && s.b5a0 < 0x2e)
             pa = 0x7f - (int)(sinf((float)(s.b5a0 - 0x1e) * 3.1415927f / 15.0f)
                               * -128.0f);
-        /* the shopmode price-panel backdrop (grey, ADDSIGNED). */
+        /* the shopmode price-panel backdrop (the "TARGET!" panel).  Grey 0x7f
+         * diffuse under ADDSIGNED (asm 0x466f7e→0x46702a) passes the texture at
+         * full brightness (and the pa flash brightens it); the default MODULATE
+         * would HALVE it → the dim panel (note #14). */
         {
             const sprite_t *sm = &g_scene_buy_shopmode;          /* DAT_073a9580 */
             const float src[4] = { 432.0f, 0.0f, 607.0f, 175.0f };
@@ -222,7 +225,11 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                                    slide * 176.0f, slide * 176.0f };
             uint32_t col = 0xff000000u | ((uint32_t)pa << 16)
                          | ((uint32_t)pa << 8) | (uint32_t)pa;
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_ADDSIGNED);
             cs_quad(dev, sm, dst, src, col, 0);
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_MODULATE);
         }
         /* once mostly arrived (b5a0 >= 0x26): the price text + item name/icon. */
         if (s.b5a0 >= 0x26) {
@@ -304,10 +311,12 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             cs_quad(dev, sm, dst, src, ((uint32_t)alpha << 24) | 0xffffffu, 0);
         }
         if (s.b598 >= 0xa) {
-            /* COLOROP=ADDSIGNED for the number/cursor/prompt/markup (asm
-             * 0x467493): the grey 0x7f7f7f number + cursor pass the texture at
+            /* COLOROP=ADDSIGNED for the NUMBER + cursor ONLY (asm 0x467493→
+             * 0x4675d3): the grey 0x7f7f7f number + cursor pass the texture at
              * full brightness; the default MODULATE halved them (the dim bug).
-             * The banner panel above stays MODULATE (asm draws it pre-bracket). */
+             * The banner panel above AND the prompt/markup below stay MODULATE —
+             * retail resets at 0x4675d3 right after the cursor (note #15: the
+             * white/yellow prompt+markup go OVERBRIGHT under ADDSIGNED). */
             IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
                                                   D3DTOP_ADDSIGNED);
             /* the big asking-price number (176,290), grey 0x7f7f7f under ADDSIGNED. */
@@ -327,6 +336,10 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                              | ((uint32_t)cv << 8) | (uint32_t)cv;
                 cs_quad(dev, sm, dst, src, col, 0);
             }
+            /* reset to MODULATE before the prompt + markup (asm 0x4675d3): they
+             * use white/yellow diffuse, which ADDSIGNED would push OVERBRIGHT. */
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                                  D3DTOP_MODULATE);
             /* the "name a price" prompt (312,250) scale 1.0, gated b598==0xf||b59c. */
             if (s.b598 == 0xf || s.b59c > 0) {
                 if (s.b51c != 0) {
@@ -353,9 +366,6 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                 font_draw_text_right(dev, 400.0f, 342.0f, full,
                                      ((uint32_t)alpha << 24) | 0xffffffu, 0.8f);
             }
-            /* reset to MODULATE after the markup (asm 0x4675d3). */
-            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
-                                                  D3DTOP_MODULATE);
         }
     }
 
