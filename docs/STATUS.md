@@ -159,22 +159,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   HOUSE_FREEROAM#1 (@2137, post-prologue) — so `_window_occ` re-based each to a different SEMANTIC origin and
   the shared post-load HF became window-occ **2** on the port vs **3** on retail ⇒ the (anchor,occ,delta) keys
   never matched ⇒ 119/2698.  Empirically proven by re-keying both sides from CUSTOMER_SERVICE_ENTER (occ-1 on
-  BOTH, port @636 / retail @2293): **2498/2698 pair** (the rest = honest load-region gaps).  **FIX LANDED:**
-  `FrameIdentity.key_of_present_rebased(present, origin_anchor)` + opt-in `orv3_sync --join-anchor NAME`
-  (default None → byte-identical, zero regression; +`test_rebased_join`, 14 v3 tests pass).  `orv3_sync
-  <port> <retail> --join-anchor CUSTOMER_SERVICE_ENTER` now reports 2498 + writes the correct pairs.json.
-  **REMAINING (next-session, ~5 functions, all opt-in pass-through — touches the SHARED viewer manifest path
-  so worth a review): thread `join_anchor` into the VIEWER's view.json so the native panels use it** — (1)
-  `v3cache.load_side(entry, join_anchor=None)` → build `s.index` with `key_of_present_rebased` (the viewer's
-  columns come from `s.index` via `_side_index`/`merge_keys`, NOT pairs.json); (2) `orv3_view.write_view_json`
-  + `build_view` → accept + pass `join_anchor` to their internal `sync_entries`; (3) `orv3_state.collect` /
-  `build_state_rows` → use `key_of_present_rebased` so the STATE-panel labels match the rebased columns; (4)
-  `orv3_window` → add `--join-anchor` CLI, call `load_side(..., join_anchor)` + `write_view_json(...,
-  join_anchor)`; (merge_anchor_seq ordering is best-effort with a safe fallback — the dominant (HF,2,delta)
-  bucket self-orders by delta, so likely no change needed; verify).  Validate: `orv3_window
-  house-customer-tutorial --window 0:2700 --state --join-anchor CUSTOMER_SERVICE_ENTER --view` → view.json
-  should show ~2498 paired columns (vs 119) with state-panel rows aligned.  **Meanwhile** the content-match-
-  by-occ2-offset recipe works NOW: render port idx (occ2_port − present_first + N) vs retail idx (occ2_retail
+  BOTH, port @636 / retail @2293): **2498/2698 pair** (the rest = honest load-region gaps).  **✅ FULLY
+  LANDED end-to-end (core + viewer), opt-in, zero-regression:** `FrameIdentity.key_of_present_rebased` +
+  `LoadedSide.reindex` + opt-in `--join-anchor` threaded through `orv3_sync` (pairs.json),
+  `orv3_view.write_view_json` (the viewer's view.json COLUMNS, via `reindex`), `orv3_state.collect/
+  build_state_rows` (the STATE-panel labels), and the `orv3_window --join-anchor` CLI (default None →
+  byte-identical; +`test_rebased_join`, 14 v3 tests pass).  **Validated on house-customer-tutorial-a361c768:
+  view.json default = 119 paired / 59 state-aligned columns (UNCHANGED); `--join-anchor
+  CUSTOMER_SERVICE_ENTER` = 2498 paired / 2499 state-aligned (gaps 5160→402).**  **USE IT:** `nix develop
+  --command python3 tools/trace_studio_v3/orv3_window.py house-customer-tutorial --window 0:2700 --state
+  --join-anchor CUSTOMER_SERVICE_ENTER --launch` → the native viewer's port|retail|diff + state panels are
+  now identity-synced across the whole haggle (the ADDSIGNED fix + future cc08 work verifiable in-tool).
+  Caveats (both minor, left as-is): (1) `merge_anchor_seq` column ORDERING is best-effort (uses global occ);
+  the dominant `(HF,2,delta)` bucket self-orders by delta so the timeline reads right — revisit only if it
+  looks out of order; (2) `orv3_view.build_view` (the legacy PNG-bake path, NOT used by `orv3_window`/the
+  native viewer) is NOT threaded — add the same `join_anchor` pass-through there if the PNG bake is ever
+  needed for cc08.  **Also** the content-match-by-occ2-offset recipe still works for one-off shots: render
+  port idx (occ2_port − present_first + N) vs retail idx (occ2_retail
   − present_first + N) for the same haggle offset N (orv3_shot --frame; this session used N≈2406 → port 2405 /
   retail 2563, both ask=1300, 1:1).
   Remaining cs-render PORT-DEBT: per-line pose precision; cs-render-priceinput (b5d0 digit-entry, inert);
