@@ -1989,6 +1989,23 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("b5a0", customer_service_arrival_anim());
             CALL_TRACE_I32("b524", customer_service_b524());
             CALL_TRACE_I32("b544", customer_service_b544());
+            /* standee POSE + reaction state (note #8/#9: Tear's manga-lines pose
+             * + the out-of-sync standees).  poseL/poseR = the per-line sprite
+             * slot b54c/b550 (FUN_0046602e draws g_scene_buy_sprites[b56c][b550]
+             * for the right speaker); b53c = the '!'/flash timer; b5d0/b5d8 = the
+             * pose/reaction state + want-index.  b1cc = the asset-load gate (2=
+             * loading) — for the camera-transition frame-sync (when the cc08==4
+             * scene starts relative to LOADING_END). */
+            {
+                struct cs_render_state cs;
+                customer_service_get_render_state(&cs);
+                CALL_TRACE_I32("poseL", cs.b54c);
+                CALL_TRACE_I32("poseR", cs.b550);
+                CALL_TRACE_I32("b53c",  cs.b53c);
+                CALL_TRACE_I32("b5d0",  cs.b5d0);
+                CALL_TRACE_I32("b5d8",  cs.b5d8);
+                CALL_TRACE_I32("b1cc",  customer_service_b1cc());
+            }
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
              * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn

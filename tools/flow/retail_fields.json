@@ -352,6 +352,42 @@
      "src": "global",
      "va": "0x45105a4",
      "type": "i32"
+    },
+    {
+     "name": "poseL",
+     "src": "global",
+     "va": "0x730b54c",
+     "type": "i32"
+    },
+    {
+     "name": "poseR",
+     "src": "global",
+     "va": "0x730b550",
+     "type": "i32"
+    },
+    {
+     "name": "b53c",
+     "src": "global",
+     "va": "0x730b53c",
+     "type": "i32"
+    },
+    {
+     "name": "b5d0",
+     "src": "global",
+     "va": "0x730b5d0",
+     "type": "i32"
+    },
+    {
+     "name": "b5d8",
+     "src": "global",
+     "va": "0x730b5d8",
+     "type": "i32"
+    },
+    {
+     "name": "b1cc",
+     "src": "global",
+     "va": "0x438b1cc",
+     "type": "i32"
     }
    ]
   },

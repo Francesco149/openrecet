@@ -5291,7 +5291,8 @@
     "src/customer_service.c",
     "src/customer_service.h",
     "src/customer_service_render.c",
-    "src/scene1_merchant_hud.c"
+    "src/scene1_merchant_hud.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
