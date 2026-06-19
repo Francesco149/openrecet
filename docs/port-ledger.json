@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 466,
-  "unported": 1998,
+  "ported": 467,
+  "unported": 1997,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 550,
+  "touched": 551,
   "pct_touched": 21.6,
   "pct_verified": 2.7,
   "port_debt": 25
@@ -2910,6 +2910,7 @@
    "src": [
     "src/customer_haggle.h",
     "src/customer_service.c",
+    "src/customer_service_render.c",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
     "src/scene_guild.c"
@@ -5315,7 +5316,8 @@
     "src/customer_service.c",
     "src/customer_service.h",
     "src/customer_service_render.c",
-    "src/scene1_hud.c"
+    "src/scene1_hud.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -5324,8 +5326,10 @@
    "size": 253,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service_render.c"
+   ]
   },
   {
    "va": "0x468131",
@@ -5790,6 +5794,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service_render.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.c"
    ]

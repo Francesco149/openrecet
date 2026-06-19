@@ -2005,6 +2005,17 @@ void scene1_player_ctrl_tick(void)
                 CALL_TRACE_I32("b5d0",  cs.b5d0);
                 CALL_TRACE_I32("b5d8",  cs.b5d8);
                 CALL_TRACE_I32("b1cc",  customer_service_b1cc());
+                /* haggle-UI driver state (FUN_00466b7b sections 2-4): b598/b59c
+                 * = the BARGAIN!! banner ramp, b58c = the choice-button row,
+                 * b560/b540 = the price-digit cursor / Yes-No toggle.  These gate
+                 * the price-info panel + BARGAIN number + Okay/Start-Again buttons
+                 * the render now draws — probe them so the v3 state panel +
+                 * flow_diff verify the new UI against retail. */
+                CALL_TRACE_I32("b598",  cs.b598);
+                CALL_TRACE_I32("b59c",  cs.b59c);
+                CALL_TRACE_I32("b58c",  cs.b58c);
+                CALL_TRACE_I32("b560",  cs.b560);
+                CALL_TRACE_I32("b540",  cs.b540);
             }
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
