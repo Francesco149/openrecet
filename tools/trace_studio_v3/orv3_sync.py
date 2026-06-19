@@ -36,18 +36,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v3cache    # noqa: E402  (owns LoadedSide/as_side — the parse-once handoff)
 
 
-def identities(side):
+def identities(side, join_anchor=None):
     """[(index, key=(anchor,occ,delta), present)] for every kept frame. `side` is a
     pre-parsed v3cache.LoadedSide (the parse-once handoff) OR an entry Path/str (parsed
     now, for the CLI). meta v2 (stored anchor stream) resolves each frame's key from its
     OWN present — most-recent anchor ≤ present — so mid-window load seams re-sync per
-    segment; a legacy entry falls back to the contiguous (anchor, occ, offset0+index)."""
+    segment; a legacy entry falls back to the contiguous (anchor, occ, offset0+index).
+    `join_anchor` (opt-in) re-bases the occ-count + key origin to that anchor — for the
+    case where the two sides' windows armed on different occurrences of the base anchor
+    (see FrameIdentity.key_of_present_rebased; cc08==4)."""
     s = v3cache.as_side(side)
     meta = s.meta
     rows = []
     for f in s.cont.frames:
-        key = (meta.key_of_present(f.present) if meta.anchors
-               else meta.key_of(f.index))
+        if join_anchor and meta.anchors:
+            key = meta.key_of_present_rebased(f.present, join_anchor)
+        elif meta.anchors:
+            key = meta.key_of_present(f.present)
+        else:
+            key = meta.key_of(f.index)
         rows.append({"index": f.index, "key": list(key), "present": f.present})
     return meta, rows
 
@@ -78,7 +85,8 @@ def naive_absolute_pairs(port_rows, retail_rows):
 
 
 def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = False,
-                 pairs_path: Path | None = None, quiet: bool = False) -> dict:
+                 pairs_path: Path | None = None, quiet: bool = False,
+                 join_anchor: str | None = None) -> dict:
     """JOIN two cache entries (port + retail) by stored identity, print the report
     (unless quiet), optionally write pairs.json, and RETURN the join result
     {verdict, pairs, port_only, retail_only, naive, load_stretch}. `port_entry`/
@@ -91,8 +99,11 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
 
     pside = v3cache.as_side(port_entry)
     rside = v3cache.as_side(retail_entry)
-    pmeta, prows = identities(pside)
-    rmeta, rrows = identities(rside)
+    pmeta, prows = identities(pside, join_anchor)
+    rmeta, rrows = identities(rside, join_anchor)
+    if join_anchor:
+        say(f"join re-based on anchor: {join_anchor} (occ + key origin counted from "
+            f"its most-recent firing — for asymmetric window-base occurrences)")
 
     say(f"port   : {pmeta.scenario}  {pmeta.anchor}#{pmeta.anchor_occ}  "
         f"arm-window {pmeta.eff_arm_offset}..{pmeta.eff_arm_offset + pmeta.eff_arm_count - 1}  "
@@ -136,7 +147,7 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
         out = pairs_path or (pside.entry / "pairs.json")
         out.write_text(json.dumps({
             "port_entry": str(pside.entry), "retail_entry": str(rside.entry),
-            "anchor": pmeta.anchor, "verdict": verdict,
+            "anchor": pmeta.anchor, "join_anchor": join_anchor, "verdict": verdict,
             "pairs": pairs, "port_only": port_only, "retail_only": retail_only,
         }, indent=1))
         say(f"wrote {out} ({len(pairs)} pairs)")
@@ -150,9 +161,14 @@ def main() -> int:
     ap.add_argument("retail_entry", type=Path, help="retail cache entry dir")
     ap.add_argument("--write-pairs", action="store_true",
                     help="write pairs.json (the stored join) next to the port entry")
+    ap.add_argument("--join-anchor", default=None, metavar="NAME",
+                    help="re-base the join occ-count + key origin to this anchor (e.g. "
+                         "CUSTOMER_SERVICE_ENTER) when the two sides' windows armed on "
+                         "different occurrences of the base anchor (cc08==4).")
     args = ap.parse_args()
 
-    sync_entries(args.port_entry, args.retail_entry, write_pairs=args.write_pairs)
+    sync_entries(args.port_entry, args.retail_entry, write_pairs=args.write_pairs,
+                 join_anchor=args.join_anchor)
 
     # A report tool: honest gaps are a real structural fact (one side genuinely has a
     # frame the other doesn't), not a tool failure — so always exit 0. The VERDICT

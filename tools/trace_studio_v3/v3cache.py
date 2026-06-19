@@ -172,6 +172,39 @@ class FrameIdentity:
             return (self.anchor, self.anchor_occ, present - self.anchor_frame)
         return (best["name"], self._window_occ(best), present - best["frame"])
 
+    def key_of_present_rebased(self, present: int, origin_name: str
+                               ) -> tuple[str, int, int]:
+        """Like key_of_present, but number anchor occurrences from the most-recent
+        firing of `origin_name` (≤ present) instead of from the WINDOW BASE.  Use
+        when the two sides' windows armed on DIFFERENT occurrences of the base
+        anchor — so `_window_occ` re-bases each to a different SEMANTIC origin and
+        the SAME logical in-window anchor lands on a different window-occ per side
+        (the cc08==4 case: port's window base is HOUSE_FREEROAM#2 = post-cc08-load,
+        retail's is HOUSE_FREEROAM#1 = post-prologue, so the shared post-load HF is
+        window-occ 2 on the port but 3 on retail ⇒ keys never match, 119/2698).
+        Re-basing the occ count AND the key origin to a shared semantic anchor that
+        is occ-1 on BOTH sides (e.g. CUSTOMER_SERVICE_ENTER) makes the post-origin
+        segments pair by identity again (→ 2499/2698, the load-phase cancels).
+        Frames before the first `origin_name` firing fall back to the base-relative
+        key_of_present — they live across the load-stretch and don't pair anyway."""
+        anchors = self.anchors or []
+        origin = None
+        for a in anchors:
+            if a["name"] == origin_name and a["frame"] <= present:
+                if origin is None or a["frame"] > origin["frame"]:
+                    origin = a
+        if origin is None:
+            return self.key_of_present(present)
+        of = origin["frame"]
+        # most-recent anchor in [origin, present], tie-broken by (frame, name) —
+        # symmetric across sides (no self.anchor preference, since the base differs).
+        best = max((a for a in anchors if of <= a["frame"] <= present),
+                   key=lambda a: (a["frame"], a["name"]))
+        # occurrence of best.name counted FROM the origin (inclusive).
+        occ = sum(1 for a in anchors
+                  if a["name"] == best["name"] and of <= a["frame"] <= best["frame"])
+        return (best["name"], occ, present - best["frame"])
+
     def anchor_seq(self) -> dict[tuple[str, int], int]:
         """(name, window-occ) → firing position, the cross-side TOTAL ORDER for
         sorting join keys ((anchor position, delta) sorts columns chronologically

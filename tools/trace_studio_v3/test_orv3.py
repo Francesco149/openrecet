@@ -409,6 +409,54 @@ def test_base_anchor_auto_detect() -> None:
           "present_first; iv1_2 cross-side keys pair (port HF#2, retail HF#1 → occ 1)")
 
 
+def test_rebased_join() -> None:
+    """key_of_present_rebased: when the two sides' windows armed on DIFFERENT
+    occurrences of the base anchor, the SAME logical post-load anchor lands on a
+    different window-occ per side (so key_of_present mispairs), but re-basing the occ
+    + key origin to a shared semantic anchor (occ-1 on both) re-pairs them.  This is
+    the cc08==4 customer-service case: the port window base is HOUSE_FREEROAM#2 (the
+    post-cc08 asset-load HF) while retail's is HOUSE_FREEROAM#1 (post-prologue), so
+    the shared post-load HF is window-occ 2 on the port but 3 on retail — 119/2698
+    paired.  CUSTOMER_SERVICE_ENTER is occ-1 on BOTH; re-basing on it → 2498/2698."""
+    # PORT: window base HF#2@637; CSE@636 then the post-load HF@699.
+    port = v3cache.FrameIdentity(
+        side="port", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=2,
+        anchor_frame=637, offset0=0, count=300, present_first=637,
+        arm_offset=0, arm_count=300, anchors=[
+            {"name": "HOUSE_FREEROAM", "occ": 1, "frame": 480},
+            {"name": "CUSTOMER_SERVICE_ENTER", "occ": 1, "frame": 636},
+            {"name": "HOUSE_FREEROAM", "occ": 2, "frame": 637},
+            {"name": "HOUSE_FREEROAM", "occ": 3, "frame": 699}])
+    # RETAIL: window base HF#1@2137 (the whole prologue is in-window); CSE@2293 then
+    # the post-load HF@2354.  Same logical sequence, load-stretched +1657.
+    retail = v3cache.FrameIdentity(
+        side="retail", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=1,
+        anchor_frame=2137, offset0=0, count=300, present_first=2137,
+        arm_offset=0, arm_count=300, anchors=[
+            {"name": "HOUSE_FREEROAM", "occ": 1, "frame": 2137},
+            {"name": "CUSTOMER_SERVICE_ENTER", "occ": 1, "frame": 2293},
+            {"name": "HOUSE_FREEROAM", "occ": 2, "frame": 2294},
+            {"name": "HOUSE_FREEROAM", "occ": 3, "frame": 2354}])
+    # A haggle frame 100 past the post-load HF (the SAME logical moment on both).
+    # DEFAULT key_of_present MISPAIRS — the load-HF is window-occ 2 (port) vs 3 (retail):
+    assert port.key_of_present(699 + 100) == ("HOUSE_FREEROAM", 2, 100)
+    assert retail.key_of_present(2354 + 100) == ("HOUSE_FREEROAM", 3, 100)
+    assert port.key_of_present(799) != retail.key_of_present(2454)        # the bug
+    # REBASED on CUSTOMER_SERVICE_ENTER — both number the load-HF as occ 2 from CSE,
+    # and the load-phase cancels (delta measured from the same semantic anchor):
+    pk = port.key_of_present_rebased(799, "CUSTOMER_SERVICE_ENTER")
+    rk = retail.key_of_present_rebased(2454, "CUSTOMER_SERVICE_ENTER")
+    assert pk == ("HOUSE_FREEROAM", 2, 100), pk
+    assert pk == rk, (pk, rk)                                             # the fix
+    # CSE itself pairs too (delta 0 from origin), and an unknown origin falls back.
+    assert (port.key_of_present_rebased(636, "CUSTOMER_SERVICE_ENTER")
+            == retail.key_of_present_rebased(2293, "CUSTOMER_SERVICE_ENTER")
+            == ("CUSTOMER_SERVICE_ENTER", 1, 0))
+    assert port.key_of_present_rebased(799, "NO_SUCH_ANCHOR") == port.key_of_present(799)
+    print("  OK rebased join: asymmetric window-base occ (cc08==4) re-pairs when keyed "
+          "on a shared semantic anchor (CUSTOMER_SERVICE_ENTER)")
+
+
 def test_draws() -> None:
     """The semantic layer (orv3_draws): enumerate a frame's draws with the device
     state in effect, and the material diff that abstracts batching to a verdict."""
@@ -552,6 +600,7 @@ def main() -> int:
     test_multi_anchor_identity()
     test_window_relative_occ()
     test_base_anchor_auto_detect()
+    test_rebased_join()
     test_draws()
     test_material_agg()
     test_load_side()
