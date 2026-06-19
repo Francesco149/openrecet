@@ -1757,26 +1757,46 @@ static void player_ctrl_cc08_unported_arm(void)
         if (customer_service_b1cc() == 2 && g_worker_sec_state_1cc != 2)
             customer_service_notify_loaded();
 
-        /* Chip 3c: the f405 player/companion arrival anim + the camera-pos ramp
-         * (all.c:87367-87432, BEFORE the master tick) — sets panim 5/6 + the
-         * octant + slides g_scene1_player_pos toward the counter view. */
-        player_ctrl_cs_arrival_tick();
+        /* LOAD SUPPRESSION (camera-transition parity, 2026-06-19): the WHOLE
+         * cc08==4 arm body is gated on the asset-load worker being done
+         * (b1cc != 2), mirroring retail — where the d3e load runs the load
+         * screen and FUN_0048670f (house_update) does NOT tick at all while
+         * b1cc==2.  Retail therefore starts the arrival anim AND the cinematic
+         * camera together, the first frame after the load completes.
+         *
+         * The port runs scene1_player_ctrl_tick every frame (incl. through the
+         * load), so before this gate it advanced the arrival anim + sprite while
+         * the camera (master tick, self-gated on b1cc==2) stayed frozen at the
+         * free-roam pose — Recette hopped onto the stool a few frames BEFORE the
+         * camera began zooming to the counter (notes #4-#7: "divergent camera
+         * pos/angle" → "camera starts to converge" → "almost identical").  The
+         * camera ramp itself is bit-identical to retail (a 0.1/f lerp from the
+         * free-roam eye to the per-tier counter target); only its START frame
+         * lagged the anim.  Gating the body locks all three (anim + sprite +
+         * camera) to the SAME b1cc-clear frame, exactly as retail does. */
+        if (customer_service_b1cc() != 2) {
+            /* Chip 3c: the f405 player/companion arrival anim + the camera-pos
+             * ramp (all.c:87367-87432, BEFORE the master tick) — sets panim 5/6
+             * + the octant + slides g_scene1_player_pos toward the counter view. */
+            player_ctrl_cs_arrival_tick();
 
-        /* the master tick (FUN_00462403): owns the b534 state switch + the
-         * scripted-sell dispatch.  cur/pressed/held = the engine button masks
-         * DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
-        customer_service_master_tick(g_sim_buttons[0].cur,
-                                     g_sim_buttons[0].pressed,
-                                     g_sim_buttons[0].held);
+            /* the master tick (FUN_00462403): owns the b534 state switch + the
+             * scripted-sell dispatch + the cinematic counter camera.  cur/pressed
+             * /held = the engine button masks DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
+            customer_service_master_tick(g_sim_buttons[0].cur,
+                                         g_sim_buttons[0].pressed,
+                                         g_sim_buttons[0].held);
 
-        /* advance the player sprite anim: retail's draw leaf FUN_0045a56f ticks
-         * every drawn actor each frame (pcnt++ + frame-by-LUT, the stool jump
-         * holding at its last frame).  The cc08==4 arm itself does not call it,
-         * but the per-frame draw does — so the port mirrors it here, matching the
-         * fe530872 cache (panim 5, pframe 0→8 every ~6 counts, pcnt monotonic).
-         * The companion is advanced by scene1_companion_ctrl_tick (the scene1_sim
-         * non-walk fallback, which runs because b850_move didn't this frame). */
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+            /* advance the player sprite anim: retail's draw leaf FUN_0045a56f
+             * ticks every drawn actor each frame (pcnt++ + frame-by-LUT, the
+             * stool jump holding at its last frame).  The cc08==4 arm itself does
+             * not call it, but the per-frame draw does — so the port mirrors it
+             * here, matching the fe530872 cache (panim 5, pframe 0→8 every ~6
+             * counts, pcnt monotonic).  The companion is advanced by
+             * scene1_companion_ctrl_tick (the scene1_sim non-walk fallback, which
+             * runs because b850_move didn't this frame). */
+            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+        }
         return;
     }
     /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by
