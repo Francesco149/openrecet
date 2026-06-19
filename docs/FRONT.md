@@ -104,32 +104,48 @@
   LAYOUT/CONTENT 1:1** content-matched at ask=1300/base=1200 (port kept 2552 vs retail 2563): the
   BARGAIN banner, Base Price 1,200, the "1 300" number, "108% Of Base Price", Okay!/Start-Again all in
   the right place with the right text (feed "cc08==4 haggle UI ported").  Retires PORT-DEBT(cs-render-rest).
-  **⚠ OPEN BUG (user-flagged 2026-06-19, ROOT-CAUSED): the NUMBER + buttons render DIM — a MODULATE-vs-
-  ADDSIGNED COLOROP gap** (the same class as the sold-out-text bug, `feedback_verify_1to1_before_done`).
+  **★ DIM-NUMBER BUG ✅ FIXED 2026-06-19 (autonomous) — the user-flagged dim NUMBER + buttons** (a
+  MODULATE-vs-ADDSIGNED COLOROP gap, same class as the sold-out-text bug, `feedback_verify_1to1_before_done`).
   Retail wraps the ADDSIGNED-designed draws in `SetTextureStageState(0,COLOROP,D3DTOP_ADDSIGNED=8)` then
-  resets to MODULATE(4); under ADDSIGNED a 0x7f7f7f diffuse passes the texture at full brightness, under
-  the port's `render_quad` default (MODULATE, render_quad.c:269) it HALVES it ⇒ dim.  **Objdump-proven
-  ADDSIGNED brackets** (in `/tmp/466b7b.asm` or re-dump 0x466b7b): price TEXT `46714b`→`467240`, the
-  NUMBER+cursor `46749b`→`4675db`, the BUTTONS `4677de`→`4678f9`.  **FIX (next session):** bracket those
-  draws in customer_service_render.c with `SetTextureStageState(dev,0,D3DTSS_COLOROP,D3DTOP_ADDSIGNED)` /
-  reset to MODULATE after — mirror the existing pattern (scene_guild.c:833/906/1039, scene1_merchant_hud.c:213);
-  for the number/cursor/buttons (render_quad MODULATE) override COLOROP after `render_quad_bind`.  Watch the
-  font draws DON'T reset COLOROP (the guild relies on it holding through font_draw_text). The panels +
-  item icon are MODULATE on BOTH sides (so the "dim icon" may be a separate read — verify icon COLOROP
-  + that the showcase item even has b564/an icon in this frame). **THEN re-verify side-by-side.**
+  resets to MODULATE(4); under ADDSIGNED a 0x7f7f7f diffuse passes the texture at full brightness, under the
+  port's `render_quad` default (MODULATE, render_quad.c:269) it HALVES it ⇒ dim.  **Ported the three
+  objdump-transcribed ADDSIGNED brackets** in `customer_service_render.c` (FUN_00466b7b), each resetting to
+  MODULATE so the panels + icon (MODULATE on both sides) are untouched: price TEXT (name / Base Price /
+  Showcase Item) `0x467143`→`0x467233`; NUMBER+cursor+prompt+markup (b598≥0xa) `0x467493`→`0x4675d3`; BUTTONS
+  (panel + label, per-iteration, set AFTER the faded-out `continue` so a culled button skips the bracket like
+  retail's `js` skip) `0x4677d6`→`0x4678f3`.  Key insight: `render_quad_bind/_flush` DON'T touch COLOROP
+  (only the once-per-batch `render_quad_state_setup` sets MODULATE) ⇒ one SetTextureStageState before the
+  draw block persists through `cs_quad`/the font draws (mirror of scene_guild.c / scene1_merchant_hud.c).
+  **v3-verified at the SAME occ2-relative moment (port idx 2405 / retail idx 2563, both ask=1300): the
+  '1300' number + cursor, the 'Longsword'/'Base Price 1,200'/'TARGET' top panel, and Okay!/Start-Again all
+  render BRIGHT and 1:1 with retail.**  Number-region crop: before = dim grey digits + dull cursor (mean
+  134) → after = bright white digits + bright orange cursor (mean 147) == retail (144) (feed "cc08==4 haggle
+  NUMBER: dim→bright").  The top-INFO panel (TARGET/Longsword/icon/Base Price 1,200) is **also 1:1** at this
+  matched frame — an earlier "panel differs" read was a FRAME-MISMATCH artifact (port idx 2697 = occ2+2697
+  vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.  ✅ no remaining cs-render gap on the haggle
+  number/text/buttons.
   **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
-  properly on this"):** the v3 identity-join is PARTIAL here (119/2698 paired) because the HOUSE_FREEROAM
-  anchor + the **+1507-frame load-stretch** misaligns the cc08==4 scene (port's pre-cc08 walk vs retail's
-  longer load).  **FIX direction:** re-anchor the join on **CUSTOMER_SERVICE_ENTER** (cc08 1→4 — the SAME
-  semantic moment, and it IS captured on both sides, confirmed in v3meta anchors) so the haggle pairs by
-  cc08-entry-relative offset (§8.4/§8.5 proved port==retail align occ2-relative).  First attempt
-  (`orv3_window … --anchor CUSTOMER_SERVICE_ENTER`) produced no join — likely the window slice needs a
-  re-drive in the new anchor frame (the cached extent is HOUSE_FREEROAM-relative), OR orv3_window needs a
-  small fix to re-key a cached extent to a different stored anchor.  **NEXT-SESSION T-task: make
-  orv3_window join the cc08==4 window on CUSTOMER_SERVICE_ENTER** (re-slice from the cached extent without
-  a full re-drive) → THEN the viewer's identity-synced panels show the haggle port|retail and the
-  ADDSIGNED dim fix is verifiable in-tool.  Meanwhile content-match by rendering the same haggle STATE
-  (ask=1300) on each side (orv3_shot --frame, as this session did).
+  properly on this") — ROOT-CAUSED 2026-06-19 (autonomous), and it is NOT the load-stretch per se.**  The
+  haggle **DOES align occ2/CSE-relative within 1-2 frames** — proven from the cached `--state` traces, ask
+  transitions occ2-relative: 3000 @153(port)/151(retail), 1200 @1029/1030, 1300 @2405/2406 (base identical).
+  So the data is alignable; the EXACT identity-join just keys it wrong.  **Real cause:** `key_of_present`
+  (orv3_sync.py) keys each frame on the MOST-RECENT anchor ≤ present, which for every haggle frame is
+  **HOUSE_FREEROAM occ3** (port @699 / retail @2354) — a LOAD re-anchor emitted by the cc08==4 asset-swap
+  LOADING_END, NOT a stable gameplay resync.  The occ2→occ3 load span differs per side (port 62f / retail
+  60f) and that phase rides into the occ3-relative delta, so the EXACT (anchor,occ,delta) match fails for
+  nearly all frames ⇒ 119/2698 paired (the survivors are the few where the phase rounds to 0).  The TRUE
+  semantic resync is **CUSTOMER_SERVICE_ENTER** (cc08 1→4, port @636 / retail @2293, in BOTH streams) and it
+  aligns within 1f (port haggle abs3042 = CSE+2406, retail abs4700 = CSE+2407).  `--anchor CSE` didn't help
+  because it only changes the window's BASE anchor, not which anchor `key_of_present` picks PER FRAME (still
+  occ3).  **NEXT-SESSION T-task (pick one):** (a) have the join SKIP the HOUSE_FREEROAM re-anchors that fire
+  inside a cc08-load window so CSE stays the most-recent anchor for the haggle (cleanest); or (b) give the
+  join a small per-anchor CONSTANT-OFFSET tolerance (mirror flow_diff `--align-anchor` constant-offset) so a
+  1-3f load-phase doesn't break the exact match; or (c) a cc08-aware `key_of_present` that prefers CSE over
+  intervening load re-anchors.  Any of these → the viewer's identity-synced panels pair the haggle port|retail
+  and the ADDSIGNED fix (and future cc08 work) is verifiable in-tool.  **Meanwhile** the content-match-by-
+  occ2-offset recipe works NOW: render port idx (occ2_port − present_first + N) vs retail idx (occ2_retail −
+  present_first + N) for the same haggle offset N (orv3_shot --frame; this session used N≈2406 → port 2405 /
+  retail 2563, both ask=1300, 1:1).
   Remaining cs-render PORT-DEBT: per-line pose precision; cs-render-priceinput (b5d0 digit-entry, inert);
   cs-price-trend (FUN_004361b2 High/Low tint→0); cs-haggle-prompt-live (b51c==0 live machine); extend the
   RETAIL 0x48670f hook with b598/b58c for full state-panel parity.
