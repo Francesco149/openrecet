@@ -141,18 +141,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   134) → after = bright white digits + bright orange cursor (mean 147) == retail (144) (feed "cc08==4 haggle
   NUMBER: dim→bright").  The top-INFO panel (TARGET/Longsword/icon/Base Price 1,200) is **also 1:1** at this
   matched frame — an earlier "panel differs" read was a FRAME-MISMATCH artifact (port idx 2697 = occ2+2697
-  vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.  The BRIGHTNESS/CONTENT gap is CLOSED.
-  **Residual (pre-existing, NOT the dim bug — my COLOROP edit changes no geometry): a central-UI-band diff**
-  on the IDENTITY-matched pair (port idx2405 ↔ retail idx2562, via the new --join-anchor join — note my first
-  manual guess was retail 2563, off by 1).  The band (~10.9% px>64) is identical vs retail 2562 AND 2563, so
-  it is NOT a frame-mismatch.  BUT the band CONFLATES two things: (a) the digit CURSOR, which pulses per-frame
-  via `b5b4` (legit phase — needs a b5b4-aligned frame to zero out), and (b) a ~2px per-glyph ghosting on the
-  prompt + markup TEXT ("How much should I?" @467664 / "% Of Base Price" right-aligned nearby) that a global
-  shift does NOT collapse = likely real `per-line pose precision` PORT-DEBT (font centering / right-align
-  width / scale).  The '1300' digits themselves are crisp + aligned (the dim fix is clean).  **NEXT: isolate
-  (b) from (a) on the now-working side-by-side viewer** (scrub to equal b5b4, solo the text draws) before
-  chasing — and if real, cross-ref the 467664 prompt + the markup right-align draw scale vs the port's
-  font_draw_text_centered/_right.
+  vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.
+  **★ TWO MORE COLOROP errors found by the USER on the now-synced viewer + ✅ FIXED 2026-06-19 (notes #14/#15):**
+  (#14 "target! panel dimmer on port") the **b5a0 price-INFO panel BACKDROP** drew grey 0x7f under the default
+  MODULATE (half) — retail wraps it in its OWN ADDSIGNED bracket (asm `0x466f7e`→`0x46702a`, separate from the
+  panel text); my comment said "ADDSIGNED" but never set the COLOROP.  Now bracketed → panel-band diff 0.3%
+  (mean 0.5) == retail.  (#15 "top+bottom haggle text too bright") the **prompt + markup** ("How much should
+  I?" / "N% Of Base Price") were left under my Section-3 ADDSIGNED bracket, but their WHITE/yellow diffuse goes
+  OVERBRIGHT under ADDSIGNED — retail resets to MODULATE at `0x4675d3` right AFTER the cursor (number+cursor
+  ONLY stay ADDSIGNED).  Moved the reset → central-UI band 10.9%→6.8%.  **Rule learned: GREY 0x7f diffuse ⇒
+  ADDSIGNED (passes texture); WHITE/coloured diffuse ⇒ MODULATE (ADDSIGNED would overbright).**  3337 host
+  pass.  The cc08==4 haggle BRIGHTNESS/COLOROP is now user-confirmed-modulo-residuals.
+  **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
+  digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
+  1-frame anim phase bleeding into the band edge, and (c) a small ~2px per-glyph text-precision residual on the
+  prompt/markup (`per-line pose precision` PORT-DEBT; isolate on the viewer at equal b5b4 + solo the text draws,
+  then if real cross-ref the `0x467664` prompt + markup right-align scale vs font_draw_text_centered/_right).
+  Note #1 (a free-roam "!" exclamation tooltip @HOUSE_FREEROAM#1+79 we don't render) is a SEPARATE pre-cc08 gap.
   **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
   properly on this") — ROOT-CAUSED + CORE FIX LANDED 2026-06-19 (autonomous, `--join-anchor`).**  The data
   was ALWAYS alignable: the haggle aligns occ2/CSE-relative within a CONSTANT phase (the `b544` monotonic
