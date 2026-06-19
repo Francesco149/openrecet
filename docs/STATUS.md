@@ -151,7 +151,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   OVERBRIGHT under ADDSIGNED — retail resets to MODULATE at `0x4675d3` right AFTER the cursor (number+cursor
   ONLY stay ADDSIGNED).  Moved the reset → central-UI band 10.9%→6.8%.  **Rule learned: GREY 0x7f diffuse ⇒
   ADDSIGNED (passes texture); WHITE/coloured diffuse ⇒ MODULATE (ADDSIGNED would overbright).**  3337 host
-  pass.  The cc08==4 haggle BRIGHTNESS/COLOROP is now user-confirmed-modulo-residuals.
+  pass.
+  **★ PROMPT ELLIPSIS ✅ FIXED 2026-06-19 (`df58859`, user-flagged):** the port dropped the trailing "..." on
+  both scripted-sell prompts — restored from .data verbatim: `DAT_005c6e28` "What should I pay?..." +
+  `DAT_005c6e40` "How much should I?...".  Checked per the user's caution: these are the ONLY two "should I"
+  strings in `src/`, both the cs haggle prompt ⇒ no other UI instance touched.  Rendered + verified on the
+  re-driven port (idx2405).
+  **★ cc08==4 HAGGLE-UI RENDER — USER-CONFIRMED 1:1 2026-06-19 ("everything else looks 1:1 now").**  Recorded
+  in `findings/confirmed-parity-ledger.md`.  Accepted residuals (NOT logic): (a) the character +1f
+  arrival-origin phase (the "not perfectly synchronized" — UI phase-0, sprites 1 anim-frame off, can't
+  co-align); (b) the ~2px per-glyph prompt/markup text precision (`per-line pose precision` PORT-DEBT); (c) the
+  honest load-region join gaps.  Open cc08 PORT-DEBT (unexercised here): cs-price-trend, cs-render-priceinput,
+  cs-haggle-prompt-live, and the **manga-lines (集中線) RT effect** (note #8 — needs a v3 SetRenderTarget
+  capture extension; the next fresh cc08 arc).  Note #1 (free-roam "!" tooltip) = separate pre-cc08 gap.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
   1-frame anim phase bleeding into the band edge, and (c) a small ~2px per-glyph text-precision residual on the
