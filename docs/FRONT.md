@@ -54,8 +54,14 @@
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
   index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
   "after the dialogue" per the user). **Plan + caveat: RE §8.6/§8.7/§8.7.2/§8.7.3.**
-  The **rng-rate gap is DEFERRED** (RE §8.5 — refuted §8.4; the port's offer 1536 already matches the
-  recording, so it's a downstream free-run concern, not a visible bug). Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
+  The **rng-rate gap ✅ RESOLVED 2026-06-19** (`8cd0389`, RE §8.8): §8.5's deep open problem cracked
+  via a pool-dump + spawn-hook probe — the cc08==4 ambient particles are **type-0x1f, emitted by
+  Tear's COMPANION controller** (FUN_0048a833 wing-glow sparkle, gated `db054%4==0`). Root cause:
+  **retail FREEZES db054 in cc08==4** (frozen at 156, %4==0 → emits every frame); the port kept
+  incrementing it (scene1_sim.c non-walk fallback) → every 4th frame = 1/4 the rng. Fix: freeze
+  db054 on `cc08==4`. **Verified: db054 156 (port==retail), rng rate 5.53→10.03/f == retail
+  10.02/f.** The first-customer offer is NON-DETERMINISTIC (recording 1536 / capture 1548 / post-fix
+  1572 — retail varies), so rate+order matching is the goal, not a single value. Landed 2026-06-17 night (autonomous): the **`{wait,timeout}` harness
   unblock** (`47cdd8c`, port captures 1200/1200 BIT-EXACT) + the **haggle math**
   `src/customer_haggle.{c,h}` (`d0ac215`, DISASM-exact, +9 host tests). **2026-06-17 day (this session):**
   (A) ⚠⚠ **CORRECTION² (2026-06-17 PM, USER-CONFIRMED) — the tutorial sell is the SCRIPTED machine
