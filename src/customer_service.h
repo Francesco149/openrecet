@@ -119,6 +119,7 @@ struct cs_render_state {
     int32_t b5b4, b5bc, b5c0, b5c8; /* blink / arrival banner / list scroll */
     int32_t b5d0, b5d4, b5d8, b5dc; /* pose state / timer / want-idx / rows */
     int32_t b51c;                   /* scripted-sell flag */
+    int32_t cust_name_index;        /* g_kyaku.records[b56c].name_index — slot-1 plate cell */
     int32_t cust_active[2];         /* DAT_06a5ea70/74 — on-screen speakers */
     int32_t pose_timer[2];          /* DAT_0730b278/b27c — pose-in counters */
     int32_t item_pick[18];          /* DAT_0730b274 — {id,col,row}×6 */

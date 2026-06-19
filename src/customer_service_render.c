@@ -192,10 +192,22 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                     const float ndst[4] = { 308.0f, 300.0f, 128.0f, 32.0f };
                     cs_quad(dev, cn, ndst, nsrc, ncol, 0);
                 } else {
-                    /* slot 1: name cell from the customer record's name index.
-                     * PORT-DEBT(cs-nameplate-slot1): the DAT_06a5ea90 record
-                     * name index isn't modelled yet — defer the right-speaker
-                     * name plate until the customer record is ported. */
+                    /* slot 1: the customer's name cell, indexed by the kyaku
+                     * record's name_index (all.c:63 466b7b lines 427-443).  The
+                     * chrname.tga atlas is 4 cols × 16 rows of 128×32 cells; the
+                     * low range (≤0x15) packs 7 rows/col, the high range starts
+                     * 8 rows/col at src-y +256. */
+                    int ni  = s.cust_name_index;
+                    int col = ni / 7;
+                    float st = (float)((ni % 7) * 32);
+                    if (ni > 0x15) {
+                        col = (ni - 0x16) / 8;
+                        st  = (float)(((ni - 0x16) % 8) * 32 + 256);
+                    }
+                    float sl = (float)(col * 128);
+                    const float nsrc[4] = { sl, st, sl + 128.0f, st + 32.0f };
+                    const float ndst[4] = { 204.0f, 300.0f, 128.0f, 32.0f };
+                    cs_quad(dev, cn, ndst, nsrc, ncol, 0);
                 }
             }
         }

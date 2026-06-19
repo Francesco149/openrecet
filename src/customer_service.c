@@ -351,6 +351,12 @@ void customer_service_get_render_state(struct cs_render_state *o)
     o->b5c8 = s_b5c8;
     o->b5d0 = s_b5d0;          o->b5d4 = s_b5d4;       o->b5d8 = s_b5d8;
     o->b5dc = s_b5dc;          o->b51c = s_b51c;
+    {   /* slot-1 name plate: *(int *)(&DAT_06a5ea90 + b56c*0x2c670) = the active
+         * kyaku record's name_index (the first field of the engine record). */
+        int ni = g_scene_buy_current_page;            /* b56c */
+        o->cust_name_index = (ni >= 0 && ni < KYAKU_COUNT)
+                           ? g_kyaku.records[ni].name_index : 0;
+    }
     o->cust_active[0] = s_cust_active[0];
     o->cust_active[1] = s_cust_active[1];
     o->pose_timer[0]  = s_item_pick[1];  /* DAT_0730b278 */
