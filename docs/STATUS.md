@@ -79,9 +79,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   sprite+camera start together at load-end). Fix: gate the whole arm body on `b1cc != 2`. Master
   tick was already b1cc-gated ⇒ **haggle/offer UNCHANGED**. v3-verified (fe530872): anim a5/0/1 +
   camera step now fire the SAME frame, like retail. Residual: the async d3e worker clears b1cc ~1f
-  later than retail (LE+2 vs LE+1) = nondeterministic load-duration phase (accept). **NEXT note #9:
-  the standees (`b52c`/`b530` slide) go out of sync LATER (LOADING_END#2+85) — separate gap, the
-  master-tick-driven slide cadence; + note #8 "Tear manga-lines pose" the port doesn't render.**
+  later than retail (LE+2 vs LE+1) = nondeterministic load-duration phase (accept).
+  **NOTES #8/#9 DIAGNOSED 2026-06-19 (probe `4c8ae57` added poseL/poseR/b53c/b5d0/b5d8/b1cc) — a
+  pure RENDER gap, NOT logic.** The cc08==4 dialogue STATE is **bit-identical port==retail** across
+  the window (poseR/poseL=0, b534, b53c, b5d0, b56c=1 all match; only b524 off by the 1f load
+  phase) — so the "standees" aren't a 2D-pose/timing bug. The real gap is the **3D COMPANION
+  (customer = Tear, actor 2): retail puts her at `canim=4`** (the at-counter ready pose, octant 2,
+  walked to (-3.2, 8.6)) **while the port leaves her at `canim=0`** (idle, octant 0, (-3.0, 8.8)).
+  The player (Recette) is `canim 5` (stool-jump) 1:1 on both (Chip 3c); only the COMPANION arrival
+  is unported. canim 4 is set by **`FUN_0048a833`** (the 11KB companion controller) which the port
+  **STUBS in the master tick** (PORT-DEBT(cs-misc-tick)) + the partial port `scene1_companion_ctrl.c`
+  doesn't cover the cc08==4 (f404-set) at-counter branch. **+ the manga-lines (集中線) effect** is the
+  retail-only `b494` draw (80-tri, R[0], renders BLACK alone in v3 ⇒ **RT-based** = v3 replays it
+  empty, the known SetRenderTarget limitation). **NEXT (fresh arc): port the companion cc08==4
+  at-counter pose (canim 4 + position via the FUN_0048a833 f404 branch) THEN the manga-lines RT
+  effect (needs a v3 RT-capture extension first to even replay it).** Frame-sync residual: port b1cc
+  clears at CSE-off 3, retail off 1 (2f) — load-duration phase; the "frames not synced" the user saw.
   **NEXT:** the **"Tear"
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
   index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
