@@ -945,13 +945,21 @@ the arrival RAMP frames (mid-hop), not a real offset; the SETTLED camera is exac
 
 **THE blocker — the §8.5 rng-rate gap, CONFIRMED with the current build:** in cc08==4 the **port
 draws ~5.53 rng/frame, retail ~10.02/frame** (constant rates, measured over 2000 frames).  The
-~4.5/f gap is the cc08==4 ambient-particle integrator (`FUN_0040fb3a` re-emitting via the 0x44a750
-camera-yaw behavior for **type-0x43** resident particles — the integrator checks
-`(&DAT_069b2fb0)[i*0x25]==0x43`).  This desyncs everything rng-driven: the **first-customer offer
-diverges ONLY at the end** (`b574` port 1536 vs retail 1548 @off2500 — init_eff 128 vs 129, a
-1-step phase off the rng gap) + the resident particles (a subtle visual).  Template-0x43 particles
-are spawned by `FUN_004147d5`/`FUN_00447f4f`(template 0x43) gated on object-type fields
-(`+0xa58`∈{0xb,0x28}) in FUN_004279cf/FUN_0042b6b7 — but the cc08==4 resident set is persistent
-(NOT freshly spawned in-window, per §8.5's "0 top-level calls"), so the seed needs a pool-dump
-probe (in progress) to pin its origin.  **Until the gap closes, the trace is "structurally 1:1"
-(camera+anim+state+dialogue verified) with the rng-driven offer/particles as the known residual.**
+This desyncs everything rng-driven: the **first-customer offer diverges ONLY at the end** (`b574`
+port 1536 vs retail 1548 @off2500 — init_eff 128 vs 129, a 1-step phase off the rng gap) + the
+resident particles (a subtle visual).
+
+**★ BREAKTHROUGH (2026-06-19, the pool-dump probe — §8.5's "unidentified seed" RESOLVED):** a
+temporary agent hook (`g_pdump`, openrecet-agent.js) dumped the 3D pool's active particle
+type-counts (DAT_069b2f80, 4096 slots, stride 0x94, type@+0x30) every 40 frames across a retail
+drive.  **The pool is EMPTY in free-roam (cc08=0, active=0 for 2200 frames), then fills with
+TYPE 0x1f (NOT 0x43 — §8.5's 0x43 was a red herring): 7 @cc08=1 (the counter approach, f2280) →
+31 @cc08=4 (f2440+, constant).**  Type-0x1f particles are **fading drift particles** (integrator
+FUN_0040fb3a @0x40fb3a line 10090: pos += vel, vel *= 0.97, vel.y -= 0.001, die at life==0x20=32
+frames — the **integration is rng-FREE**).  So the ~4.5/f rng is at **SPAWN** (random pos/vel): a
+**continuous ~1/frame emitter** (31 alive × 32-frame life ⇒ ~1 spawned/frame) that the port
+LACKS in cc08==4.  Likely the stubbed **PORT-DEBT(cs-arrival-fx)** (the master-tick '!' sparkle /
+ambient emit gated on `b564`, all.c:60238-60255) or a cc08-scene ambient emitter.  **NEXT (probe
+in progress):** the FUN_00447f4f/FUN_004279cf spawn-hook pins the exact emitter + caller → port
+it.  **Until then the trace is "structurally 1:1" (camera+anim+state+dialogue verified) with the
+rng-driven offer/particles as the known residual.**
