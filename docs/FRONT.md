@@ -50,6 +50,19 @@
   master-tick call + the free-roam reset; added a camera eye/lookat probe (both sides). **v3-VERIFIED
   BIT-EXACT** camex/camez/camlx/camlz = (-3.0, 14.0, -3.0, 0.0) at the settled view (off 80-120),
   ramp within the +1-frame phase. 3335 host pass. PORT-DEBT(cs-cam-tier): tier-2/3 eye-height ramps.
+  **TRANSITION ✅ FIXED 2026-06-19 (`7046edf`, user-flagged: "camera wrong-then-converges while
+  Recette's anim is 1:1"):** the settled camera was 1:1 but the RAMP lagged. CSE-aligned `--state`
+  probe: the arrival anim is bit-exact + the camera ramp is bit-exact in SHAPE (`camlz(off)==retail
+  camlz(off-1)`) — only its START frame trailed the anim ~2f. Cause: the cc08==4 arm advanced
+  `arrival_tick`(anim)+`chr_anim_tick`(sprite) UNCONDITIONALLY through the b1cc==2 customer-asset
+  load while the camera (master-tick, self-gated b1cc==2) waited — Recette hopped onto the stool
+  BEFORE the camera zoomed in. Retail suppresses its ENTIRE house_update during the load (anim+
+  sprite+camera start together at load-end). Fix: gate the whole arm body on `b1cc != 2`. Master
+  tick was already b1cc-gated ⇒ **haggle/offer UNCHANGED**. v3-verified (fe530872): anim a5/0/1 +
+  camera step now fire the SAME frame, like retail. Residual: the async d3e worker clears b1cc ~1f
+  later than retail (LE+2 vs LE+1) = nondeterministic load-duration phase (accept). **NEXT note #9:
+  the standees (`b52c`/`b530` slide) go out of sync LATER (LOADING_END#2+85) — separate gap, the
+  master-tick-driven slide cadence; + note #8 "Tear manga-lines pose" the port doesn't render.**
   **NEXT:** the **"Tear"
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
   index); per-line pose precision; then FUN_00466b7b §1-5 (the haggle price/BARGAIN/buttons UI,
