@@ -87,13 +87,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (customer = Tear, actor 2): retail puts her at `canim=4`** (the at-counter ready pose, octant 2,
   walked to (-3.2, 8.6)) **while the port leaves her at `canim=0`** (idle, octant 0, (-3.0, 8.8)).
   The player (Recette) is `canim 5` (stool-jump) 1:1 on both (Chip 3c); only the COMPANION arrival
-  is unported. canim 4 is set by **`FUN_0048a833`** (the 11KB companion controller) which the port
-  **STUBS in the master tick** (PORT-DEBT(cs-misc-tick)) + the partial port `scene1_companion_ctrl.c`
-  doesn't cover the cc08==4 (f404-set) at-counter branch. **+ the manga-lines (集中線) effect** is the
-  retail-only `b494` draw (80-tri, R[0], renders BLACK alone in v3 ⇒ **RT-based** = v3 replays it
-  empty, the known SetRenderTarget limitation). **NEXT (fresh arc): port the companion cc08==4
-  at-counter pose (canim 4 + position via the FUN_0048a833 f404 branch) THEN the manga-lines RT
-  effect (needs a v3 RT-capture extension first to even replay it).** Frame-sync residual: port b1cc
+  was unported. **★ COMPANION at-counter pose ✅ LANDED 2026-06-19 as Chip 3e** (`1cbdaf1`,
+  RE §8.7.4): ported **`FUN_0048a833`'s `local_c!=0` (f404 sell-active) at-counter branch**
+  (by-address 0x48ace7-0x48aeda) into `scene1_companion_ctrl.c::co_at_counter_tick`, branched in
+  `scene1_companion_ctrl_tick` on `cc08==4` (the part the partial port — only the FUN_0048a4d1
+  free-roam spring-follow — didn't cover): canim 4, step 0.1/f toward (player.x±1.3, player.z),
+  octant 2/6, NO rng (haggle stream + frozen-db054 sparkle untouched). **v3-verified
+  (house-customer-tutorial-a361c768, --state): `canim` 2546/2546 + `coct` 2546/2546 BIT-EXACT
+  (4 / octant 2); `cx/cz` settled BIT-EXACT at (-3.2, 8.6)**; the ramp transient inherits the
+  accepted Chip-3c player-px arrival phase (re-converges bit-exact). +2 host tests; 3337 pass; feed
+  "cc08==4 companion at-counter pose — Chip 3e". **REMAINING (note #8): the manga-lines (集中線)
+  effect** = the retail-only `b494` draw (80-tri, R[0], renders BLACK alone in v3 ⇒ **RT-based** = v3
+  replays it empty, the known SetRenderTarget limitation). **NEXT (fresh arc): the manga-lines RT
+  effect** — needs a v3 RT-capture extension first to even replay it (improve the tool, then port).
+  Frame-sync residual: port b1cc
   clears at CSE-off 3, retail off 1 (2f) — load-duration phase; the "frames not synced" the user saw.
   **NEXT:** the **"Tear"
   slot-1 name plate** (`PORT-DEBT(cs-nameplate-slot1)` — needs the customer record DAT_06a5ea90 name
