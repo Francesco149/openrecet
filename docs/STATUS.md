@@ -141,8 +141,13 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   134) → after = bright white digits + bright orange cursor (mean 147) == retail (144) (feed "cc08==4 haggle
   NUMBER: dim→bright").  The top-INFO panel (TARGET/Longsword/icon/Base Price 1,200) is **also 1:1** at this
   matched frame — an earlier "panel differs" read was a FRAME-MISMATCH artifact (port idx 2697 = occ2+2697
-  vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.  ✅ no remaining cs-render gap on the haggle
-  number/text/buttons.
+  vs retail occ2+2406, 291f apart), not a gap.  3337 host pass.  The BRIGHTNESS/CONTENT gap is CLOSED.
+  **Residual (pre-existing, NOT the dim bug — my COLOROP edit changes no geometry): a ~2px per-glyph
+  ghosting on the prompt + markup TEXT lines** ("How much should I?", "108% Of Base Price") in the matched-
+  frame diff — a global x/y shift does NOT collapse it (so not screen-shake phase), it's the documented
+  `per-line pose precision` PORT-DEBT (font centering / right-align width).  The '1300' digits themselves are
+  crisp + aligned.  Resolve with truly bit-aligned frames once the side-by-side join lands (below); could
+  still be a non-bit-aligned-frame artifact (cursor-pulse / +1f phase), so confirm before chasing.
   **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
   properly on this") — ROOT-CAUSED 2026-06-19 (autonomous), and it is NOT the load-stretch per se.**  The
   haggle **DOES align occ2/CSE-relative within 1-2 frames** — proven from the cached `--state` traces, ask
