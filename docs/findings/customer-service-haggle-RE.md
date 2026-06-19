@@ -1085,3 +1085,19 @@ b5a0; extending the retail hook for full state-panel parity is a noted follow-up
 **Remaining cs-render PORT-DEBT:** cs-render-priceinput (b5d0 digit panel, inert on the scripted path),
 cs-price-trend (FUN_004361b2 High/Low tint → 0), cs-haggle-prompt-live (the b51c==0 live-machine
 prompt), cs-stage-msg (per-line grp/se), the FUN_0046602e (d) item-want panel (b56c∈[2,9], inert).
+
+**⚠ OPEN BUG (user-flagged, ROOT-CAUSED 2026-06-19) — the NUMBER + buttons render DIM (MODULATE vs
+ADDSIGNED).** The LAYOUT/CONTENT is 1:1 (verified), but retail draws the ADDSIGNED-designed elements
+under `SetTextureStageState(0,COLOROP,D3DTOP_ADDSIGNED=8)` while the port's `render_quad_bind` defaults
+COLOROP=MODULATE (render_quad.c:269); a 0x7f7f7f diffuse → full-brightness under ADDSIGNED but HALF
+under MODULATE ⇒ dim (same class as the sold-out-text bug). Objdump ADDSIGNED brackets in FUN_00466b7b:
+price TEXT `0x46714b`→`0x467240`, NUMBER+cursor `0x46749b`→`0x4675db`, BUTTONS `0x4677de`→`0x4678f9`
+(all `push 8;push 1;push ebx;call *0xfc`; resets `push 4`). FIX: bracket those draws with COLOROP
+ADDSIGNED/MODULATE in customer_service_render.c (pattern: scene_guild.c:833/906/1039) — override COLOROP
+after `render_quad_bind` for the number/cursor/buttons; the panels + item icon are MODULATE on both
+sides (verify whether the "dim icon" the user saw is a separate read). **Side-by-side caveat:** the v3
+join is PARTIAL (119/2698) — the HOUSE_FREEROAM anchor + the +1507-frame load-stretch misalign the
+cc08==4 scene. Re-anchor the join on **CUSTOMER_SERVICE_ENTER** (captured on both sides; §8.4/§8.5 prove
+port==retail align occ2-relative) so the haggle frames pair → then the dim fix is in-tool verifiable.
+First `--anchor CUSTOMER_SERVICE_ENTER` attempt yielded no join (the cached extent is HOUSE_FREEROAM-
+relative; orv3_window likely needs a re-slice/re-key to a stored non-base anchor). Next-session tasks.

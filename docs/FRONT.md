@@ -100,13 +100,39 @@
   prompt + the "NN% Of Base Price" markup; **§4 BUTTONS (b58c)** = the 2 item_win panels + Okay!/
   Start-Again labels (select-pulse / fade-out).  All geometry/colour/scale objdump-transcribed via the
   new **`tools/decode_exe_const.py`** (the decompile drops x87: trend tint trend-0→grey 0x7f7f7f, the
-  ramps, the cursor pulse).  Broadened the 0x48670f probe with b598/b59c/b58c/b560/b540.  **v3-VERIFIED
-  1:1** content-matched at ask=1300/base=1200 (port kept 2552 vs retail 2563): the BARGAIN banner, Base
-  Price 1,200, the "1 300" number, "108% Of Base Price", Okay!/Start-Again all render bit-identical
-  (feed "cc08==4 haggle UI ported").  Retires PORT-DEBT(cs-render-rest).  **NEXT:** per-line pose
-  precision; PORT-DEBT(cs-render-priceinput) (b5d0 autonomous digit-entry, inert in the tutorial),
-  cs-price-trend (FUN_004361b2 High/Low tint), cs-haggle-prompt-live (the b51c==0 live-machine
-  response); extend the RETAIL 0x48670f hook with b598/b58c for full state-panel parity.
+  ramps, the cursor pulse).  Broadened the 0x48670f probe with b598/b59c/b58c/b560/b540.  **v3-verified
+  LAYOUT/CONTENT 1:1** content-matched at ask=1300/base=1200 (port kept 2552 vs retail 2563): the
+  BARGAIN banner, Base Price 1,200, the "1 300" number, "108% Of Base Price", Okay!/Start-Again all in
+  the right place with the right text (feed "cc08==4 haggle UI ported").  Retires PORT-DEBT(cs-render-rest).
+  **⚠ OPEN BUG (user-flagged 2026-06-19, ROOT-CAUSED): the NUMBER + buttons render DIM — a MODULATE-vs-
+  ADDSIGNED COLOROP gap** (the same class as the sold-out-text bug, `feedback_verify_1to1_before_done`).
+  Retail wraps the ADDSIGNED-designed draws in `SetTextureStageState(0,COLOROP,D3DTOP_ADDSIGNED=8)` then
+  resets to MODULATE(4); under ADDSIGNED a 0x7f7f7f diffuse passes the texture at full brightness, under
+  the port's `render_quad` default (MODULATE, render_quad.c:269) it HALVES it ⇒ dim.  **Objdump-proven
+  ADDSIGNED brackets** (in `/tmp/466b7b.asm` or re-dump 0x466b7b): price TEXT `46714b`→`467240`, the
+  NUMBER+cursor `46749b`→`4675db`, the BUTTONS `4677de`→`4678f9`.  **FIX (next session):** bracket those
+  draws in customer_service_render.c with `SetTextureStageState(dev,0,D3DTSS_COLOROP,D3DTOP_ADDSIGNED)` /
+  reset to MODULATE after — mirror the existing pattern (scene_guild.c:833/906/1039, scene1_merchant_hud.c:213);
+  for the number/cursor/buttons (render_quad MODULATE) override COLOROP after `render_quad_bind`.  Watch the
+  font draws DON'T reset COLOROP (the guild relies on it holding through font_draw_text). The panels +
+  item icon are MODULATE on BOTH sides (so the "dim icon" may be a separate read — verify icon COLOROP
+  + that the showcase item even has b564/an icon in this frame). **THEN re-verify side-by-side.**
+  **★ SIDE-BY-SIDE TOOLING (user ask 2026-06-19: "figure out how to drive retail and port side by side
+  properly on this"):** the v3 identity-join is PARTIAL here (119/2698 paired) because the HOUSE_FREEROAM
+  anchor + the **+1507-frame load-stretch** misaligns the cc08==4 scene (port's pre-cc08 walk vs retail's
+  longer load).  **FIX direction:** re-anchor the join on **CUSTOMER_SERVICE_ENTER** (cc08 1→4 — the SAME
+  semantic moment, and it IS captured on both sides, confirmed in v3meta anchors) so the haggle pairs by
+  cc08-entry-relative offset (§8.4/§8.5 proved port==retail align occ2-relative).  First attempt
+  (`orv3_window … --anchor CUSTOMER_SERVICE_ENTER`) produced no join — likely the window slice needs a
+  re-drive in the new anchor frame (the cached extent is HOUSE_FREEROAM-relative), OR orv3_window needs a
+  small fix to re-key a cached extent to a different stored anchor.  **NEXT-SESSION T-task: make
+  orv3_window join the cc08==4 window on CUSTOMER_SERVICE_ENTER** (re-slice from the cached extent without
+  a full re-drive) → THEN the viewer's identity-synced panels show the haggle port|retail and the
+  ADDSIGNED dim fix is verifiable in-tool.  Meanwhile content-match by rendering the same haggle STATE
+  (ask=1300) on each side (orv3_shot --frame, as this session did).
+  Remaining cs-render PORT-DEBT: per-line pose precision; cs-render-priceinput (b5d0 digit-entry, inert);
+  cs-price-trend (FUN_004361b2 High/Low tint→0); cs-haggle-prompt-live (b51c==0 live machine); extend the
+  RETAIL 0x48670f hook with b598/b58c for full state-panel parity.
   **Plan + caveat: RE §8.6/§8.7/§8.7.2/§8.7.3/§8.9.**
   The **rng-rate gap ✅ RESOLVED 2026-06-19** (`8cd0389`, RE §8.8): §8.5's deep open problem cracked
   via a pool-dump + spawn-hook probe — the cc08==4 ambient particles are **type-0x1f, emitted by
