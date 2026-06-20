@@ -242,9 +242,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   P2 the wrap-up dialogue trigger + the cc08-exit→free-roam→wrap-up→first-customer transition (close + skip);
   P3 the first REAL customer (roster scan + f404==0 + the live machine on a real kyaku); P4 L1c the per-kyaku
   dialogue buffer (kyaku/fN.txt → real lines + X-skip + inter-dialogue transitions); P5 L1b the side-effects
-  (real pix).  **RE foundation:** retail captures — the skip wrap-up (`_cs-skip-probe-retail`, frames
-  15700-15997) + the first-customer flow drive (`_cs-firstcust-re`, the committed trace + spam-Z on retail,
-  2026-06-21) for the wrap-up→first-customer→real-haggle ground truth.
+  (real pix).  **RE foundation (anchors, `_cs-firstcust-re-retail` 2026-06-21):** retail's post-tutorial flow =
+  tutorial (cc08==4) → **CONV_POSE wrap-up dialogue** (the committed trace's CONV_POSE/TEXT_ANIM cutscene =
+  the "And that is…" lines, retail frames 23259-23707; the existing scene1_conversation_pose system, NOT the
+  cs box) → **LOADING_START/END → HOUSE_FREEROAM @23782+23850** (cc08 exits 4 → free-roam, a real scene
+  reload) → the FIRST CUSTOMER arrives in free-roam.  So the transition goes THROUGH free-roam (a LOADING),
+  NOT a re-greet inside cs mode — P2 must EXIT cc08=4 + fire the CONV_POSE wrap-up + the LOADING→free-roam,
+  then P3 is the free-roam autonomous arrival.  (The skip path converges at the same wrap-up — `_cs-skip-
+  probe-retail` frames 15700-15997 show its content.)  The first-customer real-haggle FRAMES still need a
+  re-drive with the caprange on the post-tutorial region (this drive's caprange only covered round 1; the
+  anchors traced the rest).
   (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
   the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
   (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the
