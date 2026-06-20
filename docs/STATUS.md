@@ -221,6 +221,30 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   tutorial closes after 3 rounds, retail after 5, so port↔retail diverge BEFORE the first customer; the host
   test + the §9.2 offer-match stand in until that's fixed).  PORT-DEBT also: cs-shop-stock, cs-other-kinds
   (b5a8 0/1/3/4/5 buy/chat), cs-queue-line, cs-sold-pause.
+  **★★ NEXT ARC (user directive 2026-06-21) — the FULL POST-TUTORIAL FLOW, "down to all the details / the
+  various transitions between dialogues."**  User-tested the L1a build + flagged: the tutorial itself + the
+  no-pix haggle prompts are CORRECT, but what comes AFTER is unported.  Retail's target flow:
+  scripted tutorial (5 BARGAIN rounds, no pix) → the last scripted lines incl. **Tear's wrap-up** *"And that
+  is, essentially, how it goes.  You are quite good for someone who has just started…"* (a free-roam
+  scene1_intro_dialogue, the rounded box; **X-HOLD skippable**) → the **FIRST ACTUAL CUSTOMER = the real
+  haggling loop where real pix IS earned** (a real kyaku, real dialogue, the live machine FUN_004658ab with
+  f404==0 + the L1b side-effects).  The SKIP path converges to the same: ESC→fade→wrap-up→first customer.
+  **The port's gaps (root causes):** (a) the scripted tutorial **closes EARLY (~3 rounds, hits the −1
+  sentinel) instead of 5** — the multi-round nav gap (RE §9.6); so it never reaches the later scripted lines
+  incl. the wrap-up, and my L1a live machine kicks in on the leftover tutorial queue → the "rolled back to
+  before the tutorial" the user sees.  (b) **no wrap-up dialogue** (close + skip both miss it).  (c) **no
+  transition to a REAL customer** — needs the autonomous customer-arrival / a fresh session_init with the
+  **roster scan (PORT-DEBT(cs-roster-scan))** + f404==0, so the live machine runs on a real kyaku, not the
+  tutorial's kyaku=1 placeholder.  (d) **"…" placeholder dialogue** everywhere past "if you can sell me an
+  item" (PORT-DEBT(cs-kyaku-dialogue) = L1c) + **not X-hold fast-forwardable** (the reveal-budget X boost).
+  (e) the real haggle needs **L1b** (real pix).  **Staged plan (multi-session):** P1 finish the tutorial —
+  the round-2..5 nav (§9.6) so it reaches the −1 sentinel after the FULL script incl. the wrap-up lines;
+  P2 the wrap-up dialogue trigger + the cc08-exit→free-roam→wrap-up→first-customer transition (close + skip);
+  P3 the first REAL customer (roster scan + f404==0 + the live machine on a real kyaku); P4 L1c the per-kyaku
+  dialogue buffer (kyaku/fN.txt → real lines + X-skip + inter-dialogue transitions); P5 L1b the side-effects
+  (real pix).  **RE foundation:** retail captures — the skip wrap-up (`_cs-skip-probe-retail`, frames
+  15700-15997) + the first-customer flow drive (`_cs-firstcust-re`, the committed trace + spam-Z on retail,
+  2026-06-21) for the wrap-up→first-customer→real-haggle ground truth.
   (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
   the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
   (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the
