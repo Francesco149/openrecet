@@ -1104,11 +1104,19 @@ relative; orv3_window likely needs a re-slice/re-key to a stored non-base anchor
 
 ---
 
-## 9. ⚠⚠ BUY-ROUND DIAGNOSIS (2026-06-20, autonomous) — the `house-customer-tutorial` trace is SELL-ONLY; the buy round (tuto2) is a SEPARATE later day, reached by PC-progression in fileidx=0 (NOT fileidx=1). The buy-round port is BLOCKED on a human-recorded buy-tutorial trace.
+## 9. BUY-ROUND (tuto2) haggle bug ✅ ROOT-CAUSED + FIXED 2026-06-20 (`5c0493a`) — the parser mapped 値段 to op 12 (2-way) instead of op 5 (7-tier)
 
-**User directive (2026-06-20):** "EXTEND the trace into the BUY round — widen the caprange past the
-first customer's load to the 2nd PAUSE_OPEN (~line 130), re-drive port+retail, diagnose, then port the
-buy mode." **The premise is wrong: this trace has NO buy round.** Proven empirically + statically below.
+**⚠ CORRECTION (read this first):** §9.1-§9.5 below recorded an EARLY, WRONG conclusion — that "this
+trace is sell-only / the buy round is a separate day / blocked on a human recording." **That was wrong.**
+The buy round (tuto2) IS reachable in THIS trace: after the round-1 haggle the scripted PC walks straight
+out of tuto1 (slots 0-49) into tuto2 (slots 50+) in the SAME session — you just have to FAST-FORWARD the
+intervening dialogue by HOLDING X (the recorded trace ends with Z held, and dialogue advance needs a Z
+*edge*, so it stalls at PC 69; X-held fast-forwards). The "5 PAUSE_OPEN rounds are all b5a8=2/fileidx=0"
+observation (§9.1) is true but was MIS-INTERPRETED: those are tuto1 sell offers; tuto2's prompt is just
+further along the PC, still under fileidx=0 (the stride-overlap §9.3 is real and is PART OF the bug, not
+a reason it's unreachable). **The actual bug + fix is §9.7.** Keep §9.1-§9.6 for the trail but trust §9.7.
+
+**User directive (2026-06-20):** extend into the BUY round, diagnose, fix. **DONE** — see §9.7.
 
 ### 9.1 Empirical: the whole trace is b5a8=2 (SELL), b5b0=0 (tuto1)
 
@@ -1223,3 +1231,44 @@ run-openrecet supervisor + main.c's WndProc for a stuck-wait/diverged watchdog);
 the round `{wait PAUSE_OPEN}`s (measured from the segment's LAST input, like the committed walk fix) so
 the round-2 inputs apply before the wait gives up. THEN re-drive to see if the port actually re-haggles
 rounds 2-5. The BUY round is still separately blocked on a buy-tutorial recording (§9.5).
+
+### 9.7 ★ THE BUG: 値段 (tuto2 buy threshold) was parsed as op 12 (2-way), should be op 5 (7-tier) — FIXED `5c0493a`
+
+**Symptom (user):** the 2nd price prompt — tuto2, where Tear talks about BUYING — "always says I need to
+price it lower even though I'm below the baseline" / uses the sell UI/logic.
+
+**Repro (in-tool):** drive the committed trace through round 1, then a held-X segment fast-forwards the
+dialogue into tuto2; the PRIA opens at PC 81 (b608=3), commit a price → the `値段` threshold at PC 82.
+(Probe b604 = the PC; `customer_service_b604()`, added to both hooks — `4ce0a30`.)
+
+**Root cause (confirmed from the engine BINARY, not just decompile):** the engine's tuto-parser opcode
+.data table (`by-address/475270.c:2987-3046`; strings dumped from `recettear.unpacked.exe .data`):
+```
+0x5cb3d8  42 55 4e 30  "BUN0"  → op 5   (7-tier, fileidx-gated threshold)
+0x5cb3e0  92 6c 92 69   値段    → op 5   (SAME handler — tuto2's BUY branch)
+0x5cb3e8  8d 82 82 ad   高く    → op 12  (2-way PRICE compare — tuto1's sell check)
+```
+The port's `tables_tuto.c` opcode table WRONGLY put 値段 with 高く under op 12 (TUTO_OP_PRICE). So the
+port ran tuto2's 7-tier `0,値段,10,11,12,13,14,15,16` branch through the 2-way op-12 handler (only
+args[0]/args[1] = ids 10/11 reachable). Combined with the **stride overlap** (§9.3: parser writes each
+file at slot `file*50`, consumer reads at `file*200`, so tuto1+tuto2+tuto3 all live in the fileidx-0
+region 0-159, and `cs_goto`/`FUN_004623bc` searches from `g_tuto[fileidx*200]`=`g_tuto[0]`), `cs_goto(11)`
+found **tuto1's** id-11 record FIRST (slot 42 = tuto1's "Yes" → "it is a sale, you get experience" — the
+SELL success path), because tuto1's 高く only defines ids 10/11. ⇒ the buy round fell into tuto1's sell
+dialogue.
+
+**Fix (`5c0493a`):** map 値段 → `TUTO_OP_BUN0` (op 5). Verified on the held-X drive: the tuto2 threshold
+GOTO now lands at **PC 90 (tuto2's id-13 feedback "…go somewhat lower")** instead of PC 42 (tuto1). The
+7-tier targets the buy round actually uses for near-base offers (12-16) DON'T collide with tuto1 (which
+only defines 10/11). 3337 host pass; test `tables_tuto_nedan_alias_takaku` corrected.
+
+**⚠ REMAINING — PORT-DEBT(cs-buy-fileidx), pending the retail-drive confirmation (drive in flight):**
+op 5 is **fileidx-gated** (`s_price_fileidx == 1` → BUY tiers 0.2/0.7/0.9; else SELL tiers 0.5/0.7/1.0).
+tuto2 runs under **fileidx=0** (the consumer reads tuto2 via PC-progression, NOT fileidx=1), so the port
+currently uses the SELL tier boundaries for the buy practice. Two open questions for the retail drive (b604
++ b5b0 now in `retail_fields.json`, driven with the held-X trace):
+  1. Does retail also run tuto2 under fileidx=0 (⇒ sell tiers are correct, accept) or does something set
+     fileidx=1 for the buy practice (⇒ the port needs that too for the exact tier boundaries)?
+  2. For LOW offers (<70%), op-5 picks targets 10/11 which STILL collide with tuto1 via cs_goto — does
+     retail hit the same collision (⇒ benign/accepted) or avoid it (⇒ a deeper cs_goto base bug)? The
+     near-base 70-100% case (targets 12-16) is already collision-free and correct.
