@@ -173,7 +173,10 @@ int test_tables_tuto_bun0_7_ints(void)
 
 int test_tables_tuto_nedan_alias_takaku(void)
 {
-    /* 値段 and 高く both produce opcode 12. */
+    /* Per the engine parser .data table (by-address 475270.c:2987-3046):
+     * 値段 (0x5cb3e0) maps to op 5 (BUN0, the 7-tier fileidx-gated threshold)
+     * — it is the BUY tutorial's branch — while 高く (0x5cb3e8) maps to op 12
+     * (the 2-way PRICE compare) — tuto1's sell check.  They are NOT aliases. */
     struct tuto_record fix[FIX_SLOTS];
     clear_fixture(fix);
     static const unsigned char input[] =
@@ -181,10 +184,10 @@ int test_tables_tuto_nedan_alias_takaku(void)
         "0," KW_TAKAKU ",20,21,22,23,24,25,26\r\n";
     int n = tables_parse_tuto(0, input, sizeof input - 1, fix);
     T_ASSERT_EQ_I(n, 2);
-    T_ASSERT_EQ_I(fix[0].opcode, TUTO_OP_PRICE);
+    T_ASSERT_EQ_I(fix[0].opcode, TUTO_OP_BUN0);    /* 値段 → op 5 (7-tier) */
     T_ASSERT_EQ_I(fix[0].args[0], 10);
     T_ASSERT_EQ_I(fix[0].args[6], 16);
-    T_ASSERT_EQ_I(fix[1].opcode, TUTO_OP_PRICE);
+    T_ASSERT_EQ_I(fix[1].opcode, TUTO_OP_PRICE);   /* 高く → op 12 (2-way) */
     T_ASSERT_EQ_I(fix[1].args[0], 20);
     T_ASSERT_EQ_I(fix[1].args[6], 26);
     return 0;

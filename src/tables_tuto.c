@@ -61,9 +61,17 @@ static const struct {
     { TUTO_OP_PRID, (const unsigned char *)"PRID", 4 },
     { TUTO_OP_PRIA, (const unsigned char *)"PRIA", 4 },
     { TUTO_OP_BUN0, (const unsigned char *)"BUN0", 4 },
-    /* SJIS 値段 (4 bytes) and 高く (4 bytes) share opcode 12 */
-    { TUTO_OP_PRICE,    (const unsigned char *)"\x92\x6c\x92\x69", 4 },  /* 値段 */
-    { TUTO_OP_PRICE,    (const unsigned char *)"\x8d\x82\x82\xad", 4 },  /* 高く */
+    /* Engine parser (FUN_00475270 / by-address 475270.c:2987-3046): the .data
+     * opcode table maps BOTH "BUN0" (0x5cb3d8) AND 値段 (0x5cb3e0) to op 5
+     * (the 7-tier fileidx-gated BUN0 threshold), and 高く (0x5cb3e8) to op 12
+     * (the 2-way PRICE compare).  値段 is the BUY tutorial's (tuto2) 7-tier
+     * branch (`0,値段,10,11,12,13,14,15,16`); 高く is tuto1's 2-way sell check.
+     * EARLIER BUG: 値段 was mapped to op 12 (PRICE) → the port handled tuto2's
+     * 7-tier buy threshold as a 2-way branch, picking only args[0]/args[1]
+     * (ids 10/11) → cs_goto found tuto1's id-10/11 records first (the
+     * stride-overlap collision) → the buy round showed tuto1's SELL feedback. */
+    { TUTO_OP_BUN0,     (const unsigned char *)"\x92\x6c\x92\x69", 4 },  /* 値段 → op 5 (7-tier) */
+    { TUTO_OP_PRICE,    (const unsigned char *)"\x8d\x82\x82\xad", 4 },  /* 高く → op 12 (2-way) */
     /* SJIS 値引 / 値上 */
     { TUTO_OP_DISCOUNT, (const unsigned char *)"\x92\x6c\x88\xf8", 4 },  /* 値引 */
     { TUTO_OP_MARKUP,   (const unsigned char *)"\x92\x6c\x8f\xe3", 4 },  /* 値上 */
