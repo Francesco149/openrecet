@@ -198,9 +198,12 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   up/down call site, the prompt gate) is **UNRESOLVED statically** and needs a buy trace to probe.
   **→ NEXT (BLOCKED on the human): RECORD a buy-tutorial (tuto2) trace** — play day-1 sell tutorial → sleep →
   day-2 buy tutorial, F2/F3 record, pin.  Then re-drive both sides (probe is ready), read the actual buy-round
-  state, port 1:1 + host-test the gold-cap/down-math.  ALSO blocking: the port can't navigate ANY haggle trace
-  past round 1 — it never fires `PAUSE_OPEN` (=`DAT_0438b150` 0→1, retail sets it via the BARGAIN choice_box;
-  the port's `pause_active` reads only `g_scene_pause_state_b150` which the haggle never sets).  RE §9.6.
+  state, port 1:1 + host-test the gold-cap/down-math.  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
+  (`2fb5b39`, RE §9.6):** the port now fires PAUSE_OPEN@f3128 + PAUSE_CLOSE@f3259 (131f, matches retail b150
+  130f) via `customer_service_bargain_active()` (scripted b608==4) OR'd into the anchor's pause_active (signal
+  only — no gameplay effect).  **Round 2 still doesn't open** = a pre-existing scripted-machine multi-round gap
+  the fix exposed (after round 1's PAUSE_CLOSE the post-round-1 X@seg-f99 exits the haggle instead of
+  re-haggling; probe b604/cc08 across f3260-3361 + cross-ref FUN_00461c00's post-confirm flow).  RE §9.6.
   The cc08==4 SELL haggle-UI render + the "!" tooltip + the camera-hint overlap remain DONE for this trace.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)

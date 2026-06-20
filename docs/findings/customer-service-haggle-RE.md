@@ -1190,23 +1190,28 @@ navigate even the sell trace yet — see 9.6).
    ACTUAL buy-round state (resolve the b5a8=0-vs-1, the up/down call site, the prompt/threshold gate).
 3. Port the buy path 1:1 from that ground truth + host-test the gold-cap (all.c:58323) + the down-math.
 
-### 9.6 Side blocker — the port can't navigate ANY haggle trace past round 1 (PAUSE_OPEN/b150)
+### 9.6 PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1 (2026-06-20, `2fb5b39`); round 2 = a separate scripted-machine multi-round gap
 
-The PORT drive stalls at the first BARGAIN: it plays round 1 to the offer (b574 set) but **never fires
-`PAUSE_OPEN`**, so the trace's `{wait PAUSE_OPEN}` (line 50) hangs and the sim runs out the wall-clock.
-`PAUSE_OPEN` = `pause_active` 0→1 = `DAT_0438b150` 0→1. Retail sets b150 via `choice_box_open`
-(`FUN_00434def`) when the BARGAIN Yes/No choice opens — empirically b150 0→1 at the offer commit
-(f16452), tracking the b58c button ramp (0→5), and 1→0 when it closes (f16582). **The port's
-`pause_active` reads ONLY `g_scene_pause_state_b150` (scene_pause), which the haggle BARGAIN buttons
-(`customer_service_render.c` §4, b58c) never set** — the port split retail's single shared b150.
+**Was:** the port couldn't navigate any haggle trace past round 1 — it never fired `PAUSE_OPEN`
+(=`pause_active` 0→1 =retail's `DAT_0438b150`, which retail sets via `choice_box_open`/`FUN_00434def`
+when the BARGAIN Yes/No choice opens; the port split b150 so the haggle's choice never set the anchor's
+flag). The trace's `{wait PAUSE_OPEN}` exhausted and the exe exited right after the offer (~f3131).
 
-The post-offer choice flow IS ported (`cs_scripted_tick` b608==4 → `cs_input_poll` ramps b58c 0→5 →
-commit/cancel, customer_service.c:825-837), so PAUSE_OPEN *should* be reachable once b150 is wired.
-**Unresolved (needs a proper drive):** the port call_trace shows `b574` set @f3124 (offer=1572) but
-`b58c` still **0** at sim-end (f3131) — only 7 frames later, and the drive HUNG on `{wait PAUSE_OPEN}`
-at ~154 ms/frame (turbo appears inactive during an unsatisfied wait, and the held Z input may keep
-b608 oscillating), so this is INCONCLUSIVE — b58c likely just hadn't ramped yet. **Next-session
-navigation fix (two parts):** (1) drive the port past the offer with the trailing `{wait}`s stripped
-or given a `timeout` and confirm b58c ramps 0→5 + the round loops (Okay!/Start-Again); (2) set the
-b150 the anchor reads when that choice is up (b58c>0 in cc08==4), so PAUSE_OPEN fires like retail.
-This is the prerequisite for replaying ANY haggle trace (sell or buy) on the port for side-by-side.
+**Fix (`2fb5b39`):** OR `customer_service_bargain_active()` (the scripted machine's `b608==4`
+price-confirm state, b51c!=0) into the anchor's `pause_active` (main.c). **Anchor SIGNAL only** — does
+NOT touch the engine's real pause (`g_scene_pause_state_b150`) ⇒ zero gameplay/render effect, can't
+fire outside a cc08==4 haggle. **VERIFIED:** the port now fires `PAUSE_OPEN` @f3128 + `PAUSE_CLOSE`
+@f3259 (131-frame span) at round 1's BARGAIN — matching retail's b150 (f16452-16582 = 130f), exactly at
+the offer commit (b608→4, b574 set, b58c ramps 0→5 then 5→0). (The earlier "b58c=0 at sim-end" read was
+the OLD slow BMP-dumping drive dying the very frame the choice opened; `--capture-trigger-only` made the
+drive 37 s vs 481 s and showed b58c ramping cleanly.) The probe now carries b51c/b608/b5b0.
+
+**REMAINING — round 2 doesn't open (a pre-existing scripted-machine multi-round gap this fix exposed):**
+after round 1's PAUSE_CLOSE (f3259) the round-2 segment's FIRST input is X (`0x0020`) at seg-frame 99
+(=f3358); the exe exits ~3 frames later (f3361) WITHOUT round 2's BARGAIN ever opening. So the port
+mishandles that post-round-1 input (likely treats X as cancel/exit-haggle, or the `cs_scripted_tick`
+round loop doesn't re-arm the price-input after a commit) instead of advancing to round 2's re-haggle.
+**Next-session:** probe b604(PC)/b600/b534/cc08 across f3260-3361 to see whether cc08 drops (haggle
+exited) or the PC stalls; cross-ref `FUN_00461c00`'s post-confirm opcode flow (the LAB after
+`lab_advance_pc` at the op-4 commit) vs the port's `cs_scripted_tick`. This is the next SELL-side
+navigation blocker; the BUY round is still separately blocked on a buy-tutorial recording (§9.5).
