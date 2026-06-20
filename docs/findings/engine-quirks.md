@@ -4736,3 +4736,39 @@ the shared global, so it stays 0 and the port draws only the center page. Pixel-
 identical to retail; the off-screen wing draws are missing from the draw program.
 The fix rides with the title continue picker render port (which shares
 FUN_0049b556 and drives DAT_09643520).
+
+## 126. ESC during the cc08==4 SCRIPTED haggle tutorial opens a "Cancelling tutorial. Are you sure?" prompt — a SEPARATE mechanism from the prologue/dialogue skip, and ESC during cc08==4 NEVER opens the pause menu
+
+The in-game ESC dispatch (`FUN_00453384`) has THREE outcomes, not two. When a
+`scene1_intro_dialogue` is active (`DAT_0438b1c8 != 0`) it routes to `FUN_0046c2cb`
+(the "Do you want to skip this event?" prompt, `DAT_073a3e18` counter). Otherwise,
+for an in-game scene (`DAT_0438b1c0 == 1`), it checks **`DAT_0438cc08 == 4`** (the
+customer-service mode) BEFORE the pausable arm and calls **`FUN_0045e6a5`**:
+
+```
+if (DAT_0730b520 == 0 && DAT_0730b51c == 1 && DAT_0730b5e4 == 0) {
+    DAT_0730b5e4 = 1;
+    FUN_00434def("Cancelling tutorial. Are you sure?", 1, 0);  // the choice box
+    return 1;
+}
+return 0;
+```
+
+So the cc08==4 skip is **gated on the SCRIPTED tutorial** (`b51c==1`) — a *live*
+customer (`b51c==0`) returns 0 and is NOT skippable — and it uses a **different
+prompt string** ("Cancelling tutorial. Are you sure?", at 0x5c6ccb+1, the leading
+0x42 'B' byte skipped) than the prologue's "Do you want to skip this event?". It
+latches its OWN flag `DAT_0730b5e4` (not the dialogue's `DAT_073a3e18`), polled by
+the master tick (`FUN_00462403` all.c:60168-60186): `FUN_00434ed2()` → Yes
+(returns 1) starts the leave (`b520=1`, clamp `b5b4≥0xf0`), No (2) clears b5e4 and
+resumes. **Yes drives the b520 leave/dissolve** (all.c:60325-60396):
+`FUN_004526f5(0,0x5a)` tile-dissolve-out → `FUN_004528b3` poll → on completion
+`DAT_0438cc08 = 1` (free-roam) + `DAT_0438b7b0 = 0` + clear the sale flags
+(f404/f3ff/f400/f405, objdump 0x462ae0-0x462b0f) + `FUN_0045281c(0,0x1e)` fade-in.
+
+Crucially: when `FUN_0045e6a5` returns 0 (a live customer, or already
+leaving/armed), `cVar4` stays 0 and ESC **falls through to neither skip nor
+pause** — i.e. ESC does NOTHING during a live cc08==4 customer (the pausable arm
+is only reached for the non-cc08==4 in-game modes). A skip-tutorial cancel is a
+true tutorial *abort* (it dissolves straight back to the shop free-roam),
+distinct from completing the haggle exercise.

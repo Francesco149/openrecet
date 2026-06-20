@@ -184,13 +184,27 @@
   FROZE.  Ported the b534==0xc scripted close (all.c:60605-13): b52c countdown → reset b51c/b524/b534/b55c → idle.
   v3-verified on the committed trace: resets at b534=0xc→0 (frame 6956), idles up, reaches the **first real
   customer's greeting** (b534=1, b51c=0) — the softlock is gone.  +1 host test; 3338 pass.
-  **★ OPEN GAPS (next arcs, both newly REACHABLE thanks to the above):** (1) **the first real customer's live
-  SELL machine `FUN_004658ab`** (b51c==0 / b534∈{2,6,0xf,7,…}, PORT-DEBT(cs-live-machine)) — the tutorial's
-  final "sell me an item" exercise + every post-tutorial customer; reachable in THIS trace right after the
-  closing.  (2) **ESC "skip this event?" prompt during cc08==4** (user-flagged: retail ESC→skip prompt, port
-  ESC→pause): `skip_event.c` is ALREADY ported + host-tested, but it's only armed on
-  `scene1_intro_dialogue_skippable()`; the cc08==4 scripted tutorial doesn't set the skip counter
-  `DAT_073a3e18`>1, so ESC falls through to the pause menu.  Wire the cc08==4 skippable arm.
+  **★ OPEN GAPS (next arcs, both newly REACHABLE thanks to the above):** (1) **★ ACTIVE — the first real
+  customer's live SELL machine `FUN_004658ab`** (b51c==0 / b534∈{2,6,0xf,7,…}, PORT-DEBT(cs-live-machine)) —
+  the "softlock once Tear tells you to sell her something."  CONFIRMED 2026-06-20 (full-probe drive): the
+  scripted tutorial closes (b534=0xc→0 @port-fr6956, b51c→0), idles, then the **first real customer greets
+  (b534=1, b51c=0) @fr7115** → the master tick's b51c==0 arm is a bare PORT-DEBT return ⇒ b534 never advances
+  ⇒ softlock.  Needs: the master-tick live-greeting arm (b534 1→2) + the b5a8 dispatch + FUN_004658ab (states
+  2/6/0xf/7/8/9) + FUN_00460a1a (the live line-picker — a load-bearing RNG draw + the per-kyaku dialogue
+  buffer, render-only) + the decision evaluators (FUN_00460672/e50/f16) + the accept side-effects
+  (gold/stock/catalog).  Ground truth via synthesized spam-Z + Frida (the committed recording ENDS at the
+  first-customer appearance; a user recording is circular-blocked since the port softlocks there).
+  (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
+  the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
+  (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the
+  **"Cancelling tutorial. Are you sure?"** Yes/No choice box + latches **b5e4**; the master-tick b5e4 poll
+  (all.c:60168-60186) drives Yes→leave / No→resume; **Yes → the b520 leave/dissolve** (all.c:60325-60396:
+  `fade_phase1_start(0,0x5a)` → free-roam cc08=1 + clear f404/f3ff/f400/f405).  A live customer (b51c==0) is
+  NOT skippable + ESC never opens the pause during cc08==4.  v3-verified vs retail
+  (`house-customer-skip-tutorial`, ESC@off300+Z@off360): prompt pixel-1:1, b520 0→1→2 → cc08 4→1 matches the
+  ~0x5a-frame dissolve.  +2 host tests; 3340 pass.  **Residual (Task-1-adjacent, NOT a softlock):** retail
+  plays a Tear wrap-up dialogue ("And that is…") after the skip; the port returns to plain free-roam (the
+  post-haggle wrap-up is part of the tutorial→first-customer flow, gap #1's territory).
   **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
   (`2fb5b39`, RE §9.6):** the port now fires PAUSE_OPEN@f3128 + PAUSE_CLOSE@f3259 (131f, matches retail b150
   130f) via `customer_service_bargain_active()` (scripted b608==4) OR'd into the anchor's pause_active (signal
