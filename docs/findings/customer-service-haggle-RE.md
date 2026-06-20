@@ -1262,13 +1262,19 @@ GOTO now lands at **PC 90 (tuto2's id-13 feedback "…go somewhat lower")** inst
 7-tier targets the buy round actually uses for near-base offers (12-16) DON'T collide with tuto1 (which
 only defines 10/11). 3337 host pass; test `tables_tuto_nedan_alias_takaku` corrected.
 
-**⚠ REMAINING — PORT-DEBT(cs-buy-fileidx), pending the retail-drive confirmation (drive in flight):**
-op 5 is **fileidx-gated** (`s_price_fileidx == 1` → BUY tiers 0.2/0.7/0.9; else SELL tiers 0.5/0.7/1.0).
-tuto2 runs under **fileidx=0** (the consumer reads tuto2 via PC-progression, NOT fileidx=1), so the port
-currently uses the SELL tier boundaries for the buy practice. Two open questions for the retail drive (b604
-+ b5b0 now in `retail_fields.json`, driven with the held-X trace):
-  1. Does retail also run tuto2 under fileidx=0 (⇒ sell tiers are correct, accept) or does something set
-     fileidx=1 for the buy practice (⇒ the port needs that too for the exact tier boundaries)?
-  2. For LOW offers (<70%), op-5 picks targets 10/11 which STILL collide with tuto1 via cs_goto — does
-     retail hit the same collision (⇒ benign/accepted) or avoid it (⇒ a deeper cs_goto base bug)? The
-     near-base 70-100% case (targets 12-16) is already collision-free and correct.
+**✅ RETAIL-CONFIRMED (held-X drive, `retail-…012335Z`, b604+b5b0 in the probe):** retail runs the tuto2
+buy practice under **fileidx=0** — the PC walks the SAME 42→…→50→…→**81 (tuto2 PRIA)** path as the fixed
+port, fileidx 0 the whole way, base=1200/ask=1200 default. So op 5's fileidx-gate picks the **SELL tier
+boundaries (0.5/0.7/1.0)** for the buy practice on BOTH sides — that's the engine's actual behavior (the
+tuto2.txt designer comment's 20%/70%/90% is the buy-tier *intent*, but fileidx never becomes 1 so the
+engine never uses it). **So the port now MATCHES retail** — `cs-buy-fileidx` is NOT a debt; using the
+sell tiers under fileidx=0 IS parity. (The retail drive hit the 480 s ceiling AT the PRIA before the
+commit, so the post-commit GOTO target wasn't directly captured — but it's deterministically identical:
+same op 5, same fileidx=0, same `cs_goto` base, same parsed `g_tuto`.)
+
+**Accepted residual (parity, not a bug):** for LOW offers (<70%, op-5 targets 10/11) `cs_goto` collides
+into tuto1's id-10/11 on BOTH sides (same base `g_tuto[0]`, same data) — an engine quirk of the stride
+overlap, identical port↔retail ⇒ accept. The near-base 70-100% case (targets 12-16) is collision-free.
+**Pending (human, next session): eyeball the fixed buy dialogue in the viewer** — drive the held-X
+scenario (or just hold X past round 1) and confirm tuto2 now shows its own "go lower"/"good price"
+feedback instead of tuto1's "Yes, it is a sale". This is the user-deferred visual check.
