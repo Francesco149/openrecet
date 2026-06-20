@@ -1190,7 +1190,7 @@ navigate even the sell trace yet — see 9.6).
    ACTUAL buy-round state (resolve the b5a8=0-vs-1, the up/down call site, the prompt/threshold gate).
 3. Port the buy path 1:1 from that ground truth + host-test the gold-cap (all.c:58323) + the down-math.
 
-### 9.6 PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1 (2026-06-20, `2fb5b39`); round 2 = a separate scripted-machine multi-round gap
+### 9.6 PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1 (2026-06-20, `2fb5b39`); round 2-5 nav UNVERIFIED (a harness WM_DESTROY early-exit, not a confirmed port gap)
 
 **Was:** the port couldn't navigate any haggle trace past round 1 — it never fired `PAUSE_OPEN`
 (=`pause_active` 0→1 =retail's `DAT_0438b150`, which retail sets via `choice_box_open`/`FUN_00434def`
