@@ -184,16 +184,24 @@
   FROZE.  Ported the b534==0xc scripted close (all.c:60605-13): b52c countdown → reset b51c/b524/b534/b55c → idle.
   v3-verified on the committed trace: resets at b534=0xc→0 (frame 6956), idles up, reaches the **first real
   customer's greeting** (b534=1, b51c=0) — the softlock is gone.  +1 host test; 3338 pass.
-  **★ OPEN GAPS (next arcs, both newly REACHABLE thanks to the above):** (1) **★ ACTIVE — the first real
-  customer's live SELL machine `FUN_004658ab`** (b51c==0 / b534∈{2,6,0xf,7,…}, PORT-DEBT(cs-live-machine)) —
-  the "softlock once Tear tells you to sell her something."  CONFIRMED 2026-06-20 (full-probe drive): the
-  scripted tutorial closes (b534=0xc→0 @port-fr6956, b51c→0), idles, then the **first real customer greets
-  (b534=1, b51c=0) @fr7115** → the master tick's b51c==0 arm is a bare PORT-DEBT return ⇒ b534 never advances
-  ⇒ softlock.  Needs: the master-tick live-greeting arm (b534 1→2) + the b5a8 dispatch + FUN_004658ab (states
-  2/6/0xf/7/8/9) + FUN_00460a1a (the live line-picker — a load-bearing RNG draw + the per-kyaku dialogue
-  buffer, render-only) + the decision evaluators (FUN_00460672/e50/f16) + the accept side-effects
-  (gold/stock/catalog).  Ground truth via synthesized spam-Z + Frida (the committed recording ENDS at the
-  first-customer appearance; a user recording is circular-blocked since the port softlocks there).
+  **★ OPEN GAPS (next arcs):** (1) **the first real customer's live SELL machine `FUN_004658ab`
+  — UN-SOFTLOCK ✅ LANDED 2026-06-20 (`7dfc611`, Chip L1a).**  The "softlock once Tear tells you to sell her
+  something": after the scripted tutorial closes (b534=0xc→0 @port-fr6956, b51c→0), the first real customer
+  greets (b534=1, b51c=0 @fr7115) but the master tick's b51c==0 arm was a bare return ⇒ frozen.  Ported the
+  master-tick live arms (the b51c==0 greeting 1→2, the b5a8==2 dispatch, the live closing/queue 0xa/0xb/0xc/
+  0xd/0x14/0x15) + **`cs_live_machine` (FUN_004658ab)** (states 2 greeting → 6 reaction → 0xf decision →
+  7 accept / 8 pushback / 9 reject) + the helpers `cs_accept_eval` (FUN_00460672, objdump x87 bands ±0.5%/
+  ±5% of b588), `cs_pushback_line` (FUN_00460f16), `cs_pick_line` (FUN_00460a1a — the load-bearing rng line-
+  pick).  **Verified:** the un-softlock on the real flow (first-customer b534 1→2→6→0xf, **offer b574=3870 =
+  retail's §9.2-observed value**) + a deterministic host test (`cs_live_machine_sell_cycle`: greeting→2→6→
+  0xf→7→0xa→0xc→leave).  3341 pass.  **REMAINING (next chips):** **L1b** the accept side-effects
+  (PORT-DEBT(cs-live-sale-fx): gold += ask + stock decrement + the catalog/inventory/payout FUN_00460d52/b3a/
+  606fc/00083/0002a/00b93, all f404==0); **L1c** the per-customer dialogue buffer (PORT-DEBT(cs-kyaku-
+  dialogue): real line text/count/sprite/voice from kyaku/fN.txt — currently a placeholder drives the reveal);
+  + a bit-exact retail trace comparison, **blocked on the multi-round nav gap** (RE §9.6 — the port's scripted
+  tutorial closes after 3 rounds, retail after 5, so port↔retail diverge BEFORE the first customer; the host
+  test + the §9.2 offer-match stand in until that's fixed).  PORT-DEBT also: cs-shop-stock, cs-other-kinds
+  (b5a8 0/1/3/4/5 buy/chat), cs-queue-line, cs-sold-pause.
   (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
   the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
   (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the

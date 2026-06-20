@@ -1334,3 +1334,46 @@ item-recommendation tutorial is yet another).  This sell-tutorial recording neve
 buy round is not *reachable* here to drive end-to-end — porting/verifying the fileidx=1 buy-tutorial
 ENTRY needs a recording of that day (the §9.5 human escalation still stands, but now for the ENTRY, with
 the data-layout + op-5/cs_goto logic already proven correct).
+
+## 10. The LIVE kind-2 sell machine FUN_004658ab — Chip L1a (un-softlock) LANDED 2026-06-20 (`7dfc611`)
+
+The "softlock once Tear tells you to sell her something" = the FIRST REAL CUSTOMER.  After the scripted
+tutorial closes (b534=0xc→0, b51c→0; §9 + the `0c0331c` closing port), the master tick idles and the first
+customer greets at **b534=1, b51c=0** (confirmed @port-fr7115, full-probe drive).  The port's b534==1 arm
+only handled b51c!=0 (the scripted machine); the b51c==0 branch was a bare PORT-DEBT return ⇒ b534 froze.
+
+### 10.1 What was ported (by-address transcription)
+
+- **master tick `FUN_00462403`** (all.c:60397-60668): the **b51c==0 live greeting** (FUN_00460a1a line, Z
+  after reveal → b534=2), the **b5a8==2 dispatch** → FUN_004658ab, and the live **closing/queue** states
+  (0xa "thanks" → 0xc; 0xb leave → 0xd; 0xc/0xd close → f404 ? 0x14 queue-advance : idle, f406 → b520=1
+  leave/dissolve; 0x14 → 0x15 → idle).  The scripted close (b51c!=0 reset) + the ESC-skip b520 leave are
+  preserved.
+- **`FUN_004658ab`** (cs_live_machine): 2 greeting → 6 reaction/price-edit → 0xf decision → 7 accept /
+  8 pushback / 9 reject.  Decision: `offer(b574) < ask(b8)` → (ask<floor(b580) || f406 → 8) else 9;
+  `offer>=ask` → (base·0.8<ask || !f404 → accept 7) else 8.  Reuses cs_offer_up (FUN_00460161),
+  cs_digit_count/edit, cs_input_poll.
+- **`FUN_00460672`** (cs_accept_eval, like-grade): returns 1 if ask within **±0.5%** of b588, 2 within
+  **−5%/+5%**, else 0.  The 4 bands = ftol(b588 × {1.005f@0x519e08, 0.995@0x519e00, 1.05f@0x5198ac,
+  0.95@0x519df8}); if b588<0x6e the 0.995 band collapses to the 1.005 band.  (Ghidra dropped the x87 mults —
+  objdump-transcribed @0x460672.)
+- **`FUN_00460f16`** (cs_pushback_line → 2/3/4) + **`FUN_00460a1a`** (cs_pick_line — the live line picker:
+  ONE rng draw `rand % count` for f404==0 customers, line 0 for the tutorial).
+
+### 10.2 Verification + what's left (Chips L1b/L1c)
+
+Un-softlock proven on the real flow (first-customer **b534 1→2→6→0xf, offer b574=3870** = the §9.2-observed
+value) AND deterministically (host `cs_live_machine_sell_cycle`, the forced-sale f406 path: greeting→2→6→
+0xf→7→0xa→0xc→leave).  A bit-exact port↔retail trace comparison is **blocked on the multi-round nav** (§9.6):
+the port's scripted tutorial closes after 3 rounds, retail after 5, so the two diverge BEFORE the first
+customer — a clean shared trace to the live sell needs the round-2..5 navigation fixed first.
+
+- **L1b — the accept side-effects** (PORT-DEBT(cs-live-sale-fx), all gated f404==0): gold `(&DAT_044e37a4)
+  [player·0xb7f2] += ask` (= bank dword 3), the stock-short decrements (DAT_045109a8), and FUN_00460d52
+  (payout float + the +/- money anim), FUN_00460b3a (best-sell-price record), FUN_004606fc (the exp/payout
+  ticker), FUN_00460083 (inventory add + the displayed-stock wishlist), FUN_0046002a (remove from a list),
+  FUN_00460b93 (447B — the sold-item catalog/like records).  For the FORCED sale (f404=0) these DO run.
+- **L1c — the per-customer dialogue buffer** (PORT-DEBT(cs-kyaku-dialogue)): the engine record's 0x6e70 text
+  / 0x6df8 per-type count / 0x51d8 sprite / 0x5b38 voice, loaded from `kyaku/fN.txt` (the `file:` path the
+  port already parses).  Currently a placeholder "..." drives the reveal so the state advances (rng-correct,
+  text-wrong) — porting the loader gives the real lines + frame-exact reveal timing.
