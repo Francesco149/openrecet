@@ -91,6 +91,7 @@ static int32_t s_b528;   /* DAT_0730b528 — queue advance scratch */
 static int32_t s_b52c;   /* DAT_0730b52c — closing countdown */
 static int32_t s_b530;   /* DAT_0730b530 — sold-pause counter */
 static int32_t s_b534;   /* DAT_0730b534 — SELL sub-state */
+static int32_t s_b538;   /* DAT_0730b538 — "too expensive" pushback latch */
 static int32_t s_b53c;   /* DAT_0730b53c — short flash timer */
 static int32_t s_b558;   /* DAT_0730b558 — greeting Z-gate */
 static int32_t s_b564;   /* DAT_0730b564 — bubble-emit enable */
@@ -1002,6 +1003,248 @@ static void cs_dialogue_reveal_tick(void)
     }
 }
 
+/* ── FUN_00460a1a — pick + load a customer dialogue line ─────────────────────
+ * The live machine's line loader.  For a REAL customer (f404==0, not debug) it
+ * draws ONE rng (rand % line_count) to pick a variant — a load-bearing LCG step;
+ * for the tutorial / forced sale it uses line 0 (no rng).  The line TEXT, sprite
+ * id, voice and per-type count live in the per-kyaku runtime dialogue buffer
+ * (engine record + 0x6df8/0x51d8/0x5b38/0x6e70) which the port does not model
+ * yet ⇒ PORT-DEBT(cs-kyaku-dialogue): a placeholder line drives the reveal so the
+ * state machine advances; the count is clamped to 1 (index 0) so the rng STEP
+ * still matches retail even though the variant index is stubbed.  `slot` = the
+ * b54c/b550 speaker slot. */
+static void cs_pick_line(int slot)
+{
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+    if (!f404) {
+        /* thunk_FUN_005041f6() % count — the variant draw (count clamped to 1 →
+         * index 0).  PORT-DEBT(cs-kyaku-dialogue): the real per-type count. */
+        (void)rng_next15();
+    }
+    if (slot == 0) s_b54c = 0; else s_b550 = 0;   /* sprite id (PORT-DEBT buffer) */
+    s_b558 = 0;
+    s_b548 = 0;
+    /* PORT-DEBT(cs-kyaku-dialogue): the real line text is record[line*0x14+idx]
+     * at +0x6e70; a non-empty placeholder drives the reveal/advance. */
+    s_b270 = "...";
+}
+
+/* ── FUN_00460672 — grade the ask vs the customer's fair value (b588) ─────────
+ * Returns 1 if the ask is within ±0.5% of b588 (great deal → +5 like), 2 within
+ * −5%/+5% (ok → +2), else 0 (+1).  Only tunes the like-count; the accept/reject
+ * is decided by offer-vs-ask in the machine.  Constants objdump-transcribed
+ * (the Ghidra decompile dropped the x87 multiplies): 0x519e08=1.005f,
+ * 0x519e00=0.995, 0x5198ac=1.05f, 0x519df8=0.95. */
+static int cs_accept_eval(void)
+{
+    int iVar1 = (int)((float)s_b588 * 1.005f);    /* @0x519e08 */
+    int iVar2 = (int)((double)s_b588 * 0.995);    /* @0x519e00 */
+    int iVar3 = (int)((float)s_b588 * 1.05f);     /* @0x5198ac */
+    int iVar4 = (int)((double)s_b588 * 0.95);     /* @0x519df8 */
+    if (s_b588 < 0x6e)
+        iVar2 = iVar1;
+    int ask = s_price_ask;                         /* DAT_005c6bb8 */
+    if (iVar1 < ask || ask < iVar2) {
+        if (iVar3 < ask || ask < iVar4)
+            return 0;
+        return 2;
+    }
+    return 1;
+}
+
+/* ── FUN_00460f16 — pick the "too expensive" pushback line variant (2/3/4) ──── */
+static int cs_pushback_line(void)
+{
+    int ret = 2;
+    /* PORT-DEBT(cs-shop-stock): the per-item sold-streak high-short
+     * (DAT_045109aa + b570*4) is not modeled → read 0 (→ variant 2). */
+    int sold = 0;
+    if (sold < 5) { if (sold > 0) ret = 3; }
+    else          ret = 4;
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank != NULL && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0)
+        ret = 3;
+    return ret;
+}
+
+/* ── FUN_00460e50 — the "you sell a lot of this" sold-streak flash trigger ──── */
+static int cs_sold_streak(void)
+{
+    /* PORT-DEBT(cs-shop-stock): reads/writes the per-item sold-streak shorts
+     * (DAT_06a5d564 / DAT_045109a8 high-short) — not modeled; no flash. */
+    return 0;
+}
+
+/* ── FUN_004658ab — the LIVE kind-2 sell machine (the first real customer) ────
+ * Dispatched from the master tick's b5a8==2 arm for b534 ∈ {2,6,0xf,7,8,9}.
+ * State graph (RE §3.5): 2 greeting → 6 reaction/price-edit → 0xf decision →
+ * 7 accept / 8 pushback / 9 reject → (master tick: 0xa thanks → 0xc close →
+ * 0x14/0x15 queue-advance → idle).  Transcribed by-address from 4658ab.c.
+ * PORT-DEBT(cs-live-sale-fx): the accept side-effects (gold/stock/catalog —
+ * FUN_00460d52/b3a/606fc/00083/00f59/0002a/00b93, all gated f404==0), the
+ * details overlay (FUN_004681e6/db/68286), the cursor/SE externals — none move
+ * the b534 state, so they are inert no-ops for the un-softlock trajectory. */
+static void cs_live_machine(void)
+{
+    s_b544 += 1;
+
+    /* FUN_004681e6 detail-card query → 0 in steady state (PORT-DEBT). */
+
+    if (s_b534 == 2) {                          /* greeting */
+        if (s_b544 == 1) {
+            cs_pick_line(1);                    /* FUN_00460a1a(rec,1,1) */
+            s_cust_active[1] = -1;              /* DAT_06a5ea74 = -1 */
+            s_b5a0 = 1;                         /* arrival anim start */
+            /* FUN_00435612 cursor (PORT-DEBT). */
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {   /* line up + Z */
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 6;
+            cs_offer_up();                      /* FUN_00460161 — the customer offer */
+            s_b544 = 0;
+            cs_digit_count();                   /* FUN_0045ff11 */
+        }
+        goto lab_tail;
+    }
+
+    if (s_b534 != 0xf) {
+        if (s_b534 == 6) {                      /* reaction / price-edit */
+            s_cust_active[1] = 0;
+            if (s_b59c == 0) s_b59c = 1;
+            if (s_b544 == 1)
+                cs_pick_line(0);                /* FUN_00460a1a(&ea90,9,0) */
+            /* FUN_00435612 cursor (PORT-DEBT). */
+            if ((s_in_pressed & 0x10) == 0) {
+                cs_digit_edit();                /* FUN_0045ff31 — adjust the ask */
+            } else {
+                s_cust_active[1] = 0;
+                s_b534 = 0xf;                   /* → decision */
+                s_b590 = 0;
+                s_b540 = 0;
+                /* SE 0x143 + FUN_00435693 cursor (PORT-DEBT). */
+            }
+            goto lab_tail;
+        }
+        if (s_b534 == 7) {                      /* accept → sale */
+            if (s_b544 == 1) {
+                cs_pick_line(1);                /* FUN_00460a1a(rec,5,1) */
+                s_cust_active[1] = -1;
+            }
+            if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+                goto lab_tail;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            /* PORT-DEBT(cs-live-sale-fx): f404==0 → gold += ask (DAT_044e37a4),
+             * SE 0x14d, FUN_00460d52/b3a/606fc/00083/00f59/0002a/00b93 (the
+             * payout + catalog + inventory).  Gated f404==0; inert for the
+             * forced/tutorial sale.  The STATE still advances to 10. */
+            s_b534 = 10;
+        } else {
+            if (s_b534 == 8) {                  /* pushback ("too much") */
+                if (s_b544 == 1) {
+                    int line = cs_pushback_line();
+                    s_b5c4 = 0;
+                    const uint8_t *bank = (const uint8_t *)
+                        save_work_dwords_at(save_work_active_slot());
+                    int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+                    int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+                    int uVar6;
+                    if (!f404 || s_b538 != 1) {
+                        if (s_b584 == line && !f406) uVar6 = 10;
+                        else                         uVar6 = 4;
+                    } else {
+                        uVar6 = 0xe;
+                    }
+                    (void)uVar6;                /* line-type → cs_pick_line text (PORT-DEBT) */
+                    cs_pick_line(1);            /* FUN_00460a1a(rec,uVar6,1) */
+                    s_cust_active[1] = -1;
+                }
+                if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+                    s_b55c = 0;
+                    s_cust_active[1] = 0;
+                    int line = cs_pushback_line();
+                    const uint8_t *bank = (const uint8_t *)
+                        save_work_dwords_at(save_work_active_slot());
+                    int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+                    if (s_b584 == line && !f406) {   /* patience spent → leave */
+                        s_b534 = 0xb;
+                        s_b544 = 0;
+                        s_b5a0 = 0;
+                        return;
+                    }
+                    s_b534 = 6;                 /* haggle again (customer re-offers) */
+                    s_b544 = 0;
+                    cs_offer_up();              /* FUN_00460161 */
+                }
+                goto lab_tail;
+            }
+            if (s_b534 != 9)
+                goto lab_tail;
+            /* b534 == 9: final reject */
+            if (s_b544 == 1) {
+                cs_pick_line(1);               /* FUN_00460a1a(rec,6,1) */
+                s_cust_active[1] = -1;
+            }
+            if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+                goto lab_tail;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+        }
+        s_b544 = 0;
+        s_b5a0 = 0;
+        goto lab_tail;
+    }
+
+    /* b534 == 0xf — the HAGGLE DECISION (FUN_004622d9 poll). */
+    {
+        int poll = cs_input_poll();            /* FUN_004622d9 */
+        if (poll != 1) {
+            if (poll == 2) s_b534 = 6;         /* cancel → back to reaction */
+            goto lab_tail;
+        }
+        /* poll == 1 — commit the named price. */
+        const uint8_t *bank =
+            (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+        int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+        s_b538 = 0;
+        /* PORT-DEBT(cs-shop-stock): the b584==3 patience-spent stock penalty
+         * (f404==0) + the reject stock-loss + the like-count tuning all touch the
+         * unmodeled per-item shorts; gated f404==0 (inert for the tutorial). */
+        if (s_b574 < s_price_ask) {            /* offer < ask → too expensive */
+            if (s_price_ask < s_b580 || f406) {
+                s_b534 = 8;                    /* pushback (haggle floor / tutorial) */
+            } else {
+                s_b534 = 9;                    /* reject (− stock, PORT-DEBT) */
+            }
+        } else {                               /* offer >= ask → can accept */
+            int can = ((double)s_price_base * 0.8 < (double)s_price_ask) || !f404;
+            if (can) {
+                (void)cs_accept_eval();        /* FUN_00460672 — like-count (PORT-DEBT) */
+                if (cs_sold_streak())          /* FUN_00460e50 → flash */
+                    s_b53c = 1;
+                s_b534 = 7;                    /* ACCEPT */
+            } else {
+                s_b538 = 1;
+                s_b534 = 8;                    /* pushback */
+            }
+        }
+        s_b59c = 0;
+        s_b544 = 0;
+        /* FUN_00435612 cursor (PORT-DEBT). */
+    }
+
+lab_tail:
+    /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → the item-detail
+     * card (FUN_004681db/68286 + SE 0x2c6). */
+    return;
+}
+
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
  * Owns the per-frame timers + the arrival-anim ramp, then the b534 state switch.
@@ -1162,6 +1405,11 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     }
 
     if (s_b534 != 0) {
+        const uint8_t *bank =
+            (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+        int f406 = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
+
         if (s_b534 == 1) {
             if (s_b51c != 0) {
                 s_b544 += 1;
@@ -1169,41 +1417,169 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                 cs_scripted_tick();           /* FUN_00461c00 (the scripted sell) */
                 return;
             }
-            /* PORT-DEBT(cs-generic-greeting): the b51c==0 live-greeting arm
-             * (all.c:60409-60425) → b534=2 → FUN_004658ab; unused by the scripted
-             * tutorial sell (b51c==1). */
+            /* live greeting (all.c:60409-60425): the first real customer greets via
+             * the line picker, then Z (after the line reveals) → b534=2 (the live
+             * machine).  ea70 (cust_active[0]) is held while waiting so the reveal
+             * runs the next frame, like retail. */
+            s_b544 += 1;
+            if (s_b544 == 1)
+                cs_pick_line(0);              /* FUN_00460a1a(&ea90,0,0) */
+            if (s_b55c == 0)               { s_cust_active[0] = 1; return; }
+            if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
+            s_cust_active[0] = 0;
+            s_b534 = 2;
+            s_b544 = 0;
+            s_b55c = 0;
             return;
         }
-        /* Closing states (all.c:60570-60668).  The SCRIPTED tutorial (b51c!=0)
-         * reaches only b534==0xc at script end (cs_scripted_tick stamps it when
-         * the PC hits the -1 sentinel).  There the f404/b51c conditions all
-         * reduce to b51c!=0, so: run the b52c closing countdown, then reset the
-         * session back to idle (b51c/b524/b534/b55c=0) — which hands off to the
-         * first real customer.  Retires the script-end half of
-         * PORT-DEBT(cs-closing-states). */
-        if (s_b534 == 0xc || s_b534 == 0xd) {
-            if (s_b51c != 0) {
-                s_b52c -= 1;                  /* all.c:60592 (the b51c!=0 arm) */
-                if (s_b52c > 0) return;       /* all.c:60598 closing countdown */
-                s_b52c = 0;                   /* all.c:60603 */
-                if (s_b534 == 0xc) {          /* all.c:60605 — script-end close */
-                    s_b544 += 1;
+        if (s_b534 == 0x1e) {
+            /* PORT-DEBT(cs-sold-pause): the buy/sold-pause arm (all.c:60427-60459)
+             * — not in the SELL trajectory (1→2→6→0xf→7→0xa→0xc→0x14→0x15→0). */
+            return;
+        }
+        if (s_b534 == 10) {                   /* 0xa — "thank you" line (60461-60478) */
+            s_b544 += 1;
+            if (s_b544 == 1)
+                cs_pick_line(0);              /* FUN_00460a1a(&ea90,5,0) */
+            if (s_b55c == 0)               { s_cust_active[0] = 1; return; }
+            if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
+            s_cust_active[0] = 1;
+            s_b534 = 0xc;                     /* → closing */
+            s_b544 = 0;
+            s_b55c = 0;
+            return;
+        }
+        if (s_b534 == 0xb) {                  /* 0xb — leave/dissolve dialogue (60480-60515) */
+            if (!f404 || s_b51c != 0) {
+                s_b52c -= 1;
+                s_cust_active[0] = 0;
+            } else {
+                s_b544 += 1;
+                if (0x14 < s_b544) { s_b544 = 0; s_b534 = 0x14; s_b5b8 = 1; }
+            }
+            s_b5c4 = 0;
+            if (s_b52c < 1) {
+                s_b544 += 1;
+                s_b52c = 0;
+                if (s_b544 == 1)
+                    cs_pick_line(0);          /* FUN_00460a1a(&ea90,3,0) */
+                if (s_b55c != 0) {
+                    if (s_in_pressed & 0x10) {
+                        s_cust_active[0] = 0;
+                        s_b534 = 0xd;
+                        s_b544 = 0;
+                        s_b55c = 0;
+                        return;
+                    }
+                    s_cust_active[0] = 1;
+                    return;
+                }
+                s_cust_active[0] = 1;
+                return;
+            }
+            s_b5c4 = 0;
+            return;
+        }
+        if (s_b534 == 0x15) {                 /* 0x15 — queue-advance countdown (60517-60525) */
+            s_b52c -= 1;
+            s_cust_active[1] = 0;
+            if (0 < s_b52c)
+                return;
+            s_b52c = 0;
+            /* falls to the common tail (idle reset) */
+        } else if (s_b534 == 0x14) {          /* 0x14 — queue-advance dialogue (60527-60562) */
+            s_b544 += 1;
+            s_cust_active[1] = 1;
+            if (s_b544 == 1) {
+                if (s_b5b8 == 0) {
+                    /* iVar4 = (b528==2) - 4 (the line id to load) */
+                } else {
+                    s_b528 -= 1;
+                    s_b318 -= 1;
+                    s_b5b8 = 0;
+                }
+                /* PORT-DEBT(cs-queue-line): the next-customer tuto line
+                 * (FUN_0046098f over g_tuto by the computed id) — a placeholder
+                 * drives the reveal so the state advances. */
+                s_b270 = "...";
+                s_b548 = 0;
+                s_b558 = 0;
+            }
+            if (s_b55c == 0)
+                return;
+            if (s_in_pressed & 0x10) {
+                s_cust_active[0] = 0;
+                s_b534 = 0x15;
+                s_b544 = 0;
+                s_b55c = 0;
+                return;
+            }
+            return;
+        } else if (s_b534 != 0xc && s_b534 != 0xd) {
+            /* the b5a8 transaction dispatch (all.c:60563-60588) for the live states
+             * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
+             * PORT-DEBT(cs-other-kinds): 0/1/3/4/5 = buy/chat/kind0/kind5. */
+            if (s_b5a8 == 2) {
+                cs_live_machine();            /* FUN_004658ab */
+                return;
+            }
+            return;
+        } else {                              /* 0xc / 0xd — closing (all.c:60590-60662) */
+            int cVar1 = f404;
+            if (cVar1 == 0 || s_b51c != 0)
+                s_b52c -= 1;
+            if (0 < s_b52c) {
+                if (cVar1 == 0)    return;
+                if (s_b51c != 0)   return;
+            }
+            if (cVar1 == 0 || s_b51c != 0)
+                s_b52c = 0;
+            if (s_b534 == 0xc) {
+                s_b544 += 1;
+                if (s_b51c != 0) {            /* SCRIPTED tutorial close (ported earlier) */
                     s_b51c = 0;
                     s_b524 = 0;
                     s_b534 = 0;
                     s_b55c = 0;
+                    return;
                 }
+                /* live-customer close (60614-60661): show the close line, Z →
+                 * queue-advance (f404) or idle (!f404); f406 → leave/dissolve. */
+                s_cust_active[0] = 1;
+                if (s_b544 == 1) {
+                    /* PORT-DEBT(cs-close-fx): FUN_004607f3 + the gold banner +
+                     * b150; the line type (b5a8==3?0xb:b5a8==0?7:8) is text only. */
+                    cs_pick_line(0);          /* FUN_00460a1a(&ea90,uVar18) */
+                }
+                if (s_b55c == 0)
+                    return;
+                if ((s_in_pressed & 0x10) == 0)
+                    return;
+                if (!f404) {
+                    s_b534 = 0;
+                } else {
+                    s_b544 = 0;
+                    s_b534 = 0x14;            /* → queue-advance the next customer */
+                }
+                if (!f406) {
+                    s_cust_active[0] = 0;
+                    s_b524 = 0;
+                    s_b55c = 0;
+                    return;
+                }
+                s_cust_active[0] = 0;
+                s_b520 = 1;                   /* f406 → leave/dissolve to free-roam */
+                s_b524 = 0;
+                s_b55c = 0;
                 return;
             }
-            /* PORT-DEBT(cs-closing-real): the b51c==0 real-closing dialogue +
-             * sold-pause (all.c:60614-60668) — the first real customer's close. */
-            return;
+            /* b534 == 0xd: falls to the common tail */
         }
-        /* b534 ∈ the live-machine states (2/6/0xf/7/0x10/0x12/0x1e): the b5a8
-         * dispatch (FUN_004658ab sell / FUN_00464af0 buy / FUN_004639f5 chat …)
-         * for the first REAL customer after the tutorial.  Reached once the
-         * closing above resets to idle and the queue advances a live customer.
-         * PORT-DEBT(cs-live-machine) — the next arc. */
+
+        /* common tail (all.c:60665-60668): reset to idle. */
+        s_cust_active[0] = 0;
+        s_b524 = 0;
+        s_b534 = 0;
         return;
     }
 
@@ -1220,6 +1596,7 @@ void customer_service_reset(void)
     s_cust_active[0] = s_cust_active[1] = 0;
     s_queue_count = 0;
     s_b318 = s_b51c = s_b520 = s_b524 = s_b528 = s_b52c = s_b530 = s_b534 = 0;
+    s_b538 = 0;
     s_b53c = s_b558 = s_b564 = s_b568 = s_b58c = s_b590 = s_b594 = s_b598 = 0;
     s_b59c = s_b5a0 = s_b5ac = s_b5b0 = s_b5b4 = s_b5b8 = s_b5bc = s_b5c0 = 0;
     s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = s_b5e4 = 0;

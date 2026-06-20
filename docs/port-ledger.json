@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 474,
-  "unported": 1990,
+  "ported": 477,
+  "unported": 1987,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 558,
-  "pct_touched": 21.9,
+  "touched": 561,
+  "pct_touched": 22.0,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -4988,7 +4988,8 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.c",
-    "src/customer_haggle.h"
+    "src/customer_haggle.h",
+    "src/customer_service.c"
    ]
   },
   {
@@ -5006,8 +5007,10 @@
    "size": 196,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x46094a",
@@ -5035,8 +5038,10 @@
    "size": 288,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460b3a",
@@ -5062,8 +5067,10 @@
    "size": 254,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460e50",
@@ -5071,8 +5078,10 @@
    "size": 106,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460eba",
@@ -5089,8 +5098,10 @@
    "size": 67,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460f59",
@@ -5224,10 +5235,8 @@
    "size": 774,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
-   "src": [
-    "src/customer_service.c"
-   ]
+   "status": "unported",
+   "src": []
   },
   {
    "va": "0x463cfb",
@@ -5256,10 +5265,8 @@
    "size": 2178,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
-   "src": [
-    "src/customer_service.c"
-   ]
+   "status": "unported",
+   "src": []
   },
   {
    "va": "0x465372",
@@ -5385,6 +5392,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/encyclopedia.c"
    ]
   },
@@ -22889,6 +22897,7 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.h",
+    "src/customer_service.c",
     "src/diff_entry.c",
     "src/diff_entry.h",
     "src/npc_schedule.c",

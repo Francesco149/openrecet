@@ -401,3 +401,63 @@ int test_cs_esc_skip_yes_starts_leave(void)
     T_ASSERT_EQ_I(customer_service_b5e4(), 0);          /* prompt consumed */
     return 0;
 }
+
+/* ── the LIVE kind-2 sell machine FUN_004658ab (the first real customer) ──────
+ * The forced-sale path (f406!=0) runs b51c=0 → the live machine (FUN_004658ab),
+ * NOT the scripted tutorial.  Drives the FULL sell cycle deterministically:
+ * idle → greeting (b534=1,b51c=0) → live machine 2 (greeting) → 6 (reaction) →
+ * 0xf (decision, offer>=ask → accept) → 7 → master-tick 0xa (thanks) → 0xc
+ * (close) → (f406 → b520=1 leave/dissolve).  kyaku 13 initial=128 ⇒ the first
+ * offer (base 3000 × 1.28 = 3840) ≥ ask 3000 ⇒ the accept branch.  This is the
+ * un-softlock: pre-fix the b534==1,b51c==0 greeting was a bare return (frozen). */
+int test_cs_live_machine_sell_cycle(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;   /* forced sale → b51c=0 (live) */
+    rng_seed(0x1234);
+
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0];
+    kyaku_record_t sv_k13 = g_kyaku.records[13];
+    g_item.count = 1;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    g_item.records[0].item_id = 3; g_item.records[0].price = 3000;
+    g_kyaku.records[13].initial = 128;   /* offer = 3000·1.28 = 3840 ≥ ask 3000 */
+    g_kyaku.records[13].random  = 0;
+
+    customer_service_session_init();
+    T_ASSERT_EQ_I(customer_service_b51c(), 0);        /* live (NOT scripted) */
+
+    /* idle → greeting (no input). */
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+    T_ASSERT_EQ_I(customer_service_b534(), 1);        /* the first-customer greeting */
+    T_ASSERT_EQ_I(customer_service_b51c(), 0);        /* b51c==0 (used to FREEZE here) */
+
+    /* drive the sell with Z held: greeting → 2 → 6 → 0xf → 7 → 0xa → 0xc → leave. */
+    int seen[64]; for (int i = 0; i < 64; i++) seen[i] = 0;
+    int leave = 0;
+    for (int i = 0; i < 900; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0x10, 0x10, 0);
+        int s = customer_service_b534();
+        if (s >= 0 && s < 64) seen[s] = 1;
+        if (customer_service_b520() != 0) { leave = 1; break; }
+    }
+
+    g_item.count = sv_cnt;                            /* restore shared state */
+    g_item.records[0] = sv_r0;
+    g_kyaku.records[13] = sv_k13;
+
+    T_ASSERT(seen[2]);            /* live-machine greeting */
+    T_ASSERT(seen[6]);            /* reaction / price-edit */
+    T_ASSERT(seen[0xf]);         /* haggle decision */
+    T_ASSERT(seen[7]);            /* ACCEPT (offer ≥ ask) */
+    T_ASSERT(seen[0xa]);         /* master-tick "thank you" */
+    T_ASSERT(seen[0xc]);         /* master-tick close */
+    T_ASSERT(leave);              /* f406 close → b520 leave (no softlock) */
+    return 0;
+}
