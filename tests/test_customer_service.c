@@ -282,3 +282,53 @@ int test_cs_occ3_second_load_gates_at_queue_advance(void)
     T_ASSERT_EQ_I(customer_service_b56c(), 1);  /* the b56c>0 queued-customer gate */
     return 0;
 }
+
+/* Closing reset — when the scripted PC hits the -1 sentinel the scripted tick
+ * stamps b534=0xc, and the master tick's closing branch (all.c:60605-60613,
+ * the b51c!=0 arm) resets the session back to idle (b51c=0, b524=0, b534=0).
+ * Before this was ported the tutorial SOFTLOCKED at "If you can sell me an
+ * item…" (the script-end close was a bare `return`).  Drive: greeting →
+ * sentinel → b534=0xc → one more tick → b534==0, b51c==0. */
+int test_cs_closing_resets_session_at_sentinel(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0];
+    struct tuto_record sv_t0 = g_tuto[0];
+
+    g_item.count = 1;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    g_item.records[0].item_id = 3; g_item.records[0].price = 3000;
+    /* g_tuto[0] = the -1 sentinel: the very first scripted tick closes. */
+    memset(&g_tuto[0], 0, sizeof g_tuto[0]);
+    g_tuto[0].id = 0; g_tuto[0].opcode = -1;
+
+    customer_service_session_init();
+
+    int saw_closing = 0;
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+        if (customer_service_b534() == 0xc) saw_closing = 1;
+        /* once closed + reset back to idle, stop */
+        if (saw_closing && customer_service_b534() == 0 &&
+            customer_service_b51c() == 0)
+            break;
+    }
+
+    int b534 = customer_service_b534();
+    int b51c = customer_service_b51c();
+
+    g_item.count = sv_cnt; g_item.records[0] = sv_r0;
+    g_tuto[0] = sv_t0;
+
+    T_ASSERT_EQ_I(saw_closing, 1);              /* sentinel → b534=0xc */
+    T_ASSERT_EQ_I(b534, 0);                     /* closing reset → idle */
+    T_ASSERT_EQ_I(b51c, 0);                     /* scripted session ended */
+    return 0;
+}

@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **552** (21.7%) — verified 70, stubbed 14, ported 468
-- unported: **1996**
+- touched: **554** (21.7%) — verified 70, stubbed 14, ported 470
+- unported: **1994**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (468) — reimplemented, no probe yet
+## ported (470) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -301,7 +301,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ | customer_service.c |
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_camera.c (+2) |
+| 0x4639f5 | FUN_004639f5 | 774 | ✓ | customer_service.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
+| 0x464af0 | FUN_00464af0 | 2178 | ✓ | customer_service.c |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, font_draw.c (+2) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+2) |

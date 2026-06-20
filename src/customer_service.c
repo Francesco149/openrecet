@@ -1086,9 +1086,36 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
              * tutorial sell (b51c==1). */
             return;
         }
-        /* PORT-DEBT(cs-closing-states): b534 ∈ {0x1e,10,0xb,0x15,0x14,0xc,0xd}
-         * closing / sold-pause / queue-advance + the b5a8 live-machine dispatch
-         * (all.c:60427-60668) — reached at script end (b534→0xc), beyond window. */
+        /* Closing states (all.c:60570-60668).  The SCRIPTED tutorial (b51c!=0)
+         * reaches only b534==0xc at script end (cs_scripted_tick stamps it when
+         * the PC hits the -1 sentinel).  There the f404/b51c conditions all
+         * reduce to b51c!=0, so: run the b52c closing countdown, then reset the
+         * session back to idle (b51c/b524/b534/b55c=0) — which hands off to the
+         * first real customer.  Retires the script-end half of
+         * PORT-DEBT(cs-closing-states). */
+        if (s_b534 == 0xc || s_b534 == 0xd) {
+            if (s_b51c != 0) {
+                s_b52c -= 1;                  /* all.c:60592 (the b51c!=0 arm) */
+                if (s_b52c > 0) return;       /* all.c:60598 closing countdown */
+                s_b52c = 0;                   /* all.c:60603 */
+                if (s_b534 == 0xc) {          /* all.c:60605 — script-end close */
+                    s_b544 += 1;
+                    s_b51c = 0;
+                    s_b524 = 0;
+                    s_b534 = 0;
+                    s_b55c = 0;
+                }
+                return;
+            }
+            /* PORT-DEBT(cs-closing-real): the b51c==0 real-closing dialogue +
+             * sold-pause (all.c:60614-60668) — the first real customer's close. */
+            return;
+        }
+        /* b534 ∈ the live-machine states (2/6/0xf/7/0x10/0x12/0x1e): the b5a8
+         * dispatch (FUN_004658ab sell / FUN_00464af0 buy / FUN_004639f5 chat …)
+         * for the first REAL customer after the tutorial.  Reached once the
+         * closing above resets to idle and the queue advances a live customer.
+         * PORT-DEBT(cs-live-machine) — the next arc. */
         return;
     }
 

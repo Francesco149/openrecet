@@ -438,6 +438,7 @@ struct test_case {
     X(cs_master_tick_idle_gated_by_load) \
     X(cs_scripted_first_offer) \
     X(cs_occ3_second_load_gates_at_queue_advance) \
+    X(cs_closing_resets_session_at_sentinel) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

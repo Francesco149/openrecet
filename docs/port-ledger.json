@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 468,
-  "unported": 1996,
+  "ported": 470,
+  "unported": 1994,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 552,
+  "touched": 554,
   "pct_touched": 21.7,
   "pct_verified": 2.7,
   "port_debt": 25
@@ -5216,8 +5216,10 @@
    "size": 774,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x463cfb",
@@ -5246,8 +5248,10 @@
    "size": 2178,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x465372",
