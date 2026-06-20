@@ -1206,12 +1206,20 @@ the offer commit (b608→4, b574 set, b58c ramps 0→5 then 5→0). (The earlier
 the OLD slow BMP-dumping drive dying the very frame the choice opened; `--capture-trigger-only` made the
 drive 37 s vs 481 s and showed b58c ramping cleanly.) The probe now carries b51c/b608/b5b0.
 
-**REMAINING — round 2 doesn't open (a pre-existing scripted-machine multi-round gap this fix exposed):**
-after round 1's PAUSE_CLOSE (f3259) the round-2 segment's FIRST input is X (`0x0020`) at seg-frame 99
-(=f3358); the exe exits ~3 frames later (f3361) WITHOUT round 2's BARGAIN ever opening. So the port
-mishandles that post-round-1 input (likely treats X as cancel/exit-haggle, or the `cs_scripted_tick`
-round loop doesn't re-arm the price-input after a commit) instead of advancing to round 2's re-haggle.
-**Next-session:** probe b604(PC)/b600/b534/cc08 across f3260-3361 to see whether cc08 drops (haggle
-exited) or the PC stalls; cross-ref `FUN_00461c00`'s post-confirm opcode flow (the LAB after
-`lab_advance_pc` at the op-4 commit) vs the port's `cs_scripted_tick`. This is the next SELL-side
-navigation blocker; the BUY round is still separately blocked on a buy-tutorial recording (§9.5).
+**REMAINING — round 2 navigation UNVERIFIED (a HARNESS early-exit, NOT a confirmed scripted gap):**
+after round 1's PAUSE_CLOSE (f3258) the exe self-exits cleanly at ~f3360, ~3 frames after the round-2
+segment's FIRST input (X `0x0020` @seg-frame 99 = f3357), with cc08 STILL 4 and the scripted machine
+progressing normally (b608 0→-1→0 = a dialogue advance). The exit is NOT max-frames (40000), NOT
+max-duration (480s), and NOT the caprange/calltrace window end (verified: stop @3360 with BOTH windows
+[627,7627)) — so it's a `WM_CLOSE`/`DestroyWindow` (main.c only PostQuits on max-frames/duration/
+window-destroy). So the harness quits before the round-2 segment's later inputs (the re-haggle commit
+@seg-frame 1735) ever apply ⇒ round 2's BARGAIN never gets a chance to open. **The early-exit pattern
+tracks the first UNFIRED `{wait}`** (pre-fix the exe stopped ~4f after the offer/line-50 wait; post-fix
+~100f after the round-2/line-68 wait) — i.e. the harness appears to give up shortly after a no-timeout
+`{wait}` stops resolving, BEFORE the segment's inputs finish applying. **Next-session (HARNESS first,
+then re-verify):** find what posts WM_CLOSE on an unfired no-timeout `{wait}` (the segtrace itself only
+spams sticky inputs + breaks — input_segtrace.c:737-825 — it does NOT quit; check scenario-test /
+run-openrecet supervisor + main.c's WndProc for a stuck-wait/diverged watchdog); OR add a `timeout` to
+the round `{wait PAUSE_OPEN}`s (measured from the segment's LAST input, like the committed walk fix) so
+the round-2 inputs apply before the wait gives up. THEN re-drive to see if the port actually re-haggles
+rounds 2-5. The BUY round is still separately blocked on a buy-tutorial recording (§9.5).

@@ -201,9 +201,10 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   state, port 1:1 + host-test the gold-cap/down-math.  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
   (`2fb5b39`, RE §9.6):** the port now fires PAUSE_OPEN@f3128 + PAUSE_CLOSE@f3259 (131f, matches retail b150
   130f) via `customer_service_bargain_active()` (scripted b608==4) OR'd into the anchor's pause_active (signal
-  only — no gameplay effect).  **Round 2 still doesn't open** = a pre-existing scripted-machine multi-round gap
-  the fix exposed (after round 1's PAUSE_CLOSE the post-round-1 X@seg-f99 exits the haggle instead of
-  re-haggling; probe b604/cc08 across f3260-3361 + cross-ref FUN_00461c00's post-confirm flow).  RE §9.6.
+  only — no gameplay effect).  **Round 2 navigation UNVERIFIED** — the exe self-exits at ~f3360 (a WM_CLOSE, NOT max-frames/duration/
+  window-end) ~3f after the round-2 segment's first input, cc08 still 4 + the machine progressing; a HARNESS
+  early-exit on the unfired round-2 `{wait}`, not a confirmed scripted gap.  Next: find/fix the stuck-wait
+  WM_CLOSE (or add a `{wait …, timeout}`), THEN re-verify rounds 2-5.  RE §9.6.
   The cc08==4 SELL haggle-UI render + the "!" tooltip + the camera-hint overlap remain DONE for this trace.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
