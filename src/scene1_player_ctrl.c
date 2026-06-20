@@ -2037,6 +2037,13 @@ void scene1_player_ctrl_tick(void)
                 CALL_TRACE_I32("b560",  cs.b560);
                 CALL_TRACE_I32("b540",  cs.b540);
             }
+            /* scripted-machine probes (RE §9): b51c (scripted gate), b608 (script
+             * sub-state; ==4 = the BARGAIN price-confirm choice that should fire
+             * PAUSE_OPEN), b5b0 (fileidx — always 0; tuto2/buy is PC-progression
+             * not fileidx=1).  Mirror the extended retail 0x48670f probe. */
+            CALL_TRACE_I32("b51c", customer_service_b51c());
+            CALL_TRACE_I32("b608", customer_service_b608());
+            CALL_TRACE_I32("b5b0", customer_service_fileidx());
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
              * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn

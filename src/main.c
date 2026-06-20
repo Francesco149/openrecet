@@ -87,6 +87,7 @@
 #include "scene1_display_menu.h"  /* display_menu_render (cc04==1 menu panel) */
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
+#include "customer_service.h"       /* customer_service_bargain_active — PAUSE_OPEN at the haggle */
 #include "scene1_hud.h"
 #include "scene1_top_hud.h"   /* scene1_top_hud_render (FUN_00406d50) — mode-8 HUD */
 #include "scene1_fps.h"
@@ -2748,7 +2749,14 @@ static void render_dispatch(void)
              * cursor). town-map-RE.md §5b #4 / engine-quirks. */
             .pause_active     = (g_scene_pause_state_b150 != 0)
                                 || (player_ctrl_cc04() != 0)
-                                || (g_scene_state == SCENE_STATE_WORLDMAP),
+                                || (g_scene_state == SCENE_STATE_WORLDMAP)
+                                /* The cc08==4 BARGAIN price-confirm choice (b608==4):
+                                 * retail sets the shared DAT_0438b150 here via
+                                 * choice_box_open; the port split b150 so the haggle
+                                 * never set the anchor's flag — fire PAUSE_OPEN at the
+                                 * haggle like retail so a haggle trace is replayable
+                                 * (RE §9.6). */
+                                || (customer_service_bargain_active() != 0),
             /* SAVE_PICKER_READY: the pause Save submenu is open + navigable.
              * Re-syncs save-picker nav past the per-side pause-open phase. */
             .save_picker_active = pause_save_picker_navigable(g_scene_state),

@@ -332,6 +332,16 @@ int32_t customer_service_b544(void)        { return s_b544; }
 int32_t customer_service_b590(void)        { return s_b590; }
 int32_t customer_service_b1cc(void)        { return s_b1cc; }
 int32_t customer_service_active(void)      { return s_cs_active; }
+int32_t customer_service_b51c(void)        { return s_b51c; }
+int32_t customer_service_b608(void)        { return s_b608; }
+int32_t customer_service_fileidx(void)     { return s_price_fileidx; }
+/* The BARGAIN price-confirm choice is open (scripted machine b608==4 — the
+ * cs_input_poll Yes/No state that ramps b58c).  Retail sets DAT_0438b150 (the
+ * shared modal-cursor flag, → the PAUSE_OPEN anchor) here via choice_box_open;
+ * the port split b150 so the haggle never set the flag the anchor reads.  This
+ * lets the anchor OR it in so PAUSE_OPEN fires at the BARGAIN like retail
+ * (RE §9.6) — the prerequisite for replaying any haggle trace on the port. */
+int32_t customer_service_bargain_active(void) { return s_b51c != 0 && s_b608 == 4; }
 void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
 
 /* Once-per-frame render-state snapshot (FUN_0046602e + FUN_00466b7b inputs). */

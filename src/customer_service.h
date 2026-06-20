@@ -93,6 +93,16 @@ int32_t customer_service_b1cc(void);
  * both render functions (FUN_0046602e/FUN_00466b7b gate on `b7b0 != 0`). */
 int32_t customer_service_active(void);
 
+/* Scripted-machine state probes (RE §9): b51c (DAT_0730b51c, the scripted gate),
+ * b608 (DAT_0730b608, the script sub-state; ==4 = the price-confirm choice),
+ * fileidx (DAT_005c6bb0).  customer_service_bargain_active() == (b51c!=0 &&
+ * b608==4) — the BARGAIN choice is open; the anchor ORs it into pause_active so
+ * PAUSE_OPEN fires at the haggle like retail's DAT_0438b150 (RE §9.6). */
+int32_t customer_service_b51c(void);
+int32_t customer_service_b608(void);
+int32_t customer_service_fileidx(void);
+int32_t customer_service_bargain_active(void);
+
 /* The active dialogue/script-file index (DAT_005c6bb0) — set at the cc08==4
  * entry sites by FUN_00461bf6(idx) BEFORE session_init.  Selects the tuto
  * script block g_tuto[idx*200+pc] the scripted machine walks. */
