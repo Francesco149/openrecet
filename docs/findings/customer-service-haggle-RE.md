@@ -1198,7 +1198,15 @@ The PORT drive stalls at the first BARGAIN: it plays round 1 to the offer (b574 
 (`FUN_00434def`) when the BARGAIN Yes/No choice opens — empirically b150 0→1 at the offer commit
 (f16452), tracking the b58c button ramp (0→5), and 1→0 when it closes (f16582). **The port's
 `pause_active` reads ONLY `g_scene_pause_state_b150` (scene_pause), which the haggle BARGAIN buttons
-(`customer_service_render.c` §4, b58c) never set** — the port split retail's single shared b150. Fix:
-make the BARGAIN choice-button state set the b150 the anchor reads (or OR the haggle modal into
-`pause_active`). This is a real parity gap (the world pauses during the BARGAIN choice) AND the
-prerequisite for driving ANY haggle trace (sell or buy) on the port for verification.
+(`customer_service_render.c` §4, b58c) never set** — the port split retail's single shared b150.
+
+The post-offer choice flow IS ported (`cs_scripted_tick` b608==4 → `cs_input_poll` ramps b58c 0→5 →
+commit/cancel, customer_service.c:825-837), so PAUSE_OPEN *should* be reachable once b150 is wired.
+**Unresolved (needs a proper drive):** the port call_trace shows `b574` set @f3124 (offer=1572) but
+`b58c` still **0** at sim-end (f3131) — only 7 frames later, and the drive HUNG on `{wait PAUSE_OPEN}`
+at ~154 ms/frame (turbo appears inactive during an unsatisfied wait, and the held Z input may keep
+b608 oscillating), so this is INCONCLUSIVE — b58c likely just hadn't ramped yet. **Next-session
+navigation fix (two parts):** (1) drive the port past the offer with the trailing `{wait}`s stripped
+or given a `timeout` and confirm b58c ramps 0→5 + the round loops (Okay!/Start-Again); (2) set the
+b150 the anchor reads when that choice is up (b58c>0 in cc08==4), so PAUSE_OPEN fires like retail.
+This is the prerequisite for replaying ANY haggle trace (sell or buy) on the port for side-by-side.
