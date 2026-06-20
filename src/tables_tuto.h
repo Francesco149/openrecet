@@ -8,15 +8,19 @@
  * Each non-blank non-comment line becomes one record in
  * `g_tuto[TUTO_RECORD_COUNT]`.
  *
- * Major engine quirk: the **parser writes** at slot
- * `(file_idx * 50 + record_idx)` but the **consumer** (FUN_00461c00 et
- * al.) reads at slot `(file_idx * 200 + record_idx)`. The two strides
- * disagree by a factor of 4, so the parser only ever fills file-0's
- * 200-slot region (and the first few records of files 1/2 by accident).
- * Vendor data overflows the parser's 50-record cap on every file. See
- * `docs/findings/engine-quirks.md` for the full story; we faithfully
- * reproduce the parser side and let the consumer port deal with the
- * read side.
+ * Parser/consumer stride: BOTH the parser (FUN_00475270) and the
+ * consumer (FUN_00461c00) place file `f`'s records at slot
+ * `(f * 200 + record_idx)` — i.e. tuto1@0, tuto2@200, tuto3@400, each
+ * file in its own clean 200-slot region, NO overlap.  **Runtime-confirmed**
+ * 2026-06-20 by a Frida dump of retail's `g_tuto` (&DAT_005d1fc8): tuto1
+ * filled slots 0-78, tuto2 200-260, tuto3 400-440.  (Ghidra mis-decompiled
+ * the parser's per-file `imul …,0xe740` byte stride as `local_c * 0x32`
+ * = 50; the real per-file record stride is 200, matching the consumer's
+ * `DAT_005c6bb0 * 0xe740` at FUN_00461c00.)  An EARLIER port misread it as
+ * a 50-vs-200 mismatch and "faithfully reproduced" the overlap — which
+ * corrupted tuto2/tuto3 (their records collided into tuto1's tail) and
+ * SOFTLOCKED the buy-tutorial (tuto2) haggle.  See `docs/findings/
+ * customer-service-haggle-RE.md` §9.8.
  *
  * Pure C, no Win32 surface — compiles under host gcc for unit testing.
  */
@@ -26,8 +30,10 @@
 
 #include <stddef.h>
 
-/* Engine parser stride per file (`local_c * 0x32` in FUN_00475270). */
-#define TUTO_PARSER_STRIDE     50
+/* Engine parser stride per file: 200 records (`local_c * 0xe740` bytes
+ * = 200 * 0x128 in FUN_00475270 — runtime-confirmed; Ghidra rendered the
+ * imul as `* 0x32`, wrong).  Equals the consumer stride → no overlap. */
+#define TUTO_PARSER_STRIDE     200
 
 /* Engine consumer stride per file (`DAT_005c6bb0 * 0xe740 / 0x128`
  * in FUN_00461c00, line 59759 of all.c). */
@@ -97,10 +103,10 @@ extern struct tuto_record g_tuto[TUTO_RECORD_COUNT];
  * the last record is set to opcode = TUTO_OP_SENTINEL.
  *
  * Returns the number of records actually parsed (excludes the
- * sentinel). Caller is responsible for sizing `records` large enough
- * to absorb the engine's overflow — at minimum
- * `file_index * TUTO_PARSER_STRIDE + lines_in_file + 1`. The shared
- * `g_tuto[600]` is always large enough for vendor data.
+ * sentinel). Each file owns its own 200-slot region
+ * (`file_index * TUTO_PARSER_STRIDE ..  +199`); vendor files fit well
+ * inside it (tuto1≈135, tuto2≈90, tuto3≈60), so files never collide.
+ * The shared `g_tuto[600]` holds all three.
  *
  * `data` is read as raw bytes; trailing NUL is not required since
  * `size` is authoritative. Lines may use LF or CRLF endings.

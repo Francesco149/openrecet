@@ -549,13 +549,13 @@ static void load_tuto_loop(void)
         if (n > TUTO_PARSER_STRIDE) overflow++;
         fprintf(stderr, "tables: %s — %zu bytes (records=%d%s)\n",
                 path, sz, n,
-                n > TUTO_PARSER_STRIDE ? " ⚠ overflows 50-slot cap" : "");
+                n > TUTO_PARSER_STRIDE ? " ⚠ overflows 200-slot region" : "");
         free(buf);
     }
     if (overflow > 0) {
         fprintf(stderr,
-                "tables: tuto overflow — %d/%d files exceed the 50-slot "
-                "parser cap (engine quirk: stride mismatch vs consumer)\n",
+                "tables: tuto overflow — %d/%d files exceed the 200-record "
+                "per-file region (would collide into the next file)\n",
                 overflow, TUTO_FILE_COUNT);
     }
     (void)total;

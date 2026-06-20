@@ -149,7 +149,7 @@ struct test_case {
     X(tables_tuto_id_minus_one_sentinel) \
     X(tables_tuto_id_below_minus_one_text_only) \
     X(tables_tuto_file_index_stride) \
-    X(tables_tuto_overflows_cap) \
+    X(tables_tuto_no_overlap_into_next_file) \
     X(tables_tuto_vendor_like_shape) \
     \
     X(tables_item_empty) \

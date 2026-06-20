@@ -487,61 +487,56 @@ to what actually runs.
 > 📍 `src/tables_enemy.c` (port), `docs/formats/data-text.md`
 > "enemy.txt" section (alias and miss tables).
 
-## 22. The tutorial loader's parser stride is 1/4 of what the consumer reads
+## 22. The tutorial loader's parser stride is 200 — matches the consumer (NO mismatch)
+
+> ⚠ **CORRECTED 2026-06-20 (runtime Frida dump of retail's `g_tuto`).**  This
+> section previously claimed a parser-stride-50 vs consumer-stride-200 *mismatch*
+> with a cascade of overwrites.  **That was wrong** — it trusted a Ghidra
+> decompile that rendered the per-file `imul …,0xe740` byte stride as `local_c *
+> 0x32` (= 50).  A live dump of `&DAT_005d1fc8` settles it.
 
 `FUN_00475270` loads three tutorial scripts (`data/tuto1.txt`,
-`tuto2.txt`, `tuto3.txt`) into a shared 296-byte-per-record array at
-`&DAT_005d1fc8`. The parser writes each record at slot
+`tuto2.txt`, `tuto3.txt`) into a shared 296-byte (`0x128`)-per-record array at
+`&DAT_005d1fc8`.  **Both** the parser AND the gameplay-side dispatcher
+(`FUN_00461c00`, L59759 of `all.c`) use a **200-record stride per file**, so
+each file owns its own clean region and there is **no overlap**:
 
-```c
-local_8 + local_c * 0x32      // record index + (file index × 50)
-```
+| file       | records | g_tuto slots |
+|------------|---------|--------------|
+| tuto1.txt  | 135     | 0 .. 134     |
+| tuto2.txt  | 90      | 200 .. 289   |
+| tuto3.txt  | 60      | 400 .. 459   |
 
-— i.e. it reserves a **50-record stride per file**. The gameplay-
-side dispatcher (`FUN_00461c00`, L59759 of `all.c`) reads with stride
-**200**:
+Runtime-confirmed (Frida dump of retail, Japanese build): tuto1 filled slots
+0-78, **tuto2 200-260**, **tuto3 400-440** (the JP scripts are shorter; the
+file *bases* 0/200/400 are what matters).  The consumer
+`(DAT_005c6bb0 * 200 + b604) * 0x128` and the GOTO resolver
+`FUN_004623bc` (`+ DAT_005c6bb0 * 0xe740`, `0xe740 == 200 * 0x128`) both index
+the same 200-stride layout, so:
 
-```c
-iVar9 = (DAT_005c6bb0 * 200 + _DAT_0730b604) * 0x128;
-```
+- **fileidx 0 → tuto1** (the SELL tutorial),
+- **fileidx 1 → tuto2** (the BUY tutorial — `op-5` reads its `b5b0==1` BUY tier
+  thresholds, and `cs_goto` searches *from slot 200* so it resolves tuto2's own
+  records, no collision with tuto1's ids),
+- **fileidx 2 → tuto3** (the item-recommendation tutorial).
 
-The two strides disagree by a factor of 4. So tuto2/tuto3 data
-*never lands at the address the consumer reads from*; the consumer
-sees BSS-zero records (everything looks like a `CHR0` opcode with id
-0 and empty text).
+The fileidx setter `FUN_00461bf6` is reached from four call sites in the
+`cc08==4` player-control arm; their pushed value is `0`, `2`, or **a register
+(`ebx`) on the conditional branches** — i.e. it is NOT the constant `2` an
+earlier static pass reported, and CAN be `1` for the buy-tutorial entry.
 
-That alone would be merely awkward. The kicker is that **every
-shipping tuto file overflows the parser's 50-record cap**:
+**Port bug this cost us** (fixed 2026-06-20): the port hard-coded
+`TUTO_PARSER_STRIDE = 50` from the bad decompile, so it overlap-corrupted
+tuto2/tuto3 (their records collided into tuto1's tail) — `op-5` thresholds,
+`cs_goto` targets, and dialogue text were all garbled, and walking the PC past
+tuto1 fell into a corrupted tuto2 fragment that **softlocked the buy-haggle
+practice** ("price lower than base" with no escape).  Setting the stride to 200
+makes the port's `g_tuto` bit-match retail's layout.  See
+`docs/findings/customer-service-haggle-RE.md` §9.8.
 
-| file       | records | spills to slots |
-|------------|---------|-----------------|
-| tuto1.txt  | 135     | overwrites tuto2's parser region (50..99) and most of tuto3's (100..134) |
-| tuto2.txt  | 90      | overwrites tuto3's parser region (100..139)             |
-| tuto3.txt  | 60      | walks 10 slots past the 150-slot array entirely         |
-
-So after all three files load, the parser has filled slots 0..159
-with a *cascade* of overwrites — and the consumer, indexing with the
-×200 stride, has to choose between reading file 0's region (slots
-0..199, partially populated) or files 1/2 (slots 200..599, entirely
-empty).
-
-Three of the four call sites for the file-index setter
-`FUN_00461bf6` push the immediate `2` (the new
-`tools/analyze/pe.py callers` subcommand confirms this), so the
-consumer is routinely reading from a never-written region. How the
-tutorial visibly plays at all is not yet answered — possibly the
-dispatcher short-circuits on the BSS-zero `opcode == 0 && text[0] ==
-0` combination, or there's a parallel state machine we haven't
-traced yet.
-
-Whichever it is, our port faithfully reproduces the parser side:
-50-stride writes, overflow into adjacent regions, and a final
-sentinel that lands wherever it lands. The 600-slot array is sized
-generously so the writes are well-defined.
-
-> 📍 `src/tables_tuto.c` (port), `docs/formats/data-text.md`
+> 📍 `src/tables_tuto.{c,h}` (port), `docs/formats/data-text.md`
 > "tuto1/2/3.txt" section, `docs/decompiled/by-address/475270.c`
-> L2898..L3123 (parser), L59759 of `all.c` (consumer).
+> L2898..L3123 (parser — Ghidra's `0x32` is wrong), L59759 of `all.c` (consumer).
 
 ## 23. The Master's Plate recipe trips an unbounded ':' scan
 

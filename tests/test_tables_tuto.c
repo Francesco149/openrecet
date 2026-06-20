@@ -2,7 +2,7 @@
  * test_tables_tuto.c — unit tests for src/tables_tuto.c.
  *
  * Tests the FUN_00475270 tutorial-loop parser: opcode dispatch (16
- * keywords across ASCII + SJIS), parser stride (50 records / file),
+ * keywords across ASCII + SJIS), parser stride (200 records / file),
  * sentinel writes, the engine's `id < -1` text-only branch, and the
  * 7-int reader that walks past line ends on short lines.
  *
@@ -289,30 +289,34 @@ int test_tables_tuto_id_below_minus_one_text_only(void)
 
 int test_tables_tuto_file_index_stride(void)
 {
-    /* file_index=1 → writes start at slot 50 (= file_idx * 50). */
+    /* file_index=1 → writes start at slot 200 (= file_idx * 200). The
+     * parser stride matches the consumer (runtime-confirmed 2026-06-20),
+     * so each file owns its own 200-slot region — no overlap. */
     struct tuto_record fix[FIX_SLOTS];
     clear_fixture(fix);
     static const unsigned char input[] =
         "0,CHR1,1,first record of tuto2\r\n";
     int n = tables_parse_tuto(1, input, sizeof input - 1, fix);
     T_ASSERT_EQ_I(n, 1);
-    /* Slots 0..49 untouched. */
+    /* Slots 0..199 untouched (file-0's clean region). */
     T_ASSERT_EQ_I(fix[0].opcode, TUTO_OP_CHR0);  /* BSS-zero */
     T_ASSERT_EQ_I(fix[0].chr_arg, 0);
-    T_ASSERT_EQ_I(fix[49].chr_arg, 0);
-    /* Record written at slot 50. */
-    T_ASSERT_EQ_I(fix[50].opcode, TUTO_OP_CHR1);
-    T_ASSERT_EQ_I(fix[50].chr_arg, 1);
-    T_ASSERT_EQ_I(strcmp(fix[50].text, "first record of tuto2"), 0);
-    /* Sentinel at slot 51. */
-    T_ASSERT_EQ_I(fix[51].opcode, TUTO_OP_SENTINEL);
+    T_ASSERT_EQ_I(fix[199].chr_arg, 0);
+    /* Record written at slot 200. */
+    T_ASSERT_EQ_I(fix[200].opcode, TUTO_OP_CHR1);
+    T_ASSERT_EQ_I(fix[200].chr_arg, 1);
+    T_ASSERT_EQ_I(strcmp(fix[200].text, "first record of tuto2"), 0);
+    /* Sentinel at slot 201. */
+    T_ASSERT_EQ_I(fix[201].opcode, TUTO_OP_SENTINEL);
     return 0;
 }
 
-int test_tables_tuto_overflows_cap(void)
+int test_tables_tuto_no_overlap_into_next_file(void)
 {
-    /* Synthesize a 60-record file. The 50-slot cap is silent (engine
-     * doesn't check). Verify slot 50..59 are written, and slot 49 also. */
+    /* Synthesize a 60-record file-0. With the stride==200 region, all 60
+     * records sit cleanly in slots 0..59 and NOTHING lands in file-1's
+     * region (slot 200) — proving the files no longer collide (the bug
+     * the old stride-50 reading caused: tuto2/tuto3 overwrote tuto1). */
     struct tuto_record fix[FIX_SLOTS];
     clear_fixture(fix);
 
@@ -329,11 +333,11 @@ int test_tables_tuto_overflows_cap(void)
     int n = tables_parse_tuto(0, buf, pos, fix);
     T_ASSERT_EQ_I(n, 60);
     T_ASSERT_EQ_I(fix[ 0].chr_arg, 0);
-    T_ASSERT_EQ_I(fix[49].chr_arg, 49);
-    /* Slot 50 lands in file-1's parser region (engine quirk). */
-    T_ASSERT_EQ_I(fix[50].chr_arg, 50);
     T_ASSERT_EQ_I(fix[59].chr_arg, 59);
     T_ASSERT_EQ_I(fix[60].opcode, TUTO_OP_SENTINEL);  /* end-sentinel */
+    /* file-1's region (slot 200) is pristine — no collision. */
+    T_ASSERT_EQ_I(fix[200].opcode, TUTO_OP_CHR0);     /* BSS-zero */
+    T_ASSERT_EQ_I(fix[200].chr_arg, 0);
     return 0;
 }
 

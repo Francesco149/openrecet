@@ -1104,17 +1104,18 @@ relative; orv3_window likely needs a re-slice/re-key to a stored non-base anchor
 
 ---
 
-## 9. BUY-ROUND (tuto2) haggle bug ✅ ROOT-CAUSED + FIXED 2026-06-20 (`5c0493a`) — the parser mapped 値段 to op 12 (2-way) instead of op 5 (7-tier)
+## 9. BUY-ROUND (tuto2) haggle bug ✅ REAL ROOT CAUSE FOUND + FIXED 2026-06-20 (§9.8) — the parser stride was 50, should be 200
 
-**⚠ CORRECTION (read this first):** §9.1-§9.5 below recorded an EARLY, WRONG conclusion — that "this
-trace is sell-only / the buy round is a separate day / blocked on a human recording." **That was wrong.**
-The buy round (tuto2) IS reachable in THIS trace: after the round-1 haggle the scripted PC walks straight
-out of tuto1 (slots 0-49) into tuto2 (slots 50+) in the SAME session — you just have to FAST-FORWARD the
-intervening dialogue by HOLDING X (the recorded trace ends with Z held, and dialogue advance needs a Z
-*edge*, so it stalls at PC 69; X-held fast-forwards). The "5 PAUSE_OPEN rounds are all b5a8=2/fileidx=0"
-observation (§9.1) is true but was MIS-INTERPRETED: those are tuto1 sell offers; tuto2's prompt is just
-further along the PC, still under fileidx=0 (the stride-overlap §9.3 is real and is PART OF the bug, not
-a reason it's unreachable). **The actual bug + fix is §9.7.** Keep §9.1-§9.6 for the trail but trust §9.7.
+**⚠⚠ READ §9.8 FIRST — it supersedes §9.1-§9.7.**  The whole §9.1-§9.7 trail rests on a FALSE premise:
+that the parser writes tuto files at a 50-record stride while the consumer reads at 200 (a "stride
+mismatch" that packs tuto1/2/3 into the fileidx-0 region with overlap corruption).  **A runtime Frida
+dump of retail's `g_tuto` (§9.8) proves the parser stride is ALSO 200** — tuto1@0, tuto2@200, tuto3@400,
+NO overlap.  The "mismatch" was a Ghidra decompile error (`imul …,0xe740` rendered as `local_c * 0x32`).
+So: the buy round is NOT reached by "PC walks tuto1→tuto2 in fileidx-0" (§9.7) — that path only existed
+because the PORT's wrong 50-stride corrupted the data into a fake tuto1→tuto2 bridge.  In retail tuto1
+ends cleanly (sentinel ~slot 78) and the buy tutorial is a separate fileidx=1 entry reading tuto2@200.
+The `5c0493a` 値段→op5 fix (§9.7) was correct-but-incidental; the SOFTLOCK the user kept reporting was
+the stride-50 corruption.  **Trust §9.8.  §9.1-§9.7 are kept only as the (wrong-premise) trail.**
 
 **User directive (2026-06-20):** extend into the BUY round, diagnose, fix. **DONE** — see §9.7.
 
@@ -1278,3 +1279,58 @@ overlap, identical port↔retail ⇒ accept. The near-base 70-100% case (targets
 **Pending (human, next session): eyeball the fixed buy dialogue in the viewer** — drive the held-X
 scenario (or just hold X past round 1) and confirm tuto2 now shows its own "go lower"/"good price"
 feedback instead of tuto1's "Yes, it is a sale". This is the user-deferred visual check.
+
+### 9.8 ★★ THE REAL ROOT CAUSE: parser stride was 50, must be 200 — FIXED 2026-06-20
+
+**User report (2026-06-20):** the `5c0493a` (§9.7) fix did NOT work — holding X past the first haggle
+prompt still reaches a "wrong prompt" that **softlocks** ("Tear always says price lower than base even
+when you price it lower").
+
+**Method:** per the porting loop, stop trusting the decompile and OBSERVE retail.  A Frida dump of
+retail's parsed `g_tuto` (`&DAT_005d1fc8`, spawn the unpacked exe, hook `FUN_00475270` onLeave):
+
+```
+retail g_tuto regions (non-empty):  0..78,  200..260,  400..440
+   slot   2  id=9  op=4 (PRIA)            ← tuto1
+   slot   3  id=0  op=5  args=[…]          ← tuto1 first practice
+   slot  54  id=29 op=4  + slot 55 op=5    ← tuto1 値引 haggle  (slots 50-78 are TUTO1, not tuto2!)
+   slot 224  id=9  op=4  + slot 225 op=5   ← tuto2 (base 200)
+   slot 245  id=19 op=4  + slot 246 op=5   ← tuto2 値上
+   slot 400+                                ← tuto3 (base 400)
+```
+
+**The smoking gun:** retail's tuto1 has 79 records (0-78).  If the parser stride were 50, tuto2 (file 1,
+base 50) would have OVERWRITTEN slots 50-78 — but those slots hold *tuto1's own* 値引 haggle (id 29-37).
+So **tuto2 is NOT at slot 50; it's at slot 200.  The parser stride is 200, identical to the consumer.**
+There is NO stride mismatch and NO overlap.  Ghidra mis-decompiled the parser's per-file `imul …,0xe740`
+byte stride (`0xe740 == 200*0x128`) as `local_c * 0x32` (= 50); the earlier port + §9.3 trusted that.
+
+**Consequences of the port's wrong stride-50:**
+- tuto2/tuto3 records collided into tuto1's tail (slots 50-159), garbling op-5 args, `cs_goto` targets,
+  and dialogue text.
+- Walking the PC past tuto1 (which, corrupted, never hit a clean sentinel) fell into a *fake* tuto2
+  fragment at slot ~82 — fileidx=0, so it ran the SELL tiers + `cs_goto` collided ids 9/10/11 into
+  tuto1 → the unescapable "price lower" loop the user saw.  **That tuto1→tuto2 "bridge" only existed
+  because of the corruption; it is not a real retail path.**
+
+**Fix:** `TUTO_PARSER_STRIDE = 50 → 200` (`src/tables_tuto.h`).  Now the port's parsed `g_tuto`
+bit-matches retail's layout: tuto1@0-134, tuto2@200-289, tuto3@400-459 (English build), each file clean.
+Verified: tuto2's buy `値段` lands at slot 232 (`op 5`, args `[10,11,12,13,14,15,16]` = the script
+verbatim), slot 235 = id-11 "Excellent, this is a good price" → `GOTO 17` (the proceed path), with
+tuto2's OWN text (no stale tuto1 leftovers).  With fileidx=1 the op-5 BUY tiers fire and `cs_goto`
+resolves from slot 200 (tuto2) — no tuto1 collision.  Host: 2 stride tests rewritten
+(`tables_tuto_file_index_stride` → slot 200, `…_no_overlap_into_next_file`); 3337 pass.
+
+**Behavioral evidence:** re-driving the committed sell-tutorial trace, the scripted PC now walks tuto1
+to **b604=131** (高く@39 → 値段-sell@74 → 値引@107 → closing@131) — it was STUCK at b604=69 before,
+because the corrupted GOTOs looped.  The corruption was *blocking* the sell tutorial's later half too.
+
+**fileidx CAN be 1 (§9.3 corrected):** the `FUN_00461bf6` call sites push `0`, `2`, or **a register
+`ebx`** (the conditional-branch arms at `0x487565` / `0x4877b1`), not the constant `2` §9.3 reported.
+The buy-tutorial entry sets `ebx=1`.  The op-5 `b5b0==1` BUY-tier branch is therefore LIVE, not dead.
+
+**Still open (separate task, needs a trace):** the BUY tutorial is a separate day (tuto3 = the
+item-recommendation tutorial is yet another).  This sell-tutorial recording never sets fileidx=1, so the
+buy round is not *reachable* here to drive end-to-end — porting/verifying the fileidx=1 buy-tutorial
+ENTRY needs a recording of that day (the §9.5 human escalation still stands, but now for the ENTRY, with
+the data-layout + op-5/cs_goto logic already proven correct).
