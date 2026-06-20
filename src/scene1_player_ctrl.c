@@ -2043,6 +2043,7 @@ void scene1_player_ctrl_tick(void)
              * not fileidx=1).  Mirror the extended retail 0x48670f probe. */
             CALL_TRACE_I32("b51c", customer_service_b51c());
             CALL_TRACE_I32("b608", customer_service_b608());
+            CALL_TRACE_I32("b604", customer_service_b604());
             CALL_TRACE_I32("b5b0", customer_service_fileidx());
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,

@@ -274,6 +274,13 @@
      "_note": "DAT_0730b544 \u2014 per-state sub-frame timer (==1 = first frame of a b534 state; resets on every transition)."
     },
     {
+     "name": "b604",
+     "src": "global",
+     "va": "0x730b604",
+     "type": "i32",
+     "_note": "DAT_0730b604 — the scripted-machine PC (g_tuto slot index). cs_goto/FUN_004623bc sets it. DIAGNOSTIC: at the tuto2 threshold GOTO does retail's PC stay in tuto2 (slot 50+) or jump back to tuto1 (slot 0-49) like the port?"
+    },
+    {
      "name": "b51c",
      "src": "global",
      "va": "0x730b51c",

@@ -334,6 +334,7 @@ int32_t customer_service_b1cc(void)        { return s_b1cc; }
 int32_t customer_service_active(void)      { return s_cs_active; }
 int32_t customer_service_b51c(void)        { return s_b51c; }
 int32_t customer_service_b608(void)        { return s_b608; }
+int32_t customer_service_b604(void)        { return s_b604; }   /* the script PC (g_tuto index) */
 int32_t customer_service_fileidx(void)     { return s_price_fileidx; }
 /* The BARGAIN price-confirm choice is open (scripted machine b608==4 — the
  * cs_input_poll Yes/No state that ramps b58c).  Retail sets DAT_0438b150 (the

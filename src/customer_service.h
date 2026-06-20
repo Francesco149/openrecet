@@ -100,6 +100,7 @@ int32_t customer_service_active(void);
  * PAUSE_OPEN fires at the haggle like retail's DAT_0438b150 (RE §9.6). */
 int32_t customer_service_b51c(void);
 int32_t customer_service_b608(void);
+int32_t customer_service_b604(void);
 int32_t customer_service_fileidx(void);
 int32_t customer_service_bargain_active(void);
 
