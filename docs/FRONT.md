@@ -165,21 +165,21 @@
   overlay owns the hint slot, incl. cc08==4 — mirrored via the cs-active flag `!customer_service_active()`.
   v3-verified (idx2405): bottom-right shows ONLY "Button 3: Item Details" == retail.  PORT-DEBT(camera-hint-
   b4e8): the other b4e8 menu/transition states aren't tracked.
-  **⚠ BUY-ROUND ARC — PREMISE CORRECTED 2026-06-20 (autonomous): this trace is SELL-ONLY; the buy round is a
-  SEPARATE later day; the port is BLOCKED on a HUMAN-recorded buy-tutorial trace.**  Full diagnosis:
-  **`findings/customer-service-haggle-RE.md` §9**.  Re-drove RETAIL over the full trace (probe extended with
-  `b5a8/b5b0/b51c/b150/f404/gold/b5bc` — `tools/flow/retail_fields.json`): across the WHOLE trace **`b5a8` is
-  always 2 (sell) and `b5b0`/fileidx always 0** — there is NO buy round.  The 5 PAUSE_OPEN rounds are all SELL
-  (cust 1 = scripted `FUN_00461c00`; custs 2+ = the REAL kind-2 `FUN_004658ab`, ALSO unported).  The user's
-  "2nd PAUSE_OPEN @line 130" = raw 7344 = the first real SELL customer, not a buy.  **fileidx is NEVER 1**
-  (objdump: `FUN_00461bf6` is the only writer, called with 0/2) — tuto2 (buy) is reached by **PC-progression**
-  inside the fileidx=0 region (parser stride 50 vs consumer stride 200 ⇒ tuto1@PC0-49, tuto2@PC50-99,
-  tuto3@PC100-149).  So the `FUN_00461c00` `fileidx==1` threshold branch is **dead**; the buy direction is
-  b5a8=0 (gold-cap all.c:58323) + tuto2's GOTO script + offer_down — the exact wiring (b5a8=0-vs-1, the
-  up/down call site, the prompt gate) is **UNRESOLVED statically** and needs a buy trace to probe.
-  **→ NEXT (BLOCKED on the human): RECORD a buy-tutorial (tuto2) trace** — play day-1 sell tutorial → sleep →
-  day-2 buy tutorial, F2/F3 record, pin.  Then re-drive both sides (probe is ready), read the actual buy-round
-  state, port 1:1 + host-test the gold-cap/down-math.  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
+  **★ BUY-ROUND (tuto2) HAGGLE BUG ✅ ROOT-CAUSED + FIXED 2026-06-20 (`5c0493a`).** User: the 2nd price
+  prompt (tuto2, BUYING) "always says price it lower even though below baseline" / uses the sell UI.  **It IS
+  in this trace** — reachable by holding X past round 1 (the PC walks tuto1→tuto2 in one session; the recorded
+  trace stalls at PC 69 because it ends with Z held and dialogue-advance needs a Z *edge*).  An earlier
+  autonomous pass wrongly concluded "sell-only / separate day / blocked" — CORRECTED, see RE §9 header.
+  **Bug:** the tuto-parser opcode table mapped 値段 → op 12 (2-way PRICE) but the engine .data maps 値段 →
+  **op 5 (BUN0, the 7-tier threshold)** — confirmed from `recettear.unpacked.exe`: `0x5cb3e0 = 92 6c 92 69`
+  (値段) sits in op 5's string slot.  So the port ran tuto2's 7-tier `0,値段,10,…,16` branch as 2-way (only
+  ids 10/11 reachable) and — via the stride overlap (tuto1/2/3 share the fileidx-0 g_tuto region) — `cs_goto(11)`
+  hit **tuto1's** id-11 (slot 42 = "Yes, it is a sale" = the SELL success path).  **Fix:** map 値段 → op 5;
+  the threshold GOTO now lands in tuto2 (PC 90 "…go lower") not tuto1 (PC 42).  3337 host pass.  **Retail-
+  confirmed** (held-X drive): retail walks the same 42→…→81 PC path under **fileidx=0** — so op-5's sell-tier
+  branch (0.5/0.7/1.0) is correct parity (fileidx never 1; `cs-buy-fileidx` is NOT a debt).  RE §9.7.  **NEXT
+  (human, deferred): eyeball the fixed buy dialogue in the viewer** (hold X past round 1 → tuto2 shows its own
+  feedback, not tuto1's "Yes, sale").  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
   (`2fb5b39`, RE §9.6):** the port now fires PAUSE_OPEN@f3128 + PAUSE_CLOSE@f3259 (131f, matches retail b150
   130f) via `customer_service_bargain_active()` (scripted b608==4) OR'd into the anchor's pause_active (signal
   only — no gameplay effect).  **Round 2 navigation UNVERIFIED** — the exe self-exits at ~f3360 (a WM_CLOSE, NOT max-frames/duration/
