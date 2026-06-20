@@ -1,0 +1,22 @@
+# house-customer-skip-tutorial — the cc08==4 ESC "Cancelling tutorial?" skip.
+#
+# Reuses house-customer-tutorial's prefix (boot → prologue → walk to the sell
+# counter → Z → CUSTOMER_SERVICE_ENTER → the scripted haggle tutorial), then
+# during the tutorial dialogue (b51c==1, b534==1) injects an ESC at window
+# frame 300 and Z at 360 to confirm "Yes" on the prompt.  Verifies the user-
+# flagged gap: retail ESC opens the "Cancelling tutorial. Are you sure?" Yes/No
+# box (FUN_0045e6a5) and Yes dissolves back to free-roam — NOT the pause menu.
+#
+# Ground truth (retail, _cs-skip-probe-retail-20260620): ESC@off300 →
+# "Cancelling tutorial. Are you sure?" → Z(Yes)@off360 → b520 0→1→2 (dissolve,
+# 0x5a frames) → cc08 4→1 (free-roam) at ~off461.  The port matches (b520
+# 0→1→2 → cc08=1 ~89f later) and the prompt renders pixel-1:1.
+#
+#   nix develop --command python3 tools/scenario-test.py \
+#     house-customer-skip-tutorial --target both --frida-remote cutestation.soy:27042
+description: |
+  cc08==4 ESC skip: inject ESC + Z during the haggle tutorial → "Cancelling
+  tutorial. Are you sure?" → Yes → dissolve to free-roam (not the pause menu).
+max_frames: 40000
+duration_ceiling_ms: 480000
+capture_suppress_loads: true

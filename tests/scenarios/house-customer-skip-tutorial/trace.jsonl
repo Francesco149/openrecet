@@ -1,0 +1,44 @@
+# anchor-segmented replay: each recorded anchor is a {wait} sync point; inputs/escs after it are relative to it (turbo/jitter-immune).
+# embedded save: cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78 (override via --save-override on replay; see tools/trace_save.py)
+{"savefile": "../_saves/cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78.sav.gz"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 100, "buttons": "0x0000"}
+{"wait": "TITLE_PICKER_READY"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 66, "buttons": "0x0010"}
+{"frame": 70, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 208096806]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1501087713]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 66, "buttons": "0x0002"}
+{"frame": 75, "buttons": "0x0000"}
+{"frame": 156, "buttons": "0x0010"}
+# cc08==4 haggle window re-anchored on CUSTOMER_SERVICE_ENTER (2026-06-18): the
+# old {wait LOADING_START/END, timeout 60} chain expected a SECOND d3e asset load
+# (retail occ3 @ CSE+60) the PORT lacks (port has ONE d3e load) — so on the port
+# the 2nd-load waits timed out and the caprange/inputs opened at the wrong frame
+# (offer never fired).  CUSTOMER_SERVICE_ENTER (cc08→4) fires once, same instant on
+# both sides; LOADING_END right after it is the d3e-load-end = master-tick start
+# (occ2, port@640/retail@3134).  Inputs are master-tick(occ2)-relative: shifted +60
+# from the old occ3-relative values (occ3 = occ2+60), so the offer Z lands at the
+# script's PRIA on BOTH sides (offer b574=1536 @ occ2+2501).
+{"wait": "CUSTOMER_SERVICE_ENTER"}
+{"rngseed": [0, 608851275]}
+{"frame": 0, "buttons": "0x0010"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 110612738]}
+{"caprange": [0, 900]}
+{"calltrace": [0, 900]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 300}
+{"frame": 360, "buttons": "0x0010"}
+{"frame": 364, "buttons": "0x0000"}
+{"frame": 380, "buttons": "0x0010"}
+{"frame": 384, "buttons": "0x0000"}
+{"frame": 899, "buttons": "0x0000"}

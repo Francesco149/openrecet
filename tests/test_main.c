@@ -439,6 +439,8 @@ struct test_case {
     X(cs_scripted_first_offer) \
     X(cs_occ3_second_load_gates_at_queue_advance) \
     X(cs_closing_resets_session_at_sentinel) \
+    X(cs_esc_skip_arms_during_tutorial) \
+    X(cs_esc_skip_yes_starts_leave) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

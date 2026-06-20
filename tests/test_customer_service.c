@@ -13,6 +13,7 @@
 #include "../src/tables_kyaku.h"
 #include "../src/tables_tuto.h"
 #include "../src/rng.h"
+#include "../src/choice_box.h"   /* the ESC "Cancelling tutorial?" skip prompt */
 
 /* DAT_0450f406 / f404 byte offsets within a slot bank (rel. save_work_dwords_at). */
 #define F406_TUTORIAL_BYTE_OFF 0x2bc6e
@@ -330,5 +331,73 @@ int test_cs_closing_resets_session_at_sentinel(void)
     T_ASSERT_EQ_I(saw_closing, 1);              /* sentinel → b534=0xc */
     T_ASSERT_EQ_I(b534, 0);                     /* closing reset → idle */
     T_ASSERT_EQ_I(b51c, 0);                     /* scripted session ended */
+    return 0;
+}
+
+/* ── ESC "Cancelling tutorial?" skip (FUN_0045e6a5 + the master-tick b5e4 poll) ──
+ * The cc08==4 skip is gated on the SCRIPTED tutorial (b51c==1) + not already
+ * leaving (b520==0) / armed (b5e4==0).  Arming opens the choice box and latches
+ * b5e4; a live customer (b51c==0) is NOT skippable. */
+int test_cs_esc_skip_arms_during_tutorial(void)
+{
+    /* tutorial / scripted-sell path → b51c==1. */
+    customer_service_reset();
+    choice_box_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+    customer_service_session_init();
+    T_ASSERT_EQ_I(customer_service_b51c(), 1);          /* scripted tutorial */
+    T_ASSERT_EQ_I(customer_service_b5e4(), 0);
+
+    /* ESC arms the prompt: returns 1, latches b5e4, opens the choice box. */
+    T_ASSERT_EQ_I(customer_service_esc_skip_arm(), 1);
+    T_ASSERT_EQ_I(customer_service_b5e4(), 1);
+    T_ASSERT(choice_box_active());
+    /* a second ESC while armed is a no-op (FUN_0045e6a5 b5e4!=0 gate). */
+    T_ASSERT_EQ_I(customer_service_esc_skip_arm(), 0);
+    T_ASSERT_EQ_I(customer_service_b5e4(), 1);
+
+    /* a LIVE customer (b51c==0, e.g. the tutorial forced-sale path) is NOT
+     * skippable — ESC falls through (returns 0, no prompt). */
+    customer_service_reset();
+    choice_box_reset();
+    bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;      /* forced sale → b51c==0 */
+    rng_seed(0x1234);
+    customer_service_session_init();
+    T_ASSERT_EQ_I(customer_service_b51c(), 0);
+    T_ASSERT_EQ_I(customer_service_esc_skip_arm(), 0);
+    T_ASSERT_EQ_I(customer_service_b5e4(), 0);
+    T_ASSERT(!choice_box_active());
+    return 0;
+}
+
+/* Yes on the skip prompt starts the leave: the master-tick b5e4 poll commits the
+ * choice box (CB_OPT0) → b520 (leave/dissolve phase) leaves 0.  Mirrors the
+ * scenario-drive (b520 0→1→2 → dissolve → free-roam) verified vs retail. */
+int test_cs_esc_skip_yes_starts_leave(void)
+{
+    customer_service_reset();
+    choice_box_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+    customer_service_session_init();
+    customer_service_notify_loaded();                  /* clear the b1cc load gate */
+
+    T_ASSERT_EQ_I(customer_service_esc_skip_arm(), 1); /* arm the prompt */
+
+    /* drive the master tick holding Z (0x10): the choice box open-anim completes,
+     * then the Z-edge commits Yes (sel 0) → the b5e4 poll starts the leave. */
+    int b520 = 0;
+    for (int i = 0; i < 40; i++) {
+        customer_service_master_tick(0x10, 0x10, 0);
+        b520 = customer_service_b520();
+        if (b520 != 0)
+            break;
+    }
+    T_ASSERT(b520 != 0);                                /* leave/dissolve started */
+    T_ASSERT_EQ_I(customer_service_b5e4(), 0);          /* prompt consumed */
     return 0;
 }

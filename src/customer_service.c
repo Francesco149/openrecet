@@ -21,6 +21,9 @@
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
+#include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
+#include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
+#include "fade.h"                 /* fade_phase1_start/_is_done/_phase_out_start (b520 dissolve) */
 
 /* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
  * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
@@ -37,6 +40,12 @@ static uint32_t s_in_held;      /* DAT_073dddd6 */
  * so the sell flags sit just after it. */
 #define CS_F404_SELL_ACTIVE_BYTE_OFF 0x2bc6c   /* DAT_0450f404 — sell-active flag */
 #define CS_F406_TUTORIAL_BYTE_OFF    0x2bc6e   /* DAT_0450f406 — forced/tutorial sale */
+/* the b520-leave (customer-service exit) flag clears (offsets vs DAT_044e3798;
+ * verified by objdump of FUN_00462403 @ 0x462ae0-0x462b0f). */
+#define CS_F3FF_BYTE_OFF             0x2bc67   /* DAT_0450f3ff */
+#define CS_F400_DISPLAY_SUPPRESS_OFF 0x2bc68   /* DAT_0450f400 — shop-display suppress */
+#define CS_F402_BYTE_OFF             0x2bc6a   /* DAT_0450f402 */
+#define CS_F405_BYTE_OFF             0x2bc6d   /* DAT_0450f405 */
 
 /* The display grid is 15 rows × 20 cols (= 300 dwords) at SAVE_BANK_FIELD_DISPLAY_GRID. */
 #define CS_DISPLAY_GRID_ROWS 15
@@ -106,6 +115,7 @@ static int32_t s_b5d0;   /* DAT_0730b5d0 — pose state */
 static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
 static int32_t s_b5d8;   /* DAT_0730b5d8 — resolved want-list line index (render) */
 static int32_t s_b5dc;   /* DAT_0730b5dc — button-row count (render) */
+static int32_t s_b5e4;   /* DAT_0730b5e4 — ESC "Cancelling tutorial?" skip-armed flag */
 
 /* ── master-tick + scripted-machine scalar state (Chip 2) ─────────────────────
  * The subset of the DAT_0730bXXX block the master tick (FUN_00462403) + the
@@ -344,6 +354,26 @@ int32_t customer_service_fileidx(void)     { return s_price_fileidx; }
  * (RE §9.6) — the prerequisite for replaying any haggle trace on the port. */
 int32_t customer_service_bargain_active(void) { return s_b51c != 0 && s_b608 == 4; }
 void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
+int32_t customer_service_b5e4(void)        { return s_b5e4; }
+
+/* ── FUN_0045e6a5 — the cc08==4 ESC "Cancelling tutorial?" skip gate ──────────
+ * Called from the in-game ESC dispatch (esc_dispatch.c) when cc08==4.  During
+ * the SCRIPTED haggle tutorial (b51c==1) — and only when not already leaving
+ * (b520==0) or armed (b5e4==0) — open the "Cancelling tutorial. Are you sure?"
+ * choice box and latch b5e4=1; the master tick's b5e4 poll then drives Yes→leave
+ * / No→resume.  This is a SEPARATE mechanism from the prologue/guild skip_event
+ * (which is the b1c8-dialogue "Do you want to skip this event?" path); the live
+ * customer machine (b51c==0) is NOT skippable, matching retail.  Returns 1 if it
+ * armed the prompt (ESC consumed), 0 to fall through to the pause menu. */
+int customer_service_esc_skip_arm(void)
+{
+    if (s_b520 == 0 && s_b51c == 1 && s_b5e4 == 0) {
+        s_b5e4 = 1;
+        choice_box_open("Cancelling tutorial. Are you sure?", /*mode=*/1, /*sel=*/0);
+        return 1;
+    }
+    return 0;
+}
 
 /* Once-per-frame render-state snapshot (FUN_0046602e + FUN_00466b7b inputs). */
 void customer_service_get_render_state(struct cs_render_state *o)
@@ -987,7 +1017,29 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
 
     if (s_b1cc == 2)                         /* asset-load worker running → inert */
         return;
-    /* PORT-DEBT(cs-debug-leave): the b5e4==1 debug-skip branch (all.c:60168-60186). */
+
+    /* the ESC "Cancelling tutorial?" skip poll (all.c:60168-60186).  Armed by
+     * customer_service_esc_skip_arm (FUN_0045e6a5); poll the choice box: Yes
+     * (CB_OPT0) → start the leave (b520=1, force b5b4≥0xf0 so the dissolve fires
+     * this cycle), No (CB_OPT1) → clear b5e4 and resume the tutorial.  `pressed`
+     * (DAT_073dddd4) is the edge retail's FUN_00434ed2 reads internally. */
+    if (s_b5e4 == 1) {
+        int r = choice_box_poll((uint16_t)s_in_pressed, 1);   /* FUN_00434ed2 */
+        if (r != CB_OPT0) {                  /* not Yes */
+            if (r == CB_OPT1)                /* No → cancel the skip, resume */
+                s_b5e4 = 0;
+            return;
+        }
+        if (s_b5b4 > 0xef) {                 /* Yes, dissolve counter already past */
+            s_b520 = 1;
+            s_b5e4 = 0;
+            return;
+        }
+        s_b520 = 1;                          /* Yes → leave, seed the dissolve clock */
+        s_b5b4 = 0xf0;
+        s_b5e4 = 0;
+        return;
+    }
 
     /* text-reveal-complete (b55c): in retail this is a side effect of the prior
      * frame's speech-bubble render; replicate it at the tick HEAD off the b548 the
@@ -1068,8 +1120,44 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     }
 
     if (s_b520 != 0) {
-        /* PORT-DEBT(cs-leave): the leave/dissolve → queue-advance / cc08 reset
-         * (all.c:60325-60396); b520==0 in the captured window. */
+        /* leave/dissolve → free-roam (all.c:60325-60396).  Reached by the ESC
+         * skip (b5e4 Yes) and the live customer's f406 close.  Phase 1 = kick the
+         * tile-dissolve once the dissolve clock (b5b4) is past 0xf0; phase 2 =
+         * wait for it, then restore free-roam (cc08=1) + clear the sale flags. */
+        if (s_b5c0 == 0 && s_b5b4 > 0xf0 && s_b520 == 1) {
+            fade_phase1_start(0, 0x5a);      /* FUN_004526f5(0, 0x5a) tile-dissolve-out */
+            s_b520 = 2;
+        }
+        if (!fade_is_done())                 /* FUN_004528b3 — still dissolving */
+            return;
+        /* dissolve complete (all.c:60334-60395).  PORT-DEBT(cs-leave-restore):
+         * FUN_0048439a (3D scene), FUN_00473332, FUN_0046f892, FUN_0045e028
+         * (real-sale tally, f404==0 only), FUN_0048526d (shop-full), and the
+         * DAT_056d* Recette hop-down + free-roam camera reset — all render/anim,
+         * inert for the state transition. */
+        s_cs_active = 0;                     /* DAT_0438b7b0 = 0 */
+        player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 (the fb88<4 arm;
+                                              * PORT-DEBT(cs-leave-shopfull): the
+                                              * fb88>=4 "shop full" branch) */
+        {
+            uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            if (bank != NULL) {
+                if (bank[CS_F406_TUTORIAL_BYTE_OFF] != 0) {    /* all.c:60381-384 */
+                    bank[CS_F406_TUTORIAL_BYTE_OFF] = 0;
+                    bank[CS_F402_BYTE_OFF] = 1;
+                }
+                if (bank[CS_F404_SELL_ACTIVE_BYTE_OFF] == 1) { /* all.c:60385-392 */
+                    bank[CS_F404_SELL_ACTIVE_BYTE_OFF] = 0;
+                    if (bank[CS_F405_BYTE_OFF] == 0) {
+                        bank[CS_F3FF_BYTE_OFF] = 0;
+                        bank[CS_F400_DISPLAY_SUPPRESS_OFF] = 1;
+                    }
+                    bank[CS_F405_BYTE_OFF] = 0;
+                }
+            }
+        }
+        fade_phase_out_start(0, 0x1e);       /* FUN_0045281c(0, 0x1e) fade-IN */
+        /* DAT_0438b4e8 = 0 — tracked by PORT-DEBT(camera-hint-b4e8) elsewhere. */
         return;
     }
 
@@ -1134,7 +1222,7 @@ void customer_service_reset(void)
     s_b318 = s_b51c = s_b520 = s_b524 = s_b528 = s_b52c = s_b530 = s_b534 = 0;
     s_b53c = s_b558 = s_b564 = s_b568 = s_b58c = s_b590 = s_b594 = s_b598 = 0;
     s_b59c = s_b5a0 = s_b5ac = s_b5b0 = s_b5b4 = s_b5b8 = s_b5bc = s_b5c0 = 0;
-    s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = 0;
+    s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = s_b5e4 = 0;
     s_b540 = s_b544 = s_b548 = s_b54c = s_b550 = s_b55c = s_b560 = s_b570 = 0;
     s_b270 = NULL;
     s_line_buf[0] = s_line_tail[0] = '\0';

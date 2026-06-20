@@ -51,6 +51,15 @@ void customer_service_session_init(void);
  * DAT_073dddd0 (raw) / DAT_073dddd4 (edge) / DAT_073dddd6 (held-with-repeat). */
 void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held);
 
+/* ── FUN_0045e6a5 — the cc08==4 ESC "Cancelling tutorial?" skip gate ──────────
+ * Called from the in-game ESC dispatch (esc_dispatch.c) when cc08==4.  During the
+ * scripted haggle tutorial (b51c==1, not leaving/armed) it opens the "Cancelling
+ * tutorial. Are you sure?" Yes/No choice box and arms b5e4 (the master tick polls
+ * it: Yes → leave to free-roam, No → resume).  Returns 1 if it consumed the ESC
+ * (armed the prompt), 0 to fall through to the in-game pause menu. */
+int customer_service_esc_skip_arm(void);
+int32_t customer_service_b5e4(void);   /* the skip-armed flag (flow-trace probe) */
+
 /* Load-worker completion (DAT_0438b1cc → 0) — the asset-load worker's callback;
  * the master tick is inert until it fires.  Host tests call it after session_init
  * to release the load gate. */

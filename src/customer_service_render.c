@@ -47,6 +47,7 @@
 #include "sprite.h"
 #include "scene_buy.h"     /* g_scene_buy_sprites/_chrname/_shopmode (texs) */
 #include "sysassets.h"     /* g_sysassets.* (item_win/data_win/item_icons[]) + g_item */
+#include "choice_box.h"    /* the cc08==4 ESC "Cancelling tutorial?" skip prompt */
 
 /* ive_box_scale == FUN_0046c86f (the open/close scale+alpha wobble) — already a
  * confirmed-1:1 port in scene1_dialogue_run.c (sin-not-cos fix applied). */
@@ -494,6 +495,14 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
 
     /* 6d — item-detail overlay + customer-arrival banner + "great numbers"
      * ticker (b5c0>0 / b5e8): PORT-DEBT(cs-render-rest). */
+
+    /* the ESC "Cancelling tutorial?" skip prompt (FUN_0045e6a5 arms it; the
+     * master tick's b5e4 poll drives it).  Drawn over the haggle UI like the
+     * engine's top-level choice-box overlay (FUN_0043537e).  During cc08==4 the
+     * only choice box that can be up is this skip prompt, so choice_box_active()
+     * is a safe gate (covers the open + close anim). */
+    if (choice_box_active())
+        choice_box_draw(dev);
 }
 
 #endif /* _WIN32 */

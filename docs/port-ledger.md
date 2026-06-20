@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **554** (21.7%) — verified 70, stubbed 14, ported 470
-- unported: **1994**
+- touched: **558** (21.9%) — verified 70, stubbed 14, ported 474
+- unported: **1990**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (470) — reimplemented, no probe yet
+## ported (474) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -192,7 +192,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434dbf | FUN_00434dbf | 23 | ✓ | choice_box.c, choice_box.h, main.c |
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, scene_pause.c |
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+4) |
-| 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, scene_pause.c (+2) |
+| 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, customer_service.c (+3) |
 | 0x435612 | FUN_00435612 | 8 | ✓ | customer_service.c, encyclopedia.c, scene1_player_ctrl.c (+5) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | encyclopedia.c, main.c, scene_guild.c (+5) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
@@ -277,12 +277,14 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45cc85 | FUN_0045cc85 | 4579 | ✓ | main.c |
 | 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_guild.c, scene_guild.h, scene_worldmap.c (+3) |
 | 0x45e019 | FUN_0045e019 | 15 | ✓ | scene_worldmap.c |
+| 0x45e028 | FUN_0045e028 | 43 | ✓ | customer_service.c |
 | 0x45e053 | FUN_0045e053 | 201 | ✓ | sim.c |
 | 0x45e196 | FUN_0045e196 | 15 | ✓ | scene_worldmap.c |
 | 0x45e1a5 | FUN_0045e1a5 | 175 | ✓ | sim.c |
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
+| 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+1) |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.c, customer_service.h, npc_schedule.h (+1) |
@@ -347,6 +349,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
+| 0x46f892 | FUN_0046f892 | 40 | ✓ | customer_service.c |
 | 0x46f8ba | FUN_0046f8ba | 90 | ✓ | customer_service.c |
 | 0x47019f | FUN_0047019f | 486 | ✓ | scene1_conversation_pose.c, scene1_player_ctrl.c |
 | 0x470385 | FUN_00470385 | 246 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c |
@@ -366,6 +369,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+4) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
+| 0x473332 | FUN_00473332 | 9 | ✓ | customer_service.c |
 | 0x47333b | FUN_0047333b | 145 | ✓ | customer_service.c, main.c, scene_buy.c (+2) |
 | 0x4733cc | FUN_004733cc | 9 | ✓ | customer_service.c |
 | 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_pause.c, scene_title.c (+2) |
@@ -445,7 +449,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
 | 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+4) |
 | 0x483e7b | FUN_00483e7b | 516 | ✓ | scene1_companion_ctrl.c, scene1_conversation_pose.c |
-| 0x48439a | FUN_0048439a | 341 | ✓ | scene1_player_ctrl.c |
+| 0x48439a | FUN_0048439a | 341 | ✓ | customer_service.c, scene1_player_ctrl.c |
 | 0x48486f | FUN_0048486f | 85 | ✓ | encyclopedia.c |
 | 0x4848c4 | FUN_004848c4 | 132 | ✓ | encyclopedia.c |
 | 0x484948 | FUN_00484948 | 94 | ✓ | encyclopedia.c |
@@ -453,7 +457,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |
 | 0x484e97 | FUN_00484e97 | 286 | ✓ | scene1_records_c_spawn.h |
 | 0x4850fe | FUN_004850fe | 228 | ✓ | scene1_player_ctrl.c |
-| 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.h, scene1_preload.c |
+| 0x48526d | FUN_0048526d | 142 | ✓ | customer_service.c, scene1_postload.h, scene1_preload.c |
 | 0x4852fb | FUN_004852fb | 280 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h |
 | 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |
