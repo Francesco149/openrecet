@@ -1101,3 +1101,104 @@ cc08==4 scene. Re-anchor the join on **CUSTOMER_SERVICE_ENTER** (captured on bot
 port==retail align occ2-relative) so the haggle frames pair → then the dim fix is in-tool verifiable.
 First `--anchor CUSTOMER_SERVICE_ENTER` attempt yielded no join (the cached extent is HOUSE_FREEROAM-
 relative; orv3_window likely needs a re-slice/re-key to a stored non-base anchor). Next-session tasks.
+
+---
+
+## 9. ⚠⚠ BUY-ROUND DIAGNOSIS (2026-06-20, autonomous) — the `house-customer-tutorial` trace is SELL-ONLY; the buy round (tuto2) is a SEPARATE later day, reached by PC-progression in fileidx=0 (NOT fileidx=1). The buy-round port is BLOCKED on a human-recorded buy-tutorial trace.
+
+**User directive (2026-06-20):** "EXTEND the trace into the BUY round — widen the caprange past the
+first customer's load to the 2nd PAUSE_OPEN (~line 130), re-drive port+retail, diagnose, then port the
+buy mode." **The premise is wrong: this trace has NO buy round.** Proven empirically + statically below.
+
+### 9.1 Empirical: the whole trace is b5a8=2 (SELL), b5b0=0 (tuto1)
+
+Re-drove RETAIL over the full trace with the probe extended (b51c/b5b0/b5bc/b150/f404/gold added to
+`tools/flow/retail_fields.json` — the 0x48670f hook). Extracted the 19351 `house_update` rows
+(retail frames 13952→33951). The **only** transitions of the buy-discriminating fields across the
+ENTIRE trace:
+
+```
+f13952: b5a8=-1 b5b0=0 b51c=1 f404=1 gold=55 b56c=0     ← customer 1 entry (scripted)
+f14012: b5a8=2  b56c=1                                   ← SELL
+f19984: b51c=0                                           ← scripted round ENDS (b51c reset)
+f23152: f404=65536 / f23153: b5a8=-1                     ← inter-customer reset
+f23220: b5a8=2  b56c=13                                  ← next customer = SELL (kyaku 13)
+```
+
+**`b5a8` is ALWAYS 2 (sell); `b5b0` (fileidx) is ALWAYS 0 — never the buy values.** All 5 PAUSE_OPEN
+rounds (raw 2920/4785/6099/7344/8386) are SELL haggles. The user's "2nd PAUSE_OPEN @line 130" maps to
+raw **7344 = round 4 = the first REAL sell customer after the scripted demo's load** (raw 6512), NOT a
+buy round. The recording (`rec-20260617-051426`, anchors raw 0–9678) is ONE day — the SELL tutorial —
+ending at "first real customer". The buy tutorial (tuto2: *"people will want to sell items TO you …
+Haggle DOWN … name a price lower than the base"*) is a **later day** not in this recording.
+
+### 9.2 Machine structure (empirical b534 trajectories)
+
+- **Customer 1** = the SCRIPTED machine `FUN_00461c00` (`b51c=1`): b534 stays in {0,1}; base 1000→3000→
+  1200; 3 BARGAIN rounds at b150 0→1 (f16452/f18317/f19631). At close (b534=12→) **b51c resets to 0**
+  (master tick, all.c:60597 `if (b51c!=0){ b51c=0; b524=0; b534=0; }`).
+- **Customers 2+** = the **REAL kind-2 sell machine `FUN_004658ab`** (`b51c=0`): b534 cycles
+  **1→2→6→15→7→10→12→20→21→0** (greeting→reaction→decision→accept/leave), offer b574=3870/3960…
+  **The port has NOT ported `FUN_004658ab`** — only the scripted machine. So even the SELL trace's
+  customers 2+ are unported (a separate gap from the buy round).
+
+### 9.3 Static: fileidx is ALWAYS 0 — tuto2 is reached by PC-progression, NOT fileidx=1
+
+`DAT_005c6bb0` (fileidx) is written by exactly ONE instruction (objdump `recettear.unpacked.exe`):
+`0x461bfa mov ds:0x5c6bb0,eax` inside `FUN_00461bf6(param)`. Its 4 call sites push **0, 2, 2, 2**
+(0x48756a / 0x4877b6 / 0x4884c7 = 2; 0x488bc8 = the player-Z sell-counter entry = 0). **Never 1.**
+
+The reason fileidx need never be 1: the **parser/consumer STRIDE MISMATCH** (`src/tables_tuto.h`):
+parser writes each file at `file_idx*50` (tuto1→0-49, tuto2→50-99, tuto3→100-149) but the consumer
+reads at `(fileidx*200 + PC)*0x128` (`FUN_00461c00` 0x461c08). **With fileidx=0 the PC (b604) walks
+slot 0,1,2,… so PC≥50 reaches tuto2's records, PC≥100 reaches tuto3 — all three tutorials live in the
+fileidx=0 region.** So the tutorial progression tuto1→tuto2→tuto3 is **by PC**, and fileidx stays 0.
+
+**⇒ The `FUN_00461c00` op-5/op-0xd threshold branch gated on `DAT_005c6bb0==1` (all.c:59843) is
+effectively DEAD** (fileidx never 1). The buy haggle direction does NOT come from that branch. (The
+FRONT's earlier "fileidx=1 / tuto2 / buy thresholds" root-cause was PARTLY wrong on this point.)
+
+### 9.4 What the buy round (tuto2) actually IS — the corrected port target
+
+- **Entry/trigger:** the buy-tutorial day sets up the scripted session with **b5a8=0** (buy; the
+  transaction-type, set NOT by `FUN_00461bf6` but by the kind selector path — `FUN_00461792` writes
+  `b5a8=0` at all.c:59722 / `FUN_00460fa7` writes `b5a8=1`; which one the buy tutorial uses is STILL
+  UNRESOLVED statically) and the **PC (b604) seeded to the tuto2 offset (~50)**, b51c=1, fileidx=0.
+- **Buy direction comes from:** (a) **b5a8==0** → the gold-cap in `FUN_0045ff31` (all.c:58323: `if
+  (b5a8==0 && f404[player]==0 && gold < offer) offer = gold` — clamp Recette's bid to her gold) +
+  the line-type `uVar18=7` (all.c:60618); (b) **tuto2's own GOTO-target script** (the "lower than
+  base" structure is encoded in the tuto2 records, not a global threshold flag); (c) the down-math
+  `FUN_004603cf`/`offer_down` (already in `customer_haggle.c`) — **but WHERE the scripted machine
+  calls offer_down vs offer_up for the buy round is UNVERIFIED** (FUN_00461c00 op-4 calls
+  `FUN_00460161`/up; the b5a8-gated down path is not yet located in the scripted machine).
+- **Prompt:** "What should I pay?…" (`DAT_005c6e28`) vs sell "How much should I?…" (`DAT_005c6e40`) —
+  the render selects by … (also unverified which flag).
+
+### 9.5 ⛔ BLOCKER + next-session plan
+
+**The buy round CANNOT be ported correctly from static analysis alone** — too many subtle interacting
+flags (fileidx-always-0, the dead fileidx==1 branch, b5a8=0 vs =1 ambiguity, the script-encoded
+direction, the up/down call site). Per the porting-loop rule ("don't guess — synthesize a trace and
+probe"), the buy port is **BLOCKED on a buy-tutorial (tuto2) trace**, which requires HUMAN PLAY:
+day-1 sell tutorial → sleep → day-2 buy tutorial (Frida-spawned retail isn't keyable; the port can't
+navigate even the sell trace yet — see 9.6).
+
+**Next session (needs the human):**
+1. **Record a buy-tutorial trace** (`F2/F3` recorder): play to the buy-tutorial day, capture the buy
+   haggle. Pin {phasepin}+{rngseed}. This is the long pole and the ONE thing only the human can do.
+2. Re-drive both sides with the now-extended probe (`b5a8/b5b0/b51c/b150/f404/gold/b5bc`), read the
+   ACTUAL buy-round state (resolve the b5a8=0-vs-1, the up/down call site, the prompt/threshold gate).
+3. Port the buy path 1:1 from that ground truth + host-test the gold-cap (all.c:58323) + the down-math.
+
+### 9.6 Side blocker — the port can't navigate ANY haggle trace past round 1 (PAUSE_OPEN/b150)
+
+The PORT drive stalls at the first BARGAIN: it plays round 1 to the offer (b574 set) but **never fires
+`PAUSE_OPEN`**, so the trace's `{wait PAUSE_OPEN}` (line 50) hangs and the sim runs out the wall-clock.
+`PAUSE_OPEN` = `pause_active` 0→1 = `DAT_0438b150` 0→1. Retail sets b150 via `choice_box_open`
+(`FUN_00434def`) when the BARGAIN Yes/No choice opens — empirically b150 0→1 at the offer commit
+(f16452), tracking the b58c button ramp (0→5), and 1→0 when it closes (f16582). **The port's
+`pause_active` reads ONLY `g_scene_pause_state_b150` (scene_pause), which the haggle BARGAIN buttons
+(`customer_service_render.c` §4, b58c) never set** — the port split retail's single shared b150. Fix:
+make the BARGAIN choice-button state set the b150 the anchor reads (or OR the haggle modal into
+`pause_active`). This is a real parity gap (the world pauses during the BARGAIN choice) AND the
+prerequisite for driving ANY haggle trace (sell or buy) on the port for verification.

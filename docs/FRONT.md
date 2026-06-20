@@ -165,22 +165,24 @@
   overlay owns the hint slot, incl. cc08==4 — mirrored via the cs-active flag `!customer_service_active()`.
   v3-verified (idx2405): bottom-right shows ONLY "Button 3: Item Details" == retail.  PORT-DEBT(camera-hint-
   b4e8): the other b4e8 menu/transition states aren't tracked.
-  **⚠ ISSUE — the 2nd-haggle BUY round uses the SELL ui/logic (user-flagged 2026-06-20: "tear always says the
-  price is higher than base even if I set it lower … using the sell ui when it's supposed to use the buy
-  ui").  ROOT-CAUSED from the code: the port has NO BUY PATH.**  `b5a8` (transaction type) is only ever set to
-  **2 (sell)** (FUN_00461303) and `price_fileidx` only to 0/2 at entry — never the buy values **b5a8=0 /
-  fileidx=1**.  The tuto SCRIPT + the prompt are both indexed by fileidx (0→tuto1 / "How much should I?…" /
-  sell; **1→tuto2 / "What should I pay?…" / buy**), and the threshold-GOTO comparison (`cs_goto` on ask/base)
-  is the sell direction — so a buy round runs the sell script + sell thresholds ⇒ "higher than base" even when
-  the player offers low.  Retail HAS the buy path (decompile: `DAT_005c6bb0==1` @59843; the `b5a8==0` buy
-  gold-cap @58323; `customer_haggle.c` already has the down-direction math FUN_004603cf/`offer_down`).  **FIX
-  = port the BUY round** (b5a8=0 + fileidx=1 + tuto2 + the buy thresholds + the buy gold-cap), triggered by the
-  2nd customer (one SELLING to Recette).  A sizeable arc, and the 2nd haggle is PAST the current caprange
-  [0,2700] (after the 1st customer's load @trace line 105) ⇒ must be captured to diagnose + verify.
-  **→ NEXT (user directive 2026-06-20): EXTEND the trace into the CUSTOMER DIALOGUE / the BUY round** — widen
-  the caprange past the first customer's load to the 2nd PAUSE_OPEN (~line 130), re-drive port+retail, diagnose
-  the buy-round divergence in-tool, then port the buy mode.  The cc08==4 SELL haggle-UI render + the "!"
-  tooltip + the camera-hint overlap are DONE for this trace.
+  **⚠ BUY-ROUND ARC — PREMISE CORRECTED 2026-06-20 (autonomous): this trace is SELL-ONLY; the buy round is a
+  SEPARATE later day; the port is BLOCKED on a HUMAN-recorded buy-tutorial trace.**  Full diagnosis:
+  **`findings/customer-service-haggle-RE.md` §9**.  Re-drove RETAIL over the full trace (probe extended with
+  `b5a8/b5b0/b51c/b150/f404/gold/b5bc` — `tools/flow/retail_fields.json`): across the WHOLE trace **`b5a8` is
+  always 2 (sell) and `b5b0`/fileidx always 0** — there is NO buy round.  The 5 PAUSE_OPEN rounds are all SELL
+  (cust 1 = scripted `FUN_00461c00`; custs 2+ = the REAL kind-2 `FUN_004658ab`, ALSO unported).  The user's
+  "2nd PAUSE_OPEN @line 130" = raw 7344 = the first real SELL customer, not a buy.  **fileidx is NEVER 1**
+  (objdump: `FUN_00461bf6` is the only writer, called with 0/2) — tuto2 (buy) is reached by **PC-progression**
+  inside the fileidx=0 region (parser stride 50 vs consumer stride 200 ⇒ tuto1@PC0-49, tuto2@PC50-99,
+  tuto3@PC100-149).  So the `FUN_00461c00` `fileidx==1` threshold branch is **dead**; the buy direction is
+  b5a8=0 (gold-cap all.c:58323) + tuto2's GOTO script + offer_down — the exact wiring (b5a8=0-vs-1, the
+  up/down call site, the prompt gate) is **UNRESOLVED statically** and needs a buy trace to probe.
+  **→ NEXT (BLOCKED on the human): RECORD a buy-tutorial (tuto2) trace** — play day-1 sell tutorial → sleep →
+  day-2 buy tutorial, F2/F3 record, pin.  Then re-drive both sides (probe is ready), read the actual buy-round
+  state, port 1:1 + host-test the gold-cap/down-math.  ALSO blocking: the port can't navigate ANY haggle trace
+  past round 1 — it never fires `PAUSE_OPEN` (=`DAT_0438b150` 0→1, retail sets it via the BARGAIN choice_box;
+  the port's `pause_active` reads only `g_scene_pause_state_b150` which the haggle never sets).  RE §9.6.
+  The cc08==4 SELL haggle-UI render + the "!" tooltip + the camera-hint overlap remain DONE for this trace.
   **Residual (the user's "other than those... it looks 1:1"): the central-UI band's remaining 6.8%** = (a) the
   digit CURSOR pulse (`b5b4` per-frame phase — zeroes on a b5b4-aligned frame), (b) the 3D CHARACTER (Tear)
   1-frame anim phase bleeding into the band edge, and (c) a small ~2px per-glyph text-precision residual on the

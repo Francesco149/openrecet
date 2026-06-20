@@ -274,6 +274,62 @@
      "_note": "DAT_0730b544 \u2014 per-state sub-frame timer (==1 = first frame of a b534 state; resets on every transition)."
     },
     {
+     "name": "b51c",
+     "src": "global",
+     "va": "0x730b51c",
+     "type": "i32",
+     "_note": "DAT_0730b51c — the SCRIPTED-machine gate. b534==1 && b51c!=0 → FUN_00461c00 (scripted tuto). b51c==0 → the kind machines (FUN_004658ab sell / FUN_00464af0 buy). DIAGNOSTIC: is the buy round scripted or a real kind machine?"
+    },
+    {
+     "name": "b5b0",
+     "src": "global",
+     "va": "0x5c6bb0",
+     "type": "i32",
+     "_note": "DAT_005c6bb0 \u2014 the scripted-tutorial SCRIPT-FILE index (fileidx): selects g_tuto[b5b0*200+pc]. Set ONLY by FUN_00461bf6 (push 0 = player-Z sell entry; push 2 = the 3 other entries). The buy thresholds in FUN_00461c00 op5/0xd gate on b5b0==1 (BUY direction) vs else (SELL). DIAGNOSTIC: is the tutorial buy round really b5b0==1?"
+    },
+    {
+     "name": "b5bc",
+     "src": "global",
+     "va": "0x5c6bbc",
+     "type": "i32",
+     "_note": "DAT_005c6bbc \u2014 the haggle threshold BASE value (FUN_00461c00 op5/0xd compare fVar5=b5bc vs fVar4=b5b8/ask). Distinct from probe 'base' (0x5c6bc0) and 'ask' (0x5c6bb8)."
+    },
+    {
+     "name": "b150",
+     "src": "global",
+     "va": "0x438b150",
+     "type": "i32",
+     "_note": "DAT_0438b150 \u2014 the shared modal-cursor-visible flag (set 1 by choice_box_open FUN_00434def / FUN_0043561a; 0 by FUN_00435612). Drives the PAUSE_OPEN anchor (0\u21921). DIAGNOSTIC: when does it go 0\u21921 during the haggle (the 5 'PAUSE_OPEN' episodes)?"
+    },
+    {
+     "name": "f404",
+     "src": "global",
+     "va": "0x450f404",
+     "type": "i32",
+     "_note": "DAT_0450f404[player] \u2014 the SELL-ACTIVE flag (player is selling). The buy gold-cap (FUN_0045ff31) gates on b5a8==0 && f404==0. i32 reads the low byte + neighbours; the f404 byte is bit0."
+    },
+    {
+     "name": "gold",
+     "src": "global",
+     "va": "0x44e37a4",
+     "type": "i32",
+     "_note": "DAT_044e37a4[player] \u2014 player gold. The buy gold-cap clamps the entered offer (b5b8) to this when b5a8==0 && f404==0."
+    },
+    {
+     "name": "b58c",
+     "src": "global",
+     "va": "0x730b58c",
+     "type": "i32",
+     "_note": "DAT_0730b58c \u2014 the BARGAIN!! choice-button row state (FUN_00466b7b \u00a74). Probed to see the UI mode in the buy round."
+    },
+    {
+     "name": "b598",
+     "src": "global",
+     "va": "0x730b598",
+     "type": "i32",
+     "_note": "DAT_0730b598 \u2014 the BARGAIN!! banner ramp state (FUN_00466b7b \u00a73)."
+    },
+    {
      "name": "cbfc",
      "src": "global",
      "va": "0x438cbfc",
