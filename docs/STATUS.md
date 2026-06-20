@@ -184,21 +184,33 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   overlay owns the hint slot, incl. cc08==4 — mirrored via the cs-active flag `!customer_service_active()`.
   v3-verified (idx2405): bottom-right shows ONLY "Button 3: Item Details" == retail.  PORT-DEBT(camera-hint-
   b4e8): the other b4e8 menu/transition states aren't tracked.
-  **★ BUY-ROUND (tuto2) HAGGLE BUG ✅ ROOT-CAUSED + FIXED 2026-06-20 (`5c0493a`).** User: the 2nd price
-  prompt (tuto2, BUYING) "always says price it lower even though below baseline" / uses the sell UI.  **It IS
-  in this trace** — reachable by holding X past round 1 (the PC walks tuto1→tuto2 in one session; the recorded
-  trace stalls at PC 69 because it ends with Z held and dialogue-advance needs a Z *edge*).  An earlier
-  autonomous pass wrongly concluded "sell-only / separate day / blocked" — CORRECTED, see RE §9 header.
-  **Bug:** the tuto-parser opcode table mapped 値段 → op 12 (2-way PRICE) but the engine .data maps 値段 →
-  **op 5 (BUN0, the 7-tier threshold)** — confirmed from `recettear.unpacked.exe`: `0x5cb3e0 = 92 6c 92 69`
-  (値段) sits in op 5's string slot.  So the port ran tuto2's 7-tier `0,値段,10,…,16` branch as 2-way (only
-  ids 10/11 reachable) and — via the stride overlap (tuto1/2/3 share the fileidx-0 g_tuto region) — `cs_goto(11)`
-  hit **tuto1's** id-11 (slot 42 = "Yes, it is a sale" = the SELL success path).  **Fix:** map 値段 → op 5;
-  the threshold GOTO now lands in tuto2 (PC 90 "…go lower") not tuto1 (PC 42).  3337 host pass.  **Retail-
-  confirmed** (held-X drive): retail walks the same 42→…→81 PC path under **fileidx=0** — so op-5's sell-tier
-  branch (0.5/0.7/1.0) is correct parity (fileidx never 1; `cs-buy-fileidx` is NOT a debt).  RE §9.7.  **NEXT
-  (human, deferred): eyeball the fixed buy dialogue in the viewer** (hold X past round 1 → tuto2 shows its own
-  feedback, not tuto1's "Yes, sale").  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
+  **★ BUY-HAGGLE SOFTLOCK ✅ REAL ROOT CAUSE FOUND + FIXED 2026-06-20 (`29e167a`) — the parser stride was
+  50, must be 200 (RE §9.8, engine-quirks §22).** User (2026-06-20): the `5c0493a` 値段→op5 fix did NOT work;
+  the buy prompt still softlocks ("price lower than base even when you price it lower").  Per the porting loop,
+  dumped retail's parsed `g_tuto` (`&DAT_005d1fc8`) via Frida: **tuto1@slot 0, tuto2@200, tuto3@400 — each
+  file in its own clean 200-slot region, NO overlap.**  The "stride 50 / overlap" the port (+ RE §9.1-9.7)
+  believed was a **Ghidra decompile error** (`imul …,0xe740` rendered as `local_c*0x32`=50).  The port's
+  `TUTO_PARSER_STRIDE=50` overlap-corrupted tuto2/tuto3 into tuto1's tail → garbled op-5 args / cs_goto / text,
+  and the "hold X → buy prompt" path was that corruption (NOT a real retail path).  **Fix: stride 50→200** →
+  the port's g_tuto bit-matches retail; tuto2's buy 値段 is clean at slot 232 (op5 args [10..16], id-11
+  "Excellent…"→GOTO 17), fileidx=1 gives BUY tiers, cs_goto resolves within tuto2.  3337 host pass.  **★
+  USER-CONFIRMED 2026-06-20:** "it's all sell prompts up to here… up to this softlock it is correct" — the
+  buy part was the previous porting mistake; the REAL buy tutorial is a SEPARATE DAY (fileidx=1, not reachable
+  in this sell-tutorial trace).  The 値段→op5 fix (`5c0493a`) stays (correct, now operative on clean data).
+  **★ CLOSING SOFTLOCK ✅ FIXED 2026-06-20 (`0c0331c`) — the user-hit "If you can sell me an item…" freeze.**
+  The stride fix unblocked progression to the next stub: the master tick's whole b534-closing branch was a
+  bare `return` (PORT-DEBT(cs-closing-states)), so the scripted PC hit tuto1's -1 sentinel → b534=0xc and
+  FROZE.  Ported the b534==0xc scripted close (all.c:60605-13): b52c countdown → reset b51c/b524/b534/b55c → idle.
+  v3-verified on the committed trace: resets at b534=0xc→0 (frame 6956), idles up, reaches the **first real
+  customer's greeting** (b534=1, b51c=0) — the softlock is gone.  +1 host test; 3338 pass.
+  **★ OPEN GAPS (next arcs, both newly REACHABLE thanks to the above):** (1) **the first real customer's live
+  SELL machine `FUN_004658ab`** (b51c==0 / b534∈{2,6,0xf,7,…}, PORT-DEBT(cs-live-machine)) — the tutorial's
+  final "sell me an item" exercise + every post-tutorial customer; reachable in THIS trace right after the
+  closing.  (2) **ESC "skip this event?" prompt during cc08==4** (user-flagged: retail ESC→skip prompt, port
+  ESC→pause): `skip_event.c` is ALREADY ported + host-tested, but it's only armed on
+  `scene1_intro_dialogue_skippable()`; the cc08==4 scripted tutorial doesn't set the skip counter
+  `DAT_073a3e18`>1, so ESC falls through to the pause menu.  Wire the cc08==4 skippable arm.
+  **PAUSE_OPEN/b150 at the BARGAIN ✅ FIXED for round 1
   (`2fb5b39`, RE §9.6):** the port now fires PAUSE_OPEN@f3128 + PAUSE_CLOSE@f3259 (131f, matches retail b150
   130f) via `customer_service_bargain_active()` (scripted b608==4) OR'd into the anchor's pause_active (signal
   only — no gameplay effect).  **Round 2 navigation UNVERIFIED** — the exe self-exits at ~f3360 (a WM_CLOSE, NOT max-frames/duration/
