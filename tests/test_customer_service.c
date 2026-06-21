@@ -440,11 +440,18 @@ int test_cs_live_machine_sell_cycle(void)
     /* drive the sell with Z held: greeting → 2 → 6 → 0xf → 7 → 0xa → 0xc → leave. */
     int seen[64]; for (int i = 0; i < 64; i++) seen[i] = 0;
     int leave = 0;
+    int bargain_at_0xf = 0, bargain_off_0xf = 0;   /* live PAUSE_OPEN signal */
     for (int i = 0; i < 900; i++) {
         if (customer_service_b1cc() == 2) customer_service_notify_loaded();
         customer_service_master_tick(0x10, 0x10, 0);
         int s = customer_service_b534();
         if (s >= 0 && s < 64) seen[s] = 1;
+        /* The live haggle decision (b534==0xf, b51c==0) must drive the PAUSE_OPEN
+         * anchor exactly as the scripted b608==4 does — retail opens the SAME
+         * b150 choice box (RE §11).  Outside the decision it must stay quiet. */
+        if (customer_service_bargain_active()) {
+            if (s == 0xf) bargain_at_0xf = 1; else bargain_off_0xf = 1;
+        }
         if (customer_service_b520() != 0) { leave = 1; break; }
     }
 
@@ -459,5 +466,7 @@ int test_cs_live_machine_sell_cycle(void)
     T_ASSERT(seen[0xa]);         /* master-tick "thank you" */
     T_ASSERT(seen[0xc]);         /* master-tick close */
     T_ASSERT(leave);              /* f406 close → b520 leave (no softlock) */
+    T_ASSERT(bargain_at_0xf);    /* live decision fires the BARGAIN/PAUSE_OPEN signal */
+    T_ASSERT(!bargain_off_0xf);  /* …and ONLY at the decision (no spurious pauses) */
     return 0;
 }

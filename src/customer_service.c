@@ -347,13 +347,22 @@ int32_t customer_service_b51c(void)        { return s_b51c; }
 int32_t customer_service_b608(void)        { return s_b608; }
 int32_t customer_service_b604(void)        { return s_b604; }   /* the script PC (g_tuto index) */
 int32_t customer_service_fileidx(void)     { return s_price_fileidx; }
-/* The BARGAIN price-confirm choice is open (scripted machine b608==4 — the
- * cs_input_poll Yes/No state that ramps b58c).  Retail sets DAT_0438b150 (the
+/* The BARGAIN price-confirm choice is open — retail sets DAT_0438b150 (the
  * shared modal-cursor flag, → the PAUSE_OPEN anchor) here via choice_box_open;
  * the port split b150 so the haggle never set the flag the anchor reads.  This
  * lets the anchor OR it in so PAUSE_OPEN fires at the BARGAIN like retail
- * (RE §9.6) — the prerequisite for replaying any haggle trace on the port. */
-int32_t customer_service_bargain_active(void) { return s_b51c != 0 && s_b608 == 4; }
+ * (RE §9.6/§11) — the prerequisite for replaying any haggle trace on the port.
+ * TWO machines reach the same cs_input_poll (FUN_004622d9) Yes/No state:
+ *   • the SCRIPTED tutorial machine (b51c!=0) at b608==4, and
+ *   • the LIVE first-customer machine (b51c==0) at b534==0xf (the haggle
+ *     decision; FUN_004658ab's poll).  Retail opens the SAME b150 choice box
+ *     for both, so rounds 4-5 of the recording (the live practice sale with
+ *     Tear) only fire PAUSE_OPEN once the live decision is included here. */
+int32_t customer_service_bargain_active(void)
+{
+    return (s_b51c != 0 && s_b608  == 4)        /* scripted price-confirm   */
+        || (s_b51c == 0 && s_b534  == 0xf);     /* live haggle decision     */
+}
 void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
 int32_t customer_service_b5e4(void)        { return s_b5e4; }
 
