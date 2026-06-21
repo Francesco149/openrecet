@@ -14,10 +14,19 @@
 #include "../src/tables_tuto.h"
 #include "../src/rng.h"
 #include "../src/choice_box.h"   /* the ESC "Cancelling tutorial?" skip prompt */
+#include "../src/scene1_intro_dialogue.h"     /* iv1_7 dialogue arm/busy/reset */
+#include "../src/scene1_tutorial_dispatch.h"  /* scene1_tutorial_dispatch_tick (iv1_7) */
+#include "../src/scene1_conversation_pose.h"  /* teardown: release latched pose */
 
 /* DAT_0450f406 / f404 byte offsets within a slot bank (rel. save_work_dwords_at). */
 #define F406_TUTORIAL_BYTE_OFF 0x2bc6e
 #define F404_SELL_ACTIVE_BYTE_OFF 0x2bc6c
+/* iv1_7 wrap-up trigger flags (FUN_0044bd0d all.c:45715): f400 set by the cs
+ * leave/dissolve, f401 = fired, f3fb/f3fd = the iv1_5/iv1_6 placement conditions. */
+#define F400_IV1_7_TRIG_BYTE_OFF 0x2bc68
+#define F401_IV1_7_DONE_BYTE_OFF 0x2bc69
+#define F3FB_IV1_5_COND_BYTE_OFF 0x2bc63
+#define F3FD_IV1_6_COND_BYTE_OFF 0x2bc65
 
 /* Clear the active slot bank + fill the 15×20 display grid with -1 (empty). */
 static uint32_t *cs_test_bank_clean(void)
@@ -468,5 +477,46 @@ int test_cs_live_machine_sell_cycle(void)
     T_ASSERT(leave);              /* f406 close → b520 leave (no softlock) */
     T_ASSERT(bargain_at_0xf);    /* live decision fires the BARGAIN/PAUSE_OPEN signal */
     T_ASSERT(!bargain_off_0xf);  /* …and ONLY at the decision (no spurious pauses) */
+    return 0;
+}
+
+/* P2 — the post-tutorial wrap-up dialogue iv1_7 ("And that is, essentially, how it
+ * goes…").  scene1_tutorial_dispatch_tick mirrors FUN_0044bd0d all.c:45715: fire
+ * start_single(1,7) iff no dialogue is busy AND f401(0x2bc69)==0 AND f400(0x2bc68)==1,
+ * latching f401 (done) + f406 (→ iv1_8).  f400's ONLY writer is the cs leave/dissolve
+ * (FUN_00462403 all.c:60389) so it is 0 at a fresh LOAD ⇒ iv1_7 cannot fire during the
+ * load (RE §12 — the "frame-231 hang" was an env/9p confound, not this branch). */
+int test_cs_iv1_7_wrapup_trigger(void)
+{
+    save_work_set_active_slot(0);
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(0);
+    bb[F3FB_IV1_5_COND_BYTE_OFF] = 0;   /* no iv1_5/iv1_6 placement pending */
+    bb[F3FD_IV1_6_COND_BYTE_OFF] = 0;
+    bb[F401_IV1_7_DONE_BYTE_OFF] = 0;
+    bb[F406_TUTORIAL_BYTE_OFF]   = 0;
+
+    /* f400 == 0 (the fresh-load state): the tick must NOT fire iv1_7. */
+    scene1_intro_dialogue_reset();
+    bb[F400_IV1_7_TRIG_BYTE_OFF] = 0;
+    scene1_tutorial_dispatch_tick();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 0);
+    T_ASSERT_EQ_I(bb[F401_IV1_7_DONE_BYTE_OFF], 0);   /* not latched */
+
+    /* f400 == 1 (the cs sell tutorial just closed): fire + latch f401/f406. */
+    bb[F400_IV1_7_TRIG_BYTE_OFF] = 1;
+    scene1_tutorial_dispatch_tick();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 1);   /* iv1_7 armed */
+    T_ASSERT_EQ_I(bb[F401_IV1_7_DONE_BYTE_OFF], 1);   /* DAT_0450f401 = 1 */
+    T_ASSERT_EQ_I(bb[F406_TUTORIAL_BYTE_OFF],   1);   /* DAT_0450f406 = 1 (→ iv1_8) */
+
+    /* Once-only: f401 latched ⇒ a later tick (dialogue ended) does not re-fire. */
+    scene1_intro_dialogue_reset();
+    scene1_tutorial_dispatch_tick();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 0);
+
+    bb[F400_IV1_7_TRIG_BYTE_OFF] = 0;   /* teardown: clear the trigger + latches */
+    bb[F401_IV1_7_DONE_BYTE_OFF] = 0;
+    bb[F406_TUTORIAL_BYTE_OFF]   = 0;
+    scene1_conversation_pose_reset();
     return 0;
 }

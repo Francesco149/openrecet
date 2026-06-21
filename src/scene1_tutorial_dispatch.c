@@ -18,11 +18,15 @@
 #define TUT_ALLFILLED_OFF      0x2bc65   /* DAT_0450f3fd — all stands filled (cond)  */
 #define TUT_ALLFILLED_DONE_OFF 0x2bc66   /* DAT_0450f3fe — iv1_6 fired (done)        */
 #define TUT_ALLFILLED_DONE2_OFF 0x2bc67  /* DAT_0450f3ff — iv1_6 fired (done, pair)  */
+#define TUT_IV1_7_TRIG_OFF     0x2bc68   /* DAT_0450f400 — cs-close sets it → iv1_7  */
+#define TUT_IV1_7_DONE_OFF     0x2bc69   /* DAT_0450f401 — iv1_7 fired (done)        */
+#define TUT_IV1_7_F406_OFF     0x2bc6e   /* DAT_0450f406 — → iv1_8 trigger (P3)      */
 
 /* The opening-scene selector the dispatcher writes (DAT_005c7a2c = 1). */
 #define TUT_SCENE 1
 #define TUT_SUB_IV1_5 5
 #define TUT_SUB_IV1_6 6
+#define TUT_SUB_IV1_7 7
 
 void scene1_tutorial_dispatch_tick(void)
 {
@@ -54,5 +58,23 @@ void scene1_tutorial_dispatch_tick(void)
         scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_6);
         bb[TUT_ALLFILLED_DONE_OFF]  = 1;     /* DAT_0450f3fe = 1 */
         bb[TUT_ALLFILLED_DONE2_OFF] = 1;     /* DAT_0450f3ff = 1 */
+        return;
+    }
+
+    /* iv1_7 (all.c:45715): the post-tutorial wrap-up dialogue ("And that is,
+     * essentially, how it goes…").  In retail an INDEPENDENT `if` after the
+     * iv1_5/iv1_6 block (not the else-if chain), gated the same way (b1c8==0 →
+     * _busy()).  Fires once the SELL tutorial closes: the cs leave/dissolve
+     * (FUN_00462403 all.c:60389, mirrored in customer_service.c) sets f400=1 when
+     * f404 (sell-active) clears.  f400 has EXACTLY ONE writer (that close), so it
+     * is 0 at the cad868 LOAD (RE §12, probe-confirmed 3014/3014 free-roam rows
+     * f400==0) → NO premature fire during the load — the frame-231 hang the first
+     * P2 attempt saw was an env confound, not this branch.  Sets f401 (done) +
+     * f406 (→ iv1_8 "now sit at the counter", the P3 first-customer entry). */
+    if (bb[TUT_IV1_7_DONE_OFF] == 0 && bb[TUT_IV1_7_TRIG_OFF] == 1) {
+        scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_7);
+        bb[TUT_IV1_7_DONE_OFF] = 1;          /* DAT_0450f401 = 1 */
+        bb[TUT_IV1_7_F406_OFF] = 1;          /* DAT_0450f406 = 1 */
+        return;
     }
 }

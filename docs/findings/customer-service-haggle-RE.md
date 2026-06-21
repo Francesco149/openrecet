@@ -1429,7 +1429,7 @@ user-directive's P2 (the wrap-up trigger) is the next chip; P1 ("finish the tuto
 **already satisfied** — the tutorial reaches the −1 sentinel after its full 3-round script, and the live
 practice rounds now navigate.  The L1b accept side-effects (real pix) + L1c per-kyaku dialogue still stand.
 
-## 12. P2 — the wrap-up cutscene IDENTIFIED (iv1_7), trigger mapped, but BLOCKED on a flag-conflation (2026-06-21)
+## 12. P2 — the wrap-up cutscene IDENTIFIED (iv1_7), trigger mapped, but BLOCKED on a flag-conflation (2026-06-21) — ★ RESOLVED §12.1: the "blocker" was a MISDIAGNOSIS
 
 **The wrap-up dialogue is `iv/iv1_7.ivt`** — *"And that is, essentially, how it goes.  You are quite good
 for someone who has never done this before."* → Recette *"Eheheh… really?"* → Tear *"We still have a little
@@ -1478,3 +1478,37 @@ fires at load before blaming/gating it.
    wrap-up @22962-23 → free-roam @23634).
 4. Then the iv1_7→iv1_8 chain (`f406→f402`, all.c:60381-383 + 45726: "sit at the counter") leads into P3
    (the first REAL customer).
+
+## 12.1 ★ RESOLVED 2026-06-21 — the "f400 flag-conflation BLOCKER" was a MISDIAGNOSIS; iv1_7 PORTED + host-tested
+
+Re-probed in a FRESH shell (the §12 caveat's precondition; the user had also rebooted, clearing the 9p
+degradation).  The "blocker" dissolved on two findings:
+
+**(a) f400 has EXACTLY ONE writer — it is 0 at the cad868 LOAD, so iv1_7 CANNOT fire prematurely.**  A
+decompile sweep of every `DAT_0450f400` write: set to 1 ONLY at `all.c:60389` (the cs leave/dissolve inside
+`FUN_00462403`, when `f404` sell-active clears — the port already mirrors it in `customer_service.c`), cleared
+to 0 ONLY at `all.c:45781` (deep in the scene-2 chain).  There is **no prologue / display-tutorial writer**, so
+on the pre-haggle tutorial-day save f400 is 0.  The §12 claim "the cad868 LOAD save already has 0x2bc68 set"
+was WRONG — a confounded read (stderr was block-buffered then, hiding the value).  **Empirically confirmed:**
+a `--call-trace` probe of f400/f401/f406 on the loaded bank (`scene1_player_ctrl.c` 0x48670f block) over the
+whole pre-haggle + haggle window = **3014/3014 free-roam rows f400==0, f401==0**.  So the iv1_7 gate
+(`f401==0 && f400==1`) is false at load ⇒ no premature fire.
+
+**(b) The "frame-231 hang" was an ENV / 9p confound, not iv1_7.**  Frame 231 = the NEW_GAME / LOADING_START
+of the cad868 load.  The committed P1 exe (with a read-only probe, no iv1_7 branch) drives CLEANLY past 231
+in the fresh shell.  Root cause of the original "hang": the call-trace was crawling over the 9p
+`\\wsl.localhost` mount (line-buffered + a per-frame `fflush` = ~150 write syscalls/frame; the scenario arms
+`{calltrace}=[0,9500]` ≈ ~100 MB).  On a degraded 9p that looked like a hang; the user's reboot + this
+session's call-trace I/O fix (NTFS staging + full-buffering, see the harness changes) removes it.  The §12
+caveat's suspicion ("re-test in a fresh env first") was correct.
+
+**iv1_7 PORTED** (`scene1_tutorial_dispatch.c`): an independent `if` after the iv1_5/iv1_6 block mirroring
+all.c:45715 — `if (f401==0 && f400==1 && !busy) { start_single(1,7); f401=1; f406=1; }`.  Same `_busy()`
+(= `b1c8==0`) gate iv1_5/iv1_6 use.  **Host-tested** (`test_cs_iv1_7_wrapup_trigger`, 3342 pass): f400==0 ⇒
+no fire / f401 untouched; f400==1 ⇒ fires + latches f401/f406; once-only after f401 latches.  The post-haggle
+fire is at f400's flip (the cs close) — retail fires its wrap-up at a `LOADING_START` boundary (§11e
+`CONV_POSE_START@22963`), which iv1_7's own `start_single` load-bracket mirrors, so no scene-reload collision
+is expected.  **Pending:** the full in-engine integration drive to the cs-exit (~f9500) was 9p-throttled this
+session (re-degraded by heavy drive/kill churn); confirm `LOADING_START`+`CONV_POSE_START`+the "And that is…"
+lines fire post-R5 in the trace studio on a fresh env (step 3 above).  Then P3 (the iv1_8 chain → first real
+customer).

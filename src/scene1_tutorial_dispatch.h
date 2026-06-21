@@ -13,15 +13,22 @@
  *                           → DAT_0450f3fb set by the placement confirm (D1)
  *   iv1_6 (scene 1, sub 6): every display stand filled
  *                           → DAT_0450f3fd set by the placement confirm (D1)
+ *   iv1_7 (scene 1, sub 7): the post-tutorial wrap-up ("And that is, essentially,
+ *                           how it goes…") → DAT_0450f400 set by the sell-tutorial
+ *                           cs leave/dissolve (FUN_00462403 @0x462403, mirrored in
+ *                           customer_service.c).  P2 of the customer-service arc.
  *
- * The two are if/else-if (iv1_5 has priority) and the no-dialogue gate serialises
- * them, so iv1_6 fires only after iv1_5 has finished (retail: ord 770 → 1483).
+ * iv1_5/iv1_6 are if/else-if (iv1_5 has priority); iv1_7 is an independent check
+ * after them (retail likewise).  The no-dialogue gate serialises all three, so
+ * each fires only after the previous has finished (retail: ord 770 → 1483 → the
+ * post-haggle wrap-up).
  *
  * PORT-DEBT(focused, FUN_0044bd0d): the outer DAT_0450f454 "all early tutorials
- * done" gate, the DAT_0450f455 / DAT_0450fb88 alternate gate, and every other
- * scenario branch (scene 4/12/… dialogues) are not ported — only the iv1_5/iv1_6
- * branches relevant to the shop-display arc.  The per-slot done-flags below make
- * each fire exactly once regardless of the missing outer gate.
+ * done" gate, the DAT_0450f455 / DAT_0450fb88 alternate gate, and the rest of the
+ * scenario chain past iv1_7 (iv1_8 "sit at the counter" = DAT_0450f402, the scene
+ * 2/4/12 dialogues) are not ported — only the iv1_5/iv1_6/iv1_7 branches.  The
+ * per-slot done-flags below make each fire exactly once regardless of the missing
+ * outer gate.
  */
 #ifndef OPENRECET_SCENE1_TUTORIAL_DISPATCH_H
 #define OPENRECET_SCENE1_TUTORIAL_DISPATCH_H

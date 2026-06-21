@@ -247,12 +247,31 @@
   (3134/5000/6315 scripted + 7559/8600 live) + the scripted→live / inter-customer LOADINGs at retail's
   offsets (±~1%); both live sales complete (`0xf→7 accept→0xa→0xc`) and the port **exits cc08 4→1 to
   free-roam @~9124**.  +host assertion; 3341 pass.  So **P1 ("round-2..5 nav") is DONE** (the tutorial
-  reaches the sentinel after its full script AND the live practice rounds navigate).  **NEXT is P2 — the
-  post-sale CONV_POSE wrap-up** ("And that is…"): retail plays Tear's free-roam wrap-up before the
-  LOADING→free-roam; the port takes the live-close `f406 → b520` leave/dissolve straight to free-roam,
-  SKIPPING the wrap-up (RE §11e).  Then P3 the real first customer (roster scan + f404==0) / L1b real pix /
-  L1c per-kyaku dialogue.  **Drive the haggle ONLY with `--capture-trigger-only` (or the v3 window tool) —
-  a naive BMP drive times out at the wall ceiling long before the haggle.**
+  reaches the sentinel after its full script AND the live practice rounds navigate).
+  **★ P2 — the post-sale wrap-up dialogue iv1_7 ✅ PORTED + host-tested 2026-06-21 (RE §12.1); the §12
+  "f400 flag-conflation BLOCKER" was a MISDIAGNOSIS.**  In a FRESH shell: (a) `DAT_0450f400` has EXACTLY ONE
+  writer — set to 1 ONLY at the cs leave/dissolve (all.c:60389), cleared ONLY deep in scene-2 (45781); no
+  prologue writer ⇒ **it is 0 at the cad868 LOAD** (probe-confirmed 3014/3014 free-roam rows f400==0), so the
+  iv1_7 gate `(f401==0 && f400==1)` CANNOT fire prematurely.  (b) The "frame-231 hang" was an **env/9p
+  confound** (the call-trace crawling over 9p looked like a hang — the user rebooted + I fixed the call-trace
+  I/O, below); the committed exe drives clean past 231.  **Ported** `scene1_tutorial_dispatch.c` (the iv1_7
+  `if` after iv1_5/iv1_6, mirroring all.c:45715: `start_single(1,7); f401=1; f406=1`) + **host test**
+  `test_cs_iv1_7_wrapup_trigger` (3342 pass): f400==0⇒no fire, f400==1⇒fire+latch, once-only.  **PENDING (the
+  one open item):** the in-engine integration drive to the cs-exit (~f9500, CONV_POSE_START + the "And that
+  is…" lines post-R5) was 9p-throttled this session — **verify in the trace studio on a fresh env** (RE §12
+  step 3).  Then P3 the real first customer (roster scan + f404==0; the iv1_7→iv1_8 `f406→f402` chain) / L1b
+  real pix / L1c per-kyaku dialogue.
+  **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
+  The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
+  over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.
+  Fixes: (1) `call_trace.c` full-buffers (`_IOFBF` 1 MiB) + drops the per-frame fflush (the real lever — kills
+  the syscall storm on 9p AND NTFS); (2) `scenario-test.py` STAGES call_trace/d3d_trace on a Windows-local
+  NTFS dir (`local_stage_root` → `C:\…\cap`) + copies back, so the per-frame writes never touch 9p; (3) new
+  `--no-calltrace` (skip the {calltrace} window for a fast verification drive when you only need anchors —
+  ~40fps vs ~15fps; NB it lengthens the load FRAME-count so don't use it where a timeout-gated segment cares)
+  + `--max-duration-ms` (override the wall-clock ceiling for long flows past the default).
+  **Drive the haggle ONLY with `--capture-trigger-only` (or the v3 window tool) — a naive BMP drive times out
+  at the wall ceiling long before the haggle.**
   (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
   the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
   (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the

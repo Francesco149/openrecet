@@ -442,6 +442,7 @@ struct test_case {
     X(cs_esc_skip_arms_during_tutorial) \
     X(cs_esc_skip_yes_starts_leave) \
     X(cs_live_machine_sell_cycle) \
+    X(cs_iv1_7_wrapup_trigger) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

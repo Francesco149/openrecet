@@ -1991,6 +1991,23 @@ void scene1_player_ctrl_tick(void)
                                  + gcol + grow * SHOP_DISPLAY_GRID_STRIDE];
                 CALL_TRACE_I32("gridc", gv);
             }
+            /* cs-flow tutorial flags (the iv1_7 wrap-up / iv1_8 chain, P2/P3).
+             * f400 (0x2bc68)=iv1_7 trigger / shop-display-suppress (dual-use);
+             * f401 (0x2bc69)=iv1_7-done gate; f406 (0x2bc6e)=cs-active → iv1_8.
+             * iv1_7 fires iff f401==0 && f400==1 (FUN_0044bd0d all.c:45715); f400's
+             * ONLY writer is the cs leave/dissolve (all.c:60389) so it is 0 at a
+             * fresh LOAD (probe-confirmed: settled §12's "does cad868 have f400
+             * set?" read — it does not; the frame-231 hang was an env/9p confound).
+             * Port-side (the retail 0x48670f probe can declare the same bytes when
+             * a join is needed); tracks the f400 flip post-haggle + the f406→f402
+             * iv1_8 transition. */
+            {
+                const uint32_t *fb = save_work_dwords_at(save_work_active_slot());
+                const uint8_t  *fbb = (const uint8_t *)fb;
+                CALL_TRACE_I32("f400", fb ? fbb[0x2bc68] : -1);
+                CALL_TRACE_I32("f401", fb ? fbb[0x2bc69] : -1);
+                CALL_TRACE_I32("f406", fb ? fbb[0x2bc6e] : -1);
+            }
             /* customer-service / haggle state (cc08==4) — the retail 0x48670f
              * probe's DAT_0730bXXX + DAT_005c6bXX fields (tools/flow/
              * retail_fields.json).  0/-1 in free-roam (no session); populated
