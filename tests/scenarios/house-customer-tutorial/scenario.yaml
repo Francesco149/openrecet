@@ -18,5 +18,9 @@ description: |
   In-shop customer-service / price-haggling tutorial (first-customer selling).
   Milestone-1 window: counter approach → Z initiate → first haggle UI.
 max_frames: 40000   # retail load-stretches the new-game prologue heavily before the base anchor
-duration_ceiling_ms: 480000
+# Ceiling covers the FULL post-haggle flow: the v3 retail capture is real-time
+# (~16 fps, the d3d proxy needs --no-turbo), so reaching the iv1_7 wrap-up at
+# caprange offset ~10k (retail ~frame 13k) takes ~14 min — the old 480000 timed
+# out at round 2 (frame 7625).  Just a safety max; the port drive (turbo) is fast.
+duration_ceiling_ms: 1800000
 capture_suppress_loads: true

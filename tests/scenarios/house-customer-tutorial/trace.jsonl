@@ -33,7 +33,7 @@
 {"frame": 0, "buttons": "0x0010"}
 {"wait": "LOADING_END"}
 {"rngseed": [0, 110612738]}
-{"caprange": [0, 9500]}
+{"caprange": [0, 13000]}
 {"calltrace": [0, 9500]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 224, "buttons": "0x0020"}

@@ -145,4 +145,16 @@
   — see `scene1-recette-walk-cell.md`. Companion alignment is on the `{phasepin}`'d
   trace. Data: `runs/phase-probe/house-walk-down-dense/`.
 
+- **iv1_7 post-tutorial WRAP-UP cutscene ("And that is, essentially, how it goes…")
+  — USER-CONFIRMED 1:1 2026-06-22** in the v3 viewer (full port↔retail re-drive,
+  win-8000-2500; retail 13000/13000 bit-exact, port 12992/12994). "the wrap up
+  dialogue is correct": the iv1_7 dialogue TEXT + the CONV_POSE cutscene render 1:1 —
+  both fire `CONV_POSE_START` at `LOADING_START+1` post-R5, identical 648-frame
+  duration, the real `iv1_7.ivt` lines via the existing `scene1_conversation_pose`
+  system. Port: `scene1_tutorial_dispatch.c` (the FUN_0044bd0d all.c:45715 branch),
+  host-tested (`cs_iv1_7_wrapup_trigger`). ⚠️ The "..." placeholders the user saw are
+  the SEPARATE live-haggle dialogue BEFORE the wrap-up (PORT-DEBT(cs-kyaku-dialogue)/
+  L1c, not iv1_7); a post-fade camera gap (viewer col ~847) is also open — both are
+  the next-session "un-mvp" items (see FRONT). RE: `customer-service-haggle-RE.md` §12.1.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
