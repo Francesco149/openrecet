@@ -252,6 +252,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   probe-retail` frames 15700-15997 show its content.)  The first-customer real-haggle FRAMES still need a
   re-drive with the caprange on the post-tutorial region (this drive's caprange only covered round 1; the
   anchors traced the rest).
+  **★★ P1 RESOLVED + the whole framing REFRAMED 2026-06-21 (`e42921a`, RE §11) — "scripted closes after 3
+  rounds instead of 5" was a MISDIAGNOSIS.**  A wide-window `--call-trace` drive of BOTH sides (retail via
+  frida, on the recording's own inputs) proves: (i) §9.6's "f3360 harness early-exit" was just a *BMP-dump
+  slow-drive* hitting the 480 s wall ceiling — a `--capture-trigger-only` drive runs the whole flow with NO
+  early exit; (ii) the SCRIPTED tutorial is **exactly 3 rounds and BIT-IDENTICAL port↔retail** (PC 38/73/106
+  → −1 sentinel @PC131 → close) — no scripted-round bug; (iii) retail's **"5 rounds" = 3 scripted + 2 LIVE**
+  first-customer (Tear) practice-sale BARGAINs (`b51c==0`, `b534==0xf`), bit-identical too (offer
+  `b574=3870`).  The ONE port gap was a missing signal: `customer_service_bargain_active()` only checked the
+  scripted `b608==4`, so the LIVE BARGAINs never raised `PAUSE_OPEN` → the round-4/5 trace segments never
+  synced → stall.  **Fix:** OR in the live decision (`b51c==0 && b534==0xf`) — both run the same
+  `cs_input_poll` retail backs with `b150`.  **Anchor-verified:** the port now fires **5 PAUSE_OPENs**
+  (3134/5000/6315 scripted + 7559/8600 live) + the scripted→live / inter-customer LOADINGs at retail's
+  offsets (±~1%); both live sales complete (`0xf→7 accept→0xa→0xc`) and the port **exits cc08 4→1 to
+  free-roam @~9124**.  +host assertion; 3341 pass.  So **P1 ("round-2..5 nav") is DONE** (the tutorial
+  reaches the sentinel after its full script AND the live practice rounds navigate).  **NEXT is P2 — the
+  post-sale CONV_POSE wrap-up** ("And that is…"): retail plays Tear's free-roam wrap-up before the
+  LOADING→free-roam; the port takes the live-close `f406 → b520` leave/dissolve straight to free-roam,
+  SKIPPING the wrap-up (RE §11e).  Then P3 the real first customer (roster scan + f404==0) / L1b real pix /
+  L1c per-kyaku dialogue.  **Drive the haggle ONLY with `--capture-trigger-only` (or the v3 window tool) —
+  a naive BMP drive times out at the wall ceiling long before the haggle.**
   (2) **ESC "Cancelling tutorial?" skip during cc08==4 ✅ LANDED 2026-06-20 (`031581d`).**  The fix was NOT
   the prologue `skip_event` path (an earlier note guessed that) — retail's cc08==4 ESC is a SEPARATE mechanism
   (`FUN_00453384` @ 0x4533ce → **`FUN_0045e6a5`**): during the scripted tutorial (b51c==1) it opens the

@@ -1377,3 +1377,54 @@ customer — a clean shared trace to the live sell needs the round-2..5 navigati
   / 0x6df8 per-type count / 0x51d8 sprite / 0x5b38 voice, loaded from `kyaku/fN.txt` (the `file:` path the
   port already parses).  Currently a placeholder "..." drives the reveal so the state advances (rng-correct,
   text-wrong) — porting the loader gives the real lines + frame-exact reveal timing.
+
+## 11. ★★ §9.6 "scripted closes after 3 rounds" was a MISDIAGNOSIS — the "5 rounds" = 3 SCRIPTED + 2 LIVE (2026-06-21)
+
+**The whole "multi-round nav gap" / "harness WM_CLOSE early-exit" framing (§9.6) is WRONG.**  Driven to
+ground truth by the porting loop (a wide-window `--call-trace` drive of BOTH sides on the recording's own
+inputs), the picture is:
+
+**(a) §9.6's "f3360 early-exit" was a SLOW-DRIVE TIMEOUT, not a port gap.**  The exe never posts WM_CLOSE
+mid-haggle.  The f3360 stop was a *BMP-dumping* `scenario-test` drive hitting the 480 s wall-clock ceiling
+(`--max-duration-ms` → the `AUTO_EXIT_TIMER` `DestroyWindow`) while writing capture BMPs over 9p at ~0.4 s/f
+— it never even reached round 1.  A `--capture-trigger-only` drive runs the whole flow in ~40 s with NO
+early exit.  **Always drive the haggle with `--capture-trigger-only`** (or the v3 window tool); a naive BMP
+drive times out long before the haggle.
+
+**(b) The SCRIPTED tutorial is exactly 3 rounds and BIT-IDENTICAL port↔retail.**  `tuto1.txt` has three
+`PRIA` price-input steps (ids 9 / 19 / 29 — the 高く / 値段 / 値引 checks), split by two `TOUT`s.  With the
+recording's inputs the PC walk is identical on both sides: `PC 0→17→19 (base 1200)→38 (R1, ask 1300, 高く
+ok)→42→…→70→72→73 (R2, ask 1400, 値段 100-130% tier)→84→…→106 (R3, ask 1330, 値引)→…→131 = the −1 sentinel →
+b534=0xc → close (b51c→0)`.  Three `PRIA` = three `b608==4` BARGAINs = three `PAUSE_OPEN`s, then close.  The
+port already does this frame-for-frame (port R1/R2/R3 @offset 2500/4366/5681 vs retail @offset 2502/4367/
+5681).  **There is no scripted-round bug; the port matches retail.**
+
+**(c) Retail's "5 rounds" = the 3 scripted + the 2 LIVE first-customer (Tear) practice-sale BARGAINs.**
+After the sentinel closes the scripted machine (`b51c→0`), the master tick starts the live kind-2 machine
+(`FUN_004658ab`, §10) on Tear as the practice customer (`b56c=1`, `f404=1`): `b534 1→2→6→0xf (decision) →7
+(accept) →0xa→0xc→0x14 (queue-advance) → next practice customer → …`.  **This is bit-identical port↔retail
+too** — both reach `b534 1→2→6`, **offer `b574=3870`**, ask-climb 3000→3400.  Retail opens the *same*
+`DAT_0438b150` choice box at the LIVE decision (`b534==0xf`, the `FUN_004622d9` poll) that the scripted
+machine opens at `b608==4`.  So retail's full anchor sequence is:
+`R1,R2,R3 (scripted) → LOADING(TOUT) → R4 (live) → LOADING → R5 (live) → LOADING+CONV_POSE (wrap-up) → free-roam`.
+The recording's anchor log reproduces it exactly (R1@2920 … R5@8386, LOADs after R3/R4), so the recording is
+a faithful retail trace, NOT a buggy-record-time artifact.
+
+**(d) The port's gap was ONE missing signal.**  `customer_service_bargain_active()` only returned
+`b51c!=0 && b608==4` (the scripted price-confirm), so the LIVE BARGAINs never raised the `PAUSE_OPEN` anchor
+→ the trace's round-4/5 segments (gated on `{wait PAUSE_OPEN}`) never activated → the live haggle's Z/confirm
+inputs never applied → it stalled at `b534==6`.  **Fix (`e42921a`):** OR in the live decision —
+`bargain_active() = (b51c!=0 && b608==4) || (b51c==0 && b534==0xf)`.  Both states run the same
+`cs_input_poll` (`FUN_004622d9`) that retail backs with `b150`.  **Anchor-verified:** the port now fires 5
+`PAUSE_OPEN`s (3134/5000/6315 scripted + 7559/8600 live) + the scripted→live and inter-customer LOADINGs at
+retail's offsets (±~1%); both live sales complete and the port exits `cc08 4→1` to free-roam @~9124.  +host
+assertion in `cs_live_machine_sell_cycle` (the live decision drives the signal, and ONLY there); 3341 pass.
+
+**(e) REMAINING (the real next gap, NOT §9.6): the post-sale CONV_POSE wrap-up.**  After the last practice
+sale, retail plays Tear's free-roam wrap-up dialogue *"And that is, essentially, how it goes…"*
+(`LOADING_START@22962 + CONV_POSE_START@22963`, the existing `scene1_conversation_pose` cutscene), THEN loads
+to free-roam (`@23615/23634`).  The port instead takes the live-close `f406` branch (master tick all.c
+60590-60661 → `s_b520 = 1`, the leave/dissolve) straight to free-roam @9124, SKIPPING the wrap-up.  So the
+user-directive's P2 (the wrap-up trigger) is the next chip; P1 ("finish the tutorial / round-2..5 nav") is
+**already satisfied** — the tutorial reaches the −1 sentinel after its full 3-round script, and the live
+practice rounds now navigate.  The L1b accept side-effects (real pix) + L1c per-kyaku dialogue still stand.
