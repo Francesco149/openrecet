@@ -1428,3 +1428,42 @@ to free-roam (`@23615/23634`).  The port instead takes the live-close `f406` bra
 user-directive's P2 (the wrap-up trigger) is the next chip; P1 ("finish the tutorial / round-2..5 nav") is
 **already satisfied** — the tutorial reaches the −1 sentinel after its full 3-round script, and the live
 practice rounds now navigate.  The L1b accept side-effects (real pix) + L1c per-kyaku dialogue still stand.
+
+## 12. P2 — the wrap-up cutscene IDENTIFIED (iv1_7), trigger mapped, but BLOCKED on a flag-conflation (2026-06-21)
+
+**The wrap-up dialogue is `iv/iv1_7.ivt`** — *"And that is, essentially, how it goes.  You are quite good
+for someone who has never done this before."* → Recette *"Eheheh… really?"* → Tear *"We still have a little
+bit of time left today, so let us go ahead and open the store proper.  …handle them in the same way that we
+just practiced."* → … → *"Now then, I will open us up.  Go on and sit at the counter."* → Recette *"Okey-day!"*
+(a multi-line, two-speaker `scene1_intro_dialogue` script; voice `se/01ti/event/tea_sodesu.bin`).
+
+**Trigger chain (decompile, fully mapped):**
+- The cs leave/dissolve (master tick `FUN_00462403` @ all.c:60385-392) does, when the sell tutorial closes:
+  `if (f404==1) { f404=0; if (f405==0) { f3ff=0; DAT_0450f400=1; } }`.  **The port ALREADY ports this** —
+  `customer_service.c:1401-1406` (the byte is labelled `CS_F400_DISPLAY_SUPPRESS_OFF` = 0x2bc68).
+- In free-roam the iv-dispatch (`FUN_0044bd0d` @ all.c:45715-724) fires iv1_7:
+  `if (f401==0 && f400==1 && DAT_0438b1c8==0) { scene=1; sub=7; FUN_00452d07(0); f401=1; f406=1; }`.
+- A later tutorial-chain block clears `DAT_0450f400=0` (all.c:45781).
+
+**★ THE BLOCKER (why the naïve port HANGS at the scene load):** `DAT_0450f400` (0x2bc68) is **dual-use** —
+it is BOTH the iv1_7 trigger AND the shop-display interaction gate (`all.c:87703`/`scene1_player_ctrl.c:1286`:
+"displays present AND f400==0 ⇒ the cc04 remove-menu").  When I added the iv1_7 branch to
+`scene1_tutorial_dispatch_tick` (mirroring 45715: fire on `f400==1 && f401==0`), the **`house-customer-tutorial`
+LOAD save (cad868) already has 0x2bc68 set**, so iv1_7 fires PREMATURELY during the NEW_GAME/scene load →
+`start_single(1,7)` collides with the load → **hang at frame 231** (reproduced 3×; the committed P1 exe loads
+fine).  The port's `scene1_tutorial_dispatch_tick` runs every sim tick (scene1_sim.c:199), including during
+the load, where retail's `FUN_0044bd0d` is NOT yet driving — and the `_busy()` gate doesn't cover the load.
+
+**Next-session plan (HARNESS/RE first, then port):**
+1. **Confirm the save state:** probe `bank[0x2bc68]`/`[0x2bc69]` of the loaded cad868 at frame 0 (a one-shot
+   `fprintf` in tutdisp, with `fflush` — stderr is block-buffered when redirected, which hid the probe this
+   session).  Decide: does retail's equivalent save have f400==0 here (⇒ the PORT wrongly has 0x2bc68 set —
+   find/fix the spurious write), or f400==1 (⇒ retail must gate the iv-dispatch by call-context the port's
+   flat per-tick dispatch lacks — replicate that gate, e.g. only when the scene is in steady free-roam /
+   `FUN_0044bd0d`'s actual caller, not mid-load)?
+2. Port the iv1_7 dispatch branch (mirror 45715: `f401=1`, `f406=1`) ONCE the gate is right.
+3. Verify in the trace studio: after R5's sale the port should fire `LOADING_START` + `CONV_POSE_START` +
+   the iv1_7 dialogue (the "And that is…" lines) before free-roam, matching retail (R5 close @22433 →
+   wrap-up @22962-23 → free-roam @23634).
+4. Then the iv1_7→iv1_8 chain (`f406→f402`, all.c:60381-383 + 45726: "sit at the counter") leads into P3
+   (the first REAL customer).
