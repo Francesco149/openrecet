@@ -16,6 +16,24 @@ truth, not the uncommitted auto-memory.**
 point-in-time memory snapshots (archived under `memory/archive/`) for current state.
 
 ## How we work here (conventions)
+- **Output-efficiency (TERSE MODE — added 2026-06-21; REVERTIBLE: `git revert` the commit or
+  delete this bullet). Lever = DIRECT max-thinking, never CUT it.** Max-thinking stays ON
+  (decomp/parity needs deepest reasoning — user policy); reasoning depth is load-bearing. Session
+  output cost is ~84% reasoning, visible prose only ~5% ⇒ cut reasoning OVERHEAD + output tokens,
+  NOT depth. Data + revert proc: `docs/audits/2026-06-21-output-efficiency.md`; audit:
+  `tools/output_token_audit.py` (re-measure before/after to judge quality loss).
+  1. **Write ALL prose terse** (responses + docs/findings/journal/commits): telegraphic — drop
+     articles/copulas/hedges/filler, fragments, symbols (→ ⇒ ∧ ¬ @ ==). **VERBATIM:** code, hex
+     (FUN_/DAT_/0x…), identifiers, paths, numbers, gate exprs, tables. Non-lossy (held-out test
+     2026-06-21: −48% chars, fresh agent recovered all facts incl. relational).
+  2. **Batch independent probes into ONE turn; front-load plans** (was 1.11 tool-calls/turn,
+     89.8% single-tool ⇒ ~48k wasted re-orientation preambles). Don't serialize independent
+     reads/greps/builds. The real ~10-18% lever.
+  3. **Delegate MECHANICAL + SEARCH to a Sonnet/Haiku sub-agent** (grep sweeps, measurements,
+     build/test runs, file-finding) — same reasoning ~5-12× cheaper/tok; reserve Opus
+     max-thinking for decomp/parity.
+  4. **Persist conclusions tersely** so future-me READS not RE-DERIVES (cross-session
+     reasoning-compression — the real payoff of terse docs).
 - **THE PORTING LOOP (default workflow — do this yourself, DON'T guess, DON'T ask for
   what a trace can show). User directive 2026-06-13:**
   1. **SYNTHESIZE a trace** that reproduces the exact behaviour (record/edit a scenario;
