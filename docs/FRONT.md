@@ -256,11 +256,14 @@
   confound** (the call-trace crawling over 9p looked like a hang — the user rebooted + I fixed the call-trace
   I/O, below); the committed exe drives clean past 231.  **Ported** `scene1_tutorial_dispatch.c` (the iv1_7
   `if` after iv1_5/iv1_6, mirroring all.c:45715: `start_single(1,7); f401=1; f406=1`) + **host test**
-  `test_cs_iv1_7_wrapup_trigger` (3342 pass): f400==0⇒no fire, f400==1⇒fire+latch, once-only.  **PENDING (the
-  one open item):** the in-engine integration drive to the cs-exit (~f9500, CONV_POSE_START + the "And that
-  is…" lines post-R5) was 9p-throttled this session — **verify in the trace studio on a fresh env** (RE §12
-  step 3).  Then P3 the real first customer (roster scan + f404==0; the iv1_7→iv1_8 `f406→f402` chain) / L1b
-  real pix / L1c per-kyaku dialogue.
+  `test_cs_iv1_7_wrapup_trigger` (3342 pass): f400==0⇒no fire, f400==1⇒fire+latch, once-only.  **★
+  INTEGRATION-VERIFIED 2026-06-21:** a full drive to the cs-exit navigates all 5 rounds (no mid-haggle
+  collision), then post-R5 (`PAUSE_CLOSE@9805`) fires `LOADING_START@10278`+`CONV_POSE_START@10279` — iv1_7
+  at `LOADING_START+1`, **bit-matching retail §11e** (`CONV_POSE_START@22963 = LOADING_START@22962+1`); the
+  multi-line wrap-up runs (TEXT_ANIM×N) + ends clean (`CONV_POSE_END@10927`); drive exit 0, NO hang.
+  **Remaining (human/studio):** eyeball the wrap-up RENDERING 1:1 vs retail in the trace studio.  Then P3 the
+  real first customer (roster scan + f404==0; the iv1_7→iv1_8 `f406→f402` chain) / L1b real pix / L1c
+  per-kyaku dialogue.
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

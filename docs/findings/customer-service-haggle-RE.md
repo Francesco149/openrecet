@@ -1506,9 +1506,14 @@ caveat's suspicion ("re-test in a fresh env first") was correct.
 all.c:45715 — `if (f401==0 && f400==1 && !busy) { start_single(1,7); f401=1; f406=1; }`.  Same `_busy()`
 (= `b1c8==0`) gate iv1_5/iv1_6 use.  **Host-tested** (`test_cs_iv1_7_wrapup_trigger`, 3342 pass): f400==0 ⇒
 no fire / f401 untouched; f400==1 ⇒ fires + latches f401/f406; once-only after f401 latches.  The post-haggle
-fire is at f400's flip (the cs close) — retail fires its wrap-up at a `LOADING_START` boundary (§11e
-`CONV_POSE_START@22963`), which iv1_7's own `start_single` load-bracket mirrors, so no scene-reload collision
-is expected.  **Pending:** the full in-engine integration drive to the cs-exit (~f9500) was 9p-throttled this
-session (re-degraded by heavy drive/kill churn); confirm `LOADING_START`+`CONV_POSE_START`+the "And that is…"
-lines fire post-R5 in the trace studio on a fresh env (step 3 above).  Then P3 (the iv1_8 chain → first real
-customer).
+fire is at f400's flip (the cs close).  **★ INTEGRATION-VERIFIED 2026-06-21** by a full `--capture-trigger-only`
+drive to the cs-exit (raised ceiling via the new `--max-duration-ms`): the port navigates all **5 haggle
+rounds** (PAUSE_OPEN 4289/6155/.../8714/9755 = 3 scripted + 2 live, no mid-haggle collision — iv1_7 correctly
+stays dormant while f400==0), then after R5 (`PAUSE_CLOSE@9805`) fires **`LOADING_START@10278` +
+`CONV_POSE_START@10279`** — i.e. iv1_7 fires at `LOADING_START+1`, **BIT-MATCHING retail's §11e pattern**
+(`CONV_POSE_START@22963 = LOADING_START@22962 + 1`).  The wrap-up cutscene then runs its multi-line script
+(several `TEXT_ANIM_START/END` + `DLG_LINE_SHOW/CLEAR` + `CONV_POSE_BLINK`) and ends cleanly
+(`CONV_POSE_END@10927`); the drive completes (exit 0) — **no hang, no collision**.  So iv1_7 fires at the right
+moment via the same conversation-pose system retail uses.  **Remaining (human/studio):** eyeball the wrap-up
+RENDERING 1:1 vs retail (the "And that is…" text content + conv-pose framing) in the trace studio.  Then P3
+(the iv1_8 `f406→f402` chain → first real customer).
