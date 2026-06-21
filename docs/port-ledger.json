@@ -5226,7 +5226,9 @@
     "src/customer_service.h",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h"
    ]
   },
   {

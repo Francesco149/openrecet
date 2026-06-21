@@ -50,6 +50,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -385,7 +386,8 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
                          d3d_trace_verts: bool = False,
                          call_trace: bool = False,
                          capture_local: bool = False,
-                         trigger_only: bool = False) -> dict:
+                         trigger_only: bool = False,
+                         suppress_calltrace: bool = False) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace.
 
     capture_local (D2): write capture BMPs to a Windows-local NTFS staging dir
@@ -407,6 +409,24 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     audio_jsonl  = run_dir / "audio.jsonl"
     stdout_log   = run_dir / "stdout.log"
     stderr_log   = run_dir / "stderr.log"
+
+    # NTFS staging for the per-frame HEAVY traces (call_trace + d3d_trace).  The
+    # exe is a Windows process; appending these per-frame to the ext4 run_dir over
+    # the 9p \\wsl.localhost mount is ~100x slower than native NTFS and throttles
+    # the whole drive — the house-customer-tutorial {calltrace}=[0,9500] window is
+    # ~100 MB and made full-haggle drives crawl / look hung.  The {calltrace} op
+    # arms call_trace regardless of CLI flags, so it ALWAYS hit 9p before this.
+    # Point both at a C:\ staging dir (read back via /mnt/c) and copy into run_dir
+    # after the drive — one sequential read beats 1.5M tiny 9p appends.  Always on
+    # when a local NTFS root is derivable; falls back to the direct run_dir path
+    # (non-WSL / no cmd.exe), so behaviour is unchanged where staging is impossible.
+    trace_stage_dir: Path | None = None
+    _troot = local_stage_root()
+    if _troot is not None:
+        trace_stage_dir = _troot / (run_dir.name + "-trace")
+        trace_stage_dir.mkdir(parents=True, exist_ok=True)
+    def trace_out(name: str) -> Path:
+        return (trace_stage_dir / name) if trace_stage_dir is not None else (run_dir / name)
 
     trace_path = _ensure_trace_exists(scen)
 
@@ -480,8 +500,12 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     # op itself (the port arms call_trace_arm_window as the trace replays), so no
     # --call-trace-frames is needed.  Retail auto-enables the same way via
     # frida_capture — the op is the single source of truth on both targets.
-    if '"calltrace"' in trace_path.read_text():
-        child_args += ["--call-trace", wslpath_w(run_dir / "call_trace.jsonl")]
+    # suppress_calltrace (--no-calltrace) skips passing the file so the exe leaves
+    # g_f NULL → the {calltrace} op no-ops and the per-VA formatting (~150 lines/
+    # frame, the remaining throughput cost after NTFS staging) is never paid: a
+    # fast verification drive when you only need anchors / dlg-log, not the trace.
+    if not suppress_calltrace and '"calltrace"' in trace_path.read_text():
+        child_args += ["--call-trace", wslpath_w(trace_out("call_trace.jsonl"))]
 
     # Explicit render/flow trace flags (scenario-test --d3d-trace / --call-trace
     # [+ --d3d-trace-verts]). Trace the aligned capture_frames so port↔retail
@@ -490,13 +514,13 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     ct_frames = (",".join(str(f) for f in scen.capture_frames)
                  if scen.capture_frames and not scen.is_segtrace else "")
     if d3d_trace:
-        child_args += ["--d3d-trace", wslpath_w(run_dir / "d3d_trace.jsonl")]
+        child_args += ["--d3d-trace", wslpath_w(trace_out("d3d_trace.jsonl"))]
         if d3d_trace_verts:
             child_args += ["--d3d-trace-verts"]
         if ct_frames:
             child_args += ["--d3d-trace-frames", ct_frames]
     if call_trace and "--call-trace" not in child_args:
-        child_args += ["--call-trace", wslpath_w(run_dir / "call_trace.jsonl")]
+        child_args += ["--call-trace", wslpath_w(trace_out("call_trace.jsonl"))]
         # Mirror the retail side: drop frame 0 (the boot transient) so port↔
         # retail call-traces cover the same steady frames.
         ct_only = [f for f in scen.capture_frames if f != 0] or scen.capture_frames
@@ -546,6 +570,17 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
         if n_back:
             print(f"    capture-local: copied back {n_back} frames "
                   f"({elapsed_ms} ms capture + copyback)")
+
+    # Copy the NTFS-staged heavy traces back into the run dir (one sequential
+    # /mnt/c read each, vs the per-frame 9p appends the exe avoided), then drop the
+    # stage so it can't accumulate.  Downstream readers (flow_diff, the v3 cache)
+    # keep finding call_trace.jsonl / d3d_trace.jsonl in run_dir, interface intact.
+    if trace_stage_dir is not None:
+        for nm in ("call_trace.jsonl", "d3d_trace.jsonl"):
+            src = trace_stage_dir / nm
+            if src.exists():
+                shutil.copyfile(src, run_dir / nm)
+        shutil.rmtree(trace_stage_dir, ignore_errors=True)
 
     captured = frame_io.frame_glob(frames_dir)
     meta = {
@@ -975,6 +1010,12 @@ def main(argv: list[str] | None = None) -> int:
                          "fast as the host can chew through it. Affects both "
                          "targets. ON by default (--no-turbo to disable for a "
                          "scenario that needs real-time pacing).")
+    ap.add_argument("--max-duration-ms", type=int, default=None,
+                    help="override the scenario's wall-clock ceiling (the "
+                         "--max-duration-ms passed to the exe + the supervisor/"
+                         "python timeouts). Raise it for long flows whose target "
+                         "frame sits past the default ceiling on a slow load "
+                         "(e.g. the full cs haggle to the iv1_7 wrap-up ~f9500).")
     ap.add_argument("--silent-audio", action=argparse.BooleanOptionalAction,
                     default=True,
                     help="force audio paths silent (centibel -10000) while "
@@ -1001,6 +1042,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="capture an aligned call_trace.jsonl on each target "
                          "(with declared payloads) for tools/flow_diff.py — the "
                          "execution+dataflow drill-in.")
+    ap.add_argument("--no-calltrace", action="store_true",
+                    help="suppress the scenario's built-in {calltrace} window on "
+                         "the PORT drive (don't pass --call-trace to the exe). The "
+                         "per-VA formatting is ~150 lines/frame — skipping it is a "
+                         "fast verification drive when you only need anchors / "
+                         "dlg-log, not the trace. No effect on --target retail.")
     ap.add_argument("--no-regen", action="store_true",
                     help="after a --target both run, do NOT rebuild the "
                          "interactive comparison gallery "
@@ -1044,6 +1091,11 @@ def main(argv: list[str] | None = None) -> int:
     total_pass = total_fail = 0
     for sp in scenarios:
         scen = Scenario.load(sp)
+        if args.max_duration_ms is not None:
+            # CLI override of the scenario's wall-clock ceiling — long flows (the
+            # full customer-service haggle reaches the cs-exit / iv1_7 wrap-up
+            # ~frame 9500, beyond the default ceiling on a 9p-slowed load).
+            scen.duration_ceiling_ms = args.max_duration_ms
         # Absolutize the run-dir-root (it may be passed relative, e.g.
         # `runs/bench`); downstream `Path.relative_to(ROOT)` on the
         # side-by-side path needs run_dir under ROOT, not a bare relative path.
@@ -1082,7 +1134,8 @@ def main(argv: list[str] | None = None) -> int:
                         d3d_trace_verts=args.d3d_trace_verts,
                         call_trace=args.call_trace,
                         capture_local=args.capture_local,
-                        trigger_only=args.capture_trigger_only)
+                        trigger_only=args.capture_trigger_only,
+                        suppress_calltrace=args.no_calltrace)
                 _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
                       f"captured={len(m['captured_frames'])}/{_exp}")
@@ -1179,7 +1232,8 @@ def main(argv: list[str] | None = None) -> int:
                 d3d_trace_verts=args.d3d_trace_verts,
                 call_trace=args.call_trace,
                 capture_local=args.capture_local,
-                        trigger_only=args.capture_trigger_only)
+                        trigger_only=args.capture_trigger_only,
+                        suppress_calltrace=args.no_calltrace)
         _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{_exp}")

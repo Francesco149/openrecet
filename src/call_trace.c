@@ -61,7 +61,16 @@ void call_trace_init_from_cli(const char *path,
     g_f = fopen(path, "w");
     if (!g_f) return;
 
-    setvbuf(g_f, NULL, _IOLBF, 0);
+    /* Full-buffer the trace (1 MiB) rather than line-buffer it.  The {calltrace}
+     * window emits ~150 lines/frame; line buffering issued a write() per newline
+     * AND call_trace_end_frame fflush()ed every frame — a syscall storm that, over
+     * the 9p \\wsl.localhost mount, throttled full-haggle drives to ~10 fps and
+     * made a degraded 9p look hung (the "frame-231 hang" of RE §12 was this, not a
+     * logic gap).  Full buffering collapses that to ~1 write per ~80 frames, so the
+     * sim loop stops blocking on trace I/O.  A completed drive flushes identically
+     * at fclose (call_trace_shutdown); a hard-killed one loses ≤1 buffer of tail
+     * (fine — we re-drive).  Pairs with scenario-test's NTFS staging of this file. */
+    setvbuf(g_f, NULL, _IOFBF, 1 << 20);
 
     if (frames && n_frames) {
         if (n_frames > CALL_TRACE_FRAMES_MAX) n_frames = CALL_TRACE_FRAMES_MAX;
@@ -117,7 +126,13 @@ void call_trace_begin_frame(unsigned frame)
 
 void call_trace_end_frame(void)
 {
-    if (g_f) fflush(g_f);
+    /* No per-frame fflush — that plus line-buffering was the 9p syscall storm
+     * (see call_trace_init_from_cli).  Flush every 1024 frames as a safety net so
+     * a hard-killed drive keeps most of its tail even on a sparse trace that never
+     * fills the 1 MiB buffer; a completed drive flushes fully at fclose. */
+    static unsigned n = 0;
+    if (g_f && (++n & 1023u) == 0)
+        fflush(g_f);
 }
 
 void call_trace_shutdown(void)

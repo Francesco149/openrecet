@@ -99,7 +99,7 @@ _none_
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
-| focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
+| focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1175 | the engine frees the shop |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:150 | the trend<-1 ⇒ cap 0 branch is deferred |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:927 | neutral (0) until the |
