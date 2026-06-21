@@ -1454,6 +1454,17 @@ LOAD save (cad868) already has 0x2bc68 set**, so iv1_7 fires PREMATURELY during 
 fine).  The port's `scene1_tutorial_dispatch_tick` runs every sim tick (scene1_sim.c:199), including during
 the load, where retail's `FUN_0044bd0d` is NOT yet driving — and the `_busy()` gate doesn't cover the load.
 
+**⚠ CAVEAT (the hang diagnosis is CONFOUNDED — re-test in a fresh env first):** late in the same session
+the COMMITTED P1 exe (iv1_7 reverted, source unchanged) ALSO began hanging at frame 231 on a clean drive —
+yet that exact exe had reached frame 8650 with 5 PAUSE_OPENs earlier (`runs/…001630Z`).  So the late-session
+frame-231 hangs are at least partly an **environmental/WSL-interop degradation** from this session's heavy
+concurrent exe activity (many overlapping port/retail/studio drives), NOT necessarily the iv1_7 fire.  The
+`f400` premature-fire is still a real THEORETICAL risk (the decompile's dual-use is genuine), but it was NOT
+proven to be the hang — the iv1_7+DBG drive's "iv1_7 FIRING" print never appeared (stderr was block-buffered,
+inconclusive).  **Next session, in a FRESH shell:** (1) confirm the committed exe drives clean again; (2) THEN
+re-apply iv1_7 with a one-shot `fprintf`+`fflush` of `bank[0x2bc68]`/`[0x2bc69]` to settle whether it actually
+fires at load before blaming/gating it.
+
 **Next-session plan (HARNESS/RE first, then port):**
 1. **Confirm the save state:** probe `bank[0x2bc68]`/`[0x2bc69]` of the loaded cad868 at frame 0 (a one-shot
    `fprintf` in tutdisp, with `fflush` — stderr is block-buffered when redirected, which hid the probe this
