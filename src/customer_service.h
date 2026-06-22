@@ -80,6 +80,10 @@ int32_t customer_service_base_price(void);
  * (DAT_0730b5a0), and haggle round (DAT_0730b584). */
 int32_t customer_service_b5a8(void);
 int32_t customer_service_b56c(void);
+/* DAT_0450f404[slot] — sell-active (1 = player-initiated counter sell; 0 = the
+ * autonomous first customer).  Gates the companion's at-counter arm vs the
+ * free-roam follow in scene1_companion_ctrl_tick (FUN_0048a833 local_c). */
+int32_t customer_service_f404(void);
 int32_t customer_service_arrival_anim(void);
 int32_t customer_service_round(void);
 

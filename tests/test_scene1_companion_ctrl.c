@@ -17,6 +17,18 @@
 #include "scene1_companion_ctrl.h"
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos, ground_y, camera_yaw */
 #include "scene1_spawn.h"           /* wing-glow emit → scene1_spawn trace */
+#include "save_work.h"              /* save_work_dwords_at — the f404 sell-active byte */
+
+/* DAT_0450f404[slot] within a save-work bank (rel. save_work_dwords_at).  The
+ * companion's at-counter arm gates on f404 != 0 (else the free-roam follow). */
+#define F404_SELL_ACTIVE_BYTE_OFF 0x2bc6c
+
+static void set_f404(int on)
+{
+    save_work_set_active_slot(0);
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(0);
+    bb[F404_SELL_ACTIVE_BYTE_OFF] = (uint8_t)(on ? 1 : 0);
+}
 
 static int near_f(float a, float b)
 {
@@ -31,6 +43,8 @@ static void setup(float px, float pz)
 {
     player_ctrl_pose_house_standing(0);   /* actor2 = char 1 @ (0.6,3.0,9.35) */
     scene1_companion_ctrl_reset();
+    player_ctrl_debug_set_cc08(1);        /* default free-roam (not the at-counter arm) */
+    set_f404(0);                          /* sell NOT active by default — isolate tests */
     g_scene1_player_ground_y = 0.0f;
     g_scene1_actor_pos[0][0] = px;
     g_scene1_actor_pos[0][1] = 0.0f;
@@ -143,7 +157,8 @@ int test_companion_wing_sparkle_emit(void)
 int test_companion_at_counter_pose(void)
 {
     setup(-4.5f, 8.6f);                     /* player at the counter */
-    player_ctrl_debug_set_cc08(4);          /* sell-active → at-counter branch */
+    player_ctrl_debug_set_cc08(4);          /* cc08==4 ... */
+    set_f404(1);                            /* ... + f404 (player sell) → at-counter branch */
     g_scene1_actor_pos[2][0] = -3.0f;       /* companion on the player's +x side */
     g_scene1_actor_pos[2][1] = 3.0f;
     g_scene1_actor_pos[2][2] = 8.8f;
@@ -169,6 +184,7 @@ int test_companion_at_counter_settle(void)
 {
     setup(-4.5f, 8.6f);
     player_ctrl_debug_set_cc08(4);
+    set_f404(1);                            /* player sell → at-counter branch */
     g_scene1_actor_pos[2][0] = -3.0f;
     g_scene1_actor_pos[2][1] = 3.0f;
     g_scene1_actor_pos[2][2] = 8.8f;
@@ -182,6 +198,34 @@ int test_companion_at_counter_settle(void)
     T_NEAR(g_scene1_actor_pos[2][2], 8.6f);    /* player.z */
     if (rec[CHR_ACTOR_ANIM] != 4)   T_FAIL("settled → canim 4 held");
     if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("settled → octant 2 held");
+    return 0;
+}
+
+/* The AUTONOMOUS first customer (the f406 entry, gap 2) is cc08==4 but f404==0:
+ * FUN_0048a833 then takes the free-roam spring-follow (local_c==0 && local_28!=0,
+ * FUN_0048a4d1), NOT the at-counter ±1.3 step.  Inside the 1.5 follow radius that
+ * is NO XZ move + idle anim 0 — distinct from the at-counter arm (canim 4, steps
+ * toward player.x+1.3).  This is the fix for RE §18 (retail's first-customer Tear
+ * just follows the player to the counter: canim 0, holds her facing seed). */
+int test_companion_first_customer_freeroam(void)
+{
+    setup(-4.5f, 8.6f);                     /* player at the counter */
+    player_ctrl_debug_set_cc08(4);          /* cc08==4 ... */
+    set_f404(0);                            /* ... but f404==0 (autonomous customer) */
+    g_scene1_actor_pos[2][0] = -3.5f;       /* companion 1.0 from player → inside 1.5 */
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = 8.6f;
+    const int32_t *rec = player_ctrl_actor_record(2);
+
+    scene1_companion_ctrl_tick();
+
+    /* free-roam inside the radius → no XZ move + idle, NOT the at-counter
+     * step-to-player+1.3 (-3.47) and canim 4. */
+    T_NEAR(g_scene1_actor_pos[2][0], -3.5f);
+    T_NEAR(g_scene1_actor_pos[2][2], 8.6f);
+    if (rec[CHR_ACTOR_ANIM] == 4) T_FAIL("f404==0 → free-roam follow, NOT the at-counter canim 4");
+    if (rec[CHR_ACTOR_ANIM] != 0) T_FAIL("f404==0 inside radius → idle anim 0 (got %d)",
+                                          rec[CHR_ACTOR_ANIM]);
     return 0;
 }
 

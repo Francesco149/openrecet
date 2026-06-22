@@ -339,6 +339,18 @@ int32_t customer_service_offer(void)       { return s_b574; }
 int32_t customer_service_base_price(void)  { return s_price_base; }
 int32_t customer_service_b5a8(void)        { return s_b5a8; }
 int32_t customer_service_b56c(void)        { return g_scene_buy_current_page; }
+/* DAT_0450f404[slot] — the SELL-ACTIVE flag (1 = a player-initiated sell at the
+ * counter; 0 = the autonomous first customer / no sell).  FUN_0048a833 forces
+ * its branch selector local_c != 0 on f404 != 0 (by-address 0x48a98b), which
+ * selects the at-counter companion arm (co_at_counter_tick); the first customer
+ * is f404 == 0 ⇒ the engine runs the free-roam spring-follow (FUN_0048a4d1)
+ * instead — see scene1_companion_ctrl_tick. */
+int32_t customer_service_f404(void)
+{
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    return (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+}
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
 int32_t customer_service_b520(void)        { return s_b520; }

@@ -8765,6 +8765,7 @@
    "status": "ported",
    "src": [
     "src/customer_service.c",
+    "src/customer_service.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_particles_tick.h",

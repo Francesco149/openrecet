@@ -1700,3 +1700,41 @@ to cx=-5.80 + never poses/emits.
    (FUN_004658ab / cs_live_machine) timing.  In this trace the captured window ends ~off300 (b534 still 0,
    b5a8 0→2, b56c 1→13 at off60 = the customer asset bind); the scold beat may be just past the window — a
    re-drive with a longer caprange may be needed to capture it.
+
+### 18.1 RESOLVED 2026-06-22 — the position/idle arm is the FREE-ROAM FOLLOW, not the scold-wander (Chip P3-companion-pos)
+
+Read the RETAIL ground truth straight off the `e8f49cb7` call-trace (0x48670f frames, the first-customer
+region is the 2nd cc08==4 run [8544..8852], 309 frames before the window ends):
+
+| 0x48670f off | f404h    | b534 | b5a8 | b56c | canim | coct | cx     | cz   | px    | cwander | cstate |
+|--------------|----------|------|------|------|-------|------|--------|------|-------|---------|--------|
+| 8544 (entry) | 0x10000  | 0    | -1   | 1    | **4** | 6    | -2.96  | 8.66 | -1.5  | 0       | 0      |
+| 8559 (+15)   | 0x10000  | 0    | -1   | 1    | **0** | 0    | -2.96  | 8.66 | -3.38 | 0       | 0      |
+| 8574..8852   | 0x10000  | 0→1  | 2    | 13   | **0** | 0    | **-3.0** | 8.65 | -4.5 | **0**   | **0**  |
+
+`f404h = 0x10000` ⇒ the i32 read of `0x450f404` has **byte0 (f404) = 0** and **byte2 (f406) = 1** — so the
+first customer is **f404==0, f406==1** (the autonomous entry), exactly as the iv1_7 chain predicts.  The
+canim=4/coct=6 at off 0 is the prior tutorial pose **leftover** (1-frame transition); by off 15 the companion
+is **canim 0 / coct 0** and stays there, settling to **cx=-3.0** (= player px −4.5 + the 1.5 follow radius),
+**cz=8.65**.
+
+**`cwander` (be6c) and `cstate` (db048) are 0 the WHOLE region** ⇒ the engine is NOT in the be6c
+idle-wander/scold arm (that needs `f407!=0`, and **f407's only writer is the iv1_8 start at all.c:45736, gated
+`f402==1`; f402 is set ONLY at the cs LEAVE — all.c:60383, right after `f406` is cleared @60382** — so f407 is
+0 during the first customer's haggle).  With `local_28 = (f407==0) = 1`, FUN_0048a833 takes the
+`local_c==0 && local_28!=0` path = **`FUN_0048a4d1` free-roam spring-follow** on Tear (da1f0) — the SAME law
+the port already ships for non-cc08 free-roam (validated 0.0036 mean XZ error).  So the companion just FOLLOWS
+the player to the counter and idles.
+
+**The port bug was structural:** `scene1_companion_ctrl_tick` special-cased ALL `cc08==4` → `co_at_counter_tick`
+(the `local_c!=0` / f404 at-counter ±1.3 walk), so the f404==0 first customer ran the wrong arm → Tear walked
+off to cx=−5.80, canim 4.  **Fix (landed): gate the at-counter arm on `customer_service_f404()`** (reads the
+`0x2bc6c` bank byte = f404 bit0); f404==0 falls through to the existing free-roam follow.  No rng change (both
+arms draw zero rng aside from the unchanged every-4th-frame wing sparkle).  +1 host test
+(`companion_first_customer_freeroam`).
+
+**The SCOLD POSE + 集中線 are NOT in this 309-frame window** — canim stays 0, b534 only reaches 1 (greeting);
+they fire on a later LIVE-machine beat (b534==6 reaction / 8 pushback, after the haggle starts, past off 8852).
+That is a SEPARATE P3 chip (the live-machine reaction overlay) and needs the `{calltrace}` window extended past
+8852 (forces a retail re-drive).  When ported, the free-roam path must YIELD to the live-machine pose on the
+reaction beat (mirror the `scene1_conversation_pose_active()` yield).

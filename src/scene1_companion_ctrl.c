@@ -17,6 +17,7 @@
 
 #include "call_trace.h"           /* CALL_TRACE_ENTER */
 #include "scene1_player_ctrl.h"   /* actor record (mut/read) */
+#include "customer_service.h"     /* customer_service_f404 — the at-counter-arm gate */
 #include "scene1_conversation_pose.h" /* yield anim/facing while the pose is held */
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* record-field indices */
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y + g_scene1_camera_yaw */
@@ -255,15 +256,25 @@ void scene1_companion_ctrl_tick(void)
     float         *comp   = g_scene1_actor_pos[CO_ACTOR];
     const float   *player = g_scene1_actor_pos[CO_TARGET];
 
-    /* cc08==4 (sell-active): the companion is the haggle CUSTOMER — run the
-     * at-counter branch (FUN_0048a833 local_c!=0) instead of the free-roam
-     * spring-follow.  The player arrival arm (player_ctrl_cs_arrival_tick, run
-     * earlier this frame via scene1_player_ctrl_tick) wrote the companion octant
-     * = 0; this overwrites it to the at-counter 2/6, exactly as retail (where
-     * FUN_0048a833 runs from the master tick AFTER the arrival arm).  db054 is
-     * frozen (RE §8.8) so the wing-sparkle gate (db054%4==0) still fires every
-     * frame; the at-counter move/pose draws no rng. */
-    if (player_ctrl_cc08() == 4) {
+    /* cc08==4 + f404 != 0 (a player-initiated counter SELL): the companion is the
+     * haggle CUSTOMER — run the at-counter branch (FUN_0048a833 local_c!=0, forced
+     * nonzero by f404 at by-address 0x48a98b) instead of the free-roam spring-follow.
+     * The player arrival arm (player_ctrl_cs_arrival_tick, run earlier this frame
+     * via scene1_player_ctrl_tick) wrote the companion octant = 0; this overwrites
+     * it to the at-counter 2/6, exactly as retail (where FUN_0048a833 runs from the
+     * master tick AFTER the arrival arm).  db054 is frozen (RE §8.8) so the
+     * wing-sparkle gate (db054%4==0) still fires every frame; the at-counter
+     * move/pose draws no rng.
+     *
+     * The AUTONOMOUS first customer (the f406 entry, gap 2) is cc08==4 but
+     * f404 == 0: FUN_0048a833 then takes local_c==0 && local_28!=0 (f407 is set
+     * only at the cs leave, all.c:60383, so it is 0 during the haggle) ⇒ the SAME
+     * free-roam spring-follow (FUN_0048a4d1) the non-cc08 path below runs.  So gate
+     * the at-counter arm on f404 and let f404==0 fall through to that path — retail's
+     * Tear just follows the player to the counter (RE §18: canim 0, oct 0, cx≈-3.0).
+     * The scold pose + 集中線 on the reaction beat are a SEPARATE live-machine
+     * overlay (b534==6), ported later. */
+    if (player_ctrl_cc08() == 4 && customer_service_f404()) {
         int prev_animsel = rec[CO_REC_ANIMSEL];
         co_at_counter_tick(rec, comp, player);
         /* advance the sprite anim on a non-transition frame (mirrors the

@@ -340,18 +340,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   camera converges to **(-3,14,-3,0) == retail** (was the free-roam cam).  +1 host test (3350 pass).  Accepted
   residual: the ramp-transient origin (load/phase), both converge bit-exact.  **✅ USER-CONFIRMED 2026-06-22:
   "camera looks correct once settled"** (commit `3d8f6ce`; ledger).
-  **★★ (3) NEXT ARC = P3, the first REAL customer INTERIOR — user-flagged 2026-06-22 (gap (2) opened it):
-  the COMPANION (Tear) pose/position + the SCOLDING POSE + manga-lines (集中線) (RE §18).**  Diff (aligned by
-  CUSTOMER_SERVICE_ENTER#2): retail Tear stays at the counter (**cx≈-3.0, canim 0, oct 0** facing front) and
-  does a scold pose + 集中線; the port runs the WRONG branch — `co_at_counter_tick` (FUN_0048a833's f404!=0
-  arm, canim 4, step→player±1.3) fires for ALL cc08==4, but the engine gates it `cc08==4 && f404!=0`
-  (all.c:33434).  The first customer is **f404==0** ⇒ the port walks Tear off to **cx=-5.80, canim 4** + never
-  poses/emits.  **Fix:** gate `co_at_counter_tick` on f404!=0; port FUN_0048a833's f404==0 arm (idle/hold +
-  the scold pose + the manga-lines trigger — confirm if it's the §8.8 b494 RT draw ⇒ needs the v3 RT-capture
-  ext).  Also still open in P3: the live haggle render fidelity (customer art/dialogue), L1b real pix (gold +=
-  ask + stock decr + payout), the roster scan (PORT-DEBT(cs-roster-scan)), the iv1_8 chain (`f406→f402`).
-  **NB the {calltrace} window [0,9500] stops ~at the f406 entry (off ~300 captured, b534 still 0); the scold
-  beat may be just past it — EXTEND the window / caprange to probe it.**
+  **★★ (3) ARC = P3, the first REAL customer INTERIOR (user-flagged 2026-06-22, gap (2) opened it).
+  COMPANION POSITION ✅ PORTED + v3-VERIFIED 2026-06-22 (RE §18.1) — PENDING USER CONFIRM.**  The port ran the
+  WRONG companion arm: `co_at_counter_tick` (FUN_0048a833's `local_c!=0` / f404 at-counter ±1.3 walk, canim 4)
+  fired for ALL cc08==4, so the f404==0 first customer walked Tear off to **cx=-5.80, canim 4** + never settled.
+  Root (PROVEN off the e8f49cb7 cache + decompile, no guess): the first customer is **f404==0, f406==1** (the
+  i32 read of 0x450f404 = 0x10000 = f404 byte 0, f406 byte 1); the scold/idle-WANDER arm (`local_28==0`) needs
+  **f407**, whose ONLY writer is the iv1_8 start (all.c:45736, gated f402; **f402 is set ONLY at the cs LEAVE,
+  all.c:60383**, right after f406 is cleared) ⇒ f407==0 during the haggle ⇒ FUN_0048a833 takes
+  `local_c==0 && local_28!=0` = the **free-roam spring-follow (FUN_0048a4d1)** the port already ships (validated
+  0.0036).  **Fix:** gate `co_at_counter_tick` on `customer_service_f404()` (the 0x2bc6c bank byte = f404 bit0);
+  f404==0 falls through to the free-roam follow — Tear just trails the player to the counter and idles.
+  **v3-verified: the port companion now BIT-MATCHES retail** (e8f49cb7, --state, --join-anchor
+  CUSTOMER_SERVICE_ENTER, window `win-8400-600`): **canim 0, coct 0, cx=-3.0** (was -5.80), cz 8.6 (vs retail
+  8.65 = const-offset load phase), greeting `b534` 0→1 aligned @off160; `cwander`/`cstate` 0 (no scold-wander).
+  +1 host test (`companion_first_customer_freeroam`); 3351 pass.
+  **REMAINING P3 (next chips):** (a) **the SCOLD POSE + 集中線** — a SEPARATE *later* LIVE-machine beat
+  (`b534==6` reaction / `8` pushback, past off 8852; retail's canim STAYS 0 in this 309-frame window, so it is
+  NOT the idle arm) — needs the `{calltrace}` window EXTENDED past 8852 (forces a retail re-drive) to observe;
+  when ported the free-roam path must YIELD to the live-machine pose (mirror `scene1_conversation_pose_active`).
+  (b) the live haggle render fidelity (customer art/dialogue).  (c) **L1b** real pix (gold += ask + stock decr +
+  payout).  (d) the roster scan (PORT-DEBT(cs-roster-scan)).  (e) the iv1_8 chain (`f406→f402`).
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.
