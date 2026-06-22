@@ -446,6 +446,10 @@ struct test_case {
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \
+    X(dlg_macro_expand_item_pix) \
+    X(dlg_macro_expand_drops_unset) \
+    X(dlg_macro_expand_preserves_br) \
+    X(dlg_macro_set_reset) \
     \
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_wait_timeout_skips_without_rebasing) \

@@ -27,7 +27,16 @@ practice-sale lines).  Root: `cs_pick_line` (`FUN_00460a1a`) drew the variant rn
 Sanity: the reaction `cs_pick_line(0,9,0)` = recette msg09 = **"How much should I?..." / "Capitalism, ho!"**
 (count 2, `rand%2`) — the iconic line the `...` hid.  +3 host tests (`kyaku_dialogue_parse_fields/_caps/
 _store`), 3345 pass.  Retires PORT-DEBT(cs-kyaku-dialogue); adds cs-dlg-override (the DAT_073dddb8 buysell
-variant table) + cs-voice (playback = audio).  Pending the v3 viewer visual 1:1 + a flow_diff rng-1:1 confirm.
+variant table) + cs-voice (playback = audio).  **v3-verified + USER-CONFIRMED**: the live greeting renders
+"Tear / I would like this, please." bit-identical to retail (was `...`).
+
+**Follow-up (user note #2) — the `<I>`/`<Y>` dialogue TEXT MACROS** (RE §14).  The post-sale close line
+"Yay! I sold `<I>` for `<Y>`!" (recette msg08) showed raw/mangled markers; retail substitutes item name + pix.
+`font_draw_text_box` (FUN_00465db4) pass-1 macro expansion was stubbed AND leaked the trailing `>` — ported
+to new `dialogue_macros.{c,h}` (`dlg_macro_expand`, the 6 tag buffers).  The live close branch sets `<I>`
+(`cs_set_item_macro` = FUN_004607f3(b5a4) → `g_item.singular`) + `<Y>` (`snprintf("%dpix", s_price_ask)`),
+per all.c:60616-60626.  +4 host tests (3349 pass).  **v3-verified**: the close line renders **"Steel Sword /
+for 3600pix"** BIT-IDENTICAL to retail.  Retires PORT-DEBT(box-text-macros); adds cs-item-macro-kinds.
 
 ## 2026-06-18 — customer-tutorial TRACE-REPLAY blocker ROOT-CAUSED + FIXED (segtrace timeout ate the walk)
 

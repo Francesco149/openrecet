@@ -8,6 +8,8 @@
  * doc §3.5 correction); this file ports the entry (FUN_0045edaa) first.
  */
 
+#include <stdio.h>            /* snprintf — the <I>/<Y> sale-line macro formats */
+
 #include "customer_service.h"
 #include "customer_haggle.h"
 #include "rng.h"
@@ -17,6 +19,7 @@
 #include "worker_load.h"      /* worker_load_spawn_d3e == FUN_00452d3e */
 #include "tables_kyaku.h"     /* g_kyaku — the customer tuning fields */
 #include "customer_dialogue.h" /* kyaku_dialogue_get — per-kyaku fN.txt lines (L1c) */
+#include "dialogue_macros.h"  /* dlg_macro_set — the <I>/<Y> sale-line macros */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
@@ -1069,6 +1072,26 @@ static void cs_pick_line(int rec_index, int type, int slot)
     cs_split_line(text);                        /* sets b558/b548/b270 (+ <C>) */
 }
 
+/* ── FUN_004607f3 — set the <I> dialogue macro to the transacted item's name ──
+ * `handle` = the offered item handle (b5a4): id = handle>>6, count = handle&0xf.
+ * count 0 → just the singular name ("Steel Sword"); else "name N".  Read by
+ * font_draw_text_box (dlg_macro_expand) when a line contains "<I>".
+ * PORT-DEBT(cs-item-macro-kinds): the engine's b534==0x1e debug-string branch +
+ * the b5a8==4 (synth/order) name source are not modeled — the f404 sell path
+ * (b5a8==2) takes the item-name branch ported here. */
+static void cs_set_item_macro(int handle)
+{
+    char tmp[DLG_MACRO_BUFSZ];
+    int slot = tables_item_find_slot_by_id(&g_item, handle >> 6);   /* FUN_004681f6 */
+    const char *name = (slot >= 0) ? g_item.records[slot].singular : "";
+    int count = handle & 0xf;
+    if (count == 0)
+        snprintf(tmp, sizeof tmp, "%s", name);              /* DAT_005c6d7c "%s" */
+    else
+        snprintf(tmp, sizeof tmp, "%s %d", name, count);    /* DAT_005c6d74 "%s %d" */
+    dlg_macro_set(DLG_MAC_I, tmp);
+}
+
 /* ── FUN_00460672 — grade the ask vs the customer's fair value (b588) ─────────
  * Returns 1 if the ask is within ±0.5% of b588 (great deal → +5 like), 2 within
  * −5%/+5% (ok → +2), else 0 (+1).  Only tunes the like-count; the accept/reject
@@ -1584,9 +1607,16 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                  * queue-advance (f404) or idle (!f404); f406 → leave/dissolve. */
                 s_cust_active[0] = 1;
                 if (s_b544 == 1) {
-                    /* PORT-DEBT(cs-close-fx): FUN_004607f3 + the gold banner +
-                     * b150 (FX only — the state still advances).  uVar18 = the
-                     * close line type by transaction kind (all.c:60627-60635). */
+                    /* all.c:60616-60626: set the <I> item-name + <Y> "%dpix"
+                     * dialogue macros the close line ("Yay! I sold <I> for <Y>!"
+                     * = recette msg08) expands.  uVar18 = the close line type by
+                     * transaction kind (all.c:60627-60635).
+                     * PORT-DEBT(cs-close-fx): the gold banner + DAT_0438b150
+                     * pause FX remain (they don't move the b534 state). */
+                    cs_set_item_macro(s_b5a4);             /* FUN_004607f3(b5a4) → <I> */
+                    {   char pix[DLG_MACRO_BUFSZ];
+                        snprintf(pix, sizeof pix, "%dpix", s_price_ask);  /* "%dpix" b5c6bb8 */
+                        dlg_macro_set(DLG_MAC_Y, pix); }   /* → <Y> sale price */
                     int close_line = (s_b5a8 == 3) ? 0xb
                                    : (s_b5a8 == 0) ? 7 : 8;
                     cs_pick_line(0, close_line, 0);  /* FUN_00460a1a(&ea90,uVar18,0) */

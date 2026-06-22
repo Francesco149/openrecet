@@ -33,6 +33,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/tables_snews.c ../src/tables_stage.c ../src/tables_tuto.c \
                  ../src/customer_haggle.c \
                  ../src/customer_dialogue.c \
+                 ../src/dialogue_macros.c \
                  ../src/customer_service.c \
                  ../src/xfile.c ../src/mesh.c ../src/mesh_load.c ../src/mesh_draw.c \
                  ../src/scene_table.c ../src/scene_map_meshes.c ../src/scene_sc1.c ../src/stage_state.c \
@@ -97,6 +98,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_tables_snews.c test_tables_stage.c test_tables_tuto.c \
                  test_customer_haggle.c \
                  test_customer_dialogue.c \
+                 test_dialogue_macros.c \
                  test_customer_service.c \
                  test_xfile.c test_mesh.c test_mesh_load.c test_mesh_draw.c \
                  test_scene_table.c test_scene_map_meshes.c test_scene_sc1.c test_stage_state.c \

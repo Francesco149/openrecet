@@ -298,10 +298,18 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   user's real data = **18 scripts / 1229 lines** (no errors); 3 host tests (3345 pass); the reaction
   `cs_pick_line(0,9,0)`=recette msg09 = **"How much should I?..." / "Capitalism, ho!"** (count 2, rand%2) =
   the line the `...` hid.  PORT-DEBT added: cs-dlg-override (the DAT_073dddb8 buysell variant table, inactive
-  here), cs-voice (playback, audio).  **PENDING user visual 1:1** in the v3 viewer (driving now):
-  `orv3_window house-customer-tutorial --window 5900:2800 --state --join-anchor CUSTOMER_SERVICE_ENTER`
-  (live states retail state-frame 6413 b534=2 greeting / 6537 b534=6 reaction / 7001 b534=7 accept; two
-  practice rounds 6032-8393, cc08 exits 4→1 @8543) + a flow_diff rng-1:1 confirm at those frames.
+  here), cs-voice (playback, audio).  **v3-VERIFIED + USER-CONFIRMED 2026-06-22** (win-5900-2800,
+  --join-anchor CUSTOMER_SERVICE_ENTER): the live greeting renders "Tear / I would like this, please."
+  BIT-IDENTICAL to retail; user "looks good".
+  **★ FOLLOW-UP (user note #2) — the `<I>`/`<Y>` TEXT MACROS ✅ PORTED 2026-06-22 (RE §14, retires
+  PORT-DEBT(box-text-macros)).**  The post-sale close line "Yay! I sold `<I>` for `<Y>`!" (recette msg08)
+  rendered raw/mangled markers; retail substitutes the item name + pix.  Two fixes: (a) `font_draw_text_box`
+  (FUN_00465db4) pass-1 macro expansion was stubbed AND leaked the trailing `>` — ported to new
+  `dialogue_macros.{c,h}` (`dlg_macro_expand`, the 6 tag buffers); (b) the close branch now sets `<I>`
+  (`cs_set_item_macro` = FUN_004607f3(b5a4) → `g_item.singular`) + `<Y>` (`snprintf("%dpix", s_price_ask)`).
+  +4 host tests (3349 pass).  PORT-DEBT new: cs-item-macro-kinds (the b534==0x1e / b5a8==4 name sources).
+  **v3-VERIFIED 2026-06-22**: the close line renders "Steel Sword / for 3600pix" BIT-IDENTICAL to retail (was
+  the mangled markers).  Pending user re-check in the studio.
   **(2) POST-FADE CAMERA wrong (STILL OPEN — the next arc)** — at the viewer's **col ~847** (window offset
   ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
   wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition

@@ -293,7 +293,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x460161 | FUN_00460161 | 622 | ✓ | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4603cf | FUN_004603cf | 675 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h, customer_service.c |
-| 0x4607f3 | FUN_004607f3 | 196 | ✓ | customer_service.c |
+| 0x4607f3 | FUN_004607f3 | 196 | ✓ | customer_service.c, dialogue_macros.h |
 | 0x46098f | FUN_0046098f | 139 | ✓ | customer_service.c |
 | 0x460a1a | FUN_00460a1a | 288 | ✓ | customer_dialogue.c, customer_dialogue.h, customer_service.c (+1) |
 | 0x460d52 | FUN_00460d52 | 254 | ✓ | customer_service.c |
@@ -310,7 +310,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_camera.c (+4) |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c |
-| 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, font_draw.c (+2) |
+| 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, dialogue_macros.c (+4) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x466b7b | FUN_00466b7b | 5305 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x468034 | FUN_00468034 | 253 | ✓ | customer_service_render.c |
@@ -575,7 +575,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5031e4 | FUN_005031e4 | 9 | ✓ | scene1_particles_tick.c, scene1_player_ctrl.c, scene1_records_b_spawn.c (+1) |
 | 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
-| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, font_draw.c, scene1_combat_sm.c (+6) |
+| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
 | 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+7) |
 | 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+10) |

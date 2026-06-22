@@ -1552,7 +1552,32 @@ the verified-1:1 LCG holds; only the now-used variant VALUE selects the real lin
 **Verified:** loader on the user's real data = **18 scripts / 1229 lines** (no missing/read-fail/OOM);
 **3 host tests** (`kyaku_dialogue_parse_fields/_caps/_store`, 3345 pass).  Sanity: the reaction
 `cs_pick_line(0,9,0)` = recette msg09 = **"How much should I?..." / "Capitalism, ho!"** (count 2, `rand%2`) —
-the iconic line the `...` hid.  **Pending:** the v3 viewer visual 1:1 of the live greeting/reaction/accept
-lines vs retail (drive `--window 5900:2800 --join-anchor CUSTOMER_SERVICE_ENTER`; live states retail
-state-frame 6413 b534=2 / 6537 b534=6 / 7001 b534=7) + a `flow_diff` rng-1:1 confirm at those frames.
-PORT-DEBT retired: cs-kyaku-dialogue; new: cs-dlg-override (the buysell variant table), cs-voice (playback).
+the iconic line the `...` hid.  **v3-VERIFIED + USER-CONFIRMED 2026-06-22** (`--window 5900:2800
+--join-anchor CUSTOMER_SERVICE_ENTER`): the live greeting renders **"Tear / I would like this, please."**
+BIT-IDENTICAL to retail (was `...`); user "looks good".  PORT-DEBT retired: cs-kyaku-dialogue; new:
+cs-dlg-override (the buysell variant table), cs-voice (playback).
+
+## 14. Dialogue macro substitution (`<I>` item / `<Y>` pix) PORTED 2026-06-22 (retires PORT-DEBT(box-text-macros))
+
+User flagged (viewer note #2, port `PAUSE_CLOSE#5+160`): the post-sale close line **recette msg08 "Yay! I
+sold `<I>` for `<Y>`!"** rendered the raw markers (mangled to `)` / `>`) where retail shows **"Steel Sword" /
+"3000pix"**.  Two gaps: (a) `font_draw_text_box` (FUN_00465db4) pass-1 macro expansion was stubbed
+(PORT-DEBT(box-text-macros)) — AND the stub leaked the trailing `>` (it advanced src by 2, not past the whole
+`<I>`); (b) the `<I>`/`<Y>` source buffers were never populated.
+
+**Macro expansion (FUN_00465db4 pass 1, all.c:62697-62815).**  Each tag copies a length-prefixed buffer at
+the dst cursor, then the shared `iVar4-1` (62814) + `LAB_00465f24` `iVar6++/iVar4++` (62816) tail CONSUMES the
+closing `>` and nets the dst advance to the macro length (empty buffer ⇒ the written `<` is overwritten ⇒ the
+whole tag drops).  Sources: `<S>`=DAT_0730b2bc/b300, `<I>`=DAT_0730b154/ac90, `<Y>`=DAT_06a5d518/0730b150,
+`<D1>`=DAT_0730ac70/b274, `<Dx>`=DAT_0730ac80/b2fc (first emitted char folded `i`→`I` else `B`),
+`<T>`=DAT_06a5d408/d44c; `<BR>` is NOT a tag (literal, survives to pass 2's line split).
+
+**Port:** new `dialogue_macros.{c,h}` (the 6 buffers + `dlg_macro_set`/`_reset` + the pure host-testable
+`dlg_macro_expand`); `font_draw.c` calls it (replacing the leaky stub).  The setters (engine all.c:60616-60626,
+the live close branch): `cs_set_item_macro` = **FUN_004607f3**(b5a4) → `<I>` (id=b5a4>>6 →
+`tables_item_find_slot_by_id` → `g_item.records[slot].singular`, `+ " %d"` if b5a4&0xf), and `<Y>` =
+`snprintf("%dpix", s_price_ask)` — both set in the `b534==0xc` live close before `cs_pick_line(0,8,0)`.  +4
+host tests (`dlg_macro_expand_*`/`set_reset`, incl. a guard that an unset tag drops WITHOUT a stray `>`); 3349
+pass.  PORT-DEBT retired: box-text-macros; new: cs-item-macro-kinds (the b534==0x1e / b5a8==4 name sources).
+**v3-VERIFIED 2026-06-22** (win-5900-2800, close line port_idx 2274 / retail 2431): the port renders **"Steel
+Sword / for 3600pix"** BIT-IDENTICAL to retail (was the mangled `)` / `>`).  Pending user re-check.
