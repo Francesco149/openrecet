@@ -384,9 +384,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   both gated off in the EVENT arm ⇒ freezes at 1.27 like retail.  RNG-safe; cc08 at-counter companion untouched
   (fixed hover, no ground_y term).  +2 host tests (3354 pass).  **v3-VERIFIED** (4dfe654b/port re-drive): the
   wrap-up companion chibi Y **port 4.08–4.46 == retail 4.09–4.46** (was flat 3.0) + the cutscene effect sprites
-  rose to match (4.7–5.9 == 4.9–5.9), within ±0.03 bob/anim phase.  Accepted residual: the player CONTACT SHADOW
-  uses a live floor query (still 0.12 vs retail's frozen 1.39) but is imperceptible there (alpha→0 both sides);
-  PORT-DEBT(cs-shadow-frozen-floor).  USER: re-open the viewer (win-8400-2500) → note #1.
+  rose to match (4.7–5.9 == 4.9–5.9), within ±0.03 bob/anim phase.  **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes
+  that looks correct"; ledger).  **FOLLOW-UP (same root) — the player CONTACT SHADOW frozen-floor ✅ FIXED +
+  v3-verified 2026-06-22, PENDING USER CONFIRM** (user: "fix that port debt too, if structurally equal"): the
+  shadow render LIVE-queried the floor per actor; retail's shadow is a pure READER of the cached per-actor floor
+  daf94 (filled in house_update, frozen during CONV_POSE).  Faithful fix: cache the player floor hit
+  `g_scene1_player_floor` (= daf94[0], where collision_resolve_player + the cc08 writer already query) and the
+  shadow reads it for actor 0 — bit-exact on flat floors (other scenes unchanged), frozen during CONV_POSE.
+  v3-verified: wrap-up player shadow **(-1.5,1.392,9.0) == retail EXACT** (was 0.121).  Remaining
+  PORT-DEBT(cs-shadow-frozen-floor): companion/actor-1 shadows still live-query (FUN_0048a833 per-actor daf94
+  cache unported) — invisible here (companion = fairy hover, no contact shadow).  USER: re-open the viewer
+  (win-8400-2500) → note #1 (companion height + Recette's shadow).
   (b) **the customer CHIBI NPC (viewer note #2, user 2026-06-22 "walks around and checks out the shop")** — the
   port doesn't render the first real customer's chibi sprite AT ALL (retail shows it browsing the shop; the §18.2
   "yellow element"/80-tri b494 = THIS).  Per the user, on the first customer the ONLY diffs are NPC rng + item-

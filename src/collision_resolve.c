@@ -10,6 +10,9 @@
 
 #define CR_PI 3.14159265358979323846f
 
+/* The player's cached floor query (engine daf94[0]/daebc[0]).  See the header. */
+collision_hit g_scene1_player_floor;
+
 /* Radial-push raycast exclusion (FUN_00433674 L222-225, first-object form):
  * the furniture-special / decorative types are skipped; walls are type 0 and
  * kept (told apart from floors by their near-horizontal normal). */
@@ -194,6 +197,7 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
          * (collision_set_player_ground_y, called from the arrival arm) since this
          * free-roam path is not reached while cc08==4. */
         g_scene1_player_ground_y = h.height;
+        g_scene1_player_floor = h;     /* daf94[0]/daebc[0] — the contact-shadow floor */
     }
 }
 
@@ -205,8 +209,10 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
 void collision_set_player_ground_y(const collision_mesh *m, const float pos[3])
 {
     collision_hit h;
-    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h))
+    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h)) {
         g_scene1_player_ground_y = h.height;
+        g_scene1_player_floor = h;     /* daf94[0]/daebc[0] — the contact-shadow floor */
+    }
 }
 
 void collision_resolve_player_floor(const collision_mesh *m,

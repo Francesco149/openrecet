@@ -1907,10 +1907,22 @@ records_ground_y` = the free-roam writer); 3354 pass.  **✅ v3-VERIFIED** (port
 wrap-up companion chibi Y is now **port 4.08–4.46 == retail 4.09–4.46** across the whole CONV_POSE (was a
 flat 3.0; note frame 3.097→4.332 vs retail 4.354), matching within ±0.03 = the bob sin-phase / accepted +1f
 arrival-anim phase.  The cutscene effect sprites near Tear (scale −0.001) likewise rose 3.7–4.6 → 4.7–5.9 ==
-retail 4.9–5.9.  Player chibi (-1.5,0.5,9.0) + all XZ stay bit-exact.  **Accepted residual:** the player
-CONTACT SHADOW still uses a per-frame live floor query (scene1_chr_shadow) so it sits on the real floor under
-(-1.5,9.0) (Y 0.12) instead of retail's frozen counter floor (Y 1.39) — but both are effectively INVISIBLE
-there (height = pos.y − floor_y → retail −0.89 ⇒ alpha clamps to 0; port +0.38 ⇒ alpha 1/255), so the diff is
-imperceptible; outside note #1's box (which is on Tear).  PORT-DEBT(cs-shadow-frozen-floor): route the
-player+companion contact-shadow floor through the frozen g_scene1_player_ground_y (engine daf94[i]) for a
-fully bit-exact shadow if ever flagged.  **USER-CONFIRM pending** (viewer win-8400-2500, note #1).
+retail 4.9–5.9.  Player chibi (-1.5,0.5,9.0) + all XZ stay bit-exact.  **✅ USER-CONFIRMED 1:1 2026-06-22**
+("yes that looks correct") in the v3 viewer; recorded in `confirmed-parity-ledger.md`.
+
+**Follow-up — the player CONTACT SHADOW frozen-floor (user: "fix that port debt too, if it's structurally
+equal").**  The player shadow had the SAME un-frozen-floor root: `scene1_chr_shadow_render` did a per-frame LIVE
+`collision_query_ground` per actor, so at the wrap-up it sat on the real floor under (-1.5,9.0) (Y 0.12) instead
+of retail's frozen counter floor (Y 1.39).  The fix IS structurally faithful: the engine's shadow (FUN_0045aa36)
+is a pure READER of the cached per-actor floor `DAT_056daf94` (height) / `DAT_056daebc` (normal), filled by
+FUN_00483170 / FUN_0048a833 every house_update frame — NOT a live query.  And daf94[0] == daf88[0] ==
+`g_scene1_player_ground_y` (the SAME FUN_00483170 query, same pre-snap +1.5 probe).  **Fix:** cache the player's
+full floor hit `g_scene1_player_floor` (= daf94[0]/daebc[0]) where collision_resolve_player +
+collision_set_player_ground_y already query it; the shadow reads it for actor 0 instead of live-querying.  On
+flat floors the cache == a live query (so the shadow stays bit-exact in every other scene), and it FREEZES
+during CONV_POSE (the player tick doesn't run) ⇒ matches retail.  **✅ v3-VERIFIED**: the wrap-up player shadow
+is now **port (-1.5,1.392,9.0) == retail (-1.5,1.392,9.0)** EXACT (was 0.121).  Remaining
+PORT-DEBT(cs-shadow-frozen-floor): the OTHER shadow actors (companion, actor 1) still live-query — the engine's
+FUN_0048a833 per-actor daf94 cache is unported — but the companion draws NO contact shadow in this scene (fairy
+hover), so it is invisible here; a future chip can port FUN_0048a833's floor loop for full per-actor fidelity.
+**USER-CONFIRM pending** (viewer win-8400-2500, note #1).

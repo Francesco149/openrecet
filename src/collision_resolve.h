@@ -17,10 +17,23 @@
 #define OPENRECET_COLLISION_RESOLVE_H
 
 #include "collision_mesh.h"
+#include "collision_query.h"   /* collision_hit (the cached player-floor type) */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * The player's cached floor query (engine DAT_056daf94 height + DAT_056daebc..
+ * normal, written by FUN_00483170 every house_update frame).  collision_resolve_
+ * player + collision_set_player_ground_y fill it; the contact-shadow render reads
+ * it for actor 0 instead of a live query, so during a conversation-pose cutscene
+ * (when the player tick doesn't run) the player's shadow rides the FROZEN floor
+ * exactly like retail — same value the companion hover (g_scene1_player_ground_y)
+ * freezes on.  On flat floors the cache == a live query, so the shadow stays
+ * bit-exact in every other scene.  RE §18.4.
+ */
+extern collision_hit g_scene1_player_floor;
 
 /*
  * Cast a ray from `pos` along `dir` (NOT normalized — its length is the cast

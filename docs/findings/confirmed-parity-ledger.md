@@ -212,4 +212,24 @@
   + render rest (cs-leave-restore), the shop-full branch (cs-leave-shopfull).  RE:
   `customer-service-haggle-RE.md` §18.3.
 
+- **WRAP-UP (CONV_POSE) companion HEIGHT — USER-CONFIRMED 2026-06-22** ("yes that
+  looks correct") in the v3 viewer (win-8400-2500, note #1 `DLG_LINE_CLEAR#6+43`).
+  Viewer note #1 "tear position slightly off / lower in port": through the iv1_7
+  wrap-up cutscene Tear sat ~1.27 world-units below retail.  Root: the companion
+  free-roam hover Y = `sin·0.2 + g_scene1_player_ground_y + 3.0`, but the port NEVER
+  WROTE `g_scene1_player_ground_y` (engine `DAT_056daf88`, the floor under the
+  player) — stuck 0 ⇒ companion at 3.0.  Retail's daf88 FREEZES at the
+  counter-platform floor (~1.27) through CONV_POSE (the house_update floor writer
+  FUN_00483170 doesn't run in the EVENT arm) ⇒ companion at 4.35.  Flat-floor
+  free-roam (floor≈0) hid the un-wired global; only the frozen raised counter
+  exposed it.  Fixed by wiring `g_scene1_player_ground_y` = the queried floor in
+  BOTH house_update paths (`collision_resolve_player` = FUN_00483170 free-roam +
+  `collision_set_player_ground_y` from the cc08 arrival arm), both gated off in the
+  EVENT arm so the value freezes like retail.  RNG-safe; cc08 at-counter companion
+  untouched (fixed hover, no ground_y term).  v3-verified: wrap-up companion chibi Y
+  **port 4.08–4.46 == retail 4.09–4.46** (was flat 3.0) + the cutscene effect
+  sprites near Tear match too.  Commit `cce3174`; +2 host tests.  RE §18.4.
+  (Note #1's reported player "(-2.0,8.8)" drift was a misread off the clobbered
+  call_trace — the v3cap WORLD shows the player at (-1.5,9.0) bit-matching retail.)
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
