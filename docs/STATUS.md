@@ -447,8 +447,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `b564=1` iff its slot ∈ {1,2,3,4,11,12,13}=`DAT_005c6be0`; **b564 gates a 2-rng particle emit @all.c:60240 ⇒
   RNG-load-bearing**, so it's ported data-driven not stubbed), else→rng-drawn (PORT-DEBT(cs-kind-select-general),
   not reached by f404/f406 traces).  **VERIFIED:** the port's first-customer base flips 3000→**100** + ask
-  100→120 == retail; +2 host tests (3366).  **RESIDUAL (next):** the OFFER `b574` (port 119/150 vs retail 123)
-  still differs = the remaining rng-VALUE drift (the un-pinned phase / gap-2), SEPARATE from the now-correct item.
+  100→120 == retail; +2 host tests (3366).  **★ USER-CONFIRMED 1:1 2026-06-22 in the v3 viewer** ("the item is
+  correct") — added a `{caprange:[0,2600]}` to the scenario so the first-customer haggle is Trace-Studio-viewable.
+  **★★ BUT the user flagged (same viewer) a NEW visible gap — the REACTION-LINE VARIANT + Recette's FACE: port
+  shows recette msg09 "How much should I?…" + open-eyes; retail "Capitalism, ho!" + closed-eyes-smile.**  PRECISELY
+  DIAGNOSED (not the item): `cs_pick_line(0,9,0)` takes the live `!f404` arm ⇒ `variant = rng_next15() % count[9](=2)`
+  and `s = variant + 9*VARIANTS` indexes BOTH the text AND the sprite — so ONE rng draw decides the line + the face,
+  and the port lands on the wrong PARITY.  Root = the rng-VALUE drift (same drift as offer 119 vs 123): **db054 is
+  ALIGNED (274, frozen in cc08) — NOT the driver.**  The driver is the **目玉商品 sparkle** (`player_ctrl_display_sparkle_emit`,
+  gated `g_sim_frame_count(DAT_0438b8cc) % 8 == 3`, 3 rng_next_unit × occupied display column ⇒ ~25 draws/fire): the
+  port's `g_sim_frame_count` is **off-phase by 3** vs retail (sim-frame origin differs) AND the port's async **d3e
+  load runs ~8 frames longer** (b1cc=2 ~15f vs ~7f; varies 15-18 run-to-run) ⇒ the sparkle fires a DIFFERENT NUMBER
+  of times during the load ⇒ an ODD cumulative-draw drift ⇒ the rand%2 variant flips.  **This is the gap-2
+  non-deterministic-LOAD-duration reproduction problem** (the FRONT OPEN QUESTION), now with concrete evidence.  A
+  `{phasepin}` would normalize the sparkle %8 PHASE (the standard policy this trace was missing) but NOT the
+  load-FIRE-COUNT (which tracks the non-deterministic load duration).  **NEXT (gap-2, needs the user's call):** make
+  the port's d3e load duration match retail's (deterministic) + add the {phasepin}, OR accept the variant/offer as a
+  load-phase residual (the item/base/ask/UI are 1:1).  The drill: `tools/cs_walker_drill.py` + db054/g_sim_frame_count.
   **★ GAP-2 (2nd-sale reproduction) STILL OPEN** — the pinned-trace retail-REPLAY gives the first customer
   base=100/offer=123; whether the recording's natural 2-sale flow reproduces on the pinned/intro-skipped engine
   is the {rngseed}-pin-precision OPEN QUESTION (may need the user).  **NEXT after b5a4 + the 2-sale question:**
