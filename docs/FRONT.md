@@ -336,22 +336,29 @@
   CUSTOMER_SERVICE_ENTER, window `win-8400-600`): **canim 0, coct 0, cx=-3.0** (was -5.80), cz 8.6 (vs retail
   8.65 = const-offset load phase), greeting `b534` 0→1 aligned @off160; `cwander`/`cstate` 0 (no scold-wander).
   +1 host test (`companion_first_customer_freeroam`); 3351 pass.
-  **★ USER NOTE #8 "camera angle still wrong" (greeting frame) — INVESTIGATED 2026-06-22 (RE §18.2): the camera
-  TRANSFORM is 100% BIT-EXACT (eye=(-3,22.2,14) lookat=(-3,1.2,0) incl. the newly-probed Y; FOV 45° const; up
-  const), so it is NOT an eye/lookat bug.  BUT the rendered cc08==4 3D SCENE genuinely REPROJECTS differently** —
-  the STATIC floor/counter diffs **54 cross-side / 0.0 same-side** (back wall 87, depth-dependent far>near; not a
-  shift/blur/tint) ⇒ the camera is APPLIED to the 3D render differently (view/proj-matrix BUILD or a stage_class==1
-  viewport), a path that diverges from the verified-1:1 free-roam render.  PLUS a retail-only **yellow/gold circular
-  element** center-right the port never draws.  **The user is RIGHT it's a projection problem — just not in the
-  eye/lookat numbers.  NOT root-caused — NEXT: capture the VIEW/PROJ matrix (hook FUN_004a3b52 + SetViewport) or
-  a `--d3d-trace` + draw-program panel on a settled cc08==4 frame to find the differing 3D draw + the yellow draw.**
-  Tooling landed: `camey`/`camly`/`b5d4`/`b59c` probe fields + `{calltrace}`→11500.
+  **★ USER NOTE #8/#9 "camera angle wrong" ✅ ROOT-CAUSED + FIXED + v3-VERIFIED 2026-06-22 (RE §18.3, the
+  --d3d-trace) — it is the WRAP-UP (CONV_POSE) camera, NOT the greeting; §18.2 analyzed the WRONG frame.**  New
+  tool `tools/trace_studio_v3/orv3_xform.py` extracts the actual SetTransform VIEW/PROJ from the EXISTING v3cap.bin
+  (NO re-drive) + decodes eye/lookat/fov/near/far + `--draws-by-view`.  Note #9 = `CONV_POSE_BLINK#1+36` = the iv1_7
+  wrap-up cutscene (user moved it to a no-standee frame, same region).  The CSE#2 first-customer GREETING §18.2
+  measured is in fact **camera-1:1** (counter-cam VIEW + all 5 perspective PROJ BIT-IDENTICAL port==retail; pixel
+  diff 1.19% — §18.2's "floor reprojection 54-diff" was a frame-misalignment artifact).  The REAL gap: through the
+  whole wrap-up the scene rendered under the SAME orientation/FOV but a different CENTER — PORT eye=(-3,22.2,14)
+  look=(-3,1.0) (the stale cc08==4 counter cam) vs RETAIL eye=(-1.5,22.2,15) look=(-1.5,1.0) (FREE-ROAM); pixel diff
+  92.8%.  **Fix:** the port's cs LEAVE omitted retail's Recette HOP-DOWN reposition (`g_scene1_player_pos`→(-1.5,9.0),
+  clamped to camera bias (-1.5,1.0)) + the `stage_class=0` reset (all.c:60349-394); the other reset site never runs
+  once iv1_7 routes the sim to the EVENT arm.  Ported both into `customer_service.c` (RNG-safe; +host test
+  `cs_leave_resets_freeroam_camera`, 3352 pass).  **v3-VERIFIED:** the wrap-up scene cam is now **eye=(-1.5,22.2,15)
+  == retail**; pixel diff **92.8%→2.54%** (residual = player sprite + accepted +1f phase).  feed "NOTE #9 FIXED".
+  PENDING USER RE-CONFIRM.
   **REMAINING P3 (next chips):** (a) **the SCOLD POSE + 集中線** — a SEPARATE *later* LIVE-machine beat
   (`b534==6` reaction / `8` pushback, past off 8852; retail's canim STAYS 0 in this 309-frame window, so it is
   NOT the idle arm).  **Not reachable in THIS recording (b534 stays at greeting=1 on BOTH sides — the player never
   haggles); needs a recorded haggle trace (escalate to the user) to observe + port.**  When ported the free-roam
   path must YIELD to the live-machine pose (mirror `scene1_conversation_pose_active`).
-  (b) **the cc08==4 3D-scene REPROJECTION + the yellow element (RE §18.2)** — the live render gap above.
+  (b) **the first-customer GREETING retail-only overlay (RE §18.3, was the §18.2 "yellow element")** — a small
+  80-tri retail-only draw (tex …b494) + a port-only 16-tri (tex …c11a) at CSE#2; the greeting is otherwise
+  camera/scene 1:1 (1.19%), so this is a minor overlay gap, NOT a reprojection (that was the wrap-up cam, now fixed).
   (c) the live haggle render fidelity (customer art/dialogue).  (d) **L1b** real pix (gold += ask + stock decr +
   payout).  (e) the roster scan (PORT-DEBT(cs-roster-scan)).  (f) the iv1_8 chain (`f406→f402`).
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**

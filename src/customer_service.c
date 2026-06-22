@@ -26,6 +26,7 @@
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
+#include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
 #include "fade.h"                 /* fade_phase1_start/_is_done/_phase_out_start (b520 dissolve) */
 
@@ -1445,11 +1446,15 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         }
         if (!fade_is_done())                 /* FUN_004528b3 — still dissolving */
             return;
-        /* dissolve complete (all.c:60334-60395).  PORT-DEBT(cs-leave-restore):
-         * FUN_0048439a (3D scene), FUN_00473332, FUN_0046f892, FUN_0045e028
-         * (real-sale tally, f404==0 only), FUN_0048526d (shop-full), and the
-         * DAT_056d* Recette hop-down + free-roam camera reset — all render/anim,
-         * inert for the state transition. */
+        /* dissolve complete (all.c:60334-60395).  The Recette hop-down player
+         * reposition + the free-roam camera-class reset (both below) ARE now ported
+         * — they fix the post-tutorial WRAP-UP camera (note #9, RE §18.3: retail
+         * free-roams the CONV_POSE cutscene off the repositioned player, the port had
+         * left the stale cc08==4 counter cam).  PORT-DEBT(cs-leave-restore) still
+         * defers the render/anim rest: FUN_0048439a (3D scene), FUN_00473332,
+         * FUN_0046f892, FUN_0045e028 (real-sale tally, f404==0 only), the player
+         * octant DAT_056dab00 + DAT_056db05c/048; the shop-FULL (fb88>=4) branch is
+         * PORT-DEBT(cs-leave-shopfull). */
         s_cs_active = 0;                     /* DAT_0438b7b0 = 0 */
         player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 (the fb88<4 arm;
                                               * PORT-DEBT(cs-leave-shopfull): the
@@ -1457,6 +1462,24 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         {
             uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
             if (bank != NULL) {
+                /* Recette hop-down reposition (all.c:60349-371, the fb88<4 arm).
+                 * Read f404 BEFORE the clear below (retail order).  Sets the
+                 * free-roam camera CENTER (stage_class=0 at the block end) so the
+                 * wrap-up cutscene follows Recette, NOT the fixed counter target.
+                 * The HOUSE free-roam clamp caps bias_z at 1.0 (scene1_camera.c:214),
+                 * so Z only places the sprite; X is the visible camera center
+                 * (sale/tutorial → -1.5, matching the measured retail wrap-up eye). */
+                {
+                    int sale = bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;   /* f404, pre-clear */
+                    int tier = (int)((const int32_t *)bank)[SHOP_DISPLAY_TIER_SELECTOR];
+                    if (tier < 3) {
+                        g_scene1_player_pos[0] = sale ? -1.5f : 0.8f;     /* 0xbfc00000 / 0x3f4ccccd */
+                        g_scene1_player_pos[2] = 9.0f;                     /* 0x41100000 */
+                    } else {
+                        g_scene1_player_pos[0] = sale ? 9.2f : 11.5f;      /* 0x41133333 / 0x41380000 */
+                        g_scene1_player_pos[2] = 16.9f;                    /* 0x41873333 */
+                    }
+                }
                 if (bank[CS_F406_TUTORIAL_BYTE_OFF] != 0) {    /* all.c:60381-384 */
                     bank[CS_F406_TUTORIAL_BYTE_OFF] = 0;
                     bank[CS_F402_BYTE_OFF] = 1;
@@ -1472,7 +1495,11 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
             }
         }
         fade_phase_out_start(0, 0x1e);       /* FUN_0045281c(0, 0x1e) fade-IN */
-        /* DAT_0438b4e8 = 0 — tracked by PORT-DEBT(camera-hint-b4e8) elsewhere. */
+        scene1_camera_set_freeroam_class();  /* DAT_0438b4e8 = 0 (all.c:60394) — drop the
+                                              * cc08==4 counter cam so the wrap-up cutscene
+                                              * + free-roam use the player-follow camera
+                                              * (note #9, RE §18.3).  Retires the camera part
+                                              * of PORT-DEBT(camera-hint-b4e8). */
         return;
     }
 

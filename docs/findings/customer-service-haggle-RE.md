@@ -1837,7 +1837,22 @@ side (no cc08 probe rows 10383..11067 port / 12693..13377 retail — the cutscen
 scene with the FREE-ROAM camera; the port leaves `g_scene1_camera` at the STALE counter cam (-3,0)** from the
 last pre-CONV_POSE house_update.
 
-**NEXT (port the fix):** during the iv1_7 wrap-up the port must drive the FREE-ROAM camera (look -1.5,1.0),
-not leave the counter cam.  RE the CONV_POSE camera path: does cc08 revert (4→0/1) during the cutscene, or
-does conversation_pose recompute `g_scene1_camera`?  Find where retail sets eye(-1.5,22.2,15)/look(-1.5,1.2,1.0)
-during CONV_POSE and mirror it.
+**✅ FIXED + v3-VERIFIED 2026-06-22.**  Root cause: the port's cs LEAVE (`customer_service.c`, the s_b520
+dissolve-complete block) OMITTED two things retail does inline at the leave (all.c:60349-394): (1) the Recette
+HOP-DOWN reposition `DAT_056da1d8/e0` = `g_scene1_player_pos[0]/[2]` (f404!=0/tier<3 → **(-1.5, 9.0)**), and
+(2) `DAT_0438b4e8 = 0` = `g_scene1_camera_stage_class = 0` (drop the counter cam → free-roam class).  Without
+them the stale cc08==4 counter cam (-3,0) persisted: the OTHER stage_class reset (`scene1_player_ctrl.c:2223`,
+gated cc08!=4) never runs during the cutscene because once iv1_7 arms the sim routes to the EVENT arm (no
+`scene1_player_ctrl_tick`).  `house_update` doesn't run during CONV_POSE, so the cutscene renders off the
+persistent `g_scene1_camera` computed by `scene1_camera_pose_compute` (free-roam branch, `cmode`=0 both sides)
+— which CLAMPS bias_z 9.0→1.0 + bias_x to [-5,-1] (scene1_camera.c:212-214), so the repositioned player
+(-1.5, 9.0) → camera bias **(-1.5, 1.0)** → eye=(-1.5,22.2,15) == retail.
+
+**Ported** both into `customer_service.c` (the s_b520 leave block; RNG-safe — no draws added; the octant
+DAT_056dab00 / db05c / db048 + the render FUN_ calls + the shop-FULL fb88>=4 branch remain
+PORT-DEBT(cs-leave-restore)/(cs-leave-shopfull)).  +host test `cs_leave_resets_freeroam_camera` (drives the
+ESC-skip leave through the dissolve, asserts player.x=-1.5 + stage_class=0); 3352 pass.  **v3-VERIFIED**
+(port re-drive, 4dfe654b/port): the wrap-up scene cam is now **eye=(-1.5,22.2,15) BIT-MATCHING retail** (was
+(-3,22.2,14)); full-frame pixel diff **92.8%→2.54%** (residual = the player sprite + the accepted +1f anim
+phase).  Both the f406-close AND the ESC-skip leave paths set b520 ⇒ both fixed.  feed "NOTE #9 FIXED".
+PENDING USER RE-CONFIRM in the viewer.

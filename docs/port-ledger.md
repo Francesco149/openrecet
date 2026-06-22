@@ -460,7 +460,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |
 | 0x484e97 | FUN_00484e97 | 286 | ✓ | scene1_records_c_spawn.h |
 | 0x4850fe | FUN_004850fe | 228 | ✓ | scene1_player_ctrl.c |
-| 0x48526d | FUN_0048526d | 142 | ✓ | customer_service.c, scene1_postload.h, scene1_preload.c |
+| 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.h, scene1_preload.c |
 | 0x4852fb | FUN_004852fb | 280 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h |
 | 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |

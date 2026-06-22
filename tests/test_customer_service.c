@@ -18,6 +18,9 @@
 #include "../src/scene1_tutorial_dispatch.h"  /* scene1_tutorial_dispatch_tick (iv1_7) */
 #include "../src/scene1_conversation_pose.h"  /* teardown: release latched pose */
 #include "../src/scene1_player_ctrl.h"        /* player_ctrl_cc08_f406_entry (gap (2)) */
+#include "../src/scene1_camera.h"             /* g_scene1_camera_stage_class (leave → free-roam) */
+#include "../src/scene1_particles_tick.h"     /* g_scene1_player_pos (leave hop-down reposition) */
+#include "../src/fade.h"                       /* fade_tick — drive the dissolve to completion */
 
 /* DAT_0450f406 / f404 byte offsets within a slot bank (rel. save_work_dwords_at). */
 #define F406_TUTORIAL_BYTE_OFF 0x2bc6e
@@ -409,6 +412,55 @@ int test_cs_esc_skip_yes_starts_leave(void)
     }
     T_ASSERT(b520 != 0);                                /* leave/dissolve started */
     T_ASSERT_EQ_I(customer_service_b5e4(), 0);          /* prompt consumed */
+    return 0;
+}
+
+/* The leave/dissolve COMPLETION repositions Recette (the "hop-down") + drops the
+ * cc08==4 counter camera to free-roam class (all.c:60349-394) so the post-tutorial
+ * WRAP-UP cutscene + free-roam follow the player, NOT the fixed counter target
+ * (note #9, RE §18.3 — the d3d-trace proved retail free-roams here, eye=(-1.5,..)
+ * while the port kept the stale counter cam eye=(-3,..)).  Drive the ESC-skip leave
+ * through the full dissolve (master_tick advances b5b4 + arms the fade; fade_tick
+ * advances it the way sim.c:463 does) and assert the f404-sale / tier-0 branch:
+ * g_scene1_player_pos.x = -1.5 (0xbfc00000) + stage_class = 0. */
+int test_cs_leave_resets_freeroam_camera(void)
+{
+    const float sv_px = g_scene1_player_pos[0], sv_pz = g_scene1_player_pos[2];
+    const int   sv_sc = g_scene1_camera_stage_class;
+
+    customer_service_reset();
+    choice_box_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;  /* sale → the -1.5 hop-down branch */
+    rng_seed(0x1234);
+    customer_service_session_init();
+    customer_service_notify_loaded();
+
+    /* dirty the camera the way the tutorial leaves it: counter cam (class 1) +
+     * Recette parked on the merchant stool. */
+    g_scene1_camera_stage_class = 1;
+    g_scene1_player_pos[0] = -4.5f;
+    g_scene1_player_pos[2] = 8.6f;
+
+    T_ASSERT_EQ_I(customer_service_esc_skip_arm(), 1);
+
+    /* commit Yes (Z) → b520 leave; advance the fade each frame until the dissolve
+     * completes and the leave block resets the camera class to free-roam.  Break on
+     * the FIRST completion (a re-run would read f404 already-cleared → wrong branch). */
+    int reset = 0;
+    for (int i = 0; i < 400; i++) {
+        customer_service_master_tick(0x10, 0x10, 0);
+        fade_tick();
+        if (g_scene1_camera_stage_class == 0) { reset = 1; break; }
+    }
+
+    T_ASSERT(reset);                                    /* dissolve-complete ran */
+    T_ASSERT_EQ_I(g_scene1_camera_stage_class, 0);      /* free-roam camera (all.c:60394) */
+    T_ASSERT(g_scene1_player_pos[0] == -1.5f);          /* hop-down X (0xbfc00000) */
+
+    g_scene1_player_pos[0] = sv_px;                     /* restore shared globals */
+    g_scene1_player_pos[2] = sv_pz;
+    g_scene1_camera_stage_class = sv_sc;
     return 0;
 }
 

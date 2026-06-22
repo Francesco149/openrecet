@@ -441,6 +441,7 @@ struct test_case {
     X(cs_closing_resets_session_at_sentinel) \
     X(cs_esc_skip_arms_during_tutorial) \
     X(cs_esc_skip_yes_starts_leave) \
+    X(cs_leave_resets_freeroam_camera) \
     X(cs_live_machine_sell_cycle) \
     X(cs_iv1_7_wrapup_trigger) \
     X(cs_f406_entry_enters_counter) \
