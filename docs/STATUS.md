@@ -370,16 +370,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `cs_leave_resets_freeroam_camera`, 3352 pass).  **v3-VERIFIED:** the wrap-up scene cam is now **eye=(-1.5,22.2,15)
   == retail**; pixel diff **92.8%→2.54%** (residual = player sprite + accepted +1f phase).  feed "NOTE #9 FIXED".
   **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes the camera looks correct"); ledger recorded.
-  **REMAINING P3 (next chips):** (a) **the SCOLD POSE + 集中線** — a SEPARATE *later* LIVE-machine beat
-  (`b534==6` reaction / `8` pushback, past off 8852; retail's canim STAYS 0 in this 309-frame window, so it is
-  NOT the idle arm).  **Not reachable in THIS recording (b534 stays at greeting=1 on BOTH sides — the player never
-  haggles); needs a recorded haggle trace (escalate to the user) to observe + port.**  When ported the free-roam
-  path must YIELD to the live-machine pose (mirror `scene1_conversation_pose_active`).
-  (b) **the first-customer GREETING retail-only overlay (RE §18.3, was the §18.2 "yellow element")** — a small
-  80-tri retail-only draw (tex …b494) + a port-only 16-tri (tex …c11a) at CSE#2; the greeting is otherwise
-  camera/scene 1:1 (1.19%), so this is a minor overlay gap, NOT a reprojection (that was the wrap-up cam, now fixed).
+  **REMAINING P3 (next chips):** (a) **the WRAP-UP scold-pose POSITION residual (viewer note #1, user
+  2026-06-22 "tear position slightly off / lower in port").**  The scold-pose-WHEN-IT-SHOULDN'T is FIXED (§18.1
+  f404 gating, user-confirmed) and the 集中線 is already ported — NOT those.  The residual: at the wrap-up end
+  (DLG_LINE_CLEAR#6+43) Tear's sprite + the cutscene char sprites sit **~1.2 world-units LOWER in y** in the port
+  (v3cap WORLD: companion (-2.96,**3.1**,8.66)p vs (-2.96,**4.35**,8.66)r) AND the **player has DRIFTED off the
+  leave-reposition** during CONV_POSE ((**-2.0**,8.8)p vs (**-1.5**,9.0)r = my §18.3 fix value).  ⇒ a cutscene
+  player/companion position+height drift (the conversation_pose freeze + companion-follow + the sprite y-anchor);
+  the camera itself is 1:1 (note #9 fixed).  NB the port call_trace in 4dfe654b was clobbered by the §18.3
+  --force-port re-drive (no --state) — re-drive with --state for clean per-frame companion data before RE-ing.
+  (b) **the customer CHIBI NPC (viewer note #2, user 2026-06-22 "walks around and checks out the shop")** — the
+  port doesn't render the first real customer's chibi sprite AT ALL (retail shows it browsing the shop; the §18.2
+  "yellow element"/80-tri b494 = THIS).  Per the user, on the first customer the ONLY diffs are NPC rng + item-
+  sparkle phase + this unrendered walking chibi ⇒ it's the customer walk-in/browse NPC system = part of the
+  CUSTOMER-INTERACTIONS arc (the next trace).
   (c) the live haggle render fidelity (customer art/dialogue).  (d) **L1b** real pix (gold += ask + stock decr +
   payout).  (e) the roster scan (PORT-DEBT(cs-roster-scan)).  (f) the iv1_8 chain (`f406→f402`).
+  **★★ NEXT ARC (user 2026-06-22): CUSTOMER INTERACTIONS — the user will RECORD a trace skipping the tutorial +
+  doing a real customer session (overpricing items, etc.).**  User directive: **DEEP-DIVE the customer-interaction
+  code** for the full OUTCOME SPACE (the user doesn't remember all outcomes) — the live machine FUN_004658ab
+  (greeting→reaction→decision→accept/pushback/reject), the accept/price-eval bands (`cs_accept_eval` FUN_00460672,
+  ±0.5%/±5% of b588), pushback (FUN_00460f16), the over/under-priced reactions, the per-customer DIALOGUE variants.
+  **Mechanics the user named (verify in code):** (1) **CLOSENESS/affinity** — building rapport with a customer
+  makes them more lenient on price (likely a per-kyaku save field feeding the accept bands); (2) **ATMOSPHERE
+  score** from shop DECORATION — **won't change at this game stage** (a constant input here, but find where it
+  feeds customer behavior).  Plus the **customer CHIBI NPC** (note #2 above) = the walk-in/browse system.  Includes
+  L1b (real pix) + the roster scan.  Deep-dive WITH the recorded trace (don't guess the outcomes).
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.
