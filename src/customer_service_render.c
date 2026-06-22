@@ -341,10 +341,14 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
              * use white/yellow diffuse, which ADDSIGNED would push OVERBRIGHT. */
             IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
                                                   D3DTOP_MODULATE);
-            /* the "name a price" prompt (312,250) scale 1.0, gated b598==0xf||b59c. */
+            /* the "name a price" prompt (312,250) scale 1.0, gated b598==0xf||b59c
+             * (asm 0x4675e1).  b51c!=0 (scripted) = a fixed prompt by price_fileidx
+             * (0x4675fa); b51c==0 (live customer, 0x467629) = the active dialogue
+             * line (b270) — e.g. the reaction "How much should I?..." (recette
+             * msg09) — coloured yellow if b5a8==0 else white. */
             if (s.b598 == 0xf || s.b59c > 0) {
+                const char *t; uint32_t pc;
                 if (s.b51c != 0) {
-                    const char *t; uint32_t pc;
                     if (s.price_fileidx == 1) {
                         t = "What should I pay?...";          /* DAT_005c6e28 */
                         pc = ((uint32_t)alpha << 24) | 0xffff37u;   /* yellow */
@@ -352,10 +356,13 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
                         t = "How much should I?...";          /* DAT_005c6e40 */
                         pc = ((uint32_t)alpha << 24) | 0xffffffu;   /* white */
                     }
-                    font_draw_text_centered(dev, 312.0f, 250.0f, t, pc, 1.0f);
+                } else {
+                    t  = s.line;                              /* DAT_0730b270 */
+                    pc = ((uint32_t)alpha << 24)
+                       | ((s.b5a8 == 0) ? 0xffff37u : 0xffffffu);
                 }
-                /* PORT-DEBT(cs-haggle-prompt-live): the b51c==0 live-customer
-                 * response line (the non-scripted-tutorial machines). */
+                if (t)
+                    font_draw_text_centered(dev, 312.0f, 250.0f, t, pc, 1.0f);
             }
             /* the markup "NN% Of Base Price" (400,342) right-aligned scale 0.8. */
             {

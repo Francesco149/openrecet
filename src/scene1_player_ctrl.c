@@ -1230,6 +1230,9 @@ static int player_ctrl_cc08_sell_counter_enter(void)
     customer_service_set_script_file(0);                   /* FUN_00461bf6(0) → DAT_005c6bb0 */
     s_cc08 = 4;                                            /* DAT_0438cc08 = 4 */
     customer_service_session_init();                       /* FUN_0045edaa */
+    s_emote_level = 0;   /* DAT_056db000 = 0 (all.c:87696): consume the counter "!"
+                          * affordance on entry, so it doesn't linger frozen through
+                          * cc08==4 (the free-roam arm that would decay it stops). */
     return 1;
 }
 

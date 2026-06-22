@@ -1580,4 +1580,21 @@ the live close branch): `cs_set_item_macro` = **FUN_004607f3**(b5a4) → `<I>` (
 host tests (`dlg_macro_expand_*`/`set_reset`, incl. a guard that an unset tag drops WITHOUT a stray `>`); 3349
 pass.  PORT-DEBT retired: box-text-macros; new: cs-item-macro-kinds (the b534==0x1e / b5a8==4 name sources).
 **v3-VERIFIED 2026-06-22** (win-5900-2800, close line port_idx 2274 / retail 2431): the port renders **"Steel
-Sword / for 3600pix"** BIT-IDENTICAL to retail (was the mangled `)` / `>`).  Pending user re-check.
+Sword / for 3600pix"** BIT-IDENTICAL to retail (was the mangled `)` / `>`).  USER-CONFIRMED.
+
+## 15. Two more user notes 2026-06-22 — the LIVE haggle prompt + the lingering "!" emote
+
+**(#3) the live price-input prompt "How much should I?..." was MISSING** (retires PORT-DEBT(cs-haggle-prompt-live)).
+`customer_service_render.c` gated the (312,250) prompt on `b51c != 0` (scripted only).  objdump of FUN_00466b7b
+(0x4675f2-0x467664) shows the engine HAS a b51c branch but BOTH arms draw: `b51c!=0` (scripted) = the fixed
+string by `price_fileidx` (0x4675fa, DAT_005c6e28 "What should I pay?..." / DAT_005c6e40 "How much should
+I?..."); **`b51c==0` (live, 0x467629) = the active dialogue line `DAT_0730b270`** (e.g. recette msg09 "How
+much should I?..." = the reaction `cs_pick_line(0,9,0)`), coloured yellow if `b5a8==0` else white.  Fix: the
+render's `b51c==0` branch now draws `s.line` (b270) with the b5a8 colour.  v3-verified.
+
+**(#4) the counter "!" affordance emote LINGERED through cc08==4 idle** (retail cleared it).  Root: the "!"
+(db000) ramps up in free-roam (`player_ctrl_cc08_proximity_detect`, at the counter), but on the Z-entry into
+cc08==4 the engine CLEARS it (`DAT_056db000 = 0`, all.c:87696) — the port didn't, so it froze (the cc08==1
+free-roam arm that would decay it stops running during cc08==4).  Fix: `player_ctrl_cc08_sell_counter_enter`
+sets `s_emote_level = 0` after `cc08=4`/session_init.  Does NOT affect the free-roam approach "!" (note #1).
+3349 host pass; v3-verify pending.

@@ -35,8 +35,15 @@ variant table) + cs-voice (playback = audio).  **v3-verified + USER-CONFIRMED**:
 `font_draw_text_box` (FUN_00465db4) pass-1 macro expansion was stubbed AND leaked the trailing `>` — ported
 to new `dialogue_macros.{c,h}` (`dlg_macro_expand`, the 6 tag buffers).  The live close branch sets `<I>`
 (`cs_set_item_macro` = FUN_004607f3(b5a4) → `g_item.singular`) + `<Y>` (`snprintf("%dpix", s_price_ask)`),
-per all.c:60616-60626.  +4 host tests (3349 pass).  **v3-verified**: the close line renders **"Steel Sword /
-for 3600pix"** BIT-IDENTICAL to retail.  Retires PORT-DEBT(box-text-macros); adds cs-item-macro-kinds.
+per all.c:60616-60626.  +4 host tests (3349 pass).  **v3-verified + USER-CONFIRMED**: the close line renders
+**"Steel Sword / for 3600pix"** BIT-IDENTICAL to retail.  Retires PORT-DEBT(box-text-macros); adds
+cs-item-macro-kinds.
+
+**Two more user notes (RE §15).**  (#3) the LIVE price-input prompt "How much should I?..." was missing — the
+render gated (312,250) on `b51c!=0` (scripted); objdump (FUN_00466b7b 0x467629) shows the `b51c==0` live arm
+draws the dialogue line `b270` (recette msg09) there, b5a8-coloured.  Fixed in `customer_service_render.c`
+(retires PORT-DEBT(cs-haggle-prompt-live)).  (#4) the counter "!" emote lingered through cc08==4 idle — the
+Z-entry clears `db000=0` (all.c:87696); `player_ctrl_cc08_sell_counter_enter` now does too.  3349 host pass.
 
 ## 2026-06-18 — customer-tutorial TRACE-REPLAY blocker ROOT-CAUSED + FIXED (segtrace timeout ate the walk)
 

@@ -308,8 +308,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `dialogue_macros.{c,h}` (`dlg_macro_expand`, the 6 tag buffers); (b) the close branch now sets `<I>`
   (`cs_set_item_macro` = FUN_004607f3(b5a4) → `g_item.singular`) + `<Y>` (`snprintf("%dpix", s_price_ask)`).
   +4 host tests (3349 pass).  PORT-DEBT new: cs-item-macro-kinds (the b534==0x1e / b5a8==4 name sources).
-  **v3-VERIFIED 2026-06-22**: the close line renders "Steel Sword / for 3600pix" BIT-IDENTICAL to retail (was
-  the mangled markers).  Pending user re-check in the studio.
+  **v3-VERIFIED + USER-CONFIRMED 2026-06-22**: the close line renders "Steel Sword / for 3600pix"
+  BIT-IDENTICAL to retail (was the mangled markers).
+  **★ TWO MORE user notes ✅ FIXED 2026-06-22 (RE §15):** **(#3)** the live price-input prompt "How much
+  should I?..." was MISSING — the render gated it on `b51c!=0` (scripted); objdump shows the `b51c==0` live arm
+  draws the dialogue line `b270` (recette msg09) at (312,250), b5a8-coloured (retires
+  PORT-DEBT(cs-haggle-prompt-live)).  **(#4)** the counter "!" emote LINGERED through cc08==4 idle — the Z-entry
+  must clear `db000=0` (all.c:87696); `player_ctrl_cc08_sell_counter_enter` now does (doesn't touch the
+  free-roam approach "!", note #1).  3349 host pass; v3-verify driving.
   **(2) POST-FADE CAMERA wrong (STILL OPEN — the next arc)** — at the viewer's **col ~847** (window offset
   ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
   wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition
