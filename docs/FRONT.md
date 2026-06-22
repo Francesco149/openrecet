@@ -421,14 +421,15 @@
   ⇒ spurious draws.  **Fix:** reset unconditionally at the top of `customer_service_session_init` (mirrors
   retail's house-load+leave, covers ALL paths).  **VERIFIED:** npcn 30→max-1, 0 ghost frames, BOTH scenarios.
   3364 host pass.
-  **★★ DISCOVERED while drilling (NEW, separate from the NPC pump) — the b5a4 BASE-PRICE STUB,
-  PORT-DEBT(cs-kind-select-f406).**  The port's `cs_kind_select` always sets `s_b5a4 = 0xc0` (item id 3 ⇒ base
-  3000), but `FUN_00461303` only does that on the **f404 scripted path**; the **f406 FIRST CUSTOMER**
-  (all.c:59320-59348) sets `b5a4 = 0x3ea00` via an INVENTORY SCAN (DAT_044f7030 for `(handle&~0x3f)==0x3ea00` +
-  the DAT_005c6be0 special-item check), and the general live customer (else, 59350+, rng-drawn) differs again.
-  So the port's first customer haggles the WRONG item: base 3000 vs retail-replay's real-item base 100 (offer
-  ratio 1.23× IDENTICAL ⇒ the haggle MACHINE is 1:1, only the item INPUT diverges).  **NEXT:** port the f406
-  branch of FUN_00461303.
+  **★★ b5a4 BASE-PRICE ✅ FIXED 2026-06-22 (autonomous, user-directed) — the f406 first customer now haggles the
+  RIGHT item.**  `cs_kind_select` was f404-ONLY (hardcoded `b5a4=0xc0`, item id 3 = Steel Sword, base 3000).
+  Ported `FUN_00461303`'s THREE branches: f404→0xc0 (scripted), **f406→0x3ea00 (id 4008 = WALNUT BREAD, base
+  100)** + the showcase scan (`SAVE_BANK_FIELD_DISPLAY_GRID` row-0, find the `(handle&~0x3f)==0x3ea00` cell →
+  `b564=1` iff its slot ∈ {1,2,3,4,11,12,13}=`DAT_005c6be0`; **b564 gates a 2-rng particle emit @all.c:60240 ⇒
+  RNG-load-bearing**, so it's ported data-driven not stubbed), else→rng-drawn (PORT-DEBT(cs-kind-select-general),
+  not reached by f404/f406 traces).  **VERIFIED:** the port's first-customer base flips 3000→**100** + ask
+  100→120 == retail; +2 host tests (3366).  **RESIDUAL (next):** the OFFER `b574` (port 119/150 vs retail 123)
+  still differs = the remaining rng-VALUE drift (the un-pinned phase / gap-2), SEPARATE from the now-correct item.
   **★ GAP-2 (2nd-sale reproduction) STILL OPEN** — the pinned-trace retail-REPLAY gives the first customer
   base=100/offer=123; whether the recording's natural 2-sale flow reproduces on the pinned/intro-skipped engine
   is the {rngseed}-pin-precision OPEN QUESTION (may need the user).  **NEXT after b5a4 + the 2-sale question:**

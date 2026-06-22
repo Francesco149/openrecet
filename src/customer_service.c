@@ -486,19 +486,54 @@ int32_t customer_service_eligible(int i)
     return s_eligible[i];
 }
 
-/* ── FUN_00461303 f404 head — the sell-active kind selector ──────────────────
- * The only branch the scripted sell reaches (all.c:59312-59317): bind the active
- * customer (b56c/b570 from the queue head) + the offered-item handle and select
- * the b5a8==2 dispatch.  Returns 1 on this path.
- * PORT-DEBT(cs-kind-select-full): the f406 / roster-scan / buysell-debug branches
- * (all.c:59319-59514) are the autonomous-customer path, not the sell. */
+/* ── FUN_00461303 — the customer-service kind selector ───────────────────────
+ * Binds the active customer (b56c/b570 from the queue) + the offered-item handle
+ * + the b5a8==2 dispatch, branching on the sale-flag bytes:
+ *   f404 != 0 (scripted player sell, all.c:59312-59317) → b5a4 = 0xc0 (the
+ *     script's offered item, id 3 = Steel Sword, base 3000).
+ *   f406 != 0 (FORCED first customer, all.c:59320-59348) → b5a4 = 0x3ea00 (id
+ *     4008 = Walnut Bread, base 100): scan the 20-slot showcase row
+ *     (SAVE_BANK_FIELD_DISPLAY_GRID row 0) for the 0x3ea00 handle (low-6 masked)
+ *     and set b564 = 1 iff its slot is one of the 7 special slots
+ *     {1,2,3,4,11,12,13} (DAT_005c6be0).  b564 gates a 2-rng particle emit in the
+ *     master tick (all.c:60240, FUN_00471089×2), so it is RNG-load-bearing.
+ *   else (general live customer, all.c:59350+, rng-DRAWN item) →
+ *     PORT-DEBT(cs-kind-select-general); not reached by the current f404/f406
+ *     traces — fall back to the scripted 0xc0 so an item still resolves. */
 static int cs_kind_select(void)
 {
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
     int e = s_roster_perm[s_b318];
+
     g_scene_buy_current_page = s_queue[e * CS_QUEUE_STRIDE + 0]; /* b56c = queue[*].kyaku */
     s_b570                   = s_queue[e * CS_QUEUE_STRIDE + 1]; /* b570 = queue[*].item_slot */
-    s_b5a4 = 0xc0;                                               /* offered-item handle */
-    s_b5a8 = 2;
+    s_b5a8                   = 2;
+
+    int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+    int f406 = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF]    != 0;
+
+    if (f404) {                                                 /* all.c:59312-59317 */
+        s_b5a4 = 0xc0;
+        return 1;
+    }
+    if (f406) {                                                 /* all.c:59320-59348 */
+        s_b5a4 = 0x3ea00;                                       /* Walnut Bread, id 4008 */
+        s_b564 = 0;
+        const int32_t *grid = (const int32_t *)bank + SAVE_BANK_FIELD_DISPLAY_GRID;
+        int found = -1;
+        for (int i = 0; i < 0x14; i++) {                        /* the showcase row (20 cells) */
+            uint32_t h = (uint32_t)grid[i];
+            if (h != 0xffffffffu && (h & 0xffffffc0u) == 0x3ea00u) { found = i; break; }
+        }
+        if (found >= 0) {
+            static const int special[7] = { 1, 2, 3, 4, 11, 12, 13 }; /* DAT_005c6be0 */
+            for (int k = 0; k < 7; k++)
+                if (found == special[k]) { s_b564 = 1; break; }
+        }
+        return 1;
+    }
+    s_b5a4 = 0xc0;   /* PORT-DEBT(cs-kind-select-general) fallback */
     return 1;
 }
 

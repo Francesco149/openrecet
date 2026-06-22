@@ -6432,6 +6432,7 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.h",
+    "src/customer_service.c",
     "src/rng.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",

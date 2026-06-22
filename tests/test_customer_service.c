@@ -177,6 +177,91 @@ int test_cs_master_tick_sell_trajectory(void)
     return 0;
 }
 
+/* The FORCED first-customer path (f406 != 0, f404 == 0).  The kind selector
+ * (FUN_00461303 f406 branch, all.c:59320-59348) points the offered handle at
+ * b5a4=0x3ea00 (id 4008 = Walnut Bread, base 100) — NOT the f404 scripted
+ * 0xc0/id-3/3000 — and scans the 20-slot showcase row for the 0x3ea00 handle
+ * (low-6 masked), setting b564=1 iff its slot is one of {1,2,3,4,11,12,13}.  The
+ * greeting then computes base = item.price·count(=1) = 100 (the retail first-
+ * customer base; the old stub wrongly haggled the 3000 scripted item). */
+int test_cs_kind_select_f406_walnut_bread(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;   /* forced first customer (f404 stays 0) */
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 2] = 0x3ea05; /* 0x3ea00 item (count 5) in special slot 2 */
+    rng_seed(0x1234);
+
+    int32_t save_count = g_item.count;
+    int32_t save_id    = g_item.records[0].item_id;
+    int32_t save_price = g_item.records[0].price;
+    g_item.count = 1;
+    g_item.records[0].item_id = 4008;          /* Walnut Bread */
+    g_item.records[0].price   = 100;
+
+    customer_service_session_init();
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+
+    struct cs_render_state cs;
+    customer_service_get_render_state(&cs);
+    int b534 = customer_service_b534();
+    int base = customer_service_base_price();
+    int ask  = customer_service_player_ask();
+
+    g_item.count = save_count;                 /* restore shared state */
+    g_item.records[0].item_id = save_id;
+    g_item.records[0].price   = save_price;
+
+    T_ASSERT_EQ_I(cs.b5a4, 0x3ea00);           /* Walnut Bread handle, not the 0xc0 stub */
+    T_ASSERT_EQ_I(b534, 1);                    /* reached the greeting */
+    T_ASSERT_EQ_I(base, 100);                  /* item.price·1 == retail's first-cust base */
+    T_ASSERT_EQ_I(ask, 100);
+    T_ASSERT_EQ_I(cs.b564, 1);                 /* 0x3ea00 found in special slot 2 → b564=1 */
+    return 0;
+}
+
+/* Same f406 path, but the 0x3ea00 item is NOT in a special showcase slot (slot 5)
+ * — the scan finds it yet b564 stays 0 (slot 5 ∉ {1,2,3,4,11,12,13}). */
+int test_cs_kind_select_f406_b564_nonspecial(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 5] = 0x3ea00; /* slot 5 is NOT special */
+    rng_seed(0x1234);
+
+    int32_t save_count = g_item.count;
+    int32_t save_id    = g_item.records[0].item_id;
+    int32_t save_price = g_item.records[0].price;
+    g_item.count = 1;
+    g_item.records[0].item_id = 4008;
+    g_item.records[0].price   = 100;
+
+    customer_service_session_init();
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+
+    struct cs_render_state cs;
+    customer_service_get_render_state(&cs);
+    int base = customer_service_base_price();
+
+    g_item.count = save_count;
+    g_item.records[0].item_id = save_id;
+    g_item.records[0].price   = save_price;
+
+    T_ASSERT_EQ_I(cs.b5a4, 0x3ea00);           /* still Walnut Bread */
+    T_ASSERT_EQ_I(base, 100);
+    T_ASSERT_EQ_I(cs.b564, 0);                 /* found, but slot 5 isn't special */
+    return 0;
+}
+
 /* The master tick is inert while the asset-load worker is running (b1cc==2, set by
  * session_init); the idle only advances once the load callback (notify_loaded)
  * fires — matching the engine's `if (DAT_0438b1cc == 2) return;` gate. */

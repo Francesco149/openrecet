@@ -435,6 +435,8 @@ struct test_case {
     X(cs_session_init_reentry_rebuilds) \
     X(cs_session_init_sell_active_queue) \
     X(cs_master_tick_sell_trajectory) \
+    X(cs_kind_select_f406_walnut_bread) \
+    X(cs_kind_select_f406_b564_nonspecial) \
     X(cs_master_tick_idle_gated_by_load) \
     X(cs_scripted_first_offer) \
     X(cs_occ3_second_load_gates_at_queue_advance) \
