@@ -1778,3 +1778,17 @@ actor slots, all accounted for; likely a cs-specific overlay/object/billboard).
 `d3d_state_at_draw.py` on a `--d3d-trace` of this frame to find the differing 3D draw(s) + the retail-only yellow
 draw.  Hypothesis to test first: a stage_class==1-specific viewport/projection setup the port mis-applies (since
 free-roam, same FOV+pitch, is pixel-1:1).
+
+**RULED OUT (2026-06-22, all read-only):** (1) it is NOT a v3 replay artifact — `orv3_shot` pulls the CAPTURED
+BACKBUFFER (the drive's `MULTI (GetBackBuffer)` grabs, dedup-stored), not a command-stream replay, so the 54-diff
+is the REAL exe framebuffer port-vs-retail.  (2) `g_scene1_camera_z_roll` (=`_DAT_006051c4`) — the ONE non-eye/lookat
+term in `scene1_camera_build_view_matrix` (`out = lookAt(eye,lookat,up=(0,1,0)) × RotZ(z_roll/2)`) — has **NO writer
+in the port OR the engine decompile** (const 0 both), so the roll is identical.  ⇒ eye/lookat/up/z_roll/FOV/aspect
+are ALL bit-identical ⇒ `build_view_matrix` is deterministically identical ⇒ the divergence is NOT in the view
+matrix as the port builds it.  So the gap is one of: (a) the port's ACTUAL render uses a different view/proj than
+`build_view_matrix` during cc08==4 (an override); (b) the 3D MESH content/lighting/draw-order differs; (c) the
+engine builds its view matrix (`FUN_004a3b52(up=de29c, eye, lookat)`) with a different formula/up than the port's
+`mat4_lookat_rh` AND the cc08 eye position exposes it where free-roam doesn't.  **The `--d3d-trace` `SetTransform`
+capture is the ONLY way left to decide** — do that first next session.  Note this is the cc08==4 SELL view; verify
+whether the (verified-1:1 "everything looks 1:1") TUTORIAL cc08==4 background ALSO reprojects (if yes, it's a
+general cs-view bug missed because prior checks were UI/standee-focused; if no, it's first-customer-specific).
