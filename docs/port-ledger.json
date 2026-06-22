@@ -5040,7 +5040,10 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_dialogue.c",
+    "src/customer_dialogue.h",
+    "src/customer_service.c",
+    "src/tables.c"
    ]
   },
   {
@@ -7285,6 +7288,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_dialogue.c",
+    "src/customer_dialogue.h",
     "src/main.c",
     "src/scene1_overlay_table.h",
     "src/scene1_walker_pass_init.h",
@@ -9928,6 +9933,7 @@
    "src": [
     "src/audio.c",
     "src/audio.h",
+    "src/customer_service.c",
     "src/scene1_combat_sm.h",
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",

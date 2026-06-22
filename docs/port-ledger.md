@@ -295,7 +295,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x460672 | FUN_00460672 | 138 | ✓ | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4607f3 | FUN_004607f3 | 196 | ✓ | customer_service.c |
 | 0x46098f | FUN_0046098f | 139 | ✓ | customer_service.c |
-| 0x460a1a | FUN_00460a1a | 288 | ✓ | customer_service.c |
+| 0x460a1a | FUN_00460a1a | 288 | ✓ | customer_dialogue.c, customer_dialogue.h, customer_service.c (+1) |
 | 0x460d52 | FUN_00460d52 | 254 | ✓ | customer_service.c |
 | 0x460e50 | FUN_00460e50 | 106 | ✓ | customer_service.c |
 | 0x460f16 | FUN_00460f16 | 67 | ✓ | customer_service.c |
@@ -402,7 +402,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x474e7a | FUN_00474e7a | 153 | ✓ | main.c |
 | 0x474f14 | FUN_00474f14 | 58 | ✓ | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
 | 0x474f4f | FUN_00474f4f | 801 | ✓ | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |
-| 0x475270 | FUN_00475270 | 19645 | ✓ | main.c, scene1_overlay_table.h, scene1_walker_pass_init.h (+34) |
+| 0x475270 | FUN_00475270 | 19645 | ✓ | customer_dialogue.c, customer_dialogue.h, main.c (+36) |
 | 0x479f4d | FUN_00479f4d | 43 | ✓ | scene1_dialogue.c, tables.c, tables_enemylist.c (+2) |
 | 0x479f78 | FUN_00479f78 | 1227 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+1) |
 | 0x47a474 | FUN_0047a474 | 912 | ✓ | main.c, recet_ini.c, recet_ini.h |
@@ -521,7 +521,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49791f | FUN_0049791f | 868 | ✓ | chara_skills.h |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
-| 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, scene1_combat_sm.h (+5) |
+| 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, customer_service.c (+6) |
 | 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+13) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |

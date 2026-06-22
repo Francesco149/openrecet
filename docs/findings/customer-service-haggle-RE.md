@@ -1517,3 +1517,42 @@ stays dormant while f400==0), then after R5 (`PAUSE_CLOSE@9805`) fires **`LOADIN
 moment via the same conversation-pose system retail uses.  **Remaining (human/studio):** eyeball the wrap-up
 RENDERING 1:1 vs retail (the "And that is…" text content + conv-pose framing) in the trace studio.  Then P3
 (the iv1_8 `f406→f402` chain → first real customer).
+
+## 13. L1c — per-kyaku dialogue buffer PORTED 2026-06-22 (retires PORT-DEBT(cs-kyaku-dialogue))
+
+The user-flagged gap "the live first-customer haggle dialogue is **`...` PLACEHOLDER**" (the rounds-4/5 LIVE
+practice-sale lines from `cs_live_machine`/`FUN_004658ab`, NOT the wrap-up).  Root: `cs_pick_line`
+(`FUN_00460a1a`) drew the variant rng but stubbed `s_b270 = "..."` because the per-kyaku dialogue buffer
+(engine record tail) was unmodelled.  Now ported.
+
+**Picker `FUN_00460a1a`** (all.c:58772-58837, the by-address transcription): flat slot **`s = variant +
+type*0x14`** (MAXVAR=0x14=20).  Reads, relative to the record base (`DAT_06a5ea90 + kyaku*0x2c670`):
+text `+ s*0x100 + 0x6e70` (stride 0x100), sprite `+ s*4 + 0x51d8` (→ `(&b54c)[slot]`), voice `+ s*4 + 0x5b38`
+(-1=none, else play `+ voice*0x100 + 0x1444` via `FUN_0049933c`).  Variant = `rand % count[type]`,
+`count[type] = + type*4 + 0x6df8`; the rng (`thunk_FUN_005041f6`) is drawn ONLY when f404==0 AND not a
+`DAT_073dddb8` scripted-override (PORT-DEBT(cs-dlg-override), inactive here).  Tail (0x460a77+) = the **`<C>`
+split** into `b31c`/`b41c` — identical to `FUN_0046098f`'s, so the port factors `cs_split_line()` shared by
+both.  Speakers: slot-0 lines come from **record 0 (Recette, `&DAT_06a5ea90`)**, slot-1 from the customer
+(`b56c = g_scene_buy_current_page`).
+
+**Loader** (the dialogue half of `FUN_00475270`, all.c:74568-74715): per record with a `file:`, storage-read
+`kyaku/<name>.txt` and parse `msgNN:` lines.  **Format is FIXED-WIDTH** (ground-truthed from the real
+`tear.txt`/`recette.txt`): `msgNN:SS:Vvv:text` — NN=type(2 digits @+0x23/`atoi line+3`), SS=sprite(@line+6),
+Vvv=voice (`sno`=none / `s`+2digits=id, @line+9/+10), text @line+0x2d (raw, `<BR>`/`<C>` kept).  The Ghidra
+`local_18 + s*0x40 + 0x78b` in the text copy is int*-scaled byte offset `0x1e2c` (`0x78b*4`); `0x5044 +
+0x1e2c = 0x6e70` ⇒ confirms the picker's stride.  grp (standee art → scene_buy) + se (audio) blocks ignored.
+
+**Port:** new `customer_dialogue.{c,h}` (the `kyaku_dialogue_t` slot grid 30×20×0x100 + the pure
+`kyaku_dialogue_parse` + a per-record heap store); `tables.c::load_kyaku_dialogue` (after `load_kyaku_txt`,
+reuses `load_via_storage`); `customer_service.c` (`cs_split_line` factored, `cs_pick_line(rec,type,slot)`
+reads the buffer, all 9 call sites pass `(rec,type,slot)` per the by-address comments — incl. the close-line
+type `uVar18 = b5a8==3?0xb:b5a8==0?7:8`, all.c:60627).  RNG STEP unchanged (one draw when !f404 either way) ⇒
+the verified-1:1 LCG holds; only the now-used variant VALUE selects the real line.
+
+**Verified:** loader on the user's real data = **18 scripts / 1229 lines** (no missing/read-fail/OOM);
+**3 host tests** (`kyaku_dialogue_parse_fields/_caps/_store`, 3345 pass).  Sanity: the reaction
+`cs_pick_line(0,9,0)` = recette msg09 = **"How much should I?..." / "Capitalism, ho!"** (count 2, `rand%2`) —
+the iconic line the `...` hid.  **Pending:** the v3 viewer visual 1:1 of the live greeting/reaction/accept
+lines vs retail (drive `--window 5900:2800 --join-anchor CUSTOMER_SERVICE_ENTER`; live states retail
+state-frame 6413 b534=2 / 6537 b534=6 / 7001 b534=7) + a `flow_diff` rng-1:1 confirm at those frames.
+PORT-DEBT retired: cs-kyaku-dialogue; new: cs-dlg-override (the buysell variant table), cs-voice (playback).

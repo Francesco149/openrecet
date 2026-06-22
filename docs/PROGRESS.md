@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-22 — L1c: per-kyaku dialogue buffer PORTED (the live haggle "..." placeholder → real lines)
+
+The user-flagged "live first-customer haggle dialogue is `...` PLACEHOLDER" (the rounds-4/5 LIVE
+practice-sale lines).  Root: `cs_pick_line` (`FUN_00460a1a`) drew the variant rng but stubbed
+`s_b270="..."` — the per-kyaku dialogue tail of the engine record was unmodelled.  Ported (RE §13):
+
+- **`customer_dialogue.{c,h}`** — the `kyaku_dialogue_t` slot grid (flat `s = variant + type*0x14`,
+  30 types × 20 variants × 0x100-byte text; text/sprite/voice/count = the engine record's
+  +0x6e70/0x51d8/0x5b38/0x6df8) + the pure `kyaku_dialogue_parse` (the fixed-width `msgNN:SS:Vvv:text`
+  parse, the msg half of `FUN_00475270` all.c:74646-74707) + a per-record heap store.
+- **`tables.c::load_kyaku_dialogue`** — after `load_kyaku_txt`, reads each customer's `kyaku/<name>.txt`
+  via storage into its buffer.  On the user's real data: **18 scripts / 1229 lines**, no errors.
+- **`customer_service.c`** — `cs_pick_line(rec,type,slot)` reads the real text/sprite (slot-0 = record 0
+  Recette, slot-1 = customer b56c) and runs the factored `cs_split_line` `<C>` split; all 9 call sites
+  pass `(rec,type,slot)` per the by-address comments.  RNG step unchanged (one draw when !f404) ⇒ the
+  verified-1:1 LCG holds; only the now-used variant VALUE picks the real line.
+
+Sanity: the reaction `cs_pick_line(0,9,0)` = recette msg09 = **"How much should I?..." / "Capitalism, ho!"**
+(count 2, `rand%2`) — the iconic line the `...` hid.  +3 host tests (`kyaku_dialogue_parse_fields/_caps/
+_store`), 3345 pass.  Retires PORT-DEBT(cs-kyaku-dialogue); adds cs-dlg-override (the DAT_073dddb8 buysell
+variant table) + cs-voice (playback = audio).  Pending the v3 viewer visual 1:1 + a flow_diff rng-1:1 confirm.
+
 ## 2026-06-18 — customer-tutorial TRACE-REPLAY blocker ROOT-CAUSED + FIXED (segtrace timeout ate the walk)
 
 The `house-customer-tutorial` port drive stayed `cc08==1` the whole window — the player frozen at

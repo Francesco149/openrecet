@@ -284,20 +284,31 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   13000/13000 bit-exact, port 12992/12994): "the wrap up dialogue is correct" — the iv1_7 wrap-up TEXT +
   cutscene render 1:1 (same `scene1_conversation_pose` system, the real `iv1_7.ivt` lines).  So **P2 / iv1_7
   is DONE.**  Recorded in `findings/confirmed-parity-ledger.md`.
-  **★★ NEXT SESSION (user 2026-06-22, "several major gaps to un-mvp before moving past them"; tackle after a
-  /clear) — two gaps the wrap-up viewer surfaced, both PRE-/POST- the (correct) wrap-up:**
-  **(1) the live first-customer haggle dialogue is "..." PLACEHOLDER** ("the lines BEFORE the wrap up" — the
-  rounds-4/5 LIVE practice-sale lines from `cs_live_machine`/`FUN_004658ab`, NOT the wrap-up).  = the known
-  **PORT-DEBT(cs-kyaku-dialogue) / L1c** — load the real per-kyaku line text (kyaku/fN.txt → real lines +
-  count + sprite + voice) instead of the placeholder that currently drives the reveal.  Now USER-VISIBLE, so
-  un-mvp it.  **(2) POST-FADE CAMERA wrong** — at the viewer's **col ~847** (window offset ~8847, i.e. the
-  fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the wrong one
-  ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition — RE it
-  next (likely the wrap-up→free-roam / "sit at the counter" camera).  **Viewer is set up + CACHED for next
-  session:** `orv3_window house-customer-tutorial --window 8000:2500 --state --view --no-verify` re-opens it
-  instantly (retail cache `e8f49cb7` stays valid across port rebuilds — only the port re-drives, ~16 min;
-  caprange [0,13000] / ceiling 1.8M now committed).  THEN P3 the real first customer (roster scan + f404==0;
-  the iv1_7→iv1_8 `f406→f402` chain) / L1b real pix.
+  **★★ NEXT SESSION (user 2026-06-22, "several major gaps to un-mvp before moving past them") — two gaps the
+  wrap-up viewer surfaced, both PRE-/POST- the (correct) wrap-up:**
+  **(1) the live first-customer haggle dialogue "..." PLACEHOLDER ✅ PORTED 2026-06-22 as L1c (RE §13) —
+  retires PORT-DEBT(cs-kyaku-dialogue).**  Was: `cs_pick_line` (`FUN_00460a1a`) drew the variant rng but
+  stubbed `s_b270="..."` (the per-kyaku dialogue tail unmodelled).  Ported the **per-kyaku dialogue buffer +
+  loader**: new `customer_dialogue.{c,h}` (slot grid `s=variant+type*0x14`, text/sprite/voice/count at record
+  +0x6e70/0x51d8/0x5b38/0x6df8, the pure `kyaku_dialogue_parse` of the fixed-width `msgNN:SS:Vvv:text` lines)
+  + `tables.c::load_kyaku_dialogue` (reads each customer's `kyaku/<name>.txt` via storage after kyaku.txt) +
+  `cs_pick_line(rec,type,slot)` reading the real text/sprite (slot-0=record 0 Recette, slot-1=customer b56c)
+  + the factored `cs_split_line` `<C>` split.  **RNG STEP unchanged** (one draw when !f404 either way) ⇒ the
+  verified-1:1 LCG holds; only the now-used variant VALUE picks the real line.  **Verified:** loader on the
+  user's real data = **18 scripts / 1229 lines** (no errors); 3 host tests (3345 pass); the reaction
+  `cs_pick_line(0,9,0)`=recette msg09 = **"How much should I?..." / "Capitalism, ho!"** (count 2, rand%2) =
+  the line the `...` hid.  PORT-DEBT added: cs-dlg-override (the DAT_073dddb8 buysell variant table, inactive
+  here), cs-voice (playback, audio).  **PENDING user visual 1:1** in the v3 viewer (driving now):
+  `orv3_window house-customer-tutorial --window 5900:2800 --state --join-anchor CUSTOMER_SERVICE_ENTER`
+  (live states retail state-frame 6413 b534=2 greeting / 6537 b534=6 reaction / 7001 b534=7 accept; two
+  practice rounds 6032-8393, cc08 exits 4→1 @8543) + a flow_diff rng-1:1 confirm at those frames.
+  **(2) POST-FADE CAMERA wrong (STILL OPEN — the next arc)** — at the viewer's **col ~847** (window offset
+  ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
+  wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition
+  — RE it next (likely the wrap-up→free-roam / "sit at the counter" camera).  **Cached viewer:**
+  `orv3_window house-customer-tutorial --window 8000:2500 --state --view --no-verify` (retail cache
+  `e8f49cb7` valid across port rebuilds — only the port re-drives, ~16 min; caprange [0,13000]).  THEN P3 the
+  real first customer (roster scan + f404==0; the iv1_7→iv1_8 `f406→f402` chain) / L1b real pix.
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

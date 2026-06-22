@@ -16,6 +16,7 @@
 #include "scene_buy.h"        /* g_scene_buy_current_page == engine DAT_0730b56c */
 #include "worker_load.h"      /* worker_load_spawn_d3e == FUN_00452d3e */
 #include "tables_kyaku.h"     /* g_kyaku — the customer tuning fields */
+#include "customer_dialogue.h" /* kyaku_dialogue_get — per-kyaku fN.txt lines (L1c) */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
@@ -930,10 +931,14 @@ lab_tail:                                           /* LAB_004622c6 */
  * tag (sets b558=1 = a mid-line pause and stashes the post-<C> tail in
  * s_line_tail), and zeroes the reveal budget b548.  b270 points at the visible
  * text (the source when there is no <C>, else the truncated s_line_buf). */
-static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg)
+/* the <C> split shared by FUN_0046098f (cs_dialogue_line_setup, the scripted op)
+ * and FUN_00460a1a (cs_pick_line, the live picker) — both end identically (the
+ * picker tail @0x460a77): copy `text` into s_line_buf; on a "<C>" tag truncate
+ * the visible half there, set b558=1, and stash the post-<C> remainder in
+ * s_line_tail.  b270 points at the source when there is no <C>, else at the
+ * truncated s_line_buf.  Zeroes the reveal budget b548. */
+static void cs_split_line(const char *text)
 {
-    if (idx == 0) s_b54c = chr_arg;          /* (&DAT_0730b54c)[idx] = chr_arg */
-    else          s_b550 = chr_arg;
     s_b558 = 0;
     s_b548 = 0;
     s_b270 = text;
@@ -965,6 +970,13 @@ static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg)
         }
     }
     s_b270 = s_line_buf;
+}
+
+static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg)
+{
+    if (idx == 0) s_b54c = chr_arg;          /* (&DAT_0730b54c)[idx] = chr_arg */
+    else          s_b550 = chr_arg;
+    cs_split_line(text);
 }
 
 /* ── FUN_00465db4 reveal-complete (the b55c half) — all.c:62828-62836 ─────────
@@ -1013,31 +1025,48 @@ static void cs_dialogue_reveal_tick(void)
 }
 
 /* ── FUN_00460a1a — pick + load a customer dialogue line ─────────────────────
- * The live machine's line loader.  For a REAL customer (f404==0, not debug) it
- * draws ONE rng (rand % line_count) to pick a variant — a load-bearing LCG step;
- * for the tutorial / forced sale it uses line 0 (no rng).  The line TEXT, sprite
- * id, voice and per-type count live in the per-kyaku runtime dialogue buffer
- * (engine record + 0x6df8/0x51d8/0x5b38/0x6e70) which the port does not model
- * yet ⇒ PORT-DEBT(cs-kyaku-dialogue): a placeholder line drives the reveal so the
- * state machine advances; the count is clamped to 1 (index 0) so the rng STEP
- * still matches retail even though the variant index is stubbed.  `slot` = the
- * b54c/b550 speaker slot. */
-static void cs_pick_line(int slot)
+ * The live machine's line loader.  `rec_index` selects the SPEAKING record's
+ * dialogue buffer: 0 = Recette (&DAT_06a5ea90, the slot-0 shopkeeper lines),
+ * g_scene_buy_current_page (=b56c) = the customer (slot-1).  `type` is the msgNN
+ * line type; `slot` (0/1) is the b54c/b550 sprite slot.  For a REAL customer
+ * (f404==0) it draws ONE rng (rand % count[type]) to pick a variant — a
+ * load-bearing LCG step; for the forced/tutorial sale it uses variant 0.  Reads
+ * the text/sprite from the per-kyaku dialogue buffer (customer_dialogue.c,
+ * engine record +0x6e70/0x51d8/0x6df8) and runs the <C> split.
+ * PORT-DEBT(cs-dlg-override): the DAT_073dddb8 scripted-override variant table
+ * (data/buysell.txt) is not modeled — we always take the rng branch, matching
+ * the verified-1:1 consumption in this flow (the override is inactive here).
+ * PORT-DEBT(cs-voice): the voice id (+0x5b38) is parsed but playback (FUN_0049933c
+ * on record+voice*0x100+0x1444) is audio, not wired. */
+static void cs_pick_line(int rec_index, int type, int slot)
 {
+    const kyaku_dialogue_t *dlg = kyaku_dialogue_get(rec_index);
     const uint8_t *bank =
         (const uint8_t *)save_work_dwords_at(save_work_active_slot());
     int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+
+    int variant;
     if (!f404) {
-        /* thunk_FUN_005041f6() % count — the variant draw (count clamped to 1 →
-         * index 0).  PORT-DEBT(cs-kyaku-dialogue): the real per-type count. */
-        (void)rng_next15();
+        uint32_t r = (uint32_t)rng_next15();   /* thunk_FUN_005041f6 */
+        int count = (dlg != NULL && (unsigned)type < (unsigned)KYAKU_DLG_TYPES)
+                  ? dlg->count[type] : 0;
+        /* engine: rand % count[type] (would div-0 on an absent type — vendor
+         * data always has the requested type; we clamp to variant 0 for safety
+         * while STILL consuming the rng so the LCG stays 1:1 with retail). */
+        variant = (count > 0) ? (int)(r % (uint32_t)count) : 0;
+    } else {
+        variant = 0;                           /* forced sale → variant 0 */
     }
-    if (slot == 0) s_b54c = 0; else s_b550 = 0;   /* sprite id (PORT-DEBT buffer) */
-    s_b558 = 0;
-    s_b548 = 0;
-    /* PORT-DEBT(cs-kyaku-dialogue): the real line text is record[line*0x14+idx]
-     * at +0x6e70; a non-empty placeholder drives the reveal/advance. */
-    s_b270 = "...";
+
+    int s = variant + type * KYAKU_DLG_VARIANTS;
+    int32_t sprite = 0;
+    const char *text = "...";                  /* fallback if the script is absent */
+    if (dlg != NULL && (unsigned)s < (unsigned)KYAKU_DLG_SLOTS) {
+        sprite = dlg->sprite[s];
+        text   = dlg->text[s];                 /* voice = dlg->voice[s] (PORT-DEBT) */
+    }
+    if (slot == 0) s_b54c = sprite; else s_b550 = sprite;   /* (&b54c)[slot] */
+    cs_split_line(text);                        /* sets b558/b548/b270 (+ <C>) */
 }
 
 /* ── FUN_00460672 — grade the ask vs the customer's fair value (b588) ─────────
@@ -1104,7 +1133,7 @@ static void cs_live_machine(void)
 
     if (s_b534 == 2) {                          /* greeting */
         if (s_b544 == 1) {
-            cs_pick_line(1);                    /* FUN_00460a1a(rec,1,1) */
+            cs_pick_line(g_scene_buy_current_page, 1, 1);  /* FUN_00460a1a(rec,1,1) */
             s_cust_active[1] = -1;              /* DAT_06a5ea74 = -1 */
             s_b5a0 = 1;                         /* arrival anim start */
             /* FUN_00435612 cursor (PORT-DEBT). */
@@ -1125,7 +1154,7 @@ static void cs_live_machine(void)
             s_cust_active[1] = 0;
             if (s_b59c == 0) s_b59c = 1;
             if (s_b544 == 1)
-                cs_pick_line(0);                /* FUN_00460a1a(&ea90,9,0) */
+                cs_pick_line(0, 9, 0);          /* FUN_00460a1a(&ea90,9,0) */
             /* FUN_00435612 cursor (PORT-DEBT). */
             if ((s_in_pressed & 0x10) == 0) {
                 cs_digit_edit();                /* FUN_0045ff31 — adjust the ask */
@@ -1140,7 +1169,7 @@ static void cs_live_machine(void)
         }
         if (s_b534 == 7) {                      /* accept → sale */
             if (s_b544 == 1) {
-                cs_pick_line(1);                /* FUN_00460a1a(rec,5,1) */
+                cs_pick_line(g_scene_buy_current_page, 5, 1);  /* FUN_00460a1a(rec,5,1) */
                 s_cust_active[1] = -1;
             }
             if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
@@ -1168,8 +1197,7 @@ static void cs_live_machine(void)
                     } else {
                         uVar6 = 0xe;
                     }
-                    (void)uVar6;                /* line-type → cs_pick_line text (PORT-DEBT) */
-                    cs_pick_line(1);            /* FUN_00460a1a(rec,uVar6,1) */
+                    cs_pick_line(g_scene_buy_current_page, uVar6, 1);  /* FUN_00460a1a(rec,uVar6,1) */
                     s_cust_active[1] = -1;
                 }
                 if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
@@ -1195,7 +1223,7 @@ static void cs_live_machine(void)
                 goto lab_tail;
             /* b534 == 9: final reject */
             if (s_b544 == 1) {
-                cs_pick_line(1);               /* FUN_00460a1a(rec,6,1) */
+                cs_pick_line(g_scene_buy_current_page, 6, 1);  /* FUN_00460a1a(rec,6,1) */
                 s_cust_active[1] = -1;
             }
             if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
@@ -1432,7 +1460,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
              * runs the next frame, like retail. */
             s_b544 += 1;
             if (s_b544 == 1)
-                cs_pick_line(0);              /* FUN_00460a1a(&ea90,0,0) */
+                cs_pick_line(0, 0, 0);        /* FUN_00460a1a(&ea90,0,0) */
             if (s_b55c == 0)               { s_cust_active[0] = 1; return; }
             if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
             s_cust_active[0] = 0;
@@ -1449,7 +1477,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         if (s_b534 == 10) {                   /* 0xa — "thank you" line (60461-60478) */
             s_b544 += 1;
             if (s_b544 == 1)
-                cs_pick_line(0);              /* FUN_00460a1a(&ea90,5,0) */
+                cs_pick_line(0, 5, 0);        /* FUN_00460a1a(&ea90,5,0) */
             if (s_b55c == 0)               { s_cust_active[0] = 1; return; }
             if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
             s_cust_active[0] = 1;
@@ -1471,7 +1499,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                 s_b544 += 1;
                 s_b52c = 0;
                 if (s_b544 == 1)
-                    cs_pick_line(0);          /* FUN_00460a1a(&ea90,3,0) */
+                    cs_pick_line(0, 3, 0);    /* FUN_00460a1a(&ea90,3,0) */
                 if (s_b55c != 0) {
                     if (s_in_pressed & 0x10) {
                         s_cust_active[0] = 0;
@@ -1557,8 +1585,11 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                 s_cust_active[0] = 1;
                 if (s_b544 == 1) {
                     /* PORT-DEBT(cs-close-fx): FUN_004607f3 + the gold banner +
-                     * b150; the line type (b5a8==3?0xb:b5a8==0?7:8) is text only. */
-                    cs_pick_line(0);          /* FUN_00460a1a(&ea90,uVar18) */
+                     * b150 (FX only — the state still advances).  uVar18 = the
+                     * close line type by transaction kind (all.c:60627-60635). */
+                    int close_line = (s_b5a8 == 3) ? 0xb
+                                   : (s_b5a8 == 0) ? 7 : 8;
+                    cs_pick_line(0, close_line, 0);  /* FUN_00460a1a(&ea90,uVar18,0) */
                 }
                 if (s_b55c == 0)
                     return;

@@ -33,6 +33,7 @@
 #include "tables_gousei.h"
 #include "tables_item.h"
 #include "tables_kyaku.h"
+#include "customer_dialogue.h"  /* per-kyaku fN.txt dialogue buffer (L1c) */
 #include "scene_buy.h"      /* scene_buy_load_stage_files — cc08==4 standee names */
 #include "tables_model.h"
 #include "tables_news.h"
@@ -213,6 +214,38 @@ static void load_kyaku_txt(void)
             "(customers=%d like_kinds=%d with_budget=%d)\n",
             sz, defined, total_likes, with_budget);
     free(buf);
+}
+/* Per-customer dialogue scripts (kyaku/<name>.txt) — the dialogue half of
+ * FUN_00475270's per-record loop (all.c:74568-74715).  For every parsed
+ * customer with a `file:` script, read it via storage and parse the msgNN:
+ * lines into the per-record dialogue buffer the live haggle picker
+ * (customer_service.c::cs_pick_line = FUN_00460a1a) reads.  Runs AFTER
+ * load_kyaku_txt (needs records[i].active + file_path). */
+static void load_kyaku_dialogue(void)
+{
+    kyaku_dialogue_free_all();
+    int loaded = 0, lines = 0;
+    for (int i = 0; i < KYAKU_COUNT; i++) {
+        if (!g_kyaku.records[i].active)        continue;
+        const char *path = g_kyaku.records[i].file_path;
+        if (path[0] == '\0')                   continue;
+
+        unsigned char *buf;
+        size_t sz = load_via_storage(path, &buf);
+        if (sz == 0)                           continue;   /* logged by helper */
+
+        kyaku_dialogue_t *dlg = calloc(1, sizeof(*dlg));
+        if (dlg) {
+            kyaku_dialogue_parse((const char *)buf, sz, dlg);
+            kyaku_dialogue_set(i, dlg);
+            loaded++;
+            for (int t = 0; t < KYAKU_DLG_TYPES; t++)
+                lines += dlg->count[t];
+        }
+        free(buf);
+    }
+    fprintf(stderr, "tables: kyaku dialogue — %d scripts, %d lines\n",
+            loaded, lines);
 }
 /* enemy.txt — ported. Real parser in src/tables_enemy.c. The 64
  * records ship pre-baked in .data with their NAMES; enemy.txt only
@@ -591,6 +624,7 @@ void tables_load_all(void)
     load_config_idx();
     load_item_txt();
     load_kyaku_txt();
+    load_kyaku_dialogue();   /* per-kyaku fN.txt dialogue (after kyaku.txt) */
     load_enemy_txt();
     load_chara_txt();
     /* Per-stage character-sprite NAME parse (FUN_00475270 block #4): after
