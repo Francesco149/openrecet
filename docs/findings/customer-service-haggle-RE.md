@@ -1741,6 +1741,14 @@ reaction beat (mirror the `scene1_conversation_pose_active()` yield).
 
 ### 18.2 The user's "camera angle still wrong" (note #8) — the CAMERA TRANSFORM is BIT-EXACT; the real gap is a cc08==4 3D-SCENE REPROJECTION + a missing element (2026-06-22)
 
+> **⚠ SUPERSEDED by §18.3 (2026-06-22 PM, the --d3d-trace).**  §18.2 RESOLVED THE WRONG FRAME: it
+> took note #8/#9 to be the **first-customer greeting (CSE#2)**, but the note is anchored at
+> **`CONV_POSE_BLINK#1+36` = the iv1_7 WRAP-UP cutscene** (~590f earlier).  The CSE#2 greeting §18.2
+> analyzed is in fact **camera-1:1** (pixel diff 1.19%; counter-cam VIEW + all proj BIT-IDENTICAL — the
+> "floor reprojection 54-diff" was a frame-misalignment artifact).  The REAL gap is a WRAP-UP camera
+> CENTER offset — see §18.3.  Keep §18.2 only for the (real, separate, minor) first-customer retail-only
+> overlay draws it noted (the 80-tri b494 element).
+
 After the companion fix the user flagged (viewer note #8, port, CONV_POSE_BLINK#2+7 = the first-customer
 greeting): **"camera angle still wrong, that's a huge part of why the companion pos looks wrong."**  Investigated
 in full (extended `{calltrace}` 9500→11500, added `camey`/`camly`/`b5d4`/`b59c` to the probe, re-drove BOTH
@@ -1792,3 +1800,44 @@ engine builds its view matrix (`FUN_004a3b52(up=de29c, eye, lookat)`) with a dif
 capture is the ONLY way left to decide** — do that first next session.  Note this is the cc08==4 SELL view; verify
 whether the (verified-1:1 "everything looks 1:1") TUTORIAL cc08==4 background ALSO reprojects (if yes, it's a
 general cs-view bug missed because prior checks were UI/standee-focused; if no, it's first-customer-specific).
+
+### 18.3 RESOLVED via the --d3d-trace 2026-06-22 — note #9 = the WRAP-UP (CONV_POSE) camera CENTER offset (free-roam vs counter target); orientation/FOV BIT-IDENTICAL
+
+Ran the decisive d3d capture by **extracting `SetTransform` (ORV3 op 12) straight from the EXISTING
+v3cap.bin caches (no re-drive)** with the new **`tools/trace_studio_v3/orv3_xform.py`** (per-frame
+VIEW/PROJ/WORLD dumper: decodes eye/lookat from D3DXMatrixLookAtRH + fov/aspect/near/far from
+PerspectiveFovRH; `--diff` cross-side, `--draws-by-view`, `--scan-eye`).  The v3 proxy already records every
+SetTransform, so the actual GPU matrices were sitting in the cache.
+
+**Note #9 is `CONV_POSE_BLINK#1+36`** — port v3idx 8601 (exe 10465), retail v3idx 8757 (exe 12774) —
+DURING the iv1_7 wrap-up cutscene (CONV_POSE_START@10409 → END@11057), NOT the first-customer greeting.
+(User confirmed: "changed the note … a frame with no standee to make it easier to analyze," same wrap-up
+region.)  §18.2 mis-resolved it to CSE#2 and measured the wrong scene.
+
+**CSE#2 first-customer greeting = camera 1:1** (control): counter-cam VIEW eye=(-3,22.2,14) look=(-3,1.2,0)
+**BIT-IDENTICAL** port==retail; all 5 perspective PROJ (fovY45/aspect1.333, far 500/1450/2000/350/20001)
+**bit-identical** (Δ≤9.5e-7 f32 noise); the differing non-scene VIEW (port identity vs retail eye=0,0,-550)
+draws ZERO under it (inert, RHW 2D ignores view).  Full-frame pixel diff **1.19%**.  ⇒ §18.2's "floor
+reprojection" was a frame-misalignment artifact.
+
+**The WRAP-UP gap (note #9):** across the WHOLE CONV_POSE the scene renders under a camera with the SAME
+orientation (forward=(0,-0.83205,-0.5547), up=(0,0.5547,-0.83205)) + FOV + proj, DIFFERENT CENTER:
+
+| side | eye | lookat | = |
+|------|-----|--------|---|
+| PORT | (-3.0, 22.2, 14.0) | (-3.0, 1.2, 0.0) | the cc08==4 COUNTER target (STALE) |
+| RETAIL | (-1.5, 22.2, 15.0) | (-1.5, 1.2, 1.0) | the FREE-ROAM camera (default house; = §17/gap-2 free-roam eye/look) |
+
+Δeye=Δlook=(+1.5, 0, +1.0), CONSTANT every wrap-up frame.  Full-frame pixel diff **92.8%** (feed
+"NOTE #9 ROOT CAUSE").  So the user is RIGHT it looks wrong — it's a POSITION/center offset, not angle/FOV.
+
+**Mechanism:** `house_update` (FUN_0048670f, the counter-cam driver) does NOT run during CONV_POSE on either
+side (no cc08 probe rows 10383..11067 port / 12693..13377 retail — the cutscene takes over the sim); cc08==4
++ counter cam at BOTH boundaries.  So the wrap-up camera is set by the CONV_POSE path: **retail renders the
+scene with the FREE-ROAM camera; the port leaves `g_scene1_camera` at the STALE counter cam (-3,0)** from the
+last pre-CONV_POSE house_update.
+
+**NEXT (port the fix):** during the iv1_7 wrap-up the port must drive the FREE-ROAM camera (look -1.5,1.0),
+not leave the counter cam.  RE the CONV_POSE camera path: does cc08 revert (4→0/1) during the cutscene, or
+does conversation_pose recompute `g_scene1_camera`?  Find where retail sets eye(-1.5,22.2,15)/look(-1.5,1.2,1.0)
+during CONV_POSE and mirror it.
