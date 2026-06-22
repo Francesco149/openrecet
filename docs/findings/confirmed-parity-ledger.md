@@ -231,5 +231,18 @@
   sprites near Tear match too.  Commit `cce3174`; +2 host tests.  RE §18.4.
   (Note #1's reported player "(-2.0,8.8)" drift was a misread off the clobbered
   call_trace — the v3cap WORLD shows the player at (-1.5,9.0) bit-matching retail.)
+  **Follow-up — the player CONTACT SHADOW frozen-floor — USER-CONFIRMED 2026-06-22**
+  ("can confirm the shadow is correct"): same root (the un-frozen floor).  The
+  engine's shadow (FUN_0045aa36) is a pure READER of the cached per-actor floor
+  daf94 (filled in house_update, frozen during CONV_POSE); the port live-queried
+  it.  Fixed by caching the player floor hit `g_scene1_player_floor` (= daf94[0],
+  where collision_resolve_player + the cc08 writer already query) and reading it for
+  actor 0 — bit-exact on flat floors (other scenes unchanged), frozen during the
+  cutscene.  v3-verified: wrap-up player shadow **(-1.5,1.392,9.0) == retail EXACT**
+  (was 0.121).  Commit `8bd2bc2`.  Remaining PORT-DEBT(cs-shadow-frozen-floor):
+  companion/actor-1 shadows still live-query (FUN_0048a833's per-actor daf94 cache
+  unported) — invisible here (companion = fairy hover, no contact shadow).  **So the
+  WHOLE post-haggle wrap-up cutscene (camera + companion height + Recette's shadow)
+  is now confirmed 1:1.**
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

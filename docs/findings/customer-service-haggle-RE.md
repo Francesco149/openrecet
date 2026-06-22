@@ -1925,4 +1925,6 @@ is now **port (-1.5,1.392,9.0) == retail (-1.5,1.392,9.0)** EXACT (was 0.121).  
 PORT-DEBT(cs-shadow-frozen-floor): the OTHER shadow actors (companion, actor 1) still live-query — the engine's
 FUN_0048a833 per-actor daf94 cache is unported — but the companion draws NO contact shadow in this scene (fairy
 hover), so it is invisible here; a future chip can port FUN_0048a833's floor loop for full per-actor fidelity.
-**USER-CONFIRM pending** (viewer win-8400-2500, note #1).
+**✅ USER-CONFIRMED 2026-06-22** ("can confirm the shadow is correct"); commit `8bd2bc2`; ledger.  So the WHOLE
+post-haggle wrap-up cutscene — camera (§18.3), companion height + cutscene sprites, and Recette's contact
+shadow — is now 1:1.

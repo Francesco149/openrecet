@@ -386,7 +386,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   wrap-up companion chibi Y **port 4.08–4.46 == retail 4.09–4.46** (was flat 3.0) + the cutscene effect sprites
   rose to match (4.7–5.9 == 4.9–5.9), within ±0.03 bob/anim phase.  **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes
   that looks correct"; ledger).  **FOLLOW-UP (same root) — the player CONTACT SHADOW frozen-floor ✅ FIXED +
-  v3-verified 2026-06-22, PENDING USER CONFIRM** (user: "fix that port debt too, if structurally equal"): the
+  v3-verified + USER-CONFIRMED 2026-06-22** ("can confirm the shadow is correct"; commit 8bd2bc2; the WHOLE
+  wrap-up cutscene — camera + companion + shadow — is now 1:1) (user: "fix that port debt too, if structurally equal"): the
   shadow render LIVE-queried the floor per actor; retail's shadow is a pure READER of the cached per-actor floor
   daf94 (filled in house_update, frozen during CONV_POSE).  Faithful fix: cache the player floor hit
   `g_scene1_player_floor` (= daf94[0], where collision_resolve_player + the cc08 writer already query) and the
