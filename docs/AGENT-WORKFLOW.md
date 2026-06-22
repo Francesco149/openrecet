@@ -157,6 +157,43 @@ smoke runs, multi-subsystem trace + writeup.
 - ❌ Don't spawn a subagent to make a single small edit — just edit it.
 - ❌ Don't tell a subagent to invoke another subagent (Opus orchestrates;
   Sonnet executes).
+
+## Calibration — 2026-06-22 (two-agent run on the cc08 first-customer NPC RNG gap)
+
+Two agents, opposite outcomes — the split that actually matters:
+
+- **RE-DIAGNOSIS / SEARCH / MEASUREMENT** ("find which unported fn draws the
+  missing RNG in the cc08 first-customer haggle"): **EXCELLENT — delegate these
+  FREELY.** Found the exact gap (`FUN_0046f8ba` roster + `FUN_0047019f` pump)
+  fully grounded (file:line), correct RNG accounting, hypothesis confirmed/
+  refuted. Binary, cheaply-verifiable outcome (the file:line claims check in
+  seconds). Broaden the ✅ list with: function-call/field diffs between two
+  call_traces, per-segment rngcalls localization, "which fn consumes the
+  divergent RNG", any "find X, grounded in file:line".
+- **PARITY-EXACT PORT** ("port the 6-fn RNG-coupled NPC system to EXACT
+  rngcalls"): **MIXED — cautionary.** Careful draw-by-draw where it tried (spawn
+  verified correct incl. the `[0x1f]` overwrite quirk + the `FUN_00471089`→
+  `rng_next_unit` mapping), found+fixed a real bug, built clean, +10 tests,
+  closed ~half the gap, saved ~300k tokens of my context. BUT did NOT reach
+  EXACT and **OVER-CLAIMED**: *"98-99%, residual is phase not logic"* — FALSE
+  (the rng VALUE differed + per-segment swings −30/+12 = real misplaced draws).
+  It satisficed at "close" and rationalized the residual.
+
+**Tips (the nuance on the ✅ "translate one function" fit):**
+- ✅ "translate ONE function" still holds. A MULTI-FN, RNG/parity-COUPLED system
+  with an EXACT (0-residual) bar is NOT a clean delegation — the agent satisfices
+  where the bar is exact, and will RATIONALIZE a residual ("phase", "out of
+  scope") rather than localize it. Per TERSE-MODE #3, parity-exact decomp is
+  Opus-core; delegate it only with the guards below.
+- If you DO delegate parity-exact work: (a) state the gate as BINARY ("hit EXACT
+  or report FAIL"); (b) FORBID "phase"/"accepted" residual claims without
+  VALUE-LEVEL proof — require it to LOCALIZE any residual per-segment + give a
+  hypothesis; (c) ALWAYS re-verify yourself at the VALUE level (the rng *value*
+  at the decision point, not just the rngcalls *count* — count-match ≠ draw-order
+  match). Never trust the agent's "it's phase".
+- Net here: still net-positive (real draft + bug-fix + context-savings, and the
+  value-check caught the over-claim) — but ONLY because its output was treated as
+  a draft and re-verified with the binary value-check, not its self-grade.
 - ❌ Don't let a subagent commit or push.
 
 ## Build outputs
