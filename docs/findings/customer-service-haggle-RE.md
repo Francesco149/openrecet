@@ -1597,4 +1597,21 @@ render's `b51c==0` branch now draws `s.line` (b270) with the b5a8 colour.  v3-ve
 cc08==4 the engine CLEARS it (`DAT_056db000 = 0`, all.c:87696) — the port didn't, so it froze (the cc08==1
 free-roam arm that would decay it stops running during cc08==4).  Fix: `player_ctrl_cc08_sell_counter_enter`
 sets `s_emote_level = 0` after `cc08=4`/session_init.  Does NOT affect the free-roam approach "!" (note #1).
-3349 host pass; v3-verify pending.
+3349 host pass.  v3-verified 1:1 (#3 prompt port_idx 670==retail 826; #4 "!" gone port_idx 223==retail 379).
+
+## 16. The queue-advance conclusion line (notes #5/#6) PORTED 2026-06-22 (retires PORT-DEBT(cs-queue-line))
+
+After the 2 live practice rounds, retail plays Tear's scripted conclusion **"Expertly done. If you ever wish
+to practice again, simply ask me<C>any time we are in the shop."** (tuto1.txt id **-4**) in the master tick's
+**b534==0x14 (queue-advance)** state, before the close→wrap-up.  The port stubbed it (`s_b270="..."`,
+PORT-DEBT(cs-queue-line)) → the short placeholder revealed in ~3f, so the port advanced 0x14→0x15→idle far
+too fast (note #6 "ends the scene early") and showed "○○○" not the line (note #5).
+
+Engine (all.c:60530-60549): on `b544==1`, line id `iVar4 = (b528==2)-4` (= **-4** normal / -3 / -2 if
+b5b8≠0), scan g_tuto[fileidx]'s 200 records for `id==iVar4`, load its text via `FUN_0046098f(text,1,0)` (=
+`cs_dialogue_line_setup`, which runs the `<C>` split).  `tuto_record.id` (offset 0) = the line's first CSV int
+(the "addressed by negative id" lines, tables_tuto.c:186).  The `<C>` page-2 advance is the master tick's
+shared pre-dispatch check (`b558==1 && b55c && Z → b270 = s_line_tail`, all.c:60318-60324, customer_service.c:
+1417) — runs for this state too, so page 2 ("any time we are in the shop") shows.  Fix: the b534==0x14 arm
+scans + loads the real line (mirrors `cs_goto`).  The long real line reveals at retail's rate ⇒ the 0x14
+duration + the close timing now track retail.  3349 host pass; v3-verify pending.

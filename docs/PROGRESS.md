@@ -45,6 +45,14 @@ draws the dialogue line `b270` (recette msg09) there, b5a8-coloured.  Fixed in `
 (retires PORT-DEBT(cs-haggle-prompt-live)).  (#4) the counter "!" emote lingered through cc08==4 idle — the
 Z-entry clears `db000=0` (all.c:87696); `player_ctrl_cc08_sell_counter_enter` now does too.  3349 host pass.
 
+**Two more (notes #5/#6, RE §16).**  The post-practice scripted conclusion "Expertly done. If you ever wish to
+practice again, simply ask me<C>any time we are in the shop." (tuto1 id -4) showed "○○○"/ended early — the
+master tick's b534==0x14 queue-advance stubbed it (`s_b270="..."`).  Ported the engine's negative-id scan
+(all.c:60540-60549): find the g_tuto[fileidx] record with `id==(b528==2)-4`, load its text via
+`cs_dialogue_line_setup` (the `<C>` page advance is the shared pre-dispatch check).  The long real line reveals
+at retail's rate, so the 0x14 duration + close timing track retail (no early-exit).  Retires
+PORT-DEBT(cs-queue-line).  3349 host pass.
+
 ## 2026-06-18 — customer-tutorial TRACE-REPLAY blocker ROOT-CAUSED + FIXED (segtrace timeout ate the walk)
 
 The `house-customer-tutorial` port drive stayed `cc08==1` the whole window — the player frozen at

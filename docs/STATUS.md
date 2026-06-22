@@ -315,7 +315,13 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   draws the dialogue line `b270` (recette msg09) at (312,250), b5a8-coloured (retires
   PORT-DEBT(cs-haggle-prompt-live)).  **(#4)** the counter "!" emote LINGERED through cc08==4 idle — the Z-entry
   must clear `db000=0` (all.c:87696); `player_ctrl_cc08_sell_counter_enter` now does (doesn't touch the
-  free-roam approach "!", note #1).  3349 host pass; v3-verify driving.
+  free-roam approach "!", note #1).  v3-verified 1:1.
+  **★ TWO MORE notes (#5/#6) ✅ FIXED 2026-06-22 (RE §16, retires PORT-DEBT(cs-queue-line)):** the post-practice
+  scripted CONCLUSION line "Expertly done. If you ever wish to practice again, simply ask me<C>any time we are
+  in the shop." (tuto1 id **-4**) showed "○○○"/ended early — the master tick's b534==0x14 queue-advance stubbed
+  it.  Ported the engine's negative-id scan (all.c:60540-60549): find g_tuto[fileidx] record `id==(b528==2)-4`,
+  load its text via `cs_dialogue_line_setup` (the `<C>` page-advance is the shared pre-dispatch check); the
+  long real line reveals at retail's rate so the timing tracks (no early-exit).  3349 host pass; v3-verify driving.
   **(2) POST-FADE CAMERA wrong (STILL OPEN — the next arc)** — at the viewer's **col ~847** (window offset
   ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
   wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition

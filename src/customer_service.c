@@ -1551,19 +1551,29 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
             s_b544 += 1;
             s_cust_active[1] = 1;
             if (s_b544 == 1) {
+                int line_id;
                 if (s_b5b8 == 0) {
-                    /* iVar4 = (b528==2) - 4 (the line id to load) */
+                    line_id = (s_b528 == 2) - 4;   /* -4 normal, -3 if b528==2 */
                 } else {
                     s_b528 -= 1;
                     s_b318 -= 1;
                     s_b5b8 = 0;
+                    line_id = -2;
                 }
-                /* PORT-DEBT(cs-queue-line): the next-customer tuto line
-                 * (FUN_0046098f over g_tuto by the computed id) — a placeholder
-                 * drives the reveal so the state advances. */
-                s_b270 = "...";
-                s_b548 = 0;
-                s_b558 = 0;
+                /* load the conclusion / next-customer line by NEGATIVE id
+                 * (all.c:60540-60549): scan g_tuto[fileidx]'s 200 records for
+                 * id==line_id, load its text via cs_dialogue_line_setup (which
+                 * runs the <C> page split) — e.g. tuto1 id -4 = "Expertly done.
+                 * If you ever wish to practice again, simply ask me<C>any time we
+                 * are in the shop." (retires PORT-DEBT(cs-queue-line)). */
+                const struct tuto_record *qr =
+                    &g_tuto[s_price_fileidx * TUTO_CONSUMER_STRIDE];
+                for (int qi = 0; qi < TUTO_CONSUMER_STRIDE; qi++) {
+                    if (qr[qi].id == line_id) {
+                        cs_dialogue_line_setup(qr[qi].text, 1, 0);  /* FUN_0046098f(text,1,0) */
+                        break;
+                    }
+                }
             }
             if (s_b55c == 0)
                 return;
