@@ -62,6 +62,16 @@ void collision_resolve_player_floor(const collision_mesh *m,
  * types 5,6,8..16).  Walls are type 0 (kept) and distinguished by normal. */
 int collision_raycast_type_excluded(int type);
 
+/*
+ * Set g_scene1_player_ground_y = the floor-Y under `pos` (engine DAT_056daf88).
+ * collision_resolve_player already does this on the free-roam path; this is the
+ * cc08==4 writer for the arrival arm, where the player rides the stool ABOVE the
+ * floor so its own pos[1] is not the floor.  Mirrors the engine recomputing daf88
+ * every house_update frame (incl. the cc08 block) so the value freezes correctly
+ * during the post-haggle conversation-pose wrap-up (RE §18.4).
+ */
+void collision_set_player_ground_y(const collision_mesh *m, const float pos[3]);
+
 #ifdef __cplusplus
 }
 #endif

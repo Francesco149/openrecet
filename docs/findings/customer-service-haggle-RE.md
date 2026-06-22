@@ -1857,3 +1857,60 @@ ESC-skip leave through the dissolve, asserts player.x=-1.5 + stage_class=0); 335
 phase).  Both the f406-close AND the ESC-skip leave paths set b520 ⇒ both fixed.  feed "NOTE #9 FIXED".
 **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes the camera looks correct") in the v3 viewer; recorded in
 `confirmed-parity-ledger.md`.
+
+### 18.4 RESOLVED 2026-06-22 — viewer note #1 ("tear position slightly off / lower") = the WRAP-UP companion HEIGHT; root = the un-wired player ground-Y (engine daf88)
+
+Note #1 (`retail DLG_LINE_CLEAR#6+43`, box [383,525,505,695]) flagged Tear sitting too low through the
+wrap-up cutscene.  Decomposed off the v3cap WORLD matrices (`orv3_xform`, the 4dfe654b cache, no re-drive)
+at the note frame (port f10908 / retail f13364, the last CONV_POSE frame):
+
+| sprite (WORLD scale) | PORT Y | RETAIL Y | Δ |
+|----------------------|--------|----------|---|
+| player **chibi** (-0.03) @(-1.5,_,9.0)   | 0.500 | 0.500 | **0 — bit-match** |
+| player **shadow** (-0.005) @(-1.5,_,9.0) | 0.121 | 1.392 | −1.271 |
+| **companion chibi** (-0.03) @(-2.96,_,8.656) | 3.097 | 4.354 | −1.257 |
+| effect sprites near Tear (-0.001)        | ~4.0  | ~5.3  | ~−1.25 |
+
+The player chibi + ALL XZ bit-match; only the *heights* of everything that derives from the player's floor-Y
+are ~1.27 low.  Per-frame tracking proved the **companion-Y RELATIVE to the player floor-Y is bit-identical
+port==retail** (comp−shadow: port 2.976 / retail 2.962 at the note frame, matching across the whole CONV_POSE)
+— so the follow law is correct; the entire gap is **one value: the player floor-Y (engine `DAT_056daf88`),
+port 0.121 vs retail 1.392.**  (Note #1's reported player drift "(-2.0,8.8)" was a MISREAD off the clobbered
+4dfe654b port call_trace; the WORLD shows the player at (-1.5,9.0) bit-matching retail — XZ was never wrong.)
+
+**Mechanism.** The companion free-roam hover Y = `sin(db054·0.04)·0.2 + DAT_056daf88 + 3.0`
+(`FUN_0048a4d1` L89080-89083; port `scene1_companion_ctrl.c:315-318`).  `DAT_056daf88` = the floor under the
+player, written ONLY in the house_update chain — `FUN_0048670f → FUN_0048b850 → FUN_00483170` (L84449/84458)
+and `FUN_0048a833` (L89493).  NEITHER writer is reached from the conversation-pose tick `FUN_0048407f`; the
+top dispatcher (all.c:50540) runs the pose tick **or** house_update per frame, mutually exclusive ⇒ during
+CONV_POSE `daf88` **freezes** at its last house_update value = the **counter-platform floor (≈1.27)** the
+tutorial-cc08 player stood on.  Retail's companion therefore floats at 1.27+3.0 ≈ 4.35 through the wrap-up;
+the shadow + floor-pinned particles sit on the same frozen floor.
+
+**The port left `g_scene1_player_ground_y` UN-WRITTEN (always 0).**  In normal flat-floor HOUSE free-roam the
+true floor ≈0 so the companion at 3.0 was coincidentally right and the bug was invisible — only the frozen
+**raised** counter floor exposed it (companion 3.097 vs 4.354).  The HOUSE floor is a raised platform on the
+left (counter): at px=−4.5 floor≈1.27, at px=−3.25 floor≈0.03.
+
+**Fix (RNG-safe — the floor query is deterministic; no draw/anim/rng change).**  Two writers mirroring the
+engine, both gated off during CONV_POSE (the player tick doesn't run there ⇒ correct freeze):
+- **free-roam** (`collision_resolve.c::collision_resolve_player`, the FUN_00483170 port): record the snapped
+  floor `g_scene1_player_ground_y = h.height` alongside the existing player-Y snap — the literal daf88 write.
+- **cc08==4** (new `collision_set_player_ground_y`, called from `scene1_player_ctrl.c`'s cc08 arrival arm
+  inside the `b1cc!=2` gate): the free-roam writer doesn't run while cc08==4, but the engine still updates
+  daf88 in the cc08 block (FUN_0048b850 @ all.c:87749), so the value ramps to the counter floor 1.27 and
+  freezes there for the wrap-up.  The cc08 at-counter companion is UNAFFECTED — `co_at_counter_tick` uses a
+  fixed hover height with NO ground_y term (asm 0x48ad93), so cc08 parity (confirmed 1:1) is untouched.
+
++2 host tests (`ground_y_set_from_floor_under_stool` = the cc08 stool-above-floor writer; `resolve_player_
+records_ground_y` = the free-roam writer); 3354 pass.  **✅ v3-VERIFIED** (port re-drive, 4dfe654b/port): the
+wrap-up companion chibi Y is now **port 4.08–4.46 == retail 4.09–4.46** across the whole CONV_POSE (was a
+flat 3.0; note frame 3.097→4.332 vs retail 4.354), matching within ±0.03 = the bob sin-phase / accepted +1f
+arrival-anim phase.  The cutscene effect sprites near Tear (scale −0.001) likewise rose 3.7–4.6 → 4.7–5.9 ==
+retail 4.9–5.9.  Player chibi (-1.5,0.5,9.0) + all XZ stay bit-exact.  **Accepted residual:** the player
+CONTACT SHADOW still uses a per-frame live floor query (scene1_chr_shadow) so it sits on the real floor under
+(-1.5,9.0) (Y 0.12) instead of retail's frozen counter floor (Y 1.39) — but both are effectively INVISIBLE
+there (height = pos.y − floor_y → retail −0.89 ⇒ alpha clamps to 0; port +0.38 ⇒ alpha 1/255), so the diff is
+imperceptible; outside note #1's box (which is on Tear).  PORT-DEBT(cs-shadow-frozen-floor): route the
+player+companion contact-shadow floor through the frozen g_scene1_player_ground_y (engine daf94[i]) for a
+fully bit-exact shadow if ever flagged.  **USER-CONFIRM pending** (viewer win-8400-2500, note #1).

@@ -351,15 +351,23 @@
   `cs_leave_resets_freeroam_camera`, 3352 pass).  **v3-VERIFIED:** the wrap-up scene cam is now **eye=(-1.5,22.2,15)
   == retail**; pixel diff **92.8%→2.54%** (residual = player sprite + accepted +1f phase).  feed "NOTE #9 FIXED".
   **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes the camera looks correct"); ledger recorded.
-  **REMAINING P3 (next chips):** (a) **the WRAP-UP scold-pose POSITION residual (viewer note #1, user
-  2026-06-22 "tear position slightly off / lower in port").**  The scold-pose-WHEN-IT-SHOULDN'T is FIXED (§18.1
-  f404 gating, user-confirmed) and the 集中線 is already ported — NOT those.  The residual: at the wrap-up end
-  (DLG_LINE_CLEAR#6+43) Tear's sprite + the cutscene char sprites sit **~1.2 world-units LOWER in y** in the port
-  (v3cap WORLD: companion (-2.96,**3.1**,8.66)p vs (-2.96,**4.35**,8.66)r) AND the **player has DRIFTED off the
-  leave-reposition** during CONV_POSE ((**-2.0**,8.8)p vs (**-1.5**,9.0)r = my §18.3 fix value).  ⇒ a cutscene
-  player/companion position+height drift (the conversation_pose freeze + companion-follow + the sprite y-anchor);
-  the camera itself is 1:1 (note #9 fixed).  NB the port call_trace in 4dfe654b was clobbered by the §18.3
-  --force-port re-drive (no --state) — re-drive with --state for clean per-frame companion data before RE-ing.
+  **REMAINING P3 (next chips):** (a) **the WRAP-UP companion HEIGHT (viewer note #1, user 2026-06-22 "tear
+  position slightly off / lower in port") ✅ FIXED 2026-06-22 (RE §18.4) — PENDING USER CONFIRM.**  Root: the
+  companion free-roam hover Y = `sin·0.2 + g_scene1_player_ground_y + 3.0`, but the port NEVER WROTE
+  `g_scene1_player_ground_y` (stuck 0 ⇒ companion at 3.0); retail's `DAT_056daf88` (floor-under-player) FREEZES
+  at the counter-platform height 1.27 through the CONV_POSE wrap-up (the house_update floor writer doesn't run
+  in the EVENT arm) ⇒ companion at 4.35.  Flat-floor free-roam (floor≈0) hid it; only the frozen raised counter
+  exposed it.  (Note #1's reported player "(-2.0,8.8)" drift was a MISREAD off the clobbered call_trace — the
+  v3cap WORLD shows the player at (-1.5,9.0) bit-matching retail; XZ was never wrong.  集中線 + the f404 scold
+  gating were already done — not this.)  **Fix:** wire `g_scene1_player_ground_y` = queried floor in BOTH
+  house_update paths — free-roam (`collision_resolve_player` = FUN_00483170 daf88 write) + cc08 (new
+  `collision_set_player_ground_y` from the arrival arm, mirroring the engine's cc08-block daf88 write @87749);
+  both gated off in the EVENT arm ⇒ freezes at 1.27 like retail.  RNG-safe; cc08 at-counter companion untouched
+  (fixed hover, no ground_y term).  +2 host tests (3354 pass).  **v3-VERIFIED** (4dfe654b/port re-drive): the
+  wrap-up companion chibi Y **port 4.08–4.46 == retail 4.09–4.46** (was flat 3.0) + the cutscene effect sprites
+  rose to match (4.7–5.9 == 4.9–5.9), within ±0.03 bob/anim phase.  Accepted residual: the player CONTACT SHADOW
+  uses a live floor query (still 0.12 vs retail's frozen 1.39) but is imperceptible there (alpha→0 both sides);
+  PORT-DEBT(cs-shadow-frozen-floor).  USER: re-open the viewer (win-8400-2500) → note #1.
   (b) **the customer CHIBI NPC (viewer note #2, user 2026-06-22 "walks around and checks out the shop")** — the
   port doesn't render the first real customer's chibi sprite AT ALL (retail shows it browsing the shop; the §18.2
   "yellow element"/80-tri b494 = THIS).  Per the user, on the first customer the ONLY diffs are NPC rng + item-

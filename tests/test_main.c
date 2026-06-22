@@ -3521,6 +3521,8 @@ struct test_case {
     X(raycast_misses_short) \
     X(raycast_misses_behind) \
     X(resolve_room_wall_blocks) \
+    X(ground_y_set_from_floor_under_stool) \
+    X(resolve_player_records_ground_y) \
     X(resolve_table_blocks)
 
 #define T_DECL(n) extern int test_##n(void);

@@ -4,6 +4,7 @@
  */
 #include "collision_resolve.h"
 #include "collision_query.h"
+#include "scene1_particles_tick.h"   /* g_scene1_player_ground_y (engine DAT_056daf88) */
 
 #include <math.h>
 
@@ -181,8 +182,31 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
 
     /* Ground snap (flat HOUSE floor): set Y to the floor under the player,
      * probed at the same py+1.5 head height as the try-move/engine query. */
-    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h))
+    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h)) {
         pos[1] = h.height;
+        /* daf88: the floor-Y under the player.  FUN_00483170 (L84458) writes
+         * DAT_056daf88 here alongside the player-Y clamp.  Read by the companion
+         * free-roam hover (scene1_companion_ctrl: bob = sin·0.2 + ground_y + 3.0),
+         * the contact shadow, and the floor-pinned particles.  It is FROZEN during
+         * a conversation-pose cutscene (this tick doesn't run then), so the
+         * post-haggle wrap-up keeps the counter-platform height the companion
+         * floats above — matching retail (RE §18.4).  cc08==4 has its own writer
+         * (collision_set_player_ground_y, called from the arrival arm) since this
+         * free-roam path is not reached while cc08==4. */
+        g_scene1_player_ground_y = h.height;
+    }
+}
+
+/* Update g_scene1_player_ground_y (engine daf88) for paths that move the player
+ * WITHOUT the full collision_resolve_player snap — the cc08==4 arrival arm, where
+ * the player sits on the stool (py=0.5) ABOVE the counter-platform floor.  Mirrors
+ * the engine recomputing daf88 every house_update frame (FUN_0048b850 → FUN_00483170
+ * also runs inside the cc08==4 block, all.c:87749).  Same +1.5 head-height probe. */
+void collision_set_player_ground_y(const collision_mesh *m, const float pos[3])
+{
+    collision_hit h;
+    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h))
+        g_scene1_player_ground_y = h.height;
 }
 
 void collision_resolve_player_floor(const collision_mesh *m,

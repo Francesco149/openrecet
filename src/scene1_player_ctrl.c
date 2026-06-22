@@ -1846,6 +1846,20 @@ static void player_ctrl_cc08_unported_arm(void)
              * + the octant + slides g_scene1_player_pos toward the counter view. */
             player_ctrl_cs_arrival_tick();
 
+            /* daf88: keep g_scene1_player_ground_y tracking the floor under the
+             * cc08 player (the counter platform, y≈1.27).  The free-roam writer
+             * (collision_resolve_player) does NOT run while cc08==4, but the engine
+             * still recomputes daf88 in the cc08 block (FUN_0048b850 → FUN_00483170,
+             * all.c:87749).  This is the value the post-haggle wrap-up cutscene
+             * FREEZES (the tick stops running once iv1_7 routes to the EVENT arm),
+             * so the companion hovers at ground_y+3 ≈ 4.35 like retail instead of
+             * the default-floor 3.0 (RE §18.4 / viewer note #1). */
+            {
+                const collision_mesh *cm = collision_house_get();
+                if (cm)
+                    collision_set_player_ground_y(cm, g_scene1_player_pos);
+            }
+
             /* the master tick (FUN_00462403): owns the b534 state switch + the
              * scripted-sell dispatch + the cinematic counter camera.  cur/pressed
              * /held = the engine button masks DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */

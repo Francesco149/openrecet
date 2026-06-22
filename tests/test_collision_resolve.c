@@ -15,6 +15,7 @@
 
 #include "collision_mesh.h"
 #include "collision_resolve.h"
+#include "scene1_particles_tick.h"   /* g_scene1_player_ground_y (engine daf88) */
 #include "xfile.h"
 
 static int near_(float a, float b, float tol) { return fabsf(a - b) <= tol; }
@@ -141,7 +142,66 @@ int test_resolve_room_wall_blocks(void)
     return 0;
 }
 
-/* ─── 3. round-table block: BLOCKED on furniture placement ────────────── */
+/* ─── 3. player ground_y (engine daf88) wiring — RE §18.4 / viewer note #1 ─
+ * The companion free-roam hover, the contact shadow, and the floor-pinned
+ * particles read g_scene1_player_ground_y = the floor under the player.  It was
+ * never written (stuck 0) so during the post-haggle wrap-up cutscene the
+ * companion hovered at the default-floor 3.0 instead of retail's frozen
+ * counter-platform height ground_y(≈1.27)+3 ≈ 4.35.  Two writers now set it,
+ * mirroring the engine (FUN_00483170 free-roam + the cc08 block writer). */
+
+/* up-facing floor triangle at world y=`y`, XZ ⊂ {x∈[−10,0], z∈[0,10]}. */
+static void make_floor_at(collision_object *o, collision_tri *t, float y)
+{
+    float a[3] = {0, y, 0};
+    float b[3] = {0, y, 10};
+    float c[3] = {10, y, 0};
+    collision_tri_build(t, a, b, c, 0, COLLISION_PAD_SMALL);
+    o->tris = t; o->tri_count = 1;
+}
+
+int test_ground_y_set_from_floor_under_stool(void)
+{
+    /* cc08 arrival-arm writer: the player rides the stool (py=0.5) ABOVE the
+     * raised counter floor (y=1.272), yet ground_y must be the FLOOR (the +1.5
+     * head-probe still sees it), NOT the player Y — this is the value the wrap-up
+     * cutscene freezes so the companion hovers at ground_y+3. */
+    collision_object o; collision_tri t;
+    make_floor_at(&o, &t, 1.272f);
+    collision_mesh m; m.objects = &o; m.object_count = 1;
+
+    g_scene1_player_ground_y = -999.0f;
+    float pos[3] = { -2.0f, 0.5f, 2.0f };          /* on the stool, over the floor */
+    collision_set_player_ground_y(&m, pos);
+    NEAR(g_scene1_player_ground_y, 1.272f);
+
+    /* off the floor (the implicit-wall region) → no query hit → value unchanged
+     * (the engine likewise only updates daf88 when a floor is found). */
+    g_scene1_player_ground_y = 7.0f;
+    float off[3] = { 5.0f, 0.5f, 2.0f };           /* x>0 = outside the floor span */
+    collision_set_player_ground_y(&m, off);
+    NEAR(g_scene1_player_ground_y, 7.0f);
+    return 0;
+}
+
+int test_resolve_player_records_ground_y(void)
+{
+    /* free-roam writer: collision_resolve_player snaps Y to the floor AND records
+     * it in g_scene1_player_ground_y (engine FUN_00483170 daf88 write). */
+    collision_object o; collision_tri t;
+    make_floor_at(&o, &t, 0.0f);
+    collision_mesh m; m.objects = &o; m.object_count = 1;
+
+    g_scene1_player_ground_y = -999.0f;
+    float pos[3] = { -2.0f, 0.0f, 2.0f };
+    float vel[3] = { 0.0f, 0.0f, 0.0f };
+    collision_resolve_player(&m, pos, vel, /*palette_mode=*/0);
+    NEAR(pos[1], 0.0f);
+    NEAR(g_scene1_player_ground_y, 0.0f);
+    return 0;
+}
+
+/* ─── 4. round-table block: BLOCKED on furniture placement ────────────── */
 int test_resolve_table_blocks(void)
 {
     T_SKIP("furniture world-placement (DAT_0438c058 / FUN_00436f97 stage_positions) "
