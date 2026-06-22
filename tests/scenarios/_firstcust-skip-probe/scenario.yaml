@@ -1,0 +1,7 @@
+description: |
+  PROBE (retail b150 lifecycle): load → tutorial → ESC-skip → first customer,
+  truncated after the first BARGAIN round. For RE of the cc08==4 skip→first-
+  customer b150 modal-hold (rec f461→f1018). NOT a parity scenario.
+max_frames: 40000
+duration_ceiling_ms: 600000
+capture_suppress_loads: true
