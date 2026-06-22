@@ -1615,3 +1615,55 @@ shared pre-dispatch check (`b558==1 && b55c && Z → b270 = s_line_tail`, all.c:
 1417) — runs for this state too, so page 2 ("any time we are in the shop") shows.  Fix: the b534==0x14 arm
 scans + loads the real line (mirrors `cs_goto`).  The long real line reveals at retail's rate ⇒ the 0x14
 duration + the close timing now track retail.  3349 host pass; v3-verify pending.
+
+## 17. Gap (2) — POST-FADE CAMERA: the autonomous first-customer cs entry (f406 arm, all.c:87485) PORTED 2026-06-22
+
+User-flagged (FRONT gap (2), v3 viewer ~col 847): after the (1:1) wrap-up cutscene retail's camera CUTS to a
+new angle; the port's "is completely wrong."  Root-caused via the e8f49cb7 cache (`call_trace.jsonl`,
+camex/camez/camlx/camlz + cc08 + the anchor timeline) — it's a STATE gap, the camera a symptom.
+
+**Retail post-tutorial flow** (anchors): 5 BARGAIN rounds (3 scripted + 2 live) → `LOADING#6@11601` →
+**CONV_POSE wrap-up iv1_7** ("And that is… now go sit at the counter") @11602-12205 (11 TEXT_ANIM lines) →
+`LOADING#7 + CUSTOMER_SERVICE_ENTER#2 @12249` → **cc08=4** (camera ramps eye=(-2.0,14.7)→**(-3.0,14.0)**,
+look=(-2.0,0.7)→**(-3.0,0.0)** = the tier-0 COUNTER cam).  Post-wrap-up `f404` reads `0x00010000` ⇒ byte[0]=
+f404=**0** (real customer, not the sell-active tutorial), byte[+2]=f406=**1** (iv1_7 latched) — the P3 signature.
+
+**Port** (old build): same 5 rounds + the same iv1_7 (CONV_POSE_END#1@10795, 11 lines, 1:1) — then **cc08=1
+FREE-ROAM**, camera settles eye=**(-1.5,15.0)** look=**(-1.5,1.0)** (the player-follow cam) and **no
+CUSTOMER_SERVICE_ENTER#2**.  So "camera wrong" = the port never enters the first-customer cs session.
+
+**Mechanism — the missing trigger is ONE branch, `FUN_0048670f` all.c:87485-87489:** in the cc08==1 free-roam
+arm, AFTER the roster-arrival (b928/f428/f429) block, BEFORE the cc04==0 d-pad block:
+`if (f406 != 0) { cc08=4; FUN_0045edaa(); goto LAB_004893ff; }`.  iv1_7 sets `f406=1`
+(scene1_tutorial_dispatch.c:77, mirrors 45724); the next free-roam frame after the cutscene this fires →
+cc08=4 + session init.  The f406 branch of `FUN_0045edaa` (the forced kyaku-13, customer_service.c:282-300)
+was ALREADY ported (Chip 1) but UNREACHED — `s_b51c` stays 0 ⇒ the LIVE machine (matches retail's
+first-customer `b534=1` live greeting).  Unlike the Z-entry (bVar3) / roster entries (f428/f429) the f406 arm
+does NOT call `FUN_00461bf6` (no fileidx seed) and does NOT set f405 (player-arrival-complete) ⇒ the arrival
+hop + camera ramp REPLAY (matching retail's post-load ramp).  cc08==4 master tick → `scene1_camera_cs_counter_cam`
+→ stage_class=1 → counter cam.
+
+**Why no spurious / early fire:** f406 is 0 at the cad868 LOAD (port call-trace: f406 flips 0→1 only at
+frame 10795 = CONV_POSE_END), so it can't fire during the tutorial; and `player_ctrl_cc08_freeroam_arm` runs
+ONLY when `cc08==1 && !scene1_intro_dialogue_active()` (line 2181) — iv1_7 IS an intro_dialogue
+(`scene1_intro_dialogue_start_single(1,7)`; conv-pose gated by `_posing()`→`_active()`), so the arm is
+suppressed THROUGH the cutscene and the entry fires the frame AFTER it ends — exactly retail's
+CUSTOMER_SERVICE_ENTER#2 timing.  f406 is cleared (→f402, the iv1_8 trigger) only at the cs LEAVE
+(customer_service.c:1448, already ported) ⇒ stays latched through the session (harmless; cc08==4 stops the
+free-roam re-check).
+
+**Port** (`scene1_player_ctrl.c`): `player_ctrl_cc08_f406_entry()` (reads bank[0x2bc6e], → s_cc08=4 +
+`customer_service_session_init()`), called in `player_ctrl_cc08_freeroam_arm` right after the escalate stub,
+before the cc04 split (engine order).  3350 host pass (+`cs_f406_entry_enters_counter`).
+
+**✅ v3-VERIFIED BIT-EXACT (port re-drive, the e8f49cb7 caprange):** anchors — the port now fires
+**`CUSTOMER_SERVICE_ENTER#2`@10956** coincident with `CONV_POSE_END`+`LOADING_START`@10955, BIT-MATCHING
+retail's `CUSTOMER_SERVICE_ENTER#2`@12249 = `CONV_POSE_END`+`LOADING` pattern.  Camera — the post-fade cc08=4
+ramp converges (by ~off70) to **eye=(-3.000,14.000) look=(-3.000,0.000)** = the tier-0 COUNTER cam, **identical
+to retail's settled (-3,14,-3,0)** (was the "completely wrong" free-roam cam eye=(-1.5,15) look=(-1.5,1.0)).
+Accepted residual: the ramp TRANSIENT origin differs (port holds (-3,14) from the cutscene then dips ~0.3 +
+re-converges; retail starts (-2.02,14.66) from its load) — both converge bit-exact, a load/phase origin
+difference, not logic.
+
+NB this OPENS P3 (the first real customer INTERIOR — the live machine on kyaku-13, L1b real pix, the customer
+render fidelity); the camera + cs-ENTRY is gap (2)'s target (DONE), the interior is P3's.

@@ -307,13 +307,27 @@
   besides the usual phase residuals."  Four chips (325a226 L1c / b6c545f `<I>`/`<Y>` macros / 35ab2d4 prompt+
   emote / 3d3f9c7 queue-line conclusion); +7 host tests; recorded in `findings/confirmed-parity-ledger.md`.
   Accepted residuals: the +1f arrival-origin phase + the load-region join gaps.  **DONE — gap (2) is next.**
-  **(2) POST-FADE CAMERA wrong (THE next arc)** — at the viewer's **col ~847** (window offset
-  ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
-  wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition
-  — RE it next (likely the wrap-up→free-roam / "sit at the counter" camera).  **Cached viewer:**
-  `orv3_window house-customer-tutorial --window 8000:2500 --state --view --no-verify` (retail cache
-  `e8f49cb7` valid across port rebuilds — only the port re-drives, ~16 min; caprange [0,13000]).  THEN P3 the
-  real first customer (roster scan + f404==0; the iv1_7→iv1_8 `f406→f402` chain) / L1b real pix.
+  **★ (2) POST-FADE CAMERA ✅ ROOT-CAUSED + PORTED 2026-06-22 (RE §17) — it was the MISSING first-customer
+  cs ENTRY, the camera a symptom.**  User: after the (1:1) wrap-up retail's camera CUTS to a new angle, the
+  port's "is completely wrong."  Root (e8f49cb7 cache): retail post-wrap-up enters **cc08=4** (the first real
+  customer) → the COUNTER cam eye=(-3,14) look=(-3,0); the port dropped to **cc08=1 free-roam** (player-follow
+  cam eye=(-1.5,15) look=(-1.5,1.0)).  The gap was ONE branch — `FUN_0048670f` all.c:87485
+  `if (f406 != 0) { cc08=4; FUN_0045edaa(); }` — the AUTONOMOUS f406 entry: iv1_7 sets f406=1, the next
+  free-roam frame flips cc08=4 + the session init (the f406 forced-kyaku-13, Chip 1, b51c=0 ⇒ live machine).
+  The port already set f406=1 + ported the f406 session-init + the counter cam, just never CONSUMED f406.
+  **Ported** `player_ctrl_cc08_f406_entry` (scene1_player_ctrl.c, the free-roam arm, engine order; gated so it
+  can't fire mid-cutscene).  **✅ v3-VERIFIED BIT-EXACT** (port re-drive): the port now fires
+  `CUSTOMER_SERVICE_ENTER#2`@10956 (= `CONV_POSE_END`+`LOADING`, matching retail's @12249) and the post-fade
+  camera converges to **(-3,14,-3,0) == retail** (was the free-roam cam).  +1 host test (3350 pass).  Accepted
+  residual: the ramp-transient origin (load/phase), both converge bit-exact.  Pending user re-confirm in the
+  viewer (`orv3_window house-customer-tutorial --window 8000:2500 --state --join-anchor CUSTOMER_SERVICE_ENTER
+  --launch`).
+  **★★ (3) NEXT ARC = P3, the first REAL customer INTERIOR** (the f406 entry OPENED it): the live haggle on a
+  REAL kyaku (kyaku-13 here) — render fidelity (customer art / dialogue), L1b real pix (gold += ask + stock
+  decrement + payout), the roster scan (PORT-DEBT(cs-roster-scan)) for subsequent autonomous customers, and
+  the iv1_8 chain (`f406→f402`, already cleared at the cs leave).  Drive past the f406 entry (caprange
+  [0,13000] covers it; the {calltrace} window [0,9500] currently stops at the entry — EXTEND it to probe the
+  interior state).
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

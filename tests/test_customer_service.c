@@ -17,6 +17,7 @@
 #include "../src/scene1_intro_dialogue.h"     /* iv1_7 dialogue arm/busy/reset */
 #include "../src/scene1_tutorial_dispatch.h"  /* scene1_tutorial_dispatch_tick (iv1_7) */
 #include "../src/scene1_conversation_pose.h"  /* teardown: release latched pose */
+#include "../src/scene1_player_ctrl.h"        /* player_ctrl_cc08_f406_entry (gap (2)) */
 
 /* DAT_0450f406 / f404 byte offsets within a slot bank (rel. save_work_dwords_at). */
 #define F406_TUTORIAL_BYTE_OFF 0x2bc6e
@@ -518,5 +519,35 @@ int test_cs_iv1_7_wrapup_trigger(void)
     bb[F401_IV1_7_DONE_BYTE_OFF] = 0;
     bb[F406_TUTORIAL_BYTE_OFF]   = 0;
     scene1_conversation_pose_reset();
+    return 0;
+}
+
+/* Gap (2) / RE §17 — the f406 autonomous first-customer cs entry (player_ctrl,
+ * all.c:87485).  In the cc08==1 free-roam arm, f406!=0 (latched by iv1_7) ⇒ cc08=4
+ * + the session init (FUN_0045edaa's forced kyaku-13 branch) → the post-fade
+ * counter-camera customer-service session.  f406==0 leaves free-roam untouched. */
+int test_cs_f406_entry_enters_counter(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    rng_seed(0x1234);
+
+    /* f406 == 0 (the pre-wrap-up state): no entry, cc08 stays free-roam. */
+    player_ctrl_debug_set_cc08(1);
+    T_ASSERT_EQ_I(player_ctrl_cc08_f406_entry(), 0);     /* did not enter */
+    T_ASSERT_EQ_I(player_ctrl_cc08(), 1);                /* still free-roam */
+    T_ASSERT_EQ_I(customer_service_active(), 0);         /* session init did NOT run */
+
+    /* f406 == 1 (iv1_7 latched it): enter cc08=4 + run the session init. */
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;
+    T_ASSERT_EQ_I(player_ctrl_cc08_f406_entry(), 1);     /* entered */
+    T_ASSERT_EQ_I(player_ctrl_cc08(), 4);                /* cc08 = 4 (the counter cam) */
+    T_ASSERT_EQ_I(customer_service_active(), 1);         /* FUN_0045edaa ran */
+    T_ASSERT_EQ_I(customer_service_b51c(), 0);           /* live machine, not scripted */
+    T_ASSERT_EQ_I(customer_service_queue_kyaku(0), 0xd); /* forced kyaku 13 (Woman) */
+
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 0;       /* teardown */
+    player_ctrl_debug_set_cc08(1);
+    customer_service_reset();
     return 0;
 }

@@ -387,6 +387,10 @@ int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction 
 int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
+int  player_ctrl_cc08_f406_entry(void);     /* the f406 autonomous first-customer cs entry
+                                             * (all.c:87485): f406!=0 ⇒ cc08=4 + session init.
+                                             * Exposed for host tests; called from the
+                                             * free-roam arm. */
 
 /* T1 — shop-door exit → the world map (mode 8).  `player_ctrl_at_shop_door` is the
  * pure door-zone predicate (the engine bVar17 subset, all.c:87531-87539); the arm

@@ -1236,6 +1236,42 @@ static int player_ctrl_cc08_sell_counter_enter(void)
     return 1;
 }
 
+/* ── autonomous first-customer customer-service entry (the f406 arm, FUN_0048670f
+ * all.c:87485-87489) ─────────────────────────────────────────────────────────
+ *
+ * In the cc08==1 free-roam arm — AFTER the roster-arrival (b928/f428/f429) block
+ * and BEFORE the cc04==0 d-pad interaction — the engine checks the forced-tutorial
+ * flag: `if (f406 != 0) { cc08=4; FUN_0045edaa(); goto LAB_004893ff; }`.  This is
+ * the AUTONOMOUS entry for the FIRST REAL CUSTOMER after the haggle tutorial: the
+ * post-tutorial wrap-up cutscene iv1_7 ("And that is… now go sit at the counter")
+ * sets f406=1 (scene1_tutorial_dispatch.c), and the next free-roam frame this fires
+ * → cc08=4 + the session init (FUN_0045edaa's f406 forced-kyaku-13 branch,
+ * customer_service.c:282-300, b51c stays 0 ⇒ the live machine).  The cc08==4 master
+ * tick then pins the COUNTER camera (scene1_camera_cs_counter_cam) — which is why
+ * retail CUTS to the counter framing at the post-fade while the port (lacking this
+ * entry) stayed in the free-roam player-follow camera (RE §17, "gap (2)").
+ *
+ * Unlike the Z-entry (bVar3) and the roster entries (f428/f429), the engine f406
+ * arm does NOT seed the script-file index (no FUN_00461bf6) and does NOT set f405
+ * (player-arrival-complete) — so the arrival hop + camera ramp replay, matching
+ * retail's post-load ramp.  No db000 emote clear either (the engine omits it here).
+ * f406 is cleared (→ f402, the iv1_8 trigger) only at the cs LEAVE
+ * (customer_service.c:1448), so it stays latched through this session — harmless,
+ * since cc08==4 stops the free-roam arm from re-checking it. */
+#define PC_F406_TUTORIAL_BYTE_OFF  0x2bc6e   /* DAT_0450f406 — forced/tutorial sale */
+
+int player_ctrl_cc08_f406_entry(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    if (((const uint8_t *)bank)[PC_F406_TUTORIAL_BYTE_OFF] == 0)
+        return 0;
+    s_cc08 = 4;                          /* DAT_0438cc08 = 4 */
+    customer_service_session_init();     /* FUN_0045edaa (the f406 forced-kyaku-13 branch) */
+    return 1;
+}
+
 /* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
  * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
  * interaction).  The wired sub-paths are the **shop-door exit** (the bVar17
@@ -1538,6 +1574,13 @@ static void player_ctrl_cc08_freeroam_arm(void)
 {
     /* customer-approach escalation: inert (no customers) → falls through. */
     if (player_ctrl_cc08_customer_escalate())
+        return;
+
+    /* f406 autonomous first-customer entry (all.c:87485): after iv1_7 sets f406=1,
+     * the next free-roam frame flips cc08=4 + runs the session init → the post-fade
+     * counter camera (RE §17).  Mirrors the engine order: after the escalate block,
+     * before the cc04 split. */
+    if (player_ctrl_cc08_f406_entry())
         return;
 
     /* cc04 interaction sub-state: 0 = walking; 1 = the display-stand remove-item
