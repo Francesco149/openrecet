@@ -338,15 +338,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   can't fire mid-cutscene).  **✅ v3-VERIFIED BIT-EXACT** (port re-drive): the port now fires
   `CUSTOMER_SERVICE_ENTER#2`@10956 (= `CONV_POSE_END`+`LOADING`, matching retail's @12249) and the post-fade
   camera converges to **(-3,14,-3,0) == retail** (was the free-roam cam).  +1 host test (3350 pass).  Accepted
-  residual: the ramp-transient origin (load/phase), both converge bit-exact.  Pending user re-confirm in the
-  viewer (`orv3_window house-customer-tutorial --window 8000:2500 --state --join-anchor CUSTOMER_SERVICE_ENTER
-  --launch`).
-  **★★ (3) NEXT ARC = P3, the first REAL customer INTERIOR** (the f406 entry OPENED it): the live haggle on a
-  REAL kyaku (kyaku-13 here) — render fidelity (customer art / dialogue), L1b real pix (gold += ask + stock
-  decrement + payout), the roster scan (PORT-DEBT(cs-roster-scan)) for subsequent autonomous customers, and
-  the iv1_8 chain (`f406→f402`, already cleared at the cs leave).  Drive past the f406 entry (caprange
-  [0,13000] covers it; the {calltrace} window [0,9500] currently stops at the entry — EXTEND it to probe the
-  interior state).
+  residual: the ramp-transient origin (load/phase), both converge bit-exact.  **✅ USER-CONFIRMED 2026-06-22:
+  "camera looks correct once settled"** (commit `3d8f6ce`; ledger).
+  **★★ (3) NEXT ARC = P3, the first REAL customer INTERIOR — user-flagged 2026-06-22 (gap (2) opened it):
+  the COMPANION (Tear) pose/position + the SCOLDING POSE + manga-lines (集中線) (RE §18).**  Diff (aligned by
+  CUSTOMER_SERVICE_ENTER#2): retail Tear stays at the counter (**cx≈-3.0, canim 0, oct 0** facing front) and
+  does a scold pose + 集中線; the port runs the WRONG branch — `co_at_counter_tick` (FUN_0048a833's f404!=0
+  arm, canim 4, step→player±1.3) fires for ALL cc08==4, but the engine gates it `cc08==4 && f404!=0`
+  (all.c:33434).  The first customer is **f404==0** ⇒ the port walks Tear off to **cx=-5.80, canim 4** + never
+  poses/emits.  **Fix:** gate `co_at_counter_tick` on f404!=0; port FUN_0048a833's f404==0 arm (idle/hold +
+  the scold pose + the manga-lines trigger — confirm if it's the §8.8 b494 RT draw ⇒ needs the v3 RT-capture
+  ext).  Also still open in P3: the live haggle render fidelity (customer art/dialogue), L1b real pix (gold +=
+  ask + stock decr + payout), the roster scan (PORT-DEBT(cs-roster-scan)), the iv1_8 chain (`f406→f402`).
+  **NB the {calltrace} window [0,9500] stops ~at the f406 entry (off ~300 captured, b534 still 0); the scold
+  beat may be just past it — EXTEND the window / caprange to probe it.**
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

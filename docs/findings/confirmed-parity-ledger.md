@@ -175,4 +175,20 @@
   Retires PORT-DEBT cs-kyaku-dialogue / box-text-macros / cs-haggle-prompt-live /
   cs-queue-line. RE: `customer-service-haggle-RE.md` §13-16.
 
+- **POST-FADE first-customer cs ENTRY + COUNTER CAMERA — USER-CONFIRMED 2026-06-22**
+  ("camera looks correct once settled") in the v3 viewer (win-8000-2500). After the
+  (1:1) iv1_7 wrap-up, retail enters the first real customer's customer-service
+  session (cc08=4) → the COUNTER camera; the port had dropped to free-roam (the
+  player-follow cam). Fixed by porting the AUTONOMOUS f406 entry (`FUN_0048670f`
+  all.c:87485 → `player_ctrl_cc08_f406_entry`, scene1_player_ctrl.c): iv1_7 sets
+  f406=1, the next free-roam frame flips cc08=4 + the session init. v3-verified
+  bit-exact: `CUSTOMER_SERVICE_ENTER#2` fires at the wrap-up end (= CONV_POSE_END+
+  LOADING, matching retail), the camera converges to **(-3,14,-3,0) == retail** (was
+  free-roam -1.5,15,-1.5,1.0). Commit 3d8f6ce; +1 host test
+  (`cs_f406_entry_enters_counter`). Accepted residual: the ramp-transient origin
+  (load/phase). ⚠️ Only the CAMERA/ENTRY is confirmed — entering cc08=4 OPENED P3
+  (the first-customer INTERIOR): the user flagged that **Tear doesn't do the scolding
+  pose + manga-lines (集中線)** here (the unported f404==0 companion branch, see FRONT /
+  RE §18). RE: `customer-service-haggle-RE.md` §17.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

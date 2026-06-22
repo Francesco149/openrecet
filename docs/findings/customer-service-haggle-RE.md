@@ -1667,3 +1667,36 @@ difference, not logic.
 
 NB this OPENS P3 (the first real customer INTERIOR — the live machine on kyaku-13, L1b real pix, the customer
 render fidelity); the camera + cs-ENTRY is gap (2)'s target (DONE), the interior is P3's.
+
+## 18. P3 GAP (user-flagged 2026-06-22, post gap-2) — the first-customer COMPANION (Tear): pose/position + the scolding pose + manga-lines (集中線)
+
+After gap (2) landed (the port now enters the first-customer cc08=4), the user confirmed the camera but flagged:
+**"tear does not do the scolding pose + manga lines here so thats another gap."**  Trace diff (e8f49cb7 cache,
+aligned by `CUSTOMER_SERVICE_ENTER#2`: port @10956, retail @12250) shows a clear COMPANION divergence — the
+port runs the WRONG companion branch because the first customer has **f404==0** (the tutorial had f404==1):
+
+| field | RETAIL (f404==0, first cust) | PORT (runs the f404!=0 arm) |
+|-------|------------------------------|------------------------------|
+| canim | **0** (idle) from off~3 | **4** (at-counter pose) |
+| coct  | **0** (facing FRONT) | **6** (side) |
+| cx,cz | **stays (-3.0, 8.66)** | **WALKS to (-5.80, 8.60)** (= player.x−1.3) |
+
+Root: `scene1_companion_ctrl_tick` runs `co_at_counter_tick` (= **FUN_0048a833's `local_c != 0` / f404
+sell-active arm**, canim 4 + step toward player±1.3) for ALL cc08==4, but the engine gates that arm on
+`cc08==4 && f404 != 0` (all.c:33434).  The first customer is **f404==0** ⇒ retail takes the ELSE arm: Tear
+stays put at the counter (cx≈-3.0), canim 0, octant 0 (facing the camera/customer) — and at the reaction beat
+does the **SCOLDING POSE + the manga-lines (集中線)** the user saw.  The port's at-counter-follow walks her off
+to cx=-5.80 + never poses/emits.
+
+**Next-session plan (P3 companion):**
+1. RE `FUN_0048a833` (all.c:89131, the companion controller — large) — find the `local_c`(=f404) branch and
+   the **f404==0 (real-customer) arm**: the idle-at-counter pose (canim 0, oct 0, hold cx≈-3.0), the scold
+   pose trigger (a special anim/overlay on the reaction beat), and the **manga-lines (集中線)** draw.  NB the
+   manga-lines were noted earlier as a `b494` RT-based draw (RE §8.8 / note-#8) — confirm whether THIS instance
+   is the same RT effect (⇒ needs the v3 RT-capture extension to replay) or a normal overlay.
+2. Port: gate `co_at_counter_tick` on f404!=0; add the f404==0 first-customer companion arm
+   (idle/hold + the scold pose + the manga trigger).  This is part of P3 (the first-customer interior).
+3. The scold/manga likely fire on a live-machine REACTION state (b534==6) — cross-check the live machine
+   (FUN_004658ab / cs_live_machine) timing.  In this trace the captured window ends ~off300 (b534 still 0,
+   b5a8 0→2, b56c 1→13 at off60 = the customer asset bind); the scold beat may be just past the window — a
+   re-drive with a longer caprange may be needed to capture it.
