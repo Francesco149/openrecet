@@ -193,6 +193,20 @@ void customer_service_session_init(void)
 {
     const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
 
+    /* Free the in-shop chibi-NPC slots for EVERY session-init path.  Retail resets
+     * the NPC array (FUN_0046f892) at the HOUSE scene load (all.c:34885) + the cs
+     * leave (60337) — both of which precede every cc08==4 entry — so the slots are
+     * all-free (ACTIVE==-1) before any pump (FUN_0047019f) tick.  The port does NOT
+     * port the house-load reset, and only the forced-sale path reset them (via
+     * cs_load_eligible_portraits); the scripted-tutorial (sell_active) and the
+     * general first-customer (roster-scan, PORT-DEBT(cs-roster-scan)) paths left the
+     * slots zero-init (ACTIVE==0, read as "active"), so the now-unconditional pump
+     * ticked up to 30 GHOST slots → spurious LCG draws retail never makes.  Reset
+     * here, before the per-session state, so all paths start with retail's free
+     * slots + a zeroed spawn cadence (the forced-sale path resets again in
+     * cs_load_eligible_portraits before building its roster — harmless). */
+    scene1_customer_npc_reset();    /* FUN_0046f892 effect (house-load + leave mirror) */
+
     /* ── shared prologue (all.c:57374-57413): zero the per-session state ── */
     s_b520 = 0;
     /* FUN_0047f1ce() — rebuild the unlocked-party-model list (DAT_0741bed8);

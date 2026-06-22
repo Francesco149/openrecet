@@ -570,6 +570,11 @@ static int32_t s_cs_roster[CS_NPC_ROSTER_MAX]; /* DAT_073a7f30 */
 static int     s_cs_frame;                      /* DAT_073a8ba8 */
 static int     s_cs_spawned;                    /* DAT_073a8bac */
 
+/* rng-phase drill instrumentation (the cs-walker-rng-phase residual): the last
+ * pump's LCG-draw count, surfaced into the 0x48670f probe so flow_diff can pin
+ * the exact frame the port's spawn/retarget draws diverge from retail's. */
+static unsigned s_cs_last_draws;
+
 /* DAT_0438b1a0 — config `s_easydisp` (default 0 → roster build enabled). */
 static int     s_cs_easydisp;                   /* DAT_0438b1a0 */
 
@@ -616,6 +621,17 @@ void scene1_customer_npc_reset(void)
 
 int scene1_customer_npc_cap(void)     { return s_cs_cap; }
 int scene1_customer_npc_spawned(void) { return s_cs_spawned; }
+int scene1_customer_npc_frame(void)   { return s_cs_frame; }       /* DAT_073a8ba8 */
+unsigned scene1_customer_npc_last_draws(void) { return s_cs_last_draws; }
+
+int scene1_customer_npc_active(void)
+{
+    int n = 0;
+    for (int i = 0; i < CS_NPC_MAX; i++)
+        if (s_cs_npc[i * CS_NPC_STRIDE + CS_NPC_OFF_ACTIVE] != -1)
+            n++;
+    return n;
+}
 
 int32_t *scene1_customer_npc_slot(int idx)
 {
@@ -987,5 +1003,6 @@ unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier)
          * deferred (PORT-DEBT(cs-walker-render)).  Neither perturbs the LCG. */
     }
 
-    return (unsigned)(rng_call_count() - rng0);
+    s_cs_last_draws = (unsigned)(rng_call_count() - rng0);
+    return s_cs_last_draws;
 }

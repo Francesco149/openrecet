@@ -403,23 +403,37 @@
   a retail call-trace probe `_firstcust-skip-probe`) — retail does NOT clear the cancel-prompt b150 on the Yes; it
   HOLDS through leave→wrap-up→first-customer arrival, closing at the live greeting b534==2 (FUN_00435612).  New
   `s_skip_modal` latch.  Port now traverses + bit-matches retail through skip→wrap-up→greeting→1st BARGAIN.
-  **(c) IN-SHOP CHIBI NPC system (FRONT note #2)** (`aa08a88`, PARTIAL) — the cc08 first-customer draws ~37 fewer
-  rngcalls than retail because the walk-in/browse crowd (`FUN_0046f8ba` roster + `FUN_0047019f` pump + spawn/
-  wander) was stubbed.  Ported the RNG logic (render deferred); closes −37→~−18 but NOT exact:
-  PORT-DEBT(cs-walker-rng-phase) = a burst draw-DISTRIBUTION mis-phase (plateau b534 2→6 ~30 UNDER, reaction 6→0xf
-  ~12 OVER; rng VALUE at the BARGAIN still differs) — likely the s_cs_frame (DAT_073a8ba8) spawn-cadence phase at
-  cc08-entry / fine NPC retarget timing.  **TWO REMAINING GAPS to 1:1 (both diagnosed, neither closed):** (1) the
-  cs-walker-rng-phase residual (port↔retail fidelity — needs a port↔retail per-frame rngcalls drill on the plateau
-  to pin the exact spawn/retarget frames); (2) **the TRAVERSAL blocker = an anchor-RNG-PIN-PHASE gap** — retail-
-  REPLAY of the pinned trace reproduces only 1 sale, not the recording's 2 (so the {wait PAUSE_OPEN} for the 2nd
-  BARGAIN never fires on EITHER side → both stall before the cutscene).  Hypothesis: the {rngseed} pin applies at
-  the segment frame-START but the recorded value was captured at the anchor FIRING (mid-frame, after that frame's
-  NPC pre-anchor draws) → the LCG diverges by the firing-frame draws → the offer (→accept/pushback→sale-count)
-  diverges.  OPEN QUESTION (may need the user): is the recording's natural-phase 2-sale flow reproducible via an
-  anchor-RNG-pin-precision fix (risks the confirmed cc08 traces), or fundamentally unreproducible on the intro-
-  skipped/pinned engine?  **NEXT after the haggle is 1:1:** iv1_8 (the post-first-customer EXTRA_SPRITE cutscene,
-  f402-triggered, PORT-DEBT P3 in scene1_tutorial_dispatch.c) → the cutscene series → day-2 brooming.  Sub-agent
-  retro for this arc: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
+  **(c) IN-SHOP CHIBI NPC system (FRONT note #2)** — **cs-walker-rng-phase ✅ ROOT-CAUSED + FIXED 2026-06-22
+  (autonomous), RE §19.**  The cc08 first-customer NPC pump had TWO RNG bugs, drilled via the new
+  `tools/cs_walker_drill.py` (port↔retail per-frame rngcalls+npc-state diff; +npcfr/npcsp/npcn/npcdr probes in
+  0x48670f, port + `retail_fields.json`).  **(1) PUMP GATING** — the engine runs `FUN_0047019f` UNCONDITIONALLY
+  in the cc08==4 arm (all.c:87432; the caller 40591 gates house_update only on the be94 load-SCREEN counter, NOT
+  b1cc; the master tick self-gates on b1cc, the pump does not).  The port wrapped the pump inside its `b1cc != 2`
+  load-suppression block (added for the arrival/camera transition) ⇒ at the f406 entry the pump was suppressed
+  ~17f during the d3e load while retail's kept incrementing s_cs_frame ⇒ the WHOLE spawn cadence mis-phased
+  (retail npcfr increments from entry off=1 while b1cc==2; port stuck at 0 until off=18).  **Fix:** run the pump
+  in engine order (after the RNG-neutral arrival, before the self-gating master), unconditionally.  **VERIFIED:**
+  npcfr/spawn/sparkle align, spawn fires at npcfr=30 on BOTH, per-frame rngΔ 55/60, cumulative drift 4/400f (was
+  wholesale mis-phase).  **(2) GHOST SLOTS** — retail resets the NPC array (FUN_0046f892) at the HOUSE load
+  (34885) + cs leave (60337) so slots are free before any cc08 tick; the port ports neither, and only the
+  forced-sale session-init path reset them ⇒ the scripted-tutorial (sell_active) + general first-customer
+  (roster-scan) paths left 30 ZERO-INIT ghost slots (ACTIVE==0, read as active) the now-unconditional pump ticked
+  ⇒ spurious draws.  **Fix:** reset unconditionally at the top of `customer_service_session_init` (mirrors
+  retail's house-load+leave, covers ALL paths).  **VERIFIED:** npcn 30→max-1, 0 ghost frames, BOTH scenarios.
+  3364 host pass.
+  **★★ DISCOVERED while drilling (NEW, separate from the NPC pump) — the b5a4 BASE-PRICE STUB,
+  PORT-DEBT(cs-kind-select-f406).**  The port's `cs_kind_select` always sets `s_b5a4 = 0xc0` (item id 3 ⇒ base
+  3000), but `FUN_00461303` only does that on the **f404 scripted path**; the **f406 FIRST CUSTOMER**
+  (all.c:59320-59348) sets `b5a4 = 0x3ea00` via an INVENTORY SCAN (DAT_044f7030 for `(handle&~0x3f)==0x3ea00` +
+  the DAT_005c6be0 special-item check), and the general live customer (else, 59350+, rng-drawn) differs again.
+  So the port's first customer haggles the WRONG item: base 3000 vs retail-replay's real-item base 100 (offer
+  ratio 1.23× IDENTICAL ⇒ the haggle MACHINE is 1:1, only the item INPUT diverges).  **NEXT:** port the f406
+  branch of FUN_00461303.
+  **★ GAP-2 (2nd-sale reproduction) STILL OPEN** — the pinned-trace retail-REPLAY gives the first customer
+  base=100/offer=123; whether the recording's natural 2-sale flow reproduces on the pinned/intro-skipped engine
+  is the {rngseed}-pin-precision OPEN QUESTION (may need the user).  **NEXT after b5a4 + the 2-sale question:**
+  iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
+  day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

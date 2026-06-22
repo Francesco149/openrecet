@@ -493,6 +493,20 @@
      "src": "global",
      "va": "0x438b1cc",
      "type": "i32"
+    },
+    {
+     "name": "npcfr",
+     "src": "global",
+     "va": "0x73a8ba8",
+     "type": "i32",
+     "_note": "DAT_073a8ba8 — in-shop chibi-NPC pump frame counter (FUN_0047019f spawn cadence, %30). cs-walker-rng-phase drill (tools/cs_walker_drill.py)."
+    },
+    {
+     "name": "npcsp",
+     "src": "global",
+     "va": "0x73a8bac",
+     "type": "i32",
+     "_note": "DAT_073a8bac — spawned chibi-NPC count."
     }
    ]
   },

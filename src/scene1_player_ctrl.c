@@ -1860,24 +1860,37 @@ static void player_ctrl_cc08_unported_arm(void)
                 if (cm)
                     collision_set_player_ground_y(cm, g_scene1_player_pos);
             }
+        }
 
-            /* FUN_0047019f (all.c:87432) — the in-shop browsing-customer pump:
-             * increment the frame counter, spawn one chibi customer every 30th
-             * frame (only for a LIVE walk-in, f404==0; the f404==1 scripted
-             * tutorial spawns none), then wander every active NPC.  RNG-EXACT:
-             * this is the LCG consumption the port was missing (~37 rngcalls in
-             * the cc08==4 first-customer haggle).  shop_tier = bank tier selector
-             * (DAT_04510578[stage]); the walk grid is shop_display's DAT_074b28e8. */
-            {
-                int sell_inactive = !customer_service_f404();   /* f404==0 */
-                int shop_tier = 0;
-                const uint32_t *cs_bank =
-                    save_work_dwords_at(save_work_active_slot());
-                if (cs_bank != NULL)
-                    shop_tier = (int)cs_bank[SHOP_DISPLAY_TIER_SELECTOR];
-                scene1_customer_npc_pump(sell_inactive, shop_tier);
-            }
+        /* FUN_0047019f (all.c:87432) — the in-shop browsing-customer pump runs
+         * UNCONDITIONALLY in the engine's cc08==4 arm (between the arrival anim and
+         * the master tick), NOT gated on the b1cc asset-load worker.  The engine
+         * caller (FUN_00443… all.c:40591) gates house_update only on the be94
+         * load-SCREEN counter, never on b1cc; the master tick self-gates on b1cc
+         * internally, but the pump does not.  Retail's pump therefore increments
+         * s_cs_frame every cc08==4 frame INCLUDING the d3e load (drilled: retail
+         * npcfr increments from the f406 first-customer entry off=1 while b1cc==2).
+         * The port's old whole-arm `b1cc != 2` gate (added for the arrival/camera
+         * transition parity) wrongly suppressed the pump ~17f at the first-customer
+         * entry → the ENTIRE spawn cadence mis-phased vs retail (the residual the
+         * PORT-DEBT(cs-walker-rng-phase) note chased).  Splitting it out fixes the
+         * phase while keeping the arrival anim + master tick gated (the arrival is
+         * RNG-neutral, so skipping it during the load is RNG-equivalent to the
+         * engine; the master tick is inert during b1cc==2 anyway).  spawn one chibi
+         * customer every 30th frame for a LIVE walk-in (f404==0; the scripted
+         * tutorial f404==1 spawns none), then wander every active NPC.  shop_tier =
+         * bank tier selector (DAT_04510578[stage]); walk grid = DAT_074b28e8. */
+        {
+            int sell_inactive = !customer_service_f404();   /* f404==0 */
+            int shop_tier = 0;
+            const uint32_t *cs_bank =
+                save_work_dwords_at(save_work_active_slot());
+            if (cs_bank != NULL)
+                shop_tier = (int)cs_bank[SHOP_DISPLAY_TIER_SELECTOR];
+            scene1_customer_npc_pump(sell_inactive, shop_tier);
+        }
 
+        if (customer_service_b1cc() != 2) {
             /* the master tick (FUN_00462403): owns the b534 state switch + the
              * scripted-sell dispatch + the cinematic counter camera.  cur/pressed
              * /held = the engine button masks DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
@@ -2142,6 +2155,16 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("b608", customer_service_b608());
             CALL_TRACE_I32("b604", customer_service_b604());
             CALL_TRACE_I32("b5b0", customer_service_fileidx());
+            /* in-shop chibi-NPC pump state (the cs-walker-rng-phase drill):
+             * npcfr = s_cs_frame (DAT_073a8ba8, spawn cadence), npcsp =
+             * spawned count (DAT_073a8bac), npcn = active slots, npcdr = LCG
+             * draws the pump consumed THIS frame.  Joined to the retail
+             * 0x48670f hook's DAT_073a8ba8/bac reads — flow_diff --field-timeline
+             * pins the frame the spawn/retarget draws diverge. */
+            CALL_TRACE_I32("npcfr", scene1_customer_npc_frame());
+            CALL_TRACE_I32("npcsp", scene1_customer_npc_spawned());
+            CALL_TRACE_I32("npcn",  scene1_customer_npc_active());
+            CALL_TRACE_I32("npcdr", (int32_t)scene1_customer_npc_last_draws());
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
              * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn

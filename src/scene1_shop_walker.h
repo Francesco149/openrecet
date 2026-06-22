@@ -378,6 +378,14 @@ int  scene1_customer_npc_cap(void);
 /* Number of currently-spawned NPCs (DAT_073a8bac). */
 int  scene1_customer_npc_spawned(void);
 
+/* rng-phase drill probes: s_cs_frame (DAT_073a8ba8, the spawn-cadence counter),
+ * the count of currently-active NPC slots, and the LCG-draw count the last pump
+ * call consumed.  Surfaced into the 0x48670f call-trace probe to pin the exact
+ * frame the port's spawn/retarget draws diverge from retail's. */
+int      scene1_customer_npc_frame(void);
+int      scene1_customer_npc_active(void);
+unsigned scene1_customer_npc_last_draws(void);
+
 /* The per-frame pump (FUN_0047019f core, RNG-consuming part).  `sell_inactive`
  * = (DAT_0450f404[slot]==0): a LIVE walk-in customer (NOT the f404==1 scripted
  * tutorial) — only then does the 30-frame spawn cadence add NPCs.  `shop_tier`
