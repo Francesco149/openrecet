@@ -2757,15 +2757,17 @@ static void render_dispatch(void)
                                  * haggle like retail so a haggle trace is replayable
                                  * (RE §9.6). */
                                 || (customer_service_bargain_active() != 0)
-                                /* The cc08==4 ESC "Cancelling tutorial?" choice (b5e4):
+                                /* The cc08==4 ESC "Cancelling tutorial?" choice (b150):
                                  * same story — retail's customer_service_esc_skip_arm
                                  * opens a choice_box (→ DAT_0438b150), the port split
                                  * b150 so the cancel prompt never set the anchor's flag.
-                                 * b5e4 is held 1 from the arm until Yes/No resolves
-                                 * (customer_service.c:1342), giving a clean PAUSE_OPEN
-                                 * (arm) → PAUSE_CLOSE (resolve) edge — required to
-                                 * replay a raw-retail ESC-skip recording on the port. */
-                                || (customer_service_b5e4() != 0),
+                                 * Retail does NOT clear b150 on the "Yes": it HOLDS
+                                 * through the leave/wrap-up/first-customer arrival and
+                                 * closes at the live greeting b534==2 (FUN_00435612).
+                                 * skip_modal reproduces that full hold (customer_service.c)
+                                 * → PAUSE_OPEN at the arm, PAUSE_CLOSE at b534==2 — required
+                                 * to replay a raw-retail ESC-skip→first-customer recording. */
+                                || (customer_service_skip_modal_active() != 0),
             /* SAVE_PICKER_READY: the pause Save submenu is open + navigable.
              * Re-syncs save-picker nav past the per-side pause-open phase. */
             .save_picker_active = pause_save_picker_navigable(g_scene_state),

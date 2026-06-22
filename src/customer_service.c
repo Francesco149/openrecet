@@ -122,6 +122,15 @@ static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
 static int32_t s_b5d8;   /* DAT_0730b5d8 — resolved want-list line index (render) */
 static int32_t s_b5dc;   /* DAT_0730b5dc — button-row count (render) */
 static int32_t s_b5e4;   /* DAT_0730b5e4 — ESC "Cancelling tutorial?" skip-armed flag */
+/* The cc08==4 ESC-skip choice box's b150 hold.  Retail's DAT_0438b150 is set by
+ * the cancel-prompt choice_box_open and is NOT cleared by the "Yes" (b5e4→0);
+ * it persists through the leave/dissolve → wrap-up → the first customer's cc08
+ * re-entry, and is finally cleared by the live machine's FUN_00435612 when the
+ * greeting advances to b534==2 (sell-greeting).  rec-20260622: b150 1→0 exactly
+ * at the b534 1→2 edge (retail frames 15163→15164).  The port "split" b150 so
+ * b5e4 alone closed PAUSE_OPEN at the Yes — this latch reproduces the full hold
+ * so a raw-retail ESC-skip→first-customer recording replays past the skip. */
+static int32_t s_skip_modal;
 
 /* ── master-tick + scripted-machine scalar state (Chip 2) ─────────────────────
  * The subset of the DAT_0730bXXX block the master tick (FUN_00462403) + the
@@ -382,6 +391,10 @@ int32_t customer_service_bargain_active(void)
 }
 void    customer_service_set_script_file(int32_t idx) { s_price_fileidx = idx; }
 int32_t customer_service_b5e4(void)        { return s_b5e4; }
+/* The cc08==4 ESC-skip choice box's b150 hold (see s_skip_modal).  → PAUSE_OPEN
+ * at the cancel-prompt arm, held through the leave/wrap-up/first-customer
+ * arrival, → PAUSE_CLOSE at the live greeting b534==2 (retail's b150). */
+int32_t customer_service_skip_modal_active(void) { return s_skip_modal; }
 
 /* ── FUN_0045e6a5 — the cc08==4 ESC "Cancelling tutorial?" skip gate ──────────
  * Called from the in-game ESC dispatch (esc_dispatch.c) when cc08==4.  During
@@ -396,6 +409,7 @@ int customer_service_esc_skip_arm(void)
 {
     if (s_b520 == 0 && s_b51c == 1 && s_b5e4 == 0) {
         s_b5e4 = 1;
+        s_skip_modal = 1;   /* DAT_0438b150 = 1 (choice_box_open); held past Yes */
         choice_box_open("Cancelling tutorial. Are you sure?", /*mode=*/1, /*sel=*/0);
         return 1;
     }
@@ -1342,8 +1356,10 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     if (s_b5e4 == 1) {
         int r = choice_box_poll((uint16_t)s_in_pressed, 1);   /* FUN_00434ed2 */
         if (r != CB_OPT0) {                  /* not Yes */
-            if (r == CB_OPT1)                /* No → cancel the skip, resume */
+            if (r == CB_OPT1) {              /* No → cancel the skip, resume */
                 s_b5e4 = 0;
+                s_skip_modal = 0;            /* No closes the choice box (b150=0) */
+            }
             return;
         }
         if (s_b5b4 > 0xef) {                 /* Yes, dissolve counter already past */
@@ -1527,6 +1543,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
             if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
             s_cust_active[0] = 0;
             s_b534 = 2;
+            s_skip_modal = 0;   /* retail FUN_00435612: the held cancel-prompt b150
+                                 * closes here, at the live greeting → sell-greeting */
             s_b544 = 0;
             s_b55c = 0;
             return;
@@ -1718,7 +1736,7 @@ void customer_service_reset(void)
     s_b538 = 0;
     s_b53c = s_b558 = s_b564 = s_b568 = s_b58c = s_b590 = s_b594 = s_b598 = 0;
     s_b59c = s_b5a0 = s_b5ac = s_b5b0 = s_b5b4 = s_b5b8 = s_b5bc = s_b5c0 = 0;
-    s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = s_b5e4 = 0;
+    s_b5c4 = s_b5c8 = s_b5cc = s_b5d0 = s_b5d4 = s_b5e4 = s_skip_modal = 0;
     s_b540 = s_b544 = s_b548 = s_b54c = s_b550 = s_b55c = s_b560 = s_b570 = 0;
     s_b270 = NULL;
     s_line_buf[0] = s_line_tail[0] = '\0';

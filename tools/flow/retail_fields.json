@@ -148,6 +148,20 @@
      "_note": "DAT_0438cc04 \u2014 the cc08==1 free-roam INTERACTION sub-state. 0=walking \u00b7 1=in-house display-stand menu (the sword-stand remove/place menu; opened at 0x488d85 ret 0x488d8a, updated by FUN_00469414(1) at 0x48915a ret 0x48915f, closes back to 0) \u00b7 2=furniture-grid display-management (flag DAT_0450fee8[fidx]!=0, opened at 0x488c6e). THE shop-display-remove menu is cc04==1 \u2014 this is the field the original RE missed (it watched cc08 only). Port var s_cc04 in scene1_player_ctrl.c."
     },
     {
+     "name": "b150",
+     "src": "global",
+     "va": "0x438b150",
+     "type": "i32",
+     "_note": "DAT_0438b150 \u2014 the shared choice-box / modal-cursor visible flag (set by FUN_00434def choice_box_open, cleared by FUN_00435612). Drives the PAUSE_OPEN/PAUSE_CLOSE anchors. Tracking it to RE the cc08==4 ESC-skip \u2192 first-customer b150 hold (held f461\u2192f1018 in rec-20260622-182618)."
+    },
+    {
+     "name": "b5e4",
+     "src": "global",
+     "va": "0x730b5e4",
+     "type": "i32",
+     "_note": "DAT_0730b5e4 \u2014 the cc08==4 ESC 'Cancelling tutorial?' skip-armed flag (set by FUN_0045e6a5, polled/cleared in the master tick). Port var s_b5e4 in customer_service.c."
+    },
+    {
      "name": "b74c",
      "src": "global",
      "va": "0x438b74c",

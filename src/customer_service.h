@@ -59,6 +59,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
  * (armed the prompt), 0 to fall through to the in-game pause menu. */
 int customer_service_esc_skip_arm(void);
 int32_t customer_service_b5e4(void);   /* the skip-armed flag (flow-trace probe) */
+int32_t customer_service_skip_modal_active(void); /* the cc08 ESC-skip b150 hold (→ PAUSE_OPEN/CLOSE) */
 
 /* Load-worker completion (DAT_0438b1cc → 0) — the asset-load worker's callback;
  * the master tick is inert until it fires.  Host tests call it after session_init

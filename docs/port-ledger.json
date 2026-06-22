@@ -2687,6 +2687,7 @@
    "src": [
     "src/customer_service.c",
     "src/encyclopedia.c",
+    "src/main.c",
     "src/scene1_player_ctrl.c",
     "src/scene_pause.c",
     "src/scene_title.c",
