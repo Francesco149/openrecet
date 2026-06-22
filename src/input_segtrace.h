@@ -255,6 +255,13 @@ struct input_segtrace {
     uint32_t tutloadpin;
     int      has_tutloadpin;
 
+    /* Optional cc08==4 d3e load-bracket pin, from a `{"csloadpin":N}` op (trace-
+     * global, last declaration wins).  When set, the host holds b1cc==2 for N
+     * frames (customer_service_set_load_pin); the Frida agent mirrors it on the
+     * retail d3e worker tail.  `has_csloadpin` is 0 when no op was seen. */
+    uint32_t csloadpin;
+    int      has_csloadpin;
+
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;
     size_t   cur_seg;

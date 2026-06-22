@@ -248,14 +248,14 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
-        int      got_tutloadpin = 0, got_wait_timeout = 0;
+        int      got_tutloadpin = 0, got_wait_timeout = 0, got_csloadpin = 0;
         uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
         uint32_t cr_start = 0, cr_count = 0;
         uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
-        uint32_t ms_frame = 0, tlp_val = 0;
+        uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0;
         char     waitname[24] = {0};
         char     savepath[256] = {0};
 
@@ -400,6 +400,11 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * (see the header doc). Scalar; last declaration wins. */
                 if (!parse_number(&p, end, &tlp_val)) return 0;
                 got_tutloadpin = 1;
+            } else if (klen == 9 && memcmp(ks, "csloadpin", 9) == 0) {
+                /* {csloadpin:N} — trace-global cc08==4 d3e load-bracket pin
+                 * (customer_service_set_load_pin). Scalar; last decl wins. */
+                if (!parse_number(&p, end, &csloadpin_val)) return 0;
+                got_csloadpin = 1;
             } else {
                 return 0;  /* unknown key */
             }
@@ -446,6 +451,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->tutloadpin = tlp_val;
             out->has_tutloadpin = 1;
+        } else if (got_csloadpin) {
+            /* Trace-global: last declaration wins. Not segment-scoped. */
+            out->csloadpin = csloadpin_val;
+            out->has_csloadpin = 1;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;

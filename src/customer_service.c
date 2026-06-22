@@ -161,6 +161,18 @@ static int32_t s_b588;   /* DAT_0730b588 — accept-test reference */
  * running ⇒ the master tick is inert until the load callback clears it. */
 static int32_t s_b1cc;   /* DAT_0438b1cc */
 
+/* {csloadpin:N} — trace-harness pin for the cc08==4 d3e asset-load bracket: hold
+ * b1cc==2 for exactly N frames on BOTH targets (the Frida agent extends retail's
+ * real worker-thread bracket to the same N) so the 目玉 sparkle — which fires
+ * THROUGHOUT the b1cc==2 window (player_ctrl_display_sparkle_emit, %8-gated, NOT
+ * gated on the load) — consumes the SAME rng count on both sides.  The engine
+ * load is a CreateThread race with no min-duration gate (nowloading.c), so its
+ * duration is non-deterministic run-to-run (port ~15-18f, retail ~7f); pinning
+ * normalizes it for trace comparison, exactly like {phasepin}/{tutloadpin}.
+ * 0 = unset (ship behaviour: clear on the async worker).  See RE §20. */
+static int32_t s_csload_pin  = 0;   /* pinned bracket length (0 = unset) */
+static int32_t s_csload_hold = 0;   /* frames elapsed in the current b1cc==2 bracket */
+
 /* shared price scalars (DAT_005c6bXX). */
 static int32_t s_price_fileidx;  /* DAT_005c6bb0 — active dialogue-file index */
 static int32_t s_price_bb4;      /* DAT_005c6bb4 — committed/prev asking price (-1 = none) */
@@ -345,6 +357,7 @@ void customer_service_session_init(void)
     /* FUN_00452d3e(0) (all.c:58250): spawn the customer-service asset-load worker
      * (DAT_0438b1cc = 2 = "loading" — the master tick is inert until it clears). */
     s_b1cc = 2;
+    s_csload_hold = 0;                       /* {csloadpin} bracket start */
     worker_load_spawn_d3e(0);
 }
 
@@ -355,6 +368,25 @@ void customer_service_session_init(void)
  * (FUN_0046602e draws while == 1) read.  The wiring (scene1_player_ctrl) calls
  * this once the d3e worker is no longer pending; host tests call it directly. */
 void customer_service_notify_loaded(void) { s_b1cc = 1; }
+
+/* Trace-harness `{csloadpin:N}`: pin the cc08==4 d3e load bracket to N frames
+ * (N <= 0 clears the pin → ship behaviour).  Set once at segtrace load (main.c);
+ * harness-only, never written by game logic. */
+void customer_service_set_load_pin(int n) { s_csload_pin = (n > 0) ? n : 0; }
+
+/* Advance the {csloadpin} bracket counter — called once per cc08==4 frame by the
+ * load-gate bridge while b1cc==2.  Returns whether the pinned minimum has elapsed
+ * (always 1 when no pin is set, so the gate then clears purely on the async
+ * worker, exactly as shipped).  The async-done check is ANDed by the caller, and
+ * N is chosen > the port's worst-case async load, so the bracket clears at frame
+ * N with the d3e assets already in (the sparkle reads the SAVE grid, not the d3e
+ * assets, so its rng is deterministic regardless of asset readiness). */
+int customer_service_load_pin_elapsed(void)
+{
+    if (s_csload_pin <= 0) return 1;
+    if (s_csload_hold < s_csload_pin) s_csload_hold++;
+    return s_csload_hold >= s_csload_pin;
+}
 
 /* ── accessors ─────────────────────────────────────────────────────────────── */
 int32_t customer_service_b534(void)        { return s_b534; }
@@ -587,6 +619,7 @@ static void cs_queue_advance(void)
      * 1536 vs retail-free-run 1548).  Porting it matches the load structure.  RE §8.3. */
     if (s_b520 == 0 && g_scene_buy_current_page > 0) {
         s_b1cc = 2;                          /* DAT_0438b1cc = 2 (master-tick inert gate) */
+        s_csload_hold = 0;                   /* {csloadpin} bracket start (occ3) */
         worker_load_spawn_d3e(1);            /* FUN_00452d3e(1) */
     }
 }
@@ -1792,6 +1825,7 @@ void customer_service_reset(void)
     s_b5a4 = s_b600 = s_b604 = s_b608 = 0;
     s_b574 = s_b57c = s_b580 = s_b584 = s_b588 = 0;
     s_b1cc = 0;
+    s_csload_hold = 0;             /* {csloadpin} bracket counter (pin itself persists) */
     s_in_cur = s_in_pressed = s_in_held = 0;
     s_b5a8 = -1;
     g_scene_buy_current_page = 0;          /* DAT_0730b56c */

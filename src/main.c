@@ -1846,6 +1846,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         "%u frames (tutloadpin)\n",
                         (unsigned)g_segtrace.tutloadpin);
             }
+            /* {csloadpin:N} (trace-global) pins the cc08==4 d3e customer-service
+             * load bracket to N frames so the 目玉 sparkle consumes the same rng
+             * count on both targets (the Frida agent extends retail's d3e worker
+             * tail to the same N). See customer_service_set_load_pin / RE §20. */
+            if (g_segtrace.has_csloadpin) {
+                customer_service_set_load_pin((int)g_segtrace.csloadpin);
+                fprintf(stderr, "openrecet: cc08 d3e load bracket pinned to "
+                        "%u frames (csloadpin)\n",
+                        (unsigned)g_segtrace.csloadpin);
+            }
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);

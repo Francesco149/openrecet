@@ -688,3 +688,33 @@ int test_cs_f406_entry_enters_counter(void)
     customer_service_reset();
     return 0;
 }
+
+/* RE §20 — the {csloadpin:N} d3e load-bracket pin.  Hold b1cc==2 for exactly N
+ * frames (extend-only normalization, like {tutloadpin}) so the 目玉 sparkle —
+ * which fires throughout the b1cc==2 window — consumes the same rng count on both
+ * targets across the non-deterministic CreateThread load.  Unset ⇒ always-ready
+ * (ship behaviour: clears purely on the async worker).  reset() restarts the
+ * bracket counter but PERSISTS the pin (a harness setting). */
+int test_cs_load_pin_bracket(void)
+{
+    customer_service_reset();
+    customer_service_set_load_pin(0);
+
+    /* Unset: elapsed is always 1 and never increments. */
+    for (int i = 0; i < 5; i++)
+        T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 1);
+
+    /* Pin to 4 frames: a fresh bracket (reset → hold=0, pin persists) returns 0
+     * for the first 3 calls, 1 on the 4th, and stays 1. */
+    customer_service_set_load_pin(4);
+    customer_service_reset();                  /* hold→0; pin(4) persists */
+    T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 0);   /* hold 0→1 */
+    T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 0);   /* 1→2 */
+    T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 0);   /* 2→3 */
+    T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 1);   /* 3→4 ⇒ ready */
+    T_ASSERT_EQ_I(customer_service_load_pin_elapsed(), 1);   /* stays ready */
+
+    customer_service_set_load_pin(0);          /* teardown: clear the pin */
+    customer_service_reset();
+    return 0;
+}

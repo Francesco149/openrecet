@@ -66,6 +66,12 @@ int32_t customer_service_skip_modal_active(void); /* the cc08 ESC-skip b150 hold
  * to release the load gate. */
 void customer_service_notify_loaded(void);
 
+/* Trace-harness `{csloadpin:N}` — pin the cc08==4 d3e load bracket to N frames
+ * (extend-only normalization, like {tutloadpin}); N <= 0 clears.  _elapsed
+ * advances the bracket counter + reports readiness (always 1 when unset). */
+void customer_service_set_load_pin(int n);
+int  customer_service_load_pin_elapsed(void);
+
 /* Read the active customer-service SELL sub-state (DAT_0730b534) — for the
  * render dispatch + the flow-trace state probe. */
 int32_t customer_service_b534(void);

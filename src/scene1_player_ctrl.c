@@ -1821,7 +1821,12 @@ static void player_ctrl_cc08_unported_arm(void)
      * the secondary worker is no longer pending, so the master tick + render
      * activate exactly when retail's do (at LOADING_END). */
     if (s_cc08 == 4) {
-        if (customer_service_b1cc() == 2 && g_worker_sec_state_1cc != 2)
+        /* {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
+         * (and increments) every b1cc==2 frame; it returns 1 unless a pin is set,
+         * so unpinned play still clears purely on the async worker. */
+        if (customer_service_b1cc() == 2 &&
+            customer_service_load_pin_elapsed() &&
+            g_worker_sec_state_1cc != 2)
             customer_service_notify_loaded();
 
         /* LOAD SUPPRESSION (camera-transition parity, 2026-06-19): the WHOLE

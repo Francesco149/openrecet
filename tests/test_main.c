@@ -447,6 +447,7 @@ struct test_case {
     X(cs_live_machine_sell_cycle) \
     X(cs_iv1_7_wrapup_trigger) \
     X(cs_f406_entry_enters_counter) \
+    X(cs_load_pin_bracket) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \
