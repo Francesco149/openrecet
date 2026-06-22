@@ -157,4 +157,22 @@
   L1c, not iv1_7); a post-fade camera gap (viewer col ~847) is also open — both are
   the next-session "un-mvp" items (see FRONT). RE: `customer-service-haggle-RE.md` §12.1.
 
+- **LIVE first-customer HAGGLE DIALOGUE (the cc08==4 practice-sale lines, BEFORE
+  the wrap-up) — USER-CONFIRMED 1:1 2026-06-22** (v3 win-5900-2800, --join-anchor
+  CUSTOMER_SERVICE_ENTER): "everything matches now besides the usual phase
+  residuals." Four chips closed the whole live-haggle dialogue: **L1c** the
+  per-kyaku dialogue buffer (`customer_dialogue.{c,h}` + `tables.c` loader → 18
+  scripts/1229 lines; `cs_pick_line` reads the real text — greeting "Tear / I would
+  like this, please.", reaction "How much should I?..."/"Capitalism, ho!");
+  **the `<I>`/`<Y>` macros** (`dialogue_macros.{c,h}` `dlg_macro_expand` + the close
+  branch sets the item name / `%dpix` → "Yay! I sold Steel Sword for 3600pix!");
+  **the live price-input prompt** (the b51c==0 arm draws b270 at (312,250),
+  b5a8-coloured); **the counter "!" emote** cleared on cc08==4 entry (db000=0);
+  **the queue-advance conclusion** "Expertly done. …<C>any time we are in the shop."
+  (tuto1 id -4). Commits 325a226 / b6c545f / 35ab2d4 / 3d3f9c7; +7 host tests; each
+  v3-verified bit-exact vs retail at matched frames. Accepted residuals: the +1f
+  arrival-origin phase (sprites 1 anim-frame off) + the load-region join gaps.
+  Retires PORT-DEBT cs-kyaku-dialogue / box-text-macros / cs-haggle-prompt-live /
+  cs-queue-line. RE: `customer-service-haggle-RE.md` §13-16.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

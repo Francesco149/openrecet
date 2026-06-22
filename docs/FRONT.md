@@ -302,8 +302,12 @@
   in the shop." (tuto1 id **-4**) showed "○○○"/ended early — the master tick's b534==0x14 queue-advance stubbed
   it.  Ported the engine's negative-id scan (all.c:60540-60549): find g_tuto[fileidx] record `id==(b528==2)-4`,
   load its text via `cs_dialogue_line_setup` (the `<C>` page-advance is the shared pre-dispatch check); the
-  long real line reveals at retail's rate so the timing tracks (no early-exit).  3349 host pass; v3-verify driving.
-  **(2) POST-FADE CAMERA wrong (STILL OPEN — the next arc)** — at the viewer's **col ~847** (window offset
+  long real line reveals at retail's rate so the timing tracks (no early-exit).  3349 host pass; v3-verified 1:1.
+  **★★ GAP (1) — the WHOLE live-haggle dialogue — USER-CONFIRMED 1:1 2026-06-22:** "everything matches now
+  besides the usual phase residuals."  Four chips (325a226 L1c / b6c545f `<I>`/`<Y>` macros / 35ab2d4 prompt+
+  emote / 3d3f9c7 queue-line conclusion); +7 host tests; recorded in `findings/confirmed-parity-ledger.md`.
+  Accepted residuals: the +1f arrival-origin phase + the load-region join gaps.  **DONE — gap (2) is next.**
+  **(2) POST-FADE CAMERA wrong (THE next arc)** — at the viewer's **col ~847** (window offset
   ~8847, the fade-out/in during/after the wrap-up) retail's camera CUTS to a new angle; the port keeps the
   wrong one ("our camera is completely wrong").  A camera-setup the port doesn't replicate at that transition
   — RE it next (likely the wrap-up→free-roam / "sit at the counter" camera).  **Cached viewer:**
