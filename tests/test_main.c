@@ -1895,6 +1895,16 @@ struct test_case {
     X(scene1_pass_f_should_emit_rejects_status_not_0xff) \
     X(scene1_pass_f_should_emit_accepts_all_gates_open) \
     X(scene1_pass_f_emit_hook_round_trips) \
+    X(cs_npc_roster_tutorial_single) \
+    X(cs_npc_roster_multi_and_order) \
+    X(cs_npc_roster_easydisp_gate) \
+    X(cs_npc_roster_null_list) \
+    X(cs_npc_pump_no_spawn_before_frame30) \
+    X(cs_npc_pump_spawn_frame_draws_4_plus_burst) \
+    X(cs_npc_pump_reburst_2_per_frame) \
+    X(cs_npc_pump_sell_active_blocks_spawn) \
+    X(cs_npc_pump_spawn_consumes_exactly_4) \
+    X(cs_npc_grid_walkable_bounds) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

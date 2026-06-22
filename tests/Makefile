@@ -109,6 +109,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_combat_sm.c \
                  test_scene1_overlay.c test_scene1_overlay_table.c \
                  test_scene1_camera.c test_scene1_shop_walker.c \
+                 test_scene1_customer_npc.c \
                  test_scene1_per_frame_open.c \
                  test_scene1_walker_pass_init.c \
                  test_scene1_shop_display.c \

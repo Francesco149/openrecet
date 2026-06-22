@@ -299,6 +299,101 @@ int  scene1_shop_walker_get_debug_pass_d_unlit(void);
  * scene1_postload_pose_house_standing() (the per-call MVP inject is gone).
  */
 
+/* ─── in-shop browsing-customer chibi NPCs ───────────────────────────────────
+ *
+ * The cc08==4 customer-service mode spawns a small crowd of autonomous chibi
+ * customers that wander the shop floor while the player haggles.  Engine:
+ *   FUN_0046f8ba (0x46f8ba) — roster/cap builder (DAT_005c7dd0 + DAT_073a7f30)
+ *   FUN_0046f914 (0x46f914) — spawn one NPC into DAT_073a6e50.. (stride 0x24 dw)
+ *   FUN_0046fbb7 (0x46fbb7) — grid walkability test (DAT_074b28e8 cell ∈ {0,9})
+ *   FUN_0046fa31 (0x46fa31) — next-step pathfinder toward the target cell
+ *   FUN_0046fbee (0x46fbee) — per-NPC movement/wander tick (the state machine)
+ *   FUN_0047019f (0x47019f) — per-frame pump (spawn cadence + tick loop)
+ *
+ * RNG-EXACTNESS is the contract: every LCG draw (rng_next15 / rng_next_unit)
+ * occurs in the engine's exact order/count.  The walkability grid is the SAME
+ * DAT_074b28e8 the display chip rebuilds each frame (scene1_shop_display.c
+ * shop_display_grid_cell), so the retarget-burst loop bound (≤30 iters, 2 LCG
+ * draws/iter, breaks on the first walkable cell) matches retail bit-for-bit.
+ *
+ * The logic is D3D-free and host-testable; the sprite RENDER is a separate
+ * follow-up (PORT-DEBT(cs-walker-render)) — these NPCs spawn + wander + draw
+ * the exact RNG, but are not yet painted on screen.
+ *
+ * Per-NPC slot = int32_t[CS_NPC_STRIDE] (engine stride 0x24 dw); a slot whose
+ * dword CS_NPC_OFF_ACTIVE == -1 is free.  See scene1_shop_walker_helpers.c. */
+#define CS_NPC_MAX           30        /* (&DAT_073a7f30 - &DAT_073a6e50)/0x90 */
+#define CS_NPC_STRIDE         0x24     /* dwords per NPC slot (= 0x90 bytes) */
+#define CS_NPC_ROSTER_MAX    0x14      /* DAT_073a7f30[] — one per session entry */
+
+#define CS_NPC_OFF_ANIM       0        /* chr-sprite header [0] (FUN_00482a51) */
+#define CS_NPC_OFF_TIMER      2        /* [2] float frame-time accumulator */
+#define CS_NPC_OFF_COUNTER    3        /* [3] */
+#define CS_NPC_OFF_FRAME      4        /* [4] */
+#define CS_NPC_OFF_STATE      5        /* [5] anim state (last-anim compare) */
+#define CS_NPC_OFF_FACING     6        /* [6] facing octant */
+#define CS_NPC_OFF_FLAG7      7        /* [7] chr-sprite flag */
+#define CS_NPC_OFF_FLAG8      8        /* [8] chr-sprite flag */
+#define CS_NPC_OFF_FLAG9      9        /* [9] chr-sprite flag */
+#define CS_NPC_OFF_POS_X      0xb      /* [0xb] float world x */
+#define CS_NPC_OFF_POS_Y      0xc      /* [0xc] float world y */
+#define CS_NPC_OFF_POS_Z      0xd      /* [0xd] float world z */
+#define CS_NPC_OFF_DRAW_X     0xe      /* [0xe] float (snap target x) */
+#define CS_NPC_OFF_DRAW_Z     0x10     /* [0x10] float (snap target z) */
+#define CS_NPC_OFF_VEL_X      0x11     /* [0x11] float per-frame x velocity */
+#define CS_NPC_OFF_VEL_Z      0x13     /* [0x13] float per-frame z velocity */
+#define CS_NPC_OFF_SPAWN_ANG  0x14     /* [0x14] float (spawn heading) */
+#define CS_NPC_OFF_ACTIVE     0x15     /* [0x15] active (-1 = free slot) */
+#define CS_NPC_OFF_TYPE_IDX   0x16     /* [0x16] DAT_005c7ce0 table index */
+#define CS_NPC_OFF_SCALE17    0x17     /* [0x17] float, reset 1.0 (render scale) */
+#define CS_NPC_OFF_GRID_X     0x18     /* [0x18] int current grid col */
+#define CS_NPC_OFF_GRID_Y     0x19     /* [0x19] int current grid row */
+#define CS_NPC_OFF_TGT_X      0x1a     /* [0x1a] int target grid col */
+#define CS_NPC_OFF_TGT_Y      0x1b     /* [0x1b] int target grid row */
+#define CS_NPC_OFF_FACE_DIR   0x1c     /* [0x1c] int facing-dir bucket */
+#define CS_NPC_OFF_WSTATE     0x1d     /* [0x1d] walk state (-1 retarget,0,1,2) */
+#define CS_NPC_OFF_WTIMER     0x1e     /* [0x1e] int per-state timer */
+#define CS_NPC_OFF_FLAGS      0x1f     /* [0x1f] flags (bit 0 used) */
+#define CS_NPC_OFF_SPEED      0x20     /* [0x20] float move speed */
+#define CS_NPC_OFF_PARAM21    0x21     /* [0x21] int (rng%10 — ramp/divisor seed) */
+#define CS_NPC_OFF_ANIMCYCLE  0x22     /* [0x22] int anim sub-cycle */
+#define CS_NPC_OFF_DETOUR     0x23     /* [0x23] int path-detour dir cache */
+
+/* Reset the NPC array + the spawn/frame counters (call on HOUSE entry / scene
+ * teardown).  Zeroes DAT_073a6e50.., DAT_073a8ba8, DAT_073a8bac, DAT_005c7dd0
+ * and the roster — all-free slots ([0x15] reset to -1). */
+void scene1_customer_npc_reset(void);
+
+/* FUN_0046f8ba — scan the 0x14-entry session customer-id list against the
+ * DAT_005c7ce0 (char_id,key) table; for each id whose `key` matches, append the
+ * table index to the roster and bump the cap (DAT_005c7dd0).  Gated on
+ * easydisp==0 (DAT_0438b1a0); returns early at the first negative list entry.
+ * `session_list` is &DAT_06a5d450 (the cc08 session list). */
+void scene1_customer_npc_roster_build(const int32_t *session_list);
+
+/* Current spawn cap (DAT_005c7dd0) — number of roster entries the pump will
+ * spawn.  0 until scene1_customer_npc_roster_build runs. */
+int  scene1_customer_npc_cap(void);
+
+/* Number of currently-spawned NPCs (DAT_073a8bac). */
+int  scene1_customer_npc_spawned(void);
+
+/* The per-frame pump (FUN_0047019f core, RNG-consuming part).  `sell_inactive`
+ * = (DAT_0450f404[slot]==0): a LIVE walk-in customer (NOT the f404==1 scripted
+ * tutorial) — only then does the 30-frame spawn cadence add NPCs.  `shop_tier`
+ * = DAT_04510578[stage] (bank[SHOP_DISPLAY_TIER_SELECTOR]); selects spawn grid
+ * origin + the z-clamp band.  Increments DAT_073a8ba8 every call, spawns one
+ * NPC every 30th frame while spawned<cap, then ticks every active NPC.
+ *
+ * RNG-neutral sprite stepping (the engine's trailing FUN_00482a71 per slot) is
+ * applied here via chr_anim_tick (no LCG draw).  Returns the number of LCG
+ * draws this call consumed (for the host RNG-accounting test). */
+unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier);
+
+/* Direct slot accessor (for tests + the future render).  Returns NULL for an
+ * out-of-range index; the slot is CS_NPC_STRIDE dwords. */
+int32_t *scene1_customer_npc_slot(int idx);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

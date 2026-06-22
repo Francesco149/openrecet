@@ -38,6 +38,7 @@
 #include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
 #include "customer_service.h"    /* cc08==4 customer-service session_init / master_tick */
+#include "scene1_shop_walker.h"  /* scene1_customer_npc_pump (FUN_0047019f) — chibi crowd */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -1793,9 +1794,9 @@ static void player_ctrl_cs_arrival_tick(void)
             s_player_facing = -1.5707964f;                /* DAT_056db05c = -π/2 */
         }
     }
-    /* FUN_0047019f() — the cc08==4 on-screen-character pump; EMPTY in the
-     * tutorial (the floor-walker array DAT_073a6ea8 has 0 active slots, §8.5),
-     * a no-op here.  PORT-DEBT(cs-char-pump) for the autonomous-customer stages. */
+    /* engine: FUN_0047019f() (the in-shop browsing-customer pump) is called by
+     * the CALLER right after this arrival body, before the master tick — see the
+     * cc08==4 arm below (scene1_customer_npc_pump), not from inside here. */
 }
 
 /* The unported cc08 dispatch arms (FUN_0048670f all.c:358-918): the event /
@@ -1858,6 +1859,23 @@ static void player_ctrl_cc08_unported_arm(void)
                 const collision_mesh *cm = collision_house_get();
                 if (cm)
                     collision_set_player_ground_y(cm, g_scene1_player_pos);
+            }
+
+            /* FUN_0047019f (all.c:87432) — the in-shop browsing-customer pump:
+             * increment the frame counter, spawn one chibi customer every 30th
+             * frame (only for a LIVE walk-in, f404==0; the f404==1 scripted
+             * tutorial spawns none), then wander every active NPC.  RNG-EXACT:
+             * this is the LCG consumption the port was missing (~37 rngcalls in
+             * the cc08==4 first-customer haggle).  shop_tier = bank tier selector
+             * (DAT_04510578[stage]); the walk grid is shop_display's DAT_074b28e8. */
+            {
+                int sell_inactive = !customer_service_f404();   /* f404==0 */
+                int shop_tier = 0;
+                const uint32_t *cs_bank =
+                    save_work_dwords_at(save_work_active_slot());
+                if (cs_bank != NULL)
+                    shop_tier = (int)cs_bank[SHOP_DISPLAY_TIER_SELECTOR];
+                scene1_customer_npc_pump(sell_inactive, shop_tier);
             }
 
             /* the master tick (FUN_00462403): owns the b534 state switch + the

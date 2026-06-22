@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 70,
   "stubbed": 14,
-  "ported": 477,
-  "unported": 1987,
+  "ported": 481,
+  "unported": 1983,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 561,
-  "pct_touched": 22.0,
+  "touched": 565,
+  "pct_touched": 22.2,
   "pct_verified": 2.7,
   "port_debt": 25
  },
@@ -2412,7 +2412,8 @@
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene1_records_c_tick.c",
-    "src/scene1_records_c_tick.h"
+    "src/scene1_records_c_tick.h",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -3297,6 +3298,7 @@
     "src/scene1_pass_f.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_records.h",
+    "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h"
    ]
@@ -6206,7 +6208,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -6217,7 +6220,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -6226,8 +6231,11 @@
    "size": 285,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
+   ]
   },
   {
    "va": "0x46fa31",
@@ -6235,8 +6243,11 @@
    "size": 390,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
+   ]
   },
   {
    "va": "0x46fbb7",
@@ -6244,8 +6255,11 @@
    "size": 55,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
+   ]
   },
   {
    "va": "0x46fbee",
@@ -6253,8 +6267,11 @@
    "size": 1457,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
+   ]
   },
   {
    "va": "0x47019f",
@@ -6264,8 +6281,11 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_conversation_pose.c",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -6420,6 +6440,7 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_c_spawn.c",
+    "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c"
    ]
   },
@@ -8131,7 +8152,9 @@
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
     "src/scene1_particles_tick.h",
-    "src/scene1_records_b_tick.h"
+    "src/scene1_records_b_tick.h",
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -8148,7 +8171,9 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene1_shop_walker.h",
+    "src/scene1_shop_walker_helpers.c"
    ]
   },
   {
@@ -22638,6 +22663,7 @@
     "src/scene1_combat_sm.c",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
+    "src/scene1_shop_walker_helpers.c",
     "src/scene_floor.c",
     "src/scene_jutan.c",
     "src/scene_walls.c",

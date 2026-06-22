@@ -26,6 +26,7 @@
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
+#include "scene1_shop_walker.h"   /* in-shop browsing-customer NPCs (FUN_0046f8ba/892) */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
 #include "fade.h"                 /* fade_phase1_start/_is_done/_phase_out_start (b520 dissolve) */
@@ -173,19 +174,18 @@ static int32_t s_price_cursor;   /* DAT_005c6bcc — item-pick cursor */
 /* customer-service-active global (DAT_0438b7b0) — set 1 on session init. */
 static int32_t s_cs_active;      /* DAT_0438b7b0 */
 
-/* ── FUN_0046f8ba — load the eligible customers' portrait textures ───────────
- * Records, for each eligible-list entry, the index of its loaded portrait
- * texture (engine DAT_073a7f30[] from the DAT_005c7ce0 name→handle table) +
- * DAT_005c7dd0 = count.  Read by the render (FUN_0046602e portrait draw).
- *
- * PORT-DEBT(cs-portrait-load): the texture table (DAT_005c7ce0) and the index
- * array (DAT_073a7f30) are not yet modeled in the port — deferred to the render
- * chip (step 3).  Stubbed no-op here: it draws no RNG and touches no state the
- * entry/state-machine reads, so it is inert for the entry + the flow-trace
- * verification.  Retire with FUN_0046602e (the customer portrait). */
+/* ── FUN_0046f8ba — build the in-shop browsing-customer roster + cap ──────────
+ * For each eligible-list entry, matches the kyaku id against the DAT_005c7ce0
+ * (char_id,key) sprite-type table and appends the matched table index to the
+ * roster (DAT_073a7f30), setting DAT_005c7dd0 = the spawn cap.  The cc08==4
+ * per-frame pump (scene1_customer_npc_pump, FUN_0047019f) then spawns + wanders
+ * that many chibi customers across the shop floor.  Also resets the NPC array
+ * + the spawn/frame counters (engine FUN_0046f892) so the new session starts
+ * with all slots free.  No RNG (the pump consumes it). */
 static void cs_load_eligible_portraits(const int32_t *eligible)
 {
-    (void)eligible;
+    scene1_customer_npc_reset();              /* FUN_0046f892 — free slots */
+    scene1_customer_npc_roster_build(eligible); /* FUN_0046f8ba — cap + roster */
 }
 
 /* ── customer_service_session_init — FUN_0045edaa (TUTORIAL path) ───────────── */

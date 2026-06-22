@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **561** (22.0%) — verified 70, stubbed 14, ported 477
-- unported: **1987**
+- touched: **565** (22.2%) — verified 70, stubbed 14, ported 481
+- unported: **1983**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (70) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (477) — reimplemented, no probe yet
+## ported (481) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -177,7 +177,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x43289b | FUN_0043289b | 555 | ✓ | collision_mesh.c, collision_mesh.h |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ | collision_mesh.c, collision_mesh.h |
 | 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_house.c, collision_mesh.h, collision_query.c (+12) |
-| 0x433674 | FUN_00433674 | 2354 | ✓ | collision_resolve.c, collision_resolve.h, scene1_records_b_tick.c (+3) |
+| 0x433674 | FUN_00433674 | 2354 | ✓ | collision_resolve.c, collision_resolve.h, scene1_records_b_tick.c (+4) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
 | 0x434585 | FUN_00434585 | 314 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c (+2) |
@@ -218,7 +218,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
-| 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+7) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+8) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
 | 0x44af50 | FUN_0044af50 | 419 | ✓ | scene1_records_c_spawn.c, scene1_records_c_spawn.h |
 | 0x44b0f3 | FUN_0044b0f3 | 60 | ✓ | scene1_particles_tick.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
@@ -352,9 +352,13 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
-| 0x46f892 | FUN_0046f892 | 40 | ✓ | customer_service.c |
-| 0x46f8ba | FUN_0046f8ba | 90 | ✓ | customer_service.c |
-| 0x47019f | FUN_0047019f | 486 | ✓ | scene1_conversation_pose.c, scene1_player_ctrl.c |
+| 0x46f892 | FUN_0046f892 | 40 | ✓ | customer_service.c, scene1_shop_walker_helpers.c |
+| 0x46f8ba | FUN_0046f8ba | 90 | ✓ | customer_service.c, scene1_shop_walker.h, scene1_shop_walker_helpers.c |
+| 0x46f914 | FUN_0046f914 | 285 | ✓ | scene1_shop_walker.h, scene1_shop_walker_helpers.c |
+| 0x46fa31 | FUN_0046fa31 | 390 | ✓ | scene1_shop_walker.h, scene1_shop_walker_helpers.c |
+| 0x46fbb7 | FUN_0046fbb7 | 55 | ✓ | scene1_shop_walker.h, scene1_shop_walker_helpers.c |
+| 0x46fbee | FUN_0046fbee | 1457 | ✓ | scene1_shop_walker.h, scene1_shop_walker_helpers.c |
+| 0x47019f | FUN_0047019f | 486 | ✓ | customer_service.c, scene1_conversation_pose.c, scene1_player_ctrl.c (+2) |
 | 0x470385 | FUN_00470385 | 246 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c |
 | 0x47047b | FUN_0047047b | 296 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h |
 | 0x4705a3 | FUN_004705a3 | 327 | ✓ | scene1_bg_npc.h, scene1_shop_walker.c, scene1_shop_walker.h |
@@ -363,7 +367,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x470a46 | FUN_00470a46 | 766 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ | customer_haggle.h, rng.h, scene1_combat_sm.c (+7) |
+| 0x471089 | FUN_00471089 | 34 | ✓ | customer_haggle.h, rng.h, scene1_combat_sm.c (+8) |
 | 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | d3d_tex_names.h, scene1_dungeon_clear_banner.c, scene1_preload.c (+13) |
@@ -446,8 +450,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x482033 | FUN_00482033 | 38 | ✓ | scene_pause.c |
 | 0x482059 | FUN_00482059 | 97 | ✓ | scene_pause.c |
 | 0x4820ba | FUN_004820ba | 2455 | ✓ | encyclopedia.h, main.c, scene_pause.c (+1) |
-| 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
-| 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+4) |
+| 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+5) |
+| 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+6) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
 | 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+4) |
@@ -575,7 +579,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5031e4 | FUN_005031e4 | 9 | ✓ | scene1_particles_tick.c, scene1_player_ctrl.c, scene1_records_b_spawn.c (+1) |
 | 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
-| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
+| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+6) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
 | 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+7) |
 | 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+10) |
