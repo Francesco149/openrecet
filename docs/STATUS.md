@@ -413,6 +413,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   score** from shop DECORATION — **won't change at this game stage** (a constant input here, but find where it
   feeds customer behavior).  Plus the **customer CHIBI NPC** (note #2 above) = the walk-in/browse system.  Includes
   L1b (real pix) + the roster scan.  Deep-dive WITH the recorded trace (don't guess the outcomes).
+  **★★ IN PROGRESS 2026-06-22 (autonomous) — the user's RETAIL recording `rec-20260622-182618` (raw preserved
+  in `runs/recordings/`) → scenario `house-firstcust-cutscene-day2`: load→tutorial→ESC-skip→first-customer→a LONG
+  story-cutscene series (title drop, Recet hammering the recettear sign, dusk)→DAY 2 (idle, Tear flying around +
+  brooming = new mechanic).  16291 frames; worked in capture windows.  USER DIRECTIVE: grind to 1:1, NO MVPs.**
+  Landed: **(a) ESC-skip PAUSE_OPEN** (`2406349`) — the cc08 cancel-tutorial choice box (b5e4) now raises the
+  PAUSE_OPEN anchor (retail's b150 choice box; port had split b150).  **(b) b150 MODAL-HOLD** (`3f6c407`, RE'd via
+  a retail call-trace probe `_firstcust-skip-probe`) — retail does NOT clear the cancel-prompt b150 on the Yes; it
+  HOLDS through leave→wrap-up→first-customer arrival, closing at the live greeting b534==2 (FUN_00435612).  New
+  `s_skip_modal` latch.  Port now traverses + bit-matches retail through skip→wrap-up→greeting→1st BARGAIN.
+  **(c) IN-SHOP CHIBI NPC system (FRONT note #2)** (`aa08a88`, PARTIAL) — the cc08 first-customer draws ~37 fewer
+  rngcalls than retail because the walk-in/browse crowd (`FUN_0046f8ba` roster + `FUN_0047019f` pump + spawn/
+  wander) was stubbed.  Ported the RNG logic (render deferred); closes −37→~−18 but NOT exact:
+  PORT-DEBT(cs-walker-rng-phase) = a burst draw-DISTRIBUTION mis-phase (plateau b534 2→6 ~30 UNDER, reaction 6→0xf
+  ~12 OVER; rng VALUE at the BARGAIN still differs) — likely the s_cs_frame (DAT_073a8ba8) spawn-cadence phase at
+  cc08-entry / fine NPC retarget timing.  **TWO REMAINING GAPS to 1:1 (both diagnosed, neither closed):** (1) the
+  cs-walker-rng-phase residual (port↔retail fidelity — needs a port↔retail per-frame rngcalls drill on the plateau
+  to pin the exact spawn/retarget frames); (2) **the TRAVERSAL blocker = an anchor-RNG-PIN-PHASE gap** — retail-
+  REPLAY of the pinned trace reproduces only 1 sale, not the recording's 2 (so the {wait PAUSE_OPEN} for the 2nd
+  BARGAIN never fires on EITHER side → both stall before the cutscene).  Hypothesis: the {rngseed} pin applies at
+  the segment frame-START but the recorded value was captured at the anchor FIRING (mid-frame, after that frame's
+  NPC pre-anchor draws) → the LCG diverges by the firing-frame draws → the offer (→accept/pushback→sale-count)
+  diverges.  OPEN QUESTION (may need the user): is the recording's natural-phase 2-sale flow reproducible via an
+  anchor-RNG-pin-precision fix (risks the confirmed cc08 traces), or fundamentally unreproducible on the intro-
+  skipped/pinned engine?  **NEXT after the haggle is 1:1:** iv1_8 (the post-first-customer EXTRA_SPRITE cutscene,
+  f402-triggered, PORT-DEBT P3 in scene1_tutorial_dispatch.c) → the cutscene series → day-2 brooming.  Sub-agent
+  retro for this arc: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.
