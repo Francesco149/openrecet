@@ -1855,4 +1855,5 @@ ESC-skip leave through the dissolve, asserts player.x=-1.5 + stage_class=0); 335
 (port re-drive, 4dfe654b/port): the wrap-up scene cam is now **eye=(-1.5,22.2,15) BIT-MATCHING retail** (was
 (-3,22.2,14)); full-frame pixel diff **92.8%→2.54%** (residual = the player sprite + the accepted +1f anim
 phase).  Both the f406-close AND the ESC-skip leave paths set b520 ⇒ both fixed.  feed "NOTE #9 FIXED".
-PENDING USER RE-CONFIRM in the viewer.
+**✅ USER-CONFIRMED 1:1 2026-06-22** ("yes the camera looks correct") in the v3 viewer; recorded in
+`confirmed-parity-ledger.md`.

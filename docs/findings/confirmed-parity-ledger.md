@@ -191,4 +191,25 @@
   pose + manga-lines (集中線)** here (the unported f404==0 companion branch, see FRONT /
   RE §18). RE: `customer-service-haggle-RE.md` §17.
 
+- **WRAP-UP (CONV_POSE) cutscene CAMERA — USER-CONFIRMED 2026-06-22** ("yes the
+  camera looks correct") in the v3 viewer (win-8400-2500, `CONV_POSE_BLINK#1+36`).
+  This was viewer note #9 "camera completely wrong."  The decisive `--d3d-trace`
+  (new `tools/trace_studio_v3/orv3_xform.py`, extracting the actual `SetTransform`
+  VIEW/PROJ from the existing v3cap.bin) proved it is the iv1_7 WRAP-UP cutscene
+  camera, NOT the first-customer greeting (the prior §18.2 analyzed the wrong frame;
+  the greeting is camera-1:1, pixel diff 1.19%, counter-cam VIEW + all proj
+  BIT-IDENTICAL).  Through the whole wrap-up the scene rendered with the SAME
+  orientation/FOV but a different CENTER: port stuck on the stale cc08==4 counter cam
+  **eye=(-3,22.2,14) look=(-3,1.0)**, retail FREE-ROAM **eye=(-1.5,22.2,15)
+  look=(-1.5,1.0)**; pixel diff 92.8%.  Root: the port's cs LEAVE omitted retail's
+  Recette hop-down reposition (`g_scene1_player_pos`→(-1.5,9.0), clamped to camera
+  bias (-1.5,1.0)) + the `stage_class=0` reset (all.c:60349-394); the other reset
+  site never runs once iv1_7 routes the sim to the EVENT arm.  Fixed by porting both
+  into `customer_service.c` (RNG-safe).  v3-verified: the wrap-up scene cam is now
+  **eye=(-1.5,22.2,15) == retail**; pixel diff **92.8%→2.54%**.  Commit 9c16580;
+  +1 host test (`cs_leave_resets_freeroam_camera`).  Accepted residual: the player
+  sprite + the +1f anim phase (the 2.54%).  PORT-DEBT still: the octant/db05c/db048
+  + render rest (cs-leave-restore), the shop-full branch (cs-leave-shopfull).  RE:
+  `customer-service-haggle-RE.md` §18.3.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

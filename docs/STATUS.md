@@ -369,7 +369,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   once iv1_7 routes the sim to the EVENT arm.  Ported both into `customer_service.c` (RNG-safe; +host test
   `cs_leave_resets_freeroam_camera`, 3352 pass).  **v3-VERIFIED:** the wrap-up scene cam is now **eye=(-1.5,22.2,15)
   == retail**; pixel diff **92.8%→2.54%** (residual = player sprite + accepted +1f phase).  feed "NOTE #9 FIXED".
-  PENDING USER RE-CONFIRM.
+  **✅ USER-CONFIRMED 1:1 2026-06-22** ("yes the camera looks correct"); ledger recorded.
   **REMAINING P3 (next chips):** (a) **the SCOLD POSE + 集中線** — a SEPARATE *later* LIVE-machine beat
   (`b534==6` reaction / `8` pushback, past off 8852; retail's canim STAYS 0 in this 309-frame window, so it is
   NOT the idle arm).  **Not reachable in THIS recording (b534 stays at greeting=1 on BOTH sides — the player never
