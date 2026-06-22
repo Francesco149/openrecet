@@ -355,12 +355,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   CUSTOMER_SERVICE_ENTER, window `win-8400-600`): **canim 0, coct 0, cx=-3.0** (was -5.80), cz 8.6 (vs retail
   8.65 = const-offset load phase), greeting `b534` 0→1 aligned @off160; `cwander`/`cstate` 0 (no scold-wander).
   +1 host test (`companion_first_customer_freeroam`); 3351 pass.
+  **★ USER NOTE #8 "camera angle still wrong" (greeting frame) — INVESTIGATED 2026-06-22 (RE §18.2): the camera
+  TRANSFORM is 100% BIT-EXACT (eye=(-3,22.2,14) lookat=(-3,1.2,0) incl. the newly-probed Y; FOV 45° const; up
+  const), so it is NOT an eye/lookat bug.  BUT the rendered cc08==4 3D SCENE genuinely REPROJECTS differently** —
+  the STATIC floor/counter diffs **54 cross-side / 0.0 same-side** (back wall 87, depth-dependent far>near; not a
+  shift/blur/tint) ⇒ the camera is APPLIED to the 3D render differently (view/proj-matrix BUILD or a stage_class==1
+  viewport), a path that diverges from the verified-1:1 free-roam render.  PLUS a retail-only **yellow/gold circular
+  element** center-right the port never draws.  **The user is RIGHT it's a projection problem — just not in the
+  eye/lookat numbers.  NOT root-caused — NEXT: capture the VIEW/PROJ matrix (hook FUN_004a3b52 + SetViewport) or
+  a `--d3d-trace` + draw-program panel on a settled cc08==4 frame to find the differing 3D draw + the yellow draw.**
+  Tooling landed: `camey`/`camly`/`b5d4`/`b59c` probe fields + `{calltrace}`→11500.
   **REMAINING P3 (next chips):** (a) **the SCOLD POSE + 集中線** — a SEPARATE *later* LIVE-machine beat
   (`b534==6` reaction / `8` pushback, past off 8852; retail's canim STAYS 0 in this 309-frame window, so it is
-  NOT the idle arm) — needs the `{calltrace}` window EXTENDED past 8852 (forces a retail re-drive) to observe;
-  when ported the free-roam path must YIELD to the live-machine pose (mirror `scene1_conversation_pose_active`).
-  (b) the live haggle render fidelity (customer art/dialogue).  (c) **L1b** real pix (gold += ask + stock decr +
-  payout).  (d) the roster scan (PORT-DEBT(cs-roster-scan)).  (e) the iv1_8 chain (`f406→f402`).
+  NOT the idle arm).  **Not reachable in THIS recording (b534 stays at greeting=1 on BOTH sides — the player never
+  haggles); needs a recorded haggle trace (escalate to the user) to observe + port.**  When ported the free-roam
+  path must YIELD to the live-machine pose (mirror `scene1_conversation_pose_active`).
+  (b) **the cc08==4 3D-scene REPROJECTION + the yellow element (RE §18.2)** — the live render gap above.
+  (c) the live haggle render fidelity (customer art/dialogue).  (d) **L1b** real pix (gold += ask + stock decr +
+  payout).  (e) the roster scan (PORT-DEBT(cs-roster-scan)).  (f) the iv1_8 chain (`f406→f402`).
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
   The scenario arms `{calltrace}=[0,9500]` (~100 MB) and the exe wrote it line-buffered + fflush-per-frame
   over the 9p `\\wsl.localhost` mount → ~150 write syscalls/frame → full-haggle drives crawled / looked hung.

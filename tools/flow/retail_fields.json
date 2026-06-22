@@ -393,6 +393,13 @@
      "type": "f32"
     },
     {
+     "name": "camey",
+     "src": "global",
+     "va": "0x73de320",
+     "type": "f32",
+     "_note": "eye Y (0x73de320) — the camera PITCH. Probe added 2026-06-22 chasing the user-flagged first-customer 'camera angle still wrong' (XZ matches retail, so the divergence is the Y)."
+    },
+    {
      "name": "camez",
      "src": "global",
      "va": "0x73de324",
@@ -403,6 +410,13 @@
      "src": "global",
      "va": "0x73de328",
      "type": "f32"
+    },
+    {
+     "name": "camly",
+     "src": "global",
+     "va": "0x73de32c",
+     "type": "f32",
+     "_note": "lookat Y (0x73de32c) — with camey sets the camera PITCH/angle."
     },
     {
      "name": "camlz",
@@ -439,6 +453,20 @@
      "src": "global",
      "va": "0x730b5d0",
      "type": "i32"
+    },
+    {
+     "name": "b5d4",
+     "src": "global",
+     "va": "0x730b5d4",
+     "type": "i32",
+     "_note": "DAT_0730b5d4 — the customer pose TIMER (counts to 0xf, FUN paired with b5d0). Probed 2026-06-22 for the scold-pose beat (b534==6 reaction)."
+    },
+    {
+     "name": "b59c",
+     "src": "global",
+     "va": "0x730b59c",
+     "type": "i32",
+     "_note": "DAT_0730b59c — reaction phase (the b534==6 reaction sub-state). Probed for the scold pose + 集中線 timing."
     },
     {
      "name": "b5d8",

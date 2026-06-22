@@ -1991,8 +1991,10 @@ void scene1_player_ctrl_tick(void)
              * residual (RE §8.7.2 — px/pz match retail but the framing differs).
              * Joined to the retail 0x48670f probe's camex/camez/camlx/camlz. */
             CALL_TRACE_F32("camex", g_scene1_camera_eye[0]);
+            CALL_TRACE_F32("camey", g_scene1_camera_eye[1]);   /* eye Y — the PITCH (angle) */
             CALL_TRACE_F32("camez", g_scene1_camera_eye[2]);
             CALL_TRACE_F32("camlx", g_scene1_camera_lookat[0]);
+            CALL_TRACE_F32("camly", g_scene1_camera_lookat[1]); /* lookat Y — the PITCH (angle) */
             CALL_TRACE_F32("camlz", g_scene1_camera_lookat[2]);
             CALL_TRACE_I32("cmode", g_scene1_camera_char_mode);
             CALL_TRACE_I32("poct",  r0[CHR_ACTOR_FACING]);

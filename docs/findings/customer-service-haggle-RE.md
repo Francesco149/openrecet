@@ -1738,3 +1738,43 @@ they fire on a later LIVE-machine beat (b534==6 reaction / 8 pushback, after the
 That is a SEPARATE P3 chip (the live-machine reaction overlay) and needs the `{calltrace}` window extended past
 8852 (forces a retail re-drive).  When ported, the free-roam path must YIELD to the live-machine pose on the
 reaction beat (mirror the `scene1_conversation_pose_active()` yield).
+
+### 18.2 The user's "camera angle still wrong" (note #8) — the CAMERA TRANSFORM is BIT-EXACT; the real gap is a cc08==4 3D-SCENE REPROJECTION + a missing element (2026-06-22)
+
+After the companion fix the user flagged (viewer note #8, port, CONV_POSE_BLINK#2+7 = the first-customer
+greeting): **"camera angle still wrong, that's a huge part of why the companion pos looks wrong."**  Investigated
+in full (extended `{calltrace}` 9500→11500, added `camey`/`camly`/`b5d4`/`b59c` to the probe, re-drove BOTH
+sides → cache `4dfe654b`, retail ALL-BIT-EXACT).
+
+**The camera TRANSFORM is 100% bit-exact port==retail** at the settled view: eye=(**-3.0, 22.2, 14.0**),
+lookat=(**-3.0, 1.2, 0.0**) — ALL SIX components incl. the newly-probed Y.  FOV = 45° (DAT_073de3a0 = 0x42340000,
+set only at scene init 34225/77956 — never during cc08==4), up-vector DAT_073de29c has no writer (constant).
+So eye/lookat/FOV/up are identical ⇒ the view+proj matrices are deterministically identical ⇒ **the "camera
+angle" is NOT an eye/lookat/FOV bug.**  (Ramp-in residual: at the counter-cam ONSET port camex=-3.0 already
+settled vs retail -1.5 panning in over ~40f — a load-entry-timing transient that converges bit-exact; accept.)
+
+**BUT the rendered 3D SCENE genuinely differs** (port off207 vs retail off205, phase-aligned by b544 port=retail−2):
+| region | cross-side diff | same-side (4f) baseline |
+|--------|-----------------|--------------------------|
+| 3D shop center | **56** | ~5 |
+| **STATIC upper floor/counter** (no chars) | **54.1** | **0.0** |
+| back wall/window (far) | **87** | — |
+| lower floor (near) | 51 | — |
+| center-right "yellow element" | 61 | — |
+
+The **static floor diffs 54 cross-side but 0.0 same-side** (perfectly stable within a side) with a bit-exact
+camera ⇒ the 3D scene is **REPROJECTED differently** — depth-dependent (**far > near**: back wall 87 > floor 51),
+NOT a uniform 2D shift (a ±4px shift-search barely moved it 56→54), NOT a blur (edge-energy 9.99 vs 9.80 equal),
+NOT a tint (per-channel mean equal).  A red/green overlay shows the floor planks fringed red/green, growing toward
+the foreground.  **So the user is RIGHT that it's a "camera/projection" problem — it just isn't in the captured
+eye/lookat values; it's in HOW the camera is APPLIED to the 3D render** (the view/proj matrix BUILD or a viewport
+during stage_class==1), a path that diverges from the verified-1:1 free-roam render.  Standees + the 3D companion
+world-pos are 1:1 (the standee idle is a benign ~2f anim phase).  PLUS a localized **retail-only yellow/gold
+circular element** center-right (≈full-frame 660,270) the port never draws (not a 3D actor — the port has only 3
+actor slots, all accounted for; likely a cs-specific overlay/object/billboard).
+
+**NEXT (this is the live gap — NOT yet root-caused):** capture the actual VIEW/PROJ matrix (or hook FUN_004a3b52
++ the viewport `SetViewport`) port-vs-retail at a settled cc08==4 frame, OR use the v3 draw-program panel /
+`d3d_state_at_draw.py` on a `--d3d-trace` of this frame to find the differing 3D draw(s) + the retail-only yellow
+draw.  Hypothesis to test first: a stage_class==1-specific viewport/projection setup the port mis-applies (since
+free-roam, same FOV+pitch, is pixel-1:1).
