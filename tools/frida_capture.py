@@ -1097,6 +1097,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # Mirrors the port's IVE_TUT_LOAD_FRAMES override so both sides
                 # idle equal-length brackets (engine-quirks §119).
                 segtrace_ops.append({"tutloadpin": int(rec["tutloadpin"])})
+            elif "csloadpin" in rec:
+                # {csloadpin:N} — trace-global: extend every cc08==4 d3e
+                # customer-service load bracket (DAT_0438b1cc==2) to N frames by
+                # blocking the LAB_00452ae8/b13 worker tails N frames past the
+                # arm (EXTEND-only).  Mirrors the port's customer_service load
+                # pin so the 目玉 sparkle consumes an equal rng count (RE §20).
+                segtrace_ops.append({"csloadpin": int(rec["csloadpin"])})
             elif "esc" in rec:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.

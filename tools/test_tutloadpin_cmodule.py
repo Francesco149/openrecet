@@ -24,7 +24,10 @@ AGENT = Path(__file__).parent / "frida" / "openrecet-agent.js"
 
 def extract_cmodule_source() -> str:
     src = AGENT.read_text()
-    marker = "const cm = new CModule(`"
+    # The CModule source was factored into a shared const (WORKER_TAIL_BLOCK_CM_SRC)
+    # used by BOTH the {tutloadpin} and {csloadpin} worker-tail blockers, so this
+    # one compile-check covers both pins.
+    marker = "const WORKER_TAIL_BLOCK_CM_SRC = `"
     i = src.index(marker) + len(marker)
     j = src.index("`", i)
     return src[i:j]

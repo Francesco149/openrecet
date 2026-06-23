@@ -255,6 +255,17 @@ const ADDR = {
                                        // (1..0x800); resets to 1 per new line.
     var_dlg_revealed_flag: 0x073a3e04, // i32 — line fully-revealed flag (0->1).
 
+    // cc08==4 customer-service d3e asset-load gate (RE §20) — the {csloadpin}
+    // analogue of the dialogue worker tail above.  DAT_0438b1cc==2 while the
+    // d3e worker loads; it → 1 at the worker tail, right after CloseHandle.
+    // Blocking those tails holds b1cc==2 so the 目玉 sparkle (which fires
+    // throughout the window) consumes an N-frame-deterministic rng count.  Both
+    // tails are byte-identical (verified via objdump): the block point is the
+    // first insn after CloseHandle returns, before the gate-clears + b1cc=1.
+    fn_d3e_load_worker_tail_ae8: 0x00452af9, // LAB_00452ae8 (d3e param-0 / session_init)
+    fn_d3e_load_worker_tail_b13: 0x00452b24, // LAB_00452b13 (d3e param-1 / occ3 reload)
+    var_cs_load_gate:            0x0438b1cc, // i32 — the b1cc load gate (==2 loading)
+
     // Conversation pose (engine-quirks §86): the player actor state-machine
     // field DAT_056daafc. FUN_0048407f sets it to 6 (Recette listen-pose) while
     // the talk-event flag DAT_0450f470 is clear during the iv1_2 face-to-face,
@@ -496,6 +507,16 @@ let g_tlp_release_frame = 0;        // tutloadpin: frame the bracket must end on
 let g_tlp_prev_b1c8 = 0;            // tutloadpin: previous tick's DAT_0438b1c8
 let g_tlp_flags = null;             // tutloadpin: CModule-shared [release, waiting]
 let g_tlp_hook_installed = false;   // tutloadpin: worker-tail CModule attached
+
+// {csloadpin:N} — the cc08==4 d3e load-bracket pin (RE §20): a second instance
+// of the tutloadpin worker-tail blocker, on the b1cc gate + the two d3e tails.
+let g_segtrace_csloadpin = 0;       // active N (0 = no pin)
+let g_csl_armed = false;            // inside a pinned bracket
+let g_csl_release_frame = 0;        // frame the bracket must end on
+let g_csl_prev_b1cc = 0;            // previous tick's DAT_0438b1cc
+let g_csl_flags = null;             // CModule-shared [release, waiting]
+let g_csl_hook_installed = false;   // d3e worker-tail CModule attached
+let g_csl_cmodule = null;           // keep the CModule alive (GC = crash)
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
@@ -924,6 +945,13 @@ function segtraceBuildSegments(ops) {
             // brackets — equal db054/wing-emit consumption inside the bracket
             // and an aligned post-bracket label axis (engine-quirks §119).
             g_segtrace_tutloadpin = (op.tutloadpin | 0) > 0 ? (op.tutloadpin | 0) : 0;
+        } else if (op && op.csloadpin !== undefined) {
+            // {csloadpin:N} — trace-global: extend every cc08==4 d3e cs-load
+            // bracket (the DAT_0438b1cc==2 window over LAB_00452ae8/b13) to N
+            // frames by blocking those worker tails (see csloadpinTick / RE §20).
+            // EXTEND-only, like {tutloadpin}; mirrors the port's csload bracket
+            // so the 目玉 sparkle consumes an equal rng count on both sides.
+            g_segtrace_csloadpin = (op.csloadpin | 0) > 0 ? (op.csloadpin | 0) : 0;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -1528,6 +1556,13 @@ function installPresentHook(devicePtr) {
                     tutloadpinPresentRelease(fn);
                 } catch (e) {
                     err('Present.onEnter.tutloadpin', e.message);
+                }
+            }
+            if (g_segtrace_csloadpin > 0) {
+                try {
+                    csloadpinPresentRelease(fn);
+                } catch (e) {
+                    err('Present.onEnter.csloadpin', e.message);
                 }
             }
             // D1 load-suppression (Trace Studio v2, plan Phase 1) — mirror of
@@ -2827,28 +2862,13 @@ function synthesizeEscRetail() {
 // EXTEND-only: a real load ≥ N frames reaches the tail after the release
 // frame, finds flags[0] already granted, and sails through at its natural
 // length (the prologue's ~68f inter-script bracket does exactly this).
-function installTutLoadPinWorkerHook() {
-    if (g_tlp_hook_installed) return;
-    try {
-        const k32 = Process.findModuleByName('kernel32.dll');
-        const yieldAddr = k32 ? k32.findExportByName('SwitchToThread') : null;
-        const tickAddr  = k32 ? k32.findExportByName('GetTickCount')  : null;
-        if (!yieldAddr || !tickAddr) {
-            err('tutloadpin', 'kernel32 exports not found'); return;
-        }
-        g_tlp_flags = Memory.alloc(8);
-        g_tlp_flags.writeS32(1);            // pass-through until a trace pins
-        g_tlp_flags.add(4).writeS32(0);
-        // 0-ARG kernel32 functions only: for zero args, stdcall and cdecl
-        // generate the identical call sequence, so TinyCC's missing __stdcall
-        // (it rejected the typedef — first attempt failed to compile) costs
-        // nothing. Each cell holds the export's address; the C side casts and
-        // calls through it.
-        const yieldCell = Memory.alloc(Process.pointerSize);
-        yieldCell.writePointer(yieldAddr);
-        const tickCell = Memory.alloc(Process.pointerSize);
-        tickCell.writePointer(tickAddr);
-        const cm = new CModule(`
+// Shared worker-tail block CModule source — used by BOTH the {tutloadpin}
+// (b1c8 dialogue load) and {csloadpin} (b1cc d3e cs-load) blockers.  Each
+// instantiation binds its OWN flags cell (so the two pins are independent);
+// the symbol names stay tlp_* in C (the JS binding object maps them).  Kept in
+// one place so the TinyCC parse (validated by tools/test_tutloadpin_cmodule.py)
+// covers both pins.
+const WORKER_TAIL_BLOCK_CM_SRC = `
 #include <gum/guminterceptor.h>
 extern volatile int tlp_flags[2];
 extern void *tlp_yield;   /* cell holding kernel32!SwitchToThread */
@@ -2870,7 +2890,31 @@ onEnter (GumInvocationContext *ic)
   }
   tlp_flags[1] = 0;
 }
-`, {tlp_flags: g_tlp_flags, tlp_yield: yieldCell, tlp_tick: tickCell});
+`;
+
+function installTutLoadPinWorkerHook() {
+    if (g_tlp_hook_installed) return;
+    try {
+        const k32 = Process.findModuleByName('kernel32.dll');
+        const yieldAddr = k32 ? k32.findExportByName('SwitchToThread') : null;
+        const tickAddr  = k32 ? k32.findExportByName('GetTickCount')  : null;
+        if (!yieldAddr || !tickAddr) {
+            err('tutloadpin', 'kernel32 exports not found'); return;
+        }
+        g_tlp_flags = Memory.alloc(8);
+        g_tlp_flags.writeS32(1);            // pass-through until a trace pins
+        g_tlp_flags.add(4).writeS32(0);
+        // 0-ARG kernel32 functions only: for zero args, stdcall and cdecl
+        // generate the identical call sequence, so TinyCC's missing __stdcall
+        // (it rejected the typedef — first attempt failed to compile) costs
+        // nothing. Each cell holds the export's address; the C side casts and
+        // calls through it.
+        const yieldCell = Memory.alloc(Process.pointerSize);
+        yieldCell.writePointer(yieldAddr);
+        const tickCell = Memory.alloc(Process.pointerSize);
+        tickCell.writePointer(tickAddr);
+        const cm = new CModule(WORKER_TAIL_BLOCK_CM_SRC,
+            {tlp_flags: g_tlp_flags, tlp_yield: yieldCell, tlp_tick: tickCell});
         Interceptor.attach(rva(ADDR.fn_dlg_load_worker_tail), cm);
         g_tlp_cmodule = cm;                 // keep alive (GC'd CModule = crash)
         g_tlp_hook_installed = true;
@@ -2930,12 +2974,94 @@ function tutloadpinPresentRelease(fn) {
     g_tlp_armed = false;
 }
 
+// {csloadpin} — the cc08==4 d3e load-bracket blocker.  Same machinery as the
+// tutloadpin trio above, on the b1cc gate + the two d3e worker tails (RE §20).
+function installCsLoadPinWorkerHook() {
+    if (g_csl_hook_installed) return;
+    try {
+        const k32 = Process.findModuleByName('kernel32.dll');
+        const yieldAddr = k32 ? k32.findExportByName('SwitchToThread') : null;
+        const tickAddr  = k32 ? k32.findExportByName('GetTickCount')  : null;
+        if (!yieldAddr || !tickAddr) {
+            err('csloadpin', 'kernel32 exports not found'); return;
+        }
+        g_csl_flags = Memory.alloc(8);
+        g_csl_flags.writeS32(1);            // pass-through until a trace pins
+        g_csl_flags.add(4).writeS32(0);
+        const yieldCell = Memory.alloc(Process.pointerSize);
+        yieldCell.writePointer(yieldAddr);
+        const tickCell = Memory.alloc(Process.pointerSize);
+        tickCell.writePointer(tickAddr);
+        const cm = new CModule(WORKER_TAIL_BLOCK_CM_SRC,
+            {tlp_flags: g_csl_flags, tlp_yield: yieldCell, tlp_tick: tickCell});
+        // Both d3e worker tails (param-0 session_init / param-1 occ3 reload)
+        // share the cm — only one fires per load, both block on g_csl_flags.
+        Interceptor.attach(rva(ADDR.fn_d3e_load_worker_tail_ae8), cm);
+        Interceptor.attach(rva(ADDR.fn_d3e_load_worker_tail_b13), cm);
+        g_csl_cmodule = cm;                 // keep alive (GC'd CModule = crash)
+        g_csl_hook_installed = true;
+        log('csloadpin: d3e worker-tail hooks installed @0x' +
+            (ADDR.fn_d3e_load_worker_tail_ae8 >>> 0).toString(16) + ' +0x' +
+            (ADDR.fn_d3e_load_worker_tail_b13 >>> 0).toString(16));
+    } catch (ex) {
+        err('csloadpin', 'worker hook install failed: ' + ex.message);
+        if (g_csl_flags) g_csl_flags.writeS32(1);   // stay fail-open
+    }
+}
+
+// Pre-sim arm detection: the b1cc 2-rising edge (cc08 cs-load spawn).
+function csloadpinTick(fn) {
+    if (!g_csl_flags) return;
+    const b1cc = rva(ADDR.var_cs_load_gate).readS32();
+    if (!g_csl_armed && b1cc === 2 && g_csl_prev_b1cc !== 2) {
+        g_csl_armed = true;
+        g_csl_release_frame = fn - 1 + g_segtrace_csloadpin;
+        g_csl_flags.writeS32(0);            // (re-)block the d3e worker tails
+        log('csloadpin: bracket armed at frame ' + fn + ' (release at ' +
+            g_csl_release_frame + ')');
+    } else if (g_csl_armed && b1cc !== 2) {
+        // Load gate torn down mid-bracket — fail open.
+        g_csl_flags.writeS32(1);
+        g_csl_armed = false;
+        log('csloadpin: bracket disarmed (b1cc left 2) at frame ' + fn);
+    }
+    g_csl_prev_b1cc = b1cc;
+}
+
+// Present-hook release (mirror of tutloadpinPresentRelease) — grant release N
+// frames past the arm + spin until the worker's tail completes so this Present's
+// anchorTick samples b1cc==1 (LOADING_END at release_frame).
+function csloadpinPresentRelease(fn) {
+    if (!g_csl_armed || !g_csl_flags || fn < g_csl_release_frame) return;
+    const waiting = g_csl_flags.add(4).readS32() !== 0;
+    g_csl_flags.writeS32(1);                // grant release
+    if (waiting) {
+        const t0 = nowMs();
+        while (rva(ADDR.var_cs_load_gate).readS32() === 2) {
+            if (nowMs() - t0 > 500) {
+                err('csloadpin', 'release spin timeout at frame ' + fn);
+                break;
+            }
+            Thread.sleep(0.0005);
+        }
+        log('csloadpin: bracket released at frame ' + fn);
+    } else {
+        log('csloadpin: real load >= pin at frame ' + fn +
+            ' - left alone (extend-only)');
+    }
+    g_csl_armed = false;
+}
+
 function segtraceTick(fn) {
     // Trace-global tutorial-load-bracket pin — runs every pre-sim tick,
     // independent of the segment cursor (brackets arm mid-segment).
     if (g_segtrace_tutloadpin > 0) {
         try { tutloadpinTick(fn); }
         catch (ex) { err('tutloadpin', ex.message); }
+    }
+    if (g_segtrace_csloadpin > 0) {
+        try { csloadpinTick(fn); }
+        catch (ex) { err('csloadpin', ex.message); }
     }
     for (;;) {
         const seg = g_segtrace_segments[g_segtrace_seg];
@@ -5106,6 +5232,9 @@ rpc.exports = {
         g_segtrace_tutloadpin = 0;   // re-set by a {tutloadpin} op below
         g_tlp_armed         = false;
         g_tlp_prev_b1c8     = 0;
+        g_segtrace_csloadpin = 0;    // re-set by a {csloadpin} op below
+        g_csl_armed         = false;
+        g_csl_prev_b1cc     = 0;
         if (Array.isArray(config.input_segtrace) &&
             config.input_segtrace.length > 0) {
             g_segtrace_segments = segtraceBuildSegments(config.input_segtrace);
@@ -5458,6 +5587,16 @@ rpc.exports = {
                     log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
                 } else {
                     throw new Error('tutloadpin: worker hook unavailable - ' +
+                                    'aborting capture (would be half-pinned)');
+                }
+            }
+            if (g_segtrace_csloadpin > 0) {
+                installCsLoadPinWorkerHook();
+                if (g_csl_hook_installed && g_csl_flags) {
+                    g_csl_flags.writeS32(0);
+                    log('csloadpin: active, N=' + g_segtrace_csloadpin);
+                } else {
+                    throw new Error('csloadpin: worker hook unavailable - ' +
                                     'aborting capture (would be half-pinned)');
                 }
             }

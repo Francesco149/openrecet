@@ -1928,3 +1928,55 @@ hover), so it is invisible here; a future chip can port FUN_0048a833's floor loo
 **✅ USER-CONFIRMED 2026-06-22** ("can confirm the shadow is correct"); commit `8bd2bc2`; ledger.  So the WHOLE
 post-haggle wrap-up cutscene — camera (§18.3), companion height + cutscene sprites, and Recette's contact
 shadow — is now 1:1.
+
+## 19. In-shop browsing-customer chibi-NPC pump (cs-walker-rng-phase) — FIXED 2026-06-22 (`0268aaa`)
+
+Back-fill stub (the FRONT carries the full story).  The cc08 first-customer NPC pump (`FUN_0047019f`) had
+two RNG bugs, drilled via `tools/cs_walker_drill.py`: (1) **pump gating** — the engine runs the pump
+UNCONDITIONALLY in the cc08==4 arm (all.c:87432; the caller gates house_update on the be94 load-SCREEN
+counter, NOT b1cc), but the port wrapped it in the `b1cc != 2` load-suppression block ⇒ the spawn cadence
+mis-phased through the f406-entry d3e load; (2) **ghost slots** — the port never reset the NPC array
+(`FUN_0046f892`) at the HOUSE load / cs leave, leaving 30 zero-init "active" ghost slots the pump ticked.
+Fixes: run the pump in engine order unconditionally; reset the array at the top of
+`customer_service_session_init`.  3364 host pass.
+
+## 20. ★★ The cc08 d3e load-duration pin ({csloadpin}) — gap-2 reproducibility SOLVED 2026-06-23
+
+**The problem (FRONT gap-2 / the first-customer reaction-line+face variant).**  `cs_pick_line(0,9,0)` does ONE
+`rng_next15() % count[9](=2)` draw that indexes BOTH the reaction TEXT and the face SPRITE; the port landed on the
+wrong parity ("How much should I?" + open-eyes vs retail "Capitalism, ho!" + closed-eyes), and the offer drifted
+119 vs 123.  Root = the rng-VALUE at that draw differs because the **目玉商品 sparkle**
+(`player_ctrl_display_sparkle_emit`, gated `g_sim_frame_count % 8 == 3`, 3 `rng_next_unit` × occupied display
+column) fires THROUGHOUT the cc08 d3e asset-load window (b1cc==2) — it is `%8`-gated, NOT load-gated — and the
+load DURATION is **non-deterministic**: the engine load is a raw `CreateThread` race (`worker_load_spawn_d3e` →
+LAB_00452ae8/b13) with **NO minimum-duration frame gate** (`nowloading.c` has only a fade-alpha counter), so the
+b1cc==2 window is ~15-18f on the port (varies run-to-run) vs ~7f on retail ⇒ a different sparkle FIRE-COUNT ⇒ an
+odd cumulative-draw drift ⇒ the rand%2 variant flips.  Non-deterministic in retail too (same CreateThread race);
+the recording captured one realization (123).
+
+**The fix — `{csloadpin:N}`, a trace-harness load-bracket pin (sibling of `{tutloadpin}`).**  Hold b1cc==2 for
+exactly N frames on BOTH targets so the sparkle consumes an equal rng count.  *Port* (`customer_service.c`):
+`customer_service_load_pin_elapsed` — a pure frame counter ANDed with the async-done check in the cc08 load-gate
+bridge; N=24 chosen > the port's worst-case async load so the gate clears at N with the d3e assets already in
+(the sparkle reads the SAVE grid, not the d3e assets, so its rng is deterministic regardless of asset
+readiness).  *Retail* (`openrecet-agent.js`): a SECOND instance of the tutloadpin worker-tail blocker CModule on
+the two d3e tails **0x452af9** (LAB_00452ae8, param-0/session_init) + **0x452b24** (LAB_00452b13, param-1/occ3),
+VAs objdump-verified against the known 0x452ac2 AAB reference; armed on the b1cc 2-rising edge, released N frames
+later from the Present hook (extend-only — retail's ~7f extends to 24).  The CModule source is factored into one
+`WORKER_TAIL_BLOCK_CM_SRC` const shared by both pins (so `tools/test_tutloadpin_cmodule.py` validates both).
+
+**VERIFIED 2026-06-23** (`scenario-test --target both`, house-firstcust-cutscene-day2, csloadpin only): all 4
+cc08 loads hold **EXACTLY 24f on BOTH sides** (port 4×24; retail b1cc==2 off 0-23 → 1 @24); the port is now
+**reproducible run-to-run** (was 15-18, varying); and the first-customer reaction offers MATCH — **port 119/150
+== retail 119/150** (the variant text+face are decided by the same now-aligned rng).  `cs_walker_drill` shows
+npcfr/b534 aligned frame-for-frame.
+
+**★ NO phasepin.**  The standard `{phasepin}` was tried and BREAKS retail's wrap-up cutscene (the skip-path
+iv1_7 CONV_POSE stalls — 1176 blinks, never reaches the first customer): its bg-NPC RNG re-seed disrupts the
+cutscene's RNG-dependent advancement (the port survives it; retail does not).  And it is UNNECESSARY — csloadpin
+alone aligns the offer/variant.  **Accepted residual:** a CONSTANT 1-frame sparkle phase (port fires the
+25-draw sparkle at off N+1, retail at off N — the `g_sim %8` ORIGIN differs because the port skips the ~14228f
+intro).  It does NOT affect the offer/variant (same fire-count, just shifted) ⇒ a phase-pillar constant-offset,
+accepted.  A targeted g_sim-only pin (sim_phasepin without the bg-NPC re-seed) could zero it for finer future
+rng/phase work, if needed.  PORT-DEBT(cs-walker-rng-phase): the npcsp/NPC-pump divergence at off~30 is the
+separate in-shop browsing-customer residual (§19), not this.

@@ -459,14 +459,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   port's `g_sim_frame_count` is **off-phase by 3** vs retail (sim-frame origin differs) AND the port's async **d3e
   load runs ~8 frames longer** (b1cc=2 ~15f vs ~7f; varies 15-18 run-to-run) ⇒ the sparkle fires a DIFFERENT NUMBER
   of times during the load ⇒ an ODD cumulative-draw drift ⇒ the rand%2 variant flips.  **This is the gap-2
-  non-deterministic-LOAD-duration reproduction problem** (the FRONT OPEN QUESTION), now with concrete evidence.  A
-  `{phasepin}` would normalize the sparkle %8 PHASE (the standard policy this trace was missing) but NOT the
-  load-FIRE-COUNT (which tracks the non-deterministic load duration).  **NEXT (gap-2, needs the user's call):** make
-  the port's d3e load duration match retail's (deterministic) + add the {phasepin}, OR accept the variant/offer as a
-  load-phase residual (the item/base/ask/UI are 1:1).  The drill: `tools/cs_walker_drill.py` + db054/g_sim_frame_count.
-  **★ GAP-2 (2nd-sale reproduction) STILL OPEN** — the pinned-trace retail-REPLAY gives the first customer
-  base=100/offer=123; whether the recording's natural 2-sale flow reproduces on the pinned/intro-skipped engine
-  is the {rngseed}-pin-precision OPEN QUESTION (may need the user).  **NEXT after b5a4 + the 2-sale question:**
+  non-deterministic-LOAD-duration reproduction problem.  ✅ SOLVED 2026-06-23 (user chose "build the d3e
+  load-duration pin"; RE §20) — `{csloadpin:N}`, a load-bracket pin (sibling of {tutloadpin}).**  The engine d3e
+  load is a `CreateThread` race with NO min-duration gate (`nowloading.c` = only a fade-alpha counter) ⇒ genuinely
+  non-deterministic (retail too).  Hold b1cc==2 for exactly N=24f on BOTH targets — port: a pure frame counter
+  ANDed with the async-done check (`customer_service_load_pin_elapsed`, N > the worst-case async load so assets are
+  in); retail: a 2nd tutloadpin-CModule blocker on the d3e worker tails 0x452af9/0x452b24 (objdump-verified).
+  **v3-VERIFIED `--target both`: all 4 cc08 loads hold EXACTLY 24f on BOTH sides; the port is now reproducible
+  run-to-run (was 15-18, varying); the first-customer reaction offers MATCH — port 119/150 == retail 119/150**
+  (the variant text+face follow the same now-aligned rng; cs_walker_drill npcfr/b534 aligned).  **NO phasepin** —
+  it BREAKS retail's skip-path wrap-up (the bg-NPC re-seed stalls the iv1_7 CONV_POSE → 1176 blinks, never reaches
+  the customer) AND is unnecessary.  Accepted residual = a CONSTANT 1-frame sparkle phase (the g_sim %8 origin —
+  port skips the ~14228f intro) that does NOT affect the offer/variant (a future g_sim-only pin could zero it).
+  Port mechanism committed `4eeb88a`; Frida+trace+doc next commit.  **PENDING USER viewer-confirm of the rendered
+  line/face.**  **NEXT after the viewer-confirm:**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**
