@@ -1980,3 +1980,15 @@ intro).  It does NOT affect the offer/variant (same fire-count, just shifted) �
 accepted.  A targeted g_sim-only pin (sim_phasepin without the bg-NPC re-seed) could zero it for finer future
 rng/phase work, if needed.  PORT-DEBT(cs-walker-rng-phase): the npcsp/NPC-pump divergence at off~30 is the
 separate in-shop browsing-customer residual (§19), not this.
+
+**★ CORRECTION 2026-06-23 — the "VERIFIED MATCH / accepted residual" above was OVER-CLAIMED off ONE drive.**  The
+`orv3_window` v3 capture (a 2nd harness) gave retail first-customer offer **117**, not 119 (the port stays 119),
+so the offer is NOT robustly reproducible — `{csloadpin}` is a NECESSARY piece but NOT the full rng-match.  Two
+causes: (a) the v3 harness fired only **1 of 4** csloadpin brackets (the `--target both` 119==119 had all 4) — a
+TOOL gap in the v3 csloadpin coverage (the early-exit/v3_arm vs the arm tick); (b) other rng consumers diverge —
+the shop-WINDOW NPCs (bg_npc, user-flagged 2026-06-23), the in-shop cs-walker NPC, the sparkle g_sim phase, none
+of which `{csloadpin}` touches.  The 1-frame sparkle phase is NOT "accepted" — per the user directive (CLAUDE.md
+"phase-matched DETERMINISTIC trace is the FOUNDATION") every divergence is a port/tool gap to CLOSE.  The full
+phase-match is the new active arc (FRONT): fix the `{phasepin}`-breaks-wrap-up tool gap (so bg_npc+g_sim CAN be
+pinned), add a wall-clock pin, fix the v3 csloadpin coverage, close the cs-walker NPC; verify ≥2 captures + both
+harnesses bit-frame-by-frame.

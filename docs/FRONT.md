@@ -439,21 +439,29 @@
   gated `g_sim_frame_count(DAT_0438b8cc) % 8 == 3`, 3 rng_next_unit × occupied display column ⇒ ~25 draws/fire): the
   port's `g_sim_frame_count` is **off-phase by 3** vs retail (sim-frame origin differs) AND the port's async **d3e
   load runs ~8 frames longer** (b1cc=2 ~15f vs ~7f; varies 15-18 run-to-run) ⇒ the sparkle fires a DIFFERENT NUMBER
-  of times during the load ⇒ an ODD cumulative-draw drift ⇒ the rand%2 variant flips.  **This is the gap-2
-  non-deterministic-LOAD-duration reproduction problem.  ✅ SOLVED 2026-06-23 (user chose "build the d3e
-  load-duration pin"; RE §20) — `{csloadpin:N}`, a load-bracket pin (sibling of {tutloadpin}).**  The engine d3e
-  load is a `CreateThread` race with NO min-duration gate (`nowloading.c` = only a fade-alpha counter) ⇒ genuinely
-  non-deterministic (retail too).  Hold b1cc==2 for exactly N=24f on BOTH targets — port: a pure frame counter
-  ANDed with the async-done check (`customer_service_load_pin_elapsed`, N > the worst-case async load so assets are
-  in); retail: a 2nd tutloadpin-CModule blocker on the d3e worker tails 0x452af9/0x452b24 (objdump-verified).
-  **v3-VERIFIED `--target both`: all 4 cc08 loads hold EXACTLY 24f on BOTH sides; the port is now reproducible
-  run-to-run (was 15-18, varying); the first-customer reaction offers MATCH — port 119/150 == retail 119/150**
-  (the variant text+face follow the same now-aligned rng; cs_walker_drill npcfr/b534 aligned).  **NO phasepin** —
-  it BREAKS retail's skip-path wrap-up (the bg-NPC re-seed stalls the iv1_7 CONV_POSE → 1176 blinks, never reaches
-  the customer) AND is unnecessary.  Accepted residual = a CONSTANT 1-frame sparkle phase (the g_sim %8 origin —
-  port skips the ~14228f intro) that does NOT affect the offer/variant (a future g_sim-only pin could zero it).
-  Port mechanism committed `4eeb88a`; Frida+trace+doc next commit.  **PENDING USER viewer-confirm of the rendered
-  line/face.**  **NEXT after the viewer-confirm:**
+  of times during the load ⇒ an ODD cumulative-draw drift ⇒ the rand%2 variant flips.  **{csloadpin} load-bracket
+  pin LANDED 2026-06-23 (port `4eeb88a` + Frida `9b92b0a`, RE §20)** — holds b1cc==2 for N=24f on both targets
+  (port: a frame counter ANDed with the async-done check `customer_service_load_pin_elapsed`; retail: a 2nd
+  tutloadpin-CModule blocker on the d3e tails 0x452af9/0x452b24, objdump-verified; the engine load is a
+  `CreateThread` race, no min-gate ⇒ genuinely non-deterministic).  **BUT it is ONE PIECE, NOT the full rng-match
+  (I over-claimed "SOLVED 1:1" — CORRECTED).**  `--target both` (all 4 loads pinned) gave port==retail offer
+  119/150, but the `orv3_window` v3 capture gave retail **117** (port stays 119): the offer DRIFTS because (a) the
+  v3 harness pinned only 1 of 4 loads (TOOL gap) AND (b) other rng consumers diverge — the **shop-window NPCs**
+  (bg_npc, user-flagged), the in-shop chibi NPC (cs-walker), the sparkle g_sim phase.  A "matches" off one drive
+  was a lucky alignment.
+  **★★★ NEW ACTIVE ARC (user directive 2026-06-23) — MAKE THIS TRACE FULLY PHASE-MATCHED + DETERMINISTIC
+  side-by-side (the FOUNDATION; see CLAUDE.md "phase-matched DETERMINISTIC trace is the FOUNDATION").  "Go as
+  slow as we need to have everything 1:1, side by side, deterministic." Every divergence = a PORT gap or a TOOL
+  gap to CLOSE (no accepted residuals).**  The work-list: **(1)** fix the `{phasepin}`-BREAKS-the-wrap-up TOOL gap
+  — its bg_npc LCG re-seed stalls the skip-path iv1_7 CONV_POSE (1176 blinks, never reaches the customer), so the
+  bg_npc + g_sim CANNOT currently be pinned (likely the Frida lazy re-seed vs the port's immediate one — isolate +
+  fix); **(2)** the **WALL-CLOCK pin** (user idea: hook GetTickCount/QPC/timeGetTime → a virtual clock synced at
+  anchors, like `{rngseed}`) for the load/time non-determinism; **(3)** the v3-harness `{csloadpin}` coverage (1
+  of 4 brackets fired vs 4 in `--target both` — the v3 early-exit/v3_arm vs the arm tick); **(4)** the cs-walker
+  in-shop NPC (`PORT-DEBT(cs-walker-rng-phase)`, the npcsp divergence); **(5)** the bg-window NPC match.  VERIFY
+  ≥2 captures + BOTH harnesses bit-frame-by-frame.  THEN the first-customer variant (offer/line/face) is robustly
+  1:1.  Drill: `cs_walker_drill.py`, `flow_diff --verdict`, the v3 state/draw panels.  **NEXT once the trace is
+  deterministic:**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**

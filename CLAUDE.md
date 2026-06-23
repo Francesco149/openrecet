@@ -78,6 +78,24 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   db054`** gives the verdict: ALIGNED / CONST-OFFSET (= phase, accept) / DRIFT (= real
   logic divergence), over a `scenario-test --target both --call-trace` capture. Playbook:
   `docs/flow-trace-cheatsheet.md`.
+- **★ The phase-matched DETERMINISTIC trace is the FOUNDATION (user directive 2026-06-23: "phase-matched
+  traces that play side-by-side frame-by-frame are the basis for our work — go as slow as we need to have
+  everything 1:1, side by side, deterministic").** The reproducible port↔retail trace (bit-frame-by-frame in
+  the v3 viewer) is the bedrock every chip is judged against; make it ROCK SOLID *first*. On a trace we're
+  ACTIVELY WORKING, do **NOT** hand-wave an rng/phase divergence as "phase, accept" — that acceptance (the
+  multi-pillar bullet) is only for a SETTLED chip's verdict; **here every divergence is a PORT gap or a TOOL
+  gap to CLOSE**: fix the port to match retail, or improve the tool (a new pin / probe / harness fix) to align
+  or measure it. **Pin EVERY non-deterministic source at anchors (the `{rngseed}` pattern):** RNG (`{rngseed}`
+  ✓); frame-phase g_sim/db054 (`{phasepin}` — NB it currently BREAKS the skip-path wrap-up via its bg_npc LCG
+  re-seed = a TOOL gap to FIX, not a reason to drop it); the async LOAD bracket (`{csloadpin}`/`{tutloadpin}` —
+  `CreateThread` races, no min-gate); and **the WALL CLOCK — hook GetTickCount/QPC/timeGetTime → a virtual clock
+  synced at anchors, exactly like the rng seed (user 2026-06-23)** so every time-dependent thing (load races,
+  timers, time-based anims) is deterministic. **Match EVERY consumer, not one:** the shop-WINDOW NPCs (bg_npc
+  warmup `FUN_0046f621`), the in-shop browsing chibi NPC (cs-walker pump, `PORT-DEBT(cs-walker-rng-phase)`), the
+  目玉 sparkle. **Verify reproducibility across ≥2 captures AND both harnesses** (`scenario-test --target both` +
+  `orv3_window`) — a "matches" off ONE drive can be a lucky alignment (the first-customer offer read 119 in one
+  drive, 117 in another). Drive `orv3_window` with **`--view`** (not `--launch`, which pops the viewer + blocks
+  the user; they open it from the "OpenRecet Trace Studio" shortcut).
 - **Verify before pruning; archive, don't delete** (`docs/archive/`, `memory/archive/`).
 - **Full port, not MVP.** Tag MVP/synthetic shortcuts with `PORT-DEBT(tag, ...)`
   (registry: `docs/port-debt.md`). Retire them; don't let them silently cap parity.
