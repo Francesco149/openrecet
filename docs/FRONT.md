@@ -452,23 +452,40 @@
   **★★★ NEW ACTIVE ARC (user directive 2026-06-23) — MAKE THIS TRACE FULLY PHASE-MATCHED + DETERMINISTIC
   side-by-side (the FOUNDATION; see CLAUDE.md "phase-matched DETERMINISTIC trace is the FOUNDATION").  "Go as
   slow as we need to have everything 1:1, side by side, deterministic." Every divergence = a PORT gap or a TOOL
-  gap to CLOSE (no accepted residuals).**  The work-list: **(1)** fix the `{phasepin}`-BREAKS-the-wrap-up TOOL gap
+  gap to CLOSE (no accepted residuals).**
+  **★★★★ REFRAMED 2026-06-23 PM (user directive) — the minimum FOUNDATION is a FULL RNG SURVEY at the CONSUMER
+  LEVEL, NOT single-value matching.**  After the {csloadpin} tool fix below the trace studio STILL shows the port
+  reaction line "How much should I?..." (retail "Capitalism, ho!") — so matching ONE rng OUTPUT (b574=119 in the
+  call_trace) did NOT make the rendered variant 1:1.  User: *"just matching 1 rng element isn't really useful — for
+  rng stuff you need a full rng survey and work at the rng-consumer level until we have every consumer ported, then
+  the rng stuff will fall into place IF the phase pinning is also solid.  That is the minimum foundation."*  So the
+  plan is two pillars: **(A) survey EVERY rng consumer** in the cc08==4 + skip→wrap-up→first-customer window and
+  **port each 1:1** until the per-frame rng draw COUNT+ORDER matches frame-for-frame (tools: the CLEAN rng-callsite
+  capture — NO phasepin, which contaminates the measurement per RE §8.4 — + `flow_diff --rng-drill` +
+  `cs_walker_drill.py`, per-frame `rngcalls` port vs retail); **(B) make the PHASE PINNING solid** (the work-list
+  below).  ONLY when both hold is the variant/face/offer robustly 1:1 — do NOT declare any single value "matched"
+  as progress.  Plan: **`docs/plans/rng-consumer-survey.md`**; existing rng findings:
+  `findings/scene1-rng-stream-parity.md`, `findings/freeroam-rng-consumption.md`.
+  PHASE-PINNING work-list (pillar B): **(1)** fix the `{phasepin}`-BREAKS-the-wrap-up TOOL gap
   — its bg_npc LCG re-seed stalls the skip-path iv1_7 CONV_POSE (1176 blinks, never reaches the customer), so the
   bg_npc + g_sim CANNOT currently be pinned (likely the Frida lazy re-seed vs the port's immediate one — isolate +
   fix); **(2)** the **WALL-CLOCK pin** (user idea: hook GetTickCount/QPC/timeGetTime → a virtual clock synced at
-  anchors, like `{rngseed}`) for the load/time non-determinism; **(3) ✅ DONE 2026-06-23** the v3-harness
+  anchors, like `{rngseed}`) for the load/time non-determinism; **(3) ✅ TOOL FIX LANDED 2026-06-23 (necessary, NOT sufficient)** the v3-harness
   `{csloadpin}` coverage (was 1 of 4 brackets vs 4 in `--target both`) — root was NOT the early-exit/v3_arm but a
   **Frida worker-tail re-arm RACE** (RE §20.1): the CModule blocks the d3e tail only if `flags[0]==0` on entry, but
   `csloadpinPresentRelease` left it 1 (open) between loads ⇒ a FAST (warm-cache) load's worker passed the tail
   before `csloadpinTick` re-armed ⇒ b1cc cleared in 1f ⇒ the bracket never armed; `--target both` fired 4 only by
   luck (slower cold-disk loads won the race).  Fix: a 3rd `csloadpinTick`/`tutloadpinTick` branch restoring the
-  default-BLOCKED invariant between loads (`!armed && b1cc!=2 → flags=0`).  v3-VERIFIED on 2 captures: retail now
-  arms **4** brackets + first-customer offer **bit-identical port↔retail** (b574 119→119→119→150 on both; was
-  retail 117 / port 119).  Residual = the `gsim` +50 phase (cause (b) — items 4/5/the phasepin gap).  **(4)** the cs-walker
-  in-shop NPC (`PORT-DEBT(cs-walker-rng-phase)`, the npcsp divergence); **(5)** the bg-window NPC match.  VERIFY
-  ≥2 captures + BOTH harnesses bit-frame-by-frame.  THEN the first-customer variant (offer/line/face) is robustly
-  1:1.  Drill: `cs_walker_drill.py`, `flow_diff --verdict`, the v3 state/draw panels.  **NEXT once the trace is
-  deterministic:**
+  default-BLOCKED invariant between loads (`!armed && b1cc!=2 → flags=0`).  v3-VERIFIED on 2 captures (committed
+  `9c455f3`): retail now arms **4** brackets + the offer VALUE matches (b574 119→119→119→150 port==retail; was
+  retail 117).  ⚠ **BUT this did NOT fix the rendered variant** — user 2026-06-23 PM: the trace studio STILL shows
+  port "How much should I?..." ⇒ a single matched value is NOT stream parity (the `cs_pick_line %2` variant draw
+  still lands wrong because OTHER consumers diverge ⇒ pillar A above).  Keep the tool fix (the v3 harness SHOULD
+  pin all 4 loads), but it is necessary-not-sufficient.  **(4)** the cs-walker
+  in-shop NPC (`PORT-DEBT(cs-walker-rng-phase)`, the npcsp divergence) — a pillar-A CONSUMER; **(5)** the bg-window
+  NPC match — a pillar-A CONSUMER.  VERIFY ≥2 captures + BOTH harnesses bit-frame-by-frame.  Drill:
+  `cs_walker_drill.py`, `flow_diff --rng-drill/--verdict`, the v3 state/draw panels.  **NEXT once the trace is
+  deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**

@@ -2021,7 +2021,18 @@ CModule change ⇒ `test_tutloadpin_cmodule.py` unaffected.
 **VERIFIED 2026-06-23** (`orv3_window … --force-retail --state`, the 2nd harness): retail now arms **4** brackets
 (2923/3007/3444/3528, the `--target both` pattern) + the first-customer offer is **bit-identical port↔retail**:
 b574 = **119**(reaction b534=6) → 119(decision 15) → 119(pushback 8) → **150**(round-2) on BOTH (was retail 117 /
-port 119).  b56c=13 (f406 walnut-bread), base 100, db054 274 frozen on both.  So **cause (a) is CLOSED** and the
-offer/variant is robustly reproducible across both harnesses.  Remaining for the FOUNDATION arc: the constant
-`gsim` +50 phase offset (port skips the intro — the g_sim/sparkle phase, cause (b)), the bg_npc + cs-walker rng,
-and the `{phasepin}`-wrap-up tool gap.
+port 119).  b56c=13 (f406 walnut-bread), base 100, db054 274 frozen on both.  So the v3 csloadpin TOOL gap (cause
+(a)) is CLOSED — the harness now pins all 4 loads.
+
+**⚠ CORRECTION 2026-06-23 PM (user, on the trace studio) — the offer VALUE matched but the rendered VARIANT did
+NOT; matching one rng output is NOT rng-stream parity.**  Despite b574=119 port==retail, the viewer STILL shows the
+port reaction line **"How much should I?..."** (retail "Capitalism, ho!").  The `cs_pick_line(0,9,0) %2` variant
+draw lands on the wrong parity because OTHER rng consumers between the cc08 entry and that draw still diverge — a
+single matched downstream value (b574) does not prove the stream is aligned at the variant draw.  **User directive:
+the minimum FOUNDATION is a FULL RNG SURVEY at the consumer level — identify + port EVERY rng consumer in this
+window until the per-frame draw COUNT+ORDER matches frame-for-frame, AND make the phase pinning solid; only then
+does the variant/face fall into place.  Do NOT report a single matched value as the fix.**  csloadpin remains a
+necessary phase-pin piece, not the variant fix.  Plan: `docs/plans/rng-consumer-survey.md`.  Open consumers to
+survey: the 目玉 sparkle (g_sim%8, the +50 phase), bg_npc (window NPCs), cs-walker (in-shop chibi), the cs
+machine's own draws (`cs_pick_line`, `cs_accept_eval`, pushback), db054-gated companion sparkle — plus the
+`{phasepin}`-wrap-up tool gap (so bg_npc+g_sim CAN be pinned).
