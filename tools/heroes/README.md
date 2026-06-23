@@ -53,7 +53,8 @@ Everything needed to regenerate the heroes from a clean checkout:
   deterministic `cap`/`frame` (+ optional `zoom`, and `window` for v3shot).
 - **`tests/scenarios/<scenario>/`** — the deterministic input traces
   (`scenario.yaml` + `trace.jsonl`), with their `{capture}`/`{caprange}` ops and
-  phase/RNG pins: `intro-dialogue-lines`, `house-idle-npc-drift`,
+  phase/RNG pins: `intro-patience-settle` (derived from `intro-dialogue-lines`;
+  settles on the Patience line so the nameplate fades in), `house-idle-npc-drift`,
   `house-customer-tutorial`.
 
 The `runs/` and `runs/studio-v3-cache/` artefacts are an *ephemeral,
@@ -63,6 +64,6 @@ gitignored convenience*; `--rerun` recreates them from the committed scenario.
 
 | hero | source | scenario | beat | shows |
 |---|---|---|---|---|
-| `hero-iv1_2-dialogue` | scenario | `intro-dialogue-lines` | cap 18 | iv1_2 "Patience, Recette…" line: dialogue box, both standees, spell-circle FX, top HUD over the live map (README top hero) |
+| `hero-iv1_2-dialogue` | scenario | `intro-patience-settle` | cap 21 | iv1_2 "Patience, Recette…" line, SETTLED so Tear's nameplate has faded in: dialogue box + nameplate, both standees, spell-circle FX, top HUD over the live map (README top hero). Verified 1:1 vs retail (3px). |
 | `hero-house-freeroam` | scenario | `house-idle-npc-drift` | cap 0 | HOUSE free-roam: the 3D shop (geometry/lighting/god-rays), Recette idle, top HUD, Change-Camera hint, back-window NPC |
 | `hero-haggle` | v3shot | `house-customer-tutorial` | frame 2920 | in-shop price-haggle UI: the "Bargain!" gauge, item base price, customer, Item-Details hint |

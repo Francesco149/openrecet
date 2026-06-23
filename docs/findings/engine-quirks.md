@@ -4772,3 +4772,21 @@ pause** — i.e. ESC does NOTHING during a live cc08==4 customer (the pausable a
 is only reached for the non-cc08==4 in-game modes). A skip-tutorial cancel is a
 true tutorial *abort* (it dissolves straight back to the shop free-roam),
 distinct from completing the haggle exercise.
+
+## 127. The speaker NAMEPLATE banner FADES IN (alpha ramp), lagging the line-reveal — invisible at TEXT_ANIM_END+2, fully opaque ~30 frames later
+
+The intro/event dialogue draw (`FUN_0046c9a2`, all.c:67703) computes the speaker
+name-banner alpha as `nalpha = (box_open - 4) * 0x3c` (60 per step, clamped to
+0xff), where `box_open` = `DAT_073a3e14`.  So the "Tear" / "Recette" name banner
+*ramps* from alpha 0 (`box_open <= 4`) up to 255 (`box_open >= ~8.25`) — a fade-in,
+not an instant pop — and the ramp **lags the `TEXT_ANIM_END` anchor** (the
+"line fully revealed / awaiting advance" edge, `DAT_073a3e04` 0→1).  Empirically:
+at `TEXT_ANIM_END + 2` frames the banner is still ~0 alpha (invisible); it's fully
+opaque by ~`+30`.
+
+Bit us: the per-line `intro-dialogue-lines` capture fires at `TEXT_ANIM_END + 2`,
+so those reference frames — and the first README iv1_2 hero — looked
+*nameplate-less*, which read like a missing-feature port bug.  It isn't: settling
+on the line ~2s (`intro-patience-settle`, capture `+120`) shows the banner, and the
+settled port frame is **1:1 vs retail (3 px over the whole frame)**.  When you want
+the "with nameplate" look, capture after the line settles, not at the reveal edge.

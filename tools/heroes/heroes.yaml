@@ -25,16 +25,21 @@
 
 shots:
   # 1. README top hero — iv1_2 opening dialogue over the LIVE house map.
-  #    Shows the dialogue box + nameplate, both standees, the iv1_2 magic-circle
-  #    overlay FX, AND the top HUD (clock / Day / money) the engine draws over
-  #    the map during iv1_2.  cap 18 = the "Patience, Recette…" line (HUD onset).
+  #    Shows the dialogue box, Tear's NAMEPLATE banner, both standees, the iv1_2
+  #    magic-circle overlay FX, AND the top HUD (clock / Day / money) the engine
+  #    draws over the map during iv1_2.
+  #    Uses the intro-patience-settle scenario: it SETTLES on the "Patience,
+  #    Recette…" line for ~2s so the speaker nameplate fully fades in (nalpha =
+  #    (box_open-4)*60 ramps from TEXT_ANIM_END; at the per-line +2 capture in
+  #    intro-dialogue-lines it was still at ~0 alpha → invisible).  cap 21 =
+  #    TEXT_ANIM_END +120 (the nameplate fully up).  Verified 1:1 vs retail.
   #    FAITHFUL source: the magic-circle is a transparency/overlay effect, so
   #    this MUST be the real framebuffer (a v3 replay would risk an RT gap).
   - name: hero-iv1_2-dialogue
     source: scenario
-    scenario: intro-dialogue-lines
-    cap: 18
-    note: "iv1_2 dialogue ('Patience, Recette…') + magic-circle FX, top HUD over the live HOUSE map"
+    scenario: intro-patience-settle
+    cap: 21
+    note: "iv1_2 dialogue ('Patience, Recette…') — Tear nameplate, magic-circle FX, top HUD over the live HOUSE map"
 
   # 2. HOUSE free-roam — the 3D shop interior from the angled camera, Recette
   #    idle, the persistent top HUD, the "Change Camera" hint, and a back-window

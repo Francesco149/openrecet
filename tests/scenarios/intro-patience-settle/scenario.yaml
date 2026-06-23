@@ -1,0 +1,27 @@
+# intro-patience-settle — settle on the iv1_2 "Patience, Recette" line and
+# capture as the speaker NAMEPLATE fades in.
+#
+# Derived from intro-dialogue-lines: plays new-game -> opening prologue up to
+# the 19th dialogue line ("Patience. Recette. It is a virtue you will need." —
+# Tear, the old cap 18), then STOPS sending advance input so the line sits, and
+# captures a fade-in sweep at TEXT_ANIM_END +2/+30/+60/+120/+240 frames.
+#
+# WHY: the per-line intro-dialogue-lines capture fires at TEXT_ANIM_END+2, which
+# is BEFORE the "Tear" nameplate banner has faded in — so the README hero (and
+# the +2 port/retail compare) looked nameplate-less.  Retail DOES draw it once
+# the line settles (~2s; user-confirmed against Ver. 1.108).  This trace lets
+# both sides settle so we can (a) confirm the port draws it too / catch the bug
+# if it doesn't, and (b) grab a settled hero frame.
+#
+#   nix develop --command python3 tools/scenario-test.py intro-patience-settle \
+#     --target openrecet            # port (fast)
+#   nix develop --command python3 tools/scenario-test.py intro-patience-settle \
+#     --target retail --frida-remote cutestation.soy:27042   # retail ground truth
+
+description: |
+  Settle on the iv1_2 "Patience, Recette" line (Tear); capture the speaker
+  nameplate fading in (TEXT_ANIM_END +2/+30/+60/+120/+240).
+
+max_frames: 24000
+duration_ceiling_ms: 300000
+n_captures: 50
