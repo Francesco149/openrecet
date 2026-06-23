@@ -2944,6 +2944,12 @@ function tutloadpinTick(fn) {
         g_tlp_flags.writeS32(1);
         g_tlp_armed = false;
         log('tutloadpin: bracket disarmed (b1c8 left 2) at frame ' + fn);
+    } else if (!g_tlp_armed && b1c8 !== 2) {
+        // BETWEEN loads — keep the worker tail BLOCKED by default so the next
+        // dialogue load's worker blocks on entry (the b1c8 2-edge is then never
+        // missed; see the csloadpinTick twin for the full rationale + the v3
+        // re-arm race this closes).  Extend-only preserved by the `!== 2` guard.
+        g_tlp_flags.writeS32(0);
     }
     g_tlp_prev_b1c8 = b1c8;
 }
@@ -3024,6 +3030,22 @@ function csloadpinTick(fn) {
         g_csl_flags.writeS32(1);
         g_csl_armed = false;
         log('csloadpin: bracket disarmed (b1cc left 2) at frame ' + fn);
+    } else if (!g_csl_armed && b1cc !== 2) {
+        // BETWEEN loads — keep the worker tail BLOCKED by default (flags[0]=0)
+        // so the NEXT cc08 load's worker blocks the instant it reaches the tail.
+        // This restores the init invariant after a release: the "edge never
+        // missed" guarantee (a blocked worker can't advance b1cc itself, so the
+        // 2-rising edge is always visible to the arm above) only holds while
+        // flags default to blocked.  Without this, flags[0] stays 1 (open) after
+        // csloadpinPresentRelease, and a FAST load's worker reaches the tail
+        // before this tick re-arms → it passes through → b1cc clears in a single
+        // frame → the bracket never arms and the pin is silently skipped.  That
+        // is the v3-harness "1 of 4 brackets" gap (RE §20 CORRECTION); --target
+        // both only fired all 4 by luck (its slower retail loads let this tick
+        // win the race).  Extend-only is preserved: the b1cc===2 && !armed
+        // pass-through window (a real load longer than the pin, after release)
+        // is left untouched by the `b1cc !== 2` guard.
+        g_csl_flags.writeS32(0);
     }
     g_csl_prev_b1cc = b1cc;
 }

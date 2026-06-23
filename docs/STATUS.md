@@ -475,8 +475,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   — its bg_npc LCG re-seed stalls the skip-path iv1_7 CONV_POSE (1176 blinks, never reaches the customer), so the
   bg_npc + g_sim CANNOT currently be pinned (likely the Frida lazy re-seed vs the port's immediate one — isolate +
   fix); **(2)** the **WALL-CLOCK pin** (user idea: hook GetTickCount/QPC/timeGetTime → a virtual clock synced at
-  anchors, like `{rngseed}`) for the load/time non-determinism; **(3)** the v3-harness `{csloadpin}` coverage (1
-  of 4 brackets fired vs 4 in `--target both` — the v3 early-exit/v3_arm vs the arm tick); **(4)** the cs-walker
+  anchors, like `{rngseed}`) for the load/time non-determinism; **(3) ✅ DONE 2026-06-23** the v3-harness
+  `{csloadpin}` coverage (was 1 of 4 brackets vs 4 in `--target both`) — root was NOT the early-exit/v3_arm but a
+  **Frida worker-tail re-arm RACE** (RE §20.1): the CModule blocks the d3e tail only if `flags[0]==0` on entry, but
+  `csloadpinPresentRelease` left it 1 (open) between loads ⇒ a FAST (warm-cache) load's worker passed the tail
+  before `csloadpinTick` re-armed ⇒ b1cc cleared in 1f ⇒ the bracket never armed; `--target both` fired 4 only by
+  luck (slower cold-disk loads won the race).  Fix: a 3rd `csloadpinTick`/`tutloadpinTick` branch restoring the
+  default-BLOCKED invariant between loads (`!armed && b1cc!=2 → flags=0`).  v3-VERIFIED on 2 captures: retail now
+  arms **4** brackets + first-customer offer **bit-identical port↔retail** (b574 119→119→119→150 on both; was
+  retail 117 / port 119).  Residual = the `gsim` +50 phase (cause (b) — items 4/5/the phasepin gap).  **(4)** the cs-walker
   in-shop NPC (`PORT-DEBT(cs-walker-rng-phase)`, the npcsp divergence); **(5)** the bg-window NPC match.  VERIFY
   ≥2 captures + BOTH harnesses bit-frame-by-frame.  THEN the first-customer variant (offer/line/face) is robustly
   1:1.  Drill: `cs_walker_drill.py`, `flow_diff --verdict`, the v3 state/draw panels.  **NEXT once the trace is

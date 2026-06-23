@@ -1992,3 +1992,36 @@ of which `{csloadpin}` touches.  The 1-frame sparkle phase is NOT "accepted" —
 phase-match is the new active arc (FRONT): fix the `{phasepin}`-breaks-wrap-up tool gap (so bg_npc+g_sim CAN be
 pinned), add a wall-clock pin, fix the v3 csloadpin coverage, close the cs-walker NPC; verify ≥2 captures + both
 harnesses bit-frame-by-frame.
+
+### 20.1 ★ cause (a) FIXED 2026-06-23 — the Frida worker-tail re-arm RACE (v3 "1 of 4 brackets")
+
+**Root cause (proven from the two cached agent logs, NOT guessed):**  the `--target both` retail agent.log armed
+**4** csloadpin brackets (14151/14235/14672/14756, two pairs ~84f apart); the `orv3_window` (house_capture) retail
+agent.log armed only **1** (3093) — the 2nd-4th cc08 loads ran 1-frame (LOADING_START@3176→END@3177 etc.).  The
+"early-exit/v3_arm vs the arm tick" guess was WRONG: the v3 early-exit (@5613) is well AFTER all 4 loads
+(3092-3651), and `csloadpinTick` runs every pre-sim frame in both harnesses.
+
+The CModule blocks the worker tail **iff `tlp_flags[0]==0` when the worker thread enters** (a fail-open spin).
+The tutloadpin comment's own guarantee — *"the worker can't advance b1cc itself while blocked, so the 2-rising
+edge is never missed"* — **depends on flags defaulting to 0 (blocked)**.  At init `flags[0]=0` (line 5596 when a
+csloadpin is active), so bracket #1's worker ALWAYS blocks.  But `csloadpinPresentRelease` leaves `flags[0]=1`
+(open) after granting a release, and **nothing re-blocks it between loads**.  For a FAST load (warm cache — the v3
+drive) the next load's worker thread reaches the tail BEFORE the main-thread `csloadpinTick` re-arms (writes
+`flags[0]=0`) → it passes through → `b1cc` clears in a single frame → the 2-edge is gone → the bracket never arms →
+the pin is silently skipped.  `--target both` only fired all 4 by LUCK: its slower (cold-disk) retail loads let the
+main thread win the race every time.  So "a matches off one drive was a lucky alignment" was literally a thread
+race, harness-timing-dependent.
+
+**Fix (`tools/frida/openrecet-agent.js`, `csloadpinTick` + the twin `tutloadpinTick`):**  add a 3rd branch
+`else if (!armed && b1cc !== 2) flags[0] = 0` — restore the default-BLOCKED invariant between loads, so the next
+load's worker blocks on entry regardless of load speed.  Extend-only is preserved: the `b1cc===2 && !armed`
+pass-through window (a real load longer than the pin, after release) is left untouched by the `!== 2` guard.  No
+CModule change ⇒ `test_tutloadpin_cmodule.py` unaffected.
+
+**VERIFIED 2026-06-23** (`orv3_window … --force-retail --state`, the 2nd harness): retail now arms **4** brackets
+(2923/3007/3444/3528, the `--target both` pattern) + the first-customer offer is **bit-identical port↔retail**:
+b574 = **119**(reaction b534=6) → 119(decision 15) → 119(pushback 8) → **150**(round-2) on BOTH (was retail 117 /
+port 119).  b56c=13 (f406 walnut-bread), base 100, db054 274 frozen on both.  So **cause (a) is CLOSED** and the
+offer/variant is robustly reproducible across both harnesses.  Remaining for the FOUNDATION arc: the constant
+`gsim` +50 phase offset (port skips the intro — the g_sim/sparkle phase, cause (b)), the bg_npc + cs-walker rng,
+and the `{phasepin}`-wrap-up tool gap.
