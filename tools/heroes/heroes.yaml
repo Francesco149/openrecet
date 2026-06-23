@@ -1,68 +1,60 @@
-# tools/heroes/heroes.yaml — recipe for the README hero comparison images.
+# tools/heroes/heroes.yaml — recipe for the README hero SCREENSHOTS.
 #
-# Each entry is one labelled OpenRecet|Retail montage (docs/img/<name>.png),
-# composed from a deterministic scenario both-run by tools/heroes/regen-heroes.py.
-#
-# Frame selection is by *cap index* (the anchor-relative capture order in
-# run.json's captured_frames), NOT by raw frame number — cap index is stable
-# across load-frame jitter, so the same index frames the same beat on both
-# targets. The script maps cap -> captured_frames[cap] per side.
+# Each entry is ONE OpenRecet screenshot (docs/img/<name>.png), written by
+# tools/heroes/regen-heroes.py.  No side-by-side — the port is 1:1 on what we
+# showcase, so a single faithful OpenRecet frame is the point.
 #
 # Fields per shot:
-#   name        output basename -> docs/img/<name>.png        (required)
-#   scenario    scenario name; latest runs/scenarios/<s>-both-* is used
-#               unless `run_dir` pins an exact directory       (required)
-#   cap         cap index into captured_frames (both sides)    (required unless
-#               port_frame/retail_frame given)
-#   port_frame  explicit openrecet frame number (overrides cap)
-#   retail_frame explicit retail frame number (overrides cap)
-#   run_dir     pin an exact both-run dir (else newest glob match)
-#   labels      "left,right"  (default "OpenRecet,Retail")
-#   zoom        {x,y,w,h,factor} — identical crop applied to both, then
-#               nearest-neighbour upscale (pixel-art crisp). Omit for full frame.
-#   note        human caption (passed to the feed push)
+#   name      output basename -> docs/img/<name>.png                 (required)
+#   source    "scenario" (real exe framebuffer, default) | "v3shot"
+#             (Trace Studio v3 cache replay).  See regen-heroes.py header for
+#             the trade-off (v3shot is fast/cache-backed but can't render
+#             SetRenderTarget effects — use "scenario" for god-rays/backdrops).
+#   scenario  scenario name (tests/scenarios/<scenario>/)            (required)
+#   cap       [scenario] cap index into run.json captured_frames — anchor-
+#             relative, so it frames the same beat across load-jitter.
+#   frame     [scenario] explicit port frame number (overrides cap);
+#             [v3shot] the kept-frame index to replay                (v3shot: required)
+#   side      [v3shot] port|retail (default port)
+#   window    [v3shot] OFFSET:COUNT slice of the scenario {caprange}, used by
+#             --rerun to rebuild the port cache (port_capture.py).
+#   anchor    [v3shot] anchor name for --rerun (default the scenario's own).
+#   zoom      {x,y,w,h,factor} — crop + nearest-neighbour upscale (pixel-art
+#             crisp).  Omit for the full 1024x768 frame.
+#   note      human caption (passed to the feed --push).
 
 shots:
-  # 1. HOUSE hero — Recette idling at the bottom (NOT walking), a back-window NPC
-  #    on screen, HUD + Change-Camera hint, FPS counter VISIBLE (--show-fps both).
-  #    Needs the house-idle scenario (2nd HOUSE_FREEROAM anchor + offset). The
-  #    run_dir is pinned once a good idle+NPC both-run exists.
-  - name: house-comparison
-    scenario: house-idle-npc-drift
-    run_dir: runs/scenarios/house-idle-npc-drift-both-20260605T190341Z
-    cap: 0               # +2 after a single {phasepin}: back-window NPCs bit-1:1
-                         # (bg-npc warmup re-seed + §95 overlay fix). Recette idle,
-                         # HUD + "Change Camera" hint. NO fps (it's wall-clock,
-                         # would diverge — dropped for a clean 1:1 shot). Residual:
-                         # only the deferred Tear companion sprite (small, far).
-    note: "HOUSE free-roam: Recette idle, back-window NPCs (now bit-1:1), HUD + camera hint"
-
-  # 2. iv1_1 first dialogue + the "sigh" (tameiki, chr:6) extra sprite. NO HUD
-  #    (full-bg cutscene). cap 2 = the EXTRA_SPRITE FADED_IN peak.
-  - name: hero-iv1_1-sigh
-    scenario: intro-sigh
-    run_dir: runs/scenarios/intro-sigh-both-20260602T123436Z
-    cap: 2
-    note: "iv1_1 dialogue + 'sigh' (tameiki, chr:6) effect sprite at fade-in peak"
-
-  # 3. Recette look-up pose (iv1_2 opening) — zoomed onto her freeroam sprite.
-  #    cap 3 = eyes-open look-up (cap 4 = blink). Zoom mirrors the scenario's
-  #    zoom_text crop so the pose reads in a thumbnail.
-  - name: hero-iv1_2-pose
-    scenario: intro-iv2-gap
-    run_dir: runs/scenarios/intro-iv2-gap-both-20260604T141105Z
-    cap: 3
-    zoom: {x: 520, y: 578, w: 104, h: 150, factor: 4}
-    note: "iv1_2 opening: Recette look-up pose (eyes open), zoomed onto her sprite"
-
-  # 4. iv1_2 second dialogue + an extra sprite, WITH the HUD (iv1_2 overlays the
-  #    live HOUSE map -> top HUD shows). Needs a full-screen (non-zoomed) iv1_2
-  #    frame carrying an EXTRA_SPRITE. run_dir/cap pinned once captured.
+  # 1. README top hero — iv1_2 opening dialogue over the LIVE house map.
+  #    Shows the dialogue box + nameplate, both standees, the iv1_2 magic-circle
+  #    overlay FX, AND the top HUD (clock / Day / money) the engine draws over
+  #    the map during iv1_2.  cap 18 = the "Patience, Recette…" line (HUD onset).
+  #    FAITHFUL source: the magic-circle is a transparency/overlay effect, so
+  #    this MUST be the real framebuffer (a v3 replay would risk an RT gap).
   - name: hero-iv1_2-dialogue
+    source: scenario
     scenario: intro-dialogue-lines
-    run_dir: runs/scenarios/intro-dialogue-lines-both-20260605T183707Z
-    cap: 18              # first-iv1_2 lines (HUD onset, cap16-19 align port=retail);
-                         # Recette pointing pose. HUD visible on both (bgset gate fix).
-                         # 1:1 run: the back-window NPCs are now bit-1:1 (bg-npc
-                         # {phasepin}, commit e107a2c) — was the prior visible delta.
-    note: "iv1_2 second dialogue, HOUSE top HUD visible (clock/Day/money) over the live map"
+    cap: 18
+    note: "iv1_2 dialogue ('Patience, Recette…') + magic-circle FX, top HUD over the live HOUSE map"
+
+  # 2. HOUSE free-roam — the 3D shop interior from the angled camera, Recette
+  #    idle, the persistent top HUD, the "Change Camera" hint, and a back-window
+  #    NPC drifting past.  cap 0 = the NPC-visible idle beat (phase-pinned).
+  - name: hero-house-freeroam
+    source: scenario
+    scenario: house-idle-npc-drift
+    cap: 0
+    note: "HOUSE free-roam: 3D shop (geometry/lighting/god-rays), Recette idle, top HUD, Change-Camera hint, back-window NPC"
+
+  # 3. In-shop price-HAGGLE UI — the customer-service negotiation: the BARGAIN
+  #    gauge, the item's base price, Recette + the customer, and the "Item
+  #    Details" hint.  From the house-customer-tutorial {caprange}; frame 2920 =
+  #    the first haggle-UI open (raw frame, == offset 2440 from HOUSE_FREEROAM).
+  #    v3shot: this frame has no RT-backed backdrop, so it replays faithfully;
+  #    --rerun rebuilds the port cache via port_capture.py (no Frida).
+  - name: hero-haggle
+    source: v3shot
+    scenario: house-customer-tutorial
+    side: port
+    frame: 2920
+    window: "2000:1200"
+    note: "in-shop price-haggle UI: BARGAIN gauge, item base price, customer, Item-Details hint"

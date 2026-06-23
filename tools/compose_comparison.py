@@ -2,13 +2,14 @@
 """tools/compose_comparison.py — labelled side-by-side image composer.
 
 Pastes two captures (BMP or PNG) side by side under a label strip and writes
-a PNG.  Used for the README HOUSE hero (port | retail) and any other
-two-panel comparison.  Distinct from tools/pixel_diff.py, which adds an
-amplified white-diff panel for bit-level parity work — this one is the clean
-presentation montage.
+a PNG.  A general two-panel comparison montage (e.g. port | retail for a
+parity write-up).  Distinct from tools/pixel_diff.py, which adds an amplified
+white-diff panel for bit-level parity work — this one is the clean presentation
+montage.  NOTE: the README hero images are no longer side-by-side — they are
+single OpenRecet screenshots (see tools/heroes/regen-heroes.py).
 
     compose_comparison.py --a port.bmp --b retail.bmp \
-        --labels "OpenRecet,Retail" --out docs/img/house-comparison.png
+        --labels "OpenRecet,Retail" --out /tmp/comparison.png
 
 The label font is a real bold TrueType resolved at run time (fc-match, then a
 nix-store glob); we never fall back to PIL's tiny bitmap default silently —

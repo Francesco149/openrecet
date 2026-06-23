@@ -1,4 +1,6 @@
-# house-idle — README house hero (the main docs/img/house-comparison.png).
+# house-idle — predecessor of the README house hero. The hero is now the
+# house-idle-npc-drift fork (docs/img/hero-house-freeroam.png); this base
+# scenario is kept for reference / regression use.
 #
 # Reuses house-walk-tables' proven new-game -> 2x HOUSE_FREEROAM prefix (spam-Z
 # through title / intro / iv1_1 / iv1_2 dialogue), reaching the REAL free-roam
@@ -13,8 +15,8 @@
 #   python3 tools/scenario-test.py house-idle --target both --show-fps \
 #     --frida-remote cutestation.soy:27042
 #
-# Then pin the NPC-visible cap index into tools/heroes/heroes.yaml and
-# regen-heroes.py composes docs/img/house-comparison.png.
+# The hero is regenerated from house-idle-npc-drift via
+# tools/heroes/regen-heroes.py (OpenRecet-only; see tools/heroes/README.md).
 
 description: |
   HOUSE real free-roam, Recette idle at the bottom, back-window NPC on screen.

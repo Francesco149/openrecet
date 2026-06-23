@@ -11,29 +11,29 @@ project**. It ships **no game assets, no decompiled binary, and no
 copyrighted content** — you bring your own copy of the game. MIT licensed
 (our code only; no rights to the original game are granted).
 
-![OpenRecet (left) vs the original retail engine (right) — an iv1_2 dialogue line over the live HOUSE map](docs/img/hero-iv1_2-dialogue.png)
+![OpenRecet — an iv1_2 opening-prologue dialogue line over the live HOUSE map](docs/img/hero-iv1_2-dialogue.png)
 
-*OpenRecet (left) next to the original engine (right), on an opening-prologue
-iv1_2 dialogue line. The dialogue box, nameplate, character standees, the top
-HUD (clock / day / money) the engine draws over the live map during iv1_2, and
-the townsfolk drifting past the back window are reproduced bit-for-bit.*
+*OpenRecet on an opening-prologue iv1_2 dialogue line: the dialogue box and
+nameplate, both character standees, the spell-circle effect, and the top HUD
+(clock / day / money) the engine draws over the live map — with the townsfolk
+drifting past the back window. Every shot below is a real OpenRecet frame,
+verified bit-for-bit against the original engine on the same deterministic input
+trace (we no longer print them side by side — on the beats we showcase, the port
+matches retail 1:1).*
 
-More side-by-sides — each is OpenRecet (left) vs the retail engine (right),
-captured from the same deterministic input trace:
+More OpenRecet captures from the same deterministic traces:
 
-![the HOUSE shop interior, free-roaming](docs/img/house-comparison.png)
+![the HOUSE shop interior, free-roaming](docs/img/hero-house-freeroam.png)
 
 *Free-roaming in the shop: the 3D room (geometry, textures, lighting, window
 god-rays), the persistent top HUD (clock / day / money), the "Change Camera"
-hint, Recette, and the townsfolk drifting past the back window are all
-reproduced 1:1.*
+hint, Recette, and a townsperson drifting past the back window.*
 
-![iv1_1 'sigh' effect sprite](docs/img/hero-iv1_1-sigh.png)
-![iv1_2 look-up pose, zoomed](docs/img/hero-iv1_2-pose.png)
+![the in-shop price-haggling UI](docs/img/hero-haggle.png)
 
-*The iv1_1 "sigh" effect sprite mid-fade (full-screen cutscene, no HUD); and a
-zoom on the iv1_2 opening conversation poses (Recette's look-up, Tear's
-reaction).*
+*Haggling with a customer over a sale: the "Bargain!" price gauge, the item's
+base price, the customer's reaction, and the item-details hint — the
+customer-service negotiation UI rendered over the live shop.*
 
 In memory of Andrew Dice / [@SpaceDrakeCF](https://x.com/SpaceDrakeCF)
 and Carpe Fulgur.
