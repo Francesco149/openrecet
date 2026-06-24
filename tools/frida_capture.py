@@ -442,6 +442,17 @@ class CaptureConfig:
     rng_count: bool = False
     rng_callsites: int | None = None   # N frames after the {phasepin} to capture
 
+    # Defer the rng LCG hook install from boot to the f406 first-customer entry
+    # (cc08==4 && b51c==0, in the agent's segtraceTick). A boot-installed hook taxes
+    # the initial cad868 Continue-load's rng burst with a Frida trampoline per draw,
+    # stretching that ONE load ~3500f → ~14161f — which mis-times the esc-skip so the
+    # f406 trace never reaches the entry (retail runs the SCRIPTED tutorial instead).
+    # Deferred = pre-entry hook-free (load fast, skip times right), rng counted from
+    # the entry. AUTO-enabled below when the segtrace carries a {bgnpcpin} (the f406
+    # trace marker); set explicitly to force it elsewhere. RE §21.2 /
+    # docs/plans/rng-consumer-survey.md.
+    rng_hook_defer: bool = False
+
 
 @dataclass
 class CaptureResult:
@@ -1029,6 +1040,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # logical timeline); `{frame,buttons}` entries are segment-relative. Lowers
     # to the agent's segtrace state machine, which rebases on the live anchors.
     segtrace_ops: list[dict[str, Any]] = []
+    has_bgnpcpin = False   # f406 first-customer trace marker → auto-defer rng hook
     if cfg.input_segtrace_path and cfg.input_segtrace_path.exists():
         for raw in cfg.input_segtrace_path.read_text().splitlines():
             line = raw.strip()
@@ -1140,6 +1152,9 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # {bgnpcpin:[F,[...]]} — PORT-ONLY pin to retail's CAPTURED natural
                 # bg-NPC SoA (DAT_073a7f80). Retail is the SOURCE of that capture
                 # (it runs un-pinned), so skip it here too. (Same KeyError guard.)
+                # Its presence marks the f406 first-customer trace → auto-defer the
+                # rng LCG hook so the initial Continue-load isn't stretched (RE §21.2).
+                has_bgnpcpin = True
                 continue
             elif "savefile" in rec:
                 # {savefile:"<relpath>"} — trace-global embedded-save ref. The save
@@ -1337,6 +1352,16 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["rng_count"] = True
     if cfg.rng_callsites:
         init_cfg["rng_callsites"] = int(cfg.rng_callsites)
+    # Defer the rng LCG hook to the f406 entry (cc08==4 && b51c==0) — explicitly, or
+    # auto when this is the f406 first-customer trace (a {bgnpcpin} op marks it). The
+    # boot hook taxes the initial Continue-load into a ~14000f stretch that breaks the
+    # esc-skip timing (RE §21.2). Harmless when no rng is requested (the agent's
+    # deferred arm is gated on g_rng_hook_wanted).
+    if cfg.rng_hook_defer or has_bgnpcpin:
+        init_cfg["rng_hook_defer"] = True
+        if has_bgnpcpin and not cfg.rng_hook_defer:
+            f_log.write("[rng] auto-deferring the LCG hook to the f406 entry "
+                        "(segtrace carries {bgnpcpin}) -- RE §21.2\n")
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -1879,6 +1904,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="record the caller VA of every LCG step for N frames "
                          "AFTER the {phasepin} fire → rng_callsites.json "
                          "(who-consumed-RNG drill-down; catches periodic callers).")
+    ap.add_argument("--rng-hook-defer", action="store_true",
+                    help="Defer the rng LCG hook install from boot to the f406 "
+                         "entry (cc08==4 && b51c==0). A boot hook taxes the initial "
+                         "Continue-load's rng burst into a ~14000f stretch that "
+                         "breaks the f406 trace's esc-skip timing (RE §21.2). "
+                         "Auto-enabled when the segtrace carries a {bgnpcpin}.")
     ap.add_argument("--arm-skip-at-frame", type=int, default=None,
                     help="Directly call FUN_0045337b (the WndProc ESC skip-event "
                          "entry) once at this manual frame. Probes prologue "
@@ -2019,6 +2050,7 @@ def main(argv: list[str] | None = None) -> int:
         rng_callers=args.rng_callers,
         rng_count=args.rng_count,
         rng_callsites=args.rng_callsites,
+        rng_hook_defer=args.rng_hook_defer,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

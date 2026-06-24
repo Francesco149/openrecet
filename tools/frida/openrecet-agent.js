@@ -1159,6 +1159,19 @@ const FN_RNG_LCG              = 0x005041f6;  // FUN_005041f6 (LCG step)
 let g_rng_callers            = false;
 let g_rng_callers_hooked     = false;
 let g_rng_callers_map        = {};
+// Condition-gated rng-hook DEFERRAL (RE §21.2). The LCG hook (installRngCallerHook)
+// is normally installed pre-resume, but it taxes EVERY draw with a Frida trampoline.
+// The initial cad868 Continue-load deserialize fires a HUGE rng burst, so a
+// boot-installed hook inflates that ONE load ~3500f → ~14161f — which mis-times the
+// esc-skip and breaks the f406 first-customer trace's determinism (retail runs the
+// SCRIPTED tutorial, never reaching the entry). When g_rng_hook_defer is set, the
+// install is DEFERRED to the f406 entry (cc08==4 && b51c==0 — the same gate the bgnpc
+// SoA dump uses): pre-entry stays hook-free (load fast, skip times right), then the
+// hook arms in segtraceTick and counts rng cumulative-FROM-the-entry. g_rng_hook_wanted
+// records (at config time) whether any rng source was requested at all, so the deferred
+// arm is a no-op when no rng was asked for.
+let g_rng_hook_defer         = false;  // config.rng_hook_defer
+let g_rng_hook_wanted        = false;  // any rng source requested (set at config time)
 // RNG-CONSUMPTION probe (tools/phase_probe.py). g_rng_count: when set, the LCG
 // hook keeps a cumulative call total emitted as vals.rngcalls in the per-frame
 // watch — lets the probe diff per-frame RNG *consumption* port↔retail to find
@@ -3297,6 +3310,24 @@ function segtraceTick(fn) {
                         g_memsnap_regions.length + ' region(s) in ' + g_capture_dir);
                 }
             }
+        }
+        // Condition-gated rng-hook install (RE §21.2): when the LCG hook is
+        // deferred (rng_hook_defer), arm it the FIRST frame the f406 first-customer
+        // entry holds (cc08==4 && b51c==0 — the same gate as the bgnpc SoA dump
+        // below). Pre-entry stays hook-free so the initial cad868 Continue-load
+        // doesn't stretch (a boot hook taxes its rng burst ~3500f→~14161f,
+        // mis-timing the esc-skip); from here g_rng_count_total is cumulative-FROM-
+        // the-entry, exactly the bgnpc-rng log / cs_walker_drill alignment origin.
+        // Arm BEFORE the SoA dump so this frame's draws are already counted.
+        if (g_rng_hook_defer && g_rng_hook_wanted && !g_rng_callers_hooked) {
+            try {
+                if (rva(0x0438cc08).readS32() === 4 &&
+                    rva(0x0730b51c).readS32() === 0) {
+                    installRngCallerHook();
+                    log('rng LCG hook ARMED at the f406 entry (frame ' + fn +
+                        ', cc08==4 b51c==0) -- deferred install (RE 21.2)');
+                }
+            } catch (ex) { err('rng-hook-defer-arm', ex.message); }
         }
         // One-shot bg-NPC SoA dump for the {bgnpcpin} capture (RE §21.1): the
         // FIRST frame the f406 first-customer entry holds (cc08==4 && b51c==0 —
@@ -5557,6 +5588,11 @@ rpc.exports = {
         g_rng_cs_len         = config.rng_callsites | 0;
         g_rng_callers_hooked = false;
         g_rng_callers_map    = {};
+        // Defer the LCG hook install to the f406 entry (RE §21.2) — see the
+        // g_rng_hook_defer decl + segtraceTick. g_rng_hook_wanted is decided at
+        // the install gate below (it also folds in the call-trace rngcalls field).
+        g_rng_hook_defer     = !!config.rng_hook_defer;
+        g_rng_hook_wanted    = false;
 
         // Memory-access watch (Phase D.7). The region list is parsed
         // here; the monitor is armed below (after ensureBase, before
@@ -5760,9 +5796,19 @@ rpc.exports = {
                     wantRngcallsField = true; break;
                 }
             }
-            if (g_rng_callers || g_rng_count || g_rng_cs_len > 0 ||
-                wantRngcallsField) {
-                installRngCallerHook();
+            g_rng_hook_wanted = g_rng_callers || g_rng_count ||
+                                g_rng_cs_len > 0 || wantRngcallsField;
+            if (g_rng_hook_wanted) {
+                if (g_rng_hook_defer) {
+                    // A boot-installed LCG hook taxes the initial Continue-load's
+                    // rng burst into a ~14000f stretch that breaks the f406 trace's
+                    // determinism (RE §21.2). Arm it at the f406 entry instead
+                    // (segtraceTick, cc08==4 && b51c==0).
+                    log('rng LCG hook DEFERRED to the f406 entry (cc08==4 && '
+                        + 'b51c==0) -- rng_hook_defer set');
+                } else {
+                    installRngCallerHook();
+                }
             }
             // ESC-record hook (recorder) — capture WndProc ESC-skip presses.
             if (g_record_esc) {

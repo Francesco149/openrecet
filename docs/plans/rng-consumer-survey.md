@@ -82,14 +82,19 @@ wrong. Single-value matches are coincidence until the whole stream is aligned.
   {memsnap} can't — the wrap-up desync stalls it); the `{bgnpcpin:[F,[150 dwords]]}` op pins `g_scene1_bg_npc`
   field-by-field (port struct NOT byte-compatible). Host-tested; fires at off 0; baked. NPC0 is the inert
   cs-leave-reset slot (rng-irrelevant). PORT-ONLY (retail = un-pinned source).
-- **⚠ rng-drill VERIFICATION BLOCKED — the determinism FOUNDATION gap (RE §21.2).** The drill needs retail's rngcalls
-  over the f406 window ⇒ the rng-callsite hook ⇒ which TAXES the initial cad868 Continue-load worker's rng draws,
-  inflating it from ~3500f to **14161f** (the WHOLE pre-entry stretch is that ONE load, NEW_GAME@206→HF@14367) ⇒
-  the esc-skip mis-times ⇒ retail runs the SCRIPTED tutorial (b51c==1), never reaching the b51c==0 f406 entry.
-  Retail's load-wait is COMPLETION-based (not time-based) so the **wall-clock pin canNOT fix it** (mis-framing,
-  corrected). **Fix = (1) condition-gated rng hook** (defer installRngCallerHook to the f406 entry — clean, the
-  measurement proves no-tax=no-stretch); (2) pinning that one load needs N≈14161 (impractical). The bgnpcpin pin
-  itself is correct-by-construction; the stream-alignment verdict awaits the unblocked drill.
+- **✅ rng-drill UNBLOCKED 2026-06-25 — condition-gated rng hook (RE §21.3).** The boot-installed rng-callsite hook
+  taxed the initial cad868 Continue-load ⇒ retail mis-timed the esc-skip ⇒ ran the SCRIPTED tutorial, never reaching
+  the b51c==0 f406 entry. **Fixed** by deferring `installRngCallerHook` from boot to the f406 entry (`cc08==4 &&
+  b51c==0`, in the agent's segtraceTick — the same gate as the bgnpc SoA dump); auto-enabled in `frida_capture` when
+  the segtrace carries a `{bgnpcpin}`. VERIFIED: the deferred retail drive (`…215600Z`) ARMS the hook @frame 14658 +
+  reaches the entry (the boot-hook run `…203209Z` never did). The initial load still stretches ~14000f under the
+  call-trace trampolines (§21.2's "no-tax=no-stretch" was imprecise), but reaching the entry is what the drill needs.
+- **FIRST DRILL VERDICT (RE §21.3):** `cs_walker_drill` (port `203038Z` ↔ retail `215600Z`, `--span 200`, both
+  bgnpcpin+gsimpin): **14/200 frames diverge in per-frame rngΔ; gsim%8 aligned off≥1; cs-walker spawn cadence (npcsp)
+  aligned.** Remaining rngΔ gaps (off 8,30-34,57,60,82,107,132,191,198; biggest = the off 30-34 spawn cluster, retail
+  +11; net retail +3 over off 1-199) = the consumer-level COUNT gaps to survey. off=0 is a measurement boundary.
+  **NEXT:** re-drive `--rng-callsites` over the entry window → `FUN_005041f6` ret_va attribution (§21.1) per diverging
+  offset → port the consumer 1:1 → re-drill. Start with the off 30-34 spawn cluster.
 
 ## Pointers
 FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;

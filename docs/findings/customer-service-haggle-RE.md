@@ -2155,3 +2155,32 @@ The per-frame rngcalls drill needs retail's cumulative-rng over the f406 window,
   is a single 14000-frame load, not many small ones.**  Surfaced to the user.
 - The bgnpcpin pin itself is CORRECT-by-construction (host-tested translation + fires at the verified off-0 anchor
   + pins retail's TRUE captured SoA); whether it fully aligns the downstream stream awaits the unblocked drill.
+
+### 21.3 Condition-gated rng hook ✅ LANDED 2026-06-25 — the rng-drill is UNBLOCKED (first verdict captured)
+
+**Fix = §21.2 option (1): defer `installRngCallerHook` from boot to the f406 entry.**  A boot hook trampolines
+EVERY LCG draw; the initial cad868 Continue-load's rng burst then inflates that ONE load so retail never reaches
+the entry (runs the SCRIPTED tutorial). Deferred ⇒ pre-entry hook-free.
+- **Agent (`tools/frida/openrecet-agent.js`):** `config.rng_hook_defer` → skip the boot install (log "rng LCG hook
+  DEFERRED to the f406 entry"); `segtraceTick` ARMS the hook the FIRST frame `cc08==4 && b51c==0` holds — the SAME
+  gate as the bgnpc SoA dump — logging "rng LCG hook ARMED at the f406 entry". `g_rng_hook_wanted` (decided at the
+  install gate, folds in the call-trace `src:rngcalls` field) gates the deferred arm ⇒ no-op when no rng requested.
+  `g_rng_count_total` is then cumulative-FROM-the-entry (= the bgnpc-rng / cs_walker_drill alignment origin).
+- **`tools/frida_capture.py`:** `--rng-hook-defer` flag + AUTO-enable when the segtrace carries a `{bgnpcpin}` (the
+  f406-trace marker) ⇒ the canonical `scenario-test … --target both --call-trace` defers with NO new flag / footgun.
+- **VERIFIED (`…-retail-20260624T215600Z`):** agent log fires DEFERRED (boot) → ARMED @frame 14658 (`cc08==4
+  b51c==0`) → bgnpc SoA dump @14658 → `bgnpc-rng: off=0 rng=0 … off=199 rng=830` (cumulative-from-entry, 2599
+  rngcalls rows). The OLD boot-hook run (`…203209Z`) NEVER dumped/reached the entry (NEW_GAME@206 → HOUSE_FREEROAM@
+  14367 stretch, ESC@14639 → scripted tutorial). So the deferral genuinely fixes the blocker. NB the initial load
+  STILL stretches ~14000f under the 2000+ call-trace trampolines (§21.2's "no-tax=no-stretch" framing was
+  imprecise) — but the rng-hook tax SPECIFICALLY was enough to mis-time the ESC; removing it reaches the entry.
+- **FIRST DRILL VERDICT** (`cs_walker_drill` port `203038Z` ↔ retail `215600Z`, `--span 200`, both bgnpcpin+gsimpin
+  applied): **14/200 frames diverge in per-frame rngΔ; 1/200 in gsim%8 (only off=0, the pre-pin/arm boundary).**
+  The gsim sparkle phase is ALIGNED off≥1 (gsimpin holds — port==retail gsim 811…1009); the cs-walker spawn cadence
+  (npcsp) is ALIGNED (0→6 same offsets both sides). Remaining rngΔ gaps (off 8,30-34,57,60,82,107,132,191,198; net
+  retail +3 over off 1-199; biggest = the off 30-34 spawn cluster, retail +11) = consumer-level COUNT gaps, the
+  pillar-A survey work-list. off=0 is a measurement boundary (retail rngcalls=0 at the arm), NOT a real gap.
+
+**NEXT (pillar A survey, `docs/plans/rng-consumer-survey.md`):** re-drive with `--rng-callsites` over the entry
+window → `FUN_005041f6` ret_va attribution (§21.1 recipe) for each diverging offset → port the consumer 1:1 →
+re-drill until per-frame rngΔ is bit-identical. Start with the off 30-34 spawn cluster.
