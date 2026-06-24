@@ -341,6 +341,64 @@ int test_segtrace_gsimpin_fires_once_at_frame(void)
     return 0;
 }
 
+/* ── {bgnpcpin} — the bg-NPC SoA pin (rng-consumer-survey foundation) ──────── */
+struct bnp_log { uint32_t v[SEG_BGNPCPIN_DWORDS]; size_t n; int fires; };
+static void bnp_cb(const uint32_t *values, size_t n, void *user)
+{
+    struct bnp_log *b = (struct bnp_log *)user;
+    b->fires++;
+    b->n = n;
+    if (n <= SEG_BGNPCPIN_DWORDS) memcpy(b->v, values, n * sizeof *values);
+}
+
+int test_segtrace_bgnpcpin_parses_and_fires(void)
+{
+    /* {bgnpcpin:[frame,[d0..d149]]} parses the SEG_BGNPCPIN_DWORDS-dword payload
+     * and fires the SoA-pin callback exactly once at base+frame, delivering the
+     * dwords intact (pre-sim, like the other pins). */
+    char buf[4096];
+    uint32_t expect[SEG_BGNPCPIN_DWORDS];
+    int off = snprintf(buf, sizeof buf, "{\"bgnpcpin\":[1,[");
+    for (size_t k = 0; k < SEG_BGNPCPIN_DWORDS; k++) {
+        expect[k] = (uint32_t)(k * 7u + 1u);
+        off += snprintf(buf + off, sizeof buf - (size_t)off, "%s%u",
+                        k ? "," : "", expect[k]);
+    }
+    off += snprintf(buf + off, sizeof buf - (size_t)off,
+                    "]]}\n{\"frame\":0,\"buttons\":\"0x0000\"}\n");
+
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, (size_t)off, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 1);
+    T_ASSERT_EQ_U(st.segs[0].n_bgnpcpins, 1);
+    T_ASSERT_EQ_U(st.segs[0].bgnpcpins[0].frame, 1);
+
+    struct bnp_log log = {0};
+    input_segtrace_set_bgnpcpin_cb(&st, bnp_cb, &log);
+    input_segtrace_tick(&st, 0, NULL, NULL);          /* before frame 1 → no fire */
+    T_ASSERT_EQ_U(log.fires, 0);
+    input_segtrace_tick(&st, 1, NULL, NULL);          /* fires once at frame 1 */
+    T_ASSERT_EQ_U(log.fires, 1);
+    T_ASSERT_EQ_U(log.n, SEG_BGNPCPIN_DWORDS);
+    T_ASSERT_MEM_EQ(log.v, expect, sizeof expect);
+    input_segtrace_tick(&st, 2, NULL, NULL);          /* must NOT re-fire */
+    input_segtrace_tick(&st, 9, NULL, NULL);
+    T_ASSERT_EQ_U(log.fires, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_bgnpcpin_rejects_truncated(void)
+{
+    /* the inner array must carry EXACTLY SEG_BGNPCPIN_DWORDS values — a short
+     * array (missing the next comma) is a parse error. */
+    const char buf[] = "{\"bgnpcpin\":[0,[1,2,3]]}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 int test_segtrace_gsimpin_rejects_scalar(void)
 {
     /* {gsimpin} requires the [frame,value] array form (no 1-arg shorthand). */

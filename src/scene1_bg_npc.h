@@ -44,6 +44,7 @@
 #ifndef OPENRECET_SCENE1_BG_NPC_H
 #define OPENRECET_SCENE1_BG_NPC_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -58,6 +59,13 @@ extern "C" {
  * (CHR_ACTOR_ANIM=0, TIMER=2, COUNTER=3, FRAME=4, STATE=5, FACING=6,
  * FLAG7=7, FLAG8=8, FLAG9=9, AGE=10). */
 #define BG_NPC_REC_DWORDS 11
+
+/* Full engine record stride in dwords (0x64 / 4 = 25): the {bgnpcpin} capture
+ * carries SCENE1_BG_NPC_COUNT of these raw engine records (objdump-verified
+ * field map @ 0x46f2a3 / all.c:68776 — x@dw11/+0x2c, y@12, z@13, dir@dw17/+0x44,
+ * visible@18, type@19, speed@20, pause@21, vthresh@22, mode@23, prob@24; dwords
+ * 14-16 = +0x38..+0x40 are unmodeled by the port and rng-inert). */
+#define BG_NPC_ENGINE_DWORDS 25
 
 /* Per-NPC state (engine offsets in comments, base DAT_073a7f80). */
 typedef struct {
@@ -106,6 +114,18 @@ void scene1_bg_npc_reset(void);
  * re-runs the 180x spawn pass from SCENE1_BG_NPC_PHASEPIN_SEED, giving a
  * load-phase-independent, port↔retail-reproducible window-NPC layout. */
 void scene1_bg_npc_phasepin(void);
+
+/* Trace-harness {bgnpcpin}: overwrite the live NPC array from `n_dwords` raw
+ * engine records (SoA dwords, BG_NPC_ENGINE_DWORDS each) captured from retail's
+ * NATURAL DAT_073a7f80 at the pin anchor — the rng-survey foundation pin.  Unlike
+ * {phasepin}'s synthetic warmup re-seed (which fabricates a 19937-layout that
+ * does NOT match the recording), this snapshots retail's real drifted positions
+ * so both sides drift identically from the anchor (RE §21.1).  Translates each
+ * engine record into the port struct field-by-field (the port layout is NOT
+ * byte-compatible with the 0x64 engine record), reinterpreting float bits exactly.
+ * Caps at SCENE1_BG_NPC_COUNT; marks the warmup done so the next tick neither
+ * re-runs the 180x pass nor seeds new NPCs. */
+void scene1_bg_npc_pin(const uint32_t *soa, size_t n_dwords);
 
 #ifdef _WIN32
 struct IDirect3DDevice8;

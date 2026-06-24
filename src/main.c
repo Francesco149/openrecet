@@ -1014,6 +1014,7 @@ static void  segtrace_esc_cb(void *user);
 static void  segtrace_memsnap_cb(uint32_t frame, void *user);
 static void  segtrace_gframe_cb(uint32_t value, void *user);
 static void  segtrace_gsimpin_cb(uint32_t value, void *user);
+static void  segtrace_bgnpcpin_cb(const uint32_t *values, size_t n, void *user);
 static void  segtrace_phasepin_cb(void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
@@ -1867,6 +1868,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * phase) without {phasepin}'s bg-NPC re-seed — see
              * segtrace_gsimpin_cb / RE §21. */
             input_segtrace_set_gsimpin_cb(&g_segtrace, segtrace_gsimpin_cb, NULL);
+            /* {bgnpcpin:[F,[...]]} ops pin the bg-NPC SoA to retail's captured
+             * natural layout (the rng-consumer-survey foundation) — see
+             * segtrace_bgnpcpin_cb / RE §21.1. */
+            input_segtrace_set_bgnpcpin_cb(&g_segtrace, segtrace_bgnpcpin_cb, NULL);
             /* {phasepin:N} ops normalize the companion's load-dependent free-roam
              * phase for clean trace comparison — see segtrace_phasepin_cb. */
             input_segtrace_set_phasepin_cb(&g_segtrace, segtrace_phasepin_cb, NULL);
@@ -3881,6 +3886,19 @@ static void segtrace_gsimpin_cb(uint32_t value, void *user)
     fprintf(stderr, "segtrace: pinned g_sim_frame_count %u -> %u (gsimpin)\n",
             (unsigned)g_sim_frame_count, (unsigned)value);
     g_sim_frame_count = value;
+}
+
+/* {bgnpcpin} — overwrite the bg-NPC SoA from retail's captured natural records
+ * (DAT_073a7f80) so the port's window NPCs match the RECORDING and the shared LCG
+ * draws in lockstep with retail from the anchor (the rng-consumer-survey
+ * foundation, pillar A).  PORT-ONLY: the retail agent skips the op (retail is the
+ * un-pinned SOURCE of the capture).  See scene1_bg_npc_pin / RE §21.1. */
+static void segtrace_bgnpcpin_cb(const uint32_t *values, size_t n, void *user)
+{
+    (void)user;
+    scene1_bg_npc_pin(values, n);
+    fprintf(stderr, "segtrace: pinned bg-NPC SoA (%u dwords, bgnpcpin)\n",
+            (unsigned)n);
 }
 
 /* {phasepin} — normalize the companion's load-dependent free-roam phase (db054

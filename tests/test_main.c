@@ -478,6 +478,10 @@ struct test_case {
     X(segtrace_no_capstride_clears_flag) \
     X(segtrace_tutloadpin_parses_trace_global) \
     X(segtrace_no_tutloadpin_clears_flag) \
+    X(segtrace_gsimpin_fires_once_at_frame) \
+    X(segtrace_gsimpin_rejects_scalar) \
+    X(segtrace_bgnpcpin_parses_and_fires) \
+    X(segtrace_bgnpcpin_rejects_truncated) \
     \
     X(anchor_first_tick_emits_only_boot) \
     X(anchor_boot_loading_end) \
@@ -3404,6 +3408,7 @@ struct test_case {
     X(bg_npc_tick_drifts_once) \
     X(bg_npc_respawn_rng_and_bounce) \
     X(bg_npc_reset_clears) \
+    X(bg_npc_pin_translates_record) \
     X(chr_sprite_retail_recette_house) \
     X(chr_anim_tick_accumulates_below_duration) \
     X(chr_anim_tick_advances_at_duration) \

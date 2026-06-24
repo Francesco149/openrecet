@@ -40,6 +40,8 @@
 
 #include "scene1_bg_npc.h"
 
+#include <string.h>
+
 #include "call_trace.h"
 #include "math3d.h"
 #include "rng.h"
@@ -303,6 +305,64 @@ void scene1_bg_npc_phasepin(void)
 {
     scene1_bg_npc_reset();
     g_bg_npc_pin_pending = 1;
+}
+
+/* Trace-harness `{bgnpcpin}` — overwrite the live NPC array from retail's
+ * CAPTURED NATURAL SoA (DAT_073a7f80) at the pin anchor.  See scene1_bg_npc.h.
+ *
+ * Why this and not {phasepin}'s warmup re-seed: the rng-consumer survey
+ * (findings/customer-service-haggle-RE.md §21.1) needs the port to match the
+ * RECORDING's bg-NPC positions, not a synthetic 19937-layout.  The 6 NPCs sit at
+ * different positions port↔retail because the warmup (FUN_0046f621) seeded off a
+ * different LCG origin (the intro skip), so boundary-respawns (which each consume
+ * 4-5 LCG draws) cross on different frames → the whole shared stream drifts at
+ * the off-7 first respawn.  Snapshotting retail's real drifted state at the
+ * anchor makes the positions identical; from there both sides drift in lockstep
+ * (the spawn/respawn logic is bit-faithful, the LCG is {rngseed}-pinned), so the
+ * downstream cs_pick_line %2 variant draw lands on retail's parity.
+ *
+ * `soa` is `n_dwords` of raw little-endian engine dwords = (n_dwords /
+ * BG_NPC_ENGINE_DWORDS) records of 0x64 bytes.  The port struct is NOT
+ * byte-compatible with that record (different field order), so each field is
+ * lifted from its engine dword offset; floats are bit-reinterpreted via memcpy. */
+void scene1_bg_npc_pin(const uint32_t *soa, size_t n_dwords)
+{
+    if (!soa)
+        return;
+    int n_records = (int)(n_dwords / BG_NPC_ENGINE_DWORDS);
+    if (n_records > SCENE1_BG_NPC_COUNT)
+        n_records = SCENE1_BG_NPC_COUNT;
+
+    for (int i = 0; i < n_records; i++) {
+        const uint32_t *r = soa + (size_t)i * BG_NPC_ENGINE_DWORDS;
+        scene1_bg_npc_t *m = &g_scene1_bg_npc[i];
+
+        /* dwords 0-10: chr-actor sprite-state header, copied verbatim. */
+        for (int d = 0; d < BG_NPC_REC_DWORDS; d++)
+            m->arec[d] = (int32_t)r[d];
+
+        /* drift/respawn fields at their engine dword offsets (the fields that
+         * decide WHEN each NPC next draws the shared LCG → must be bit-exact;
+         * floats reinterpreted via memcpy, no aliasing pun). */
+        memcpy(&m->x,       &r[11], sizeof m->x);        /* +0x2c */
+        memcpy(&m->y,       &r[12], sizeof m->y);        /* +0x30 */
+        memcpy(&m->z,       &r[13], sizeof m->z);        /* +0x34 */
+        m->dir     = (int32_t)r[17];                     /* +0x44 */
+        m->visible = (int32_t)r[18];                     /* +0x48 */
+        m->type    = (int32_t)r[19];                     /* +0x4c */
+        memcpy(&m->speed,   &r[20], sizeof m->speed);    /* +0x50 */
+        m->pause   = (int32_t)r[21];                     /* +0x54 */
+        memcpy(&m->vthresh, &r[22], sizeof m->vthresh);  /* +0x58 */
+        m->mode    = (int32_t)r[23];                     /* +0x5c */
+        m->prob    = (int32_t)r[24];                     /* +0x60 */
+    }
+
+    /* the warmup is long done at any real pin anchor; force the bookkeeping so
+     * the next scene1_bg_npc_tick() neither re-runs the 180x warmup nor seeds a
+     * fresh NPC (cursor >= COUNT gates the spawn block off — behaviourally
+     * identical to retail's larger post-warmup cursor, RE §21.1). */
+    g_bg_npc_warmup_done  = 1;
+    g_bg_npc_spawn_cursor = SCENE1_BG_NPC_COUNT;
 }
 
 #ifdef _WIN32

@@ -195,3 +195,59 @@ int test_bg_npc_reset_clears(void)
             T_FAIL("NPC %d not cleared by reset (dir=%d)", i, g_scene1_bg_npc[i].dir);
     return 0;
 }
+
+/* {bgnpcpin} translation: scene1_bg_npc_pin lifts each engine-record field from
+ * its dword offset into the (reordered, NOT byte-compatible) port struct,
+ * reinterpreting the float bits exactly.  This is the parity-critical map — a
+ * wrong offset injects garbage into the LCG-timing fields. */
+int test_bg_npc_pin_translates_record(void)
+{
+    scene1_bg_npc_reset();
+
+    /* one synthetic engine record (BG_NPC_ENGINE_DWORDS dwords) with a known,
+     * distinct value at every modelled offset (objdump map @ 0x46f2a3). */
+    uint32_t rec[BG_NPC_ENGINE_DWORDS];
+    memset(rec, 0xAB, sizeof rec);               /* poison the unmodelled gaps */
+    for (int d = 0; d < BG_NPC_REC_DWORDS; d++)
+        rec[d] = (uint32_t)(0x100 + d);          /* arec header dwords 0-10 */
+    float xf = 3.5f, yf = 0.0f, zf = -12.25f, spf = 0.75f, vtf = -2.5f;
+    memcpy(&rec[11], &xf,  4);   /* x       @+0x2c */
+    memcpy(&rec[12], &yf,  4);   /* y       @+0x30 */
+    memcpy(&rec[13], &zf,  4);   /* z       @+0x34 */
+    rec[17] = (uint32_t)-1;      /* dir     @+0x44 */
+    rec[18] = 0;                 /* visible @+0x48 */
+    rec[19] = 4;                 /* type    @+0x4c */
+    memcpy(&rec[20], &spf, 4);   /* speed   @+0x50 */
+    rec[21] = 0;                 /* pause   @+0x54 */
+    memcpy(&rec[22], &vtf, 4);   /* vthresh @+0x58 */
+    rec[23] = 2;                 /* mode    @+0x5c */
+    rec[24] = 50;                /* prob    @+0x60 */
+
+    scene1_bg_npc_pin(rec, BG_NPC_ENGINE_DWORDS);    /* 1 record */
+
+    scene1_bg_npc_t *m = &g_scene1_bg_npc[0];
+    for (int d = 0; d < BG_NPC_REC_DWORDS; d++)
+        if (m->arec[d] != (int32_t)(0x100 + d))
+            T_FAIL("arec[%d]=%d want %d", d, m->arec[d], 0x100 + d);
+    if (m->x != 3.5f)        T_FAIL("x=%g want 3.5", (double)m->x);
+    if (m->y != 0.0f)        T_FAIL("y=%g want 0", (double)m->y);
+    if (m->z != -12.25f)     T_FAIL("z=%g want -12.25", (double)m->z);
+    if (m->dir != -1)        T_FAIL("dir=%d want -1", m->dir);
+    if (m->visible != 0)     T_FAIL("visible=%d want 0", m->visible);
+    if (m->type != 4)        T_FAIL("type=%d want 4", m->type);
+    if (m->speed != 0.75f)   T_FAIL("speed=%g want 0.75", (double)m->speed);
+    if (m->pause != 0)       T_FAIL("pause=%d want 0", m->pause);
+    if (m->vthresh != -2.5f) T_FAIL("vthresh=%g want -2.5", (double)m->vthresh);
+    if (m->mode != 2)        T_FAIL("mode=%d want 2", m->mode);
+    if (m->prob != 50)       T_FAIL("prob=%d want 50", m->prob);
+
+    /* the pin marks the warmup done + cursor>=COUNT, so the NEXT scene1_bg_npc_tick
+     * runs ONE sim pass (a single drift step, x += dir*speed*0.05 = -0.0375 →
+     * 3.4625) — NOT the 180x warmup (which would respawn NPC 0 far out of band)
+     * and NOT a fresh spawn (cursor>=COUNT). */
+    scene1_bg_npc_tick();
+    if (m->x < 3.5f - 0.05f || m->x > 3.5f + 0.001f)
+        T_FAIL("post-pin x=%g — warmup re-ran or wrong drift (want ~3.4625)",
+               (double)m->x);
+    return 0;
+}

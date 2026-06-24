@@ -78,6 +78,22 @@
  *                        port snaps to match.  The retail Frida agent mirrors it
  *                        onto DAT_0438b8cc at the same frame.  RE §21.
  *
+ *   {"bgnpcpin":[F,[d0..d149]]}
+ *                        overwrite the background-window NPC SoA (DAT_073a7f80)
+ *                        from SCENE1_BG_NPC_COUNT raw engine records captured from
+ *                        retail's NATURAL state, at base+F (fires once, pre-sim).
+ *                        The inner array is SEG_BGNPCPIN_DWORDS little-endian
+ *                        engine dwords (6 records x 0x64).  PORT-ONLY: it pins the
+ *                        port to the RECORDING's window-NPC positions so the shared
+ *                        LCG draws in lockstep with retail from the anchor (the
+ *                        rng-consumer-survey foundation — the warmup seeded the 6
+ *                        NPCs off a different LCG origin, so boundary-respawns
+ *                        crossed on different frames and drifted the whole stream).
+ *                        Unlike {phasepin}'s synthetic 19937 re-seed, this is
+ *                        retail's REAL drifted layout, so it matches the captured
+ *                        trace.  The retail Frida agent SKIPS it (retail is the
+ *                        un-pinned SOURCE of the capture).  RE §21.1.
+ *
  *   {"memsnap":N}        dump the process's writable PE sections (.data/.bss)
  *                        to the capture dir at the deterministic frame base+N
  *                        (fires once, pre-sim, like {phasepin}) — the raw input
@@ -190,6 +206,22 @@ struct seg_gsimpin {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* Payload size of one {bgnpcpin} op: SCENE1_BG_NPC_COUNT(6) engine records of
+ * BG_NPC_ENGINE_DWORDS(25 = 0x64/4) dwords each.  Kept as a literal so this
+ * module need not include scene1_bg_npc.h; the consumer (scene1_bg_npc_pin)
+ * re-derives the record count from n_dwords and asserts the layout. */
+#define SEG_BGNPCPIN_DWORDS 150
+
+/* One base-relative background-NPC SoA pin: at absolute frame base+frame,
+ * overwrite the live DAT_073a7f80 records from `values` (retail's captured
+ * natural layout) so the port's window NPCs match the recording (fires once;
+ * see {bgnpcpin} in the doc).  PORT-ONLY — the retail agent skips it. */
+struct seg_bgnpcpin {
+    uint32_t frame;                       /* relative to the segment base */
+    uint32_t values[SEG_BGNPCPIN_DWORDS]; /* raw engine SoA dwords (LE) */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* One base-relative phase normalization: reset the companion's load-time-
  * dependent free-roam phase (db054 bob/sparkle counter + sprite anim cycle) to a
  * canonical zero when absolute frame base+frame is reached (fires once; see
@@ -226,6 +258,8 @@ struct seg_segment {
     size_t            n_gframes, cap_gframes;
     struct seg_gsimpin *gsimpins;   /* base-relative sim-frame-counter forces */
     size_t            n_gsimpins, cap_gsimpins;
+    struct seg_bgnpcpin *bgnpcpins; /* base-relative bg-NPC SoA pins */
+    size_t            n_bgnpcpins, cap_bgnpcpins;
     struct seg_phasepin *phasepins; /* base-relative companion-phase normalizers */
     size_t            n_phasepins, cap_phasepins;
     struct seg_memsnap *memsnaps;   /* base-relative writable-section dumps */
@@ -341,6 +375,13 @@ struct input_segtrace {
     void (*gp_cb)(uint32_t value, void *user);
     void  *gp_user;
 
+    /* Background-NPC SoA pin callback (set once via input_segtrace_set_bgnpcpin_cb);
+     * fired per {bgnpcpin} op when its frame base+frame is reached (in-tick,
+     * before sim).  Gets the captured engine-record dwords + their count.  Kept a
+     * callback so this module stays free of scene1_bg_npc.h. */
+    void (*bnp_cb)(const uint32_t *values, size_t n, void *user);
+    void  *bnp_user;
+
     /* Phase-normalization callback (set once via input_segtrace_set_phasepin_cb);
      * fired per {phasepin} op when its frame base+frame is reached.  Kept a
      * callback so this module stays free of the companion controller. */
@@ -402,6 +443,16 @@ typedef void (*segtrace_gsimpin_fn)(uint32_t value, void *user);
  * {gsimpin} op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
                                    segtrace_gsimpin_fn cb, void *user);
+
+/* Background-NPC SoA pin callback: invoked once per `{bgnpcpin:[F,[...]]}` op
+ * with the captured engine-record dwords (length n), at the frame base+F. */
+typedef void (*segtrace_bgnpcpin_fn)(const uint32_t *values, size_t n,
+                                     void *user);
+
+/* Set the background-NPC SoA pin callback (and its user ptr).  Fires per
+ * {bgnpcpin} op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_bgnpcpin_cb(struct input_segtrace *st,
+                                    segtrace_bgnpcpin_fn cb, void *user);
 
 /* Phase-normalization callback: invoked once per `{phasepin:N}` op at frame
  * base+N (before that frame's sim consumers).  Resets the companion's

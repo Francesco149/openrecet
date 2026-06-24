@@ -194,6 +194,23 @@ static int push_gsimpin(struct seg_segment *s, uint32_t frame, uint32_t value)
     return 1;
 }
 
+static int push_bgnpcpin(struct seg_segment *s, uint32_t frame,
+                         const uint32_t *values)
+{
+    if (s->n_bgnpcpins >= s->cap_bgnpcpins) {
+        size_t ncap = s->cap_bgnpcpins ? s->cap_bgnpcpins * 2 : 2;
+        struct seg_bgnpcpin *nb = realloc(s->bgnpcpins, ncap * sizeof *nb);
+        if (!nb) return 0;
+        s->bgnpcpins = nb; s->cap_bgnpcpins = ncap;
+    }
+    s->bgnpcpins[s->n_bgnpcpins].frame = frame;
+    memcpy(s->bgnpcpins[s->n_bgnpcpins].values, values,
+           SEG_BGNPCPIN_DWORDS * sizeof *values);
+    s->bgnpcpins[s->n_bgnpcpins].fired = 0;
+    s->n_bgnpcpins++;
+    return 1;
+}
+
 static int push_phasepin(struct seg_segment *s, uint32_t frame)
 {
     if (s->n_phasepins >= s->cap_phasepins) {
@@ -234,6 +251,7 @@ void input_segtrace_free(struct input_segtrace *st)
         free(st->segs[i].escs);
         free(st->segs[i].gframes);
         free(st->segs[i].gsimpins);
+        free(st->segs[i].bgnpcpins);
         free(st->segs[i].phasepins);
         free(st->segs[i].memsnaps);
     }
@@ -265,7 +283,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
         int      got_tutloadpin = 0, got_wait_timeout = 0, got_csloadpin = 0;
-        int      got_gsimpin = 0;
+        int      got_gsimpin = 0, got_bgnpcpin = 0;
         uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
@@ -274,6 +292,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
         uint32_t gsp_frame = 0, gsp_value = 0;
         uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0;
+        uint32_t bnp_frame = 0;
+        uint32_t bnp_values[SEG_BGNPCPIN_DWORDS];
         char     waitname[24] = {0};
         char     savepath[256] = {0};
 
@@ -406,6 +426,37 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (p >= end || *p != ']') return 0;
                 p++;
                 got_gsimpin = 1;
+            } else if (klen == 8 && memcmp(ks, "bgnpcpin", 8) == 0) {
+                /* {bgnpcpin:[frame,[d0..d149]]} — pin the bg-NPC SoA to retail's
+                 * captured natural records.  Outer [frame, <inner>]; the inner
+                 * array is exactly SEG_BGNPCPIN_DWORDS engine dwords (6 records x
+                 * 0x64).  PORT-ONLY (the retail agent skips it). */
+                if (p >= end || *p != '[') return 0;
+                p++;  /* outer '[' */
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (!parse_number(&p, end, &bnp_frame)) return 0;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != ',') return 0;
+                p++;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != '[') return 0;
+                p++;  /* inner '[' */
+                for (size_t k = 0; k < SEG_BGNPCPIN_DWORDS; k++) {
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &bnp_values[k])) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (k + 1 < SEG_BGNPCPIN_DWORDS) {
+                        if (p >= end || *p != ',') return 0;
+                        p++;
+                    }
+                }
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != ']') return 0;  /* inner ']' */
+                p++;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != ']') return 0;  /* outer ']' */
+                p++;
+                got_bgnpcpin = 1;
             } else if (klen == 8 && memcmp(ks, "phasepin", 8) == 0) {
                 /* {phasepin:N} — reset the companion's load-dependent free-roam
                  * phase (db054 bob/sparkle + sprite anim cycle) at base+N.
@@ -473,6 +524,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (!push_gframe(cur, gf_frame, gf_value)) return 0;
         } else if (got_gsimpin) {
             if (!push_gsimpin(cur, gsp_frame, gsp_value)) return 0;
+        } else if (got_bgnpcpin) {
+            if (!push_bgnpcpin(cur, bnp_frame, bnp_values)) return 0;
         } else if (got_phasepin) {
             if (!push_phasepin(cur, pp_frame)) return 0;
         } else if (got_memsnap) {
@@ -637,6 +690,13 @@ void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
     st->gp_cb = cb; st->gp_user = user;
 }
 
+void input_segtrace_set_bgnpcpin_cb(struct input_segtrace *st,
+                                    segtrace_bgnpcpin_fn cb, void *user)
+{
+    if (!st) return;
+    st->bnp_cb = cb; st->bnp_user = user;
+}
+
 void input_segtrace_set_phasepin_cb(struct input_segtrace *st,
                                     segtrace_phasepin_fn cb, void *user)
 {
@@ -681,6 +741,14 @@ static void rearm_gsimpins(struct input_segtrace *st, size_t seg_idx)
     if (seg_idx >= st->n_segs) return;
     struct seg_segment *s = &st->segs[seg_idx];
     for (size_t i = 0; i < s->n_gsimpins; i++) s->gsimpins[i].fired = 0;
+}
+
+/* Clear a segment's {bgnpcpin} fire flags so they re-arm on segment activation. */
+static void rearm_bgnpcpins(struct input_segtrace *st, size_t seg_idx)
+{
+    if (seg_idx >= st->n_segs) return;
+    struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_bgnpcpins; i++) s->bgnpcpins[i].fired = 0;
 }
 
 /* Clear a segment's {phasepin} fire flags so they re-arm on segment activation. */
@@ -755,6 +823,21 @@ static void fire_gsimpins(struct input_segtrace *st, struct seg_segment *s,
     }
 }
 
+/* Fire any of the active segment's {bgnpcpin} ops whose frame base+frame has been
+ * reached, once each, via the registered callback (NULL-safe). */
+static void fire_bgnpcpins(struct input_segtrace *st, struct seg_segment *s,
+                           uint32_t frame)
+{
+    for (size_t i = 0; i < s->n_bgnpcpins; i++) {
+        struct seg_bgnpcpin *b = &s->bgnpcpins[i];
+        if (!b->fired && st->base + b->frame <= frame) {
+            if (st->bnp_cb)
+                st->bnp_cb(b->values, SEG_BGNPCPIN_DWORDS, st->bnp_user);
+            b->fired = 1;
+        }
+    }
+}
+
 /* Fire any of the active segment's {phasepin} ops whose frame base+frame has been
  * reached, once each, via the registered callback (NULL-safe). */
 static void fire_phasepins(struct input_segtrace *st, struct seg_segment *s,
@@ -805,6 +888,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         rearm_escs(st, 0);
         rearm_gframes(st, 0);
         rearm_gsimpins(st, 0);
+        rearm_bgnpcpins(st, 0);
         rearm_phasepins(st, 0);
         rearm_memsnaps(st, 0);
         schedule_captures(st, 0, capture_cb, user);
@@ -833,6 +917,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
                 rearm_gsimpins(st, st->cur_seg);
+                rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
@@ -869,6 +954,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
                 rearm_gsimpins(st, st->cur_seg);
+                rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
@@ -896,6 +982,10 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         /* {gsimpin} fires in the same pre-sim window — pin g_sim_frame_count (the
          * 目玉-sparkle %8 phase) before that frame's sparkle/records-B consumers. */
         fire_gsimpins(st, s, frame);
+        /* {bgnpcpin} fires in the same pre-sim window — overwrite the bg-NPC SoA
+         * with retail's captured natural layout before that frame's bg_npc_tick
+         * (respawn/pause) consumes the shared LCG. */
+        fire_bgnpcpins(st, s, frame);
         /* {phasepin} fires in the same pre-sim window — normalize the companion's
          * load-dependent free-roam phase before that frame's bob/anim consumers. */
         fire_phasepins(st, s, frame);
