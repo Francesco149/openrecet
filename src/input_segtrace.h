@@ -62,6 +62,22 @@
  *                        same frame, so both targets share one LCG stream from
  *                        the anchor (cross-target RNG parity).
  *
+ *   {"gsimpin":[F,V]}    force g_sim_frame_count (DAT_0438b8cc) to V at base+F
+ *                        (array form, like {rngseed}; fires once, pre-sim).
+ *                        Pins the 目玉 display-sparkle %8 phase
+ *                        (player_ctrl_display_sparkle_emit gates on
+ *                        g_sim_frame_count%8==3): the port's counter ORIGIN
+ *                        differs from retail's because the port skips the intro,
+ *                        so the sparkle fires one frame off and shifts every
+ *                        OTHER per-frame RNG consumer's LCG values.  Unlike
+ *                        {phasepin} (which zeros g_sim but ALSO re-seeds the
+ *                        bg-NPC LCG — that stalls the wrap-up cutscene), this
+ *                        touches ONLY g_sim_frame_count.  V is retail's recorded
+ *                        counter at the anchor, so forcing retail to it is a
+ *                        no-op (preserves its natural sparkle phase) while the
+ *                        port snaps to match.  The retail Frida agent mirrors it
+ *                        onto DAT_0438b8cc at the same frame.  RE §21.
+ *
  *   {"memsnap":N}        dump the process's writable PE sections (.data/.bss)
  *                        to the capture dir at the deterministic frame base+N
  *                        (fires once, pre-sim, like {phasepin}) — the raw input
@@ -164,6 +180,16 @@ struct seg_gframe {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative sim-frame-counter force: set g_sim_frame_count to `value`
+ * when absolute frame base+frame is reached (fires once; see {gsimpin} in the
+ * doc).  Pins the 目玉 display-sparkle %8 phase WITHOUT the bg-NPC LCG re-seed
+ * that {phasepin} bundles (which stalls the wrap-up cutscene). */
+struct seg_gsimpin {
+    uint32_t frame;   /* relative to the segment base */
+    uint32_t value;   /* g_sim_frame_count to install */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* One base-relative phase normalization: reset the companion's load-time-
  * dependent free-roam phase (db054 bob/sparkle counter + sprite anim cycle) to a
  * canonical zero when absolute frame base+frame is reached (fires once; see
@@ -198,6 +224,8 @@ struct seg_segment {
     size_t            n_escs, cap_escs;
     struct seg_gframe *gframes;     /* base-relative global-frame-counter forces */
     size_t            n_gframes, cap_gframes;
+    struct seg_gsimpin *gsimpins;   /* base-relative sim-frame-counter forces */
+    size_t            n_gsimpins, cap_gsimpins;
     struct seg_phasepin *phasepins; /* base-relative companion-phase normalizers */
     size_t            n_phasepins, cap_phasepins;
     struct seg_memsnap *memsnaps;   /* base-relative writable-section dumps */
@@ -305,6 +333,14 @@ struct input_segtrace {
     void (*gf_cb)(uint32_t value, void *user);
     void  *gf_user;
 
+    /* Sim-frame-counter force callback (set once via
+     * input_segtrace_set_gsimpin_cb); fired per {gsimpin} op when its frame
+     * base+frame is reached.  Pins g_sim_frame_count (the 目玉-sparkle %8 phase)
+     * without the {phasepin} bg-NPC re-seed.  Kept a callback so this module
+     * stays free of sim.h. */
+    void (*gp_cb)(uint32_t value, void *user);
+    void  *gp_user;
+
     /* Phase-normalization callback (set once via input_segtrace_set_phasepin_cb);
      * fired per {phasepin} op when its frame base+frame is reached.  Kept a
      * callback so this module stays free of the companion controller. */
@@ -357,6 +393,15 @@ typedef void (*segtrace_gframe_fn)(uint32_t value, void *user);
  * {gframe} op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_gframe_cb(struct input_segtrace *st,
                                   segtrace_gframe_fn cb, void *user);
+
+/* Sim-frame-counter force callback: invoked once per `{gsimpin:[F,V]}` op with
+ * the value V, at the frame base+F.  Pins the 目玉-sparkle %8 phase. */
+typedef void (*segtrace_gsimpin_fn)(uint32_t value, void *user);
+
+/* Set the sim-frame-counter force callback (and its user ptr).  Fires per
+ * {gsimpin} op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
+                                   segtrace_gsimpin_fn cb, void *user);
 
 /* Phase-normalization callback: invoked once per `{phasepin:N}` op at frame
  * base+N (before that frame's sim consumers).  Resets the companion's

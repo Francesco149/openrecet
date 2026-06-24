@@ -898,7 +898,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
                          setrngs: [], escs: [], phasepins: [], pokes: [],
-                         memsnaps: [], rngcs: [],
+                         memsnaps: [], rngcs: [], gsimpins: [],
                          wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
@@ -973,6 +973,17 @@ function segtraceBuildSegments(ops) {
             // parity for the recorded segment).
             segs[segs.length - 1].setrngs.push(
                 {frame: op.rngseed[0] | 0, value: op.rngseed[1] >>> 0,
+                 fired: false});
+        } else if (op && op.gsimpin !== undefined && Array.isArray(op.gsimpin)) {
+            // {gsimpin:[frame,value]} — force g_sim_frame_count (DAT_0438b8cc)
+            // to `value` at the base-relative `frame`, mirroring the port's
+            // segtrace_gsimpin_cb.  Pins the 目玉 display-sparkle %8 phase (the
+            // g_sim origin differs port↔retail — the port skips the intro)
+            // WITHOUT the {phasepin} bg-NPC re-seed that stalls the wrap-up
+            // cutscene.  `value` is retail's recorded counter, so this is a
+            // no-op for retail (preserves its natural phase).  RE §21.
+            segs[segs.length - 1].gsimpins.push(
+                {frame: op.gsimpin[0] | 0, value: op.gsimpin[1] >>> 0,
                  fired: false});
         } else if (op && op.poke !== undefined && Array.isArray(op.poke)) {
             // {poke:[frame, va, val]} — STICKY: from the base-relative `frame`
@@ -3146,6 +3157,18 @@ function segtraceTick(fn) {
                 sr.fired = true;
                 log('segtrace: forced rng seed = ' + (sr.value >>> 0) +
                     ' at frame ' + fn + ' (base+' + sr.frame + ')');
+            }
+        }
+        // Force g_sim_frame_count (DAT_0438b8cc) at base+frame — pins the 目玉
+        // display-sparkle %8 phase.  Mirrors {rngseed}: pre-sim, fires once.
+        // RE §21.
+        for (let i = 0; i < seg.gsimpins.length; i++) {
+            const gp = seg.gsimpins[i];
+            if (!gp.fired && g_segtrace_base + gp.frame <= fn) {
+                rva(0x0438b8cc).writeU32(gp.value >>> 0);
+                gp.fired = true;
+                log('segtrace: pinned g_sim_frame_count = ' + (gp.value >>> 0) +
+                    ' at frame ' + fn + ' (base+' + gp.frame + ')');
             }
         }
         // {poke} STICKY writes: hold a u32 global at `val` every frame from

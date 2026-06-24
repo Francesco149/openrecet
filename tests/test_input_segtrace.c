@@ -306,6 +306,51 @@ int test_segtrace_rngseed_rejects_scalar(void)
     return 0;
 }
 
+int test_segtrace_gsimpin_fires_once_at_frame(void)
+{
+    /* {gsimpin:[frame,value]} fires the g_sim_frame_count force exactly once at
+     * base+frame (array form, like {rngseed}; pins the 目玉-sparkle %8 phase).
+     * Base-relative in a waited segment, fires before that frame's sim. */
+    const char buf[] =
+        "{\"wait\":\"HOUSE_FREEROAM\"}\n"
+        "{\"gsimpin\":[2,810]}\n"
+        "{\"frame\":2,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(st.segs[0].n_gsimpins, 0);
+    T_ASSERT_EQ_U(st.segs[1].n_gsimpins, 1);
+    struct rng_log log = {0};
+    input_segtrace_set_gsimpin_cb(&st, rng_cb, &log);
+    /* boot segment has no gsimpin; before the anchor → no fire */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* anchor @1000 → base=1000; gsimpin fires at 1000+2 = 1002, not before */
+    input_segtrace_on_anchor(&st, "HOUSE_FREEROAM", 1000);
+    input_segtrace_tick(&st, 1000, NULL, NULL);
+    input_segtrace_tick(&st, 1001, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    input_segtrace_tick(&st, 1002, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    T_ASSERT_EQ_U(log.v[0], 810);
+    /* later ticks must NOT re-fire */
+    input_segtrace_tick(&st, 1003, NULL, NULL);
+    input_segtrace_tick(&st, 1010, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_gsimpin_rejects_scalar(void)
+{
+    /* {gsimpin} requires the [frame,value] array form (no 1-arg shorthand). */
+    const char buf[] = "{\"gsimpin\":7}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 struct esc_log { int n; };
 static void esc_cb(void *user) { ((struct esc_log *)user)->n++; }
 

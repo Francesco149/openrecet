@@ -76,6 +76,7 @@
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "LOADING_END"}
 {"rngseed": [0, 2300378890]}
+{"gsimpin": [0, 811]}
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "LOADING_START"}
 {"rngseed": [0, 3504865092]}

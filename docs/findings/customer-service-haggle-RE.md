@@ -2036,3 +2036,36 @@ necessary phase-pin piece, not the variant fix.  Plan: `docs/plans/rng-consumer-
 survey: the 目玉 sparkle (g_sim%8, the +50 phase), bg_npc (window NPCs), cs-walker (in-shop chibi), the cs
 machine's own draws (`cs_pick_line`, `cs_accept_eval`, pushback), db054-gated companion sparkle — plus the
 `{phasepin}`-wrap-up tool gap (so bg_npc+g_sim CAN be pinned).
+
+## 21. ★★ The 目玉-sparkle %8 phase pin (`{gsimpin}`) — pillar-B of the rng survey LANDED 2026-06-24
+
+**Problem (survey pillar B).**  Clean rng-callsite drill (NO phasepin — §8.5 lesson), `cs_walker_drill.py` with a
+new `gsim`/`g8` column, on `house-firstcust-cutscene-day2` aligned at the f406 entry (cc08==4,b51c==0): the **目玉
+display sparkle** (`player_ctrl_display_sparkle_emit`, gate `g_sim_frame_count%8==3`, ~24 LCG draws/fire over the
+occupied display columns) fires at a DIFFERENT frame port↔retail.  Cause = the port's `g_sim_frame_count` ORIGIN
+differs (it skips the intro) AND is **non-deterministic run-to-run** — entry gsim 785 / 792 over two drives (= +1 /
++2 sparkle phase), because g_sim freezes during loads whose duration varies.  Retail's is deterministic (entry gsim
+**810** both drives).  A shifted sparkle makes every OTHER per-frame consumer read different LCG values ⇒ the
+`cs_pick_line %2` variant flips.  (§20's "1f sparkle phase doesn't affect the variant" was the over-claim the user
+corrected — a shift, not just a count, IS load-bearing.)
+
+**Fix — `{gsimpin:[F,V]}`, a clean g_sim phase pin (sibling of `{rngseed}`).**  Force `g_sim_frame_count=V` at
+base+F, pre-sim, fires once.  Port: `segtrace_gsimpin_cb` (main.c) + the seg_gsimpin machinery (input_segtrace.{c,h},
+mirror of `{gframe}`); frida: `DAT_0438b8cc` write (mirror of the `{rngseed}` setrngs loop).  Touches ONLY g_sim —
+NOT the bg-NPC LCG re-seed that `{phasepin}` bundles (which stalls the wrap-up cutscene).  V = retail's recorded
+gsim at the anchor ⇒ a no-op for retail (preserves its natural phase), the port snaps to match.  Placed at the
+first-customer entry: the LOADING_END segment carries `{gsimpin:[0,811]}` next to its `{rngseed}` (the pin VALUE =
+the house_update gsim at the fire frame directly — empirically 809→off1=809, so 811→off1=811=retail).  +2 host
+tests (3368).
+
+**Verified (port-only drive vs natural-retail, `cs_walker_drill --anchor-b51c 0`):** the port gsim is now
+DETERMINISTIC + bit-identical to retail from off 1 (811,812,…; reaches **1200 at the b534=6 reaction, off ~390**, 1/
+frame, NO load-freeze in the window) — the sparkle fires 1:1 at the same offsets (off 2/10/18/…/74).  `gsim%8`
+diverges only at off 0 (the unpinned entry frame — no sparkle there, both draw 2; harmless micro-residual; pin it
+via a CONV_POSE_END-seg `{gsimpin}` if a fully-1:1 off-0 is ever wanted).
+
+**REMAINING survey gaps (pillar A consumers — the sparkle pin is NECESSARY, NOT SUFFICIENT):**  (1) **cs-walker
+browsing-NPC SPAWN phase** (`PORT-DEBT(cs-walker-rng-phase)`, `scene1_customer_npc_pump` `s_cs_frame%0x1e==0`): the
+PORT spawns at off 30/60 (npcsp 0→1→2), RETAIL does NOT in this window (npcsp stays 0) ⇒ the 4-draw `cs_spawn_one`
++ per-NPC ticks corrupt the cumulative rng before the reaction (§21.1).  (2) a 5-draw consumer at **off 8** (retail
+6 / port 1, no sparkle there — unattributed).  Both must be ported before the variant is robustly 1:1.

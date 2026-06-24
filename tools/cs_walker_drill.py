@@ -82,23 +82,32 @@ def main(argv=None) -> int:
         a1 = st.get(e + off, {}).get("rngcalls")
         return (a1 - a0) if (a0 is not None and a1 is not None) else None
 
-    hdr = (f"{'off':>4} | {'PORT':>2} b1cc npcfr npcsp npcn b534 rngΔ "
-           f"|| {'RET':>2} b1cc npcfr npcsp b534 rngΔ")
+    def g8(v):
+        return str(v % 8) if isinstance(v, int) else "-"
+    hdr = (f"{'off':>4} | {'PORT':>2} b1cc npcfr npcsp npcn b534  gsim g8 rngΔ "
+           f"|| {'RET':>2} b1cc npcfr npcsp b534  gsim g8 rngΔ")
     print(hdr); print("-" * len(hdr))
-    ndiv = 0
+    ndiv = 0; ng8 = 0
     for off in range(0, a.span):
         p = ps.get(pe + off, {}); r = rs.get(re_ + off, {})
         pd = delta(ps, pe, off); rd = delta(rs, re_, off)
         div = (pd is not None and rd is not None and pd != rd)
         ndiv += div
+        pg, rg = p.get("gsim"), r.get("gsim")
+        # sparkle-phase mismatch: g_sim%8 differs (the 目玉 %8==3 gate)
+        g8div = (isinstance(pg, int) and isinstance(rg, int) and pg % 8 != rg % 8)
+        ng8 += g8div
         mark = "  <<< rngΔ" if div else ""
+        if g8div:
+            mark += " g8"
         print(f"{off:>4} |    {p.get('b1cc')} {str(p.get('npcfr')):>4} "
               f"{str(p.get('npcsp')):>4} {str(p.get('npcn')):>3} "
-              f"{str(p.get('b534')):>3} {str(pd):>4} "
+              f"{str(p.get('b534')):>3} {str(pg):>5} {g8(pg):>2} {str(pd):>4} "
               f"||    {r.get('b1cc')} {str(r.get('npcfr')):>4} "
               f"{str(r.get('npcsp')):>4} {str(r.get('b534')):>3} "
-              f"{str(rd):>4}{mark}")
-    print(f"\n{ndiv}/{a.span} offsets diverge in per-frame rngΔ")
+              f"{str(rg):>5} {g8(rg):>2} {str(rd):>4}{mark}")
+    print(f"\n{ndiv}/{a.span} offsets diverge in per-frame rngΔ; "
+          f"{ng8}/{a.span} diverge in gsim%8 (sparkle phase)")
     return 0
 
 

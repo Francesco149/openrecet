@@ -1013,6 +1013,7 @@ static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_esc_cb(void *user);
 static void  segtrace_memsnap_cb(uint32_t frame, void *user);
 static void  segtrace_gframe_cb(uint32_t value, void *user);
+static void  segtrace_gsimpin_cb(uint32_t value, void *user);
 static void  segtrace_phasepin_cb(void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
@@ -1862,6 +1863,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {gframe:[F,V]} ops pin the global frame counter (EXPERIMENTAL) —
              * see segtrace_gframe_cb. */
             input_segtrace_set_gframe_cb(&g_segtrace, segtrace_gframe_cb, NULL);
+            /* {gsimpin:[F,V]} ops pin g_sim_frame_count (the 目玉-sparkle %8
+             * phase) without {phasepin}'s bg-NPC re-seed — see
+             * segtrace_gsimpin_cb / RE §21. */
+            input_segtrace_set_gsimpin_cb(&g_segtrace, segtrace_gsimpin_cb, NULL);
             /* {phasepin:N} ops normalize the companion's load-dependent free-roam
              * phase for clean trace comparison — see segtrace_phasepin_cb. */
             input_segtrace_set_phasepin_cb(&g_segtrace, segtrace_phasepin_cb, NULL);
@@ -3861,6 +3866,21 @@ static void segtrace_gframe_cb(uint32_t value, void *user)
     fprintf(stderr, "segtrace: pinned global frame counter %u -> %u\n",
             (unsigned)g_tick.frame_count, (unsigned)value);
     g_tick.frame_count = value;
+}
+
+/* Sim-frame-counter sink for input_segtrace `{gsimpin:[frame,value]}` ops: pin
+ * g_sim_frame_count to `value` (mirrors the retail agent's DAT_0438b8cc write).
+ * Aligns the 目玉 display-sparkle %8 phase across port↔retail — the port's
+ * g_sim_frame_count ORIGIN differs (it skips the intro), so the sparkle fires a
+ * frame off and shifts every other per-frame RNG consumer's LCG values.  Unlike
+ * {phasepin}, this touches ONLY g_sim_frame_count (no bg-NPC LCG re-seed, which
+ * stalls the wrap-up cutscene).  RE §21. */
+static void segtrace_gsimpin_cb(uint32_t value, void *user)
+{
+    (void)user;
+    fprintf(stderr, "segtrace: pinned g_sim_frame_count %u -> %u (gsimpin)\n",
+            (unsigned)g_sim_frame_count, (unsigned)value);
+    g_sim_frame_count = value;
 }
 
 /* {phasepin} — normalize the companion's load-dependent free-roam phase (db054
