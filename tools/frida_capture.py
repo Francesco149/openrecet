@@ -1129,6 +1129,18 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # Mirrors the port's {memsnap} op; the regions are computed
                 # below from the unpacked exe's section table → init_cfg.
                 segtrace_ops.append({"memsnap": int(rec["memsnap"])})
+            elif "gsimpin" in rec:
+                # {gsimpin:[F,V]} — PORT-ONLY pin to retail's recorded natural
+                # g_sim_frame_count. Retail is the REFERENCE: it runs un-pinned at
+                # its own natural %8 sparkle phase (the value baked into the scenario
+                # IS retail's recorded gsim), so skip it here. (Without this it'd
+                # fall to the input-entry else and KeyError on the absent "buttons".)
+                continue
+            elif "bgnpcpin" in rec:
+                # {bgnpcpin:[F,[...]]} — PORT-ONLY pin to retail's CAPTURED natural
+                # bg-NPC SoA (DAT_073a7f80). Retail is the SOURCE of that capture
+                # (it runs un-pinned), so skip it here too. (Same KeyError guard.)
+                continue
             elif "savefile" in rec:
                 # {savefile:"<relpath>"} — trace-global embedded-save ref. The save
                 # override is harness-driven (the port gets --save-override; a retail

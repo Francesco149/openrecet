@@ -802,6 +802,14 @@ let g_anchor_prev_titlesurvival = false; // previous-frame title Survival diffic
 let g_bg_npc_pin_pending   = false;
 const BG_NPC_PIN_SEED      = 19937;
 
+// One-shot latch for the {bgnpcpin} capture: dump retail's NATURAL bg-NPC SoA
+// (DAT_073a7f80) the first frame the f406 first-customer entry is observed
+// (cc08==4 && b51c==0).  Condition-gated, NOT segtrace-gated, so the cross-target
+// wrap-up anchor desync (which stalls the segment chain — DLG_LINE_CLEAR never
+// fires on retail) cannot suppress it.  See segtraceTick + RE §21.1.
+let g_bgnpc_soa_dumped     = false;
+let g_bgnpc_rng_log_n      = 0;   // bgnpcpin verification rng-trajectory counter
+
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
 // at +0x48. Scan index 2..31 (chr 0/1 are the persistent speakers) — the same
@@ -3289,6 +3297,42 @@ function segtraceTick(fn) {
                         g_memsnap_regions.length + ' region(s) in ' + g_capture_dir);
                 }
             }
+        }
+        // One-shot bg-NPC SoA dump for the {bgnpcpin} capture (RE §21.1): the
+        // FIRST frame the f406 first-customer entry holds (cc08==4 && b51c==0 —
+        // the cs_walker_drill alignment point), dump DAT_073a7f80 (6 x 0x64 =
+        // 0x258 B) straight to disk via Win32.  Condition-gated (NOT segtrace-
+        // gated), so the cross-target wrap-up anchor desync that stalls the
+        // segment chain (DLG_LINE_CLEAR never fires on retail) can't suppress it;
+        // the baked {bgnpcpin} then pins the PORT to this NATURAL layout.
+        if (!g_bgnpc_soa_dumped && g_capture_dir) {
+            try {
+                if (rva(0x0438cc08).readS32() === 4 &&
+                    rva(0x0730b51c).readS32() === 0) {
+                    g_bgnpc_soa_dumped = true;
+                    ensureWinFileFns();
+                    writeRawFile(g_capture_dir + '\\bgnpc_soa.bin',
+                                 rva(0x073a7f80), 0x258);
+                    log('bgnpc: dumped DAT_073a7f80 SoA (0x258 B) at frame ' + fn +
+                        ' (cc08==4 b51c==0) -> ' + g_capture_dir +
+                        '\\bgnpc_soa.bin');
+                }
+            } catch (ex) { err('bgnpc-soa-dump', ex.message); }
+        }
+        // rng-trajectory log for the bgnpcpin verification (companion to the SoA
+        // dump): from the f406 entry onward, emit the cumulative LCG count
+        // (g_rng_count_total, maintained by the --call-trace rng hook) each frame
+        // for N frames, so the port↔retail rng STREAM can be diffed offset-for-
+        // offset at the entry WITHOUT the (desync-lagged) calltrace window.
+        if (g_bgnpc_soa_dumped && g_bgnpc_rng_log_n < 200) {
+            try {
+                log('bgnpc-rng: off=' + g_bgnpc_rng_log_n + ' frame=' + fn +
+                    ' rng=' + (g_rng_count_total >>> 0) +
+                    ' cc08=' + rva(0x0438cc08).readS32() +
+                    ' b51c=' + rva(0x0730b51c).readS32() +
+                    ' b534=' + rva(0x0730b534).readS32());
+                g_bgnpc_rng_log_n++;
+            } catch (ex) { err('bgnpc-rng', ex.message); }
         }
         break;
     }
