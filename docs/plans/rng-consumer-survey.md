@@ -77,11 +77,19 @@ wrong. Single-value matches are coincidence until the whole stream is aligned.
 - **✅ cs-walker spawn — ALIGNED (not a gap).** npcsp matches frame-for-frame (off 30/60/90…); the earlier
   "spawn-cadence phase" worry (`PORT-DEBT(cs-walker-rng-phase)`) was a drill-column misread. Its residual
   divergence is DOWNSTREAM of bg_npc (the spawn reads a bg_npc-misaligned LCG).
-- **▶ NEXT = bg_npc position phase (the ROOT of the remaining ≈+10 LCG diff at the reaction).** `FUN_0046f2a3`
-  shop-window NPCs: the port ticks them every frame but their 6 positions differ from retail's (warmup seeded off
-  a different LCG origin), so boundary-respawns (3 draws) fire on different frames (first at off 7). This is the
-  deep work-list #1/#5 item — pin to retail's NATURAL positions (capture `DAT_073a7f80` SoA + a `{bgnpcpin}`, or
-  fix the `{phasepin}`-wrap-up break). Synthetic re-seed corrupts the variant vs the recording. RE §21.1.
+- **✅ bg_npc position phase — `{bgnpcpin}` LANDED 2026-06-24 (RE §21.2, commits 2207c1a + d9abe4e).** Option (a):
+  a CONDITION-gated agent dump captures retail's natural `DAT_073a7f80` SoA at the f406 entry (the segment-gated
+  {memsnap} can't — the wrap-up desync stalls it); the `{bgnpcpin:[F,[150 dwords]]}` op pins `g_scene1_bg_npc`
+  field-by-field (port struct NOT byte-compatible). Host-tested; fires at off 0; baked. NPC0 is the inert
+  cs-leave-reset slot (rng-irrelevant). PORT-ONLY (retail = un-pinned source).
+- **⚠ rng-drill VERIFICATION BLOCKED — the determinism FOUNDATION gap (RE §21.2).** The drill needs retail's rngcalls
+  over the f406 window ⇒ the rng-callsite hook ⇒ which TAXES the initial cad868 Continue-load worker's rng draws,
+  inflating it from ~3500f to **14161f** (the WHOLE pre-entry stretch is that ONE load, NEW_GAME@206→HF@14367) ⇒
+  the esc-skip mis-times ⇒ retail runs the SCRIPTED tutorial (b51c==1), never reaching the b51c==0 f406 entry.
+  Retail's load-wait is COMPLETION-based (not time-based) so the **wall-clock pin canNOT fix it** (mis-framing,
+  corrected). **Fix = (1) condition-gated rng hook** (defer installRngCallerHook to the f406 entry — clean, the
+  measurement proves no-tax=no-stretch); (2) pinning that one load needs N≈14161 (impractical). The bgnpcpin pin
+  itself is correct-by-construction; the stream-alignment verdict awaits the unblocked drill.
 
 ## Pointers
 FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;

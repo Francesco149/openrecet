@@ -2101,3 +2101,57 @@ a `{bgnpcpin}` op writing it to `g_scene1_bg_npc` (needs port-struct↔SoA byte-
 `{phasepin}`-breaks-wrap-up interaction (the bg_npc LCG re-seed forces `DAT_0438b4e0=0` ⇒ retail spawns through the
 wrap-up CONV_POSE ⇒ stall) so the canonical warmup pin can run.  Until then the variant stays ~+10 LCG off at the
 reaction — the sparkle pin alone does NOT make the rendered line 1:1.
+
+### 21.2 `{bgnpcpin}` LANDED 2026-06-24 (option (a)) — pin bg_npc to retail's captured natural SoA; rng-drill verification BLOCKED by the instrumentation-determinism gap
+
+**Built + committed (`2207c1a` op + tests, `d9abe4e` capture + bake).**
+- **`{bgnpcpin:[F,[150 dwords]]}`** segtrace op (clone of `{gsimpin}`): at base+F, pre-sim, overwrite
+  `g_scene1_bg_npc` from SCENE1_BG_NPC_COUNT raw engine records (0x64 each = 150 dwords) captured from retail's
+  NATURAL `DAT_073a7f80`.  `scene1_bg_npc_pin` translates each field engine-dword-offset→port-struct (objdump
+  map @0x46f2a3: arec dw0-10, x@dw11/+0x2c, y@12, z@13, dir@dw17/+0x44, visible@18, type@19, speed@20, pause@21,
+  vthresh@22, mode@23, prob@24; dw14-16 unmodeled) — the port struct is NOT byte-compatible (reordered, packs to
+  0x58).  Floats memcpy-reinterpreted.  Marks warmup done + cursor>=COUNT so the next tick neither re-warms nor
+  spawns.  +5 host tests (translation, warmup-done, parse+fire, reject, + the 2 orphaned {gsimpin} tests that
+  were written but NEVER registered in TESTS()).  PORT-ONLY (retail is the un-pinned capture SOURCE).
+- **Capture = a CONDITION-gated agent dump, NOT {memsnap}.**  The cross-target wrap-up anchor desync stalls every
+  segment-gated capture (the retail segtrace lags ~700f past the entry; `{memsnap}` on the LOADING_END segment
+  never fires).  So the agent (`segtraceTick`) dumps `DAT_073a7f80` (0x258 B) → `frames/bgnpc_soa.bin` the FIRST
+  frame `cc08==4 && b51c==0` holds (the cs_walker_drill alignment point) — desync-immune.  `frida_capture` now
+  SKIPS `{gsimpin}`/`{bgnpcpin}` (PORT-ONLY pins; they were KeyError'ing the input-entry else).
+- **Captured SoA (light/uninstrumented drive, entry frame 3711):** NPC1-5 textbook (types match the {_,1,6,7,9,8}
+  table, z∈[-11,-15], speed∈[0.5,1), vthresh in the ±bands); **NPC0 = dir=0/type14/y=1.2 INERT** (the cs-leave
+  reset slot — consumes NO rng, so rng-irrelevant; pinning it exactly matches retail).  Baked into the
+  house-firstcust-cutscene-day2 scenario next to {gsimpin}/{rngseed}.  The pin FIRES at off 0 + applies (port
+  stderr "pinned bg-NPC SoA (150 dwords)"); port reaches the reaction (b534==6) at off 365.
+
+**★★ THE rng-drill VERIFICATION IS BLOCKED — instrumentation breaks the trace's determinism (the FOUNDATION gap).**
+The per-frame rngcalls drill needs retail's cumulative-rng over the f406 window, which needs the rng-callsite hook
+(`installRngCallerHook` → `Interceptor.attach` on `FUN_005041f6`/`FUN_00471089`).  But:
+- **Retail's load-wait is COMPLETION-based, not time-based** (objdump/decompile, the wall-clock-pin RE): the async
+  worker sets `DAT_0438b1cc`/`b1c8 = 1` at tails `0x452af9`/`0x452b24`/`0x452ac2`; the main thread gates on the
+  flag (`cmp`); the predicate `FUN_0046c320` reads only flags — **NO time API in the wait**.  So a wall-clock /
+  turbo virtual-clock pin does NOT change a load's frame-count (it only sets virtual-ms/frame).  **The wall-clock
+  pin canNOT fix this** (correction of an earlier mis-framing).
+- **The stretch is the rng hook taxing the load WORKER's rng draws.**  Measured (the `--call-trace` retail drive,
+  RD `…-retail-20260624T203209Z`): the ENTIRE pre-entry stretch is ONE bracket — a **14161-frame gap NEW_GAME@206
+  → HOUSE_FREEROAM@14367 = the initial cad868 Continue-load** (full save deserialize + scene-init record spawns =
+  massive rng, every draw paying the Frida trampoline).  Uninstrumented that load is ~3500f (entry 3711); the hook
+  inflates the worker's real runtime → the completion-based pacer runs ~10650 extra frames.  This load is NOT a
+  d3e/dialogue worker (zero csloadpin/tutloadpin brackets fire before 14449) — an UNPINNED 3rd load mechanism.
+- **Consequence:** the esc-skip input (anchored at a LOADING_END the trace expects 3× but retail fires only 1×,
+  @14367) mis-times under the stretch ⇒ retail runs the **SCRIPTED tutorial (b51c==1)** instead of the skip→f406
+  path ⇒ `cc08==4 && b51c==0` NEVER holds ⇒ the SoA dump + rng-log never fire ⇒ no entry to align.  (The LIGHT
+  uninstrumented drive reproduces f406 1:1 — that's how the SoA was captured.)
+
+**Fix options (the determinism FOUNDATION, user-directed next):**
+- (1) **Condition-gated rng hook** — defer `installRngCallerHook` from init to the f406 entry (in `segtraceTick`
+  when `cc08==4 && b51c==0`).  Pre-entry stays hook-free ⇒ the initial load is fast ⇒ skip times right ⇒ f406
+  reached ⇒ rng counted from the entry (the committed `bgnpc-rng:` agent log captures off 0-200).  The CLEANEST
+  unblock; the measurement proves it (no worker tax = no stretch).
+- (2) **Pin the initial Continue-load** — find its worker/gate (NOT the 0x452af9 d3e tail) + clamp it.  But
+  extend-only clamping needs N >= the instrumented worst-case (≈14161f) ⇒ every drive pays a 14000-frame load ⇒
+  impractical for ONE huge load.  (Would also need to reconcile the 1-vs-3 LOADING_END anchor-structure mismatch.)
+- **Verdict: option (1) is the right fix; (2) (the user's "pin all loads" pick) is impractical because the stretch
+  is a single 14000-frame load, not many small ones.**  Surfaced to the user.
+- The bgnpcpin pin itself is CORRECT-by-construction (host-tested translation + fires at the verified off-0 anchor
+  + pins retail's TRUE captured SoA); whether it fully aligns the downstream stream awaits the unblocked drill.

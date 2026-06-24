@@ -519,6 +519,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   positions** (capture `DAT_073a7f80` SoA + a `{bgnpcpin}`, or fix the `{phasepin}`-wrap-up break) — synthetic
   re-seed corrupts the variant vs the recording.  Method recipe (cumulative-rngcalls-from-entry + FUN_005041f6
   ret_va attribution): RE §21.1.
+  **★★ bg_npc `{bgnpcpin}` ✅ LANDED 2026-06-24 (RE §21.2, `2207c1a`+`d9abe4e`) — option (a).** A CONDITION-gated agent
+  dump captures retail's NATURAL `DAT_073a7f80` SoA at the f406 entry (the segment-gated `{memsnap}` can't — the
+  wrap-up desync stalls it); `{bgnpcpin:[F,[150 dwords]]}` pins `g_scene1_bg_npc` field-by-field (port struct NOT
+  byte-compatible w/ the 0x64 engine record). Host-tested (+5), baked, fires at off 0. NPC0 = inert cs-leave slot.
+  PORT-ONLY (retail = un-pinned source). **⚠ rng-drill VERIFICATION BLOCKED — the determinism FOUNDATION gap:** the
+  drill needs the rng-callsite hook, which TAXES the initial cad868 Continue-load worker ⇒ that ONE load stretches
+  3500→**14161f** (the WHOLE pre-entry stretch, NEW_GAME@206→HF@14367) ⇒ esc-skip mis-times ⇒ retail runs the
+  SCRIPTED tutorial, never reaching the b51c==0 f406 entry. Load-wait is COMPLETION-based ⇒ the **wall-clock pin
+  canNOT fix it** (mis-framing corrected). **Fix = condition-gated rng hook** (defer installRngCallerHook to the
+  f406 entry; pinning that one 14000f load is impractical). bgnpcpin is correct-by-construction; the stream verdict
+  awaits the unblocked drill. **★ THIS is the next determinism step.**
   **NEXT once the trace is deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
