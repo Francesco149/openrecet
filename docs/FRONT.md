@@ -484,8 +484,23 @@
   pin all 4 loads), but it is necessary-not-sufficient.  **(4)** the cs-walker
   in-shop NPC (`PORT-DEBT(cs-walker-rng-phase)`, the npcsp divergence) — a pillar-A CONSUMER; **(5)** the bg-window
   NPC match — a pillar-A CONSUMER.  VERIFY ≥2 captures + BOTH harnesses bit-frame-by-frame.  Drill:
-  `cs_walker_drill.py`, `flow_diff --rng-drill/--verdict`, the v3 state/draw panels.  **NEXT once the trace is
-  deterministic (BOTH pillars):**
+  `cs_walker_drill.py`, `flow_diff --rng-drill/--verdict`, the v3 state/draw panels.
+  **★★ PROGRESS 2026-06-24 (RE §21/§21.1, plan `rng-consumer-survey.md`):** (a) **目玉 sparkle (g_sim%8) — ✅ PINNED
+  1:1** via the new **`{gsimpin:[F,V]}`** op (commit b2ba55f) — a clean g_sim phase pin (port + frida, mirror of
+  `{gframe}`/`{rngseed}`, touches ONLY g_sim, NOT the bg-NPC reseed `{phasepin}` bundles).  Root: the port's
+  `g_sim_frame_count` origin differs (intro skip) AND was NON-deterministic run-to-run (entry gsim 785/792 = +1/+2
+  phase); pinned to retail's recorded 810 at the f406 entry (`{gsimpin:[0,811]}`, the value = the house_update gsim
+  at the fire frame).  Verified: port gsim now deterministic + bit-identical to retail from the entry to the b534=6
+  reaction, sparkle fires at the SAME offsets.  +2 host tests (3368).  (b) **cs-walker spawn — ✅ ALIGNED** (npcsp
+  matches off 30/60/90…; `(4)`'s "npcsp divergence" was a drill-column MISREAD — that pillar-A worry is CLOSED for
+  this trace).  (c) **ROOT of the remaining ≈+10 LCG diff at the reaction = bg_npc `(5)` position phase** — the
+  shop-window townsfolk (`FUN_0046f2a3`) sit at different positions port↔retail (warmup off a different LCG origin),
+  so boundary-respawns (3 draws) fire on different frames (first at off 7), mis-aligning the LCG at the off-30
+  cs-walker spawn ⇒ cascade.  The sparkle pin is NECESSARY, NOT SUFFICIENT; **NEXT = pin bg_npc to retail's NATURAL
+  positions** (capture `DAT_073a7f80` SoA + a `{bgnpcpin}`, or fix the `{phasepin}`-wrap-up break) — synthetic
+  re-seed corrupts the variant vs the recording.  Method recipe (cumulative-rngcalls-from-entry + FUN_005041f6
+  ret_va attribution): RE §21.1.
+  **NEXT once the trace is deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".
   **★ HARNESS — call-trace 9p fix 2026-06-21 (user request "make it all go directly to windows storage").**

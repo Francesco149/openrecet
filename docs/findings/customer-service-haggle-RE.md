@@ -2064,8 +2064,40 @@ frame, NO load-freeze in the window) — the sparkle fires 1:1 at the same offse
 diverges only at off 0 (the unpinned entry frame — no sparkle there, both draw 2; harmless micro-residual; pin it
 via a CONV_POSE_END-seg `{gsimpin}` if a fully-1:1 off-0 is ever wanted).
 
-**REMAINING survey gaps (pillar A consumers — the sparkle pin is NECESSARY, NOT SUFFICIENT):**  (1) **cs-walker
-browsing-NPC SPAWN phase** (`PORT-DEBT(cs-walker-rng-phase)`, `scene1_customer_npc_pump` `s_cs_frame%0x1e==0`): the
-PORT spawns at off 30/60 (npcsp 0→1→2), RETAIL does NOT in this window (npcsp stays 0) ⇒ the 4-draw `cs_spawn_one`
-+ per-NPC ticks corrupt the cumulative rng before the reaction (§21.1).  (2) a 5-draw consumer at **off 8** (retail
-6 / port 1, no sparkle there — unattributed).  Both must be ported before the variant is robustly 1:1.
+**REMAINING survey gap (pillar A — the sparkle pin is NECESSARY, NOT SUFFICIENT):** see §21.1 — it is the **bg_npc
+NPC-position phase** (NOT the cs-walker spawn, which is aligned).
+
+### 21.1 Survey continued 2026-06-24 — cs-walker spawn is ALIGNED; the remaining gap is the **bg_npc position phase**
+
+**Method (the authoritative survey metric — use THIS, not the drill's per-frame rngΔ).**  `cs_walker_drill`'s
+per-frame `rngΔ` is a delta-of-cumulative ⇒ it is **off-by-one** (the value shown at "off N" is the draws consumed
+during frame N−1) AND its retail npcsp column reads one place right of npcfr (the PORT row has an extra npcn col —
+don't misread b534 as npcsp).  The truth is the **cumulative rng consumed from the aligned entry**: read `rngcalls`
+(the **0x47be92 = VA 4701842** probe, NOT 4733074 — that digest was wrong) at entry vs entry+off on each side,
+subtract.  Attribute a divergent frame via the retail call_trace's **`FUN_005041f6` (0x5041f6 = VA 5259766)** LCG-step
+entries: each carries `ret_va` = the **caller as an RVA** (Ghidra VA = ret_va + 0x400000); group by caller, map via
+functions.csv.  (`0xcef6033`-class huge ret_va = the `rng_next_unit` thunk's internal frame — the float-variant
+double-count proxy, = 1 logical `rng_next_unit`.)
+
+**Findings (port V=811 drive vs natural retail, both at the f406 entry):**
+- **cs-walker spawn CADENCE is ALIGNED** — npcsp 0→1→2→3→…→13 at off 30/60/90/120/150/190/250/270/300/350 on
+  BOTH (an earlier "retail npcsp=0" read was a drill-column MISREAD; direct probe confirms).  The
+  `PORT-DEBT(cs-walker-rng-phase)` "spawn-cadence phase" worry is RESOLVED for this trace — the spawn FRAMES match.
+- **The remaining cumulative diff oscillates +1..+17, ≈+10 at the b534=6 reaction (off ~390)** — bounded (phase
+  jitter of SHARED consumers), not monotonic (no wholesale missing consumer).
+- **ROOT = bg_npc (`FUN_0046f2a3`, the shop-WINDOW townsfolk).**  The FIRST clean divergence is at **off 7**
+  (retail frame 15274): retail draws 6, port draws 1 (just the `FUN_00442cef` scene tick).  The +5 = a bg_npc
+  boundary-RESPAWN — 3 LCG steps from `FUN_0046f2a3` callsites 0x46f587/0x46f5b9/0x46f5dc + a `rng_next_unit`.  The
+  port ticks bg_npc every frame (`scene1_bg_npc_tick`, scene1_player_ctrl.c:2236, ungated by cc08) but its **6 NPCs
+  sit at DIFFERENT positions** than retail's (the warmup `FUN_0046f621` seeded them off a different LCG origin — the
+  intro skip), so respawns cross boundaries on different frames.  This off-7 +5 then mis-aligns the LCG at the off-30
+  `cs_spawn_one` ⇒ the spawned in-shop NPC starts at a different position ⇒ its `cs_npc_tick` draws differ ⇒ the
+  cascade that makes the diff oscillate.  So bg_npc is the ROOT; cs-walker divergence is DOWNSTREAM of it.
+
+**Next (the deep pillar-B/A item — user work-list #1/#5).**  Pin the bg_npc to retail's NATURAL positions at the
+entry (NOT a synthetic warmup re-seed — that corrupts the variant vs the recording, the same reason `{gsimpin}`
+pins to retail's recorded gsim).  Options: (a) capture retail's bg_npc SoA `DAT_073a7f80` (6×0x64 B) at the entry +
+a `{bgnpcpin}` op writing it to `g_scene1_bg_npc` (needs port-struct↔SoA byte-compat check); (b) fix the
+`{phasepin}`-breaks-wrap-up interaction (the bg_npc LCG re-seed forces `DAT_0438b4e0=0` ⇒ retail spawns through the
+wrap-up CONV_POSE ⇒ stall) so the canonical warmup pin can run.  Until then the variant stays ~+10 LCG off at the
+reaction — the sparkle pin alone does NOT make the rendered line 1:1.

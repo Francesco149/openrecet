@@ -67,7 +67,23 @@ captures + BOTH harnesses, per the FRONT). Only then call it done.
 Matching ONE value (b574=119) and declaring the variant fixed. The rendered variant stayed
 wrong. Single-value matches are coincidence until the whole stream is aligned.
 
+## Progress (2026-06-24)
+- **✅ 目玉 sparkle (g_sim%8) — DONE.** Pillar-B `{gsimpin}` op (RE §21, commit b2ba55f): the port's
+  `g_sim_frame_count` origin differs (intro skip) AND was non-deterministic run-to-run; pinned to retail's
+  recorded gsim at the f406 entry (`{gsimpin:[0,811]}`). Sparkle now fires 1:1 at the same offsets; gsim
+  bit-identical to retail from the entry to the reaction. The METHOD established here: compare **cumulative
+  rngcalls from the aligned entry** (0x47be92 = VA 4701842), attribute a divergent frame via retail's
+  `FUN_005041f6` LCG entries' `ret_va` (RVA+0x400000 → caller). See RE §21.1 for the recipe.
+- **✅ cs-walker spawn — ALIGNED (not a gap).** npcsp matches frame-for-frame (off 30/60/90…); the earlier
+  "spawn-cadence phase" worry (`PORT-DEBT(cs-walker-rng-phase)`) was a drill-column misread. Its residual
+  divergence is DOWNSTREAM of bg_npc (the spawn reads a bg_npc-misaligned LCG).
+- **▶ NEXT = bg_npc position phase (the ROOT of the remaining ≈+10 LCG diff at the reaction).** `FUN_0046f2a3`
+  shop-window NPCs: the port ticks them every frame but their 6 positions differ from retail's (warmup seeded off
+  a different LCG origin), so boundary-respawns (3 draws) fire on different frames (first at off 7). This is the
+  deep work-list #1/#5 item — pin to retail's NATURAL positions (capture `DAT_073a7f80` SoA + a `{bgnpcpin}`, or
+  fix the `{phasepin}`-wrap-up break). Synthetic re-seed corrupts the variant vs the recording. RE §21.1.
+
 ## Pointers
-FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1;
+FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;
 `docs/flow-trace-cheatsheet.md`.
