@@ -453,6 +453,15 @@ class CaptureConfig:
     # docs/plans/rng-consumer-survey.md.
     rng_hook_defer: bool = False
 
+    # BILATERAL {bgnpcpin} (RE §21.4): pin retail's bg-NPC SoA to the scenario's
+    # canonical at the f406 entry (not just the port). Retail's natural bg_npc varies
+    # run-to-run (the NPCs tick a variable # of frames during the load whose duration
+    # is a CreateThread race), so a PORT-ONLY pin to ONE stale capture can't align a
+    # fresh retail drive — pin BOTH sides to the same canonical (the {rngseed} pattern).
+    # Default on whenever the segtrace carries a {bgnpcpin}; --no-bgnpc-pin-retail
+    # disables it (capture mode: dump retail's natural SoA to re-bake the canonical).
+    bgnpc_pin_retail: bool = True
+
 
 @dataclass
 class CaptureResult:
@@ -1041,6 +1050,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # to the agent's segtrace state machine, which rebases on the live anchors.
     segtrace_ops: list[dict[str, Any]] = []
     has_bgnpcpin = False   # f406 first-customer trace marker → auto-defer rng hook
+    bgnpc_pin_soa: list[int] | None = None  # bilateral {bgnpcpin} canonical SoA → agent
     if cfg.input_segtrace_path and cfg.input_segtrace_path.exists():
         for raw in cfg.input_segtrace_path.read_text().splitlines():
             line = raw.strip()
@@ -1149,12 +1159,16 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # fall to the input-entry else and KeyError on the absent "buttons".)
                 continue
             elif "bgnpcpin" in rec:
-                # {bgnpcpin:[F,[...]]} — PORT-ONLY pin to retail's CAPTURED natural
-                # bg-NPC SoA (DAT_073a7f80). Retail is the SOURCE of that capture
-                # (it runs un-pinned), so skip it here too. (Same KeyError guard.)
-                # Its presence marks the f406 first-customer trace → auto-defer the
+                # {bgnpcpin:[F,[...]]} — BILATERAL pin to the scenario's canonical bg-NPC
+                # SoA (DAT_073a7f80). Forward the SoA to the agent so retail is pinned the
+                # SAME as the port (default; --no-bgnpc-pin-retail captures the natural SoA
+                # instead, to re-bake the canonical). Retail's natural bg_npc varies run-to-
+                # run, so pinning both sides is the determinism foundation (RE §21.4).
+                # Its presence also marks the f406 first-customer trace → auto-defer the
                 # rng LCG hook so the initial Continue-load isn't stretched (RE §21.2).
                 has_bgnpcpin = True
+                if cfg.bgnpc_pin_retail:
+                    bgnpc_pin_soa = [int(x) & 0xffffffff for x in rec["bgnpcpin"][1]]
                 continue
             elif "savefile" in rec:
                 # {savefile:"<relpath>"} — trace-global embedded-save ref. The save
@@ -1362,6 +1376,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if has_bgnpcpin and not cfg.rng_hook_defer:
             f_log.write("[rng] auto-deferring the LCG hook to the f406 entry "
                         "(segtrace carries {bgnpcpin}) -- RE §21.2\n")
+    if bgnpc_pin_soa is not None:
+        # BILATERAL {bgnpcpin}: the agent WRITES this canonical into DAT_073a7f80 at the
+        # f406 entry (pre-sim → off0-effective, matching the port's CONV_POSE_END pin), so
+        # both sides drift in lockstep from the identical layout (RE §21.4).
+        init_cfg["bgnpc_pin_soa"] = bgnpc_pin_soa
+        f_log.write(f"[bgnpc] bilateral pin: forwarding canonical SoA "
+                    f"({len(bgnpc_pin_soa)} dwords) to the agent -- RE §21.4\n")
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -1910,6 +1931,14 @@ def main(argv: list[str] | None = None) -> int:
                          "Continue-load's rng burst into a ~14000f stretch that "
                          "breaks the f406 trace's esc-skip timing (RE §21.2). "
                          "Auto-enabled when the segtrace carries a {bgnpcpin}.")
+    ap.add_argument("--no-bgnpc-pin-retail", dest="bgnpc_pin_retail",
+                    action="store_false",
+                    help="Capture mode: DUMP retail's natural bg-NPC SoA at the f406 "
+                         "entry instead of PINNING it to the scenario's {bgnpcpin} "
+                         "canonical. Default is bilateral pin (RE §21.4) — both sides "
+                         "pinned to the same SoA, since retail's natural bg_npc varies "
+                         "run-to-run. Use this only to re-bake the canonical.")
+    ap.set_defaults(bgnpc_pin_retail=True)
     ap.add_argument("--arm-skip-at-frame", type=int, default=None,
                     help="Directly call FUN_0045337b (the WndProc ESC skip-event "
                          "entry) once at this manual frame. Probes prologue "
@@ -2051,6 +2080,7 @@ def main(argv: list[str] | None = None) -> int:
         rng_count=args.rng_count,
         rng_callsites=args.rng_callsites,
         rng_hook_defer=args.rng_hook_defer,
+        bgnpc_pin_retail=args.bgnpc_pin_retail,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

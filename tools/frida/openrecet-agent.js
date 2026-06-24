@@ -809,6 +809,13 @@ const BG_NPC_PIN_SEED      = 19937;
 // fires on retail) cannot suppress it.  See segtraceTick + RE §21.1.
 let g_bgnpc_soa_dumped     = false;
 let g_bgnpc_rng_log_n      = 0;   // bgnpcpin verification rng-trajectory counter
+// BILATERAL {bgnpcpin} (RE §21.4): the canonical bg-NPC SoA (150 u32 = 6 x 0x64-byte
+// records) to WRITE into DAT_073a7f80 at the f406 entry, so retail's window NPCs match
+// the port's pinned layout.  Retail's natural bg_npc varies run-to-run (the NPCs tick a
+// variable # of frames during the load whose duration is a CreateThread race), so a
+// PORT-ONLY pin to ONE stale capture can't align a fresh retail drive — pin BOTH sides to
+// the same canonical (the {rngseed} pattern).  null = capture mode (DUMP the natural SoA).
+let g_bgnpc_pin_soa        = null;
 
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
@@ -3341,14 +3348,30 @@ function segtraceTick(fn) {
                 if (rva(0x0438cc08).readS32() === 4 &&
                     rva(0x0730b51c).readS32() === 0) {
                     g_bgnpc_soa_dumped = true;
-                    ensureWinFileFns();
-                    writeRawFile(g_capture_dir + '\\bgnpc_soa.bin',
-                                 rva(0x073a7f80), 0x258);
-                    log('bgnpc: dumped DAT_073a7f80 SoA (0x258 B) at frame ' + fn +
-                        ' (cc08==4 b51c==0) -> ' + g_capture_dir +
-                        '\\bgnpc_soa.bin');
+                    if (g_bgnpc_pin_soa) {
+                        // BILATERAL {bgnpcpin} (RE §21.4): WRITE the canonical SoA into
+                        // DAT_073a7f80 (150 u32 = 0x258 B, raw engine layout) so retail's
+                        // window NPCs match the port's pin.  This frame is the f406 entry
+                        // PRE-sim (segtraceTick = input_poll.onLeave, ahead of the bg_npc
+                        // tick) so the write is effective at off0 — the same offset the
+                        // port's CONV_POSE_END-segment pin lands at.  Both sides then drift
+                        // in lockstep from the identical canonical (the {rngseed} pattern).
+                        const base = rva(0x073a7f80);
+                        for (let i = 0; i < g_bgnpc_pin_soa.length; i++)
+                            base.add(i * 4).writeU32(g_bgnpc_pin_soa[i] >>> 0);
+                        log('bgnpc: PINNED DAT_073a7f80 from canonical (' +
+                            g_bgnpc_pin_soa.length + ' dwords, bilateral bgnpcpin) at frame '
+                            + fn + ' (cc08==4 b51c==0)');
+                    } else {
+                        ensureWinFileFns();
+                        writeRawFile(g_capture_dir + '\\bgnpc_soa.bin',
+                                     rva(0x073a7f80), 0x258);
+                        log('bgnpc: dumped DAT_073a7f80 SoA (0x258 B) at frame ' + fn +
+                            ' (cc08==4 b51c==0) -> ' + g_capture_dir +
+                            '\\bgnpc_soa.bin');
+                    }
                 }
-            } catch (ex) { err('bgnpc-soa-dump', ex.message); }
+            } catch (ex) { err('bgnpc-soa', ex.message); }
         }
         // rng-trajectory log for the bgnpcpin verification (companion to the SoA
         // dump): from the f406 entry onward, emit the cumulative LCG count
@@ -5309,6 +5332,10 @@ rpc.exports = {
                          && config.capture_dir) ? config.capture_dir : null;
         g_memsnap_regions = Array.isArray(config.memsnap_regions)
                             ? config.memsnap_regions : [];
+        // Bilateral {bgnpcpin}: the canonical SoA to write at the f406 entry (RE §21.4).
+        g_bgnpc_pin_soa = (Array.isArray(config.bgnpc_pin_soa)
+                           && config.bgnpc_pin_soa.length) ? config.bgnpc_pin_soa : null;
+        g_bgnpc_soa_dumped = false;
         g_max_frames  = config.max_frames | 0;
         g_save_sandbox = (typeof config.save_sandbox === 'string'
                           && config.save_sandbox) ? config.save_sandbox : null;

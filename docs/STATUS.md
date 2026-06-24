@@ -536,9 +536,31 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   --span 200, both bgnpcpin+gsimpin): **14/200 frames diverge in per-frame rngΔ; gsim%8 ALIGNED off≥1; cs-walker
   spawn cadence (npcsp) ALIGNED.** Remaining rngΔ gaps (off 8,30-34,57,60,82,107,132,191,198; biggest = the off
   30-34 spawn cluster, retail +11) = the pillar-A consumer COUNT gaps to survey. off=0 = a measurement boundary.
-  **★ NEXT determinism step = the pillar-A survey ON the now-working drill:** re-drive `--rng-callsites` over the
-  entry window → `FUN_005041f6` ret_va attribution (RE §21.1) per diverging offset → port each consumer 1:1 →
-  re-drill until per-frame rngΔ is bit-identical. Start with the off 30-34 spawn cluster.
+  **★★ SURVEY 2026-06-25 (RE §21.4) — the off-30-34 cluster traced to TWO roots; bg_npc off-by-one FIXED, two new blockers.**
+  Per-frame attribution (`/tmp/rng_sxs.py`: retail exact `lcg_rows`+ret_va vs port `rngcalls`-delta; the existing
+  `215600Z` call_trace ALREADY carries the `FUN_005041f6` ret_va rows — no `--rng-callsites` re-drive needed).
+  **(1) bg_npc off-by-one PIN TIMING ✅ ROOT-CAUSED + FIXED + port-VALIDATED.** off-7 diverged because (a) retail's
+  bg_npc entry state is **non-deterministic run-to-run** (NPCs tick a variable # of frames during the variable load
+  ⇒ the PORT-ONLY `{bgnpcpin}` pins to a STALE capture that can't match a fresh retail drive — see
+  [[openrecet_bgnpc_nondeterministic]]) AND (b) the `{bgnpcpin}` landed **one tick late (effective off1, not off0)**:
+  a segtrace `base+0` op fires at *anchor+1*, so the LOADING_END-segment pin (off0) hit off1; the dump captures D₀
+  (off0 pre-tick) ⇒ +1 lag. **Fix:** move the bgnpcpin op to the **CONV_POSE_END segment** (off0-effective) +
+  **bilateral** pin (agent WRITES the canonical to retail too; `frida_capture` forwards it; `--no-bgnpc-pin-retail`
+  = capture mode). **STEP-1b VERIFIED:** port (off0-effective, re-baked to 215600Z's own dump) ↔ natural retail
+  215600Z = off-7 respawn 1:1 (6==6), stream bit-identical off 0-28. Port logic is correct; only the pin timing was off.
+  **(2) cs-walker GRID gap (off 29-32) = a SEPARATE pillar-A consumer**, NOT a bg_npc cascade: with off-7 fixed +
+  identical rng VALUES at off 29, the cs_npc_tick (FUN_0046fbee) retarget still retries a different # of times ⇒ the
+  furniture-layout grid `DAT_074b28e8` (rebuilt by `shop_display_grid_rebuild`/FUN_0048960d) differs port↔retail in
+  the probe region (cols 1-8, rows 1-7). The retarget LOGIC matches the decompile (verified) ⇒ the grid CONTENT
+  differs. **NEXT ARC:** dump retail's `DAT_074b28e8` + the port's grid, diff, root-cause the rebuild/furniture gap.
+  **★★★ (3) THE FOUNDATIONAL BLOCKER — the cross-target WRAP-UP DESYNC (pillar-B task #1) just MANIFESTED as a HARD
+  STALL.** The bilateral `--target both` drive STALLED retail in the iv1_7 wrap-up CONV_POSE (**1180 CONV_POSE_BLINK,
+  CSE fired only for the scripted tutorial, never reached the f406 entry**) — the exact "1176-blink" signature.
+  NOT my changes (the bilateral write never fired — PINNED:0; no retail pre-entry effect; NO {phasepin} in the scenario)
+  and NOT deterministic (215600Z reached the entry; this run didn't) ⇒ **load-dependent intermittent**. So bg_npc/g_sim
+  pinning CANNOT be reliably validated until this is fixed. The port side is solid (reaches the f406 entry @2230,
+  off0-effective). **THE deterministic-trace goal requires fixing the wrap-up desync FIRST** (a TOOL gap: the segtrace
+  {wait} stalls when a wrap-up anchor — DLG_LINE_CLEAR? — doesn't fire under retail's load jitter). Lead: §21.2.
   **NEXT once the trace is deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".

@@ -96,6 +96,26 @@ wrong. Single-value matches are coincidence until the whole stream is aligned.
   **NEXT:** re-drive `--rng-callsites` over the entry window → `FUN_005041f6` ret_va attribution (§21.1) per diverging
   offset → port the consumer 1:1 → re-drill. Start with the off 30-34 spawn cluster.
 
+## Progress (2026-06-25, RE §21.4) — the off-30-34 cluster traced; TWO roots + the foundational blocker
+The survey of the off-30-34 cluster (no re-drive needed: the `215600Z` retail call_trace already carries the
+`FUN_005041f6` ret_va rows; tool `/tmp/rng_sxs.py`) found:
+- **✅ bg_npc off-by-one PIN TIMING — ROOT-CAUSED + FIXED + port-VALIDATED.** off-7 diverged from TWO sub-issues:
+  (a) retail's bg_npc entry state is **non-deterministic run-to-run** (variable warmup ticks during the variable
+  load) ⇒ the PORT-ONLY `{bgnpcpin}` pins to a STALE capture that can't match a fresh retail drive; (b) the pin
+  landed **one tick late** (segtrace `base+0` fires at *anchor+1*, so the LOADING_END-segment pin → off1, but the
+  dump = D₀ off0 pre-tick). **Fix:** bgnpcpin → **CONV_POSE_END segment** (off0-effective) + **BILATERAL** (agent
+  writes the canonical to retail; `frida_capture` forwards `bgnpc_pin_soa`; `--no-bgnpc-pin-retail`=capture mode).
+  **STEP-1b:** port (off0-effective, 215600Z dump) ↔ natural retail 215600Z = off-7 1:1, stream bit-identical off 0-28.
+- **cs-walker GRID gap (off 29-32) = a NEW pillar-A consumer**, NOT a bg_npc cascade: identical rng VALUES at off 29
+  yet cs_npc_tick (FUN_0046fbee) retargets a different # of times ⇒ the furniture-layout grid `DAT_074b28e8`
+  (`shop_display_grid_rebuild`/FUN_0048960d, from the save's shop-tier template + furniture) differs port↔retail.
+  Retarget LOGIC verified vs the decompile ⇒ grid CONTENT differs. **NEXT:** dump retail's grid + the port's, diff.
+- **★★★ THE FOUNDATIONAL BLOCKER (pillar B, task #1): the cross-target WRAP-UP DESYNC manifested as a HARD STALL.**
+  The bilateral `--target both` drive STALLED retail in the iv1_7 wrap-up CONV_POSE (**1180 blinks, never reached the
+  f406 entry**) — load-dependent + intermittent (215600Z reached the entry; this run didn't). Until this is fixed,
+  bg_npc/g_sim pinning can't be reliably validated AND the trace isn't deterministic. **This is now the #1 task** —
+  the segtrace {wait} stalls when a wrap-up anchor (DLG_LINE_CLEAR?) doesn't fire under retail's load jitter. Lead: §21.2.
+
 ## Pointers
 FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;

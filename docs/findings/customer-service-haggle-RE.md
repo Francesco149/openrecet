@@ -2184,3 +2184,57 @@ the entry (runs the SCRIPTED tutorial). Deferred ⇒ pre-entry hook-free.
 **NEXT (pillar A survey, `docs/plans/rng-consumer-survey.md`):** re-drive with `--rng-callsites` over the entry
 window → `FUN_005041f6` ret_va attribution (§21.1 recipe) for each diverging offset → port the consumer 1:1 →
 re-drill until per-frame rngΔ is bit-identical. Start with the off 30-34 spawn cluster.
+
+### 21.4 The survey on the unblocked drill (2026-06-25) — TWO roots: bg_npc off-by-one PIN TIMING + the cs-walker GRID
+
+**Method upgrade (the per-frame attribution, no re-drive needed).** The existing `215600Z` retail call_trace
+ALREADY carries the `FUN_005041f6` LCG-step rows with `ret_va` (the calltrace `[0,2600]` window logs them
+post-entry) — no `--rng-callsites` re-drive needed. Tool `/tmp/rng_sxs.py` (candidate for `cs_walker_drill`
+upgrade): retail per-frame draws = the exact `lcg_rows` COUNT + the `ret_va`→function attribution; port per-frame
+draws = the `rngcalls` cumulative DELTA (port logs no per-callsite rows). **The off-by-one is real:** retail
+`rngcalls_delta[N] == within-frame-draws[N-1]`, so align port `rc[off+1]-rc[off]` against retail `lcg_rows[off]`.
+Consumer map (ret_va+0x400000→fn): `0x443606`=FUN_00442cef (1/frame base), `0x46f587/b9/dc`=FUN_0046f2a3
+(bg_npc tick respawn), `0x46f9c3/cd/ee`=FUN_0046f914 (cs_spawn_one), `0x46fe91/9c`=FUN_0046fbee (cs_npc_tick
+retarget pair), `0xcf06033`-class=the float `rng_next_unit` wrapper internal frame (=1 logical float draw).
+
+**Baseline drill (bgnpcpin@LOADING_END, light canonical):** sparkles (off 1/9/17/25 = 24 floats) + base align
+1:1 (gsimpin solid). FIRST divergence **off 7**: retail does a bg_npc boundary-respawn (FUN_0046f2a3 ×3 + 2
+float = +5), the port does NOT. Then the off 29-33 spawn/tick cluster (retail +11 cum). 
+
+**ROOT 1a — retail's bg_npc entry state is NON-DETERMINISTIC run-to-run.** Two retail drives dumped DIFFERENT
+`DAT_073a7f80` at the f406 entry (NPC1 x=11.96 vs 17.09, NPC2 x=20.07 vs 14.60…; identical types/speeds, drifted
+positions). Cause: the 6 NPCs tick a variable # of frames during the variable-duration cad868 load (a CreateThread
+race; not fixable by a wall-clock pin — the load-wait is completion-based, §21.2). ⇒ the **PORT-ONLY {bgnpcpin}
+pins the port to ONE stale capture that cannot match a fresh retail drive** — off 7 (and the whole downstream
+cascade) diverges. Fix = BILATERAL pin (pin retail too, the {rngseed} pattern).
+
+**ROOT 1b — the bgnpcpin was applied ONE TICK LATE (effective off1, not off0).** Even pinning the port to a drive's
+OWN dump, off 7 still diverged — but with the tell: **port respawns bg_npc at off 8, retail at off 7** (port bg_npc
+1 tick behind), everything else aligned. Proven by the gsim trace: port off0 `gsim=785` (natural), off1 `gsim=811`
+(pinned) ⇒ a segtrace `base+0` op fires at **anchor_frame+1** (the frame after the base is established), so the
+LOADING_END-segment bgnpcpin (LOADING_END@2148=off0) actually landed at off1's tick. **The dump captures retail's
+off0 PRE-tick state (D₀); applying it effective-off1 lands D₀ at the port's off1 ⇒ +1 tick lag.** Unlike {phasepin}
+(which re-derives the whole layout from a SEED, so the absolute frame is immaterial), {bgnpcpin} applies a SNAPSHOT,
+so its effective tick MUST equal the dump's tick. **Fix:** move the bgnpcpin op to the **CONV_POSE_END segment**
+(CONV_POSE_END@2147=off-1; base+0 → off0) so it lands effective-off0, matching the dump. Scenario-only, no rebuild.
+
+**STEP-1b VERIFIED (port bgnpcpin@CONV_POSE_END, re-baked to 215600Z's own dump, vs natural retail 215600Z):**
+off 7 bg_npc respawn now **ALIGNS** (port 6 == retail 6); off 0-28 bit-identical. So the port's bg_npc spawn/
+respawn/tick LOGIC is correct (verified) — the only bg_npc issue was the off-by-one pin timing.
+
+**BILATERAL {bgnpcpin} implemented (RE §21.4):** agent (`openrecet-agent.js`) WRITES `config.bgnpc_pin_soa`
+(150 u32 → DAT_073a7f80) at the f406-entry gate (pre-sim = input_poll.onLeave, ahead of the bg_npc tick → off0-
+effective, the SAME point as the existing dump); `frida_capture.py` forwards the scenario's {bgnpcpin} SoA as
+`bgnpc_pin_soa` by default (`--no-bgnpc-pin-retail` = capture mode, dump the natural SoA to re-bake). Both sides
+now pin to the same canonical at off0. (Bilateral drive validation: see the drill result below.)
+
+**ROOT 2 — the cs-walker retarget GRID (off 29-32) is a SEPARATE gap, NOT a bg_npc cascade.** With off 7 fixed and
+the stream bit-identical through off 28 (so identical LCG VALUES at off 29 under the pinned seed), the off 29-32
+cs_npc_tick (FUN_0046fbee) retarget STILL diverges: port retries the `0x46fe91/9c` pair a different # of times than
+retail. That loop (the `iVar15==-1` branch) is rejection-sampling — break on the first walkable cell
+(`DAT_074b28e8[cell] ∈ {0,9}`), commit on a furniture neighbour (∈[2,8]). The port's retarget LOGIC matches the
+decompile (verified: `scene1_shop_walker_helpers.c::cs_npc_tick` ↔ `46fbee.c`). So the divergence is the **grid
+CONTENT** — the furniture-layout grid `DAT_074b28e8` (rebuilt every frame by `shop_display_grid_rebuild`/FUN_0048960d
+from the save's shop-tier template + placed furniture) differs port↔retail in the cs-walker probe region (cols 1-8,
+rows 1-7). **NEXT ARC:** dump retail's `DAT_074b28e8` at the f406 entry (add a grid dump to the agent) + the port's
+grid, diff them, and root-cause the rebuild/furniture divergence. This is the next pillar-A consumer to close.
