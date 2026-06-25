@@ -557,6 +557,25 @@
   (needs direction): pin the wrap-up LOAD brackets (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip
   timing is reproducible, OR a phase-matched condition-gated confirm. The bilateral {bgnpcpin} is RULED OUT as the
   softlock cause (its gate cc08==4&&b51c==0 never held — it never fired). RE §21.5.
+  **★★★ RESOLVED 2026-06-25 (RE §21.6) — §21.5's "load-determinism FOUNDATION / needs a wrap-up loadpin" was a
+  MISDIAGNOSIS; the post-skip softlock was the DRIVER's OWN ESC spam, and the arm intermittency was the driver being
+  OFF.** Two roots: **(1)** the driver's continuation gate was `!g_bgnpc_soa_dumped` — it kept posting ESC through the
+  ENTIRE post-skip free-roam window; after the skip fired + the box closed, each ESC re-opened the pause box (`b150` =
+  `PAUSE_OPEN`) → reload → BLOCKED the f406-entry arm (gated not-mid-pause) → the self-reinforcing
+  `HOUSE_FREEROAM→PAUSE_OPEN→LOADING` loop (tell-tale: the loop ONLY ever appeared WITH the driver). **Fix:** latch
+  `g_wrapup_box_was_open` once the POST-tutorial skip box (`DAT_073a3dec`, gated `seen_tutorial && cc08!=4` — the
+  tutorial's own box also touches it) opens ⇒ NEVER post ESC again ⇒ the entry window is undisturbed. **(2)** the driver
+  was NOT auto-on through `scenario-test` (frida_capture left `skip_wrapup` explicit-only); my first re-drives ran it OFF,
+  so the "1 OK / 1 stall" was the RECORDING's esc@25 working only on a long (call-trace-stretched) load = load-phase luck,
+  NOT the driver. **Fix:** re-instated auto-on with `{bgnpcpin}` (mirroring `rng_hook_defer`). The DRIVER arm is
+  load-ROBUST (posts ESC every frame; `skip_prompt`=121>>1 by line-show ⇒ box arms on the 1st post, next frame) where the
+  recording's single esc is not. **✅ VERIFIED DRIVER-ON 2/2 reproducible (`014156Z` call-trace + `014427Z` no-call-trace,
+  different load phases):** clean `DLG_LINE_CLEAR` skip (no `TEXT_ANIM_END`) → `CSE#2` → `bgnpc-rng off 0..199` (f406 entry,
+  `b534`→1 greeting), 2-3 PAUSE_OPEN (not 79), 3 blinks (not 1176). **The f406 entry is now RELIABLY reached → the
+  deterministic-trace FOUNDATION blocker is CLEARED; the rng survey (pillar A) can proceed on a reproducible retail entry.**
+  Added throttled `wrapup_dbg` agent logging + freed ~31 GB of stale stall-drive `frames/` artifacts. **OUT-OF-SCOPE
+  follow-up (future iv1_8/day-2 arc):** a SEPARATE blink-stall in the DAY-2 cutscene region (~frame 21259+, the driver
+  auto-disables at the f406 entry so it doesn't cover later cutscenes) — does NOT affect the cc08==4 survey window/caprange.
   **NEXT once the trace is deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".

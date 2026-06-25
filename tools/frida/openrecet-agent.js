@@ -1200,6 +1200,15 @@ let g_wrapup_skip_active     = false;  // config.skip_wrapup (EXPLICIT-only, WIP
 let g_wrapup_seen_tutorial   = false;  // latched once cc08==4 (the tutorial) is observed,
                                        // so the driver fires ONLY for the POST-tutorial
                                        // wrap-up, never any pre-tutorial dialogue
+let g_wrapup_dbg_prev        = -1;     // RE §21.6 diag: last logged wrapup driver state
+let g_wrapup_box_was_open    = false;  // RE §21.5: latched once the skip box (DAT_073a3dec)
+                                       // is seen OPEN — the ARM succeeded, the recording's X
+                                       // will confirm it.  Once latched the driver NEVER posts
+                                       // ESC again, so the post-skip teardown→free-roam→f406
+                                       // entry window is undisturbed (the old `!g_bgnpc_soa_
+                                       // dumped` upper bound kept posting ESC into free-roam,
+                                       // where each ESC opened the pause box (b150) and blocked
+                                       // the entry → the LOADING/PAUSE softlock LOOP).
 // RNG-CONSUMPTION probe (tools/phase_probe.py). g_rng_count: when set, the LCG
 // hook keeps a cumulative call total emitted as vals.rngcalls in the per-frame
 // watch — lets the probe diff per-frame RNG *consumption* port↔retail to find
@@ -1893,20 +1902,44 @@ function installInputHook() {
                 // so the skip TEARDOWN + the f406 entry stay bit-identical to the
                 // recording (an early agent confirm diverged the flow → no entry, the
                 // 1st attempt).  Stop posting once the box opens; auto-off at the entry.
-                if (g_wrapup_skip_active && !g_bgnpc_soa_dumped) {
+                if (g_wrapup_skip_active && !g_bgnpc_soa_dumped && !g_wrapup_box_was_open) {
                     try {
                         const csv = rva(0x0438cc08).readS32();
                         if (csv === 4) g_wrapup_seen_tutorial = true;  // latch the tutorial
-                        if (g_wrapup_seen_tutorial &&                 // the wrap-up is POST-tutorial
-                            csv !== 4 &&                              // not the cc08==4 tutorial itself
-                            rva(0x073a6a38).readS32() >= 0 &&         // DAT_073a6a38 — a line is shown
-                            rva(0x073a3dec).readS32() === 0) {        // DAT_073a3dec — skip box CLOSED
+                        const postTut = g_wrapup_seen_tutorial && csv !== 4; // the POST-tutorial wrap-up
+                        const boxOpen = rva(0x073a3dec).readS32() !== 0;     // DAT_073a3dec — skip box OPEN
+                        // Latch ONLY the post-tutorial wrap-up skip box — NOT the tutorial's
+                        // own "Cancelling tutorial?" box, which ALSO touches DAT_073a3dec (that
+                        // tripped the latch pre-wrap-up ⇒ the driver never armed ⇒ blink-stall).
+                        // Once the wrap-up box has opened the arm succeeded, the recording's X
+                        // confirms it, and we must NEVER post ESC again — an ESC in the post-skip
+                        // free-roam→f406-entry window opens the pause box ⇒ the LOADING/PAUSE
+                        // softlock LOOP (RE §21.5).
+                        if (postTut && boxOpen) g_wrapup_box_was_open = true;
+                        const lineP = rva(0x073a6a38).readS32();
+                        const skipP = rva(0x073a3e18).readS32();      // DAT_073a3e18 — per-line tick ctr
+                        let didPost = 0;
+                        if (postTut && !boxOpen &&                    // box CLOSED ⇒ keep trying to ARM
+                            lineP >= 0) {                             // DAT_073a6a38 — a line is shown
                             if (g_esc_post === null)
                                 g_esc_post = new NativeFunction(
                                     rva(0x0047b2e7), 'int',
                                     ['pointer', 'uint', 'uint', 'pointer']);
                             const hwnd = rva(0x073dfc7c).readPointer();
                             g_esc_post(hwnd, 0x100, 0x1b, ptr(0));    // WndProc(WM_KEYDOWN, VK_ESCAPE)
+                            didPost = 1;
+                        }
+                        // DIAG (RE §21.6): log on state-change so a re-drive SHOWS why the
+                        // arm fires or fails (postTut/box/line/skip_prompt/posted).
+                        if (g_wrapup_seen_tutorial) {
+                            const st = (postTut?8:0)|(boxOpen?4:0)|(lineP>=0?2:0)|didPost;
+                            if (st !== g_wrapup_dbg_prev) {
+                                log('wrapup_dbg fn=' + fn + ' cc08=' + csv +
+                                    ' postTut=' + (postTut?1:0) + ' box=' + (boxOpen?1:0) +
+                                    ' line=' + lineP + ' skipP=' + skipP +
+                                    ' posted=' + didPost + ' latched=' + (g_wrapup_box_was_open?1:0));
+                                g_wrapup_dbg_prev = st;
+                            }
                         }
                     } catch (e) { err('wrapup_skip', e.message); }
                 }
@@ -5390,6 +5423,7 @@ rpc.exports = {
         g_bgnpc_pin_soa = (Array.isArray(config.bgnpc_pin_soa)
                            && config.bgnpc_pin_soa.length) ? config.bgnpc_pin_soa : null;
         g_bgnpc_soa_dumped = false;
+        g_wrapup_box_was_open = false;   // RE §21.5: re-arm the skip-box latch each run
         g_max_frames  = config.max_frames | 0;
         g_save_sandbox = (typeof config.save_sandbox === 'string'
                           && config.save_sandbox) ? config.save_sandbox : null;

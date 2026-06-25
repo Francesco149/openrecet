@@ -1392,14 +1392,19 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if has_bgnpcpin and not cfg.rng_hook_defer:
             f_log.write("[rng] auto-deferring the LCG hook to the f406 entry "
                         "(segtrace carries {bgnpcpin}) -- RE §21.2\n")
-    # Drive the iv1_7 wrap-up skip off retail's box state (RE §21.5).  EXPLICIT-ONLY
-    # (NOT auto-on) — the ARM-ONLY driver fixes the 1176-blink ESC-arm stall, but a
-    # DEEPER load-jitter softlock in the skip→f406-entry transition surfaced (no
-    # CONV_POSE_END → reload loop, RE §21.5), so the canonical drive keeps its known
-    # behaviour until the load-determinism fix lands.  Pass --skip-wrapup to exercise it.
-    if cfg.skip_wrapup and not cfg.skip_wrapup_off:
+    # Drive the iv1_7 wrap-up skip off retail's box state (RE §21.5/§21.6).  AUTO-ON with a
+    # {bgnpcpin} (the f406 first-customer marker) — the ARM-ONLY driver re-posts ESC every
+    # frame until the skip box opens, beating the skip_prompt-reset jitter that makes the
+    # recording's single timed esc@25 intermittently miss the arm (short-load drives → the
+    # 1176-blink stall).  §21.6 fixed the post-skip softlock LOOP (stop posting once the box
+    # has opened, so the f406-entry window is undisturbed).  --no-skip-wrapup forces off.
+    if (cfg.skip_wrapup or has_bgnpcpin) and not cfg.skip_wrapup_off:
         init_cfg["skip_wrapup"] = True
-        f_log.write("[skip] wrap-up skip DRIVER on (explicit --skip-wrapup, WIP) -- RE §21.5\n")
+        if has_bgnpcpin and not cfg.skip_wrapup:
+            f_log.write("[skip] auto-driving the wrap-up skip off retail's box state "
+                        "(segtrace carries {bgnpcpin}) -- RE §21.6\n")
+        else:
+            f_log.write("[skip] wrap-up skip DRIVER on (explicit --skip-wrapup) -- RE §21.6\n")
     if bgnpc_pin_soa is not None:
         # BILATERAL {bgnpcpin}: the agent WRITES this canonical into DAT_073a7f80 at the
         # f406 entry (pre-sim → off0-effective, matching the port's CONV_POSE_END pin), so

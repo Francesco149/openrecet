@@ -2296,3 +2296,45 @@ no bgnpc PIN; after the skip the drive enters a SOFTLOCK LOOP (`HOUSE_FREEROAM`�
   (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip timing is reproducible, OR a condition-gated
   confirm that matches retail's exact cutscene phase.  The ARM-ONLY driver is committed but EXPLICIT-only
   (`--skip-wrapup`, NOT auto-on) so the canonical drive keeps its known intermittent behaviour meanwhile.
+
+### 21.6 ★★ The post-skip softlock was the DRIVER's OWN ESC spam, NOT load-determinism — FIXED 2026-06-25 (§21.5's "needs a wrap-up loadpin" was a MISDIAGNOSIS)
+**Re-examined the §21.5 softlock loop (`001837Z` agent.log + the call_trace `f`-state rows) and found it is SELF-INFLICTED.**
+- **The loop = `b150` (the modal-box flag) toggling** (`PAUSE_OPEN`/`PAUSE_CLOSE` track `b150`; the state probe showed
+  `b150` 0→1 at the tutorial esc@14353).  In the post-skip free-roam there is **no game source for `b150`** (no live
+  customer, no BARGAIN modal) — the **ONLY active ESC source after the tutorial esc is the skip DRIVER** (the diagnostic
+  240-frame spammer was NOT armed; the segtrace is stalled at op71 `{wait CONV_POSE_END}`, injecting nothing).
+- **The driver's continuation gate was `!g_bgnpc_soa_dumped`** — it kept evaluating (and posting ESC) through the ENTIRE
+  post-skip window, until the f406 entry.  After the skip fired and the box closed (`DAT_073a3dec`→0), the gate **RESUMED**
+  posting ESC; in the post-skip free-roam each ESC opens the pause box (`b150`→1 = `PAUSE_OPEN`) → triggers a scene reload
+  (`LOADING`) → and the f406 entry arm (gated to NOT fire mid-pause/cutscene) is **blocked** ⇒ the entry never fires ⇒
+  `!g_bgnpc_soa_dumped` stays true ⇒ the driver keeps posting ⇒ the self-reinforcing `HOUSE_FREEROAM→PAUSE_OPEN→LOADING`
+  loop.  **Tell-tale the doc missed:** the post-skip loop ONLY ever appeared WITH the driver (`000936Z`/`001837Z`); the
+  no-driver runs blink-stalled EARLIER (box never armed), so the loop was never seen without the driver = it is the driver.
+- **Fix (`openrecet-agent.js`):** latch **`g_wrapup_box_was_open`** once the **post-tutorial** wrap-up skip box
+  (`DAT_073a3dec != 0`) is seen open — then NEVER post ESC again.  The box opening = the arm SUCCEEDED; the recording's
+  X@(blink+34) confirms it; the driver goes silent so the post-skip teardown→free-roam→f406-entry window is undisturbed.
+  **Gate the latch on `g_wrapup_seen_tutorial && cc08!=4`** (1st attempt latched it unconditionally → the TUTORIAL's own
+  "Cancelling tutorial?" box ALSO touches `DAT_073a3dec`, tripping the latch pre-wrap-up ⇒ the driver never armed ⇒ the
+  blink-stall came back: a buggy-latch drive showed `TEXT_ANIM_END` + 1087 free-running blinks).
+- **★ SECOND root, found while validating: the driver was NOT auto-on through `scenario-test`.** `frida_capture` auto-on'd
+  `rng_hook_defer` from `has_bgnpcpin` but the §21.5 commit left `skip_wrapup` **explicit-only** ("keeps its known
+  intermittent behaviour until the load-determinism fix lands").  So my first re-drives (`011313Z` etc.) ran the driver
+  OFF — their wrap-up arm was the **recording's own esc@25**, which works ONLY on a LONG (call-trace-stretched) load and
+  MISSES on a short one (skip_prompt<=1 at +25) ⇒ the apparent "1 OK, 1 stall" was load-phase luck, NOT the driver.  Fixed:
+  re-instated the **auto-on with `{bgnpcpin}`** (`frida_capture.py`, mirroring `rng_hook_defer`; `--no-skip-wrapup` forces off).
+- **Why the DRIVER arm is load-robust (the recording's esc is not):** the driver re-posts ESC EVERY frame while a wrap-up
+  line is up (`DAT_073a6a38>=0`); by the time the line shows, the CONV_POSE dialogue has ticked `skip_prompt`(`DAT_073a3e18`)
+  to **121** (>>1), so `FUN_0046c2cb` arms the box on the FIRST post — `box=1` the very next frame — independent of load
+  duration.  Added throttled `wrapup_dbg` logging (`openrecet-agent.js`, gated to the wrap-up) that prints this live.
+- **✅ VERIFIED with the DRIVER ON, 2/2 reproducible (`retail-20260625T014156Z` call-trace + `014427Z` no-call-trace =
+  different load phases):** `wrapup_dbg` both show `line=0 skipP=121 posted=1` → next frame `box=1 latched=1 posted=0`; then
+  `TEXT_ANIM_START → DLG_LINE_CLEAR` (clean mid-reveal skip, **NO `TEXT_ANIM_END`**) `→ CUSTOMER_SERVICE_ENTER#2`; the **f406
+  entry SoA dump fires** (`bgnpc-rng off 0..199`, `cc08=4 b51c=0`, `b534`→1 first-customer greeting at off199); **2-3
+  `PAUSE_OPEN` (not 79), 3 `CONV_POSE_BLINK` (not 1176)** — no loop, no stall, both load phases.  ⇒ the f406 entry is now
+  RELIABLY reached; **§21.5's "load-determinism FOUNDATION / wrap-up loadpin" was a misdiagnosis** — no loadpin needed.  The
+  ARM-ONLY driver is the canonical retail path (auto-on with `{bgnpcpin}`).
+- **NEW, OUT-OF-SCOPE blocker surfaced:** a SEPARATE blink-stall in the **DAY-2 cutscene-series region** (post-iv1_8,
+  ~frame 21259+ → free-running blinks to `max_frames`).  Same ARM-jitter pattern at a LATER skippable cutscene the driver
+  does NOT cover (it auto-disables at the f406 entry, `!g_bgnpc_soa_dumped`).  This is OUTSIDE the cc08==4 survey window +
+  caprange `[0,2600]` ⇒ it does NOT affect the rng survey; it is the future "iv1_8 → cutscene series → day-2 brooming" work
+  (FRONT).  When that arc starts, generalise the ARM-ONLY driver to re-arm at each post-entry skippable cutscene.
