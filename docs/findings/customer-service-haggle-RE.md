@@ -2238,3 +2238,61 @@ CONTENT** — the furniture-layout grid `DAT_074b28e8` (rebuilt every frame by `
 from the save's shop-tier template + placed furniture) differs port↔retail in the cs-walker probe region (cols 1-8,
 rows 1-7). **NEXT ARC:** dump retail's `DAT_074b28e8` at the f406 entry (add a grid dump to the agent) + the port's
 grid, diff them, and root-cause the rebuild/furniture divergence. This is the next pillar-A consumer to close.
+
+### 21.5 The cross-target WRAP-UP DESYNC (§21.4 ROOT 3, the determinism BLOCKER) — ROOT-CAUSED + FIXED 2026-06-25
+
+**Root cause (from the agent logs, NOT the doc's vague "DLG_LINE_CLEAR doesn't fire").** The post-tutorial
+iv1_7 wrap-up CONV_POSE is SKIPPED via ESC (arms the "Skip this event?" box, FUN_0046c2cb) + a CB_BTN_A "Yes"
+confirm.  The recording's confirm = ONE blink-relative timed X (`{wait CONV_POSE_BLINK}`→X@+34).  Compared the
+STALLED bilateral `both-20260624T230440Z/retail` ↔ the OK single `retail-20260624T215600Z`:
+- **STALL:** `TEXT_ANIM_START@14624` → **`TEXT_ANIM_END@14682`** (the line ran FREE to FULL reveal) → then ONLY
+  `CONV_POSE_BLINK` to `max_frames@90000`.  `TEXT_ANIM_END` firing ⇒ the skip box NEVER OPENED (an open box
+  FREEZES the dialogue, so it can't fully reveal).  So the `ESC@14649` (TEXT_ANIM_START+25) **failed to ARM**.
+- **OK:** `TEXT_ANIM_START@14587` → `ESC@14612` → **`DLG_LINE_CLEAR@14656` (NO `TEXT_ANIM_END` — cleared
+  mid-reveal = the skip fired)** → `CSE#2@14657` (the f406 entry) → `CONV_POSE_END@14658`.
+- **The arm gate** (all.c:67129): `if (1 < DAT_073a3e18(skip_prompt) && DAT_073a3dec(box)==0) box=1`, and
+  `skip_prompt` RESETS to 0 on each dialogue re-init (all.c:67083).  So under retail's load jitter the single
+  ESC@+25 intermittently lands when `skip_prompt<=1` ⇒ no arm ⇒ the wrap-up runs FREE ⇒ the segtrace's
+  skip-structure waits (`DLG_LINE_CLEAR`/`CONV_POSE_END`) never fire ⇒ the **1176-blink deadlock**.  The PORT
+  (turbo fixed-clock, jitter-free) lands the timed confirm reliably; only retail's jitter breaks the arm.
+
+**Fix — a CONDITION-GATED, ARM-ONLY skip DRIVER in `openrecet-agent.js`** (the CLAUDE.md "improve the tool"
+line; AGENT-ONLY — no scenario/port change, the port's deterministic timed inputs work).  Gated to the
+post-tutorial wrap-up (a line up `DAT_073a6a38>=0`, `cc08!=4`, AFTER the tutorial [latch `cc08==4`-seen], BEFORE
+the f406 entry [`g_bgnpc_soa_dumped`]): while the box is CLOSED (`DAT_073a3dec==0`), re-post a real WndProc ESC
+(`g_esc_post`, the {esc}/skip-probe path) EVERY frame — opens the box the instant `skip_prompt` clears 1, robust
+to the resets.  **Does NOT touch the input mask + does NOT confirm** — the scenario's recorded X@(blink+34)
+confirms the now-open box at its intended time, so the skip TEARDOWN + the f406 entry stay bit-identical to the
+recording.  `frida_capture.py`: `skip_wrapup` cfg auto-on with a {bgnpcpin} (the f406 marker; mirrors
+`rng_hook_defer`) + `--skip-wrapup`/`--no-skip-wrapup`.
+
+**★ 1st-attempt MISTAKE (kept as a lesson):** a FULL skip driver (agent ARMS *and* CONFIRMS via a 0x10 pulse +
+suppresses the mask) un-stalled the blink but **diverged the flow** — drive `retail-20260625T000936Z` skipped
+clean (`DLG_LINE_CLEAR@15534`, mid-reveal, 0 errors) yet hit a 286f LOAD → free-roam → **NO f406 entry**
+(`CONV_POSE_END`=0, CSE=1, no bgnpc PIN, 79 spurious PAUSE_OPEN to max_frames).  The agent's EARLY confirm
+(@15534) preceded + collided with the scenario's own `ESC@15545`, hitting the post-skip state.  Lesson: the
+intermittent failure is ONLY the ARM; the confirm must stay the recording's (the skip outcome is
+timing-sensitive).  ⇒ ARM-ONLY.
+
+**★★ VERIFIED (the blink-stall is FIXED) BUT a DEEPER softlock surfaced — the skip→f406-entry is itself
+load-jitter-fragile (2026-06-25, `retail-20260625T001837Z`).**  The ARM-ONLY driver works: `TEXT_ANIM_START@14614`
+→ **`DLG_LINE_CLEAR@14682` (+68, mid-reveal, NO `TEXT_ANIM_END`)** — a clean skip, exactly the SUCCESS shape, 3
+blinks total (NOT 1176), 0 driver errors.  **BUT the f406 entry STILL did not fire:** no CSE#2, `CONV_POSE_END`=0,
+no bgnpc PIN; after the skip the drive enters a SOFTLOCK LOOP (`HOUSE_FREEROAM`→`PAUSE_OPEN`→`LOADING`→repeat,
+~280f cycles, to `max_frames@90000`).  The segtrace stalls at `{wait CONV_POSE_END}` (never fires).  Findings:
+- **NOT the skip TIMING** (the +68 confirm matches the recording) and **NOT the bilateral {bgnpcpin}** (its gate
+  cc08==4&&b51c==0 never holds — it never fired).  Both my drives (full-driver `000936Z` + ARM-ONLY `001837Z`)
+  softlocked identically.
+- **A SECOND scenario fragility surfaced:** the wrap-up `{esc:25}` is in the TEXT_ANIM_START segment terminated
+  by `{wait CONV_POSE_BLINK}`; when a blink fires BEFORE +25 (load jitter) the segment ends early and the esc is
+  **ABANDONED** (it did NOT fire in `001837Z` — only the tutorial esc@14353 logged).  In the OK 215600Z run the
+  blink fired AFTER +25 so the esc fired.  (My driver's ESC armed the box anyway, so the skip still happened — so
+  the abandonment isn't the proximate softlock cause, but it shows the region is multiply timing-fragile.)
+- **Conclusion: the wrap-up skip→f406-entry transition is load-jitter-sensitive end-to-end** — fixing the ESC-arm
+  (the blink-stall) is necessary but NOT sufficient; whether the skip lands the f406 entry vs a free-roam softlock
+  depends on the (CreateThread-race, non-deterministic) wrap-up LOAD durations.  This is the load-determinism
+  FOUNDATION (pillar-B), not an input-driver problem.  The §21.2 note stands: a wall-clock pin can't fix a
+  completion-based load.  **NEXT (needs direction / the load-determinism work):** pin the wrap-up LOAD brackets
+  (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip timing is reproducible, OR a condition-gated
+  confirm that matches retail's exact cutscene phase.  The ARM-ONLY driver is committed but EXPLICIT-only
+  (`--skip-wrapup`, NOT auto-on) so the canonical drive keeps its known intermittent behaviour meanwhile.

@@ -453,6 +453,22 @@ class CaptureConfig:
     # docs/plans/rng-consumer-survey.md.
     rng_hook_defer: bool = False
 
+    # Force the wrap-up skip DRIVER OFF even on a {bgnpcpin} trace (--no-skip-wrapup),
+    # to reproduce the old fragile timed-confirm path (e.g. to capture the natural
+    # 1176-blink stall for diagnosis). RE §21.5.
+    skip_wrapup_off: bool = False
+
+    # Wrap-up skip DRIVER (RE §21.5): drive the post-tutorial iv1_7 CONV_POSE skip off
+    # retail's ACTUAL "Skip this event?" box state instead of the recording's fragile
+    # blink-relative timed confirm. Under retail's load jitter the single ESC@+25
+    # intermittently hits skip_prompt<=1, the box never arms, and the wrap-up runs free
+    # → the segtrace skip-structure waits deadlock (the 1176-blink stall, RE §21.4 ROOT
+    # 3 — the determinism BLOCKER). The agent (ARM-ONLY) re-posts ESC until the box opens;
+    # the recording's X confirms. Retail-only (the port's turbo clock lands the timed
+    # confirm). WIP/EXPLICIT-only: it fixes the blink-stall but a deeper skip->f406-entry
+    # softlock surfaced (no CONV_POSE_END → reload loop), so it is NOT auto-enabled yet.
+    skip_wrapup: bool = False
+
     # BILATERAL {bgnpcpin} (RE §21.4): pin retail's bg-NPC SoA to the scenario's
     # canonical at the f406 entry (not just the port). Retail's natural bg_npc varies
     # run-to-run (the NPCs tick a variable # of frames during the load whose duration
@@ -1376,6 +1392,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if has_bgnpcpin and not cfg.rng_hook_defer:
             f_log.write("[rng] auto-deferring the LCG hook to the f406 entry "
                         "(segtrace carries {bgnpcpin}) -- RE §21.2\n")
+    # Drive the iv1_7 wrap-up skip off retail's box state (RE §21.5).  EXPLICIT-ONLY
+    # (NOT auto-on) — the ARM-ONLY driver fixes the 1176-blink ESC-arm stall, but a
+    # DEEPER load-jitter softlock in the skip→f406-entry transition surfaced (no
+    # CONV_POSE_END → reload loop, RE §21.5), so the canonical drive keeps its known
+    # behaviour until the load-determinism fix lands.  Pass --skip-wrapup to exercise it.
+    if cfg.skip_wrapup and not cfg.skip_wrapup_off:
+        init_cfg["skip_wrapup"] = True
+        f_log.write("[skip] wrap-up skip DRIVER on (explicit --skip-wrapup, WIP) -- RE §21.5\n")
     if bgnpc_pin_soa is not None:
         # BILATERAL {bgnpcpin}: the agent WRITES this canonical into DAT_073a7f80 at the
         # f406 entry (pre-sim → off0-effective, matching the port's CONV_POSE_END pin), so
@@ -1939,6 +1963,17 @@ def main(argv: list[str] | None = None) -> int:
                          "pinned to the same SoA, since retail's natural bg_npc varies "
                          "run-to-run. Use this only to re-bake the canonical.")
     ap.set_defaults(bgnpc_pin_retail=True)
+    ap.add_argument("--skip-wrapup", action="store_true",
+                    help="ARM-ONLY: re-post a WndProc ESC each frame until retail's "
+                         "'Skip this event?' box opens (DAT_073a3dec), so the recording's "
+                         "X confirms it — robust to the load-jitter mis-arm that 1176-blink-"
+                         "stalls the wrap-up (RE §21.5). WIP/EXPLICIT-only: it fixes the "
+                         "blink-stall but a deeper skip->f406-entry softlock surfaced, so it "
+                         "is NOT auto-enabled for the canonical drive yet.")
+    ap.add_argument("--no-skip-wrapup", dest="skip_wrapup_off", action="store_true",
+                    help="Force the wrap-up skip DRIVER off even on a {bgnpcpin} trace "
+                         "(reproduce the old fragile timed-confirm path, e.g. to capture "
+                         "the natural stall for diagnosis). RE §21.5.")
     ap.add_argument("--arm-skip-at-frame", type=int, default=None,
                     help="Directly call FUN_0045337b (the WndProc ESC skip-event "
                          "entry) once at this manual frame. Probes prologue "
@@ -2081,6 +2116,8 @@ def main(argv: list[str] | None = None) -> int:
         rng_callsites=args.rng_callsites,
         rng_hook_defer=args.rng_hook_defer,
         bgnpc_pin_retail=args.bgnpc_pin_retail,
+        skip_wrapup=args.skip_wrapup,
+        skip_wrapup_off=args.skip_wrapup_off,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

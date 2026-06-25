@@ -1179,6 +1179,27 @@ let g_rng_callers_map        = {};
 // arm is a no-op when no rng was asked for.
 let g_rng_hook_defer         = false;  // config.rng_hook_defer
 let g_rng_hook_wanted        = false;  // any rng source requested (set at config time)
+
+// Wrap-up skip DRIVER (RE §21.5).  The post-tutorial iv1_7 wrap-up CONV_POSE is
+// skipped via ESC ("Skip this event?" box, FUN_0046c2cb) + a CB_BTN_A "Yes".
+// The recording's confirm is a single blink-relative timed X-press — FRAGILE on
+// retail: the arm gate is `1 < DAT_073a3e18(skip_prompt) && DAT_073a3dec==0`, and
+// skip_prompt resets to 0 on each dialogue re-init (all.c:67083), so under retail's
+// load jitter the ESC@+25 intermittently lands when skip_prompt<=1, the box never
+// arms, the dialogue runs FREE (reaches TEXT_ANIM_END) instead of skipping, and the
+// segtrace's skip-structure waits (DLG_LINE_CLEAR / CONV_POSE_END) never fire → the
+// 1176-blink cross-target wrap-up deadlock (RE §21.4 ROOT 3, the determinism BLOCKER).
+// The PORT (turbo fixed-clock, jitter-free) lands the timed confirm reliably, so this
+// is retail-only.  Fix: drive the skip off retail's ACTUAL box state — re-post ESC
+// every frame the box is closed (arms the instant skip_prompt clears 1, robust to the
+// resets) and pulse CB_BTN_A once it opens.  Gamble-free (no dependence on retail's
+// exact arm timing).  Gated to the wrap-up + auto-disabled at the f406 entry.
+let g_wrapup_skip_active     = false;  // config.skip_wrapup (EXPLICIT-only, WIP — RE §21.5:
+                                       // fixes the blink-stall but a downstream softlock
+                                       // surfaced, so NOT auto-on for the canonical drive yet)
+let g_wrapup_seen_tutorial   = false;  // latched once cc08==4 (the tutorial) is observed,
+                                       // so the driver fires ONLY for the POST-tutorial
+                                       // wrap-up, never any pre-tutorial dialogue
 // RNG-CONSUMPTION probe (tools/phase_probe.py). g_rng_count: when set, the LCG
 // hook keeps a cumulative call total emitted as vals.rngcalls in the per-frame
 // watch — lets the probe diff per-frame RNG *consumption* port↔retail to find
@@ -1855,6 +1876,39 @@ function installInputHook() {
                     // 1-frame debounce sees each press as a fresh edge.
                     const pressed = (fn % 4) < 2;
                     rva(ADDR.var_input_mask).writeU16(pressed ? 0x0010 : 0);
+                }
+
+                // Wrap-up skip DRIVER (RE §21.5) — ARM-ONLY.  The intermittent stall is
+                // ONLY the ESC failing to OPEN the "Skip this event?" box (the arm gate
+                // FUN_0046c2cb needs 1<skip_prompt, and skip_prompt resets to 0 on each
+                // dialogue re-init, so under load jitter the recording's single ESC@+25
+                // hits skip_prompt<=1 and the box never opens — the dialogue then runs
+                // free → the segtrace skip waits deadlock).  So we ONLY make the ARM
+                // robust: while the post-tutorial wrap-up has a line up (DAT_073a6a38>=0,
+                // cc08!=4, after the tutorial, before the f406 entry) AND the box is
+                // CLOSED (DAT_073a3dec==0), re-post a real WndProc ESC every frame — it
+                // opens the instant skip_prompt clears 1, robust to the resets.  We do
+                // NOT touch the input mask and do NOT confirm: the scenario's recorded
+                // X@(CONV_POSE_BLINK+34) confirms the now-open box at its intended time,
+                // so the skip TEARDOWN + the f406 entry stay bit-identical to the
+                // recording (an early agent confirm diverged the flow → no entry, the
+                // 1st attempt).  Stop posting once the box opens; auto-off at the entry.
+                if (g_wrapup_skip_active && !g_bgnpc_soa_dumped) {
+                    try {
+                        const csv = rva(0x0438cc08).readS32();
+                        if (csv === 4) g_wrapup_seen_tutorial = true;  // latch the tutorial
+                        if (g_wrapup_seen_tutorial &&                 // the wrap-up is POST-tutorial
+                            csv !== 4 &&                              // not the cc08==4 tutorial itself
+                            rva(0x073a6a38).readS32() >= 0 &&         // DAT_073a6a38 — a line is shown
+                            rva(0x073a3dec).readS32() === 0) {        // DAT_073a3dec — skip box CLOSED
+                            if (g_esc_post === null)
+                                g_esc_post = new NativeFunction(
+                                    rva(0x0047b2e7), 'int',
+                                    ['pointer', 'uint', 'uint', 'pointer']);
+                            const hwnd = rva(0x073dfc7c).readPointer();
+                            g_esc_post(hwnd, 0x100, 0x1b, ptr(0));    // WndProc(WM_KEYDOWN, VK_ESCAPE)
+                        }
+                    } catch (e) { err('wrapup_skip', e.message); }
                 }
 
                 const mask = rva(ADDR.var_input_mask).readU16();
@@ -5620,6 +5674,11 @@ rpc.exports = {
         // the install gate below (it also folds in the call-trace rngcalls field).
         g_rng_hook_defer     = !!config.rng_hook_defer;
         g_rng_hook_wanted    = false;
+        // Drive the iv1_7 wrap-up skip off retail's box state (RE §21.5) — see the
+        // g_wrapup_skip_active decl + the input hook.  Auto-on with a {bgnpcpin}
+        // (frida_capture sets it), so the canonical f406 drive just works.
+        g_wrapup_skip_active = !!config.skip_wrapup;
+        g_wrapup_seen_tutorial = false;
 
         // Memory-access watch (Phase D.7). The region list is parsed
         // here; the monitor is armed below (after ensureBase, before

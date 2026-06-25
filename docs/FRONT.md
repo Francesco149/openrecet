@@ -542,6 +542,21 @@
   pinning CANNOT be reliably validated until this is fixed. The port side is solid (reaches the f406 entry @2230,
   off0-effective). **THE deterministic-trace goal requires fixing the wrap-up desync FIRST** (a TOOL gap: the segtrace
   {wait} stalls when a wrap-up anchor — DLG_LINE_CLEAR? — doesn't fire under retail's load jitter). Lead: §21.2.
+  **★★ ROOT-CAUSED 2026-06-25 (RE §21.5) — deeper than framed; PARTIAL fix + a NEW blocker found.** From the
+  stalled vs OK agent logs: the blink-stall = retail's ESC-skip ARM intermittently failing — the wrap-up is SKIPPED
+  via ESC (arms the "Skip this event?" box FUN_0046c2cb) + X "Yes"; the arm gate (all.c:67129) is
+  `1<skip_prompt(DAT_073a3e18) && box(DAT_073a3dec)==0`, and skip_prompt RESETS on dialogue re-init (67083), so under
+  load jitter the recording's single ESC@+25 hits skip_prompt<=1 ⇒ no arm ⇒ the line runs FREE (TEXT_ANIM_END) ⇒ the
+  skip-structure {wait}s deadlock (1176 blinks). Built a CONDITION-GATED **ARM-ONLY** skip driver in the agent
+  (re-post ESC until the box opens; let the recording's X confirm) — `--skip-wrapup`, EXPLICIT-only (NOT auto-on).
+  **✅ it FIXES the blink-stall** (re-drive `001837Z`: clean DLG_LINE_CLEAR@+68 mid-reveal, 3 blinks not 1176).
+  **❌ BUT the f406 entry STILL doesn't fire** — a DEEPER softlock: after the skip, no CSE#2 / CONV_POSE_END, instead
+  a HOUSE_FREEROAM→PAUSE_OPEN→LOADING reload LOOP. The skip→f406-entry transition is itself **load-jitter-fragile**
+  (whether the skip lands the entry vs a free-roam softlock depends on the non-deterministic CreateThread-race wrap-up
+  LOAD durations). ⇒ this is the **load-determinism FOUNDATION (pillar-B)**, NOT just an input-driver fix. NEXT
+  (needs direction): pin the wrap-up LOAD brackets (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip
+  timing is reproducible, OR a phase-matched condition-gated confirm. The bilateral {bgnpcpin} is RULED OUT as the
+  softlock cause (its gate cc08==4&&b51c==0 never held — it never fired). RE §21.5.
   **NEXT once the trace is deterministic (BOTH pillars):**
   iv1_8 (the post-first-customer EXTRA_SPRITE cutscene, f402-triggered, PORT-DEBT P3) → the cutscene series →
   day-2 brooming.  Sub-agent retro: `docs/AGENT-WORKFLOW.md` "Calibration — 2026-06-22".

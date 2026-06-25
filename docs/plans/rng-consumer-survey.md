@@ -116,6 +116,23 @@ The survey of the off-30-34 cluster (no re-drive needed: the `215600Z` retail ca
   bg_npc/g_sim pinning can't be reliably validated AND the trace isn't deterministic. **This is now the #1 task** —
   the segtrace {wait} stalls when a wrap-up anchor (DLG_LINE_CLEAR?) doesn't fire under retail's load jitter. Lead: §21.2.
 
+## Progress (2026-06-25, RE §21.5) — the WRAP-UP DESYNC root-caused; deeper than framed (load-determinism)
+- **Blink-stall ROOT-CAUSED (from the agent logs):** the wrap-up is SKIPPED via ESC (arms the "Skip this event?" box,
+  FUN_0046c2cb) + X "Yes". The arm gate (all.c:67129) is `1<skip_prompt(DAT_073a3e18) && box(DAT_073a3dec)==0`, and
+  skip_prompt RESETS on dialogue re-init (67083) ⇒ under load jitter the recording's single ESC@+25 lands when
+  skip_prompt<=1, the box never arms, the line runs FREE (TEXT_ANIM_END) ⇒ the skip-structure {wait}s deadlock (1176
+  blinks). The PORT (turbo fixed-clock) lands the timed confirm reliably; only retail's jitter breaks the arm.
+- **PARTIAL fix (committed, EXPLICIT-only):** a CONDITION-GATED **ARM-ONLY** skip driver in `openrecet-agent.js` —
+  re-post ESC until retail's box (DAT_073a3dec) opens; let the recording's X confirm. `--skip-wrapup` (NOT auto-on).
+  **✅ FIXES the blink-stall** (re-drive `001837Z`: clean DLG_LINE_CLEAR@+68 mid-reveal, 3 blinks not 1176, 0 errors).
+- **❌ NEW BLOCKER — the skip→f406-entry is itself load-jitter-fragile.** Even with the blink fixed, the f406 entry
+  STILL doesn't fire: no CSE#2 / CONV_POSE_END, instead a HOUSE_FREEROAM→PAUSE_OPEN→LOADING reload LOOP (softlock).
+  Whether the skip lands the entry vs a free-roam softlock depends on the non-deterministic (CreateThread-race) wrap-up
+  LOAD durations. ⇒ the **load-determinism FOUNDATION (pillar-B)**, not an input-driver problem. The bilateral
+  {bgnpcpin} is RULED OUT (its gate cc08==4&&b51c==0 never held). **NEXT (needs direction):** pin the wrap-up LOAD
+  brackets (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip timing is reproducible, OR a phase-matched
+  condition-gated confirm. RE §21.5.
+
 ## Pointers
 FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;
