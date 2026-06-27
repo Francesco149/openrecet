@@ -1826,32 +1826,41 @@ static void player_ctrl_cc08_unported_arm(void)
      * the secondary worker is no longer pending, so the master tick + render
      * activate exactly when retail's do (at LOADING_END). */
     if (s_cc08 == 4) {
+        /* b1cc at FRAME START — captured BEFORE the inline load-release below.
+         * Retail's house_update is gated on the load-SCREEN counter (be94<0x78,
+         * all.c:40591), which the async worker drops a frame AFTER it clears b1cc;
+         * so retail's arrival anim + master tick (the b524 idle counter) first run
+         * the frame AFTER b1cc clears, NOT on the clear frame.  The port releases
+         * the load INLINE here (notify_loaded), so gating the body on the LIVE b1cc
+         * would run it on the SAME frame ⇒ b524 advances a frame early ⇒ the 2nd
+         * d3e load (b524==0x3c) fires 1 frame early = the §21.10 first −1 drift
+         * (confirmed: retail's b524 first ++ at LOADING_END+2 vs the port's at +1).
+         * Gate the arrival + master tick on this pre-release value so they resume
+         * one frame later, matching retail.  The NPC pump stays unconditional (§19). */
+        int b1cc_pre = customer_service_b1cc();
+
         /* {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
          * (and increments) every b1cc==2 frame; it returns 1 unless a pin is set,
          * so unpinned play still clears purely on the async worker. */
-        if (customer_service_b1cc() == 2 &&
+        if (b1cc_pre == 2 &&
             customer_service_load_pin_elapsed() &&
             g_worker_sec_state_1cc != 2)
             customer_service_notify_loaded();
 
-        /* LOAD SUPPRESSION (camera-transition parity, 2026-06-19): the WHOLE
-         * cc08==4 arm body is gated on the asset-load worker being done
-         * (b1cc != 2), mirroring retail — where the d3e load runs the load
-         * screen and FUN_0048670f (house_update) does NOT tick at all while
-         * b1cc==2.  Retail therefore starts the arrival anim AND the cinematic
-         * camera together, the first frame after the load completes.
-         *
-         * The port runs scene1_player_ctrl_tick every frame (incl. through the
-         * load), so before this gate it advanced the arrival anim + sprite while
-         * the camera (master tick, self-gated on b1cc==2) stayed frozen at the
-         * free-roam pose — Recette hopped onto the stool a few frames BEFORE the
-         * camera began zooming to the counter (notes #4-#7: "divergent camera
-         * pos/angle" → "camera starts to converge" → "almost identical").  The
-         * camera ramp itself is bit-identical to retail (a 0.1/f lerp from the
-         * free-roam eye to the per-tier counter target); only its START frame
-         * lagged the anim.  Gating the body locks all three (anim + sprite +
-         * camera) to the SAME b1cc-clear frame, exactly as retail does. */
-        if (customer_service_b1cc() != 2) {
+        /* The arrival anim + camera ramp run THROUGH the d3e bg-load (UNGATED),
+         * matching retail (RE §21.10).  The d3e customer-asset load is a BACKGROUND
+         * load (b1cc==2) that does NOT raise the load SCREEN (be94<0x78 stays true),
+         * so retail's FUN_0048670f house_update keeps ticking: the stool-jump anim
+         * starts (panim 5 @ entry+2) and the camera zooms toward the counter while
+         * b1cc==2 (verified: retail panim 5 + camex ramp -1.5→-2.65 across the 24f
+         * load).  Only the MASTER tick is inert during the load (it self-gates on
+         * b1cc==2, below) so the b524 idle counter does not advance — that's why the
+         * player can ramp onto the stool while the haggle machine waits.
+         *   (The old §19/Chip-3c `b1cc != 2` gate wrapped the WHOLE body, delaying
+         * the arrival ~23f to the post-load frame — rng-neutral, so the rng survey
+         * never caught it, but the stool jump + camera lagged the load by its whole
+         * duration; notes #1/#4-#7.  Now only the master tick is gated.) */
+        {
             /* Chip 3c: the f405 player/companion arrival anim + the camera-pos
              * ramp (all.c:87367-87432, BEFORE the master tick) — sets panim 5/6
              * + the octant + slides g_scene1_player_pos toward the counter view. */
@@ -1883,10 +1892,10 @@ static void player_ctrl_cc08_unported_arm(void)
          * The port's old whole-arm `b1cc != 2` gate (added for the arrival/camera
          * transition parity) wrongly suppressed the pump ~17f at the first-customer
          * entry → the ENTIRE spawn cadence mis-phased vs retail (the residual the
-         * PORT-DEBT(cs-walker-rng-phase) note chased).  Splitting it out fixes the
-         * phase while keeping the arrival anim + master tick gated (the arrival is
-         * RNG-neutral, so skipping it during the load is RNG-equivalent to the
-         * engine; the master tick is inert during b1cc==2 anyway).  spawn one chibi
+         * PORT-DEBT(cs-walker-rng-phase) note chased).  Now the pump + the arrival
+         * anim + the sprite tick all run unconditionally through the load (matching
+         * retail, RE §21.10); only the MASTER tick is gated (inert during b1cc==2
+         * anyway, and it must not advance b524 on the load-release frame).  spawn one chibi
          * customer every 30th frame for a LIVE walk-in (f404==0; the scripted
          * tutorial f404==1 spawns none), then wander every active NPC.  shop_tier =
          * bank tier selector (DAT_04510578[stage]); walk grid = DAT_074b28e8. */
@@ -1900,24 +1909,27 @@ static void player_ctrl_cc08_unported_arm(void)
             scene1_customer_npc_pump(sell_inactive, shop_tier);
         }
 
-        if (customer_service_b1cc() != 2) {
+        if (b1cc_pre != 2) {
             /* the master tick (FUN_00462403): owns the b534 state switch + the
-             * scripted-sell dispatch + the cinematic counter camera.  cur/pressed
-             * /held = the engine button masks DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
+             * scripted-sell dispatch + the cinematic counter camera.  INERT during
+             * the d3e load (it self-gates on b1cc==2); gated here on b1cc_pre so it
+             * resumes the frame AFTER the load clears — NOT on the release frame —
+             * so the b524 idle counter advances in lockstep with retail (the §21.10
+             * first −1 fix; the 2nd d3e load at b524==0x3c then fires on retail's
+             * frame).  cur/pressed/held = DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
             customer_service_master_tick(g_sim_buttons[0].cur,
                                          g_sim_buttons[0].pressed,
                                          g_sim_buttons[0].held);
-
-            /* advance the player sprite anim: retail's draw leaf FUN_0045a56f
-             * ticks every drawn actor each frame (pcnt++ + frame-by-LUT, the
-             * stool jump holding at its last frame).  The cc08==4 arm itself does
-             * not call it, but the per-frame draw does — so the port mirrors it
-             * here, matching the fe530872 cache (panim 5, pframe 0→8 every ~6
-             * counts, pcnt monotonic).  The companion is advanced by
-             * scene1_companion_ctrl_tick (the scene1_sim non-walk fallback, which
-             * runs because b850_move didn't this frame). */
-            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
         }
+
+        /* advance the player sprite anim: retail's draw leaf FUN_0045a56f ticks
+         * every drawn actor each frame (pcnt++ + frame-by-LUT, the stool jump
+         * holding at its last frame).  UNGATED — the draw runs every frame INCLUDING
+         * the d3e bg-load (retail's pcnt climbs through the load, panim 5 from
+         * entry+2; RE §21.10), so it must NOT sit inside the master-tick gate.  The
+         * companion is advanced by scene1_companion_ctrl_tick (the scene1_sim
+         * non-walk fallback, which runs because b850_move didn't this frame). */
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
         return;
     }
     /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by

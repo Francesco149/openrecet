@@ -1,0 +1,13 @@
+# house-firstcust-arrprobe — TRIMMED probe of house-firstcust-cutscene-day2 for
+# the §21.10 frame-by-frame anchor-determinism work.  Identical inputs/pins through
+# the first real customer's BARGAIN (cut at line 132, PAUSE_CLOSE), so it ends BEFORE
+# the day-2 cutscene region (the intermittent retail blink-stall, RE §21.6) and bounds
+# the drive cheaply.  Window [0,1500] from HF occ1 covers walk → scripted tutorial →
+# ESC-skip → wrap-up → first customer → first BARGAIN.  Use for fast --target both /
+# orv3_window --state iteration; the committed full scenario stays for day-2 work.
+description: |
+  Trimmed first-customer-arrival probe (load → tutorial → skip → wrap-up → first
+  customer → first BARGAIN).  Same pins as house-firstcust-cutscene-day2.
+max_frames: 6000
+duration_ceiling_ms: 600000
+capture_suppress_loads: true

@@ -31,6 +31,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
+- **★★★ §21.10.1 LANDED 2026-06-27 — the cc08==4 d3e-LOAD TIMING fix (first −1 drift + studio note #1, ONE root).**
+  The cc08==4 arm gated its WHOLE body on the live `b1cc!=2`, but `notify_loaded` clears b1cc INLINE at the top ⇒ on the
+  load-release frame the gate ran everything that frame. Two gaps vs retail (RE §21.10.1): (a) the master tick ran ON the
+  release frame ⇒ `b524` idle counter +1 early ⇒ the 2nd d3e load (`b524==0x3c`) fired 1f early = the **first −1**;
+  (b) the arrival anim + camera + sprite were SUPPRESSED during the d3e load ⇒ stool-jump/camera-zoom played ~23f late =
+  **note #1**. Retail: the d3e load is a BACKGROUND load (b1cc==2) that doesn't raise the load-SCREEN (be94<0x78), so
+  house_update keeps ticking the arrival THROUGH the load; only the master tick self-gates on b1cc and resumes the frame
+  AFTER the release. **Fix** (`scene1_player_ctrl.c`): gate ONLY the master tick on `b1cc_pre` (frame-start b1cc); UNGATE
+  arrival_tick + ground_y + chr_anim_tick (rng-neutral). **✅ VERIFIED** (probe `house-firstcust-arrprobe`, port↔cached
+  retail): anchor drift **0** CSE#1→CONV_POSE_START#1 (was −1; end-to-end −4→−2); arrival **BIT-IDENTICAL through the load**
+  (panim 0→5@off2, pcnt 23→1→28, camex −1.5→−2.85 == retail); rng survey **3/200→1/200** 0/200 gsim%8; 3372 host pass.
+  **TOOLING:** widened `{calltrace}`/`{caprange}` to HF occ1 (retail was bound to occ3, missed off 0-84); +probe scenario
+  `house-firstcust-arrprobe` (trimmed to the first customer, no day-2 stall) + `tools/anchor_drift.py`. **PENDING USER
+  STUDIO CONFIRM** (arrival/camera visual). **NEXT:** (a) the COMPANION is the OPPOSITE — retail keeps Tear IDLE (canim 0,
+  frozen) DURING the load, arriving at off26+; the port runs her arrival through the load ⇒ `scene1_companion_ctrl_tick`
+  must self-gate on b1cc (pre-existing). (b) task #2: the wrap-up region drift (LOADING_END#4 +1 = the occ4 load 2f vs
+  retail 1f; DLG_LINE_SHOW +2). (c) task #3: note #2 scold-reaction render. Plan: `plans/rng-consumer-survey.md`, RE §21.10/§21.10.1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

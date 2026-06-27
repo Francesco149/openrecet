@@ -2467,3 +2467,35 @@ segment (CSE#1→LOADING_START#3, the tutorial); (2) the −2 skip/wrap-up regio
 retail per-frame sub-anchors (DLG_LINE_SHOW/CONV_POSE_BLINK/fade phases) to find the 1f-short effect each; (3) the real
 render gap #2 (the scold-reaction manga-lines + pose).  Tools added this arc: port `grid_dump`, `rngst` probe,
 `/tmp/grid_diff.py`, `/tmp/rngst_cmp.py`, `/tmp/port_anch.txt`+`/tmp/ret_anch.txt` anchor-timeline diff.
+
+### 21.10.1 ★★★ FIXED 2026-06-27 — the first −1 + note #1 are ONE root: the cc08==4 arm's d3e-load timing
+**Tooling first (the off 0-84 region was UN-MEASURABLE):** retail's `{calltrace}`/`{caprange}` were bound to LOADING_END
+**occ3** (= HF occ3, off ~109) so retail captured NO state for the CSE#1 scripted-tutorial region — the port has full
+coverage (captures from boot), retail didn't.  **Fix:** moved both ops to **HF occ1** (the post-Continue free-roam, after
+the first `{"wait":"LOADING_END"}`), window `[0,3000]`, so BOTH sides cover walk→tutorial→skip→wrap-up→first-customer.
+Added a trimmed probe **`house-firstcust-arrprobe`** (lines 1-132, ends after the first-customer BARGAIN → no day-2 stall,
+max_frames 6000) for fast bounded `orv3_window --state` iteration, + **`tools/anchor_drift.py`** (port↔retail anchor-drift
+map + per-frame 0x48670f state diff, aligned at any anchor:occ).
+**ROOT (proven, port↔retail per-frame, aligned at CSE#1):** the cc08==4 arm (`scene1_player_ctrl.c`) ran the WHOLE body
+gated on the LIVE `b1cc != 2`.  But `notify_loaded` clears b1cc INLINE at the top of the arm, so on the load-release frame
+the gate saw b1cc==1 and ran EVERYTHING that frame.  Two consequences vs retail:
+  **(a) the master tick ran ON the release frame** → the `b524` idle counter `++`'d a frame early → the 2nd d3e load
+  (`b524==0x3c`) fired 1f early = the §21.10 **first −1**.  Retail's house_update is gated on the load-SCREEN counter
+  (`be94<0x78`, all.c:40591), which the async worker drops a frame AFTER it clears b1cc, so retail's master tick (b524)
+  resumes the frame AFTER the release (verified: retail b524 first `++` at LOADING_END+2, the port at +1).
+  **(b) the arrival anim + camera + sprite were SUPPRESSED during the d3e load** → the stool jump + camera zoom played
+  ~23f LATE (= studio note #1).  Retail's d3e customer-asset load is a BACKGROUND load (b1cc==2) that does NOT raise the
+  load SCREEN (be94 stays <0x78), so retail's house_update keeps ticking: **panim 5 from entry+2, camex ramp −1.5→−2.65
+  ACROSS the 24f load, pcnt climbing** — only the MASTER tick is inert (it self-gates on b1cc==2).
+**FIX (`scene1_player_ctrl.c` cc08==4 arm):** capture `b1cc_pre` at frame-start; (1) gate ONLY the master tick on
+`b1cc_pre != 2` (resumes the frame after release ⇒ b524 in lockstep w/ retail); (2) UNGATE the arrival_tick + ground_y +
+`chr_anim_tick` (run through the load like retail).  All rng-neutral (arrival/sprite are rng-free; the pump stays
+unconditional, §19).
+**✅ VERIFIED (probe, port↔cached retail):** anchor drift **0** from CSE#1 through CONV_POSE_START#1 (was constant −1);
+end-to-end −4→−2 (wrap-up residual = task #2).  Arrival **BIT-IDENTICAL through the load**: panim 0→5@off2, pcnt
+23→1→28, camex −1.5→−2.85 == retail.  rng survey **3/200→1/200, 0/200 gsim%8** (cs_walker_drill).  3372 host pass.
+**REMAINING in this window (next):** (a) the COMPANION (Tear) is the OPPOSITE — retail keeps her IDLE (canim 0, frozen
+cx) DURING the load, arriving only at off26+ (after b1cc clears), while the port runs her arrival through the load
+(canim 4 from off1).  So `scene1_companion_ctrl_tick` (FUN_0048a833) self-gates on b1cc on retail (inert during load) —
+the port's companion ctrl must gate the same.  Pre-existing (NOT this fix).  (b) task #2: the wrap-up load occ4 is 2f
+(port) vs 1f (retail) → LOADING_END#4 +1; DLG_LINE_SHOW +2 (dialogue reveal); then the first-customer region drift.

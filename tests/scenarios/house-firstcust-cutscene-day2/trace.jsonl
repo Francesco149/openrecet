@@ -16,6 +16,8 @@
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "LOADING_END"}
 {"rngseed": [0, 912526909]}
+{"calltrace": [0, 3000]}
+{"caprange": [0, 3000]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 45, "buttons": "0x0002"}
 {"frame": 57, "buttons": "0x0000"}
@@ -32,8 +34,6 @@
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "LOADING_END"}
 {"rngseed": [0, 397503157]}
-{"calltrace": [0, 2600]}
-{"caprange": [0, 2600]}
 {"frame": 0, "buttons": "0x0000"}
 {"esc": 83}
 {"wait": "PAUSE_OPEN", "timeout": 400}
