@@ -2421,6 +2421,14 @@ entry independent of the load.  The `{rngseed}` re-sync stays on LOADING_END.
 **0/200 gsim%8 divergence**.  The cs-walker burst off30-34 is **BIT-IDENTICAL** (port `7,7,9,5,26` == retail, was
 `11,3,3,1`); sparkles align frame-for-frame.  Residual 3 (all ±1, the tail): off0 (the pre-pin entry-frame boundary),
 off189 (a bg_npc respawn `FUN_0046f2a3` 1-frame phase), off199 (`cs_pick_line` the greeting variant draws 1 frame later
-on the port).  Pending the bilateral retail re-drive (new scenario) + ≥2-capture confirm.  Files: `src/customer_service.{c,h}`
-(`customer_service_d3e_loading`), `src/main.c` (the loading_active OR), `tests/scenarios/house-firstcust-cutscene-day2/trace.jsonl`
-(`{gsimpin}`→CONV_POSE_END).
+on the port).  Files: `src/customer_service.{c,h}` (`customer_service_d3e_loading`), `src/main.c` (the loading_active OR),
+`tests/scenarios/house-firstcust-cutscene-day2/trace.jsonl` (`{gsimpin}`→CONV_POSE_END).
+**✅ BILATERAL re-drive CONFIRMED** (port `141719Z` ↔ retail `142225Z`, BOTH new scenario, the bgnpcpin PINNED on retail):
+still **3/200, 0/200 gsim%8**; off199 now ALIGNS (the earlier off199 was a port-new-vs-retail-old scenario artifact).
+**NEXT-ARC LEAD — the bg_npc respawn ±1 (the only real residual, off189/197/269/271, a separate CONSUMER):** the respawn
+`bg_npc_respawn`/`FUN_0046f2a3` (scene1_bg_npc.c:156) branches on `r1 < m->prob/2`; with the stream ALIGNED into the
+respawn AND the bilateral pin giving both sides the same off0 SoA, `r1`(=rng15%100) matches but the **branch differs ⇒
+`m->prob` differs port↔retail** ⇒ the port draws an extra `r2` (the `else` branch) ⇒ +1.  So the bgnpcpin's per-field
+translation (port struct ↔ the engine 0x64 record) likely **mis-maps the `prob` field (engine +0x60)** — verify+fix that
+mapping (or the port's prob store).  This ±1 cascades to `cs_pick_line` firing 1 frame early (off199/270), so it MAY shift
+the reaction variant ⇒ close it before declaring the variant 1:1.  The cs-walker + sparkle + gsim + load-seam are DONE.
