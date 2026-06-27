@@ -2452,14 +2452,18 @@ deterministic via csloadpin), so the drift is NOT the loads; it accumulates in t
 runs ~1 frame FASTER per ~100-150-frame segment**.  This is why the rng-pins (which re-sync at the f406 entry CSE#2) leave
 the wrap-up/skip region (notes #5/#6/#7) visually mis-framed: the rng is re-synced AT the entry but the FRAME alignment
 already drifted −2 getting there.
-**Root hypothesis + the fix:** both sides run turbo's fixed-17ms SIM clock, so a frame-COUNT drift ⇒ **wall-time-gated LOGIC**
-(code reading `GetTickCount`/`QueryPerformanceCounter`/`timeGetTime` DIRECTLY — turbo virtualizes the sim frame-clock, NOT
-these) and/or a fade/cutscene-duration off-by-one.  **GENERALIZED determinism fix = the WALL-CLOCK PIN** (pillar-B work-list
-#2, the user's own idea): hook GetTickCount/QPC/timeGetTime → a virtual clock synced at anchors (the `{rngseed}` pattern), on
-BOTH port (turbo virtual clock) + retail (agent), so every time-dependent thing (load races, timers, time-based anims) is
-deterministic + matched — generalized to ALL scenes/anchors, not this trace.  The **non-turbo experiment** is the cheap
-validation (if non-turbo drops the −3 drift, it IS wall-time-gated).  **NEXT:** (1) confirm wall-time reads exist on the drift
-path (grep the engine/port for GetTickCount/QPC/timeGetTime consumers in the gameplay/cutscene tick); (2) implement the
-wall-clock pin; (3) re-measure the anchor drift (→0) ⇒ the phase notes #1/#3/#4/#5/#6/#7 align; (4) port the real gap #2
-(scold render).  Tools added this arc: port `grid_dump`, `rngst` probe, `/tmp/grid_diff.py`, `/tmp/rngst_cmp.py`,
-`/tmp/port_anch.txt`+`/tmp/ret_anch.txt` anchor-timeline diff.
+**Root — NOT wall-time (the wall-clock-pin hypothesis is RULED OUT):** grepped the engine + port for GetTickCount/QPC/
+timeGetTime — the engine has only **3**, all **FPS-stats / timing utilities** (`DAT_073dde28`=the FPS meter @51312; QPC
+@78849 = an elapsed-ms helper), **NONE feed gameplay/cutscene**; the port drives gameplay off the virtualized
+`g_tick.frame_count`.  So gameplay/cutscene logic is **FRAME-COUNT-driven**, and the per-segment ~1-frame drift is a
+**frame-count DURATION off-by-one** — a fade/cutscene/dialogue segment that runs 1 frame SHORT on the port (consistent
+with the loading-screen-fidelity directive: the port's fades/transitions are ~1f shorter than retail's).  ⇒ **non-turbo /
+wall-clock-pin would NOT help** (clock-independent).  **GENERALIZED fix = segment-by-segment frame-count corrections:** for
+each anchor→anchor segment that drifts, root-cause why the port is 1f short (which fade/transition/cutscene/dialogue
+duration) and match retail; each fix is a per-effect duration (generalizes to ANY scene using that fade/cutscene).  The
+drift concentrates in the **wrap-up/skip cutscene region** (LOADING_END#3→HOUSE_FREEROAM#4 grows −1→−3 = the ESC-skip +
+CONV_POSE wrap-up is ~2f short) and the tutorial segment (−1).  **NEXT (methodical, in flow order):** (1) the first −1
+segment (CSE#1→LOADING_START#3, the tutorial); (2) the −2 skip/wrap-up region (notes #5/#6/#7 live here); diff the port↔
+retail per-frame sub-anchors (DLG_LINE_SHOW/CONV_POSE_BLINK/fade phases) to find the 1f-short effect each; (3) the real
+render gap #2 (the scold-reaction manga-lines + pose).  Tools added this arc: port `grid_dump`, `rngst` probe,
+`/tmp/grid_diff.py`, `/tmp/rngst_cmp.py`, `/tmp/port_anch.txt`+`/tmp/ret_anch.txt` anchor-timeline diff.
