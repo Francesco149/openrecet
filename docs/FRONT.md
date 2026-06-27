@@ -39,13 +39,19 @@
 - **★ USER-CONFIRMED 1:1 2026-06-27 — the cc08==4 ARRIVAL region (player + camera + companion) "nicely synced"** (commits
   a93413a §21.10.1, dd98991 §21.10.2; recorded in `confirmed-parity-ledger.md`).  **Two NEW gaps the user flagged in the
   first-customer HAGGLE (both AFTER the arrival, in the live machine):**
-  **(A) the OFFER diverges → different customer reaction (user: "customer expression different (likely rng)") — THE NEXT
-  ARC, the deep rng-value foundation.**  Probed: port offer `b574=120` vs retail `119→150`; init_eff off by 1 ⇒ the port
-  ACCEPTS (`b534=7`) where retail PUSHES BACK (`b534=8`).  This is an UN-SURVEYED rng consumer: the cs-walker survey
-  (1/200) only spans the first 200f from the f406 entry (the greeting); the offer/reaction (b534=6) is LATER, outside it.
-  So the offer's rng draw count/value isn't aligned yet — extend the survey to the reaction + align that consumer (pillar
-  A; `plans/rng-consumer-survey.md`).  NB possibly entangled with the offer's run-to-run non-determinism (RE §8.8) — confirm
-  determinism first.  **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
+  **(A) the OFFER diverges → different customer reaction — ★ ROOT-CAUSED 2026-06-28 (RE §21.11/.1), partial fix + the next
+  consumer identified.**  LCG-VALUE forensics (the 0x47be92 `rng`=`DAT_006023a0` frame-by-frame, NOT just draw counts): the
+  stream is bit-identical entry→**off271** (the b534==2 line-load), then the port falls **−12 draws behind** ⇒ wrong variant
+  (`poseR 1` vs retail `3`, the "expression") ⇒ offer 120 (accept) vs 119 (pushback).  **Dropping the misaligned in-window
+  PAUSE_CLOSE `{rngseed}` re-pin (which masked the −12 with a +14 jump 1f early) ROBUSTLY fixes the VARIANT + outcome**
+  (off271-start LCG aligns ⇒ the variant draw is correct); the offer VALUE 119 is then COINCIDENTAL until the stream aligns.
+  **The −12 = the CS-WALKER burst @off271** (`FUN_0046fbee`, the in-shop chibi NPC; `npcdr=0` on the port there) — OUTSIDE
+  §21.9's 200f survey, the un-surveyed consumer.  **bg_npc is a CONFIRMED NON-ISSUE** ({bgnpcpin} applies 1:1 @off0,
+  integration + respawns track retail; positions don't cross thresholds @off271).  **NEXT:** per-draw rng-callsite
+  attribution @off271 (§21.1) → port the cs-walker burst 1:1 → neutralise the in-window re-pin (§21.8) → offer robustly 119.
+  TEMP `*_dbg`/`bg{i}x` probes + retail_fields to remove after.  (User chose "fix bg_npc stream 1:1" — now narrowed to the
+  cs-walker; the wide-caprange capture destabilises the d3e-load race, so use a targeted per-draw drill, not a wide capture.)
+  **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
   path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
   session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga
   cell {192,0,232,40}, 40×40) but the cc08 path never calls the top-level draw (retail all.c:7498, drawn LAST after

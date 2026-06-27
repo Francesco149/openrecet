@@ -2517,3 +2517,76 @@ to a later-in-frame consumer).  **✅ VERIFIED:** companion canim + cx + octant 
 retail (cx −0.2274→−0.9759 == retail across the walk); rng survey still 1/200, 0/200 gsim%8; drift 0; 3372 host pass.
 **Residual (tiny):** the idle wing-flap `cframe` is ~1f ahead during the load (the free-roam→load entry leaves the idle
 anim-counter 1 step further along than retail) — position/arrival are exact; sub-frame anim-cycle phase, revisit if visible.
+
+## 21.11 ★★★ The first-customer OFFER (b574 120 vs 119) ROOT-CAUSED 2026-06-27 — an in-window {rngseed} re-pin fires 1f early
+
+**Gap (FRONT A):** port first-customer offer `b574=120` ⇒ ACCEPTS (b534 15→7) where retail `119` ⇒ PUSHES BACK
+(15→8→6 round-2 150).  Scenario `house-firstcust-arrprobe` (current arrprobe caches, both post-§21.10).
+
+**Method — LCG-value forensics (not just rngcalls COUNT).**  Added a TEMP reveal/settle probe
+(`customer_service_*_dbg`: b548/b55c/b558/ca0/ca1/ip1/ip2) + the 7 retail fields (DAT addrs).  KEY tool: both sides'
+0x47be92 `rng` = the LCG state `DAT_006023a0`/`g_rng_seed` at frame-start ⇒ compare the LCG **VALUE** frame-by-frame
+(retail emits it; the per-frame `rngcalls` COUNT does NOT catch a value/phase skew).
+
+**Findings (entry = f406 cc08==4&&b51c==0; offsets entry-relative):**
+- b534 0→1 @off199, 1→2 @off270 BOTH ALIGNED.  2→6 (the OFFER draw, `cs_offer_up`) PORT @off389 / RETAIL @off390.
+- LCG value BIT-IDENTICAL off30→**off270**, then DIVERGES @**off271** (the b534==2 line-load frame).  Per-frame
+  rngcalls COUNT matches (+2 @off270 both) — so it's a VALUE/phase skew, invisible to the count survey.
+- Actual LCG STEPS off270→off271: **PORT 16, RETAIL 2** (port +14).  retail off271=LCG²(off270); port off271=LCG¹⁶.
+- The 14 "uncounted" advances = a `rng_seed()` JUMP (only uncounted LCG path).  **The pin value 3464877067 =
+  LCG¹⁴(off270-value)** — i.e. the `{rngseed:[0,3464877067]}` re-pin at the FIRST **PAUSE_CLOSE** anchor (trace L90).
+- ⇒ on the PORT the PAUSE_CLOSE re-pin fires @off270 (port seed there = k0), JUMPING k0→k14, then +2 natural → k16.
+  On RETAIL the pin is a near-no-op: retail reaches k14 NATURALLY @off271-272 via a **bg_npc respawn CLUSTER** (~12
+  draws @off271, the shop-window NPCs `scene1_bg_npc` — the only other rng consumer in the cc08==4 path besides cs;
+  cs-walker npcsp/sparkle/dust all ALIGNED).  The pin was COMPENSATING for the port doing that bg_npc cluster a frame
+  later (port off271 draws only the cs_pick_line variant), but it fires 1f EARLY ⇒ the variant pick @off271 reads a
+  skewed value ⇒ wrong variant (poseR 1 vs retail 3 ⇒ K=14 vs 49 char line) ⇒ wrong offer 120 vs 119.
+
+**This is the §21.8 SEED-PIN SKEW recurring at PAUSE_CLOSE** (an asymmetric in-window re-pin; §21.8 said "neutralise
+the asymmetric in-window load-event re-pins").  Between off270 and the offer (off389) the trace has NO other re-pin, so
+the natural bg_npc 1f-cluster-phase SELF-CORRECTS (both do 15 draws by off273) — the pin is the only non-self-correcting
+perturbation.  **Hypothesised fix: drop the in-window PAUSE_CLOSE {rngseed} re-pin (keep the entry pin); the port's
+consumers matched off30-270 so the entry pin alone holds, and the variant/offer re-converge.**  Testing next.
+
+### 21.11.1 ★ EXPERIMENT + CORRECTION (2026-06-28) — drop the re-pin ⇒ VARIANT robustly fixed; the off271 cluster is the CS-WALKER (NOT bg_npc)
+
+**Dropped the PAUSE_CLOSE {rngseed} re-pin (trace L90), re-drove the port (no-pin):**
+- ✅ **VARIANT robustly FIXED** `poseR 1→3` == retail (off271-START LCG bit-identical k2 ⇒ the variant DRAW reads the
+  aligned value) + offer `120→119` + outcome `b534 7-accept→8-PUSHBACK` == retail.  BUT the offer match is
+  **COINCIDENTAL**: the port stays **−12 draws behind from off271 through the offer** (port draws 1 @off271 vs retail 13);
+  119 lands only because the −12 shift hits the same `init_eff % (2·random+1)`.  (anti-pattern: single matched value ≠ stream parity.)
+
+**★ The −12 consumer is the CS-WALKER, not the bg_npc (corrected via a bg_npc position probe + retail SoA fields):**
+- Instrumented `g_scene1_bg_npc[i].x/.dir` (port) + retail `DAT_073a7f80` SoA.  **The bilateral {bgnpcpin} APPLIES
+  CORRECTLY** — port NPC positions BIT-MATCH retail @off0 (the canonical −2.80/+17.09/+14.60/+5.50/+7.87/−11.51).  And
+  house_update + the bg_npc tick run EVERY frame through the d3e load (no suppression; the no-pin drive's 0x48670f emits
+  every frame off0-22 b1cc=2).  The bg_npc RESPAWNS (NPC1 x>25 dir flip @off~190) IN SYNC with retail (LCG matched off25-270).
+- **At off271 the retail bg_npc positions are nowhere near the respawn thresholds** (NPC1 +21.6, NPC2 +2.5, NPC3 −7.9,
+  NPC4 +20.6, NPC5 −3.2; |x| ≪ 15/25) ⇒ the 12-draw cluster is NOT a bg_npc edge-respawn.  Not the cs machine (1 draw =
+  the variant) and not the sparkle (%8-gated).  **By elimination + the port's `npcdr=0` @off271 ⇒ it's the cs-walker burst
+  (`FUN_0046fbee`/`FUN_0047019f`).**  §21.9's drill was `--span 200` (off0-199); the off271 burst is OUTSIDE it — the
+  un-surveyed consumer the FRONT predicted (`PORT-DEBT(cs-walker-rng-phase)`).
+- **TOOLING NOTE:** the wide-caprange (2400) + bg-probe capture DESTABILISES the d3e-load CreateThread race (the CS stalls
+  at b534=0; §20.1 worker-tail re-arm class) ⇒ couldn't capture the bg positions through the full reaction window that way.
+- **NEXT (next session):** per-draw rng-callsite attribution (§21.1: retail `FUN_005041f6` ret_va) @off271 to CONFIRM the
+  cs-walker + locate the exact draw; then port the cs-walker burst at off271 1:1 so the stream is bit-identical → offer
+  robustly 119; then neutralise the in-window PAUSE_CLOSE re-pin (§21.8).  TEMP probes (`*_dbg`, `bg{i}x/d`, retail_fields)
+  to remove after.  **The bg_npc arc is a CONFIRMED NON-ISSUE (pin works, integration 1:1).**
+
+**EXPERIMENT (2026-06-27) — dropped the PAUSE_CLOSE {rngseed} re-pin, re-drove the port (`-openrecet-…211003Z`):**
+- ✅ **VARIANT robustly FIXED:** `poseR 1→3` == retail (the off271 line variant + the customer face/line); off271-START
+  LCG is bit-identical (k2) so the variant DRAW reads the aligned value.  This is the user's "expression different".
+- ✅ offer `b574 120→119` + outcome `b534 7-accept→8-PUSHBACK` == retail — but **COINCIDENTAL**: the stream is NOT
+  re-aligned.  Per-frame LCG steps off271: **PORT draws 1, RETAIL draws 13** ⇒ the port is **−12 draws BEHIND from off271,
+  CONSTANT through the offer** (retail +12 ahead off272-388; +9/+11 around the offer draw).  119 matches only because the
+  −12 shift happens to land the same `init_eff % (2·random+1)`.  Anti-pattern guard (plan): a single matched value ≠ stream
+  parity.
+- **ROOT (real, pin-independent):** the port's **bg_npc respawn CLUSTER (~12 draws) is ABSENT @off271** where retail's
+  fires (the shop-window NPCs walking off-screen + respawning).  The in-window re-pin was a +14 MASK over this −12 gap (net
+  +2, mis-phased 1f).  bg_npc was bit-aligned off25-270 (drew nothing, just integrated positions) ⇒ at off271 retail's NPCs
+  cross the respawn threshold but the port's don't → port's NPC positions diverge from retail's despite the bilateral
+  `{bgnpcpin}` (off0).  Suspects: the {bgnpcpin} apply-timing (§21.4 ROOT-1b "1 tick late") OR a port bg_npc integration
+  gap OR the known retail bg_npc run-to-run non-determinism (`openrecet_bgnpc_nondeterministic`).
+- **NEXT (needs the bg_npc position compare):** instrument bg_npc x-positions + per-frame bg_npc rng-draws on BOTH, find
+  where the port's respawn cluster lands vs retail's off271, align it (port the cadence / fix the pin-apply) so the stream
+  is bit-identical → offer robustly 119.  **CHECKPOINT w/ user (bg_npc depth + the non-determinism question).**
