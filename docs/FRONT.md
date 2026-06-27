@@ -36,6 +36,24 @@
   Tiny residual: the idle wing-flap cframe ~1f ahead during the load (sub-frame anim phase; position/arrival exact). **NEXT:**
   (b) task #2: the wrap-up region drift (LOADING_END#4 +1 = occ4 load 2f vs retail 1f; DLG_LINE_SHOW +2). (c) task #3: note
   #2 scold-reaction render. Plan: `plans/rng-consumer-survey.md`, RE §21.10/§21.10.1/§21.10.2.
+- **★ USER-CONFIRMED 1:1 2026-06-27 — the cc08==4 ARRIVAL region (player + camera + companion) "nicely synced"** (commits
+  a93413a §21.10.1, dd98991 §21.10.2; recorded in `confirmed-parity-ledger.md`).  **Two NEW gaps the user flagged in the
+  first-customer HAGGLE (both AFTER the arrival, in the live machine):**
+  **(A) the OFFER diverges → different customer reaction (user: "customer expression different (likely rng)") — THE NEXT
+  ARC, the deep rng-value foundation.**  Probed: port offer `b574=120` vs retail `119→150`; init_eff off by 1 ⇒ the port
+  ACCEPTS (`b534=7`) where retail PUSHES BACK (`b534=8`).  This is an UN-SURVEYED rng consumer: the cs-walker survey
+  (1/200) only spans the first 200f from the f406 entry (the greeting); the offer/reaction (b534=6) is LATER, outside it.
+  So the offer's rng draw count/value isn't aligned yet — extend the survey to the reaction + align that consumer (pillar
+  A; `plans/rng-consumer-survey.md`).  NB possibly entangled with the offer's run-to-run non-determinism (RE §8.8) — confirm
+  determinism first.  **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
+  path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
+  session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga
+  cell {192,0,232,40}, 40×40) but the cc08 path never calls the top-level draw (retail all.c:7498, drawn LAST after
+  FUN_0046602e→FUN_00466b7b) AND the driver show/hide/snap are stubbed `PORT-DEBT(cs-cursor)` in `customer_service.c`
+  (:975/:985/:1018 scripted, :1294/:1313/:1321/:1431 live).  To port: append `title_save_dialog_cursor_render(dev)` to the
+  cc08 overlay tail + wire the stubs to `title_save_dialog_cursor_set_visible/snap` (snap x=192, y=b540·48+386 at the
+  decision, retail all.c:59985).  rng-safe (cursor driver draws no rng).  The blinking digit caret (b5b4) is already ported
+  — NOT this.  **DO (A) FIRST (it's the blocker + the user's main concern), THEN (B).**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

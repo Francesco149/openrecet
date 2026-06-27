@@ -245,4 +245,21 @@
   WHOLE post-haggle wrap-up cutscene (camera + companion height + Recette's shadow)
   is now confirmed 1:1.**
 
+- **cc08==4 ARRIVAL region (player + camera + companion) — USER-CONFIRMED 1:1 2026-06-27**
+  ("can confirm it is nicely synced").  The scripted-tutorial entry's arrival now plays
+  frame-by-frame 1:1 vs retail: Recette's stool-jump + the counter camera zoom AND Tear's
+  idle-then-walk-in all run THROUGH the d3e bg-load and arrive on retail's frames.  Root (RE
+  §21.10.1/§21.10.2): the cc08==4 arm gated its whole body on the live b1cc, but notify_loaded
+  clears b1cc inline ⇒ the master tick ran on the release frame (the §21.10 first −1: 2nd d3e
+  load 1f early) AND the arrival/sprite/companion were suppressed during the d3e bg-load
+  (retail runs them through it — the load doesn't raise the load-screen).  Fix: gate ONLY the
+  master tick on the frame-start b1cc (b1cc_pre); run the arrival + sprite UNGATED; gate the
+  companion ctrl inert during the load (idle anim only) on (live b1cc==2 || frame-start b1cc==2)
+  so it arrives the frame after the load clears.  Commits a93413a + dd98991.  v3-verified
+  (probe house-firstcust-arrprobe): anchor drift 0 CSE#1→CONV_POSE_START#1; panim/pcnt/camex +
+  companion canim/cx/octant/walk-in BIT-IDENTICAL; rng survey 3/200→1/200; 3372 host pass.
+  Accepted residual: Tear's idle wing-flap cframe ~1f phase during the load (position/arrival
+  exact).  OPEN gaps the user flagged in the live HAGGLE (NOT this region): the offer rng-value
+  (b574 120 vs 119, b534 7-accept vs 8-pushback) + the missing hand cursor (FRONT).
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
