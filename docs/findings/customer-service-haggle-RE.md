@@ -2643,3 +2643,28 @@ dumps b534/rngcalls/npc*/b548/b55c/b574/poseR entry-relative):
   destabilisation manufactured the −12 it was added to find** (`feedback_subagent_parity_exact_caution` / "diff-before-
   theories"); and **always re-verify a "fix" against a FRESH same-config bilateral, not a cached opposite-config side**
   (the drop-L90 "119" was a config-mismatch read).
+
+### 21.11.3 ★★★ RESOLVED 2026-06-28 (user chose option 1) — the port's 1f PAUSE_CLOSE was a REAL b150-clear off-by-one; deferring it 1f gives a CLEAN bilateral 119/poseR3 under the existing L90
+
+**The 1f phase is a PORT BUG, not the skipped-intro g_sim phase.**  `anchor_drift` measurement (port 230726Z vs retail
+d43dafe9): CUSTOMER_SERVICE_ENTER is consistently ENTRY−1 on BOTH sides ⇒ the frame-END anchor sampling is SYMMETRIC (not
+the cause); b534 0→1 and 1→2 are bit-aligned (+199/+270 from ENTRY both) ⇒ the greeting reveal is fine.  The ONE divergence
+is **`PAUSE_CLOSE − b534_1to2`: PORT −1, RETAIL 0** (and the b534==2 dwell 119 port / 120 retail).  Root: the port cleared
+`s_skip_modal` (the held ESC-skip b150 model) **INLINE at the b534=1→2 transition** (customer_service.c:1651), but **retail's
+b534 1→2 (all.c:60409-425) has NO FUN_00435612 — retail clears b150 via the choice-box system the frame AFTER**, so retail's
+PAUSE_CLOSE lands ON the b534==2 frame.  The port's inline clear fired PAUSE_CLOSE 1f early ⇒ the input-replay's frame-relative
+offer-Z (trace L93 `frame+119`) AND the L90 {rngseed} re-pin (applied right after PAUSE_CLOSE) both landed 1f early ⇒ the
+re-pin jumped the seed BEFORE the +2 natural draws ⇒ k16 not k14 ⇒ poseR 1 / offer 120.
+
+**FIX (committed):** defer the `s_skip_modal=0` clear by 1 frame — move it from the b534=1→2 transition (master tick) to
+cs_live_machine's FIRST b534==2 frame (`if (s_b544==1)`, the frame after).  Now PAUSE_CLOSE fires on the b534==2 frame like
+retail; the re-pin applies @off271 AFTER the +2 draws ⇒ the variant draw reads the aligned k14 ⇒ poseR 3 ⇒ offer 119.
+RNG-neutral (a tool-latch defer; s_skip_modal only feeds the PAUSE anchor, never the sim).
+
+**✅ VERIFIED bit-identical (fixed port WITH committed L90 vs retail cache d43dafe9, entry-aligned cc08==4&&b51c==0):**
+offer `b574 120→119` == retail; variant `poseR 1→3` == retail; b534 2→6 `off389→off390` == retail; PAUSE_CLOSE off269→off270
+(= the b534==2 frame, == retail).  **699 overlap offsets, ZERO per-frame rngΔ mismatches** (was 4 @off389-391) — the WHOLE
+first-customer window (wrap-up → offer → round 2) is now BIT-IDENTICAL under the bilateral L90.  3372 host pass; no regression
+(the confirmed-1:1 wrap-up/arrival is BEFORE PAUSE_CLOSE, untouched).  **The bilateral {rngseed} now works as designed (no
+target-scoping needed) — option 1 (fix the port) was the right call.**  cs-walker-rng-phase PORT-DEBT + the offer arc are
+CLOSED.  PENDING USER STUDIO CONFIRM (v3 win 580:620 join CSE — offer 119 + reaction render 1:1).

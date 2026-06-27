@@ -1291,6 +1291,11 @@ static void cs_live_machine(void)
             cs_pick_line(g_scene_buy_current_page, 1, 1);  /* FUN_00460a1a(rec,1,1) */
             s_cust_active[1] = -1;              /* DAT_06a5ea74 = -1 */
             s_b5a0 = 1;                         /* arrival anim start */
+            s_skip_modal = 0;                  /* close the held ESC-skip b150 HERE — the
+                                                * first b534==2 frame, 1f after the b534=1→2
+                                                * edge — matching retail's deferred b150 clear
+                                                * so PAUSE_CLOSE lands on the b534==2 frame
+                                                * (not 1f early); RE §21.11.2. */
             /* FUN_00435612 cursor (PORT-DEBT). */
         }
         if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {   /* line up + Z */
@@ -1648,8 +1653,13 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
             if ((s_in_pressed & 0x10) == 0){ s_cust_active[0] = 1; return; }
             s_cust_active[0] = 0;
             s_b534 = 2;
-            s_skip_modal = 0;   /* retail FUN_00435612: the held cancel-prompt b150
-                                 * closes here, at the live greeting → sell-greeting */
+            /* The held cancel-prompt b150 (s_skip_modal) closes 1f LATER, on the
+             * first b534==2 frame in cs_live_machine — NOT inline here.  Retail's
+             * b534 1→2 (all.c:60409-425) has NO FUN_00435612; retail clears b150 via
+             * the choice-box system the frame AFTER the greeting advances, so its
+             * PAUSE_CLOSE lands ON the b534==2 frame.  Clearing inline here fired the
+             * port's PAUSE_CLOSE 1f early ⇒ the frame-relative offer-Z + the L90
+             * {rngseed} re-pin both applied 1f early ⇒ wrong variant/offer (RE §21.11.2). */
             s_b544 = 0;
             s_b55c = 0;
             return;

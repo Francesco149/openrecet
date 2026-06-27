@@ -39,19 +39,18 @@
 - **★ USER-CONFIRMED 1:1 2026-06-27 — the cc08==4 ARRIVAL region (player + camera + companion) "nicely synced"** (commits
   a93413a §21.10.1, dd98991 §21.10.2; recorded in `confirmed-parity-ledger.md`).  **Two NEW gaps the user flagged in the
   first-customer HAGGLE (both AFTER the arrival, in the live machine):**
-  **(A) the OFFER diverges → different reaction — ★ ROOT CORRECTED 2026-06-28 (RE §21.11.2); the cs-walker "−12" was a
-  MISDIAGNOSIS, and the offer is NOT a one-line fix → OPEN DECISION to user.**  cs-walker is ALIGNED (`npcdr=0` EVERY frame
-  off265-393; the §21.11.1 "−12 @off271" was a DESTABILISED bg-probe-capture artifact; bg_npc also a NON-ISSUE).  Root =
-  the **L90 PAUSE_CLOSE `{rngseed:[0,3464877067]}` re-pin** (§21.8 SEED-PIN SKEW): the port's CONSTANT cumulative-phase
-  offset (~+3536 rngcalls, skipped-intro g_sim origin) ⇒ it applies the BILATERAL re-pin 1f early (its PAUSE_CLOSE leads
-  retail's by 1f) ⇒ +2 draws ⇒ poseR 1 ⇒ offer 120.  **BILATERAL TABLE (all clean-driven):** port {L90→poseR1/120 ·
-  no-L90→poseR3/119}; retail {L90→poseR3/119 · no-L90→poseR3/**122**}.  Dropping L90 fixes the port VARIANT (poseR 1→3 ==
-  retail, the user's "expression") + matches the RECORDING's offer 119 — **BUT retail is non-deterministic run-to-run
-  (119/122) and L90 is the REQUIRED retail-determinism pin** (lint `no-rngseed`), so NEITHER bilateral config is a clean
-  match (with-L90 120≠119; no-L90 119≠122-fresh).  The {rngseed} harness has NO target-scoping (bilateral by design).
-  **OPEN DECISION → user:** (1) fix the port's 1f PAUSE_CLOSE phase (root, bilateral-clean) · (2) target-scoped retail-only
-  re-pin (small tooling, asymmetric) · (3) full g_sim/wall-clock foundational pin (user directive, biggest).  State: trace
-  L90 RESTORED (=HEAD), TEMP `*_dbg`/bg probes removed; cs-walker CONFIRMED 1:1 (no port gap); 3372 host pass.
+  **(A) the OFFER diverges → different reaction — ★★★ RESOLVED 2026-06-28 (user chose option 1 = fix the port; RE §21.11.3);
+  the cs-walker "−12" was a MISDIAGNOSIS (debunked: `npcdr=0` EVERY frame, no burst — a destabilised bg-probe artifact).**
+  Root = the port cleared the held ESC-skip b150 (`s_skip_modal`) INLINE at the b534=1→2 edge, but **retail clears b150 the
+  frame AFTER** (its b534 1→2 has no FUN_00435612) ⇒ the port's PAUSE_CLOSE fired 1f early ⇒ the input-replay offer-Z + the
+  L90 {rngseed} re-pin both applied 1f early ⇒ re-pin jumped the seed before the +2 draws ⇒ poseR 1 / offer 120.  (anchor_drift
+  proved it a PORT BUG not the skipped-intro phase: CSE/b534 0→1/1→2 all bilaterally aligned; only `PAUSE_CLOSE − b534_1to2`
+  diverged −1 vs 0.)  **FIX (committed): defer the `s_skip_modal=0` clear 1f** → cs_live_machine's first b534==2 frame; PAUSE_CLOSE
+  now lands on the b534==2 frame like retail, the bilateral L90 re-pin applies correctly.  **✅ VERIFIED bit-identical** (fixed
+  port WITH committed L90 vs retail d43dafe9): offer `120→119`, variant `poseR 1→3`, b534 2→6 `off389→390` all == retail; **699
+  offsets, ZERO rngΔ mismatches** (whole wrap-up→offer→round-2 window); 3372 host pass; no regression.  **The bilateral
+  {rngseed} works as designed — no target-scoping/foundational pin needed.**  cs-walker-rng-phase + the offer arc CLOSED.
+  **PENDING USER STUDIO CONFIRM** (v3 win 580:620 join CSE — offer 119 + reaction render 1:1).
   **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
   path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
   session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga
@@ -60,7 +59,8 @@
   (:975/:985/:1018 scripted, :1294/:1313/:1321/:1431 live).  To port: append `title_save_dialog_cursor_render(dev)` to the
   cc08 overlay tail + wire the stubs to `title_save_dialog_cursor_set_visible/snap` (snap x=192, y=b540·48+386 at the
   decision, retail all.c:59985).  rng-safe (cursor driver draws no rng).  The blinking digit caret (b5b4) is already ported
-  — NOT this.  **(A) is at an OPEN DECISION (the offer determinism, above) — (B) the hand cursor stays blocked on it.**
+  — NOT this.  **(A) is RESOLVED 2026-06-28 (pending studio confirm) — (B) the hand cursor is the NEXT chip once the user
+  confirms the offer 1:1.**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-
