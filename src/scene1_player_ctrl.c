@@ -1838,6 +1838,10 @@ static void player_ctrl_cc08_unported_arm(void)
          * Gate the arrival + master tick on this pre-release value so they resume
          * one frame later, matching retail.  The NPC pump stays unconditional (§19). */
         int b1cc_pre = customer_service_b1cc();
+        /* publish the frame-start load state for later-in-frame consumers (the
+         * companion ctrl, scene1_sim, runs AFTER this) — see RE §21.10 / the
+         * companion gate.  Done BEFORE the inline notify_loaded below. */
+        customer_service_note_frame_load(b1cc_pre == 2);
 
         /* {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
          * (and increments) every b1cc==2 frame; it returns 1 unless a pin is set,

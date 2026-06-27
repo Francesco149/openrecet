@@ -114,6 +114,10 @@ int32_t customer_service_b1cc(void);
  * anchor_world.loading_active so LOADING_END/HOUSE_FREEROAM span the load like
  * retail (RE §21.9).  Anchor/capture only — does NOT gate the sim. */
 int customer_service_d3e_loading(void);
+/* frame-start snapshot of the d3e-load gate (set by the cc08==4 arm before
+ * notify_loaded; read by a later-in-frame consumer like the companion ctrl). */
+void customer_service_note_frame_load(int loading);
+int  customer_service_load_at_frame_start(void);
 
 /* Customer-service-active flag (DAT_0438b7b0) — set on session init, read by
  * both render functions (FUN_0046602e/FUN_00466b7b gate on `b7b0 != 0`). */

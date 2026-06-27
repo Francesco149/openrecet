@@ -2499,3 +2499,21 @@ cx) DURING the load, arriving only at off26+ (after b1cc clears), while the port
 (canim 4 from off1).  So `scene1_companion_ctrl_tick` (FUN_0048a833) self-gates on b1cc on retail (inert during load) —
 the port's companion ctrl must gate the same.  Pre-existing (NOT this fix).  (b) task #2: the wrap-up load occ4 is 2f
 (port) vs 1f (retail) → LOADING_END#4 +1; DLG_LINE_SHOW +2 (dialogue reveal); then the first-customer region drift.
+
+### 21.10.2 ✅ FIXED 2026-06-27 — the companion (Tear) arrival: idle THROUGH the load, then walk in (matches retail)
+Completes the arrival region (§21.10.1 did the player; this does the companion).  Root: the port runs the companion ctrl
+(`scene1_companion_ctrl_tick`, from scene1_sim) EVERY frame, so its cc08==4 at-counter branch (`co_at_counter_tick`,
+canim 4 + step) ran THROUGH the d3e load — Tear walked to the counter while loading.  Retail calls FUN_0048a833 from the
+cc08 arm but its arrival is INERT during the load (b1cc-gated): verified canim 0 + cx FROZEN (−0.0221) across the 24f load,
+only the idle ANIM advancing (cframe 1→2→3→0 via the draw leaf), then she walks in (canim 1 @ off26-27 → 4 @ off28) — the
+walk branch the port's co_at_counter already has (dist≥2.0) but never hit because it pre-walked her in during the load.
+**Fix (`scene1_companion_ctrl.c`):** gate the companion ctrl INERT during the cc08==4 load — run only `chr_anim_tick` (the
+idle anim) + return.  Gate = `(customer_service_d3e_loading() || customer_service_load_at_frame_start())`: the d3e load
+both SPAWNS (entry) and CLEARS (release) mid-frame, and the companion runs AFTER scene1_player_ctrl_tick, so the SPAWN
+frame shows only the LIVE b1cc==2 (the cc08 arm's note isn't set — the entry path returns early) and the RELEASE frame
+shows only the frame-start SNAPSHOT==2 (notify_loaded already cleared the live b1cc).  New `customer_service_note_frame_load`
+/`_load_at_frame_start` (snapshot set in the cc08 arm before notify_loaded — same b1cc_pre idea as the master tick, shared
+to a later-in-frame consumer).  **✅ VERIFIED:** companion canim + cx + octant + the walk-in (canim 1→4) BIT-IDENTICAL to
+retail (cx −0.2274→−0.9759 == retail across the walk); rng survey still 1/200, 0/200 gsim%8; drift 0; 3372 host pass.
+**Residual (tiny):** the idle wing-flap `cframe` is ~1f ahead during the load (the free-roam→load entry leaves the idle
+anim-counter 1 step further along than retail) — position/arrival are exact; sub-frame anim-cycle phase, revisit if visible.

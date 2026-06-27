@@ -256,6 +256,27 @@ void scene1_companion_ctrl_tick(void)
     float         *comp   = g_scene1_actor_pos[CO_ACTOR];
     const float   *player = g_scene1_actor_pos[CO_TARGET];
 
+    /* cc08==4 d3e bg-load: the companion ctrl is INERT (retail calls FUN_0048a833
+     * from the master tick, which self-gates on b1cc==2) — Tear stays put (idle
+     * pose, frozen pos; her octant is set by the player arrival arm, which runs
+     * THROUGH the load).  Only the idle ANIM advances — retail's draw leaf ticks
+     * every drawn actor each frame, so cframe cycles (1→2→3→0) while loading — and
+     * NO move / at-counter pose / wing sparkle fire (RE §21.10).  Verified: retail
+     * canim 0 + cx frozen across the 24f load, cframe cycling; the port had run
+     * co_at_counter (canim 4, cx ramping) through the load.
+     *   Gate on (live b1cc==2) OR (frame-start b1cc==2): the load both SPAWNS and
+     * CLEARS mid-frame, and the companion runs AFTER scene1_player_ctrl_tick, so on
+     * the SPAWN frame (entry) only the live b1cc is 2 (the cc08 arm hasn't set the
+     * note — the entry path returns early), while on the RELEASE frame only the
+     * frame-start snapshot is 2 (notify_loaded already cleared the live b1cc).  The
+     * OR keeps the companion idle for off0..release inclusive ⇒ it arrives the frame
+     * AFTER the load clears, matching retail (was 1f early on the release frame). */
+    if (player_ctrl_cc08() == 4 &&
+        (customer_service_d3e_loading() || customer_service_load_at_frame_start())) {
+        chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
+        return;
+    }
+
     /* cc08==4 + f404 != 0 (a player-initiated counter SELL): the companion is the
      * haggle CUSTOMER — run the at-counter branch (FUN_0048a833 local_c!=0, forced
      * nonzero by f404 at by-address 0x48a98b) instead of the free-roam spring-follow.

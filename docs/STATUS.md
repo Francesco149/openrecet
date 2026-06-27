@@ -44,10 +44,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (panim 0→5@off2, pcnt 23→1→28, camex −1.5→−2.85 == retail); rng survey **3/200→1/200** 0/200 gsim%8; 3372 host pass.
   **TOOLING:** widened `{calltrace}`/`{caprange}` to HF occ1 (retail was bound to occ3, missed off 0-84); +probe scenario
   `house-firstcust-arrprobe` (trimmed to the first customer, no day-2 stall) + `tools/anchor_drift.py`. **PENDING USER
-  STUDIO CONFIRM** (arrival/camera visual). **NEXT:** (a) the COMPANION is the OPPOSITE — retail keeps Tear IDLE (canim 0,
-  frozen) DURING the load, arriving at off26+; the port runs her arrival through the load ⇒ `scene1_companion_ctrl_tick`
-  must self-gate on b1cc (pre-existing). (b) task #2: the wrap-up region drift (LOADING_END#4 +1 = the occ4 load 2f vs
-  retail 1f; DLG_LINE_SHOW +2). (c) task #3: note #2 scold-reaction render. Plan: `plans/rng-consumer-survey.md`, RE §21.10/§21.10.1.
+  STUDIO CONFIRM** (arrival/camera + companion visual).
+- **★ §21.10.2 LANDED 2026-06-27 — the COMPANION (Tear) arrival, completing the arrival region (RE §21.10.2).** The port
+  ran the companion ctrl every frame ⇒ Tear walked to the counter THROUGH the d3e load; retail keeps her IDLE (canim 0, cx
+  frozen) during the load, then walks her in (canim 1→4) after b1cc clears. **Fix** (`scene1_companion_ctrl.c`): gate the
+  companion ctrl inert during the cc08==4 load — run only the idle anim — on `(d3e_loading() || load_at_frame_start())`
+  (the load spawns+clears mid-frame and the companion runs after the player ctrl, so the spawn frame needs the live b1cc
+  and the release frame needs the frame-start snapshot; new `customer_service_note_frame_load`/`_load_at_frame_start`).
+  **✅ v3-verified BIT-IDENTICAL** companion canim/cx/octant + the walk-in vs retail; survey 1/200, drift 0, 3372 host pass.
+  Tiny residual: the idle wing-flap cframe ~1f ahead during the load (sub-frame anim phase; position/arrival exact). **NEXT:**
+  (b) task #2: the wrap-up region drift (LOADING_END#4 +1 = occ4 load 2f vs retail 1f; DLG_LINE_SHOW +2). (c) task #3: note
+  #2 scold-reaction render. Plan: `plans/rng-consumer-survey.md`, RE §21.10/§21.10.1/§21.10.2.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

@@ -424,6 +424,19 @@ int32_t customer_service_b1cc(void)        { return s_b1cc; }
  * (1-frame reload only) and the pins skewed.  b1cc==2 mirrors gate2's lifetime
  * (set at the d3e spawn, cleared when the load — csloadpin-held — completes). */
 int customer_service_d3e_loading(void)     { return s_b1cc == 2; }
+
+/* Frame-start snapshot of the d3e-load gate, set by the cc08==4 arm
+ * (scene1_player_ctrl_tick) BEFORE its inline notify_loaded clears b1cc, so a
+ * consumer that runs LATER in the frame (the companion ctrl in scene1_sim) gates
+ * on the load state as it was at frame start — exactly like the master tick's
+ * b1cc_pre.  Keeps the companion idle for the WHOLE load incl. the release frame
+ * ⇒ its arrival starts the frame AFTER the load clears, matching retail (RE
+ * §21.10); without it the companion sees the already-cleared b1cc and arrives 1f
+ * early. */
+static int s_cs_load_at_frame_start;
+void customer_service_note_frame_load(int loading) { s_cs_load_at_frame_start = loading; }
+int  customer_service_load_at_frame_start(void)    { return s_cs_load_at_frame_start; }
+
 int32_t customer_service_active(void)      { return s_cs_active; }
 int32_t customer_service_b51c(void)        { return s_b51c; }
 int32_t customer_service_b608(void)        { return s_b608; }
