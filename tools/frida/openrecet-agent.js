@@ -809,6 +809,7 @@ const BG_NPC_PIN_SEED      = 19937;
 // fires on retail) cannot suppress it.  See segtraceTick + RE §21.1.
 let g_bgnpc_soa_dumped     = false;
 let g_bgnpc_rng_log_n      = 0;   // bgnpcpin verification rng-trajectory counter
+let g_grid_dumped          = false; // one-shot furniture-grid dump latch (rng-survey §21.4 ROOT 2)
 // BILATERAL {bgnpcpin} (RE §21.4): the canonical bg-NPC SoA (150 u32 = 6 x 0x64-byte
 // records) to WRITE into DAT_073a7f80 at the f406 entry, so retail's window NPCs match
 // the port's pinned layout.  Retail's natural bg_npc varies run-to-run (the NPCs tick a
@@ -3459,6 +3460,37 @@ function segtraceTick(fn) {
                     }
                 }
             } catch (ex) { err('bgnpc-soa', ex.message); }
+        }
+        // One-shot furniture-layout GRID dump (rng-survey §21.4 ROOT 2): the
+        // cs-walker retarget (FUN_0046fbee) rejection-samples DAT_074b28e8; its
+        // CONTENT differs port<->retail, mis-counting the off-29..32 rng cluster.
+        // Dump the grid (300 int32 → grid_dump.bin) + its five inputs
+        // (tier/count/origins/mesh/rot) at the SAME f406 entry frame as the bgnpc
+        // SoA, to diff against the port's grid_dump.{bin,json}.  Fires in BOTH
+        // capture + bilateral-pin modes (the grid is save-derived, pin-neutral).
+        if (g_bgnpc_soa_dumped && !g_grid_dumped && g_capture_dir) {
+            try {
+                g_grid_dumped = true;
+                ensureWinFileFns();
+                writeRawFile(g_capture_dir + '\\grid_dump.bin',
+                             rva(0x074b28e8), 0x4b0);
+                const rec = rva(0x0438b1e0).readS32();
+                const stride = 0x2dfc8;             // 0xb7f2 dwords per record
+                const tier = rva(0x04510578 + rec * stride).readS32();
+                const count = rva(0x0438bfb4).readS32();
+                const n = (count > 0 && count <= 10) ? count : 10;
+                let origins = [], mesh = [], rot = [];
+                for (let i = 0; i < n; i++) {
+                    origins.push([rva(0x045105a8 + rec * stride + i * 8).readS32(),
+                                  rva(0x045105ac + rec * stride + i * 8).readS32()]);
+                    mesh.push(rva(0x0438bfcc + i * 4).readS32());
+                    rot.push(rva(0x0438c01c + i * 4).readFloat());
+                }
+                log('grid: frame=' + fn + ' rec=' + rec + ' tier=' + tier +
+                    ' count=' + count + ' mesh=' + JSON.stringify(mesh) +
+                    ' rot=' + JSON.stringify(rot) +
+                    ' origins=' + JSON.stringify(origins) + ' -> grid_dump.bin');
+            } catch (ex) { err('grid-dump', ex.message); }
         }
         // rng-trajectory log for the bgnpcpin verification (companion to the SoA
         // dump): from the f406 entry onward, emit the cumulative LCG count

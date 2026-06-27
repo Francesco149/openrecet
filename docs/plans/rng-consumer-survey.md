@@ -133,7 +133,24 @@ The survey of the off-30-34 cluster (no re-drive needed: the `215600Z` retail ca
   brackets (a csloadpin-analogue for the iv1_7/cs-leave loads) so the skip timing is reproducible, OR a phase-matched
   condition-gated confirm. RE §21.5.
 
+## Progress (2026-06-27, RE §21.7) — the cs-walker GRID is BIT-IDENTICAL; §21.4 ROOT 2 was a misdiagnosis
+On the deterministic entry (§21.6 unblocked it), dumped BOTH grids `DAT_074b28e8` + inputs at the f406 entry
+(new diagnostics: port `shop_display_grid_dump`, retail agent dump, `/tmp/grid_diff.py`):
+- **✅ GRID BIT-IDENTICAL (0 diff cells)**, inputs identical (`tier=0 count=3 origins=[[3,3],[1,0],[0,1]] mesh=[3,4,4]
+  rot=[0,0,π/2]`).  §21.4's "grid CONTENT differs in cols 1-8 rows 1-7" was an un-dumped INFERENCE — FALSE.  The cs-walker
+  is FULLY ported: spawn (`FUN_0046f914`, 4 draws incl. the discarded 2nd), burst (`FUN_0046fbee`), pump order
+  (`FUN_0047019f` spawn-before-tick) all verified faithful.  **The cs-walker GRID arc is CLOSED (no pillar-A gap there).**
+- **The residual = a pillar-B VALUE gap, not a consumer gap.** `cs_walker_drill` (`…125602Z`↔`…130047Z`, span 200): off
+  0-28 count-aligned; **13/200 offsets diverge**, all at the cs-walker spawn+burst (off 29-32, drift retail +11) — both
+  spawn @off29 then the NPC re-bursts a different # of iterations over the IDENTICAL grid ⇒ the rng VALUES feeding the
+  burst are misaligned.  The burst is the FIRST value-dependent-COUNT consumer (base=1/f + sparkle=gsim-gated are
+  count-deterministic), so a seed-value offset hides until off 29.
+- **Root lead (pillar-B task, §21.4 ROOT 1b shape):** off 0 (entry frame) gsim is UNPINNED — port 791 / retail 810; the
+  `{gsimpin}`+`{rngseed}` (at `LOADING_END+0`) only bite at off 1.  NEXT: instrument the LCG state `DAT_006023a0` both
+  sides at off0/off1, confirm the seed offset, align the pins to off0-effective (the `{bgnpcpin}`→CONV_POSE_END fix
+  pattern).  This is now the #1 pillar-B task; pillar-A (consumers) looks essentially DONE for this window.
+
 ## Pointers
-FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1**;
+FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1/§21.7**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;
 `docs/flow-trace-cheatsheet.md`.

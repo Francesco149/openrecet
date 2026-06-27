@@ -45,6 +45,11 @@
 #define PC_CAM_Z_DECAY   0.03f
 #define PC_CAM_Z_FLOOR   (-2.0f)
 
+/* Weak default for the diagnostic grid-dump capture dir: main.c provides the
+ * strong definition (g_capture_dir) in the real Windows build; the host-test
+ * harness (no main.o) falls back to this NULL → the dump stays inert. */
+__attribute__((weak)) const char *openrecet_capture_dir(void) { return 0; }
+
 int player_ctrl_facing_snap(int octant, int *sticky)
 {
     octant &= 7;
@@ -2244,6 +2249,23 @@ void scene1_player_ctrl_tick(void)
      * 1×4 furniture stamp the engine writes here (the base template has no
      * stand cells). */
     shop_display_grid_rebuild();
+
+    /* DIAGNOSTIC (rng-survey §21.4 ROOT 2): one-shot grid+inputs dump the first
+     * frame the f406 first-customer entry holds (cc08==4 && b51c==0 — the same
+     * gate as the retail agent's bgnpc SoA dump), so the cs-walker retarget
+     * grid divergence is diffable port↔retail.  Fires AFTER the rebuild so the
+     * dumped grid is this frame's.  Compiled in; inert unless capturing. */
+    {
+        static int s_grid_dumped = 0;
+        if (!s_grid_dumped && customer_service_active() &&
+            customer_service_b51c() == 0) {
+            const char *dir = openrecet_capture_dir();
+            if (dir != NULL) {
+                shop_display_grid_dump(dir, (uint32_t)g_sim_frame_count);
+                s_grid_dumped = 1;
+            }
+        }
+    }
 
     /* scene-transition fade handlers (DAT_0450f470/485/488/495): none fires in
      * steady HOUSE free-roam → fall through to the controller. */

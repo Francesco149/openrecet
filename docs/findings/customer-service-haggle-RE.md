@@ -2338,3 +2338,33 @@ no bgnpc PIN; after the skip the drive enters a SOFTLOCK LOOP (`HOUSE_FREEROAM`�
   does NOT cover (it auto-disables at the f406 entry, `!g_bgnpc_soa_dumped`).  This is OUTSIDE the cc08==4 survey window +
   caprange `[0,2600]` ⇒ it does NOT affect the rng survey; it is the future "iv1_8 → cutscene series → day-2 brooming" work
   (FRONT).  When that arc starts, generalise the ARM-ONLY driver to re-arm at each post-entry skippable cutscene.
+
+### 21.7 ★★ §21.4 ROOT 2 "the cs-walker GRID differs" was a MISDIAGNOSIS — the grid is BIT-IDENTICAL; the residual drift is an rng-VALUE (seed-origin) gap, NOT a missing consumer (2026-06-27)
+On the now-deterministic entry (§21.6), dumped BOTH sides' furniture-layout grid `DAT_074b28e8` (300 int32) + its five
+inputs at the f406 entry (new diagnostics: port `shop_display_grid_dump` gated `customer_service_active()&&b51c==0`,
+`src/scene1_shop_display.c`; retail one-shot in `openrecet-agent.js` next to the bgnpc SoA dump; differ via `/tmp/grid_diff.py`).
+**Result — the grids are BIT-IDENTICAL (0 differing cells), inputs identical:** `tier=0 count=3 origins=[[3,3],[1,0],[0,1]]
+mesh=[3,4,4] rot=[0,0,π/2]` on both (port frame 791 / retail frame 15388).  So §21.4 ROOT 2's "the grid CONTENT differs
+in cols 1-8 rows 1-7" was an INFERENCE ("logic+values match ⇒ must be the grid") that was never actually dumped — and it
+is FALSE.  The grid rebuild (`FUN_0048960d`), `cs_spawn_one` (`FUN_0046f914` — 4 draws: 3 int15 incl. the **discarded
+2nd draw** + 1 float `FUN_00471089`; the port models the waste draw), the retarget burst (`FUN_0046fbee` — cx=(rng15&7)+1,
+cy=(rng15%7)+1, break on first walkable {0,9}), and the pump order (`FUN_0047019f`: spawn-before-tick) are ALL verified
+faithful vs the decompile.
+**The actual picture (`cs_walker_drill` port `…125602Z` ↔ retail `…130047Z`, --span 200):** off 0-28 COUNT-aligned;
+ONLY **13/200 offsets diverge**, clustered at the cs-walker SPAWN+BURST (off 29-32, ret_va-attributed via `/tmp/rng_sxs.py`:
+both sides spawn `FUN_0046f914`@off29, then the spawned NPC re-bursts `FUN_0046fbee` a DIFFERENT # of iterations —
+retail 1/3/4/2, port 3/1/1/0 — drift retail **+11** cumulative).  Since the grid is identical + the burst logic is
+identical + the spawn count matches (4) + off 0-28 are count-aligned, the burst's (cx,cy) samples can only differ if the
+rng **VALUES** feeding the burst are misaligned — i.e. this is **pillar B (seed/phase ORIGIN), NOT pillar A (a missing/
+mis-counted consumer)**.  The burst is the FIRST value-dependent-COUNT consumer in the window (the base `FUN_00442cef`
+is 1/frame and the sparkle is gsim-gated — both count-deterministic regardless of value), so a value-misalignment stays
+INVISIBLE until off 29.
+**Root lead — the entry-boundary pin lands off-by-one (same shape as §21.4 ROOT 1b).** At off 0 (the entry frame) gsim is
+NATURAL/unpinned: **port 791 vs retail 810**; the `{gsimpin:[0,811]}`+`{rngseed}` (placed at `LOADING_END+0`) only take
+effect at **off 1** (both jump to 811).  So off 0 is an unpinned frame whose draws use each side's natural pre-entry LCG
+state; if the `{rngseed}` re-pin then lands at a 1-frame-skewed effective offset port-vs-retail (the segtrace base+0 →
+anchor+1 off-by-one differs between the port's `input_segtrace` and the agent's), the post-pin streams sit at a constant
+value-offset that surfaces at the off-29 burst.  **NEXT:** confirm the seed value at off1 port-vs-retail (instrument the
+LCG state `DAT_006023a0` both sides at the entry) and align the `{rngseed}`/`{gsimpin}` to off0-effective (move to the
+entry's own segment / fix the base+0 anchor+1 skew), mirroring the §21.4 ROOT 1b `{bgnpcpin}`→CONV_POSE_END fix.  The
+cs-walker GRID arc is CLOSED (no port gap there).

@@ -37,7 +37,10 @@ def load(path: Path) -> dict:
             is_rng = '"rngcalls"' in line
             if not (has_frame or is_state or is_rng):
                 continue
-            o = json.loads(line)
+            try:
+                o = json.loads(line)
+            except json.JSONDecodeError:
+                continue   # tolerate a truncated final line (drive killed mid-write)
             if "frame" in o and o.get("va") != VA_STATE:
                 cur = o["frame"]
             fr = o.get("frame", cur)

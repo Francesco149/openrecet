@@ -79,4 +79,10 @@ int32_t shop_display_grid_cell(int col, int row);
 /* Reset grid + highlight to BSS-zero / "none" (test setup, HOUSE re-entry). */
 void shop_display_reset(void);
 
+/* DIAGNOSTIC (rng-survey §21.4 ROOT 2): one-shot dump of the layout grid +
+ * inputs (tier/count/origins/mesh/rot) → <dir>\grid_dump.{bin,json}.  Used to
+ * root-cause the port↔retail grid divergence behind the cs-walker retarget
+ * rng-count gap.  No-op if dir==NULL. */
+void shop_display_grid_dump(const char *dir, uint32_t frame);
+
 #endif /* OPENRECET_SCENE1_SHOP_DISPLAY_H */

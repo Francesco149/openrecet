@@ -3945,6 +3945,10 @@ static void segtrace_memsnap_cb(uint32_t frame, void *user)
             (unsigned)frame, n, g_capture_dir);
 }
 
+/* Capture-dir accessor for one-shot diagnostic dumps (e.g. the shop-display
+ * grid dump, rng-survey §21.4).  NULL when not capturing. */
+const char *openrecet_capture_dir(void) { return g_capture_dir; }
+
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open
  * (or widen) the contiguous capture window [lo, hi).  Drives capture_in_range()
  * later in render_dispatch — distinct from the bounded g_capture_frames[] list

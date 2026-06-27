@@ -12,6 +12,7 @@
 #include "scene1_shop_display.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "save_work.h"               /* save_work_active_slot / save_work_dwords_at */
@@ -274,4 +275,57 @@ void shop_display_highlight_update(float px, float pz, float pang)
         s_cbfc = -1;
         s_cc00 = -1;
     }
+}
+
+/* DIAGNOSTIC (rng-survey §21.4 ROOT 2): dump the furniture-layout grid
+ * DAT_074b28e8 + its five inputs (tier / count / origins / mesh / rot) at the
+ * f406 first-customer entry, so the port↔retail grid divergence that mis-counts
+ * the cs-walker retarget rejection-sampling can be diffed.  Raw 300-int32 grid
+ * → <dir>\grid_dump.bin; the small inputs → <dir>\grid_dump.json.  No-op if
+ * dir==NULL. */
+void shop_display_grid_dump(const char *dir, uint32_t frame)
+{
+    if (dir == NULL)
+        return;
+
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    int tier = -1;
+    if (bank != NULL)
+        tier = (int)bank[SHOP_DISPLAY_TIER_SELECTOR];
+    int count = g_scene1_walker_phase2_count;
+    const int32_t *origins =
+        (bank != NULL) ? (const int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS)
+                       : NULL;
+
+    char path[512];
+    snprintf(path, sizeof path, "%s\\grid_dump.bin", dir);
+    FILE *fb = fopen(path, "wb");
+    if (fb != NULL) {
+        fwrite(s_grid, sizeof(int32_t), SHOP_DISPLAY_GRID_CELLS, fb);
+        fclose(fb);
+    }
+
+    snprintf(path, sizeof path, "%s\\grid_dump.json", dir);
+    FILE *fj = fopen(path, "w");
+    if (fj == NULL)
+        return;
+    fprintf(fj, "{\"frame\":%u,\"active_slot\":%d,\"tier\":%d,\"count\":%d,\n",
+            (unsigned)frame, save_work_active_slot(), tier, count);
+    fprintf(fj, " \"origins\":[");
+    for (int i = 0; i < count && origins != NULL; i++)
+        fprintf(fj, "%s[%d,%d]", i ? "," : "",
+                (int)origins[i * 2 + 0], (int)origins[i * 2 + 1]);
+    fprintf(fj, "],\n \"mesh\":[");
+    for (int i = 0; i < count; i++)
+        fprintf(fj, "%s%d", i ? "," : "",
+                (int)g_scene1_walker_phase2_mesh_type[i]);
+    fprintf(fj, "],\n \"rot\":[");
+    for (int i = 0; i < count; i++)
+        fprintf(fj, "%s%.6f", i ? "," : "",
+                (double)g_scene1_walker_phase2_rot_y[i]);
+    fprintf(fj, "],\n \"grid\":[");
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        fprintf(fj, "%s%d", i ? "," : "", (int)s_grid[i]);
+    fprintf(fj, "]}\n");
+    fclose(fj);
 }
