@@ -3501,6 +3501,8 @@ function segtraceTick(fn) {
             try {
                 log('bgnpc-rng: off=' + g_bgnpc_rng_log_n + ' frame=' + fn +
                     ' rng=' + (g_rng_count_total >>> 0) +
+                    ' rngst=' + (rva(0x006023a0).readU32() >>> 0) +  // LCG STATE (§21.7)
+                    ' gsim=' + rva(0x0438b8cc).readS32() +
                     ' cc08=' + rva(0x0438cc08).readS32() +
                     ' b51c=' + rva(0x0730b51c).readS32() +
                     ' b534=' + rva(0x0730b534).readS32());

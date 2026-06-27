@@ -2368,3 +2368,30 @@ value-offset that surfaces at the off-29 burst.  **NEXT:** confirm the seed valu
 LCG state `DAT_006023a0` both sides at the entry) and align the `{rngseed}`/`{gsimpin}` to off0-effective (move to the
 entry's own segment / fix the base+0 anchor+1 skew), mirroring the §21.4 ROOT 1b `{bgnpcpin}`→CONV_POSE_END fix.  The
 cs-walker GRID arc is CLOSED (no port gap there).
+
+### 21.8 ★★★ CONFIRMED 2026-06-27 — the value gap is a `{rngseed}` PIN-OFFSET SKEW: the per-segment seed pins fire at port↔retail-skewed entry-relative offsets
+Instrumented the LCG STATE `g_rng_seed`/`DAT_006023a0` both sides (port: `CALL_TRACE_I32("rngst")` in the 0x48670f
+probe; retail: `rngst=` in the agent's bgnpc-rng log) + re-drove (`…132607Z`).  Compared via `/tmp/rngst_cmp.py`.  The
+smoking gun — the SEED-PIN VALUES land at DIFFERENT entry-relative offsets:
+```
+        port    retail
+off 0   807420856   449161817(natural)
+off 1   2300378890  807420856   ← retail applies CONV_POSE_END seed (807420856) at off1; port at off0
+off 3   …           2300378890  ← retail applies LOADING_END seed (2300378890) at off3; port at off1
+```
+So the scenario's `{rngseed}` ops (807420856 @ CONV_POSE_END, 2300378890 @ LOADING_END, …) are applied **1-2 frames
+EARLIER on the port than on retail** ⇒ after the last pre-entry seed the two streams sit at a **constant ~+2-frame value
+offset** (port ahead).  The per-frame draw COUNT then matches (off 0-28), so the offset is invisible until the first
+value-dependent-COUNT consumer — the cs-walker burst @off29 — samples (cx,cy) from the +2-skewed state ⇒ the +11 drift.
+**Root mechanism:** the `{rngseed}` pins are anchored to engine events (CONV_POSE_END / LOADING_END / LOADING_START)
+whose timing RELATIVE TO the f406 entry DIFFERS between the port (compressed flow) and retail (load-stretched), so a
+`base+0` op lands at a different entry-offset on each side.  (The retail trajectory also RE-pins LOADING_END's value at
+~off24 — the b1cc customer-asset load completing — which the port doesn't mirror at the same offset: an asymmetric
+load-event re-pin, a second skew source.)  This is the `{bgnpcpin}`-vs-segtrace asymmetry generalised: the `{bgnpcpin}`
+is CONDITION-gated at the f406 entry (off0 both sides) and is correct; the `{rngseed}` is SEGMENT-gated and skews.
+**FIX direction (pillar-B foundation, mirrors `{bgnpcpin}`):** an **entry-gated bilateral seed pin** — capture the
+natural LCG state at the f406-entry CONDITION (`cc08==4&&b51c==0`, the bgnpc-dump point) and re-apply it off0-effective
+on BOTH sides at that same condition, so the entry is a single clean value-sync point independent of segment/load timing.
+Must also neutralise the asymmetric in-window load-event re-pins (the off24 LOADING_END) so they don't re-skew.  This is
+the next pillar-B chip; needs a design call on the pin mechanism (extend `{bgnpcpin}` to carry the seed, or a sibling
+`{entryseed}` op condition-gated like the bgnpc pin).

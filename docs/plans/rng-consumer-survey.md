@@ -150,7 +150,17 @@ On the deterministic entry (§21.6 unblocked it), dumped BOTH grids `DAT_074b28e
   sides at off0/off1, confirm the seed offset, align the pins to off0-effective (the `{bgnpcpin}`→CONV_POSE_END fix
   pattern).  This is now the #1 pillar-B task; pillar-A (consumers) looks essentially DONE for this window.
 
+## Progress (2026-06-27, RE §21.8) — the value gap is a `{rngseed}` PIN-OFFSET SKEW (pillar-B)
+Instrumented the LCG state `g_rng_seed`/`DAT_006023a0` both sides + re-drove (`…132607Z`).  The seed-pin VALUES land at
+DIFFERENT entry-relative offsets: port off0=807420856 / off1=2300378890; retail off1=807420856 / off3=2300378890 — so the
+`{rngseed}` ops (anchored to CONV_POSE_END / LOADING_END, which sit at different entry-relative frames on the compressed
+port vs load-stretched retail) apply **1-2 frames EARLIER on the port** ⇒ a constant ~+2-frame value offset that surfaces
+at the first value-dependent consumer (the cs-walker burst @off29).  **FIX = an entry-gated bilateral seed pin** (capture
++ re-apply the LCG state at the f406-entry CONDITION, off0-effective both sides, mirroring `{bgnpcpin}`) + neutralise the
+asymmetric in-window load-event re-pins (off24 LOADING_END).  Next pillar-B chip; needs a pin-mechanism design call (extend
+`{bgnpcpin}` to carry the seed, or a sibling `{entryseed}` op).  **Pillar A (consumers) looks DONE for this window.**
+
 ## Pointers
-FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1/§21.7**;
+FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1/§21.7/§21.8**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;
 `docs/flow-trace-cheatsheet.md`.

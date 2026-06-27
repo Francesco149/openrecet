@@ -2071,6 +2071,10 @@ void scene1_player_ctrl_tick(void)
              * same relative phase after {phasepin} (the dust↔sparkle RNG-order
              * question; engine-quirks §112). */
             CALL_TRACE_I32("gsim", (int32_t)g_sim_frame_count);
+            /* DIAGNOSTIC (rng-survey §21.7): the LCG STATE (DAT_006023a0 =
+             * g_rng_seed) — to pin where the rng VALUE stream misaligns vs
+             * retail at the f406 entry (the cs-walker burst value-gap). */
+            CALL_TRACE_I32("rngst", (int32_t)g_rng_seed);
             /* the INGAME interaction state id (DAT_0438cc08): 1=free-roam,
              * 4=customer-service/haggle, 0x32=counter, … — the retail probe's key
              * dispatch field (was port-omitted; flow_diff now compares it). */
