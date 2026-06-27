@@ -2428,7 +2428,10 @@ still **3/200, 0/200 gsim%8**; off199 now ALIGNS (the earlier off199 was a port-
 **NEXT-ARC LEAD — the bg_npc respawn ±1 (the only real residual, off189/197/269/271, a separate CONSUMER):** the respawn
 `bg_npc_respawn`/`FUN_0046f2a3` (scene1_bg_npc.c:156) branches on `r1 < m->prob/2`; with the stream ALIGNED into the
 respawn AND the bilateral pin giving both sides the same off0 SoA, `r1`(=rng15%100) matches but the **branch differs ⇒
-`m->prob` differs port↔retail** ⇒ the port draws an extra `r2` (the `else` branch) ⇒ +1.  So the bgnpcpin's per-field
-translation (port struct ↔ the engine 0x64 record) likely **mis-maps the `prob` field (engine +0x60)** — verify+fix that
-mapping (or the port's prob store).  This ±1 cascades to `cs_pick_line` firing 1 frame early (off199/270), so it MAY shift
-the reaction variant ⇒ close it before declaring the variant 1:1.  The cs-walker + sparkle + gsim + load-seam are DONE.
+`m->prob` differs port↔retail** ⇒ the port takes the `else` branch (extra `r2`) ⇒ +1 (a draw-COUNT diff WITHIN the respawn,
+NOT a respawn-frame shift — both respawn @off189).  **CORRECTION:** the prob FIELD map is CORRECT (`r[24]`→`m->prob`, both
+engine +0x60, scene1_bg_npc.c:357), so the prob VALUE itself diverges — either the baked canonical SoA mis-captured this
+slot's prob, OR the respawning NPC was SPAWNED post-entry (`bg_npc_seed` rolls `prob`) with a divergent roll rather than
+pinned.  NEXT: probe the slot's `prob` port↔retail at off189 (add a prob field to the SoA dump / drill).  This ±1 cascades
+to `cs_pick_line` firing 1 frame early (off199/270), so it MAY shift the reaction variant ⇒ close it before declaring the
+variant 1:1.  The cs-walker + sparkle + gsim + load-seam are DONE.
