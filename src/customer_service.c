@@ -414,6 +414,16 @@ int32_t customer_service_b524(void)        { return s_b524; }
 int32_t customer_service_b544(void)        { return s_b544; }
 int32_t customer_service_b590(void)        { return s_b590; }
 int32_t customer_service_b1cc(void)        { return s_b1cc; }
+
+/* The cc08==4 d3e asset-load overlay gate (engine DAT_06a49960 = "gate2", raised
+ * by FUN_00452d3e alongside b1cc=2 and cleared by the worker reap FUN_00452917).
+ * Retail keeps loading_active up THROUGH this load (LOADING_END/HOUSE_FREEROAM
+ * fire when it completes, ~off23), so the load-anchored {rngseed} pins land at
+ * the same entry-relative offset as the port (RE §21.9).  The port modelled the
+ * d3e load (b1cc=2) but never raised the overlay ⇒ its LOADING_END fired at off0
+ * (1-frame reload only) and the pins skewed.  b1cc==2 mirrors gate2's lifetime
+ * (set at the d3e spawn, cleared when the load — csloadpin-held — completes). */
+int customer_service_d3e_loading(void)     { return s_b1cc == 2; }
 int32_t customer_service_active(void)      { return s_cs_active; }
 int32_t customer_service_b51c(void)        { return s_b51c; }
 int32_t customer_service_b608(void)        { return s_b608; }

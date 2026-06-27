@@ -2395,3 +2395,32 @@ on BOTH sides at that same condition, so the entry is a single clean value-sync 
 Must also neutralise the asymmetric in-window load-event re-pins (the off24 LOADING_END) so they don't re-skew.  This is
 the next pillar-B chip; needs a design call on the pin mechanism (extend `{bgnpcpin}` to carry the seed, or a sibling
 `{entryseed}` op condition-gated like the bgnpc pin).
+
+### 21.9 ★★★ FIXED 2026-06-27 — the user's "do the load the SAME as retail so the pin plays out the same": the port's d3e load-overlay didn't span the load → the load-anchored {rngseed} re-sync was MISSING
+**User directive** (chosen over the entry-seed-pin band-aid): *"both sides should pin the same way and produce the same
+results for each pin… the pin should cancel anything that doesn't have to do with our port's accuracy.  If a load seam
+behaves differently for us because we do the load differently then we should do the load the same as retail down to how
+it waits for it so the pin plays out the same as on retail."*
+**Root (anchor timeline, both sides):** at the f406 entry retail keeps `loading_active` up THROUGH the 24-frame d3e
+customer-asset load — `LOADING_START@off-1 → LOADING_END/HOUSE_FREEROAM@off23`; the **port closed it at off0**
+(`LOADING_END@off0`, a 1-frame scene reload), running the d3e load (b1cc==2, off0-23) as a BACKGROUND load with no
+overlay.  Why: the engine d3e spawn `FUN_00452d3e` sets `DAT_0438b1cc=2` **AND** the secondary load-overlay gate2
+`DAT_06a49960=1` (cleared by the worker reap `FUN_00452917`); retail's `loading_active = gate1||gate2` so it spans the
+load.  The port modelled the d3e load (`worker_load_spawn_d3e`, b1cc=2) but never raised the overlay ⇒ `loading_active`
+dropped at off0.  **Effect:** the `{rngseed}` anchored to LOADING_END RE-PINS retail at off24 (re-syncing the seed right
+before the cs-walker burst @off30, wiping the upstream skew) but **NEVER the port** (its LOADING_END was at off0) ⇒ the
+port stream stayed skewed ⇒ the §21.8 burst drift.
+**Fix 1 (the load):** `customer_service_d3e_loading()` = (b1cc==2), mirroring gate2's lifetime, OR'd into
+`g_frame_loading_active` (anchor/capture ONLY — verified it does NOT gate the sim/rng).  Now LOADING_END/HOUSE_FREEROAM
+fire at ~off24 like retail ⇒ the load-anchored `{rngseed}` re-syncs at off24 on BOTH ⇒ **the burst aligns**.
+**Fix 2 (the gsim side-effect):** moving LOADING_END moved the `{gsimpin}` (it rode on `{wait LOADING_END}`) to off24,
+un-pinning gsim off0-23 ⇒ the sparkle (gsim%8) mis-fired.  Moved `{gsimpin}` to the **CONV_POSE_END segment**
+(off0-effective, the entry pin alongside `{bgnpcpin}`), value **810** = retail's off-0 gsim, so gsim is corrected at the
+entry independent of the load.  The `{rngseed}` re-sync stays on LOADING_END.
+**✅ VERIFIED (`cs_walker_drill`, port `…141719Z` ↔ retail `…132607Z`, span 200):** **13/200 → 3/200** diverging offsets;
+**0/200 gsim%8 divergence**.  The cs-walker burst off30-34 is **BIT-IDENTICAL** (port `7,7,9,5,26` == retail, was
+`11,3,3,1`); sparkles align frame-for-frame.  Residual 3 (all ±1, the tail): off0 (the pre-pin entry-frame boundary),
+off189 (a bg_npc respawn `FUN_0046f2a3` 1-frame phase), off199 (`cs_pick_line` the greeting variant draws 1 frame later
+on the port).  Pending the bilateral retail re-drive (new scenario) + ≥2-capture confirm.  Files: `src/customer_service.{c,h}`
+(`customer_service_d3e_loading`), `src/main.c` (the loading_active OR), `tests/scenarios/house-firstcust-cutscene-day2/trace.jsonl`
+(`{gsimpin}`→CONV_POSE_END).

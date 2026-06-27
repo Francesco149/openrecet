@@ -160,7 +160,18 @@ at the first value-dependent consumer (the cs-walker burst @off29).  **FIX = an 
 asymmetric in-window load-event re-pins (off24 LOADING_END).  Next pillar-B chip; needs a pin-mechanism design call (extend
 `{bgnpcpin}` to carry the seed, or a sibling `{entryseed}` op).  **Pillar A (consumers) looks DONE for this window.**
 
+## Progress (2026-06-27, RE §21.9) — ★★★ FIXED: do the load the SAME as retail → the pins play out the same
+Per the user directive ("if a load seam behaves differently because we load differently, do the load the same as retail
+down to how it waits, so the pin plays out the same").  Root: at the f406 entry retail's load overlay spans the 24-frame
+d3e customer-asset load (LOADING_END@off23) because the d3e spawn `FUN_00452d3e` raises gate2 `DAT_06a49960`; the PORT
+modelled the load (b1cc=2) but never raised the overlay ⇒ LOADING_END@off0 ⇒ the load-anchored `{rngseed}` re-synced
+retail at off24 (before the burst) but never the port.  **Fix:** `customer_service_d3e_loading()`=(b1cc==2) OR'd into
+`g_frame_loading_active` (anchor/capture only) so LOADING_END spans the load like retail; moved `{gsimpin}` to
+CONV_POSE_END (off0, value 810) so gsim stays entry-pinned despite the load move.  **✅ cs_walker_drill 13/200→3/200
+offsets, 0/200 gsim%8; the cs-walker burst off30-34 BIT-IDENTICAL.**  Residual 3 (±1, tail): off0 boundary, off189
+bg_npc respawn phase, off199 cs_pick_line greeting phase.  Pending bilateral retail re-drive + ≥2-capture confirm.
+
 ## Pointers
-FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1/§21.7/§21.8**;
+FRONT active arc; `findings/customer-service-haggle-RE.md` §8.4/§8.8/§19/§20/§20.1/**§21/§21.1/§21.7/§21.8/§21.9**;
 `findings/scene1-rng-stream-parity.md`; `findings/freeroam-rng-consumption.md`;
 `docs/flow-trace-cheatsheet.md`.

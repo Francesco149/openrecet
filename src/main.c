@@ -2732,7 +2732,13 @@ static void render_dispatch(void)
      * Primary worker-load gate (new-game HOUSE scene load = LOADING #1) OR the
      * dialogue's inter-script bracket (iv1_1→iv1_2 = LOADING #2). */
     g_frame_loading_active = nowloading_is_active()
-                             || scene1_intro_dialogue_loading();
+                             || scene1_intro_dialogue_loading()
+                             /* the cc08==4 d3e customer-asset load (engine gate2
+                              * DAT_06a49960) — retail's load overlay spans it so
+                              * LOADING_END/HOUSE_FREEROAM fire when it completes
+                              * (~off23), keeping the load-anchored {rngseed} pins
+                              * at the same entry-relative offset (RE §21.9). */
+                             || customer_service_d3e_loading();
     {
         struct anchor_world w = {
             .scene_state    = g_scene_state,
