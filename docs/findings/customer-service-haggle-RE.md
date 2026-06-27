@@ -2435,3 +2435,31 @@ slot's prob, OR the respawning NPC was SPAWNED post-entry (`bg_npc_seed` rolls `
 pinned.  NEXT: probe the slot's `prob` port↔retail at off189 (add a prob field to the SoA dump / drill).  This ±1 cascades
 to `cs_pick_line` firing 1 frame early (off199/270), so it MAY shift the reaction variant ⇒ close it before declaring the
 variant 1:1.  The cs-walker + sparkle + gsim + load-seam are DONE.
+
+### 21.10 ★★★ NEW ARC (user directive 2026-06-27) — frame-by-frame anchor determinism: the port runs ~1 FRAME FASTER per non-load segment ⇒ a WALL-CLOCK pin
+**User (after flagging 7 studio notes):** *"continue methodically working on the anchors and fixing port on real divergences
+until it all plays out 1:1 in the studio frame by frame.  And it needs to be GENERALIZED to other scenes triggering the same
+anchors, not specific to this one trace.  If an anchor methodology isn't deterministic we don't accept the residual, we fix
+the anchoring method.  Running in non-turbo mode is also acceptable if that makes it easier to make it deterministic."*
+**The 7 notes (`orv3_notes house-firstcust-cutscene-day2 --render`), triaged:** #2 (LOADING_END#2+13, Tear manga-lines +
+scolding pose) = a **REAL port render gap** (the scold-reaction render, unported); the other six are **phase/timing**: #1
+(stool-jump arrival anim → camera off till settled), #3 (sparkles desync), #4 (bg-window NPCs desync), #5/#6 (standee slide
+AHEAD@PAUSE_OPEN#1+30 / BEHIND@CONV_POSE_BLINK#1+62 — not a constant offset), #7 (retail early on the skip-event prompt).
+**GROUNDING MEASUREMENT (anchor timelines, port `141719Z` ↔ retail `142225Z`, aligned at CUSTOMER_SERVICE_ENTER#1):** the
+timeline DRIFTS **0 → −3** across the window — port AHEAD.  The load DURATIONS MATCH (every LOADING_START→END is 24 frames,
+deterministic via csloadpin), so the drift is NOT the loads; it accumulates in the **non-load gameplay/cutscene segments**
+(LOADING_START#3 −1, HOUSE_FREEROAM#4 −3, DLG_LINE_SHOW#1/TEXT_ANIM_START#1 −3, CONV_POSE_END#1 −3, CSE#2 −2) ⇒ the **port
+runs ~1 frame FASTER per ~100-150-frame segment**.  This is why the rng-pins (which re-sync at the f406 entry CSE#2) leave
+the wrap-up/skip region (notes #5/#6/#7) visually mis-framed: the rng is re-synced AT the entry but the FRAME alignment
+already drifted −2 getting there.
+**Root hypothesis + the fix:** both sides run turbo's fixed-17ms SIM clock, so a frame-COUNT drift ⇒ **wall-time-gated LOGIC**
+(code reading `GetTickCount`/`QueryPerformanceCounter`/`timeGetTime` DIRECTLY — turbo virtualizes the sim frame-clock, NOT
+these) and/or a fade/cutscene-duration off-by-one.  **GENERALIZED determinism fix = the WALL-CLOCK PIN** (pillar-B work-list
+#2, the user's own idea): hook GetTickCount/QPC/timeGetTime → a virtual clock synced at anchors (the `{rngseed}` pattern), on
+BOTH port (turbo virtual clock) + retail (agent), so every time-dependent thing (load races, timers, time-based anims) is
+deterministic + matched — generalized to ALL scenes/anchors, not this trace.  The **non-turbo experiment** is the cheap
+validation (if non-turbo drops the −3 drift, it IS wall-time-gated).  **NEXT:** (1) confirm wall-time reads exist on the drift
+path (grep the engine/port for GetTickCount/QPC/timeGetTime consumers in the gameplay/cutscene tick); (2) implement the
+wall-clock pin; (3) re-measure the anchor drift (→0) ⇒ the phase notes #1/#3/#4/#5/#6/#7 align; (4) port the real gap #2
+(scold render).  Tools added this arc: port `grid_dump`, `rngst` probe, `/tmp/grid_diff.py`, `/tmp/rngst_cmp.py`,
+`/tmp/port_anch.txt`+`/tmp/ret_anch.txt` anchor-timeline diff.
