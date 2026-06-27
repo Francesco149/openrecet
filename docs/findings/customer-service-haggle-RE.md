@@ -2590,3 +2590,56 @@ consumers matched off30-270 so the entry pin alone holds, and the variant/offer 
 - **NEXT (needs the bg_npc position compare):** instrument bg_npc x-positions + per-frame bg_npc rng-draws on BOTH, find
   where the port's respawn cluster lands vs retail's off271, align it (port the cadence / fix the pin-apply) so the stream
   is bit-identical → offer robustly 119.  **CHECKPOINT w/ user (bg_npc depth + the non-determinism question).**
+
+### 21.11.2 ★★★ RESOLVED 2026-06-28 — the offer gap is the L90 PAUSE_CLOSE {rngseed} RE-PIN; the cs-walker "−12 @off271" + bg_npc were BOTH MISDIAGNOSES (destabilised-capture artifacts)
+
+**Self-verified bilateral drill** (port 224108Z committed + 211003Z no-pin vs retail cache d43dafe9; entry-aligned
+cc08==4&&b51c==0; the STABLE caprange-1500 captures, reproducible across 2 port drives; tool `/tmp/cs_offer_probe.py`
+dumps b534/rngcalls/npc*/b548/b55c/b574/poseR entry-relative):
+- **cs-walker is ALIGNED** — `npcdr=0` on the PORT for EVERY frame off265-393; npcfr/npcsp track retail 1:1; per-frame
+  rngcalls Δ MATCHES retail off265-388 (incl. the +25 %8-sparkle spikes).  There is NO cs-walker burst anywhere in the
+  reaction window.  **The §21.11.1 "−12 cs-walker @off271" was read off the DESTABILISED wide-caprange+bg-probe capture**
+  (the §20.1 worker-tail-race / CS-stall class).  In the stable captures there is no −12, no burst.  bg_npc also confirmed
+  a NON-ISSUE ({bgnpcpin} 1:1 @off0, no respawn near off271).
+- **★ THE BILATERAL TABLE (all 4 configs CLEAN-driven + self-verified; the offer is NOT a one-line fix):**
+  |               | **L90 present**       | **L90 dropped**          |
+  | port          | poseR **1**, off **120** | poseR **3**, off **119** |
+  | retail        | poseR 3, off 119 (d43dafe9) | poseR 3, off **122** (c26f011f) |
+  Dropping L90 FIXES the port VARIANT (poseR 1→3 == retail, the user's "expression different") + makes the port match the
+  RECORDING's offer 119 — **but the OFFER VALUE still does NOT bilaterally match a FRESH retail (119 vs 122)**: retail is
+  NON-DETERMINISTIC run-to-run (119/117/122; §20-CORRECTION), and L90 was PINNING RETAIL to the recording's 119.  So
+  neither bilateral config is a clean deterministic match: with L90 → port 120 ≠ retail 119; without L90 → port 119 ≠
+  retail-fresh 122.  (The earlier "drop L90 ⇒ robustly 119" read compared the L90-DROPPED port against the L90-PRESENT
+  cached retail d43dafe9 = both pinned-to-recording 119 — a config mismatch, not a true bilateral.)
+- **WHY the re-pin perturbs only the PORT (the real root):** the port carries a CONSTANT cumulative-phase offset (abs
+  rngcalls port ~+3536 vs retail, from the skipped intro + the g_sim sparkle ORIGIN) ⇒ its absolute LCG seed at
+  PAUSE_CLOSE differs from retail's captured 3464877067.  The bilateral {rngseed} re-pin force-resets BOTH sides to
+  retail's value = a NO-OP for retail, a JUMP for the port (k0→k14) ⇒ skewed variant draw @off271 ⇒ poseR 1 ⇒ offer 120.
+  (= §21.8 SEED-PIN SKEW.)  **The bilateral {rngseed} pattern ASSUMES both sides are at the same seed-state at the anchor;
+  the port's 1f load-phase breaks that** ⇒ the port applies the pin 1f early (@off270 vs retail's k14 @off271-272) ⇒ +2
+  draws ⇒ poseR 1.  But the re-pin is NOT removable either — it's the REQUIRED retail-determinism pin (the lint's `no-rngseed`
+  ⇒ retail's sparkle/dust/bg-NPC RNG desyncs; drop it ⇒ retail floats 119→122).  The conflict is structural: the port needs
+  L90 GONE (phase-jump), retail needs L90 KEPT (float).  Clean model: the ENTRY {rngseed} is bilateral (aligns both to the
+  recording's seed), but IN-WINDOW re-pins should be RETAIL-ONLY — the harness has NO target-scoping for {rngseed} (it is
+  bilateral by design, `frida_capture.py:476`).
+- **Residual (accepted — load-origin phase): b534 2→6 (the offer reaction) fires 1f EARLY on the port (off389 vs
+  off390).**  Transition logic is BIT-1:1 (decompile FUN_004658ab @62489: `(DAT_0730b55c!=0)&&((DAT_073dddd4&0x10)!=0)`
+  ⇒ b55c=0; b534=6 — port customer_service.c:1306 identical).  b55c=1 (line revealed) on BOTH since off384, so the gate
+  is PURELY the Z down-edge.  The port hits PAUSE_CLOSE (the greeting b150 close, the SAME Z-advance) 1f early ⇒ the
+  frame-relative offer-Z (trace L93 `frame+119`) lands 1f early ⇒ 2→6 1f early.  = the known +1f arrival/load-origin
+  phase (cc08 d3e load); offer VALUE + variant + OUTCOME (→6 reaction, pushback) all match.  A targeted g_sim/load
+  phase-pin (sim_phasepin, §20) could zero it (future, if the user wants the reaction-start bit-aligned too).
+- **OPEN DECISION (escalated to the user 2026-06-28) — three ways to a deterministic bilateral 119/poseR3 match:**
+  (1) **Fix the port's 1f PAUSE_CLOSE phase** (the root) — find why the port reaches PAUSE_CLOSE/the b150 close 1f before
+  retail (a §21.10.1-family load-frame off-by-one? or the legitimate skipped-intro g_sim origin?).  If fixable, the
+  bilateral L90 applies correctly ⇒ port-with-L90 = poseR3/119 = retail; bilateral-philosophy-clean.  (2) **Target-scoped
+  retail-only in-window re-pin** — add `{rngseed,target:retail}` to the harness; port deterministic (no in-window corruption)
+  + retail pinned ⇒ both 119/poseR3.  Small tooling add, but asymmetric (vs the user's bilateral-pin preference, cf
+  `openrecet_bgnpc_nondeterministic`).  (3) **Full g_sim/wall-clock foundational pin** (user directive, §20/CLAUDE.md) —
+  pin the g_sim/sparkle/load ORIGIN bilaterally so the port's whole phase matches retail; broadest, fixes this + future
+  phase residuals; biggest effort.  **State (UNCOMMITTED, reverted to clean):** trace L90 RESTORED (= HEAD); the TEMP
+  `*_dbg`/bg probes removed; the cs-walker debunk + this table are the durable findings.  cs-walker arc CONFIRMED 1:1
+  regardless (no port gap there).  **Lesson: a value/phase forensic must run on the STABLE capture — the bg-probe's own
+  destabilisation manufactured the −12 it was added to find** (`feedback_subagent_parity_exact_caution` / "diff-before-
+  theories"); and **always re-verify a "fix" against a FRESH same-config bilateral, not a cached opposite-config side**
+  (the drop-L90 "119" was a config-mismatch read).

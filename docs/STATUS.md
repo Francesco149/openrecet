@@ -58,18 +58,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **★ USER-CONFIRMED 1:1 2026-06-27 — the cc08==4 ARRIVAL region (player + camera + companion) "nicely synced"** (commits
   a93413a §21.10.1, dd98991 §21.10.2; recorded in `confirmed-parity-ledger.md`).  **Two NEW gaps the user flagged in the
   first-customer HAGGLE (both AFTER the arrival, in the live machine):**
-  **(A) the OFFER diverges → different customer reaction — ★ ROOT-CAUSED 2026-06-28 (RE §21.11/.1), partial fix + the next
-  consumer identified.**  LCG-VALUE forensics (the 0x47be92 `rng`=`DAT_006023a0` frame-by-frame, NOT just draw counts): the
-  stream is bit-identical entry→**off271** (the b534==2 line-load), then the port falls **−12 draws behind** ⇒ wrong variant
-  (`poseR 1` vs retail `3`, the "expression") ⇒ offer 120 (accept) vs 119 (pushback).  **Dropping the misaligned in-window
-  PAUSE_CLOSE `{rngseed}` re-pin (which masked the −12 with a +14 jump 1f early) ROBUSTLY fixes the VARIANT + outcome**
-  (off271-start LCG aligns ⇒ the variant draw is correct); the offer VALUE 119 is then COINCIDENTAL until the stream aligns.
-  **The −12 = the CS-WALKER burst @off271** (`FUN_0046fbee`, the in-shop chibi NPC; `npcdr=0` on the port there) — OUTSIDE
-  §21.9's 200f survey, the un-surveyed consumer.  **bg_npc is a CONFIRMED NON-ISSUE** ({bgnpcpin} applies 1:1 @off0,
-  integration + respawns track retail; positions don't cross thresholds @off271).  **NEXT:** per-draw rng-callsite
-  attribution @off271 (§21.1) → port the cs-walker burst 1:1 → neutralise the in-window re-pin (§21.8) → offer robustly 119.
-  TEMP `*_dbg`/`bg{i}x` probes + retail_fields to remove after.  (User chose "fix bg_npc stream 1:1" — now narrowed to the
-  cs-walker; the wide-caprange capture destabilises the d3e-load race, so use a targeted per-draw drill, not a wide capture.)
+  **(A) the OFFER diverges → different reaction — ★ ROOT CORRECTED 2026-06-28 (RE §21.11.2); the cs-walker "−12" was a
+  MISDIAGNOSIS, and the offer is NOT a one-line fix → OPEN DECISION to user.**  cs-walker is ALIGNED (`npcdr=0` EVERY frame
+  off265-393; the §21.11.1 "−12 @off271" was a DESTABILISED bg-probe-capture artifact; bg_npc also a NON-ISSUE).  Root =
+  the **L90 PAUSE_CLOSE `{rngseed:[0,3464877067]}` re-pin** (§21.8 SEED-PIN SKEW): the port's CONSTANT cumulative-phase
+  offset (~+3536 rngcalls, skipped-intro g_sim origin) ⇒ it applies the BILATERAL re-pin 1f early (its PAUSE_CLOSE leads
+  retail's by 1f) ⇒ +2 draws ⇒ poseR 1 ⇒ offer 120.  **BILATERAL TABLE (all clean-driven):** port {L90→poseR1/120 ·
+  no-L90→poseR3/119}; retail {L90→poseR3/119 · no-L90→poseR3/**122**}.  Dropping L90 fixes the port VARIANT (poseR 1→3 ==
+  retail, the user's "expression") + matches the RECORDING's offer 119 — **BUT retail is non-deterministic run-to-run
+  (119/122) and L90 is the REQUIRED retail-determinism pin** (lint `no-rngseed`), so NEITHER bilateral config is a clean
+  match (with-L90 120≠119; no-L90 119≠122-fresh).  The {rngseed} harness has NO target-scoping (bilateral by design).
+  **OPEN DECISION → user:** (1) fix the port's 1f PAUSE_CLOSE phase (root, bilateral-clean) · (2) target-scoped retail-only
+  re-pin (small tooling, asymmetric) · (3) full g_sim/wall-clock foundational pin (user directive, biggest).  State: trace
+  L90 RESTORED (=HEAD), TEMP `*_dbg`/bg probes removed; cs-walker CONFIRMED 1:1 (no port gap); 3372 host pass.
   **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
   path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
   session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga
@@ -78,7 +79,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (:975/:985/:1018 scripted, :1294/:1313/:1321/:1431 live).  To port: append `title_save_dialog_cursor_render(dev)` to the
   cc08 overlay tail + wire the stubs to `title_save_dialog_cursor_set_visible/snap` (snap x=192, y=b540·48+386 at the
   decision, retail all.c:59985).  rng-safe (cursor driver draws no rng).  The blinking digit caret (b5b4) is already ported
-  — NOT this.  **DO (A) FIRST (it's the blocker + the user's main concern), THEN (B).**
+  — NOT this.  **(A) is at an OPEN DECISION (the offer determinism, above) — (B) the hand cursor stays blocked on it.**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-
