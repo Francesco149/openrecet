@@ -771,6 +771,27 @@
      "src": "global",
      "va": "0x73a40b0",
      "type": "f32"
+    },
+    {
+     "name": "skip_prompt",
+     "src": "global",
+     "va": "0x73a3e18",
+     "_note": "DAT_073a3e18 — the ESC skip-event prompt counter; FUN_0046c320 bumps it each frame gated on DAT_073a3e20==0; FUN_0046c2cb arms the 'Do you want to skip this event?' box once >1. Tracking the port-vs-retail accumulation (viewer note #3: retail's box appears EARLY, the port's several seconds LATE).",
+     "type": "i32"
+    },
+    {
+     "name": "skip_e20",
+     "src": "global",
+     "va": "0x73a3e20",
+     "_note": "DAT_073a3e20 — the skip_prompt increment GATE (set at load FUN_0046c295 = FUN_0046ddea()==0); e20!=0 ⇒ FUN_0046c320 early-returns and skip_prompt does NOT advance.",
+     "type": "i32"
+    },
+    {
+     "name": "skipbox",
+     "src": "global",
+     "va": "0x73a3dec",
+     "_note": "DAT_073a3dec — the skip-event choice box open flag (1 while 'Do you want to skip this event?' is up).",
+     "type": "i32"
     }
    ]
   }

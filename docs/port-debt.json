@@ -186,7 +186,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 283,
+   "line": 288,
    "kind_known": true
   },
   {

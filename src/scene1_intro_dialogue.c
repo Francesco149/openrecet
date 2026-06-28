@@ -8,6 +8,7 @@
 #include "scene1_dialogue.h"
 #include "scene1_dialogue_run.h"
 #include "call_trace.h"
+#include "skip_event.h"   /* skip_event_open — trace the ESC skip-box flag */
 
 #include <stddef.h>   /* NULL */
 
@@ -103,6 +104,10 @@ static void emit_dialogue_calltrace(void)
     CALL_TRACE_F32("st5_y",  ive_word_f(s->field[2]));
     CALL_TRACE_F32("st5_tx", ive_word_f(s->field[3]));
     CALL_TRACE_F32("st5_ty", ive_word_f(s->field[4]));
+    /* the ESC skip-event prompt timing (viewer note #3): the counter that
+     * gates 'Do you want to skip this event?' + whether the box is up. */
+    CALL_TRACE_I32("skip_prompt", g_rt.scene.skip_prompt);  /* DAT_073a3e18 */
+    CALL_TRACE_I32("skipbox",     skip_event_open());        /* DAT_073a3dec */
     CALL_TRACE_END();
 }
 

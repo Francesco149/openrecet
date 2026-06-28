@@ -73,7 +73,7 @@ _none_
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:310 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:283 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:288 | the engine teardown also restores the |
 
 ## hardcode (1)
 
