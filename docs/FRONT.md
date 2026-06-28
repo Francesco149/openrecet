@@ -97,7 +97,8 @@
     0x4673ee pose→0x7f; banner color arg at 0x46740a-467474 the Ghidra decompile DROPPED).  Open ramp min(n·0x56,0xff), close
     (b59c==0) max(n·0x32−0x1ef,0); at settled n=15 balpha=0xff = no regression.  **✅ v3-verified fade-IN bit-1:1** (b598=1
     faint a=86 / b598=2 a=172, port==retail; b598 ramps bit-identical).  Fade-OUT(#5)+2nd-open(#6) at PAUSE_CLOSE#2 are just
-    past the trimmed arrprobe port trace — same balpha wiring, verified by construction.  **PENDING USER VIEWER CONFIRM.**
+    past the trimmed arrprobe port trace — same balpha wiring, verified by construction.  **✅ USER-CONFIRMED 1:1 2026-06-28
+    ("can confirm the fade matches").**
   - **#3 `TEXT_ANIM_START#1+1` "retail already triggered the skip dialogue" ✅ FIXED 2026-06-28 (`98cbf08`, RE §21.15).**  Root
     = a REPLAY-fidelity gap, NOT an engine bug: the player HELD ESC to skip the iv1_7 wrap-up; the recording saved one {esc:25}
     which under the port's faster timing lands in a between-lines gap and MISSES the FUN_0046c2cb arm → box never opens, the
@@ -106,8 +107,12 @@
     the wrap-up is `scene1_intro_dialogue_skippable()` + `_line_present()`, latches off once open (RE §21.6); auto-on via
     `input_segtrace_has_bgnpcpin()`.  **✅ v3-verified: the port now opens "Do you want to skip this event?" at col 533 == retail**
     (feed "note #3 FIXED"), offer b574=119/variant b5e0=1 UNCHANGED (rng-neutral, choice_box_open draws no rng), no softlock.
-    +tracing `skip_prompt`/`e20`/`skipbox` on the dlg anchor (`06d2430`).  **PENDING USER VIEWER CONFIRM.**
-  - **#2 `CONV_POSE_BLINK#1+57` "standee desync" — DIAGNOSED 2026-06-28: a CONSTANT 2-frame cutscene PHASE, standee BIT-IDENTICAL.**
+    +tracing `skip_prompt`/`e20`/`skipbox` on the dlg anchor (`06d2430`).  **✅ USER-CONFIRMED 1:1 2026-06-28 ("can confirm
+    the skip event box matches too").  NEW user note (queued, AFTER /clear): a slight HALO of diff around the SKIP-PROMPT
+    PANEL** (the choice-box edge — likely a 1px box-scale/edge precision diff; cf. the ive_box_scale cos→sin box-edge halo
+    in scene1_dialogue_run.c).
+  - **#2 `CONV_POSE_BLINK#1+57` "standee desync" (user re-added 2026-06-28 as "standee HORIZONTAL position" — = the 2f slide
+    manifesting as an X-offset) — DIAGNOSED: a CONSTANT 2-frame cutscene PHASE, standee BIT-IDENTICAL at the matched phase.**
     The port's CONV_POSE Recette standee anim leads retail by exactly 2f (port idx398@col450 == retail 447 diff 0.33; port idx435@
     col487 == retail 484 diff 0.47 — both v3-joined to retail+2).  The standee LOGIC is correct (pixel-identical at the matched
     phase); it's a CONST-OFFSET timing phase, NOT a position/anim divergence.  **Likely root: arrprobe has NO `{tutloadpin}`** (only

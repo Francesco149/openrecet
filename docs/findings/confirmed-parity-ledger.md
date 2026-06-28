@@ -298,4 +298,21 @@
   reproduced.  Optional remaining (NOT a correctness gap): the CLAUDE.md wall-clock pin for the absolute
   load-duration drift (v3 anchor-relative join already absorbs it).
 
+**2026-06-28 — wrap-up SKIP-EVENT box + BARGAIN banner FADE USER-CONFIRMED 1:1 (`98cbf08` / `67c8564`,
+  RE §21.15; viewer notes #3 + #4/#5/#6 on house-firstcust-arrprobe).**  (a) The **b598 BARGAIN banner**
+  now FADES in/out via the ive_box_scale alpha (`balpha`) — it had DISCARDED it and popped at flat
+  `pose?0x7f:0xff`; retail uses `local_c`=balpha (open min(n·0x56,0xff) / close (b59c==0) max(n·0x32−0x1ef,0)),
+  overriding to 0x7f only on a live pose (objdump 0x4673cf/0x46c86f/0x4673ee; banner color arg the Ghidra
+  decompile DROPPED at 0x46740a-467474).  At settled n=15 balpha=0xff = no regression; fade-IN v3-verified
+  bit-1:1 (b598=1 faint a=86 / b598=2 a=172 == retail).  (b) The **wrap-up "Do you want to skip this event?"
+  box** now OPENS 1:1 with retail (col 533) — a REPLAY-fidelity fix, not an engine bug: the held-ESC skip was
+  recorded as a single {esc:25} that misses the FUN_0046c2cb arm under the port's faster timing; mirror retail's
+  skip_wrapup re-post in sim.c (arm when scene1_intro_dialogue_skippable() + _line_present(), latch off on open,
+  auto-on via input_segtrace_has_bgnpcpin()).  rng-neutral (choice_box_open draws no rng; offer b574=119 /
+  variant b5e0=1 UNCHANGED); 3373 host pass.  **USER 2026-06-28: "can confirm the fade matches and the skip
+  event box matches too."**  Queued for the next arc (user re-added the viewer notes): a slight **halo of diff
+  around the SKIP-PROMPT PANEL** (choice-box edge); and notes #1/#2 = the CONST 2f wrap-up cutscene/load PHASE
+  (the standee HORIZONTAL position — the 2f slide — + the load fade), root = the unpinned iv1_7 D_TUT load
+  (add {tutloadpin}); see docs/FRONT.md.  To tackle AFTER /clear.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
