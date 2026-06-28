@@ -153,10 +153,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       1f-behind free-roam ⇒ inconsistent direction = seed timing, not rate), entangled with the load/arrival timing.
     - **#17 目玉 SPARKLES — phase, gated g_sim_frame_count%8==3 + 3 rng_next_unit/cell; downstream of the gsim/rng phase.**
     - **#7/#19 (modal) — RT focus/blur arc, separate (needs the v3 RT-capture extension); not part of this cluster.**
-    - **★ NEXT = the WALL-CLOCK PIN foundation (user 2026-06-28, chosen over the targeted bg_npc pin).**  Hook GetTickCount/
-      QPC/timeGetTime → a virtual clock synced at anchors (bilateral, the {rngseed} pattern).  FIRST verifying (bg sub-agent)
-      what the game's time reads actually drive — turbo already virtualizes the FRAME timer, so confirm the remaining notes are
-      time-based (wall-clock-fixable) vs frame/completion-based BEFORE building, don't oversell.  Task #5.
+    - **★ WALL-CLOCK PIN — INVESTIGATED + REFUTED 2026-06-28 (do NOT build; confirms RE §21.2 2026-06-24).**  A citation-backed
+      time-source sweep: the QPC clock (FUN_0047be2f / `tick.c`) feeds ONLY frame-pacing (turbo already virtualizes it by
+      bypassing it); NO sim/anim/load/RNG code reads wall-clock.  Loads are COMPLETION-based (CreateThread + poll busy flags,
+      no time API — `all.c:50058`, RE §21.2:2130).  Phase consumers are FRAME-based: chr_anim_tick dt=1.0 (wing-flap), gsim%8
+      (sparkle), db054%4 — pure frame counters.  A wall-clock pin would make deterministic only the cosmetic FPS counter +
+      audio-fade — NEITHER a cluster divergence.  **The stale CLAUDE.md/FRONT "wall-clock pin" framing (user 2026-06-23)
+      predates + is superseded by RE §21.2.**
+    - **★ NEXT — the CORRECT determinism levers (existing pins, not a new clock):** #10/#18 wing-flap = db054 ORIGIN →
+      `{phasepin}` (CAVEAT: its bg_npc-LCG-re-seed breaks the skip-path wrap-up — a tool gap to fix first); #17 sparkle = gsim
+      ORIGIN → `{gsimpin}`/`{phasepin}` (arrprobe's {gsimpin:[0,810]} is at CONV_POSE_END, too late for #17 @ HOUSE_FREEROAM#3);
+      #11 bg_npc = COMPLETION-based cad868 tick-count → earlier bilateral `{bgnpcpin}` (configurable frida trigger; couples to
+      the confirmed-1:1 offer).  All are HARNESS-PIN completeness + tool-gap fixes, NOT engine ports — the engine logic is
+      correct/frame-deterministic.  The headline gap (the invisible chibi customer) is already FIXED.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
