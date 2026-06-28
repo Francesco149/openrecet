@@ -70,20 +70,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   offsets, ZERO rngΔ mismatches** (whole wrap-up→offer→round-2 window); 3372 host pass; no regression.  **The bilateral
   {rngseed} works as designed — no target-scoping/foundational pin needed.**  cs-walker-rng-phase + the offer arc CLOSED.
   **✅ USER-CONFIRMED 1:1 2026-06-28** ("can confirm it's aligned up to haggle prompt"; ledger).
-  **★ NEW gaps the user flagged for AFTER the hand-cursor chip (2026-06-28, while confirming the offer):** (i) a GAP
-  immediately AFTER the haggle prompt; (ii) **retail shows NO dialogue behind the ESC-skip while the port is mid-reveal of a
-  line** (a dialogue-visibility-under-the-modal gap — investigate whether the port should hide/clear the underlying dialogue
-  when the ESC choice box is up).  Both queued behind (B).
-  **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
-  path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
-  session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga
-  cell {192,0,232,40}, 40×40) but the cc08 path never calls the top-level draw (retail all.c:7498, drawn LAST after
-  FUN_0046602e→FUN_00466b7b) AND the driver show/hide/snap are stubbed `PORT-DEBT(cs-cursor)` in `customer_service.c`
-  (:975/:985/:1018 scripted, :1294/:1313/:1321/:1431 live).  To port: append `title_save_dialog_cursor_render(dev)` to the
-  cc08 overlay tail + wire the stubs to `title_save_dialog_cursor_set_visible/snap` (snap x=192, y=b540·48+386 at the
-  decision, retail all.c:59985).  rng-safe (cursor driver draws no rng).  The blinking digit caret (b5b4) is already ported
-  — NOT this.  **(A) is RESOLVED 2026-06-28 (pending studio confirm) — (B) the hand cursor is the NEXT chip once the user
-  confirms the offer 1:1.**
+  **(B) the missing HAND CURSOR at the haggle prompt — ★★★ PORTED + USER-CONFIRMED 1:1 2026-06-28 (`9f6c19e`, RE §21.12).**
+  The shared menu hand-pointer (`title_save_dialog_cursor_render` FUN_00435747, nowloading.tga {192,0,232,40}) never drew in
+  cc08==4: the cc08 path skipped retail's top-level cursor draw (all.c:7498) AND the machine's show/hide/snap/slide were
+  stubbed `PORT-DEBT(cs-cursor)`.  **Fix:** append the cursor render at the house-aggregator TAIL (`scene1_hud.c`, = retail
+  7498, drawn LAST after the overlay, ungated, self-gates on g_cursor_visible) + wire the 8 driver sites in
+  `customer_service.c` — scripted FUN_00461c00 (b608==3 edit hide / offer snap / b608==4 commit hide); cs_input_poll
+  FUN_004622d9 (up/down → SLIDE to the toggled Yes/No row, x=192 y=b540·0x30+386); live FUN_004658ab (b534==2 greet hide /
+  b534==6 edit hide / 6→0xf snap / 0xf commit hide).  **rng-safe** (cursor draws no rng — verified rng VALUE bit-identical
+  at the decision: b574=119, poseR=3 == retail).  +host test `cs_cursor_snap_and_slide` (3373 pass); PORT-DEBT(cs-cursor)
+  retired (SE 0x143/0x146 audio stays cs-offer-fx/cs-poll-fx).  **✅ v3-verified** (orv3_shot, win-0-1500 decision frame
+  port1062/retail1162): the white hand renders pointing at "Okay!" 1:1 with retail; **USER-CONFIRMED 2026-06-28 ("can
+  confirm the cursor matches"; ledger).**
+  **★ NEXT — gaps the user queued for AFTER the cursor + a NEW one this session surfaced:** (i) a GAP immediately AFTER the
+  haggle prompt; (ii) **retail shows NO dialogue behind the ESC-skip while the port is mid-reveal of a line** (a
+  dialogue-visibility-under-the-modal gap — should the port hide/clear the underlying dialogue when the ESC choice box is up?).
+  **(iii) NEW (autonomous, on the cursor-verify drive 2026-06-28): the REACTION line VARIANT diverges** — at the b534==6→0xf
+  decision the port renders recette msg09 **"Capitalism, ho!"** vs retail **"How much should I?..."** (the two rand%2 variants
+  of msg09, the L1c pair).  NOT rng-value: rng is **bit-identical at every b534==6 reaction-entry** (the pick frame) yet the
+  text differs ⇒ a VARIANT-ORDERING / draw-COUNT puzzle in `cs_pick_line` (FUN_00460a1a) or the parsed `customer_dialogue`
+  data, NOT a seed/phase gap.  Likely == gap (i).  Investigate the msg09 variant index path next.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

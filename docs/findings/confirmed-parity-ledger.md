@@ -276,4 +276,17 @@
   hand-cursor chip: (i) a gap immediately after the haggle prompt; (ii) retail shows NO dialogue
   behind the ESC-skip while the port is in the middle of a (mid-reveal) line.
 
+**2026-06-28 — cc08==4 haggle HAND CURSOR USER-CONFIRMED 1:1 (`9f6c19e`, RE §21.12).**  The shared
+  menu hand-pointer (FUN_00435747, nowloading.tga {192,0,232,40}) now renders at the haggle prompt
+  and tracks the Okay!/Start-Again decision.  Was missing on two counts: the cc08 path skipped
+  retail's top-level cursor draw (all.c:7498) and the machine's show/hide/snap/slide were stubbed
+  PORT-DEBT(cs-cursor).  Fix: render at the house-aggregator tail (scene1_hud.c, ungated, self-gates
+  on g_cursor_visible) + wire the 8 driver sites (scripted FUN_00461c00 / poll FUN_004622d9 slide /
+  live FUN_004658ab; snap x=192 y=b540·0x30+386).  rng-safe (cursor draws no rng; rng VALUE
+  bit-identical at the decision — b574=119, poseR=3 == retail).  v3-verified (orv3_shot, win-0-1500
+  decision frame port1062/retail1162: white hand on "Okay!" 1:1); +host test cs_cursor_snap_and_slide;
+  3373 host pass.  **USER: "can confirm the cursor matches."**  Open lead (≈ gap (i)): the b534==6
+  reaction line VARIANT differs (msg09 "Capitalism, ho!" port vs "How much should I?..." retail)
+  despite bit-identical rng at the pick frame — a cs_pick_line variant-ordering puzzle, next arc.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

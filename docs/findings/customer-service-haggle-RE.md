@@ -2668,3 +2668,43 @@ first-customer window (wrap-up → offer → round 2) is now BIT-IDENTICAL under
 (the confirmed-1:1 wrap-up/arrival is BEFORE PAUSE_CLOSE, untouched).  **The bilateral {rngseed} now works as designed (no
 target-scoping needed) — option 1 (fix the port) was the right call.**  cs-walker-rng-phase PORT-DEBT + the offer arc are
 CLOSED.  PENDING USER STUDIO CONFIRM (v3 win 580:620 join CSE — offer 119 + reaction render 1:1).
+
+## 21.12 ★★★ The cc08 haggle HAND CURSOR ported + USER-CONFIRMED 1:1 2026-06-28 (`9f6c19e`)
+
+The shared menu hand-pointer never drew in the cc08==4 haggle prompt.  TWO gaps (both grounded in the
+decompile, no guess):
+
+**(1) the top-level DRAW was skipped.**  Retail draws the cursor `FUN_00435747()` at the TAIL of the
+house render aggregator FUN_0040a765 (all.c:7498 / LAB_0040c1e4), AFTER everything incl. the cc08
+overlay (FUN_0046602e→FUN_00466b7b) — it is ungated and self-gates on the visibility flag DAT_0438b150.
+The port's `scene1_hud_render` (the FUN_0040a765 tail) called the overlay last but never the cursor.
+The driver `title_save_dialog_cursor_render` was ALREADY ported (nowloading.tga cell {192,0,232,40},
+40×40, drawn at (shake_x − |sin(b154·0.1)|·8, shake_y − 20)); only the call site was missing.
+**Fix:** append `title_save_dialog_cursor_render(dev)` as the last statement of `scene1_hud_render`.
+
+**(2) the machine's show/hide/snap/slide were stubbed `PORT-DEBT(cs-cursor)`.**  Map (engine → port):
+- SCRIPTED FUN_00461c00: `FUN_00435612` @59967 (b608==3 edit → HIDE), `FUN_00435693(0x43400000,
+  b540·0x30+386)` @59985 (offer → SNAP to the Yes row, also shows), `FUN_00435612` @~59955 (b608==4
+  poll==1 commit → HIDE).
+- POLL FUN_004622d9 @60068: up/down toggles b540 then `FUN_00435710(0x43400000, b540·0x30 + (b5a8==3 ?
+  210 : 386))` (the 6-frame ease SLIDE between Okay!/Start-Again; b5a8==2 sell ⇒ base 386).
+- LIVE FUN_004658ab: `FUN_00435612` @62494 (b534==2 greet → HIDE), @62515 (b534==6 edit → HIDE),
+  `FUN_00435693(0x43400000, local_c+386)` @62526 (b534 6→0xf → SNAP), `FUN_00435612` @62659 (b534==0xf
+  commit → HIDE).  (The `FUN_0043561a` @62484 SHOW is inside the FUN_004681e6 detail-card overlay =
+  PORT-DEBT(cs-details-overlay), inert in steady state — NOT one of these.)
+`0x43400000`f = 192.0; `0x30` = 48.  At each snap b540 is freshly 0 ⇒ y=386 (Okay!/Yes); the poll
+slides to 434 (Start-Again/No) on the first up/down.
+
+**rng-safe:** the cursor driver draws NO rng.  Re-driven `house-firstcust-arrprobe` (win-0-1500, --state,
+join CSE) shows the rng VALUE bit-identical at the decision (b574=119, poseR=3 == retail; only the
+constant intro-skip rngcalls phase differs).  **✅ v3-verified** (orv3_shot, decision frame port#1062 /
+retail#1162): the white hand renders pointing at "Okay!" 1:1 with retail.  +host test
+`cs_cursor_snap_and_slide` (drives the scripted offer → asserts HIDE during edit, SNAP visible to (192,386)
+on the offer, SLIDE to (192,434) on up/down; 3373 pass).  PORT-DEBT(cs-cursor) retired (the SE 0x143/0x146
+audio stays as cs-offer-fx / cs-poll-fx).  **USER-CONFIRMED 1:1 2026-06-28 ("can confirm the cursor matches").**
+
+**NEW lead surfaced on this drive (≈ FRONT gap (i)):** the b534==6 REACTION line VARIANT diverges — port
+renders recette msg09 "Capitalism, ho!" vs retail "How much should I?..." (the two rand%2 variants of
+msg09).  NOT a seed gap: rng is bit-identical at every b534==6 reaction-ENTRY (the `cs_pick_line(0,9,0)`
+frame), yet the chosen text differs ⇒ a VARIANT-ORDERING / draw-COUNT mismatch in `cs_pick_line`
+(FUN_00460a1a) or the parsed `customer_dialogue` records.  Next arc.
