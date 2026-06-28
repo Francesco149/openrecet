@@ -221,11 +221,18 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
          * §104). */
     }
 
-    /* text + options only once fully open (matches the engine alpha ramp:
-     * the prompt/options fade in over the open anim — drawn at cap). Drawn at
-     * 0x7f7f7f under the banner's ADDSIGNED COLOROP — the ~0.5 signed offset
-     * nets ≈texel, i.e. the glyph's true brightness, identical to retail. */
-    if (cb_active >= 4) {
+    /* Prompt + options FADE IN over the open anim (viewer note #12: the port
+     * previously gated the text on cb_active>=4, popping it in at full open;
+     * retail draws it from cb_active=1 with a ramping alpha).  FUN_0043537e:
+     * the text alpha = (int)((cb_active/4.0)*255.0) (objdump 0x4353a1 fdiv 4.0
+     * @[0x51939c] → 0x4353ad fmul 255.0 @[0x519630] → ftol), packed into the
+     * diffuse-alpha byte (`<< 0x18`); ramp 63/127/191/255 for cb_active 1..4.
+     * RGB stays 0x7f7f7f under the banner's inherited ADDSIGNED COLOROP (the
+     * ~0.5 signed offset nets ≈texel = the glyph's true brightness); the alpha
+     * modulates the glyph via ALPHAOP=MODULATE → the fade. */
+    {
+        int       fade = (int)((float)cb_active / 4.0f * 255.0f);
+        uint32_t  col  = ((uint32_t)fade << 24) | 0x7f7f7fu;
         /* prompt text, centred. FUN_0043537e L62-71: a ONE-row prompt (ac08==1
          * — the skip prompt, which has no '<' delimiters) draws at y=192
          * (0x43400000); a TWO-row prompt draws row 0 at y=184 (0x43380000) and
@@ -233,21 +240,23 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
          * the 1-row skip prompt sat 8px too high. */
         if (cb_rows == 1) {
             font_draw_text_centered(dev, 320.0f, 192.0f, cb_text + 1,
-                                    0xff7f7f7fu, 1.0f);
+                                    col, 1.0f);
         } else {
             font_draw_text_centered(dev, 320.0f, 184.0f, cb_text + 1,
-                                    0xff7f7f7fu, 1.0f);
+                                    col, 1.0f);
             font_draw_text_centered(dev, 320.0f, 208.0f, cb_text + 1 + 0x100,
-                                    0xff7f7f7fu, 1.0f);
+                                    col, 1.0f);
         }
 
-        /* "Yes" / "No" — BOTH full brightness. The engine (FUN_0043537e
-         * L73-76) draws both at 0x7f7f7f under MODULATE2X = full white; the
-         * selection is shown ONLY by the hand cursor, NOT by dimming the
-         * unselected option. (The lone 0x7f fade there is a commit-time close
-         * anim — deferred.) FUN_0047ca05 at x 252/376. */
-        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", 0xff7f7f7fu, 1.0f);
-        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  0xff7f7f7fu, 1.0f);
+        /* "Yes" / "No" — BOTH full brightness, fading in with the same ramp.
+         * The engine (FUN_0043537e L73-76) draws both at RGB 0x7f7f7f (gray, ≈
+         * white under ADDSIGNED) with alpha = the cb_active ramp (local_c<<0x18
+         * in the packed colour); the selection is shown ONLY by the hand
+         * cursor, NOT by dimming the unselected option.  (The lone 0x7f fade
+         * there is a commit-time close anim — DAT_0438ac14<4 — deferred.)
+         * FUN_0047ca05 at x 252/376. */
+        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", col, 1.0f);
+        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  col, 1.0f);
     }
 
     /* COLOROP reset — MODULATE, mirroring FUN_0043537e L32830 (the engine's
