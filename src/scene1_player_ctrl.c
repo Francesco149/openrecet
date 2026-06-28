@@ -2196,6 +2196,24 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("npcsp", scene1_customer_npc_spawned());
             CALL_TRACE_I32("npcn",  scene1_customer_npc_active());
             CALL_TRACE_I32("npcdr", (int32_t)scene1_customer_npc_last_draws());
+            /* shop-WINDOW bg-NPC drift positions (the 6 townsfolk, DAT_073a7f80):
+             * x is the only animated axis; viewer note #11 (NPC at window diverges)
+             * is a POSITION divergence (non-deterministic cad868 load drift) the
+             * {bgnpcpin} corrects only at the f406 entry — this probe pins WHERE the
+             * drift diverges so the pin point can be placed correctly.  Mirrored by
+             * the retail 0x48670f hook (tools/flow/retail_fields.json bgx0..5). */
+            {
+                int bgvis = 0;
+                for (int _b = 0; _b < SCENE1_BG_NPC_COUNT; _b++)
+                    if (g_scene1_bg_npc[_b].visible == 0) bgvis |= (1 << _b);
+                CALL_TRACE_I32("bgvis", bgvis);
+                CALL_TRACE_F32("bgx0", g_scene1_bg_npc[0].x);
+                CALL_TRACE_F32("bgx1", g_scene1_bg_npc[1].x);
+                CALL_TRACE_F32("bgx2", g_scene1_bg_npc[2].x);
+                CALL_TRACE_F32("bgx3", g_scene1_bg_npc[3].x);
+                CALL_TRACE_F32("bgx4", g_scene1_bg_npc[4].x);
+                CALL_TRACE_F32("bgx5", g_scene1_bg_npc[5].x);
+            }
             /* foot-dust (records-A type-0xe) slot-state aggregate — the
              * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
              * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn

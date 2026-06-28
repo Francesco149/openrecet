@@ -514,6 +514,48 @@
      "va": "0x73a8bac",
      "type": "i32",
      "_note": "DAT_073a8bac — spawned chibi-NPC count."
+    },
+    {
+     "name": "bgx0",
+     "src": "global",
+     "va": "0x73a7fac",
+     "type": "f32",
+     "_note": "DAT_073a7f80[0].x (+0x2c) — shop-window bg-NPC drift X. viewer note #11 position-diverge probe (cad868 load drift; {bgnpcpin} corrects only at f406)."
+    },
+    {
+     "name": "bgx1",
+     "src": "global",
+     "va": "0x73a8010",
+     "type": "f32",
+     "_note": "DAT_073a7f80[1].x (+0x64+0x2c)."
+    },
+    {
+     "name": "bgx2",
+     "src": "global",
+     "va": "0x73a8074",
+     "type": "f32",
+     "_note": "DAT_073a7f80[2].x."
+    },
+    {
+     "name": "bgx3",
+     "src": "global",
+     "va": "0x73a80d8",
+     "type": "f32",
+     "_note": "DAT_073a7f80[3].x."
+    },
+    {
+     "name": "bgx4",
+     "src": "global",
+     "va": "0x73a813c",
+     "type": "f32",
+     "_note": "DAT_073a7f80[4].x."
+    },
+    {
+     "name": "bgx5",
+     "src": "global",
+     "va": "0x73a81a0",
+     "type": "f32",
+     "_note": "DAT_073a7f80[5].x."
     }
    ]
   },
