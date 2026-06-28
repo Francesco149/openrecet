@@ -30,6 +30,7 @@
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
 #include "fade.h"                 /* fade_phase1_start/_is_done/_phase_out_start (b520 dissolve) */
+#include "title_save_dialog.h"    /* the shared menu hand-cursor (FUN_00435612/1a/693/710) */
 
 /* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
  * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
@@ -748,6 +749,11 @@ static int cs_input_poll(void)
             ret = 2;
         } else if (s_in_pressed & 0xc) {        /* up/down → toggle Yes/No */
             s_b540 ^= 1;
+            /* FUN_00435710 — slide the hand-cursor to the toggled row (x=192,
+             * y=b540·0x30 + base; base 210 for the buy menu b5a8==3, else 386).
+             * PORT-DEBT(cs-poll-fx): the SE 0x146 (audio) is still stubbed. */
+            title_save_dialog_cursor_slide(192.0f,
+                (float)(s_b540 * 0x30) + (s_b5a8 == 3 ? 210.0f : 386.0f));
         } else {
             return 0;
         }
@@ -972,7 +978,7 @@ lab_b608_dispatch:
     if (s_b608 == 3) {
 lab_b608_3:
         s_cust_active[1] = 0;
-        /* PORT-DEBT(cs-cursor): FUN_00435612 cursor reset (render). */
+        title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 — hide while editing digits */
         if (s_b59c == 0) s_b59c = 1;
         if ((s_in_pressed & 0x10) == 0) {
             cs_digit_edit();
@@ -982,7 +988,10 @@ lab_b608_3:
             cs_offer_up();                         /* FUN_00460161 — the customer offer */
             s_b590 = 0;
             s_b540 = 0;
-            /* PORT-DEBT(cs-offer-fx): SE 0x143 + FUN_00435693 cursor placement. */
+            /* FUN_00435693 — snap the hand-cursor to the Yes/No row (x=192,
+             * y=b540·0x30 + 386; b540 just zeroed → Yes).  The snap also shows
+             * it.  PORT-DEBT(cs-offer-fx): the SE 0x143 (audio) is still stubbed. */
+            title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);
         }
     } else {
         if (s_b608 != 4) {
@@ -1015,7 +1024,7 @@ lab_prid_wait:                                     /* b608 == 1 (PRID) */
             if (poll == 1) {
                 if (s_price_bb4 == -1)
                     s_price_bb4 = s_price_ask;
-                /* PORT-DEBT(cs-cursor): FUN_00435612. */
+                title_save_dialog_cursor_set_visible(0);  /* FUN_00435612 — hide on commit */
                 s_b59c = 0;                          /* LAB_00462253 */
                 goto lab_advance_pc;                 /* → LAB_004622b7 */
             }
@@ -1296,7 +1305,7 @@ static void cs_live_machine(void)
                                                 * edge — matching retail's deferred b150 clear
                                                 * so PAUSE_CLOSE lands on the b534==2 frame
                                                 * (not 1f early); RE §21.11.2. */
-            /* FUN_00435612 cursor (PORT-DEBT). */
+            title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 — hide on greet */
         }
         if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {   /* line up + Z */
             s_b55c = 0;
@@ -1315,7 +1324,7 @@ static void cs_live_machine(void)
             if (s_b59c == 0) s_b59c = 1;
             if (s_b544 == 1)
                 cs_pick_line(0, 9, 0);          /* FUN_00460a1a(&ea90,9,0) */
-            /* FUN_00435612 cursor (PORT-DEBT). */
+            title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 — hide while editing */
             if ((s_in_pressed & 0x10) == 0) {
                 cs_digit_edit();                /* FUN_0045ff31 — adjust the ask */
             } else {
@@ -1323,7 +1332,10 @@ static void cs_live_machine(void)
                 s_b534 = 0xf;                   /* → decision */
                 s_b590 = 0;
                 s_b540 = 0;
-                /* SE 0x143 + FUN_00435693 cursor (PORT-DEBT). */
+                /* FUN_00435693 — snap the hand-cursor to the Yes/No row (x=192,
+                 * y=b540·0x30 + 386; b540 just zeroed → Yes); the snap shows it.
+                 * PORT-DEBT(cs-offer-fx): the SE 0x143 (audio) is still stubbed. */
+                title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);
             }
             goto lab_tail;
         }
@@ -1433,7 +1445,7 @@ static void cs_live_machine(void)
         }
         s_b59c = 0;
         s_b544 = 0;
-        /* FUN_00435612 cursor (PORT-DEBT). */
+        title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 — hide on decision commit */
     }
 
 lab_tail:

@@ -6,7 +6,9 @@
  */
 #include "t.h"
 #include <string.h>
+#include <math.h>                /* fabsf — the hand-cursor position asserts */
 #include "../src/customer_service.h"
+#include "../src/title_save_dialog.h"  /* the shared menu hand-cursor driver */
 #include "../src/save_work.h"
 #include "../src/save_bank.h"
 #include "../src/tables_item.h"
@@ -349,6 +351,74 @@ int test_cs_scripted_first_offer(void)
     T_ASSERT_EQ_I(base_after_op2, 1200);        /* scripted op 2 → item 2 */
     T_ASSERT_EQ_I(offer, 1536);                 /* 1200 · 128/100, no f406 override */
     T_ASSERT_EQ_I(round, 1);                    /* haggle round 0 → 1 */
+    return 0;
+}
+
+/* The shared menu hand-cursor (FUN_00435612/693/710) during the scripted haggle.
+ * Same drive as test_cs_scripted_first_offer, now watching the cursor: the PRIA
+ * digit-edit wait (b608==3) HIDES it (FUN_00435612); pressing Z makes the offer
+ * and SNAPS it visible to the Yes row (FUN_00435693 → x=0x43400000=192, y=386);
+ * an up/down press in the Yes/No confirm poll SLIDES it to the No row
+ * (FUN_00435710 → y = b540·0x30 + 386 = 434).  The cursor driver draws NO rng, so
+ * the verified-1:1 haggle LCG is untouched — this only proves the hand tracks the
+ * decision.  Retires PORT-DEBT(cs-cursor). */
+int test_cs_cursor_snap_and_slide(void)
+{
+    customer_service_reset();
+    title_save_dialog_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0], sv_r1 = g_item.records[1];
+    kyaku_record_t sv_k1 = g_kyaku.records[1];
+    struct tuto_record sv_t0 = g_tuto[0], sv_t1 = g_tuto[1], sv_t2 = g_tuto[2];
+
+    g_item.count = 2;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    memset(&g_item.records[1], 0, sizeof g_item.records[1]);
+    g_item.records[0].item_id = 3; g_item.records[0].price = 3000;
+    g_item.records[1].item_id = 2; g_item.records[1].price = 1200;
+    g_kyaku.records[1].initial = 128;
+    g_kyaku.records[1].random  = 0;
+    memset(&g_tuto[0], 0, sizeof g_tuto[0]);
+    memset(&g_tuto[1], 0, sizeof g_tuto[1]);
+    memset(&g_tuto[2], 0, sizeof g_tuto[2]);
+    g_tuto[0].id = 0; g_tuto[0].opcode = 2;     /* price-set */
+    g_tuto[1].id = 1; g_tuto[1].opcode = 4;     /* PRIA */
+    g_tuto[2].id = 2; g_tuto[2].opcode = -1;    /* sentinel */
+
+    customer_service_session_init();
+
+    for (int i = 0; i < 160; i++) {             /* idle → greeting → op2 → PRIA wait */
+        if (customer_service_b1cc() == 2)
+            customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+    /* PRIA digit-edit wait (b608==3) hides the cursor every frame (FUN_00435612). */
+    int hidden_before_offer = title_save_dialog_cursor_get_visible();
+
+    customer_service_master_tick(0, 0x10, 0);   /* PRIA + Z → offer + snap cursor */
+    int vis_after_offer = title_save_dialog_cursor_get_visible();
+    float snap_x, snap_y;
+    title_save_dialog_cursor_capture_target(&snap_x, &snap_y);
+
+    customer_service_master_tick(0, 0x4, 0);    /* up → toggle Yes/No → slide cursor */
+    float slide_x, slide_y;
+    title_save_dialog_cursor_capture_target(&slide_x, &slide_y);
+
+    g_item.count = sv_cnt; g_item.records[0] = sv_r0; g_item.records[1] = sv_r1;
+    g_kyaku.records[1] = sv_k1;
+    g_tuto[0] = sv_t0; g_tuto[1] = sv_t1; g_tuto[2] = sv_t2;
+    title_save_dialog_reset();
+
+    T_ASSERT_EQ_I(hidden_before_offer, 0);      /* digit-edit hid it (FUN_00435612) */
+    T_ASSERT_EQ_I(vis_after_offer, 1);          /* the offer snapped it visible     */
+    T_ASSERT(fabsf(snap_x  - 192.0f) < 0.5f);   /* x = 0x43400000 = 192             */
+    T_ASSERT(fabsf(snap_y  - 386.0f) < 0.5f);   /* y = b540·0x30 + 386, b540=0 (Yes)*/
+    T_ASSERT(fabsf(slide_x - 192.0f) < 0.5f);
+    T_ASSERT(fabsf(slide_y - 434.0f) < 0.5f);   /* b540=1 (No) → 0x30 + 386         */
     return 0;
 }
 

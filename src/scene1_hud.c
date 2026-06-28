@@ -94,6 +94,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
 #include "scene1_merchant_hud.h"  /* FUN_00409925 body — bottom-left Merchant Level HUD */
 #include "customer_service.h"     /* customer_service_render_overlay (FUN_00466b7b) */
+#include "title_save_dialog.h"    /* title_save_dialog_cursor_render (FUN_00435747) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_emote_level/type (db000/db004)        */
 #include "scene1_render.h"        /* scene1_project_world (FUN_00490c78)               */
 #include "scene1_camera.h"        /* scene1_camera_class_off_z (b778)                  */
@@ -315,6 +316,13 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * @6980), gated on INGAME && HOUSE; self-gated on b7b0 inside. */
     if (scene_mode == 1 && stage_type == 0)
         customer_service_render_overlay(dev_in);
+
+    /* FUN_00435747 (all.c:7498, LAB_0040c1e4) — the shared menu hand-cursor,
+     * drawn LAST in the house aggregator (after the cc08 haggle overlay so the
+     * hand sits on top of the Yes/No prompt).  Ungated like retail; the draw
+     * self-gates on g_cursor_visible (set by the cc08 cursor snap/slide), so it
+     * is a no-op in free-roam where no menu shows the cursor. */
+    title_save_dialog_cursor_render(dev);
 }
 
 #endif /* _WIN32 */
