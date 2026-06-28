@@ -107,10 +107,20 @@
     `input_segtrace_has_bgnpcpin()`.  **✅ v3-verified: the port now opens "Do you want to skip this event?" at col 533 == retail**
     (feed "note #3 FIXED"), offer b574=119/variant b5e0=1 UNCHANGED (rng-neutral, choice_box_open draws no rng), no softlock.
     +tracing `skip_prompt`/`e20`/`skipbox` on the dlg anchor (`06d2430`).  **PENDING USER VIEWER CONFIRM.**
-  - **#2 `CONV_POSE_BLINK#1+57` "standee desync"** — the wrap-up Recette standee position/anim off vs retail (cutscene timing). NEXT.
-  - **#1 `LOADING_END#3+1` "slight fade difference"** — a load-end fade-ramp phase (likely the accepted +1f load phase; verify). NEXT.
-  **Foundation solid (determinism verified above).  Remaining order: #2 (standee) → #1 (load fade).  The win-0-1500 viewer is
-  re-driven with both fixes (scrub col 533 = skip box, col 1011 = banner fade-in).**
+  - **#2 `CONV_POSE_BLINK#1+57` "standee desync" — DIAGNOSED 2026-06-28: a CONSTANT 2-frame cutscene PHASE, standee BIT-IDENTICAL.**
+    The port's CONV_POSE Recette standee anim leads retail by exactly 2f (port idx398@col450 == retail 447 diff 0.33; port idx435@
+    col487 == retail 484 diff 0.47 — both v3-joined to retail+2).  The standee LOGIC is correct (pixel-identical at the matched
+    phase); it's a CONST-OFFSET timing phase, NOT a position/anim divergence.  **Likely root: arrprobe has NO `{tutloadpin}`** (only
+    csloadpin/gsimpin/rngseed) ⇒ the wrap-up iv1_7 **D_TUT load bracket is UNPINNED** (port runs IVE_TUT_LOAD_FRAMES default vs
+    retail's actual) → the cutscene-internal blink/pose phase shifts ~2f.  **CLOSURE (next arc): measure retail's D_TUT bracket
+    (frida), add `{tutloadpin:N}` to the arrprobe trace, re-drive both, confirm the 2f → 0** (engine-quirks §119 pattern, the
+    {phasepin}/{csloadpin} family).  Per the determinism directive this is a TOOL-gap to CLOSE, not "phase, accept".
+  - **#1 `LOADING_END#3+1` "slight fade difference"** — a load-end fade-ramp phase; **almost certainly the SAME unpinned-load root
+    as #2** (the port's load 1-2f off → the fade ramp off-phase).  Bundle with #2's {tutloadpin} closure; re-verify after.
+  **★ REMAINING = a focused PHASE-PINNING arc (#2 + #1): the wrap-up D_TUT load is unpinned ⇒ a CONST 2f cutscene/load phase.
+    Add a {tutloadpin} (measure retail's bracket first), re-drive, confirm both notes → 0.  The 4 logic/render notes are LANDED;
+    this is a clean fresh effort.  The win-0-1500 viewer is re-driven with the #3/#4-6 fixes (scrub col 533 = skip box, col 1011
+    = banner fade-in).**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-
