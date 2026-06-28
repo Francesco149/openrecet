@@ -73,11 +73,21 @@
   b544=119, offer 119, poseR 3) and is **BIT-IDENTICAL to retail cache d43dafe9 (L90-present)** — rng VALUE identical at every
   frame through the reaction ⇒ retail d43dafe9 also picks variant 1.  The picker is pure `rand % count[9]` (count=2; the
   `DAT_073dddb8` override is OFF — shipped buysell.txt comments out its `ok:` activator), no re-roll/ordering puzzle.  The
-  visible "Capitalism vs How much" is **retail's OWN run-to-run rand%2 non-determinism** (== the §21.11.2 119/117/122 offer
-  float), faithfully reproduced.  A deterministic bilateral variant-match vs a FRESH retail = the SAME open §21.11.2 decision
-  (option 2 retail-only re-pin / option 3 full g_sim+wall-clock pin).  **So gap (iii)≠(i): the variant is settled; gap (i)
-  ("a gap immediately after the haggle prompt") needs the user to say WHAT they saw, else it's covered by the bit-identical
-  window.  NEXT autonomous-able gap = (ii) the dialogue-under-ESC-modal visibility.**
+  visible "Capitalism vs How much" is **retail's OWN run-to-run rand%2 non-determinism**, faithfully reproduced.
+- **★★★ DETERMINISM FOUNDATION — VERIFIED 2026-06-28 (user chose this arc; RE §21.14): the committed config is RUN-TO-RUN
+  DETERMINISTIC; the offer AND variant ALREADY match a FRESH retail bit-for-bit.**  The user picked the determinism-foundation
+  arc believing only the CACHED reference matched.  Empirical proof — **TWO independent fresh retail drives** (`orv3_window …
+  --window 0:1500 --state --force-retail`, lean path): retail#1 vs retail#2 = **700/700 rng VALUEs bit-identical** (rel
+  −200..+500), both **offer 119, b5e0=1 "Capitalism"**; retail#1 vs the committed port = **46/46 bit-identical** over the
+  reaction.  ⇒ retail is run-to-run deterministic AND the port matches it bit-for-bit incl. the directly-captured variant.
+  The "float" history was artifacts: §20 "117" = the csloadpin re-arm RACE (fixed §20.1); §21.11.2 "122" = the L90-DROPPED
+  experiment.  So gap (iii) + the offer are **CONFIRMED 1:1 vs FRESH retail, deterministically — DONE** (ledger).  Absolute
+  load-duration still drifts run-to-run (reaction frame 3700 vs 3627) but the v3 anchor-relative identity-join absorbs it.
+  **OPTIONAL remaining (user's call, NOT a correctness gap): the CLAUDE.md WALL-CLOCK pin** (QPC/GetTickCount/timeGetTime →
+  virtual clock synced at anchors) would pin that absolute drift + time-based anims, and let some ad-hoc load pins retire —
+  a robustness/cleanliness win, not needed for the offer/variant match (which is bit-identical anchor-relative).  **So
+  gap (iii)≠(i): the variant is settled.  gap (i) ("a gap immediately after the haggle prompt") needs the user to say WHAT
+  they saw (else it's covered by the bit-identical window).  NEXT autonomous-able gap = (ii) the dialogue-under-ESC-modal.**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

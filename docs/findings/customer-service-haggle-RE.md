@@ -2745,3 +2745,34 @@ via `retail_fields.json`; rng-neutral — a static mirror + accessor + one trace
   completed, 0 frames) — a transient early-load stall on the remote retail; the d43dafe9 cache (a clean prior
   capture) carries the proof, so the conclusion doesn't depend on it.  New permanent probe `b5e0` retained
   (closes the variant blind spot in the v3 state panel / flow_diff).
+
+## 21.14 ★★★ VERIFIED 2026-06-28 (user chose "determinism foundation") — the committed config is RUN-TO-RUN DETERMINISTIC; the offer+variant ALREADY match a FRESH retail bit-for-bit. §21.13's "open §21.11.2 decision" is CLOSED for this scenario.
+
+The user picked the determinism-foundation arc to get the offer AND variant matching a FRESH retail (not just the
+cached d43dafe9).  **Empirical test (the §21.11.2 "fresh same-config bilateral"): TWO independent fresh retail
+drives** (`orv3_window … --window 0:1500 --state --force-retail`, committed L90 config — the lean path; the heavy
+`--call-trace` full-1979-VA path starves the load worker → the LOADING_START@206 hang, NOT a retail bug):
+- **retail#1 vs retail#2: 700/700 rng VALUEs BIT-IDENTICAL** over rel[−200..+500] around the reaction; both
+  **offer 119, b5e0=1 "Capitalism", rng@pick=973298826.**  (Absolute reaction frames 3700 vs 3627 — a 73-frame
+  load-duration drift — but the ANCHOR-RELATIVE stream is identical; the v3 identity-join (anchor#occ, offset)
+  is load-stretch-immune by design, so this is a non-issue.)
+- **retail#1 vs the committed port: 46/46 rng bit-identical** over the reaction window; same b534/b574/b5e0=1.
+- ⇒ retail is run-to-run deterministic in the committed config AND the port matches it bit-for-bit, **incl. the
+  directly-captured variant b5e0=1.**  So the offer+variant DO match a fresh retail deterministically.
+
+**WHY it's already deterministic (the foundation was built incrementally, not in one "wall-clock pin"):** the §20
+"117 float" was the csloadpin worker-tail re-arm RACE — FIXED §20.1 (all 4 brackets arm); §21.9 made the port's
+d3e load SPAN the load so the load-anchored {rngseed} re-syncs; §21.11.3 fixed the port's 1f PAUSE_CLOSE phase.
+With those + the trace's pin stack ({rngseed}×26 / {csloadpin:24} / {gsimpin} / {bgnpcpin}) the anchor-relative
+rng stream is bit-identical bilaterally.  The §21.11.2 "122 float" was the L90-DROPPED experiment (not the
+committed config); the §21.13 "Capitalism vs How much" was the L90-DROPPED c26f011f cache (config mismatch).
+
+**Remaining (OPTIONAL, the user's call — NOT needed for offer/variant correctness):** the CLAUDE.md WALL-CLOCK pin
+(hook QPC/GetTickCount/timeGetTime → a virtual clock synced at anchors) would additionally pin the ABSOLUTE
+load-duration drift (the 73-frame retail#1↔#2 spread) so the two sides share absolute frame numbers + time-based
+anims are deterministic.  The port already virtualizes the clock for the MAIN-TICK dispatch only (`g_turbo_virtual_now_ms`,
+tick.c:206); `tick_now_ms()` (FUN_0047be2f QPC) and worker/timer reads still see the real clock.  But the
+v3 anchor-relative identity-join already absorbs the absolute drift, and the offer/variant/rng are bit-identical
+anchor-relative ⇒ the wall-clock pin is a robustness/cleanliness improvement (and would let some ad-hoc load pins
+retire), NOT a correctness requirement here.  **VERDICT: gap (iii) + the offer are CONFIRMED 1:1 vs FRESH retail,
+deterministically — done.**

@@ -285,8 +285,17 @@
   live FUN_004658ab; snap x=192 y=b540·0x30+386).  rng-safe (cursor draws no rng; rng VALUE
   bit-identical at the decision — b574=119, poseR=3 == retail).  v3-verified (orv3_shot, win-0-1500
   decision frame port1062/retail1162: white hand on "Okay!" 1:1); +host test cs_cursor_snap_and_slide;
-  3373 host pass.  **USER: "can confirm the cursor matches."**  Open lead (≈ gap (i)): the b534==6
-  reaction line VARIANT differs (msg09 "Capitalism, ho!" port vs "How much should I?..." retail)
-  despite bit-identical rng at the pick frame — a cs_pick_line variant-ordering puzzle, next arc.
+  3373 host pass.  **USER: "can confirm the cursor matches."**
+
+**2026-06-28 — first-customer OFFER + REACTION-VARIANT CONFIRMED 1:1 vs FRESH retail, RUN-TO-RUN DETERMINISTIC
+  (RE §21.13/§21.14; new `b5e0` variant probe).**  The "reaction line VARIANT differs (Capitalism vs How much)"
+  lead was a CONFIG-MISMATCH read (committed L90 port vs the stale L90-DROPPED c26f011f cache).  Verified by TWO
+  independent fresh retail drives (orv3_window --force-retail, lean): retail#1≡retail#2 = **700/700 rng
+  bit-identical** (offer **119**, variant **b5e0=1 "Capitalism"**); the committed port ≡ retail = **46/46
+  bit-identical** over the reaction incl. the directly-captured variant.  ⇒ the offer AND the reaction-line
+  variant match a FRESH retail deterministically; the picker is pure `rand%2` (count=2, DAT_073dddb8 override
+  OFF) and the visible run-to-run "Capitalism/How much" flip is retail's OWN rand%2 non-determinism, faithfully
+  reproduced.  Optional remaining (NOT a correctness gap): the CLAUDE.md wall-clock pin for the absolute
+  load-duration drift (v3 anchor-relative join already absorbs it).
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
