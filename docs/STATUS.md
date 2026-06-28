@@ -139,8 +139,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     - **#13/#14/#15/#16 customer CHIBI — ✅ RENDER PORTED (`c005160`).**  The chibi was fully ported in logic/RNG/pos but
       NEVER PAINTED (PORT-DEBT(cs-walker-render)) ⇒ the aisle read EMPTY vs retail's browsing customer.  Ported both engine
       passes: bright billboard FUN_004705a3 + shadow FUN_00470385 (scene1_shop_walker.c, mirror the bg-NPC leaves; chibi
-      deltas = per-slot scale slot[0x17]·0.03 + char-0x42 +2.5 y-lift).  v3-verified #13/#14/#16: customer now renders both
-      sides.  Residual = the SEPARATE cs-walker-rng-phase (walk POSITION, not presence); 0x42 special re-skin = PORT-DEBT(cs-walker-special).
+      deltas = per-slot scale slot[0x17]·0.03 + char-0x42 +2.5 y-lift).  **USER-CONFIRMED rendering 2026-06-28** ("can confirm
+      the customer is rendering").  **TWO residuals the user flagged (noted, NOT fixed — for next session):**
+      - **(1) FACING DIRECTION wrong (most notes) — DETERMINISTIC, *not* rng (a clean render fix).**  The port writes
+        `slot[CS_NPC_OFF_FACING]=1` at spawn (helpers.c:700) and NEVER recomputes it; the engine's velocity→facing-octant
+        recompute (`ftol(atan2(vel))&7` → slot[6], FUN_0047019f tail / cs_npc_tick) is DEFERRED (helpers.c:913, marked
+        RNG-NEUTRAL) ⇒ the chibi faces a fixed octant regardless of walk dir.  PORT-DEBT(cs-walker-facing).  Port the recompute.
+      - **(2) WALK PHASE off (where facing matches) — cs-walker-rng-phase (rng).**  The walk position/timing is the rng
+        spawn-cadence phase (helpers.c:957); may resolve when the bg_npc/rng phase is pinned.
+      - 0x42 special re-skin pass still PORT-DEBT(cs-walker-special) (never fires for the standard roster).
     - **#11 bg_npc window NPC — DIAGNOSED (probe bgx0..5, `8d34b76`).**  Added bg_npc drift-x to the 0x48670f snapshot (port +
       retail).  DATA: bg_npc ALIGNED after the f406 {bgnpcpin}, DIVERGED before it (the cad868 load drift); #11 (CONV_POSE_BLINK#2)
       is in the pre-pin cutscene.  After a pin it stays aligned THROUGH subsequent loads ⇒ one EARLIER bilateral pin would fix
