@@ -122,14 +122,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       prompt+Yes/No on `cb_active>=4` (pop) at full 0xff; engine draws from cb_active>0 with alpha=(int)((cb_active/4.0)·255.0)
       (objdump 0x4353a1 fdiv 4.0 / 0x4353ad fmul 255.0 / ftol) = ramp 63/127/191/255, packed `<<0x18`.  Drop the gate, draw
       with the ramp.  v3-verified diff BLACK at +2.
-    - **#7 `TEXT_ANIM_START#1+8` "slight edge diff on the skip dialogue, only the edge" — DIAGNOSED a v3 TOOL ARTIFACT; port
-      LIKELY CORRECT (optional --d3d-trace confirm PENDING).**  The banner draw (savewindow.tga, draw 96) is BIT-IDENTICAL
-      port↔retail (verts/tex/blend/alpha/COLOROP; the lone COLORARG delta is benign-commutative under ADDSIGNED).  Retail
-      draws the banner TWICE (same geo_hash); the cutscene has a confirmed retail-only manga-lines (集中線) RT pass (b494).
-      v3 doesn't track SetRenderTarget ⇒ it COMPOUNDS both banner blends onto its single buffer ⇒ the banner's alpha edge
-      blends twice ⇒ "stronger at edges" (the diff is on the DARKER edge px, not the opaque body; port↔retail_full 0.56%,
-      note-box 1.09%).  Real retail's screen blends once = the port.  Confirm via a --d3d-trace retail drive (records
-      SetRenderTarget) or the v3 RT-capture extension (also un-empties the manga-lines).
+    - **#7 `TEXT_ANIM_START#1+8` "edge diff" + #19 `TEXT_ANIM_START#1+1` (retail) "text blending different outside the
+      modal" — SAME ROOT, OBS-CONFIRMED REAL (NOT a v3 artifact; my earlier "v3 artifact / port correct" call was WRONG —
+      the user recorded real retail with OBS, the weird blending IS on hardware).**  Retail draws the choice-box UI block
+      TWICE (31/31 (tex,geo) IDENTICAL; the scene once), so the box's two faint passes COMPOUND under the alpha blend ⇒
+      "stronger at edges" (#7, the alpha edge at full open) + "weird blending outside the modal" (#19, low-alpha
+      cb_active=1, visible over the dark scene).  The box draw itself is bit-identical port↔retail (draw 96 verts/tex/
+      blend/alpha/COLOROP; the COLORARG delta is benign-commutative).  Root: the engine draws the box ONCE per render pass
+      (FUN_0043537e is called from the MUTUALLY-EXCLUSIVE state-gated FUN_0040a765 in-game-HUD / FUN_0041ef91 transition),
+      so the double = the WHOLE in-game frame rendered an extra time = the cutscene FOCUS/BLUR RT effect (the manga-lines
+      集中線 region; the retail-only b494 draw) compositing the scene+UI back over the screen.  The port HAS the RT infra
+      (screen_rt.c = the engine's capture-RT + 1280×256 blur-RT, FUN_0047ae65) but does NOT run the effect here ⇒ single
+      UI ⇒ the difference.  **FIX = port the cutscene focus/blur effect (the double-render + RT composite) — folds into a
+      MANGA-LINES / focus-RT arc; needs the v3 RT-capture extension to replay+verify (v3 can't track the RT today).**
   - **★ PHASE cluster — the NEXT arc (RNG/phase-consumer pinning, the "match EVERY consumer" foundation, CLAUDE.md
     determinism directive):**  #10/#18 tear WING-FLAP + manga-lines phase; #11 NPCs-at-window (bg_npc) diverge;
     #13/#14/#15/#16 customer CHIBI walking (PORT-DEBT(cs-walker-rng-phase)); #17 目玉 SPARKLES phase.  All animation-phase
