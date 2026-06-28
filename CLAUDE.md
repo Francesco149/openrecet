@@ -88,9 +88,15 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   or measure it. **Pin EVERY non-deterministic source at anchors (the `{rngseed}` pattern):** RNG (`{rngseed}`
   ✓); frame-phase g_sim/db054 (`{phasepin}` — NB it currently BREAKS the skip-path wrap-up via its bg_npc LCG
   re-seed = a TOOL gap to FIX, not a reason to drop it); the async LOAD bracket (`{csloadpin}`/`{tutloadpin}` —
-  `CreateThread` races, no min-gate); and **the WALL CLOCK — hook GetTickCount/QPC/timeGetTime → a virtual clock
-  synced at anchors, exactly like the rng seed (user 2026-06-23)** so every time-dependent thing (load races,
-  timers, time-based anims) is deterministic. **Match EVERY consumer, not one:** the shop-WINDOW NPCs (bg_npc
+  `CreateThread` races, no min-gate). **The WALL-CLOCK pin (hook GetTickCount/QPC/timeGetTime → a virtual clock,
+  user 2026-06-23) is REFUTED — do NOT build it** (RE §21.2 2026-06-24 + the 2026-06-28 time-source sweep): the
+  QPC clock (`FUN_0047be2f`/`tick.c`) feeds ONLY frame-pacing, which turbo already virtualizes by bypassing it; NO
+  sim/anim/load/RNG code reads wall-clock. Loads are COMPLETION-based (poll busy flags, no time API ⇒ the variable
+  frame-count is a CreateThread race, NOT time) and the phase consumers are FRAME-based (`chr_anim_tick` dt=1.0,
+  gsim%8, db054%4) ⇒ a clock pin fixes NONE of them (only the cosmetic FPS counter + audio fade, neither a parity
+  divergence). The REAL levers for those: **`{phasepin}`** (the db054/gsim ORIGIN offset = the intro-video freeze
+  the port skips) + an earlier/bilateral **`{bgnpcpin}`** or load-bracket pin (the completion-based load
+  tick-count drift). **Match EVERY consumer, not one:** the shop-WINDOW NPCs (bg_npc
   warmup `FUN_0046f621`), the in-shop browsing chibi NPC (cs-walker pump, `PORT-DEBT(cs-walker-rng-phase)`), the
   目玉 sparkle. **Verify reproducibility across ≥2 captures AND both harnesses** (`scenario-test --target both` +
   `orv3_window`) — a "matches" off ONE drive can be a lucky alignment (the first-customer offer read 119 in one
