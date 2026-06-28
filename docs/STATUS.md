@@ -135,10 +135,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       (screen_rt.c = the engine's capture-RT + 1280×256 blur-RT, FUN_0047ae65) but does NOT run the effect here ⇒ single
       UI ⇒ the difference.  **FIX = port the cutscene focus/blur effect (the double-render + RT composite) — folds into a
       MANGA-LINES / focus-RT arc; needs the v3 RT-capture extension to replay+verify (v3 can't track the RT today).**
-  - **★ PHASE cluster — the NEXT arc (RNG/phase-consumer pinning, the "match EVERY consumer" foundation, CLAUDE.md
-    determinism directive):**  #10/#18 tear WING-FLAP + manga-lines phase; #11 NPCs-at-window (bg_npc) diverge;
-    #13/#14/#15/#16 customer CHIBI walking (PORT-DEBT(cs-walker-rng-phase)); #17 目玉 SPARKLES phase.  All animation-phase
-    divergences for scene actors — bilaterally pin each consumer (the {rngseed}/{bgnpcpin} pattern).
+  - **★ PHASE cluster — IN PROGRESS 2026-06-28 (RNG/phase-consumer pinning, the "match EVERY consumer" foundation):**
+    - **#13/#14/#15/#16 customer CHIBI — ✅ RENDER PORTED (`c005160`).**  The chibi was fully ported in logic/RNG/pos but
+      NEVER PAINTED (PORT-DEBT(cs-walker-render)) ⇒ the aisle read EMPTY vs retail's browsing customer.  Ported both engine
+      passes: bright billboard FUN_004705a3 + shadow FUN_00470385 (scene1_shop_walker.c, mirror the bg-NPC leaves; chibi
+      deltas = per-slot scale slot[0x17]·0.03 + char-0x42 +2.5 y-lift).  v3-verified #13/#14/#16: customer now renders both
+      sides.  Residual = the SEPARATE cs-walker-rng-phase (walk POSITION, not presence); 0x42 special re-skin = PORT-DEBT(cs-walker-special).
+    - **#11 bg_npc window NPC — DIAGNOSED (probe bgx0..5, `8d34b76`).**  Added bg_npc drift-x to the 0x48670f snapshot (port +
+      retail).  DATA: bg_npc ALIGNED after the f406 {bgnpcpin}, DIVERGED before it (the cad868 load drift); #11 (CONV_POSE_BLINK#2)
+      is in the pre-pin cutscene.  After a pin it stays aligned THROUGH subsequent loads ⇒ one EARLIER bilateral pin would fix
+      #11 (likely #17 too — the pre-cutscene bg_npc respawn is the suspected root of the CONV_POSE +1f rng phase).  BUT the
+      retail pin is hard-wired to the f406 entry (needs a configurable frida trigger + SoA recapture) and couples to the
+      confirmed-1:1 offer (b574).  **User chose the WALL-CLOCK PIN instead (broader fix); bg_npc earlier-pin DEFERRED.**
+    - **#10/#18 wing-flap — DIAGNOSED, NOT the skip.**  cframe advances 1f late in free-roam (off11/21/31 vs retail 10/20/30).
+      The companion's transition-frame chr_anim_tick skip is CORRECT (the player skips identically, scene1_player_ctrl.c:1705,
+      and is 1:1 — skipping avoids an unwanted ++ on the seed frame).  Root = anim SEED-ORIGIN phase (1f-ahead during load,
+      1f-behind free-roam ⇒ inconsistent direction = seed timing, not rate), entangled with the load/arrival timing.
+    - **#17 目玉 SPARKLES — phase, gated g_sim_frame_count%8==3 + 3 rng_next_unit/cell; downstream of the gsim/rng phase.**
+    - **#7/#19 (modal) — RT focus/blur arc, separate (needs the v3 RT-capture extension); not part of this cluster.**
+    - **★ NEXT = the WALL-CLOCK PIN foundation (user 2026-06-28, chosen over the targeted bg_npc pin).**  Hook GetTickCount/
+      QPC/timeGetTime → a virtual clock synced at anchors (bilateral, the {rngseed} pattern).  FIRST verifying (bg sub-agent)
+      what the game's time reads actually drive — turbo already virtualizes the FRAME timer, so confirm the remaining notes are
+      time-based (wall-clock-fixable) vs frame/completion-based BEFORE building, don't oversell.  Task #5.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
