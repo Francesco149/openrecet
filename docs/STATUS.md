@@ -107,25 +107,29 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   a robustness/cleanliness win, not needed for the offer/variant match (which is bit-identical anchor-relative).  **So
   gap (iii)≠(i): the variant is settled.  gap (i) ("a gap immediately after the haggle prompt") needs the user to say WHAT
   they saw (else it's covered by the bit-identical window).  NEXT autonomous-able gap = (ii) the dialogue-under-ESC-modal.**
-- **★★ ACTIVE ARC (user 2026-06-28) — the 6 VIEWER NOTES on `house-firstcust-arrprobe` (the "remainders for this trace").**
-  Read FIRST via `orv3_notes.py house-firstcust-arrprobe --render` (rendered to the feed 2026-06-28).  The user CLARIFIED
-  gap (ii): it is **NOT** "hide the dialogue under the modal" — retail DOES draw the dialogue under the modal; the gap is the
-  **SKIP-event modal TRIGGER TIMING** (note #3).  The notes:
-  - **#3 `TEXT_ANIM_START#1+4` "retail already triggered the skip dialogue"** — retail shows "Do you want to skip this event?"
-    (skip_event.c FUN_0046c2cb choice box) BEFORE the wrap-up dialogue lines reveal; the PORT takes "several seconds" (lines
-    reveal first) before its modal.  **Initial diag (2026-06-28): the wrap-up ANCHOR timeline is bit-ALIGNED port↔retail**
-    (rel CONV_POSE_START: PAUSE_OPEN −137, BLINK +20/+84/+148, TEXT_ANIM_START +122/+120, DLG_LINE/CONV_POSE_END +192,
-    PAUSE_CLOSE +463/+464) ⇒ the cutscene/dialogue STATE timing matches; the skip-event choice box is NOT in the anchors, so
-    the gap is in the **skip_event arm/render path** (the `skip_prompt>1` gate FUN_0046c2cb, or the {esc:25}@TEXT_ANIM_START+25
-    handling) — needs frame-level render (orv3_shot/viewer scrub around TEXT_ANIM_START) to pinpoint when each side's modal
-    actually appears.  NEXT: measure the modal on/off frame per side, find the trigger/render divergence, port 1:1.
-  - **#4/#5/#6 `PAUSE_CLOSE#1+136 / #2+2 / #2+99` "no fade in/out on the panel"** — the BARGAIN price panel (b5a0/b598) ALPHA
-    ramp: retail fades it in/out, the port POPs it opaque/instant.  Likely ONE render fix (the panel fade not ported in
-    customer_service_render.c §2/§3).  3 notes, good ROI.
-  - **#2 `CONV_POSE_BLINK#1+57` "standee desync"** — the wrap-up Recette standee position/anim off vs retail (cutscene timing).
-  - **#1 `LOADING_END#3+1` "slight fade difference"** — a load-end fade-ramp phase (likely the accepted +1f load phase; verify).
-  **Foundation is solid (determinism verified above) so all 6 are cleanly comparable.  Suggested order: #4/#5/#6 (one render
-  fix) → #3 (the user's headline) → #2 → #1.**
+- **★★ ACTIVE ARC (user 2026-06-28) — the 6 VIEWER NOTES on `house-firstcust-arrprobe`. 4/6 DONE (#4/#5/#6 + #3); #2/#1 remain.**
+  Read FIRST via `orv3_notes.py house-firstcust-arrprobe --render`.  The user CLARIFIED gap (ii): retail DOES draw the dialogue
+  under the modal; the gap is the **SKIP-event modal TRIGGER TIMING** (note #3).  The notes:
+  - **#4/#5/#6 `PAUSE_CLOSE#1+136 / #2+2 / #2+99` "no fade in/out on the panel" ✅ FIXED 2026-06-28 (`67c8564`, RE §21.15).**
+    The b598 BARGAIN banner render DISCARDED `balpha` (the ive_box_scale open/close alpha) and popped the panel/number/cursor/
+    prompt at flat `pose ? 0x7f : 0xff`.  Retail uses `local_c`=balpha (objdump 0x4673cf init 0xff → 0x46c86f writes it →
+    0x4673ee pose→0x7f; banner color arg at 0x46740a-467474 the Ghidra decompile DROPPED).  Open ramp min(n·0x56,0xff), close
+    (b59c==0) max(n·0x32−0x1ef,0); at settled n=15 balpha=0xff = no regression.  **✅ v3-verified fade-IN bit-1:1** (b598=1
+    faint a=86 / b598=2 a=172, port==retail; b598 ramps bit-identical).  Fade-OUT(#5)+2nd-open(#6) at PAUSE_CLOSE#2 are just
+    past the trimmed arrprobe port trace — same balpha wiring, verified by construction.  **PENDING USER VIEWER CONFIRM.**
+  - **#3 `TEXT_ANIM_START#1+1` "retail already triggered the skip dialogue" ✅ FIXED 2026-06-28 (`98cbf08`, RE §21.15).**  Root
+    = a REPLAY-fidelity gap, NOT an engine bug: the player HELD ESC to skip the iv1_7 wrap-up; the recording saved one {esc:25}
+    which under the port's faster timing lands in a between-lines gap and MISSES the FUN_0046c2cb arm → box never opens, the
+    line just reveals.  The retail CAPTURE auto-runs a skip_wrapup driver (re-post ESC every frame until the box opens, auto-on
+    with {bgnpcpin}); the port replay lacked it.  **Fix (user-chosen): mirror the driver** — `sim.c` arms the box the instant
+    the wrap-up is `scene1_intro_dialogue_skippable()` + `_line_present()`, latches off once open (RE §21.6); auto-on via
+    `input_segtrace_has_bgnpcpin()`.  **✅ v3-verified: the port now opens "Do you want to skip this event?" at col 533 == retail**
+    (feed "note #3 FIXED"), offer b574=119/variant b5e0=1 UNCHANGED (rng-neutral, choice_box_open draws no rng), no softlock.
+    +tracing `skip_prompt`/`e20`/`skipbox` on the dlg anchor (`06d2430`).  **PENDING USER VIEWER CONFIRM.**
+  - **#2 `CONV_POSE_BLINK#1+57` "standee desync"** — the wrap-up Recette standee position/anim off vs retail (cutscene timing). NEXT.
+  - **#1 `LOADING_END#3+1` "slight fade difference"** — a load-end fade-ramp phase (likely the accepted +1f load phase; verify). NEXT.
+  **Foundation solid (determinism verified above).  Remaining order: #2 (standee) → #1 (load fade).  The win-0-1500 viewer is
+  re-driven with both fixes (scrub col 533 = skip box, col 1011 = banner fade-in).**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-
