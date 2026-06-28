@@ -302,7 +302,16 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
         /* closing flag = (b59c == 0): the banner pops open while PRID/PRIA holds
          * b59c (objdump 0x4673ae `cmp b59c; sete cl`). */
         ive_box_scale(s.b598, &bx, &by, &balpha, (s.b59c == 0)); /* FUN_0046c86f */
-        int alpha = (s.pose_timer[0] > 0 || s.pose_timer[1] > 0) ? 0x7f : 0xff;
+        /* alpha = the ive_box_scale FADE (open: 0→0xff over n·0x56; close
+         * (b59c==0): 0xff→0 via n·0x32−0x1ef), overridden to 0x7f only while a
+         * character pose plays.  asm 0x4673cf inits ebp-0x8 = 0xff, 0x46c86f
+         * (ive_box_scale) overwrites it with balpha, 0x4673ee forces 0x7f on a
+         * live pose; the banner panel/number/cursor/prompt all draw with
+         * (alpha<<24)|rgb (panel color arg confirmed at 0x46740a-0x467474, which
+         * Ghidra dropped).  The port previously discarded balpha and popped the
+         * banner opaque → no fade in/out (viewer notes #4/#5/#6). */
+        int alpha = balpha;
+        if (s.pose_timer[0] > 0 || s.pose_timer[1] > 0) alpha = 0x7f;
         /* the banner panel (shopmode src {0,0,432,176}). */
         {
             const sprite_t *sm = &g_scene_buy_shopmode;
