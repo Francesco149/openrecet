@@ -69,7 +69,11 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   port WITH committed L90 vs retail d43dafe9): offer `120→119`, variant `poseR 1→3`, b534 2→6 `off389→390` all == retail; **699
   offsets, ZERO rngΔ mismatches** (whole wrap-up→offer→round-2 window); 3372 host pass; no regression.  **The bilateral
   {rngseed} works as designed — no target-scoping/foundational pin needed.**  cs-walker-rng-phase + the offer arc CLOSED.
-  **PENDING USER STUDIO CONFIRM** (v3 win 580:620 join CSE — offer 119 + reaction render 1:1).
+  **✅ USER-CONFIRMED 1:1 2026-06-28** ("can confirm it's aligned up to haggle prompt"; ledger).
+  **★ NEW gaps the user flagged for AFTER the hand-cursor chip (2026-06-28, while confirming the offer):** (i) a GAP
+  immediately AFTER the haggle prompt; (ii) **retail shows NO dialogue behind the ESC-skip while the port is mid-reveal of a
+  line** (a dialogue-visibility-under-the-modal gap — investigate whether the port should hide/clear the underlying dialogue
+  when the ESC choice box is up).  Both queued behind (B).
   **(B) the missing HAND CURSOR at the haggle prompt — BLOCKED on (A) for verification** (the haggle
   path diverges accept-vs-pushback, so the cursor can't be cleanly verified 1:1 until the offer matches).  RECIPE (RE'd this
   session): the shared menu hand-pointer is ALREADY ported as `title_save_dialog_cursor_render` (FUN_00435747, nowloading.tga

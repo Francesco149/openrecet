@@ -262,4 +262,18 @@
   exact).  OPEN gaps the user flagged in the live HAGGLE (NOT this region): the offer rng-value
   (b574 120 vs 119, b534 7-accept vs 8-pushback) + the missing hand cursor (FRONT).
 
+**2026-06-28 — first-customer OFFER + variant USER-CONFIRMED 1:1 (offer 119, poseR 3).**  The
+  cc08==4 first-customer haggle offer (b574) + the customer reaction/expression (poseR) match
+  retail bit-for-bit.  Root was NOT the cs-walker (the doc's "−12 @off271" was a MISDIAGNOSIS
+  from a destabilised bg-probe capture; cs-walker `npcdr=0` throughout): the port cleared the
+  held ESC-skip b150 (s_skip_modal) 1f early — INLINE at the b534=1→2 edge vs retail's
+  next-frame choice-box clear — firing PAUSE_CLOSE 1f early ⇒ the input-replay offer-Z + the L90
+  {rngseed} re-pin both applied 1f early ⇒ poseR 1 / offer 120.  Fix (c2dcb89): defer the
+  s_skip_modal clear to cs_live_machine's first b534==2 frame.  Verified bit-identical (both
+  harnesses, committed L90 config): offer 120→119, poseR 1→3, b534 2→6 off389→390; **699 offsets,
+  0 rngΔ mismatches**; 3372 host pass; no regression.  **USER 2026-06-28: "can confirm it's
+  aligned up to haggle prompt."**  (RE §21.11.3.)  Two NEW gaps the user flagged for AFTER the
+  hand-cursor chip: (i) a gap immediately after the haggle prompt; (ii) retail shows NO dialogue
+  behind the ESC-skip while the port is in the middle of a (mid-reveal) line.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
