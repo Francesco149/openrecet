@@ -121,6 +121,7 @@ void chr_shadow_build_display_glow(float render_x, float render_z,
 #include "collision_query.h"        /* collision_query_ground (FUN_00432e50) */
 #include "collision_resolve.h"      /* g_scene1_player_floor (cached daf94[0]) */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_shadow_render (FUN_0046f648) */
+#include "scene1_shop_walker.h"     /* scene1_customer_npc_shadow_render (FUN_00470385) */
 #include "scene1_shop_display.h"    /* shop_display_cbfc/cc00/render_x/render_z/bf68 — Block G gate */
 #include "sim.h"                    /* g_sim_frame_count (DAT_0438b8cc) — glow pulse phase */
 
@@ -261,17 +262,17 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
                                          quad, sizeof(shadow_vertex));
     }
 
-    /* ── L122 FUN_00470385: background-NPC + object/furniture shadow blobs ──
+    /* ── L122 FUN_00470385: background-NPC + in-shop-customer shadow blobs ──
      * FUN_00470385 draws the 6 background-window NPC contact shadows
-     * (FUN_0046f648) FIRST, then the object/furniture contact-shadow blobs
-     * (DAT_073a6e84, count DAT_005c7dd0).  The NPC shadows are ported
-     * (scene1_bg_npc.c) and draw here inside this pass's render envelope — soft
-     * dark shade.bmp blobs tinted 0xff202020, multiplied into the street (the
-     * townsfolk drifting past the back window; their bright sprites draw in the
-     * shop-walker pass).  The object/furniture blobs (the "missing table
-     * contact-shadow" in scene1-house-render-gaps.md §4) still need the
-     * DAT_073a6e84 table modelled → deferred follow-up chip. */
+     * (FUN_0046f648) FIRST, then the in-shop browsing-CUSTOMER chibi contact
+     * shadows (DAT_073a6e84 = the chibi slot[0xd], count DAT_005c7dd0 = the
+     * customer cap — NOT object/furniture as an earlier note guessed).  Both are
+     * soft dark shade.bmp blobs tinted 0xff202020, drawn here inside this pass's
+     * render envelope and multiplied into the floor: the bg-NPC townsfolk (their
+     * bright sprites draw in the shop-walker pass) + the wandering customers
+     * (their bright billboards draw in scene1_customer_npc_sprite_render). */
     scene1_bg_npc_shadow_render(dev);
+    scene1_customer_npc_shadow_render(dev);
 
     /* ── dormant blocks (engine L123-346), HOUSE free-roam ledger ───────────
      * Every one of these shadow consumers walks a table HOUSE free-roam leaves

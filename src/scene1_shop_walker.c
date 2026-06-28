@@ -17,6 +17,7 @@
 #include <d3d8.h>
 
 #include <stdint.h>
+#include <string.h>
 
 #include "math3d.h"          /* mat4_translation / scaling / rotation_x / mul */
 #include "call_trace.h"      /* E.2 CALL_TRACE_ENTER probe */
@@ -161,19 +162,169 @@ static int sw_dat_0438b1a0(void) { return 0; }
  * count global or record active flag.
  */
 
-/* FUN_004705a3 (327 B) — between-pass sweep at L457.  Iterates
- * DAT_073a6ea8 (count from DAT_005c7dd0); per-record calls
- * FUN_0045a56f.  Then unconditional FUN_0046f737 + FUN_00470d44.
- * Gated by stage-record0 == 0.
+/* ── in-shop browsing-customer chibi render (engine FUN_004705a3 bright /
+ *    FUN_00470385 shadow) — retires PORT-DEBT(cs-walker-render) ──────────────
  *
- * For HOUSE: DAT_005c7dd0 is BSS-zero (writer is in some unported
- * region of the gameplay code), so the loop short-circuits.
- * FUN_0046f737 + FUN_00470d44 still run, but they themselves walk
- * BSS-zero records → dormant.  Whole call is dormant in HOUSE. */
-static void sw_pass_between_TODO(void)
+ * The cc08==4 / first-customer flow spawns autonomous chibi customers that
+ * wander the shop floor (scene1_shop_walker_helpers.c: spawn/tick/anim, all
+ * RNG-exact).  Their SPRITES were the last unported piece: the slots spawn +
+ * wander + advance the exact RNG but were never painted (the aisle read empty
+ * vs retail's browsing customer — viewer notes #13-16).
+ *
+ * Engine render = two passes over DAT_073a6e50 (30 slots, stride 0x24 dw,
+ * loop bound DAT_005c7dd0 = scene1_customer_npc_cap(); a slot whose [0x15]
+ * active flag == -1 is free):
+ *   - FUN_00470385 (shadow): inside the shadow pass, AFTER the bg-NPC shadows
+ *     (FUN_0046f648) — a flat dark ground blob per active chibi.  Called from
+ *     scene1_chr_shadow.c right after scene1_bg_npc_shadow_render.
+ *   - FUN_004705a3 (bright): the between-pass sweep at L457, BEFORE the bg-NPC
+ *     bright billboards (FUN_0046f737).  FUN_004705a3 *also* tail-calls
+ *     FUN_0046f737 + FUN_00470d44; the port issues those separately right
+ *     below (scene1_bg_npc_sprite_render + the FUN_00470d44 TODO), so this
+ *     function ports ONLY the chibi loop.
+ *
+ * Both mirror the bg-NPC render leaves (scene1_bg_npc.c); the chibi-only deltas
+ * are the per-slot render scale (slot[0x17]·0.03, vs the bg-NPC's fixed 0.03)
+ * and the char-id-0x42 +2.5 y-lift (special-customer arm — its 0x43 re-skin
+ * pass FUN_0047047b stays deferred (PORT-DEBT(cs-walker-special)); 0x42 never
+ * appears in the standard walk-in roster). */
+
+static float cs_npc_slot_f(const int32_t *slot, int off)
 {
-    /* TODO C8-followup: port FUN_004705a3 + its two unconditional
-     * tail calls. */
+    float f;
+    memcpy(&f, &slot[off], sizeof f);
+    return f;
+}
+
+/* shade.bmp ground-blob quad (engine &DAT_0064bd88) — same geometry/UV as the
+ * bg-NPC contact shadow; the colour is patched per draw (engine FUN_0040d11b). */
+typedef struct { float x, y, z; uint32_t color; float u, v; } cs_npc_shadow_vertex;
+#define CS_NPC_UV_LO  0.001953125f   /*  0.5/256 */
+#define CS_NPC_UV_HI  0.248046875f   /* 63.5/256 */
+static const cs_npc_shadow_vertex CS_NPC_SHADOW_QUAD[4] = {
+    { -256.0f, 0.0f,  256.0f, 0xffffffffu, CS_NPC_UV_LO, CS_NPC_UV_LO },
+    { -256.0f, 0.0f, -256.0f, 0xffffffffu, CS_NPC_UV_LO, CS_NPC_UV_HI },
+    {  256.0f, 0.0f,  256.0f, 0xffffffffu, CS_NPC_UV_HI, CS_NPC_UV_LO },
+    {  256.0f, 0.0f, -256.0f, 0xffffffffu, CS_NPC_UV_HI, CS_NPC_UV_HI },
+};
+
+#define CS_NPC_SPRITE_SCALE 0.03f
+
+/* FUN_00470385 chibi loop — soft dark floor blob per active chibi.  Inherits
+ * the shadow pass envelope (shade.bmp texture, ZWRITE off, multiplicative-
+ * darken blend) from the surrounding pass, exactly like the bg-NPC shadow it
+ * follows; sets none of its own. */
+void scene1_customer_npc_shadow_render(struct IDirect3DDevice8 *dev_in)
+{
+    CALL_TRACE_ENTER(0x470385u);
+
+    if (dev_in == NULL)
+        return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    int cap = scene1_customer_npc_cap();          /* DAT_005c7dd0 */
+
+    for (int i = 0; i < cap; i++) {
+        int32_t *slot = scene1_customer_npc_slot(i);
+        if (slot == NULL || slot[CS_NPC_OFF_ACTIVE] == -1)   /* puVar2[8] != -1 */
+            continue;
+
+        /* world = Scaling(-0.0046, 0.0046, 0.0046) · Translation(x, y+0.08, z). */
+        float trans[16], scale[16], world[16];
+        mat4_translation(trans, cs_npc_slot_f(slot, CS_NPC_OFF_POS_X),
+                         cs_npc_slot_f(slot, CS_NPC_OFF_POS_Y) + 0.08f,
+                         cs_npc_slot_f(slot, CS_NPC_OFF_POS_Z));
+        mat4_scaling(scale, -0.0046f, 0.0046f, 0.0046f);
+        mat4_mul(world, scale, trans);
+
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
+
+        cs_npc_shadow_vertex quad[4];
+        for (int v = 0; v < 4; v++) {
+            quad[v] = CS_NPC_SHADOW_QUAD[v];
+            quad[v].color = 0xff202020u;          /* engine FUN_0040d11b */
+        }
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2,
+                                         quad, sizeof(cs_npc_shadow_vertex));
+    }
+}
+
+/* FUN_004705a3 chibi loop — the bright character billboard per active chibi.
+ * Mirrors scene1_bg_npc_sprite_render's self-contained envelope (the engine
+ * inherits it from FUN_004552d0; the port's pass state is deliberately
+ * divergent so we set it).  GREATER alpha-test (ref 0) limits the Z-write to
+ * the opaque silhouette so overlapping chibi don't punch holes. */
+void scene1_customer_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
+{
+    CALL_TRACE_ENTER(0x4705a3u);
+
+    if (dev_in == NULL)
+        return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    int cap = scene1_customer_npc_cap();          /* DAT_005c7dd0 */
+    if (cap <= 0)
+        return;
+
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF, 0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATER);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
+
+    int last_char = -1;
+    for (int i = 0; i < cap; i++) {
+        int32_t *slot = scene1_customer_npc_slot(i);
+        if (slot == NULL || slot[CS_NPC_OFF_ACTIVE] == -1)   /* piVar4[-1] != -1 */
+            continue;
+
+        int char_id = scene1_bg_npc_type_to_char(slot[CS_NPC_OFF_TYPE_IDX]);
+        if (char_id < 0)
+            continue;
+
+        /* lazy-load the NPC sheet (engine pre-loads DAT_073a9b18[char*0x10]). */
+        const sprite_t *sheet = scene1_preload_chr_sheet(char_id);
+        if (sheet == NULL || sheet->tex == NULL) {
+            scene1_preload_load_chr_sheet(char_id);
+            sheet = scene1_preload_chr_sheet(char_id);
+        }
+        if (sheet == NULL || sheet->tex == NULL)
+            continue;
+
+        /* world = billboard × Scale(slot[0x17]·0.03) × Translate(x, y[+2.5], z). */
+        float s = cs_npc_slot_f(slot, CS_NPC_OFF_SCALE17) * CS_NPC_SPRITE_SCALE;
+        float y = cs_npc_slot_f(slot, CS_NPC_OFF_POS_Y);
+        if (char_id == 0x42)                      /* special-customer y-lift */
+            y += 2.5f;
+
+        float world[16], scale[16], tmp[16];
+        mat4_translation(tmp, cs_npc_slot_f(slot, CS_NPC_OFF_POS_X), y,
+                         cs_npc_slot_f(slot, CS_NPC_OFF_POS_Z));
+        mat4_scaling(scale, s, s, s);
+        mat4_mul(tmp, scale, tmp);
+        mat4_mul(world, g_scene1_camera_orient, tmp);
+
+        if (char_id != last_char) {               /* sticky-texture (engine) */
+            last_char = char_id;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                (IDirect3DBaseTexture8 *)sheet->tex);
+        }
+
+        /* engine FUN_0045a56f(slot, char, char, world, 0xff7f7f7f). */
+        scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, slot,
+                                 char_id, world, 0xff7f7f7fu,
+                                 (int)sheet->width, (int)sheet->height);
+    }
+
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 }
 
 /* ─── walker pass bodies ───────────────────────────────────────────────
@@ -898,7 +1049,10 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     sw_pass_light(dev);
 
     /* ─── L457: between-pass sweep ─────────────────────────────────── */
-    sw_pass_between_TODO();                 /* FUN_004705a3 (DAT_073a6ea8, dormant) */
+    /* FUN_004705a3 chibi loop: the in-shop browsing-customer billboards, drawn
+     * BEFORE the bg-NPC bright (engine order); its FUN_0046f737 + FUN_00470d44
+     * tail calls are the two lines below. */
+    scene1_customer_npc_sprite_render(dev_in);
     /* FUN_0046f737: the background-window NPC bright character billboards (the
      * townsfolk drifting past the back window; their dark shadows draw earlier
      * in the shadow pass).  Was a hidden stub here until ported. */

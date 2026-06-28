@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 70,
+  "verified": 72,
   "stubbed": 14,
-  "ported": 481,
+  "ported": 479,
   "unported": 1983,
   "orphan_refs_not_in_function_table": 7,
   "touched": 565,
   "pct_touched": 22.2,
-  "pct_verified": 2.7,
+  "pct_verified": 2.8,
   "port_debt": 25
  },
  "orphan_refs": [
@@ -1121,7 +1121,8 @@
    "status": "ported",
    "src": [
     "src/scene1_bg_npc.c",
-    "src/scene1_chr_shadow.c"
+    "src/scene1_chr_shadow.c",
+    "src/scene1_shop_walker.c"
    ]
   },
   {
@@ -6295,11 +6296,9 @@
    "size": 246,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_bg_npc.c",
-    "src/scene1_bg_npc.h",
-    "src/scene1_chr_shadow.c"
+    "src/scene1_shop_walker.c"
    ]
   },
   {
@@ -6311,7 +6310,8 @@
    "status": "ported",
    "src": [
     "src/scene1_chr_walker.c",
-    "src/scene1_chr_walker.h"
+    "src/scene1_chr_walker.h",
+    "src/scene1_shop_walker.c"
    ]
   },
   {
@@ -6320,11 +6320,9 @@
    "size": 327,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_bg_npc.h",
-    "src/scene1_shop_walker.c",
-    "src/scene1_shop_walker.h"
+    "src/scene1_shop_walker.c"
    ]
   },
   {

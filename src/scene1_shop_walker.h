@@ -316,9 +316,11 @@ int  scene1_shop_walker_get_debug_pass_d_unlit(void);
  * shop_display_grid_cell), so the retarget-burst loop bound (≤30 iters, 2 LCG
  * draws/iter, breaks on the first walkable cell) matches retail bit-for-bit.
  *
- * The logic is D3D-free and host-testable; the sprite RENDER is a separate
- * follow-up (PORT-DEBT(cs-walker-render)) — these NPCs spawn + wander + draw
- * the exact RNG, but are not yet painted on screen.
+ * The logic is D3D-free and host-testable; the sprite RENDER is ported in
+ * scene1_shop_walker.c (scene1_customer_npc_sprite_render / _shadow_render,
+ * engine FUN_004705a3 / FUN_00470385).  Remaining deferred: the type-0x42
+ * special-customer 0x43 re-skin pass + speech-bubble emit
+ * (PORT-DEBT(cs-walker-special)), which never fires for the standard roster.
  *
  * Per-NPC slot = int32_t[CS_NPC_STRIDE] (engine stride 0x24 dw); a slot whose
  * dword CS_NPC_OFF_ACTIVE == -1 is free.  See scene1_shop_walker_helpers.c. */
@@ -407,6 +409,16 @@ int32_t *scene1_customer_npc_slot(int idx);
 struct IDirect3DDevice8;
 
 void scene1_shop_walker(struct IDirect3DDevice8 *dev);
+
+/* In-shop browsing-customer chibi render (engine FUN_004705a3 bright /
+ * FUN_00470385 shadow).  The slots spawn + wander + advance the exact RNG in
+ * scene1_shop_walker_helpers.c; these paint them.  Both iterate the active
+ * chibi slots (scene1_customer_npc_cap() / _slot()) and mirror the bg-NPC
+ * render leaves.  Render order (engine FUN_00459dfd): the shadow draws inside
+ * the shadow pass right AFTER the bg-NPC shadows; the bright draws in the
+ * chr-sprite pass right BEFORE the bg-NPC bright billboards. */
+void scene1_customer_npc_sprite_render(struct IDirect3DDevice8 *dev);
+void scene1_customer_npc_shadow_render(struct IDirect3DDevice8 *dev);
 
 #endif /* _WIN32 */
 

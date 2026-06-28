@@ -1000,7 +1000,9 @@ unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier)
          * (FUN_00447f4f, gated on DAT_005c7ce0[idx*2]==0x42 && DAT_0438b8cc%4==0)
          * + the velocity→facing-octant recompute follow here.  Both are render-
          * adjacent and the 0x42 arm never fires for the standard walk-in roster;
-         * deferred (PORT-DEBT(cs-walker-render)).  Neither perturbs the LCG. */
+         * deferred (PORT-DEBT(cs-walker-special)).  Neither perturbs the LCG.
+         * The chibi SPRITE render itself is ported (scene1_shop_walker.c
+         * scene1_customer_npc_sprite_render / _shadow_render). */
     }
 
     s_cs_last_draws = (unsigned)(rng_call_count() - rng0);
