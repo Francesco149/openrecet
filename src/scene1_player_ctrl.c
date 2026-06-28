@@ -2141,6 +2141,7 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("b5a8", customer_service_b5a8());
             CALL_TRACE_I32("b56c", customer_service_b56c());
             CALL_TRACE_I32("b574", customer_service_offer());
+            CALL_TRACE_I32("b5e0", customer_service_variant());  /* last cs_pick_line variant */
             CALL_TRACE_I32("b584", customer_service_round());
             CALL_TRACE_I32("b590", customer_service_b590());
             CALL_TRACE_I32("ask",  customer_service_player_ask());

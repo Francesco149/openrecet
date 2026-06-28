@@ -80,6 +80,7 @@ int32_t customer_service_b534(void);
  * current offer (DAT_0730b574) — read by the BARGAIN!! panel render. */
 int32_t customer_service_player_ask(void);
 int32_t customer_service_offer(void);
+int32_t customer_service_variant(void);  /* DAT_0730b5e0 — last cs_pick_line variant (trace probe) */
 int32_t customer_service_base_price(void);
 
 /* Flow-trace / render state: the transaction-type selector (DAT_0730b5a8),

@@ -120,6 +120,7 @@ static int32_t s_b5c4;   /* DAT_0730b5c4 */
 static int32_t s_b5c8;   /* DAT_0730b5c8 — item-list scroll */
 static int32_t s_b5cc;   /* DAT_0730b5cc — sub-menu open */
 static int32_t s_b5d0;   /* DAT_0730b5d0 — pose state */
+static int32_t s_cs_variant; /* DAT_0730b5e0 — last cs_pick_line variant (trace probe) */
 static int32_t s_b5d4;   /* DAT_0730b5d4 — pose timer */
 static int32_t s_b5d8;   /* DAT_0730b5d8 — resolved want-list line index (render) */
 static int32_t s_b5dc;   /* DAT_0730b5dc — button-row count (render) */
@@ -410,6 +411,7 @@ int32_t customer_service_f404(void)
 }
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
+int32_t customer_service_variant(void)     { return s_cs_variant; }
 int32_t customer_service_b520(void)        { return s_b520; }
 int32_t customer_service_b524(void)        { return s_b524; }
 int32_t customer_service_b544(void)        { return s_b544; }
@@ -1202,6 +1204,7 @@ static void cs_pick_line(int rec_index, int type, int slot)
         variant = 0;                           /* forced sale → variant 0 */
     }
 
+    s_cs_variant = variant;                    /* mirror retail _DAT_0730b5e0 (trace probe) */
     int s = variant + type * KYAKU_DLG_VARIANTS;
     int32_t sprite = 0;
     const char *text = "...";                  /* fallback if the script is absent */

@@ -66,11 +66,18 @@
   **★ NEXT — gaps the user queued for AFTER the cursor + a NEW one this session surfaced:** (i) a GAP immediately AFTER the
   haggle prompt; (ii) **retail shows NO dialogue behind the ESC-skip while the port is mid-reveal of a line** (a
   dialogue-visibility-under-the-modal gap — should the port hide/clear the underlying dialogue when the ESC choice box is up?).
-  **(iii) NEW (autonomous, on the cursor-verify drive 2026-06-28): the REACTION line VARIANT diverges** — at the b534==6→0xf
-  decision the port renders recette msg09 **"Capitalism, ho!"** vs retail **"How much should I?..."** (the two rand%2 variants
-  of msg09, the L1c pair).  NOT rng-value: rng is **bit-identical at every b534==6 reaction-entry** (the pick frame) yet the
-  text differs ⇒ a VARIANT-ORDERING / draw-COUNT puzzle in `cs_pick_line` (FUN_00460a1a) or the parsed `customer_dialogue`
-  data, NOT a seed/phase gap.  Likely == gap (i).  Investigate the msg09 variant index path next.
+  **(iii) ✅ RESOLVED 2026-06-28 (RE §21.13) — the REACTION line VARIANT "divergence" is a CONFIG-MISMATCH artifact, NOT a
+  port bug.**  The autonomous note's "NOT rng-value" premise was a config-mismatch READ (it compared the committed L90-present
+  port against the stale **L90-DROPPED** c26f011f retail cache — the exact §21.11.2 lesson).  Ground truth (new `b5e0` probe =
+  `DAT_0730b5e0` the picked variant): the committed port DETERMINISTICALLY picks **variant 1 "Capitalism, ho!"** (greeting 120/
+  b544=119, offer 119, poseR 3) and is **BIT-IDENTICAL to retail cache d43dafe9 (L90-present)** — rng VALUE identical at every
+  frame through the reaction ⇒ retail d43dafe9 also picks variant 1.  The picker is pure `rand % count[9]` (count=2; the
+  `DAT_073dddb8` override is OFF — shipped buysell.txt comments out its `ok:` activator), no re-roll/ordering puzzle.  The
+  visible "Capitalism vs How much" is **retail's OWN run-to-run rand%2 non-determinism** (== the §21.11.2 119/117/122 offer
+  float), faithfully reproduced.  A deterministic bilateral variant-match vs a FRESH retail = the SAME open §21.11.2 decision
+  (option 2 retail-only re-pin / option 3 full g_sim+wall-clock pin).  **So gap (iii)≠(i): the variant is settled; gap (i)
+  ("a gap immediately after the haggle prompt") needs the user to say WHAT they saw, else it's covered by the bit-identical
+  window.  NEXT autonomous-able gap = (ii) the dialogue-under-ESC-modal visibility.**
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

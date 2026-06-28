@@ -2707,4 +2707,41 @@ audio stays as cs-offer-fx / cs-poll-fx).  **USER-CONFIRMED 1:1 2026-06-28 ("can
 renders recette msg09 "Capitalism, ho!" vs retail "How much should I?..." (the two rand%2 variants of
 msg09).  NOT a seed gap: rng is bit-identical at every b534==6 reaction-ENTRY (the `cs_pick_line(0,9,0)`
 frame), yet the chosen text differs ⇒ a VARIANT-ORDERING / draw-COUNT mismatch in `cs_pick_line`
-(FUN_00460a1a) or the parsed `customer_dialogue` records.  Next arc.
+(FUN_00460a1a) or the parsed `customer_dialogue` records.  Next arc.  **→ RESOLVED in §21.13 — the lead's
+"NOT a seed gap" premise was WRONG (a config-mismatch read); it IS the same retail-roll non-determinism.**
+
+## 21.13 ★★★ RESOLVED 2026-06-28 — the msg09 REACTION-variant "divergence" (FRONT gap iii) is a CONFIG-MISMATCH artifact, NOT a port bug; the variant LOGIC is bit-identical 1:1
+
+**The §21.12 lead was a config-mismatch read** (the exact §21.11.2 lesson: "re-verify against a FRESH
+same-config bilateral, not a cached opposite-config side").  Ground truth, with a NEW probe **`b5e0`**
+(`DAT_0730b5e0` = the `cs_pick_line`/FUN_00460a1a chosen variant; port emits via `CALL_TRACE_I32`, retail
+via `retail_fields.json`; rng-neutral — a static mirror + accessor + one trace field):
+
+- **The picker is `rand % count[type]`, NO hidden re-roll** (decompile FUN_00460a1a @58792-93 transcribed:
+  one `thunk_FUN_005041f6() % *(count+type*4+0x6df8)`).  The `DAT_073dddb8` scripted-override branch
+  (58783-91) is **OFF in normal play** — the shipped `data/buysell.txt` COMMENTS OUT its `ok:` activator
+  (`/ok:`, skipped at the 74749 `/`-guard) ⇒ `DAT_073dddb8==0` ⇒ always the rng branch.  So the variant is
+  a PURE function of (rng-value, count).  `recette.txt` msg09 = exactly 2 variants in file order:
+  **variant 0 `msg09:04:s10:How much should I?...`, variant 1 `msg09:00:s10:Capitalism, ho!`** (count[9]=2,
+  parse-order identical port↔retail).  ⇒ same rng-value + same count ⇒ same variant.  There is NO
+  variant-ordering/draw-count puzzle.
+- **Committed port (fresh drive, current build), L90 present — DETERMINISTIC:** greeting **120f (b544=119)**,
+  offer **119**, poseR **3**, reaction **b5e0=1 ("Capitalism, ho!")**.
+- **Bilateral vs retail cache d43dafe9 (L90 present):** rng VALUE **BIT-IDENTICAL at every frame** through
+  the reaction (off −3..+5: 242031234 / 527423293 / −591770356 / 863977872 / 973298826 / 1280258341 / …),
+  per-frame rngcalls Δ identical (the +4 offer, +2 pick, +25 %8-sparkle).  ⇒ retail d43dafe9 draws the SAME
+  `r` at the pick ⇒ **retail d43dafe9 variant = 1 = port** (= §21.11.3's "699 offsets, ZERO rngΔ" extended
+  to the variant draw).  **The port matches the L90-pinned reference BIT-FOR-BIT incl. the variant.**
+- **Bilateral vs cache c26f011f (L90-DROPPED):** rng DIFFERS at every frame (offer **119 vs 122**) ⇒ a
+  DIFFERENT `rand%2` roll ⇒ variant 0 "How much" = **the line the §21.12 lead saw.**  The lead compared the
+  committed **L90-present port** against the stale **L90-DROPPED c26f011f retail** = config mismatch.
+- **VERDICT:** the reaction-variant logic is **confirmed 1:1** (same `rand % 2` off the same bit-identical
+  stream as retail's L90-pinned reference).  The visible "Capitalism vs How much" is **retail's OWN run-to-run
+  `rand%2` non-determinism** (the §21.11.2 119/117/122 float, same root), which the port faithfully
+  reproduces — NOT a logic gap.  A DETERMINISTIC bilateral variant-match vs a FRESH retail is the SAME
+  open §21.11.2 decision (option 2 retail-only re-pin / option 3 full g_sim+wall-clock pin); the committed
+  config already matches the cached L90 reference (d43dafe9) + the user's "aligned up to haggle prompt".
+- **(infra aside)** a fresh `--target retail --frida-remote` drive HUNG at LOADING_START@206 (load never
+  completed, 0 frames) — a transient early-load stall on the remote retail; the d43dafe9 cache (a clean prior
+  capture) carries the proof, so the conclusion doesn't depend on it.  New permanent probe `b5e0` retained
+  (closes the variant blind spot in the v3 state panel / flow_diff).

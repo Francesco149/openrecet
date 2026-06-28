@@ -232,6 +232,13 @@
      "_note": "DAT_0730b574 \u2014 the customer's current OFFERED price (haggle math output)."
     },
     {
+     "name": "b5e0",
+     "src": "global",
+     "va": "0x730b5e0",
+     "type": "i32",
+     "_note": "DAT_0730b5e0 \u2014 the cs_pick_line (FUN_00460a1a) chosen VARIANT index (rand % count[type]); the b534==6 reaction msg09 pick selects variant 0 'How much should I?...' vs 1 'Capitalism, ho!'."
+    },
+    {
      "name": "b584",
      "src": "global",
      "va": "0x730b584",
