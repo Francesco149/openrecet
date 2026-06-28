@@ -115,6 +115,15 @@ void sim_init(void);
  * retail's own origin is equally load-dependent).  Mirrored by the retail agent. */
 void sim_phasepin(void);
 
+/* Arm the wrap-up skip DRIVER (viewer note #3, RE §21.5/§21.6): the port mirror
+ * of the retail capture's skip_wrapup ESC re-post.  Once armed, the sim arms the
+ * iv1_7 "skip this event?" box the instant the wrap-up dialogue is skippable +
+ * a line is up (beating the between-lines arm gap the single recorded {esc}
+ * misses), then latches off when the box opens.  main.c calls this when the
+ * loaded segtrace carries {bgnpcpin} (the f406 first-customer marker), mirroring
+ * the retail capture's auto-on.  Inert by default. */
+void sim_enable_wrapup_skip_driver(void);
+
 /* The tick-scheduler `.sim_a` callback. Reads `g_input_state[i].buttons`,
  * advances the per-player button ring into `g_sim_buttons[i]`, and
  * dispatches by scene state (currently only state==0 / title). Tail:

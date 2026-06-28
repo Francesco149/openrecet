@@ -683,6 +683,17 @@ void input_segtrace_set_gframe_cb(struct input_segtrace *st,
     st->gf_cb = cb; st->gf_user = user;
 }
 
+/* 1 if any segment carries a {bgnpcpin} — the f406 first-customer marker.  The
+ * retail capture auto-arms its wrap-up skip DRIVER on this same marker (RE
+ * §21.5/§21.6); the port mirrors it (sim's wrap-up skip driver, viewer note #3). */
+int input_segtrace_has_bgnpcpin(const struct input_segtrace *st)
+{
+    if (!st) return 0;
+    for (size_t i = 0; i < st->n_segs; i++)
+        if (st->segs[i].n_bgnpcpins > 0) return 1;
+    return 0;
+}
+
 void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
                                    segtrace_gsimpin_fn cb, void *user)
 {

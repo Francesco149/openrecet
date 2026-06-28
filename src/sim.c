@@ -70,6 +70,22 @@ static int32_t g_sim_counter_99c;
 static int32_t g_sim_mode_9a0;
 static int32_t g_sim_threshold94;   /* DAT_005c5938 — latched by FUN_004532bc */
 
+/* Wrap-up skip DRIVER (viewer note #3, RE §21.5/§21.6) — the port mirror of the
+ * retail capture's skip_wrapup re-post.  The user HELD ESC to skip the iv1_7
+ * wrap-up cutscene; the recording saved it as a single {esc:N}, which under the
+ * port's faster (load-suppressed) timing lands in a between-lines gap where the
+ * dialogue is momentarily un-skippable, so the single esc misses the FUN_0046c2cb
+ * arm and the box never opens (the line just reveals).  Retail beats this by
+ * re-posting ESC every frame until the box opens; we arm it the instant the
+ * wrap-up dialogue is skippable + a line is up, then latch off once open (so we
+ * never disturb the post-skip free-roam→f406 window — RE §21.6).  Auto-on only
+ * when the trace carries {bgnpcpin} (the f406 first-customer marker), exactly
+ * like retail's auto-on. */
+static int s_wrapup_skip_on     = 0;
+static int s_wrapup_box_latched = 0;
+
+void sim_enable_wrapup_skip_driver(void) { s_wrapup_skip_on = 1; }
+
 /* ─── pure-C button-state ring (FUN_004536cb lines 42-70) ────────────── */
 
 void sim_button_ring_update(uint16_t cur,
@@ -300,6 +316,17 @@ void sim_step_a(void)
          * replays the same esc_pressed() call (main.c segtrace_esc_cb) — so
          * tests drive the prompt by adding an {esc} to the trace, not by any
          * env-var/frame hack. See tests/scenarios/intro-skip-prompt. */
+        /* Wrap-up skip DRIVER (note #3): arm the box the instant the wrap-up
+         * dialogue is skippable + a line is up — the port mirror of retail's ESC
+         * re-post, robust to the between-lines arm gap the single recorded {esc}
+         * misses.  Latch off once open (RE §21.6).  Inert unless {bgnpcpin}-armed. */
+        if (s_wrapup_skip_on && !s_wrapup_box_latched) {
+            if (skip_event_open())
+                s_wrapup_box_latched = 1;
+            else if (scene1_intro_dialogue_skippable() &&
+                     scene1_intro_dialogue_line_present())
+                skip_event_arm(1);
+        }
         if (skip_event_open()) {
             /* The skip-event prompt is modal (retail FUN_004536cb routes the
              * frame to LAB_00453cfb, skipping the scene tick, while the prompt

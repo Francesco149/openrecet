@@ -345,7 +345,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.c, scene1_dialogue_draw.h (+1) |
 | 0x46c0ae | FUN_0046c0ae | 487 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
-| 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |
+| 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+4) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c869 | FUN_0046c869 | 6 | ✓ | main.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h (+1) |
 | 0x46c86f | FUN_0046c86f | 307 | ✓ | customer_service_render.c, scene1_dialogue_run.c, scene1_dialogue_run.h (+2) |

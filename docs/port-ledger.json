@@ -6001,6 +6001,7 @@
     "src/scene.h",
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
+    "src/sim.c",
     "src/skip_event.c",
     "src/skip_event.h"
    ]

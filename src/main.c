@@ -1861,6 +1861,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
+            /* A {bgnpcpin} (the f406 first-customer marker) auto-arms the wrap-up
+             * skip DRIVER, exactly like the retail capture's skip_wrapup auto-on:
+             * the single recorded {esc} for the held-ESC wrap-up skip misses the
+             * arm under the port's faster timing, so the sim re-arms it each frame
+             * until the box opens (viewer note #3, RE §21.5/§21.6). */
+            if (input_segtrace_has_bgnpcpin(&g_segtrace)) {
+                sim_enable_wrapup_skip_driver();
+                fprintf(stderr, "openrecet: wrap-up skip driver armed "
+                        "(segtrace carries {bgnpcpin})\n");
+            }
             /* {gframe:[F,V]} ops pin the global frame counter (EXPERIMENTAL) —
              * see segtrace_gframe_cb. */
             input_segtrace_set_gframe_cb(&g_segtrace, segtrace_gframe_cb, NULL);

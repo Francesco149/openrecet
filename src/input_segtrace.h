@@ -487,6 +487,11 @@ void input_segtrace_set_esc_cb(struct input_segtrace *st,
  * harness auto-enable call-tracing from the trace alone. */
 int  input_segtrace_has_calltrace(const struct input_segtrace *st);
 
+/* True if the loaded trace declares ≥1 {bgnpcpin} op (the f406 first-customer
+ * marker).  Auto-arms the wrap-up skip driver, mirroring the retail capture
+ * (viewer note #3, RE §21.5/§21.6). */
+int  input_segtrace_has_bgnpcpin(const struct input_segtrace *st);
+
 /* Parse a trace from an in-memory buffer / file into `out` (cleared first).
  * Returns 1 on success, 0 on malformed input or OOM. */
 int  input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace *out);
