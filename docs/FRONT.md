@@ -88,44 +88,35 @@
   a robustness/cleanliness win, not needed for the offer/variant match (which is bit-identical anchor-relative).  **So
   gap (iii)≠(i): the variant is settled.  gap (i) ("a gap immediately after the haggle prompt") needs the user to say WHAT
   they saw (else it's covered by the bit-identical window).  NEXT autonomous-able gap = (ii) the dialogue-under-ESC-modal.**
-- **★★ ACTIVE ARC (user 2026-06-28) — the 6 VIEWER NOTES on `house-firstcust-arrprobe`. 4/6 DONE (#4/#5/#6 + #3); #2/#1 remain.**
-  Read FIRST via `orv3_notes.py house-firstcust-arrprobe --render`.  The user CLARIFIED gap (ii): retail DOES draw the dialogue
-  under the modal; the gap is the **SKIP-event modal TRIGGER TIMING** (note #3).  The notes:
-  - **#4/#5/#6 `PAUSE_CLOSE#1+136 / #2+2 / #2+99` "no fade in/out on the panel" ✅ FIXED 2026-06-28 (`67c8564`, RE §21.15).**
-    The b598 BARGAIN banner render DISCARDED `balpha` (the ive_box_scale open/close alpha) and popped the panel/number/cursor/
-    prompt at flat `pose ? 0x7f : 0xff`.  Retail uses `local_c`=balpha (objdump 0x4673cf init 0xff → 0x46c86f writes it →
-    0x4673ee pose→0x7f; banner color arg at 0x46740a-467474 the Ghidra decompile DROPPED).  Open ramp min(n·0x56,0xff), close
-    (b59c==0) max(n·0x32−0x1ef,0); at settled n=15 balpha=0xff = no regression.  **✅ v3-verified fade-IN bit-1:1** (b598=1
-    faint a=86 / b598=2 a=172, port==retail; b598 ramps bit-identical).  Fade-OUT(#5)+2nd-open(#6) at PAUSE_CLOSE#2 are just
-    past the trimmed arrprobe port trace — same balpha wiring, verified by construction.  **✅ USER-CONFIRMED 1:1 2026-06-28
-    ("can confirm the fade matches").**
-  - **#3 `TEXT_ANIM_START#1+1` "retail already triggered the skip dialogue" ✅ FIXED 2026-06-28 (`98cbf08`, RE §21.15).**  Root
-    = a REPLAY-fidelity gap, NOT an engine bug: the player HELD ESC to skip the iv1_7 wrap-up; the recording saved one {esc:25}
-    which under the port's faster timing lands in a between-lines gap and MISSES the FUN_0046c2cb arm → box never opens, the
-    line just reveals.  The retail CAPTURE auto-runs a skip_wrapup driver (re-post ESC every frame until the box opens, auto-on
-    with {bgnpcpin}); the port replay lacked it.  **Fix (user-chosen): mirror the driver** — `sim.c` arms the box the instant
-    the wrap-up is `scene1_intro_dialogue_skippable()` + `_line_present()`, latches off once open (RE §21.6); auto-on via
-    `input_segtrace_has_bgnpcpin()`.  **✅ v3-verified: the port now opens "Do you want to skip this event?" at col 533 == retail**
-    (feed "note #3 FIXED"), offer b574=119/variant b5e0=1 UNCHANGED (rng-neutral, choice_box_open draws no rng), no softlock.
-    +tracing `skip_prompt`/`e20`/`skipbox` on the dlg anchor (`06d2430`).  **✅ USER-CONFIRMED 1:1 2026-06-28 ("can confirm
-    the skip event box matches too").  NEW user note (queued, AFTER /clear): a slight HALO of diff around the SKIP-PROMPT
-    PANEL** (the choice-box edge — likely a 1px box-scale/edge precision diff; cf. the ive_box_scale cos→sin box-edge halo
-    in scene1_dialogue_run.c).
-  - **#2 `CONV_POSE_BLINK#1+57` "standee desync" (user re-added 2026-06-28 as "standee HORIZONTAL position" — = the 2f slide
-    manifesting as an X-offset) — DIAGNOSED: a CONSTANT 2-frame cutscene PHASE, standee BIT-IDENTICAL at the matched phase.**
-    The port's CONV_POSE Recette standee anim leads retail by exactly 2f (port idx398@col450 == retail 447 diff 0.33; port idx435@
-    col487 == retail 484 diff 0.47 — both v3-joined to retail+2).  The standee LOGIC is correct (pixel-identical at the matched
-    phase); it's a CONST-OFFSET timing phase, NOT a position/anim divergence.  **Likely root: arrprobe has NO `{tutloadpin}`** (only
-    csloadpin/gsimpin/rngseed) ⇒ the wrap-up iv1_7 **D_TUT load bracket is UNPINNED** (port runs IVE_TUT_LOAD_FRAMES default vs
-    retail's actual) → the cutscene-internal blink/pose phase shifts ~2f.  **CLOSURE (next arc): measure retail's D_TUT bracket
-    (frida), add `{tutloadpin:N}` to the arrprobe trace, re-drive both, confirm the 2f → 0** (engine-quirks §119 pattern, the
-    {phasepin}/{csloadpin} family).  Per the determinism directive this is a TOOL-gap to CLOSE, not "phase, accept".
-  - **#1 `LOADING_END#3+1` "slight fade difference"** — a load-end fade-ramp phase; **almost certainly the SAME unpinned-load root
-    as #2** (the port's load 1-2f off → the fade ramp off-phase).  Bundle with #2's {tutloadpin} closure; re-verify after.
-  **★ REMAINING = a focused PHASE-PINNING arc (#2 + #1): the wrap-up D_TUT load is unpinned ⇒ a CONST 2f cutscene/load phase.
-    Add a {tutloadpin} (measure retail's bracket first), re-drive, confirm both notes → 0.  The 4 logic/render notes are LANDED;
-    this is a clean fresh effort.  The win-0-1500 viewer is re-driven with the #3/#4-6 fixes (scrub col 533 = skip box, col 1011
-    = banner fade-in).**
+- **★★ ACTIVE ARC (user 2026-06-28) — VIEWER NOTES on `house-firstcust-arrprobe` (read FIRST: `orv3_notes.py
+  house-firstcust-arrprobe`).  The original 6 + the wrap-up PHASE notes are RESOLVED + USER-CONFIRMED 1:1 ("everything
+  is green"); the user re-flagged 10 (#7..#18), splitting into a MODAL cluster (DONE) + a PHASE cluster (NEXT).**
+  - **RESOLVED + USER-CONFIRMED 1:1 (detail → `findings/confirmed-parity-ledger.md`):** BARGAIN-banner fade + skip-event
+    box (`67c8564`/`98cbf08`, RE §21.15); the wrap-up cutscene PHASE — standee horizontal position (#8) + load-end fade
+    (#9) — via **`{tutloadpin:8}`** (`46f837b`).  arrprobe lacked {tutloadpin} ⇒ the iv1_7 D_TUT load bracket ran UNPINNED
+    (port fixed 2f vs retail's non-det 1f worker wall-time ⇒ a CONST cutscene phase: db054 ticks every pose frame,
+    CONV_POSE_START fires INSIDE the bracket, the BLINK anchor snaps to a fixed blink masking it).  Bilateral extend-only
+    pin → both 8f; anchor Δ TEXT_ANIM +2→0 / LOADING_END +1→0, companion+state DRIFT→ALIGNED, camera 0.41→0.0003, note #8
+    diff BLACK.
+  - **MODAL cluster (skip-prompt choice box) — DONE this session:**
+    - **#12 `TEXT_ANIM_START#1+2` "text fades on retail, POPS on port" ✅ FIXED (`9380a92`).**  choice_box_draw gated the
+      prompt+Yes/No on `cb_active>=4` (pop) at full 0xff; engine draws from cb_active>0 with alpha=(int)((cb_active/4.0)·255.0)
+      (objdump 0x4353a1 fdiv 4.0 / 0x4353ad fmul 255.0 / ftol) = ramp 63/127/191/255, packed `<<0x18`.  Drop the gate, draw
+      with the ramp.  v3-verified diff BLACK at +2.
+    - **#7 `TEXT_ANIM_START#1+8` "slight edge diff on the skip dialogue, only the edge" — DIAGNOSED a v3 TOOL ARTIFACT; port
+      LIKELY CORRECT (optional --d3d-trace confirm PENDING).**  The banner draw (savewindow.tga, draw 96) is BIT-IDENTICAL
+      port↔retail (verts/tex/blend/alpha/COLOROP; the lone COLORARG delta is benign-commutative under ADDSIGNED).  Retail
+      draws the banner TWICE (same geo_hash); the cutscene has a confirmed retail-only manga-lines (集中線) RT pass (b494).
+      v3 doesn't track SetRenderTarget ⇒ it COMPOUNDS both banner blends onto its single buffer ⇒ the banner's alpha edge
+      blends twice ⇒ "stronger at edges" (the diff is on the DARKER edge px, not the opaque body; port↔retail_full 0.56%,
+      note-box 1.09%).  Real retail's screen blends once = the port.  Confirm via a --d3d-trace retail drive (records
+      SetRenderTarget) or the v3 RT-capture extension (also un-empties the manga-lines).
+  - **★ PHASE cluster — the NEXT arc (RNG/phase-consumer pinning, the "match EVERY consumer" foundation, CLAUDE.md
+    determinism directive):**  #10/#18 tear WING-FLAP + manga-lines phase; #11 NPCs-at-window (bg_npc) diverge;
+    #13/#14/#15/#16 customer CHIBI walking (PORT-DEBT(cs-walker-rng-phase)); #17 目玉 SPARKLES phase.  All animation-phase
+    divergences for scene actors — bilaterally pin each consumer (the {rngseed}/{bgnpcpin} pattern).
+  - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
+    settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

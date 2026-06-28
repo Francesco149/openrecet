@@ -315,4 +315,20 @@
   (the standee HORIZONTAL position — the 2f slide — + the load fade), root = the unpinned iv1_7 D_TUT load
   (add {tutloadpin}); see docs/FRONT.md.  To tackle AFTER /clear.
 
+**2026-06-28 — wrap-up cutscene PHASE (standee horizontal position + load-end fade) USER-CONFIRMED 1:1 via
+  {tutloadpin:8} (`46f837b`, viewer notes #8/#9 on house-firstcust-arrprobe; renumbered from the prior #2/#1).**
+  arrprobe lacked {tutloadpin} ⇒ the iv1_7 wrap-up D_TUT load bracket ran UNPINNED: the port's fixed 2f vs
+  retail's non-det 1f worker-thread wall-time ⇒ a CONST cutscene PHASE (db054 increments every pose/event frame
+  and CONV_POSE_START fires INSIDE the bracket, so the port's extra load-during-pose frame shifts the standee/
+  db054 phase; the BLINK anchor snaps to a fixed blink, masking it).  FIX: bilateral extend-only {tutloadpin:8}
+  (frida holds the LAB_00452aab worker tail to N; the port overrides IVE_TUT_LOAD_FRAMES) → both brackets 8f
+  (measured retail natural=1f over 2 caches; canon 8 = robust to worker jitter).  v3-verified (cache d00f5a90):
+  anchor Δ rel-PAUSE_OPEN#1 TEXT_ANIM +2→0, LOADING_END +1→0; CONV_POSE_START / all 3 CONV_POSE_BLINK /
+  DLG_LINE_CLEAR / HF#4 = 0.  flow_diff --verdict: companion pframe/pcnt/cx/cz/coct/canim/cframe + state
+  b520/b524/b1cc DRIFT→ALIGNED, camera spread 0.41→0.0003 (x87 noise), rng raw 974/1302→1209/1306; note #8 diff
+  BLACK (standee 1:1), #9 near-black.  retail re-drive BIT-EXACT 1500/1500.  **USER 2026-06-28: "can confirm
+  everything is green."**  Residual (post-note, pre-existing, absorbed by the {gsimpin}/{bgnpcpin} re-pin AT
+  CONV_POSE_END): CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
+  settle-frame latch).
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
