@@ -184,16 +184,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       clamped the 28.  **FIX:** under a pin, force the worker to completion at frame N (spin on the completion FLAG, not
       the self-closed handle) ⇒ deterministic 24f = retail.  **✅ VERIFIED:** LOADING_END:2 +4→**+0**; the WHOLE
       pre-wrap-up region (arrival→tutorial→**offer decision**) now frame-aligned **+0**; offer 119 + variant 1
-      bit-identical; cs_walker_drill 1/200 rngΔ; 3375 host pass.  **Free-roam (notes #20 walk / #21 wing-flap) +3 → −1.**
-      **PENDING USER STUDIO CONFIRM** (win-0-1500): is the wing-flap/walk 1:1 now, or is the residual −1 still visible?
-    - **★ NEXT — the remaining free-roam −1 = the WRAP-UP teardown runs ~1f short (the §21.10 task #2 lever, a REAL port
-      duration gap):** the skip teardown (`scene1_intro_dialogue_skip_to_end`, D_TUT→D_IDLE) BYPASSES the D_TUT_DONE
-      settle frame that natural completion includes ⇒ the port's cc08 wrap-up→free-roam→first-customer transition lands
-      1f early (port off 519/520 vs retail 520/521; CONV_POSE_END −2, free-roam −1).  Drive notes #20/#21 to drift 0 by
-      matching retail's teardown spread (verify skip-vs-natural first; the −2/−1 split + the gsimpin interaction need a
-      fine probe).  Lower-priority sibling levers (if still visible after): #17 sparkle = gsim ORIGIN → `{gsimpin}` at an
-      earlier anchor; #11 bg_npc = earlier bilateral `{bgnpcpin}`.  Engine logic is correct/frame-deterministic; the
-      chibi DELIVERABLES remain DONE + USER-CONFIRMED 1:1 (RENDER `c005160`, FACING `eaff80c`).
+      bit-identical; cs_walker_drill 1/200 rngΔ; 3375 host pass.  Free-roam (notes #20/#21) +3 → −1 (residual = the
+      wrap-up teardown, fixed next ↓).
+    - **★★★ THE FREE-ROAM −1 RESIDUAL = the ESC-skip teardown BYPASSED the D_TUT_DONE settle — FIXED 2026-06-30
+      (`b95b498`, RE §21.17).**  After §21.16 the whole post-wrap-up region (notes #20 walk / #21 wing-flap / #11 window
+      NPCs) sat at a uniform −1 (port 1f AHEAD; user-confirmed all three still desynced).  ROOT: the wrap-up iv1_7 is
+      ESC-SKIPPED, and `scene1_intro_dialogue_skip_to_end` for a RUNNING D_TUT went straight to D_IDLE, BYPASSING the
+      1-frame D_TUT_DONE settle the NATURAL completion includes (engine b1c8 gate clears 1→0 only the frame AFTER) ⇒
+      `_busy()`/`_posing()` cleared 1f early ⇒ the master tick (cc08 leave/dissolve completion) resumed 1f early ⇒ the
+      whole region 1f ahead.  Proof: b520 leave KICKS at off 237/238 BOTH sides but COMPLETES port 520 / retail 521;
+      every first-customer b534 transition uniformly +1 retail.  **FIX:** D_TUT skip → D_TUT_DONE (settle).  **✅ VERIFIED:**
+      HOUSE_FREEROAM#5/#6 + the whole first-customer region **−1→+0** (frame-perfect); bg_npc window positions
+      **BIT-IDENTICAL** in free-roam (#11 aligned); offer 119 + variant bit-identical; cs_walker_drill 1/200; 3375 host
+      pass.  **PENDING USER STUDIO CONFIRM** (win-0-1500): wing-flap / walk / window NPCs all 1:1 now?
+    - **Tiny residuals (NOT the visible free-roam notes):** (a) CONV_POSE_END −1 — the pose's FINAL frame ends 1f early
+      (the conv-pose teardown wants a 2nd settle vs the dialogue's 1); ABSORBED (free-roam anim +0 + bg_npc bit-identical).
+      (b) the PRE-pin cutscene bg_npc (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
+      **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
+      extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (c) #17 sparkle gsim-origin (lower priority).
+      Engine logic is correct/frame-deterministic; the chibi DELIVERABLES remain USER-CONFIRMED 1:1 (`c005160`/`eaff80c`).
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
