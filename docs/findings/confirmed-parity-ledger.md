@@ -331,4 +331,18 @@
   CONV_POSE_END): CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
   settle-frame latch).
 
+**2026-06-30 — browsing-customer chibi FACING USER-CONFIRMED 1:1 (`eaff80c`, viewer notes #13/#15/#16 on
+  house-firstcust-arrprobe).**  The chibi faced a FIXED octant (`slot[6]=1` at spawn, never recomputed).  Ported
+  the TWO engine facing recomputes — both had their x87 octant conversion Ghidra-DROPPED, recovered via objdump:
+  (a) **wstate==2 idle** (`FUN_0046fbee`, asm `0x46fc52-0x46fce2`): facing from the FACE_DIR (+0x70) cardinal
+  `0:(1,0) 1:(0,-1) 2:(-1,0) 3:(0,1)` → `octant(atan2(y,x))`; (b) **velocity** (`FUN_0047019f` tail, asm
+  `0x470300-0x47036b`, every active NPC each frame): `octant(atan2(VEL_X,VEL_Z))`, skipped when both vel==0 (idle
+  keeps the FACE_DIR facing).  Both feed the SAME b850 octant converter as the player
+  (`ftol(((angle+g_scene1_camera_yaw+π/8)/2π)·8+8)&7`; the π/8 / 2π / 8 / ±1 dir-const all `.rdata`-verified) ⇒
+  REUSE `player_ctrl_facing_octant`.  RNG-neutral (no LCG).  v3-verified BIT-IDENTICAL (re-drove win-640-460):
+  notes #13/#15/#16 diff BLACK (chibi facing toward / away / side — three distinct octants all 1:1 vs retail).
+  +2 host tests (`cs_npc_facing_idle_from_facedir`, `_walk_from_velocity`; 3375 pass).  **USER 2026-06-30: "can
+  confirm the customer walk and facing looks correct other than minor phase residuals."**  Residual (NOT facing):
+  #14 walk-cycle PHASE = cs-walker-rng-phase (a velocity/position phase slip upstream of facing).
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

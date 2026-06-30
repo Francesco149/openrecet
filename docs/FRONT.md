@@ -133,8 +133,8 @@
         BIT-IDENTICAL**: re-drove win-640-460, notes **#13 / #15 / #16 diff BLACK** (chibi facing toward / away / side — three
         distinct octants all 1:1 vs retail).  +2 host tests (`cs_npc_facing_idle_from_facedir`, `_walk_from_velocity`; 3375
         pass).  **Residual #14** (HOUSE_FREEROAM#5+21) = same FACING on both sides but a body-pose diff = the walk-cycle PHASE
-        (residual (2) below, upstream cs-walker-rng-phase — a velocity-input phase, NOT a facing-code bug).  **PENDING USER
-        STUDIO CONFIRM** (win-640-460).
+        (residual (2) below, upstream cs-walker-rng-phase — a velocity-input phase, NOT a facing-code bug).  ✅ **USER-CONFIRMED
+        1:1 2026-06-30** ("can confirm the customer walk and facing looks correct other than minor phase residuals"; ledger).
       - **(2) WALK PHASE off (where facing matches) — cs-walker-rng-phase (rng).**  The walk position/timing is the rng
         spawn-cadence phase (helpers.c:957); may resolve when the bg_npc/rng phase is pinned.
       - 0x42 special re-skin pass still PORT-DEBT(cs-walker-special) (never fires for the standard roster).
