@@ -180,14 +180,30 @@
       pass.  **USER 2026-06-30 (win-0-1500):** confirmed the TWO RESIDUALS below are "still there" — **continue after
       /clear** (next session starts here).  (Main free-roam notes #20/#21/#11 = tooling-verified drift-0 + bg_npc
       bit-identical, NOT separately disputed; get an explicit visual 1:1 confirm on those next session before ledgering.)
-    - **★ NEXT (the two USER-confirmed-still-visible residuals, 2026-06-30 — start here next session):** (a) **CONV_POSE_END
-      −1** — the pose's FINAL frame ends 1f early (the conv-pose teardown wants a 2nd settle vs the dialogue's 1; the master
-      tick aligned via §21.17 but `_posing()` still drops with `_busy()` at D_IDLE — retail keeps the POSE on 1 frame past
-      the master resume).  Likely a clean fix: keep `_posing()` true one frame into D_IDLE (or a 2nd pose-settle).  ABSORBED
-      for the free-roam anim (HF#5/#6 = +0 + bg_npc bit-identical), but it's the `{bgnpcpin}` anchor + visible at the exact
-      wrap-up→customer transition.  (b) the PRE-pin cutscene **bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's
-      original spot) still diverges = the **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
-      extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (c) #17 sparkle gsim-origin (lower priority).
+    - **★★★ (a) CONV_POSE_END −1 ✅ FIXED 2026-07-01 (RE §21.18) — the "clean 2nd-settle" guess was WRONG; the real fix
+      DECOUPLES the pose state from `_posing()`.**  CONV_POSE_END#1 lands at the **f406 first-customer entry** (CSE#2, cc08
+      1→4 in the freeroam arm) on the port but 1f AFTER it on retail (the talk-event flag DAT_0450f470 read lags the entry
+      by 1).  The naive "keep `_posing()` 1 frame longer" (a D_POSE_SETTLE state) REGRESSES it — the freeroam arm + f406
+      entry are gated `cc08==1 && !_posing()`, so a held `_posing()` slips LOADING_START#5/CSE#2/HF#5/#6 +1 (USER-VISIBLE).
+      **[Corrects §21.17: that transition is the f406 ENTRY, gated on !_posing(), NOT the b520 leave / `_busy()`.]**  **FIX**
+      (`scene1_conversation_pose.c` + new pure `player_ctrl_cc08_f406_pending`): hold the conv-pose STATE 1 frame (force the
+      LOCAL conv_pose `posing`) ONLY when `!_posing() && s_pose_active && cc08==1 && f406-pending` — true for EXACTLY the entry
+      frame, then cc08==4 drops the hold + the arrival_tick anim-5 takes over ⇒ CONV_POSE_END@entry+1.  `_posing()` untouched ⇒
+      the entry fires on time.  Scoped to f406 (only iv1_7 sets it) ⇒ iv1_5/iv1_6 blip + prologue safe.  RNG-neutral.  **✅
+      VERIFIED:** CONV_POSE_END **−1→+0**; EVERY anchor in win-0-1500 **+0** (frame-perfect); offer 119 + decision fields
+      bit-exact; post-pin bgx0 BIT-IDENTICAL; +host test; 3376 host pass.  **PENDING USER STUDIO CONFIRM** (the wrap-up→customer
+      transition pose-end).
+    - **★ NEXT chip = #17 gsim/sparkle freeze (UNMASKED by the (a) fix — RE §21.18 tail).**  With CONV_POSE_END now at the RIGHT
+      frame (522), the `{gsimpin}` (PORT-ONLY) lands at 522 like retail and EXPOSES a pre-existing bug the old CONV_POSE_END−1
+      pin accidentally MASKED: **the port short-circuits `sim_step_a` (skips `g_sim_frame_count++`) for 1 frame at off 523
+      (gsim freezes 810→810) while retail increments (810→811)** ⇒ gsim runs 1 BEHIND ⇒ gsim%8 sparkle mis-fires (the §21.16/17
+      "0/200 gsim%8" was the early pin canceling it).  Root TBD — `session_init` spawns only the d3e SECONDARY (no primary
+      worker at the f406 entry); the off-523 short-circuit source needs a fresh probe (a worker_load_busy / scene-state probe
+      around the f406 entry).
+    - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
+      **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
+      extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL
+      after the (a) fix aligned the `{bgnpcpin}` landing at CONV_POSE_END=522.)
       Engine logic is correct/frame-deterministic; the chibi DELIVERABLES remain USER-CONFIRMED 1:1 (`c005160`/`eaff80c`).
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.

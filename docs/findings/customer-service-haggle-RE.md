@@ -2831,3 +2831,42 @@ PAUSE_CLOSE#1/#2 all **−1→+0** — the WHOLE post-wrap-up + first-customer r
 **Residual:** `CONV_POSE_END#1` still **−1** (port 521 / retail 522) — the POSE's final frame ends 1f before retail's
 (the conv-pose teardown wants a 2nd settle, vs the dialogue's 1).  Absorbed for the free-roam ANIM phase (HF#5/#6 = +0), but
 CONV_POSE_END is the anchor the **`{bgnpcpin}`** rides ⇒ the window bg_npc (#11) may still be 1f off — chase next.
+
+## 21.18 ★★★ FIXED 2026-07-01 — CONV_POSE_END −1 = the iv1_7 conv-pose released the SAME frame as the f406 first-customer entry; retail holds it 1f PAST
+**Setup:** after §21.17 the post-wrap-up region is +0 EXCEPT `CONV_POSE_END#1` (port off 521 / retail 522 = −1).  A reverted-§21.17
+re-drive (d00f5a90) confirms it is FULLY DETERMINISTIC — LOADING_START#5/CSE#2/HF#5/#6 +0, CONV_POSE_END −1 reproduced — so NOT a
+cad868 race.
+**Structure (retail anchors):** DLG_LINE_CLEAR#1@520 → LOADING_START#5 + **CUSTOMER_SERVICE_ENTER#2**@521 (the **f406 first-customer
+entry**, cc08 1→4, `player_ctrl_cc08_f406_entry`, in the cc08==1 FREEROAM arm) → CONV_POSE_END#1@522 (1f AFTER the entry).  So retail
+holds the wrap-up conv-pose ONE frame PAST the f406 entry; the port releases it AT the entry.
+**Root:** `_posing()` drops at off 521 (D_TUT_DONE→D_IDLE, the iv1_7 ESC-skip teardown).  conv_pose (driven by `_posing()`, ticked
+BEFORE player_ctrl_tick) releases the player record state 6→0 the SAME frame the f406 entry fires ⇒ CONV_POSE_END AT the entry (521).
+Retail's pose-release is the talk-event flag DAT_0450f470 (FUN_004852fb sets it at the cc08 entry/transition); the conv-pose driver
+reads it the NEXT frame ⇒ release at entry+1 (522).  The cc08==4 arrival_tick (f406 path, f405 unset ⇒ arriving branch anim 5) takes
+the actor over at 522 IF the pose survives 521.
+**Why a §21.17-style "2nd settle" REGRESSES it (TRIED + REVERTED):** holding `_posing()` one more frame (a D_POSE_SETTLE state) ALSO
+delays the f406 entry — the freeroam arm (where the entry lives) is gated `cc08==1 && !_active() && !_loading() && !_posing()`
+(`scene1_player_ctrl.c:2360`), so a held `_posing()` runs the unported arm instead ⇒ LOADING_START#5/CSE#2 + the WHOLE region slip
++1 (HF#5/#6 +0→+1, a USER-VISIBLE regression; measured: leave + CONV_POSE_END both → 522, still coupled).  **[Corrects §21.17's
+"master tick gated on _busy()": the post-wrap-up transition that LOADING_START#5/CSE#2 actually track is the f406 ENTRY (freeroam
+arm, gated on !_posing()), NOT the earlier b520 leave.]**
+**Fix (`scene1_conversation_pose.c` + new `player_ctrl_cc08_f406_pending`):** DECOUPLE — hold the conv-pose STATE (the LOCAL `posing`
+in conv_pose_tick) one frame WITHOUT touching the GLOBAL `_posing()`.  When `!_posing() && s_pose_active && player_ctrl_cc08()==1 &&
+player_ctrl_cc08_f406_pending()`, force the local posing=1 for that ONE frame.  `cc08==1 && f406-pending` is true ONLY at the entry
+frame (conv_pose runs BEFORE the entry flips cc08 1→4; next frame cc08==4 drops the hold + the arrival_tick anim-5 takes over ⇒
+CONV_POSE_END@522).  `_posing()` STILL drops at 521 ⇒ the freeroam arm + f406 entry fire on time (LOADING_START#5 +0).  Scoped to
+f406 (only iv1_7 sets it) ⇒ the iv1_5/iv1_6 inter-dialogue pose blip (§21.10) + the prologue are untouched.  RNG-neutral (conv_pose
+draws no LCG; the 1-frame hold only advances the rng-free blink anim).  +host test `cs_f406_pending_is_pure`.
+**✅ VERIFIED (re-drive d00f5a90):** `CONV_POSE_END#1` **−1→+0** (522/522); LOADING_START#5/CSE#2/HF#5/#6/PAUSE_OPEN#2/PAUSE_CLOSE#1/#2
++ EVERY anchor in the window **+0** (frame-perfect); cs decision fields bit-exact (offer b574=119, poseL/poseR/b53c/b5d0/b59c/b5d8/
+b1cc/npcfr/npcsp); post-pin bgx0 BIT-IDENTICAL; 3376 host pass.
+**★ NEW finding (UNMASKED) — the gsim/sparkle freeze = the next #17 chip:** with CONV_POSE_END now at the RIGHT frame (522), the
+`{gsimpin}`/`{bgnpcpin}`/`{rngseed}` (all ride CONV_POSE_END) land at 522 — `{gsimpin}` (PORT-ONLY, pins the port's gsim to retail's
+recorded value) now at 522 like retail (was port 521).  This EXPOSES a pre-existing port bug the old CONV_POSE_END−1 pin
+ACCIDENTALLY MASKED: **the port short-circuits `sim_step_a` (returns before `g_sim_frame_count++`, sim.c:492) for 1 frame at off
+523 — gsim freezes 810→810 while retail increments 810→811 ⇒ port gsim runs 1 BEHIND from off 523 ⇒ gsim%8 (the 目玉 sparkle phase,
+#17) mis-fires.**  cs_walker_drill: the §21.16/17 "0/200 gsim%8" was the early pin (CONV_POSE_END−1=521) CANCELING this freeze (now
+53/200 rngΔ, 199/200 gsim%8 — all the bg_npc/sparkle/#17 region, the cs decision stays bit-exact).  Root TBD: `session_init` spawns
+only the d3e SECONDARY worker (no primary), and no primary-worker spawn (0x452cde) is captured at the f406 entry — so the off-523
+`worker_load_busy()`-style short-circuit source needs a fresh probe.  = the NEXT chip (#17 gsim-origin phase, now localized to the
+f406-entry off-523 sim short-circuit).

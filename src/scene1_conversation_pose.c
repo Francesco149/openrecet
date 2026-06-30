@@ -123,6 +123,22 @@ void scene1_conversation_pose_tick(void)
      * ONE CONV_POSE_START, losing that structure.) */
     int posing = scene1_intro_dialogue_posing();
 
+    /* RE §21.18 — hold the conversation pose ONE frame past the dialogue's
+     * posing-drop when the f406 first-customer entry is armed THIS frame.  After
+     * the iv1_7 wrap-up cutscene, retail's talk-event flag (DAT_0450f470) clears
+     * the frame AFTER the cc08==4 entry, so CONV_POSE_END lands at entry+1; the
+     * port's _posing() instead drops the same frame the entry fires (cc08 1→4),
+     * collapsing CONV_POSE_END onto the entry (−1 vs retail).  The entry
+     * (player_ctrl_cc08_f406_entry) runs LATER this frame and flips cc08 1→4, so
+     * `cc08==1 && f406-pending` is true for EXACTLY the entry frame — next frame
+     * cc08==4 drops the hold and the cc08==4 arrival_tick (anim 5) takes the actor
+     * over, firing CONV_POSE_END at entry+1 like retail.  Scoped to f406 (only
+     * iv1_7 sets it) so the iv1_5/iv1_6 inter-dialogue pose blip (§21.10) and the
+     * prologue are untouched. */
+    if (!posing && s_pose_active && player_ctrl_cc08() == 1 &&
+        player_ctrl_cc08_f406_pending())
+        posing = 1;
+
     /* Inert outside the pose window (and once released): the freeroam
      * controllers own the actors — don't fight them every frame. */
     if (!posing && !s_pose_active)

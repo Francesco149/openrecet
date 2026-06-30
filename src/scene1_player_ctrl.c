@@ -1278,6 +1278,18 @@ int player_ctrl_cc08_f406_entry(void)
     return 1;
 }
 
+/* Pure (no side effects) predicate: the f406 first-customer entry is armed —
+ * iv1_7 set DAT_0450f406 and the next free-roam frame will flip cc08 1→4.  The
+ * conversation-pose teardown reads this BEFORE the entry flips cc08 (the entry
+ * runs later in player_ctrl_tick) to hold the pose one frame into the entry like
+ * retail (RE §21.18).  Only iv1_7 sets f406, so it never fires for iv1_5/iv1_6. */
+int player_ctrl_cc08_f406_pending(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    return (bank != NULL) &&
+           ((const uint8_t *)bank)[PC_F406_TUTORIAL_BYTE_OFF] != 0;
+}
+
 /* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
  * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
  * interaction).  The wired sub-paths are the **shop-door exit** (the bVar17

@@ -759,6 +759,34 @@ int test_cs_f406_entry_enters_counter(void)
     return 0;
 }
 
+/* RE §21.18 — the PURE f406-pending predicate the conversation-pose teardown reads
+ * BEFORE the entry flips cc08 (to hold the wrap-up pose one frame into the f406
+ * entry like retail).  Must mirror the entry's f406 gate with ZERO side effects
+ * (no cc08 flip, no session init) — that's what lets conv_pose probe it safely
+ * earlier in the frame than the real entry. */
+int test_cs_f406_pending_is_pure(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+
+    /* f406 == 0: not pending; nothing touched. */
+    player_ctrl_debug_set_cc08(1);
+    T_ASSERT_EQ_I(player_ctrl_cc08_f406_pending(), 0);
+    T_ASSERT_EQ_I(player_ctrl_cc08(), 1);                /* pure: no cc08 flip */
+    T_ASSERT_EQ_I(customer_service_active(), 0);         /* pure: no session init */
+
+    /* f406 == 1: pending — STILL no side effects (unlike _f406_entry). */
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;
+    T_ASSERT_EQ_I(player_ctrl_cc08_f406_pending(), 1);
+    T_ASSERT_EQ_I(player_ctrl_cc08(), 1);                /* still free-roam (pure) */
+    T_ASSERT_EQ_I(customer_service_active(), 0);         /* session init did NOT run */
+
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 0;       /* teardown */
+    player_ctrl_debug_set_cc08(1);
+    customer_service_reset();
+    return 0;
+}
+
 /* RE §20 — the {csloadpin:N} d3e load-bracket pin.  Hold b1cc==2 for exactly N
  * frames (extend-only normalization, like {tutloadpin}) so the 目玉 sparkle —
  * which fires throughout the b1cc==2 window — consumes the same rng count on both
