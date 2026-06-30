@@ -162,7 +162,9 @@
       ORIGIN → `{gsimpin}`/`{phasepin}` (arrprobe's {gsimpin:[0,810]} is at CONV_POSE_END, too late for #17 @ HOUSE_FREEROAM#3);
       #11 bg_npc = COMPLETION-based cad868 tick-count → earlier bilateral `{bgnpcpin}` (configurable frida trigger; couples to
       the confirmed-1:1 offer).  All are HARNESS-PIN completeness + tool-gap fixes, NOT engine ports — the engine logic is
-      correct/frame-deterministic.  The headline gap (the invisible chibi customer) is already FIXED.
+      correct/frame-deterministic.  The chibi DELIVERABLES are DONE + USER-CONFIRMED 1:1 (RENDER `c005160`, FACING
+      `eaff80c`); what remains in the whole cluster is PURE rng/phase-pin foundation (incl. #14 = the chibi's OWN
+      walk-cycle phase = cs-walker-rng-phase), no more chibi engine ports.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
