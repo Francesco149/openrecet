@@ -302,15 +302,28 @@ void scene1_intro_dialogue_skip_to_end(void)
         g_state    = D_SCRIPT2;
         g_load_ctr = 0;
         break;
-    case D_TUT_LOAD:
     case D_TUT:
+        /* Skipping a RUNNING post-prologue tutorial (iv1_5/6/7) ends the script,
+         * but — like the NATURAL g_rt.complete path (D_TUT → D_TUT_DONE) — keep
+         * retail's 1-frame gate-clear settle: the engine's DAT_0438b1c8 clears 1→0
+         * only the frame AFTER FUN_0044bd0d, so _busy()/_posing() hold one more
+         * frame and the master tick (cc08 leave/dissolve completion) resumes the
+         * frame AFTER, like retail.  Without it the port's wrap-up cutscene ends 1f
+         * early ⇒ the cc08 exit + the WHOLE first-customer region run 1f ahead
+         * (free-roam anim / bg_npc phase drift, viewer notes #20/#21/#11; RE §21.17). */
+        g_state       = D_TUT_DONE;
+        g_load_ctr    = 0;
+        g_rt.active   = 0;
+        g_rt.complete = 0;
+        break;
+    case D_TUT_LOAD:
     case D_TUT_DONE:
-        /* Skipping a post-prologue tutorial dialogue (iv1_5/iv1_6) just ends it →
-         * back to dormant free-roam; the FREEROAM_START latch is unchanged (it was
-         * already set by the prologue, or 0 on a load — a tutorial never owns it).
-         * (D_TUT_DONE can't actually be skipped — _skippable() needs _active(),
-         * which is false on the settle frame — but handle it as a tutorial-end so
-         * it never falls through to the D_SCRIPT2 default's D_DONE/FREEROAM.) */
+        /* Skipping the load bracket (no script ran yet) or the settle frame itself →
+         * straight to dormant free-roam; the FREEROAM_START latch is unchanged (it
+         * was already set by the prologue, or 0 on a load — a tutorial never owns it).
+         * (D_TUT_DONE can't actually be skipped — _skippable() needs _active(), which
+         * is false on the settle frame — but handle it as a tutorial-end so it never
+         * falls through to the D_SCRIPT2 default's D_DONE/FREEROAM.) */
         g_state       = D_IDLE;
         g_load_ctr    = 0;
         g_rt.active   = 0;

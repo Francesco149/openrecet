@@ -2808,3 +2808,26 @@ lands at port off 520 / retail off 522 = **−2** (the DLG_LINE_CLEAR#1→CONV_P
 retail's 2f), partly compensated by the post-wrap-up LOADING#5 (+1) to −1 in free-roam.  = the §21.10 "task #2 / wrap-up
 runs short" segment — the NEXT chip to drive notes #20/#21 to drift 0.  (NB this is a REAL port duration gap, the §21.10
 methodical "fix the 1f-short fade/cutscene" lever, NOT a harness pin.)
+
+## 21.17 ★★★ FIXED 2026-06-30 — the §21.16-residual −1 = the ESC-skip teardown BYPASSED the D_TUT_DONE settle ⇒ the whole post-wrap-up region ran 1f ahead
+After §21.16 the pre-wrap-up region was +0 but the FREE-ROAM region (notes #20 walk / #21 wing-flap / #11 window NPCs)
+sat at a uniform **−1** (port 1f AHEAD); the user confirmed all three still visibly desynced.
+**Localisation (port↔retail, d00f5a90):** every first-customer `b534` haggle transition was **+1 on retail** (port 1f
+early) ⇒ a single uniform −1 across the WHOLE post-wrap-up region, rooted at the cc08 leave/dissolve.  The leave KICKS at
+the SAME off both sides (`b520` 0→1@237, 1→2@238 — the fade kick aligned) but COMPLETES (`b520` 2→0) at port **520** vs
+retail **521**.  The dissolve condition (`b5c0==0 && 0xf0<b5b4 && b520==1`, decompile all.c:60325) + the fade (`fade_is_done`
+= `counter==duration`, exact 90f) are FAITHFUL, and the fade finished ~off 328 — so the completion is NOT gated on the fade
+but on the **master tick RESUMING when the iv1_7 wrap-up cutscene ends** (it self-`return`s while the dialogue is `_busy()`).
+The cutscene ended 1f early ⇒ master resumed 1f early ⇒ everything downstream −1.
+**ROOT:** the wrap-up is ESC-SKIPPED; `scene1_intro_dialogue_skip_to_end` for a RUNNING `D_TUT` (iv1_5/6/7) went straight
+to **D_IDLE**, BYPASSING the 1-frame **D_TUT_DONE settle** that the NATURAL `g_rt.complete` path (D_TUT→D_TUT_DONE, line 224)
+includes — the engine's `DAT_0438b1c8` gate clears 1→0 only the frame AFTER `FUN_0044bd0d`, so `_busy()`/`_posing()` must
+hold one more frame.  The skip dropped it ⇒ `_busy()` cleared 1f early ⇒ master tick resumed 1f early.
+**FIX (`scene1_intro_dialogue.c`):** split the skip teardown — `D_TUT` → **D_TUT_DONE** (the settle), `D_TUT_LOAD`/`D_TUT_DONE`
+→ D_IDLE (no script ran / already settling).  Mirrors the natural-completion settle + retail's gate lag.
+**✅ VERIFIED (re-drive d00f5a90):** LOADING_START#5 / CSE#2 / LOADING_END#5 / **HOUSE_FREEROAM#5 / #6** / PAUSE_OPEN#2 /
+PAUSE_CLOSE#1/#2 all **−1→+0** — the WHOLE post-wrap-up + first-customer region frame-perfect.  Offer `b574=119` + variant
+`b5e0=8` bit-identical; `cs_walker_drill` **1/200** rngΔ, 0/200 gsim%8; 3375 host pass (no prologue-skip regression).
+**Residual:** `CONV_POSE_END#1` still **−1** (port 521 / retail 522) — the POSE's final frame ends 1f before retail's
+(the conv-pose teardown wants a 2nd settle, vs the dialogue's 1).  Absorbed for the free-roam ANIM phase (HF#5/#6 = +0), but
+CONV_POSE_END is the anchor the **`{bgnpcpin}`** rides ⇒ the window bg_npc (#11) may still be 1f off — chase next.
