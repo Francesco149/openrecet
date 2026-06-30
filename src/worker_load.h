@@ -420,4 +420,16 @@ void worker_load_spawn_e39(int param);
 void worker_load_spawn_e75(int param);
 void worker_load_spawn_eb1(int param);
 
+/* Force the in-flight d3e secondary worker (1cc) to completion: spin (yielding
+ * the CPU) until its thread proc's post_body writes g_worker_sec_state_1cc=1, so
+ * the customer-service assets are actually in.  Used ONLY by the {csloadpin}
+ * harness bracket (scene1_player_ctrl) to collapse the non-deterministic
+ * CreateThread SCHEDULING latency — the body work is milliseconds, but WHEN the
+ * OS schedules the thread varies run-to-run, so the cc08 load otherwise clears a
+ * few frames late (RE §21.16: 28f here vs retail's frida-held 24f → the free-roam
+ * anim/phase drift).  Polls the completion FLAG, never g_worker_handle (the thread
+ * self-closes it — use-after-close).  No-op under the unit-test build (no thread;
+ * the load is driven explicitly). */
+void worker_load_force_d3e_complete(void);
+
 #endif /* OPENRECET_WORKER_LOAD_H */

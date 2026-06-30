@@ -71,6 +71,9 @@ void customer_service_notify_loaded(void);
  * advances the bracket counter + reports readiness (always 1 when unset). */
 void customer_service_set_load_pin(int n);
 int  customer_service_load_pin_elapsed(void);
+/* Whether a {csloadpin} is currently in effect (s_csload_pin > 0) — gates the
+ * deterministic worker force-complete in the cc08==4 load-release bridge. */
+int  customer_service_load_pin_active(void);
 
 /* Read the active customer-service SELL sub-state (DAT_0730b534) — for the
  * render dispatch + the flow-trace state probe. */

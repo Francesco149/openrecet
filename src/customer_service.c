@@ -390,6 +390,11 @@ int customer_service_load_pin_elapsed(void)
     return s_csload_hold >= s_csload_pin;
 }
 
+/* Whether a {csloadpin} is in effect.  When set, the cc08==4 load-release bridge
+ * (scene1_player_ctrl) force-completes the racy d3e worker at the pinned frame so
+ * the load duration is deterministic; unpinned it stays purely async. */
+int customer_service_load_pin_active(void) { return s_csload_pin > 0; }
+
 /* ── accessors ─────────────────────────────────────────────────────────────── */
 int32_t customer_service_b534(void)        { return s_b534; }
 int32_t customer_service_player_ask(void)  { return s_price_ask; }

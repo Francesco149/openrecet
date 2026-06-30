@@ -500,6 +500,20 @@ void worker_load_spawn_eb1(int param)
     sec_spawn_common(param, thread_proc_sec_c96);
 }
 
+void worker_load_force_d3e_complete(void)
+{
+    /* Spin (yielding) until the d3e worker thread's post_body writes 1cc=1.  We
+     * poll the COMPLETION FLAG, not g_worker_handle: the thread self-closes its
+     * handle in secondary_thread_cleanup (waiting on the handle would be a
+     * use-after-close).  A successfully-spawned worker always reaches post_body
+     * within milliseconds, so this returns in a few scheduler slices.  The only
+     * non-terminating case is a CreateThread FAILURE (1cc never leaves 2) — but
+     * that already softlocks the load in normal play, so we are no worse off.
+     * Harness-only (csloadpin); never on the unpinned async release path. */
+    while (g_worker_sec_state_1cc == 2)
+        Sleep(0);
+}
+
 #else  /* !_WIN32 ── non-Win32 build (unit tests on Linux) ───────────── */
 
 void worker_load_close(void)
@@ -593,6 +607,12 @@ void worker_load_spawn_eb1(int param)
     g_worker_sec_state_1d8 = 2;
     worker_load_begin_secondary();
     g_worker_sec_param = param;
+}
+
+void worker_load_force_d3e_complete(void)
+{
+    /* No worker thread under the unit-test build — the d3e load is driven
+     * explicitly (notify_loaded / post_body), so there is nothing to await. */
 }
 
 #endif  /* _WIN32 */

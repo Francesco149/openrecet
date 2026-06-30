@@ -2776,3 +2776,35 @@ v3 anchor-relative identity-join already absorbs the absolute drift, and the off
 anchor-relative ⇒ the wall-clock pin is a robustness/cleanliness improvement (and would let some ad-hoc load pins
 retire), NOT a correctness requirement here.  **VERDICT: gap (iii) + the offer are CONFIRMED 1:1 vs FRESH retail,
 deterministically — done.**
+
+## 21.16 ★★★ FIXED 2026-06-30 — the cc08 d3e LOAD ran +4f vs retail (racy CreateThread vs frida-pinned) = the dominant free-roam phase drift (notes #20/#21)
+**Symptom:** the two remaining viewer notes on `house-firstcust-arrprobe` — #21 "tear wing flap phase" (HOUSE_FREEROAM#5+39),
+#20 "customer walk phase" (HOUSE_FREEROAM#6+153) — are the free-running anim counters (companion `cframe`, the chibi
+walk-cycle) carrying a phase offset.  Both live in free-roam, downstream of the wrap-up.
+**Measurement (anchor_drift, port↔cached retail d00f5a90, aligned at CSE#1):** the drift is a CONSTANT **+4** from the
+FIRST anchor after entry (LOADING_END#2) and ~constant through the window, settling to **+3** in free-roam (HF#5/#6).
+NOT gradual accumulation — it appears whole at the first load.
+**Root (ground-truth b1cc timeline both sides):** the cc08==4 d3e customer-asset load ran **28 frames** on the port
+(b1cc 2→1 at off 28) vs retail's **24** (off 24).  The port's d3e load is a **real `CreateThread`** (worker_load.c
+`sec_spawn_common`); its completion (`g_worker_sec_state_1cc` 2→1, written by the worker's post_body) lands whenever the
+OS schedules the thread — **racy, non-deterministic run-to-run** (the §21.10 "loads are deterministic 24f" was a LUCKY
+sample; the arrprobe drive got 28).  `{csloadpin:24}` only set a MINIMUM on the port (the release gate ANDs
+`load_pin_elapsed()` with the racy `1cc != 2`), so the 24-min never clamped the 28; retail is frida-HELD to exactly 24
+(`openrecet-agent.js:3151` worker-tail blocker).  ⇒ the +4 surplus, and it's the SAME root as §21.9's incompleteness
+(the load-anchored `{rngseed}` re-pin lands at the port's off 28 vs retail's off 24 unless the load durations match).
+**Fix (`worker_load_force_d3e_complete` + the `scene1_player_ctrl` release bridge):** when a pin is active and the gate's
+pinned frame N is reached with the worker still pending (`1cc==2`), FORCE the worker to completion — spin (Sleep(0)
+yield) on the COMPLETION FLAG `g_worker_sec_state_1cc`, **never `g_worker_handle`** (the thread self-closes it in
+`secondary_thread_cleanup` → use-after-close).  The body work is ms, so the spin returns in a few scheduler slices with
+the assets actually in; the load then clears DETERMINISTICALLY at exactly N = retail's pinned N.  **Unpinned**
+(`customer_service_load_pin_active()`==0, `load_pin_elapsed()` always 1) it reduces to the original `1cc != 2` async
+release — zero behaviour change in normal play (harness-only).  Non-Win32 (host): no thread → no-op.
+**✅ VERIFIED (fixed port vs cached retail d00f5a90):** LOADING_END#2 **+4→+0**; the WHOLE pre-wrap-up region
+(LOADING_END#2/#3, HF#2/#3, PAUSE_OPEN#1 = the offer decision, LOADING_START#4, CONV_POSE_START#1, the BLINKs,
+TEXT_ANIM_START#1) now **frame-aligned +0**.  Offer `b574=119` + variant `b5e0=1` (+ round-2 150) **bit-identical**
+both sides; `cs_walker_drill` **1/200 rngΔ, 0/200 gsim%8** (= the pre-fix baseline — rng-neutral); 3375 host pass.
+**Residual:** free-roam +3→**−1** (not 0).  The remaining −1 is the WRAP-UP cutscene running ~1f SHORT: `CONV_POSE_END#1`
+lands at port off 520 / retail off 522 = **−2** (the DLG_LINE_CLEAR#1→CONV_POSE_END#1 final beat is 0f on the port vs
+retail's 2f), partly compensated by the post-wrap-up LOADING#5 (+1) to −1 in free-roam.  = the §21.10 "task #2 / wrap-up
+runs short" segment — the NEXT chip to drive notes #20/#21 to drift 0.  (NB this is a REAL port duration gap, the §21.10
+methodical "fix the 1f-short fade/cutscene" lever, NOT a harness pin.)

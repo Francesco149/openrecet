@@ -1846,10 +1846,24 @@ static void player_ctrl_cc08_unported_arm(void)
         /* {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
          * (and increments) every b1cc==2 frame; it returns 1 unless a pin is set,
          * so unpinned play still clears purely on the async worker. */
-        if (b1cc_pre == 2 &&
-            customer_service_load_pin_elapsed() &&
-            g_worker_sec_state_1cc != 2)
-            customer_service_notify_loaded();
+        if (b1cc_pre == 2 && customer_service_load_pin_elapsed()) {
+            /* The pinned minimum N has elapsed (or no pin → always true).  The
+             * port's d3e asset load is a real CreateThread (worker_load) whose
+             * completion lands whenever the OS schedules it — racy, +4f
+             * run-to-run (RE §21.16: it ran 28f here vs retail's frida-held 24f,
+             * and that surplus carries into free-roam as the wing-flap / chibi
+             * walk-cycle phase drift, viewer notes #20/#21).  When a pin is
+             * active, FORCE the worker to completion now so the load clears
+             * DETERMINISTICALLY at exactly N like retail's pinned worker — and the
+             * load-anchored {rngseed} re-pin then lands at the same entry-relative
+             * off on both sides (completes §21.9).  Unpinned, pin_active is 0 and
+             * load_pin_elapsed is always 1, so this reduces to the original
+             * `g_worker_sec_state_1cc != 2` async release. */
+            if (customer_service_load_pin_active() && g_worker_sec_state_1cc == 2)
+                worker_load_force_d3e_complete();
+            if (g_worker_sec_state_1cc != 2)
+                customer_service_notify_loaded();
+        }
 
         /* The arrival anim + camera ramp run THROUGH the d3e bg-load (UNGATED),
          * matching retail (RE §21.10).  The d3e customer-asset load is a BACKGROUND
