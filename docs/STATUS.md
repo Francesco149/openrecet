@@ -176,14 +176,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       (sparkle), db054%4 — pure frame counters.  A wall-clock pin would make deterministic only the cosmetic FPS counter +
       audio-fade — NEITHER a cluster divergence.  **The stale CLAUDE.md/FRONT "wall-clock pin" framing (user 2026-06-23)
       predates + is superseded by RE §21.2.**
-    - **★ NEXT — the CORRECT determinism levers (existing pins, not a new clock):** #10/#18 wing-flap = db054 ORIGIN →
-      `{phasepin}` (CAVEAT: its bg_npc-LCG-re-seed breaks the skip-path wrap-up — a tool gap to fix first); #17 sparkle = gsim
-      ORIGIN → `{gsimpin}`/`{phasepin}` (arrprobe's {gsimpin:[0,810]} is at CONV_POSE_END, too late for #17 @ HOUSE_FREEROAM#3);
-      #11 bg_npc = COMPLETION-based cad868 tick-count → earlier bilateral `{bgnpcpin}` (configurable frida trigger; couples to
-      the confirmed-1:1 offer).  All are HARNESS-PIN completeness + tool-gap fixes, NOT engine ports — the engine logic is
-      correct/frame-deterministic.  The chibi DELIVERABLES are DONE + USER-CONFIRMED 1:1 (RENDER `c005160`, FACING
-      `eaff80c`); what remains in the whole cluster is PURE rng/phase-pin foundation (incl. #14 = the chibi's OWN
-      walk-cycle phase = cs-walker-rng-phase), no more chibi engine ports.
+    - **★★★ THE FREE-ROAM PHASE DRIFT WAS A RACY LOAD, NOT a phase-pin gap — FIXED 2026-06-30 (`2bae088`, RE §21.16).**
+      Re-frames the "PURE rng/phase-pin foundation" read: anchor_drift (fixed port↔cached retail) showed the free-roam
+      region (notes #20/#21) sat at a CONSTANT **+4→+3** drift appearing WHOLE at the FIRST anchor (the d3e LOAD), not
+      gradual phase accumulation.  ROOT: the cc08 d3e asset load is a real **CreateThread** (worker_load) whose completion
+      is RACY (28f here vs retail's frida-held 24f); `{csloadpin:24}` only set a MINIMUM on the port, so the 24 never
+      clamped the 28.  **FIX:** under a pin, force the worker to completion at frame N (spin on the completion FLAG, not
+      the self-closed handle) ⇒ deterministic 24f = retail.  **✅ VERIFIED:** LOADING_END:2 +4→**+0**; the WHOLE
+      pre-wrap-up region (arrival→tutorial→**offer decision**) now frame-aligned **+0**; offer 119 + variant 1
+      bit-identical; cs_walker_drill 1/200 rngΔ; 3375 host pass.  **Free-roam (notes #20 walk / #21 wing-flap) +3 → −1.**
+      **PENDING USER STUDIO CONFIRM** (win-0-1500): is the wing-flap/walk 1:1 now, or is the residual −1 still visible?
+    - **★ NEXT — the remaining free-roam −1 = the WRAP-UP teardown runs ~1f short (the §21.10 task #2 lever, a REAL port
+      duration gap):** the skip teardown (`scene1_intro_dialogue_skip_to_end`, D_TUT→D_IDLE) BYPASSES the D_TUT_DONE
+      settle frame that natural completion includes ⇒ the port's cc08 wrap-up→free-roam→first-customer transition lands
+      1f early (port off 519/520 vs retail 520/521; CONV_POSE_END −2, free-roam −1).  Drive notes #20/#21 to drift 0 by
+      matching retail's teardown spread (verify skip-vs-natural first; the −2/−1 split + the gsimpin interaction need a
+      fine probe).  Lower-priority sibling levers (if still visible after): #17 sparkle = gsim ORIGIN → `{gsimpin}` at an
+      earlier anchor; #11 bg_npc = earlier bilateral `{bgnpcpin}`.  Engine logic is correct/frame-deterministic; the
+      chibi DELIVERABLES remain DONE + USER-CONFIRMED 1:1 (RENDER `c005160`, FACING `eaff80c`).
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
