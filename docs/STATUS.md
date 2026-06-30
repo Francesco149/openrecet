@@ -196,11 +196,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       every first-customer b534 transition uniformly +1 retail.  **FIX:** D_TUT skip → D_TUT_DONE (settle).  **✅ VERIFIED:**
       HOUSE_FREEROAM#5/#6 + the whole first-customer region **−1→+0** (frame-perfect); bg_npc window positions
       **BIT-IDENTICAL** in free-roam (#11 aligned); offer 119 + variant bit-identical; cs_walker_drill 1/200; 3375 host
-      pass.  **PENDING USER STUDIO CONFIRM** (win-0-1500): wing-flap / walk / window NPCs all 1:1 now?
-    - **Tiny residuals (NOT the visible free-roam notes):** (a) CONV_POSE_END −1 — the pose's FINAL frame ends 1f early
-      (the conv-pose teardown wants a 2nd settle vs the dialogue's 1); ABSORBED (free-roam anim +0 + bg_npc bit-identical).
-      (b) the PRE-pin cutscene bg_npc (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
-      **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
+      pass.  **USER 2026-06-30 (win-0-1500):** confirmed the TWO RESIDUALS below are "still there" — **continue after
+      /clear** (next session starts here).  (Main free-roam notes #20/#21/#11 = tooling-verified drift-0 + bg_npc
+      bit-identical, NOT separately disputed; get an explicit visual 1:1 confirm on those next session before ledgering.)
+    - **★ NEXT (the two USER-confirmed-still-visible residuals, 2026-06-30 — start here next session):** (a) **CONV_POSE_END
+      −1** — the pose's FINAL frame ends 1f early (the conv-pose teardown wants a 2nd settle vs the dialogue's 1; the master
+      tick aligned via §21.17 but `_posing()` still drops with `_busy()` at D_IDLE — retail keeps the POSE on 1 frame past
+      the master resume).  Likely a clean fix: keep `_posing()` true one frame into D_IDLE (or a 2nd pose-settle).  ABSORBED
+      for the free-roam anim (HF#5/#6 = +0 + bg_npc bit-identical), but it's the `{bgnpcpin}` anchor + visible at the exact
+      wrap-up→customer transition.  (b) the PRE-pin cutscene **bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's
+      original spot) still diverges = the **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
       extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (c) #17 sparkle gsim-origin (lower priority).
       Engine logic is correct/frame-deterministic; the chibi DELIVERABLES remain USER-CONFIRMED 1:1 (`c005160`/`eaff80c`).
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
