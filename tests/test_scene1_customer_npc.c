@@ -22,6 +22,7 @@
 #include "rng.h"
 #include "scene1_shop_display.h"
 #include "scene1_shop_walker.h"
+#include "scene1_particles_tick.h"   /* g_scene1_camera_yaw (_DAT_073de39c) */
 
 /* ── FUN_0046f8ba roster/cap builder ─────────────────────────────────────── */
 
@@ -194,5 +195,80 @@ int test_cs_npc_grid_walkable_bounds(void)
     T_ASSERT_EQ_I(shop_display_grid_cell(8, 7), 0);
     /* a furniture cell (set via the rebuild path is covered elsewhere); here we
      * just confirm the zeroed baseline the burst test relies on. */
+    return 0;
+}
+
+/* ── facing recompute (FUN_0046fbee wstate==2 idle + FUN_0047019f velocity) ───
+ *
+ * The chibi facing octant (slot[6]) is camera-relative: the engine recomputes
+ * it from the walk/idle direction with the b850 converter
+ * (player_ctrl_facing_octant) at cam yaw = g_scene1_camera_yaw.  The asserted
+ * octants below are the exact result of the (atan2 → (a+yaw+π/8)/2π·8+8 → ftol
+ * → &7) chain at the HOUSE shop yaw (π). */
+int test_cs_npc_facing_idle_from_facedir(void)
+{
+    setup_one_customer_all_walkable();
+    rng_seed(0x12345);
+    for (int f = 1; f <= 30; f++) scene1_customer_npc_pump(1, 0);  /* spawn slot 0 */
+    int32_t *slot = scene1_customer_npc_slot(0);
+    T_ASSERT(slot != NULL && slot[CS_NPC_OFF_ACTIVE] != -1);
+
+    g_scene1_camera_yaw = 3.1415927f;          /* HOUSE shop yaw (_DAT_073de39c) */
+
+    /* FACE_DIR → idle octant (wstate==2 zeroes vel, the velocity arm then skips,
+     * so the FACE_DIR facing persists past chr_anim_tick): 0→4, 1→2, 2→0, 3→6. */
+    static const int expect[4] = { 4, 2, 0, 6 };
+    for (int d = 0; d < 4; d++) {
+        slot[CS_NPC_OFF_WSTATE]   = 2;          /* idle/dwell */
+        slot[CS_NPC_OFF_WTIMER]   = 0;          /* WTIMER 0→1, never hits >0x78 */
+        slot[CS_NPC_OFF_FACE_DIR] = d;          /* +0x70 */
+        slot[CS_NPC_OFF_FACING]   = 99;         /* poison → must be overwritten */
+        scene1_customer_npc_pump(1, 0);
+        if (slot[CS_NPC_OFF_FACING] != expect[d])
+            T_FAIL("idle FACE_DIR %d → facing %d, expected %d",
+                   d, slot[CS_NPC_OFF_FACING], expect[d]);
+    }
+    return 0;
+}
+
+int test_cs_npc_facing_walk_from_velocity(void)
+{
+    setup_one_customer_all_walkable();
+    rng_seed(0x12345);
+    for (int f = 1; f <= 30; f++) scene1_customer_npc_pump(1, 0);  /* spawn slot 0 */
+    int32_t *slot = scene1_customer_npc_slot(0);
+    T_ASSERT(slot != NULL && slot[CS_NPC_OFF_ACTIVE] != -1);
+
+    g_scene1_camera_yaw = 3.1415927f;
+
+    /* Force wstate==1 (dwell-anim arm): it leaves velocity untouched, so the
+     * pump-tail velocity recompute (atan2(VEL_X, VEL_Z)) runs on the values we
+     * set.  +z→4, -x→2, -z→0, +x→6 (same octant set as the cardinals). */
+    struct { float vx, vz; int oct; } cases[] = {
+        {  0.0f,  0.1f, 4 },   /* atan2(0,+z)  =  0    */
+        { -0.1f,  0.0f, 2 },   /* atan2(-x,0)  = -π/2  */
+        {  0.0f, -0.1f, 0 },   /* atan2(0,-z)  =  π    */
+        {  0.1f,  0.0f, 6 },   /* atan2(+x,0)  =  π/2  */
+    };
+    for (int i = 0; i < 4; i++) {
+        slot[CS_NPC_OFF_WSTATE] = 1;            /* dwell-anim: vel preserved */
+        slot[CS_NPC_OFF_WTIMER] = 0;            /* no transition this frame */
+        memcpy(&slot[CS_NPC_OFF_VEL_X], &cases[i].vx, sizeof(float));
+        memcpy(&slot[CS_NPC_OFF_VEL_Z], &cases[i].vz, sizeof(float));
+        slot[CS_NPC_OFF_FACING] = 99;           /* poison */
+        scene1_customer_npc_pump(1, 0);
+        if (slot[CS_NPC_OFF_FACING] != cases[i].oct)
+            T_FAIL("walk vel (%.1f,%.1f) → facing %d, expected %d",
+                   cases[i].vx, cases[i].vz, slot[CS_NPC_OFF_FACING], cases[i].oct);
+    }
+
+    /* zero velocity → the recompute SKIPS (keeps the prior facing). */
+    slot[CS_NPC_OFF_WSTATE] = 1;
+    slot[CS_NPC_OFF_WTIMER] = 0;
+    { float z = 0.0f; memcpy(&slot[CS_NPC_OFF_VEL_X], &z, 4);
+                      memcpy(&slot[CS_NPC_OFF_VEL_Z], &z, 4); }
+    slot[CS_NPC_OFF_FACING] = 5;                 /* sentinel that must survive */
+    scene1_customer_npc_pump(1, 0);
+    T_ASSERT_EQ_I(slot[CS_NPC_OFF_FACING], 5);
     return 0;
 }

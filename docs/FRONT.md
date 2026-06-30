@@ -122,10 +122,19 @@
       passes: bright billboard FUN_004705a3 + shadow FUN_00470385 (scene1_shop_walker.c, mirror the bg-NPC leaves; chibi
       deltas = per-slot scale slot[0x17]·0.03 + char-0x42 +2.5 y-lift).  **USER-CONFIRMED rendering 2026-06-28** ("can confirm
       the customer is rendering").  **TWO residuals the user flagged (noted, NOT fixed — for next session):**
-      - **(1) FACING DIRECTION wrong (most notes) — DETERMINISTIC, *not* rng (a clean render fix).**  The port writes
-        `slot[CS_NPC_OFF_FACING]=1` at spawn (helpers.c:700) and NEVER recomputes it; the engine's velocity→facing-octant
-        recompute (`ftol(atan2(vel))&7` → slot[6], FUN_0047019f tail / cs_npc_tick) is DEFERRED (helpers.c:913, marked
-        RNG-NEUTRAL) ⇒ the chibi faces a fixed octant regardless of walk dir.  PORT-DEBT(cs-walker-facing).  Port the recompute.
+      - **(1) FACING DIRECTION ✅ PORTED 2026-06-30 — the chibi now faces its walk/idle direction 1:1.**  Was: the port
+        wrote `slot[CS_NPC_OFF_FACING]=1` at spawn (helpers.c:700) and NEVER recomputed it ⇒ a fixed octant regardless of
+        walk dir.  Ported the TWO engine recomputes (BOTH had their x87 octant conversion Ghidra-DROPPED — recovered by
+        objdump): (a) **wstate==2 idle** (`FUN_0046fbee`, asm `0x46fc52-0x46fce2`) — facing from the FACE_DIR (+0x70)
+        cardinal `0:(1,0) 1:(0,-1) 2:(-1,0) 3:(0,1)`; (b) **velocity** (`FUN_0047019f` tail, asm `0x470300-0x47036b`,
+        every active NPC each frame) — `atan2(VEL_X,VEL_Z)`, skipped when both vel==0 (idle keeps the FACE_DIR facing).
+        Both feed the SAME b850 octant converter as the player (`FACING = ftol(((angle + g_scene1_camera_yaw + π/8)/2π)·8
+        + 8) & 7`; consts `.rdata`-verified) ⇒ REUSE `player_ctrl_facing_octant`.  **RNG-neutral** (no LCG).  ✅ **v3-VERIFIED
+        BIT-IDENTICAL**: re-drove win-640-460, notes **#13 / #15 / #16 diff BLACK** (chibi facing toward / away / side — three
+        distinct octants all 1:1 vs retail).  +2 host tests (`cs_npc_facing_idle_from_facedir`, `_walk_from_velocity`; 3375
+        pass).  **Residual #14** (HOUSE_FREEROAM#5+21) = same FACING on both sides but a body-pose diff = the walk-cycle PHASE
+        (residual (2) below, upstream cs-walker-rng-phase — a velocity-input phase, NOT a facing-code bug).  **PENDING USER
+        STUDIO CONFIRM** (win-640-460).
       - **(2) WALK PHASE off (where facing matches) — cs-walker-rng-phase (rng).**  The walk position/timing is the rng
         spawn-cadence phase (helpers.c:957); may resolve when the bg_npc/rng phase is pinned.
       - 0x42 special re-skin pass still PORT-DEBT(cs-walker-special) (never fires for the standard roster).

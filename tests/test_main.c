@@ -1913,6 +1913,8 @@ struct test_case {
     X(cs_npc_pump_sell_active_blocks_spawn) \
     X(cs_npc_pump_spawn_consumes_exactly_4) \
     X(cs_npc_grid_walkable_bounds) \
+    X(cs_npc_facing_idle_from_facedir) \
+    X(cs_npc_facing_walk_from_velocity) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

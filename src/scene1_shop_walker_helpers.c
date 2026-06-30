@@ -20,6 +20,8 @@
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) — RNG-neutral step */
 #include "scene1_records.h"
 #include "scene1_shop_display.h" /* shop_display_grid_cell (DAT_074b28e8 walk grid) */
+#include "scene1_player_ctrl.h"  /* player_ctrl_facing_octant (b850 angle→octant) */
+#include "scene1_particles_tick.h"/* g_scene1_camera_yaw (_DAT_073de39c) */
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -816,6 +818,18 @@ static int cs_pathfind_step(int32_t *slot)
     return dir / 4;
 }
 
+/* Camera-relative facing octant (engine FUN_0046fbee idle + FUN_0047019f
+ * velocity recompute, asm 0x46fc52-0x46fce2 / 0x470300-0x47036b).  The raw
+ * decompile drops the x87 octant conversion after the atan2/ftol; the real
+ * formula is the SAME b850 converter the player uses:
+ *   FACING = ftol(((angle + g_scene1_camera_yaw + π/8) / 2π)·8 + 8) & 7
+ * (consts .rdata-verified: π/8=0x519b78, 2π=0x519398, 8=0x519378; cam yaw =
+ * _DAT_073de39c).  RNG-neutral (render-only, no LCG draw). */
+static int cs_npc_facing_octant(float angle)
+{
+    return player_ctrl_facing_octant(angle, g_scene1_camera_yaw);
+}
+
 /* FUN_0046fbee @ 0x46fbee — the per-NPC movement/wander tick.  `shop_tier` =
  * DAT_04510578[stage] (selects the state-machine z-clamp band).  Draws RNG only
  * in: state -1 (retarget burst, ≤30 iters × 2 LCG, break on first walkable
@@ -910,8 +924,21 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
          * set-anim, deferred (render).  Then zero velocity + the dwell timer. */
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, 0.0f);    /* +0x44 = 0 */
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, 0.0f);    /* +0x4c = 0 */
-        /* facing octant +0x18 = ftol(atan2(±local_8))&7 from +0x70 — RNG-neutral,
-         * deferred (render facing).  WTIMER++ then the dwell edge. */
+        /* facing octant (+0x18) from FACE_DIR (+0x70) — the engine's idle-dwell
+         * facing (asm 0x46fc52-0x46fce2).  FACE_DIR → dir vector (fx=x, fy=z):
+         * 0:(1,0) 1:(0,-1) 2:(-1,0) 3:(0,1); FACING = octant(atan2(fy,fx)).
+         * RNG-neutral (render). */
+        {
+            float fx = 0.0f, fy = 0.0f;
+            switch (slot[CS_NPC_OFF_FACE_DIR]) {        /* +0x70 */
+                case 0: fx =  1.0f; break;
+                case 1: fy = -1.0f; break;
+                case 2: fx = -1.0f; break;
+                case 3: fy =  1.0f; break;
+                default: break;                         /* atan2(0,0) = 0 */
+            }
+            slot[CS_NPC_OFF_FACING] = cs_npc_facing_octant(atan2f(fy, fx));
+        }
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
         /* dwell: +0x58 (TYPE_IDX) is ALWAYS != -1 for a spawned NPC, so the
          * engine takes the 0x78 (120-frame) branch and retargets when
@@ -998,11 +1025,21 @@ unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier)
                       1.0f);
         /* engine: the type-0x42 special-NPC speech-bubble particle emit
          * (FUN_00447f4f, gated on DAT_005c7ce0[idx*2]==0x42 && DAT_0438b8cc%4==0)
-         * + the velocity→facing-octant recompute follow here.  Both are render-
-         * adjacent and the 0x42 arm never fires for the standard walk-in roster;
-         * deferred (PORT-DEBT(cs-walker-special)).  Neither perturbs the LCG.
-         * The chibi SPRITE render itself is ported (scene1_shop_walker.c
-         * scene1_customer_npc_sprite_render / _shadow_render). */
+         * follows — deferred (PORT-DEBT(cs-walker-special)); the 0x42 arm never
+         * fires for the standard walk-in roster.  RNG-neutral.  The chibi SPRITE
+         * render itself is ported (scene1_shop_walker.c
+         * scene1_customer_npc_sprite_render / _shadow_render).
+         *
+         * velocity→facing-octant recompute (engine FUN_0047019f tail, asm
+         * 0x470300-0x47036b): face the heading while moving; when stopped (both
+         * vel == 0) skip — the wstate==2 FACE_DIR facing persists.  RNG-neutral. */
+        {
+            float vx = cs_slot_f(slot, CS_NPC_OFF_VEL_X);   /* +0x44 */
+            float vz = cs_slot_f(slot, CS_NPC_OFF_VEL_Z);   /* +0x4c */
+            if (vx != 0.0f || vz != 0.0f)                   /* 0x470302/0x470310 */
+                slot[CS_NPC_OFF_FACING] =
+                    cs_npc_facing_octant(atan2f(vx, vz));
+        }
     }
 
     s_cs_last_draws = (unsigned)(rng_call_count() - rng0);
