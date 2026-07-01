@@ -268,9 +268,13 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       Both skip in lockstep ⇒ ride the `{bgnpcseed}` drift.  **✅ VERIFIED** (`--target both` @195002Z): bg_npc bit-identical
       825→831+ (NO jump), **raw rng `==` EVERY frame past 1016 (cumΔ=0)**, `cs_walker_drill` 1/900 (was 38/1100; residual = the
       benign off-0 entry-boundary artifact) + 0/900 gsim%8, offer 119 / variant 1 / poseR bit-identical, 3381 host pass.
-      Blast radius = arrprobe ONLY (day2 has no `{bgnpcseed}` ⇒ keeps its inject, no regression).  **PENDING USER STUDIO
-      CONFIRM** notes #20 (customer walk) / #22 (sparkle) now track retail.  **★ NEXT:** apply `{bgnpcseed}` to
-      `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals; its own verify drive — and it'll then auto-skip its own
+      Blast radius = arrprobe ONLY (day2 has no `{bgnpcseed}` ⇒ keeps its inject, no regression).  **✅ USER-CONFIRMED 1:1
+      2026-07-01** (win-0-1500): "everything matches other than the wings flap and walk phase residuals.  npcs aligned,
+      customer aligned" (ledger).  **★ REMAINING (a SEPARATE root — the ANIM SEED-ORIGIN PHASE class, NOT the rng-value
+      stream):** #21 tear wing-flap cframe phase + the browsing-customer walk-CYCLE phase (body-pose slip where facing+path
+      already match, note #14/#20-residual).  Entangled with the load/arrival anim-seed timing (FRONT §21 notes #10/#18) —
+      the chr_anim seed ORIGIN, distinct from the now-aligned rng/NPC positions.  **★ ALSO NEXT:** apply `{bgnpcseed}` to
+      `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals; its own verify drive — it'll then auto-skip its own
       `{bgnpcpin}` inject via this fix).  A fresh, substantial arc closes here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.

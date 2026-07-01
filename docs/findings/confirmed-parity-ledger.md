@@ -345,4 +345,22 @@
   confirm the customer walk and facing looks correct other than minor phase residuals."**  Residual (NOT facing):
   #14 walk-cycle PHASE = cs-walker-rng-phase (a velocity/position phase slip upstream of facing).
 
+**2026-07-01 — frame-1016 rng / bg_npc + browsing-customer POSITION USER-CONFIRMED 1:1 (`896e530`, RE §21.25,
+  house-firstcust-arrprobe win-0-1500).**  The §21.24 "frame-1016 rng" next-arc was the shop-WINDOW bg_npc
+  townsfolk (FUN_0046f621, ticked every frame in the player-ctrl prologue INCL. cc08==4; bound-cross reversals
+  draw the shared LCG, not in `npcdr`), NOT the cs-walker.  The BILATERAL `{bgnpcpin}` full-SoA inject landed 1f
+  LATE on the port (827) vs retail's on-frame frida (826) ⇒ the port's window NPCs ran 1 tick behind from the
+  cc08==4 entry; positions drifted 1f-apart harmlessly until the first reversal @1016 drew the LCG a frame apart
+  ⇒ the whole shared stream desynced.  FIX: `{bgnpcpin}` (2026-06-27, §21.4) is superseded by `{bgnpcseed}`
+  (§21.21, regenerates the canonical layout from the warmup + aligns [224,825]) — skip the redundant SoA inject
+  when a `{bgnpcseed}` is present (both port main.c + retail frida_capture.py), keep it as the f406 marker.
+  Both skip in lockstep ⇒ ride the `{bgnpcseed}` drift.  v3-verified: bg_npc bit-identical both sides through the
+  entry (no jump), raw rng `==` EVERY frame past 1016 (cumΔ=0), cs_walker_drill 1/900 (benign off-0 artifact) +
+  0/900 gsim%8, offer 119 / variant 1 / poseR unchanged, 3381 host pass.  Blast radius = arrprobe only (day2 has
+  no `{bgnpcseed}` ⇒ keeps its inject).  **USER 2026-07-01: "can confirm everything matches other than the wings
+  flap and walk phase residuals.  npcs aligned, customer aligned."**  Remaining (a SEPARATE root, NOT this rng
+  fix): the ANIM SEED-ORIGIN PHASE class — #21 tear wing-flap cframe phase + the browsing-customer walk-CYCLE
+  phase (body-pose slip where facing+path already match) — entangled with the load/arrival anim seed timing, a
+  distinct arc from the now-aligned rng-value stream + NPC positions.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
