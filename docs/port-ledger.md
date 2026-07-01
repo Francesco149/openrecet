@@ -10,7 +10,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **565** (22.2%) — verified 72, stubbed 14, ported 479
+- touched: **565** (22.2%) — verified 72, stubbed 13, ported 480
 - unported: **1983**
 - orphan refs (in src/, not in function table): 7
 
@@ -91,7 +91,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (14) — wired, body incomplete
+## stubbed (13) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -100,7 +100,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435117 | FUN_00435117 | 615 | ✓ | title_save_dialog.c |
 | 0x43537e | FUN_0043537e | 660 | ✓ | title_save_dialog.c |
 | 0x4427d3 | FUN_004427d3 | 30 | ✓ | scene1_sim.c |
-| 0x4536cb | FUN_004536cb | 1745 | ✓ | sim.c |
 | 0x45404b | FUN_0045404b | 326 | ✓ | scene1_render.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
 | 0x4850ec | FUN_004850ec | 18 | ✓ | scene1_player_ctrl.c |
@@ -110,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (479) — reimplemented, no probe yet
+## ported (480) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -258,6 +257,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, scene_pause.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
+| 0x4536cb | FUN_004536cb | 1745 | ✓ | esc_dispatch.c, font.h, scene1_intro_dialogue.c (+9) |
 | 0x453d9c | FUN_00453d9c | 243 | ✓ | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |

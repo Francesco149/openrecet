@@ -5,8 +5,8 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "verified": 72,
-  "stubbed": 14,
-  "ported": 479,
+  "stubbed": 13,
+  "ported": 480,
   "unported": 1983,
   "orphan_refs_not_in_function_table": 7,
   "touched": 565,
@@ -4205,9 +4205,20 @@
    "size": 1745,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "stubbed",
+   "status": "ported",
    "src": [
-    "src/sim.c"
+    "src/esc_dispatch.c",
+    "src/font.h",
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_particles_tick.h",
+    "src/scene1_sim.c",
+    "src/scene1_sim.h",
+    "src/scene_worldmap.c",
+    "src/sim.c",
+    "src/sim.h",
+    "src/stage_load_pulse.h",
+    "src/tick.h",
+    "src/worker_load.h"
    ]
   },
   {

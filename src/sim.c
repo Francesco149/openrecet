@@ -43,6 +43,7 @@
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
 #include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
+#include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
@@ -243,8 +244,18 @@ void sim_step_a(void)
      * scene-reseed check, plus several smaller writes around
      * DAT_06a4993c. The unported regions are dormant in the captured
      * pre-3D trace, so the count parity holds, but the body is far
-     * from complete. */
-    CALL_TRACE_ENTER_STUB(0x4536cbu);
+     * from complete.
+     *
+     * DIAGNOSTIC (RE §21.23): db054 field added so this fires EVERY sim-ticked
+     * frame (incl. worker_load_busy() ones) regardless of which scene1 arm
+     * runs — the only other db054 probe (0x48670f) is gated to the free-roam
+     * default arm and goes dark for the whole tutorial/wrap-up dialogue
+     * stretch, hiding exactly the window house-firstcust-arrprobe's frame-826
+     * residual (a +1 db054 drift somewhere in [631,825], anchors bit-identical
+     * throughout) lives in. */
+    CALL_TRACE_BEGIN_STUB(0x4536cbu);
+    CALL_TRACE_I32("db054", scene1_companion_db054());
+    CALL_TRACE_END();
 
     /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before
      * font_age_tick AND the worker-busy gate): tick the active working bank's

@@ -3069,3 +3069,47 @@ the dead slot.  **bgx1-5 UNCHANGED** (still bit-exact 224→825, still the same 
 **Retires:** the §21.21 doc claim that dead-slot leftover fields "don't matter" (corrected in `scene1_bg_npc.h`'s
 `scene1_bg_npc_seed_pin` doc comment).  **Open:** the frame-826 phase lag (§21.21's queued next arc, untouched by this fix) —
 still the sole remaining known residual in this scenario's [224,1722] window.
+
+## 21.23 2026-07-01 — the "frame-826" residual PINPOINTED to frame 632, CONV_POSE_START: db054 ticks one frame too early (diagnosed, NOT yet fixed)
+
+**USER re-flagged via the viewer:** note #20 (`HOUSE_FREEROAM#6+153`, deep in the scenario, well past the §21.21/22-fixed
+[224,825] window) shows BOTH the customer NPC's walk phase AND the 目玉 sparkle position visibly diverging — the exact
+downstream symptom the §21.21 "residual pure 1-frame phase lag from frame 826 on" note predicted (sparkle position + chibi
+walk both ride the shared LCG stream, so a frame-off db054 upstream cascades into both).
+
+**Root-caused the ORIGIN, not just the symptom.** The only db054 probe (`0x48670f`/`house_update`) is gated to the free-roam
+DEFAULT arm and goes dark for the whole cc08≠1 tutorial/wrap-up dialogue stretch — exactly where the bug lives — so the
+earlier "first mismatch @825" read was just "the first frame the probe resumed sampling," not the true origin.  **Built a
+continuous probe** (RE §21.23): converted `sim_step_a`'s existing bare `CALL_TRACE_ENTER_STUB(0x4536cb)` into a field-bearing
+`CALL_TRACE_BEGIN_STUB` carrying `db054`, so it fires on EVERY sim-ticked frame regardless of which scene1 arm runs (even
+`worker_load_busy()` ones) — added the matching retail declarative field-spec entry in `tools/flow/retail_fields.json`
+(the `{va: {name, fields:[{name,src,va,type}]}}` mechanism `docs/plans/execution-flow-trace.md` documents; a NEW VA entry is
+a JSON edit, no Frida/JS code needed — confirmed by finding `retail_fields.json` already has a `db054` field descriptor
+under `0x48670f` to copy from).
+
+**✅ PINPOINTED:** re-captured `house-firstcust-arrprobe`, `flow_diff --field-timeline` now shows continuous
+`sim_step_a.db054` coverage — **first mismatch is `frame 632, retail=81 port=82`** (retail catches up to 82 on frame 633) —
+NOT 825.  Frame 632 is exactly the `CONV_POSE_START` anchor (bit-identical on both sides — confirmed the FULL anchor
+sequence 631/632/639/639/652/716/760/760/780/824/825/825/826/849/849 matches port↔retail frame-for-frame; this is a
+"anchors align but a shared counter's per-frame tick COUNT differs by one" bug, not a timing/anchor bug).
+
+**Working hypothesis (not yet confirmed by a probe — the honest state):** `scene1_ingame_tick()` dispatches the DEFAULT arm
+(no db054 tick beyond its own once-per-frame `_advance_phase()`) vs the TRANSITION/event arm
+(`scene1_ingame_transition_arm_tick → scene1_event_actor_tail_tick → scene1_companion_ctrl_advance_phase_event`, an
+UNCONDITIONAL db054++) based on `scene1_intro_dialogue_busy()` — which returns 1 for the same three states
+(`D_TUT_LOAD`/`D_TUT`/`D_TUT_DONE`) `scene1_intro_dialogue_posing()` does, so on the port both flip together the instant
+`g_state` becomes `D_TUT_LOAD` (frame 632) — the event arm's unconditional db054++ fires the SAME frame the pose activates.
+Retail's CONV_POSE_START anchor (an OBSERVABLE proxy — the actor's own STATE field) matches on 632, but its db054 doesn't
+move until 633 — suggesting retail's REAL arm-dispatch (or the specific db054-increment call) reads a state ONE STEP behind
+the actor-pose write on this exact transition frame (the same class of "notify_loaded clears inline at the top" /
+"D_TUT_DONE settle" ordering bug as §21.10.1/§21.17), OR the default arm ALSO ticks db054 and something suppresses BOTH
+paths on retail's frame 632 specifically.  **NOT YET DISTINGUISHED — needs one more probe** (arm-selector state +
+`g_state` value, sampled alongside db054, on both sides at 630-634) before attempting a fix; do not guess-fix from the
+hypothesis alone (per the porting loop: probe, don't rationalize — this is exactly the trap §21.18 warned about with the
+"clean 2nd-settle" guess that regressed).
+
+**Host test / regression:** 3381 host pass (diagnostic-only change, no logic touched yet).  **NEXT (fresh arc, not
+completed this session):** add the arm-selector/g_state probe at 630-634, confirm which side's tick fires 1 frame off and
+why, then apply the minimal fix (almost certainly a "hold on the OLD arm for exactly the transition frame" pattern, mirroring
+§21.10.1/§21.17's shape) — verify db054 (and downstream bgx/sparkle/chibi) bit-exact THROUGH the whole [224,1722] window,
+not just [224,825].

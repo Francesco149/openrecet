@@ -218,13 +218,25 @@
       **✅ VERIFIED + USER-CONFIRMED** (`house-firstcust-arrprobe`, `flow_diff --field-timeline` + viewer win-0-1500):
       bgx1..5 bit-exact retail frame 224→825 (was diverging from frame 1) and bgx0 now `✓ aligned` (was the port's BSS-zero
       origin vs retail's barely-visible-at-the-window-edge shadow — user: "stray contact shadow on port", note #25, FIXED);
-      **user confirmed "the sparkles and npcs align"** (notes #17/#20/#22/#23 all 1:1).  +2 host-test checks
+      **user confirmed "the sparkles and npcs align"** for the EARLY-window notes #17 (`PAUSE_OPEN#1`) / #23
+      (`HOUSE_FREEROAM#1`) — both inside the fixed [224,825] span.  **CORRECTION: notes #20/#22 ("customer walk phase")
+      are LATE occurrences (`HOUSE_FREEROAM#6`/`#5`, well past 825) — user re-flagged them STILL diverging** (both the
+      sparkle position AND the customer NPC visibly off at note #20's spot) — an earlier draft of this bullet wrongly
+      lumped all four notes as confirmed; only the early pair is.  +2 host-test checks
       (`bg_npc_seed_pin_forces_seed_and_cursor`), 3381 pass; no regression.  Full writeup: RE §21.21/§21.22.
-      **NEXT:** (1) a residual PURE 1-FRAME PHASE LAG from frame 826 on (bgx1-5 + unrelated fields — panim/pcnt/db054/poseL/
-      poseR/etc — pre-existing, present in every drive incl. pre-fix; the §21.16-18 "resumes 1f off" pattern, not yet fixed
-      for whatever load/transition sits at ~825) — a fresh, separate arc, not a bg_npc bug.  (2) apply the same `{bgnpcseed}` to
-      `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals) — needs its OWN verify drive first (kept conservative, not
-      done this session).  A fresh, substantial arc closes here = a good /clear boundary.
+      **NEXT — PINPOINTED but not yet fixed (RE §21.23):** the residual is a shared `db054` counter ticking exactly
+      ONE FRAME TOO EARLY on the port, first at **frame 632 = the `CONV_POSE_START` anchor** (bit-identical anchor
+      sequence port↔retail throughout 631-849; a "anchors align, a shared counter's tick COUNT differs by one" bug, not
+      a timing bug) — found via a NEW continuous db054 probe (the old one was gated to the free-roam-only default arm
+      and went dark for the whole tutorial/wrap-up dialogue stretch, hence the earlier "826" estimate was just where
+      the probe happened to resume sampling, not the true origin).  Working hypothesis (UNCONFIRMED — needs one more
+      probe on the arm-selector/`g_state` before fixing): the port's event-arm dispatch (unconditional db054++) fires
+      the SAME frame `CONV_POSE_START` does, while retail's real db054 tick lags by one — the same "stale/old-value
+      read at a transition's own frame" class of bug as §21.10.1/§21.17.  Do NOT guess-fix without that probe (§21.18's
+      lesson).  This cascades into the LATE sparkle/chibi-walk divergence (notes #20/#22) via the shared LCG stream, so
+      fixing it should close those too.  (Separately: apply `{bgnpcseed}` to `house-firstcust-cutscene-day2` — same
+      savefile ⇒ same naturals — needs its own verify drive, not done this session.)  A fresh, substantial arc closes
+      here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
