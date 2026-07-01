@@ -2946,3 +2946,84 @@ re-seed; CLAUDE.md "a TOOL gap to FIX"), and **arrprobe IS the skip path**, whic
 load-duration — and aligns the entry frames; matches "pin EVERY non-deterministic source").  (2) Fix the real root by **PORTING THE bg_npc WARMUP
 LOGIC 1:1** — find why identical rng yields a different warmup layout (a pre-warmup rng-sync gap, or a warmup-logic gap), fix the code so the
 pre-entry bg_npc match with NO snapshot pin.  = the NEXT arc.  (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)
+
+## 21.21 2026-07-01 — `{bgnpcseed}` BUILT+VERIFIED — the bg_npc warmup ORIGIN fix (closes the §21.20 next-arc lead)
+
+**Per the porting loop (probe, don't guess):** extended `installBgNpcPinHook` (already-installed, unconditional) with a diagnostic —
+log `DAT_006023a0`+`DAT_073a8bb4` (cursor) at the FUN_0046f621 entry gated on `DAT_073a8bb8==0` (the TRUE first-ever call, no
+{calltrace}-window dependency, unlike the earlier port-vs-retail call_trace comparison).
+
+**★ Finding 1 — the port=223/retail=224 timing read (§21.20 framing) was a MEASUREMENT ARTIFACT, not a real gap.**  Both sides'
+bg_npc warmup fires on the SAME frame as LOADING_END/HOUSE_FREEROAM (223) — confirmed via the unconditional hook (`NATURAL
+pre-warmup seed = 3502407629 @ frame 223`).  The earlier "port call_trace shows 0x46f621 @223, retail's only starts @224" read
+was an artifact of the {calltrace} window's own boundary semantics: `call_trace.c`'s "trace everything" fallback (only window-gated
+once a {calltrace} op ARMS a window) let the port's frame-223 entries through for free, while retail had no such fallback — NOT
+evidence retail's warmup fires later.  Confirmed structurally too: `sim_step_a`'s `worker_load_busy()` early-return and retail's
+own FUN_004536cb equivalent both gate the ENTIRE scene dispatch (incl. whatever calls the warmup) behind the SAME busy flag, so
+both sides necessarily resume — and warm up — on the exact frame that flag clears.
+
+**★ Finding 2 — the generic `{rngseed}` pin structurally CANNOT reach a same-frame consumer, on EITHER side.**  Retail's own log
+proves it: `[anchor] LOADING_END @ frame=223` then `[agent] segtrace: forced rng seed = 912526909 at frame 224 (base+0)` — the
+op's base IS the anchor's own frame (223, `base+0`), but it doesn't mechanically fire until frame 224.  Root: the anchor is
+recorded post-sim (Present/render_dispatch, end of frame 223), so the {wait} can't resolve until the NEXT tick's pre-sim segtrace
+pass (frame 224) — a hard 1-frame lag baked into "detect-post-sim, apply-next-pre-sim", identical on port (`input_segtrace_tick`)
+and retail (`segtraceTick`/`anchorTick`).  Since the warmup consumes RNG ON frame 223 (Finding 1), the pin is always one frame
+late for it — explains why §21.20's bit-identical-pre-entry-yet-bgx-diverges observation is NOT a contradiction: the shared
+register re-syncs at the NEXT anchor regardless, but the 6 NPCs' own `speed`/`dir`/`mode` (rolled once, at the mis-timed warmup)
+never get corrected by a later register re-sync.
+
+**★ Finding 3 — retail's NATURAL pre-warmup state differs from the port's in TWO independent ways, not one.**  (a) **Seed**:
+retail's natural value at the frame-223 entry is **3502407629** — NOT `912526909` (that's the LOADING_END-sampled, already-past-
+this-point value) and NOT `3132701474` (the NEW_GAME `{rngseed}` pin's value, which is what the PORT's own pre-warmup state
+equals unchanged — confirmed via the `0x48670f` probe's `rngst` field at frame 223, `-1162265822` signed = `3132701474`
+unsigned).  ⇒ retail's REAL primary-load path consumes hidden RNG between NEW_GAME and the warmup that the port's
+`sim_loading_pump()` doesn't replicate (RNG-stream-completeness gap; PORT-DEBT, not chased further this session — candidates:
+shop/kyaku/news/order generation, per `scene1-rng-stream-parity.md`'s "0x49018c/0x490e56 cluster... new-game save/news/order
+generation").  (b) **Spawn cursor**: retail's `DAT_073a8bb4` reads **1**, not 0, at the same instant.  A raw SoA dump (`0x073a7f80`,
+hex over the Frida message channel) showed slot 0 already `STATE=-1, dir=0, type=14` with leftover x/y/z — **NOT** the product of
+`bg_npc_spawn(0)` (which would set `type=BG_NPC_TYPE_TABLE[0]=0`, not 14) — so some EARLIER activity (a title-screen bg render of
+the shop scene?) had already spawned-then-frozen slot 0 before scene1's own warmup ever runs.  `dir==0` is the permanent
+"unspawned"/dead sentinel both `bg_npc_tick` (no position update) and the two renderers (`visible==-1 || dir==0` skip) treat
+identically regardless of the stored x/y/z/type — so the leftover VALUES are behaviorally inert; only the CURSOR OFFSET (which
+slot the warmup's real spawn sequence starts from) is observable.
+
+**FIX — `scene1_bg_npc_seed_pin(seed, cursor)` + `{bgnpcseed:V}` / `{bgnpcseed:[V,C]}` (RE §21.21).**  Generalizes the ALREADY-
+PROVEN `{phasepin}` consumer-latch pattern (a pending flag consumed INSIDE `scene1_bg_npc_tick()` itself, at the top, before any
+RNG consumption — sidesteps Finding 2's frame-lag entirely since it doesn't ride the generic frame-counted op path) but WITHOUT
+`scene1_bg_npc_phasepin()`'s `scene1_bg_npc_reset()` + the `{phasepin}` bundle's db054/anim/b154/rmb reset (the exact reason
+{phasepin} "stalls the skip-path wrap-up cutscene" and couldn't be used on this skip-path scenario).
+- **Port** (`scene1_bg_npc.c/.h`): `g_bg_npc_pin_seed`/`g_bg_npc_pin_cursor` latched by `scene1_bg_npc_seed_pin()`, applied inside
+  `scene1_bg_npc_tick()`'s existing `g_bg_npc_pin_pending` branch (`rng_seed(seed); g_bg_npc_spawn_cursor = cursor;`).
+  `scene1_bg_npc_phasepin()` now calls it internally (`SCENE1_BG_NPC_PHASEPIN_SEED`, cursor 0) — unchanged behaviour, no regression.
+- **Trace grammar** (`input_segtrace.h/.c`): new trace-global `{bgnpcseed}`, scalar `V` (cursor defaults 0, back-compat) or array
+  `[V,C]`, parsed like `{calltrace}`'s scalar-or-array form.  Wired in `main.c` at trace-load time (before the main loop — the
+  pending latch just waits, immune to frame timing).
+- **Retail** (`tools/frida/openrecet-agent.js`): `installBgNpcPinHook` (already always-installed for `{phasepin}`) extended with
+  a parallel `g_segtrace_bgnpcseed_active`/`_cursor` latch, applied at the SAME `FUN_0046f621` onEnter, gated on the SAME
+  `DAT_073a8bb8==0` — forces `DAT_006023a0` + `DAT_073a8bb4`.  `tools/frida_capture.py` forwards the op (scalar or `[V,C]`) —
+  the initial retail-both drive hit a `KeyError: 'buttons'` because the new op key wasn't in the trace-op dispatch `elif` chain
+  (fixed: added a `"bgnpcseed" in rec` branch mirroring `primaryloadpin`'s).
+
+**✅ VERIFIED** (`house-firstcust-arrprobe` + `{bgnpcseed:[3502407629,1]}`, `scenario-test --target both --call-trace` /
+`flow_diff --field-timeline`): **bgx1..bgx5 now bit-exact retail from frame 224 THROUGH frame 825** (602 frames) — was diverging
+from the FIRST captured frame (224) pre-fix (`bgx0 retail=-2.8 port=-6.54…-8.49` depending on which half-fix was live).  `bgx0`
+(the dead/frozen slot) still numerically differs (retail's leftover garbage `-2.8` vs the port's BSS-zero `0`) but is confirmed
+BEHAVIOURALLY inert per Finding 3(b) — both sides render nothing and never tick its position; not chased further (chasing retail's
+exact uninitialized-adjacent leftover would be reproducing incidental memory garbage, not game logic).  **Residual (pre-existing,
+UNCHANGED across all 3 drives — baseline, seed-only, seed+cursor):** from frame 826 on, bgx1-5 (+ `panim`/`pframe`/`pcnt`/`cx`/
+`coct`/`canim`/`cframe`/`db054`/`b5e0`/`poseL`/`poseR`, none bg_npc-related) show a **PURE 1-FRAME PHASE LAG** — port's value at
+frame N+1 == retail's value at frame N, exactly (e.g. bgx1: retail@826=17.0876713 == port@827=17.0876713) — the SAME "resumes
+one frame off" signature §21.16-§21.18 already fixed elsewhere in this scenario, evidently NOT yet fixed for whatever
+load/transition sits at ~825 (the d3e/tutorial bracket or the wrap-up transition are the likely candidates, shared symptom
+across pose+dialogue fields too).  **This is a SEPARATE, already-characterized class of residual — out of scope for the bg_npc-
+origin arc** (a fresh next-arc lead, not a new mystery).  +1 host test (`bg_npc_seed_pin_forces_seed_and_cursor` — proves the
+seed override via a bit-for-bit match against a direct `rng_seed()` run, and the cursor skip via slot dir==0/±1 partition);
+3381 host pass; no regression.
+
+**NEXT:** (1) the frame-826 phase lag (fresh arc — find which load/transition resumes 1f off here, mirror the §21.16-18
+fix pattern).  (2) apply `{bgnpcseed:[3502407629,1]}` to `house-firstcust-cutscene-day2` (same savefile ⇒ same natural values —
+NOT done this session, kept conservative pending that scenario's OWN verify drive per §21.20's outstanding
+`{primaryloadpin}`-on-day2 TODO).  (3) PORT-DEBT: what retail's real primary load consumes RNG for between NEW_GAME
+(3132701474) and the warmup (3502407629) — a "port it 1:1" arc if ever prioritized over the pragmatic trace-normalization pin
+(candidates: shop/kyaku/news/order generation).  (4) **PENDING USER STUDIO CONFIRM** — re-drive win-0-1500 in the viewer,
+confirm notes #17/#20/#22/#23 (sparkle/chibi-walk/window-NPCs) now read 1:1 visually within the fixed [224,825] window.

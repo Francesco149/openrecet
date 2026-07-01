@@ -120,6 +120,32 @@
  *                        than N is left alone (can't shorten a thread), so pick
  *                        N ≥ any plausible real bracket (≥ 8 recommended).
  *
+ *   {"bgnpcseed":V} or {"bgnpcseed":[V,C]}
+ *                        trace-global (RE §21.21): seed the bg-NPC warmup's
+ *                        LCG origin to V, and its spawn cursor to C (default 0
+ *                        in scalar form), right before its NATURAL first-ever
+ *                        tick (scene1_bg_npc_seed_pin).  A narrower alternative
+ *                        to {phasepin}, which ALSO zeros db054/anim/b154/rmb
+ *                        and stalls the skip-path wrap-up cutscene.  Needed
+ *                        because the warmup fires on the SAME frame the
+ *                        primary-load busy gate releases, one frame before the
+ *                        earliest a base-relative {rngseed} can mechanically
+ *                        apply (anchors are detected post-sim, so a pin tied
+ *                        to one can only fire starting the NEXT tick) — the
+ *                        generic per-frame op is structurally always one frame
+ *                        late for this same-frame consumer.  V is retail's
+ *                        captured natural LCG state at the FUN_0046f621 entry
+ *                        (NOT the {rngseed}-at-LOADING_END value, which is
+ *                        already past this point).  C matters because the
+ *                        cursor is not always 0 at that entry either: earlier
+ *                        activity (title-screen bg render?) can leave slot 0
+ *                        spawned-and-frozen (dir==0, skipped by both tick and
+ *                        render) before scene1's own warmup ever runs, so the
+ *                        REAL spawn sequence starts at a later slot.  The
+ *                        retail Frida agent mirrors both in installBgNpcPinHook,
+ *                        gated on the warmup latch (DAT_073a8bb8) still being 0.
+ *                        Last declaration wins; fires once, ever.
+ *
  *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
  *                        (relative to the trace file's directory) to a
  *                        content-addressed, gzip-compressed save blob (usually
@@ -333,6 +359,18 @@ struct input_segtrace {
      * seen. */
     uint32_t primaryloadpin;
     int      has_primaryloadpin;
+
+    /* Optional bg-NPC warmup seed pin, from a `{"bgnpcseed":V}` or
+     * `{"bgnpcseed":[V,C]}` op (trace-global, last declaration wins; RE
+     * §21.21).  When set, the host seeds the shared LCG to V and the spawn
+     * cursor to C right before the bg-NPC warmup's NATURAL first-ever tick
+     * (scene1_bg_npc_seed_pin); the Frida agent mirrors both at the
+     * FUN_0046f621 entry.  `has_bgnpcseed` is 0 when no op was seen;
+     * `bgnpcseed_cursor` is 0 (the scalar-form default) unless the array form
+     * set it. */
+    uint32_t bgnpcseed;
+    int      bgnpcseed_cursor;
+    int      has_bgnpcseed;
 
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;

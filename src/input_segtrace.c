@@ -284,6 +284,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
         int      got_tutloadpin = 0, got_wait_timeout = 0, got_csloadpin = 0;
         int      got_gsimpin = 0, got_bgnpcpin = 0, got_primaryloadpin = 0;
+        int      got_bgnpcseed = 0;
         uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
@@ -292,7 +293,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
         uint32_t gsp_frame = 0, gsp_value = 0;
         uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0, plp_val = 0;
-        uint32_t bnp_frame = 0;
+        uint32_t bnp_frame = 0, bgnpcseed_val = 0, bgnpcseed_cursor_val = 0;
         uint32_t bnp_values[SEG_BGNPCPIN_DWORDS];
         char     waitname[24] = {0};
         char     savepath[256] = {0};
@@ -498,6 +499,27 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * last decl wins. */
                 if (!parse_number(&p, end, &plp_val)) return 0;
                 got_primaryloadpin = 1;
+            } else if (klen == 9 && memcmp(ks, "bgnpcseed", 9) == 0) {
+                /* {bgnpcseed:V} == [V,0], or {bgnpcseed:[V,C]} — trace-global
+                 * bg-NPC warmup LCG-origin + spawn-cursor pin
+                 * (scene1_bg_npc_seed_pin). Last decl wins. RE §21.21. */
+                if (p < end && *p == '[') {
+                    p++;  /* '[' */
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &bgnpcseed_val)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ',') return 0;
+                    p++;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &bgnpcseed_cursor_val)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ']') return 0;
+                    p++;
+                } else {
+                    if (!parse_number(&p, end, &bgnpcseed_val)) return 0;
+                    bgnpcseed_cursor_val = 0;
+                }
+                got_bgnpcseed = 1;
             } else {
                 return 0;  /* unknown key */
             }
@@ -556,6 +578,11 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->primaryloadpin = plp_val;
             out->has_primaryloadpin = 1;
+        } else if (got_bgnpcseed) {
+            /* Trace-global: last declaration wins. Not segment-scoped. */
+            out->bgnpcseed        = bgnpcseed_val;
+            out->bgnpcseed_cursor = (int)bgnpcseed_cursor_val;
+            out->has_bgnpcseed    = 1;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;

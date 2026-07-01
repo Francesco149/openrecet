@@ -115,6 +115,27 @@ void scene1_bg_npc_reset(void);
  * load-phase-independent, port↔retail-reproducible window-NPC layout. */
 void scene1_bg_npc_phasepin(void);
 
+/* Trace-harness {bgnpcseed}: latch `seed`/`cursor` so the NEXT
+ * scene1_bg_npc_tick() forces the shared LCG + g_bg_npc_spawn_cursor to them
+ * right before consuming RNG (RE §21.21).  Unlike scene1_bg_npc_phasepin()
+ * this does NOT call scene1_bg_npc_reset() — it is meant to fire BEFORE
+ * bg_npc's NATURAL first-ever tick (the warmup), seeding it with retail's own
+ * captured pre-warmup origin instead of the synthetic canonical 19937.
+ *
+ * `cursor` matters because the warmup's spawn cursor is NOT always 0 at the
+ * true first FUN_0046f621 call: on the observed savefile it was already 1 —
+ * some earlier activity (title-screen bg render?) had already spawned+frozen
+ * slot 0 (STATE=-1, dir=0 — the "unspawned"/dead sentinel both bg_npc_tick and
+ * the renderer skip) before scene1's own warmup ever runs, so retail's REAL
+ * spawn sequence starts at slot 1.  Slot 0's exact leftover x/y/z/type don't
+ * matter (dir==0 skips both the tick's position update and the render), only
+ * which slot index the warmup starts spawning from — hence a cursor value,
+ * not a full SoA snapshot.  `cursor` of 0 preserves the old (pre-RE-§21.21)
+ * behaviour.  Using it after the warmup already ran just seeds the next
+ * (non-warmup) tick and does not touch the cursor — it does not re-arm the
+ * 180x pass; use scene1_bg_npc_phasepin() for that. */
+void scene1_bg_npc_seed_pin(uint32_t seed, int cursor);
+
 /* Trace-harness {bgnpcpin}: overwrite the live NPC array from `n_dwords` raw
  * engine records (SoA dwords, BG_NPC_ENGINE_DWORDS each) captured from retail's
  * NATURAL DAT_073a7f80 at the pin anchor — the rng-survey foundation pin.  Unlike

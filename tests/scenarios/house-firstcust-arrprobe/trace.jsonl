@@ -4,6 +4,7 @@
 {"csloadpin": 24}
 {"primaryloadpin": 16}
 {"tutloadpin": 8}
+{"bgnpcseed": [3502407629, 1]}
 {"rngseed": [0, 3132701474]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 48, "buttons": "0x0010"}

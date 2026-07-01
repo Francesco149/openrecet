@@ -23,7 +23,7 @@
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 25 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 26 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -224,38 +224,29 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       (spread ≤20.7)`, raw rng 336/407 bit-exact (the cs DECISION stays ALIGNED; the AMBIENT NPCs/sparkle diverge).  The sparkle
       POSITION + chibi WALK depend on the rng VALUES, which desync from the **PRE-PIN bg_npc (the cad868 PRIMARY-load
       non-determinism, (b))**; the un-pinned chibi/sparkle accumulate it.  ⇒ **#17 is DOWNSTREAM of (b), not independently fixable.**
-    - **★★★ 2026-07-01 (RE §21.20) — `{primaryloadpin}` BUILT + KEPT (determinism foundation) but the §21.19 load-duration
-      hypothesis is DISCONFIRMED; the real bg_npc root is the WARMUP LAYOUT.**  Built the bilateral cad868 primary-load pin
-      (port `worker_load_force_primary_complete` + sim drain bridge; frida main-thread Present drain; `{primaryloadpin:16}` on
-      arrprobe; 4 host tests, 3380 pass).  **Works MECHANICALLY:** retail bit-exact 1500/1500, load deterministic, **entry frames
-      align 826==826** (were 2309/3066 = a 757f CreateThread race).  **But DISCONFIRMED as the bg_npc fix** (entry-aligned probe
-      on 48ae642d): the **raw rng is BIT-IDENTICAL pre-entry** (off −600/−400/−200/0 MATCH) **yet bgx DIVERGES** (port bgx0 walks
-      1.83→18.4, retail idle −2.8).  ⇒ load-duration is COSMETIC (sim early-returns during load, no rng; the v3 join absorbs it).
-      The "+1766 rngcalls" was a MEASUREMENT ARTIFACT (retail's deferred rng-hook counts 0 pre-entry; post-entry delta CONST +3536,
-      per-frame rng MATCHES).  `flow_diff --align-field db054` mis-aligns (db054 plateaus at 81) — use the entry-aligned drill.
-      **REAL ROOT = the bg_npc WARMUP LAYOUT:** the 180× warmup (`FUN_0046f621`) builds a different initial 6-NPC layout port vs
-      retail — same warmup LOGIC, different rng STATE at the warmup (no `{phasepin}` to canonicalize to 19937).  The `{bgnpcpin}`
-      snaps only at off+1, leaving the PRE-entry window diverged = notes #23/#20/#22 (#24 downstream).  The `{phasepin}` (warmup
-      re-seed) BREAKS the skip-path wrap-up (CLAUDE.md TOOL gap), and arrprobe IS the skip path.
-      **USER 2026-07-01:** KEEP `{primaryloadpin}` (determinism foundation); **NEXT = PORT THE bg_npc WARMUP LOGIC 1:1.**
-      **★ Sharp lead (from `scene1_bg_npc.c` comments + the rngseed timing):** the warmup `FUN_0046f621` (180×) SEEDS the initial
-      6-NPC layout off the LCG state AT the warmup, and per the code it "seeded off a **DIFFERENT LCG ORIGIN (the intro skip)**" —
-      the port skips the intro retail plays, so the LCG state at the warmup differs ⇒ different layout ⇒ boundary-respawns (4-5 draws
-      each) cross on different frames ⇒ the shared stream drifts.  The warmup LOGIC is noted **bit-faithful**; the gap is the ORIGIN
-      (a phase/rng-origin divergence, `findings/scene1-rng-stream-parity.md`).  `{phasepin}` normalizes it (re-seed 19937 at the
-      warmup boundary) but breaks the skip-path wrap-up; `{bgnpcpin}` snaps only at off+1.  **NEXT STEPS:** (1) the arrprobe
-      `{rngseed:[0,912526909]}` fires at **LOADING_END** — does it fire BEFORE or AFTER the warmup?  If after, the warmup uses the
-      un-synced (intro-skip) origin ⇒ a `{rngseed}` (or phase-advance) at the EXACT warmup boundary — without `{phasepin}`'s
-      wrap-up-breaking warmup RE-ARM — should sync the layout.  (2) Verify the warmup LOGIC is actually 1:1 via a phasepin scenario
-      that HAS no wrap-up (e.g. house-loaded-display-pinned — do its bg_npc go bit-exact post-phasepin?); if yes, arrprobe's gap is
-      PURELY the origin (not logic).  (3) Fix the code/pin so pre-entry bg_npc match with NO snapshot.  Refs:
-      `findings/scene1-bg-npc.md`, `findings/scene1-rng-stream-parity.md`, RE §21.20/§21.1/§21.2.
-      (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)  A fresh, substantial arc = a good /clear boundary.
-    - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
-      **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
-      extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL
-      after the (a) fix aligned the `{bgnpcpin}` landing at CONV_POSE_END=522.)
-      Engine logic is correct/frame-deterministic; the chibi DELIVERABLES remain USER-CONFIRMED 1:1 (`c005160`/`eaff80c`).
+    - **★★★ RESOLVED 2026-07-01 (RE §21.21) — the bg_npc warmup ORIGIN fix: `scene1_bg_npc_seed_pin` + `{bgnpcseed:[seed,cursor]}`.**
+      The §21.20 "port warmup @223 / retail @224" timing read was a MEASUREMENT ARTIFACT (a `{calltrace}`-window boundary effect
+      — the port's frame-223 rows only appeared via `call_trace.c`'s "trace everything before the first window arms" fallback,
+      not because retail's warmup fires later); an unconditional (non-window-gated) diagnostic hook confirmed BOTH sides' warmup
+      fires the SAME frame as LOADING_END (223), and that the generic `{rngseed}` pin structurally CANNOT reach it (base-relative
+      ops resolve one tick after their anchor is detected — always one frame late for a same-frame consumer, on either side).
+      Root was TWO independent retail-natural mismatches AT that exact frame: the LCG seed (**3502407629**, not the port's
+      unchanged-since-NEW_GAME `3132701474` — retail's real primary-load path consumes hidden RNG the port's load doesn't;
+      PORT-DEBT, not yet ported) AND the spawn cursor (retail's was **1**, not 0 — some earlier activity, e.g. a title-screen bg
+      render, had already spawned-and-frozen slot 0; `dir==0` makes its leftover x/y/z behaviourally inert, only the cursor
+      OFFSET is observable).  Generalized `{phasepin}`'s consumer-latch pattern (apply INSIDE `scene1_bg_npc_tick()`, sidesteps
+      the frame-lag entirely) into `scene1_bg_npc_seed_pin(seed,cursor)` — seeds BOTH, WITHOUT `{phasepin}`'s db054/anim/b154/rmb
+      reset bundle (which stalls the skip-path wrap-up — the reason `{phasepin}` was never usable here).  **✅ VERIFIED**
+      (`house-firstcust-arrprobe` + `{bgnpcseed:[3502407629,1]}`, `flow_diff --field-timeline`): **bgx1..5 bit-exact retail frame
+      224→825** (was diverging from frame 1); +1 host test (`bg_npc_seed_pin_forces_seed_and_cursor`), 3381 pass; no regression.
+      Full writeup + the port=223/retail=224 forensic trail: RE §21.21.
+      **NEXT:** (1) a residual PURE 1-FRAME PHASE LAG from frame 826 on (bgx1-5 + unrelated fields — panim/pcnt/db054/poseL/
+      poseR/etc — pre-existing, present in ALL three drives incl. pre-fix; the §21.16-18 "resumes 1f off" pattern, not yet fixed
+      for whatever load/transition sits at ~825) — a fresh, separate arc, not a bg_npc bug.  (2) apply the same `{bgnpcseed}` to
+      `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals) — needs its OWN verify drive first (kept conservative, not
+      done this session).  (3) **PENDING USER STUDIO CONFIRM** — re-drive win-0-1500, confirm notes #17/#20/#22/#23 (sparkle/
+      chibi-walk/window-NPCs) now read 1:1 within the fixed [224,825] window (note #11 CONV_POSE_BLINK#2, off<521, is inside
+      this window — likely ALSO resolved, pending visual confirm).  A fresh, substantial arc closes here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →

@@ -3417,6 +3417,7 @@ struct test_case {
     X(bg_npc_respawn_rng_and_bounce) \
     X(bg_npc_reset_clears) \
     X(bg_npc_pin_translates_record) \
+    X(bg_npc_seed_pin_forces_seed_and_cursor) \
     X(chr_sprite_retail_recette_house) \
     X(chr_anim_tick_accumulates_below_duration) \
     X(chr_anim_tick_advances_at_duration) \

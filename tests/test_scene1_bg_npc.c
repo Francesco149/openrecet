@@ -12,6 +12,7 @@
 #include "t.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "scene1_bg_npc.h"
 #include "rng.h"
@@ -193,6 +194,55 @@ int test_bg_npc_reset_clears(void)
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++)
         if (g_scene1_bg_npc[i].dir != 0)
             T_FAIL("NPC %d not cleared by reset (dir=%d)", i, g_scene1_bg_npc[i].dir);
+    return 0;
+}
+
+/* {bgnpcseed} pin (RE §21.21): latches a seed + spawn-cursor that the NEXT
+ * scene1_bg_npc_tick() applies right before consuming RNG — narrower than
+ * scene1_bg_npc_phasepin() (no scene1_bg_npc_reset(), so it doesn't disturb
+ * db054/anim/b154/rmb elsewhere in the trace harness).  Two independent
+ * checks: (a) the seed actually overrides whatever rng_seed() was called
+ * before the pin — proven by matching a DIRECT reset()+rng_seed()+tick() run
+ * bit-for-bit; (b) the cursor actually skips that many slots — the observed
+ * savefile had cursor==1 at the true first FUN_0046f621 entry (some earlier
+ * activity, e.g. a title-screen bg render, had already spawned+frozen slot 0),
+ * so a seed-only pin can't reproduce which slot the real spawn starts at. */
+int test_bg_npc_seed_pin_forces_seed_and_cursor(void)
+{
+    /* (a) seed override: pinned-from-1234-but-forced-to-99 must exactly match
+     * a plain reset()+rng_seed(99)+tick() run — proving the pending seed(99)
+     * fired, not the pre-pin rng_seed(1234). */
+    scene1_bg_npc_reset();
+    rng_seed(1234u);
+    scene1_bg_npc_seed_pin(99u, 0);
+    scene1_bg_npc_tick();
+    uint32_t pinned_rng  = g_rng_seed;
+    scene1_bg_npc_t pinned_npc0 = g_scene1_bg_npc[0];
+
+    scene1_bg_npc_reset();
+    rng_seed(99u);
+    scene1_bg_npc_tick();
+    if (g_rng_seed != pinned_rng)
+        T_FAIL("pinned seed=99 rng=%u != direct seed=99 rng=%u",
+               pinned_rng, g_rng_seed);
+    if (memcmp(&pinned_npc0, &g_scene1_bg_npc[0], sizeof pinned_npc0) != 0)
+        T_FAIL("pinned-seed NPC 0 differs from a direct rng_seed(99) run "
+               "(the pin's seed(99) did not take effect before the warmup)");
+
+    /* (b) cursor skip: cursor=3 must leave slots 0-2 unspawned (dir==0, the
+     * "unspawned"/dead sentinel both tick and render skip) and spawn 3-5. */
+    scene1_bg_npc_reset();
+    rng_seed(42u);
+    scene1_bg_npc_seed_pin(42u, 3);
+    scene1_bg_npc_tick();
+    for (int i = 0; i < 3; i++)
+        if (g_scene1_bg_npc[i].dir != 0)
+            T_FAIL("slot %d spawned despite cursor=3 skip (dir=%d)",
+                   i, g_scene1_bg_npc[i].dir);
+    for (int i = 3; i < SCENE1_BG_NPC_COUNT; i++)
+        if (g_scene1_bg_npc[i].dir != 1 && g_scene1_bg_npc[i].dir != -1)
+            T_FAIL("slot %d not spawned past cursor=3 (dir=%d)",
+                   i, g_scene1_bg_npc[i].dir);
     return 0;
 }
 

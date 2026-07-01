@@ -74,11 +74,15 @@ static int g_bg_npc_spawn_cursor;
 static int g_bg_npc_warmup_done;
 static int g_bg_npc_frame;
 
-/* Trace-harness {phasepin} latch: when set, the NEXT scene1_bg_npc_tick() forces
- * the shared LCG to SCENE1_BG_NPC_PHASEPIN_SEED right before its (re-armed)
- * warmup, so the 6-NPC layout is reproduced from a canonical RNG origin
- * regardless of how the live stream got here.  See scene1_bg_npc_phasepin(). */
-static int g_bg_npc_pin_pending;
+/* Trace-harness {phasepin}/{bgnpcseed} latch: when set, the NEXT
+ * scene1_bg_npc_tick() forces the shared LCG to g_bg_npc_pin_seed right before
+ * consuming RNG, so the 6-NPC layout is reproduced from a known RNG origin
+ * regardless of how the live stream got here.  See scene1_bg_npc_phasepin()
+ * (canonical 19937, re-arms the warmup) and scene1_bg_npc_seed_pin() (an
+ * arbitrary captured seed, no re-arm — RE §21.21). */
+static int      g_bg_npc_pin_pending;
+static uint32_t g_bg_npc_pin_seed;
+static int      g_bg_npc_pin_cursor;
 
 void scene1_bg_npc_reset(void)
 {
@@ -270,7 +274,8 @@ void scene1_bg_npc_tick(void)
      * independent of any RNG consumed between the pre-sim pin and this tick. */
     if (g_bg_npc_pin_pending) {
         g_bg_npc_pin_pending = 0;
-        rng_seed(SCENE1_BG_NPC_PHASEPIN_SEED);
+        rng_seed(g_bg_npc_pin_seed);
+        g_bg_npc_spawn_cursor = g_bg_npc_pin_cursor;
     }
 
     int n = 1;
@@ -304,6 +309,19 @@ void scene1_bg_npc_tick(void)
 void scene1_bg_npc_phasepin(void)
 {
     scene1_bg_npc_reset();
+    g_bg_npc_pin_seed    = SCENE1_BG_NPC_PHASEPIN_SEED;
+    g_bg_npc_pin_cursor  = 0;
+    g_bg_npc_pin_pending = 1;
+}
+
+/* Trace-harness `{bgnpcseed}` (RE §21.21) — see scene1_bg_npc.h.  Narrower
+ * than scene1_bg_npc_phasepin(): no scene1_bg_npc_reset(), so it is meant to
+ * land BEFORE the warmup's NATURAL first-ever firing (nothing to re-arm yet)
+ * rather than to re-run an already-completed one. */
+void scene1_bg_npc_seed_pin(uint32_t seed, int cursor)
+{
+    g_bg_npc_pin_seed    = seed;
+    g_bg_npc_pin_cursor  = cursor;
     g_bg_npc_pin_pending = 1;
 }
 

@@ -533,6 +533,17 @@ let g_segtrace_primaryloadpin = 0;  // active N (0 = no pin)
 let g_plp_armed = false;            // inside a pinned primary-load bracket
 let g_plp_release_frame = 0;        // frame the primary load must end on
 let g_plp_prev_busy = 0;            // previous tick's DAT_06a49954
+
+// {bgnpcseed:V} — seed the bg-NPC warmup's LCG origin to V right before its
+// NATURAL first-ever tick (RE §21.21): a narrower alternative to {phasepin}'s
+// full re-arm (which also zeros db054/anim/b154/rmb and stalls the skip-path
+// wrap-up cutscene).  Applied in installBgNpcPinHook, gated on the warmup
+// latch (DAT_073a8bb8) still being 0 — i.e. the actual first call, not a re-arm.
+let g_segtrace_bgnpcseed_active = false;  // a {bgnpcseed} op is armed
+let g_segtrace_bgnpcseed = 0;             // the seed value to force
+let g_segtrace_bgnpcseed_cursor = 0;      // the spawn-cursor value to force
+let g_bgnpcseed_applied = false;          // one-shot: fired once, ever
+
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
@@ -990,6 +1001,15 @@ function segtraceBuildSegments(ops) {
             // deterministic on both targets (bg_npc / sparkle / chibi / window
             // NPCs follow).  Mirrors the port's worker_load_set_primary_pin.
             g_segtrace_primaryloadpin = (op.primaryloadpin | 0) > 0 ? (op.primaryloadpin | 0) : 0;
+        } else if (op && op.bgnpcseed !== undefined) {
+            // {bgnpcseed:V} == [V,0], or {bgnpcseed:[V,C]} — trace-global: seed
+            // DAT_006023a0 to V and the spawn cursor (DAT_073a8bb4) to C right
+            // before the bg-NPC warmup's NATURAL first-ever tick (RE §21.21).
+            // See installBgNpcPinHook / the g_segtrace_bgnpcseed_active decl.
+            const bns = op.bgnpcseed;
+            g_segtrace_bgnpcseed = (Array.isArray(bns) ? bns[0] : bns) >>> 0;
+            g_segtrace_bgnpcseed_cursor = Array.isArray(bns) ? (bns[1] | 0) : 0;
+            g_segtrace_bgnpcseed_active = true;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -1863,6 +1883,43 @@ function installAudioHooks() {
 function installBgNpcPinHook() {
     Interceptor.attach(rva(0x0046f621), {
         onEnter: function () {
+            // Diagnostic (RE §21.21): log retail's NATURAL pre-warmup LCG state
+            // on the actual first-ever call (DAT_073a8bb8 latch still 0) — the
+            // value a {bgnpcseed} pin needs so the port's warmup consumes the
+            // SAME origin.  The generic {rngseed}-at-LOADING_END value is
+            // already one frame past this point: the warmup fires on the SAME
+            // frame the load-busy gate releases (both port and retail dispatch
+            // the scene tick unconditionally once the worker-busy check passes,
+            // same call), but a base-relative {rngseed} can only mechanically
+            // apply starting the frame AFTER its anchor is detected (anchors
+            // are sampled post-sim at Present, so the earliest a pin tied to
+            // that anchor can fire is the next frame's pre-sim segtraceTick) —
+            // one frame too late for a same-frame consumer.  Cheap, one-shot.
+            if (rva(0x073a8bb8).readS32() === 0) {
+                log('bg-npc: NATURAL pre-warmup seed = ' +
+                    rva(0x006023a0).readU32() + ' @ frame ' + frameNo() +
+                    ' cursor(bb4)=' + rva(0x073a8bb4).readS32());
+            }
+            // {bgnpcseed:[V,C]} — seed the LCG to V and the spawn cursor to C
+            // right before the NATURAL first-ever warmup (RE §21.21).  C
+            // matters: the cursor was found NONZERO (1) at this same natural
+            // entry on the reference savefile — slot 0 was already spawned+
+            // frozen (dir==0, STATE=-1) by earlier activity (title-screen bg
+            // render?), so the REAL spawn sequence starts at a later slot; a
+            // seed-only pin can't reproduce that.  Unlike {phasepin}, this does
+            // NOT reset db054/anim/b154/rmb (which stalls the skip-path
+            // wrap-up cutscene) and does NOT re-arm an already-run warmup — it
+            // only ever fires once, on the actual first call.  Mirrors the
+            // port's scene1_bg_npc_seed_pin.
+            if (g_segtrace_bgnpcseed_active && !g_bgnpcseed_applied &&
+                rva(0x073a8bb8).readS32() === 0) {
+                g_bgnpcseed_applied = true;
+                rva(0x006023a0).writeU32(g_segtrace_bgnpcseed >>> 0);
+                rva(0x073a8bb4).writeS32(g_segtrace_bgnpcseed_cursor | 0);
+                log('bg-npc: {bgnpcseed} applied, seed=' + g_segtrace_bgnpcseed +
+                    ' cursor=' + g_segtrace_bgnpcseed_cursor +
+                    ' @ frame ' + frameNo());
+            }
             if (!g_bg_npc_pin_pending) return;
             g_bg_npc_pin_pending = false;
             rva(0x006023a0).writeU32(BG_NPC_PIN_SEED >>> 0); // LCG state
@@ -5575,6 +5632,10 @@ rpc.exports = {
         g_segtrace_primaryloadpin = 0;  // re-set by a {primaryloadpin} op below
         g_plp_armed         = false;
         g_plp_prev_busy     = 0;
+        g_segtrace_bgnpcseed_active = false;  // re-set by a {bgnpcseed} op below
+        g_segtrace_bgnpcseed = 0;
+        g_segtrace_bgnpcseed_cursor = 0;
+        g_bgnpcseed_applied = false;
         if (Array.isArray(config.input_segtrace) &&
             config.input_segtrace.length > 0) {
             g_segtrace_segments = segtraceBuildSegments(config.input_segtrace);

@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **23**
-- distinct retiring engine functions: **19**
+- total open debts: **24**
+- distinct retiring engine functions: **20**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 4 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 7 | reduced control flow / state machine vs retail |
+| simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -49,6 +49,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_005031e4 | 1 |
+| scene1-rng-stream-parity.md | 1 |
 
 ## stub (4)
 
@@ -63,7 +64,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (7)
+## simplified (8)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -72,8 +73,9 @@ _none_
 | FUN_004361b2 | src/scene1_merchant_hud.c:202 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
-| FUN_004536cb | src/sim.c:351 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:358 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:288 | the engine teardown also restores the |
+| scene1-rng-stream-parity.md | src/sim.c:287 | sim_loading_pump() |
 
 ## hardcode (1)
 

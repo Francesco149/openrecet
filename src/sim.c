@@ -272,18 +272,25 @@ void sim_step_a(void)
     if (worker_load_busy()) {
         /* {primaryloadpin} (harness-only): DRAIN the racy cad868 primary worker
          * to completion at a deterministic frame N so the load lasts N frames on
-         * both targets — the RE §21.19(b) determinism foundation.  The variable
-         * primary-load duration (a CreateThread race, thousands of frames in
-         * turbo) otherwise leaves the rng state at scene-init non-deterministic,
-         * desyncing the bg_npc warmup + every downstream ambient consumer (目玉
-         * sparkle, chibi walk, window NPCs) from frame 1 (bgx DRIFT, rngcalls
-         * +1766).  primary_pin_elapsed() is the LEFT operand so it counts every
-         * busy frame; unpinned it always returns 1 but primary_pin_active() is 0,
-         * so this reduces to the pure async release (no behaviour change).  We
-         * still pump+return the drain frame so the load lasts N frames and the
-         * sim resumes at N+1, matching the retail agent's Present-time drain. */
+         * both targets — the RE §21.19(b) determinism foundation (aligns the
+         * ENTRY frame; RE §21.20 later showed the load-duration itself is
+         * cosmetic to rng/bg_npc — nothing rng-relevant runs while this branch
+         * short-circuits sim, so a longer/shorter load just shifts WHEN the
+         * warmup fires, not what it consumes from).  primary_pin_elapsed() is
+         * the LEFT operand so it counts every busy frame; unpinned it always
+         * returns 1 but primary_pin_active() is 0, so this reduces to the pure
+         * async release (no behaviour change).  We still pump+return the drain
+         * frame so the load lasts N frames and the sim resumes at N+1, matching
+         * the retail agent's Present-time drain. */
         if (worker_load_primary_pin_elapsed() && worker_load_primary_pin_active())
             worker_load_force_primary_complete();
+        /* PORT-DEBT(simplified, scene1-rng-stream-parity.md): sim_loading_pump()
+         * during this branch is rng-free, but retail's REAL primary load is not
+         * — its natural pre-bg_npc-warmup LCG state (3502407629) differs from
+         * the port's (3132701474, unchanged from the preceding NEW_GAME anchor)
+         * by an unknown draw sequence (candidates: shop/kyaku/news/order-gen).
+         * Trace-normalized via {bgnpcseed} (RE §21.21), not ported — find + port
+         * the real consumer to retire. */
         sim_loading_pump();
         return;
     }
