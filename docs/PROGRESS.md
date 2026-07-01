@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — day2 scenario gets the full determinism pin set; day-end rng fork pinned down
+
+`house-firstcust-cutscene-day2/trace.jsonl` now carries arrprobe's full pin header ({csloadpin:24} +
+{primaryloadpin:16} + {tutloadpin:8} + {bgnpcseed 3502407629/1/dead-slot}; same savefile ⇒ same
+naturals).  **VERIFIED `--target both`:** raw rng bit-exact frames 225→1934 = the whole
+first-customer region (arrprobe's confirmed span: 225→1722); identical 37-anchor sequence; the
+initial Continue-load 1505→223.  The 1935+ fork = the UNPORTED day-end: retail draws +261 rng in
+one frame at the day-end Z (PAUSE_CLOSE#3+89) and the port's day-end transition emits no
+LOADING_START anchor (music swaps at 2274 == retail's load 2273) — both leads recorded in FRONT
+under the day-2 arc.  Method note: the whole-capture `flow_diff --verdict` DESYNC signature
+(bgx "DRIFT @81", rngcalls "@3") appears even on the user-confirmed-1:1 arrprobe capture — it is
+the accepted pre-pin region + probe print-precision; judge day-region parity by the aligned span.
+
 ## 2026-07-01 — first-customer trace rng/NPC/db054 FULLY ALIGNED — USER-CONFIRMED ("npcs aligned, customer aligned")
 
 The 2026-07-01 FRONT cleanup condensed the 06-19→07-01 arcs into the entries below; full

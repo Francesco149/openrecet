@@ -23,9 +23,13 @@
   load, 1f-behind free-roam ⇒ inconsistent direction = the chr_anim seed ORIGIN (seed timing, not rate),
   entangled with the load/arrival anim-seed timing.  The companion's transition-frame chr_anim_tick skip is
   CORRECT (player skips identically, scene1_player_ctrl.c:1705, 1:1) — don't re-suspect it.
-- **★ IN FLIGHT 2026-07-01 — `{bgnpcseed}` applied to `house-firstcust-cutscene-day2`** (same savefile ⇒ same
-  naturals; via the §21.25 fix both sides auto-skip its own `{bgnpcpin}` SoA inject).  Verify drive
-  (`scenario-test --target both --call-trace` → `flow_diff --field-timeline` bgx0..5 + raw rng) pending.
+- **✅ 2026-07-02 — `house-firstcust-cutscene-day2` carries the FULL pin set** ({csloadpin:24} +
+  {primaryloadpin:16} + {tutloadpin:8} + {bgnpcseed}; same savefile ⇒ same naturals; both sides auto-skip its
+  own `{bgnpcpin}` inject per §21.25).  **VERIFIED `--target both`: raw rng bit-exact frames 225→1934 = the
+  ENTIRE first-customer region** (arrprobe's confirmed span was 225→1722); anchor sequence identical, initial
+  load 1505→223.  NB the whole-capture `flow_diff --verdict` shows bgx1..5 "DRIFT @81" + "rngcalls DESYNC @3"
+  even on the USER-CONFIRMED-1:1 arrprobe capture — that signature is the accepted pre-pin/warmup region +
+  probe print-precision (retail f64-prints, port %.9g), NOT a regression; judge by the aligned span.
 - **★ OPEN GAPS queued on this trace (user-flagged):**
   - **(ii) dialogue-under-ESC-modal:** retail shows NO dialogue behind the ESC-skip while the port is
     mid-reveal of a line — should the port hide/clear the underlying dialogue when the ESC choice box is up?
@@ -47,6 +51,12 @@
   (cs-roster-scan); live-haggle render fidelity (customer art/dialogue); **the iv1_8 chain** (f406→f402
   post-first-customer EXTRA_SPRITE cutscene) → the cutscene series → day-2 brooming.  Separate follow-up:
   the DAY-2 cutscene blink-stall (~frame 21259+, does not affect the cc08 survey window).
+  **DAY-END entry point pinned down 2026-07-02 (the day2 rng fork):** on the day2 trace, the Z at
+  PAUSE_CLOSE#3+89 (frame 1934) makes retail draw **+261 rng calls in ONE frame** (the suspected next-day
+  layout/roster regen) while the port draws none; the port's day-end transition then fires (music swap
+  frame 2274 == retail LOADING_START 2273) but **emits NO LOADING_START anchor** (different/unported load
+  path) ⇒ the trace's `{wait: LOADING_START}` never releases and replay stops.  Two concrete leads:
+  (a) the +261-draw day-end consumer, (b) route the day-end load through the anchor-emitting load machinery.
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit
