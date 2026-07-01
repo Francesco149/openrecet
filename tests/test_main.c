@@ -1051,6 +1051,10 @@ struct test_case {
     X(worker_load_sec_full_cycle_simulation_b3e) \
     X(worker_load_sec_full_cycle_simulation_c4e) \
     X(worker_load_sec_full_cycle_simulation_aab_no_fade) \
+    X(worker_load_primary_pin_elapsed_counts_n_frames) \
+    X(worker_load_primary_pin_unset_always_elapsed) \
+    X(worker_load_reset_clears_primary_pin) \
+    X(worker_load_force_primary_complete_host_noop) \
     \
     X(save_io_scan_fresh_arena_zero_flags) \
     X(save_io_scan_score_in_bank_set) \

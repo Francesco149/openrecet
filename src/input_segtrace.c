@@ -283,7 +283,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
         int      got_tutloadpin = 0, got_wait_timeout = 0, got_csloadpin = 0;
-        int      got_gsimpin = 0, got_bgnpcpin = 0;
+        int      got_gsimpin = 0, got_bgnpcpin = 0, got_primaryloadpin = 0;
         uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
@@ -291,7 +291,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
         uint32_t gsp_frame = 0, gsp_value = 0;
-        uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0;
+        uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0, plp_val = 0;
         uint32_t bnp_frame = 0;
         uint32_t bnp_values[SEG_BGNPCPIN_DWORDS];
         char     waitname[24] = {0};
@@ -492,6 +492,12 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * (customer_service_set_load_pin). Scalar; last decl wins. */
                 if (!parse_number(&p, end, &csloadpin_val)) return 0;
                 got_csloadpin = 1;
+            } else if (klen == 14 && memcmp(ks, "primaryloadpin", 14) == 0) {
+                /* {primaryloadpin:N} — trace-global cad868 primary-worker
+                 * load-duration pin (worker_load_set_primary_pin). Scalar;
+                 * last decl wins. */
+                if (!parse_number(&p, end, &plp_val)) return 0;
+                got_primaryloadpin = 1;
             } else {
                 return 0;  /* unknown key */
             }
@@ -546,6 +552,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->csloadpin = csloadpin_val;
             out->has_csloadpin = 1;
+        } else if (got_primaryloadpin) {
+            /* Trace-global: last declaration wins. Not segment-scoped. */
+            out->primaryloadpin = plp_val;
+            out->has_primaryloadpin = 1;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;

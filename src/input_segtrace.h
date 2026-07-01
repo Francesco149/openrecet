@@ -324,6 +324,16 @@ struct input_segtrace {
     uint32_t csloadpin;
     int      has_csloadpin;
 
+    /* Optional cad868 PRIMARY-worker load-duration pin, from a
+     * `{"primaryloadpin":N}` op (trace-global, last declaration wins).  When set,
+     * the host drains the primary worker (worker_load_set_primary_pin) so the
+     * initial Continue-load / scene reload lasts a deterministic N frames; the
+     * Frida agent mirrors it by draining the retail primary worker to the same N
+     * (a bilateral pin — RE §21.19(b)).  `has_primaryloadpin` is 0 when no op was
+     * seen. */
+    uint32_t primaryloadpin;
+    int      has_primaryloadpin;
+
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;
     size_t   cur_seg;

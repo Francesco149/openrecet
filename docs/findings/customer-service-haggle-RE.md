@@ -2916,3 +2916,33 @@ PRIMARY worker — a BILATERAL primary-load pin (port force-complete + retail fr
 deterministic frame-count and the rng stream is bit-exact FROM FRAME 1; the chibi + sparkle then follow.  (Alt: an earlier bilateral
 `{bgnpcpin}` at the load, needs a frame-0 SoA recapture.)  This is the (b) arc — a fresh, substantial effort (frida-side primary-load
 hold + port force-complete), a good /clear boundary.
+
+## 21.20 2026-07-01 — `{primaryloadpin}` BUILT (determinism foundation, KEPT) but the §21.19 load-duration hypothesis is DISCONFIRMED; the real bg_npc root is the WARMUP LAYOUT (port-logic gap, next arc)
+**Built (the §21.19 next-step, bilateral):** `{primaryloadpin:N}` — drain the cad868 PRIMARY worker (worker_load_spawn / FUN_00452cde, `g_worker_busy`
+= DAT_06a49954) to a deterministic N frames.  Port: `worker_load_force_primary_complete()` (spin until g_worker_busy clears, mirror of
+`worker_load_force_d3e_complete`) + a `worker_load_primary_pin_active/elapsed` counter + the drain bridge at the `sim.c` load gate
+(`if (worker_load_busy()){ if(elapsed()&&active()) force_primary_complete(); pump; return; }`) + `input_segtrace`/`main.c` plumbing (reset the
+counter in `worker_load_begin`).  Frida (`openrecet-agent.js`): a MAIN-THREAD drain — arm on the DAT_06a49954 rising edge in `segtraceTick`,
+spin at `Present.onEnter` until 49954 clears (NO worker-tail CModule — the worker runs on its own thread, so the main thread just waits; the
+d3e's extend-only worker-tail hold is impractical for the huge primary load, §21.2).  +`frida_capture.py` forward; +4 host tests (3380 pass).
+**Verified MECHANICALLY (arrprobe, N=16):** retail replayed **bit-exact 1500/1500**; frida log `bracket armed at frame 207 (release at 222) …
+drained at 222`; the load is deterministic and the **entry frames align 826==826** (were port 2309 / retail 3066 — a **757f CreateThread race**).
+**★★★ DISCONFIRMED as the bg_npc fix — the §21.19 "load-duration non-determinism → bgx/rng drift" hypothesis is WRONG (per the porting loop:
+probe, don't rationalize).**  An ENTRY-aligned probe on the pinned cache (48ae642d) shows the **raw rng state is BIT-IDENTICAL pre-entry**
+(off −600/−400/−200/0 all MATCH) **yet bgx DIVERGES anyway** (port bgx0 walks 1.83→10.1→18.4, retail sits idle at −2.8).  ⇒ the load-duration
+is **cosmetic** to rng/bg_npc: `sim_step_a` early-returns during the load (`sim.c:272`, `sim_loading_pump` is rng-free) so nothing rng-relevant
+ticks, and the v3 anchor-join already absorbs the duration.  The "**+1766 rngcalls DESYNC**" (§21.19) was a **MEASUREMENT ARTIFACT**: retail's
+deferred rng-caller-hook (§21.3) counts **0 pre-entry**, port counts from boot; post-entry the delta is a **CONSTANT +3536** and the per-frame
+rng advance MATCHES (both +185/40f).  And `flow_diff --verdict --align-field db054` mis-aligns here (db054 PLATEAUS at 81 for ~500f → a bogus
+81-frame window + spurious +1766) — **use the entry-aligned drill / probe, NOT the db054 verdict, for this scenario.**
+**★★★ REAL ROOT — the bg_npc WARMUP LAYOUT.**  The 180× warmup (`FUN_0046f621`, `scene1_bg_npc.c`) builds the initial 6-NPC layout from the rng
+state AT the warmup.  With **identical rng** the layouts still differ ⇒ the two sides warm up from a **different rng STATE at the warmup instant**
+(no `{phasepin}` to canonicalize it to seed 19937 — neither arrprobe nor cutscene-day2 has one).  The port's NPC0 ends up WALKING where retail's
+is idle: an initial-STATE gap (not tick-logic-with-rng, which would agree given the matched rng).  The `{bgnpcpin}` snaps only at off+1
+(CONV_POSE_END), so the whole PRE-entry window stays diverged = viewer notes **#23** (window NPCs) / **#20**/**#22** (chibi walk), with **#24**
+(sparkle) downstream.  The canonical fix — `{phasepin}` (warmup re-seed 19937, bilateral) — **breaks the skip-path wrap-up** (its bg_npc LCG
+re-seed; CLAUDE.md "a TOOL gap to FIX"), and **arrprobe IS the skip path**, which is exactly why these scenarios use `{bgnpcpin}` instead.
+**USER DECISION 2026-07-01:** (1) **KEEP** `{primaryloadpin}` as a determinism foundation (it pins a real non-det source — the racy CreateThread
+load-duration — and aligns the entry frames; matches "pin EVERY non-deterministic source").  (2) Fix the real root by **PORTING THE bg_npc WARMUP
+LOGIC 1:1** — find why identical rng yields a different warmup layout (a pre-warmup rng-sync gap, or a warmup-logic gap), fix the code so the
+pre-entry bg_npc match with NO snapshot pin.  = the NEXT arc.  (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)

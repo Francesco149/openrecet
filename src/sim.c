@@ -270,6 +270,20 @@ void sim_step_a(void)
      * nowloading gate — the overlay disappears on the very next
      * render. See sim.h's sim_step_a banner for full notes. */
     if (worker_load_busy()) {
+        /* {primaryloadpin} (harness-only): DRAIN the racy cad868 primary worker
+         * to completion at a deterministic frame N so the load lasts N frames on
+         * both targets — the RE §21.19(b) determinism foundation.  The variable
+         * primary-load duration (a CreateThread race, thousands of frames in
+         * turbo) otherwise leaves the rng state at scene-init non-deterministic,
+         * desyncing the bg_npc warmup + every downstream ambient consumer (目玉
+         * sparkle, chibi walk, window NPCs) from frame 1 (bgx DRIFT, rngcalls
+         * +1766).  primary_pin_elapsed() is the LEFT operand so it counts every
+         * busy frame; unpinned it always returns 1 but primary_pin_active() is 0,
+         * so this reduces to the pure async release (no behaviour change).  We
+         * still pump+return the drain frame so the load lasts N frames and the
+         * sim resumes at N+1, matching the retail agent's Present-time drain. */
+        if (worker_load_primary_pin_elapsed() && worker_load_primary_pin_active())
+            worker_load_force_primary_complete();
         sim_loading_pump();
         return;
     }

@@ -960,3 +960,85 @@ int test_worker_load_sec_full_cycle_simulation_aab_no_fade(void)
     nowloading_reset();
     return 0;
 }
+
+/* ─── {primaryloadpin} pin logic (RE §21.19(b)) ───────────────────────────── */
+
+int test_worker_load_primary_pin_elapsed_counts_n_frames(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+
+    /* Pin to 3 frames.  begin() (the primary spawn rising edge) resets the
+     * hold; elapsed() returns 0 while filling, 1 once 3 busy frames elapse. */
+    worker_load_set_primary_pin(3);
+    worker_load_begin();                                    /* hold = 0 */
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(),  1);
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 0);    /* hold 1 */
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 0);    /* hold 2 */
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 1);    /* hold 3 == N */
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 1);    /* stays elapsed */
+
+    /* A NEW primary load (begin) resets the counter → it fills again. */
+    worker_load_begin();
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 0);    /* hold 1 */
+
+    worker_load_reset();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_primary_pin_unset_always_elapsed(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+
+    /* No pin → active() 0 and elapsed() always 1 (so the sim gate reduces to
+     * the pure async release with no drain). */
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(),  0);
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 1);
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 1);
+
+    /* Setting 0 / negative disables. */
+    worker_load_set_primary_pin(5);
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(), 1);
+    worker_load_set_primary_pin(0);
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(), 0);
+    worker_load_set_primary_pin(-3);
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(), 0);
+
+    worker_load_reset();
+    return 0;
+}
+
+int test_worker_load_reset_clears_primary_pin(void)
+{
+    nowloading_reset();
+    worker_load_set_primary_pin(7);
+    worker_load_begin();
+    (void)worker_load_primary_pin_elapsed();               /* advance the hold */
+
+    worker_load_reset();
+
+    /* Full reset zeroes BOTH the pin and the hold. */
+    T_ASSERT_EQ_I(worker_load_primary_pin_active(),  0);
+    T_ASSERT_EQ_I(worker_load_primary_pin_elapsed(), 1);   /* unset → 1 */
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_force_primary_complete_host_noop(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+    worker_load_begin();                                    /* busy = 1 */
+    T_ASSERT_EQ_I(worker_load_busy(), 1);
+
+    /* Host build has no worker thread — force-complete must be a NO-OP (it
+     * must not spin forever on a busy flag nothing will clear). */
+    worker_load_force_primary_complete();
+    T_ASSERT_EQ_I(worker_load_busy(), 1);                   /* unchanged; no hang */
+
+    worker_load_reset();
+    nowloading_reset();
+    return 0;
+}

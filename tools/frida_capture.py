@@ -1142,6 +1142,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # arm (EXTEND-only).  Mirrors the port's customer_service load
                 # pin so the 目玉 sparkle consumes an equal rng count (RE §20).
                 segtrace_ops.append({"csloadpin": int(rec["csloadpin"])})
+            elif "primaryloadpin" in rec:
+                # {primaryloadpin:N} — trace-global: drain the cad868 PRIMARY
+                # worker (DAT_06a49954) to N frames.  The agent spins the main
+                # thread at Present until the worker clears busy, so the initial
+                # Continue-load / scene reload lasts a deterministic N frames on
+                # both targets — the rng state at scene-init is then bit-exact and
+                # the bg_npc / sparkle / chibi / window NPCs follow (RE §21.19(b)).
+                segtrace_ops.append({"primaryloadpin": int(rec["primaryloadpin"])})
             elif "esc" in rec:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.

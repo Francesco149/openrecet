@@ -224,9 +224,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       (spread ≤20.7)`, raw rng 336/407 bit-exact (the cs DECISION stays ALIGNED; the AMBIENT NPCs/sparkle diverge).  The sparkle
       POSITION + chibi WALK depend on the rng VALUES, which desync from the **PRE-PIN bg_npc (the cad868 PRIMARY-load
       non-determinism, (b))**; the un-pinned chibi/sparkle accumulate it.  ⇒ **#17 is DOWNSTREAM of (b), not independently fixable.**
-      **NEXT = the DETERMINISM FOUNDATION:** extend the §21.16 force-complete pattern to the cad868 PRIMARY worker (a BILATERAL
-      primary-load pin: port force-complete + retail frida-hold to the same N) so the bg_npc + rng align from frame 1 → chibi + sparkle
-      follow.  (Alt: an earlier bilateral `{bgnpcpin}` = a frame-0 SoA recapture.)  A fresh, substantial arc = a good /clear boundary.
+    - **★★★ 2026-07-01 (RE §21.20) — `{primaryloadpin}` BUILT + KEPT (determinism foundation) but the §21.19 load-duration
+      hypothesis is DISCONFIRMED; the real bg_npc root is the WARMUP LAYOUT.**  Built the bilateral cad868 primary-load pin
+      (port `worker_load_force_primary_complete` + sim drain bridge; frida main-thread Present drain; `{primaryloadpin:16}` on
+      arrprobe; 4 host tests, 3380 pass).  **Works MECHANICALLY:** retail bit-exact 1500/1500, load deterministic, **entry frames
+      align 826==826** (were 2309/3066 = a 757f CreateThread race).  **But DISCONFIRMED as the bg_npc fix** (entry-aligned probe
+      on 48ae642d): the **raw rng is BIT-IDENTICAL pre-entry** (off −600/−400/−200/0 MATCH) **yet bgx DIVERGES** (port bgx0 walks
+      1.83→18.4, retail idle −2.8).  ⇒ load-duration is COSMETIC (sim early-returns during load, no rng; the v3 join absorbs it).
+      The "+1766 rngcalls" was a MEASUREMENT ARTIFACT (retail's deferred rng-hook counts 0 pre-entry; post-entry delta CONST +3536,
+      per-frame rng MATCHES).  `flow_diff --align-field db054` mis-aligns (db054 plateaus at 81) — use the entry-aligned drill.
+      **REAL ROOT = the bg_npc WARMUP LAYOUT:** the 180× warmup (`FUN_0046f621`) builds a different initial 6-NPC layout port vs
+      retail — same warmup LOGIC, different rng STATE at the warmup (no `{phasepin}` to canonicalize to 19937).  The `{bgnpcpin}`
+      snaps only at off+1, leaving the PRE-entry window diverged = notes #23/#20/#22 (#24 downstream).  The `{phasepin}` (warmup
+      re-seed) BREAKS the skip-path wrap-up (CLAUDE.md TOOL gap), and arrprobe IS the skip path.
+      **USER 2026-07-01:** KEEP `{primaryloadpin}` (determinism foundation); **NEXT = PORT THE bg_npc WARMUP LOGIC 1:1** — find
+      why identical rng → different warmup layout (a pre-warmup rng-sync gap or a warmup-logic gap), fix the code so pre-entry bg_npc
+      match with NO snapshot pin.  (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)  A fresh, substantial arc.
     - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
       **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
       extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL

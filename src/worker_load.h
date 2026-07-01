@@ -432,4 +432,37 @@ void worker_load_spawn_eb1(int param);
  * the load is driven explicitly). */
 void worker_load_force_d3e_complete(void);
 
+/* ─── {primaryloadpin} — the cad868 PRIMARY-worker load-duration pin ──────
+ *
+ * The initial "Continue"/scene-reload load (worker_load_spawn / FUN_00452cde,
+ * the g_worker_busy primary worker) is a real CreateThread whose completion is
+ * RACY run-to-run — in turbo the main loop spins while the worker deserializes
+ * the save at wall-speed, so the load spans a VARIABLE frame count.  That leaves
+ * the rng state at scene-init (and thus the bg_npc warmup + every downstream
+ * ambient consumer: the 目玉 sparkle, the in-shop chibi walk, the window NPCs)
+ * desynced port↔retail from frame 1 (RE §21.19(b): bgx DRIFT @f1, rngcalls
+ * +1766) even though the {rngseed}-pinned haggle decision stays bit-exact.
+ *
+ * The fix mirrors {csloadpin}'s force-complete but for the PRIMARY worker: when
+ * a pin is active, DRAIN the worker to completion at a deterministic frame N so
+ * the load lasts exactly N frames on both targets (the Frida agent drains the
+ * retail primary worker to the same N — a BILATERAL pin, the {rngseed} pattern).
+ * The d3e's extend-only hold is impractical here (the primary load is thousands
+ * of frames, so a minimum-N never clamps it — RE §21.2); draining sidesteps that
+ * by waiting for the worker regardless of the natural duration.
+ *
+ * Harness-only: unpinned, primary_pin_active() is 0 so the worker is never
+ * drained and the load clears purely on the async g_worker_busy release. */
+void worker_load_set_primary_pin(int n);
+int  worker_load_primary_pin_active(void);
+/* Advance the per-load bracket counter (call once per busy frame, from the sim
+ * loading gate).  Returns 1 once N busy frames have elapsed (or when no pin is
+ * set), 0 while the bracket is still filling. */
+int  worker_load_primary_pin_elapsed(void);
+/* Spin (yielding) until the primary worker clears g_worker_busy — the whole save
+ * deserialize + scene-init rng burst is then applied before the main thread
+ * resumes.  Polls the busy FLAG, never g_worker_handle (the thread self-closes
+ * it).  No-op under the unit-test build (no thread). */
+void worker_load_force_primary_complete(void);
+
 #endif /* OPENRECET_WORKER_LOAD_H */

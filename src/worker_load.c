@@ -23,6 +23,13 @@
 static volatile int  g_worker_busy           = 0;
 static volatile int  g_worker_busy_secondary = 0;
 
+/* {primaryloadpin} bracket state (harness-only — see worker_load.h).  s_pin is
+ * the pinned bracket length (0 = unset); s_hold counts busy frames within the
+ * current primary load and resets at each worker_load_begin (the primary spawn
+ * rising edge). */
+static int  s_primary_pin  = 0;
+static int  s_primary_hold = 0;
+
 /* Engine 17-entry jump table at 0x452a27. */
 static worker_load_cb g_callbacks[WORKER_LOAD_CASE_COUNT];
 
@@ -112,6 +119,22 @@ void worker_load_begin(void)
 {
     g_worker_busy = 1;
     nowloading_set_active(1);
+    /* {primaryloadpin}: a new primary load (Continue / scene reload) starts —
+     * reset the per-load bracket counter so the pin fires N frames from HERE. */
+    s_primary_hold = 0;
+}
+
+/* ─── {primaryloadpin} pin API (harness-only) ─────────────────────────────── */
+
+void worker_load_set_primary_pin(int n) { s_primary_pin = (n > 0) ? n : 0; }
+
+int worker_load_primary_pin_active(void) { return s_primary_pin > 0; }
+
+int worker_load_primary_pin_elapsed(void)
+{
+    if (s_primary_pin <= 0) return 1;
+    if (s_primary_hold < s_primary_pin) s_primary_hold++;
+    return s_primary_hold >= s_primary_pin;
 }
 
 void worker_load_end(void)
@@ -227,6 +250,8 @@ void worker_load_reset(void)
 {
     g_worker_busy           = 0;
     g_worker_busy_secondary = 0;
+    s_primary_pin           = 0;
+    s_primary_hold          = 0;
     g_alt_callback          = 0;
     for (int i = 0; i < WORKER_LOAD_CASE_COUNT; i++) {
         g_callbacks[i] = 0;
@@ -514,6 +539,22 @@ void worker_load_force_d3e_complete(void)
         Sleep(0);
 }
 
+void worker_load_force_primary_complete(void)
+{
+    /* Spin (yielding) until the primary worker thread's cleanup clears
+     * g_worker_busy (DAT_06a49954).  The worker keeps running its save
+     * deserialize + scene-init on its own thread during the spin and sets
+     * busy=0 in primary_thread_cleanup when done, so the full rng burst is
+     * applied before we return — the main thread then resumes with a
+     * DETERMINISTIC rng/scene state.  Polls the busy FLAG, never
+     * g_worker_handle (the thread self-closes it in primary_thread_cleanup →
+     * use-after-close).  A CreateThread FAILURE already cleared busy inline
+     * (worker_load_spawn), so this can't hang on a failed spawn.
+     * Harness-only ({primaryloadpin}); never on the unpinned async path. */
+    while (g_worker_busy)
+        Sleep(0);
+}
+
 #else  /* !_WIN32 ── non-Win32 build (unit tests on Linux) ───────────── */
 
 void worker_load_close(void)
@@ -613,6 +654,12 @@ void worker_load_force_d3e_complete(void)
 {
     /* No worker thread under the unit-test build — the d3e load is driven
      * explicitly (notify_loaded / post_body), so there is nothing to await. */
+}
+
+void worker_load_force_primary_complete(void)
+{
+    /* No worker thread under the unit-test build — the primary load is driven
+     * explicitly (worker_load_begin/end), so there is nothing to await. */
 }
 
 #endif  /* _WIN32 */

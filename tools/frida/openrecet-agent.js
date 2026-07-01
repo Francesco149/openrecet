@@ -228,6 +228,12 @@ const ADDR = {
                                        // as `DAT_0438b1c0 == 1`).
     var_nowloading_gate:  0x06a49958, // i32 DAT_06a49958 — worker "still
                                        // loading" gate (primary).
+    var_worker_busy_primary: 0x06a49954, // i32 DAT_06a49954 — the PRIMARY worker
+                                       // busy flag (FUN_00452911; the sim early-
+                                       // return gate at FUN_004536cb).  Set 1 at
+                                       // the primary spawn (FUN_00452cde), cleared
+                                       // 0 by LAB_0045293d's tail when the load
+                                       // finishes.  {primaryloadpin} drains it.
     var_nowloading_gate2: 0x06a49960, // i32 DAT_06a49960 — secondary load
                                        // gate. The engine's loading-overlay
                                        // test is `(DAT_06a49958==0) &&
@@ -517,6 +523,16 @@ let g_csl_prev_b1cc = 0;            // previous tick's DAT_0438b1cc
 let g_csl_flags = null;             // CModule-shared [release, waiting]
 let g_csl_hook_installed = false;   // d3e worker-tail CModule attached
 let g_csl_cmodule = null;           // keep the CModule alive (GC = crash)
+
+// {primaryloadpin:N} — the cad868 PRIMARY-worker load-duration pin (RE §21.19(b)):
+// drain DAT_06a49954 to completion at N frames so the initial Continue-load / scene
+// reload lasts a DETERMINISTIC N frames (mirror of the port's
+// worker_load_force_primary_complete).  No CModule needed — the worker runs on its
+// own thread, so a main-thread (Present) spin waiting for busy==0 drains it.
+let g_segtrace_primaryloadpin = 0;  // active N (0 = no pin)
+let g_plp_armed = false;            // inside a pinned primary-load bracket
+let g_plp_release_frame = 0;        // frame the primary load must end on
+let g_plp_prev_busy = 0;            // previous tick's DAT_06a49954
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
@@ -968,6 +984,12 @@ function segtraceBuildSegments(ops) {
             // EXTEND-only, like {tutloadpin}; mirrors the port's csload bracket
             // so the 目玉 sparkle consumes an equal rng count on both sides.
             g_segtrace_csloadpin = (op.csloadpin | 0) > 0 ? (op.csloadpin | 0) : 0;
+        } else if (op && op.primaryloadpin !== undefined) {
+            // {primaryloadpin:N} — trace-global: drain the cad868 PRIMARY worker
+            // (DAT_06a49954) to N frames so the rng state at scene-init is
+            // deterministic on both targets (bg_npc / sparkle / chibi / window
+            // NPCs follow).  Mirrors the port's worker_load_set_primary_pin.
+            g_segtrace_primaryloadpin = (op.primaryloadpin | 0) > 0 ? (op.primaryloadpin | 0) : 0;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -1633,6 +1655,13 @@ function installPresentHook(devicePtr) {
                     csloadpinPresentRelease(fn);
                 } catch (e) {
                     err('Present.onEnter.csloadpin', e.message);
+                }
+            }
+            if (g_segtrace_primaryloadpin > 0) {
+                try {
+                    primaryloadpinPresentRelease(fn);
+                } catch (e) {
+                    err('Present.onEnter.primaryloadpin', e.message);
                 }
             }
             // D1 load-suppression (Trace Studio v2, plan Phase 1) — mirror of
@@ -3201,6 +3230,41 @@ function csloadpinPresentRelease(fn) {
     g_csl_armed = false;
 }
 
+// {primaryloadpin} arm — the primary-busy (DAT_06a49954) rising edge (the cad868
+// Continue-load / scene-reload spawn, FUN_00452cde).  Runs pre-sim from segtraceTick.
+// Re-arms on each rising edge so multiple primary loads in one trace are each pinned.
+function primaryloadpinTick(fn) {
+    const busy = rva(ADDR.var_worker_busy_primary).readS32();
+    if (!g_plp_armed && busy !== 0 && g_plp_prev_busy === 0) {
+        g_plp_armed = true;
+        g_plp_release_frame = fn - 1 + g_segtrace_primaryloadpin;
+        log('primaryloadpin: bracket armed at frame ' + fn + ' (release at ' +
+            g_plp_release_frame + ')');
+    }
+    g_plp_prev_busy = busy;
+}
+
+// {primaryloadpin} drain — at N frames past the arm, spin the main thread until the
+// primary worker clears DAT_06a49954 (the whole save-deserialize + scene-init rng
+// burst is then applied before the sim resumes → a deterministic rng state).  This
+// is the retail mirror of the port's worker_load_force_primary_complete: the worker
+// runs on its OWN thread, so blocking the main thread here just waits for it (like
+// csloadpinPresentRelease's b1cc spin).  The d3e's extend-only worker-tail block is
+// impractical for the huge primary load (RE §21.2); draining sidesteps it.
+function primaryloadpinPresentRelease(fn) {
+    if (!g_plp_armed || fn < g_plp_release_frame) return;
+    const t0 = nowMs();
+    while (rva(ADDR.var_worker_busy_primary).readS32() !== 0) {
+        if (nowMs() - t0 > 8000) {
+            err('primaryloadpin', 'drain spin timeout at frame ' + fn);
+            break;
+        }
+        Thread.sleep(0.0005);
+    }
+    log('primaryloadpin: primary load drained at frame ' + fn);
+    g_plp_armed = false;
+}
+
 function segtraceTick(fn) {
     // Trace-global tutorial-load-bracket pin — runs every pre-sim tick,
     // independent of the segment cursor (brackets arm mid-segment).
@@ -3211,6 +3275,10 @@ function segtraceTick(fn) {
     if (g_segtrace_csloadpin > 0) {
         try { csloadpinTick(fn); }
         catch (ex) { err('csloadpin', ex.message); }
+    }
+    if (g_segtrace_primaryloadpin > 0) {
+        try { primaryloadpinTick(fn); }
+        catch (ex) { err('primaryloadpin', ex.message); }
     }
     for (;;) {
         const seg = g_segtrace_segments[g_segtrace_seg];
@@ -5504,6 +5572,9 @@ rpc.exports = {
         g_segtrace_csloadpin = 0;    // re-set by a {csloadpin} op below
         g_csl_armed         = false;
         g_csl_prev_b1cc     = 0;
+        g_segtrace_primaryloadpin = 0;  // re-set by a {primaryloadpin} op below
+        g_plp_armed         = false;
+        g_plp_prev_busy     = 0;
         if (Array.isArray(config.input_segtrace) &&
             config.input_segtrace.length > 0) {
             g_segtrace_segments = segtraceBuildSegments(config.input_segtrace);

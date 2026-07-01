@@ -2,6 +2,7 @@
 # embedded save: cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78 (override via --save-override on replay; see tools/trace_save.py)
 {"savefile": "../_saves/cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78.sav.gz"}
 {"csloadpin": 24}
+{"primaryloadpin": 16}
 {"tutloadpin": 8}
 {"rngseed": [0, 3132701474]}
 {"frame": 0, "buttons": "0x0000"}

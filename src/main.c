@@ -1858,6 +1858,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         "%u frames (csloadpin)\n",
                         (unsigned)g_segtrace.csloadpin);
             }
+            /* {primaryloadpin:N} (trace-global) drains the cad868 PRIMARY worker
+             * (initial Continue-load / scene reload) to a deterministic N frames
+             * so the rng state at scene-init is bit-exact on both targets — the
+             * bg_npc / sparkle / chibi / window-NPC determinism foundation (the
+             * Frida agent drains the retail primary worker to the same N).  Set
+             * here, before the main loop, so it is active when the load spawns.
+             * See worker_load_set_primary_pin / RE §21.19(b). */
+            if (g_segtrace.has_primaryloadpin) {
+                worker_load_set_primary_pin((int)g_segtrace.primaryloadpin);
+                fprintf(stderr, "openrecet: cad868 primary load bracket pinned "
+                        "to %u frames (primaryloadpin)\n",
+                        (unsigned)g_segtrace.primaryloadpin);
+            }
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
