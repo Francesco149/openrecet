@@ -1066,6 +1066,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # to the agent's segtrace state machine, which rebases on the live anchors.
     segtrace_ops: list[dict[str, Any]] = []
     has_bgnpcpin = False   # f406 first-customer trace marker → auto-defer rng hook
+    has_bgnpcseed = False  # a {bgnpcseed} SUPERSEDES the older {bgnpcpin} SoA inject (RE §21.25)
     bgnpc_pin_soa: list[int] | None = None  # bilateral {bgnpcpin} canonical SoA → agent
     if cfg.input_segtrace_path and cfg.input_segtrace_path.exists():
         for raw in cfg.input_segtrace_path.read_text().splitlines():
@@ -1167,6 +1168,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # contact shadow (RE §21.22).  Narrower than {phasepin} — no
                 # db054/anim/b154/rmb reset, so it doesn't stall the skip-path
                 # wrap-up cutscene.  Mirrors the port's scene1_bg_npc_seed_pin.
+                has_bgnpcseed = True
                 bns = rec["bgnpcseed"]
                 if isinstance(bns, list):
                     op = {"bgnpcseed": [int(bns[0]) & 0xffffffff, int(bns[1])]}
@@ -1217,7 +1219,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # Its presence also marks the f406 first-customer trace → auto-defer the
                 # rng LCG hook so the initial Continue-load isn't stretched (RE §21.2).
                 has_bgnpcpin = True
-                if cfg.bgnpc_pin_retail:
+                # RE §21.25: when the trace ALSO carries a {bgnpcseed} (the §21.21 warmup-
+                # ORIGIN pin), that seed regenerates the canonical layout deterministically
+                # from the warmup — the older full-SoA {bgnpcpin} inject is redundant AND
+                # lands one frame late on the port (its bilateral partner fires on-frame in
+                # this agent), so the two disagree by 1 tick from the f406 entry, desyncing
+                # the shared LCG at the first bg_npc reversal.  Keep {bgnpcpin} as the marker
+                # only; drop the SoA inject so both sides ride the {bgnpcseed} drift in lockstep.
+                if cfg.bgnpc_pin_retail and not has_bgnpcseed:
                     bgnpc_pin_soa = [int(x) & 0xffffffff for x in rec["bgnpcpin"][1]]
                 continue
             elif "savefile" in rec:

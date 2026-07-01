@@ -255,13 +255,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       BOTH the snapshot (catches leave) AND the live value (catches entry).  **✅ VERIFIED** (`--target both`,
       `flow_diff --field-timeline`): **db054 `✓ aligned` [224,1722]**, both transitions freeze correctly; clean win — every
       OTHER field byte-identical before→after (no regression), raw-`rng` divergence pushed @635→@1016; 3381 host pass.
-      **★ NEXT (corrects §21.23's optimistic "should close #20/#22" — it did NOT):** the raw `rng` still diverges at **frame
-      1016, INSIDE the first customer's cs** (`cc08==4` steady, `db054=274` ALIGNED there) — a SEPARATE cs-walker /
-      customer-NPC rng root, downstream of db054.  notes #20/#22 (past 1016) ride that stream ⇒ next arc = the frame-1016
-      rng consumer, NOT another db054 pin.  **PENDING USER STUDIO CONFIRM** the db054 fix visibly tightens the early sparkle/
-      NPC sync (it fully aligns db054 [224,1722] but #20/#22 need the 1016 rng root too).  (Separately still open: apply
-      `{bgnpcseed}` to `house-firstcust-cutscene-day2` — same savefile ⇒ same naturals — needs its own verify drive.)  A
-      fresh, substantial arc closes here = a good /clear boundary.
+      **★★★ frame-1016 rng — RESOLVED 2026-07-01 (RE §21.25); NOT a cs-walker root — the bg_npc `{bgnpcpin}` inject lands 1f
+      LATE, superseded by `{bgnpcseed}`.**  The shop-WINDOW bg_npc townsfolk (`FUN_0046f621`) run EVERY frame in the player-ctrl
+      PROLOGUE (incl. cc08==4); their bound-cross reversals draw the shared LCG (not in `npcdr`).  `bgdump`: ALL 6 bg_npc x JUMP
+      at frame 826 (retail) / 827 (port) = the port's bg_npc runs **1 tick behind** from the cc08==4 entry — the BILATERAL
+      `{bgnpcpin}` full-SoA inject (trace line 84) lands 1f late on the port (retail's frida is on-frame).  Positions drift
+      1f-apart harmlessly (no rng) until the first **reversal @1016** draws the LCG a frame apart ⇒ the @1016 desync (notes
+      #20/#22 ride it).  **The inject is redundant:** `{bgnpcseed}` (§21.21) already regenerates the canonical layout from the
+      warmup + aligns [224,825]; rng bit-identical thru 1015 ⇒ NO real entry event, the skewed inject is the SOLE cause.
+      **FIX (2 files): skip the `{bgnpcpin}` SoA inject when the trace ALSO has a `{bgnpcseed}`** — port (`main.c` gate cb on
+      `!has_bgnpcseed`) + retail (`frida_capture.py` gate `bgnpc_pin_soa`); keep the f406 MARKER (wrap-up-skip/rng-hook-defer).
+      Both skip in lockstep ⇒ ride the `{bgnpcseed}` drift.  **✅ VERIFIED** (`--target both` @195002Z): bg_npc bit-identical
+      825→831+ (NO jump), **raw rng `==` EVERY frame past 1016 (cumΔ=0)**, `cs_walker_drill` 1/900 (was 38/1100; residual = the
+      benign off-0 entry-boundary artifact) + 0/900 gsim%8, offer 119 / variant 1 / poseR bit-identical, 3381 host pass.
+      Blast radius = arrprobe ONLY (day2 has no `{bgnpcseed}` ⇒ keeps its inject, no regression).  **PENDING USER STUDIO
+      CONFIRM** notes #20 (customer walk) / #22 (sparkle) now track retail.  **★ NEXT:** apply `{bgnpcseed}` to
+      `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals; its own verify drive — and it'll then auto-skip its own
+      `{bgnpcpin}` inject via this fix).  A fresh, substantial arc closes here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →

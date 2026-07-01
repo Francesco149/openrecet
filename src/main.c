@@ -1920,8 +1920,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             input_segtrace_set_gsimpin_cb(&g_segtrace, segtrace_gsimpin_cb, NULL);
             /* {bgnpcpin:[F,[...]]} ops pin the bg-NPC SoA to retail's captured
              * natural layout (the rng-consumer-survey foundation) — see
-             * segtrace_bgnpcpin_cb / RE §21.1. */
-            input_segtrace_set_bgnpcpin_cb(&g_segtrace, segtrace_bgnpcpin_cb, NULL);
+             * segtrace_bgnpcpin_cb / RE §21.1.  BUT when the trace ALSO carries a
+             * {bgnpcseed} (the §21.21 warmup-ORIGIN pin), that seed regenerates the
+             * canonical layout deterministically from the 180x warmup, so the older
+             * full-SoA inject is redundant — and it lands one frame LATE here (its
+             * bilateral partner fires on-frame in the retail agent), desyncing the
+             * shared LCG at the first bg_npc reversal (the frame-1016 rng divergence,
+             * RE §21.25).  Keep {bgnpcpin} as the f406 marker (the wrap-up-skip arm
+             * above still reads it); skip the SoA inject so both sides ride the
+             * {bgnpcseed} drift in lockstep. */
+            if (!g_segtrace.has_bgnpcseed)
+                input_segtrace_set_bgnpcpin_cb(&g_segtrace, segtrace_bgnpcpin_cb,
+                                               NULL);
+            else
+                fprintf(stderr, "openrecet: {bgnpcpin} SoA inject SKIPPED "
+                        "(superseded by {bgnpcseed}; marker only, RE §21.25)\n");
             /* {phasepin:N} ops normalize the companion's load-dependent free-roam
              * phase for clean trace comparison — see segtrace_phasepin_cb. */
             input_segtrace_set_phasepin_cb(&g_segtrace, segtrace_phasepin_cb, NULL);

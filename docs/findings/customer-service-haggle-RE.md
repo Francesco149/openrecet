@@ -3159,3 +3159,38 @@ the mode that gates db054's freeze and goes dark on 0x48670f past the arm switch
 faithful mid-frame-flip test must drive the full cs machine + player controller + companion THROUGH the default arm (the
 flip is only produced by the master tick inside the cc08==4 arm); that spans three subsystems with fragile shared-state
 teardown, so — like the `cc04_at_dispatch` precedent it mirrors — the fix is **scenario-verified**, not unit-tested.
+
+## 21.25 2026-07-01 — RESOLVED: the frame-1016 rng divergence = the `{bgnpcpin}` SoA inject lands 1f LATE (superseded by `{bgnpcseed}`; skip it)
+
+**The §21.24 "next arc" (raw rng @1016) was NOT a cs-walker root — it's the shop-WINDOW bg_npc townsfolk.**  `scene1_bg_npc_tick`
+(FUN_0046f621) runs EVERY frame in the player-ctrl PROLOGUE (scene1_player_ctrl.c:2306, BEFORE the cc08 dispatch), so it ticks
+THROUGH cc08==4 too — only the free-roam WALK arm is cc08==1-gated.  Its bound-cross **reversals/respawns draw the shared LCG**
+(not counted in `npcdr`, which is the cs-walker pump only).
+
+**Drill (`--target both` @191405Z, `rngdump`/`bgdump`/`cs_walker_drill`):** rng bit-identical through frame **1015**; at 1016 retail
+draws 5 / port 1 (cumΔ −4), then port 6 / retail 1 (a phase-shuffle).  `npcfr`/`npcsp`/`gsim%8` all ALIGNED (spawn cadence + sparkle
+fine); `npcdr`=0 both (NOT the walker).  Root pinpointed via `bgdump`: **ALL 6 bg_npc x-positions JUMP simultaneously at frame 826
+on retail, at 827 on the port** — `Port_bgx[N] == Retail_bgx[N−1]` exactly = the port's bg_npc runs **one tick behind** retail,
+onset **at the cc08==4 f406 entry (826)**.  Both tick bg_npc once/frame (counted 0x46f621/0x46f2a3 — not a tick-skew).  The jump is
+the **BILATERAL `{bgnpcpin}` full-SoA inject** (trace line 84, `{bgnpcpin:[0,SoA]}`): retail's frida writes it on-frame (826), the
+port's segtrace `scene1_bg_npc_pin` cb lands it 1f late (827).  Positions then drift 1f-apart HARMLESSLY (no rng) until the first
+bg_npc **reversal at 1016** draws the LCG one frame apart → the streams desync (notes #20/#22 ride the desynced stream).
+
+**Why 1f late = the fix direction: `{bgnpcpin}` (a93413a, 2026-06-27, §21.4-era) is SUPERSEDED by `{bgnpcseed}` (d0ccaf6, §21.21).**
+The bgnpcseed pins the warmup ORIGIN (seed+cursor+dead-slots) and REGENERATES the canonical layout deterministically from the 180×
+warmup — it already aligns bg_npc bit-exact [224,825] (§21.22) with NO per-frame inject.  The proof the inject is redundant: **rng is
+bit-identical through 1015 ⇒ NO divergent bg_npc event happens at the entry** — the only thing putting the sides out of phase is the
+1f-skewed inject itself.  So the full-SoA re-inject at 826 is not just redundant, it's the SOLE source of the skew.
+
+**FIX (RE §21.25, 2 files): skip the `{bgnpcpin}` SoA inject when the trace ALSO carries a `{bgnpcseed}`; keep it as the f406
+MARKER (wrap-up-skip arm + rng-hook defer).**  Port (`main.c`): gate `input_segtrace_set_bgnpcpin_cb` on `!g_segtrace.has_bgnpcseed`
+(fire_bgnpcpins is NULL-cb-safe ⇒ no inject; `input_segtrace_has_bgnpcpin` marker unchanged).  Retail (`frida_capture.py`): a new
+`has_bgnpcseed` flag gates `bgnpc_pin_soa` forwarding (`bgnpc_pin_soa=None` ⇒ agent `g_bgnpc_pin_soa=null` ⇒ no inject; `has_bgnpcpin`
+marker for the rng-hook defer unchanged).  **Both sides skip in lockstep** ⇒ both ride the `{bgnpcseed}` drift.  Blast radius: ONLY
+arrprobe (has both); **day2 has `{bgnpcpin}` but NO `{bgnpcseed}` ⇒ keeps its inject, no regression.**
+
+**✅ VERIFIED (`--target both` @195002Z, fixed):** port stderr `{bgnpcpin} SoA inject SKIPPED (…marker only)`; **bg_npc bit-identical
+both sides 825→831+ (NO jump — natural drift lockstep)**; **raw rng `==` at EVERY frame past 1016 (cumΔ=0)**; `cs_walker_drill`
+**1/900** (was 38/1100 — the lone residual is the benign off-0 entry-boundary rebasing artifact: retail's rngcalls counter starts at 0
+at the entry) + **0/900 gsim%8**; **offer b574=119 / variant b5e0=1 / poseR bit-identical port==retail** (unchanged); 3381 host pass.
+**PENDING USER STUDIO CONFIRM** notes #20 (customer walk path) / #22 (sparkle position) now visibly track retail.
