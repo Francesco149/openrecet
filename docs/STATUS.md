@@ -212,19 +212,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       VERIFIED:** CONV_POSE_END **−1→+0**; EVERY anchor in win-0-1500 **+0** (frame-perfect); offer 119 + decision fields
       bit-exact; post-pin bgx0 BIT-IDENTICAL; +host test; 3376 host pass.  **PENDING USER STUDIO CONFIRM** (the wrap-up→customer
       transition pose-end).
-    - **★★★ #17 gsim/sparkle freeze ✅ FIXED 2026-07-01 (RE §21.19) — the §21.18 "sim short-circuit" hypothesis was WRONG; it
-      was the STALE `{gsimpin}` over-correcting.**  Probe-debunked: `sim_step_a`'s only early-return gates on the PRIMARY
-      `worker_load_busy()` (`g_worker_busy`), but the cc08 d3e load is the SECONDARY worker (`g_worker_busy_secondary`) — which
-      does NOT gate it; `session_init` spawns only `worker_load_spawn_d3e` (secondary), no primary spawn fires at the entry ⇒ NO
-      short-circuit, gsim++ DOES run.  **Real root:** the `{gsimpin:[0,810]}` rides CONV_POSE_END; its value (810) was calibrated
-      for the PRE-§21.18 CONV_POSE_END (= the f406-ENTRY frame, drill off0, gsim 810).  §21.18 correctly moved CONV_POSE_END +1
-      (off1, gsim 811) ⇒ the pin now fires 1f late, forcing gsim 1 BEHIND retail.  A mid-game save-load has NO gsim origin offset
-      (both count from the cad868 load), so the pin was always redundant — a no-op at off0 that §21.18 exposed.  **FIX (trace/tool,
-      NO port-code change):** removed `{gsimpin}` from `house-firstcust-arrprobe` + `house-firstcust-cutscene-day2` (breadcrumb `#`
-      comment; do NOT re-add).  **✅ VERIFIED** (no-gsimpin port drive vs the d00f5a90 retail cache, `cs_walker_drill --span 200`):
-      port gsim **BIT-IDENTICAL** to retail — **0/200 gsim%8** (was 199/200), the 25-draw rng burst realigns ⇒ **3/200 rngΔ** (was
-      53/200).  Residual 3/200 = the chibi `npcn` active-slot off-by-one = pre-existing `PORT-DEBT(cs-walker-rng-phase)`, separate.
-      **PENDING USER STUDIO CONFIRM** (the 目玉 sparkle timing, win-0-1500).
+    - **★★★ #17 sparkle + chibi walk + pre-pin NPCs = ONE root: the pre-pin rng-VALUE foundation (the (b) item). USER-DISCONFIRMED
+      2026-07-01 (RE §21.19) — the gsimpin removal aligned the GATE, not the VISIBLE parity.**  Two-part story: (1) the `{gsimpin}`
+      WAS stale (the §21.18 "sim short-circuit" was DEBUNKED: `sim_step_a`'s only early-return gates on the PRIMARY `worker_load_busy`,
+      but the cc08 d3e load is the SECONDARY worker; no primary spawns at the entry ⇒ gsim++ runs).  The pin value (810) was calibrated
+      for the PRE-§21.18 CONV_POSE_END (off0); §21.18 moved it +1 ⇒ the pin fired 1f late, forcing gsim 1 BEHIND.  REMOVED it
+      (`9e1db6f`, arrprobe + day2, breadcrumb; do NOT re-add) ⇒ gsim%8 **0/200** (was 199/200), rngΔ 53→3.  **This cleanup STAYS — but
+      it is NOT the #17 fix.**  (2) **The user re-drove (361eb3ce) + re-flagged: the VISIBLE sparkle STILL diverges** (note #24 — the
+      目玉 sparkles at DIFFERENT positions), the chibi walks a DIFFERENT PATH (#20 lower-left vs retail centre; #22), the window NPCs
+      diverge (#23).  `flow_diff --verdict`: the rng VALUES are NOT bit-exact — `rngcalls DESYNC +1766`, `bgx0..5 DRIFT from frame 1
+      (spread ≤20.7)`, raw rng 336/407 bit-exact (the cs DECISION stays ALIGNED; the AMBIENT NPCs/sparkle diverge).  The sparkle
+      POSITION + chibi WALK depend on the rng VALUES, which desync from the **PRE-PIN bg_npc (the cad868 PRIMARY-load
+      non-determinism, (b))**; the un-pinned chibi/sparkle accumulate it.  ⇒ **#17 is DOWNSTREAM of (b), not independently fixable.**
+      **NEXT = the DETERMINISM FOUNDATION:** extend the §21.16 force-complete pattern to the cad868 PRIMARY worker (a BILATERAL
+      primary-load pin: port force-complete + retail frida-hold to the same N) so the bg_npc + rng align from frame 1 → chibi + sparkle
+      follow.  (Alt: an earlier bilateral `{bgnpcpin}` = a frame-0 SoA recapture.)  A fresh, substantial arc = a good /clear boundary.
     - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
       **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
       extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL

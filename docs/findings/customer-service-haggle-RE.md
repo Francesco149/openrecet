@@ -2871,7 +2871,7 @@ only the d3e SECONDARY worker (no primary), and no primary-worker spawn (0x452cd
 `worker_load_busy()`-style short-circuit source needs a fresh probe.  = the NEXT chip (#17 gsim-origin phase, now localized to the
 f406-entry off-523 sim short-circuit).
 
-## 21.19 ★★★ FIXED 2026-07-01 — #17 was NOT a sim short-circuit; it was the STALE {gsimpin} over-correcting after §21.18 moved CONV_POSE_END +1
+## 21.19 2026-07-01 — the {gsimpin} was STALE (removed, a correct cleanup); but #17's VISIBLE sparkle is downstream of the rng-value foundation, NOT this pin (USER DISCONFIRMED)
 **The §21.18 "sim short-circuit" hypothesis is DEBUNKED (probe + code, per the porting loop — not a guess):**
 - **No primary worker at the f406 entry.**  `sim_step_a`'s ONLY early-return (the one that skips `g_sim_frame_count++`, sim.c:275)
   gates on `worker_load_busy()` = the PRIMARY flag `g_worker_busy` (DAT_06a49954).  The cc08 d3e load is the SECONDARY worker
@@ -2898,4 +2898,21 @@ f406-entry off-523 sim short-circuit).
 confirmed correct (naturally == retail).
 **Residual (3/200 rngΔ, DOWN from 53):** the in-shop chibi `npcn` (active-NPC slot count) reads 1 where retail reads 0 around off≥190 =
 the pre-existing `PORT-DEBT(cs-walker-rng-phase)` (the walk-cadence velocity-input phase, RE #14 residual (2)), SEPARATE from #17 and
-untouched here.  **PENDING USER STUDIO CONFIRM** (the 目玉 sparkle timing in win-0-1500).
+untouched here.
+**★ USER DISCONFIRMED 2026-07-01 (studio re-drive 361eb3ce) — the gsimpin removal is a CORRECT cleanup, but it does NOT deliver the
+VISIBLE #17 parity, and the aligning gsim%8 GATE was necessary-not-sufficient.**  The user re-flagged the fresh drive (rendered
+port|retail|diff): note **#24** (sparkles diverge, PAUSE_OPEN#1+66) — the 目玉 sparkles fire at DIFFERENT POSITIONS port↔retail;
+**#20/#22** (customer walk phase) — the chibi is at a DIFFERENT POSITION (not just a pose-cycle phase; #20 shows it lower-left vs
+retail's centre); **#23** (npcs diverge, HOUSE_FREEROAM#1+53) — the pre-pin window NPCs.  **Root (`flow_diff --verdict` on 361eb3ce):
+the rng VALUES are NOT bit-exact** — `rngcalls DESYNC +1766 net, first @frame 3`; `bgx0..5 DRIFT from frame 1 (spread up to 20.7)`;
+raw rng state only **336/407** frames bit-exact (npcfr/npcsp/poseL/poseR/b53c/b1cc + the cs decision stay ALIGNED bit-exact — the
+divergence is the AMBIENT NPCs/sparkle, not the haggle).  The sparkle POSITION (3 rng draws for the cell) + the chibi WALK depend on
+the rng VALUES, which desync from the **PRE-PIN bg_npc = the cad868 PRIMARY-load non-determinism (the (b) item)**, and the un-pinned
+chibi/sparkle ACCUMULATE the drift (only bg_npc is bilaterally pinned, at the LATE f406 entry).  ⇒ **#17 (sparkle) + the chibi walk
+(#20/#22) + the pre-pin NPCs (#23) are ALL ONE root: the pre-pin rng-value foundation.**  The stale-gsimpin removal STAYS (correct — it
+aligns the gate, rngΔ 53→3), but #17 is **REFRAMED as downstream of (b), NOT independently fixed**.
+**NEXT = the DETERMINISM FOUNDATION:** extend the §21.16 force-complete pattern (which fixed the d3e SECONDARY load) to the cad868
+PRIMARY worker — a BILATERAL primary-load pin (port force-complete + retail frida-hold to the same N) so the bg_npc gets a
+deterministic frame-count and the rng stream is bit-exact FROM FRAME 1; the chibi + sparkle then follow.  (Alt: an earlier bilateral
+`{bgnpcpin}` at the load, needs a frame-0 SoA recapture.)  This is the (b) arc — a fresh, substantial effort (frida-side primary-load
+hold + port force-complete), a good /clear boundary.
