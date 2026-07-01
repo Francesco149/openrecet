@@ -237,9 +237,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       retail — same warmup LOGIC, different rng STATE at the warmup (no `{phasepin}` to canonicalize to 19937).  The `{bgnpcpin}`
       snaps only at off+1, leaving the PRE-entry window diverged = notes #23/#20/#22 (#24 downstream).  The `{phasepin}` (warmup
       re-seed) BREAKS the skip-path wrap-up (CLAUDE.md TOOL gap), and arrprobe IS the skip path.
-      **USER 2026-07-01:** KEEP `{primaryloadpin}` (determinism foundation); **NEXT = PORT THE bg_npc WARMUP LOGIC 1:1** — find
-      why identical rng → different warmup layout (a pre-warmup rng-sync gap or a warmup-logic gap), fix the code so pre-entry bg_npc
-      match with NO snapshot pin.  (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)  A fresh, substantial arc.
+      **USER 2026-07-01:** KEEP `{primaryloadpin}` (determinism foundation); **NEXT = PORT THE bg_npc WARMUP LOGIC 1:1.**
+      **★ Sharp lead (from `scene1_bg_npc.c` comments + the rngseed timing):** the warmup `FUN_0046f621` (180×) SEEDS the initial
+      6-NPC layout off the LCG state AT the warmup, and per the code it "seeded off a **DIFFERENT LCG ORIGIN (the intro skip)**" —
+      the port skips the intro retail plays, so the LCG state at the warmup differs ⇒ different layout ⇒ boundary-respawns (4-5 draws
+      each) cross on different frames ⇒ the shared stream drifts.  The warmup LOGIC is noted **bit-faithful**; the gap is the ORIGIN
+      (a phase/rng-origin divergence, `findings/scene1-rng-stream-parity.md`).  `{phasepin}` normalizes it (re-seed 19937 at the
+      warmup boundary) but breaks the skip-path wrap-up; `{bgnpcpin}` snaps only at off+1.  **NEXT STEPS:** (1) the arrprobe
+      `{rngseed:[0,912526909]}` fires at **LOADING_END** — does it fire BEFORE or AFTER the warmup?  If after, the warmup uses the
+      un-synced (intro-skip) origin ⇒ a `{rngseed}` (or phase-advance) at the EXACT warmup boundary — without `{phasepin}`'s
+      wrap-up-breaking warmup RE-ARM — should sync the layout.  (2) Verify the warmup LOGIC is actually 1:1 via a phasepin scenario
+      that HAS no wrap-up (e.g. house-loaded-display-pinned — do its bg_npc go bit-exact post-phasepin?); if yes, arrprobe's gap is
+      PURELY the origin (not logic).  (3) Fix the code/pin so pre-entry bg_npc match with NO snapshot.  Refs:
+      `findings/scene1-bg-npc.md`, `findings/scene1-rng-stream-parity.md`, RE §21.20/§21.1/§21.2.
+      (`{primaryloadpin}` on cutscene-day2 still TODO — needs a verify drive.)  A fresh, substantial arc = a good /clear boundary.
     - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
       **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
       extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL
