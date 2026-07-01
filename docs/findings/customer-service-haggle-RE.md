@@ -2870,3 +2870,32 @@ ACCIDENTALLY MASKED: **the port short-circuits `sim_step_a` (returns before `g_s
 only the d3e SECONDARY worker (no primary), and no primary-worker spawn (0x452cde) is captured at the f406 entry — so the off-523
 `worker_load_busy()`-style short-circuit source needs a fresh probe.  = the NEXT chip (#17 gsim-origin phase, now localized to the
 f406-entry off-523 sim short-circuit).
+
+## 21.19 ★★★ FIXED 2026-07-01 — #17 was NOT a sim short-circuit; it was the STALE {gsimpin} over-correcting after §21.18 moved CONV_POSE_END +1
+**The §21.18 "sim short-circuit" hypothesis is DEBUNKED (probe + code, per the porting loop — not a guess):**
+- **No primary worker at the f406 entry.**  `sim_step_a`'s ONLY early-return (the one that skips `g_sim_frame_count++`, sim.c:275)
+  gates on `worker_load_busy()` = the PRIMARY flag `g_worker_busy` (DAT_06a49954).  The cc08 d3e load is the SECONDARY worker
+  (`g_worker_busy_secondary`, DAT_06a4995c) — it does NOT gate that early-return.  `session_init` (FUN_0045edaa) spawns ONLY
+  `worker_load_spawn_d3e(0)` (secondary); no primary `worker_load_spawn` (0x452cde) fires at the entry (all 6 primary spawn sites
+  grep-verified: worldmap-exit / pause case-9 / title — none in the cc08 path).  ⇒ `worker_load_busy()`==0 through the entry ⇒ NO
+  short-circuit ⇒ gsim++ DOES run on the entry frame.  The "freeze" was never a sim skip.
+- **The real cause = the `{gsimpin:[0,810]}` riding the CONV_POSE_END anchor.**  The pin fires at **input-poll (pre-sim)**
+  (`segtrace_input_poll` → `input_segtrace_tick` → `fire_gsimpins`), so it OVERWRITES `g_sim_frame_count` before that frame's 0x48670f
+  probe reads it.  cs_walker_drill on the COMMITTED (pinned) port: off0 (the f406 entry, cc08==4 b51c==0) port==retail==810 NATURALLY
+  (the pin has not fired — it rides CONV_POSE_END = off1, the frame AFTER the entry per §21.18); at off1 the pin forces port **810**
+  while retail is **811** ⇒ port 1 BEHIND from off1 on.  The pin VALUE (810) was calibrated when CONV_POSE_END sat at the f406-ENTRY
+  frame (drill off0, gsim 810 — the PRE-§21.18 CONV_POSE_END−1 position).  §21.18 correctly moved CONV_POSE_END +1 (to off1, gsim 811),
+  so the pin now fires 1f late with a now-stale value = over-correct −1.  The §21.16/17 "0/200 gsim%8" was the pin AT off0 matching the
+  natural value (a no-op that LOOKED like it pinned); §21.18 exposed it was never correcting a real offset.
+- **Proof (no-gsimpin port drive vs the d00f5a90 retail cache, `cs_walker_drill --span 200`):** removing the pin ⇒ port gsim
+  **BIT-IDENTICAL to retail** — **0/200 gsim%8** diverge (was 199/200), and the per-frame 25-draw rng burst realigns to the SAME
+  offset both sides ⇒ **3/200 rngΔ** (was 53/200).  A mid-game save-load has **NO gsim origin offset** — the port doesn't skip an intro
+  here; both sides count `g_sim_frame_count` from the cad868 scene load, and the loads are `{csloadpin}`/`{tutloadpin}`-deterministic —
+  so the gsimpin's stated premise ("the g_sim origin differs port↔retail, the port skips the intro") is FALSE for this trace; the pin
+  was always redundant.
+**FIX (TRACE/TOOL, no port-code change):** removed `{gsimpin:[0,810]}` from `house-firstcust-arrprobe` + `house-firstcust-cutscene-day2`
+(replaced with a `#`-comment breadcrumb: do NOT re-add — #17 is a NO-PIN natural match).  The port's `g_sim_frame_count` LOGIC is
+confirmed correct (naturally == retail).
+**Residual (3/200 rngΔ, DOWN from 53):** the in-shop chibi `npcn` (active-NPC slot count) reads 1 where retail reads 0 around off≥190 =
+the pre-existing `PORT-DEBT(cs-walker-rng-phase)` (the walk-cadence velocity-input phase, RE #14 residual (2)), SEPARATE from #17 and
+untouched here.  **PENDING USER STUDIO CONFIRM** (the 目玉 sparkle timing in win-0-1500).

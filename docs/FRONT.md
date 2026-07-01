@@ -193,13 +193,19 @@
       VERIFIED:** CONV_POSE_END **−1→+0**; EVERY anchor in win-0-1500 **+0** (frame-perfect); offer 119 + decision fields
       bit-exact; post-pin bgx0 BIT-IDENTICAL; +host test; 3376 host pass.  **PENDING USER STUDIO CONFIRM** (the wrap-up→customer
       transition pose-end).
-    - **★ NEXT chip = #17 gsim/sparkle freeze (UNMASKED by the (a) fix — RE §21.18 tail).**  With CONV_POSE_END now at the RIGHT
-      frame (522), the `{gsimpin}` (PORT-ONLY) lands at 522 like retail and EXPOSES a pre-existing bug the old CONV_POSE_END−1
-      pin accidentally MASKED: **the port short-circuits `sim_step_a` (skips `g_sim_frame_count++`) for 1 frame at off 523
-      (gsim freezes 810→810) while retail increments (810→811)** ⇒ gsim runs 1 BEHIND ⇒ gsim%8 sparkle mis-fires (the §21.16/17
-      "0/200 gsim%8" was the early pin canceling it).  Root TBD — `session_init` spawns only the d3e SECONDARY (no primary
-      worker at the f406 entry); the off-523 short-circuit source needs a fresh probe (a worker_load_busy / scene-state probe
-      around the f406 entry).
+    - **★★★ #17 gsim/sparkle freeze ✅ FIXED 2026-07-01 (RE §21.19) — the §21.18 "sim short-circuit" hypothesis was WRONG; it
+      was the STALE `{gsimpin}` over-correcting.**  Probe-debunked: `sim_step_a`'s only early-return gates on the PRIMARY
+      `worker_load_busy()` (`g_worker_busy`), but the cc08 d3e load is the SECONDARY worker (`g_worker_busy_secondary`) — which
+      does NOT gate it; `session_init` spawns only `worker_load_spawn_d3e` (secondary), no primary spawn fires at the entry ⇒ NO
+      short-circuit, gsim++ DOES run.  **Real root:** the `{gsimpin:[0,810]}` rides CONV_POSE_END; its value (810) was calibrated
+      for the PRE-§21.18 CONV_POSE_END (= the f406-ENTRY frame, drill off0, gsim 810).  §21.18 correctly moved CONV_POSE_END +1
+      (off1, gsim 811) ⇒ the pin now fires 1f late, forcing gsim 1 BEHIND retail.  A mid-game save-load has NO gsim origin offset
+      (both count from the cad868 load), so the pin was always redundant — a no-op at off0 that §21.18 exposed.  **FIX (trace/tool,
+      NO port-code change):** removed `{gsimpin}` from `house-firstcust-arrprobe` + `house-firstcust-cutscene-day2` (breadcrumb `#`
+      comment; do NOT re-add).  **✅ VERIFIED** (no-gsimpin port drive vs the d00f5a90 retail cache, `cs_walker_drill --span 200`):
+      port gsim **BIT-IDENTICAL** to retail — **0/200 gsim%8** (was 199/200), the 25-draw rng burst realigns ⇒ **3/200 rngΔ** (was
+      53/200).  Residual 3/200 = the chibi `npcn` active-slot off-by-one = pre-existing `PORT-DEBT(cs-walker-rng-phase)`, separate.
+      **PENDING USER STUDIO CONFIRM** (the 目玉 sparkle timing, win-0-1500).
     - **★ (b) the PRE-pin cutscene bg_npc** (off<521, e.g. CONV_POSE_BLINK#2 = note #11's original spot) still diverges = the
       **cad868 PRIMARY-load non-determinism** (a racy CreateThread like the d3e — the §21.16 force-complete pattern could
       extend to the primary worker), OR an earlier bilateral `{bgnpcpin}`.  (NB the POST-pin window bg_npc is now BIT-IDENTICAL
