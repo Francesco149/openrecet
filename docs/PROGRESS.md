@@ -7,6 +7,95 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-01 — first-customer trace rng/NPC/db054 FULLY ALIGNED — USER-CONFIRMED ("npcs aligned, customer aligned")
+
+The 2026-07-01 FRONT cleanup condensed the 06-19→07-01 arcs into the entries below; full
+narrative: `archive/FRONT-2026-07-01-full.md`, RE §21.x in `findings/customer-service-haggle-RE.md`,
+verdicts in `findings/confirmed-parity-ledger.md`.
+
+- **§21.21/§21.22 `{bgnpcseed}`** — bilateral bg_npc warmup-ORIGIN pin (LCG seed 3502407629 + spawn
+  cursor 1 + the dead-slot raw record, consumer-latched inside `scene1_bg_npc_tick()`); dead-slot
+  SHADOW fix (shadow pass checks only `visible==-1`, drew the leftover x/y/z).  bgx0..5 bit-exact
+  retail [224,825]; stray contact shadow gone (note #25).
+- **§21.23/§21.24 db054 +1** — diag probe pinpointed frame 632; arm-selector hypothesis REFUTED.
+  Root: db054 rides the `FUN_0048b850` move tail; retail's `FUN_0048670f` if/else on FRAME-START cc08
+  skips it on BOTH cc08==4 edge frames; the port re-read the LIVE cc08.  Fix: `cc08_at_dispatch`
+  snapshot + gate on snapshot AND live (`scene1_sim.c`).  db054 aligned [224,1722].
+- **§21.25 frame-1016 rng** — the `{bgnpcpin}` SoA inject lands 1f late on the port; redundant under
+  `{bgnpcseed}` ⇒ both sides skip the inject when both pins present (`main.c` + `frida_capture.py`);
+  raw rng cumΔ=0 past 1016; offer 119 / variant 1 bit-identical.
+- **§21.18 CONV_POSE_END −1** — hold the conv-pose STATE 1f at the f406 entry
+  (`player_ctrl_cc08_f406_pending`), `_posing()` untouched ⇒ every win-0-1500 anchor +0.
+- **§21.19 `{gsimpin}` REMOVED** (`9e1db6f`, stale post-§21.18 calibration forced gsim 1 behind;
+  do NOT re-add) ⇒ gsim%8 0/200.
+
+Remaining (→ FRONT): the anim SEED-ORIGIN phase class (tear wing-flap cframe + customer walk-cycle).
+
+## 2026-06-30 — free-roam region frame-aligned +0 (racy d3e load + D_TUT_DONE settle); chibi FACING ported
+
+- **§21.16** (`2bae088`): the cc08 d3e CreateThread completion is RACY (28f vs retail's 24f);
+  `{csloadpin}` was min-only ⇒ now forces worker completion at frame N (spin on the completion FLAG)
+  ⇒ deterministic 24f; the whole pre-wrap-up region (arrival→tutorial→offer decision) +0.
+- **§21.17** (`b95b498`): the ESC-skip teardown bypassed the 1-frame D_TUT_DONE settle the natural
+  completion includes ⇒ whole region 1f ahead.  Skip → D_TUT_DONE.  HOUSE_FREEROAM +0; bg_npc window
+  positions bit-identical.
+- **Chibi FACING**: both engine recomputes (idle `FUN_0046fbee` FACE_DIR cardinal; velocity
+  `FUN_0047019f` atan2 tail — both x87 octant conversions Ghidra-DROPPED, objdump-recovered) reuse
+  `player_ctrl_facing_octant`.  Notes #13/#15/#16 diff BLACK; USER-CONFIRMED.
+
+## 2026-06-27/28 — cc08==4 arrival + offer + hand cursor + the determinism foundation (RE §21.10–§21.15)
+
+- **§21.10.1** (`a93413a`): master tick gated on frame-start `b1cc_pre`; arrival/ground_y/anim
+  UNGATED ⇒ arrival bit-identical THROUGH the d3e load (retail's background load doesn't raise the
+  load screen); first −1 drift + studio note #1 were one root.
+- **§21.10.2** (`dd98991`): companion ctrl inert during the cc08==4 load (idle anim only), walk-in
+  after b1cc clears — canim/cx/octant bit-identical.  Arrival region USER-CONFIRMED "nicely synced".
+- **§21.11.3 the OFFER**: the port cleared the ESC-skip b150 INLINE at b534 1→2; retail clears it
+  the frame AFTER ⇒ PAUSE_CLOSE + the L90 `{rngseed}` re-pin 1f early ⇒ offer 120.  Deferred the
+  clear 1f ⇒ offer 119 / poseR 3 == retail, 699 offsets zero rngΔ.  USER-CONFIRMED.
+- **§21.12** (`9f6c19e`): the haggle-prompt HAND CURSOR (`FUN_00435747`) at the house-aggregator
+  tail + 8 driver sites (scripted/poll/live).  USER-CONFIRMED.
+- **§21.13/§21.14 determinism**: the reaction-variant "divergence" was a config-mismatch artifact
+  (stale L90-DROPPED retail cache); TWO fresh retail drives = 700/700 rng values bit-identical ⇒
+  retail IS run-to-run deterministic and the port matches a FRESH retail bit-for-bit (offer 119,
+  variant 1 "Capitalism, ho!").
+- **§21.15** (`67c8564`/`98cbf08`/`46f837b`): BARGAIN-banner fade + skip-event box + `{tutloadpin:8}`
+  (the iv1_7 D_TUT load bracket; standee position #8 + load-end fade #9).  **#12** (`9380a92`):
+  choice-box alpha ramp `(cb_active/4)·255`.  **#7/#19 root-caused**: the engine double-renders the
+  whole frame (focus/blur RT composite) — port blocked on a v3 RT-capture extension (→ FRONT).
+- **WALL-CLOCK pin REFUTED** (time-source sweep; QPC feeds only frame-pacing) — settled verdict.
+
+## 2026-06-23–25 — determinism pillars: `{csloadpin}`, the RE §21 survey foundation, wrap-up softlock
+
+- `{csloadpin}` load-bracket pin (`4eeb88a`/`9b92b0a`, RE §20) + the v3-harness re-arm RACE fix
+  (`9c455f3`, §20.1 — the "offer 117" artifact).
+- RE §21.2–§21.5 (`b2ba55f`/`2207c1a`/`d9abe4e`): `{gsimpin}` + the `{bgnpcpin}` full-SoA pin landed,
+  rng-drill unblocked, off-30-34 cluster analyzed; §21.2 first wall-clock refutation.
+- **§21.6**: the wrap-up "softlock" = a driver ESC-spam artifact, not a port bug.
+
+## 2026-06-21/22 — post-tutorial flow P1/P2 + live-haggle fixes (RE §11–§20)
+
+- **P1** (`e42921a`, RE §11): the "port 3 rounds vs retail 5" misdiagnosis = 3 scripted + 2 LIVE
+  practice rounds; the multi-round nav gap closed.
+- **P2** (RE §12.1): the post-sale wrap-up dialogue iv1_7 ported; USER-CONFIRMED.
+- **§17** (`3d8f6ce`): post-fade camera = the missing f406 cc08-entry consumption.  **§18.1**
+  companion position (f404 gate); **§18.3** wrap-up camera leave-reset; **§18.4** companion height
+  (ground_y) + the player contact-shadow frozen-floor fix.
+- **§19** cs-walker pump gating + ghost-slot reset (`tools/cs_walker_drill.py`); the b5a4 base-price
+  f406-branch fix (Walnut Bread).
+
+## 2026-06-19/20 — cc08==4 HAGGLE RENDER arc USER-CONFIRMED 1:1 + the softlock chain (RE §8.4–§9.8)
+
+- **Chips 3a–3e**: dialogue box + typewriter; Recette/Tear character art (the `grp:` per-stage
+  parser); arrival anim/pos BIT-EXACT; the cinematic counter camera (§8.7.3); companion at-counter
+  pose (§8.7.4).  Nameplate slot-1 (`feb2254`); the haggle UI §2–§4 (`12d668e`); the ADDSIGNED
+  COLOROP brackets (rule: GREY 0x7f diffuse ⇒ ADDSIGNED, WHITE/coloured ⇒ MODULATE); prompt
+  ellipsis (`df58859`).  USER-CONFIRMED "everything else looks 1:1".
+- Note #1 sell-counter "!" emote; camera-hint overlap (b4e8 gate).
+- **Softlock chain**: TUTO_PARSER_STRIDE 50→200 (`29e167a`, RE §9.8, quirk §22 — Ghidra rendered
+  `imul 0xe740` as `*0x32`); the b534==0xc scripted close (`0c0331c`); **L1a** the live sell machine
+  `FUN_004658ab` un-softlocked (`7dfc611`) — offer b574=3870 == retail.
+
 ## 2026-06-22 — L1c: per-kyaku dialogue buffer PORTED (the live haggle "..." placeholder → real lines)
 
 The user-flagged "live first-customer haggle dialogue is `...` PLACEHOLDER" (the rounds-4/5 LIVE
