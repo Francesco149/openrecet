@@ -44,6 +44,7 @@
 #include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
+#include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
@@ -255,6 +256,12 @@ void sim_step_a(void)
      * throughout) lives in. */
     CALL_TRACE_BEGIN_STUB(0x4536cbu);
     CALL_TRACE_I32("db054", scene1_companion_db054());
+    /* cc08 (frame-top): the mode that gates db054's freeze.  db054 diverged at
+     * the cc08==4 boundary (RE §21.23 — the default-arm fallback advanced a
+     * frame early on the cs leave), and cc08 goes dark on the house_update probe
+     * (0x48670f) once the event arm takes over — so keep it continuous here to
+     * line the mode transition up against db054 on every frame. */
+    CALL_TRACE_I32("cc08", player_ctrl_cc08());
     CALL_TRACE_END();
 
     /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before

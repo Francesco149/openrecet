@@ -130,6 +130,32 @@ void scene1_ingame_default_arm_tick(void)
      * are bit-identical under a 1-frame shift). */
     int cc04_at_dispatch = player_ctrl_cc04();
 
+    /* cc08 SAMPLED AT DISPATCH — the cc04 story above, for the cs mode boundary
+     * (RE §21.23).  db054 advances ONLY when the engine reaches the FUN_0048b850
+     * tail (the free-roam MOVE), and retail's FUN_0048670f skips that move on
+     * BOTH cc08==4 boundary frames — so its db054 stays FROZEN across the whole
+     * cc08==4 span AND its two edge frames:
+     *   - the 4→1 LEAVE (frame 631): retail's `if (cc08==4){…master tick sets
+     *     cc08=1 when the b520 dissolve completes…} else {…walk→FUN_0048b850…}`
+     *     is an if/else on the FRAME-START cc08 — the leave frame takes the
+     *     cc08==4 branch and never reaches the walk/db054 path, even though cc08
+     *     flipped to 1 mid-frame.  ⇒ gate on cc08_at_dispatch (the dispatch value
+     *     was still 4).
+     *   - the 1→4 ENTRY (frame 304): the walk arm (cc08==1 branch) detects the
+     *     customer-service trigger, sets cc08=4, and `goto`s the tail SKIPPING
+     *     FUN_0048b850 (all.c:87485-89) ⇒ no db054++.  ⇒ gate on the LIVE cc08
+     *     (now 4), since the dispatch value was 1.
+     * The port splits that single if/else across scene1_player_ctrl_tick (the
+     * cc08==4 arm / freeroam arm flip cc08) and THIS fallback.  Gating on the
+     * LIVE cc08 alone (the pre-§21.23 code) caught the ENTRY but re-read the
+     * flipped-to-1 LEAVE value and advanced db054 a frame early — the +1 drift
+     * from CONV_POSE_START (632); gating on the DISPATCH value alone catches the
+     * leave but wrongly advances on the entry (dispatch still 1).  Require BOTH
+     * != 4 = "no cc08==4 involvement this frame" = FUN_0048b850 actually ran.
+     * (The +1 drift cascaded into the late 目玉 sparkle / chibi walk phase via
+     * the shared LCG — viewer notes #20/#22.) */
+    int cc08_at_dispatch = player_ctrl_cc08();
+
     /* FUN_0048407f conversation branch (the event-actor tick): hold the iv1_2
      * face-to-face pose on the freeroam chibis (Recette look-up/blink anim 6,
      * Tear talk anim 4) and advance their sprite anim.  Runs FIRST, before the
@@ -175,7 +201,8 @@ void scene1_ingame_default_arm_tick(void)
          * while it keeps incrementing — this is the cc08==4 ambient-particle rng
          * the port was under-drawing (~5.5/f vs retail ~10/f).  Freeze it here to
          * match (RE §8.8 — the resolved §8.5 rng-rate gap). */
-        if (cc04_at_dispatch == 0 && player_ctrl_cc08() != 4)
+        if (cc04_at_dispatch == 0 && cc08_at_dispatch != 4 &&
+            player_ctrl_cc08() != 4)
             scene1_companion_ctrl_advance_phase();
     }
 

@@ -3112,4 +3112,50 @@ hypothesis alone (per the porting loop: probe, don't rationalize — this is exa
 completed this session):** add the arm-selector/g_state probe at 630-634, confirm which side's tick fires 1 frame off and
 why, then apply the minimal fix (almost certainly a "hold on the OLD arm for exactly the transition frame" pattern, mirroring
 §21.10.1/§21.17's shape) — verify db054 (and downstream bgx/sparkle/chibi) bit-exact THROUGH the whole [224,1722] window,
-not just [224,825].
+not just [224,825].  **→ RESOLVED §21.24 (the arm-selector hypothesis was REFUTED; the real root is a cc08==4 mode-boundary
+re-read).**
+
+## 21.24 2026-07-01 — RESOLVED: the +1 db054 is a cc08==4 mode-boundary RE-READ (the `cc04_at_dispatch` bug, doubled for cc08) — NOT the arm selector
+
+**The §21.23 arm-selector hypothesis was REFUTED by the probe** (the porting-loop discipline paid off — probe, don't
+rationalize).  Built the arm-selector probe it called for — sim_step_a (0x4536cb) carrying `busy`/`gstate`/`posing`/`cc08`/
+`b520` on the port + `b1c8`/`b1d0`/`b1d8`/`cc08`/`b520` on retail (declarative retail_fields.json, no JS).  Result: the arm
+switch is **SYNCHRONOUS** — port `busy` and retail `b1c8` both flip 0→nonzero at frame 632 together, and **`cc08` + `b520` are
+`✓ aligned`** the whole window.  So it is NOT an arm-timing bug.
+
+**Root — db054 rides the `FUN_0048b850` (free-roam MOVE) tail, and retail's `FUN_0048670f` is an if/else on the FRAME-START
+cc08 that skips that move on BOTH `cc08==4` edge frames:**
+- **the 4→1 LEAVE (frame 631):** `if (cc08==4) { …arrival + master tick FUN_00462403, which sets cc08=1 the frame the b520
+  dissolve completes… } else { …walk arm → FUN_0048b850 tail db054++ }` — an if/else decided at the top, so the leave frame
+  (cc08==4 at entry) takes the cc08==4 branch and **never reaches the walk/db054 path**, even though cc08 flipped to 1
+  mid-frame.
+- **the 1→4 ENTRY (frame 304):** the walk arm (cc08==1 branch) detects the cs trigger, sets `cc08 = 4`, and `goto`s the tail
+  **SKIPPING FUN_0048b850** (all.c:87485-89) ⇒ no db054++.
+
+⇒ retail's db054 stays FROZEN across the whole cc08==4 span AND its two edge frames.  The **port splits that single if/else**
+across `scene1_player_ctrl_tick` (the cc08==4 arm / freeroam arm flip cc08) and the default-arm companion FALLBACK
+(`scene1_ingame_default_arm_tick`, scene1_sim.c), whose db054-advance gate re-read the **LIVE** cc08 — so on the leave it saw
+the flipped-to-1 value and advanced db054 a frame early (the frame-632 +1).  *(The first fix gated on the DISPATCH snapshot
+ALONE — that caught the leave but broke the ENTRY: dispatch cc08=1 there, so it wrongly advanced; verified by the −1→+305 shift.
+Both directions need catching.)*
+
+**FIX (scene1_sim.c, the `cc04_at_dispatch` pattern doubled for cc08):** snapshot `cc08_at_dispatch = player_ctrl_cc08()` at
+the top of the default arm and gate the fallback advance on `cc04_at_dispatch==0 && cc08_at_dispatch != 4 &&
+player_ctrl_cc08() != 4` — cc08 must be `!= 4` at BOTH the frame-start snapshot (catches the leave) AND the live value
+(catches the entry) = "no cc08==4 involvement this frame" = FUN_0048b850 actually ran.
+
+**✅ VERIFIED (fixed port vs cached retail, `scenario-test --target both`, `flow_diff --field-timeline`):** **db054 `✓ aligned`
+across the whole [224,1722] window** — entry frame 304 + leave 631→632 both freeze correctly (both hold 81, then advance
+together at 633 via the event arm).  Clean win: the before→after diff leaves **every OTHER field byte-identical** (no
+regression) and pushes the raw-LCG (`rng`) divergence from @635 → **@1016**.  3381 host pass.
+
+**REMAINING — corrects §21.23's optimistic "fixing db054 should close #20/#22":** it did NOT.  The raw `rng` still diverges at
+**frame 1016, which is INSIDE the FIRST customer's cs** (`cc08==4` steady, `db054=274` ALIGNED there) — a SEPARATE
+cs-walker / customer-NPC rng root, downstream of db054, not the mode-boundary counter.  notes #20/#22 (well past 1016) ride
+that stream ⇒ the next arc is the frame-1016 rng consumer, not another db054 pin.
+
+**Probe left in place:** sim_step_a trimmed to `db054` + `cc08` (the arm-selector fields were the refuted hypothesis; cc08 is
+the mode that gates db054's freeze and goes dark on 0x48670f past the arm switch — keep it continuous).  **No host test:** a
+faithful mid-frame-flip test must drive the full cs machine + player controller + companion THROUGH the default arm (the
+flip is only produced by the master tick inside the cc08==4 arm); that spans three subsystems with fragile shared-state
+teardown, so — like the `cc04_at_dispatch` precedent it mirrors — the fix is **scenario-verified**, not unit-tested.

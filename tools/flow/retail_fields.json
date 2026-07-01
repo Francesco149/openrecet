@@ -839,12 +839,18 @@
   },
   "0x4536cb": {
    "name": "sim_step_a",
-   "_note": "FUN_004536cb — the once-per-frame top-level sim dispatcher (E.2 probe; src/sim.c sim_step_a CALL_TRACE_BEGIN_STUB(0x4536cb)). Added RE §21.23: the only OTHER db054 probe (0x48670f, house_update) is gated to the free-roam default arm and goes dark for the whole tutorial/wrap-up dialogue stretch (cc08!=1), hiding a +1 db054 drift somewhere in that window even though every anchor there is bit-identical port↔retail. This fires every sim-ticked frame regardless of which scene1 arm runs (even worker_load_busy() ones), giving continuous db054 visibility.",
+   "_note": "FUN_004536cb — the once-per-frame top-level sim dispatcher (E.2 probe; src/sim.c sim_step_a CALL_TRACE_BEGIN_STUB(0x4536cb)). Added RE §21.23: the only OTHER db054 probe (0x48670f, house_update) is gated to the free-roam default arm and goes dark for the whole tutorial/wrap-up dialogue stretch (cc08!=1), hiding a +1 db054 drift somewhere in that window even though every anchor there is bit-identical port↔retail. This fires every sim-ticked frame regardless of which scene1 arm runs (even worker_load_busy() ones), giving continuous db054 visibility. cc08 (0x438cc08) rides alongside because the +1 turned out to be a cc08==4 mode-boundary bug (the default-arm fallback advanced db054 a frame early on the cs leave when cc08 flips 4→1 mid-frame; RE §21.23), and cc08 goes dark on 0x48670f past the arm switch — so keep the mode continuous here to line the transition up against db054.",
    "fields": [
     {
      "name": "db054",
      "src": "global",
      "va": "0x56db054",
+     "type": "i32"
+    },
+    {
+     "name": "cc08",
+     "src": "global",
+     "va": "0x438cc08",
      "type": "i32"
     }
    ]

@@ -243,19 +243,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       sparkle position AND the customer NPC visibly off at note #20's spot) — an earlier draft of this bullet wrongly
       lumped all four notes as confirmed; only the early pair is.  +2 host-test checks
       (`bg_npc_seed_pin_forces_seed_and_cursor`), 3381 pass; no regression.  Full writeup: RE §21.21/§21.22.
-      **NEXT — PINPOINTED but not yet fixed (RE §21.23):** the residual is a shared `db054` counter ticking exactly
-      ONE FRAME TOO EARLY on the port, first at **frame 632 = the `CONV_POSE_START` anchor** (bit-identical anchor
-      sequence port↔retail throughout 631-849; a "anchors align, a shared counter's tick COUNT differs by one" bug, not
-      a timing bug) — found via a NEW continuous db054 probe (the old one was gated to the free-roam-only default arm
-      and went dark for the whole tutorial/wrap-up dialogue stretch, hence the earlier "826" estimate was just where
-      the probe happened to resume sampling, not the true origin).  Working hypothesis (UNCONFIRMED — needs one more
-      probe on the arm-selector/`g_state` before fixing): the port's event-arm dispatch (unconditional db054++) fires
-      the SAME frame `CONV_POSE_START` does, while retail's real db054 tick lags by one — the same "stale/old-value
-      read at a transition's own frame" class of bug as §21.10.1/§21.17.  Do NOT guess-fix without that probe (§21.18's
-      lesson).  This cascades into the LATE sparkle/chibi-walk divergence (notes #20/#22) via the shared LCG stream, so
-      fixing it should close those too.  (Separately: apply `{bgnpcseed}` to `house-firstcust-cutscene-day2` — same
-      savefile ⇒ same naturals — needs its own verify drive, not done this session.)  A fresh, substantial arc closes
-      here = a good /clear boundary.
+      **★★★ db054 +1 — FIXED 2026-07-01 (RE §21.24; the §21.23 arm-selector hypothesis was REFUTED).**  Built the
+      arm-selector probe §21.23 called for (sim_step_a `busy`/`gstate`/`posing`/`cc08`/`b520` port + `b1c8`/`cc08`/`b520`
+      retail) → the arm switch is SYNCHRONOUS (port `busy` + retail `b1c8` both flip at 632) and `cc08`/`b520` ALIGNED, so
+      NOT an arm-timing bug.  Real root: **db054 rides the `FUN_0048b850` (free-roam MOVE) tail, and retail's `FUN_0048670f`
+      is an if/else on the FRAME-START cc08 that SKIPS the move on BOTH `cc08==4` edge frames** — the 4→1 LEAVE (frame 631
+      takes the cc08==4 branch; the master tick flips cc08→1 mid-frame but the walk/db054 path is never reached) and the
+      1→4 ENTRY (frame 304; the walk arm sets cc08=4 and `goto`s the tail, all.c:87485-89).  The port re-read the LIVE cc08
+      in the default-arm fallback and advanced db054 a frame early on the leave = the frame-632 +1 (the "cc04_at_dispatch"
+      bug, for cc08).  **FIX (`scene1_sim.c`):** snapshot `cc08_at_dispatch` + gate the fallback advance on `cc08 != 4` at
+      BOTH the snapshot (catches leave) AND the live value (catches entry).  **✅ VERIFIED** (`--target both`,
+      `flow_diff --field-timeline`): **db054 `✓ aligned` [224,1722]**, both transitions freeze correctly; clean win — every
+      OTHER field byte-identical before→after (no regression), raw-`rng` divergence pushed @635→@1016; 3381 host pass.
+      **★ NEXT (corrects §21.23's optimistic "should close #20/#22" — it did NOT):** the raw `rng` still diverges at **frame
+      1016, INSIDE the first customer's cs** (`cc08==4` steady, `db054=274` ALIGNED there) — a SEPARATE cs-walker /
+      customer-NPC rng root, downstream of db054.  notes #20/#22 (past 1016) ride that stream ⇒ next arc = the frame-1016
+      rng consumer, NOT another db054 pin.  **PENDING USER STUDIO CONFIRM** the db054 fix visibly tightens the early sparkle/
+      NPC sync (it fully aligns db054 [224,1722] but #20/#22 need the 1016 rng root too).  (Separately still open: apply
+      `{bgnpcseed}` to `house-firstcust-cutscene-day2` — same savefile ⇒ same naturals — needs its own verify drive.)  A
+      fresh, substantial arc closes here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
