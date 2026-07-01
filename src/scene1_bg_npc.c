@@ -84,6 +84,14 @@ static int      g_bg_npc_pin_pending;
 static uint32_t g_bg_npc_pin_seed;
 static int      g_bg_npc_pin_cursor;
 
+/* Raw-dword records for the "dead" slots [0, g_bg_npc_pin_cursor) — see
+ * bg_npc_write_record_from_dwords / scene1_bg_npc_seed_pin's `dead_soa`.
+ * A slot the warmup cursor skips (dir stays 0 forever) is still drawn by the
+ * shadow pass (which only checks `visible==-1`, not `dir==0` — RE §21.22), so
+ * its leftover x/y/z must match retail's, not the port's BSS-zero default. */
+static uint32_t g_bg_npc_pin_dead_soa[SCENE1_BG_NPC_COUNT * BG_NPC_ENGINE_DWORDS];
+static int      g_bg_npc_pin_dead_count;
+
 void scene1_bg_npc_reset(void)
 {
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++) {
@@ -94,6 +102,10 @@ void scene1_bg_npc_reset(void)
     g_bg_npc_warmup_done  = 0;
     g_bg_npc_frame        = 0;
 }
+
+/* Forward decl — defined near scene1_bg_npc_pin() below; used earlier by
+ * scene1_bg_npc_tick()'s {bgnpcseed} dead-slot injection. */
+static void bg_npc_write_record_from_dwords(int idx, const uint32_t *r);
 
 /* FUN_00482a51 (0x482a51, 32 B): set the sprite-anim header's current anim.
  * On a change it resets frame/counter/timer; `anim` is stored in BOTH the
@@ -276,6 +288,13 @@ void scene1_bg_npc_tick(void)
         g_bg_npc_pin_pending = 0;
         rng_seed(g_bg_npc_pin_seed);
         g_bg_npc_spawn_cursor = g_bg_npc_pin_cursor;
+        /* Slots [0, cursor) are "dead" (the warmup will never spawn them —
+         * dir stays 0 forever) but the shadow pass still draws them (RE
+         * §21.22: it only checks visible==-1, not dir==0), so their leftover
+         * x/y/z must match retail's, not the port's BSS-zero default. */
+        for (int i = 0; i < g_bg_npc_pin_dead_count; i++)
+            bg_npc_write_record_from_dwords(
+                i, &g_bg_npc_pin_dead_soa[(size_t)i * BG_NPC_ENGINE_DWORDS]);
     }
 
     int n = 1;
@@ -309,19 +328,37 @@ void scene1_bg_npc_tick(void)
 void scene1_bg_npc_phasepin(void)
 {
     scene1_bg_npc_reset();
-    g_bg_npc_pin_seed    = SCENE1_BG_NPC_PHASEPIN_SEED;
-    g_bg_npc_pin_cursor  = 0;
-    g_bg_npc_pin_pending = 1;
+    g_bg_npc_pin_seed     = SCENE1_BG_NPC_PHASEPIN_SEED;
+    g_bg_npc_pin_cursor   = 0;
+    g_bg_npc_pin_dead_count = 0;
+    g_bg_npc_pin_pending  = 1;
 }
 
-/* Trace-harness `{bgnpcseed}` (RE §21.21) — see scene1_bg_npc.h.  Narrower
- * than scene1_bg_npc_phasepin(): no scene1_bg_npc_reset(), so it is meant to
- * land BEFORE the warmup's NATURAL first-ever firing (nothing to re-arm yet)
- * rather than to re-run an already-completed one. */
-void scene1_bg_npc_seed_pin(uint32_t seed, int cursor)
+/* Trace-harness `{bgnpcseed}` (RE §21.21/§21.22) — see scene1_bg_npc.h.
+ * Narrower than scene1_bg_npc_phasepin(): no scene1_bg_npc_reset(), so it is
+ * meant to land BEFORE the warmup's NATURAL first-ever firing (nothing to
+ * re-arm yet) rather than to re-run an already-completed one.
+ *
+ * `dead_soa`/`dead_n_dwords` (optional, NULL/0 to skip): raw engine records
+ * (BG_NPC_ENGINE_DWORDS dwords each, {bgnpcpin}'s format) for the slots
+ * [0, cursor) the warmup will never spawn.  Needed because the shadow pass
+ * draws them anyway (visible==-1-only check, RE §21.22) — without this their
+ * x/y/z stay the port's BSS-zero default instead of retail's leftover
+ * position, drawing a stray shadow at the world origin. */
+void scene1_bg_npc_seed_pin(uint32_t seed, int cursor,
+                            const uint32_t *dead_soa, size_t dead_n_dwords)
 {
     g_bg_npc_pin_seed    = seed;
     g_bg_npc_pin_cursor  = cursor;
+
+    int dead_count = dead_soa ? (int)(dead_n_dwords / BG_NPC_ENGINE_DWORDS) : 0;
+    if (dead_count > SCENE1_BG_NPC_COUNT)
+        dead_count = SCENE1_BG_NPC_COUNT;
+    g_bg_npc_pin_dead_count = dead_count;
+    if (dead_count > 0)
+        memcpy(g_bg_npc_pin_dead_soa, dead_soa,
+               (size_t)dead_count * BG_NPC_ENGINE_DWORDS * sizeof(uint32_t));
+
     g_bg_npc_pin_pending = 1;
 }
 
@@ -343,6 +380,33 @@ void scene1_bg_npc_seed_pin(uint32_t seed, int cursor)
  * BG_NPC_ENGINE_DWORDS) records of 0x64 bytes.  The port struct is NOT
  * byte-compatible with that record (different field order), so each field is
  * lifted from its engine dword offset; floats are bit-reinterpreted via memcpy. */
+
+/* Shared by scene1_bg_npc_pin() and scene1_bg_npc_seed_pin()'s `dead_soa`:
+ * lift one raw engine record (BG_NPC_ENGINE_DWORDS dwords) into g_scene1_bg_npc[idx]. */
+static void bg_npc_write_record_from_dwords(int idx, const uint32_t *r)
+{
+    scene1_bg_npc_t *m = &g_scene1_bg_npc[idx];
+
+    /* dwords 0-10: chr-actor sprite-state header, copied verbatim. */
+    for (int d = 0; d < BG_NPC_REC_DWORDS; d++)
+        m->arec[d] = (int32_t)r[d];
+
+    /* drift/respawn fields at their engine dword offsets (the fields that
+     * decide WHEN each NPC next draws the shared LCG → must be bit-exact;
+     * floats reinterpreted via memcpy, no aliasing pun). */
+    memcpy(&m->x,       &r[11], sizeof m->x);        /* +0x2c */
+    memcpy(&m->y,       &r[12], sizeof m->y);        /* +0x30 */
+    memcpy(&m->z,       &r[13], sizeof m->z);        /* +0x34 */
+    m->dir     = (int32_t)r[17];                     /* +0x44 */
+    m->visible = (int32_t)r[18];                     /* +0x48 */
+    m->type    = (int32_t)r[19];                     /* +0x4c */
+    memcpy(&m->speed,   &r[20], sizeof m->speed);    /* +0x50 */
+    m->pause   = (int32_t)r[21];                     /* +0x54 */
+    memcpy(&m->vthresh, &r[22], sizeof m->vthresh);  /* +0x58 */
+    m->mode    = (int32_t)r[23];                     /* +0x5c */
+    m->prob    = (int32_t)r[24];                     /* +0x60 */
+}
+
 void scene1_bg_npc_pin(const uint32_t *soa, size_t n_dwords)
 {
     if (!soa)
@@ -351,29 +415,8 @@ void scene1_bg_npc_pin(const uint32_t *soa, size_t n_dwords)
     if (n_records > SCENE1_BG_NPC_COUNT)
         n_records = SCENE1_BG_NPC_COUNT;
 
-    for (int i = 0; i < n_records; i++) {
-        const uint32_t *r = soa + (size_t)i * BG_NPC_ENGINE_DWORDS;
-        scene1_bg_npc_t *m = &g_scene1_bg_npc[i];
-
-        /* dwords 0-10: chr-actor sprite-state header, copied verbatim. */
-        for (int d = 0; d < BG_NPC_REC_DWORDS; d++)
-            m->arec[d] = (int32_t)r[d];
-
-        /* drift/respawn fields at their engine dword offsets (the fields that
-         * decide WHEN each NPC next draws the shared LCG → must be bit-exact;
-         * floats reinterpreted via memcpy, no aliasing pun). */
-        memcpy(&m->x,       &r[11], sizeof m->x);        /* +0x2c */
-        memcpy(&m->y,       &r[12], sizeof m->y);        /* +0x30 */
-        memcpy(&m->z,       &r[13], sizeof m->z);        /* +0x34 */
-        m->dir     = (int32_t)r[17];                     /* +0x44 */
-        m->visible = (int32_t)r[18];                     /* +0x48 */
-        m->type    = (int32_t)r[19];                     /* +0x4c */
-        memcpy(&m->speed,   &r[20], sizeof m->speed);    /* +0x50 */
-        m->pause   = (int32_t)r[21];                     /* +0x54 */
-        memcpy(&m->vthresh, &r[22], sizeof m->vthresh);  /* +0x58 */
-        m->mode    = (int32_t)r[23];                     /* +0x5c */
-        m->prob    = (int32_t)r[24];                     /* +0x60 */
-    }
+    for (int i = 0; i < n_records; i++)
+        bg_npc_write_record_from_dwords(i, soa + (size_t)i * BG_NPC_ENGINE_DWORDS);
 
     /* the warmup is long done at any real pin anchor; force the bookkeeping so
      * the next scene1_bg_npc_tick() neither re-runs the 180x warmup nor seeds a

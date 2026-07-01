@@ -1151,21 +1151,29 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # the bg_npc / sparkle / chibi / window NPCs follow (RE §21.19(b)).
                 segtrace_ops.append({"primaryloadpin": int(rec["primaryloadpin"])})
             elif "bgnpcseed" in rec:
-                # {bgnpcseed:V} == [V,0], or {bgnpcseed:[V,C]} — trace-global:
-                # seed the shared LCG to V and the spawn cursor to C right
-                # before the bg-NPC warmup's NATURAL first-ever tick (the agent's
-                # installBgNpcPinHook applies both at the FUN_0046f621 entry,
-                # gated on the warmup latch DAT_073a8bb8 still being 0).  C
-                # matters: the cursor was found nonzero (an earlier title-screen
-                # bg render?) at that same natural entry, so a seed-only pin
-                # can't reproduce which slot the real spawn sequence starts at.
-                # Narrower than {phasepin} — no db054/anim/b154/rmb reset, so it
-                # doesn't stall the skip-path wrap-up cutscene.  Mirrors the
-                # port's scene1_bg_npc_seed_pin (RE §21.21).
+                # {bgnpcseed:V} == [V,0], {bgnpcseed:[V,C]}, or
+                # {bgnpcseed:[V,C,[d0..]]} — trace-global: seed the shared LCG
+                # to V, the spawn cursor to C, and the C dead slots' leftover
+                # engine records ({bgnpcpin}-format raw dwords) to the optional
+                # 3rd array, right before the bg-NPC warmup's NATURAL
+                # first-ever tick (the agent's installBgNpcPinHook applies all
+                # three at the FUN_0046f621 entry, gated on the warmup latch
+                # DAT_073a8bb8 still being 0).  C matters: the cursor was found
+                # nonzero (an earlier title-screen bg render?) at that same
+                # natural entry, so a seed-only pin can't reproduce which slot
+                # the real spawn sequence starts at.  The dead-slot records
+                # matter too: the shadow pass only checks visible==-1 (not
+                # dir==0), so a dead slot's leftover x/y/z still feeds a drawn
+                # contact shadow (RE §21.22).  Narrower than {phasepin} — no
+                # db054/anim/b154/rmb reset, so it doesn't stall the skip-path
+                # wrap-up cutscene.  Mirrors the port's scene1_bg_npc_seed_pin.
                 bns = rec["bgnpcseed"]
                 if isinstance(bns, list):
-                    segtrace_ops.append({"bgnpcseed": [int(bns[0]) & 0xffffffff,
-                                                        int(bns[1])]})
+                    op = {"bgnpcseed": [int(bns[0]) & 0xffffffff, int(bns[1])]}
+                    if len(bns) > 2 and isinstance(bns[2], list):
+                        op["bgnpcseed"].append(
+                            [int(d) & 0xffffffff for d in bns[2]])
+                    segtrace_ops.append(op)
                 else:
                     segtrace_ops.append({"bgnpcseed": int(bns) & 0xffffffff})
             elif "esc" in rec:

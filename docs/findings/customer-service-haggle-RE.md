@@ -3027,3 +3027,45 @@ NOT done this session, kept conservative pending that scenario's OWN verify driv
 (3132701474) and the warmup (3502407629) — a "port it 1:1" arc if ever prioritized over the pragmatic trace-normalization pin
 (candidates: shop/kyaku/news/order generation).  (4) **PENDING USER STUDIO CONFIRM** — re-drive win-0-1500 in the viewer,
 confirm notes #17/#20/#22/#23 (sparkle/chibi-walk/window-NPCs) now read 1:1 visually within the fixed [224,825] window.
+
+## 21.22 2026-07-01 — user-confirmed #17/#20/#22/#23 1:1; found + fixed the stray dead-slot contact SHADOW (note #25)
+
+**USER STUDIO CONFIRM (win-0-1500, RE §21.21's pending item): "the sparkles and npcs align"** — #17/#20/#22/#23 all read 1:1 per
+the user, closing that pending-confirm item.  **New note #25 (port-only): "stray contact shadow on port which is likely
+supposed to be the barely visible shadow at the edge of the window on retail"** (`HOUSE_FREEROAM#1+23`, box `[506,336,595,415]`).
+
+**Root — the §21.21 "leftover x/y/z don't matter" claim was WRONG; CORRECTED here.**  §21.21 reasoned slot 0's dead-slot
+leftover position was behaviourally inert because `dir==0` makes both `bg_npc_tick`'s position update AND
+`scene1_bg_npc_sprite_render` skip it (`m->visible==-1 || m->dir==0`).  **But `scene1_bg_npc_shadow_render` only checks
+`m->visible==-1`** (`scene1_bg_npc.c` — grepped both render functions side by side, RE checked not assumed) — `dir` never
+enters its skip test.  Slot 0's `visible` is 0 on BOTH sides (confirmed in the §21.21 SoA dump), never -1, so the shadow pass
+draws it on BOTH sides regardless of `dir` — at whatever x/y/z it holds.  Retail's leftover `(x=-2.8, y=1.2, z=-10.5)` puts its
+shadow barely visible near the window's far edge (per the user's own description); the port's BSS-zero default (`0,0,0`, since
+`{bgnpcseed}` only pinned the seed+cursor, leaving slot 0 at its struct-zero initial state) draws it at the world origin — a
+loud, out-of-place shadow blob.
+
+**FIX** — extended `scene1_bg_npc_seed_pin(seed, cursor, dead_soa, dead_n_dwords)` with an optional `dead_soa`: raw
+`{bgnpcpin}`-format engine records (`BG_NPC_ENGINE_DWORDS`=25 dwords each) for the `cursor` dead slots, written via a NEW
+shared helper `bg_npc_write_record_from_dwords` (factored out of `scene1_bg_npc_pin`'s per-record copy loop — same code, no
+duplication) inside `scene1_bg_npc_tick()`'s existing pending-check branch, right after the seed/cursor force (same "before
+any RNG consumption" timing guarantee as §21.21).  `{bgnpcseed}` grammar extended: `V` / `[V,C]` / `[V,C,[d0..d(25*C-1)]]` —
+the 3rd array is optional (omit → old §21.21 behaviour, BSS-zero dead slots).  **Retail mirror**
+(`installBgNpcPinHook`): writes the same dwords into `DAT_073a7f80` at the FUN_0046f621 entry — a no-op on retail (it's
+already the source these values were captured from) but keeps the pin fully bilateral/self-consistent, matching the
+seed+cursor precedent rather than special-casing retail-skips-it like `{bgnpcpin}` does.
+
+Captured the exact dead-slot dwords from the §21.21 SoA hex dump (decoded via a small node script, cross-checked the 3 float
+fields decode back to the expected -2.8/1.2/-10.5): `[0,0,0,0,0,4294967295,4,0,0,0,0,3224580915,1067030938,3240624128,0,0,0,
+0,0,14,0,0,0,0,0]` — dwords 11/12/13 are the x/y/z bit patterns, dword 5 (`arec` STATE) is `-1`, dword 6 (FACING) is 4, dword
+19 (type) is 14 (not `bg_npc_spawn`'s expected `BG_NPC_TYPE_TABLE[0]=0` — still confirms this record was never produced by
+the normal spawn path).  Baked into `house-firstcust-arrprobe`'s `{bgnpcseed}` op.
+
+**✅ VERIFIED** (`scenario-test --target both --call-trace` / `flow_diff --field-timeline`): **`bgx0 ✓ aligned`** (was `✗
+DIVERGES first @224 retail=-2.8 port=0`, 410 frame(s) of mismatch) — the full [224,1722] common window is now bit-exact for
+the dead slot.  **bgx1-5 UNCHANGED** (still bit-exact 224→825, still the same pre-existing frame-826 phase lag, same values
+— confirms no regression from the extension).  Host test extended in place (`bg_npc_seed_pin_forces_seed_and_cursor`, +check
+(c): a synthetic dead-slot record survives the warmup verbatim while slot 1 spawns normally); 3381 host pass.
+
+**Retires:** the §21.21 doc claim that dead-slot leftover fields "don't matter" (corrected in `scene1_bg_npc.h`'s
+`scene1_bg_npc_seed_pin` doc comment).  **Open:** the frame-826 phase lag (§21.21's queued next arc, untouched by this fix) —
+still the sole remaining known residual in this scenario's [224,1722] window.

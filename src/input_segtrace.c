@@ -295,6 +295,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0, plp_val = 0;
         uint32_t bnp_frame = 0, bgnpcseed_val = 0, bgnpcseed_cursor_val = 0;
         uint32_t bnp_values[SEG_BGNPCPIN_DWORDS];
+        uint32_t bgnpcseed_dead[SEG_BGNPCPIN_DWORDS];
+        int      bgnpcseed_dead_n = 0;
         char     waitname[24] = {0};
         char     savepath[256] = {0};
 
@@ -500,9 +502,16 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (!parse_number(&p, end, &plp_val)) return 0;
                 got_primaryloadpin = 1;
             } else if (klen == 9 && memcmp(ks, "bgnpcseed", 9) == 0) {
-                /* {bgnpcseed:V} == [V,0], or {bgnpcseed:[V,C]} — trace-global
-                 * bg-NPC warmup LCG-origin + spawn-cursor pin
-                 * (scene1_bg_npc_seed_pin). Last decl wins. RE §21.21. */
+                /* {bgnpcseed:V} == [V,0], {bgnpcseed:[V,C]}, or
+                 * {bgnpcseed:[V,C,[d0..d(25*C-1)]]} — trace-global bg-NPC
+                 * warmup LCG-origin + spawn-cursor + dead-slot pin
+                 * (scene1_bg_npc_seed_pin). Last decl wins. RE §21.21/§21.22.
+                 * The optional 3rd element is C raw {bgnpcpin}-format engine
+                 * records (BG_NPC_ENGINE_DWORDS=25 dwords each) for the dead
+                 * slots [0,C) — their leftover x/y/z still feed the shadow
+                 * pass (visible==-1-only check), so the port's BSS-zero
+                 * default draws a stray shadow without them. */
+                bgnpcseed_dead_n = 0;
                 if (p < end && *p == '[') {
                     p++;  /* '[' */
                     while (p < end && (*p == ' ' || *p == '\t')) p++;
@@ -513,7 +522,29 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                     while (p < end && (*p == ' ' || *p == '\t')) p++;
                     if (!parse_number(&p, end, &bgnpcseed_cursor_val)) return 0;
                     while (p < end && (*p == ' ' || *p == '\t')) p++;
-                    if (p >= end || *p != ']') return 0;
+                    if (p < end && *p == ',') {
+                        p++;
+                        while (p < end && (*p == ' ' || *p == '\t')) p++;
+                        if (p >= end || *p != '[') return 0;
+                        p++;  /* inner '[' */
+                        size_t want = (size_t)bgnpcseed_cursor_val * SEG_BGNPC_RECORD_DWORDS;
+                        if (want > SEG_BGNPCPIN_DWORDS) return 0;
+                        for (size_t k = 0; k < want; k++) {
+                            while (p < end && (*p == ' ' || *p == '\t')) p++;
+                            if (!parse_number(&p, end, &bgnpcseed_dead[k])) return 0;
+                            while (p < end && (*p == ' ' || *p == '\t')) p++;
+                            if (k + 1 < want) {
+                                if (p >= end || *p != ',') return 0;
+                                p++;
+                            }
+                        }
+                        while (p < end && (*p == ' ' || *p == '\t')) p++;
+                        if (p >= end || *p != ']') return 0;  /* inner ']' */
+                        p++;
+                        bgnpcseed_dead_n = (int)want;
+                        while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    }
+                    if (p >= end || *p != ']') return 0;  /* outer ']' */
                     p++;
                 } else {
                     if (!parse_number(&p, end, &bgnpcseed_val)) return 0;
@@ -582,6 +613,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->bgnpcseed        = bgnpcseed_val;
             out->bgnpcseed_cursor = (int)bgnpcseed_cursor_val;
+            out->bgnpcseed_dead_n = bgnpcseed_dead_n;
+            if (bgnpcseed_dead_n > 0)
+                memcpy(out->bgnpcseed_dead, bgnpcseed_dead,
+                       (size_t)bgnpcseed_dead_n * sizeof(uint32_t));
             out->has_bgnpcseed    = 1;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;

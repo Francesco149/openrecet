@@ -542,6 +542,12 @@ let g_plp_prev_busy = 0;            // previous tick's DAT_06a49954
 let g_segtrace_bgnpcseed_active = false;  // a {bgnpcseed} op is armed
 let g_segtrace_bgnpcseed = 0;             // the seed value to force
 let g_segtrace_bgnpcseed_cursor = 0;      // the spawn-cursor value to force
+// Dead-slot raw engine dwords (RE §21.22): [0,cursor) records, 25 dwords each,
+// {bgnpcpin}-format — written into DAT_073a7f80 at the SAME instant as the
+// seed/cursor.  Needed because the shadow pass only checks visible==-1, not
+// dir==0, so a dead slot's leftover x/y/z still feeds a drawn contact shadow.
+// Empty array = no-op (this drive's {bgnpcseed} didn't carry one).
+let g_segtrace_bgnpcseed_dead = [];
 let g_bgnpcseed_applied = false;          // one-shot: fired once, ever
 
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
@@ -1002,13 +1008,18 @@ function segtraceBuildSegments(ops) {
             // NPCs follow).  Mirrors the port's worker_load_set_primary_pin.
             g_segtrace_primaryloadpin = (op.primaryloadpin | 0) > 0 ? (op.primaryloadpin | 0) : 0;
         } else if (op && op.bgnpcseed !== undefined) {
-            // {bgnpcseed:V} == [V,0], or {bgnpcseed:[V,C]} — trace-global: seed
-            // DAT_006023a0 to V and the spawn cursor (DAT_073a8bb4) to C right
-            // before the bg-NPC warmup's NATURAL first-ever tick (RE §21.21).
-            // See installBgNpcPinHook / the g_segtrace_bgnpcseed_active decl.
+            // {bgnpcseed:V} == [V,0], {bgnpcseed:[V,C]}, or
+            // {bgnpcseed:[V,C,[d0..]]} — trace-global: seed DAT_006023a0 to V,
+            // the spawn cursor (DAT_073a8bb4) to C, and the C dead slots'
+            // leftover engine records (DAT_073a7f80) to the optional 3rd
+            // array, right before the bg-NPC warmup's NATURAL first-ever tick
+            // (RE §21.21/§21.22).  See installBgNpcPinHook /
+            // g_segtrace_bgnpcseed_active.
             const bns = op.bgnpcseed;
             g_segtrace_bgnpcseed = (Array.isArray(bns) ? bns[0] : bns) >>> 0;
             g_segtrace_bgnpcseed_cursor = Array.isArray(bns) ? (bns[1] | 0) : 0;
+            g_segtrace_bgnpcseed_dead = (Array.isArray(bns) && Array.isArray(bns[2]))
+                ? bns[2].map(d => d >>> 0) : [];
             g_segtrace_bgnpcseed_active = true;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
@@ -1900,24 +1911,37 @@ function installBgNpcPinHook() {
                     rva(0x006023a0).readU32() + ' @ frame ' + frameNo() +
                     ' cursor(bb4)=' + rva(0x073a8bb4).readS32());
             }
-            // {bgnpcseed:[V,C]} — seed the LCG to V and the spawn cursor to C
-            // right before the NATURAL first-ever warmup (RE §21.21).  C
-            // matters: the cursor was found NONZERO (1) at this same natural
-            // entry on the reference savefile — slot 0 was already spawned+
-            // frozen (dir==0, STATE=-1) by earlier activity (title-screen bg
-            // render?), so the REAL spawn sequence starts at a later slot; a
-            // seed-only pin can't reproduce that.  Unlike {phasepin}, this does
-            // NOT reset db054/anim/b154/rmb (which stalls the skip-path
-            // wrap-up cutscene) and does NOT re-arm an already-run warmup — it
-            // only ever fires once, on the actual first call.  Mirrors the
-            // port's scene1_bg_npc_seed_pin.
+            // {bgnpcseed:[V,C,[d0..]]} — seed the LCG to V, the spawn cursor to
+            // C, and DAT_073a7f80's [0,C) dead-slot records to the optional 3rd
+            // array, right before the NATURAL first-ever warmup (RE §21.21/
+            // §21.22).  C matters: the cursor was found NONZERO (1) at this
+            // same natural entry on the reference savefile — slot 0 was
+            // already spawned+frozen (dir==0, STATE=-1) by earlier activity
+            // (title-screen bg render?), so the REAL spawn sequence starts at
+            // a later slot; a seed-only pin can't reproduce that.  The
+            // dead-slot records matter too: the shadow pass only checks
+            // visible==-1 (not dir==0), so slot 0 still casts a contact
+            // shadow — at whatever leftover x/y/z it holds.  This is a no-op
+            // HERE (retail already IS the natural source these values were
+            // captured from) but applied anyway for a fully self-consistent,
+            // bilateral pin.  Unlike {phasepin}, this does NOT reset
+            // db054/anim/b154/rmb (which stalls the skip-path wrap-up
+            // cutscene) and does NOT re-arm an already-run warmup — it only
+            // ever fires once, on the actual first call.  Mirrors the port's
+            // scene1_bg_npc_seed_pin.
             if (g_segtrace_bgnpcseed_active && !g_bgnpcseed_applied &&
                 rva(0x073a8bb8).readS32() === 0) {
                 g_bgnpcseed_applied = true;
                 rva(0x006023a0).writeU32(g_segtrace_bgnpcseed >>> 0);
                 rva(0x073a8bb4).writeS32(g_segtrace_bgnpcseed_cursor | 0);
+                if (g_segtrace_bgnpcseed_dead.length > 0) {
+                    const base = rva(0x073a7f80);
+                    for (let i = 0; i < g_segtrace_bgnpcseed_dead.length; i++)
+                        base.add(i * 4).writeU32(g_segtrace_bgnpcseed_dead[i] >>> 0);
+                }
                 log('bg-npc: {bgnpcseed} applied, seed=' + g_segtrace_bgnpcseed +
                     ' cursor=' + g_segtrace_bgnpcseed_cursor +
+                    ' dead-dwords=' + g_segtrace_bgnpcseed_dead.length +
                     ' @ frame ' + frameNo());
             }
             if (!g_bg_npc_pin_pending) return;
@@ -5635,6 +5659,7 @@ rpc.exports = {
         g_segtrace_bgnpcseed_active = false;  // re-set by a {bgnpcseed} op below
         g_segtrace_bgnpcseed = 0;
         g_segtrace_bgnpcseed_cursor = 0;
+        g_segtrace_bgnpcseed_dead = [];
         g_bgnpcseed_applied = false;
         if (Array.isArray(config.input_segtrace) &&
             config.input_segtrace.length > 0) {

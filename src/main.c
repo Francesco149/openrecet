@@ -1871,24 +1871,32 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         "to %u frames (primaryloadpin)\n",
                         (unsigned)g_segtrace.primaryloadpin);
             }
-            /* {bgnpcseed:V} (trace-global) seeds the bg-NPC warmup's LCG origin
-             * to V right before its NATURAL first-ever tick — a narrower
-             * alternative to {phasepin} (which also zeros db054/anim/b154/rmb
-             * and stalls the skip-path wrap-up cutscene, RE §21.20).  V is
-             * retail's captured natural LCG state at the FUN_0046f621 entry,
-             * NOT the {rngseed}-at-LOADING_END value (already past this point
-             * — the warmup fires on the SAME frame the load-busy gate
-             * releases, one frame before the earliest a base-relative
-             * {rngseed} can mechanically apply).  Set here, before the main
-             * loop, so the pending latch is armed when the warmup fires.  See
-             * scene1_bg_npc_seed_pin / RE §21.21. */
+            /* {bgnpcseed:V} (trace-global) seeds the bg-NPC warmup's LCG origin,
+             * spawn cursor, and dead-slot leftover state right before its
+             * NATURAL first-ever tick — a narrower alternative to {phasepin}
+             * (which also zeros db054/anim/b154/rmb and stalls the skip-path
+             * wrap-up cutscene, RE §21.20).  V is retail's captured natural
+             * LCG state at the FUN_0046f621 entry, NOT the {rngseed}-at-
+             * LOADING_END value (already past this point — the warmup fires
+             * on the SAME frame the load-busy gate releases, one frame before
+             * the earliest a base-relative {rngseed} can mechanically apply).
+             * The dead-slot records matter because the shadow pass draws a
+             * slot regardless of dir==0 (RE §21.22) — without them a dead
+             * slot's leftover x/y/z stays the port's BSS-zero default (the
+             * world origin), a stray shadow retail doesn't show.  Set here,
+             * before the main loop, so the pending latch is armed when the
+             * warmup fires.  See scene1_bg_npc_seed_pin / RE §21.21/§21.22. */
             if (g_segtrace.has_bgnpcseed) {
                 scene1_bg_npc_seed_pin(g_segtrace.bgnpcseed,
-                                       g_segtrace.bgnpcseed_cursor);
+                                       g_segtrace.bgnpcseed_cursor,
+                                       g_segtrace.bgnpcseed_dead_n > 0
+                                           ? g_segtrace.bgnpcseed_dead : NULL,
+                                       (size_t)g_segtrace.bgnpcseed_dead_n);
                 fprintf(stderr, "openrecet: bg-npc warmup seed pinned to %u, "
-                        "cursor %d (bgnpcseed)\n",
+                        "cursor %d, %d dead-slot dword(s) (bgnpcseed)\n",
                         (unsigned)g_segtrace.bgnpcseed,
-                        g_segtrace.bgnpcseed_cursor);
+                        g_segtrace.bgnpcseed_cursor,
+                        g_segtrace.bgnpcseed_dead_n);
             }
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */

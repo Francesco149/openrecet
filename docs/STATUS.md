@@ -224,29 +224,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
       (spread ≤20.7)`, raw rng 336/407 bit-exact (the cs DECISION stays ALIGNED; the AMBIENT NPCs/sparkle diverge).  The sparkle
       POSITION + chibi WALK depend on the rng VALUES, which desync from the **PRE-PIN bg_npc (the cad868 PRIMARY-load
       non-determinism, (b))**; the un-pinned chibi/sparkle accumulate it.  ⇒ **#17 is DOWNSTREAM of (b), not independently fixable.**
-    - **★★★ RESOLVED 2026-07-01 (RE §21.21) — the bg_npc warmup ORIGIN fix: `scene1_bg_npc_seed_pin` + `{bgnpcseed:[seed,cursor]}`.**
-      The §21.20 "port warmup @223 / retail @224" timing read was a MEASUREMENT ARTIFACT (a `{calltrace}`-window boundary effect
-      — the port's frame-223 rows only appeared via `call_trace.c`'s "trace everything before the first window arms" fallback,
-      not because retail's warmup fires later); an unconditional (non-window-gated) diagnostic hook confirmed BOTH sides' warmup
-      fires the SAME frame as LOADING_END (223), and that the generic `{rngseed}` pin structurally CANNOT reach it (base-relative
-      ops resolve one tick after their anchor is detected — always one frame late for a same-frame consumer, on either side).
-      Root was TWO independent retail-natural mismatches AT that exact frame: the LCG seed (**3502407629**, not the port's
-      unchanged-since-NEW_GAME `3132701474` — retail's real primary-load path consumes hidden RNG the port's load doesn't;
-      PORT-DEBT, not yet ported) AND the spawn cursor (retail's was **1**, not 0 — some earlier activity, e.g. a title-screen bg
-      render, had already spawned-and-frozen slot 0; `dir==0` makes its leftover x/y/z behaviourally inert, only the cursor
-      OFFSET is observable).  Generalized `{phasepin}`'s consumer-latch pattern (apply INSIDE `scene1_bg_npc_tick()`, sidesteps
-      the frame-lag entirely) into `scene1_bg_npc_seed_pin(seed,cursor)` — seeds BOTH, WITHOUT `{phasepin}`'s db054/anim/b154/rmb
-      reset bundle (which stalls the skip-path wrap-up — the reason `{phasepin}` was never usable here).  **✅ VERIFIED**
-      (`house-firstcust-arrprobe` + `{bgnpcseed:[3502407629,1]}`, `flow_diff --field-timeline`): **bgx1..5 bit-exact retail frame
-      224→825** (was diverging from frame 1); +1 host test (`bg_npc_seed_pin_forces_seed_and_cursor`), 3381 pass; no regression.
-      Full writeup + the port=223/retail=224 forensic trail: RE §21.21.
+    - **★★★ RESOLVED 2026-07-01 (RE §21.21/§21.22) — the bg_npc warmup ORIGIN fix + the dead-slot SHADOW fix, BOTH
+      USER-CONFIRMED.** `scene1_bg_npc_seed_pin(seed, cursor, dead_soa)` + `{bgnpcseed:[seed,cursor,[dead...]]}`: retail's
+      natural pre-warmup state at the frame the primary load releases differs from the port's in THREE ways — the LCG seed
+      (**3502407629** vs the port's unchanged-since-NEW_GAME `3132701474`; retail's real load consumes hidden RNG the port's
+      doesn't, PORT-DEBT not yet ported), the spawn cursor (retail's was **1**, not 0 — earlier activity, e.g. a title-screen bg
+      render, had already spawned-and-frozen slot 0), and — §21.21 wrongly called this last one inert — that dead slot's
+      leftover x/y/z (**still drawn by the shadow pass**, which checks only `visible==-1` not `dir==0`, unlike the sprite
+      renderer).  Generalized `{phasepin}`'s consumer-latch pattern (apply INSIDE `scene1_bg_npc_tick()`, sidesteps the generic
+      `{rngseed}` pin's structural one-frame-late lag for same-frame consumers) to seed the LCG + cursor + inject the dead
+      slot's raw engine record, WITHOUT `{phasepin}`'s db054/anim/b154/rmb reset (which stalls the skip-path wrap-up).
+      **✅ VERIFIED + USER-CONFIRMED** (`house-firstcust-arrprobe`, `flow_diff --field-timeline` + viewer win-0-1500):
+      bgx1..5 bit-exact retail frame 224→825 (was diverging from frame 1) and bgx0 now `✓ aligned` (was the port's BSS-zero
+      origin vs retail's barely-visible-at-the-window-edge shadow — user: "stray contact shadow on port", note #25, FIXED);
+      **user confirmed "the sparkles and npcs align"** (notes #17/#20/#22/#23 all 1:1).  +2 host-test checks
+      (`bg_npc_seed_pin_forces_seed_and_cursor`), 3381 pass; no regression.  Full writeup: RE §21.21/§21.22.
       **NEXT:** (1) a residual PURE 1-FRAME PHASE LAG from frame 826 on (bgx1-5 + unrelated fields — panim/pcnt/db054/poseL/
-      poseR/etc — pre-existing, present in ALL three drives incl. pre-fix; the §21.16-18 "resumes 1f off" pattern, not yet fixed
+      poseR/etc — pre-existing, present in every drive incl. pre-fix; the §21.16-18 "resumes 1f off" pattern, not yet fixed
       for whatever load/transition sits at ~825) — a fresh, separate arc, not a bg_npc bug.  (2) apply the same `{bgnpcseed}` to
       `house-firstcust-cutscene-day2` (same savefile ⇒ same naturals) — needs its OWN verify drive first (kept conservative, not
-      done this session).  (3) **PENDING USER STUDIO CONFIRM** — re-drive win-0-1500, confirm notes #17/#20/#22/#23 (sparkle/
-      chibi-walk/window-NPCs) now read 1:1 within the fixed [224,825] window (note #11 CONV_POSE_BLINK#2, off<521, is inside
-      this window — likely ALSO resolved, pending visual confirm).  A fresh, substantial arc closes here = a good /clear boundary.
+      done this session).  A fresh, substantial arc closes here = a good /clear boundary.
   - **Residual (absorbed):** CONV_POSE_END −2 / HF#5 −1 cutscene-end teardown (the SKIPPED iv1_7 bypasses the D_TUT_DONE
     settle-frame latch) — re-pinned at CONV_POSE_END by {gsimpin}/{bgnpcpin}, first-customer region already 1:1.
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →

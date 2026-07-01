@@ -115,26 +115,36 @@ void scene1_bg_npc_reset(void);
  * load-phase-independent, port↔retail-reproducible window-NPC layout. */
 void scene1_bg_npc_phasepin(void);
 
-/* Trace-harness {bgnpcseed}: latch `seed`/`cursor` so the NEXT
- * scene1_bg_npc_tick() forces the shared LCG + g_bg_npc_spawn_cursor to them
- * right before consuming RNG (RE §21.21).  Unlike scene1_bg_npc_phasepin()
- * this does NOT call scene1_bg_npc_reset() — it is meant to fire BEFORE
- * bg_npc's NATURAL first-ever tick (the warmup), seeding it with retail's own
- * captured pre-warmup origin instead of the synthetic canonical 19937.
+/* Trace-harness {bgnpcseed}: latch `seed`/`cursor`/`dead_soa` so the NEXT
+ * scene1_bg_npc_tick() forces the shared LCG, g_bg_npc_spawn_cursor, and the
+ * "dead" slots' leftover state to them right before consuming RNG (RE
+ * §21.21/§21.22).  Unlike scene1_bg_npc_phasepin() this does NOT call
+ * scene1_bg_npc_reset() — it is meant to fire BEFORE bg_npc's NATURAL
+ * first-ever tick (the warmup), seeding it with retail's own captured
+ * pre-warmup origin instead of the synthetic canonical 19937.
  *
  * `cursor` matters because the warmup's spawn cursor is NOT always 0 at the
  * true first FUN_0046f621 call: on the observed savefile it was already 1 —
  * some earlier activity (title-screen bg render?) had already spawned+frozen
- * slot 0 (STATE=-1, dir=0 — the "unspawned"/dead sentinel both bg_npc_tick and
- * the renderer skip) before scene1's own warmup ever runs, so retail's REAL
- * spawn sequence starts at slot 1.  Slot 0's exact leftover x/y/z/type don't
- * matter (dir==0 skips both the tick's position update and the render), only
- * which slot index the warmup starts spawning from — hence a cursor value,
- * not a full SoA snapshot.  `cursor` of 0 preserves the old (pre-RE-§21.21)
- * behaviour.  Using it after the warmup already ran just seeds the next
- * (non-warmup) tick and does not touch the cursor — it does not re-arm the
- * 180x pass; use scene1_bg_npc_phasepin() for that. */
-void scene1_bg_npc_seed_pin(uint32_t seed, int cursor);
+ * slot 0 (STATE=-1, dir=0 — the "unspawned"/dead sentinel) before scene1's own
+ * warmup ever runs, so retail's REAL spawn sequence starts at slot 1.
+ * `cursor` of 0 preserves the old (pre-RE-§21.21) behaviour.
+ *
+ * `dead_soa`/`dead_n_dwords` (optional, NULL/0 to skip): raw engine records
+ * ({bgnpcpin}'s format, BG_NPC_ENGINE_DWORDS dwords each) for the `cursor`
+ * dead slots — CORRECTS the §21.21 claim that their leftover x/y/z don't
+ * matter.  They DO: `dir==0` makes bg_npc_tick's position update AND
+ * scene1_bg_npc_sprite_render skip them, but scene1_bg_npc_shadow_render only
+ * checks `visible==-1` (RE §21.22) — so a dead slot's contact shadow still
+ * draws, at whatever x/y/z it holds.  Left at the port's BSS-zero default (no
+ * `dead_soa`) that is the world origin — a stray shadow retail doesn't show
+ * (its own dead slot sits off in the background, barely visible at the
+ * window edge).  Using scene1_bg_npc_seed_pin() after the warmup already ran
+ * just seeds the next (non-warmup) tick and does not touch the cursor or
+ * inject dead-slot state — it does not re-arm the 180x pass; use
+ * scene1_bg_npc_phasepin() for that. */
+void scene1_bg_npc_seed_pin(uint32_t seed, int cursor,
+                            const uint32_t *dead_soa, size_t dead_n_dwords);
 
 /* Trace-harness {bgnpcpin}: overwrite the live NPC array from `n_dwords` raw
  * engine records (SoA dwords, BG_NPC_ENGINE_DWORDS each) captured from retail's

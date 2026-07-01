@@ -197,16 +197,20 @@ int test_bg_npc_reset_clears(void)
     return 0;
 }
 
-/* {bgnpcseed} pin (RE §21.21): latches a seed + spawn-cursor that the NEXT
- * scene1_bg_npc_tick() applies right before consuming RNG — narrower than
- * scene1_bg_npc_phasepin() (no scene1_bg_npc_reset(), so it doesn't disturb
- * db054/anim/b154/rmb elsewhere in the trace harness).  Two independent
- * checks: (a) the seed actually overrides whatever rng_seed() was called
- * before the pin — proven by matching a DIRECT reset()+rng_seed()+tick() run
- * bit-for-bit; (b) the cursor actually skips that many slots — the observed
- * savefile had cursor==1 at the true first FUN_0046f621 entry (some earlier
- * activity, e.g. a title-screen bg render, had already spawned+frozen slot 0),
- * so a seed-only pin can't reproduce which slot the real spawn starts at. */
+/* {bgnpcseed} pin (RE §21.21/§21.22): latches a seed + spawn-cursor + optional
+ * dead-slot records that the NEXT scene1_bg_npc_tick() applies right before
+ * consuming RNG — narrower than scene1_bg_npc_phasepin() (no
+ * scene1_bg_npc_reset(), so it doesn't disturb db054/anim/b154/rmb elsewhere
+ * in the trace harness).  Three independent checks: (a) the seed actually
+ * overrides whatever rng_seed() was called before the pin — proven by
+ * matching a DIRECT reset()+rng_seed()+tick() run bit-for-bit; (b) the cursor
+ * actually skips that many slots — the observed savefile had cursor==1 at the
+ * true first FUN_0046f621 entry (some earlier activity, e.g. a title-screen
+ * bg render, had already spawned+frozen slot 0), so a seed-only pin can't
+ * reproduce which slot the real spawn starts at; (c) a dead slot's leftover
+ * x/y/z from an injected engine record survives the warmup untouched — the
+ * shadow pass draws it regardless of dir==0 (only checks visible==-1), so the
+ * port's BSS-zero default would otherwise draw a stray shadow at the origin. */
 int test_bg_npc_seed_pin_forces_seed_and_cursor(void)
 {
     /* (a) seed override: pinned-from-1234-but-forced-to-99 must exactly match
@@ -214,7 +218,7 @@ int test_bg_npc_seed_pin_forces_seed_and_cursor(void)
      * fired, not the pre-pin rng_seed(1234). */
     scene1_bg_npc_reset();
     rng_seed(1234u);
-    scene1_bg_npc_seed_pin(99u, 0);
+    scene1_bg_npc_seed_pin(99u, 0, NULL, 0);
     scene1_bg_npc_tick();
     uint32_t pinned_rng  = g_rng_seed;
     scene1_bg_npc_t pinned_npc0 = g_scene1_bg_npc[0];
@@ -233,7 +237,7 @@ int test_bg_npc_seed_pin_forces_seed_and_cursor(void)
      * "unspawned"/dead sentinel both tick and render skip) and spawn 3-5. */
     scene1_bg_npc_reset();
     rng_seed(42u);
-    scene1_bg_npc_seed_pin(42u, 3);
+    scene1_bg_npc_seed_pin(42u, 3, NULL, 0);
     scene1_bg_npc_tick();
     for (int i = 0; i < 3; i++)
         if (g_scene1_bg_npc[i].dir != 0)
@@ -243,6 +247,34 @@ int test_bg_npc_seed_pin_forces_seed_and_cursor(void)
         if (g_scene1_bg_npc[i].dir != 1 && g_scene1_bg_npc[i].dir != -1)
             T_FAIL("slot %d not spawned past cursor=3 (dir=%d)",
                    i, g_scene1_bg_npc[i].dir);
+
+    /* (c) dead-slot record injection: cursor=1 with ONE dead-slot engine
+     * record (dir=0, a distinct leftover x/y/z) must leave slot 0 exactly at
+     * that position — not the port's BSS-zero default — and the warmup must
+     * NOT touch it afterward (dir==0 skips bg_npc_tick's position update). */
+    scene1_bg_npc_reset();
+    rng_seed(17u);
+    uint32_t dead[BG_NPC_ENGINE_DWORDS];
+    memset(dead, 0xAB, sizeof dead);              /* poison unmodelled gaps */
+    for (int d = 0; d < BG_NPC_REC_DWORDS; d++) dead[d] = 0;
+    dead[5] = (uint32_t)-1;                        /* STATE (arec header) */
+    float dx = -2.8f, dy = 1.2f, dz = -10.5f;
+    memcpy(&dead[11], &dx, 4);                     /* x @+0x2c */
+    memcpy(&dead[12], &dy, 4);                     /* y @+0x30 */
+    memcpy(&dead[13], &dz, 4);                     /* z @+0x34 */
+    dead[17] = 0;                                  /* dir @+0x44 — dead */
+    dead[18] = 0;                                  /* visible @+0x48 */
+    dead[19] = 14;                                 /* type @+0x4c */
+
+    scene1_bg_npc_seed_pin(17u, 1, dead, BG_NPC_ENGINE_DWORDS);
+    scene1_bg_npc_tick();
+    scene1_bg_npc_t *d0 = &g_scene1_bg_npc[0];
+    if (d0->dir != 0 || d0->x != dx || d0->y != dy || d0->z != dz)
+        T_FAIL("dead-slot 0 = (dir=%d x=%g y=%g z=%g), want (0, %g, %g, %g)",
+               d0->dir, (double)d0->x, (double)d0->y, (double)d0->z,
+               (double)dx, (double)dy, (double)dz);
+    if (g_scene1_bg_npc[1].dir != 1 && g_scene1_bg_npc[1].dir != -1)
+        T_FAIL("slot 1 not spawned past cursor=1 (dir=%d)", g_scene1_bg_npc[1].dir);
     return 0;
 }
 

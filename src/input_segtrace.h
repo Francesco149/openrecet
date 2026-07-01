@@ -120,13 +120,16 @@
  *                        than N is left alone (can't shorten a thread), so pick
  *                        N ≥ any plausible real bracket (≥ 8 recommended).
  *
- *   {"bgnpcseed":V} or {"bgnpcseed":[V,C]}
- *                        trace-global (RE §21.21): seed the bg-NPC warmup's
- *                        LCG origin to V, and its spawn cursor to C (default 0
- *                        in scalar form), right before its NATURAL first-ever
- *                        tick (scene1_bg_npc_seed_pin).  A narrower alternative
- *                        to {phasepin}, which ALSO zeros db054/anim/b154/rmb
- *                        and stalls the skip-path wrap-up cutscene.  Needed
+ *   {"bgnpcseed":V}, {"bgnpcseed":[V,C]}, or {"bgnpcseed":[V,C,[d0..d(25*C-1)]]}
+ *                        trace-global (RE §21.21/§21.22): seed the bg-NPC
+ *                        warmup's LCG origin to V, its spawn cursor to C
+ *                        (default 0 in scalar form), and the C dead slots'
+ *                        [0,C) leftover engine-record state to the optional
+ *                        3rd array (C {bgnpcpin}-format records, 25 dwords
+ *                        each) right before its NATURAL first-ever tick
+ *                        (scene1_bg_npc_seed_pin).  A narrower alternative to
+ *                        {phasepin}, which ALSO zeros db054/anim/b154/rmb and
+ *                        stalls the skip-path wrap-up cutscene.  Needed
  *                        because the warmup fires on the SAME frame the
  *                        primary-load busy gate releases, one frame before the
  *                        earliest a base-relative {rngseed} can mechanically
@@ -139,12 +142,20 @@
  *                        already past this point).  C matters because the
  *                        cursor is not always 0 at that entry either: earlier
  *                        activity (title-screen bg render?) can leave slot 0
- *                        spawned-and-frozen (dir==0, skipped by both tick and
- *                        render) before scene1's own warmup ever runs, so the
- *                        REAL spawn sequence starts at a later slot.  The
- *                        retail Frida agent mirrors both in installBgNpcPinHook,
- *                        gated on the warmup latch (DAT_073a8bb8) still being 0.
- *                        Last declaration wins; fires once, ever.
+ *                        spawned-and-frozen (dir==0, the "unspawned"/dead
+ *                        sentinel) before scene1's own warmup ever runs, so
+ *                        the REAL spawn sequence starts at a later slot.  The
+ *                        dead-slot array matters because dir==0 makes
+ *                        bg_npc_tick's position update AND the sprite
+ *                        renderer skip a dead slot, but the SHADOW renderer
+ *                        only checks visible==-1 — so it still draws a dead
+ *                        slot at whatever x/y/z it holds; left at the port's
+ *                        BSS-zero default (no 3rd array) that is the world
+ *                        origin, a stray shadow retail doesn't show.  The
+ *                        retail Frida agent mirrors all three in
+ *                        installBgNpcPinHook, gated on the warmup latch
+ *                        (DAT_073a8bb8) still being 0.  Last declaration
+ *                        wins; fires once, ever.
  *
  *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
  *                        (relative to the trace file's directory) to a
@@ -232,11 +243,16 @@ struct seg_gsimpin {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One engine record's dword count (BG_NPC_ENGINE_DWORDS = 25 = 0x64/4).
+ * Kept as a literal (like SEG_BGNPCPIN_DWORDS below) so this module need not
+ * include scene1_bg_npc.h. */
+#define SEG_BGNPC_RECORD_DWORDS 25
+
 /* Payload size of one {bgnpcpin} op: SCENE1_BG_NPC_COUNT(6) engine records of
  * BG_NPC_ENGINE_DWORDS(25 = 0x64/4) dwords each.  Kept as a literal so this
  * module need not include scene1_bg_npc.h; the consumer (scene1_bg_npc_pin)
  * re-derives the record count from n_dwords and asserts the layout. */
-#define SEG_BGNPCPIN_DWORDS 150
+#define SEG_BGNPCPIN_DWORDS (SEG_BGNPC_RECORD_DWORDS * 6)
 
 /* One base-relative background-NPC SoA pin: at absolute frame base+frame,
  * overwrite the live DAT_073a7f80 records from `values` (retail's captured
@@ -360,16 +376,20 @@ struct input_segtrace {
     uint32_t primaryloadpin;
     int      has_primaryloadpin;
 
-    /* Optional bg-NPC warmup seed pin, from a `{"bgnpcseed":V}` or
-     * `{"bgnpcseed":[V,C]}` op (trace-global, last declaration wins; RE
-     * §21.21).  When set, the host seeds the shared LCG to V and the spawn
-     * cursor to C right before the bg-NPC warmup's NATURAL first-ever tick
-     * (scene1_bg_npc_seed_pin); the Frida agent mirrors both at the
-     * FUN_0046f621 entry.  `has_bgnpcseed` is 0 when no op was seen;
-     * `bgnpcseed_cursor` is 0 (the scalar-form default) unless the array form
-     * set it. */
+    /* Optional bg-NPC warmup seed pin, from a `{"bgnpcseed":V}`,
+     * `{"bgnpcseed":[V,C]}`, or `{"bgnpcseed":[V,C,[d0..]]}` op (trace-global,
+     * last declaration wins; RE §21.21/§21.22).  When set, the host seeds the
+     * shared LCG to V, the spawn cursor to C, and the `bgnpcseed_dead_n`
+     * dwords of raw engine records (dead-slot leftover state — the shadow
+     * pass draws them regardless of dir==0) right before the bg-NPC warmup's
+     * NATURAL first-ever tick (scene1_bg_npc_seed_pin); the Frida agent
+     * mirrors all three at the FUN_0046f621 entry.  `has_bgnpcseed` is 0 when
+     * no op was seen; `bgnpcseed_cursor`/`bgnpcseed_dead_n` are 0 (the
+     * scalar-form / two-element-array default) unless set explicitly. */
     uint32_t bgnpcseed;
     int      bgnpcseed_cursor;
+    uint32_t bgnpcseed_dead[SEG_BGNPCPIN_DWORDS];
+    int      bgnpcseed_dead_n;
     int      has_bgnpcseed;
 
     /* Runtime state (advanced by input_segtrace_tick). */
