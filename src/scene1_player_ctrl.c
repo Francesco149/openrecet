@@ -1222,6 +1222,19 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
  * menu FUN_004850fe) is a different feature — not the sell. */
 #define PC_F404_SELL_ACTIVE_BYTE_OFF  0x2bc6c   /* DAT_0450f404 — sell-active flag */
 
+/* cc08 flipped 1→4 THIS frame (any cs entry flavor).  The engine's entry arms
+ * all `goto LAB_004893ff` — PAST the per-actor anim-tick loop (FUN_004897c6)
+ * and the companion controller — so the entry frame ticks/writes NO actor anim
+ * (probe-proven RE §21.28: retail ccnt/pcnt freeze across frames 304 + 825).
+ * Cleared at the top of scene1_player_ctrl_tick each frame; read by
+ * scene1_companion_ctrl_tick to sit the companion out on the entry frame. */
+static int s_cc08_entered_this_frame = 0;
+
+int player_ctrl_cc08_entered_this_frame(void)
+{
+    return s_cc08_entered_this_frame;
+}
+
 static int player_ctrl_cc08_sell_counter_enter(void)
 {
     if (!player_ctrl_at_sell_counter())     /* bVar3: tier<3, counter rect + facing */
@@ -1235,6 +1248,7 @@ static int player_ctrl_cc08_sell_counter_enter(void)
     ((uint8_t *)bank)[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;   /* DAT_0450f404 = 1 */
     customer_service_set_script_file(0);                   /* FUN_00461bf6(0) → DAT_005c6bb0 */
     s_cc08 = 4;                                            /* DAT_0438cc08 = 4 */
+    s_cc08_entered_this_frame = 1;                         /* RE §21.28 entry no-tick */
     customer_service_session_init();                       /* FUN_0045edaa */
     s_emote_level = 0;   /* DAT_056db000 = 0 (all.c:87696): consume the counter "!"
                           * affordance on entry, so it doesn't linger frozen through
@@ -1274,6 +1288,7 @@ int player_ctrl_cc08_f406_entry(void)
     if (((const uint8_t *)bank)[PC_F406_TUTORIAL_BYTE_OFF] == 0)
         return 0;
     s_cc08 = 4;                          /* DAT_0438cc08 = 4 */
+    s_cc08_entered_this_frame = 1;       /* RE §21.28 entry no-tick */
     customer_service_session_init();     /* FUN_0045edaa (the f406 forced-kyaku-13 branch) */
     return 1;
 }
@@ -2051,6 +2066,10 @@ void scene1_player_ctrl_tick(void)
      * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
     s_companion_ticked_in_b850 = 0;
 
+    /* New frame — a cc08 1→4 entry can only be flagged by THIS frame's arms
+     * (RE §21.28 entry no-tick; read later this frame by the companion ctrl). */
+    s_cc08_entered_this_frame = 0;
+
     /* Per-frame ACTOR-STATE flow-trace payload (FUN_0048670f = the HOUSE
      * free-roam update, parent of both the player and companion controllers).
      * Read at onEnter (frame start, before this frame's update) so it mirrors
@@ -2104,6 +2123,24 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("coct",  r2[CHR_ACTOR_FACING]);
             CALL_TRACE_I32("canim", r2[CHR_ACTOR_ANIM]);
             CALL_TRACE_I32("cframe",r2[CHR_ACTOR_FRAME]);
+            /* DIAGNOSTIC (RE §21.28 chr_anim seed-origin): the companion's raw
+             * anim counter + timer — pins WHICH frame each side ticks/resets
+             * the wing cycle (the ±1 cframe boundary blips).  Retail mirrors:
+             * ccnt 0x56dab4c, ctimer 0x56dab48. */
+            CALL_TRACE_I32("ccnt",  r2[CHR_ACTOR_COUNTER]);
+            {
+                union { int32_t i; float f; } tmr = { .i = r2[CHR_ACTOR_TIMER] };
+                CALL_TRACE_F32("ctimer", tmr.f);
+            }
+            /* DIAGNOSTIC (RE §21.28, notes #20/#22): the cs browsing-customer
+             * SLOT 0 anim/frame/counter (engine DAT_073a6e50, stride 0x90) —
+             * the walk-cycle body-pose phase where facing+path already match. */
+            {
+                const int32_t *n0 = scene1_customer_npc_slot(0);
+                CALL_TRACE_I32("n0anim", n0 ? n0[0] : -1);
+                CALL_TRACE_I32("n0frm",  n0 ? n0[4] : -1);
+                CALL_TRACE_I32("n0cnt",  n0 ? n0[3] : -1);
+            }
             /* db054 = the {phasepin}-zeroed per-scene counter — the shared clock
              * flow_diff --align-field uses to pair port↔retail frames on a
              * load-stretched HOUSE capture (port ~475 vs retail ~14285). */

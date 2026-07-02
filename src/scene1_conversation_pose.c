@@ -135,9 +135,34 @@ void scene1_conversation_pose_tick(void)
      * over, firing CONV_POSE_END at entry+1 like retail.  Scoped to f406 (only
      * iv1_7 sets it) so the iv1_5/iv1_6 inter-dialogue pose blip (§21.10) and the
      * prologue are untouched. */
+    int f406_hold = 0;
     if (!posing && s_pose_active && player_ctrl_cc08() == 1 &&
-        player_ctrl_cc08_f406_pending())
+        player_ctrl_cc08_f406_pending()) {
         posing = 1;
+        /* RE §21.28: the entry frame is DEAD for actor anims on retail (the
+         * entry arm gotos past the FUN_004897c6 tick loop and FUN_0048407f
+         * never runs — probe: ccnt/pcnt freeze across frame 825/304).  Hold
+         * the pose RECORDS but skip the anim ticks this frame. */
+        f406_hold = 1;
+    }
+
+    /* FUN_0048407f gates the WHOLE pose/release block on `DAT_0438cc08 != 4`
+     * (the branch right after the *DAT_068dd2f0<1 check) — once the cs/f406
+     * entry has flipped cc08 to 4, retail neither re-applies the pose NOR runs
+     * the idle release: the actors keep their STALE talk anim (Tear canim=4,
+     * cframe cycling via the draw leaf) until the next owner rewrites them
+     * (the free-roam idle law, first post-load companion tick — frame 851 on
+     * arrprobe).  The port's latch-release used to force anim 0 + cycle reset
+     * on the first cc08==4 frame (826), reseeding Tear's wing cycle 25 frames
+     * before retail's natural rewrite ⇒ the permanent cframe phase offset
+     * behind viewer note #21 (RE §21.28).  Drop the latch WITHOUT touching the
+     * records; the player's cc08==4 arrival arm overwrites state 6→5 later
+     * this same frame (it runs THROUGH the load), so CONV_POSE_END still fires
+     * on the retail frame. */
+    if (player_ctrl_cc08() == 4) {
+        s_pose_active = 0;
+        return;
+    }
 
     /* Inert outside the pose window (and once released): the freeroam
      * controllers own the actors — don't fight them every frame. */
@@ -166,10 +191,13 @@ void scene1_conversation_pose_tick(void)
         /* FUN_0048407f's per-actor anim step (the per-frame FUN_00482a71 loop):
          * advance each posed actor one frame so Recette's blink (38↔39) and
          * Tear's talk pose animate.  conv_pose_enter reset the cycle on the
-         * frame it entered the state; the engine ticks that same frame too. */
-        chr_anim_tick(player_rec, player_ctrl_actor_char(0), 1.0f);
-        if (comp_rec)
-            chr_anim_tick(comp_rec, player_ctrl_actor_char(2), 1.0f);
+         * frame it entered the state; the engine ticks that same frame too.
+         * NOT on the f406-entry hold frame — dead for anims (RE §21.28). */
+        if (!f406_hold) {
+            chr_anim_tick(player_rec, player_ctrl_actor_char(0), 1.0f);
+            if (comp_rec)
+                chr_anim_tick(comp_rec, player_ctrl_actor_char(2), 1.0f);
+        }
     }
 
     s_pose_active = active;

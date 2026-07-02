@@ -3252,3 +3252,41 @@ through the CRT **double** sin gives 0.99999999999999905 → ·−128 → ftol �
 **✅ VERIFIED bit-exact (v3 win-0-1000):** pause "go to bed" confirm PAUSE_OPEN#1+34..41 Yes-region **max px diff 0**
 (mean pulses 157.9→162.0→163.6→162.0→157.7 identically) + the ESC-skip confirm CONV_POSE_BLINK#3+33..39 box-band max 1
 (sub-LSB).  3381 host pass.  **PENDING USER STUDIO CONFIRM** note #8.
+
+## 21.28 2026-07-02 — the ★★★ chr_anim SEED-ORIGIN arc CRACKED: 4 tick-cadence roots (conv-pose release gate, cc08==4 set-then-tick, entry-frame no-tick, cs-walker set-anim never ported) — notes #20/#21/#22
+
+**The FRONT "anim seed-origin" diagnosis (cframe 1f-ahead-in-load / 1f-behind-free-roam) resolved into FOUR concrete
+roots, each probe-proven** (new declarative probe fields: companion `ccnt` 0x56dab4c + `ctimer` 0x56dab48, cs-walker
+slot0 `n0anim/n0frm/n0cnt` 0x73a6e50/60/5c — port CALL_TRACE + retail_fields.json, no JS).
+
+**(1) The conv-pose latch-release ignored FUN_0048407f's `cc08 != 4` gate** (the biggest: the 898-frame solid cframe
+regime 825→1722).  Retail gates the WHOLE pose/release block on `DAT_0438cc08 != 4` — at the f406 entry (cc08 1→4 @825)
+it neither re-applies the pose NOR runs the idle release: Tear keeps the STALE talk anim (canim 4, cframe cycling via the
+per-frame tick) through the d3e load, and only the resumed idle law rewrites her to canim 0 at 851 — WITH a cycle reset.
+The port's latch-release instead forced anim 0 + cycle reset at 826, reseeding the wing cycle 25f before retail ⇒ the
+permanent offset.  FIX: mirror the gate in `scene1_conversation_pose_tick` (cc08==4 ⇒ drop the latch, touch NO records;
+the player's cc08==4 arrival arm overwrites state 6→5 later the same frame, so CONV_POSE_END still fires @826).  Also
+fixes the 1f panim glitch @826 (retail samples 6, port sampled 0).
+
+**(2) cc08==4 frames order anim-SET before ONE unconditional frame-tail tick — a transition frame ends counter=1, NOT 0**
+(ccnt probe: retail 850→851 = reset+tick ⇒ 1; walk-in churn 330-332 pins at 1; the port's skip-on-transition rule ended
+at 0 ⇒ 1 tick behind for the rest of the scene = the 861/871/881… boundary blips).  **Free-roam cc08==1 is the OPPOSITE
+order** (FUN_004897c6 runs inside FUN_0048b850 BEFORE FUN_0048a833's anim-set — probe frames 273/286: BOTH sides end a
+transition at counter 0 ⇒ the §81-era skip rule is CORRECT there and stays).  FIX: `scene1_companion_ctrl_tick` ticks
+unconditionally under cc08==4 (both the f404 at-counter arm and the f404==0 spring-follow fall-through).
+
+**(3) the cc08 1→4 ENTRY frame ticks NOTHING** (probe: retail ccnt+pcnt freeze across 304 AND 825 — the engine entry
+arms `goto LAB_004893ff`, PAST the FUN_004897c6 per-actor tick loop and the companion ctrl; FUN_0048407f doesn't run
+either).  The port's d3e load gate ticked @304 (⇒ the +1 blips 307-327) and the §21.18 pose-hold ticked @825.  FIX: new
+`player_ctrl_cc08_entered_this_frame()` (set at both cc08=4 entry sites, cleared per frame); the companion ctrl sits the
+entry frame out entirely, and the §21.18 hold applies the pose RECORDS but skips the anim ticks (`f406_hold`).
+
+**(4) the cs-walker set-anim (FUN_00482a51 ×3 in FUN_0046fbee) was never ported — the browsing chibi SLID in the idle
+pose while retail WALKS** (= notes #20/#22 "customer walk phase", NOT a phase slip at all: n0anim retail=1/0 alternating
+walk/dwell vs port ALWAYS 0).  The two walk-state calls were deferred as "render-only" with Ghidra-dropped args
+(gotcha #1); objdump ground truth: wstate==0 @0x46fd74 `push 1` (after WTIMER++), wstate==1 @0x46fd09 `push 1` (before
+WTIMER++), wstate==2 @0x46fc48 `push 0`.  FIX: `cs_npc_set_anim` (the 482a51 body) called per arm; the pump's existing
+per-slot chr_anim_tick after cs_npc_tick gives the same set-then-tick order as retail (walker transitions land n0cnt=1 —
+observed in the retail probe: walk cycle 36 ticks 1/10/19/28, dwell 78 ticks 1/61/67/73).
+
+**RNG-safe:** all four touch only anim/frame/counter/timer record fields (no LCG draws, no position writes).

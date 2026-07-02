@@ -8695,7 +8695,10 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_companion_ctrl.c",
+    "src/scene1_conversation_pose.c",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h"
    ]
   },
   {

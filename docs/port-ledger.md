@@ -475,7 +475,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x486435 | FUN_00486435 | 200 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x48670f | FUN_0048670f | 11519 | ✓ | customer_service.h, scene1_bg_npc.h, scene1_companion_ctrl.c (+8) |
 | 0x48960d | FUN_0048960d | 441 | ✓ | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
-| 0x4897c6 | FUN_004897c6 | 870 | ✓ | scene1_player_ctrl.c |
+| 0x4897c6 | FUN_004897c6 | 870 | ✓ | scene1_companion_ctrl.c, scene1_conversation_pose.c, scene1_player_ctrl.c (+1) |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x489e66 | FUN_00489e66 | 1227 | ✓ | scene1_player_ctrl.c |

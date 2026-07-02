@@ -383,6 +383,11 @@ void player_ctrl_set_facing_angle(float angle);
  * camera / counter / menu / dialogue arms. */
 void player_ctrl_cc08_enter_freeroam(void); /* FUN_004850ec: set cc08 = 1 (HOUSE entry) */
 int  player_ctrl_cc08(void);                /* read cc08 */
+int  player_ctrl_cc08_entered_this_frame(void); /* cc08 flipped 1→4 THIS frame — the engine
+                                             * entry arms `goto LAB_004893ff` past the
+                                             * FUN_004897c6 anim-tick loop + the companion
+                                             * ctrl, so the entry frame ticks no actor
+                                             * anim (probe-proven, RE §21.28). */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
 int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the

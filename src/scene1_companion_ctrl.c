@@ -271,6 +271,14 @@ void scene1_companion_ctrl_tick(void)
      * frame-start snapshot is 2 (notify_loaded already cleared the live b1cc).  The
      * OR keeps the companion idle for off0..release inclusive ⇒ it arrives the frame
      * AFTER the load clears, matching retail (was 1f early on the release frame). */
+    /* cc08 1→4 ENTRY frame: the engine's entry arms `goto LAB_004893ff` — past
+     * the FUN_004897c6 per-actor anim-tick loop AND FUN_0048a833 — so the
+     * companion gets NO tick and NO writes on the entry frame (probe-proven
+     * RE §21.28: retail ccnt freezes across frames 304 + 825; the port's load
+     * gate used to tick here, the +1 phase blips 307..327). */
+    if (player_ctrl_cc08() == 4 && player_ctrl_cc08_entered_this_frame())
+        return;
+
     if (player_ctrl_cc08() == 4 &&
         (customer_service_d3e_loading() || customer_service_load_at_frame_start())) {
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
@@ -296,13 +304,18 @@ void scene1_companion_ctrl_tick(void)
      * The scold pose + 集中線 on the reaction beat are a SEPARATE live-machine
      * overlay (b534==6), ported later. */
     if (player_ctrl_cc08() == 4 && customer_service_f404()) {
-        int prev_animsel = rec[CO_REC_ANIMSEL];
         co_at_counter_tick(rec, comp, player);
-        /* advance the sprite anim on a non-transition frame (mirrors the
-         * free-roam tail + the player); skip the frame canim transitioned in
-         * (co_set_anim reset the cycle to frame 0). */
-        if (rec[CO_REC_ANIMSEL] == prev_animsel)
-            chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
+        /* cc08==4 tick order is anim-SET first, ONE unconditional tick at the
+         * frame tail (the engine's inline dab54 writes / FUN_0048a833 run
+         * BEFORE the FUN_004897c6 per-actor loop) — so a transition frame ends
+         * with counter 1, NOT 0.  Probe-proven RE §21.28 (retail ccnt=1 the
+         * frame after every cs-era anim churn: 331→332 walk-in, 850→851 idle
+         * release; the old skip-on-transition rule left the port 1 tick
+         * behind for the rest of the scene).  NB free-roam (cc08==1) is the
+         * OPPOSITE order (FUN_004897c6 runs inside FUN_0048b850 before
+         * FUN_0048a833's anim-set — probe frames 273/286: both sides end a
+         * transition frame at counter 0), so the skip rule stays below. */
+        chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
         /* wing-glow sparkle (FUN_0048a833 tail) — db054 frozen at 156 in cc08==4
          * ⇒ %4==0 emits every frame (the RE §8.8 rng-rate match). */
         if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
@@ -390,8 +403,14 @@ void scene1_companion_ctrl_tick(void)
      * On an idle↔moving transition co_set_anim already reset the cycle
      * to frame 0, so — mirroring the player — skip the tick on that frame
      * (CO_REC_ANIMSEL changed) and advance only when the anim is unchanged.
-     * See docs/findings/scene1-wing-glow.md, engine-quirks §81. */
-    if (!in_conversation && rec[CO_REC_ANIMSEL] == prev_animsel)
+     * See docs/findings/scene1-wing-glow.md, engine-quirks §81.
+     *   EXCEPT under cc08==4 (the f406/f404==0 autonomous cs runs THIS same
+     * spring-follow path): the engine's cs arm orders anim-SET before the
+     * FUN_004897c6 frame-tail tick, so a transition frame there ends at
+     * counter 1 — tick unconditionally (probe-proven RE §21.28, frame 850/851;
+     * free-roam cc08==1 keeps the skip — probe frames 273/286 end at 0). */
+    if (!in_conversation &&
+        (player_ctrl_cc08() == 4 || rec[CO_REC_ANIMSEL] == prev_animsel))
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
 
     /* Wing-glow sparkle (FUN_0048a833 tail): emit every 4th frame, off the

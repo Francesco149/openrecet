@@ -101,6 +101,41 @@
      "type": "i32"
     },
     {
+     "name": "ccnt",
+     "src": "global",
+     "va": "0x56dab4c",
+     "type": "i32",
+     "_note": "companion CHR_ACTOR_COUNTER — RE §21.28 chr_anim seed-origin drill (which frame each side ticks/resets the wing cycle)."
+    },
+    {
+     "name": "ctimer",
+     "src": "global",
+     "va": "0x56dab48",
+     "type": "f32",
+     "_note": "companion CHR_ACTOR_TIMER (frame-time accumulator) — RE §21.28."
+    },
+    {
+     "name": "n0anim",
+     "src": "global",
+     "va": "0x73a6e50",
+     "type": "i32",
+     "_note": "cs browsing-customer slot 0 ANIM (DAT_073a6e50, stride 0x90) — RE §21.28 walk-cycle phase drill (notes #20/#22)."
+    },
+    {
+     "name": "n0frm",
+     "src": "global",
+     "va": "0x73a6e60",
+     "type": "i32",
+     "_note": "cs slot 0 FRAME (+0x10) — RE §21.28."
+    },
+    {
+     "name": "n0cnt",
+     "src": "global",
+     "va": "0x73a6e5c",
+     "type": "i32",
+     "_note": "cs slot 0 COUNTER (+0xc) — RE §21.28."
+    },
+    {
      "name": "db054",
      "src": "global",
      "va": "0x56db054",
