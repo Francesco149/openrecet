@@ -7,6 +7,22 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — the ★★★ anim seed-origin arc CRACKED: 4 tick-cadence roots fixed, notes #20/#21/#22 (RE §21.28)
+
+The FRONT "chr_anim seed ORIGIN" diagnosis resolved into four probe-proven roots (new declarative probe
+fields: companion ccnt/ctimer + cs-walker slot0 n0anim/n0frm/n0cnt, port CALL_TRACE + retail_fields.json):
+(1) the conv-pose latch-release ignored FUN_0048407f's `cc08 != 4` gate — at the f406 entry retail leaves the
+STALE talk anim on Tear through the d3e load (idle law rewrites+resets at 851); the port's forced release at
+826 reseeded the wing cycle 25f early = the permanent cframe offset (note #21).  (2) cc08==4 frames order
+anim-SET before ONE unconditional frame-tail tick (transition frames end counter=1; free-roam cc08==1 is the
+opposite order and keeps the §81 skip rule — probe frames 273/286 vs 850/332).  (3) the cc08 1→4 ENTRY frame
+ticks nothing (`goto LAB_004893ff` past FUN_004897c6; new player_ctrl_cc08_entered_this_frame + the §21.18
+hold skips its anim ticks).  (4) the cs-walker set-anim (FUN_00482a51 ×3 in FUN_0046fbee, Ghidra-dropped
+args, objdump-ground-truthed: walk=1 wstates 0/1, dwell=0 wstate 2) was never ported — the browsing chibi
+SLID in the idle pose while retail walks (notes #20/#22 were never a phase slip).  Verified vs fresh retail:
+cframe 930→26 divergent frames (residual = the pose-era carry [825,850], separate chip), canim/panim/n0*
+fully aligned [224,1722], raw rng bit-exact 225→1722, 3381 host pass.  Commits 6f0993b + 2537904.
+
 ## 2026-07-02 — ESC-modal arc USER-CONFIRMED; choice-box commit FLASH ported bit-exact (note #8, RE §21.27)
 
 User confirmed the §21.26 arc ("can confirm everything matches"): box-arm timing, dialogue-under-box,

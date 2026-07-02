@@ -31,15 +31,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
-- **★★★ ACTIVE — first-customer trace (`house-firstcust-arrprobe`, win-0-1500): the ANIM SEED-ORIGIN PHASE class.**
-  Baseline: the rng-value stream, NPC positions, db054, and every anchor are 1:1 — **USER-CONFIRMED 2026-07-01**
-  ("npcs aligned, customer aligned"; `findings/confirmed-parity-ledger.md`, RE §21.10–§21.25 in
-  `findings/customer-service-haggle-RE.md`).  **REMAINING (a SEPARATE root, NOT the rng stream):** #21 tear
-  wing-flap cframe phase + the browsing-customer walk-CYCLE phase (body-pose slip where facing+path already
-  match; viewer notes #20/#21/#22 open).  Diagnosis so far (old notes #10/#18): cframe runs 1f-ahead during
-  load, 1f-behind free-roam ⇒ inconsistent direction = the chr_anim seed ORIGIN (seed timing, not rate),
-  entangled with the load/arrival anim-seed timing.  The companion's transition-frame chr_anim_tick skip is
-  CORRECT (player skips identically, scene1_player_ctrl.c:1705, 1:1) — don't re-suspect it.
+- **★★★ ACTIVE — first-customer trace (`house-firstcust-arrprobe`, win-0-1500): the ANIM SEED-ORIGIN PHASE class —
+  CRACKED 2026-07-02 (RE §21.28, commits `6f0993b`+`2537904`); PENDING USER STUDIO CONFIRM notes #20/#21/#22.**
+  Four probe-proven roots (new `ccnt`/`ctimer`/`n0anim/n0frm/n0cnt` fields): (1) the conv-pose latch-release
+  ignored FUN_0048407f's `cc08 != 4` gate ⇒ reseeded Tear's wing cycle 25f early at the f406 entry (the 898-frame
+  solid regime); (2) cc08==4 orders anim-SET before ONE unconditional frame-tail tick (transition frames end
+  counter=1 — free-roam cc08==1 is the OPPOSITE, the §81 skip rule stays there); (3) the cc08 1→4 ENTRY frame
+  ticks NOTHING (engine `goto LAB_004893ff` past FUN_004897c6); (4) the cs-walker set-anim (FUN_00482a51 ×3,
+  Ghidra-dropped args) was never ported — the chibi SLID in idle pose while retail walks.  **VERIFIED vs fresh
+  retail: cframe 930→26 divergent frames, canim/panim/n0* fully aligned [224,1722], rng bit-exact 225→1722.**
+  **REMAINING chips:** (a) the pose-era +20 companion tick offset (632-824, ESC-skipped wrap-up; carries the
+  [825,850] residual, self-heals at 851 — probe lead: add ccnt to the continuous sim_step_a VA); (b) player
+  pframe/pcnt window-start load region (@224, 45f); (c) companion coct/cx tutorial-cs blips (@389, 48/33f);
+  (d) probe-only init leftovers ask/base/b5b0 (retail 1000/1 vs port 0 pre-cs).
 - **✅ 2026-07-02 — `house-firstcust-cutscene-day2` carries the FULL pin set** ({csloadpin:24} +
   {primaryloadpin:16} + {tutloadpin:8} + {bgnpcseed}; same savefile ⇒ same naturals; both sides auto-skip its
   own `{bgnpcpin}` inject per §21.25).  **VERIFIED `--target both`: raw rng bit-exact frames 225→1934 = the
