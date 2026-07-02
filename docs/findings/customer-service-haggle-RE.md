@@ -3606,4 +3606,9 @@ Pre-2274 both sit shoptime=1/phase=1.0 (row0 daytime); the port's phase settling
 render: frame 2081 (pre-jump) daytime, frame 2441 amber dusk + the clock dial now rotates (was static).
 Startup note: the clock ease is gated `g_scene_state!=0` (incl. pause mode 9); inert in this trace
 (phase already at target through the pause) — if a pause-time clock divergence ever surfaces, tighten the
-gate.  Pixel 1:1 pending the user's Trace Studio confirm (notes #20-23).
+gate.
+
+**PIXEL 1:1 CONFIRMED (identity-synced viewer diff):** re-drove the port into Trace Studio (`orv3_window
+0:3000`, fixed-port cache slice) + re-rendered the flagged notes — **all four #20-23 diff panels are BLACK**
+(were mostly-white pre-fix): #20 f2081 pre-jump both daytime, #22 f2441 settled both dusk, #23 f2927 clock
+dials identical.  Notes #20-23 resolved (awaiting the user's click to clear them in the viewer).

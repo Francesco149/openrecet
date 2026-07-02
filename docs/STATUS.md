@@ -31,17 +31,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
-- **✅ 2026-07-02 — day-end DUSK tint + clock dial PORTED (viewer notes #20-23; RE §21.32; needs viewer confirm to clear).**
+- **✅ 2026-07-02 — day-end DUSK tint + clock dial PORTED, PIXEL-1:1 (viewer notes #20-23; RE §21.32; commit `64ccb98`).**
   HOUSE `maplight:3` (time-of-day directional light) was stubbed to daytime row0 forever — the port stayed
   bright while retail warms to amber dusk over the day-end CONV_POSE cutscene.  Unstubbed the real 3-row
   interp (FUN_00458f67 L53746-93; objdump-verified the integer `cmp ecx,1/2/3` past the Ghidra denormal
   gotcha) + the per-frame clock-phase ease (FUN_004536cb tail → sim.c) + the scripted `shoptime++` at
   customer-leave (FUN_00462403 L60339, gated f404==0 — narrows PORT-DEBT(cs-leave-restore)).  Ground truth
   (added clock VAs to retail_fields.json 0x4536cb): shoptime **1→2 @ frame 2274**, clock_phase eases **1→2**
-  over 200f — **port BIT-EXACT** vs retail; port renders amber dusk **pixel-matched** (feed montage) + the
-  clock dial now rotates.  +5 maplight host tests.  One clock consumer (worldmap tod) already existed.
-  Pending: user viewer confirm; the win-0-3000 view.json needs a re-gen (the orv3_window re-drive completed
-  the port capture but its view step was killed — re-run `orv3_window … 0:3000 --view`).
+  over 200f — **port BIT-EXACT** vs retail.  Trace Studio re-rendered: **all 4 note diffs BLACK** (dusk +
+  clock dial pixel-1:1).  +5 maplight host tests.  Only OPEN item: the user's click to clear notes #20-23
+  in the viewer (win-0-3000 view re-gen'd, ready to scrub).
 - **✅✅✅ 2026-07-02 — `house-firstcust-arrprobe` win-0-1500 USER-CONFIRMED "this whole trace is 1:1 now"**
   (ledger; RE §21.28-§21.30; commits `6f0993b`+`2537904`+`2038905`+`29ecc72`+`ae0f5ed`).  Closes the anim
   seed-origin arc + residuals (A) recette start-phase (pose_house_standing snapshot seed → fresh 0/0/0 reset)
