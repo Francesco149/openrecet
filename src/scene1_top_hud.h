@@ -37,6 +37,17 @@ float scene1_top_hud_clock_phase(void);
  * digits instead of snapping. */
 void  scene1_top_hud_money_tick(int bank_gold);
 
+/* Screen-shake jitter (FUN_0040656e + FUN_00406584 asm 0x406762-0x4067c8).
+ * `_pulse` arms the 4-frame timer (DAT_00648280=4) — fired per landing sale
+ * coin by the Table-B type-4 terminal kill; `_tick` draws the per-frame
+ * ±1..2 px offsets (FOUR LCG draws per shake frame — rng-load-bearing;
+ * RE §21.31.2).  Call `_tick` right before money_tick (engine block order). */
+void    scene1_top_hud_shake_pulse(void);
+void    scene1_top_hud_shake_tick(void);
+int32_t scene1_top_hud_shake_x(void);
+int32_t scene1_top_hud_shake_y(void);
+int32_t scene1_top_hud_shake_timer(void);
+
 /* World-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584 mode-8
  * band selector).  `_tick` is called per world-map sim frame with the selected
  * destination (DAT_09643684) and the dest-0 variant flag (DAT_045105a0!=0);

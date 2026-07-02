@@ -1,0 +1,19 @@
+# house-firstcust-cutscene-day2 — the FULL post-tutorial flow from the user's
+# recording rec-20260622-182618: LOAD (cad868 save) → haggle tutorial start →
+# ESC-skip → first real customer interaction → a LONG series of story cutscenes
+# (title drop, prologue, Recet hammering the recettear sign close-up, dusk
+# lighting) → DAY 2 starts (idle at the shop, Tear flying around + brooming —
+# a new companion mechanic).
+#
+# 16291 raw frames; 853 anchors.  Worked in small capture windows (port the
+# content in each window, then move the window) — see docs/FRONT.md.
+#
+# Anchor map (raw frames): load+tutorial+skip+wrap-up 0-855; first-customer +
+# PAUSE/haggle 855-2195; cutscene cluster A 2195-4969; massive dialogue cutscene
+# 4969-13409; cutscene tail 13410-15390 (CONV_POSE_END@15390); DAY 2 15390-16291.
+description: |
+  Full post-tutorial story-cutscene flow → day 2.  Recorded skip path:
+  load → tutorial → ESC-skip → first customer → cutscenes → day 2 brooming.
+max_frames: 90000     # ~12 LOADING brackets stretch heavily under turbo
+duration_ceiling_ms: 2400000
+capture_suppress_loads: true

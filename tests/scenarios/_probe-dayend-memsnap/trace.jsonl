@@ -136,8 +136,8 @@
 {"frame": 33, "buttons": "0x0010"}
 {"frame": 38, "buttons": "0x0000"}
 {"wait": "PAUSE_CLOSE"}
-{"memsnap": 85}
-{"memsnap": 95}
+{"memsnap": 130}
+{"memsnap": 175}
 {"rngseed": [0, 3782686743]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 89, "buttons": "0x0010"}

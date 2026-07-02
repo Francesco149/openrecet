@@ -868,7 +868,9 @@
    "status": "ported",
    "src": [
     "src/scene1_per_frame_open.c",
-    "src/scene1_per_frame_open.h"
+    "src/scene1_per_frame_open.h",
+    "src/scene1_top_hud.c",
+    "src/scene1_top_hud.h"
    ]
   },
   {
@@ -6467,7 +6469,8 @@
     "src/scene1_records_b_tick.c",
     "src/scene1_records_c_spawn.c",
     "src/scene1_shop_walker_helpers.c",
-    "src/scene1_spawn.c"
+    "src/scene1_spawn.c",
+    "src/scene1_top_hud.c"
    ]
   },
   {
@@ -10026,6 +10029,7 @@
     "src/customer_service.c",
     "src/encyclopedia.c",
     "src/scene1_combat_sm.h",
+    "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c",

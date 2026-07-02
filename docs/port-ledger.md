@@ -136,7 +136,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x405a52 | FUN_00405a52 | 162 | ✓ | scene1_dialogue_draw.c, scene1_dialogue_run.c |
 | 0x405b1a | FUN_00405b1a | 598 | ✓ | scene1_render.c, scene1_render.h |
 | 0x405d70 | FUN_00405d70 | 911 | ✓ | scene1_render.c, scene1_render.h, stage_palette.h |
-| 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h |
+| 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_top_hud.c (+1) |
 | 0x406584 | FUN_00406584 | 1017 | ✓ | main.c, scene1_top_hud.c, scene1_top_hud.h (+5) |
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
@@ -373,7 +373,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x470a46 | FUN_00470a46 | 766 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ | customer_haggle.h, customer_service.c, rng.h (+9) |
+| 0x471089 | FUN_00471089 | 34 | ✓ | customer_haggle.h, customer_service.c, rng.h (+10) |
 | 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | d3d_tex_names.h, scene1_dungeon_clear_banner.c, scene1_preload.c (+13) |
@@ -532,7 +532,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, customer_service.c (+6) |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+13) |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+14) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499560 | FUN_00499560 | 15 |  | music.c, music.h, scene_title.c |

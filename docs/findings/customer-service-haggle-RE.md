@@ -3437,3 +3437,22 @@ the popup machinery (FUN_004606fc → FUN_00485861 → FUN_00406159) are unporte
    (4 draws/frame while DAT_00648280>0) — closes the +141 rng residual.
 3. POPUP: FUN_004606fc (combo/queue) → FUN_00485861 → FUN_00406159 (TOTAL-EXP popup + SE 0x174/0x172) + the
    0x648258 fanfare timeline.
+
+### 21.31.3 2026-07-02 — fanfare chip landed (shape_mode PARAM8 fix + shake jitter + landing-pulse default); coin aim/landing verified host-side; live-game landing still under investigation
+
+**PORTED:** (a) Table-A tick `shape_mode` arg mistranscription FIXED — both spawn arms push `[esi+0x10]` =
+slot dw8 **PARAM8** (asm 0x41499c/0x414a1f), not slot[10] MODE; the sale alloc passes 4 ⇒ the coins now
+spawn with SHAPE_MODE=4 and the PFO.4 aim/landing physics engages (2 host tests updated to the PARAM8
+contract).  (b) `scene1_top_hud_shake_pulse/_tick` (FUN_0040656e timer + the FUN_00406584 jitter block
+asm 0x406762-0x4067c8: 4 LCG draws/shake frame), wired in sim.c INGAME before the money roll.  (c) the
+PFO.4 terminal-kill production default = shake_pulse + SE 0x29d.
+
+**Host-verified end-to-end** (scratch probe, real effect2.dat template values): alloc(304,128,100,1,−1,4)
+→ tick → 8 coins spawn sm=4 u48=−0.008, fly (1.3,5.4)→(13.2,−10.8), ALL 8 terminal-kill at age ~48-60 —
+matching retail's 15 landing SEs at burst+50..+73 (se_069_id029d 14897-14920).
+
+**Live-game gap (OPEN):** drive-4 port memsnap @seg+95 shows the 24 coin slots PERFECT (active=170/171/172,
+sm=4, u48 set, staggered ages) — yet NO 0x29d SEs and no 4-draw jitter run in the drive (one stray Δ5@1989).
+The terminal kills don't fire in the live loop despite identical state + host-verified physics.  Memsnap
+@seg+130/+175 probe in flight; suspects: a mid-flight slot kill/clobber by another live system between +95
+and +140 (records reset? spawn reuse?), or a tick-ordering/loop-gating difference vs the host harness.

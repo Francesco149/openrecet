@@ -30,6 +30,8 @@
 #endif
 
 #include "scene1_overlay.h"
+#include "scene1_top_hud.h"   /* shake_pulse — the FUN_0040656e kill default */
+#include "audio.h"            /* audio_play_se_by_id (FUN_00499519) — SE 0x29d */
 
 int32_t g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_COUNT *
                              SCENE1_PFO_TABLE_A_STRIDE];
@@ -424,7 +426,7 @@ void scene1_pfo_table_b_tick(void)
     }
 }
 
-/* ===== PFO.4 — terminal-kill hook (engine FUN_0040656e stand-in) ====== */
+/* ===== PFO.4 — terminal kill (engine FUN_0040656e) ==================== */
 
 static void (*g_pfo_type_4_kill_hook)(int) = NULL;
 
@@ -440,7 +442,14 @@ void scene1_pfo_clear_type_4_terminal_kill_hook(void)
 
 void scene1_pfo_fire_type_4_terminal_kill(int slot_idx)
 {
-    if (g_pfo_type_4_kill_hook) g_pfo_type_4_kill_hook(slot_idx);
+    if (g_pfo_type_4_kill_hook) {         /* test override */
+        g_pfo_type_4_kill_hook(slot_idx);
+        return;
+    }
+    /* Production default = the real FUN_0040656e: DAT_00648280 = 4 +
+     * SE 0x29d — one pulse per landing sale coin (RE §21.31.2). */
+    scene1_top_hud_shake_pulse();
+    audio_play_se_by_id(0x29d);           /* FUN_00499519(0x29d) */
 }
 
 /* ===== PFO.5a — Table A per-tick body ================================ */
@@ -550,7 +559,12 @@ void scene1_pfo_table_a_tick(void)
             int32_t slot_p6   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM6);
             int32_t slot_p7   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM7);
             int32_t slot_p0   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM0);
-            int32_t shape_mode_arg = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_MODE);
+            /* shape_mode arg = PARAM8, NOT MODE: both spawn arms push
+             * `[esi+0x10]` = slot dw8 (esi anchors at the SENTINEL dw4;
+             * asm 0x41499c projected / 0x414a1f passthrough).  The old
+             * slot[10] transcription starved the sale coin shower of its
+             * SHAPE_MODE=4 aim/landing physics (RE §21.31.2). */
+            int32_t shape_mode_arg = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM8);
 
             float scale_base = slot_p5 * sub_scale_mul;
             float pos_x, pos_y, pos_z;
@@ -565,7 +579,7 @@ void scene1_pfo_table_a_tick(void)
                  * pos_z = sub.z + slot[3] + alt_offset
                  * template_owner = slot[0]
                  * override_rot_y = slot[7] (as float bits)
-                 * shape_mode arg = slot[10] (= 0 in this branch)
+                 * shape_mode arg = slot[8] (PARAM8)
                  * mode arg       = 0
                  *
                  * Asm 0x414a0f..0x414a6c verified push order. */
@@ -582,7 +596,7 @@ void scene1_pfo_table_a_tick(void)
                  * pos_z = -520.0
                  * template_owner = 0
                  * override_rot_y = 0.0f
-                 * shape_mode arg = slot[10]
+                 * shape_mode arg = slot[8] (PARAM8)
                  * mode arg       = 1
                  *
                  * Asm 0x414991..0x414a0d verified. */

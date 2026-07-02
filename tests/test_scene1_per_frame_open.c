@@ -1345,7 +1345,7 @@ int test_pfo_a_tick_projected_mode_pos_and_args(void)
      *   pos_y = 12.4 - (2+20)/19.5 = 12.4 - 22/19.5
      *   pos_z = -520
      * template_owner = NULL; override_rot_y = 0.0f bits;
-     * shape_mode = slot[10] (= 1 here); mode = 1. */
+     * shape_mode = slot PARAM8 (= 4 here); mode = 1. */
     scene1_pfo_table_a_init();
     scene1_pfo_parent_table_init();
     setup_pfo_a_slot(0, /*age=*/0, /*mode=*/1);
@@ -1357,6 +1357,7 @@ int test_pfo_a_tick_projected_mode_pos_and_args(void)
     g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5] = pfo_f_to_bits(4.0f);
     g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6] = 11;
     g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7] = (int32_t)0x55555555;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM8] = 4;
 
     seed_parent_sub_rec(0, 0, /*sentinel=*/77, /*age_match=*/0,
                         /*scale_mul=*/0.5f,
@@ -1376,7 +1377,9 @@ int test_pfo_a_tick_projected_mode_pos_and_args(void)
     T_ASSERT_EQ_I(r->template_id, 77);
     T_ASSERT_EQ_I(r->override_dur, 11);
     T_ASSERT_EQ_I(r->override_rot_y_bits, pfo_f_to_bits(0.0f));
-    T_ASSERT_EQ_I(r->shape_mode, 1);
+    /* shape_mode = slot PARAM8, NOT MODE — both spawn arms push
+     * `[esi+0x10]` = dw8 (asm 0x41499c / 0x414a1f; RE §21.31.2). */
+    T_ASSERT_EQ_I(r->shape_mode, 4);
     T_ASSERT_EQ_I(r->mode, 1);
     /* template_owner is forced to NULL in projected mode regardless of
      * slot PARAM0. */
@@ -1704,7 +1707,7 @@ int test_pfo_alloc_projected_then_tick_fires_projected_spawn(void)
         /*template_id=*/42,
         /*scale_base=*/1.0f,
         /*override_dur=*/0,
-        /*param_8=*/0);
+        /*param_8=*/4);   /* the engine's sale-fx call passes 4 */
     T_ASSERT_EQ_I(s, 0);
 
     pfo_spawn_log_reset();
@@ -1714,9 +1717,10 @@ int test_pfo_alloc_projected_then_tick_fires_projected_spawn(void)
     scene1_pfo_table_a_tick();
 
     T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
-    /* Projected mode → mode arg = 1, shape_mode = 1, pos_z = -520. */
+    /* Projected mode → mode arg = 1, shape_mode = PARAM8 (= the alloc's
+     * param_8, asm-verified [esi+0x10] push; RE §21.31.2), pos_z = -520. */
     T_ASSERT_EQ_I(g_pfo_spawn_log[0].mode, 1);
-    T_ASSERT_EQ_I(g_pfo_spawn_log[0].shape_mode, 1);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].shape_mode, 4);
     T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - (-520.0f)) < 1e-5f);
     T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 123);
     scene1_pfo_clear_spawn_hook();

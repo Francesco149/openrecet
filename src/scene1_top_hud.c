@@ -24,6 +24,47 @@ int   scene1_top_hud_day(void)                   { return g_hud_day; }
 int   scene1_top_hud_money(void)                 { return g_hud_money; }
 float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
 
+/* ─── screen-shake jitter (FUN_0040656e + FUN_00406584 asm 0x406762-0x4067c8) ─
+ * FUN_0040656e arms DAT_00648280=4 (+ SE 0x29d at its caller-facing shell) —
+ * fired per LANDING coin by the Table-B type-4 terminal kill (FUN_00414929
+ * all.c:12732; RE §21.31.2).  The FUN_00406584 block then, while timer > 0:
+ * timer--, then
+ *   DAT_00648284 = ±ftol((u + 0.5)·2)   (magnitude 1..2, random sign)
+ *   DAT_00648288 = ±ftol((u + 0.5)·2)
+ * = FOUR LCG draws per shake frame (2 unit + 2 parity; retail callsites
+ * u:0x406775 / u:0x40678c / 0x4067a3 / 0x4067b8), rng-load-bearing.
+ * Timer expired → both offsets reset to 0 (asm 0x4067ca). */
+static int32_t g_hud_shake_timer;   /* DAT_00648280 */
+static int32_t g_hud_shake_x;       /* DAT_00648284 */
+static int32_t g_hud_shake_y;       /* DAT_00648288 */
+
+int32_t scene1_top_hud_shake_x(void)     { return g_hud_shake_x; }
+int32_t scene1_top_hud_shake_y(void)     { return g_hud_shake_y; }
+int32_t scene1_top_hud_shake_timer(void) { return g_hud_shake_timer; }
+
+void scene1_top_hud_shake_pulse(void)   /* FUN_0040656e timer half; the SE
+                                         * 0x29d plays at the kill default
+                                         * (scene1_per_frame_open.c) */
+{
+    g_hud_shake_timer = 4;              /* DAT_00648280 = 4 */
+}
+
+void scene1_top_hud_shake_tick(void)
+{
+    if (g_hud_shake_timer > 0) {
+        g_hud_shake_timer -= 1;
+        float ux = rng_next_unit();                    /* FUN_00471089 */
+        g_hud_shake_x = (int32_t)((ux + 0.5f) * 2.0f);
+        float uy = rng_next_unit();
+        g_hud_shake_y = (int32_t)((uy + 0.5f) * 2.0f);
+        if (rng_next15() & 1) g_hud_shake_x = -g_hud_shake_x;
+        if (rng_next15() & 1) g_hud_shake_y = -g_hud_shake_y;
+    } else {
+        g_hud_shake_x = 0;                             /* asm 0x4067ca */
+        g_hud_shake_y = 0;
+    }
+}
+
 /* ─── money rolling-counter (FUN_00406584 @ all.c:4849-4870) ─────────────────
  * The displayed money (DAT_0438b918) eases toward the working-bank gold by a
  * per-frame step `rand() % max(|Δ|/25, 10) + |Δ|/100` — the digits roll down

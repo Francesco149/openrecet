@@ -476,6 +476,10 @@ void sim_step_a(void)
          * rng) while displayed == bank.  The shake arm (DAT_00648280) + the
          * combo-timer block of FUN_00406584 stay unported. */
         {
+            /* FUN_00406584's shake-jitter block runs BEFORE the money roll
+             * (asm 0x406762 < 0x40684x): 4 LCG draws per shake frame while
+             * the coin-landing pulses keep DAT_00648280 alive (RE §21.31.2). */
+            scene1_top_hud_shake_tick();
             const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
             if (wb)
                 scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
