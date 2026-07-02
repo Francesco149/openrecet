@@ -34,9 +34,16 @@ Both FRONT day-end leads resolved in one arc (RE §21.31/§21.31.1):
   EXTRA_SPRITE tail cadence (41/239/81/119) frame-exact.**  Residuals: one natural-vs-pinned load duration
   (37 vs 7) + a +1 at that seam; PORT-DEBT(blackout-tut-dispatch) unwired on iv2 entries;
   PORT-DEBT(tut-dispatch-iv2-fx) = iv2_5's FUN_004852fb + b928/b924.
-- **OPEN (render):** the shower's 69 particles spawn+consume rng but do NOT draw yet (retail shows coins +
-  glow ring; port shows none) — the overlay render path for these templates needs the v3 draw-program diff.
-  Also still missing on-screen: TOTAL EXP popup (FUN_004606fc unported).
+- **VERIFIED (drive-3):** burst **261@commit+1 == retail 261@14847**; sale-segment raw rng **bit-exact
+  141 frames** (commit + whole shower spawn + money-roll count-up); post-load day-end segments at the
+  known +1 seam (s37 shift+1 → 120/121).
+- **OPEN — the "sale fanfare" arc (RE §21.31.2):** (1) RENDER: the 69 particles spawn rng-exact but draw
+  NOTHING (tpl 170-176, tex 20-30, shape 0, layer 0, MODE 1 projected; the tex-19 mode-0 sparkle draws
+  fine) — v3 draw-program diff at the burst frame is the probe; (2) the Table-B coin-LANDING branch
+  (slot kill + FUN_0040656e 4f-shake pulse + SE 0x29d per landing coin, all.c:12732) + FUN_00406584's
+  jitter arm (4 rng/frame while DAT_00648280>0) = the +141 rng residual (port 1986/retail 14898);
+  (3) the TOTAL-EXP popup chain FUN_004606fc → FUN_00485861 → FUN_00406159 (@(412,112), SE 0x174/0x172,
+  the 0x648258→0xb4 fanfare timer).
 
 ## 2026-07-02 — ★★★ USER-CONFIRMED: "this whole trace is 1:1 now" (house-firstcust-arrprobe win-0-1500)
 

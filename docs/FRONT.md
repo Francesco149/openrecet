@@ -52,7 +52,18 @@
   (FUN_0044bd0d all.c:45726-45813), now ported into scene1_tutorial_dispatch.c riding the existing
   start_single load bracket (⇒ LOADING_START emits; the day2 trace's `{wait: LOADING_START}` releases).
   PORT-DEBT(blackout-tut-dispatch) still unwired on the iv2 entries; PORT-DEBT(tut-dispatch-iv2-fx) =
-  iv2_5's FUN_004852fb + b928/b924 arm.  Trace verification of the full chain: IN FLIGHT this session.
+  iv2_5's FUN_004852fb + b928/b924 arm.
+  **VERIFIED (drive-3 2026-07-02, RE §21.31.2):** burst 261@commit+1 == retail 261@14847; the sale segment
+  raw-rng BIT-EXACT 141f (commit + whole shower + money-roll); 94/94 anchors, day-end cadence frame-exact;
+  post-load segments at the known +1 seam.  **OPEN — the "sale fanfare" arc (needs HUMAN VERIFY in the
+  viewer next session; window 0:3000 re-driven with --state):** (1) RENDER: the 69 shower particles spawn
+  rng-exact but DRAW NOTHING (retail: coins + glow ring; tpl 170-176 tex 20-30 shape 0 layer 0 MODE 1 —
+  sparkle tex 19 mode 0 draws fine; probe = v3 draw-program diff at the burst frame); (2) the Table-B
+  coin-LANDING branch (kill + FUN_0040656e 4-frame shake pulse + SE 0x29d per landing coin) + the
+  FUN_00406584 jitter arm (4 rng/frame while DAT_00648280>0) = the +141 rng residual (port 1986/retail
+  14898); (3) the TOTAL-EXP popup (FUN_004606fc → FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172)
+  — retail shows "TOTAL EXP 10", port nothing.  Also queued: gold count-up HUD verified rolling (money-roll
+  wired in sim.c INGAME).
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit

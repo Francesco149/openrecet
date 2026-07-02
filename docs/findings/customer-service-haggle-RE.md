@@ -3406,3 +3406,34 @@ spawn_count 0 ⇒ zero particles.  Engine truth (FUN_00412a89 file loop): each f
 freads to `DAT_00733820 + file_idx·0x4330` — ONE contiguous 400-template table.  FIX: TEMPLATE_COUNT 256→400,
 `scene1_overlay_templates_load_chunk_at(set,…)` lands each file at id set·100, loader passes every file.
 Host test `overlay_templates_load_chunk_at_set1`.
+
+### 21.31.2 2026-07-02 — post-sale rng verdict: burst 261==261, bit-exact 141f into the sale segment; the +141 residual = the COIN-LANDING fanfare (Table-B landing pulse + FUN_00406584 jitter arm), unported
+
+**Verdict (drive-3, all three fixes in):** port burst **261 @ commit+1** == retail **261 @14847** (same
+SE-frame→spike+1 attribution both sides).  Per-anchor-segment raw-rng compare: the sale segment
+(PAUSE_CLOSE#3, 428f) is **bit-exact for 141 frames** — covers the commit, the whole 69-particle shower
+spawn, and the money-roll count-up.  Post-load day-end segments are 1-frame-seam shifted (s37 shift+1 →
+120/121 match) — the known pinned-vs-natural load duration.
+
+**The +141 divergence (port 1986 / retail 14898, real at every shift):** retail's rngcs over seg+80..+200
+(runs/probe-dayend-rngcs2) shows the LATE window adds **4 draws/frame ×~30f from INSIDE FUN_00406584**
+(u:0x406775, u:0x40678c, 0x4067a3, 0x4067b8 — asm 0x406762..0x4067c8: while `DAT_00648280>0`, decrement +
+jitter `DAT_00648284/88 = ±ftol(2·u+1)` = the screen-shake/popup wobble) + a few shop-walker draws
+(0x46fe9c etc.).  The armer: **FUN_0040656e** (`DAT_00648280=4; SE 0x29d`) called from **FUN_00414929's
+Table-B integrator** (all.c:12732) when a drag-mode-1.2 particle hits the floor (`sqrt<0.5 || below-floor`
+→ slot kill + pulse) — i.e. **each landing coin pulses a 4-frame shake + coin SE**, repeatedly topping the
+timer over ~30f.  Related: **FUN_00406159** (`0x43ce0000=412.0, 0x42e00000=112.0`, SE 0x174 first/0x172
+repeat, from FUN_00485861) = the TOTAL-EXP popup arm; DAT_00648258 counts to 0xb4 with SE 0x174 (FUN_00406584
+head).  The port's `scene1_pfo_table_b_tick` (PFO.3/4) lacks the landing branch; the 406584 jitter arm and
+the popup machinery (FUN_004606fc → FUN_00485861 → FUN_00406159) are unported.
+
+**OPEN sub-chips (one coherent "sale fanfare" arc):**
+1. RENDER: the 69 particles spawn (rng-exact) but draw NOTHING (retail: coins + glow ring).  Templates
+   170-176 = tex_type 28/29/30/26/20, shape 0, layer 0, blend 0/2, **mode 1 (projected)** — the sparkle
+   (tex 19, mode 0) draws, so the layer-0 shape-0 pipeline works; suspect the shapes-table (grp.idx) entries
+   for tex 20-30 / the emit filter's TEX_GROUP↔outer-layer mapping / the mode-1 sites.  Probe: v3
+   draw-program diff at the burst frame.
+2. PHYSICS+FX: the Table-B landing branch (kill + FUN_0040656e pulse per coin) + the FUN_00406584 jitter arm
+   (4 draws/frame while DAT_00648280>0) — closes the +141 rng residual.
+3. POPUP: FUN_004606fc (combo/queue) → FUN_00485861 → FUN_00406159 (TOTAL-EXP popup + SE 0x174/0x172) + the
+   0x648258 fanfare timeline.
