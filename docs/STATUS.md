@@ -53,6 +53,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     at those presents.
   - Pending explicit user re-confirm (minor): the note-#1 sell-counter "!" emote fix (2026-06-20,
     `house-customer-walk-probe`) was never separately re-confirmed.
+  - Day2 viewer note #9 ("wing flap residual", TEXT_ANIM_START#1+8) renders BLACK on the fresh
+    win-0-3000 capture (it predated the §21.28.1 wing fix) — clear it in the viewer when convenient.
 - **★★ QUEUED ARC — CUSTOMER INTERACTIONS deep-dive (user directive 2026-06-22).**  Mechanics the user named
   (verify in code, don't trust the wiki): (1) CLOSENESS/affinity per customer; (2) ATMOSPHERE score from shop
   DECORATION.  Includes: **L1b** real accept side-effects (cs-live-sale-fx: gold += ask, stock decrement,
