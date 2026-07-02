@@ -39,9 +39,12 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   225→1722, all 3 note crops diff BLACK.  **REMAINING RESIDUALS (user 2026-07-02, small, NEXT):**
   - **(A) "recette phase at the very start"** = the player `pframe/pcnt` window-start load region (@224, ~45f).
     Recette's anim cycle phase at the load-in; realigns ~frame 270.  Same tick-cadence class, initial-load era.
-  - **(B) the VASE SHADOW on the counter — a tiny diff (user: "could be a subtle bug with the object shadows").**
-    LEAD: the object/display shadow pass (`scene1_chr_shadow.c` / the display-stand shadow render).  NOT yet
-    probed.  Investigate after `/clear`.
+  - **(B) ✅ 2026-07-02 the VASE SHADOW — FIXED, note #23 crop diff BLACK (RE §21.29; pending user studio
+    re-confirm).**  NOT the shadow pass: fade.c mistranscribed the engine's ALPHAREF(0x18)=0 as
+    ALPHATESTENABLE(0xf)=FALSE ⇒ every pause/fade frame leaked alpha-test-OFF into the next frame's mesh
+    pass ⇒ flower-fringe texels z-wrote and clipped the display-stand shadow decal.  +2 walker ALPHAOP
+    BLENDDIFFUSEALPHA(12)→MODULATE(4) value-vs-name fixes (pixel-neutral, program-parity).  Pause frames
+    125→2 px (2 scattered 1-px speckles).
   - (C, lower) companion `coct/cx` tutorial-cs facing blips (@389, 48/33f — facing write-order, scoped in task
     #5); probe-only init leftovers `ask/base/b5b0` (retail 1000/1 vs port 0 pre-cs, cosmetic).
 - **✅ 2026-07-02 — `house-firstcust-cutscene-day2` carries the FULL pin set** ({csloadpin:24} +

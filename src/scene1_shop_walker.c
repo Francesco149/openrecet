@@ -592,7 +592,7 @@ static void sw_pass_d(IDirect3DDevice8 *dev)
  *     identity(local_174);
  *     if (local_18[0xf] != 3.57331e-43)  // raw 0xff
  *       SetRenderState(TEXTUREFACTOR, local_18[0xf]<<24 | 0xffffff)
- *       SetTSS(0, ALPHAOP=4, 4)  // MODULATE2X
+ *       SetTSS(0, ALPHAOP=4, 4)  // 4 = D3DTOP_MODULATE (NOT MODULATE2X=5)
  *       SetTSS(0, ALPHAARG1=5, 2)
  *       SetTSS(0, ALPHAARG2=6, 3)
  *     Translation(local_174, local_18[-2], local_18[-1],
@@ -971,12 +971,16 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
      * TSS COLOROP/ARG1/ARG2 reset for the 2D pass.
      *
      *   TSS(0, COLOROP=1,    2=MODULATE)
-     *   TSS(0, ALPHAOP=4,    4=BLENDDIFFUSEALPHA)
+     *   TSS(0, ALPHAOP=4,    4=MODULATE)   // literal 4 = D3DTOP_MODULATE; was
+     *                                      // mistranscribed BLENDDIFFUSEALPHA(12),
+     *                                      // the value-vs-name gotcha again — it
+     *                                      // leaked into the display-stand decal
+     *                                      // pass and clipped the vase shadow
      *   TSS(0, ALPHAARG1=5,  2=D3DTA_TEXTURE)
      *   TSS(0, ALPHAARG2=6,  3=D3DTA_TFACTOR)
      */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,    D3DTOP_MODULATE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_BLENDDIFFUSEALPHA);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_MODULATE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1,  D3DTA_TEXTURE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2,  D3DTA_TFACTOR);
 
@@ -1035,13 +1039,15 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
      *
      *   TSS(0, MIPFILTER=0x12, 0=NONE)
      *   TSS(0, COLOROP=1,      8=ADDSIGNED)
-     *   TSS(0, ALPHAOP=4,      4=BLENDDIFFUSEALPHA)
+     *   TSS(0, ALPHAOP=4,      4=MODULATE)  // literal 4 = D3DTOP_MODULATE (same
+     *                                       // BLENDDIFFUSEALPHA(12) mistranscription
+     *                                       // as L327 above)
      *   TSS(0, ALPHAARG1=5,    2=D3DTA_TEXTURE)
      *   TSS(0, ALPHAARG2=6,    0=D3DTA_DIFFUSE)
      */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,   D3DTEXF_NONE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,     D3DTOP_ADDSIGNED);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,     D3DTOP_BLENDDIFFUSEALPHA);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,     D3DTOP_MODULATE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1,   D3DTA_TEXTURE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2,   D3DTA_DIFFUSE);
 

@@ -128,6 +128,14 @@ void fade_render(IDirect3DDevice8 *dev)
     CALL_TRACE_ENTER(0x453e8fu);
 
     if (!dev) return;
+
+    /* Engine L16-18 run UNCONDITIONALLY (before the counter gate): fog off +
+     * MAG/MIN filters to LINEAR every call, fade active or not.  The early
+     * return used to skip these, diverging the per-frame state program. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+
     if (g_fade_counter == 0) return;
 
     if (!fade_load_system_texture(dev)) return;
@@ -164,18 +172,20 @@ void fade_render(IDirect3DDevice8 *dev)
 
     render_quad_bind(dev, &g_system_tex);
 
-    /* Engine reasserts a handful of render states before the quad —
-     * fog OFF, alpha-blend ON, src/dst blend, alpha-test OFF, both
-     * filters to LINEAR, alpha-op MODULATE. Most of these are already
-     * set by render_quad_state_setup at the top of the frame; the
-     * reasserts are defensive (the prior render pass may have changed
-     * COLOROP for menu items / ADDSIGNED / etc.). We mirror the same
-     * shape so the engine's quirks are reproduced verbatim. */
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE,        FALSE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    /* Engine in-branch state block (objdump 0x453e8f L33-37):
+     *   SetRenderState(0x1b, 1)  ALPHABLENDENABLE on
+     *   SetRenderState(0x18, 0)  ALPHAREF = 0   ← 0x18 = 24 = ALPHAREF; an
+     *                            earlier port pass mistranscribed this as
+     *                            ALPHATESTENABLE(0xf)=FALSE, which leaked
+     *                            alpha-test-off out of every pause/fade frame
+     *                            into the NEXT frame's mesh pass — fringe
+     *                            texels z-wrote and clipped the display-stand
+     *                            shadow decals (viewer note #23, vase shadow)
+     *   SetRenderState(0x13, 5)  SRCBLEND  = SRCALPHA
+     *   SetRenderState(0x14, 6)  DESTBLEND = INVSRCALPHA
+     *   TSS(0, ALPHAOP=4, 4)     MODULATE */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE,  FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF,         0);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,         D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND,        D3DBLEND_INVSRCALPHA);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,   D3DTOP_MODULATE);

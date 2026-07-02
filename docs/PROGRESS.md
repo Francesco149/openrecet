@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — note #23 vase shadow FIXED: fade.c ALPHAREF↔ALPHATESTENABLE mistranscription (RE §21.29)
+
+Residual (B) closed.  Root NOT the shadow pass: fade.c (FUN_00453e8f) ported the engine's
+`SetRenderState(0x18,0)` = ALPHAREF=0 as ALPHATESTENABLE=FALSE ⇒ every pause/fade frame left alpha-test OFF
+device-wide; the next frame's mesh pass inherited it, the flower item's semi-transparent fringe texels z-wrote
+(no alpha-test kill) and clipped the display-stand shadow decal's upper arcs (the note-#23 crescent).  Probe
+chain: single-frame slice + orv3_shot draw-bisect → decal quads bit-identical, pre-decal color bit-identical ⇒
+z-buffer → full-state diff at the draw → RS 15 retail=1/port=0 → ATE timeline → the only FALSE-setter.  Also:
+fade's L16-18 fog+MAG/MIN-filter writes are pre-gate UNCONDITIONAL (were skipped at counter==0, + were
+MIP+MAG instead of MAG+MIN), and 2 walker tail ALPHAOP `TSS(0,4,4)`=MODULATE were ported
+BLENDDIFFUSEALPHA(12) — the value-vs-name gotcha (pixel-neutral, program-parity).  Verified on the re-driven
+win-0-1500: note crop BLACK, pause frames 125→2 px (2 scattered 1-px speckles), freeroam+39 residual = ONLY
+the Recette sprite (= residual A).  3381 host pass.
+
 ## 2026-07-02 — anim seed-origin arc USER-CONFIRMED "basically fully 1:1"; +chip (a) leave-frame fix (RE §21.28.1)
 
 Closed the last two roots on house-firstcust-arrprobe: root 5 (the cs-LEAVE frame @631 ran the free-roam

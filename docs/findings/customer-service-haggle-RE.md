@@ -3313,3 +3313,30 @@ verify drive, the exact trap the porting loop's re-verify exists for).  `player_
 [224,1722] window** — the ★★★ wing-flap arc is CLOSED end-to-end (930 divergent cframe frames → 0).  cz re-aligned
 (regression gone); cx/coct back to the pre-existing @389 blips (33/48f, tracked); raw rng bit-exact 225→1722
 (0 mismatches — the leave frame emits no sparkle on either side); 3381 host pass.
+
+## 21.29 2026-07-02 — note #23 vase shadow FIXED: fade.c ALPHAREF mistranscribed as ALPHATESTENABLE-off (leaked z-writes through alpha fringes) + 2 walker ALPHAOP value-vs-name fixes
+
+**Note #23 ("vase shadow slightly off", PAUSE_OPEN#1+47, box [512,500,615,594], 125 px max-Δ77).**  Probe chain
+(headless, single-frame `slice_window` + `orv3_shot` draw-bisect): the diff = the display-stand SHADOW DECAL
+(mesh submesh, 32×32 tex `95ab`, 2 tris @ ib-start 4233 — retail R[93] ↔ port P[66]); decal quads BIT-IDENTICAL
+(same y=8.7684, same tris; retail nv=3005/base=0 vs port nv=6/base=4233 = same vertices via SetIndices
+baseVertex — orv3_draws ignores baseVertex, so the "replace" pairing was benign).  Pre-decal color BIT-IDENTICAL
+⇒ Z-buffer divergence.  Root: **RS 15 ALPHATESTENABLE retail=1 port=0** at the mesh pass — the flower item's
+semi-transparent fringe texels z-wrote on the port (no alpha-test kill) and clipped the decal's upper arcs
+behind the stand/leaf silhouette.
+
+**Root site — fade.c (FUN_00453e8f):** the engine's in-branch `SetRenderState(0x18,0)` = **ALPHAREF(24)=0** was
+mistranscribed **ALPHATESTENABLE(0xf)=FALSE**; every pause/fade frame ends with alpha-test globally OFF, and the
+NEXT frame's mesh pass inherits it (retail carries ATE=1 across frames; nothing in the engine's frame ever
+writes it off).  Also fixed while there, same objdump read: (a) engine L16-18 run UNCONDITIONALLY (fog off +
+TSS 0x10=MAGFILTER/0x11=MINFILTER→LINEAR before the counter gate; the port's counter early-return skipped them;
+port also had them as MIPFILTER+MAGFILTER), (b) walker FUN_004552d0 L327+L353 `TSS(0,4,4)` = ALPHAOP=**MODULATE**
+was ported D3DTOP_BLENDDIFFUSEALPHA(12) — the enum value-vs-name gotcha AGAIN (4th+5th instance in this file;
+pixel-neutral here since diffuse α=255 makes the two ops agree, but a real render-program divergence); Pass-E's
+dormant comment "4 // MODULATE2X" corrected to MODULATE.
+
+**✅ VERIFIED (re-drive win-0-1500, same retail cache cd47d68a):** note #23 crop diff BLACK; pause frames
+125→**2 px** (2 isolated 1-px sprite-edge speckles at (856,263)/(340,543), scattered), CONV_POSE_BLINK#2+6
+0 px; HOUSE_FREEROAM#1+39 diff = ONLY the Recette sprite blob = residual (A), untouched.  3381 host pass.
+ALPHAOP timeline now 4-throughout on both sides at the pause frame.  NB the ubiquitous retail-only `b494`
+80-tri first-draw is the KNOWN inert 0-px overlay (PROGRESS 2026-06-30), not a lead.
