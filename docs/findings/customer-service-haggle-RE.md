@@ -3396,3 +3396,13 @@ b534==7 accept in customer_service.c, gated f404==0 exactly like retail.  PORT-D
 to the remaining helpers: FUN_00460b3a (per-item max/min sale records at bank +0x13d48/+0x13d4c, item id via
 FUN_004681f6(b5a4>>6)), FUN_004606fc (combo counter b5c4 + popup queue DAT_06a5ea78/DAT_0730b194),
 FUN_00460083 (stock decrement), FUN_00460f59, FUN_0046002a, FUN_00460b93 (catalog).
+
+### 21.31.1 2026-07-02 — first port drive: burst MISSING (Δ1 @1934) — root: template sets 1-3 never loaded
+
+SEs 0x14d/0x17b/0x156 fired in engine order at frame 1934 == retail PAUSE_CLOSE#3+89 and the alloc landed,
+but rngcalls Δ1 at the commit (no 261-burst): `pfo_load_one_file` loaded ONLY effect1.dat's secondary chunk
+("only set 0 is read" — a stale scoping note from the sparkle chip), so templates 100..399 were zero ⇒
+spawn_count 0 ⇒ zero particles.  Engine truth (FUN_00412a89 file loop): each file's 0x4330 secondary chunk
+freads to `DAT_00733820 + file_idx·0x4330` — ONE contiguous 400-template table.  FIX: TEMPLATE_COUNT 256→400,
+`scene1_overlay_templates_load_chunk_at(set,…)` lands each file at id set·100, loader passes every file.
+Host test `overlay_templates_load_chunk_at_set1`.

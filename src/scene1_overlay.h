@@ -144,7 +144,11 @@ void scene1_overlay_reset(void);
  *   dw 18..42 — integrator-side / additional renderer constants
  *               (unused by spawner; left zero in default-init).
  */
-#define SCENE1_OVERLAY_TEMPLATE_COUNT  256
+/* 400 = 4 effect files × 100 records: engine FUN_00412a89 freads each
+ * ef/effect{1..4}.dat secondary chunk (0x4330 B) at DAT_00733820 +
+ * file_idx·0x4330, so template ids 100..399 come from files 2..4 (the
+ * sale coin-shower uses 170-176 from effect2.dat — RE §21.31). */
+#define SCENE1_OVERLAY_TEMPLATE_COUNT  400
 #define SCENE1_OVERLAY_TEMPLATE_STRIDE 43
 
 #define SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE      0
@@ -173,10 +177,14 @@ extern int32_t g_scene1_overlay_templates[SCENE1_OVERLAY_TEMPLATE_COUNT *
 /* Zero the template table (parser-equivalent reset). */
 void scene1_overlay_templates_reset(void);
 
-/* Populate the template table from ef/effect1.dat's first 0x4330 bytes
- * (engine FUN_00412a89 set-0 arm).  `chunk` points at the file start;
- * copies 100 records × 18 numeric fields (record byte 0x64) into the
- * table.  See scene1_overlay.c for the layout. */
+/* Populate template set `set` (= effect file index 0..3, records land at
+ * template id set·100) from an ef/effect{set+1}.dat's first 0x4330 bytes
+ * (engine FUN_00412a89: fread → DAT_00733820 + set·0x4330).  `chunk`
+ * points at the file start; copies 100 records × 18 numeric fields
+ * (record byte 0x64) into the table.  See scene1_overlay.c for the
+ * layout.  The no-set name is the set-0 (effect1.dat) form. */
+void scene1_overlay_templates_load_chunk_at(int set, const void *chunk,
+                                            size_t chunk_len);
 void scene1_overlay_templates_load_chunk(const void *chunk, size_t chunk_len);
 
 /* ---- Per-shape texture/UV table ------------------------------------ */

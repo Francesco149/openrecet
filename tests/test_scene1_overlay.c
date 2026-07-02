@@ -180,6 +180,33 @@ int test_overlay_templates_load_chunk_boundaries(void)
     return 0;
 }
 
+int test_overlay_templates_load_chunk_at_set1(void)
+{
+    /* Set 1 (effect2.dat) lands at template ids 100..199 — the sale
+     * coin-shower templates 170-176 live here (RE §21.31).  Set 0 data
+     * must be untouched by a set-1 load. */
+    static unsigned char buf[DAT_REC_COUNT * DAT_REC_BYTES];
+    memset(buf, 0, sizeof buf);
+    dat_set_field(buf, 70, SCENE1_OVERLAY_TPL_OFF_SPAWN_COUNT, 8);       /* → id 170 */
+    dat_set_field(buf, 99, SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE, 0x7777); /* → id 199 */
+
+    scene1_overlay_templates_reset();
+    g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0] = 19;
+    scene1_overlay_templates_load_chunk_at(1, buf, sizeof buf);
+
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[170 * SCENE1_OVERLAY_TEMPLATE_STRIDE +
+                  SCENE1_OVERLAY_TPL_OFF_SPAWN_COUNT], 8);
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[199 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0],
+                  0x7777);
+    /* set-0 record untouched; id 200 (set 2) untouched. */
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 19);
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[200 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0);
+    /* OOB set is a no-op. */
+    scene1_overlay_templates_load_chunk_at(4, buf, sizeof buf);
+    scene1_overlay_templates_load_chunk_at(-1, buf, sizeof buf);
+    return 0;
+}
+
 int test_overlay_templates_load_chunk_short_buffer_safe(void)
 {
     /* A buffer that ends mid-table: the loader must stop at the first
