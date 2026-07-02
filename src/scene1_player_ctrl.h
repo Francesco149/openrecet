@@ -388,6 +388,12 @@ int  player_ctrl_cc08_entered_this_frame(void); /* cc08 flipped 1→4 THIS frame
                                              * FUN_004897c6 anim-tick loop + the companion
                                              * ctrl, so the entry frame ticks no actor
                                              * anim (probe-proven, RE §21.28). */
+int  player_ctrl_cc08_left_4_this_frame(void); /* cc08 flipped 4→1 THIS frame (the b520
+                                             * dissolve leave) — retail's frame took the
+                                             * cc08==4 arm, so the companion free-roam law
+                                             * must not run; tick-only (RE §21.28 chip a). */
+void player_ctrl_cc08_markers_frame_clear(void); /* frame-top clear of both markers —
+                                             * scene1_ingame_tick (every arm, every frame). */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
 int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the

@@ -73,9 +73,9 @@ _none_
 | FUN_004361b2 | src/scene1_merchant_hud.c:202 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
-| FUN_004536cb | src/sim.c:376 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:390 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:288 | the engine teardown also restores the |
-| scene1-rng-stream-parity.md | src/sim.c:305 | sim_loading_pump() |
+| scene1-rng-stream-parity.md | src/sim.c:319 | sim_loading_pump() |
 
 ## hardcode (1)
 
@@ -96,13 +96,13 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1158 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1115 | the engine also gates on a |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1180 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1137 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1181 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1203 | the engine frees the shop |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:150 | the trend<-1 ⇒ cap 0 branch is deferred |
 | price-trend | FUN_004361b2 | src/scene1_display_menu.c:927 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |

@@ -3290,3 +3290,26 @@ per-slot chr_anim_tick after cs_npc_tick gives the same set-then-tick order as r
 observed in the retail probe: walk cycle 36 ticks 1/10/19/28, dwell 78 ticks 1/61/67/73).
 
 **RNG-safe:** all four touch only anim/frame/counter/timer record fields (no LCG draws, no position writes).
+
+### 21.28.1 2026-07-02 — chip (a) RESOLVED: the pose-era +20 = the cs-LEAVE frame ran the free-roam companion law; Tear's wing cycle now bit-exact across the whole window
+
+**Probe (continuous sim_step_a ccnt/canim/pcnt/panim, retail_fields.json mirror):** the +20 materializes in ONE frame —
+during 631 (the b520 dissolve completion / LOADING_START#4) retail ticks the companion 20→21 with NO anim/position write
+(the frame took the cc08==4 arm; the master tick flips cc08 4→1 mid-frame), while the port's spring-follow saw the
+flipped cc08, MOVED her and set the WALK anim (canim 1, cycle reset).  Downstream, the 632 conv-pose enter
+(`conv_pose_enter(comp, 4)`) is a **no-op on retail** — her state is already 4, the at-counter pose shares the id — so
+retail's cycle free-runs (the 652 "reset" was a natural 40-tick wrap), but on the port (state 1 from the 631 glitch) it
+was a REAL reset ⇒ the +20 offset, carried through the pose era into the [825,850] stale-anim window.
+
+**FIX:** `player_ctrl_cc08_left_4_this_frame` marker — set inside `player_ctrl_cc08_enter_freeroam` only on a genuine
+4→1 flip; the companion ctrl runs TICK-ONLY on that frame (mirroring retail's cc08==4-arm leave frame).  **The marker is
+cleared at the frame top by `scene1_ingame_tick` (`player_ctrl_cc08_markers_frame_clear`), NOT in the player tick** —
+the player tick does not run on EVENT frames, and the first attempt (clear-in-player-tick) left the marker latched
+through the whole 632-824 dialogue era, freezing the spring (cz stuck 8.600 vs retail's 8.6564 drift — caught by the
+verify drive, the exact trap the porting loop's re-verify exists for).  `player_ctrl_debug_set_cc08` clears both markers
+(host-test ordering).
+
+**✅ VERIFIED (port 035725Z vs full retail 025322Z):** **cframe / ccnt / ctimer / canim ALL `✓ aligned` across the whole
+[224,1722] window** — the ★★★ wing-flap arc is CLOSED end-to-end (930 divergent cframe frames → 0).  cz re-aligned
+(regression gone); cx/coct back to the pre-existing @389 blips (33/48f, tracked); raw rng bit-exact 225→1722
+(0 mismatches — the leave frame emits no sparkle on either side); 3381 host pass.

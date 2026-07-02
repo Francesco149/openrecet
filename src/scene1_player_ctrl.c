@@ -387,6 +387,12 @@ static int   s_player_moving    = 0;              /* last frame's moving state
  * That keeps the dispatch a real read of live state (not the old unconditional
  * shell) while the off-path arms remain honest stubs. */
 static int   s_cc08             = 1;              /* DAT_0438cc08 */
+/* cc08 boundary-frame markers (RE §21.28): the engine entry/leave arms decide
+ * the frame's behavior on the FRAME-START cc08; these flag a mid-frame flip so
+ * later-running controllers (the companion) can mirror that.  Cleared at the
+ * top of scene1_player_ctrl_tick each frame. */
+static int   s_cc08_entered_this_frame = 0;       /* 1→4 this frame */
+static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
 static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
@@ -639,6 +645,16 @@ void player_ctrl_set_facing_angle(float angle)
 void player_ctrl_cc08_enter_freeroam(void)
 {
     CALL_TRACE_ENTER_STUB(0x4850ecu);
+    /* cs LEAVE frame marker (RE §21.28 chip a): when the master tick flips
+     * cc08 4→1 mid-frame (the b520 dissolve completion), retail's frame took
+     * the cc08==4 arm — the companion free-roam law never runs that frame
+     * (probe: retail ticks her counter 20→21 during 631 with NO anim write;
+     * the port's spring-follow instead saw the flipped cc08, moved her and
+     * set the WALK anim ⇒ the 632 conv-pose enter became a real reset vs
+     * retail's no-op ⇒ the +20 pose-era cycle offset).  Cleared per frame at
+     * the top of scene1_player_ctrl_tick, like the entry marker. */
+    if (s_cc08 == 4)
+        s_cc08_left_4_this_frame = 1;
     s_cc08 = 1;
 }
 
@@ -673,6 +689,12 @@ int player_ctrl_companion_ticked(void)
 void player_ctrl_debug_set_cc08(int state)
 {
     s_cc08 = state;
+    /* a forced state is not a mid-frame boundary flip — clear the RE §21.28
+     * markers (in live play scene1_player_ctrl_tick clears them per frame;
+     * host tests drive the companion without the player tick, so a stale
+     * marker from a previous test's enter_freeroam would stick). */
+    s_cc08_entered_this_frame = 0;
+    s_cc08_left_4_this_frame  = 0;
 }
 
 /* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
@@ -1228,11 +1250,23 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
  * (probe-proven RE §21.28: retail ccnt/pcnt freeze across frames 304 + 825).
  * Cleared at the top of scene1_player_ctrl_tick each frame; read by
  * scene1_companion_ctrl_tick to sit the companion out on the entry frame. */
-static int s_cc08_entered_this_frame = 0;
-
 int player_ctrl_cc08_entered_this_frame(void)
 {
     return s_cc08_entered_this_frame;
+}
+
+int player_ctrl_cc08_left_4_this_frame(void)
+{
+    return s_cc08_left_4_this_frame;
+}
+
+/* Frame-top clear for both boundary markers — called from scene1_ingame_tick
+ * (which runs on EVERY sim frame, default AND event arms) so a marker lives
+ * for exactly the frame whose arm set it. */
+void player_ctrl_cc08_markers_frame_clear(void)
+{
+    s_cc08_entered_this_frame = 0;
+    s_cc08_left_4_this_frame  = 0;
 }
 
 static int player_ctrl_cc08_sell_counter_enter(void)
@@ -2066,9 +2100,11 @@ void scene1_player_ctrl_tick(void)
      * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
     s_companion_ticked_in_b850 = 0;
 
-    /* New frame — a cc08 1→4 entry can only be flagged by THIS frame's arms
-     * (RE §21.28 entry no-tick; read later this frame by the companion ctrl). */
-    s_cc08_entered_this_frame = 0;
+    /* NB the RE §21.28 cc08 boundary markers are cleared at the frame top by
+     * scene1_ingame_tick (player_ctrl_cc08_markers_frame_clear) — NOT here:
+     * this tick does not run on EVENT frames, and a leave marker set by the
+     * last pre-dialogue frame must not gate the companion through a whole
+     * dialogue era (the first attempt did exactly that — cz froze 632-824). */
 
     /* Per-frame ACTOR-STATE flow-trace payload (FUN_0048670f = the HOUSE
      * free-roam update, parent of both the player and companion controllers).

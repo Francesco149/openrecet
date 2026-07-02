@@ -45,6 +45,7 @@
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
+#include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record indices — RE §21.28 ccnt probe */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
@@ -262,6 +263,19 @@ void sim_step_a(void)
      * (0x48670f) once the event arm takes over — so keep it continuous here to
      * line the mode transition up against db054 on every frame. */
     CALL_TRACE_I32("cc08", player_ctrl_cc08());
+    /* DIAGNOSTIC (RE §21.28 remaining chip a): the companion + player anim
+     * counters, CONTINUOUS — the 0x48670f probe is dark through the whole
+     * pose/dialogue era [632,824] on BOTH sides, exactly where the +20
+     * companion tick offset accumulates.  Retail mirrors in
+     * retail_fields.json (dab4c/dab40 comp, daaf4/daae8 player). */
+    {
+        const int32_t *r2 = player_ctrl_actor_record(2);
+        const int32_t *r0 = player_ctrl_actor_record(0);
+        CALL_TRACE_I32("ccnt",  r2 ? r2[CHR_ACTOR_COUNTER] : -1);
+        CALL_TRACE_I32("canim", r2 ? r2[CHR_ACTOR_ANIM]    : -1);
+        CALL_TRACE_I32("pcnt",  r0 ? r0[CHR_ACTOR_COUNTER] : -1);
+        CALL_TRACE_I32("panim", r0 ? r0[CHR_ACTOR_ANIM]    : -1);
+    }
     CALL_TRACE_END();
 
     /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before

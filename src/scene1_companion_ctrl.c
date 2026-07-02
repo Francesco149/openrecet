@@ -279,6 +279,19 @@ void scene1_companion_ctrl_tick(void)
     if (player_ctrl_cc08() == 4 && player_ctrl_cc08_entered_this_frame())
         return;
 
+    /* cc08 4→1 LEAVE frame (the b520 dissolve completion, mid-frame in the
+     * master tick): retail's frame took the cc08==4 arm — the free-roam law
+     * never runs, only the per-frame anim tick (probe: retail ccnt 20→21
+     * during frame 631, NO anim/position write).  The port's spring-follow
+     * used to see the flipped cc08, move her and set the WALK anim — turning
+     * the next frame's conv-pose enter (anim 4) into a real cycle reset where
+     * retail's is a no-op (state already 4) ⇒ the +20 pose-era wing-cycle
+     * offset (RE §21.28 chip a). */
+    if (player_ctrl_cc08_left_4_this_frame()) {
+        chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
+        return;
+    }
+
     if (player_ctrl_cc08() == 4 &&
         (customer_service_d3e_loading() || customer_service_load_at_frame_start())) {
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);

@@ -887,6 +887,31 @@
      "src": "global",
      "va": "0x438cc08",
      "type": "i32"
+    },
+    {
+     "name": "ccnt",
+     "src": "global",
+     "va": "0x56dab4c",
+     "type": "i32",
+     "_note": "companion CHR_ACTOR_COUNTER, CONTINUOUS — RE §21.28 chip (a): the +20 pose-era tick offset accumulates in [632,824] where 0x48670f is dark on both sides."
+    },
+    {
+     "name": "canim",
+     "src": "global",
+     "va": "0x56dab40",
+     "type": "i32"
+    },
+    {
+     "name": "pcnt",
+     "src": "global",
+     "va": "0x56daaf4",
+     "type": "i32"
+    },
+    {
+     "name": "panim",
+     "src": "global",
+     "va": "0x56daae8",
+     "type": "i32"
     }
    ]
   }

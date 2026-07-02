@@ -59,7 +59,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1158,
+   "line": 1180,
    "kind_known": false
   },
   {
@@ -67,7 +67,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1115,
+   "line": 1137,
    "kind_known": false
   },
   {
@@ -115,7 +115,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1181,
+   "line": 1203,
    "kind_known": false
   },
   {
@@ -179,7 +179,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 376,
+   "line": 390,
    "kind_known": true
   },
   {
@@ -195,7 +195,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 305,
+   "line": 319,
    "kind_known": true
   },
   {

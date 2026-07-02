@@ -269,6 +269,11 @@ void scene1_debug_overlay_consume_rng(void)
 
 void scene1_ingame_tick(void)
 {
+    /* RE §21.28 cc08 boundary markers live for exactly ONE frame — clear at
+     * the frame top, before any arm can set or read them (the player tick
+     * can't own this: it does not run on event frames). */
+    player_ctrl_cc08_markers_frame_clear();
+
     /* Engine FUN_004536cb L50555-50568 — state-1 sub-dispatch:
      *
      *   if (transition_flag != 0)  → transition arm
