@@ -78,9 +78,10 @@
   the merchant-XP bar animator (b91c ease + flash + level-up; FUN_00407ab4 pop =
   PORT-DEBT(merchant-levelup-pop), unexercised here).  Verified: raw rng 1856/1856 bit-exact; pixel
   sweep +89..+243 = 0 px on 6 frames, 1-px speckle on 2 (accepted residue).
-  **Remaining fanfare residue (minor):** retail audio dedups same-frame SE repeats (15 se_069 lines vs
-  port 24 — cosmetic, timeline rng bit-exact) · tex b494 80tris/1draw retail-only EVERY frame (invisible
-  — paints 0 px; suspect a strip warm-up; unchased).
+  **Remaining fanfare residue:** ~~SE same-frame dedup~~ CLOSED §21.31.7 (FUN_00499519 = a request-FLAG,
+  the FUN_0049966a pump plays once/frame — ported: audio_play_se_by_id flags, audio_se_flush at
+  music_step_default head) · tex b494 80tris/1draw retail-only EVERY frame (invisible — paints 0 px;
+  suspect a strip warm-up; unchased lead).
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit
