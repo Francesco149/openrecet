@@ -22,11 +22,18 @@
  *   2 = dungeon: static lightdir / lightcolor / lightamb
  *   3 = town: time-of-day directional light from a 3-row preset table
  *
- * HOUSE (stage:0-1) is `maplight:3`.  The time-of-day index
- * (engine DAT_0438b1e0) + phase table (DAT_0450fb88) + interpolation
- * fraction (DAT_0438b7d4) are unported, so mode 3 currently uses the
- * `< 2` (daytime) preset row — the fresh-entry default.  See the TODO
- * in scene1_maplight.c when the day/night clock ports.
+ * HOUSE (stage:0-1) is `maplight:3`.  The time-of-day interpolation is
+ * driven by two inputs the caller passes through (engine reads them as
+ * globals at L53746/L53762):
+ *   - `shoptime`   = DAT_0450fb88[slot] (working bank dword CLOCK_TARGET,
+ *                    0=morning .. 4=day-end); the integer preset selector.
+ *   - `clock_phase`= DAT_0438b7d4, the animated phase eased +0.005/frame
+ *                    toward shoptime (sim.c sim_step_a tail); the interp frac.
+ * Curve (FUN_00458f67 L53746-93): shoptime<2 → row0 (day); shoptime==2 →
+ * lerp(row0,row1) as phase 1→2 (day→dusk); shoptime==3 → lerp(row1,row2)
+ * as phase 2→3 (dusk→night); shoptime>=4 → row2 (night).  Ported for the
+ * day-end dusk-tint (RE §21.32; ground-truth: shoptime 1→2 at the customer-
+ * leave completion, clock eases 1→2 over ~200 frames).
  */
 
 #ifndef OPENRECET_SCENE1_MAPLIGHT_H
@@ -68,6 +75,7 @@ typedef struct scene1_maplight_values_s {
 } scene1_maplight_values_t;
 
 int scene1_maplight_compute(const stage_record_t *rec,
+                            int shoptime, float clock_phase,
                             scene1_maplight_values_t *out);
 
 #ifdef _WIN32

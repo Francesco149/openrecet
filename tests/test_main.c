@@ -3361,6 +3361,11 @@ struct test_case {
     \
     X(maplight_null_rec_off) \
     X(maplight_mode3_daytime) \
+    X(maplight_mode3_dusk_start) \
+    X(maplight_mode3_dusk_midpoint) \
+    X(maplight_mode3_dusk_settled) \
+    X(maplight_mode3_evening_to_night) \
+    X(maplight_mode3_night) \
     X(maplight_mode2_static_passthrough) \
     X(maplight_mode0_sun) \
     X(maplight_mode1_animated_pulse) \

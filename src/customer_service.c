@@ -1874,6 +1874,23 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         {
             uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
             if (bank != NULL) {
+                /* Engine FUN_00462403 L60338-60340: on a real transaction
+                 * (f404==0, which includes the tutorial walnut-bread sale)
+                 * advance the integer shop-time DAT_0450fb88[slot] by one
+                 * (morning→evening→night).  This is the DRIVER of the day-end
+                 * dusk tint: sim_step_a's clock-phase ease then sweeps toward
+                 * the new target and maplight mode-3 warms the scene (RE §21.32;
+                 * ground truth: shoptime 1→2 here, clock eases 1→2).  Read f404
+                 * BEFORE the clear below (retail order preserved).  The paired
+                 * FUN_0045e028 real-sale tally stays deferred as
+                 * PORT-DEBT(cs-leave-restore) — it draws no shared LCG, so
+                 * omitting it does not perturb the verified day-end rng stream.
+                 * (The engine gates the reposition below on shoptime<4; the port
+                 * treats this whole branch as the <4 arm — the fb88>=4 shop-full
+                 * path is PORT-DEBT(cs-leave-shopfull).) */
+                if (bank[CS_F404_SELL_ACTIVE_BYTE_OFF] == 0)
+                    ((int32_t *)bank)[SAVE_BANK_FIELD_CLOCK_TARGET] += 1;
+
                 /* Recette hop-down reposition (all.c:60349-371, the fb88<4 arm).
                  * Read f404 BEFORE the clear below (retail order).  Sets the
                  * free-roam camera CENTER (stage_class=0 at the block end) so the

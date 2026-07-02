@@ -46,13 +46,8 @@ static const float MAPLIGHT3_PRESET[3][9] = {
     { 1.0f, 0.0f,  0.0f,  0.3f, 0.3f, 0.3f,  0.6f, 0.6f, 1.2f },
 };
 
-/* ─── unported engine globals (mode-0/1/3 inputs) ─────────────────────── */
+/* ─── unported engine globals (mode-0/1 inputs) ───────────────────────── */
 
-/* DAT_0438b1e0 — day/night clock slot (mode 3 preset selector). Unported;
- * fresh HOUSE entry is daytime → 0. */
-static int  ml_time_of_day_slot(void)   { return 0; }
-/* _DAT_0438b7d4 — mode-3 interpolation fraction. Unported → 0. */
-static float ml_time_of_day_frac(void)  { return 0.0f; }
 /* _DAT_073de39c — sun angle (mode 0). Unported → 0. */
 static float ml_sun_angle(void)         { return 0.0f; }
 /* _DAT_0438bec8 — mode-0 "disable light" flag (== 1.0 → lighting off).
@@ -69,6 +64,7 @@ static float clamp01(float v)
 /* ─── pure value computation ──────────────────────────────────────────── */
 
 int scene1_maplight_compute(const stage_record_t *rec,
+                            int shoptime, float clock_phase,
                             scene1_maplight_values_t *out)
 {
     if (!out) return 0;
@@ -80,19 +76,40 @@ int scene1_maplight_compute(const stage_record_t *rec,
     int lit  = 1;
 
     if (mode == 3) {
-        /* L53704-L53793: town time-of-day.  TODO: when the day/night
-         * clock (DAT_0438b1e0 / DAT_0450fb88 / DAT_0438b7d4) ports,
-         * select + interpolate between MAPLIGHT3_PRESET rows.  Until
-         * then the slot is 0 (daytime) → row 0, matching the engine's
-         * `(int)local_8 < 2` branch on a fresh entry. */
-        int slot = ml_time_of_day_slot();
-        (void)ml_time_of_day_frac();
-        if (slot < 0) slot = 0;
-        if (slot > 2) slot = 2;
-        const float *p = MAPLIGHT3_PRESET[slot];
-        out->direction[0] = p[0]; out->direction[1] = p[1]; out->direction[2] = p[2];
-        out->diffuse[0]   = p[3]; out->diffuse[1]   = p[4]; out->diffuse[2]   = p[5];
-        out->ambient[0]   = p[6]; out->ambient[1]   = p[7]; out->ambient[2]   = p[8];
+        /* L53746-L53793: town time-of-day preset select + interpolate.
+         * `shoptime` = (int)DAT_0450fb88[slot]; `clock_phase` = DAT_0438b7d4
+         * (the animated phase eased toward shoptime in sim_step_a).  The
+         * engine's integer branch (objdump 0x4590d2: cmp ecx,1 jg / cmp
+         * ecx,2 je / cmp ecx,3 je — the decomp's 2.8026e-45/4.2039e-45
+         * denormals are Ghidra rendering the int constants 2/3 as float
+         * bit-patterns).  Interp lerps row[shoptime-2]↔row[shoptime-1] as
+         * clock_phase sweeps [shoptime-1, shoptime]. */
+        if (shoptime < 2) {
+            /* L53747-L53757: shoptime 0/1 → row 0 (daytime), no interp. */
+            const float *p = MAPLIGHT3_PRESET[0];
+            out->direction[0] = p[0]; out->direction[1] = p[1]; out->direction[2] = p[2];
+            out->diffuse[0]   = p[3]; out->diffuse[1]   = p[4]; out->diffuse[2]   = p[5];
+            out->ambient[0]   = p[6]; out->ambient[1]   = p[7]; out->ambient[2]   = p[8];
+        } else if (shoptime == 2 || shoptime == 3) {
+            /* L53759-L53781: interpolate per channel.  hi = row[shoptime-1],
+             * lo = row[shoptime-2], frac = (float)shoptime - clock_phase;
+             * result = hi - (hi - lo) * frac  (→ lo at frac 1 / phase=st-1,
+             * hi at frac 0 / phase=st). */
+            const float *hi = MAPLIGHT3_PRESET[shoptime - 1];
+            const float *lo = MAPLIGHT3_PRESET[shoptime - 2];
+            float frac = (float)shoptime - clock_phase;
+            float o[9];
+            for (int k = 0; k < 9; k++) o[k] = hi[k] - (hi[k] - lo[k]) * frac;
+            out->direction[0] = o[0]; out->direction[1] = o[1]; out->direction[2] = o[2];
+            out->diffuse[0]   = o[3]; out->diffuse[1]   = o[4]; out->diffuse[2]   = o[5];
+            out->ambient[0]   = o[6]; out->ambient[1]   = o[7]; out->ambient[2]   = o[8];
+        } else {
+            /* L53782-L53792: shoptime >= 4 → row 2 (night), no interp. */
+            const float *p = MAPLIGHT3_PRESET[2];
+            out->direction[0] = p[0]; out->direction[1] = p[1]; out->direction[2] = p[2];
+            out->diffuse[0]   = p[3]; out->diffuse[1]   = p[4]; out->diffuse[2]   = p[5];
+            out->ambient[0]   = p[6]; out->ambient[1]   = p[7]; out->ambient[2]   = p[8];
+        }
     } else if (mode == 2) {
         /* L53805-L53813: static lightdir / lightcolor / lightamb. */
         out->direction[0] = rec->lightdir[0];   /* +0x1ab4 */
@@ -155,6 +172,10 @@ int scene1_maplight_compute(const stage_record_t *rec,
 #define CINTERFACE
 #include <d3d8.h>
 
+#include "save_work.h"        /* save_work_dwords_at / save_work_active_slot */
+#include "save_bank.h"        /* SAVE_BANK_FIELD_CLOCK_TARGET (DAT_0450fb88)  */
+#include "scene1_top_hud.h"   /* scene1_top_hud_clock_phase (DAT_0438b7d4)    */
+
 /* Cached light built by scene1_build_maplight, re-applied by
  * scene1_maplight_rebind (engine keeps it at DAT_06a49a40). */
 static D3DLIGHT8 g_maplight;
@@ -183,7 +204,18 @@ void scene1_build_maplight(struct IDirect3DDevice8 *dev_in)
 
     scene1_maplight_values_t v;
     const stage_record_t *rec = scene1_current_stage_record();
-    g_maplight_lit = scene1_maplight_compute(rec, &v);
+
+    /* Live mode-3 inputs (engine reads them as globals inside FUN_00458f67):
+     *   shoptime    = (int)DAT_0450fb88[slot]  (working bank CLOCK_TARGET)
+     *   clock_phase = DAT_0438b7d4             (top-HUD animated phase) */
+    int   shoptime    = 0;
+    float clock_phase = 0.0f;
+    {
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        if (wb) shoptime = (int)wb[SAVE_BANK_FIELD_CLOCK_TARGET];
+        clock_phase = scene1_top_hud_clock_phase();
+    }
+    g_maplight_lit = scene1_maplight_compute(rec, shoptime, clock_phase, &v);
     fill_light(&g_maplight, &v);
 
     if (g_maplight_lit) {

@@ -276,6 +276,16 @@ void sim_step_a(void)
         CALL_TRACE_I32("pcnt",  r0 ? r0[CHR_ACTOR_COUNTER] : -1);
         CALL_TRACE_I32("panim", r0 ? r0[CHR_ACTOR_ANIM]    : -1);
     }
+    /* DIAGNOSTIC (RE §21.32): the day/night clock trajectory — the animated
+     * phase (DAT_0438b7d4, eased below) + its integer shop-time target
+     * (DAT_0450fb88[slot]).  Retail mirrors these on the same 0x4536cb anchor
+     * (retail_fields.json clock_phase/shoptime), so flow_diff lines the dusk
+     * ramp up port↔retail frame-by-frame. */
+    CALL_TRACE_F32("clock_phase", scene1_top_hud_clock_phase());
+    {
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        CALL_TRACE_I32("shoptime", wb ? (int)wb[SAVE_BANK_FIELD_CLOCK_TARGET] : -1);
+    }
     CALL_TRACE_END();
 
     /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before
@@ -558,6 +568,31 @@ void sim_step_a(void)
     /* Engine FUN_004536cb LAB_00453cfb tail (line 318): per-tick fade
      * counter advance. Runs unconditionally — phase==0 is a no-op. */
     fade_tick();
+
+    /* Engine FUN_004536cb LAB_00453cfb (all.c:50642-50655): ease the animated
+     * day/night clock phase (DAT_0438b7d4) toward the integer shop-time target
+     * (DAT_0450fb88[slot] = working bank CLOCK_TARGET) at +0.005/frame, never
+     * more than 1.0 behind, hard-capped at 3.5.  This one float feeds BOTH the
+     * HUD clock dial (scene1_top_hud) AND the maplight mode-3 dusk-tint
+     * interpolation (scene1_maplight).  Gated on a live scene like the playtime
+     * tick above; on title shoptime/phase are 0 so `ph < target` is false (a
+     * no-op), matching the engine reaching this label only in-scene.  Ground
+     * truth (RE §21.32): shoptime 1→2 at the day-end customer-leave completion,
+     * clock eases 1.0→2.0 over ~200 frames (day→dusk). */
+    if (g_scene_state != 0) {
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        if (wb) {
+            const float target = (float)(int)wb[SAVE_BANK_FIELD_CLOCK_TARGET];
+            float ph = scene1_top_hud_clock_phase();
+            if (ph < target) {
+                if (ph < target - 1.0f) ph = target - 1.0f;
+                ph += 0.005f;
+                if (target < ph) ph = target;
+                if (3.5f < ph)   ph = 3.5f;
+                scene1_top_hud_set_clock_phase(ph);
+            }
+        }
+    }
 
     g_sim_frame_count++;
 }

@@ -912,6 +912,41 @@
      "src": "global",
      "va": "0x56daae8",
      "type": "i32"
+    },
+    {
+     "name": "clock_phase",
+     "src": "global",
+     "va": "0x438b7d4",
+     "type": "f32",
+     "_note": "DAT_0438b7d4 — animated time-of-day clock phase (0..3.5), eased +0.005/frame toward shoptime at L50642. Drives the HUD clock dial (FUN_00406241) AND the maplight mode-3 dusk interpolation (FUN_00458f67 L53762). Added for the day-end dusk-tint port."
+    },
+    {
+     "name": "shoptime",
+     "src": "global",
+     "va": "0x450fb88",
+     "type": "i32",
+     "_note": "DAT_0450fb88[slot0] — integer shop time-of-day (0=morning..up to 4=day-end trigger). maplight mode-3 selector. Assumes active slot (DAT_0438b1e0)==0; todslot confirms."
+    },
+    {
+     "name": "shopaccum",
+     "src": "global",
+     "va": "0x438be9c",
+     "type": "i32",
+     "_note": "DAT_0438be9c — activity accumulator; when >0x78 the FUN_00442cef block advances shoptime++ (L40744-40753)."
+    },
+    {
+     "name": "todslot",
+     "src": "global",
+     "va": "0x438b1e0",
+     "type": "i32",
+     "_note": "DAT_0438b1e0 — active save-slot index (shoptime = DAT_0450fb88[todslot*0xb7f2 dwords])."
+    },
+    {
+     "name": "cardday",
+     "src": "global",
+     "va": "0x450fb84",
+     "type": "i32",
+     "_note": "DAT_0450fb84 — current day counter (HUD shows +1)."
     }
    ]
   }

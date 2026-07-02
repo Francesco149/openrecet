@@ -3561,3 +3561,49 @@ regardless, engine behavior); `audio_se_flush()` at music_step_default's head (s
 Timing: SEs flagged in sim_a play the SAME frame (sim_a → sim_b); SEs flagged in render play next
 frame's pump — both identical to the engine's call order.  Unit test
 `audio_play_se_by_id_defers_and_dedups`.  The sale-fanfare arc is now fully CLOSED port-side.
+
+## 21.32 2026-07-02 — day-end DUSK tint (notes #20-23) = maplight mode-3 time-of-day UNSTUBBED: shoptime++ at cs-leave + clock-phase ease ported
+
+Viewer notes #20-23 (`house-firstcust-cutscene-day2`): retail warms the whole shop to **amber dusk**
+over the day-end CONV_POSE cutscene (frames 2071-2473) + rotates the HUD clock dial; the port stayed
+daytime-bright.  Draw-program ALIGNED (orv3_draws --material: same textures/tris, benign batching) ⇒ a
+device-**STATE** change, not geometry.
+
+**Mechanism — HOUSE = `maplight:3` (FUN_00458f67), the town time-of-day directional light.**  Reads two
+inputs: `shoptime` = (int)`DAT_0450fb88[slot]` (working bank dword `CLOCK_TARGET` 0xb0fc; 0=morning..
+4=day-end) + `clock_phase` = `DAT_0438b7d4` (f32).  Curve (all.c:53746-93; **objdump 0x4590d2 `cmp ecx,1;
+jg` / `cmp ecx,2; je` / `cmp ecx,ebx(=3); je` — the decomp's `2.8026e-45`/`4.2039e-45` are Ghidra
+rendering int 2/3 as float bit-patterns, gotcha**): shoptime<2 → row0 (day); ==2 → lerp(row0,row1) as
+phase 1→2 (day→**dusk**); ==3 → lerp(row1,row2) (dusk→night); ≥4 → row2 (night).  Interp per channel:
+`hi=row[st-1], lo=row[st-2], frac=(float)st-phase, out = hi - (hi-lo)*frac`.  3×9-float preset (dir/diff/
+amb): row0 diff(.8,.8,.9)/amb(.6,.6,.6); **row1 diff(.8,.7,.2)/amb(.9,.6,.3)** = the amber; row2 diff
+(.3,.3,.3)/amb(.6,.6,1.2).  Applied as the D3D directional light the lit shop geometry already samples —
+so only the light COLOR was stubbed (port hardcoded `ml_time_of_day_slot()=0` → row0 forever).
+
+**clock_phase ease (FUN_004536cb LAB_00453cfb, all.c:50642-55, sim_step_a tail):** per sim frame, if
+`phase < target(=shoptime)`: clamp `phase ≥ target-1`, `phase += 0.005`, snap to target, cap 3.5.  This
+one float feeds BOTH the clock dial (`angle = π/2 − phase·π/3`, scene1_top_hud) AND the maplight interp.
+
+**shoptime source — NOT the organic accumulator.**  Ground-truth watch (added clock_phase/shoptime/
+shopaccum/todslot/cardday as `0x4536cb` fields in `retail_fields.json`, retail call-trace): `shopaccum`
+(DAT_0438be9c) stayed **0** the whole trace ⇒ the `0x78<accum` FUN_00442cef path is NOT the trigger.
+shoptime jumps **1→2 at frame 2274** (= the day-end LOADING_START/CONV_POSE the port already drives);
+`clock_phase` eases 1.005→2.0 over frames 2274-2473 (200f × 0.005 ✓); `cardday` stays 0 (still day 1).
+The scripted write = **FUN_00462403 L60339** (customer-leave completion, after the leave-fade
+FUN_004528b3, gated `f404==0` — true for the tutorial sale): `DAT_0450fb88[slot]++`.  Was DEFERRED in
+`PORT-DEBT(cs-leave-restore)` (customer_service.c:1867), which is why the port never advanced shoptime.
+
+**PORTED:** (1) scene1_maplight.c mode-3 interp — signature now `(rec, shoptime, clock_phase, out)`,
++5 host tests (dusk start/mid/settled, evening→night, night); (2) sim.c sim_step_a tail — the clock ease;
+(3) customer_service.c cs-leave — `shoptime++` (gated f404==0), narrows PORT-DEBT(cs-leave-restore) (the
+paired FUN_0045e028 sale tally stays deferred — rng-neutral).  Port also emits clock_phase/shoptime on
+its own 0x4536cb CALL_TRACE so flow_diff lines the ramp up port↔retail.
+
+**VERDICT — numeric BIT-EXACT (port drive vs retail ground truth):** shoptime 1→2 at the SAME frame
+(2274); clock_phase 1.005@2274 / 1.635@2400 / 2.0@2473 — IDENTICAL both sides across the whole ramp.
+Pre-2274 both sit shoptime=1/phase=1.0 (row0 daytime); the port's phase settling at frame 207 vs retail
+~224 is the load-duration diff (accepted; row0 either way so no tint impact).  Port BMPs confirm the
+render: frame 2081 (pre-jump) daytime, frame 2441 amber dusk + the clock dial now rotates (was static).
+Startup note: the clock ease is gated `g_scene_state!=0` (incl. pause mode 9); inert in this trace
+(phase already at target through the pause) — if a pause-time clock divergence ever surfaces, tighten the
+gate.  Pixel 1:1 pending the user's Trace Studio confirm (notes #20-23).

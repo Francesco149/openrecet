@@ -4,8 +4,10 @@
  * The Win32 device-side (SetLight/LightEnable/LIGHTING) is not exercised
  * here — these tests cover the pure value computation that drives it:
  *
- *   1. mode 3 (town / time-of-day): the daytime preset row is selected
- *      (day/night clock unported → slot 0), lit == 1.  HOUSE is mode 3.
+ *   1. mode 3 (town / time-of-day): shoptime + clock_phase select/interpolate
+ *      the preset row — shoptime<2 → daytime row 0, shoptime==2 lerps row0→row1
+ *      (day→dusk) as clock_phase 1→2, ==3 lerps row1→row2, >=4 → night row 2.
+ *      lit == 1.  HOUSE is mode 3.
  *   2. mode 2 (static dungeon): lightdir / lightcolor / lightamb pass
  *      straight through to direction / diffuse / ambient.
  *   3. mode 0 (sun): the dim sun direction is built (y = -0.5, diffuse
@@ -40,7 +42,7 @@ uint32_t scene1_render_draw_counter(void) { return 0; }
 int test_maplight_null_rec_off(void)
 {
     scene1_maplight_values_t v;
-    int lit = scene1_maplight_compute(NULL, &v);
+    int lit = scene1_maplight_compute(NULL, 0, 0.0f, &v);
     T_ASSERT_EQ_I(lit, 0);
     T_ASSERT_EQ_I(v.type, 3);          /* D3DLIGHT_DIRECTIONAL */
     T_ASSERT_NEAR(v.diffuse[0], 0.0);
@@ -50,13 +52,13 @@ int test_maplight_null_rec_off(void)
 
 int test_maplight_mode3_daytime(void)
 {
-    /* HOUSE = maplight:3.  Day/night clock unported → daytime row 0. */
+    /* HOUSE = maplight:3.  shoptime 0 (< 2) → daytime row 0, no interp. */
     stage_record_t rec;
     memset(&rec, 0, sizeof(rec));
     rec.maplight = 3;
 
     scene1_maplight_values_t v;
-    int lit = scene1_maplight_compute(&rec, &v);
+    int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_EQ_I(lit, 1);
     T_ASSERT_EQ_I(v.type, 3);
     /* MAPLIGHT3_PRESET row 0 (daytime). */
@@ -72,6 +74,121 @@ int test_maplight_mode3_daytime(void)
     return 0;
 }
 
+/* shoptime==2, clock_phase==1.0 → frac = 2-1 = 1 → result = row1 -
+ * (row1-row0)*1 = row0 (daytime).  The boundary where the dusk ramp begins. */
+int test_maplight_mode3_dusk_start(void)
+{
+    stage_record_t rec;
+    memset(&rec, 0, sizeof(rec));
+    rec.maplight = 3;
+
+    scene1_maplight_values_t v;
+    int lit = scene1_maplight_compute(&rec, 2, 1.0f, &v);
+    T_ASSERT_EQ_I(lit, 1);
+    /* Still row 0 (daytime) at the start of the shoptime-2 window. */
+    T_ASSERT_NEAR(v.diffuse[0], 0.8);
+    T_ASSERT_NEAR(v.diffuse[1], 0.8);
+    T_ASSERT_NEAR(v.diffuse[2], 0.9);
+    T_ASSERT_NEAR(v.ambient[0], 0.6);
+    T_ASSERT_NEAR(v.ambient[1], 0.6);
+    T_ASSERT_NEAR(v.ambient[2], 0.6);
+    T_ASSERT_NEAR(v.direction[0], 0.2);
+    return 0;
+}
+
+/* shoptime==2, clock_phase==1.5 → frac = 0.5 → per-channel midpoint of
+ * row0 (day) and row1 (dusk). */
+int test_maplight_mode3_dusk_midpoint(void)
+{
+    stage_record_t rec;
+    memset(&rec, 0, sizeof(rec));
+    rec.maplight = 3;
+
+    scene1_maplight_values_t v;
+    int lit = scene1_maplight_compute(&rec, 2, 1.5f, &v);
+    T_ASSERT_EQ_I(lit, 1);
+    /* dir  = ((1.0+0.2)/2, (0.5+0.4)/2, (-0.5+0.2)/2) */
+    T_ASSERT_NEAR(v.direction[0], 0.6);
+    T_ASSERT_NEAR(v.direction[1], 0.45);
+    T_ASSERT_NEAR(v.direction[2], -0.15);
+    /* diff = ((0.8+0.8)/2, (0.7+0.8)/2, (0.2+0.9)/2) */
+    T_ASSERT_NEAR(v.diffuse[0], 0.8);
+    T_ASSERT_NEAR(v.diffuse[1], 0.75);
+    T_ASSERT_NEAR(v.diffuse[2], 0.55);
+    /* amb  = ((0.9+0.6)/2, (0.6+0.6)/2, (0.3+0.6)/2) */
+    T_ASSERT_NEAR(v.ambient[0], 0.75);
+    T_ASSERT_NEAR(v.ambient[1], 0.6);
+    T_ASSERT_NEAR(v.ambient[2], 0.45);
+    return 0;
+}
+
+/* shoptime==2, clock_phase==2.0 → frac = 0 → result = row1 (dusk).  The
+ * settled dusk the day-end trace parks on (ground truth: frame 2473+). */
+int test_maplight_mode3_dusk_settled(void)
+{
+    stage_record_t rec;
+    memset(&rec, 0, sizeof(rec));
+    rec.maplight = 3;
+
+    scene1_maplight_values_t v;
+    int lit = scene1_maplight_compute(&rec, 2, 2.0f, &v);
+    T_ASSERT_EQ_I(lit, 1);
+    /* MAPLIGHT3_PRESET row 1 (warm/dusk). */
+    T_ASSERT_NEAR(v.direction[0], 1.0);
+    T_ASSERT_NEAR(v.direction[1], 0.5);
+    T_ASSERT_NEAR(v.direction[2], -0.5);
+    T_ASSERT_NEAR(v.diffuse[0], 0.8);
+    T_ASSERT_NEAR(v.diffuse[1], 0.7);
+    T_ASSERT_NEAR(v.diffuse[2], 0.2);
+    T_ASSERT_NEAR(v.ambient[0], 0.9);
+    T_ASSERT_NEAR(v.ambient[1], 0.6);
+    T_ASSERT_NEAR(v.ambient[2], 0.3);
+    return 0;
+}
+
+/* shoptime==3 lerps row1 (dusk) → row2 (night): phase 2.0 → row1, 3.0 → row2. */
+int test_maplight_mode3_evening_to_night(void)
+{
+    stage_record_t rec;
+    memset(&rec, 0, sizeof(rec));
+    rec.maplight = 3;
+
+    scene1_maplight_values_t v;
+    /* frac = 3-2 = 1 → row1 (dusk). */
+    (void)scene1_maplight_compute(&rec, 3, 2.0f, &v);
+    T_ASSERT_NEAR(v.ambient[0], 0.9);   /* row1 */
+    T_ASSERT_NEAR(v.ambient[2], 0.3);
+    /* frac = 3-3 = 0 → row2 (night). */
+    (void)scene1_maplight_compute(&rec, 3, 3.0f, &v);
+    T_ASSERT_NEAR(v.ambient[0], 0.6);   /* row2 */
+    T_ASSERT_NEAR(v.ambient[2], 1.2);
+    T_ASSERT_NEAR(v.diffuse[0], 0.3);
+    return 0;
+}
+
+/* shoptime>=4 → row 2 (night), no interp. */
+int test_maplight_mode3_night(void)
+{
+    stage_record_t rec;
+    memset(&rec, 0, sizeof(rec));
+    rec.maplight = 3;
+
+    scene1_maplight_values_t v;
+    int lit = scene1_maplight_compute(&rec, 4, 3.5f, &v);
+    T_ASSERT_EQ_I(lit, 1);
+    /* MAPLIGHT3_PRESET row 2 (dim/night). */
+    T_ASSERT_NEAR(v.direction[0], 1.0);
+    T_ASSERT_NEAR(v.direction[1], 0.0);
+    T_ASSERT_NEAR(v.direction[2], 0.0);
+    T_ASSERT_NEAR(v.diffuse[0], 0.3);
+    T_ASSERT_NEAR(v.diffuse[1], 0.3);
+    T_ASSERT_NEAR(v.diffuse[2], 0.3);
+    T_ASSERT_NEAR(v.ambient[0], 0.6);
+    T_ASSERT_NEAR(v.ambient[1], 0.6);
+    T_ASSERT_NEAR(v.ambient[2], 1.2);
+    return 0;
+}
+
 int test_maplight_mode2_static_passthrough(void)
 {
     stage_record_t rec;
@@ -82,7 +199,7 @@ int test_maplight_mode2_static_passthrough(void)
     rec.lightamb[0]   = 0.1f;  rec.lightamb[1]   = 0.2f;  rec.lightamb[2]   = 0.3f;
 
     scene1_maplight_values_t v;
-    int lit = scene1_maplight_compute(&rec, &v);
+    int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_EQ_I(lit, 1);
     T_ASSERT_NEAR(v.direction[0], 1.0);
     T_ASSERT_NEAR(v.direction[1], -1.0);
@@ -103,7 +220,7 @@ int test_maplight_mode0_sun(void)
     rec.maplight = 0;
 
     scene1_maplight_values_t v;
-    int lit = scene1_maplight_compute(&rec, &v);
+    int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     /* Engine disable flag unported (→ 0): mode 0 builds the dim sun. */
     T_ASSERT_EQ_I(lit, 1);
     /* sun angle unported → 0: dir = (cos0*0.5, -0.5, sin0*0.5). */
@@ -130,7 +247,7 @@ int test_maplight_mode1_animated_pulse(void)
     rec.maplight_a[2][0] = 0.0f; rec.maplight_a[2][1] = 0.3f;
 
     scene1_maplight_values_t v;
-    int lit = scene1_maplight_compute(&rec, &v);
+    int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_EQ_I(lit, 1);
     /* c == 1 → diffuse/ambient land on the hi values. */
     T_ASSERT_NEAR(v.diffuse[0], 0.9);
@@ -155,7 +272,7 @@ int test_maplight_chr_ambient_clamp(void)
     rec.chrlightoffset = 0.5f;
 
     scene1_maplight_values_t v;
-    (void)scene1_maplight_compute(&rec, &v);
+    (void)scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_NEAR(v.chr_ambient[0], 0.7);
     T_ASSERT_NEAR(v.chr_ambient[1], 1.0);   /* clamped */
     T_ASSERT_NEAR(v.chr_ambient[2], 0.5);
@@ -171,7 +288,7 @@ int test_maplight_chr_ambient_clamp_low(void)
     rec.chrlightoffset = -0.5f;   /* 0 - 0.5 = -0.5 → clamp 0.0 */
 
     scene1_maplight_values_t v;
-    (void)scene1_maplight_compute(&rec, &v);
+    (void)scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_NEAR(v.chr_ambient[0], 0.0);   /* clamped low */
     return 0;
 }
