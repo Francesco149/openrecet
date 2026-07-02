@@ -4790,3 +4790,16 @@ so those reference frames — and the first README iv1_2 hero — looked
 on the line ~2s (`intro-patience-settle`, capture `+120`) shows the banner, and the
 settled port frame is **1:1 vs retail (3 px over the whole frame)**.  When you want
 the "with nameplate" look, capture after the line settles, not at the reveal edge.
+
+## 128. The choice-box commit flash peaks at RGB 254, never 255 — the float-rounded π/2 through the double sin truncates 128·sin to 127
+
+On confirm, `FUN_0043537e` pulses the CHOSEN option label's RGB while the close counter
+`DAT_0438ac14 < 4`: `rgb = 0x7f − __ftol(sin(ac14·π_f/4)·(−128.0))` (objdump 0x435476-b1;
+af30==1 flashes "Yes", ==2 "No", cancel 3 neither) → 0x7f, 217, 254, 217 for ac14 0..3 —
+a 3-frame brighten under the box's inherited ADDSIGNED COLOROP.  The peak is **254, not
+255**: the argument is float-rounded (fildl → fmuls float-π → fdivs 4.0), so at ac14==2
+it is π_f/2 ≈ π/2 + 4.37e-8; the CRT **double** sin gives 0.99999999999999905, ·(−128) →
+−127.99…, and __ftol truncates to −127 → 0x7f+127 = 254.  A port computing `sinf` would
+round to 1.0f and hit 255 — 1 LSB off on the peak frame.  Port: choice_box.c commit
+flash (double sin off the float-rounded argument); verified bit-exact px on both the
+pause "go to bed" confirm and the ESC-skip confirm (win-0-1000, RE §21.27).

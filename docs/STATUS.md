@@ -48,24 +48,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   even on the USER-CONFIRMED-1:1 arrprobe capture — that signature is the accepted pre-pin/warmup region +
   probe print-precision (retail f64-prints, port %.9g), NOT a regression; judge by the aligned span.
 - **★ OPEN GAPS queued on this trace (user-flagged):**
-  - **✅ 2026-07-02 (ii) dialogue-under-ESC-modal RESOLVED — already fixed by §21.15 (98cbf08); the note-#7
-    flag predated the fix by one day.**  Retail draws the dialogue UNDER the box unconditionally (no
-    hide/clear); the visual difference was arm TIMING only.  Fresh re-drive (win-0-1000, current pins): both
-    boxes open at TEXT_ANIM_START#1+1, same absolute present, no dialogue under either.  RE §21.26.
-    **User: re-check note #7 in the refreshed win-0-1000 studio window** (win-0-700 notes were against the
-    stale Jun-27 capture).
-  - **#7/#19 modal "double-blend" ROOT FOUND + PORTED 2026-07-02 (RE §21.26) — NOT an RT effect, NOT
-    tool-blocked, NOT the pause block.**  `orv3_rt.py` on the retail capture: 0 SetRenderTarget / 0
-    CopyRects — the RT-composite theory is dead.  Retail draws the skip-prompt block (strip 2781 + prompt
-    glyphs + label, 32 draws) **TWICE** per modal frame.  ret_va probe (runs/probe-skipbox-callers):
-    `FUN_0043537e`+`FUN_00435747` fire ×2/frame from ret 0x40b0df (**FUN_0040a765, the 2D-HUD aggregator's
-    UNGATED tail** — all.c:7046/7498, like its 7499 FUN_00435117) and 0x46c0a8 (the FUN_0046c090 tail);
-    FUN_004820ba (pause) fires ZERO times — the pause-block theory is refuted too.  **PORTED + v3-VERIFIED
-    bit-1:1** (scene1_hud.c 7046/7499 mirror; choice_box.c inline cursor removed → explicit
-    FUN_0043537e+FUN_00435747 pairs at every site; the CS-overlay compensation draw removed): the modal
-    box-UI draw region is **81==81 draws, per-texture draws+prims all equal**; box pixels ≤2 LSB; the
-    frame Δ27 == the pre-existing baseline.  **Remaining: user studio re-confirm #7/#19 on win-0-1000.**
-    NB manga-lines for the cc08==4 scene itself: ALREADY PORTED, unrelated.
+  - **✅ 2026-07-02 USER-CONFIRMED ("everything matches"): gap (ii) dialogue-under-ESC-modal (already fixed
+    by §21.15; stale-window flag) + #7/#19 modal double-blend (the FUN_0040a765 HUD-tail ungated
+    FUN_0043537e pass — NOT an RT effect; ported bc114cd, box-UI draw region 81==81 bit-1:1).**  Story:
+    RE §21.26, PROGRESS 2026-07-02, ledger.
+  - **NEW note #8 (user 2026-07-02): the choice-box commit FLASH — FIXED, bit-exact (RE §21.27,
+    engine-quirk #128).**  Retail pulses the CHOSEN label 0x7f→217→254→217 over close-frames ac14 1..3
+    (`0x7f − ftol(sin(ac14·π_f/4)·−128)`, ADDSIGNED brighten); the peak is 254 NOT 255 (double sin of the
+    float-rounded π/2 — `sinf` would be 1 LSB off).  Verified max-px-diff 0 on the pause confirm +
+    sub-LSB on the ESC-skip confirm.  **Pending user studio re-confirm of #8.**  Note #9 (wing-flap
+    residual) = the ★★★ anim seed-origin arc above, acknowledged.
   - **NEW tool lead 2026-07-02: v3 PORT replay hash-verify fails 5/2895 frames** (presents
     239/542/661/2184/2303, cache 7ea1eab3) — capture replays ≠ live pixels on scattered frames; window
     built with `--no-verify`.  Investigate the replayer gap before trusting single-frame pixel verdicts

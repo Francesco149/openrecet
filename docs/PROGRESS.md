@@ -7,6 +7,18 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — ESC-modal arc USER-CONFIRMED; choice-box commit FLASH ported bit-exact (note #8, RE §21.27)
+
+User confirmed the §21.26 arc ("can confirm everything matches"): box-arm timing, dialogue-under-box,
+and the #7/#19 double-composite are 1:1 (ledger entry).  Follow-up flag (note #8): retail flashes the
+chosen "Yes" on confirm.  Root: the deferred FUN_0043537e commit anim — while close-counter ac14 < 4 the
+CHOSEN label draws at `0x7f − ftol(sin(ac14·π_f/4)·(−128.0))` → 217/254/217 brighten under ADDSIGNED
+(af30 picks Yes/No; cancel flashes neither).  Engine-quirk #128: the peak is 254 NOT 255 — the
+float-rounded π/2 through the CRT double sin truncates 128·sin to 127; `sinf` would be 1 LSB off.
+Ported in choice_box.c (double sin off the float-rounded argument).  Verified bit-exact on BOTH trace
+instances: pause "go to bed" confirm (Yes-region max px diff 0 through the whole pulse) + ESC-skip
+confirm (sub-LSB).  3381 host pass.
+
 ## 2026-07-02 — gap (ii) dialogue-under-ESC-modal RESOLVED (already fixed by §21.15; stale-window flag); #7/#19 REDIAGNOSED (not RT — a doubled skip-prompt draw pass)
 
 Gap (ii): retail `FUN_0046c090` draws the dialogue UNDER the ESC box unconditionally — no hide/clear

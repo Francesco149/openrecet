@@ -363,4 +363,19 @@
   phase (body-pose slip where facing+path already match) — entangled with the load/arrival anim seed timing, a
   distinct arc from the now-aligned rng-value stream + NPC positions.
 
+**2026-07-02 — ESC-skip modal: box-arm timing + dialogue-under-box + the double-composite USER-CONFIRMED 1:1
+  (`bc114cd`, RE §21.26, house-firstcust-cutscene-day2 win-0-1000).**  (1) Gap (ii): retail FUN_0046c090 draws
+  the dialogue UNDER the box unconditionally — no hide/clear exists; the "no dialogue behind retail's box" was
+  arm timing (the §21.15 re-post driver arms at line+1, pre-reveal); the note-#7 flag was against the Jun-27
+  window, one day before 98cbf08 landed.  Fresh drive: both sides open the box at TEXT_ANIM_START#1+1, same
+  absolute present (full pin set ⇒ HOUSE_FREEROAM#1 at present 224 BOTH sides).  (2) #7/#19 double-blend: the
+  FUN_0040a765 HUD-aggregator tail calls FUN_0043537e UNGATED (all.c:7046; ret_va probe 0x40b0df + 0x46c0a8;
+  FUN_004820ba fires zero — RT-composite AND pause-block theories both refuted; 0 SetRenderTarget/CopyRects in
+  the whole capture) ⇒ the armed box composites twice.  Ported (scene1_hud.c 7046/7499 mirror + explicit
+  43537e/435747 pairs everywhere + the CS compensation draw removed): modal box-UI region **81==81 draws,
+  per-texture draws+prims all equal, box px ≤2 LSB**; frame Δ27 == the pre-existing baseline (standee-phase
+  class).  **USER 2026-07-02: "can confirm everything matches."**  Follow-up note #8 (commit flash) fixed same
+  day — RE §21.27, engine-quirk #128 (the 254-peak): verified max-px-diff 0 through the pulse on the pause
+  confirm, sub-LSB on the skip confirm; pending its own user re-confirm.
+
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

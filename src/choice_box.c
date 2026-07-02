@@ -174,6 +174,7 @@ const char *choice_box_text(void)      { return cb_text + 1; }   /* &DAT_0438af3
 #include "render_quad.h"
 #include "font_draw.h"
 #include "sysassets.h"
+#include <math.h>                /* sin — the commit-flash pulse (double, x87 invariant) */
 
 /* FUN_0043537e + FUN_00435747 — the box render.
  *   bg     = savewindow.tga (DAT_073d8dc0), 512×128, grows from screen centre
@@ -248,15 +249,33 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
                                     col, 1.0f);
         }
 
-        /* "Yes" / "No" — BOTH full brightness, fading in with the same ramp.
-         * The engine (FUN_0043537e L73-76) draws both at RGB 0x7f7f7f (gray, ≈
-         * white under ADDSIGNED) with alpha = the cb_active ramp (local_c<<0x18
-         * in the packed colour); the selection is shown ONLY by the hand
-         * cursor, NOT by dimming the unselected option.  (The lone 0x7f fade
-         * there is a commit-time close anim — DAT_0438ac14<4 — deferred.)
-         * FUN_0047ca05 at x 252/376. */
-        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", col, 1.0f);
-        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  col, 1.0f);
+        /* "Yes" / "No" — BOTH at RGB 0x7f (gray, ≈ white under ADDSIGNED)
+         * with alpha = the cb_active ramp; the selection is shown by the hand
+         * cursor, NOT by dimming the unselected option.
+         *
+         * COMMIT FLASH (viewer note #8, RE §21.27): while the close counter
+         * DAT_0438ac14 (cb_close) is < 4, the CHOSEN option's RGB is
+         *   0x7f − ftol(sin(ac14·π/4)·(−128))          (objdump 0x435476-b1:
+         * fildl ac14 → fmuls π@[0x51943c] → fdivs 4.0@[0x51939c] → double sin
+         * 0x503a44 → fmuls −128.0@[0x519468] → __ftol → `sub %eax,%ebx` off
+         * 0x7f) — a 3-frame brighten pulse 0x7f→217→254→217→0x7f under the
+         * inherited ADDSIGNED (af30==1 flashes Yes, ==2 No, cancel 3 neither).
+         * NB the peak is 254 NOT 255: the float-rounded π/2 argument makes the
+         * double sin 0.99999999999999905, ·−128 → −127.99…, ftol → −127 — so
+         * the sin MUST be computed in double off the float-rounded argument
+         * (x87 invariant; sinf would round to 1.0f and give 255). */
+        int rgb_yes = 0x7f, rgb_no = 0x7f;
+        if (cb_close < 4 && (cb_result == 1 || cb_result == 2)) {
+            float arg  = (float)cb_close * 3.1415927f;   /* fmuls π (float) */
+            arg /= 4.0f;                                 /* fdivs 4.0 (float) */
+            int flash = (int)(sin((double)arg) * -128.0); /* double sin + ftol */
+            if (cb_result == 1) rgb_yes = 0x7f - flash;
+            else                rgb_no  = 0x7f - flash;
+        }
+        uint32_t col_yes = ((uint32_t)fade << 24) | (uint32_t)rgb_yes * 0x10101u;
+        uint32_t col_no  = ((uint32_t)fade << 24) | (uint32_t)rgb_no  * 0x10101u;
+        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", col_yes, 1.0f);
+        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  col_no, 1.0f);
     }
 
     /* COLOROP reset — MODULATE, mirroring FUN_0043537e L32830 (the engine's

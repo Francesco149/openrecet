@@ -3240,3 +3240,15 @@ ALL equal — bit-identical draw program**; modal frame 158 vs 185 = Δ27 == the
 box-region pixels max ≤2 LSB (the #7 "stronger edges" now reproduce).  Residual pixel diff (y 541-641) = the standee
 blink/pose phase (notes #5/#6/#21 class) — present identically on NON-modal control frames, unrelated.  3381 host pass.
 **PENDING USER STUDIO CONFIRM** #7/#19 on the refreshed win-0-1000.
+## 21.27 2026-07-02 — viewer note #8 FIXED: the choice-box commit FLASH (chosen label brightens 3 frames) — bit-exact incl. the 254-peak
+
+**User-flagged (note #8, PAUSE_OPEN#1+36): retail flashes "Yes" on confirm, the port didn't.**  Root: the commit-time
+close anim the port had explicitly deferred (the old choice_box.c "(DAT_0438ac14<4 … deferred)" comment).  Retail
+(`FUN_0043537e`, objdump 0x435476-b1): while `DAT_0438ac14 < 4`, the CHOSEN label (`DAT_0438af30` 1=Yes / 2=No; cancel 3
+neither) draws at `rgb = 0x7f − __ftol(sin(ac14·π_f/4)·(−128.0@[0x519468]))` → 0x7f/217/254/217 — brightening under the
+inherited ADDSIGNED.  **x87 subtlety (engine-quirk #128): the peak is 254 NOT 255** — the float-rounded π_f/2 argument
+through the CRT **double** sin gives 0.99999999999999905 → ·−128 → ftol −127; `sinf` would give 255 (1 LSB off).
+**PORTED** (choice_box.c: per-label RGB off `cb_close`/`cb_result`, double sin off the float-rounded argument).
+**✅ VERIFIED bit-exact (v3 win-0-1000):** pause "go to bed" confirm PAUSE_OPEN#1+34..41 Yes-region **max px diff 0**
+(mean pulses 157.9→162.0→163.6→162.0→157.7 identically) + the ESC-skip confirm CONV_POSE_BLINK#3+33..39 box-band max 1
+(sub-LSB).  3381 host pass.  **PENDING USER STUDIO CONFIRM** note #8.
