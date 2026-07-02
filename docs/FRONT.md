@@ -14,24 +14,14 @@
   (derived) — FRONT only carries debts NOT yet tagged in src/.
 -->
 <!-- FRONT:BEGIN -->
-- **✅✅✅ 2026-07-02 — the ANIM SEED-ORIGIN arc CLOSED + USER-CONFIRMED "the trace is basically fully 1:1"**
-  (`house-firstcust-arrprobe` win-0-1500; commits `6f0993b`+`2537904`+`2038905`, RE §21.28/§21.28.1, ledger).
-  Five tick-cadence roots — conv-pose `cc08!=4` release gate · cc08==4 set-then-tick · entry-frame no-tick ·
-  the never-ported cs-walker set-anim (chibi slid in idle = notes #20/#22) · the cs-leave tick-only frame (+20
-  pose-era = note #21).  cframe/ccnt/ctimer/canim `✓ aligned` WHOLE [224,1722], n0* aligned, rng bit-exact
-  225→1722, all 3 note crops diff BLACK.  **REMAINING RESIDUALS (user 2026-07-02, small, NEXT):**
-  - **(A) ✅ 2026-07-02 "recette phase at the very start" — FIXED (RE §21.30; pending user studio re-confirm).**
-    `pose_house_standing` seeded the frame-17544 steady-state snapshot (counter 25/frame 2/timer 5) at HOUSE
-    entry instead of retail's fresh set-anim reset (0/0/0) ⇒ a constant 15-tick idle-phase offset for ~45f.
-    Player panim/pframe/pcnt divergent frames 45→0 whole-window; note #24 crop BLACK; freeroam+39 2973→3 px.
-  - **(B) ✅ 2026-07-02 the VASE SHADOW — FIXED, note #23 crop diff BLACK (RE §21.29; pending user studio
-    re-confirm).**  NOT the shadow pass: fade.c mistranscribed the engine's ALPHAREF(0x18)=0 as
-    ALPHATESTENABLE(0xf)=FALSE ⇒ every pause/fade frame leaked alpha-test-OFF into the next frame's mesh
-    pass ⇒ flower-fringe texels z-wrote and clipped the display-stand shadow decal.  +2 walker ALPHAOP
-    BLENDDIFFUSEALPHA(12)→MODULATE(4) value-vs-name fixes (pixel-neutral, program-parity).  Pause frames
-    125→2 px (2 scattered 1-px speckles).
-  - (C, lower) companion `coct/cx` tutorial-cs facing blips (@389, 48/33f — facing write-order, scoped in task
-    #5); probe-only init leftovers `ask/base/b5b0` (retail 1000/1 vs port 0 pre-cs, cosmetic).
+- **✅✅✅ 2026-07-02 — `house-firstcust-arrprobe` win-0-1500 USER-CONFIRMED "this whole trace is 1:1 now"**
+  (ledger; RE §21.28-§21.30; commits `6f0993b`+`2537904`+`2038905`+`29ecc72`+`ae0f5ed`).  Closes the anim
+  seed-origin arc + residuals (A) recette start-phase (pose_house_standing snapshot seed → fresh 0/0/0 reset)
+  and (B) vase shadow (fade.c ALPHAREF(0x18) mistranscribed as ALPHATESTENABLE ⇒ alpha-test-off leak z-clipped
+  the display-stand shadow decal) + note #8 choice-box flash (§21.27).  Full stories in PROGRESS + the ledger.
+  Residual frame diffs on the trace: 2-3 scattered 1-px sprite-edge speckles/frame — accepted.
+  - (C, lower, OPEN) companion `coct/cx` tutorial-cs facing blips (@389, 48/33f — facing write-order, scoped in
+    task #5); probe-only init leftovers `ask/base/b5b0` (retail 1000/1 vs port 0 pre-cs, cosmetic).
 - **✅ 2026-07-02 — `house-firstcust-cutscene-day2` carries the FULL pin set** ({csloadpin:24} +
   {primaryloadpin:16} + {tutloadpin:8} + {bgnpcseed}; same savefile ⇒ same naturals; both sides auto-skip its
   own `{bgnpcpin}` inject per §21.25).  **VERIFIED `--target both`: raw rng bit-exact frames 225→1934 = the
@@ -39,17 +29,7 @@
   load 1505→223.  NB the whole-capture `flow_diff --verdict` shows bgx1..5 "DRIFT @81" + "rngcalls DESYNC @3"
   even on the USER-CONFIRMED-1:1 arrprobe capture — that signature is the accepted pre-pin/warmup region +
   probe print-precision (retail f64-prints, port %.9g), NOT a regression; judge by the aligned span.
-- **★ OPEN GAPS queued on this trace (user-flagged):**
-  - **✅ 2026-07-02 USER-CONFIRMED ("everything matches"): gap (ii) dialogue-under-ESC-modal (already fixed
-    by §21.15; stale-window flag) + #7/#19 modal double-blend (the FUN_0040a765 HUD-tail ungated
-    FUN_0043537e pass — NOT an RT effect; ported bc114cd, box-UI draw region 81==81 bit-1:1).**  Story:
-    RE §21.26, PROGRESS 2026-07-02, ledger.
-  - **NEW note #8 (user 2026-07-02): the choice-box commit FLASH — FIXED, bit-exact (RE §21.27,
-    engine-quirk #128).**  Retail pulses the CHOSEN label 0x7f→217→254→217 over close-frames ac14 1..3
-    (`0x7f − ftol(sin(ac14·π_f/4)·−128)`, ADDSIGNED brighten); the peak is 254 NOT 255 (double sin of the
-    float-rounded π/2 — `sinf` would be 1 LSB off).  Verified max-px-diff 0 on the pause confirm +
-    sub-LSB on the ESC-skip confirm.  **Pending user studio re-confirm of #8.**  Note #9 (wing-flap
-    residual) = the ★★★ anim seed-origin arc above, acknowledged.
+- **★ OPEN leads queued on this trace:**
   - **NEW tool lead 2026-07-02: v3 PORT replay hash-verify fails 5/2895 frames** (presents
     239/542/661/2184/2303, cache 7ea1eab3) — capture replays ≠ live pixels on scattered frames; window
     built with `--no-verify`.  Investigate the replayer gap before trusting single-frame pixel verdicts

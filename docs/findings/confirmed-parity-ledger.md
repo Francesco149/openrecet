@@ -394,4 +394,18 @@ See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]]
   225→1722**, all 3 note crops diff BLACK, 3381 host pass.  **USER 2026-07-02: "the trace is basically fully 1:1."**
   Remaining residuals (SEPARATE, small): (a) "recette phase at the very start" = the player pframe/pcnt
   window-start load region (@224, ~45f); (b) a tiny diff on the VASE SHADOW on the counter (object-shadow bug lead,
-  to investigate next).
+  to investigate next).  → both CLOSED, next entry.
+
+**2026-07-02 — ★★★ house-firstcust-arrprobe win-0-1500 USER-CONFIRMED "this whole trace is 1:1 now"
+  (`29ecc72`+`ae0f5ed`, RE §21.29/§21.30).**  The last two residuals closed:  **(B) note #23 vase shadow** —
+  fade.c (FUN_00453e8f) mistranscribed the engine's `SetRenderState(0x18,0)` = ALPHAREF=0 as
+  ALPHATESTENABLE(0xf)=FALSE ⇒ every pause/fade frame leaked alpha-test-OFF into the next frame's mesh pass ⇒
+  flower-fringe texels z-wrote and clipped the display-stand shadow decal (+ fade's unconditional fog/MAG/MIN
+  prelude restored; + 2 walker-tail ALPHAOP `TSS(0,4,4)`=MODULATE fixed from BLENDDIFFUSEALPHA(12), the enum
+  value-vs-name gotcha).  **(A) note #24 recette start-phase** — `pose_house_standing` seeded the runs/cchr2b
+  frame-17544 STEADY-STATE snapshot (counter 25/frame 2/timer 5.0) at HOUSE entry; retail does a fresh set-anim
+  reset (0/0/0) ⇒ a constant 15-tick idle-phase offset ~45f.  Verified: player panim/pframe/pcnt divergences
+  45→0 whole-window, note crops #23/#24 diff BLACK, pause frames 125→2 px / freeroam+39 2973→3 px (scattered
+  1-px speckles), rng bit-exact, companion aligned, 3381 host pass.  **USER 2026-07-02: "can confirm this whole
+  trace is 1:1 now"** — covers notes #23/#24 AND the pending note-#8 choice-box-flash re-confirm (§21.27, same
+  trace).

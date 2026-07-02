@@ -7,6 +7,13 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — ★★★ USER-CONFIRMED: "this whole trace is 1:1 now" (house-firstcust-arrprobe win-0-1500)
+
+The first-customer trace — initial load, walk-in, free-roam, pause, tutorial cutscene, first customer, haggle —
+is user-confirmed 1:1 end-to-end in the studio.  Covers notes #23/#24 (below) and the pending #8 choice-box
+flash.  Ledger updated.  Residual: 2-3 scattered 1-px sprite-edge speckles/frame (accepted); open on this trace:
+the (C) coct/cx facing blips + the v3 port replay hash-verify 5/2895 tool lead.
+
 ## 2026-07-02 — note #24 recette start-phase FIXED: pose_house_standing snapshot seed → fresh reset (RE §21.30)
 
 Residual (A) closed.  The intro walk-in is bit-aligned through the load; at freeroam entry retail does a fresh
