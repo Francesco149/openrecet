@@ -30,10 +30,11 @@
   even on the USER-CONFIRMED-1:1 arrprobe capture — that signature is the accepted pre-pin/warmup region +
   probe print-precision (retail f64-prints, port %.9g), NOT a regression; judge by the aligned span.
 - **★ OPEN leads queued on this trace:**
-  - **NEW tool lead 2026-07-02: v3 PORT replay hash-verify fails 5/2895 frames** (presents
-    239/542/661/2184/2303, cache 7ea1eab3) — capture replays ≠ live pixels on scattered frames; window
-    built with `--no-verify`.  Investigate the replayer gap before trusting single-frame pixel verdicts
-    at those presents.
+  - ~~v3 PORT replay hash-verify 5/2895 fail~~ CLOSED 2026-07-02 as NON-REPRODUCING: reproducible on
+    re-verify of the OLD capture (replay-deterministic, material draw-diff ALIGNED ⇒ pixel-level), but the
+    fresh re-driven capture verifies 2887/2887 BIT-EXACT; the failing capture was overwritten by the
+    re-drive.  **WATCH: if hash-verify ever fails again, capture a `--raw-refs` window at a failing present
+    BEFORE any re-drive** (re-drives destroy the evidence).
   - Pending explicit user re-confirm (minor): the note-#1 sell-counter "!" emote fix (2026-06-20,
     `house-customer-walk-probe`) was never separately re-confirmed.
   - Day2 viewer note #9 ("wing flap residual", TEXT_ANIM_START#1+8) renders BLACK on the fresh
