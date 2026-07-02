@@ -3358,3 +3358,41 @@ tick law: `dur<=timer` checks BEFORE the increment ⇒ frame flips on tick 11, m
 companion canim/cframe/ccnt/ctimer 0 divergent; rng bit-exact (the 1 flagged row is a missing retail probe
 field, not a value gap); note #24 crop diff BLACK; full-frame freeroam+39 2973→3 px (scattered 1-px speckles,
 same class as the pause 2 px).  3381 host pass.
+
+## 21.31 2026-07-02 — day2 "+261-rng day-end" lead CRACKED: it's the SALE-COMMIT coin shower (FUN_00460d52 → Table-A alloc → 69-particle burst), NOT next-day regen; f404==0 accept block ported
+
+**Lead (FRONT day-end arc, chip a):** retail draws +261 rng in ONE frame at "the day-end Z (PAUSE_CLOSE#3+89)";
+suspected next-day layout/roster regen.  **REFUTED — it's the walnut-bread SALE commit.**  Retail frames
+14845/14860/15060 (both-run 20260701T213115Z): "Heh, this was good shopping!" → Z → coin/sparkle shower over the
+shop, gold 55→180 count-up, EXP popup, then "Glee! I sold Walnut Bread for 125pix!".  The PAUSE_CLOSE#3 segment's
+three Zs = commit sale (+89), advance line (+209), advance line (+338) → fade → LOADING_START (+~428) = the
+scripted post-sale tutorial cutscene chain (the iv1_8 arc), NOT a menu-driven day-end.
+
+**Chain (probe-proven):**
+1. `FUN_004658ab` b534==7 accept, `f404==0` block (f404 IS 0 on the tutorial sale — the port comment claimed
+   "inert for the forced/tutorial sale", wrong): gold `(&DAT_044e37a4)[slot·0xb7f2] += ask`, SE 0x14d,
+   `FUN_00460d52(0)`.
+2. `FUN_00460d52` (asm 0x460d52..0x460e4f; Ghidra dropped the x87): bank stat `+0x2c3e0 += ftol((f(ask)/f(base)
+   − 1.0)·100.0) + signed ftol(sqrt(|ask−base|))` (.rdata consts 0x519364=1.0, 0x519368=100.0); gate
+   `DAT_0438b1a0==0` (ini s_easydisp) → **`FUN_004132c1(304.0, 128.0, entry 100, 1.0, −1, 4)`** (Table-A
+   projected alloc; consts 0x519374=128.0, 0x5194b8=304.0); SE 0x17b; SE 0x156.
+3. Same-frame `FUN_00414929` Table-A tick: parent effect entry 100 (ef/effect2.dat slot 0) = **5 sub-records,
+   ALL age_match=0** → 5 `FUN_00414345` spawn calls (ret 0x414a71), templates 173/170/171/172/176, spawn_count
+   dw3 = 28+8+8+8+17 = **69 particles**.  Per-particle rng: 3 float draws (u:0x41460e/1c/8d ×69 = 207; each
+   float draw is +1 int LCG internally — the "0xd325f33" callsite = FUN_00471089's Frida-relocated prologue) +
+   52 modulo draws (0x414474; templates with DAT_007338a8>0) + 2 periodic = **+261 int / +207 float** in one
+   frame.  Slot ages to 300 inert, then dies.
+
+**Probes:** rng-callsites `{rngcs:[1690,40]}` (runs/probe-dayend-rngcs — spike frame 468 draws);
+call-trace VAs {0x414345,0x4147d5,0x414766,0x412c73,0x414929} (probe-dayend-spawncallers — 5 burst spawns ret
+0x414a71, 4/8f ambient ret 0x41480e); allocator VAs {0x4132c1,0x41331d} (probe-dayend-alloc — ONE call, ret
+0x460e34 = inside FUN_00460d52); memsnap @seg+85/+95 (probe-dayend-memsnap2 — Table A empty pre-Z; slot0
+parent=100 pos=(304,128,−520) mode=1 age=6 post-Z; entry-100 sub-records + template spawn-counts read from the
+dump).  NB memsnap ops are PER-SEGMENT — they drop when the segment's {wait} passes; arm them in the segment
+that contains the target frame.
+
+**PORTED (this session):** `cs_sale_commit_stats_fx()` (= FUN_00460d52) + gold + SE 0x14d wired into the
+b534==7 accept in customer_service.c, gated f404==0 exactly like retail.  PORT-DEBT(cs-live-sale-fx) narrowed
+to the remaining helpers: FUN_00460b3a (per-item max/min sale records at bank +0x13d48/+0x13d4c, item id via
+FUN_004681f6(b5a4>>6)), FUN_004606fc (combo counter b5c4 + popup queue DAT_06a5ea78/DAT_0730b194),
+FUN_00460083 (stock decrement), FUN_00460f59, FUN_0046002a, FUN_00460b93 (catalog).

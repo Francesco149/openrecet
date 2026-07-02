@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 480,
-  "unported": 1983,
+  "ported": 486,
+  "unported": 1977,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 565,
-  "pct_touched": 22.2,
+  "touched": 571,
+  "pct_touched": 22.4,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -1277,6 +1277,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_per_frame_open.h"
    ]
   },
@@ -3898,7 +3899,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_intro_dialogue.c"
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_tutorial_dispatch.c"
    ]
   },
   {
@@ -3978,6 +3980,7 @@
    "status": "ported",
    "src": [
     "src/scene1_intro_dialogue.c",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
     "src/scene_guild.c",
     "src/scene_sc1.h",
@@ -4955,8 +4958,10 @@
    "size": 89,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460083",
@@ -4964,8 +4969,10 @@
    "size": 222,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460161",
@@ -5011,8 +5018,10 @@
    "size": 205,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x4607f3",
@@ -5066,8 +5075,10 @@
    "size": 88,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460b93",
@@ -5075,8 +5086,10 @@
    "size": 447,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460d52",
@@ -5126,8 +5139,10 @@
    "size": 78,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x460fa7",
@@ -8465,7 +8480,8 @@
    "status": "ported",
    "src": [
     "src/scene1_conversation_pose.c",
-    "src/scene1_conversation_pose.h"
+    "src/scene1_conversation_pose.h",
+    "src/scene1_tutorial_dispatch.c"
    ]
   },
   {
@@ -22400,6 +22416,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_particles_tick.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_records_b_spawn.c",

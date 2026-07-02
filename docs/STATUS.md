@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  22.2% touched   (2.8% runtime-verified)
+████░░░░░░░░░░░░░░░░  22.4% touched   (2.8% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    72 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    13 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   480 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **565** | verified + stubbed + ported                         |
-| unported  |  1983 | exists in engine, never referenced from src/             |
+| ported    |   486 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **571** | verified + stubbed + ported                         |
+| unported  |  1977 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -60,12 +60,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (cs-roster-scan); live-haggle render fidelity (customer art/dialogue); **the iv1_8 chain** (f406→f402
   post-first-customer EXTRA_SPRITE cutscene) → the cutscene series → day-2 brooming.  Separate follow-up:
   the DAY-2 cutscene blink-stall (~frame 21259+, does not affect the cc08 survey window).
-  **DAY-END entry point pinned down 2026-07-02 (the day2 rng fork):** on the day2 trace, the Z at
-  PAUSE_CLOSE#3+89 (frame 1934) makes retail draw **+261 rng calls in ONE frame** (the suspected next-day
-  layout/roster regen) while the port draws none; the port's day-end transition then fires (music swap
-  frame 2274 == retail LOADING_START 2273) but **emits NO LOADING_START anchor** (different/unported load
-  path) ⇒ the trace's `{wait: LOADING_START}` never releases and replay stops.  Two concrete leads:
-  (a) the +261-draw day-end consumer, (b) route the day-end load through the anchor-emitting load machinery.
+  **2026-07-02 both day-end leads RESOLVED (RE §21.31):** (a) the "+261-rng day-end consumer" was the
+  SALE-COMMIT coin shower (FUN_00460d52 → Table-A alloc entry 100 → 69-particle burst = +261 int/+207 float),
+  NOT next-day regen — the f404==0 accept block (gold+=ask, SE 0x14d, FUN_00460d52 stats+fx+SE 0x17b/0x156)
+  is now PORTED (customer_service.c `cs_sale_commit_stats_fx`); PORT-DEBT(cs-live-sale-fx) narrowed to
+  FUN_00460b3a/4606fc/00083/00f59/0002a/00b93.  (b) there IS no separate "day-end load path" — the post-sale
+  flow is the SCRIPTED story chain iv1_8→iv2_1→iv2_2→iv2_3(DAY ADVANCE: fb84++, fb88=0, f400=0…)→iv2_5→iv2_6
+  (FUN_0044bd0d all.c:45726-45813), now ported into scene1_tutorial_dispatch.c riding the existing
+  start_single load bracket (⇒ LOADING_START emits; the day2 trace's `{wait: LOADING_START}` releases).
+  PORT-DEBT(blackout-tut-dispatch) still unwired on the iv2 entries; PORT-DEBT(tut-dispatch-iv2-fx) =
+  iv2_5's FUN_004852fb + b928/b924 arm.  Trace verification of the full chain: IN FLIGHT this session.
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit

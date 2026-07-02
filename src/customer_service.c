@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>            /* snprintf — the <I>/<Y> sale-line macro formats */
+#include <math.h>             /* sqrt — the FUN_00460d52 sale-stat root term */
 
 #include "customer_service.h"
 #include "customer_haggle.h"
@@ -31,6 +32,8 @@
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
 #include "fade.h"                 /* fade_phase1_start/_is_done/_phase_out_start (b520 dissolve) */
 #include "title_save_dialog.h"    /* the shared menu hand-cursor (FUN_00435612/1a/693/710) */
+#include "scene1_per_frame_open.h" /* Table-A projected alloc (FUN_004132c1) — the sale coin shower */
+#include "audio.h"                /* audio_play_se_by_id (FUN_00499519) — sale SEs 0x14d/0x17b/0x156 */
 
 /* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
  * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
@@ -53,6 +56,10 @@ static uint32_t s_in_held;      /* DAT_073dddd6 */
 #define CS_F400_DISPLAY_SUPPRESS_OFF 0x2bc68   /* DAT_0450f400 — shop-display suppress */
 #define CS_F402_BYTE_OFF             0x2bc6a   /* DAT_0450f402 */
 #define CS_F405_BYTE_OFF             0x2bc6d   /* DAT_0450f405 */
+
+/* Sale-commit stats accumulator — bank DWORD at byte +0x2c3e0 (engine
+ * FUN_00460d52 writes DAT_044e3798 + slot·0x2dfc8 + 0x2c3e0). */
+#define CS_SALE_STAT_DWORD_OFF       (0x2c3e0 / 4)
 
 /* The display grid is 15 rows × 20 cols (= 300 dwords) at SAVE_BANK_FIELD_DISPLAY_GRID. */
 #define CS_DISPLAY_GRID_ROWS 15
@@ -1288,15 +1295,54 @@ static int cs_sold_streak(void)
     return 0;
 }
 
+/* ── FUN_00460d52 — sale-commit stats + the coin-shower fx ───────────────────
+ * sign 0 = sell (add), 1 = buy-from-customer (subtract).  Asm-verified
+ * 0x460d52..0x460e4f (Ghidra dropped the x87 expressions):
+ *   root = signed ftol(sqrt(|ask − base|))            (FUN_005031e4 dbl sqrt)
+ *   pct  = ftol((float(ask)/float(base) − 1.0)·100.0) (.rdata 0x519364/68)
+ *   bank[+0x2c3e0] += / −= (pct + root)               (per-save stat total)
+ *   if (DAT_0438b1a0 == 0)  FUN_004132c1(304.0, 128.0, 100, 1.0, −1, 4)
+ *   SE 0x17b; SE 0x156.
+ * The Table-A alloc (parent effect entry 100 = 5 sub-records, all
+ * age_match 0, templates 173/170/171/172/176 → 28+8+8+8+17 = 69 particles)
+ * fires the SAME frame in the FUN_00442cef-tail particles tick — the
+ * +261-int/+207-float rng burst on the day2 trace (RE §21.31). */
+static void cs_sale_commit_stats_fx(int sign)
+{
+    int32_t diff = s_price_ask - s_price_base;      /* 5c6bb8 − 5c6bc0 */
+    int32_t root = 0;
+    if (diff > 0)      root =  (int32_t)sqrt((double)(float)diff);
+    else if (diff < 0) root = -(int32_t)sqrt((double)(float)-diff);
+
+    int32_t pct = (int32_t)(((double)(float)s_price_ask /
+                             (double)(float)s_price_base - 1.0) * 100.0);
+
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank) {
+        if (sign == 0) bank[CS_SALE_STAT_DWORD_OFF] += (uint32_t)(pct + root);
+        else           bank[CS_SALE_STAT_DWORD_OFF] -= (uint32_t)(pct + root);
+    }
+
+    /* DAT_0438b1a0 (ini s_easydisp, default 0) gates the fx — same
+     * stand-in pattern as scene1_shop_walker_helpers.c. */
+    static int s_cs_easydisp;                       /* DAT_0438b1a0 */
+    if (s_cs_easydisp == 0)
+        scene1_pfo_table_a_alloc_projected(304.0f, 128.0f, 100, 1.0f, -1, 4);
+
+    audio_play_se_by_id(0x17b);                     /* FUN_00499519(0x17b) */
+    audio_play_se_by_id(0x156);                     /* FUN_00499519(0x156) */
+}
+
 /* ── FUN_004658ab — the LIVE kind-2 sell machine (the first real customer) ────
  * Dispatched from the master tick's b5a8==2 arm for b534 ∈ {2,6,0xf,7,8,9}.
  * State graph (RE §3.5): 2 greeting → 6 reaction/price-edit → 0xf decision →
  * 7 accept / 8 pushback / 9 reject → (master tick: 0xa thanks → 0xc close →
  * 0x14/0x15 queue-advance → idle).  Transcribed by-address from 4658ab.c.
- * PORT-DEBT(cs-live-sale-fx): the accept side-effects (gold/stock/catalog —
- * FUN_00460d52/b3a/606fc/00083/00f59/0002a/00b93, all gated f404==0), the
- * details overlay (FUN_004681e6/db/68286), the cursor/SE externals — none move
- * the b534 state, so they are inert no-ops for the un-softlock trajectory. */
+ * PORT-DEBT(cs-live-sale-fx): of the accept side-effects only gold + SE 0x14d +
+ * FUN_00460d52 (stats + coin shower) are ported; FUN_00460b3a (per-item
+ * max/min sale records), FUN_004606fc (combo/popup), FUN_00460083 (stock
+ * decrement), FUN_00460f59, FUN_0046002a, FUN_00460b93 (catalog) remain
+ * unported.  The details overlay (FUN_004681e6/db/68286) is still inert. */
 static void cs_live_machine(void)
 {
     s_b544 += 1;
@@ -1356,10 +1402,24 @@ static void cs_live_machine(void)
                 goto lab_tail;
             s_b55c = 0;
             s_cust_active[1] = 0;
-            /* PORT-DEBT(cs-live-sale-fx): f404==0 → gold += ask (DAT_044e37a4),
-             * SE 0x14d, FUN_00460d52/b3a/606fc/00083/00f59/0002a/00b93 (the
-             * payout + catalog + inventory).  Gated f404==0; inert for the
-             * forced/tutorial sale.  The STATE still advances to 10. */
+            /* f404==0 → the live-sale commit (engine 4658ab accept block;
+             * f404 is 0 on the tutorial walnut-bread sale too — retail runs
+             * this block there, RE §21.31): gold += ask (bank dword 3,
+             * (&DAT_044e37a4)[slot·0xb7f2]), SE 0x14d, FUN_00460d52.
+             * PORT-DEBT(cs-live-sale-fx): FUN_00460b3a/4606fc/00083/00f59/
+             * 0002a/00b93 (price records, combo/popup, stock decrement,
+             * catalog) still unported. */
+            {
+                uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+                int f404 = bankw &&
+                    ((const uint8_t *)bankw)[CS_F404_SELL_ACTIVE_BYTE_OFF];
+                if (!f404) {
+                    if (bankw)
+                        bankw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
+                    audio_play_se_by_id(0x14d);     /* FUN_00499519(0x14d) */
+                    cs_sale_commit_stats_fx(0);     /* FUN_00460d52(0) */
+                }
+            }
             s_b534 = 10;
         } else {
             if (s_b534 == 8) {                  /* pushback ("too much") */
