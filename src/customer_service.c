@@ -1864,13 +1864,26 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
          * free-roams the CONV_POSE cutscene off the repositioned player, the port had
          * left the stale cc08==4 counter cam).  PORT-DEBT(cs-leave-restore) still
          * defers the render/anim rest: FUN_0048439a (3D scene), FUN_00473332,
-         * FUN_0046f892, FUN_0045e028 (real-sale tally, f404==0 only), the player
-         * octant DAT_056dab00 + DAT_056db05c/048; the shop-FULL (fb88>=4) branch is
-         * PORT-DEBT(cs-leave-shopfull). */
+         * FUN_0045e028 (real-sale tally, f404==0 only), the player octant
+         * DAT_056dab00 + DAT_056db05c/048; the shop-FULL (fb88>=4) branch is
+         * PORT-DEBT(cs-leave-shopfull).  FUN_0046f892 (the cs-NPC array reset) IS
+         * now ported below — it despawns the SERVED customer so it no longer
+         * roams through the day-end CONV_POSE cutscene (viewer notes #24/#25;
+         * RE §21.33). */
         s_cs_active = 0;                     /* DAT_0438b7b0 = 0 */
         player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 (the fb88<4 arm;
                                               * PORT-DEBT(cs-leave-shopfull): the
                                               * fb88>=4 "shop full" branch) */
+
+        /* FUN_0046f892 (all.c:60337 — retail order b7b0=0 → FUN_00473332 →
+         * FUN_0046f892 → fb88++) — reset the in-shop customer-NPC array so the
+         * served customer despawns on THIS leave-dissolve-complete frame, exactly
+         * when retail's does.  RNG-neutral (no LCG draw — just cap=0 + every slot
+         * ACTIVE=-1 + counters=0), so the verified day-end rng stream is
+         * unperturbed; it only clears the render.  Without it the customer's
+         * bright billboard (tex 747d) + contact shadow (tex 16d2) kept drawing
+         * through the whole day-end cutscene (notes #24/#25). */
+        scene1_customer_npc_reset();         /* FUN_0046f892 */
         {
             uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
             if (bank != NULL) {

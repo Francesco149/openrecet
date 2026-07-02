@@ -14,6 +14,16 @@
   (derived) — FRONT only carries debts NOT yet tagged in src/.
 -->
 <!-- FRONT:BEGIN -->
+- **✅ 2026-07-02 — day-end cutscene: served customer DESPAWN ported, PIXEL-1:1 (viewer notes #24/#25; RE §21.33).**
+  The port drew a chibi customer still roaming the shop floor (and through Tear's hair) through the whole
+  day-end CONV_POSE cutscene; retail has none.  Root cause: the cs-leave restore (FUN_00462403 @60337) calls
+  **FUN_0046f892** (cs-NPC array reset) which the port DEFERRED in PORT-DEBT(cs-leave-restore) for
+  rng-neutrality — but it's not RENDER-neutral, so the served customer never despawned.  Ported
+  `scene1_customer_npc_reset()` into the leave block (retail order, after b7b0=0, before the §21.32
+  shoptime++; rng-neutral — no LCG).  Verified: port re-drive **2887/2887 BIT-EXACT**; tex 747d/16d2 now
+  1/7 == retail on EVERY cutscene frame (0 diffs), sale region untouched; notes #24/#25 diffs BLACK; raw rng
+  bit-exact at both note frames.  Narrows PORT-DEBT(cs-leave-restore) to FUN_0048439a/473332/45e028/octant.
+  Only OPEN item: the user's click to clear notes #24/#25 in the viewer (win-0-3000 re-gen'd, ready to scrub).
 - **✅ 2026-07-02 — day-end DUSK tint + clock dial PORTED, PIXEL-1:1 (viewer notes #20-23; RE §21.32; commit `64ccb98`).**
   HOUSE `maplight:3` (time-of-day directional light) was stubbed to daytime row0 forever — the port stayed
   bright while retail warms to amber dusk over the day-end CONV_POSE cutscene.  Unstubbed the real 3-row

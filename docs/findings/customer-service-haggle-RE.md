@@ -3612,3 +3612,39 @@ gate.
 0:3000`, fixed-port cache slice) + re-rendered the flagged notes — **all four #20-23 diff panels are BLACK**
 (were mostly-white pre-fix): #20 f2081 pre-jump both daytime, #22 f2441 settled both dusk, #23 f2927 clock
 dials identical.  Notes #20-23 resolved (awaiting the user's click to clear them in the viewer).
+
+## §21.33 — day-end cutscene: the SERVED customer despawn (viewer notes #24/#25)
+
+**Symptom (viewer flags):** #24 CONV_POSE_BLINK#4+14 "customer still roaming", #25 CONV_POSE_BLINK#9+25
+"customer still roaming visible through tear's hair" — during the day-end CONV_POSE cutscene (CONV_POSE#2,
+frames ~2051+) the port drew a chibi customer standing on the shop floor (and bleeding through Tear's
+hair) that retail does NOT.  Draw-program diff (`orv3_draws --material`): port had one EXTRA body
+(tex 747d, +12 tris/draw#52) + one extra contact shadow (tex 16d2, draw#43); the extra body projected to
+screen x[268,336] y[312,413] = dead-on the note box.  (Not the bg-window street walkers — those retail
+keeps ticking through dialogue; this is the in-shop cs-walker actor.)
+
+**Lifetime trace (per-frame 747d/16d2 count, port vs retail):** 1/7 through the first-customer intro
+(CONV_POSE#1), 2/8 from the customer's arrival (HOUSE_FREEROAM#5, woff ~650) through the whole sale
+(PAUSE_CLOSE#1-3), then retail drops to **1/7 exactly at CONV_POSE_START#2 (woff 2051)** while the port
+stayed 2/8.  So retail despawns the served customer entering the day-end cutscene; the port kept it
+rendering through all 900+ cutscene frames.
+
+**Root cause:** the customer-leave restore (FUN_00462403 @ all.c:60337, retail order `FUN_0048439a →
+b7b0=0 → FUN_00473332 → FUN_0046f892 → fb88++`) calls **FUN_0046f892** = the cs-NPC array reset (every
+slot ACTIVE=-1, scale=1.0, cap=0, counters=0).  The port's leave block (customer_service.c:1850+) had
+DEFERRED it inside `PORT-DEBT(cs-leave-restore)` — the deferral reasoning was RNG-neutrality (correct:
+FUN_0046f892 draws no LCG), but it is NOT render-neutral: both `scene1_customer_npc_sprite_render`
+(tex 747d billboard) and `_shadow_render` (tex 16d2) gate on `cap>0 && slot.ACTIVE!=-1`, so without the
+reset the served customer kept drawing.
+
+**PORTED:** `scene1_customer_npc_reset()` added to the leave block right after `b7b0=0`/enter-freeroam,
+before the `shoptime++` the §21.32 dusk work already ported (matching retail order).  Narrows
+PORT-DEBT(cs-leave-restore) to FUN_0048439a / FUN_00473332 / FUN_0045e028 / the player octant.
+
+**VERDICT — PIXEL 1:1 + rng bit-exact:** re-drove the port (`orv3_window 0:3000 --state`), hash-verify
+**2887/2887 BIT-EXACT**.  Per-frame 747d/16d2 across the ENTIRE cutscene now **1/7 == retail on every
+sampled frame (0 diffs)**; the sale region stays 2/8 (customer still present there — earlier confirmed
+span untouched).  Notes #24/#25 diff panels both **BLACK**.  Raw rng at both note frames still bit-exact
+(port −487975090/−451704634 == retail), rngcalls delta unchanged (+3520 accepted pre-pin warmup) — the
+reset perturbs nothing.  +0 host-test regressions (3393 pass).  Awaiting the user's click to clear notes
+#24/#25 in the viewer.

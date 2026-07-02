@@ -7,6 +7,21 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — day-end cutscene: served customer now DESPAWNS at leave — FUN_0046f892 ported (notes #24/#25; RE §21.33)
+
+Viewer notes #24/#25 flagged a chibi customer still roaming the shop floor (and bleeding through Tear's
+hair) through the whole day-end CONV_POSE cutscene — retail has none.  `orv3_draws --material`: port drew
+one EXTRA body (tex 747d) + shadow (tex 16d2); per-frame count traced the customer as 2/8 through the sale
+then retail→1/7 exactly at CONV_POSE_START#2 while the port stayed 2/8.  Root cause: the customer-leave
+restore (FUN_00462403 @60337) calls **FUN_0046f892** (cs-NPC array reset → cap=0, all slots ACTIVE=-1),
+which the port had DEFERRED in PORT-DEBT(cs-leave-restore) for RNG-neutrality — correct that it draws no
+LCG, but it is NOT render-neutral (both cs-NPC renders gate on cap/ACTIVE), so the served customer never
+despawned.  PORTED `scene1_customer_npc_reset()` into the leave block (retail order, after b7b0=0, before
+the §21.32 shoptime++).  Verified: port re-drive hash-verify **2887/2887 BIT-EXACT**; 747d/16d2 now
+**1/7 == retail on every cutscene frame (0 diffs)**, sale region untouched (2/8); notes #24/#25 diffs
+**BLACK**; raw rng still bit-exact at both note frames (reset perturbs nothing); +0 host-test regressions.
+Narrows PORT-DEBT(cs-leave-restore) to FUN_0048439a/FUN_00473332/FUN_0045e028/octant.  Detail: RE §21.33.
+
 ## 2026-07-02 — day-end leads cracked: the "+261-rng day-end consumer" = the SALE-COMMIT coin shower; the post-sale story chain iv1_8→iv2_6 ported — the day2 trace now replays END-TO-END
 
 Both FRONT day-end leads resolved in one arc (RE §21.31/§21.31.1):
