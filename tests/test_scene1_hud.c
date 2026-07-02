@@ -91,3 +91,61 @@ int test_scene1_hud_status_screen_flag_roundtrip(void)
     scene1_hud_set_status_screen_open(0); /* restore */
     return 0;
 }
+
+/* ── the merchant-XP bar animator (FUN_00406584 all.c:4799-4848) ────────── */
+
+#include "scene1_top_hud.h"
+#include "save_work.h"
+#include "save_bank.h"
+
+int test_top_hud_xp_anim_eases_flash_runs_and_settles(void)
+{
+    save_work_set_active_slot(0);
+    uint32_t *bank = save_work_dwords_at(0);
+    bank[SAVE_BANK_FIELD_MERCHANT_EXP]      = 10;
+    bank[SAVE_BANK_FIELD_MERCHANT_XP_START] = 0;
+    bank[SAVE_BANK_FIELD_MERCHANT_XP_END]   = 100;
+    bank[SAVE_BANK_FIELD_MERCHANT_LEVEL]    = 0;
+    scene1_top_hud_xp_snap(0);
+
+    /* step = (end-start)*0.01 = 1.0/frame → 10 easing frames to reach 10. */
+    for (int i = 0; i < 10; i++) scene1_top_hud_xp_tick(bank);
+    T_ASSERT(scene1_top_hud_xp_anim() >= 10.0f);
+    T_ASSERT_EQ_I(scene1_top_hud_xp_flash(), 10);   /* counted every ease frame */
+
+    /* settled: the flash keeps counting to the 0x1e wrap, then stays 0. */
+    for (int i = 0; i < 40; i++) scene1_top_hud_xp_tick(bank);
+    T_ASSERT_EQ_I(scene1_top_hud_xp_flash(), 0);
+    T_ASSERT(scene1_top_hud_xp_anim() >= 10.0f && scene1_top_hud_xp_anim() < 11.0f);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_MERCHANT_LEVEL], 0);   /* no level-up */
+    T_ASSERT_EQ_I(scene1_top_hud_levelup_timer(), 0);
+    return 0;
+}
+
+int test_top_hud_xp_anim_level_up_advances_bank_fields(void)
+{
+    save_work_set_active_slot(0);
+    uint32_t *bank = save_work_dwords_at(0);
+    bank[SAVE_BANK_FIELD_MERCHANT_EXP]      = 120;
+    bank[SAVE_BANK_FIELD_MERCHANT_XP_START] = 0;
+    bank[SAVE_BANK_FIELD_MERCHANT_XP_END]   = 100;
+    bank[SAVE_BANK_FIELD_MERCHANT_LEVEL]    = 0;
+    scene1_top_hud_xp_snap(0);
+
+    /* ease 1.0/frame; at anim >= 100 the level-up fires: level 1,
+     * start = 100, end = 100 + (1+2)*0x32 = 250, banner timer arms. */
+    int leveled_at = -1;
+    for (int i = 0; i < 130; i++) {
+        scene1_top_hud_xp_tick(bank);
+        if (leveled_at < 0 && bank[SAVE_BANK_FIELD_MERCHANT_LEVEL] == 1)
+            leveled_at = i;
+    }
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_MERCHANT_LEVEL], 1);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_MERCHANT_XP_START], 100);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_MERCHANT_XP_END], 250);
+    T_ASSERT(leveled_at >= 99);            /* ~100 ease frames to reach 100 */
+    /* the banner timer wraps at 100 (0..99 window). */
+    T_ASSERT(scene1_top_hud_levelup_timer() >= 0 &&
+             scene1_top_hud_levelup_timer() < 100);
+    return 0;
+}

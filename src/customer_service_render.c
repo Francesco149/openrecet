@@ -95,6 +95,32 @@ static void cs_draw_price_number(IDirect3DDevice8 *dev, float x, float y,
     render_quad_flush(dev);
 }
 
+/* ── FUN_00466a9a — the sale EXP popup NUMBER ─────────────────────────────────
+ * Draws up to 5 glyphs from item_win.tga's per-type coloured digit rows:
+ * cell 16×24 at src {d·16, type·32+720}..{(d+1)·16, type·32+744}, 14px pitch.
+ * Format: "a%d" (DAT_005c6dc0) for bonus rows — the 'a' maps to cell 0, the
+ * '+' sign — or "%d" (DAT_005c6dc4) for the type-3 TOTAL; digits '0'..'9'
+ * map to cells 1..10 (d = c − 0x2f). */
+static void cs_popup_number(IDirect3DDevice8 *dev, float x, float y,
+                            int value, int type, int alpha, int plus_fmt)
+{
+    const sprite_t *iw = &g_sysassets.item_win_tga;      /* DAT_073d8748 */
+    if (!iw->tex) return;
+    char buf[32];
+    if (plus_fmt) snprintf(buf, sizeof buf, "a%d", value);
+    else          snprintf(buf, sizeof buf, "%d", value);
+    uint32_t col = ((uint32_t)alpha << 24) | 0xffffffu;
+    for (int i = 0; i < 5 && buf[i]; i++) {
+        int d = buf[i] - 0x2f;
+        if (buf[i] == 'a') d = 0;
+        const float src[4] = { (float)(d << 4), (float)(type * 0x20 + 0x2d0),
+                               (float)((d + 1) << 4), (float)(type * 0x20 + 0x2e8) };
+        const float dst[4] = { x, y, 16.0f, 24.0f };
+        cs_quad(dev, iw, dst, src, col, 0);
+        x += 14.0f;
+    }
+}
+
 /* ── FUN_00469abb — comma-group a number (no unit suffix) ─────────────────────
  * <1000 → "%d"; <1e6 → "%d,%03d"; else "%d,%03d,%03d". */
 static void cs_format_grouped(char *out, size_t n, int v)
@@ -509,8 +535,51 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
         }
     }
 
-    /* 6d — item-detail overlay + customer-arrival banner + "great numbers"
-     * ticker (b5c0>0 / b5e8): PORT-DEBT(cs-render-rest). */
+    /* ── Section 7 — the sale EXP popup rows (b5c0>0; engine FUN_00466b7b
+     * pass-2 tail, all.c:63753-63800 / asm 0x467db5-0x467f31).  One row per
+     * queue entry while its display counter runs (viewer notes #10/#12):
+     * alpha ramps 0.1/frame, holds (type-3 TOTAL 0x5a frames, bonuses 0x3c),
+     * fades 0.1/frame; y slides 400 − f·16 (f = alpha while arriving
+     * (c < 0x1e), 2 − alpha after).  Label = a 128×24 item_win strip at src
+     * {640, (type·3+30)·8}; the number draws from the per-type coloured
+     * digit rows (item_win src-y 720 + type·32; cell 0 = '+', cells 1..10 =
+     * digits), format "+N" for bonus rows / plain "N" for the TOTAL, at
+     * x = {108,108,80,120}[type] + 16 (DAT_005c6cbc). */
+    if (customer_service_popup_queue_len() > 0 &&
+        customer_service_popup_queue_active() > 0) {
+        int qlen = customer_service_popup_queue_len();
+        for (int i = 0; i < qlen; i++) {
+            int c = customer_service_popup_disp(i);
+            if (c <= 0) continue;
+            int type = customer_service_popup_queue_type(i);
+            float a = (float)c * 0.1f;                    /* 0x5193a0 = 0.1 */
+            if (a > 1.0f) a = 1.0f;
+            int hold = (type == 3) ? 0x5a : 0x3c;
+            if (c > hold) a -= (float)(c - hold) * 0.1f;
+            if (a < 0.0f) continue;
+            int alpha = (int)(a * 255.0f);
+            float f = (c < 0x1e) ? a : 2.0f - a;
+            float y = 400.0f - f * 16.0f;                 /* 0x5194f8 − f·16 */
+            uint32_t col = ((uint32_t)alpha << 24) | 0xffffffu;
+            {
+                const sprite_t *iw = &g_sysassets.item_win_tga;
+                const float src[4] = { 640.0f, (float)((type * 3 + 0x1e) * 8),
+                                       768.0f, (float)((type * 3 + 0x21) * 8) };
+                const float dst[4] = { 16.0f, y, 128.0f, 24.0f };
+                cs_quad(dev, iw, dst, src, col, 0);
+            }
+            {
+                static const float k_num_x[4] = { 108.0f, 108.0f, 80.0f, 120.0f };
+                int t = (type >= 0 && type < 4) ? type : 3;
+                cs_popup_number(dev, k_num_x[t] + 16.0f, y - 2.0f,
+                                customer_service_popup_queue_val(i), t, alpha,
+                                /*plus_fmt=*/type != 3);
+            }
+        }
+    }
+
+    /* 7b — item-detail overlay + customer-arrival banner + "great numbers"
+     * ticker (b5e8): PORT-DEBT(cs-render-rest). */
 
     /* the ESC "Cancelling tutorial?" skip prompt: NO LONGER drawn here.
      * Retail has no FUN_0043537e call in the CS render family — the box is

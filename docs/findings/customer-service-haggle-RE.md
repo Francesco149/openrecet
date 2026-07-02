@@ -3528,3 +3528,24 @@ timeline landed; with it the trace realigned (2887 paired / 0+113, raw rng 1856/
 **Still OPEN (render only):** the popup TEXT draw ("TOTAL EXP 10" — FUN_00485861-style OSD via
 FUN_00406159@(412,112) SE 0x174/0x172 + the DAT_00648258 timeline) + the merchant-bar fill/flash
 (tex 3392 22vs28 tris @+109) + SE same-frame dedup + the b494 80-tri invisible lead.
+
+### 21.31.6 2026-07-02 — TOTAL-EXP popup render + merchant-XP bar animator PORTED — the sale fanfare is PIXEL-1:1
+
+**PORTED:** (a) the EXP popup ROWS (FUN_00466b7b pass-2 tail, asm 0x467db5-0x467f31 →
+customer_service_render.c section 7): per-entry alpha 0.1/frame ramp, hold (type-3 0x5a, else 0x3c),
+0.1 fade; y = 400 − f·16 slide; label = item_win 128×24 src {640,(type·3+30)·8}; number = FUN_00466a9a
+(per-type coloured digit rows at item_win y 720+type·32, cell 0 = '+', 14px pitch, fmt "a%d" bonus /
+"%d" TOTAL, x = DAT_005c6cbc{108,108,80,120}[type]+16).  (b) the merchant-XP bar animator
+(FUN_00406584 all.c:4799-4848 → scene1_top_hud.c xp_tick): _DAT_0438b91c eases +(end−start)·0.01/frame
+toward bank exp 0xb0fd, glow-flash DAT_0064827c wraps 0x1e, LEVEL-UP at end (level 0xb100 ++, start
+0xb0fe = end, end 0xb0ff += (level+2)·0x32, banner DAT_0438b920 arms — pop render FUN_00407ab4 still
+PORT-DEBT(merchant-levelup-pop) — SE 00re_sys03a); wired in sim.c INGAME before shake_tick (engine
+block order; rng-neutral).  (c) merchant HUD now reads the LIVE animators (shake x/y origin, flash
+pulse diffuse, eased float fill, bank level) — the const stand-ins retired.
+
+**VERDICT (drive + pixel sweep):** raw rng 1856/1856 bit-exact; material at +109 = ONLY the b494
+invisible lead; pixel diff vs retail: +89/+120/+141/+157/+166/+193 = 0 px, +94/+243 = 1-px speckle
+(the accepted sprite-edge residue).  Notes #10/#12/#19 (TOTAL-EXP text, fade-in, bar fill/flash) and
+#11/#13-#17 (coins) all closed pending the user's viewer confirm.  Remaining on the arc: SE
+same-frame dedup (cosmetic) + tex b494 (invisible, unchased) + PORT-DEBT(cs-news-suggest) +
+PORT-DEBT(merchant-levelup-pop).

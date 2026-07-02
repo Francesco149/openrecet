@@ -48,6 +48,18 @@ int32_t scene1_top_hud_shake_x(void);
 int32_t scene1_top_hud_shake_y(void);
 int32_t scene1_top_hud_shake_timer(void);
 
+/* Merchant-XP bar animator (FUN_00406584 all.c:4799-4848).  Eases the live
+ * bar value (_DAT_0438b91c) toward the bank merchant EXP, runs the glow-flash
+ * counter (DAT_0064827c) and the level-up (bank level/start/end + the
+ * DAT_0438b920 banner timer + SE 00re_sys03a).  Call `_xp_tick` right before
+ * shake_tick each HUD frame (engine block order; rng-neutral).  `_xp_snap`
+ * mirrors the engine's load-time b91c = bank-exp snap. */
+void    scene1_top_hud_xp_tick(uint32_t *bankw);
+void    scene1_top_hud_xp_snap(int bank_exp);
+float   scene1_top_hud_xp_anim(void);
+int32_t scene1_top_hud_xp_flash(void);
+int32_t scene1_top_hud_levelup_timer(void);
+
 /* World-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584 mode-8
  * band selector).  `_tick` is called per world-map sim frame with the selected
  * destination (DAT_09643684) and the dest-0 variant flag (DAT_045105a0!=0);

@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 #include "rng.h"       /* rng_next15 — the money-roll step (FUN_005041f6 / rand) */
+#include "save_bank.h" /* SAVE_BANK_FIELD_MERCHANT_* — the XP-bar animator fields */
+#include "audio.h"     /* audio_play_se_file — the level-up 00re_sys03a (FUN_0049933c) */
 
 /* ─── game-state inputs (see header) ───────────────────────────────────── */
 
@@ -62,6 +64,76 @@ void scene1_top_hud_shake_tick(void)
     } else {
         g_hud_shake_x = 0;                             /* asm 0x4067ca */
         g_hud_shake_y = 0;
+    }
+}
+
+/* ─── merchant-XP bar animator (FUN_00406584 @ all.c:4799-4848) ──────────────
+ * The live bar value _DAT_0438b91c eases toward the bank's merchant EXP
+ * (0xb0fd, DAT_0450fb8c) by (level_end − level_start)·0.01 per frame; the
+ * glow-flash counter DAT_0064827c runs while easing (wraps at 0x1e); when the
+ * eased value reaches level_end (0xb0ff) the merchant LEVELS UP: level (0xb100)
+ * ++, level_start (0xb0fe) = level_end, level_end += (level+2)·0x32, the
+ * level-up banner timer DAT_0438b920 arms (wraps at 100 — its FUN_00407ab4
+ * pop render is still unported, PORT-DEBT(merchant-levelup-pop)), SE
+ * 00re_sys03a plays; at the level cap (0x62) exp clamps to level_end.
+ * Zero LCG draws (rng-neutral).  Engine block order inside FUN_00406584:
+ * ease(4799) → shake(4812) → level-up(4831) → money roll(4849); the shake
+ * block shares no state with this one, so the port runs ease+level-up
+ * together before shake_tick.  On loads the engine SNAPS b91c to the bank
+ * value (all.c:33136/100698/100768) — mirrored by the first-tick latch. */
+static float   g_hud_xp_anim;      /* _DAT_0438b91c */
+static int32_t g_hud_xp_flash;     /* DAT_0064827c (0..0x1d glow phase) */
+static int32_t g_hud_levelup_t;    /* DAT_0438b920 (0..99 level-up banner) */
+static int     g_hud_xp_snapped;   /* load-snap latch (engine load sites) */
+
+float   scene1_top_hud_xp_anim(void)       { return g_hud_xp_anim; }
+int32_t scene1_top_hud_xp_flash(void)      { return g_hud_xp_flash; }
+int32_t scene1_top_hud_levelup_timer(void) { return g_hud_levelup_t; }
+void    scene1_top_hud_xp_snap(int bank_exp)
+{
+    g_hud_xp_anim    = (float)bank_exp;
+    g_hud_xp_snapped = 1;
+}
+
+void scene1_top_hud_xp_tick(uint32_t *bankw)
+{
+    if (!bankw) return;
+    if (!g_hud_xp_snapped)
+        scene1_top_hud_xp_snap((int)bankw[SAVE_BANK_FIELD_MERCHANT_EXP]);
+
+    int32_t xp_bank  = (int32_t)bankw[SAVE_BANK_FIELD_MERCHANT_EXP];
+    int32_t xp_start = (int32_t)bankw[SAVE_BANK_FIELD_MERCHANT_XP_START];
+    int32_t xp_end   = (int32_t)bankw[SAVE_BANK_FIELD_MERCHANT_XP_END];
+
+    /* all.c:4799-4811 — ease + flash. */
+    if ((float)xp_bank <= g_hud_xp_anim) {
+        if (g_hud_xp_flash != 0)
+            g_hud_xp_flash += 1;
+    } else {
+        g_hud_xp_anim += (float)(xp_end - xp_start) * 0.01f;
+        g_hud_xp_flash += 1;
+    }
+    if (g_hud_xp_flash == 0x1e)
+        g_hud_xp_flash = 0;
+
+    /* all.c:4831-4833 — the level-up banner timer. */
+    if (g_hud_levelup_t > 0 && ++g_hud_levelup_t == 100)
+        g_hud_levelup_t = 0;
+
+    /* all.c:4834-4848 — level-up when the eased bar reaches level_end. */
+    if ((float)xp_end <= g_hud_xp_anim) {
+        int32_t level = (int32_t)bankw[SAVE_BANK_FIELD_MERCHANT_LEVEL];
+        if (level < 0x62) {
+            bankw[SAVE_BANK_FIELD_MERCHANT_LEVEL]    = (uint32_t)(level + 1);
+            bankw[SAVE_BANK_FIELD_MERCHANT_XP_START] = (uint32_t)xp_end;
+            g_hud_levelup_t = 1;
+            bankw[SAVE_BANK_FIELD_MERCHANT_XP_END]   =
+                (uint32_t)(xp_end + (level + 1 + 2) * 0x32);
+            audio_play_se_file("bin/se/00re/system/00re_sys03a.bin");
+        } else {
+            bankw[SAVE_BANK_FIELD_MERCHANT_EXP] = (uint32_t)xp_end;
+            g_hud_xp_anim = (float)xp_end;
+        }
     }
 }
 

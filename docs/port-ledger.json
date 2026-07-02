@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 488,
-  "unported": 1975,
+  "ported": 489,
+  "unported": 1974,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 573,
+  "touched": 574,
   "pct_touched": 22.5,
   "pct_verified": 2.8,
   "port_debt": 26
@@ -884,6 +884,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/save_bank.h",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
     "src/scene_guild.c",
@@ -983,7 +984,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_merchant_hud.c"
+    "src/scene1_merchant_hud.c",
+    "src/scene1_top_hud.c"
    ]
   },
   {
@@ -5369,8 +5371,10 @@
    "size": 225,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service_render.c"
+   ]
   },
   {
    "va": "0x466b7b",
@@ -10012,6 +10016,7 @@
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_top_hud.c",
     "src/scene_pause.c",
     "src/scene_title.c"
    ]

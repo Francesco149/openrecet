@@ -202,6 +202,14 @@
  * it. */
 #define SAVE_BANK_FIELD_MERCHANT_EXP   0xb0fd
 
+/* Merchant level progression — the XP-bar animator fields (FUN_00406584
+ * all.c:4799-4848): level_start = DAT_0450fb90 (0xb0fe), level_end =
+ * DAT_0450fb94 (0xb0ff), level = DAT_0450fb98 (0xb100; same dword index
+ * as the picker's disk-bank CHAR_LEVEL alias above). */
+#define SAVE_BANK_FIELD_MERCHANT_XP_START 0xb0fe
+#define SAVE_BANK_FIELD_MERCHANT_XP_END   0xb0ff
+#define SAVE_BANK_FIELD_MERCHANT_LEVEL    0xb100
+
 /* Encyclopedia "sold" marks — FUN_00460f59.  Engine `0x450ae50`:
  * 100 pairs of (int32 catalog_slot, int32 3), free = first==0.
  * (0x450ae50-0x44e3798)/4 = 0x9dae. */

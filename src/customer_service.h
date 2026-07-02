@@ -207,5 +207,8 @@ int32_t customer_service_popup_queue_len(void);
 int32_t customer_service_popup_queue_active(void);
 int32_t customer_service_popup_queue_type(int i);
 int32_t customer_service_popup_queue_val(int i);
+/* Entry i's display counter (DAT_0730b304[i]) — the render alpha/slide
+ * timeline the master tick advances. */
+int32_t customer_service_popup_disp(int i);
 
 #endif /* OPENRECET_CUSTOMER_SERVICE_H */

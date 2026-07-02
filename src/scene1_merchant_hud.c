@@ -53,15 +53,15 @@ int scene1_merchant_hud_level(void) { return g_level; }
 #define M_PI_F 3.1415927f
 #endif
 
-/* Engine HUD-animation globals.  All BSS-zero / steady-state in free-roam
- * (their per-frame updaters — the screen-shake, glow-pulse and level-up
- * animators at decomp L4795-L4848 — are unported), so reproduced as the
- * constants they hold at rest.  Promoted to named statics so the wiring is
- * obvious if/when those animators land. */
-static const int   g_pulse_phase = 0;     /* DAT_0064827c (0..29, glow pulse) */
-static const float g_shake_x     = 0.0f;  /* DAT_00648284 (screen-shake off)  */
-static const float g_shake_y     = 0.0f;  /* DAT_00648288 (screen-shake off)  */
-static const int   g_levelup_anim = 0;    /* DAT_0438b920 (level-up bounce)   */
+/* Engine HUD-animation globals — LIVE since §21.31.5: the screen-shake,
+ * glow-pulse and XP/level-up animators (decomp L4795-L4848) are ported in
+ * scene1_top_hud.c (xp_tick/shake_tick, driven from the sim INGAME arm).
+ * Read through their accessors at draw time. */
+#include "scene1_top_hud.h"
+#define g_pulse_phase  (scene1_top_hud_xp_flash())        /* DAT_0064827c */
+#define g_shake_x      ((float)scene1_top_hud_shake_x())  /* DAT_00648284 */
+#define g_shake_y      ((float)scene1_top_hud_shake_y())  /* DAT_00648288 */
+#define g_levelup_anim (scene1_top_hud_levelup_timer())   /* DAT_0438b920 */
 
 /* FUN_00481ec3 — draw the merchant level as large badge digits from
  * item_win.tga's glyph row (src y 848-888, 32 px/digit).
@@ -263,13 +263,27 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
         render_quad_add(dst, src, tex->width, tex->height, pulse);
     }
 
-    /* Draw 2 — experience-bar fill.  Width = clamp(progress,0,1) * 142, at
-     * dst x = ox+39; the source grows rightward from x=679 so the bar is
-     * sampled from the gold gradient strip (row y 592-632). */
+    /* Draw 2 — experience-bar fill.  Width = (b91c − level_start)/range · 142
+     * (engine all.c:6525-6539 — the ANIMATED float _DAT_0438b91c, eased by
+     * scene1_top_hud_xp_tick, NOT the raw bank exp: the bar visibly grows
+     * during the sale fanfare, viewer note #19).  Bank start/end are live;
+     * the g_xp_* setter values remain the non-bank fallback (host tests /
+     * picker contexts). */
     {
-        float range = (float)(g_xp_end - g_xp_start);
+        float cur, start, range;
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        if (wb) {
+            cur   = scene1_top_hud_xp_anim();
+            start = (float)(int32_t)wb[SAVE_BANK_FIELD_MERCHANT_XP_START];
+            range = (float)((int32_t)wb[SAVE_BANK_FIELD_MERCHANT_XP_END] -
+                            (int32_t)wb[SAVE_BANK_FIELD_MERCHANT_XP_START]);
+        } else {
+            cur   = (float)g_xp_cur;
+            start = (float)g_xp_start;
+            range = (float)(g_xp_end - g_xp_start);
+        }
         if (range < 1.0f) range = 1.0f;                 /* engine: max(range,1) */
-        float fill = ((float)(g_xp_cur - g_xp_start) / range) * 142.0f;
+        float fill = ((cur - start) / range) * 142.0f;
         const float dst[4] = { ox + 39.0f, oy, fill, 40.0f };
         const float src[4] = { 679.0f, 592.0f, 679.0f + fill, 632.0f };
         render_quad_add(dst, src, tex->width, tex->height, pulse);
@@ -290,12 +304,20 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
      * state the following camera hint / top HUD expect. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
-    /* Draw 4 — the level number, anchored at (ox+16, oy). */
-    scene1_merchant_hud_draw_level(dev, ox + 16.0f, oy, g_level, 0xffffffffu);
+    /* Draw 4 — the level number, anchored at (ox+16, oy).  Engine reads the
+     * bank level (DAT_0450fb98) directly; g_level is the non-bank fallback. */
+    {
+        int level = g_level;
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        if (wb) level = (int)wb[SAVE_BANK_FIELD_MERCHANT_LEVEL];
+        scene1_merchant_hud_draw_level(dev, ox + 16.0f, oy, level, 0xffffffffu);
+    }
 
-    /* The "LEVEL UP!" pop (FUN_00407ab4, gated 0 < DAT_0438b920) is dormant
-     * at rest and deferred — it needs the level-up event subsystem to drive
-     * DAT_0438b920.  No quad is emitted while g_levelup_anim == 0. */
+    /* The "LEVEL UP!" pop (FUN_00407ab4, gated 0 < DAT_0438b920): the timer
+     * is LIVE now (scene1_top_hud_levelup_timer, armed by the xp_tick level-
+     * up) but the pop render itself is still unported —
+     * PORT-DEBT(merchant-levelup-pop); not exercised in the tutorial trace
+     * (exp 10 < level_end). */
 }
 
 #endif /* _WIN32 */

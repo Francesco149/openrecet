@@ -1497,6 +1497,10 @@ int32_t customer_service_popup_queue_val(int i)
 {
     return (i >= 0 && i < CS_POPUP_QUEUE_MAX) ? s_popup_val[i] : -1;
 }
+int32_t customer_service_popup_disp(int i)
+{
+    return (i >= 0 && i < 5) ? s_popup_disp[i] : 0;
+}
 
 /* ── FUN_004658ab — the LIVE kind-2 sell machine (the first real customer) ────
  * Dispatched from the master tick's b5a8==2 arm for b534 ∈ {2,6,0xf,7,8,9}.

@@ -968,6 +968,8 @@ struct test_case {
     X(scene1_hud_pass1_dormant_in_house) \
     X(scene1_hud_pass1_active_only_ingame_dungeon) \
     X(scene1_hud_status_screen_flag_roundtrip) \
+    X(top_hud_xp_anim_eases_flash_runs_and_settles) \
+    X(top_hud_xp_anim_level_up_advances_bank_fields) \
     \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \

@@ -15,9 +15,9 @@
 |-----------|------:|----------------------------------------------------------|
 | verified  |    72 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    13 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   488 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **573** | verified + stubbed + ported                         |
-| unported  |  1975 | exists in engine, never referenced from src/             |
+| ported    |   489 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **574** | verified + stubbed + ported                         |
+| unported  |  1974 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -87,13 +87,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   Burst frame coins now pixel-1:1 (diff shows only the known opens).  New tool: `orv3_draws.py --verts N`
   (UP vert decode + transforms + screen footprint).  New minor lead: tex b494 80tris retail-only EVERY
   frame, first draw, paints 0 px solo (strip warm-up? benign-invisible, unchased).
-  **OPEN — sale-fanfare residue (viewer notes #10-19 read 2026-07-02):**
-  (1) the TOTAL-EXP popup chain (FUN_004606fc → FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172) —
-  retail "TOTAL EXP 10" + merchant-bar XP fill/flash (notes #10/#12/#19, tex 3392 22vs28 tris), port nothing;
-  (2) sold-item display-stand quad: retail STOPS drawing it at the commit frame (tex cde5 port-only from
-  +89 on; note #18) — the FUN_00460083 stock-decrement/display-clear debt;
-  (3) retail audio dedups same-frame SE repeats (15 se_069 lines vs port 24, same window) — port SE-play
-  dedup not modeled (cosmetic, jitter rng bit-exact anyway).
+  **✅✅ 2026-07-02 — the WHOLE sale fanfare is now PIXEL-1:1 (RE §21.31.4-.6; needs the user's viewer
+  confirm to clear notes #10-19):** coin shower (eye/lookat + pre-matrix fixes) + sold-item display clear
+  (accept-block helpers FUN_00460b3a/4606fc/00083/00f59/0002a ported; PORT-DEBT(cs-news-suggest) =
+  FUN_00460b93 only) + the popup TIMELINE (master-tick b5c0/b304 windows + merchant EXP 0xb0fd write —
+  REQUIRED: its b5c0 clear opens the leave-dissolve gate) + the TOTAL-EXP popup ROWS (asm 0x467db5) +
+  the merchant-XP bar animator (b91c ease + flash + level-up; FUN_00407ab4 pop =
+  PORT-DEBT(merchant-levelup-pop), unexercised here).  Verified: raw rng 1856/1856 bit-exact; pixel
+  sweep +89..+243 = 0 px on 6 frames, 1-px speckle on 2 (accepted residue).
+  **Remaining fanfare residue (minor):** retail audio dedups same-frame SE repeats (15 se_069 lines vs
+  port 24 — cosmetic, timeline rng bit-exact) · tex b494 80tris/1draw retail-only EVERY frame (invisible
+  — paints 0 px; suspect a strip warm-up; unchased).
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit
