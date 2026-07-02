@@ -389,8 +389,16 @@ void scene1_pfo_table_b_tick(void)
                     /* Terminal check (engine L172-L178 / asm 0x414e28-0x414e7e).
                      * factor==1.2 always holds in this branch (quirk #50)
                      * — the gate is structurally dead in the asm but we
-                     * preserve it for bit-exact behavior. */
-                    if (factor == 1.2f) {
+                     * preserve it for bit-exact behavior.
+                     *
+                     * BIT-PATTERN compare, not `factor == 1.2f`: MSVC spills
+                     * factor to a float32 stack slot before the fcomp, so the
+                     * compare is float32==float32 (true after the clamp).  GCC
+                     * x87 -O2 keeps 80-bit excess precision through the clamp
+                     * and the FP equality is FALSE — the terminal never fired
+                     * on the mingw i686 build while the SSE host tests passed
+                     * (the live-game "coins never land" bug, RE §21.31.3). */
+                    if (f_to_bits(factor) == f_to_bits(1.2f)) {
                         float dist_target = sqrtf(dx_raw*dx_raw +
                                                   dy_raw*dy_raw +
                                                   dz_raw*dz_raw);

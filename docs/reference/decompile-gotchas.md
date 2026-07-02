@@ -84,3 +84,14 @@ from auto-memory per the audit's R7; the memories are archived.)
     (`fildl` 0x47d528) with a `decl -0xc` at 0x47d60e ⇒ per-CHAR trailing ramp.
     One screenshot of retail mid-reveal (ghost trailing char) falsified the
     per-row theory instantly — see gotcha 12.
+19. **Never port an MSVC x87 float-equality as a C `==` on floats — GCC x87
+    keeps 80-bit excess precision through assignments/clamps at -O2 and the
+    equality goes FALSE where MSVC's `fstp dword` spill made it TRUE.**  The
+    PFO.4 terminal gate `if (factor == 1.2f)` (post-clamp, structurally
+    always-true in the engine asm) never fired on the mingw i686 build — the
+    sale coins converged to the target and hovered forever, no landing pulse
+    — while the SSE host tests passed (SSE rounds every op to float32).
+    Port float32 equality as a BIT-PATTERN compare (`f_to_bits(a) ==
+    f_to_bits(b)`), and smoke any FP-compare-bearing chip with
+    `-O2 -mfpmath=387` on the host (the tests' default SSE hides this whole
+    class).  RE §21.31.3.
