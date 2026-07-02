@@ -745,7 +745,7 @@ int test_player_ctrl_idle_animates_and_holds_position(void)
 
     g_input_state[0].buttons = 0;
     title_save_dialog_reset();                   /* clear the FUN_0048670f save-gate */
-    player_ctrl_pose_house_standing(0);          /* seeds anim 0, frame 2, timer 5, counter 25 */
+    player_ctrl_pose_house_standing(0);          /* fresh reset: anim 0, frame 0, timer 0, counter 0 (RE §21.30) */
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[1] = 0.0f;
     g_scene1_player_pos[2] = 9.35f;
@@ -758,14 +758,16 @@ int test_player_ctrl_idle_animates_and_holds_position(void)
     T_ASSERT_NEAR(g_scene1_player_pos[2], 9.35f);
     if (rec[CHR_ACTOR_ANIM]   != 0)  T_FAIL("idle anim id should stay 0");
     if (rec[CHR_ACTOR_FACING] != 6)  T_FAIL("idle facing should stay oct 6");
-    if (rec[CHR_ACTOR_FRAME]  != 2)  T_FAIL("frame holds at 2 (timer 5<10)");
-    if (rec[CHR_ACTOR_COUNTER] != 26) T_FAIL("idle is animating: counter should advance 25→26");
+    if (rec[CHR_ACTOR_FRAME]  != 0)  T_FAIL("frame holds at 0 (timer 1<10)");
+    if (rec[CHR_ACTOR_COUNTER] != 1) T_FAIL("idle is animating: counter should advance 0→1");
     union { float f; int32_t i; } t; t.i = rec[CHR_ACTOR_TIMER];
-    T_ASSERT_NEAR(t.f, 6.0f);                        /* timer 5 → 6 (breathing) */
+    T_ASSERT_NEAR(t.f, 1.0f);                        /* timer 0 → 1 (breathing) */
 
-    /* five more ticks (timer 6→10 then advance) → frame steps to 3. */
-    for (int i = 0; i < 5; i++) scene1_player_ctrl_tick();
-    if (player_ctrl_actor_record(0)[CHR_ACTOR_FRAME] != 3) T_FAIL("idle should breathe to frame 3");
+    /* ten more ticks (timer reaches 10, the NEXT tick advances — the dur<=timer
+     * check precedes the increment) → frame steps to 1 on tick 11, matching
+     * retail's freeroam entry cadence (pframe 0 at +1..+10, 1 at +11). */
+    for (int i = 0; i < 10; i++) scene1_player_ctrl_tick();
+    if (player_ctrl_actor_record(0)[CHR_ACTOR_FRAME] != 1) T_FAIL("idle should breathe to frame 1");
 
     chr_meta_shutdown();
     return 0;
@@ -1018,8 +1020,10 @@ int test_player_ctrl_dispatch_gates_on_cc08(void)
 
 int test_player_pose_seeds_actor0(void)
 {
-    /* runs/cchr2b leaf ground truth: char 0, scale 1/1, record
-     * anim 0 / timer 5.0f / counter 25 / frame 2 / facing 6. */
+    /* Fresh set-anim reset at HOUSE entry (RE §21.30): char 0, scale 1/1,
+     * record anim 0 / timer 0 / counter 0 / frame 0 / facing 6 — retail's
+     * entry write (the old counter-25/frame-2/timer-5 seed was a later
+     * steady-state leaf snapshot, viewer note #24). */
     player_ctrl_pose_house_standing(0);
 
     if (player_ctrl_actor_char(0) != 0) T_FAIL("actor0 char should be 0");
@@ -1029,12 +1033,10 @@ int test_player_pose_seeds_actor0(void)
     const int32_t *rec = player_ctrl_actor_record(0);
     if (rec == NULL) T_FAIL("actor0 record should be non-NULL");
     if (rec[CHR_ACTOR_ANIM]    != 0)  T_FAIL("anim should be 0");
-    if (rec[CHR_ACTOR_COUNTER] != 25) T_FAIL("counter should be 25");
-    if (rec[CHR_ACTOR_FRAME]   != 2)  T_FAIL("frame should be 2");
+    if (rec[CHR_ACTOR_COUNTER] != 0)  T_FAIL("counter should be 0");
+    if (rec[CHR_ACTOR_FRAME]   != 0)  T_FAIL("frame should be 0");
     if (rec[CHR_ACTOR_FACING]  != 6)  T_FAIL("facing should be 6");
-    /* TIMER is float bits (5.0f). */
-    union { float f; int32_t i; } t; t.i = rec[CHR_ACTOR_TIMER];
-    T_ASSERT_NEAR(t.f, 5.0f);
+    if (rec[CHR_ACTOR_TIMER]   != 0)  T_FAIL("timer should be 0 (0.0f bits)");
     return 0;
 }
 

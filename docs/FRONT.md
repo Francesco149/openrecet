@@ -20,8 +20,10 @@
   the never-ported cs-walker set-anim (chibi slid in idle = notes #20/#22) · the cs-leave tick-only frame (+20
   pose-era = note #21).  cframe/ccnt/ctimer/canim `✓ aligned` WHOLE [224,1722], n0* aligned, rng bit-exact
   225→1722, all 3 note crops diff BLACK.  **REMAINING RESIDUALS (user 2026-07-02, small, NEXT):**
-  - **(A) "recette phase at the very start"** = the player `pframe/pcnt` window-start load region (@224, ~45f).
-    Recette's anim cycle phase at the load-in; realigns ~frame 270.  Same tick-cadence class, initial-load era.
+  - **(A) ✅ 2026-07-02 "recette phase at the very start" — FIXED (RE §21.30; pending user studio re-confirm).**
+    `pose_house_standing` seeded the frame-17544 steady-state snapshot (counter 25/frame 2/timer 5) at HOUSE
+    entry instead of retail's fresh set-anim reset (0/0/0) ⇒ a constant 15-tick idle-phase offset for ~45f.
+    Player panim/pframe/pcnt divergent frames 45→0 whole-window; note #24 crop BLACK; freeroam+39 2973→3 px.
   - **(B) ✅ 2026-07-02 the VASE SHADOW — FIXED, note #23 crop diff BLACK (RE §21.29; pending user studio
     re-confirm).**  NOT the shadow pass: fade.c mistranscribed the engine's ALPHAREF(0x18)=0 as
     ALPHATESTENABLE(0xf)=FALSE ⇒ every pause/fade frame leaked alpha-test-OFF into the next frame's mesh

@@ -350,9 +350,10 @@ void player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
  * live writer — the ring shift at 48b850.c:483-584 fills DAT_056daae8 from
  * the live input/anim state and the spawn fade-in routine settles dae18/
  * dae24 to 1.0.  Until that body lands, player_ctrl_pose_house_standing()
- * seeds actor 0 from the runs/cchr2b retail leaf ground truth (HOUSE frame
- * 17544): char 0, scale 1.0/1.0, record anim 0 / timer 5.0f / counter 25 /
- * frame 2 / facing 6 (the idle standing pose; renders at color 0xff808080).
+ * seeds actor 0: char 0, scale 1.0/1.0, record anim 0 / timer 0 / counter 0 /
+ * frame 0 / facing 6 — a fresh set-anim reset, retail's actual entry write
+ * (the earlier runs/cchr2b frame-17544 snapshot seed of counter 25 / frame 2 /
+ * timer 5.0f was a steady-state capture, NOT the entry state — RE §21.30).
  * This replaces the per-call scene1_shop_walker_set_player_inject MVP. */
 
 static int32_t s_actor_char[PC_NUM_ACTORS]     = { -1, -1, -1 };
@@ -493,12 +494,19 @@ void player_ctrl_pose_house_standing(int player_char)
     s_actor_scale_xz[0] = 1.0f;   /* DAT_056dae18[0] — settled spawn scale */
     s_actor_scale_y[0]  = 1.0f;   /* DAT_056dae24[0] */
 
-    /* DAT_056daae8[0] idle pose.  TIMER is float bits (5.0f); the rest int. */
-    union { float f; int32_t i; } timer; timer.f = 5.0f;
+    /* DAT_056daae8[0] idle pose — a FRESH set-anim reset (anim 0, frame 0,
+     * counter 0, timer 0), matching retail's entry write.  The old seed
+     * (frame 2 / counter 25 / timer 5.0f) was the runs/cchr2b leaf snapshot of
+     * a LATER steady-state frame (HOUSE 17544); re-applied at every HOUSE
+     * entry it started Recette's idle cycle 25 ticks in, a constant 15-tick
+     * wrap offset vs retail's 0-reset for the first ~45 free-roam frames
+     * (viewer note #24, RE §21.30).  Retail's freeroam+1 probe reads
+     * pframe=0/pcnt=1 ⇒ counter AND timer 0 at entry (frame steps every 10
+     * ticks from the entry on). */
     s_actor_record[0][CHR_ACTOR_ANIM]    = 0;
-    s_actor_record[0][CHR_ACTOR_TIMER]   = timer.i;
-    s_actor_record[0][CHR_ACTOR_COUNTER] = 25;
-    s_actor_record[0][CHR_ACTOR_FRAME]   = 2;
+    s_actor_record[0][CHR_ACTOR_TIMER]   = 0;
+    s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+    s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
     s_actor_record[0][CHR_ACTOR_FACING]  = 6;
 
     /* actor 2 = the bobbing fairy companion (char id 1 = DAT_056da1d4).  At
@@ -2120,7 +2128,7 @@ void scene1_player_ctrl_tick(void)
      * freeroam-walk arm runs under (below).  The retail FUN_0048670f effectively
      * only feeds the trace in free-roam; the port's tick is also called every
      * frame through the iv1_1/iv1_2 prologue, where the player sits immobile at
-     * the pose_house_standing init state (px -0.30, pcnt 25, coct 4) and the
+     * the pose_house_standing init state (px -0.30, pcnt 0, coct 4) and the
      * walk arm is gated off.  Emitting there too floods the trace with stale
      * pose rows that flow_diff mis-pairs against retail's clean free-roam rows —
      * it surfaced as a PHANTOM companion-facing coct 6/4 "divergence" (the live

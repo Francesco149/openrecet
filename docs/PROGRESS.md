@@ -7,6 +7,15 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — note #24 recette start-phase FIXED: pose_house_standing snapshot seed → fresh reset (RE §21.30)
+
+Residual (A) closed.  The intro walk-in is bit-aligned through the load; at freeroam entry retail does a fresh
+set-anim reset (0/0/0) while the port re-applied the pose_house_standing seed — counter 25/frame 2/timer 5.0f,
+a runs/cchr2b STEADY-STATE leaf snapshot (HOUSE frame 17544), not the entry state ⇒ a constant 15-tick
+idle-phase offset for ~45f (port wrapped at +16, retail at +41; the first pause realigned).  Seed → 0/0/0.
+Whole-window player panim/pframe/pcnt divergences 45→0, companion 0, rng bit-exact; note #24 crop BLACK;
+freeroam+39 full-frame 2973→3 px.  Both 2026-07-02 residuals (A)+(B) now closed pending user studio re-confirm.
+
 ## 2026-07-02 — note #23 vase shadow FIXED: fade.c ALPHAREF↔ALPHATESTENABLE mistranscription (RE §21.29)
 
 Residual (B) closed.  Root NOT the shadow pass: fade.c (FUN_00453e8f) ported the engine's

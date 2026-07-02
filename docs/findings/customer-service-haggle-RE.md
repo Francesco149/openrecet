@@ -3340,3 +3340,21 @@ dormant comment "4 // MODULATE2X" corrected to MODULATE.
 0 px; HOUSE_FREEROAM#1+39 diff = ONLY the Recette sprite blob = residual (A), untouched.  3381 host pass.
 ALPHAOP timeline now 4-throughout on both sides at the pause frame.  NB the ubiquitous retail-only `b494`
 80-tri first-draw is the KNOWN inert 0-px overlay (PROGRESS 2026-06-30), not a lead.
+
+## 21.30 2026-07-02 — note #24 "recette phase at the very start" FIXED: pose_house_standing seeded a steady-state anim snapshot (counter 25/frame 2/timer 5) instead of retail's fresh reset
+
+**Residual (A).**  State-panel probe (win-0-1500 --state): the intro walk-in ticks BIT-ALIGNED through the whole
+load era (anim 5, pcnt lockstep, px -0.125/frame); at HOUSE_FREEROAM#1+0 retail writes a FRESH set-anim reset
+(pframe 0 / pcnt 0 / timer 0 ⇒ +1 reads 0/1; frame steps every 10 ticks, first flip at +11) while the port
+re-applied `player_ctrl_pose_house_standing`'s seed — **counter 25 / frame 2 / timer 5.0f, the runs/cchr2b leaf
+snapshot of HOUSE frame 17544 (a steady-state capture, NOT the entry state)**.  Port's cycle wrapped 15 early
+(+16 vs retail's +41) ⇒ the constant 15-tick idle-phase offset for ~45f until the first pause realigned both.
+
+**FIX:** seed = 0/0/0 (anim 0, facing 6 unchanged).  Updated the two host tests that asserted the snapshot
+(`player_pose_seeds_actor0`, `player_ctrl_idle_animates_and_holds_position` — the latter also documents the
+tick law: `dur<=timer` checks BEFORE the increment ⇒ frame flips on tick 11, matching retail's +11).
+
+**✅ VERIFIED (re-drive --state):** player panim/pframe/pcnt divergent frames **45 → 0 over the WHOLE window**;
+companion canim/cframe/ccnt/ctimer 0 divergent; rng bit-exact (the 1 flagged row is a missing retail probe
+field, not a value gap); note #24 crop diff BLACK; full-frame freeroam+39 2973→3 px (scattered 1-px speckles,
+same class as the pause 2 px).  3381 host pass.
