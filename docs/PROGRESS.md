@@ -7,6 +7,29 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — gap (ii) dialogue-under-ESC-modal RESOLVED (already fixed by §21.15; stale-window flag); #7/#19 REDIAGNOSED (not RT — a doubled skip-prompt draw pass)
+
+Gap (ii): retail `FUN_0046c090` draws the dialogue UNDER the ESC box unconditionally — no hide/clear
+exists; the "no dialogue behind retail's box" was arm TIMING (retail's re-post driver arms at line+1,
+pre-reveal).  Note #7 was flagged on the Jun-27 window, one day BEFORE 98cbf08 (§21.15) landed the
+port's mirror driver.  **Fresh v3 re-drive (win-0-1000, full current pin set): both sides open the box
+at TEXT_ANIM_START#1+1, same absolute present (760→761), no dialogue under either box — bit-parity
+on the timing; no port change needed.**  Bonus: with the full pin set BOTH sides now reach
+HOUSE_FREEROAM#1 at present 224 (identity-join +0 absolute).  #7/#19 rediagnosis: `orv3_rt.py` on the
+retail capture shows **0 SetRenderTarget/0 CopyRects** — the RT-composite theory is REFUTED (fix NOT
+blocked on tooling); retail draws the skip-prompt block (strip+glyphs+label, 32 draws) TWICE — the
+port once (modal draw Δ: port +32 vs retail +63; baseline Δ27 pre-existing).  Root (ret_va probe
+runs/probe-skipbox-callers — the pause-block theory was ALSO refuted, FUN_004820ba fires zero):
+**FUN_0040a765, the 2D-HUD aggregator, calls FUN_0043537e UNGATED in its tail (all.c:7046) + the
+FUN_0046c090 tail = the two passes.**  PORTED: scene1_hud.c mirrors 7046/7499; choice_box.c's inline
+cursor removed (retail sites are explicit FUN_0043537e+FUN_00435747 PAIRS — the inline call
+double-drew); the customer_service_render.c "Cancelling tutorial?" compensation draw removed (no
+retail CS-family site; the HUD-tail mirror covers it).  v3-VERIFIED: modal box-UI region 81==81
+draws, per-texture draws+prims all equal (bit-1:1 draw program), box pixels ≤2 LSB; frame Δ27 ==
+the pre-existing baseline; 3381 host pass.  RE §21.26.  New tool lead: the fresh PORT capture fails
+replay hash-verify on 5/2895 frames (presents 239/542/661/2184/2303) — v3 replayer gap to
+investigate.
+
 ## 2026-07-02 — day2 scenario gets the full determinism pin set; day-end rng fork pinned down
 
 `house-firstcust-cutscene-day2/trace.jsonl` now carries arrprobe's full pin header ({csloadpin:24} +

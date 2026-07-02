@@ -24,6 +24,7 @@
 #include "scene1_dialogue_run.h"
 #include "skip_event.h"    /* skip_event_open() — gate the choice-box draw  */
 #include "choice_box.h"    /* choice_box_draw() — the ESC skip prompt       */
+#include "title_save_dialog.h" /* title_save_dialog_cursor_render (FUN_00435747) */
 #include "rng.h"           /* rng_next15() — chr/bg-shake jitter (rmb)      */
 
 #include <string.h>
@@ -415,9 +416,13 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
     /* FUN_0046c090 tail: when the ESC skip prompt is open (DAT_073a3dec==1),
      * the engine draws the choice box (FUN_0043537e + FUN_00435747) over the
      * dialogue. The box freezes the dialogue tick (sim.c), so `rt` is the
-     * settled line underneath. */
-    if (skip_event_open())
+     * settled line underneath.  The cursor is the explicit pair member —
+     * choice_box_draw no longer draws it inline (retail-site structure,
+     * RE §21.26). */
+    if (skip_event_open()) {
         choice_box_draw(dev);
+        title_save_dialog_cursor_render(dev);
+    }
 
     /* Remaining Layer 4: rmb screen-shake RNG reads + the choice/menu fade
      * overlay (DAT_073a6da4; no choices in the prologue). */

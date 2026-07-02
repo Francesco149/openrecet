@@ -3194,3 +3194,49 @@ both sides 825→831+ (NO jump — natural drift lockstep)**; **raw rng `==` at 
 **1/900** (was 38/1100 — the lone residual is the benign off-0 entry-boundary rebasing artifact: retail's rngcalls counter starts at 0
 at the entry) + **0/900 gsim%8**; **offer b574=119 / variant b5e0=1 / poseR bit-identical port==retail** (unchanged); 3381 host pass.
 **PENDING USER STUDIO CONFIRM** notes #20 (customer walk path) / #22 (sparkle position) now visibly track retail.
+
+## 21.26 2026-07-02 — gap (ii) dialogue-under-ESC-modal = ALREADY FIXED (§21.15, stale-window flag); #7/#19 REDIAGNOSED: NOT an RT composite — a doubled skip-prompt draw block (2× FUN_0046c090 dispatch)
+
+**Part 1 — FRONT gap (ii) ("should the port hide the dialogue under the ESC box?"): NO — and no port change needed.**
+Retail `FUN_0046c090` = FUN_0049b425 + **FUN_0046c9a2 (FULL dialogue draw, unconditional)** + box (FUN_0043537e/FUN_00435747)
+iff `DAT_073a3dec==1` — retail draws the dialogue UNDER the box every frame; there is no hide/clear.  The observed "retail
+shows no dialogue behind the box" = **arm TIMING**: retail's skip_wrapup driver arms at line+1 (`wrapup_dbg fn=761 line=0
+posted=1` → `fn=762 box=1`, day2 both-run @220513Z) ⇒ reveal≈0 when frozen ⇒ nothing visible under the box.  Note #7
+("retail early on skip dialogue prompt") was flagged on the **Jun-27 win-0-700 window — one day BEFORE 98cbf08 (§21.15)**
+landed the port's mirror re-post; that stale port armed at TEXT_ANIM_START+24 (the scripted `{esc:25}`) with 24f of reveal
+under the box.  Post-98cbf08 evidence (Jul-1 run): port dialogue-VA samples stop at frame 760 (open box freezes the tick —
+the §21.15 tracing caveat) == retail's box set during 761 ⇒ **both sides arm the same frame now**.  Verdict: (ii) resolved
+by §21.15; the viewer window was stale.  Do NOT add a dialogue hide/clear.
+
+**Part 2 — #7 "stronger edges" / #19 "weird blending" REDIAGNOSED: the RT-composite theory is REFUTED; the fix is NOT
+blocked on a v3 RT-capture extension.**  `orv3_rt.py --scan` on the retail day2 capture (dd353329): **0/2600 frames use
+SetRenderTarget**; the modal frame 537 = 185 draws ALL → BACKBUFFER, **0 SetRenderTarget, 0 CopyRects** (P5 capture support
+landed fa1d03e 2026-06-13, so absence is real, not a blind spot).  The actual structure (orv3_draws, frame 537):
+- generic choice-box art ONCE: 6c15 9-patch ×8 + 3392 scroll block;
+- **the skip-prompt block TWICE, verbatim** ([118-149] == [153-184]): strip 2781[512x128] + the 30×50 prompt-glyph run
+  ("Do you want to skip this event?") + b8b7[256x64] label;
+- the singles SANDWICHED between the passes: 3717/3cf5/5d80 [512x512] (Yes/No/hand-cursor pages).
+Port (stale modal frame 367, 147 draws): same content, prompt block **ONCE** ⇒ the missing 2nd pass IS #7/#19 (glyph alpha
+compounds under BLEND).
+
+**ret_va PROBE (runs/probe-skipbox-callers — frida_capture --call-trace-vas-file {43537e,435747,435117,46c090,46c9a2,
+4820ba} --call-trace-frames 745..805 on the day2 replay) — DEFINITIVE:** per modal frame (761+): `FUN_0046c090` ×1,
+`FUN_0046c9a2` ×1, **`FUN_0043537e` ×2 + `FUN_00435747` ×2** — ret_vas **0x40b0df** (= inside **FUN_0040a765, the 2D-HUD
+aggregator**: its tail calls FUN_0043537e UNGATED at all.c:7046, then FUN_00435747+FUN_00435117 at 7498-7499) and
+**0x46c0a8** (= the FUN_0046c090 `DAT_073a3dec==1` tail).  `FUN_004820ba` (pause render) fires **ZERO** times — the
+two-FUN_0046c090-sites hypothesis AND the pause-block(51223) theory are both REFUTED (the retail modal frame Clears
+normally, consistent: the pause no-clear ramp isn't active).  Pre-modal frames (755-760): each fires ×1 (the HUD-tail
+pass alone, box closed ⇒ FUN_0043537e's af34 gate makes it a no-op).
+**PORTED 2026-07-02 (3 files) + ✅ v3-VERIFIED bit-1:1 draw program:**
+1. `scene1_hud.c` — `choice_box_draw` inserted in the scene1_hud_render tail after the FUN_00466b7b overlay (mirrors
+   7046) + `title_save_dialog_render()` after the cursor (mirrors 7499).
+2. `choice_box.c` — the inline cursor call REMOVED: retail's FUN_0043537e never draws the cursor; every engine site is
+   the explicit PAIR `FUN_0043537e(); FUN_00435747();` — the inline call double-drew the hand at paired sites (+1 b8b7).
+   `scene1_dialogue_draw.c` gets the explicit cursor after its choice_box_draw (the FUN_0046c090 pair).
+3. `customer_service_render.c` — the "Cancelling tutorial?" compensation draw at the overlay tail REMOVED (retail has
+   no FUN_0043537e call in the CS family; the 7046 HUD-tail mirror covers it, immediately after the overlay).
+**VERIFIED (v3 re-drive win-0-1000):** the box-UI draw region (first 6c15 →) is **81 == 81 draws, per-texture draws+prims
+ALL equal — bit-identical draw program**; modal frame 158 vs 185 = Δ27 == the pre-existing pre-modal baseline (95 vs 122);
+box-region pixels max ≤2 LSB (the #7 "stronger edges" now reproduce).  Residual pixel diff (y 541-641) = the standee
+blink/pose phase (notes #5/#6/#21 class) — present identically on NON-modal control frames, unrelated.  3381 host pass.
+**PENDING USER STUDIO CONFIRM** #7/#19 on the refreshed win-0-1000.

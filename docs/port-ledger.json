@@ -879,7 +879,6 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/choice_box.c",
     "src/main.c",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
@@ -4852,7 +4851,6 @@
    "src": [
     "src/customer_service.c",
     "src/customer_service.h",
-    "src/customer_service_render.c",
     "src/esc_dispatch.c"
    ]
   },
@@ -5968,10 +5966,12 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
     "src/main.c",
     "src/scene1_dialogue_draw.c",
     "src/scene1_dialogue_draw.h",
-    "src/scene1_fx_overlays.c"
+    "src/scene1_fx_overlays.c",
+    "src/scene1_hud.c"
    ]
   },
   {
@@ -8144,6 +8144,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
     "src/encyclopedia.h",
     "src/main.c",
     "src/scene_pause.c",

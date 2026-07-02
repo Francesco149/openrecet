@@ -512,13 +512,12 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
     /* 6d — item-detail overlay + customer-arrival banner + "great numbers"
      * ticker (b5c0>0 / b5e8): PORT-DEBT(cs-render-rest). */
 
-    /* the ESC "Cancelling tutorial?" skip prompt (FUN_0045e6a5 arms it; the
-     * master tick's b5e4 poll drives it).  Drawn over the haggle UI like the
-     * engine's top-level choice-box overlay (FUN_0043537e).  During cc08==4 the
-     * only choice box that can be up is this skip prompt, so choice_box_active()
-     * is a safe gate (covers the open + close anim). */
-    if (choice_box_active())
-        choice_box_draw(dev);
+    /* the ESC "Cancelling tutorial?" skip prompt: NO LONGER drawn here.
+     * Retail has no FUN_0043537e call in the CS render family — the box is
+     * drawn by the HUD aggregator's ungated tail (FUN_0040a765, all.c:7046),
+     * which scene1_hud_render now mirrors right after this overlay (RE
+     * §21.26).  The old compensation call here double-drew the box once the
+     * true 7046 mirror landed. */
 }
 
 #endif /* _WIN32 */

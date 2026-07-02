@@ -137,7 +137,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x405b1a | FUN_00405b1a | 598 | ✓ | scene1_render.c, scene1_render.h |
 | 0x405d70 | FUN_00405d70 | 911 | ✓ | scene1_render.c, scene1_render.h, stage_palette.h |
 | 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h |
-| 0x406584 | FUN_00406584 | 1017 | ✓ | choice_box.c, main.c, scene1_top_hud.c (+6) |
+| 0x406584 | FUN_00406584 | 1017 | ✓ | main.c, scene1_top_hud.c, scene1_top_hud.h (+5) |
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c |
@@ -286,7 +286,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
-| 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+1) |
+| 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, esc_dispatch.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.c, customer_service.h, npc_schedule.h (+1) |
@@ -344,7 +344,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
-| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.c, scene1_dialogue_draw.h (+1) |
+| 0x46c090 | FUN_0046c090 | 30 | ✓ | choice_box.c, main.c, scene1_dialogue_draw.c (+3) |
 | 0x46c0ae | FUN_0046c0ae | 487 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+4) |
@@ -449,7 +449,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ | save_picker.c, scene1_merchant_hud.c, scene1_merchant_hud.h (+2) |
 | 0x482033 | FUN_00482033 | 38 | ✓ | scene_pause.c |
 | 0x482059 | FUN_00482059 | 97 | ✓ | scene_pause.c |
-| 0x4820ba | FUN_004820ba | 2455 | ✓ | encyclopedia.h, main.c, scene_pause.c (+1) |
+| 0x4820ba | FUN_004820ba | 2455 | ✓ | choice_box.c, encyclopedia.h, main.c (+2) |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+5) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+6) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |

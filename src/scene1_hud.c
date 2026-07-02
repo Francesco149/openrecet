@@ -94,6 +94,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
 #include "scene1_merchant_hud.h"  /* FUN_00409925 body — bottom-left Merchant Level HUD */
 #include "customer_service.h"     /* customer_service_render_overlay (FUN_00466b7b) */
+#include "choice_box.h"           /* choice_box_draw (FUN_0043537e) — HUD-tail pass */
 #include "title_save_dialog.h"    /* title_save_dialog_cursor_render (FUN_00435747) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_emote_level/type (db000/db004)        */
 #include "scene1_render.h"        /* scene1_project_world (FUN_00490c78)               */
@@ -317,12 +318,25 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
     if (scene_mode == 1 && stage_type == 0)
         customer_service_render_overlay(dev_in);
 
+    /* FUN_0043537e (all.c:7046) — the choice box, drawn UNGATED as part of the
+     * HUD aggregator's tail.  When a dialogue's ESC skip prompt is armed the box
+     * is drawn HERE **and** by FUN_0046c090's tail (scene1_dialogue_draw) — the
+     * engine really composites the prompt block twice per frame, and the doubled
+     * glyph alpha is retail's "stronger edges" look (viewer notes #7/#19; RE
+     * §21.26, ret_va probe runs/probe-skipbox-callers: FUN_0043537e fires at
+     * 0x40b0df + 0x46c0a8 on every modal frame).  Self-gates on cb_active. */
+    choice_box_draw(dev);
+
     /* FUN_00435747 (all.c:7498, LAB_0040c1e4) — the shared menu hand-cursor,
      * drawn LAST in the house aggregator (after the cc08 haggle overlay so the
      * hand sits on top of the Yes/No prompt).  Ungated like retail; the draw
      * self-gates on g_cursor_visible (set by the cc08 cursor snap/slide), so it
      * is a no-op in free-roam where no menu shows the cursor. */
     title_save_dialog_cursor_render(dev);
+
+    /* FUN_00435117 (all.c:7499) — the save/load dialog frame, immediately after
+     * the cursor like retail.  Self-gates (no active dialog ⇒ no-op). */
+    title_save_dialog_render();
 }
 
 #endif /* _WIN32 */

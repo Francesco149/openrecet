@@ -266,15 +266,13 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
                                           D3DTOP_MODULATE);
 
-    /* hand cursor — the SHARED FUN_00435747 draw. The engine call site is
-     * `FUN_0043537e(); FUN_00435747();`, so the cursor is NOT gated on the box
-     * being fully open (FUN_0043537e's af34>0 gate) — it self-gates on the
-     * cursor-visible flag (DAT_0438b150, set by choice_box_open) and draws the
-     * 40×40 hand at (abf4 − |sin(b154·0.1)|·8, abf8 − 20). choice_box_open
-     * snapped (abf4,abf8) to the selected option; nav slides it; close eases it
-     * offscreen. The bob counter (b154) + slide step are advanced once per INGAME
-     * frame by title_save_dialog_anim_tick in sim.c (the FUN_004356cd that retail
-     * runs via FUN_00406584 every state-1 frame). */
-    title_save_dialog_cursor_render(dev);
+    /* hand cursor: NOT drawn here.  Retail's FUN_0043537e does not draw the
+     * cursor — every engine call site is the PAIR `FUN_0043537e();
+     * FUN_00435747();` (all.c 7046/7498 HUD tail, 66993 FUN_0046c090 tail,
+     * 83953 FUN_004820ba tail, …), so the port mirrors that: each caller
+     * pairs choice_box_draw with title_save_dialog_cursor_render explicitly.
+     * An earlier inline cursor call here DOUBLE-drew the hand at sites that
+     * also mirror the explicit FUN_00435747 (the +1 b8b7 draw vs retail on
+     * the §21.26 modal frames). */
 }
 #endif /* _WIN32 */

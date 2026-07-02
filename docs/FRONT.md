@@ -31,17 +31,28 @@
   even on the USER-CONFIRMED-1:1 arrprobe capture — that signature is the accepted pre-pin/warmup region +
   probe print-precision (retail f64-prints, port %.9g), NOT a regression; judge by the aligned span.
 - **★ OPEN GAPS queued on this trace (user-flagged):**
-  - **(ii) dialogue-under-ESC-modal:** retail shows NO dialogue behind the ESC-skip while the port is
-    mid-reveal of a line — should the port hide/clear the underlying dialogue when the ESC choice box is up?
-    (The autonomous-able next gap.)
-  - **#7/#19 modal double-render = the cutscene FOCUS/BLUR RT effect.**  Retail renders the WHOLE in-game
-    frame (scene+UI) an extra time via the capture-RT composite (the manga-lines 集中線 machinery; the
-    retail-only b494 draw) ⇒ the choice box's two faint passes compound under alpha ("stronger edges" #7,
-    "weird blending" #19).  The box draw itself is bit-identical; the port has the RT infra (screen_rt.c,
-    FUN_0047ae65) but doesn't run the effect here.  **FIX = port the double-render + RT composite — BLOCKED
-    on a v3 RT-capture extension** (SetRenderTarget/CopyRects replay empty today).  NB the manga-lines effect
-    for the cc08==4 scene itself is ALREADY PORTED + user-confirmed (2026-06-20) — this is the ESC-modal
-    instance only.
+  - **✅ 2026-07-02 (ii) dialogue-under-ESC-modal RESOLVED — already fixed by §21.15 (98cbf08); the note-#7
+    flag predated the fix by one day.**  Retail draws the dialogue UNDER the box unconditionally (no
+    hide/clear); the visual difference was arm TIMING only.  Fresh re-drive (win-0-1000, current pins): both
+    boxes open at TEXT_ANIM_START#1+1, same absolute present, no dialogue under either.  RE §21.26.
+    **User: re-check note #7 in the refreshed win-0-1000 studio window** (win-0-700 notes were against the
+    stale Jun-27 capture).
+  - **#7/#19 modal "double-blend" ROOT FOUND + PORTED 2026-07-02 (RE §21.26) — NOT an RT effect, NOT
+    tool-blocked, NOT the pause block.**  `orv3_rt.py` on the retail capture: 0 SetRenderTarget / 0
+    CopyRects — the RT-composite theory is dead.  Retail draws the skip-prompt block (strip 2781 + prompt
+    glyphs + label, 32 draws) **TWICE** per modal frame.  ret_va probe (runs/probe-skipbox-callers):
+    `FUN_0043537e`+`FUN_00435747` fire ×2/frame from ret 0x40b0df (**FUN_0040a765, the 2D-HUD aggregator's
+    UNGATED tail** — all.c:7046/7498, like its 7499 FUN_00435117) and 0x46c0a8 (the FUN_0046c090 tail);
+    FUN_004820ba (pause) fires ZERO times — the pause-block theory is refuted too.  **PORTED + v3-VERIFIED
+    bit-1:1** (scene1_hud.c 7046/7499 mirror; choice_box.c inline cursor removed → explicit
+    FUN_0043537e+FUN_00435747 pairs at every site; the CS-overlay compensation draw removed): the modal
+    box-UI draw region is **81==81 draws, per-texture draws+prims all equal**; box pixels ≤2 LSB; the
+    frame Δ27 == the pre-existing baseline.  **Remaining: user studio re-confirm #7/#19 on win-0-1000.**
+    NB manga-lines for the cc08==4 scene itself: ALREADY PORTED, unrelated.
+  - **NEW tool lead 2026-07-02: v3 PORT replay hash-verify fails 5/2895 frames** (presents
+    239/542/661/2184/2303, cache 7ea1eab3) — capture replays ≠ live pixels on scattered frames; window
+    built with `--no-verify`.  Investigate the replayer gap before trusting single-frame pixel verdicts
+    at those presents.
   - Pending explicit user re-confirm (minor): the note-#1 sell-counter "!" emote fix (2026-06-20,
     `house-customer-walk-probe`) was never separately re-confirmed.
 - **★★ QUEUED ARC — CUSTOMER INTERACTIONS deep-dive (user directive 2026-06-22).**  Mechanics the user named
