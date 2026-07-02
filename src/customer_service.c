@@ -1333,16 +1333,182 @@ static void cs_sale_commit_stats_fx(int sign)
     audio_play_se_by_id(0x156);                     /* FUN_00499519(0x156) */
 }
 
+/* ── The remaining accept-block helpers (RE §21.31.4 / viewer note #18) ──
+ *
+ * Engine order inside the f404==0 accept block (all.c:62538-62548):
+ *   gold += ask → SE 0x14d → FUN_00460d52(0) → FUN_00460b3a →
+ *   FUN_004606fc → FUN_00460083(b5a4,0) → FUN_00460f59(b5a4) →
+ *   FUN_0046002a(b5a4,&col,&row) → FUN_00460b93.
+ * All but FUN_00460b93 (news suggestion — needs the FUN_00468ddc/
+ * FUN_00468d6b eligibility chain, PORT-DEBT(cs-news-suggest)) are
+ * ported below. */
+
+/* Sale-fanfare EXP popup queue — FUN_004606fc state.  Renderer =
+ * FUN_00485861 → FUN_00406159 (unported; the TOTAL-EXP popup chip).
+ * Entry types: 0 = "just price" bonus, 2 = near-price bonus, 1 = combo
+ * bonus, 3 = TOTAL. */
+#define CS_POPUP_QUEUE_MAX 8
+static int32_t s_popup_type[CS_POPUP_QUEUE_MAX];   /* DAT_0730b194[i] */
+static int32_t s_popup_val[CS_POPUP_QUEUE_MAX];    /* DAT_06a5ea78[i] */
+static int32_t s_popup_disp[5];                    /* DAT_0730b304..314 */
+static int32_t s_b5e8;                             /* DAT_0730b5e8 — news-pair suppress */
+
+/* FUN_00460b3a — per-item best/worst sale price records. */
+static void cs_sale_record_minmax(void)
+{
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    int cslot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+    if (!bankw || cslot < 0) return;
+    int32_t *maxp = (int32_t *)bankw + SAVE_BANK_FIELD_SALE_MAX_BASE
+                    + cslot * SAVE_BANK_SALE_REC_STRIDE;
+    int32_t *minp = (int32_t *)bankw + SAVE_BANK_FIELD_SALE_MIN_BASE
+                    + cslot * SAVE_BANK_SALE_REC_STRIDE;
+    if (*maxp < s_price_ask) *maxp = s_price_ask;
+    if (*minp == 0 || s_price_ask < *minp) *minp = s_price_ask;
+}
+
+/* FUN_004606fc — build the sale EXP popup queue.  b584==1 extends the
+ * combo streak (b5c4), else resets it; FUN_00460672 (haggle_decide)
+ * classifies the accepted price: 1 → 30-exp type-0 entry, 2 → 15-exp
+ * type-2 entry, else base 10 with no bonus entry; combo adds a type-1
+ * entry worth 2^b5c4 capped 0x80; a type-3 TOTAL entry always closes
+ * the queue.  Clears the popup display state (DAT_0730b304..314). */
+static void cs_sale_popup_queue_build(void)
+{
+    s_b5bc = 0;
+    s_b5c0 = 1;
+    if (s_b584 == 1) s_b5c4 += 1;
+    else             s_b5c4 = 0;
+
+    int cls   = haggle_decide(s_price_ask, s_b588);   /* FUN_00460672 */
+    int total;
+    if (cls == 1) {
+        total = 0x1e;
+        s_popup_type[s_b5bc] = 0;
+        s_popup_val[s_b5bc]  = total;
+        s_b5bc += 1;
+    } else if (cls == 2) {
+        total = 0xf;
+        s_popup_type[s_b5bc] = 2;
+        s_popup_val[s_b5bc]  = total;
+        s_b5bc += 1;
+    } else {
+        total = 10;
+    }
+
+    if (s_b5c4 != 0) {
+        int cur = 0;
+        for (int n = s_b5c4; n != 0; n--)
+            cur = (cur != 0) ? cur * 2 : 2;           /* 2^b5c4 */
+        if (cur > 0x80) cur = 0x80;
+        if (cur > 0) {
+            s_popup_type[s_b5bc] = 1;
+            s_popup_val[s_b5bc]  = cur;
+            total += cur;
+            s_b5bc += 1;
+        }
+    }
+
+    s_popup_type[s_b5bc] = 3;
+    s_popup_val[s_b5bc]  = total;
+    s_b5bc += 1;
+
+    for (int i = 0; i < 5; i++) s_popup_disp[i] = 0;
+}
+
+/* FUN_00460083 — append the sold item to bank sold-list `type`; the
+ * count[8]>8 block also queues a news short-pair.  The trailing 20
+ * FUN_005038ff/FUN_00451874 rows write debug text grid 7, which the
+ * retail Steam build never draws — no-op here. */
+static void cs_sold_list_append(int32_t item_handle, int type)
+{
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    if (!bankw || item_handle == -1) return;
+    int32_t *list = (int32_t *)bankw + SAVE_BANK_FIELD_SOLD_LIST
+                    + type * SAVE_BANK_SOLD_LIST_ENTRIES;
+    for (int i = 0; i < SAVE_BANK_SOLD_LIST_ENTRIES; i++) {
+        if (list[i] == -1) {
+            list[i] = item_handle;
+            bankw[SAVE_BANK_FIELD_SOLD_COUNT + type] += 1;
+            break;
+        }
+    }
+    if (type == 0 && s_b5e8 == 0 &&
+        (int32_t)bankw[SAVE_BANK_FIELD_SOLD_COUNT + 8] > 8) {
+        int16_t *pairs = (int16_t *)((uint8_t *)bankw +
+                                     SAVE_BANK_NEWS_PAIRS_BYTE_OFF);
+        for (int i = 0; i < SAVE_BANK_NEWS_PAIRS_COUNT; i++) {
+            if (pairs[i * 2] == 0) {
+                pairs[i * 2]     = (int16_t)(item_handle >> 6);
+                pairs[i * 2 + 1] = 3;
+                break;
+            }
+        }
+    }
+}
+
+/* FUN_00460f59 — encyclopedia "sold" mark: append (catalog_slot, 3) to
+ * the 100-pair list; free slot = first int == 0. */
+static void cs_encyclopedia_sold_mark(void)
+{
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    if (!bankw) return;
+    int32_t cslot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+    int32_t *pairs = (int32_t *)bankw + SAVE_BANK_FIELD_ENCYC_SOLD;
+    for (int i = 0; i < SAVE_BANK_ENCYC_SOLD_PAIRS; i++) {
+        if (pairs[i * 2] == 0) {
+            pairs[i * 2]     = cslot;
+            pairs[i * 2 + 1] = 3;
+            return;
+        }
+    }
+}
+
+/* FUN_0046002a — clear the sold item's display-grid cell (row-major
+ * scan for the id, set -1) and return its (col,row).  This is what
+ * makes the sold item vanish from the display stand (viewer note #18:
+ * retail stops drawing the walnut bread at the commit frame). */
+static void cs_display_grid_clear(int32_t item_handle,
+                                  int32_t *out_col, int32_t *out_row)
+{
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    if (!bankw) return;
+    int32_t *grid = (int32_t *)bankw + SAVE_BANK_FIELD_DISPLAY_GRID;
+    for (int row = 0; row < SAVE_BANK_DISPLAY_GRID_ROWS; row++) {
+        for (int col = 0; col < SAVE_BANK_DISPLAY_GRID_COLS; col++) {
+            if (grid[col + row * SAVE_BANK_DISPLAY_GRID_COLS] == item_handle) {
+                grid[col + row * SAVE_BANK_DISPLAY_GRID_COLS] = -1;
+                *out_col = col;
+                *out_row = row;
+                return;
+            }
+        }
+    }
+}
+
+/* Popup-queue accessors for the renderer chip + host tests. */
+int32_t customer_service_popup_queue_len(void)  { return s_b5bc; }
+int32_t customer_service_popup_queue_active(void) { return s_b5c0; }
+int32_t customer_service_popup_queue_type(int i)
+{
+    return (i >= 0 && i < CS_POPUP_QUEUE_MAX) ? s_popup_type[i] : -1;
+}
+int32_t customer_service_popup_queue_val(int i)
+{
+    return (i >= 0 && i < CS_POPUP_QUEUE_MAX) ? s_popup_val[i] : -1;
+}
+
 /* ── FUN_004658ab — the LIVE kind-2 sell machine (the first real customer) ────
  * Dispatched from the master tick's b5a8==2 arm for b534 ∈ {2,6,0xf,7,8,9}.
  * State graph (RE §3.5): 2 greeting → 6 reaction/price-edit → 0xf decision →
  * 7 accept / 8 pushback / 9 reject → (master tick: 0xa thanks → 0xc close →
  * 0x14/0x15 queue-advance → idle).  Transcribed by-address from 4658ab.c.
- * PORT-DEBT(cs-live-sale-fx): of the accept side-effects only gold + SE 0x14d +
- * FUN_00460d52 (stats + coin shower) are ported; FUN_00460b3a (per-item
- * max/min sale records), FUN_004606fc (combo/popup), FUN_00460083 (stock
- * decrement), FUN_00460f59, FUN_0046002a, FUN_00460b93 (catalog) remain
- * unported.  The details overlay (FUN_004681e6/db/68286) is still inert. */
+ * Accept side-effects: gold + SE 0x14d + FUN_00460d52 (stats + coin shower) +
+ * FUN_00460b3a (per-item max/min sale records) + FUN_004606fc (combo/popup
+ * queue) + FUN_00460083 (sold list + news pairs) + FUN_00460f59 (encyclopedia
+ * sold mark) + FUN_0046002a (display-grid clear) are ported;
+ * PORT-DEBT(cs-news-suggest): FUN_00460b93 (news suggestion) remains.
+ * The details overlay (FUN_004681e6/db/68286) is still inert. */
 static void cs_live_machine(void)
 {
     s_b544 += 1;
@@ -1404,11 +1570,10 @@ static void cs_live_machine(void)
             s_cust_active[1] = 0;
             /* f404==0 → the live-sale commit (engine 4658ab accept block;
              * f404 is 0 on the tutorial walnut-bread sale too — retail runs
-             * this block there, RE §21.31): gold += ask (bank dword 3,
-             * (&DAT_044e37a4)[slot·0xb7f2]), SE 0x14d, FUN_00460d52.
-             * PORT-DEBT(cs-live-sale-fx): FUN_00460b3a/4606fc/00083/00f59/
-             * 0002a/00b93 (price records, combo/popup, stock decrement,
-             * catalog) still unported. */
+             * this block there, RE §21.31).  Engine order all.c:62538-62548.
+             * PORT-DEBT(cs-news-suggest): only FUN_00460b93 (news
+             * suggestion — needs the FUN_00468ddc eligibility chain)
+             * remains unported. */
             {
                 uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
                 int f404 = bankw &&
@@ -1418,6 +1583,16 @@ static void cs_live_machine(void)
                         bankw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
                     audio_play_se_by_id(0x14d);     /* FUN_00499519(0x14d) */
                     cs_sale_commit_stats_fx(0);     /* FUN_00460d52(0) */
+                    cs_sale_record_minmax();        /* FUN_00460b3a */
+                    cs_sale_popup_queue_build();    /* FUN_004606fc */
+                    cs_sold_list_append(s_b5a4, 0); /* FUN_00460083(b5a4,0) */
+                    cs_encyclopedia_sold_mark();    /* FUN_00460f59(b5a4) */
+                    {
+                        int32_t col = 0, row = 0;   /* FUN_0046002a — clears the
+                                                     * display-stand cell (note #18) */
+                        cs_display_grid_clear(s_b5a4, &col, &row);
+                    }
+                    /* FUN_00460b93 — PORT-DEBT(cs-news-suggest) */
                 }
             }
             s_b534 = 10;
@@ -1633,6 +1808,33 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     /* <C>-pause continue (all.c:60318-60324): a <C>-tagged line is fully revealed
      * (b558==1, b55c) and Z pressed → switch the active pointer to the post-<C>
      * tail (b41c) and restart the reveal (b548=0). */
+    /* Sale EXP-popup timeline (engine all.c:60257-60277, runs every master
+     * tick before the leave gate).  b5c0 counts frames from 1; queue entry
+     * i's display counter (DAT_0730b304[i]) advances while b5c0 > i·0x3c
+     * (staggered 60-frame windows); once b5c0 > b5bc·0x3c the queue closes
+     * (b5c0=0) and MERCHANT EXP (bank 0xb0fd, DAT_0450fb8c) += the closing
+     * type-3 TOTAL — the value the merchant-level bar fill animates toward
+     * (viewer note #19).  This clear is also what opens the b520 leave
+     * dissolve gate below (b5c0==0). */
+    {
+        int32_t qlen = s_b5bc;
+        if (s_b5c0 > 0) {
+            s_b5c0 += 1;
+            int32_t t = s_b5c0;
+            for (int i = 0; i < qlen; i++) {
+                if (i * 0x3c < t)
+                    s_popup_disp[i] += 1;
+            }
+            if (qlen * 0x3c < t) {
+                s_b5c0 = 0;
+                uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+                if (bankw && qlen > 0)
+                    bankw[SAVE_BANK_FIELD_MERCHANT_EXP] +=
+                        (uint32_t)s_popup_val[qlen - 1];
+            }
+        }
+    }
+
     if (s_b558 == 1 && s_b55c != 0 && (s_in_pressed & 0x10)) {
         s_b270 = s_line_tail;
         s_b548 = 0;

@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 486,
-  "unported": 1977,
+  "ported": 488,
+  "unported": 1975,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 571,
-  "pct_touched": 22.4,
+  "touched": 573,
+  "pct_touched": 22.5,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -807,8 +807,10 @@
    "size": 185,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x406212",
@@ -4973,7 +4975,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/save_bank.h"
    ]
   },
   {
@@ -5022,7 +5025,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/customer_service.h"
    ]
   },
   {
@@ -5079,7 +5083,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/save_bank.h"
    ]
   },
   {
@@ -5143,7 +5148,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/save_bank.h"
    ]
   },
   {
@@ -5321,7 +5327,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/save_bank.h"
    ]
   },
   {
@@ -5667,8 +5674,10 @@
    "size": 113,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c"
+   ]
   },
   {
    "va": "0x468ddc",
@@ -5678,6 +5687,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c"
    ]
   },
@@ -22696,6 +22706,7 @@
    "status": "ported",
    "src": [
     "src/audio.c",
+    "src/customer_service.c",
     "src/scene1_combat_sm.c",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",

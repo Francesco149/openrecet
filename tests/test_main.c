@@ -446,6 +446,8 @@ struct test_case {
     X(cs_esc_skip_yes_starts_leave) \
     X(cs_leave_resets_freeroam_camera) \
     X(cs_live_machine_sell_cycle) \
+    X(cs_accept_block_bank_side_effects) \
+    X(cs_accept_display_clear_only_matching_cell) \
     X(cs_iv1_7_wrapup_trigger) \
     X(cs_f406_entry_enters_counter) \
     X(cs_f406_pending_is_pure) \

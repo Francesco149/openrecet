@@ -199,4 +199,13 @@ int32_t customer_service_queue_count(void);
 /* The eligible-list head (DAT_06a5d450[0]) — tutorial = 13.  Test hook. */
 int32_t customer_service_eligible(int i);
 
+/* Sale-fanfare EXP popup queue (FUN_004606fc build; types at DAT_0730b194,
+ * values at DAT_06a5ea78, len = b5bc, active = b5c0).  Consumed by the
+ * TOTAL-EXP popup renderer (FUN_00485861 chain) + host tests.  Entry
+ * types: 0 just-price bonus, 2 near-price bonus, 1 combo, 3 TOTAL. */
+int32_t customer_service_popup_queue_len(void);
+int32_t customer_service_popup_queue_active(void);
+int32_t customer_service_popup_queue_type(int i);
+int32_t customer_service_popup_queue_val(int i);
+
 #endif /* OPENRECET_CUSTOMER_SERVICE_H */

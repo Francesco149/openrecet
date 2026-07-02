@@ -3505,3 +3505,26 @@ port-only FROM THE COMMIT FRAME ON — retail stops drawing the sold item's disp
 22vs28 tris, note #19, part of the popup chain), and a NEW pre-existing lead: **tex b494 80tris/1draw
 retail-only EVERY frame** (first draw of frame, VB-based, colorop=4, paints 0 px solo — suspect a
 shape-8/9/10 strip warm-up or an always-on 0-alpha overlay; benign-invisible, unchased).
+
+### 21.31.5 2026-07-02 — accept-block bank helpers PORTED (sold-item display clear + popup queue/timeline + merchant EXP); PORT-DEBT(cs-live-sale-fx) retired → (cs-news-suggest)
+
+**PORTED (engine order all.c:62538-62548):** FUN_00460b3a (per-item max/min sale records, bank
+0x4f52/0x4f53 + slot·0x14), FUN_004606fc (EXP popup queue: b584==1 extends combo b5c4; FUN_00460672
+classifies — 1→type-0 30exp, 2→type-2 15exp, else base 10; combo type-1 2^b5c4 cap 0x80; type-3 TOTAL
+closes; clears DAT_0730b304..314), FUN_00460083 (sold list append — the LIST region = exactly 3 types
+(0x450f6b4→0x450fb64), counts at 0xb0f3+type, count[8] gates the news short-pairs at +0x2dde4),
+FUN_00460f59 (encyclopedia sold mark, (slot,3) pairs at 0x9dae), FUN_0046002a (display-grid clear →
+**the sold walnut bread vanishes from the stand at commit** — note #18; tex cde5 port-only draw GONE
+at +109/+166).  Remaining: FUN_00460b93 news suggestion (needs FUN_00468ddc/468d6b chain) =
+**PORT-DEBT(cs-news-suggest)**.
+
+**The popup TIMELINE (master tick all.c:60257-60277) is REQUIRED, not optional:** b5c0 counts frames;
+entry i's display counter b304[i] advances while b5c0 > i·0x3c; at b5c0 > b5bc·0x3c the queue closes
+(b5c0=0) and **MERCHANT EXP (bank 0xb0fd, DAT_0450fb8c) += the type-3 TOTAL** (the merchant-bar fill
+target, note #19).  Landing FUN_004606fc alone (b5c0=1) STALLED the b520 leave dissolve — its gate
+(all.c:60326) requires b5c0==0 — the first re-drive collapsed to 1945 paired/950 gaps until the
+timeline landed; with it the trace realigned (2887 paired / 0+113, raw rng 1856/1856 bit-exact).
+
+**Still OPEN (render only):** the popup TEXT draw ("TOTAL EXP 10" — FUN_00485861-style OSD via
+FUN_00406159@(412,112) SE 0x174/0x172 + the DAT_00648258 timeline) + the merchant-bar fill/flash
+(tex 3392 22vs28 tris @+109) + SE same-frame dedup + the b494 80-tri invisible lead.

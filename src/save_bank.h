@@ -170,6 +170,44 @@
 #define SAVE_BANK_DISPLAY_GRID_COLS    20
 #define SAVE_BANK_DISPLAY_GRID_CELLS   300
 
+/* ── Sale-commit bank fields (the FUN_004658ab accept-block helpers) ──
+ *
+ * Per-item best/worst sale price records — FUN_00460b3a.  Engine
+ * `&DAT_044e3798 + item_slot·0x50 + 0x13d48` (max) / `+0x13d4c` (min);
+ * item_slot = FUN_004681f6(id).  0x13d48/4 = 0x4f52, stride 0x50/4 = 0x14. */
+#define SAVE_BANK_FIELD_SALE_MAX_BASE  0x4f52
+#define SAVE_BANK_FIELD_SALE_MIN_BASE  0x4f53
+#define SAVE_BANK_SALE_REC_STRIDE      0x14
+
+/* Sold-item lists — FUN_00460083.  Engine `0x450f6b4 + (type·100 + i)·4`
+ * (100 int32 entries per type, free = -1) with counts at `0x450fb64 +
+ * type·4`.  (0x450f6b4-0x44e3798)/4 = 0xafc7; counts at 0xb0f3 + type.
+ * The LIST region spans exactly 3 types (0x450f6b4→0x450fb64 = 300
+ * dwords) — the COUNTS array extends further (the type-8 count at
+ * 0x450fb84 gates the news-pair block; 0x450fb88 = CLOCK_TARGET). */
+#define SAVE_BANK_FIELD_SOLD_LIST      0xafc7
+#define SAVE_BANK_FIELD_SOLD_COUNT     0xb0f3
+#define SAVE_BANK_SOLD_LIST_ENTRIES    100
+
+/* News short-pairs — FUN_00460083's count[8]>8 block.  Engine
+ * `0x451157c`: 0x14 pairs of (int16 item_id, int16 3), free = first==0.
+ * BYTE offset from the bank base (int16 access). */
+#define SAVE_BANK_NEWS_PAIRS_BYTE_OFF  0x2dde4
+#define SAVE_BANK_NEWS_PAIRS_COUNT     0x14
+
+/* Merchant EXP accumulator — engine `DAT_0450fb8c` ((0x450fb8c-
+ * 0x44e3798)/4 = 0xb0fd).  The sale popup timeline (master tick,
+ * all.c:60274-60277) adds the queue's type-3 TOTAL here when the
+ * popup window closes; the merchant-level bar fill animates toward
+ * it. */
+#define SAVE_BANK_FIELD_MERCHANT_EXP   0xb0fd
+
+/* Encyclopedia "sold" marks — FUN_00460f59.  Engine `0x450ae50`:
+ * 100 pairs of (int32 catalog_slot, int32 3), free = first==0.
+ * (0x450ae50-0x44e3798)/4 = 0x9dae. */
+#define SAVE_BANK_FIELD_ENCYC_SOLD     0x9dae
+#define SAVE_BANK_ENCYC_SOLD_PAIRS     100
+
 /* ── Shared header default slider values (engine-init constants) ── */
 
 #define SAVE_HEADER_SE_DEFAULT       9

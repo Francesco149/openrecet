@@ -688,6 +688,151 @@ int test_cs_live_machine_sell_cycle(void)
     return 0;
 }
 
+/* The accept-block bank side-effects (RE §21.31.4, engine all.c:62538-62548):
+ * FUN_00460b3a max/min sale records, FUN_004606fc popup queue, FUN_00460083
+ * sold-list append, FUN_00460f59 encyclopedia mark, FUN_0046002a display-grid
+ * clear (viewer note #18 — the sold item vanishes from the stand at commit). */
+int test_cs_accept_block_bank_side_effects(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;   /* forced sale → live machine */
+    rng_seed(0x1234);
+
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0];
+    kyaku_record_t sv_k13 = g_kyaku.records[13];
+    g_item.count = 1;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    g_item.records[0].item_id = 4008;                /* walnut bread (b5a4 = 0x3ea00) */
+    g_item.records[0].price = 3000;
+    g_kyaku.records[13].initial = 128;               /* offer 3840 ≥ ask 3000 → accept */
+    g_kyaku.records[13].random  = 0;
+
+    /* Seed the bank regions the helpers scan: sold lists = -1 (free),
+     * counts/encyc pairs/sale records = 0, the sold item on display at
+     * (col 5, row 3). */
+    for (int t = 0; t < 3; t++)          /* the LIST region = 3 types exactly */
+        for (int i = 0; i < SAVE_BANK_SOLD_LIST_ENTRIES; i++)
+            ((int32_t *)bank)[SAVE_BANK_FIELD_SOLD_LIST + t * 100 + i] = -1;
+    for (int t = 0; t < 9; t++)
+        bank[SAVE_BANK_FIELD_SOLD_COUNT + t] = 0;
+    for (int i = 0; i < SAVE_BANK_ENCYC_SOLD_PAIRS * 2; i++)
+        bank[SAVE_BANK_FIELD_ENCYC_SOLD + i] = 0;
+    ((int32_t *)bank)[SAVE_BANK_FIELD_SALE_MAX_BASE] = 0;
+    ((int32_t *)bank)[SAVE_BANK_FIELD_SALE_MIN_BASE] = 0;
+    bank[SAVE_BANK_FIELD_GOLD] = 55;
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 5 + 3 * 20] = 0x3ea00u;
+
+    customer_service_session_init();
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+    int accepted = 0;
+    for (int i = 0; i < 900; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0x10, 0x10, 0);
+        if (customer_service_b534() == 10) { accepted = 1; break; }
+    }
+
+    g_item.count = sv_cnt;
+    g_item.records[0] = sv_r0;
+    g_kyaku.records[13] = sv_k13;
+
+    T_ASSERT(accepted);
+    /* gold += ask (3000). */
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_GOLD], 55 + 3000);
+    /* FUN_0046002a: the display cell is cleared. */
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_DISPLAY_GRID + 5 + 3 * 20], -1);
+    /* FUN_00460083: sold list 0 gained the handle; count[0] == 1. */
+    T_ASSERT_EQ_I(((int32_t *)bank)[SAVE_BANK_FIELD_SOLD_LIST], 0x3ea00);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_SOLD_COUNT], 1);
+    /* FUN_00460f59: encyclopedia pair (catalog slot 0, 3). */
+    T_ASSERT_EQ_I(((int32_t *)bank)[SAVE_BANK_FIELD_ENCYC_SOLD], 0);
+    T_ASSERT_EQ_I(((int32_t *)bank)[SAVE_BANK_FIELD_ENCYC_SOLD + 1], 3);
+    /* FUN_00460b3a: max == min == ask (first sale of the item). */
+    T_ASSERT_EQ_I(((int32_t *)bank)[SAVE_BANK_FIELD_SALE_MAX_BASE], 3000);
+    T_ASSERT_EQ_I(((int32_t *)bank)[SAVE_BANK_FIELD_SALE_MIN_BASE], 3000);
+    /* FUN_004606fc: the queue is active and CLOSES with a type-3 TOTAL
+     * entry whose value ≥ the base 10. */
+    T_ASSERT_EQ_I(customer_service_popup_queue_active(), 1);
+    int qlen, qtotal;
+    {
+        qlen = customer_service_popup_queue_len();
+        T_ASSERT(qlen >= 1 && qlen <= 3);
+        T_ASSERT_EQ_I(customer_service_popup_queue_type(qlen - 1), 3);
+        qtotal = customer_service_popup_queue_val(qlen - 1);
+        T_ASSERT(qtotal >= 10);
+    }
+
+    /* The popup timeline (master tick, all.c:60257-60277): b5c0 counts to
+     * b5bc·0x3c then closes the window, adding the TOTAL to MERCHANT EXP.
+     * Without the close the b520 leave gate would stall (the drive-loop
+     * regression that surfaced this block). */
+    {
+        uint32_t exp_before = bank[SAVE_BANK_FIELD_MERCHANT_EXP];
+        for (int i = 0; i < qlen * 0x3c + 8; i++) {
+            if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+            customer_service_master_tick(0, 0, 0);
+        }
+        T_ASSERT_EQ_I(customer_service_popup_queue_active(), 0);
+        T_ASSERT_EQ_I((int)(bank[SAVE_BANK_FIELD_MERCHANT_EXP] - exp_before),
+                      qtotal);
+    }
+    return 0;
+}
+
+/* FUN_0046002a leaves foreign cells alone: only the sold item's cell clears. */
+int test_cs_accept_display_clear_only_matching_cell(void)
+{
+    /* pure-helper check via a second full drive isn't needed — assert the
+     * neighbouring seeded cell survives the drive above's logic by seeding
+     * two cells and checking only the sold one clears. */
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 1;
+    rng_seed(0x1234);
+
+    int32_t      sv_cnt = g_item.count;
+    item_record_t sv_r0 = g_item.records[0];
+    kyaku_record_t sv_k13 = g_kyaku.records[13];
+    g_item.count = 1;
+    memset(&g_item.records[0], 0, sizeof g_item.records[0]);
+    g_item.records[0].item_id = 4008;
+    g_item.records[0].price = 3000;
+    g_kyaku.records[13].initial = 128;
+    g_kyaku.records[13].random  = 0;
+
+    for (int t = 0; t < 3; t++)
+        for (int i = 0; i < SAVE_BANK_SOLD_LIST_ENTRIES; i++)
+            ((int32_t *)bank)[SAVE_BANK_FIELD_SOLD_LIST + t * 100 + i] = -1;
+    for (int t = 0; t < 9; t++)
+        bank[SAVE_BANK_FIELD_SOLD_COUNT + t] = 0;
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 2] = 0x1234u << 6;   /* a different item */
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 7 + 4 * 20] = 0x3ea00u;
+
+    customer_service_session_init();
+    for (int i = 0; i < 200; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0, 0, 0);
+    }
+    for (int i = 0; i < 900; i++) {
+        if (customer_service_b1cc() == 2) customer_service_notify_loaded();
+        customer_service_master_tick(0x10, 0x10, 0);
+        if (customer_service_b534() == 10) break;
+    }
+
+    g_item.count = sv_cnt;
+    g_item.records[0] = sv_r0;
+    g_kyaku.records[13] = sv_k13;
+
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_DISPLAY_GRID + 7 + 4 * 20], -1);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_DISPLAY_GRID + 2],
+                  (int)(0x1234u << 6));
+    return 0;
+}
+
 /* P2 — the post-tutorial wrap-up dialogue iv1_7 ("And that is, essentially, how it
  * goes…").  scene1_tutorial_dispatch_tick mirrors FUN_0044bd0d all.c:45715: fire
  * start_single(1,7) iff no dialogue is busy AND f401(0x2bc69)==0 AND f400(0x2bc68)==1,
