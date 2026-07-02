@@ -70,17 +70,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   start_single load bracket (⇒ LOADING_START emits; the day2 trace's `{wait: LOADING_START}` releases).
   PORT-DEBT(blackout-tut-dispatch) still unwired on the iv2 entries; PORT-DEBT(tut-dispatch-iv2-fx) =
   iv2_5's FUN_004852fb + b928/b924 arm.
-  **VERIFIED (drive-3 2026-07-02, RE §21.31.2):** burst 261@commit+1 == retail 261@14847; the sale segment
-  raw-rng BIT-EXACT 141f (commit + whole shower + money-roll); 94/94 anchors, day-end cadence frame-exact;
-  post-load segments at the known +1 seam.  **OPEN — the "sale fanfare" arc (needs HUMAN VERIFY in the
-  viewer next session; window 0:3000 re-driven with --state):** (1) RENDER: the 69 shower particles spawn
-  rng-exact but DRAW NOTHING (retail: coins + glow ring; tpl 170-176 tex 20-30 shape 0 layer 0 MODE 1 —
-  sparkle tex 19 mode 0 draws fine; probe = v3 draw-program diff at the burst frame); (2) the Table-B
-  coin-LANDING branch (kill + FUN_0040656e 4-frame shake pulse + SE 0x29d per landing coin) + the
-  FUN_00406584 jitter arm (4 rng/frame while DAT_00648280>0) = the +141 rng residual (port 1986/retail
-  14898); (3) the TOTAL-EXP popup (FUN_004606fc → FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172)
-  — retail shows "TOTAL EXP 10", port nothing.  Also queued: gold count-up HUD verified rolling (money-roll
-  wired in sim.c INGAME).
+  **✅ VERIFIED (drive 074133Z, RE §21.31.2/.3):** burst 261@commit+1 == retail; **the whole SALE SEGMENT
+  (PAUSE_CLOSE#3, 428f: commit → burst → money-roll → coin flight → 24/24 landings+shake) raw-rng 428/428
+  BIT-EXACT**; landing SEs start at retail's aligned frame (1985==14897); gold count-up frame-exact
+  (129==129); 94/94 anchors, day-end cadence frame-exact; day-end segments at the known +1 load seam.
+  Landed en route: shape_mode=PARAM8 mistranscription fix (asm [esi+0x10]), template sets 1-3 load
+  (TEMPLATE_COUNT 400), money-roll in INGAME, shake pulse+jitter (FUN_0040656e/406584), and **gotcha #19**
+  (GCC x87 -O2 excess precision breaks MSVC float-equality — the PFO.4 terminal gate; bit-pattern compare).
+  **OPEN — the sale-fanfare residue (needs HUMAN VERIFY in the viewer; win-0-3000 re-driven --state):**
+  (1) RENDER: the coins/glow spawn+land rng-exact but DRAW NOTHING (retail draws ~30 extra overlay quads at
+  the burst frame; tpl 170-176 tex 20-30 shape 0 layer 0 MODE 1; the tex-19 mode-0 sparkle draws fine —
+  chase via the viewer draw-program panel / pixel-pick); (2) the TOTAL-EXP popup chain (FUN_004606fc →
+  FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172) — retail shows "TOTAL EXP 10", port nothing;
+  (3) retail audio dedups same-frame SE repeats (15 se_069 lines vs port 24, same window) — port SE-play
+  dedup not modeled (cosmetic, jitter rng bit-exact anyway).
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,
   NOT yet code-tagged): the proper iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28
   transition → iv1_16 fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit

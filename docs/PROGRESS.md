@@ -37,7 +37,16 @@ Both FRONT day-end leads resolved in one arc (RE §21.31/§21.31.1):
 - **VERIFIED (drive-3):** burst **261@commit+1 == retail 261@14847**; sale-segment raw rng **bit-exact
   141 frames** (commit + whole shower spawn + money-roll count-up); post-load day-end segments at the
   known +1 seam (s37 shift+1 → 120/121).
-- **OPEN — the "sale fanfare" arc (RE §21.31.2):** (1) RENDER: the 69 particles spawn rng-exact but draw
+- **✅ FANFARE PHYSICS CLOSED (drive 074133Z, RE §21.31.3):** two more port bugs fixed — the Table-A tick
+  passed slot MODE instead of PARAM8 as shape_mode (asm `[esi+0x10]`; coins never got their SHAPE_MODE=4
+  aim/landing physics), and the PFO.4 terminal gate `factor == 1.2f` NEVER passed under GCC x87 -O2 excess
+  precision (**gotcha #19**: MSVC fstp-spills to float32 before the fcomp; port the equality as a
+  bit-pattern compare; SSE host tests hid it — smoke FP-compare chips with `-mfpmath=387 -O2`).  Plus the
+  FUN_0040656e landing pulse (kill default: shake timer=4 + SE 0x29d) and the FUN_00406584 shake-jitter arm
+  (4 LCG draws/frame) in scene1_top_hud + sim.c.  VERDICT: 24/24 coins land (SEs 1985-2012, start ==
+  retail's aligned 14897), gold count-up frame-exact, and the whole 428-frame sale segment is raw-rng
+  **428/428 BIT-EXACT** vs retail.
+- **OPEN — the "sale fanfare" arc residue (RE §21.31.2/.3):** (1) RENDER: the 69 particles spawn rng-exact but draw
   NOTHING (tpl 170-176, tex 20-30, shape 0, layer 0, MODE 1 projected; the tex-19 mode-0 sparkle draws
   fine) — v3 draw-program diff at the burst frame is the probe; (2) the Table-B coin-LANDING branch
   (slot kill + FUN_0040656e 4f-shake pulse + SE 0x29d per landing coin, all.c:12732) + FUN_00406584's

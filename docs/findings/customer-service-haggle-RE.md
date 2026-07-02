@@ -3456,3 +3456,18 @@ sm=4, u48 set, staggered ages) — yet NO 0x29d SEs and no 4-draw jitter run in 
 The terminal kills don't fire in the live loop despite identical state + host-verified physics.  Memsnap
 @seg+130/+175 probe in flight; suspects: a mid-flight slot kill/clobber by another live system between +95
 and +140 (records reset? spawn reuse?), or a tick-ordering/loop-gating difference vs the host harness.
+
+**§21.31.3 RESOLVED (drive 074133Z):** two port bugs — the PARAM8 mistranscription (above) AND the PFO.4
+terminal gate `factor == 1.2f` never passing under GCC x87 -O2 excess precision (the clamp's assignment
+keeps 80-bit through the compare; MSVC fstp-spills to float32 first — **gotcha #19**, bit-pattern-compare
+fix, reproduced+verified with an `-mfpmath=387 -O2` host probe: 0/8 kills before, 8/8 after).  VERDICT:
+**24/24 coins land** (SE 0x29d frames 1985-2012; start frame == retail's aligned 14897), gold count-up
+matches frame-exact (129==129), and the SALE SEGMENT (PAUSE_CLOSE#3, 428 frames: commit → burst → roll →
+coin flight → landings → shake jitter) is **raw-rng 428/428 BIT-EXACT** vs the retail capture.  Whole-trace
+per-segment sweep: remaining diffs = the wrap-up-dialogue segments' mid-segment blink re-seeds (script
+alignment artifact, pre-existing confirmed-1:1 territory) + the two known 1-frame load seams.  NB retail's
+audio shows 15 se_069 lines vs the port's 24 — same window, retail dedups same-frame repeats of one SE
+(presentation-only; the jitter rng aligning bit-exact proves the landing TIMELINE matches).
+**Still OPEN on this arc:** the shower RENDER (task: retail draws ~30 extra overlay quads at the burst
+frame — coins/glow invisible on the port) + the TOTAL-EXP popup chain (FUN_004606fc → FUN_00485861 →
+FUN_00406159).
