@@ -379,3 +379,19 @@
   confirm, sub-LSB on the skip confirm; pending its own user re-confirm.
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
+
+**2026-07-02 — ★★★ the ANIM SEED-ORIGIN arc (notes #20/#21/#22) USER-CONFIRMED "basically fully 1:1"
+  (`6f0993b`+`2537904`+`2038905`, RE §21.28/§21.28.1, house-firstcust-arrprobe win-0-1500).**  Five tick-cadence
+  roots, all probe-proven + fixed: (1) the conv-pose latch-release ignored FUN_0048407f's `cc08 != 4` gate ⇒
+  reseeded Tear's wing cycle 25f early at the f406 entry; (2) cc08==4 orders anim-SET before ONE frame-tail tick
+  (transition frames end counter=1 — free-roam cc08==1 is the OPPOSITE order, its §81 skip rule stays); (3) the
+  cc08 1→4 ENTRY frame ticks nothing (`goto LAB_004893ff` past FUN_004897c6); (4) the cs-walker set-anim
+  (FUN_00482a51 ×3, Ghidra-dropped args, objdump-truthed walk=1/dwell=0) was NEVER PORTED — the browsing chibi
+  SLID in the idle pose (notes #20/#22 were never a phase slip); (5) the cs-LEAVE frame (631, cc08 4→1) ran the
+  free-roam companion law ⇒ +20 pose-era offset (new `left_4_this_frame` marker, frame-top-cleared in
+  scene1_ingame_tick).  v3-verified vs fresh retail: **cframe/ccnt/ctimer/canim `✓ aligned` across the WHOLE
+  [224,1722] window** (930 divergent cframe frames → 0), n0* customer anim aligned, **raw rng bit-exact
+  225→1722**, all 3 note crops diff BLACK, 3381 host pass.  **USER 2026-07-02: "the trace is basically fully 1:1."**
+  Remaining residuals (SEPARATE, small): (a) "recette phase at the very start" = the player pframe/pcnt
+  window-start load region (@224, ~45f); (b) a tiny diff on the VASE SHADOW on the counter (object-shadow bug lead,
+  to investigate next).

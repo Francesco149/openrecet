@@ -31,22 +31,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
-- **★★★ ACTIVE — first-customer trace (`house-firstcust-arrprobe`, win-0-1500): the ANIM SEED-ORIGIN PHASE class —
-  CRACKED 2026-07-02 (RE §21.28, commits `6f0993b`+`2537904`); PENDING USER STUDIO CONFIRM notes #20/#21/#22.**
-  Four probe-proven roots (new `ccnt`/`ctimer`/`n0anim/n0frm/n0cnt` fields): (1) the conv-pose latch-release
-  ignored FUN_0048407f's `cc08 != 4` gate ⇒ reseeded Tear's wing cycle 25f early at the f406 entry (the 898-frame
-  solid regime); (2) cc08==4 orders anim-SET before ONE unconditional frame-tail tick (transition frames end
-  counter=1 — free-roam cc08==1 is the OPPOSITE, the §81 skip rule stays there); (3) the cc08 1→4 ENTRY frame
-  ticks NOTHING (engine `goto LAB_004893ff` past FUN_004897c6); (4) the cs-walker set-anim (FUN_00482a51 ×3,
-  Ghidra-dropped args) was never ported — the chibi SLID in idle pose while retail walks.  **VERIFIED vs fresh
-  retail: cframe 930→26 divergent frames, canim/panim/n0* fully aligned [224,1722], rng bit-exact 225→1722.**
-  **(a) RESOLVED 2026-07-02 (`2038905`, RE §21.28.1):** the +20 = the cs-LEAVE frame (631) ran the free-roam
-  companion law (walk-anim reset) where retail's cc08==4-arm frame is tick-only ⇒ new `left_4_this_frame`
-  marker (frame-top-cleared in scene1_ingame_tick — NOT the player tick, which skips event frames).
-  **cframe/ccnt/ctimer/canim now `✓ aligned` across the WHOLE [224,1722] window; rng bit-exact 225→1722.**
-  **REMAINING chips:** (b) player pframe/pcnt window-start load region (@224, 45f); (c) companion coct/cx
-  tutorial-cs blips (@389, 48/33f); (d) probe-only init leftovers ask/base/b5b0 (retail 1000/1 vs port 0
-  pre-cs).
+- **✅✅✅ 2026-07-02 — the ANIM SEED-ORIGIN arc CLOSED + USER-CONFIRMED "the trace is basically fully 1:1"**
+  (`house-firstcust-arrprobe` win-0-1500; commits `6f0993b`+`2537904`+`2038905`, RE §21.28/§21.28.1, ledger).
+  Five tick-cadence roots — conv-pose `cc08!=4` release gate · cc08==4 set-then-tick · entry-frame no-tick ·
+  the never-ported cs-walker set-anim (chibi slid in idle = notes #20/#22) · the cs-leave tick-only frame (+20
+  pose-era = note #21).  cframe/ccnt/ctimer/canim `✓ aligned` WHOLE [224,1722], n0* aligned, rng bit-exact
+  225→1722, all 3 note crops diff BLACK.  **REMAINING RESIDUALS (user 2026-07-02, small, NEXT):**
+  - **(A) "recette phase at the very start"** = the player `pframe/pcnt` window-start load region (@224, ~45f).
+    Recette's anim cycle phase at the load-in; realigns ~frame 270.  Same tick-cadence class, initial-load era.
+  - **(B) the VASE SHADOW on the counter — a tiny diff (user: "could be a subtle bug with the object shadows").**
+    LEAD: the object/display shadow pass (`scene1_chr_shadow.c` / the display-stand shadow render).  NOT yet
+    probed.  Investigate after `/clear`.
+  - (C, lower) companion `coct/cx` tutorial-cs facing blips (@389, 48/33f — facing write-order, scoped in task
+    #5); probe-only init leftovers `ask/base/b5b0` (retail 1000/1 vs port 0 pre-cs, cosmetic).
 - **✅ 2026-07-02 — `house-firstcust-cutscene-day2` carries the FULL pin set** ({csloadpin:24} +
   {primaryloadpin:16} + {tutloadpin:8} + {bgnpcseed}; same savefile ⇒ same naturals; both sides auto-skip its
   own `{bgnpcpin}` inject per §21.25).  **VERIFIED `--target both`: raw rng bit-exact frames 225→1934 = the

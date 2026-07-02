@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — anim seed-origin arc USER-CONFIRMED "basically fully 1:1"; +chip (a) leave-frame fix (RE §21.28.1)
+
+Closed the last two roots on house-firstcust-arrprobe: root 5 (the cs-LEAVE frame @631 ran the free-roam
+companion law instead of retail's tick-only cc08==4 arm = the +20 pose-era wing-cycle offset; new
+left_4_this_frame marker cleared frame-top in scene1_ingame_tick so it lives exactly one frame in BOTH arms —
+the first attempt cleared it in the player tick, which skips event frames, and it latched through the whole
+632-824 dialogue era freezing the spring; the verify drive caught it).  Whole-window result:
+cframe/ccnt/ctimer/canim ✓ aligned [224,1722] (930 divergent cframe → 0), customer n0* aligned, raw rng
+bit-exact 225→1722, all 3 viewer note crops diff BLACK.  USER: "the trace is basically fully 1:1."  Commits
+2038905 + ae44071.  Remaining residuals (small, next): (A) recette phase at the very start = player pframe/pcnt
+window-start load region (@224); (B) a tiny vase-shadow diff on the counter (object-shadow bug lead, to probe
+after /clear).
+
 ## 2026-07-02 — the ★★★ anim seed-origin arc CRACKED: 4 tick-cadence roots fixed, notes #20/#21/#22 (RE §21.28)
 
 The FRONT "chr_anim seed ORIGIN" diagnosis resolved into four probe-proven roots (new declarative probe
