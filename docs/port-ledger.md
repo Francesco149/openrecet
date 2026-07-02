@@ -591,7 +591,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+10) |
 | 0x503c2b | FUN_00503c2b | 77 | ✓ | scene1_dialogue.c |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_dialogue.c, scene1_overlay_table.c, tables_item.c |
-| 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_overlay.h, scene1_overlay_helpers.c, scene1_records_b_spawn.c (+1) |
 | 0x503de4 | FUN_00503de4 | 344 | ✓ | storage.c |
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |

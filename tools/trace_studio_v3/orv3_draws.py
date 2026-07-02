@@ -259,6 +259,168 @@ def _vcount(prim_type: int, prim_count: int) -> int:
     return prim_count
 
 
+def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
+    """Decode a UP draw's inline vertex payload + the transforms in effect at it.
+
+    Rewalks the frame's call section (same record grammar as enumerate_draws),
+    tracking SetTransform VIEW/PROJ/WORLD, and at draw `draw_index` (must be a
+    DrawPrimitiveUP / DrawIndexedPrimitiveUP) decodes the vertices by FVF and —
+    for untransformed FVFs — projects each through WORLD·VIEW·PROJ to a viewport
+    screen position, so "the draw is issued but paints nothing" resolves to WHERE
+    the quad actually lands (offscreen / degenerate / behind the camera)."""
+    if not (0 <= frame_index < c.n_frames):
+        raise IndexError(f"frame {frame_index} out of range (0..{c.n_frames})")
+    f = c.frames[frame_index]
+    d = c.data
+    p, end = f.byte_start, f.byte_end
+
+    def u(off: int) -> int:
+        return struct.unpack_from("<I", d, off)[0]
+
+    xf: dict[int, tuple] = {}       # SetTransform state -> 16 floats (row-major)
+    cur_fvf = 0
+    ndraw = 0
+
+    def mat(state: int):
+        return xf.get(state)
+
+    def decode(stride: int, verts: bytes, fvf: int) -> dict:
+        n = len(verts) // stride if stride else 0
+        has_rhw = bool(fvf & 0x4)
+        pos_n = 4 if has_rhw else 3
+        out_verts = []
+        for i in range(n):
+            off = i * stride
+            pos = struct.unpack_from(f"<{pos_n}f", verts, off)
+            off2 = off + pos_n * 4
+            diffuse = None
+            if fvf & 0x40:
+                diffuse = struct.unpack_from("<I", verts, off2)[0]
+                off2 += 4
+            if fvf & 0x80:      # SPECULAR
+                off2 += 4
+            uv = None
+            ntex = (fvf >> 8) & 0xF
+            if ntex:
+                uv = struct.unpack_from("<2f", verts, off2)
+            out_verts.append({"pos": [round(v, 4) for v in pos],
+                              "diffuse": f"{diffuse:08x}" if diffuse is not None else None,
+                              "uv": [round(v, 4) for v in uv] if uv else None})
+        res = {"fvf": hex(fvf), "stride": stride, "n_verts": n, "verts": out_verts,
+               "world": mat(256), "view": mat(2), "proj": mat(3)}
+        if not has_rhw and mat(2) is not None and mat(3) is not None:
+            w = mat(256) or (1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0)
+            v, pr = mat(2), mat(3)
+
+            def mul(a, b):
+                return tuple(sum(a[r * 4 + k] * b[k * 4 + col] for k in range(4))
+                             for r in range(4) for col in range(4))
+
+            wvp = mul(mul(w, v), pr)
+            scr = []
+            for vt in out_verts:
+                x, y, z = vt["pos"][:3]
+                cx = x * wvp[0] + y * wvp[4] + z * wvp[8] + wvp[12]
+                cy = x * wvp[1] + y * wvp[5] + z * wvp[9] + wvp[13]
+                cz = x * wvp[2] + y * wvp[6] + z * wvp[10] + wvp[14]
+                cw = x * wvp[3] + y * wvp[7] + z * wvp[11] + wvp[15]
+                if abs(cw) < 1e-9:
+                    scr.append(None)
+                    continue
+                # D3D viewport map (1024x768 assumed — the capture's backbuffer)
+                sx = (cx / cw * 0.5 + 0.5) * 1024
+                sy = (0.5 - cy / cw * 0.5) * 768
+                scr.append({"screen": [round(sx, 1), round(sy, 1)],
+                            "z_ndc": round(cz / cw, 5), "w": round(cw, 4),
+                            "clipped": not (-cw <= cx <= cw and -cw <= cy <= cw and 0 <= cz <= cw)})
+            res["projected"] = scr
+        return res
+
+    while p < end:
+        t = u(p)
+        p += 4
+        if t == orv3.RES_TEX:
+            p += 4
+            levels = u(p); p += 4
+            for _ in range(levels):
+                p += 16
+                dl = u(p); p += 4
+                p += dl
+        elif t in (orv3.RES_VB, orv3.RES_IB):
+            p += 12
+            dl = u(p); p += 4
+            p += dl
+        elif t == orv3.RES_RT_TEX:
+            p += 24
+        elif t == orv3.SetRenderState:
+            p += 8
+        elif t == orv3.SetTextureStageState:
+            p += 12
+        elif t == orv3.SetTransform:
+            st = u(p)
+            xf[st] = struct.unpack_from("<16f", d, p + 4)
+            p += 68
+        elif t == orv3.SetMaterial:
+            p += 68
+        elif t == orv3.SetTexture:
+            p += 8
+        elif t == orv3.SetStreamSource:
+            p += 12
+        elif t == orv3.SetIndices:
+            p += 8
+        elif t == orv3.SetVertexShader:
+            cur_fvf = u(p); p += 4
+        elif t in (orv3.DrawPrimitive, orv3.DrawIndexedPrimitive):
+            if ndraw == draw_index:
+                raise ValueError(f"draw {draw_index} is VB-based ({orv3.OPNAME.get(t)}) — "
+                                 "--verts decodes UP draws only")
+            ndraw += 1
+            p += 12 if t == orv3.DrawPrimitive else 20
+        elif t == orv3.DrawPrimitiveUP:
+            pt = u(p); pc_ = u(p + 4); stride = u(p + 8); p += 12
+            dl = u(p); p += 4
+            if ndraw == draw_index:
+                out = decode(stride, bytes(d[p:p + dl]), cur_fvf)
+                out.update({"op": "DrawPrimitiveUP", "prim_type": pt, "prim_count": pc_})
+                return out
+            ndraw += 1
+            p += dl
+        elif t == orv3.DrawIndexedPrimitiveUP:
+            pt = u(p); pc_ = u(p + 12); p += 20
+            il = u(p); p += 4
+            p += il
+            stride = u(p); p += 4
+            vl = u(p); p += 4
+            if ndraw == draw_index:
+                out = decode(stride, bytes(d[p:p + vl]), cur_fvf)
+                out.update({"op": "DrawIndexedPrimitiveUP", "prim_type": pt, "prim_count": pc_})
+                return out
+            ndraw += 1
+            p += vl
+        elif t == orv3.Clear:
+            cnt = u(p); p += 4
+            p += cnt * 16 + 16
+        elif t == orv3.SetLight:
+            p += 4
+            dl = u(p); p += 4
+            p += dl
+        elif t == orv3.LightEnable:
+            p += 8
+        elif t == orv3.SetRenderTarget:
+            p += 16
+        elif t == orv3.CopyRects:
+            p += 16
+            cnt = u(p); p += 4
+            p += cnt * 24
+        elif t in (orv3.BeginScene, orv3.EndScene):
+            pass
+        elif t == orv3.Present:
+            break
+        else:
+            raise ValueError(f"unexpected op {t} at {p - 4} in frame {frame_index}")
+    raise IndexError(f"draw {draw_index} not found in frame {frame_index} ({ndraw} draws walked)")
+
+
 @dataclass
 class DrawDelta:
     """One aligned slot in the port↔retail draw-list diff."""
@@ -499,9 +661,17 @@ def main() -> int:
                          "triangle totals) — benign split/batch reads BATCHING, so only a "
                          "REAL render-program change shows; skips the swamped per-draw diff")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--verts", type=int, metavar="DRAW",
+                    help="decode UP draw DRAW's inline vertices + transforms in effect "
+                         "(and, for untransformed FVFs, the projected screen footprint) "
+                         "— answers 'the draw is issued but paints nothing: WHERE is it?'")
     args = ap.parse_args()
 
     pc = orv3.Container.load(args.port_container)
+    if args.verts is not None:
+        probe = up_vert_probe(pc, args.port_frame, args.verts)
+        print(json.dumps(probe, indent=1))
+        return 0
     pdraws = enumerate_draws(pc, args.port_frame)
 
     if args.retail_container is None:

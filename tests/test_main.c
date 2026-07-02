@@ -2901,6 +2901,7 @@ struct test_case {
     \
     X(overlay_setup_compute_engine_state_pre_matrix_is_rot_y_quarter) \
     X(overlay_setup_compute_view_matches_lookat_rh) \
+    X(overlay_setup_compute_engine_state_view_matches_retail_capture) \
     X(overlay_setup_compute_proj_uses_engine_constants) \
     X(overlay_setup_compute_singular_collapses_rot_y_to_zero) \
     X(overlay_setup_compute_null_inputs_safe) \

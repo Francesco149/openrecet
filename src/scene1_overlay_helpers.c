@@ -992,8 +992,12 @@ void scene1_overlay_setup_compute(const float eye[3],
     const float kPiOver2 = 1.5707963705062866f;
     const float kPi      = 3.1415927410125732f;
 
-    /* RotationX angle = atan2(0, lookat_z) + π. */
-    float rot_x_angle = atan2f(0.0f, lookat[2]) + kPi;
+    /* RotationX angle = atan2(0, eye_z) + π.  The engine's folded
+     * constant −550 (FUN_00503dd0(0, −550.0)) is the z of DAT_06a47120
+     * — the EYE triplet (§21.31.4 role fix; the lookat DAT_06a475f0 is
+     * the zero vector, so reading lookat_z here would flip the fold to
+     * atan2(0,0) and change the PHC #16-verified pre-matrix). */
+    float rot_x_angle = atan2f(0.0f, eye[2]) + kPi;
 
     /* sqrt of squared horizontal distance — engine hard-codes 302500
      * for its (0,0,-550) state; we recover the formula from the literal
@@ -1006,8 +1010,16 @@ void scene1_overlay_setup_compute(const float eye[3],
     if (hyp == 0.0f) {
         rot_y_angle = 0.0f;
     } else {
-        float dy = lookat[1] - eye[1];
-        rot_y_angle = kPiOver2 - atan2f(dy, hyp);
+        /* Engine local_c = DAT_06a47124 − DAT_06a475f4 = eye.y − at.y,
+         * then FUN_00503dd0(hyp, dy) = atan2(y=hyp, x=dy) — note the
+         * arg order: HYP is the y argument.  Engine state (dy=0,
+         * hyp=550) → atan2(550, 0) = π/2 → rot_y_angle = 0 → the pre
+         * matrix is IDENTITY (capture-proven §21.31.4: retail coin-
+         * shower worlds are pure T×S — the old swapped order produced
+         * RotY(π/2), turning every shape-0/5 HUD overlay quad edge-on
+         * = the invisible-sliver half of the coin-shower bug). */
+        float dy = eye[1] - lookat[1];
+        rot_y_angle = kPiOver2 - atan2f(hyp, dy);
     }
 
     float rot_y[16], rot_x[16];

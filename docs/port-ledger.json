@@ -22859,6 +22859,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_overlay.h",
+    "src/scene1_overlay_helpers.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h"
    ]

@@ -647,11 +647,14 @@ void scene1_overlay_render(struct IDirect3DDevice8 *dev,
 
 /* ---- HUD camera + projection setup (O.11, FUN_00452f58) ------------ */
 /*
- * Engine state (DAT_06a47120 / DAT_06a475f0, 12 B each) — lookat target
- * and eye position for the 2D-overlay HUD camera.  FUN_00452f58 writes
- * the literal triplets (0, 0, -550) and (0, 0, 0) every call, then
- * derives 3 matrices from them.  Exposed here for the rare consumer
- * that wants to inspect the camera pose between renders.
+ * Engine state (DAT_06a47120 / DAT_06a475f0, 12 B each) — EYE position
+ * and LOOKAT target for the 2D-overlay HUD camera.  FUN_00452f58 writes
+ * eye = (0, 0, -550) into DAT_06a47120 and lookat = (0, 0, 0) into
+ * DAT_06a475f0 every call, then derives 3 matrices from them.  The
+ * roles are capture-proven (§21.31.4): retail's HUD VIEW translation
+ * is (0, 0, -550) = lookat_rh(eye=(0,0,-550), at=origin).  Exposed
+ * here for the rare consumer that wants to inspect the camera pose
+ * between renders.
  */
 extern float g_scene1_overlay_camera_lookat[3];
 extern float g_scene1_overlay_camera_eye[3];
@@ -661,10 +664,13 @@ extern float g_scene1_overlay_camera_eye[3];
  * FUN_00452f58.  Computes:
  *
  *   pre_matrix  = mat4_mul(RotationY(π/2 - α), RotationX(2π))
- *                 where α = atan2(lookat_y - eye_y, sqrt(dx²+dz²));
- *                 with the engine's hard-coded (0,0,-550)/(0,0,0) state
- *                 this evaluates to RotationY(π/2) × Identity =
- *                 RotationY(π/2).
+ *                 where α = atan2(hyp, dy), hyp = sqrt(dx²+dz²),
+ *                 dy = eye_y - lookat_y (engine FUN_00503dd0 arg order
+ *                 — hyp is atan2's Y argument, §21.31.4); with the
+ *                 engine's eye=(0,0,-550) / lookat=(0,0,0) state this
+ *                 evaluates to RotY(0) × RotX(2π) = IDENTITY (capture-
+ *                 proven: retail shape-0 HUD overlay worlds are pure
+ *                 T×S).
  *   view        = mat4_lookat_rh(eye, lookat, up=(0,1,0))
  *   proj        = mat4_perspective_fov_rh(π/4, 4/3, near=10, far=20000)
  *

@@ -3471,3 +3471,37 @@ audio shows 15 se_069 lines vs the port's 24 — same window, retail dedups same
 **Still OPEN on this arc:** the shower RENDER (task: retail draws ~30 extra overlay quads at the burst
 frame — coins/glow invisible on the port) + the TOTAL-EXP popup chain (FUN_004606fc → FUN_00485861 →
 FUN_00406159).
+
+### 21.31.4 2026-07-02 — coin-shower RENDER cracked: TWO FUN_00452f58 port bugs (HUD eye/lookat swap + atan2 arg order) — coins now pixel-1:1
+
+**Method (new tool):** `orv3_draws.py --verts N` (UP-draw vertex decode + WORLD/VIEW/PROJ in effect +
+projected screen footprint) — built for this chip; answers "draw issued, paints nothing: WHERE is it".
+
+**False leads eliminated first:** material diff at burst frame showed coins NOT missing — port emits the
+same 41 tex-3288 + 24 tex-183e quads (per-texture tris EQUAL; the pass differs invisibly to material).
+Retail draws 105-112 @1731 = the mode-0 window sparkles (scene camera, FUN_004176ff head dispatch (0,0),
+ZENABLE=1 additive); 113-128 = fanfare UI flashes; the COINS are 129+ — AFTER the FUN_00417504 HUD
+SetTransform (VIEW timeline probe).  Both sides dispatch coins from the SAME shell (mode-1 layer-0).
+
+**Bug 1 — HUD camera eye/lookat SWAPPED.**  DAT_06a47120=(0,0,−550) is the EYE, DAT_06a475f0=(0,0,0)
+the lookat (port had the roles reversed → identity VIEW).  Capture-proven: retail HUD VIEW = rot diag
+(−1,1,−1), translation (0,0,−550) = lookat_rh(eye=(0,0,−550), at=origin).  Effect: mode-1 particles live
+on the z≈−520 plane → retail sees them w≈30 (18-px coins), port w≈520 (sub-pixel dots).
+
+**Bug 2 — pre-matrix atan2 ARG ORDER.**  Engine FUN_00503dd0(hyp, dy) = atan2(y=hyp, x=dy): state
+(550, 0) → π/2 → rot_y_angle = π/2−π/2 = **0** → DAT_0438cdf8 = IDENTITY (not RotY(π/2) — that came from
+the port's atan2(dy, hyp) and turned every shape-0/5 HUD quad EDGE-ON = 0.5-px slivers; the pre-O.11
+identity stand-in had been correct; PHC #16 value-check queue entry can close).  Capture proof: retail
+coin worlds are pure T×S (diag scale, no rotation), port pre-fix had the x/z-swapped RotY(π/2) factor;
+translations/scales bit-identical either way (slot sim state was always perfect).
+DAT_0438cdf8 is the SHARED billboard pre-matrix: scene passes set camera orient (mode-0 sparkle billboards
+by it — its world carries the 56° camera pitch), FUN_00452f58 resets identity for the HUD pass.
+
+**VERDICT after both fixes:** burst frame port 1626 vs retail 1731 pixel diff = coins GONE from the diff
+(coin field pixel-1:1); whole fanfare sweep (+89/+120/+141/+157/+166) coin materials aligned.  Remaining
+at these frames = the known opens: TOTAL-EXP popup chain (§21.31.2 #3), sold-item display quad (tex cde5
+port-only FROM THE COMMIT FRAME ON — retail stops drawing the sold item's display-stand quad at commit;
+= the FUN_00460083 stock-decrement/display-clear debt, viewer note #18), merchant-bar flash (tex 3392
+22vs28 tris, note #19, part of the popup chain), and a NEW pre-existing lead: **tex b494 80tris/1draw
+retail-only EVERY frame** (first draw of frame, VB-based, colorop=4, paints 0 px solo — suspect a
+shape-8/9/10 strip warm-up or an always-on 0-alpha overlay; benign-invisible, unchased).

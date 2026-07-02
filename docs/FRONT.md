@@ -63,11 +63,18 @@
   Landed en route: shape_mode=PARAM8 mistranscription fix (asm [esi+0x10]), template sets 1-3 load
   (TEMPLATE_COUNT 400), money-roll in INGAME, shake pulse+jitter (FUN_0040656e/406584), and **gotcha #19**
   (GCC x87 -O2 excess precision breaks MSVC float-equality — the PFO.4 terminal gate; bit-pattern compare).
-  **OPEN — the sale-fanfare residue (needs HUMAN VERIFY in the viewer; win-0-3000 re-driven --state):**
-  (1) RENDER: the coins/glow spawn+land rng-exact but DRAW NOTHING (retail draws ~30 extra overlay quads at
-  the burst frame; tpl 170-176 tex 20-30 shape 0 layer 0 MODE 1; the tex-19 mode-0 sparkle draws fine —
-  chase via the viewer draw-program panel / pixel-pick); (2) the TOTAL-EXP popup chain (FUN_004606fc →
-  FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172) — retail shows "TOTAL EXP 10", port nothing;
+  **✅ 2026-07-02 — coin-shower RENDER FIXED (RE §21.31.4, needs human viewer confirm):** TWO FUN_00452f58
+  bugs — HUD camera eye/lookat SWAPPED (DAT_06a47120=(0,0,−550) IS the eye; port identity VIEW put the
+  z≈−520 particle plane 520 units out = sub-px dots) + pre-matrix atan2 ARG ORDER (FUN_00503dd0(hyp,dy);
+  DAT_0438cdf8 = IDENTITY under HUD state, NOT RotY(π/2) — that turned quads edge-on; PHC #16 can close).
+  Burst frame coins now pixel-1:1 (diff shows only the known opens).  New tool: `orv3_draws.py --verts N`
+  (UP vert decode + transforms + screen footprint).  New minor lead: tex b494 80tris retail-only EVERY
+  frame, first draw, paints 0 px solo (strip warm-up? benign-invisible, unchased).
+  **OPEN — sale-fanfare residue (viewer notes #10-19 read 2026-07-02):**
+  (1) the TOTAL-EXP popup chain (FUN_004606fc → FUN_00485861 → FUN_00406159 @(412,112), SE 0x174/0x172) —
+  retail "TOTAL EXP 10" + merchant-bar XP fill/flash (notes #10/#12/#19, tex 3392 22vs28 tris), port nothing;
+  (2) sold-item display-stand quad: retail STOPS drawing it at the commit frame (tex cde5 port-only from
+  +89 on; note #18) — the FUN_00460083 stock-decrement/display-clear debt;
   (3) retail audio dedups same-frame SE repeats (15 se_069 lines vs port 24, same window) — port SE-play
   dedup not modeled (cosmetic, jitter rng bit-exact anyway).
 - **★ QUEUED — guild LEAVE transition (the user-confirmed next guild target).**  PORT-DEBT(guild-leave-transition,

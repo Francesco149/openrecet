@@ -792,15 +792,25 @@ void scene1_overlay_setup(IDirect3DDevice8 *dev)
 {
     if (!dev) return;
 
-    /* Engine writes (0,0,-550) into DAT_06a47120 (lookat) and (0,0,0)
-     * into DAT_06a475f0 (eye) every call (asm 0x452fca..0x452ffc, six
-     * fldz/fstp + the fld 0x519d58 → fstp DAT_06a47128 for -550). */
-    g_scene1_overlay_camera_lookat[0] = 0.0f;
-    g_scene1_overlay_camera_lookat[1] = 0.0f;
-    g_scene1_overlay_camera_lookat[2] = -550.0f;
+    /* Engine writes (0,0,-550) into DAT_06a47120 and (0,0,0) into
+     * DAT_06a475f0 every call (asm 0x452fca..0x452ffc, six fldz/fstp +
+     * the fld 0x519d58 → fstp DAT_06a47128 for -550).
+     *
+     * DAT_06a47120 is the EYE, DAT_06a475f0 the LOOKAT — the reverse of
+     * this port's original reading.  Capture-proven (day2 coin-shower,
+     * RE §21.31.4): retail's HUD VIEW is rotation diag (-1,1,-1) with
+     * translation (0,0,-550) = lookat_rh(eye=(0,0,-550), at=origin);
+     * the swapped build gives the identity view, which parked every
+     * MODE-1 overlay particle (the z≈-520 plane) 520 units from the
+     * camera instead of 30 — the sale coin shower rendered as 1-px
+     * dots.  pre_matrix is swap-invariant (dy=0, hyp is a length), so
+     * the PHC #16 pre-matrix verification is unaffected. */
     g_scene1_overlay_camera_eye[0]    = 0.0f;
     g_scene1_overlay_camera_eye[1]    = 0.0f;
-    g_scene1_overlay_camera_eye[2]    = 0.0f;
+    g_scene1_overlay_camera_eye[2]    = -550.0f;
+    g_scene1_overlay_camera_lookat[0] = 0.0f;
+    g_scene1_overlay_camera_lookat[1] = 0.0f;
+    g_scene1_overlay_camera_lookat[2] = 0.0f;
 
     float view[16], proj[16], pre_matrix[16];
     scene1_overlay_setup_compute(g_scene1_overlay_camera_eye,
@@ -809,10 +819,14 @@ void scene1_overlay_setup(IDirect3DDevice8 *dev)
 
     /* Publish the pre-matrix to wf_pass_c — engine writes the same
      * matrix to DAT_0438cdf8 via mat4_mul at 0x4530b8 (PHC #16
-     * resolution: this function is the writer.  Pre-O.11 our stand-in
-     * was identity; under the engine's hard-coded (0,0,-550)/(0,0,0)
-     * state the produced matrix is RotationY(π/2) — a 90° turn around
-     * the Y axis). */
+     * resolution: this function is the writer).  Under the engine's
+     * hard-coded state the matrix is IDENTITY (§21.31.4 — the earlier
+     * RotY(π/2) reading came from swapped atan2 args; the pre-O.11
+     * identity stand-in had been correct).  DAT_0438cdf8 is a SHARED
+     * "current pre/billboard matrix": the scene-camera passes set it
+     * to the camera orientation (scene1_wide_followup.c:632) so
+     * mode-0 scene particles billboard; this HUD writer resets it to
+     * identity for the mode-1 dispatch. */
     wf_pass_c_set_pre_matrix(pre_matrix);
 
     /* FUN_0049065b call site (asm 0x4530bd) — copies two matrices from

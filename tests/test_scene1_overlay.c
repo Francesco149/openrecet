@@ -1895,35 +1895,36 @@ static int approx_eq(float a, float b, float eps)
 
 int test_overlay_setup_compute_engine_state_pre_matrix_is_rot_y_quarter(void)
 {
-    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
-    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    /* §21.31.4 role fix: DAT_06a47120 = (0,0,-550) is the EYE,
+     * DAT_06a475f0 = (0,0,0) the lookat (capture-proven — retail HUD
+     * VIEW translation is (0,0,-550)). */
+    const float eye[3]    = { 0.0f, 0.0f, -550.0f };
+    const float lookat[3] = { 0.0f, 0.0f,    0.0f };
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
-    /* Engine state → atan2(0, -550) + π = 2π → RotX(2π) = identity.
-     * dy = 0, hyp = 550 → atan2(0, 550) = 0 → RotY(π/2 - 0) = RotY(π/2).
-     * mat4_mul(out, Y, X) = Y × I = RotationY(π/2).
-     *
-     * Row-major RotY(π/2) — cells that must hold to 1e-5:
-     *   [0][0] =  cos(π/2) ≈ 0
-     *   [0][2] = -sin(π/2) ≈ -1
-     *   [2][0] =  sin(π/2) ≈ 1
-     *   [2][2] =  cos(π/2) ≈ 0
-     *   [1][1] = 1; [3][3] = 1; rest 0
+    /* Engine state → atan2(0, eye_z=-550) + π = 2π → RotX(2π) = identity.
+     * dy = 0, hyp = 550 → atan2(hyp=550, dy=0) = π/2 (engine
+     * FUN_00503dd0 arg order: hyp is atan2's y) → RotY(π/2 - π/2) =
+     * RotY(0) = identity.  mat4_mul(out, Y, X) = I × I = IDENTITY —
+     * capture-proven (§21.31.4): retail's shape-0 coin worlds are pure
+     * T×S, no rotation.  (The pre-fix expectation here was RotY(π/2),
+     * from the swapped atan2(dy, hyp) — that matrix turned every
+     * shape-0/5 HUD overlay quad edge-on.)
      */
-    T_ASSERT(approx_eq(pre[0],   0.0f, 1e-5f));
-    T_ASSERT(approx_eq(pre[2],  -1.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[0],   1.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[2],   0.0f, 1e-5f));
     T_ASSERT(approx_eq(pre[5],   1.0f, 1e-5f));
-    T_ASSERT(approx_eq(pre[8],   1.0f, 1e-5f));
-    T_ASSERT(approx_eq(pre[10],  0.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[8],   0.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[10],  1.0f, 1e-5f));
     T_ASSERT(approx_eq(pre[15],  1.0f, 1e-5f));
     return 0;
 }
 
 int test_overlay_setup_compute_view_matches_lookat_rh(void)
 {
-    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
-    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    const float eye[3]    = { 0.0f, 0.0f, -550.0f };
+    const float lookat[3] = { 0.0f, 0.0f,    0.0f };
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
@@ -1936,10 +1937,35 @@ int test_overlay_setup_compute_view_matches_lookat_rh(void)
     return 0;
 }
 
+int test_overlay_setup_compute_engine_state_view_matches_retail_capture(void)
+{
+    /* The engine-state HUD VIEW, pinned to the retail-captured matrix
+     * (day2 trace, frame PAUSE_CLOSE#3+109, coin draw 130 — orv3_draws
+     * --verts): rotation diag (-1, 1, -1), translation (0, 0, -550).
+     * This is what makes MODE-1 overlay particles (z≈-520 plane) sit
+     * ~30 units in front of the camera; the pre-fix identity view put
+     * them 520 units out (the invisible coin shower, §21.31.4). */
+    const float eye[3]    = { 0.0f, 0.0f, -550.0f };
+    const float lookat[3] = { 0.0f, 0.0f,    0.0f };
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    const float want[16] = {
+        -1.0f, 0.0f,  0.0f, 0.0f,
+         0.0f, 1.0f,  0.0f, 0.0f,
+         0.0f, 0.0f, -1.0f, 0.0f,
+         0.0f, 0.0f, -550.0f, 1.0f,
+    };
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(approx_eq(view[i], want[i], 1e-4f));
+    }
+    return 0;
+}
+
 int test_overlay_setup_compute_proj_uses_engine_constants(void)
 {
-    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
-    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    const float eye[3]    = { 0.0f, 0.0f, -550.0f };
+    const float lookat[3] = { 0.0f, 0.0f,    0.0f };
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
@@ -1967,8 +1993,8 @@ int test_overlay_setup_compute_singular_collapses_rot_y_to_zero(void)
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
-    /* hyp = sqrt(0 + 1) = 1.  So rot_y_angle = π/2 - atan2(-4, 1).
-     * atan2(-4, 1) ≈ -1.3258 rad → rot_y ≈ 2.8966 rad.  This is the
+    /* hyp = sqrt(0 + 1) = 1.  dy = eye.y - at.y = +4 (§21.31.4 role
+     * fix), so rot_y_angle = π/2 - atan2(4, 1).  This is the
      * non-singular path — only here to exercise non-zero dy.  Skip
      * pre-matrix exact assertions and just sanity-check det != 0. */
     float det_ish = pre[0]*pre[5] - pre[1]*pre[4];   /* upper-2x2 det */
@@ -1996,8 +2022,8 @@ int test_overlay_setup_compute_does_not_publish_pre_matrix(void)
     };
     wf_pass_c_set_pre_matrix(marker);
 
-    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
-    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    const float eye[3]    = { 0.0f, 0.0f, -550.0f };
+    const float lookat[3] = { 0.0f, 0.0f,    0.0f };
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
