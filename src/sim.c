@@ -467,8 +467,19 @@ void sim_step_a(void)
          * skip-event choice box opens its hand cursor's bob phase is already
          * accumulated; without this the port's bob would be frozen at the
          * stale title-scene value (a visible cursor-position divergence on
-         * the skip prompt). The rest of FUN_00406584 stays unported. */
+         * the skip prompt). */
         title_save_dialog_anim_tick();
+        /* FUN_00406584's money rolling-counter (all.c:4849-4870, AFTER the
+         * FUN_004356cd cursor tick): DAT_0438b918 eases toward the bank gold,
+         * one LCG draw per ROLLING frame — retail burns these on the post-sale
+         * count-up (RE §21.31), so the roll is rng-load-bearing.  No-op (zero
+         * rng) while displayed == bank.  The shake arm (DAT_00648280) + the
+         * combo-timer block of FUN_00406584 stay unported. */
+        {
+            const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+            if (wb)
+                scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
+        }
         break;
 
     /* Cs2 — LAB_00453bed mass dispatch.  The mode-8 per-state callee
