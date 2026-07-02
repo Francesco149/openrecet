@@ -1,0 +1,2237 @@
+# anchor-segmented replay: each recorded anchor is a {wait} sync point; inputs/escs after it are relative to it (turbo/jitter-immune).
+# embedded save: cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78 (override via --save-override on replay; see tools/trace_save.py)
+{"savefile": "../_saves/cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78.sav.gz"}
+{"csloadpin": 24}
+{"primaryloadpin": 16}
+{"tutloadpin": 8}
+{"bgnpcseed": [3502407629, 1, [0,0,0,0,0,4294967295,4,0,0,0,0,3224580915,1067030938,3240624128,0,0,0,0,0,14,0,0,0,0,0]]}
+{"rngseed": [0, 3132701474]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 48, "buttons": "0x0010"}
+{"frame": 52, "buttons": "0x0000"}
+{"wait": "TITLE_PICKER_READY"}
+{"rngseed": [0, 3132701474]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 89, "buttons": "0x0010"}
+{"frame": 93, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 3132701474]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 912526909]}
+{"calltrace": [0, 3000]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0002"}
+{"frame": 57, "buttons": "0x0000"}
+{"frame": 81, "buttons": "0x0010"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 203120053]}
+{"frame": 0, "buttons": "0x0010"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1050055998]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 2, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 1903899179]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 397503157]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 83}
+{"wait": "PAUSE_OPEN", "timeout": 400}
+{"rngseed": [0, 3641515902]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 36, "buttons": "0x0010"}
+{"frame": 41, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 1967822032]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_START"}
+{"rngseed": [0, 1967822032]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1967822032]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 823725382]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1404865958]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1054865860]}
+{"frame": 0, "buttons": "0x0000"}
+{"esc": 25}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1077642437]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 34, "buttons": "0x0010"}
+{"frame": 37, "buttons": "0x0000"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1023921831]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 449161817]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_END"}
+{"rngseed": [0, 807420856]}
+# {gsimpin} REMOVED 2026-07-01 (RE §21.19): port g_sim_frame_count NATURALLY == retail here
+#   (mid-game save-load ⇒ no gsim origin offset; 0/200 gsim%8).  The {gsimpin:[0,810]} was a
+#   stale no-op calibrated for the PRE-§21.18 CONV_POSE_END (= the f406-entry frame, gsim 810);
+#   §21.18 moved CONV_POSE_END +1 ⇒ the pin fired 1f late, forcing gsim 1 BEHIND retail (199/200
+#   gsim%8, the #17 sparkle mis-fire).  Do NOT re-add — #17 is a NO-PIN natural match.
+{"bgnpcpin": [0, [0,0,1084227584,25,2,0,4,0,0,0,0,3224580915,1067030938,3240624128,0,0,0,0,0,14,0,0,0,0,0,2,0,1065353216,1,0,2,6,0,0,0,0,1099477901,0,3244140672,0,0,0,1,0,1,1062572544,0,1097812960,1,28,1,0,1065353216,31,3,1,2,0,0,0,0,1097437146,0,3243121152,0,0,0,4294967295,0,6,1063504384,0,3226524416,0,8,1,0,1082130432,31,3,1,2,0,0,0,0,1085269702,0,3244066432,0,0,0,4294967295,0,7,1065198336,0,1098483200,0,36,1,0,1065353216,10,1,1,6,0,0,0,0,1090245935,0,3241410816,0,0,0,1,0,9,1064309248,0,3234522368,0,3,1,0,1077936128,25,2,1,6,0,0,0,0,3241680009,0,3242167680,0,0,0,1,0,8,1058830848,0,3227422208,1,81]]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 2300378890]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 3504865092]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 3774031838]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 162, "buttons": "0x0010"}
+{"wait": "PAUSE_CLOSE"}
+{"rngseed": [0, 3464877067]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 3, "buttons": "0x0000"}
+{"frame": 119, "buttons": "0x0010"}
+{"frame": 124, "buttons": "0x0000"}
+{"frame": 223, "buttons": "0x0001"}
+{"frame": 227, "buttons": "0x0000"}
+{"frame": 237, "buttons": "0x0004"}
+{"frame": 241, "buttons": "0x0000"}
+{"frame": 253, "buttons": "0x0004"}
+{"frame": 257, "buttons": "0x0000"}
+{"frame": 288, "buttons": "0x0010"}
+{"wait": "PAUSE_OPEN"}
+{"rngseed": [0, 2328884011]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 5, "buttons": "0x0000"}
+{"frame": 49, "buttons": "0x0010"}
+{"frame": 53, "buttons": "0x0000"}
+{"wait": "PAUSE_CLOSE"}
+{"rngseed": [0, 2246047975]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 82, "buttons": "0x0010"}
+{"frame": 86, "buttons": "0x0000"}
+{"frame": 242, "buttons": "0x0001"}
+{"frame": 245, "buttons": "0x0000"}
+{"frame": 254, "buttons": "0x0004"}
+{"frame": 258, "buttons": "0x0000"}
+{"frame": 286, "buttons": "0x0004"}
+{"frame": 290, "buttons": "0x0000"}
+{"frame": 297, "buttons": "0x0004"}
+{"frame": 300, "buttons": "0x0000"}
+{"frame": 307, "buttons": "0x0004"}
+{"frame": 310, "buttons": "0x0000"}
+{"frame": 335, "buttons": "0x0004"}
+{"frame": 338, "buttons": "0x0000"}
+{"frame": 351, "buttons": "0x0010"}
+{"wait": "PAUSE_OPEN"}
+{"rngseed": [0, 2875783614]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"frame": 33, "buttons": "0x0010"}
+{"frame": 38, "buttons": "0x0000"}
+{"wait": "PAUSE_CLOSE"}
+{"memsnap": 85}
+{"memsnap": 95}
+{"rngseed": [0, 3782686743]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 89, "buttons": "0x0010"}
+{"frame": 93, "buttons": "0x0000"}
+{"frame": 209, "buttons": "0x0010"}
+{"frame": 213, "buttons": "0x0000"}
+{"frame": 338, "buttons": "0x0010"}
+{"frame": 343, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 968591134]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_START"}
+{"rngseed": [0, 968591134]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 2219485644]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2867529636]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3839222020]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3847007872]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 343196812]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1213106788]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 657261508]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2269728036]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2162249003]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 845133218]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 60, "buttons": "0x0010"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1971390788]}
+{"frame": 0, "buttons": "0x0010"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2718537730]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 1, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2038520198]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 79904694]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3231238754]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 55, "buttons": "0x0010"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2121517078]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1445285058]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3436859866]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 153226173]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4184368945]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 61, "buttons": "0x0010"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 325731857]}
+{"frame": 0, "buttons": "0x0010"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 325731857]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 1, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3889229753]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3101766897]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 28, "buttons": "0x0010"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4195918198]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1494943355]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2101423148]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1273285142]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1273285142]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1107731062]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 5, "buttons": "0x0010"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1262944546]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 3, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 176260366]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3510291158]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 15, "buttons": "0x0010"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 361890158]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 2, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 363377330]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4145627958]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0010"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2915032422]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 3, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2231686392]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2235173782]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 39, "buttons": "0x0010"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 614479730]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 3, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2869715445]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2869715445]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 30, "buttons": "0x0010"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2199901797]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 3462923471]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1984548565]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 519916469]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2715736213]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3215357301]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 1927882145]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4245430869]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2033914152]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4007598216]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1682092863]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2991346463]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2386190442]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 268565177]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 187954585]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4116512889]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3359099644]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 1669561594]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3763050588]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1034106300]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2132189980]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2004738172]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 2592781946]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2734236512]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2093166272]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3726258199]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4153017335]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2594203607]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1775590327]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 1775590327]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 1005782052]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_START"}
+{"rngseed": [0, 1005782052]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1005782052]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 713467689]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2409671177]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 395164905]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2626019273]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 586566156]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2724089708]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3826132172]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2215009639]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 460998983]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2183709991]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2426662610]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2515228148]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1794930994]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1246122898]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3231284722]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4094556242]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 1650067356]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2590008705]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 3747794747]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1715068001]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1264345921]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2536278730]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4056019748]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 3843731046]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2699725111]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4108930327]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3210125559]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 430800994]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 3893285756]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2107364945]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2103848347]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3125388593]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3971253265]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2726036287]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2794283083]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3524555505]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2879484369]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3954649285]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 415624613]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 2121850503]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3672869944]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 1918820298]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 318098328]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1315492623]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 1447053117]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2217954031]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2948747983]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 3786735642]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_START"}
+{"rngseed": [0, 2438025064]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 883111046]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4062423293]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 812216797]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3053625104]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3243250288]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3296089552]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 6, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3030201006]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4110915368]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3897098932]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3763655012]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3217910064]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3217910064]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2201936466]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 868364524]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 665668752]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 665668752]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 892619418]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1196046238]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3392086986]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 643633122]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 643633122]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3832414192]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2542380756]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 738405764]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1382515536]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 169591854]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2606245940]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3731690240]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1106368176]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3507881150]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 587556460]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3151039928]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4150589968]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2876914801]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1167239975]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2089354]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 774979318]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1107795154]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2869286752]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 856022892]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2641753784]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2243962774]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2243962774]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2243962774]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1435010765]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 4233278473]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1994972549]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1935556417]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1485426165]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3856067595]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3097536771]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 818625247]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2229377096]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3826282964]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3868476064]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3614049578]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2598975620]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2838373698]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4132681564]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4014313384]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2765892294]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3831745548]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 188563702]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 669102512]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 717832378]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1345345288]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4210748198]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 712894398]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1461885442]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3930984430]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2566516328]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2821514740]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3017471168]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1062989898]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3072904290]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1020107854]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2935641544]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3955973094]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 827496312]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4138487490]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 67833052]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 67833052]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1804176680]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1803027678]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4144415350]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 835002658]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2757126716]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2617218184]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2881292012]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 631958230]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3279564954]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 28601320]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2388352262]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4215751232]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4112448926]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 866772376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 4011242978]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4011242978]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3526539002]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1375736648]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 1884814694]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 101051666]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2577461758]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1568797944]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3522071898]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 909806248]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 451079622]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1265947736]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2063641828]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1270600200]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2164036143]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2753678004]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1334200030]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3995834724]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1637331248]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1955030798]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 1708779144]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 1708779144]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 1056476838]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 1056476838]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 3425623060]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 712940350]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1632015044]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1998513006]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3280972746]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 90615758]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 90615758]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4104964383]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3705775713]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1234095887]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1722781739]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3970569421]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 1564207395]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3298059069]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3445274029]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3445274029]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3628316895]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3059657715]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3154923215]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 3058227015]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 420963981]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 3177016065]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2017740106]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3827178620]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1106612858]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3224838374]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4006815102]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1841964152]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1027767044]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4008336814]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2772642268]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4054132864]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2029887116]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1405475117]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2293440131]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 521625705]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2530394017]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 486464597]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2345013521]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2893941859]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 799535126]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2171322832]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4292803034]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2970798814]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 385652620]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2015538392]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3920597670]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2883792466]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2008620862]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2008620862]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4127920490]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3581929858]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2534809972]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2672018334]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2117884824]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 447135780]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 207409876]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3399914400]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4098537470]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1910884557]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 166974985]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2245728061]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3649142137]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2978155240]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2787191218]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2286485824]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 3842677028]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2506968290]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1401140464]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3875746376]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3069941601]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 592148689]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3289159815]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2850993613]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 442942525]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1835948665]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 899052647]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2442535391]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3252909563]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4205933913]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 955886827]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2208489543]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2599618445]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2599618445]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1115031109]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 620878849]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 620878849]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 690300413]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2244972463]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1923734567]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4129295141]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1824920289]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1223243663]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2739499179]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2871224327]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 1409784141]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4039522723]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 901684873]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 901684873]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2229223807]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1570118555]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1499711421]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3446632303]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4147831601]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3112666087]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3330950373]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1395591127]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3639902425]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 696581778]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 696581778]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2080435070]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4142572462]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2543423194]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3125783476]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 953592050]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1108762240]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1491301516]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1175927396]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2364030228]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 201958226]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 242637280]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 595009154]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2911915118]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4248169906]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1196107072]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2904346444]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 74942460]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2759054920]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4201875474]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 787267744]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 787267744]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 645419842]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4072199516]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1331673286]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2245685874]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2075339776]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2757061132]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3717153775]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3609131953]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1738360165]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2821368097]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2821368097]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3938768295]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1704560737]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1727517744]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 639674760]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1225680599]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2142440307]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 64531273]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2931265599]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3433455813]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3731525249]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3797987453]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3254094503]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2399149609]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 64925727]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3914211387]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 159693149]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4088036761]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 1897088811]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 1897088811]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 1989404369]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4032681607]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 366494669]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4035092745]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2513854463]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 847860251]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3160461885]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 359525871]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3390480351]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 2523112281]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2135460835]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 147031232]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_START"}
+{"rngseed": [0, 147031232]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 2193906718]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1215132086]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 853364228]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 853364228]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 917506944]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3467252958]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2445330136]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2582345572]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2793630014]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3401881324]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 870528568]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3684659396]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1573992996]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1573992996]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2331256060]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3184258847]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1589040683]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2735473473]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1026510859]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1026510859]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3517174119]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3062685407]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1918868001]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 878926315]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3214101393]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1314191008]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1415281454]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2393052425]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1421815429]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3253402745]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2040651509]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3574919683]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2238116831]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 225710949]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1437849331]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3356674511]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 673718243]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1179052586]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1718638328]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1718638328]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2135648834]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3047831128]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1080645110]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2401283760]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 424346044]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3772179896]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2056205999]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2056205999]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4125619313]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3893294957]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 61527831]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2922995343]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2922995343]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 694888363]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3272609955]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4253118213]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3107961025]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2763328915]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2567968367]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4176259373]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 59846761]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1885090675]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 42688079]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 42688079]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3426869521]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3865880155]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2631369399]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 20671161]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 371406383]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3313146605]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1856460831]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2250992993]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1666162191]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2182573867]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 50298503]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1430352961]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3718672505]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3716716015]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2467697397]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2876820653]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1770414877]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2491845465]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3695582671]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 452998575]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1101651908]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1313708776]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2589706868]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1908536478]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 719092278]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 256394480]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1157903356]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 71680584]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 311241888]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3622594814]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3050676034]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2836381998]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3966446942]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1401172386]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3499786504]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2865743355]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 409898480]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 322039036]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3762547528]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3107972503]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 129867315]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3633569045]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4051574151]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 123520767]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2357020955]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4092674365]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 903837707]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1630632295]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3355439849]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1331727099]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 818191703]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1387833045]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1923573063]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1923573063]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3854489279]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3531300059]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3381861323]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1247273255]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1247273255]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3627132965]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4246331361]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4038782215]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1380485351]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1064875207]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1824747687]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1923136647]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2815438514]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2912508001]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 3773757905]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 852101574]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 852101574]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 3908401716]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2453271308]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 660885000]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1646884972]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2193462763]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1813264711]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3816355555]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 4102844635]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4102844635]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1206248403]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 641632431]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 875583413]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1656031903]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 4110209723]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 67692979]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2876049760]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2876049760]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 2761423684]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2219883010]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3994693614]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 353296924]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3917486982]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 4054586560]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4054586560]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 249201828]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3032935522]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1242152014]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 10714086]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3649536914]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3217173456]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3043072174]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3043072174]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 505230298]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 876204472]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3492315830]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3417426794]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3078185858]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1911878322]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 926352792]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 1005505060]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2121586146]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2906213473]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2906213473]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADED_IN"}
+{"rngseed": [0, 4240149911]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 4240149911]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_END"}
+{"rngseed": [0, 397021277]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3210659379]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3061786155]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2567564753]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3443645133]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1150381823]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 115809299]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2932817135]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4056808625]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 315415273]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2383615589]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1139609301]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3183080916]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1336193790]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3549232632]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3406412932]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4023487278]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 692566876]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 321475496]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 522516276]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1391749002]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2230497013]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1965573087]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 501970939]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2737596193]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1197876979]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 3369442261]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1965742225]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 938954134]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2477947458]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 590806184]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3729002548]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2655361118]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4064896502]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4265826446]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1751217594]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4091164256]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 923291244]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2894974550]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2894974550]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 3575101508]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2476892294]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2060426802]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2812088606]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1952220854]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3438718607]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3090356154]}
+{"frame": 0, "buttons": "0x0020"}
+{"frame": 62, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2766792890]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_START"}
+{"rngseed": [0, 3271421941]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 3271421941]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4009475595]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2353055723]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 27, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2036873015]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3115934155]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 247692141]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 4040548009]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 397784545]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3511804381]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1296433807]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2673707947]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2067387143]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 2633376137]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1686654736]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 1102479642]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 3533219206]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2996503064]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 384368292]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 545511804]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2509049800]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 1968113126]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_START"}
+{"rngseed": [0, 2033994272]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "EXTRA_SPRITE_FADEOUT"}
+{"rngseed": [0, 2033994272]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 554956692]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2655972280]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 2920207446]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 3953300738]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 3358151964]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 715877144]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 247416674]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 4206348006]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 165355154]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 4286950543]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1637520811]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2921217287]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_START"}
+{"rngseed": [0, 364010377]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "TEXT_ANIM_END"}
+{"rngseed": [0, 1412169883]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "DLG_LINE_CLEAR"}
+{"rngseed": [0, 2849782007]}
+{"frame": 0, "buttons": "0x0020"}
+{"wait": "CONV_POSE_BLINK"}
+{"rngseed": [0, 2969396335]}
+{"frame": 0, "buttons": "0x0020"}
+{"frame": 22, "buttons": "0x0000"}
+{"wait": "CONV_POSE_END"}
+{"rngseed": [0, 3706220401]}
+{"frame": 0, "buttons": "0x0000"}
