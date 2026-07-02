@@ -3549,3 +3549,15 @@ invisible lead; pixel diff vs retail: +89/+120/+141/+157/+166/+193 = 0 px, +94/+
 #11/#13-#17 (coins) all closed pending the user's viewer confirm.  Remaining on the arc: SE
 same-frame dedup (cosmetic) + tex b494 (invisible, unchased) + PORT-DEBT(cs-news-suggest) +
 PORT-DEBT(merchant-levelup-pop).
+
+### 21.31.7 2026-07-02 — SE same-frame "dedup" is STRUCTURAL: FUN_00499519 sets a request FLAG, the per-frame pump plays once — PORTED
+
+FUN_00499519(id) → FUN_004994f3: scans the SE id table (DAT_005d1584 pairs) and sets
+**DAT_0964308c[slot] = 1** — it never plays.  The pump **FUN_0049966a** (sim_b: the engine main loop
+runs `FUN_004536cb(); FUN_0049966a();` per ticked frame, 0x47be92) walks the 0x6e flags at its HEAD,
+plays each flagged SE once (FUN_00499c63) and clears.  Same-frame repeats collapse natively — retail's
+15 se_069 lines vs the naive play-per-call port's 24.  PORTED: audio_play_se_by_id now flags (returns 1
+regardless, engine behavior); `audio_se_flush()` at music_step_default's head (sim_b ✓ same slot).
+Timing: SEs flagged in sim_a play the SAME frame (sim_a → sim_b); SEs flagged in render play next
+frame's pump — both identical to the engine's call order.  Unit test
+`audio_play_se_by_id_defers_and_dedups`.  The sale-fanfare arc is now fully CLOSED port-side.

@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include "audio_fade.h"    /* audio_fade_apply_progress for the per-tick fade tail */
+#include "audio.h"         /* audio_se_flush — the FUN_0049966a SE-flag pump head */
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
 #include "scene.h"         /* g_scene_state — live scene mode (DAT_0438b1c0) */
 #include "worker_load.h"   /* worker_load_busy — swap-suppression while loading */
@@ -368,6 +369,10 @@ void music_step_default(void)
 {
     /* E.2 probe — FUN_0049966a @ 0x49966a (engine sim_b music selector). */
     CALL_TRACE_ENTER(0x49966au);
+
+    /* FUN_0049966a HEAD: flush the SE-A request flags (DAT_0964308c walk)
+     * — plays each SE flagged this frame ONCE (same-frame dedup). */
+    audio_se_flush();
 
     /* Live scene state (DAT_0438b1c0): 0 = title, 1 = INGAME (HOUSE). The
      * selector reads it to leave the title track once the game starts. */

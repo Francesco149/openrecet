@@ -177,9 +177,17 @@ int audio_play_se(int slot);
 /* Resource-ID variant of `audio_play_se`. The engine's menu/game code
  * names SEs by resource ID (e.g. 0x143 = confirm, 0x146 = cursor tick)
  * via FUN_00499519; we mirror that for call sites that hard-code IDs.
- * Returns 0 if the ID doesn't appear in the table, otherwise forwards
- * to `audio_play_se(slot)`. */
+ * Does NOT play immediately: it FLAGS the slot (engine FUN_004994f3,
+ * DAT_0964308c[slot] = 1); the per-frame `audio_se_flush` pump plays each
+ * flagged SE once — so same-frame repeats of one SE collapse to a single
+ * play, exactly like retail (§21.31.7).  Returns 1 (engine behavior)
+ * whether or not the id is in the table. */
 int audio_play_se_by_id(uint16_t id);
+
+/* Flush the SE-A request flags — the FUN_0049966a per-frame pump head.
+ * Walks the 110 flags, plays each flagged SE once (audio_play_se) and
+ * clears.  Called once per ticked frame from music_step_default (sim_b). */
+void audio_se_flush(void);
 
 /* Filename-loaded SE / voice clip — mirror of FUN_0049933c.
  *

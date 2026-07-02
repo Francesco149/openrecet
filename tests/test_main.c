@@ -764,6 +764,7 @@ struct test_case {
     X(audio_se_table_resource_type_is_custom) \
     X(audio_play_se_rejects_out_of_range) \
     X(audio_play_se_emits_trace_event) \
+    X(audio_play_se_by_id_defers_and_dedups) \
     X(audio_play_se_no_trace_when_closed) \
     X(audio_se_table_matches_vendor_bytes) \
     \

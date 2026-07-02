@@ -193,3 +193,37 @@ int test_audio_se_table_matches_vendor_bytes(void)
     }
     return 0;
 }
+
+int test_audio_play_se_by_id_defers_and_dedups(void)
+{
+    char path[80];
+    if (!temp_path(path, sizeof path)) T_SKIP("mkstemp failed");
+
+    audio_se_flush();   /* drain flags earlier tests may have set */
+    T_ASSERT(audio_trace_open(path) == 1);
+    /* Three same-frame requests of one id + one other id — the flag model
+     * (FUN_004994f3) collapses the repeats; nothing plays until the pump. */
+    T_ASSERT_EQ_I(audio_play_se_by_id(0x0148), 1);   /* slot 12 */
+    T_ASSERT_EQ_I(audio_play_se_by_id(0x0148), 1);
+    T_ASSERT_EQ_I(audio_play_se_by_id(0x0148), 1);
+    T_ASSERT_EQ_I(audio_play_se_by_id(0x0143), 1);
+    audio_se_flush();                                /* the FUN_0049966a pump */
+    audio_se_flush();                                /* second pump: flags clear → silent */
+    audio_trace_close();
+
+    FILE *fp = fopen(path, "r");
+    if (!fp) { unlink(path); T_FAIL("could not reopen %s", path); }
+    int se_plays = 0, slot12 = 0;
+    char line[512];
+    while (fgets(line, sizeof line, fp)) {
+        if (strstr(line, "\"kind\":\"se_play\"")) {
+            se_plays++;
+            if (strstr(line, "\"slot\":12")) slot12++;
+        }
+    }
+    fclose(fp);
+    unlink(path);
+    T_ASSERT_EQ_I(se_plays, 2);   /* one per DISTINCT id, once total */
+    T_ASSERT_EQ_I(slot12, 1);     /* the 3 repeats collapsed */
+    return 0;
+}

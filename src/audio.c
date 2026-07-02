@@ -256,11 +256,32 @@ int audio_play_se(int slot)
 #endif
 }
 
+/* ── SE-A request flags (FUN_004994f3 / FUN_0049966a) ──────────────────
+ * The engine's FUN_00499519(id) does NOT play: FUN_004994f3 scans the SE
+ * id table and sets a request FLAG (DAT_0964308c[slot] = 1); the per-frame
+ * audio pump FUN_0049966a (the sim_b tick) walks the 110 flags, plays each
+ * flagged SE once (FUN_00499c63) and clears it.  Same-frame repeats of one
+ * SE therefore collapse natively — retail logs 15 se_069 lines where a
+ * naive play-per-call port logged 24 over the coin-landing window
+ * (RE §21.31.3/§21.31.7). */
+static uint8_t g_se_request_flags[AUDIO_SE_COUNT];
+
 int audio_play_se_by_id(uint16_t id)
 {
     const int slot = audio_se_slot_for_id(id);
-    if (slot < 0) return 0;
-    return audio_play_se(slot);
+    if (slot < 0) return 1;    /* engine FUN_004994f3 returns 1 regardless */
+    g_se_request_flags[slot] = 1;
+    return 1;
+}
+
+void audio_se_flush(void)
+{
+    for (int i = 0; i < AUDIO_SE_COUNT; i++) {
+        if (g_se_request_flags[i]) {
+            g_se_request_flags[i] = 0;
+            audio_play_se(i);
+        }
+    }
 }
 
 static int audio_play_se_file_win32(const char *path);  /* fwd — _WIN32 block */

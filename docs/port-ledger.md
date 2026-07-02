@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **574** (22.5%) — verified 72, stubbed 13, ported 489
-- unported: **1974**
+- touched: **575** (22.6%) — verified 72, stubbed 13, ported 490
+- unported: **1973**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (72) — runtime-diffed vs retail
@@ -109,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (489) — reimplemented, no probe yet
+## ported (490) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -535,7 +535,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, customer_service.c (+7) |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+14) |
+| 0x4994f3 | FUN_004994f3 | 38 | ✓ | audio.c, audio.h |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.c, audio.h, audio_se_names.h (+15) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499560 | FUN_00499560 | 15 |  | music.c, music.h, scene_title.c |

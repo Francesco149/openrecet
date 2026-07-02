@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 489,
-  "unported": 1974,
+  "ported": 490,
+  "unported": 1973,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 574,
-  "pct_touched": 22.5,
+  "touched": 575,
+  "pct_touched": 22.6,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -10027,8 +10027,11 @@
    "size": 38,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/audio.c",
+    "src/audio.h"
+   ]
   },
   {
    "va": "0x499519",
@@ -10038,6 +10041,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/audio.c",
     "src/audio.h",
     "src/audio_se_names.h",
     "src/choice_box.c",
