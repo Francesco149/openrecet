@@ -835,6 +835,25 @@ static int cs_npc_facing_octant(float angle)
  * in: state -1 (retarget burst, ≤30 iters × 2 LCG, break on first walkable
  * cell), state 0 (1 rng_next_unit heading + 1 rng15 inside the pathfinder).
  * States 1/2 + the position interp are RNG-neutral. */
+/* FUN_00482a51 @ 0x482a51 — the generic chr set-anim: on a state CHANGE reset
+ * frame/counter/timer and write the new id into ANIM + STATE; no-op when
+ * already in the state (so the walk cycle keeps its phase between frames).
+ * RNG-neutral.  cs_npc_tick calls it per wstate arm (objdump 0x46fc48 anim 0
+ * for the dwell, 0x46fd09/0x46fd74 anim 1 for the walk states — Ghidra dropped
+ * two of the three arg pairs, RE §21.28); previously deferred as "render-only",
+ * which left the browsing chibi SLIDING in the idle pose while retail walks
+ * (viewer notes #20/#22 — the customer walk-cycle body-pose gap). */
+static void cs_npc_set_anim(int32_t *slot, int32_t id)
+{
+    if (slot[CS_NPC_OFF_STATE] == id)
+        return;
+    slot[CS_NPC_OFF_FRAME]   = 0;
+    slot[CS_NPC_OFF_COUNTER] = 0;
+    slot[CS_NPC_OFF_STATE]   = id;
+    slot[CS_NPC_OFF_ANIM]    = id;
+    slot[CS_NPC_OFF_TIMER]   = 0;
+}
+
 static void cs_npc_tick(int32_t *slot, int shop_tier)
 {
     int   wstate = slot[CS_NPC_OFF_WSTATE];             /* +0x74 */
@@ -878,8 +897,10 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
         }
     } else if (wstate == 0) {
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
-        /* FUN_00482a51(slot,..) on +0x58 != -1 — RNG-neutral set-anim, deferred
-         * (render); +0x58 maps to no modeled anim slot here. */
+        /* FUN_00482a51(slot, 1) on +0x58 != -1 (objdump 0x46fd74: push 1) —
+         * the walk anim; TYPE_IDX is always ≥ 0 for a spawned NPC. */
+        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+            cs_npc_set_anim(slot, 1);
         if (slot[CS_NPC_OFF_WTIMER] > 0) {
             slot[CS_NPC_OFF_WTIMER] = 0;                /* +0x78 = 0 */
             slot[CS_NPC_OFF_WSTATE] = 1;                /* +0x74 = 1 */
@@ -906,6 +927,10 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
             cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, vz);  /* +0x4c */
         }
     } else if (wstate == 1) {
+        /* FUN_00482a51(slot, 1) on +0x58 != -1 (objdump 0x46fd09: push 1;
+         * BEFORE the WTIMER++ in this arm) — hold the walk anim. */
+        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+            cs_npc_set_anim(slot, 1);
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
         if (slot[CS_NPC_OFF_WTIMER] == slot[CS_NPC_OFF_PARAM21] + 0x14) {  /* +0x84+0x14 */
             slot[CS_NPC_OFF_WTIMER] = 0;
@@ -920,8 +945,10 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
                 slot[CS_NPC_OFF_WSTATE] = 2;            /* reached target → 2 */
         }
     } else if (wstate == 2) {
-        /* FUN_00482a51(slot,0) on +0x58 != -1 (TYPE_IDX, always ≥0) — RNG-neutral
-         * set-anim, deferred (render).  Then zero velocity + the dwell timer. */
+        /* FUN_00482a51(slot, 0) on +0x58 != -1 (objdump 0x46fc48: push 0) —
+         * the idle/dwell anim.  Then zero velocity + the dwell timer. */
+        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+            cs_npc_set_anim(slot, 0);
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, 0.0f);    /* +0x44 = 0 */
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, 0.0f);    /* +0x4c = 0 */
         /* facing octant (+0x18) from FACE_DIR (+0x70) — the engine's idle-dwell
