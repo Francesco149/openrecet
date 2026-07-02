@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-02 — day-end leads cracked: the "+261-rng day-end consumer" = the SALE-COMMIT coin shower; the post-sale story chain iv1_8→iv2_6 ported — the day2 trace now replays END-TO-END
+
+Both FRONT day-end leads resolved in one arc (RE §21.31/§21.31.1):
+
+- **(a) +261-rng frame REDIAGNOSED** — not next-day regen but the sale-commit burst: the f404==0 accept
+  block (gold+=ask, SE 0x14d, FUN_00460d52 → stats dword +0x2c3e0 += ftol((ask/base−1)·100)+signed
+  ftol(sqrt(|ask−base|)), Table-A alloc FUN_004132c1(304,128,entry 100,1.0,−1,4), SE 0x17b/0x156).  Parent
+  entry 100 = 5 sub-records (templates 173/170/171/172/176, all age_match 0) → 69 particles (28+8+8+8+17),
+  207 float + 54 int rng = the +261.  f404 IS 0 on the tutorial sale (old "inert for tutorial" claim wrong).
+  PORTED: `cs_sale_commit_stats_fx` + gold + SEs in customer_service.c.  Probe chain: {rngcs}, custom
+  call-trace VAs (spawn+wrappers, then allocators), per-segment {memsnap} (NB memsnap ops DROP when their
+  segment's {wait} passes — arm in the segment containing the target frame).
+- **Template sets 1-3 were never loaded** — pfo_load_one_file loaded only effect1.dat's secondary chunk;
+  engine freads ALL FOUR at DAT_00733820+file_idx·0x4330 (one 400-template table).  TEMPLATE_COUNT 256→400,
+  `scene1_overlay_templates_load_chunk_at(set,…)`; burst now fires (260@commit+1, mirroring retail's
+  SE→spike+1 attribution 14846→14847).
+- **FUN_00406584's money rolling-counter wired in INGAME** (sim.c) — DAT_0438b918 eases toward bank gold,
+  ONE LCG draw per rolling frame (retail's 0x40688d draw at the spike = the last +1 to 261); rng-load-bearing
+  after any sale.
+- **(b) there is NO separate day-end load path** — the post-sale flow is the FUN_0044bd0d story chain
+  iv1_8 → iv2_1 → iv2_2 → iv2_3 (DAY ADVANCE: fb84++, fb88=0, f400 clear…) → iv2_5 → iv2_6, ported into
+  scene1_tutorial_dispatch.c on the existing start_single load bracket.  **The day2 trace's stalling
+  {wait: LOADING_START} releases and the port replays the ENTIRE trace: 94/94 non-blink anchors, 0 name
+  mismatches vs the retail capture; day-end LOADING_START@2273/CONV_POSE@2274 == retail's aligned frames;
+  EXTRA_SPRITE tail cadence (41/239/81/119) frame-exact.**  Residuals: one natural-vs-pinned load duration
+  (37 vs 7) + a +1 at that seam; PORT-DEBT(blackout-tut-dispatch) unwired on iv2 entries;
+  PORT-DEBT(tut-dispatch-iv2-fx) = iv2_5's FUN_004852fb + b928/b924.
+- **OPEN (render):** the shower's 69 particles spawn+consume rng but do NOT draw yet (retail shows coins +
+  glow ring; port shows none) — the overlay render path for these templates needs the v3 draw-program diff.
+  Also still missing on-screen: TOTAL EXP popup (FUN_004606fc unported).
+
 ## 2026-07-02 — ★★★ USER-CONFIRMED: "this whole trace is 1:1 now" (house-firstcust-arrprobe win-0-1500)
 
 The first-customer trace — initial load, walk-in, free-roam, pause, tutorial cutscene, first customer, haggle —
