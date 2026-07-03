@@ -223,3 +223,48 @@ ENTRY not base+F):**
    `scenario-test --target both --call-trace` (scoped `{calltrace}`) for the flow_diff verdict.
    +regression test (segtrace parse: a per-segment tutloadpin applies at its segment).
 7. **THEN** the DAY2 pixel confirm (human, viewer) + close the arc.
+
+## ★★★ 2026-07-03 — NEXT-ARC LANDED (commit `3669cbe`) + VERIFIED. Cutscene now BIT-FRAME-ALIGNED (Δ=0, ~15000f); 2 residuals surface at the DAY2 boundary
+Segment-scoped `{tutloadpin}` shipped: per-segment field on `struct seg_segment`, applied at each
+declaring segment's ENTRY via `rearm_tutloadpins` (sticky), mirrored in the Frida agent's
+`segtraceOnSegmentEnter`; global field dropped; `{tutloadpin:110}` inserted before the bracket-7
+LOADING_START (seg 26), head `{tutloadpin:36}` kept. +per-segment parse+apply host tests (3395 pass).
+
+**VERIFIED `--target both` (drive `142827Z`):**
+- **Both COMPLETE exit=0** (retail 15948ms, NO stall — vs 4/5 prior drives stalled).
+- **Retail brackets 7-12 ALL `released`@110** (agent.log: armed@2530→rel@2639, 5433→5542, 7765→7874,
+  11727→11836, 14194→14303, 15660→15769; **0 "left alone"**). Early bracket rel@36 (728→763). Port
+  applies 36@seg0 + 110@seg26 (stderr L48/L133).
+- **Frame delta (port−retail) at matched structural anchors = Δ0 for frames 206→15348** — i.e. the
+  ENTIRE first-customer + cutscene-cluster + massive-dialogue + sign-hammer arc (raw 0→15390) is now
+  **bit-frame-aligned** (was: retail +1056f adrift, DAY2 join 232/1091). Non-blink anchor NAME seq 99.69%
+  (647 v 643).
+
+**RESIDUAL A (cosmetic, pose-flag PORT-DEBT — NOT load-cadence):** 2 port-only `CONV_POSE_END`+
+`CONV_POSE_START` blips @14193/@15470. Δ stays 0 across them (anchor-only, no frame impact). ROOT:
+`scene1_conversation_pose.c:104-108` derives the talk-flag (DAT_0450f470) from the dialogue lifecycle
+(`_posing()` on `_active()`) instead of the faithful render-entangled producer FUN_00470a46 (clears at
+the shatter-transition end) / FUN_004852fb (sets on scene-out). The derived flag BLIPS off 1f at EVERY
+tut-load boundary; retail's REAL flag blips at SOME (11726 — BOTH fire END@11726+START@11727, aligned)
+but NOT others (14193/15470). The port can't distinguish inter-script vs mid-script loads without the
+faithful producer. Fix = port FUN_00470a46/FUN_004852fb (separate arc; retires the pose-flag PORT-DEBT).
+
+**RESIDUAL B (the DAY2-tail blocker):** a **189-frame drift at the DAY2 ENTRY** (last matched Δ0 =
+EXTRA_SPRITE_START@15348; next = LOADING_START port@15470 vs retail@**15659**, Δ=−189, and everything
+after stays −189/−198). The DAY2-entry load is 110f on BOTH sides (pinned) — the drift is PRE-load:
+retail HOLDS the pre-DAY2 conversation pose ~189f LONGER (3 extra %64 blinks @15494/15558/15622) before
+advancing to the DAY2 load; the port cuts the hold short. ⇒ the DAY2 brooming tail (raw 15390→16291) is
+port-189f-ahead, so the DAY2 PIXEL frame-match is blocked until this is closed. Suspect an unported
+pose-HOLD / dialogue-line duration in the iv2 day-advance chain (iv1_8→iv2_1..6, FUN_0044bd0d;
+PORT-DEBT(blackout-tut-dispatch)/(tut-dispatch-iv2-fx) still unwired — the likely home).
+
+**orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
+the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
+SCOPED caprange (the DAY2 window only, ~1091f ≈ 5GB both sides, NOT full-extent) — or teach orv3 to
+inject a scoped caprange for `--window`. The committed trace stays caprange-free.
+
+**NET:** the tutloadpin arc's goal — bind the late loads so the cutscene frame-aligns — is DONE
+(~15000f Δ0). The two DAY2-boundary residuals (A pose-flag PORT-DEBT cosmetic; B iv2 pose-hold 189f
+frame-drift) are distinct follow-up arcs. flow_diff rng-verdict is structurally guaranteed in the Δ0
+region (rng force-pinned at every LOADING_END; frame-exact anchor alignment ⇒ matched rng consumption)
+— explicit verdict deferred (needs a scoped `{calltrace}` + drive; low value given the frame-exactness).

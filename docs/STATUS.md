@@ -80,22 +80,32 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   DAY2 trailing hold; non-blink anchor seq port↔retail first-505 + last-14 IDENTICAL. RNG-safe (every
   LOADING_END is `{rngseed}`-pinned ⇒ offer structurally unchanged; both sides now share the SAME
   cadence). The retail v3 replay is 16291/16291 BIT-EXACT; anchor path port↔retail matches first-505 +
-  DAY2-tail. **★ ACTIVE NEXT ARC (user-chosen 2026-07-03 — full determinism): segment-scoped
-  `{tutloadpin}`.** The DAY2 pixel-confirm's v3 auto-join FAILS (best 232/1090 paired, every
-  window/anchor) because the LATER dialogue-cutscene tut loads (brackets 7-11, retail 44-97 > pin 36)
-  still drift ⇒ retail +1056f behind by DAY2 ⇒ anchor-occurrence counts diverge. Fix = make
-  `{tutloadpin}` per-segment (apply at segment ENTRY, not once at load) so it can be **36 early**
-  (protect the confirmed region — a uniform tut≈110 would shift the early wrap-up blink phase, FREE-run
-  `%64`, and risk re-flipping the deadlock) and **110 late** (bind 7-11). Touches `src/input_segtrace.{h,c}`
-  (per-segment field + `rearm_tutloadpins` callback at the 3 tick advance sites), `src/main.c` (wire the
-  cb, replacing the L1844 global apply), `tools/frida/openrecet-agent.js` (mirror per-segment on {wait}
-  advance), the trace (insert `{tutloadpin:110}` before L141 = bracket-7 boundary), + a build + `--target
-  both` + orv3 re-verify + a segtrace test. **Full step-by-step in finding
-  `cutscene-replay-anchor-drift.md` §NEXT-ARC.** Then flow_diff rng-verdict (confirmed region unchanged
-  since head tut=36 preserved — structurally, only load-DURATION pins change; rng force-pinned) + the
-  human DAY2 viewer confirm. (Fresh-context /clear point — core fix committed, this is a clean C+JS arc.)
-  Watch the known DAY-2 blink-stall lead
-  (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
+  DAY2-tail. **✅✅✅ 2026-07-03 — segment-scoped `{tutloadpin}` LANDED + VERIFIED (commit `3669cbe`;
+  finding `cutscene-replay-anchor-drift.md` §NEXT-ARC-LANDED).** Made `{tutloadpin}` per-segment (applied
+  at segment ENTRY via `rearm_tutloadpins`, sticky; Frida-agent mirror in `segtraceOnSegmentEnter`); head
+  36 + `{tutloadpin:110}` before the bracket-7 LOADING_START (seg 26). **`--target both` (`142827Z`): both
+  COMPLETE exit=0 (retail no stall); brackets 7-12 ALL `released`@110 (0 "left alone"); frame-delta Δ0 for
+  frames 206→15348 = the WHOLE cutscene arc (raw 0→15390) is now BIT-FRAME-ALIGNED** (was: retail +1056f
+  adrift, DAY2 join 232/1091). +host tests (3395). **★ TWO OPEN residuals at the DAY2 BOUNDARY (both new
+  leads, distinct arcs):**
+  - **(B, the DAY2-tail BLOCKER) 189-frame drift at the DAY2 ENTRY** (Δ0 until EXTRA_SPRITE_START@15348,
+    then LOADING_START port@15470 vs retail@**15659** = Δ−189, stays −189/−198 through DAY2). Load is 110f
+    both sides — the drift is PRE-load: retail HOLDS the pre-DAY2 conversation pose ~189f longer (3 extra
+    %64 blinks @15494/15558/15622) before the DAY2 load; the port cuts it short ⇒ the DAY2 brooming tail
+    (raw 15390→16291) is port-189f-ahead ⇒ DAY2 PIXEL frame-match blocked until closed. Suspect an
+    unported pose-HOLD / dialogue-line duration in the iv2 day-advance chain (iv1_8→iv2_1..6, FUN_0044bd0d;
+    `PORT-DEBT(blackout-tut-dispatch)`/`(tut-dispatch-iv2-fx)` still unwired — likely home).
+  - **(A, cosmetic) 2 port-only `CONV_POSE_END`+`CONV_POSE_START` blips @14193/@15470** (Δ stays 0 —
+    anchor-only, no frame impact). ROOT: the pose-flag PORT-DEBT (`scene1_conversation_pose.c:104-108`
+    derives DAT_0450f470 from the dialogue lifecycle; the derived flag blips at EVERY tut-load boundary,
+    but retail's REAL flag blips at SOME (11726 — both aligned) not others). Fix = port the faithful
+    producer FUN_00470a46/FUN_004852fb (retires the pose-flag PORT-DEBT).
+  - **orv3 DAY2 viewer BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent, but the
+    re-distill DROPPED it (33GB-BMP hazard). Re-add a SCOPED caprange (DAY2 window only, ~1091f ≈ 5GB
+    both sides) or teach orv3 to inject one for `--window`; keep the committed trace caprange-free.
+  - flow_diff rng-verdict structurally guaranteed in the Δ0 region (rng force-pinned at every LOADING_END
+    + frame-exact ⇒ matched consumption); explicit verdict deferred (needs a scoped `{calltrace}`).
+  Watch the known DAY-2 blink-stall lead (~frame 21259+ — did NOT manifest port-side here). GOTCHAS:
   `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`
   WITHOUT a `{calltrace}` window dumps the FULL call graph (~1.4GB/run) — always scope it.
 - **✅ 2026-07-02 — day-end cutscene: served customer DESPAWN ported, PIXEL-1:1 (viewer notes #24/#25; RE §21.33).**
