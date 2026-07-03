@@ -261,6 +261,13 @@ advancing to the DAY2 load; the port cuts the hold short. ⇒ the DAY2 brooming 
 port-189f-ahead, so the DAY2 PIXEL frame-match is blocked until this is closed. Suspect an unported
 pose-HOLD / dialogue-line duration in the iv2 day-advance chain (iv1_8→iv2_1..6, FUN_0044bd0d;
 PORT-DEBT(blackout-tut-dispatch)/(tut-dispatch-iv2-fx) still unwired — the likely home).
+**★ START HERE (Residual B, next arc):** evidence in `runs/scenarios/house-firstcust-cutscene-day2-full-both-20260703T142827Z`
+(port `openrecet/anchors.jsonl`, retail `retail/agent.log` `[anchor]` lines). Repro the diff:
+`scenario-test house-firstcust-cutscene-day2-full --target both` then the frame-delta-at-matched-anchor
+script (this session's scratchpad, or `anchor_drift.py`). Question to answer: WHAT holds retail's pose
+from EXTRA_SPRITE_START@15348 to LOADING_START@15659 (189f) that the port skips at 15470 — a dialogue
+line duration, a scripted pose-hold, or an iv2 wait? Then port it so the DAY2 load fires at the same
+anchor-relative frame on both sides ⇒ Δ0 through the DAY2 brooming tail ⇒ DAY2 pixel confirm unblocked.
 
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
