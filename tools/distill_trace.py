@@ -30,6 +30,24 @@ ROOT = Path(__file__).resolve().parent.parent
 HOUSE_INTRO_REF = ROOT / "tests/scenarios/house-wall-collide/trace.jsonl"
 HOUSE_ANCHOR_OFFSET = 1565   # recording frame 0 → anchor+1565 (idle spam ends +1500)
 
+# Cosmetic/FX/collapse-prone anchors whose RELATIVE ORDER DRIFTS between the
+# frame-dropped real-time recording and the deterministic turbo replay (see
+# findings/cutscene-replay-anchor-drift.md).  In an AUTO-PLAY cutscene region
+# (deterministic reveal/anim carried by a held/tapped fast-forward button, no
+# timing-sensitive player choices) these are NOT reliable `{wait}` sync points —
+# waiting on one that already fired deadlocks the replay.  --drop-fragile-after /
+# --drop-fragile-region drop them as syncs in the named region, keeping only the
+# reliable scene/state BOUNDARIES (which re-sync + re-pin RNG at each scene change;
+# the deterministic auto-play + carried input hold the timeline between them).
+FRAGILE_ANCHORS = frozenset({
+    "CONV_POSE_BLINK",
+    "EXTRA_SPRITE_START", "EXTRA_SPRITE_FADED_IN", "EXTRA_SPRITE_FADEOUT",
+    "EXTRA_SPRITE_END",
+    "TEXT_ANIM_START", "TEXT_ANIM_END",
+    "DLG_LINE_SHOW", "DLG_LINE_CLEAR",
+    "LOADING_START", "LOADING_END",
+})
+
 
 def load_raw(path):
     masks = {}   # frame -> "0xNNNN"
@@ -174,8 +192,27 @@ def _held_mask_at(changes, frame):
     return held
 
 
+def _in_drop_regions(frame, regions):
+    """True if `frame` falls in any [lo, hi] auto-play drop region (inclusive)."""
+    return any(lo <= frame <= hi for lo, hi in regions)
+
+
+def _suggest_autoplay_boundary(changes, total, min_hold=240):
+    """Heuristic HINT (printed, not authoritative): the first frame at which the
+    input stops being a dense interactive tap-cluster and becomes sparse holds — a
+    likely auto-play cutscene start.  Returns the frame where the first held run of
+    >= min_hold frames begins, or None.  The caller still confirms the semantic
+    boundary (interactive first-customer vs auto-play) by hand."""
+    cp = [f for f, _ in changes]
+    for i in range(len(cp)):
+        hi = cp[i + 1] if i + 1 < len(cp) else total + 1
+        if hi - cp[i] >= min_hold:
+            return cp[i]
+    return None
+
+
 def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
-                         pin_rng=True, pin_gframe=False):
+                         pin_rng=True, pin_gframe=False, drop_regions=None):
     """Convert a recording that carries recorded anchor firings into an
     ANCHOR-GATED segtrace: every recorded anchor becomes a `{wait:NAME}` sync
     point, and all inputs/escs/captures between two anchors are emitted relative
@@ -191,14 +228,33 @@ def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
     the stretched turbo load consumed, so post-anchor RNG (dust/NPC) is faithful
     and reproducible. pin_gframe additionally pins the global frame counter
     (EXPERIMENTAL). Captures: the producer (export_trace caprange) adds the window
-    relative to the final anchor; recorded {capture}s are also carried per-segment."""
+    relative to the final anchor; recorded {capture}s are also carried per-segment.
+
+    drop_regions (list of (lo, hi) frame spans): inside these AUTO-PLAY cutscene
+    regions, FRAGILE_ANCHORS are NOT emitted as `{wait}` sync points — only the
+    reliable scene/state boundaries survive.  This folds the former hand
+    drop_fragile.py into the distiller (findings/cutscene-replay-anchor-drift.md):
+    fragile cosmetic/FX anchors drift under turbo and deadlock the replay, so a
+    held/tapped auto-play region syncs only on its boundaries and lets the
+    deterministic auto-play + carried input hold the timeline between them.  The
+    port + retail still EMIT the dropped anchors (the viewer still labels them by
+    identity); the trace just no longer WAITS on them."""
+    drop_regions = drop_regions or []
     # distinct-frame sync points, in frame order
     seen, syncs = set(), []
+    dropped_fragile = 0
     for a in sorted(anchors, key=lambda x: x["frame"]):
         if a["name"] == "BOOT" or a["frame"] in seen:
             continue
+        if a["name"] in FRAGILE_ANCHORS and _in_drop_regions(a["frame"], drop_regions):
+            dropped_fragile += 1
+            continue   # fragile anchor in an auto-play region — not a sync point
         seen.add(a["frame"])
         syncs.append(a)
+    if drop_regions:
+        print(f"distill_trace: dropped {dropped_fragile} fragile {{wait}}s in "
+              f"{len(drop_regions)} auto-play region(s); {len(syncs)} sync(s) kept.",
+              file=sys.stderr)
 
     out = ["# anchor-segmented replay: each recorded anchor is a {wait} sync point;"
            " inputs/escs after it are relative to it (turbo/jitter-immune)."]
@@ -267,6 +323,16 @@ def main(argv=None):
                     help="with --anchor-segments, also pin the global frame counter "
                          "at each anchor (experimental — for frame-count-derived "
                          "state like the time-of-day HUD clock).")
+    ap.add_argument("--drop-fragile-after", type=int, metavar="FRAME",
+                    help="with --anchor-segments, from FRAME onward drop FRAGILE "
+                         "(cosmetic/FX) anchors as {wait} sync points — the auto-play "
+                         "cutscene region past the interactive part. Keeps only "
+                         "reliable scene boundaries (folds the old drop_fragile.py; "
+                         "findings/cutscene-replay-anchor-drift.md).")
+    ap.add_argument("--drop-fragile-region", action="append", default=[],
+                    metavar="LO:HI",
+                    help="with --anchor-segments, drop FRAGILE anchors in the frame "
+                         "span LO:HI (repeatable). Use for bounded auto-play regions.")
     ap.add_argument("--saves-dir",
                     help="content store for the embedded save blob (default: the "
                          "trace's _saves/ store, shared across scenarios).")
@@ -283,9 +349,23 @@ def main(argv=None):
             print("distill_trace: no {anchor} rows in recording — re-record with "
                   "the anchor-logging build (recorder ≥ 2026-06-03).", file=sys.stderr)
             return 1
+        drop_regions = []
+        for spec in args.drop_fragile_region:
+            lo, hi = spec.split(":")
+            drop_regions.append((int(lo), int(hi)))
+        if args.drop_fragile_after is not None:
+            drop_regions.append((args.drop_fragile_after, total + 1))
+        if not drop_regions:
+            hint = _suggest_autoplay_boundary(changes, total)
+            if hint is not None:
+                print(f"distill_trace: HINT — input turns sparse (likely auto-play "
+                      f"cutscene) at frame {hint}; pass --drop-fragile-after {hint} "
+                      f"to drop drift-prone fragile syncs past the interactive part.",
+                      file=sys.stderr)
         text = emit_anchor_segments(changes, caps, escs, cts, total, anchors,
                                     rng_seed, pin_rng=not args.no_pin_rng,
-                                    pin_gframe=args.pin_gframe)
+                                    pin_gframe=args.pin_gframe,
+                                    drop_regions=drop_regions)
     elif args.house_segtrace:
         text = emit_house_segtrace(changes, caps, escs, cts, rng_seed)
     else:
