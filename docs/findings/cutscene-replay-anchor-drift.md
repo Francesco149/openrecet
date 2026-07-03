@@ -317,10 +317,22 @@ events, not overlays/HUD text) — the classic "chase render even when the sim m
    read fb84 live at render, OR push `scene1_top_hud_set_day` at the iv2_3 day-advance (one-liner).
 3. **"Now Loading…" disc** (bottom-right) during the DAY2 load bracket — retail draws it, the port
    suppresses it (LOADING-SCREEN FIDELITY, user direction 2026-06-11).
-4. Minor: a Tear wing-sparkle present on retail at 15769/15795 (companion db054%4 phase — likely the known
+4. **ACTOR POSITIONS mirror-SWAPPED (user-spotted).** Retail: Recette px=**−0.30** (the pose_house_standing
+   spot) facing oct6, Tear cx eases **0.60→1.00** (spring-follow to Recette's RIGHT) facing oct2. Port:
+   Recette px=**+0.80** oct2, Tear cx=**−0.69** (FROZEN, wrong side) oct6. The pose FACING is correctly
+   derived from the positions on both sides (`tear_x<=player_x`), so the root is the POSITIONS: the port
+   never re-places the actors for day2 (iv2_5/iv2_6 are modeled as dialogue-loads, not the scene reload +
+   pose_house_standing retail runs at the day advance), so they keep their stale cutscene positions.
+   **PRE-EXISTING, not the beat fix** — the pre-fix port (drive `160204Z`) shows the identical px=+0.80/
+   cx=−0.69 at its lone free-roam frame 15470. (Also the port's Tear is frozen where retail's spring-follows
+   — a consequence of the same missing re-placement + the beat walk suppression.)
+5. Minor: a Tear wing-sparkle present on retail at 15769/15795 (companion db054%4 phase — likely the known
    sparkle-phase class).
-**⇒ Residual B (the frame-drift BLOCKER) is CLOSED; the DAY2 pixel PARITY now needs these render chips —
-#1 (the Day-2 blackout card) is the big one. Montage pushed to the llm-feed for the user.**
+**⇒ Residual B (the frame-drift BLOCKER) is CLOSED and its TIMING is confirmed; the anchor-Δ0 MASKED a
+pre-existing cluster of unported DAY2 day-transition RENDER (the classic pixels-over-anchors lesson).
+Full DAY2 pixel PARITY is a substantial "day-transition" arc: the Day-2 blackout card (#1) + the actor
+re-placement/scene-reload (#4) are the big ones; HUD day-counter (#2, one-liner) + Now-Loading disc (#3)
+are smaller. Montage on the llm-feed.**
 
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
