@@ -1,0 +1,31 @@
+# house-firstcust-cutscene-day2-FULL — CANDIDATE (built 2026-07-03).  Same recording
+# as house-firstcust-cutscene-day2 but re-distilled to INCLUDE the DAY 2 brooming tail
+# (raw 15390-16291), which the sibling manually trimmed at CONV_POSE_END@15390.
+# Regenerated in one command:
+#   distill_trace.py rec-20260622-182618.raw.jsonl --anchor-segments \
+#     --drop-fragile-after 3468 --carry-pins-from <sibling>/trace.jsonl
+# (--carry-pins-from is REQUIRED — the load pins are hand-tuned, not in the raw; a naked
+#  re-distill stalls at the pause region.  See findings/cutscene-replay-anchor-drift.md.)
+# STATUS: port replay validated through the divergent 3468-6300 region + the first
+# cutscene boundaries (no stall).  PENDING: a --target both drive to 15390+ for RNG/
+# line_row parity, + human viewer confirm of the DAY2 tail + the SIGN-HAMMER close-up.
+#
+# house-firstcust-cutscene-day2 — the FULL post-tutorial flow from the user's
+# recording rec-20260622-182618: LOAD (cad868 save) → haggle tutorial start →
+# ESC-skip → first real customer interaction → a LONG series of story cutscenes
+# (title drop, prologue, Recet hammering the recettear sign close-up, dusk
+# lighting) → DAY 2 starts (idle at the shop, Tear flying around + brooming —
+# a new companion mechanic).
+#
+# 16291 raw frames; 853 anchors.  Worked in small capture windows (port the
+# content in each window, then move the window) — see docs/FRONT.md.
+#
+# Anchor map (raw frames): load+tutorial+skip+wrap-up 0-855; first-customer +
+# PAUSE/haggle 855-2195; cutscene cluster A 2195-4969; massive dialogue cutscene
+# 4969-13409; cutscene tail 13410-15390 (CONV_POSE_END@15390); DAY 2 15390-16291.
+description: |
+  Full post-tutorial story-cutscene flow → day 2.  Recorded skip path:
+  load → tutorial → ESC-skip → first customer → cutscenes → day 2 brooming.
+max_frames: 90000     # ~12 LOADING brackets stretch heavily under turbo
+duration_ceiling_ms: 2400000
+capture_suppress_loads: true
