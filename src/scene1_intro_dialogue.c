@@ -108,6 +108,17 @@ static void emit_dialogue_calltrace(void)
      * gates 'Do you want to skip this event?' + whether the box is up. */
     CALL_TRACE_I32("skip_prompt", g_rt.scene.skip_prompt);  /* DAT_073a3e18 */
     CALL_TRACE_I32("skipbox",     skip_event_open());        /* DAT_073a3dec */
+    /* DIAG (prologue stall investigation): the input the runtime saw last tick +
+     * the advance-gate inputs op_msg_waitkey checks (dwell>=15 && held&0x60). */
+    CALL_TRACE_I32("prev_held",   g_rt.prev_held);
+    CALL_TRACE_I32("dwell",       g_rt.dwell);
+    CALL_TRACE_I32("revealed",    g_rt.revealed);
+    CALL_TRACE_I32("dlg_wait",    g_rt.wait);
+    CALL_TRACE_I32("dlg_cmd",     g_rt.cmd);
+    {
+        extern int g_segtrace_dbg_seg;   /* the trace segment the harness is parked on */
+        CALL_TRACE_I32("seg", g_segtrace_dbg_seg);
+    }
     CALL_TRACE_END();
 }
 

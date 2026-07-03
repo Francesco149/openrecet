@@ -958,6 +958,11 @@ int input_segtrace_has_calltrace(const struct input_segtrace *st)
     return 0;
 }
 
+/* DIAG (prologue-stall investigation): the segment index + wait name the harness
+ * is currently blocked on, published each tick for the dialogue call-trace. */
+int  g_segtrace_dbg_seg = -1;
+char g_segtrace_dbg_wait[32] = "";
+
 uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                              segtrace_capture_fn capture_cb, void *user)
 {
@@ -1077,5 +1082,12 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         fire_memsnaps(st, s, frame);
         break;
     }
+    /* DIAG: publish the segment/wait the harness is parked on this frame. */
+    g_segtrace_dbg_seg = (int)st->cur_seg;
+    if (st->cur_seg < st->n_segs && st->segs[st->cur_seg].has_wait)
+        snprintf(g_segtrace_dbg_wait, sizeof g_segtrace_dbg_wait, "%s",
+                 st->segs[st->cur_seg].wait);
+    else
+        g_segtrace_dbg_wait[0] = '\0';
     return st->sticky;
 }
