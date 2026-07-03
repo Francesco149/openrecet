@@ -24,6 +24,7 @@
 #include "audio.h"               /* display-menu SE (FUN_0049933c file / FUN_00499519 id) */
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
+#include "scene1_tutorial_dispatch.h" /* iv2_5→iv2_6 beat — suppress the walk arm */
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "scene1_display_menu.h" /* cc04==1 remove-item menu update/removal (A2) */
@@ -2452,7 +2453,8 @@ void scene1_player_ctrl_tick(void)
 
     if (s_cc08 == 1 &&
         !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
-        !scene1_intro_dialogue_posing())
+        !scene1_intro_dialogue_posing() &&
+        !scene1_tutorial_dispatch_iv2_beat_active())
         player_ctrl_cc08_freeroam_arm();
     else
         player_ctrl_cc08_unported_arm();

@@ -39,4 +39,18 @@
  * FUN_004427f1 → FUN_0044bd0d order in FUN_00442cef (all.c:40849). */
 void scene1_tutorial_dispatch_tick(void);
 
+/* The iv2_5→iv2_6 "Recette looks up at Tear" idle BEAT (retail DAT_0438b928==1 /
+ * DAT_0438b924 timer).  iv2_5's dispatch arms it (b928=1, b924=0); the master tick
+ * increments b924 every free-roam frame (all.c:86801); FUN_0044bd0d gates the whole
+ * scenario cascade behind `b928==1 && b924 < 0xbe(190)` (all.c:45489 → the
+ * `if(!bVar1) return` @45507), so iv2_6 (the DAY2 load) can't fire until the 190-frame
+ * beat elapses.  1 while the beat holds — the conversation pose driver ORs this into
+ * its pose gate so the actors stay posed (panim 6 / canim 4) across the beat instead
+ * of releasing to idle at iv2_5's dialogue end.  See
+ * docs/findings/cutscene-replay-anchor-drift.md (Residual B). */
+int  scene1_tutorial_dispatch_iv2_beat_active(void);
+
+/* Clear the transient beat state (a fresh prologue / scenario re-entry). */
+void scene1_tutorial_dispatch_reset(void);
+
 #endif /* OPENRECET_SCENE1_TUTORIAL_DISPATCH_H */

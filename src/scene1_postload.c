@@ -52,6 +52,7 @@
 #include "scene1_particles_tick.h"
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
 #include "scene1_conversation_pose.h"/* scene1_conversation_pose_reset */
+#include "scene1_tutorial_dispatch.h"/* scene1_tutorial_dispatch_reset (iv2 beat) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
@@ -133,6 +134,9 @@ void scene1_postload_pose_house_standing(void)
 
     /* Drop any held iv1_2 conversation pose latch on scene entry. */
     scene1_conversation_pose_reset();
+
+    /* Clear the transient iv2_5→iv2_6 idle-beat timer on scene entry. */
+    scene1_tutorial_dispatch_reset();
 }
 
 void scene1_postload_ambient_spawn(void)

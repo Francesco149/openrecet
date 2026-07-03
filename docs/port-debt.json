@@ -59,7 +59,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1188,
+   "line": 1189,
    "kind_known": false
   },
   {
@@ -67,7 +67,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1145,
+   "line": 1146,
    "kind_known": false
   },
   {
@@ -115,7 +115,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1211,
+   "line": 1212,
    "kind_known": false
   },
   {

@@ -10,6 +10,7 @@
 #include "scene1_player_ctrl.h"     /* actor record (mut/read) + facing setter */
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos + g_scene1_camera_yaw_alt */
 #include "scene1_intro_dialogue.h"  /* iv1_2 lifecycle → the talk-event flag */
+#include "scene1_tutorial_dispatch.h" /* iv2_5→iv2_6 beat → hold the pose across it */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_tick — the 48407f bg pump */
 #include "scene1_companion_ctrl.h"  /* spring-follow + wing emit + db054 advance */
 #include "call_trace.h"             /* CALL_TRACE_ENTER */
@@ -122,6 +123,18 @@ void scene1_conversation_pose_tick(void)
      * continuous _running() gate would instead pose straight through and fire only
      * ONE CONV_POSE_START, losing that structure.) */
     int posing = scene1_intro_dialogue_posing();
+
+    /* Hold the pose across the iv2_5→iv2_6 idle beat (retail's DAT_0438b928 /
+     * DAT_0438b924 "Recette looks up at Tear" pause between the last day-1-evening
+     * dialogue and the DAY2 load).  No dialogue is active during it (b1c8==0) so
+     * _posing() is false, but retail keeps both actors in the conversation pose
+     * (Recette anim 6 / Tear anim 4, blinking) for the whole ~190f beat.  Without
+     * this the port releases them to idle at iv2_5's dialogue end — the 189f DAY2
+     * drift (Residual B) + the port-only CONV_POSE_END/START blip (Residual A).
+     * scene1_tutorial_dispatch owns the beat timer; the pose driver just mirrors
+     * its state into the pose gate. */
+    if (!posing && scene1_tutorial_dispatch_iv2_beat_active())
+        posing = 1;
 
     /* RE §21.18 — hold the conversation pose ONE frame past the dialogue's
      * posing-drop when the f406 first-customer entry is armed THIS frame.  After

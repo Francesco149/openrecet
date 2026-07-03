@@ -49,6 +49,19 @@
 #define TUT_DAY_DWORD          (0x2c3ec / 4)   /* DAT_0450fb84 — day counter (HUD shows +1) */
 #define TUT_SHOPTIME_DWORD     (0x2c3f0 / 4)   /* DAT_0450fb88 — shop-time/activity counter */
 
+/* iv2_5→iv2_6 idle-beat length: retail gates the cascade behind
+ * `DAT_0438b924 < 0xbe` (all.c:45489), and b924 counts one per free-roam frame from
+ * the iv2_5 arm (b924=0) — so iv2_6 fires the frame b924 reaches 0xbe.  Measured:
+ * b924 0@15470 → 189@15659 (retail drive 161316Z), iv2_6 load @15659. */
+#define IV2_BEAT_FRAMES 0xbe   /* 190 */
+
+/* The transient "Recette looks up at Tear" beat (retail DAT_0438b928 / DAT_0438b924).
+ * Armed at the iv2_5 fire, counted once per free-roam dispatch tick (= retail's
+ * master-tick b924++, which only runs in the default/free-roam arm — during a
+ * dialogue the sim takes the event arm and neither this tick nor b924 advances). */
+static int g_iv2_beat_active = 0;   /* DAT_0438b928 == 1 */
+static int g_iv2_beat_ctr    = 0;   /* DAT_0438b924       */
+
 /* The opening-scene selector the dispatcher writes (DAT_005c7a2c = 1). */
 #define TUT_SCENE 1
 #define TUT_SCENE_IV2 2
@@ -107,6 +120,22 @@ void scene1_tutorial_dispatch_tick(void)
         return;
     }
 
+    /* The iv2_5→iv2_6 idle beat.  Mirrors FUN_0044bd0d's `if (b928==1 &&
+     * b924 < 0xbe) bVar1 = false; ... if (!bVar1) return;` (all.c:45489/45507):
+     * while the beat holds, the whole scenario cascade below is withheld, so
+     * iv2_6 (the DAY2 load) can't fire.  b924 increments in the master tick every
+     * free-roam frame; this dispatch tick runs exactly on those frames (a dialogue
+     * routes the sim to the event arm, which skips this tick), so counting here
+     * matches retail's cadence.  Increment-then-test (retail bumps b924 in the
+     * master tick, then FUN_0044bd0d tests the bumped value the same frame): the
+     * beat holds for b924 = 1..189 and releases the frame b924 hits 0xbe. */
+    if (g_iv2_beat_active) {
+        g_iv2_beat_ctr++;
+        if (g_iv2_beat_ctr < IV2_BEAT_FRAMES)
+            return;
+        g_iv2_beat_active = 0;   /* beat elapsed — fall through, fire iv2_6 */
+    }
+
     /* ── The post-first-sale story chain (all.c:45726-45813, RE §21.31) ──────
      * iv1_8 → iv2_1 → iv2_2 → iv2_3 (the DAY ADVANCE) → iv2_5 → iv2_6, the
      * day-1-evening → day-2 cutscene series the day2 trace replays.  Retail's
@@ -157,13 +186,31 @@ void scene1_tutorial_dispatch_tick(void)
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 5);
             bb[TUT_IV2_5_DONE_OFF] = 1;      /* DAT_0450f411 = 1 */
             bb[TUT_IV2_6_TRIG_OFF] = 1;      /* DAT_0450f412 = 1 */
-            /* FUN_004852fb + DAT_0438b928=1 / DAT_0438b924=0 — the scene-intro
-             * conversation-event timer arm (conversation-pose-driver.md).  No
-             * port globals yet; PORT-DEBT(tut-dispatch-iv2-fx). */
+            /* Arm the "Recette looks up at Tear" beat (retail 45798-99:
+             * DAT_0438b928=1, DAT_0438b924=0).  The gate at the top of the iv2
+             * cascade then withholds iv2_6 (the DAY2 load) for IV2_BEAT_FRAMES of
+             * free-roam, and the pose driver holds the pose across it — closing
+             * the 189f DAY2-entry drift (Residual B) + the port-only pose blip
+             * (Residual A).  FUN_00452809 (blackout) still PORT-DEBT(blackout-
+             * tut-dispatch); FUN_004852fb's day-8/15-gated flag set is inert here
+             * (day 1→2 → the fb84==8 gate never binds; f470 stays 0, verified). */
+            g_iv2_beat_active = 1;           /* DAT_0438b928 = 1 */
+            g_iv2_beat_ctr    = 0;           /* DAT_0438b924 = 0 */
         }
     } else if (bb[TUT_IV2_6_DONE_OFF] == 0 && bb[TUT_IV2_6_TRIG_OFF] == 1) {
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
         bb[TUT_IV2_6_DONE_OFF] = 1;          /* DAT_0450f413 = 1 */
         bb[TUT_F414_OFF]       = 1;          /* DAT_0450f414 = 1 */
     }
+}
+
+int scene1_tutorial_dispatch_iv2_beat_active(void)
+{
+    return g_iv2_beat_active;
+}
+
+void scene1_tutorial_dispatch_reset(void)
+{
+    g_iv2_beat_active = 0;
+    g_iv2_beat_ctr    = 0;
 }
