@@ -363,6 +363,36 @@ are smaller. Montage on the llm-feed.**
     scene-reload day-advance (so #3's `nowloading_set_active(1)` never fires on the iv2 load, and #4's
     `pose_house_standing` re-placement never runs).
 
+**★★ 2026-07-03 (later) — #4 ACTOR RE-PLACEMENT investigated; MECHANISM mapped + sim-fix works, RENDER
+BLOCKER found (reverted, NOT committed — the render step is the real work).** Agent-mapped RE (all.c refs):
+- **It is a TARGETED in-scene re-place, NOT a scene reload.** The HOUSE (scene-1) stays loaded through the
+  whole iv2 chain (the iv2 loads are async DIALOGUE overlays, FUN_00452d07). Retail re-runs **FUN_00436f97
+  @0x436f97** (= the port's `scene1_postload_pose_house_standing` / `player_ctrl_pose_house_standing`:
+  player→px≈-0.30 oct6, companion actor2 re-seed→(0.6,3.0,9.35)) via **FUN_0048526d @0x48526d** (FUN_00436f97
+  + FUN_004851e2(1) + facing + db048=0xf + **b924=300**), triggered by the HOUSE controller poll
+  `if(DAT_0438b4e0==1) FUN_0048526d();` at **all.c:86750**. `DAT_0438b4e0=1` is set at shop/day-end→HOUSE
+  transitions (sites 40766/60378/86746(fb88>=4)/92368/45712(gated fb88>3, but iv2_3 sets fb88=0)); the
+  EXACT site for this trace's iv2_6→day2 boundary is **not statically determinable** (data-dependent tut-flag
+  threading) — pin with a `{calltrace}` probe adding **DAT_0438b4e0 + DAT_0438b1c0** (+ FUN_0044bb1a's
+  DAT_0438b770 "snap to door" countdown) to the 0x48670f hook. FUN_004852fb (iv2_5's call) sets ONLY facing
+  (oct 2/6 from `_DAT_056da1f0<=DAT_056da1d8`) — NO position (correct: the finding said facing is derived).
+- **Port first-cut (wired, VERIFIED at SIM level, then REVERTED):** a one-shot `g_day2_replace_pending`
+  armed at the iv2_6 fire, consumed the first `!scene1_intro_dialogue_busy()` frame after the DAY2 load
+  (= day2 entry), calling `scene1_postload_pose_house_standing()`. Debug-confirmed: it FIRES (at beat_ctr=190)
+  and the SIM positions re-place correctly — `g_scene1_player_pos[0]` 0.796→**-0.300** (stable), companion
+  `g_scene1_actor_pos[2][0]` -0.694→**0.600** (stable). So the sim re-place is CORRECT.
+- **★ BLOCKER — the RENDER does NOT reflect the sim re-place.** `--target both` @ day2 free-roam (raw
+  15799-15838): the port SPRITE still draws Recette at the STALE +0.80 (right) and Tear on the LEFT — the
+  mirror-swap PERSISTS on screen even though the sim says player=-0.30 / companion=0.6 (right). ⇒ the
+  player/companion SPRITES render from a source the `g_scene1_actor_pos` re-place doesn't propagate to
+  (likely a per-actor chr sprite RECORD updated by the player controller, or a conversation-pose snapshot,
+  or the camera). **NEXT: find the player/companion sprite render position source + the record↔actor_pos
+  relationship; the complete #4 fix must update THAT (not just g_scene1_actor_pos).** Also: the companion is
+  FROZEN at 0.6 in the sim too (should spring-follow-ease 0.6→1.0; FUN_0048a4d1) — its follow is gated off
+  during day2 (the beat walk-suppression class), a 2nd sub-issue. `player_ctrl_pose_house_standing` seeds
+  the record's anim/octant but the POSITION propagation is the gap. **Re-doing the one-shot re-place is
+  trivial (documented above); the render-source + frozen-follow are the real remaining work.**
+
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
 SCOPED caprange (the DAY2 window only, ~1091f ≈ 5GB both sides, NOT full-extent) — or teach orv3 to

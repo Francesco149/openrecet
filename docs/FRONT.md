@@ -26,8 +26,14 @@
     a b924 fade-transition phase seam (port text brighter over the first ~15 fade-in frames; glyphs
     pixel-aligned, fill-alpha only ⇒ upstream beat-counter timing, needs a `{calltrace}` state probe
     comparing port g_iv2_beat_ctr vs retail DAT_0438b924 — the 0x48670f hook already has b924).
-  - **OPEN: #3 Now-Loading disc, #4 actor re-placement (both big; share a root — the iv2 chain is modeled
-    as `start_single` dialogue-loads, not retail's real scene-reload day-advance), #5 wing-sparkle (minor).**
+  - **◐ #4 actor re-placement — MECHANISM mapped + SIM-fix verified, RENDER BLOCKER (reverted, not
+    committed).** It's a TARGETED in-scene re-place (retail FUN_0048526d→FUN_00436f97 = the port's
+    `scene1_postload_pose_house_standing`, poll-triggered `DAT_0438b4e0==1` @86750), NOT a scene reload. A
+    one-shot at the iv2_6→day2 boundary re-places the SIM correctly (debug: player→-0.30, companion→0.6) but
+    the SPRITE render still shows the stale +0.80/left swap ⇒ the sprites render from a source the
+    `g_scene1_actor_pos` re-place doesn't reach (chr record / pose snapshot / camera). NEXT: the sprite
+    render-position source + the frozen companion follow. Full story: finding §2026-07-03-later.
+  - **OPEN: #3 Now-Loading disc (iv2 load never calls `nowloading_set_active`), #5 wing-sparkle (minor).**
   - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
     trace — a separate occurrence-aware-windowing tooling arc, deferred).
 - **✅✅ 2026-07-03 — cutscene-replay DEADLOCK fixed + PARITY-validated (commit `b82d2df`; finding
