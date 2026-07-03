@@ -70,12 +70,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   completion-based (`CreateThread`-race) loads drift the frame cadence run-to-run; the INTERACTIVE region
   (<3468) keeps fragile syncs (`CONV_POSE_BLINK`/`TEXT_ANIM_*`/`PAUSE_OPEN`) whose order/timing flips ⇒
   the anchor-segment harness parks. `--drop-fragile` only fixes AUTO-PLAY regions (>3468). The committed
-  sibling's past `--target both` pass was load-phase LUCK (cf. §21.6). **NEEDS (human DIRECTION): pick the
-  load-determinism fix** — (A) generalise the Frida ARM-ONLY skip driver to also INJECT the confirming X +
-  re-arm past the f406 entry; (B) a `csloadpin`-analogue LOAD-BRACKET pin for the first-customer/pause
-  cutscene loads; (C) verify DAY2 off a DAY2-PROXIMATE save (short robust trace, needs such a save); (D)
-  re-roll retail for a lucky clean pass (fragile). Then RNG/line_row parity + viewer confirm of the DAY2
-  pixels + sign-hammer. Watch the known DAY-2 blink-stall lead
+  sibling's past `--target both` pass was load-phase LUCK (cf. §21.6). **✅✅✅ 2026-07-03 — FIXED via path
+  (B) [user-chosen]: the drifting brackets were ALREADY pinned but the extend-only min-gate VALUES were
+  too small to bind on retail** (agent.log: `csloadpin: real load >= pin ... left alone`). Retail cs
+  loads are 43-62 (pin was 24), tut cutscene loads 28-97 (pin was 8). **Raised `{csloadpin}` 24→72 +
+  `{tutloadpin}` 8→36** ⇒ the gate now binds on BOTH sides ⇒ port==retail cadence. Result (drive
+  `…123809Z`): **port still COMPLETES at the raised cadence (order preserved), retail COMPLETES the whole
+  trace for the first time** (all 4 prior drives stalled) — reaches CONV_POSE_END@16101 (sign-hammer) +
+  DAY2 trailing hold; non-blink anchor seq port↔retail first-505 + last-14 IDENTICAL. RNG-safe (every
+  LOADING_END is `{rngseed}`-pinned ⇒ offer structurally unchanged; both sides now share the SAME
+  cadence). **REMAINING: (1) flow_diff RNG/line_row verdict to sign off the confirmed region survives;
+  (2) viewer confirm of the DAY2 pixels + sign-hammer (human).** Residual (deferred, harmless): late
+  dialogue-cutscene tut loads (brackets 7-11, real 44-97 > 36) still drift in the dropped-fragile region
+  ⇒ mid-cutscene cadence offset (re-syncs by the tail); binding them needs tut≥97 (inflates the confirmed
+  bracket-4) or a separate late-cutscene gate. Finding `cutscene-replay-anchor-drift.md` §2026-07-03-FIXED.
+  Watch the known DAY-2 blink-stall lead
   (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
   `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`
   WITHOUT a `{calltrace}` window dumps the FULL call graph (~1.4GB/run) — always scope it.

@@ -144,3 +144,34 @@ parking, + re-arm past the f406 entry; (B) a `csloadpin`-analogue LOAD-BRACKET p
 first-customer/pause cutscene loads so retail's cadence is deterministic (the ordering stops flipping);
 (C) verify the DAY2 content off a DAY2-PROXIMATE save (short robust trace that skips the fragile
 region entirely — needs such a save); (D) re-roll retail until a clean pass (fragile, unbounded).
+
+## ★★★ 2026-07-03 — FIXED via path (B): the drifting brackets were ALREADY pinned, but the pin VALUES were too small (extend-only min-gate didn't bind on retail). Raising csloadpin 24→72 + tutloadpin 8→36 makes retail COMPLETE the whole trace (all 4 prior drives stalled)
+User chose path (B). Root cause turned out SIMPLER than "add a new pin": the retail agent.log
+(`csloadpin: real load >= pin at frame N - left alone (extend-only)`) proved the drifting brackets
+are ALREADY covered by the existing pins — bracket 2/3/5/6 by **csloadpin** (`b1cc==2` cc08 cs load),
+bracket 4/7-12 by **tutloadpin** (D_TUT_LOAD CONV_POSE cutscene load). The pins are BILATERAL
+EXTEND-ONLY min-gates (hold the bracket ≥N frames): the values were calibrated to the PORT's short
+suppressed loads (cs≈24, tut≈8), so on RETAIL — whose real loads are 43-62 (cs) / 28-97 (tut) — the
+gate `real >= pin` never bound ⇒ "left alone" ⇒ the real jittery duration ran ⇒ cadence drift ⇒ the
+blink-phase/anchor-order flip that deadlocked the kept fragile waits.
+**Fix = raise the pin values so N ≥ retail's real max** (`{csloadpin}` 24→**72** ≥ 62, `{tutloadpin}`
+8→**36** ≥ 29). Now the gate binds on BOTH sides ⇒ each bracket is exactly N frames, port==retail.
+Measured (drive `…123809Z`, `--target both`): port loads → cs 72 / tut 36 uniformly, **port COMPLETES
+(855 anchors, no deadlock — the raised cadence PRESERVES the trace's fragile order)**; retail brackets
+2-6 now BIND (72/72/36/72/72, `released` not `left alone`), retail **reaches the LAST anchor
+CONV_POSE_END@16101 (the sign-hammer) + plays the DAY2 trailing hold** — the first of 4 retail drives
+to complete. Non-blink anchor sequence port↔retail: **first 505 identical, DAY2 tail (last 14)
+identical**; a transient reorder mid-cutscene (idx 505) is brackets **7-11 still drifting** (retail tut
+loads 44-97 > pin 36) in the DROPPED-FRAGILE region (raw >3468) — HARMLESS (no `{wait}` deadlocks;
+re-converges by the tail).
+**RNG-safety of raising the pins:** every `LOADING_END` in the trace is immediately followed by an
+`{rngseed}` pin that force-sets the LCG, so the (now-longer) in-load sparkle rng consumption is
+OVERRIDDEN downstream ⇒ the confirmed offer (b574, generated from a pinned seed) is structurally
+unchanged; and both sides now share the SAME deterministic load cadence ⇒ bg_npc/sparkle compare
+port↔retail (the parity goal) instead of drifting. Verify via flow_diff before final sign-off.
+**Residual (follow-up, NOT blocking):** brackets 7-11 (later dialogue-cutscene tut loads, real 44-97)
+still exceed tut=36 ⇒ mid-cutscene cadence drift. Binding them needs tutloadpin ≥97, which would
+inflate the early bracket-4 (real 28→97) in the confirmed region — risky; or a separate gate for the
+late cutscene loads. Deferred: they're dropped-fragile (harmless for replay), and the DAY2/sign-hammer
+tail re-syncs. **Also: with loads now deterministic, `max_frames` can drop 90000→~20000** (the trace
+completes ~17003; retail wastes ~55s idling to the ceiling).
