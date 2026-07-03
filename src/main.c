@@ -3129,6 +3129,13 @@ static void render_dispatch(void)
                  * (user-reported 2026-06-02). */
                 if (!covers) {
                     scene1_hud_render(g_dev);
+                    /* The "Day N" DAY-TRANSITION CARD (FUN_0040a765 all.c:7500).
+                     * Retail draws it inside the FUN_0040a765 aggregator AFTER the
+                     * top-HUD tail (so its opaque-black backdrop covers the HUD) and
+                     * BEFORE the overlay dispatcher (FUN_00417504) — same order here.
+                     * Self-gates on the b928/b924 beat (no-op off the DAY2 transition),
+                     * so safe every HOUSE free-roam frame. */
+                    scene1_day_card_render(g_dev);
                     scene1_render_overlay(g_dev);
                     /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
                      * at the tail of the engine's FUN_0045cc85 scene render).  Self-

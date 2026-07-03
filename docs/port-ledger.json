@@ -7785,6 +7785,7 @@
     "src/choice_box.c",
     "src/font_draw.h",
     "src/scene1_display_menu.c",
+    "src/scene1_fx_overlays.c",
     "src/scene1_merchant_hud.c",
     "src/scene_worldmap.c"
    ]

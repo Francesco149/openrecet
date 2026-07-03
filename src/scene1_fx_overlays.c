@@ -36,6 +36,11 @@
 #include "scene_pause.h"   /* g_pause_action — the blur clear-colour variant */
 #include "sysassets.h"            /* g_sysassets.system_bmp (DAT_073aa188) */
 #include "scene1_intro_dialogue.h" /* the DAT_0438bf74 blackout-active gate   */
+#include "scene1_tutorial_dispatch.h" /* the b928/b924 beat that drives the day card */
+#include "save_work.h"            /* save_work_dwords_at — the live day field    */
+#include "save_bank.h"            /* SAVE_BANK_FIELD_CARD_DAY (0xb0fb)           */
+#include "font_draw.h"            /* font_draw_text_centered (FUN_0047d14c)      */
+#include <stdio.h>                /* snprintf — the "Day %d" format              */
 
 /* The 2-pass radial-blur composite (engine FUN_00454191 c99c==3 block,
  * L50874-50943), built ONCE at pause open.  Leaves RT#56 holding the finished
@@ -184,6 +189,72 @@ void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev)
     render_quad_flush(d);
 }
 
+void scene1_day_card_render(struct IDirect3DDevice8 *dev)
+{
+    /* Port of the "Day N" DAY-TRANSITION CARD — a self-contained block inside the
+     * shop-foreground aggregator FUN_0040a765 (all.c:7500-7559 / 0x40c209).  Retail
+     * gate: DAT_0438b1c0==1 && *DAT_068dd2f0==0 && DAT_0438b928==1 && DAT_0438b924<0x8c.
+     * The b928/b924 pair IS the "Recette looks up at Tear" beat (ported as the
+     * tutorial-dispatch beat, findings/cutscene-replay-anchor-drift.md Residual B):
+     * armed at iv2_5, counted 0→190 once per free-roam frame, gates iv2_6 at b924<190.
+     * For the first 140f of that beat the engine draws a full-screen OPAQUE-BLACK
+     * backdrop + centred "Day N" text (alpha b924*8), then a WHITE exit-fade — the
+     * black→white→reveal day-1→day-2 transition.
+     *
+     * The port does NOT arm the bf74 blackout for the iv2 chain (PORT-DEBT(blackout-
+     * tut-dispatch)); it doesn't need to — retail's bf74 (FUN_00453d9c) merely draws a
+     * redundant opaque black UNDER this card during the async load, and THIS card's own
+     * backdrop is what turns the DAY2-transition screen black.  Called from the HOUSE
+     * free-roam render tail AFTER the top-HUD aggregator, so the card covers the HUD
+     * (retail draws it at FUN_0040a765 — draw [2] — over the scene, the same relative
+     * order).  Colours/alphas/scale objdump-verified at 0x40c209-0x40c431. */
+    if (!scene1_tutorial_dispatch_iv2_beat_active())          /* DAT_0438b928 != 1 */
+        return;
+    const int b924 = scene1_tutorial_dispatch_iv2_beat_ctr();
+    if (b924 >= 0x8c)                                          /* b924 >= 140 → card gone */
+        return;
+    const sprite_t *sys = &g_sysassets.system_bmp;            /* DAT_073aa188 (system.bmp) */
+    if (sys->tex == NULL)
+        return;
+
+    const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };      /* full-screen (xywh) */
+    const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };          /* solid patch of system.bmp */
+
+    /* ── Block 1 (b924 < 0x7a): opaque-black backdrop + centred "Day N". ── */
+    if (b924 < 0x7a) {
+        render_quad_state_setup(dev);
+        render_quad_bind(dev, sys);
+        render_quad_add(dst, src, sys->width, sys->height, 0xff000000u); /* black @0x40c247 */
+        render_quad_flush(dev);
+
+        int alpha = b924 * 8;                                 /* @0x40c2a8 shl 3 */
+        if (alpha > 0xff) alpha = 0xff;                       /* cap 255 (32f fade-in) */
+        /* Survival/Endless mode labels (@0x40c2b4/40c2f3) are story-mode-inert — skipped. */
+        const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        int day = (wb ? (int)wb[SAVE_BANK_FIELD_CARD_DAY] : 0) + 1;  /* save[0x2c3ec]+1 */
+        if (day > 9999) day = 9999;
+        char buf[32];
+        snprintf(buf, sizeof buf, "Day %d", day);            /* s_Day__d_0052a7cc */
+        font_draw_text_centered(dev, 320.0f, 208.0f, buf,
+                                ((uint32_t)alpha << 24) | 0xffffffu, 2.2f); /* white @0x40c383 */
+    }
+
+    /* ── Block 2 (b924 > 0x5a): WHITE exit-fade quad (@0x40c396). ── */
+    if (b924 > 0x5a) {
+        int a = b924 * 8 - 0x2d0;                             /* @0x40c3a4 lea -0x2d0(,eax,8) */
+        if (a > 0xff) a = 0xff;
+        if (b924 > 0x7a)                                      /* @0x40c3b1 */
+            a += (0x7a - b924) * 0x10;                        /* @0x40c3bb shl 4 (ramp back down) */
+        if (a > 0) {
+            render_quad_state_setup(dev);
+            render_quad_bind(dev, sys);
+            render_quad_add(dst, src, sys->width, sys->height,
+                            ((uint32_t)a << 24) | 0xffffffu); /* WHITE @0x40c3e4 */
+            render_quad_flush(dev);
+        }
+    }
+}
+
 #else  /* !_WIN32 — Linux host-test build (no d3d8) */
 
 void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
@@ -199,6 +270,12 @@ void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
 void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev)
 {
     /* Host build: the blackout quad is Win32-only (see the _WIN32 body). */
+    (void)dev;
+}
+
+void scene1_day_card_render(struct IDirect3DDevice8 *dev)
+{
+    /* Host build: the day-transition card is Win32-only (see the _WIN32 body). */
     (void)dev;
 }
 

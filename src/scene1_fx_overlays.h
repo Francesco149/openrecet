@@ -57,4 +57,10 @@ void scene1_fx_overlays(struct IDirect3DDevice8 *dev);
  * (0 net px, under the opaque bg/scene) but part of retail's render program. */
 void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev);
 
+/* Port of the "Day N" DAY-TRANSITION CARD block in FUN_0040a765 (all.c:7500-7559).
+ * Full-screen black backdrop + centred "Day N" text, then a white exit-fade, driven
+ * by the b928/b924 beat (scene1_tutorial_dispatch) for the first 140f of the day-1→
+ * day-2 transition.  Call from the HOUSE free-roam render tail AFTER the top HUD. */
+void scene1_day_card_render(struct IDirect3DDevice8 *dev);
+
 #endif /* OPENRECET_SCENE1_FX_OVERLAYS_H */

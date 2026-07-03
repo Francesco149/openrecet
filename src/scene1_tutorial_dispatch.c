@@ -209,6 +209,11 @@ int scene1_tutorial_dispatch_iv2_beat_active(void)
     return g_iv2_beat_active;
 }
 
+int scene1_tutorial_dispatch_iv2_beat_ctr(void)
+{
+    return g_iv2_beat_ctr;
+}
+
 void scene1_tutorial_dispatch_reset(void)
 {
     g_iv2_beat_active = 0;

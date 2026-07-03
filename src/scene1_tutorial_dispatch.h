@@ -50,6 +50,12 @@ void scene1_tutorial_dispatch_tick(void);
  * docs/findings/cutscene-replay-anchor-drift.md (Residual B). */
 int  scene1_tutorial_dispatch_iv2_beat_active(void);
 
+/* The beat counter DAT_0438b924 (0..190).  Drives the "Day N" day-transition CARD
+ * (FUN_0040a765 all.c:7500-7559): black backdrop + centred "Day N" text (alpha
+ * b924*8) for b924<0x7a, then a white exit-fade for b924>0x5a — the same b924 the
+ * b924<0xbe gate uses, so the card runs across the first 140f of the beat. */
+int  scene1_tutorial_dispatch_iv2_beat_ctr(void);
+
 /* Clear the transient beat state (a fresh prologue / scenario re-entry). */
 void scene1_tutorial_dispatch_reset(void);
 
