@@ -52,14 +52,18 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   segment rng). **Any re-distill of a pinned trace MUST pass `--carry-pins-from <old trace>`.** Principled
   auto-play boundary for this trace = raw **3468** (last interactive tap; 2195 is too early → still
   interactive → stalls). Finding has the full story.
-  **★ OPEN (a)+(b) — candidate scenario `house-firstcust-cutscene-day2-full` built** (`--drop-fragile-after
-  3468 --carry-pins-from <committed>`, full 16291 range ⇒ DAY 2 brooming INCLUDED; identical to committed
-  0→15390, +DAY2 tail). Head pins + `bgnpcpin` verified in place. **NEEDS: a port `--target both` drive to
-  15390+ (RNG/line_row parity like the committed) + human viewer confirm of the DAY2 tail + the SIGN-HAMMER
-  (raw ~15390) — the drive to 15390 takes ~25min under turbo.** Watch the known DAY-2 blink-stall lead
-  (~frame 21259+). If the DAY2 tail stalls, bump the boundary or hand-place a DAY2 pin. Diagnostic
-  drives: SMALL caprange (32) — a big caprange writes a 24GB frames/ dir (filled the disk once). NB
-  `--call-trace` WITHOUT a window dumps the FULL call graph (~1.4GB/run) — always scope it to a window.
+  **✅ 2026-07-03 (a)+(b) PORT-SIDE DONE — candidate scenario `house-firstcust-cutscene-day2-full`**
+  (commits `43b57de`+`86d4a0d`+`ef28140`; `--drop-fragile-after 3468 --carry-pins-from <committed>`, full
+  16291 range). **Port drive replays END-TO-END exit=0 in ~100s: all 855 anchors, past the pause region
+  (where a pinless re-distill stalls), through the fast-forward/original-deadlock zone, reaches the
+  SIGN-HAMMER (CONV_POSE_END@15390), then the trailing-hold plays the DAY 2 brooming tail (901 frames, +~6s).**
+  Three distiller fixes landed en route: caprange must NOT carry (it dumped a 33GB BMP frames/ dir → disk
+  hazard); the anchor-segment TRAILING HOLD (post-last-anchor idle like DAY2 was silently trimmed); pins
+  carried correctly. **★ REMAINS (human): `--target both` for RNG/line_row parity vs retail (only the PORT
+  was driven) + viewer confirm of the DAY2 brooming pixels + the sign-hammer close-up.** Watch the known
+  DAY-2 blink-stall lead (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
+  `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`
+  WITHOUT a `{calltrace}` window dumps the FULL call graph (~1.4GB/run) — always scope it.
 - **✅ 2026-07-02 — day-end cutscene: served customer DESPAWN ported, PIXEL-1:1 (viewer notes #24/#25; RE §21.33).**
   The port drew a chibi customer still roaming the shop floor (and through Tear's hair) through the whole
   day-end CONV_POSE cutscene; retail has none.  Root cause: the cs-leave restore (FUN_00462403 @60337) calls

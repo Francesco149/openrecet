@@ -6,9 +6,11 @@
 #     --drop-fragile-after 3468 --carry-pins-from <sibling>/trace.jsonl
 # (--carry-pins-from is REQUIRED — the load pins are hand-tuned, not in the raw; a naked
 #  re-distill stalls at the pause region.  See findings/cutscene-replay-anchor-drift.md.)
-# STATUS: port replay validated through the divergent 3468-6300 region + the first
-# cutscene boundaries (no stall).  PENDING: a --target both drive to 15390+ for RNG/
-# line_row parity, + human viewer confirm of the DAY2 tail + the SIGN-HAMMER close-up.
+# STATUS (2026-07-03): PORT replay validated END-TO-END (exit=0, ~100s, all 855
+# anchors): past the pause region, through the fast-forward/deadlock zone, reaches the
+# sign-hammer (CONV_POSE_END@15390), then the trailing-hold plays the DAY2 brooming
+# (901 frames).  PENDING (human): a --target both drive for RNG/line_row parity vs
+# retail + viewer confirm of the DAY2 pixels + the sign-hammer close-up.
 #
 # house-firstcust-cutscene-day2 — the FULL post-tutorial flow from the user's
 # recording rec-20260622-182618: LOAD (cad868 save) → haggle tutorial start →

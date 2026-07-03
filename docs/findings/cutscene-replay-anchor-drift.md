@@ -90,11 +90,19 @@ the naked one stalls at 2994.
   still has interactive input (3rd pause, ESC skips, taps) whose timing needs the fragile
   re-syncs, so it stalls. The human's original conservative cut (raw ~6300) also works;
   3468 is the clean minimum.
-- **DAY 2 brooming** (raw 15390-16291): the naked re-distill naturally INCLUDES it (the
-  committed trace manually trimmed at CONV_POSE_END@15390). Candidate scenario
+- **DAY 2 brooming** (raw 15390-16291) — ✅ PORT-SIDE DONE 2026-07-03. Candidate scenario
   `house-firstcust-cutscene-day2-full` = `--drop-fragile-after 3468 --carry-pins-from <committed>`,
-  full 16291-frame range. NEEDS human viewer confirm of the DAY2 tail (+ the known DAY-2
-  blink-stall lead ~frame 21259+).
+  full 16291 range. Port drive replays END-TO-END (exit=0, ~100s, 855 anchors): past the pause
+  region, through the fast-forward/deadlock zone, sign-hammer at CONV_POSE_END@15390, then the DAY2
+  brooming tail. NEEDS (human): `--target both` RNG/line_row parity + viewer confirm. Two more
+  distiller fixes were needed for this:
+  - **caprange must NOT carry** (commit `86d4a0d`): `--carry-pins-from` pulled the committed trace's
+    `{caprange:[0,14000]}` into the re-distill ⇒ a `--bless` drive dumped ~33GB of per-frame BMPs and
+    hit the wall-clock ceiling. `caprange`/`capture`/`calltrace` are viewer directives, never pins.
+  - **anchor-segment TRAILING HOLD** (commit `ef28140`): `emit_anchor_segments` exhausted the segtrace
+    at the LAST anchor ⇒ the exe exited early and silently TRIMMED any post-last-anchor idle. This is
+    *why DAY 2 was trimmed in the first place* — the tail has no anchors (companion-AV brooming). A
+    trailing `{frame: total-last_lo}` hold now runs the final segment to the recording's end.
 - The **`seg` call-trace probe** (input_segtrace `g_segtrace_dbg_seg` → the segment
   the harness is parked on) is the tool that cracks trace-replay stalls in one drive
   — kept as permanent debug tooling.
