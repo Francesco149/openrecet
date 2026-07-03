@@ -42,13 +42,23 @@
   SIGN-HAMMER (CONV_POSE_END@15390), then the trailing-hold plays the DAY 2 brooming tail (901 frames, +~6s).**
   Three distiller fixes landed en route: caprange must NOT carry (it dumped a 33GB BMP frames/ dir → disk
   hazard); the anchor-segment TRAILING HOLD (post-last-anchor idle like DAY2 was silently trimmed); pins
-  carried correctly. **★ RETAIL single-drive STALLED at PAUSE_CLOSE@1603** (forced rng 2246047975 — the SAME point the
-  pre-pin PORT stalled): post-pause CONV_POSE_START never fired on retail despite pins active
-  (agent.log shows csloadpin/tutloadpin/bgnpcpin loaded). This region (<3468) is byte-identical to the
-  committed sibling that was `--target both` verified in a PAST session ⇒ either a retail load-race needing
-  an extra bracket OR single-drive flakiness (project warns single retail drives are unreliable). **NEEDS
-  (human): a committed-trace retail CONTROL drive to disambiguate, ≥2-drive verification, then RNG/line_row
-  parity + viewer confirm of the DAY2 pixels + sign-hammer.** Watch the known DAY-2 blink-stall lead
+  carried correctly. **★★ 2026-07-03 — ≥2-drive retail verification DONE. VERDICT: the retail replay is
+  LOAD-FLAKY on this trace (3/3 drives STALL to max_frames, at a WANDERING load-phase-dependent point) —
+  a pillar-B load-determinism gap, NOT a port gap** (finding `cutscene-replay-anchor-drift.md` §2026-07-03).
+  drive-1 (`--target both`): stalled @ raw≈837, the FIRST wrap-up skip — `TEXT_ANIM_START@837` reordered
+  BEFORE the 2nd `{wait CONV_POSE_BLINK}` ⇒ harness parked ⇒ box armed (driver on) but the confirming X
+  never injected ⇒ 1396 free-running blinks. drive-2 (`--target retail`): stalled @ `PAUSE_CLOSE@1600` /
+  rng 2246047975 = the FRONT's ORIGINAL point (harness parked on the next `{wait PAUSE_OPEN}`; menu-nav
+  taps missed retail's drifted cadence). **Port is deterministic (855/855 both drives).** Root: retail's
+  completion-based (`CreateThread`-race) loads drift the frame cadence run-to-run; the INTERACTIVE region
+  (<3468) keeps fragile syncs (`CONV_POSE_BLINK`/`TEXT_ANIM_*`/`PAUSE_OPEN`) whose order/timing flips ⇒
+  the anchor-segment harness parks. `--drop-fragile` only fixes AUTO-PLAY regions (>3468). The committed
+  sibling's past `--target both` pass was load-phase LUCK (cf. §21.6). **NEEDS (human DIRECTION): pick the
+  load-determinism fix** — (A) generalise the Frida ARM-ONLY skip driver to also INJECT the confirming X +
+  re-arm past the f406 entry; (B) a `csloadpin`-analogue LOAD-BRACKET pin for the first-customer/pause
+  cutscene loads; (C) verify DAY2 off a DAY2-PROXIMATE save (short robust trace, needs such a save); (D)
+  re-roll retail for a lucky clean pass (fragile). Then RNG/line_row parity + viewer confirm of the DAY2
+  pixels + sign-hammer. Watch the known DAY-2 blink-stall lead
   (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
   `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`
   WITHOUT a `{calltrace}` window dumps the FULL call graph (~1.4GB/run) — always scope it.

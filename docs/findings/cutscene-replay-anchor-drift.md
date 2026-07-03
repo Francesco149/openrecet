@@ -106,3 +106,41 @@ the naked one stalls at 2994.
 - The **`seg` call-trace probe** (input_segtrace `g_segtrace_dbg_seg` → the segment
   the harness is parked on) is the tool that cracks trace-replay stalls in one drive
   — kept as permanent debug tooling.
+
+## ★★ 2026-07-03 — the FRONT's ≥2-drive retail verification DONE. VERDICT: retail replay is LOAD-FLAKY on this trace (3/3 stall, WANDERING point) — a pillar-B load-determinism gap, NOT a port gap
+Ran the ≥2-drive `--target both`/`--target retail` verification the FRONT asked for. Result: **retail
+stalls to `max_frames@90000` on EVERY drive, at a load-phase-dependent point that WANDERS run-to-run:**
+- **drive-1 (`--target both`, run `…120220Z`):** stalled @ raw≈837, the **first wrap-up skip** —
+  `TEXT_ANIM_START@837` fired BEFORE the 2nd `{wait CONV_POSE_BLINK}` (line 57) resolved (@839) ⇒ the
+  harness armed `{wait TEXT_ANIM_START}` (line 60) AFTER TEXT_ANIM_START already fired ⇒ unresolvable ⇒
+  parked ⇒ the confirming X (line 67) never injected ⇒ box armed (`wrapup_dbg box=1 latched=1`, driver
+  WAS on) but skip never confirmed ⇒ **1396 free-running blinks**. This is the classic anchor-drift
+  REORDER on a KEPT fragile wait.
+- **drive-2 (`--target retail`, run `…121355Z`):** got PAST the wrap-up, stalled @ `PAUSE_CLOSE@1600`
+  (forced rng **2246047975** = trace line 108) — the harness parked on the NEXT `{wait PAUSE_OPEN}`
+  (line 126, rng 2875783614); the pause-menu nav taps (frames 82…351 relative to PAUSE_CLOSE) didn't
+  land on retail's drifted cadence ⇒ PAUSE_OPEN never fired (4 blinks only — pure input-timing miss, a
+  DIFFERENT mechanism from drive-1). **This is EXACTLY the FRONT's originally-reported stall.**
+- **the FRONT's earlier single drive:** `PAUSE_CLOSE@1603` / rng 2246047975 — same point as drive-2.
+
+**Port is DETERMINISTIC and completes 855/855 both drives** (turbo = fixed cadence). So this is
+purely a RETAIL non-determinism problem: completion-based (`CreateThread`-race) loads drift retail's
+frame cadence run-to-run; the INTERACTIVE first-customer/pause region (raw <3468) syncs on FRAGILE
+anchors (`CONV_POSE_BLINK`, `TEXT_ANIM_*`, `PAUSE_OPEN`-via-menu-nav) whose relative order/timing
+flips under that drift ⇒ the anchor-segment harness parks on an already-fired or never-firing anchor.
+`--drop-fragile` de-fragilizes only AUTO-PLAY regions (raw >3468); the interactive region KEEPS its
+fragile syncs because its taps need them for timing (dropping them rebases the taps → more accumulated
+drift → worse), so it stays vulnerable. The committed sibling's past `--target both` pass was
+load-phase LUCK (the ordering didn't flip that run), same as §21.6's "1 OK, 1 stall was load-phase
+luck". This is the pillar-B load-determinism FOUNDATION issue (`customer-service-haggle-RE.md` §21.5/.6,
+memory `openrecet_bgnpc_nondeterministic`), which §21.6 line 2336-2340 explicitly deferred as "the
+future day-2 brooming work — generalise the ARM-ONLY driver to re-arm at each post-entry skippable
+cutscene".
+
+**⇒ a lucky-clean retail re-roll is NOT a solid basis; the real fix is load-determinism/harness work
+(needs direction — see FRONT).** Candidate paths: (A) generalise the Frida ARM-ONLY skip driver to
+also INJECT the confirming X (not just arm the box) so the skip completes independent of harness
+parking, + re-arm past the f406 entry; (B) a `csloadpin`-analogue LOAD-BRACKET pin for the
+first-customer/pause cutscene loads so retail's cadence is deterministic (the ordering stops flipping);
+(C) verify the DAY2 content off a DAY2-PROXIMATE save (short robust trace that skips the fragile
+region entirely — needs such a save); (D) re-roll retail until a clean pass (fragile, unbounded).
