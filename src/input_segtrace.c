@@ -486,8 +486,9 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (!parse_number(&p, end, &capstride_val)) return 0;
                 got_capstride = 1;
             } else if (klen == 10 && memcmp(ks, "tutloadpin", 10) == 0) {
-                /* {tutloadpin:N} — trace-global tutorial-load-bracket pin
-                 * (see the header doc). Scalar; last declaration wins. */
+                /* {tutloadpin:N} — segment-scoped tutorial-load-bracket pin
+                 * (see the header doc). Scalar; attached to the current
+                 * segment, applied at its entry, sticky until re-declared. */
                 if (!parse_number(&p, end, &tlp_val)) return 0;
                 got_tutloadpin = 1;
             } else if (klen == 9 && memcmp(ks, "csloadpin", 9) == 0) {
@@ -598,9 +599,13 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             out->capstride = capstride_val;
             out->has_capstride = 1;
         } else if (got_tutloadpin) {
-            /* Trace-global: last declaration wins. Not segment-scoped. */
-            out->tutloadpin = tlp_val;
-            out->has_tutloadpin = 1;
+            /* Segment-scoped: attach to the CURRENT segment being built.
+             * Applied at that segment's ENTRY (rearm_tutloadpins) and sticky
+             * until a later segment re-declares one — so the head pin can stay
+             * small for a confirmed early region while a late segment binds the
+             * long dialogue-cutscene loads (RE §21 / DAY2 arc). */
+            cur->tutloadpin = tlp_val;
+            cur->has_tutloadpin = 1;
         } else if (got_csloadpin) {
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->csloadpin = csloadpin_val;
@@ -794,6 +799,13 @@ void input_segtrace_set_memsnap_cb(struct input_segtrace *st,
     st->ms_cb = cb; st->ms_user = user;
 }
 
+void input_segtrace_set_tutloadpin_cb(struct input_segtrace *st,
+                                      segtrace_tutloadpin_fn cb, void *user)
+{
+    if (!st) return;
+    st->tlp_cb = cb; st->tlp_user = user;
+}
+
 /* Clear a segment's {rngseed} fire flags so they re-arm on segment activation. */
 static void rearm_setrngs(struct input_segtrace *st, size_t seg_idx)
 {
@@ -848,6 +860,19 @@ static void rearm_memsnaps(struct input_segtrace *st, size_t seg_idx)
     if (seg_idx >= st->n_segs) return;
     struct seg_segment *s = &st->segs[seg_idx];
     for (size_t i = 0; i < s->n_memsnaps; i++) s->memsnaps[i].fired = 0;
+}
+
+/* Apply a segment's {tutloadpin} at segment activation.  Unlike the other
+ * rearm_* (which only clear a per-op `fired` flag for a base-relative fire),
+ * {tutloadpin} is applied at segment ENTRY (segment-scoped, sticky), so this
+ * DIRECTLY fires the callback with the segment's N.  Segments that don't
+ * declare one leave the current pin unchanged. */
+static void rearm_tutloadpins(struct input_segtrace *st, size_t seg_idx)
+{
+    if (seg_idx >= st->n_segs) return;
+    struct seg_segment *s = &st->segs[seg_idx];
+    if (s->has_tutloadpin && st->tlp_cb)
+        st->tlp_cb(s->tutloadpin, st->tlp_user);
 }
 
 /* Fire any of the active segment's {rngseed} ops whose frame base+frame has been
@@ -979,6 +1004,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         rearm_bgnpcpins(st, 0);
         rearm_phasepins(st, 0);
         rearm_memsnaps(st, 0);
+        rearm_tutloadpins(st, 0);
         schedule_captures(st, 0, capture_cb, user);
         schedule_calltraces(st, 0);
         schedule_capranges(st, 0);
@@ -1008,6 +1034,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
+                rearm_tutloadpins(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
                 schedule_calltraces(st, st->cur_seg);
                 schedule_capranges(st, st->cur_seg);
@@ -1045,6 +1072,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
+                rearm_tutloadpins(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
                 schedule_calltraces(st, st->cur_seg);
                 schedule_capranges(st, st->cur_seg);

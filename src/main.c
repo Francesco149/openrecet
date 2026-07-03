@@ -1016,6 +1016,7 @@ static void  segtrace_gframe_cb(uint32_t value, void *user);
 static void  segtrace_gsimpin_cb(uint32_t value, void *user);
 static void  segtrace_bgnpcpin_cb(const uint32_t *values, size_t n, void *user);
 static void  segtrace_phasepin_cb(void *user);
+static void  segtrace_tutloadpin_cb(uint32_t value, void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1837,17 +1838,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * every frame from boot. */
             if (g_d3d_trace_path)
                 d3d_trace_set_window(0, 0);
-            /* {tutloadpin:N} (trace-global) pins the tutorial-dialogue load
-             * bracket to N frames so it matches the retail bracket the Frida
-             * agent extends to the same N (engine-quirks §119). Known at load
-             * time (no callback needed). */
-            if (g_segtrace.has_tutloadpin) {
-                scene1_intro_dialogue_set_tut_load_frames(
-                    (int)g_segtrace.tutloadpin);
-                fprintf(stderr, "openrecet: tutorial load bracket pinned to "
-                        "%u frames (tutloadpin)\n",
-                        (unsigned)g_segtrace.tutloadpin);
-            }
+            /* {tutloadpin:N} pins the tutorial-dialogue load bracket to N
+             * frames so it matches the retail bracket the Frida agent extends
+             * to the same N (engine-quirks §119).  SEGMENT-SCOPED: applied at
+             * each declaring segment's entry via the callback (so the head pin
+             * can stay small for the confirmed region while a late segment
+             * binds the long dialogue-cutscene loads — RE §21 / DAY2 arc). */
+            input_segtrace_set_tutloadpin_cb(&g_segtrace,
+                                             segtrace_tutloadpin_cb, NULL);
             /* {csloadpin:N} (trace-global) pins the cc08==4 d3e customer-service
              * load bracket to N frames so the 目玉 sparkle consumes the same rng
              * count on both targets (the Frida agent extends retail's d3e worker
@@ -3928,6 +3926,18 @@ static void segtrace_rng_cb(uint32_t value, void *user)
     (void)user;
     rng_seed(value);
     fprintf(stderr, "segtrace: forced rng seed = %u\n", (unsigned)value);
+}
+
+/* Tutorial-load-bracket pin sink for input_segtrace `{tutloadpin:N}` ops.
+ * SEGMENT-SCOPED: fires at the entry of each declaring segment with that
+ * segment's N; overrides the port's synthetic D_TUT_LOAD length (0 clears back
+ * to IVE_TUT_LOAD_FRAMES).  Mirrors the retail agent's per-segment mirror. */
+static void segtrace_tutloadpin_cb(uint32_t value, void *user)
+{
+    (void)user;
+    scene1_intro_dialogue_set_tut_load_frames((int)value);
+    fprintf(stderr, "segtrace: tutorial load bracket pinned to %u frames "
+            "(tutloadpin)\n", (unsigned)value);
 }
 
 /* Global-frame-counter sink for input_segtrace `{gframe:[frame,value]}` ops:

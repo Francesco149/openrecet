@@ -541,10 +541,11 @@ int test_segtrace_no_capstride_clears_flag(void)
     return 0;
 }
 
-int test_segtrace_tutloadpin_parses_trace_global(void)
+int test_segtrace_tutloadpin_parses_per_segment(void)
 {
-    /* {tutloadpin:N} is trace-global like {capstride}: parsed into
-     * st.tutloadpin, not a segment-breaking op. Last declaration wins. The
+    /* {tutloadpin:N} is SEGMENT-SCOPED: parsed onto the CURRENT segment
+     * (segs[i].tutloadpin/has_tutloadpin), not a trace-global field. The head
+     * pin here lands on segment 0; the post-anchor segment carries none. The
      * actual bracket override lives in scene1_intro_dialogue (see
      * test_scene1_tutloadpin_pins_bracket_length); this guards parse+storage. */
     const char buf[] =
@@ -555,9 +556,10 @@ int test_segtrace_tutloadpin_parses_trace_global(void)
         "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
     struct input_segtrace st = {0};
     T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
-    T_ASSERT_EQ_U(st.has_tutloadpin, 1);
-    T_ASSERT_EQ_U(st.tutloadpin, 8);
     T_ASSERT_EQ_U(st.n_segs, 2);   /* not a wait → boot seg + post-anchor seg */
+    T_ASSERT_EQ_U(st.segs[0].has_tutloadpin, 1);
+    T_ASSERT_EQ_U(st.segs[0].tutloadpin, 8);
+    T_ASSERT_EQ_U(st.segs[1].has_tutloadpin, 0);  /* sticky: no re-declaration */
     input_segtrace_free(&st);
     return 0;
 }
@@ -567,7 +569,56 @@ int test_segtrace_no_tutloadpin_clears_flag(void)
     const char buf[] = "{\"caprange\":[0,48]}\n";
     struct input_segtrace st = {0};
     T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
-    T_ASSERT_EQ_U(st.has_tutloadpin, 0);  /* unset → synthetic default length */
+    /* unset → segment carries no pin → synthetic default bracket length */
+    T_ASSERT_EQ_U(st.segs[0].has_tutloadpin, 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+struct tlp_log { int n; uint32_t v[8]; };
+static void tlp_cb_rec(uint32_t value, void *user)
+{
+    struct tlp_log *r = (struct tlp_log *)user;
+    if (r->n < 8) r->v[r->n++] = value;
+}
+
+int test_segtrace_tutloadpin_applies_per_segment(void)
+{
+    /* Segment-scoped application: the head pin fires the callback at segment 0's
+     * entry; a segment WITHOUT one leaves the pin unchanged (no re-fire); a
+     * mid-trace pin fires at its OWN segment's entry (when the preceding anchor
+     * resolves) — the mirror of the port's rearm_tutloadpins at each advance. */
+    const char buf[] =
+        "{\"tutloadpin\":36}\n"                    /* seg0 pin */
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"wait\":\"LOADING_END\"}\n"              /* -> seg1 (no pin) */
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"wait\":\"LOADING_END\"}\n"              /* -> seg2 */
+        "{\"tutloadpin\":110}\n"                   /* seg2 pin */
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 3);
+    T_ASSERT_EQ_U(st.segs[0].has_tutloadpin, 1);
+    T_ASSERT_EQ_U(st.segs[0].tutloadpin, 36);
+    T_ASSERT_EQ_U(st.segs[1].has_tutloadpin, 0);
+    T_ASSERT_EQ_U(st.segs[2].has_tutloadpin, 1);
+    T_ASSERT_EQ_U(st.segs[2].tutloadpin, 110);
+    struct tlp_log log = {0};
+    input_segtrace_set_tutloadpin_cb(&st, tlp_cb_rec, &log);
+    /* seg0 entry (first tick) applies the head pin 36 */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    T_ASSERT_EQ_U(log.v[0], 36);
+    /* advance into seg1 (no pin) → callback must NOT re-fire */
+    input_segtrace_on_anchor(&st, "LOADING_END", 100);
+    input_segtrace_tick(&st, 100, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    /* advance into seg2 → its pin 110 applies at entry */
+    input_segtrace_on_anchor(&st, "LOADING_END", 200);
+    input_segtrace_tick(&st, 200, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 2);
+    T_ASSERT_EQ_U(log.v[1], 110);
     input_segtrace_free(&st);
     return 0;
 }

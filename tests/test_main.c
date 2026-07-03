@@ -480,7 +480,8 @@ struct test_case {
     X(segtrace_no_savefile_clears_flag) \
     X(segtrace_capstride_parses_trace_global) \
     X(segtrace_no_capstride_clears_flag) \
-    X(segtrace_tutloadpin_parses_trace_global) \
+    X(segtrace_tutloadpin_parses_per_segment) \
+    X(segtrace_tutloadpin_applies_per_segment) \
     X(segtrace_no_tutloadpin_clears_flag) \
     X(segtrace_gsimpin_fires_once_at_frame) \
     X(segtrace_gsimpin_rejects_scalar) \

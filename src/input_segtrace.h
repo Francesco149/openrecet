@@ -104,8 +104,15 @@
  *                        the retail exe's writable sections at the same frame.
  *
  *   {"tutloadpin":N}     pin the tutorial-dialogue LOAD-BRACKET length to N
- *                        frames on BOTH targets (trace-global, last declaration
- *                        wins; comparison normalization, like {phasepin}).  The
+ *                        frames on BOTH targets (SEGMENT-SCOPED: applied at the
+ *                        ENTRY of the segment that declares it and STICKY until
+ *                        a later segment re-declares it; comparison
+ *                        normalization, like {phasepin}).  Segment scope lets
+ *                        the head pin stay SMALL (protecting a confirmed early
+ *                        region's blink phase) while a late segment binds the
+ *                        LONG dialogue-cutscene loads — a uniform large pin
+ *                        would shift the early free-running %64 blink cadence
+ *                        (DAY2 arc, RE §21 / cutscene-replay-anchor-drift).  The
  *                        retail bracket is a worker THREAD's wall-time (engine-
  *                        quirks §119: 2f and 5f for two activations on the SAME
  *                        capture), so every tutorial-load crossing shifts the
@@ -306,6 +313,11 @@ struct seg_segment {
     size_t            n_phasepins, cap_phasepins;
     struct seg_memsnap *memsnaps;   /* base-relative writable-section dumps */
     size_t            n_memsnaps, cap_memsnaps;
+    /* Segment-scoped {tutloadpin} (applied at this segment's ENTRY via the
+     * tutloadpin callback; sticky until a later segment re-declares one).
+     * has_tutloadpin==0 leaves the current pin unchanged. */
+    uint32_t          tutloadpin;
+    int               has_tutloadpin;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
     /* Optional {wait} timeout (frames since the segment was entered). 0 = wait
@@ -351,13 +363,10 @@ struct input_segtrace {
     uint32_t capstride;
     int      has_capstride;
 
-    /* Optional tutorial-load-bracket pin, from a `{"tutloadpin":N}` op (trace-
-     * global, last declaration wins).  When set, the host overrides the
-     * tutorial dialogue's synthetic load-bracket length (IVE_TUT_LOAD_FRAMES)
-     * with N; the Frida agent mirrors it by holding the retail load gate to N
-     * frames (extend-only).  `has_tutloadpin` is 0 when no op was seen. */
-    uint32_t tutloadpin;
-    int      has_tutloadpin;
+    /* {tutloadpin:N} is SEGMENT-SCOPED — stored on struct seg_segment
+     * (tutloadpin/has_tutloadpin) and applied at each declaring segment's
+     * entry via the tutloadpin callback (see rearm_tutloadpins).  There is no
+     * trace-global tutloadpin field; the head pin lives on segment 0. */
 
     /* Optional cc08==4 d3e load-bracket pin, from a `{"csloadpin":N}` op (trace-
      * global, last declaration wins).  When set, the host holds b1cc==2 for N
@@ -462,6 +471,14 @@ struct input_segtrace {
      * stays free of memsnap.h/Win32. */
     void (*ms_cb)(uint32_t frame, void *user);
     void  *ms_user;
+
+    /* Tutorial-load-bracket pin callback (set once via
+     * input_segtrace_set_tutloadpin_cb); fired at the ENTRY of each segment
+     * that declares a {tutloadpin} with that segment's N (segment-scoped,
+     * sticky — see rearm_tutloadpins).  Kept a callback so this module stays
+     * free of the intro-dialogue controller. */
+    void (*tlp_cb)(uint32_t value, void *user);
+    void  *tlp_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -540,6 +557,15 @@ typedef void (*segtrace_memsnap_fn)(uint32_t frame, void *user);
  * op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_memsnap_cb(struct input_segtrace *st,
                                    segtrace_memsnap_fn cb, void *user);
+
+/* Tutorial-load-bracket pin callback: invoked at the ENTRY of each segment that
+ * declares a {tutloadpin:N} with that segment's N (segment-scoped, sticky). */
+typedef void (*segtrace_tutloadpin_fn)(uint32_t value, void *user);
+
+/* Set the tutorial-load-bracket pin callback (and its user ptr).  Fires at each
+ * declaring segment's entry during input_segtrace_tick (segment-scoped). */
+void input_segtrace_set_tutloadpin_cb(struct input_segtrace *st,
+                                      segtrace_tutloadpin_fn cb, void *user);
 
 /* Set the capture-range callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */

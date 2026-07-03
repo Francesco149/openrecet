@@ -138,6 +138,7 @@
 {"frame": 213, "buttons": "0x0000"}
 {"frame": 338, "buttons": "0x0010"}
 {"frame": 343, "buttons": "0x0000"}
+{"tutloadpin": 110}
 {"wait": "LOADING_START"}
 {"rngseed": [0, 968591134]}
 {"frame": 0, "buttons": "0x0000"}

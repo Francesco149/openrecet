@@ -948,7 +948,7 @@ function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
                          setrngs: [], escs: [], phasepins: [], pokes: [],
                          memsnaps: [], rngcs: [], gsimpins: [],
-                         wait: null, wait_until: null});
+                         tutloadpin: null, wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
@@ -981,7 +981,7 @@ function segtraceBuildSegments(ops) {
             // so both targets keep the identical anchor-relative kept-set.
             g_segtrace_capstride = (op.capstride | 0) > 1 ? (op.capstride | 0) : 1;
         } else if (op && op.tutloadpin !== undefined) {
-            // {tutloadpin:N} — trace-global: extend every tutorial-dialogue
+            // {tutloadpin:N} — SEGMENT-SCOPED: extend every tutorial-dialogue
             // load bracket (the DAT_0438b1c8==2 window over the FUN_00452d07
             // worker) to N frames by BLOCKING the LAB_00452aab worker at its
             // tail until N frames past the arm (see tutloadpinTick /
@@ -993,7 +993,12 @@ function segtraceBuildSegments(ops) {
             // IVE_TUT_LOAD_FRAMES override so both sides idle EQUAL-length
             // brackets — equal db054/wing-emit consumption inside the bracket
             // and an aligned post-bracket label axis (engine-quirks §119).
-            g_segtrace_tutloadpin = (op.tutloadpin | 0) > 0 ? (op.tutloadpin | 0) : 0;
+            // Attached to the CURRENT segment; segtraceOnSegmentEnter applies
+            // it (sticky) at that segment's entry, so the head pin stays small
+            // for the confirmed region while a late segment binds the long
+            // dialogue-cutscene loads (mirror of the port's rearm_tutloadpins).
+            segs[segs.length - 1].tutloadpin =
+                (op.tutloadpin | 0) > 0 ? (op.tutloadpin | 0) : 0;
         } else if (op && op.csloadpin !== undefined) {
             // {csloadpin:N} — trace-global: extend every cc08==4 d3e cs-load
             // bracket (the DAT_0438b1cc==2 window over LAB_00452ae8/b13) to N
@@ -1150,6 +1155,17 @@ function segtraceOnSegmentEnter(seg) {
         g_rng_cs_buf = {}; g_rng_cs_flushed = false;
         log('segtrace: rng-callsites armed (CLEAN, no phasepin) for frames '
             + g_rng_cs_lo + '..' + g_rng_cs_hi + ' (base+' + start + ')');
+    }
+    // {tutloadpin:N} is SEGMENT-SCOPED (sticky): applied at the entry of each
+    // declaring segment, mirroring the port's rearm_tutloadpins. Segments that
+    // don't declare one (tutloadpin===null) leave the current pin unchanged, so
+    // the head pin holds until a late segment re-declares it. The worker-tail
+    // blocker is installed once at attach (gated on the initial value from
+    // segment 0), so a later re-declaration only changes the release target N.
+    if (seg.tutloadpin !== null && seg.tutloadpin !== undefined) {
+        g_segtrace_tutloadpin = seg.tutloadpin | 0;
+        log('segtrace: tutloadpin -> ' + g_segtrace_tutloadpin +
+            ' (segment entry)');
     }
 }
 
@@ -5647,7 +5663,8 @@ rpc.exports = {
         g_segtrace_fired    = {};
         g_ct_windows        = [];
         g_ct_window_mode    = false;
-        g_segtrace_tutloadpin = 0;   // re-set by a {tutloadpin} op below
+        g_segtrace_tutloadpin = 0;   // set per-segment by segtraceOnSegmentEnter
+                                     // (segment 0's {tutloadpin}, before install)
         g_tlp_armed         = false;
         g_tlp_prev_b1c8     = 0;
         g_segtrace_csloadpin = 0;    // re-set by a {csloadpin} op below
