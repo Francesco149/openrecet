@@ -232,6 +232,10 @@ LOADING_START (seg 26), head `{tutloadpin:36}` kept. +per-segment parse+apply ho
 
 **VERIFIED `--target both` (drive `142827Z`):**
 - **Both COMPLETE exit=0** (retail 15948ms, NO stall — vs 4/5 prior drives stalled).
+- **RETAIL DETERMINISTIC across ≥2 drives** (`142827Z` vs `144555Z`): bit-identical anchor streams
+  (865 anchors each) AND identical bracket timings (pin 36→110; every armed/released frame matches) ⇒
+  the CreateThread-race load drift is GONE — the Δ0 alignment + 189f DAY2 drift below are REPRODUCIBLE,
+  not lucky single-drive luck (the project's ≥2-drive rule).
 - **Retail brackets 7-12 ALL `released`@110** (agent.log: armed@2530→rel@2639, 5433→5542, 7765→7874,
   11727→11836, 14194→14303, 15660→15769; **0 "left alone"**). Early bracket rel@36 (728→763). Port
   applies 36@seg0 + 110@seg26 (stderr L48/L133).

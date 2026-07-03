@@ -69,7 +69,8 @@
   36 + `{tutloadpin:110}` before the bracket-7 LOADING_START (seg 26). **`--target both` (`142827Z`): both
   COMPLETE exit=0 (retail no stall); brackets 7-12 ALL `released`@110 (0 "left alone"); frame-delta Δ0 for
   frames 206→15348 = the WHOLE cutscene arc (raw 0→15390) is now BIT-FRAME-ALIGNED** (was: retail +1056f
-  adrift, DAY2 join 232/1091). +host tests (3395). **★ TWO OPEN residuals at the DAY2 BOUNDARY (both new
+  adrift, DAY2 join 232/1091). **RETAIL DETERMINISTIC ≥2 drives** (`142827Z`≡`144555Z` bit-identical
+  anchors+brackets ⇒ reproducible, not single-drive luck). +host tests (3395). **★ TWO OPEN residuals at the DAY2 BOUNDARY (both new
   leads, distinct arcs):**
   - **(B, the DAY2-tail BLOCKER) 189-frame drift at the DAY2 ENTRY** (Δ0 until EXTRA_SPRITE_START@15348,
     then LOADING_START port@15470 vs retail@**15659** = Δ−189, stays −189/−198 through DAY2). Load is 110f
