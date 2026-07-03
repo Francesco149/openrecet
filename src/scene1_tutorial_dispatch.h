@@ -56,6 +56,14 @@ int  scene1_tutorial_dispatch_iv2_beat_active(void);
  * b924<0xbe gate uses, so the card runs across the first 140f of the beat. */
 int  scene1_tutorial_dispatch_iv2_beat_ctr(void);
 
+/* Consume the one-shot DAY-2 actor re-place (retail's FUN_0048526d scene-entry
+ * re-seat the port's dialogue-load iv2 model skips).  Armed when iv2_5 arms the
+ * beat, consumed here on the first free-roam frame.  Call from the INGAME
+ * default-running arm TOP (scene1_ingame_default_arm_tick), before the
+ * conversation-pose tick, so the re-seated positions are in place before the
+ * pose derives the face-each-other octants and before render. */
+void scene1_tutorial_dispatch_consume_day2_replace(void);
+
 /* Clear the transient beat state (a fresh prologue / scenario re-entry). */
 void scene1_tutorial_dispatch_reset(void);
 

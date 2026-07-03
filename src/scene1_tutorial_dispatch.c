@@ -5,6 +5,7 @@
 #include "scene1_tutorial_dispatch.h"
 
 #include "scene1_intro_dialogue.h"   /* _busy / _start_single */
+#include "scene1_postload.h"         /* scene1_postload_day2_actor_replace */
 #include "save_work.h"               /* save_work_dwords_at / _active_slot  */
 
 #include <stdint.h>
@@ -61,6 +62,12 @@
  * dialogue the sim takes the event arm and neither this tick nor b924 advances). */
 static int g_iv2_beat_active = 0;   /* DAT_0438b928 == 1 */
 static int g_iv2_beat_ctr    = 0;   /* DAT_0438b924       */
+
+/* One-shot: armed when iv2_5 arms the beat, consumed on the FIRST free-roam
+ * frame of the beat (the default-arm top, before the pose derives facing) to run
+ * the DAY-2 actor re-place (retail's FUN_0048526d scene-entry re-seat the port's
+ * dialogue-load iv2 model skips).  See scene1_postload_day2_actor_replace. */
+static int g_day2_replace_pending = 0;
 
 /* The opening-scene selector the dispatcher writes (DAT_005c7a2c = 1). */
 #define TUT_SCENE 1
@@ -196,6 +203,11 @@ void scene1_tutorial_dispatch_tick(void)
              * (day 1→2 → the fb84==8 gate never binds; f470 stays 0, verified). */
             g_iv2_beat_active = 1;           /* DAT_0438b928 = 1 */
             g_iv2_beat_ctr    = 0;           /* DAT_0438b924 = 0 */
+            /* Arm the DAY-2 actor re-place: consumed on the first free-roam frame
+             * (the default-arm top), i.e. the frame the beat starts counting —
+             * matching retail's day2 beat @15470 where the actors are already at
+             * the house-standing pose (player -0.30, companion 0.6). */
+            g_day2_replace_pending = 1;
         }
     } else if (bb[TUT_IV2_6_DONE_OFF] == 0 && bb[TUT_IV2_6_TRIG_OFF] == 1) {
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
@@ -214,8 +226,22 @@ int scene1_tutorial_dispatch_iv2_beat_ctr(void)
     return g_iv2_beat_ctr;
 }
 
+void scene1_tutorial_dispatch_consume_day2_replace(void)
+{
+    /* Called from the INGAME default-running arm TOP (before the conversation
+     * pose derives facing, before render).  The default arm runs only on
+     * non-dialogue free-roam frames, so the pending flag armed during the iv2_5
+     * dialogue is consumed on the FIRST post-iv2_5 free-roam frame = the beat's
+     * first counting frame (retail day2 @15470).  One-shot. */
+    if (g_day2_replace_pending) {
+        g_day2_replace_pending = 0;
+        scene1_postload_day2_actor_replace();
+    }
+}
+
 void scene1_tutorial_dispatch_reset(void)
 {
-    g_iv2_beat_active = 0;
-    g_iv2_beat_ctr    = 0;
+    g_iv2_beat_active      = 0;
+    g_iv2_beat_ctr         = 0;
+    g_day2_replace_pending = 0;
 }

@@ -473,7 +473,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |
 | 0x484e97 | FUN_00484e97 | 286 | ✓ | scene1_records_c_spawn.h |
 | 0x4850fe | FUN_004850fe | 228 | ✓ | scene1_player_ctrl.c |
-| 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.h, scene1_preload.c |
+| 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.c, scene1_postload.h, scene1_preload.c (+3) |
 | 0x4852fb | FUN_004852fb | 280 | ✓ | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c |
 | 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |
@@ -490,7 +490,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x489e66 | FUN_00489e66 | 1227 | ✓ | scene1_player_ctrl.c |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
-| 0x48a833 | FUN_0048a833 | 3011 | ✓ | customer_service.c, customer_service.h, scene1_chr_shadow.c (+6) |
+| 0x48a833 | FUN_0048a833 | 3011 | ✓ | customer_service.c, customer_service.h, scene1_chr_shadow.c (+7) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h, scene1_sim.c |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h, scene_pause.c |
 | 0x48cdcc | FUN_0048cdcc | 2058 | ✓ | scene1_player_ctrl.c |

@@ -8485,8 +8485,12 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_postload.c",
     "src/scene1_postload.h",
-    "src/scene1_preload.c"
+    "src/scene1_preload.c",
+    "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h"
    ]
   },
   {
@@ -8846,6 +8850,7 @@
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
+    "src/scene1_postload.c",
     "src/scene1_sim.c"
    ]
   },

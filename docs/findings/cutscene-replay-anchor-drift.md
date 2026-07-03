@@ -393,6 +393,39 @@ BLOCKER found (reverted, NOT committed — the render step is the real work).** 
   the record's anim/octant but the POSITION propagation is the gap. **Re-doing the one-shot re-place is
   trivial (documented above); the render-source + frozen-follow are the real remaining work.**
 
+**★★★ 2026-07-04 — #4 ACTOR RE-PLACEMENT FIXED + PIXEL-CONFIRMED (commit PENDING). The prior session's
+"RENDER BLOCKER" was REFUTED — it was a flawed first-cut, not a real render-source gap.** Ground truth from
+the CACHED call-traces (port `162817Z` vs retail `161316Z`, day2 beat 15470→15659):
+- Body sprites render position DIRECTLY from `g_scene1_actor_pos[i]` — `scene1_shop_walker.c:779-801`
+  (`sw_pass_light`), NO snapshot/separate buffer (Explore-agent-mapped). `g_scene1_player_pos ==
+  g_scene1_actor_pos[0]` (aliased, `scene1_particles_tick.h:83`). So a sim re-place IS the render source; the
+  "state re-placed but render stale" claim is physically impossible → the first-cut never actually held the
+  state (wrong trigger frame / overwritten). **THE ONLY divergence was positions:** port px=**0.796**/poct=2,
+  cx=**-0.694**(frozen)/coct=6 vs retail px=**-0.30**/poct=6, cx=**0.6→1.0**/coct=2 — `cc08=1`, `panim=6`,
+  `canim=4` ALREADY matched both sides. The stale +0.80 = the customer-service COUNTER x (`customer_service.c:1918`);
+  the port never runs retail's day-advance scene-entry re-place so the actors keep it into day2.
+- **FIX (positions-only, RNG-neutral):** `scene1_postload_day2_actor_replace()` re-seats the two live actors at
+  the house-standing pose (player -0.30/0/9.35, companion 0.6/3.0/9.35 — same door-placement seeds as
+  pose_house_standing, NOT the full reset which would zero the beat). Armed as a one-shot at the iv2_5 beat-arm
+  (`g_day2_replace_pending`), consumed at the `scene1_ingame_default_arm_tick` TOP (before the conversation-pose
+  tick derives facing, before render) — the default arm runs only on non-dialogue free-roam frames, so it fires
+  on the FIRST post-iv2_5 free-roam frame = the beat's first counting frame = retail's day2 @15470. The pose
+  driver re-derives the face-each-other octants (player 6 / companion 2, since tear_x 0.6 > player_x -0.30);
+  the free-roam law holds the actors (dist 0.9 < CO_THRESHOLD 1.5).
+- **VERIFIED (drive `215022Z`):** re-place fires EXACTLY @15470; port px=**-0.30**/poct=**6**, cx=**0.6**/coct=**2**,
+  panim 6 / canim 4 — bit-matches retail; holds -0.30 through the beat + broom to 16380. RNG **0 diffs** vs the
+  pre-fix trace. Host 3394/0. **PIXEL-CONFIRMED (caprange @15799-15838 vs retail PNGs, feed montage):** before-fix
+  = actors mirror-SWAPPED (Tear left/Recette right); after-fix = Recette left/Tear right, MATCHES retail @15799 +
+  @15815 (chibi placement + facing pixel-1:1).
+- **RESIDUALS (both post-#4, separate follow-ups):**
+  - **(4b) companion cx EASE** — retail eases cx 0.6→1.0 over the beat (`FUN_0048a833`'s intro branch A, gated
+    `b928==1 && b924<200` = exactly the beat; the port DROPPED this "6/2 side-facing" as wrong-for-loaded-shop,
+    `scene1_companion_ctrl.c:369-377`). The port holds cx=0.6 (free-roam law, within CO_THRESHOLD). Visually
+    negligible at the day2 camera (0.4 units); needs the FUN_0048a833 b928/b924 branch to be exact.
+  - **(4c) @15838 retail dialogue PORTRAIT** slides in from the right; the port lacks it there. PRE-EXISTING
+    (RNG-neutral fix ⇒ dialogue lifecycle unchanged) — the known day2-tail Δ−9 drift or an unported earlier day2
+    dialogue; investigate separately. NOT a #4 regression.
+
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
 SCOPED caprange (the DAY2 window only, ~1091f ≈ 5GB both sides, NOT full-extent) — or teach orv3 to

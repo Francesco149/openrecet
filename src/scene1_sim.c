@@ -119,6 +119,14 @@ void scene1_ingame_default_arm_tick(void)
     /* E.2 probe — FUN_00442cef @ 0x442cef. */
     CALL_TRACE_ENTER(0x442cefu);
 
+    /* DAY-2 actor re-place one-shot (retail FUN_0048526d scene-entry re-seat).
+     * FIRST, before the conversation-pose tick derives the face-each-other
+     * octants and before render — the default arm runs only on non-dialogue
+     * free-roam frames, so this fires on the first post-iv2_5 free-roam frame
+     * (the beat's first counting frame, retail day2 @15470).  Inert (pending
+     * flag 0) on every other frame. */
+    scene1_tutorial_dispatch_consume_day2_replace();
+
     /* cc04 (the display-stand menu sub-state) SAMPLED AT DISPATCH: the engine's
      * db054 increment sits at the FUN_0048b850 tail, reached only when the
      * frame's cc08/cc04 dispatch took a non-menu path.  On the menu-CLOSE frame

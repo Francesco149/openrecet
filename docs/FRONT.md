@@ -26,13 +26,19 @@
     a b924 fade-transition phase seam (port text brighter over the first ~15 fade-in frames; glyphs
     pixel-aligned, fill-alpha only ⇒ upstream beat-counter timing, needs a `{calltrace}` state probe
     comparing port g_iv2_beat_ctr vs retail DAT_0438b924 — the 0x48670f hook already has b924).
-  - **◐ #4 actor re-placement — MECHANISM mapped + SIM-fix verified, RENDER BLOCKER (reverted, not
-    committed).** It's a TARGETED in-scene re-place (retail FUN_0048526d→FUN_00436f97 = the port's
-    `scene1_postload_pose_house_standing`, poll-triggered `DAT_0438b4e0==1` @86750), NOT a scene reload. A
-    one-shot at the iv2_6→day2 boundary re-places the SIM correctly (debug: player→-0.30, companion→0.6) but
-    the SPRITE render still shows the stale +0.80/left swap ⇒ the sprites render from a source the
-    `g_scene1_actor_pos` re-place doesn't reach (chr record / pose snapshot / camera). NEXT: the sprite
-    render-position source + the frozen companion follow. Full story: finding §2026-07-03-later.
+  - **✅ #4 actor re-placement FIXED + PIXEL-CONFIRMED (commit PENDING).** The prior "RENDER BLOCKER" was
+    REFUTED (flawed first-cut, NOT a render-source gap): body sprites render position DIRECTLY from
+    `g_scene1_actor_pos[i]` (`scene1_shop_walker.c:779`, no snapshot) and `g_scene1_player_pos ==
+    g_scene1_actor_pos[0]`, so a sim re-place IS the render source. Cached-trace ground truth: the ONLY day2-beat
+    divergence was positions (port px 0.796/cx -0.694 SWAPPED vs retail -0.30/0.6; cc08/panim/canim already
+    matched). FIX = `scene1_postload_day2_actor_replace()` (positions-only, RNG-neutral) re-seats the actors at
+    the house-standing pose, armed at the iv2_5 beat (`g_day2_replace_pending`) + consumed at the
+    `scene1_ingame_default_arm_tick` TOP → fires @15470 (retail's day2), pose driver re-derives facing (6/2).
+    VERIFIED `215022Z`: px -0.30/poct 6, cx 0.6/coct 2, RNG 0-diff, host 3394/0; PIXEL-CONFIRMED (caprange
+    15799-15838 vs retail PNGs, feed montage): before=swapped → after=matches retail. Finding §2026-07-04.
+  - **OPEN residuals post-#4:** **(4b)** companion cx EASE 0.6→1.0 (retail `FUN_0048a833` intro branch A
+    b928/b924, port dropped it — holds cx 0.6; visually negligible at day2 camera) · **(4c)** @15838 retail
+    dialogue PORTRAIT the port lacks (PRE-EXISTING, RNG-neutral fix; day2-tail Δ−9 or unported day2 dialogue).
   - **OPEN: #3 Now-Loading disc (iv2 load never calls `nowloading_set_active`), #5 wing-sparkle (minor).**
   - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
     trace — a separate occurrence-aware-windowing tooling arc, deferred).

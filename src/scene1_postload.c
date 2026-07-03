@@ -139,6 +139,38 @@ void scene1_postload_pose_house_standing(void)
     scene1_tutorial_dispatch_reset();
 }
 
+void scene1_postload_day2_actor_replace(void)
+{
+    /* The day-2 in-scene actor RE-PLACE (retail FUN_0048526d → FUN_00436f97 —
+     * the mini scene-entry re-place the HOUSE controller polls at the
+     * day-advance, `if (DAT_0438b4e0==1) FUN_0048526d()` all.c:86750).
+     *
+     * The port models the iv2_1..iv2_6 chain as start_single DIALOGUE-loads, not
+     * retail's scene-reload day-advance, so the scene-entry actor placement never
+     * runs: the actors keep their stale first-customer COUNTER positions (player
+     * px 0.796, companion cx -0.694 — mirror-SWAPPED vs retail) all the way into
+     * the day-2 broom.  Re-seat them at the house-standing pose here.
+     *
+     * POSITIONS ONLY, and only the two live actors — the values are the same
+     * door-placement standing seeds pose_house_standing uses (player -0.30/0/9.35,
+     * companion 0.6/3.0/9.35; ground truth = retail day2 beat @15470).  Everything
+     * else already matches retail across the beat: the record ANIM (player 6 /
+     * companion 4) is held by the conversation-pose beat, and the FACING is
+     * re-derived by scene1_conversation_pose_apply from the corrected positions
+     * (player oct6 / companion oct2, since tear_x 0.6 > player_x -0.30) — so a full
+     * pose_house_standing (which also resets the beat + pose + companion bob) is
+     * both unnecessary and wrong here (it would zero the very beat driving this).
+     * The companion then holds cx≈0.6 (free-roam law: dist 0.9 < CO_THRESHOLD 1.5);
+     * retail's cx 0.6→1.0 ease is FUN_0048a833's b928/b924 intro branch, a
+     * separate follow-up (finding cutscene-replay-anchor-drift §DAY2 #4). */
+    g_scene1_player_pos[0] = -0.30f;
+    g_scene1_player_pos[1] =  0.0f;
+    g_scene1_player_pos[2] =  9.35f;
+    g_scene1_actor_pos[2][0] = 0.6f;
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = 9.35f;
+}
+
 void scene1_postload_ambient_spawn(void)
 {
     if (g_stage_palette == 0) {
