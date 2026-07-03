@@ -361,6 +361,15 @@ def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
         lo = a["frame"]
         hi = syncs[i + 1]["frame"] if i + 1 < len(syncs) else total + 1
         emit_window(lo, hi, first=False)
+    # Trailing hold: run the final segment through to the recording's end so any
+    # post-last-anchor idle (e.g. DAY 2 brooming — anchorless companion-AV frames)
+    # actually REPLAYS. Without it the segtrace exhausts at the last anchor and the
+    # exe exits early, silently TRIMMING the tail (the bug that dropped DAY 2).
+    last_lo = syncs[-1]["frame"] if syncs else 0
+    last_rel = max((f - last_lo for f, _ in changes if f > last_lo), default=0)
+    if total > last_lo and total - last_lo > last_rel:
+        out.append(json.dumps({"frame": total - last_lo,
+                               "buttons": _held_mask_at(changes, total)}))
     if carry_head or carry_mid:
         print(f"distill_trace: carried {len(carry_head or [])} head pin(s) + "
               f"{len(carry_mid) - len(remaining_mid)}/{len(carry_mid)} mid pin(s).",

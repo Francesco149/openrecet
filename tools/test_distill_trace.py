@@ -176,9 +176,26 @@ def main() -> int:
         assert "bgnpcpin" in lines[idx12 + 1], \
             f"(6) bgnpcpin not re-anchored after seg rng 12: {lines[idx12:idx12+2]}"
 
+    # (7) trailing hold: the final segment runs through to the recording's end so
+    #     post-last-anchor idle (DAY 2 brooming) replays instead of being trimmed.
+    #     Last anchor CONV_POSE_END@470, total=500 → a {frame:30} hold closes it.
+    def last_frame_row(text):
+        last = None
+        for ln in text.splitlines():
+            s = ln.strip()
+            if not s or s.startswith("#"):
+                continue
+            o = json.loads(s)
+            if "buttons" in o and "frame" in o:
+                last = o
+        return last
+    lf = last_frame_row(base)
+    assert lf == {"frame": 30, "buttons": "0x0000"}, f"(7) trailing hold: {lf}"
+
     print("OK: distill_trace drop-fragile fold "
           f"(baseline {len(base_waits)} waits → drop-after {len(dw)}; "
-          f"region-drop {len(rw)}; hint@{hint}; carry {len(head)} head + {len(midp)} mid)")
+          f"region-drop {len(rw)}; hint@{hint}; carry {len(head)} head + {len(midp)} mid; "
+          f"trailing-hold {lf['frame']})")
     return 0
 
 
