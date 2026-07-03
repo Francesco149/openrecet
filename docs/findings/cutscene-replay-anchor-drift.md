@@ -173,5 +173,53 @@ port↔retail (the parity goal) instead of drifting. Verify via flow_diff before
 still exceed tut=36 ⇒ mid-cutscene cadence drift. Binding them needs tutloadpin ≥97, which would
 inflate the early bracket-4 (real 28→97) in the confirmed region — risky; or a separate gate for the
 late cutscene loads. Deferred: they're dropped-fragile (harmless for replay), and the DAY2/sign-hammer
-tail re-syncs. **Also: with loads now deterministic, `max_frames` can drop 90000→~20000** (the trace
-completes ~17003; retail wastes ~55s idling to the ceiling).
+tail re-syncs. **Also: with loads now deterministic, `max_frames` dropped 90000→25000** (commit; the
+trace completes ~17003; retail was idling ~55s to the ceiling).
+
+## ★ NEXT ARC (user-chosen 2026-07-03): segment-scoped `{tutloadpin}` → bind the late cutscene loads → clean DAY2 auto-diff
+The residual mid-cutscene drift (brackets 7-11, retail tut loads 44-97 > pin 36) leaves retail **+1056
+frames behind by DAY2**, which BREAKS the v3 viewer's identity-join for the DAY2 pixel confirm (best
+achieved 232/1090 paired; every window/anchor fails — the drift shifts anchor-occurrence counts, e.g.
+an extra CONV_POSE_END/START pair appears on the port at non-blink idx 505). The user chose **full
+determinism**: make `{tutloadpin}` **segment-scoped** so it can change mid-trace — keep **36 early**
+(protect the confirmed first-customer region: a uniform tut≈110 would shift the early wrap-up
+cutscene's blink phase — the blink timer is FREE-RUNNING global-frame `%64`, seen firing every 64f —
+and could re-flip the blink-vs-`TEXT_ANIM_START` order that deadlocked us) and **~110 late** (≥ the 97
+max late-load + margin) to bind brackets 7-11.
+
+**Why a mechanism change:** pins are currently **trace-global, last-declaration-wins, applied ONCE**
+(port `src/main.c:1844` `scene1_intro_dialogue_set_tut_load_frames(g_segtrace.tutloadpin)`, "Known at
+load time, no callback needed"; retail `tools/frida/openrecet-agent.js` global `g_segtrace_tutloadpin`).
+A mid-trace `{tutloadpin}` just overwrites globally. Need it applied **per-segment at segment ENTRY**.
+
+**Implementation (mirror the per-segment op pattern — `{rngseed}`/`seg_setrng`, but apply at segment
+ENTRY not base+F):**
+1. **`src/input_segtrace.h`:** `struct seg_segment` += `uint32_t tutloadpin; int has_tutloadpin;`.
+   `struct input_segtrace` += a callback (mirror `esc_cb`): `segtrace_tutloadpin_cb tutloadpin_cb;
+   void *tutloadpin_user;` + typedef + `input_segtrace_set_tutloadpin_cb` decl.
+2. **`src/input_segtrace.c`:** parse `{tutloadpin}` onto the CURRENT segment being built (NOT the
+   global `out->tutloadpin`); add `rearm_tutloadpins(st, seg_idx)` that — unlike `rearm_setrngs` which
+   only resets `fired` — directly calls `st->tutloadpin_cb(user, segs[seg_idx].tutloadpin)` if
+   `has_tutloadpin` (segment-entry apply); call it at the 3 tick advance sites (initial seg0 ~L975-984,
+   wait-resolve ~L1004-1013, timeout-skip ~L1041+) next to the other `rearm_*`; add
+   `input_segtrace_set_tutloadpin_cb`. Keep `has_tutloadpin`/`tutloadpin` on the struct for back-compat
+   OR drop the global path.
+3. **`src/main.c`:** replace the L1844 global apply with `input_segtrace_set_tutloadpin_cb(&g_segtrace,
+   cb, NULL)` where `cb` calls `scene1_intro_dialogue_set_tut_load_frames` — so the head `{tutloadpin}`
+   applies via the segment-0 rearm and any mid-trace one re-applies at its segment. (csloadpin/
+   primaryloadpin stay global — only tut needs scoping; generalize later if wanted.)
+4. **`tools/frida/openrecet-agent.js`:** mirror — parse `{tutloadpin}` per-segment; when the agent
+   advances a `{wait}` segment (the JS mirror of the port tick), if that segment carries a tutloadpin,
+   set `g_segtrace_tutloadpin` to it. (Find the JS segment-advance / {wait}-resolve site.)
+5. **Trace `tests/scenarios/house-firstcust-cutscene-day2-full/trace.jsonl`:** insert
+   `{"tutloadpin": 110}` at the big-dialogue-cutscene boundary — right before **L141** `{"wait":
+   "LOADING_START"}` (→ CONV_POSE_START rng 968591134, raw ~2273 = bracket 7, the first LATE tut load).
+   Keep the head `{"tutloadpin": 36}` (L6).
+6. **VERIFY** (`--target both`, then `orv3_window --window <DAY2> --state --view`): retail brackets 7-11
+   now `released` (not `left alone`) at 110; **full non-blink anchor seq port↔retail IDENTICAL** (idx-505
+   divergence gone); DAY2 identity-join pairs cleanly (high paired, not 232/1090); `flow_diff --verdict`
+   rng bit-exact (head tut=36 preserved ⇒ confirmed region unchanged). NB the port `--state` call_trace
+   was NOT cached by orv3 this session (only retail's) — a v3 port-`--state` gap to also fix, else use
+   `scenario-test --target both --call-trace` (scoped `{calltrace}`) for the flow_diff verdict.
+   +regression test (segtrace parse: a per-segment tutloadpin applies at its segment).
+7. **THEN** the DAY2 pixel confirm (human, viewer) + close the arc.

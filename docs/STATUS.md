@@ -79,11 +79,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   trace for the first time** (all 4 prior drives stalled) — reaches CONV_POSE_END@16101 (sign-hammer) +
   DAY2 trailing hold; non-blink anchor seq port↔retail first-505 + last-14 IDENTICAL. RNG-safe (every
   LOADING_END is `{rngseed}`-pinned ⇒ offer structurally unchanged; both sides now share the SAME
-  cadence). **REMAINING: (1) flow_diff RNG/line_row verdict to sign off the confirmed region survives;
-  (2) viewer confirm of the DAY2 pixels + sign-hammer (human).** Residual (deferred, harmless): late
-  dialogue-cutscene tut loads (brackets 7-11, real 44-97 > 36) still drift in the dropped-fragile region
-  ⇒ mid-cutscene cadence offset (re-syncs by the tail); binding them needs tut≥97 (inflates the confirmed
-  bracket-4) or a separate late-cutscene gate. Finding `cutscene-replay-anchor-drift.md` §2026-07-03-FIXED.
+  cadence). The retail v3 replay is 16291/16291 BIT-EXACT; anchor path port↔retail matches first-505 +
+  DAY2-tail. **★ ACTIVE NEXT ARC (user-chosen 2026-07-03 — full determinism): segment-scoped
+  `{tutloadpin}`.** The DAY2 pixel-confirm's v3 auto-join FAILS (best 232/1090 paired, every
+  window/anchor) because the LATER dialogue-cutscene tut loads (brackets 7-11, retail 44-97 > pin 36)
+  still drift ⇒ retail +1056f behind by DAY2 ⇒ anchor-occurrence counts diverge. Fix = make
+  `{tutloadpin}` per-segment (apply at segment ENTRY, not once at load) so it can be **36 early**
+  (protect the confirmed region — a uniform tut≈110 would shift the early wrap-up blink phase, FREE-run
+  `%64`, and risk re-flipping the deadlock) and **110 late** (bind 7-11). Touches `src/input_segtrace.{h,c}`
+  (per-segment field + `rearm_tutloadpins` callback at the 3 tick advance sites), `src/main.c` (wire the
+  cb, replacing the L1844 global apply), `tools/frida/openrecet-agent.js` (mirror per-segment on {wait}
+  advance), the trace (insert `{tutloadpin:110}` before L141 = bracket-7 boundary), + a build + `--target
+  both` + orv3 re-verify + a segtrace test. **Full step-by-step in finding
+  `cutscene-replay-anchor-drift.md` §NEXT-ARC.** Then flow_diff rng-verdict (confirmed region unchanged
+  since head tut=36 preserved — structurally, only load-DURATION pins change; rng force-pinned) + the
+  human DAY2 viewer confirm. (Fresh-context /clear point — core fix committed, this is a clean C+JS arc.)
   Watch the known DAY-2 blink-stall lead
   (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
   `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`

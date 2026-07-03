@@ -36,6 +36,8 @@
 description: |
   Full post-tutorial story-cutscene flow → day 2.  Recorded skip path:
   load → tutorial → ESC-skip → first customer → cutscenes → day 2 brooming.
-max_frames: 90000     # ~12 LOADING brackets stretch heavily under turbo
+max_frames: 25000     # loads now deterministic (csloadpin:72/tutloadpin:36) → trace
+                      # completes ~17k; was 90000 (idled ~55s post-trace).  Bump if a
+                      # future pin change (e.g. late-cutscene tut≈110) lengthens it.
 duration_ceiling_ms: 2400000
 capture_suppress_loads: true
