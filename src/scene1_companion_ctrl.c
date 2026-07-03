@@ -19,6 +19,7 @@
 #include "scene1_player_ctrl.h"   /* actor record (mut/read) */
 #include "customer_service.h"     /* customer_service_f404 — the at-counter-arm gate */
 #include "scene1_conversation_pose.h" /* yield anim/facing while the pose is held */
+#include "scene1_tutorial_dispatch.h" /* iv2_5→iv2_6 beat → the intro-branch spring law */
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* record-field indices */
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y + g_scene1_camera_yaw */
 #include "scene1_spawn.h"         /* scene1_spawn (FUN_00447f4f) + the dab58 init global */
@@ -31,6 +32,11 @@
 #define CO_SPRING       0.15f
 #define CO_VEL_CLAMP    0.35f
 #define CO_THRESHOLD    1.5f
+/* The "look up at Tear" intro/beat branch (FUN_0048a833 else, all.c:89471-73)
+ * springs all 3 axes at 0.1 toward a FIXED ±1.3 X offset — no bearing/threshold,
+ * no vel clamp — 0x519014 = 1.3, 0x5198ec = 0.1. */
+#define CO_INTRO_SPRING 0.1f
+#define CO_INTRO_OFFSET 1.3f
 #define CO_BOB_FREQ     0.04f
 #define CO_BOB_AMP      0.2f
 #define CO_BOB_OFFSET   3.0f
@@ -338,31 +344,51 @@ void scene1_companion_ctrl_tick(void)
 
     float pre_x = comp[0], pre_z = comp[2];   /* for the moved-delta anim test */
 
-    /* Spring toward a point CO_THRESHOLD units from the player, on the
-     * companion's current bearing (so it trails rather than overlapping). */
-    float dx = comp[0] - player[0];
-    float dz = comp[2] - player[2];
-    float dist = sqrtf(dx * dx + dz * dz);
-    float des_x = comp[0], des_z = comp[2];
-    if (dist > CO_THRESHOLD) {
-        float ang = atan2f(dx, dz);
-        des_x = sinf(ang) * CO_THRESHOLD + player[0];
-        des_z = cosf(ang) * CO_THRESHOLD + player[2];
-    }
-    float vx = (des_x - comp[0]) * CO_SPRING;
-    float vz = (des_z - comp[2]) * CO_SPRING;
-    float vmag = sqrtf(vx * vx + vz * vz);
-    if (vmag > CO_VEL_CLAMP) {              /* velocity clamp */
-        vx = (vx * CO_VEL_CLAMP) / vmag;
-        vz = (vz * CO_VEL_CLAMP) / vmag;
-    }
-    comp[0] += vx;
-    comp[2] += vz;
+    if (scene1_tutorial_dispatch_iv2_beat_active()) {
+        /* The "Recette looks up at Tear" BEAT — retail's FUN_0048a833 else-branch
+         * (all.c:89434-89473), taken while `b928==1 && b924<200`.  Instead of the
+         * free-roam CO_THRESHOLD bearing follow, Tear springs to a FIXED ±1.3 X
+         * offset on the player's side (target_z = player_z, target_y = the bob) at
+         * factor CO_INTRO_SPRING(0.1), with NO velocity clamp.  This is the day2
+         * ease cx 0.6→1.0 (target = player_x -0.30 + 1.3 = 1.0; ground truth retail
+         * day2 15470→15534).  The record's ANIM(4) + FACING(2) are owned by the
+         * conversation-pose driver this frame (matches retail's dab54=4/dab58=2, set
+         * in this same else-branch), so only the POSITION law is ported here; the
+         * dist≥2.0 walk path can't fire (day2 dist stays ≈0.4). */
+        float target_x = (comp[0] <= player[0]) ? player[0] - CO_INTRO_OFFSET
+                                                : player[0] + CO_INTRO_OFFSET;
+        float bob = sinf((float)s_bob_counter * CO_BOB_FREQ) * CO_BOB_AMP
+                    + CO_BOB_OFFSET;   /* retail intro bob: sin·0.2 + 3.0, no ground_y */
+        comp[0] += (target_x  - comp[0]) * CO_INTRO_SPRING;
+        comp[1] += (bob       - comp[1]) * CO_INTRO_SPRING;
+        comp[2] += (player[2] - comp[2]) * CO_INTRO_SPRING;
+    } else {
+        /* Spring toward a point CO_THRESHOLD units from the player, on the
+         * companion's current bearing (so it trails rather than overlapping). */
+        float dx = comp[0] - player[0];
+        float dz = comp[2] - player[2];
+        float dist = sqrtf(dx * dx + dz * dz);
+        float des_x = comp[0], des_z = comp[2];
+        if (dist > CO_THRESHOLD) {
+            float ang = atan2f(dx, dz);
+            des_x = sinf(ang) * CO_THRESHOLD + player[0];
+            des_z = cosf(ang) * CO_THRESHOLD + player[2];
+        }
+        float vx = (des_x - comp[0]) * CO_SPRING;
+        float vz = (des_z - comp[2]) * CO_SPRING;
+        float vmag = sqrtf(vx * vx + vz * vz);
+        if (vmag > CO_VEL_CLAMP) {              /* velocity clamp */
+            vx = (vx * CO_VEL_CLAMP) / vmag;
+            vz = (vz * CO_VEL_CLAMP) / vmag;
+        }
+        comp[0] += vx;
+        comp[2] += vz;
 
-    /* Fairy hover bob — Y lerps 0.15 toward sin(db054·0.04)·0.2 + ground_y + 3.0. */
-    float bob = sinf((float)s_bob_counter * CO_BOB_FREQ) * CO_BOB_AMP
-                + g_scene1_player_ground_y + CO_BOB_OFFSET;
-    comp[1] += (bob - comp[1]) * CO_SPRING;
+        /* Fairy hover bob — Y lerps 0.15 toward sin(db054·0.04)·0.2 + ground_y + 3.0. */
+        float bob = sinf((float)s_bob_counter * CO_BOB_FREQ) * CO_BOB_AMP
+                    + g_scene1_player_ground_y + CO_BOB_OFFSET;
+        comp[1] += (bob - comp[1]) * CO_SPRING;
+    }
 
     /* Anim/facing — the free-roam spring-follow law FUN_0048a4d1 (all.c:89083-
      * 89121, the function FUN_0048a833 calls every free-roam frame; both fire

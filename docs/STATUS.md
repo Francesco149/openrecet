@@ -53,9 +53,13 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     `scene1_ingame_default_arm_tick` TOP → fires @15470 (retail's day2), pose driver re-derives facing (6/2).
     VERIFIED `215022Z`: px -0.30/poct 6, cx 0.6/coct 2, RNG 0-diff, host 3394/0; PIXEL-CONFIRMED (caprange
     15799-15838 vs retail PNGs, feed montage): before=swapped → after=matches retail. Finding §2026-07-04.
-  - **OPEN residuals post-#4:** **(4b)** companion cx EASE 0.6→1.0 (retail `FUN_0048a833` intro branch A
-    b928/b924, port dropped it — holds cx 0.6; visually negligible at day2 camera) · **(4c)** @15838 retail
-    dialogue PORTRAIT the port lacks (PRE-EXISTING, RNG-neutral fix; day2-tail Δ−9 or unported day2 dialogue).
+  - **✅ (4b) companion cx EASE FIXED + BIT-EXACT (commit PENDING).** Retail eases cx 0.6→1.0 over the beat via
+    `FUN_0048a833`'s ELSE-branch (±1.3 X offset on the player's side, factor 0.1, no CO_THRESHOLD/vel-clamp —
+    all.c:89434-73); the port modeled only the free-roam branch so cx held 0.6. Ported as a beat-gated branch in
+    `scene1_companion_ctrl_tick` (CO_INTRO_SPRING 0.1, target player_x±1.3). VERIFIED **MAX|Δcx|=0.0 over the
+    full 190f beat** (settles 1.0), RNG 0-diff, host 3394/0.
+  - **OPEN residual post-#4:** **(4c)** @15838 retail dialogue PORTRAIT the port lacks (~40f ahead of the port's
+    box-open @15878; PRE-EXISTING/RNG-neutral — day2-dialogue timing or portrait-slide-in gap, distinct arc).
   - **OPEN: #3 Now-Loading disc (iv2 load never calls `nowloading_set_active`), #5 wing-sparkle (minor).**
   - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
     trace — a separate occurrence-aware-windowing tooling arc, deferred).

@@ -418,10 +418,16 @@ the CACHED call-traces (port `162817Z` vs retail `161316Z`, day2 beat 15470→15
   = actors mirror-SWAPPED (Tear left/Recette right); after-fix = Recette left/Tear right, MATCHES retail @15799 +
   @15815 (chibi placement + facing pixel-1:1).
 - **RESIDUALS (both post-#4, separate follow-ups):**
-  - **(4b) companion cx EASE** — retail eases cx 0.6→1.0 over the beat (`FUN_0048a833`'s intro branch A, gated
-    `b928==1 && b924<200` = exactly the beat; the port DROPPED this "6/2 side-facing" as wrong-for-loaded-shop,
-    `scene1_companion_ctrl.c:369-377`). The port holds cx=0.6 (free-roam law, within CO_THRESHOLD). Visually
-    negligible at the day2 camera (0.4 units); needs the FUN_0048a833 b928/b924 branch to be exact.
+  - **✅ (4b) companion cx EASE FIXED + BIT-EXACT (commit PENDING).** Retail eases cx 0.6→1.0 over the beat via
+    `FUN_0048a833`'s ELSE-branch (all.c:89434-89473, taken while `b928==1 && b924<200`): Tear springs to a FIXED
+    **±1.3 X offset** on the player's side (target_z=player_z, target_y=bob) at factor **0.1**, NO
+    CO_THRESHOLD/bearing, NO vel clamp — target = player_x -0.30 + 1.3 = **1.0**. The port modeled ONLY the
+    free-roam branch (`FUN_0048a4d1`, CO_THRESHOLD 1.5 / 0.15), so cx stayed 0.6 (within threshold). FIX: gate
+    a beat-branch on `scene1_tutorial_dispatch_iv2_beat_active()` in `scene1_companion_ctrl_tick` — spring all 3
+    axes at CO_INTRO_SPRING(0.1) toward (player_x±1.3, bob, player_z); anim(4)/facing(2) still owned by the
+    conversation-pose driver (matches retail's dab54=4/dab58=2 in the same branch). **VERIFIED: MAX|Δcx|=0.0 over
+    the FULL 190-frame beat** (port≡retail 0.6→0.64→…→1.0, settles 1.0 @15600, holds), RNG **0-diff** over 25000f,
+    host 3394/0. NB the retail phase (cx=0.6 @15470, first ease @15471) is reproduced exactly — no 1-frame offset.
   - **(4c) @15838 retail dialogue PORTRAIT** slides in from the right; the port lacks it there. The port HAS
     this day2 dialogue — box opens @15878 (dlg_cmd 23 setup 15831→15877 → box_open ramp + text reveal); retail's
     portrait is ~40f ahead. So EITHER retail renders the portrait during the dlg_cmd-23 slide-in/setup phase the
