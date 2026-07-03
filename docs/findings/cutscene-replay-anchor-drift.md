@@ -422,9 +422,12 @@ the CACHED call-traces (port `162817Z` vs retail `161316Z`, day2 beat 15470→15
     `b928==1 && b924<200` = exactly the beat; the port DROPPED this "6/2 side-facing" as wrong-for-loaded-shop,
     `scene1_companion_ctrl.c:369-377`). The port holds cx=0.6 (free-roam law, within CO_THRESHOLD). Visually
     negligible at the day2 camera (0.4 units); needs the FUN_0048a833 b928/b924 branch to be exact.
-  - **(4c) @15838 retail dialogue PORTRAIT** slides in from the right; the port lacks it there. PRE-EXISTING
-    (RNG-neutral fix ⇒ dialogue lifecycle unchanged) — the known day2-tail Δ−9 drift or an unported earlier day2
-    dialogue; investigate separately. NOT a #4 regression.
+  - **(4c) @15838 retail dialogue PORTRAIT** slides in from the right; the port lacks it there. The port HAS
+    this day2 dialogue — box opens @15878 (dlg_cmd 23 setup 15831→15877 → box_open ramp + text reveal); retail's
+    portrait is ~40f ahead. So EITHER retail renders the portrait during the dlg_cmd-23 slide-in/setup phase the
+    port renders empty, OR the port's day2 dialogue starts ~40f late (would need retail's dlg_cmd @15838, not in
+    the beat-window trace). PRE-EXISTING (RNG-neutral fix ⇒ identical dialogue lifecycle), NOT a #4 regression;
+    a distinct day2-dialogue arc.
 
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
