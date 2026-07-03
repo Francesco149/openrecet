@@ -493,8 +493,18 @@ void sim_step_a(void)
             uint32_t *wb = save_work_dwords_at(save_work_active_slot());
             scene1_top_hud_xp_tick(wb);
             scene1_top_hud_shake_tick();
-            if (wb)
+            if (wb) {
                 scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
+                /* Retail reads DAT_0450fb84 (working[CARD_DAY]) LIVE at HUD
+                 * render (scene.c:87); the port mirrors it via g_hud_day, cached
+                 * once at scene load.  The iv2_3 day-advance bumps working[CARD_DAY]
+                 * mid-scene (scene1_tutorial_dispatch.c:173) with no scene reload,
+                 * so the cached mirror stayed "Day 1" through the DAY2 transition.
+                 * Refresh it every ingame frame (as money/clock already are) so the
+                 * counter tracks the live field — DAY2 HUD reads "Day 2".  Direct
+                 * set, not a tick: the day snaps (retail has no day-roll animator). */
+                scene1_top_hud_set_day((int)wb[SAVE_BANK_FIELD_CARD_DAY]);
+            }
         }
         break;
 
