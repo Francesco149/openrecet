@@ -14,6 +14,23 @@
   (derived) — FRONT only carries debts NOT yet tagged in src/.
 -->
 <!-- FRONT:BEGIN -->
+- **✅✅ 2026-07-03 — cutscene-replay DEADLOCK fixed + PARITY-validated (commit `b82d2df`; finding
+  `cutscene-replay-anchor-drift.md`).** The `house-firstcust-cutscene-day2` prologue (Tear meets Recette →
+  debt story → shop setup) FROZE the replay ~14000f (both port+retail) — the anchor-segmented trace
+  deadlocked at `{wait: EXTRA_SPRITE_FADED_IN}` because cosmetic/FX anchors (blinks, sprite fades, text-anim,
+  collapse-prone LOADING) DRIFT in relative order between the frame-dropped real-time recording and the
+  deterministic turbo replay (the fade fires early → the wait needs a future firing that's already past).
+  Fix: dropped 586 fragile intra-cutscene `{wait}`s (line 465+, confirmed first-customer region untouched),
+  keeping only reliable boundaries (CONV_POSE_START/END). Deterministic auto-play + held-X carry between them.
+  **VALIDATED: replays end-to-end (line_row 0→157), port vs retail line_row seq BYTE-EQUAL (85 transitions),
+  RNG BIT-EXACT through the cutscene, join 13863 paired/0 port-only gaps.** New: `seg` call-trace probe
+  (the trace segment the harness is parked on — cracks replay stalls in one drive).
+  **★ OPEN next:** (a) reach the SIGN-HAMMER (Recette hammering the recettear sign close-up) — it's just past
+  the current caprange 14000 (near CONV_POSE_END raw 15390); bump caprange ~16000. (b) DAY 2 brooming
+  (raw 15390-16291, idle) is TRIMMED from the distilled trace — re-distill from `rec-20260622-182618` to
+  include it. (c) `PORT-DEBT(distill-drop-fragile)`: fold the drop-fragile fix into `distill_trace.py`
+  (region-aware) so future auto-play cutscene traces don't need the hand `drop_fragile.py`. Diagnostic
+  drives: use a SMALL caprange (32) — a big caprange writes a 24GB frames/ dir per drive (filled the disk).
 - **✅ 2026-07-02 — day-end cutscene: served customer DESPAWN ported, PIXEL-1:1 (viewer notes #24/#25; RE §21.33).**
   The port drew a chibi customer still roaming the shop floor (and through Tear's hair) through the whole
   day-end CONV_POSE cutscene; retail has none.  Root cause: the cs-leave restore (FUN_00462403 @60337) calls
