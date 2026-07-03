@@ -59,9 +59,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   SIGN-HAMMER (CONV_POSE_END@15390), then the trailing-hold plays the DAY 2 brooming tail (901 frames, +~6s).**
   Three distiller fixes landed en route: caprange must NOT carry (it dumped a 33GB BMP frames/ dir → disk
   hazard); the anchor-segment TRAILING HOLD (post-last-anchor idle like DAY2 was silently trimmed); pins
-  carried correctly. **★ REMAINS (human): `--target both` for RNG/line_row parity vs retail (only the PORT
-  was driven) + viewer confirm of the DAY2 brooming pixels + the sign-hammer close-up.** Watch the known
-  DAY-2 blink-stall lead (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
+  carried correctly. **★ RETAIL single-drive STALLED at PAUSE_CLOSE@1603** (forced rng 2246047975 — the SAME point the
+  pre-pin PORT stalled): post-pause CONV_POSE_START never fired on retail despite pins active
+  (agent.log shows csloadpin/tutloadpin/bgnpcpin loaded). This region (<3468) is byte-identical to the
+  committed sibling that was `--target both` verified in a PAST session ⇒ either a retail load-race needing
+  an extra bracket OR single-drive flakiness (project warns single retail drives are unreliable). **NEEDS
+  (human): a committed-trace retail CONTROL drive to disambiguate, ≥2-drive verification, then RNG/line_row
+  parity + viewer confirm of the DAY2 pixels + sign-hammer.** Watch the known DAY-2 blink-stall lead
+  (~frame 21259+ — did NOT manifest port-side here). GOTCHAS burned this session:
   `--bless` with a carried caprange dumps ~2.3MB/frame BMPs (33GB) — keep caprange out / tiny; `--call-trace`
   WITHOUT a `{calltrace}` window dumps the FULL call graph (~1.4GB/run) — always scope it.
 - **✅ 2026-07-02 — day-end cutscene: served customer DESPAWN ported, PIXEL-1:1 (viewer notes #24/#25; RE §21.33).**

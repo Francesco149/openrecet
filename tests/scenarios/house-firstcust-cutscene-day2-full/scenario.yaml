@@ -9,8 +9,16 @@
 # STATUS (2026-07-03): PORT replay validated END-TO-END (exit=0, ~100s, all 855
 # anchors): past the pause region, through the fast-forward/deadlock zone, reaches the
 # sign-hammer (CONV_POSE_END@15390), then the trailing-hold plays the DAY2 brooming
-# (901 frames).  PENDING (human): a --target both drive for RNG/line_row parity vs
-# retail + viewer confirm of the DAY2 pixels + the sign-hammer close-up.
+# (901 frames).
+# ★ RETAIL single-drive STALLED at PAUSE_CLOSE@1603 (forced rng 2246047975 — the SAME
+#   point the pre-pin PORT stalled): the post-pause CONV_POSE_START never fired on retail
+#   even with the pins active (agent.log confirms csloadpin/tutloadpin/bgnpcpin loaded).
+#   This region (<3468) is byte-identical to the committed sibling, which was --target
+#   both verified in a past session ⇒ either a retail load-race needing an extra bracket,
+#   or single-drive flakiness (project warns single retail drives are unreliable —
+#   verify across >=2 drives + a committed-trace retail CONTROL drive). Human --target
+#   both territory.  PENDING (human): resolve the retail stall, then RNG/line_row parity
+#   + viewer confirm of the DAY2 pixels + sign-hammer close-up.
 #
 # house-firstcust-cutscene-day2 — the FULL post-tutorial flow from the user's
 # recording rec-20260622-182618: LOAD (cad868 save) → haggle tutorial start →
