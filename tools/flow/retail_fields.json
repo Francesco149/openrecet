@@ -105,35 +105,35 @@
      "src": "global",
      "va": "0x56dab4c",
      "type": "i32",
-     "_note": "companion CHR_ACTOR_COUNTER — RE §21.28 chr_anim seed-origin drill (which frame each side ticks/resets the wing cycle)."
+     "_note": "companion CHR_ACTOR_COUNTER \u2014 RE \u00a721.28 chr_anim seed-origin drill (which frame each side ticks/resets the wing cycle)."
     },
     {
      "name": "ctimer",
      "src": "global",
      "va": "0x56dab48",
      "type": "f32",
-     "_note": "companion CHR_ACTOR_TIMER (frame-time accumulator) — RE §21.28."
+     "_note": "companion CHR_ACTOR_TIMER (frame-time accumulator) \u2014 RE \u00a721.28."
     },
     {
      "name": "n0anim",
      "src": "global",
      "va": "0x73a6e50",
      "type": "i32",
-     "_note": "cs browsing-customer slot 0 ANIM (DAT_073a6e50, stride 0x90) — RE §21.28 walk-cycle phase drill (notes #20/#22)."
+     "_note": "cs browsing-customer slot 0 ANIM (DAT_073a6e50, stride 0x90) \u2014 RE \u00a721.28 walk-cycle phase drill (notes #20/#22)."
     },
     {
      "name": "n0frm",
      "src": "global",
      "va": "0x73a6e60",
      "type": "i32",
-     "_note": "cs slot 0 FRAME (+0x10) — RE §21.28."
+     "_note": "cs slot 0 FRAME (+0x10) \u2014 RE \u00a721.28."
     },
     {
      "name": "n0cnt",
      "src": "global",
      "va": "0x73a6e5c",
      "type": "i32",
-     "_note": "cs slot 0 COUNTER (+0xc) — RE §21.28."
+     "_note": "cs slot 0 COUNTER (+0xc) \u2014 RE \u00a721.28."
     },
     {
      "name": "db054",
@@ -334,14 +334,14 @@
      "src": "global",
      "va": "0x730b604",
      "type": "i32",
-     "_note": "DAT_0730b604 — the scripted-machine PC (g_tuto slot index). cs_goto/FUN_004623bc sets it. DIAGNOSTIC: at the tuto2 threshold GOTO does retail's PC stay in tuto2 (slot 50+) or jump back to tuto1 (slot 0-49) like the port?"
+     "_note": "DAT_0730b604 \u2014 the scripted-machine PC (g_tuto slot index). cs_goto/FUN_004623bc sets it. DIAGNOSTIC: at the tuto2 threshold GOTO does retail's PC stay in tuto2 (slot 50+) or jump back to tuto1 (slot 0-49) like the port?"
     },
     {
      "name": "b51c",
      "src": "global",
      "va": "0x730b51c",
      "type": "i32",
-     "_note": "DAT_0730b51c — the SCRIPTED-machine gate. b534==1 && b51c!=0 → FUN_00461c00 (scripted tuto). b51c==0 → the kind machines (FUN_004658ab sell / FUN_00464af0 buy). DIAGNOSTIC: is the buy round scripted or a real kind machine?"
+     "_note": "DAT_0730b51c \u2014 the SCRIPTED-machine gate. b534==1 && b51c!=0 \u2192 FUN_00461c00 (scripted tuto). b51c==0 \u2192 the kind machines (FUN_004658ab sell / FUN_00464af0 buy). DIAGNOSTIC: is the buy round scripted or a real kind machine?"
     },
     {
      "name": "b5b0",
@@ -453,7 +453,7 @@
      "src": "global",
      "va": "0x73de320",
      "type": "f32",
-     "_note": "eye Y (0x73de320) — the camera PITCH. Probe added 2026-06-22 chasing the user-flagged first-customer 'camera angle still wrong' (XZ matches retail, so the divergence is the Y)."
+     "_note": "eye Y (0x73de320) \u2014 the camera PITCH. Probe added 2026-06-22 chasing the user-flagged first-customer 'camera angle still wrong' (XZ matches retail, so the divergence is the Y)."
     },
     {
      "name": "camez",
@@ -472,7 +472,7 @@
      "src": "global",
      "va": "0x73de32c",
      "type": "f32",
-     "_note": "lookat Y (0x73de32c) — with camey sets the camera PITCH/angle."
+     "_note": "lookat Y (0x73de32c) \u2014 with camey sets the camera PITCH/angle."
     },
     {
      "name": "camlz",
@@ -515,14 +515,14 @@
      "src": "global",
      "va": "0x730b5d4",
      "type": "i32",
-     "_note": "DAT_0730b5d4 — the customer pose TIMER (counts to 0xf, FUN paired with b5d0). Probed 2026-06-22 for the scold-pose beat (b534==6 reaction)."
+     "_note": "DAT_0730b5d4 \u2014 the customer pose TIMER (counts to 0xf, FUN paired with b5d0). Probed 2026-06-22 for the scold-pose beat (b534==6 reaction)."
     },
     {
      "name": "b59c",
      "src": "global",
      "va": "0x730b59c",
      "type": "i32",
-     "_note": "DAT_0730b59c — reaction phase (the b534==6 reaction sub-state). Probed for the scold pose + 集中線 timing."
+     "_note": "DAT_0730b59c \u2014 reaction phase (the b534==6 reaction sub-state). Probed for the scold pose + \u96c6\u4e2d\u7dda timing."
     },
     {
      "name": "b5d8",
@@ -541,21 +541,21 @@
      "src": "global",
      "va": "0x73a8ba8",
      "type": "i32",
-     "_note": "DAT_073a8ba8 — in-shop chibi-NPC pump frame counter (FUN_0047019f spawn cadence, %30). cs-walker-rng-phase drill (tools/cs_walker_drill.py)."
+     "_note": "DAT_073a8ba8 \u2014 in-shop chibi-NPC pump frame counter (FUN_0047019f spawn cadence, %30). cs-walker-rng-phase drill (tools/cs_walker_drill.py)."
     },
     {
      "name": "npcsp",
      "src": "global",
      "va": "0x73a8bac",
      "type": "i32",
-     "_note": "DAT_073a8bac — spawned chibi-NPC count."
+     "_note": "DAT_073a8bac \u2014 spawned chibi-NPC count."
     },
     {
      "name": "bgx0",
      "src": "global",
      "va": "0x73a7fac",
      "type": "f32",
-     "_note": "DAT_073a7f80[0].x (+0x2c) — shop-window bg-NPC drift X. viewer note #11 position-diverge probe (cad868 load drift; {bgnpcpin} corrects only at f406)."
+     "_note": "DAT_073a7f80[0].x (+0x2c) \u2014 shop-window bg-NPC drift X. viewer note #11 position-diverge probe (cad868 load drift; {bgnpcpin} corrects only at f406)."
     },
     {
      "name": "bgx1",
@@ -591,6 +591,41 @@
      "va": "0x73a81a0",
      "type": "f32",
      "_note": "DAT_073a7f80[5].x."
+    },
+    {
+     "name": "b1c8",
+     "src": "global",
+     "va": "0x438b1c8",
+     "type": "i32",
+     "_note": "DAT_0438b1c8 \u2014 dialogue gate (0 idle / 2 armed)"
+    },
+    {
+     "name": "b924",
+     "src": "global",
+     "va": "0x438b924",
+     "type": "i32",
+     "_note": "DAT_0438b924 \u2014 conv/idle beat timer (iv2_5\u2192iv2_6 = the b928 beat; master-tick 86801)"
+    },
+    {
+     "name": "b928",
+     "src": "global",
+     "va": "0x438b928",
+     "type": "i32",
+     "_note": "DAT_0438b928 \u2014 beat arm (1 = the Recette-looks-up-at-Tear beat)"
+    },
+    {
+     "name": "scene7a2c",
+     "src": "global",
+     "va": "0x5c7a2c",
+     "type": "i32",
+     "_note": "DAT_005c7a2c \u2014 active dialogue scene selector"
+    },
+    {
+     "name": "sub7a30",
+     "src": "global",
+     "va": "0x5c7a30",
+     "type": "i32",
+     "_note": "DAT_005c7a30 \u2014 active dialogue sub-index"
     }
    ]
   },
@@ -853,28 +888,28 @@
      "name": "skip_prompt",
      "src": "global",
      "va": "0x73a3e18",
-     "_note": "DAT_073a3e18 — the ESC skip-event prompt counter; FUN_0046c320 bumps it each frame gated on DAT_073a3e20==0; FUN_0046c2cb arms the 'Do you want to skip this event?' box once >1. Tracking the port-vs-retail accumulation (viewer note #3: retail's box appears EARLY, the port's several seconds LATE).",
+     "_note": "DAT_073a3e18 \u2014 the ESC skip-event prompt counter; FUN_0046c320 bumps it each frame gated on DAT_073a3e20==0; FUN_0046c2cb arms the 'Do you want to skip this event?' box once >1. Tracking the port-vs-retail accumulation (viewer note #3: retail's box appears EARLY, the port's several seconds LATE).",
      "type": "i32"
     },
     {
      "name": "skip_e20",
      "src": "global",
      "va": "0x73a3e20",
-     "_note": "DAT_073a3e20 — the skip_prompt increment GATE (set at load FUN_0046c295 = FUN_0046ddea()==0); e20!=0 ⇒ FUN_0046c320 early-returns and skip_prompt does NOT advance.",
+     "_note": "DAT_073a3e20 \u2014 the skip_prompt increment GATE (set at load FUN_0046c295 = FUN_0046ddea()==0); e20!=0 \u21d2 FUN_0046c320 early-returns and skip_prompt does NOT advance.",
      "type": "i32"
     },
     {
      "name": "skipbox",
      "src": "global",
      "va": "0x73a3dec",
-     "_note": "DAT_073a3dec — the skip-event choice box open flag (1 while 'Do you want to skip this event?' is up).",
+     "_note": "DAT_073a3dec \u2014 the skip-event choice box open flag (1 while 'Do you want to skip this event?' is up).",
      "type": "i32"
     }
    ]
   },
   "0x4536cb": {
    "name": "sim_step_a",
-   "_note": "FUN_004536cb — the once-per-frame top-level sim dispatcher (E.2 probe; src/sim.c sim_step_a CALL_TRACE_BEGIN_STUB(0x4536cb)). Added RE §21.23: the only OTHER db054 probe (0x48670f, house_update) is gated to the free-roam default arm and goes dark for the whole tutorial/wrap-up dialogue stretch (cc08!=1), hiding a +1 db054 drift somewhere in that window even though every anchor there is bit-identical port↔retail. This fires every sim-ticked frame regardless of which scene1 arm runs (even worker_load_busy() ones), giving continuous db054 visibility. cc08 (0x438cc08) rides alongside because the +1 turned out to be a cc08==4 mode-boundary bug (the default-arm fallback advanced db054 a frame early on the cs leave when cc08 flips 4→1 mid-frame; RE §21.23), and cc08 goes dark on 0x48670f past the arm switch — so keep the mode continuous here to line the transition up against db054.",
+   "_note": "FUN_004536cb \u2014 the once-per-frame top-level sim dispatcher (E.2 probe; src/sim.c sim_step_a CALL_TRACE_BEGIN_STUB(0x4536cb)). Added RE \u00a721.23: the only OTHER db054 probe (0x48670f, house_update) is gated to the free-roam default arm and goes dark for the whole tutorial/wrap-up dialogue stretch (cc08!=1), hiding a +1 db054 drift somewhere in that window even though every anchor there is bit-identical port\u2194retail. This fires every sim-ticked frame regardless of which scene1 arm runs (even worker_load_busy() ones), giving continuous db054 visibility. cc08 (0x438cc08) rides alongside because the +1 turned out to be a cc08==4 mode-boundary bug (the default-arm fallback advanced db054 a frame early on the cs leave when cc08 flips 4\u21921 mid-frame; RE \u00a721.23), and cc08 goes dark on 0x48670f past the arm switch \u2014 so keep the mode continuous here to line the transition up against db054.",
    "fields": [
     {
      "name": "db054",
@@ -893,7 +928,7 @@
      "src": "global",
      "va": "0x56dab4c",
      "type": "i32",
-     "_note": "companion CHR_ACTOR_COUNTER, CONTINUOUS — RE §21.28 chip (a): the +20 pose-era tick offset accumulates in [632,824] where 0x48670f is dark on both sides."
+     "_note": "companion CHR_ACTOR_COUNTER, CONTINUOUS \u2014 RE \u00a721.28 chip (a): the +20 pose-era tick offset accumulates in [632,824] where 0x48670f is dark on both sides."
     },
     {
      "name": "canim",
@@ -918,35 +953,35 @@
      "src": "global",
      "va": "0x438b7d4",
      "type": "f32",
-     "_note": "DAT_0438b7d4 — animated time-of-day clock phase (0..3.5), eased +0.005/frame toward shoptime at L50642. Drives the HUD clock dial (FUN_00406241) AND the maplight mode-3 dusk interpolation (FUN_00458f67 L53762). Added for the day-end dusk-tint port."
+     "_note": "DAT_0438b7d4 \u2014 animated time-of-day clock phase (0..3.5), eased +0.005/frame toward shoptime at L50642. Drives the HUD clock dial (FUN_00406241) AND the maplight mode-3 dusk interpolation (FUN_00458f67 L53762). Added for the day-end dusk-tint port."
     },
     {
      "name": "shoptime",
      "src": "global",
      "va": "0x450fb88",
      "type": "i32",
-     "_note": "DAT_0450fb88[slot0] — integer shop time-of-day (0=morning..up to 4=day-end trigger). maplight mode-3 selector. Assumes active slot (DAT_0438b1e0)==0; todslot confirms."
+     "_note": "DAT_0450fb88[slot0] \u2014 integer shop time-of-day (0=morning..up to 4=day-end trigger). maplight mode-3 selector. Assumes active slot (DAT_0438b1e0)==0; todslot confirms."
     },
     {
      "name": "shopaccum",
      "src": "global",
      "va": "0x438be9c",
      "type": "i32",
-     "_note": "DAT_0438be9c — activity accumulator; when >0x78 the FUN_00442cef block advances shoptime++ (L40744-40753)."
+     "_note": "DAT_0438be9c \u2014 activity accumulator; when >0x78 the FUN_00442cef block advances shoptime++ (L40744-40753)."
     },
     {
      "name": "todslot",
      "src": "global",
      "va": "0x438b1e0",
      "type": "i32",
-     "_note": "DAT_0438b1e0 — active save-slot index (shoptime = DAT_0450fb88[todslot*0xb7f2 dwords])."
+     "_note": "DAT_0438b1e0 \u2014 active save-slot index (shoptime = DAT_0450fb88[todslot*0xb7f2 dwords])."
     },
     {
      "name": "cardday",
      "src": "global",
      "va": "0x450fb84",
      "type": "i32",
-     "_note": "DAT_0450fb84 — current day counter (HUD shows +1)."
+     "_note": "DAT_0450fb84 \u2014 current day counter (HUD shows +1)."
     }
    ]
   }
