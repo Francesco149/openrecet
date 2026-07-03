@@ -303,6 +303,25 @@ PORT-DEBT(blackout-tut-dispatch)/(tut-dispatch-iv2-fx) still unwired — the lik
   trace stays calltrace-free); the `0x48670f` retail hook gained b1c8/b924/b928/scene+sub selectors (KEPT,
   commit after `d064cf0` — state-panel enrichment).
 
+**★★ 2026-07-03 — DAY2 PIXEL CONFIRM (side-by-side, scenario-test caprange @15490-15910, since orv3_window
+is caprange/occurrence-blocked on this drop-fragile trace). The BEAT TIMING is confirmed correct, but the
+confirm REVEALED 4 pre-existing DAY2 render/state gaps the anchor-Δ0 could not see (anchors track sim
+events, not overlays/HUD text) — the classic "chase render even when the sim matches" payoff:**
+1. **The ~190f beat IS a black "Day 2" DAY-TRANSITION TITLE CARD** (retail: full-screen black + centered
+   "Day 2" text for the whole beat 15470→15659; the port shows the LIVE house behind the held pose). ROOT
+   = the screen-blackout `FUN_00452809` (DAT_0438bf74) that iv2_5 arms + the "Day N" title glyphs —
+   `PORT-DEBT(blackout-tut-dispatch)`, explicitly left unwired in the beat fix. THE headline DAY2 render gap.
+2. **HUD day counter port "Day 1" vs retail "Day 2".** `g_hud_day` is CACHED at scene load (scene.c:95 →
+   `scene1_top_hud_set_day(work[CARD_DAY])`); retail reads DAT_0450fb84 LIVE at render (scene1_top_hud.c:87
+   comment). iv2_3's mid-scene fb84 0→1 advance shows on retail immediately but not the cached port. Fix =
+   read fb84 live at render, OR push `scene1_top_hud_set_day` at the iv2_3 day-advance (one-liner).
+3. **"Now Loading…" disc** (bottom-right) during the DAY2 load bracket — retail draws it, the port
+   suppresses it (LOADING-SCREEN FIDELITY, user direction 2026-06-11).
+4. Minor: a Tear wing-sparkle present on retail at 15769/15795 (companion db054%4 phase — likely the known
+   sparkle-phase class).
+**⇒ Residual B (the frame-drift BLOCKER) is CLOSED; the DAY2 pixel PARITY now needs these render chips —
+#1 (the Day-2 blackout card) is the big one. Montage pushed to the llm-feed for the user.**
+
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
 SCOPED caprange (the DAY2 window only, ~1091f ≈ 5GB both sides, NOT full-extent) — or teach orv3 to
