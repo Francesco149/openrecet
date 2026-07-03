@@ -151,12 +151,16 @@ def main() -> int:
             '{"csloadpin": 24}', '{"primaryloadpin": 16}', '{"tutloadpin": 8}',
             '{"bgnpcseed": [123, 1, [0,0]]}',
             '{"rngseed": [0, 999]}', '{"frame": 0, "buttons": "0x0000"}',
+            '{"caprange": [0, 14000]}',                         # capture directive — NOT a pin
             '{"wait": "PAUSE_OPEN"}', '{"rngseed": [0, 12]}',   # seg rng 12 == anchor rng
             '{"bgnpcpin": [0, [1,2,3]]}', '{"frame": 0, "buttons": "0x0000"}',
         ]) + "\n")
         head, midp = D.extract_carry_pins(src)
         assert [next(iter(o)) for o in head] == \
             ["csloadpin", "primaryloadpin", "tutloadpin", "bgnpcseed"], f"(6) head: {head}"
+        # caprange is a CAPTURE directive, never a carried pin (a stale one re-dumps GBs)
+        assert not any("caprange" in o for o in head), f"(6) caprange leaked into head: {head}"
+        assert not any("caprange" in o for _, o in midp), f"(6) caprange leaked into mid: {midp}"
         assert len(midp) == 1 and midp[0][0] == 12 and "bgnpcpin" in midp[0][1], \
             f"(6) mid: {midp}"
         carried = D.emit_anchor_segments(changes, caps, escs, cts, total, anchors, seed,

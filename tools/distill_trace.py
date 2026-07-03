@@ -200,8 +200,10 @@ def _in_drop_regions(frame, regions):
 # Standard replay ops the C segtrace parser knows; anything else in a trace is a
 # hand-added PIN op (csloadpin/primaryloadpin/tutloadpin/bgnpcseed/bgnpcpin/…) that
 # is NOT recoverable from a raw recording — it's calibrated by hand against retail.
+# NB `caprange`/`capture`/`calltrace` are CAPTURE/viewer directives, NOT determinism
+# pins — they must NOT be carried (a stale caprange re-drives a multi-GB BMP dump).
 _STD_OP_KEYS = frozenset({"frame", "buttons", "wait", "rngseed", "esc",
-                          "capture", "calltrace", "gframe", "savefile"})
+                          "capture", "calltrace", "caprange", "gframe", "savefile"})
 
 
 def extract_carry_pins(trace_path):
