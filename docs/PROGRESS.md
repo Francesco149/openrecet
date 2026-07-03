@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-04 — DAY2 day-transition RENDER gaps: actor re-placement (#4) + companion ease (#4b) — pixel-1:1
+
+After the tutloadpin arc bit-frame-aligned the whole cutscene (Δ0 ~15000f), a DAY2 pixel confirm surfaced
+5 pre-existing DAY2 render gaps the anchor-Δ0 had MASKED (anchors track sim events, not overlays/positions).
+Prior sessions landed #2 (HUD live-read "Day 2", `c63ee20`) + #1 ("Day 2" title card, `a77c46b`).  This
+session closed the two big actor gaps, both RNG-neutral (position-only) and pixel-confirmed:
+
+**#4 actor re-placement (`e66e475`).**  The port left Recette + Tear at the stale customer-service COUNTER
+positions (px 0.796 / cx -0.694, mirror-SWAPPED) into the day2 broom; retail re-seats them at the
+house-standing pose (px -0.30 / cx 0.6) at the day-advance via the scene-entry re-place `FUN_0048526d →
+FUN_00436f97`, which the port's dialogue-load iv2 model skips.  **The prior session's "RENDER BLOCKER" was
+REFUTED** — body sprites read `g_scene1_actor_pos[i]` directly (`scene1_shop_walker.c:779`, no snapshot) and
+`g_scene1_player_pos` aliases `actor_pos[0]`, so a sim re-place IS the render source; cached-trace ground
+truth showed cc08/panim/canim already matched — ONLY positions diverged.  Fix: `scene1_postload_day2_actor_
+replace()` (positions-only) re-seats the actors, armed one-shot at the iv2_5 beat + consumed at the
+default-arm top → fires @15470 (retail's day2); the pose driver re-derives the face-each-other octants.
+VERIFIED: px -0.30/poct 6, cx 0.6/coct 2, RNG 0-diff, host 3394/0; pixel-confirmed before(swapped)→after(retail).
+
+**#4b companion ease (`64bd404`).**  Tear eases cx 0.6→1.0 across the beat in retail via `FUN_0048a833`'s
+ELSE-branch (all.c:89434-73, `b928==1 && b924<200`): a FIXED ±1.3 X-offset spring on the player's side at
+factor 0.1, no CO_THRESHOLD/vel-clamp.  The port modeled only the free-roam branch (`FUN_0048a4d1`, threshold
+1.5 / 0.15) so cx held 0.6.  Ported as a beat-gated branch in `scene1_companion_ctrl_tick` (CO_INTRO_SPRING
+0.1, target player_x±1.3).  VERIFIED **MAX|Δcx|=0.0 over the full 190-frame beat** (settles 1.0, retail phase
+exact), RNG 0-diff over 25000f, host 3394/0; pixel-confirmed (Tear moved from hugging Recette to spaced right).
+
+Full story: `findings/cutscene-replay-anchor-drift.md` §2026-07-04.  **OPEN DAY2 residuals** (all fresh arcs):
+(4c) day2-dialogue portrait ~40f ahead of the port's box-open @15878; #3 "Now Loading…" disc (iv2 load never
+calls `nowloading_set_active`); #5 wing-sparkle (minor); #1 b924 fade-seam (cosmetic).
+
 ## 2026-07-02 — day-end cutscene: served customer now DESPAWNS at leave — FUN_0046f892 ported (notes #24/#25; RE §21.33)
 
 Viewer notes #24/#25 flagged a chibi customer still roaming the shop floor (and bleeding through Tear's
