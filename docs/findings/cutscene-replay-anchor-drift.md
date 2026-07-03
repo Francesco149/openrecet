@@ -334,6 +334,35 @@ Full DAY2 pixel PARITY is a substantial "day-transition" arc: the Day-2 blackout
 re-placement/scene-reload (#4) are the big ones; HUD day-counter (#2, one-liner) + Now-Loading disc (#3)
 are smaller. Montage on the llm-feed.**
 
+**★★ 2026-07-03 (later) — DAY2 render gaps #2 + #1 LANDED (commits `c63ee20`, `a77c46b`).**
+- **#2 HUD day-counter DONE** (`c63ee20`): `g_hud_day` was cached once at scene load; now refreshed live
+  from `working[CARD_DAY]` every INGAME frame (sim_step_a, beside money_tick/clock-ease). VERIFIED port
+  @f15820: HUD reads "Day 2". The faithful match to retail's "reads DAT_0450fb84 live at render".
+- **#1 "Day 2" CARD DONE** (`a77c46b`) — **RE CORRECTION: the card is NOT the bf74 blackout + "Day N"
+  glyphs (the FRONT/above guess). It's a self-contained block in FUN_0040a765 (all.c:7500-7559 / objdump
+  0x40c209), gated `b928==1 && b924<0x8c`, driven by the SAME b928/b924 beat already ported for Residual B:**
+  `b924<0x7a` → opaque-black backdrop (0xff000000, system.bmp) + centred "Day %d" (`save[0x2c3ec]+1`) at
+  (320,208) scale 2.2, white alpha `min(b924*8,255)`; `b924>0x5a` → WHITE exit-fade quad, alpha
+  `b924*8-0x2d0 (+(0x7a-b924)*0x10 past 122)`. Ported as `scene1_day_card_render` (scene1_fx_overlays.c),
+  called from the HOUSE free-roam tail after scene1_hud_render (covers the HUD, per retail draw order).
+  **The port does NOT need to arm the bf74 blackout** (PORT-DEBT(blackout-tut-dispatch) stays) — retail's
+  bf74 (FUN_00453d9c) is a redundant opaque black UNDER this card during the async load; THIS card's own
+  backdrop blacks the transition. VERIFIED `--target both` @ raw 15470-15612: **BIT-EXACT (0px)** at the
+  opaque hold (b924~40) + mid white-exit (b924~108); the "Day 2" card matches retail.
+  - **OPEN residual (NOT accepted — b924 fade-transition phase seam):** first ~15 fade-in frames (b924
+    0→14) + the block1/2 boundary (~b924 122) — the port text is slightly BRIGHTER (higher effective alpha).
+    Glyphs are PIXEL-ALIGNED (font identical) and the fill-alpha differs uniformly ⇒ purely a b924 VALUE
+    difference, an UPSTREAM beat-counter seam (port g_iv2_beat_ctr counts ahead of retail DAT_0438b924
+    across the iv2_5-dialogue→free-roam transition). Localized + cosmetic — does NOT shift iv2_6 (b924>=190
+    Δ0, LOADING_START 15659 both). Bit-exact by b924~15 through the hold/mid-exit. **NEXT: a scoped
+    `{calltrace}` `--target both` capturing port g_iv2_beat_ctr vs retail DAT_0438b924 (already in the
+    0x48670f hook) per frame — pin the exact frame offset + why it converges, then align the port's
+    increment gate (likely the !busy vs free-roam-arm start during dialogue teardown).**
+  - **Still OPEN: #3 Now-Loading disc, #4 actor re-placement (both big), #5 wing-sparkle (minor).** #3/#4
+    share a root with #1: the iv2 chain is modeled as `start_single` dialogue-loads, not retail's real
+    scene-reload day-advance (so #3's `nowloading_set_active(1)` never fires on the iv2 load, and #4's
+    `pose_house_standing` re-placement never runs).
+
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
 SCOPED caprange (the DAY2 window only, ~1091f ≈ 5GB both sides, NOT full-extent) — or teach orv3 to

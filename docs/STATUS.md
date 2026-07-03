@@ -31,6 +31,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
+- **▶ ACTIVE ARC — DAY2 day-transition RENDER gaps (the 5 the DAY2 pixel-confirm surfaced; finding
+  `cutscene-replay-anchor-drift.md` §2026-07-03-later).** The Residual-B beat is Δ0 but the anchor-match
+  MASKED unported day-1→day-2 RENDER. Progress:
+  - **✅ #2 HUD day-counter** (`c63ee20`): live-read `g_hud_day` from `working[CARD_DAY]` each INGAME
+    frame (was cached at load). Port reads "Day 2" @f15820.
+  - **✅ #1 "Day 2" CARD** (`a77c46b`): ported `scene1_day_card_render` (FUN_0040a765:7500 / 0x40c209),
+    driven by the b928/b924 beat — black backdrop + centred "Day %d" + white exit-fade. **VERIFIED
+    `--target both` BIT-EXACT (0px)** at the opaque hold + mid-exit. RE correction: it's NOT the bf74
+    blackout+glyphs; the card's own backdrop blacks the screen (bf74 arm not needed). **OPEN residual:**
+    a b924 fade-transition phase seam (port text brighter over the first ~15 fade-in frames; glyphs
+    pixel-aligned, fill-alpha only ⇒ upstream beat-counter timing, needs a `{calltrace}` state probe
+    comparing port g_iv2_beat_ctr vs retail DAT_0438b924 — the 0x48670f hook already has b924).
+  - **OPEN: #3 Now-Loading disc, #4 actor re-placement (both big; share a root — the iv2 chain is modeled
+    as `start_single` dialogue-loads, not retail's real scene-reload day-advance), #5 wing-sparkle (minor).**
+  - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
+    trace — a separate occurrence-aware-windowing tooling arc, deferred).
 - **✅✅ 2026-07-03 — cutscene-replay DEADLOCK fixed + PARITY-validated (commit `b82d2df`; finding
   `cutscene-replay-anchor-drift.md`).** The `house-firstcust-cutscene-day2` prologue (Tear meets Recette →
   debt story → shop setup) FROZE the replay ~14000f (both port+retail) — the anchor-segmented trace
