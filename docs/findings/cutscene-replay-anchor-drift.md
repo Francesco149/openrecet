@@ -261,13 +261,30 @@ advancing to the DAY2 load; the port cuts the hold short. ⇒ the DAY2 brooming 
 port-189f-ahead, so the DAY2 PIXEL frame-match is blocked until this is closed. Suspect an unported
 pose-HOLD / dialogue-line duration in the iv2 day-advance chain (iv1_8→iv2_1..6, FUN_0044bd0d;
 PORT-DEBT(blackout-tut-dispatch)/(tut-dispatch-iv2-fx) still unwired — the likely home).
-**★ START HERE (Residual B, next arc):** evidence in `runs/scenarios/house-firstcust-cutscene-day2-full-both-20260703T142827Z`
-(port `openrecet/anchors.jsonl`, retail `retail/agent.log` `[anchor]` lines). Repro the diff:
-`scenario-test house-firstcust-cutscene-day2-full --target both` then the frame-delta-at-matched-anchor
-script (this session's scratchpad, or `anchor_drift.py`). Question to answer: WHAT holds retail's pose
-from EXTRA_SPRITE_START@15348 to LOADING_START@15659 (189f) that the port skips at 15470 — a dialogue
-line duration, a scripted pose-hold, or an iv2 wait? Then port it so the DAY2 load fires at the same
-anchor-relative frame on both sides ⇒ Δ0 through the DAY2 brooming tail ⇒ DAY2 pixel confirm unblocked.
+**★★★ 2026-07-03 — RESIDUAL B ROOT CAUSE CONFIRMED (scoped `{calltrace}` `--target both`, drive `160204Z`
++ retail-only `161316Z` with b924/b928/b1c8/f470 added to the `0x48670f` retail hook).** The 189f is a
+**scripted ~190-frame idle BEAT the port omits between iv2_5 and iv2_6** — NOT a dialogue-length gap.
+- **Both sides' iv2_5 dialogue (bracket 11 = scene 2/sub 5) ends bit-identical @~15469** (0x46c320 box/row/
+  reveal Δ0 the whole way; last line shown@15379 cleared@15397). The 6 tut brackets 7-12 map to the 6
+  dispatch entries iv1_8→iv2_1→iv2_2→iv2_3(day-adv)→**iv2_5(11@14194)**→**iv2_6(12@15659)**.
+- **PORT** fires iv2_6 the NEXT frame (@15470); **RETAIL** free-roams 189f (15470→15659) then fires iv2_6.
+- During retail's hold: `b1c8=0` (dialogue done), `f470=0` (no scene-out; `FUN_00470a46`/`0x4708f7` never
+  fire → the b924-scene-out is a RED HERRING here + needs day-8), **`b928=1` and `b924` counts 0→189**
+  (15470→15659), `f412=1`/`f413=0` (iv2_6 armed, not done), `b1e0=0` (slot-0 flag reads valid).
+- **Exact gate (`FUN_0044bd0d` @0x44bd0d):** iv2_5 arms `DAT_0438b928=1, DAT_0438b924=0` (all.c:45798-99).
+  `b924` increments EVERY free-roam frame in the master tick (`FUN_0048670f` all.c:86801, unconditional in
+  the f470/f485/f488-clear path). The dispatcher line 45489 sets `bVar1=false` while `(b1c0==1 &&
+  *068dd2f0==0 && b928==1 && b924 < 0xbe(190))`, and line 45507 `if(!bVar1) return` — so it RETURNS before
+  the iv2 chain while `b924<190`; at `b924>=190` it falls through to fire iv2_6. ⇒ the beat is `b924`
+  0→190 = the 189f drift. The actors stay in the conversation pose (panim=6/canim=4, the "Recette looks
+  up at Tear" `b928` beat) → the blinks; the port RELEASES them at iv2_5-end (canim 4→0 @15471, the
+  built-in state-diff), which is ALSO Residual A's port-only CONV_POSE_END/START blip. So porting the beat
+  fixes A + B together.
+- **Fix (planned):** port the `b928/b924` beat into the iv2_5→iv2_6 dispatch — arm at iv2_5-fire, count
+  each free-roam dispatch frame, gate iv2_6 on `>=190`, hold the conversation pose across it. Retires
+  `PORT-DEBT(tut-dispatch-iv2-fx)` + the pose-flag PORT-DEBT (Residual A). Probe scaffolding this session:
+  a temp `{calltrace:[15250,560]}` on the head seg (REVERT — keep the committed trace calltrace-free) +
+  the added `0x48670f` gate fields (KEEP — state-panel enrichment).
 
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a
