@@ -197,6 +197,47 @@ def _in_drop_regions(frame, regions):
     return any(lo <= frame <= hi for lo, hi in regions)
 
 
+# Standard replay ops the C segtrace parser knows; anything else in a trace is a
+# hand-added PIN op (csloadpin/primaryloadpin/tutloadpin/bgnpcseed/bgnpcpin/…) that
+# is NOT recoverable from a raw recording — it's calibrated by hand against retail.
+_STD_OP_KEYS = frozenset({"frame", "buttons", "wait", "rngseed", "esc",
+                          "capture", "calltrace", "gframe", "savefile"})
+
+
+def extract_carry_pins(trace_path):
+    """Pull the hand-tuned PIN ops out of an existing distilled trace so a re-distill
+    of the SAME recording can reproduce them (they're not in the raw — a naked
+    re-distill drops them and the load-bracket races desync ⇒ the replay stalls;
+    see findings/cutscene-replay-anchor-drift.md).
+
+    Returns (head, mid):
+      head — pin ops that precede the first {rngseed} (the trace-global load pins:
+             csloadpin, primaryloadpin, tutloadpin, bgnpcseed, phasepin, …), in order.
+      mid  — [(seg_rng, op)] pin ops injected AFTER a segment's {rngseed} (e.g. the
+             bgnpcpin), each keyed by that segment's rng VALUE so it re-anchors to the
+             same anchor on re-emit regardless of frame drift."""
+    head, mid = [], []
+    seen_rngseed = False
+    cur_seg_rng = None
+    for ln in Path(trace_path).read_text().splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        o = json.loads(s)
+        if "rngseed" in o:
+            seen_rngseed = True
+            v = o["rngseed"]
+            cur_seg_rng = v[1] if isinstance(v, list) and len(v) >= 2 else None
+            continue
+        if set(o.keys()) & _STD_OP_KEYS:
+            continue                      # a standard replay op — not a pin
+        if not seen_rngseed:
+            head.append(o)
+        else:
+            mid.append((cur_seg_rng, o))
+    return head, mid
+
+
 def _suggest_autoplay_boundary(changes, total, min_hold=240):
     """Heuristic HINT (printed, not authoritative): the first frame at which the
     input stops being a dense interactive tap-cluster and becomes sparse holds — a
@@ -212,7 +253,8 @@ def _suggest_autoplay_boundary(changes, total, min_hold=240):
 
 
 def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
-                         pin_rng=True, pin_gframe=False, drop_regions=None):
+                         pin_rng=True, pin_gframe=False, drop_regions=None,
+                         carry_head=None, carry_mid=None):
     """Convert a recording that carries recorded anchor firings into an
     ANCHOR-GATED segtrace: every recorded anchor becomes a `{wait:NAME}` sync
     point, and all inputs/escs/captures between two anchors are emitted relative
@@ -286,6 +328,14 @@ def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
             if lo <= s < hi:
                 out.append(json.dumps({"calltrace": [s - lo, l]}))
 
+    # carried trace-global load pins (csloadpin/primaryloadpin/tutloadpin/bgnpcseed/…)
+    # go at the head, before the first {rngseed} — same slot the hand-tuned trace had
+    # them (the savefile embed later slips {savefile} above these).
+    carry_mid = list(carry_mid or [])
+    remaining_mid = list(carry_mid)
+    for pin in (carry_head or []):
+        out.append(json.dumps(pin))
+
     # segment 0: boot → first anchor (flat from frame 0)
     if rng_seed is not None:
         out.append(json.dumps({"rngseed": [0, rng_seed]}))
@@ -298,9 +348,27 @@ def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
             out.append(json.dumps({"gframe": [0, a["gframe"]]}))
         if pin_rng and a["rng"] is not None:
             out.append(json.dumps({"rngseed": [0, a["rng"]]}))
+            # re-anchor any carried mid-trace pin (bgnpcpin) keyed to THIS segment's rng
+            still = []
+            for seg_rng, pin in remaining_mid:
+                if seg_rng is not None and seg_rng == a["rng"]:
+                    out.append(json.dumps(pin))
+                else:
+                    still.append((seg_rng, pin))
+            remaining_mid = still
         lo = a["frame"]
         hi = syncs[i + 1]["frame"] if i + 1 < len(syncs) else total + 1
         emit_window(lo, hi, first=False)
+    if carry_head or carry_mid:
+        print(f"distill_trace: carried {len(carry_head or [])} head pin(s) + "
+              f"{len(carry_mid) - len(remaining_mid)}/{len(carry_mid)} mid pin(s).",
+              file=sys.stderr)
+    for seg_rng, pin in remaining_mid:
+        key = next(iter(pin), "?")
+        print(f"distill_trace: WARNING — carried mid-pin {{{key}}} keyed to rng "
+              f"{seg_rng} matched NO kept anchor (its anchor was dropped/absent); "
+              f"NOT re-anchored. Adjust the drop region or re-place it by hand.",
+              file=sys.stderr)
     return "\n".join(out) + "\n"
 
 
@@ -333,6 +401,15 @@ def main(argv=None):
                     metavar="LO:HI",
                     help="with --anchor-segments, drop FRAGILE anchors in the frame "
                          "span LO:HI (repeatable). Use for bounded auto-play regions.")
+    ap.add_argument("--carry-pins-from", metavar="TRACE",
+                    help="with --anchor-segments, copy the hand-tuned PIN ops from an "
+                         "existing distilled TRACE into the re-distill: trace-global "
+                         "load pins (csloadpin/primaryloadpin/tutloadpin/bgnpcseed/…) at "
+                         "the head, and rng-anchored mid pins (bgnpcpin) after their "
+                         "segment. These are calibrated against retail and are NOT in "
+                         "the raw recording — a naked re-distill drops them and the "
+                         "load-bracket races desync (stall). See "
+                         "findings/cutscene-replay-anchor-drift.md.")
     ap.add_argument("--saves-dir",
                     help="content store for the embedded save blob (default: the "
                          "trace's _saves/ store, shared across scenarios).")
@@ -355,6 +432,9 @@ def main(argv=None):
             drop_regions.append((int(lo), int(hi)))
         if args.drop_fragile_after is not None:
             drop_regions.append((args.drop_fragile_after, total + 1))
+        carry_head, carry_mid = ([], [])
+        if args.carry_pins_from:
+            carry_head, carry_mid = extract_carry_pins(args.carry_pins_from)
         if not drop_regions:
             hint = _suggest_autoplay_boundary(changes, total)
             if hint is not None:
@@ -365,7 +445,8 @@ def main(argv=None):
         text = emit_anchor_segments(changes, caps, escs, cts, total, anchors,
                                     rng_seed, pin_rng=not args.no_pin_rng,
                                     pin_gframe=args.pin_gframe,
-                                    drop_regions=drop_regions)
+                                    drop_regions=drop_regions,
+                                    carry_head=carry_head, carry_mid=carry_mid)
     elif args.house_segtrace:
         text = emit_house_segtrace(changes, caps, escs, cts, rng_seed)
     else:

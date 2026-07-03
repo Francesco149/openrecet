@@ -61,11 +61,40 @@ the trace just no longer WAITS on them.
   despawn fix (RE §21.33) intact.
 
 ## Follow-ups
-- **Fold into `distill_trace.py`** (region-aware): when a button is held across a
-  run of cosmetic/FX anchors (auto-play cutscene), emit only the boundary syncs.
-  Currently a surgical `drop_fragile.py` on the one trace — `PORT-DEBT(distill-drop-fragile)`.
-- **DAY 2 brooming** (raw 15390-16291, idle) is trimmed from the distilled trace;
-  re-distill from `rec-20260622-182618` to include it.
+- **✅ DONE 2026-07-03 — folded into `distill_trace.py`** (commit `59c4124`).
+  `FRAGILE_ANCHORS` + `--drop-fragile-after FRAME` / `--drop-fragile-region LO:HI`
+  for `--anchor-segments`: inside an auto-play region only reliable scene boundaries
+  survive as `{wait}` syncs; dropping a sync is loss-free (the next kept segment's
+  window spans it, rebasing its inputs). `_suggest_autoplay_boundary` prints a HINT
+  where dense taps give way to sparse held input. Regression: `tools/test_distill_trace.py`.
+  Retires `PORT-DEBT(distill-drop-fragile)`.
+
+## ★ Re-distill gotcha — hand-tuned PIN ops are NOT in the raw (2026-07-03)
+A NAKED re-distill of `rec-20260622-182618` (`--anchor-segments --drop-fragile-after N`)
+**stalls at the post-first-customer PAUSE region (~raw frame 2994)** — the replay resolves
+~35 waits then sits idle to `max_frames`. Cause is NOT the drop-fragile: the trace is
+byte-identical to the committed one through the pause region; the naked re-distill is just
+**missing the hand-added load pins** the committed trace carries at its head
+(`csloadpin:24`, `primaryloadpin:16`, `tutloadpin:8`, `bgnpcseed`) + the rng-anchored mid
+`bgnpcpin` (after the first-customer `CONV_POSE_END`, rng `807420856`). These are calibrated
+against retail (the async `CreateThread` load-bracket races) and are **not recoverable from
+the raw** — without them the load timing desyncs and the next anchor never fires. Proof: the
+committed trace (same ops, +pins) sails through the pause region to ≥3126 on the SAME exe;
+the naked one stalls at 2994.
+- **Fix / tool:** `--carry-pins-from TRACE` (commit pending) copies the head load pins +
+  re-anchors the mid pins (`bgnpcpin`, `caprange`) by their segment's rng value, so a
+  re-distill reproduces the working pin set in one command. **Any re-distill of a
+  hand-pinned trace MUST pass `--carry-pins-from <the old trace>`.**
+- **Principled auto-play boundary for THIS trace = raw frame 3468** (last interactive tap;
+  then a 4008-frame input gap). `--drop-fragile-after 2195` is TOO aggressive — 2195-3468
+  still has interactive input (3rd pause, ESC skips, taps) whose timing needs the fragile
+  re-syncs, so it stalls. The human's original conservative cut (raw ~6300) also works;
+  3468 is the clean minimum.
+- **DAY 2 brooming** (raw 15390-16291): the naked re-distill naturally INCLUDES it (the
+  committed trace manually trimmed at CONV_POSE_END@15390). Candidate scenario
+  `house-firstcust-cutscene-day2-full` = `--drop-fragile-after 3468 --carry-pins-from <committed>`,
+  full 16291-frame range. NEEDS human viewer confirm of the DAY2 tail (+ the known DAY-2
+  blink-stall lead ~frame 21259+).
 - The **`seg` call-trace probe** (input_segtrace `g_segtrace_dbg_seg` → the segment
   the harness is parked on) is the tool that cracks trace-replay stalls in one drive
   — kept as permanent debug tooling.

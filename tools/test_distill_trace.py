@@ -139,9 +139,42 @@ def main() -> int:
     hint = D._suggest_autoplay_boundary(changes, total, min_hold=240)
     assert hint == 200, f"(5) boundary hint: {hint}"
 
+    # (6) carry-pins: hand-tuned PIN ops (not in the raw) are re-applied on re-distill.
+    #     head pins go before the first rngseed; a mid pin re-anchors after the segment
+    #     whose rng matches (here the PAUSE_OPEN@60 anchor, rng=12).
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "src.jsonl"
+        # a stand-in hand-tuned trace: 4 head load pins + 1 rng-anchored mid pin.
+        src.write_text("\n".join([
+            '{"savefile": "../_saves/deadbeef.sav.gz"}',
+            '{"csloadpin": 24}', '{"primaryloadpin": 16}', '{"tutloadpin": 8}',
+            '{"bgnpcseed": [123, 1, [0,0]]}',
+            '{"rngseed": [0, 999]}', '{"frame": 0, "buttons": "0x0000"}',
+            '{"wait": "PAUSE_OPEN"}', '{"rngseed": [0, 12]}',   # seg rng 12 == anchor rng
+            '{"bgnpcpin": [0, [1,2,3]]}', '{"frame": 0, "buttons": "0x0000"}',
+        ]) + "\n")
+        head, midp = D.extract_carry_pins(src)
+        assert [next(iter(o)) for o in head] == \
+            ["csloadpin", "primaryloadpin", "tutloadpin", "bgnpcseed"], f"(6) head: {head}"
+        assert len(midp) == 1 and midp[0][0] == 12 and "bgnpcpin" in midp[0][1], \
+            f"(6) mid: {midp}"
+        carried = D.emit_anchor_segments(changes, caps, escs, cts, total, anchors, seed,
+                                         carry_head=head, carry_mid=midp)
+        lines = [l for l in carried.splitlines() if l.strip() and not l.startswith("#")]
+        # head pins precede the first rngseed
+        first_seed = next(i for i, l in enumerate(lines) if '"rngseed"' in l)
+        head_keys = [next(iter(json.loads(l))) for l in lines[:first_seed]]
+        assert head_keys == ["csloadpin", "primaryloadpin", "tutloadpin", "bgnpcseed"], \
+            f"(6) emitted head order: {head_keys}"
+        # the mid pin sits immediately after the PAUSE_OPEN segment's {rngseed:[0,12]}
+        idx12 = next(i for i, l in enumerate(lines) if json.loads(l).get("rngseed") == [0, 12])
+        assert "bgnpcpin" in lines[idx12 + 1], \
+            f"(6) bgnpcpin not re-anchored after seg rng 12: {lines[idx12:idx12+2]}"
+
     print("OK: distill_trace drop-fragile fold "
           f"(baseline {len(base_waits)} waits → drop-after {len(dw)}; "
-          f"region-drop {len(rw)}; hint@{hint})")
+          f"region-drop {len(rw)}; hint@{hint}; carry {len(head)} head + {len(midp)} mid)")
     return 0
 
 
