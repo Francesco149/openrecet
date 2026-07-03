@@ -280,11 +280,28 @@ PORT-DEBT(blackout-tut-dispatch)/(tut-dispatch-iv2-fx) still unwired — the lik
   up at Tear" `b928` beat) → the blinks; the port RELEASES them at iv2_5-end (canim 4→0 @15471, the
   built-in state-diff), which is ALSO Residual A's port-only CONV_POSE_END/START blip. So porting the beat
   fixes A + B together.
-- **Fix (planned):** port the `b928/b924` beat into the iv2_5→iv2_6 dispatch — arm at iv2_5-fire, count
-  each free-roam dispatch frame, gate iv2_6 on `>=190`, hold the conversation pose across it. Retires
-  `PORT-DEBT(tut-dispatch-iv2-fx)` + the pose-flag PORT-DEBT (Residual A). Probe scaffolding this session:
-  a temp `{calltrace:[15250,560]}` on the head seg (REVERT — keep the committed trace calltrace-free) +
-  the added `0x48670f` gate fields (KEEP — state-panel enrichment).
+- **✅ FIX LANDED (commit `d064cf0`).** Ported the `b928/b924` beat into `scene1_tutorial_dispatch`:
+  iv2_5's branch arms `g_iv2_beat_active=1, g_iv2_beat_ctr=0`; a gate at the top of the iv2 cascade
+  increments the counter each free-roam dispatch tick (= retail's master-tick 86801, which only runs in
+  the default/free-roam arm — a dialogue takes the event arm, so neither counts, matching retail's
+  cadence exactly) and `return`s while `< IV2_BEAT_FRAMES(0xbe)` (mirrors `if(!bVar1) return` @45507).
+  The pose is held across the beat by ORing `scene1_tutorial_dispatch_iv2_beat_active()` into BOTH the
+  conversation-pose gate (`scene1_conversation_pose.c`) AND the player walk-arm suppression
+  (`scene1_player_ctrl.c:2453` — the freeroam arm otherwise resets Recette's anim 6→idle every frame, the
+  documented pcnt-stuck-at-1 symptom). Reset on scene entry (`scene1_postload.c`).
+  **VERIFIED `--target both`:** DAY2 `LOADING_START` now **15659 both sides** (was port 15470); DAY2-tail
+  anchors **Δ0 (50/51** — blinks 15494/15558/15622 now match, day2 dialogue lines/sprites all frame-exact);
+  the port-only `CONV_POSE_END/START` blip @15470 is GONE (Residual A @15470 closed too). Host tests 3394/0.
+- **Two smaller residuals remain (separate arcs, both pose-flag PORT-DEBT class):**
+  - **@14193** — 2 port-only `CONV_POSE_END`+`CONV_POSE_START` at iv2_5's OWN load bracket (retail's
+    talk-flag doesn't blip there; the port's derived flag does). This is the ORIGINAL Residual A @14193
+    (the beat fix only closed @15470). Root/fix = port the faithful flag producer FUN_00470a46/FUN_004852fb.
+  - **@16380 vs 16389** — the FINAL day2-brooming `CONV_POSE_END` is Δ−9 (port ends the pose 9f early;
+    the day2 dialogue itself is Δ0 through DLG_LINE_CLEAR@16332). A small day2-tail pose-end hold, likely
+    the same pose-flag class; low-priority.
+- Probe scaffolding this session: a temp `{calltrace:[15250,560]}` on the head seg (REVERTED — committed
+  trace stays calltrace-free); the `0x48670f` retail hook gained b1c8/b924/b928/scene+sub selectors (KEPT,
+  commit after `d064cf0` — state-panel enrichment).
 
 **orv3 DAY2 window BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent in the trace, but
 the re-distill DROPPED it (the 33GB-BMP hazard — FRONT gotcha). To run the DAY2 viewer, re-add a

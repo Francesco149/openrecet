@@ -87,20 +87,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   COMPLETE exit=0 (retail no stall); brackets 7-12 ALL `released`@110 (0 "left alone"); frame-delta Δ0 for
   frames 206→15348 = the WHOLE cutscene arc (raw 0→15390) is now BIT-FRAME-ALIGNED** (was: retail +1056f
   adrift, DAY2 join 232/1091). **RETAIL DETERMINISTIC ≥2 drives** (`142827Z`≡`144555Z` bit-identical
-  anchors+brackets ⇒ reproducible, not single-drive luck). +host tests (3395). **★ TWO OPEN residuals at the DAY2 BOUNDARY (both new
-  leads, distinct arcs):**
-  - **(B, the DAY2-tail BLOCKER) 189-frame drift at the DAY2 ENTRY** (Δ0 until EXTRA_SPRITE_START@15348,
-    then LOADING_START port@15470 vs retail@**15659** = Δ−189, stays −189/−198 through DAY2). Load is 110f
-    both sides — the drift is PRE-load: retail HOLDS the pre-DAY2 conversation pose ~189f longer (3 extra
-    %64 blinks @15494/15558/15622) before the DAY2 load; the port cuts it short ⇒ the DAY2 brooming tail
-    (raw 15390→16291) is port-189f-ahead ⇒ DAY2 PIXEL frame-match blocked until closed. Suspect an
-    unported pose-HOLD / dialogue-line duration in the iv2 day-advance chain (iv1_8→iv2_1..6, FUN_0044bd0d;
-    `PORT-DEBT(blackout-tut-dispatch)`/`(tut-dispatch-iv2-fx)` still unwired — likely home).
-  - **(A, cosmetic) 2 port-only `CONV_POSE_END`+`CONV_POSE_START` blips @14193/@15470** (Δ stays 0 —
-    anchor-only, no frame impact). ROOT: the pose-flag PORT-DEBT (`scene1_conversation_pose.c:104-108`
-    derives DAT_0450f470 from the dialogue lifecycle; the derived flag blips at EVERY tut-load boundary,
-    but retail's REAL flag blips at SOME (11726 — both aligned) not others). Fix = port the faithful
-    producer FUN_00470a46/FUN_004852fb (retires the pose-flag PORT-DEBT).
+  anchors+brackets ⇒ reproducible, not single-drive luck). +host tests (3395).
+  **✅✅✅ 2026-07-03 — RESIDUAL B FIXED (commit `d064cf0`; finding §RESIDUAL-B-FIXED). The DAY2 pixel confirm is
+  UNBLOCKED (Δ0 tail) — pending the user's viewer pass.** ROOT (confirmed by scoped `{calltrace}` `--target
+  both` + b924/b928 retail reads, drives `160204Z`+`161316Z`): NOT a dialogue-length gap — retail withholds
+  iv2_6 (the DAY2 load) for a **~190-frame "Recette looks up at Tear" idle BEAT** after iv2_5. iv2_5 arms
+  `DAT_0438b928=1`/`DAT_0438b924=0` (all.c:45798-99); the master tick counts b924 every free-roam frame
+  (86801); `FUN_0044bd0d` gates the cascade behind `b924 < 0xbe(190)` (45489 → `if(!bVar1) return` @45507);
+  both iv2_5 dialogues END bit-identical @15469, then retail free-roams 189f (b924 0→189, `f470=0`/no
+  scene-out) before iv2_6@15659. **Ported the beat** in `scene1_tutorial_dispatch` (arm/count/gate
+  IV2_BEAT_FRAMES=0xbe); pose held across it via the conversation-pose gate + the player walk-arm
+  suppression (`scene1_player_ctrl.c:2453`, else the freeroam arm resets Recette's anim → the pcnt-stuck
+  symptom). VERIFIED `--target both`: DAY2 `LOADING_START` **15659 both** (was port 15470), DAY2-tail anchors
+  **Δ0 (50/51** — blinks 15494/15558/15622 + day2 lines/sprites all match); host 3394/0.
+  **★ TWO smaller residuals remain at the DAY2 boundary (both pose-flag PORT-DEBT class, distinct arcs):**
+  - **(A, @15470 CLOSED / @14193 OPEN) port-only `CONV_POSE_END`+`CONV_POSE_START` blip.** The @15470 pair
+    is GONE (the beat holds the pose). The @14193 pair (iv2_5's OWN load bracket) REMAINS: the pose-flag
+    PORT-DEBT (`scene1_conversation_pose.c:104-108` derives DAT_0450f470 from the dialogue lifecycle; the
+    derived flag blips at EVERY tut-load boundary, retail's REAL flag blips at SOME (11726 — aligned) not
+    others (14193)). Fix = port the faithful producer FUN_00470a46/FUN_004852fb (retires the pose-flag
+    PORT-DEBT). Also a NEW tiny tail residual: the FINAL day2 `CONV_POSE_END` is Δ−9 (16380 vs 16389; the
+    day2 dialogue itself is Δ0 through DLG_LINE_CLEAR@16332) — same class, low-priority.
   - **orv3 DAY2 viewer BLOCKED (tooling):** `orv3_window` needs a `{caprange}` full-extent, but the
     re-distill DROPPED it (33GB-BMP hazard). Re-add a SCOPED caprange (DAY2 window only, ~1091f ≈ 5GB
     both sides) or teach orv3 to inject one for `--window`; keep the committed trace caprange-free.
