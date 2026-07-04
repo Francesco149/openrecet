@@ -179,7 +179,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 400,
+   "line": 410,
    "kind_known": true
   },
   {
@@ -195,7 +195,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 329,
+   "line": 339,
    "kind_known": true
   },
   {

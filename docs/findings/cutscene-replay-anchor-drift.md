@@ -349,15 +349,26 @@ are smaller. Montage on the llm-feed.**
   bf74 (FUN_00453d9c) is a redundant opaque black UNDER this card during the async load; THIS card's own
   backdrop blacks the transition. VERIFIED `--target both` @ raw 15470-15612: **BIT-EXACT (0px)** at the
   opaque hold (b924~40) + mid white-exit (b924~108); the "Day 2" card matches retail.
-  - **OPEN residual (NOT accepted — b924 fade-transition phase seam):** first ~15 fade-in frames (b924
-    0→14) + the block1/2 boundary (~b924 122) — the port text is slightly BRIGHTER (higher effective alpha).
-    Glyphs are PIXEL-ALIGNED (font identical) and the fill-alpha differs uniformly ⇒ purely a b924 VALUE
-    difference, an UPSTREAM beat-counter seam (port g_iv2_beat_ctr counts ahead of retail DAT_0438b924
-    across the iv2_5-dialogue→free-roam transition). Localized + cosmetic — does NOT shift iv2_6 (b924>=190
-    Δ0, LOADING_START 15659 both). Bit-exact by b924~15 through the hold/mid-exit. **NEXT: a scoped
-    `{calltrace}` `--target both` capturing port g_iv2_beat_ctr vs retail DAT_0438b924 (already in the
-    0x48670f hook) per frame — pin the exact frame offset + why it converges, then align the port's
-    increment gate (likely the !busy vs free-roam-arm start during dialogue teardown).**
+  - **✅ b924 fade-transition seam CLOSED 2026-07-04 (commit PENDING) — the "counts ahead" HYPOTHESIS was
+    DISPROVEN by its own prescribed probe.** Ran the scoped `{calltrace}` capturing **port b924 vs retail
+    DAT_0438b924 per frame** over the beat: **port b924 == retail b924 FRAME-FOR-FRAME, 155/155, MAX|Δ|=0,
+    0 mismatches** — INCLUDING the exact fade-in region (b924 0→17 where "brighter" was reported: both
+    0,1,2,…,17). The port counter was NEVER ahead. Combined with the alpha formula being bit-identical in
+    code (block1 `b924*8` cap 255; block2 `b924*8-0x2d0 +(0x7a-b924)*0x10`), the day-number/position/scale/
+    font all identical, and the already-verified BIT-EXACT hold+mid-exit (same font+blend at α=255) ⇒ the
+    card is bit-exact over the WHOLE fade (in/hold/exit) by counter+formula, no free variable left. The
+    pre-#4 "brighter fade-in" note was a measurement/pairing artifact (the fade-in frames weren't perfectly
+    frame-paired before the #4/#4b beat frame-alignment), NOT a real counter offset. The omitted card gates
+    (`DAT_0438b1c0==1 && *DAT_068dd2f0==0`) are HOUSE-free-roam-render + no-blocking-menu — both hold across
+    the auto-play beat (the port's card is only called from the HOUSE free-roam render tail), so they can't
+    diverge here. TOOLING landed en route: b924/b928 now emitted continuously at the always-ON **0x4536cb**
+    (sim.c) + retail_fields.json 0x4536cb mirror (flow_diff auto-diff). **★ Why 0x4536cb, not 0x48670f (where
+    retail reads b924):** post-#4b the port's scene1_player_ctrl_tick EARLY-RETURNS before the 0x48670f
+    emission on the pose-held beat (the companion now routes through the conversation-pose driver ⇒
+    posing()==true) — relaxing the emission gate did NOT help (proved: only 1/155 beat frames emitted), so
+    0x48670f (px/poct/cx AND b924) is DARK on the whole day-2 beat. 0x4536cb fires every sim frame regardless
+    of arm. **Latent lead (not blocking — #4/#4b already confirmed beat positions):** if future beat-POSITION
+    parity is needed, route 0x48670f around the pose early-return or add px/poct/cx to 0x4536cb.
   - **Still OPEN: #3 Now-Loading disc, #4 actor re-placement (both big), #5 wing-sparkle (minor).** #3/#4
     share a root with #1: the iv2 chain is modeled as `start_single` dialogue-loads, not retail's real
     scene-reload day-advance (so #3's `nowloading_set_active(1)` never fires on the iv2 load, and #4's

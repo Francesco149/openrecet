@@ -22,10 +22,12 @@
   - **✅ #1 "Day 2" CARD** (`a77c46b`): ported `scene1_day_card_render` (FUN_0040a765:7500 / 0x40c209),
     driven by the b928/b924 beat — black backdrop + centred "Day %d" + white exit-fade. **VERIFIED
     `--target both` BIT-EXACT (0px)** at the opaque hold + mid-exit. RE correction: it's NOT the bf74
-    blackout+glyphs; the card's own backdrop blacks the screen (bf74 arm not needed). **OPEN residual:**
-    a b924 fade-transition phase seam (port text brighter over the first ~15 fade-in frames; glyphs
-    pixel-aligned, fill-alpha only ⇒ upstream beat-counter timing, needs a `{calltrace}` state probe
-    comparing port g_iv2_beat_ctr vs retail DAT_0438b924 — the 0x48670f hook already has b924).
+    blackout+glyphs; the card's own backdrop blacks the screen (bf74 arm not needed). **✅ b924 fade-seam
+    residual CLOSED (commit PENDING):** the scoped `{calltrace}` probe showed **port b924 == retail
+    DAT_0438b924 FRAME-FOR-FRAME (155/155, MAX|Δ|=0)** incl. the fade-in (b924 0→17) — the "counts ahead"
+    hypothesis was WRONG (pre-#4 pairing artifact); with the bit-identical alpha formula the card is bit-exact
+    over the whole fade. Tooling: b924/b928 now emitted continuously at always-ON 0x4536cb (0x48670f is dark
+    on the pose-held beat) + retail_fields mirror. Finding §2026-07-04-b924.
   - **✅ #4 actor re-placement FIXED + PIXEL-CONFIRMED (commit PENDING).** The prior "RENDER BLOCKER" was
     REFUTED (flawed first-cut, NOT a render-source gap): body sprites render position DIRECTLY from
     `g_scene1_actor_pos[i]` (`scene1_shop_walker.c:779`, no snapshot) and `g_scene1_player_pos ==

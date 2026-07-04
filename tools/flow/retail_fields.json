@@ -963,6 +963,20 @@
      "_note": "DAT_0450fb88[slot0] \u2014 integer shop time-of-day (0=morning..up to 4=day-end trigger). maplight mode-3 selector. Assumes active slot (DAT_0438b1e0)==0; todslot confirms."
     },
     {
+     "name": "b924",
+     "src": "global",
+     "va": "0x438b924",
+     "type": "i32",
+     "_note": "DAT_0438b924 \u2014 iv2_5\u2192iv2_6 idle-beat timer; drives the 'Day N' day-transition card fade alpha (b924*8) AND gates iv2_6 (<0xbe). CONTINUOUS mirror of the port's 0x4536cb emission \u2014 0x48670f (where retail also reads b924) goes dark on the pose-held day-2 beat, so this anchor keeps b924 visible every frame for the card-fade phase diff. Frame-start value (master-tick increments it later)."
+    },
+    {
+     "name": "b928",
+     "src": "global",
+     "va": "0x438b928",
+     "type": "i32",
+     "_note": "DAT_0438b928 \u2014 iv2 beat arm (1 = the Recette-looks-up-at-Tear day-2 idle beat)."
+    },
+    {
      "name": "shopaccum",
      "src": "global",
      "va": "0x438be9c",

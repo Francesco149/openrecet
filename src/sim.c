@@ -45,6 +45,7 @@
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
+#include "scene1_tutorial_dispatch.h" /* iv2 beat b924/b928 — continuous card-fade phase probe */
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record indices — RE §21.28 ccnt probe */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
@@ -286,6 +287,15 @@ void sim_step_a(void)
         const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
         CALL_TRACE_I32("shoptime", wb ? (int)wb[SAVE_BANK_FIELD_CLOCK_TARGET] : -1);
     }
+    /* The iv2_5→iv2_6 "Day N" idle-beat timer (b924) + arm (b928).  Emitted on the
+     * ALWAYS-ON 0x4536cb anchor because 0x48670f (where retail reads b924) goes dark
+     * on the pose-held day-2 beat in the port — this keeps b924 continuous so
+     * flow_diff can pin the day-2 card's fade-alpha phase (alpha=b924*8) against
+     * retail's DAT_0438b924 every beat frame.  b924 is frame-start-stable (dispatch
+     * increments it later, in scene1_sim), so this value pairs by frame with
+     * retail's frame-start 0x48670f read. */
+    CALL_TRACE_I32("b924", scene1_tutorial_dispatch_iv2_beat_ctr());
+    CALL_TRACE_I32("b928", scene1_tutorial_dispatch_iv2_beat_active());
     CALL_TRACE_END();
 
     /* Engine FUN_004536cb HEAD (L50357-50360, the very first thing — before
