@@ -83,6 +83,7 @@
 #include "scene1_preload.h"
 #include "scene1_records.h"
 #include "scene1_render.h"
+#include "light_debug.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_display_menu.h"  /* display_menu_render (cc04==1 menu panel) */
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
@@ -2513,6 +2514,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         } else if (wParam == VK_F4) {
             /* Toggle a call-graph-trace window in the recording. */
             trace_rec_toggle_calltrace();
+        } else if (wParam == VK_F5) {
+            /* Hikari light-debug: unique-colour opaque god-ray planes +
+             * free dolly camera (see src/light_debug.h). */
+            light_debug_toggle(scene1_render_view_matrix());
+        } else if (wParam == VK_F6) {
+            /* Cycle the light-debug visualization mode (tint/flat/border). */
+            light_debug_cycle_mode();
         }
         return 0;
 
@@ -3557,6 +3565,14 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--debug-pass-d-unlit") == 0) {
             g_debug_pass_d_unlit = 1;
+        } else if (lstrcmpA(tok, "--light-debug") == 0) {
+            /* Start with the hikari light-debug mode armed (activates on
+             * the first scene-1 frame; same as pressing F5 — see
+             * src/light_debug.h). */
+            light_debug_set_autostart();
+        } else if (lstrcmpA(tok, "--light-debug-mode") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) light_debug_set_mode((int)strtoul(val, NULL, 0));
         } else if (lstrcmpA(tok, "--force-ambient-spawn") == 0) {
             g_force_ambient_spawn = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-type") == 0) {

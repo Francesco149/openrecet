@@ -334,6 +334,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 
 #include "mesh.h"
 #include "mesh_load.h"
+#include "light_debug.h"
 #include "scene1_emit_record.h"
 #include "scene_map_meshes.h"
 #include "sprite.h"
@@ -344,6 +345,12 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
  * texture-cache slot, populated by mesh_load).  We draw entire
  * submeshes (which group faces by material), which is texture-binding
  * equivalent for static shop_table furniture meshes. */
+/* light-debug (F5): set while the pass-3 hikari slot loop runs so
+ * draw_loop_b_mesh can wrap each plane's draw with the visualization
+ * state overrides.  Never set on the trace/TAS paths (mode is
+ * interactive-only). */
+static int g_hikari_debug_scope = 0;
+
 static void draw_loop_b_mesh(IDirect3DDevice8 *dev,
                              const mesh_t *m,
                              int slot,
@@ -410,12 +417,26 @@ static void draw_loop_b_mesh(IDirect3DDevice8 *dev,
         mat.Power      = mm->power;
         IDirect3DDevice8_SetMaterial(dev, &mat);
 
+        if (g_hikari_debug_scope) light_debug_plane_predraw((struct IDirect3DDevice8 *)dev);
+
         IDirect3DDevice8_DrawIndexedPrimitive(
             dev, D3DPT_TRIANGLELIST,
             0,
             (UINT)sm->vertex_count,
             (UINT)sm->index_offset,
             (UINT)(sm->index_count / 3));
+
+        if (g_hikari_debug_scope && light_debug_wire_enabled()) {
+            /* border mode: same draw again as a wireframe overlay */
+            light_debug_wire_begin((struct IDirect3DDevice8 *)dev);
+            IDirect3DDevice8_DrawIndexedPrimitive(
+                dev, D3DPT_TRIANGLELIST,
+                0,
+                (UINT)sm->vertex_count,
+                (UINT)sm->index_offset,
+                (UINT)(sm->index_count / 3));
+            light_debug_wire_end((struct IDirect3DDevice8 *)dev);
+        }
     }
 }
 
@@ -495,8 +516,16 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
     /* L52806: FUN_00454f7c() barrier (same as scene1_emit_preamble). */
     scene1_emit_preamble((struct IDirect3DDevice8 *)dev);
 
+    /* light-debug (F5): pass 3 draws exactly the hikari god-ray planes,
+     * so the whole pass is the visualization scope. */
+    int hikari_dbg = (param_1 == 3) && light_debug_active();
+    if (hikari_dbg) {
+        light_debug_hikari_begin();
+        g_hikari_debug_scope = 1;
+    }
+
     int slot_count = g_mesh_tex_cache.count;
-    if (slot_count <= 0) return;
+    if (slot_count <= 0) { g_hikari_debug_scope = 0; return; }
     if (slot_count > MESH_TEX_CACHE_CAP) slot_count = MESH_TEX_CACHE_CAP;
 
     /* Engine `local_2c`: arms-once-per-outer-pass latch for the
@@ -581,6 +610,11 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
 
             draw_loop_b_mesh(dev, m, slot, &phase2_matrices[i * 16]);
         }
+    }
+
+    if (hikari_dbg) {
+        g_hikari_debug_scope = 0;
+        light_debug_hikari_end((struct IDirect3DDevice8 *)dev);
     }
 }
 

@@ -55,6 +55,7 @@ void scene1_project_world_mat(const float *view, const float *proj,
 #include "scene1_chr_shadow.h"   /* Csh.1 — FUN_0045aa36 player/companion ground shadow */
 #include "call_trace.h"
 #include "scene1_camera.h"
+#include "light_debug.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
 #include "scene1_maplight.h"     /* FUN_00458f67 maplight builder + stage record */
 #include "scene1_fx_overlays.h"  /* scene1_fx_overlays — FUN_00454191 scaffold */
@@ -396,7 +397,12 @@ void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
      * at the tail of FUN_00441c3e (via FUN_0040120c); we keep it
      * separate so the gate-closed branch can leave the prior matrix
      * untouched without rebuilding from a partially-updated state. */
-    if (sim_get_counter_998() == 0 /* && counter_6fa4 == 0 */) {
+    light_debug_maybe_autostart(g_scene1_view);   /* --light-debug arm */
+    if (light_debug_active()) {
+        /* light-debug (F5): the free dolly camera owns the view matrix;
+         * the game pose keeps simulating but stops writing it. */
+        light_debug_camera_tick(g_scene1_view);
+    } else if (sim_get_counter_998() == 0 /* && counter_6fa4 == 0 */) {
         scene1_camera_pose_compute();
         scene1_camera_build_view_matrix(g_scene1_view);
     }

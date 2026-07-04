@@ -16,6 +16,7 @@
 #include "input.h"
 #include "recet_ini.h"
 #include "call_trace.h"
+#include "light_debug.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -452,6 +453,14 @@ void input_poll(void)
                                            &g_input_state[player_slot].buttons);
             }
         }
+    }
+
+    /* light-debug (F5): the free camera owns WASD/arrows — freeze the
+     * game's buttons so flying around doesn't drive the player (and a
+     * running recording doesn't pick the camera keys up as gameplay). */
+    if (light_debug_active()) {
+        g_input_state[0].buttons = 0;
+        g_input_state[1].buttons = 0;
     }
 }
 
