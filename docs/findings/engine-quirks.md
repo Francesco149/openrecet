@@ -4829,3 +4829,23 @@ faithful fix adds the second gate to `nowloading` + arms it on the D_TUT_LOAD br
 the alpha ramp vs. load duration so fast tutorial dialogues match retail (don't regress the
 currently-frame-aligned cutscene); ground it in a `--target both` caprange of the day2 load
 window (~15610-15720) first.
+
+**★ 2026-07-04 PIXEL-CONFIRMED + PORTED — the two gates ALSO differ in what ELSE renders during
+the load (not just the disc):**
+- **The SCENE stays rendered during a DIALOGUE load.**  `FUN_004547ab` L51100 keys the whole-scene
+  render-skip on **`DAT_06a49958 == 0` ONLY** (the primary gate), NOT DAT_06a49960.  So a primary
+  load renders BLACK + disc (scene reload), but a **dialogue load renders the live scene + disc**
+  (house + "Now Loading" — brightness-confirmed retail 104 across the entire iv2_6 load window
+  15655→15775, vs a naive port that blacked to 1.5).  The port OR-collapsed both engine gates into
+  `nowloading.g_active` and gated the scene-skip on it, so arming the disc on a dialogue-load wrongly
+  blacked the scene — fix keys the scene-skip on the PRIMARY signal (`!nowloading || dialogue_loading`).
+- **The bottom-right CAMERA HINT is suppressed during ANY dialogue LOAD.**  Its gate is
+  `DAT_0438b1c8 == 0` — the whole-lifecycle dialogue BUSY flag (armed/loading/active), NOT just
+  _active.  So during the LOAD bracket (busy, not-yet-active) retail hides "Button 4: Change Camera"
+  and shows ONLY the "Now Loading" disc at the shared (440,440) slot.  A port gating on _active()
+  (not _busy()) drew BOTH overlapping.
+Net: a faithful DAY2-load frame = live house scene + "Now Loading" disc + NO camera hint.  Ported
+(commit at DAY2 gap #3): sim.c arms `g_active` on `scene1_intro_dialogue_loading()`, main.c renders
+the scene when `!nowloading || dialogue_loading`, scene1_top_hud gates the camera hint on `_busy()`.
+Residual: a 2-3 frame load-bracket skew (completion-based CreateThread race) shifts the disc-spinner
+rotation phase + character anim phase — pillar-B, not a logic gap; re-aligns post-load.

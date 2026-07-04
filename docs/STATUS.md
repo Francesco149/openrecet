@@ -62,13 +62,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     full 190f beat** (settles 1.0), RNG 0-diff, host 3394/0.
   - **OPEN residual post-#4:** **(4c)** @15838 retail dialogue PORTRAIT the port lacks (~40f ahead of the port's
     box-open @15878; PRE-EXISTING/RNG-neutral — day2-dialogue timing or portrait-slide-in gap, distinct arc).
-  - **OPEN: #3 Now-Loading disc — RE MAPPED (engine-quirk §129), not yet ported.** ROOT: retail's nowloading
-    has TWO gates — `DAT_06a49958` (scene load, armed FUN_00452cde/eed = the port's `worker_load_begin`) AND
-    `DAT_06a49960` (DIALOGUE load, armed FUN_00452d07 = the iv2_6 `.ivt` overlay). `FUN_00453147` draws the
-    disc iff EITHER != 0. The port models only the FIRST gate ⇒ its iv2 dialogue-loads show no disc. FIX: add
-    a 2nd gate to `nowloading`, arm on the D_TUT_LOAD bracket / clear at completion. CAUTION: shows on EVERY
-    dialogue-load ⇒ ground in a `--target both` caprange of the day2 load window (~15610-15720) FIRST + check
-    the alpha ramp vs load duration so fast tutorial dialogues don't regress the frame-aligned cutscene.
+  - **✅ #3 Now-Loading disc PORTED + PIXEL-CONFIRMED (commit PENDING; engine-quirk §129).** Retail's nowloading
+    has TWO gates: `DAT_06a49958` (scene load) + `DAT_06a49960` (DIALOGUE load, armed FUN_00452d07 = iv2_6's
+    `.ivt`); `FUN_00453147` draws the disc iff EITHER. A faithful DAY2-load frame = **live house scene + "Now
+    Loading" disc + NO camera hint** (brightness-confirmed retail 104 across 15655→15775). Three-part fix,
+    render-only (no sim/rng): (a) sim.c arms `g_active` on `scene1_intro_dialogue_loading()` (disc); (b) main.c
+    renders the scene when `!nowloading || dialogue_loading` — L51100 skips the scene only for the PRIMARY gate,
+    so the port's OR-collapse would've blacked it; (c) scene1_top_hud gates the camera hint on `_busy()` not
+    `_active()` (retail hides "Button 4" during the load, shows only the disc). VERIFIED `--target both` @15700:
+    port==retail modulo a 2-3f load-bracket skew (disc-spinner/anim phase — pillar-B CreateThread race, not
+    logic). host 3394/0. **Pending: user viewer/feed confirm (montage pushed).**
   - **OPEN: #5 wing-sparkle (minor).**
   - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
     trace — a separate occurrence-aware-windowing tooling arc, deferred).

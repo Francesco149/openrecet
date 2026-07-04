@@ -398,8 +398,13 @@ void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev_in)
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
-    /* DAT_0438b1c8 == 0: no dialogue active. */
-    if (scene1_intro_dialogue_active()) return;
+    /* DAT_0438b1c8 == 0: no dialogue ARMED/LOADING/active (the retail flag is the
+     * whole-lifecycle BUSY flag, not just _active).  Use _busy() so the hint is
+     * suppressed during a dialogue LOAD bracket too (D_LOAD/D_TUT_LOAD) — retail
+     * shows ONLY the "Now Loading" disc there, not the camera hint (DAY2 render gap
+     * #3, iv2_6 load: the port drew both overlapping; pixel-confirmed retail hides
+     * it).  _active() slipped through the load brackets (active false while loading). */
+    if (scene1_intro_dialogue_busy()) return;
     /* DAT_0438b4e8 == 0: no menu/overlay owns the hint slot.  The port mirrors
      * the cc08==4 customer-service case via the cs-active flag (DAT_0438b7b0):
      * its UI draws the "Button 3: Item Details" hint here instead.  PORT-DEBT

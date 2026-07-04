@@ -3990,6 +3990,7 @@
     "src/scene1_tutorial_dispatch.h",
     "src/scene_guild.c",
     "src/scene_sc1.h",
+    "src/sim.c",
     "src/worker_load.c",
     "src/worker_load.h"
    ]

@@ -244,7 +244,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c, fade.h, sim.c |
 | 0x452809 | FUN_00452809 | 11 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
-| 0x452d07 | FUN_00452d07 | 55 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c, scene1_tutorial_dispatch.h (+4) |
+| 0x452d07 | FUN_00452d07 | 55 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c, scene1_tutorial_dispatch.h (+5) |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ | customer_service.c, scene_buy.h, worker_load.c |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ | scene1_preload.h, scene_walls.h, worker_load.c |
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ | scene_floor.h, worker_load.c |

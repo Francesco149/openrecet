@@ -346,7 +346,18 @@ void sim_step_a(void)
         sim_loading_pump();
         return;
     }
-    nowloading_set_active(0);
+    /* Retail's SECOND nowloading gate — DAT_06a49960 (engine-quirk §129).  The
+     * primary/scene gate (DAT_06a49958) is cleared here once the worker drops
+     * (above short-circuit).  But retail ALSO shows the "Now Loading" disc during a
+     * DIALOGUE load: FUN_00452d07 (the .ivt overlay worker) arms DAT_06a49960, and
+     * FUN_00453147 draws the disc iff EITHER gate != 0 — e.g. the iv2_6 → DAY-2
+     * advance (DAY2 render gap #3, pixel-confirmed @15769: retail disc, port none).
+     * The port OR-collapses both engine gates into nowloading's g_active, so this is
+     * the clear point for BOTH — keep the disc up while a dialogue-load bracket is
+     * live (D_LOAD / D_TUT_LOAD = the FUN_00452d07 worker; these don't set
+     * worker_load_busy so they never hit the short-circuit above).  Render-only
+     * (no sim/rng), so the frame-aligned cutscene is untouched. */
+    nowloading_set_active(scene1_intro_dialogue_loading());
 
     /* Run the button-state ring for every player. Player N's `cur`
      * comes from g_input_state[N].buttons (written by input_poll).
