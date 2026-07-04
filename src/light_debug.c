@@ -27,7 +27,17 @@ static int   g_mode = 0;              /* 0 tint / 1 flat / 2 border */
 
 /* free camera pose */
 static float g_eye[3];
-static float g_yaw, g_pitch;          /* radians; yaw about +Y */
+static float g_yaw, g_pitch;          /* radians; yaw about +Y (+yaw = turn left) */
+
+/* eased motion state — velocities lerp toward the key/mouse targets so
+ * dolly moves start and stop softly (video-friendly) */
+static float g_vel[3];                /* world units / frame */
+static float g_avel_yaw, g_avel_pitch;/* radians / frame (keyboard look) */
+static float g_mvel_yaw, g_mvel_pitch;/* radians / frame (mouse look) */
+
+/* mouse capture (owned while the mode is on) */
+static void *g_hwnd = NULL;           /* HWND from main.c */
+static int   g_mouse_captured = 0;
 
 /* per-frame plane counter (reset at hikari_begin) */
 static int   g_plane = 0;
@@ -80,14 +90,61 @@ void light_debug_cycle_mode(void)
             g_mode == 0 ? "tint" : g_mode == 1 ? "flat" : "tint+border");
 }
 
+void light_debug_set_hwnd(void *hwnd) { g_hwnd = hwnd; }
+
+/* Centre the cursor in the game window's client area; returns the centre
+ * in screen coords via out.  Falls back to the foreground window when no
+ * hwnd was handed over (headless runs never get here — no captured mouse
+ * deltas without a real cursor moving). */
+static void ld_cursor_centre(POINT *out)
+{
+    HWND h = (HWND)g_hwnd;
+    if (!h) h = GetForegroundWindow();
+    RECT rc;
+    if (h && GetClientRect(h, &rc)) {
+        POINT c = { (rc.right - rc.left) / 2, (rc.bottom - rc.top) / 2 };
+        ClientToScreen(h, &c);
+        *out = c;
+    } else {
+        out->x = GetSystemMetrics(SM_CXSCREEN) / 2;
+        out->y = GetSystemMetrics(SM_CYSCREEN) / 2;
+    }
+}
+
+/* Only steer the real cursor when the game window is focused — SetCursorPos
+ * is GLOBAL, and a hidden/background run (--light-debug headless captures)
+ * must never yank the user's desktop mouse around. */
+static int ld_window_focused(void)
+{
+    HWND h = (HWND)g_hwnd;
+    return h && GetForegroundWindow() == h;
+}
+
+static void ld_mouse_capture(int on)
+{
+    if (on == g_mouse_captured) return;
+    g_mouse_captured = on;
+    ShowCursor(on ? FALSE : TRUE);      /* balanced; per-thread, so own window only */
+    if (on && ld_window_focused()) {
+        POINT c;
+        ld_cursor_centre(&c);
+        SetCursorPos(c.x, c.y);
+    }
+}
+
 /* Recover eye + yaw/pitch from a row-vector D3D view matrix: the upper
  * 3x3's COLUMNS are the camera axes; row 3 is -eye·axis per column. */
 void light_debug_toggle(const float current_view[16])
 {
     g_on = !g_on;
-    fprintf(stderr, "light-debug: %s\n", g_on ? "ON (WASD/QE move, arrows look, "
+    fprintf(stderr, "light-debug: %s\n", g_on ? "ON (WASD/QE move, mouse/arrows look, "
             "SHIFT fast, CTRL slow; F6 cycles viz mode)" : "off");
+    ld_mouse_capture(g_on);
     if (!g_on || !current_view) return;
+
+    g_vel[0] = g_vel[1] = g_vel[2] = 0.0f;
+    g_avel_yaw = g_avel_pitch = 0.0f;
+    g_mvel_yaw = g_mvel_pitch = 0.0f;
 
     const float *V = current_view;
     float xaxis[3] = { V[0], V[4], V[8]  };
@@ -107,30 +164,62 @@ static int key(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
 
 void light_debug_camera_tick(float out_view[16])
 {
-    /* speeds are per render frame (60fps normally; turbo just flies faster) */
+    /* target speeds per render frame (60fps normally; turbo flies faster) */
     float move = 0.12f, look = 0.030f;
     if (key(VK_SHIFT))   { move *= 4.0f; look *= 2.0f; }
     if (key(VK_CONTROL)) { move *= 0.25f; look *= 0.5f; }
 
-    if (key(VK_LEFT))  g_yaw   -= look;
-    if (key(VK_RIGHT)) g_yaw   += look;
-    if (key(VK_UP))    g_pitch += look;
-    if (key(VK_DOWN))  g_pitch -= look;
+    /* ── look: mouse deltas (captured, recentred every tick) + arrows ──
+     * Everything goes through an eased angular velocity so pans start and
+     * stop softly on video.  Convention: +yaw turns LEFT (F swings from
+     * +z toward +x, and +x is screen-left in this RH world). */
+    float mdx = 0.0f, mdy = 0.0f;
+    if (g_mouse_captured && ld_window_focused()) {
+        POINT c, p;
+        ld_cursor_centre(&c);
+        if (GetCursorPos(&p)) {
+            mdx = (float)(p.x - c.x);
+            mdy = (float)(p.y - c.y);
+            SetCursorPos(c.x, c.y);
+        }
+    }
+    const float MSENS = 0.0032f;    /* rad per pixel */
+    const float MEASE = 0.45f;      /* mouse smoothing (higher = snappier) */
+    const float KEASE = 0.18f;      /* key accel (lower = softer ease) */
+    g_mvel_yaw   += (-mdx * MSENS - g_mvel_yaw)   * MEASE;  /* mouse right → turn right */
+    g_mvel_pitch += (-mdy * MSENS - g_mvel_pitch) * MEASE;  /* mouse up    → look up    */
+
+    float ty = 0.0f, tp = 0.0f;     /* arrow-key angular targets */
+    if (key(VK_LEFT))  ty += look;  /* left arrow → turn left */
+    if (key(VK_RIGHT)) ty -= look;
+    if (key(VK_UP))    tp += look;
+    if (key(VK_DOWN))  tp -= look;
+    g_avel_yaw   += (ty - g_avel_yaw)   * KEASE;
+    g_avel_pitch += (tp - g_avel_pitch) * KEASE;
+
+    g_yaw   += g_avel_yaw   + g_mvel_yaw;
+    g_pitch += g_avel_pitch + g_mvel_pitch;
     const float plim = 1.55f;
     if (g_pitch >  plim) g_pitch =  plim;
     if (g_pitch < -plim) g_pitch = -plim;
 
     float cp = (float)cos(g_pitch), sp = (float)sin(g_pitch);
     float sy = (float)sin(g_yaw),   cy = (float)cos(g_yaw);
-    float F[3] = { cp * sy, sp, cp * cy };              /* forward   */
-    float R[3] = { cy, 0.0f, -sy };                     /* right (flat) */
+    float F[3] = { cp * sy, sp, cp * cy };              /* forward */
+    float R[3] = { -cy, 0.0f, sy };                     /* screen-right (flat) */
 
-    if (key('W')) for (int i = 0; i < 3; i++) g_eye[i] += F[i] * move;
-    if (key('S')) for (int i = 0; i < 3; i++) g_eye[i] -= F[i] * move;
-    if (key('D')) for (int i = 0; i < 3; i++) g_eye[i] += R[i] * move;
-    if (key('A')) for (int i = 0; i < 3; i++) g_eye[i] -= R[i] * move;
-    if (key('E')) g_eye[1] += move;
-    if (key('Q')) g_eye[1] -= move;
+    /* ── move: eased velocity toward the key target ── */
+    float T[3] = { 0.0f, 0.0f, 0.0f };
+    if (key('W')) for (int i = 0; i < 3; i++) T[i] += F[i] * move;
+    if (key('S')) for (int i = 0; i < 3; i++) T[i] -= F[i] * move;
+    if (key('D')) for (int i = 0; i < 3; i++) T[i] += R[i] * move;
+    if (key('A')) for (int i = 0; i < 3; i++) T[i] -= R[i] * move;
+    if (key('E')) T[1] += move;
+    if (key('Q')) T[1] -= move;
+    for (int i = 0; i < 3; i++) {
+        g_vel[i] += (T[i] - g_vel[i]) * KEASE;
+        g_eye[i] += g_vel[i];
+    }
 
     /* rebuild the row-vector RH view matrix (same shape the port's
      * camera builder emits: axes in columns, -eye·axis translation) */

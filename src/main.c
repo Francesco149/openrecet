@@ -2429,6 +2429,7 @@ static BOOL create_main_window(HINSTANCE hInst, int nCmdShow)
         CW_USEDEFAULT, CW_USEDEFAULT,
         rc.right - rc.left, rc.bottom - rc.top,
         NULL, NULL, hInst, NULL);
+    light_debug_set_hwnd(g_hwnd);   /* mouse-capture recentre target (F5 mode) */
     return g_hwnd != NULL;
 }
 

@@ -10,9 +10,10 @@
  *     normally-transparent (black-vertex) regions become a solid fill
  *     hue and the glow regions brighten toward the pair's highlight —
  *     so the full extent and fold structure of each sheet is readable;
- *   - game input is frozen and WASD/QE/arrows drive a free dolly camera
- *     (W/S dolly, A/D truck, Q/E pedestal, arrows pan/tilt, SHIFT fast,
- *     CTRL slow) for orbiting the shapes while recording clips;
+ *   - game input is frozen and a free dolly camera takes over: W/S dolly,
+ *     A/D truck, Q/E pedestal, MOUSE look (cursor captured + hidden while
+ *     the mode is on) or arrows pan/tilt, SHIFT fast, CTRL slow.  All
+ *     motion runs through eased velocities so clips look smooth;
  *   - F6 cycles visualization modes:
  *       0 tint    — fill hue + lit vertex colour (two-tone, additive-off)
  *       1 flat    — solid silhouette per plane (max extent readability)
@@ -49,6 +50,10 @@ void light_debug_maybe_autostart(const float current_view[16]);
 /* --light-debug-mode N: preselect the visualization mode (0 tint,
  * 1 flat, 2 border) — same as cycling with F6 after F5. */
 void light_debug_set_mode(int mode);
+
+/* Game window handle (mouse-look recentre target + cursor hide scope);
+ * void* to keep windows.h out of this header. */
+void light_debug_set_hwnd(void *hwnd);
 
 /* ─── free camera (scene1_render.c) ─────────────────────────────────── */
 
