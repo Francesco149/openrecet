@@ -4803,3 +4803,29 @@ it is π_f/2 ≈ π/2 + 4.37e-8; the CRT **double** sin gives 0.9999999999999990
 round to 1.0f and hit 255 — 1 LSB off on the peak frame.  Port: choice_box.c commit
 flash (double sin off the float-rounded argument); verified bit-exact px on both the
 pause "go to bed" confirm and the ESC-skip confirm (win-0-1000, RE §21.27).
+
+## 129. The "Now Loading" disc renders during BOTH load types — there are TWO independent gates: DAT_06a49958 (scene/primary load) AND DAT_06a49960 (DIALOGUE load) — so a tutorial/story dialogue-load shows the disc too, not just a full scene reload
+
+`FUN_00453147` (the nowloading render) draws the spinning disc + "Now Loading" text
+**iff `DAT_06a49958 != 0 || DAT_06a49960 != 0`** (0x453160); when BOTH are 0 it decays the
+alpha `_DAT_06a49988` by 0x20/frame instead (fade-out).  These two gates are armed by
+SEPARATE load-worker families, each spawning its own `CreateThread`:
+- **`DAT_06a49958`** — the SCENE / PRIMARY load.  Armed by **FUN_00452cde / FUN_00452eed**
+  (each also sets DAT_06a49954=1 + a worker thread LAB_0045293d / LAB_00452a6b).  This is
+  the one the port models (`nowloading_set_active(1)` in `worker_load_begin`).
+- **`DAT_06a49960`** — the DIALOGUE / tutorial-story load.  Armed by **FUN_00452d07** (sets
+  DAT_06a4995c=1 + DAT_06a49960=1 + worker LAB_00452aab).  This is the `.ivt` overlay loader
+  the iv1_*/iv2_* dialogue chain uses (the port models it as `scene1_intro_dialogue_start_single`
+  → the D_TUT_LOAD bracket) — **the port does NOT model this second gate**, so its
+  dialogue-loads (incl. the iv2_6 → DAY-2 advance) show NO disc.  Both gates cleared in
+  FUN_004536cb (sim_step_a) once the worker is idle (mirrored by the port's sim.c:349
+  `nowloading_set_active(0)` — but only for the single gate it has).
+
+⇒ DAY2 render gap #3 (the missing Now-Loading disc on the day-advance) is NOT "the iv2 chain
+needs a real scene reload"; it is "the port's nowloading has only one gate, and the iv2
+dialogue-load arms retail's SECOND gate (DAT_06a49960) which the port doesn't model."  A
+faithful fix adds the second gate to `nowloading` + arms it on the D_TUT_LOAD bracket entry
+/ clears it at completion.  CAUTION: this makes the disc show on EVERY dialogue-load — verify
+the alpha ramp vs. load duration so fast tutorial dialogues match retail (don't regress the
+currently-frame-aligned cutscene); ground it in a `--target both` caprange of the day2 load
+window (~15610-15720) first.

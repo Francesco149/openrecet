@@ -62,7 +62,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     full 190f beat** (settles 1.0), RNG 0-diff, host 3394/0.
   - **OPEN residual post-#4:** **(4c)** @15838 retail dialogue PORTRAIT the port lacks (~40f ahead of the port's
     box-open @15878; PRE-EXISTING/RNG-neutral — day2-dialogue timing or portrait-slide-in gap, distinct arc).
-  - **OPEN: #3 Now-Loading disc (iv2 load never calls `nowloading_set_active`), #5 wing-sparkle (minor).**
+  - **OPEN: #3 Now-Loading disc — RE MAPPED (engine-quirk §129), not yet ported.** ROOT: retail's nowloading
+    has TWO gates — `DAT_06a49958` (scene load, armed FUN_00452cde/eed = the port's `worker_load_begin`) AND
+    `DAT_06a49960` (DIALOGUE load, armed FUN_00452d07 = the iv2_6 `.ivt` overlay). `FUN_00453147` draws the
+    disc iff EITHER != 0. The port models only the FIRST gate ⇒ its iv2 dialogue-loads show no disc. FIX: add
+    a 2nd gate to `nowloading`, arm on the D_TUT_LOAD bracket / clear at completion. CAUTION: shows on EVERY
+    dialogue-load ⇒ ground in a `--target both` caprange of the day2 load window (~15610-15720) FIRST + check
+    the alpha ramp vs load duration so fast tutorial dialogues don't regress the frame-aligned cutscene.
+  - **OPEN: #5 wing-sparkle (minor).**
   - Verify path: scenario-test caprange `--target both` (orv3 is occurrence-blocked on this drop-fragile
     trace — a separate occurrence-aware-windowing tooling arc, deferred).
 - **✅✅ 2026-07-03 — cutscene-replay DEADLOCK fixed + PARITY-validated (commit `b82d2df`; finding
