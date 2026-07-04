@@ -184,8 +184,8 @@ void light_debug_camera_tick(float out_view[16])
         }
     }
     const float MSENS = 0.0032f;    /* rad per pixel */
-    const float MEASE = 0.45f;      /* mouse smoothing (higher = snappier) */
-    const float KEASE = 0.18f;      /* key accel (lower = softer ease) */
+    const float MEASE = 0.22f;      /* mouse smoothing (higher = snappier) */
+    const float KEASE = 0.09f;      /* key accel (lower = softer ease) */
     g_mvel_yaw   += (-mdx * MSENS - g_mvel_yaw)   * MEASE;  /* mouse right → turn right */
     g_mvel_pitch += (-mdy * MSENS - g_mvel_pitch) * MEASE;  /* mouse up    → look up    */
 
