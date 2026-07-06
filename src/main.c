@@ -2517,12 +2517,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             /* Toggle a call-graph-trace window in the recording. */
             trace_rec_toggle_calltrace();
         } else if (wParam == VK_F5) {
-            /* Hikari light-debug: unique-colour opaque god-ray planes +
-             * free dolly camera (see src/light_debug.h). */
+            /* Free dolly camera; the scene renders NORMALLY by default so
+             * pulling off the locked angle shows the real diorama break
+             * apart (see src/light_debug.h). */
             light_debug_toggle(scene1_render_view_matrix());
         } else if (wParam == VK_F6) {
-            /* Cycle the light-debug visualization mode (tint/flat/border). */
+            /* Toggle/cycle the hikari-plane recolour overlay
+             * (off → tint → flat → border → off). */
             light_debug_cycle_mode();
+        } else if (wParam == VK_F7) {
+            /* Play the canned eased flyoff: reveal the diorama-in-void,
+             * press again to re-assemble (see src/light_debug.h). */
+            light_debug_flyoff(scene1_render_view_matrix());
         } else if (wParam >= '1' && wParam <= '6' &&
                    GetKeyState(VK_SHIFT) < 0) {
             /* Study toggles: SHIFT+1..6 each flip one HOUSE lighting trick

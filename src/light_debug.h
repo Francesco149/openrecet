@@ -1,29 +1,38 @@
 /*
- * light_debug.h — hikari light-plane visualization + free-fly camera.
+ * light_debug.h — free-fly camera + optional hikari light-plane overlay.
  *
- * A recording/inspection mode for the HOUSE god-ray sheets (the five
- * untextured vertex-lit planes of shop_1st.x — see
- * docs/findings/scene1-house-render-gaps.md and the recettear-study
- * lighting doc for the ground truth).  Toggled with F5 at runtime:
+ * A recording/inspection mode for the HOUSE shop.  Toggled with F5 at
+ * runtime:
  *
- *   - every hikari plane draws OPAQUE in a unique colour pair — the
- *     normally-transparent (black-vertex) regions become a solid fill
- *     hue and the glow regions brighten toward the pair's highlight —
- *     so the full extent and fold structure of each sheet is readable;
  *   - game input is frozen and a free dolly camera takes over: W/S dolly,
  *     A/D truck, Q/E pedestal, MOUSE look (cursor captured + hidden while
  *     the mode is on) or arrows pan/tilt, SHIFT fast, CTRL slow.  All
- *     motion runs through eased velocities so clips look smooth;
- *   - F6 cycles visualization modes:
+ *     motion runs through eased velocities so clips look smooth.  By
+ *     DEFAULT the scene renders NORMALLY — pulling off the locked ¾ angle
+ *     shows the real diorama breaking apart in the void, which is the
+ *     striking reveal we want on camera (owner direction 2026-07-06).
+ *
+ *   - F7 plays a canned, eased flyoff dolly: the first press pulls the
+ *     camera back-and-up off the game's locked pose to the "diorama in a
+ *     black void" reveal; press again to ease back to the locked pose
+ *     (re-assemble).  Scripted so a clean reveal is one keypress, not a
+ *     hand-flown take.  Touching any WASD/QE key drops back to manual.
+ *
+ *   - F6 toggles the hikari-plane VISUALIZATION overlay (off by default)
+ *     and cycles its modes: off → tint → flat → border → off.  The
+ *     overlay draws every god-ray plane OPAQUE in a unique colour pair so
+ *     the fold structure of each sheet is readable (this is the coloured-
+ *     planes look from the earlier light-debug footage).
  *       0 tint    — fill hue + lit vertex colour (two-tone, additive-off)
  *       1 flat    — solid silhouette per plane (max extent readability)
  *       2 border  — tint fill + wireframe overlay in the pair's second
  *                   colour (reads fold edges when hues alone don't)
  *
- * Wiring: main.c WM_KEYDOWN (F5/F6) → toggle/cycle; input.c input_poll
- * zeroes the game buttons while active; scene1_render.c camera setup
- * defers to light_debug_camera_view; scene1_walker_pass_init.c wraps the
- * pass-3 hikari draws with the per-plane state overrides.
+ * Wiring: main.c WM_KEYDOWN (F5/F6/F7) → toggle/overlay/flyoff; input.c
+ * input_poll zeroes the game buttons while active; scene1_render.c camera
+ * setup defers to light_debug_camera_tick; scene1_walker_pass_init.c wraps
+ * the pass-3 hikari draws with the per-plane overrides ONLY while the
+ * overlay is active.
  */
 #ifndef LIGHT_DEBUG_H
 #define LIGHT_DEBUG_H
@@ -38,8 +47,19 @@ struct IDirect3DDevice8;
  * floats, row-vector D3D convention); on activation the free camera
  * starts from exactly that pose so the toggle is seamless. */
 void light_debug_toggle(const float current_view[16]);
-void light_debug_cycle_mode(void);
-int  light_debug_active(void);
+void light_debug_cycle_mode(void);      /* F6: overlay off→tint→flat→border→off */
+int  light_debug_active(void);          /* free camera engaged */
+
+/* Hikari-plane recolour overlay — separate from the camera.  The camera
+ * can be flown with the scene rendering normally (default); the overlay
+ * only recolours the planes once F6 (or --light-debug-mode) turns it on. */
+int  light_debug_overlay_active(void);
+
+/* F7: play the canned flyoff dolly.  First call eases the camera off the
+ * game's locked pose to the diorama-in-void reveal; the next call eases
+ * back.  Auto-engages the free camera if it isn't already on.  `current_view`
+ * seeds the "assembled" reference pose the first time it engages. */
+void light_debug_flyoff(const float current_view[16]);
 
 /* --light-debug CLI flag: arm auto-activation; the camera-setup hook
  * calls maybe_autostart once per frame and the first call toggles the

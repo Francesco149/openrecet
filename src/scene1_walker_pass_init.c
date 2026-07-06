@@ -525,9 +525,11 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
     /* L52806: FUN_00454f7c() barrier (same as scene1_emit_preamble). */
     scene1_emit_preamble((struct IDirect3DDevice8 *)dev);
 
-    /* light-debug (F5): pass 3 draws exactly the hikari god-ray planes,
-     * so the whole pass is the visualization scope. */
-    int hikari_dbg = (param_1 == 3) && light_debug_active();
+    /* light-debug overlay (F6): pass 3 draws exactly the hikari god-ray
+     * planes, so the whole pass is the recolour scope.  Gated on the
+     * OVERLAY, not the free camera — flying the camera with the scene
+     * rendered normally is the default (diorama-reveal recording). */
+    int hikari_dbg = (param_1 == 3) && light_debug_overlay_active();
     if (hikari_dbg) {
         light_debug_hikari_begin();
         g_hikari_debug_scope = 1;

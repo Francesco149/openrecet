@@ -27,6 +27,22 @@ individually OFF, for the @GemmaExplains shop-lighting video. `src/study_toggles
   filming). Harness passthrough: `scenario-test.py … --exe-arg=--study-off
   --exe-arg=mod2x`.
 
+## Camera controls for filming (light_debug, F5/F6/F7)
+
+The free camera and the coloured-plane overlay are **separate** (owner direction
+2026-07-06 — the diorama reveal is more striking when the *normal* scene breaks apart,
+not the debug-tinted one):
+
+| Key | Effect |
+|-----|--------|
+| **F5** | Toggle the free dolly camera. Game input freezes; WASD dolly/truck, Q/E pedestal, mouse or arrows look, SHIFT fast, CTRL slow. **Scene renders normally** — no overlay. |
+| **F6** | Step the hikari-plane recolour overlay: off → tint → flat → border → off. (The old always-on coloured planes; now opt-in.) |
+| **F7** | Play the canned eased flyoff: pull back-and-up off the game's locked ¾ pose to the *diorama-in-a-void* reveal. Press again to ease back (re-assemble). Auto-engages F5 if needed; touching any move key hands control back to manual. Constants: `LD_FLY_BACK/UP/PITCH/RATE` in `src/light_debug.c`. |
+
+CLI: `--light-debug` autostarts the free camera (overlay OFF, matching the new default);
+`--light-debug-mode N` autostarts **with** the overlay on at mode N (back-compat for the
+coloured-plane footage). The flyoff has no CLI trigger (it's a hands-on recording aid).
+
 ## Grounding corrections (vs the naive per-trick recipe)
 
 - **ambient ≠ D3DRS_AMBIENT**: the render state is ALREADY black (0xff000000)

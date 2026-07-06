@@ -22,12 +22,30 @@
 /* ─── state ─────────────────────────────────────────────────────────── */
 
 static int   g_on = 0;
+static int   g_overlay = 0;           /* hikari-plane recolour overlay (F6) */
 static int   g_mode = 0;              /* 0 tint / 1 flat / 2 border */
 #define LD_MODE_COUNT 3
 
 /* free camera pose */
 static float g_eye[3];
 static float g_yaw, g_pitch;          /* radians; yaw about +Y (+yaw = turn left) */
+
+/* scripted flyoff (F7): an eased dolly between the game's locked
+ * "assembled" pose and the pulled-back "diorama in void" reveal.  g_fly_t
+ * eases 0→1 toward g_fly_target; the camera pose is lerp(assembled,
+ * revealed, smoothstep(g_fly_t)) while g_fly_on. */
+static int   g_fly_on = 0;
+static int   g_fly_target = 0;        /* 0 = assembled, 1 = revealed */
+static float g_fly_t = 0.0f;
+static int   g_fly_have_ref = 0;      /* assembled reference captured yet? */
+static float g_fly_ref_eye[3];        /* assembled pose */
+static float g_fly_ref_yaw, g_fly_ref_pitch;
+/* revealed = assembled pulled back along -forward + up, tilted down a hair
+ * so the whole diorama stays framed as it lifts out of the void. */
+#define LD_FLY_BACK   26.0f           /* world units pulled off the locked angle */
+#define LD_FLY_UP     10.0f
+#define LD_FLY_PITCH  (-0.16f)        /* extra downward tilt at full reveal (rad) */
+#define LD_FLY_RATE   0.020f          /* g_fly_t ease per frame (~2.8s 0→1 @60fps) */
 
 /* eased motion state — velocities lerp toward the key/mouse targets so
  * dolly moves start and stop softly (video-friendly) */
@@ -65,12 +83,14 @@ static const D3DCOLOR LD_BORDER[5] = {
 /* ─── toggle / mode ─────────────────────────────────────────────────── */
 
 int light_debug_active(void) { return g_on; }
+int light_debug_overlay_active(void) { return g_on && g_overlay; }
 
 void light_debug_set_mode(int mode)
 {
     if (mode < 0) mode = 0;
     if (mode >= LD_MODE_COUNT) mode = LD_MODE_COUNT - 1;
     g_mode = mode;
+    g_overlay = 1;   /* an explicit mode request (--light-debug-mode) means show it */
 }
 
 static int g_autostart = 0;
@@ -82,12 +102,19 @@ void light_debug_maybe_autostart(const float current_view[16])
     light_debug_toggle(current_view);
 }
 
+/* F6: step the hikari overlay through off → tint → flat → border → off.
+ * (The camera keeps running with the scene rendered normally when off.) */
 void light_debug_cycle_mode(void)
 {
     if (!g_on) return;
-    g_mode = (g_mode + 1) % LD_MODE_COUNT;
-    fprintf(stderr, "light-debug: mode %d (%s)\n", g_mode,
-            g_mode == 0 ? "tint" : g_mode == 1 ? "flat" : "tint+border");
+    if (!g_overlay) { g_overlay = 1; g_mode = 0; }
+    else if (g_mode + 1 >= LD_MODE_COUNT) { g_overlay = 0; }
+    else { g_mode++; }
+    if (!g_overlay)
+        fprintf(stderr, "light-debug: overlay off (scene normal)\n");
+    else
+        fprintf(stderr, "light-debug: overlay %s\n",
+                g_mode == 0 ? "tint" : g_mode == 1 ? "flat" : "tint+border");
 }
 
 void light_debug_set_hwnd(void *hwnd) { g_hwnd = hwnd; }
@@ -158,9 +185,33 @@ void light_debug_toggle(const float current_view[16])
     g_yaw   = (float)atan2(F[0], F[2]);
 }
 
+/* F7: canned flyoff.  Engage the free camera if needed, capture the
+ * game's locked pose as the "assembled" reference the first time, then
+ * flip the eased target between assembled (0) and the diorama reveal (1). */
+void light_debug_flyoff(const float current_view[16])
+{
+    if (!g_on) light_debug_toggle(current_view);   /* seamless from game cam */
+    if (!g_fly_have_ref) {
+        g_fly_ref_eye[0] = g_eye[0]; g_fly_ref_eye[1] = g_eye[1]; g_fly_ref_eye[2] = g_eye[2];
+        g_fly_ref_yaw = g_yaw; g_fly_ref_pitch = g_pitch;
+        g_fly_have_ref = 1;
+    }
+    g_fly_on = 1;
+    g_fly_target = !g_fly_target;
+    fprintf(stderr, "light-debug: flyoff → %s\n",
+            g_fly_target ? "reveal (diorama in void)" : "re-assemble");
+}
+
 /* ─── free camera ───────────────────────────────────────────────────── */
 
 static int key(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+/* smoothstep — eased 0..1 so the scripted dolly starts and stops softly */
+static float ld_smooth(float t)
+{
+    if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
+    return t * t * (3.0f - 2.0f * t);
+}
 
 void light_debug_camera_tick(float out_view[16])
 {
@@ -168,6 +219,48 @@ void light_debug_camera_tick(float out_view[16])
     float move = 0.12f, look = 0.030f;
     if (key(VK_SHIFT))   { move *= 4.0f; look *= 2.0f; }
     if (key(VK_CONTROL)) { move *= 0.25f; look *= 0.5f; }
+
+    /* ── scripted flyoff: ease the pose between the assembled reference and
+     * the pulled-back reveal; touching any move key hands control back. ── */
+    if (g_fly_on) {
+        if (key('W')||key('S')||key('A')||key('D')||key('Q')||key('E')) {
+            g_fly_on = 0;   /* manual override from wherever the dolly is */
+        } else {
+            g_fly_t += (g_fly_target ? LD_FLY_RATE : -LD_FLY_RATE);
+            if (g_fly_t < 0.0f) g_fly_t = 0.0f; else if (g_fly_t > 1.0f) g_fly_t = 1.0f;
+            float s = ld_smooth(g_fly_t);
+            /* reveal offset is applied along the reference forward/up so it
+             * reads as "pull back off the exact locked angle", any yaw. */
+            float cy = (float)cos(g_fly_ref_yaw), sy = (float)sin(g_fly_ref_yaw);
+            float back[3] = { -sy, 0.0f, -cy };   /* -forward, flattened */
+            g_yaw   = g_fly_ref_yaw;
+            g_pitch = g_fly_ref_pitch + s * LD_FLY_PITCH;
+            for (int i = 0; i < 3; i++)
+                g_eye[i] = g_fly_ref_eye[i] + s * (back[i] * LD_FLY_BACK);
+            g_eye[1] += s * LD_FLY_UP;
+            /* fall through to the matrix build below with these poses */
+            float cp2 = (float)cos(g_pitch), sp2 = (float)sin(g_pitch);
+            float sy2 = (float)sin(g_yaw), cy2 = (float)cos(g_yaw);
+            float Ff[3] = { cp2 * sy2, sp2, cp2 * cy2 };
+            float za[3] = { -Ff[0], -Ff[1], -Ff[2] };
+            float xa[3] = { za[2], 0.0f, -za[0] };
+            float xln = (float)sqrt(xa[0]*xa[0] + xa[2]*xa[2]);
+            if (xln > 1e-6f) { xa[0] /= xln; xa[2] /= xln; } else { xa[0] = 1.0f; xa[2] = 0.0f; }
+            float ya[3] = {
+                za[1]*xa[2] - za[2]*xa[1], za[2]*xa[0] - za[0]*xa[2], za[0]*xa[1] - za[1]*xa[0] };
+            out_view[0]=xa[0]; out_view[1]=ya[0]; out_view[2]=za[0]; out_view[3]=0;
+            out_view[4]=xa[1]; out_view[5]=ya[1]; out_view[6]=za[1]; out_view[7]=0;
+            out_view[8]=xa[2]; out_view[9]=ya[2]; out_view[10]=za[2]; out_view[11]=0;
+            out_view[12]=-(g_eye[0]*xa[0]+g_eye[1]*xa[1]+g_eye[2]*xa[2]);
+            out_view[13]=-(g_eye[0]*ya[0]+g_eye[1]*ya[1]+g_eye[2]*ya[2]);
+            out_view[14]=-(g_eye[0]*za[0]+g_eye[1]*za[1]+g_eye[2]*za[2]);
+            out_view[15]=1.0f;
+            /* zero the manual velocities so a later handoff doesn't lurch */
+            g_vel[0]=g_vel[1]=g_vel[2]=0.0f;
+            g_avel_yaw=g_avel_pitch=g_mvel_yaw=g_mvel_pitch=0.0f;
+            return;
+        }
+    }
 
     /* ── look: mouse deltas (captured, recentred every tick) + arrows ──
      * Everything goes through an eased angular velocity so pans start and
