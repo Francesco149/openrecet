@@ -30,22 +30,34 @@ static int   g_mode = 0;              /* 0 tint / 1 flat / 2 border */
 static float g_eye[3];
 static float g_yaw, g_pitch;          /* radians; yaw about +Y (+yaw = turn left) */
 
-/* scripted flyoff (F7): an eased dolly between the game's locked
- * "assembled" pose and the pulled-back "diorama in void" reveal.  g_fly_t
- * eases 0→1 toward g_fly_target; the camera pose is lerp(assembled,
- * revealed, smoothstep(g_fly_t)) while g_fly_on. */
-static int   g_fly_on = 0;
-static int   g_fly_target = 0;        /* 0 = assembled, 1 = revealed */
-static float g_fly_t = 0.0f;
-static int   g_fly_have_ref = 0;      /* assembled reference captured yet? */
-static float g_fly_ref_eye[3];        /* assembled pose */
-static float g_fly_ref_yaw, g_fly_ref_pitch;
-/* revealed = assembled pulled back along -forward + up, tilted down a hair
- * so the whole diorama stays framed as it lifts out of the void. */
-#define LD_FLY_BACK   26.0f           /* world units pulled off the locked angle */
-#define LD_FLY_UP     10.0f
-#define LD_FLY_PITCH  (-0.16f)        /* extra downward tilt at full reveal (rad) */
-#define LD_FLY_RATE   0.020f          /* g_fly_t ease per frame (~2.8s 0→1 @60fps) */
+/* scripted flyoff (F7): a one-shot cinematic dolly that ORBITS the room and
+ * comes home — the same shape as the recettear-study Godot --flyout (hold →
+ * pull back+up into the void → swing to the side → dip low → home).  The eye
+ * orbits a fixed pivot at the room centre so the diorama stays framed the
+ * whole time; the reveal is that the "room" is a floating slab in black.
+ *
+ * The path is relative to the game's locked pose captured on F7: pivot =
+ * eye0 + forward0·PIVOT (room centre); v0 = eye0 − pivot; each keyframe
+ * orbits v0 about +Y by dyaw, scales its length by rmul (pull back / close
+ * in), and lifts the eye by hadd. lookat stays on the pivot. */
+static int   g_fly_on = 0;            /* a flyoff is playing */
+static float g_fly_t = 0.0f;          /* seconds into the path */
+static float g_fly_pivot[3];          /* orbit centre (room centre) */
+static float g_fly_v0[3];             /* eye0 − pivot (reference offset) */
+#define LD_FLY_PIVOT  10.0f           /* focal distance eye→room-centre (world units) */
+#define LD_FLY_DT     (1.0f/60.0f)    /* path advance per render tick (~60fps) */
+
+/* keyframes: {t_sec, orbit-yaw delta (rad), radius scale, eye height add}.
+ * lerp'd with smoothstep so each leg starts/stops softly (matches Godot). */
+static const struct { float t, dyaw, rmul, hadd; } LD_FLY[] = {
+    { 0.0f,  0.00f, 1.00f,  0.0f },   /* locked ¾ pose */
+    { 1.5f,  0.00f, 1.00f,  0.0f },   /* hold — sell the "normal" frame first */
+    { 6.5f,  0.00f, 2.60f, 14.0f },   /* pull straight back + up into the void */
+    {11.5f, -1.20f, 2.00f,  9.0f },   /* swing ~69° to the side, still high */
+    {16.0f, -0.50f, 1.40f, -3.0f },   /* dip low + closer toward the window */
+    {20.0f,  0.00f, 1.00f,  0.0f },   /* come home to the locked pose */
+};
+#define LD_FLY_N ((int)(sizeof(LD_FLY)/sizeof(LD_FLY[0])))
 
 /* eased motion state — velocities lerp toward the key/mouse targets so
  * dolly moves start and stop softly (video-friendly) */
@@ -185,21 +197,23 @@ void light_debug_toggle(const float current_view[16])
     g_yaw   = (float)atan2(F[0], F[2]);
 }
 
-/* F7: canned flyoff.  Engage the free camera if needed, capture the
- * game's locked pose as the "assembled" reference the first time, then
- * flip the eased target between assembled (0) and the diorama reveal (1). */
+/* F7: play the one-shot cinematic flyoff from the game's current locked
+ * pose.  Engages the free camera if needed, snapshots the orbit pivot +
+ * reference offset, and starts the path at t=0 (press again to replay). */
 void light_debug_flyoff(const float current_view[16])
 {
     if (!g_on) light_debug_toggle(current_view);   /* seamless from game cam */
-    if (!g_fly_have_ref) {
-        g_fly_ref_eye[0] = g_eye[0]; g_fly_ref_eye[1] = g_eye[1]; g_fly_ref_eye[2] = g_eye[2];
-        g_fly_ref_yaw = g_yaw; g_fly_ref_pitch = g_pitch;
-        g_fly_have_ref = 1;
+    /* forward from the current free-cam pose; pivot = eye + forward·PIVOT */
+    float cp = (float)cos(g_pitch), sp = (float)sin(g_pitch);
+    float sy = (float)sin(g_yaw),   cy = (float)cos(g_yaw);
+    float F[3] = { cp * sy, sp, cp * cy };
+    for (int i = 0; i < 3; i++) {
+        g_fly_pivot[i] = g_eye[i] + F[i] * LD_FLY_PIVOT;
+        g_fly_v0[i]    = g_eye[i] - g_fly_pivot[i];   /* = -F·PIVOT */
     }
+    g_fly_t = 0.0f;
     g_fly_on = 1;
-    g_fly_target = !g_fly_target;
-    fprintf(stderr, "light-debug: flyoff → %s\n",
-            g_fly_target ? "reveal (diorama in void)" : "re-assemble");
+    fprintf(stderr, "light-debug: flyoff playing (%.1fs orbit reveal)\n", LD_FLY[LD_FLY_N-1].t);
 }
 
 /* ─── free camera ───────────────────────────────────────────────────── */
@@ -220,28 +234,40 @@ void light_debug_camera_tick(float out_view[16])
     if (key(VK_SHIFT))   { move *= 4.0f; look *= 2.0f; }
     if (key(VK_CONTROL)) { move *= 0.25f; look *= 0.5f; }
 
-    /* ── scripted flyoff: ease the pose between the assembled reference and
-     * the pulled-back reveal; touching any move key hands control back. ── */
+    /* ── scripted flyoff: orbit the room pivot along the keyframed path;
+     * touching any move key hands control back to manual mid-flight. ── */
     if (g_fly_on) {
         if (key('W')||key('S')||key('A')||key('D')||key('Q')||key('E')) {
             g_fly_on = 0;   /* manual override from wherever the dolly is */
         } else {
-            g_fly_t += (g_fly_target ? LD_FLY_RATE : -LD_FLY_RATE);
-            if (g_fly_t < 0.0f) g_fly_t = 0.0f; else if (g_fly_t > 1.0f) g_fly_t = 1.0f;
-            float s = ld_smooth(g_fly_t);
-            /* reveal offset is applied along the reference forward/up so it
-             * reads as "pull back off the exact locked angle", any yaw. */
-            float cy = (float)cos(g_fly_ref_yaw), sy = (float)sin(g_fly_ref_yaw);
-            float back[3] = { -sy, 0.0f, -cy };   /* -forward, flattened */
-            g_yaw   = g_fly_ref_yaw;
-            g_pitch = g_fly_ref_pitch + s * LD_FLY_PITCH;
-            for (int i = 0; i < 3; i++)
-                g_eye[i] = g_fly_ref_eye[i] + s * (back[i] * LD_FLY_BACK);
-            g_eye[1] += s * LD_FLY_UP;
-            /* fall through to the matrix build below with these poses */
-            float cp2 = (float)cos(g_pitch), sp2 = (float)sin(g_pitch);
-            float sy2 = (float)sin(g_yaw), cy2 = (float)cos(g_yaw);
-            float Ff[3] = { cp2 * sy2, sp2, cp2 * cy2 };
+            g_fly_t += LD_FLY_DT;
+            /* find the active keyframe leg and smoothstep across it */
+            float dyaw, rmul, hadd;
+            if (g_fly_t >= LD_FLY[LD_FLY_N-1].t) {
+                dyaw = LD_FLY[LD_FLY_N-1].dyaw; rmul = LD_FLY[LD_FLY_N-1].rmul; hadd = LD_FLY[LD_FLY_N-1].hadd;
+                g_fly_on = 0;   /* path complete — hold home; manual resumes here */
+            } else {
+                int k = 0;
+                while (k < LD_FLY_N-1 && g_fly_t > LD_FLY[k+1].t) k++;
+                float u = (g_fly_t - LD_FLY[k].t) / (LD_FLY[k+1].t - LD_FLY[k].t);
+                float s = ld_smooth(u);
+                dyaw = LD_FLY[k].dyaw + s * (LD_FLY[k+1].dyaw - LD_FLY[k].dyaw);
+                rmul = LD_FLY[k].rmul + s * (LD_FLY[k+1].rmul - LD_FLY[k].rmul);
+                hadd = LD_FLY[k].hadd + s * (LD_FLY[k+1].hadd - LD_FLY[k].hadd);
+            }
+            /* orbit v0 about +Y by dyaw, scale by rmul, lift by hadd */
+            float ca = (float)cos(dyaw), sa = (float)sin(dyaw);
+            float vx = g_fly_v0[0]*ca + g_fly_v0[2]*sa;
+            float vz = -g_fly_v0[0]*sa + g_fly_v0[2]*ca;
+            g_eye[0] = g_fly_pivot[0] + vx * rmul;
+            g_eye[1] = g_fly_pivot[1] + g_fly_v0[1] * rmul + hadd;
+            g_eye[2] = g_fly_pivot[2] + vz * rmul;
+            /* look at the pivot (room centre) the whole time */
+            float Ff[3] = { g_fly_pivot[0]-g_eye[0], g_fly_pivot[1]-g_eye[1], g_fly_pivot[2]-g_eye[2] };
+            float fl = (float)sqrt(Ff[0]*Ff[0]+Ff[1]*Ff[1]+Ff[2]*Ff[2]);
+            if (fl > 1e-6f) { Ff[0]/=fl; Ff[1]/=fl; Ff[2]/=fl; }
+            g_pitch = (float)asin(Ff[1] < -1.f ? -1.f : Ff[1] > 1.f ? 1.f : Ff[1]);
+            g_yaw   = (float)atan2(Ff[0], Ff[2]);
             float za[3] = { -Ff[0], -Ff[1], -Ff[2] };
             float xa[3] = { za[2], 0.0f, -za[0] };
             float xln = (float)sqrt(xa[0]*xa[0] + xa[2]*xa[2]);
@@ -255,7 +281,7 @@ void light_debug_camera_tick(float out_view[16])
             out_view[13]=-(g_eye[0]*ya[0]+g_eye[1]*ya[1]+g_eye[2]*ya[2]);
             out_view[14]=-(g_eye[0]*za[0]+g_eye[1]*za[1]+g_eye[2]*za[2]);
             out_view[15]=1.0f;
-            /* zero the manual velocities so a later handoff doesn't lurch */
+            /* zero the manual velocities so the handoff at path-end doesn't lurch */
             g_vel[0]=g_vel[1]=g_vel[2]=0.0f;
             g_avel_yaw=g_avel_pitch=g_mvel_yaw=g_mvel_pitch=0.0f;
             return;

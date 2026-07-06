@@ -55,10 +55,11 @@ int  light_debug_active(void);          /* free camera engaged */
  * only recolours the planes once F6 (or --light-debug-mode) turns it on. */
 int  light_debug_overlay_active(void);
 
-/* F7: play the canned flyoff dolly.  First call eases the camera off the
- * game's locked pose to the diorama-in-void reveal; the next call eases
- * back.  Auto-engages the free camera if it isn't already on.  `current_view`
- * seeds the "assembled" reference pose the first time it engages. */
+/* F7: play the one-shot cinematic flyoff — an orbit of the room that pulls
+ * back into the void, swings to the side, dips low, and comes home (the
+ * recettear-study Godot --flyout path).  Auto-engages the free camera; press
+ * again to replay from the current locked pose.  Touching a move key hands
+ * control back to manual mid-flight. */
 void light_debug_flyoff(const float current_view[16]);
 
 /* --light-debug CLI flag: arm auto-activation; the camera-setup hook
