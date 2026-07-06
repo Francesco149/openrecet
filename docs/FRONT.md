@@ -261,6 +261,11 @@
   - Tooling caveats (revisit only if bitten): `merge_anchor_seq` column ordering is best-effort;
     `orv3_view.build_view` (legacy PNG-bake) is not threaded — add the `join_anchor` pass-through if ever
     needed for cc08.
+- **Study toggles (filming tool, 2026-07-06 — READY for the lighting-video shoot):** SHIFT+1..6 (or
+  `--study-off mod2x,keylight,ambient,fog,hikari,blob`) kill the six HOUSE lighting tricks individually,
+  combos free; all default ON = retail, parity untouched. `src/study_toggles.{c,h}` +
+  `findings/study-toggles.md` (hook map + measured verification; harness passthrough
+  `scenario-test.py --exe-arg=…`).
 - **Phase:** frame-by-frame 1:1 parity sweep along the player path (title →
   prologue → HOUSE → shop loop → world map → dungeon). Strategy + tooling roadmap:
   **`audits/2026-06-09-methodology-audit.md`** (settled verdicts — behavioral-vs-

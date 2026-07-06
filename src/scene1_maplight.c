@@ -175,6 +175,7 @@ int scene1_maplight_compute(const stage_record_t *rec,
 #include "save_work.h"        /* save_work_dwords_at / save_work_active_slot */
 #include "save_bank.h"        /* SAVE_BANK_FIELD_CLOCK_TARGET (DAT_0450fb88)  */
 #include "scene1_top_hud.h"   /* scene1_top_hud_clock_phase (DAT_0438b7d4)    */
+#include "study_toggles.h"    /* study filming kill-switches (keylight/ambient) */
 
 /* Cached light built by scene1_build_maplight, re-applied by
  * scene1_maplight_rebind (engine keeps it at DAT_06a49a40). */
@@ -195,6 +196,27 @@ static void fill_light(D3DLIGHT8 *L, const scene1_maplight_values_t *v)
     L->Direction.y = v->direction[1];
     L->Direction.z = v->direction[2];
     /* Specular left zero (engine zeroes the whole struct first). */
+}
+
+/* Study toggles (filming; see study_toggles.h): both the directional
+ * key light AND the ambient fill live in the SAME light 0 — retail's
+ * D3DRS_AMBIENT is already black through the scene-1 pass, so the fill
+ * is g_maplight.Ambient.  To keep the two tricks independently
+ * switchable we zero the component rather than LightEnable(0,FALSE)
+ * (which would kill both at once).  Returns a pointer to the light to
+ * bind; with both toggles ON (retail) it's g_maplight itself — the
+ * pinned-trace/parity path never takes a copy. */
+static const D3DLIGHT8 *ml_study_light(void)
+{
+    static D3DLIGHT8 tmp;
+    if (study_toggle_on(STUDY_T_KEYLIGHT) && study_toggle_on(STUDY_T_AMBIENT))
+        return &g_maplight;
+    tmp = g_maplight;
+    if (!study_toggle_on(STUDY_T_KEYLIGHT))
+        tmp.Diffuse.r = tmp.Diffuse.g = tmp.Diffuse.b = 0.0f;
+    if (!study_toggle_on(STUDY_T_AMBIENT))
+        tmp.Ambient.r = tmp.Ambient.g = tmp.Ambient.b = 0.0f;
+    return &tmp;
 }
 
 void scene1_build_maplight(struct IDirect3DDevice8 *dev_in)
@@ -221,7 +243,7 @@ void scene1_build_maplight(struct IDirect3DDevice8 *dev_in)
     if (g_maplight_lit) {
         /* L53894-L53899: SetLight(0,&light) + LightEnable(0,TRUE) +
          * SetRenderState(LIGHTING, TRUE). */
-        IDirect3DDevice8_SetLight(dev, 0, &g_maplight);
+        IDirect3DDevice8_SetLight(dev, 0, ml_study_light());
         IDirect3DDevice8_LightEnable(dev, 0, TRUE);
         IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, TRUE);
     } else {
@@ -237,7 +259,7 @@ void scene1_maplight_rebind(struct IDirect3DDevice8 *dev_in, int enable)
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
     if (enable && g_maplight_lit) {
-        IDirect3DDevice8_SetLight(dev, 0, &g_maplight);
+        IDirect3DDevice8_SetLight(dev, 0, ml_study_light());
         IDirect3DDevice8_LightEnable(dev, 0, TRUE);
     } else {
         IDirect3DDevice8_LightEnable(dev, 0, FALSE);

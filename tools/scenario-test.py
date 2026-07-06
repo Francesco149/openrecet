@@ -387,7 +387,8 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
                          call_trace: bool = False,
                          capture_local: bool = False,
                          trigger_only: bool = False,
-                         suppress_calltrace: bool = False) -> dict:
+                         suppress_calltrace: bool = False,
+                         extra_exe_args: list[str] | None = None) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace.
 
     capture_local (D2): write capture BMPs to a Windows-local NTFS staging dir
@@ -539,6 +540,11 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
         child_args.append("--silent-audio")
     if show_fps:
         child_args.append("--show-fps")
+    if extra_exe_args:
+        # --exe-arg passthrough (port target only) — extra flags appended
+        # verbatim, e.g. --exe-arg=--study-off --exe-arg=mod2x drives a study-
+        # toggle filming variant through the standard harness.
+        child_args += extra_exe_args
 
     # Wrap in the Job-Object supervisor. Supervisor timeout sits 1 s
     # past the in-engine ceiling so openrecet's clean exit path wins
@@ -1062,6 +1068,12 @@ def main(argv: list[str] | None = None) -> int:
                          "~3x smaller. Falls back to the direct path if the local "
                          "root can't be derived. (Port only; retail ships frames "
                          "over the Frida message path.)")
+    ap.add_argument("--exe-arg", action="append", default=[],
+                    help="extra argument appended verbatim to the openrecet "
+                         "exe command line (repeatable; port target only). "
+                         "e.g. --exe-arg=--study-off --exe-arg=mod2x,hikari "
+                         "drives a study-toggles filming variant "
+                         "(src/study_toggles.h) through the standard harness.")
     ap.add_argument("--capture-trigger-only", action="store_true",
                     help="Trace Studio v3 proxy drive: fire the per-frame "
                          "GetBackBuffer keep-trigger the staged d3d8 proxy "
@@ -1233,7 +1245,8 @@ def main(argv: list[str] | None = None) -> int:
                 call_trace=args.call_trace,
                 capture_local=args.capture_local,
                         trigger_only=args.capture_trigger_only,
-                        suppress_calltrace=args.no_calltrace)
+                        suppress_calltrace=args.no_calltrace,
+                        extra_exe_args=args.exe_arg)
         _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{_exp}")

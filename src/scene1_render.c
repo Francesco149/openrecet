@@ -56,6 +56,7 @@ void scene1_project_world_mat(const float *view, const float *proj,
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "light_debug.h"
+#include "study_toggles.h"       /* study filming kill-switches (mod2x/fog) */
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
 #include "scene1_maplight.h"     /* FUN_00458f67 maplight builder + stage record */
 #include "scene1_fx_overlays.h"  /* scene1_fx_overlays — FUN_00454191 scaffold */
@@ -596,7 +597,8 @@ void scene1_render_apply_palette_combiner_mode(struct IDirect3DDevice8 *dev_in,
 static void scene1_apply_fog_state(IDirect3DDevice8 *dev, BOOL full)
 {
     BOOL enable = (scene1_palette_fog_start() != 0.0f)
-                  && (scene1_fog_override() != 1);
+                  && (scene1_fog_override() != 1)
+                  && study_toggle_on(STUDY_T_FOG);   /* study: fog off */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, enable);
     if (!enable || !full) return;
 
@@ -630,7 +632,8 @@ static void scene1_walk_pre_pass(IDirect3DDevice8 *dev)
         int mode = (scene1_combiner_override() != 0)
                        ? 2
                        : scene1_palette_combiner_mode();
-        scene1_apply_palette_combiner_mode(dev, mode);
+        /* study: mod2x off demotes the room MODULATE2X to MODULATE */
+        scene1_apply_palette_combiner_mode(dev, study_room_combiner_mode(mode));
     }
     scene1_walk_pass_init(dev, 0);
 }
@@ -643,7 +646,8 @@ static void scene1_walk_alpha_pre(IDirect3DDevice8 *dev)
         int mode = (scene1_combiner_override() != 0)
                        ? 2
                        : scene1_palette_combiner_mode();
-        scene1_apply_palette_combiner_mode(dev, mode);
+        /* study: mod2x off demotes the room MODULATE2X to MODULATE */
+        scene1_apply_palette_combiner_mode(dev, study_room_combiner_mode(mode));
         scene1_walk_pass_init(dev, 1);
     }
     /* L18-19 of FUN_004597dd: SetTSS(0, ADDRESSU=0xd, WRAP=1) +
@@ -768,8 +772,10 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_apply_fog_state(dev, TRUE);
 
     /* L185: FUN_00454f03(palette + 0x1a40) — TSS COLORARG2 from
-     * palette mode int. */
-    scene1_apply_palette_combiner_mode(dev, scene1_palette_combiner_mode());
+     * palette mode int.  (study: mod2x off demotes the room
+     * MODULATE2X to MODULATE — see study_toggles.h.) */
+    scene1_apply_palette_combiner_mode(
+        dev, study_room_combiner_mode(scene1_palette_combiner_mode()));
 
     /* L186-L187: project back to z_far = 350.0 for the room pass. */
     scene1_push_projection(dev, 350.0f);

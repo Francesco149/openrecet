@@ -51,6 +51,7 @@ that subsystem.
 | [conversation-pose-driver.md](conversation-pose-driver.md) | **`FUN_0048407f` conversation-pose branch + the talk-event flag `DAT_0450f470`** — RE'd. During iv1_2 (any face-to-face talk) the HOUSE freeroam actors strike conversation poses: Recette anim **6** (「ティアの話を聞くよ」, frames 38/39 = look-up + **blink**), Tear anim **4** (「ルセットと会話」), facing each other. Port spec for the `intro-iv2-gap` gap (`opening-prologue.md` #4). | 2026-06-02 |
 | [scene1-walker-pass-init.md](scene1-walker-pass-init.md) | `FUN_00457714` — per-NPC mesh walker = the HOUSE shop_table furniture renderer (relabel of pass-init stub). | 2026-05-26 |
 | [scene1-house-render-gaps.md](scene1-house-render-gaps.md) | HOUSE render diffs vs retail post-PII.3c — floor/wall/rug textures (fixed) + god-ray/blinds lighting gaps (deferred to a scene-1 lighting chip). | 2026-05-29 |
+| [study-toggles.md](study-toggles.md) | Filming tool (not RE): SHIFT+1..6 / `--study-off` kill-switches for the six HOUSE lighting tricks (mod2x/keylight/ambient/fog/hikari/blob), `src/study_toggles.{c,h}` — hook-site map + measured verification. | 2026-07-06 |
 | [scene1-wide-followup.md](scene1-wide-followup.md) | `FUN_004161c7` — wide-frustum followup draw (z_far=2000) survey. | 2026-05-23 |
 | [scene1-leaf-chain.md](scene1-leaf-chain.md) | Mesh-emit leaf chain (5 fns in `FUN_00459dfd`); flat-`mesh_t` adapter notes. | 2026-05-23 |
 | [scene1-people-table.md](scene1-people-table.md) | `DAT_0076bd54` — 128-entry × 2980 B in-shop "people"/NPC table layout. | 2026-05-23 |

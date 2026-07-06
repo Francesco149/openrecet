@@ -124,6 +124,7 @@ void chr_shadow_build_display_glow(float render_x, float render_z,
 #include "scene1_shop_walker.h"     /* scene1_customer_npc_shadow_render (FUN_00470385) */
 #include "scene1_shop_display.h"    /* shop_display_cbfc/cc00/render_x/render_z/bf68 — Block G gate */
 #include "sim.h"                    /* g_sim_frame_count (DAT_0438b8cc) — glow pulse phase */
+#include "study_toggles.h"          /* study filming kill-switch (blob shadows) */
 
 #define SHADOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)   /* 0x142 */
 
@@ -201,6 +202,12 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,         D3DBLEND_ZERO);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND,        D3DBLEND_SRCCOLOR);
 
+    /* study toggle (filming; see study_toggles.h): blob off skips every
+     * shadow blob — Block A (player/companion) + the bg-NPC + customer
+     * blobs — but keeps the envelope + Block G (the display-cell glow is
+     * not a shadow) + teardown.  Default ON ⇒ retail-identical. */
+    if (study_toggle_on(STUDY_T_BLOB)) {
+
     /* ── Block A: player + companion ground shadow (engine L59-121) ──────── */
     const collision_mesh *cm = collision_house_get();
     for (int i = 0; i < SHADOW_ACTOR_SLOTS; i++) {
@@ -273,6 +280,8 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
      * (their bright billboards draw in scene1_customer_npc_sprite_render). */
     scene1_bg_npc_shadow_render(dev);
     scene1_customer_npc_shadow_render(dev);
+
+    }   /* study_toggle_on(STUDY_T_BLOB) */
 
     /* ── dormant blocks (engine L123-346), HOUSE free-roam ledger ───────────
      * Every one of these shadow consumers walks a table HOUSE free-roam leaves

@@ -84,6 +84,7 @@
 #include "scene1_records.h"
 #include "scene1_render.h"
 #include "light_debug.h"
+#include "study_toggles.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_display_menu.h"  /* display_menu_render (cc04==1 menu panel) */
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
@@ -2522,6 +2523,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         } else if (wParam == VK_F6) {
             /* Cycle the light-debug visualization mode (tint/flat/border). */
             light_debug_cycle_mode();
+        } else if (wParam >= '1' && wParam <= '6' &&
+                   GetKeyState(VK_SHIFT) < 0) {
+            /* Study toggles: SHIFT+1..6 each flip one HOUSE lighting trick
+             * (mod2x / keylight / ambient / fog / hikari / blob — see
+             * src/study_toggles.h).  Digits aren't in the engine's bindable
+             * DIK table so the chord can't collide with gameplay input.
+             * lParam bit 30 = repeat guard (holding the chord must not
+             * flicker the toggle while filming). */
+            if (!(lParam & (1 << 30)))
+                study_toggle_flip((int)(wParam - '1'));
         }
         return 0;
 
@@ -3574,6 +3585,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
         } else if (lstrcmpA(tok, "--light-debug-mode") == 0) {
             char *val = strtok(NULL, " ");
             if (val) light_debug_set_mode((int)strtoul(val, NULL, 0));
+        } else if (lstrcmpA(tok, "--study-off") == 0) {
+            /* Pre-flip study toggles OFF at boot (comma list of trick
+             * names, e.g. "mod2x,hikari") — same switches as the
+             * SHIFT+1..6 hotkeys; see src/study_toggles.h. */
+            char *val = strtok(NULL, " ");
+            if (val) study_toggles_parse_off_list(val);
         } else if (lstrcmpA(tok, "--force-ambient-spawn") == 0) {
             g_force_ambient_spawn = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-type") == 0) {

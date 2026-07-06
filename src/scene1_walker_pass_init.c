@@ -335,6 +335,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "mesh.h"
 #include "mesh_load.h"
 #include "light_debug.h"
+#include "study_toggles.h"
 #include "scene1_emit_record.h"
 #include "scene_map_meshes.h"
 #include "sprite.h"
@@ -351,11 +352,19 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
  * interactive-only). */
 static int g_hikari_debug_scope = 0;
 
+/* study toggle (filming; see study_toggles.h): set while the PASS-3
+ * (hikari god-ray plane) slot loop runs — the same draws light_debug
+ * wraps.  With the hikari toggle OFF, draw_loop_b_mesh skips them
+ * entirely.  Default ON ⇒ flag read only, behaviour bit-identical. */
+static int g_hikari_pass_scope = 0;
+
 static void draw_loop_b_mesh(IDirect3DDevice8 *dev,
                              const mesh_t *m,
                              int slot,
                              const float matrix[16])
 {
+    if (g_hikari_pass_scope && !study_toggle_on(STUDY_T_HIKARI))
+        return;                       /* study: hikari planes off */
     if (!m || !m->vb || !m->ib) return;
     if (m->material_count <= 0 || !m->texture_slots) return;
     if (m->submesh_count <= 0) return;
@@ -523,9 +532,14 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
         light_debug_hikari_begin();
         g_hikari_debug_scope = 1;
     }
+    g_hikari_pass_scope = (param_1 == 3);   /* study hikari-off scope */
 
     int slot_count = g_mesh_tex_cache.count;
-    if (slot_count <= 0) { g_hikari_debug_scope = 0; return; }
+    if (slot_count <= 0) {
+        g_hikari_debug_scope = 0;
+        g_hikari_pass_scope = 0;
+        return;
+    }
     if (slot_count > MESH_TEX_CACHE_CAP) slot_count = MESH_TEX_CACHE_CAP;
 
     /* Engine `local_2c`: arms-once-per-outer-pass latch for the
@@ -612,6 +626,7 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
         }
     }
 
+    g_hikari_pass_scope = 0;
     if (hikari_dbg) {
         g_hikari_debug_scope = 0;
         light_debug_hikari_end((struct IDirect3DDevice8 *)dev);
