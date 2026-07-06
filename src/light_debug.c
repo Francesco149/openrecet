@@ -68,8 +68,8 @@ static const struct { float t, ef, eu, er, lf, lu, lr, bd; } LD_FLY[] = {
     { 4.5f, -16.0f, 15.0f,  0.0f,  0.0f,  4.0f,  0.0f, 0.0f    },  /* pull back+up; LOOK UP → the town flat */
     { 7.8f, -10.0f, 11.0f, 15.0f,  0.0f,  1.0f,  0.0f, 0.0f    },  /* swing to the side, still high */
     {10.2f,   3.0f, -3.0f,  5.0f,  0.0f, -0.5f,  0.0f, 0.0f    },  /* dip low toward the window */
-    {12.2f,  16.0f, -2.0f,  1.0f,  9.0f,  0.0f, -7.0f, LD_BACK },  /* fly OUT through the window, look LEFT */
-    {13.6f,  17.0f, -2.0f,  1.0f,  9.0f,  0.0f,  7.0f, LD_BACK },  /* look RIGHT over the theatre flat */
+    {12.2f,  16.0f, -2.0f,  1.0f,  9.0f,  0.0f, -3.5f, LD_BACK },  /* fly OUT through the window, look LEFT (~45°) */
+    {13.6f,  17.0f, -2.0f,  1.0f,  9.0f,  0.0f,  3.5f, LD_BACK },  /* look RIGHT over the theatre flat (~45°) */
     {16.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f    },  /* come home to the locked pose */
 };
 #define LD_FLY_N ((int)(sizeof(LD_FLY)/sizeof(LD_FLY[0])))
