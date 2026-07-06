@@ -50,17 +50,27 @@ static float g_fly_eye0[3], g_fly_fwd0[3], g_fly_right0[3], g_fly_pivot0[3];
 #define LD_FLY_PIVOT  10.0f           /* focal distance eye→room-centre (world units) */
 #define LD_FLY_DT     (1.0f/60.0f)    /* path advance per render tick (~60fps) */
 
+/* LD_WIN = horizontal offset (world units, −=left) that re-centres the DESCENT
+ * on the back window.  The locked ¾ forward aims right-of-window (toward the
+ * door), so without this the dip + flythrough pop out over the door and the
+ * left window instead of THROUGH the back window.  Tune this one number if the
+ * dive still isn't dead-centre on the window. */
+#define LD_WIN (-8.0f)
+
 /* keyframes: {t_sec, ef, eu, er, lf, lu, lr}.  Total ~16s = ~20% faster than
- * the old 20s path.  lerp'd with smoothstep so each leg eases in/out. */
+ * the old 20s path.  lerp'd with smoothstep so each leg eases in/out.
+ * The eye offset (er) and the look offset (lr) both carry LD_WIN through the
+ * descent so the eye is IN FRONT OF the window and aimed at it — then the
+ * flythrough passes through it and the L/R pan swings around IT (not the door). */
 static const struct { float t, ef, eu, er, lf, lu, lr; } LD_FLY[] = {
-    { 0.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* locked ¾ pose */
-    { 1.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* hold — sell the normal frame */
-    { 4.5f, -16.0f, 15.0f,  0.0f,  0.0f,  4.0f,  0.0f },  /* pull back+up; LOOK UP → the town flat */
-    { 7.8f, -10.0f, 11.0f, 15.0f,  0.0f,  1.0f,  0.0f },  /* swing to the side, still high */
-    {10.2f,   3.0f, -3.0f,  5.0f,  0.0f, -0.5f,  0.0f },  /* dip low toward the window */
-    {12.2f,  16.0f, -2.0f,  1.0f,  9.0f,  0.0f, -7.0f },  /* fly THROUGH the window, look LEFT */
-    {13.6f,  17.0f, -2.0f,  1.0f,  9.0f,  0.0f,  7.0f },  /* look RIGHT over the theatre flat */
-    {16.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* come home to the locked pose */
+    { 0.0f,   0.0f,  0.0f,       0.0f,        0.0f,  0.0f,  0.0f        },  /* locked ¾ pose */
+    { 1.0f,   0.0f,  0.0f,       0.0f,        0.0f,  0.0f,  0.0f        },  /* hold — sell the normal frame */
+    { 4.5f, -16.0f, 15.0f,       0.0f,        0.0f,  4.0f,  0.0f        },  /* pull back+up; LOOK UP → the town flat */
+    { 7.8f, -10.0f, 11.0f, LD_WIN-4.0f,       0.0f,  1.0f,  LD_WIN*0.5f },  /* swing to the WINDOW side, still high */
+    {10.2f,   2.0f, -4.0f,       LD_WIN,      0.0f, -0.5f,  LD_WIN      },  /* dip low, centred ON the back window */
+    {12.2f,  16.0f, -3.0f,       LD_WIN,      9.0f,  0.0f,  LD_WIN-6.0f },  /* fly THROUGH the window, look LEFT (out) */
+    {13.6f,  17.0f, -3.0f,       LD_WIN,      9.0f,  0.0f,  LD_WIN+6.0f },  /* look RIGHT over the town flat */
+    {16.0f,   0.0f,  0.0f,       0.0f,        0.0f,  0.0f,  0.0f        },  /* come home to the locked pose */
 };
 #define LD_FLY_N ((int)(sizeof(LD_FLY)/sizeof(LD_FLY[0])))
 
