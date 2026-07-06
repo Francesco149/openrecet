@@ -11,6 +11,11 @@ Spec: docs/formats/data-bin.md. Independent reimplementation matching the
 spec verified by UnrealPowerz/recettear-repacker; the two produce
 byte-identical output on the current Steam build.
 
+Also handles the Japanese release: `lnkdata.bin` (no trailing 's') is a
+5-byte header + a payload obfuscated per-byte as `dst = 0x01 - src`
+(docs/findings/engine-quirks.md §2); after decoding it is the same
+index format. Auto-detected when `lnkdatas.bin` is absent.
+
 Usage:
     extract/data-bin.py <game_root> <out_dir>
     extract/data-bin.py vendor/original/ extracted/
@@ -43,9 +48,21 @@ ENTRY_SIZE = struct.calcsize(ENTRY_FMT) # 128 + 4 + 4 + 4 = 140
 # ─── header ────────────────────────────────────────────────────────────────
 
 
+JP_HEADER_LEN = 5                       # raw prefix on the JP lnkdata.bin
+
+
+def index_path(game_root: Path) -> Path:
+    """EN `lnkdatas.bin` if present, else the JP `lnkdata.bin`."""
+    en = game_root / "lnkdatas.bin"
+    return en if en.exists() else game_root / "lnkdata.bin"
+
+
 def read_index(lnkdatas_path: Path) -> list[tuple[str, int, int, int]]:
     """Return list of (name, decompressed_size, offset, compressed_size)."""
     data = lnkdatas_path.read_bytes()
+    if lnkdatas_path.name == "lnkdata.bin":
+        # JP release: 5-byte header, then payload bytes are 0x01 - src.
+        data = bytes((0x01 - b) & 0xFF for b in data[JP_HEADER_LEN:])
     (n,) = struct.unpack(">i", data[:4])
     items: list[tuple[str, int, int, int]] = []
     pos = 4
@@ -157,7 +174,7 @@ class DataStream:
 
 
 def extract(game_root: Path, out_dir: Path, quiet: bool = False) -> int:
-    lnk_path = game_root / "lnkdatas.bin"
+    lnk_path = index_path(game_root)
     if not lnk_path.exists():
         raise SystemExit(f"missing {lnk_path}")
     items = read_index(lnk_path)
@@ -193,7 +210,7 @@ def extract(game_root: Path, out_dir: Path, quiet: bool = False) -> int:
 
 
 def list_index(game_root: Path) -> None:
-    items = read_index(game_root / "lnkdatas.bin")
+    items = read_index(index_path(game_root))
     print(f"{'name':<50}  {'offset':>11}  {'comp':>8}  {'uncomp':>10}")
     print("─" * (50 + 11 + 8 + 10 + 6))
     for name, dsize, offset, size in items:
