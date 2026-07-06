@@ -30,32 +30,37 @@ static int   g_mode = 0;              /* 0 tint / 1 flat / 2 border */
 static float g_eye[3];
 static float g_yaw, g_pitch;          /* radians; yaw about +Y (+yaw = turn left) */
 
-/* scripted flyoff (F7): a one-shot cinematic dolly that ORBITS the room and
- * comes home — the same shape as the recettear-study Godot --flyout (hold →
- * pull back+up into the void → swing to the side → dip low → home).  The eye
- * orbits a fixed pivot at the room centre so the diorama stays framed the
- * whole time; the reveal is that the "room" is a floating slab in black.
+/* scripted flyoff (F7): a one-shot cinematic dolly, the recettear-study Godot
+ * --flyout shape but richer — hold → pull back+up into the void (looking UP at
+ * the peak to reveal the flat painted town behind the back wall) → swing to the
+ * side → dip low → fly THROUGH the window and pan left/right over the theatre-
+ * flat outside → come home.
  *
- * The path is relative to the game's locked pose captured on F7: pivot =
- * eye0 + forward0·PIVOT (room centre); v0 = eye0 − pivot; each keyframe
- * orbits v0 about +Y by dyaw, scales its length by rmul (pull back / close
- * in), and lifts the eye by hadd. lookat stays on the pivot. */
+ * The path is keyed in the game's locked-pose LOCAL frame (captured on F7):
+ * basis fwd0 / up=(0,1,0) / right0, and the default focus pivot0 =
+ * eye0 + fwd0·PIVOT (room centre).  Each keyframe gives the EYE offset and the
+ * LOOKAT offset in that frame (units = world units along right/up/fwd):
+ *   eye    = eye0   + ef·fwd0 + eu·up + er·right0
+ *   lookat = pivot0 + lf·fwd0 + lu·up + lr·right0
+ * (−ef = pull back off the angle; +ef = dolly toward/through the far wall;
+ *  +lu = look up; ±lr = look left/right; +lf = look further out the window). */
 static int   g_fly_on = 0;            /* a flyoff is playing */
 static float g_fly_t = 0.0f;          /* seconds into the path */
-static float g_fly_pivot[3];          /* orbit centre (room centre) */
-static float g_fly_v0[3];             /* eye0 − pivot (reference offset) */
+static float g_fly_eye0[3], g_fly_fwd0[3], g_fly_right0[3], g_fly_pivot0[3];
 #define LD_FLY_PIVOT  10.0f           /* focal distance eye→room-centre (world units) */
 #define LD_FLY_DT     (1.0f/60.0f)    /* path advance per render tick (~60fps) */
 
-/* keyframes: {t_sec, orbit-yaw delta (rad), radius scale, eye height add}.
- * lerp'd with smoothstep so each leg starts/stops softly (matches Godot). */
-static const struct { float t, dyaw, rmul, hadd; } LD_FLY[] = {
-    { 0.0f,  0.00f, 1.00f,  0.0f },   /* locked ¾ pose */
-    { 1.5f,  0.00f, 1.00f,  0.0f },   /* hold — sell the "normal" frame first */
-    { 6.5f,  0.00f, 2.60f, 14.0f },   /* pull straight back + up into the void */
-    {11.5f, -1.20f, 2.00f,  9.0f },   /* swing ~69° to the side, still high */
-    {16.0f, -0.50f, 1.40f, -3.0f },   /* dip low + closer toward the window */
-    {20.0f,  0.00f, 1.00f,  0.0f },   /* come home to the locked pose */
+/* keyframes: {t_sec, ef, eu, er, lf, lu, lr}.  Total ~16s = ~20% faster than
+ * the old 20s path.  lerp'd with smoothstep so each leg eases in/out. */
+static const struct { float t, ef, eu, er, lf, lu, lr; } LD_FLY[] = {
+    { 0.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* locked ¾ pose */
+    { 1.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* hold — sell the normal frame */
+    { 4.5f, -16.0f, 15.0f,  0.0f,  0.0f,  4.0f,  0.0f },  /* pull back+up; LOOK UP → the town flat */
+    { 7.8f, -10.0f, 11.0f, 15.0f,  0.0f,  1.0f,  0.0f },  /* swing to the side, still high */
+    {10.2f,   3.0f, -3.0f,  5.0f,  0.0f, -0.5f,  0.0f },  /* dip low toward the window */
+    {12.2f,  16.0f, -2.0f,  1.0f,  9.0f,  0.0f, -7.0f },  /* fly THROUGH the window, look LEFT */
+    {13.6f,  17.0f, -2.0f,  1.0f,  9.0f,  0.0f,  7.0f },  /* look RIGHT over the theatre flat */
+    {16.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },  /* come home to the locked pose */
 };
 #define LD_FLY_N ((int)(sizeof(LD_FLY)/sizeof(LD_FLY[0])))
 
@@ -203,17 +208,19 @@ void light_debug_toggle(const float current_view[16])
 void light_debug_flyoff(const float current_view[16])
 {
     if (!g_on) light_debug_toggle(current_view);   /* seamless from game cam */
-    /* forward from the current free-cam pose; pivot = eye + forward·PIVOT */
+    /* local frame of the current pose: fwd0, right0 (horizontal), pivot0 */
     float cp = (float)cos(g_pitch), sp = (float)sin(g_pitch);
     float sy = (float)sin(g_yaw),   cy = (float)cos(g_yaw);
-    float F[3] = { cp * sy, sp, cp * cy };
+    g_fly_fwd0[0] = cp * sy; g_fly_fwd0[1] = sp; g_fly_fwd0[2] = cp * cy;
+    g_fly_right0[0] = cy; g_fly_right0[1] = 0.0f; g_fly_right0[2] = -sy;  /* horizontal right */
     for (int i = 0; i < 3; i++) {
-        g_fly_pivot[i] = g_eye[i] + F[i] * LD_FLY_PIVOT;
-        g_fly_v0[i]    = g_eye[i] - g_fly_pivot[i];   /* = -F·PIVOT */
+        g_fly_eye0[i]   = g_eye[i];
+        g_fly_pivot0[i] = g_eye[i] + g_fly_fwd0[i] * LD_FLY_PIVOT;
     }
     g_fly_t = 0.0f;
     g_fly_on = 1;
-    fprintf(stderr, "light-debug: flyoff playing (%.1fs orbit reveal)\n", LD_FLY[LD_FLY_N-1].t);
+    fprintf(stderr, "light-debug: flyoff playing (%.1fs reveal — up-peek + window flythrough)\n",
+            LD_FLY[LD_FLY_N-1].t);
 }
 
 /* ─── free camera ───────────────────────────────────────────────────── */
@@ -242,28 +249,32 @@ void light_debug_camera_tick(float out_view[16])
         } else {
             g_fly_t += LD_FLY_DT;
             /* find the active keyframe leg and smoothstep across it */
-            float dyaw, rmul, hadd;
+            float ef, eu, er, lf, lu, lr;
             if (g_fly_t >= LD_FLY[LD_FLY_N-1].t) {
-                dyaw = LD_FLY[LD_FLY_N-1].dyaw; rmul = LD_FLY[LD_FLY_N-1].rmul; hadd = LD_FLY[LD_FLY_N-1].hadd;
+                const int L = LD_FLY_N-1;
+                ef=LD_FLY[L].ef; eu=LD_FLY[L].eu; er=LD_FLY[L].er;
+                lf=LD_FLY[L].lf; lu=LD_FLY[L].lu; lr=LD_FLY[L].lr;
                 g_fly_on = 0;   /* path complete — hold home; manual resumes here */
             } else {
                 int k = 0;
                 while (k < LD_FLY_N-1 && g_fly_t > LD_FLY[k+1].t) k++;
                 float u = (g_fly_t - LD_FLY[k].t) / (LD_FLY[k+1].t - LD_FLY[k].t);
                 float s = ld_smooth(u);
-                dyaw = LD_FLY[k].dyaw + s * (LD_FLY[k+1].dyaw - LD_FLY[k].dyaw);
-                rmul = LD_FLY[k].rmul + s * (LD_FLY[k+1].rmul - LD_FLY[k].rmul);
-                hadd = LD_FLY[k].hadd + s * (LD_FLY[k+1].hadd - LD_FLY[k].hadd);
+                #define LDL(f) (LD_FLY[k].f + s * (LD_FLY[k+1].f - LD_FLY[k].f))
+                ef=LDL(ef); eu=LDL(eu); er=LDL(er); lf=LDL(lf); lu=LDL(lu); lr=LDL(lr);
+                #undef LDL
             }
-            /* orbit v0 about +Y by dyaw, scale by rmul, lift by hadd */
-            float ca = (float)cos(dyaw), sa = (float)sin(dyaw);
-            float vx = g_fly_v0[0]*ca + g_fly_v0[2]*sa;
-            float vz = -g_fly_v0[0]*sa + g_fly_v0[2]*ca;
-            g_eye[0] = g_fly_pivot[0] + vx * rmul;
-            g_eye[1] = g_fly_pivot[1] + g_fly_v0[1] * rmul + hadd;
-            g_eye[2] = g_fly_pivot[2] + vz * rmul;
-            /* look at the pivot (room centre) the whole time */
-            float Ff[3] = { g_fly_pivot[0]-g_eye[0], g_fly_pivot[1]-g_eye[1], g_fly_pivot[2]-g_eye[2] };
+            /* eye + lookat from the local-frame offsets */
+            for (int i = 0; i < 3; i++) {
+                float up = (i==1) ? 1.0f : 0.0f;
+                g_eye[i] = g_fly_eye0[i] + ef*g_fly_fwd0[i] + eu*up + er*g_fly_right0[i];
+            }
+            float lookat[3];
+            for (int i = 0; i < 3; i++) {
+                float up = (i==1) ? 1.0f : 0.0f;
+                lookat[i] = g_fly_pivot0[i] + lf*g_fly_fwd0[i] + lu*up + lr*g_fly_right0[i];
+            }
+            float Ff[3] = { lookat[0]-g_eye[0], lookat[1]-g_eye[1], lookat[2]-g_eye[2] };
             float fl = (float)sqrt(Ff[0]*Ff[0]+Ff[1]*Ff[1]+Ff[2]*Ff[2]);
             if (fl > 1e-6f) { Ff[0]/=fl; Ff[1]/=fl; Ff[2]/=fl; }
             g_pitch = (float)asin(Ff[1] < -1.f ? -1.f : Ff[1] > 1.f ? 1.f : Ff[1]);
