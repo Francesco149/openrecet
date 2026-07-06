@@ -40,34 +40,37 @@ static float g_yaw, g_pitch;          /* radians; yaw about +Y (+yaw = turn left
  * basis fwd0 / up=(0,1,0) / right0, and the default focus pivot0 =
  * eye0 + fwd0·PIVOT (room centre).  Each keyframe gives the EYE offset and the
  * LOOKAT offset in that frame (units = world units along right/up/fwd):
- *   eye    = eye0   + ef·fwd0 + eu·up + er·right0
- *   lookat = pivot0 + lf·fwd0 + lu·up + lr·right0
- * (−ef = pull back off the angle; +ef = dolly toward/through the far wall;
- *  +lu = look up; ±lr = look left/right; +lf = look further out the window). */
+ *   eye    = eye0   + ef·fwd0 + eu·up + er·right0 + bd·fwdH
+ *   lookat = pivot0 + lf·fwd0 + lu·up + lr·right0 + bd·fwdH
+ * (−ef = pull back off the angle; +ef = dolly along the tilted-down view dir;
+ *  +lu = look up; ±lr = look left/right; +lf = look further out the window;
+ *  +bd = move BOTH eye+lookat straight back along the HORIZONTAL forward fwdH —
+ *  "toward the back of the room" without diving into the floor, orientation kept.) */
 static int   g_fly_on = 0;            /* a flyoff is playing */
 static float g_fly_t = 0.0f;          /* seconds into the path */
 static float g_fly_eye0[3], g_fly_fwd0[3], g_fly_right0[3], g_fly_pivot0[3];
+static float g_fly_fwdH[3];           /* fwd0 flattened to the ground plane, normalised */
 #define LD_FLY_PIVOT  10.0f           /* focal distance eye→room-centre (world units) */
 #define LD_FLY_DT     (1.0f/60.0f)    /* path advance per render tick (~60fps) */
 
-/* LD_BACK = how much deeper toward the back of the room the last two stopping
- * points sit vs the earlier tuning.  It is added to BOTH the eye (ef) and the
- * look (lf) of those keyframes, so the camera translates straight back through
- * the window while its look DIRECTION (and the L/R pan) is unchanged — that's
- * what finally puts it OUTSIDE looking out.  Tune this one number for depth. */
-#define LD_BACK (16.0f)
+/* LD_BACK = how far the last two stopping points move toward the BACK of the
+ * room, along the HORIZONTAL forward (fwdH) — so they translate straight back
+ * out the window at eye height, NOT down into the floor (which is what adding
+ * depth along the tilted-down view dir did).  bd moves eye+lookat together, so
+ * the look direction and the L/R pan are unchanged.  Tune this one number. */
+#define LD_BACK (18.0f)
 
-/* keyframes: {t_sec, ef, eu, er, lf, lu, lr}.  Total ~16s = ~20% faster than
+/* keyframes: {t_sec, ef, eu, er, lf, lu, lr, bd}.  Total ~16s = ~20% faster than
  * the old 20s path.  lerp'd with smoothstep so each leg eases in/out. */
-static const struct { float t, ef, eu, er, lf, lu, lr; } LD_FLY[] = {
-    { 0.0f,   0.0f,        0.0f,  0.0f,  0.0f,        0.0f,  0.0f },  /* locked ¾ pose */
-    { 1.0f,   0.0f,        0.0f,  0.0f,  0.0f,        0.0f,  0.0f },  /* hold — sell the normal frame */
-    { 4.5f, -16.0f,       15.0f,  0.0f,  0.0f,        4.0f,  0.0f },  /* pull back+up; LOOK UP → the town flat */
-    { 7.8f, -10.0f,       11.0f, 15.0f,  0.0f,        1.0f,  0.0f },  /* swing to the side, still high */
-    {10.2f,   3.0f,       -3.0f,  5.0f,  0.0f,       -0.5f,  0.0f },  /* dip low toward the window */
-    {12.2f,  16.0f+LD_BACK, -2.0f,  1.0f,  9.0f+LD_BACK, 0.0f, -7.0f },  /* fly OUT through the window, look LEFT */
-    {13.6f,  17.0f+LD_BACK, -2.0f,  1.0f,  9.0f+LD_BACK, 0.0f,  7.0f },  /* look RIGHT over the theatre flat */
-    {16.0f,   0.0f,        0.0f,  0.0f,  0.0f,        0.0f,  0.0f },  /* come home to the locked pose */
+static const struct { float t, ef, eu, er, lf, lu, lr, bd; } LD_FLY[] = {
+    { 0.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f    },  /* locked ¾ pose */
+    { 1.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f    },  /* hold — sell the normal frame */
+    { 4.5f, -16.0f, 15.0f,  0.0f,  0.0f,  4.0f,  0.0f, 0.0f    },  /* pull back+up; LOOK UP → the town flat */
+    { 7.8f, -10.0f, 11.0f, 15.0f,  0.0f,  1.0f,  0.0f, 0.0f    },  /* swing to the side, still high */
+    {10.2f,   3.0f, -3.0f,  5.0f,  0.0f, -0.5f,  0.0f, 0.0f    },  /* dip low toward the window */
+    {12.2f,  16.0f, -2.0f,  1.0f,  9.0f,  0.0f, -7.0f, LD_BACK },  /* fly OUT through the window, look LEFT */
+    {13.6f,  17.0f, -2.0f,  1.0f,  9.0f,  0.0f,  7.0f, LD_BACK },  /* look RIGHT over the theatre flat */
+    {16.0f,   0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 0.0f    },  /* come home to the locked pose */
 };
 #define LD_FLY_N ((int)(sizeof(LD_FLY)/sizeof(LD_FLY[0])))
 
@@ -220,6 +223,12 @@ void light_debug_flyoff(const float current_view[16])
     float sy = (float)sin(g_yaw),   cy = (float)cos(g_yaw);
     g_fly_fwd0[0] = cp * sy; g_fly_fwd0[1] = sp; g_fly_fwd0[2] = cp * cy;
     g_fly_right0[0] = cy; g_fly_right0[1] = 0.0f; g_fly_right0[2] = -sy;  /* horizontal right */
+    /* fwd0 flattened onto the ground plane, normalised → "toward the back of the
+     * room" at eye height (fwd0 itself dives down at this tilted ¾ angle) */
+    { float hx = g_fly_fwd0[0], hz = g_fly_fwd0[2];
+      float hl = (float)sqrt(hx*hx + hz*hz);
+      if (hl > 1e-6f) { g_fly_fwdH[0] = hx/hl; g_fly_fwdH[1] = 0.0f; g_fly_fwdH[2] = hz/hl; }
+      else { g_fly_fwdH[0] = 0.0f; g_fly_fwdH[1] = 0.0f; g_fly_fwdH[2] = 1.0f; } }
     for (int i = 0; i < 3; i++) {
         g_fly_eye0[i]   = g_eye[i];
         g_fly_pivot0[i] = g_eye[i] + g_fly_fwd0[i] * LD_FLY_PIVOT;
@@ -256,11 +265,11 @@ void light_debug_camera_tick(float out_view[16])
         } else {
             g_fly_t += LD_FLY_DT;
             /* find the active keyframe leg and smoothstep across it */
-            float ef, eu, er, lf, lu, lr;
+            float ef, eu, er, lf, lu, lr, bd;
             if (g_fly_t >= LD_FLY[LD_FLY_N-1].t) {
                 const int L = LD_FLY_N-1;
                 ef=LD_FLY[L].ef; eu=LD_FLY[L].eu; er=LD_FLY[L].er;
-                lf=LD_FLY[L].lf; lu=LD_FLY[L].lu; lr=LD_FLY[L].lr;
+                lf=LD_FLY[L].lf; lu=LD_FLY[L].lu; lr=LD_FLY[L].lr; bd=LD_FLY[L].bd;
                 g_fly_on = 0;   /* path complete — hold home; manual resumes here */
             } else {
                 int k = 0;
@@ -268,18 +277,18 @@ void light_debug_camera_tick(float out_view[16])
                 float u = (g_fly_t - LD_FLY[k].t) / (LD_FLY[k+1].t - LD_FLY[k].t);
                 float s = ld_smooth(u);
                 #define LDL(f) (LD_FLY[k].f + s * (LD_FLY[k+1].f - LD_FLY[k].f))
-                ef=LDL(ef); eu=LDL(eu); er=LDL(er); lf=LDL(lf); lu=LDL(lu); lr=LDL(lr);
+                ef=LDL(ef); eu=LDL(eu); er=LDL(er); lf=LDL(lf); lu=LDL(lu); lr=LDL(lr); bd=LDL(bd);
                 #undef LDL
             }
-            /* eye + lookat from the local-frame offsets */
+            /* eye + lookat from the local-frame offsets (bd = horizontal back, both) */
             for (int i = 0; i < 3; i++) {
                 float up = (i==1) ? 1.0f : 0.0f;
-                g_eye[i] = g_fly_eye0[i] + ef*g_fly_fwd0[i] + eu*up + er*g_fly_right0[i];
+                g_eye[i] = g_fly_eye0[i] + ef*g_fly_fwd0[i] + eu*up + er*g_fly_right0[i] + bd*g_fly_fwdH[i];
             }
             float lookat[3];
             for (int i = 0; i < 3; i++) {
                 float up = (i==1) ? 1.0f : 0.0f;
-                lookat[i] = g_fly_pivot0[i] + lf*g_fly_fwd0[i] + lu*up + lr*g_fly_right0[i];
+                lookat[i] = g_fly_pivot0[i] + lf*g_fly_fwd0[i] + lu*up + lr*g_fly_right0[i] + bd*g_fly_fwdH[i];
             }
             float Ff[3] = { lookat[0]-g_eye[0], lookat[1]-g_eye[1], lookat[2]-g_eye[2] };
             float fl = (float)sqrt(Ff[0]*Ff[0]+Ff[1]*Ff[1]+Ff[2]*Ff[2]);
