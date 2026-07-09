@@ -60,8 +60,15 @@ dialogue is up (1-frame iv1_5/iv1_6 clobber hole, port note).
 5. Keep clearing dialogue; iv2_5 (0x0450f411=1) arms the 190-frame "looks up at
    Tear" beat (b924<0xbe), then iv2_6 loads day 2 → the **day-2 morning
    bedroom cutscene** (Recette "Nnmnmmn... Tear...").
-**Result:** day=2, scene=1. Driver: `scratchpad/cascade.py` pattern (poke byte,
-poll done-flag, tap `a` until dlg idle).
+**Result:** day=2 CONFIRMED — after the iv2_5/6 cutscene (day-2 morning bedroom
+scene, reuses the prologue room — advance it fully before judging: it lands in
+the day-2 SHOP with HUD "Day 2"). Driver: `scratchpad/cascade.py` pattern (poke
+byte, poll done-flag, tap `a` until dlg idle).
+**CAVEAT — not economy-neutral:** the poke cascade left **gold 1000→1100** (a
++100 artifact, likely an iv1_8/sale-adjacent side-effect the poke fired without
+a real sale). Fine for reaching day-2 STATE; NOT a clean economy for
+sale/haggle-accuracy work — for that, drive a real sale (open shop + serve a
+customer), don't poke f402.
 **Faithfulness:** exercises the exact dispatcher the real sale would drive; the
 iv1_7/iv1_8 flags (f400/f402) are what the cs-close/cs-leave sale path sets, so
 poking them = "the first customer was served" without the haggle subsystem.
