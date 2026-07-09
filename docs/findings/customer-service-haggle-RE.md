@@ -3648,3 +3648,56 @@ span untouched).  Notes #24/#25 diff panels both **BLACK**.  Raw rng at both not
 (port −487975090/−451704634 == retail), rngcalls delta unchanged (+3520 accepted pre-pin warmup) — the
 reset perturbs nothing.  +0 host-test regressions (3393 pass).  Awaiting the user's click to clear notes
 #24/#25 in the viewer.
+
+## §22 2026-07-10 — FUN_004361b2 price-trend CRACKED + live-validated (the last un-RE'd haggle input; retires PORT-DEBT(cs-price-trend) analysis)
+
+Live-probe harness (openrecet MCP, engine-thread call_function + memory poke) on a
+day-2 shop. FUN_004361b2 = the **daily-NEWS price-trend classifier** (NOT a generic
+"market region table" — it reads the 今日のニュース event list). Ghidra decompile +
+live confirmation.
+
+**Signature:** `int FUN_004361b2(int handle)` — handle = the item handle (b5a4);
+`handle>>6` = item id, `FUN_004681f6(id)` = catalog slot (local_14).
+
+**Early-out = 0 during the tutorial sell:** returns 0 iff `DAT_0438b1c0==1 (INGAME)
+&& *(DAT_068dd2f8 + DAT_0438b4dc*0x1b3c)==0 && DAT_0438cc08==4 && f404[slot]!=0`.
+⇒ the tutorial/first-customer sell has NO trend (why the port never saw it).
+
+**The daily-news list:** per-slot at `&DAT_0450ad68 + slot*0x2dfc8`, **20 entries
+stride 0xc**. Each entry (pcVar5 walks +0xc, local_10 2→0x16), fields relative to
+the anchor `pcVar5` (the trend-char): `[-8]` = target item id (or ≤0 ⇒ category
+match), `[-4]` = **news id** (the gate: `<1` ⇒ skip entry; `==500` ⇒ a debug
+MessageBoxA), `[0]` = **signed trend char** (`'d'`/100 = skip sentinel).
+
+**Match + accumulate:** for an active entry (id≥1), news-def index = `id*0xbc` into
+`DAT_056e0de0`(mask)/`DAT_056e0de4`(sub)/`DAT_056e0de8`(id) [+ two debug text draws
+FUN_00451874 — retail left debug instrumentation IN this fn]. Match is EITHER
+`[-8]==id` (direct item target) OR the news-def attribute mask `DAT_056e0de0[idx]`
+ANDed with the item's category mask `DAT_095d37f8[slot*0xb3]` (nonzero) OR (mask≤0)
+a FUN_0049ef78 predicate. On a match: `local_8 += trend_char`; if any matched
+`trend_char < -1` set `local_c=1`.
+
+**Result:** `local_c ⇒ return -2`; else clamp `local_8` to `[-1,1]` ⇒ return ∈
+**{-2,-1,0,1}**. Feeds `haggle_round0_tilt` (customer_haggle.c): +1 ⇒ work_price
+×(u·0.5+2.0)≈2.0–2.5 (demand markup), −1 ⇒ ×(u·0.1+0.45)≈0.45–0.55, −2 ⇒
+×(u·0.1+0.35)≈0.35–0.45, 0 ⇒ no tilt / no rng draw.
+
+**LIVE VALIDATION (poke the news list, re-call):** empty list ⇒ 0 for all items.
+Poked entry[0] = {[-8]=4 (target item 4), [-4]=1 (news id), [0]=+1} ⇒
+`FUN_004361b2(4<<6)=1`, `FUN_004361b2(8<<6)=0` (unaffected). trend_char=−5 ⇒ **−2**
+(the local_c strong-negative path). Cleared ⇒ 0. Model confirmed exactly.
+
+**Item category mask** = `DAT_095d37f8[slot*0xb3]` (catalog base 095d37d4 + 0x24);
+observed live: row4=0x441 row8=0x41 row12=0x41 row16=0x225 row20=0x4041.
+
+**Remaining to PORT the trend fully:** the news-list POPULATION (who writes
+DAT_0450ad68 each day — the daily-newspaper/event subsystem) + the news-def table
+`DAT_056e0de0` (stride 0xbc) contents. The classifier + factor math are now known.
+The RNG-draw gate (1 unit iff trend≠0) is the load-bearing LCG-count effect the
+stub currently skips.
+
+**Scope correction (verified 2 ways by the model-map sweep):** there is **NO
+closeness/affinity/atmosphere mechanic** in this build — the お得意様度 loyalty
+(driven by 嫌い dislikes) is parsed then DISCARDED (apply_dislikes_noop). Customer
+behavior = kyaku record + work_price + rng + this news-trend. If a live probe ever
+shows a closeness effect, it's a NEW discovery.
