@@ -81,6 +81,13 @@ Walking the character across a room via inputs is slow; these skip it.
   curated snapshot (scene/rng/cc08/player/gold/day/…, see `STATE_SPECS` in the daemon).
 - `call_function` — **engine-thread** call, queued to run at the pre-sim
   input-poll point (never races the sim). va + args + argt (frida types) + ret + abi.
+  **GOTCHA: `argt` is REQUIRED** (e.g. `argt:["int"]` for a 1-int fn) — omitting it
+  builds a 0-arg NativeFunction and the call fails with `err:"not a function"`. Pointer
+  args: pass the VA as an int with `argt:["int"]` (the callee casts) or `["pointer"]`.
+  NB Frida reads/pokes the STATIC-image VA via base-fixup; a `DAT_` that's really a
+  heap/malloc'd buffer (VA far above the image, e.g. the item catalog `DAT_095d3804`)
+  is NOT at its Ghidra VA at runtime — call the in-process accessor instead of reading
+  the VA raw. RNG-seed VA to pin across A/B trials = `DAT_006023a0` (MSVC LCG).
   **Prefer a call/poke over an input ONCE mapped + confirmed it reproduces the
   input's code path** (user directive) — read the decompile / ghidra-mcp, find the
   handler an input dispatches to, call it directly, diff state vs the input path.

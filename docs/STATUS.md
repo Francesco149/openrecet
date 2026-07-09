@@ -51,11 +51,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     apply_dislikes_noop); if such a mechanic exists it's in the UNPORTED roster-scan (customer spawn) — a
     live-probe target, not settled.**
   - **★ NEXT-SESSION TARGETS (revised, ranked):**
-    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`)** — the general customer eligibility/spawn (WHO walks in +
-       WHAT item they want); UNPORTED (port has only the tutorial forced-kyaku-13 + f404 3-deep queue). **THE
-       blocker for an autonomous day.** Live-probe: drive a real day-2 with stock + open shop, watch the
-       roster-scan pick a customer; TEST whether shop decoration/closeness affects WHO spawns (the one place
-       such a mechanic could live). Retail scan = all.c 57474-58212.
+    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`) — MAPPED 2026-07-10 (`findings/roster-scan-RE.md`).** The
+       general customer eligibility/spawn (WHO walks in + WHAT item); UNPORTED (port has only tutorial
+       forced-kyaku-13 + f404 3-deep queue). **THE blocker for an autonomous day.** FUN_0045edaa branch
+       structure + helper deps (FUN_0045e55c weight / FUN_0045e80f item-pick / FUN_0045ecc0 budget /
+       FUN_0045e505 shuffle) + the **DATA-DEPENDENT rng sequence** (100-draw jitter, shuffles of
+       data-dependent length, a 1-100 rng rejection-sample loop) all documented. **★ CLOSENESS/DECORATION
+       QUESTION ANSWERED (code + live):** decoration→WHO via item-preference weight (FUN_0045e55c;
+       live-confirmed tier 0→3 ⇒ weight 0→10) + closeness `DAT_045109a8[kyaku]`→budget (FUN_0045ecc0) &
+       item-quality (FUN_0045e80f) — a REAL mechanic in the spawn/budget layer, NEW vs §22 (which only ruled
+       it out of the haggle *decision*). **NEXT for the port:** capture a GOLDEN REFERENCE (retail scan in a
+       fully-known input state via engine-thread `call_function(FUN_0045edaa)` → rng-draw count + queue/eligible)
+       — the only sound verify given the data-dependent rng; then port 1:1. Open lead: the serve-time
+       `DAT_045109a8` incrementer (indexed store in sale-commit, not in symbol xrefs). Retail scan = all.c 57474-58212.
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
        draw when trend≠0 is a load-bearing LCG-count effect the stub skips).
