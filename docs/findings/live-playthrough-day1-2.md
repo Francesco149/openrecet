@@ -53,9 +53,38 @@ player_st 0x056daafc (6=conv pose) · player_fr 0x056daaf8 · px/py/pz
 0x056da1d8/dc/e0 · gold DAT_044e3798+0xC (0x044e37a4) · day 0x0450fb84 · shoptime
 0x0450fb88.
 
-## Next (to fully close day 1 live)
-Open the shop-arrange UI (walk to a display stand, interact), place the starter
-item, open the shop, serve the tutorial customer (haggle). Then the iv1_x chain
-auto-drives day-advance to day 2. Alternatively — user-endorsed — set the flag
-pairs / call the dispatch directly ONCE each poke is confirmed to reproduce the
-input's code path (ghidra-mcp the handler, diff state vs the input path first).
+## Shop-open mechanic (RE'd from all.c:87617-87632, FUN_00488xxx free-roam ctrl)
+The day-1 loop, exact gates:
+1. **Place an item on a display stand** (→ iv1_5). Near a stand, the interaction
+   system selects a stand cell into **DAT_0438cbfc** (col) / **DAT_0438cc00**
+   (row) via `FUN_004860c8(cbfc,cc00)`. Pressing **A (0x10)** at a selected stand
+   arms the placement (sets DAT_074b2ec4=1), gated on `DAT_0450f3f7[iVar15]==0`.
+   The stand's item slot is `&DAT_044f7030 + (cbfc + cc00*0x14)*4 + iVar15`.
+2. **Open the shop** = **C button (0x40)** while a SELECTED stand HAS an item
+   (`DAT_044f7030[...]!=-1`) AND tutorial gate `DAT_0450f3f2[iVar15]!=0 &&
+   DAT_0450f400[iVar15]==0` AND `DAT_0438cbfc!=-1`. On success:
+   `FUN_0047f1ce(); DAT_0438cc08=0x32; FUN_00468286(); FUN_004681db(2);
+   FUN_00499519();` → cc08=0x32 (shop open for business).
+3. First customer arrives → haggle-sell → cc08 4→1 leave sets f402 → iv1_7/iv1_8
+   → iv2_1/2/3 (**DAY ADVANCE fb84++**) → iv2_5/6 → day 2.
+
+Input edges are read from **DAT_073dddd4** (the pressed-this-frame edge mask,
+derived by the engine from the held mask DAT_073dddd0 that the probe writes):
+bits & 0x10=A, & 0x20=B, & 0x40=C.
+
+## BLOCKER for auto-completion (next-session RE task)
+`DAT_0438cbfc` does NOT arm on `teleport` — it's set by the proximity/facing
+interaction system (FUN_004860c8 + the cc04 walk sub-state), which teleport
+bypasses. To place an item live: WALK Recette into a stand facing it (not
+teleport), watch DAT_0438cbfc go valid, then tap A. Map the stand world coords +
+the arm condition once, save them as waypoints, and the stock→open→sell loop
+becomes scriptable. Alternatively (user-endorsed) call FUN_00488xxx's placement
+path / set the stand slot + iv1_5 flags directly ONCE each poke is confirmed to
+reproduce the input's code path (ghidra-mcp the handler, diff state vs the input).
+
+## Harness status (2026-07-09)
+Validated live end-to-end: title nav → new game → full prologue cutscene → day-1
+shop free-roam. Working: button input (faithful mask path), movement, pause menu,
+teleport (collider-clamped), set_facing, set_gold, move_to/waypoints, anchor
+stream, memory read/poke, screenshots, no-focus preview window. The 2-day
+playthrough is gated only on the shop-stocking interaction above.
