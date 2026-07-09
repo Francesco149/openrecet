@@ -239,6 +239,33 @@ def tool_esc(_):
     return [_text(json.dumps(dsend({"cmd": "esc"})))]
 
 
+def tool_where(_):
+    r = dsend({"cmd": "where"})
+    return [_text(f"player at x={r.get('x')} z={r.get('z')}")]
+
+
+def tool_move_to(args):
+    """Walk to a world (x,z) target or a named waypoint, with rudimentary
+    collider-aware wiggling. x/z are the player-position plane (left/right=X,
+    up/down=Z)."""
+    req = {"cmd": "goto", "tol": args.get("tol", 0.35),
+           "max_iter": args.get("max_iter", 120)}
+    if "name" in args:
+        req["name"] = args["name"]
+    else:
+        req["x"], req["z"] = args["x"], args["z"]
+    r = dsend({**req}, timeout=120)
+    return [_text(json.dumps(r))]
+
+
+def tool_waypoint(args):
+    """Record the current position as a named waypoint (action=set) or list all."""
+    if args.get("action") == "set":
+        return [_text(json.dumps(dsend({"cmd": "waypoint", "action": "set",
+                                        "name": args["name"]})))]
+    return [_text(json.dumps(dsend({"cmd": "waypoint"}), indent=2))]
+
+
 def tool_wait(args):
     return [_text(json.dumps(dsend({"cmd": "sleep",
                                     "ms": int(args.get("ms", 500))})))]
@@ -323,6 +350,22 @@ TOOLS = [
          "frames": {"type": "integer"}}, "required": ["direction"]}, tool_walk),
     ("esc", "Press ESC (keyboard path — pause menu / skip cutscene event).",
      {"type": "object", "properties": {}}, tool_esc),
+    ("where", "Player world position (x,z plane). left/right move X, up/down move Z.",
+     {"type": "object", "properties": {}}, tool_where),
+    ("move_to", "Walk to a world (x,z) target OR a named waypoint, with rudimentary "
+     "collider-aware wiggling (greedy walk toward it, slides along walls when stuck). "
+     "Returns reached + the path taken. Use `where` / screenshots to pick targets and "
+     "`waypoint` to remember spots (counter, display stands).",
+     {"type": "object", "properties": {
+         "x": {"type": "number"}, "z": {"type": "number"},
+         "name": {"type": "string", "description": "a saved waypoint name (instead of x/z)"},
+         "tol": {"type": "number", "description": "arrival tolerance (default 0.35)"},
+         "max_iter": {"type": "integer"}}}, tool_move_to),
+    ("waypoint", "action=set records the current position under `name`; omit action "
+     "to list all saved waypoints.",
+     {"type": "object", "properties": {
+         "action": {"type": "string", "enum": ["set", "list"]},
+         "name": {"type": "string"}}}, tool_waypoint),
     ("wait", "Let the game run for a real wall-clock interval (ms). Use between "
      "actions so dialogue/animation/loads advance before you screenshot.",
      {"type": "object", "properties": {"ms": {"type": "integer"}}}, tool_wait),

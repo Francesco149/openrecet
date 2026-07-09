@@ -296,6 +296,95 @@ class ProbeDaemon:
             self.script.exports_sync.probe_hold(m)
         return {"ok": True, "mask": m, "frames": frames}
 
+    # ── navigation (world px/pz plane) ──────────────────────────────────────
+    # Movement axis mapping (measured live): left/right = -/+ player X
+    # (DAT_056da1d8), up/down = -/+ player Z (DAT_056da1e0). py is height (~0).
+    PX_VA, PZ_VA = 0x056DA1D8, 0x056DA1E0
+
+    def _pos(self):
+        x = self.script.exports_sync.probe_read(self.PX_VA, "f32")
+        z = self.script.exports_sync.probe_read(self.PZ_VA, "f32")
+        return x, z
+
+    @staticmethod
+    def _dir_mask(dx, dz, dead):
+        """8-way button mask toward (dx,dz). left/right=-/+X, up/down=-/+Z."""
+        m = 0
+        if dx > dead:
+            m |= BTN["right"]
+        elif dx < -dead:
+            m |= BTN["left"]
+        if dz > dead:
+            m |= BTN["down"]
+        elif dz < -dead:
+            m |= BTN["up"]
+        return m
+
+    def _goto(self, tx, tz, tol=0.35, max_iter=120, step=4):
+        """Rudimentary collider-aware walk to world (tx,tz): greedy 8-way toward
+        the target; on a stall (position not advancing) try single-axis slides
+        (X-only, then Z-only) to slide along a wall, then give up. Not a real
+        path planner — a "walk toward it and wiggle past obstacles" heuristic."""
+        x0, z0 = self._pos()
+        path = [(round(x0, 2), round(z0, 2))]
+        stuck = 0
+        mode = 0   # 0=diagonal(greedy) 1=X-only slide 2=Z-only slide
+        for it in range(max_iter):
+            x, z = self._pos()
+            dx, dz = tx - x, tz - z
+            dist = (dx * dx + dz * dz) ** 0.5
+            if dist <= tol:
+                self.script.exports_sync.probe_release()
+                return {"ok": True, "reached": True, "iters": it,
+                        "pos": [round(x, 2), round(z, 2)], "dist": round(dist, 3),
+                        "path": path}
+            if mode == 0:
+                m = self._dir_mask(dx, dz, tol * 0.5)
+            elif mode == 1:
+                m = self._dir_mask(dx, 0, tol * 0.5)
+            else:
+                m = self._dir_mask(0, dz, tol * 0.5)
+            if m == 0:
+                m = self._dir_mask(dx, dz, 0)   # within deadzone on one axis
+            self.script.exports_sync.probe_hold_for(m, step + 2)
+            time.sleep(step * 0.02 + 0.06)
+            nx, nz = self._pos()
+            moved = ((nx - x) ** 2 + (nz - z) ** 2) ** 0.5
+            if (round(nx, 2), round(nz, 2)) != path[-1]:
+                path.append((round(nx, 2), round(nz, 2)))
+            if moved < 0.02:
+                stuck += 1
+                if stuck >= 2:
+                    mode = (mode + 1) % 3   # rotate slide strategy
+                    stuck = 0
+            else:
+                stuck = 0
+                mode = 0
+        self.script.exports_sync.probe_release()
+        x, z = self._pos()
+        return {"ok": True, "reached": False, "iters": max_iter,
+                "pos": [round(x, 2), round(z, 2)],
+                "dist": round(((tx - x) ** 2 + (tz - z) ** 2) ** 0.5, 3),
+                "path": path}
+
+    # Named waypoints (per-run, persisted). Record current pos → name, recall
+    # by name. Lets the agent build up a map of the shop as it explores.
+    def _waypoints_path(self):
+        return self.run_dir / "waypoints.json"
+
+    def _waypoints(self):
+        p = self._waypoints_path()
+        if p.exists():
+            return json.loads(p.read_text())
+        return {}
+
+    def _waypoint_set(self, name):
+        wps = self._waypoints()
+        x, z = self._pos()
+        wps[name] = [round(x, 3), round(z, 3)]
+        self._waypoints_path().write_text(json.dumps(wps, indent=2))
+        return {"ok": True, "name": name, "pos": wps[name]}
+
     # ── screenshot ───────────────────────────────────────────────────────
     def _shot(self, path=None, timeout=3.0):
         got = None
@@ -418,14 +507,40 @@ class ProbeDaemon:
             if cmd == "release":
                 x.probe_release()
                 return {"ok": True}
+            if cmd == "where":
+                px, pz = self._pos()
+                return {"ok": True, "x": round(px, 3), "z": round(pz, 3)}
+            if cmd == "goto":
+                if "name" in req:
+                    wps = self._waypoints()
+                    if req["name"] not in wps:
+                        return {"ok": False, "err": f"no waypoint {req['name']!r}",
+                                "known": list(wps)}
+                    tx, tz = wps[req["name"]]
+                else:
+                    tx, tz = float(req["x"]), float(req["z"])
+                return self._goto(tx, tz, float(req.get("tol", 0.35)),
+                                  int(req.get("max_iter", 120)),
+                                  int(req.get("step", 4)))
+            if cmd == "waypoint":
+                if req.get("action") == "set":
+                    return self._waypoint_set(req["name"])
+                return {"ok": True, "waypoints": self._waypoints()}
             if cmd == "esc":
                 x.probe_esc()
                 return {"ok": True}
             if cmd == "input":            # who owns the mask (interactive toggle)
                 on = bool(req["active"])  # active=True → probe owns (human LOCKED)
                 x.probe_activate(on)
+                # Handing control to the human → drop turbo to 1× so the game is
+                # playable in real time; re-locking to the probe → restore turbo.
+                # Opt out with {"keep_turbo": true}.
+                turbo = None
+                if not req.get("keep_turbo"):
+                    turbo = x.probe_set_turbo(on)   # human(off)→1×, probe(on)→turbo
                 return {"ok": True, "probe_active": on,
-                        "human_input": "locked" if on else "enabled"}
+                        "human_input": "locked" if on else "enabled",
+                        "turbo": turbo}
             if cmd == "turbo":
                 return {"ok": True, "turbo": x.probe_set_turbo(bool(req["on"]))}
             if cmd == "audio":

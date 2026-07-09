@@ -72,6 +72,15 @@ def main(argv):
     elif cmd in ("input", "turbo", "audio"):
         val = a[0].lower() in ("on", "1", "true", "yes")
         req["active" if cmd == "input" else "on"] = val
+    elif cmd == "goto":
+        if a and not a[0].replace("-", "").replace(".", "").isdigit():
+            req["name"] = a[0]           # goto <waypoint-name>
+        else:
+            req["x"], req["z"] = float(a[0]), float(a[1])   # goto X Z
+    elif cmd == "waypoint":
+        if a and a[0] == "set":
+            req["action"] = "set"
+            req["name"] = a[1]
     elif cmd == "anchors":
         req["clear"] = "--clear" in a
     elif cmd == "shot" and a:
