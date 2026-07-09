@@ -321,14 +321,17 @@ class ProbeDaemon:
         return m
 
     def _goto(self, tx, tz, tol=0.35, max_iter=120, step=4):
-        """Rudimentary collider-aware walk to world (tx,tz): greedy 8-way toward
-        the target; on a stall (position not advancing) try single-axis slides
-        (X-only, then Z-only) to slide along a wall, then give up. Not a real
-        path planner — a "walk toward it and wiggle past obstacles" heuristic."""
-        x0, z0 = self._pos()
-        path = [(round(x0, 2), round(z0, 2))]
-        stuck = 0
-        mode = 0   # 0=diagonal(greedy) 1=X-only slide 2=Z-only slide
+        """Rudimentary collider-aware walk to world (tx,tz). Greedy 8-way toward
+        the target with an ADAPTIVE step (in turbo one long hold overshoots by
+        ~1 unit, so shrink the hold to 1 frame within ~1.5 units to fine-home).
+        On a stall try single-axis slides (X-only, Z-only) to slide along a wall.
+        Stops at the CLOSEST point reached if it can't improve (oscillation / a
+        collider between us and an unreachable target). Not a real path planner."""
+        x, z = self._pos()
+        path = [(round(x, 2), round(z, 2))]
+        best = (x - tx) ** 2 + (z - tz) ** 2
+        no_improve = 0
+        mode = 0   # 0=diagonal 1=X-only slide 2=Z-only slide
         for it in range(max_iter):
             x, z = self._pos()
             dx, dz = tx - x, tz - z
@@ -338,34 +341,40 @@ class ProbeDaemon:
                 return {"ok": True, "reached": True, "iters": it,
                         "pos": [round(x, 2), round(z, 2)], "dist": round(dist, 3),
                         "path": path}
+            # Adaptive hold length: far → long strides, near → single frames so
+            # we don't blow past the tolerance band.
+            s = 1 if dist < 1.5 else (3 if dist < 4 else step + 2)
+            dead = tol * 0.4
             if mode == 0:
-                m = self._dir_mask(dx, dz, tol * 0.5)
+                m = self._dir_mask(dx, dz, dead)
             elif mode == 1:
-                m = self._dir_mask(dx, 0, tol * 0.5)
+                m = self._dir_mask(dx, 0, dead)
             else:
-                m = self._dir_mask(0, dz, tol * 0.5)
+                m = self._dir_mask(0, dz, dead)
             if m == 0:
-                m = self._dir_mask(dx, dz, 0)   # within deadzone on one axis
-            self.script.exports_sync.probe_hold_for(m, step + 2)
-            time.sleep(step * 0.02 + 0.06)
+                m = self._dir_mask(dx, dz, 0)
+            self.script.exports_sync.probe_hold_for(m, s)
+            time.sleep(s * 0.02 + 0.05)
             nx, nz = self._pos()
-            moved = ((nx - x) ** 2 + (nz - z) ** 2) ** 0.5
             if (round(nx, 2), round(nz, 2)) != path[-1]:
                 path.append((round(nx, 2), round(nz, 2)))
-            if moved < 0.02:
-                stuck += 1
-                if stuck >= 2:
-                    mode = (mode + 1) % 3   # rotate slide strategy
-                    stuck = 0
-            else:
-                stuck = 0
+            d2 = (nx - tx) ** 2 + (nz - tz) ** 2
+            if d2 < best - 1e-4:
+                best = d2
+                no_improve = 0
                 mode = 0
+            else:
+                no_improve += 1
+                if no_improve == 3:
+                    mode = (mode + 1) % 3          # try sliding along a wall
+                elif no_improve >= 8:
+                    break                           # can't get closer — give up
         self.script.exports_sync.probe_release()
         x, z = self._pos()
-        return {"ok": True, "reached": False, "iters": max_iter,
+        return {"ok": True, "reached": False, "iters": it + 1,
                 "pos": [round(x, 2), round(z, 2)],
                 "dist": round(((tx - x) ** 2 + (tz - z) ** 2) ** 0.5, 3),
-                "path": path}
+                "closest_dist": round(best ** 0.5, 3), "path": path}
 
     # Named waypoints (per-run, persisted). Record current pos → name, recall
     # by name. Lets the agent build up a map of the shop as it explores.
