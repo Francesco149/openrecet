@@ -1,4 +1,5 @@
 {
+  "_note": "ghidra runs as a shared HTTP daemon (systemd --user ghidra-openrecet.service on :8200) so concurrent Claude sessions don't fight over the single-writer .gpr lock. See slopstudio docs/INFRA.md. Start/status: systemctl --user status ghidra-openrecet",
   "mcpServers": {
     "openrecet": {
       "type": "stdio",
@@ -7,11 +8,8 @@
       "env": {}
     },
     "ghidra": {
-      "type": "stdio",
-      "command": "nix",
-      "args": ["develop", "/opt/src/openrecet", "--command", "bash",
-               "/opt/src/openrecet/tools/ghidra-mcp.sh"],
-      "env": {}
+      "type": "http",
+      "url": "http://127.0.0.1:8200/mcp"
     }
   }
 }
