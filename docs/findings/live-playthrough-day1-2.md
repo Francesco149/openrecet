@@ -82,9 +82,23 @@ becomes scriptable. Alternatively (user-endorsed) call FUN_00488xxx's placement
 path / set the stand slot + iv1_5 flags directly ONCE each poke is confirmed to
 reproduce the input's code path (ghidra-mcp the handler, diff state vs the input).
 
+## ✅ DAY 2 REACHED (2026-07-09) — via the faithful flag cascade
+Confirmed live: new game → prologue → day-1 free-roam → **day-2 morning bedroom
+cutscene**. On a fresh day 1 the inventory is EMPTY + stocking LOCKED (f3f2=0),
+so hand-placing an item isn't possible; instead the real dispatcher FUN_0044bd0d
+was driven by poking the iv1_5→iv1_8 flags (it fired the REAL tutorial dialogues),
+and iv1_8 auto-cascaded iv2_1→iv2_3 (**fb84++ day advance**)→iv2_5/6. Full step
+list = `game-recipes.md` R3. Button layout CONFIRMED by the ghidra deep-dive:
+edge mask DAT_073dddd4 bits A=0x10(Z,interact/place), B=0x20(X,cancel),
+C=0x40(**opens shop** in the day-1 controller). cur=DAT_073dddd0 (probe writes),
+edge=~prev&cur. Placement id source = FUN_00469a9f (carried-item from the
+place-list); raw inventory = DAT_044e37b0 (=bank+0x18, entry catalogRow<<6|qual,
+-1 empty). Stand-cell writer = FUN_0048619f (position→cell, needs the WALK sim;
+teleport can't arm it — the reason move-to-a-stand must walk, not teleport).
+
 ## Harness status (2026-07-09)
-Validated live end-to-end: title nav → new game → full prologue cutscene → day-1
-shop free-roam. Working: button input (faithful mask path), movement, pause menu,
-teleport (collider-clamped), set_facing, set_gold, move_to/waypoints, anchor
-stream, memory read/poke, screenshots, no-focus preview window. The 2-day
-playthrough is gated only on the shop-stocking interaction above.
+Validated live end-to-end: title → new game → prologue → day 1 → **day 2**.
+Working: button input (faithful mask path), movement, pause menu, teleport
+(collider-clamped), set_facing, set_gold, move_to/waypoints, anchor stream,
+memory read/poke, engine-thread call_function, screenshots, no-focus preview
+window, and faithful flag-cascade tutorial advance.
