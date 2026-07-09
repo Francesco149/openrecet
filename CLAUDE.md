@@ -34,12 +34,26 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
      max-thinking for decomp/parity.
   4. **Persist conclusions tersely** so future-me READS not RE-DERIVES (cross-session
      reasoning-compression — the real payoff of terse docs).
+- **LIVE-PROBE HARNESS + Ghidra MCP (2026-07-09) — scout live BEFORE baking a trace.**
+  Two MCPs now wired (`.mcp.json`): **`openrecet`** drives ONE persistent live retail
+  (spawn/attach via Frida, button-mask input on the faithful DInput write-path,
+  memory read/poke, ENGINE-THREAD function calls, screenshots, anchor stream, no-focus
+  preview window with human input LOCKED-by-default/toggleable) — `launch` then
+  screenshot/game_state/press/hold/walk/esc/poke_memory/call_function/anchors/set_interactive.
+  **`ghidra`** = pyghidra-mcp over the analyzed project (decompile/xrefs/data-types/call-graphs
+  on demand — query, don't grep all.c). Full how-to: **`docs/live-probe-harness.md`**. Use the
+  live harness to **explore ahead** of a trace (what does retail DO here, discover the anchor+rng
+  sequence for a NEW scenario, confirm a poke/call reproduces an input's code path), then bake the
+  settled finding into a deterministic `tests/scenarios/` trace. **Prefer a mapped engine
+  call/poke over a synthetic input ONCE ghidra+live confirm it hits the same code path** (user
+  directive). Deterministic trace stays the FOUNDATION; the live harness is the SCOUT.
 - **THE PORTING LOOP (default workflow — do this yourself, DON'T guess, DON'T ask for
   what a trace can show). User directive 2026-06-13:**
   1. **SYNTHESIZE a trace** that reproduces the exact behaviour (record/edit a scenario;
      `tests/scenarios/`, F2/F3 recorder, or hand-edit the input TAS — e.g. press ESC
      *later* so the 3D scene is actually rendered when the menu opens). The behaviour you
-     want to port must be ON SCREEN in the capture.
+     want to port must be ON SCREEN in the capture. (Scout the behaviour LIVE first via the
+     `openrecet` MCP when it's not yet in a trace — see the live-probe bullet above.)
   2. **ANALYZE** with the v3 tools to pinpoint the EXACT retail behaviour: the **d3d
      program** (`orv3_window … --launch` viewer, `orv3_draws` per-draw tex/state/RT,
      `orv3_shot` headless frame/draw render), the **call graph + game-state flow**

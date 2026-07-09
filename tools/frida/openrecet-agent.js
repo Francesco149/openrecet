@@ -1736,9 +1736,16 @@ function installPresentHook(devicePtr) {
             // whole-trace replay can be sampled at a transfer-feasible rate over
             // remote Frida (each frame ships ~3 MB of RGBA). stride<=1 = every
             // frame. Explicit g_capture_pending frames always capture.
-            const want = !suppress && (g_capture_pending.has(fn) ||
+            // Live-probe on-demand shot / stream (probe daemon): capture at
+            // the NEXT Present regardless of frame number. Bypasses the
+            // load-suppression gate on purpose — a probe shot of a loading
+            // screen is a legitimate "what's on screen right now" answer.
+            const probeWant = g_probe_shot > 0 ||
+                (g_probe_stream_every > 0 &&
+                 (fn % g_probe_stream_every) === 0);
+            const want = probeWant || (!suppress && (g_capture_pending.has(fn) ||
                 (g_capture_all && (g_capture_stride <= 1 ||
-                                   (fn % g_capture_stride) === 0)));
+                                   (fn % g_capture_stride) === 0))));
             if (want) {
                 // Read the watched sim-state HERE (Present onEnter, post-render)
                 // so the screenshot carries its own atomic state label. The
@@ -1759,6 +1766,7 @@ function installPresentHook(devicePtr) {
                 } catch (e) {
                     err('Present.onEnter', e.message + ' @ ' + e.stack);
                 }
+                if (g_probe_shot > 0) g_probe_shot--;
                 g_capture_pending.delete(fn);
                 // Anchor-relative captures share g_capture_pending; clear
                 // the resolved-target bookkeeping too so the shutdown check
@@ -1982,13 +1990,35 @@ function installInputHook() {
             try {
                 const fn = frameNo();
 
+                // ── live-probe (probe daemon) hooks — run FIRST, pre-sim ──
+                // force_active: re-assert the engine tick gate every poll so
+                // a user click-away (WM_ACTIVATE deactivate on the visible
+                // no-activate preview window) can't park the engine in
+                // WaitMessage mid-session.
+                if (g_probe_force_active) {
+                    try { rva(ADDR.var_pause_flag).writeU32(1); }
+                    catch (e) { /* pre-window boot — gate not mapped yet */ }
+                }
+                // Engine-thread call queue: probeEnqueueCall RPCs park here
+                // and run at THIS pre-sim point (the same slot segtrace ops
+                // fire in), so a queued engine call can never race the sim.
+                if (g_probe_calls.length > 0) {
+                    probeRunQueuedCalls();
+                }
+
                 // Injection (optional). Advance the monotonic cursor
                 // through every trace entry with frame <= fn; the last
                 // such mask is the sticky value to apply. If the
                 // engine ran multiple ticks between Presents (shouldn't
                 // — input_poll is called once per tick — but defensive)
                 // this still picks the most-recent applicable entry.
-                if (g_segtrace_active) {
+                // The live-probe branch OWNS the mask while probe_active
+                // (input lock: real keyboard/pad state is overwritten
+                // post-poll — toggling probe_active off restores the
+                // user's interactive input).
+                if (g_probe_active) {
+                    rva(ADDR.var_input_mask).writeU16(probeMaskTick());
+                } else if (g_segtrace_active) {
                     // Anchor-segmented forcing (supersedes auto_z_spam).
                     // segtraceTick rebases on the live anchor stream so the
                     // logical trace lands identically despite load jitter.
@@ -2072,10 +2102,17 @@ function installInputHook() {
                 }
 
                 const mask = rva(ADDR.var_input_mask).readU16();
-                send({kind: 'input_state',
-                      t_ms: nowMs(),
-                      frame: fn,
-                      buttons: mask});
+                // Long-lived probe sessions dedup the per-frame input_state
+                // stream (change-points only — hours of idle would otherwise
+                // pump 60 msg/s at the daemon); capture runs keep the dense
+                // per-frame stream the recorder/distiller expect.
+                if (!g_probe_mode || mask !== g_probe_last_input_sent) {
+                    g_probe_last_input_sent = mask;
+                    send({kind: 'input_state',
+                          t_ms: nowMs(),
+                          frame: fn,
+                          buttons: mask});
+                }
 
                 if (g_watch.length || g_rng_count) {
                     const vals = {};
@@ -2160,8 +2197,11 @@ function installEscRecordHook() {
 // ─── window-hide hook ───────────────────────────────────────────────────
 
 // SW_HIDE = 0 per WinUser.h. Documented value, hardcoded everywhere
-// from MSVC's CRT to the SDK.
+// from MSVC's CRT to the SDK. SW_SHOWNOACTIVATE = 4 shows the window
+// WITHOUT activating it — the live-probe preview seat: the user can watch
+// the agent drive the game but focus never leaves their foreground app.
 const SW_HIDE = 0;
+const SW_SHOWNOACTIVATE = 4;
 
 function installShowWindowHook() {
     // Frida 17.x removed the legacy Module.findExportByName(name, export)
@@ -2189,19 +2229,27 @@ function installShowWindowHook() {
             g_show_window_handled = true;
 
             const originalCmd = args[1].toInt32();
-            args[1] = ptr(SW_HIDE);
+            const subCmd = g_hide_window ? SW_HIDE : SW_SHOWNOACTIVATE;
+            args[1] = ptr(subCmd);
 
             // Compensate for the WM_ACTIVATE that the engine would
             // normally use to flip its pause flag to 1. Without this
             // write the engine sits in WaitMessage forever (all.c
             // line 79001 gates the tick on DAT_073dfca0 != 0).
+            // Needed for BOTH modes: SW_HIDE never activates, and
+            // SW_SHOWNOACTIVATE by definition doesn't either. (Probe
+            // mode additionally re-forces it every input_poll via
+            // force_active, so a later user click-away can't freeze
+            // the engine when it delivers WM_ACTIVATE(deactivate).)
             try {
                 rva(ADDR.var_pause_flag).writeU32(1);
             } catch (e) {
                 err('installShowWindowHook/pause-flag', e.message);
             }
             send({kind: 'log',
-                  msg: 'ShowWindow(SW_HIDE) substituted (was nCmdShow=' +
+                  msg: 'ShowWindow(' +
+                       (g_hide_window ? 'SW_HIDE' : 'SW_SHOWNOACTIVATE') +
+                       ') substituted (was nCmdShow=' +
                        originalCmd + '); var_pause_flag forced to 1'});
         },
     });
@@ -2419,7 +2467,11 @@ function installSilentAudioFromPath(audiopathPtr) {
             // Clamp to -10000 = absolute silence. Engine's fade animation
             // still runs and still calls SetVolume normally; we just
             // swallow the magnitude before it reaches DirectMusic.
-            args[1] = ptr(-10000);
+            // Conditional so the live-probe daemon can toggle audio at
+            // runtime (probeSetSilentAudio): the clamp takes effect on the
+            // NEXT SetVolume call (SEs immediately, BGM on the next
+            // track-change/fade).
+            if (g_silent_audio_enabled) args[1] = ptr(-10000);
         },
     });
 
@@ -5605,6 +5657,147 @@ function captureFadeCentibel(slider) {
 
 // ─── rpc surface ────────────────────────────────────────────────────────
 
+// ─── live-probe layer (tools/probe_daemon.py) ────────────────────────────
+//
+// The persistent-session substrate: a probe daemon spawns retail ONCE, keeps
+// this agent alive, and drives the game interactively — synthetic input via
+// the same var_input_mask write path the TAS uses (identical code path to a
+// real player's DInput poll), on-demand screenshots, typed memory reads/pokes,
+// and engine-thread function calls. Mirrors OpenLords2's probe layer; the
+// input story is simpler here (button mask, no mouse).
+//
+// Ownership model: while g_probe_active the probe queue OWNS the input mask
+// (real keyboard/pad is overwritten post-poll = interactive input LOCKED).
+// probeActivate(false) hands the game back to the human. The daemon
+// bootstraps via an input_segtrace when it wants a known state first — probe
+// stays inactive until the segtrace is done, then the daemon flips it on.
+
+let g_probe_mode         = false;  // init flag: probe niceties (dedup input_state, clock stub)
+let g_probe_active       = false;  // probe owns the input mask (input lock)
+let g_probe_force_active = false;  // re-assert var_pause_flag=1 every poll
+let g_probe_hold         = 0;      // sticky held mask (walking etc.)
+let g_probe_queue        = [];     // [{mask, n}] — n input-polls each, FIFO
+let g_probe_shot         = 0;      // capture at the next N Presents
+let g_probe_stream_every = 0;      // >0: capture every Nth Present (recording)
+let g_probe_calls        = [];     // queued engine-thread calls
+let g_probe_call_id      = 0;
+let g_probe_last_input_sent = -1;  // input_state change-point dedup
+let g_show_noactivate    = false;  // preview window: show without activation
+
+// Probe clock: fn_clock_ms is ALWAYS replaced in probe mode so turbo can
+// toggle at runtime. Continuity offsets keep the returned u32 ms monotonic
+// across toggles (a backwards clock jump would confuse the engine's frame
+// pacing; forward jumps read as one long frame — harmless).
+let g_probe_clock_epoch  = 0;      // Date.now() at install (real-ms base)
+let g_probe_clock_toff   = 0;      // turbo-mode continuity offset
+let g_probe_clock_roff   = 0;      // real-mode continuity offset
+let g_probe_clock_last   = 0;      // last value handed to the engine
+
+function installProbeClockHooks() {
+    g_probe_clock_epoch = Date.now();
+    g_turbo_clock_cb = new NativeCallback(function () {
+        let v;
+        if (g_turbo_enabled) {
+            v = (g_virtual_now_ms + g_probe_clock_toff) >>> 0;
+        } else {
+            v = ((Date.now() - g_probe_clock_epoch) + g_probe_clock_roff) >>> 0;
+        }
+        g_probe_clock_last = v;
+        return v;
+    }, 'uint32', []);
+    Interceptor.replace(rva(ADDR.fn_clock_ms), g_turbo_clock_cb);
+    Interceptor.attach(rva(ADDR.fn_tick), {
+        onEnter: function () {
+            g_virtual_now_ms = (g_virtual_now_ms + g_turbo_step_ms) >>> 0;
+        },
+    });
+    log('probe clock installed (turbo=' + g_turbo_enabled +
+        ', step_ms=' + g_turbo_step_ms + ')');
+}
+
+function probeSetTurboImpl(on) {
+    on = !!on;
+    if (on === g_turbo_enabled) return g_turbo_enabled;
+    if (on) {
+        g_probe_clock_toff =
+            (g_probe_clock_last - g_virtual_now_ms) >>> 0;
+    } else {
+        g_probe_clock_roff =
+            (g_probe_clock_last - (Date.now() - g_probe_clock_epoch)) >>> 0;
+    }
+    g_turbo_enabled = on;
+    log('probe: turbo ' + (on ? 'ON' : 'OFF') +
+        ' (clock continuity @ ' + g_probe_clock_last + 'ms)');
+    return g_turbo_enabled;
+}
+
+// One input-poll tick of probe input: front of the tap queue OR'd over the
+// sticky hold. Timing is frame-exact (one queue step per engine input poll).
+function probeMaskTick() {
+    let m = g_probe_hold & 0xffff;
+    if (g_probe_queue.length > 0) {
+        const e = g_probe_queue[0];
+        m |= (e.mask & 0xffff);
+        if (--e.n <= 0) g_probe_queue.shift();
+    }
+    return m;
+}
+
+// Run every queued engine call at the pre-sim input_poll point (engine
+// thread — the ONLY safe place to call sim-touching engine functions; a
+// call from the frida RPC thread would race the running sim). Results go
+// back as {kind:'call_result'} messages keyed by id.
+function probeRunQueuedCalls() {
+    while (g_probe_calls.length > 0) {
+        const c = g_probe_calls.shift();
+        let ret = null, error = null;
+        try {
+            const argt = c.argt || [];
+            const fn = new NativeFunction(rva(c.va), c.ret || 'int32',
+                                          argt, c.abi || 'mscdecl');
+            const argv = (c.args || []).map(function (a, i) {
+                return (argt[i] === 'pointer') ? ptr(a) : a;
+            });
+            ret = fn.apply(null, argv);
+            if (ret instanceof NativePointer) ret = ret.toString();
+        } catch (e) {
+            error = e.message;
+        }
+        send({kind: 'call_result', id: c.id, ret: ret, err: error,
+              frame: frameNo()});
+    }
+}
+
+// Typed single-value read at a Ghidra VA (probe daemon's read/reads/state).
+function probeReadTyped(va, type) {
+    const p = rva(va);
+    switch (type) {
+        case 'u8':  return p.readU8();
+        case 'i8':  return p.readS8();
+        case 'u16': return p.readU16();
+        case 'i16': return p.readS16();
+        case 'u32': return p.readU32();
+        case 'f32': return p.readFloat();
+        case 'f64': return p.readDouble();
+        case 'ptr': return p.readPointer().toString();
+        default:    return p.readS32();   // 'i32'/'s32'
+    }
+}
+
+function probeWriteTyped(va, type, val) {
+    const p = rva(va);
+    switch (type) {
+        case 'u8':  p.writeU8(val & 0xff); break;
+        case 'i8':  p.writeS8(val | 0); break;
+        case 'u16': p.writeU16(val & 0xffff); break;
+        case 'i16': p.writeS16(val | 0); break;
+        case 'u32': p.writeU32(val >>> 0); break;
+        case 'f32': p.writeFloat(+val); break;
+        case 'f64': p.writeDouble(+val); break;
+        default:    p.writeS32(val | 0); break;
+    }
+}
+
 rpc.exports = {
     init: function (config) {
         config = config || {};
@@ -5725,6 +5918,19 @@ rpc.exports = {
         g_virtual_now_ms = 0;
         g_silent_audio_enabled = !!config.silent_audio;
         g_silent_audio_hooked  = false;
+
+        // Live-probe mode (tools/probe_daemon.py). probe_mode arms the
+        // runtime-toggleable clock stub + input_state dedup + the always-on
+        // silent-audio clamp hook (conditional, so audio can toggle live).
+        // probe_active decides who owns the input mask from boot; the
+        // daemon usually passes true unless bootstrapping via a segtrace.
+        g_probe_mode         = !!config.probe_mode;
+        g_probe_active       = !!config.probe_active;
+        g_probe_force_active = !!config.force_active;
+        g_show_noactivate    = !!config.show_window_noactivate;
+        g_probe_hold = 0; g_probe_queue = []; g_probe_shot = 0;
+        g_probe_stream_every = 0; g_probe_calls = [];
+        g_probe_last_input_sent = -1;
 
         // FPS overlay: hidden by default for clean comparisons; show_fps
         // re-enables it (matches the port's --show-fps / capture-default-hide).
@@ -6053,18 +6259,23 @@ rpc.exports = {
                                     'aborting capture (would be half-pinned)');
                 }
             }
-            // Window-hide hook needs to install BEFORE resume so it can
-            // intercept the engine's first ShowWindow call. Same lifetime
-            // as the other capture-side hooks.
-            if (g_hide_window) {
+            // Window-hide/noactivate hook needs to install BEFORE resume so
+            // it can intercept the engine's first ShowWindow call. Same
+            // lifetime as the other capture-side hooks.
+            if (g_hide_window || g_show_noactivate) {
                 installShowWindowHook();
             }
             // Turbo + silent-audio. Both install pre-resume so they
             // catch the very first dispatcher entry / audio_init exit.
-            if (g_turbo_enabled) {
+            // Probe mode installs the runtime-toggleable clock stub
+            // INSTEAD of the fixed turbo hooks (same fn_clock_ms replace +
+            // fn_tick attach — never install both).
+            if (g_probe_mode) {
+                installProbeClockHooks();
+            } else if (g_turbo_enabled) {
                 installTurboHooks();
             }
-            if (g_silent_audio_enabled) {
+            if (g_silent_audio_enabled || g_probe_mode) {
                 installSilentAudioHook();
             }
             // FPS overlay hide — NOP FUN_004523e6 so retail captures match
@@ -6365,6 +6576,140 @@ rpc.exports = {
         ensureBase();
         const fn = new NativeFunction(rva(va), 'uint32', []);
         return fn();
+    },
+
+    // ── live-probe surface (tools/probe_daemon.py) ──
+    // NB frida-python converts snake_case RPC names to camelCase — all
+    // exports here must be camelCase (see the note above queueCapture).
+
+    // Who owns the input mask: true = probe queue (real input locked),
+    // false = the human at the keyboard.
+    probeActivate: function (on) {
+        g_probe_active = !!on;
+        return g_probe_active;
+    },
+
+    // Queue a tap: `mask` held for `press` polls, then released for `gap`
+    // polls, `repeat` times. Frame-exact (one queue step per input poll).
+    probeTap: function (mask, press, gap, repeat) {
+        press = (press | 0) || 2;
+        gap = (gap | 0) || 2;
+        repeat = (repeat | 0) || 1;
+        for (let i = 0; i < repeat; i++) {
+            g_probe_queue.push({mask: mask & 0xffff, n: press});
+            g_probe_queue.push({mask: 0, n: gap});
+        }
+        return g_probe_queue.length;
+    },
+
+    // Sticky hold OR'd under the tap queue (walking + tapping compose).
+    probeHold: function (mask) {
+        g_probe_hold = mask & 0xffff;
+        return g_probe_hold;
+    },
+
+    // Hold `mask` for exactly `n` polls (a timed walk), via the queue.
+    probeHoldFor: function (mask, n) {
+        g_probe_queue.push({mask: mask & 0xffff, n: (n | 0) || 1});
+        return g_probe_queue.length;
+    },
+
+    probeRelease: function () {
+        g_probe_hold = 0;
+        g_probe_queue = [];
+        return true;
+    },
+
+    // Synthesize a real WndProc ESC (the keyboard-only skip/pause path —
+    // ESC is NOT in the DInput mask).
+    probeEsc: function () {
+        synthesizeEscRetail();
+        return true;
+    },
+
+    probeShot: function (n) {
+        g_probe_shot += (n | 0) || 1;
+        return g_probe_shot;
+    },
+
+    probeStream: function (every) {
+        g_probe_stream_every = every | 0;
+        return g_probe_stream_every;
+    },
+
+    probeSetTurbo: function (on) {
+        return probeSetTurboImpl(on);
+    },
+
+    probeSetSilentAudio: function (on) {
+        g_silent_audio_enabled = !!on;
+        return g_silent_audio_enabled;
+    },
+
+    probeRead: function (va, type) {
+        ensureBase();
+        return probeReadTyped(va | 0, type || 'i32');
+    },
+
+    // Batched typed reads: [{name, va, type}] → {name: value}. One RPC
+    // round-trip for a whole curated state snapshot.
+    probeReads: function (specs) {
+        ensureBase();
+        const out = {};
+        for (let i = 0; i < specs.length; i++) {
+            const s = specs[i];
+            try { out[s.name] = probeReadTyped(s.va | 0, s.type || 'i32'); }
+            catch (e) { out[s.name] = null; }
+        }
+        return out;
+    },
+
+    probePoke: function (va, type, val) {
+        ensureBase();
+        probeWriteTyped(va | 0, type || 'i32', val);
+        return true;
+    },
+
+    probePokeBytes: function (va, bytes) {
+        ensureBase();
+        const buf = Memory.alloc(bytes.length);
+        buf.writeByteArray(bytes);
+        Memory.copy(rva(va | 0), buf, bytes.length);
+        return bytes.length;
+    },
+
+    // Enqueue an engine-thread function call (runs at the next pre-sim
+    // input_poll — the safe slot). Result arrives as a {kind:'call_result'}
+    // message keyed by the returned id. argt: frida NativeFunction types
+    // (['int','pointer',...]); abi: 'mscdecl'|'stdcall'|'thiscall'|'fastcall'.
+    probeEnqueueCall: function (va, args, argt, ret, abi) {
+        ensureBase();
+        const id = ++g_probe_call_id;
+        g_probe_calls.push({id: id, va: va | 0, args: args || [],
+                            argt: argt || [], ret: ret || 'int32',
+                            abi: abi || 'mscdecl'});
+        return id;
+    },
+
+    probeStatus: function () {
+        let seg = null;
+        if (g_segtrace_active) {
+            seg = {seg: g_segtrace_seg, total: g_segtrace_segments.length,
+                   done: g_segtrace_seg >= g_segtrace_segments.length};
+        }
+        return {
+            frame: frameNo(),
+            probe_active: g_probe_active,
+            turbo: g_turbo_enabled,
+            silent_audio: g_silent_audio_enabled,
+            hold: g_probe_hold,
+            queue_len: g_probe_queue.length,
+            calls_pending: g_probe_calls.length,
+            shots_pending: g_probe_shot,
+            stream_every: g_probe_stream_every,
+            segtrace: seg,
+            base: g_base ? g_base.toString() : null,
+        };
     },
 
     // ── Phase D differential-test RPCs ──

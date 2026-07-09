@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "openrecet": {
+      "type": "stdio",
+      "command": "/home/headpats/.local/state/openrecet/mcp-python/bin/python3",
+      "args": ["/opt/src/openrecet/tools/openrecet_mcp.py"],
+      "env": {}
+    },
+    "ghidra": {
+      "type": "stdio",
+      "command": "nix",
+      "args": ["develop", "/opt/src/openrecet", "--command", "bash",
+               "/opt/src/openrecet/tools/ghidra-mcp.sh"],
+      "env": {}
+    }
+  }
+}
