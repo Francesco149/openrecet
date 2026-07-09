@@ -376,6 +376,47 @@ class ProbeDaemon:
                 "dist": round(((tx - x) ** 2 + (tz - z) ** 2) ** 0.5, 3),
                 "closest_dist": round(best ** 0.5, 3), "path": path}
 
+    # ── cheats (direct state pokes — bypass gameplay for the driving agent) ──
+    # Teleport instantly (poke the actor-0 position; render + logic read it
+    # directly, per findings/conversation-pose-driver + scene1_shop_walker.c:779).
+    PLAYER_Y_VA = 0x056DA1DC
+    FACING_VA   = 0x056DB05C   # s_player_facing world angle (radians)
+    STICKY_VA   = 0x056DAE3C   # diagonal-snap sticky bias
+    GOLD_VA     = WORKING_BANK + 3 * 4
+    # 8 compass facings → world angle (radians). Calibrated to idle +pi/2 = down
+    # (toward camera, octant 6). CCW by pi/4 per step around the px/pz plane.
+    import math as _math
+    FACING_DIR = {
+        "down": _math.pi / 2, "downleft": 3 * _math.pi / 4, "left": _math.pi,
+        "upleft": -3 * _math.pi / 4, "up": -_math.pi / 2, "upright": -_math.pi / 4,
+        "right": 0.0, "downright": _math.pi / 4,
+    }
+
+    def _teleport(self, x, z, y=None):
+        x = float(x); z = float(z)
+        self.script.exports_sync.probe_poke(self.PX_VA, "f32", x)
+        self.script.exports_sync.probe_poke(self.PZ_VA, "f32", z)
+        if y is not None:
+            self.script.exports_sync.probe_poke(self.PLAYER_Y_VA, "f32", float(y))
+        nx, nz = self._pos()
+        return {"ok": True, "pos": [round(nx, 3), round(nz, 3)]}
+
+    def _set_facing(self, spec):
+        if isinstance(spec, (int, float)) and not isinstance(spec, bool):
+            ang = float(spec)
+            name = None
+        else:
+            name = str(spec).lower()
+            if name not in self.FACING_DIR:
+                return {"ok": False, "err": f"dir {name!r} not in {list(self.FACING_DIR)}"}
+            ang = self.FACING_DIR[name]
+        self.script.exports_sync.probe_poke(self.FACING_VA, "f32", ang)
+        return {"ok": True, "facing": name or ang, "angle_rad": round(ang, 4)}
+
+    def _set_gold(self, n):
+        self.script.exports_sync.probe_poke(self.GOLD_VA, "i32", int(n))
+        return {"ok": True, "gold": int(n)}
+
     # Named waypoints (per-run, persisted). Record current pos → name, recall
     # by name. Lets the agent build up a map of the shop as it explores.
     def _waypoints_path(self):
@@ -535,6 +576,18 @@ class ProbeDaemon:
                 if req.get("action") == "set":
                     return self._waypoint_set(req["name"])
                 return {"ok": True, "waypoints": self._waypoints()}
+            if cmd == "teleport":
+                if "name" in req:
+                    wps = self._waypoints()
+                    if req["name"] not in wps:
+                        return {"ok": False, "err": f"no waypoint {req['name']!r}"}
+                    tx, tz = wps[req["name"]]
+                    return self._teleport(tx, tz)
+                return self._teleport(req["x"], req["z"], req.get("y"))
+            if cmd == "face":
+                return self._set_facing(req["dir"])
+            if cmd == "setgold":
+                return self._set_gold(req["gold"])
             if cmd == "esc":
                 x.probe_esc()
                 return {"ok": True}

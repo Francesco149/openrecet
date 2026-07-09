@@ -266,6 +266,30 @@ def tool_waypoint(args):
     return [_text(json.dumps(dsend({"cmd": "waypoint"}), indent=2))]
 
 
+def tool_teleport(args):
+    """CHEAT: instantly move the player to (x,z) or a waypoint — pokes the actor
+    position directly, bypassing colliders and walk time."""
+    req = {"cmd": "teleport"}
+    if "name" in args:
+        req["name"] = args["name"]
+    else:
+        req["x"], req["z"] = args["x"], args["z"]
+        if "y" in args:
+            req["y"] = args["y"]
+    return [_text(json.dumps(dsend(req)))]
+
+
+def tool_set_facing(args):
+    """CHEAT: force the player's facing. dir = a compass name (up/down/left/right/
+    upleft/upright/downleft/downright) or an angle in radians."""
+    return [_text(json.dumps(dsend({"cmd": "face", "dir": args["dir"]})))]
+
+
+def tool_set_gold(args):
+    """CHEAT: set the player's gold (pix)."""
+    return [_text(json.dumps(dsend({"cmd": "setgold", "gold": args["gold"]})))]
+
+
 def tool_wait(args):
     return [_text(json.dumps(dsend({"cmd": "sleep",
                                     "ms": int(args.get("ms", 500))})))]
@@ -366,6 +390,19 @@ TOOLS = [
      {"type": "object", "properties": {
          "action": {"type": "string", "enum": ["set", "list"]},
          "name": {"type": "string"}}}, tool_waypoint),
+    ("teleport", "CHEAT: instantly move the player to (x,z) or a named waypoint "
+     "(pokes the actor position — bypasses colliders + walk time). Far faster than "
+     "move_to when you know the destination.",
+     {"type": "object", "properties": {
+         "x": {"type": "number"}, "z": {"type": "number"}, "y": {"type": "number"},
+         "name": {"type": "string"}}}, tool_teleport),
+    ("set_facing", "CHEAT: force the player's facing direction. dir = a compass name "
+     "(up/down/left/right/upleft/upright/downleft/downright) or an angle (radians).",
+     {"type": "object", "properties": {"dir": {"type": ["string", "number"]}},
+      "required": ["dir"]}, tool_set_facing),
+    ("set_gold", "CHEAT: set the player's gold (pix).",
+     {"type": "object", "properties": {"gold": {"type": "integer"}},
+      "required": ["gold"]}, tool_set_gold),
     ("wait", "Let the game run for a real wall-clock interval (ms). Use between "
      "actions so dialogue/animation/loads advance before you screenshot.",
      {"type": "object", "properties": {"ms": {"type": "integer"}}}, tool_wait),

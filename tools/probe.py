@@ -81,6 +81,15 @@ def main(argv):
         if a and a[0] == "set":
             req["action"] = "set"
             req["name"] = a[1]
+    elif cmd == "teleport":
+        if a and not a[0].replace("-", "").replace(".", "").isdigit():
+            req["name"] = a[0]
+        else:
+            req["x"], req["z"] = float(a[0]), float(a[1])
+    elif cmd == "face":
+        req["dir"] = a[0]
+    elif cmd == "setgold":
+        req["gold"] = int(a[0])
     elif cmd == "anchors":
         req["clear"] = "--clear" in a
     elif cmd == "shot" and a:

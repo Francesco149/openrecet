@@ -56,6 +56,25 @@ WndProc `WM_KEYDOWN VK_ESCAPE` (skip/pause path).
   (one queue step per input poll).
 - `hold` = sticky mask OR'd under the queue (walk + tap compose). `walk` = timed hold.
 
+## Navigation + cheats (fast driving)
+Walking the character across a room via inputs is slow; these skip it.
+- `where` → player world pos (x,z). Axes: left/right = -/+X (DAT_056da1d8),
+  up/down = -/+Z (DAT_056da1e0), py≈0.
+- `move_to{x,z|name}` — greedy walk toward a target with adaptive step +
+  collider wiggling; stops at the closest reachable point. `waypoint set <name>`
+  records the current spot (build a map: counter, stands); `move_to{name}` recalls.
+- **CHEATS** (direct pokes — instant, for the driving agent):
+  - `teleport{x,z|name}` — poke the actor position (0x056da1d8/e0). Instant,
+    bypasses colliders + walk time; the physics still CLAMPS to the playable
+    bounds next tick (out-of-room targets snap to the nearest valid spot).
+  - `set_facing{dir}` — force facing (poke DAT_056db05c world angle). Compass
+    name (up/down/left/right/diagonals) or radians. idle +pi/2 = down/toward camera.
+  - `set_gold{n}` — set pix (working bank 0x044e37a4).
+  - (Dungeon combat cheats — godmode/instakill — TODO once we reach a dungeon and
+    map the HP/enemy VAs; the LLM can't fight in real time.)
+- Handing to the human: `set_interactive{enabled:true}` unlocks input AND drops
+  turbo to 1× (playable); re-locking restores turbo. `set_turbo` toggles alone.
+
 ## Memory + engine calls
 - `read_memory` / `poke_memory` — typed (u8/i16/i32/f32/f64/ptr) at a **Ghidra
   VA** (agent translates to load base; ImageBase 0x400000). `read_state` = the
