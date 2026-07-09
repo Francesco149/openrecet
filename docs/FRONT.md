@@ -14,7 +14,46 @@
   (derived) — FRONT only carries debts NOT yet tagged in src/.
 -->
 <!-- FRONT:BEGIN -->
-- **▶ ACTIVE ARC — DAY2 day-transition RENDER gaps (the 5 the DAY2 pixel-confirm surfaced; finding
+- **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a
+  real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
+  faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,
+  teleport/set_facing/set_gold cheats, move_to/waypoint nav, no-focus preview window w/ human input
+  locked-by-default) + the **`ghidra` MCP** (pyghidra-mcp), both in `.mcp.json`. How-to
+  `docs/live-probe-harness.md`; reusable **recipes** `docs/findings/game-recipes.md` (R1 title→shop, R3
+  day1→day2 flag-cascade); day1-2 RE `docs/findings/live-playthrough-day1-2.md`. Reached day-2 live (via a
+  faithful iv1_5→iv2_3 tutorial-flag cascade through the REAL dispatcher FUN_0044bd0d) — **NB not economy-clean:
+  +100g artifact + the day-2 morning bedroom cutscene was likely a flag-skip artifact, not the genuine opening;
+  for accuracy work drive a real sale, don't poke f402.**
+  - **Haggle deep-dive (findings `customer-service-haggle-RE.md` §22 + the full model-map):** the decision math
+    (haggle_decide ±0.5%/±5% bands, per-round offer evolution, budget ceiling, all 16 kyaku fields) is ALREADY
+    disasm-exact + host-tested + ported — **NOT a probe target.** **CRACKED + live-validated (poke the news
+    list, re-call): `FUN_004361b2` = the daily-NEWS price-trend classifier** — `DAT_0450ad68` 20-entry news
+    list (stride 0xc `{target_id:-8,news_id:-4,trend_char:0}`) → `{-2,-1,0,1}` → `haggle_round0_tilt`
+    ×2.0/×0.45/×0.35; returns 0 during the tutorial sell (f404 set). **Scope correction (verified 2 ways):
+    NO closeness/affinity/atmosphere feeds the haggle DECISION (お得意様度 loyalty parsed-then-DISCARDED,
+    apply_dislikes_noop); if such a mechanic exists it's in the UNPORTED roster-scan (customer spawn) — a
+    live-probe target, not settled.**
+  - **★ NEXT-SESSION TARGETS (revised, ranked):**
+    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`)** — the general customer eligibility/spawn (WHO walks in +
+       WHAT item they want); UNPORTED (port has only the tutorial forced-kyaku-13 + f404 3-deep queue). **THE
+       blocker for an autonomous day.** Live-probe: drive a real day-2 with stock + open shop, watch the
+       roster-scan pick a customer; TEST whether shop decoration/closeness affects WHO spawns (the one place
+       such a mechanic could live). Retail scan = all.c 57474-58212.
+    2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
+       (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
+       draw when trend≠0 is a load-bearing LCG-count effect the stub skips).
+    3. **Live sell-machine tuning (`PORT-DEBT(cs-shop-stock)`)** — the DISCARDED `cs_accept_eval` like-count
+       +5/+2/+1 deltas + sold-streak pushback/patience; drive a REAL (non-tutorial, `b51c=0`) customer haggle
+       to characterize. The live machine `cs_live_machine` (FUN_004658ab) is ported but decides accept/reject
+       on raw `offer>=ask` (customer_service.c:1684 `(void)cs_accept_eval()`).
+  - **Tooling ready:** `tools/haggle_probe.py` (live haggle monitor/poker — reads b590/b574/b584/b588/ask/base/
+    b5a8/…), `tools/openrecet_mcp.py`, `tools/probe_daemon.py`, `tools/probe.py`. **Get into a live haggle:**
+    either stock+open (walk—not teleport—onto a stand to arm cbfc via FUN_0048619f, `press a` place, **C** open,
+    customer approaches) OR force it (findings §5: cc08=4, b51c=0, b5a8=2, b56c, b5a4=id<<6, b534=6/0xf, b1cc=1).
+    A daemon may be left running (detached) on a flag-hacked day-2 — `probe.py quit` + relaunch clean, or MCP
+    `launch` (it detects a live daemon). Valid stock item: catalog row 4 = 200pix (handle id<<6); tutorial
+    bread handle 0x3ea00, sword 0xc0.
+- **▶ PRIOR ARC — DAY2 day-transition RENDER gaps (the 5 the DAY2 pixel-confirm surfaced; finding
   `cutscene-replay-anchor-drift.md` §2026-07-03-later).** The Residual-B beat is Δ0 but the anchor-match
   MASKED unported day-1→day-2 RENDER. Progress:
   - **✅ #2 HUD day-counter** (`c63ee20`): live-read `g_hud_day` from `working[CARD_DAY]` each INGAME
