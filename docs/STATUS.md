@@ -60,10 +60,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
        QUESTION ANSWERED (code + live):** decoration→WHO via item-preference weight (FUN_0045e55c;
        live-confirmed tier 0→3 ⇒ weight 0→10) + closeness `DAT_045109a8[kyaku]`→budget (FUN_0045ecc0) &
        item-quality (FUN_0045e80f) — a REAL mechanic in the spawn/budget layer, NEW vs §22 (which only ruled
-       it out of the haggle *decision*). **NEXT for the port:** capture a GOLDEN REFERENCE (retail scan in a
-       fully-known input state via engine-thread `call_function(FUN_0045edaa)` → rng-draw count + queue/eligible)
-       — the only sound verify given the data-dependent rng; then port 1:1. Open lead: the serve-time
-       `DAT_045109a8` incrementer (indexed store in sale-commit, not in symbol xrefs). Retail scan = all.c 57474-58212.
+       it out of the haggle *decision*). **✅ GOLDEN REFERENCE CAPTURED** (`tools/roster_scan_capture.py` +
+       `findings/data/roster-golden-day1.json`): retail scan output for a 6-seed sweep w/ RECOVERED rng-draw
+       counts (134-176, the data-dependent-rng gate) — count/eligible/queue(kyaku,item_slot,kind) per seed;
+       diff+single-poke arena restore (a BULK 188KB write races the sim → crash); +daemon readmem/writemem cmds.
+       **✅ DATA READY:** the port ALREADY models the full kyaku record (`tables_kyaku.h`: like_attr_mask/
+       like_count/like_kinds/budget_low-high) + item categories (`tables_item.h`) — no new data-loader needed;
+       the helpers are portable NOW. **NEXT (the actual port, a large arc):** port helpers (FUN_0045e55c weight
+       / e80f item-pick / ecc0 budget / e505 shuffle) + the 300-line scan into customer_service.c, RNG-exact;
+       verify via a `--target both` trace on a real shop-open day (golden JSON = cross-check). Open lead: the
+       serve-time `DAT_045109a8` incrementer (indexed store in sale-commit, not in symbol xrefs). Scan = all.c 57474-58212.
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
        draw when trend≠0 is a load-bearing LCG-count effect the stub skips).
