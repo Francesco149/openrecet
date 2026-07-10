@@ -23,6 +23,18 @@ static void run_parse(const char *literal, size_t size, struct oder_table *out)
     tables_parse_oder((const unsigned char *)literal, size, out);
 }
 
+/* Toy category resolver: "Treasures" → 7, "Rings" → 12, else -1.  Mirrors
+ * resolve_via_item_category (exact singular match, \0/\r/\n terminated). */
+static int32_t toy_cat_resolve(const char *name, void *user)
+{
+    (void)user;
+    if (strncmp(name, "Treasures", 9) == 0 &&
+        (name[9] == '\0' || name[9] == '\r' || name[9] == '\n')) return 7;
+    if (strncmp(name, "Rings", 5) == 0 &&
+        (name[5] == '\0' || name[5] == '\r' || name[5] == '\n')) return 12;
+    return -1;
+}
+
 int test_tables_oder_empty(void)
 {
     struct oder_table tbl;
@@ -50,6 +62,37 @@ int test_tables_oder_one_record(void)
     T_ASSERT_EQ_U(tbl.entries[0].attr_mask, 0);
     T_ASSERT_EQ_I(tbl.entries[0].attr_index, -1);
     T_ASSERT_EQ_I(tbl.entries[0].level_minus_1, 0);  /* LV:1 -> 1-1=0 */
+    return 0;
+}
+
+int test_tables_oder_resolved_category(void)
+{
+    /* With a resolver injected, a category-named (mask==0) oder gets its
+     * attr_index set; SJIS-attribute oders (mask!=0) stay -1; unknown
+     * category names stay -1. (M2a' — load-bearing for roster_pick_item.) */
+    const char input[] =
+        "LV:1\r\n"
+        "a treasure,treasures,Treasures\r\n"   /* mask 0 → resolve 7 */
+        "a sword,swords,\x95\x90\x8a\xed\r\n"   /* 武器 → mask!=0, idx stays -1 */
+        "a ring,rings,Unknowns\r\n";            /* mask 0, unknown → -1 */
+
+    struct oder_table tbl;
+    tables_parse_oder_resolved((const unsigned char *)input, sizeof input - 1,
+                               &tbl, toy_cat_resolve, NULL);
+
+    T_ASSERT_EQ_I(tbl.count, 3);
+    T_ASSERT_EQ_U(tbl.entries[0].attr_mask, 0);
+    T_ASSERT_EQ_I(tbl.entries[0].attr_index, 7);      /* resolved */
+    T_ASSERT(tbl.entries[1].attr_mask != 0);
+    T_ASSERT_EQ_I(tbl.entries[1].attr_index, -1);     /* mask!=0 → not resolved */
+    T_ASSERT_EQ_U(tbl.entries[2].attr_mask, 0);
+    T_ASSERT_EQ_I(tbl.entries[2].attr_index, -1);     /* unknown name → -1 */
+
+    /* NULL resolver ⇒ the plain path leaves every attr_index at -1. */
+    struct oder_table tbl2;
+    tables_parse_oder_resolved((const unsigned char *)input, sizeof input - 1,
+                               &tbl2, NULL, NULL);
+    T_ASSERT_EQ_I(tbl2.entries[0].attr_index, -1);
     return 0;
 }
 

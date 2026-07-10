@@ -114,6 +114,7 @@ struct test_case {
     \
     X(tables_oder_empty) \
     X(tables_oder_one_record) \
+    X(tables_oder_resolved_category) \
     X(tables_oder_level_threads_through) \
     X(tables_oder_sjis_attrs_all_16) \
     X(tables_oder_english_attr_falls_through) \

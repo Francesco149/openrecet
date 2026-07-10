@@ -91,6 +91,26 @@ void tables_parse_oder(const unsigned char *data, size_t size,
                        struct oder_table *out);
 
 /*
+ * Category-name → category-id resolver callback (same shape as
+ * kyaku_resolve_fn).  When an oder's attribute token is NOT one of the
+ * 16 SJIS attribute tags, `oder_attr_hash` returns 0 and the engine
+ * falls back to a linear search of the item-category name table
+ * (&DAT_0963e5f8) — the same lookup kyaku.txt's `好き種類:` uses.  The
+ * resolved category id lands in `attr_index` (the scan matches it
+ * against kyaku like_kinds / the news target).  Returns the id (>=0) or
+ * -1 on miss.  Only invoked when attr_mask == 0. */
+typedef int32_t (*oder_resolve_fn)(const char *name, void *user);
+
+/*
+ * Resolver-injecting variant.  Identical to tables_parse_oder except an
+ * oder whose attr_mask hashes to 0 has its `attr_index` set from
+ * `resolve(attr, user)`.  `resolve` may be NULL (⇒ attr_index stays -1,
+ * i.e. the plain tables_parse_oder behaviour). */
+void tables_parse_oder_resolved(const unsigned char *data, size_t size,
+                                struct oder_table *out,
+                                oder_resolve_fn resolve, void *user);
+
+/*
  * Compute the 4-byte SJIS attribute bitmask. Mirrors FUN_0049e9a7 —
  * memcmps the first 4 bytes of `s` against 16 .data SJIS tags and
  * returns the bit (1u << N) of the last matching one, or 0 if none

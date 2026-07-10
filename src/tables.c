@@ -321,22 +321,25 @@ static void load_buysell_txt(void)
 }
 /* oder.txt — ported. Real parser in src/tables_oder.c. The engine's
  * fallback name-table lookup (DAT_0963e5f8, populated by item.txt) is
- * intentionally skipped here — see docs/formats/data-text.md. */
+ * wired via resolve_via_item_category (item.txt loads first, L625) so
+ * category-named oders get attr_index — load-bearing for the roster
+ * scan's oder-match RNG (roster_pick_item). */
 static void load_oder_txt(void)
 {
     unsigned char *buf;
     size_t sz = load_via_storage("data/oder.txt", &buf);
     if (sz == 0) return;
-    tables_parse_oder(buf, sz, &g_oder);
-    int max_lv = 0;
+    tables_parse_oder_resolved(buf, sz, &g_oder, resolve_via_item_category, &g_item);
+    int max_lv = 0, resolved = 0;
     for (int i = 0; i < g_oder.count; i++) {
         int lv = g_oder.entries[i].level_minus_1 + 1;
         if (lv > max_lv) max_lv = lv;
+        if (g_oder.entries[i].attr_index >= 0) resolved++;
     }
     fprintf(stderr,
             "tables: data/oder.txt — %zu bytes "
-            "(orders=%d max_lv=%d)\n",
-            sz, g_oder.count, max_lv);
+            "(orders=%d max_lv=%d attr_index_resolved=%d)\n",
+            sz, g_oder.count, max_lv, resolved);
     free(buf);
 }
 /* model.txt — ported. Real parser in src/tables_model.c. */

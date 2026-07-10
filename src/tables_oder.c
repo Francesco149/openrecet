@@ -96,7 +96,8 @@ uint32_t oder_attr_hash(const char *s)
 /* Inner data-row parser. `line` excludes the \r/\n terminator;
  * `llen` is its length. Writes one entry into `out`. */
 static void parse_data_line(const char *line, size_t llen,
-                            struct oder_entry *out, int pending_level)
+                            struct oder_entry *out, int pending_level,
+                            oder_resolve_fn resolve, void *user)
 {
     memset(out, 0, sizeof *out);
     out->attr_index = -1;
@@ -149,12 +150,24 @@ static void parse_data_line(const char *line, size_t llen,
     attr[attr_len] = '\0';
 
     out->attr_mask = oder_attr_hash(attr);
-    /* attr_index stays -1: the engine's fallback name-table lookup
-     * (block #3 / item.txt) isn't ported yet. */
+    /* When the token isn't an attribute tag (mask==0) the engine resolves
+     * it as an item-CATEGORY name (&DAT_0963e5f8); mirror that via the
+     * injected resolver.  NULL resolver ⇒ attr_index stays -1. */
+    if (out->attr_mask == 0 && resolve != NULL) {
+        int32_t cat = resolve(attr, user);
+        if (cat >= 0) out->attr_index = cat;
+    }
 }
 
 void tables_parse_oder(const unsigned char *data, size_t size,
                        struct oder_table *out)
+{
+    tables_parse_oder_resolved(data, size, out, NULL, NULL);
+}
+
+void tables_parse_oder_resolved(const unsigned char *data, size_t size,
+                                struct oder_table *out,
+                                oder_resolve_fn resolve, void *user)
 {
     memset(out, 0, sizeof *out);
 
@@ -205,7 +218,7 @@ void tables_parse_oder(const unsigned char *data, size_t size,
          * exceed ODER_MAX_ENTRIES (engine has no such guard). */
         if (out->count >= ODER_MAX_ENTRIES) continue;
         parse_data_line(line, llen, &out->entries[out->count],
-                        pending_level);
+                        pending_level, resolve, user);
         out->count++;
     }
 }
