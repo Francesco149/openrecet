@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 490,
-  "unported": 1973,
+  "ported": 493,
+  "unported": 1970,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 575,
-  "pct_touched": 22.6,
+  "touched": 578,
+  "pct_touched": 22.7,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -1014,8 +1014,11 @@
    "size": 214,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x40a765",
@@ -4830,8 +4833,11 @@
    "size": 50,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x45e55c",
@@ -4839,8 +4845,11 @@
    "size": 290,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x45e67e",
@@ -4931,9 +4940,11 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_roster.h",
     "src/customer_service.c",
     "src/customer_service.h",
     "src/npc_schedule.h",
+    "src/save_bank.h",
     "src/scene1_player_ctrl.c"
    ]
   },
@@ -8302,7 +8313,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/customer_roster.h",
     "src/customer_service.c",
+    "src/save_bank.h",
     "src/scene1_player_ctrl.c"
    ]
   },
@@ -23000,6 +23013,7 @@
    "status": "ported",
    "src": [
     "src/customer_haggle.h",
+    "src/customer_roster.c",
     "src/customer_service.c",
     "src/diff_entry.c",
     "src/diff_entry.h",

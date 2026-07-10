@@ -430,6 +430,14 @@ struct test_case {
     X(haggle_offer_up_tutorial_override) \
     X(haggle_offer_down_round0_invariants) \
     X(haggle_offer_down_special_vendor_x5) \
+    X(roster_shuffle_draw_count_and_permutation) \
+    X(roster_shuffle_matches_hand_trace) \
+    X(roster_dist_band_thresholds) \
+    X(roster_dist_band_diagonal) \
+    X(roster_customer_weight_scoring_and_front_bonus) \
+    X(roster_customer_weight_tier_multiplier) \
+    X(roster_centroid_decoration_seed) \
+    X(roster_centroid_item_nudge_and_clamp) \
     X(cs_session_init_tutorial_queue) \
     X(cs_session_init_draws_exactly_one_rng) \
     X(cs_session_init_reentry_rebuilds) \

@@ -124,6 +124,43 @@ host test the port also needs the read-only deps (kyaku-def records `DAT_06a5ea9
 50×0x2c670, item catalog `DAT_095d3804`) loaded — a data-loading prerequisite for
 the port, separate from the algorithm.
 
+## ★ OBJDUMP CORRECTIONS (2026-07-10) — Ghidra dropped real logic (gotcha #1)
+Verified against `objdump` of `vendor/unpacked/recettear.unpacked.exe`. The Ghidra
+decompile is WRONG on two helpers; the binary values below are authoritative.
+- **FUN_0045e55c tier scaling** — decompile shows a bogus argless `local_8 = __ftol()`;
+  the asm (0x45e643-53) is a per-tier f32 MULTIPLY: `w = ftol((float)w * DAT_005c6bd0[tier])`
+  BEFORE the flat +3/+6/+10. `DAT_005c6bd0` (f32 @0x5c6bd0) = **{1.0, 6/7=0.857142866,
+  2/3=0.666666687, 3/7=0.428571433}** (idx 0 unused, guarded tier>0). ⇒ `weight = ftol(base·
+  mult[tier]) + {0,3,6,10}[tier]`. Front-row ×3 applies to row0 cols {1,2,3,4,11,12,13}
+  (DAT_005c6be0).
+- **FUN_0040a68f is a BAND CLASSIFIER, not a distance** — the decompile folded the band map
+  into the callers. Real: `dist=(float)sqrt(dx²+dy²)` (dx=b4b8-px, dy=b4bc-py; skips sqrt if
+  d2≤0 ⇒ dist=0), then f32 thresholds (rodata) → return: `dist<1.153846→4, <3.461999→3,
+  <9.230769→2, <12.692307→1, ≤15.0→0, >15.0→-1`.
+- **FUN_0048439a (centroid, PORT-DEBT A3, was UNPORTED)** — produces DAT_0438b4b8/bc that
+  a68f reads. `X = Σ deco_table[sel].x + Σ item-attr nudges` (0x200→+, 0x400→- on X;
+  0x4000→+, 0x8000→- on Y; step 3 if item_id∈3000..3099 else 1), clamp ±0xd. 4 deco coord
+  tables (rodata, {y@+0,x@+4} pairs): floor@0x5ccf4c(15)←sel DAT_04510580(dw 0xb37a),
+  wall@0x5ccfc4(15)←0451057c(0xb379), carpet@0x5cd03c(8)←04510588(0xb37c),
+  table@0x5cd07c(8)←04510584(0xb37b). Contents baked into `src/customer_roster.c`.
+- **news-def DAT_056e0de0** = news record base(0x56e0d44)+0x9c ⇒ scan's de0+{0,4,8,0xc} map
+  1:1 to the port's `news_record_t {attr_mask@0x9c, category@0xa0, item_id@0xa4,
+  target_group@0xa8}` (g_news, already loaded). NO new news loader needed.
+- **item/request pool DAT_06a5dbd8** (stride 0x13 dw, count DAT_06a5d448) — built at
+  table-load (all.c ~75269-75348, inside FUN_00475270) from a token list; entry
+  {attr@[0], id/cat@[1], quality-tier-idx@[2], …, category@[0x11]}. **Port lacks this
+  table entirely** — a prerequisite for FUN_0045e80f + the scan's news/queue-fill blocks.
+  Quality thresholds DAT_005c6c00 = {0,3,10,17,22}. range cols DAT_005c6c14={1,2,3,4,11,12,13}.
+- FUN_005038ff/FUN_00451874 = debug-text sprintf+tile-draw ("%2d "); NO rng/state ⇒ stubbable.
+
+## Port status (customer_roster.c / .h — 2026-07-10)
+PORTED + host-tested (tests/test_customer_roster.c) + objdump-exact: **e55c weight, a68f band,
+e505 shuffle, 0048439a centroid** + save_bank consts (closeness 0xb484, news-list 0x9d74,
+news-latch 0xb778, sched 0xa97e, deco 0xb379-c). PENDING (need the item-pool loader / scan
+context): **e80f item-pick, e6e0 event-state, ed12 range-gate, the 740-line scan body, +the
+port-side golden-replay verify harness.** e6e0/ed12 decoded (ed12 = row-0 ONLY, index-mismatch
+quirk: guard cell=grid[list[k]] but item=grid[k] — replicate faithfully).
+
 ## Live harness notes (reusable)
 - RNG seed VA = **DAT_006023a0** (MSVC LCG `s=s*0x343fd+0x269ec3; return s>>16 &0x7fff`). Poke to
   pin the seed across A/B trials.

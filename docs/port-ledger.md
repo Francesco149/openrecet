@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **575** (22.6%) — verified 72, stubbed 13, ported 490
-- unported: **1973**
+- touched: **578** (22.7%) — verified 72, stubbed 13, ported 493
+- unported: **1970**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (72) — runtime-diffed vs retail
@@ -109,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (490) — reimplemented, no probe yet
+## ported (493) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -142,6 +142,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c, scene1_top_hud.c |
+| 0x40a68f | FUN_0040a68f | 214 | ✓ | customer_roster.c, customer_roster.h |
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ | main.c |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
 | 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
@@ -287,10 +288,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
+| 0x45e505 | FUN_0045e505 | 50 | ✓ | customer_roster.c, customer_roster.h |
+| 0x45e55c | FUN_0045e55c | 290 | ✓ | customer_roster.c, customer_roster.h |
 | 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, esc_dispatch.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
-| 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_service.c, customer_service.h, npc_schedule.h (+1) |
+| 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_roster.h, customer_service.c, customer_service.h (+3) |
 | 0x45ff11 | FUN_0045ff11 | 32 | ✓ | customer_service.c |
 | 0x45ff31 | FUN_0045ff31 | 249 | ✓ | customer_service.c |
 | 0x46002a | FUN_0046002a | 89 | ✓ | customer_service.c |
@@ -465,7 +468,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
 | 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+4) |
 | 0x483e7b | FUN_00483e7b | 516 | ✓ | scene1_companion_ctrl.c, scene1_conversation_pose.c |
-| 0x48439a | FUN_0048439a | 341 | ✓ | customer_service.c, scene1_player_ctrl.c |
+| 0x48439a | FUN_0048439a | 341 | ✓ | customer_roster.h, customer_service.c, save_bank.h (+1) |
 | 0x48486f | FUN_0048486f | 85 | ✓ | encyclopedia.c |
 | 0x4848c4 | FUN_004848c4 | 132 | ✓ | encyclopedia.c |
 | 0x484948 | FUN_00484948 | 94 | ✓ | encyclopedia.c |
@@ -600,7 +603,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |
 | 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
-| 0x5041f6 | FUN_005041f6 | 30 | ✓ | customer_haggle.h, customer_service.c, diff_entry.c (+11) |
+| 0x5041f6 | FUN_005041f6 | 30 | ✓ | customer_haggle.h, customer_roster.c, customer_service.c (+12) |
 | 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ | rng.h |
 

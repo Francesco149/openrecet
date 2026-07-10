@@ -216,6 +216,51 @@
 #define SAVE_BANK_FIELD_ENCYC_SOLD     0x9dae
 #define SAVE_BANK_ENCYC_SOLD_PAIRS     100
 
+/* ── Roster-scan / customer-spawn fields (FUN_0045edaa) ───────────────
+ * The general customer-eligibility scan reads several per-slot working
+ * fields.  RE: docs/findings/roster-scan-RE.md.  (All indices are dword
+ * indices from the working-slot base unless noted BYTE_OFF.) */
+
+/* Per-customer closeness/affinity — engine DAT_045109a8: 100 int16 values
+ * stored one-per-dword (the short occupies the low half of each dword;
+ * closeness[kyaku] = the int16 at dword 0xb484 + kyaku).  The scan also
+ * touches the ±4-byte neighbour dwords DAT_045109a4/ac when it "spreads"
+ * a repeat customer.  (0x45109a8-0x44e3798)/4 = 0xb484. */
+#define SAVE_BANK_FIELD_CLOSENESS      0xb484   /* DAT_045109a8 */
+#define SAVE_BANK_FIELD_CLOSENESS_LO   0xb483   /* DAT_045109a4 (−4) */
+#define SAVE_BANK_FIELD_CLOSENESS_HI   0xb485   /* DAT_045109ac (+4) */
+#define SAVE_BANK_CLOSENESS_COUNT      100
+
+/* Daily-news featured-item list — engine DAT_0450ad68: 20 entries, stride
+ * 3 dwords {target_id@-8, news_id@-4, trend_char@0}.  The list base
+ * (trend_char field) is dword 0x9d74; the target_id field DAT_0450ad60 =
+ * dword 0x9d72.  (0x450ad68-base)/4 = 0x9d74. */
+#define SAVE_BANK_FIELD_NEWS_LIST      0x9d74   /* DAT_0450ad68 (trend byte) */
+#define SAVE_BANK_FIELD_NEWS_TARGET    0x9d72   /* DAT_0450ad60 (target_id) */
+#define SAVE_BANK_NEWS_LIST_STRIDE     3
+#define SAVE_BANK_NEWS_LIST_COUNT      20
+
+/* Per-slot news-event-latched flag — engine DAT_04511578 int (set once a
+ * news event fires for the slot).  (0x4511578-base)/4 = 0xb778. */
+#define SAVE_BANK_FIELD_NEWS_LATCH     0xb778   /* DAT_04511578 */
+
+/* Scheduled-customer (appointment) table — engine DAT_0450dd90: 10 entries,
+ * stride 5 dwords {active@+0, _@+1, timer@+2, kyaku_short@+3, _@+4}.  The
+ * scan's psVar7 walks from DAT_0450dd9c (= entry+3 dwords) at short stride
+ * 0x14 bytes.  (0x450dd90-base)/4 = 0xa97e. */
+#define SAVE_BANK_FIELD_SCHED_TABLE    0xa97e   /* DAT_0450dd90 (active@+0) */
+#define SAVE_BANK_SCHED_STRIDE_DWORDS  5
+#define SAVE_BANK_SCHED_COUNT          10
+
+/* Shop decoration selectors — engine DAT_0451057c/80/84/88, the 4 furniture
+ * choices consecutive to the tier selector (SHOP_DISPLAY_TIER_SELECTOR
+ * 0xb378).  Each indexes a per-decoration attribute-coord table in
+ * customer_roster.c (FUN_0048439a). */
+#define SAVE_BANK_FIELD_DECO_WALL      0xb379   /* DAT_0451057c (sel1) */
+#define SAVE_BANK_FIELD_DECO_FLOOR     0xb37a   /* DAT_04510580 (sel0) */
+#define SAVE_BANK_FIELD_DECO_TABLE     0xb37b   /* DAT_04510584 (sel3) */
+#define SAVE_BANK_FIELD_DECO_CARPET    0xb37c   /* DAT_04510588 (sel2) */
+
 /* ── Shared header default slider values (engine-init constants) ── */
 
 #define SAVE_HEADER_SE_DEFAULT       9
