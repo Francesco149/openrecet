@@ -2986,6 +2986,7 @@
     "src/customer_service.c",
     "src/news_daily.c",
     "src/news_daily.h",
+    "src/news_golden_replay.h",
     "src/save_bank.h",
     "src/scene1_tutorial_dispatch.c",
     "src/tables_news.h"

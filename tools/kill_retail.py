@@ -76,6 +76,18 @@ def kill_pids(pids: set[int], remote: str) -> tuple[int, list[tuple[int, str]]]:
     return killed, errors
 
 
+def our_daemon_pid() -> int | None:
+    """The game pid recorded by OUR probe daemon (runs/probe/daemon.json)."""
+    import json
+    from pathlib import Path
+    ctrl = (Path(__file__).resolve().parent.parent
+            / "runs" / "probe" / "daemon.json")
+    try:
+        return int(json.loads(ctrl.read_text())["pid"])
+    except Exception:
+        return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -83,18 +95,39 @@ def main(argv: list[str] | None = None) -> int:
         help="frida-server host:port (default %(default)s)")
     ap.add_argument("--image", default=DEFAULT_IMAGE,
         help="image name to kill (default %(default)s)")
+    ap.add_argument("--pid", type=int, default=None,
+        help="kill exactly this pid (must be a running <image>)")
+    ap.add_argument("--all", action="store_true",
+        help="DANGEROUS: name-sweep every <image> process.  The default "
+             "kills only OUR probe's pid (runs/probe/daemon.json) or --pid — "
+             "parallel projects may run their own instances on this host "
+             "(user hard rule 2026-07-10: target OUR probe specifically)")
     ap.add_argument("--quiet", action="store_true",
         help="suppress output unless an error occurs")
     args = ap.parse_args(argv)
 
-    pids = list_pids_by_name(args.image)
+    named = list_pids_by_name(args.image)
+    if args.all:
+        pids = named
+    elif args.pid is not None:
+        pids = {args.pid} & named
+        if not pids and not args.quiet:
+            print(f"pid {args.pid} is not a running {args.image}")
+    else:
+        ours = our_daemon_pid()
+        pids = ({ours} & named) if ours is not None else set()
+        foreign = named - pids
+        if foreign and not args.quiet:
+            print(f"NOT killing {len(foreign)} foreign {args.image} "
+                  f"process(es) {sorted(foreign)} — not our daemon.json "
+                  f"pid ({ours}); use --pid <N> or --all to override")
     if not pids:
         if not args.quiet:
-            print(f"no {args.image} processes running")
+            print(f"no {args.image} processes to kill")
         return 0
 
     if not args.quiet:
-        print(f"found {len(pids)} {args.image} process(es): {sorted(pids)}")
+        print(f"killing {len(pids)} {args.image} process(es): {sorted(pids)}")
 
     killed, errors = kill_pids(pids, args.remote)
     if errors:

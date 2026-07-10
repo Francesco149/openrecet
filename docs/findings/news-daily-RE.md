@@ -135,3 +135,29 @@ counter byte read +0x94, rng%(+0x98); +0xac/+0xb0 compared vs item price).
 - News-def day-range rows (category -100) double as the pool for both the
   picker exclusion and the day-range extra headline — vendor news.txt contents
   worth dumping once for the ledger (runtime data, not in repo).
+
+## §VERIFIED 1:1 — live golden gate 2026-07-10
+
+**news_daily_update is BIT-EXACT vs retail FUN_00436623: 18/18 samples (3 arena
+variants × 6 seeds) match on EVERY field — list entries, headline BYTES, scroll
+offsets, pairs, rng-draw count, and `final_seed` (the whole RNG stream).**
+
+Protocol (the roster golden pattern): live day-2 save (slot 001), arena
+snapshot/diff-poke restore per sample; variants patch the template — `natural`
+(as captured ⇒ new-news pick), `expiry` (day=10 + two active entries dur 1,
+trend 5 + 'd' ⇒ dedup + both expiry branches + day-range), `boom` (day=10,
+rank=9, 8 pairs of item 12 ⇒ threshold/variant/duration rolls + pair clears).
+Harness: `src/news_golden_replay.{c,h}` (`OPENRECET_NEWS_GOLDEN` env; NB env
+crosses WSL→exe only via `WSLENV=OPENRECET_NEWS_GOLDEN:…` + `wslpath -w`
+paths); capture: `tools/news_gen_capture.py`.
+
+**★ Methodology unlock: `seed_after_call`.** Round 1 matched all VISIBLE
+outputs on 12/12 samples but final_seed/draws on only 5/12 — retail appeared
+to draw MORE.  Root cause: the capture read the final seed via a client-side
+RPC racing the RESUMED live sim (bg-NPC draws landed in the window; deltas
+varied 2..37).  Fixed in the agent's engine-thread call queue: snapshot
+DAT_006023a0 immediately BEFORE **and AFTER** the `fn.apply` (probeRunQueued-
+Calls), returned as `seed_at_call`/`seed_after_call` — the callee's exact
+consumption window, race-free.  With the atomic window: 18/18 including
+final_seed.  Any future callq golden should use BOTH fields, never a separate
+seed read.

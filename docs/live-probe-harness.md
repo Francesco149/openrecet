@@ -123,8 +123,18 @@ misses, open the analyzed `ghidra/projects/openrecet.rep` in the GUI.
   (`~/.local/state/openrecet/mcp-python`), NOT `nix develop -c python3` (devshell
   banner corrupts the JSON-RPC stream). The daemon it launches DOES use `nix
   develop` (needs frida/PIL).
-- ONE retail at a time (singleton mutex). The daemon reaps strays on start;
-  `tools/kill_retail.py` clears a wedged one.
+- ONE retail at a time (singleton mutex). **HARD RULE (user 2026-07-10): every
+  kill must target OUR probe specifically — parallel projects run their own
+  probes on this host (e.g. an OpenLords2 daemon was live during the news
+  gate).** The daemon's start-reap kills ONLY the pid recorded in our
+  `runs/probe/daemon.json` (foreign same-named pids get a warning, never a
+  kill); `tools/kill_retail.py` likewise defaults to our daemon.json pid —
+  `--pid N` for an explicit target, `--all` (dangerous) for the old name-sweep.
+- **callq goldens: use the atomic seed WINDOW.** The engine-thread call queue
+  returns `seed_at_call` AND `seed_after_call` (DAT_006023a0 read immediately
+  before/after the call on the engine thread).  NEVER read the "final seed"
+  via a separate RPC — it races the resumed sim and over-counts draws (the
+  news-gate round-1 lesson; roster's seed_at_call was the entry-side half).
 - Frida host = `cutestation.soy:27042`, auto-spawned (never gate on it).
 - Long idle sessions: `input_state` is deduped to change-points; screenshots
   bypass load-suppression on purpose.

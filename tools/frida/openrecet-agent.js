@@ -5750,7 +5750,7 @@ function probeMaskTick() {
 function probeRunQueuedCalls() {
     while (g_probe_calls.length > 0) {
         const c = g_probe_calls.shift();
-        let ret = null, error = null, seedAtCall = null;
+        let ret = null, error = null, seedAtCall = null, seedAfterCall = null;
         try {
             const argt = c.argt || [];
             const fn = new NativeFunction(rva(c.va), c.ret || 'int32',
@@ -5759,17 +5759,21 @@ function probeRunQueuedCalls() {
                 return (argt[i] === 'pointer') ? ptr(a) : a;
             });
             // Snapshot the RNG state (DAT_006023a0) on the ENGINE thread the
-            // instant before the call — the exact seed the callee starts from,
-            // free of the RPC-thread→engine-thread drift a client-side read has
-            // (load-bearing for the roster-scan golden gate).
+            // instant before AND after the call — the exact seed window the
+            // callee consumed, free of the RPC-thread→engine-thread drift a
+            // client-side read has (the before-read cracked the roster-scan
+            // golden; the after-read cracked the NEWS golden — a client-side
+            // "final seed" read races the resumed sim and over-counts draws).
             try { seedAtCall = rva(0x006023a0).readU32(); } catch (e) {}
             ret = fn.apply(null, argv);
+            try { seedAfterCall = rva(0x006023a0).readU32(); } catch (e) {}
             if (ret instanceof NativePointer) ret = ret.toString();
         } catch (e) {
             error = e.message;
         }
         send({kind: 'call_result', id: c.id, ret: ret, err: error,
-              seed_at_call: seedAtCall, frame: frameNo()});
+              seed_at_call: seedAtCall, seed_after_call: seedAfterCall,
+              frame: frameNo()});
     }
 }
 

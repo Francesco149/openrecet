@@ -24,6 +24,16 @@ row (category -100); (5) computes the ticker scroll offsets (strlen+4).  En rout
 misnamed fields (+0x94/+0x98 = LIFETIME base/range, +0xac/+0xb0 = target-item PRICE window — proven by
 the generator asm; parser+tests renamed).
 
+**★ VERIFIED 1:1 via the live golden gate (same session): 18/18 samples (3 arena variants × 6 seeds)
+BIT-EXACT vs retail FUN_00436623 — list entries, headline BYTES, offsets, pairs, rng-draw count AND
+`final_seed`.**  Harness `src/news_golden_replay.{c,h}` (OPENRECET_NEWS_GOLDEN) + `tools/news_gen_capture.py`
+(arena diff-poke restore; variants natural/expiry/boom exercise every phase).  Methodology unlock: the agent
+callq now snapshots DAT_006023a0 on the engine thread before AND after the call (`seed_at_call`/
+`seed_after_call`) — round 1 read the final seed via a separate RPC racing the resumed sim and "diverged"
+on 7/12 samples (deltas 2..37 = stray bg-sim draws); the atomic window closed all of them.  Also landed the
+user hard rule: probe kills target OUR daemon.json pid only (daemon start-reap + kill_retail.py --pid/--all;
+an OpenLords2 probe was live on the host mid-session).
+
 **All 3 call sites wired, all gated `SHOP_DAY > 8`** ⇒ zero rng/pixel change on every existing trace
 (verified: fresh arrprobe port drive vs the pre-change v3 cache — rngcalls bit-identical 1723/1723
 frames, seed 1722/1723 with the single diff at the known wandering load seam, count-neutral):

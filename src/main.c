@@ -91,6 +91,7 @@
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
 #include "customer_service.h"       /* customer_service_bargain_active — PAUSE_OPEN at the haggle */
 #include "roster_golden_replay.h"   /* headless roster-scan golden-replay gate */
+#include "news_golden_replay.h"     /* headless daily-news golden-replay gate  */
 #include "scene1_hud.h"
 #include "scene1_top_hud.h"   /* scene1_top_hud_render (FUN_00406d50) — mode-8 HUD */
 #include "scene1_fps.h"
@@ -2024,6 +2025,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * is set): tables + arenas are up here, before any window/scene, so the ported
      * scan can run on a captured retail arena and dump a diffable fixture. */
     roster_golden_replay_maybe();
+    /* Same gate for the daily-news generator (OPENRECET_NEWS_GOLDEN). */
+    news_golden_replay_maybe();
     fprintf(stderr,
             "save_bank: arena initialized (header magic=0x%08x, "
             "sliders se=%d bgm=%d se-b=%d slider3=%d)\n",

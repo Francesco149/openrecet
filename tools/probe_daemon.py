@@ -146,16 +146,34 @@ class ProbeDaemon:
         argv = [fc.wslpath_w(exe)]
         win_cwd = fc.wslpath_w(cwd)
         self.device = frida.get_device_manager().add_remote_device(a.remote)
-        # Reap any stray retail (a prior daemon that died without device.kill)
-        # so the singleton mutex doesn't block our spawn.
+        # Reap a stray retail from a PRIOR run of THIS daemon (one that died
+        # without device.kill) so the singleton mutex doesn't block our spawn.
+        # HARD RULE (user 2026-07-10): kill ONLY the pid recorded in OUR
+        # runs/probe/daemon.json — never name-sweep.  Parallel projects may
+        # run their own probes/instances on this host; a same-named process
+        # that is not ours gets a WARNING, not a kill.
         try:
+            stale_pid = None
+            try:
+                stale_pid = int(json.loads(CONTROL_JSON.read_text())["pid"])
+            except Exception:
+                pass
             for pr in self.device.enumerate_processes():
-                if pr.name.lower() == exe.name.lower():
-                    self._logline(f"[reap] killing stray {pr.name} pid={pr.pid}")
+                if pr.name.lower() != exe.name.lower():
+                    continue
+                if stale_pid is not None and pr.pid == stale_pid:
+                    self._logline(f"[reap] killing OUR stale {pr.name} "
+                                  f"pid={pr.pid} (from daemon.json)")
                     try:
                         self.device.kill(pr.pid)
                     except Exception:
                         pass
+                else:
+                    self._logline(
+                        f"[reap] NOT killing foreign {pr.name} pid={pr.pid} "
+                        f"(not our daemon.json pid={stale_pid}); if it holds "
+                        f"the singleton mutex, our spawn may fail — kill it "
+                        f"explicitly with tools/kill_retail.py --pid {pr.pid}")
             time.sleep(0.5)
         except Exception as e:
             self._logline(f"[reap] enumerate failed: {e!r}")
@@ -529,7 +547,8 @@ class ProbeDaemon:
                 r = self._call_results.pop(cid)
                 return {"ok": r.get("err") is None, "ret": r.get("ret"),
                         "err": r.get("err"), "id": cid, "frame": r.get("frame"),
-                        "seed_at_call": r.get("seed_at_call")}
+                        "seed_at_call": r.get("seed_at_call"),
+                        "seed_after_call": r.get("seed_after_call")}
             self._call_evt.wait(0.2)
             self._call_evt.clear()
         return {"ok": False, "err": "call timed out (engine not ticking?)",

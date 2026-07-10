@@ -102,7 +102,12 @@
          news-inject per-cust draws or an extra/admit off-by-one changing the e80f pick count). **NEXT: Frida
          hook on FUN_0045edaa entry → exact scan-start seed → bisect the divergent phase's draw count.**
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
-    2. **✅ News-list population DONE 2026-07-10 — the daily-news subsystem is PORTED** (finding
+    2. **✅✅✅ News-list population VERIFIED 1:1 2026-07-10 — the daily-news subsystem is PORTED + the
+       live golden gate PASSES: 18/18 samples (3 arena variants × 6 seeds) BIT-EXACT vs retail
+       FUN_00436623 on every field incl. `final_seed`** (harness `src/news_golden_replay.{c,h}` +
+       `tools/news_gen_capture.py`; ★ methodology unlock: the agent callq now returns an ATOMIC
+       `seed_at_call`/`seed_after_call` window — a client-side final-seed read races the resumed sim;
+       finding §VERIFIED).  (finding
        `news-daily-RE.md`; PROGRESS 2026-07-10).  Writer = `FUN_00436623` (daily generator: random pick +
        dedup, player-driven boom off the sold-pairs, expiry headlines, day-range news, ticker offsets) +
        picker `FUN_004363c6`, ported objdump-exact as `src/news_daily.c` (+16 host tests); the news-def
