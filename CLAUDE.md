@@ -34,18 +34,17 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
      max-thinking for decomp/parity.
   4. **Persist conclusions tersely** so future-me READS not RE-DERIVES (cross-session
      reasoning-compression — the real payoff of terse docs).
-- **LIVE-PROBE HARNESS + Ghidra MCP (2026-07-09) — scout live BEFORE baking a trace.**
-  Two MCPs now wired (`.mcp.json`): **`openrecet`** drives ONE persistent live retail
+- **LIVE-PROBE HARNESS (2026-07-09) — scout live BEFORE baking a trace.**
+  The **`openrecet`** MCP (`.mcp.json`) drives ONE persistent live retail
   (spawn/attach via Frida, button-mask input on the faithful DInput write-path,
   memory read/poke, ENGINE-THREAD function calls, screenshots, anchor stream, no-focus
   preview window with human input LOCKED-by-default/toggleable) — `launch` then
   screenshot/game_state/press/hold/walk/esc/poke_memory/call_function/anchors/set_interactive.
-  **`ghidra`** = pyghidra-mcp over the analyzed project (decompile/xrefs/data-types/call-graphs
-  on demand — query, don't grep all.c). Full how-to: **`docs/live-probe-harness.md`**. Use the
+  For static RE: ⚠️ Ghidra MCP decommissioned 2026-07-10 (RAM runaways OOM'd the box); grep the static export `docs/decompiled/all.c` or open the `.gpr` in the Ghidra GUI — do NOT rebuild the daemon. Full how-to: **`docs/live-probe-harness.md`**. Use the
   live harness to **explore ahead** of a trace (what does retail DO here, discover the anchor+rng
   sequence for a NEW scenario, confirm a poke/call reproduces an input's code path), then bake the
   settled finding into a deterministic `tests/scenarios/` trace. **Prefer a mapped engine
-  call/poke over a synthetic input ONCE ghidra+live confirm it hits the same code path** (user
+  call/poke over a synthetic input ONCE static+live confirm it hits the same code path** (user
   directive). Deterministic trace stays the FOUNDATION; the live harness is the SCOUT.
 - **THE PORTING LOOP (default workflow — do this yourself, DON'T guess, DON'T ask for
   what a trace can show). User directive 2026-06-13:**

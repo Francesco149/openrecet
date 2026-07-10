@@ -1,15 +1,13 @@
 {
-  "_note": "ghidra runs as a shared HTTP daemon (systemd --user ghidra-openrecet.service on :8200) so concurrent Claude sessions don't fight over the single-writer .gpr lock. See slopstudio docs/INFRA.md. Start/status: systemctl --user status ghidra-openrecet",
+  "_note": "ghidra MCP daemon DECOMMISSIONED 2026-07-10 (native decompiler runaways ballooned to ~25GB and OOM'd the box). Use the static decompiled export docs/decompiled/all.c for pseudo-C, or open the .gpr in the Ghidra GUI. No daemon, no systemd service. The live-probe game MCP below is unaffected.",
   "mcpServers": {
     "openrecet": {
       "type": "stdio",
       "command": "/home/headpats/.local/state/openrecet/mcp-python/bin/python3",
-      "args": ["/opt/src/openrecet/tools/openrecet_mcp.py"],
+      "args": [
+        "/opt/src/openrecet/tools/openrecet_mcp.py"
+      ],
       "env": {}
-    },
-    "ghidra": {
-      "type": "http",
-      "url": "http://127.0.0.1:8200/mcp"
     }
   }
 }

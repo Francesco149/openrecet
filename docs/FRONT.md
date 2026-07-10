@@ -18,7 +18,7 @@
   real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
   faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,
   teleport/set_facing/set_gold cheats, move_to/waypoint nav, no-focus preview window w/ human input
-  locked-by-default) + the **`ghidra` MCP** (pyghidra-mcp), both in `.mcp.json`. How-to
+  locked-by-default), in `.mcp.json`. How-to
   `docs/live-probe-harness.md`; reusable **recipes** `docs/findings/game-recipes.md` (R1 title→shop, R3
   day1→day2 flag-cascade); day1-2 RE `docs/findings/live-playthrough-day1-2.md`. Reached day-2 live (via a
   faithful iv1_5→iv2_3 tutorial-flag cascade through the REAL dispatcher FUN_0044bd0d) — **NB not economy-clean:

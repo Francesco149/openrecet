@@ -89,7 +89,7 @@ Walking the character across a room via inputs is slow; these skip it.
   is NOT at its Ghidra VA at runtime — call the in-process accessor instead of reading
   the VA raw. RNG-seed VA to pin across A/B trials = `DAT_006023a0` (MSVC LCG).
   **Prefer a call/poke over an input ONCE mapped + confirmed it reproduces the
-  input's code path** (user directive) — read the decompile / ghidra-mcp, find the
+  input's code path** (user directive) — read the decompile (`docs/decompiled/all.c`), find the
   handler an input dispatches to, call it directly, diff state vs the input path.
 
 ## Anchors → deterministic traces (probe-ahead RE)
@@ -111,14 +111,12 @@ directive).
 - `launch{segtrace:...}` boots inactive, replays the segtrace to a known state,
   then flips `probe_active` on (poll `game_status.segtrace.done`).
 
-## Ghidra MCP (RE companion)
-`ghidra` MCP (`.mcp.json`) = pyghidra-mcp over the analyzed
-`ghidra/projects/openrecet.rep` (launcher `tools/ghidra-mcp.sh`, venv
-`~/.local/state/openrecet/ghidra-mcp-venv`). On-demand decompile / xrefs
-(incl. computed struct accesses grep misses) / data-types / disasm / call-graphs
-— query instead of grepping `docs/decompiled/all.c`. Pair with the live harness:
-ghidra says WHAT a function does + WHO calls it; the harness confirms it live
-(call it, watch the state/pixels move).
+## Static RE (decompile companion)
+⚠️ Ghidra MCP decommissioned 2026-07-10 (RAM runaways OOM'd the box); grep the static
+export `docs/decompiled/all.c` or open the `.gpr` in the Ghidra GUI — do NOT rebuild the
+daemon. Static RE says WHAT a function does + WHO calls it; the live harness confirms it
+(call it, watch the state/pixels move). For computed struct accesses / xrefs that grep
+misses, open the analyzed `ghidra/projects/openrecet.rep` in the GUI.
 
 ## Gotchas
 - MCP server MUST run under the GC-pinned raw python
