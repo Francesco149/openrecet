@@ -56,7 +56,8 @@ static void run_one(FILE *out, const uint8_t *arena, uint32_t seed, int first)
     }
     fprintf(out, "],\n");
 
-    fprintf(out, "      \"rng_draws\": %lu\n    }", draws);
+    fprintf(out, "      \"rng_draws\": %lu,\n", draws);
+    fprintf(out, "      \"final_seed\": %u\n    }", (unsigned)g_rng_seed);
 }
 
 void roster_golden_replay_maybe(void)
@@ -79,7 +80,21 @@ void roster_golden_replay_maybe(void)
         exit(2);
     }
 
+    /* Seeds: a comma list in OPENRECET_ROSTER_SEEDS, OR (for large sweeps that
+     * blow the env-var limit) a comma/whitespace list read from the file named
+     * by OPENRECET_ROSTER_SEEDS_FILE. */
+    static char seeds_buf[1 << 20];
     const char *seeds_env = getenv("OPENRECET_ROSTER_SEEDS");
+    const char *seeds_file = getenv("OPENRECET_ROSTER_SEEDS_FILE");
+    if (seeds_file && seeds_file[0]) {
+        FILE *sf = fopen(seeds_file, "r");
+        if (sf) {
+            size_t g = fread(seeds_buf, 1, sizeof seeds_buf - 1, sf);
+            seeds_buf[g] = '\0';
+            fclose(sf);
+            seeds_env = seeds_buf;
+        }
+    }
     const char *out_path  = getenv("OPENRECET_ROSTER_OUT");
     if (out_path == NULL || out_path[0] == '\0')
         out_path = "roster_port_out.json";
@@ -94,14 +109,13 @@ void roster_golden_replay_maybe(void)
 
     fprintf(out, "{\n  \"function\": \"cs_roster_scan\",\n  \"results\": [");
 
-    /* Parse the comma seed list (default "1"). */
-    char buf[256];
+    /* Parse the comma/whitespace seed list (default "1").  Copy into the large
+     * static buffer so strtok has a writable target that fits big sweeps. */
     if (seeds_env == NULL || seeds_env[0] == '\0') seeds_env = "1";
-    snprintf(buf, sizeof buf, "%s", seeds_env);
+    if (seeds_env != seeds_buf)
+        snprintf(seeds_buf, sizeof seeds_buf, "%s", seeds_env);
     int first = 1;
-    for (char *tok = strtok(buf, ","); tok; tok = strtok(NULL, ",")) {
-        while (*tok == ' ') tok++;
-        if (*tok == '\0') continue;
+    for (char *tok = strtok(seeds_buf, ", \t\r\n"); tok; tok = strtok(NULL, ", \t\r\n")) {
         uint32_t seed = (uint32_t)strtoul(tok, NULL, 0);
         run_one(out, arena, seed, first);
         first = 0;
