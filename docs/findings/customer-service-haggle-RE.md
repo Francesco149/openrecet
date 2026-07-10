@@ -3701,3 +3701,52 @@ closeness/affinity/atmosphere mechanic** in this build — the お得意様度 l
 (driven by 嫌い dislikes) is parsed then DISCARDED (apply_dislikes_noop). Customer
 behavior = kyaku record + work_price + rng + this news-trend. If a live probe ever
 shows a closeness effect, it's a NEW discovery.
+
+## §23 2026-07-10 — CLOSENESS serve-time incrementer CRACKED + PORTED (retires PORT-DEBT(cs-shop-stock); the "per-item sold-streak" framing was WRONG)
+
+**The FRONT's open lead ("serve-time DAT_045109a8 closeness incrementer, indexed store in
+sale-commit") = the b534==0xf decision-block stores in EVERY kind machine** (463cfb @61733-61804 /
+464af0 @62154-62208 / 465372 @62401-62444 / 4658ab @62610-62655).  Ported 1:1 for the SELL machine
+FUN_004658ab (the only ported kind); the other machines' blocks land with PORT-DEBT(cs-other-kinds).
+
+**Array semantics (settles the old mis-framing):**
+- `DAT_045109a8 + idx*4 + slot*0x2dfc8` (save bank dword 0xb484, 100 dwords) — **candidate-indexed**,
+  NOT item-indexed.  idx = `b570` = queue field +1 = the roster-scan CANDIDATE slot (kyaku 13..17
+  spread copies own slots; scan copies the base slot's closeness into them @57797).
+- **low int16 = closeness ×10** (お得意様度; roster consumers read `/10`: e80f pick, e939, ecc0 budget).
+- **high int16 (DAT_045109aa) = the latched loyalty LEVEL 0..8** — the displayed customer rank; only
+  ever raised by FUN_00460e50.
+- `DAT_06a5d564` = **the +0xc field of the STRIDE-16 candidate record array** {kyaku d558, flag d55c,
+  score d560, extra d564} — gotcha #20 (Ghidra `(&DAT)[i*4]` int-base = base+16i).  Port keeps 4
+  parallel [100] arrays (index-equivalent); `cand_extra` promoted local→module-static `s_cand_extra`
+  (read back at serve time).
+
+**Decision-block deltas (FUN_004658ab 0x4659e3-0x465ab5, port cs_live_machine b534==0xf):**
+- commit at round `b584==3` → closeness −1 (gate `f404==0`);
+- REJECT (offer<ask, ask≥floor b580, !f406) → closeness −1 (gate `f404==0`);
+- ACCEPT → grade = FUN_00460672 (±0.5% of b588 → 1, ±5% → 2, else 0) → closeness **+5/+2/+1**
+  (gate `f406==0 && f404==0`); then FUN_00460e50 latch (UNgated) → `b53c=1` flash on rank-up;
+- tail: clamp closeness[b570] ≥ 0 (all paths).
+NB 4658ab has NO budget-0x28 state and NO FUN_00460eba call — those are 463cfb/464af0-only
+(FUN_00460eba appends {item_slot,3} to the save list 0x450ae50 on reject — goes with cs-other-kinds).
+
+**FUN_00460e50 (was "sold-streak flash") = the loyalty LEVEL-UP latch:** if `d564[b570]==0` (not a
+spread copy) and `hi < closeness/10` and `hi < 8` → `hi = closeness/10` (clamp 8), return 1.
+**FUN_00460f16 (pushback line variant) doubles as PATIENCE:** level 0 → 2, 1..4 → 3, ≥5 → 4
+(f404 → 3); the b534==8 arm makes the customer LEAVE when `b584 == variant` — loyal customers
+haggle more rounds.
+
+**VERIFIED:** (a) live golden vs retail (engine-thread callq, poked state, candidate 7): 8/8 cases
+bit-exact — f16: hi 0→2, 4→3, 5→4; e50: 40/hi0→ret1+hi4, re-call→0, d564=1→suppressed (at the
+STRIDE-16 addr 0x06a5d5d4), lo95→hi=8 cap; every call `seed_at==seed_after` (rng-neutral).
+(b) 6 new host tests (3430/0): grades/round-3 penalty/reject/clamp/floor-pushback/f404 gates/latch
+rules/patience.  (c) rng-neutrality on `house-firstcust-arrprobe`: fresh port drive vs the cached
+pre-change port trace — rng rows 1723/1723, rngcalls identical every frame, raw seed equal on
+1722/1723 (the frame-641 delta = the known ±1f extend-only load-bracket seam, re-pinned next frame;
+the cached drives differ the same way among themselves).  Structurally the trace can't reach the
+new code (b51c==1 scripted machine).
+**Test seams:** customer_service_live_haggle_state_for_test / _live_machine_tick_for_test /
+_cand_extra_set_for_test / _b53c / _pushback_line_for_test.
+**Still open in this area:** the b53c flash RENDERER (unported; timer ticks in the master tick);
+cs-other-kinds machines (their closeness blocks + FUN_00460eba + budget FUN_0045ecc0/FUN_00461011
+level→budget table DAT_005c6c40).

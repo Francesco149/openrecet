@@ -296,7 +296,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, esc_dispatch.c |
 | 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
-| 0x45e80f | FUN_0045e80f | 298 | ✓ | customer_roster.c, customer_roster.h |
+| 0x45e80f | FUN_0045e80f | 298 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
 | 0x45ed12 | FUN_0045ed12 | 152 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_roster.h, customer_service.c, customer_service.h (+3) |
@@ -315,7 +315,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x460b93 | FUN_00460b93 | 447 | ✓ | customer_service.c |
 | 0x460d52 | FUN_00460d52 | 254 | ✓ | customer_service.c |
 | 0x460e50 | FUN_00460e50 | 106 | ✓ | customer_service.c |
-| 0x460f16 | FUN_00460f16 | 67 | ✓ | customer_service.c |
+| 0x460f16 | FUN_00460f16 | 67 | ✓ | customer_service.c, customer_service.h |
 | 0x460f59 | FUN_00460f59 | 78 | ✓ | customer_service.c, save_bank.h |
 | 0x460fa7 | FUN_00460fa7 | 106 | ✓ | customer_service.c, scene1_player_ctrl.c |
 | 0x461068 | FUN_00461068 | 667 | ✓ | customer_service.c |
@@ -327,7 +327,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4623bc | FUN_004623bc | 71 | ✓ | customer_service.c |
 | 0x462403 | FUN_00462403 | 5618 | ✓ | customer_service.c, customer_service.h, scene1_camera.c (+4) |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ | customer_service.c, customer_service.h |
-| 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c, save_bank.h |
+| 0x4658ab | FUN_004658ab | 1289 | ✓ | customer_service.c, customer_service.h, save_bank.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ | customer_service.c, customer_service_render.c, dialogue_macros.c (+4) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x466a9a | FUN_00466a9a | 225 | ✓ | customer_service_render.c |

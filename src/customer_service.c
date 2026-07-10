@@ -92,6 +92,16 @@ static int32_t s_roster_perm[CS_ROSTER_PERM_N];             /* DAT_0730b1a8 */
 #define CS_ELIGIBLE_N 50
 static int32_t s_eligible[CS_ELIGIBLE_N];                   /* DAT_06a5d450 */
 
+/* Per-candidate spread flag — the +0xc field of the engine's STRIDE-16
+ * candidate record array {kyaku,flag,score,extra} at DAT_06a5d558 (Ghidra's
+ * `(&DAT_06a5d564)[i*4]` = int-typed base ⇒ base + i·16; live-confirmed
+ * 2026-07-10: d564[7] is 0x06a5d5d4, NOT 0x06a5d580).  The port keeps four
+ * parallel [100] arrays — index-equivalent.  Set 1 by the roster scan for the
+ * kyaku-13..17 3-way spread COPIES; read at serve time by the loyalty-level
+ * latch (FUN_00460e50) to suppress the level-up flash on a copy slot.
+ * Runtime BSS in retail (not save-persisted), re-zeroed by every scan. */
+static int32_t s_cand_extra[100];                           /* DAT_06a5d564 (+0xc of d558) */
+
 /* Item-pick array — DAT_0730b274[], stride 3 dwords/entry: {id, col, row}.
  * NB the master tick reuses [0].col/[0].row (DAT_0730b278/b27c) as the 2
  * per-customer arrival timers — same storage, temporally separate. */
@@ -161,7 +171,12 @@ static char        s_line_buf[0x100];   /* DAT_0730b31c — the active (pre-<C>)
 static char        s_line_tail[0x100];  /* DAT_0730b41c — the post-<C> continuation */
 static const char *s_b270;              /* DAT_0730b270 — the active line pointer */
 static int32_t s_b560;   /* DAT_0730b560 — price-digit cursor (FUN_0045ff11) */
-static int32_t s_b570;   /* DAT_0730b570 — the item slot being transacted */
+static int32_t s_b570;   /* DAT_0730b570 — the active customer's CANDIDATE index
+                          * (queue field +1) = the slot into the per-candidate
+                          * closeness array DAT_045109a8 + the d564 spread flag.
+                          * NOT an item slot (old misnomer): every serve-time
+                          * closeness read/write indexes by it (FUN_0045e80f
+                          * param_2, FUN_00460672 deltas, FUN_00460e50/f16). */
 static int32_t s_b5a4;   /* DAT_0730b5a4 — offered-item handle (id = b5a4>>6) */
 static int32_t s_b600;   /* DAT_0730b600 — script step phase (0 = first frame) */
 static int32_t s_b604;   /* DAT_0730b604 — script program counter */
@@ -250,10 +265,17 @@ void customer_service_set_roster_replay(int v) { s_roster_replay = v; }
 static int rs_flag(const uint8_t *bank, uint32_t va) { return bank[va - RS_ARENA_BASE]; }
 /* Write a story-flag byte. */
 static void rs_flag_set(uint8_t *bank, uint32_t va, int v) { bank[va - RS_ARENA_BASE] = (uint8_t)v; }
-/* A per-kyaku closeness int16 (DAT_045109a8 low half of each dword). */
+/* A per-candidate closeness int16 (DAT_045109a8 low half of each dword). */
 static int16_t *rs_close(uint8_t *bank, int kyaku)
 {
     return (int16_t *)(bank + SAVE_BANK_FIELD_CLOSENESS * 4 + kyaku * 4);
+}
+/* The latched loyalty LEVEL 0..8 (DAT_045109aa — the HIGH half of the same
+ * dword): the displayed customer rank, only raised by the serve-time latch
+ * FUN_00460e50 when closeness/10 outgrows it. */
+static int16_t *rs_close_hi(uint8_t *bank, int idx)
+{
+    return (int16_t *)(bank + SAVE_BANK_FIELD_CLOSENESS * 4 + idx * 4 + 2);
 }
 
 static void cs_load_eligible_portraits(const int32_t *eligible);  /* FUN_0046f8ba */
@@ -269,7 +291,7 @@ static void cs_roster_scan(uint8_t *bank)
     int32_t cand_kyaku[100];   /* d558 */
     int32_t cand_flag [100];   /* d55c — 0/1/2 story classification */
     int32_t cand_score[100];   /* d560 */
-    int32_t cand_extra[100];   /* d564 */
+    /* d564 = the module-static s_cand_extra (read back at serve time). */
     /* Parallel pool/index arrays (local_6a0 init -2, local_a88 init -1). */
     int32_t pool_kyaku[250];   /* local_6a0 */
     int32_t pool_cand [250];   /* local_a88 — candidate index of each pool entry */
@@ -357,7 +379,7 @@ static void cs_roster_scan(uint8_t *bank)
     /* ── 2. init the candidate + pool scratch (57544-57562) ── */
     for (int i = 0; i < 250; i++) { pool_cand[i] = -1; pool_kyaku[i] = -2; }
     for (int i = 0; i < 100; i++) { cand_kyaku[i] = -1; cand_flag[i] = 0;
-                                    cand_score[i] = 0; cand_extra[i] = 0; }
+                                    cand_score[i] = 0; s_cand_extra[i] = 0; }
 
     /* ── 3. clamp per-customer closeness ≥ 0 (57563-57572) ── */
     for (int i = 0; i < 100; i++) {
@@ -504,12 +526,12 @@ static void cs_roster_scan(uint8_t *bank)
             /* copy this closeness to the two extra slots, weight -10/-20 (57797-57816). */
             *rs_close(bank, cn + 1) = *rs_close(bank, cn);
             *(rs_close(bank, cn + 1) + 2) = *rs_close(bank, cn);
-            cand_extra[cn + 1] = 1;
+            s_cand_extra[cn + 1] = 1;
             cand_kyaku[cn + 1] = k; cand_flag[cn + 1] = 2;
             cn += 1;
             cand_score[cn] += roster_customer_weight(bank, kr) - 10 + bscore;
             int j = cn + 1;
-            cand_extra[j] = 1; cand_kyaku[j] = k; cand_flag[j] = 2;
+            s_cand_extra[j] = 1; cand_kyaku[j] = k; cand_flag[j] = 2;
             cn = j;
             cand_score[cn] += roster_customer_weight(bank, kr) - 0x14 + bscore;
             cn += 1;
@@ -737,7 +759,6 @@ static void cs_roster_scan(uint8_t *bank)
     }
 
     /* ── 16. finalize: count, perm, roster build, sched reset (58164-58211) ── */
-    (void)cand_extra;  /* d564 (spread-flag) is write-only within the scan */
     s_queue_count = qn;                                  /* DAT_0730ac98 */
     for (int i = 0; i < CS_ROSTER_PERM_N; i++) s_roster_perm[i] = i;
     if (qn > 1) roster_shuffle(s_roster_perm, (uint32_t)qn);
@@ -1864,27 +1885,43 @@ static int cs_accept_eval(void)
     return 1;
 }
 
-/* ── FUN_00460f16 — pick the "too expensive" pushback line variant (2/3/4) ──── */
+/* ── FUN_00460f16 — pick the "too expensive" pushback line variant (2/3/4) ────
+ * Doubles as the customer's PATIENCE: the b534==8 arm makes the customer leave
+ * when the haggle round (b584) reaches this variant, so a loyal customer
+ * (level 1..4 → 3, level ≥5 → 4) haggles more rounds than a new one (level
+ * 0 → 2).  Reads the latched loyalty LEVEL (DAT_045109aa + b570*4). */
 static int cs_pushback_line(void)
 {
     int ret = 2;
-    /* PORT-DEBT(cs-shop-stock): the per-item sold-streak high-short
-     * (DAT_045109aa + b570*4) is not modeled → read 0 (→ variant 2). */
-    int sold = 0;
-    if (sold < 5) { if (sold > 0) ret = 3; }
-    else          ret = 4;
-    const uint8_t *bank =
-        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int16_t lvl = (bank != NULL) ? *rs_close_hi(bank, s_b570) : 0;
+    if (lvl < 5) { if (lvl > 0) ret = 3; }
+    else         ret = 4;
     if (bank != NULL && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0)
         ret = 3;
     return ret;
 }
 
-/* ── FUN_00460e50 — the "you sell a lot of this" sold-streak flash trigger ──── */
-static int cs_sold_streak(void)
+/* ── FUN_00460e50 — latch the displayed loyalty LEVEL (the rank-up flash) ─────
+ * (Was mis-framed as a "sold-streak" counter.)  When the customer's closeness
+ * (low short /10) outgrows the latched level (high short) the level snaps up to
+ * closeness/10 (capped 8) and the caller arms the b53c flash.  Suppressed on a
+ * kyaku-13..17 spread COPY slot (d564[b570] != 0). */
+static int cs_loyalty_latch(void)
 {
-    /* PORT-DEBT(cs-shop-stock): reads/writes the per-item sold-streak shorts
-     * (DAT_06a5d564 / DAT_045109a8 high-short) — not modeled; no flash. */
+    if (s_cand_extra[s_b570] != 0)
+        return 0;
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    int16_t *hi  = rs_close_hi(bank, s_b570);
+    int16_t  lvl = (int16_t)(*rs_close(bank, s_b570) / 10);
+    if (*hi < lvl && *hi < 8) {
+        *hi = lvl;
+        if (lvl > 7)
+            *hi = 8;
+        return 1;
+    }
     return 0;
 }
 
@@ -2256,26 +2293,33 @@ static void cs_live_machine(void)
             if (poll == 2) s_b534 = 6;         /* cancel → back to reaction */
             goto lab_tail;
         }
-        /* poll == 1 — commit the named price. */
-        const uint8_t *bank =
-            (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        /* poll == 1 — commit the named price.  The closeness deltas (engine
+         * 0x4659e3-0x465ab5) all index DAT_045109a8[b570] and are inert for
+         * the scripted tutorial (f404) / demo (f406) flags exactly as retail
+         * gates them. */
+        uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
         int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
         int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
         s_b538 = 0;
-        /* PORT-DEBT(cs-shop-stock): the b584==3 patience-spent stock penalty
-         * (f404==0) + the reject stock-loss + the like-count tuning all touch the
-         * unmodeled per-item shorts; gated f404==0 (inert for the tutorial). */
+        if (s_b584 == 3 && !f404 && bank)      /* round-3 patience-spent penalty */
+            *rs_close(bank, s_b570) -= 1;
         if (s_b574 < s_price_ask) {            /* offer < ask → too expensive */
             if (s_price_ask < s_b580 || f406) {
                 s_b534 = 8;                    /* pushback (haggle floor / tutorial) */
             } else {
-                s_b534 = 9;                    /* reject (− stock, PORT-DEBT) */
+                s_b534 = 9;                    /* reject → −1 closeness */
+                if (!f404 && bank)
+                    *rs_close(bank, s_b570) -= 1;
             }
         } else {                               /* offer >= ask → can accept */
             int can = ((double)s_price_base * 0.8 < (double)s_price_ask) || !f404;
             if (can) {
-                (void)cs_accept_eval();        /* FUN_00460672 — like-count (PORT-DEBT) */
-                if (cs_sold_streak())          /* FUN_00460e50 → flash */
+                int grade = cs_accept_eval();  /* FUN_00460672 — the like grade */
+                if (!f406 && !f404 && bank) {  /* +5 / +2 / +1 closeness */
+                    int16_t *c = rs_close(bank, s_b570);
+                    *c = (int16_t)(*c + ((grade == 1) ? 5 : (grade == 2) ? 2 : 1));
+                }
+                if (cs_loyalty_latch())        /* FUN_00460e50 → rank-up flash */
                     s_b53c = 1;
                 s_b534 = 7;                    /* ACCEPT */
             } else {
@@ -2283,6 +2327,8 @@ static void cs_live_machine(void)
                 s_b534 = 8;                    /* pushback */
             }
         }
+        if (bank && *rs_close(bank, s_b570) < 0)   /* clamp ≥ 0 (all paths) */
+            *rs_close(bank, s_b570) = 0;
         s_b59c = 0;
         s_b544 = 0;
         title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 — hide on decision commit */
@@ -2765,6 +2811,7 @@ void customer_service_reset(void)
     for (int i = 0; i < (int)(sizeof s_queue / sizeof s_queue[0]); i++) s_queue[i] = 0;
     for (int i = 0; i < CS_ROSTER_PERM_N; i++) s_roster_perm[i] = 0;
     for (int i = 0; i < CS_ELIGIBLE_N; i++) s_eligible[i] = 0;
+    for (int i = 0; i < 100; i++) s_cand_extra[i] = 0;
     for (int i = 0; i < (int)(sizeof s_item_pick / sizeof s_item_pick[0]); i++) s_item_pick[i] = 0;
     s_cust_active[0] = s_cust_active[1] = 0;
     s_queue_count = 0;
@@ -2787,3 +2834,27 @@ void customer_service_reset(void)
     s_price_base = s_price_bc4 = s_price_bc8 = s_price_cursor = 0;
     s_cs_active = 0;
 }
+
+/* ── host-test seams — drive the LIVE machine's b534==0xf decision arm
+ * (FUN_004658ab) directly, bypassing the session/arrival plumbing. ────────── */
+void customer_service_live_haggle_state_for_test(int32_t b534, int32_t b584,
+        int32_t b570, int32_t b590, int32_t offer, int32_t ask, int32_t base,
+        int32_t haggle_floor, int32_t fair)
+{
+    s_b534 = b534; s_b584 = b584; s_b570 = b570; s_b590 = b590;
+    s_b574 = offer; s_price_ask = ask; s_price_base = base;
+    s_b580 = haggle_floor; s_b588 = fair;
+    s_b5a8 = 2;                    /* the SELL machine kind */
+    s_b540 = 0;                    /* Yes row selected */
+}
+void customer_service_live_machine_tick_for_test(uint32_t pressed)
+{
+    s_in_pressed = pressed;
+    cs_live_machine();
+}
+void customer_service_cand_extra_set_for_test(int idx, int32_t v)   /* d564 */
+{
+    if (idx >= 0 && idx < 100) s_cand_extra[idx] = v;
+}
+int32_t customer_service_b53c(void) { return s_b53c; }
+int32_t customer_service_pushback_line_for_test(void) { return cs_pushback_line(); }

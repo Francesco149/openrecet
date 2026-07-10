@@ -205,6 +205,16 @@ int32_t customer_service_queue_count(void);
 /* The eligible-list head (DAT_06a5d450[0]) — tutorial = 13.  Test hook. */
 int32_t customer_service_eligible(int i);
 
+/* ── host-test seams — the LIVE machine's b534==0xf haggle decision
+ * (FUN_004658ab): closeness ±deltas, loyalty latch, pushback patience. ────── */
+void customer_service_live_haggle_state_for_test(int32_t b534, int32_t b584,
+        int32_t b570, int32_t b590, int32_t offer, int32_t ask, int32_t base,
+        int32_t haggle_floor, int32_t fair);
+void customer_service_live_machine_tick_for_test(uint32_t pressed);
+void customer_service_cand_extra_set_for_test(int idx, int32_t v);  /* DAT_06a5d564 */
+int32_t customer_service_b53c(void);   /* the loyalty rank-up flash timer */
+int32_t customer_service_pushback_line_for_test(void);   /* FUN_00460f16 */
+
 /* Sale-fanfare EXP popup queue (FUN_004606fc build; types at DAT_0730b194,
  * values at DAT_06a5ea78, len = b5bc, active = b5c0).  Consumed by the
  * TOTAL-EXP popup renderer (FUN_00485861 chain) + host tests.  Entry

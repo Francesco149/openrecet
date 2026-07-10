@@ -482,6 +482,12 @@ struct test_case {
     X(cs_f406_entry_enters_counter) \
     X(cs_f406_pending_is_pure) \
     X(cs_load_pin_bracket) \
+    X(cs_live_decision_accept_grades) \
+    X(cs_live_decision_reject_and_round3_penalty) \
+    X(cs_live_decision_floor_pushback_no_delta) \
+    X(cs_live_decision_tutorial_gates) \
+    X(cs_loyalty_latch_rules) \
+    X(cs_pushback_line_patience) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

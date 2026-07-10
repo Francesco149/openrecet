@@ -101,7 +101,7 @@
          verified; the bug is in the rng-tail: rejection/pool-shuffle/news-inject/queue-fill/perm — likely the
          news-inject per-cust draws or an extra/admit off-by-one changing the e80f pick count). **NEXT: Frida
          hook on FUN_0045edaa entry → exact scan-start seed → bisect the divergent phase's draw count.**
-       Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
+       ~~Open lead: the serve-time `DAT_045109a8` closeness incrementer~~ **RESOLVED 2026-07-10 — see target 3.**
     2. **✅✅✅ News-list population VERIFIED 1:1 2026-07-10 — the daily-news subsystem is PORTED + the
        live golden gate PASSES: 18/18 samples (3 arena variants × 6 seeds) BIT-EXACT vs retail
        FUN_00436623 on every field incl. `final_seed`** (harness `src/news_golden_replay.{c,h}` +
@@ -122,10 +122,18 @@
        timed-shoptime mechanic's news site, all.c:86733), PORT-DEBT(day9-morning-arm) (f488's b924==0x276
        day-9 morning cutscene consumer).  Day-9+ behavior needs a live probe/trace to verify end-to-end
        (no pre-day-9 save yet).
-    3. **Live sell-machine tuning (`PORT-DEBT(cs-shop-stock)`)** — the DISCARDED `cs_accept_eval` like-count
-       +5/+2/+1 deltas + sold-streak pushback/patience; drive a REAL (non-tutorial, `b51c=0`) customer haggle
-       to characterize. The live machine `cs_live_machine` (FUN_004658ab) is ported but decides accept/reject
-       on raw `offer>=ask` (customer_service.c:1684 `(void)cs_accept_eval()`).
+    3. **✅✅ CLOSENESS serve-time deltas PORTED + LIVE-VERIFIED 2026-07-10 (retires
+       PORT-DEBT(cs-shop-stock); finding haggle-RE §23).** The "per-item sold-streak" framing was WRONG:
+       `DAT_045109a8[b570]` is CANDIDATE-indexed closeness (lo ×10) + latched loyalty LEVEL 0..8 (hi
+       DAT_045109aa); `d564` = the +0xc field of the STRIDE-16 candidate records (gotcha #20 — `(&DAT)[i*4]`
+       int-base = 16i).  cs_live_machine (FUN_004658ab) decision now 1:1: round-3 −1, reject −1, accept
+       +5/+2/+1 by the FUN_00460672 grade, clamp ≥0; FUN_00460e50 = the loyalty LEVEL-UP latch (b53c flash,
+       suppressed on spread copies); FUN_00460f16 = pushback variant AND PATIENCE (level 0→2 rounds, 1-4→3,
+       ≥5→4, f404→3 — loyal customers haggle longer).  VERIFIED: 8/8 live callq goldens bit-exact
+       (rng-neutral), +6 host tests (3430/0), arrprobe rng stream unchanged (1723/1723 rngcalls).
+       **Left in this area:** the b53c rank-up flash RENDERER; the other kind machines' closeness blocks +
+       FUN_00460eba reject wanted-list + budget FUN_0045ecc0/00461011 (→ PORT-DEBT(cs-other-kinds));
+       accept/reject itself IS raw `offer>=ask` in retail — no hidden accept-eval decision existed.
   - **Tooling ready:** `tools/haggle_probe.py` (live haggle monitor/poker — reads b590/b574/b584/b588/ask/base/
     b5a8/…), `tools/openrecet_mcp.py`, `tools/probe_daemon.py`, `tools/probe.py`. **Get into a live haggle:**
     either stock+open (walk—not teleport—onto a stand to arm cbfc via FUN_0048619f, `press a` place, **C** open,

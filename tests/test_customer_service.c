@@ -961,3 +961,186 @@ int test_cs_load_pin_bracket(void)
     customer_service_reset();
     return 0;
 }
+
+/* ═══ The LIVE machine's b534==0xf haggle decision (FUN_004658ab) — the
+ * closeness ±deltas / loyalty latch / pushback patience (was the mis-framed
+ * PORT-DEBT(cs-shop-stock); the DAT_045109a8 dword low short = closeness ×10,
+ * high short = latched loyalty LEVEL 0..8, both candidate-indexed by b570). ═══ */
+
+/* The per-candidate closeness shorts inside the save bank. */
+static int16_t *cs_test_close_lo(uint32_t *bank, int idx)
+{ return (int16_t *)((uint8_t *)bank + SAVE_BANK_FIELD_CLOSENESS * 4 + idx * 4); }
+static int16_t *cs_test_close_hi(uint32_t *bank, int idx)
+{ return (int16_t *)((uint8_t *)bank + SAVE_BANK_FIELD_CLOSENESS * 4 + idx * 4 + 2); }
+
+/* Arm the decision state on candidate 7 and run ONE machine tick.  b590=0xe
+ * makes cs_input_poll's commit countdown complete on this tick (poll → 1). */
+static void cs_test_decide(int32_t b584, int32_t offer, int32_t ask,
+                           int32_t base, int32_t haggle_floor, int32_t fair)
+{
+    customer_service_live_haggle_state_for_test(0xf, b584, 7, 0xe,
+                                                offer, ask, base,
+                                                haggle_floor, fair);
+    customer_service_live_machine_tick_for_test(0);
+}
+
+/* FUN_00460672 grade → +5 (±0.5% of fair) / +2 (±5%) / +1 (else) closeness on
+ * accept; the latch raises the level to closeness/10 and arms the b53c flash. */
+int test_cs_live_decision_accept_grades(void)
+{
+    /* grade 1: ask == fair → +5; 45/10=4 → level 0→4, flash armed. */
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 1000, 1000, 1000, 900, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);            /* ACCEPT */
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 45);
+    T_ASSERT_EQ_I(*cs_test_close_hi(bank, 7), 4);
+    T_ASSERT_EQ_I(customer_service_b53c(), 1);
+
+    /* grade 2: ask 1040 (within +5%, outside +0.5%) → +2. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 1040, 1040, 1000, 900, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 42);
+
+    /* grade 0: ask 1200 (outside ±5%) → +1. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 1200, 1200, 1000, 900, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 41);
+    return 0;
+}
+
+/* Reject (offer < ask ≥ floor) → −1 closeness; round-3 commit → an extra −1
+ * before the branch; a negative result clamps to 0. */
+int test_cs_live_decision_reject_and_round3_penalty(void)
+{
+    /* reject: 40 → 39, b534=9. */
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 500, 1200, 1000, 1000, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 9);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 39);
+
+    /* round-3 accept: −1 (patience) then +5 (grade 1) → net +4. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(3, 1000, 1000, 1000, 900, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 44);
+
+    /* clamp: closeness 0, reject −1 → clamped back to 0. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 0;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 500, 1200, 1000, 1000, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 9);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 0);
+    return 0;
+}
+
+/* ask below the haggle floor → pushback (b534=8), closeness untouched. */
+int test_cs_live_decision_floor_pushback_no_delta(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 500, 900, 1000, 1000, 1000);
+    T_ASSERT_EQ_I(customer_service_b534(), 8);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 40);
+    return 0;
+}
+
+/* f404 (scripted sell): NO closeness deltas (round-3 −1 and the accept +N are
+ * both gated) but the loyalty latch itself still runs — retail calls
+ * FUN_00460e50 unconditionally on accept. */
+int test_cs_live_decision_tutorial_gates(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(3, 1200, 1200, 1000, 900, 1000);   /* base·0.8 < ask → accept */
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 40);    /* no −1, no +N */
+    T_ASSERT_EQ_I(*cs_test_close_hi(bank, 7), 4);     /* latch still fires */
+    T_ASSERT_EQ_I(customer_service_b53c(), 1);
+    return 0;
+}
+
+/* Latch rules: suppressed on a d564 spread-copy slot; level caps at 8; no
+ * re-fire when the level already matches closeness/10. */
+int test_cs_loyalty_latch_rules(void)
+{
+    /* spread-copy slot: +5 still lands, latch suppressed. */
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    customer_service_cand_extra_set_for_test(7, 1);
+    cs_test_decide(1, 1000, 1000, 1000, 900, 1000);
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 45);
+    T_ASSERT_EQ_I(*cs_test_close_hi(bank, 7), 0);
+    T_ASSERT_EQ_I(customer_service_b53c(), 0);
+
+    /* cap: closeness 95 +1 → 96, level 9 clamps to 8. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 95;
+    *cs_test_close_hi(bank, 7) = 0;
+    cs_test_decide(1, 1200, 1200, 1000, 900, 1000);   /* grade 0 → +1 */
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 96);
+    T_ASSERT_EQ_I(*cs_test_close_hi(bank, 7), 8);
+    T_ASSERT_EQ_I(customer_service_b53c(), 1);
+
+    /* already latched: level 4 == 45/10 → no flash. */
+    customer_service_reset();
+    bank = cs_test_bank_clean();
+    *cs_test_close_lo(bank, 7) = 40;
+    *cs_test_close_hi(bank, 7) = 0;
+    *cs_test_close_hi(bank, 7) = 4;
+    cs_test_decide(1, 1000, 1000, 1000, 900, 1000);   /* +5 → 45, 45/10 = 4 */
+    T_ASSERT_EQ_I(*cs_test_close_lo(bank, 7), 45);
+    T_ASSERT_EQ_I(*cs_test_close_hi(bank, 7), 4);
+    T_ASSERT_EQ_I(customer_service_b53c(), 0);
+    return 0;
+}
+
+/* FUN_00460f16 — the pushback line doubles as PATIENCE: level 0 → 2 rounds,
+ * 1..4 → 3, ≥5 → 4; the scripted sell forces 3. */
+int test_cs_pushback_line_patience(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    customer_service_live_haggle_state_for_test(0xf, 0, 7, 0, 0, 0, 0, 0, 0);
+
+    *cs_test_close_hi(bank, 7) = 0;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 2);
+    *cs_test_close_hi(bank, 7) = 1;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 3);
+    *cs_test_close_hi(bank, 7) = 4;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 3);
+    *cs_test_close_hi(bank, 7) = 5;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 4);
+    *cs_test_close_hi(bank, 7) = 8;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 4);
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 1;   /* scripted → 3 */
+    *cs_test_close_hi(bank, 7) = 0;
+    T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 3);
+    return 0;
+}

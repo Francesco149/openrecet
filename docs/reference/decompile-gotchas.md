@@ -38,6 +38,13 @@ from auto-memory per the audit's R7; the memories are archived.)
 7. **`r2` for function shape / control flow** (`nix develop --command r2 -q -c
    'af; pdf' …`), **objdump for short spot-checks.** Both read
    `vendor/unpacked/` (never `vendor/original/`, still SteamStub-encrypted).
+20. **`(&DAT_x)[i * 4]` on an int-typed base = stride SIXTEEN, not 4** (element
+   size × index).  Parallel-looking "arrays" 4 bytes apart (d558/d55c/d560/d564)
+   are ONE stride-16 record array — `(&DAT_06a5d564)[7*4]` is 0x06a5d5d4, NOT
+   0x06a5d580 (live-confirmed 2026-07-10: a poke at the stride-4 address left
+   FUN_00460e50's gate unread).  Contrast the CAST form `*(short *)(&DAT_x +
+   i*4)` = BYTE arithmetic = stride 4.  Check the base's declared type before
+   computing any indexed address.
 
 ## Probing retail (Frida/TTD)
 
