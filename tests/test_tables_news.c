@@ -81,14 +81,14 @@ int test_tables_news_layout_byte_offsets(void)
     T_ASSERT_EQ_U(offsetof(news_record_t, body),         0x00);
     T_ASSERT_EQ_U(offsetof(news_record_t, name),         0x80);
     T_ASSERT_EQ_U(offsetof(news_record_t, rate),         0x90);
-    T_ASSERT_EQ_U(offsetof(news_record_t, price_lo),     0x94);
-    T_ASSERT_EQ_U(offsetof(news_record_t, price_hi),     0x98);
+    T_ASSERT_EQ_U(offsetof(news_record_t, dur_base),     0x94);
+    T_ASSERT_EQ_U(offsetof(news_record_t, dur_range),     0x98);
     T_ASSERT_EQ_U(offsetof(news_record_t, attr_mask),    0x9c);
     T_ASSERT_EQ_U(offsetof(news_record_t, category),     0xa0);
     T_ASSERT_EQ_U(offsetof(news_record_t, item_id),      0xa4);
     T_ASSERT_EQ_U(offsetof(news_record_t, target_group), 0xa8);
-    T_ASSERT_EQ_U(offsetof(news_record_t, days_lo),      0xac);
-    T_ASSERT_EQ_U(offsetof(news_record_t, days_hi),      0xb0);
+    T_ASSERT_EQ_U(offsetof(news_record_t, price_lo),      0xac);
+    T_ASSERT_EQ_U(offsetof(news_record_t, price_hi),      0xb0);
     T_ASSERT_EQ_U(offsetof(news_record_t, period_start), 0xb4);
     T_ASSERT_EQ_U(offsetof(news_record_t, period_end),   0xb8);
     return 0;
@@ -119,12 +119,12 @@ int test_tables_news_special_attr_basic(void)
     news_record_t *r = &out.records[0];
     T_ASSERT_EQ_I(r->attr_mask,    -1);
     T_ASSERT_EQ_I(r->rate,         -1);
-    T_ASSERT_EQ_I(r->price_lo,      3);
-    T_ASSERT_EQ_I(r->price_hi,      1);
+    T_ASSERT_EQ_I(r->dur_base,      3);
+    T_ASSERT_EQ_I(r->dur_range,      1);
     T_ASSERT_EQ_I(r->category,     -1);
     T_ASSERT_EQ_I(r->item_id,      -1);
-    T_ASSERT_EQ_I(r->days_lo,      -1);
-    T_ASSERT_EQ_I(r->days_hi,      -1);
+    T_ASSERT_EQ_I(r->price_lo,      -1);
+    T_ASSERT_EQ_I(r->price_hi,      -1);
     T_ASSERT_EQ_I(r->target_group,  0);  /* default */
     T_ASSERT_EQ_I(r->period_start,  0);  /* default */
     T_ASSERT_EQ_I(r->period_end,  100);  /* default */
@@ -216,7 +216,7 @@ int test_tables_news_lookup_chain_precedence(void)
 
 int test_tables_news_days_range_optional(void)
 {
-    /* Vendor mix: lines with and without days_lo-days_hi between the
+    /* Vendor mix: lines with and without price_lo-price_hi between the
      * price range and the body. */
     static const unsigned char input[] =
         K_SPECIAL ",-1,3-1,No days here.\r\n"
@@ -225,17 +225,17 @@ int test_tables_news_days_range_optional(void)
     tables_parse_news(input, sizeof input - 1, &out, NULL, NULL, NULL);
 
     T_ASSERT_EQ_I(out.count, 2);
-    T_ASSERT_EQ_I(out.records[0].days_lo, -1);
-    T_ASSERT_EQ_I(out.records[0].days_hi, -1);
-    T_ASSERT_EQ_I(out.records[1].days_lo,  0);
-    T_ASSERT_EQ_I(out.records[1].days_hi, 1000);
+    T_ASSERT_EQ_I(out.records[0].price_lo, -1);
+    T_ASSERT_EQ_I(out.records[0].price_hi, -1);
+    T_ASSERT_EQ_I(out.records[1].price_lo,  0);
+    T_ASSERT_EQ_I(out.records[1].price_hi, 1000);
     return 0;
 }
 
 int test_tables_news_dash_row(void)
 {
     /* "-,-,body\r\n" — generic news; both lookups skipped. Engine quirks:
-     * category=-100, attr_mask=0, target_group=0, days_lo=days_hi=0
+     * category=-100, attr_mask=0, target_group=0, price_lo=price_hi=0
      * (NOT -1 like non-"-" rows). */
     static const unsigned char input[] =
         K_TARGET ",14\r\n"
@@ -248,8 +248,8 @@ int test_tables_news_dash_row(void)
     T_ASSERT_EQ_I(r->category,     NEWS_CATEGORY_DASH);
     T_ASSERT_EQ_I(r->attr_mask,    0);
     T_ASSERT_EQ_I(r->item_id,      0);  /* BSS-zero, NOT -1 */
-    T_ASSERT_EQ_I(r->days_lo,      0);  /* BSS-zero, NOT -1 */
-    T_ASSERT_EQ_I(r->days_hi,      0);
+    T_ASSERT_EQ_I(r->price_lo,      0);  /* BSS-zero, NOT -1 */
+    T_ASSERT_EQ_I(r->price_hi,      0);
     T_ASSERT_EQ_I(r->target_group, 0);  /* quirk #29: not set for "-" rows */
     T_ASSERT(memcmp(r->body, "Fluffles ", 9) == 0);
     return 0;
@@ -471,8 +471,8 @@ int test_tables_news_vendor_shape(void)
     /* [4] target_group=14 + 武器 attr + days range. */
     T_ASSERT_EQ_I(out.records[4].attr_mask, 0x0001);
     T_ASSERT_EQ_I(out.records[4].target_group, 14);
-    T_ASSERT_EQ_I(out.records[4].days_lo,  0);
-    T_ASSERT_EQ_I(out.records[4].days_hi, 1000);
+    T_ASSERT_EQ_I(out.records[4].price_lo,  0);
+    T_ASSERT_EQ_I(out.records[4].price_hi, 1000);
 
     /* [5] 特殊 with target_group=0 reset. */
     T_ASSERT_EQ_I(out.records[5].attr_mask, -1);

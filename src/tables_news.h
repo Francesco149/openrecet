@@ -12,7 +12,7 @@
  *     //comment lines                                  ← line[0]=='/', skipped
  *     対象者,N                                          ← target_group = N (sticky)
  *     時期,A-B                                          ← period_start=A, period_end=B (sticky)
- *     <name>,<rate>,<price_lo>-<price_hi>,[<days_lo>-<days_hi>,]<body text>
+ *     <name>,<rate>,<dur_base>-<dur_range>,[<price_lo>-<price_hi>,]<body text>
  *     -,-,<body text>                                  ← "generic" news with no item effect
  *
  *   <name> is one of:
@@ -97,8 +97,13 @@ typedef int32_t (*news_item_resolve_fn)(
  *   +0x80  name[16]       — matched name; parser CAN write up to 20
  *                            bytes here, overflowing into rate (quirk #27)
  *   +0x90  rate           — +N price up, -N down, 0 customers up
- *   +0x94  price_lo       — price-effect window low (atoi)
- *   +0x98  price_hi       — price-effect window high (atoi after '-')
+ *   +0x94  dur_base       — news LIFETIME base (atoi; semantics fixed
+ *                            2026-07-10 from FUN_00436623: an accepted
+ *                            entry's duration counter = dur_base +
+ *                            rng%dur_range + 1, min 2; decrements once
+ *                            per news_daily_update, expiry at 0)
+ *   +0x98  dur_range      — lifetime rng modulus (atoi after '-');
+ *                            <=0 ⇒ NO rng draw (load-bearing LCG count)
  *   +0x9c  attr_mask      — oder_attr_hash result; -1 for "特殊"; 0 for
  *                            "-" rows or no-attr-match
  *   +0xa0  category       — item-category index from category resolver;
@@ -107,10 +112,14 @@ typedef int32_t (*news_item_resolve_fn)(
  *                            -1 if no match
  *   +0xa8  target_group   — last "対象者:" value; 0 for "-" rows (engine
  *                            never writes them — see quirk #29)
- *   +0xac  days_lo        — days range low (atoi); -1 if absent;
+ *   +0xac  price_lo       — target-item PRICE window low (atoi); -1 if
+ *                            absent ⇒ the generator picks NO target item;
  *                            0 for "-" rows (BSS init, engine quirk)
- *   +0xb0  days_hi        — days range high (atoi); -1 if absent;
- *                            0 for "-" rows
+ *   +0xb0  price_hi       — target-item price window high (atoi); -1 if
+ *                            absent.  FUN_00436623 scans g_item for
+ *                            valid rows with price in [lo,hi] matching
+ *                            attr_mask/category, rng-picks one target
+ *                            (1 draw iff ≥1 match)
  *   +0xb4  period_start   — last "時期:" range start (default 0)
  *   +0xb8  period_end     — last "時期:" range end   (default 100)
  */
@@ -118,14 +127,14 @@ typedef struct {
     char     body[NEWS_BODY_LEN];   /* +0x00 */
     char     name[NEWS_NAME_LEN];   /* +0x80 */
     int32_t  rate;                  /* +0x90 */
-    int32_t  price_lo;              /* +0x94 */
-    int32_t  price_hi;              /* +0x98 */
+    int32_t  dur_base;              /* +0x94 */
+    int32_t  dur_range;              /* +0x98 */
     int32_t  attr_mask;             /* +0x9c */
     int32_t  category;              /* +0xa0 */
     int32_t  item_id;               /* +0xa4 */
     int32_t  target_group;          /* +0xa8 */
-    int32_t  days_lo;               /* +0xac */
-    int32_t  days_hi;               /* +0xb0 */
+    int32_t  price_lo;               /* +0xac */
+    int32_t  price_hi;               /* +0xb0 */
     int32_t  period_start;          /* +0xb4 */
     int32_t  period_end;            /* +0xb8 */
 } news_record_t;
@@ -138,10 +147,10 @@ _Static_assert(offsetof(news_record_t, name)         == 0x80,
                "news_record_t.name @ +0x80");
 _Static_assert(offsetof(news_record_t, rate)         == 0x90,
                "news_record_t.rate @ +0x90");
-_Static_assert(offsetof(news_record_t, price_lo)     == 0x94,
-               "news_record_t.price_lo @ +0x94");
-_Static_assert(offsetof(news_record_t, price_hi)     == 0x98,
-               "news_record_t.price_hi @ +0x98");
+_Static_assert(offsetof(news_record_t, dur_base)     == 0x94,
+               "news_record_t.dur_base @ +0x94");
+_Static_assert(offsetof(news_record_t, dur_range)     == 0x98,
+               "news_record_t.dur_range @ +0x98");
 _Static_assert(offsetof(news_record_t, attr_mask)    == 0x9c,
                "news_record_t.attr_mask @ +0x9c");
 _Static_assert(offsetof(news_record_t, category)     == 0xa0,
@@ -150,10 +159,10 @@ _Static_assert(offsetof(news_record_t, item_id)      == 0xa4,
                "news_record_t.item_id @ +0xa4");
 _Static_assert(offsetof(news_record_t, target_group) == 0xa8,
                "news_record_t.target_group @ +0xa8");
-_Static_assert(offsetof(news_record_t, days_lo)      == 0xac,
-               "news_record_t.days_lo @ +0xac");
-_Static_assert(offsetof(news_record_t, days_hi)      == 0xb0,
-               "news_record_t.days_hi @ +0xb0");
+_Static_assert(offsetof(news_record_t, price_lo)      == 0xac,
+               "news_record_t.price_lo @ +0xac");
+_Static_assert(offsetof(news_record_t, price_hi)      == 0xb0,
+               "news_record_t.price_hi @ +0xb0");
 _Static_assert(offsetof(news_record_t, period_start) == 0xb4,
                "news_record_t.period_start @ +0xb4");
 _Static_assert(offsetof(news_record_t, period_end)   == 0xb8,

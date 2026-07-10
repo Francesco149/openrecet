@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **581** (22.8%) — verified 72, stubbed 13, ported 496
-- unported: **1967**
+- touched: **585** (23.0%) — verified 72, stubbed 13, ported 500
+- unported: **1963**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (72) — runtime-diffed vs retail
@@ -109,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (496) — reimplemented, no probe yet
+## ported (500) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -203,9 +203,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435693 | FUN_00435693 | 58 | ✓ | customer_service.c, main.c, scene1_display_menu.c (+8) |
 | 0x435710 | FUN_00435710 | 55 | ✓ | customer_service.c, scene1_display_menu.c, scene_pause.c (+5) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
-| 0x4361b2 | FUN_004361b2 | 532 | ✓ | customer_haggle.h, customer_service.c, customer_service_render.c (+3) |
+| 0x436180 | FUN_00436180 | 50 |  | news_daily.c, news_daily.h |
+| 0x4361b2 | FUN_004361b2 | 532 | ✓ | customer_haggle.h, customer_service.c, customer_service.h (+6) |
+| 0x4363c6 | FUN_004363c6 | 185 | ✓ | news_daily.c, news_daily.h |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
+| 0x436623 | FUN_00436623 | 2420 | ✓ | customer_service.c, news_daily.c, news_daily.h (+3) |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.c, collision_house.h, main.c (+20) |
 | 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ | scene1_spawn.c, scene1_spawn.h |
@@ -488,7 +491,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x48619f | FUN_0048619f | 328 | ✓ | scene1_player_ctrl.c, scene1_shop_display.h |
 | 0x486435 | FUN_00486435 | 200 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
-| 0x48670f | FUN_0048670f | 11519 | ✓ | customer_service.h, scene1_bg_npc.h, scene1_companion_ctrl.c (+8) |
+| 0x48670f | FUN_0048670f | 11519 | ✓ | customer_service.h, scene1_bg_npc.h, scene1_companion_ctrl.c (+9) |
 | 0x48960d | FUN_0048960d | 441 | ✓ | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x4897c6 | FUN_004897c6 | 870 | ✓ | scene1_companion_ctrl.c, scene1_conversation_pose.c, scene1_player_ctrl.c (+1) |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
@@ -568,11 +571,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49e163 | FUN_0049e163 | 575 | ✓ | scene.h, scene1_postload.h, scene1_preload.c (+3) |
 | 0x49e3a3 | FUN_0049e3a3 | 739 | ✓ | main.c, scene.h, scene_worldmap.c (+1) |
 | 0x49e686 | FUN_0049e686 | 45 | ✓ | main.c, scene_worldmap.c |
+| 0x49e6b3 | FUN_0049e6b3 | 203 | ✓ | news_daily.c, news_daily.h |
 | 0x49e849 | FUN_0049e849 | 350 | ✓ | tables_item.c, tables_item.h |
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
-| 0x49ef78 | FUN_0049ef78 | 64 | ✓ | encyclopedia.c, scene1_display_menu.c |
+| 0x49ef78 | FUN_0049ef78 | 64 | ✓ | encyclopedia.c, news_daily.c, scene1_display_menu.c |
 | 0x49efb8 | FUN_0049efb8 | 90 | ✓ | encyclopedia.c, encyclopedia.h |
 | 0x49f012 | FUN_0049f012 | 851 | ✓ | encyclopedia.c, encyclopedia.h, save_bank.h (+3) |
 | 0x49f365 | FUN_0049f365 | 1363 | ✓ | encyclopedia.c, encyclopedia.h, scene_pause.c (+1) |
@@ -595,7 +599,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5031e4 | FUN_005031e4 | 9 | ✓ | customer_service.c, scene1_particles_tick.c, scene1_player_ctrl.c (+2) |
 | 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
-| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, customer_service.c, scene1_combat_sm.c (+7) |
+| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, customer_service.c, news_daily.c (+8) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
 | 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+7) |
 | 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+10) |
@@ -606,7 +610,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |
 | 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
-| 0x5041f6 | FUN_005041f6 | 30 | ✓ | customer_haggle.h, customer_roster.c, customer_service.c (+12) |
+| 0x5041f6 | FUN_005041f6 | 30 | ✓ | customer_haggle.h, customer_roster.c, customer_service.c (+13) |
 | 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ | rng.h |
 

@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-█████░░░░░░░░░░░░░░░  22.8% touched   (2.8% runtime-verified)
+█████░░░░░░░░░░░░░░░  23.0% touched   (2.8% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    72 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    13 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   496 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **581** | verified + stubbed + ported                         |
-| unported  |  1967 | exists in engine, never referenced from src/             |
+| ported    |   500 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **585** | verified + stubbed + ported                         |
+| unported  |  1963 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -119,9 +119,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
          news-inject per-cust draws or an extra/admit off-by-one changing the e80f pick count). **NEXT: Frida
          hook on FUN_0045edaa entry → exact scan-start seed → bisect the divergent phase's draw count.**
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
-    2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
-       (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
-       draw when trend≠0 is a load-bearing LCG-count effect the stub skips).
+    2. **✅ News-list population DONE 2026-07-10 — the daily-news subsystem is PORTED** (finding
+       `news-daily-RE.md`; PROGRESS 2026-07-10).  Writer = `FUN_00436623` (daily generator: random pick +
+       dedup, player-driven boom off the sold-pairs, expiry headlines, day-range news, ticker offsets) +
+       picker `FUN_004363c6`, ported objdump-exact as `src/news_daily.c` (+16 host tests); the news-def
+       table was already `tables_news.c` (fixed its swapped field names: +0x94/98 = LIFETIME, +0xac/b0 =
+       target-item PRICE window).  All 3 call sites wired (leave-restore rng%3 / morning beat + f488 +
+       npc_schedule_apply(0) / b92c pump + SE 0x2bd), ALL gated day>8 ⇒ rng-neutral on existing traces
+       (VERIFIED vs the pre-change arrprobe cache: rngcalls 1723/1723 bit-identical).  **The
+       FUN_004361b2 trend classifier is LIVE** (retired PORT-DEBT(cs-price-trend)): haggle round-0 tilt +
+       price-panel High/Base/Low tint + merchant-HUD name colour.  **Remaining debts:**
+       PORT-DEBT(news-ticker-render) (FUN_00436f97 newspaper/ticker DRAW consuming b92c + the headline
+       buffers — also owns the ≤2f ticker-arm skew note), PORT-DEBT(news-clock-advance) (the unported
+       timed-shoptime mechanic's news site, all.c:86733), PORT-DEBT(day9-morning-arm) (f488's b924==0x276
+       day-9 morning cutscene consumer).  Day-9+ behavior needs a live probe/trace to verify end-to-end
+       (no pre-day-9 save yet).
     3. **Live sell-machine tuning (`PORT-DEBT(cs-shop-stock)`)** — the DISCARDED `cs_accept_eval` like-count
        +5/+2/+1 deltas + sold-streak pushback/patience; drive a REAL (non-tutorial, `b51c=0`) customer haggle
        to characterize. The live machine `cs_live_machine` (FUN_004658ab) is ported but decides accept/reject

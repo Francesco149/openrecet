@@ -16,7 +16,7 @@
  *     NEWS_NAME_PARSE_CAP (20) bytes at +0x80+, but the structural
  *     name field is only 16 bytes — bytes 16..19 spill into the
  *     `rate` field, and the NUL terminator lands at +0x80+name_len
- *     (potentially in price_lo / category). Vendor names are all
+ *     (potentially in dur_base / category). Vendor names are all
  *     <= 12 bytes so this is dormant. Port reproduces via a uint8_t*
  *     write into the record.
  *
@@ -35,7 +35,7 @@
  *     regardless of the most recent "対象者:" header. Vendor data
  *     uses "対象者,0" before its "-" rows so this is dormant.
  *
- *   - "-" row leaves days_lo / days_hi at 0 (#29 cont). The non-"-"
+ *   - "-" row leaves price_lo / price_hi at 0 (#29 cont). The non-"-"
  *     branch inits these to -1 before the parse; the "-" branch never
  *     touches them, so they stay at BSS-zero. Consumers that look for
  *     -1 as "no days range" will see (0, 0) instead.
@@ -268,7 +268,7 @@ void tables_parse_news(const unsigned char *data, size_t size,
 
             rec->period_start = period_start;
             rec->period_end   = period_end;
-            /* target_group, days_lo, days_hi left at memset 0 — quirk #29 */
+            /* target_group, price_lo, price_hi left at memset 0 — quirk #29 */
             out->count++;
             continue;
         }
@@ -297,8 +297,8 @@ void tables_parse_news(const unsigned char *data, size_t size,
          * clobber them again. */
         rec->item_id  = -1;
         rec->category = -1;
-        rec->days_lo  = -1;
-        rec->days_hi  = -1;
+        rec->price_lo  = -1;
+        rec->price_hi  = -1;
 
         resolve_name(rec, (const char *)(rec_bytes + 0x80), name_len,
                      cat_resolve, item_resolve, resolve_user);
@@ -318,8 +318,8 @@ void tables_parse_news(const unsigned char *data, size_t size,
         if (*p != ',') continue;
         p++;
 
-        /* price_lo = atoi. */
-        rec->price_lo = (int32_t)atoi(p);
+        /* dur_base = atoi. */
+        rec->dur_base = (int32_t)atoi(p);
         if (*p == '\0' || *p == '\r' || *p == '\n') continue;  /* loop_err_10 */
 
         /* Skip to '-'. */
@@ -327,8 +327,8 @@ void tables_parse_news(const unsigned char *data, size_t size,
         if (*p != '-') continue;
         p++;
 
-        /* price_hi = atoi. */
-        rec->price_hi = (int32_t)atoi(p);
+        /* dur_range = atoi. */
+        rec->dur_range = (int32_t)atoi(p);
         if (*p == '\0' || *p == '\r' || *p == '\n') continue;  /* loop_err_11 */
 
         /* Skip to ','. */
@@ -336,18 +336,18 @@ void tables_parse_news(const unsigned char *data, size_t size,
         if (*p != ',') continue;
         p++;
 
-        /* Peek next byte: if a digit, this is a days_lo-days_hi range;
+        /* Peek next byte: if a digit, this is a price_lo-price_hi range;
          * if not, the body starts here. Engine: `(pcVar16[1] < '0') ||
          * ('9' < pcVar16[1])` — signed char compare. */
         if (*p >= '0' && *p <= '9') {
-            rec->days_lo = (int32_t)atoi(p);
+            rec->price_lo = (int32_t)atoi(p);
             if (*p == '\0' || *p == '\r' || *p == '\n') continue;  /* loop_err_12 */
 
             p = scan_to_dash(p);
             if (*p != '-') continue;
             p++;
 
-            rec->days_hi = (int32_t)atoi(p);
+            rec->price_hi = (int32_t)atoi(p);
             if (*p == '\0' || *p == '\r' || *p == '\n') continue;  /* loop_err_13 */
 
             p = scan_to_comma(p);

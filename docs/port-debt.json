@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 24,
+  "total": 23,
   "by_kind": {
    "stub": 4,
    "synthetic-data": 0,
-   "simplified": 8,
+   "simplified": 7,
    "hardcode": 1,
    "scaffold": 0,
    "force-flag": 0
@@ -23,8 +23,8 @@
   },
   "retiring_engine_fns": 20,
   "by_engine_fn": {
-   "FUN_004361b2": 3,
    "FUN_004176ff": 2,
+   "FUN_004361b2": 2,
    "DAT_056db000": 1,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
@@ -59,7 +59,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1189,
+   "line": 1190,
    "kind_known": false
   },
   {
@@ -67,7 +67,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1146,
+   "line": 1147,
    "kind_known": false
   },
   {
@@ -115,7 +115,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1212,
+   "line": 1213,
    "kind_known": false
   },
   {
@@ -148,14 +148,6 @@
    "desc": "the engine's boosted-glow",
    "file": "src/scene1_wing_glow.c",
    "line": 34,
-   "kind_known": true
-  },
-  {
-   "kind": "simplified",
-   "engine_fn": "FUN_004361b2",
-   "desc": "C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported).",
-   "file": "src/scene1_merchant_hud.c",
-   "line": 202,
    "kind_known": true
   },
   {

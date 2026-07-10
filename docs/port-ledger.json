@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 496,
-  "unported": 1967,
+  "ported": 500,
+  "unported": 1963,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 581,
-  "pct_touched": 22.8,
+  "touched": 585,
+  "pct_touched": 23.0,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -2913,8 +2913,11 @@
    "size": 50,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/news_daily.c",
+    "src/news_daily.h"
+   ]
   },
   {
    "va": "0x4361b2",
@@ -2926,7 +2929,10 @@
    "src": [
     "src/customer_haggle.h",
     "src/customer_service.c",
+    "src/customer_service.h",
     "src/customer_service_render.c",
+    "src/news_daily.c",
+    "src/news_daily.h",
     "src/scene1_display_menu.c",
     "src/scene1_merchant_hud.c",
     "src/scene_guild.c"
@@ -2938,8 +2944,11 @@
    "size": 185,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/news_daily.c",
+    "src/news_daily.h"
+   ]
   },
   {
    "va": "0x43647f",
@@ -2972,8 +2981,15 @@
    "size": 2420,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_service.c",
+    "src/news_daily.c",
+    "src/news_daily.h",
+    "src/save_bank.h",
+    "src/scene1_tutorial_dispatch.c",
+    "src/tables_news.h"
+   ]
   },
   {
    "va": "0x436f97",
@@ -6486,6 +6502,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/news_daily.c",
     "src/scene1_combat_sm.h"
    ]
   },
@@ -8726,6 +8743,7 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_shop_display.h",
     "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
     "src/sim.h"
    ]
@@ -10681,8 +10699,11 @@
    "size": 203,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/news_daily.c",
+    "src/news_daily.h"
+   ]
   },
   {
    "va": "0x49e849",
@@ -10756,6 +10777,7 @@
    "status": "ported",
    "src": [
     "src/encyclopedia.c",
+    "src/news_daily.c",
     "src/scene1_display_menu.c"
    ]
   },
@@ -22749,6 +22771,7 @@
    "src": [
     "src/audio.c",
     "src/customer_service.c",
+    "src/news_daily.c",
     "src/scene1_combat_sm.c",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
@@ -23030,6 +23053,7 @@
     "src/customer_service.c",
     "src/diff_entry.c",
     "src/diff_entry.h",
+    "src/news_daily.c",
     "src/npc_schedule.c",
     "src/rng.c",
     "src/rng.h",
