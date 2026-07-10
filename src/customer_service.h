@@ -42,6 +42,12 @@
  * Called the frame cc08 flips 1→…→4 (the auto-arrival site FUN_0048670f:86896). */
 void customer_service_session_init(void);
 
+/* Golden-replay harness (roster_golden_replay.c): set 1 to make
+ * customer_service_session_init skip the rng-neutral scene/worker tails so
+ * the roster scan runs headless at boot on a captured arena.  Never set in
+ * the real game. */
+void customer_service_set_roster_replay(int v);
+
 /* ── per-frame master tick — FUN_00462403 ──────────────────────────────────
  * Run every frame while cc08==4 (dispatched from the player-controller's
  * non-free-roam arm).  Owns the arrival/leave anim, the speech-bubble screen

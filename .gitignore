@@ -76,3 +76,7 @@ tools/trace_studio_v3/.studio_current
 *.swo
 .DS_Store
 src/se.rc
+
+# roster-scan gate fixtures (regenerable via tools/roster_scan_capture.py; non-deterministic golden)
+docs/findings/data/roster-golden-day2.json
+docs/findings/data/*.arena.bin

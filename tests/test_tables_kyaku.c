@@ -213,7 +213,7 @@ int test_tables_kyaku_like_attr_mask_sjis_tokens(void)
     /* 好き属性:武器防具 should OR in bits 0x0001 and 0x0002. */
     static const unsigned char input[] =
         "002:Louie\r\n"
-        K_LATTR "\x95\xbe\x8a\xed\x96\x68\x8b\xef\r\n";  /* 武器防具 */
+        K_LATTR "\x95\x90\x8a\xed\x96\x68\x8b\xef\r\n";  /* 武器防具 */
     kyaku_state_t out;
     tables_parse_kyaku(input, sizeof input - 1, &out, NULL, NULL);
     T_ASSERT_EQ_U(out.records[2].like_attr_mask, 0x0003u);
@@ -422,7 +422,7 @@ int test_tables_kyaku_vendor_shape(void)
         "013:Woman#Women\r\n"
         K_NAMEIDX "13\r\n"
         K_ATTR    "0,4\r\n"
-        K_LATTR   "\x95\xbe\x8a\xed\x96\x68\x8b\xef\r\n"   /* 武器防具 -> 0x3 */
+        K_LATTR   "\x95\x90\x8a\xed\x96\x68\x8b\xef\r\n"   /* 武器防具 -> 0x3 */
         K_LKIND   "Medicines\r\n"
         K_LKIND   "Rings\r\n"
         K_LKIND   "Books\r\n"

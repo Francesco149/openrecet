@@ -214,6 +214,14 @@ static int32_t s_buysell_kyaku; /* DAT_073dddbc — the forced kyaku id */
  * admit cap; passed to cs_roster_scan since it's computed before the branch. */
 static int32_t s_roster_customer_count;
 
+/* Golden-replay harness flag (roster_golden_replay.c): when set,
+ * customer_service_session_init skips the rng-NEUTRAL scene/worker tails
+ * (NPC roster reset/build + the d3e load-worker spawn) that need live scene
+ * state — so the scan's RNG-consuming body can be exercised headless at boot
+ * on a captured arena.  Never set in the real game. */
+static int32_t s_roster_replay;
+void customer_service_set_roster_replay(int v) { s_roster_replay = v; }
+
 /* ══ FUN_0045edaa general roster scan (all.c 57474-58212) ════════════════════
  * The customer eligibility / spawn scan: decides WHO walks in + WHAT they want
  * each shop-open when it's neither the scripted tutorial (f406) nor a
@@ -263,6 +271,12 @@ static void cs_roster_scan(uint8_t *bank)
     int32_t pool_kyaku[250];   /* local_6a0 */
     int32_t pool_cand [250];   /* local_a88 — candidate index of each pool entry */
     int32_t jitter    [100];   /* local_1b8 — score jitter + index scratch */
+
+    /* Refresh the shop attribute centroid (DAT_0438b4b8/bc via FUN_0048439a) the
+     * band classifier (roster_dist_band) reads.  Retail keeps it current on every
+     * display change; the port hadn't wired it (PORT-DEBT A3), so the scan read a
+     * stale (0,0) centroid → wrong bands → wrong candidate scores.  rng-neutral. */
+    roster_compute_centroid(bank);
 
     s_b5f8 = 0;                /* DAT_0730b5f8 = 0 (57475) */
     s_b5e8 = 0;                /* DAT_0730b5e8 = 0 (57476) news event inactive */
@@ -354,6 +368,7 @@ static void cs_roster_scan(uint8_t *bank)
     int32_t day  = bd[SAVE_BANK_FIELD_SHOP_DAY];       /* DAT_0450fb84 */
 
     /* ── 4. candidate build loop: kyaku 2..49 (57573-57824) ── */
+    int qn = 0, en = 0, pooln = 0;   /* queue / eligible / pool counts (phase 7+) */
     int cn = 0;                                        /* local_10 — candidate cursor */
     for (int k = 2; k < 50; k++) {
         const kyaku_record_t *kr = &g_kyaku.records[k];
@@ -513,9 +528,6 @@ static void cs_roster_scan(uint8_t *bank)
     }
 
     /* ── 7. scheduled-appointment (予約) injection (57848-57879) ── */
-    int qn    = 0;   /* local_10 — queue cursor (reset) */
-    int en    = 0;   /* local_14 — eligible count */
-    int pooln = 0;   /* local_8  — pool count */
     for (int e = 0; e < SAVE_BANK_SCHED_COUNT; e++) {
         const int32_t *sc = bd + SAVE_BANK_FIELD_SCHED_TABLE + e * SAVE_BANK_SCHED_STRIDE_DWORDS;
         if (sc[0] != 1 || sc[2] >= 1)                    /* active && timer<1 */
@@ -727,7 +739,8 @@ static void cs_roster_scan(uint8_t *bank)
     for (int i = 0; i < CS_ROSTER_PERM_N; i++) s_roster_perm[i] = i;
     if (qn > 1) roster_shuffle(s_roster_perm, (uint32_t)qn);
     /* (58175-58201 debug tile-draw FUN_005038ff/00451874 — no rng/state, stubbed.) */
-    cs_load_eligible_portraits(s_eligible);              /* FUN_0046f8ba */
+    if (!s_roster_replay)
+        cs_load_eligible_portraits(s_eligible);          /* FUN_0046f8ba (rng-neutral) */
     /* clear consumed scheduled appointments (58203-58211). */
     for (int e = 0; e < SAVE_BANK_SCHED_COUNT; e++) {
         int32_t *sc = (int32_t *)bank + SAVE_BANK_FIELD_SCHED_TABLE
@@ -767,7 +780,8 @@ void customer_service_session_init(void)
      * here, before the per-session state, so all paths start with retail's free
      * slots + a zeroed spawn cadence (the forced-sale path resets again in
      * cs_load_eligible_portraits before building its roster — harmless). */
-    scene1_customer_npc_reset();    /* FUN_0046f892 effect (house-load + leave mirror) */
+    if (!s_roster_replay)
+        scene1_customer_npc_reset();    /* FUN_0046f892 effect (house-load + leave mirror) */
 
     /* ── shared prologue (all.c:57374-57413): zero the per-session state ── */
     s_b520 = 0;
@@ -916,9 +930,11 @@ void customer_service_session_init(void)
 
     /* FUN_00452d3e(0) (all.c:58250): spawn the customer-service asset-load worker
      * (DAT_0438b1cc = 2 = "loading" — the master tick is inert until it clears). */
-    s_b1cc = 2;
-    s_csload_hold = 0;                       /* {csloadpin} bracket start */
-    worker_load_spawn_d3e(0);
+    if (!s_roster_replay) {
+        s_b1cc = 2;
+        s_csload_hold = 0;                   /* {csloadpin} bracket start */
+        worker_load_spawn_d3e(0);
+    }
 }
 
 /* Load-worker completion (DAT_0438b1cc 2 → 1): the cc08==4 asset-load worker's

@@ -90,6 +90,7 @@
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
 #include "customer_service.h"       /* customer_service_bargain_active — PAUSE_OPEN at the haggle */
+#include "roster_golden_replay.h"   /* headless roster-scan golden-replay gate */
 #include "scene1_hud.h"
 #include "scene1_top_hud.h"   /* scene1_top_hud_render (FUN_00406d50) — mode-8 HUD */
 #include "scene1_fps.h"
@@ -2018,6 +2019,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * callback no-ops unless F2 recording is active). */
     save_io_set_write_notify(trace_rec_on_save_write, NULL);
     save_bank_init_all();
+
+    /* Headless roster-scan golden-replay gate (no-op unless OPENRECET_ROSTER_GOLDEN
+     * is set): tables + arenas are up here, before any window/scene, so the ported
+     * scan can run on a captured retail arena and dump a diffable fixture. */
+    roster_golden_replay_maybe();
     fprintf(stderr,
             "save_bank: arena initialized (header magic=0x%08x, "
             "sliders se=%d bgm=%d se-b=%d slider3=%d)\n",
