@@ -146,20 +146,42 @@ decompile is WRONG on two helpers; the binary values below are authoritative.
 - **news-def DAT_056e0de0** = news record base(0x56e0d44)+0x9c ⇒ scan's de0+{0,4,8,0xc} map
   1:1 to the port's `news_record_t {attr_mask@0x9c, category@0xa0, item_id@0xa4,
   target_group@0xa8}` (g_news, already loaded). NO new news loader needed.
-- **item/request pool DAT_06a5dbd8** (stride 0x13 dw, count DAT_06a5d448) — built at
-  table-load (all.c ~75269-75348, inside FUN_00475270) from a token list; entry
-  {attr@[0], id/cat@[1], quality-tier-idx@[2], …, category@[0x11]}. **Port lacks this
-  table entirely** — a prerequisite for FUN_0045e80f + the scan's news/queue-fill blocks.
+- **item/request pool DAT_06a5dbd8** (stride 0x13 dw, count DAT_06a5d448) — entry
+  {attr_mask@[0], attr_index@[1], quality-tier-idx@[2]}. ★★ **CORRECTION 2026-07-10 (M2a
+  DE-SCOPED): this is NOT a missing table — it IS `g_oder` (the oder.txt request table,
+  ALREADY PORTED as `tables_oder.c`).** Arithmetic proof: oder base `DAT_06a5db98` stride
+  0x4c bytes = 0x13 dw, count `DAT_06a5d448`; `DAT_06a5dbd8`=base+0x40=oder `attr_mask`,
+  `DAT_06a5dbdc`=base+0x44=oder `attr_index`, [+0x48]=`level_minus_1` (= the quality-tier
+  idx into DAT_005c6c00). The loader at all.c ~75270 IS oder block #8 (writes name_sing/plur
+  then `[0x11]`=attr_index/`[0x12]`=level). So the scan reads `g_oder.entries[i].{attr_mask,
+  attr_index,level_minus_1}`. **No new module needed.** ★ CAVEAT: the scan compares
+  `item.category (DAT_095d3808) == oder.attr_index`; the port's tables_oder stores
+  `attr_index=-1` for the mask==0 case (item.txt category-name lookup was stubbed). Since
+  item.txt IS now loaded (g_item), that stub must be resolved (wire the g_item category-name
+  lookup) for the scan to be eligibility/RNG-exact — a small follow-up, tracked as M2a'.
   Quality thresholds DAT_005c6c00 = {0,3,10,17,22}. range cols DAT_005c6c14={1,2,3,4,11,12,13}.
+- **item catalog = `g_item` (tables_item.c, ALREADY PORTED).** Stride 0x2cc = 0xb3 dw. Scan
+  fields: `DAT_095d37f8`[slot·0xb3]=record.attr_mask(+0x28), `DAT_095d3808`=category(+0x38),
+  `DAT_095d37d4`=price(+0x04), `DAT_095d3804`=item_id(+0x34); id→slot = FUN_004681f6 =
+  `tables_item_find_slot_by_id`. So the scan's item-catalog deps are fully available.
 - FUN_005038ff/FUN_00451874 = debug-text sprintf+tile-draw ("%2d "); NO rng/state ⇒ stubbable.
 
 ## Port status (customer_roster.c / .h — 2026-07-10)
-PORTED + host-tested (tests/test_customer_roster.c) + objdump-exact: **e55c weight, a68f band,
-e505 shuffle, 0048439a centroid** + save_bank consts (closeness 0xb484, news-list 0x9d74,
-news-latch 0xb778, sched 0xa97e, deco 0xb379-c). PENDING (need the item-pool loader / scan
-context): **e80f item-pick, e6e0 event-state, ed12 range-gate, the 740-line scan body, +the
-port-side golden-replay verify harness.** e6e0/ed12 decoded (ed12 = row-0 ONLY, index-mismatch
-quirk: guard cell=grid[list[k]] but item=grid[k] — replicate faithfully).
+PORTED + host-tested (tests/test_customer_roster.c) + objdump-exact:
+- **M1 (landed earlier):** e55c weight, a68f band, e505 shuffle, 0048439a centroid + save_bank
+  consts (closeness 0xb484, news-list 0x9d74, news-latch 0xb778, sched 0xa97e, deco 0xb379-c).
+- **M2 helpers (landed 2026-07-10):** **e6e0 `roster_event_state`** (0..4 daily-relics event;
+  scans inventory table dw6 + display grid for ids 0xc1d/0xc26/0xc22, day-delta buckets),
+  **e80f `roster_pick_item`** (oder pick over g_oder; quality gate + attr/category/news match;
+  0/1 rng — exactly 1 draw iff ≥1 match), **ed12 `roster_range_gate`** (row-0-ONLY quest-item
+  range gate, WITH the index-mismatch quirk: guard cell=grid[range_cols[j]] but item=grid[j];
+  slot<0 → no-match, engine-quirk #131). +5 host tests (3407/0). New save_bank consts:
+  SHOP_DAY 0xb0fb, SHOP_RANK 0xb100, EVENT_FLAG_BYTE 0x2bccb, EVENT_DAY_BYTE 0x2bcca.
+
+PENDING (M3, the hard core): **the 740-line scan body** (all.c 57474-58212) into
+customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact; **M2a' the
+oder.attr_index item.txt-category resolution** (currently stubbed -1 — see the CORRECTION
+above); **the port-side golden-replay verify harness** (the binary gate).
 
 ## Live harness notes (reusable)
 - RNG seed VA = **DAT_006023a0** (MSVC LCG `s=s*0x343fd+0x269ec3; return s>>16 &0x7fff`). Poke to

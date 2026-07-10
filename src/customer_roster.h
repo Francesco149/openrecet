@@ -72,4 +72,48 @@ int32_t roster_customer_weight(const uint8_t *bank, const kyaku_record_t *kr);
  * Consumes exactly n rng_next15() draws — load-bearing for RNG parity. */
 void    roster_shuffle(int32_t *arr, uint32_t n);
 
+/* ── FUN_0045e6e0 — daily "3 relics" special-event state (0..4) ────────
+ * Reads the working slot (`bank`) only.  Returns:
+ *   0  the event story-flag (EVENT_FLAG_BYTE) is set → event disabled
+ *   1  not all three relic items (id 0xc1d/0xc26/0xc22) are held or on
+ *      display
+ *   2  all three present, ≤1 day since the last progression
+ *   3  all three present, 2..3 days since
+ *   4  all three present, >3 days since
+ * The relic scan walks BOTH the inventory item table (dword 6, count at
+ * ITEM_COUNT 0xaec6) and the 15×20 display grid.  Pure (no RNG). */
+int32_t roster_event_state(const uint8_t *bank);
+
+/* ── FUN_0045ed12 — row-0 quest-item range gate (0/1) ─────────────────
+ * Returns 1 iff any display-grid ROW-0 counter column {1,2,3,4,11,12,13}
+ * holds an item whose id falls in the quest ranges
+ * (4000<id<0xfa7 | id==0xfab | id==0xfb0 | 0xfb8<id<0xfc3), else 0.
+ * ★ Faithful index-mismatch quirk: retail tests the CELL at the counter
+ *   column (k_range_cols[j]) for occupancy but resolves the ITEM id from
+ *   the SEQUENTIAL column j — so the two reads hit different cells; this
+ *   is replicated exactly.  Reads bank + g_item.  Pure (no RNG). */
+int32_t roster_range_gate(const uint8_t *bank);
+
+/* ── FUN_0045e80f — pick an oder (item request) for a customer ─────────
+ * The daily-news featured-event state the scan latches (engine
+ * DAT_0730b5e8/f0/f4); passed in so this helper stays self-contained. */
+typedef struct {
+    int32_t  active;      /* DAT_0730b5e8 — a news featured event is active */
+    int32_t  target_id;   /* DAT_0730b5f0 — featured category / target id   */
+    uint32_t attr_mask;   /* DAT_0730b5f4 — featured attribute mask         */
+} roster_news_event_t;
+
+/* Scans the oder pool (g_oder) for entries the customer `kr` would request,
+ * then RNG-picks one uniformly among the matches.  Match rule:
+ *   • no news event (ev->active==0): oder passes a quality gate
+ *     (DAT_005c6c00[oder.level_minus_1] ≤ min(closeness/10, shop_rank)) AND
+ *     (oder.attr_mask & kr->like_attr_mask) OR oder.attr_index ∈ kr->like_kinds
+ *   • news event: match oder.attr_index==ev->target_id (when ev->attr_mask==0)
+ *     else (oder.attr_mask & ev->attr_mask)!=0
+ * `closeness_idx` indexes the per-customer closeness array (engine param_2).
+ * Returns the chosen oder index, or -1 if none match.  Consumes exactly ONE
+ * rng_next15() draw when ≥1 oder matches, ZERO otherwise (load-bearing). */
+int32_t roster_pick_item(const uint8_t *bank, const kyaku_record_t *kr,
+                         int32_t closeness_idx, const roster_news_event_t *ev);
+
 #endif /* OPENRECET_CUSTOMER_ROSTER_H */

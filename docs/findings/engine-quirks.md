@@ -4849,3 +4849,25 @@ Net: a faithful DAY2-load frame = live house scene + "Now Loading" disc + NO cam
 the scene when `!nowloading || dialogue_loading`, scene1_top_hud gates the camera hint on `_busy()`.
 Residual: a 2-3 frame load-bracket skew (completion-based CreateThread race) shifts the disc-spinner
 rotation phase + character anim phase — pillar-B, not a logic gap; re-aligns post-load.
+
+## 131. The row-0 quest-item range gate (FUN_0045ed12) reads occupancy and item-id from DIFFERENT display cells — a deliberate index mismatch, so an occupied counter cell whose sequential-column twin is empty resolves the item id from the EMPTY cell (>>6 of -1 → OOB catalog read)
+
+`FUN_0045ed12` (the roster-scan's quest-item detector; port `roster_range_gate`) walks the 7
+row-0 "counter" columns `DAT_005c6c14 = {1,2,3,4,11,12,13}` with two loop indices that never
+agree: the OCCUPANCY test reads the cell at the counter column `grid[range_cols[j]]`, but the
+ITEM ID is resolved from the SEQUENTIAL column `grid[j]` (j = 0..6):
+```
+if (grid[range_cols[j]] != -1) {                 // guard: counter column
+    id = catalog[ FUN_004681f6(grid[j] >> 6) ];   // item:  sequential column j
+    if (id in quest-ranges) return 1;
+}
+```
+Consequence: when a counter cell is occupied but its sequential-column twin (col j) is EMPTY,
+retail computes `-1 >> 6 = -1`, `FUN_004681f6(-1)` returns not-found, and it indexes the item
+catalog at slot -1 = an **OOB read one record BEFORE the table** (deterministic garbage in
+retail, unreproducible in the port). In practice that garbage essentially never lands in the
+quest ranges, so the gate returns 0. The port replicates the mismatch exactly and treats
+`slot < 0` as "no match" (guarded — no OOB). Net effect matches retail unless the pre-table
+garbage coincidentally hits a quest id, which the display layout would have to conspire to
+produce. Also: an in-range item sitting ONLY in a counter column that is never a sequential
+source (e.g. col 1, whose item role needs col 2 occupied) is NEVER examined as an item at all.

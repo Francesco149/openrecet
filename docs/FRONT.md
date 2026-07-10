@@ -45,15 +45,24 @@
        deco 0xb379-c). **News-def confirmed 1:1 with g_news** (no new news loader). **★ CLOSENESS/DECORATION
        ANSWERED** (as before): decoration→WHO via e55c weight, closeness→budget/quality. **✅ GOLDEN REFERENCE**
        (`tools/roster_scan_capture.py` + `findings/data/roster-golden-day1.json`): 6-seed retail sweep w/ rng-draw
-       counts 134-176 (the data-dependent-rng gate). **NEXT (M2, still large):** (a) the **item/request pool
-       `DAT_06a5dbd8`** (stride 0x13 dw, count DAT_06a5d448) — a load-time table built in all.c ~75269-75348
-       (FUN_00475270 block) the **PORT LACKS entirely**; needed by e80f + the scan's news/queue-fill. Port it as
-       a new tables_* module. (b) `FUN_0045e80f` item-pick (needs the pool), `e6e0` event-state, `ed12` range-gate
-       (row-0-only, replicate its guard/item index-mismatch quirk). (c) the **740-line scan body** (all.c
-       57474-58212) into customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact — call
-       roster_compute_centroid at entry. (d) the **port-side golden-replay verify harness** (task #6: load real
-       kyaku/item/news + inject the captured arena + pin seed + run scan → compare count/eligible/queue/rng_draws
-       to the golden JSON) — the binary gate; the natural `--target both` shop-open trace is the FOUNDATION gate.
+       counts 134-176 (the data-dependent-rng gate). **M2 PROGRESS 2026-07-10:**
+       - **(a) DE-SCOPED — the "item/request pool `DAT_06a5dbd8`" is NOT a missing table; it IS `g_oder`**
+         (oder.txt, ALREADY PORTED as tables_oder.c). Proof: oder base DAT_06a5db98 stride 0x4c=0x13dw, count
+         DAT_06a5d448; dbd8=+0x40=attr_mask, dbdc=+0x44=attr_index, [+0x48]=level_minus_1(=quality-tier idx).
+         Item catalog = `g_item` (stride 0xb3dw; attr_mask/category/price/id + FUN_004681f6=find_slot_by_id) —
+         also fully ported. So the scan's table deps ARE available. Finding roster-scan-RE.md §OBJDUMP-CORR.
+       - **(b) LANDED — e6e0/e80f/ed12 ported + 5 host tests (3407/0), objdump-exact.** customer_roster.c:
+         `roster_event_state` (0..4 relic event), `roster_pick_item` (oder pick, 0/1 rng), `roster_range_gate`
+         (row-0 quest gate + the index-mismatch quirk = engine-quirk #131). New save_bank consts SHOP_DAY/
+         SHOP_RANK/EVENT_FLAG_BYTE/EVENT_DAY_BYTE.
+       - **NEXT (M3, the hard core):** (c) the **740-line scan body** (all.c 57474-58212) into
+         customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact — call roster_compute_centroid at
+         entry, then the news block/per-kyaku candidate build/rng-jitter/rejection-sample/tier-select/queue-fill
+         using the M1+M2 helpers. (a') the **oder.attr_index item.txt-category resolution** (tables_oder stubs -1
+         for mask==0; item.txt IS loaded now → wire the g_item category-name lookup, else scan eligibility/RNG
+         diverge). (d) the **port-side golden-replay verify harness** (load real kyaku/item/news + inject captured
+         arena + pin seed + run scan → compare count/eligible/queue/rng_draws to the golden JSON) — the binary
+         gate; the natural `--target both` shop-open trace is the FOUNDATION gate.
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG

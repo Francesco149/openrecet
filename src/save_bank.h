@@ -261,6 +261,21 @@
 #define SAVE_BANK_FIELD_DECO_TABLE     0xb37b   /* DAT_04510584 (sel3) */
 #define SAVE_BANK_FIELD_DECO_CARPET    0xb37c   /* DAT_04510588 (sel2) */
 
+/* Working-arena day + shop rank.  Same dword indices as the display-arena
+ * CARD_DAY (0xb0fb) / CHAR-LEVEL (0xb100) but read here from the LIVE
+ * working slot (engine DAT_0450fb84 = day, DAT_0450fb98 = shop rank).
+ * (0x450fb84-base)/4 = 0xb0fb; (0x450fb98-base)/4 = 0xb100. */
+#define SAVE_BANK_FIELD_SHOP_DAY       0xb0fb   /* DAT_0450fb84 (working) */
+#define SAVE_BANK_FIELD_SHOP_RANK      0xb100   /* DAT_0450fb98 (working) */
+
+/* Roster daily-event story flags — engine DAT_0450f462/0450f463, two
+ * adjacent BYTES in the working slot.  f463 gates the whole event scan
+ * (nonzero → event disabled → roster_event_state returns 0); f462 is the
+ * day the "3 relics" event last progressed (the event-state day delta is
+ * SHOP_DAY − f462).  (0x450f463-base) = 0x2bccb; (0x450f462-base) = 0x2bcca. */
+#define SAVE_BANK_EVENT_FLAG_BYTE_OFF  0x2bccb  /* DAT_0450f463 */
+#define SAVE_BANK_EVENT_DAY_BYTE_OFF   0x2bcca  /* DAT_0450f462 */
+
 /* ── Shared header default slider values (engine-init constants) ── */
 
 #define SAVE_HEADER_SE_DEFAULT       9

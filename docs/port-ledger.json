@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 493,
-  "unported": 1970,
+  "ported": 496,
+  "unported": 1967,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 578,
-  "pct_touched": 22.7,
+  "touched": 581,
+  "pct_touched": 22.8,
   "pct_verified": 2.8,
   "port_debt": 26
  },
@@ -4879,8 +4879,11 @@
    "size": 215,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x45e7b7",
@@ -4899,8 +4902,11 @@
    "size": 298,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x45e939",
@@ -4929,8 +4935,11 @@
    "size": 152,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/customer_roster.c",
+    "src/customer_roster.h"
+   ]
   },
   {
    "va": "0x45edaa",

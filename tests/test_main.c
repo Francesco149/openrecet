@@ -438,6 +438,11 @@ struct test_case {
     X(roster_customer_weight_tier_multiplier) \
     X(roster_centroid_decoration_seed) \
     X(roster_centroid_item_nudge_and_clamp) \
+    X(roster_event_state_gate_and_relics) \
+    X(roster_range_gate_hit_miss_and_quirk) \
+    X(roster_pick_item_no_news_single_match) \
+    X(roster_pick_item_like_kind_and_no_match) \
+    X(roster_pick_item_quality_gate_and_news) \
     X(cs_session_init_tutorial_queue) \
     X(cs_session_init_draws_exactly_one_rng) \
     X(cs_session_init_reentry_rebuilds) \

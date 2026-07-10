@@ -14,6 +14,7 @@
 #include "../src/customer_roster.h"
 #include "../src/tables_item.h"
 #include "../src/tables_kyaku.h"
+#include "../src/tables_oder.h"
 #include "../src/save_bank.h"
 #include "../src/scene1_shop_display.h"
 #include "../src/rng.h"
@@ -238,6 +239,190 @@ int test_roster_centroid_item_nudge_and_clamp(void)
     roster_compute_centroid((const uint8_t *)b2);
     T_ASSERT_EQ_I(roster_centroid_x(), 0xd);
     free(b);
+    free(b2);
+    return 0;
+}
+
+/* ── FUN_0045e6e0 — roster_event_state ────────────────────────────────── */
+
+int test_roster_event_state_gate_and_relics(void)
+{
+    memset(&g_item, 0, sizeof g_item);
+    int32_t *b = make_bank();
+
+    /* (a) gate byte set → event disabled → 0 (relics irrelevant). */
+    ((uint8_t *)b)[SAVE_BANK_EVENT_FLAG_BYTE_OFF] = 1;
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 0);
+    ((uint8_t *)b)[SAVE_BANK_EVENT_FLAG_BYTE_OFF] = 0;
+
+    /* (b) no relics on display or in inventory → 1. */
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 1);
+
+    /* (c) only two of the three relics → still 1. */
+    grid_put(b, 4, 4, 0xc1d);
+    grid_put(b, 4, 5, 0xc26);
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 1);
+
+    /* All three present — third relic via the INVENTORY table (dword 6), to
+     * exercise that scan path too. */
+    b[SAVE_BANK_FIELD_ITEM_COUNT] = 1;
+    b[SAVE_BANK_ITEM_TABLE_DWORD] = 0xc22 << 6;
+
+    /* (d) day_delta ≤ 1 → 2. */
+    b[SAVE_BANK_FIELD_SHOP_DAY] = 5;
+    ((uint8_t *)b)[SAVE_BANK_EVENT_DAY_BYTE_OFF] = 4;   /* delta 1 */
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 2);
+
+    /* (e) day_delta 2..3 → 3. */
+    ((uint8_t *)b)[SAVE_BANK_EVENT_DAY_BYTE_OFF] = 2;   /* delta 3 */
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 3);
+
+    /* (f) day_delta > 3 → 4. */
+    ((uint8_t *)b)[SAVE_BANK_EVENT_DAY_BYTE_OFF] = 0;   /* delta 5 */
+    T_ASSERT_EQ_I(roster_event_state((const uint8_t *)b), 4);
+
+    free(b);
+    return 0;
+}
+
+/* ── FUN_0045ed12 — roster_range_gate ─────────────────────────────────── */
+
+int test_roster_range_gate_hit_miss_and_quirk(void)
+{
+    memset(&g_item, 0, sizeof g_item);
+    set_item(0, 4005, 0, 0);       /* 4000<4005<0xfa7 → in range   */
+    set_item(1, 500,  0, 0);       /* out of range                 */
+
+    /* (a) empty grid → 0. */
+    int32_t *b = make_bank();
+    T_ASSERT_EQ_I(roster_range_gate((const uint8_t *)b), 0);
+
+    /* (b) in-range item at row0 cols 0..1 → j=0 tests guard col1 (occupied)
+     * and reads the item at col0 (4005, in range) → 1. */
+    grid_put(b, 0, 0, 4005);
+    grid_put(b, 0, 1, 4005);
+    T_ASSERT_EQ_I(roster_range_gate((const uint8_t *)b), 1);
+
+    /* (c) out-of-range item everywhere in row0 → 0. */
+    int32_t *b2 = make_bank();
+    for (int c = 0; c < 14; c++)
+        grid_put(b2, 0, c, 500);
+    T_ASSERT_EQ_I(roster_range_gate((const uint8_t *)b2), 0);
+
+    /* (d) ★ index-mismatch quirk: an in-range item at col1 ALONE returns 0 —
+     * col1 is only ever a GUARD column (for j=0), never an item source
+     * (that would need guard col2 occupied), so its item is never examined. */
+    int32_t *b3 = make_bank();
+    grid_put(b3, 0, 1, 4005);
+    T_ASSERT_EQ_I(roster_range_gate((const uint8_t *)b3), 0);
+
+    free(b);
+    free(b2);
+    free(b3);
+    return 0;
+}
+
+/* ── FUN_0045e80f — roster_pick_item ──────────────────────────────────── */
+
+static void set_oder(int slot, uint32_t attr_mask, int32_t attr_index, int32_t level)
+{
+    g_oder.entries[slot].attr_mask     = attr_mask;
+    g_oder.entries[slot].attr_index    = attr_index;
+    g_oder.entries[slot].level_minus_1 = level;
+    if (slot + 1 > g_oder.count)
+        g_oder.count = slot + 1;
+}
+
+/* Bank with a given closeness[0] and shop rank. */
+static int32_t *make_pick_bank(int16_t closeness0, int32_t rank)
+{
+    int32_t *b = make_bank();
+    *(int16_t *)((uint8_t *)b + SAVE_BANK_FIELD_CLOSENESS * 4) = closeness0;
+    b[SAVE_BANK_FIELD_SHOP_RANK] = rank;
+    return b;
+}
+
+int test_roster_pick_item_no_news_single_match(void)
+{
+    memset(&g_oder, 0, sizeof g_oder);
+    set_oder(0, 0x1, 5, 0);   /* attr 0x1, cat 5, level0 (thr 0)  */
+    set_oder(1, 0x2, 9, 0);   /* attr 0x2, cat 9                  */
+
+    kyaku_record_t kr;
+    memset(&kr, 0, sizeof kr);
+    kr.like_attr_mask = 0x1;  /* matches oder0 by attr; oder1 no  */
+    kr.like_count = 0;
+
+    roster_news_event_t ev = { 0, 0, 0 };
+    int32_t *b = make_pick_bank(100, 10);   /* cap = min(10,10) = 10 */
+
+    /* Exactly one match (oder0) → rng%1 = 0 → returns 0, ONE rng draw. */
+    rng_seed(19937);
+    unsigned long before = rng_call_count();
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b, &kr, 0, &ev), 0);
+    T_ASSERT_EQ_U(rng_call_count() - before, 1);
+
+    free(b);
+    return 0;
+}
+
+int test_roster_pick_item_like_kind_and_no_match(void)
+{
+    memset(&g_oder, 0, sizeof g_oder);
+    set_oder(0, 0x8, 5, 0);
+    set_oder(1, 0x8, 9, 0);
+
+    kyaku_record_t kr;
+    memset(&kr, 0, sizeof kr);
+    kr.like_attr_mask = 0x1;   /* no attr match (oders are 0x8)   */
+    kr.like_count = 1;
+    kr.like_kinds[0] = 9;      /* matches oder1 by category (9)   */
+
+    roster_news_event_t ev = { 0, 0, 0 };
+    int32_t *b = make_pick_bank(100, 10);
+
+    rng_seed(19937);
+    unsigned long before = rng_call_count();
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b, &kr, 0, &ev), 1);
+    T_ASSERT_EQ_U(rng_call_count() - before, 1);
+
+    /* No match at all → -1 and ZERO rng draws (load-bearing). */
+    kr.like_count = 0;
+    kr.like_attr_mask = 0x1;
+    before = rng_call_count();
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b, &kr, 0, &ev), -1);
+    T_ASSERT_EQ_U(rng_call_count() - before, 0);
+
+    free(b);
+    return 0;
+}
+
+int test_roster_pick_item_quality_gate_and_news(void)
+{
+    memset(&g_oder, 0, sizeof g_oder);
+    set_oder(0, 0x1, 5, 4);   /* level4 → threshold 22            */
+    set_oder(1, 0x2, 9, 0);   /* level0 → threshold 0            */
+
+    kyaku_record_t kr;
+    memset(&kr, 0, sizeof kr);
+    kr.like_attr_mask = 0x3;  /* would match both by attr        */
+
+    /* cap = min(closeness/10, rank) = min(3, 10) = 3 < 22 → oder0 gated out,
+     * only oder1 survives → returns 1. */
+    roster_news_event_t ev = { 0, 0, 0 };
+    int32_t *b = make_pick_bank(30, 10);
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b, &kr, 0, &ev), 1);
+    free(b);
+
+    /* News event by exact target id (ev.attr_mask == 0): only oder whose
+     * attr_index == target matches, quality gate bypassed. */
+    int32_t *b2 = make_pick_bank(0, 0);   /* cap 0, irrelevant under news */
+    roster_news_event_t evt = { 1, 5, 0 };   /* target cat 5 → oder0 */
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b2, &kr, 0, &evt), 0);
+
+    /* News event by attr mask: match (oder.attr_mask & ev.attr_mask). */
+    roster_news_event_t evm = { 1, 0, 0x2 };   /* mask 0x2 → oder1 */
+    T_ASSERT_EQ_I(roster_pick_item((const uint8_t *)b2, &kr, 0, &evm), 1);
     free(b2);
     return 0;
 }

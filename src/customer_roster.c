@@ -18,6 +18,7 @@
 
 #include "customer_roster.h"
 #include "tables_item.h"          /* g_item, tables_item_find_slot_by_id (FUN_004681f6) */
+#include "tables_oder.h"          /* g_oder — the oder (item-request) pool (DAT_06a5dbd8) */
 #include "save_bank.h"            /* SAVE_BANK_FIELD_* */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "rng.h"                  /* rng_next15 (FUN_005041f6) */
@@ -172,4 +173,135 @@ void roster_shuffle(int32_t *arr, uint32_t n)
         arr[j] = arr[pass];
         arr[pass] = tmp;
     }
+}
+
+/* ── FUN_0045e6e0 — daily "3 relics" special-event state (0..4) ────────── */
+
+/* The three "relic" item ids the event watches for (retail literals). */
+#define RELIC_ID_A 0xc1d
+#define RELIC_ID_B 0xc26
+#define RELIC_ID_C 0xc22
+
+static void roster_relic_accumulate(uint32_t *have, int32_t cell)
+{
+    if (cell == -1)
+        return;
+    int32_t id = cell >> 6;
+    if (id == RELIC_ID_A) *have |= 1;
+    if (id == RELIC_ID_B) *have |= 2;
+    if (id == RELIC_ID_C) *have |= 4;
+}
+
+int32_t roster_event_state(const uint8_t *bank)
+{
+    /* The gate byte (DAT_0450f463) set → the event is disabled entirely. */
+    if (bank[SAVE_BANK_EVENT_FLAG_BYTE_OFF] != 0)
+        return 0;
+
+    const int32_t *b = (const int32_t *)bank;
+    uint32_t have = 0;
+
+    /* Relic scan #1: the inventory item table (dword 6, count 0xaec6). */
+    int inv_count = b[SAVE_BANK_FIELD_ITEM_COUNT];
+    const int32_t *items = b + SAVE_BANK_ITEM_TABLE_DWORD;
+    for (int i = 0; i < inv_count; i++)
+        roster_relic_accumulate(&have, items[i]);
+
+    /* Relic scan #2: the 15×20 display grid. */
+    const int32_t *grid = b + SAVE_BANK_FIELD_DISPLAY_GRID;
+    for (int i = 0; i < SAVE_BANK_DISPLAY_GRID_CELLS; i++)
+        roster_relic_accumulate(&have, grid[i]);
+
+    if (have != 7)
+        return 1;   /* not all three relics present */
+
+    /* All three present: bucket by days-since-last-progression.  day is int,
+     * the stored day (DAT_0450f462) is an unsigned byte. */
+    int32_t day_delta = b[SAVE_BANK_FIELD_SHOP_DAY] - bank[SAVE_BANK_EVENT_DAY_BYTE_OFF];
+    if (day_delta > 1)
+        return (day_delta > 3) + 3;   /* 3 (2..3 days) or 4 (>3 days) */
+    return 2;
+}
+
+/* ── FUN_0045ed12 — row-0 quest-item range gate (0/1) ─────────────────── */
+
+/* Retail rodata DAT_005c6c14 — the row-0 "counter" columns tested here.
+ * (Same values as k_front_cols but a distinct rodata table.) */
+static const int32_t k_range_cols[7] = { 1, 2, 3, 4, 11, 12, 13 };
+
+int32_t roster_range_gate(const uint8_t *bank)
+{
+    const int32_t *grid = (const int32_t *)bank + SAVE_BANK_FIELD_DISPLAY_GRID;
+
+    /* retail's outer loop advances by 0x14 and exits at 0x14 → it runs for
+     * ROW 0 only (columns iterated below). */
+    for (int j = 0; j < 7; j++) {
+        /* ★ index-mismatch quirk (RE roster-scan §helpers): occupancy is
+         * tested at the counter column k_range_cols[j], but the item id is
+         * resolved from the SEQUENTIAL column j — the two reads hit
+         * different cells.  Replicated exactly. */
+        if (grid[k_range_cols[j]] == -1)
+            continue;
+        int slot = tables_item_find_slot_by_id(&g_item, grid[j] >> 6);
+        if (slot < 0)
+            /* The sequential cell can be empty (>>6 of -1) even when the
+             * guard cell is occupied; retail then reads OOB garbage, which
+             * essentially never lands in the quest ranges.  The port treats
+             * it as "no match".  (engine-quirk #131.) */
+            continue;
+        int32_t id = g_item.records[slot].item_id;
+        if (((4000 < id && id < 0xfa7) || id == 0xfab) ||
+            (id == 0xfb0 || (0xfb8 < id && id < 0xfc3)))
+            return 1;
+    }
+    return 0;
+}
+
+/* ── FUN_0045e80f — pick an oder (item request) for a customer ─────────── */
+
+/* Retail rodata DAT_005c6c00 — per-oder-tier closeness thresholds. */
+static const int32_t k_quality_thresh[5] = { 0, 3, 10, 17, 22 };
+
+int32_t roster_pick_item(const uint8_t *bank, const kyaku_record_t *kr,
+                         int32_t closeness_idx, const roster_news_event_t *ev)
+{
+    /* local_c = min(closeness[idx]/10, shop_rank).  closeness is a signed
+     * int16 stored one-per-dword (stride 4 bytes). */
+    int32_t closeness = *(const int16_t *)(bank + SAVE_BANK_FIELD_CLOSENESS * 4
+                                           + closeness_idx * 4);
+    int32_t rank = ((const int32_t *)bank)[SAVE_BANK_FIELD_SHOP_RANK];
+    int32_t cap = closeness / 10;
+    if (rank <= closeness / 10)
+        cap = rank;
+
+    uint32_t chosen = 0xffffffffu;   /* local_10 — the rng-picked match ordinal */
+    for (int pass = 0; pass < 2; pass++) {
+        int matches = 0;             /* param_1 — running match counter */
+        for (int i = 0; i < g_oder.count; i++) {
+            const struct oder_entry *o = &g_oder.entries[i];
+            if (!ev->active) {
+                /* quality gate: the oder's tier threshold must fit `cap`. */
+                if (k_quality_thresh[o->level_minus_1] > cap)
+                    continue;
+                int is_match = (o->attr_mask & kr->like_attr_mask) != 0;
+                for (int k = 0; k < kr->like_count; k++)
+                    if (o->attr_index == kr->like_kinds[k])
+                        is_match = 1;
+                if (!is_match)
+                    continue;
+            } else if (ev->attr_mask == 0) {
+                if (o->attr_index != ev->target_id)
+                    continue;   /* featured by exact target id */
+            } else if ((o->attr_mask & ev->attr_mask) == 0) {
+                continue;       /* featured by attribute mask */
+            }
+            /* MATCH */
+            if (pass == 1 && chosen == (uint32_t)matches)
+                return i;
+            matches++;
+        }
+        if (pass == 0 && matches > 0)
+            chosen = (uint32_t)rng_next15() % (uint32_t)matches;
+    }
+    return -1;
 }
