@@ -1,0 +1,127 @@
+{
+  "function": "FUN_0045edaa",
+  "slot": 0,
+  "arena_va": 72234904,
+  "arena_len": 188360,
+  "arena_sha16": "78deef6f0f3557b3",
+  "results": [
+    {
+      "seed": 1,
+      "count": 1,
+      "eligible": [
+        17
+      ],
+      "queue": [
+        {
+          "kyaku": 17,
+          "item_slot": 20,
+          "kind": 0
+        }
+      ],
+      "final_seed": 1520422387,
+      "rng_draws": 176,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    },
+    {
+      "seed": 2,
+      "count": 0,
+      "eligible": [
+        17,
+        15,
+        17
+      ],
+      "queue": [],
+      "final_seed": 207391245,
+      "rng_draws": 144,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    },
+    {
+      "seed": 3,
+      "count": 1,
+      "eligible": [
+        15
+      ],
+      "queue": [
+        {
+          "kyaku": 15,
+          "item_slot": 16,
+          "kind": 0
+        }
+      ],
+      "final_seed": 577975761,
+      "rng_draws": 134,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    },
+    {
+      "seed": 7,
+      "count": 2,
+      "eligible": [
+        15,
+        15
+      ],
+      "queue": [
+        {
+          "kyaku": 15,
+          "item_slot": 16,
+          "kind": 0
+        },
+        {
+          "kyaku": 15,
+          "item_slot": 17,
+          "kind": 0
+        }
+      ],
+      "final_seed": 2388777177,
+      "rng_draws": 159,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    },
+    {
+      "seed": 42,
+      "count": 1,
+      "eligible": [
+        15,
+        11
+      ],
+      "queue": [
+        {
+          "kyaku": 15,
+          "item_slot": 17,
+          "kind": 0
+        }
+      ],
+      "final_seed": 1798437283,
+      "rng_draws": 167,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    },
+    {
+      "seed": 19937,
+      "count": 1,
+      "eligible": [
+        17,
+        15
+      ],
+      "queue": [
+        {
+          "kyaku": 17,
+          "item_slot": 18,
+          "kind": 0
+        }
+      ],
+      "final_seed": 745883367,
+      "rng_draws": 142,
+      "restored_offsets": [
+        "0x44e37a0"
+      ]
+    }
+  ]
+}

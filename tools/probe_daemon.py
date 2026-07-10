@@ -622,6 +622,12 @@ class ProbeDaemon:
                     return {"ok": True, "n": x.probe_poke_bytes(va, req["bytes"])}
                 x.probe_poke(va, req.get("type", "i32"), req["val"])
                 return {"ok": True}
+            if cmd == "readmem":            # bulk byte-range read → hex (snapshot)
+                va = int(req["va"], 0) if isinstance(req["va"], str) else req["va"]
+                return {"ok": True, "hex": x.read_memory(va, int(req["len"]))}
+            if cmd == "writemem":           # bulk byte-range write from hex (restore)
+                va = int(req["va"], 0) if isinstance(req["va"], str) else req["va"]
+                return {"ok": True, "n": x.write_memory(va, req["hex"])}
             if cmd == "callq":
                 va = int(req["va"], 0) if isinstance(req["va"], str) else req["va"]
                 return self._callq(va, req.get("args", []), req.get("argt", []),

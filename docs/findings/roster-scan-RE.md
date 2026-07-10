@@ -93,6 +93,37 @@ there:**
 - outputs: queue `DAT_0730aca0` (stride 6: kyaku/item_slot/kind), count `DAT_0730ac98`, eligible
   `DAT_06a5d450` (−2 terminated), perm `DAT_0730b1a8`.
 
+## Golden reference (for the 1:1 port verify) — `tools/roster_scan_capture.py`
+Captures retail's scan output for a seed sweep via the live harness:
+snapshot the per-slot working arena → for each seed {restore arena, pin
+`DAT_006023a0`, `call_function(FUN_0045edaa)`, read count/eligible/queue +
+recover rng-draw count by stepping the LCG from the pinned→final seed}. The scan
+is nearly idempotent: only **arena+8** (`DAT_044e37a0`, a per-slot increment
+counter, all.c:50359) mutates, so a diff+single-poke restore is race-safe (a BULK
+188KB arena write from the RPC thread races the live sim → CRASH; restore only the
+changed dwords). Needs the daemon `readmem`/`writemem` cmds (added 2026-07-10).
+
+Sample (fresh day-1, arena `sha16=78deef6f`, `docs/findings/data/roster-golden-day1.json`):
+| seed | count | rng_draws | eligible | queue (kyaku,item_slot,kind) |
+|---|---|---|---|---|
+| 1 | 1 | 176 | [17] | (17,20,0) |
+| 2 | 0 | 144 | [17,15,17] | — |
+| 3 | 1 | 134 | [15] | (15,16,0) |
+| 7 | 2 | 159 | [15,15] | (15,16,0)(15,17,0) |
+| 42 | 1 | 167 | [15,11] | (15,17,0) |
+| 19937 | 1 | 142 | [17,15] | (17,18,0) |
+
+⇒ different seeds → different customers (kyaku 11/15/17) + items + **rng-draw
+counts 134-176** (the sensitive 1:1 gate — a data-dependent-rng port MUST consume
+the same count). **NB the fixture is valid ONLY for its exact arena snapshot** —
+a fresh day-1 arena is NOT byte-deterministic run-to-run (the prologue varies
+RNG/flags), so seed=1 gave count=1 here vs count=2 on another nav. The port's
+primary gate stays a deterministic `--target both` trace where the scan runs
+naturally; this JSON is a cross-check + regression reference. To make it a runnable
+host test the port also needs the read-only deps (kyaku-def records `DAT_06a5ea90`
+50×0x2c670, item catalog `DAT_095d3804`) loaded — a data-loading prerequisite for
+the port, separate from the algorithm.
+
 ## Live harness notes (reusable)
 - RNG seed VA = **DAT_006023a0** (MSVC LCG `s=s*0x343fd+0x269ec3; return s>>16 &0x7fff`). Poke to
   pin the seed across A/B trials.
