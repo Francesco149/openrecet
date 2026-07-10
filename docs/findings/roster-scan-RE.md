@@ -178,7 +178,30 @@ PORTED + host-tested (tests/test_customer_roster.c) + objdump-exact:
   slot<0 → no-match, engine-quirk #131). +5 host tests (3407/0). New save_bank consts:
   SHOP_DAY 0xb0fb, SHOP_RANK 0xb100, EVENT_FLAG_BYTE 0x2bccb, EVENT_DAY_BYTE 0x2bcca.
 
-## ★ M3 LANDED 2026-07-10 — the 740-line scan body ported (UNVERIFIED, gate pending)
+## ★★★ ROSTER SCAN VERIFIED 1:1 (2026-07-10, commit `f4e52e2`)
+The general scan (cs_roster_scan / FUN_0045edaa) is **BIT-EXACT vs retail** — the
+golden-replay gate confirmed count/eligible/queue/cand_score AND `final_seed` (the
+entire RNG consumption order+count) match across 6 sampled day-2 seeds.
+PORT-DEBT(cs-roster-scan) RETIRED.
+
+**3 bugs found + fixed via the gate:** (1) `roster_compute_centroid` never called
+(stale (0,0) centroid → wrong bands); (2) `KYAKU_ATTR_TAGS` bits 0,2,3,4 scrambled;
+(3) `ITEM_ATTR_TAGS` bits 0,2,3,4 scrambled (SAME transcription error — bit0 武器
+0x95BE vs 0x9590; both tables corrupted every attr_mask game-wide; oder was correct).
+
+**The gate that cracked it — the seed-capture hook (defeats live-game rng drift):**
+the poke+callq golden is non-deterministic (the sim ticks the LCG between the
+seed-poke on the RPC thread and the callq on the engine thread ⇒ the scan-start
+seed drifts). FIX: the frida agent now reads `DAT_006023a0` on the ENGINE thread the
+instant before invoking a callq target (`seed_at_call` in the call_result). **Gate
+protocol:** restore the captured arena → `callq FUN_0048439a` (FRESH centroid — a
+raw callq leaves it stale; the live game keeps it current) → `callq FUN_0045edaa`
+(the hook grabs the exact scan-start seed + read eligible/queue/count/after) → run
+the port at that seed → diff. `final_seed==after` ⇒ the whole rng stream matched.
+Harness: `OPENRECET_ROSTER_GOLDEN`/`_SEEDS`/`_SEEDS_FILE`/`_OUT` env; dumps
+count/eligible/queue/rng_draws/final_seed.
+
+## ★ M3 LANDED 2026-07-10 — the 740-line scan body ported (now VERIFIED, see above)
 `cs_roster_scan(bank)` in customer_service.c ports all.c 57474-58212 in full, RNG-exact
 by construction, on the M1/M2 helpers. Compiles clean; host 3407/0 (no regression). Wired
 into the `if(!tutorial)` branch (+ the buysell-debug DAT_073dddb8 else). **★ UNVERIFIED:

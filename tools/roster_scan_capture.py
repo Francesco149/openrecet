@@ -14,8 +14,14 @@ DAT_073dddb8==0), e.g. a fresh day-1 shop free-roam (R1).  Emits a JSON fixture
 of {seed -> count, eligible[], queue[], rng_draws, final_seed} + the arena hash,
 the golden reference the ported scan (customer_service.c) must reproduce.
 
+Each sample: restore the arena → recompute the centroid (FUN_0048439a; the live
+game keeps it fresh, a raw callq leaves it stale) → run the scan → record the
+EXACT scan-start seed via the daemon's seed_at_call (read on the engine thread the
+instant before the call, defeating the RPC→engine rng drift).  The (seed, outputs)
+pairs are reproducible by the port harness (roster_golden_replay.c) — the gate.
+
 Usage: nix develop --command python3 tools/roster_scan_capture.py \
-           --seeds 1,2,3,19937 --out runs/probe/roster-golden.json
+           --samples 6 --out runs/probe/roster-golden.json
 """
 from __future__ import annotations
 
@@ -90,6 +96,24 @@ def callq(va):
     return r
 
 
+CENTROID_VA = 0x0048439a  # FUN_0048439a — recompute the shop attribute centroid
+
+
+def deterministic_scan():
+    """Run the scan with a FRESH centroid + capture the EXACT scan-start seed.
+
+    The live game keeps DAT_0438b4b8/bc current on display changes; a raw callq
+    leaves it stale (→ wrong bands), so recompute it first.  And the sim ticks
+    the LCG between poke and callq, so a poked seed drifts — the daemon's
+    seed_at_call (read on the engine thread the instant before the call) is the
+    only reliable scan-start seed.  Returns (seed_at_call, final_seed)."""
+    callq(CENTROID_VA)                       # fresh centroid
+    r = callq(SCAN_VA)                        # scan (hook grabs the exact seed)
+    seed = r.get("seed_at_call")
+    after = rd(RNG_VA, "u32") & MASK32
+    return seed, after
+
+
 def rng_draws(seed_before, seed_after, cap=1_000_000):
     """Count LCG steps from seed_before to seed_after (seeds are u32 states)."""
     s = seed_before & MASK32
@@ -121,26 +145,27 @@ def read_queue(count, cap=30):
     return out
 
 
-def capture_seed(seed, clean_bytes):
+def capture_seed(clean_bytes):
+    """One deterministic sample: restore → fresh centroid → scan → record the
+    EXACT scan-start seed (seed_at_call) + outputs.  The seed is whatever the
+    live sim drifted to (not controllable), but the resulting (seed, outputs)
+    pair IS reproducible by the port harness (run it at `seed`) — the gate."""
     restored = restore_arena(clean_bytes)  # reset the scan's mutated state
-    poke(RNG_VA, seed & MASK32, "u32")     # pin seed
-    before = rd(RNG_VA, "u32") & MASK32
-    callq(SCAN_VA)
-    after = rd(RNG_VA, "u32") & MASK32
+    seed, after = deterministic_scan()
     count = rd(COUNT_VA, "i32")
     return {"seed": seed & MASK32,
             "count": count,
             "eligible": read_eligible(),
             "queue": read_queue(count),
             "final_seed": after,
-            "rng_draws": rng_draws(before, after),
             "restored_offsets": [hex(ARENA_VA + o) for o in restored]}
 
 
 def main(argv):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--seeds", default="1,2,3,7,19937",
-                    help="comma list of u32 seeds")
+    ap.add_argument("--samples", type=int, default=6,
+                    help="number of deterministic scan samples (each records the "
+                         "exact drifted scan-start seed via the engine-thread hook)")
     ap.add_argument("--out", default="runs/probe/roster-golden.json")
     args = ap.parse_args(argv)
 
@@ -152,13 +177,13 @@ def main(argv):
     if slot != 0:
         print(f"WARN: slot={slot} (ARENA_VA assumes slot 0)", file=sys.stderr)
 
-    seeds = [int(x, 0) for x in args.seeds.split(",") if x.strip()]
     clean_bytes = bytes.fromhex(readmem(ARENA_VA, ARENA_LEN))
     arena_hash = hashlib.sha256(clean_bytes).hexdigest()[:16]
     print(f"arena snapshot {ARENA_LEN} bytes, sha16={arena_hash}; "
-          f"sweeping {len(seeds)} seeds")
+          f"sampling {args.samples} deterministic scans (fresh centroid + "
+          f"seed_at_call hook)")
 
-    results = [capture_seed(s, clean_bytes) for s in seeds]
+    results = [capture_seed(clean_bytes) for _ in range(args.samples)]
     restore_arena(clean_bytes)   # leave the live game in the clean state
 
     out = {"function": "FUN_0045edaa", "slot": slot, "arena_va": ARENA_VA,

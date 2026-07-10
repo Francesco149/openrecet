@@ -34,9 +34,18 @@
     apply_dislikes_noop); if such a mechanic exists it's in the UNPORTED roster-scan (customer spawn) — a
     live-probe target, not settled.**
   - **★ NEXT-SESSION TARGETS (revised, ranked):**
-    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`) — MILESTONE 1 LANDED 2026-07-10 (`findings/roster-scan-RE.md`;
-       commit on master).** The general customer eligibility/spawn (WHO walks in + WHAT item); THE blocker for
-       an autonomous day. **✅ M1 DONE — `src/customer_roster.{c,h}` + 8 host tests (3402/0):** the pure,
+    1. **✅✅✅ Roster-scan VERIFIED 1:1 2026-07-10 (commit `f4e52e2`; PORT-DEBT(cs-roster-scan) RETIRED).** The
+       general customer eligibility/spawn (WHO walks in + WHAT item) — THE blocker for an autonomous day — is
+       now BIT-EXACT vs retail: the golden-replay gate confirmed count/eligible/queue/cand_score AND `final_seed`
+       (the whole RNG stream) match across 6 day-2 seeds. **3 bugs found+fixed via the gate:** centroid never
+       computed (stale (0,0) → wrong bands), + BOTH the KYAKU_ATTR_TAGS and ITEM_ATTR_TAGS 16-tag SJIS tables
+       scrambled at bits 0,2,3,4 (bit0 武器 0x95BE vs 0x9590 — corrupted every attr_mask game-wide; oder was
+       correct). **★ The unlock: a seed-capture Frida hook** (`seed_at_call` — reads DAT_006023a0 on the engine
+       thread the instant before a callq, defeating the live-game rng drift that made the poke+callq golden
+       non-deterministic) + the FRESH-CENTROID capture protocol (callq FUN_0048439a before the scan). Harness
+       `src/roster_golden_replay.{c,h}` (OPENRECET_ROSTER_GOLDEN env). Full story: `findings/roster-scan-RE.md`
+       §ROSTER-SCAN-VERIFIED. Follow-ups still open below (news-list population; the serve-time closeness
+       incrementer). **↓ history:** **M1 DONE — `src/customer_roster.{c,h}` + 8 host tests (3402/0):** the pure,
        objdump-exact building blocks — `roster_customer_weight` (e55c, incl. the hidden per-tier f32 MULTIPLIER
        DAT_005c6bd0 {6/7,2/3,3/7} Ghidra dropped as a bogus __ftol), `roster_dist_band` (a68f = the FULL band
        classifier Ghidra folded into callers), `roster_compute_centroid` (0048439a = the DAT_0438b4b8/bc

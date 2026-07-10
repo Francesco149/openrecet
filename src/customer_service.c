@@ -882,10 +882,11 @@ void customer_service_session_init(void)
     if (!sell_active) {
         if (!tutorial) {
             /* ── THE GENERAL ROSTER SCAN (all.c:57474-58212) ──────────────────
-             * PORT-DEBT(cs-roster-scan): landed but UNVERIFIED — the RNG-draw
-             * count is bit-exact-critical (golden shows 134-176/seed) and is not
-             * yet confirmed against a --target both day-2 trace / golden replay.
-             * Keep the debt tag until that gate passes. */
+             * VERIFIED 1:1 vs retail (2026-07-10): the golden-replay gate
+             * (roster_golden_replay.c + the seed-capture Frida hook) confirmed
+             * count/eligible/queue/cand_score AND final_seed (the whole RNG
+             * consumption) BIT-EXACT across 6 day-2 seeds.  Finding
+             * roster-scan-RE.md §M3-GATE. */
             uint8_t *wbank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
             if (wbank != NULL) {
                 if (s_buysell_dbg == 0) {
