@@ -235,9 +235,9 @@ void customer_service_set_roster_replay(int v) { s_roster_replay = v; }
  * n*1.4013e-45=n; the band scores 3.50325e-44/5.60519e-44/7.70714e-44/1.4013e-43
  * = 25/40/55/100.  All ported as plain ints.
  *
- * RE: docs/findings/roster-scan-RE.md.  ★ UNVERIFIED until the golden-replay
- * gate / --target both day-2 scan trace confirms bit-exact RNG (PORT-DEBT
- * cs-roster-scan stays until then). */
+ * RE: docs/findings/roster-scan-RE.md.  ★ VERIFIED 1:1 vs retail (2026-07-10):
+ * the golden-replay gate (roster_golden_replay.c + the seed-capture hook)
+ * confirmed count/eligible/queue/cand_score + final_seed BIT-EXACT over 6 seeds. */
 
 /* Working-arena base VA (engine DAT_044e3798 = slot-0 working base).  The scan's
  * dozens of per-kyaku story-flag bytes DAT_0450f4xx are read/written by absolute
@@ -774,7 +774,7 @@ void customer_service_session_init(void)
      * all-free (ACTIVE==-1) before any pump (FUN_0047019f) tick.  The port does NOT
      * port the house-load reset, and only the forced-sale path reset them (via
      * cs_load_eligible_portraits); the scripted-tutorial (sell_active) and the
-     * general first-customer (roster-scan, PORT-DEBT(cs-roster-scan)) paths left the
+     * general first-customer (roster-scan) paths left the
      * slots zero-init (ACTIVE==0, read as "active"), so the now-unconditional pump
      * ticked up to 30 GHOST slots → spurious LCG draws retail never makes.  Reset
      * here, before the per-session state, so all paths start with retail's free

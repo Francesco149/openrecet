@@ -4,8 +4,8 @@
  *
  * The scan decides WHO walks into the shop and WHAT they want each
  * shop-open (cc08==4).  This header exposes the settled, self-contained
- * helper functions ported so far; the 740-line scan body itself
- * (all.c 57474-58212, PORT-DEBT(cs-roster-scan)) lands on top of these.
+ * helper functions used by the 740-line scan body (all.c 57474-58212,
+ * ported in customer_service.c's cs_roster_scan — VERIFIED 1:1 vs retail).
  *
  * RE: docs/findings/roster-scan-RE.md.  Every helper here was transcribed
  * against the objdump (not just the Ghidra decompile — several carry
