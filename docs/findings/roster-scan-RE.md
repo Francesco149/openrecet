@@ -216,6 +216,54 @@ band scores 25/40/55/100); the news-branch eligible append is bounded to **20**
 ⇒ `roster_pick_item(records[kv], cand_idx, ev)`; the kyaku 13-17 triple-spread (weight,
 weight−10, weight−20) + the flag-0 triple in the not-active-time path.
 
+## ★★ M3 GATE RUN 2026-07-10 (commit `9d1e5d4`) — built the harness, fixed 2 bugs, hit a golden-determinism wall
+Built the **headless port-side golden-replay harness** (`src/roster_golden_replay.{c,h}`,
+hooked in WinMain behind `OPENRECET_ROSTER_GOLDEN` env): loads a captured working-arena
+`.bin` into save-work slot 0, runs cs_roster_scan for a seed sweep, dumps a diffable JSON.
+`customer_service_set_roster_replay(1)` skips the rng-neutral scene/worker tails
+(cs_load_eligible_portraits + worker_load_spawn_d3e) so the scan runs at boot. Run:
+`OPENRECET_ROSTER_GOLDEN=roster_arena.bin OPENRECET_ROSTER_SEEDS=… OPENRECET_ROSTER_OUT=…
+tools/run-openrecet.sh --debug` (exe cwd = vendor/original; env passes via WSL interop).
+Live-drove a **day-2 shop-open** golden (recipe: title → LOAD GAME → slot 001 (Day 2) →
+INGAME free-roam, f404==0/f406==0/dbg==0/slot0; `roster_scan_capture.py` now also dumps the
+188KB `<out>.arena.bin`).
+
+**2 real bugs found + fixed (both verified):**
+1. **Centroid never computed (PORT-DEBT A3).** `roster_compute_centroid` (M1) was never
+   called → the band classifier read a stale (0,0) centroid → wrong bands. Added at scan
+   entry (rng-neutral). Port centroid now (-10,0) == retail; all bands match.
+2. **KYAKU_ATTR_TAGS scrambled (tables_kyaku.c).** Bits 0,2,3,4 of the 16 SJIS attr tags were
+   wrong (bit0 武器 = 0x95**BE** not 0x95**90**; bits 2/3/4 = アク/食品/武器 vs the correct
+   調度/服飾/アク). Verified vs the engine table at **0x5fd7fc** (bit i @ +i*8, Ghidra
+   read_bytes). Corrupted EVERY customer's `like_attr_mask` game-wide (k4 0x2236 vs retail
+   0x2233) → wrong weights. The oder/item tables were already correct. The host test carried
+   the SAME 0x95BE typo → fixed too.
+
+**Deterministic correctness PROVEN.** After both fixes, cand_kyaku / cand_flag / all flag-0
+cand_score match retail BIT-EXACT on the captured arena (repeatable across trials). The
+port's RNG is bit-aligned to the MSVC LCG (jitter fill + roster_shuffle verified identical to
+a Python LCG sim from seed, 124 draws).
+
+**★ BLOCKER — the poke+callq golden is NON-DETERMINISTIC (methodology flaw).** The LIVE game
+ticks the RNG between `poke DAT_006023a0=seed` (RPC thread) and the `callq FUN_0045edaa`
+(engine thread) — so retail's scan-START seed DRIFTS run-to-run (observed before=4269308192 /
+2010647318 / … ≠ the poked 19937). The scan's rng-DEPENDENT outputs (flagged cand_score,
+eligible order, queue, rng_draws) therefore VARY every capture and are NOT a reproducible
+oracle (flag-0/deterministic fields stay fixed). **Pausing (0x0438b150=1) does NOT stop the
+drift.** ⇒ `roster-golden-day{1,2}.json` cannot verify rng-consumption ORDER. (RE doc already
+hinted: "not byte-deterministic run-to-run".)
+
+**★ NEXT — a DETERMINISTIC rng-order gate (the only thing left to verify):**
+- **Option A (cleanest): a Frida hook** on FUN_0045edaa entry to capture the TRUE scan-start
+  seed (DAT_006023a0) at the moment the scan runs, then run the port with that exact seed and
+  diff cand_score/rng_draws/eligible/queue bit-exact. The daemon has no hook cmd yet (only
+  read/poke/readmem/callq/anchors) — add an Interceptor.onEnter to the frida agent.
+- **Option B: the `--target both` turbo trace** (frame-deterministic → same scan seed both
+  sides) where the general scan runs naturally on day-2 — the FRONT's FOUNDATION gate; needs a
+  day-2 scan scenario.
+Fixtures (`roster-golden-day2.json` + `.arena.bin`) are gitignored/local (regenerable +
+non-deterministic). PORT-DEBT(cs-roster-scan) STAYS until the rng-order gate passes.
+
 **NEXT — close the gate (task #3):** the port-side golden-replay verify harness (load the
 captured arena + real kyaku/item/oder/news, pin seed, run scan, diff count/eligible/queue/
 rng_draws vs roster-golden-day1.json) — needs the arena BYTES dumped (roster_scan_capture.py

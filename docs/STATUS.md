@@ -86,15 +86,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
          `tables_parse_oder_resolved(...,resolve_via_item_category,&g_item)` (item.txt loads first); category-named
          (mask==0) oders now get attr_index (load-bearing: roster_pick_item's category-match consumes 1 rng iff
          ≥1 oder matches). + host test. Build clean, host 3408/0.
-       - **★ NEXT (d) — CLOSE THE GATE (needs a live drive / new scenario = HUMAN CHECKPOINT).** The bit-exact
-         gate is a **`--target both` day-2 shop-open trace where the general scan runs naturally** (f404==0 &
-         f406==0 & dbg==0) + `flow_diff --verdict` on the rng. Needs a savefile/scenario that triggers the
-         general scan (the existing house-firstcust traces are all tutorial/sell). An offline host golden-replay
-         is NOT feasible (cs_roster_scan is entangled with the Win32 engine module + needs the user's kyaku/item
-         data as fixtures = asset-redistribution risk). `roster_scan_capture.py` now ALSO dumps the arena bytes
-         (`<out>.arena.bin`) for cross-checking. **ASK: drive a real day-2 shop-open (or author a day-2+ save
-         where opening the shop runs the general scan), then `scenario-test --target both --call-trace` +
-         `flow_diff --verdict --align-field db054`.**
+       - **(d) GATE RUN 2026-07-10 (commit `9d1e5d4`) — built the port-side replay harness, fixed 2 real bugs,
+         hit a golden-determinism wall.** Built `src/roster_golden_replay.{c,h}` (headless: runs cs_roster_scan
+         on a captured arena `.bin` at boot behind `OPENRECET_ROSTER_GOLDEN` env, dumps diffable JSON) +
+         live-drove a day-2 shop-open golden. **Found+fixed: (1) `roster_compute_centroid` was NEVER called
+         (stale (0,0) centroid → wrong bands); (2) `KYAKU_ATTR_TAGS` bits 0,2,3,4 scrambled (bit0 武器 0x95BE
+         vs 0x9590; verified vs engine 0x5fd7fc) → corrupted EVERY customer's like_attr_mask game-wide.** The
+         host test carried the same typo → fixed. **Deterministic scan output now BIT-EXACT vs retail** (cand
+         kyaku/flag/flag-0 scores); port RNG bit-aligned to the LCG (verified vs Python sim, 124 draws).
+         host 3408/0. **★ BLOCKER: the poke+callq golden is NON-DETERMINISTIC** — the live game ticks the RNG
+         between the seed poke and the callq, so retail's scan-start seed drifts run-to-run ⇒ the rng-dependent
+         fields aren't a reproducible oracle (pause 0x0438b150 doesn't stop it). **NEXT (rng-order gate, the
+         only thing left): a Frida hook on FUN_0045edaa entry to capture the TRUE scan-start seed (add
+         Interceptor.onEnter — daemon has no hook cmd yet), then diff the port at that exact seed; OR the
+         `--target both` turbo trace (frame-deterministic).** Finding roster-scan-RE.md §M3-GATE. arena.bin +
+         day2 golden are gitignored/local (regenerable). PORT-DEBT(cs-roster-scan) STAYS.
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
