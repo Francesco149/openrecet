@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 13,
-  "ported": 500,
-  "unported": 1963,
+  "ported": 501,
+  "unported": 1962,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 585,
+  "touched": 586,
   "pct_touched": 23.0,
   "pct_verified": 2.8,
-  "port_debt": 26
+  "port_debt": 28
  },
  "orphan_refs": [
   "0x40f640",
@@ -3018,6 +3018,7 @@
     "src/scene1_render.c",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene1_walker_pass_init.h",
     "src/scene_worldmap.c",
     "src/stage_palette.h",
@@ -5946,8 +5947,10 @@
    "size": 562,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x46b00a",
@@ -8735,6 +8738,7 @@
    "status": "ported",
    "src": [
     "src/customer_service.h",
+    "src/news_daily.h",
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",

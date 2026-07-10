@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 23,
+  "total": 25,
   "by_kind": {
-   "stub": 4,
+   "stub": 8,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -18,13 +18,13 @@
    "event-probe": 1,
    "focused": 3,
    "house-teardown": 1,
-   "price-trend": 2,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 20,
+  "retiring_engine_fns": 21,
   "by_engine_fn": {
    "FUN_004176ff": 2,
-   "FUN_004361b2": 2,
+   "FUN_00436f97": 2,
+   "FUN_0044bd0d": 2,
    "DAT_056db000": 1,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
@@ -32,15 +32,15 @@
    "FUN_004176ff L4958": 1,
    "FUN_00430c00": 1,
    "FUN_00435c98": 1,
-   "FUN_00436f97": 1,
    "FUN_0043a5d9": 1,
-   "FUN_0044bd0d": 1,
    "FUN_00453384": 1,
    "FUN_004536cb": 1,
    "FUN_0045de68": 1,
+   "FUN_00469b3a": 1,
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
+   "FUN_0048670f": 1,
    "FUN_005031e4": 1,
    "scene1-rng-stream-parity.md": 1
   }
@@ -116,22 +116,6 @@
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
    "line": 1213,
-   "kind_known": false
-  },
-  {
-   "kind": "price-trend",
-   "engine_fn": "FUN_004361b2",
-   "desc": "the trend<-1 \u21d2 cap 0 branch is deferred",
-   "file": "src/scene1_display_menu.c",
-   "line": 150,
-   "kind_known": false
-  },
-  {
-   "kind": "price-trend",
-   "engine_fn": "FUN_004361b2",
-   "desc": "neutral (0) until the",
-   "file": "src/scene1_display_menu.c",
-   "line": 927,
    "kind_known": false
   },
   {
@@ -228,6 +212,38 @@
    "desc": "this arm in the engine is SHARED by",
    "file": "src/scene1_walk_dust.c",
    "line": 29,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00436f97",
+   "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
+   "file": "src/scene1_player_ctrl.c",
+   "line": 2387,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0044bd0d",
+   "desc": "f488's day-9 morning consumer \u2014 the b924==0x276 wait at all.c:45449 firing scene0/sub8 \u2014 is unported),",
+   "file": "src/scene1_tutorial_dispatch.c",
+   "line": 148,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00469b3a",
+   "desc": "the description-panel price-status line (Price Up/Down/\u2026, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend).",
+   "file": "src/scene1_display_menu.c",
+   "line": 636,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0048670f",
+   "desc": "the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported \u2014 wire the news call when the timed shop clock lands.",
+   "file": "src/news_daily.h",
+   "line": 20,
    "kind_known": true
   }
  ]

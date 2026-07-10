@@ -144,9 +144,9 @@ void scene1_tutorial_dispatch_tick(void)
         /* Morning-beat daily block (retail FUN_0048670f 486b7d-486c1b, ALL
          * gated SHOP_DAY ≥ 9 — dormant through the day-2 trace, zero rng).
          * At b924==0, pre-bump (retail order): the day-9 f488 morning-
-         * cutscene arm (mode≠2 only; its CONSUMER — the b924==0x276 wait
-         * at all.c:45449 that fires scene0/sub8 — is
-         * PORT-DEBT(day9-morning-arm)), the daily NPC-schedule pass
+         * cutscene arm (mode≠2 only;
+         * PORT-DEBT(stub, FUN_0044bd0d): f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported),
+         * the daily NPC-schedule pass
          * FUN_00490e56(0), then the daily-news generator FUN_00436623
          * (findings/news-daily-RE.md). */
         if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8) {
@@ -167,7 +167,7 @@ void scene1_tutorial_dispatch_tick(void)
          * clears at load COMPLETION, all.c:55492).  The port's folded
          * counter stops here at 0xbe, so arm on the release frame — the
          * ≤2-frame skew is unobservable until the ticker render lands
-         * (PORT-DEBT(news-ticker-render); resolve the skew there). */
+         * (the FUN_00436f97 stub debt in scene1_player_ctrl.c owns it). */
         if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8)
             g_news_ticker_timer = 1;
     }

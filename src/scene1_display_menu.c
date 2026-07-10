@@ -37,6 +37,7 @@
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) — the price-label scene gate */
 #include "audio.h"               /* audio_play_se_by_id (nav SE, no RNG) */
 #include "scene_guild.h"         /* scene_guild_variant (DAT_0963c5f0) for mode-7 buy */
+#include "customer_service.h"    /* cs_news_price_trend (FUN_004361b2, live) */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
@@ -147,14 +148,18 @@ static int scan_guild_buy_stock(int *keys, int *items)
  * Left" number.  100 for the common (store-level-unlocked) case; a per-save daily
  * limit for type-4 / gi==5 / under-level stock.  The render only prints "N Left"
  * when the cap is in (0,100) — the common 100 shows just the name.
- * PORT-DEBT(price-trend, FUN_004361b2): the trend<-1 ⇒ cap 0 branch is deferred
- * (the daily-market sim is unported) — assumes no price crash. */
+ * The trend<-1 ⇒ cap 0 branch (a crashed daily price ⇒ "Not For Sale") is live
+ * via cs_news_price_trend (all.c:64470-64473; retires this site's
+ * PORT-DEBT(price-trend)); trend is 0 while the news list is empty, so the
+ * branch is dormant on every pre-day-9 trace. */
 static int guild_buy_qty_cap(const uint32_t *bank, int rec)
 {
     const uint8_t *bb = (const uint8_t *)bank;
     if (bb[GUILD_RESTRICTED_OFF] != 0)
         return 100;
     const item_record_t *R = &g_item.records[rec];
+    if (cs_news_price_trend(R->item_id << 6) < -1)
+        return 0;
     int gi  = (int)(int8_t)R->stock_info[1 + scene_guild_variant()];
     int lvl = (int)bank[GUILD_STORE_LVL_DWORD];
     if (R->stock_info[0] != 4 && gi != 5 &&
@@ -627,10 +632,8 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
  * open/close slide (the bg + every text line march right as the menu retracts;
  * worst frame = mid-close-slide, item-display-2 label 181, gt8≈185k).  param_2
  * stays 0 (no vertical slide).  All text is white (DAT_005c7184=0xffffffff) at
- * scale 0.8 (0x3f4ccccd).  PORT-DEBT: the price-status line (Price Up/Down/…) +
- * the b1c0==6 counter price multipliers need FUN_004361b2 (item price-trend) —
- * that reads the daily-market region pricing tables, not yet ported; skipping it
- * == the type-0 (no-trend) path. */
+ * scale 0.8 (0x3f4ccccd).
+ * PORT-DEBT(stub, FUN_00469b3a): the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). */
 static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
 {
     const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
@@ -906,11 +909,21 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
                 snprintf(buf, sizeof buf, "%s", nm);
             }
         }
-        /* grey-0x7f diffuse: ADDSIGNED passthrough ⇒ the white glyph, matching
-         * retail's neutral-trend row name (local_14 = grey-0x7f, all.c:66621).
-         * PORT-DEBT(price-trend FUN_004361b2): the up/down/crash trend tints are
-         * not yet ported, so the row name stays the neutral grey here. */
-        font_draw_text(dev, text_x, ty, buf, 0xff7f7f7fu, 0.8f);
+        /* Row-name diffuse = the live price-trend tint (FUN_0046add8's
+         * 5-level table, all.c:66410-66430, via cs_news_price_trend —
+         * retires this site's PORT-DEBT(price-trend)): ≥2 ff0000 / 1 ff4d4d
+         * / 0 7f7f7f grey (ADDSIGNED passthrough ⇒ white glyph) / -1 4d4dff
+         * / ≤-2 0000ff.  Neutral while the news list is empty (all
+         * pre-day-9 traces — pixels unchanged there). */
+        {
+            int trend = (int)cs_news_price_trend(item);
+            uint32_t ncol = 0xff7f7f7fu;
+            if (trend >= 2)       ncol = 0xffff0000u;
+            else if (trend == 1)  ncol = 0xffff4d4du;
+            else if (trend <= -2) ncol = 0xff0000ffu;
+            else if (trend == -1) ncol = 0xff4d4dffu;
+            font_draw_text(dev, text_x, ty, buf, ncol, 0.8f);
+        }
 
         /* per-row STATUS overlay (FUN_0046b00a tail, objdump 0x46b7f9-0x46b8a3 —
          * the text-draw calls Ghidra dropped from all.c:66703-66708).  Drawn over
@@ -924,9 +937,10 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
          * Adv y-add 20 (all float consts @0x519444/65c/e3c/39c/520). */
         if (item >= 0) {
             if (s_mode == 7 && cnt == 0) {
-                /* PORT-DEBT(price-trend, FUN_004361b2): neutral (0) until the
-                 * daily-market classifier is ported ⇒ trend > -2 ⇒ "Out Of Stock". */
-                const int trend = 0;
+                /* Live FUN_004361b2 (cs_news_price_trend): a crashed price
+                 * (trend ≤ -2) reads "Not For Sale", a genuine stock-out
+                 * "Out Of Stock".  Retires this site's PORT-DEBT(price-trend). */
+                const int trend = (int)cs_news_price_trend(item);
                 if (trend <= -2)
                     font_draw_text(dev, text_x + 32.0f, ty - 4.0f,
                                    "Not For Sale", 0xff00007fu, 1.0f);

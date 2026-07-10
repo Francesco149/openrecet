@@ -11,19 +11,19 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **23**
-- distinct retiring engine functions: **20**
+- total open debts: **25**
+- distinct retiring engine functions: **21**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 4 | wired call boundary, body incomplete |
+| stub | 8 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **11 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), price-trend (2), stage-scratch (1).
+> ⚠️  **9 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -31,7 +31,8 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_004176ff | 2 |
-| FUN_004361b2 | 2 |
+| FUN_00436f97 | 2 |
+| FUN_0044bd0d | 2 |
 | DAT_056db000 | 1 |
 | FUN_00409925 | 1 |
 | FUN_004161c7 | 1 |
@@ -39,19 +40,19 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff L4958 | 1 |
 | FUN_00430c00 | 1 |
 | FUN_00435c98 | 1 |
-| FUN_00436f97 | 1 |
 | FUN_0043a5d9 | 1 |
-| FUN_0044bd0d | 1 |
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
 | FUN_0045de68 | 1 |
+| FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
+| FUN_0048670f | 1 |
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (4)
+## stub (8)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -59,6 +60,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2387 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:148 | f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported), |
+| FUN_00469b3a | src/scene1_display_menu.c:636 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_0048670f | src/news_daily.h:20 | the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported — wire the news call when the timed shop clock lands. |
 
 ## synthetic-data (0)
 
@@ -102,7 +107,5 @@ _none_
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1213 | the engine frees the shop |
-| price-trend | FUN_004361b2 | src/scene1_display_menu.c:150 | the trend<-1 ⇒ cap 0 branch is deferred |
-| price-trend | FUN_004361b2 | src/scene1_display_menu.c:927 | neutral (0) until the |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
 

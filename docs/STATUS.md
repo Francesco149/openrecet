@@ -15,15 +15,15 @@
 |-----------|------:|----------------------------------------------------------|
 | verified  |    72 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    13 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   500 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **585** | verified + stubbed + ported                         |
-| unported  |  1963 | exists in engine, never referenced from src/             |
+| ported    |   501 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **586** | verified + stubbed + ported                         |
+| unported  |  1962 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 26 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 28 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
