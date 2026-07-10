@@ -51,25 +51,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     apply_dislikes_noop); if such a mechanic exists it's in the UNPORTED roster-scan (customer spawn) — a
     live-probe target, not settled.**
   - **★ NEXT-SESSION TARGETS (revised, ranked):**
-    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`) — MAPPED 2026-07-10 (`findings/roster-scan-RE.md`).** The
-       general customer eligibility/spawn (WHO walks in + WHAT item); UNPORTED (port has only tutorial
-       forced-kyaku-13 + f404 3-deep queue). **THE blocker for an autonomous day.** FUN_0045edaa branch
-       structure + helper deps (FUN_0045e55c weight / FUN_0045e80f item-pick / FUN_0045ecc0 budget /
-       FUN_0045e505 shuffle) + the **DATA-DEPENDENT rng sequence** (100-draw jitter, shuffles of
-       data-dependent length, a 1-100 rng rejection-sample loop) all documented. **★ CLOSENESS/DECORATION
-       QUESTION ANSWERED (code + live):** decoration→WHO via item-preference weight (FUN_0045e55c;
-       live-confirmed tier 0→3 ⇒ weight 0→10) + closeness `DAT_045109a8[kyaku]`→budget (FUN_0045ecc0) &
-       item-quality (FUN_0045e80f) — a REAL mechanic in the spawn/budget layer, NEW vs §22 (which only ruled
-       it out of the haggle *decision*). **✅ GOLDEN REFERENCE CAPTURED** (`tools/roster_scan_capture.py` +
-       `findings/data/roster-golden-day1.json`): retail scan output for a 6-seed sweep w/ RECOVERED rng-draw
-       counts (134-176, the data-dependent-rng gate) — count/eligible/queue(kyaku,item_slot,kind) per seed;
-       diff+single-poke arena restore (a BULK 188KB write races the sim → crash); +daemon readmem/writemem cmds.
-       **✅ DATA READY:** the port ALREADY models the full kyaku record (`tables_kyaku.h`: like_attr_mask/
-       like_count/like_kinds/budget_low-high) + item categories (`tables_item.h`) — no new data-loader needed;
-       the helpers are portable NOW. **NEXT (the actual port, a large arc):** port helpers (FUN_0045e55c weight
-       / e80f item-pick / ecc0 budget / e505 shuffle) + the 300-line scan into customer_service.c, RNG-exact;
-       verify via a `--target both` trace on a real shop-open day (golden JSON = cross-check). Open lead: the
-       serve-time `DAT_045109a8` incrementer (indexed store in sale-commit, not in symbol xrefs). Scan = all.c 57474-58212.
+    1. **Roster-scan (`PORT-DEBT(cs-roster-scan)`) — MILESTONE 1 LANDED 2026-07-10 (`findings/roster-scan-RE.md`;
+       commit on master).** The general customer eligibility/spawn (WHO walks in + WHAT item); THE blocker for
+       an autonomous day. **✅ M1 DONE — `src/customer_roster.{c,h}` + 8 host tests (3402/0):** the pure,
+       objdump-exact building blocks — `roster_customer_weight` (e55c, incl. the hidden per-tier f32 MULTIPLIER
+       DAT_005c6bd0 {6/7,2/3,3/7} Ghidra dropped as a bogus __ftol), `roster_dist_band` (a68f = the FULL band
+       classifier Ghidra folded into callers), `roster_compute_centroid` (0048439a = the DAT_0438b4b8/bc
+       attribute centroid, was PORT-DEBT A3 UNPORTED; 4 deco coord tables baked from rodata), `roster_shuffle`
+       (e505, n-draw) + save_bank consts (closeness 0xb484, news-list 0x9d74, news-latch 0xb778, sched 0xa97e,
+       deco 0xb379-c). **News-def confirmed 1:1 with g_news** (no new news loader). **★ CLOSENESS/DECORATION
+       ANSWERED** (as before): decoration→WHO via e55c weight, closeness→budget/quality. **✅ GOLDEN REFERENCE**
+       (`tools/roster_scan_capture.py` + `findings/data/roster-golden-day1.json`): 6-seed retail sweep w/ rng-draw
+       counts 134-176 (the data-dependent-rng gate). **NEXT (M2, still large):** (a) the **item/request pool
+       `DAT_06a5dbd8`** (stride 0x13 dw, count DAT_06a5d448) — a load-time table built in all.c ~75269-75348
+       (FUN_00475270 block) the **PORT LACKS entirely**; needed by e80f + the scan's news/queue-fill. Port it as
+       a new tables_* module. (b) `FUN_0045e80f` item-pick (needs the pool), `e6e0` event-state, `ed12` range-gate
+       (row-0-only, replicate its guard/item index-mismatch quirk). (c) the **740-line scan body** (all.c
+       57474-58212) into customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact — call
+       roster_compute_centroid at entry. (d) the **port-side golden-replay verify harness** (task #6: load real
+       kyaku/item/news + inject the captured arena + pin seed + run scan → compare count/eligible/queue/rng_draws
+       to the golden JSON) — the binary gate; the natural `--target both` shop-open trace is the FOUNDATION gate.
+       Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
        draw when trend≠0 is a load-bearing LCG-count effect the stub skips).
