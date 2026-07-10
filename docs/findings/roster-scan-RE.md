@@ -253,14 +253,31 @@ oracle (flag-0/deterministic fields stay fixed). **Pausing (0x0438b150=1) does N
 drift.** ⇒ `roster-golden-day{1,2}.json` cannot verify rng-consumption ORDER. (RE doc already
 hinted: "not byte-deterministic run-to-run".)
 
-**★ NEXT — a DETERMINISTIC rng-order gate (the only thing left to verify):**
-- **Option A (cleanest): a Frida hook** on FUN_0045edaa entry to capture the TRUE scan-start
-  seed (DAT_006023a0) at the moment the scan runs, then run the port with that exact seed and
-  diff cand_score/rng_draws/eligible/queue bit-exact. The daemon has no hook cmd yet (only
-  read/poke/readmem/callq/anchors) — add an Interceptor.onEnter to the frida agent.
-- **Option B: the `--target both` turbo trace** (frame-deterministic → same scan seed both
-  sides) where the general scan runs naturally on day-2 — the FRONT's FOUNDATION gate; needs a
-  day-2 scan scenario.
+**★ DETERMINISTIC DRIFT-SEARCH GATE (2026-07-10, commit `9ffcff0`) — found a REAL rng-order bug.**
+Worked around the golden non-determinism WITHOUT a hook: retail's scan-start seed is provably
+`LCG^D(before)` for a small drift D (the sim only steps the single global LCG forward from the
+`before` read). Method: capture retail (`before`, `after`, eligible, queue, count) in ONE run;
+`total = LCG-steps(before→after)` = D + scan_draws; generate candidate seeds `LCG^D(before)`;
+sweep them through the port harness (now file-seeded — env truncated at ~24); find D where the
+port reproduces retail. Harness gained `OPENRECET_ROSTER_SEEDS_FILE` + a `final_seed` field.
+**Result for a day-2 run (before=4269308192, after=307747152, total=176 ⇒ D≤56, eligible
+[17,15,17,15], queue [(15,15,0),(15,16,0)], count 2): swept D=0..2500 — NO seed reproduces it**
+(final_seed==after: none; full eligible+queue+count fingerprint: none; `rng_draws==176−D`: none).
+⇒ **the port's RNG-consumption ORDER diverges from retail — a confirmed bug** in the rng-consuming
+tail (rejection-sample / pool-shuffle / news-inject / queue-fill / perm). (D=16 matched *eligible*
+but was coincidental: port cust_cnt=3 vs retail 2 ⇒ different scan-start; the deterministic
+candidate-build/weights/tier/eligible are still verified.)
+
+**★ NEXT — pin the exact seed + bisect the divergent phase:**
+- **Frida hook** on FUN_0045edaa entry to capture the TRUE scan-start seed (DAT_006023a0) — removes
+  the drift ambiguity, gives a clean per-seed diff. Daemon has no hook cmd yet (only
+  read/poke/readmem/callq/anchors); add `Interceptor.onEnter` to the frida agent (or a
+  one-shot `hook` daemon cmd). THEN run the port at that seed + bisect: dump the port's per-phase
+  rng_call_count and compare to retail's phase counts (instrument retail via the same hook at each
+  phase's rng site, or reason from the decompile). The divergence is a per-phase draw-count
+  mismatch — likely the news-featured-inject (phase 12, several rng per injected cust) or an
+  extra/admit-cap off-by-one that changes how many queue-fill FUN_0045e80f picks (0/1 rng each) run.
+- **OR the `--target both` turbo trace** (frame-deterministic) where the general scan runs naturally.
 Fixtures (`roster-golden-day2.json` + `.arena.bin`) are gitignored/local (regenerable +
 non-deterministic). PORT-DEBT(cs-roster-scan) STAYS until the rng-order gate passes.
 

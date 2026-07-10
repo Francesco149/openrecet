@@ -101,6 +101,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
          Interceptor.onEnter — daemon has no hook cmd yet), then diff the port at that exact seed; OR the
          `--target both` turbo trace (frame-deterministic).** Finding roster-scan-RE.md §M3-GATE. arena.bin +
          day2 golden are gitignored/local (regenerable). PORT-DEBT(cs-roster-scan) STAYS.
+       - **(e) DRIFT-SEARCH GATE 2026-07-10 (commit `9ffcff0`) — worked around the golden non-determinism +
+         found a REAL rng-order bug.** Retail's scan-start seed is `LCG^D(before)` (small drift D); harness
+         now file-seeds + dumps `final_seed`. Swept D=0..2500 for a day-2 run (total before→after=176 ⇒ D≤56):
+         **NO seed reproduces retail's final_seed / eligible+queue+count / rng_draws==176−D** ⇒ the port's
+         RNG-consumption ORDER diverges (the deterministic candidate-build/weights/tier/eligible are still
+         verified; the bug is in the rng-tail: rejection/pool-shuffle/news-inject/queue-fill/perm — likely the
+         news-inject per-cust draws or an extra/admit off-by-one changing the e80f pick count). **NEXT: Frida
+         hook on FUN_0045edaa entry → exact scan-start seed → bisect the divergent phase's draw count.**
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
