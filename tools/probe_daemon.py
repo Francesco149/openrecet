@@ -528,7 +528,8 @@ class ProbeDaemon:
             if cid in self._call_results:
                 r = self._call_results.pop(cid)
                 return {"ok": r.get("err") is None, "ret": r.get("ret"),
-                        "err": r.get("err"), "id": cid, "frame": r.get("frame")}
+                        "err": r.get("err"), "id": cid, "frame": r.get("frame"),
+                        "seed_at_call": r.get("seed_at_call")}
             self._call_evt.wait(0.2)
             self._call_evt.clear()
         return {"ok": False, "err": "call timed out (engine not ticking?)",
