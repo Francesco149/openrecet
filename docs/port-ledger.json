@@ -1017,7 +1017,8 @@
    "status": "ported",
    "src": [
     "src/customer_roster.c",
-    "src/customer_roster.h"
+    "src/customer_roster.h",
+    "src/customer_service.c"
    ]
   },
   {
@@ -4848,7 +4849,8 @@
    "status": "ported",
    "src": [
     "src/customer_roster.c",
-    "src/customer_roster.h"
+    "src/customer_roster.h",
+    "src/customer_service.c"
    ]
   },
   {
@@ -4882,7 +4884,8 @@
    "status": "ported",
    "src": [
     "src/customer_roster.c",
-    "src/customer_roster.h"
+    "src/customer_roster.h",
+    "src/customer_service.c"
    ]
   },
   {
@@ -4938,7 +4941,8 @@
    "status": "ported",
    "src": [
     "src/customer_roster.c",
-    "src/customer_roster.h"
+    "src/customer_roster.h",
+    "src/customer_service.c"
    ]
   },
   {

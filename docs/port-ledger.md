@@ -142,7 +142,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c, scene1_top_hud.c |
-| 0x40a68f | FUN_0040a68f | 214 | ✓ | customer_roster.c, customer_roster.h |
+| 0x40a68f | FUN_0040a68f | 214 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ | main.c |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
 | 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
@@ -289,13 +289,13 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
 | 0x45e505 | FUN_0045e505 | 50 | ✓ | customer_roster.c, customer_roster.h |
-| 0x45e55c | FUN_0045e55c | 290 | ✓ | customer_roster.c, customer_roster.h |
+| 0x45e55c | FUN_0045e55c | 290 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ | customer_service.c, customer_service.h, esc_dispatch.c |
-| 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ | customer_roster.c, customer_roster.h |
+| 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45e80f | FUN_0045e80f | 298 | ✓ | customer_roster.c, customer_roster.h |
 | 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ | customer_haggle.c, customer_haggle.h |
-| 0x45ed12 | FUN_0045ed12 | 152 | ✓ | customer_roster.c, customer_roster.h |
+| 0x45ed12 | FUN_0045ed12 | 152 | ✓ | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | customer_roster.h, customer_service.c, customer_service.h (+3) |
 | 0x45ff11 | FUN_0045ff11 | 32 | ✓ | customer_service.c |
 | 0x45ff31 | FUN_0045ff31 | 249 | ✓ | customer_service.c |

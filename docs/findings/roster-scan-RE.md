@@ -178,10 +178,54 @@ PORTED + host-tested (tests/test_customer_roster.c) + objdump-exact:
   slot<0 → no-match, engine-quirk #131). +5 host tests (3407/0). New save_bank consts:
   SHOP_DAY 0xb0fb, SHOP_RANK 0xb100, EVENT_FLAG_BYTE 0x2bccb, EVENT_DAY_BYTE 0x2bcca.
 
-PENDING (M3, the hard core): **the 740-line scan body** (all.c 57474-58212) into
-customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact; **M2a' the
-oder.attr_index item.txt-category resolution** (currently stubbed -1 — see the CORRECTION
-above); **the port-side golden-replay verify harness** (the binary gate).
+## ★ M3 LANDED 2026-07-10 — the 740-line scan body ported (UNVERIFIED, gate pending)
+`cs_roster_scan(bank)` in customer_service.c ports all.c 57474-58212 in full, RNG-exact
+by construction, on the M1/M2 helpers. Compiles clean; host 3407/0 (no regression). Wired
+into the `if(!tutorial)` branch (+ the buysell-debug DAT_073dddb8 else). **★ UNVERIFIED:
+the RNG-draw count is bit-exact-critical (golden 134-176/seed) and NOT yet confirmed against
+a --target both day-2 scan trace / golden replay — PORT-DEBT(cs-roster-scan) STAYS until that
+gate passes.** New session statics: s_b5e8 (relocated up)/b5f0/b5f4/b5ec/b5f8/b5fc,
+s_news_target (DAT_005c6bfc), s_buysell_dbg/kyaku, s_roster_customer_count (carries the
+prologue's customer_count = the normal-branch pass-1 admit cap).
+
+**Phase order + RNG accounting (each `rng_next15()`):**
+| # | all.c | phase | rng draws |
+|---|---|---|---|
+| 0 | 57455 | prologue customer_count (in session_init, before scan) | 1 |
+| 1 | 57477-57542 | news/featured block (only if !latched & an active entry) | 0 or 1 (the gate) |
+| 4 | 57573-57824 | candidate build kyaku 2..49 (+ 13-17 triple-spread) | 0 (except kyaku4/f461 event: 1) |
+| 5 | 57825-57835 | jitter #1 fill local_1b8[100] | **100** |
+| 6 | 57836-57847 | shuffle jitter by cand_n + add to flagged scores | cand_n |
+| 7 | 57848-57879 | scheduled-appointment (予約) injection | 0 |
+| 8 | 57880-57895 | rejection-sample boost | 1..100 (data-dep) |
+| 9 | 57896-57969 | tier select (normal: 0; news: per-0xb rng + 1 pick) | 0 / var+1 |
+| 10 | 57970-57986 | shuffle eligible(en) + shuffle jitter[0..pool_new] | en + pool_new |
+| 11 | 57987 | extra-customer count | 1 |
+| 12 | 57998-58083 | news-featured inject (gate rng + per-cust fld4 + count + item) | var |
+| 13-15 | 58084-58163 | queue fill ×3 (FUN_0045e80f 0/1 each) | var |
+| 16 | 58172 | roster_perm shuffle | qn |
+
+Dominant terms 100 + cand_n(~40-60) + rejection(~few) + en + pool_new + qn ⇒ lands in the
+golden 134-176 band (sanity-checked, NOT proof).
+
+**Verified gotchas baked in:** FUN_0040a68f called `(attr_y, attr_x)` — a deliberate axis
+swap (objdump: `dx=b4b8−param1, dy=b4bc−param2`; scan passes DAT_06a63be4=attr_y then
+DAT_06a63be0=attr_x); the Ghidra float subnormals are integer bit-patterns (n·1.4013e-45=n;
+band scores 25/40/55/100); the news-branch eligible append is bounded to **20**
+(`piVar14 < 0x6a5d4a0`), the pool to 20; FUN_0045e80f(param1=kyaku_id, param2=closeness_idx)
+⇒ `roster_pick_item(records[kv], cand_idx, ev)`; the kyaku 13-17 triple-spread (weight,
+weight−10, weight−20) + the flag-0 triple in the not-active-time path.
+
+**NEXT — close the gate (task #3):** the port-side golden-replay verify harness (load the
+captured arena + real kyaku/item/oder/news, pin seed, run scan, diff count/eligible/queue/
+rng_draws vs roster-golden-day1.json) — needs the arena BYTES dumped (roster_scan_capture.py
+currently stores only the sha16). OR the FOUNDATION gate: a `--target both` day-2 shop-open
+trace where the general scan runs naturally (f404==0 & f406==0) + flow_diff rng-verdict.
+Both need a live drive.
+
+PENDING (M2a'): **the oder.attr_index item.txt-category resolution** (tables_oder stubs -1
+for mask==0; item.txt IS loaded now → wire the g_item category-name lookup, else scan
+eligibility/RNG diverge on category-matched oders).
 
 ## Live harness notes (reusable)
 - RNG seed VA = **DAT_006023a0** (MSVC LCG `s=s*0x343fd+0x269ec3; return s>>16 &0x7fff`). Poke to

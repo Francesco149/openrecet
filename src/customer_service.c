@@ -22,6 +22,9 @@
 #include "customer_dialogue.h" /* kyaku_dialogue_get — per-kyaku fN.txt lines (L1c) */
 #include "dialogue_macros.h"  /* dlg_macro_set — the <I>/<Y> sale-line macros */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
+#include "customer_roster.h"  /* roster_* helpers (FUN_0045e55c/e80f/e6e0/ed12/e505/a68f/48439a) */
+#include "tables_oder.h"      /* g_oder — the oder (item-request) pool (roster_pick_item) */
+#include "tables_news.h"      /* g_news — the daily-news featured-item defs (DAT_056e0de0) */
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
@@ -195,6 +198,544 @@ static int32_t s_price_cursor;   /* DAT_005c6bcc — item-pick cursor */
 /* customer-service-active global (DAT_0438b7b0) — set 1 on session init. */
 static int32_t s_cs_active;      /* DAT_0438b7b0 */
 
+/* ── roster-scan (FUN_0045edaa general branch) session globals ──────────
+ * The daily-news featured-event the scan latches + the buysell-debug forced
+ * customer.  All reset at scan entry (b5f8/b5e8) or default 0. */
+static int32_t s_b5e8;   /* DAT_0730b5e8 — news featured-event active (also news-pair suppress in the sale-commit block) */
+static int32_t s_b5f0;   /* DAT_0730b5f0 — featured news category / target id */
+static uint32_t s_b5f4;  /* DAT_0730b5f4 — featured news attribute mask        */
+static int32_t s_b5ec;   /* DAT_0730b5ec — featured item catalog slot (-1 = by cat/attr) */
+static int32_t s_b5f8;   /* DAT_0730b5f8 — reset 0 at scan entry (unused elsewhere) */
+static int32_t s_b5fc;   /* DAT_0730b5fc — buysell-debug "all customers eligible" (0) */
+static int32_t s_news_target;   /* DAT_005c6bfc — featured news target_group */
+static int32_t s_buysell_dbg;   /* DAT_073dddb8 — buysell-debug forced-kyaku enable (0) */
+static int32_t s_buysell_kyaku; /* DAT_073dddbc — the forced kyaku id */
+/* The prologue's customer_count (local_1c, 57456) — the normal-branch pass-1
+ * admit cap; passed to cs_roster_scan since it's computed before the branch. */
+static int32_t s_roster_customer_count;
+
+/* ══ FUN_0045edaa general roster scan (all.c 57474-58212) ════════════════════
+ * The customer eligibility / spawn scan: decides WHO walks in + WHAT they want
+ * each shop-open when it's neither the scripted tutorial (f406) nor a
+ * player-initiated sell (f404).  RNG-EXACT (draw count is deeply data-dependent
+ * — the golden reference roster-golden-day1.json shows 134-176 draws/seed).
+ *
+ * Built on the M1/M2 pure helpers in customer_roster.c (weight e55c, band a68f,
+ * shuffle e505, event e6e0, range-gate ed12, item-pick e80f, centroid 48439a).
+ * Every Ghidra float subnormal in the decompile (2.8026e-45 etc.) is an INTEGER
+ * bit-pattern (gotcha #2): 1.4013e-45=1, 2.8026e-45=2, 4.2039e-45=3, ...,
+ * n*1.4013e-45=n; the band scores 3.50325e-44/5.60519e-44/7.70714e-44/1.4013e-43
+ * = 25/40/55/100.  All ported as plain ints.
+ *
+ * RE: docs/findings/roster-scan-RE.md.  ★ UNVERIFIED until the golden-replay
+ * gate / --target both day-2 scan trace confirms bit-exact RNG (PORT-DEBT
+ * cs-roster-scan stays until then). */
+
+/* Working-arena base VA (engine DAT_044e3798 = slot-0 working base).  The scan's
+ * dozens of per-kyaku story-flag bytes DAT_0450f4xx are read/written by absolute
+ * VA to keep the decompile cross-reference verbatim. */
+#define RS_ARENA_BASE 0x044e3798u
+/* Read a story-flag byte at engine VA `va` from the active working slot. */
+static int rs_flag(const uint8_t *bank, uint32_t va) { return bank[va - RS_ARENA_BASE]; }
+/* Write a story-flag byte. */
+static void rs_flag_set(uint8_t *bank, uint32_t va, int v) { bank[va - RS_ARENA_BASE] = (uint8_t)v; }
+/* A per-kyaku closeness int16 (DAT_045109a8 low half of each dword). */
+static int16_t *rs_close(uint8_t *bank, int kyaku)
+{
+    return (int16_t *)(bank + SAVE_BANK_FIELD_CLOSENESS * 4 + kyaku * 4);
+}
+
+static void cs_load_eligible_portraits(const int32_t *eligible);  /* FUN_0046f8ba */
+
+/* The general scan.  `bank` is the WRITABLE active working-slot base (the scan
+ * mutates story flags f46d/f460 + closeness).  On return s_queue/s_queue_count/
+ * s_eligible/s_roster_perm + the news globals are populated. */
+static void cs_roster_scan(uint8_t *bank)
+{
+    const int32_t *bd = (const int32_t *)bank;
+
+    /* Candidate scratch (DAT_06a5d558/55c/560/564, 100 records stride-4). */
+    int32_t cand_kyaku[100];   /* d558 */
+    int32_t cand_flag [100];   /* d55c — 0/1/2 story classification */
+    int32_t cand_score[100];   /* d560 */
+    int32_t cand_extra[100];   /* d564 */
+    /* Parallel pool/index arrays (local_6a0 init -2, local_a88 init -1). */
+    int32_t pool_kyaku[250];   /* local_6a0 */
+    int32_t pool_cand [250];   /* local_a88 — candidate index of each pool entry */
+    int32_t jitter    [100];   /* local_1b8 — score jitter + index scratch */
+
+    s_b5f8 = 0;                /* DAT_0730b5f8 = 0 (57475) */
+    s_b5e8 = 0;                /* DAT_0730b5e8 = 0 (57476) news event inactive */
+
+    /* ── 1. News / featured-item block (only if not already latched) ── */
+    if (bd[SAVE_BANK_FIELD_NEWS_LATCH] == 0) {
+        for (int e = 0; e < SAVE_BANK_NEWS_LIST_COUNT; e++) {
+            /* news list entry `e`: {target_id@-8, news_id@-4, trend_char@0}. */
+            const int32_t *nl = bd + SAVE_BANK_FIELD_NEWS_LIST + e * SAVE_BANK_NEWS_LIST_STRIDE;
+            int32_t news_id   = nl[-1];                 /* DAT_0450ad64 (pcVar11-4) */
+            int8_t  trend     = (int8_t)((const uint8_t *)nl)[0]; /* trend char */
+            int32_t target_id = nl[-2];                 /* DAT_0450ad60 (pcVar11-8) */
+            if (news_id < 1)                            /* (57481) inactive slot */
+                continue;
+            if (trend != 0 && trend != 'd')             /* (57483) not a live trend */
+                continue;
+            /* found the first active news entry — resolve its def (g_news[news_id]). */
+            const news_record_t *nd = &g_news.records[news_id];
+            s_news_target = nd->target_group;           /* DAT_005c6bfc (de0+0xc) */
+            s_b5f0        = nd->category;               /* DAT_0730b5f0 (de0+4)   */
+            s_b5f4        = (uint32_t)nd->attr_mask;    /* DAT_0730b5f4 (de0+0)   */
+            int32_t item  = nd->item_id;               /* de0+8 */
+            s_b5ec        = target_id;
+            if (target_id != -1 && trend == 'd' && target_id > 10)
+                item = tables_item_find_slot_by_id(&g_item, target_id); /* FUN_004681f6 */
+            else if (target_id != -1)
+                item = target_id;                       /* iVar13 = target_id short-circuit */
+            /* target_id == -1 → item stays = nd->item_id */
+            s_b5ec = item;                              /* DAT_0730b5ec */
+
+            /* score the display for how well it matches the featured item. */
+            int32_t newscore = 0;                       /* local_c */
+            for (int row = 0; row < SAVE_BANK_DISPLAY_GRID_ROWS; row++) {
+                for (int col = 0; col < SAVE_BANK_DISPLAY_GRID_COLS; col++) {
+                    int32_t cell = bd[SAVE_BANK_FIELD_DISPLAY_GRID
+                                      + row * SAVE_BANK_DISPLAY_GRID_COLS + col];
+                    if (cell == -1)
+                        continue;
+                    int slot = tables_item_find_slot_by_id(&g_item, cell >> 6);
+                    int32_t s = 0;                       /* local_8 */
+                    int32_t id = (slot >= 0) ? g_item.records[slot].item_id : 0;
+                    if (id < 0x1451 || 0x14b3 < id) {    /* exclude the 5201..5299 range */
+                        int match;
+                        if (s_b5ec < 0) {
+                            if (s_b5f4 == 0) {
+                                match = (slot >= 0 && g_item.records[slot].category == s_b5f0);
+                            } else {
+                                match = (slot >= 0 &&
+                                         (g_item.records[slot].attr_mask & s_b5f4) != 0);
+                            }
+                        } else {
+                            match = (slot == s_b5ec);    /* by exact catalog slot */
+                        }
+                        if (match) {
+                            s = 1;
+                            if (row == 0) {              /* front-row counter cols → 3 */
+                                static const int fc[7] = { 1, 2, 3, 4, 11, 12, 13 };
+                                for (int f = 0; f < 7; f++)
+                                    if (col == fc[f]) { s = 3; break; }
+                            }
+                        }
+                    }
+                    newscore += s;
+                }
+            }
+            /* rng gate (57538): activate the news event iff the display scores high. */
+            if ((int32_t)((rng_next15() & 7) + 8) < newscore) {
+                s_b5e8 = 1;                              /* news event active */
+                ((int32_t *)bank)[SAVE_BANK_FIELD_NEWS_LATCH] = 1; /* latch */
+            }
+            break;   /* only the first active news entry is processed */
+        }
+    }
+
+    /* ── 2. init the candidate + pool scratch (57544-57562) ── */
+    for (int i = 0; i < 250; i++) { pool_cand[i] = -1; pool_kyaku[i] = -2; }
+    for (int i = 0; i < 100; i++) { cand_kyaku[i] = -1; cand_flag[i] = 0;
+                                    cand_score[i] = 0; cand_extra[i] = 0; }
+
+    /* ── 3. clamp per-customer closeness ≥ 0 (57563-57572) ── */
+    for (int i = 0; i < 100; i++) {
+        int16_t *c = rs_close(bank, i);
+        if (*c < 0) *c = 0;
+    }
+
+    int32_t mode = bd[SAVE_BANK_FIELD_GAME_MODE];      /* DAT_045114fc (0xb759) */
+    int32_t tod  = bd[SAVE_BANK_FIELD_CLOCK_TARGET];   /* DAT_0450fb88 time-of-day */
+    int32_t rank = bd[SAVE_BANK_FIELD_SHOP_RANK];      /* DAT_0450fb98 */
+    int32_t day  = bd[SAVE_BANK_FIELD_SHOP_DAY];       /* DAT_0450fb84 */
+
+    /* ── 4. candidate build loop: kyaku 2..49 (57573-57824) ── */
+    int cn = 0;                                        /* local_10 — candidate cursor */
+    for (int k = 2; k < 50; k++) {
+        const kyaku_record_t *kr = &g_kyaku.records[k];
+        if (!kr->active)                               /* DAT_06a63bdc == 0 → skip */
+            continue;
+        int band = roster_dist_band(kr->attr_y, kr->attr_x); /* FUN_0040a68f(attr_y, attr_x) */
+        int bscore = 0;                                /* local_8 band score */
+        int eligible_now = (band >= 0) &&
+            (kr->activity_time_mask & (1u << (tod & 0x1f))) != 0;
+        if (band >= 0) {
+            switch (band) { case 1: bscore = 25; break; case 2: bscore = 40; break;
+                            case 3: bscore = 55; break; case 4: bscore = 100; break;
+                            default: bscore = 0; }
+        }
+        if (!eligible_now) {
+            /* band<0 OR not active this time-of-day → flag-0 candidate(s) (57586). */
+            cand_kyaku[cn] = k; cand_flag[cn] = 0;
+            if (12 < k && k < 18) {                    /* kyaku 13..17 → 3 copies */
+                cand_kyaku[cn + 1] = k; cand_flag[cn + 1] = 0;
+                cn += 2;
+                cand_kyaku[cn] = k; cand_flag[cn] = 0;
+            }
+            cn += 1;
+            continue;
+        }
+
+        /* band>=0 AND active: default flag 2, then the story-flag classification. */
+        cand_kyaku[cn] = k; cand_flag[cn] = 2;
+        if (mode == 2) {
+            /* ── STORY-MODE unlock gates (57620-57671) ── */
+            if (k == 2) {
+                if (rs_flag(bank, 0x0450f4c0) == 0) cand_flag[cn] = 0;
+                else cand_flag[cn] = 2;
+            } else if (k == 3)  { cand_flag[cn] = rs_flag(bank, 0x0450f4c1) ? 2 : 0; }
+            else if (k == 4)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c2) ? 2 : 0; }
+            else if (k == 5)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c3) ? 2 : 0; }
+            else if (k == 6)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c4) ? 2 : 0; }
+            else if (k == 7)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c5) ? 2 : 0; }
+            else if (k == 8)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c6) ? 2 : 0; }
+            else if (k == 9)    { cand_flag[cn] = rs_flag(bank, 0x0450f4c7) ? 2 : 0; }
+            else if (k == 19)   { cand_flag[cn] = rs_flag(bank, 0x0450f4c8) ? 2 : 0; }
+            else if (k == 20)   { cand_flag[cn] = rs_flag(bank, 0x0450f4c8) ? 2 : 0; }
+            else if (k == 18 && rank > 0) {
+                cand_flag[cn] = rs_flag(bank, 0x0450f4c9) ? 2 : 0;
+            }
+        } else {
+            /* ── NON-STORY unlock gates (57672-57786) ── */
+            if (k == 2) {
+                if (rs_flag(bank, 0x0450f41b) == 0) cand_flag[cn] = 0;
+                if (rs_flag(bank, 0x0450f478) == 1 && rs_flag(bank, 0x0450f479) == 0)
+                    cand_flag[cn] = 1;
+            } else if (k == 3) { cand_flag[cn] = rs_flag(bank, 0x0450f425) ? 2 : 0; }
+            else if (k == 19)  { cand_flag[cn] = rs_flag(bank, 0x0450f480) ? 2 : 0; }
+            else if (k == 20)  { cand_flag[cn] = rs_flag(bank, 0x0450f481) ? 2 : 0; }
+            else if (k == 6) {
+                cand_flag[cn] = 0;
+                if (rs_flag(bank, 0x0450f46c) != 0 && rs_flag(bank, 0x0450f46e) == 0 &&
+                    roster_range_gate(bank) != 0) {           /* FUN_0045ed12 */
+                    rs_flag_set(bank, 0x0450f46d, 1);
+                    cand_flag[cn] = 1;
+                }
+                if (rs_flag(bank, 0x0450f46e) == 1) cand_flag[cn] = 2;
+            } else if (k == 7) {
+                cand_flag[cn] = 0;
+                if (rs_flag(bank, 0x0450f45b) == 1) {
+                    if (rs_flag(bank, 0x0450f45c) == 0) cand_flag[cn] = 1;
+                    if (rs_flag(bank, 0x0450f45c) == 1) cand_flag[cn] = 2;
+                }
+            } else if (k == 8) {
+                cand_flag[cn] = 0;
+                if (rs_flag(bank, 0x0450f477) == 1 && rs_flag(bank, 0x0450f478) == 0)
+                    cand_flag[cn] = 1;
+                if (rs_flag(bank, 0x0450f47f) == 1 && rs_flag(bank, 0x0450f482) == 0)
+                    cand_flag[cn] = 1;
+                if (rs_flag(bank, 0x0450f482) == 1) cand_flag[cn] = 2;
+            } else if (k == 9) {
+                cand_flag[cn] = 0;
+                if (rs_flag(bank, 0x0450f486) == 1) cand_flag[cn] = 1;
+                if (rs_flag(bank, 0x0450f487) == 1) cand_flag[cn] = 2;
+                if (rs_flag(bank, 0x0450f48b) == 1) {
+                    if (rs_flag(bank, 0x0450f498) == 1) cand_flag[cn] = 2;
+                    else cand_flag[cn] = 0;
+                }
+            } else if (k == 18) {
+                cand_flag[cn] = (rs_flag(bank, 0x0450f483) == 1) ? 2 : 0;
+            } else if (k == 5) {
+                cand_flag[cn] = (rs_flag(bank, 0x0450f456) != 0) ? 2 : 0;
+            } else if (k == 4) {
+                cand_flag[cn] = 0;
+                if (rank > 5 && rs_flag(bank, 0x0450f419) != 0)
+                    rs_flag_set(bank, 0x0450f460, 1);
+                if (rs_flag(bank, 0x0450f460) == 1) cand_flag[cn] = 1;
+                if (rs_flag(bank, 0x0450f461) == 1) {
+                    cand_flag[cn] = 0;
+                    int ev = roster_event_state(bank);       /* FUN_0045e6e0 */
+                    if (ev == 1) {
+                        int f462 = (uint8_t)rs_flag(bank, 0x0450f462);
+                        if ((day - f462) >= 2 && (rng_next15() & 3) == 0)
+                            cand_flag[cn] = 1;
+                    }
+                    if (ev == 2 || ev == 3 || ev == 4) {
+                        cand_flag[cn] = 1;
+                        s_b568 = 1;                          /* DAT_0730b568 */
+                    }
+                }
+                if (rs_flag(bank, 0x0450f463) == 1) cand_flag[cn] = 2;
+            }
+        }
+
+        /* weight (57788) + the buysell-debug / f4a1 gate (57791-57818). */
+        cand_score[cn] += roster_customer_weight(bank, kr) + bscore;   /* FUN_0045e55c */
+        int keep;
+        if (s_b5fc == 0) {
+            keep = 1;                                    /* debug off → the OR short-circuits */
+        } else {
+            cand_score[cn] += 200;
+            keep = (1 < k && k < 10);
+        }
+        int spread = 0;
+        if (keep) {
+            /* the f4a1 restricted-range gate (57794): skip kyaku 11..29 when set. */
+            if (rs_flag(bank, 0x0450f4a1) == 1 && (11 <= k && k <= 29)) {
+                /* condition false → drop to flag-0 below */
+                keep = 0;
+            } else {
+                spread = 1;
+            }
+        }
+        if (spread && (0xc < k && k < 0x12)) {           /* kyaku 13..17 → 3-way spread */
+            /* copy this closeness to the two extra slots, weight -10/-20 (57797-57816). */
+            *rs_close(bank, cn + 1) = *rs_close(bank, cn);
+            *(rs_close(bank, cn + 1) + 2) = *rs_close(bank, cn);
+            cand_extra[cn + 1] = 1;
+            cand_kyaku[cn + 1] = k; cand_flag[cn + 1] = 2;
+            cn += 1;
+            cand_score[cn] += roster_customer_weight(bank, kr) - 10 + bscore;
+            int j = cn + 1;
+            cand_extra[j] = 1; cand_kyaku[j] = k; cand_flag[j] = 2;
+            cn = j;
+            cand_score[cn] += roster_customer_weight(bank, kr) - 0x14 + bscore;
+            cn += 1;
+            continue;
+        }
+        if (!spread) cand_flag[cn] = 0;                  /* (57818) */
+        cn += 1;
+    }
+
+    /* ── 5. rng jitter #1: 100 draws (57825-57835) ── */
+    for (int i = 0, base = 0x2d; i < 100; i++, base -= 5)
+        jitter[i] = (int32_t)(rng_next15() % 3) + base;
+    /* ── 6. shuffle jitter by candidate count + add to flagged scores (57836-57847) ── */
+    if (cn > 0) {
+        roster_shuffle(jitter, (uint32_t)cn);            /* cn draws */
+        for (int i = 0; i < cn; i++)
+            if (cand_flag[i] != 0)
+                cand_score[i] += jitter[i];
+    }
+
+    /* ── 7. scheduled-appointment (予約) injection (57848-57879) ── */
+    int qn    = 0;   /* local_10 — queue cursor (reset) */
+    int en    = 0;   /* local_14 — eligible count */
+    int pooln = 0;   /* local_8  — pool count */
+    for (int e = 0; e < SAVE_BANK_SCHED_COUNT; e++) {
+        const int32_t *sc = bd + SAVE_BANK_FIELD_SCHED_TABLE + e * SAVE_BANK_SCHED_STRIDE_DWORDS;
+        if (sc[0] != 1 || sc[2] >= 1)                    /* active && timer<1 */
+            continue;
+        int16_t kyaku_s = *(const int16_t *)(sc + 3);    /* sched kyaku_short (+3) */
+        int idx = kyaku_s;
+        cand_flag[idx] = 0;
+        int32_t kv = cand_kyaku[idx];
+        s_queue[qn * CS_QUEUE_STRIDE + 0] = kv;          /* kyaku */
+        s_queue[qn * CS_QUEUE_STRIDE + 1] = idx;         /* item_slot = candidate idx */
+        s_queue[qn * CS_QUEUE_STRIDE + 2] = (sc[2] < 0) + 3; /* kind 3/4 */
+        s_queue[qn * CS_QUEUE_STRIDE + 3] = sc[1];       /* field 3 */
+        s_queue[qn * CS_QUEUE_STRIDE + 4] = sc[4];       /* field 4 */
+        s_queue[qn * CS_QUEUE_STRIDE + 5] = sc[2];       /* field 5 = timer */
+        qn++;
+        en++;
+        s_eligible[pooln] = kv;                          /* eligible[pool] = kv (en==pooln here) */
+        pool_kyaku[pooln] = kv;
+        pool_cand[pooln]  = e;                           /* sched entry idx */
+        pooln++;
+    }
+
+    /* ── 8. rng rejection-sample: boost a random flagged candidate (57880-57895) ── */
+    for (int tries = 0; ; ) {
+        int nflagged = 0;
+        for (int i = 0; i < 100; i++) if (cand_flag[i] > 0) nflagged++;
+        if (nflagged == 0 || tries == 100) break;
+        tries++;
+        uint32_t r = (uint32_t)rng_next15() % 100;
+        if (cand_flag[r] >= 1) { cand_score[r] += 100; break; }
+    }
+
+    /* ── 9. tier select (57896-57969) ── */
+    int poolbase = pooln;                                /* local_20 */
+    int admit_cap;                                       /* local_1c (news-event pick count) */
+    /* customer_count from the prologue is in customer_service_session_init's
+     * `customer_count`; re-derive the pass-1 admit cap the same way it survives:
+     * normal branch keeps local_1c = that prologue count, news branch overwrites.
+     * The prologue value is passed via the module-static below. */
+    admit_cap = s_roster_customer_count;
+    if (s_b5e8 == 0) {
+        int i = 0;                                       /* candidate index */
+        int elig_w = en;                                 /* eligible write cursor */
+        for (i = 0; i < 100; i++) {
+            int save_pool = pooln;
+            int fl = cand_flag[i];
+            if (fl > 0 && (0x36 < cand_score[i] || fl == 1)) {
+                s_eligible[elig_w++] = cand_kyaku[i];
+                en++;
+            }
+            if (fl == 2 && 0x4a < cand_score[i]) {
+                pool_kyaku[pooln] = cand_kyaku[i];
+                pooln++;
+                pool_cand[save_pool] = i;
+            }
+        }
+        if (en > 0x14) en = 0x14;
+    } else {
+        for (int i = 0; i < 100; i++) {
+            int32_t kv = cand_kyaku[i];
+            int add = 0;
+            if (kv == s_news_target) add = 0x10;
+            if ((kv == 2 || kv == 6 || kv == 4) && s_news_target == 0xe && cand_flag[i] == 2)
+                add = 1;
+            if ((kv == 0x13 || kv == 5) && s_news_target == 0x11 && cand_flag[i] == 2)
+                add = 1;
+            if (kv == 0xb && (rng_next15() & 3) == 0)
+                add = 1;
+            while (add-- > 0) {
+                if (en < 0x14) s_eligible[en++] = cand_kyaku[i]; /* eligible+20 bound (57947) */
+                if (pooln < 0x14) {
+                    pool_kyaku[pooln] = cand_kyaku[i];
+                    pool_cand[pooln]  = i;
+                    pooln++;
+                }
+            }
+        }
+        admit_cap = (int)(rng_next15() & 1) + 8;
+        if (en < admit_cap) admit_cap = en;
+    }
+
+    /* ── 10. shuffle eligible + terminate (57970-57986) ── */
+    if (en > 1) roster_shuffle(s_eligible, (uint32_t)en);
+    s_eligible[en] = -2;
+    for (int i = 0; i < 100; i++) jitter[i] = poolbase + i;
+    int pool_new = pooln - poolbase;
+    if (pool_new > 1) roster_shuffle(jitter, (uint32_t)pool_new);
+
+    /* ── 11. rng → extra-customer count (57987-58001) ── */
+    uint32_t r = rng_next15();
+    int extra = (int)(r & 1);
+    if (pooln > 4) extra = (int)(r & 1) + (pooln - 4) / 2;
+    if (rs_flag(bank, 0x0450f428) == 0) extra = 0;
+    if (s_b5e8 != 0) extra = 0;
+    if (pool_new < 0) pool_new = 0;                      /* local_8 = fVar15 clamp (57999) */
+    int pool_total = pool_new;                           /* local_8 now = shuffled-pool span */
+
+    /* ── 12. news-featured injection (57998-58083) — kind-2 customers ── */
+    {
+        int news_days;                                   /* local_c */
+        int gate_days;
+        if (mode == 3 || mode == 2) { gate_days = 1; news_days = 4; }
+        else { news_days = 0x23 - day; gate_days = (1 < 0x23 - day); }
+        int cond = gate_days && s_b5e8 == 0 &&
+            ((((rng_next15() & 1) != 0) && s_b5fc == 0 && 5 < rank) ||
+             rs_flag(bank, 0x0450f4a4) != 0);
+        int repeat = 0;
+        if (cond) {
+            repeat = (rs_flag(bank, 0x0450f4a4) != 0) ? 2 : 1;
+        }
+        for (int rep = 0; rep < repeat; rep++) {
+            if (pool_total == 0) break;
+            for (int fi = 0; fi < pool_total; fi++) {
+                int ji = jitter[fi];
+                if (ji == -1) continue;
+                if (!(pool_kyaku[ji] >= 0 && pool_kyaku[ji] != 0x12)) continue;
+                /* skip if this candidate is already a scheduled appointment. */
+                int dup = 0;
+                for (int s = 0; s < SAVE_BANK_SCHED_COUNT; s++) {
+                    const int32_t *sc = bd + SAVE_BANK_FIELD_SCHED_TABLE
+                                        + s * SAVE_BANK_SCHED_STRIDE_DWORDS;
+                    if (sc[0] == 1 && pool_cand[ji] == (int16_t)sc[3]) dup = 1;
+                }
+                if (dup) continue;
+                int item_idx = pool_cand[ji];
+                int32_t kv   = pool_kyaku[ji];
+                s_queue[qn * CS_QUEUE_STRIDE + 0] = kv;          /* kyaku */
+                s_queue[qn * CS_QUEUE_STRIDE + 1] = item_idx;    /* item_slot (candidate idx) */
+                s_queue[qn * CS_QUEUE_STRIDE + 2] = 2;           /* kind = 2 */
+                int16_t clo = *rs_close(bank, item_idx);
+                int32_t fld4;
+                if (clo < 0x96) {
+                    if (clo < 100) {
+                        if (0x31 < clo) fld4 = (int)(rng_next15() & 1) + 2;
+                        else            fld4 = 2;         /* default (*piVar6 stays 2) */
+                    } else {
+                        fld4 = (int)(rng_next15() % 3) + 2;
+                    }
+                } else {
+                    fld4 = (int)(rng_next15() & 3) + 2;
+                }
+                s_queue[qn * CS_QUEUE_STRIDE + 4] = fld4;
+                int cnt = (int)(rng_next15() & 1) + 2;
+                if (news_days < cnt) cnt = news_days;
+                s_queue[qn * CS_QUEUE_STRIDE + 5] = cnt;
+                int item = roster_pick_item(bank, &g_kyaku.records[kv], item_idx,
+                                            &(roster_news_event_t){ s_b5e8, s_b5f0, s_b5f4 });
+                s_queue[qn * CS_QUEUE_STRIDE + 3] = item;
+                if (item != -1) { jitter[fi] = -1; qn++; }
+                break;   /* one injection per repeat pass */
+            }
+        }
+    }
+
+    /* ── 13. queue fill pass 1: featured-pool (kind 0), cap admit_cap (58084-58111) ── */
+    {
+        int c1 = 0;
+        for (int fi = 0; fi < pool_total; fi++) {
+            int ji = jitter[fi];
+            if (ji == -1) continue;
+            if (admit_cap <= c1) break;
+            int32_t kv = pool_kyaku[ji];
+            if (kv == 0x12) continue;
+            if (rs_flag(bank, 0x0450f4a3) != 0) break;
+            if (kv < 0) continue;
+            int item_idx = pool_cand[ji];
+            jitter[fi] = -1;
+            s_queue[qn * CS_QUEUE_STRIDE + 0] = kv;
+            s_queue[qn * CS_QUEUE_STRIDE + 1] = item_idx;
+            s_queue[qn * CS_QUEUE_STRIDE + 2] = 0;               /* kind 0 */
+            qn++; c1++;
+        }
+    }
+
+    /* ── 14. queue fill pass 2: "any item" (kyaku 0x12, kind 1) (58112-58136) ── */
+    int filled = 0;                                      /* local_1c reused */
+    for (int fi = 0; fi < pool_total; fi++) {
+        int ji = jitter[fi];
+        if (ji == -1 || pool_kyaku[ji] != 0x12) continue;
+        int item_idx = pool_cand[ji];
+        s_queue[qn * CS_QUEUE_STRIDE + 0] = 0x12;
+        s_queue[qn * CS_QUEUE_STRIDE + 1] = item_idx;
+        s_queue[qn * CS_QUEUE_STRIDE + 2] = 1;                   /* kind 1 */
+        int item = roster_pick_item(bank, &g_kyaku.records[0x12], item_idx,
+                                    &(roster_news_event_t){ s_b5e8, s_b5f0, s_b5f4 });
+        s_queue[qn * CS_QUEUE_STRIDE + 3] = item;
+        if (item != -1) { qn++; jitter[fi] = -1; filled++; }
+    }
+
+    /* ── 15. queue fill pass 3: remaining eligible pool (kind 1) (58137-58163) ── */
+    for (int fi = 0; fi < pool_total; fi++) {
+        if (extra <= filled) break;
+        int ji = jitter[fi];
+        if (ji == -1 || pool_kyaku[ji] < 0) continue;
+        int item_idx = pool_cand[ji];
+        int32_t kv   = pool_kyaku[ji];
+        s_queue[qn * CS_QUEUE_STRIDE + 0] = kv;
+        s_queue[qn * CS_QUEUE_STRIDE + 1] = item_idx;
+        s_queue[qn * CS_QUEUE_STRIDE + 2] = 1;
+        int item = roster_pick_item(bank, &g_kyaku.records[kv], item_idx,
+                                    &(roster_news_event_t){ s_b5e8, s_b5f0, s_b5f4 });
+        s_queue[qn * CS_QUEUE_STRIDE + 3] = item;
+        if (item != -1) { qn++; jitter[fi] = -1; filled++; }
+    }
+
+    /* ── 16. finalize: count, perm, roster build, sched reset (58164-58211) ── */
+    (void)cand_extra;  /* d564 (spread-flag) is write-only within the scan */
+    s_queue_count = qn;                                  /* DAT_0730ac98 */
+    for (int i = 0; i < CS_ROSTER_PERM_N; i++) s_roster_perm[i] = i;
+    if (qn > 1) roster_shuffle(s_roster_perm, (uint32_t)qn);
+    /* (58175-58201 debug tile-draw FUN_005038ff/00451874 — no rng/state, stubbed.) */
+    cs_load_eligible_portraits(s_eligible);              /* FUN_0046f8ba */
+    /* clear consumed scheduled appointments (58203-58211). */
+    for (int e = 0; e < SAVE_BANK_SCHED_COUNT; e++) {
+        int32_t *sc = (int32_t *)bank + SAVE_BANK_FIELD_SCHED_TABLE
+                      + e * SAVE_BANK_SCHED_STRIDE_DWORDS;
+        if (sc[0] == 1 && sc[2] < 1) sc[0] = 0;
+    }
+}
+
 /* ── FUN_0046f8ba — build the in-shop browsing-customer roster + cap ──────────
  * For each eligible-list entry, matches the kyaku id against the DAT_005c7ce0
  * (char_id,key) sprite-type table and appends the matched table index to the
@@ -309,7 +850,7 @@ void customer_service_session_init(void)
     int customer_count = (int)(r & 1u) + 1 + displayed / 4;
     if (customer_count > 5)
         customer_count = 5;
-    (void)customer_count;
+    s_roster_customer_count = customer_count;   /* → cs_roster_scan pass-1 admit cap */
 
     int tutorial = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
     int sell_active = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
@@ -326,11 +867,21 @@ void customer_service_session_init(void)
 
     if (!sell_active) {
         if (!tutorial) {
-            /* PORT-DEBT(cs-roster-scan): the full eligible-roster build
-             * (all.c:57474-58212 — scan all 50 kyaku by activity-time / attr /
-             * story-flags, sort, fill the queue + the buysell-debug override).
-             * Not exercised by the tutorial (the forced sale is the else branch);
-             * port it with the general sell loop. */
+            /* ── THE GENERAL ROSTER SCAN (all.c:57474-58212) ──────────────────
+             * PORT-DEBT(cs-roster-scan): landed but UNVERIFIED — the RNG-draw
+             * count is bit-exact-critical (golden shows 134-176/seed) and is not
+             * yet confirmed against a --target both day-2 trace / golden replay.
+             * Keep the debt tag until that gate passes. */
+            uint8_t *wbank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            if (wbank != NULL) {
+                if (s_buysell_dbg == 0) {
+                    cs_roster_scan(wbank);
+                } else {
+                    /* buysell-debug forced kyaku (58213-58216) — never in ship. */
+                    s_queue_count += 1;                 /* DAT_0730ac98++ */
+                    s_queue[0 * CS_QUEUE_STRIDE + 0] = s_buysell_kyaku; /* DAT_0730aca0 */
+                }
+            }
         } else {
             /* ── TUTORIAL forced sale (all.c:58218-58231): one customer = kyaku 13 ── */
             s_queue_count += 1;                 /* DAT_0730ac98++ */
@@ -1351,7 +1902,7 @@ static void cs_sale_commit_stats_fx(int sign)
 static int32_t s_popup_type[CS_POPUP_QUEUE_MAX];   /* DAT_0730b194[i] */
 static int32_t s_popup_val[CS_POPUP_QUEUE_MAX];    /* DAT_06a5ea78[i] */
 static int32_t s_popup_disp[5];                    /* DAT_0730b304..314 */
-static int32_t s_b5e8;                             /* DAT_0730b5e8 — news-pair suppress */
+/* s_b5e8 (DAT_0730b5e8) is declared near the top with the roster-scan globals. */
 
 /* FUN_00460b3a — per-item best/worst sale price records. */
 static void cs_sale_record_minmax(void)
