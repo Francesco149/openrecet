@@ -166,8 +166,17 @@ def main(argv):
     outp = Path(args.out)
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(out, indent=2))
+
+    # Persist the raw arena snapshot alongside the JSON so a port-side replay
+    # can inject the EXACT input state (the JSON stores only the sha16).  The
+    # sidecar is named <out>.arena.bin; the fixture references it by hash.
+    arena_bin = outp.with_suffix(outp.suffix + ".arena.bin")
+    arena_bin.write_bytes(clean_bytes)
+    out["arena_bin"] = arena_bin.name
+    outp.write_text(json.dumps(out, indent=2))
+
     print(json.dumps(results, indent=2))
-    print(f"\nwrote {outp}")
+    print(f"\nwrote {outp} (+ {arena_bin.name}, sha16={arena_hash})")
     return 0
 
 

@@ -55,14 +55,29 @@
          `roster_event_state` (0..4 relic event), `roster_pick_item` (oder pick, 0/1 rng), `roster_range_gate`
          (row-0 quest gate + the index-mismatch quirk = engine-quirk #131). New save_bank consts SHOP_DAY/
          SHOP_RANK/EVENT_FLAG_BYTE/EVENT_DAY_BYTE.
-       - **NEXT (M3, the hard core):** (c) the **740-line scan body** (all.c 57474-58212) into
-         customer_service.c's empty PORT-DEBT(cs-roster-scan) branch, RNG-exact — call roster_compute_centroid at
-         entry, then the news block/per-kyaku candidate build/rng-jitter/rejection-sample/tier-select/queue-fill
-         using the M1+M2 helpers. (a') the **oder.attr_index item.txt-category resolution** (tables_oder stubs -1
-         for mask==0; item.txt IS loaded now → wire the g_item category-name lookup, else scan eligibility/RNG
-         diverge). (d) the **port-side golden-replay verify harness** (load real kyaku/item/news + inject captured
-         arena + pin seed + run scan → compare count/eligible/queue/rng_draws to the golden JSON) — the binary
-         gate; the natural `--target both` shop-open trace is the FOUNDATION gate.
+       - **(c) M3 LANDED 2026-07-10 (commit `dbea6a5`) — the 740-line scan body ported (UNVERIFIED).**
+         `cs_roster_scan(bank)` in customer_service.c ports all.c 57474-58212 in full (news block → candidate
+         build kyaku 2..49 + 13-17 triple-spread → jitter#1 100 draws + shuffle → sched-appointment inject →
+         rejection-sample → tier select → shuffle eligible+pool → extra count → news-featured inject → queue
+         fill ×3 → perm shuffle + roster build), on the M1/M2 helpers. + the buysell-debug else branch. Build
+         clean, host 3407/0. Gotchas baked: a68f called `(attr_y,attr_x)` axis-swap; Ghidra float subnormals =
+         int bit-patterns (band 25/40/55/100); news-branch eligible/pool bound 20; `e80f(param1=kyaku,
+         param2=closeness_idx)`. RNG accounting lands in the golden 134-176 band. Finding roster-scan-RE.md §M3
+         has the full phase/rng dataflow map. **★ UNVERIFIED — bit-exact RNG NOT confirmed; PORT-DEBT(cs-roster-scan)
+         STAYS.**
+       - **(a') M2a' LANDED 2026-07-10 (commit `89f4a19`) — oder.attr_index category resolution wired.**
+         `tables_parse_oder_resolved(...,resolve_via_item_category,&g_item)` (item.txt loads first); category-named
+         (mask==0) oders now get attr_index (load-bearing: roster_pick_item's category-match consumes 1 rng iff
+         ≥1 oder matches). + host test. Build clean, host 3408/0.
+       - **★ NEXT (d) — CLOSE THE GATE (needs a live drive / new scenario = HUMAN CHECKPOINT).** The bit-exact
+         gate is a **`--target both` day-2 shop-open trace where the general scan runs naturally** (f404==0 &
+         f406==0 & dbg==0) + `flow_diff --verdict` on the rng. Needs a savefile/scenario that triggers the
+         general scan (the existing house-firstcust traces are all tutorial/sell). An offline host golden-replay
+         is NOT feasible (cs_roster_scan is entangled with the Win32 engine module + needs the user's kyaku/item
+         data as fixtures = asset-redistribution risk). `roster_scan_capture.py` now ALSO dumps the arena bytes
+         (`<out>.arena.bin`) for cross-checking. **ASK: drive a real day-2 shop-open (or author a day-2+ save
+         where opening the shop runs the general scan), then `scenario-test --target both --call-trace` +
+         `flow_diff --verdict --align-field db054`.**
        Open lead: the serve-time `DAT_045109a8` closeness incrementer (indexed store in sale-commit, not in xrefs).
     2. **News-list population** — WHO writes `DAT_0450ad68` each day + the news-def table `DAT_056e0de0`
        (stride 0xbc) contents — to fully port the trend (classifier + factor math now known; the 1-unit RNG
