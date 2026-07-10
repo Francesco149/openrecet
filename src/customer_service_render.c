@@ -263,10 +263,18 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             int islot = tables_item_find_slot_by_id(&g_item, s.b5a4 >> 6);
             const char *iname = (islot >= 0) ? g_item.records[islot].singular : "";
             int count = s.price_count, low4 = s.b5a4 & 0xf;
-            /* PORT-DEBT(cs-price-trend): FUN_004361b2 (the market trend) → 0, so
-             * the label is always "Base Price" + the grey (trend-0) tint.  trend
-             * >0 → "High Price"/red, <0 → "Low Price"/blue (466b7b 184-217). */
+            /* The live FUN_004361b2 market trend (cs_news_price_trend;
+             * retires PORT-DEBT(cs-price-trend)): tint per asm 4670f9-46713e
+             * — ≥2 ff0000 red / 1 ff4d4d / 0 7f7f7f grey / -1 4d4dff /
+             * ≤-2 0000ff blue; label High/Base/Low Price (466b7b L205-214).
+             * Neutral grey + "Base Price" whenever the news list is empty
+             * (every pre-day-9 trace — pixel output unchanged there). */
+            int trend = (int)cs_news_price_trend(s.b5a4);
             uint32_t tcol = 0xff7f7f7fu;
+            if (trend >= 2)       tcol = 0xffff0000u;
+            else if (trend == 1)  tcol = 0xffff4d4du;
+            else if (trend <= -2) tcol = 0xff0000ffu;
+            else if (trend == -1) tcol = 0xff4d4dffu;
             char namebuf[256], labelbuf[256], numbuf[64];
             /* item-name line (304,80) scale 0.8.  The +N (low4>0) enchant forms
              * never appear in the haggle tutorial (b5a4 low nibble == 0). */
@@ -284,9 +292,11 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
                                                   D3DTOP_ADDSIGNED);
             font_draw_text_centered(dev, 304.0f, 80.0f, namebuf, tcol, 0.8f);
-            /* "Base Price NNN" (304,168) scale 0.6. */
+            /* "High/Base/Low Price NNN" (304,168) scale 0.6 by trend. */
             cs_format_grouped(numbuf, sizeof numbuf, s.price_base);
-            snprintf(labelbuf, sizeof labelbuf, "Base Price %s", numbuf);
+            snprintf(labelbuf, sizeof labelbuf, "%s Price %s",
+                     trend > 0 ? "High" : trend < 0 ? "Low" : "Base",
+                     numbuf);
             font_draw_text_centered(dev, 304.0f, 168.0f, labelbuf, tcol, 0.6f);
             /* "Showcase Item" (304,64) scale 0.8 when b564. */
             if (s.b564 != 0)

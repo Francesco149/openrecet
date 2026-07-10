@@ -4871,3 +4871,16 @@ quest ranges, so the gate returns 0. The port replicates the mismatch exactly an
 garbage coincidentally hits a quest id, which the display layout would have to conspire to
 produce. Also: an in-range item sitting ONLY in a counter column that is never a sequential
 source (e.g. col 1, whose item role needs col 2 occupied) is NEVER examined as an item at all.
+
+## 132. Expired trend-0 news resolves its "%s boom has ended" name with the RAW target id used as a catalog SLOT — no id→slot conversion (FUN_00436623 expiry pass)
+
+The daily-news generator's expiry pass (`FUN_00436623`, asm 436d21-436d36) has three
+name-lookup branches keyed on the entry's trend char.  The `trend == 0 && target != -1`
+branch reads the plural name at `&DAT_095d385a + target * 0x2cc` — the raw ITEM ID indexed
+as a record SLOT, with no `FUN_004681f6` conversion (both the `trend=='d'` and the
+nonzero-trend branches DO convert).  A trend-0 entry with a target is nearly unreachable
+from generator-written data (the random path fixes rate-0 rows to trend 'd'; the boom path
+copies the boom rows' rate byte, which would have to be 0 in news.txt), so vendor data
+never exercises it — but a save carrying one would print the wrong item's plural (or OOB
+garbage in retail; the port guards OOB to "" and otherwise replicates the raw-slot read).
+Port: `news_daily.c` expiry pass; RE `findings/news-daily-RE.md`.

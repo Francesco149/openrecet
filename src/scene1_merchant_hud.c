@@ -194,13 +194,18 @@ static void merchant_hud_item_tooltip(IDirect3DDevice8 *dev)
         return;
     const item_record_t *r = &g_item.records[rec];
 
-    /* Name colour = market price-trend level (FUN_004361b2): ≥2 red /
-     * 1 light-red / 0 neutral / -1 light-blue / ≤-2 blue.  The classifier reads
-     * the daily-market region pricing tables (unported — same debt the menu rows
-     * carry, scene1_display_menu.c); default to level-0 neutral (white under
-     * ADDSIGNED).  Retire with the daily market.
-     * PORT-DEBT(simplified, FUN_004361b2): C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). */
-    const uint32_t color = 0xff7f7f7fu;
+    /* Name colour = the live market price-trend (FUN_004361b2 via
+     * cs_news_price_trend — classifier ported in news_daily.c; retires the
+     * C3b PORT-DEBT(simplified, FUN_004361b2) neutral default).  Table per
+     * asm 409c01-409c3f: ≥2 ff0000 red / 1 ff4d4d light-red / 0 7f7f7f
+     * neutral / -1 4d4dff light-blue / ≤-2 0000ff blue.  Neutral whenever
+     * the daily-news list is empty (all pre-day-9 traces). */
+    int trend = (int)cs_news_price_trend(itemid);
+    uint32_t color = 0xff7f7f7fu;
+    if (trend >= 2)       color = 0xffff0000u;
+    else if (trend == 1)  color = 0xffff4d4du;
+    else if (trend <= -2) color = 0xff0000ffu;
+    else if (trend == -1) color = 0xff4d4dffu;
 
     char buf[256];
     if ((itemid & 0xf) == 0)

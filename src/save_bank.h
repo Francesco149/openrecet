@@ -237,12 +237,39 @@
  * dword 0x9d72.  (0x450ad68-base)/4 = 0x9d74. */
 #define SAVE_BANK_FIELD_NEWS_LIST      0x9d74   /* DAT_0450ad68 (trend byte) */
 #define SAVE_BANK_FIELD_NEWS_TARGET    0x9d72   /* DAT_0450ad60 (target_id) */
+#define SAVE_BANK_FIELD_NEWS_ID        0x9d73   /* DAT_0450ad64 (news_id) */
 #define SAVE_BANK_NEWS_LIST_STRIDE     3
 #define SAVE_BANK_NEWS_LIST_COUNT      20
+/* Entry byte layout (base = byte off 0x275c8 + i*0xc): +0 target_id(i32),
+ * +4 news_id(i32; 0 free, -1 reset), +8 trend(char; 0x64 'd' = generic),
+ * +9 duration(int8; decrements once per news_daily_update, expiry at 0). */
+#define SAVE_BANK_NEWS_ENTRY_BYTE_OFF  0x275c8
+
+/* Daily newspaper HEADLINE buffers, written by news_daily_update
+ * (FUN_00436623) each generator run (findings/news-daily-RE.md):
+ *   count   DAT_0450de58 (dword 0xa9b0)
+ *   text    DAT_0450de5c (byte 0x2a6c4): rows of 0x100 chars
+ *   offsets DAT_0450f25c (dword 0xaeb1): per-row cumulative scroll offset
+ *           (strlen+4 apart); total at DAT_0450f2ac (dword 0xaec5).
+ * The engine has NO row cap — count could exceed the 20-row region (new +
+ * boom + ≤20 expiries + day-range); overflow would alias the offsets
+ * region inside the same slot arena (never past the slot).  The port
+ * writes via byte offsets into the arena to keep that aliasing identical. */
+#define SAVE_BANK_FIELD_NEWS_HL_COUNT   0xa9b0  /* DAT_0450de58 */
+#define SAVE_BANK_NEWS_HL_TEXT_BYTE_OFF 0x2a6c4 /* DAT_0450de5c */
+#define SAVE_BANK_NEWS_HL_ROW_BYTES     0x100
+#define SAVE_BANK_FIELD_NEWS_HL_OFFS    0xaeb1  /* DAT_0450f25c */
+#define SAVE_BANK_FIELD_NEWS_HL_TOTAL   0xaec5  /* DAT_0450f2ac */
 
 /* Per-slot news-event-latched flag — engine DAT_04511578 int (set once a
  * news event fires for the slot).  (0x4511578-base)/4 = 0xb778. */
 #define SAVE_BANK_FIELD_NEWS_LATCH     0xb778   /* DAT_04511578 */
+
+/* Per-slot game-mode dword — engine DAT_045114fc ((0x45114fc-base)/4 =
+ * 0xb759).  ==2 disables the tutorial/story arms across the engine
+ * (dispatcher gates, the day-9 f488 morning-cutscene arm, …) — the
+ * endless/"Survival"-style mode selector. */
+#define SAVE_BANK_FIELD_GAME_MODE      0xb759   /* DAT_045114fc */
 
 /* Scheduled-customer (appointment) table — engine DAT_0450dd90: 10 entries,
  * stride 5 dwords {active@+0, _@+1, timer@+2, kyaku_short@+3, _@+4}.  The

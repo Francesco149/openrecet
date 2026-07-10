@@ -25,10 +25,13 @@
 #include "customer_roster.h"  /* roster_* helpers (FUN_0045e55c/e80f/e6e0/ed12/e505/a68f/48439a) */
 #include "tables_oder.h"      /* g_oder — the oder (item-request) pool (roster_pick_item) */
 #include "tables_news.h"      /* g_news — the daily-news featured-item defs (DAT_056e0de0) */
+#include "news_daily.h"       /* news_daily_update (FUN_00436623) + g_news_ticker_timer */
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
 #include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
+#include "scene.h"                /* g_scene_state (DAT_0438b1c0) — trend head gate */
+#include "scene1_maplight.h"      /* scene1_current_stage_record (maptype) — trend gate */
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
 #include "scene1_shop_walker.h"   /* in-shop browsing-customer NPCs (FUN_0046f8ba/892) */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
@@ -1349,8 +1352,10 @@ static int cs_input_poll(void)
 /* ── FUN_00460161 binding — the customer raises its offer (haggle UP) ─────────
  * Binds the live DAT_0730bXXX / price scalars + the active customer's kyaku
  * tuning (record b56c = g_kyaku.records[b56c]) to the pure haggle_offer_up math
- * (src/customer_haggle.c).  trend = FUN_004361b2(b5a4) is PORT-DEBT → neutral 0
- * (no price tilt, no rng draw); is_tutorial = the f406 override (clears here). */
+ * (src/customer_haggle.c).  trend = the live FUN_004361b2 classifier
+ * (cs_news_price_trend — 0 while the daily-news list is empty, so every
+ * pre-day-9 trace keeps its verified rng stream: the round-0 tilt draw only
+ * fires on trend != 0); is_tutorial = the f406 override (clears here). */
 static void cs_offer_up(void)
 {
     int idx = g_scene_buy_current_page;                  /* b56c */
@@ -1371,9 +1376,29 @@ static void cs_offer_up(void)
     };
     const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
     int is_tut = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
-    haggle_offer_up(&st, &c, s_price_base, s_price_ask, 0, is_tut);
+    haggle_offer_up(&st, &c, s_price_base, s_price_ask,
+                    cs_news_price_trend(s_b5a4), is_tut);
     s_b584 = st.round; s_b574 = st.offer; s_b57c = st.work_price;
     s_b580 = st.floor; s_b588 = st.accept_ref;
+}
+
+/* ── FUN_004361b2 binding — market price-trend for an item handle ─────────────
+ * Pure classifier in src/news_daily.c; this binding evaluates the engine's
+ * head gate (all.c:33433: DAT_0438b1c0==1 && stage.maptype==0 && cc08==4 &&
+ * f404[slot] != 0 ⇒ scripted/tutorial sell ⇒ neutral 0) from the live engine
+ * state and hands the classifier the working bank. */
+int32_t cs_news_price_trend(int32_t item_handle)
+{
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    const stage_record_t *stg = scene1_current_stage_record();
+    int tutorial_sell = g_scene_state == 1 &&
+                        (stg == NULL || stg->maptype == 0) &&
+                        player_ctrl_cc08() == 4 &&
+                        bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+    return news_price_trend(bank, item_handle, tutorial_sell);
 }
 
 /* the dialogue-line loader (FUN_0046098f), defined below the master tick but
@@ -2488,6 +2513,18 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                     } else {
                         g_scene1_player_pos[0] = sale ? 9.2f : 11.5f;      /* 0x41133333 / 0x41380000 */
                         g_scene1_player_pos[2] = 16.9f;                    /* 0x41873333 */
+                    }
+                    /* Mid-day news break (all.c:60356-60360, the f404==0
+                     * arm): from day 9 a served customer has a 1-in-3
+                     * chance of a fresh newspaper edition + ticker.  The
+                     * day gate short-circuits BEFORE the rng draw, so the
+                     * tutorial traces (day ≤ 2) stay bit-identical.
+                     * FUN_00436623: findings/news-daily-RE.md. */
+                    if (!sale &&
+                        ((const int32_t *)bank)[SAVE_BANK_FIELD_SHOP_DAY] > 8 &&
+                        rng_next15() % 3u == 0) {
+                        news_daily_update(bank);
+                        g_news_ticker_timer = 1;   /* DAT_0438b92c = 1 */
                     }
                 }
                 if (bank[CS_F406_TUTORIAL_BYTE_OFF] != 0) {    /* all.c:60381-384 */

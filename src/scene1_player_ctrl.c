@@ -29,6 +29,7 @@
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "scene1_display_menu.h" /* cc04==1 remove-item menu update/removal (A2) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
+#include "news_daily.h"          /* g_news_ticker_timer (DAT_0438b92c) pump  */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc), g_sim_buttons (edge mask) */
 #include "stage_load_pulse.h"    /* display-menu open/close slide (FUN_004693e3 ramp) */
@@ -2377,6 +2378,24 @@ void scene1_player_ctrl_tick(void)
      * "目玉商品" sparkles over the items on display.  No-op (no RNG) on an empty
      * display, so it leaves the foot-dust/wing RNG stream untouched there. */
     player_ctrl_display_sparkle_emit();
+
+    /* prologue (all.c:86697-86703 / asm 486b7d-486bb2, gated SHOP_DAY ≥ 9 —
+     * dormant through the tutorial traces): the news-break ticker pump.
+     * While armed (g_news_ticker_timer = DAT_0438b92c > 0) it counts every
+     * free-roam frame; at 0x1e with headlines present it requests the
+     * news-jingle SE 0x2bd (FUN_00499519).  The on-screen ticker DRAW that
+     * consumes the timer (FUN_00436f97) is PORT-DEBT(news-ticker-render). */
+    {
+        const uint32_t *nbank = save_work_dwords_at(save_work_active_slot());
+        if (nbank != NULL &&
+            (int32_t)nbank[SAVE_BANK_FIELD_SHOP_DAY] > 8 &&
+            g_news_ticker_timer > 0) {
+            if (g_news_ticker_timer == 0x1e &&
+                (int32_t)nbank[SAVE_BANK_FIELD_NEWS_HL_COUNT] > 0)
+                audio_play_se_by_id(0x2bd);
+            g_news_ticker_timer++;
+        }
+    }
 
     /* prologue: per-frame background-window-NPC pump (FUN_0046f621 → the
      * spawn/drift sim FUN_0046f2a3, ported in scene1_bg_npc.c).  The first call

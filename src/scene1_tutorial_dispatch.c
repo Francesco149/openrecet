@@ -7,6 +7,9 @@
 #include "scene1_intro_dialogue.h"   /* _busy / _start_single */
 #include "scene1_postload.h"         /* scene1_postload_day2_actor_replace */
 #include "save_work.h"               /* save_work_dwords_at / _active_slot  */
+#include "save_bank.h"               /* SAVE_BANK_FIELD_GAME_MODE           */
+#include "news_daily.h"              /* news_daily_update, g_news_ticker_timer */
+#include "npc_schedule.h"            /* npc_schedule_apply (FUN_00490e56)   */
 
 #include <stdint.h>
 #include <stddef.h>   /* NULL */
@@ -42,6 +45,7 @@
 #define TUT_IV2_6_TRIG_OFF     0x2bc7a   /* DAT_0450f412 — set with iv2_5            */
 #define TUT_IV2_6_DONE_OFF     0x2bc7b   /* DAT_0450f413 — iv2_6 fired (done)        */
 #define TUT_F414_OFF           0x2bc7c   /* DAT_0450f414 — set with iv2_6            */
+#define TUT_F488_OFF           0x2bcf0   /* DAT_0450f488 — day-9 morning-cutscene arm */
 #define TUT_F3F2_OFF           0x2bc5a   /* DAT_0450f3f2 — set at the day advance    */
 #define TUT_F3F7_OFF           0x2bc5f   /* DAT_0450f3f7 — cleared at the day advance */
 #define TUT_F3F9_OFF           0x2bc61   /* DAT_0450f3f9 — cleared at the day advance */
@@ -137,10 +141,35 @@ void scene1_tutorial_dispatch_tick(void)
      * master tick, then FUN_0044bd0d tests the bumped value the same frame): the
      * beat holds for b924 = 1..189 and releases the frame b924 hits 0xbe. */
     if (g_iv2_beat_active) {
+        /* Morning-beat daily block (retail FUN_0048670f 486b7d-486c1b, ALL
+         * gated SHOP_DAY ≥ 9 — dormant through the day-2 trace, zero rng).
+         * At b924==0, pre-bump (retail order): the day-9 f488 morning-
+         * cutscene arm (mode≠2 only; its CONSUMER — the b924==0x276 wait
+         * at all.c:45449 that fires scene0/sub8 — is
+         * PORT-DEBT(day9-morning-arm)), the daily NPC-schedule pass
+         * FUN_00490e56(0), then the daily-news generator FUN_00436623
+         * (findings/news-daily-RE.md). */
+        if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8) {
+            if (g_iv2_beat_ctr == 0) {
+                if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 &&
+                    (int32_t)bank[TUT_DAY_DWORD] == 9)
+                    bb[TUT_F488_OFF] = 1;    /* DAT_0450f488 = 1 */
+                npc_schedule_apply(0);       /* push edi(0) @486bdc */
+                news_daily_update((uint8_t *)bank);
+            }
+        }
         g_iv2_beat_ctr++;
         if (g_iv2_beat_ctr < IV2_BEAT_FRAMES)
             return;
         g_iv2_beat_active = 0;   /* beat elapsed — fall through, fire iv2_6 */
+        /* Retail arms the news ticker at b924==0xbf (486c09): b924 keeps
+         * counting ~2 master-tick frames into the iv2_6 load (b928 only
+         * clears at load COMPLETION, all.c:55492).  The port's folded
+         * counter stops here at 0xbe, so arm on the release frame — the
+         * ≤2-frame skew is unobservable until the ticker render lands
+         * (PORT-DEBT(news-ticker-render); resolve the skew there). */
+        if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8)
+            g_news_ticker_timer = 1;
     }
 
     /* ── The post-first-sale story chain (all.c:45726-45813, RE §21.31) ──────

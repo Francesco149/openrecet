@@ -217,4 +217,13 @@ int32_t customer_service_popup_queue_val(int i);
  * timeline the master tick advances. */
 int32_t customer_service_popup_disp(int i);
 
+/* FUN_004361b2 binding — the market price-trend for an item handle
+ * (id<<6|quality), evaluated against the live daily-news list with the
+ * engine's tutorial-sell head gate (b1c0==1 && stage.maptype==0 &&
+ * cc08==4 && f404).  {-2,-1,0,1}: feeds the haggle round-0 tilt
+ * (haggle_offer_up trend param) and the two trend-tinted texts (the
+ * haggle price panel + the merchant-HUD item tooltip).  Neutral 0 while
+ * the news list is empty (all pre-day-9 traces). */
+int32_t cs_news_price_trend(int32_t item_handle);
+
 #endif /* OPENRECET_CUSTOMER_SERVICE_H */

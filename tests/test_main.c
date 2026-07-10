@@ -444,6 +444,22 @@ struct test_case {
     X(roster_pick_item_no_news_single_match) \
     X(roster_pick_item_like_kind_and_no_match) \
     X(roster_pick_item_quality_gate_and_news) \
+    X(news_pick_day9_scripted) \
+    X(news_pick_period_window) \
+    X(news_reset_marks_entries_minus1) \
+    X(news_gen_accepts_one_row) \
+    X(news_gen_rate0_trend_d_and_generic_dedup) \
+    X(news_gen_attr_dedup_and_special_reroll) \
+    X(news_gen_lifetime_rng_and_min2) \
+    X(news_gen_item_target_and_splice) \
+    X(news_gen_item_scan_no_match_no_draw) \
+    X(news_gen_boom_and_pairs) \
+    X(news_gen_boom_needs_rank9) \
+    X(news_gen_pair_ttl_expires) \
+    X(news_gen_expiry_branches) \
+    X(news_gen_day_range_news) \
+    X(news_trend_classifier) \
+    X(news_attr_names) \
     X(cs_session_init_tutorial_queue) \
     X(cs_session_init_draws_exactly_one_rng) \
     X(cs_session_init_reentry_rebuilds) \

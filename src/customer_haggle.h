@@ -74,7 +74,7 @@ int32_t haggle_decide(int32_t player_ask, int32_t accept_ref);
 
 /* FUN_00460161 — the customer raises its offer (haggle UP).  Mutates `st`.
  *   base = DAT_005c6bc0 (base/reference price), player_ask = DAT_005c6bb8,
- *   trend = FUN_004361b2 (price-trend level; PORT-DEBT, pass 0 = neutral),
+ *   trend = FUN_004361b2 (price-trend level; live via cs_news_price_trend),
  *   is_tutorial = DAT_0450f406[slot] != 0 (forces offer = work_price*1.5).
  * Draws the LCG in the engine's exact order (round 0: [tilt if trend!=0],
  * floor, [spread if random>0], accept_ref; round>=1: [gullibility if >2]). */

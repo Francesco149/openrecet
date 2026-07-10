@@ -33,6 +33,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/tables_snews.c ../src/tables_stage.c ../src/tables_tuto.c \
                  ../src/customer_haggle.c \
                  ../src/customer_roster.c \
+                 ../src/news_daily.c \
                  ../src/customer_dialogue.c \
                  ../src/dialogue_macros.c \
                  ../src/customer_service.c \
@@ -99,6 +100,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_tables_snews.c test_tables_stage.c test_tables_tuto.c \
                  test_customer_haggle.c \
                  test_customer_roster.c \
+                 test_news_daily.c \
                  test_customer_dialogue.c \
                  test_dialogue_macros.c \
                  test_customer_service.c \

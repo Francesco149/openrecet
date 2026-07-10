@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-10 — Daily-NEWS subsystem ported: generator FUN_00436623 + picker FUN_004363c6 + trend classifier FUN_004361b2 live (FRONT target #2)
+
+Closes the "news-list population" target: WHO writes the 20-entry featured-news list `DAT_0450ad68`
+each day is **`FUN_00436623`**, now ported objdump-exact as `src/news_daily.c` (+16 host tests, 3424/0).
+RE: `findings/news-daily-RE.md`.  The generator: (1) picks ONE new news.txt row per day (day-9 scripted
+id 1; period-window pool, dedup vs active entries — same id / one generic / same attr-or-category —
+特殊 rows rerolled, ≤100 tries), writes trend char (rate byte, 0→'d'), lifetime (dur_base+rng%dur_range+1,
+min 2), and an rng-picked target item from the price window with the '<'+2-byte marker spliced to the
+item's plural; (2) rolls the player-driven BOOM news off the 20-slot sold-pairs tracker (0x2dde4, writer
+already ported): threshold rng%100 by multiplicity {4:10..8+:100} (drawn even at p=0 — load-bearing),
+rank≥9 gate, id 0x24/0x25 variant + duration rolls, clears the hot pairs; (3) decrements pair TTLs +
+entry lifetimes, composing "The %s boom has ended."/"price of %s has normalized." expiry headlines
+(quirk #132: the trend-0 branch uses the RAW target as a SLOT); (4) day≥10 rng-picks a day-range story
+row (category -100); (5) computes the ticker scroll offsets (strlen+4).  En route fixed `news_record_t`'s
+misnamed fields (+0x94/+0x98 = LIFETIME base/range, +0xac/+0xb0 = target-item PRICE window — proven by
+the generator asm; parser+tests renamed).
+
+**All 3 call sites wired, all gated `SHOP_DAY > 8`** ⇒ zero rng/pixel change on every existing trace
+(verified: fresh arrprobe port drive vs the pre-change v3 cache — rngcalls bit-identical 1723/1723
+frames, seed 1722/1723 with the single diff at the known wandering load seam, count-neutral):
+customer-leave restore (rng%3 mid-day news break, customer_service.c), the iv2 morning-beat start
+(f488 day-9 arm + npc_schedule_apply(0) + generator, scene1_tutorial_dispatch.c), the b92c ticker pump +
+news-jingle SE 0x2bd @0x1e (scene1_player_ctrl.c W1).  **The FUN_004361b2 price-trend classifier is now
+LIVE** (was PORT-DEBT(cs-price-trend) stub 0): `cs_news_price_trend` binding (head gate b1c0/maptype/
+cc08==4/f404) feeds the haggle round-0 tilt + the price-panel tint/label (High/Base/Low, asm 5-level
+colour table ff0000/ff4d4d/7f7f7f/4d4dff/0000ff) + the merchant-HUD name colour.  New PORT-DEBT:
+news-ticker-render (FUN_00436f97 draw + b92c consumer), news-clock-advance (the unported timed shoptime
+mechanic's call site), day9-morning-arm (f488's b924==0x276 consumer).
+
 ## 2026-07-04 — DAY2 day-transition RENDER gaps: actor re-placement (#4) + companion ease (#4b) — pixel-1:1
 
 After the tutloadpin arc bit-frame-aligned the whole cutscene (Δ0 ~15000f), a DAY2 pixel confirm surfaced
