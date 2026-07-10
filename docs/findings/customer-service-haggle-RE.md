@@ -3750,3 +3750,38 @@ _cand_extra_set_for_test / _b53c / _pushback_line_for_test.
 **Still open in this area:** the b53c flash RENDERER (unported; timer ticks in the master tick);
 cs-other-kinds machines (their closeness blocks + FUN_00460eba + budget FUN_0045ecc0/FUN_00461011
 level→budget table DAT_005c6c40).
+
+## §24 2026-07-10 — NEXT-CHIP RE MAP: cs-kind-select-general (FUN_00461303) — the general SELL customer's display-grid item pick (read this before porting; saves a re-derive)
+
+**FUN_00461303 @ all.c:59278-59517** = the kind selector for an arriving GENERAL customer (f404/f406
+paths already ported in cs_kind_select).  General path (b56c/b570 from queue; b56c==-1 → ret 0):
+- **Request-pass gate:** kyaku 2..9 && `rng%5==0` && !news(b5e8) → pass `local_c=0` (REQUEST pass:
+  the 5 request slots at bank dword 0x2cddc/4? (byte +0x2cddc + b56c*0x1b*4), each ≥0 →
+  `FUN_00468ddc(b56c-2, slot_i, cell)` eligibility = the SAME dep as PORT-DEBT(cs-news-suggest));
+  else pass 1 (normal WANT).  Passes run local_c → exit at local_c==2 (so request-pass customers
+  fall back to the normal pass if nothing found).  NB the rng%5 draw only fires for kyaku 2..9.
+- **Row order** (per pass): rows[15]=0..14; draw1 `&3==0` → shuffle all 15 (FUN_0045e505); ELSE
+  draw2 `&3==0` → shuffle rows[1..14] (front row stays first); else natural.  **Col order:** per
+  row ALWAYS cols[20]=0..19 shuffled (FUN_0045e505 = 20 draws).  RNG ORDER IS LOAD-BEARING.
+- **Cell skip:** empty(-1); b568(relic event) → item_id 0xc1d/0xc26/0xc22; id 5201..5299
+  (0x1451..0x14b3).  `DAT_073dddb8` (debug key) → b5a4=cell, keep scanning (debug-only).
+- **WANT (pass 1):** kyaku blob `local_24 = &DAT_06a5ea90 + b56c*0x2c670` (the LOADED portrait/data
+  blob): +0x51ac like_attr_mask & item.attr_mask(DAT_095d37f8[slot*0xb3]) OR item.category
+  (DAT_095d3808) ∈ like-list at +0x5158 (count +0x51a8).  THEN if item_id ∈ 3000..0xc1b:
+  `rng%10 != 0` → want=0 (10%-only tier).  **WANT (news b5e8):** by b5ec slot / b5f0 category /
+  b5f4 attr (same triple as the scan's news block).
+- **AFFORD:** budget = `FUN_0045ecc0(b56c, b570)` (UNPORTED — reads closeness; also
+  FUN_00461011: level→table DAT_005c6c40[lvl≤8], ftol(day/7.0 · tbl[lvl]) — the Ghidra-dropped
+  x87 needs objdump); row==0 && col ∈ DAT_005c6be0{1,2,3,4,11,12,13} → budget scaled by a
+  **Ghidra-DROPPED float multiplier** (`local_14=(float)budget; __ftol()` — objdump 0x4616b4
+  region).  budget > item.price (DAT_095d37d4) → TAKE: b5a4=cell handle; b564 = (row==0 && col
+  special) ? 1 : 0; b5a8=2; ret 1.
+- **No find** after both passes → ret 0 (master tick then …? — check the caller's 0-branch:
+  likely the customer LEAVES/browses).
+**Port deps to build first:** FUN_0045ecc0 + FUN_00461011 (budget; closeness-indexed — §23 array),
+FUN_00468ddc (+FUN_00468d6b?) request chain (ALSO retires the FUN_00460b93 news-suggest debt),
+the like-blob fields (check g_kyaku for like_attr_mask/like-category-list parity with blob
++0x51ac/+0x5158/+0x51a8 — the blob is the RUNTIME loaded copy, stride 0x2c670).
+**Verify:** the §23/roster golden pattern — poke display grid + closeness + queue + seed, atomic
+seed-window callq FUN_00461303 vs port replay harness on the same arena; sweep the rng gates
+(rng%5 request, &3 row-shuffle, %10 tier) across seeds.

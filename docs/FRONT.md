@@ -134,6 +134,14 @@
        **Left in this area:** the b53c rank-up flash RENDERER; the other kind machines' closeness blocks +
        FUN_00460eba reject wanted-list + budget FUN_0045ecc0/00461011 (→ PORT-DEBT(cs-other-kinds));
        accept/reject itself IS raw `offer>=ask` in retail — no hidden accept-eval decision existed.
+    4. **★ NEXT — `PORT-DEBT(cs-kind-select-general)`: the general SELL customer's display-grid item
+       pick (FUN_00461303), THE remaining blocker for an autonomous live sale.**  Full RE map baked:
+       haggle-RE **§24** (pass structure request/normal, row/col shuffle rng order, want/afford
+       gates, the Ghidra-dropped front-counter budget multiplier @0x4616b4 → objdump).  Deps to port
+       first: budget FUN_0045ecc0 + FUN_00461011 (closeness-indexed, §23 array), request chain
+       FUN_00468ddc (ALSO retires PORT-DEBT(cs-news-suggest)), kyaku like-blob fields (+0x51ac/
+       +0x5158/+0x51a8 vs g_kyaku).  Verify = the §23/roster golden pattern (poke grid+closeness+
+       queue, atomic seed-window callq vs a port replay harness, seed-sweep the rng gates).
   - **Tooling ready:** `tools/haggle_probe.py` (live haggle monitor/poker — reads b590/b574/b584/b588/ask/base/
     b5a8/…), `tools/openrecet_mcp.py`, `tools/probe_daemon.py`, `tools/probe.py`. **Get into a live haggle:**
     either stock+open (walk—not teleport—onto a stand to arm cbfc via FUN_0048619f, `press a` place, **C** open,
