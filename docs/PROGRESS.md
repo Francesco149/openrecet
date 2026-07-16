@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Save pillar in a content-addressed bundle: the full `parity_prove` proof (★NEXT a) + a stale-test fix
+
+The save-pillar arc's end-to-end packaging — the ST-01 save pillar now lands inside a content-addressed proof
+bundle (the M0 pattern applied to persistent state). Commit pending; finding `findings/parity-save-producer.md`
+§"Full proof bundle LANDED".
+
+- **`house-pause-save-commit` proof:** added a `proof:` block (schema_v2, join `SAVE_PICKER_READY#1 [1,19]`,
+  `required_pillars:[identity,save]`, an R3 save exception for the phase-origin residual). `parity_save.py …
+  --window 0:200` deposits save-metrics.json → `parity_prove.py … --env-json docs/reference/parity-host-environment.json`
+  → **proof_id `989c647e…` · identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` (this drive: port
+  0x41ee/16878 vs retail 0x73f3/29683). Idempotent across `parity_prove` re-runs (same window ⇒ same id) +
+  PORTABLE (abs paths only in the non-hashed `envelope.local_paths`; hashed content refs artifacts by sha256).
+  The id is DRIVE-scoped (a re-drive → new id; the port occupied_playtime is drive-variable — see the lead).
+  render_program a non-required PASS (aligned draw programs across the picker window). The 6-byte save residual =
+  phase-origin near-PASS (occupied_playtime + its checksum echo + 1 unmapped byte, all bank-0 non-logic) — the
+  save-pillar analogue of arrprobe's honest FAIL.
+- **★ GOTCHA (baked into the scenario comment):** arm the v3 window at `--anchor SAVE_PICKER_READY`, NOT the
+  default `HOUSE_FREEROAM`. The scenario re-anchors the commit on SAVE_PICKER_READY (its `{caprange}` follows
+  `{wait SAVE_PICKER_READY}`); the HOUSE_FREEROAM default DESYNCS under load-stretch (fast port at the picker,
+  slow retail still at PAUSE_READY) ⇒ 0 pairs. Arming right ⇒ **19 gap-free pairs** (port#0==retail#1 at +1443
+  absolute, load-stretch-immune). Fixed the Jun-14 `win-0-200` (0 pairs) via a `--force` re-drive.
+- **Committed canonical env-json** `docs/reference/parity-host-environment.json` (8 operator-attested
+  EP-02/HOLE-3 fields, values match arrprobe's M0 bundle ⇒ reproducible proof_ids across bundles).
+- **Stale-test fix (parity suite RED since `6c9c85d`):** the catch-fix renamed `ranking_records`→
+  `encyclopedia_discovery` (dword 40566) but left `test_parity_save.py` asserting the old name ⇒
+  `test_summary_collapse` IndexError. The pre-commit hook runs C host tests, NOT these Python suites, so it
+  slipped through. Renamed the 2 test refs + a stale `save_producer.py` comment. Parity suite green (save 41 ·
+  prove 51 · pixels 24 · observations 60 · fingerprint 52; `test_parity_schema` now validates 2 opted-in contracts).
+- **Lead (drive-variance, ★NEXT b):** `occupied_playtime` is DRIVE-VARIABLE — across two both-runs the PORT swung
+  20906→16878 (Δ4028f ≈ 67s) while retail held 29643→29683 (Δ40). So the save residual is not a clean constant
+  phase offset: (b) must first explain the port's large per-drive playtime variance (`sim.c:310` live-scene-frame
+  tick; suspect CreateThread-race load-bracket drift) before a `{phasepin}` can flip save to PASS + make the
+  proof_id drive-stable.
+- **Lead (commit-anim identity):** the commit-anim frames (offset 20+) don't identity-join — the port stays on
+  SAVE_PICKER_READY while retail re-anchors to PAUSE_OPEN during the disk write (180 retail-only PAUSE_OPEN
+  frames). The save is scenario-scoped so it proves the persistent OUTCOME regardless; the anchor divergence is a
+  separate arc. No `parity-proof-index.json` entry (FAIL bundle — that RUNTIME-axis index advances a VA only on a PASS).
+
 ## 2026-07-16 — Save-pillar catch FIXED: the encyclopedia-store re-init (the `DAT_095d3728` verify-sweep gate)
 
 The `save` pillar's first real FAIL attributed a REAL port bug (`ranking_records` banks 1–99); now CLOSED,

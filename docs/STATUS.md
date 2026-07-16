@@ -106,7 +106,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   cksum echo + 1 unmapped remain — all non-logic). +2 host tests; 3432/0. **✅ ★NEXT(a) BUNDLE LANDED 2026-07-16 — full `parity_prove` bundle**
   (`findings/parity-save-producer.md` §"Full proof bundle LANDED"): `house-pause-save-commit` carries a `proof:`
   block (schema_v2, join `SAVE_PICKER_READY#1 [1,19]`, `required_pillars:[identity,save]`) → **proof_id
-  `75ed1a24…` · identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` — the phase-origin near-PASS (6
+  `989c647e…` (drive-scoped) · identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` — the phase-origin near-PASS (6
   non-logic bytes, recorded as an R3 save exception), idempotent+portable, the save-pillar analogue of arrprobe's
   honest FAIL. **★ GOTCHA: arm the v3 window at `--anchor SAVE_PICKER_READY`** (the default HOUSE_FREEROAM desyncs
   under load-stretch ⇒ 0 pairs; arming right ⇒ 19 gap-free pairs). Committed canonical env-json
@@ -114,9 +114,11 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   proof_ids). Also **fixed a stale parity test** (`ranking_records`→`encyclopedia_discovery` refs left RED by
   6c9c85d — pre-commit runs C tests, not the Python suites; suite now green, `test_parity_schema` auto-validates
   2 contracts). Lead: the commit-anim frames DON'T identity-join (port stays SAVE_PICKER_READY, retail re-anchors
-  PAUSE_OPEN during the disk write). **★ NEXT: (b)** `occupied_playtime` `{phasepin}` (pin the playtime
-  accumulator origin ⇒ save flips to PASS = the first fully-passing multi-pillar bundle); **(c)** ST-03 state
-  pillar (volatile class via flow_diff) / ST-02 Merkle roots.
+  PAUSE_OPEN during the disk write). **★ NEXT: (b)** `occupied_playtime` origin — **DRIVE-VARIABLE** (port swung
+  20906→16878 Δ4028f vs retail 29643→29683 Δ40 across 2 both-runs; NOT a constant offset), so explain the port's
+  load-bracket playtime variance FIRST (`sim.c:310` live-scene-frame tick; suspect CreateThread-race load drift)
+  THEN `{phasepin}` the origin ⇒ save flips to PASS (first fully-passing multi-pillar bundle) + drive-stable
+  proof_id; **(c)** ST-03 state pillar (volatile class via flow_diff) / ST-02 Merkle roots.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

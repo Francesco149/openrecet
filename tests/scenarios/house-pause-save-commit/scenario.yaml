@@ -11,6 +11,7 @@
 # (SAVE_PICKER_READY, offset).  Pinned (phasepin 80) so the pre-ESC free-roam
 # matches 1:1.  The {savefile} sandbox means the commit's disk write never
 # touches the user's real save (the harness captures it for verification).
+schema_version: 2
 description: |
   Pause → 3×down to SAVE → Z opens the save submenu → A on the occupied home
   slot 0 → "Overwriting file?" Yes → the commit animation runs → the picker rests
@@ -18,3 +19,48 @@ description: |
   port↔retail diff of the overwrite dialog + commit anim + progress bar.
 max_frames: 22000   # turbo load-stretch headroom (matches house-pause-save-nav)
 duration_ceiling_ms: 180000
+
+# ─── Parity contract (EP-01/§4.3; the SAVE-pillar corpus contract, 2026-07-16) ──────
+# The ST-01 subject: the persistent-state (save.dat) axis of parity — invisible to every
+# pixel/frame pillar.  Scoped to the gap-free SAVE_PICKER_READY occ-1 window [1,19] (the
+# resting picker; offset 0 is the join's only head gap, excluded — the port's
+# SAVE_PICKER_READY fires 1f later, so port#0 == retail#1).  `identity` PASSES there.
+# `save` is declared REQUIRED = the honest parity aspiration; the gate reports where we are:
+#   * save FAILS at bank0/occupied_playtime — 6 residual bytes, ALL bank-0, ALL non-logic
+#     (recorded below as an R3 exception; DESCRIPTIVE, not auto-tolerated).  The REAL port
+#     bug this pillar CAUGHT — encyclopedia_discovery re-init across banks 1–99, 6435 B —
+#     was FIXED byte-exact vs retail (commit 6c9c85d); what remains is the phase-origin
+#     playtime accumulator + its checksum echo + 1 unmapped byte.
+# Arm the v3 window at SAVE_PICKER_READY (NOT the default HOUSE_FREEROAM, which desyncs
+# under load-stretch → 0 pairs):
+#     orv3_window.py house-pause-save-commit --window 0:200 --anchor SAVE_PICKER_READY --view
+# NB the commit-animation frames (offset 20+) do NOT identity-join: the port stays on
+# SAVE_PICKER_READY while retail re-anchors to PAUSE_OPEN during the disk write — a
+# commit-region identity divergence (a lead; findings/parity-save-producer.md).  The save
+# pillar is scenario-scoped (one committed save.dat, not a per-frame join), so it proves
+# the persistent OUTCOME regardless of that render-frame gap.
+proof:
+  contract_version: 1
+  start_node: null
+  join:
+    anchor: SAVE_PICKER_READY
+    occurrence: 1
+    window: [1, 19]
+  required_pillars:
+    - identity
+    - save
+  seeds: [19937]
+  configurations: [reference-1024-windowed]
+  exceptions:
+    - pillar: save
+      scope: "bank0 — occupied_playtime (2B) + its checksum echo (3B) + 1 unmapped byte (dword one past deco_carpet); 6 bytes total, all bank-0, all non-logic"
+      reason: "Phase-origin near-PASS residual, NOT a logic gap.  occupied_playtime is the total-playtime FRAME accumulator; the port skips the intro-video freeze retail plays, so its origin is a constant phase offset (this drive: port 0x41ee vs retail 0x73f3, Δ0x3205≈213s≈the freeze) — a {phasepin}-class pin (queued: pin the playtime accumulator origin).  The checksum is the derived XOR echo of that diff (state-map policy predicts it); the 1 unmapped byte is bank-0 non-logic.  The one REAL port bug this pillar caught (encyclopedia_discovery re-init, banks 1–99, 6435 B) is FIXED byte-exact (commit 6c9c85d).  DESCRIPTIVE only — the gate does NOT auto-tolerate this (save still FAILs — honest); closes when the playtime {phasepin} lands."
+      approved_by: "R3-analysis-2026-07-16-save-phase-origin (findings/parity-save-producer.md §Leads)"
+coverage_expectations:
+  functions: []
+  blocks: []
+  vm_operations: []
+  content_ids: []
+  transitions: []
+  assets: []
+  audio_ids: []

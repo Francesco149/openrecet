@@ -124,13 +124,81 @@ checksum echo (ignore), and one genuine port↔retail divergence to chase.
   phase, matching the pixel/state loop. Its 3-byte `checksum` echo + 1 `(unmapped)` byte
   round out the 6-byte residual; all bank-0-only, all non-logic.
 
+## Full proof bundle LANDED (2026-07-16) — identity PASS · save FAIL, the near-PASS
+
+★ NEXT (a) done. `house-pause-save-commit` carries a `proof:` block (schema_v2, join
+`SAVE_PICKER_READY#1 [1,19]`, `required_pillars:[identity,save]`) → a content-addressed
+bundle:
+
+    parity_save.py  house-pause-save-commit --window 0:200        # deposit save-metrics.json
+    parity_prove.py house-pause-save-commit --window 0:200 \
+        --env-json docs/reference/parity-host-environment.json --json
+
+**proof_id `989c647edce2001f…` · FAIL (exit 1) · identity PASS · save FAIL** @
+`bank0/occupied_playtime` (this drive: port `0x41ee`/16878 vs retail `0x73f3`/29683).
+Idempotent across `parity_prove` re-runs (same window artifacts ⇒ same id) + PORTABLE
+(abs paths ONLY in the non-hashed `envelope.local_paths`; hashed content refs artifacts
+by sha256 ⇒ machine-independent id — verified). **NB the id is DRIVE-scoped** — a re-drive
+yields a new id because the port `occupied_playtime` is drive-variable (see the ★NEXT-b
+follow-up); the proof binds THIS drive's artifacts by hash (roadmap §5, artifacts are
+immutable). render_program resolved
+PASS (non-required bonus: aligned draw programs across the picker window, even though the
+same-side pixel replay is REPLAY_DIVERGENT for the pause overlay). The 6-byte save
+residual = the phase-origin near-PASS (recorded as the contract's R3 save exception):
+occupied_playtime (phase) + its checksum echo + 1 unmapped byte, all bank-0, all
+non-logic — the save-pillar analogue of arrprobe's honest render/pixels FAIL.
+
+**★ GOTCHA — arm the v3 window at `--anchor SAVE_PICKER_READY`, NOT the default
+`HOUSE_FREEROAM`.** The scenario re-anchors the commit inputs on SAVE_PICKER_READY (its
+`{caprange}` sits right after `{wait SAVE_PICKER_READY}`). Driven with the HOUSE_FREEROAM
+default, `--window 0:200` DESYNCS under load-stretch — the fast port reaches
+SAVE_PICKER_READY while slow retail is still at PAUSE_READY ⇒ 0 shared anchors ⇒ 0 pairs
+(identity PARTIAL). Arming at SAVE_PICKER_READY captures the picker on BOTH sides ⇒ **19
+gap-free pairs** (`port#0==retail#1` at +1443 absolute, load-stretch-immune). The Jun-14
+`win-0-200` was the wrong arm anchor (0 pairs); a `--force` re-drive at SAVE_PICKER_READY
+fixed it. The scenario.yaml contract comment records the correct invocation.
+
+**Lead — commit-region identity divergence.** Only the resting-picker frames [1,19] join;
+offset 20+ (overwrite dialog + 60f commit anim) fall into gaps — the PORT stays on
+SAVE_PICKER_READY while RETAIL re-anchors to **PAUSE_OPEN** during the disk write (180
+PAUSE_OPEN retail-only frames). The save pillar is scenario-scoped (one committed
+save.dat) so it proves the persistent OUTCOME regardless; but the anchor divergence during
+commit is a real lead (retail re-opens/refreshes the pause layer on commit? a port anchor
+def is missing?). Separate arc.
+
+**Committed canonical env-json** (`docs/reference/parity-host-environment.json`): the 8
+operator-attested EP-02/HOLE-3 fields (values match arrprobe's M0 bundle) so proof_ids
+reproduce across bundles from the same host. No proprietary bytes.
+
+**Stale-test fix (parity suite was RED since `6c9c85d`).** The catch-fix renamed the
+state-map region `ranking_records`→`encyclopedia_discovery` (dword 40566) but left
+`test_parity_save.py` asserting the old name ⇒ `test_summary_collapse` IndexError. The
+pre-commit hook runs C host tests, NOT these Python suites, so it slipped through. Renamed
+the 2 test refs + a stale `save_producer.py` comment. Parity suite green: save 41 · prove
+51 · pixels 24 · observations 60 · fingerprint 52; `test_parity_schema` now auto-validates
+2 opted-in contracts (arrprobe + this one — an automatic contract-schema regression guard).
+
+NB **no `docs/parity-proof-index.json` entry** — that RUNTIME-axis index advances a VA
+only on a PASS; this is a FAIL bundle (identity PASS ≠ a VA-coverage claim). The
+save-commit VAs (`FUN_004905a8`/…) reach `scenario-pillar-proven` when the playtime
+`{phasepin}` (next) flips save to PASS.
+
 ## Follow-ups (roadmap)
 
-- A full `parity_prove` bundle: add a `proof:` block (schema_version 2,
-  `required_pillars: [identity, save]`) to `house-pause-save-commit` + capture a v3
-  window, so the save FAIL lands inside a content-addressed bundle (parallels the
-  pixels-producer arrprobe bundle). The wiring is done + unit-tested; this is the
-  end-to-end packaging.
+- ✅ **DONE 2026-07-16** — the full `parity_prove` bundle (proof_id `989c647e…`; see
+  §"Full proof bundle LANDED"). The save FAIL now lands inside a content-addressed
+  bundle, parallel to the pixels-producer arrprobe bundle.
+- **Playtime origin `{phasepin}`** (★ NEXT b) — the `occupied_playtime` residual is NOT a
+  clean constant phase offset: it is **DRIVE-VARIABLE**. Across two both-runs the PORT
+  playtime swung 20906→16878 (Δ4028 frames ≈ 67s @60fps) while retail held 29643→29683
+  (Δ40). So (b) must FIRST explain the port's large per-drive playtime variance (`sim.c:310`
+  `wb[SAVE_BANK_FIELD_PLAYTIME]++` counts live-scene frames every live-scene frame; prime
+  suspect = the completion-based load-bracket drift accumulating into the pre-commit
+  live-frame count, i.e. the same CreateThread-race non-determinism `{csloadpin}`/
+  `{tutloadpin}` bound elsewhere) — a real RE sub-arc, NOT a one-line pin — THEN pin the
+  origin bilaterally so the save flips to **save PASS** (the first fully-passing
+  multi-pillar bundle in the evidence program) and the proof_id becomes drive-stable.
+  Closes the contract's save exception.
 - **ST-02** (canonical encoder + Merkle roots over the state tree), **ST-03**
   (expand retail+port state capture → the `state` pillar for the volatile class),
   **ST-04** (the first-divergence state report reusing `state_map.locate`).

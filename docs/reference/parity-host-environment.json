@@ -1,0 +1,11 @@
+{
+  "_note": "Canonical `environment` group for tools/parity_prove.py (--env-json). EP-02/HOLE-3: the environment is OPERATOR-ATTESTED, not machine-probed (docs/findings/parity-M0-adversarial-review.md) — the fixed capture host is the Windows retail runner; the `operator-attested:*` values are honest placeholders acknowledging that gap, not fabricated facts. Committing one canonical file makes proof_ids reproducible across bundles from the same host (the environment group is part of the hashed proof content). Values match the house-firstcust-arrprobe M0 bundle. No proprietary bytes.",
+  "os_build": "operator-attested:windows-capture-host",
+  "locale": "en_US",
+  "codepage": "cp932",
+  "d3d_runtime": "d3d8",
+  "gpu": "operator-attested:capture-host-gpu",
+  "driver": "operator-attested:capture-host-driver",
+  "resolution": "1024x768",
+  "display_mode": "windowed"
+}
