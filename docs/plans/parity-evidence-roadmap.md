@@ -1161,6 +1161,14 @@ replay exactness alone is never an acceptance criterion.
 
 ## 17. External implementation references
 
+**Prior-art transfer map:** `../reference/decomp-port-techniques.md` synthesizes
+AI-driven (Snowboard Kids 2 / "Nigel", Body Harvest, Macabeus, Agent4Decompile,
+DecLLM) and human-driven (objdiff, asm-differ, decomp-permuter, splat, N64Recomp)
+matching-decomp projects into ranked transferable techniques, each mapped to a
+package here (e.g. objdiff scoring → EP-06 behavioral match%; permuter → a
+trace-permuter; L1/L2/L3 routing → the multi-pillar fixer; oracle-guard hooks →
+new). Read it before designing an agent porting loop or new parity tooling.
+
 Use primary documentation when building these packages:
 
 - Frida Stalker block/exec events: <https://frida.re/docs/stalker/>
