@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Parity evidence roadmap: M0 reached (Wave-0 step 4, R3 adversarial review of one proof bundle)
+
+Continued the parity-evidence-roadmap arc (EP-00→EP-05 landed last session). Wave-0 step 4 =
+"R3 adversarial review of one proof bundle": compiled the **first real proof bundle** and tried
+to fool the gate on real evidence. Full writeup: `findings/parity-M0-adversarial-review.md`.
+
+- **First real corpus contract** authored on `house-firstcust-arrprobe` (the USER-CONFIRMED-1:1
+  first-customer drive): a `scenario.yaml` `proof:` block scoped to the gap-free `HOUSE_FREEROAM#1
+  [1,80]` window (the join's only gap there is offset 0). `test_parity_schema` now validates it.
+- **Bundle** `9bc05dd8…` = truthful **FAIL/exit 1**: `identity PASS` · `render_program FAIL @
+  HOUSE_FREEROAM#1+1` (tex `d445…b494`, port 0 / retail 80 tris — the known b494 80-tri 0-px
+  retail-only warm-up strip) · `pixels`+5 later-package pillars `NOT_CAPTURED`. So our *most-
+  confirmed* scene is pixel-1:1 by eyeball yet **not tool-proven parity** — the gate refuses to
+  launder human confidence into a PASS. All three M0 exit conditions demonstrated on real data.
+- **HOLE-1 (FIXED) — `proof_id` was NOT portable.** A `NOT_CAPTURED`-by-absence pillar baked its
+  **absolute probe path** into `observations.<p>.note` + `pillars.<p>.detail` (both hashed), so the
+  same logical run at a different checkout dir hashed to a different id — violating §4.4 + the EP-02
+  portability acceptance, and biting *every* current bundle. Fix: `observations.portable_reason()`
+  scrubs abs dirs → basename in `not_captured`/`inconclusive` (the only builders of hashed reasons);
+  + regression test `test_proof_id_portable` (same window at 2 abs dirs → identical id). The
+  synthetic tests missed it — they build at one tmp dir and only check *relative* determinism.
+- **Logged (not review-fixable):** HOLE-2 — `parity_prove` never threads `expected_containers`, so
+  a foreign metrics doc with matching frame identities would be trusted (the container ids in
+  `view.json` are paths, not hashes → real fix is EP-08); **hard gate before any pixels/state
+  producer**. HOLE-3 — env is operator-supplied/unverified (CI-05 needs the capture host to bind
+  it). HOLE-4 — `exceptions[]` are recorded but not gate-enforced (descriptive until EP-07; the
+  b494 exception does NOT green render_program — honest).
+- **Verdict:** the M0 gate is sound + authoritative-ready for producer-backed pillars (identity,
+  render_program); absent producers correctly fail-closed. EP-06 (ledger migration) may proceed.
+- Tests: `test_parity_{schema,fingerprint,observations,prove}` all green (44 prove checks; +3 new).
+
 ## 2026-07-10 — Daily-NEWS subsystem ported: generator FUN_00436623 + picker FUN_004363c6 + trend classifier FUN_004361b2 live (FRONT target #2)
 
 Closes the "news-list population" target: WHO writes the 20-entry featured-news list `DAT_0450ad68`

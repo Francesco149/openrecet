@@ -301,16 +301,48 @@ def test_build_and_main(tmp: Path):
     check(rc == 2, "main: absent --env-json → exit 2")
 
 
+def test_proof_id_portable(tmp: Path):
+    """EP-02 acceptance ("same inputs → same ID from different absolute directories")
+    + the 2026-07-16 R3-review regression: the SAME window at a DIFFERENT absolute
+    dir must yield the SAME proof_id, and no machine-local path may appear in the
+    hashed core. Guards the fixed leak — a NOT_CAPTURED-by-absence pillar used to
+    bake its absolute probe path into observations.<p>.note / pillars.<p>.detail,
+    so an identical logical run hashed differently per checkout dir."""
+    scenario = "house-loaded-display-pinned"
+    if not (ROOT / "tests/scenarios" / scenario / "trace.jsonl").exists():
+        _skips.append("proof_id portability (scenario trace absent)")
+        return
+    port_pe = _fake_pe(tmp, "port.exe", b"port-pe")
+    retail_pe = _fake_pe(tmp, "retail.exe", b"retail-pe")
+    env = {"os_build": "Windows-10", "locale": "ja_JP", "codepage": "cp932",
+           "d3d_runtime": "d3d8", "gpu": "ref", "driver": "ref",
+           "resolution": "1024x768", "display_mode": "windowed"}
+    contract_doc = mk_contract(["identity", "render_program", "pixels"])  # no pixel doc ⇒ NOT_CAPTURED
+    ids = []
+    for sub in ("aaaaaaaaaa/deep/nested", "b"):  # deliberately different-length abs paths
+        wd = write_window(tmp / sub)  # px_frames omitted → pixel-metrics absent → the old leak path
+        proof, *_ = parity_prove.build_proof(
+            scenario, wd, contract_doc=contract_doc, env=env, port_pe=port_pe,
+            retail_pe=retail_pe, retail_ref="retail-test", save_path=None,
+            assets_manifest=None, recet_ini=None, normalization=[], from_cache=True)
+        ids.append(proof["proof_id"])
+        core = canonical_bytes(proof).decode()
+        check(str(wd) not in core, f"portable: window abs path absent from hashed core ({sub})")
+    check(ids[0] == ids[1],
+          "portable: identical window at different abs dirs → identical proof_id")
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        for sub in ("cas", "res", "bm_root"):
+        for sub in ("cas", "res", "bm_root", "port"):
             (tmp / sub).mkdir()
         test_gate()
         test_determinism()
         test_envelope_and_cas(tmp / "cas")
         test_resolve(tmp / "res")
         test_build_and_main(tmp / "bm_root")
+        test_proof_id_portable(tmp / "port")
 
     for s in _skips:
         print(f"SKIP: {s}")

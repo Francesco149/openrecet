@@ -31,6 +31,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
+- **▶ ACTIVE ARC (2026-07-16) — PARITY EVIDENCE COMPILER (truthful-ledger program).** Building the
+  evidence compiler of `docs/plans/parity-evidence-roadmap.md`: a scenario contract + a v3 window →
+  a content-addressed proof bundle with fail-closed per-pillar verdicts (identity/state/render/pixels/…),
+  so a claim is scoped to real evidence, not a source marker. **Wave-0 EP-00→EP-05 LANDED; M0 REACHED
+  2026-07-16** (R3 adversarial review of the first real bundle — `findings/parity-M0-adversarial-review.md`).
+  First corpus contract lives on `house-firstcust-arrprobe` (scenario.yaml `proof:` block, `HOUSE_FREEROAM#1
+  [1,80]`); its bundle is a **truthful FAIL** (identity PASS · render_program FAIL on the b494 80-tri 0-px
+  strip · pixels+later pillars NOT_CAPTURED) — our most-confirmed scene is pixel-1:1 by eyeball yet NOT
+  tool-proven parity. Review fixed a `proof_id` portability leak (abs path in a hashed pillar note →
+  `observations.portable_reason`; regression `test_proof_id_portable`). **★ NEXT:** (1) **EP-06** — redesign
+  the port-ledger to the scoped lifecycle (discovered→…→scenario-pillar-proven) so `verified` stops
+  overclaiming runtime; (2) **EP-08** cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove
+  never threads `expected_containers` ⇒ a foreign metrics doc with matching frame identities would be
+  trusted) must close before ANY pixels/state producer's PASS is trusted. Tooling: `tools/parity_prove.py`,
+  `tools/parity/`, schemas `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab
+  `docs/reference/parity-vocabulary.md`. Serialize retail drives (singleton).
 - **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a
   real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
   faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,

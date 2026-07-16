@@ -5,9 +5,54 @@
 # the drive cheaply.  Window [0,1500] from HF occ1 covers walk → scripted tutorial →
 # ESC-skip → wrap-up → first customer → first BARGAIN.  Use for fast --target both /
 # orv3_window --state iteration; the committed full scenario stays for day-2 work.
+schema_version: 2
 description: |
   Trimmed first-customer-arrival probe (load → tutorial → skip → wrap-up → first
   customer → first BARGAIN).  Same pins as house-firstcust-cutscene-day2.
 max_frames: 6000
 duration_ceiling_ms: 600000
 capture_suppress_loads: true
+
+# ─── Parity contract (EP-01/§4.3; first real corpus contract, 2026-07-16) ───────
+# The M0 subject.  Scoped to the gap-free HOUSE_FREEROAM occ-1 window [1,80] (the
+# join's only gap on this segment is offset 0, excluded), so `identity` legitimately
+# PASSES.  `render_program` + `pixels` are declared REQUIRED = the honest parity
+# aspiration for this scenario; the gate reports we are not there yet:
+#   * render_program FAILS at offset 1 — the retail-only 80-tri d445…b494 warm-up
+#     strip that paints 0 px (FRONT "tex b494 80tris retail-only every frame").
+#     Recorded below as an R3 exception (descriptive; NOT auto-tolerated by the gate).
+#   * pixels is NOT_CAPTURED — no headless pixel producer is wired yet (GX workstream).
+# So the "most confirmed" scenario is pixel-1:1 by human eyeball yet NOT tool-proven
+# parity — exactly the truthful-ledger point of the evidence roadmap.  When GX lands
+# the pixel producer and the b494 strip is resolved, this same contract flips green.
+proof:
+  contract_version: 1
+  start_node: null
+  join:
+    anchor: HOUSE_FREEROAM
+    occurrence: 1
+    window: [1, 80]
+  required_pillars:
+    - identity
+    - render_program
+    - pixels
+  optional_pillars:
+    - state
+  pixels:
+    mode: exact
+    environment: preservation-reference
+  seeds: [19937]
+  configurations: [reference-1024-windowed]
+  exceptions:
+    - pillar: render_program
+      scope: "HOUSE_FREEROAM#1 [1,80] every frame — tex d44541872da3b494, 80 tris, 0 px painted, retail-only (first draw)"
+      reason: "Benign warm-up strip: retail draws an 80-triangle degenerate/off-screen strip that paints 0 px on every HOUSE_FREEROAM frame (FRONT 'tex b494 80tris retail-only'); the port omits it.  Pixels are human-confirmed 1:1.  Recorded for review; the gate does NOT auto-tolerate it (exceptions stay descriptive until EP-07 bridges human review), so render_program still FAILs here — honest."
+      approved_by: "R3-review-2026-07-16"
+coverage_expectations:
+  functions: []
+  blocks: []
+  vm_operations: []
+  content_ids: []
+  transitions: []
+  assets: []
+  audio_ids: []

@@ -98,6 +98,12 @@ that subsystem.
 | [render-diff.md](render-diff.md) | Phase D.6 — render-diff orchestrator; surfaces per-frame state-trace divergences. | 2026-05-26 |
 | [phase-state-census.md](phase-state-census.md) | Audit T3 — `phase_census.py` enumerates ALL load-timing-dependent state ({memsnap} two timing-shifted runs); HOUSE result + the pin-completeness gate. | 2026-06-09 |
 
+## Parity evidence compiler (roadmap EP)
+
+| Doc | Covers | Last touched |
+|-----|--------|--------------|
+| [parity-M0-adversarial-review.md](parity-M0-adversarial-review.md) | R3 review of the EP-05 proof compiler on the first real bundle (`house-firstcust-arrprobe`): M0 reached; found+fixed the proof_id path-leak (HOLE-1); logged HOLE-2 (container check dead in CLI) / HOLE-3 (env trust) / HOLE-4 (exceptions not gate-enforced). | 2026-07-16 |
+
 ## Misc / reference
 
 | Doc | Covers | Last touched |

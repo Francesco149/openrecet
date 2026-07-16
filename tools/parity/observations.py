@@ -29,6 +29,7 @@ modules (pixels.py, render_program.py) and import from here.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Callable, NamedTuple, Optional
 
@@ -45,6 +46,25 @@ FAIL = "FAIL"
 NOT_CAPTURED = "NOT_CAPTURED"
 NOT_REQUIRED = "NOT_REQUIRED"
 INCONCLUSIVE = "INCONCLUSIVE"
+
+
+# A hashed pillar note/detail must stay PORTABLE: a machine-local absolute path
+# baked into a reason would make proof_id depend on the checkout directory (two
+# identical logical runs from /opt/src/openrecet vs /home/x/recet would hash
+# differently), violating §4.4 "proof_id excludes local absolute paths" and the
+# EP-02 acceptance "same inputs → same ID from different absolute directories".
+# Absent/untrusted-evidence reasons interpolate the probe path; the two builders
+# that turn such a reason into a HASHED note+detail (not_captured / inconclusive)
+# scrub any absolute directory to its basename (still informative, now portable).
+# PASS/FAIL details are author f-strings over lf.label()/tex-ids only — path-free.
+_ABS_DIR_RE = re.compile(r"/[^\s\"']+/([^\s\"'/]+)")
+
+
+def portable_reason(msg: str) -> str:
+    """Replace every machine-local absolute path in `msg` with its basename, so a
+    reason that will be hashed into a pillar note/detail never carries a
+    non-portable directory (proof_id stays checkout-independent)."""
+    return _ABS_DIR_RE.sub(r"\1", msg)
 
 
 class ObservationError(Exception):
@@ -298,7 +318,9 @@ class AdapterResult(NamedTuple):
 
 def not_captured(reason: str, *, artifacts: Optional[list] = None) -> AdapterResult:
     """Fail-closed absence: evidence not present ⇒ the pillar is NOT_CAPTURED, and
-    the observation records that nothing was captured."""
+    the observation records that nothing was captured. `reason` is scrubbed of
+    absolute paths (portable_reason) because it is hashed into the note+detail."""
+    reason = portable_reason(reason)
     return AdapterResult(
         observation(captured=False, artifacts=artifacts, note=reason),
         pillar_result(NOT_CAPTURED, detail=reason),
@@ -307,7 +329,9 @@ def not_captured(reason: str, *, artifacts: Optional[list] = None) -> AdapterRes
 
 def inconclusive(reason: str, *, artifacts: Optional[list] = None) -> AdapterResult:
     """Evidence present but untrustworthy ⇒ INCONCLUSIVE. The observation is marked
-    captured (data existed) but the comparison could not be soundly made."""
+    captured (data existed) but the comparison could not be soundly made. `reason`
+    is scrubbed of absolute paths (portable_reason) — it is hashed into note+detail."""
+    reason = portable_reason(reason)
     return AdapterResult(
         observation(captured=True, artifacts=artifacts, note=reason),
         pillar_result(INCONCLUSIVE, detail=reason),

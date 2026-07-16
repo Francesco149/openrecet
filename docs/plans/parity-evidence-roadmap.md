@@ -1,7 +1,9 @@
 # Parity evidence, coverage, and full-game convergence roadmap
 
-> **Status:** ADOPTED MASTER ROADMAP; implementation not yet started unless a work
-> package says otherwise  \
+> **Status:** ADOPTED. **Wave-0 EP-00→EP-05 LANDED; M0 REACHED** (2026-07-16 R3
+> adversarial review — `../findings/parity-M0-adversarial-review.md`; fixed the
+> proof_id path-leak, logged HOLE-2/3/4). **Next: EP-06 ledger migration + EP-08
+> cache hardening.** No other package started unless it says so  \
 > **Adopted:** 2026-07-16  \
 > **Owner:** R3/highest-reasoning orchestrator  \
 > **Scope:** long-horizon tooling and methodology; `../FRONT.md` remains the live
@@ -1085,6 +1087,17 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 3. EP-04 and EP-05.
 4. R3 adversarial review of one proof bundle.
 5. EP-06 ledger migration and EP-08 cache hardening.
+
+**Status (2026-07-16):** steps 1–4 **DONE**. Steps 1–3 landed EP-00→EP-05; step 4
+(this review, `../findings/parity-M0-adversarial-review.md`) compiled the first real
+bundle over `house-firstcust-arrprobe` (first corpus contract), demonstrated all
+three M0 exit conditions on real evidence, and found+fixed a `proof_id` portability
+leak (an absolute path in a hashed pillar note/detail — now scrubbed by
+`observations.portable_reason`, guarded by `test_parity_prove.test_proof_id_portable`).
+Two gate prerequisites logged: **HOLE-2** — `parity_prove` never threads
+`expected_containers`, so a foreign metrics doc with matching frame identities would
+be trusted; **no pixels/state producer may ship a PASS-capable adapter until EP-08
+provides a real capture-container hash to thread**. Step 5 (EP-06/EP-08) is next.
 
 Do not start BA exploration or publish new global coverage percentages before this
 wave. Existing gameplay porting may continue, but new parity claims should retain
