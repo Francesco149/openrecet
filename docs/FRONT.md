@@ -23,13 +23,19 @@
   [1,80]`); its bundle is a **truthful FAIL** (identity PASS · render_program FAIL on the b494 80-tri 0-px
   strip · pixels+later pillars NOT_CAPTURED) — our most-confirmed scene is pixel-1:1 by eyeball yet NOT
   tool-proven parity. Review fixed a `proof_id` portability leak (abs path in a hashed pillar note →
-  `observations.portable_reason`; regression `test_proof_id_portable`). **★ NEXT:** (1) **EP-06** — redesign
-  the port-ledger to the scoped lifecycle (discovered→…→scenario-pillar-proven) so `verified` stops
-  overclaiming runtime; (2) **EP-08** cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove
-  never threads `expected_containers` ⇒ a foreign metrics doc with matching frame identities would be
-  trusted) must close before ANY pixels/state producer's PASS is trusted. Tooling: `tools/parity_prove.py`,
-  `tools/parity/`, schemas `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab
-  `docs/reference/parity-vocabulary.md`. Serialize retail drives (singleton).
+  `observations.portable_reason`; regression `test_proof_id_portable`). **✅ EP-06 LANDED 2026-07-16 —
+  truthful two-axis ledger** (`findings/parity-EP06-ledger-lifecycle.md`; `gen_port_ledger.py` rewrite +
+  `test_gen_port_ledger.py` 152 checks): INVENTORY rung `discovered→source-referenced→implemented→instrumented`
+  (src markers) SPLIT from RUNTIME rung `retail-executed→…→matrix-proven` (needs a `docs/parity-proof-index.json`
+  bundle). STATUS headline flipped "2.8% runtime-verified" (a lie) → **"0% runtime-proven — 85 instrumented,
+  index empty"**; the 501 "ported" are now honestly `source-referenced` (a `FUN_` mention ≠ a port claim). New
+  `PORT-OF(0xVA)` opt-in attestation reaches `implemented` w/o a probe (0 seeded — backfill is author work).
+  `status` enum kept as a DEPRECATED alias (mem_watch byte-stable); `--check` idempotent. **★ NEXT: EP-08**
+  cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove never threads `expected_containers` ⇒ a
+  foreign metrics doc with matching frame identities would be trusted) must close before ANY pixels/state
+  producer's PASS is trusted. Tooling: `tools/parity_prove.py`, `tools/parity/`, schemas
+  `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab `docs/reference/parity-vocabulary.md`,
+  proof index `docs/parity-proof-index.json`. Serialize retail drives (singleton).
 - **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a
   real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
   faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,

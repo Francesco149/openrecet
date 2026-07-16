@@ -39,9 +39,9 @@ implies RUNTIME. Only PILLAR results + the required-pillar gate constitute
 | audio `ALIGNED`/`DIVERGE` (`audio_diff.py:300`) | SE/BGM count match | **PILLAR** `audio_events` | AU-00: upgrade to id+order+params; map to PASS/FAIL |
 | replay `ALL FRAMES BIT-EXACT`/`DIVERGENT` (`replay.c:83`,`v3verify.py`) | same-side reproduction | **REPLAY** | ✅ EP-03 (2026-07-16): `v3verify.py` prints `REPLAY_EXACT`/`REPLAY_DIVERGENT` + a "not a cross-target parity claim" caveat |
 | `bit-exact` (`scenario-test.py:37`) | same-side golden regression | **REPLAY** (intra-target) | prose; do not read as cross-target |
-| ledger `verified` (`gen_port_ledger.py:133`) | a `CALL_TRACE_ENTER` macro exists | **INVENTORY** `instrumented` (NOT runtime) | EP-06: rename; the label currently OVERCLAIMS ("runtime-diffed vs retail") |
-| ledger `ported` (`:137`) | a `FUN_<va>` ref exists in `src/` | **INVENTORY** `implemented`/`source-referenced` | EP-06: split marker senses |
-| ledger `stubbed`/`unported` | stub macro / no marker | **INVENTORY** | EP-06: preserve as inventory sub-states |
+| ledger `verified` (`gen_port_ledger.py`) | a `CALL_TRACE_ENTER` macro exists | **INVENTORY** `instrumented` (NOT runtime) | ✅ EP-06 (2026-07-16): `inventory_state=instrumented`; the "runtime-verified" headline is GONE (STATUS now says "0 runtime-proven"). `status:"verified"` kept as a DEPRECATED alias for mem_watch |
+| ledger `ported` (`:137`) | a `FUN_<va>` ref exists in `src/` | **INVENTORY** `implemented`/`source-referenced` | ✅ EP-06: split — a bare `FUN_` mention → `source-referenced` (NOT a port claim); `implemented` needs a `PORT-OF(0xVA)` attestation or a probe |
+| ledger `stubbed`/`unported` | stub macro / no marker | **INVENTORY** | ✅ EP-06: `stubbed`→`instrumented`+`quality_flags:["stub"]`; `unported`→`discovered` (the universe floor) |
 | `objdump-exact`/`disasm-exact` (FRONT prose) | asm-level source fidelity to the decompile | **INVENTORY** quality note | prose only; not a runtime claim |
 | `1:1`/`CONFIRMED 1:1`/`USER-CONFIRMED` | human cross-target attestation | **CONFIRMED** | EP-07: bridge to a review record + proof id; stays human-owned |
 | `phase`/`phase-clean` (prose + flow summary) | constant-offset counter origin, laws bit-exact | PILLAR detail (accepted only via R3 exception) | on an ACTIVELY-WORKED trace, never "accept"; it is a FAIL to close (CLAUDE.md) |
@@ -64,15 +64,19 @@ deprecated alias until every consumer migrates (roadmap EP-03):
 Prose-only (reword freely, no machine consumer): `confirmed-parity-ledger.md`,
 STATUS/FRONT/PROGRESS/findings narrative, viewer `CheatSheet.mjs`.
 
-## The ledger overclaim (EP-06 target)
+## The ledger overclaim (EP-06 — ✅ FIXED 2026-07-16)
 
-`gen_port_ledger.py` derives all of `verified/ported/stubbed/unported` from
-**source scanning only** — yet renders `verified` as "runtime-diffed vs retail".
-That is INVENTORY dressed as RUNTIME. EP-06 replaces the single label with the
-lifecycle `discovered → source-referenced → implemented → instrumented →
-retail-executed → port-executed → call-I/O-aligned → scenario-pillar-proven →
-matrix-proven`, where every state past `instrumented` requires a proof artifact,
-not a marker. Until then, treat ledger `verified` as `instrumented`.
+`gen_port_ledger.py` derived all of `verified/ported/stubbed/unported` from
+**source scanning only** — yet rendered `verified` as "runtime-diffed vs retail".
+That was INVENTORY dressed as RUNTIME. **EP-06 replaced the single label with two
+independent axes** (`docs/findings/parity-EP06-ledger-lifecycle.md`): an
+**INVENTORY** rung `discovered → source-referenced → implemented → instrumented`
+(source markers) and a **RUNTIME** rung `retail-executed → port-executed →
+call-I/O-aligned → scenario-pillar-proven → matrix-proven` (each needs a
+`docs/parity-proof-index.json` bundle, not a marker). The index is **empty
+today** ⇒ `runtime_proven = 0` — the honest state (no VA→proof binding exists
+yet). The `status` enum survives as a DEPRECATED per-function alias. Read a ledger
+`verified`/`ported` as INVENTORY-only; the machine field is now `inventory_state`.
 
 ## Rule for authors
 

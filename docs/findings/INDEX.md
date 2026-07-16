@@ -103,6 +103,7 @@ that subsystem.
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
 | [parity-M0-adversarial-review.md](parity-M0-adversarial-review.md) | R3 review of the EP-05 proof compiler on the first real bundle (`house-firstcust-arrprobe`): M0 reached; found+fixed the proof_id path-leak (HOLE-1); logged HOLE-2 (container check dead in CLI) / HOLE-3 (env trust) / HOLE-4 (exceptions not gate-enforced). | 2026-07-16 |
+| [parity-EP06-ledger-lifecycle.md](parity-EP06-ledger-lifecycle.md) | EP-06 truthful port ledger: the two-axis lifecycle model (INVENTORY `discovered→…→instrumented` from src markers; RUNTIME `retail-executed→…→matrix-proven` from `parity-proof-index.json`). Kills the "runtime-verified" overclaim; `PORT-OF(0xVA)` attestation; legacy `status` alias. | 2026-07-16 |
 
 ## Misc / reference
 

@@ -1,9 +1,11 @@
 # Parity evidence, coverage, and full-game convergence roadmap
 
-> **Status:** ADOPTED. **Wave-0 EP-00→EP-05 LANDED; M0 REACHED** (2026-07-16 R3
+> **Status:** ADOPTED. **Wave-0 EP-00→EP-06 LANDED; M0 REACHED** (2026-07-16 R3
 > adversarial review — `../findings/parity-M0-adversarial-review.md`; fixed the
-> proof_id path-leak, logged HOLE-2/3/4). **Next: EP-06 ledger migration + EP-08
-> cache hardening.** No other package started unless it says so  \
+> proof_id path-leak, logged HOLE-2/3/4). **EP-06 truthful two-axis ledger landed
+> 2026-07-16** (`../findings/parity-EP06-ledger-lifecycle.md`). **Next: EP-08 cache
+> hardening (closes HOLE-2 — the hard gate before any pixels/state producer PASS).**
+> No other package started unless it says so  \
 > **Adopted:** 2026-07-16  \
 > **Owner:** R3/highest-reasoning orchestrator  \
 > **Scope:** long-horizon tooling and methodology; `../FRONT.md` remains the live
@@ -427,6 +429,17 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   independently; each changes/fails the expected pillar.
 
 ### EP-06 — Redesign implementation/proof ledger
+
+> **✅ LANDED 2026-07-16** — `../findings/parity-EP06-ledger-lifecycle.md`.
+> `gen_port_ledger.py` now emits a two-axis lifecycle (INVENTORY
+> `discovered→source-referenced→implemented→instrumented` from src markers;
+> RUNTIME `retail-executed→…→matrix-proven` from `../parity-proof-index.json`,
+> empty ⇒ `runtime_proven=0`). Acceptance met + gated by
+> `tools/test_gen_port_ledger.py` (152 checks): a bare `FUN_` → `source-referenced`
+> (not `implemented`); a probe → only `instrumented`; runtime rungs need a proof
+> artifact. Legacy `status` kept as a DEPRECATED alias; `--check` idempotent. New
+> opt-in `PORT-OF(0xVA)` attestation reaches `implemented` (0 seeded — author
+> backfill pending). Human-confirmed rows stay separate (EP-07).
 
 - **Reasoning:** R3 for lifecycle semantics; R2 generator implementation; R1 fixture
   backfill.

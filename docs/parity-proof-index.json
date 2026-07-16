@@ -1,0 +1,12 @@
+{
+ "_note": "RUNTIME-axis source for the port ledger (EP-06). Git-tracked, hashes/scopes ONLY (no proprietary bytes) — the reproducible binding of an engine VA to a parity-proof bundle. The local runs/proofs/ store is gitignored and MUST NOT be read by the ledger generator. A curator adds an entry only when a proof bundle (tools/parity_prove.py) actually covers the VA in its proven scope; the generator then advances that VA's runtime_state. Empty entries == 0 functions runtime-proven, which is the honest state until a VA->proof binding exists (future CV-coverage work). See docs/findings/parity-EP06-ledger-lifecycle.md.",
+ "schema_version": 1,
+ "runtime_states": [
+  "retail-executed",
+  "port-executed",
+  "call-I/O-aligned",
+  "scenario-pillar-proven",
+  "matrix-proven"
+ ],
+ "entries": []
+}

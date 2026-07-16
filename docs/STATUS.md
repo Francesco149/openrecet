@@ -5,26 +5,40 @@
 > narrative lives in `PROGRESS.md`, durable RE in `findings/`, full map in
 > `port-ledger.md`.
 
-## Port coverage (non-thunk engine functions)
+## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  23.0% touched   (2.8% runtime-verified)
+█████░░░░░░░░░░░░░░░  23.0% referenced-or-better   (85 instrumented)
 ```
 
-| status    | count | what it means                                            |
-|-----------|------:|----------------------------------------------------------|
-| verified  |    72 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
-| stubbed   |    13 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   501 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **586** | verified + stubbed + ported                         |
-| unported  |  1962 | exists in engine, never referenced from src/             |
-| **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
+| inventory state    | count | evidence (a `src/` marker only — no runtime) |
+|--------------------|------:|----------------------------------------------|
+| instrumented       |    85 | `CALL_TRACE_ENTER(_STUB)` probe wired (72 full + 13 stub) |
+| implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
+| source-referenced  |   501 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1962 | exists in the engine, no `src/` reference    |
+| **total non-thunk**| **2548** | of 2620 incl. thunks |
+
+## Port RUNTIME proof (cross-target — proof artifacts)
+
+```
+0 functions runtime-proven   (0.0%)
+```
+
+Every runtime rung (retail-executed / port-executed / call-I/O-aligned /
+scenario-pillar-proven / matrix-proven) requires a bundle in
+`parity-proof-index.json` (git-tracked, hashes only). **INVENTORY ≠ PARITY**: an
+instrumented probe is a *diffable* point, not proof a function ran or matched
+retail. The index binds a VA→proof only when EP-05 `parity_prove.py` covers it in
+its proven scope. Human cross-target attestations live separately in
+`findings/confirmed-parity-ledger.md`. Rationale:
+`findings/parity-EP06-ledger-lifecycle.md`.
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
 **Port debt:** 28 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
-inside code the table above calls "ported" (they silently cap structural parity).
+inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
 ## Current front
@@ -40,13 +54,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   [1,80]`); its bundle is a **truthful FAIL** (identity PASS · render_program FAIL on the b494 80-tri 0-px
   strip · pixels+later pillars NOT_CAPTURED) — our most-confirmed scene is pixel-1:1 by eyeball yet NOT
   tool-proven parity. Review fixed a `proof_id` portability leak (abs path in a hashed pillar note →
-  `observations.portable_reason`; regression `test_proof_id_portable`). **★ NEXT:** (1) **EP-06** — redesign
-  the port-ledger to the scoped lifecycle (discovered→…→scenario-pillar-proven) so `verified` stops
-  overclaiming runtime; (2) **EP-08** cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove
-  never threads `expected_containers` ⇒ a foreign metrics doc with matching frame identities would be
-  trusted) must close before ANY pixels/state producer's PASS is trusted. Tooling: `tools/parity_prove.py`,
-  `tools/parity/`, schemas `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab
-  `docs/reference/parity-vocabulary.md`. Serialize retail drives (singleton).
+  `observations.portable_reason`; regression `test_proof_id_portable`). **✅ EP-06 LANDED 2026-07-16 —
+  truthful two-axis ledger** (`findings/parity-EP06-ledger-lifecycle.md`; `gen_port_ledger.py` rewrite +
+  `test_gen_port_ledger.py` 152 checks): INVENTORY rung `discovered→source-referenced→implemented→instrumented`
+  (src markers) SPLIT from RUNTIME rung `retail-executed→…→matrix-proven` (needs a `docs/parity-proof-index.json`
+  bundle). STATUS headline flipped "2.8% runtime-verified" (a lie) → **"0% runtime-proven — 85 instrumented,
+  index empty"**; the 501 "ported" are now honestly `source-referenced` (a `FUN_` mention ≠ a port claim). New
+  `PORT-OF(0xVA)` opt-in attestation reaches `implemented` w/o a probe (0 seeded — backfill is author work).
+  `status` enum kept as a DEPRECATED alias (mem_watch byte-stable); `--check` idempotent. **★ NEXT: EP-08**
+  cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove never threads `expected_containers` ⇒ a
+  foreign metrics doc with matching frame identities would be trusted) must close before ANY pixels/state
+  producer's PASS is trusted. Tooling: `tools/parity_prove.py`, `tools/parity/`, schemas
+  `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab `docs/reference/parity-vocabulary.md`,
+  proof index `docs/parity-proof-index.json`. Serialize retail drives (singleton).
 - **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a
   real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
   faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,
@@ -451,9 +471,9 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 ## Where to read next
 
 - `STATUS.md` (this file) — 60-second orientation.
-- `port-ledger.md` / `.json` — per-function port status (derived).
+- `port-ledger.md` / `.json` — per-function lifecycle (derived).
 - `port-debt.md` / `.json` — MVP/synthetic shortcuts inside ported code (derived).
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
-- `harness-roadmap.md` — verification/tooling phases (A–E).
+- `plans/parity-evidence-roadmap.md` — the evidence-compiler program (EP-06 here).
 - `AGENT-WORKFLOW.md` — how to work on this repo.
