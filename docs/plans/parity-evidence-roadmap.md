@@ -1213,6 +1213,25 @@ result:   docs/schemas/parity-{contract,proof}-v1.schema.json (Draft2020-12) +
           proof_id canonicalization (excl proof_id+envelope) determinism pinned.
           Added jsonschema to flake devshell. Gate: test_parity_schema.py OK.
 next:     EP-02 fingerprinting (promote canonical_bytes → tools/parity/).
+
+2026-07-16  EP-02  LANDED
+result:   tools/parity/ package. canonical.py = promoted §4.4 rule
+          (canonical_bytes/proof_id_of/proof_passes); test_parity_schema.py now
+          IMPORTS it (single source of truth). fingerprint.py = sha256_file,
+          dir_manifest (relocation-invariant, refuses EVERY symlink), git_head +
+          git_dirty_patch_sha256 (staged|unstaged blob, None=clean), port/retail
+          subject builders, @fresh/@none input+tool sentinels — all FAIL CLOSED
+          (FingerprintError, never a fabricated hash). environment.py = validated
+          8-field group + stdlib host_probe. Gate tools/test_parity_fingerprint.py
+          (52 checks): relocation-invariance, 1-byte sensitivity, dirty-tree via a
+          hermetic temp git repo, symlink+missing negative tests. Full python
+          suite 22/22, check_docs OK.
+          R3 input-inventory call: dirty_patch_sha256 = combined staged+unstaged
+          diff EXACTLY per the EP-01 frozen field; untracked files are NOT dirty
+          by that definition — subject.port.pe_sha256 is the build-identity
+          backstop for a build-affecting untracked source file.
+next:     EP-03 — split JOIN/REPLAY verdicts (orv3_sync/orv3_window emit
+          JOIN_COMPLETE/REPLAY_EXACT behind the EP-00 alias list); ∥ EP-04/EP-05.
 ```
 
 Do not copy live gameplay-front history here. Completed package detail remains under its

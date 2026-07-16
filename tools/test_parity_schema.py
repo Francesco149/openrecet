@@ -15,8 +15,9 @@ Negative tests included: a missing retail PE hash and an unknown MAJOR
 schema_version must both fail schema validation; a required pixels pillar marked
 NOT_CAPTURED must fail the gate while remaining structurally valid.
 
-Reference canonicalization + gate here are the frozen contract (roadmap §4.4/EP-01);
-tools/parity/ (EP-02/EP-05) promotes them to library code.
+Canonicalization + the required-pillar gate now live in tools/parity/canonical.py
+(promoted by EP-02); this gate imports them so the schema and fingerprint gates
+share one frozen implementation (roadmap §4.4/EP-01).
 
 Regenerate fixtures: see docs/reference/parity-proof-format.md.
 Run: nix develop --command python3 tools/test_parity_schema.py
@@ -25,10 +26,11 @@ jsonschema is unavailable (e.g. the stdlib-only CI shell).
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 from pathlib import Path
+
+from parity.canonical import proof_id_of, proof_passes  # promoted §4.4 impl (EP-02)
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMAS = ROOT / "docs" / "schemas"
@@ -40,31 +42,6 @@ try:
 except ModuleNotFoundError as exc:  # stdlib-only env (ci shell)
     print(f"SKIP: {exc.name} unavailable — run under the default nix devshell")
     sys.exit(0)
-
-
-# ── reference canonicalization + gate (frozen; roadmap §4.4/EP-01) ──────────
-
-_NON_HASHED = ("proof_id", "envelope")
-
-
-def canonical_bytes(proof: dict) -> bytes:
-    """Deterministic preimage of proof_id: drop proof_id + envelope, then
-    sort keys recursively and emit compact UTF-8 JSON. Arrays keep order."""
-    core = {k: v for k, v in proof.items() if k not in _NON_HASHED}
-    return json.dumps(
-        core, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-
-
-def proof_id_of(proof: dict) -> str:
-    return hashlib.sha256(canonical_bytes(proof)).hexdigest()
-
-
-def proof_passes(required_pillars: list[str], proof: dict) -> bool:
-    pillars = proof.get("pillars", {})
-    return all(
-        pillars.get(p, {}).get("verdict") == "PASS" for p in required_pillars
-    )
 
 
 # ── harness ────────────────────────────────────────────────────────────────

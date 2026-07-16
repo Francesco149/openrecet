@@ -72,8 +72,8 @@ exceptions, human_review`). Mandatory hashes:
 `proof_id = SHA-256(canonical_bytes)` where `canonical_bytes` = the bundle with
 `proof_id` **and** `envelope` removed, keys sorted recursively, compact UTF-8
 JSON (`separators=(",",":")`), arrays keep order. Same inputs ⇒ same `proof_id`
-from any machine. Reference impl: `tools/test_parity_schema.py:canonical_bytes`
-(EP-02/EP-05 promote it to `tools/parity/`).
+from any machine. Reference impl: `tools/parity/canonical.py:canonical_bytes`
+(promoted by EP-02; `test_parity_schema.py` imports it).
 
 `envelope` is the ONLY place local absolute paths, wall-clock timestamps, and
 human display notes may appear — it is stripped before hashing, so it never
@@ -84,8 +84,8 @@ perturbs the id and never leaks a non-portable path into content addressing.
 Schema validity ≠ pass. A proof passes a contract iff **every**
 `contract.proof.required_pillars` entry has `verdict == PASS` in the bundle.
 A required pillar left `NOT_CAPTURED`/`FAIL`/`INCONCLUSIVE` ⇒ the scenario is not
-proven (exit 1/2). Reference impl: `test_parity_schema.py:proof_passes`; the real
-consumer is `parity_prove.py` (EP-05).
+proven (exit 1/2). Reference impl: `tools/parity/canonical.py:proof_passes`; the
+real consumer is `parity_prove.py` (EP-05).
 
 ## Contract (scenario.yaml opt-in)
 
