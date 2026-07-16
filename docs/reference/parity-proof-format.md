@@ -87,6 +87,43 @@ A required pillar left `NOT_CAPTURED`/`FAIL`/`INCONCLUSIVE` ⇒ the scenario is 
 proven (exit 1/2). Reference impl: `tools/parity/canonical.py:proof_passes`; the
 real consumer is `parity_prove.py` (EP-05).
 
+## Observation adapters + normalized metrics (EP-04)
+
+`tools/parity/{observations,pixels,render_program}.py` turn the artifacts the
+porting loop already produces into a schema-shaped `observation` + adjudicated
+`pillar_result` (the two maps above). Each adapter returns an `AdapterResult`
+and is TOTAL — it never raises; a trust failure becomes `INCONCLUSIVE`.
+
+Three fail-closed rules (roadmap §3/§4.1):
+
+- **Absent ⇒ `NOT_CAPTURED`.** A missing evidence file, or a required paired
+  frame with no measurement, is never a PASS.
+- **The identity join is authority.** Before comparing, an adapter checks the
+  metrics cover EXACTLY the required frames (the in-window paired frames of
+  `pairs.json`), in order. A frame outside the join, a reordered/duplicated
+  stream, or a `source` container hash that mismatches the join is
+  `INCONCLUSIVE` (a stale/foreign capture — exit 2), distinct from a real
+  disproof (`FAIL`).
+- **Scoped tokens.** Producer verdicts map to one PILLAR verdict:
+  join `JOIN_COMPLETE`→identity `PASS` / gaps→`FAIL`; draw `ALIGNED`/`BATCHING`
+  →`PASS` (BATCHING noted: same materials, pixels expected equal) / `DIVERGENT`
+  →`FAIL`; pixels exact-mode `PASS` iff every required frame `differ==0`.
+
+Normalized metrics doc (`schema_version` = observations `OBS_SCHEMA_VERSION`,
+one row per identity-joined frame, keyed by the logical `[anchor, occ, offset]`):
+
+```json
+{ "schema_version": 1, "pillar": "pixels", "mode": "exact",
+  "source": { "port_container_sha256": "<64hex>", "retail_container_sha256": "<64hex>" },
+  "frames": [ { "key": ["PAUSE_OPEN", 1, 123], "differ": 0, "total": 786432, "meanabs": 0.0 } ] }
+```
+
+`render_program` rows carry `draw_verdict` (+ `port_tris`/`retail_tris`/
+`divergent[]`) instead of `differ`; `render_program.from_view_json()` bridges a
+real Trace Studio v3 `view.json` (which already bakes `draw_verdict` per paired
+frame) into this doc with no new tooling. `parity_prove.py` (EP-05) resolves or
+drives these docs and calls the adapters. Gate: `tools/test_parity_observations.py`.
+
 ## Contract (scenario.yaml opt-in)
 
 Adds `schema_version: 2` + a `proof:` block + optional `coverage_expectations:`

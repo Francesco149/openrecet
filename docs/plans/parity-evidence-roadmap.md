@@ -1252,6 +1252,32 @@ result:   Separate JOIN + REPLAY from parity (roadmap §4.1) — both Python-sid
           check_docs OK, app.mjs node --check OK.
 next:     EP-04 normalize observation adapters (draw ALIGNED/BATCHING/DIVERGENT +
           flow tokens → PILLAR PASS/FAIL) → EP-05 parity_prove.py.
+
+2026-07-16  EP-04  LANDED
+result:   tools/parity/{observations,pixels,render_program}.py — observation
+          normalization + pillar adjudication. observations.py = the foundation:
+          LogicalFrame (from pairs key / from view label), OBS_SCHEMA_VERSION-tagged
+          metrics contract, match_frames (EXACT ordered-equality join = reorder/
+          foreign/dup ⇒ INCONCLUSIVE), verify_source_containers (stale-capture
+          guard), schema-shaped observation/pillar_result/first_divergence builders,
+          load_required (join∩window), + the `identity` adapter (JOIN_COMPLETE→PASS /
+          honest in-window gaps→FAIL, pre-EP-03 join_verdict fallback). pixels.py =
+          exact-mode differ==0 gate (PASS/FAIL@first/NOT_CAPTURED). render_program.py
+          = draw_verdict gate (ALIGNED/BATCHING→PASS+note / DIVERGENT→FAIL) +
+          from_view_json bridge (real view.json → normalized doc, gap rows skipped).
+          Every adapter TOTAL + fail-closed: absent→NOT_CAPTURED, untrustworthy→
+          INCONCLUSIVE, disproof→FAIL. Gate tools/test_parity_observations.py (60
+          checks) — negative tests: mutate differ 0→7 (FAIL@frame), reorder
+          (INCONCLUSIVE), drop required frame (NOT_CAPTURED), stale source hash
+          (INCONCLUSIVE), flip DIVERGENT (render FAIL), bump schema major
+          (INCONCLUSIVE); produced obs/pillar cross-validated against
+          parity-proof-v1 $defs. Full python 23/23, check_docs OK.
+          R3 note: the pixel PRODUCER (headless per-frame v3-replay → differ doc) is
+          not built here — adapters are format-only + fixture-tested (roadmap rule 11
+          "build consumers before platforms"); the render producer IS real via
+          from_view_json. EP-05 wires the producers + drives when absent.
+next:     EP-05 parity_prove.py — contract → resolve/drive observations → validate
+          fingerprints (EP-02) → required-pillar gate → content-addressed bundle.
 ```
 
 Do not copy live gameplay-front history here. Completed package detail remains under its

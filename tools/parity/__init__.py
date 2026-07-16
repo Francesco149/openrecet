@@ -29,6 +29,29 @@ from .fingerprint import (
     sha256_hex,
     tool_sha256_or_none,
 )
+from .observations import (
+    FAIL,
+    INCONCLUSIVE,
+    NOT_CAPTURED,
+    NOT_REQUIRED,
+    OBS_SCHEMA_VERSION,
+    PASS,
+    AdapterResult,
+    LogicalFrame,
+    ObservationError,
+    adapt_identity,
+    artifact_ref,
+    first_divergence,
+    load_json,
+    load_required,
+    match_frames,
+    observation,
+    paired_frames,
+    pillar_result,
+)
+from .pixels import adapt_pixels
+from .render_program import adapt_render_program
+from .render_program import from_view_json as render_metrics_from_view_json
 
 __all__ = [
     # canonicalization (§4.4, frozen)
@@ -55,4 +78,26 @@ __all__ = [
     "EnvValidationError",
     "host_probe",
     "collect_environment",
+    # EP-04 observation normalization + pillar adjudication
+    "OBS_SCHEMA_VERSION",
+    "PASS",
+    "FAIL",
+    "NOT_CAPTURED",
+    "NOT_REQUIRED",
+    "INCONCLUSIVE",
+    "ObservationError",
+    "LogicalFrame",
+    "AdapterResult",
+    "load_json",
+    "load_required",
+    "paired_frames",
+    "match_frames",
+    "artifact_ref",
+    "observation",
+    "pillar_result",
+    "first_divergence",
+    "adapt_identity",
+    "adapt_pixels",
+    "adapt_render_program",
+    "render_metrics_from_view_json",
 ]

@@ -34,7 +34,7 @@ implies RUNTIME. Only PILLAR results + the required-pillar gate constitute
 | Current (emitter) | What it really asserts | Scoped claim | Action |
 |---|---|---|---|
 | join `ALIGNED`/`PARTIAL` (`orv3_sync.py:139`, `pairs/view/manifest.json`) | frames paired | **JOIN** | ✅ EP-03 (2026-07-16): `join_verdict`=`JOIN_COMPLETE`/`JOIN_PARTIAL` emitted (orv3_sync `classify_join`); `ALIGNED`/`PARTIAL` `verdict` alias RETAINED for viewer.exe + app CSS |
-| draw `ALIGNED`/`BATCHING`/`DIVERGENT` (`orv3_draws.py:565`) | draw program identity | **PILLAR** `render_program` | EP-04: map to `PASS`(ALIGNED)/`PASS`+note(BATCHING = pixels-equal, program differs)/`FAIL`(DIVERGENT); keep tokens as detail |
+| draw `ALIGNED`/`BATCHING`/`DIVERGENT` (`orv3_draws.py:565`) | draw program identity | **PILLAR** `render_program` | ✅ EP-04 (2026-07-16): `render_program.adapt_render_program` maps `PASS`(ALIGNED)/`PASS`+note(BATCHING = pixels-equal, program batches)/`FAIL`(DIVERGENT); tokens kept as detail. `from_view_json` bridges a real `view.json` |
 | flow `ALIGNED`/`CONST-OFFSET`/`DRIFT`/`DESYNC`/`PHASE-CLEAN` (`flow_diff.py`) | field-offset class / rng consumption | **PILLAR** `state` inputs | keep tokens (see alias list — `apply.py` parses them); prove-layer maps DRIFT/DESYNC→`FAIL`, ALIGNED→`PASS`, CONST-OFFSET→`FAIL` unless an R3 exception |
 | audio `ALIGNED`/`DIVERGE` (`audio_diff.py:300`) | SE/BGM count match | **PILLAR** `audio_events` | AU-00: upgrade to id+order+params; map to PASS/FAIL |
 | replay `ALL FRAMES BIT-EXACT`/`DIVERGENT` (`replay.c:83`,`v3verify.py`) | same-side reproduction | **REPLAY** | ✅ EP-03 (2026-07-16): `v3verify.py` prints `REPLAY_EXACT`/`REPLAY_DIVERGENT` + a "not a cross-target parity claim" caveat |
