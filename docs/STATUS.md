@@ -94,8 +94,10 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `ranking_records` divergence across banks 1–99 (port fresh-bank init / checksum-gate ≠ retail for UNUSED banks;
   invisible to every frame pillar — the save pillar's raison d'être). **★ NEXT: (a)** full `parity_prove` bundle —
   a `proof:` block on `house-pause-save-commit` + a v3 window (wiring done+unit-tested, this is the packaging);
-  **(b)** chase the `ranking_records` bank-init lead (likely a PORT-DEBT); **(c)** ST-03 state pillar (volatile
-  class via flow_diff) / ST-02 Merkle roots.  — the render/pixels pillars remain (still NOT_CAPTURED for state).
+  **(b)** `PORT-DEBT(save-ranking-nonactive-banks)` — the pillar caught + ATTRIBUTED a real port bug: the port
+  ZEROES banks 1–99 ranking_records while retail preserves them from the seed (`seed==retail`, `seed!=port`);
+  fix the boot `save_bank_init_all` per-bank checksum-gate/re-init; **(c)** ST-03 state pillar (volatile class via
+  flow_diff) / ST-02 Merkle roots.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

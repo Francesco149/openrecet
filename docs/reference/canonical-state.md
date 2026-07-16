@@ -98,7 +98,7 @@ save-pillar verdict: **FAIL**, 6836/18,838,832 bytes differ across 4 regions:
 | `occupied_playtime` | 2 | 0 | persistent | **first div** @ byte 2840 — total-playtime FRAME count (port 20906 vs retail 29643): environmental phase-origin, not a logic value |
 | `(unmapped)` | 1 | 0 | unknown | dword `0xb37d`, past `deco_carpet` |
 | `checksum` | 398 | 0–99 | persistent | derived echo of the content diffs |
-| `ranking_records` | 6435 | 1–99 | persistent | **real lead** — banks 1–99 are identically-seeded storage yet diverge, so the port's fresh-bank init / checksum-gate handling of unused banks differs from retail (invisible to every pixel/frame pillar) |
+| `ranking_records` | 6435 | 1–99 | persistent | **confirmed port bug** — the port ZEROES the ranking of non-active banks 1–99 while retail preserves it from the seed (`seed==retail`, `seed!=port`); a real fidelity gap invisible to every pixel/frame pillar (`PORT-DEBT(save-ranking-nonactive-banks)`) |
 
 The model turns a raw 6836-byte diff into: one phase-origin field (pin it), one
 derived-checksum echo (ignore), and one genuine port↔retail load-init divergence

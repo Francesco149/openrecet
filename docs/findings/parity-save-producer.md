@@ -94,14 +94,22 @@ checksum echo (ignore), and one genuine port↔retail divergence to chase.
 
 ## Leads (for follow-up arcs, NOT blocking the producer)
 
-- **`ranking_records` banks 1–99 (the real catch).** Banks 1–99 are identically-
-  seeded storage the commit never touches, yet they diverge — so the port's
-  fresh-bank init (`save_bank_init_one`) and/or its magic+checksum re-init gate
-  handles UNUSED banks differently from retail's `FUN_0049001c`/`FUN_004901c2` (the
-  differing element indices cluster at each ranking record's first two dwords). A
-  divergence invisible to every pixel/frame pillar — exactly why the save pillar
-  exists. Chase: diff the two arenas' bank-1 ranking region + step the port's
-  boot-time bank init vs retail. Likely a `PORT-DEBT` once characterized.
+- **`ranking_records` banks 1–99 — a CONFIRMED port bug the pillar caught AND
+  attributed.** An independent seed-vs-output check (the input `{savefile}` both
+  sides loaded vs each side's written arena) settles it: for banks 1–99 the RETAIL
+  output PRESERVES the seed's ranking records (`seed == retail`), while the PORT
+  ZEROES them (`seed != port`; port dwords read 0 where seed and retail read
+  16/1/2/…). Bank 0 (the committed slot) is preserved on BOTH, and everything ELSE
+  in banks 1–99 matches — so it is NOT a full bank re-init; the port specifically
+  drops the per-slot RANKING summary the ranking screen (`FUN_0049f012`, base
+  `DAT_0450b170`) reads. A real fidelity gap (the port would render wrong rankings
+  for the OTHER save slots), invisible to every pixel/frame pillar — the save
+  pillar's raison d'être, demonstrated on its first real run. Root cause (a
+  follow-up PORTING arc, not this tooling arc): a stray ranking clear or a per-bank
+  magic+checksum-gate / `save_bank_init_one` / `save_bank_checksum_ok` divergence in
+  the port's boot-time `save_bank_init_all` (the port judges the seed's non-active
+  banks differently from retail's `FUN_004901c2`). → **`PORT-DEBT(save-ranking-
+  nonactive-banks)`** (not yet code-tagged).
 - **`occupied_playtime`** is the frame-count phase origin — a candidate `{phasepin}`
   extension (pin the playtime accumulator origin) so a save proof isolates logic
   from phase, matching the pixel/state loop.
