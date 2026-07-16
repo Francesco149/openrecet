@@ -660,6 +660,7 @@ struct test_case {
     X(save_bank_init_one_mirrors_starter_items_into_chara_equip) \
     X(save_bank_init_one_consumes_8_rng_steps) \
     X(save_bank_checksum_detects_tamper) \
+    X(save_bank_skip_verify_preserves_stale_bank) \
     X(save_bank_header_init_hook_fires_once_per_reset) \
     X(save_bank_header_slider_setters_clamp) \
     \
@@ -1118,6 +1119,7 @@ struct test_case {
     X(save_io_write_arena_one_null_succeeds) \
     X(save_io_commit_slot_merges_and_writes) \
     X(save_io_write_then_load_round_trip) \
+    X(save_io_load_preserves_stale_checksum_nonactive_bank) \
     \
     X(save_work_arena_geometry) \
     X(save_work_active_slot_default_and_set) \

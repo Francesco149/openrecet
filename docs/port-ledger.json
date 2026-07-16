@@ -22624,6 +22624,7 @@
     "src/main.c",
     "src/save_bank.c",
     "src/save_bank.h",
+    "src/save_io.c",
     "src/settings.h"
    ],
    "status": "ported"

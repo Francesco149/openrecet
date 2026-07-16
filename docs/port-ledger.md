@@ -513,7 +513,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x48ee77 | FUN_0048ee77 | 137 | ✓ |  | encyclopedia.c |
 | 0x48f931 | FUN_0048f931 | 1150 | ✓ |  | sim.c |
 | 0x48fdaf | FUN_0048fdaf | 148 | ✓ |  | scene1_display_menu.c |
-| 0x4901c2 | FUN_004901c2 | 151 | ✓ |  | main.c, save_bank.c, save_bank.h (+1) |
+| 0x4901c2 | FUN_004901c2 | 151 | ✓ |  | main.c, save_bank.c, save_bank.h (+2) |
 | 0x490259 | FUN_00490259 | 81 | ✓ |  | save_work.c, save_work.h, scene.c (+3) |
 | 0x4902aa | FUN_004902aa | 84 | ✓ |  | save_bank.h, save_work.c, save_work.h (+1) |
 | 0x4902fe | FUN_004902fe | 682 | ✓ |  | audio_fade.h, main.c, save_bank.h (+2) |

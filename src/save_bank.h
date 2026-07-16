@@ -425,4 +425,15 @@ void save_bank_arena_clear(void);
 typedef void (*save_header_init_hook_t)(void);
 void save_bank_set_header_init_hook(save_header_init_hook_t hook);
 
+/* ── Verify-sweep gate (engine DAT_095d3728) ── */
+
+/* Set the "skip the per-bank verify sweep" gate that save_bank_init_all
+ * honours (part 2).  save_io sets it to 1 after loading a save so the
+ * loaded banks are preserved verbatim instead of re-inited on a stale
+ * checksum (retail trusts loaded data — never-committed non-active slots
+ * carry a 0 checksum yet are kept).  save_bank_arena_clear resets it to
+ * 0.  See findings/parity-save-producer.md. */
+void save_bank_set_skip_verify(int skip);
+int  save_bank_get_skip_verify(void);
+
 #endif /* OPENRECET_SAVE_BANK_H */

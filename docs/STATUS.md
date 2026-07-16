@@ -92,12 +92,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   Capture needed NO new engine/agent work (survey-confirmed). **First verdict `house-pause-save-commit`: save FAIL**,
   6836/18.8M bytes, first div `bank0/occupied_playtime` (phase-origin frame count), 4 regions — incl. a REAL
   `ranking_records` divergence across banks 1–99 (port fresh-bank init / checksum-gate ≠ retail for UNUSED banks;
-  invisible to every frame pillar — the save pillar's raison d'être). **★ NEXT: (a)** full `parity_prove` bundle —
-  a `proof:` block on `house-pause-save-commit` + a v3 window (wiring done+unit-tested, this is the packaging);
-  **(b)** `PORT-DEBT(save-ranking-nonactive-banks)` — the pillar caught + ATTRIBUTED a real port bug: the port
-  ZEROES banks 1–99 ranking_records while retail preserves them from the seed (`seed==retail`, `seed!=port`);
-  fix the boot `save_bank_init_all` per-bank checksum-gate/re-init; **(c)** ST-03 state pillar (volatile class via
-  flow_diff) / ST-02 Merkle roots.
+  invisible to every frame pillar — the save pillar's raison d'être). **✅ SAVE-PILLAR CATCH FIXED 2026-07-16 —
+  the confirmed port bug is CLOSED, byte-exact vs retail** (`findings/parity-save-producer.md` §Leads; commit
+  pending). The "ranking_records" region is a MISNOMER — dword `0x9e76` is the **encyclopedia (図鑑) discovery
+  store** (`FUN_0049f012`=`encyclopedia_setup`, mislabeled "RANKING" by the port author). 3-way seed/port/retail
+  bytes: the seed's banks 1–99 are never-committed slots (valid magic, **stale checksum `0x0`≠computed**, key+count
+  populated by a prior 図鑑 open); retail's `FUN_004901c2` **gates its verify sweep on `DAT_095d3728`** (set on
+  save-load) ⇒ preserves them verbatim (`retail==seed`, 0 diffs). The port IGNORED the gate ⇒ always swept ⇒
+  `save_bank_init_one` re-inited the stale banks, zeroing key+count + re-stamping checksum. **Fix: modeled the gate**
+  (`g_save_bank_skip_verify` in save_bank.c, gate the sweep, set in `save_io_try_load`, reset by `arena_clear`) +
+  renamed the state-map region `ranking_records`→`encyclopedia_discovery`. **VERIFIED `--target openrecet`: banks
+  1–99 `port^seed=0` `port^retail=0`; save diff `6836→6` bytes** (only bank-0 `occupied_playtime` phase-origin + its
+  cksum echo + 1 unmapped remain — all non-logic). +2 host tests; 3432/0. **★ NEXT: (a)** full `parity_prove`
+  bundle — a `proof:` block on `house-pause-save-commit` (schema_v2 `required_pillars:[identity,save]`) + a v3 window
+  (wiring done+unit-tested, this is the packaging); the save pillar is now a clean near-PASS (phase-origin residual
+  only); **(b)** `occupied_playtime` `{phasepin}` extension (pin the playtime accumulator origin ⇒ save proof
+  isolates logic from phase); **(c)** ST-03 state pillar (volatile class via flow_diff) / ST-02 Merkle roots.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

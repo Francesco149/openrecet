@@ -541,3 +541,56 @@ int test_save_io_write_then_load_round_trip(void)
     unlink_path(p);
     return 0;
 }
+
+/* Regression for the save-pillar ranking_records FAIL (findings/
+ * parity-save-producer.md): a loaded non-active bank with a STALE
+ * checksum (0) — like the seed's never-committed slots whose
+ * encyclopedia (図鑑) key+count a prior title-図鑑 open populated — must
+ * be PRESERVED on load, not re-inited (which zeroed the key+count and
+ * stamped a fresh checksum). Retail keeps it verbatim; the fix gates the
+ * post-load verify sweep (engine DAT_095d3728). */
+int test_save_io_load_preserves_stale_checksum_nonactive_bank(void)
+{
+    /* Encyclopedia discovery store: bank dword 0x9e76 (byte 0x279d8),
+     * record 0 = {key@+0, catalog_count@+1}. */
+    const uint32_t ENC_DISC_DWORD = 0x9e76;
+
+    const char *p = tmp_path("stale-cksum-bank");
+    unlink_path(p);
+
+    size_t arena_bytes = SAVE_BANK_ARENA_BYTES;
+    uint8_t *blob = (uint8_t *)calloc(arena_bytes, 1);
+    T_ASSERT(blob != NULL);
+
+    uint32_t *dw = (uint32_t *)blob;
+    dw[0] = SAVE_BANK_MAGIC;                        /* header magic */
+
+    /* Bank 5: valid magic, a populated encyclopedia record, and a
+     * DELIBERATELY STALE checksum (0 ≠ its real content sum). */
+    uint32_t *bank5 =
+        (uint32_t *)(blob + SAVE_BANK_HEADER_BYTES + 5 * SAVE_BANK_STRIDE_BYTES);
+    bank5[SAVE_BANK_FIELD_MAGIC]      = SAVE_BANK_MAGIC;
+    bank5[ENC_DISC_DWORD + 0]         = 3;          /* record 0 key   */
+    bank5[ENC_DISC_DWORD + 1]         = 16;         /* record 0 count */
+    bank5[SAVE_BANK_FIELD_CHECKSUM]   = 0;          /* stale, unstamped */
+
+    T_ASSERT(write_file(p, blob, arena_bytes));
+    free(blob);
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+    T_ASSERT_EQ_I(save_io_try_load(p, NULL), 1);
+
+    /* The load must have gated the verify sweep. */
+    T_ASSERT_EQ_I(save_bank_get_skip_verify(), 1);
+
+    /* Bank 5's encyclopedia key+count survive verbatim (NOT zeroed by a
+     * re-init), and its stale checksum is left untouched. */
+    uint32_t *loaded = save_bank_dwords_at(5);
+    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 0], 3u);
+    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 1], 16u);
+    T_ASSERT_EQ_U(loaded[SAVE_BANK_FIELD_CHECKSUM], 0u);
+
+    unlink_path(p);
+    return 0;
+}

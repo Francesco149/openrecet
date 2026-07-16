@@ -48,6 +48,17 @@
 static uint8_t g_arena[SAVE_BANK_ARENA_BYTES];
 static save_header_init_hook_t g_header_init_hook = NULL;
 
+/* Port of the engine's DAT_095d3728 — the "skip the per-bank verify
+ * sweep" gate that FUN_004901c2 checks (`if (DAT_095d3728 == 0) { ...
+ * sweep ... }`).  0 at process start (BSS): the boot init_all sweeps a
+ * fresh/empty arena, re-initing every bank.  Set to 1 once a save file
+ * occupies the arena (save_io load buckets) so a subsequent init_all does
+ * NOT re-validate + re-init the LOADED banks — retail trusts loaded data,
+ * even banks whose stored checksum is stale (e.g. the never-committed
+ * non-active slots whose checksum is still 0).  Reset by arena_clear
+ * (host-test "process restart").  See findings/parity-save-producer.md. */
+static int g_save_bank_skip_verify = 0;
+
 uint8_t *save_arena_base(void)
 {
     return g_arena;
@@ -81,6 +92,19 @@ void save_bank_set_header_init_hook(save_header_init_hook_t hook)
 void save_bank_arena_clear(void)
 {
     memset(g_arena, 0, sizeof g_arena);
+    /* A wiped arena holds no loaded save → re-enable the verify sweep
+     * (models a fresh process where DAT_095d3728 is BSS-zero). */
+    g_save_bank_skip_verify = 0;
+}
+
+void save_bank_set_skip_verify(int skip)
+{
+    g_save_bank_skip_verify = skip ? 1 : 0;
+}
+
+int save_bank_get_skip_verify(void)
+{
+    return g_save_bank_skip_verify;
 }
 
 /* ── Header accessors ── */
@@ -609,16 +633,24 @@ void save_bank_init_all(void)
     }
 
     /* (2) Per-bank checksum verify; reset any bank that fails. The
-     * engine gates this on `DAT_095d3728 == 0` — a "skip the verify
-     * sweep" flag set elsewhere. We default to running the sweep
-     * always; it's idempotent (live banks stay live) and the gate
-     * isn't load-bearing for any current consumer. */
-    for (int idx = 0; idx < SAVE_BANK_COUNT; idx++) {
-        uint32_t *bank = save_bank_dwords_at(idx);
-        int ok = (bank[SAVE_BANK_FIELD_MAGIC] == SAVE_BANK_MAGIC)
-              && save_bank_checksum_ok(idx);
-        if (!ok) {
-            save_bank_init_one(idx);
+     * engine gates this on `DAT_095d3728 == 0` (the sweep runs ONLY when
+     * the gate is clear) — see g_save_bank_skip_verify.  On a fresh boot
+     * the gate is 0 so every bank is re-inited; after a save is loaded
+     * into the arena the gate is 1 so the LOADED banks are preserved
+     * verbatim — including non-active slots whose stored checksum is
+     * stale (0), which retail trusts rather than re-initing.  Running the
+     * sweep unconditionally (the old behaviour) re-inited those loaded
+     * banks, zeroing their encyclopedia discovery key+count and stamping
+     * a fresh checksum — a real port↔retail divergence the save pillar
+     * caught (findings/parity-save-producer.md). */
+    if (!g_save_bank_skip_verify) {
+        for (int idx = 0; idx < SAVE_BANK_COUNT; idx++) {
+            uint32_t *bank = save_bank_dwords_at(idx);
+            int ok = (bank[SAVE_BANK_FIELD_MAGIC] == SAVE_BANK_MAGIC)
+                  && save_bank_checksum_ok(idx);
+            if (!ok) {
+                save_bank_init_one(idx);
+            }
         }
     }
 }

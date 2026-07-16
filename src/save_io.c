@@ -162,6 +162,10 @@ int save_io_try_load(const char *primary, const char *backup)
                     paths[i], SAVE_IO_MODERN_SIZE);
             memcpy(arena, buf, (size_t)size);
             g_save_loaded_known_format = 1;
+            /* Engine sets DAT_095d3728 = 1 in this bucket — the following
+             * init_all must NOT re-init the loaded banks (verify sweep
+             * gated off). */
+            save_bank_set_skip_verify(1);
             save_bank_init_all();
         } else if ((uint32_t)size == SAVE_IO_ANCIENT_SIZE) {
             /* Engine's second bucket — ancient pre-release format.
@@ -173,13 +177,27 @@ int save_io_try_load(const char *primary, const char *backup)
                     paths[i], SAVE_IO_ANCIENT_SIZE);
             memcpy(arena, buf, (size_t)size);
             g_save_loaded_known_format = 1;
+            /* Engine sets DAT_095d3728 = 1 in this bucket too. */
+            save_bank_set_skip_verify(1);
             save_bank_init_all();
         } else {
             /* Engine's third bucket — "any other size <= arena_bytes".
              * The CF EN Steam release writes saves that land exactly
              * here (size == SAVE_BANK_ARENA_BYTES = 0x011f7530). */
             memcpy(arena, buf, (size_t)size);
-            /* g_save_loaded_known_format stays 0 — matches engine. */
+            /* g_save_loaded_known_format stays 0 — matches engine.
+             *
+             * A loaded save now occupies the arena: gate the verify sweep
+             * so init_all does NOT re-init the loaded banks.  The engine's
+             * fallback bucket (in FUN_004902fe @ 0x4902fe) does the same raw
+             * memcpy then FUN_004901c2, relying on DAT_095d3728 already
+             * being set so those loaded banks are preserved (byte-confirmed
+             * vs retail: non-active slots keep their stale-checksum
+             * encyclopedia data; findings/parity-save-producer.md).  Left
+             * ungated, init_all's sweep re-inited every non-active bank
+             * whose stored checksum is stale (0), wiping their discovery
+             * key+count — the ranking_records FAIL the save pillar found. */
+            save_bank_set_skip_verify(1);
             save_bank_init_all();
         }
 

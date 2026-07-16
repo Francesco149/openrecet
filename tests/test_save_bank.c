@@ -363,6 +363,40 @@ int test_save_bank_checksum_detects_tamper(void)
     return 0;
 }
 
+/* The skip-verify gate (engine DAT_095d3728): with it set, init_all must
+ * NOT re-init a bank whose stored checksum is stale — retail preserves
+ * LOADED banks even when their checksum is 0/mismatched. This is the
+ * behaviour the save pillar's ranking_records FAIL came down to. */
+int test_save_bank_skip_verify_preserves_stale_bank(void)
+{
+    save_bank_arena_clear();          /* resets the gate to 0 */
+    seed_chara_zero();
+    rng_seed(1);
+    save_bank_init_all();
+    T_ASSERT_EQ_I(save_bank_get_skip_verify(), 0);
+
+    /* Make bank 7 look like a loaded-but-never-committed slot: a real
+     * value plus a deliberately STALE checksum (0), like the seed's
+     * non-active banks. */
+    uint32_t *bank = save_bank_dwords_at(7);
+    bank[SAVE_BANK_FIELD_GOLD]     = 4242;
+    bank[SAVE_BANK_FIELD_CHECKSUM] = 0;
+    T_ASSERT(!save_bank_checksum_ok(7));
+
+    /* Gate ON → the sweep is skipped → the stale bank is PRESERVED. */
+    save_bank_set_skip_verify(1);
+    save_bank_init_all();
+    T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_GOLD], 4242u);
+    T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_CHECKSUM], 0u);
+
+    /* Gate OFF → the sweep runs again → the stale bank is re-inited. */
+    save_bank_set_skip_verify(0);
+    save_bank_init_all();
+    T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_GOLD], 1000u);
+    T_ASSERT(save_bank_checksum_ok(7));
+    return 0;
+}
+
 /* ── Header init hook ── */
 
 static int g_hook_call_count = 0;
