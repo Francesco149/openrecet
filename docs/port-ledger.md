@@ -211,7 +211,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x43647f | FUN_0043647f | 61 | ✓ |  | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ |  | tables_snews.h |
 | 0x436623 | FUN_00436623 | 2420 | ✓ |  | customer_service.c, news_daily.c, news_daily.h (+4) |
-| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | collision_house.c, collision_house.h, main.c (+21) |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | collision_house.c, collision_house.h, main.c (+22) |
 | 0x43824b | FUN_0043824b | 940 | ✓ |  | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ |  | scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ |  | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+4) |

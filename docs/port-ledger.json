@@ -7585,6 +7585,7 @@
     "src/collision_house.c",
     "src/collision_house.h",
     "src/main.c",
+    "src/save_bank.h",
     "src/scene.c",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",

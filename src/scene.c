@@ -72,6 +72,22 @@ void scene_post_fade_init(void)
          * surface as the in-game scene starts reading the working arena
          * (task D / items-on-display). */
         save_work_set_active_slot(0);
+
+        /* Engine FUN_0049a59e L100639-100642: resume into the saved scene
+         * mode (RESUME_MODE, bank dword 0xb381).  For mode 0 (house/shop —
+         * the only mode this port resumes; the shared tail below sets
+         * INGAME) the engine additionally CLEARS the from-world-map camera
+         * flag HOUSE_CAM_FLAG (0xb37d) to 0.  A save taken right after a
+         * map->house return carries a stale 1 in that field; without this
+         * clear the port re-commits the stale 1 while retail commits 0 — a
+         * persistent-state divergence invisible to every frame pillar that
+         * the save pillar caught (findings/parity-save-producer.md).  The
+         * port does not read HOUSE_CAM_FLAG, so this is render-neutral —
+         * purely a save-state correctness fix.  Resume modes 2/3/4/6
+         * (world-map/dungeon) are PORT-DEBT(scene-resume-modes). */
+        uint32_t *work = save_work_dwords_at(save_work_active_slot());
+        if (work && work[SAVE_BANK_FIELD_RESUME_MODE] == 0)
+            work[SAVE_BANK_FIELD_HOUSE_CAM_FLAG] = 0;
     }
 
     /* Engine FUN_0049a59e commit: restore the live top-HUD globals from the

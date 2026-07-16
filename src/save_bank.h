@@ -288,6 +288,20 @@
 #define SAVE_BANK_FIELD_DECO_TABLE     0xb37b   /* DAT_04510584 (sel3) */
 #define SAVE_BANK_FIELD_DECO_CARPET    0xb37c   /* DAT_04510588 (sel2) */
 
+/* Scene-resume state (engine FUN_0049a59e CONTINUE branch, all.c:100639-100642).
+ *  - RESUME_MODE (0xb381 / DAT_0451059c): the scene the save was taken in
+ *    (0 = house/shop, 2/3/4/6 = world-map/dungeon variants).  On a CONTINUE the
+ *    engine reads it into g_scene_state, then dispatches.
+ *  - HOUSE_CAM_FLAG (0xb37d / DAT_0451058c): a transient "returned to the house
+ *    from the world map" camera-yaw selector (read FUN_00436f97 all.c:34858 →
+ *    +pi/2 when 0).  Set to 1 by the map->house return (all.c:40769); for a
+ *    RESUME_MODE-0 house resume the engine CLEARS it to 0 (all.c:100642) so the
+ *    house camera starts at its default.  A save taken right after a map->house
+ *    return carries a stale 1; the port must clear it on resume to match retail
+ *    byte-for-byte.  The port does not read this field (render-neutral). */
+#define SAVE_BANK_FIELD_RESUME_MODE    0xb381   /* DAT_0451059c (saved scene) */
+#define SAVE_BANK_FIELD_HOUSE_CAM_FLAG 0xb37d   /* DAT_0451058c (from-map cam) */
+
 /* Working-arena day + shop rank.  Same dword indices as the display-arena
  * CARD_DAY (0xb0fb) / CHAR-LEVEL (0xb100) but read here from the LIVE
  * working slot (engine DAT_0450fb84 = day, DAT_0450fb98 = shop rank).
