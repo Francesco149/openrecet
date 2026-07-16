@@ -125,28 +125,43 @@ def adapt_render_program(metrics_path, required, *, expected_containers=None) ->
         return inconclusive(str(exc))
 
 
-def from_view_json(view_path, *, source: dict | None = None) -> dict:
+def from_view_json(view_path, *, required=None, source: dict | None = None) -> dict:
     """Bridge a real Trace Studio v3 `view.json` into the normalized draw-metrics
     doc `adapt_render_program` consumes. Emits one frame per PAIRED row (a row with
     a non-null `draw_verdict`); gap rows are skipped — an unpaired frame is not
-    render-comparable. `source` (opt-in) records the port/retail container hashes so
-    the resulting doc carries verifiable provenance."""
+    render-comparable.
+
+    A v3 window is often MULTI-ANCHOR (a whole guild/shop flow), so a raw bridge
+    would carry frames outside any single contract's join window — which the
+    adapter would (correctly) reject as foreign. Pass `required` (the contract's
+    in-window paired frames, from observations.load_required) to SCOPE the doc to
+    exactly those frames, IN required order, by keyed lookup — so the doc covers
+    exactly what the adapter must compare (a required frame absent from the view is
+    simply omitted ⇒ the adapter reports NOT_CAPTURED, fail closed). Omit `required`
+    to emit every paired frame (view order). `source` (opt-in) records the
+    container hashes so the doc carries verifiable provenance."""
     v = load_json(view_path)
     if v is None:
         raise ObservationError(f"no view.json at {view_path}")
-    frames = []
+    paired: dict = {}
+    order = []
     for fr in v.get("frames") or []:
         dv = fr.get("draw_verdict")
         if dv is None:
             continue
         lf = LogicalFrame.from_label(fr["label"])
-        frames.append({
+        paired[lf] = {
             "key": list(lf),
             "draw_verdict": dv,
             "port_tris": fr.get("port_tris"),
             "retail_tris": fr.get("retail_tris"),
             "divergent": fr.get("divergent") or [],
-        })
+        }
+        order.append(lf)
+    if required is None:
+        frames = [paired[lf] for lf in order]
+    else:
+        frames = [paired[lf] for lf in required if lf in paired]
     return {
         "schema_version": OBS_SCHEMA_VERSION,
         "pillar": "render_program",

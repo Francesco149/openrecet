@@ -1278,6 +1278,41 @@ result:   tools/parity/{observations,pixels,render_program}.py — observation
           from_view_json. EP-05 wires the producers + drives when absent.
 next:     EP-05 parity_prove.py — contract → resolve/drive observations → validate
           fingerprints (EP-02) → required-pillar gate → content-addressed bundle.
+
+2026-07-16  EP-05  LANDED
+result:   tools/parity/prove.py (pure core) + tools/parity_prove.py (CLI) +
+          tools/test_parity_prove.py. prove.py = assemble (stamp proof_id AFTER the
+          core, §4.4 canonical excl proof_id+envelope) + gate (§4.1: all req PASS→0 /
+          any req FAIL→1 / else NOT_CAPTURED|INCONCLUSIVE→2, omitted req = NOT_CAPTURED)
+          + write_bundle (atomic dir-rename into runs/proofs/sha256/<first2>/<id>/,
+          IMMUTABLE+idempotent, envelope = the ONLY place local paths/wall-clock live,
+          asserted NOT to perturb proof_id) + summarize. parity_prove.py = the one
+          command: load scenario `proof:` contract (jsonschema-validated) → resolve
+          each pillar via the EP-04 adapters over a captured v3 window (identity from
+          pairs.json; render_program by bridging the REAL view.json, SCOPED to the
+          contract's in-window frames — a multi-anchor window would else read foreign;
+          pixels from an optional metrics doc; ST/AU/RT/BT pillars NOT_CAPTURED, no
+          producer yet) → gather EP-02 provenance (port/retail subjects, trace+contract
+          hashes, comparator=dir_manifest(tools/parity), schema hash; env REQUIRED via
+          --env-json, fail-closed) → assemble/gate/store. Gate tools/test_parity_prove.py
+          (41 checks): the §4.1 exit matrix, proof_id determinism + per-field
+          sensitivity (a pillar-verdict / tool-hash / subject-hash change flips the id),
+          envelope path-isolation (a local path is written but excluded from the
+          preimage — no leak), immutable CAS idempotency, and the §15 per-pillar
+          negatives (mutate a pixel diff → pixels FAIL, a draw verdict → render FAIL,
+          absent pixel producer → NOT_CAPTURED, honest join gap → identity FAIL) end-to-
+          end over a synthetic window + real provenance (real trace/comparator/git).
+          + from_view_json gained a `required=` scoping arg (EP-04 render module).
+          DEMONSTRATED end-to-end on a REAL captured window
+          (guild-ui-flow win-330-2600, contract LOADING_END#2[0,105]): identity PASS +
+          render_program PASS over 106 real frames, exit 0, a real content-addressed
+          bundle whose recomputed proof_id matches + carries no local path in its
+          preimage (env was a DEMO placeholder ⇒ a pipeline demonstration, NOT a
+          certified proof — a real bundle needs the RT-00/BT-03 host-env capture).
+          Full python 24/24, check_docs OK.
+next:     Wave-0 step 4 — R3 adversarial review of one REAL proof bundle (needs a host
+          env capture + a scenario `proof:` block), then EP-06 ledger migration + EP-08
+          cache re-keying.
 ```
 
 Do not copy live gameplay-front history here. Completed package detail remains under its
