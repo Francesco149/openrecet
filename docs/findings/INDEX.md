@@ -22,6 +22,7 @@ that subsystem.
 
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
+| [parity-save-producer.md](parity-save-producer.md) | **ST-00/ST-01** — canonical STATE MODEL (`schemas/state-map-v1.json` region map + `reference/canonical-state.md` 4 classes + `tools/parity/state_map.py` offset→region localizer, from `save_bank.h`) + the **`save` pillar PRODUCER** (byte-exact `save.dat` equality of the two files a `--target both` drive writes, region-localized; `parity_save.py`, wired into `parity_prove`). First verdict `house-pause-save-commit`: save FAIL — `bank0/occupied_playtime` phase-origin + a REAL `ranking_records` divergence across banks 1–99. | 2026-07-16 |
 | [winmain-and-bootstrap.md](winmain-and-bootstrap.md) | WinMain (`FUN_0047bfb3`) + engine bootstrap / subsystem init chain; PE entry, WndProc, window class. | 2026-05-22 |
 | [imports-and-layout.md](imports-and-layout.md) | `recettear.unpacked.exe` static DLL imports + on-disk asset layout. | 2026-05-19 |
 | [title-fade-out.md](title-fade-out.md) | Title → NEW GAME black fade-out mechanism (supersedes an earlier wrong PROGRESS entry). | 2026-05-22 |

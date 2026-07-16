@@ -81,8 +81,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   human-confirmed-1:1 scene is visually 1:1 (`gt8` 3–5 px/frame) but NOT bit-exact (±1 sub-perceptual
   cross-target noise, `meanabs`≪1; the near-black off=2 fade frame dominates `differ` at 517046/786432). `mode:
   exact` = strict bit-equality is the honest gate; a "visually 1:1" contract would need an R3-approved threshold
-  mode (schema extension), NOT a silent comparator tolerance — not added. **★ NEXT: ST-00/ST-01** (canonical
-  state model + save equality, roadmap M1) — the state/save pillars are the next producers (still NOT_CAPTURED).
+  mode (schema extension), NOT a silent comparator tolerance — not added. **✅ ST-00/ST-01 LANDED 2026-07-16**
+  (`findings/parity-save-producer.md`; commits `fe4101f`+`33f706b`): the **canonical STATE MODEL**
+  (`schemas/state-map-v1.json` region map + `reference/canonical-state.md` 4 classes + `tools/parity/state_map.py`
+  offset→region localizer, from `save_bank.h`) + the **`save` pillar PRODUCER** — `tools/parity/save_producer.py`
+  compares the two `save.dat` a `--target both` drive writes (port `--save-write-dir` vs retail CreateFileW/A Frida
+  hook, BOTH seeded from the same `{savefile}`) byte-for-byte, localizes the first div to a named region + buckets
+  every diff by region; `save.py` adapter (PASS/FAIL/NOT_CAPTURED/INCONCLUSIVE); `parity_save.py` CLI; wired into
+  `parity_prove` (`save` off `UNBUILT_PILLARS`); +41-check test incl. the **M1 one-byte-mutation negative test**.
+  Capture needed NO new engine/agent work (survey-confirmed). **First verdict `house-pause-save-commit`: save FAIL**,
+  6836/18.8M bytes, first div `bank0/occupied_playtime` (phase-origin frame count), 4 regions — incl. a REAL
+  `ranking_records` divergence across banks 1–99 (port fresh-bank init / checksum-gate ≠ retail for UNUSED banks;
+  invisible to every frame pillar — the save pillar's raison d'être). **★ NEXT: (a)** full `parity_prove` bundle —
+  a `proof:` block on `house-pause-save-commit` + a v3 window (wiring done+unit-tested, this is the packaging);
+  **(b)** chase the `ranking_records` bank-init lead (likely a PORT-DEBT); **(c)** ST-03 state pillar (volatile
+  class via flow_diff) / ST-02 Merkle roots.  — the render/pixels pillars remain (still NOT_CAPTURED for state).
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

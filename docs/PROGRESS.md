@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Parity evidence: ST-00/ST-01 — canonical state model + `save` pillar PRODUCER (M1)
+
+The `save` proof pillar (the persistent-state axis, invisible to every frame pillar) gets a REAL PASS/FAIL,
+not `NOT_CAPTURED`. Commits `fe4101f` (ST-00) + `33f706b` (ST-01); finding `findings/parity-save-producer.md`.
+
+- **Survey first:** capture needs NO new engine/agent work — a `scenario-test --target both` drive already
+  writes two byte-comparable 18.8 MB `save.dat` (port `--save-write-dir` → `run/openrecet/saveout`; retail
+  CreateFileW/A Frida hook → `run/retail/saveout`; both seeded from the same `{savefile}`). Missing = only the
+  comparator.
+- **ST-00 canonical state model:** `schemas/state-map-v1.json` (named region layout of the save/working arena
+  from `save_bank.h`; RE correction: header dword 7 = last_slot_used, dword 6 = hidden_char_unlocked) +
+  `reference/canonical-state.md` (4 state classes + float-bit / no-pointer / unknown-included / checksum-derived
+  policy) + `tools/parity/state_map.py` (offset→`bankN/region[elem]` localizer, fail-SAFE `(unmapped)`).
+- **ST-01 save pillar producer:** `tools/parity/save_producer.py` (`compare_saves` diffs the two arenas +
+  localizes first div + buckets diffs by region; FAIL-CLOSED on missing/wrong-size) + `save.py` adapter +
+  `parity_save.py` CLI + `parity_prove` wiring (`save` off `UNBUILT_PILLARS`) + `test_parity_save.py` 41 checks
+  incl. the M1 one-byte-mutation negative test. Parity suite `41+24+51+60+52` green; pre-commit 27/27.
+- **First verdict `house-pause-save-commit`: save FAIL**, 6836/18,838,832 bytes across 4 regions — first div
+  `bank0/occupied_playtime` (phase-origin frame count 20906 vs 29643), a derived `checksum` echo (banks 0–99),
+  and a REAL `ranking_records` divergence across banks 1–99 (port fresh-bank init / checksum-gate ≠ retail for
+  UNUSED banks — a genuine catch no frame pillar sees). Roadmap M1 (first-state localization).
+
 ## 2026-07-16 — Parity evidence roadmap: pixels pillar PRODUCER (M0's last required pillar now real)
 
 Built the headless `pixel-metrics.json` producer the `pixels` adapter shipped waiting on (roadmap rule 11:
