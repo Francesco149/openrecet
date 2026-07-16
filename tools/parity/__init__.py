@@ -52,6 +52,8 @@ from .observations import (
 from .pixels import adapt_pixels
 from .render_program import adapt_render_program
 from .render_program import from_view_json as render_metrics_from_view_json
+from .save import adapt_save
+from .state_map import Locus, StateMap, StateMapError
 
 __all__ = [
     # canonicalization (§4.4, frozen)
@@ -100,4 +102,8 @@ __all__ = [
     "adapt_pixels",
     "adapt_render_program",
     "render_metrics_from_view_json",
+    "adapt_save",
+    "StateMap",
+    "StateMapError",
+    "Locus",
 ]

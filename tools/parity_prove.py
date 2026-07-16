@@ -43,10 +43,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 from parity import (  # noqa: E402
     EnvValidationError,
     FingerprintError,
+    LogicalFrame,
     ObservationError,
     adapt_identity,
     adapt_pixels,
     adapt_render_program,
+    adapt_save,
     collect_environment,
     dir_manifest_sha256,
     load_required,
@@ -69,7 +71,8 @@ DEFAULT_PROOFS_ROOT = ROOT / "runs/proofs"
 
 # Pillars with no producer wired yet (later ST/AU/RT/BT packages). Declared so the
 # bundle carries them explicitly as NOT_CAPTURED rather than silently omitting them.
-UNBUILT_PILLARS = ("state", "save", "audio_events", "timing", "boundary")
+# `save` LANDED 2026-07-16 (ST-01, tools/parity/save.py + save_producer.py).
+UNBUILT_PILLARS = ("state", "audio_events", "timing", "boundary")
 
 
 class ProveError(Exception):
@@ -204,6 +207,15 @@ def resolve_observations(window_dir: Path, contract: dict):
     pm = window_dir / "pixel-metrics.json"
     put("pixels", adapt_pixels(pm, required, expected_containers=expected),
         pm if pm.exists() else None)
+
+    # save — scenario-scoped: the two save.dat a `--target both` drive writes,
+    # compared byte-for-byte + localized to a canonical-state region (ST-01).
+    # save-metrics.json is a self-contained artifact (its own save.dat provenance);
+    # it does NOT bind to view.json's D3D container hashes. The nominal frame is the
+    # contract join anchor (the save belongs to this scenario's window).
+    sm = window_dir / "save-metrics.json"
+    nominal = LogicalFrame(window[0], window[1], 0) if window else None
+    put("save", adapt_save(sm, nominal_frame=nominal), sm if sm.exists() else None)
 
     # pillars whose producer is a later package
     for name in UNBUILT_PILLARS:
