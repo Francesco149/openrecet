@@ -23,10 +23,11 @@ unimplemented, so a single label would lie.
   retail-executed / port-executed / call-I/O-aligned /
   scenario-pillar-proven / matrix-proven
                     docs/parity-proof-index.json — a git-tracked binding of a VA
-                    to a parity-proof bundle (hashes/scopes only).  EMPTY today
-                    ⇒ every runtime_state is null.  The local runs/proofs/ store
-                    is gitignored and is NEVER read here (keeps --check
-                    reproducible).
+                    to a parity-proof bundle, keyed on the DURABLE
+                    ``contract_sha256`` (parity_prove's stable, drive- and
+                    commit-INDEPENDENT scenario-contract hash), never the volatile
+                    per-drive proof_id.  The local runs/proofs/ store is gitignored
+                    and is NEVER read here (keeps --check reproducible).
 
 A DEPRECATED legacy ``status`` (verified/stubbed/ported/unported) is preserved
 per function for existing consumers (mem_watch.py) and human continuity.
@@ -125,13 +126,25 @@ def load_call_targets() -> set[int]:
     return set(data.get("vas", []))
 
 
+def _is_sha256(v) -> bool:
+    """True iff v is a lowercase 64-hex sha256 string."""
+    return isinstance(v, str) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
+
+
 def load_proof_index(path: Path = PROOF_INDEX_JSON) -> dict[int, list[dict]]:
     """VA -> list of runtime proof refs, from the git-tracked proof index.
 
-    Each entry binds an engine VA to a parity-proof bundle: it carries a
-    runtime ``state`` (one of RUNTIME_LADDER), ``proof_id``, and ``scope``.
-    Absent file or empty ``entries`` -> {} (no runtime states; the honest
-    default until a VA->proof binding exists).  Never reads runs/proofs/."""
+    Each entry binds an engine VA to a parity-proof bundle.  The DURABLE key is
+    the ``contract_sha256`` — parity_prove's stable hash of the scenario's
+    ``proof`` contract block, which is drive- and commit-INDEPENDENT (it
+    reproduces from the committed scenario.yaml, so it can be cited inside the
+    very commit that adds the entry).  An entry carries a runtime ``state`` (one
+    of RUNTIME_LADDER), that ``contract_sha256``, and a ``scope``.  ``proof_id``
+    is OPTIONAL + ADVISORY — a recording-time snapshot of the local bundle that
+    established the binding (it binds git_commit + drive and advances every
+    commit; runs/proofs/ is gitignored) — never the identity.  Absent file or
+    empty ``entries`` -> {} (the honest default until a VA->proof binding
+    exists).  Never reads runs/proofs/."""
     if not path.exists():
         return {}
     data = json.loads(path.read_text())
@@ -146,10 +159,16 @@ def load_proof_index(path: Path = PROOF_INDEX_JSON) -> dict[int, list[dict]]:
             raise SystemExit(
                 f"proof-index entry for {e.get('va')} declares invalid runtime "
                 f"state {st!r} (must be one of {RUNTIME_LADDER})")
-        if not e.get("proof_id"):
+        if not _is_sha256(e.get("contract_sha256")):
             raise SystemExit(
-                f"proof-index entry for {e.get('va')} has no proof_id — a runtime "
-                f"state requires a proof artifact (roadmap EP-06)")
+                f"proof-index entry for {e.get('va')} has no valid contract_sha256 "
+                f"— a runtime state binds to a parity-proof CONTRACT (the stable, "
+                f"drive-independent key; roadmap EP-06 ★NEXT-b′)")
+        pid = e.get("proof_id")
+        if pid is not None and not _is_sha256(pid):
+            raise SystemExit(
+                f"proof-index entry for {e.get('va')} has a malformed proof_id "
+                f"{pid!r} (must be a 64-hex sha256 or omitted — it is advisory)")
         out.setdefault(va, []).append(e)
     return out
 
@@ -262,9 +281,10 @@ def classify(funcs, call_targets, verified, stubbed, ported, port_of, proof_inde
             "evidence": evidence,
             "quality_flags": quality,
             "proofs": [
-                {"proof_id": r["proof_id"], "state": r["state"],
+                {"contract_sha256": r["contract_sha256"], "state": r["state"],
                  "scenario": r.get("scenario"), "scope": r.get("scope"),
-                 "pillars": r.get("pillars")}
+                 "pillars": r.get("pillars"),
+                 "proof_id": r.get("proof_id")}  # advisory snapshot, may be stale
                 for r in refs
             ],
             "src": src,
@@ -366,7 +386,7 @@ def render_status(counts) -> str:
 ## Port RUNTIME proof (cross-target — proof artifacts)
 
 ```
-{c['runtime_proven']} functions runtime-proven   ({c['pct_runtime_proven']}%)
+{c['runtime_proven']} function{'' if c['runtime_proven'] == 1 else 's'} runtime-proven   ({c['pct_runtime_proven']}%)
 ```
 
 Every runtime rung (retail-executed / port-executed / call-I/O-aligned /
@@ -459,13 +479,13 @@ def render_md(entries, orphans, counts) -> str:
     lines.append(f"## runtime-proven ({len(proven)}) — bound to a parity-proof bundle")
     lines.append("")
     if proven:
-        lines.append("| VA | name | runtime state | proof_id | scope |")
-        lines.append("|----|------|---------------|----------|-------|")
+        lines.append("| VA | name | runtime state | contract_sha256 | scope |")
+        lines.append("|----|------|---------------|-----------------|-------|")
         for e in proven:
             p = e["proofs"][-1] if e["proofs"] else {}
             lines.append(
                 f"| {e['va']} | {e['name']} | {e['runtime_state']} | "
-                f"{(p.get('proof_id') or '')[:12]} | {p.get('scope') or ''} |")
+                f"{(p.get('contract_sha256') or '')[:12]} | {p.get('scope') or ''} |")
     else:
         lines.append("_None yet — `parity-proof-index.json` has no entries. A VA is "
                      "listed here only when a `parity_prove.py` bundle covers it in "

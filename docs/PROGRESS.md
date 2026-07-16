@@ -7,6 +7,25 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — the FIRST runtime-axis proof binding: STATUS off "0% runtime-proven" (★NEXT b′)
+
+`docs/parity-proof-index.json` now binds one VA — the save-commit `FUN_004905a8` (`save_io_commit_slot`) →
+**`scenario-pillar-proven`** — off the `house-pause-save-commit` save-PASS bundle. STATUS headline flips
+**"0% runtime-proven — index empty" → "1 function runtime-proven"** (0.0% of 2548 non-thunk; honestly tiny, but
+the first non-empty runtime rung: INVENTORY≠PARITY made real, no longer a source-marker inventory).
+
+Convention settled (precedent for every future entry): the durable ledger key is **`contract_sha256`**, never
+the volatile `proof_id`. `parity_prove.contract_sha256` is the stable hash of the scenario's `proof` block —
+drive- and commit-independent (reproduces from the committed `scenario.yaml`; `9c2d27556b6f…` recomputes
+exactly), so it self-cites inside its own commit, defeating the `git_commit`-binding volatility that had
+deferred (b′). `proof_id` is now OPTIONAL + ADVISORY (a recording-time locator; `runs/proofs/` is gitignored).
+
+`gen_port_ledger.load_proof_index` requires a 64-hex `contract_sha256` (fail-closed) and treats `proof_id` as
+optional; `classify` emits `contract_sha256` per proof ref; the runtime-proven table keys on it. Tests:
+`test_gen_port_ledger.py` 155 checks (fail-closed on missing/malformed contract_sha256 + malformed proof_id +
+the proof_id-optional path; the live-tree test pins the shipped binding); `--check` idempotent. Finding:
+`findings/parity-save-producer.md` §"★NEXT(b′) LANDED".
+
 ## 2026-07-17 — `house-pause-save-commit` → save PASS: the FIRST fully-passing multi-pillar bundle (★NEXT b)
 
 `parity_prove` verdict **PASS — identity PASS · save PASS · 0 divergences** (render_program PASS bonus;

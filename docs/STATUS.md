@@ -22,7 +22,7 @@
 ## Port RUNTIME proof (cross-target — proof artifacts)
 
 ```
-0 functions runtime-proven   (0.0%)
+1 function runtime-proven   (0.0%)
 ```
 
 Every runtime rung (retail-executed / port-executed / call-I/O-aligned /
@@ -59,7 +59,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `test_gen_port_ledger.py` 152 checks): INVENTORY rung `discovered→source-referenced→implemented→instrumented`
   (src markers) SPLIT from RUNTIME rung `retail-executed→…→matrix-proven` (needs a `docs/parity-proof-index.json`
   bundle). STATUS headline flipped "2.8% runtime-verified" (a lie) → **"0% runtime-proven — 85 instrumented,
-  index empty"**; the 501 "ported" are now honestly `source-referenced` (a `FUN_` mention ≠ a port claim). New
+  index empty"** (index SEEDED at ★NEXT-b′ 2026-07-17, 1 runtime binding — see below); the 501 "ported" are now honestly `source-referenced` (a `FUN_` mention ≠ a port claim). New
   `PORT-OF(0xVA)` opt-in attestation reaches `implemented` w/o a probe (0 seeded — backfill is author work).
   `status` enum kept as a DEPRECATED alias (mem_watch byte-stable); `--check` idempotent. **✅ EP-08 LANDED
   2026-07-16 — HOLE-2 CLOSED + cache re-keyed by full provenance; Wave-0 EP-00→EP-08 COMPLETE**
@@ -131,9 +131,18 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   loads); both port+agent fire pre-sim ⇒ both land on V+K=29687, no off-by-one. FORWARDED to the agent (retail's
   natural swings 29643/29683/**29830** run-to-run, so a port-only pin can't match). VERIFIED `--target both` ×2:
   save.dat byte-identical (ndiff 0), drive-stable; +2 host tests (3434/0). Dropped the contract's save exception.
-  **★ NEXT: (b′)** add the runtime-axis `docs/parity-proof-index.json` entry for `FUN_004905a8`
-  (scenario-pillar-proven — the first non-empty runtime rung; flips STATUS "0% runtime-proven"); **(c)** ST-03
-  state pillar (volatile class via flow_diff) / ST-02 Merkle roots.
+  **✅ ★NEXT(b′) LANDED 2026-07-17 — the FIRST runtime-axis binding; STATUS off "0% runtime-proven"**
+  (`findings/parity-save-producer.md` §"★NEXT(b′) LANDED"). `docs/parity-proof-index.json` binds `FUN_004905a8`
+  (`save_io_commit_slot`) → **scenario-pillar-proven**, keyed on the DURABLE `contract_sha256 9c2d2755…`
+  (parity_prove's stable, drive/commit-independent scenario-contract hash — reproduces from the committed
+  `scenario.yaml` ⇒ self-cites inside its own commit, defeating the `proof_id` volatility that deferred it).
+  Schema tweak: `gen_port_ledger.load_proof_index` now REQUIRES `contract_sha256` (64-hex, fail-closed) +
+  `proof_id` OPTIONAL/advisory; the ledger runtime table keys on it. STATUS **"0% runtime-proven, index empty" →
+  "1 function runtime-proven"** (0.0% of 2548 — the first non-empty rung, INVENTORY≠PARITY made real). +155-check
+  suite (fail-closed on missing/malformed contract_sha256 or malformed proof_id; live-tree test pins the shipped
+  binding), `--check` idempotent. NB `proof_id ba2c0c8c…` = advisory snapshot from the pre-commit dirty drive
+  (binding rests on contract_sha256; a clean-HEAD re-drive freshens it — optional). **★ NEXT: (c)** ST-03 state
+  pillar (volatile class via flow_diff) / ST-02 Merkle roots (canonical state encoder + Merkle roots over the tree).
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

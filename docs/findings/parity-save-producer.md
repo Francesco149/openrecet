@@ -290,13 +290,35 @@ the pure-function logic contract — the tick is confirmed 1:1. Pinning it bilat
 normalization; the proof reads "given a normalized playtime origin, the two committed
 save.dat are byte-identical."
 
-**★ NEXT (b′) — the runtime-axis index entry (deferred, deliberately).** This is now the
-first PASS bundle eligible for a `docs/parity-proof-index.json` entry (the save-commit VA
-`FUN_004905a8` → `scenario-pillar-proven`, the first non-empty runtime rung — it would flip
-STATUS off "0% runtime-proven"). Held back one step because the index schema requires a
-`proof_id`, which BINDS `git_commit` and so **cannot be self-cited inside the commit that
-adds it** (a HEAD regen yields a different id — the exact volatility §Tooling warns about).
-The first runtime entry should settle the convention first: key the durable binding on the
-stable `contract_sha256` (9c2d2755…) + `va` + `scope`, treating `proof_id` as a
-recording-time snapshot (or a schema tweak). A precedent-setting ledger change — do it
-deliberately, not as a rushed capstone.
+## ★NEXT(b′) LANDED 2026-07-17 — the FIRST runtime-axis binding (STATUS off "0% runtime-proven")
+
+`docs/parity-proof-index.json` now carries its first entry: the save-commit VA
+`FUN_004905a8` (`save_io_commit_slot`) → **`scenario-pillar-proven`**. STATUS headline
+**"0% runtime-proven — index empty" → "1 function runtime-proven"** (0.0% of 2548 non-thunk;
+honestly tiny, but the first non-empty runtime rung — INVENTORY≠PARITY made real, not a
+source-marker inventory). The 501 `source-referenced` are unchanged; this is the one VA a
+`parity_prove` bundle actually covers in its proven scope.
+
+**The convention (settled here — precedent for every future entry): key the durable binding
+on `contract_sha256`, never `proof_id`.** `parity_prove.contract_sha256` is the stable hash
+of the scenario's `proof` block; it is **drive- AND commit-independent** — it reproduces from
+the committed `scenario.yaml` (verified: `9c2d27556b6f…` recomputes exactly), so it **self-cites
+inside its own commit**, defeating the volatility that blocked (b′). `proof_id` (which binds
+`git_commit`+drive and advances every commit; `runs/proofs/` is gitignored) is now **OPTIONAL
++ ADVISORY** — a recording-time human locator, never the identity.
+
+Schema tweak in `gen_port_ledger.load_proof_index`: require a 64-hex `contract_sha256` (fail
+closed on absent/malformed), `proof_id` optional (fail closed only if present-but-malformed);
+`classify` emits `contract_sha256` on each proof ref; the ledger runtime-proven table keys on
+it. `docs/parity-proof-index.json` `_note` documents the durable-key rule.
+
+Tests (`test_gen_port_ledger.py`, 155 checks): `test_proof_index_fails_closed` now covers
+missing/malformed `contract_sha256` + malformed `proof_id` + proof_id-optional; the live-tree
+test pins the shipped binding (VA `0x4905a8`, `scenario-pillar-proven`, contract `9c2d2755…`);
+`--check` idempotent.
+
+**Advisory-snapshot caveat (deliberate):** the recorded `proof_id ba2c0c8c…` is from the
+pre-commit **dirty** drive (subject `git_commit d686739` + the playtimepin dirty patch, now
+committed). It is advisory only — the binding rests entirely on `contract_sha256`. A clean-HEAD
+`--target both` re-drive would freshen the snapshot to a `git_commit`-clean `proof_id`; optional,
+not required for a correct binding (the whole point of the contract-key convention).

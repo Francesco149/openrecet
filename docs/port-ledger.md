@@ -13,7 +13,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 501, discovered 1962 → 586 referenced-or-better (23.0%)
-- **runtime:** 0 proven (0.0%) — every rung needs a `parity-proof-index.json` bundle
+- **runtime:** 1 proven (0.0%) — every rung needs a `parity-proof-index.json` bundle
 - orphan refs (in src/, not in function table): 7
 
 ## instrumented (85) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
@@ -617,7 +617,9 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x5045eb | FUN_005045eb | 220 | ✓ |  | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ |  | rng.h |
 
-## runtime-proven (0) — bound to a parity-proof bundle
+## runtime-proven (1) — bound to a parity-proof bundle
 
-_None yet — `parity-proof-index.json` has no entries. A VA is listed here only when a `parity_prove.py` bundle covers it in its proven scope (INVENTORY ≠ PARITY)._
+| VA | name | runtime state | contract_sha256 | scope |
+|----|------|---------------|-----------------|-------|
+| 0x4905a8 | FUN_004905a8 | scenario-pillar-proven | 9c2d27556b6f | save-commit path rooted at FUN_004905a8 (save_io_commit_slot): the committed save.dat is byte-identical to retail over house-pause-save-commit win-0-200 @SAVE_PICKER_READY[1,19]; parity_prove verdict PASS (required pillars identity+save, 0 divergences; render_program PASS bonus). Normalized origins: {rngseed 19937}, {phasepin}, load pins, and the bilateral {playtimepin} (playtime-at-commit is a load-timing phase origin, not the logic contract). |
 

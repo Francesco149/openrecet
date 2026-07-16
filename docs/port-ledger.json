@@ -12,7 +12,7 @@
   "inv_discovered": 1962,
   "referenced_or_better": 586,
   "pct_referenced_or_better": 23.0,
-  "runtime_proven": 0,
+  "runtime_proven": 1,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 28,
@@ -22731,21 +22731,33 @@
    "is_thunk": false,
    "is_call_target": true,
    "inventory_state": "source-referenced",
-   "runtime_state": null,
+   "runtime_state": "scenario-pillar-proven",
    "evidence": {
     "discovered": true,
     "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
-    "retail_executed": false,
-    "port_executed": false,
-    "call_io_aligned": false,
-    "scenario_pillar_proven": false,
+    "retail_executed": true,
+    "port_executed": true,
+    "call_io_aligned": true,
+    "scenario_pillar_proven": true,
     "matrix_proven": false
    },
    "quality_flags": [],
-   "proofs": [],
+   "proofs": [
+    {
+     "contract_sha256": "9c2d27556b6f0d4b36ba867ca1de87dda605d0d18ed7b1c5e072ad8a72eb76bc",
+     "state": "scenario-pillar-proven",
+     "scenario": "house-pause-save-commit",
+     "scope": "save-commit path rooted at FUN_004905a8 (save_io_commit_slot): the committed save.dat is byte-identical to retail over house-pause-save-commit win-0-200 @SAVE_PICKER_READY[1,19]; parity_prove verdict PASS (required pillars identity+save, 0 divergences; render_program PASS bonus). Normalized origins: {rngseed 19937}, {phasepin}, load pins, and the bilateral {playtimepin} (playtime-at-commit is a load-timing phase origin, not the logic contract).",
+     "pillars": [
+      "identity",
+      "save"
+     ],
+     "proof_id": "ba2c0c8cc3e60bb543c0262fddaca0e546db8fbfa296d41a9edabab1072c320c"
+    }
+   ],
    "src": [
     "src/main.c",
     "src/save_io.c",

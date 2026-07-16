@@ -133,9 +133,11 @@ def test_runtime_state_needs_proof_index():
           "instrumented but no proof-index entry → runtime_state null")
 
     # A synthetic index entry advances the VA to scenario-pillar-proven.
-    idx = {0x4000: [{"state": "scenario-pillar-proven", "proof_id": "deadbeef",
-                     "scenario": "syn", "scope": "HF#1[1,80]",
-                     "pillars": ["render_program"]}]}
+    # The DURABLE key is contract_sha256; proof_id is optional + advisory.
+    idx = {0x4000: [{"state": "scenario-pillar-proven",
+                     "contract_sha256": "a" * 64, "scenario": "syn",
+                     "scope": "HF#1[1,80]", "pillars": ["render_program"],
+                     "proof_id": "b" * 64}]}
     e1 = classify_one(0x4000, verified={0x4000: {"src/z.c"}}, proof_index=idx)
     check(e1["runtime_state"] == "scenario-pillar-proven",
           f"proof entry → scenario-pillar-proven, got {e1['runtime_state']}")
@@ -143,8 +145,10 @@ def test_runtime_state_needs_proof_index():
     check(e1["evidence"]["retail_executed"] is True,
           "a higher runtime rung implies the lower ones reached")
     check(e1["evidence"]["matrix_proven"] is False, "matrix rung not reached")
-    check(len(e1["proofs"]) == 1 and e1["proofs"][0]["proof_id"] == "deadbeef",
-          "proof ref recorded on the entry")
+    check(len(e1["proofs"]) == 1
+          and e1["proofs"][0]["contract_sha256"] == "a" * 64
+          and e1["proofs"][0]["proof_id"] == "b" * 64,
+          "proof ref recorded (durable contract key + advisory proof_id)")
     # The inventory axis is unchanged by the runtime binding.
     check(e1["inventory_state"] == "instrumented",
           "runtime proof does not alter inventory_state")
@@ -153,41 +157,64 @@ def test_runtime_state_needs_proof_index():
 def test_proof_index_fails_closed():
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
+        SHA = "a" * 64
         # Absent file → {}.
         check(G.load_proof_index(tmp / "nope.json") == {}, "absent index → {}")
 
         # Invalid runtime state → SystemExit.
         bad_state = tmp / "bad_state.json"
-        bad_state.write_text(json.dumps(
-            {"entries": [{"va": "0x4000", "state": "instrumented", "proof_id": "x"}]}))
+        bad_state.write_text(json.dumps({"entries": [
+            {"va": "0x4000", "state": "instrumented", "contract_sha256": SHA}]}))
         try:
             G.load_proof_index(bad_state)
             check(False, "invalid runtime state must fail closed")
         except SystemExit:
             check(True, "invalid runtime state raised")
 
-        # Missing proof_id → SystemExit (a runtime state needs an artifact).
-        no_proof = tmp / "no_proof.json"
-        no_proof.write_text(json.dumps(
-            {"entries": [{"va": "0x4000", "state": "retail-executed"}]}))
+        # Missing contract_sha256 (the durable key) → SystemExit.
+        no_contract = tmp / "no_contract.json"
+        no_contract.write_text(json.dumps({"entries": [
+            {"va": "0x4000", "state": "retail-executed"}]}))
         try:
-            G.load_proof_index(no_proof)
-            check(False, "missing proof_id must fail closed")
+            G.load_proof_index(no_contract)
+            check(False, "missing contract_sha256 must fail closed")
         except SystemExit:
-            check(True, "missing proof_id raised")
+            check(True, "missing contract_sha256 raised")
 
-        # A valid entry parses.
+        # A malformed contract_sha256 (not 64-hex) → SystemExit.
+        bad_sha = tmp / "bad_sha.json"
+        bad_sha.write_text(json.dumps({"entries": [
+            {"va": "0x4000", "state": "retail-executed", "contract_sha256": "abc"}]}))
+        try:
+            G.load_proof_index(bad_sha)
+            check(False, "malformed contract_sha256 must fail closed")
+        except SystemExit:
+            check(True, "malformed contract_sha256 raised")
+
+        # A present-but-malformed proof_id → SystemExit (advisory, but must be a sha256).
+        bad_pid = tmp / "bad_pid.json"
+        bad_pid.write_text(json.dumps({"entries": [
+            {"va": "0x4000", "state": "retail-executed",
+             "contract_sha256": SHA, "proof_id": "nope"}]}))
+        try:
+            G.load_proof_index(bad_pid)
+            check(False, "malformed proof_id must fail closed")
+        except SystemExit:
+            check(True, "malformed proof_id raised")
+
+        # A valid entry parses — proof_id is OPTIONAL (omitted here).
         ok = tmp / "ok.json"
         ok.write_text(json.dumps({"entries": [
-            {"va": "0x4000", "state": "port-executed", "proof_id": "abc"}]}))
+            {"va": "0x4000", "state": "port-executed", "contract_sha256": SHA}]}))
         parsed = G.load_proof_index(ok)
         check(0x4000 in parsed and parsed[0x4000][0]["state"] == "port-executed",
-              "valid entry parsed by VA")
+              "valid entry parsed by VA (proof_id optional)")
 
 
 def test_live_tree_builds_and_is_consistent():
-    """The real repo builds, counts are self-consistent, and — with the shipped
-    empty index — runtime_proven is 0 (INVENTORY ≠ PARITY)."""
+    """The real repo builds, counts are self-consistent, and the shipped index's
+    single binding (FUN_004905a8 → scenario-pillar-proven) is the ONLY runtime
+    proof (INVENTORY ≠ PARITY)."""
     entries, orphans, counts = G.build()
     real = [e for e in entries.values() if not e["is_thunk"]]
     check(len(real) == counts["non_thunk_functions"], "non_thunk count matches")
@@ -210,12 +237,20 @@ def test_live_tree_builds_and_is_consistent():
     check(counts["unported"] == counts["inv_discovered"], "alias unported")
     check(counts["touched"] == counts["referenced_or_better"], "alias touched")
 
-    # The shipped index is empty → nothing is runtime-proven yet. This is the
-    # whole EP-06 point: source inventory must not masquerade as parity.
-    check(counts["runtime_proven"] == 0,
-          f"runtime_proven must be 0 with an empty index, got {counts['runtime_proven']}")
-    check(all(e["runtime_state"] is None for e in real),
-          "no function has a runtime_state until the index binds a proof")
+    # The shipped index binds exactly one VA (the save-commit path, ★NEXT-b′);
+    # every other function stays runtime-null. INVENTORY must not masquerade as
+    # parity — one proven binding, not a source-marker inventory.
+    check(counts["runtime_proven"] == 1,
+          f"runtime_proven must be 1 with the shipped index, got {counts['runtime_proven']}")
+    proven = [e for e in real if e["runtime_state"] is not None]
+    check(len(proven) == 1 and proven[0]["va"] == "0x4905a8"
+          and proven[0]["runtime_state"] == "scenario-pillar-proven",
+          f"the one runtime-proven VA is FUN_004905a8 @ scenario-pillar-proven, "
+          f"got {[(e['va'], e['runtime_state']) for e in proven]}")
+    check(bool(proven[0]["proofs"])
+          and proven[0]["proofs"][0]["contract_sha256"]
+              == "9c2d27556b6f0d4b36ba867ca1de87dda605d0d18ed7b1c5e072ad8a72eb76bc",
+          "the binding is keyed on the stable house-pause-save-commit contract_sha256")
 
     # Every function carries the full evidence fact-set + a legacy status.
     for e in real[:50]:
