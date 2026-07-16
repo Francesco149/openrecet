@@ -1232,6 +1232,26 @@ result:   tools/parity/ package. canonical.py = promoted §4.4 rule
           backstop for a build-affecting untracked source file.
 next:     EP-03 — split JOIN/REPLAY verdicts (orv3_sync/orv3_window emit
           JOIN_COMPLETE/REPLAY_EXACT behind the EP-00 alias list); ∥ EP-04/EP-05.
+
+2026-07-16  EP-03  LANDED
+result:   Separate JOIN + REPLAY from parity (roadmap §4.1) — both Python-side, NO
+          native rebuild. orv3_sync.classify_join() → {join_verdict:
+          JOIN_COMPLETE|JOIN_PARTIAL, verdict: ALIGNED|PARTIAL alias}; PAIRING-ONLY
+          (no pixel/state input) ⇒ a JOIN can never read as a parity pass.
+          join_verdict threaded into the sync result + pairs.json + both orv3_view
+          manifests; orv3_window banner + exit key on join_verdict (0=JOIN_COMPLETE)
+          w/ a "not a parity pass" caveat; web app.mjs relabels "sync / JOIN",
+          prefers join_verdict (fallback verdict). REPLAY: v3verify.py prints
+          REPLAY_EXACT/REPLAY_DIVERGENT + "same-side fidelity, not parity" (exit
+          code + returned counts contract unchanged). The ALIGNED/PARTIAL `verdict`
+          alias is RETAINED byte-identical for pre-EP-03 consumers — native
+          viewer.exe (rfind "ALIGNED") + app CSS — so NO viewer rebuild; viewer.cpp
+          migration to join_verdict deferred (reads the retained alias).
+          +test_orv3.test_classify_join (JOIN_COMPLETE for zero-gap regardless of
+          pixels = never a parity pass; alias retained). orv3 + full python 22/22,
+          check_docs OK, app.mjs node --check OK.
+next:     EP-04 normalize observation adapters (draw ALIGNED/BATCHING/DIVERGENT +
+          flow tokens → PILLAR PASS/FAIL) → EP-05 parity_prove.py.
 ```
 
 Do not copy live gameplay-front history here. Completed package detail remains under its

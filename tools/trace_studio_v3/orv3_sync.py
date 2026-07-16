@@ -84,12 +84,29 @@ def naive_absolute_pairs(port_rows, retail_rows):
     return sum(1 for p in port_rows if p["present"] in rpres)
 
 
+def classify_join(pairs: list, port_only: list, retail_only: list) -> dict:
+    """Map an identity-pairing result to the JOIN claim (roadmap §4.1, EP-03).
+
+    PAIRING ONLY — takes no pixel/state/draw input, so a JOIN verdict can NEVER
+    imply cross-target equality. Returns the canonical `join_verdict`
+    (JOIN_COMPLETE / JOIN_PARTIAL) plus the deprecated `verdict` alias
+    (ALIGNED / PARTIAL) retained byte-for-byte for pre-EP-03 consumers: the native
+    viewer.exe (rfind "ALIGNED"), the web app.mjs CSS, orv3_window's exit code, and
+    any persisted pairs.json / view.json / manifest.json."""
+    complete = not port_only and not retail_only
+    return {
+        "join_verdict": "JOIN_COMPLETE" if complete else "JOIN_PARTIAL",
+        "verdict": "ALIGNED" if complete else
+        f"PARTIAL ({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)",
+    }
+
+
 def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = False,
                  pairs_path: Path | None = None, quiet: bool = False,
                  join_anchor: str | None = None) -> dict:
     """JOIN two cache entries (port + retail) by stored identity, print the report
     (unless quiet), optionally write pairs.json, and RETURN the join result
-    {verdict, pairs, port_only, retail_only, naive, load_stretch}. `port_entry`/
+    {join_verdict, verdict, pairs, port_only, retail_only, naive, load_stretch}. `port_entry`/
     `retail_entry` are parse-once v3cache.LoadedSides (the handoff) OR entry Paths.
     The orv3_window orchestrator passes LoadedSides (and write_view_json re-calls this
     with the SAME ones, so the containers never re-parse); main() passes Paths."""
@@ -136,18 +153,22 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
     say(f"\ncontrast — naive absolute-present pairing (same present-count):")
     say(f"  paired           : {naive} / {min(len(prows), len(rrows))}   ({naive_msg})")
 
-    verdict = "ALIGNED" if (not port_only and not retail_only) else \
-              f"PARTIAL ({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)"
-    say(f"\nVERDICT: {verdict}")
+    cls = classify_join(pairs, port_only, retail_only)
+    join_verdict, verdict = cls["join_verdict"], cls["verdict"]
+    say(f"\nJOIN VERDICT: {join_verdict}  "
+        f"({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)")
+    say("  identity pairing only — NOT a parity/equality claim; the pillar gate "
+        "(parity_prove, EP-05) tests equality.")
 
-    result = {"verdict": verdict, "pairs": pairs, "port_only": port_only,
-              "retail_only": retail_only, "naive": naive, "load_stretch": load_stretch,
-              "anchor": pmeta.anchor}
+    result = {"join_verdict": join_verdict, "verdict": verdict, "pairs": pairs,
+              "port_only": port_only, "retail_only": retail_only, "naive": naive,
+              "load_stretch": load_stretch, "anchor": pmeta.anchor}
     if write_pairs:
         out = pairs_path or (pside.entry / "pairs.json")
         out.write_text(json.dumps({
             "port_entry": str(pside.entry), "retail_entry": str(rside.entry),
-            "anchor": pmeta.anchor, "join_anchor": join_anchor, "verdict": verdict,
+            "anchor": pmeta.anchor, "join_anchor": join_anchor,
+            "join_verdict": join_verdict, "verdict": verdict,
             "pairs": pairs, "port_only": port_only, "retail_only": retail_only,
         }, indent=1))
         say(f"wrote {out} ({len(pairs)} pairs)")

@@ -163,8 +163,10 @@ function VerdictPanel({ m }) {
   const naiveNote = m.load_stretch
     ? `naive absolute-present pairing would pair 0 frames (load stretch ${m.load_stretch > 0 ? "+" : ""}${m.load_stretch}); identity join pairs by (anchor, offset).`
     : "";
+  const jv = m.join_verdict ?? m.verdict;
   const txt = [
-    `VERDICT: ${m.verdict}`,
+    `JOIN: ${jv}`,
+    `(identity pairing only — NOT a parity/equality claim)`,
     `anchor:  ${m.anchor}#${m.anchor_occ}`,
     `columns: ${m.count}  (${m.n_diff} with both sides, ${m.n_gaps} honest gaps)`,
     `window:  offset ${m.offset0}..${m.offset0 + m.count - 1}`,
@@ -172,7 +174,7 @@ function VerdictPanel({ m }) {
     m.worst ? `worst:   offset ${m.worst.offset}  gt8=${m.worst.gt8}px` : "",
     "", naiveNote,
   ].filter((l) => l !== undefined).join("\n");
-  return html`<section class="panel"><h3>sync / verdict</h3>
+  return html`<section class="panel"><h3>sync / JOIN <span class="dim">(identity pairing)</span></h3>
     <pre class="verdict">${txt}</pre></section>`;
 }
 
@@ -212,13 +214,15 @@ function App() {
   if (error) return html`<div class="pad"><div class="err-box">error: ${error}</div></div>`;
   if (!m) return html`<div class="pad">loading…</div>`;
   const fr = m.frames[Math.min(cur, N - 1)];
+  const jv = m.join_verdict ?? m.verdict;
+  const joinOk = jv === "JOIN_COMPLETE" || jv === "ALIGNED";
 
   return html`<div>
     <header>
       <h1>trace studio <span class="dim">v3</span> · <span class="accent">${m.scenario}</span></h1>
       <div class="status">
         <span>${m.count}f · ${m.dims ? m.dims.join("×") : "?"} · ${m.anchor} ·
-          <span class=${m.verdict === "ALIGNED" ? "accent" : "warn"}>${m.verdict}</span></span>
+          <span class=${joinOk ? "accent" : "warn"}>${jv}</span></span>
       </div>
     </header>
     <main>

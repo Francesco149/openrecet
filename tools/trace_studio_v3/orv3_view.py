@@ -158,6 +158,7 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
         "scenario": pmeta.scenario,
         "anchor": pmeta.anchor,
         "anchor_occ": pmeta.anchor_occ,
+        "join_verdict": join["join_verdict"],
         "verdict": join["verdict"],
         "load_stretch": join["load_stretch"],
         "dims": dims,
@@ -175,7 +176,7 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
     if not quiet:
         print(f"baked {len(frames)} columns ({n_diff} diffs, {manifest['n_gaps']} gaps) "
               f"-> {out_dir}")
-        print(f"  verdict: {manifest['verdict']}   dims: {dims}   "
+        print(f"  join: {manifest['join_verdict']}   dims: {dims}   "
               f"load-stretch: {manifest['load_stretch']:+d}")
         if manifest["worst"]:
             print(f"  worst:   offset {worst['offset']}  gt8={worst['gt8']}px")
@@ -235,7 +236,7 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path,
         frames.append(fr)
     manifest = {
         "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
-        "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
+        "join_verdict": join["join_verdict"], "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
         "port_container": _winpath(pside.entry / "v3cap.bin"),
         "retail_container": _winpath(rside.entry / "v3cap.bin"),
         # Windows-local notes file the viewer reads+writes (UNC paths aren't writable
@@ -263,7 +264,7 @@ def main() -> int:
     if args.native:
         out = args.out or (args.port_entry / "view.json")
         m = write_view_json(args.port_entry, args.retail_entry, out)
-        print(f"wrote {out} — {m['count']} columns ({m['n_gaps']} gaps), {m['verdict']}, "
+        print(f"wrote {out} — {m['count']} columns ({m['n_gaps']} gaps), {m['join_verdict']}, "
               f"dims {m['dims']}")
         return 0
     out = args.out or (args.port_entry / "view")

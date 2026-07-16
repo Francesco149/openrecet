@@ -110,7 +110,9 @@ def verify_counts(d: Path, n: int | None = None, *, label: str = "",
         print(f"  BIT-EXACT: {npass} / {total}   |   FAILED: {nfail}")
         if first:
             print(f"  first failure: {first}")
-        print(f"  VERDICT: {'ALL FRAMES BIT-EXACT *** GO ***' if (nfail == 0 and npass == total and total > 0) else 'DIVERGENT'}")
+        replay = "REPLAY_EXACT" if (nfail == 0 and npass == total and total > 0) else "REPLAY_DIVERGENT"
+        print(f"  REPLAY VERDICT: {replay}" + ("  *** GO ***" if replay == "REPLAY_EXACT" else ""))
+        print("  (same-side recorder/replayer fidelity — NOT a cross-target parity claim)")
         print("=" * 48)
     return npass, nfail, total
 

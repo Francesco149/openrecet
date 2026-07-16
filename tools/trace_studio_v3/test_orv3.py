@@ -589,12 +589,28 @@ def test_load_side() -> None:
     print("  OK load_side: parse-once meta+container+index; as_side idempotent")
 
 
+def test_classify_join() -> None:
+    # zero gaps ⇒ JOIN_COMPLETE + the retained ALIGNED alias. classify_join takes
+    # NO pixel/draw input, so two identity-matched captures read JOIN_COMPLETE no
+    # matter how their pixels differ — a JOIN can never be read as a parity pass.
+    full = orv3_sync.classify_join([{"port": 0, "retail": 0}], [], [])
+    assert full["join_verdict"] == "JOIN_COMPLETE", full
+    assert full["verdict"] == "ALIGNED", full                 # deprecated alias, byte-stable
+    assert "PASS" not in full["join_verdict"] and "PASS" not in full["verdict"]
+    # a real honest gap ⇒ JOIN_PARTIAL + the PARTIAL alias
+    part = orv3_sync.classify_join([{"port": 0, "retail": 0}], [{"key": ["A", 1, 5]}], [])
+    assert part["join_verdict"] == "JOIN_PARTIAL", part
+    assert part["verdict"].startswith("PARTIAL"), part
+    print("  OK classify_join: JOIN_COMPLETE/JOIN_PARTIAL + retained ALIGNED/PARTIAL alias (pairing-only)")
+
+
 def main() -> int:
     test_parse()
     test_tex_info()
     test_rt()
     test_slice()
     test_join()
+    test_classify_join()
     test_extent_lookup()
     test_merge_keys()
     test_multi_anchor_identity()
@@ -605,8 +621,8 @@ def main() -> int:
     test_material_agg()
     test_load_side()
     print("OK: orv3 container parse + tex_info + RT ops + slice pull-forward + sync-by-identity join "
-          "+ cache lookup + view timeline merge + multi-anchor identity + draw semantics "
-          "+ material_agg bake + parse-once handoff")
+          "+ JOIN_COMPLETE/PARTIAL verdict split + cache lookup + view timeline merge + multi-anchor identity "
+          "+ draw semantics + material_agg bake + parse-once handoff")
     return 0
 
 
