@@ -1,5 +1,10 @@
 # Deep audit — methodology, tooling, direction (2026-06-09)
 
+> **FOLLOW-UP 2026-07-16:** this remains the dated strategy/forensics record. Its
+> open T4–T10 list and model-specific working agreement are superseded for live
+> execution by `../plans/parity-evidence-roadmap.md` and `../AGENT-WORKFLOW.md`.
+> Landed results and historical measurements below are preserved unchanged.
+
 > Commissioned by the user; authored by Fable 5 with five fan-out recon agents over the
 > whole repo (tools inventory, src/build/FP, scenarios/CI/velocity, coverage scale, retail
 > exe forensics). **Purpose: settle the strategic questions durably so future sessions

@@ -45,6 +45,9 @@ jobs:
       - name: Build (mingw cross-compile)
         run: nix develop .#ci --command make -C src
 
+      - name: Gate — current documentation links and conventions
+        run: nix develop .#ci --command python3 tools/ci/check_docs.py
+
       - name: Gate — no embedded proprietary bytes
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py build/openrecet.exe
 

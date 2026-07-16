@@ -1,4 +1,4 @@
-# OpenRecet — Claude entry point
+# OpenRecet — agent entry point
 
 C reimplementation of **Recettear** (EasyGameStation, 2007) as a drop-in Win32+DirectX8
 replacement. Goal: **full structural parity with the retail engine, matched 1:1 frame by
@@ -14,6 +14,7 @@ truth, not the uncommitted auto-memory.**
 → `docs/FRONT.md` (the ONE hand-edited "current front") which is injected into
 `docs/STATUS.md` (derived). Active multi-session plan: `docs/plans/`. Do **not** trust
 point-in-time memory snapshots (archived under `memory/archive/`) for current state.
+Long-horizon proof/coverage/tooling program: `docs/plans/parity-evidence-roadmap.md`.
 
 ## How we work here (conventions)
 - **Output-efficiency (TERSE MODE — added 2026-06-21; REVERTIBLE: `git revert` the commit or
@@ -29,9 +30,10 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   2. **Batch independent probes into ONE turn; front-load plans** (was 1.11 tool-calls/turn,
      89.8% single-tool ⇒ ~48k wasted re-orientation preambles). Don't serialize independent
      reads/greps/builds. The real ~10-18% lever.
-  3. **Delegate MECHANICAL + SEARCH to a Sonnet/Haiku sub-agent** (grep sweeps, measurements,
-     build/test runs, file-finding) — same reasoning ~5-12× cheaper/tok; reserve Opus
-     max-thinking for decomp/parity.
+  3. **Delegate MECHANICAL + SEARCH to R1/R2 workers** (grep sweeps, measurements,
+     build/test runs, file-finding); reserve R3/highest reasoning for decomp,
+     parity adjudication, schemas, and cross-subsystem decisions. Tier rules:
+     `docs/AGENT-WORKFLOW.md`.
   4. **Persist conclusions tersely** so future-me READS not RE-DERIVES (cross-session
      reasoning-compression — the real payoff of terse docs).
 - **LIVE-PROBE HARNESS (2026-07-09) — scout live BEFORE baking a trace.**
@@ -54,7 +56,7 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
      want to port must be ON SCREEN in the capture. (Scout the behaviour LIVE first via the
      `openrecet` MCP when it's not yet in a trace — see the live-probe bullet above.)
   2. **ANALYZE** with the v3 tools to pinpoint the EXACT retail behaviour: the **d3d
-     program** (`orv3_window … --launch` viewer, `orv3_draws` per-draw tex/state/RT,
+     program** (`orv3_window … --view`, then the viewer shortcut; `orv3_draws` per-draw tex/state/RT,
      `orv3_shot` headless frame/draw render), the **call graph + game-state flow**
      (`--state`, `flow_diff --verdict`, `call_trace.jsonl`), cross-checked against the
      decompile/objdump. Ground every claim in a probe, not a guess.
@@ -71,6 +73,9 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   RE findings, per-function notes) → `docs/`. Keep the `~/.claude` auto-memory **thin and
   pointer-only**. Live status is derived: `docs/FRONT.md`→`STATUS.md`, and the
   `port-ledger`. Don't hand-track status in prose.
+  **Ledger caveat (2026-07-16):** current `verified`/`ported` labels are source-marker
+  inventory, not global runtime proof. Use scenario-scoped evidence; migration plan:
+  `docs/plans/parity-evidence-roadmap.md` EP-06.
 - **Confirmed-1:1 is authoritative.** `docs/findings/confirmed-parity-ledger.md` records
   parity a human verified vs retail. A tool/decompile "divergence" on a confirmed-1:1 item
   is a **lead to investigate**, NOT an assumed regression (may be benign-structural, a
@@ -123,21 +128,21 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, localhost:8777) — push
   images/montages/comparisons with the diff, never eog/explorer. Healthz-check + start it
   if down at session start. **But if it's inspectable in the open Trace Studio v3 viewer,
-  remind the user it's there (or to re-`--launch` it) instead of pushing a feed montage that
+  remind the user it's there (or rebuild the manifest with `--view`) instead of pushing a feed montage that
   duplicates what they can already scrub (see the Trace Studio bullet).**
 - **The parity loop is Trace Studio v3 — iterate on the SAME window, never one-off captures
   or `/tmp` pixel-diffs (standing workflow, like the llm-feed). v2 is RETIRED 2026-06-13**
-  (archived under `tools/trace_studio/`, not deleted — see `plans/trace-studio-v3.md`; only
+  (archived under `tools/trace_studio/`, not deleted — see `docs/plans/trace-studio-v3.md`; only
   fall back on a real blocker). Tooling lives in **`tools/trace_studio_v3/`**; deep how-to is
   that plan. **One command:** `nix develop --command python3 tools/trace_studio_v3/orv3_window.py
-  <scenario> --window OFFSET:COUNT --launch` — drives ONLY what's missing/stale (retail is
+  <scenario> --window OFFSET:COUNT --view` — drives ONLY what's missing/stale (retail is
   captured ONCE, content-addressed-cached, then SLICED for any sub-window — zero re-drive; the
   port is re-driven only when `build/openrecet.exe` is newer), JOINs port↔retail by **stored
   identity** `(anchor, offset)` (no hand frame-matching, load-stretch-immune — the v2 sync
-  whack-a-mole is gone), and opens the **native viewer** (`viewer/viewer.exe` — port|retail|diff
+  whack-a-mole is gone), and writes the native-viewer manifest (`viewer/viewer.exe` — port|retail|diff
   replayed live from the captured d3d command stream + scrub + diff ribbon + per-frame d3d state).
-  After a port fix, re-run the SAME `orv3_window … --launch` (slices cached retail, re-drives only
-  the port); the user refreshes/re-opens the viewer — you both inspect the same identity-aligned
+  After a port fix, re-run the SAME `orv3_window … --view` (slices cached retail, re-drives only
+  the port); the user refreshes/re-opens the viewer from the shortcut — you both inspect the same identity-aligned
   frames. **Verify via the viewer's OWN replayed/identity-synced panels + `pairs.json`, never a
   `/tmp` diff you pair yourself.** **Shortcut:** the user has a desktop + Start-Menu
   **"OpenRecet Trace Studio"** launcher (a native Windows batch `C:\openrecet-studio\open-studio.bat`,
@@ -154,7 +159,7 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   **ALWAYS read them FIRST** via `orv3_notes.py <scenario> --render [--feed]` (replays the flagged
   frame port|retail|diff, crops to the box, → feed so you SEE it) — they're the authoritative
   per-scenario gap list, often sharper than the docs. For anything inspectable in the viewer just
-  remind the user it's open (or to `--launch`); reserve the llm-feed for one-off non-viewer visuals.
+  remind the user it's open (or rebuild its manifest with `--view`); reserve the llm-feed for one-off non-viewer visuals.
   Caveat: the port-exe singleton mutex stalls *parallel* drives (one retail at a time).
 - **CHASE render-program divergences — v3 sees what v2 (pixels-only) couldn't.** The viewer's
   **draw-program panel** flags when the PIXELS are 1:1 but the RENDER PROGRAM differs — draw
@@ -184,7 +189,8 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   `--rng-drill` — reads the v3 traces unchanged). The 4 once-per-frame state VAs are window-gated;
   a v3 drive does NOT auto-load the heavy full call-graph (lean by default). `docs/flow-trace-cheatsheet.md`.
 - **Commits:** **commit in logical units as you go, without waiting to be asked** (user
-  policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
+  policy 2026-06-05); an exact AI co-author trailer is optional via
+  `OPENRECET_AI_COAUTHOR` (never hard-code/forge a model identity); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
   **No branches** — commit to master (until nightly users matter).
 - **Session hygiene — suggest `/clear` at milestone breakpoints + orient fast.** When a
@@ -236,7 +242,7 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   `docs/trace-workflow.md`. **Flow-trace cheatsheet (THE state-comparison tool):**
   `docs/flow-trace-cheatsheet.md`.
 - **Render/parity debugging tools:** START at the **Trace Studio v3 viewer** —
-  `tools/trace_studio_v3/orv3_window.py <scenario> --window OFFSET:COUNT --launch` (port|retail|diff
+  `tools/trace_studio_v3/orv3_window.py <scenario> --window OFFSET:COUNT --view` (port|retail|diff
   replayed live + identity-synced + diff ribbon + the draw-program panel; add `--state` for the
   game-state panel; flag gaps as notes → `orv3_notes.py <scenario> --render`). Deep how-to:
   `docs/plans/trace-studio-v3.md`. `tools/flow_diff.py` (`--verdict --align-field db054` RNG/phase
@@ -253,7 +259,10 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Decompile/probe traps (read before porting a chip):**
   `docs/reference/decompile-gotchas.md` — the 17 burned-us-once gotchas (Ghidra FPU drops,
   enum value-vs-name, bit-pattern literals, probe timing, diff-before-theories).
-- **Orchestration / when to spawn sub-agents:** `docs/AGENT-WORKFLOW.md`.
-- **Active plan:** `docs/plans/`. **Strategic frame / tooling phases:** `docs/PLAN.md`,
-  `docs/harness-roadmap.md`. **Methodology/tooling audit (settled strategy verdicts +
+- **Orchestration / reasoning tiers / delegation:** `docs/AGENT-WORKFLOW.md`.
+- **Docs ownership/staleness:** `docs/DOCUMENTATION.md`.
+- **Active plan:** `docs/plans/`. **Project charter:** `docs/PLAN.md`.
+  **Long-horizon evidence/tooling program:** `docs/plans/parity-evidence-roadmap.md`.
+  **Historical harness phases:** `docs/harness-roadmap.md`.
+  **Methodology/tooling audit (settled strategy verdicts +
   ranked tooling roadmap T1–T12):** `docs/audits/2026-06-09-methodology-audit.md`.

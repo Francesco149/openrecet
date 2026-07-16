@@ -57,28 +57,31 @@ from the source, not hand-maintained marketing):
   status for all ~2,550 engine functions.
 - **[`docs/PROGRESS.md`](docs/PROGRESS.md)** — dated narrative changelog.
 
-At a glance right now: ~14% of the engine's non-thunk functions are
-touched (a few percent runtime-verified against the original). Once the
-game is mostly playable this section will turn into a short "known issues"
-list instead.
+The generated status is the only authoritative source for changing counts.
+Its current function labels are implementation/source-instrumentation inventory,
+not a claim that every labelled function has full behavioral proof; the proof-ledger
+migration is scoped in
+[`docs/plans/parity-evidence-roadmap.md`](docs/plans/parity-evidence-roadmap.md).
 
 ## How it's verified
 
 Correctness is measured as **behavioural parity against the original
 binary**, not guesswork:
 
-- **Per-draw Direct3D state traces** captured from both the port and
-  retail (via Frida) and diffed draw-call by draw-call — this is how the
+- **Direct3D 8 command-stream traces** captured from both the port and
+  retail and replayed/diffed draw-call by draw-call — this is how the
   shop's brightness, window blinds, and god-rays above were pinned to 1:1.
 - **Call-trace diffing** — per-frame function-call sequences compared
   between port and retail to catch missing or divergent logic.
 - **Frame captures** — port-vs-retail image comparisons at fixed frames.
-- **2,900+ host unit tests** for the portable decoders and game logic,
-  run under AddressSanitizer + UndefinedBehaviorSanitizer on every
-  C change.
+- **A large host unit suite** for portable decoders and game logic, run
+  under AddressSanitizer + UndefinedBehaviorSanitizer on C changes.
 
-Methodology lives in [`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md)
-and [`docs/harness-roadmap.md`](docs/harness-roadmap.md).
+Methodology lives in
+[`docs/plans/parity-evidence-roadmap.md`](docs/plans/parity-evidence-roadmap.md),
+the operational trace guide in
+[`docs/trace-workflow.md`](docs/trace-workflow.md), and delegation conventions in
+[`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md).
 
 ## Building & running
 
@@ -99,7 +102,7 @@ reference binary all of this targets is documented in
 [`docs/reference/vendor-exe.md`](docs/reference/vendor-exe.md).
 
 Pre-built nightly binaries are published as a rolling
-[`nightly`](../../releases/tag/nightly) pre-release (unsigned; bring your
+[`nightly`](https://github.com/Francesco149/openrecet/releases/tag/nightly) pre-release (unsigned; bring your
 own Recettear).
 
 ## Repository layout
@@ -113,10 +116,11 @@ tools/    build/run harness, extractors, Frida capture, CI scripts
 
 ## Support & how this is made
 
-This project's reverse-engineering and documentation is **done entirely
-by AI** (Anthropic's Claude), directed by the maintainer. That's both an
-honest disclosure and, hopefully, an interesting demonstration of what
-AI-driven RE can do — the methodology is meant to be reproducible.
+This project's reverse-engineering, implementation, and documentation are
+**AI-assisted and maintainer-directed**. Different reasoning systems may be used for
+architecture, implementation, searches, and verification; the repository records
+evidence and reasoning tiers rather than presenting one model name as permanent
+provenance. The methodology is intended to be reproducible and auditable.
 
 If you'd like to support the work: **[ko-fi.com/lolisamurai](https://ko-fi.com/lolisamurai)**.
 Donations go toward the AI compute that does the work — roughly **€240 ≈

@@ -1,122 +1,179 @@
-# Debugging render DEPTH + PHASE divergences (the playbook)
+# Render depth and phase debugging with Trace Studio v3
 
-How the Tear face-glow + foot-dust occlusion bugs were found (2026-06-04), turned
-into a repeatable workflow. Both were the **same root class** — a per-pass
-projection `z_far` mismatch — and neither was visible in a plain render-state diff.
-Read this before iterating on a billboard-occlusion or "wrong sprite layer" bug.
+> **Status:** current operational playbook  \
+> **Last verified:** 2026-07-16  \
+> **Historical v2 procedure:** `archive/render-depth-debugging-v2-2026-06.md`
 
-## The one-paragraph lesson
+Use this when a billboard, character, particle, shadow, mesh, or render-target effect has
+the wrong overlap/layering. The recurring Recettear-specific trap is that identical
+world coordinates and identical Z render states can still produce different depth:
+passes deliberately swap projection matrices and therefore map the same view-space Z to
+different normalized-device depth.
 
-When a translucent/additive billboard (wing-glow, dust, sparkle, overlay) is
-**occluded when it should draw over** (or vice-versa), the cause is usually **not**
-ZWRITE/ZFUNC/ALPHATEST or draw order — those typically already match retail and a
-plain `d3d_state_diff.py diff` says "ok". The cause is the **projected depth**:
-two billboards at the *same world XYZ + scale* land at different NDC-z purely from
-which `z_far` was live at each draw (this engine layers passes by swapping the
-PROJECTION — near meshes 350, char body 1450, chr-walker glow 2000, records-A
-effects 500). **Compute and compare the per-draw NDC-z, not the Z-state.** A
-frequent port trigger is a stubbed camera/stage global left at 0 that only feeds a
-computed `z_far` (it shifts depth ordering while leaving screen X/Y untouched).
-See engine-quirks §93, [[feedback_zfar_depth_footgun]].
+## 1. Establish a stable logical frame
 
-## Step 1 — capture a SYNCED port↔retail d3d-trace
-
-Same scenario, same anchor-relative `{caprange}` window → captures align by index
-(Recette's walk is 1:1, so the same cap index = the same sim instant). Use a small
-window for depth, a LONG one for phase.
+Capture a small state-enabled v3 window:
 
 ```sh
-# PORT (writes frames/ + d3d_trace.jsonl + the work-trace it drove):
-python3 tools/export_trace.py tests/scenarios/<scn>/trace.jsonl \
-    --caprange <start>,<count> --run-dir runs/<x>/port --d3d-trace
-
-# RETAIL (reuse the SAME work-trace so the caprange window matches):
-python3 tools/frida_capture.py --remote cutestation.soy:27042 \
-    --run-dir runs/<x>/retail --input-segtrace runs/<x>/port/trace.work.jsonl \
-    --d3d-trace --turbo --silent-audio --force-resolution 1024x768 --max-frames 4000
+nix develop --command python3 tools/trace_studio_v3/orv3_window.py \
+  <scenario> --anchor <ANCHOR> --window <OFFSET>:<COUNT> --state --view
 ```
 
-Add `--d3d-trace-verts` to BOTH commands to also capture per-draw vertex bytes,
-then `tools/render_diff.py --explain` names the first divergent vertex *field*
-(`vertex 2 POSITION.z: retail … port …`) on the aligned draws — the
-binary-independent complement to `depthdiff` (which matches by world-pos).  See
-`docs/findings/render-diff.md` §`--explain`.
+Requirements before diagnosing rendering:
 
-cap_NN ⇒ absolute frame = (first captured frame) + NN, on each side independently.
+- input edge and anchor occurrence correspond;
+- state/RNG/phase at the chosen pair is either equal or the exact difference is known;
+- `pairs.json` gives the port and retail kept-frame indices;
+- both sides pass same-side replay verification;
+- an RT-using frame is viewed through history replay, not isolated per-frame state.
 
-## Step 2 — find the bug: `d3d_state_diff.py depthdiff`
+A complete identity join is correspondence only. Do not infer equal pixels/draws/state.
 
-This matches retail↔port draws by **(world-pos, blend, ZWRITE, prim_count)** —
-binary-independent, no VA alignment needed — and flags `z_far` mismatches and NDC-z
-order inversions. It would have found BOTH bugs in one command:
+## 2. Localize the painting draw
+
+In the native viewer:
+
+1. Select the first identity-paired divergent frame.
+2. Use pixel-pick on the wrong region to identify the draw.
+3. Toggle/solo the draw and inspect the draw-program/material panel.
+4. Record port/retail kept-frame indices, draw indices, texture, geometry hash, blend,
+   Z state, alpha test, and transform context.
+
+Headless draw-list comparison:
 
 ```sh
-python3 tools/d3d_state_diff.py depthdiff \
-    runs/<x>/retail/d3d_trace.jsonl runs/<x>/port/d3d_trace.jsonl \
-    --frame-a <retail_abs> --frame-b <port_abs>
-#   pos=(-0.30,0.00,9.50) SRCALPHA/INVSRCALPHA pc16: ZFAR retail=1450 port=3025 ...
-#   pos=(-0.33,0.32,9.61) SRCALPHA/INVSRCCOLOR pc2:  ZFAR retail=500  port=2000 ...
+nix develop --command python3 tools/trace_studio_v3/orv3_draws.py \
+  <port-v3cap.bin> <port-frame-index> \
+  <retail-v3cap.bin> <retail-frame-index> \
+  --material --json
 ```
 
-Drill into one frame with `depth` (sorted near→far, `--nm` resolves the port
-ret_va → function, `--near-pos X,Y,Z[,R]` filters to an actor):
+Use `--list` for the whole ordered program and `--verts <DRAW>` to inspect captured
+geometry for one draw. A material-aligned result does not prove matrices or pixels.
+
+## 3. Compare actual matrices
+
+`orv3_xform.py` decodes the exact matrices passed to D3D8:
 
 ```sh
-python3 tools/d3d_state_diff.py depth runs/<x>/port/d3d_trace.jsonl \
-    --frame <abs> --near-pos 0.6,3.1,9.35,0.6 --nm build/openrecet.exe
+nix develop --command python3 tools/trace_studio_v3/orv3_xform.py \
+  <port-v3cap.bin> --frame <port-index> \
+  --diff <retail-v3cap.bin> --frame-b <retail-index>
 ```
 
-## Step 3 — find WHO sets the wrong projection
+It reports:
 
-The raw trace logs the `ret_va` of every `SetTransform(PROJECTION)`. Find the
-setter live at the bad draw, map it to a function (port: `nm build/openrecet.exe`;
-retail: the engine VA → the decompile under `docs/decompiled/by-address/`), then
-objdump the retail setter to read the exact `z_far` constant/global it builds with:
+- VIEW eye/forward/up;
+- PROJECTION field-of-view, aspect, near, and far;
+- WORLD matrices and counts;
+- raw element deltas.
+
+If a draw looks wrong while camera globals appear equal, trust the captured D3D matrix
+first. Identify the final `SetTransform` before that draw, then trace its engine owner.
+
+For D3DX right-handed perspective matrices used here:
+
+```text
+p10 = -z_far / (z_far - z_near)
+p14 = z_near * z_far / (z_near - z_far)
+```
+
+Compute clip/NDC depth using the captured WORLD·VIEW·PROJECTION and vertex. Do not compare
+world Z directly. Larger `z_far` can move a billboard enough to invert a near-tied
+`LESSEQUAL` test.
+
+## 4. Render frame and draw prefixes
 
 ```sh
-objdump -d --start-address=0xVA --stop-address=0xVA+0x80 vendor/unpacked/recettear.unpacked.exe
-# the D3DXMatrixPerspectiveFovRH args are fld/fstps'd to the stack before the call;
-# z_far is the FIRST pushed float (cdecl right-to-left: out, fov, aspect, near, zf).
+# Full kept frame.
+nix develop --command python3 tools/trace_studio_v3/orv3_shot.py \
+  <scenario>:retail --frame <index> --out runs/_shot/retail.png
+
+# Clear, then progressive draw prefixes.
+nix develop --command python3 tools/trace_studio_v3/orv3_shot.py \
+  <scenario>:retail --frame <index> --draws --out runs/_shot/draws.png
 ```
 
-`z_far` ↔ `PROJ[10]` for this engine (RH, near=1.0): `z_far = p10/(1+p10)`,
-`p10 = -z_far/(z_far-1)`. Larger z_far → NEARER ndcz.
+Draw-prefix isolation answers which draw paints a region. For render-target samples,
+isolated per-frame/prefix replay may lack content produced in an earlier frame; use the
+history-enabled native viewer/full-frame path and inspect the RT program.
 
-## Phase divergences (anim flap / hover-bob / RNG spawn)
-
-Different problem, same trace. The port runs Tear's companion anim through the
-~1540-frame stubbed intro, so its flap/bob/RNG phase at free-roam is offset from
-retail (the deferred "chase phase later"). The trace already fingerprints phase:
-**prim_count = sprite anim cell count, world-Y = hover-bob, draw count = RNG-driven
-spawn count.** Capture a LONG window (`--caprange <s>,120`) on both sides, then:
+## 5. Inspect render targets
 
 ```sh
-python3 tools/d3d_state_diff.py phase \
-    runs/<x>/retail/d3d_trace.jsonl runs/<x>/port/d3d_trace.jsonl \
-    --near-pos 0.6,3.1,9.35,0.6 --what pc
-# prints each side's per-frame [pc / y / ndcz / count], then cross-correlates the
-# chosen metric and reports "port is +N frames vs retail" — the phase offset.
+nix develop --command python3 tools/trace_studio_v3/orv3_rt.py \
+  <v3cap.bin> <frame-index> --full
+
+nix develop --command python3 tools/trace_studio_v3/orv3_rt.py \
+  <v3cap.bin> --scan
 ```
 
-`--what pc` aligns the wing-flap cycle, `--what y` the hover-bob, `--what count`
-the RNG spawn cadence. Once you know the offset N, either (a) compare retail frame
-i against port frame i−N for a phase-clean pixel diff, or (b) fix the offset at the
-source (align the anim start to free-roam onset / gate the tick to the controllable
-state — [[project_next_char_controller]], engine-quirks §71/§81). Per-frame
-`px/py/anim/oct/rng` are also in each run's `meta.jsonl` (player-pos-log) if you
-need the sim-side state rather than the draw-side fingerprint.
+The dump shows `SetRenderTarget`, `CopyRects`, clears, draws per target, and draws sampling
+an RT. Trace Studio v3 records/replays these operations; history replay is required when
+the target was populated in an earlier kept frame. If the RT method census reports an
+unsupported call, treat capture as incomplete and stop.
 
-## Don't repeat these dead ends
+## 6. Attribute the depth divergence
 
-- **Toggling the char/quad ZWRITE/ZFUNC/ALPHATEST.** It was a no-op for the glow
-  and the dust (both already matched retail). `OPENRECET_NO_CHAR_ZWRITE` only
-  un-occludes the trail sparkles, not the real divergence.
-- **Hunting a 3D-mesh occluder for the dust** (the old Phase-4 theory). The dust's
-  own `z_far` was wrong; there was no missing mesh.
-- **Iterating on side-by-side screenshots.** Phase noise (anim/RNG) swamps the
-  real diff over the body. Compute NDC-z from the trace; for pixels, phase-align
-  first ([[feedback_zoom_diff_render_debug]]).
+Check in this order:
 
-Cross-refs: `engine-quirks.md` §93, `docs/findings/scene1-tear-visual-diffs.md`,
-`docs/findings/scene1-walk-dust.md`, `docs/plans/freeroam-render-depth-parity.md`,
-[[feedback_zfar_depth_footgun]], [[reference_parity_trace_walk_down_dense]].
+1. Different logical state/actor position/animation.
+2. Different draw order or missing/extra draw.
+3. Different vertex/geometry content.
+4. Different WORLD matrix.
+5. Different VIEW matrix.
+6. Different PROJECTION matrix (`z_near`, `z_far`, aspect, FOV).
+7. Different ZENABLE/ZWRITE/ZFUNC.
+8. Different alpha test or blend causing apparent—not geometric—occlusion.
+9. Different render-target history or inherited device state.
+10. Capture incompleteness/observer effect.
+
+Map the state-setting call to its engine owner with decompile/disassembly. Port the owner
+and restoration behavior, not an ad-hoc state toggle around the visually wrong draw.
+
+## 7. Phase and RNG are separate pillars
+
+Animation phase can change primitive count, sprite cell, hover position, particles, and
+draw count. Prove it from state:
+
+```sh
+nix develop --command python3 tools/flow_diff.py --verdict \
+  --align-field db054 --retail <retail-call_trace.jsonl> \
+  --port <port-call_trace.jsonl>
+```
+
+- `ALIGNED`: captured values/evolution match under the selected alignment.
+- `CONST-OFFSET`: candidate origin difference; verify every consumer and no drift.
+- `DRIFT`: real evolution/call-order difference.
+
+Equal RNG call count is insufficient; compare raw values and consumer order. Do not
+cross-correlate screenshots and call the result phase unless state proves a constant
+offset. On an actively ported trace, close or explicitly normalize every residual.
+
+## 8. Resolved example: foot dust and Tear glow
+
+Do not repeat the old 3D-mesh/ZWRITE hunt:
+
+- records-A dust/effects retail projection uses `z_far=500`; the old port used 2000;
+- character body retail projection uses the mapped camera/stage input and produced
+  `z_far=1450`; an old uninitialized port input produced 3025;
+- correcting the projection owners restored intended near-tie depth behavior;
+- the later foot-dust RNG-order repair made the visible dust sequence 1:1.
+
+Ground truth:
+
+- `findings/scene1-walk-dust.md`;
+- `findings/scene1-tear-visual-diffs.md`;
+- `findings/engine-quirks.md` §93.
+
+## 9. Completion gate
+
+A render-depth fix is done only when:
+
+- chosen state/input/RNG identities match;
+- draw order, geometry, material, and transforms meet the scenario contract;
+- same-host pixels pass at the affected frames;
+- nearby glow, shadows, particles, meshes, UI, and RT consumers have no regression;
+- the owner restores/inherits device state like retail;
+- evidence is reproducible on a second drive;
+- the finding/quirk and proof scope are persisted.

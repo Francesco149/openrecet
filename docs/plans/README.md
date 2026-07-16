@@ -1,34 +1,54 @@
-# docs/plans — index (status at a glance)
+# `docs/plans` — active-plan index
 
-One line per plan; the plan file's own header carries the detailed status. Done
-plans move to `archive/` (per archive-don't-delete). Strategy + the ranked
-tooling roadmap live in `../audits/2026-06-09-methodology-audit.md`.
+> **Status:** authoritative plan navigation
+>
+> **Last verified:** 2026-07-16
 
-## Active
+Current gameplay target lives in `../FRONT.md`; derived function/debt inventory lives in
+`../STATUS.md`. Plans describe durable scope and execution, not mutable headline counts.
+Completed/superseded plans move to `archive/` or remain explicitly marked
+done-as-scoped.
 
-| plan | one-liner |
+## Program-level
+
+| Plan | Status |
 |---|---|
-| `shop-display-roundtrip.md` | ACTIVE ARC — display interaction + pause save/quit/reload roundtrip (see FRONT for the live gap list) |
-| `town-map-port.md` | world-map mode 8: T1–T4 + tooltip landed, backlog CLOSED 2026-06-08; town scenes off the map are the follow-on |
-| `un-mvp-structural-parity.md` | the standing PORT-DEBT retirement strategy (registry: `../port-debt.md`) |
-| `freeroam-structural-parity.md` | master 77-fn free-roam work list from the live call-graph survey |
-| `freeroam-render-depth-parity.md` | phases 0–2 done; dust occlusion (char/dust depth relationship) still open |
-| `house-controller-unmvp.md` | foundation + chips 1–4 landed; remaining chips queued |
-| `house-player-controller.md` | W1 landed; W4 collision resolver blocked on furniture placement |
-| `execution-flow-trace.md` | core LANDED 2026-06-05; field coverage grows with every chip (the standing annotate-as-you-port loop) |
-| `tas-framework.md` | vision: grow anchor coverage until a whole playthrough replays deterministically |
-| `trace-studio-v2.md` | phases 0–4 COMPLETE; Phase 5 (New-Game cross-replay: intro-video force-skip + mid-load actor spawn) queued — hardest, last |
+| `parity-evidence-roadmap.md` | ADOPTED — long-horizon proof, state, coverage, capture, behavior-atlas, boundary, audio/timing, and CI program; contains R3/R2/R1 work packages |
+| `tas-framework.md` | VISION — deterministic full-playthrough trace/anchor framework; behavior-atlas work now develops the scalable form |
+| `un-mvp-structural-parity.md` | STANDING — systematic `PORT-DEBT` retirement strategy |
 
-## Done-as-scoped (kept here for the build log they carry)
+## Active gameplay/subsystem plans
 
-| plan | one-liner |
+| Plan | Status |
 |---|---|
-| `d7-mem-watch.md` | mem-watch tool BUILT + VALIDATED 2026-05-29; run it when a "no writer in decompile" hunt next comes up |
-| `e4-per-call-io-capture.md` | Tier 1 (stateful-leaf oracle injection) LANDED; Tiers 2–3 deliberately build-when-needed |
+| `shop-display-roundtrip.md` | ACTIVE ARC — display interaction plus pause save/quit/reload roundtrip; use `../FRONT.md` for the live gap |
+| `freeroam-structural-parity.md` | ACTIVE BACKLOG — free-roam function work list |
+| `freeroam-render-depth-parity.md` | DONE-AS-SCOPED REDIRECT — dust projection/occlusion resolved; obsolete mesh theory archived |
+| `house-controller-unmvp.md` | OPEN — foundation/chips landed; remaining controller chips queued |
+| `house-player-controller.md` | OPEN — movement/collision work; furniture-collision dependency remains |
+| `pause-menu.md` | OPEN BUILD LOG — broad render/navigation/save work landed; remaining debts tracked in source/ledger |
+| `town-map-port.md` | DONE-AS-SCOPED BUILD LOG — map mode landed; town facilities are separate follow-on work |
+| `rng-consumer-survey.md` | STANDING INVESTIGATION — RNG consumer mapping and phase findings |
 
-## Archived (`archive/`)
+## Tool platform/build records
 
-| plan | outcome |
+| Plan | Status |
 |---|---|
-| `archive/public-release-detour.md` | DONE 2026-05-29 — asset-free exe, README/ko-fi, nightly CI |
-| `archive/esc-skip-event.md` | DONE 2026-06-02 — engine choice box + skip_event landed; the deferred FORCE_SKIP_AT golden was superseded by the TAS `{esc}` op |
+| `trace-studio-v3.md` | ACTIVE PLATFORM BUILD LOG — v3 is the parity front end; current open trust/proof gaps are EP/GX in the master roadmap |
+| `trace-studio-v2.md` | RETIRED REDIRECT — full record in `archive/trace-studio-v2.md` |
+| `execution-flow-trace.md` | DONE-AS-CORE / EXTENSIBLE — field coverage grows with each chip |
+| `d7-mem-watch.md` | DONE-AS-SCOPED USAGE — tool built/validated; historical build plan archived |
+| `e4-per-call-io-capture.md` | TIER 1 LANDED — later tiers folded into master roadmap CC workstream |
+
+## Archived
+
+| Plan | Outcome |
+|---|---|
+| `archive/trace-studio-v2.md` | retired v2 design/build record |
+| `archive/freeroam-render-depth-parity.md` | superseded dust/mesh-occluder investigation plan |
+| `archive/d7-mem-watch.md` | memory-watch construction log and stale first target |
+| `archive/public-release-detour.md` | asset-free executable, README/support, nightly CI |
+| `archive/esc-skip-event.md` | engine choice box and skip-event behavior |
+
+When a row changes status, update the plan header and this index in the same commit. Do
+not copy detailed live progress here.

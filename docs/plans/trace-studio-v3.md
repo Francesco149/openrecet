@@ -1,8 +1,17 @@
 # Trace Studio v3 — "capture the render program, not its output"
 
-**Status:** DESIGN / de-risking (2026-06-12). Built in isolation; **v2 stays the
-working tool until v3 is proven and archived** (user constraint). This doc is the
-canonical v3 plan. Experiments live in `runs/studio-v3-experiments/`.
+> **Status:** ACTIVE PARITY PLATFORM; core capture/replay/viewer landed and v2 retired
+>
+> **Last status correction:** 2026-07-16
+>
+> **Operational guide:** `../trace-workflow.md`
+>
+> **Open preservation-grade proof/capture gaps:**
+> `parity-evidence-roadmap.md` EP and GX workstreams
+
+This file is the detailed v3 design/build log. Early entries below retain their dated
+“design/de-risking” wording as history; do not read them as current platform status.
+Experiments live in `runs/studio-v3-experiments/`.
 
 **P0 ✅ GO (2026-06-12, `65bcdd7`) — the load-bearing risk (R1) is CLEARED.** A
 shared proxy `d3d8.dll` loaded into the real port, captured the full call stream +

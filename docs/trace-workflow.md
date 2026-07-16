@@ -1,328 +1,306 @@
-# Trace workflow — the canonical reference for frame-by-frame TAS work
+# Trace workflow — current deterministic parity loop
 
-This is the single operational doc for trace work on openrecet. If you want the
-**why / where it's going**, see `docs/plans/tas-framework.md` (the vision). This
-doc is the **how**.
+> **Status:** authoritative operational guide  \
+> **Last verified:** 2026-07-16  \
+> **Renderer workflow:** Trace Studio v3  \
+> **Legacy v2 record:** `archive/trace-workflow-v2-2026-06.md`
 
-A *trace* is a deterministic input recording the engine can replay bit-for-bit.
-Replay is anchored to in-engine **events** (anchors), not absolute frame numbers,
-so it survives the huge run-to-run boot/load timing jitter (a new-game load that
-takes 6 frames live takes ~2700 under `--turbo`). Two replays of the same
-anchored, RNG-pinned trace are bit-identical.
+A trace is an exact input program segmented by semantic engine anchors. The same trace
+runs against the port and retail executable, with save state and selected
+nondeterministic origins controlled. Trace Studio v3 captures the D3D8 command program
+once, pairs frames by stored logical identity, and replays both sides in a native viewer.
 
----
+The trace is the experiment. The proof contract determines what the experiment proves.
 
-## Trace Studio — the iterate-on-a-trace tool (`tools/trace_studio.py`)
+## 1. Fast paths
 
-The human-facing front end for "record a long trace → tweak it until it plays
-1:1 on BOTH sides → point Claude at a sub-region → repeat." Three subcommands;
-it reuses `export_trace`/`frida_capture`/`flow_diff`/`pixel_diff` underneath.
-
-**Architecture (v2, `docs/plans/trace-studio-v2.md`).** The logic lives in the
-`tools/trace_studio/` **package** (`model/` ops·segments·timeline·session ·
-`drive/` caps·port·retail·runner · `transport/` convert·encode · `analysis/`
-pixeldiff·verdict·state · `edits/` · `record/` · `server/` · `cli`).
-`tools/trace_studio.py` is a thin **launcher** kept for the documented command + the
-server's capture spawn — the `.py` file and the `trace_studio/` package coexist on
-purpose (a directory shadows a same-named `.py` for imports, so running the file by
-path still works while `import trace_studio` resolves to the package). The alignment
-core (`model/segments.py`) is a Python port of `trace_studio_web/align.mjs`, kept in
-lockstep by a golden cross-check (`tools/test_trace_studio_segments.py` runs a shared
-fixture through both). `EngineCaps` (`drive/caps.py`) probes the built exe for the
-D1/D2 flag tokens and degrades gracefully on an older exe.
+### Drive an existing scenario
 
 ```sh
-# 1. CAPTURE a window on both sides (turbo, concurrent) → scrub videos + diff +
-#    the phase/RNG verdict. Reads the {caprange}/{calltrace} from the trace.
-nix develop --command python3 tools/trace_studio.py capture <trace|scenario> \
-    --target both --call-trace [--session NAME] [--caprange S,C]
-
-# 2. SERVE the scrubbing editor (port|retail|diff videos in lockstep, per-frame
-#    state overlay that highlights port↔retail divergence, anchor track, verdict
-#    panel, mark buttons). Performant at thousands of 60fps frames — one ranged
-#    video stream per panel, not N×1MB PNGs.
-nix develop --command python3 tools/trace_studio.py serve --session NAME
-#    → http://127.0.0.1:8778/?session=NAME
-#    nav ←/→ ±10 · ,/. ±1 · space play · 1/2/3 toggle panels · drag-box → crop ref
-#    mark: P pin-phase · R pin-RNG · A add-anchor · F feature  (POST → edits.jsonl)
-
-# 3. APPLY the marks: auto-insert {phasepin}/{rngseed} into the trace at the
-#    marked frames + emit worklist.md (frame + db054/rng/crop context) for the
-#    anchor/feature/note marks. --auto-pin also proposes pins from the verdict
-#    (db054 CONST-OFFSET → {phasepin}; rngcalls DESYNC → {rngseed}).
-nix develop --command python3 tools/trace_studio.py apply NAME [--auto-pin] [--dry-run]
+nix develop --command python3 tools/scenario-test.py <scenario> --target both
 ```
 
-**The loop (fully in-browser, self-service):** the serve UI closes the whole loop
-so you can iterate without the CLI — **record → ▶ view in studio → mark RNG/phase
-pins (P/R) → ✓ apply pins → ⟳ re-capture (auto after apply) → re-view → repeat**
-until the verdict is PHASE-CLEAN / the diff is black. Each session has its OWN
-editable **working trace** (`<session>/edit.trace.jsonl`) that pins land on (`apply`
-never touches a committed scenario — it refuses to edit anything outside the session
-dir), and re-captures reuse it (`--reset-trace` rebuilds from source). Marks are
-client-side: re-press a kind at the same frame to toggle it off, ✕ to delete, "clear
-all" to reset. When a trace is perfect, hand Claude its `edit.trace.jsonl` path.
-Capture/re-capture run as tracked background subprocesses (status in the iterate
-panel); the session-picker is a fuzzy filter.
+Add `--call-trace` only when the scenario or investigation needs flow data. The harness
+owns input replay, anchors, save virtualization, process cleanup, resolution, and target
+layout. Do not manually compose `run-openrecet.sh` and `frida_capture.py` for paired
+scenario runs.
 
-**Cross-target caveat:** a recording that includes the **prologue** (NEW_GAME +
-CONV_POSE/TEXT_ANIM dialogue, ESC-skips) can't replay on the port — the port's
-prologue auto-completes with a *different* anchor sequence, so the `{wait}` chain
-desyncs and the window is never reached (0 frames). For port↔retail comparison,
-record a **Continue/Load** trace (load a save → straight to HOUSE free-roam, no
-prologue) — both sides reproduce the load anchors (LOADING_START/END, HOUSE_FREEROAM)
-identically. See [[reference_retail_trace_recorder]] (cross-target replay limits).
+### Capture and inspect a v3 window
 
-**Recording a trace (no incantation to remember):** the studio's **record panel**
-(top-left in `serve`) frida-attaches to the running retail game and records by
-hand — get Recettear to the **title** via Steam first, click *start*, play, *stop*
-writes `runs/recordings/<name>.raw.jsonl`. It owns the subprocess in its own
-process group and tears it down on stop / server exit / orphan-on-next-start, so it
-can't leave a stray capture process. The CLI equivalent is
-`./tools/record-trace.sh [name]` (self-re-execs into the dev shell). Both wrap
-`frida_capture.py --record-trace` (workflow B). Distil the result with
-`tools/distill_trace.py <raw> --anchor-segments` then feed it to `capture`.
+```sh
+nix develop --command python3 tools/trace_studio_v3/orv3_window.py \
+  <scenario> --anchor HOUSE_FREEROAM --window 120:240 --state --view
+```
 
-Outputs land under `runs/trace-studio/<session>/` (`session.json` manifest,
-`{port,retail,diff}.mp4`, `state.jsonl`, `edits.jsonl`, `worklist.md`). The
-**v2 `session.json`** is a v1 superset + `schema_version: 2` + a `timeline` — an
-ordered list of `gameplay` segments and zero-frame `load_seam` entries (each load
-reconstructed from the `LOADING_START/END` anchor span, with per-side tick counts);
-the old web UI keeps reading the same top-level fields (the SPA that consumes
-`timeline` is Phase 4), and v1 sessions still open (migrated in memory to one
-gameplay segment). **`--suppress-loads` is on by default** (D1): the turbo-stretched
-load captures zero frames, collapsing to a seam (auto-degrades on a pre-D1 exe;
-`--no-suppress-loads` to capture load frames). The scrub videos are all-intra h264
-(every frame a keyframe → frame-exact seek); bulk PNGs are kept by default
-(`--prune-frames` to drop them on long traces; an exact re-diff of a marked window
-re-captures just that window). **Retail sizing:**
-turbo load-stretches anchors late (HOUSE_FREEROAM port ~475 vs retail ~14285), so
-`--retail-max-frames` defaults to 22000 for HOUSE windows; the port side reaches
-the window early (`--port-max-frames` 4000). The two sides are renumbered to a
-shared 0-based anchor-relative index so `port/frame_00042 ⟷ retail/frame_00042`.
+`--view` writes the native viewer manifest and updates the installed “OpenRecet Trace
+Studio” shortcut without launching a blocking UI process. Use `--launch` only when an
+interactive launch is explicitly wanted.
 
----
+The command:
 
-## The two workflows
+1. validates/builds the requested window;
+2. reuses a content-addressed retail capture when valid;
+3. re-drives stale/missing port capture;
+4. verifies each side replays its own reference;
+5. joins port and retail by `(anchor, occurrence, offset)`;
+6. writes `pairs.json` and optionally `view.json`.
 
-### A) I author a synthetic trace, push it, iterate
+Important: current `ALIGNED`/future `JOIN_COMPLETE` means the identities paired. It does
+not prove cross-target pixels, draws, state, audio, or saves equal. Until
+`plans/parity-evidence-roadmap.md` EP-05 lands, inspect and record those pillars
+explicitly.
 
-1. Write/derive a `.jsonl` segtrace (ops below). For free-roam work, the proven
-   boot prefix is the `house-wall-collide` scenario (`tests/scenarios/house-wall-collide/trace.jsonl`)
-   — it A-spams title→new-game and the prologue dialogue **auto-completes**
-   (reaches `FREEROAM_START` ~frame 4283 with no skips needed).
-2. Export a contiguous capture window (anchor-relative):
-   ```
-   nix develop --command python3 tools/export_trace.py <trace.jsonl> \
-       --caprange START,COUNT --run-dir runs/trace-export/<name> --name "label" --max-frames N
-   ```
-   `--caprange START,COUNT` = COUNT frames starting START frames after the trace's
-   **final `wait` anchor** (anchor-relative; jitter-immune). `--max-frames` must
-   exceed where the window lands in turbo (anchors stretch — give headroom, e.g. 4500).
+### Read user viewer notes
 
-   **A RAW recording is auto anchor-gated** (`emit_anchor_segments`) when it carries
-   `{anchor}` rows — every recorded anchor becomes a `{wait}` sync point, so the
-   caprange resolves to `last_anchor_frame + START`, not boot. (Before 2026-06-03
-   export_trace flat-distilled raws → the caprange anchored to boot frame 0 and
-   turbo load-stretch drifted the window run-to-run; that's fixed.) `--flat` forces
-   the legacy boot-anchored distil; `--house-segtrace` the boot→HOUSE wrap.
+```sh
+nix develop --command python3 tools/trace_studio_v3/orv3_notes.py \
+  <scenario> --render
+```
 
-   **Exported frames are renumbered to anchor-relative 0-based** (`frame_00000.png`
-   = window start). The engine names frames by absolute `g_tick.frame_count` (which
-   jitters with load time); export_trace subtracts the first captured frame so the
-   FILENAME *is* the stable anchor-relative index. So a reference like `frame_00186`
-   / `crop … frame=f=186` resolves to the same sim instant in every replay of the
-   same trace — paste it back and it's found instantly. `meta.jsonl` keeps the
-   absolute frame as `frame_abs`; `global.json` records `final_anchor` + `frame_base_abs`.
-3. Push as a `trace` card (NixOS: feed.py needs `nix run nixpkgs#python3 --`):
-   ```
-   nix run nixpkgs#python3 -- /opt/src/llm-feed/feed.py trace \
-       --dir runs/trace-export/<name> --title "..." --note "..."
-   ```
-   Opens its own viewer tab (`/trace.html?id=<id>`): ←/→ ±10, `,`/`.` ±1, Home/End,
-   play at fps, `c` marks captures, **drag a box → `crop id=… box=… frame=f=<n>`**.
-4. The user flips through and pastes back frame hints / a `crop …` reference.
-   `feed.py get <id>` recovers the source paths; the asset PNGs are under
-   `/opt/src/llm-feed/data/assets/<id>/frame_NNNN.png`.
+Read notes before starting a visual investigation. They are identity-labelled and point
+to the precise frame/region the user flagged.
 
-### B) The user recorded a trace and wants analysis
+## 2. Canonical porting loop
 
-1. **Record (user drives):** `tools/run-openrecet.sh --debug` (console build,
-   real-time). **F2** start/stop, **F3** capture-point, **F4** call-trace window.
-   On stop it writes `openrecet-trace-<pid>-<seq>.raw.jsonl` **in the game asset
-   dir** (`/mnt/c/Program Files (x86)/Steam/steamapps/common/Recettear/`) and prints
-   the path. The raw carries per-frame masks + `{esc}` + **every anchor firing**
-   (`{"anchor":NAME,"frame":REL,"gframe":ABS,"rng":LCG}`).
-2. **Distil (anchor-gated):**
-   ```
-   nix develop --command python3 tools/distill_trace.py <raw> --anchor-segments -o <out.jsonl>
-   ```
-   Every recorded anchor becomes a `{wait}` sync point; inputs/escs/captures between
-   anchors are emitted relative to the preceding one, and RNG is re-pinned at each
-   anchor to the recorded value. The result replays correctly under turbo with **no
-   hand-rebasing** — an ESC `N frames after a dialogue anchor` fires N frames after
-   that anchor actually lands.
-3. Export + push exactly as workflow A (steps 2–3). For determinism, run twice and
-   compare by **anchor-relative index** (below).
+1. **Scout retail live.** Use the persistent probe described in
+   `live-probe-harness.md` to reach the behavior, inspect state/anchors, and test a
+   candidate call/poke.
+2. **Create or select a deterministic trace.** The behavior must be exercised, not
+   inferred from a nearby screen.
+3. **Stabilize the trace.** Use semantic anchors, exact save state, phase/RNG pins, and
+   scene-specific load brackets. Verify at least two retail runs and two port runs when
+   introducing a new path.
+4. **Capture the smallest useful v3 window.** Add `--state` when diagnosing logic/phase,
+   not only pixels.
+5. **Attribute the first divergence.** Check input/upstream state, phase, RNG, game
+   state, draw program, pixels, audio, and external effects in that order.
+6. **Ground retail behavior.** Cross-check live/captured evidence with decompile and
+   disassembly. A visual guess is not an implementation spec.
+7. **Port one bounded chip.** Preserve retail quirks and x87 behavior.
+8. **Re-drive the same window.** Retail should normally remain cached; port refreshes.
+9. **Run focused host tests and the exact parity gate available for the chip.**
+10. **Persist evidence.** Update findings/quirks/debt and, once implemented, attach the
+    parity proof ID.
 
-> Old recordings (pre-2026-06-03) have no `{anchor}` rows → `--anchor-segments`
-> errors. Ask the user to re-record with the current `--debug` build.
+Work frame-0-forward. A downstream difference is not actionable until upstream inputs
+and state match.
 
----
+## 3. Scenario layout
 
-## Anchoring rule (standing, from the user)
+```text
+tests/scenarios/<scenario>/
+  scenario.yaml
+  trace.jsonl
+  golden/                 optional port-side legacy golden artifacts
+```
 
-- **Default: anchor at `FREEROAM_START`** — the player gains free control (fires
-  after the 2nd ESC→confirm skip, or after the prologue auto-completes). This is
-  the sync point to start a free-roam walk from. `HOUSE_FREEROAM` is **too early**
-  (load overlay dropped but still mid-iv1_2 conversation; player locked).
-- **Cutscene content: anchor at `TEXT_ANIM_START` / `TEXT_ANIM_END`** (a dialogue
-  line revealing / fully revealed).
-- Anchors auto-sync inputs to jitter. **Never hand-rebase or capture by absolute
-  frame.** The ultimate goal is to keep adding anchors until any point of a full
-  playthrough can be reached deterministically (see the vision doc).
+`scenario.yaml` currently controls description, RNG seed, frame budget, capture
+count/frames, duration ceiling, load suppression, and optional zoom metadata. The
+parity-evidence roadmap will extend it with versioned proof and coverage contracts.
 
-Anchor list lives in `src/anchor_trace.c` (`g_anchors[]`): `BOOT`, `NEW_GAME`,
-`LOADING_START/END`, `HOUSE_FREEROAM`, `TEXT_ANIM_START/END`, `EXTRA_SPRITE_*`,
-`DLG_LINE_SHOW/CLEAR`, `CONV_POSE_START/END/BLINK`, `FREEROAM_START`,
-`PAUSE_OPEN/PAUSE_CLOSE` (in-game pause menu open/close, `DAT_0438b150`),
-`TITLE_RETURN` (quit-to-title, INGAME→TITLE — re-syncs the save→reload menu
-flow). The port
-emits `anchor: {...}` on stderr; the recorder logs them into the raw; the retail
-Frida agent mirrors them (TODO: `FREEROAM_START` not yet on the retail side).
+`trace.jsonl` is an ordered segtrace. Trace-global operations such as `savefile` can
+appear anywhere but apply to the whole replay. Segment-relative operations apply to the
+most recent resolved anchor.
 
----
+Never put live mutable status or a prose parity claim in the YAML. The scenario defines
+the experiment; proof artifacts carry results.
 
-## Segtrace ops (`--input-segtrace FILE`, JSONL)
+## 4. Creating a trace
 
-| op | meaning |
+### Record
+
+For port-side/manual recording, run the supervised debug build and use:
+
+- `F2`: start/stop recording;
+- `F3`: capture marker;
+- `F4`: call-trace window.
+
+For retail-first work, use the live probe/recorder path documented in
+`live-probe-harness.md` and the existing recording wrapper. Recordings are raw
+per-frame masks plus anchor firings and save snapshots.
+
+Never launch either executable bare. Never record against the user's real save without
+an explicit safe-copy plan.
+
+### Distil
+
+```sh
+nix develop --command python3 tools/distill_trace.py \
+  <raw.jsonl> --anchor-segments -o tests/scenarios/<name>/trace.jsonl
+```
+
+Useful existing options:
+
+- `--carry-pins-from <trace>` when re-distilling an already stabilized trace;
+- `--drop-fragile-after` / `--drop-fragile-region` for cosmetic anchors in a known
+  auto-play region;
+- `--saves-dir` for the local content-addressed save store;
+- `--no-savefile` only for an intentional save-independent experiment.
+
+Do not re-distill a stabilized long trace without carrying its load/phase pins. Do not
+drop interactive-region anchors merely because they are inconvenient; prove a reliable
+replacement boundary.
+
+### Stabilize
+
+The shared lint/auto-pin implementation currently lives at
+`tools/trace_studio/edits/lint.py` even though the v2 viewer is retired. v3's trace build
+uses it. Its placement is historical; its behavior remains current.
+
+Canonical expectations:
+
+- exact `{savefile}` (`@fresh` or content-addressed local blob);
+- `{rngseed}` and `{phasepin}` at the comparison origin;
+- `{calltrace}` around the state window when flow evidence is required;
+- load-bracket pins sized from measured retail maxima and placed in the correct segment;
+- `{caprange}` large enough for v3 capture-once/slice-many;
+- deterministic completion at a semantic anchor, not a wall-clock sleep.
+
+Pin values are scene- and trace-specific. Copy them from a proven sibling trace only
+after verifying the same load path. Old prose values in archived docs are not defaults.
+
+Verify reproducibility:
+
+```sh
+nix develop --command python3 tools/scenario-test.py <scenario> --target retail
+nix develop --command python3 tools/scenario-test.py <scenario> --target retail
+nix develop --command python3 tools/scenario-test.py <scenario> --target openrecet
+nix develop --command python3 tools/scenario-test.py <scenario> --target openrecet
+```
+
+Compare anchor sequence, RNG value/draw count, captured state, and completion—not only
+process exit.
+
+## 5. Segtrace operations
+
+The executable parser is `src/input_segtrace.c`; the retail mirror is
+`tools/frida/openrecet-agent.js`; the Python lowering path is
+`tools/frida_capture.py`. A new operation must be implemented and tested in all relevant
+parsers.
+
+Common operations:
+
+| Shape | Meaning |
 |---|---|
-| `{"frame":k,"buttons":"0xNN"}` | hold mask at base+k (base = current segment's anchor frame; 0 for the boot segment). Holds until the next change-point. |
-| `{"wait":"ANCHOR"}` | segment break: next segment's frame 0 = the frame ANCHOR next fires (strictly after entry, so a repeated anchor resolves on its NEXT firing). Spam-until-anchor: the segment's entries run until the anchor fires. |
-| `{"wait_until":{"va":"0x..","type":"f32","op":"<=","val":2.0}}` | break on a live-global predicate instead of an anchor (e.g. hold UP until `pz<=2.0`). Ops `<= >= < > == !=`. |
-| `{"capture":N}` | screenshot at base+N (anchor-relative). |
-| `{"caprange":[start,count]}` | contiguous capture window [base+start, base+start+count) — for frame-by-frame export (bypasses the 32-frame `{capture}` cap). |
-| `{"rngseed":[frame,value]}` | force the LCG state to `value` at base+frame (before that frame's sim). |
-| `{"esc":N}` | synthesise the engine ESC dispatch at base+N (arms the skip prompt in-event; quits at the title). |
-| `{"calltrace":N}` or `[start,len]` | arm the call tracer for an anchor-relative window. |
-| `{"poke":[frame,va,val]}` | **RETAIL-ONLY** — sticky u32 write: hold global `va` (decimal Ghidra VA) at `val` every frame from base+frame on. Use to flip an engine flag that has no input path, e.g. enable the dev coord overlay with `[1545, 111450424, 1]` (`0x06a49938=1`; engine-quirks §95). No port mirror. |
-| `{"gframe":[frame,value]}` | **EXPERIMENTAL** — pin `g_tick.frame_count` to `value` at base+frame (for frame-count-derived state like the time-of-day HUD clock). **Do NOT combine with `{caprange}`** — the caprange window is computed from the real anchor frame but `capture_in_range` tests the pinned counter, so capture breaks. |
-| `{"savefile":"<relpath>"}` | Trace-global embedded-save ref (NOT segment-scoped) — a path, relative to the trace file's dir, to a content-addressed gzip blob (`<sha256>.sav.gz`, usually under `tests/scenarios/_saves/`). On replay the **Python harness** decompresses it and overrides whatever `save.dat` is on disk via the port's `--save-override` (the port can't gunzip, so it only records the ref). Lets a trace pin its exact save state — a "continue an existing save" trace replays the same save regardless of the live game's progress. See the **Save interception** section below + [[project_tas_save_interception]]. |
-| `{"tutloadpin":N}` | Trace-global — pin the **tutorial-dialogue load bracket** to N frames on BOTH targets (engine-quirks §119: retail's bracket is the `LAB_00452aab` worker thread's wall-time — 2f and 5f on the same capture — so every crossing shifts the post-seam label axis run-to-run). Port: overrides `IVE_TUT_LOAD_FRAMES`. Retail: the agent **blocks the worker thread at its tail** (CModule @0x452ac2 — the tail itself performs the whole bracket-end handoff: gates→0, `DAT_0438b1c8`→1) until N frames past the `b1c8==2` arm, then the engine's own handoff runs — **EXTEND-only** (a real load ≥ N passes at natural length, so pick N ≥ any plausible real bracket; canonical **8**). Blocked frames run the engine's own loading path (overlay, db054++, wing emits) like a slow disk ⇒ equal-length brackets ⇒ equal RNG/phase consumption inside them. The lint flags windows that cross LOADING brackets without it (`loads-without-tutloadpin`, INFO). |
+| `{"frame": N, "buttons": "0xNN"}` | set held engine mask at segment-relative frame |
+| `{"wait": "ANCHOR"}` | start next segment at the next anchor occurrence |
+| `{"wait_until": {...}}` | segment boundary on a typed live-state predicate |
+| `{"capture": N}` | legacy screenshot point |
+| `{"caprange": [start, count]}` | full-extent capture window |
+| `{"calltrace": [start, count]}` | call/state trace window |
+| `{"rngseed": [frame, value]}` | set LCG state before simulation |
+| `{"phasepin": N}` | normalize mapped load-dependent frame origins |
+| `{"tutloadpin": N}` | segment-scoped tutorial/dialogue load minimum |
+| `{"csloadpin": N}` | customer-service load minimum |
+| `{"primaryloadpin": N}` | primary worker/load minimum |
+| `{"esc": N}` | synthesize engine ESC dispatch |
+| `{"savefile": "@fresh"}` | start without a save |
+| `{"savefile": "../_saves/<sha>.sav.gz"}` | seed the sandbox from exact save bytes |
+| `{"memsnap": N}` | diagnostic memory snapshot |
 
-Button bits (`src/input.c`): UP `0x04`, RIGHT `0x01`, DOWN `0x08`, LEFT `0x02`,
-Z/A (confirm) `0x10`, ESC `0x100`.
+Additional research-specific pins/operations exist. Read all three parsers and focused
+tests before editing the grammar. Preserve unknown-op failure behavior; silently ignoring
+an operation can produce a convincing but invalid trace.
 
-Parser/struct: `src/input_segtrace.{c,h}` (host-tested in
-`tests/test_input_segtrace.c`). Distill emits these from a raw recording.
+## 6. Save virtualization
 
----
+Both targets replay in per-run sandboxes:
 
-## Save interception (embedded saves)
+- `@fresh`: no initial save;
+- content-addressed `.sav.gz`: decompressed into sandboxed `save.dat`;
+- absent `savefile`: legacy behavior; avoid for new deterministic scenarios.
 
-A trace can carry the exact save it ran against and force the game to load THAT
-save on replay, ignoring whatever `save.dat` is on disk. This is what lets a
-"continue an existing save" trace replay deterministically from any game state.
-**Replay NEVER reads or writes the user's real save** — both targets sandbox all
-save I/O into a per-run dir.
+Retail file hooks redirect `save.dat`/`_save.dat`; the port uses its save override/write
+directory. Raw recordings can contain `{save_write}` events. Distillation stores
+in-session save snapshots in a sidecar.
 
-- **Three save modes** (the trace's `{savefile}` op): `@fresh` (boot with no save →
-  fresh menu, no LOAD GAME — all current new-game scenarios); a `<blob>` ref
-  (decompressed embedded save → "continue" traces); or absent (legacy). Mark a
-  trace fresh: `tools/trace_embed_save.py --fresh <trace.jsonl>`.
-- **Write protection**: every replay sandboxes writes. Port: `--save-write-dir
-  <dir>`. Retail: the agent hooks `CreateFileW/A` and redirects `save.dat`/
-  `_save.dat` into `<run>/saveout`. `run-openrecet.sh` sandboxes writes by default
-  (pass `--save-write` to write the real save). So a recording can't clobber the
-  real save either.
-- **Multi-save recordings**: the recorder captures each save the game writes
-  (`{save_write}` rows → `*-recsave-N.bin`); `distill_trace.py` folds them into a
-  `<trace>.saves.json` sidecar. Replay reproduces the saves live (the sandbox is
-  the virtual save state), so loads naturally read the last-written save — the
-  sidecar is the ground truth for divergence verification.
+Current limitation: capture does not yet constitute a cross-target save equality proof.
+The roadmap's ST-01 package will validate save blob hashes and compare every sandboxed
+write. Until then, manually hash and inspect save outputs when save behavior is the chip.
 
-- **Storage:** the save blob is gzip-compressed + content-addressed as
-  `<sha256>.sav.gz` (sha over the raw 18 MB arena), in a shared store
-  `tests/scenarios/_saves/`. 18 MB → ~57 KB; identical saves across scenarios
-  dedupe to one blob. The trace references it with the trace-global
-  `{"savefile":"../_saves/<sha>.sav.gz"}` op (see the ops table).
-- **Embed a save into existing traces:**
-  ```
-  nix develop --command python3 tools/trace_embed_save.py <save.dat> --all-scenarios
-  # or specific traces:  tools/trace_embed_save.py <save.dat> tests/scenarios/foo/trace.jsonl
-  ```
-- **Recorded traces capture it automatically:** the F2 recorder snapshots the
-  boot save; `distill_trace.py … -o out.jsonl` folds it into the content store and
-  embeds the ref.
-- **Replay overrides the disk save:** the harness (`scenario-test.py`,
-  `frida_capture.py`) decompresses the ref and passes the port `--save-override
-  <raw>`; the port loads it instead of `save.dat` at boot. (The port can't gunzip,
-  so loading is harness-driven; `tools/trace_save.py` owns store/resolve/embed.)
-  Proven: an override with bgm-slider=2 vs a disk save with bgm=5 → the port loads
-  bgm=2 ("on-disk save.dat ignored"). **Retail (Frida) redirect is NOT yet wired**
-  — port-side only so far.
-- **Git policy:** blobs are gitignored by default (user save data). Commit a
-  specific `.sav.gz` (force-add) only for a committed trace that genuinely needs it
-  to replay. See [[project_tas_save_interception]].
+Never allow a replay or test to write the user's actual save. Cleanup and restoration
+belong in `finally` paths.
 
----
+## 7. Trace Studio v3 identities and artifacts
 
-## Determinism & comparing two runs
+Logical frame identity is:
 
-- Anchor-relative capture + RNG-pin-per-anchor ⇒ the sim is **bit-exact** across
-  runs. Validated: two runs of an `--anchor-segments` trace were 0/504 frames
-  different even though the final anchor fired at 641 vs 647 (load jitter).
-- The anchor frame jitters in absolute terms, but **export_trace renumbers frames
-  to anchor-relative 0-based**, so the **filenames already ARE the anchor-relative
-  index** — `frame_00186.png` is the same sim instant in every run. Compare two runs
-  directly by filename (or `meta.jsonl` with the `frame_abs` field stripped). The raw
-  absolute frame is preserved as `meta.frame_abs` if you need it. (Verified: the
-  documented `frame_0186` standing-dust repro reproduces bit-exactly — 0.000 mean
-  abs diff — from a fresh raw replay.)
-- PNG encode is deterministic, so identical framebuffer ⇒ identical bytes ⇒ `cmp`/
-  `md5` per index is a valid bit-exactness test.
-- Residual leak (when present): the time-of-day HUD clock keys off the absolute
-  `g_tick.frame_count`, so it can differ run-to-run. `{gframe}` pins it
-  (experimental, not with caprange). For dust/character work it's irrelevant — the
-  sim and dust (pinned LCG) reproduce exactly.
+```text
+(anchor_name, anchor_occurrence, offset_since_anchor)
+```
 
-`export_trace.py` writes `frames/` + `meta.jsonl` (per-frame px/pz/anim/oct/rng/…)
-+ `global.json` (rng seed, the runnable `trace_jsonl`, anchor offset). The feed
-`trace` card round-trips: `feed.py trace-export <id> -o out.jsonl`.
+This survives different absolute load/present counts. `--join-anchor NAME` rebases a
+window when both sides armed on different occurrences of the base anchor. Use it only
+when the named event is proven to be the same semantic boundary.
 
----
+Main artifacts:
 
-## Retail side
+```text
+runs/studio-v3-cache/<scenario>-<key>/{retail,port}/
+runs/studio-v3-windows/<...>/
+  port/
+  retail/
+  pairs.json
+  view.json
+```
 
-Drive retail through the Frida agent: `tools/frida_capture.py --input-segtrace …
---frida-remote cutestation.soy:27042 --hide-window --turbo --silent-audio`
-(agent `tools/frida/openrecet-agent.js` mirrors the segtrace ops + anchor stream;
-`tools/kill_retail.py` after; restart frida-server if captures degrade). Capture
-both targets at the same resolution and diff via `tools/pixel_diff.py` /
-`tools/compose_comparison.py`. For per-frame STATE (positions/facing/anim/RNG),
-don't watch raw VAs — declare the fields in `tools/flow/retail_fields.json` and
-use `scenario-test --target both --call-trace` + `flow_diff.py`
-(`docs/flow-trace-cheatsheet.md`).
+Exact paths may evolve; use the paths printed by `orv3_window.py`, not hard-coded scripts.
 
----
+Cache controls:
 
-## Legacy (still wired, superseded for new work — do not use for new traces)
+- `--force-retail`: re-drive retail;
+- `--force-port`: re-drive port;
+- `--reuse-port`: intentionally accept a port capture older than the executable;
+- `--no-verify`: skip same-side replay verification; never use for a parity claim.
 
-- `distill_trace.py --house-segtrace` — wraps a recording onto the proven
-  new-game→HOUSE intro and rebases to a fixed anchor+1565 idle offset. Used to
-  generate the existing `tests/scenarios/*/trace.jsonl`. Superseded by
-  `--anchor-segments` for any recording that carries `{anchor}` rows.
-- `--input-trace-replay` (absolute-frame trace) — still used by
-  `tools/render_trace_gate.py` and legacy scenarios. Use `--input-segtrace`.
-- `--auto-z-spam` — still wired into the `dump_*_groundtruth.py` tools; replaced
-  by `{"wait":"ANCHOR"}` for new drives.
+Until provenance re-keying lands, force recapture whenever retail/port executable, save,
+assets, configuration, proxy, agent, runtime environment, or capture flags changed even
+if the current cache considers the entry fresh.
 
-## Removed (2026-06-06 — replaced by the flow-trace)
+## 8. What current tools prove
 
-The per-frame ad-hoc introspection path was deleted in favour of
-`scenario-test --target both --call-trace` + `tools/flow_diff.py` (annotate the
-function on both sides; see `docs/flow-trace-cheatsheet.md`):
-- port `--player-pos-log` / `--dlg-log` / `--dust-log` (per-frame state JSONL),
-- retail `--watch NAME=0xVA` (arbitrary VA reads → watch.jsonl),
-- `tools/phase_probe.py` (→ `flow_diff.py --verdict --align-field db054`),
-- `tools/{facing_reconstruct,wall_collide_diff,recette_anim_probe}.py`.
+| Observation | Sound conclusion |
+|---|---|
+| identity join complete | corresponding logical frames were found |
+| same-side replay exact | capture container/replayer reproduced that side's reference |
+| pixel diff exact | compared replayed output pixels match for the paired frames |
+| draw/material diff aligned | measured render program/state fields match under that comparator |
+| flow field aligned | captured named fields match over the window |
+| call counts aligned | captured call counts match; return/writes may still differ |
+| audio identity/count aligned | IDs/counts match; timing/fades/PCM may still differ |
+| human confirmed 1:1 | user accepted the recorded scope and evidence |
+
+No single current row proves all pillars. Use precise wording in findings and commits.
+
+## 9. Common failure classes
+
+- **Zero frames:** anchor never reached, trace parked on a past/fragile anchor, or frame
+  budget too small. Inspect anchor stream and current segment.
+- **Retail-only load drift:** completion-based worker race; measure bracket and use a
+  bilateral extend-only load pin at a reliable boundary.
+- **Join gaps:** inputs/anchor occurrence differ, capture extent misses frames, or the
+  behavior truly diverged. Do not pair by ordinal to hide it.
+- **Same-side replay failure:** recorder/replayer/capture completeness problem; fix before
+  cross-target analysis.
+- **Pixels differ but state is equal:** inspect draw program, inherited D3D state,
+  resources, phase, and environment.
+- **State differs before pixels:** fix the first state/mutation divergence.
+- **RNG call count equal but value differs:** draw order/consumer differs; not phase.
+- **One lucky capture:** repeat both harnesses/runs before calling a new trace stable.
+- **Stale cache:** force the affected side and record why; roadmap EP-08 will make this
+  automatic.
+
+## 10. Legacy tools
+
+`tools/trace_studio/` and `tools/trace_studio.py` remain because v3 reuses selected
+trace-building/lint code and historical investigations may need old artifacts. They are
+not the visual parity front end.
+
+Build history:
+
+- `plans/archive/trace-studio-v2.md`
+- `plans/trace-studio-v3.md`
+- `archive/trace-workflow-v2-2026-06.md`
+
+Do not add new v2 UI/workflow features. Move reusable model/lint pieces only when a
+bounded migration includes tests and no active v3 caller is broken.

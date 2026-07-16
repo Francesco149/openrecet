@@ -59,7 +59,7 @@
             # uses the new wow64 mode that skips the 32-bit syswow64/ layer
             # and fails to load kernel32.dll for 32-bit exes. WSLInterop runs
             # the exe natively on the host Windows, which is reliable and
-            # zero-setup. See docs/PLAN.md §6 for the rationale.
+            # zero-setup. See docs/PLAN.md §3 for the platform contract.
 
             # ── build toolchain (32-bit Win32 target) ─────────────────
             mingw32.gcc       # i686-w64-mingw32-gcc — produces Win32 PE
@@ -133,7 +133,7 @@
         };
 
         # Lean shell for CI (the nightly build). Just the mingw toolchain,
-        # make, and a base python3 for the no-proprietary-bytes gate — none
+        # make, and a base python3 for the asset/x87/documentation gates — none
         # of the heavy RE/analysis closure (ghidra, dotnet, frida, imhex,
         # opencv) the default shell pulls in. The build is asset-free
         # (no embedded SE; runtime-extracted — docs/formats/se-pack.md), so
@@ -144,7 +144,7 @@
             mingw32.gcc
             mingw32.binutils
             pkgs.gnumake
-            pkgs.python3      # stdlib only — for tools/ci/no_proprietary_bytes.py
+            pkgs.python3      # stdlib-only CI gates (assets, x87, docs)
             pkgs.coreutils
           ];
         };

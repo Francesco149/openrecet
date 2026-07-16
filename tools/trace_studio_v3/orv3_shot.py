@@ -9,12 +9,11 @@ and a DRAW-ISOLATION strip (clear → +draw0 → +draw1 … → full, to see wha
 draw paints). This is the default way to answer a retail-rendering question
 YOURSELF (see CLAUDE.md: probe with the tools, don't ask).
 
-Caveat — render targets: the v3 proxy does NOT yet capture SetRenderTarget /
-CopyRects, so a draw that samples a render target filled off-screen (e.g. the
-pause-menu [0] captured-screen backdrop, tex datalen=0) shows EMPTY/black here —
-the RT was never filled on replay. Such RT-based effects (captured-screen
-backdrops, radial-blur transitions, post-processing) need the proxy/replayer
-RT-capture extension before they render faithfully; see plans/trace-studio-v3.md.
+Caveat — render targets: v3 captures/replays SetRenderTarget and CopyRects, but a
+target may have been populated in an EARLIER frame. The native viewer uses history
+replay for RT containers; this helper's isolated frame/draw-prefix path may show such
+samples empty. Use the full history-enabled viewer plus `orv3_rt.py` for captured-
+screen backdrops, radial-blur transitions, and other cross-frame RT effects.
 
 Usage:
   orv3_shot.py <container.bin | scenario:side> --frame N [--upto K] [--out P] [--feed]

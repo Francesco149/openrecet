@@ -6,8 +6,10 @@
 #   1. Regenerate the derived registries (STATUS.md, port-ledger.{json,md},
 #      port-debt.{json,md}) and stage them so they always track HEAD with zero
 #      manual steps.
-#   2. If any C source/header or test changed, build + run the 2870-test
-#      ASan/UBSan suite (~10s) and abort the commit on failure.
+#   2. Validate authoritative documentation when docs/conventions changed.
+#   3. Run Python unit tests when Python tooling changed.
+#   4. If any C source/header or test changed, build + run the ASan/UBSan
+#      host suite and abort the commit on failure.
 #
 # Bypass for an emergency / WIP commit:  git commit --no-verify
 # Installed via core.hooksPath=tools/git-hooks.
@@ -36,8 +38,29 @@ else
     exit 1
 fi
 
-# --- 2. Run the host test suite if code changed --------------------------
 staged="$(git diff --cached --name-only)"
+
+# --- 2. Validate current documentation entry points ----------------------
+if echo "$staged" | grep -qE '(^|/)(README|CLAUDE|[^/]+)\.md$|^tools/ci/check_docs\.py$'; then
+    echo "pre-commit: documentation changed → checking links/conventions..."
+    if ! run python3 tools/ci/check_docs.py; then
+        echo "pre-commit: documentation check FAILED — commit aborted" >&2
+        exit 1
+    fi
+fi
+
+# --- 3. Run Python tool tests when Python changed ------------------------
+if echo "$staged" | grep -qE '^tools/.*\.py$'; then
+    echo "pre-commit: Python tools changed → running Python unit suite..."
+    if ! run python3 tools/run_python_tests.py >/tmp/oc_pytests.log 2>&1; then
+        echo "pre-commit: Python unit suite FAILED — commit aborted:" >&2
+        tail -40 /tmp/oc_pytests.log >&2
+        exit 1
+    fi
+    echo "pre-commit: $(tail -1 /tmp/oc_pytests.log)"
+fi
+
+# --- 4. Run the host test suite if C code changed ------------------------
 if echo "$staged" | grep -qE '^(src/|tests/).*\.(c|h)$'; then
     echo "pre-commit: C sources changed → building + running host suite..."
     if ! run make -C tests run >/tmp/oc_tests.log 2>&1; then
@@ -49,7 +72,7 @@ if echo "$staged" | grep -qE '^(src/|tests/).*\.(c|h)$'; then
     echo "pre-commit: $(grep -oE '[0-9]+ passed' /tmp/oc_tests.log | tail -1)"
 fi
 
-# --- 2.5 FP-model guard when the toolchain/build flags changed -----------
+# --- 5. FP-model guard when the toolchain/build flags changed ------------
 # The x87 invariant (audit §1.3): float math must NOT move to SSE — retail is
 # VC6/x87 and every validated function's rounding depends on it. Only the
 # Makefile / flake can change the FP model, so gate on those (the exe on disk
@@ -64,7 +87,7 @@ if echo "$staged" | grep -qE '^(src/Makefile|flake\.nix|flake\.lock)$' \
     fi
 fi
 
-# --- 3. Remind to regen visual comparisons after render/logic edits ------
+# --- 6. Remind to regen visual comparisons after render/logic edits -------
 if echo "$staged" | grep -qE '^src/(scene1_|render|d3d|font_|sprite|layers|tables).*\.(c|h)$'; then
     echo "pre-commit: render/logic files changed — remember to run" >&2
     echo "            tools/regen-comparisons.py and eyeball runs/comparisons/index.html" >&2
