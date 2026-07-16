@@ -7,6 +7,23 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — `house-pause-save-commit` → save PASS: the FIRST fully-passing multi-pillar bundle (★NEXT b)
+
+`parity_prove` verdict **PASS — identity PASS · save PASS · 0 divergences** (render_program PASS bonus;
+`contract_sha256 9c2d2755…`). Two real port bugs the save pillar caught, both fixed byte-exact (invisible to
+every frame pillar): **(1)** `house_cam_flag` 0xb37d — the continue-resume `scene_post_fade_init` didn't clear
+the from-world-map camera flag retail zeroes (`FUN_0049a59e` all.c:100642), so a `{savefile}` taken after a
+map→house return re-committed a stale 1 (commit `d686739`; engine-quirk #134). **(2)** `occupied_playtime`, the
+drive-variable playtime accumulator: EXPLAINED as the port counting the two completion-based async-load brackets
+(house + pause menu) into playtime — a wall-clock CreateThread race under turbo (house-load Δ2387 + pause-load
+Δ1641 = the observed Δ4028; retail's are the deterministic intro-video cadence Δ48/Δ8; engine-quirk #135), then
+normalized by a NEW bilateral **`{playtimepin}`** (mirrors `{gsimpin}`; forces the active slot's playtime to a
+canonical origin at SAVE_PICKER_READY, past both variable loads; both port+agent fire pre-sim → both land on
+V+K=29687, no off-by-one; forwarded to the agent because retail's natural swings 29643/29683/29830 run-to-run).
+VERIFIED `--target both` ×2: save.dat byte-identical (ndiff 0), drive-stable. +2 host tests (3434/0). Dropped
+the contract's save exception. Commits `d686739`+`64d2e3f`; finding `findings/parity-save-producer.md`
+§"★NEXT(b) LANDED".
+
 ## 2026-07-16 — Save pillar in a content-addressed bundle: the full `parity_prove` proof (★NEXT a) + a stale-test fix
 
 The save-pillar arc's end-to-end packaging — the ST-01 save pillar now lands inside a content-addressed proof

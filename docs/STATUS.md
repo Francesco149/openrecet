@@ -115,11 +115,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   proof_ids). Also **fixed a stale parity test** (`ranking_records`→`encyclopedia_discovery` refs left RED by
   6c9c85d — pre-commit runs C tests, not the Python suites; suite now green, `test_parity_schema` auto-validates
   2 contracts). Lead: the commit-anim frames DON'T identity-join (port stays SAVE_PICKER_READY, retail re-anchors
-  PAUSE_OPEN during the disk write). **★ NEXT: (b)** `occupied_playtime` origin — **DRIVE-VARIABLE** (port swung
-  20906→16878 Δ4028f vs retail 29643→29683 Δ40 across 2 both-runs; NOT a constant offset), so explain the port's
-  load-bracket playtime variance FIRST (`sim.c:310` live-scene-frame tick; suspect CreateThread-race load drift)
-  THEN `{phasepin}` the origin ⇒ save flips to PASS (first fully-passing multi-pillar bundle) + drive-stable
-  proof_id; **(c)** ST-03 state pillar (volatile class via flow_diff) / ST-02 Merkle roots.
+  PAUSE_OPEN during the disk write). **✅ ★NEXT(b) LANDED 2026-07-17 — save PASS, the FIRST fully-passing
+  multi-pillar bundle** (`findings/parity-save-producer.md` §"★NEXT(b) LANDED"; commits `d686739`+`64d2e3f`).
+  `house-pause-save-commit` → `parity_prove` verdict **PASS: identity PASS · save PASS · 0 divergences** (+render_program
+  PASS bonus; `contract_sha256 9c2d2755…`). TWO real port bugs the save pillar caught, both fixed byte-exact
+  (invisible to every frame pillar): **(1) house_cam_flag 0xb37d** — the continue-resume `scene_post_fade_init`
+  didn't clear the from-world-map camera flag retail zeroes (`FUN_0049a59e` all.c:100642), so a `{savefile}` taken
+  after a map→house return re-committed a stale 1 (NOT phase — a stable port=1/retail=0; `d686739`). **(2)
+  occupied_playtime** EXPLAINED then pinned: the drive-variance is the port counting the TWO completion-based
+  async-load brackets (house + pause menu) into playtime — a wall-clock CreateThread race under turbo (house-load
+  Δ2387 + pause-load Δ1641 = the observed Δ4028; retail's are the deterministic intro-video cadence Δ48/Δ8). Both
+  sides tick identically (`playtime = engine_frame + 13598`); the port is lower + variable only because it commits
+  at an earlier, race-variable frame. Fix = a NEW bilateral **`{playtimepin:[F,V]}`** (mirrors `{gsimpin}`): force
+  the active slot's playtime accumulator to a canonical V at SAVE_PICKER_READY (first anchor past both variable
+  loads); both port+agent fire pre-sim ⇒ both land on V+K=29687, no off-by-one. FORWARDED to the agent (retail's
+  natural swings 29643/29683/**29830** run-to-run, so a port-only pin can't match). VERIFIED `--target both` ×2:
+  save.dat byte-identical (ndiff 0), drive-stable; +2 host tests (3434/0). Dropped the contract's save exception.
+  **★ NEXT: (b′)** add the runtime-axis `docs/parity-proof-index.json` entry for `FUN_004905a8`
+  (scenario-pillar-proven — the first non-empty runtime rung; flips STATUS "0% runtime-proven"); **(c)** ST-03
+  state pillar (volatile class via flow_diff) / ST-02 Merkle roots.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

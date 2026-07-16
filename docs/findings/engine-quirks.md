@@ -4900,3 +4900,31 @@ etc.).  Ground truth: a `--target both` `save.dat` round trip leaves the 99 non-
 `retail == seed` with 0 diffs, checksum still 0.  (Port: `g_save_bank_skip_verify` in
 `save_bank.c`; the pre-fix always-sweep zeroed those banks' encyclopedia store — see
 `findings/parity-save-producer.md`.)
+
+## 134. A mode-0 CONTINUE resume CLEARS the from-world-map camera flag (bank 0xb37d) to 0
+
+Bank dword `0xb37d` (`DAT_0451058c`, working) is a transient "returned to the house from
+the world map" camera-yaw selector: `FUN_00436f97` (`all.c:34858`) reads it and picks the
+house camera yaw (`+pi/2` when 0).  The map→house return sets it to **1** (`all.c:40769`,
+the `DAT_0438b1c0` 8→1 transition).  On a **CONTINUE load**, `FUN_0049a59e` reads the saved
+scene-mode (`0xb381`) into `g_scene_state`; for mode 0 (house/shop) it sets INGAME AND
+**clears 0xb37d to 0** (`all.c:100639-100642`).  So a save taken RIGHT AFTER a map→house
+return carries a stale `0xb37d==1` on disk, but resuming it renders the house at the default
+camera because the resume zeroes the flag.  Ground truth: the `fa7c82…` house save has
+`0xb37d==1`; a retail `--target both` load→save commits `0xb37d==0`.  (The port originally
+omitted the clear — a save-pillar catch; see `findings/parity-save-producer.md`.)
+
+## 135. Total-playtime (bank dword 2, TIME h:mm:ss) counts LOAD frames — it ticks at the FUN_004536cb head, BEFORE the worker-load gate
+
+The playtime accumulator (`DAT_056e6288` disk / `DAT_044e37a0[slot]` working) increments +1
+at the very HEAD of `FUN_004536cb` (`all.c:50357-50361`, `if DAT_0438b1c0!=0`), which runs
+BEFORE the `DAT_06a49954` (worker-busy) short-circuit at L50363.  So EVERY live-scene frame
+counts, including the frames spent inside an async asset LOAD (once the scene state is
+non-title).  On retail this bakes the intro-video/prologue "load" (~14259 frames after
+NEW_GAME) into a fresh game's playtime — the ~213s the total-playtime is "ahead" of a port
+that skips the intro.  Because the loads are completion-based (a `CreateThread` race), the
+per-drive playtime is NOT constant even on retail (Δ~40 frames run-to-run under the turbo
+harness; the port's async loads swing ~4000).  Consequence for parity: a save COMMIT's
+`occupied_playtime` is an environmental phase origin, normalized by the bilateral
+`{playtimepin}` (both sides ticked identically: `playtime = engine_frame_at_commit + const`;
+see `findings/parity-save-producer.md`).

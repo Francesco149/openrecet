@@ -118,11 +118,27 @@ checksum echo (ignore), and one genuine port↔retail divergence to chase.
   +2 host tests (`save_bank_skip_verify_preserves_stale_bank`,
   `save_io_load_preserves_stale_checksum_nonactive_bank`); host 3432/0. No
   `PORT-DEBT(save-ranking-nonactive-banks)` needed (was never code-tagged).
-- **`occupied_playtime`** (the sole remaining save diff, bank 0, 2 bytes: port `0x4095`
-  vs retail `0x73cb`) is the frame-count phase origin — a candidate `{phasepin}`
-  extension (pin the playtime accumulator origin) so a save proof isolates logic from
-  phase, matching the pixel/state loop. Its 3-byte `checksum` echo + 1 `(unmapped)` byte
-  round out the 6-byte residual; all bank-0-only, all non-logic.
+- **✅ FIXED 2026-07-17 — `house_cam_flag` (0xb37d) was a SECOND real port bug** (the
+  finding's original 6-byte residual mislabeled it "1 unmapped byte, non-logic" — it is
+  NOT non-logic; it is a stable port=1/retail=0 divergence in BOTH drives). Bank dword
+  `0xb37d` (`DAT_0451058c`) is a transient "returned to the house from the world map"
+  camera-yaw flag: set 1 by the map→house return (`all.c:40769`), CLEARED to 0 on a
+  mode-0 CONTINUE resume by the engine (`FUN_0049a59e all.c:100639-100642`, gated on the
+  saved scene-mode `0xb381==0`). The port's `scene_post_fade_init` continue branch
+  hardcoded INGAME but OMITTED the clear ⇒ a `{savefile}` taken right after a map→house
+  return (this one carries a stale 1) re-commits 1 while retail commits 0. **Fix (commit
+  `d686739`): `scene.c` continue branch reads `RESUME_MODE` (0xb381), zeroes
+  `HOUSE_CAM_FLAG` (0xb37d) for mode 0.** Port doesn't read 0xb37d ⇒ render-neutral, pure
+  save-state fix. Non-house resume modes 2/3/4/6 stay `PORT-DEBT(scene-resume-modes)`.
+  Mapped both fields in `save_bank.h` + state-map. VERIFIED `--target openrecet`: byte
+  186628 port 1→0 == retail; save diff 6→5. The save pillar's SECOND catch, invisible to
+  every frame pillar (after the encyclopedia one).
+- **✅ FIXED 2026-07-17 — `occupied_playtime` normalized by the bilateral `{playtimepin}`
+  (★NEXT b LANDED; see §"★NEXT(b) LANDED" below).** It is the total-playtime frame
+  accumulator; the port's value swings ~4000 frames run-to-run (the two async-load
+  brackets it counts are a wall-clock CreateThread race), so it needed a determinism +
+  origin pin, not just a phase constant. Bilateral pin at SAVE_PICKER_READY ⇒ byte-exact,
+  drive-stable. Its 3-byte checksum echo resolves with the content.
 
 ## Full proof bundle LANDED (2026-07-16) — identity PASS · save FAIL, the near-PASS
 
@@ -211,17 +227,76 @@ Compiling this bundle surfaced how the proof_id moves, and one real bug:
 - ✅ **DONE 2026-07-16** — the full `parity_prove` bundle (`contract_sha256 77e8e3f4…`;
   see §"Full proof bundle LANDED"). The save FAIL now lands inside a content-addressed
   bundle, parallel to the pixels-producer arrprobe bundle.
-- **Playtime origin `{phasepin}`** (★ NEXT b) — the `occupied_playtime` residual is NOT a
-  clean constant phase offset: it is **DRIVE-VARIABLE**. Across two both-runs the PORT
-  playtime swung 20906→16878 (Δ4028 frames ≈ 67s @60fps) while retail held 29643→29683
-  (Δ40). So (b) must FIRST explain the port's large per-drive playtime variance (`sim.c:310`
-  `wb[SAVE_BANK_FIELD_PLAYTIME]++` counts live-scene frames every live-scene frame; prime
-  suspect = the completion-based load-bracket drift accumulating into the pre-commit
-  live-frame count, i.e. the same CreateThread-race non-determinism `{csloadpin}`/
-  `{tutloadpin}` bound elsewhere) — a real RE sub-arc, NOT a one-line pin — THEN pin the
-  origin bilaterally so the save flips to **save PASS** (the first fully-passing
-  multi-pillar bundle in the evidence program) and the proof_id becomes drive-stable.
-  Closes the contract's save exception.
+- **✅ ★NEXT(b) LANDED 2026-07-17 — bilateral `{playtimepin}` → save PASS.** See the
+  dedicated section below.
 - **ST-02** (canonical encoder + Merkle roots over the state tree), **ST-03**
   (expand retail+port state capture → the `state` pillar for the volatile class),
   **ST-04** (the first-divergence state report reusing `state_map.locate`).
+
+## ★NEXT(b) LANDED 2026-07-17 — save PASS, the first fully-passing multi-pillar bundle
+
+`house-pause-save-commit` proves **identity PASS · save PASS · 0 divergences**
+(`parity_prove … --window 0:200 --anchor SAVE_PICKER_READY`, verdict PASS,
+`contract_sha256 9c2d2755…`; render_program PASS as a non-required bonus). Two
+divergences were resolved en route (both invisible to every frame pillar — the save
+pillar's raison d'être): **house_cam_flag (0xb37d)** — a real port bug, §Leads above,
+commit `d686739`; and **occupied_playtime** — a drive-variable phase origin, below.
+
+### The playtime variance — EXPLAINED (the ★NEXT-b prerequisite)
+
+Playtime (`SAVE_BANK_FIELD_PLAYTIME`, working `DAT_044e37a0[slot]`) ticks +1 every
+live-scene frame at the HEAD of `FUN_004536cb` (`sim.c:308`, `if g_scene_state!=0`),
+**BEFORE the worker-load gate** — so it counts LOAD frames. The port reaches the save
+COMMIT at a *load-race-variable* engine frame, so playtime is variable:
+
+| bracket (LOADING_START→END) | port A | port B | retail A | retail B |
+|---|---|---|---|---|
+| house load  | 3865 | 1478 | 14259 | 14307 |
+| pause load  | 2870 | 1229 | 1213  | 1205  |
+
+House-load Δ (3865−1478=2387) + pause-load Δ (2870−1229=1641) = **4028 = the observed
+playtime Δ4028** (port 20906↔16878). The two brackets are completion-based async worker
+loads (`worker_load_spawn`, `scene.c:176`, spawned AFTER the INGAME flip at `scene.c:114`)
+whose duration is a wall-clock **CreateThread race** under turbo — the same non-determinism
+`{csloadpin}`/`{primaryloadpin}`/`{tutloadpin}` bind elsewhere. Retail's loads are the
+**deterministic intro-video cadence** (Δ48/Δ8 → stable ~29643; the ~14259-frame house
+"load" IS the intro/prologue the port skips). Both sides use IDENTICAL tick logic:
+`playtime = engine_frame_at_commit + 13598` on BOTH (port A 20906−7308; retail A 29643−16045;
+savefile base 13855). The port is lower + variable purely because it commits at an earlier,
+race-variable engine frame — a phase origin + a determinism gap, NOT a logic gap.
+
+### The fix — bilateral `{playtimepin}` (commit `64d2e3f`)
+
+A new pin op `{playtimepin:[F,V]}` (mirrors `{gsimpin}`): force the active working slot's
+playtime accumulator to a canonical origin V at **SAVE_PICKER_READY** — the first anchor
+PAST both variable loads (pinning at LOADING_END would re-diverge over the pause load).
+Both the port (`input_poll`) and the Frida agent (`input_poll.onLeave`) fire it **pre-sim**,
+ahead of the playtime tick, so both land on **V+K** after the SAME K=59 input-driven ticks
+to the commit snapshot — **no off-by-one**. Unlike `{gsimpin}` (V = retail's natural, a
+retail no-op), it is FORWARDED to the agent (`frida_capture.py`) so BOTH sides are pinned:
+retail's natural swings run-to-run (29643/29683/**29830** observed), so a port-only pin
+can't match it. V=29628 (retail-representative) ⇒ committed 29687.
+
+VERIFIED `--target both` ×2: save.dat **byte-identical (ndiff 0)**, committed playtime
+**29687 on both sides, drive-stable**. `parity_prove` verdict **PASS**. Dropped the
+contract's save exception (`scenario.yaml`). +2 host tests (parse/fire + reject-scalar);
+host 3434/0. Tooling: `src/input_segtrace.{c,h}` (parse/push/callback/rearm/fire),
+`src/main.c` (`segtrace_playtimepin_cb`), `tools/frida/openrecet-agent.js` (bilateral apply
+at `DAT_044e37a0[slot]`), `tools/frida_capture.py` (forward to agent).
+
+**Doctrine note:** playtime-at-commit is a phase/environmental origin (load-timing), NOT
+the pure-function logic contract — the tick is confirmed 1:1. Pinning it bilaterally is the
+`{rngseed}`/`{phasepin}` pattern (force both sides to a canonical origin), legitimate
+normalization; the proof reads "given a normalized playtime origin, the two committed
+save.dat are byte-identical."
+
+**★ NEXT (b′) — the runtime-axis index entry (deferred, deliberately).** This is now the
+first PASS bundle eligible for a `docs/parity-proof-index.json` entry (the save-commit VA
+`FUN_004905a8` → `scenario-pillar-proven`, the first non-empty runtime rung — it would flip
+STATUS off "0% runtime-proven"). Held back one step because the index schema requires a
+`proof_id`, which BINDS `git_commit` and so **cannot be self-cited inside the commit that
+adds it** (a HEAD regen yields a different id — the exact volatility §Tooling warns about).
+The first runtime entry should settle the convention first: key the durable binding on the
+stable `contract_sha256` (9c2d2755…) + `va` + `scope`, treating `proof_id` as a
+recording-time snapshot (or a schema tweak). A precedent-setting ledger change — do it
+deliberately, not as a rushed capstone.
