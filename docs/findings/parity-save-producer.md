@@ -94,25 +94,35 @@ checksum echo (ignore), and one genuine port↔retail divergence to chase.
 
 ## Leads (for follow-up arcs, NOT blocking the producer)
 
-- **`ranking_records` banks 1–99 — a CONFIRMED port bug the pillar caught AND
-  attributed.** An independent seed-vs-output check (the input `{savefile}` both
-  sides loaded vs each side's written arena) settles it: for banks 1–99 the RETAIL
-  output PRESERVES the seed's ranking records (`seed == retail`), while the PORT
-  ZEROES them (`seed != port`; port dwords read 0 where seed and retail read
-  16/1/2/…). Bank 0 (the committed slot) is preserved on BOTH, and everything ELSE
-  in banks 1–99 matches — so it is NOT a full bank re-init; the port specifically
-  drops the per-slot RANKING summary the ranking screen (`FUN_0049f012`, base
-  `DAT_0450b170`) reads. A real fidelity gap (the port would render wrong rankings
-  for the OTHER save slots), invisible to every pixel/frame pillar — the save
-  pillar's raison d'être, demonstrated on its first real run. Root cause (a
-  follow-up PORTING arc, not this tooling arc): a stray ranking clear or a per-bank
-  magic+checksum-gate / `save_bank_init_one` / `save_bank_checksum_ok` divergence in
-  the port's boot-time `save_bank_init_all` (the port judges the seed's non-active
-  banks differently from retail's `FUN_004901c2`). → **`PORT-DEBT(save-ranking-
-  nonactive-banks)`** (not yet code-tagged).
-- **`occupied_playtime`** is the frame-count phase origin — a candidate `{phasepin}`
-  extension (pin the playtime accumulator origin) so a save proof isolates logic
-  from phase, matching the pixel/state loop.
+- **✅ FIXED 2026-07-16 — the `ranking_records` banks 1–99 catch was a REAL port bug;
+  now byte-exact vs retail.** The region is a MISNOMER: dword `0x9e76` is the
+  **encyclopedia (図鑑) discovery store** (`encyclopedia.c` ENC_DISC_BYTE `0x279d8`;
+  `FUN_0049f012` = `encyclopedia_setup`, which the port author mislabeled "RANKING" —
+  `scene_title.c:740`). Record = `{category_key@+0, catalog_count@+1, discovered_flags@byte8+}`.
+  **Root cause (byte-confirmed, 3-way seed/port/retail):** the seed's banks 1–99 are
+  **never-committed slots** — valid magic, but an **unstamped checksum (stored `0x0` ≠
+  computed `0x345e7bcf`)** and a populated key+count a prior title-図鑑 open wrote.
+  Retail's `FUN_004901c2` **gates its per-bank verify sweep on `DAT_095d3728`** (set on
+  save-load, `FUN_004902fe`) ⇒ it does NOT re-validate loaded banks ⇒ **retail output ==
+  seed byte-for-byte (0 diffs) for all 99 non-active banks.** The port's
+  `save_bank_init_all` **ignored the gate** and always swept ⇒ the stale-checksum banks
+  failed `save_bank_checksum_ok` ⇒ `save_bank_init_one` re-inited them, zeroing the
+  encyclopedia key+count + re-stamping the checksum (66 dwords/bank = key+count + cksum).
+  Invisible to every pixel/frame pillar — the save pillar's raison d'être, demonstrated
+  on its first real run. **Fix (commit pending): model the gate** — `g_save_bank_skip_verify`
+  in `save_bank.c` (retail `DAT_095d3728`), gate the sweep on it, set it in
+  `save_io_try_load`'s load buckets (reset by `save_bank_arena_clear`), + rename the
+  state-map region `ranking_records`→`encyclopedia_discovery`. **VERIFIED `--target
+  openrecet` re-drive: banks 1–99 `port^seed = 0`, `port^retail = 0` (all byte-identical);
+  save diff `6836 → 6` bytes** — the 6435 ranking + 394 banks-1–99-checksum diffs GONE.
+  +2 host tests (`save_bank_skip_verify_preserves_stale_bank`,
+  `save_io_load_preserves_stale_checksum_nonactive_bank`); host 3432/0. No
+  `PORT-DEBT(save-ranking-nonactive-banks)` needed (was never code-tagged).
+- **`occupied_playtime`** (the sole remaining save diff, bank 0, 2 bytes: port `0x4095`
+  vs retail `0x73cb`) is the frame-count phase origin — a candidate `{phasepin}`
+  extension (pin the playtime accumulator origin) so a save proof isolates logic from
+  phase, matching the pixel/state loop. Its 3-byte `checksum` echo + 1 `(unmapped)` byte
+  round out the 6-byte residual; all bank-0-only, all non-logic.
 
 ## Follow-ups (roadmap)
 

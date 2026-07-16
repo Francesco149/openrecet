@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Save-pillar catch FIXED: the encyclopedia-store re-init (the `DAT_095d3728` verify-sweep gate)
+
+The `save` pillar's first real FAIL attributed a REAL port bug (`ranking_records` banks 1–99); now CLOSED,
+byte-exact vs retail. Commit pending; finding `findings/parity-save-producer.md` §Leads.
+
+- **Region was a MISNOMER:** dword `0x9e76` ("ranking_records") is the **encyclopedia (図鑑) discovery store**
+  (`encyclopedia.c` ENC_DISC_BYTE 0x279d8; `FUN_0049f012`=`encyclopedia_setup`, mislabeled "RANKING" by the port
+  author per `scene_title.c:740`). Record `{category_key@+0, catalog_count@+1, discovered_flags@byte8+}`. State-map
+  renamed `ranking_records`→`encyclopedia_discovery`.
+- **Root cause (3-way seed/port/retail bytes):** the seed's banks 1–99 are never-committed slots — valid magic but
+  an **unstamped checksum (stored `0x0` ≠ computed `0x345e7bcf`)** + a key+count a prior title-図鑑 open populated.
+  Retail's `FUN_004901c2` **gates the per-bank verify sweep on `DAT_095d3728`** (set on save-load, `FUN_004902fe`)
+  ⇒ loaded banks preserved verbatim (**`retail==seed`, 0 diffs**). The port's `save_bank_init_all` IGNORED the gate
+  ⇒ always swept ⇒ the stale-checksum banks failed `save_bank_checksum_ok` ⇒ `save_bank_init_one` re-inited them,
+  zeroing the key+count + re-stamping the checksum (66 dwords/bank). Invisible to every pixel/frame pillar.
+- **Fix:** modeled the gate — `g_save_bank_skip_verify` (save_bank.c/h; = engine `DAT_095d3728`), gate the sweep
+  (part 2 of `save_bank_init_all`) on it, set it in `save_io_try_load`'s 3 load buckets (before `init_all`), reset by
+  `save_bank_arena_clear` (host-test "process restart" / BSS-zero on real boot). +2 host tests
+  (`save_bank_skip_verify_preserves_stale_bank`, `save_io_load_preserves_stale_checksum_nonactive_bank`); host 3432/0.
+- **VERIFIED `--target openrecet` re-drive:** banks 1–99 `port^seed=0`, `port^retail=0` (all 99 byte-identical);
+  **save diff `6836 → 6` bytes** — the 6435 encyclopedia + 394 banks-1–99 checksum diffs GONE. Only bank-0
+  `occupied_playtime` (2, phase-origin frame count port `0x4095`/retail `0x73cb`) + its 3-byte checksum echo + 1
+  `(unmapped)` byte remain — all bank-0-only, all non-logic. The save pillar is now a clean near-PASS.
+
 ## 2026-07-16 — Parity evidence: ST-00/ST-01 — canonical state model + `save` pillar PRODUCER (M1)
 
 The `save` proof pillar (the persistent-state axis, invisible to every frame pillar) gets a REAL PASS/FAIL,

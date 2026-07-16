@@ -4884,3 +4884,19 @@ copies the boom rows' rate byte, which would have to be 0 in news.txt), so vendo
 never exercises it — but a save carrying one would print the wrong item's plural (or OOB
 garbage in retail; the port guards OOB to "" and otherwise replicates the raw-slot read).
 Port: `news_daily.c` expiry pass; RE `findings/news-daily-RE.md`.
+
+## 133. The save-bank per-bank verify sweep is GATED on DAT_095d3728 — a loaded save's banks are TRUSTED verbatim, even non-active slots whose stored checksum is stale/0 (never re-inited on load)
+
+`FUN_004901c2` (save_bank_init_all) has two phases: (1) shared-header magic re-init, then
+(2) a per-bank loop that re-inits (`FUN_0049001c`) any bank failing `magic==0x341944da &&
+checksum_matches`.  Phase 2 runs ONLY when `DAT_095d3728 == 0`.  On a fresh boot the gate is
+0 so every bank is re-inited; the save-LOAD path (`FUN_004902fe`) sets `DAT_095d3728 = 1`,
+so the post-load `FUN_004901c2` call does NOT re-validate the freshly loaded banks — retail
+TRUSTS loaded data.  This matters because a save's **never-committed** slots carry a VALID
+magic but an **unstamped checksum of 0** (only the committed/active slot is ever checksummed):
+the sweep would judge them corrupt and re-init them, but the gate suppresses that, so retail
+preserves them byte-for-byte across a load→save round trip (encyclopedia 図鑑 key+count,
+etc.).  Ground truth: a `--target both` `save.dat` round trip leaves the 99 non-active banks
+`retail == seed` with 0 diffs, checksum still 0.  (Port: `g_save_bank_skip_verify` in
+`save_bank.c`; the pre-fix always-sweep zeroed those banks' encyclopedia store — see
+`findings/parity-save-producer.md`.)
