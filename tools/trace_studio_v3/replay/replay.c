@@ -13,6 +13,10 @@
  *                                                          per-frame process spawn, no GBs
  *                                                          of raw references)
  *   replay <cap.bin> --bench [frame-index] [iters]         resident per-render latency
+ *   replay <cap.bin> --render-dump <wanted.txt> <outdir>  BATCH RGB dump for the parity
+ *                                                          pixel producer: render each
+ *                                                          listed kept frame RESIDENT
+ *                                                          (RT-correct) → <outdir>/f<NNN>.raw
  *
  * Build: i686-w64-mingw32-gcc (links the REAL d3d8). Run from a dir WITHOUT the
  * proxy d3d8.dll.
@@ -82,6 +86,76 @@ static int verify_hashes(OrV3Replay *r, const char *refs_path)
     if (first_fail[0]) printf("  first failure: %s\n", first_fail);
     printf("  VERDICT: %s\n", (nfail == 0 && ntotal > 0) ? "ALL FRAMES BIT-EXACT  *** GO ***" : "DIVERGENT");
     return (nfail == 0 && ntotal > 0) ? 0 : 1;
+}
+
+/* batch RGB DUMP for the parity pixel producer (tools/parity/pixel_producer.py):
+ * render the kept frames listed (ascending, one per line) in <wanted.txt> on the
+ * RESIDENT core and write each as <outdir>/f<kept:05d>.raw (8-byte [w,h] u32 header
+ * + tightly-packed BGRA — the v3ref/read_raw_rgb format). This is the render half of
+ * the `pixels` proof pillar; the differ metric itself is computed in Python
+ * (pixel_diff.amplified_diff, the project's canonical metric) so there is ONE source
+ * of truth for "differ".
+ *
+ * RENDER-TARGET correctness: a frame's pixels can depend on an RT filled in an
+ * EARLIER frame (pause backdrop, transitions). For has_rt containers we therefore
+ * render frames 0..max(wanted) IN ORDER on the resident device WITHOUT reset, so
+ * cross-frame RT content accumulates (same rule as verify_hashes / render_history) —
+ * dumping only the wanted ones. For an RT-free container per-frame render is exact
+ * (each frame's Clear+preamble overwrites the prior), so we render only the wanted
+ * frames directly — no warm-up sweep. */
+static int render_dump(OrV3Replay *r, const char *listpath, const char *outdir)
+{
+    FILE *f = fopen(listpath, "r");
+    if (!f) { fprintf(stderr, "no wanted list %s\n", listpath); return 2; }
+    int cap = 256, n = 0; int *want = malloc((size_t)cap * sizeof *want);
+    char line[64];
+    while (fgets(line, sizeof line, f)) {
+        int v; if (sscanf(line, "%d", &v) != 1) continue;
+        if (n && v <= want[n - 1]) continue;      /* producer writes ascending-unique */
+        if (n == cap) { cap *= 2; want = realloc(want, (size_t)cap * sizeof *want); }
+        want[n++] = v;
+    }
+    fclose(f);
+    if (!n) { fprintf(stderr, "empty wanted list %s\n", listpath); free(want); return 2; }
+
+    uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
+    int nframes = orv3_replay_count(r), rt = orv3_replay_has_rt(r);
+    int nwritten = 0, nfail = 0;
+    char path[1024];
+
+    #define DUMP_ONE(fi, px) do {                                                     \
+        if (!(px)) { nfail++; fprintf(stderr, "render kept=%d failed\n", (fi)); }     \
+        else {                                                                        \
+            snprintf(path, sizeof path, "%s/f%05d.raw", outdir, (fi));                \
+            FILE *of = fopen(path, "wb");                                             \
+            if (!of) { nfail++; fprintf(stderr, "cannot write %s\n", path); }         \
+            else { fwrite(&W, 4, 1, of); fwrite(&H, 4, 1, of);                        \
+                   fwrite((px), 1, (size_t)W * 4 * H, of); fclose(of); nwritten++; }  \
+        }                                                                             \
+    } while (0)
+
+    if (rt) {
+        int wi = 0, hi = want[n - 1];
+        if (hi >= nframes) hi = nframes - 1;
+        for (int fi = 0; fi <= hi && wi < n; fi++) {
+            const uint8_t *px = orv3_replay_render(r, fi);   /* issue fi on resident dev */
+            if (fi != want[wi]) continue;                    /* warm-only: accumulate RT */
+            DUMP_ONE(fi, px);
+            wi++;
+        }
+        for (; wi < n; wi++) { nfail++; fprintf(stderr, "kept=%d out of range (n=%d)\n", want[wi], nframes); }
+    } else {
+        for (int wi = 0; wi < n; wi++) {
+            int fi = want[wi];
+            if (fi < 0 || fi >= nframes) { nfail++; fprintf(stderr, "kept=%d out of range (n=%d)\n", fi, nframes); continue; }
+            DUMP_ONE(fi, orv3_replay_render(r, fi));
+        }
+    }
+    #undef DUMP_ONE
+
+    free(want);
+    printf("RENDERDUMP written=%d fail=%d rt=%d dims=%ux%u wanted=%d\n", nwritten, nfail, rt, W, H, n);
+    return nfail ? 1 : 0;
 }
 
 static int bench(OrV3Replay *r, int idx, int iters)
@@ -181,6 +255,16 @@ int main(int argc, char **argv)
                 idx, maxd, orv3_replay_draws(r, idx), out);
         orv3_replay_close(r);
         return 0;
+    }
+
+    /* batch RGB dump for the parity pixel producer (resident, RT-correct).
+     *   replay <cap.bin> --render-dump <wanted.txt> <outdir> */
+    if (strcmp(argv[2], "--render-dump") == 0) {
+        if (argc < 5) { fprintf(stderr, "usage: replay <cap.bin> --render-dump <wanted.txt> <outdir>\n");
+                        orv3_replay_close(r); return 2; }
+        int rc = render_dump(r, argv[3], argv[4]);
+        orv3_replay_close(r);
+        return rc;
     }
 
     const char *refpath = argv[2];

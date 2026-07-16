@@ -20,11 +20,12 @@ Normalized pixel-metrics doc (schema_version = OBS_SCHEMA_VERSION):
     }
 
 `differ` is the count of pixels that differ between the two identity-paired frames
-(the metric tools/pixel_diff.amplified_diff already computes). A real headless
-producer that replays the v3 command stream for each paired frame and emits this
-doc is wired in a later package; the adapter is format-only so it is testable now
-against fixtures and cannot be fooled by a stale/foreign capture (roadmap rule 11,
-"build consumers before platforms").
+(the metric tools/pixel_diff.amplified_diff already computes). The headless producer
+that replays the v3 command stream for each paired frame and emits this doc is
+tools/parity/pixel_producer.py (CLI tools/parity_pixels.py) — built after this
+adapter per roadmap rule 11 ("build consumers before platforms"), so the adapter
+stays format-only, testable against fixtures, and cannot be fooled by a stale/
+foreign capture.
 
 Verdict map (roadmap §4.1, docs/reference/parity-vocabulary.md):
   * absent file / a required frame unmeasured → NOT_CAPTURED (fail closed)
