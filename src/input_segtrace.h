@@ -78,6 +78,27 @@
  *                        port snaps to match.  The retail Frida agent mirrors it
  *                        onto DAT_0438b8cc at the same frame.  RE §21.
  *
+ *   {"playtimepin":[F,V]} force the ACTIVE working slot's total-playtime frame
+ *                        accumulator (bank dword SAVE_BANK_FIELD_PLAYTIME, engine
+ *                        working DAT_044e37a0[slot]) to V at base+F (array form,
+ *                        like {gsimpin}; fires once, pre-sim).  Playtime ticks +1
+ *                        every live-scene frame (sim.c / engine FUN_004536cb head,
+ *                        BEFORE the worker-load gate), so it counts the two
+ *                        completion-based async-load brackets (house + pause menu)
+ *                        whose duration is a wall-clock CreateThread race under
+ *                        turbo — the port's swings ~4000 frames run-to-run while
+ *                        retail (deterministic intro-video load) holds ~40.  On a
+ *                        save COMMIT this drive-variable, phase-origin count is the
+ *                        occupied_playtime bytes; a bilateral pin AFTER the last
+ *                        variable load (SAVE_PICKER_READY) makes it deterministic +
+ *                        equal on both targets so save.dat compares byte-exact.
+ *                        Unlike {gsimpin} (V = retail's natural, a retail no-op),
+ *                        V is a CHOSEN canonical origin forced on BOTH sides — but
+ *                        the fire point is identical (input_poll, ahead of the sim
+ *                        playtime tick) on port and agent, so both land on V+K after
+ *                        K deterministic ticks to the commit snapshot: no off-by-one.
+ *                        The retail Frida agent mirrors it onto DAT_044e37a0[slot].
+ *
  *   {"bgnpcpin":[F,[d0..d149]]}
  *                        overwrite the background-window NPC SoA (DAT_073a7f80)
  *                        from SCENE1_BG_NPC_COUNT raw engine records captured from
@@ -250,6 +271,17 @@ struct seg_gsimpin {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative playtime-accumulator force: set the active working slot's
+ * total-playtime frame count (SAVE_BANK_FIELD_PLAYTIME) to `value` when absolute
+ * frame base+frame is reached (fires once; see {playtimepin} in the doc).
+ * Normalizes the drive-variable async-load-bracket phase origin so a save COMMIT
+ * writes a deterministic, cross-target-equal occupied_playtime. */
+struct seg_playtimepin {
+    uint32_t frame;   /* relative to the segment base */
+    uint32_t value;   /* working-slot playtime frame count to install */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* One engine record's dword count (BG_NPC_ENGINE_DWORDS = 25 = 0x64/4).
  * Kept as a literal (like SEG_BGNPCPIN_DWORDS below) so this module need not
  * include scene1_bg_npc.h. */
@@ -307,6 +339,8 @@ struct seg_segment {
     size_t            n_gframes, cap_gframes;
     struct seg_gsimpin *gsimpins;   /* base-relative sim-frame-counter forces */
     size_t            n_gsimpins, cap_gsimpins;
+    struct seg_playtimepin *playtimepins; /* base-relative playtime-accum forces */
+    size_t            n_playtimepins, cap_playtimepins;
     struct seg_bgnpcpin *bgnpcpins; /* base-relative bg-NPC SoA pins */
     size_t            n_bgnpcpins, cap_bgnpcpins;
     struct seg_phasepin *phasepins; /* base-relative companion-phase normalizers */
@@ -452,6 +486,14 @@ struct input_segtrace {
     void (*gp_cb)(uint32_t value, void *user);
     void  *gp_user;
 
+    /* Playtime-accumulator force callback (set once via
+     * input_segtrace_set_playtimepin_cb); fired per {playtimepin} op when its
+     * frame base+frame is reached.  Writes the active working slot's playtime
+     * frame count (normalizes the async-load-bracket phase origin for a save
+     * COMMIT).  Kept a callback so this module stays free of save_work.h. */
+    void (*ptp_cb)(uint32_t value, void *user);
+    void  *ptp_user;
+
     /* Background-NPC SoA pin callback (set once via input_segtrace_set_bgnpcpin_cb);
      * fired per {bgnpcpin} op when its frame base+frame is reached (in-tick,
      * before sim).  Gets the captured engine-record dwords + their count.  Kept a
@@ -528,6 +570,16 @@ typedef void (*segtrace_gsimpin_fn)(uint32_t value, void *user);
  * {gsimpin} op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
                                    segtrace_gsimpin_fn cb, void *user);
+
+/* Playtime-accumulator force callback: invoked once per `{playtimepin:[F,V]}` op
+ * with the value V, at the frame base+F.  Sets the active working slot's total
+ * playtime frame count (normalizes the async-load-bracket phase origin). */
+typedef void (*segtrace_playtimepin_fn)(uint32_t value, void *user);
+
+/* Set the playtime-accumulator force callback (and its user ptr).  Fires per
+ * {playtimepin} op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_playtimepin_cb(struct input_segtrace *st,
+                                       segtrace_playtimepin_fn cb, void *user);
 
 /* Background-NPC SoA pin callback: invoked once per `{bgnpcpin:[F,[...]]}` op
  * with the captured engine-record dwords (length n), at the frame base+F. */

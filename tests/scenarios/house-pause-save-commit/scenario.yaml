@@ -25,12 +25,19 @@ duration_ceiling_ms: 180000
 # pixel/frame pillar.  Scoped to the gap-free SAVE_PICKER_READY occ-1 window [1,19] (the
 # resting picker; offset 0 is the join's only head gap, excluded — the port's
 # SAVE_PICKER_READY fires 1f later, so port#0 == retail#1).  `identity` PASSES there.
-# `save` is declared REQUIRED = the honest parity aspiration; the gate reports where we are:
-#   * save FAILS at bank0/occupied_playtime — 6 residual bytes, ALL bank-0, ALL non-logic
-#     (recorded below as an R3 exception; DESCRIPTIVE, not auto-tolerated).  The REAL port
-#     bug this pillar CAUGHT — encyclopedia_discovery re-init across banks 1–99, 6435 B —
-#     was FIXED byte-exact vs retail (commit 6c9c85d); what remains is the phase-origin
-#     playtime accumulator + its checksum echo + 1 unmapped byte.
+# `save` is declared REQUIRED and now PASSES: the two save.dat a `--target both` drive
+# writes are BYTE-IDENTICAL (ndiff=0, drive-stable across >=2 both-runs) — the first fully-
+# passing multi-pillar bundle in the evidence program.  Three divergences the save pillar
+# CAUGHT along the way, all resolved:
+#   * encyclopedia_discovery re-init across banks 1–99 (6435 B) — the port's verify sweep
+#     clobbered loaded non-active banks; FIXED byte-exact (commit 6c9c85d).
+#   * house_cam_flag (0xb37d) — the continue-resume didn't clear the from-world-map camera
+#     flag (a REAL port bug, not phase); FIXED (scene.c, engine FUN_0049a59e all.c:100642).
+#   * occupied_playtime — the total-playtime FRAME accumulator counts the two completion-
+#     based async-load brackets (house + pause menu), a wall-clock CreateThread race under
+#     turbo (the port swung ~4000 frames run-to-run vs retail's ~40): a drive-variable PHASE
+#     ORIGIN normalized by the bilateral {playtimepin} (both sides forced to a canonical
+#     origin AFTER the last variable load -> deterministic + cross-target-equal at COMMIT).
 # Arm the v3 window at SAVE_PICKER_READY (NOT the default HOUSE_FREEROAM, which desyncs
 # under load-stretch → 0 pairs):
 #     orv3_window.py house-pause-save-commit --window 0:200 --anchor SAVE_PICKER_READY --view
@@ -51,11 +58,8 @@ proof:
     - save
   seeds: [19937]
   configurations: [reference-1024-windowed]
-  exceptions:
-    - pillar: save
-      scope: "bank0 — occupied_playtime (2B) + its checksum echo (3B) + 1 unmapped byte (dword one past deco_carpet); 6 bytes total, all bank-0, all non-logic"
-      reason: "Phase-origin near-PASS residual, NOT a logic gap.  occupied_playtime is the total-playtime FRAME accumulator; the port skips the intro-video freeze retail plays, so its origin is a constant phase offset (this drive: port 0x41ee vs retail 0x73f3, Δ0x3205≈213s≈the freeze) — a {phasepin}-class pin (queued: pin the playtime accumulator origin).  The checksum is the derived XOR echo of that diff (state-map policy predicts it); the 1 unmapped byte is bank-0 non-logic.  The one REAL port bug this pillar caught (encyclopedia_discovery re-init, banks 1–99, 6435 B) is FIXED byte-exact (commit 6c9c85d).  DESCRIPTIVE only — the gate does NOT auto-tolerate this (save still FAILs — honest); closes when the playtime {phasepin} lands."
-      approved_by: "R3-analysis-2026-07-16-save-phase-origin (findings/parity-save-producer.md §Leads)"
+  # No exceptions — save PASSES byte-exact (the phase-origin playtime residual is normalized
+  # by the bilateral {playtimepin}, not tolerated).  The gate reports an honest full PASS.
 coverage_expectations:
   functions: []
   blocks: []

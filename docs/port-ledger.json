@@ -10627,6 +10627,7 @@
    "src": [
     "src/esc_dispatch.c",
     "src/font.h",
+    "src/input_segtrace.h",
     "src/scene1_intro_dialogue.c",
     "src/scene1_particles_tick.h",
     "src/scene1_sim.c",

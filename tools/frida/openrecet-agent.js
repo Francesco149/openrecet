@@ -947,7 +947,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
                          setrngs: [], escs: [], phasepins: [], pokes: [],
-                         memsnaps: [], rngcs: [], gsimpins: [],
+                         memsnaps: [], rngcs: [], gsimpins: [], playtimepins: [],
                          tutloadpin: null, wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
@@ -1058,6 +1058,19 @@ function segtraceBuildSegments(ops) {
             // no-op for retail (preserves its natural phase).  RE §21.
             segs[segs.length - 1].gsimpins.push(
                 {frame: op.gsimpin[0] | 0, value: op.gsimpin[1] >>> 0,
+                 fired: false});
+        } else if (op && op.playtimepin !== undefined && Array.isArray(op.playtimepin)) {
+            // {playtimepin:[frame,value]} — force the ACTIVE working slot's total
+            // playtime frame count (working DAT_044e37a0[slot]) to `value` at the
+            // base-relative `frame`, mirroring the port's segtrace_playtimepin_cb.
+            // Normalizes the async-load-bracket phase origin (the house + pause
+            // loads are a wall-clock CreateThread race counted into playtime) so a
+            // save COMMIT compares byte-exact.  Unlike {gsimpin} (value = retail's
+            // natural, a no-op), `value` is a CHOSEN canonical origin forced on
+            // BOTH sides; the fire point is identical (input_poll, pre-sim) so both
+            // land on value+K after K deterministic ticks to the commit snapshot.
+            segs[segs.length - 1].playtimepins.push(
+                {frame: op.playtimepin[0] | 0, value: op.playtimepin[1] >>> 0,
                  fired: false});
         } else if (op && op.poke !== undefined && Array.isArray(op.poke)) {
             // {poke:[frame, va, val]} — STICKY: from the base-relative `frame`
@@ -3502,6 +3515,23 @@ function segtraceTick(fn) {
                 gp.fired = true;
                 log('segtrace: pinned g_sim_frame_count = ' + (gp.value >>> 0) +
                     ' at frame ' + fn + ' (base+' + gp.frame + ')');
+            }
+        }
+        // {playtimepin} — force the ACTIVE working slot's total-playtime frame
+        // count (working DAT_044e37a0[slot]; slot = DAT_0438b1e0, stride 0x2dfc8)
+        // pre-sim, ahead of this frame's FUN_004536cb playtime tick (mirrors the
+        // port's segtrace_playtimepin_cb firing in input_poll).  Normalizes the
+        // async-load-bracket phase origin so the save COMMIT compares byte-exact.
+        for (let i = 0; i < seg.playtimepins.length; i++) {
+            const pp = seg.playtimepins[i];
+            if (!pp.fired && g_segtrace_base + pp.frame <= fn) {
+                const slot = rva(0x0438b1e0).readS32() >>> 0;
+                const addr = rva(0x044e37a0).add(slot * 0x2dfc8);
+                const prev = addr.readU32() >>> 0;
+                addr.writeU32(pp.value >>> 0);
+                pp.fired = true;
+                log('segtrace: pinned playtime ' + prev + ' -> ' + (pp.value >>> 0) +
+                    ' (slot ' + slot + ') at frame ' + fn + ' (base+' + pp.frame + ')');
             }
         }
         // {poke} STICKY writes: hold a u32 global at `val` every frame from

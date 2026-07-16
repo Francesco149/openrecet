@@ -27,6 +27,14 @@
 # Sync — same TWO rebases as house-pause-save-nav: the option-list nav + Z that
 # OPEN the submenu rebase on PAUSE_READY; the commit drive rebases on
 # SAVE_PICKER_READY (sub_anim==10 with Save selected — the picker is navigable).
+#
+# {playtimepin: [0, 29628]} — BILATERAL: force the active slot's total-playtime
+# accumulator (the frames@60 the save card shows as TIME) to a canonical origin at
+# SAVE_PICKER_READY, AFTER the two completion-based async loads (house + pause menu)
+# whose duration is a wall-clock CreateThread race under turbo (port swung ~4000
+# frames run-to-run, retail ~40).  Both sides then tick the SAME ~59 input-driven
+# frames to the COMMIT snapshot -> occupied_playtime byte-exact.  Placed here (not
+# at LOADING_END) because the pause load is the LAST variable load before commit.
 # embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
 {"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
 {"frame": 0, "buttons": "0x0000"}
@@ -52,6 +60,7 @@
 {"frame": 72, "buttons": "0x0010"}
 {"frame": 75, "buttons": "0x0000"}
 {"wait": "SAVE_PICKER_READY"}
+{"playtimepin": [0, 29628]}
 {"caprange": [0, 200]}
 {"calltrace": [0, 200]}
 {"frame": 0, "buttons": "0x0000"}

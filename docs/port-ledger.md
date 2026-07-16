@@ -264,7 +264,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x453373 | FUN_00453373 | 8 | ✓ |  | main.c, scene_pause.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ |  | esc_dispatch.h, scene_pause.c, sim.c (+1) |
 | 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+3) |
-| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | esc_dispatch.c, font.h, scene1_intro_dialogue.c (+9) |
+| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | esc_dispatch.c, font.h, input_segtrace.h (+10) |
 | 0x453d9c | FUN_00453d9c | 243 | ✓ |  | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ |  | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ |  | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |

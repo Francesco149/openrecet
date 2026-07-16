@@ -194,6 +194,21 @@ static int push_gsimpin(struct seg_segment *s, uint32_t frame, uint32_t value)
     return 1;
 }
 
+static int push_playtimepin(struct seg_segment *s, uint32_t frame, uint32_t value)
+{
+    if (s->n_playtimepins >= s->cap_playtimepins) {
+        size_t ncap = s->cap_playtimepins ? s->cap_playtimepins * 2 : 4;
+        struct seg_playtimepin *np = realloc(s->playtimepins, ncap * sizeof *np);
+        if (!np) return 0;
+        s->playtimepins = np; s->cap_playtimepins = ncap;
+    }
+    s->playtimepins[s->n_playtimepins].frame = frame;
+    s->playtimepins[s->n_playtimepins].value = value;
+    s->playtimepins[s->n_playtimepins].fired = 0;
+    s->n_playtimepins++;
+    return 1;
+}
+
 static int push_bgnpcpin(struct seg_segment *s, uint32_t frame,
                          const uint32_t *values)
 {
@@ -251,6 +266,7 @@ void input_segtrace_free(struct input_segtrace *st)
         free(st->segs[i].escs);
         free(st->segs[i].gframes);
         free(st->segs[i].gsimpins);
+        free(st->segs[i].playtimepins);
         free(st->segs[i].bgnpcpins);
         free(st->segs[i].phasepins);
         free(st->segs[i].memsnaps);
@@ -284,7 +300,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
         int      got_tutloadpin = 0, got_wait_timeout = 0, got_csloadpin = 0;
         int      got_gsimpin = 0, got_bgnpcpin = 0, got_primaryloadpin = 0;
-        int      got_bgnpcseed = 0;
+        int      got_bgnpcseed = 0, got_playtimepin = 0;
         uint32_t wait_timeout_val = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
@@ -292,6 +308,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
         uint32_t gsp_frame = 0, gsp_value = 0;
+        uint32_t ptp_frame = 0, ptp_value = 0;
         uint32_t ms_frame = 0, tlp_val = 0, csloadpin_val = 0, plp_val = 0;
         uint32_t bnp_frame = 0, bgnpcseed_val = 0, bgnpcseed_cursor_val = 0;
         uint32_t bnp_values[SEG_BGNPCPIN_DWORDS];
@@ -429,6 +446,24 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (p >= end || *p != ']') return 0;
                 p++;
                 got_gsimpin = 1;
+            } else if (klen == 11 && memcmp(ks, "playtimepin", 11) == 0) {
+                /* {playtimepin:[frame,value]} — force the active working slot's
+                 * total-playtime accumulator to `value` at base+frame.  Array
+                 * form only (like gsimpin/rngseed).  Normalizes the async-load-
+                 * bracket phase origin so a save COMMIT compares byte-exact. */
+                if (p >= end || *p != '[') return 0;
+                p++;  /* '[' */
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (!parse_number(&p, end, &ptp_frame)) return 0;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != ',') return 0;
+                p++;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (!parse_number(&p, end, &ptp_value)) return 0;
+                while (p < end && (*p == ' ' || *p == '\t')) p++;
+                if (p >= end || *p != ']') return 0;
+                p++;
+                got_playtimepin = 1;
             } else if (klen == 8 && memcmp(ks, "bgnpcpin", 8) == 0) {
                 /* {bgnpcpin:[frame,[d0..d149]]} — pin the bg-NPC SoA to retail's
                  * captured natural records.  Outer [frame, <inner>]; the inner
@@ -584,6 +619,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (!push_gframe(cur, gf_frame, gf_value)) return 0;
         } else if (got_gsimpin) {
             if (!push_gsimpin(cur, gsp_frame, gsp_value)) return 0;
+        } else if (got_playtimepin) {
+            if (!push_playtimepin(cur, ptp_frame, ptp_value)) return 0;
         } else if (got_bgnpcpin) {
             if (!push_bgnpcpin(cur, bnp_frame, bnp_values)) return 0;
         } else if (got_phasepin) {
@@ -778,6 +815,13 @@ void input_segtrace_set_gsimpin_cb(struct input_segtrace *st,
     st->gp_cb = cb; st->gp_user = user;
 }
 
+void input_segtrace_set_playtimepin_cb(struct input_segtrace *st,
+                                       segtrace_playtimepin_fn cb, void *user)
+{
+    if (!st) return;
+    st->ptp_cb = cb; st->ptp_user = user;
+}
+
 void input_segtrace_set_bgnpcpin_cb(struct input_segtrace *st,
                                     segtrace_bgnpcpin_fn cb, void *user)
 {
@@ -836,6 +880,14 @@ static void rearm_gsimpins(struct input_segtrace *st, size_t seg_idx)
     if (seg_idx >= st->n_segs) return;
     struct seg_segment *s = &st->segs[seg_idx];
     for (size_t i = 0; i < s->n_gsimpins; i++) s->gsimpins[i].fired = 0;
+}
+
+/* Clear a segment's {playtimepin} fire flags so they re-arm on segment activation. */
+static void rearm_playtimepins(struct input_segtrace *st, size_t seg_idx)
+{
+    if (seg_idx >= st->n_segs) return;
+    struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_playtimepins; i++) s->playtimepins[i].fired = 0;
 }
 
 /* Clear a segment's {bgnpcpin} fire flags so they re-arm on segment activation. */
@@ -931,6 +983,20 @@ static void fire_gsimpins(struct input_segtrace *st, struct seg_segment *s,
     }
 }
 
+/* Fire any of the active segment's {playtimepin} ops whose frame base+frame has
+ * been reached, once each, via the registered callback (NULL-safe). */
+static void fire_playtimepins(struct input_segtrace *st, struct seg_segment *s,
+                              uint32_t frame)
+{
+    for (size_t i = 0; i < s->n_playtimepins; i++) {
+        struct seg_playtimepin *p = &s->playtimepins[i];
+        if (!p->fired && st->base + p->frame <= frame) {
+            if (st->ptp_cb) st->ptp_cb(p->value, st->ptp_user);
+            p->fired = 1;
+        }
+    }
+}
+
 /* Fire any of the active segment's {bgnpcpin} ops whose frame base+frame has been
  * reached, once each, via the registered callback (NULL-safe). */
 static void fire_bgnpcpins(struct input_segtrace *st, struct seg_segment *s,
@@ -1001,6 +1067,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         rearm_escs(st, 0);
         rearm_gframes(st, 0);
         rearm_gsimpins(st, 0);
+        rearm_playtimepins(st, 0);
         rearm_bgnpcpins(st, 0);
         rearm_phasepins(st, 0);
         rearm_memsnaps(st, 0);
@@ -1031,6 +1098,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
                 rearm_gsimpins(st, st->cur_seg);
+                rearm_playtimepins(st, st->cur_seg);
                 rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
@@ -1069,6 +1137,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
                 rearm_gsimpins(st, st->cur_seg);
+                rearm_playtimepins(st, st->cur_seg);
                 rearm_bgnpcpins(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
                 rearm_memsnaps(st, st->cur_seg);
@@ -1098,6 +1167,10 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         /* {gsimpin} fires in the same pre-sim window — pin g_sim_frame_count (the
          * 目玉-sparkle %8 phase) before that frame's sparkle/records-B consumers. */
         fire_gsimpins(st, s, frame);
+        /* {playtimepin} fires in the same pre-sim window — set the working slot's
+         * playtime accumulator BEFORE that frame's sim playtime tick, so port and
+         * agent (both pre-sim) land on the identical V+K at the commit snapshot. */
+        fire_playtimepins(st, s, frame);
         /* {bgnpcpin} fires in the same pre-sim window — overwrite the bg-NPC SoA
          * with retail's captured natural layout before that frame's bg_npc_tick
          * (respawn/pause) consumes the shared LCG. */

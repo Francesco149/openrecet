@@ -63,6 +63,7 @@
 #include "audio_fade.h"
 #include "save_bank.h"
 #include "save_io.h"
+#include "save_work.h"   /* segtrace_playtimepin_cb: active-slot playtime write */
 #include "sha256.h"
 #include "font.h"
 #include "font_alloc.h"
@@ -1018,6 +1019,7 @@ static void  segtrace_esc_cb(void *user);
 static void  segtrace_memsnap_cb(uint32_t frame, void *user);
 static void  segtrace_gframe_cb(uint32_t value, void *user);
 static void  segtrace_gsimpin_cb(uint32_t value, void *user);
+static void  segtrace_playtimepin_cb(uint32_t value, void *user);
 static void  segtrace_bgnpcpin_cb(const uint32_t *values, size_t n, void *user);
 static void  segtrace_phasepin_cb(void *user);
 static void  segtrace_tutloadpin_cb(uint32_t value, void *user);
@@ -1920,6 +1922,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * phase) without {phasepin}'s bg-NPC re-seed — see
              * segtrace_gsimpin_cb / RE §21. */
             input_segtrace_set_gsimpin_cb(&g_segtrace, segtrace_gsimpin_cb, NULL);
+            /* {playtimepin:[F,V]} ops pin the active working slot's playtime
+             * accumulator (the async-load-bracket phase origin for save COMMIT) —
+             * see segtrace_playtimepin_cb. */
+            input_segtrace_set_playtimepin_cb(&g_segtrace,
+                                              segtrace_playtimepin_cb, NULL);
             /* {bgnpcpin:[F,[...]]} ops pin the bg-NPC SoA to retail's captured
              * natural layout (the rng-consumer-survey foundation) — see
              * segtrace_bgnpcpin_cb / RE §21.1.  BUT when the trace ALSO carries a
@@ -4031,6 +4038,25 @@ static void segtrace_gsimpin_cb(uint32_t value, void *user)
     fprintf(stderr, "segtrace: pinned g_sim_frame_count %u -> %u (gsimpin)\n",
             (unsigned)g_sim_frame_count, (unsigned)value);
     g_sim_frame_count = value;
+}
+
+/* Playtime-accumulator sink for input_segtrace `{playtimepin:[frame,value]}` ops:
+ * force the ACTIVE working slot's total-playtime frame count
+ * (SAVE_BANK_FIELD_PLAYTIME, engine working DAT_044e37a0[slot]) to `value`,
+ * mirroring the retail agent's DAT_044e37a0[slot] write.  Normalizes the
+ * drive-variable async-load-bracket phase origin (the house + pause-menu loads
+ * are a wall-clock CreateThread race counted into playtime, sim.c) so a save
+ * COMMIT writes a deterministic, cross-target-equal occupied_playtime.  Fires
+ * pre-sim (input_poll), like the agent, so both land on V+K after K identical
+ * ticks to the commit snapshot. */
+static void segtrace_playtimepin_cb(uint32_t value, void *user)
+{
+    (void)user;
+    uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+    if (!wb) return;
+    fprintf(stderr, "segtrace: pinned playtime %u -> %u (playtimepin)\n",
+            (unsigned)wb[SAVE_BANK_FIELD_PLAYTIME], (unsigned)value);
+    wb[SAVE_BANK_FIELD_PLAYTIME] = value;
 }
 
 /* {bgnpcpin} — overwrite the bg-NPC SoA from retail's captured natural records

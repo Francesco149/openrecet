@@ -521,6 +521,8 @@ struct test_case {
     X(segtrace_no_tutloadpin_clears_flag) \
     X(segtrace_gsimpin_fires_once_at_frame) \
     X(segtrace_gsimpin_rejects_scalar) \
+    X(segtrace_playtimepin_fires_once_at_frame) \
+    X(segtrace_playtimepin_rejects_scalar) \
     X(segtrace_bgnpcpin_parses_and_fires) \
     X(segtrace_bgnpcpin_rejects_truncated) \
     \

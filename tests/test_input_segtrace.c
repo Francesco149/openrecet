@@ -341,6 +341,49 @@ int test_segtrace_gsimpin_fires_once_at_frame(void)
     return 0;
 }
 
+int test_segtrace_playtimepin_fires_once_at_frame(void)
+{
+    /* {playtimepin:[frame,value]} fires the working-slot playtime force exactly
+     * once at base+frame (array form, like {gsimpin}; normalizes the async-load-
+     * bracket phase origin for a save COMMIT).  Base-relative in a waited
+     * segment, fires before that frame's sim playtime tick. */
+    const char buf[] =
+        "{\"wait\":\"SAVE_PICKER_READY\"}\n"
+        "{\"playtimepin\":[0,29628]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(st.segs[0].n_playtimepins, 0);
+    T_ASSERT_EQ_U(st.segs[1].n_playtimepins, 1);
+    struct rng_log log = {0};
+    input_segtrace_set_playtimepin_cb(&st, rng_cb, &log);
+    /* boot segment has no playtimepin; before the anchor → no fire */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* anchor @2000 → base=2000; playtimepin fires at 2000+0 = 2000 */
+    input_segtrace_on_anchor(&st, "SAVE_PICKER_READY", 2000);
+    input_segtrace_tick(&st, 2000, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    T_ASSERT_EQ_U(log.v[0], 29628);
+    /* later ticks must NOT re-fire */
+    input_segtrace_tick(&st, 2001, NULL, NULL);
+    input_segtrace_tick(&st, 2010, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_playtimepin_rejects_scalar(void)
+{
+    /* {playtimepin} requires the [frame,value] array form (no 1-arg shorthand). */
+    const char buf[] = "{\"playtimepin\":7}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 /* ── {bgnpcpin} — the bg-NPC SoA pin (rng-consumer-survey foundation) ──────── */
 struct bnp_log { uint32_t v[SEG_BGNPCPIN_DWORDS]; size_t n; int fires; };
 static void bnp_cb(const uint32_t *values, size_t n, void *user)

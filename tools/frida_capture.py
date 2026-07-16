@@ -1210,6 +1210,18 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # IS retail's recorded gsim), so skip it here. (Without this it'd
                 # fall to the input-entry else and KeyError on the absent "buttons".)
                 continue
+            elif "playtimepin" in rec:
+                # {playtimepin:[F,V]} — BILATERAL pin of the active working slot's
+                # total-playtime frame accumulator to a CHOSEN canonical origin V.
+                # Unlike {gsimpin} (V is retail's natural, so PORT-ONLY), the playtime
+                # origin is drive-variable on BOTH sides — the house + pause-menu
+                # async-load brackets are a wall-clock CreateThread race counted into
+                # playtime, so retail must be pinned too.  Forward it so both targets
+                # write the SAME V pre-sim (input_poll) and the save COMMIT compares
+                # byte-exact.  Mirrors the port's segtrace_playtimepin_cb.
+                pp = rec["playtimepin"]
+                segtrace_ops.append({"playtimepin": [int(pp[0]),
+                                                     int(pp[1]) & 0xffffffff]})
             elif "bgnpcpin" in rec:
                 # {bgnpcpin:[F,[...]]} — BILATERAL pin to the scenario's canonical bg-NPC
                 # SoA (DAT_073a7f80). Forward the SoA to the agent so retail is pinned the
