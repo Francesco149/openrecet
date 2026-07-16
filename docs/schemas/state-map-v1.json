@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "_note": "ST-00 canonical state map (roadmap parity-evidence §7). The named-region layout of the engine's ~18 MB save/working arena, so a divergent BYTE OFFSET in a captured save.dat (or a working-arena snapshot) resolves to (scope, bank, region, element, field) instead of a bare number. SOURCE OF TRUTH is src/save_bank.h + docs/findings/save-working-arena.md; every entry cites its #define / DAT_ address. This file is the MACHINE map (consumed by tools/parity/save.py's localizer + future ST-02 encoder); the prose model + the four state CLASSES are docs/reference/canonical-state.md. v1 covers the well-defined named fields; unmapped byte ranges resolve to 'bank N dword D (unmapped)', which is honest, not a guess. Extend as consumers surface field semantics — never invent a name for a byte whose meaning is unknown (roadmap ST-00 stop condition).",
+
+  "arena": {
+    "bytes": 18838832,
+    "header_bytes": 2832,
+    "bank_stride_bytes": 188360,
+    "bank_stride_dwords": 47090,
+    "bank_count": 100,
+    "_geom": "arena = [0x0b10 shared header][100 x 0x2dfc8 bank]. abs byte of bank N field-dword D = 0x0b10 + N*0x2dfc8 + D*4. The SAVE arena (DAT_056e5770, disk save.dat) and the WORKING arena (DAT_044e3798, live game state) share this exact layout; a save.dat is the save arena dumped verbatim (src/save_io.c write_arena_to)."
+  },
+
+  "policy": {
+    "endianness": "little",
+    "float": "f32/f64 fields are compared by BIT PATTERN (the project's x87-invariant rule) — no epsilon. A named float region records elem_type so a report can print the value, but equality is over raw bits.",
+    "pointer": "the save/working arena carries NO pointers or OS handles — it is pure value data (a disk mirror). Every dword is a comparable value; there is nothing to normalize away.",
+    "unknown_bytes": "a byte range with no named region is class 'unknown': INCLUDED in a byte-exact comparison (never silently masked) and reported as 'unmapped'. Excluding a byte requires a named region with an explicit reason (none excluded in v1).",
+    "checksum": "each bank ends with an XOR-sum checksum at dword 0xb7f1 (save_bank_stamp_checksum). It is a pure function of the bank's content, so it only diverges when the content it covers already diverged — a checksum-only diff is impossible when content matches, and a checksum diff downstream of a content diff is a derived echo, not a second finding."
+  },
+
+  "classes": {
+    "persistent": "on disk in save.dat; survives sessions (the save arena).",
+    "volatile_deterministic": "live game state the same layout holds in the working arena; reproducible under pinned inputs but not itself on disk unless committed. Fields tagged with working_alias double as this.",
+    "unknown": "byte-preserved but semantics not yet mapped."
+  },
+
+  "regions": {
+    "header": [
+      {"name": "magic", "dword": 0, "count": 1, "type": "u32", "class": "persistent", "note": "0x341944da when initialized (save_bank_init_all)"},
+      {"name": "se_slider", "dword": 1, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_HEADER_SE_DEFAULT", "note": "engine default 9"},
+      {"name": "bgm_slider", "dword": 2, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_HEADER_BGM_DEFAULT", "note": "engine default 5"},
+      {"name": "se_b_slider", "dword": 3, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_HEADER_SE_B_DEFAULT", "note": "engine default 9; dormant (engine-quirks #46)"},
+      {"name": "overlay_short", "dword": 4, "count": 1, "type": "u16x2", "class": "persistent", "note": "DAT_056e5780 lo + DAT_056e5782 hi; zero-init, dormant"},
+      {"name": "slider3", "dword": 5, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_HEADER_SLIDER3_DEFAULT", "note": "engine default 1 (DAT_056e5784)"},
+      {"name": "hidden_char_unlocked", "dword": 6, "count": 1, "type": "u32", "class": "persistent", "addr": "DAT_056e5788", "note": "hidden-character/event unlock flag; its =1 write triggers the FUN_004905a8(-1) unlock auto-save (all.c:19355)"},
+      {"name": "last_slot_used", "dword": 7, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_HEADER_FIELD_LAST_SLOT", "addr": "DAT_056e578c", "note": "continue-picker cursor seed; bumped by the save-slot UI (FUN_0049a59e). AUTHORITATIVE offset per the #define (header+0x1c=dword 7); the stale early comment in save_bank.h that put last_slot at dword 6 is superseded — dword 6 is hidden_char_unlocked."},
+      {"name": "header_scratch", "dword": 8, "count": 700, "type": "u32", "class": "unknown", "note": "~700 zero-init scratch dwords cleared on a fresh header init; field semantics surface as consumers port"}
+    ],
+
+    "bank": [
+      {"name": "bank_field0", "dword": 0, "count": 1, "type": "u32", "class": "unknown", "note": "zero-init"},
+      {"name": "magic", "dword": 1, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_MAGIC", "note": "0x341944da"},
+      {"name": "occupied_playtime", "dword": 2, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_OCCUPIED", "addr": "DAT_056e6288", "note": "0 = never-played (continue-picker empty test); doubles as total PLAY-TIME in frames @60fps"},
+      {"name": "gold", "dword": 3, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_GOLD", "note": "Recette's gold; fresh = 1000"},
+      {"name": "field4_two", "dword": 4, "count": 1, "type": "u16x2", "class": "persistent", "note": "u16 = 2 + u16 padding"},
+      {"name": "item_slot_table", "dword": 6, "count": 20000, "type": "u32", "class": "persistent", "const": "SAVE_BANK_ITEM_TABLE_DWORD", "note": "20000 item-ID slots (DAT_044e37b0 = bank+0x18); empty slot = 0xFFFFFFFF"},
+      {"name": "display_grid", "dword": 20006, "count": 300, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DISPLAY_GRID", "note": "0x4e26: shop-floor display, 15 rows x 20 cols row-major, one item ID/cell, 0xFFFFFFFF empty (FUN_004161c7 renders)"},
+      {"name": "sale_price_records", "dword": 20306, "count": 20000, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_SALE_MAX_BASE", "note": "0x4f52..0x9d72: per-item best(+0)/worst(+1) sale price, stride 0x14 dwords, indexed by FUN_004681f6(id). count abuts news_list; interior element boundaries not individually named in v1"},
+      {"name": "news_list", "dword": 40306, "count": 60, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_NEWS_TARGET", "note": "0x9d72: daily-news featured list, 20 entries x 3 dwords {target_id@+0 (DAT_0450ad60), news_id@+1 (DAT_0450ad64), trend_char@+2 (DAT_0450ad68)}. Byte layout at bank byte 0x275c8 adds +8 trend(char)/+9 duration(int8)"},
+      {"name": "encyc_sold", "dword": 40366, "count": 200, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_ENCYC_SOLD", "note": "0x9dae: encyclopedia sold-marks, 100 pairs (i32 catalog_slot, i32 3), free = first==0"},
+      {"name": "ranking_records", "dword": 40566, "count": 1800, "type": "u32", "class": "persistent", "note": "0x9e76..0xa586: 100 per-bank RANKING summary records x 18 dwords (FUN_0049f012, DAT_0450b170). NOT shop-floor display"},
+      {"name": "sched_table", "dword": 43390, "count": 50, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_SCHED_TABLE", "note": "0xa97e: scheduled-customer/appointment table, 10 entries x 5 dwords {active@+0, _@+1, timer@+2, kyaku_short@+3, _@+4} (DAT_0450dd90)"},
+      {"name": "news_hl_count", "dword": 43440, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_NEWS_HL_COUNT", "addr": "DAT_0450de58", "note": "0xa9b0: daily newspaper HEADLINE row count"},
+      {"name": "news_hl_text", "dword": 43441, "count": 5120, "type": "char", "class": "persistent", "const": "SAVE_BANK_NEWS_HL_TEXT_BYTE_OFF", "note": "bank byte 0x2a6c4 (=dword 0xa9b1): headline text rows of 0x100 chars each; count (bytes) abuts news_hl_offs. Uncapped in the engine (may alias the offsets region on overflow); v1 bounds it up to news_hl_offs"},
+      {"name": "news_hl_offs", "dword": 44721, "count": 20, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_NEWS_HL_OFFS", "addr": "DAT_0450f25c", "note": "0xaeb1: per-headline-row cumulative scroll offset (strlen+4 apart)"},
+      {"name": "news_hl_total", "dword": 44741, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_NEWS_HL_TOTAL", "addr": "DAT_0450f2ac", "note": "0xaec5: total headline scroll length"},
+      {"name": "item_count", "dword": 44742, "count": 1, "type": "u32", "class": "volatile_deterministic", "const": "SAVE_BANK_FIELD_ITEM_COUNT", "addr": "DAT_0450f2b0", "note": "0xaec6: live inventory count = index of first empty item slot; RECOMPUTED on load (save_work_load_slot) — a working-arena value that rides along in the dump"},
+      {"name": "sold_list", "dword": 44999, "count": 300, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_SOLD_LIST", "note": "0xafc7: sold-item lists, 3 types x 100 i32 entries (free = -1)"},
+      {"name": "sold_count", "dword": 45299, "count": 3, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_SOLD_COUNT", "note": "0xb0f3: per-type sold count (type-8 count at 0xb0f8 gates the news-pair block)"},
+      {"name": "objective_gold", "dword": 45302, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_OBJECTIVE_GOLD", "note": "0xb0f6: debt/objective gold; fresh = 1000"},
+      {"name": "score", "dword": 45303, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_SCORE", "addr": "DAT_0571265c", "note": "0xb0f7: picker-card SCORE"},
+      {"name": "loop", "dword": 45305, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_LOOP", "addr": "DAT_05712664", "note": "0xb0f9: picker-card LOOP (+1)"},
+      {"name": "week_counter", "dword": 45306, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_WEEK_COUNTER", "note": "0xb0fa: fresh = 7"},
+      {"name": "card_day", "dword": 45307, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_CARD_DAY", "addr": "DAT_0571266c", "working_alias": "shop_day (DAT_0450fb84)", "note": "0xb0fb: picker-card big day# (+1); in the working arena this dword is the live SHOP_DAY"},
+      {"name": "portrait_rot", "dword": 45308, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_PORTRAIT_ROT", "addr": "DAT_05712670", "working_alias": "clock_target (DAT_0450fb88)", "note": "0xb0fc: picker-card portrait rotation; in the working arena this dword is the in-game clock-hand TARGET"},
+      {"name": "merchant_exp", "dword": 45309, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_MERCHANT_EXP", "addr": "DAT_0450fb8c", "note": "0xb0fd: merchant EXP accumulator"},
+      {"name": "day_index", "dword": 45310, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DAY_INDEX", "working_alias": "merchant_xp_start (DAT_0450fb90)", "note": "0xb0fe: fresh day = 0; aliases the XP-bar animator level_start"},
+      {"name": "rank_threshold", "dword": 45311, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_RANK_THRESHOLD", "working_alias": "merchant_xp_end (DAT_0450fb94)", "note": "0xb0ff: fresh = 100; aliases the XP-bar animator level_end"},
+      {"name": "char_level", "dword": 45312, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_CHAR_LEVEL", "addr": "DAT_05712680", "working_alias": "shop_rank / merchant_level (DAT_0450fb98)", "note": "0xb100: picker-card char/level; in the working arena the live SHOP_RANK / merchant level"},
+      {"name": "ff_fill_400", "dword": 45544, "count": 400, "type": "u32", "class": "persistent", "note": "0xb1e8..0xb378: 0xFFFFFFFF x 400 (fresh-init fill)"},
+      {"name": "shop_display_tier_selector", "dword": 45944, "count": 1, "type": "u32", "class": "persistent", "note": "0xb378: SHOP_DISPLAY_TIER_SELECTOR (roster centroid tier)"},
+      {"name": "deco_wall", "dword": 45945, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DECO_WALL", "addr": "DAT_0451057c", "note": "0xb379: furniture selector (sel1)"},
+      {"name": "deco_floor", "dword": 45946, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DECO_FLOOR", "addr": "DAT_04510580", "note": "0xb37a: furniture selector (sel0)"},
+      {"name": "deco_table", "dword": 45947, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DECO_TABLE", "addr": "DAT_04510584", "note": "0xb37b: furniture selector (sel3)"},
+      {"name": "deco_carpet", "dword": 45948, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_DECO_CARPET", "addr": "DAT_04510588", "note": "0xb37c: furniture selector (sel2)"},
+      {"name": "mini_block", "dword": 45960, "count": 6, "type": "u32", "class": "persistent", "note": "0xb388..0xb38d: misc consts (3,3,1,0,0,1)"},
+      {"name": "chara_records", "dword": 45996, "count": 216, "type": "u32", "class": "persistent", "const": "SAVE_BANK_CHARA_BASE_DWORD", "note": "0xb3ac: 8 chara records x 27 dwords (stride 0x1b), atk/def/matk/mdef/hp/sp interp per level (save_bank_apply_chara_interp)"},
+      {"name": "closeness", "dword": 46212, "count": 100, "type": "i16_in_dword", "class": "persistent", "const": "SAVE_BANK_FIELD_CLOSENESS", "addr": "DAT_045109a8", "note": "0xb484: per-customer closeness/affinity, 100 int16 one-per-dword (low half); hi half = latched loyalty level 0..8"},
+      {"name": "game_mode", "dword": 46937, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_GAME_MODE", "addr": "DAT_045114fc", "note": "0xb759: 0 empty / 1 story / 2 survival / 3; ==2 disables tutorial+story arms"},
+      {"name": "news_latch", "dword": 46968, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_NEWS_LATCH", "addr": "DAT_04511578", "note": "0xb778: per-slot news-event-latched flag"},
+      {"name": "news_pairs", "dword": 46969, "count": 20, "type": "i16x2", "class": "persistent", "const": "SAVE_BANK_NEWS_PAIRS_BYTE_OFF", "note": "bank byte 0x2dde4 (=dword 0xb779): 0x14 pairs (i16 item_id, i16 3), free = first==0"},
+      {"name": "checksum", "dword": 47089, "count": 1, "type": "u32", "class": "persistent", "const": "SAVE_BANK_FIELD_CHECKSUM", "note": "0xb7f1: XOR-sum gate over the bank; derived from content (see policy.checksum)"}
+    ],
+
+    "bank_byte_fields": [
+      {"name": "event_day", "byte_off": 179402, "bytes": 1, "type": "i8", "class": "persistent", "const": "SAVE_BANK_EVENT_DAY_BYTE_OFF", "addr": "DAT_0450f462", "note": "bank byte 0x2bcca: day the 3-relics event last progressed"},
+      {"name": "event_flag", "byte_off": 179403, "bytes": 1, "type": "i8", "class": "persistent", "const": "SAVE_BANK_EVENT_FLAG_BYTE_OFF", "addr": "DAT_0450f463", "note": "bank byte 0x2bccb: nonzero disables the daily-event scan"}
+    ]
+  }
+}
