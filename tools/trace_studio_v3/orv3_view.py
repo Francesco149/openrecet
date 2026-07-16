@@ -191,6 +191,22 @@ def _winpath(p: Path) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
+def _sha256_file(p: Path) -> str:
+    """Stream the SHA-256 of the whole v3cap.bin container. Baked into view.json so a
+    downstream proof (parity_prove) can BIND a pixel/render metrics doc to the EXACT
+    container this window's identity join + draw report were built from: a foreign or
+    stale metrics doc with matching frame keys but a different source container is then
+    rejected (INCONCLUSIVE) instead of silently trusted. This is the container-content
+    hash the M0 adversarial review's HOLE-2 close (EP-08) threads as `expected_containers`.
+    ~0.3 s for a ~90 MB container, paid only on --view."""
+    import hashlib
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path,
                     join_anchor: str | None = None) -> dict:
     """Emit the NATIVE viewer's lean manifest: the identity-join timeline + the two
@@ -239,6 +255,10 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path,
         "join_verdict": join["join_verdict"], "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
         "port_container": _winpath(pside.entry / "v3cap.bin"),
         "retail_container": _winpath(rside.entry / "v3cap.bin"),
+        # Content hashes of the SAME two containers (not just their paths) — the
+        # provenance the proof compiler binds a metrics doc to (HOLE-2 / EP-08).
+        "port_container_sha256": _sha256_file(pside.entry / "v3cap.bin"),
+        "retail_container_sha256": _sha256_file(rside.entry / "v3cap.bin"),
         # Windows-local notes file the viewer reads+writes (UNC paths aren't writable
         # from the Windows viewer); orv3_notes.py reads the same file from WSL.
         "notes_path": _winpath(v3cache.notes_file(pmeta.scenario)),

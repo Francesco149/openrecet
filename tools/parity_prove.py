@@ -121,10 +121,32 @@ def contract_sha256(contract: dict) -> str:
 
 # ── observation resolution (EP-04 adapters over a v3 window) ─────────────────
 
+def _view_container_hashes(view_path: Path) -> dict:
+    """The {port,retail}_container_sha256 orv3_view baked into view.json — the content
+    hashes of the EXACT containers this window's identity join + draw report were built
+    from. Threaded as `expected_containers` into the pixel/render adapters so a foreign
+    or stale metrics doc (matching frame keys, different source container) is rejected
+    (INCONCLUSIVE) instead of silently trusted — the M0 adversarial-review HOLE-2 close.
+    Returns whichever of the two 64-hex hashes the view carries; {} for a pre-EP-08 view
+    (⇒ the provenance check is skipped and the caller caveats that gap)."""
+    if not view_path.exists():
+        return {}
+    try:
+        v = json.loads(view_path.read_text())
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for role in ("port_container_sha256", "retail_container_sha256"):
+        h = v.get(role)
+        if isinstance(h, str) and len(h) == 64:
+            out[role] = h
+    return out
+
+
 def resolve_observations(window_dir: Path, contract: dict):
     """Run the EP-04 adapters over an existing v3 window dir. Returns
-    (observations, pillars, local_paths). A pillar with no evidence/producer is
-    NOT_CAPTURED (fail closed)."""
+    (observations, pillars, local_paths, caveats). A pillar with no evidence/producer
+    is NOT_CAPTURED (fail closed)."""
     pairs = window_dir / "pairs.json"
     view = window_dir / "view.json"
     if not pairs.exists():
@@ -136,6 +158,7 @@ def resolve_observations(window_dir: Path, contract: dict):
     observations: dict = {}
     pillars: dict = {}
     local_paths: dict = {}
+    caveats: list[str] = []
 
     def put(name: str, res, path: Path | None = None):
         observations[name] = res.observation
@@ -149,31 +172,44 @@ def resolve_observations(window_dir: Path, contract: dict):
     except ObservationError:
         required = []
 
+    # Bind every content pillar to the container THIS window's join was built from
+    # (view.json's baked container hashes) so a foreign/stale metrics doc is rejected
+    # — HOLE-2. Opt-in: a pre-EP-08 view without the hashes ⇒ skip the check + CAVEAT
+    # the unverified provenance (never a silent trust). `None` = skip in the adapters.
+    expected = _view_container_hashes(view) or None
+    if expected is None and view.exists():
+        caveats.append(
+            "view.json predates the container-hash bake (orv3_view EP-08) — pixel/"
+            "render source-container provenance NOT verified; re-run orv3_window … "
+            "--view to bind it")
+
     # identity (from pairs.json)
     put("identity", adapt_identity(pairs, window=window), pairs)
 
-    # render_program — bridge the real view.json into a normalized metrics doc,
-    # cache it beside the window (a reproducible derived artifact), then adjudicate.
+    # render_program — bridge the real view.json into a normalized metrics doc, stamped
+    # with the container `source` (the producer's provenance claim), cache it beside the
+    # window (a reproducible derived artifact), then adjudicate under `expected_containers`.
     if view.exists():
         # scope the bridged doc to exactly the contract's in-window frames — a v3
         # window is often multi-anchor, so an unscoped bridge would carry frames the
         # adapter (rightly) rejects as foreign.
-        doc = render_metrics_from_view_json(view, required=required)
+        doc = render_metrics_from_view_json(view, required=required, source=expected)
         rm = window_dir / "render-metrics.json"
         rm.write_text(json.dumps(doc))
-        put("render_program", adapt_render_program(rm, required), rm)
+        put("render_program", adapt_render_program(rm, required, expected_containers=expected), rm)
     else:
         put("render_program", _prove_not_captured("render_program", "no view.json in window"))
 
     # pixels — optional producer output (no headless pixel producer yet ⇒ NOT_CAPTURED)
     pm = window_dir / "pixel-metrics.json"
-    put("pixels", adapt_pixels(pm, required), pm if pm.exists() else None)
+    put("pixels", adapt_pixels(pm, required, expected_containers=expected),
+        pm if pm.exists() else None)
 
     # pillars whose producer is a later package
     for name in UNBUILT_PILLARS:
         put(name, _prove_not_captured(name, "pillar producer not yet built (later package)"))
 
-    return observations, pillars, local_paths
+    return observations, pillars, local_paths, caveats
 
 
 def _prove_not_captured(name: str, reason: str):
@@ -235,7 +271,7 @@ def build_proof(scenario: str, window_dir: Path, *, contract_doc: dict, env: dic
                 caveats: list[str] | None = None):
     """Assemble (but do not yet store) the proof bundle + its local_paths envelope."""
     contract = contract_doc["proof"]
-    observations, pillars, obs_local = resolve_observations(window_dir, contract)
+    observations, pillars, obs_local, obs_caveats = resolve_observations(window_dir, contract)
     subject, inputs, environment, tools, norm = gather_provenance(
         scenario, contract, port_pe=port_pe, retail_pe=retail_pe, retail_ref=retail_ref,
         env=env, save_path=save_path, assets_manifest=assets_manifest,
@@ -246,7 +282,7 @@ def build_proof(scenario: str, window_dir: Path, *, contract_doc: dict, env: dic
         normalization=norm, observations=observations, pillars=pillars,
         coverage={"captured": False}, exceptions=list(contract.get("exceptions") or []),
         human_review=None)
-    return proof, contract, obs_local, caveats or []
+    return proof, contract, obs_local, list(caveats or []) + obs_caveats
 
 
 def main(argv=None) -> int:

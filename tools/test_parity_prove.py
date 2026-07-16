@@ -161,7 +161,8 @@ def test_envelope_and_cas(tmp: Path):
 
 # ── parity_prove: resolve_observations over a synthetic window ───────────────
 
-def write_window(tmp: Path, *, view_frames=None, px_frames=None, complete=True) -> Path:
+def write_window(tmp: Path, *, view_frames=None, px_frames=None, complete=True,
+                 container_hashes=None, px_source=None) -> Path:
     wd = tmp / "win"
     wd.mkdir(parents=True, exist_ok=True)
     keys = [["HOUSE_FREEROAM", 1, i] for i in range(5)]
@@ -172,10 +173,15 @@ def write_window(tmp: Path, *, view_frames=None, px_frames=None, complete=True) 
     (wd / "pairs.json").write_text(json.dumps(pairs))
     vf = view_frames or [{"offset": i, "label": f"HOUSE_FREEROAM#1+{i}", "draw_verdict": "ALIGNED",
                           "port_tris": 5, "retail_tris": 5, "divergent": []} for i in range(5)]
-    (wd / "view.json").write_text(json.dumps({"scenario": "syn", "frames": vf}))
+    view = {"scenario": "syn", "frames": vf}
+    if container_hashes:            # orv3_view's baked container provenance (EP-08)
+        view.update(container_hashes)
+    (wd / "view.json").write_text(json.dumps(view))
     if px_frames is not None:
-        (wd / "pixel-metrics.json").write_text(json.dumps(
-            {"schema_version": 1, "pillar": "pixels", "mode": "exact", "frames": px_frames}))
+        doc = {"schema_version": 1, "pillar": "pixels", "mode": "exact", "frames": px_frames}
+        if px_source is not None:  # the producer's source-container claim
+            doc["source"] = px_source
+        (wd / "pixel-metrics.json").write_text(json.dumps(doc))
     return wd
 
 
@@ -199,7 +205,7 @@ def test_resolve(tmp: Path):
     contract = mk_contract(["identity", "render_program", "pixels"])["proof"]
 
     wd = write_window(tmp / "ok", px_frames=px())
-    obs, pil, _ = parity_prove.resolve_observations(wd, contract)
+    obs, pil, _, _ = parity_prove.resolve_observations(wd, contract)
     check(pil["identity"]["verdict"] == "PASS", "resolve: complete join → identity PASS")
     check(pil["render_program"]["verdict"] == "PASS", "resolve: all ALIGNED → render PASS")
     check(pil["pixels"]["verdict"] == "PASS", "resolve: all differ==0 → pixels PASS")
@@ -208,7 +214,7 @@ def test_resolve(tmp: Path):
 
     # NEGATIVE: no pixel-metrics doc → pixels NOT_CAPTURED (never a silent pass).
     wd = write_window(tmp / "nopx")
-    _, pil, _ = parity_prove.resolve_observations(wd, contract)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
     check(pil["pixels"]["verdict"] == "NOT_CAPTURED", "resolve: absent pixel metrics → NOT_CAPTURED")
 
     # NEGATIVE: one DIVERGENT draw → render FAIL.
@@ -217,22 +223,65 @@ def test_resolve(tmp: Path):
     vf[3] = {"offset": 3, "label": "HOUSE_FREEROAM#1+3", "draw_verdict": "DIVERGENT",
              "divergent": [{"tex": "beef", "port_tris": 1, "retail_tris": 9}]}
     wd = write_window(tmp / "divergent", view_frames=vf, px_frames=px())
-    _, pil, _ = parity_prove.resolve_observations(wd, contract)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
     check(pil["render_program"]["verdict"] == "FAIL", "resolve: a DIVERGENT draw → render FAIL")
     check(pil["render_program"]["first_divergence"]["logical_frame"]["offset"] == 3,
           "resolve: render FAIL localizes the divergent frame")
 
     # NEGATIVE: one pixel diff → pixels FAIL at that frame.
     wd = write_window(tmp / "pxdiff", px_frames=px(differ_at=2))
-    _, pil, _ = parity_prove.resolve_observations(wd, contract)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
     check(pil["pixels"]["verdict"] == "FAIL", "resolve: a pixel diff → pixels FAIL")
     check(pil["pixels"]["first_divergence"]["logical_frame"]["offset"] == 2,
           "resolve: pixels FAIL localizes the frame")
 
     # NEGATIVE: honest join gap → identity FAIL.
     wd = write_window(tmp / "gap", complete=False)
-    _, pil, _ = parity_prove.resolve_observations(wd, contract)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
     check(pil["identity"]["verdict"] == "FAIL", "resolve: honest join gap → identity FAIL")
+
+
+def test_container_provenance(tmp: Path):
+    """HOLE-2 (the M0 adversarial review): the CLI must BIND every content-pillar
+    metrics doc to the container view.json says this window's identity join was built
+    from — so a foreign/stale metrics doc with matching frame keys but a DIFFERENT
+    source container is rejected (INCONCLUSIVE), never laundered into a PASS. The
+    adapter-level defense (verify_source_containers) was already tested; this proves the
+    CLI actually WIRES expected_containers (the dead-in-the-CLI bug HOLE-2 named)."""
+    contract = mk_contract(["identity", "render_program", "pixels"])["proof"]
+    P64, R64 = "a" * 64, "b" * 64
+    ch = {"port_container_sha256": P64, "retail_container_sha256": R64}
+
+    # BOUND + matching: view carries the hashes, pixel-metrics.source matches → PASS,
+    # and the in-process render bridge is stamped with that same container source.
+    wd = write_window(tmp / "bound_ok", px_frames=px(), container_hashes=ch, px_source=ch)
+    _, pil, _, caveats = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "PASS", "prov: matching source container → pixels PASS")
+    check(pil["render_program"]["verdict"] == "PASS", "prov: render bound → PASS")
+    rdoc = json.loads((wd / "render-metrics.json").read_text())
+    check(rdoc.get("source") == ch, "prov: render-metrics.json stamped with the container source")
+    check(not caveats, "prov: a bound view emits no unverified-provenance caveat")
+
+    # FOREIGN source (the HOLE-2 attack): pixel-metrics claims a different port
+    # container than view.json's → INCONCLUSIVE, NOT a silent pass on matching frames.
+    foreign = {"port_container_sha256": "c" * 64, "retail_container_sha256": R64}
+    wd = write_window(tmp / "foreign", px_frames=px(), container_hashes=ch, px_source=foreign)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "INCONCLUSIVE", "prov: foreign source container → INCONCLUSIVE")
+
+    # a metrics doc that OMITS source while the view is bound → fail closed (strict).
+    wd = write_window(tmp / "nosrc", px_frames=px(), container_hashes=ch)  # px_source=None
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "INCONCLUSIVE",
+          "prov: bound view but metrics omit source → INCONCLUSIVE")
+
+    # a pre-EP-08 view (no baked container hashes) → the check is SKIPPED but a caveat
+    # is emitted (never a silent unverified trust); the pillar still adjudicates frames.
+    wd = write_window(tmp / "legacy", px_frames=px())  # no container_hashes
+    _, pil, _, caveats = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "PASS", "prov: legacy view → pixels adjudicates (check skipped)")
+    check(any("container-hash" in c for c in caveats),
+          "prov: legacy view emits an unverified-provenance caveat")
 
 
 # ── parity_prove: build_proof + main() end-to-end ────────────────────────────
@@ -335,12 +384,13 @@ def test_proof_id_portable(tmp: Path):
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        for sub in ("cas", "res", "bm_root", "port"):
+        for sub in ("cas", "res", "bm_root", "port", "prov"):
             (tmp / sub).mkdir()
         test_gate()
         test_determinism()
         test_envelope_and_cas(tmp / "cas")
         test_resolve(tmp / "res")
+        test_container_provenance(tmp / "prov")
         test_build_and_main(tmp / "bm_root")
         test_proof_id_portable(tmp / "port")
 
