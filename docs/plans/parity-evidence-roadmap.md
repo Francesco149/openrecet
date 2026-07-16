@@ -1,11 +1,13 @@
 # Parity evidence, coverage, and full-game convergence roadmap
 
-> **Status:** ADOPTED. **Wave-0 EP-00→EP-06 LANDED; M0 REACHED** (2026-07-16 R3
-> adversarial review — `../findings/parity-M0-adversarial-review.md`; fixed the
-> proof_id path-leak, logged HOLE-2/3/4). **EP-06 truthful two-axis ledger landed
-> 2026-07-16** (`../findings/parity-EP06-ledger-lifecycle.md`). **Next: EP-08 cache
-> hardening (closes HOLE-2 — the hard gate before any pixels/state producer PASS).**
-> No other package started unless it says so  \
+> **Status:** ADOPTED. **Wave-0 EP-00→EP-08 COMPLETE; M0 REACHED** (2026-07-16). M0
+> R3 adversarial review — `../findings/parity-M0-adversarial-review.md` (fixed the
+> proof_id path-leak, logged HOLE-2/3/4). **EP-06 truthful two-axis ledger** landed
+> 2026-07-16 (`../findings/parity-EP06-ledger-lifecycle.md`). **EP-08 — HOLE-2 close +
+> cache re-key by full provenance** landed 2026-07-16
+> (`../findings/parity-EP08-cache-provenance.md`). **Next: a pixels/state PRODUCER (now
+> UNBLOCKED — the gate is closed): the headless `pixel-metrics.json` producer, then
+> ST-00/ST-01 (roadmap M1).** No other package started unless it says so  \
 > **Adopted:** 2026-07-16  \
 > **Owner:** R3/highest-reasoning orchestrator  \
 > **Scope:** long-horizon tooling and methodology; `../FRONT.md` remains the live
@@ -467,6 +469,20 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   deferred divergences retain explicit failing/exception scope.
 
 ### EP-08 — Re-key and validate caches
+
+> **✅ LANDED 2026-07-16** — `../findings/parity-EP08-cache-provenance.md`
+> (commits `62ece6e` HOLE-2 close + `5713074` cache re-key). The v3 studio cache dir
+> key is now a **128-bit** `sha256(common_provenance)+arm` over
+> `{cache_schema, trace (⇒ {savefile} save), proxy, assets_manifest, recet.ini}`;
+> per-side `{pe_sha, agent_sha}` live in `v3meta.prov` and are validated on lookup
+> (`side_provenance` + `_staleness`), so changing port PE → port only, retail PE/agent
+> → retail only, proxy/assets/config/trace/schema → both, and a port fix still never
+> invalidates the retail cache. Corrupt (missing/empty container) rejected; every stale
+> decision logged. Acceptance met + gated by `test_orv3.test_provenance_keying`. HOLE-2
+> closed in tandem (view.json bakes container hashes; `parity_prove` threads
+> `source`/`expected_containers`; `test_parity_prove.test_container_provenance`).
+> Residual (logged): the proof `tools` group is still current-on-disk — thread
+> `v3meta.prov` into `gather_provenance` (EP-02/EP-05 follow-up, disclosed by a caveat).
 
 - **Reasoning:** R2; R3 audits determining inputs.
 - **Depends:** EP-02.

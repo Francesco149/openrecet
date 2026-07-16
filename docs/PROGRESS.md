@@ -7,6 +7,46 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Parity evidence roadmap: EP-08 — HOLE-2 close + cache re-key by full provenance (Wave-0 COMPLETE)
+
+Closed the M0 adversarial-review **HOLE-2** (`findings/parity-M0-adversarial-review.md`): the
+container-provenance defense (`verify_source_containers`) was built + adapter-tested but **dead in the
+CLI** — `resolve_observations` passed `expected_containers=None`, so a foreign/stale metrics doc
+(matching frame keys `(anchor,occ,offset)`, DIFFERENT source capture) would be trusted → false PASS. This
+was the named hard gate before any pixels/state producer's PASS could be trusted. Two commits, both
+gated by host tests. Full story: `findings/parity-EP08-cache-provenance.md`.
+
+**(B) Bind content pillars to the window's container** (`62ece6e`): `orv3_view.write_view_json` bakes
+`port/retail_container_sha256` = `sha256(v3cap.bin)` (the content hash, not just the WSL path it already
+had) into view.json — the EXACT container this window's identity join + draw report came from.
+`parity_prove.resolve_observations` reads them → threads as `source` (the in-process render bridge's
+provenance claim) **and** `expected_containers` into `adapt_render_program`/`adapt_pixels`. A pre-EP08
+view without the hashes ⇒ the check is skipped + a caveat is emitted (never a silent trust); the function
+now returns caveats (4-tuple). Regression `test_parity_prove.test_container_provenance` (+8, 52/0):
+foreign source → INCONCLUSIVE (the HOLE-2 attack), omitted-source-under-bound-view → INCONCLUSIVE,
+matching → PASS + `render-metrics.json` stamped, legacy → skip+caveat.
+
+**(A) v3 studio cache re-keyed by full provenance** (`5713074`, roadmap §6 EP-08): the key was
+`sha256(trace+arm)[:8]` (32 bits, trace+arm only) — a rebuilt d3d proxy or edited frida agent **never**
+invalidated the cached container, so B's hash was only trustworthy once the container itself is
+provenance-bound. Now: **128-bit SHARED dir key** = `sha256(common_provenance)+arm` over
+`{cache_schema, trace (⇒ {savefile} save), proxy, assets_manifest, recet.ini}` (a proxy/assets/trace/
+schema change re-drives BOTH sides); **per-side** `{pe_sha, agent_sha}` in `v3meta.prov` validated on
+lookup (`side_provenance`/`_staleness`) so a rebuilt exe (port or retail) or edited agent re-drives ONLY
+that side — a port fix STILL never invalidates the retail cache (the load-bearing invariant). Corrupt
+(missing/empty `v3cap.bin`) rejected; every stale decision logged with its reason (pre-EP08 /
+shared-drift / per-side-drift / corrupt). `test_orv3.test_provenance_keying` (+1) monkeypatches the
+provenance paths to temp files and flips one byte at a time to prove each input invalidates the
+appropriate side, 128-bit width, corrupt + pre-EP08 rejection, and prov round-trip through v3meta.
+
+**One-time consequence:** every pre-EP08 entry (8-hex key, `prov=None`) is now STALE ⇒ the next
+`orv3_window` re-drives it once (retail = the serialized load-stretch, minutes); old dirs orphan under
+`runs/studio-v3-cache/` (gitignored, regenerable). **Residual (logged):** the proof `tools` group is still
+current-on-disk — thread `v3meta.prov` into `gather_provenance` (a caveat discloses it); HOLE-3 (env
+attested) + HOLE-4 (exceptions not gate-enforced) remain by-design (CI-05 / EP-07). **Wave-0 EP-00→EP-08
+is COMPLETE.** Next: a pixels/state PRODUCER, now UNBLOCKED — the headless `pixel-metrics.json` producer
+(so `house-firstcust-arrprobe`'s last UNPROVEN pillar `pixels` gets a real verdict), then ST-00/ST-01.
+
 ## 2026-07-16 — Parity evidence roadmap: EP-06 truthful two-axis port ledger (Wave-0 step 5)
 
 Killed the ledger's runtime-verified overclaim. `gen_port_ledger.py` derived a single `status`

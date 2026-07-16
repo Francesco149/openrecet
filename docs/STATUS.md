@@ -61,10 +61,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   bundle). STATUS headline flipped "2.8% runtime-verified" (a lie) → **"0% runtime-proven — 85 instrumented,
   index empty"**; the 501 "ported" are now honestly `source-referenced` (a `FUN_` mention ≠ a port claim). New
   `PORT-OF(0xVA)` opt-in attestation reaches `implemented` w/o a probe (0 seeded — backfill is author work).
-  `status` enum kept as a DEPRECATED alias (mem_watch byte-stable); `--check` idempotent. **★ NEXT: EP-08**
-  cache re-key by provenance — a HARD GATE: **HOLE-2** (parity_prove never threads `expected_containers` ⇒ a
-  foreign metrics doc with matching frame identities would be trusted) must close before ANY pixels/state
-  producer's PASS is trusted. Tooling: `tools/parity_prove.py`, `tools/parity/`, schemas
+  `status` enum kept as a DEPRECATED alias (mem_watch byte-stable); `--check` idempotent. **✅ EP-08 LANDED
+  2026-07-16 — HOLE-2 CLOSED + cache re-keyed by full provenance; Wave-0 EP-00→EP-08 COMPLETE**
+  (`findings/parity-EP08-cache-provenance.md`; commits `62ece6e`+`5713074`). **(B)** `orv3_view` now bakes
+  `port/retail_container_sha256`; `parity_prove.resolve_observations` threads them as `source`+`expected_containers`
+  into adapt_pixels/adapt_render_program ⇒ a foreign/stale metrics doc (matching frame keys, DIFFERENT source
+  container) → INCONCLUSIVE, not a false PASS (regression `test_container_provenance`). **(A)** the v3 cache dir
+  key is now `sha256(common_provenance)+arm` **128-bit** over `{cache_schema,trace,proxy,assets,recet.ini}`;
+  per-side `{pe,agent}` in `v3meta.prov` validated on lookup (`side_provenance`/`_staleness`) ⇒ a rebuilt
+  proxy/agent/exe re-drives the RIGHT side, a port fix STILL never invalidates the retail cache; corrupt +
+  pre-EP08 entries rejected + every stale decision logged (`test_provenance_keying`). **NB one-time:** every
+  pre-EP08 entry (8-hex, no prov) is STALE ⇒ next `orv3_window` re-drives it once (retail = the serialized
+  load-stretch). **★ NEXT: a pixels/state PRODUCER (now UNBLOCKED — the gate is closed).** Build the headless
+  `pixel-metrics.json` producer (replay the v3 command stream per paired frame → per-frame `differ`) so the
+  `pixels` pillar gets a REAL verdict — `house-firstcust-arrprobe`'s `render_program` already FAILs on the b494
+  80-tri strip and `pixels` is its last UNPROVEN required pillar; then ST-00/ST-01 (state/save equality, roadmap
+  M1). Residual (logged, non-blocking): the proof `tools` group is still current-on-disk — thread `v3meta.prov`
+  into `gather_provenance`; HOLE-3 (env attested) + HOLE-4 (exceptions not gate-enforced) stay by-design. Tooling:
+  `tools/parity_prove.py`, `tools/parity/`, `tools/trace_studio_v3/v3cache.py`, schemas
   `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab `docs/reference/parity-vocabulary.md`,
   proof index `docs/parity-proof-index.json`. Serialize retail drives (singleton).
 - **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a

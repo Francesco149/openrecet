@@ -336,8 +336,10 @@ def main(argv=None) -> int:
         caveats = []
         if from_cache:
             caveats.append(
-                "capture-tool hashes (agent/proxy/replayer) are current-on-disk, "
-                "not verified against the cached window (EP-08 re-keys caches by provenance)")
+                "proof records current-on-disk capture-tool hashes (agent/proxy/replayer); "
+                "EP-08 binds the v3 CACHE to proxy+agent (a served window matched them at drive "
+                "time), but the proof does not yet re-read the window's stored capture provenance "
+                "(v3meta.prov) — a tool rebuilt between drive and prove would be misrecorded")
 
         proof, contract, obs_local, caveats = build_proof(
             args.scenario, window_dir, contract_doc=contract_doc, env=env,

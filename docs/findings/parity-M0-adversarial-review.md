@@ -70,7 +70,7 @@ test `test_parity_prove.test_proof_id_portable` (same window at two abs dirs →
 identical id; assert no abs path in the canonical core). Verified: portable id is
 now `9bc05dd8…` (was `3ee83a14…` with the leak).
 
-### HOLE-2 — container-provenance check is DEAD in the CLI (LOGGED — MUST-FIX before a pixels/state producer)
+### HOLE-2 — container-provenance check is DEAD in the CLI (✅ FIXED 2026-07-16 — EP-08)
 
 `resolve_observations` calls `adapt_pixels`/`adapt_render_program` **without
 `expected_containers`**, so `verify_source_containers` never runs. A stale/**foreign**
@@ -86,6 +86,13 @@ Cannot be soundly wired now: `view.json.{port,retail}_container` are absolute WS
 hash of the capture container (`v3cap.bin`) keyed by full provenance = **EP-08**, then
 thread `source=`/`expected_containers=` from it. **GATE: no pixels/state-producer
 package ships a PASS-capable adapter without this.**
+
+**✅ FIXED 2026-07-16 (EP-08 — `findings/parity-EP08-cache-provenance.md`, commits
+`62ece6e`+`5713074`).** (B) `orv3_view` bakes `port/retail_container_sha256` into
+view.json; `parity_prove` threads them as `source`+`expected_containers` ⇒ a foreign
+metrics doc → INCONCLUSIVE (regression `test_container_provenance`). (A) the v3 cache is
+re-keyed by 128-bit full provenance (`common_provenance` shared key + per-side
+`v3meta.prov`) so the container the hash binds to is itself provenance-fresh. Gate lifted.
 
 ### HOLE-3 — environment is operator-supplied, trusted blindly (LOGGED, by-design)
 
