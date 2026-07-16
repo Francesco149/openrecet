@@ -104,9 +104,9 @@ def test_state_map():
           f"map: bank5 closeness[3] (got {cz.path()})")
     check(cz.path() == "bank5/closeness[3]", "map: array path with element index")
 
-    rr = m.locate(bank_off(1, 40566 + 18))  # ranking_records element 18 in bank 1
-    check(rr.region == "ranking_records" and rr.element_index == 18,
-          f"map: bank1 ranking_records[18] (got {rr.path()})")
+    rr = m.locate(bank_off(1, 40566 + 18))  # encyclopedia_discovery element 18 in bank 1
+    check(rr.region == "encyclopedia_discovery" and rr.element_index == 18,
+          f"map: bank1 encyclopedia_discovery[18] (got {rr.path()})")
 
     # byte-addressed field wins over the containing dword region
     ef = m.locate(bank_off(0, 0) + 179403)
@@ -171,15 +171,15 @@ def test_summary_collapse():
     right byte count and bank span (not one bucket per element)."""
     base = arena()
     mut = bytearray(base)
-    # perturb ranking_records[0] field-0 in banks 1..9 (one byte each)
+    # perturb encyclopedia_discovery[0] field-0 in banks 1..9 (one byte each)
     for b in range(1, 10):
         mut[bank_off(b, 40566)] ^= 0x01
     doc = compare_saves(bytes(base), bytes(mut), SM)
     rs = doc["region_summary"]
-    ranking = [r for r in rs if r["region"] == "ranking_records"]
-    check(len(ranking) == 1, f"summary: ranking collapses to 1 bucket (got {len(ranking)})")
-    check(ranking[0]["ndiff"] == 9, "summary: 9 differing bytes counted")
-    check(ranking[0]["n_banks"] == 9 and ranking[0]["bank_min"] == 1 and ranking[0]["bank_max"] == 9,
+    enc = [r for r in rs if r["region"] == "encyclopedia_discovery"]
+    check(len(enc) == 1, f"summary: encyclopedia_discovery collapses to 1 bucket (got {len(enc)})")
+    check(enc[0]["ndiff"] == 9, "summary: 9 differing bytes counted")
+    check(enc[0]["n_banks"] == 9 and enc[0]["bank_min"] == 1 and enc[0]["bank_max"] == 9,
           "summary: spans banks 1..9")
 
 

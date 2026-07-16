@@ -122,9 +122,10 @@ def compare_saves(port: bytes, retail: bytes, state_map: StateMap, *,
     }
 
     # per-region summary: bucket by (scope, region) — COLLAPSING array elements and
-    # banks — so "6836 bytes across 3 regions, ranking_records over banks 1-99" reads
-    # clearly instead of one bucket per (element, bank). Each bucket carries how many
-    # banks it spans (a systematic all-banks divergence vs a single-slot one).
+    # banks — so a systematic all-banks diff reads as ONE bucket ("N bytes,
+    # encyclopedia_discovery, banks 1-99") instead of one bucket per (element, bank).
+    # Each bucket carries how many banks it spans (a systematic all-banks divergence
+    # vs a single-slot one).
     truncated = len(diff_offsets) > _SUMMARY_LOCALIZE_CAP
     buckets: dict = {}
     for off in diff_offsets[:_SUMMARY_LOCALIZE_CAP].tolist():
