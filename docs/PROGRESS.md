@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Parity evidence roadmap: EP-06 truthful two-axis port ledger (Wave-0 step 5)
+
+Killed the ledger's runtime-verified overclaim. `gen_port_ledger.py` derived a single `status`
+from source scanning yet rendered `verified` as "runtime-diffed vs retail" (headline "2.8%
+runtime-verified") — INVENTORY dressed as RUNTIME. Rewrote it as **two independent axes** (roadmap
+EP-06; "do not collapse to one strongest label"):
+
+- **INVENTORY** (src markers): `discovered → source-referenced → implemented → instrumented`. A bare
+  `FUN_<va>` reaches ONLY `source-referenced` (a mention, not a port claim); `implemented` needs a new
+  opt-in `PORT-OF(0xVA)` attestation or a probe; `CALL_TRACE_ENTER(_STUB)` = `instrumented` (+ a `stub`
+  quality flag).
+- **RUNTIME** (proof artifacts): `retail-executed → port-executed → call-I/O-aligned →
+  scenario-pillar-proven → matrix-proven`, each requiring a `docs/parity-proof-index.json` bundle
+  (git-tracked, hashes only; the generator never reads the gitignored `runs/proofs/`).
+
+Index empty today ⇒ **`runtime_proven = 0`**. STATUS flips "2.8% runtime-verified" (a lie) → "0%
+runtime-proven — 85 instrumented, index empty"; the 501 "ported" are now honestly `source-referenced`.
+The two axes correctly diverge for the executed-but-unimplemented quadrant (retail-executed yet
+`inventory=discovered`). Compat: per-function `status` kept as a DEPRECATED alias (mem_watch
+byte-stable), `counts` keeps every legacy key, `--check` exit-3 idempotence unchanged; no proof
+fabricated for old entries (human confirmations stay separate, EP-07). Gate:
+`tools/test_gen_port_ledger.py` (152 checks) — all three EP-06 acceptance criteria + proof-index
+fail-closed + live-tree consistency; full Python suite 25/25. Commit `2f9bad7`. Design:
+`findings/parity-EP06-ledger-lifecycle.md`. **Next: EP-08** (close HOLE-2 — the container-provenance
+hard gate before any pixels/state producer PASS).
+
 ## 2026-07-16 — Parity evidence roadmap: M0 reached (Wave-0 step 4, R3 adversarial review of one proof bundle)
 
 Continued the parity-evidence-roadmap arc (EP-00→EP-05 landed last session). Wave-0 step 4 =
