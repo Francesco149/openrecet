@@ -74,8 +74,9 @@
   1–99 `port^seed=0` `port^retail=0`; save diff `6836→6` bytes** (only bank-0 `occupied_playtime` phase-origin + its
   cksum echo + 1 unmapped remain — all non-logic). +2 host tests; 3432/0. **✅ ★NEXT(a) BUNDLE LANDED 2026-07-16 — full `parity_prove` bundle**
   (`findings/parity-save-producer.md` §"Full proof bundle LANDED"): `house-pause-save-commit` carries a `proof:`
-  block (schema_v2, join `SAVE_PICKER_READY#1 [1,19]`, `required_pillars:[identity,save]`) → **proof_id
-  `989c647e…` (drive-scoped) · identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` — the phase-origin near-PASS (6
+  block (schema_v2, join `SAVE_PICKER_READY#1 [1,19]`, `required_pillars:[identity,save]`) → **identity PASS ·
+  save FAIL (exit 1)** @ `bank0/occupied_playtime` (stable id = `contract_sha256 77e8e3f4…`; the proof_id binds
+  git_commit+drive so it advances each commit ⇒ regenerate via `parity_prove`, don't hard-cite) — the phase-origin near-PASS (6
   non-logic bytes, recorded as an R3 save exception), idempotent+portable, the save-pillar analogue of arrprobe's
   honest FAIL. **★ GOTCHA: arm the v3 window at `--anchor SAVE_PICKER_READY`** (the default HOUSE_FREEROAM desyncs
   under load-stretch ⇒ 0 pairs; arming right ⇒ 19 gap-free pairs). Committed canonical env-json

@@ -134,14 +134,16 @@ bundle:
     parity_prove.py house-pause-save-commit --window 0:200 \
         --env-json docs/reference/parity-host-environment.json --json
 
-**proof_id `989c647edce2001f…` · FAIL (exit 1) · identity PASS · save FAIL** @
-`bank0/occupied_playtime` (this drive: port `0x41ee`/16878 vs retail `0x73f3`/29683).
-Idempotent across `parity_prove` re-runs (same window artifacts ⇒ same id) + PORTABLE
-(abs paths ONLY in the non-hashed `envelope.local_paths`; hashed content refs artifacts
-by sha256 ⇒ machine-independent id — verified). **NB the id is DRIVE-scoped** — a re-drive
-yields a new id because the port `occupied_playtime` is drive-variable (see the ★NEXT-b
-follow-up); the proof binds THIS drive's artifacts by hash (roadmap §5, artifacts are
-immutable). render_program resolved
+**Verdict: FAIL (exit 1) · identity PASS · save FAIL** @ `bank0/occupied_playtime`
+(this drive: port `0x41ee`/16878 vs retail `0x73f3`/29683). **Stable identity =
+`contract_sha256 77e8e3f4…`** (the committed proof block) **+ this verdict** — regenerate
+the bundle with `parity_prove … --window 0:200 --env-json docs/reference/parity-host-environment.json`.
+**The proof_id is NOT a durable constant and MUST NOT be hard-cited:** it binds
+`subject.port.git_commit` + PE + the drive's save hashes (EP-02 provenance), so it advances
+every commit AND every drive (the port `occupied_playtime` is drive-variable — ★NEXT b; and
+before commit `30243d3` a `.pyc`-polluted comparator hash also drifted it — now fixed, see
+§Tooling). PORTABLE (abs paths ONLY in the non-hashed `envelope.local_paths`; hashed content
+refs artifacts by sha256). render_program resolved
 PASS (non-required bonus: aligned draw programs across the picker window, even though the
 same-side pixel replay is REPLAY_DIVERGENT for the pause overlay). The 6-byte save
 residual = the phase-origin near-PASS (recorded as the contract's R3 save exception):
@@ -183,10 +185,31 @@ only on a PASS; this is a FAIL bundle (identity PASS ≠ a VA-coverage claim). T
 save-commit VAs (`FUN_004905a8`/…) reach `scenario-pillar-proven` when the playtime
 `{phasepin}` (next) flips save to PASS.
 
+## Tooling — proof_id reproducibility (the git_commit binding + a bytecode-hash fix)
+
+Compiling this bundle surfaced how the proof_id moves, and one real bug:
+
+- **By design the proof_id binds `subject.port.git_commit`** (EP-02 provenance,
+  `fingerprint.port_subject`). So it advances on EVERY commit — a specific id can never be
+  self-cited inside the commit that produces it (naming it lands in the next commit, whose
+  HEAD differs). **Cite `contract_sha256` (stable, in the committed scenario.yaml) + the
+  verdict; regenerate the proof_id locally.** It stays deterministic given a checked-out
+  commit + build + window.
+- **It also binds the drive's save hashes** ⇒ a re-drive → a new id whenever the save
+  differs; here the port `occupied_playtime` is drive-variable (★NEXT b), so this bundle's
+  id is drive-specific too.
+- **BUG FIXED (commit `30243d3`): `comparator_sha256` hashed `__pycache__/*.pyc`.**
+  `dir_manifest_sha256(tools/parity)` walked every file, so 12 of 24 manifest entries were
+  compiled bytecode — interpreter-version- and source-mtime-dependent, often absent ⇒ the
+  comparator (hence the proof_id) drifted on any import/recompile even at a fixed commit,
+  breaking "reproducible from a given commit". `dir_manifest_entries` now prunes
+  `__pycache__` + skips `.pyc/.pyo` (source-only, verified stable across re-import); +2
+  fingerprint checks. Affects every bundle (arrprobe's too).
+
 ## Follow-ups (roadmap)
 
-- ✅ **DONE 2026-07-16** — the full `parity_prove` bundle (proof_id `989c647e…`; see
-  §"Full proof bundle LANDED"). The save FAIL now lands inside a content-addressed
+- ✅ **DONE 2026-07-16** — the full `parity_prove` bundle (`contract_sha256 77e8e3f4…`;
+  see §"Full proof bundle LANDED"). The save FAIL now lands inside a content-addressed
   bundle, parallel to the pixels-producer arrprobe bundle.
 - **Playtime origin `{phasepin}`** (★ NEXT b) — the `occupied_playtime` residual is NOT a
   clean constant phase offset: it is **DRIVE-VARIABLE**. Across two both-runs the PORT

@@ -16,20 +16,29 @@ bundle (the M0 pattern applied to persistent state). Commit pending; finding `fi
 - **`house-pause-save-commit` proof:** added a `proof:` block (schema_v2, join `SAVE_PICKER_READY#1 [1,19]`,
   `required_pillars:[identity,save]`, an R3 save exception for the phase-origin residual). `parity_save.py …
   --window 0:200` deposits save-metrics.json → `parity_prove.py … --env-json docs/reference/parity-host-environment.json`
-  → **proof_id `989c647e…` · identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` (this drive: port
-  0x41ee/16878 vs retail 0x73f3/29683). Idempotent across `parity_prove` re-runs (same window ⇒ same id) +
-  PORTABLE (abs paths only in the non-hashed `envelope.local_paths`; hashed content refs artifacts by sha256).
-  The id is DRIVE-scoped (a re-drive → new id; the port occupied_playtime is drive-variable — see the lead).
-  render_program a non-required PASS (aligned draw programs across the picker window). The 6-byte save residual =
-  phase-origin near-PASS (occupied_playtime + its checksum echo + 1 unmapped byte, all bank-0 non-logic) — the
-  save-pillar analogue of arrprobe's honest FAIL.
+  → **identity PASS · save FAIL (exit 1)** @ `bank0/occupied_playtime` (this drive: port 0x41ee/16878 vs retail
+  0x73f3/29683). Stable identity = `contract_sha256 77e8e3f4…` + this verdict; regenerate via `parity_prove …
+  --window 0:200 --env-json docs/reference/parity-host-environment.json`. The **proof_id is not a durable
+  constant** — it binds subject.port.git_commit + PE + the drive's save hashes, so it advances every commit AND
+  drive (the port occupied_playtime is drive-variable — see the lead); don't hard-cite it. PORTABLE (abs paths
+  only in the non-hashed `envelope.local_paths`; hashed content refs artifacts by sha256). render_program a
+  non-required PASS (aligned draw programs across the picker window). The 6-byte save residual = phase-origin
+  near-PASS (occupied_playtime + its checksum echo + 1 unmapped byte, all bank-0 non-logic) — the save-pillar
+  analogue of arrprobe's honest FAIL.
 - **★ GOTCHA (baked into the scenario comment):** arm the v3 window at `--anchor SAVE_PICKER_READY`, NOT the
   default `HOUSE_FREEROAM`. The scenario re-anchors the commit on SAVE_PICKER_READY (its `{caprange}` follows
   `{wait SAVE_PICKER_READY}`); the HOUSE_FREEROAM default DESYNCS under load-stretch (fast port at the picker,
   slow retail still at PAUSE_READY) ⇒ 0 pairs. Arming right ⇒ **19 gap-free pairs** (port#0==retail#1 at +1443
   absolute, load-stretch-immune). Fixed the Jun-14 `win-0-200` (0 pairs) via a `--force` re-drive.
 - **Committed canonical env-json** `docs/reference/parity-host-environment.json` (8 operator-attested
-  EP-02/HOLE-3 fields, values match arrprobe's M0 bundle ⇒ reproducible proof_ids across bundles).
+  EP-02/HOLE-3 fields, values match arrprobe's M0 bundle).
+- **Proof_id reproducibility (finding §Tooling):** the proof_id binds `subject.port.git_commit` (by design) so it
+  advances every commit — a specific id can't be self-cited in the commit that mints it; cite `contract_sha256`
+  (stable) + the verdict, regenerate locally. En route, **fixed a real bug (commit `30243d3`):** `comparator_sha256`
+  = `dir_manifest_sha256(tools/parity)` hashed `__pycache__/*.pyc` (12 of 24 manifest entries) — bytecode is
+  interpreter/mtime-dependent, so the proof_id drifted on any import/recompile even at a fixed commit.
+  `dir_manifest_entries` now prunes `__pycache__` + skips `.pyc/.pyo` (source-only; +2 fingerprint checks).
+  Affects every bundle (arrprobe's too).
 - **Stale-test fix (parity suite RED since `6c9c85d`):** the catch-fix renamed `ranking_records`→
   `encyclopedia_discovery` (dword 40566) but left `test_parity_save.py` asserting the old name ⇒
   `test_summary_collapse` IndexError. The pre-commit hook runs C host tests, NOT these Python suites, so it
