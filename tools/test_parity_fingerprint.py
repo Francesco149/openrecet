@@ -133,6 +133,17 @@ def test_dir_manifest(tmp: Path) -> None:
     (r2 / "d.txt").write_bytes(b"delta")
     check(dir_manifest_sha256(r2) != mid, "an added file changes the manifest hash")
 
+    # bytecode caches are EXCLUDED: derived, interpreter/mtime-dependent, often absent —
+    # hashing them would drift comparator_sha256 (⇒ a non-reproducible proof_id).
+    stable = dir_manifest_sha256(r2)
+    (r2 / "__pycache__").mkdir()
+    (r2 / "__pycache__" / "mod.cpython-313.pyc").write_bytes(b"\x00compiled-bytecode")
+    (r2 / "sub" / "loose.pyc").write_bytes(b"more bytecode")
+    check(dir_manifest_sha256(r2) == stable, "__pycache__/.pyc excluded → manifest hash unchanged")
+    rels2 = [e[0] for e in dir_manifest_entries(r2)]
+    check(not any("__pycache__" in x or x.endswith((".pyc", ".pyo")) for x in rels2),
+          f"no bytecode entries in the manifest, got {rels2}")
+
     # fail closed: missing root, non-dir root
     check_raises(FingerprintError, lambda: dir_manifest_sha256(tmp / "no_such_root"), "missing manifest root fails closed")
     check_raises(FingerprintError, lambda: dir_manifest_sha256(r1 / "a.txt"), "a file is not a manifest root (fail closed)")

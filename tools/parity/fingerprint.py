@@ -67,10 +67,14 @@ def sha256_file(path) -> str:
 # ── directory manifest (relocation-invariant, symlink-refusing) ──────────────
 
 def dir_manifest_entries(root) -> list[list]:
-    """Deterministic manifest of every regular file under `root`, as a sorted list
-    of `[posix_relative_path, size_bytes, sha256]`. Relocation-invariant (paths are
-    relative to `root`, posix-normalized). Refuses every symlink so it can never
-    read outside `root` or silently drop a symlinked subtree."""
+    """Deterministic manifest of every regular SOURCE file under `root`, as a sorted
+    list of `[posix_relative_path, size_bytes, sha256]`. Relocation-invariant (paths
+    are relative to `root`, posix-normalized). Refuses every symlink so it can never
+    read outside `root` or silently drop a symlinked subtree. **Excludes Python
+    bytecode caches** (`__pycache__/`, `.pyc`, `.pyo`): they are derived, interpreter-
+    version- and source-mtime-dependent, and often absent, so hashing them would make an
+    otherwise-identical source tree fingerprint differently across machines/runs — a
+    `comparator_sha256` that drifts on every import ⇒ a non-reproducible proof_id."""
     r = Path(root)
     if not r.exists():
         raise FingerprintError(f"manifest root does not exist: {r}")
@@ -82,12 +86,17 @@ def dir_manifest_entries(root) -> list[list]:
     entries: list[list] = []
     for dirpath, dirnames, filenames in os.walk(r, followlinks=False):
         d = Path(dirpath)
+        # Prune Python bytecode caches in-place so os.walk never descends into them
+        # (see the docstring: derived, non-portable ⇒ would drift the comparator hash).
+        dirnames[:] = [n for n in dirnames if n != "__pycache__"]
         for name in dirnames:
             if (d / name).is_symlink():
                 raise FingerprintError(
                     f"symlinked directory in manifest root (would hide a subtree): {d / name}"
                 )
         for name in filenames:
+            if name.endswith((".pyc", ".pyo")):
+                continue
             full = d / name
             if full.is_symlink():
                 raise FingerprintError(
