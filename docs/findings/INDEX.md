@@ -104,6 +104,7 @@ that subsystem.
 |-----|--------|--------------|
 | [parity-M0-adversarial-review.md](parity-M0-adversarial-review.md) | R3 review of the EP-05 proof compiler on the first real bundle (`house-firstcust-arrprobe`): M0 reached; found+fixed the proof_id path-leak (HOLE-1); logged HOLE-2 (container check dead in CLI) / HOLE-3 (env trust) / HOLE-4 (exceptions not gate-enforced). | 2026-07-16 |
 | [parity-EP06-ledger-lifecycle.md](parity-EP06-ledger-lifecycle.md) | EP-06 truthful port ledger: the two-axis lifecycle model (INVENTORY `discovered→…→instrumented` from src markers; RUNTIME `retail-executed→…→matrix-proven` from `parity-proof-index.json`). Kills the "runtime-verified" overclaim; `PORT-OF(0xVA)` attestation; legacy `status` alias. | 2026-07-16 |
+| [parity-pixels-producer.md](parity-pixels-producer.md) | The `pixels` pillar PRODUCER (`replay.exe --render-dump` RT-correct RGB dump + `tools/parity/pixel_producer.py` + `parity_pixels.py`): per-frame bit-exact `differ`. M0's last required pillar now real. `house-firstcust-arrprobe` pixels FAIL — visually 1:1 (`gt8` 3–5 px) but ±1 sub-pixel cross-target noise, not bit-exact. | 2026-07-16 |
 
 ## Misc / reference
 

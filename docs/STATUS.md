@@ -72,13 +72,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   proxy/agent/exe re-drives the RIGHT side, a port fix STILL never invalidates the retail cache; corrupt +
   pre-EP08 entries rejected + every stale decision logged (`test_provenance_keying`). **NB one-time:** every
   pre-EP08 entry (8-hex, no prov) is STALE ⇒ next `orv3_window` re-drives it once (retail = the serialized
-  load-stretch). **★ NEXT: a pixels/state PRODUCER (now UNBLOCKED — the gate is closed).** Build the headless
-  `pixel-metrics.json` producer (replay the v3 command stream per paired frame → per-frame `differ`) so the
-  `pixels` pillar gets a REAL verdict — `house-firstcust-arrprobe`'s `render_program` already FAILs on the b494
-  80-tri strip and `pixels` is its last UNPROVEN required pillar; then ST-00/ST-01 (state/save equality, roadmap
-  M1). Residual (logged, non-blocking): the proof `tools` group is still current-on-disk — thread `v3meta.prov`
-  into `gather_provenance`; HOLE-3 (env attested) + HOLE-4 (exceptions not gate-enforced) stay by-design. Tooling:
-  `tools/parity_prove.py`, `tools/parity/`, `tools/trace_studio_v3/v3cache.py`, schemas
+  load-stretch). **✅ PIXELS PILLAR PRODUCER LANDED 2026-07-16** (`findings/parity-pixels-producer.md`; commit
+  `8514b9d`): the headless `pixel-metrics.json` producer M0's last required pillar was waiting on.
+  `replay.exe --render-dump` (resident, RT-correct RGB dump) + `tools/parity/pixel_producer.py` (pure core +
+  driver, `differ = pixel_diff.amplified_diff`, stamps `source` container hashes, FAIL-CLOSED) + CLI
+  `tools/parity_pixels.py` + 24-check test. **`house-firstcust-arrprobe` [1,80] proof is now `identity PASS ·
+  render_program FAIL · pixels FAIL`** (first div `HOUSE_FREEROAM#1+1`) — a TRUTHFUL FAIL: our most
+  human-confirmed-1:1 scene is visually 1:1 (`gt8` 3–5 px/frame) but NOT bit-exact (±1 sub-perceptual
+  cross-target noise, `meanabs`≪1; the near-black off=2 fade frame dominates `differ` at 517046/786432). `mode:
+  exact` = strict bit-equality is the honest gate; a "visually 1:1" contract would need an R3-approved threshold
+  mode (schema extension), NOT a silent comparator tolerance — not added. **★ NEXT: ST-00/ST-01** (canonical
+  state model + save equality, roadmap M1) — the state/save pillars are the next producers (still NOT_CAPTURED).
+  Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
+  verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
+  construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still
+  current-on-disk — thread `v3meta.prov` into `gather_provenance`; HOLE-3 (env attested) + HOLE-4 (exceptions
+  not gate-enforced) stay by-design. Tooling:
+  `tools/parity_prove.py`, `tools/parity_pixels.py` (pixels producer CLI), `tools/parity/`
+  (incl. `pixel_producer.py`), `tools/trace_studio_v3/v3cache.py`, schemas
   `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab `docs/reference/parity-vocabulary.md`,
   proof index `docs/parity-proof-index.json`. Serialize retail drives (singleton).
 - **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a

@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-16 — Parity evidence roadmap: pixels pillar PRODUCER (M0's last required pillar now real)
+
+Built the headless `pixel-metrics.json` producer the `pixels` adapter shipped waiting on (roadmap rule 11:
+consumer before platform). The `pixels` pillar now gets a REAL PASS/FAIL from a bit-exact per-frame `differ`,
+not `NOT_CAPTURED`. Commit `8514b9d`; finding `findings/parity-pixels-producer.md`.
+
+- **`replay.exe --render-dump <wanted.txt> <outdir>`** — resident RGB dump (mirrors `--verify-hashes`,
+  writes pixels instead of hashing). RT-correct: `has_rt` ⇒ render `0..max(wanted)` in order on the resident
+  device (cross-frame render targets accumulate), dumping only the wanted; RT-free ⇒ render wanted directly.
+  One process, no per-frame spawn, no GB raw dumps. (Per-frame `--upto` spawns render on a FRESH device ⇒ RT
+  reads black ⇒ wrong pixels — the trap the producer avoids.)
+- **`tools/parity/pixel_producer.py`** — pure core (`build_pixel_metrics`/`wanted_and_map`, injected renderers
+  ⇒ unit-tested) + the replay.exe driver. `differ = pixel_diff.amplified_diff` (retail=A, port=B — the one
+  canonical metric); stamps `source` container SHA-256s (== what `orv3_view` bakes ⇒ EP-08 provenance PASSES on
+  a re-driven window). FAIL-CLOSED: no render / dim mismatch / unpaired required frame → raise.
+- **`tools/parity_pixels.py`** CLI (two-step: `orv3_window --view` → `parity_pixels` → `parity_prove`).
+  **`tools/test_parity_pixels.py`** 24 checks. Parity suite `24+52+60` green; pre-commit 26/26.
+
+**Verified `house-firstcust-arrprobe` [1,80]:** pixels FAIL (first div `HOUSE_FREEROAM#1+1`) ⇒ proof is
+`identity PASS · render_program FAIL · pixels FAIL`. TRUTHFUL: our most human-confirmed-1:1 scene is visually
+1:1 (`gt8` 3–5 px/frame — the FRONT "2–3 px accepted" figure) but NOT bit-exact (±1 sub-perceptual cross-target
+noise, `meanabs`≪1; near-black off=2 fade frame dominates `differ` 517046/786432 while invisible). `mode:
+exact` strict bit-equality is the honest gate and legitimately FAILs cross-target; a "visually 1:1" contract
+would need an R3-approved threshold mode (schema extension), not a silent comparator tolerance. **Next per the
+roadmap: ST-00/ST-01** (canonical state model + save equality, M1).
+
 ## 2026-07-16 — Parity evidence roadmap: EP-08 — HOLE-2 close + cache re-key by full provenance (Wave-0 COMPLETE)
 
 Closed the M0 adversarial-review **HOLE-2** (`findings/parity-M0-adversarial-review.md`): the
