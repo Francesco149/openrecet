@@ -1,0 +1,15 @@
+schema_version: 2
+proof:
+  contract_version: 1
+  join:
+    anchor: HOUSE_FREEROAM
+    occurrence: 1
+    window:
+    - 0
+    - 8
+  required_pillars:
+  - identity
+  seeds:
+  - 19937
+  configurations:
+  - reference-1024-windowed

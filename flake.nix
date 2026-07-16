@@ -29,6 +29,7 @@
           pytest            # test runner
           pytest-xdist      # parallel test execution
           pyyaml            # test manifest format
+          jsonschema        # parity proof/contract schema validation (roadmap EP-01)
           construct         # binary-format parser DSL — perfect for .dat archive RE
           rich              # nicer CLI output for tools
         ]);

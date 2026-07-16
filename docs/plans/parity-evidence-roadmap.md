@@ -1188,5 +1188,24 @@ result:
 next:
 ```
 
+```text
+2026-07-16  EP-00  LANDED
+result:   docs/reference/parity-vocabulary.md — six independent claims
+          (JOIN/REPLAY/PILLAR/INVENTORY/RUNTIME/CONFIRMED) frozen; every current
+          sloppy term mapped to a scoped meaning; machine-output alias list for
+          EP-03/EP-06; ledger `verified`-overclaim flagged for EP-06.
+next:     EP-03 emits JOIN_COMPLETE/REPLAY_EXACT behind the alias list.
+
+2026-07-16  EP-01  LANDED
+result:   docs/schemas/parity-{contract,proof}-v1.schema.json (Draft2020-12) +
+          docs/reference/parity-proof-format.md + tools/test_parity_schema.py +
+          9 fixtures. Canonical pillar set + verdict vocab + fail-closed required
+          fingerprints frozen. Negative tests: missing retail hash + unknown
+          major fail schema; required pixels NOT_CAPTURED fails the gate.
+          proof_id canonicalization (excl proof_id+envelope) determinism pinned.
+          Added jsonschema to flake devshell. Gate: test_parity_schema.py OK.
+next:     EP-02 fingerprinting (promote canonical_bytes → tools/parity/).
+```
+
 Do not copy live gameplay-front history here. Completed package detail remains under its
 stable ID; move this plan to archive only after CI-05 lands.

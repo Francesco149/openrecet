@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openrecet.local/schemas/parity-contract-v1.json",
+  "title": "OpenRecet scenario parity contract (v1)",
+  "description": "Validates the parity-contract keys added to tests/scenarios/<id>/scenario.yaml. Applies only to scenarios that opt in (schema_version: 2 with a proof block). Legacy scenario keys (description, max_frames, rng_seed, n_captures, ...) are allowed and unconstrained. An empty coverage_expectations list means 'no declared obligation yet', NOT 'covered'. See docs/reference/parity-proof-format.md and roadmap EP-01/§4.3.",
+  "type": "object",
+  "required": ["schema_version", "proof"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": 2,
+      "description": "scenario.yaml format version that carries a parity contract"
+    },
+    "proof": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "join",
+        "required_pillars",
+        "seeds",
+        "configurations"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "description": "parity contract major version (distinct from scenario schema_version)"
+        },
+        "start_node": {
+          "oneOf": [{ "type": "string" }, { "type": "null" }],
+          "description": "optional behavior-atlas start node id"
+        },
+        "join": {
+          "type": "object",
+          "required": ["anchor", "occurrence", "window"],
+          "additionalProperties": false,
+          "properties": {
+            "anchor": { "type": "string", "minLength": 1 },
+            "occurrence": { "type": "integer", "minimum": 1 },
+            "window": {
+              "type": "array",
+              "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "[offset_lo, offset_hi] since the anchor"
+            }
+          }
+        },
+        "required_pillars": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pillar" },
+          "description": "pillars that MUST PASS for this scenario to be parity-proven"
+        },
+        "optional_pillars": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pillar" }
+        },
+        "pixels": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["exact", "masked-exact"],
+              "description": "exact = every paired required pixel equal; masked-exact = equal outside a declared mask. No tolerance mode without a named R3-approved threshold (roadmap §3 rule 9)."
+            },
+            "mask_ref": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 of the mask, required semantics for masked-exact"
+            },
+            "environment": { "type": "string", "minLength": 1 }
+          }
+        },
+        "seeds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer" }
+        },
+        "configurations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pillar", "scope", "reason", "approved_by"],
+            "additionalProperties": true,
+            "properties": {
+              "pillar": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "minLength": 1 },
+              "reason": { "type": "string", "minLength": 1 },
+              "approved_by": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "coverage_expectations": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "functions": { "type": "array", "items": { "type": "string" } },
+        "blocks": { "type": "array", "items": { "type": "string" } },
+        "vm_operations": { "type": "array", "items": { "type": "string" } },
+        "content_ids": { "type": "array", "items": { "type": "string" } },
+        "transitions": { "type": "array", "items": { "type": "string" } },
+        "assets": { "type": "array", "items": { "type": "string" } },
+        "audio_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "pillar": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "state",
+        "save",
+        "render_program",
+        "pixels",
+        "audio_events",
+        "timing",
+        "boundary"
+      ],
+      "description": "canonical pillar names (frozen by EP-01; see parity-proof-format.md)"
+    }
+  }
+}

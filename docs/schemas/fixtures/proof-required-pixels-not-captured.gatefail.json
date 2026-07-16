@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "proof_id": "9999999999999999999999999999999999999999999999999999999999999999",
+  "envelope": {
+    "generated_at": "2026-07-16T00:00:00Z",
+    "local_paths": {
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": "/home/user/runs/x/port/trace.jsonl"
+    },
+    "display_notes": "fixture; not hashed"
+  },
+  "subject": {
+    "retail": {
+      "pe_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reference_id": "carpe-fulgur-steam-2010-10-07"
+    },
+    "port": {
+      "pe_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "git_commit": "abc1234",
+      "dirty_patch_sha256": null
+    }
+  },
+  "inputs": {
+    "save": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "scenario_contract": {
+      "id": "house-firstcust-arrprobe",
+      "contract_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "contract_version": 1
+    },
+    "trace_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "assets_manifest_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "recet_ini_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "environment": {
+    "os_build": "Windows 10.0.19045",
+    "locale": "en-US",
+    "codepage": "932",
+    "d3d_runtime": "d3d8.dll 5.3.2600",
+    "gpu": "reference-gpu",
+    "driver": "1.0",
+    "resolution": "1024x768",
+    "display_mode": "windowed"
+  },
+  "normalization": [
+    {
+      "name": "rngseed",
+      "params": {
+        "seed": 19937
+      }
+    },
+    {
+      "name": "phasepin",
+      "params": {}
+    },
+    {
+      "name": "tutloadpin",
+      "params": {
+        "frames": 36
+      }
+    }
+  ],
+  "tools": {
+    "frida_agent_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "d3d_proxy_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "replayer_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "comparator_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "schema_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "observations": {
+    "identity": {
+      "captured": true,
+      "artifacts": [
+        {
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "role": "pairs.json",
+          "bytes": 1024
+        }
+      ]
+    },
+    "state": {
+      "captured": true,
+      "artifacts": [
+        {
+          "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "role": "call_trace.jsonl"
+        }
+      ]
+    },
+    "render_program": {
+      "captured": true,
+      "artifacts": [
+        {
+          "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "role": "draws"
+        }
+      ]
+    },
+    "pixels": {
+      "captured": false
+    },
+    "audio_events": {
+      "captured": true,
+      "artifacts": [
+        {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "role": "audio.jsonl"
+        }
+      ]
+    }
+  },
+  "pillars": {
+    "identity": {
+      "verdict": "PASS",
+      "join": "JOIN_COMPLETE"
+    },
+    "state": {
+      "verdict": "PASS"
+    },
+    "render_program": {
+      "verdict": "PASS"
+    },
+    "pixels": {
+      "verdict": "NOT_CAPTURED"
+    },
+    "audio_events": {
+      "verdict": "PASS"
+    }
+  },
+  "coverage": {
+    "captured": true,
+    "atlas_ref": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "exceptions": [],
+  "human_review": {
+    "reviewer": "headpats",
+    "date": "2026-07-16",
+    "scope": "house-firstcust-arrprobe win-0-1500",
+    "notes": "confirmed 1:1 in viewer"
+  }
+}

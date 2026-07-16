@@ -1,0 +1,36 @@
+schema_version: 2
+description: 'fixture: full parity contract'
+rng_seed: 19937
+max_frames: 24000
+proof:
+  contract_version: 1
+  start_node: null
+  join:
+    anchor: HOUSE_FREEROAM
+    occurrence: 1
+    window:
+    - 120
+    - 240
+  required_pillars:
+  - identity
+  - state
+  - render_program
+  - pixels
+  optional_pillars:
+  - audio_events
+  pixels:
+    mode: exact
+    environment: preservation-reference
+  seeds:
+  - 19937
+  configurations:
+  - reference-1024-windowed
+  exceptions: []
+coverage_expectations:
+  functions: []
+  blocks: []
+  vm_operations: []
+  content_ids: []
+  transitions: []
+  assets: []
+  audio_ids: []

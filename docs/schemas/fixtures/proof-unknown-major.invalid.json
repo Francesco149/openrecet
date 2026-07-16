@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "proof_id": "9999999999999999999999999999999999999999999999999999999999999999",
+  "subject": {
+    "retail": {
+      "pe_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reference_id": "carpe-fulgur-steam-2010-10-07"
+    },
+    "port": {
+      "pe_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "git_commit": "abc1234",
+      "dirty_patch_sha256": null
+    }
+  },
+  "inputs": {
+    "save": "@fresh",
+    "scenario_contract": {
+      "id": "intro-opening",
+      "contract_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "contract_version": 1
+    },
+    "trace_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "assets_manifest_sha256": "@none",
+    "recet_ini_sha256": "@none"
+  },
+  "environment": {
+    "os_build": "Windows 10.0.19045",
+    "locale": "en-US",
+    "codepage": "932",
+    "d3d_runtime": "d3d8.dll 5.3.2600",
+    "gpu": "reference-gpu",
+    "driver": "1.0",
+    "resolution": "1024x768",
+    "display_mode": "windowed"
+  },
+  "normalization": [],
+  "tools": {
+    "frida_agent_sha256": "@none",
+    "d3d_proxy_sha256": "@none",
+    "replayer_sha256": "@none",
+    "comparator_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "schema_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "observations": {},
+  "pillars": {},
+  "coverage": {
+    "captured": false
+  },
+  "exceptions": [],
+  "human_review": null
+}

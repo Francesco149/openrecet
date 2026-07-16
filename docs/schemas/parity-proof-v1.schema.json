@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openrecet.local/schemas/parity-proof-v1.json",
+  "title": "OpenRecet parity proof bundle (v1)",
+  "description": "A content-addressed proof bundle emitted by tools/parity_prove.py. Fail closed: a required observation that is absent is NOT_CAPTURED, never PASS. proof_id is SHA-256 of canonical JSON EXCLUDING proof_id and the non-hashed envelope. Readers reject unknown MAJOR schema_version and preserve unknown fields when copying. See docs/reference/parity-proof-format.md and roadmap EP-01/§4.4.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "proof_id",
+    "subject",
+    "inputs",
+    "environment",
+    "normalization",
+    "tools",
+    "observations",
+    "pillars",
+    "coverage",
+    "exceptions",
+    "human_review"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Major version. A v1 reader rejects any other value (roadmap §3 rule 7)."
+    },
+    "proof_id": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256 of canonical JSON with proof_id and envelope removed. Self-referential; excluded from its own preimage."
+    },
+    "envelope": {
+      "type": "object",
+      "description": "NON-HASHED volatile metadata. Stripped before proof_id derivation. The ONLY place local absolute paths, wall-clock timestamps, and human display notes may appear.",
+      "additionalProperties": true,
+      "properties": {
+        "generated_at": { "type": "string", "description": "wall-clock ISO-8601; not hashed" },
+        "local_paths": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "map from artifact sha256/role to a machine-local absolute path; not hashed, not portable"
+        },
+        "display_notes": { "type": "string" }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "description": "The two executables under comparison.",
+      "required": ["retail", "port"],
+      "additionalProperties": true,
+      "properties": {
+        "retail": {
+          "type": "object",
+          "required": ["pe_sha256", "reference_id"],
+          "additionalProperties": true,
+          "properties": {
+            "pe_sha256": { "$ref": "#/$defs/sha256" },
+            "reference_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "human-stable label for the retail reference build (e.g. carpe-fulgur-steam-2010-10-07)"
+            }
+          }
+        },
+        "port": {
+          "type": "object",
+          "required": ["pe_sha256", "git_commit", "dirty_patch_sha256"],
+          "additionalProperties": true,
+          "properties": {
+            "pe_sha256": { "$ref": "#/$defs/sha256" },
+            "git_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,40}$",
+              "description": "port source commit the PE was built from"
+            },
+            "dirty_patch_sha256": {
+              "oneOf": [
+                { "$ref": "#/$defs/sha256" },
+                { "type": "null" }
+              ],
+              "description": "SHA-256 of the combined staged+unstaged diff, or null for a clean tree"
+            }
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Everything that determines the run other than the two PEs and the environment.",
+      "required": [
+        "save",
+        "scenario_contract",
+        "trace_sha256",
+        "assets_manifest_sha256",
+        "recet_ini_sha256"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "save": {
+          "$ref": "#/$defs/sha256_or_fresh",
+          "description": "SHA-256 of the resolved save bytes actually presented, or the literal \"@fresh\" for a no-save start"
+        },
+        "scenario_contract": {
+          "type": "object",
+          "required": ["id", "contract_sha256", "contract_version"],
+          "additionalProperties": true,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "contract_sha256": { "$ref": "#/$defs/sha256" },
+            "contract_version": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "trace_sha256": { "$ref": "#/$defs/sha256" },
+        "assets_manifest_sha256": {
+          "$ref": "#/$defs/sha256_or_none",
+          "description": "SHA-256 of the deterministic asset/archive manifest used, or \"@none\" if no asset archive participated"
+        },
+        "recet_ini_sha256": {
+          "$ref": "#/$defs/sha256_or_none",
+          "description": "SHA-256 of the recet.ini config used, or \"@none\""
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Host/runtime facts that can affect output.",
+      "required": [
+        "os_build",
+        "locale",
+        "codepage",
+        "d3d_runtime",
+        "gpu",
+        "driver",
+        "resolution",
+        "display_mode"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "os_build": { "type": "string", "minLength": 1 },
+        "locale": { "type": "string", "minLength": 1 },
+        "codepage": { "type": "string", "minLength": 1 },
+        "d3d_runtime": { "type": "string", "minLength": 1 },
+        "gpu": { "type": "string", "minLength": 1 },
+        "driver": { "type": "string", "minLength": 1 },
+        "resolution": { "type": "string", "minLength": 1 },
+        "display_mode": { "type": "string", "enum": ["windowed", "fullscreen"] }
+      }
+    },
+    "normalization": {
+      "type": "array",
+      "description": "Every pin/hook applied, with parameters. May be empty (= none declared).",
+      "items": {
+        "type": "object",
+        "required": ["name", "params"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "params": { "type": "object" }
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "description": "SHA-256 of every tool that can affect the observation.",
+      "required": [
+        "frida_agent_sha256",
+        "d3d_proxy_sha256",
+        "replayer_sha256",
+        "comparator_sha256",
+        "schema_sha256"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "frida_agent_sha256": { "$ref": "#/$defs/sha256_or_none" },
+        "d3d_proxy_sha256": { "$ref": "#/$defs/sha256_or_none" },
+        "replayer_sha256": { "$ref": "#/$defs/sha256_or_none" },
+        "comparator_sha256": { "$ref": "#/$defs/sha256" },
+        "schema_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "description": "Raw captured evidence per pillar. Keys SHOULD be canonical pillar names; unknown keys are preserved.",
+      "additionalProperties": { "$ref": "#/$defs/observation" }
+    },
+    "pillars": {
+      "type": "object",
+      "description": "The adjudicated verdict per pillar. Every value is a pillar_result regardless of key.",
+      "additionalProperties": { "$ref": "#/$defs/pillar_result" }
+    },
+    "coverage": {
+      "type": "object",
+      "description": "Coverage evidence for this run. Strict ontology is frozen by CV-00; here it is an open container (fail-closed: present, may be minimal).",
+      "required": ["captured"],
+      "additionalProperties": true,
+      "properties": {
+        "captured": { "type": "boolean" },
+        "atlas_ref": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "description": "R3-approved tolerated differences. Each is scoped; none is global.",
+      "items": { "$ref": "#/$defs/exception" }
+    },
+    "human_review": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["reviewer", "date", "scope"],
+          "additionalProperties": true,
+          "properties": {
+            "reviewer": { "type": "string", "minLength": 1 },
+            "date": { "type": "string", "minLength": 1 },
+            "scope": { "type": "string", "minLength": 1 },
+            "notes": { "type": "string" }
+          }
+        }
+      ],
+      "description": "Human confirmation cannot override a failed machine-required pillar (roadmap EP-07)."
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "lowercase hex SHA-256"
+    },
+    "sha256_or_fresh": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "const": "@fresh" }
+      ]
+    },
+    "sha256_or_none": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "const": "@none" }
+      ]
+    },
+    "pillar_verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "NOT_CAPTURED", "NOT_REQUIRED", "INCONCLUSIVE"],
+      "description": "roadmap §4.1"
+    },
+    "logical_frame": {
+      "type": "object",
+      "description": "Canonical logical frame identity (roadmap §4.2). Never an absolute present index.",
+      "required": ["anchor", "occurrence", "offset"],
+      "additionalProperties": false,
+      "properties": {
+        "anchor": { "type": "string", "minLength": 1 },
+        "occurrence": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "description": "Raw evidence for one pillar.",
+      "required": ["captured"],
+      "additionalProperties": true,
+      "properties": {
+        "captured": { "type": "boolean" },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact_ref" }
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "artifact_ref": {
+      "type": "object",
+      "description": "A captured artifact referenced by hash only; the local path (if any) lives in envelope.local_paths.",
+      "required": ["sha256"],
+      "additionalProperties": true,
+      "properties": {
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "role": { "type": "string" },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "pillar_result": {
+      "type": "object",
+      "required": ["verdict"],
+      "additionalProperties": true,
+      "properties": {
+        "verdict": { "$ref": "#/$defs/pillar_verdict" },
+        "join": {
+          "type": "string",
+          "enum": ["JOIN_COMPLETE", "JOIN_PARTIAL"],
+          "description": "identity pillar only; does not itself imply PASS (roadmap §4.1)"
+        },
+        "replay": {
+          "type": "string",
+          "enum": ["REPLAY_EXACT", "REPLAY_DIVERGENT"],
+          "description": "same-side replay fidelity; not a cross-target parity claim"
+        },
+        "first_divergence": { "$ref": "#/$defs/first_divergence" },
+        "detail": { "type": "string" }
+      }
+    },
+    "first_divergence": {
+      "type": "object",
+      "description": "The first frame at which this pillar's comparison failed.",
+      "required": ["logical_frame"],
+      "additionalProperties": true,
+      "properties": {
+        "logical_frame": { "$ref": "#/$defs/logical_frame" },
+        "kind": { "type": "string" },
+        "path": { "type": "string", "description": "state-tree / draw / field path" },
+        "port_value": {},
+        "retail_value": {}
+      }
+    },
+    "exception": {
+      "type": "object",
+      "required": ["pillar", "scope", "reason", "approved_by"],
+      "additionalProperties": true,
+      "properties": {
+        "pillar": { "type": "string", "minLength": 1 },
+        "scope": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "approved_by": { "type": "string", "minLength": 1 },
+        "expires": { "type": "string" }
+      }
+    }
+  }
+}
