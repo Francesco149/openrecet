@@ -227,6 +227,91 @@ def test_extent_lookup() -> None:
     print("  OK extent lookup: containment, widest-pick, stale-key + wrong-anchor filtered out")
 
 
+def test_provenance_keying() -> None:
+    """EP-08 cache re-key by full provenance: the 128-bit dir key hashes the SHARED
+    determinants (trace/proxy/assets/cache-schema); per-side PE+agent are validated via
+    v3meta.prov so a PORT rebuild never invalidates the RETAIL cache. Proves each input
+    invalidates the APPROPRIATE side (the acceptance) + corrupt/pre-EP08 rejection —
+    monkeypatching the provenance paths to temp files so a byte-flip is a real change."""
+    import json
+    import tempfile
+    from dataclasses import asdict
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        trace = tmp / "trace.jsonl"; trace.write_text('{"caprange":[120,48]}\n')
+        proxy = tmp / "d3d8.dll";    proxy.write_bytes(b"proxy-v1")
+        port = tmp / "port.exe";     port.write_bytes(b"port-v1")
+        retail = tmp / "retail.exe"; retail.write_bytes(b"retail-v1")
+        agent = tmp / "agent.js";    agent.write_text("agent-v1")
+        saved = {k: getattr(v3cache, k) for k in
+                 ("PROXY_DLL", "PORT_EXE", "RETAIL_EXE", "AGENT_JS", "ASSETS_MANIFEST", "RECET_INI")}
+        v3cache.PROXY_DLL, v3cache.PORT_EXE = proxy, port
+        v3cache.RETAIL_EXE, v3cache.AGENT_JS = retail, agent
+        v3cache.ASSETS_MANIFEST = tmp / "nope-assets.json"    # absent → @none
+        v3cache.RECET_INI = tmp / "nope.ini"                  # absent → @none
+        try:
+            arm = {"anchor": "HOUSE_FREEROAM", "offset": 120, "count": 48}
+            k0 = v3cache.cache_key(trace, arm)
+            assert len(k0) == 32, f"128-bit dir key, got {len(k0)} hex"      # ≥128 visible bits
+
+            # SHARED determinants → the dir key changes (both sides re-drive).
+            proxy.write_bytes(b"proxy-v2")
+            assert v3cache.cache_key(trace, arm) != k0, "rebuilt proxy → key changes"
+            proxy.write_bytes(b"proxy-v1")
+            assert v3cache.cache_key(trace, arm) == k0, "restored proxy → key restored"
+            trace.write_text('{"caprange":[120,48]}  \n')                    # +2 bytes
+            assert v3cache.cache_key(trace, arm) != k0, "trace change → key changes"
+            trace.write_text('{"caprange":[120,48]}\n')
+            assert v3cache.cache_key(trace, {"anchor": "HOUSE_FREEROAM", "offset": 130, "count": 48}) != k0, \
+                "arm change → key changes"
+
+            # PER-SIDE PE/agent do NOT change the shared key (⇒ retail cache survives a
+            # port rebuild) but DO change side_provenance for that side.
+            sp_port0, sp_ret0 = v3cache.side_provenance("port"), v3cache.side_provenance("retail")
+            assert sp_port0["agent_sha256"] == "@none", "port capture has no frida agent"
+            port.write_bytes(b"port-v2")
+            assert v3cache.cache_key(trace, arm) == k0, "port rebuild → shared key UNCHANGED (retail survives)"
+            assert v3cache.side_provenance("port") != sp_port0, "port rebuild → port side_provenance changes"
+            assert v3cache.side_provenance("retail") == sp_ret0, "port rebuild → retail side_provenance UNCHANGED"
+            agent.write_text("agent-v2")
+            assert v3cache.side_provenance("retail") != sp_ret0, "edited agent → retail side_provenance changes"
+            assert v3cache.cache_key(trace, arm) == k0, "edited agent → shared key UNCHANGED (agent is per-side)"
+
+            # _staleness: a fresh entry serves; per-side / shared / corrupt / pre-EP08 don't.
+            agent.write_text("agent-v1"); port.write_bytes(b"port-v1")       # = the stored build
+            common = v3cache.common_provenance(trace)
+            cur = v3cache.side_provenance("retail")
+            entry = tmp / "entry"; entry.mkdir()
+            (entry / "v3cap.bin").write_bytes(b"\x00" * 32)
+            key = v3cache.key_from_common(common, arm)
+            meta = v3cache.FrameIdentity(
+                side="retail", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=1,
+                anchor_frame=14000, offset0=120, count=48, present_first=14120,
+                arm_offset=120, arm_count=48, prov={"common": common, "side": cur})
+            assert v3cache._staleness(entry, meta, key, common, cur, arm) is None, "fresh entry serves"
+            s = v3cache._staleness(entry, meta, key, common, dict(cur, pe_sha256="deadbeef"), arm)
+            assert s and "per-side" in s, f"PE drift → stale ({s})"
+            s = v3cache._staleness(entry, meta, "0" * 32, common, cur, arm)
+            assert s and "shared provenance" in s, f"shared drift → stale ({s})"
+            legacy = v3cache.FrameIdentity(
+                side="retail", scenario="s", anchor="HOUSE_FREEROAM", anchor_occ=1,
+                anchor_frame=14000, offset0=120, count=48, present_first=14120)  # prov=None, pre-EP08
+            assert "pre-EP08" in v3cache._staleness(entry, legacy, "abcd1234", common, cur, arm), "pre-EP08 → re-key"
+            (entry / "v3cap.bin").write_bytes(b"")
+            assert "empty" in v3cache._staleness(entry, meta, key, common, cur, arm), "empty container → corrupt"
+            (entry / "v3cap.bin").unlink()
+            assert "missing" in v3cache._staleness(entry, meta, key, common, cur, arm), "missing → corrupt"
+
+            # prov round-trips through v3meta.json (store writes asdict; load_meta rebuilds).
+            (entry / "v3meta.json").write_text(json.dumps(asdict(meta)))
+            assert v3cache.load_meta(entry).prov == {"common": common, "side": cur}, "prov round-trips"
+        finally:
+            for k, val in saved.items():
+                setattr(v3cache, k, val)
+    print("  OK provenance keying: 128-bit shared key (trace/proxy/assets/schema), per-side PE/agent "
+          "validated → correct-side invalidation; corrupt + pre-EP08 rejected; prov round-trips")
+
+
 def test_merge_keys() -> None:
     """The viewer timeline (orv3_view): merge both sides' per-frame identity KEYS
     into one chronologically-ordered column list (anchor firing order, then delta),
@@ -612,6 +697,7 @@ def main() -> int:
     test_join()
     test_classify_join()
     test_extent_lookup()
+    test_provenance_keying()
     test_merge_keys()
     test_multi_anchor_identity()
     test_window_relative_occ()

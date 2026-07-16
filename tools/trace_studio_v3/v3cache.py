@@ -6,10 +6,13 @@ Two jobs, both from the plan's P2:
 1. **Cache the retail drive** (kill pain #1, slow captures). The proxy writes its
    container to a transient %LOCALAPPDATA%\\openrecet\\v3 that the NEXT capture
    clobbers. This module copies a finished capture into a KEYED, persistent cache
-   dir, so a re-run with the same retail-determining inputs reuses it (zero
-   re-drive) and any sub-window is a slice of the cached container (orv3.slice_window).
-   The key hashes ONLY what determines retail's pixels — the scenario trace + save
-   + pins + the arm spec — so a port-side fix never invalidates the retail cache.
+   dir, so a re-run with the same capture provenance reuses it (zero re-drive) and any
+   sub-window is a slice of the cached container (orv3.slice_window). EP-08: the 128-bit
+   dir key hashes the SHARED capture provenance (scenario trace ⇒ {savefile} save + the
+   arm spec + the staged d3d proxy + assets/recet.ini + cache-schema); per-side PE +
+   frida agent are stored in v3meta.prov and validated on lookup — so a rebuilt proxy /
+   changed assets re-drive both sides, an edited agent or a rebuilt exe re-drive only the
+   affected side, and a port-side fix still never invalidates the retail cache.
 
 2. **Store frame identity** (kill pains #2/#3, sync whack-a-mole). The plan's
    thesis: identity must be STORED, never implied by a filename. Each cache entry
@@ -34,6 +37,84 @@ import orv3       # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_ROOT = ROOT / "runs" / "studio-v3-cache"
+
+# EP-08 cache provenance. Bumping CACHE_SCHEMA (or changing any input below) re-keys
+# every entry ⇒ the next orv3_window re-drives (retail is serialized/slow — paid once).
+# 2 = the full-provenance re-key (was an 8-hex trace+arm digest that never invalidated
+# on a rebuilt proxy / edited frida agent). See docs/findings/parity-EP08-*.
+CACHE_SCHEMA = 2
+
+# The capture-determining inputs, as MODULE-LEVEL paths so tests monkeypatch them to
+# temp files. `common_provenance` (SHARED by both sides ⇒ the dir key) vs
+# `side_provenance` (per side ⇒ stored in v3meta, validated on lookup so a PORT rebuild
+# never invalidates the RETAIL cache).
+PROXY_DLL       = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"   # staged for BOTH sides
+PORT_EXE        = ROOT / "build" / "openrecet.exe"
+RETAIL_EXE      = ROOT / "vendor" / "unpacked" / "recettear.unpacked.exe"
+AGENT_JS        = ROOT / "tools" / "frida" / "openrecet-agent.js"            # retail capture only
+ASSETS_MANIFEST = ROOT / "vendor" / "assets-manifest.json"                  # optional (may be absent)
+RECET_INI       = ROOT / "vendor" / "unpacked" / "recet.ini"                # optional config
+# A v3cap.bin below this is truncated/empty ⇒ corrupt (real content corruption is still
+# caught by the per-frame slice/replay verify; this is the cheap missing/empty guard).
+_MIN_CONTAINER_BYTES = 1
+
+
+def _sha256_file(p: Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _tool_sha(p: Path) -> str:
+    """SHA-256 of a REQUIRED provenance input, or '@absent' if missing — an absent
+    proxy/exe/agent is a real (distinct) provenance state, never silently equal."""
+    p = Path(p)
+    return _sha256_file(p) if p.is_file() else "@absent"
+
+
+def _opt_sha(p: Path) -> str:
+    """SHA-256 of an OPTIONAL provenance input (assets manifest / recet.ini) or '@none'."""
+    p = Path(p)
+    return _sha256_file(p) if p.is_file() else "@none"
+
+
+def common_provenance(trace_path: Path) -> dict:
+    """The determinants SHARED by both sides' captured containers (⇒ the cache DIR key).
+    A change to any re-drives BOTH sides, because they all affect BOTH containers:
+      - the scenario trace (⇒ the {savefile} save, whose sha lives in the trace text),
+      - the staged d3d8 proxy DLL (staged next to the port AND the retail exe),
+      - the optional assets manifest + recet.ini (config),
+      - CACHE_SCHEMA (the cache format/semantics version).
+    The arm/caprange window is folded in by key_from_common (it is per-request, not a
+    file). Per-side PE/agent are deliberately NOT here (see side_provenance)."""
+    return {
+        "cache_schema": CACHE_SCHEMA,
+        "trace_sha256": _sha256_file(Path(trace_path)),
+        "proxy_sha256": _tool_sha(PROXY_DLL),
+        "assets_manifest_sha256": _opt_sha(ASSETS_MANIFEST),
+        "recet_ini_sha256": _opt_sha(RECET_INI),
+    }
+
+
+def side_provenance(side: str) -> dict:
+    """The determinants specific to ONE side's container. Stored in v3meta.prov at drive
+    time and validated on lookup — kept OUT of the shared dir key so a port rebuild never
+    invalidates the retail cache. Port: its exe (no Frida). Retail: its exe + the agent."""
+    if side == "port":
+        return {"pe_sha256": _tool_sha(PORT_EXE), "agent_sha256": "@none"}
+    return {"pe_sha256": _tool_sha(RETAIL_EXE), "agent_sha256": _tool_sha(AGENT_JS)}
+
+
+def key_from_common(common: dict, arm: dict | None) -> str:
+    """128-bit (32-hex) content key from a precomputed common_provenance + the arm spec.
+    Split out so find_extent hashes the provenance FILES once and varies only the arm
+    across candidates."""
+    h = hashlib.sha256()
+    h.update(json.dumps(common, sort_keys=True).encode())
+    h.update(json.dumps(arm or {}, sort_keys=True).encode())
+    return h.hexdigest()[:32]
 
 
 def localappdata_v3() -> Path:
@@ -120,6 +201,7 @@ class FrameIdentity:
     arm_offset: int | None = None   # the drive request, verbatim (None = legacy: offset0)
     arm_count: int | None = None    # the drive request, verbatim (None = legacy: count)
     anchors: list | None = None     # full anchor stream [{name, occ, frame}] (None = legacy)
+    prov: dict | None = None        # EP-08 provenance {"common": {...}, "side": {...}}; None = pre-EP08
 
     def offset_of(self, index: int) -> int:
         return self.offset0 + index
@@ -270,15 +352,13 @@ def resolve_base_anchor(anchors: list[dict], name: str,
 
 
 def cache_key(trace_path: Path, arm: dict | None) -> str:
-    """8-hex content key over the retail-determining inputs: the scenario trace
-    bytes + the arm spec (anchor/offset/count). Save bytes are referenced BY the
-    trace ({savefile} sha in the trace), so hashing the trace text covers them.
-    A port-side code change does not enter the key ⇒ the retail cache survives it."""
-    h = hashlib.sha256()
-    h.update(trace_path.read_bytes())
-    if arm:
-        h.update(json.dumps(arm, sort_keys=True).encode())
-    return h.hexdigest()[:8]
+    """128-bit (32-hex) content key over common_provenance(trace) + the arm spec — the
+    SHARED (both-sides) capture determinants. Was an 8-hex trace+arm digest (pre-EP08)
+    that never invalidated on a rebuilt proxy / changed assets; EP-08 widens it to 32
+    hex and keys it by the full shared provenance (trace ⇒ {savefile} save, proxy,
+    assets/ini, CACHE_SCHEMA). Per-side PE/agent are validated separately (v3meta.prov)
+    so a PORT rebuild never invalidates the RETAIL cache (find_extent)."""
+    return key_from_common(common_provenance(Path(trace_path)), arm)
 
 
 def entry_dir(scenario: str, key: str, side: str) -> Path:
@@ -378,9 +458,11 @@ def as_side(x) -> LoadedSide:
 # cached full-extent?" — if so it SLICES (zero re-drive), else it drives. Lookup is a
 # scan of CACHE_ROOT (a full-extent per scenario isn't keyed by the per-window
 # offset/count, so the loop can't reconstruct the dir name), guarded so it can never
-# serve a STALE entry: the dir name encodes hash(trace+arm), and arm is reconstructible
-# from the stored meta (anchor/offset0/count), so re-hashing the CURRENT trace and
-# checking it still equals the dir's key proves the entry was captured from THIS trace.
+# serve a STALE entry: the dir name encodes the 128-bit hash(common_provenance+arm)
+# (trace ⇒ {savefile} save, proxy, assets/ini, cache-schema — all reconstructible from
+# the CURRENT on-disk inputs + the stored meta), and the stored per-side PE/agent
+# (v3meta.prov) are re-checked against the current build ⇒ a rebuilt proxy, edited
+# agent, or new exe re-drives the affected side (EP-08 _staleness).
 
 def extent_contains(meta: FrameIdentity, off: int, n: int) -> bool:
     """Does the cached entry's ARM-space extent [arm_offset, arm_offset+arm_count)
@@ -411,11 +493,40 @@ def pick_extent(candidates: list[dict], anchor: str, off: int, n: int) -> dict |
     return max(ok, key=lambda c: c["meta"].count)
 
 
+def _staleness(entry: Path, meta: FrameIdentity, key: str | None, common: dict,
+               cur_side: dict, arm: dict) -> str | None:
+    """Why a cached `side` entry can't be served for THIS lookup — None means it can.
+    Checked in order (EP-08 'corrupt cache rejected' + 'explain every stale decision'):
+      1. the container is present + non-empty (else incomplete/corrupt),
+      2. it carries EP-08 per-side provenance + a 128-bit key (else pre-EP08 ⇒ re-key),
+      3. the SHARED provenance key still matches (trace/proxy/assets/cache-schema),
+      4. the stored PER-SIDE provenance matches the current PE/agent.
+    find_extent logs every non-None reason for an otherwise-serviceable entry."""
+    cap = entry / "v3cap.bin"
+    if not cap.exists():
+        return "container missing (incomplete/corrupt cache)"
+    if cap.stat().st_size < _MIN_CONTAINER_BYTES:
+        return "container empty (corrupt cache)"
+    if meta.prov is None or key is None or len(key) != 32:
+        return "pre-EP08 entry (re-key by full provenance)"
+    if key_from_common(common, arm) != key:
+        return "shared provenance changed (trace/proxy/assets/cache-schema)"
+    stored_side = meta.prov.get("side") or {}
+    if stored_side != cur_side:
+        changed = [k for k in cur_side if stored_side.get(k) != cur_side.get(k)] or ["side"]
+        return f"per-side provenance changed ({'/'.join(changed)})"
+    return None
+
+
 def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
                 trace_path: Path) -> Path | None:
     """Scan CACHE_ROOT for a cached `side` full-extent of `scenario` that contains the
-    sub-window [off, off+n) under `anchor` AND was captured from the CURRENT trace
-    (the dir-key re-hash guard). Returns the entry dir to slice, or None (drive it)."""
+    sub-window [off, off+n) under `anchor` AND is provenance-fresh (EP-08): the SHARED
+    key still matches the current trace/proxy/assets/cache-schema, and the stored
+    per-side PE/agent match. Returns the entry dir to slice, or None (⇒ drive it). Every
+    stale-but-otherwise-serviceable entry is logged with WHY."""
+    common = common_provenance(Path(trace_path))   # hash the provenance FILES once
+    cur_side = side_provenance(side)                # this side's current PE (+ agent)
     candidates = []
     for meta_json in sorted(CACHE_ROOT.glob(f"{scenario}-*/{side}/v3meta.json")):
         entry = meta_json.parent
@@ -426,13 +537,14 @@ def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
         if meta.side != side:
             continue
         key = dir_key(scenario, entry.parent.name)
-        # arm is reconstructible from the stored ARM SPEC (meta v2) / extent (legacy)
-        # — re-hash the current trace and require it still equals the dir's key ⇒
-        # the entry is for THIS trace, not stale.
+        # arm is reconstructible from the stored ARM SPEC (meta v2) / extent (legacy).
         arm = {"anchor": meta.anchor, "offset": meta.eff_arm_offset,
                "count": meta.eff_arm_count}
-        key_ok = key is not None and cache_key(trace_path, arm) == key
-        candidates.append({"dir": entry, "meta": meta, "key_ok": key_ok})
+        stale = _staleness(entry, meta, key, common, cur_side, arm)
+        # explain a would-have-served-but-stale entry (anchor + extent match, but stale).
+        if stale is not None and meta.anchor == anchor and extent_contains(meta, off, n):
+            print(f"[cache] STALE {side} {entry.parent.name}: {stale} → re-drive")
+        candidates.append({"dir": entry, "meta": meta, "key_ok": stale is None})
     best = pick_extent(candidates, anchor, off, n)
     return best["dir"] if best else None
 
@@ -476,7 +588,9 @@ def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                           offset0=offset0, count=c.n_frames, present_first=present_first,
                           arm_offset=int(arm.get("offset", offset0)),
                           arm_count=int(arm.get("count", c.n_frames)),
-                          anchors=anchors)
+                          anchors=anchors,
+                          prov={"common": common_provenance(Path(trace_path)),
+                                "side": side_provenance(side)})
     dest = entry_dir(scenario, cache_key(Path(trace_path), arm), side)
     store(dest, ident, src=src, call_trace_path=call_trace_path)
     return dest, ident
