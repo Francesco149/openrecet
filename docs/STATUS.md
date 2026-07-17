@@ -205,6 +205,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   risk surface, not a realized fault — a 2007 fixed-function title likely never calls most). **★ NEXT:** the DYNAMIC
   census (proxy per-method call-counter emitted per scenario ⇒ 0-observed = safe) + GX-01 record-or-fail policy —
   needs a proxy build + drive.
+  **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
+  (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
+  **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a
+  required first-class top-level field), change confined to the canonicalization rule §4.4 places under R3,
+  code now CONFORMS to §4.4 ("proof_id excludes human display notes"); NOT a schema major bump.
+  `prove.py:attach_human_review` (asserts review-neutrality under the CURRENT rule — robust to a stale stored
+  id; a confirming review over a non-PASS gate → `confirmed-despite-<MACHINE>` + `machine_verdict` stamp, NEVER
+  a silent pass; `gate()`/exit stays machine-driven) + `tools/parity_review.py` CLI (writes back into the SAME
+  content-addressed bundle; `required_pillars` auto-resolve from the bundle's scenario contract w/ a drift
+  check; exit = the MACHINE gate). VERIFIED e2e on the REAL `house-firstcust-arrprobe` bundle →
+  `confirmed-despite-FAIL` (its honest sub-perceptual pixel FAIL) — the human-1:1-yet-not-tool-proven scene can
+  now carry a scoped, auditable attestation that can't flip the FAIL. +host tests (test_parity_prove 72/0 incl.
+  a stale-id regression; test_parity_schema NON_HASHED+neutrality). NB pre-EP07 bundles' proof_ids re-address on
+  next drive (advisory; durable key `contract_sha256`; no bundle carried a real review). DEFERRED (opt-in):
+  confirmed-parity-ledger→structured-records migration.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

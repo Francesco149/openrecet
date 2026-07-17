@@ -460,20 +460,25 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### EP-07 — Bridge human confirmations
 
-> **⚠ SCOPING NOTE 2026-07-17 (not started — a canonicalization decision blocks a clean
-> slice).** The proof bundle already carries a top-level `human_review` field (`prove.py`
-> assemble, default None), but it is currently in the HASHED core (`canonical.NON_HASHED =
-> ("proof_id", "envelope")` does NOT list it) — so attaching a review would CHANGE the
-> `proof_id`, contradicting §4.4 ("proof_id excludes … human display notes"). EP-07 done
-> RIGHT first needs an R3 decision: move `human_review` to the NON-hashed `envelope` (or add
-> it to `NON_HASHED`) + a schema-v tweak, so a human confirmation is ADDITIVE evidence that
-> never perturbs the content-addressed id NOR flips a machine verdict. THEN the R2 slice:
-> `attach_human_review(bundle, {reviewer,date,scope,notes,verdict,confirmed_pillars})` that
-> writes into the envelope and ENFORCES the invariant (a review over a required-pillar FAIL
-> is recorded as "confirmed-despite-FAIL" with explicit scope, never a pass) + host tests.
-> The confirmed-parity-ledger→structured-records migration stays "where practical" (opt-in),
-> not a full rewrite. Deferred so the canonicalization change gets R3 review, not a rushed
-> overnight edit to frozen §4.4 semantics.
+> **✅ LANDED 2026-07-17** — `../findings/parity-EP07-human-review.md`. R3 decision (of the
+> two sanctioned options): **add `human_review` to `canonical.NON_HASHED`** rather than move
+> it into the envelope — the smaller blast radius on the FROZEN schema (its SHAPE is unchanged;
+> `human_review` stays a required first-class top-level field), confining the change to the
+> canonicalization rule §4.4 already places under R3 authority, and making the code CONFORM to
+> §4.4's stated intent ("proof_id excludes … human display notes"). R2 slice:
+> `prove.py:attach_human_review(proof, review, *, required_pillars)` (additive, non-hashed —
+> asserts review-neutrality under the CURRENT rule; a confirming review over a non-PASS gate is
+> recorded `confirmed-despite-<MACHINE>`, stamped with `machine_verdict`, NEVER a silent pass) +
+> the `tools/parity_review.py` CLI (writes the review back into the SAME content-addressed bundle;
+> `required_pillars` auto-resolve from the bundle's scenario contract with a drift check; exit =
+> the MACHINE gate). Acceptance met — a human confirmation cannot override a failed machine-required
+> pillar (the CLI still exits 1 over a FAIL). VERIFIED end-to-end on the REAL `house-firstcust-arrprobe`
+> bundle → `confirmed-despite-FAIL` (its honest sub-perceptual pixel FAIL). +host tests (test_parity_prove
+> +18 checks incl. a stale-id regression; test_parity_schema asserts NON_HASHED membership + id neutrality).
+> **NB one-time:** pre-EP-07 bundles' `proof_id`s are stale under the new rule (they hashed a
+> `human_review:null`) ⇒ re-address on next drive (advisory; the durable key is `contract_sha256`; no
+> bundle ever carried a real review). **DEFERRED (opt-in, not started):** the
+> confirmed-parity-ledger → structured-review-records migration ("where practical", not a rewrite).
 
 - **Reasoning:** R2; human review remains human-owned.
 - **Depends:** EP-05.

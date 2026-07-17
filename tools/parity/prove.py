@@ -77,6 +77,68 @@ def gate(required_pillars, proof: dict) -> tuple[str, int, dict]:
     return "INCONCLUSIVE", 2, verdicts
 
 
+# ── EP-07: human review (additive, non-hashed, verdict-preserving) ────────────
+
+# A human review's own verdict vocabulary — human attestation, NOT a machine pillar
+# result. Kept distinct so a reader never conflates the two (§3 rule 2).
+HUMAN_VERDICTS = ("confirmed", "rejected", "noted")
+
+
+def attach_human_review(proof: dict, review: dict, *, required_pillars) -> dict:
+    """Attach a human confirmation and return a NEW proof with `human_review` set —
+    WITHOUT changing `proof_id` or any machine verdict (EP-07 acceptance: a human
+    confirmation cannot override a failed machine-required pillar; deferred
+    divergences retain explicit failing/exception scope).
+
+    `human_review` is non-hashed (canonical.NON_HASHED), so this is ADDITIVE: the
+    content-addressed id is unchanged (asserted below), and the machine gate (§4.1,
+    read from `pillars`) is untouched — `gate()`/exit codes never move for a review.
+
+    The review is stamped with the machine gate verdict at review time
+    (`machine_verdict`). A CONFIRMING verdict over a non-PASS machine gate is recorded
+    as `confirmed-despite-<MACHINE>` (e.g. `confirmed-despite-FAIL`), so a human
+    standing behind a known machine gap is EXPLICIT + scoped, never a silent pass.
+
+    Raises ValueError on a malformed review (missing reviewer/date/scope or an unknown
+    human verdict); AssertionError if attaching perturbs proof_id (canonicalization
+    broken)."""
+    for f in ("reviewer", "date", "scope"):
+        if not review.get(f):
+            raise ValueError(f"human review requires a non-empty {f!r}")
+    human_verdict = review.get("verdict", "noted")
+    if human_verdict not in HUMAN_VERDICTS:
+        raise ValueError(
+            f"unknown human review verdict {human_verdict!r} "
+            f"(want one of {HUMAN_VERDICTS})")
+
+    machine_verdict, _, _ = gate(required_pillars, proof)
+    recorded = human_verdict
+    if human_verdict == "confirmed" and machine_verdict != "PASS":
+        recorded = f"confirmed-despite-{machine_verdict}"
+
+    record = {
+        "reviewer": review["reviewer"],
+        "date": review["date"],
+        "scope": review["scope"],
+        "verdict": recorded,
+        "machine_verdict": machine_verdict,
+    }
+    if review.get("notes"):
+        record["notes"] = review["notes"]
+    if review.get("confirmed_pillars") is not None:
+        record["confirmed_pillars"] = list(review["confirmed_pillars"])
+
+    reviewed = {**proof, "human_review": record}
+    # EP-07 neutrality: a review must not move the content-address. Compare under the
+    # CURRENT canonicalization rule (the review-free baseline, recomputed) — robust to a
+    # bundle whose STORED proof_id predates this rule (a pre-EP07 bundle's stored id is
+    # stale, but that is a separate re-drive concern, not caused by the review).
+    if proof_id_of(reviewed) != proof_id_of(proof):
+        raise AssertionError(
+            "human_review changed proof_id — canonicalization is broken (EP-07)")
+    return reviewed
+
+
 def first_divergences(proof: dict) -> list[dict]:
     """Every FAILed pillar's first_divergence (logical coords), for the summary."""
     out = []
@@ -139,5 +201,6 @@ def summarize(proof: dict, required_pillars, *, bundle_dir: Optional[Path] = Non
         "pillar_verdicts": verdicts,
         "all_pillar_verdicts": {k: v.get("verdict") for k, v in proof.get("pillars", {}).items()},
         "first_divergences": first_divergences(proof),
+        "human_review": proof.get("human_review"),
         "bundle_dir": str(bundle_dir) if bundle_dir else None,
     }

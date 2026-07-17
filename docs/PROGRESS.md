@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — EP-07: human-review bridge (additive, non-hashed, verdict-preserving)
+
+A proof bundle carried an unused `human_review: null` stub in the HASHED core, so
+attaching a review would have CHANGED `proof_id` — the blocker the prior session recorded
+(f29f553). Landed the human-attestation layer. Finding:
+`docs/findings/parity-EP07-human-review.md`.
+
+- **R3 decision:** add `human_review` to `canonical.NON_HASHED` (not move it to the
+  envelope). Smallest blast radius on the FROZEN schema — its SHAPE is unchanged
+  (`human_review` stays a required first-class top-level field); the change is confined to
+  the canonicalization rule §4.4 already places under R3, and makes the code CONFORM to
+  §4.4 ("proof_id excludes … human display notes"). Not a schema major bump.
+- **`prove.py:attach_human_review(proof, review, *, required_pillars)`** — additive,
+  asserts review-neutrality under the CURRENT rule; a confirming review over a non-PASS
+  gate is recorded `confirmed-despite-<MACHINE>` + stamped with `machine_verdict`, NEVER a
+  silent pass; `gate()`/exit stays machine-driven.
+- **`tools/parity_review.py`** CLI — writes the review back into the SAME content-addressed
+  bundle (non-hashed amendment); `required_pillars` auto-resolve from the bundle's scenario
+  contract with a drift check; exit = the MACHINE gate.
+- **VERIFIED** e2e on the REAL `house-firstcust-arrprobe` bundle → `confirmed-despite-FAIL`
+  (its honest sub-perceptual pixel FAIL): a human-1:1-confirmed-but-not-bit-exact scene can
+  now carry a scoped attestation that can't flip the machine FAIL. +18 host checks
+  (test_parity_prove 72/0, incl. a stale-id regression) + schema NON_HASHED/neutrality checks.
+- **NB:** pre-EP-07 bundles' `proof_id`s are stale under the new rule (they hashed a
+  `human_review:null`) ⇒ re-address on next drive (advisory; durable key `contract_sha256`).
+  DEFERRED (opt-in): the confirmed-parity-ledger → structured-review-records migration.
+
 ## 2026-07-17 — GX-00: D3D8 method census (capture completeness)
 
 A `pixels`/`render_program` pillar is only sound if EVERY render-affecting D3D8 call the game makes was RECORDED — a

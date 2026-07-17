@@ -15,14 +15,17 @@ from __future__ import annotations
 import hashlib
 import json
 
-# The two keys excluded from a proof's own preimage: proof_id (self-referential)
-# and envelope (NON-HASHED volatile metadata — local paths, wall-clock, notes).
-NON_HASHED = ("proof_id", "envelope")
+# The keys excluded from a proof's own preimage: proof_id (self-referential),
+# envelope (NON-HASHED volatile metadata — local paths, wall-clock, notes), and
+# human_review (EP-07: additive human attestation — non-hashed so attaching a
+# confirmation never perturbs the content-addressed id nor a machine verdict).
+NON_HASHED = ("proof_id", "envelope", "human_review")
 
 
 def canonical_bytes(proof: dict) -> bytes:
-    """Deterministic preimage of proof_id: drop proof_id + envelope, then sort keys
-    recursively and emit compact UTF-8 JSON. Arrays keep order."""
+    """Deterministic preimage of proof_id: drop the NON_HASHED keys (proof_id +
+    envelope + human_review), then sort keys recursively and emit compact UTF-8
+    JSON. Arrays keep order."""
     core = {k: v for k, v in proof.items() if k not in NON_HASHED}
     return json.dumps(
         core, sort_keys=True, separators=(",", ":"), ensure_ascii=False

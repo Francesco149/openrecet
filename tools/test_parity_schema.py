@@ -30,7 +30,7 @@ import json
 import sys
 from pathlib import Path
 
-from parity.canonical import proof_id_of, proof_passes  # promoted §4.4 impl (EP-02)
+from parity.canonical import NON_HASHED, proof_id_of, proof_passes  # promoted §4.4 impl (EP-02)
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMAS = ROOT / "docs" / "schemas"
@@ -116,6 +116,17 @@ def main() -> int:
     check(
         proof_id_of(excl) == id1,
         "changing proof_id/envelope must NOT change the derived proof_id",
+    )
+
+    # EP-07: human_review is non-hashed additive attestation — attaching/changing it
+    # must not perturb the content-addressed id (else a confirmation would fork the id).
+    check("human_review" in NON_HASHED, "human_review is a NON_HASHED key (EP-07)")
+    hr = deepcopy(full)
+    hr["human_review"] = {"reviewer": "someone-else", "date": "2099-01-01",
+                          "scope": "x", "verdict": "rejected", "machine_verdict": "FAIL"}
+    check(
+        proof_id_of(hr) == id1,
+        "changing human_review must NOT change the derived proof_id (EP-07)",
     )
 
     sens = deepcopy(full)

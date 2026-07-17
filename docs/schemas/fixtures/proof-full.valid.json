@@ -140,6 +140,9 @@
     "reviewer": "headpats",
     "date": "2026-07-16",
     "scope": "house-firstcust-arrprobe win-0-1500",
+    "verdict": "confirmed",
+    "machine_verdict": "PASS",
+    "confirmed_pillars": ["identity", "state", "render_program", "pixels"],
     "notes": "confirmed 1:1 in viewer"
   }
 }

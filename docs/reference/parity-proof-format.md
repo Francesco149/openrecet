@@ -52,7 +52,7 @@ Never compare absolute present indices. Side-local coords
 
 ## Proof bundle — required fingerprints
 
-All eleven top-level groups are required (`schema_version, proof_id, subject,
+All twelve top-level groups are required (`schema_version, proof_id, subject,
 inputs, environment, normalization, tools, observations, pillars, coverage,
 exceptions, human_review`). Mandatory hashes:
 
@@ -70,14 +70,16 @@ exceptions, human_review`). Mandatory hashes:
 ## proof_id + canonicalization (frozen rule)
 
 `proof_id = SHA-256(canonical_bytes)` where `canonical_bytes` = the bundle with
-`proof_id` **and** `envelope` removed, keys sorted recursively, compact UTF-8
-JSON (`separators=(",",":")`), arrays keep order. Same inputs ⇒ same `proof_id`
-from any machine. Reference impl: `tools/parity/canonical.py:canonical_bytes`
-(promoted by EP-02; `test_parity_schema.py` imports it).
+the NON-HASHED keys `proof_id`, `envelope`, **and** `human_review` removed, keys
+sorted recursively, compact UTF-8 JSON (`separators=(",",":")`), arrays keep
+order. Same inputs ⇒ same `proof_id` from any machine. Reference impl:
+`tools/parity/canonical.py:canonical_bytes` (promoted by EP-02;
+`test_parity_schema.py` imports it).
 
-`envelope` is the ONLY place local absolute paths, wall-clock timestamps, and
-human display notes may appear — it is stripped before hashing, so it never
-perturbs the id and never leaks a non-portable path into content addressing.
+`envelope` holds local absolute paths, wall-clock timestamps, and freeform display
+notes; `human_review` holds structured human attestation (below). Both are stripped
+before hashing, so neither perturbs the id nor leaks a non-portable path into
+content addressing.
 
 ## Required-pillar gate (fail closed, code-only)
 
@@ -86,6 +88,32 @@ Schema validity ≠ pass. A proof passes a contract iff **every**
 A required pillar left `NOT_CAPTURED`/`FAIL`/`INCONCLUSIVE` ⇒ the scenario is not
 proven (exit 1/2). Reference impl: `tools/parity/canonical.py:proof_passes`; the
 real consumer is `parity_prove.py` (EP-05).
+
+## Human review (EP-07, additive + non-hashed)
+
+`human_review` is optional human attestation, ADDITIVE and NON-HASHED (in
+`canonical.NON_HASHED`), so attaching one never perturbs `proof_id` nor a machine
+verdict. `tools/parity/prove.py:attach_human_review(proof, review, *,
+required_pillars)` builds the record; `tools/parity_review.py` is the CLI
+(`parity_review.py <bundle_dir> --reviewer … --date … --scope … [--verdict
+confirmed|rejected|noted]`), writing the review back into the SAME content-addressed
+bundle (a non-hashed amendment, like the envelope; `required_pillars` default to the
+bundle's own scenario contract, verified against the recorded `contract_sha256`).
+
+The record carries `machine_verdict` (the §4.1 gate at review time). A **confirming
+review over a non-PASS gate** is recorded as `confirmed-despite-<MACHINE>` (e.g.
+`confirmed-despite-FAIL`) — a human standing behind a known machine gap is explicit
+and scoped, **never a silent pass**: the CLI still exits with the machine gate's code
+(EP-07 acceptance — a human confirmation cannot override a failed machine-required
+pillar). Use it for a scene human-confirmed 1:1 yet not bit-exact (e.g.
+`house-firstcust-arrprobe`, visually 1:1 with a sub-perceptual cross-target diff).
+
+Adding `human_review` to `NON_HASHED` was an **R3-approved canonicalization
+refinement** for EP-07, not a schema major bump: the frozen schema SHAPE is unchanged
+(`human_review` stays a required top-level field), only the canonicalization exclusion
+list grew. Pre-EP-07 bundles' `proof_id`s are stale under the new rule (they hashed a
+`human_review:null` into the core) and re-address on the next drive — advisory only,
+the durable key is `contract_sha256`; no persisted bundle ever carried a real review.
 
 ## Observation adapters + normalized metrics (EP-04)
 

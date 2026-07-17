@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openrecet.local/schemas/parity-proof-v1.json",
   "title": "OpenRecet parity proof bundle (v1)",
-  "description": "A content-addressed proof bundle emitted by tools/parity_prove.py. Fail closed: a required observation that is absent is NOT_CAPTURED, never PASS. proof_id is SHA-256 of canonical JSON EXCLUDING proof_id and the non-hashed envelope. Readers reject unknown MAJOR schema_version and preserve unknown fields when copying. See docs/reference/parity-proof-format.md and roadmap EP-01/§4.4.",
+  "description": "A content-addressed proof bundle emitted by tools/parity_prove.py. Fail closed: a required observation that is absent is NOT_CAPTURED, never PASS. proof_id is SHA-256 of canonical JSON EXCLUDING proof_id, the non-hashed envelope, and human_review (additive human attestation). Readers reject unknown MAJOR schema_version and preserve unknown fields when copying. See docs/reference/parity-proof-format.md and roadmap EP-01/§4.4.",
   "type": "object",
   "required": [
     "schema_version",
@@ -26,11 +26,11 @@
     },
     "proof_id": {
       "$ref": "#/$defs/sha256",
-      "description": "SHA-256 of canonical JSON with proof_id and envelope removed. Self-referential; excluded from its own preimage."
+      "description": "SHA-256 of canonical JSON with proof_id, envelope, and human_review removed. Self-referential; excluded from its own preimage."
     },
     "envelope": {
       "type": "object",
-      "description": "NON-HASHED volatile metadata. Stripped before proof_id derivation. The ONLY place local absolute paths, wall-clock timestamps, and human display notes may appear.",
+      "description": "NON-HASHED volatile metadata. Stripped before proof_id derivation. Where local absolute paths, wall-clock timestamps, and freeform display notes may appear. Structured human attestation lives in the top-level (also non-hashed) human_review.",
       "additionalProperties": true,
       "properties": {
         "generated_at": { "type": "string", "description": "wall-clock ISO-8601; not hashed" },
@@ -213,11 +213,26 @@
             "reviewer": { "type": "string", "minLength": 1 },
             "date": { "type": "string", "minLength": 1 },
             "scope": { "type": "string", "minLength": 1 },
-            "notes": { "type": "string" }
+            "notes": { "type": "string" },
+            "verdict": {
+              "type": "string",
+              "enum": ["confirmed", "rejected", "noted", "confirmed-despite-FAIL", "confirmed-despite-INCONCLUSIVE"],
+              "description": "human attestation, NOT a machine pillar verdict. A confirming review over a non-PASS machine gate is recorded as confirmed-despite-<MACHINE>."
+            },
+            "machine_verdict": {
+              "type": "string",
+              "enum": ["PASS", "FAIL", "INCONCLUSIVE"],
+              "description": "the machine GATE verdict (§4.1) at review time — a review can never change it (roadmap EP-07)"
+            },
+            "confirmed_pillars": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "the pillars the human confirmed by name"
+            }
           }
         }
       ],
-      "description": "Human confirmation cannot override a failed machine-required pillar (roadmap EP-07)."
+      "description": "NON-HASHED additive human attestation (excluded from proof_id, roadmap §4.4). A human confirmation cannot override a failed machine-required pillar (EP-07): it is stamped with machine_verdict and, over a non-PASS gate, recorded as confirmed-despite-<MACHINE>."
     }
   },
   "$defs": {

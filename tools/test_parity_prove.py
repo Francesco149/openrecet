@@ -381,10 +381,118 @@ def test_proof_id_portable(tmp: Path):
           "portable: identical window at different abs dirs → identical proof_id")
 
 
+# ── prove.py: human review (EP-07, additive + verdict-preserving) ────────────
+
+def test_human_review():
+    req = ["identity", "pixels"]
+
+    # attach to a PASS bundle: verdict stays "confirmed"; proof_id + gate unchanged.
+    passing = assemble_with(pillars(identity="PASS", pixels="PASS"))
+    pid = passing["proof_id"]
+    reviewed = P.attach_human_review(
+        passing, {"reviewer": "headpats", "date": "2026-07-17", "scope": "syn all-pass",
+                  "verdict": "confirmed", "confirmed_pillars": ["identity", "pixels"],
+                  "notes": "ok"},
+        required_pillars=req)
+    check(reviewed["proof_id"] == pid, "review: attaching does NOT change proof_id (PASS)")
+    check(reviewed["human_review"]["verdict"] == "confirmed", "review: PASS gate → verdict stays confirmed")
+    check(reviewed["human_review"]["machine_verdict"] == "PASS", "review: machine_verdict stamped PASS")
+    check(reviewed["human_review"]["confirmed_pillars"] == ["identity", "pixels"],
+          "review: confirmed_pillars stored")
+    check(P.gate(req, reviewed)[:2] == ("PASS", 0), "review: gate/exit unchanged by a PASS review")
+
+    # a CONFIRMING review over a FAILing bundle → confirmed-despite-FAIL; proof_id
+    # unchanged; the machine gate STILL exits 1 (a human can't override the machine).
+    failing = assemble_with(pillars(identity="PASS", pixels="FAIL"))
+    fpid = failing["proof_id"]
+    rev2 = P.attach_human_review(
+        failing, {"reviewer": "headpats", "date": "2026-07-17",
+                  "scope": "arrprobe — visually 1:1 despite sub-perceptual px diff",
+                  "verdict": "confirmed"},
+        required_pillars=req)
+    check(rev2["proof_id"] == fpid, "review: attaching does NOT change proof_id (FAIL)")
+    check(rev2["human_review"]["verdict"] == "confirmed-despite-FAIL",
+          "review: confirming over a FAIL gate → confirmed-despite-FAIL (never a silent pass)")
+    check(rev2["human_review"]["machine_verdict"] == "FAIL", "review: machine_verdict stamped FAIL")
+    check(P.gate(req, rev2)[:2] == ("FAIL", 1),
+          "review: a human review CANNOT flip the machine gate (still exit 1)")
+
+    # INCONCLUSIVE gate (a required pillar NOT_CAPTURED) → confirmed-despite-INCONCLUSIVE.
+    incon = assemble_with(pillars(identity="PASS", pixels="NOT_CAPTURED"))
+    rev3 = P.attach_human_review(
+        incon, {"reviewer": "x", "date": "d", "scope": "s", "verdict": "confirmed"},
+        required_pillars=req)
+    check(rev3["human_review"]["verdict"] == "confirmed-despite-INCONCLUSIVE",
+          "review: confirming over an INCONCLUSIVE gate → confirmed-despite-INCONCLUSIVE")
+
+    # a "rejected" verdict is preserved verbatim regardless of the machine gate.
+    rej = P.attach_human_review(
+        passing, {"reviewer": "x", "date": "d", "scope": "s", "verdict": "rejected"},
+        required_pillars=req)
+    check(rej["human_review"]["verdict"] == "rejected", "review: rejected preserved over a PASS gate")
+
+    # REGRESSION (EP-07 stale-id): a bundle whose STORED proof_id predates this
+    # canonicalization (≠ proof_id_of under the current rule, e.g. a pre-EP07 bundle) must
+    # still accept a review — the neutrality invariant is RECOMPUTED, not compared to the
+    # possibly-stale stored id. (Caught driving parity_review on a real pre-EP07 bundle.)
+    stale = assemble_with(pillars(identity="PASS", pixels="PASS"))
+    stale["proof_id"] = "d" * 64  # simulate a pre-EP07 stored id (stale under this rule)
+    revs = P.attach_human_review(
+        stale, {"reviewer": "x", "date": "d", "scope": "s", "verdict": "confirmed"},
+        required_pillars=req)
+    check(revs["human_review"]["verdict"] == "confirmed",
+          "review: a bundle with a stale stored proof_id still accepts a review (recomputed neutrality)")
+    check(revs["proof_id"] == "d" * 64,
+          "review: attaching leaves the (stale) stored proof_id untouched — a re-drive re-addresses")
+
+    # malformed reviews fail closed (missing scope / unknown verdict).
+    for bad, why in (({"reviewer": "x", "date": "d"}, "missing scope"),
+                     ({"reviewer": "x", "date": "d", "scope": "s", "verdict": "totally-parity"},
+                      "unknown verdict")):
+        try:
+            P.attach_human_review(passing, bad, required_pillars=req)
+            check(False, f"review: malformed ({why}) must raise")
+        except ValueError:
+            check(True, f"review: malformed ({why}) raises ValueError")
+
+    # summarize() surfaces the review but the exit code stays machine-driven.
+    summ = P.summarize(rev2, req)
+    check(summ["exit_code"] == 1 and summ["human_review"]["verdict"] == "confirmed-despite-FAIL",
+          "review: summarize carries the review yet keeps the machine exit code")
+
+
+def test_review_cli(tmp: Path):
+    import parity_review
+
+    # a stored FAIL bundle (pixels FAIL) — the arrprobe "visually 1:1 despite px" case.
+    proof = assemble_with(pillars(identity="PASS", pixels="FAIL"))
+    dest, _ = P.write_bundle(proof, tmp, generated_at="2026-07-17T00:00:00Z")
+    pid = proof["proof_id"]
+
+    rc = parity_review.main([
+        str(dest), "--reviewer", "headpats", "--date", "2026-07-17",
+        "--scope", "arrprobe visually 1:1 despite px diff", "--verdict", "confirmed",
+        "--required-pillars", "identity,pixels", "--notes", "gt8 3-5px"])
+    check(rc == 1, "review-cli: exit follows the MACHINE gate (FAIL → 1), not the human verdict")
+
+    written = json.loads((dest / "proof.json").read_text())
+    check(written["proof_id"] == pid, "review-cli: amendment keeps the same proof_id (same CAS path)")
+    check(written["human_review"]["verdict"] == "confirmed-despite-FAIL",
+          "review-cli: confirming over a FAIL is recorded as confirmed-despite-FAIL")
+    check(written["human_review"]["reviewer"] == "headpats", "review-cli: review written into the bundle")
+    check(written.get("envelope", {}).get("generated_at") == "2026-07-17T00:00:00Z",
+          "review-cli: the non-hashed envelope survives the review amendment")
+
+    # absent bundle → exit 2 (fail closed).
+    rc = parity_review.main([str(tmp / "nope"), "--reviewer", "x", "--date", "d",
+                             "--scope", "s", "--required-pillars", "identity"])
+    check(rc == 2, "review-cli: absent bundle → exit 2")
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        for sub in ("cas", "res", "bm_root", "port", "prov"):
+        for sub in ("cas", "res", "bm_root", "port", "prov", "review"):
             (tmp / sub).mkdir()
         test_gate()
         test_determinism()
@@ -393,6 +501,8 @@ def main() -> int:
         test_container_provenance(tmp / "prov")
         test_build_and_main(tmp / "bm_root")
         test_proof_id_portable(tmp / "port")
+        test_human_review()
+        test_review_cli(tmp / "review")
 
     for s in _skips:
         print(f"SKIP: {s}")
