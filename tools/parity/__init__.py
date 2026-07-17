@@ -49,6 +49,13 @@ from .observations import (
     paired_frames,
     pillar_result,
 )
+from .d3d_census import (
+    CaptureCompleteness,
+    CensusError,
+    DEFAULT_CENSUS,
+    capture_completeness,
+    load_census,
+)
 from .pixels import adapt_pixels
 from .render_program import adapt_render_program
 from .render_program import from_view_json as render_metrics_from_view_json
@@ -114,6 +121,12 @@ __all__ = [
     "adapt_pixels",
     "adapt_render_program",
     "render_metrics_from_view_json",
+    # GX-01 capture-completeness precondition
+    "CaptureCompleteness",
+    "CensusError",
+    "DEFAULT_CENSUS",
+    "capture_completeness",
+    "load_census",
     "adapt_save",
     "adapt_state",
     "state_metrics_from_view_json",

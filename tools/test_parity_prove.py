@@ -32,6 +32,18 @@ sys.path.insert(0, str(ROOT / "tools"))
 import parity_prove  # noqa: E402
 from parity import canonical_bytes, proof_id_of  # noqa: E402
 from parity import prove as P  # noqa: E402
+from parity.d3d_census import DEFAULT_CENSUS, _forwarded_keys, load_census  # noqa: E402
+
+_FWD_KEYS = _forwarded_keys(load_census(DEFAULT_CENSUS))
+
+
+def _census(overrides=None):
+    """A well-formed per-side census sidecar (every forwarded method 0 → SAFE), plus
+    optional overrides to fire a risk method (→ VIOLATION)."""
+    calls = {k: 0 for k in _FWD_KEYS}
+    if overrides:
+        calls.update(overrides)
+    return {"schema_version": 1, "forwarded_calls": calls}
 
 _checks = 0
 _failures: list[str] = []
@@ -162,7 +174,7 @@ def test_envelope_and_cas(tmp: Path):
 # ── parity_prove: resolve_observations over a synthetic window ───────────────
 
 def write_window(tmp: Path, *, view_frames=None, px_frames=None, complete=True,
-                 container_hashes=None, px_source=None) -> Path:
+                 container_hashes=None, px_source=None, census="safe") -> Path:
     wd = tmp / "win"
     wd.mkdir(parents=True, exist_ok=True)
     keys = [["HOUSE_FREEROAM", 1, i] for i in range(5)]
@@ -176,6 +188,13 @@ def write_window(tmp: Path, *, view_frames=None, px_frames=None, complete=True,
     view = {"scenario": "syn", "frames": vf}
     if container_hashes:            # orv3_view's baked container provenance (EP-08)
         view.update(container_hashes)
+    # GX-01: orv3_view bakes a per-side capture-completeness census; default SAFE both
+    # sides so the render/pixels precondition is a no-op here (pass census=... to gate).
+    if census == "safe":
+        view["port_census"] = view["retail_census"] = _census()
+    elif isinstance(census, dict):
+        view["port_census"], view["retail_census"] = census.get("port"), census.get("retail")
+    # census=None ⇒ bake nothing (both sides ABSENT → the gate fails closed)
     (wd / "view.json").write_text(json.dumps(view))
     if px_frames is not None:
         doc = {"schema_version": 1, "pillar": "pixels", "mode": "exact", "frames": px_frames}
@@ -282,6 +301,65 @@ def test_container_provenance(tmp: Path):
     check(pil["pixels"]["verdict"] == "PASS", "prov: legacy view → pixels adjudicates (check skipped)")
     check(any("container-hash" in c for c in caveats),
           "prov: legacy view emits an unverified-provenance caveat")
+
+
+def test_census_precondition(tmp: Path):
+    """GX-01-full record-or-fail: pixels + render_program replay the captured D3D8
+    command stream, so an INCOMPLETE capture (a render-affecting forwarded method fired,
+    or the census is absent) makes both PASS and FAIL untrustworthy → the CLI overrides
+    them to INCONCLUSIVE. identity/state/save don't read the D3D stream → not gated."""
+    contract = mk_contract(["identity", "render_program", "pixels"])["proof"]
+
+    # SAFE both sides (the default) → the gate is a no-op; the census is recorded for audit.
+    wd = write_window(tmp / "safe", px_frames=px())
+    obs, pil, _, caveats = parity_prove.resolve_observations(wd, contract)
+    check(pil["render_program"]["verdict"] == "PASS", "census: SAFE → render adjudicates (PASS)")
+    check(pil["pixels"]["verdict"] == "PASS", "census: SAFE → pixels adjudicates (PASS)")
+    check(obs["render_program"]["capture_completeness"]["port"]["verdict"] == "SAFE",
+          "census: the per-side SAFE verdict is stamped on the observation (audit)")
+    check(not any("capture-completeness" in c for c in caveats),
+          "census: a SAFE capture emits no completeness caveat")
+
+    # VIOLATION on one side (a deliberate SetViewport) → BOTH pillars INCONCLUSIVE even
+    # though their intrinsic verdict is PASS. This is the GX-01 acceptance negative.
+    viol = {"port": _census({"IDirect3DDevice8.SetViewport": 5}), "retail": _census()}
+    wd = write_window(tmp / "viol", px_frames=px(), census=viol)
+    obs, pil, _, caveats = parity_prove.resolve_observations(wd, contract)
+    check(pil["render_program"]["verdict"] == "INCONCLUSIVE",
+          "census: a SetViewport VIOLATION → render_program INCONCLUSIVE (not a false PASS)")
+    check(pil["pixels"]["verdict"] == "INCONCLUSIVE",
+          "census: a SetViewport VIOLATION → pixels INCONCLUSIVE")
+    check("SetViewport" in pil["pixels"]["detail"] and "GX-01" in pil["pixels"]["detail"],
+          "census: the INCONCLUSIVE detail names the offending method + policy")
+    check(any("capture-completeness" in c and "SetViewport" in c for c in caveats),
+          "census: a VIOLATION emits a completeness caveat naming the method")
+
+    # ABSENT census (a view predating the GX-01 bake) → fail closed to INCONCLUSIVE.
+    wd = write_window(tmp / "absent", px_frames=px(), census=None)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
+    check(pil["render_program"]["verdict"] == "INCONCLUSIVE",
+          "census: ABSENT census → render_program INCONCLUSIVE (fail closed)")
+    check(pil["pixels"]["verdict"] == "INCONCLUSIVE", "census: ABSENT census → pixels INCONCLUSIVE")
+
+    # The gate can't be dodged: a VIOLATION with an intrinsic pixel FAIL is still
+    # INCONCLUSIVE (an incomplete capture makes a FAIL as untrustworthy as a PASS).
+    wd = write_window(tmp / "violfail", px_frames=px(differ_at=2), census=viol)
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "INCONCLUSIVE",
+          "census: VIOLATION overrides even an intrinsic pixel FAIL → INCONCLUSIVE")
+
+    # The gate is SCOPED: identity/state/save are independent of the D3D stream, so a
+    # VIOLATION leaves them untouched (identity still adjudicates from pairs.json).
+    check(pil["identity"]["verdict"] == "PASS",
+          "census: a render VIOLATION does NOT gate the identity pillar")
+
+    # PRECISION: the gate only downgrades a real adjudication (PASS/FAIL). A NOT_CAPTURED
+    # pixels (no metrics doc) under a VIOLATION census stays NOT_CAPTURED — there is no
+    # claim to make unsound, and NOT_CAPTURED is already non-PASS (exit 2).
+    wd = write_window(tmp / "notcap", census=viol)  # no px_frames ⇒ pixels NOT_CAPTURED
+    _, pil, _, _ = parity_prove.resolve_observations(wd, contract)
+    check(pil["pixels"]["verdict"] == "NOT_CAPTURED",
+          "census: a VIOLATION does NOT flip an unproduced pixels pillar to INCONCLUSIVE")
 
 
 # ── parity_prove: build_proof + main() end-to-end ────────────────────────────
@@ -492,13 +570,14 @@ def test_review_cli(tmp: Path):
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        for sub in ("cas", "res", "bm_root", "port", "prov", "review"):
+        for sub in ("cas", "res", "bm_root", "port", "prov", "review", "census"):
             (tmp / sub).mkdir()
         test_gate()
         test_determinism()
         test_envelope_and_cas(tmp / "cas")
         test_resolve(tmp / "res")
         test_container_provenance(tmp / "prov")
+        test_census_precondition(tmp / "census")
         test_build_and_main(tmp / "bm_root")
         test_proof_id_portable(tmp / "port")
         test_human_review()

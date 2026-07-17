@@ -773,17 +773,21 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-01 — Approve record-or-fail policy
 
-> **◐ GATE MECHANISM LANDED 2026-07-17 (POST-HOC form)** —
-> `../findings/gx00-d3d-method-census.md` §"Dynamic census". `d3d_census.py --dynamic
-> <v3cap.census.json>` is the record-or-fail gate: exit 0 SAFE (every risk method
-> 0-observed), 1 VIOLATION (a render_affecting_unsupported method fired — names
-> method+count+subgroup), 2 INCONCLUSIVE (sidecar incomplete/drift, fail-closed).
-> Acceptance met via the negative test (a deliberate `SetViewport` cannot pass as a
-> complete capture). **REMAINING:** (a) the STRICTER in-proxy form — hard-terminate capture
-> on the FIRST render-affecting forwarded call, with args/frame/caller (needs a proxy build);
-> (b) the R3 policy call on wiring the census as a hard PRECONDITION on the pixels/
-> render_program pillars in `parity_prove` (blast radius: every 3D scene creates VB/IB ⇒
-> would flip them INCONCLUSIVE until GX-04) — deferred with GX-03/GX-04.
+> **✅ LANDED 2026-07-17 — GX-01-full (POST-HOC gate + hard precondition)** —
+> `../findings/gx00-d3d-method-census.md` §"Dynamic census" + §"GX-01-full LANDED".
+> `d3d_census.py --dynamic <v3cap.census.json>` is the record-or-fail gate: exit 0 SAFE
+> (every risk method 0-observed), 1 VIOLATION (a render_affecting_unsupported method fired —
+> names method+count+subgroup), 2 INCONCLUSIVE (sidecar incomplete/drift, fail-closed).
+> Acceptance met via the negative test (a deliberate `SetViewport` cannot pass as a complete
+> capture). **GX-01-full:** the census is now a HARD bilateral PRECONDITION on the
+> pixels/render_program pillars in `parity_prove` (`capture_completeness`) — not-SAFE either
+> side ⇒ both INCONCLUSIVE (never a false PASS/FAIL); identity/state/save ungated (no D3D-stream
+> dependence). Census baked into view.json (`orv3_view`), carried through slices (`orv3_slice`),
+> recomputed against the committed census at prove time. VALIDATED end-to-end on `house-firstcust-
+> arrprobe [1,80]` (SAFE ⇒ gate no-op ⇒ the honest FAIL is now census-sound) + unit negatives
+> (VIOLATION/ABSENT → INCONCLUSIVE). **REMAINING (optional):** the STRICTER in-proxy form —
+> hard-terminate capture on the FIRST render-affecting forwarded call, with args/frame/caller
+> (needs a proxy build) — deferred; the post-hoc gate + hard prove-time precondition suffice.
 
 - **Reasoning:** R3 for classification; R2 implementation.
 - **Depends:** GX-00.

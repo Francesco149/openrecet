@@ -41,6 +41,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 from parity import (  # noqa: E402
+    DEFAULT_CENSUS,
     EnvValidationError,
     FingerprintError,
     LogicalFrame,
@@ -50,8 +51,10 @@ from parity import (  # noqa: E402
     adapt_render_program,
     adapt_save,
     adapt_state,
+    capture_completeness,
     collect_environment,
     dir_manifest_sha256,
+    load_census,
     load_required,
     observation,
     optional_input_fingerprint,
@@ -149,6 +152,42 @@ def _view_container_hashes(view_path: Path) -> dict:
     return out
 
 
+def _view_census(view_path: Path):
+    """The per-side raw census sidecars (v3cap.census.json) orv3_view baked into
+    view.json (GX-01). Returns (port_sidecar, retail_sidecar); each is the raw
+    {schema_version, forwarded_calls} dict or None. None (a view predating the census
+    bake) ⇒ capture_completeness reports that side ABSENT ⇒ pixels/render_program
+    INCONCLUSIVE, fail-closed until a re-bake — never a silent trust of an unproven
+    capture."""
+    if not view_path.exists():
+        return None, None
+    try:
+        v = json.loads(view_path.read_text())
+    except (OSError, ValueError):
+        return None, None
+    return v.get("port_census"), v.get("retail_census")
+
+
+def _census_gate(name: str, obs: dict, pil: dict, cc):
+    """GX-01-full record-or-fail: stamp the bilateral capture-completeness onto the
+    pillar's observation (always, for audit) and — when the capture is NOT proven
+    complete — OVERRIDE the verdict to INCONCLUSIVE. pixels/render_program replay the
+    captured D3D8 command stream, so an incomplete capture makes BOTH a PASS and a FAIL
+    untrustworthy; INCONCLUSIVE is the only honest verdict (never a false PASS)."""
+    obs = {**obs, "capture_completeness": cc.sides}
+    intrinsic = pil.get("verdict")
+    # Only DOWNGRADE a real adjudication (PASS/FAIL) — those are the claims an incomplete
+    # capture would make unsound. NOT_CAPTURED/NOT_REQUIRED make no claim (already non-PASS,
+    # exit 2), so gating them would only lose the "no evidence" precision, not close a hole.
+    if cc.sound or intrinsic not in ("PASS", "FAIL"):
+        return obs, pil
+    return obs, pillar_result(
+        "INCONCLUSIVE",
+        detail=(f"capture completeness not proven (GX-01 record-or-fail): {cc.reason}. "
+                f"The intrinsic {name} verdict was {intrinsic}, but the D3D8 capture is "
+                f"not proven complete, so the replay evidence is untrustworthy."))
+
+
 def resolve_observations(window_dir: Path, contract: dict):
     """Run the EP-04 adapters over an existing v3 window dir. Returns
     (observations, pillars, local_paths, caveats). A pillar with no evidence/producer
@@ -224,6 +263,20 @@ def resolve_observations(window_dir: Path, contract: dict):
     put("pixels", adapt_pixels(pm, required, expected_containers=expected),
         pm if pm.exists() else None)
 
+    # GX-01-full record-or-fail PRECONDITION on the two D3D-stream-replay pillars.
+    # pixels + render_program reconstruct the frame from the captured D3D8 command
+    # stream, so they are only SOUND if the capture was COMPLETE — every render-
+    # affecting forwarded method 0-observed — on BOTH sides. The per-side census
+    # orv3_view baked from each drive's v3cap.census.json decides: not-SAFE (either
+    # side) ⇒ INCONCLUSIVE (never a false PASS/FAIL). identity/state/save do NOT read
+    # the D3D stream, so they are not gated by the census.
+    cc = capture_completeness(load_census(), *_view_census(view))
+    for name in ("render_program", "pixels"):
+        observations[name], pillars[name] = _census_gate(
+            name, observations[name], pillars[name], cc)
+    if not cc.sound:
+        caveats.append(f"GX-01 capture-completeness: {cc.reason}")
+
     # save — scenario-scoped: the two save.dat a `--target both` drive writes,
     # compared byte-for-byte + localized to a canonical-state region (ST-01).
     # save-metrics.json is a self-contained artifact (its own save.dat provenance);
@@ -286,6 +339,9 @@ def gather_provenance(scenario: str, contract: dict, *, port_pe: Path, retail_pe
         "replayer_sha256": tool_sha256_or_none(viewer if viewer.exists() else None),
         "comparator_sha256": dir_manifest_sha256(ROOT / "tools/parity"),
         "schema_sha256": sha256_file(SCHEMA),
+        # the R3 census classification that drives the GX-01 pixels/render_program
+        # precondition (the comparator hash already covers d3d_census.py itself).
+        "census_schema_sha256": sha256_file(DEFAULT_CENSUS),
     }
     return subject, inputs, env, tools, list(normalization)
 

@@ -191,6 +191,24 @@ def _winpath(p: Path) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
+def _read_census(entry: Path):
+    """The proxy's per-drive GX-00 capture-completeness sidecar (v3cap.census.json) for
+    this side, baked verbatim into view.json so the downstream proof (parity_prove) can
+    apply the GX-01 record-or-fail precondition: an incomplete D3D8 capture ⇒ the
+    pixels/render_program pillars are INCONCLUSIVE, never a false PASS. The census is
+    process-lifetime (per-drive, not per-frame), so a slice inherits it verbatim
+    (orv3_slice carries it forward). Returns the raw {schema_version, forwarded_calls}
+    dict, or None if the side has no census (a pre-GX-00 drive ⇒ the proof reports that
+    side ABSENT and fails the pillar closed)."""
+    cen = entry / "v3cap.census.json"
+    if not cen.exists():
+        return None
+    try:
+        return json.loads(cen.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def _sha256_file(p: Path) -> str:
     """Stream the SHA-256 of the whole v3cap.bin container. Baked into view.json so a
     downstream proof (parity_prove) can BIND a pixel/render metrics doc to the EXACT
@@ -259,6 +277,11 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path,
         # provenance the proof compiler binds a metrics doc to (HOLE-2 / EP-08).
         "port_container_sha256": _sha256_file(pside.entry / "v3cap.bin"),
         "retail_container_sha256": _sha256_file(rside.entry / "v3cap.bin"),
+        # GX-01: the per-side D3D8 capture-completeness census (raw sidecar). The proof
+        # compiler recomputes the SAFE/VIOLATION verdict against the committed census
+        # schema and gates pixels/render_program on it (record-or-fail).
+        "port_census": _read_census(pside.entry),
+        "retail_census": _read_census(rside.entry),
         # Windows-local notes file the viewer reads+writes (UNC paths aren't writable
         # from the Windows viewer); orv3_notes.py reads the same file from WSL.
         "notes_path": _winpath(v3cache.notes_file(pmeta.scenario)),

@@ -187,6 +187,26 @@ def load_and_report(header_path=DEFAULT_HEADER, census_path=DEFAULT_CENSUS) -> d
 DYNAMIC_SCHEMA_VERSION = 1
 
 
+def dynamic_from_doc(doc: dict, *, where: str = "census sidecar") -> dict:
+    """Validate an already-parsed `v3cap.census.json` DICT → {"Iface.Name": count}.
+    The shared core of `load_dynamic` (reads a file) and `capture_completeness` (given
+    the sidecar orv3_view baked into view.json). Fail-closed: a wrong schema_version,
+    a missing `forwarded_calls`, or a bad count raises CensusError — never a silent
+    empty pass."""
+    if doc.get("schema_version") != DYNAMIC_SCHEMA_VERSION:
+        raise CensusError(
+            f"{where} schema_version {doc.get('schema_version')!r} != {DYNAMIC_SCHEMA_VERSION}")
+    calls = doc.get("forwarded_calls")
+    if not isinstance(calls, dict):
+        raise CensusError(f"{where} missing a 'forwarded_calls' object")
+    out: dict = {}
+    for key, val in calls.items():
+        if isinstance(val, bool) or not isinstance(val, int) or val < 0:
+            raise CensusError(f"{where} count for {key!r} is not a non-negative int: {val!r}")
+        out[key] = val
+    return out
+
+
 def load_dynamic(path) -> dict:
     """Load a proxy `v3cap.census.json` sidecar → {"Iface.Name": count}. The proxy
     (gen_forwarders.emit_census_preamble) InterlockedIncrements one slot per FORWARDED
@@ -197,18 +217,7 @@ def load_dynamic(path) -> dict:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise CensusError(f"cannot load census sidecar {path}: {exc}") from exc
-    if doc.get("schema_version") != DYNAMIC_SCHEMA_VERSION:
-        raise CensusError(
-            f"census sidecar schema_version {doc.get('schema_version')!r} != {DYNAMIC_SCHEMA_VERSION}")
-    calls = doc.get("forwarded_calls")
-    if not isinstance(calls, dict):
-        raise CensusError("census sidecar missing a 'forwarded_calls' object")
-    out: dict = {}
-    for key, val in calls.items():
-        if isinstance(val, bool) or not isinstance(val, int) or val < 0:
-            raise CensusError(f"census sidecar count for {key!r} is not a non-negative int: {val!r}")
-        out[key] = val
-    return out
+    return dynamic_from_doc(doc, where=f"census sidecar {path}")
 
 
 def _risk_index(census: dict) -> tuple[dict, dict]:
@@ -313,3 +322,65 @@ def render_dynamic_text(report: dict) -> str:
 
 def load_and_report_dynamic(sidecar_path, census_path=DEFAULT_CENSUS) -> dict:
     return build_dynamic_report(load_census(census_path), load_dynamic(sidecar_path))
+
+
+# ── GX-01-full: the record-or-fail PRECONDITION for the pixels / render_program
+# pillars. Those two replay the captured D3D8 command stream, so they are only SOUND
+# if the capture was COMPLETE — every render-affecting forwarded method 0-observed —
+# on BOTH sides. This lifts the per-side dynamic gate above into the bilateral policy
+# `parity_prove` wires as a hard precondition: not-SAFE (either side) ⇒ the render
+# evidence is untrustworthy ⇒ INCONCLUSIVE, never a false PASS/FAIL. (identity/state/
+# save do NOT read the D3D stream, so they are not gated.) ──────────────────────────
+
+class CaptureCompleteness(NamedTuple):
+    sound: bool     # both sides present AND SAFE ⇒ pixels/render_program evidence trustworthy
+    reason: str     # portable one-line reason (method names + counts, never a path)
+    sides: dict     # {"port": {...per-side record...}, "retail": {...}} for the bundle
+
+
+def _side_completeness(census: dict, sidecar) -> dict:
+    """Per-side capture-completeness record from a RAW baked sidecar dict (or None =
+    the view predates the GX-01 census bake). Verdict ∈ SAFE|VIOLATION|INCONCLUSIVE|
+    ABSENT; a malformed sidecar is fail-closed to INCONCLUSIVE (never trusted)."""
+    if sidecar is None:
+        return {"verdict": "ABSENT"}
+    try:
+        dyn = dynamic_from_doc(sidecar, where="baked census")
+    except CensusError as exc:
+        return {"verdict": "INCONCLUSIVE", "malformed": str(exc)}
+    rep = build_dynamic_report(census, dyn)
+    rec = {"verdict": rep["verdict"], "n_risk": rep["n_risk"], "n_safe_risk": rep["n_safe_risk"]}
+    if rep["observed_risk"]:
+        rec["observed_risk"] = rep["observed_risk"]
+        rec["observed_risk_subgroups"] = rep["observed_risk_subgroups"]
+    if rep["missing_risk"]:
+        rec["missing_risk"] = rep["missing_risk"]
+    if rep["unknown_keys"]:
+        rec["unknown_keys"] = rep["unknown_keys"]
+    return rec
+
+
+def capture_completeness(census: dict, port_sidecar, retail_sidecar) -> CaptureCompleteness:
+    """GX-01-full bilateral precondition. `port_sidecar`/`retail_sidecar` are each a
+    raw `{schema_version, forwarded_calls}` dict (orv3_view bakes them into view.json)
+    or None (absent). SOUND iff BOTH sides SAFE; else a portable reason names each
+    unsound side (its verdict + the offending risk methods)."""
+    sides = {"port": _side_completeness(census, port_sidecar),
+             "retail": _side_completeness(census, retail_sidecar)}
+    unsound = [(name, rec) for name, rec in sides.items() if rec["verdict"] != "SAFE"]
+    if not unsound:
+        return CaptureCompleteness(True, "capture complete both sides (census SAFE)", sides)
+
+    parts = []
+    for name, rec in unsound:
+        v = rec["verdict"]
+        if v == "VIOLATION":
+            risk = ", ".join(f"{k}×{n}" for k, n in sorted(rec["observed_risk"].items()))
+            parts.append(f"{name} VIOLATION — uncaptured render-affecting call(s) {risk}")
+        elif v == "ABSENT":
+            parts.append(f"{name} census ABSENT (view predates the GX-01 census bake — re-drive/re-bake)")
+        elif "malformed" in rec:
+            parts.append(f"{name} census malformed ({rec['malformed']})")
+        else:  # INCONCLUSIVE: a risk method unobserved in the sidecar, or drift
+            parts.append(f"{name} INCONCLUSIVE — census cannot prove SAFE (risk method absent/drift)")
+    return CaptureCompleteness(False, "; ".join(parts), sides)

@@ -227,9 +227,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (transparent), census dynamic **SAFE** (31/31 risk 0-observed), `vb/ib_fallback=0` (every bind frozen),
   **RES_VB stays 5** with full Lock/Unlock visibility ⇒ EMPIRICALLY proves the reused buffers are static; + the
   synthetic `gx04_fixture.exe` (`test_gx04_fixture.py`, 6 checks) drives A,B,A binds → **2 distinct RES_VB**
-  (SPLIT A≠B + DEDUP the re-bind) — the positive mutation path the old frame-end snapshot got wrong. **★ NEXT:**
-  GX-01-full (R3 policy — wire the census as a HARD pixels/render_program precondition in `parity_prove`; the
-  VB/IB risk is now gone, so the risk set is 31 all-0-observed on arrprobe) + GX-05 (SHA-256 dedup hardening).
+  (SPLIT A≠B + DEDUP the re-bind) — the positive mutation path the old frame-end snapshot got wrong.
+  **✅ GX-01-full LANDED 2026-07-17 — census wired as a HARD pixels/render_program precondition**
+  (`findings/gx00-d3d-method-census.md` §"GX-01-full LANDED"; commit pending). R3 policy call: the census is a
+  fail-closed bilateral PRECONDITION on the two D3D-stream-replay pillars in `parity_prove` (`capture_completeness`,
+  `parity/d3d_census.py`) — both `pixels`+`render_program` reconstruct the frame from the captured D3D8 stream ⇒
+  SOUND only if the capture was COMPLETE on BOTH sides; not-SAFE (VIOLATION/INCONCLUSIVE/ABSENT either side) ⇒ BOTH
+  OVERRIDE to **INCONCLUSIVE** (never a false PASS/FAIL — an incomplete capture makes a FAIL as untrustworthy as a
+  PASS). `identity`/`state`/`save` don't read the D3D stream ⇒ NOT gated (correctly scoped). Plumbing: census is
+  process-lifetime (1 sidecar/side); `orv3_slice` carries `v3cap.census.json` forward verbatim (a slice inherits its
+  drive's census, like `call_trace.jsonl`), `orv3_view` bakes the RAW per-side sidecar (`port/retail_census`) into
+  view.json (single source of truth = the committed census; `parity_prove` recomputes the verdict against it so a
+  GX-02 update re-adjudicates without a re-bake), `_census_gate` stamps `capture_completeness` on each gated pillar's
+  observation + `census_schema_sha256` into `tools`. **VALIDATED:** unit (`test_d3d_census` +28=91; `test_parity_prove`
+  census gate — SAFE no-op, `SetViewport` VIOLATION→INCONCLUSIVE = the GX-01 acceptance negative, ABSENT→INCONCLUSIVE,
+  VIOLATION overrides an intrinsic pixel FAIL, identity ungated) + **end-to-end on the real M0 window** (`house-firstcust-
+  arrprobe [1,80]`, pure cache re-slice, no drive): census carried→baked→**SAFE both sides** (31/31 risk 0-observed) ⇒
+  gate no-op ⇒ **identity PASS · render_program FAIL · pixels FAIL** unchanged, each render pillar stamped
+  `census[SAFE/SAFE]`. The b494 render FAIL + sub-perceptual pixel FAIL are now PROVEN over a complete capture (not
+  artifacts of a forwarded-uncaptured call) — arrprobe's honest FAIL is now census-SOUND. **★ NEXT:** GX-05 (SHA-256
+  dedup hardening; replace hash-only FNV equivalence with SHA-256 or hash+byte-compare, validate offsets/counts/opcodes).
   **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
   (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
   **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a

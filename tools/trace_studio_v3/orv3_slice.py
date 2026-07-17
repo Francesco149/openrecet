@@ -103,7 +103,8 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     out = out or (entry / f"slice-{off_a}-{n}")
     out.mkdir(parents=True, exist_ok=True)
     for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"),
-              out / "v3refs.txt", out / "v3meta.json", out / "call_trace.jsonl"]:
+              out / "v3refs.txt", out / "v3meta.json", out / "call_trace.jsonl",
+              out / "v3cap.census.json"]:
         f.unlink(missing_ok=True)
 
     # re-emit the sub-window as a standalone container + copy its references 0-based
@@ -122,6 +123,12 @@ def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
     ct = entry / "call_trace.jsonl"
     if ct.exists():
         shutil.copy2(ct, out / "call_trace.jsonl")
+    # Carry the GX-00 capture-completeness census forward. It's process-lifetime
+    # (per-drive, not per-frame), so every sub-window inherits the same verdict
+    # verbatim — orv3_view bakes it into view.json for the GX-01 pixels/render gate.
+    cen = entry / "v3cap.census.json"
+    if cen.exists():
+        shutil.copy2(cen, out / "v3cap.census.json")
 
     cap_mb = (out / "v3cap.bin").stat().st_size / 1048576
     say(f"[slice] {meta.side} {meta.anchor}#{meta.anchor_occ}  offsets {off_a}..{off_a + n - 1} "

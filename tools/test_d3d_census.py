@@ -40,6 +40,8 @@ from parity.d3d_census import (  # noqa: E402
     _risk_index,
     build_dynamic_report,
     build_report,
+    capture_completeness,
+    dynamic_from_doc,
     load_census,
     load_dynamic,
     parse_vtable,
@@ -308,6 +310,70 @@ def test_dynamic_text():
     check("SAFE" in safe and "COMPLETE" in safe, "dynamic text: SAFE says capture complete")
 
 
+# ── GX-01-full: capture_completeness bilateral precondition ──────────────────
+
+def test_completeness_both_safe():
+    cc = capture_completeness(CENSUS, full_doc(), full_doc())
+    check(cc.sound, "completeness: both sides SAFE → sound")
+    check(cc.sides["port"]["verdict"] == "SAFE" and cc.sides["retail"]["verdict"] == "SAFE",
+          "completeness: both per-side verdicts SAFE")
+    check("SAFE" in cc.reason, "completeness: sound reason mentions SAFE")
+
+
+def test_completeness_port_violation():
+    # The GX-01 acceptance negative: a deliberate SetViewport on ONE side is NOT sound.
+    cc = capture_completeness(CENSUS, full_doc({SETVIEWPORT: 3}), full_doc())
+    check(not cc.sound, "completeness: a SetViewport VIOLATION on port → NOT sound")
+    check(cc.sides["port"]["verdict"] == "VIOLATION", "completeness: port verdict VIOLATION")
+    check(SETVIEWPORT in cc.sides["port"]["observed_risk"], "completeness: names the risk method")
+    check("port VIOLATION" in cc.reason and "SetViewport" in cc.reason,
+          "completeness: reason names the side + method")
+    check(cc.sides["retail"]["verdict"] == "SAFE", "completeness: the clean side stays SAFE")
+
+
+def test_completeness_retail_violation():
+    cc = capture_completeness(CENSUS, full_doc(), full_doc({SETVIEWPORT: 1}))
+    check(not cc.sound and cc.sides["retail"]["verdict"] == "VIOLATION",
+          "completeness: a VIOLATION on retail → NOT sound (bilateral)")
+
+
+def test_completeness_absent():
+    # A view predating the census bake ⇒ that side ABSENT ⇒ NOT sound (fail-closed).
+    cc = capture_completeness(CENSUS, None, full_doc())
+    check(not cc.sound, "completeness: an ABSENT census → NOT sound")
+    check(cc.sides["port"]["verdict"] == "ABSENT", "completeness: absent side → ABSENT verdict")
+    check("ABSENT" in cc.reason and "re-drive" in cc.reason,
+          "completeness: absent reason points at a re-drive/re-bake")
+    both_absent = capture_completeness(CENSUS, None, None)
+    check(not both_absent.sound, "completeness: both absent → NOT sound")
+
+
+def test_completeness_inconclusive():
+    # A sidecar missing a risk key (drift/incomplete) can't prove SAFE → not sound.
+    doc = full_doc()
+    del doc["forwarded_calls"][SETVIEWPORT]
+    cc = capture_completeness(CENSUS, doc, full_doc())
+    check(not cc.sound and cc.sides["port"]["verdict"] == "INCONCLUSIVE",
+          "completeness: a risk method absent from the sidecar → INCONCLUSIVE, NOT sound")
+
+
+def test_completeness_malformed():
+    # A malformed baked sidecar is fail-closed to INCONCLUSIVE, never silently trusted.
+    cc = capture_completeness(CENSUS, {"schema_version": 999}, full_doc())
+    check(not cc.sound and cc.sides["port"]["verdict"] == "INCONCLUSIVE",
+          "completeness: a malformed sidecar → INCONCLUSIVE (fail-closed)")
+    check("malformed" in cc.sides["port"], "completeness: records the malformed detail")
+
+
+def test_dynamic_from_doc_shared():
+    # dynamic_from_doc validates a parsed dict the way load_dynamic validates a file.
+    check(dynamic_from_doc(full_doc())[SETVIEWPORT] == 0, "dynamic_from_doc: parses a good doc")
+    check(_raises(lambda: dynamic_from_doc({"forwarded_calls": {}})),
+          "dynamic_from_doc: wrong schema_version raises")
+    check(_raises(lambda: dynamic_from_doc({"schema_version": DYNAMIC_SCHEMA_VERSION})),
+          "dynamic_from_doc: missing forwarded_calls raises")
+
+
 def main() -> int:
     test_consistent()
     test_counts()
@@ -330,6 +396,13 @@ def main() -> int:
     test_dynamic_load_and_malformed()
     test_dynamic_cli()
     test_dynamic_text()
+    test_completeness_both_safe()
+    test_completeness_port_violation()
+    test_completeness_retail_violation()
+    test_completeness_absent()
+    test_completeness_inconclusive()
+    test_completeness_malformed()
+    test_dynamic_from_doc_shared()
 
     if _failures:
         print(f"FAIL — {len(_failures)}/{_checks} checks failed:")

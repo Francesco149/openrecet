@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — GX-01-full — census wired as a HARD pixels/render_program precondition
+
+The R3 policy call (now that GX-04 emptied the VB/IB risk ⇒ arrprobe census SAFE): the D3D8
+capture-completeness census is a **fail-closed record-or-fail PRECONDITION** on the two
+D3D-stream-replay pillars in `parity_prove`. Finding: `docs/findings/gx00-d3d-method-census.md`
+§"GX-01-full LANDED". Commit pending.
+
+- **Policy (`capture_completeness`, `parity/d3d_census.py`):** bilateral. `pixels`+`render_program`
+  reconstruct the frame from the captured D3D8 command stream ⇒ SOUND only if the capture was
+  COMPLETE (every render-affecting forwarded method 0-observed) on BOTH sides. not-SAFE (either
+  side VIOLATION / INCONCLUSIVE / ABSENT) ⇒ BOTH pillars OVERRIDE to INCONCLUSIVE — never a false
+  PASS/FAIL (an incomplete capture makes a FAIL as untrustworthy as a PASS). `identity`/`state`/
+  `save` don't read the D3D stream ⇒ NOT gated (correctly scoped).
+- **ABSENT is fail-closed too:** a view predating the census bake ⇒ INCONCLUSIVE (a caveat can't
+  stop `gate()` returning PASS, so absence must move the VERDICT); a re-drive/re-bake closes it.
+- **Plumbing:** census is process-lifetime (1 sidecar/side). `orv3_slice.slice_entry` carries
+  `v3cap.census.json` forward verbatim (a slice inherits its drive's census, like `call_trace.jsonl`);
+  `orv3_view` bakes the RAW per-side sidecar (`port/retail_census`) into view.json (single source of
+  truth = the committed census; `parity_prove` recomputes the verdict against it); `resolve_observations`
+  gates render/pixels + adds `census_schema_sha256` to the proof `tools` group.
+- **Validated:** `test_d3d_census` +28 → 91 (the completeness policy: both-SAFE→sound, VIOLATION/
+  ABSENT/INCONCLUSIVE/malformed→not-sound, the shared `dynamic_from_doc`); `test_parity_prove` census
+  gate (SAFE no-op, `SetViewport` VIOLATION→INCONCLUSIVE = the GX-01 acceptance negative, ABSENT→
+  INCONCLUSIVE, VIOLATION overrides an intrinsic pixel FAIL, identity ungated). **End-to-end** on
+  `house-firstcust-arrprobe [1,80]` (pure cache re-slice, no drive): SAFE both sides (31/31 risk
+  0-observed) ⇒ **identity PASS · render_program FAIL · pixels FAIL** unchanged, each render pillar
+  stamped `census[SAFE/SAFE]` — the b494 render FAIL + sub-perceptual pixel FAIL now PROVEN over a
+  complete capture (not forwarded-uncaptured artifacts). arrprobe's honest FAIL is census-SOUND.
+
 ## 2026-07-17 — GX-00 dynamic D3D8 census + GX-01 gate — first live verdict = VIOLATION
 
 The static census (5120a25) named the 33 forwarded, render-affecting, UNCAPTURED D3D8
