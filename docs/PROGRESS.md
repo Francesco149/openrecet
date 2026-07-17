@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — the volatile `state` pillar: ST-02 Merkle roots + ST-03 producer (★NEXT c)
+
+The `state` proof pillar — the per-frame VOLATILE-state sibling of the persistent `save` pillar — proves the
+once-per-frame engine state (rng/phase/player/companion/interaction/customer-service/dialogue/title) bit-identical
+port↔retail. Mirrors the save pillar: a canonical encoder + domain-separated **Merkle roots** (ST-02,
+`tools/parity/state_codec.py`+`state_merkle.py`; R3 subsystem tree `docs/schemas/state-volatile-v1.json` over the 4
+STATE_VA fields, types resolved from `retail_fields.json` so a grouping can't silently drift) as the comparison
+mechanism of a **view.json producer** (ST-03, `state_producer.from_view_json` → `state-metrics.json`) + `adapt_state`
+(coverage-gated via `match_frames`) + CLI `parity_state.py`, wired into `parity_prove` (`state` OUT of
+`UNBUILT_PILLARS`). +72-check gate `test_parity_state.py`. Full story: `findings/parity-state-producer.md`.
+
+**R3 finding — `rngcalls` is BENIGN-EXCLUDED.** Running the producer on the confirmed-1:1 arrprobe `--state` view
+showed `rngcalls` diverging everywhere (retail 0, port 1902+) while raw `rng` matched 1498/1498. Cause: `rngcalls`
+(`src:rngcalls`) is the Frida agent's cumulative `g_rng_count_total`, whose ORIGIN differs per side (port from process
+start, retail from hook-install) ⇒ capture-origin-dependent (class-3 environmental), not a game global. The
+deterministic RNG value is the raw `rng` state — matching it frame-over-frame is STRONGER than a counter.
+
+**Validated on two real captures.** (1) `house-firstcust-arrprobe` (HOUSE free-roam): raw `rng` **1498/1498**, and the
+pillar is MORE sensitive than pixels — it FAILs on the KNOWN-OPEN companion residuals (`companion/cx` ~3-ULP facing
+blip, `companion/ccnt` +20 pose-era tick offset) pixels round away (documented residuals, not false positives). (2)
+`house-pause-save-commit` (save-picker, rng-only scene): re-drove its SAVE_PICKER_READY window `--state` →
+**full-window 198/198 Merkle-IDENTICAL**; contract-scoped `[1,19]` is NOT_CAPTURED on ONE frame (offset +1) because
+retail's `--state` capture warms up 2 frames (Frida STATE_VA hooks install late — events 7120-7318 vs kept 7118-7317;
+the port's compiled CALL_TRACE has none) — a capture TOOL gap, not a port divergence (bundle stays
+identity·save·render_program PASS). ★ NEXT: close the retail `--state` head warm-up ⇒ the `[1,19]` state pillar flips
+to PASS and joins `required_pillars` (the first three-pillar identity·save·state proof). Commit `efaf2e7`.
+
 ## 2026-07-17 — the FIRST runtime-axis proof binding: STATUS off "0% runtime-proven" (★NEXT b′)
 
 `docs/parity-proof-index.json` now binds one VA — the save-commit `FUN_004905a8` (`save_io_commit_slot`) →

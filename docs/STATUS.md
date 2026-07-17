@@ -141,8 +141,30 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   "1 function runtime-proven"** (0.0% of 2548 — the first non-empty rung, INVENTORY≠PARITY made real). +155-check
   suite (fail-closed on missing/malformed contract_sha256 or malformed proof_id; live-tree test pins the shipped
   binding), `--check` idempotent. NB `proof_id ba2c0c8c…` = advisory snapshot from the pre-commit dirty drive
-  (binding rests on contract_sha256; a clean-HEAD re-drive freshens it — optional). **★ NEXT: (c)** ST-03 state
-  pillar (volatile class via flow_diff) / ST-02 Merkle roots (canonical state encoder + Merkle roots over the tree).
+  (binding rests on contract_sha256; a clean-HEAD re-drive freshens it — optional). **✅ ★NEXT(c) LANDED
+  2026-07-17 — the volatile `state` pillar (ST-02 Merkle roots + ST-03 producer)** (`findings/parity-state-producer.md`;
+  commit `efaf2e7`). The per-frame VOLATILE-state sibling of the persistent `save` pillar: proves the once-per-frame
+  engine state (rng/phase/player/companion/interaction/customer-service/dialogue/title) bit-identical port↔retail.
+  Mirrors the save pillar — a canonical encoder + domain-separated **Merkle roots** (ST-02, `tools/parity/state_codec.py`
+  + `state_merkle.py`; R3 subsystem tree `docs/schemas/state-volatile-v1.json` over the 4 STATE_VA fields, types resolved
+  from `retail_fields.json` so a grouping can't drift) as the comparison mechanism of a **view.json producer**
+  (ST-03, `state_producer.from_view_json` → `state-metrics.json`) + `adapt_state` (PASS/FAIL/NOT_CAPTURED/INCONCLUSIVE,
+  `match_frames` coverage-gated) + CLI `tools/parity_state.py`, wired into `parity_prove` (`state` OUT of
+  `UNBUILT_PILLARS`), +72-check gate. **R3 finding: `rngcalls` is BENIGN-EXCLUDED** — the Frida-agent cumulative
+  counter (`src:rngcalls`) has a per-SIDE ORIGIN (port from process start, retail from hook-install) ⇒ its absolute
+  value is capture-origin-dependent (class-3 environmental), NOT a game global; the deterministic RNG value is the raw
+  `rng` LCG state (matching it frame-over-frame is STRONGER than a counter). **VALIDATED on two real captures:** (1)
+  `house-firstcust-arrprobe` (HOUSE free-roam, full subsystems) — raw `rng` **1498/1498**, and the pillar is MORE
+  SENSITIVE than pixels: it FAILs on the FRONT's KNOWN-OPEN companion residuals (`companion/cx` ~3-ULP facing blip,
+  `companion/ccnt` +20 pose-era tick offset) that pixels round away — documented residuals, not false positives. (2)
+  `house-pause-save-commit` (save-picker, rng-only scene) — re-drove its SAVE_PICKER_READY window `--state`:
+  **full-window 198/198 Merkle-IDENTICAL** (the port's volatile state IS bit-1:1); contract-scoped `[1,19]` is
+  **NOT_CAPTURED** on ONE frame (offset +1) because retail's `--state` capture warms up 2 frames (Frida STATE_VA hooks
+  install late: events 7120-7318 vs kept 7118-7317; the port's compiled CALL_TRACE has no warm-up) — a capture TOOL gap,
+  NOT a port divergence (bundle stays identity·save·render_program PASS, `required_pillars` unchanged). **★ NEXT: (d)**
+  CLOSE the retail `--state` head warm-up (pre-install the STATE_VA hooks / lead-in the drive) ⇒ the `[1,19]` state
+  pillar flips to PASS and joins `required_pillars` = the first three-pillar (identity·save·state) volatile+persistent
+  proof; then ST-04 first-divergence report + ST-05 mutation capture + ST-06 scene-by-scene subsystem expansion.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

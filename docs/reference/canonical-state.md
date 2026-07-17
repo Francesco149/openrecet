@@ -42,10 +42,14 @@ Every byte the model tracks is exactly one of:
 2. **volatile-deterministic** — live game state, reproducible under pinned inputs
    but not itself on disk unless committed. The **working arena** (same layout;
    fields tagged `working_alias` in the map) PLUS the non-arena scene state the
-   **`state` pillar** (ST-03, not yet built) will capture: RNG (`DAT_006023a0`) +
-   draw count, phase counters (`db054`, `g_sim`), the active stage index
-   (`DAT_0438b1e0`), player/companion pos/anim, menu/dialogue cursors — the fields
-   `flow_diff.py` + the v3 game-state panel already read.
+   **`state` pillar** (ST-03, LANDED 2026-07-17 — `findings/parity-state-producer.md`;
+   map `schemas/state-volatile-v1.json`; Merkle roots over `tools/parity/state_codec.py`
+   + `state_merkle.py`) captures: the raw RNG state `rng` (`DAT_006023a0`), phase
+   counters (`db054`, `g_sim`), player/companion pos/anim, interaction +
+   customer-service machines, menu/dialogue cursors — the fields `flow_diff.py` + the
+   v3 game-state panel already read. NB `rngcalls` is BENIGN-EXCLUDED from this class:
+   the Frida-agent cumulative counter has a per-side capture ORIGIN (class-3
+   environmental), so the deterministic value is the raw `rng` state, not the count.
 3. **environmental** — load-timing / host-dependent ORIGIN, not a logic value: the
    phase offset the intro-video freeze bakes into `db054`/playtime, the
    completion-based load-bracket frame counts (`findings/phase-state-census.md`).

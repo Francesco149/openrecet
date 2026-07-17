@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import parity_prove  # noqa: E402  (contract/window helpers, ProveError)
 from parity import (  # noqa: E402
     ObservationError,
+    adapt_state,
     load_required,
     state_metrics_from_view_json,
 )
@@ -91,6 +92,12 @@ def main(argv=None) -> int:
         doc = state_metrics_from_view_json(view, required=required, source=source)
         out = window_dir / "state-metrics.json"
         out.write_text(json.dumps(doc))
+        # Adjudicate exactly as parity_prove does (the coverage gate: a required
+        # frame with no both-sided state is NOT_CAPTURED, never a silent PASS on the
+        # subset). --all-frames has no contract window ⇒ grade over the doc's own frames.
+        adj_required = required if required is not None else [
+            LogicalFrame.from_key(f["key"]) for f in doc.get("frames") or []]
+        verdict = adapt_state(out, adj_required, expected_containers=source).pillar
     except (parity_prove.ProveError, ObservationError) as exc:
         if args.json:
             print(json.dumps({"error": str(exc), "exit_code": 2}, indent=1), file=sys.stderr)
@@ -100,38 +107,32 @@ def main(argv=None) -> int:
 
     frames = doc.get("frames") or []
     n_ident = sum(1 for f in frames if f.get("identical"))
-    first_div = next((f for f in frames if not f.get("identical")), None)
+    fd = verdict.get("first_divergence") or {}
     summary = {
         "scenario": args.scenario,
         "wrote": str(out),
+        "verdict": verdict["verdict"],
+        "detail": verdict.get("detail"),
         "has_state": doc.get("has_state"),
-        "n_frames": len(frames),
+        "n_required": len(adj_required),
+        "n_compared": len(frames),
         "n_identical": n_ident,
-        "first_divergence": None,
+        "first_divergence": fd or None,
         "source": doc.get("source"),
         "exit_code": 0,
     }
-    if first_div:
-        dv = first_div.get("divergence") or {}
-        summary["first_divergence"] = {
-            "key": first_div["key"], "path": dv.get("path"),
-            "port_value": dv.get("port_value"), "retail_value": dv.get("retail_value")}
     if args.json:
         print(json.dumps(summary, indent=1))
     else:
         print(f"state: wrote {out}")
-        if not doc.get("has_state"):
-            print("  view has NO engine state (--state not driven) → NOT_CAPTURED")
-        elif not frames:
-            print("  no comparable (both-sided) state frames in scope → NOT_CAPTURED")
-        elif first_div is None:
-            print(f"  all {len(frames)} frames' volatile state Merkle-IDENTICAL  → PASS")
-        else:
-            k = first_div["key"]
-            dv = first_div.get("divergence") or {}
-            print(f"  {n_ident}/{len(frames)} frames identical; first divergence  → FAIL")
-            print(f"  @ {k[0]}#{k[1]}+{k[2]}  {dv.get('path')}  "
-                  f"(retail={dv.get('retail_value')} port={dv.get('port_value')})")
+        print(f"  {verdict['verdict']}  ({n_ident}/{len(frames)} compared frames identical; "
+              f"{len(adj_required)} required)")
+        if verdict.get("detail"):
+            print(f"  {verdict['detail']}")
+        if fd:
+            lf = fd.get("logical_frame", {})
+            print(f"  first divergence @ {lf.get('anchor')}#{lf.get('occurrence')}+{lf.get('offset')}"
+                  f"  {fd.get('path')}  (retail={fd.get('retail_value')} port={fd.get('port_value')})")
     return 0
 
 
