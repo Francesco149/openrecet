@@ -299,6 +299,41 @@ static void cb_resref(int kind, void *ptr)
 }
 static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; }
 
+/* ── GX-03 measurement: same-frame VB/IB re-mutation risk surface ──
+ * Resource snapshots are DEFERRED to write_frame (kept frames only), so a buffer
+ * bound at draw A, then re-mutated (Lock/Unlock) before draw B in the SAME frame,
+ * gets ONE frame-end snapshot for both draws — draw A would replay with B's content.
+ * Recettear locks its VBs read-write in place (decompile FUN@71555 `Lock(0,0,&p,0)`,
+ * flags=0) and hands out transient buffers it Releases after use, so the hazard is
+ * real IN PRINCIPLE. This measures whether it OCCURS on the captured scene, at ZERO
+ * cost on the thousands of non-kept load frames (write_frame runs only on kept
+ * frames): per kept frame we count binds, MULTIBIND pointers (a ptr bound >1× in one
+ * frame = a reused buffer whose one frame-end snapshot may not equal its per-draw
+ * content), and SNAPFAIL (id==-1: a bound buffer that could not be locked at
+ * frame-end, e.g. already released). 0 multibind + 0 snapfail over the whole window
+ * ⇒ every VB/IB is used at most once per frame and snapshotted OK ⇒ the frame-end
+ * snapshot IS the per-draw content (GX-03 completeness holds for this scene). */
+static long g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_snapfail;
+static long g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_snapfail;
+static int  g_rb_frames;                                  /* kept frames measured */
+static int  g_rb_vb_multibind_max, g_rb_ib_multibind_max; /* worst single frame */
+/* count DISTINCT pointers of `kind` in g_pending that appear more than once. O(n²)
+ * over one frame's pending list (a few hundred entries) — trivial, kept frames only. */
+static int pending_multibind(int kind)
+{
+    int multi = 0;
+    for (int i = 0; i < g_pending_n; i++) {
+        if (g_pending[i].kind != kind || !g_pending[i].ptr) continue;
+        int first = 1;
+        for (int j = 0; j < i; j++)
+            if (g_pending[j].kind == kind && g_pending[j].ptr == g_pending[i].ptr) { first = 0; break; }
+        if (!first) continue;
+        for (int j = i + 1; j < g_pending_n; j++)
+            if (g_pending[j].kind == kind && g_pending[j].ptr == g_pending[i].ptr) { multi++; break; }
+    }
+    return multi;
+}
+
 /* ── surface identity (v3 RT capture) ──
  * SetRenderTarget/CopyRects cite IDirect3DSurface8 POINTERS. The replayer can't
  * re-use the app's pointers, so each surface is recorded as a SURFREF [kind][resid]
@@ -510,6 +545,14 @@ static void write_census_sidecar(void)
     for (int i = 0; i < FWD__COUNT; i++)
         fprintf(f, "  \"%s\": %ld%s\n", g_fwd_names[i], (long)g_fwd_calls[i],
                 i + 1 < FWD__COUNT ? "," : "");
+    fputs(" },\n \"resource_binds\": {\n", f);   /* GX-03 same-frame re-mutation measure */
+    fprintf(f,
+        "  \"kept_frames\": %d,\n"
+        "  \"vb_binds\": %ld, \"vb_multibind\": %ld, \"vb_multibind_max\": %d, \"vb_snapfail\": %ld,\n"
+        "  \"ib_binds\": %ld, \"ib_multibind\": %ld, \"ib_multibind_max\": %d, \"ib_snapfail\": %ld\n",
+        g_rb_frames,
+        g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_multibind_max, g_rb_vb_snapfail,
+        g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_multibind_max, g_rb_ib_snapfail);
     fputs(" }\n}\n", f);
     fclose(f);
 }
@@ -530,12 +573,18 @@ static void write_frame(IDirect3DDevice8 *real_dev)
         int id = -1;
         switch (g_pending[i].kind) {
         case PEND_TEX:  id = snap_tex((IDirect3DBaseTexture8*)g_pending[i].ptr); break;
-        case PEND_VB:   id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr); break;
-        case PEND_IB:   id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr); break;
+        case PEND_VB:   id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr);
+                        g_rb_vb_binds++; if (g_pending[i].ptr && id < 0) g_rb_vb_snapfail++; break;
+        case PEND_IB:   id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr);
+                        g_rb_ib_binds++; if (g_pending[i].ptr && id < 0) g_rb_ib_snapfail++; break;
         case PEND_SURF: id = snap_rt_tex(g_pending[i].ptr); break;   /* RT surface's parent texture */
         }
         cb_patch_u(g_pending[i].off, (uint32_t)id);
     }
+    { int vm = pending_multibind(PEND_VB), im = pending_multibind(PEND_IB);   /* GX-03 measure */
+      g_rb_vb_multibind += vm; g_rb_ib_multibind += im; g_rb_frames++;
+      if (vm > g_rb_vb_multibind_max) g_rb_vb_multibind_max = vm;
+      if (im > g_rb_ib_multibind_max) g_rb_ib_multibind_max = im; }
     write_shadow_preamble();                       /* inherited scalar state (RES already written above) */
     fwrite(g_cb, 1, g_cb_len, g_cap);              /* this frame's own calls */
     orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
