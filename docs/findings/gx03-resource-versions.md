@@ -111,4 +111,39 @@ captured via the wrapper, exactly as `CreateTexture`). The two buffer interfaces
   is transparent); arrprobe census dynamic verdict VIOLATION → SAFE (or catches a real
   mutation).
 
-<!-- GX-04 LANDED section appended after implementation -->
+## GX-04 LANDED 2026-07-17 — wrap VB/IB + freeze-at-bind (commits `403ae49`+`9c3d298`)
+
+**Implementation** (`d3d8_proxy.c`, `gen_forwarders.py`, `Makefile`): `gen_forwarders`
+now generates the two buffer-interface vtables (custom = QI/AddRef/Release/Lock/Unlock);
+`my_CreateVertexBuffer`/`my_CreateIndexBuffer` wrap the real buffer in a `WrapVB`/`WrapIB`
+(`{real, refs, size, fvf/fmt, gen, shadow, lock_*}`). `my_..._Lock` records the lock
+range + app pointer; `my_..._Unlock` (if writable) memcpies the written range from the
+app's still-mapped pointer into `shadow`, bumps `gen`. `SetStreamSource`/`SetIndices`
+UNWRAP (pass `real` to the device; a vtable-identity `as_wrap_vb/ib` guards a raw buffer
+round-tripped via GetStreamSource) and FREEZE the current shadow into a per-frame arena
+`g_rc` (`cb_resref_frozen`); `write_frame` snaps the frozen bytes (`snap_vb_bytes`,
+body-identical to `snap_vb` ⇒ a static buffer dedups to the same id, replay unchanged).
+Census: `CreateVertexBuffer`/`CreateIndexBuffer` → `recorded`; +the two buffer interfaces
+(Lock/Unlock recorded); drift guard follows generically (141 methods, 31 risk; +9 buffer
+checks = 72).
+
+**VALIDATED — both paths:**
+- **Transparent-on-static (arrprobe re-drive, cache `30d6b861`):** BOTH sides 80/80
+  bit-exact (the frozen-at-bind content == what the game drew, else replay would
+  diverge), JOIN_COMPLETE. Census dynamic **VIOLATION → SAFE** (31/31 risk 0-observed).
+  `resource_binds`: `vb/ib_fallback=0` (every bind frozen via the wrapper — no buffer
+  escaped it), `vb_multibind` 3/frame (the reuse persists). **RES_VB stays 5** with FULL
+  Lock/Unlock visibility ⇒ EMPIRICALLY PROVES the 3 reused buffers/frame are static (any
+  mid-frame mutation would have produced >5 contents) — the completeness the frame-end
+  view could only assume is now proven.
+- **Split-on-mutation (positive fixture `gx04_fixture.exe` + `test_gx04_fixture.py`, 6
+  checks):** one VB, three binds A,B,A → **exactly 2 RES_VB**, bind resids `[0,1,0]`
+  (SPLIT A≠B into two versions; DEDUP the re-bind of A to id 0). The old frame-end
+  snapshot stored ONE record for all three ⇒ the B-draw would have replayed as A — the
+  bug GX-04 closes. `vb_fallback=0`. SKIPs cleanly without a live D3D8 device.
+
+**Net:** arrprobe's capture-completeness is closed for VB/IB — GX-00's honest FAIL loses
+the resource-creation mechanism (the b494 render_program FAIL is a separate captured-draw
+difference, untouched). Residual: making the census a HARD pixels/render_program
+precondition in `parity_prove` (GX-01-full) is the remaining R3 policy step (the risk set
+is now 31, all 0-observed on arrprobe). GX-05 (SHA-256 dedup hardening) unchanged.

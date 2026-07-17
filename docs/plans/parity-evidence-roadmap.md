@@ -754,7 +754,8 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 > 0-observed** — a SURGICAL resource-creation gap = the GX-03/GX-04 hinge. Content IS
 > snapshotted late (`snap_vb`/`snap_ib`); the residual risk is same-frame re-mutation.
 > Sharpens arrprobe's M0 honest-FAIL with a concrete mechanism (not the expected SAFE — the
-> census earns its keep on our most-confirmed scene).
+> census earns its keep on our most-confirmed scene). **✅ VIOLATION RESOLVED 2026-07-17 by
+> GX-03/GX-04** (wrap VB/IB) — arrprobe census dynamic **VIOLATION → SAFE**.
 
 - **Reasoning:** R2; R1 can generate forwarder tables/tests.
 - **Depends:** EP-02 for provenance, otherwise independent.
@@ -804,6 +805,16 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-03 — Specify per-draw resource versions
 
+> **✅ SPEC + LANDED 2026-07-17** — `../findings/gx03-resource-versions.md`. Probe
+> (`resource_binds` sidecar) verdict: arrprobe reuses 3 VB+3 IB/frame, 0 snapfail — risk
+> surface active but well-scoped. Completeness key: D3D8 CreateVertexBuffer has NO
+> init-data param ⇒ VB/IB content is set ONLY via Lock/Unlock (+ ProcessVertices,
+> census-gated 0-observed), so wrapping + intercepting every Lock/Unlock is PROVABLY
+> complete. Decision: wrap VB/IB + freeze-at-bind versioning (shadow at Unlock, frozen
+> into a per-frame arena at bind). Acceptance MET: the synthetic two-draw-mutation fixture
+> (`gx04_fixture.exe`, binds A,B,A) yields TWO distinct RES_VB versions + a deterministic
+> content-addressed container (resids [0,1,0]).
+
 - **Reasoning:** R3 only.
 - **Depends:** GX-00.
 - **Problem:** unwrapped resources snapshotted at frame end can lose contents used before
@@ -814,6 +825,19 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   distinct bound versions and a deterministic container representation.
 
 ### GX-04 — Wrap/version resources
+
+> **✅ LANDED 2026-07-17** — `../findings/gx03-resource-versions.md` §"GX-04 LANDED";
+> commits `403ae49`+`9c3d298`. `gen_forwarders.py` generates the VB/IB wrapper vtables;
+> `my_CreateVertexBuffer`/`CreateIndexBuffer` wrap the real buffer (WrapVB/WrapIB);
+> Lock/Unlock maintain a content shadow + generation; SetStreamSource/SetIndices unwrap +
+> freeze-at-bind; QI/AddRef/Release preserve wrapper identity. Census reclassified (Create
+> VB/IB → recorded; +2 buffer interfaces); drift guard follows (141 methods, 31 risk).
+> Acceptance MET: same-frame mutation fixture (2 versions), pointer reuse + reset covered
+> by content-hash dedup + per-Create wrapping (design), existing HOUSE replay bit-exact
+> (80/80 both sides), arrprobe census VIOLATION → SAFE. Partial-lock: shadow updates the
+> locked sub-range so partial writes accumulate (design; the fixture's full-buffer locks
+> exercise the common path). NB the VB/IB `render_affecting_unsupported` set is now EMPTY
+> ⇒ GX-01-full (wiring the census as a hard pixels/render precondition) is unblocked.
 
 - **Reasoning:** R2 under GX-03; R3 reviews COM lifetime correctness.
 - **Depends:** GX-03.

@@ -8,6 +8,12 @@
 > `house-firstcust-arrprobe` M0 scene → **VIOLATION on both sides** (§"First live verdict"):
 > the capture's VB/IB CREATION is forwarded-uncaptured (the GX-03/GX-04 hinge). Not the
 > expected SAFE — the census caught a real completeness gap on our most-confirmed scene.
+>
+> **✅ RESOLVED 2026-07-17 by GX-04** (`gx03-resource-versions.md`; commits
+> `403ae49`+`9c3d298`): VB/IB are now WRAPPED — CreateVertexBuffer/CreateIndexBuffer
+> intercepted, every Lock/Unlock seen, content FROZEN at each bind. arrprobe re-drive:
+> census dynamic **VIOLATION → SAFE** (31/31 risk 0-observed), 80/80 bit-exact both sides.
+> The section below is the ORIGINAL first verdict (kept for the record).
 
 ## Why
 

@@ -211,9 +211,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   resource-creation gap = the **GX-03/GX-04 hinge**. Content IS snapshotted late (`snap_vb`/`snap_ib`); residual risk
   is same-frame re-mutation. Sharpens arrprobe's M0 honest-FAIL with a concrete mechanism (distinct from the b494
   render_program FAIL; count magnitude 130vs13 = process-lifetime scope, NOT a parity signal). 63-check guard incl.
-  the roadmap negative test (a deliberate `SetViewport` can't pass as complete). **★ NEXT:** GX-03/GX-04 (per-draw
-  resource versions + wrap/version VB/IB) — the one subgroup that fired; then the R3 call on wiring the census as a
-  hard pixels/render precondition in `parity_prove` (GX-01-full).
+  the roadmap negative test (a deliberate `SetViewport` can't pass as complete).
+  **✅ GX-03/GX-04 LANDED 2026-07-17 — VB/IB WRAPPED, arrprobe census VIOLATION → SAFE**
+  (`findings/gx03-resource-versions.md`; commits `2cd7401`(probe+spec)+`403ae49`(wrap)+`9c3d298`(fixture)).
+  Probe (`resource_binds` sidecar, kept-frames-only): arrprobe reuses **3 VB+3 IB/frame, 0 snapfail** — risk
+  surface active but well-scoped. **Completeness key:** D3D8 `CreateVertexBuffer` has NO init-data param ⇒ VB/IB
+  content is set ONLY via Lock/Unlock (+ ProcessVertices, census-gated 0-observed), so WRAPPING the buffers +
+  intercepting every Lock/Unlock is **provably** complete (not "probably static"). Mechanism: `my_CreateVB/IB`
+  wrap the real buffer (`WrapVB/WrapIB`); Lock/Unlock maintain a content shadow + generation;
+  `SetStreamSource/SetIndices` UNWRAP (pass real) + FREEZE the shadow into a per-frame arena at bind;
+  `write_frame` snaps the frozen bytes (body-identical to the old `snap_vb` ⇒ static buffers dedup to the same
+  id, replay unchanged; a same-frame re-mutation now yields TWO versions). Census: Create VB/IB → recorded, +2
+  buffer interfaces (Lock/Unlock recorded); drift guard follows generically (141 methods, 31 risk; +9 buffer
+  checks = 72). **VALIDATED both paths:** arrprobe re-drive (cache `30d6b861`) BOTH sides **80/80 bit-exact**
+  (transparent), census dynamic **SAFE** (31/31 risk 0-observed), `vb/ib_fallback=0` (every bind frozen),
+  **RES_VB stays 5** with full Lock/Unlock visibility ⇒ EMPIRICALLY proves the reused buffers are static; + the
+  synthetic `gx04_fixture.exe` (`test_gx04_fixture.py`, 6 checks) drives A,B,A binds → **2 distinct RES_VB**
+  (SPLIT A≠B + DEDUP the re-bind) — the positive mutation path the old frame-end snapshot got wrong. **★ NEXT:**
+  GX-01-full (R3 policy — wire the census as a HARD pixels/render_program precondition in `parity_prove`; the
+  VB/IB risk is now gone, so the risk set is 31 all-0-observed on arrprobe) + GX-05 (SHA-256 dedup hardening).
   **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
   (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
   **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a
