@@ -167,6 +167,26 @@ def test_opcode_counts() -> None:
     print("  OK opcode_counts: per-opcode histogram + SURFREF-kind tally (int + by_name)")
 
 
+def test_checked_reader() -> None:
+    """checked_reader — the GX-05 defense-in-depth for the orv3_xform/orv3_rt raw re-walks:
+    every past-limit read raises a clean ValueError; valid reads pass; a tighter limit binds."""
+    data = struct.pack("<Iif", 7, -3, 1.5)              # 12 bytes
+    u, i, span = orv3.checked_reader(data)
+    assert u(0) == 7 and i(4) == -3 and span(0, 4) == data[:4]
+    for bad in (lambda: u(9), lambda: i(9), lambda: u(-1), lambda: span(8, 8), lambda: span(0, 13)):
+        try:
+            bad(); raise AssertionError("expected ValueError")
+        except ValueError:
+            pass
+    u8, _i8, _s8 = orv3.checked_reader(data, limit=8)   # a tighter window binds earlier
+    assert u8(4) == struct.unpack_from("<I", data, 4)[0]
+    try:
+        u8(8); raise AssertionError("limit not enforced")
+    except ValueError:
+        pass
+    print("  OK checked_reader: u/i/span → ValueError past limit; tighter limit binds")
+
+
 def test_slice() -> None:
     c = orv3.Container(build_container())
     # slice [1,3): frame 1 binds id0,id1 (defined in frame 0, OUTSIDE the slice) ⇒ must
@@ -794,6 +814,7 @@ def main() -> int:
     test_tex_info()
     test_rt()
     test_opcode_counts()
+    test_checked_reader()
     test_slice()
     test_join()
     test_classify_join()

@@ -38,8 +38,9 @@ import orv3
 Vec3 = tuple[float, float, float]
 
 
-def _f16(d: bytes, off: int) -> list[float]:
-    return list(struct.unpack_from("<16f", d, off))
+def _f16(span, off: int) -> list[float]:
+    """16 floats (a row-major D3DMATRIX) at `off`, bounds-checked via a checked_reader span."""
+    return list(struct.unpack("<16f", span(off, 64)))
 
 
 def collect_transforms(c: orv3.Container, frame_index: int) -> dict[int, list[list[float]]]:
@@ -50,13 +51,13 @@ def collect_transforms(c: orv3.Container, frame_index: int) -> dict[int, list[li
     f = c.frames[frame_index]
     d = c.data
     p, end = f.byte_start, f.byte_end
-    u = lambda off: struct.unpack_from("<I", d, off)[0]
+    u, _ii, span = orv3.checked_reader(d)          # GX-05: OOB → clean ValueError
     out: dict[int, list[list[float]]] = {}
     while p < end:
         t = u(p); p += 4
         if t == orv3.SetTransform:
             state = u(p); p += 4
-            out.setdefault(state, []).append(_f16(d, p)); p += 64
+            out.setdefault(state, []).append(_f16(span, p)); p += 64
         elif t == orv3.RES_TEX:
             u(p); levels = u(p + 4); p += 8
             for _ in range(levels):
@@ -149,8 +150,7 @@ def draws_by_view(c: orv3.Container, frame_index: int) -> list[dict]:
     f = c.frames[frame_index]
     d = c.data
     p, end = f.byte_start, f.byte_end
-    u = lambda off: struct.unpack_from("<I", d, off)[0]
-    ii = lambda off: struct.unpack_from("<i", d, off)[0]
+    u, ii, span = orv3.checked_reader(d)           # GX-05: OOB → clean ValueError
     segs: list[dict] = []
     cur = None
     cur_tex = -1
@@ -172,7 +172,7 @@ def draws_by_view(c: orv3.Container, frame_index: int) -> list[dict]:
     while p < end:
         t = u(p); p += 4
         if t == orv3.SetTransform:
-            state = u(p); m = _f16(d, p + 4); p += 68
+            state = u(p); m = _f16(span, p + 4); p += 68
             if state == 2:
                 newseg(decode_view(m)["eye"])
             elif state == 3 and abs(m[11] + 1.0) < 1e-6:

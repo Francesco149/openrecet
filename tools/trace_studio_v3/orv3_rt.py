@@ -64,12 +64,7 @@ def dump_frame(c: orv3.Container, fi: int, full: bool = False) -> dict:
     """Print frame `fi`'s RT command program; return a small summary dict."""
     f = c.frames[fi]
     d = c.data
-
-    def u(off: int) -> int:
-        return struct.unpack_from("<I", d, off)[0]
-
-    def i(off: int) -> int:
-        return struct.unpack_from("<i", d, off)[0]
+    u, i, span = orv3.checked_reader(d)            # GX-05: OOB → clean ValueError
 
     print(f"\n=== frame {fi} (present {f.present}) {c.dev.get('w')}x{c.dev.get('h')} ===")
     rt_defs = [rid for rid in f.res_defined if (c.tex_info(rid) or {}).get("is_rt")]
@@ -182,10 +177,10 @@ def dump_frame(c: orv3.Container, fi: int, full: bool = False) -> dict:
             cnt = u(p); p += 4
             rects = []
             for _ in range(cnt):
-                rects.append(struct.unpack_from("<4i", d, p)); p += 16
+                rects.append(struct.unpack("<4i", span(p, 16))); p += 16
             pts = []
             for _ in range(cnt):
-                pts.append(struct.unpack_from("<2i", d, p)); p += 8
+                pts.append(struct.unpack("<2i", span(p, 8))); p += 8
             src = _fmt_surfref(c, sk, sr)
             dst = _fmt_surfref(c, dk, dr)
             geo = ""

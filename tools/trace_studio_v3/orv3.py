@@ -53,6 +53,33 @@ DEV_FIELDS = ("w", "h", "bbfmt", "depthfmt", "windowed", "bbcount",
               "presentflags", "behavior", "interval", "adapter", "devtype", "autods")
 
 
+def checked_reader(data: bytes, limit: int | None = None):
+    """Return (u32, i32, span) readers over `data` that raise an EXPLICIT ValueError on any
+    past-`limit` (default len(data)) read — the GX-05 bounds-check pattern for the diagnostic
+    re-walkers (orv3_xform / orv3_rt) that walk a Container's raw records for payload detail
+    Container._parse skips. They only ever see a container Container.load already validated,
+    so this is defense-in-depth: a walk that DESYNCS fails with a clear message, never a raw
+    struct.error or a silently-short unpack. `span(off, n)` returns the checked byte slice."""
+    n = len(data) if limit is None else limit
+
+    def u(off: int) -> int:
+        if off < 0 or off + 4 > n:
+            raise ValueError(f"corrupt/desynced walk: u32 read at {off} past {n}")
+        return struct.unpack_from("<I", data, off)[0]
+
+    def i(off: int) -> int:
+        if off < 0 or off + 4 > n:
+            raise ValueError(f"corrupt/desynced walk: i32 read at {off} past {n}")
+        return struct.unpack_from("<i", data, off)[0]
+
+    def span(off: int, nbytes: int) -> bytes:
+        if off < 0 or nbytes < 0 or off + nbytes > n:
+            raise ValueError(f"corrupt/desynced walk: {nbytes}-byte span at {off} past {n}")
+        return data[off:off + nbytes]
+
+    return u, i, span
+
+
 @dataclass
 class Frame:
     """One kept frame's section, delimited by its Present record."""
