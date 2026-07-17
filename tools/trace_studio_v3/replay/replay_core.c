@@ -45,6 +45,67 @@ struct OrV3Replay {
 typedef struct { const uint8_t *p, *end; } Cur;
 static uint32_t cu(Cur *c) { uint32_t v; if (c->p + 4 > c->end) return 0xffffffffu; memcpy(&v, c->p, 4); c->p += 4; return v; }
 
+/* GX-05 — bounds-checked variable-length span. Return the current cursor and advance
+ * by n, or NULL (POISONING the cursor to end) if n would read past the buffer. A
+ * truncated/corrupt container then fails the walk SAFELY: the poisoned cursor makes
+ * the next cu() return 0xffffffff ⇒ step() returns ORV3_EOF ⇒ the caller terminates,
+ * and every span USE is guarded on the non-NULL return, so no memcpy/draw/deref reads
+ * out of bounds. (cu() already clamps the 4-byte scalar reads; this closes the
+ * dl/il/vl/matrix/material/rect spans that a corrupt length could blow past.) */
+static const uint8_t *cspan(Cur *c, size_t n)
+{
+    if (c->p > c->end || n > (size_t)(c->end - c->p)) { c->p = c->end; return NULL; }
+    const uint8_t *s = c->p; c->p += n; return s;
+}
+/* count*elem span, OVERFLOW-safe (size_t is 32-bit on mingw32): reject when count
+ * exceeds what fits in the remaining buffer BEFORE multiplying, so a corrupt count
+ * can't wrap to a small product and slip an OOB Clear/CopyRects through. */
+static const uint8_t *cspan_n(Cur *c, uint32_t count, size_t elem)
+{
+    if (c->p > c->end) { c->p = c->end; return NULL; }
+    size_t remain = (size_t)(c->end - c->p);
+    if (elem && count > remain / elem) { c->p = c->end; return NULL; }
+    const uint8_t *s = c->p; c->p += (size_t)count * elem; return s;
+}
+/* vertices spanned by a primitive count (validate a UP draw's inline data fits its
+ * declared length, else D3D reads past the span → OOB). Mirrors the proxy's
+ * prim_vertex_count. Callers bound `pc` by the span byte length first, so no overflow. */
+static uint32_t prim_vtx(uint32_t t, uint32_t pc)
+{
+    switch (t) {
+    case D3DPT_POINTLIST: return pc;
+    case D3DPT_LINELIST: return pc * 2u;
+    case D3DPT_LINESTRIP: return pc ? pc + 1u : 0u;
+    case D3DPT_TRIANGLELIST: return pc * 3u;
+    case D3DPT_TRIANGLESTRIP: case D3DPT_TRIANGLEFAN: return pc ? pc + 2u : 0u;
+    default: return 0u;
+    }
+}
+/* does a UP draw of `pc` prims at `stride` bytes/vertex fit within `dl` inline bytes?
+ * `pc <= dl` bounds pc so prim_vtx can't overflow (each prim needs >=1 vertex; a
+ * vertex with stride>=1 needs >=1 byte, so pc>dl is impossibly corrupt). */
+static int up_fits(uint32_t pt, uint32_t pc, uint32_t stride, uint32_t dl)
+{
+    if (stride == 0) return prim_vtx(pt, pc) == 0;
+    if (pc > dl) return 0;
+    uint32_t nv = prim_vtx(pt, pc);
+    return nv != 0 && nv <= dl / stride;
+}
+/* DrawIndexedPrimitiveUP fit: the index span (il bytes) must hold prim_vtx(pt,pc)
+ * indices of index-format width, and the vertex span (vl bytes) must hold
+ * [0, mvi+nvi) vertices at `stride`. All checks are division-domain (overflow-safe);
+ * pc is bounded by il and mvi/nvi by vl first so no product overflows. */
+static int idxup_fits(uint32_t pt, uint32_t pc, uint32_t ifmt, uint32_t il,
+                      uint32_t mvi, uint32_t nvi, uint32_t stride, uint32_t vl)
+{
+    uint32_t isz = (ifmt == D3DFMT_INDEX32) ? 4u : 2u;
+    if (pc > il) return 0;                                  /* bound pc so prim_vtx can't overflow */
+    uint32_t nidx = prim_vtx(pt, pc);
+    if (nidx == 0 || nidx > il / isz) return 0;             /* indices fit the index span */
+    if (stride == 0 || mvi > vl || nvi > vl) return 0;      /* bound mvi/nvi before summing */
+    return (mvi + nvi) <= vl / stride;                      /* (mvi+nvi)*stride <= vl */
+}
+
 static int op_is_draw(uint32_t op)
 {
     return op == ORV3_DrawPrimitive || op == ORV3_DrawIndexedPrimitive
@@ -107,12 +168,13 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
         uint32_t id = cu(c), levels = cu(c);
         IDirect3DTexture8 *tex = NULL;
         for (uint32_t lvl = 0; lvl < levels; lvl++) {
+            if (c->p + 20 > c->end) { c->p = c->end; break; }   /* no room for a 5-u32 level header ⇒ truncated */
             uint32_t lw = cu(c), lh = cu(c), lf = cu(c), lrb = cu(c), ld = cu(c);
-            const uint8_t *ldata = c->p; c->p += ld;
+            const uint8_t *ldata = cspan(c, ld);                 /* NULL ⇒ ld past end (poisons cursor) */
             if (do_res && lvl == 0)
                 IDirect3DDevice8_CreateTexture(dev, lw, lh, levels, 0, (D3DFORMAT)lf,
                                                D3DPOOL_MANAGED, &tex);
-            if (do_res && tex && ld && lrb) {
+            if (do_res && tex && ldata && ld && lrb && lh <= ld / lrb) {  /* rows must fit the span */
                 D3DLOCKED_RECT lr;
                 if (SUCCEEDED(IDirect3DTexture8_LockRect(tex, lvl, &lr, NULL, 0))) {
                     for (uint32_t r = 0; r < lh; r++)
@@ -121,31 +183,34 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
                     IDirect3DTexture8_UnlockRect(tex, lvl);
                 }
             }
+            if (!ldata) break;   /* poisoned: stop walking levels */
         }
         if (do_res && id < MAXRES) R->tex[id] = tex;
         break; }
     case ORV3_RES_VB: {
         uint32_t id = cu(c), size = cu(c), fvf = cu(c), dl = cu(c);
-        const uint8_t *data = c->p; c->p += dl;
-        if (do_res) {
+        const uint8_t *data = cspan(c, dl);
+        if (do_res && data) {
             IDirect3DVertexBuffer8 *vb = NULL;
             IDirect3DDevice8_CreateVertexBuffer(dev, size, 0, fvf, D3DPOOL_MANAGED, &vb);
             BYTE *p = NULL;
             if (vb && SUCCEEDED(IDirect3DVertexBuffer8_Lock(vb, 0, 0, &p, 0)) && p) {
-                memcpy(p, data, dl); IDirect3DVertexBuffer8_Unlock(vb);
+                memcpy(p, data, dl < size ? dl : size);   /* clamp: a corrupt dl>size can't overflow the VB */
+                IDirect3DVertexBuffer8_Unlock(vb);
             }
             if (id < MAXRES) R->vb[id] = vb;
         }
         break; }
     case ORV3_RES_IB: {
         uint32_t id = cu(c), size = cu(c), fmt = cu(c), dl = cu(c);
-        const uint8_t *data = c->p; c->p += dl;
-        if (do_res) {
+        const uint8_t *data = cspan(c, dl);
+        if (do_res && data) {
             IDirect3DIndexBuffer8 *ib = NULL;
             IDirect3DDevice8_CreateIndexBuffer(dev, size, 0, (D3DFORMAT)fmt, D3DPOOL_MANAGED, &ib);
             BYTE *p = NULL;
             if (ib && SUCCEEDED(IDirect3DIndexBuffer8_Lock(ib, 0, 0, &p, 0)) && p) {
-                memcpy(p, data, dl); IDirect3DIndexBuffer8_Unlock(ib);
+                memcpy(p, data, dl < size ? dl : size);   /* clamp: a corrupt dl>size can't overflow the IB */
+                IDirect3DIndexBuffer8_Unlock(ib);
             }
             if (id < MAXRES) R->ib[id] = ib;
         }
@@ -165,10 +230,10 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
         if (do_calls) { IDirect3DDevice8_SetRenderState(dev, (D3DRENDERSTATETYPE)s, v); } break; }
     case ORV3_SetTextureStageState: { uint32_t st = cu(c), t = cu(c), v = cu(c);
         if (do_calls) { IDirect3DDevice8_SetTextureStageState(dev, st, (D3DTEXTURESTAGESTATETYPE)t, v); } break; }
-    case ORV3_SetTransform: { uint32_t s = cu(c); const float *mx = (const float *)c->p; c->p += 64;
-        if (do_calls) { IDirect3DDevice8_SetTransform(dev, (D3DTRANSFORMSTATETYPE)s, (const D3DMATRIX *)mx); } break; }
-    case ORV3_SetMaterial: { const float *mt = (const float *)c->p; c->p += 68;
-        if (do_calls) { IDirect3DDevice8_SetMaterial(dev, (const D3DMATERIAL8 *)mt); } break; }
+    case ORV3_SetTransform: { uint32_t s = cu(c); const float *mx = (const float *)cspan(c, 64);
+        if (do_calls && mx) { IDirect3DDevice8_SetTransform(dev, (D3DTRANSFORMSTATETYPE)s, (const D3DMATRIX *)mx); } break; }
+    case ORV3_SetMaterial: { const float *mt = (const float *)cspan(c, 68);
+        if (do_calls && mt) { IDirect3DDevice8_SetMaterial(dev, (const D3DMATERIAL8 *)mt); } break; }
     case ORV3_SetTexture: { uint32_t stage = cu(c); int32_t id = (int32_t)cu(c);
         if (do_calls) { IDirect3DDevice8_SetTexture(dev, stage, (id >= 0 && id < MAXRES) ? (IDirect3DBaseTexture8 *)R->tex[id] : NULL); } break; }
     case ORV3_SetStreamSource: { uint32_t stream = cu(c); int32_t id = (int32_t)cu(c); uint32_t stride = cu(c);
@@ -182,16 +247,19 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
     case ORV3_DrawIndexedPrimitive: { uint32_t pt = cu(c), mi = cu(c), nv = cu(c), si = cu(c), pc = cu(c);
         if (do_calls) { IDirect3DDevice8_DrawIndexedPrimitive(dev, (D3DPRIMITIVETYPE)pt, mi, nv, si, pc); } break; }
     case ORV3_DrawPrimitiveUP: { uint32_t pt = cu(c), pc = cu(c), stride = cu(c), dl = cu(c);
-        const void *v = c->p; c->p += dl;
-        if (do_calls) { IDirect3DDevice8_DrawPrimitiveUP(dev, (D3DPRIMITIVETYPE)pt, pc, v, stride); } break; }
+        const uint8_t *v = cspan(c, dl);
+        if (do_calls && v && up_fits(pt, pc, stride, dl)) { IDirect3DDevice8_DrawPrimitiveUP(dev, (D3DPRIMITIVETYPE)pt, pc, v, stride); } break; }
     case ORV3_DrawIndexedPrimitiveUP: { uint32_t pt = cu(c), mvi = cu(c), nvi = cu(c), pc = cu(c), ifmt = cu(c), il = cu(c);
-        const void *idx = c->p; c->p += il; uint32_t stride = cu(c), vl = cu(c); const void *v = c->p; c->p += vl;
-        if (do_calls) { IDirect3DDevice8_DrawIndexedPrimitiveUP(dev, (D3DPRIMITIVETYPE)pt, mvi, nvi, pc, idx, (D3DFORMAT)ifmt, v, stride); } break; }
-    case ORV3_Clear: { uint32_t count = cu(c); const D3DRECT *rects = (const D3DRECT *)c->p; c->p += (size_t)count * 16;
+        const uint8_t *idx = cspan(c, il); uint32_t stride = cu(c), vl = cu(c); const uint8_t *v = cspan(c, vl);
+        if (do_calls && idx && v && idxup_fits(pt, pc, ifmt, il, mvi, nvi, stride, vl))
+            { IDirect3DDevice8_DrawIndexedPrimitiveUP(dev, (D3DPRIMITIVETYPE)pt, mvi, nvi, pc, idx, (D3DFORMAT)ifmt, v, stride); } break; }
+    case ORV3_Clear: { uint32_t count = cu(c); const D3DRECT *rects = (const D3DRECT *)cspan_n(c, count, 16);
         uint32_t flags = cu(c), color = cu(c), zb = cu(c), stencil = cu(c); float z; memcpy(&z, &zb, 4);
-        if (do_calls) { IDirect3DDevice8_Clear(dev, count, count ? rects : NULL, flags, color, z, stencil); } break; }
-    case ORV3_SetLight: { uint32_t index = cu(c), dl = cu(c); const void *L = c->p; c->p += dl;
-        if (do_calls && dl) { IDirect3DDevice8_SetLight(dev, index, (const D3DLIGHT8 *)L); } break; }
+        /* rects==NULL with count>0 ⇒ a corrupt count overran the buffer: skip (an invalid
+         * Clear(count>0, NULL) is UB in D3D). count==0 ⇒ whole-target clear, rects unused. */
+        if (do_calls && (count == 0 || rects)) { IDirect3DDevice8_Clear(dev, count, count ? rects : NULL, flags, color, z, stencil); } break; }
+    case ORV3_SetLight: { uint32_t index = cu(c), dl = cu(c); const uint8_t *L = cspan(c, dl);
+        if (do_calls && L && dl >= sizeof(D3DLIGHT8)) { IDirect3DDevice8_SetLight(dev, index, (const D3DLIGHT8 *)L); } break; }
     case ORV3_LightEnable: { uint32_t index = cu(c), en = cu(c);
         if (do_calls) { IDirect3DDevice8_LightEnable(dev, index, en); } break; }
     case ORV3_SetRenderTarget: {
@@ -209,9 +277,10 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
         uint32_t sk = cu(c); int32_t sr = (int32_t)cu(c);
         uint32_t dk = cu(c); int32_t dr = (int32_t)cu(c);
         uint32_t count = cu(c);
-        const RECT *rects = (const RECT *)c->p; c->p += (size_t)count * sizeof(RECT);
-        const POINT *points = (const POINT *)c->p; c->p += (size_t)count * sizeof(POINT);
-        if (do_calls) {
+        const RECT *rects = (const RECT *)cspan_n(c, count, sizeof(RECT));
+        const POINT *points = (const POINT *)cspan_n(c, count, sizeof(POINT));
+        /* count>0 with a NULL span ⇒ a corrupt count overran the buffer: skip. */
+        if (do_calls && (count == 0 || (rects && points))) {
             IDirect3DSurface8 *ss = resolve_surface(R, sk, sr);
             IDirect3DSurface8 *ds = resolve_surface(R, dk, dr);
             if (ss && ds)

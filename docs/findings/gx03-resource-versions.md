@@ -146,4 +146,66 @@ checks = 72).
 the resource-creation mechanism (the b494 render_program FAIL is a separate captured-draw
 difference, untouched). Residual: making the census a HARD pixels/render_program
 precondition in `parity_prove` (GX-01-full) is the remaining R3 policy step (the risk set
-is now 31, all 0-observed on arrprobe). GX-05 (SHA-256 dedup hardening) unchanged.
+is now 31, all 0-observed on arrprobe).
+
+## GX-05 LANDED 2026-07-17 — dedup byte-compare + reader corruption-safety
+
+> Roadmap §9 GX-05 ("Harden deduplication and corruption detection"). Depends GX-04 ✓.
+> Both acceptance criteria MET + both proven DECISIVE (fail on the pre-GX-05 code).
+
+**Decision — hash-plus-byte-compare, NOT SHA-256.** The GX arc's ethos is *provably*
+complete, not *probably*. Byte-compare is collision-PROOF (not merely collision-resistant),
+needs no crypto ported into 3 languages (proxy C + replay C + Python), and is the ONLY
+option that makes "forced hash collision fixture remains distinct" a CONSTRUCTIBLE, decisive
+test (a real FNV-64 collision is infeasible to build; pure SHA-256 would still trust the
+hash, so a forced collision couldn't be tested at all).
+
+**(1) Dedup byte-compare (Parts 1+2, `d3d8_proxy.c`).** `dedup_or_write` now treats the
+FNV-64 hash as a BUCKET: a hash hit is CONFIRMED by `memcmp` of the full retained body
+(+`type`+`len`) before dedup'ing, so a collision yields a NEW id (both kept distinct), never
+a false dedup. `type`/`len` compared explicitly ⇒ size/type/format are in the identity
+domain (already folded into the hashed body, so a truncated body can't alias a longer one of
+the same prefix). Distinct bodies retained in RAM (malloc'd copy) — bounded by the DISTINCT
+set (dedup keeps it = the container's resource section; process-lifetime like `g_cb`/`g_bl`/
+`g_rc`). New `g_res_collisions` (invariant 0) + `g_res_retained` surfaced per-drive in the
+census sidecar's **`dedup` block** (`{distinct,collisions,retained_bytes,force_collision}`) —
+a permanent soundness signal (a real drive MUST show `collisions:0`; the sidecar parser
+ignores the extra key, census unaffected, `test_d3d_census` 91/0). Test seam
+`OPENRECET_V3_TEST_FORCE_COLLISION` (env, read once at capture init, loud `proxy_log`) forces
+`fnv1a`→const so the byte-compare path is exercised deterministically.
+- **Acceptance (`gx05_fixture.exe` + `test_gx05_fixture.py`, 6 checks):** one VB, four binds
+  A,B,A,C under the forced-collision seam ⇒ **3 distinct RES_VB, resids [0,1,0,2]** (split
+  A|B, DEDUP re-bind A, split C past BOTH hash-equal entries); census `collisions:2
+  force_collision:1 retained_bytes:216`. Hash-only under the seam would collapse to 1
+  RES_VB/[0,0,0,0]. Two independent VACUOUS-PASS guards (seam-active + collisions≥2, since
+  normal hashing gives 0 collisions) — they CAUGHT the first cut (a stale DLL left the seam
+  off; the fixture's `_putenv_s` sets it, but the log opens at DllMain BEFORE that ⇒ read the
+  census `dedup` block, co-located in `out/`, not the log). GX-04 unregressed (6/6).
+
+**(2) Reader corruption-safety (Part 3, `replay_core.c` — the AUTHORITATIVE reader: viewer +
+pixel producer).** `cu()` already EOF-clamped the 4-byte scalar reads; the gap was the
+variable-length spans + `count*elem` (which integer-OVERFLOWS 32-bit `size_t`). Added
+`cspan(n)` / `cspan_n(count,elem)` (division-domain, overflow-safe) that return NULL + POISON
+the cursor to `end` on overflow ⇒ the next `cu()` returns EOF ⇒ the walk terminates; every
+span USE is guarded on the non-NULL return + a fit check (`dl<=size` VB/IB clamp, `lh<=ld/lrb`
+tex rows, `up_fits`/`idxup_fits` UP draws) so no memcpy/D3D-draw reads OOB. Unknown opcode
+already returned a sentinel the callers FAIL on.
+- **Acceptance (`corrupt_fuzz.exe` + `test_corrupt_reader.py`):** `#include`s `replay_core.c`,
+  drives the REAL `step()` with do_res=do_calls=0 (pure parse, no device ⇒ headless) over
+  crafted truncated / corrupt-length / integer-overflow / unknown-op inputs + **40000
+  deterministic fuzz** inputs, asserting the cursor NEVER escapes `[buf,end]` and every walk
+  terminates. **DECISIVE:** against the pre-GX-05 reader it FAILS ("cursor escaped" on
+  RES_IB/CopyRects/SetTransform/SetMaterial + the fuzz). **Transparent on valid data**
+  (guards are no-ops on well-formed input): `replay --verify-hashes` on real cached
+  containers — `title-encyclopedia` **120/120 BIT-EXACT**; `house-pause-save-commit/port`
+  byte-identical to HEAD (its DIVERGENT is pre-existing, NOT a regression).
+
+**(3) Python readers (Part 3, `orv3.py` primary Container parser + `orv3_draws.py`
+render_program reader).** Bounds-checked `u()`/`i()`/`span()` raise an EXPLICIT `ValueError`
+on any past-end read (not a raw `struct.error` or a silently-clamped short slice → bogus
+geo_hash) + a DEV_PARAMS-block guard. `test_orv3.test_corrupt` (truncation sweep + short
+DEV_PARAMS) is DECISIVE (the raw `u()` blows `struct.error` on a mid-record cut). Opcode
+validation (`else: raise`) was already present in both.
+
+**Wiring:** the 3 GX acceptance tests (gx04, gx05, corrupt_reader) registered in
+`tools/run_python_tests.py` (each SKIPs cleanly without a mingw exe / D3D8 device).

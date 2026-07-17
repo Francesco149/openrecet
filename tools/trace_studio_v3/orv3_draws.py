@@ -129,11 +129,27 @@ def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None
     p, end = f.byte_start, f.byte_end
     reshash = reshash or ResHash(c)
 
+    # GX-05: every read is bounds-checked against the frame end, so a truncated/corrupt
+    # container fails with an EXPLICIT error (not a struct.error traceback or a silently
+    # clamped short slice that would produce a wrong geo_hash and a bogus render_program
+    # verdict). The opcode is already validated (the `else: raise` below).
     def u(off: int) -> int:
+        if off < f.byte_start or off + 4 > end:
+            raise ValueError(f"corrupt container: u32 read at {off} past frame {frame_index} "
+                             f"bytes [{f.byte_start},{end})")
         return struct.unpack_from("<I", d, off)[0]
 
     def i(off: int) -> int:
+        if off < f.byte_start or off + 4 > end:
+            raise ValueError(f"corrupt container: i32 read at {off} past frame {frame_index} "
+                             f"bytes [{f.byte_start},{end})")
         return struct.unpack_from("<i", d, off)[0]
+
+    def span(off: int, n: int) -> bytes:
+        if n < 0 or off < f.byte_start or off + n > end:
+            raise ValueError(f"corrupt container: span [{off},{off}+{n}) past frame {frame_index} "
+                             f"bytes [{f.byte_start},{end})")
+        return d[off:off + n]
 
     # tracked device state
     cur_tex, cur_vb, cur_ib, cur_fvf = -1, -1, -1, 0
@@ -207,7 +223,7 @@ def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None
         elif t == orv3.DrawPrimitiveUP:
             pt = u(p); pc = u(p + 4); stride = u(p + 8); p += 12
             dl = u(p); p += 4
-            data = d[p:p + dl]; p += dl
+            data = span(p, dl); p += dl
             draws.append(Draw(len(draws), t, pt, pc, _vcount(pt, pc), 0, 0,
                               tex_id=cur_tex, vb_id=-1, ib_id=-1, fvf=cur_fvf,
                               tex_hash=reshash.of(cur_tex),
@@ -216,10 +232,10 @@ def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None
         elif t == orv3.DrawIndexedPrimitiveUP:
             pt = u(p); mvi = u(p + 4); nvi = u(p + 8); pc = u(p + 12); ifmt = u(p + 16); p += 20
             il = u(p); p += 4
-            idx = d[p:p + il]; p += il
+            idx = span(p, il); p += il
             stride = u(p); p += 4
             vl = u(p); p += 4
-            verts = d[p:p + vl]; p += vl
+            verts = span(p, vl); p += vl
             draws.append(Draw(len(draws), t, pt, pc, nvi, 0, mvi,
                               tex_id=cur_tex, vb_id=-1, ib_id=-1, fvf=cur_fvf,
                               tex_hash=reshash.of(cur_tex),

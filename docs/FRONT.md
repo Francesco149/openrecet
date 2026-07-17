@@ -214,8 +214,27 @@
   arrprobe [1,80]`, pure cache re-slice, no drive): census carried→baked→**SAFE both sides** (31/31 risk 0-observed) ⇒
   gate no-op ⇒ **identity PASS · render_program FAIL · pixels FAIL** unchanged, each render pillar stamped
   `census[SAFE/SAFE]`. The b494 render FAIL + sub-perceptual pixel FAIL are now PROVEN over a complete capture (not
-  artifacts of a forwarded-uncaptured call) — arrprobe's honest FAIL is now census-SOUND. **★ NEXT:** GX-05 (SHA-256
-  dedup hardening; replace hash-only FNV equivalence with SHA-256 or hash+byte-compare, validate offsets/counts/opcodes).
+  artifacts of a forwarded-uncaptured call) — arrprobe's honest FAIL is now census-SOUND.
+  **✅ GX-05 LANDED 2026-07-17 — dedup byte-compare + reader corruption-safety** (`findings/gx03-resource-versions.md`
+  §"GX-05 LANDED"; roadmap §9 GX-05). Decision: **hash-plus-byte-compare, NOT SHA-256** — collision-PROOF not merely
+  -resistant (the arc's ethos), no crypto ported into 3 languages, and the ONLY option that makes the forced-collision
+  acceptance CONSTRUCTIBLE. **(1)** `dedup_or_write` now BYTE-COMPAREs the retained body (+type+len) on a FNV-64 hash hit
+  ⇒ a collision → a NEW id (both kept distinct), NEVER a false dedup; size/type/format in the identity domain; distinct
+  bodies retained in RAM (bounded by the dedup'd set, process-lifetime like `g_cb`); per-drive `dedup` soundness block in
+  the census sidecar (`{distinct,collisions,retained_bytes,force_collision}` — a real drive MUST show `collisions:0`; the
+  census parser ignores the extra key, `test_d3d_census` 91/0). **(2)** the AUTHORITATIVE C reader (`replay_core.c` —
+  viewer + pixel producer): `cspan`/`cspan_n` (division-domain, 32-bit-overflow-safe) bound every variable-length span +
+  fit checks (`dl<=size`, `lh<=ld/lrb`, `up_fits`/`idxup_fits`) ⇒ no memcpy/draw reads OOB; the cursor poisons to EOF on
+  overflow ⇒ walk terminates. **(3)** the Python parsers (`orv3.py` primary + `orv3_draws.py` render_program) bounds-check
+  every read → explicit ValueError (not a raw `struct.error`/silent short-slice). **Acceptance MET + both proven DECISIVE
+  (fail on the pre-GX-05 code):** `gx05_fixture` (A,B,A,C under a forced-collision seam → **3 distinct RES_VB, resids
+  [0,1,0,2]**, census `collisions:2`; two vacuous-pass guards), `corrupt_fuzz` (**40000 fuzz** + crafted truncation/
+  overflow → cursor never escapes `[buf,end]`), `test_orv3.test_corrupt`. **Transparent on valid data:** `replay
+  --verify-hashes` `title-encyclopedia` **120/120 BIT-EXACT**, `pause/port` byte-identical to HEAD (its DIVERGENT is
+  pre-existing). GX-04 unregressed. 3 GX tests wired into `run_python_tests.py`. **★ NEXT:** GX-06 (graphics-capture
+  regression corpus — ≥1 fixture + 1 real proof per observed render-affecting method) or GX-02 (implement census-observed
+  missing methods as they appear); GX-05 residual: the diagnostic-only Python readers (`inspect_cap` already opcode-guards;
+  `orv3_xform`/`rt`/`state`) are memory-safe, left for GX-06.
   **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
   (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
   **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a

@@ -89,8 +89,19 @@ class Container:
         n = len(d)
         p = 0
 
+        # GX-05: bounds-check every read against the container length so a truncated/
+        # corrupt container raises an EXPLICIT ValueError (not a raw struct.error, and
+        # never a silently-past-end advance that mis-indexes frames). The opcode itself
+        # is already validated (the `else: raise` at the loop tail).
         def u(off: int) -> int:
+            if off < 0 or off + 4 > n:
+                raise ValueError(f"corrupt container: u32 read at {off} past end {n}")
             return struct.unpack_from("<I", d, off)[0]
+
+        def i(off: int) -> int:
+            if off < 0 or off + 4 > n:
+                raise ValueError(f"corrupt container: i32 read at {off} past end {n}")
+            return struct.unpack_from("<i", d, off)[0]
 
         self.magic = u(p); p += 4
         self.version = u(p); p += 4
@@ -108,6 +119,8 @@ class Container:
             rec_start = p
             p += 4
             if t == DEV_PARAMS:
+                if p + 48 > n:
+                    raise ValueError(f"corrupt container: DEV_PARAMS block past end {n}")
                 vals = struct.unpack_from("<12I", d, p); p += 48
                 self.dev = dict(zip(DEV_FIELDS, vals))
                 sect_start = p
@@ -143,17 +156,17 @@ class Container:
                 p += 68
             elif t == SetTexture:
                 p += 4                     # stage
-                rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                rid = i(p); p += 4
                 if rid >= 0:
                     res_ref.add(rid)
             elif t == SetStreamSource:
                 p += 4                     # stream
-                rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                rid = i(p); p += 4
                 p += 4                     # stride
                 if rid >= 0:
                     res_ref.add(rid)
             elif t == SetIndices:
-                rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                rid = i(p); p += 4
                 p += 4                     # basevertex
                 if rid >= 0:
                     res_ref.add(rid)
@@ -190,14 +203,14 @@ class Container:
             elif t == SetRenderTarget:
                 for _ in range(2):         # color SURFREF, depth SURFREF
                     kind = u(p); p += 4
-                    rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                    rid = i(p); p += 4
                     if kind == SURF_TEX and rid >= 0:
                         res_ref.add(rid)   # an RT texture's surface ⇒ slice must pull it forward
                 ncalls += 1
             elif t == CopyRects:
                 for _ in range(2):         # src SURFREF, dst SURFREF
                     kind = u(p); p += 4
-                    rid = struct.unpack_from("<i", d, p)[0]; p += 4
+                    rid = i(p); p += 4
                     if kind == SURF_TEX and rid >= 0:
                         res_ref.add(rid)
                 cnt = u(p); p += 4

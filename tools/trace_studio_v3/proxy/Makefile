@@ -25,7 +25,13 @@ d3d8.dll: d3d8_proxy.c proxy_generated.h
 gx04_fixture.exe: gx04_fixture.c
 	$(CC) $(CFLAGS) -o $@ gx04_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
 
+# GX-05 acceptance fixture: drives A,B,A,C binds under the forced-hash-collision seam so the
+# proxy's byte-compare dedup must keep the 3 distinct contents distinct. Built on demand by
+# test_gx05_fixture.py (uses the SAME proxy d3d8.dll — the seam is env-gated at runtime).
+gx05_fixture.exe: gx05_fixture.c
+	$(CC) $(CFLAGS) -o $@ gx05_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
+
 clean:
-	rm -f d3d8.dll proxy_generated.h gx04_fixture.exe
+	rm -f d3d8.dll proxy_generated.h gx04_fixture.exe gx05_fixture.exe
 
 .PHONY: all clean

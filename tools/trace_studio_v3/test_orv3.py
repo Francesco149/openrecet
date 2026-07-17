@@ -750,6 +750,30 @@ def test_classify_join() -> None:
     print("  OK classify_join: JOIN_COMPLETE/JOIN_PARTIAL + retained ALIGNED/PARTIAL alias (pairing-only)")
 
 
+def test_corrupt() -> None:
+    """GX-05: the primary parser fails SAFELY on truncated/corrupt input — every prefix
+    yields either a clean parse or an EXPLICIT ValueError, NEVER a raw struct.error (the
+    pre-GX-05 raw u() blew struct.error on a mid-record cut), an IndexError, or an OOB."""
+    good = build_container()
+    assert orv3.Container(good).n_frames == 3, "positive control: the valid container still parses"
+    for cut in range(8, len(good)):                    # every truncation prefix
+        try:
+            orv3.Container(good[:cut])
+        except ValueError:
+            pass                                       # explicit + expected
+        except Exception as e:                         # struct.error / IndexError / … = the regression
+            raise AssertionError(f"truncation@{cut}: {type(e).__name__} ({e}); want a clean ValueError")
+    # a record header truncated mid-field (DEV_PARAMS needs 48 bytes, give 20) → ValueError,
+    # not the struct.error the raw unpack_from produced pre-GX-05.
+    bad = bytes(bytearray(_u(orv3.MAGIC) + _u(3) + _u(orv3.DEV_PARAMS) + b"\x00" * 20))
+    try:
+        orv3.Container(bad)
+        raise AssertionError("truncated DEV_PARAMS block did not raise")
+    except ValueError:
+        pass
+    print("  OK corrupt: truncation sweep + short DEV_PARAMS → clean ValueError (never struct.error)")
+
+
 def main() -> int:
     test_parse()
     test_tex_info()
@@ -768,6 +792,7 @@ def main() -> int:
     test_draws()
     test_material_agg()
     test_load_side()
+    test_corrupt()
     print("OK: orv3 container parse + tex_info + RT ops + slice pull-forward + sync-by-identity join "
           "+ JOIN_COMPLETE/PARTIAL verdict split + cache lookup + view timeline merge + multi-anchor identity "
           "+ draw semantics + material_agg bake + parse-once handoff")

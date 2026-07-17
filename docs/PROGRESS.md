@@ -7,6 +7,26 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — GX-05 — dedup byte-compare + reader corruption-safety
+
+Roadmap §9 GX-05 ("harden deduplication and corruption detection"). Finding:
+`docs/findings/gx03-resource-versions.md` §"GX-05 LANDED". Commit pending.
+
+- **Decision: hash-plus-byte-compare, NOT SHA-256** — collision-PROOF (not merely -resistant;
+  the GX arc's ethos), no crypto in 3 languages, + the only option that makes the
+  forced-collision acceptance constructible/decisive.
+- **Dedup (`d3d8_proxy.c`):** `dedup_or_write` byte-compares the retained body (+type+len) on a
+  FNV-64 hash hit ⇒ a collision → NEW id, never a false dedup; size/type/format in the domain;
+  distinct bodies retained in RAM (dedup-bounded, process-lifetime). Per-drive `dedup` block in
+  the census sidecar (`collisions` invariant 0). Env test-seam forces collisions.
+- **C reader (`replay_core.c`, viewer + pixel producer):** `cspan`/`cspan_n` (32-bit-overflow-safe)
+  bound every variable-length span + fit checks ⇒ no OOB; cursor poisons to EOF on overflow.
+- **Python parsers (`orv3.py`, `orv3_draws.py`):** bounds-checked reads → explicit ValueError.
+- **Acceptance MET + DECISIVE** (fail on pre-GX-05 code): `gx05_fixture` (A,B,A,C forced-collision
+  → 3 distinct RES_VB/[0,1,0,2], census collisions:2), `corrupt_fuzz` (40000 fuzz, cursor never
+  escapes), `test_orv3.test_corrupt`. Transparent on valid data (`title` verify 120/120 bit-exact,
+  GX-04 unregressed). 3 GX tests wired into `run_python_tests.py`.
+
 ## 2026-07-17 — GX-01-full — census wired as a HARD pixels/render_program precondition
 
 The R3 policy call (now that GX-04 emptied the VB/IB risk ⇒ arrprobe census SAFE): the D3D8

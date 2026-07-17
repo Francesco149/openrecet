@@ -206,25 +206,41 @@ static unsigned  g_capcount = 1u;          /* WINDOW length in presents (retail 
 static unsigned  g_frame;          /* present-counted frame index */
 static int       g_capturing;
 static unsigned  g_present_count;
-/* resource dedup: CONTENT-HASH -> id, persisted across the WHOLE session (NOT
- * reset per frame). A resource's bytes are hashed (fnv1a-64 over type+body); an
- * already-seen hash reuses its id and writes NOTHING, so a texture/mesh bound in
- * every frame of a window is stored ONCE (the full-extent dedup win — storage
- * stays ≈ one frame regardless of window length). Content-hash (not pointer) is
- * correct for BOTH a re-locked dynamic buffer (new bytes -> new hash -> new id)
- * AND a freed pointer reused across a scene transition (pointer-dedup would
- * alias them; content-hash cannot). g_next_resid is the session-wide allocator. */
+/* resource dedup: CONTENT -> id, persisted across the WHOLE session (NOT reset per
+ * frame). A resource's bytes are hashed (fnv1a-64 over type+body) as a fast BUCKET;
+ * an already-seen CONTENT reuses its id and writes NOTHING, so a texture/mesh bound
+ * in every frame of a window is stored ONCE (the full-extent dedup win — storage
+ * stays ≈ one frame regardless of window length). Content (not pointer) is correct
+ * for BOTH a re-locked dynamic buffer (new bytes -> new id) AND a freed pointer
+ * reused across a scene transition (pointer-dedup would alias them; content cannot).
+ * GX-05: the FNV-64 hash is a BUCKET, not the identity — a hash match is confirmed by
+ * a full BYTE-COMPARE (type+len+bytes) of the retained body before dedup'ing, so a
+ * hash collision (however unlikely) can NEVER alias two distinct resources into one
+ * id. Provable, not probabilistic — the GX arc's ethos. The retained bodies are the
+ * container's resource section (dedup keeps the distinct set small); like g_cb/g_bl/
+ * g_rc they live for the process (reclaimed at teardown; one window per process).
+ * g_next_resid is the session-wide id allocator. */
 #define ORV3_MAXRES 32768
-static uint64_t  g_res_hash[ORV3_MAXRES];
-static int       g_res_id  [ORV3_MAXRES];
+typedef struct { uint64_t hash; int id; uint32_t type; size_t len; uint8_t *body; } ResEnt;
+static ResEnt    g_res[ORV3_MAXRES];
 static int       g_n_res;
 static int       g_next_resid;
+static size_t    g_res_retained;    /* total bytes retained for byte-compare (diagnostic) */
+static int       g_res_collisions;  /* FNV-64 hash-matches byte-compare REJECTED (invariant: 0) */
+static int       g_force_collision; /* TEST seam (OPENRECET_V3_TEST_FORCE_COLLISION): fnv1a→const */
 static unsigned  g_kept;            /* kept-frame counter (0-based; names per-frame refs) */
 static int       g_frame_kept;      /* this present was already written by the GetBackBuffer trigger */
 
 #define ORV3_FNV_SEED 0xcbf29ce484222325ull
 static uint64_t fnv1a(const void *p, size_t n, uint64_t h)
-{ const uint8_t *b = (const uint8_t*)p; for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 0x100000001b3ull; } return h; }
+{
+    /* GX-05 acceptance seam: force EVERY content into one hash bucket so the
+     * forced-collision fixture exercises the byte-compare path. Gated on an env var
+     * read once at capture init (g_force_collision); loud proxy_log when active so it
+     * can never silently affect a real drive. */
+    if (g_force_collision) { (void)p; (void)n; return ORV3_FNV_SEED; }
+    const uint8_t *b = (const uint8_t*)p; for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 0x100000001b3ull; } return h;
+}
 
 /* reusable blob buffer: a snapshot's RES body is built here (so each resource is
  * locked only ONCE per snapshot), then hashed + dedup'd + written. */
@@ -235,19 +251,43 @@ static void bl_u(uint32_t v) { bl_ensure(4); memcpy(g_bl + g_bl_len, &v, 4); g_b
 static void bl_data(const void *p, size_t n) { bl_ensure(n); if (n) memcpy(g_bl + g_bl_len, p, n); g_bl_len += n; }
 static void bl_bytes(const void *p, uint32_t n) { bl_u(n); bl_data(p, n); }  /* length-prefixed (mirrors orv3_wbytes) */
 
-/* dedup a RES body (the bytes AFTER [type][id]) by content hash: return an
- * existing id if these exact bytes were already stored this session, else assign
- * a new id, write [type][id][body] to the container, and remember the hash.
- * 64-bit fnv over type+body — collision odds for a few thousand resources are
- * ~1e-13, far below the project's tolerance, so no byte-compare-on-match. */
+/* dedup a RES body (the bytes AFTER [type][id]) by CONTENT: return an existing id
+ * if these exact bytes were already stored this session, else assign a new id, write
+ * [type][id][body] to the container, and remember (hash,type,len,body-copy).
+ * GX-05: the FNV-64 hash only BUCKETS — a match is CONFIRMED by memcmp of the full
+ * retained body (+ type+len) before dedup'ing, so a collision produces a NEW id (both
+ * kept distinct), never a false dedup. type/len are compared explicitly so
+ * size/type/format are in the identity domain even though they're already folded into
+ * the hashed body (so a truncated body can't alias a longer one of the same prefix). */
 static int dedup_or_write(uint32_t type, const uint8_t *body, size_t bodylen)
 {
     uint64_t h = fnv1a(body, bodylen, fnv1a(&type, 4, ORV3_FNV_SEED));
-    for (int i = 0; i < g_n_res; i++) if (g_res_hash[i] == h) return g_res_id[i];
+    int hash_hit = 0;
+    for (int i = 0; i < g_n_res; i++) {
+        if (g_res[i].hash != h) continue;
+        if (g_res[i].type == type && g_res[i].len == bodylen
+         && (bodylen == 0 || (g_res[i].body && memcmp(g_res[i].body, body, bodylen) == 0)))
+            return g_res[i].id;             /* true content match ⇒ dedup */
+        hash_hit = 1;                       /* same hash, different bytes: keep scanning */
+    }
+    if (hash_hit) {                         /* a hash hit with NO content match ⇒ a real FNV-64 collision */
+        g_res_collisions++;
+        proxy_log("dedup: FNV-64 COLLISION h=%016llx type=%u len=%u — kept DISTINCT (byte-compare)\n",
+                  (unsigned long long)h, type, (unsigned)bodylen);
+    }
     int id = g_next_resid++;
     orv3_wu(g_cap, type); orv3_wu(g_cap, (uint32_t)id);
     fwrite(body, 1, bodylen, g_cap);
-    if (g_n_res < ORV3_MAXRES) { g_res_hash[g_n_res] = h; g_res_id[g_n_res] = id; g_n_res++; }
+    if (g_n_res < ORV3_MAXRES) {
+        uint8_t *keep = (uint8_t*)malloc(bodylen ? bodylen : 1);
+        if (keep) {
+            if (bodylen) memcpy(keep, body, bodylen);
+            g_res[g_n_res] = (ResEnt){ h, id, type, bodylen, keep };
+            g_n_res++; g_res_retained += bodylen;
+        }
+        /* malloc fail ⇒ don't cache this entry: future identical content re-writes as
+         * a new id (storage waste, NEVER a false dedup — the safe failure direction). */
+    }
     return id;
 }
 
@@ -626,6 +666,10 @@ static void write_census_sidecar(void)
         g_rb_frames,
         g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_multibind_max, g_rb_vb_snapfail, g_rb_vb_fallback,
         g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_multibind_max, g_rb_ib_snapfail, g_rb_ib_fallback);
+    fputs(" },\n \"dedup\": {\n", f);   /* GX-05 dedup soundness: `collisions` MUST be 0 on a real drive */
+    fprintf(f,
+        "  \"distinct\": %d, \"collisions\": %d, \"retained_bytes\": %llu, \"force_collision\": %d\n",
+        g_n_res, g_res_collisions, (unsigned long long)g_res_retained, g_force_collision);
     fputs(" }\n}\n", f);
     fclose(f);
 }
@@ -698,6 +742,8 @@ __declspec(dllexport) IDirect3D8 * WINAPI Direct3DCreate8(UINT SDKVersion)
     if (g_cfg_capframe != 0xFFFFFFFFu) { g_capframe = g_cfg_capframe; g_capcount = g_cfg_capcount; }  /* cfg present-window (retail/port) */
     const char *cf = getenv("OPENRECET_V3_CAPFRAME"); if (cf && *cf) g_capframe = (unsigned)atoi(cf);  /* env override */
     const char *cc = getenv("OPENRECET_V3_CAPCOUNT"); if (cc && *cc) { int n = atoi(cc); if (n > 0) g_capcount = (unsigned)n; }
+    const char *fc = getenv("OPENRECET_V3_TEST_FORCE_COLLISION");    /* GX-05 acceptance seam */
+    if (fc && *fc && atoi(fc)) { g_force_collision = 1; proxy_log("TEST: forcing hash collisions (byte-compare dedup path)\n"); }
     WrapD3D *w = (WrapD3D*)calloc(1, sizeof *w);
     w->lpVtbl = &g_IDirect3D8_vt; w->real = real; w->refs = 1;
     proxy_log("Direct3DCreate8 wrapped (capframe=%u)\n", g_capframe);

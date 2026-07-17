@@ -853,6 +853,20 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-05 — Harden deduplication and corruption detection
 
+> **✅ LANDED 2026-07-17** — `../findings/gx03-resource-versions.md` §"GX-05 LANDED".
+> Decision: **hash-plus-byte-compare** (NOT SHA-256) — collision-PROOF not merely
+> -resistant (the arc's ethos), no crypto in 3 languages, and the ONLY option that makes
+> the forced-collision acceptance a constructible/decisive test. **(1)** `dedup_or_write`
+> byte-compares the retained body (+type+len) on a hash hit ⇒ a collision → NEW id, never a
+> false dedup; per-drive `dedup` soundness block in the census sidecar (`collisions` MUST be
+> 0). **(2)** the AUTHORITATIVE C reader (`replay_core.c`, viewer + pixel producer):
+> `cspan`/`cspan_n` (overflow-safe) bound every variable-length span + fit checks ⇒ no OOB;
+> **(3)** the Python parsers (`orv3.py`, `orv3_draws.py`) bounds-check every read → explicit
+> ValueError. Acceptance MET + both proven DECISIVE (fail on the pre-GX-05 code):
+> `gx05_fixture` (A,B,A,C under a forced-collision seam → 3 distinct RES_VB/[0,1,0,2]),
+> `corrupt_fuzz` (40000 fuzz + crafted truncation/overflow, cursor never escapes),
+> `test_orv3.test_corrupt`. Transparent on valid data (`title` verify 120/120 bit-exact).
+
 - **Reasoning:** R1/R2.
 - **Depends:** GX-04.
 - **Procedure:** replace hash-only FNV equivalence with SHA-256 or hash-plus-byte-compare;
