@@ -27,6 +27,9 @@ def discover() -> list[Path]:
     tests.append(v3 / "test_gx04_fixture.py")     # VB/IB same-frame mutation split/dedup
     tests.append(v3 / "test_gx05_fixture.py")     # byte-compare dedup: forced collision stays distinct
     tests.append(v3 / "test_corrupt_reader.py")   # reader fails safely on truncated/corrupt containers
+    # GX-06 graphics-capture regression corpus — per-opcode fixtures (bit-exact replay)
+    tests.append(v3 / "test_gx06_sink_fixture.py")  # every non-RT recorded opcode, one frame
+    tests.append(v3 / "test_gx06_rt_fixture.py")    # RT opcodes + all 4 SURFREF kinds
     return tests
 
 

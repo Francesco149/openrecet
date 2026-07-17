@@ -152,6 +152,21 @@ def test_rt() -> None:
     print("  OK rt: RES_RT_TEX/SetRenderTarget/CopyRects parse + surfref ref + slice pull-forward")
 
 
+def test_opcode_counts() -> None:
+    """opcode_counts / surfref_counts — the GX-06 corpus coverage unit: which
+    render-affecting D3D8 methods (and which SURFREF kinds) a container exercises."""
+    c = orv3.Container(build_rt_container())
+    ops = c.opcode_counts(by_name=True)
+    assert ops == {"DEV_PARAMS": 1, "RES_RT_TEX": 1, "SetRenderTarget": 2, "DrawPrimitive": 2,
+                   "Present": 2, "CopyRects": 1, "SetTexture": 1, "EOF": 1}, ops
+    assert c.opcode_counts()[orv3.CopyRects] == 1                      # int-keyed variant
+    surf = c.surfref_counts(by_name=True)
+    assert surf == {"TEX": 2, "NULL": 1, "BACKBUFFER": 2, "DEPTH": 1}, surf
+    # a 2D container (no RT ops) cites no surfaces
+    assert orv3.Container(build_container()).surfref_counts() == {}
+    print("  OK opcode_counts: per-opcode histogram + SURFREF-kind tally (int + by_name)")
+
+
 def test_slice() -> None:
     c = orv3.Container(build_container())
     # slice [1,3): frame 1 binds id0,id1 (defined in frame 0, OUTSIDE the slice) ⇒ must
@@ -778,6 +793,7 @@ def main() -> int:
     test_parse()
     test_tex_info()
     test_rt()
+    test_opcode_counts()
     test_slice()
     test_join()
     test_classify_join()

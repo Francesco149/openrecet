@@ -31,7 +31,18 @@ gx04_fixture.exe: gx04_fixture.c
 gx05_fixture.exe: gx05_fixture.c
 	$(CC) $(CFLAGS) -o $@ gx05_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
 
+# GX-06 corpus fixtures: gx06_sink drives EVERY non-RT recorded opcode in one frame;
+# gx06_rt drives the render-target opcodes (RES_RT_TEX/SetRenderTarget/CopyRects/SURFREF).
+# Both load the SAME proxy d3d8.dll the host test stages next to them; built on demand by
+# test_gx06_sink_fixture.py / test_gx06_rt_fixture.py.
+gx06_sink_fixture.exe: gx06_sink_fixture.c
+	$(CC) $(CFLAGS) -o $@ gx06_sink_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
+
+gx06_rt_fixture.exe: gx06_rt_fixture.c
+	$(CC) $(CFLAGS) -o $@ gx06_rt_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
+
 clean:
-	rm -f d3d8.dll proxy_generated.h gx04_fixture.exe gx05_fixture.exe
+	rm -f d3d8.dll proxy_generated.h gx04_fixture.exe gx05_fixture.exe \
+	      gx06_sink_fixture.exe gx06_rt_fixture.exe
 
 .PHONY: all clean

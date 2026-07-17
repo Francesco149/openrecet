@@ -77,6 +77,8 @@ class Container:
         self.dev: dict[str, int] = {}
         self.frames: list[Frame] = []
         self.resources: dict[int, tuple[int, int, int]] = {}  # id -> (type, start, end)
+        self.op_counts: dict[int, int] = {}    # opcode -> #records (GX-06 corpus coverage)
+        self.surf_counts: dict[int, int] = {}  # SURFREF kind -> #citations (RT-op coverage)
         self._parse()
 
     @classmethod
@@ -116,6 +118,7 @@ class Container:
 
         while p < n:
             t = u(p)
+            self.op_counts[t] = self.op_counts.get(t, 0) + 1
             rec_start = p
             p += 4
             if t == DEV_PARAMS:
@@ -204,6 +207,7 @@ class Container:
                 for _ in range(2):         # color SURFREF, depth SURFREF
                     kind = u(p); p += 4
                     rid = i(p); p += 4
+                    self.surf_counts[kind] = self.surf_counts.get(kind, 0) + 1
                     if kind == SURF_TEX and rid >= 0:
                         res_ref.add(rid)   # an RT texture's surface ⇒ slice must pull it forward
                 ncalls += 1
@@ -211,6 +215,7 @@ class Container:
                 for _ in range(2):         # src SURFREF, dst SURFREF
                     kind = u(p); p += 4
                     rid = i(p); p += 4
+                    self.surf_counts[kind] = self.surf_counts.get(kind, 0) + 1
                     if kind == SURF_TEX and rid >= 0:
                         res_ref.add(rid)
                 cnt = u(p); p += 4
@@ -242,6 +247,23 @@ class Container:
     @property
     def presents(self) -> list[int]:
         return [f.present for f in self.frames]
+
+    def opcode_counts(self, *, by_name: bool = False) -> dict:
+        """Opcode -> #records over the WHOLE container (the GX-06 corpus's coverage
+        unit — which render-affecting D3D8 methods a capture actually exercises). With
+        by_name, keys are the OPNAME strings (an unknown int stays 'op<N>')."""
+        if not by_name:
+            return dict(self.op_counts)
+        return {OPNAME.get(t, f"op{t}"): c for t, c in self.op_counts.items()}
+
+    def surfref_counts(self, *, by_name: bool = False) -> dict:
+        """SURFREF kind -> #citations across SetRenderTarget/CopyRects (the RT-op
+        completeness sub-dimension: which of NULL/BACKBUFFER/DEPTH/TEX a capture cites)."""
+        names = {SURF_NULL: "NULL", SURF_BACKBUFFER: "BACKBUFFER",
+                 SURF_DEPTH: "DEPTH", SURF_TEX: "TEX"}
+        if not by_name:
+            return dict(self.surf_counts)
+        return {names.get(k, f"kind{k}"): c for k, c in self.surf_counts.items()}
 
     def header_bytes(self) -> bytes:
         """[MAGIC][VERSION][DEV_PARAMS] — the prefix every slice re-uses."""
