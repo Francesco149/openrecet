@@ -119,6 +119,12 @@ CONFIG = {
     "IDirect3D8":       ("WrapD3D", {"QueryInterface", "AddRef", "Release", "CreateDevice"}),
     "IDirect3DDevice8": ("WrapDev", json.loads(sys.argv[2]) if len(sys.argv) > 2 else
                           ["QueryInterface", "AddRef", "Release"]),
+    # GX-04: wrap VB/IB so every content mutation (Lock/Unlock — the ONLY writer in D3D8,
+    # which has no CreateVertexBuffer init-data param) is intercepted ⇒ per-draw content
+    # capture is provably complete. QI/AddRef/Release keep wrapper identity; Lock/Unlock
+    # maintain the shadow + generation; every other method pure-forwards to real.
+    "IDirect3DVertexBuffer8": ("WrapVB", {"QueryInterface", "AddRef", "Release", "Lock", "Unlock"}),
+    "IDirect3DIndexBuffer8":  ("WrapIB", {"QueryInterface", "AddRef", "Release", "Lock", "Unlock"}),
 }
 
 def find_header():

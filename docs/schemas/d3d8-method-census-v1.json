@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_note": "GX-00 D3D8 device/resource method census (roadmap parity-evidence §9 GX-00). The v3 capture proxy (tools/trace_studio_v3/proxy/) wraps IDirect3D8 + IDirect3DDevice8; each vtable slot is either INTERCEPTED (a hand-written my_<Iface>_<Name> that records the call into the container) or a generated PASS-THROUGH forwarder (fwd_<Iface>_<Name>, proxy_generated.h). This file is the R3 CENSUS: every method's capture_class, so a render-affecting method that is silently forwarded (uncaptured) cannot hide — the truthful-evidence prerequisite for a sound `pixels`/`render_program` pillar (a replay is only complete if every render-affecting call the game makes was recorded). Consumed by tools/parity/d3d_census.py; the drift guard tools/test_d3d_census.py asserts proxy_generated.h's actual recorded/forwarded split matches this census (a method flipping recorded<->forwarded, or added/removed by a d3d8.h/gen_forwarders change, fails the test). This is the STATIC census (which methods CAN affect pixels); the DYNAMIC census (which are actually CALLED in a capture — 0 observed => safe, >0 => must record-or-fail) is the GX-00 follow-up that needs a proxy call-counter + a drive. Classification policy (GX-01) is FAIL-CLOSED: a forwarded method that CAN alter future pixels/resources/device state is `render_affecting_unsupported` (a capture-completeness RISK), never `forwarded_irrelevant`, unless proven visually inert.",
+  "_note": "GX-00 D3D8 device/resource method census (roadmap parity-evidence §9 GX-00). The v3 capture proxy (tools/trace_studio_v3/proxy/) wraps IDirect3D8 + IDirect3DDevice8 + (GX-04) IDirect3DVertexBuffer8 + IDirect3DIndexBuffer8; each vtable slot is either INTERCEPTED (a hand-written my_<Iface>_<Name> that records the call into the container) or a generated PASS-THROUGH forwarder (fwd_<Iface>_<Name>, proxy_generated.h). GX-04: CreateVertexBuffer/CreateIndexBuffer are now RECORDED (intercepted → the buffer is wrapped) and the buffer interfaces' Lock/Unlock are RECORDED — a VB/IB's bytes are written ONLY via Lock/Unlock (D3D8 CreateVertexBuffer has no init-data param) or ProcessVertices (device risk set, gated 0-observed), so wrapping + intercepting every Lock/Unlock makes per-draw VB/IB content capture PROVABLY complete (the freeze-at-bind mechanism in d3d8_proxy.c; findings/gx03-resource-versions.md). This file is the R3 CENSUS: every method's capture_class, so a render-affecting method that is silently forwarded (uncaptured) cannot hide — the truthful-evidence prerequisite for a sound `pixels`/`render_program` pillar (a replay is only complete if every render-affecting call the game makes was recorded). Consumed by tools/parity/d3d_census.py; the drift guard tools/test_d3d_census.py asserts proxy_generated.h's actual recorded/forwarded split matches this census (a method flipping recorded<->forwarded, or added/removed by a d3d8.h/gen_forwarders change, fails the test). This is the STATIC census (which methods CAN affect pixels); the DYNAMIC census (which are actually CALLED in a capture — 0 observed => safe, >0 => must record-or-fail) is the GX-00 follow-up that needs a proxy call-counter + a drive. Classification policy (GX-01) is FAIL-CLOSED: a forwarded method that CAN alter future pixels/resources/device state is `render_affecting_unsupported` (a capture-completeness RISK), never `forwarded_irrelevant`, unless proven visually inert.",
 
   "capture_classes": {
     "recorded": "a my_ interceptor records the call's render effect into the container (draws, fixed-function state setters, Clear/Present, SetRenderTarget/CopyRects, CreateTexture, CreateDevice params). The replay reproduces it.",
@@ -33,7 +33,8 @@
       "recorded": ["Present", "GetBackBuffer", "CreateTexture", "CopyRects", "SetRenderTarget",
         "BeginScene", "EndScene", "Clear", "SetTransform", "SetMaterial", "SetLight", "LightEnable",
         "SetRenderState", "SetTexture", "SetTextureStageState", "DrawPrimitive", "DrawIndexedPrimitive",
-        "DrawPrimitiveUP", "DrawIndexedPrimitiveUP", "SetVertexShader", "SetStreamSource", "SetIndices"],
+        "DrawPrimitiveUP", "DrawIndexedPrimitiveUP", "SetVertexShader", "SetStreamSource", "SetIndices",
+        "CreateVertexBuffer", "CreateIndexBuffer"],
       "query_only": ["TestCooperativeLevel", "GetAvailableTextureMem", "GetDirect3D", "GetDeviceCaps",
         "GetDisplayMode", "GetCreationParameters", "GetRasterStatus", "GetGammaRamp", "GetFrontBuffer",
         "GetRenderTarget", "GetDepthStencilSurface", "GetTransform", "GetViewport", "GetMaterial",
@@ -45,12 +46,26 @@
         "DeletePixelShader", "DeletePatch"],
       "render_affecting_unsupported": ["SetCursorProperties", "SetCursorPosition", "ShowCursor",
         "CreateAdditionalSwapChain", "Reset", "SetGammaRamp", "CreateVolumeTexture", "CreateCubeTexture",
-        "CreateVertexBuffer", "CreateIndexBuffer", "CreateRenderTarget", "CreateDepthStencilSurface",
+        "CreateRenderTarget", "CreateDepthStencilSurface",
         "CreateImageSurface", "UpdateTexture", "MultiplyTransform", "SetViewport", "SetClipPlane",
         "BeginStateBlock", "EndStateBlock", "ApplyStateBlock", "CaptureStateBlock", "CreateStateBlock",
         "SetClipStatus", "SetPaletteEntries", "SetCurrentTexturePalette", "ProcessVertices",
         "CreateVertexShader", "SetVertexShaderConstant", "CreatePixelShader", "SetPixelShader",
         "SetPixelShaderConstant", "DrawRectPatch", "DrawTriPatch"]
+    },
+    "IDirect3DVertexBuffer8": {
+      "wrapper_lifetime": ["QueryInterface", "AddRef", "Release"],
+      "recorded": ["Lock", "Unlock"],
+      "query_only": ["GetDevice", "GetPrivateData", "GetPriority", "GetType", "GetDesc"],
+      "forwarded_irrelevant": ["SetPrivateData", "FreePrivateData", "SetPriority", "PreLoad"],
+      "render_affecting_unsupported": []
+    },
+    "IDirect3DIndexBuffer8": {
+      "wrapper_lifetime": ["QueryInterface", "AddRef", "Release"],
+      "recorded": ["Lock", "Unlock"],
+      "query_only": ["GetDevice", "GetPrivateData", "GetPriority", "GetType", "GetDesc"],
+      "forwarded_irrelevant": ["SetPrivateData", "FreePrivateData", "SetPriority", "PreLoad"],
+      "render_affecting_unsupported": []
     }
   },
 
@@ -58,8 +73,8 @@
     "_note": "the render_affecting_unsupported set of IDirect3DDevice8, grouped for the GX-01/GX-02 record-or-fail order (roadmap high-risk seed list). Recettear is a 2007 DX8 fixed-function game so most are likely NEVER called — the DYNAMIC census confirms which; until then they are STATIC risks a call would silently drop.",
     "cursor": ["SetCursorProperties", "SetCursorPosition", "ShowCursor"],
     "device_reset": ["Reset", "CreateAdditionalSwapChain", "SetGammaRamp"],
-    "resource_creation": ["CreateVolumeTexture", "CreateCubeTexture", "CreateVertexBuffer",
-      "CreateIndexBuffer", "CreateRenderTarget", "CreateDepthStencilSurface", "CreateImageSurface",
+    "resource_creation": ["CreateVolumeTexture", "CreateCubeTexture",
+      "CreateRenderTarget", "CreateDepthStencilSurface", "CreateImageSurface",
       "UpdateTexture"],
     "fixed_function_state": ["MultiplyTransform", "SetViewport", "SetClipPlane", "SetClipStatus",
       "SetPaletteEntries", "SetCurrentTexturePalette"],

@@ -9,8 +9,9 @@ d3d8.h/gen_forwarders change) fails here — so the census can never silently ro
 newly-forwarded render-affecting method can't hide.
 
   * CONSISTENT — the shipped proxy/census pair verifies clean (ok, no drift).
-  * COMPLETE — all 113 vtable methods (16 + 97) are covered; the census/mode maps are
-    total; the RISK list carries every roadmap-named high-risk method.
+  * COMPLETE — all 141 vtable methods (D3D8 16 + Device 97 + GX-04 VB 14 + IB 14) are
+    covered; the census/mode maps are total; the RISK list carries every roadmap high-risk
+    method (minus CreateVertexBuffer/CreateIndexBuffer, now recorded via the GX-04 wrapper).
   * NEGATIVE — a flipped mode, a dropped classification, and a phantom method each drift.
   * CLI — d3d_census.main exits 0 clean.
 
@@ -65,21 +66,43 @@ CENSUS = load_census(DEFAULT_CENSUS)
 def test_consistent():
     ok, issues, methods = verify(HEADER, CENSUS)
     check(ok and not issues, f"consistent: committed proxy matches census (drift: {issues[:2]})")
-    check(len(methods) == 113, f"complete: 113 vtable methods covered (got {len(methods)})")
+    # 141 = IDirect3D8 16 + IDirect3DDevice8 97 + (GX-04) VB 14 + IB 14
+    check(len(methods) == 141, f"complete: 141 vtable methods covered (got {len(methods)})")
 
 
 def test_counts():
     rep = build_report(HEADER, CENSUS)
     check(rep["ok"], "counts: report ok")
-    # D3D8: 4 my_ (3 wrapper + CreateDevice) / 12 fwd_; Device: 25 my_ (3 wrapper + 22) / 72 fwd_
+    # D3D8: 4 my_ (3 wrapper + CreateDevice) / 12 fwd_; Device: 27 my_ (3 wrapper + 24, incl.
+    # GX-04 CreateVertexBuffer/CreateIndexBuffer) / 70 fwd_
     d3d8 = parse_vtable(HEADER, "IDirect3D8")
     dev = parse_vtable(HEADER, "IDirect3DDevice8")
     check(sum(1 for _, m in d3d8 if m == "recorded") == 4, "counts: IDirect3D8 4 recorded")
-    check(sum(1 for _, m in dev if m == "recorded") == 25, "counts: IDirect3DDevice8 25 recorded")
-    check(sum(1 for _, m in dev if m == "forwarded") == 72, "counts: IDirect3DDevice8 72 forwarded")
-    # the render-affecting-unsupported RISK set (fail-closed) is the 33 device methods
-    check(rep["n_risk"] == 33, f"counts: 33 render-affecting-unsupported (got {rep['n_risk']})")
+    check(sum(1 for _, m in dev if m == "recorded") == 27, "counts: IDirect3DDevice8 27 recorded")
+    check(sum(1 for _, m in dev if m == "forwarded") == 70, "counts: IDirect3DDevice8 70 forwarded")
+    # the render-affecting-unsupported RISK set (fail-closed): 31 device methods (was 33 —
+    # GX-04 moved CreateVertexBuffer/CreateIndexBuffer to recorded)
+    check(rep["n_risk"] == 31, f"counts: 31 render-affecting-unsupported (got {rep['n_risk']})")
     check(rep["interfaces"]["IDirect3D8"]["risk"] == [], "counts: IDirect3D8 has no render risk")
+
+
+def test_counts_buffers():
+    # GX-04: the two wrapped buffer interfaces. Each is 14 methods = 5 my_ (QI/AddRef/Release
+    # + Lock/Unlock) / 9 fwd_; Lock/Unlock are RECORDED (the sole VB/IB content writers), none
+    # render_affecting_unsupported (a VB/IB has no uncaptured render-affecting path once wrapped).
+    rep = build_report(HEADER, CENSUS)
+    for iface in ("IDirect3DVertexBuffer8", "IDirect3DIndexBuffer8"):
+        vt = parse_vtable(HEADER, iface)
+        check(len(vt) == 14, f"buffers: {iface} 14 methods (got {len(vt)})")
+        check(sum(1 for _, m in vt if m == "recorded") == 5, f"buffers: {iface} 5 recorded (QI/AddRef/Release/Lock/Unlock)")
+        by = {n: m for n, m in vt}
+        check(by.get("Lock") == "recorded" and by.get("Unlock") == "recorded",
+              f"buffers: {iface} Lock/Unlock RECORDED (intercepted for content versioning)")
+        check(rep["interfaces"][iface]["risk"] == [], f"buffers: {iface} has no render risk")
+    # CreateVertexBuffer/CreateIndexBuffer are now RECORDED, out of the risk set
+    devrisk = set(rep["interfaces"]["IDirect3DDevice8"]["risk"])
+    check("CreateVertexBuffer" not in devrisk and "CreateIndexBuffer" not in devrisk,
+          "buffers: CreateVertexBuffer/CreateIndexBuffer reclassified recorded (out of risk)")
 
 
 def test_mode_map_total():
@@ -177,8 +200,9 @@ def _raises(fn) -> bool:
 
 
 def test_dynamic_key_coverage():
-    check(len(FWD_KEYS) == 84, f"dynamic: 84 forwarded keys derived from census (got {len(FWD_KEYS)})")
-    check(len(RISK) == 33, f"dynamic: 33 risk keys derived from census (got {len(RISK)})")
+    # 100 = 84 device/factory forwards + (GX-04) 9 VB + 9 IB buffer forwards; 31 risk (was 33)
+    check(len(FWD_KEYS) == 100, f"dynamic: 100 forwarded keys derived from census (got {len(FWD_KEYS)})")
+    check(len(RISK) == 31, f"dynamic: 31 risk keys derived from census (got {len(RISK)})")
     check(SETVIEWPORT in RISK and SETPIXELSHADER in RISK, "dynamic: known risk keys present")
     check(GETRENDERSTATE in FWD_KEYS and GETRENDERSTATE not in RISK,
           "dynamic: GetRenderState is forwarded query_only, not a risk method")
@@ -187,7 +211,7 @@ def test_dynamic_key_coverage():
 def test_dynamic_safe():
     rep = build_dynamic_report(CENSUS, full_calls())
     check(rep["verdict"] == "SAFE", "dynamic: all-zero forwarded → SAFE")
-    check(rep["n_risk"] == 33 and rep["n_safe_risk"] == 33, "dynamic: all 33 risk methods 0-observed")
+    check(rep["n_risk"] == 31 and rep["n_safe_risk"] == 31, "dynamic: all 31 risk methods 0-observed")
     check(not rep["observed_risk"] and not rep["missing_risk"] and not rep["unknown_keys"],
           "dynamic: SAFE report has no observed/missing/unknown")
 
@@ -287,6 +311,7 @@ def test_dynamic_text():
 def main() -> int:
     test_consistent()
     test_counts()
+    test_counts_buffers()
     test_mode_map_total()
     test_risk_names()
     test_negative_mode_flip()

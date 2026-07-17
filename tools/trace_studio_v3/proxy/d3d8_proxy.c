@@ -35,6 +35,24 @@
 
 typedef struct WrapD3D { const IDirect3D8Vtbl       *lpVtbl; IDirect3D8       *real; LONG refs; } WrapD3D;
 typedef struct WrapDev { const IDirect3DDevice8Vtbl *lpVtbl; IDirect3DDevice8 *real; LONG refs; } WrapDev;
+/* GX-04: VB/IB wrappers. A VB/IB's bytes are written ONLY via Lock/Unlock (D3D8
+ * CreateVertexBuffer has no init-data param) or ProcessVertices (census-gated
+ * 0-observed), so intercepting Lock/Unlock here captures EVERY content version. The
+ * `shadow` mirrors the buffer's current bytes (updated at each writable Unlock from the
+ * app's still-mapped locked pointer — no re-Lock of `real`); a bind FREEZES the current
+ * shadow (freeze-at-bind), so a same-frame re-mutation yields two distinct captured
+ * versions. `gen` bumps per writable Unlock (diagnostic). lock_* remember the pending
+ * Lock's range so Unlock copies exactly what was written (partial locks accumulate). */
+typedef struct WrapVB {
+    const IDirect3DVertexBuffer8Vtbl *lpVtbl; IDirect3DVertexBuffer8 *real; LONG refs;
+    uint32_t size, fvf, gen; uint8_t *shadow; int shadow_valid;
+    void *lock_ptr; uint32_t lock_off, lock_size; DWORD lock_flags;
+} WrapVB;
+typedef struct WrapIB {
+    const IDirect3DIndexBuffer8Vtbl *lpVtbl; IDirect3DIndexBuffer8 *real; LONG refs;
+    uint32_t size, fmt, gen; uint8_t *shadow; int shadow_valid;
+    void *lock_ptr; uint32_t lock_off, lock_size; DWORD lock_flags;
+} WrapIB;
 
 /* factory custom */
 static HRESULT STDMETHODCALLTYPE my_IDirect3D8_QueryInterface(IDirect3D8*, REFIID, void**);
@@ -67,6 +85,19 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevi
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateTexture(IDirect3DDevice8*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture8**);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetRenderTarget(IDirect3DDevice8*, IDirect3DSurface8*, IDirect3DSurface8*);
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CopyRects(IDirect3DDevice8*, IDirect3DSurface8*, const RECT*, UINT, IDirect3DSurface8*, const POINT*);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateVertexBuffer(IDirect3DDevice8*, UINT, DWORD, DWORD, D3DPOOL, IDirect3DVertexBuffer8**);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateIndexBuffer(IDirect3DDevice8*, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DIndexBuffer8**);
+/* GX-04 VB/IB wrapper custom (lifetime + Lock/Unlock content versioning) */
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_QueryInterface(IDirect3DVertexBuffer8*, REFIID, void**);
+static ULONG   STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_AddRef(IDirect3DVertexBuffer8*);
+static ULONG   STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Release(IDirect3DVertexBuffer8*);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Lock(IDirect3DVertexBuffer8*, UINT, UINT, BYTE**, DWORD);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Unlock(IDirect3DVertexBuffer8*);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_QueryInterface(IDirect3DIndexBuffer8*, REFIID, void**);
+static ULONG   STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_AddRef(IDirect3DIndexBuffer8*);
+static ULONG   STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Release(IDirect3DIndexBuffer8*);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Lock(IDirect3DIndexBuffer8*, UINT, UINT, BYTE**, DWORD);
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Unlock(IDirect3DIndexBuffer8*);
 
 #include "proxy_generated.h"
 
@@ -279,25 +310,55 @@ static void cb_data(const void *p, size_t n) { cb_ensure(n); if (n) memcpy(g_cb 
 static void cb_bytes(const void *p, uint32_t n) { cb_u(n); cb_data(p, n); }  /* length-prefixed (mirrors orv3_wbytes) */
 static void cb_patch_u(size_t off, uint32_t v) { memcpy(g_cb + off, &v, 4); }
 
-/* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at write_frame */
+/* per-frame RESOURCE-CONTENT arena (GX-04 freeze-at-bind): a VB/IB bind memcpies the
+ * wrapper's current-generation shadow HERE (cheap, no hash/dedup/container-write), so a
+ * later same-frame mutation can't overwrite the version this draw used. Reset per frame
+ * like g_cb (dropped frames cost 0 — nothing reaches g_cap). write_frame hashes+dedups
+ * the frozen bytes into RES_VB/RES_IB. */
+static uint8_t  *g_rc; static size_t g_rc_len, g_rc_cap;
+static void rc_ensure(size_t n) { if (g_rc_len + n <= g_rc_cap) return; size_t nc = g_rc_cap ? g_rc_cap : (1u<<16); while (nc < g_rc_len + n) nc <<= 1; g_rc = (uint8_t*)realloc(g_rc, nc); g_rc_cap = nc; }
+static size_t rc_append(const void *p, uint32_t n) { rc_ensure(n); size_t off = g_rc_len; if (n) memcpy(g_rc + off, p, n); g_rc_len += n; return off; }
+
+/* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at
+ * write_frame. A frozen VB/IB entry (frz=1) also carries the arena range [rc_off,rc_len)
+ * of its bind-time content + meta (fvf/fmt); write_frame snaps THOSE bytes instead of
+ * re-locking `ptr` (which is kept only for the multibind diagnostic). */
 enum { PEND_TEX = 1, PEND_VB = 2, PEND_IB = 3, PEND_SURF = 4 };
-typedef struct { int kind; void *ptr; size_t off; } Pending;
+typedef struct { int kind; void *ptr; size_t off; int frz; size_t rc_off; uint32_t rc_len, meta; } Pending;
 static Pending  *g_pending; static int g_pending_n, g_pending_cap;
-static void pend_push(int kind, void *ptr, size_t off)
+static Pending *pend_new(int kind, void *ptr, size_t off)
 {
     if (g_pending_n >= g_pending_cap) {
         g_pending_cap = g_pending_cap ? g_pending_cap * 2 : 8192;
         g_pending = (Pending*)realloc(g_pending, (size_t)g_pending_cap * sizeof *g_pending);
     }
-    g_pending[g_pending_n].kind = kind; g_pending[g_pending_n].ptr = ptr; g_pending[g_pending_n].off = off; g_pending_n++;
+    Pending *e = &g_pending[g_pending_n++];
+    e->kind = kind; e->ptr = ptr; e->off = off; e->frz = 0; e->rc_off = 0; e->rc_len = 0; e->meta = 0;
+    return e;
 }
+static void pend_push(int kind, void *ptr, size_t off) { pend_new(kind, ptr, off); }
 /* emit a deferred resource-ref id field into g_cb (placeholder now; snapshot at write_frame) */
 static void cb_resref(int kind, void *ptr)
 {
     size_t off = g_cb_len; cb_u(0xffffffffu);     /* placeholder; patched to the snapshot id (or -1) */
     if (ptr) pend_push(kind, ptr, off);
 }
-static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; }
+/* emit a resource-ref that FREEZES `shadow[0..size]` into the content arena NOW; if the
+ * buffer was never Locked through the wrapper (shadow invalid — shouldn't happen since
+ * content only comes via Lock) fall back to a frame-end real-Lock snapshot of `real`. */
+static void cb_resref_frozen(int kind, void *wrapper, const uint8_t *shadow, int shadow_valid,
+                             uint32_t size, uint32_t meta, void *real)
+{
+    size_t off = g_cb_len; cb_u(0xffffffffu);
+    if (!wrapper) return;
+    if (shadow_valid) {
+        Pending *e = pend_new(kind, wrapper, off);
+        e->frz = 1; e->rc_off = rc_append(shadow, size); e->rc_len = size; e->meta = meta;
+    } else {
+        pend_push(kind, real, off);   /* fallback: snapshot real at frame-end */
+    }
+}
+static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; g_rc_len = 0; }
 
 /* ── GX-03 measurement: same-frame VB/IB re-mutation risk surface ──
  * Resource snapshots are DEFERRED to write_frame (kept frames only), so a buffer
@@ -313,10 +374,14 @@ static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; }
  * frame-end, e.g. already released). 0 multibind + 0 snapfail over the whole window
  * ⇒ every VB/IB is used at most once per frame and snapshotted OK ⇒ the frame-end
  * snapshot IS the per-draw content (GX-03 completeness holds for this scene). */
-static long g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_snapfail;
-static long g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_snapfail;
+static long g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_snapfail, g_rb_vb_fallback;
+static long g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_snapfail, g_rb_ib_fallback;
 static int  g_rb_frames;                                  /* kept frames measured */
 static int  g_rb_vb_multibind_max, g_rb_ib_multibind_max; /* worst single frame */
+/* GX-04: post-wrap, VB/IB content is FROZEN at bind (per-draw versions), so `fallback`
+ * (a bind snapshotted the old frame-end way — buffer never Locked through the wrapper)
+ * should stay 0 and `snapfail` counts only that residual path. `multibind` still counts
+ * pointer reuse (informational: the risk surface the freeze now handles correctly). */
 /* count DISTINCT pointers of `kind` in g_pending that appear more than once. O(n²)
  * over one frame's pending list (a few hundred entries) — trivial, kept frames only. */
 static int pending_multibind(int kind)
@@ -487,6 +552,14 @@ static int snap_ib(IDirect3DIndexBuffer8 *ib)
     IDirect3DIndexBuffer8_Unlock(ib);
     return dedup_or_write(ORV3_RES_IB, g_bl, g_bl_len);
 }
+/* GX-04: snapshot a VB/IB from FROZEN bind-time bytes (not a live Lock). Body layout is
+ * byte-identical to snap_vb/snap_ib, so a static buffer's frozen snapshot dedups to the
+ * exact same id as its old frame-end snapshot ⇒ replay is unchanged; only a same-frame
+ * re-mutation now yields a second, distinct id. */
+static int snap_vb_bytes(const uint8_t *data, uint32_t size, uint32_t fvf)
+{ bl_reset(); bl_u(size); bl_u(fvf); bl_bytes(data, size); return dedup_or_write(ORV3_RES_VB, g_bl, g_bl_len); }
+static int snap_ib_bytes(const uint8_t *data, uint32_t size, uint32_t fmt)
+{ bl_reset(); bl_u(size); bl_u(fmt); bl_bytes(data, size); return dedup_or_write(ORV3_RES_IB, g_bl, g_bl_len); }
 
 /* per-kept-frame REFERENCE: read back the backbuffer once via the shared
  * CopyRects-through-sysmem helper (works for retail's non-lockable backbuffer),
@@ -548,11 +621,11 @@ static void write_census_sidecar(void)
     fputs(" },\n \"resource_binds\": {\n", f);   /* GX-03 same-frame re-mutation measure */
     fprintf(f,
         "  \"kept_frames\": %d,\n"
-        "  \"vb_binds\": %ld, \"vb_multibind\": %ld, \"vb_multibind_max\": %d, \"vb_snapfail\": %ld,\n"
-        "  \"ib_binds\": %ld, \"ib_multibind\": %ld, \"ib_multibind_max\": %d, \"ib_snapfail\": %ld\n",
+        "  \"vb_binds\": %ld, \"vb_multibind\": %ld, \"vb_multibind_max\": %d, \"vb_snapfail\": %ld, \"vb_fallback\": %ld,\n"
+        "  \"ib_binds\": %ld, \"ib_multibind\": %ld, \"ib_multibind_max\": %d, \"ib_snapfail\": %ld, \"ib_fallback\": %ld\n",
         g_rb_frames,
-        g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_multibind_max, g_rb_vb_snapfail,
-        g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_multibind_max, g_rb_ib_snapfail);
+        g_rb_vb_binds, g_rb_vb_multibind, g_rb_vb_multibind_max, g_rb_vb_snapfail, g_rb_vb_fallback,
+        g_rb_ib_binds, g_rb_ib_multibind, g_rb_ib_multibind_max, g_rb_ib_snapfail, g_rb_ib_fallback);
     fputs(" }\n}\n", f);
     fclose(f);
 }
@@ -573,10 +646,18 @@ static void write_frame(IDirect3DDevice8 *real_dev)
         int id = -1;
         switch (g_pending[i].kind) {
         case PEND_TEX:  id = snap_tex((IDirect3DBaseTexture8*)g_pending[i].ptr); break;
-        case PEND_VB:   id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr);
-                        g_rb_vb_binds++; if (g_pending[i].ptr && id < 0) g_rb_vb_snapfail++; break;
-        case PEND_IB:   id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr);
-                        g_rb_ib_binds++; if (g_pending[i].ptr && id < 0) g_rb_ib_snapfail++; break;
+        case PEND_VB:   id = g_pending[i].frz
+                             ? snap_vb_bytes(g_rc + g_pending[i].rc_off, g_pending[i].rc_len, g_pending[i].meta)
+                             : snap_vb((IDirect3DVertexBuffer8*)g_pending[i].ptr);
+                        g_rb_vb_binds++;
+                        if (!g_pending[i].frz) { g_rb_vb_fallback++; if (g_pending[i].ptr && id < 0) g_rb_vb_snapfail++; }
+                        break;
+        case PEND_IB:   id = g_pending[i].frz
+                             ? snap_ib_bytes(g_rc + g_pending[i].rc_off, g_pending[i].rc_len, g_pending[i].meta)
+                             : snap_ib((IDirect3DIndexBuffer8*)g_pending[i].ptr);
+                        g_rb_ib_binds++;
+                        if (!g_pending[i].frz) { g_rb_ib_fallback++; if (g_pending[i].ptr && id < 0) g_rb_ib_snapfail++; }
+                        break;
         case PEND_SURF: id = snap_rt_tex(g_pending[i].ptr); break;   /* RT surface's parent texture */
         }
         cb_patch_u(g_pending[i].off, (uint32_t)id);
@@ -773,12 +854,104 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetMaterial(IDirect3DDevice
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetTexture(IDirect3DDevice8 *This, DWORD stage, IDirect3DBaseTexture8 *tex)
 { if (CAP) { cb_u(ORV3_SetTexture); cb_u(stage); cb_resref(PEND_TEX, tex); }
   return ((WrapDev*)This)->real->lpVtbl->SetTexture(((WrapDev*)This)->real, stage, tex); }
+/* Is `p` one of OUR wrappers? (identity by vtable — a raw VB/IB the app might have
+ * round-tripped through GetStreamSource/GetIndices, which forward `real`, is NOT.) */
+static WrapVB *as_wrap_vb(IDirect3DVertexBuffer8 *p)
+{ return (p && (const void*)((WrapVB*)p)->lpVtbl == (const void*)&g_IDirect3DVertexBuffer8_vt) ? (WrapVB*)p : NULL; }
+static WrapIB *as_wrap_ib(IDirect3DIndexBuffer8 *p)
+{ return (p && (const void*)((WrapIB*)p)->lpVtbl == (const void*)&g_IDirect3DIndexBuffer8_vt) ? (WrapIB*)p : NULL; }
+
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetStreamSource(IDirect3DDevice8 *This, UINT stream, IDirect3DVertexBuffer8 *vb, UINT stride)
-{ if (CAP) { cb_u(ORV3_SetStreamSource); cb_u(stream); cb_resref(PEND_VB, vb); cb_u(stride); }
-  return ((WrapDev*)This)->real->lpVtbl->SetStreamSource(((WrapDev*)This)->real, stream, vb, stride); }
+{ WrapVB *w = as_wrap_vb(vb);
+  IDirect3DVertexBuffer8 *realvb = w ? w->real : vb;   /* unwrap (or pass a raw VB through) */
+  if (CAP) { cb_u(ORV3_SetStreamSource); cb_u(stream);
+             if (w) cb_resref_frozen(PEND_VB, w, w->shadow, w->shadow_valid, w->size, w->fvf, w->real);
+             else   cb_resref(PEND_VB, vb);            /* raw/unwrapped: frame-end snapshot */
+             cb_u(stride); }
+  return ((WrapDev*)This)->real->lpVtbl->SetStreamSource(((WrapDev*)This)->real, stream, realvb, stride); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetIndices(IDirect3DDevice8 *This, IDirect3DIndexBuffer8 *ib, UINT base)
-{ if (CAP) { cb_u(ORV3_SetIndices); cb_resref(PEND_IB, ib); cb_u(base); }
-  return ((WrapDev*)This)->real->lpVtbl->SetIndices(((WrapDev*)This)->real, ib, base); }
+{ WrapIB *w = as_wrap_ib(ib);
+  IDirect3DIndexBuffer8 *realib = w ? w->real : ib;
+  if (CAP) { cb_u(ORV3_SetIndices);
+             if (w) cb_resref_frozen(PEND_IB, w, w->shadow, w->shadow_valid, w->size, w->fmt, w->real);
+             else   cb_resref(PEND_IB, ib);
+             cb_u(base); }
+  return ((WrapDev*)This)->real->lpVtbl->SetIndices(((WrapDev*)This)->real, realib, base); }
+/* ── GX-04: VB/IB wrapping (per-draw content versioning) ──
+ * CreateVertexBuffer/CreateIndexBuffer are INTERCEPTED: make the real buffer, wrap it so
+ * every Lock/Unlock (the SOLE content writer — D3D8 has no create-time init data) is
+ * seen. The wrapper's shadow tracks the current bytes; a bind freezes it. */
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateVertexBuffer(
+    IDirect3DDevice8 *This, UINT len, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer8 **ppVB)
+{
+    IDirect3DVertexBuffer8 *real = NULL;
+    HRESULT hr = ((WrapDev*)This)->real->lpVtbl->CreateVertexBuffer(((WrapDev*)This)->real, len, usage, fvf, pool, &real);
+    if (FAILED(hr) || !real) { if (ppVB) *ppVB = NULL; return hr; }
+    WrapVB *w = (WrapVB*)calloc(1, sizeof *w);
+    w->lpVtbl = &g_IDirect3DVertexBuffer8_vt; w->real = real; w->refs = 1;
+    w->size = len; w->fvf = fvf; w->shadow = (uint8_t*)calloc(1, len ? len : 1);
+    if (ppVB) *ppVB = (IDirect3DVertexBuffer8*)w;
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_CreateIndexBuffer(
+    IDirect3DDevice8 *This, UINT len, DWORD usage, D3DFORMAT fmt, D3DPOOL pool, IDirect3DIndexBuffer8 **ppIB)
+{
+    IDirect3DIndexBuffer8 *real = NULL;
+    HRESULT hr = ((WrapDev*)This)->real->lpVtbl->CreateIndexBuffer(((WrapDev*)This)->real, len, usage, fmt, pool, &real);
+    if (FAILED(hr) || !real) { if (ppIB) *ppIB = NULL; return hr; }
+    WrapIB *w = (WrapIB*)calloc(1, sizeof *w);
+    w->lpVtbl = &g_IDirect3DIndexBuffer8_vt; w->real = real; w->refs = 1;
+    w->size = len; w->fmt = (uint32_t)fmt; w->shadow = (uint8_t*)calloc(1, len ? len : 1);
+    if (ppIB) *ppIB = (IDirect3DIndexBuffer8*)w;
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_QueryInterface(IDirect3DVertexBuffer8 *This, REFIID riid, void **ppv)
+{ WrapVB *w = (WrapVB*)This;
+  if (IsEqualGUID(riid, &IID_IUnknown) || IsEqualGUID(riid, &IID_IDirect3DVertexBuffer8)) { *ppv = This; InterlockedIncrement(&w->refs); return S_OK; }
+  return w->real->lpVtbl->QueryInterface(w->real, riid, ppv); }
+static ULONG STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_AddRef(IDirect3DVertexBuffer8 *This)
+{ return (ULONG)InterlockedIncrement(&((WrapVB*)This)->refs); }
+static ULONG STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Release(IDirect3DVertexBuffer8 *This)
+{ WrapVB *w = (WrapVB*)This; LONG r = InterlockedDecrement(&w->refs);
+  if (r == 0) { w->real->lpVtbl->Release(w->real); free(w->shadow); free(w); } return (ULONG)r; }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Lock(IDirect3DVertexBuffer8 *This, UINT off, UINT size, BYTE **ppb, DWORD flags)
+{ WrapVB *w = (WrapVB*)This;
+  HRESULT hr = w->real->lpVtbl->Lock(w->real, off, size, ppb, flags);
+  w->lock_ptr = (SUCCEEDED(hr) && ppb) ? *ppb : NULL;
+  w->lock_off = off; w->lock_size = size ? size : (w->size > off ? w->size - off : 0); w->lock_flags = flags;
+  return hr; }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DVertexBuffer8_Unlock(IDirect3DVertexBuffer8 *This)
+{ WrapVB *w = (WrapVB*)This;
+  if (w->lock_ptr && !(w->lock_flags & D3DLOCK_READONLY) && w->shadow) {
+      uint32_t end = w->lock_off + w->lock_size; if (end > w->size) end = w->size;
+      if (end > w->lock_off) memcpy(w->shadow + w->lock_off, w->lock_ptr, end - w->lock_off);
+      w->shadow_valid = 1; w->gen++; }
+  w->lock_ptr = NULL;
+  return w->real->lpVtbl->Unlock(w->real); }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_QueryInterface(IDirect3DIndexBuffer8 *This, REFIID riid, void **ppv)
+{ WrapIB *w = (WrapIB*)This;
+  if (IsEqualGUID(riid, &IID_IUnknown) || IsEqualGUID(riid, &IID_IDirect3DIndexBuffer8)) { *ppv = This; InterlockedIncrement(&w->refs); return S_OK; }
+  return w->real->lpVtbl->QueryInterface(w->real, riid, ppv); }
+static ULONG STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_AddRef(IDirect3DIndexBuffer8 *This)
+{ return (ULONG)InterlockedIncrement(&((WrapIB*)This)->refs); }
+static ULONG STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Release(IDirect3DIndexBuffer8 *This)
+{ WrapIB *w = (WrapIB*)This; LONG r = InterlockedDecrement(&w->refs);
+  if (r == 0) { w->real->lpVtbl->Release(w->real); free(w->shadow); free(w); } return (ULONG)r; }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Lock(IDirect3DIndexBuffer8 *This, UINT off, UINT size, BYTE **ppb, DWORD flags)
+{ WrapIB *w = (WrapIB*)This;
+  HRESULT hr = w->real->lpVtbl->Lock(w->real, off, size, ppb, flags);
+  w->lock_ptr = (SUCCEEDED(hr) && ppb) ? *ppb : NULL;
+  w->lock_off = off; w->lock_size = size ? size : (w->size > off ? w->size - off : 0); w->lock_flags = flags;
+  return hr; }
+static HRESULT STDMETHODCALLTYPE my_IDirect3DIndexBuffer8_Unlock(IDirect3DIndexBuffer8 *This)
+{ WrapIB *w = (WrapIB*)This;
+  if (w->lock_ptr && !(w->lock_flags & D3DLOCK_READONLY) && w->shadow) {
+      uint32_t end = w->lock_off + w->lock_size; if (end > w->size) end = w->size;
+      if (end > w->lock_off) memcpy(w->shadow + w->lock_off, w->lock_ptr, end - w->lock_off);
+      w->shadow_valid = 1; w->gen++; }
+  w->lock_ptr = NULL;
+  return w->real->lpVtbl->Unlock(w->real); }
+
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetVertexShader(IDirect3DDevice8 *This, DWORD h)
 { if (CAP) { cb_u(ORV3_SetVertexShader); cb_u(h); shadow_fvf(h); }
   return ((WrapDev*)This)->real->lpVtbl->SetVertexShader(((WrapDev*)This)->real, h); }
