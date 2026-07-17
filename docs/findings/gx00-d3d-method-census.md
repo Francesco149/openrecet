@@ -1,12 +1,13 @@
 # GX-00 — D3D8 method census (capture completeness)
 
-> **Status:** STATIC + DYNAMIC census MECHANISM LANDED 2026-07-17 (roadmap
+> **Status:** STATIC + DYNAMIC census LANDED 2026-07-17 + FIRST LIVE VERDICT (roadmap
 > `../plans/parity-evidence-roadmap.md` §9 GX-00 + GX-01 gate). Census
 > `../schemas/d3d8-method-census-v1.json`; tool `../../tools/parity/d3d_census.py` + CLI
-> `../../tools/d3d_census.py`; guard `../../tools/test_d3d_census.py` (63 checks). The
-> DYNAMIC census (which forwarded methods a capture ACTUALLY calls) + the GX-01
-> record-or-fail gate are built (see §"Dynamic census" below); the first live verdict on a
-> real scene is pending a drive with the instrumented proxy.
+> `../../tools/d3d_census.py`; guard `../../tools/test_d3d_census.py` (63 checks). The DYNAMIC
+> census + GX-01 gate are built (§"Dynamic census") and RUN on the real
+> `house-firstcust-arrprobe` M0 scene → **VIOLATION on both sides** (§"First live verdict"):
+> the capture's VB/IB CREATION is forwarded-uncaptured (the GX-03/GX-04 hinge). Not the
+> expected SAFE — the census caught a real completeness gap on our most-confirmed scene.
 
 ## Why
 
@@ -101,6 +102,51 @@ profile but never trip the gate. The `SetPixelShader` asymmetry lead reads out i
 count explicitly. This is the POST-HOC gate (run after a drive); an in-proxy hard-terminate
 on the first render-affecting forwarded call (GX-01's stricter form) is a later hardening.
 
+## First live verdict — arrprobe (2026-07-17)
+
+Drove `house-firstcust-arrprobe` `HOUSE_FREEROAM#1 [1,80]` (`orv3_window … --view`) with the
+instrumented proxy — the new proxy hash re-keyed the EP-08 cache ⇒ both sides re-drove; 80/80
+bit-exact, JOIN_COMPLETE. Ran `d3d_census.py --dynamic` on each side's cached
+`v3cap.census.json`:
+
+| side   | verdict   | risk methods fired | count |
+|---|---|---|---|
+| retail | VIOLATION | CreateVertexBuffer, CreateIndexBuffer | 130× each |
+| port   | VIOLATION | CreateVertexBuffer, CreateIndexBuffer | 13× each |
+
+**31 of 33 risk methods 0-observed on BOTH sides** — no Reset, SetViewport, state-blocks,
+shaders, cursor, palettes, ProcessVertices. The completeness gap is SURGICALLY
+resource-creation (VB/IB) only; `SetPixelShader`=0 (the asymmetry lead is moot here). The
+query-only forwards (retail GetDeviceCaps 450×, GetDirect3D 420×, GetDisplayMode 160×,
+GetViewport 35×) correctly do NOT trip the gate — the query-only-ignored logic validated on
+real data.
+
+**Meaning — the GX-03/GX-04 hinge, exactly as the static Leads predicted.**
+CreateVertexBuffer/CreateIndexBuffer are FORWARDED ⇒ the proxy does NOT wrap/version the
+resource. BUT `write_frame` DOES snapshot each bound VB/IB's *content* at end-of-kept-frame
+(`snap_vb`/`snap_ib`, content-hash dedup'd). So the replay reconstructs the geometry correctly
+**iff each buffer's end-of-frame content equals what every draw in that frame used** — i.e. no
+same-frame re-mutation of a reused buffer (the GX-03 invariant). Fail-closed, we have NOT
+proven that ⇒ VIOLATION. arrprobe's human-confirmed 1:1 pixels are EVIDENCE the invariant
+holds on this scene, not proof; GX-03 (per-draw resource versions) + GX-04 (wrap/version VB/IB)
+resolve it (or catch a real same-frame mutation).
+
+**Honest scope.** This SHARPENS arrprobe's M0 honest-FAIL: our most human-confirmed scene is
+visually 1:1 yet its capture is not PROVEN complete — now with a concrete mechanism (unwrapped
+VB/IB creation), not just ±1 sub-perceptual pixel noise. It does NOT say the pixels are wrong,
+and is DISTINCT from the known render_program FAIL (the b494 80-tri retail-only strip — a
+captured DRAW difference, not a completeness gap).
+
+**Count magnitude is NOT a parity signal.** retail 130 vs port 13 is EXPECTED: the counter is
+process-lifetime and retail runs the full title→intro→house load (more scenes ⇒ more buffers)
+the port skips. Completeness asks only "does the risk method fire at all" (both: yes); count
+EQUALITY would need a window-scoped counter + a different (equality) gate. A lead, not a fault.
+
+**NOT auto-wired into `parity_prove`.** The census is a standalone per-side gate today. Making
+capture-completeness a hard PRECONDITION on the pixels/render_program pillars (⇒ arrprobe's
+pixel/render → INCONCLUSIVE until GX-04) is an R3 policy step with wide blast radius (every 3D
+scene creates VB/IB) — deferred to GX-01-full / GX-03 / GX-04.
+
 ## Drift guard
 
 `test_d3d_census.py` re-parses the committed `proxy_generated.h` and asserts it matches the
@@ -116,8 +162,9 @@ unnoticed" (GX-00 acceptance).
 `tools/parity/d3d_census.py` (static verify/report + dynamic gate) · CLI
 `tools/d3d_census.py` (static: 0 match / 1 drift / 2 fatal; `--dynamic`: 0 SAFE / 1
 VIOLATION / 2 INCONCLUSIVE) · census `docs/schemas/d3d8-method-census-v1.json` · sidecar
-`v3cap.census.json` (proxy-emitted) · guard `tools/test_d3d_census.py` (63 checks). Next:
-the first live verdict — drive a real scene with the instrumented proxy, run `--dynamic` on
-each side's sidecar (thread the sidecar through the v3 cache alongside `v3cap.bin`) → the
-SAFE/VIOLATION answer that grounds each pixel/render PASS; then GX-02 implements any
-observed missing method (order = the risk subgroup that fired).
+`v3cap.census.json` (proxy-emitted, threaded through the v3 cache alongside `v3cap.bin`) ·
+guard `tools/test_d3d_census.py` (63 checks). Next: **GX-03/GX-04** (per-draw resource
+versions + wrap/version VB/IB) — the one risk subgroup the first verdict fired, the resolution
+that turns arrprobe's capture-completeness VIOLATION → SAFE (or catches a real same-frame
+re-mutation). Then the R3 policy call on wiring the census as a hard pixels/render_program
+precondition in `parity_prove` (GX-01-full).

@@ -412,13 +412,18 @@ def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
     # clear any stale prior entry so a shorter window can't leave orphan refs (and a
     # no-state re-drive can't leave a stale call_trace.jsonl behind fresh pixels)
     for f in [dest / "v3cap.bin", *dest.glob("v3ref_*.raw"),
-              dest / "v3refs.txt", dest / "v3meta.json", dest / "call_trace.jsonl"]:
+              dest / "v3refs.txt", dest / "v3meta.json", dest / "call_trace.jsonl",
+              dest / "v3cap.census.json"]:
         f.unlink(missing_ok=True)
     shutil.copy2(cap, dest / "v3cap.bin")
     for ref in sorted(src.glob("v3ref_*.raw")):
         shutil.copy2(ref, dest / ref.name)
     if (src / "v3refs.txt").exists():
         shutil.copy2(src / "v3refs.txt", dest / "v3refs.txt")
+    # GX-00 dynamic census: the proxy's per-forwarded-method call-count sidecar, so
+    # d3d_census.py --dynamic can gate this cached side (capture-completeness).
+    if (src / "v3cap.census.json").exists():
+        shutil.copy2(src / "v3cap.census.json", dest / "v3cap.census.json")
     if call_trace_path is not None and Path(call_trace_path).exists():
         _store_call_trace(Path(call_trace_path), dest / "call_trace.jsonl", kept_presents)
     (dest / "v3meta.json").write_text(json.dumps(asdict(ident), indent=1))

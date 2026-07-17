@@ -738,20 +738,23 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-00 — Device/resource method census
 
-> **✅ STATIC census LANDED 2026-07-17** — `../findings/gx00-d3d-method-census.md`;
-> census `../schemas/d3d8-method-census-v1.json`; `tools/parity/d3d_census.py` +
-> `tools/d3d_census.py` + `tools/test_d3d_census.py` (30 checks). All 113 vtable
-> methods (IDirect3D8 16, IDirect3DDevice8 97) classified recorded (23) / wrapper (6) /
-> query_only (45) / forwarded_irrelevant (6) / **render_affecting_unsupported (33 —
-> the fail-closed RISK set: Reset, SetViewport, state-blocks, ProcessVertices, shaders,
-> palettes, resource-creation, cursor)**. The whole roadmap high-risk seed list confirmed
-> forwarded-uncaptured; NEW lead — `SetPixelShader` FORWARDED while `SetVertexShader`
-> RECORDED. The drift guard asserts `proxy_generated.h`'s actual recorded/forwarded split
-> matches the census (a method flipping recorded↔forwarded, added, removed, or misclassified
-> fails) ⇒ "wrapper and generated-forwarder lists cannot drift unnoticed" (acceptance met).
-> **REMAINING:** the DYNAMIC census — "scenario capture emits census" (which risk methods are
-> actually CALLED; 0 observed ⇒ safe) — needs a proxy call-counter + a drive; then GX-01
-> record-or-fail policy.
+> **✅ STATIC + DYNAMIC census LANDED 2026-07-17 + first live verdict** —
+> `../findings/gx00-d3d-method-census.md`; census `../schemas/d3d8-method-census-v1.json`;
+> `tools/parity/d3d_census.py` + `tools/d3d_census.py` + `tools/test_d3d_census.py` (63
+> checks). **STATIC:** all 113 vtable methods (IDirect3D8 16, IDirect3DDevice8 97) classified
+> recorded (23) / wrapper (6) / query_only (45) / forwarded_irrelevant (6) /
+> **render_affecting_unsupported (33 — the fail-closed RISK set)**; whole roadmap high-risk
+> seed list confirmed forwarded-uncaptured; drift guard asserts `proxy_generated.h`'s
+> recorded/forwarded split matches the census (acceptance met). **DYNAMIC:** `gen_forwarders.py`
+> instruments all 84 `fwd_` thunks with a process-lifetime `InterlockedIncrement` (zero
+> hand-edits; recorded methods captured-by-construction); the proxy emits `v3cap.census.json`
+> per kept frame (threaded through the v3 cache). **First verdict — `house-firstcust-arrprobe`
+> [1,80] → VIOLATION both sides:** `CreateVertexBuffer`+`CreateIndexBuffer` are
+> forwarded-uncaptured (retail 130× / port 13× each), the other **31/33 risk methods
+> 0-observed** — a SURGICAL resource-creation gap = the GX-03/GX-04 hinge. Content IS
+> snapshotted late (`snap_vb`/`snap_ib`); the residual risk is same-frame re-mutation.
+> Sharpens arrprobe's M0 honest-FAIL with a concrete mechanism (not the expected SAFE — the
+> census earns its keep on our most-confirmed scene).
 
 - **Reasoning:** R2; R1 can generate forwarder tables/tests.
 - **Depends:** EP-02 for provenance, otherwise independent.
@@ -768,6 +771,18 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   and generated-forwarder lists cannot drift unnoticed.
 
 ### GX-01 — Approve record-or-fail policy
+
+> **◐ GATE MECHANISM LANDED 2026-07-17 (POST-HOC form)** —
+> `../findings/gx00-d3d-method-census.md` §"Dynamic census". `d3d_census.py --dynamic
+> <v3cap.census.json>` is the record-or-fail gate: exit 0 SAFE (every risk method
+> 0-observed), 1 VIOLATION (a render_affecting_unsupported method fired — names
+> method+count+subgroup), 2 INCONCLUSIVE (sidecar incomplete/drift, fail-closed).
+> Acceptance met via the negative test (a deliberate `SetViewport` cannot pass as a
+> complete capture). **REMAINING:** (a) the STRICTER in-proxy form — hard-terminate capture
+> on the FIRST render-affecting forwarded call, with args/frame/caller (needs a proxy build);
+> (b) the R3 policy call on wiring the census as a hard PRECONDITION on the pixels/
+> render_program pillars in `parity_prove` (blast radius: every 3D scene creates VB/IB ⇒
+> would flip them INCONCLUSIVE until GX-04) — deferred with GX-03/GX-04.
 
 - **Reasoning:** R3 for classification; R2 implementation.
 - **Depends:** GX-00.

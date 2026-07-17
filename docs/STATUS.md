@@ -195,16 +195,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   expansion (needs new RE + live introspection + R3 field-approval — a drive-capable-session task; the schema already
   groups every declared STATE_VA field, only 2 benign exclusions remain). Follow-up: the port `--state` sidecar
   re-slices on its next drive (un-gated-wide but join-correct).
-  **✅ GX-00 STATIC CENSUS LANDED 2026-07-17 — D3D8 capture completeness** (`findings/gx00-d3d-method-census.md`;
-  `schemas/d3d8-method-census-v1.json`; `tools/parity/d3d_census.py`+`tools/d3d_census.py`; commit pending). A
-  `pixels`/`render_program` PASS is only sound if every render-affecting D3D8 call was RECORDED; this censuses the
-  v3 proxy's 113 vtable methods → 23 recorded / 6 wrapper / 45 query-only / 6 irrelevant / **33
-  render_affecting_unsupported** (fail-closed RISK: Reset·SetViewport·state-blocks·ProcessVertices·shaders·palettes·
-  resource-creation·cursor — all forwarded-uncaptured). NEW lead: `SetPixelShader` forwarded while `SetVertexShader`
-  recorded. 30-check DRIFT GUARD (proxy split can't rot vs the census). NOT a regression of existing PASSes (static
-  risk surface, not a realized fault — a 2007 fixed-function title likely never calls most). **★ NEXT:** the DYNAMIC
-  census (proxy per-method call-counter emitted per scenario ⇒ 0-observed = safe) + GX-01 record-or-fail policy —
-  needs a proxy build + drive.
+  **✅ GX-00 STATIC + DYNAMIC CENSUS LANDED 2026-07-17 — D3D8 capture completeness + first live verdict**
+  (`findings/gx00-d3d-method-census.md`; `schemas/d3d8-method-census-v1.json`;
+  `tools/parity/d3d_census.py`+`tools/d3d_census.py`; commits `cac0840`+pending). A `pixels`/`render_program` PASS
+  is only sound if every render-affecting D3D8 call was RECORDED. **STATIC:** censuses the v3 proxy's 113 vtable
+  methods → 23 recorded / 6 wrapper / 45 query-only / 6 irrelevant / **33 render_affecting_unsupported** (fail-closed
+  RISK: Reset·SetViewport·state-blocks·ProcessVertices·shaders·palettes·resource-creation·cursor — forwarded-uncaptured);
+  lead `SetPixelShader` forwarded while `SetVertexShader` recorded. **DYNAMIC + GX-01 gate:** `gen_forwarders.py`
+  instruments all 84 `fwd_` thunks with a process-lifetime `InterlockedIncrement` (zero hand-edits; recorded =
+  captured-by-construction) → proxy emits `v3cap.census.json` per kept frame (threaded through the v3 cache);
+  `d3d_census.py --dynamic` gates it SAFE(0)/VIOLATION(1)/INCONCLUSIVE(2). **★ First verdict —
+  `house-firstcust-arrprobe` [1,80] → VIOLATION both sides** (NOT the expected SAFE — the census earns its keep on
+  our most-confirmed scene): `CreateVertexBuffer`+`CreateIndexBuffer` forwarded-uncaptured (retail 130×/port 13×
+  each), **31/33 risk methods 0-observed** (no Reset/SetViewport/state-blocks/shaders/cursor) — a SURGICAL
+  resource-creation gap = the **GX-03/GX-04 hinge**. Content IS snapshotted late (`snap_vb`/`snap_ib`); residual risk
+  is same-frame re-mutation. Sharpens arrprobe's M0 honest-FAIL with a concrete mechanism (distinct from the b494
+  render_program FAIL; count magnitude 130vs13 = process-lifetime scope, NOT a parity signal). 63-check guard incl.
+  the roadmap negative test (a deliberate `SetViewport` can't pass as complete). **★ NEXT:** GX-03/GX-04 (per-draw
+  resource versions + wrap/version VB/IB) — the one subgroup that fired; then the R3 call on wiring the census as a
+  hard pixels/render precondition in `parity_prove` (GX-01-full).
   **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
   (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
   **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a

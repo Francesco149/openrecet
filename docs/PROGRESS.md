@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — GX-00 dynamic D3D8 census + GX-01 gate — first live verdict = VIOLATION
+
+The static census (5120a25) named the 33 forwarded, render-affecting, UNCAPTURED D3D8
+methods (the RISK surface). This adds the DYNAMIC census — which of them a scene ACTUALLY
+calls — + the GX-01 record-or-fail gate, and RAN it on the M0 scene. Finding:
+`docs/findings/gx00-d3d-method-census.md`. Commits `cac0840` (mechanism+tests) + this.
+
+- **Proxy counter, zero hand-edits:** the 84 `fwd_` thunks are generated, so
+  `gen_forwarders.py` emits a stable `FWD_` enum + `volatile LONG g_fwd_calls[]` +
+  `g_fwd_names[]` and an `InterlockedIncrement` per thunk. Process-lifetime + unconditional
+  (device state persists ⇒ a risk call ANYWHERE up to the compared window desyncs the
+  replay). Recorded (`my_`) methods are captured-by-construction, no counter. `d3d8_proxy.c`
+  rewrites `v3cap.census.json` at each KEPT frame (mirrors the container `fflush`);
+  `v3cache.store()` threads it into the cache alongside `v3cap.bin`.
+- **Consumer + gate** (`d3d_census.py --dynamic`): SAFE (all risk 0-observed, exit 0) /
+  VIOLATION (a risk method fired, exit 1) / INCONCLUSIVE (sidecar incomplete/drift, exit 2,
+  fail-closed). query_only forwards (GetRenderState…) shown in the profile but never trip the
+  gate. +33 host checks (63/0) incl. the roadmap negative test (a deliberate `SetViewport`
+  can't pass as complete).
+- **★ First verdict — `house-firstcust-arrprobe` [1,80] → VIOLATION both sides** (the new
+  proxy hash re-keyed the EP-08 cache ⇒ both re-drove, 80/80 bit-exact). Only
+  `CreateVertexBuffer`+`CreateIndexBuffer` fire (retail 130×/port 13× each);
+  **31/33 risk methods 0-observed** (no Reset/SetViewport/state-blocks/shaders/cursor). A
+  SURGICAL resource-creation gap = the **GX-03/GX-04 hinge**: creation is forwarded-unwrapped,
+  but bound VB/IB *content* IS snapshotted late (`snap_vb`/`snap_ib`) ⇒ the residual risk is
+  same-frame re-mutation only. Sharpens arrprobe's M0 honest-FAIL with a concrete mechanism —
+  NOT the expected SAFE; the census earns its keep on our most human-confirmed scene. (Count
+  magnitude 130 vs 13 = process-lifetime scope / retail's longer load, NOT a parity signal.)
+- **Next:** GX-03/GX-04 (per-draw resource versions + wrap/version VB/IB); then the R3 call on
+  wiring the census as a hard pixels/render precondition in `parity_prove` (GX-01-full).
+
 ## 2026-07-17 — EP-07: human-review bridge (additive, non-hashed, verdict-preserving)
 
 A proof bundle carried an unused `human_review: null` stub in the HASHED core, so
