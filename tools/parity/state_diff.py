@@ -200,6 +200,14 @@ def build_report(paired_by_label: dict, schema: StateSchema,
     return report
 
 
+def ordered_frames_from_view(view_doc: dict) -> list[LogicalFrame]:
+    """The ordered both-sided logical frames a `--state` view holds (view order = the
+    join order) — the `required` list an ST-05 provenance attach needs when no contract
+    window scopes it."""
+    paired, _ = paired_state_from_view(view_doc)
+    return [LogicalFrame.from_label(lbl) for lbl in paired]
+
+
 def report_from_view_json(view_path, *, required=None,
                           schema: Optional[StateSchema] = None) -> dict:
     """Bridge a Trace Studio v3 `--state` `view.json` → the ST-04 report. When

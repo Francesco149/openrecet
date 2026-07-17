@@ -30,8 +30,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 import parity_prove  # noqa: E402  (contract/window helpers, ProveError)
-from parity import ObservationError, load_required  # noqa: E402
-from parity.observations import FAIL, PASS  # noqa: E402
+from parity import (  # noqa: E402
+    ObservationError,
+    attach_provenance,
+    load_mutation_stream,
+    load_required,
+    ordered_frames_from_view,
+)
+from parity.observations import FAIL, PASS, load_json  # noqa: E402
 from parity.state_diff import render_text, report_from_view_json  # noqa: E402
 
 # verdict → §4.1 tool exit code.
@@ -57,6 +63,13 @@ def main(argv=None) -> int:
                     help="external contract yaml (default: the scenario.yaml proof block)")
     ap.add_argument("--all-frames", action="store_true",
                     help="scan every both-sided state frame, ignoring the contract window")
+    ap.add_argument("--mutations", action="store_true",
+                    help="attach ST-05 mutation provenance from {port,retail}-state-mutation.json "
+                         "in the window dir (the WRITER behind the divergent leaf)")
+    ap.add_argument("--port-mutations", type=Path, default=None,
+                    help="explicit port mutation stream (overrides --mutations autodetect)")
+    ap.add_argument("--retail-mutations", type=Path, default=None,
+                    help="explicit retail mutation stream")
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
     args = ap.parse_args(argv)
 
@@ -82,6 +95,18 @@ def main(argv=None) -> int:
                     required = None
 
         report = report_from_view_json(view, required=required)
+
+        # ST-05: attach mutation provenance (the WRITER behind the divergent leaf) +
+        # the ordering-invariant check, when mutation streams are present.
+        port_mp = args.port_mutations or (
+            window_dir / "port-state-mutation.json" if args.mutations else None)
+        retail_mp = args.retail_mutations or (
+            window_dir / "retail-state-mutation.json" if args.mutations else None)
+        if port_mp and retail_mp and port_mp.exists() and retail_mp.exists():
+            req = required if required is not None else ordered_frames_from_view(load_json(view))
+            _, pms = load_mutation_stream(load_json(port_mp))
+            _, rms = load_mutation_stream(load_json(retail_mp))
+            attach_provenance(report, pms, rms, req)
     except (parity_prove.ProveError, ObservationError) as exc:
         if args.json:
             print(json.dumps({"error": str(exc), "exit_code": 2}, indent=1), file=sys.stderr)

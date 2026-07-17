@@ -575,6 +575,20 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### ST-05 — Define and capture semantic mutations
 
+> **✅ CONSUMER + DESIGN LANDED 2026-07-17** — `../reference/state-mutations.md`;
+> schema `../schemas/state-mutation-v1.json`; `tools/parity/state_mutation.py` +
+> `tools/test_state_mutation.py` (44 checks). Per rule 11 the CONSUMER lands before
+> the platform: the R3 mutation model (event shape + semantic/derived/noise class
+> gate + the grounded event catalog) + the consumer that RECONSTRUCTS a subtree
+> (idempotent/dedup), localizes the FIRST WRONG WRITE (cumulative per-frame value,
+> shared-start recovered from a write's `old`), enforces the **first-wrong-write ≤
+> first-state-root-divergence** ordering invariant (the ST-04/ST-05 link), and fills
+> ST-04's `first_divergence.provenance` seam (`state_diff.py --mutations`, host-tested
+> end-to-end). Acceptance met on the consumer axis. **DEFERRED remainder:** the Frida
+> post-write / TTD CAPTURE PLATFORM (named writers/hooks emitting `state-mutation.json`)
+> — lands when a scenario needs the provenance; owners are `attested-at-capture` (only
+> `save_slot_commit → FUN_004905a8` certain today).
+
 - **Reasoning:** R3 designs mutation semantics; R2 implements named writers/hooks.
 - **Depends:** ST-00, ST-04.
 - **Events:** gold, inventory quantity/slot, shop placement, day/time, flags, customer

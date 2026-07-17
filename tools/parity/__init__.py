@@ -55,7 +55,15 @@ from .render_program import from_view_json as render_metrics_from_view_json
 from .save import adapt_save
 from .state import adapt_state
 from .state_diff import build_report as build_state_diff_report
+from .state_diff import ordered_frames_from_view
 from .state_diff import report_from_view_json as state_diff_from_view_json
+from .state_mutation import (
+    attach_provenance,
+    check_ordering,
+    first_wrong_write,
+    load_stream as load_mutation_stream,
+    reconstruct_subtree,
+)
 from .state_producer import from_view_json as state_metrics_from_view_json
 from .state_map import Locus, StateMap, StateMapError
 
@@ -111,6 +119,13 @@ __all__ = [
     "state_metrics_from_view_json",
     "build_state_diff_report",
     "state_diff_from_view_json",
+    "ordered_frames_from_view",
+    # ST-05 semantic-mutation consumer
+    "load_mutation_stream",
+    "reconstruct_subtree",
+    "first_wrong_write",
+    "check_ordering",
+    "attach_provenance",
     "StateMap",
     "StateMapError",
     "Locus",

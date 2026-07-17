@@ -178,15 +178,27 @@ retail_bits `2709b5bc` port_bits `2309b5bc`** (the FRONT's documented ~3-ULP fac
 residual — 1-bit mantissa) + 23 co-divergent leaves listed, head-of-window ⇒ transition
 None. The report reads the SAME `--state` view.json `parity_state` does.
 
-## ★ NEXT — ST-05 / ST-06
+## ✅ ST-05 CONSUMER LANDED 2026-07-17 — semantic-mutation causal layer
 
-State PASSES at `[1,19]` (identity · save · state) and ST-04 drills any FAIL. Next:
-**ST-05** semantic mutation capture (name the WRITER/callsite behind a transition —
-fills ST-04's `provenance` seam; R3 designs mutation semantics), **ST-06** scene-by-scene
-subsystem expansion (arrprobe already exercises player/companion/dialogue; the picker is
-rng-only — title/config → shop/economy → town → dungeon → scripted). Follow-up
-(non-blocking): the port's `--state` sidecar re-slices on its next drive (currently
-un-gated-wide but join-correct).
+The layer BENEATH ST-04: names the WRITER behind a transition. Design + consumer +
+schema landed; the Frida/TTD CAPTURE PLATFORM is deferred behind it (rule 11).
+`docs/reference/state-mutations.md` · `docs/schemas/state-mutation-v1.json` ·
+`tools/parity/state_mutation.py` · `tools/test_state_mutation.py` (44 checks). The R3
+class gate (semantic/derived/noise), subtree RECONSTRUCTION (idempotent/dedup), FIRST
+WRONG WRITE localization (cumulative per-frame value; shared window-start recovered from
+a write's `old` ⇒ a one-sided write is a real divergence), the **first-wrong-write ≤
+first-state-root-divergence** ordering invariant, and the fill of ST-04's
+`first_divergence.provenance` seam (`state_diff.py --mutations`, host-tested end-to-end).
+
+## ★ NEXT — ST-05 platform / ST-06
+
+The ST-05 CAPTURE PLATFORM (Frida post-write / TTD writers emitting `state-mutation.json`;
+owners `attested-at-capture`, only `save_slot_commit → FUN_004905a8` certain today) —
+lands when a scenario needs the provenance. **ST-06** scene-by-scene subsystem expansion
+needs new RE + live introspection + R3 field-meaning approval (the schema already groups
+every declared STATE_VA field — only the 2 benign exclusions remain — so expansion is a
+drive-capable-session task, not a no-drive one). Follow-up (non-blocking): the port's
+`--state` sidecar re-slices on its next drive (currently un-gated-wide but join-correct).
 
 ## Tooling
 

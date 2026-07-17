@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "_note": "ST-05 canonical SEMANTIC-MUTATION model (roadmap parity-evidence §7 ST-05). A mutation is a single named WRITE to a canonical-state field — the causal, per-write layer BENEATH the per-frame state pillar (state-volatile-v1.json) and the persistent save pillar (state-map-v1.json). Where those pillars answer 'is the state EQUAL each frame / on disk?', a mutation stream answers 'WHICH write first diverged, and who wrote it?' — it fills ST-04's first_divergence.provenance seam (the WRITER behind a transition). Consumed by tools/parity/state_mutation.py; the R3 design + rationale live in docs/reference/state-mutations.md. This file is the R3 CONTRACT: the frozen event shape + the semantic/derived/noise class gate + the grounded event catalog. The CAPTURE PLATFORM (Frida post-write hooks / TTD) is deferred behind this consumer (roadmap rule 11 — build consumers before platforms); a producer emits events in THIS shape.",
+
+  "event_shape": {
+    "logical_frame": "[anchor:str, occurrence:int>=1, offset:int] — WHEN (the identity join key, roadmap §4.2; never an absolute present index).",
+    "seq":          "int >= 0 — intra-frame ordering when a field is written more than once in one logical frame (the NET per-frame value = the highest-seq write).",
+    "path":         "str — WHAT: a canonical-state path, either a VOLATILE 'subsystem/field' (state-volatile-v1.json, e.g. customer_service/gold) or a PERSISTENT region path (state-map-v1.json Locus.path(), e.g. bank0/gold, bank0/closeness[37], header/last_slot_used). The mutation localizes to the SAME tree the state/save pillars compare, so a mutation and a state-root divergence share one vocabulary.",
+    "class":        "str — the R3 gate: 'semantic' | 'derived' | 'noise' (see `classes`).",
+    "type":         "str — the codec type of old/new: i32 | u32 | hex | f32 (state_codec.encode_value). Bytes, not repr, are compared — a signed/unsigned skew across capture paths can't read as a divergence.",
+    "old":          "number|null — the value BEFORE the write (null when unobserved, e.g. the first write of a window). Typed by `type`.",
+    "new":          "number — the value AFTER the write. Typed by `type`.",
+    "owner_va":     "str hex — the FUNCTION that performed the write (post-write observation at a known owner). The provenance ST-04 lacks.",
+    "callsite_va":  "str hex OPTIONAL — the call site that invoked the owner, when captured."
+  },
+
+  "classes": {
+    "semantic": "A real game-state change the port must reproduce bit-for-bit: gold, inventory quantity/slot, shop placement, day/time, a story/event flag, customer closeness, a news entry, loot, HP/status, a VM PC/stack step, a save-slot commit. ALWAYS compared. The first semantic write that diverges port↔retail is the FIRST WRONG WRITE — and, if the stream is complete for that field, it precedes-or-equals the field's state-root divergence (the ST-04/ST-05 ordering invariant).",
+    "derived":  "A value COMPUTED from semantic state — a cached total, a checksum, a re-derived index. Compared by default (a correct port derives it identically once its semantic inputs match), but a derived-only divergence points UPSTREAM to a semantic input, not to a real logic gap at the derived field. Never the root cause on its own.",
+    "noise":    "A capture-origin / nondeterministic write with a per-side origin — the volatile analogue of the state pillar's benign exclusions (rngcalls' hook-install origin, an uninitialized-padding write, a pointer/handle). EXCLUDED from comparison (like a benign field). An event is 'noise' ONLY with an R3-recorded reason; a mutation of unknown class is NOT noise — it is a STOP for R3 (roadmap §2), never silently dropped."
+  },
+
+  "policy": {
+    "comparison": "first_wrong_write compares the NET per-(logical_frame, path) value (the highest-seq `new`) of the COMPARED classes {semantic, derived}, walking frames in JOIN order; the first (frame, path) whose net bytes differ — or that one side wrote and the other did not — is the first wrong write. Per-frame net (not raw seq order) matches the state pillar's per-frame root granularity, so the two localizers agree.",
+    "reconstruction": "A mutation stream RECONSTRUCTS a selected subtree: replay the compared classes in join order, keep the last `new` per path under the subtree prefix ⇒ the subtree's value at a frame. Verified against the captured per-frame state (state pillar) — every WRITTEN path's reconstructed value must equal the captured value (a completeness check on the stream). A field never written in-window is not reconstructable from mutations alone (correctly — no write ⇒ it holds its window-start value).",
+    "idempotence": "Re-observing the same (logical_frame, seq, path, new) is a no-op — a post-write hook that fires twice, or a batched + per-write observation of one store, must not double-apply. Dedup key = (logical_frame, seq, path).",
+    "ordering_invariant": "If the mutation stream is complete for a field, the FIRST WRONG WRITE to that field precedes-or-equals the field's FIRST STATE-ROOT divergence frame (ST-04). A first-wrong-write AFTER the state already diverged means the stream MISSED the causal write ⇒ INCONCLUSIVE (an incomplete capture), never a pass.",
+    "provenance": "A first wrong write whose `path` matches an ST-04 divergent leaf fills that leaf's `first_divergence.provenance` = {owner_va, callsite_va, old, new, seq} — the WRITER ST-04 leaves null."
+  },
+
+  "semantic_events": {
+    "_note": "The roadmap §7 ST-05 event list, each anchored to its canonical-state path family. `owner` is the writing function where CERTAIN (else 'attested-at-capture' — an R1 backfill as the Frida post-write hook lands; NEVER fabricate a VA). This catalog is the R3 definition of WHAT a semantic mutation is; it does not itself capture anything.",
+    "gold":                {"paths": ["bank*/gold", "customer_service/gold"], "owner": "attested-at-capture", "note": "shop gold; a sale accept adds ask, a buy subtracts price."},
+    "inventory":           {"paths": ["bank*/item_slot_table", "bank*/item_count", "bank*/display_grid"], "owner": "attested-at-capture", "note": "item slot quantity + the shop display grid placement."},
+    "shop_placement":      {"paths": ["bank*/display_grid", "bank*/shop_display_tier_selector"], "owner": "attested-at-capture"},
+    "day_time":            {"paths": ["bank*/card_day", "bank*/day_index", "bank*/week_counter", "phase/db054"], "owner": "attested-at-capture", "note": "day advance (iv2_2 fb84++)."},
+    "flag":                {"paths": ["bank*/event_flag", "bank*/event_day", "header/hidden_char_unlocked"], "owner": "attested-at-capture", "note": "story/tutorial flags (f402/f404/f406 → the event_flag byte region)."},
+    "closeness":           {"paths": ["bank*/closeness", "customer_service/b590"], "owner": "attested-at-capture", "note": "per-candidate closeness (lo x10) + loyalty level (RE §23)."},
+    "news":                {"paths": ["bank*/news_list", "bank*/news_latch", "bank*/news_pairs", "bank*/news_hl_text"], "owner": "attested-at-capture", "note": "daily news generator FUN_00436623 (news-daily-RE.md)."},
+    "encyclopedia":        {"paths": ["bank*/encyclopedia_discovery", "bank*/encyc_sold"], "owner": "attested-at-capture", "note": "図鑑 discovery store FUN_0049f012 (quirk #133)."},
+    "merchant_exp":        {"paths": ["bank*/merchant_exp", "bank*/char_level"], "owner": "attested-at-capture"},
+    "score_rank":          {"paths": ["bank*/score", "bank*/rank_threshold", "bank*/objective_gold"], "owner": "attested-at-capture"},
+    "loot":                {"paths": [], "owner": "attested-at-capture", "note": "dungeon loot — not yet in the persistent map (ST-06 dungeon expansion)."},
+    "hp_status":           {"paths": [], "owner": "attested-at-capture", "note": "combat HP/status — not yet mapped (ST-06 dungeon expansion)."},
+    "vm_pc":               {"paths": ["customer_service/b5a0", "dialogue_house/scene7a2c", "dialogue_intro/line_row"], "owner": "attested-at-capture", "note": "scripted-machine / dialogue VM program counter."},
+    "save_slot_commit":    {"paths": ["bank*"], "owner": "0x004905a8", "note": "save_io_commit_slot (FUN_004905a8, parity-proof-index scenario-pillar-proven) — the whole active bank hits disk; the coarsest semantic write."}
+  }
+}

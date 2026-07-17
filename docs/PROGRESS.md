@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — ST-05: semantic-mutation CONSUMER (the causal layer under the state pillars)
+
+The layer BENEATH ST-04: a mutation is a named WRITE to a canonical-state field; a stream answers "which write first
+diverged, and WHO wrote it?" — the provenance ST-04 leaves null. Per roadmap rule 11 (build consumers before
+platforms) the CONSUMER + R3 design land BEFORE the Frida/TTD capture platform. `docs/reference/state-mutations.md`
+(R3 design) + `docs/schemas/state-mutation-v1.json` (frozen event shape + the semantic/derived/noise class gate +
+the grounded event catalog) + `tools/parity/state_mutation.py` + `tools/test_state_mutation.py` (44 checks).
+
+- **Class gate (R3):** semantic (always compared) / derived (compared, points upstream) / noise (excluded, only with
+  a reason). An unknown-class mutation is a STOP for R3, never silently dropped.
+- **Reconstruct** a subtree (replay compared classes, last-write-wins; idempotent — a hook firing twice or a
+  batched+per-write observation doesn't double-apply; a conflicting double-observation raises). `verify_reconstruction`
+  cross-checks it against the state pillar's captured per-frame fields.
+- **First wrong write** by CUMULATIVE per-frame value: an unwritten path holds the shared window-start (recovered from
+  a write's `old`), so a one-sided write IS a real divergence (value / port-missing / port-extra). Noise never triggers.
+- **Ordering invariant (the ST-04/ST-05 link):** first-wrong-write ≤ first-state-root-divergence; a wrong write AFTER
+  the state diverged ⇒ the stream missed the causal write ⇒ INCONCLUSIVE, never a pass.
+- **Fills ST-04's provenance seam:** `attach_provenance` sets `first_divergence.provenance = {owner_va, callsite_va,
+  old, new, …}` + the ordering check; reachable via `state_diff.py --mutations`, host-tested end-to-end (a diverging-
+  gold window + matching streams → the writer VA on the leaf).
+
+DEFERRED (rule 11): the Frida post-write / TTD capture PLATFORM (named writers emitting `state-mutation.json`) — lands
+when a scenario needs the provenance; owners are `attested-at-capture` (only `save_slot_commit → FUN_004905a8` certain).
+
 ## 2026-07-17 — ST-04: first-divergence state report (the `state` pillar's drill-in)
 
 The DIAGNOSTIC sibling of the `state` ADAPTER (`state.py`): the adapter grades the pillar PASS/FAIL for the proof

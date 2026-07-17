@@ -182,9 +182,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   fail-closed §4.1 verdict, a test proves it AGREES with `adapt_state`; `provenance:null` seam for ST-05. VERIFIED:
   `house-pause-save-commit` **PASS 200/200**; `house-firstcust-arrprobe` **FAIL @ `LOADING_START#1+0 companion/cx`**
   retail_bits `2709b5bc`/port `2309b5bc` (the documented ~3-ULP facing residual — 1 mantissa bit) + 23 co-divergent.
-  **★ NEXT:** ST-05 mutation capture (name the WRITER behind a transition — fills ST-04's provenance seam; R3 design)
-  + ST-06 scene-by-scene subsystem expansion (the port `--state` sidecar re-slices on its next drive — currently
-  un-gated-wide but join-correct).
+  **✅ ST-05 CONSUMER LANDED 2026-07-17 — semantic-mutation causal layer** (`findings/parity-state-producer.md`
+  §"ST-05 CONSUMER LANDED"; `reference/state-mutations.md`; commit pending). The layer BENEATH ST-04 — names the
+  WRITER behind a transition. Per rule 11 the CONSUMER lands before the platform: R3 mutation model (event shape +
+  semantic/derived/noise class gate + grounded event catalog, `schemas/state-mutation-v1.json`) + the consumer
+  (`tools/parity/state_mutation.py`) that RECONSTRUCTS a subtree (idempotent/dedup), localizes the FIRST WRONG WRITE
+  (cumulative per-frame value; shared window-start recovered from a write's `old` ⇒ a one-sided write IS a real
+  divergence), enforces **first-wrong-write ≤ first-state-root-divergence** (the ST-04/ST-05 link), + fills ST-04's
+  `provenance:null` seam (`state_diff.py --mutations`, host-tested end-to-end). 44-check gate. **DEFERRED:** the Frida
+  post-write/TTD CAPTURE PLATFORM (owners `attested-at-capture`; only `save_slot_commit→FUN_004905a8` certain).
+  **★ NEXT:** the ST-05 capture platform (lands when a scenario needs provenance) + ST-06 scene-by-scene subsystem
+  expansion (needs new RE + live introspection + R3 field-approval — a drive-capable-session task; the schema already
+  groups every declared STATE_VA field, only 2 benign exclusions remain). Follow-up: the port `--state` sidecar
+  re-slices on its next drive (un-gated-wide but join-correct).
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still
