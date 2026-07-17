@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "_note": "GX-06 graphics-capture regression corpus (roadmap parity-evidence-roadmap.md §9 GX-06). Consumed by tools/parity/gx_corpus.py; the gate tools/gx_corpus.py proves every RECORDED D3D8 container opcode (orv3_format.h / the census recorded set) is covered on TWO axes: (1) a FIXTURE — a synthetic standalone D3D8 exe that exercises the opcode + replays BIT-EXACT (gx0{4,5,6_*}, verified live by test_gx0*_fixture.py); (2) a REAL PROOF — a real cached scenario whose captured container CONTAINS the opcode and passes v3verify bit-exact. Fail-closed: EVERY recorded opcode needs a fixture; every OBSERVED opcode (present in >=1 bit-exact real proof) needs a real proof too; a supported-but-UNOBSERVED opcode (0 occurrences in every cached scene) is fixture-only + recorded honestly (no real proof exists). The `opcodes`/`surfrefs`/`verify` fields on fixtures + real_proofs are ATTESTATIONS: the fast gate trusts them (no caches / no replay.exe, always runnable in the host suite); `tools/gx_corpus.py --verify` re-parses each real-proof container + re-runs v3verify + re-runs each fixture and re-STAMPS them, so the attestation cannot silently rot. Coverage unit = the container OPCODE, tied to the census recorded method(s) it captures via opcode_methods (drift-guarded: every census-recorded method must be captured by >=1 opcode or SURFREF kind, and every mapped method must actually be recorded in the census).",
+
+  "opcode_methods": {
+    "DEV_PARAMS":             ["IDirect3D8.CreateDevice"],
+    "RES_TEX":                ["IDirect3DDevice8.CreateTexture"],
+    "RES_VB":                 ["IDirect3DDevice8.CreateVertexBuffer", "IDirect3DVertexBuffer8.Lock", "IDirect3DVertexBuffer8.Unlock"],
+    "RES_IB":                 ["IDirect3DDevice8.CreateIndexBuffer", "IDirect3DIndexBuffer8.Lock", "IDirect3DIndexBuffer8.Unlock"],
+    "RES_RT_TEX":             ["IDirect3DDevice8.CreateTexture"],
+    "SetRenderState":         ["IDirect3DDevice8.SetRenderState"],
+    "SetTextureStageState":   ["IDirect3DDevice8.SetTextureStageState"],
+    "SetTransform":           ["IDirect3DDevice8.SetTransform"],
+    "SetMaterial":            ["IDirect3DDevice8.SetMaterial"],
+    "SetTexture":             ["IDirect3DDevice8.SetTexture"],
+    "SetStreamSource":        ["IDirect3DDevice8.SetStreamSource"],
+    "SetIndices":             ["IDirect3DDevice8.SetIndices"],
+    "SetVertexShader":        ["IDirect3DDevice8.SetVertexShader"],
+    "DrawPrimitive":          ["IDirect3DDevice8.DrawPrimitive"],
+    "DrawIndexedPrimitive":   ["IDirect3DDevice8.DrawIndexedPrimitive"],
+    "DrawPrimitiveUP":        ["IDirect3DDevice8.DrawPrimitiveUP"],
+    "DrawIndexedPrimitiveUP": ["IDirect3DDevice8.DrawIndexedPrimitiveUP"],
+    "Clear":                  ["IDirect3DDevice8.Clear"],
+    "SetLight":               ["IDirect3DDevice8.SetLight"],
+    "LightEnable":            ["IDirect3DDevice8.LightEnable"],
+    "BeginScene":             ["IDirect3DDevice8.BeginScene"],
+    "EndScene":               ["IDirect3DDevice8.EndScene"],
+    "Present":                ["IDirect3DDevice8.Present"],
+    "SetRenderTarget":        ["IDirect3DDevice8.SetRenderTarget"],
+    "CopyRects":              ["IDirect3DDevice8.CopyRects"]
+  },
+
+  "surfref_methods": {
+    "_note": "SURFREF kinds are the [kind] half of a surface citation in SetRenderTarget/CopyRects (orv3_format.h). Only BACKBUFFER stands in for a distinct RECORDED method (GetBackBuffer, which has no opcode of its own — its effect is the SURFREF machinery). DEPTH/TEX/NULL are proxy classifications of the bound surface (GetDepthStencilSurface is query_only; TEX is resolved via GetContainer/GetSurfaceLevel), not standalone recorded methods — so they carry no method but still need corpus coverage for RT completeness.",
+    "NULL":       [],
+    "BACKBUFFER": ["IDirect3DDevice8.GetBackBuffer"],
+    "DEPTH":      [],
+    "TEX":        []
+  },
+
+  "fixtures": [
+    {
+      "name": "gx06_sink_fixture",
+      "test": "tools/trace_studio_v3/test_gx06_sink_fixture.py",
+      "desc": "kitchen-sink: every non-RT recorded opcode in one lit+textured+transformed frame",
+      "opcodes": ["DEV_PARAMS", "RES_TEX", "RES_VB", "RES_IB", "SetRenderState", "SetTextureStageState",
+        "SetTransform", "SetMaterial", "SetTexture", "SetStreamSource", "SetIndices", "SetVertexShader",
+        "DrawPrimitive", "DrawIndexedPrimitive", "DrawPrimitiveUP", "DrawIndexedPrimitiveUP",
+        "Clear", "SetLight", "LightEnable", "BeginScene", "EndScene", "Present"],
+      "surfrefs": []
+    },
+    {
+      "name": "gx06_rt_fixture",
+      "test": "tools/trace_studio_v3/test_gx06_rt_fixture.py",
+      "desc": "render-target: RES_RT_TEX/SetRenderTarget/CopyRects + all four SURFREF kinds",
+      "opcodes": ["DEV_PARAMS", "RES_RT_TEX", "SetRenderState", "SetTextureStageState", "SetTexture",
+        "SetVertexShader", "DrawPrimitiveUP", "Clear", "BeginScene", "EndScene", "Present",
+        "SetRenderTarget", "CopyRects"],
+      "surfrefs": ["NULL", "BACKBUFFER", "DEPTH", "TEX"]
+    },
+    {
+      "name": "gx04_fixture",
+      "test": "tools/trace_studio_v3/test_gx04_fixture.py",
+      "desc": "VB same-frame mutation SPLIT/DEDUP (deeper than presence — the freeze-at-bind property)",
+      "opcodes": ["DEV_PARAMS", "RES_VB", "SetRenderState", "SetVertexShader", "SetStreamSource",
+        "DrawPrimitive", "Clear", "BeginScene", "EndScene", "Present"],
+      "surfrefs": []
+    },
+    {
+      "name": "gx05_fixture",
+      "test": "tools/trace_studio_v3/test_gx05_fixture.py",
+      "desc": "byte-compare dedup: a forced FNV-64 collision keeps distinct VB contents distinct",
+      "opcodes": ["DEV_PARAMS", "RES_VB", "SetRenderState", "SetVertexShader", "SetStreamSource",
+        "DrawPrimitive", "Clear", "BeginScene", "EndScene", "Present"],
+      "surfrefs": []
+    }
+  ],
+
+  "real_proofs": [
+    {
+      "scenario": "title-encyclopedia",
+      "cache_key": "title-encyclopedia-2e985fd4",
+      "side": "retail",
+      "regime": "2D title menu",
+      "verify": "REPLAY_EXACT",
+      "frames": "120/120",
+      "verified_at": "2026-07-17",
+      "opcodes": ["DEV_PARAMS", "RES_TEX", "SetRenderState", "SetTextureStageState", "SetTexture",
+        "SetVertexShader", "DrawPrimitiveUP", "Clear", "BeginScene", "EndScene", "Present"],
+      "surfrefs": []
+    },
+    {
+      "scenario": "house-firstcust-arrprobe",
+      "cache_key": "house-firstcust-arrprobe-30d6b8614a0152f21f2c9961b79d9edd",
+      "side": "retail",
+      "regime": "HOUSE 3D static+dynamic geometry (the M0 scene)",
+      "verify": "REPLAY_EXACT",
+      "frames": "1500/1500",
+      "verified_at": "2026-07-17",
+      "opcodes": ["DEV_PARAMS", "RES_TEX", "RES_VB", "RES_IB", "SetRenderState", "SetTextureStageState",
+        "SetTransform", "SetMaterial", "SetTexture", "SetStreamSource", "SetIndices", "SetVertexShader",
+        "DrawIndexedPrimitive", "DrawPrimitiveUP", "Clear", "SetLight", "LightEnable",
+        "BeginScene", "EndScene", "Present"],
+      "surfrefs": []
+    },
+    {
+      "scenario": "house-pause",
+      "cache_key": "house-pause-f1bf56e7",
+      "side": "retail",
+      "regime": "render target (pause backdrop render-to-texture)",
+      "verify": "REPLAY_EXACT",
+      "frames": "240/240",
+      "verified_at": "2026-07-17",
+      "opcodes": ["DEV_PARAMS", "RES_TEX", "RES_VB", "RES_IB", "RES_RT_TEX", "SetRenderState",
+        "SetTextureStageState", "SetTransform", "SetMaterial", "SetTexture", "SetStreamSource",
+        "SetIndices", "SetVertexShader", "DrawIndexedPrimitive", "DrawPrimitiveUP", "Clear",
+        "SetLight", "LightEnable", "BeginScene", "EndScene", "Present", "SetRenderTarget"],
+      "surfrefs": ["NULL", "BACKBUFFER", "DEPTH", "TEX"]
+    }
+  ],
+
+  "unobserved_note": "DrawPrimitive, DrawIndexedPrimitiveUP, CopyRects are RECORDED/supported but appear in 0 of 134 cached containers (32 scenario names, both sides, ~14.6 GB; sweep 2026-07-17). The engine's captured stream uses only DrawIndexedPrimitive + DrawPrimitiveUP and renders the pause backdrop via SetRenderTarget re-render (never a CopyRects screen-capture). These are fixture-only in the corpus; if a future scene emits one, --verify surfaces it as newly-observed and it then requires a real proof."
+}
