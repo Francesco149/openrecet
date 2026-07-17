@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — GX-00: D3D8 method census (capture completeness)
+
+A `pixels`/`render_program` pillar is only sound if EVERY render-affecting D3D8 call the game makes was RECORDED — a
+replay reconstructs the frame from the captured command stream, so a render-affecting call the proxy silently
+FORWARDS would make the replay diverge and a pixel PASS over that scene unsound. GX-00 censuses the v3 proxy's every
+vtable slot. `docs/findings/gx00-d3d-method-census.md` + `docs/schemas/d3d8-method-census-v1.json` (R3 classification)
++ `tools/parity/d3d_census.py` + `tools/d3d_census.py` + `tools/test_d3d_census.py` (30 checks).
+
+- **The split:** IDirect3D8 16 methods (4 recorded / 12 forwarded), IDirect3DDevice8 97 (25 / 72). Classified (113):
+  23 recorded · 6 wrapper_lifetime · 45 query_only · 6 forwarded_irrelevant · **33 render_affecting_unsupported**.
+- **The RISK set (33, fail-closed):** forwarded, render-affecting, UNCAPTURED — Reset, SetViewport, SetClipPlane,
+  MultiplyTransform, SetGammaRamp, UpdateTexture, resource-creation (Create{Vertex,Index}Buffer / RenderTarget / …),
+  state-blocks (Begin/End/Apply/Capture/Create), ProcessVertices, shaders (Create/SetVertexShaderConstant,
+  Create/Set/SetPixelShaderConstant), palettes, cursor, higher-order patches. The whole roadmap high-risk seed list
+  confirmed forwarded-uncaptured.
+- **NEW lead:** `SetPixelShader` is FORWARDED while `SetVertexShader` is RECORDED — a capture-completeness asymmetry
+  (the proxy catches a VS/FVF change but would miss a PS bind).
+- **Drift guard:** `test_d3d_census.py` asserts `proxy_generated.h`'s actual recorded/forwarded split matches the
+  census exactly — a method flipping recorded↔forwarded (e.g. GX-02 recording one), or a d3d8.h/gen_forwarders
+  add/remove, fails until the census follows. "Lists cannot drift unnoticed" (GX-00 acceptance).
+- **NOT a regression of existing PASSes** — this is the static risk SURFACE, not a realized fault; a 2007
+  fixed-function DX8 title likely never calls most. The DYNAMIC census (proxy call-counter per scenario; 0 observed ⇒
+  safe) resolves each — the GX-00 follow-up (needs a drive), then GX-01 record-or-fail.
+
 ## 2026-07-17 — ST-05: semantic-mutation CONSUMER (the causal layer under the state pillars)
 
 The layer BENEATH ST-04: a mutation is a named WRITE to a canonical-state field; a stream answers "which write first

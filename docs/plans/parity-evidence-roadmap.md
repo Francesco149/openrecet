@@ -718,6 +718,21 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-00 — Device/resource method census
 
+> **✅ STATIC census LANDED 2026-07-17** — `../findings/gx00-d3d-method-census.md`;
+> census `../schemas/d3d8-method-census-v1.json`; `tools/parity/d3d_census.py` +
+> `tools/d3d_census.py` + `tools/test_d3d_census.py` (30 checks). All 113 vtable
+> methods (IDirect3D8 16, IDirect3DDevice8 97) classified recorded (23) / wrapper (6) /
+> query_only (45) / forwarded_irrelevant (6) / **render_affecting_unsupported (33 —
+> the fail-closed RISK set: Reset, SetViewport, state-blocks, ProcessVertices, shaders,
+> palettes, resource-creation, cursor)**. The whole roadmap high-risk seed list confirmed
+> forwarded-uncaptured; NEW lead — `SetPixelShader` FORWARDED while `SetVertexShader`
+> RECORDED. The drift guard asserts `proxy_generated.h`'s actual recorded/forwarded split
+> matches the census (a method flipping recorded↔forwarded, added, removed, or misclassified
+> fails) ⇒ "wrapper and generated-forwarder lists cannot drift unnoticed" (acceptance met).
+> **REMAINING:** the DYNAMIC census — "scenario capture emits census" (which risk methods are
+> actually CALLED; 0 observed ⇒ safe) — needs a proxy call-counter + a drive; then GX-01
+> record-or-fail policy.
+
 - **Reasoning:** R2; R1 can generate forwarder tables/tests.
 - **Depends:** EP-02 for provenance, otherwise independent.
 - **Touches:** `tools/trace_studio_v3/proxy/d3d8_proxy.c`,

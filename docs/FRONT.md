@@ -164,6 +164,16 @@
   expansion (needs new RE + live introspection + R3 field-approval — a drive-capable-session task; the schema already
   groups every declared STATE_VA field, only 2 benign exclusions remain). Follow-up: the port `--state` sidecar
   re-slices on its next drive (un-gated-wide but join-correct).
+  **✅ GX-00 STATIC CENSUS LANDED 2026-07-17 — D3D8 capture completeness** (`findings/gx00-d3d-method-census.md`;
+  `schemas/d3d8-method-census-v1.json`; `tools/parity/d3d_census.py`+`tools/d3d_census.py`; commit pending). A
+  `pixels`/`render_program` PASS is only sound if every render-affecting D3D8 call was RECORDED; this censuses the
+  v3 proxy's 113 vtable methods → 23 recorded / 6 wrapper / 45 query-only / 6 irrelevant / **33
+  render_affecting_unsupported** (fail-closed RISK: Reset·SetViewport·state-blocks·ProcessVertices·shaders·palettes·
+  resource-creation·cursor — all forwarded-uncaptured). NEW lead: `SetPixelShader` forwarded while `SetVertexShader`
+  recorded. 30-check DRIFT GUARD (proxy split can't rot vs the census). NOT a regression of existing PASSes (static
+  risk surface, not a realized fault — a 2007 fixed-function title likely never calls most). **★ NEXT:** the DYNAMIC
+  census (proxy per-method call-counter emitted per scenario ⇒ 0-observed = safe) + GX-01 record-or-fail policy —
+  needs a proxy build + drive.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

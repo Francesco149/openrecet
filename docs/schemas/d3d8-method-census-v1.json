@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "_note": "GX-00 D3D8 device/resource method census (roadmap parity-evidence §9 GX-00). The v3 capture proxy (tools/trace_studio_v3/proxy/) wraps IDirect3D8 + IDirect3DDevice8; each vtable slot is either INTERCEPTED (a hand-written my_<Iface>_<Name> that records the call into the container) or a generated PASS-THROUGH forwarder (fwd_<Iface>_<Name>, proxy_generated.h). This file is the R3 CENSUS: every method's capture_class, so a render-affecting method that is silently forwarded (uncaptured) cannot hide — the truthful-evidence prerequisite for a sound `pixels`/`render_program` pillar (a replay is only complete if every render-affecting call the game makes was recorded). Consumed by tools/parity/d3d_census.py; the drift guard tools/test_d3d_census.py asserts proxy_generated.h's actual recorded/forwarded split matches this census (a method flipping recorded<->forwarded, or added/removed by a d3d8.h/gen_forwarders change, fails the test). This is the STATIC census (which methods CAN affect pixels); the DYNAMIC census (which are actually CALLED in a capture — 0 observed => safe, >0 => must record-or-fail) is the GX-00 follow-up that needs a proxy call-counter + a drive. Classification policy (GX-01) is FAIL-CLOSED: a forwarded method that CAN alter future pixels/resources/device state is `render_affecting_unsupported` (a capture-completeness RISK), never `forwarded_irrelevant`, unless proven visually inert.",
+
+  "capture_classes": {
+    "recorded": "a my_ interceptor records the call's render effect into the container (draws, fixed-function state setters, Clear/Present, SetRenderTarget/CopyRects, CreateTexture, CreateDevice params). The replay reproduces it.",
+    "wrapper_lifetime": "a my_ interceptor for COM plumbing only (QueryInterface/AddRef/Release) — needed to keep the wrapper identity, no render effect, nothing to replay.",
+    "query_only": "a forwarded READ (Get*/Check*/Test*/Validate*/GetInfo) — returns info, changes no device state, cannot affect future pixels. Safe to forward.",
+    "forwarded_irrelevant": "a forwarded call proven visually inert (pure memory/handle management — ResourceManagerDiscardBytes, a Delete* that frees a handle, RegisterSoftwareDevice). Safe to forward.",
+    "render_affecting_unsupported": "a forwarded call that CAN alter future pixels / resources / device state but is NOT recorded — a capture-completeness RISK. If the game calls one, the replay may diverge silently. GX-01 must make these record-or-FAIL; GX-02 implements the ones actually observed. Fail-closed default for anything render-affecting."
+  },
+
+  "mode_of_class": {
+    "recorded": "recorded",
+    "wrapper_lifetime": "recorded",
+    "query_only": "forwarded",
+    "forwarded_irrelevant": "forwarded",
+    "render_affecting_unsupported": "forwarded"
+  },
+
+  "interfaces": {
+    "IDirect3D8": {
+      "wrapper_lifetime": ["QueryInterface", "AddRef", "Release"],
+      "recorded": ["CreateDevice"],
+      "query_only": ["GetAdapterCount", "GetAdapterIdentifier", "GetAdapterModeCount",
+        "EnumAdapterModes", "GetAdapterDisplayMode", "CheckDeviceType", "CheckDeviceFormat",
+        "CheckDeviceMultiSampleType", "CheckDepthStencilMatch", "GetDeviceCaps", "GetAdapterMonitor"],
+      "forwarded_irrelevant": ["RegisterSoftwareDevice"],
+      "render_affecting_unsupported": []
+    },
+    "IDirect3DDevice8": {
+      "wrapper_lifetime": ["QueryInterface", "AddRef", "Release"],
+      "recorded": ["Present", "GetBackBuffer", "CreateTexture", "CopyRects", "SetRenderTarget",
+        "BeginScene", "EndScene", "Clear", "SetTransform", "SetMaterial", "SetLight", "LightEnable",
+        "SetRenderState", "SetTexture", "SetTextureStageState", "DrawPrimitive", "DrawIndexedPrimitive",
+        "DrawPrimitiveUP", "DrawIndexedPrimitiveUP", "SetVertexShader", "SetStreamSource", "SetIndices"],
+      "query_only": ["TestCooperativeLevel", "GetAvailableTextureMem", "GetDirect3D", "GetDeviceCaps",
+        "GetDisplayMode", "GetCreationParameters", "GetRasterStatus", "GetGammaRamp", "GetFrontBuffer",
+        "GetRenderTarget", "GetDepthStencilSurface", "GetTransform", "GetViewport", "GetMaterial",
+        "GetLight", "GetLightEnable", "GetClipPlane", "GetRenderState", "GetClipStatus", "GetTexture",
+        "GetTextureStageState", "ValidateDevice", "GetInfo", "GetPaletteEntries", "GetCurrentTexturePalette",
+        "GetVertexShader", "GetVertexShaderConstant", "GetVertexShaderDeclaration", "GetVertexShaderFunction",
+        "GetStreamSource", "GetIndices", "GetPixelShader", "GetPixelShaderConstant", "GetPixelShaderFunction"],
+      "forwarded_irrelevant": ["ResourceManagerDiscardBytes", "DeleteStateBlock", "DeleteVertexShader",
+        "DeletePixelShader", "DeletePatch"],
+      "render_affecting_unsupported": ["SetCursorProperties", "SetCursorPosition", "ShowCursor",
+        "CreateAdditionalSwapChain", "Reset", "SetGammaRamp", "CreateVolumeTexture", "CreateCubeTexture",
+        "CreateVertexBuffer", "CreateIndexBuffer", "CreateRenderTarget", "CreateDepthStencilSurface",
+        "CreateImageSurface", "UpdateTexture", "MultiplyTransform", "SetViewport", "SetClipPlane",
+        "BeginStateBlock", "EndStateBlock", "ApplyStateBlock", "CaptureStateBlock", "CreateStateBlock",
+        "SetClipStatus", "SetPaletteEntries", "SetCurrentTexturePalette", "ProcessVertices",
+        "CreateVertexShader", "SetVertexShaderConstant", "CreatePixelShader", "SetPixelShader",
+        "SetPixelShaderConstant", "DrawRectPatch", "DrawTriPatch"]
+    }
+  },
+
+  "risk_subgroups": {
+    "_note": "the render_affecting_unsupported set of IDirect3DDevice8, grouped for the GX-01/GX-02 record-or-fail order (roadmap high-risk seed list). Recettear is a 2007 DX8 fixed-function game so most are likely NEVER called — the DYNAMIC census confirms which; until then they are STATIC risks a call would silently drop.",
+    "cursor": ["SetCursorProperties", "SetCursorPosition", "ShowCursor"],
+    "device_reset": ["Reset", "CreateAdditionalSwapChain", "SetGammaRamp"],
+    "resource_creation": ["CreateVolumeTexture", "CreateCubeTexture", "CreateVertexBuffer",
+      "CreateIndexBuffer", "CreateRenderTarget", "CreateDepthStencilSurface", "CreateImageSurface",
+      "UpdateTexture"],
+    "fixed_function_state": ["MultiplyTransform", "SetViewport", "SetClipPlane", "SetClipStatus",
+      "SetPaletteEntries", "SetCurrentTexturePalette"],
+    "state_blocks": ["BeginStateBlock", "EndStateBlock", "ApplyStateBlock", "CaptureStateBlock",
+      "CreateStateBlock"],
+    "vertex_processing": ["ProcessVertices"],
+    "shaders": ["CreateVertexShader", "SetVertexShaderConstant", "CreatePixelShader", "SetPixelShader",
+      "SetPixelShaderConstant"],
+    "higher_order_primitives": ["DrawRectPatch", "DrawTriPatch"]
+  },
+
+  "leads": {
+    "shader_binding_asymmetry": "SetVertexShader is RECORDED but SetPixelShader is FORWARDED (uncaptured) — an asymmetry. In D3D8 fixed-function these 'shader' handles are the FVF/programmable toggle; if the game ever binds a pixel shader the replay would miss it while catching the vertex-shader change. Verify via the dynamic census whether SetPixelShader is ever called (likely not in this title, but the asymmetry is a real capture-completeness gap)."
+  }
+}
