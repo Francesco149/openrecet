@@ -1265,18 +1265,26 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             # container + hash refs. Gated on v3_arm ⇒ NO effect on v2 captures, and
             # none on the PORT path (port_capture goes through scenario-test, not
             # run_capture(v3_arm=…), and relies on GetBackBuffer AS its keep-trigger).
-            # ALSO strip {calltrace} UNLESS --state (cfg.call_trace): without state the
-            # op would only re-load the heavy uncached call-graph; WITH --state we KEEP
-            # it, because it window-arms the (state-only) call-trace to the kept frames
-            # so the probes don't flood the pre-window load-stretch.
+            # ALSO strip {calltrace} ALWAYS on a v3 drive.  Without --state the op would
+            # only re-load the heavy uncached call-graph (pure waste).  WITH --state we
+            # STILL strip it and let the 4 state VAs emit UN-GATED (every frame): the
+            # {calltrace} window is armed at segment-enter (input_poll, one cycle AFTER
+            # the anchor's Present) and each frame's sim runs BEFORE its Present, so a
+            # window keyed to an anchor detected at Present F can never cover sim F..F+1
+            # — that head-warp left the retail state stream +2 at the window head
+            # (offsets 0-1 uncoverable; ★NEXT-d).  Emitting broadly + windowing the
+            # OUTPUT by identity is orv3_state's documented design; v3cache.store()
+            # slices the cached sidecar to the kept d3d presents, so it stays tiny AND
+            # covers offset 0 with no tail overrun.  (4 once-per-frame VAs ⇒ the
+            # pre-window per-frame send cost is the accepted --state tradeoff.)
             n_before = len(segtrace_ops)
             segtrace_ops = [o for o in segtrace_ops
                             if not ("caprange" in o or "capstride" in o
-                                    or ("calltrace" in o and not cfg.call_trace))]
+                                    or "calltrace" in o)]
             f_log.write(f"[v3] dropped {n_before - len(segtrace_ops)} v2 caprange/"
-                        f"capstride{'' if cfg.call_trace else '/calltrace'} op(s) — v3_arm "
-                        f"set ({'state call-trace kept' if cfg.call_trace else 'd3d-only'}; "
-                        f"v2 readbacks + bake are pure waste on a v3 drive)\n")
+                        f"capstride/calltrace op(s) — v3_arm set "
+                        f"({'state call-trace UN-GATED, sliced at cache' if cfg.call_trace else 'd3d-only'}"
+                        f"; v2 readbacks + bake are pure waste on a v3 drive)\n")
 
     # TAS save virtualization (spawn/replay only): create a per-run sandbox and
     # tell the agent to redirect all save.dat/_save.dat I/O into it, so the replay

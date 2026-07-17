@@ -227,6 +227,67 @@ def test_extent_lookup() -> None:
     print("  OK extent lookup: containment, widest-pick, stale-key + wrong-anchor filtered out")
 
 
+def test_state_sidecar_slice() -> None:
+    """★NEXT-d: a --state drive now emits the once-per-frame VAs UN-GATED (every frame,
+    so the window head — whose sim ran before the anchor could arm a window — is
+    captured), and v3cache windows the stored sidecar to the kept d3d presents by
+    identity (frame == present). Guards _store_call_trace: the head frames (offsets
+    0-1) are KEPT, the pre-window load-stretch + any tail frame past the last kept
+    present are DROPPED, and kept_presents=None is a verbatim copy."""
+    import json
+    import tempfile
+
+    def frames_of(p: Path) -> list[int]:
+        return [json.loads(ln)["frame"] for ln in p.read_text().splitlines()
+                if ln.strip().startswith("{")]
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        # UN-GATED emission: pre-window load-stretch (7000,7050), the window head
+        # (7118,7119 = offsets 0-1, the frames the OLD {calltrace} gate warped off),
+        # the window body, and a tail overrun (7318,7319 past the last kept present).
+        emitted = [7000, 7050] + list(range(7118, 7320))          # 7118..7319 inclusive
+        src = tmp / "call_trace.jsonl"
+        with src.open("w") as f:
+            f.write("# a non-json comment line the slice must skip\n")
+            for fr in emitted:
+                f.write(json.dumps({"va": 0x47be92, "frame": fr, "f": {"rng": fr}}) + "\n")
+
+        kept = set(range(7118, 7318))                              # the kept d3d window {7118..7317}
+        dst = tmp / "sliced.jsonl"
+        n = v3cache._store_call_trace(src, dst, kept)
+        got = frames_of(dst)
+        assert n == len(got) == 200, f"kept 200 window frames, got {n}/{len(got)}"
+        assert set(got) == kept, "sliced sidecar == the kept d3d presents exactly"
+        assert 7118 in got and 7119 in got, "the window HEAD (offsets 0-1) is captured (the ★NEXT-d fix)"
+        assert 7000 not in got and 7050 not in got, "pre-window load-stretch dropped"
+        assert 7318 not in got and 7319 not in got, "tail overrun past the last kept present dropped"
+
+        # kept_presents=None → verbatim copy (back-compat, incl. the comment line).
+        dst2 = tmp / "verbatim.jsonl"
+        assert v3cache._store_call_trace(src, dst2, None) == -1, "None ⇒ verbatim sentinel"
+        assert frames_of(dst2) == emitted, "verbatim copy preserves every emitted frame"
+
+        # store() derives the slice from the container's kept presents (== preserve_live's
+        # kept_presents = set(c.presents)); build_container Presents are {100,101,102}.
+        srcdir = tmp / "cap"; srcdir.mkdir()
+        (srcdir / "v3cap.bin").write_bytes(build_container())
+        kp = set(orv3.Container.load(srcdir / "v3cap.bin").presents)
+        assert kp == {100, 101, 102}, f"container presents {kp}"
+        ct = tmp / "run_ct.jsonl"
+        ct.write_text("".join(json.dumps({"va": 0x47be92, "frame": fr, "f": {"rng": fr}}) + "\n"
+                              for fr in [98, 99, 100, 101, 102, 103, 104]))   # +pre-window +tail
+        ident = v3cache.FrameIdentity(
+            side="retail", scenario="s", anchor="SAVE_PICKER_READY", anchor_occ=1,
+            anchor_frame=100, offset0=0, count=3, present_first=100, arm_offset=0, arm_count=3)
+        dest = tmp / "entry"
+        v3cache.store(dest, ident, src=srcdir, call_trace_path=ct, kept_presents=kp)
+        assert set(frames_of(dest / "call_trace.jsonl")) == {100, 101, 102}, \
+            "store() windows the sidecar to the container's kept presents"
+    print("  OK state sidecar slice: un-gated emission windowed to kept d3d presents "
+          "(head offsets 0-1 captured, pre-window + tail dropped); store() derives it from c.presents")
+
+
 def test_provenance_keying() -> None:
     """EP-08 cache re-key by full provenance: the 128-bit dir key hashes the SHARED
     determinants (trace/proxy/assets/cache-schema); per-side PE+agent are validated via
@@ -697,6 +758,7 @@ def main() -> int:
     test_join()
     test_classify_join()
     test_extent_lookup()
+    test_state_sidecar_slice()
     test_provenance_keying()
     test_merge_keys()
     test_multi_anchor_identity()

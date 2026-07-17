@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — ★NEXT(d): retail `--state` head warm-up CLOSED ⇒ first three-pillar (identity·save·state) proof
+
+The `house-pause-save-commit` `state` pillar was NOT_CAPTURED at the contract window `[1,19]` — the retail `--state`
+stream began at anchor+2 (offset 0-1 uncoverable). **ROOT (settled, NOT hook-install latency; the STATE_VA hooks
+install pre-resume):** the `{calltrace}` WINDOW GATE. A `--state` v3 drive KEPT the scenario's `{calltrace}` op, which
+arms the emit window in `segtraceOnSegmentEnter` — run in `input_poll.onLeave`, ONE cycle AFTER the anchor's Present
+(it reads `g_segtrace_fired` set by `anchorTick` at the prior Present) — and each frame's SIM runs BEFORE its Present,
+so a window keyed to an anchor detected at Present F can NEVER cover sim F..F+1. Net: state stream `7120..7318` vs the
+d3d window `7118..7317` (+2 head, and `hi=lo+len` inclusive ⇒ +1 tail). The d3d proxy has no warp — it arms in-process
+at the anchor Present (`OrV3ArmWindowAt`), zero latency; the two arm paths were desynchronized at the head.
+
+**FIX** (restores `orv3_state`'s ORIGINAL "emit broadly, window the OUTPUT by identity" design): (1) **un-gate** —
+`tools/frida_capture.py` now strips `{calltrace}` on ANY v3 drive (not just non-state) ⇒ the 4 once-per-frame VAs emit
+EVERY frame, live during the head sim; (2) **slice at cache** — `tools/trace_studio_v3/v3cache.py` `store()` gains
+`kept_presents` and `_store_call_trace` windows the sidecar to `set(c.presents)` (the call-trace `frame` IS the
+present-count the join keys on) ⇒ drops the pre-window load-stretch AND the tail. Symmetric (port re-slices next drive).
+
+**VERIFIED** (`orv3_window house-pause-save-commit --window 0:200 --anchor SAVE_PICKER_READY --state --force-retail`):
+retail state == the d3d window EXACTLY (offset 0 AND 1 covered, no tail, no pre-window). `parity_state`: `[1,19]`
+**PASS 19/19**, `--all-frames` **PASS 200/200** (was 198/198). Added `state` to `required_pillars` ⇒ `parity_prove`
+verdict **PASS: identity·save·state (+render_program bonus), 0 divergences** — the FIRST three-pillar (volatile +
+persistent) proof. `contract_sha256 9c2d2755…`→`c8c9a6a5…`; `parity-proof-index` `FUN_004905a8` binding re-keyed +
+pillars `[identity,save,state]`; ledger regen (runtime: 1 proven). New guard `test_orv3.test_state_sidecar_slice`;
+`test_parity_state` (72), `test_parity_schema`, `test_gen_port_ledger`, `test_orv3` all green. Full story +
+ROOT/loop-order derivation: `findings/parity-state-producer.md` §"★NEXT-d LANDED".
+
 ## 2026-07-17 — the volatile `state` pillar: ST-02 Merkle roots + ST-03 producer (★NEXT c)
 
 The `state` proof pillar — the per-frame VOLATILE-state sibling of the persistent `save` pillar — proves the

@@ -247,10 +247,16 @@ def test_live_tree_builds_and_is_consistent():
           and proven[0]["runtime_state"] == "scenario-pillar-proven",
           f"the one runtime-proven VA is FUN_004905a8 @ scenario-pillar-proven, "
           f"got {[(e['va'], e['runtime_state']) for e in proven]}")
+    # The binding's contract_sha256 must REPRODUCE from the committed scenario.yaml
+    # (the whole point of the durable key: drive/commit-independent). Derive it rather
+    # than hardcode, so the check self-updates when the contract legitimately changes
+    # (e.g. ★NEXT-d added `state` to required_pillars) yet still fails closed on drift.
+    import parity_prove as PP  # noqa: E402
+    expected = PP.contract_sha256(PP.load_scenario_contract("house-pause-save-commit")["proof"])
     check(bool(proven[0]["proofs"])
-          and proven[0]["proofs"][0]["contract_sha256"]
-              == "9c2d27556b6f0d4b36ba867ca1de87dda605d0d18ed7b1c5e072ad8a72eb76bc",
-          "the binding is keyed on the stable house-pause-save-commit contract_sha256")
+          and proven[0]["proofs"][0]["contract_sha256"] == expected,
+          "the binding is keyed on the stable house-pause-save-commit contract_sha256 "
+          f"(reproduced from scenario.yaml: {expected[:12]}…)")
 
     # Every function carries the full evidence fact-set + a legacy status.
     for e in real[:50]:

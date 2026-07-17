@@ -12,11 +12,11 @@
   {
    "va": "0x4905a8",
    "state": "scenario-pillar-proven",
-   "contract_sha256": "9c2d27556b6f0d4b36ba867ca1de87dda605d0d18ed7b1c5e072ad8a72eb76bc",
+   "contract_sha256": "c8c9a6a528a1ba555e7b41d482175c2c6809e79b428c2210065fe86ed1b9b4b0",
    "scenario": "house-pause-save-commit",
-   "scope": "save-commit path rooted at FUN_004905a8 (save_io_commit_slot): the committed save.dat is byte-identical to retail over house-pause-save-commit win-0-200 @SAVE_PICKER_READY[1,19]; parity_prove verdict PASS (required pillars identity+save, 0 divergences; render_program PASS bonus). Normalized origins: {rngseed 19937}, {phasepin}, load pins, and the bilateral {playtimepin} (playtime-at-commit is a load-timing phase origin, not the logic contract).",
-   "pillars": ["identity", "save"],
-   "proof_id": "ba2c0c8cc3e60bb543c0262fddaca0e546db8fbfa296d41a9edabab1072c320c"
+   "scope": "save-commit path rooted at FUN_004905a8 (save_io_commit_slot): over house-pause-save-commit win-0-200 @SAVE_PICKER_READY[1,19] the committed save.dat is byte-identical to retail AND the once-per-frame VOLATILE state (rng/phase, the save-picker's deterministic LCG) is Merkle-identical port↔retail (19/19; the full 200-frame window 200/200). parity_prove verdict PASS (required pillars identity+save+state, 0 divergences; render_program PASS bonus) — the first three-pillar (identity·save·state) volatile+persistent proof. Normalized origins: {rngseed 19937}, {phasepin}, load pins, and the bilateral {playtimepin} (playtime-at-commit is a load-timing phase origin, not the logic contract).",
+   "pillars": ["identity", "save", "state"],
+   "proof_id": "7ab74d228b07764dff920333f188def0a5d557f72309d8cdfe0cb62e09dc670e"
   }
  ]
 }

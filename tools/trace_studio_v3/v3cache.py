@@ -365,8 +365,35 @@ def entry_dir(scenario: str, key: str, side: str) -> Path:
     return CACHE_ROOT / f"{scenario}-{key}" / side
 
 
+def _store_call_trace(src: Path, dst: Path, kept_presents: set[int] | None) -> int:
+    """Copy a --state call_trace.jsonl into the cache, WINDOWED to `kept_presents`
+    (the container's kept d3d present-counts).  The call-trace `frame` IS the present-
+    count the identity join keys on, so keeping only frame ∈ kept_presents makes the
+    stored state sidecar cover EXACTLY the kept d3d frames — dropping BOTH the pre-
+    window load-stretch a --state drive now emits UN-GATED (so the window head is
+    covered, ★NEXT-d) AND any tail frame past the last kept present.  kept_presents=None
+    ⇒ verbatim copy (back-compat).  Returns the kept line count (-1 on a verbatim copy)."""
+    if kept_presents is None:
+        shutil.copy2(src, dst)
+        return -1
+    kept = 0
+    with src.open() as f, dst.open("w") as o:
+        for ln in f:
+            s = ln.strip()
+            if not s.startswith("{"):
+                continue
+            try:
+                if json.loads(s).get("frame") in kept_presents:
+                    o.write(ln if ln.endswith("\n") else ln + "\n")
+                    kept += 1
+            except ValueError:
+                continue
+    return kept
+
+
 def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
-          call_trace_path: Path | None = None) -> Path:
+          call_trace_path: Path | None = None,
+          kept_presents: set[int] | None = None) -> Path:
     """Copy the live capture (v3cap.bin + references: v3refs.txt hash lines and/or
     v3ref_*.raw) from `src` (default the proxy's %LOCALAPPDATA% dir) into `dest`,
     and write v3meta.json = the stored identity. Returns `dest`.
@@ -374,7 +401,9 @@ def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
     `call_trace_path` (a --state drive's run_dir/call_trace.jsonl) is copied in as the
     entry's `call_trace.jsonl` sidecar — the engine-state pillar orv3_state.py keys by
     identity for the viewer's game-state panel. Always cleared first so a no-state
-    re-drive can't leave a stale state file behind the new pixels."""
+    re-drive can't leave a stale state file behind the new pixels.  `kept_presents`
+    windows that sidecar to the kept d3d present-counts (see _store_call_trace) — the
+    join-correct slice that pairs one state row per kept d3d frame."""
     src = src or localappdata_v3()
     cap = src / "v3cap.bin"
     if not cap.exists():
@@ -391,7 +420,7 @@ def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
     if (src / "v3refs.txt").exists():
         shutil.copy2(src / "v3refs.txt", dest / "v3refs.txt")
     if call_trace_path is not None and Path(call_trace_path).exists():
-        shutil.copy2(call_trace_path, dest / "call_trace.jsonl")
+        _store_call_trace(Path(call_trace_path), dest / "call_trace.jsonl", kept_presents)
     (dest / "v3meta.json").write_text(json.dumps(asdict(ident), indent=1))
     return dest
 
@@ -569,6 +598,7 @@ def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
     if not c.frames:
         raise ValueError("live container has no kept frames — nothing to cache")
     present_first = c.frames[0].present
+    kept_presents = set(c.presents)   # the exact kept d3d present-counts = state-join keys
     anchors = None
     anchor_frame = present_first - offset0
     if anchors_path is not None and Path(anchors_path).exists():
@@ -592,7 +622,8 @@ def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                           prov={"common": common_provenance(Path(trace_path)),
                                 "side": side_provenance(side)})
     dest = entry_dir(scenario, cache_key(Path(trace_path), arm), side)
-    store(dest, ident, src=src, call_trace_path=call_trace_path)
+    store(dest, ident, src=src, call_trace_path=call_trace_path,
+          kept_presents=kept_presents)
     return dest, ident
 
 

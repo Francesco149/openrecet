@@ -5,6 +5,10 @@
 > (scenario-scoped, persistent) `save` pillar (`parity-save-producer.md`). Built,
 > 72-check gate, wired into `parity_prove` (`state` OUT of `UNBUILT_PILLARS`),
 > validated on two real captures. Commit `efaf2e7`.
+> **★NEXT-d LANDED 2026-07-17** (§"★NEXT-d LANDED" below): the retail `--state` head
+> warm-up is CLOSED — `state` PASSES at `[1,19]` (200/200 full window) + is now a
+> REQUIRED pillar ⇒ the FIRST three-pillar (identity·save·state) volatile+persistent
+> proof. Fix in `frida_capture` (un-gate) + `v3cache.store` (slice by kept presents).
 
 ## What it proves
 
@@ -96,40 +100,66 @@ SAVE_PICKER_READY --state --view` → 19 gap-free pairs. Only the `sched`(rng) V
 fires in the picker scene (house_update / title_sim / dialogue_tick don't run there),
 so this window proves RNG determinism. Result:
 
-- **`--all-frames`: 198/198 comparable frames Merkle-IDENTICAL** — the port's
-  volatile state is bit-1:1 with retail across the entire save-commit window.
-- **contract-scoped `[1,19]`: NOT_CAPTURED** — 18/18 compared frames identical, but
-  **1 required frame (offset +1) is uncoverable**: retail's `call_trace` STATE_VA
-  events span frames **7120-7318** while the kept d3d window is **7118-7317**, so
-  offsets 0-1 have no retail state. A capture TOOL gap, NOT a port divergence
-  (`parity_prove` correctly reports NOT_CAPTURED, fail closed; the bundle stays
-  identity PASS · save PASS · render_program PASS, `required_pillars` unchanged).
-  **Sharper diagnosis for ★NEXT (d):** this is a **frame-numbering SKEW at the window
-  head**, not mere hook-install latency — the state stream is offset +2 AND runs 1
-  frame PAST the d3d tail (7318 > 7317). That violates `retail_fields.json`'s stated
-  invariant *"the call-trace `frame` is the engine/agent frame == the present-count
-  the anchor stream + d3d frames use"* right at the arm boundary. Only the `sched`
-  (rng) VA fires here (picker scene), so this is the tick-scheduler emit vs the Present
-  count. On the HOUSE arrprobe the skew was only 1 frame (offset 0), so it is
-  boundary-position-dependent, not a fixed constant. Chase: how the retail `--state`
-  call_trace `frame` counter is stamped relative to the d3d present count at an anchor
-  arm (frida_capture `call_trace_vas` install path + the agent's per-frame counter).
+- **`--all-frames`: 198/198 → now 200/200 comparable frames Merkle-IDENTICAL** — after
+  the ★NEXT-d fix the whole kept d3d window has both-sided state; the port's volatile
+  state is bit-1:1 with retail across the ENTIRE save-commit window.
+- **contract-scoped `[1,19]`: NOT_CAPTURED → now PASS** — 19/19 required frames'
+  volatile state Merkle-identical, 0 divergences. Was 18/19 because retail's state
+  stream started at offset +2 (see the ROOT below); the fix restored the head.
 
-## ★ NEXT — close the retail `--state` head warm-up ⇒ state PASSES at `[1,19]`
+## ✅ ★NEXT-d LANDED 2026-07-17 — retail `--state` head warm-up CLOSED (the three-pillar proof)
 
-The state at offsets 0-1 IS 1:1 (the port has it; 198/198 match everywhere the
-retail capture reaches it) — only the retail Frida `--state` hook-install latency
-withholds the evidence. Closing it (install the STATE_VA hooks before the kept window
-begins, or lead-in the drive so the warm-up is absorbed pre-window) flips the
-contract-scoped `state` pillar to PASS and lets it join `required_pillars` — the
-first three-pillar (identity · save · state) volatile+persistent proof. Then: ST-04
-first-divergence report (typed values + nearby mutation provenance), ST-05 mutation
-capture, ST-06 scene-by-scene subsystem expansion (arrprobe already exercises
-player/companion/dialogue; the picker is rng-only).
+**ROOT (settled — NOT hook-install latency).** The Frida STATE_VA hooks install
+PRE-RESUME (live from frame 0). The head warp was the `{calltrace}` WINDOW GATE: a
+`--state` v3 drive kept the scenario's `{calltrace}` op, which arms the emit window
+`[base, base+count]` in `segtraceOnSegmentEnter` — run in `input_poll.onLeave`, ONE
+cycle AFTER the anchor's Present (it reads `g_segtrace_fired` set by `anchorTick` at
+the prior Present). AND each frame's SIM runs BEFORE its Present, so a window keyed to
+an anchor detected at Present F can never cover sim F..F+1. Net: the state stream
+began at anchor+2 (`7120` vs the d3d `present_first 7118`) and, because `hi = lo+len`
+is inclusive, ran 1 PAST the d3d tail (`7318 > 7317`). The d3d proxy has no such warp —
+it arms in-process at the anchor Present (`OrV3ArmWindowAt`), zero latency. So the two
+arm paths were desynchronized at the head; nothing to do with the frame counter.
+
+**FIX (two parts; `orv3_state`'s ORIGINAL "emit broadly, window the OUTPUT by identity"
+design, restored).**
+1. **Un-gate** the retail `--state` emission — `frida_capture` now STRIPS `{calltrace}`
+   on ANY v3 drive (not just non-state). The 4 once-per-frame VAs then emit EVERY frame
+   (live during sim 7118-7119, the anchor frame's own sim), so the window head is
+   captured. (4 VAs ⇒ the pre-window per-frame send cost is the accepted `--state`
+   tradeoff.)
+2. **Slice at cache time** — `v3cache.store()` gains `kept_presents` (the container's
+   kept d3d present-counts); `preserve_live` passes `set(c.presents)`. The call-trace
+   `frame` IS the present-count the identity join keys on, so keeping only
+   `frame ∈ kept_presents` windows the STORED sidecar to EXACTLY the kept d3d frames —
+   dropping the pre-window load-stretch AND the tail overrun. Symmetric (port too, when
+   next driven). Guard: `test_orv3.test_state_sidecar_slice`.
+
+**VERIFIED** (re-drove `house-pause-save-commit --window 0:200 --anchor
+SAVE_PICKER_READY --state --force-retail`): retail state now == the d3d window EXACTLY
+(`[3064,3263]` this drive, 200 frames, offset 0 AND 1 covered, no tail, no pre-window).
+`parity_state`: `[1,19]` **PASS 19/19**, `--all-frames` **PASS 200/200**. Added `state`
+to `house-pause-save-commit`'s `required_pillars` ⇒ `parity_prove` verdict **PASS:
+identity · save · state (+render_program bonus), 0 divergences** — the FIRST three-pillar
+(volatile + persistent) proof. `contract_sha256` `9c2d2755…` → `c8c9a6a5…` (the
+`required_pillars` edit); `parity-proof-index` `FUN_004905a8` binding re-keyed to it +
+pillars `[identity,save,state]`. Generalizes: the HOUSE arrprobe's 1-frame head skew
+also closes on its next `--state` drive.
+
+## ★ NEXT — ST-04+
+
+State PASSES at `[1,19]` (identity · save · state). Next: ST-04 first-divergence
+report (typed values + nearby mutation provenance), ST-05 mutation capture, ST-06
+scene-by-scene subsystem expansion (arrprobe already exercises player/companion/
+dialogue; the picker is rng-only). Follow-up (non-blocking): the port's `--state`
+sidecar re-slices on its next drive (currently un-gated-wide but join-correct).
 
 ## Tooling
 
 `tools/parity/state_codec.py` · `state_merkle.py` · `state_producer.py` · `state.py`
 · CLI `tools/parity_state.py` · schema `docs/schemas/state-volatile-v1.json` · gate
 `tools/test_parity_state.py` (72 checks). Wired: `parity_prove.resolve_observations`
-bridges the view inline; `state` out of `UNBUILT_PILLARS`.
+bridges the view inline; `state` out of `UNBUILT_PILLARS`. ★NEXT-d touched the CAPTURE
+path: `tools/frida_capture.py` (strip `{calltrace}` on any v3 drive ⇒ un-gated state
+emit) + `tools/trace_studio_v3/v3cache.py` (`_store_call_trace` slices the sidecar to
+`kept_presents = set(c.presents)`; guard `test_orv3.test_state_sidecar_slice`).

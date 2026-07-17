@@ -56,10 +56,17 @@ proof:
   required_pillars:
     - identity
     - save
+    - state
   seeds: [19937]
   configurations: [reference-1024-windowed]
   # No exceptions — save PASSES byte-exact (the phase-origin playtime residual is normalized
   # by the bilateral {playtimepin}, not tolerated).  The gate reports an honest full PASS.
+  # `state` (the once-per-frame VOLATILE pillar) is now REQUIRED and PASSES: [1,19] is
+  # 19/19 Merkle-identical, the full window 200/200.  ★NEXT-d closed the retail --state head
+  # warm-up — a --state drive now emits the 4 once-per-frame VAs UN-GATED and v3cache windows
+  # the sidecar to the kept d3d presents by identity, so the window head (offsets 0-1, whose
+  # sim ran before the anchor could arm the old {calltrace} window) is captured.  This is the
+  # first three-pillar (identity · save · state) volatile+persistent proof in the program.
 coverage_expectations:
   functions: []
   blocks: []
