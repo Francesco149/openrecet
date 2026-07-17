@@ -99,13 +99,21 @@ so this window proves RNG determinism. Result:
 - **`--all-frames`: 198/198 comparable frames Merkle-IDENTICAL** — the port's
   volatile state is bit-1:1 with retail across the entire save-commit window.
 - **contract-scoped `[1,19]`: NOT_CAPTURED** — 18/18 compared frames identical, but
-  **1 required frame (offset +1) is uncoverable**: retail's `call_trace` has state
-  events at frames 7120-7318 while the kept window is 7118-7317, so offsets 0-1 have
-  no retail state. This is the **retail `--state` head warm-up** (the Frida STATE_VA
-  hooks install ~2 frames after the drive starts emitting d3d; the port's compiled-in
-  CALL_TRACE has no such latency) — a capture TOOL gap, NOT a port divergence.
-  `parity_prove` correctly reports NOT_CAPTURED (fail closed); the bundle stays
-  identity PASS · save PASS · render_program PASS (`required_pillars` unchanged).
+  **1 required frame (offset +1) is uncoverable**: retail's `call_trace` STATE_VA
+  events span frames **7120-7318** while the kept d3d window is **7118-7317**, so
+  offsets 0-1 have no retail state. A capture TOOL gap, NOT a port divergence
+  (`parity_prove` correctly reports NOT_CAPTURED, fail closed; the bundle stays
+  identity PASS · save PASS · render_program PASS, `required_pillars` unchanged).
+  **Sharper diagnosis for ★NEXT (d):** this is a **frame-numbering SKEW at the window
+  head**, not mere hook-install latency — the state stream is offset +2 AND runs 1
+  frame PAST the d3d tail (7318 > 7317). That violates `retail_fields.json`'s stated
+  invariant *"the call-trace `frame` is the engine/agent frame == the present-count
+  the anchor stream + d3d frames use"* right at the arm boundary. Only the `sched`
+  (rng) VA fires here (picker scene), so this is the tick-scheduler emit vs the Present
+  count. On the HOUSE arrprobe the skew was only 1 frame (offset 0), so it is
+  boundary-position-dependent, not a fixed constant. Chase: how the retail `--state`
+  call_trace `frame` counter is stamped relative to the d3d present count at an anchor
+  arm (frida_capture `call_trace_vas` install path + the agent's per-frame counter).
 
 ## ★ NEXT — close the retail `--state` head warm-up ⇒ state PASSES at `[1,19]`
 
