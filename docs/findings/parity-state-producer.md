@@ -178,6 +178,30 @@ retail_bits `2709b5bc` port_bits `2309b5bc`** (the FRONT's documented ~3-ULP fac
 residual — 1-bit mantissa) + 23 co-divergent leaves listed, head-of-window ⇒ transition
 None. The report reads the SAME `--state` view.json `parity_state` does.
 
+## ST-04 corpus sweep 2026-07-17 — validation + one lead
+
+Ran `state_diff --all-frames` over every `--state` `view.json` on disk (46 windows;
+`report_from_view_json`, no new drives). Results agree with the documented world:
+
+- **State-CLEAN scene family = the pause/save menus** — `house-pause-{exit,items,options,
+  save-commit,unpause-tail}` **PASS** (169/238-frame windows Merkle-identical). These are
+  the rng-only volatile scenes; the pillar confirms them bit-1:1.
+- **The FAILs are known residuals or UN-PINNED captures, not new logic bugs** — `rng/rng`
+  / `phase/db054` at `LOADING_START/END+0/1` on the title + tutorial windows is the
+  un-normalized seed/phase origin (those captures carry no `{rngseed}`/`{phasepin}`; the
+  pillar is correctly MORE sensitive than pixels). `companion/cx` is the FRONT's
+  documented ~3-ULP facing residual (residual C).
+- **★ ONE LEAD — the PINNED `house-loaded-display-pinned` trace.** Primary divergence is
+  the known `companion/cx` (retail `0x3f19999a` / port `0x3f19999b`, 1 ULP), BUT the
+  co-divergent leaves show a **present/absent asymmetry at the window head**: retail has
+  ACTIVE interaction + companion-controller state (`interaction/cc08=1`, `cd0bc=7`,
+  `companion/cgate_c8/cstate/cwander`) that the **port capture LACKS** (`port=None`). Two
+  hypotheses, unresolved (needs a fresh pinned `--state` drive to disambiguate — deferred,
+  not gambled on overnight): (a) the documented **un-gated-wide port `--state` sidecar**
+  (re-slices on its next drive — a CAPTURE-alignment artifact at the head, most likely),
+  or (b) a real interaction-state gap (the port's house_update not in retail's cc08==1
+  state that frame). NOT concluded a bug — logged for the next drive-capable session.
+
 ## ✅ ST-05 CONSUMER LANDED 2026-07-17 — semantic-mutation causal layer
 
 The layer BENEATH ST-04: names the WRITER behind a transition. Design + consumer +
