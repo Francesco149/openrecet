@@ -460,6 +460,21 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### EP-07 — Bridge human confirmations
 
+> **⚠ SCOPING NOTE 2026-07-17 (not started — a canonicalization decision blocks a clean
+> slice).** The proof bundle already carries a top-level `human_review` field (`prove.py`
+> assemble, default None), but it is currently in the HASHED core (`canonical.NON_HASHED =
+> ("proof_id", "envelope")` does NOT list it) — so attaching a review would CHANGE the
+> `proof_id`, contradicting §4.4 ("proof_id excludes … human display notes"). EP-07 done
+> RIGHT first needs an R3 decision: move `human_review` to the NON-hashed `envelope` (or add
+> it to `NON_HASHED`) + a schema-v tweak, so a human confirmation is ADDITIVE evidence that
+> never perturbs the content-addressed id NOR flips a machine verdict. THEN the R2 slice:
+> `attach_human_review(bundle, {reviewer,date,scope,notes,verdict,confirmed_pillars})` that
+> writes into the envelope and ENFORCES the invariant (a review over a required-pillar FAIL
+> is recorded as "confirmed-despite-FAIL" with explicit scope, never a pass) + host tests.
+> The confirmed-parity-ledger→structured-records migration stays "where practical" (opt-in),
+> not a full rewrite. Deferred so the canonicalization change gets R3 review, not a rushed
+> overnight edit to frozen §4.4 semantics.
+
 - **Reasoning:** R2; human review remains human-owned.
 - **Depends:** EP-05.
 - **Planned files:** proof-side review command and confirmed-ledger link convention.
