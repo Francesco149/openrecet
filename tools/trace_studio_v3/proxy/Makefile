@@ -19,7 +19,13 @@ d3d8.dll: d3d8_proxy.c proxy_generated.h
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ d3d8_proxy.c $(LIBS)
 	@echo "  built $@:"; i686-w64-mingw32-objdump -p $@ | grep -A3 "Export Table" | head -6
 
+# GX-04 acceptance fixture: a standalone D3D8 exe that drives a same-frame VB mutation
+# (binds A,B,A). Links the real d3d8 import lib; at runtime loads the proxy d3d8.dll the
+# host test stages next to it. Not part of `all` (built on demand by test_gx04_fixture.py).
+gx04_fixture.exe: gx04_fixture.c
+	$(CC) $(CFLAGS) -o $@ gx04_fixture.c -ld3d8 -ldxguid -luuid -lgdi32 -luser32 -static-libgcc
+
 clean:
-	rm -f d3d8.dll proxy_generated.h
+	rm -f d3d8.dll proxy_generated.h gx04_fixture.exe
 
 .PHONY: all clean
