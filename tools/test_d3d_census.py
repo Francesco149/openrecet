@@ -19,7 +19,10 @@ Run: nix develop --command python3 tools/test_d3d_census.py
 from __future__ import annotations
 
 import copy
+import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,10 +32,17 @@ import d3d_census as cli  # noqa: E402
 from parity.d3d_census import (  # noqa: E402
     DEFAULT_CENSUS,
     DEFAULT_HEADER,
+    DYNAMIC_SCHEMA_VERSION,
     RISK_CLASS,
+    CensusError,
+    _forwarded_keys,
+    _risk_index,
+    build_dynamic_report,
     build_report,
     load_census,
+    load_dynamic,
     parse_vtable,
+    render_dynamic_text,
     render_text,
     verify,
 )
@@ -130,6 +140,150 @@ def test_text():
           "text: summary carries verdict + risk class + a subgroup")
 
 
+# ── GX-00 DYNAMIC census (which forwarded methods were CALLED) + GX-01 gate ──
+FWD_KEYS = _forwarded_keys(CENSUS)
+RISK, _RISK_SUB = _risk_index(CENSUS)
+SETVIEWPORT = "IDirect3DDevice8.SetViewport"
+SETPIXELSHADER = "IDirect3DDevice8.SetPixelShader"
+GETRENDERSTATE = "IDirect3DDevice8.GetRenderState"
+
+
+def full_calls(overrides=None):
+    """A well-formed forwarded_calls map: every forwarded method 0, then overrides
+    (derived from the census so the fixture can never drift from the risk set)."""
+    calls = {k: 0 for k in FWD_KEYS}
+    if overrides:
+        calls.update(overrides)
+    return calls
+
+
+def full_doc(overrides=None):
+    return {"schema_version": DYNAMIC_SCHEMA_VERSION, "forwarded_calls": full_calls(overrides)}
+
+
+def write_doc(doc):
+    fd, path = tempfile.mkstemp(suffix=".census.json")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(doc, f)
+    return path
+
+
+def _raises(fn) -> bool:
+    try:
+        fn()
+        return False
+    except CensusError:
+        return True
+
+
+def test_dynamic_key_coverage():
+    check(len(FWD_KEYS) == 84, f"dynamic: 84 forwarded keys derived from census (got {len(FWD_KEYS)})")
+    check(len(RISK) == 33, f"dynamic: 33 risk keys derived from census (got {len(RISK)})")
+    check(SETVIEWPORT in RISK and SETPIXELSHADER in RISK, "dynamic: known risk keys present")
+    check(GETRENDERSTATE in FWD_KEYS and GETRENDERSTATE not in RISK,
+          "dynamic: GetRenderState is forwarded query_only, not a risk method")
+
+
+def test_dynamic_safe():
+    rep = build_dynamic_report(CENSUS, full_calls())
+    check(rep["verdict"] == "SAFE", "dynamic: all-zero forwarded → SAFE")
+    check(rep["n_risk"] == 33 and rep["n_safe_risk"] == 33, "dynamic: all 33 risk methods 0-observed")
+    check(not rep["observed_risk"] and not rep["missing_risk"] and not rep["unknown_keys"],
+          "dynamic: SAFE report has no observed/missing/unknown")
+
+
+def test_dynamic_violation():
+    # the roadmap §9 negative test: a deliberate SetViewport cannot pass as complete
+    rep = build_dynamic_report(CENSUS, full_calls({SETVIEWPORT: 5}))
+    check(rep["verdict"] == "VIOLATION", "dynamic: SetViewport fired → VIOLATION")
+    check(rep["observed_risk"].get(SETVIEWPORT) == 5, "dynamic: SetViewport count surfaced")
+    check(rep["observed_risk_subgroups"].get(SETVIEWPORT) == "fixed_function_state",
+          "dynamic: SetViewport tagged fixed_function_state")
+
+
+def test_dynamic_query_only_ignored():
+    # a heavily-called query_only method must NOT trip the gate (safe to forward)
+    rep = build_dynamic_report(CENSUS, full_calls({GETRENDERSTATE: 100000}))
+    check(rep["verdict"] == "SAFE", "dynamic: a busy query_only method stays SAFE")
+    check(rep["observed_forwarded"].get(GETRENDERSTATE) == 100000,
+          "dynamic: query_only call still shows in the informational profile")
+
+
+def test_dynamic_shader_asymmetry():
+    rep = build_dynamic_report(CENSUS, full_calls({SETPIXELSHADER: 3}))
+    check(rep["verdict"] == "VIOLATION" and rep["leads"]["SetPixelShader"] == 3,
+          "dynamic: SetPixelShader bind → VIOLATION + lead surfaces the count")
+    check(build_dynamic_report(CENSUS, full_calls())["leads"]["SetPixelShader"] == 0,
+          "dynamic: SetPixelShader lead reads 0 when present + unused")
+
+
+def test_dynamic_missing_risk_inconclusive():
+    calls = full_calls()
+    del calls[SETVIEWPORT]                      # a risk method absent from the sidecar
+    rep = build_dynamic_report(CENSUS, calls)
+    check(rep["verdict"] == "INCONCLUSIVE", "dynamic: a missing risk method → INCONCLUSIVE (fail-closed)")
+    check(SETVIEWPORT in rep["missing_risk"], "dynamic: the absent risk method is reported")
+    calls2 = full_calls()
+    del calls2[SETPIXELSHADER]
+    check(build_dynamic_report(CENSUS, calls2)["leads"]["SetPixelShader"] == "absent",
+          "dynamic: SetPixelShader lead 'absent' when not in the sidecar")
+
+
+def test_dynamic_unknown_key_inconclusive():
+    rep = build_dynamic_report(CENSUS, full_calls({"IDirect3DDevice8.NoSuchMethod": 1}))
+    check(rep["verdict"] == "INCONCLUSIVE", "dynamic: an unknown sidecar key → INCONCLUSIVE (drift)")
+    check("IDirect3DDevice8.NoSuchMethod" in rep["unknown_keys"], "dynamic: the unknown key is reported")
+
+
+def test_dynamic_violation_precedence():
+    # a fired risk method AND a missing one → VIOLATION outranks INCONCLUSIVE
+    calls = full_calls({SETVIEWPORT: 1})
+    del calls[SETPIXELSHADER]
+    check(build_dynamic_report(CENSUS, calls)["verdict"] == "VIOLATION",
+          "dynamic: a real violation outranks an incomplete-sidecar inconclusive")
+
+
+def test_dynamic_load_and_malformed():
+    p = write_doc(full_doc({SETVIEWPORT: 2}))
+    check(load_dynamic(p).get(SETVIEWPORT) == 2, "dynamic: load_dynamic round-trips a count")
+    os.unlink(p)
+    for label, doc in (
+        ("wrong schema_version", {"schema_version": 2, "forwarded_calls": {}}),
+        ("missing forwarded_calls", {"schema_version": 1}),
+        ("forwarded_calls not an object", {"schema_version": 1, "forwarded_calls": []}),
+        ("non-int count", {"schema_version": 1, "forwarded_calls": {SETVIEWPORT: "lots"}}),
+        ("negative count", {"schema_version": 1, "forwarded_calls": {SETVIEWPORT: -1}}),
+    ):
+        bad = write_doc(doc)
+        check(_raises(lambda bad=bad: load_dynamic(bad)), f"dynamic: {label} raises CensusError")
+        os.unlink(bad)
+    check(_raises(lambda: load_dynamic("/no/such/sidecar.json")),
+          "dynamic: a missing sidecar file raises (fail-closed, never empty pass)")
+
+
+def test_dynamic_cli():
+    safe = write_doc(full_doc())
+    check(cli.main(["--dynamic", safe]) == 0, "cli: SAFE sidecar → exit 0")
+    os.unlink(safe)
+    viol = write_doc(full_doc({SETVIEWPORT: 4}))
+    check(cli.main(["--dynamic", viol]) == 1, "cli: VIOLATION sidecar → exit 1")
+    os.unlink(viol)
+    inc = full_doc()
+    del inc["forwarded_calls"][SETVIEWPORT]
+    p = write_doc(inc)
+    check(cli.main(["--dynamic", p]) == 2, "cli: INCONCLUSIVE sidecar → exit 2")
+    os.unlink(p)
+    check(cli.main(["--dynamic", "/no/such.json"]) == 2, "cli: unloadable sidecar → exit 2")
+
+
+def test_dynamic_text():
+    txt = render_dynamic_text(build_dynamic_report(CENSUS, full_calls({SETVIEWPORT: 7})))
+    check("VIOLATION" in txt and "SetViewport" in txt and "fixed_function_state" in txt,
+          "dynamic text: a violation names the method + subgroup")
+    safe = render_dynamic_text(build_dynamic_report(CENSUS, full_calls()))
+    check("SAFE" in safe and "COMPLETE" in safe, "dynamic text: SAFE says capture complete")
+
+
 def main() -> int:
     test_consistent()
     test_counts()
@@ -140,6 +294,17 @@ def main() -> int:
     test_negative_phantom_method()
     test_cli()
     test_text()
+    test_dynamic_key_coverage()
+    test_dynamic_safe()
+    test_dynamic_violation()
+    test_dynamic_query_only_ignored()
+    test_dynamic_shader_asymmetry()
+    test_dynamic_missing_risk_inconclusive()
+    test_dynamic_unknown_key_inconclusive()
+    test_dynamic_violation_precedence()
+    test_dynamic_load_and_malformed()
+    test_dynamic_cli()
+    test_dynamic_text()
 
     if _failures:
         print(f"FAIL — {len(_failures)}/{_checks} checks failed:")

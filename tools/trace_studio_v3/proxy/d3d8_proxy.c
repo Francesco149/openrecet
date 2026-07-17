@@ -493,6 +493,27 @@ static void write_reference(IDirect3DDevice8 *dev, unsigned kept, unsigned prese
 
 #define CAP (g_capturing && g_cap)
 
+/* GX-00 dynamic census sidecar — rewrite v3cap.census.json with the current
+ * per-forwarded-method call counts (g_fwd_calls, from proxy_generated.h; cumulative
+ * over the whole process, NOT capture-gated). Written at each KEPT frame — like the
+ * container frames themselves, so a hard device.kill still leaves the last completed
+ * frame's census on disk — and the counts up to & including the last kept frame
+ * bound the compared window. A render_affecting_unsupported method with a non-zero
+ * count means the replay of this scene is INCOMPLETE (GX-01 record-or-fail). Tiny
+ * (~84 lines), so the per-kept-frame rewrite is free vs the frame's own I/O. */
+static void write_census_sidecar(void)
+{
+    char path[MAX_PATH+32]; proxy_out_path(path, sizeof path, "v3cap.census.json");
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fputs("{\n \"schema_version\": 1,\n \"forwarded_calls\": {\n", f);
+    for (int i = 0; i < FWD__COUNT; i++)
+        fprintf(f, "  \"%s\": %ld%s\n", g_fwd_names[i], (long)g_fwd_calls[i],
+                i + 1 < FWD__COUNT ? "," : "");
+    fputs(" }\n}\n", f);
+    fclose(f);
+}
+
 /* write ONE kept frame's section to the container (does NOT close — multi-frame
  * keeps appending). Snapshot this frame's bound resources NOW (read back current
  * contents/pointers, no load-time work; content-hash dedup'd so a resource bound
@@ -520,6 +541,7 @@ static void write_frame(IDirect3DDevice8 *real_dev)
     orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
     write_reference(real_dev, g_kept, g_frame);
     fflush(g_cap);
+    write_census_sidecar();                        /* GX-00: refresh forwarded-call census */
     proxy_log("KEEP present-frame %u (kept#%u, %u call-bytes, %d res total)\n",
               g_frame, g_kept, (unsigned)g_cb_len, g_next_resid);
     g_kept++;
