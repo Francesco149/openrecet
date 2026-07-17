@@ -231,10 +231,26 @@
   [0,1,0,2]**, census `collisions:2`; two vacuous-pass guards), `corrupt_fuzz` (**40000 fuzz** + crafted truncation/
   overflow → cursor never escapes `[buf,end]`), `test_orv3.test_corrupt`. **Transparent on valid data:** `replay
   --verify-hashes` `title-encyclopedia` **120/120 BIT-EXACT**, `pause/port` byte-identical to HEAD (its DIVERGENT is
-  pre-existing). GX-04 unregressed. 3 GX tests wired into `run_python_tests.py`. **★ NEXT:** GX-06 (graphics-capture
-  regression corpus — ≥1 fixture + 1 real proof per observed render-affecting method) or GX-02 (implement census-observed
-  missing methods as they appear); GX-05 residual: the diagnostic-only Python readers (`inspect_cap` already opcode-guards;
-  `orv3_xform`/`rt`/`state`) are memory-safe, left for GX-06.
+  pre-existing). GX-04 unregressed. 3 GX tests wired into `run_python_tests.py`.
+  **✅ GX-06 LANDED 2026-07-17 — graphics-capture regression corpus; the GX ARC IS COMPLETE**
+  (`findings/gx06-graphics-corpus.md`; commits `b1ae8de`(fixtures)+`82591ad`(gate)+`f6d47b2`(GX-05 residual)+pending(docs)).
+  The capstone: GX-00→05 proved the capture COMPLETE, GX-06 proves the record→REPLAY path for every recorded opcode is
+  itself correct + regression-guarded. Coverage unit = the container OPCODE (`orv3.OPNAME`, tied to the census recorded
+  method, drift-guarded both ways), two axes: a FIXTURE (synthetic controlled capture → bit-exact replay) + a REAL PROOF
+  (real cached scenario containing it → v3verify bit-exact). **Sweep (0/134 cached containers): DrawPrimitive/
+  DrawIndexedPrimitiveUP/CopyRects UNOBSERVED** ⇒ fixture-only, honest (engine draws via DrawIndexedPrimitive+
+  DrawPrimitiveUP; pause backdrop is a SetRenderTarget re-render, NOT a CopyRects screen-capture). Corpus: 2 new fixtures
+  (`gx06_sink`=all 22 non-RT opcodes, lit+textured+transformed; `gx06_rt`=RES_RT_TEX/SetRenderTarget/CopyRects+4 SURFREF
+  kinds via render-to-tex→composite→CopyRects — both 0-diff) + gx04/05 (VB mutation) + 3 real proofs (title 2D 120/120,
+  arrprobe HOUSE 3D 1500/1500, pause RT 240/240, all REPLAY_EXACT). Gate `tools/gx_corpus.py`: FAST (manifest+census
+  coverage math+drift, no caches/replay ⇒ host-suite) + `--verify` (drive-capable re-parse/v3verify/fixture-run + re-STAMP
+  so an attestation can't rot; VALIDATED e2e). **Verdict COMPLETE — 25 opcodes, 22 observed proven, 4 SURFREF kinds;
+  acceptance MET.** GX-05 residual CLOSED (diagnostic reader corruption-safety: `orv3.checked_reader` into orv3_xform/rt
+  re-walks; root: they only walk `Container.load`-validated bytes so the corrupt-input path was already closed —
+  +defense-in-depth for a desync; orv3_state isn't a container reader). New: `orv3.Container.opcode_counts/surfref_counts`,
+  `docs/parity-graphics-corpus.json`, `tools/parity/gx_corpus.py`, +6-check gate test +2 fixture tests +test_orv3.
+  **★ NEXT:** GX-02 (implement a census-observed missing method — NONE currently; reactive, lands when a new scene
+  surfaces one) or a new parity front beyond the GX arc.
   **✅ EP-07 LANDED 2026-07-17 — human-review bridge (additive, non-hashed, verdict-preserving)**
   (`findings/parity-EP07-human-review.md`; commit pending). Unblocks the f29f553 handoff. R3 decision:
   **`human_review` → `canonical.NON_HASHED`** (not the envelope) — frozen schema SHAPE unchanged (stays a

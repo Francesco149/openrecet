@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — GX-06 — graphics-capture regression corpus (the GX arc is COMPLETE)
+
+Roadmap §9 GX-06. Finding: `docs/findings/gx06-graphics-corpus.md`. Commits `b1ae8de`
+(fixtures) + `82591ad` (gate) + `f6d47b2` (GX-05 residual) + this (docs).
+
+- **The capstone:** GX-00→05 proved the D3D8 capture COMPLETE; GX-06 proves the record→REPLAY
+  path for every recorded opcode is itself correct + regression-guarded. Coverage unit = the
+  container OPCODE (`orv3.OPNAME`, tied to the census recorded method(s), drift-guarded), two
+  axes: a FIXTURE (synthetic controlled capture → bit-exact replay) + a REAL PROOF (real cached
+  scenario containing it → `v3verify` bit-exact).
+- **Sweep (0/134 cached containers):** DrawPrimitive / DrawIndexedPrimitiveUP / CopyRects are
+  UNOBSERVED ⇒ fixture-only, recorded honestly (engine draws via DrawIndexedPrimitive +
+  DrawPrimitiveUP; pause backdrop is a SetRenderTarget re-render, not a CopyRects screen-capture).
+- **Corpus:** 2 new fixtures — `gx06_sink` (all 22 non-RT opcodes, lit+textured+transformed) +
+  `gx06_rt` (RES_RT_TEX/SetRenderTarget/CopyRects + 4 SURFREF kinds via render-to-tex→composite→
+  CopyRects), both 0-diff — plus gx04/05 (VB mutation), and 3 real proofs (title 2D 120/120,
+  arrprobe HOUSE 3D 1500/1500, pause RT 240/240, all REPLAY_EXACT).
+- **Gate `tools/gx_corpus.py`:** FAST (manifest+census coverage math + drift, no caches/replay ⇒
+  host-suite) + `--verify` (drive-capable re-parse/v3verify/fixture-run + re-STAMP, VALIDATED e2e).
+  Verdict COMPLETE — 25 opcodes, 22 observed proven, 4 SURFREF kinds; acceptance MET.
+- **GX-05 residual CLOSED:** diagnostic reader corruption-safety — `orv3.checked_reader` into the
+  orv3_xform/orv3_rt raw re-walks (root: they only walk `Container.load`-validated bytes, so the
+  corrupt-input path was already closed — this is defense-in-depth for a walk desync); orv3_state
+  isn't a container reader.
+- New: `orv3.Container.opcode_counts/surfref_counts/checked_reader`, `docs/parity-graphics-corpus.json`,
+  `tools/parity/gx_corpus.py`, 6-check gate test + 2 fixture tests + test_orv3. Python suite 37/37.
+
 ## 2026-07-17 — GX-05 — dedup byte-compare + reader corruption-safety
 
 Roadmap §9 GX-05 ("harden deduplication and corruption detection"). Finding:

@@ -876,6 +876,22 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### GX-06 — Graphics capture regression corpus
 
+> **✅ LANDED 2026-07-17** — `../findings/gx06-graphics-corpus.md`. The GX-arc capstone:
+> GX-00→05 proved the capture is COMPLETE; GX-06 proves the record→REPLAY path for every
+> recorded opcode is itself correct + regression-guarded. Coverage unit = the container OPCODE
+> (`orv3.OPNAME`, tied to the census recorded method(s), drift-guarded), two axes: a FIXTURE
+> (synthetic controlled capture → bit-exact replay) + a REAL PROOF (real cached scenario
+> containing it → v3verify bit-exact). **Sweep (0/134 cached containers): DrawPrimitive,
+> DrawIndexedPrimitiveUP, CopyRects are UNOBSERVED** ⇒ fixture-only, recorded honestly. Corpus:
+> 2 new fixtures (`gx06_sink` = all 22 non-RT opcodes; `gx06_rt` = RES_RT_TEX/SetRenderTarget/
+> CopyRects + 4 SURFREF kinds; +gx04/05 VB mutation) — all 0-diff — and 3 real proofs (title 2D
+> 120/120, arrprobe HOUSE 3D 1500/1500, pause RT 240/240, all REPLAY_EXACT). Gate
+> (`gx_corpus.py`): FAST (manifest+census coverage math + drift, no caches/replay ⇒ host-suite)
+> + `--verify` (drive-capable re-parse/v3verify/fixture-run + re-STAMP). **Verdict COMPLETE — 25
+> opcodes, 22 observed proven, 4 SURFREF kinds.** Acceptance MET. Also closed the GX-05 residual
+> (diagnostic reader corruption-safety: `orv3.checked_reader` into orv3_xform/orv3_rt re-walks;
+> orv3_state isn't a container reader). +6-check gate test + test_gx06_*_fixture + test_orv3.
+
 - **Reasoning:** R1 fixture maintenance; R3 approves coverage set.
 - **Depends:** GX-02, GX-04.
 - **Corpus:** title 2D, HOUSE static/dynamic geometry, render targets, state inheritance,
