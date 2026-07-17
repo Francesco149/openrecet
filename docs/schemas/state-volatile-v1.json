@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "_note": "ST-02/ST-03 canonical VOLATILE-state map (roadmap parity-evidence §7). Groups the once-per-frame flow-trace STATE-VA fields (the fields tools/flow/retail_fields.json declares for the 4 STATE_VAS the v3 game-state panel captures) into a named SUBSYSTEM TREE, so a divergent volatile field at a logical frame resolves to (subsystem, field) — the class-2 (volatile-deterministic) analogue of state-map-v1.json's persistent arena regions. This file is the R3 GROUPING; each field's va+TYPE is resolved from retail_fields.json (the single source of truth — NOT transcribed here, so it can't drift; a schema field absent there is a fail-closed error). Consumed by tools/parity/state_codec.py (encoder) + state_merkle.py (Merkle roots) + state_producer.py (the `state` pillar). Prose model + the 4 state CLASSES: docs/reference/canonical-state.md. A field marked benign (with reason) is EXCLUDED from the tree/root (never silently — an explicit exception, mirroring retail_fields.json's own benign marks). Extend as ST-06 expands scene coverage; never invent a field whose meaning is unknown.",
+
+  "source_fields": "tools/flow/retail_fields.json",
+
+  "state_vas": {
+    "0x47be92": "tick_scheduler  — rng (LCG state DAT_006023a0) + rngcalls (cumulative draws): the frame-determinism root",
+    "0x48670f": "house_update    — HOUSE free-roam actors/phase/interaction/customer-service (fires when cc08 arm is free-roam)",
+    "0x49a59e": "scene_title_sim — title-screen menu state machine",
+    "0x46c320": "dialogue_tick   — opening-prologue dialogue reveal + standee tween"
+  },
+
+  "policy": {
+    "float": "f32 fields compared by BIT PATTERN (the project's x87-invariant rule) — no epsilon. Values arrive already collapsed to their f32 by orv3_state._norm_f32 (retail Frida widens an f32 to a double; the port C-printf rounds it — the SAME f32), so pack('<f') round-trips both to identical 4 bytes.",
+    "int": "i32/u32/hex compared by the 32-bit VALUE: encoded pack('<I', v & 0xFFFFFFFF), so a signed-vs-unsigned repr mismatch across the two capture paths (Frida i32 read vs port emit) can never read as a divergence when the 32 bits match — the same defence _norm_f32 gives floats.",
+    "coverage": "a field/subsystem present in one frame's capture but not the other's is a REAL present/absent divergence (a scene arm that ran on one side only), NOT masked. A subsystem symmetrically absent (e.g. house_update dark during a tutorial dialogue stretch on BOTH sides) is simply not compared that frame.",
+    "benign": "a field in the `benign` list is dropped from the tree BEFORE hashing (its change cannot alter a subsystem/root hash), with a recorded reason — the volatile analogue of state-map-v1.json excluded bytes. The only v1 exclusion is title/submenu_state (engine-quirk §102)."
+  },
+
+  "subsystems": {
+    "rng":              {"class": "volatile_deterministic", "va": "0x47be92", "fields": ["rng"], "note": "the raw LCG state DAT_006023a0 — THE deterministic RNG value. Matching it frame-over-frame is a STRONGER proof than a cumulative counter: equal state at every frame boundary ⇒ identical consumption between boundaries. (rngcalls is benign-excluded — see below.)"},
+    "phase":            {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["db054", "gsim"], "note": "frame-phase counters ({phasepin} zeroes db054's intro-video-freeze origin; unpinned they read a CONST-OFFSET the pillar rightly FAILS until a pin normalizes it)."},
+    "player":           {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["px", "py", "pz", "poct", "pang", "panim", "pframe", "pcnt"], "note": "player actor 0 world pos + facing octant/angle + anim cell/frame/counter."},
+    "companion":        {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["cx", "cz", "coct", "canim", "cframe", "ccnt", "ctimer", "cgate_c8", "cstate", "cwander"], "note": "companion actor 2 pos/facing/anim + FUN_0048a833 controller mode/gate/wander state."},
+    "shop_npc":         {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["n0anim", "n0frm", "n0cnt", "npcfr", "npcsp", "bgx0", "bgx1", "bgx2", "bgx3", "bgx4", "bgx5"], "note": "in-shop browsing chibi-NPC slot 0 anim + the pump frame/spawn counters + the 6 shop-window bg-NPC drift X (bgnpc warmup)."},
+    "interaction":      {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["cc08", "cc04", "cc00", "cbfc", "cc0c", "cd0bc", "bea4", "b1e0", "b74c", "b754", "b150", "b5e4", "cmode"], "note": "the INGAME interaction state machine (cc08/cc04) + highlighted display cell + context-menu cursor/count + display-management + the modal-cursor flag + active save-slot."},
+    "customer_service": {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["b534", "b5a8", "b56c", "b574", "b5e0", "b584", "b590", "ask", "base", "b520", "b5a0", "b524", "b544", "b604", "b51c", "b5b0", "b5bc", "f404", "gold", "b58c", "b598", "poseL", "poseR", "b53c", "b5d0", "b5d4", "b59c", "b5d8", "b1cc"], "note": "the cc08==4 customer-service/haggle machine: sub-state, transaction type, kyaku index, offer/ask/base prices, round/patience, leave phase, scripted-machine PC/gate, poses, reaction timers."},
+    "camera":           {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["camex", "camey", "camez", "camlx", "camly", "camlz"], "note": "the 3D camera eye + lookat (XYZ each) — the eye/lookat pair sets pitch/angle."},
+    "dust_fx":          {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["dustn", "dustage", "dustsx", "dustsz", "dustvx", "dustvz"], "note": "the records_a_dust particle aggregate (count/age + spawn pos/vel) — sim-driven FX state."},
+    "dialogue_house":   {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["b1c8", "b924", "b928", "scene7a2c", "sub7a30"], "note": "the in-HOUSE dialogue gate + iv2 idle-beat timer/arm + active dialogue scene/sub-index."},
+    "title_menu":       {"class": "volatile_deterministic", "va": "0x49a59e", "fields": ["frame_counter", "cursor_pos", "cursor_anim", "select_phase", "pulse_phase", "menu_folding_out", "submenu_cursor", "settings_dirty", "fade_counter"], "note": "the title-screen menu state machine (cursor/phase/submenu/fade)."},
+    "dialogue_intro":   {"class": "volatile_deterministic", "va": "0x46c320", "fields": ["box_open", "reveal", "line_row", "st5_active", "st5_x", "st5_y", "st5_tx", "st5_ty", "skip_prompt", "skip_e20", "skipbox"], "note": "the opening-prologue dialogue: box-open/reveal counter/line row + standee 5 slide tween + the ESC skip-event box state."}
+  },
+
+  "benign": [
+    {"subsystem": "title_menu", "field": "submenu_state", "reason": "engine leaves DAT_09643524 set after a submenu back-out (render is cursor_anim-gated); the port clears it at cursor_anim==0 for its input gate — no render/input effect (engine-quirks §102). Same benign mark retail_fields.json carries."},
+    {"subsystem": "rng", "field": "rngcalls", "reason": "the agent-maintained CUMULATIVE LCG-draw counter (retail_fields.json src:rngcalls = the Frida agent's g_rng_count_total) has a per-SIDE ORIGIN: the port counts from process start, the retail counter from Frida hook-install — so its ABSOLUTE value is capture-origin-dependent (class-3 environmental), NOT a game global; comparing it cross-side compares origins, not logic (VERIFIED on the confirmed-1:1 house-firstcust-arrprobe --state view: raw rng matched 1498/1498 while absolute rngcalls read retail 0 vs port 1902+). The deterministic RNG value is the raw state `rng`; per-frame consumption COUNT is flow_diff --rng-drill's domain (a future per-frame-DELTA leaf could add it)."}
+  ]
+}

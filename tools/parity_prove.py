@@ -49,6 +49,7 @@ from parity import (  # noqa: E402
     adapt_pixels,
     adapt_render_program,
     adapt_save,
+    adapt_state,
     collect_environment,
     dir_manifest_sha256,
     load_required,
@@ -59,6 +60,7 @@ from parity import (  # noqa: E402
     render_metrics_from_view_json,
     retail_subject,
     save_fingerprint,
+    state_metrics_from_view_json,
     sha256_file,
     sha256_hex,
     tool_sha256_or_none,
@@ -69,10 +71,11 @@ SCHEMA = ROOT / "docs/schemas/parity-proof-v1.schema.json"
 CONTRACT_SCHEMA = ROOT / "docs/schemas/parity-contract-v1.schema.json"
 DEFAULT_PROOFS_ROOT = ROOT / "runs/proofs"
 
-# Pillars with no producer wired yet (later ST/AU/RT/BT packages). Declared so the
+# Pillars with no producer wired yet (later AU/RT/BT packages). Declared so the
 # bundle carries them explicitly as NOT_CAPTURED rather than silently omitting them.
-# `save` LANDED 2026-07-16 (ST-01, tools/parity/save.py + save_producer.py).
-UNBUILT_PILLARS = ("state", "audio_events", "timing", "boundary")
+# `save` LANDED 2026-07-16 (ST-01, tools/parity/save.py + save_producer.py);
+# `state` LANDED 2026-07-17 (ST-02/ST-03, tools/parity/state.py + state_producer.py).
+UNBUILT_PILLARS = ("audio_events", "timing", "boundary")
 
 
 class ProveError(Exception):
@@ -202,6 +205,19 @@ def resolve_observations(window_dir: Path, contract: dict):
         put("render_program", adapt_render_program(rm, required, expected_containers=expected), rm)
     else:
         put("render_program", _prove_not_captured("render_program", "no view.json in window"))
+
+    # state (volatile) — bridge the view's per-frame engine-state blocks (an
+    # orv3_window … --state drive) into a normalized state-metrics doc, Merkle-
+    # compared per required frame (ST-02/ST-03). Same view + container `source` as
+    # render_program (the state was captured in the same drive). A view without
+    # --state carries has_state:false ⇒ the adapter reports NOT_CAPTURED.
+    if view.exists():
+        sdoc = state_metrics_from_view_json(view, required=required, source=expected)
+        sfm = window_dir / "state-metrics.json"
+        sfm.write_text(json.dumps(sdoc))
+        put("state", adapt_state(sfm, required, expected_containers=expected), sfm)
+    else:
+        put("state", _prove_not_captured("state", "no view.json in window"))
 
     # pixels — optional producer output (no headless pixel producer yet ⇒ NOT_CAPTURED)
     pm = window_dir / "pixel-metrics.json"
