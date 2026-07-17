@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-07-17 — ST-04: first-divergence state report (the `state` pillar's drill-in)
+
+The DIAGNOSTIC sibling of the `state` ADAPTER (`state.py`): the adapter grades the pillar PASS/FAIL for the proof
+bundle; ST-04 explains a FAIL. `tools/parity/state_diff.py` (pure core) + CLI `tools/state_diff.py` +
+`tools/test_state_diff.py` (43 checks). Reuses the ST-02 codec+Merkle — no new truth. Report (roadmap §7 ST-04
+output): first divergent LOGICAL frame → leaf ROOT PATH + schema TYPE + TYPED VALUES + RAW BITS (the canonical
+encoder bytes each side hashed) + LAST MATCHING frame + value TRANSITION + every CO-DIVERGENT leaf.
+
+- New `all_divergent_leaves` (`state_merkle.py`, shared `_walk_divergent` generator; first == `first_divergent_leaf`)
+  — names the FULL extent of a frame's corruption, not just the top-priority leaf. New `paired_state_from_view`
+  (`state_producer.py`) — the view→paired extraction, shared by the producer + ST-04.
+- **TRANSITION = state-derivable mutation provenance.** The last matching frame had EQUAL roots ⇒ both sides held the
+  same value (Merkle) ⇒ `prev` unambiguous; classifies the primary leaf **port-MISSED** / **port-SPURIOUS** /
+  **port-WRONG**. The callsite/owner is ST-05's job — `provenance:null` seam left for it.
+- Fail closed, §4.1 exit codes (PASS 0 / FAIL 1 / NOT_CAPTURED · INCONCLUSIVE 2); a test proves the diagnostic verdict
+  AGREES with `adapt_state` (authoritative) on shared cases. Stable JSON + short text.
+
+VERIFIED on real captures: `house-pause-save-commit` win-0-200 **PASS 200/200**; `house-firstcust-arrprobe` win-0-1500
+**FAIL @ `LOADING_START#1+0 companion/cx (f32)` retail_bits `2709b5bc` port `2309b5bc`** (the FRONT's documented
+~3-ULP facing residual — 1 mantissa bit) + 23 co-divergent leaves, head-of-window ⇒ transition None. Whole parity
+Python suite green (state_diff 43, parity_state 72, prove/observations/schema/pixels/save/fingerprint unchanged).
+
 ## 2026-07-17 — ★NEXT(d): retail `--state` head warm-up CLOSED ⇒ first three-pillar (identity·save·state) proof
 
 The `house-pause-save-commit` `state` pillar was NOT_CAPTURED at the contract window `[1,19]` — the retail `--state`

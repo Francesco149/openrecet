@@ -552,6 +552,19 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### ST-04 — First-divergence state report
 
+> **✅ LANDED 2026-07-17** — `../findings/parity-state-producer.md` §"ST-04 LANDED".
+> `tools/parity/state_diff.py` (pure core) + CLI `tools/state_diff.py` +
+> `tools/test_state_diff.py` (43 checks). Emits the first divergent logical frame,
+> leaf root path + schema type, typed values, raw canonical bits, last matching
+> frame, the value TRANSITION (state-derivable provenance: port-MISSED / SPURIOUS /
+> WRONG), and every co-divergent leaf; new `all_divergent_leaves` in the Merkle
+> layer. Acceptance met: synthetic mutations at leaf / co-divergent / presence /
+> head-of-window levels localize; stable JSON + short text; §4.1 exit codes (a test
+> proves the verdict agrees with `adapt_state`). The "call provenance" (WRITER
+> callsite/owner) is ST-05's domain — a `provenance:null` seam is left for it.
+> VERIFIED on real captures (house-pause-save-commit PASS 200/200; arrprobe FAIL @
+> companion/cx with raw bits).
+
 - **Reasoning:** R2.
 - **Depends:** ST-01 through ST-03.
 - **Planned files:** `tools/state_diff.py` or parity subcommand, tests.

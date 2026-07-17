@@ -81,11 +81,10 @@ def merkle_root(tree, schema: StateSchema) -> str:
     return h.hexdigest()
 
 
-def first_divergent_leaf(tree_a, tree_b, schema: StateSchema) -> Optional[LeafDiff]:
-    """Walk both trees in canonical (schema) order; return the first leaf whose
-    canonical bytes differ, or whose presence is asymmetric. None ⇒ the two trees
-    are byte-identical (⇔ equal roots). A symmetrically-absent subsystem/field is
-    skipped (both sides agree it isn't there this frame)."""
+def _walk_divergent(tree_a, tree_b, schema: StateSchema):
+    """Yield every divergent leaf between two trees in canonical (schema) order — a
+    field whose canonical bytes differ or whose presence is asymmetric. The shared
+    engine of first_divergent_leaf (first yield) and all_divergent_leaves (all)."""
     for sub in schema.subsystems():
         a_node = tree_a.get(sub) or {}
         b_node = tree_b.get(sub) or {}
@@ -96,11 +95,26 @@ def first_divergent_leaf(tree_a, tree_b, schema: StateSchema) -> Optional[LeafDi
             b = b_node.get(field)
             pa, pb = a is not None, b is not None
             if pa != pb:
-                return LeafDiff(f"{sub}/{field}",
-                                a[1] if pa else None, b[1] if pb else None, pa, pb)
-            if pa and a[2] != b[2]:            # canonical bytes differ
-                return LeafDiff(f"{sub}/{field}", a[1], b[1], True, True)
-    return None
+                yield LeafDiff(f"{sub}/{field}",
+                               a[1] if pa else None, b[1] if pb else None, pa, pb)
+            elif pa and a[2] != b[2]:          # both present, canonical bytes differ
+                yield LeafDiff(f"{sub}/{field}", a[1], b[1], True, True)
+
+
+def first_divergent_leaf(tree_a, tree_b, schema: StateSchema) -> Optional[LeafDiff]:
+    """Walk both trees in canonical (schema) order; return the first leaf whose
+    canonical bytes differ, or whose presence is asymmetric. None ⇒ the two trees
+    are byte-identical (⇔ equal roots). A symmetrically-absent subsystem/field is
+    skipped (both sides agree it isn't there this frame)."""
+    return next(_walk_divergent(tree_a, tree_b, schema), None)
+
+
+def all_divergent_leaves(tree_a, tree_b, schema: StateSchema) -> list[LeafDiff]:
+    """EVERY divergent leaf between two trees, in canonical (schema) order. The
+    ST-04 report uses it to name the FULL extent of a frame's state corruption
+    (all co-divergent fields), not only the top-priority leaf — the first element
+    is exactly first_divergent_leaf. Empty ⇔ identical roots."""
+    return list(_walk_divergent(tree_a, tree_b, schema))
 
 
 def state_root(state_fields: dict, schema: StateSchema) -> str:

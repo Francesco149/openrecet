@@ -142,9 +142,18 @@
   0 AND 1 covered); `parity_state` **`[1,19]` PASS 19/19, `--all-frames` 200/200**; `state` ADDED to
   `required_pillars` ⇒ `parity_prove` **PASS: identity·save·state (+render_program bonus), 0 divergences**.
   `contract_sha256 9c2d2755…`→`c8c9a6a5…`; `parity-proof-index` `FUN_004905a8` re-keyed + pillars `[identity,save,state]`.
-  +`test_orv3.test_state_sidecar_slice`; 72 + orv3 gates green. **★ NEXT:** ST-04 first-divergence report + ST-05
-  mutation capture + ST-06 scene-by-scene subsystem expansion (the port `--state` sidecar re-slices on its next drive —
-  currently un-gated-wide but join-correct).
+  +`test_orv3.test_state_sidecar_slice`; 72 + orv3 gates green. **✅ ST-04 LANDED 2026-07-17 — first-divergence
+  state report** (`findings/parity-state-producer.md` §"ST-04 LANDED"; commit pending). The DIAGNOSTIC sibling of the
+  `state` ADAPTER: given a FAIL, localizes the first divergent LOGICAL frame → leaf ROOT PATH + schema TYPE + TYPED
+  VALUES + RAW BITS (canonical encoder bytes) + LAST MATCHING frame + value TRANSITION (state-derivable mutation
+  provenance: port-MISSED / port-SPURIOUS / port-WRONG) + every CO-DIVERGENT leaf. `tools/parity/state_diff.py` (pure
+  core, reuses ST-02 codec+Merkle — new `all_divergent_leaves`) + CLI `tools/state_diff.py` + 43-check gate;
+  fail-closed §4.1 verdict, a test proves it AGREES with `adapt_state`; `provenance:null` seam for ST-05. VERIFIED:
+  `house-pause-save-commit` **PASS 200/200**; `house-firstcust-arrprobe` **FAIL @ `LOADING_START#1+0 companion/cx`**
+  retail_bits `2709b5bc`/port `2309b5bc` (the documented ~3-ULP facing residual — 1 mantissa bit) + 23 co-divergent.
+  **★ NEXT:** ST-05 mutation capture (name the WRITER behind a transition — fills ST-04's provenance seam; R3 design)
+  + ST-06 scene-by-scene subsystem expansion (the port `--state` sidecar re-slices on its next drive — currently
+  un-gated-wide but join-correct).
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still

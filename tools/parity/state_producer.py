@@ -97,6 +97,27 @@ def compare_states(paired_by_label: dict, schema: StateSchema,
     return doc
 
 
+def paired_state_from_view(view_doc: dict) -> tuple[dict, bool]:
+    """Extract the identity-keyed both-sided state from a loaded `view.json` →
+    `({label: {"port": {…}, "retail": {…}}}, has_state)`. Only frames whose `state`
+    block carries BOTH sides are kept; a one-sided/absent block is dropped (⇒ that
+    required frame is uncovered ⇒ NOT_CAPTURED downstream, fail closed). Shared by
+    the producer (from_view_json) and the ST-04 report (state_diff), so both read the
+    view identically. Trust `has_state` (bool(state_rows) at bake): a drive without
+    --state captured no engine state — nothing to compare regardless of stray blocks."""
+    has_state = bool(view_doc.get("has_state"))
+    paired: dict = {}
+    if has_state:
+        for fr in view_doc.get("frames") or []:
+            st = fr.get("state")
+            if not isinstance(st, dict):
+                continue
+            p, r = st.get("port"), st.get("retail")
+            if isinstance(p, dict) and isinstance(r, dict):
+                paired[fr["label"]] = {"port": p, "retail": r}
+    return paired, has_state
+
+
 def from_view_json(view_path, *, required=None, schema: Optional[StateSchema] = None,
                    source: Optional[dict] = None) -> dict:
     """Bridge a Trace Studio v3 `view.json` (a `--state` drive) into the state
@@ -109,18 +130,7 @@ def from_view_json(view_path, *, required=None, schema: Optional[StateSchema] = 
     if v is None:
         raise ObservationError(f"no view.json at {view_path}")
     schema = schema or StateSchema.load()
-    has_state = bool(v.get("has_state"))
-    paired: dict = {}
-    # Trust has_state (bool(state_rows) at bake): a drive without --state captured no
-    # engine state, so there is nothing to compare regardless of stray blocks.
-    if has_state:
-        for fr in v.get("frames") or []:
-            st = fr.get("state")
-            if not isinstance(st, dict):
-                continue
-            p, r = st.get("port"), st.get("retail")
-            if isinstance(p, dict) and isinstance(r, dict):
-                paired[fr["label"]] = {"port": p, "retail": r}
+    paired, has_state = paired_state_from_view(v)
     try:
         return compare_states(paired, schema, required, source=source, has_state=has_state)
     except StateCodecError as exc:            # a value/type the schema can't encode

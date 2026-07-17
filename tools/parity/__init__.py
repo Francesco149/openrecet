@@ -54,6 +54,8 @@ from .render_program import adapt_render_program
 from .render_program import from_view_json as render_metrics_from_view_json
 from .save import adapt_save
 from .state import adapt_state
+from .state_diff import build_report as build_state_diff_report
+from .state_diff import report_from_view_json as state_diff_from_view_json
 from .state_producer import from_view_json as state_metrics_from_view_json
 from .state_map import Locus, StateMap, StateMapError
 
@@ -107,6 +109,8 @@ __all__ = [
     "adapt_save",
     "adapt_state",
     "state_metrics_from_view_json",
+    "build_state_diff_report",
+    "state_diff_from_view_json",
     "StateMap",
     "StateMapError",
     "Locus",

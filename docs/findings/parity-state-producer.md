@@ -146,19 +146,55 @@ identity · save · state (+render_program bonus), 0 divergences** — the FIRST
 pillars `[identity,save,state]`. Generalizes: the HOUSE arrprobe's 1-frame head skew
 also closes on its next `--state` drive.
 
-## ★ NEXT — ST-04+
+## ✅ ST-04 LANDED 2026-07-17 — first-divergence state report
 
-State PASSES at `[1,19]` (identity · save · state). Next: ST-04 first-divergence
-report (typed values + nearby mutation provenance), ST-05 mutation capture, ST-06
-scene-by-scene subsystem expansion (arrprobe already exercises player/companion/
-dialogue; the picker is rng-only). Follow-up (non-blocking): the port's `--state`
-sidecar re-slices on its next drive (currently un-gated-wide but join-correct).
+The DIAGNOSTIC sibling of the `state` ADAPTER (`state.py`): the adapter answers "is
+the pillar PASS/FAIL for the bundle?"; ST-04 answers "given a FAIL, exactly what first
+went wrong and how." `tools/parity/state_diff.py` (pure core) + `tools/state_diff.py`
+(CLI) + `tools/test_state_diff.py` (43 checks). Reuses the ST-02 codec+Merkle — no new
+truth. Report (roadmap §7 ST-04 output): first divergent LOGICAL frame + leaf ROOT PATH
++ schema TYPE + TYPED VALUES + RAW BITS (the canonical encoder bytes each side hashed) +
+the LAST MATCHING frame + the value TRANSITION across that boundary + every CO-DIVERGENT
+leaf.
+
+- **`all_divergent_leaves`** (new, `state_merkle.py`) — every divergent leaf in schema
+  order (first == `first_divergent_leaf`, via a shared `_walk_divergent` generator); the
+  report names the FULL extent of a frame's corruption, not only the top-priority leaf.
+- **TRANSITION = state-derivable mutation provenance.** The last matching frame had EQUAL
+  roots ⇒ both sides held the same value there (Merkle), so `prev` is unambiguous; the
+  report classifies the primary leaf as **port-MISSED** (retail changed, port didn't),
+  **port-SPURIOUS** (port changed, retail didn't), or **port-WRONG** (both changed,
+  differently). The CALLSITE/owner is ST-05's domain — the report leaves a
+  `provenance: null` seam ST-05 fills without touching this contract.
+- **Fail closed, §4.1 verdict** — all identical → PASS(0); a divergence → FAIL(1), even
+  under a later coverage gap (a real disproof outranks a gap); `has_state` false / an
+  uncovered required frame → NOT_CAPTURED(2); empty required → INCONCLUSIVE(2). A test
+  proves the diagnostic verdict AGREES with `adapt_state` (authoritative) on shared cases.
+- **Stable JSON** (deterministic; no timestamps/abs-paths) + short text.
+
+**VERIFIED on real captures.** `house-pause-save-commit` win-0-200 → **PASS 200/200**.
+`house-firstcust-arrprobe` win-0-1500 → **FAIL @ `LOADING_START#1+0 companion/cx (f32)`
+retail_bits `2709b5bc` port_bits `2309b5bc`** (the FRONT's documented ~3-ULP facing
+residual — 1-bit mantissa) + 23 co-divergent leaves listed, head-of-window ⇒ transition
+None. The report reads the SAME `--state` view.json `parity_state` does.
+
+## ★ NEXT — ST-05 / ST-06
+
+State PASSES at `[1,19]` (identity · save · state) and ST-04 drills any FAIL. Next:
+**ST-05** semantic mutation capture (name the WRITER/callsite behind a transition —
+fills ST-04's `provenance` seam; R3 designs mutation semantics), **ST-06** scene-by-scene
+subsystem expansion (arrprobe already exercises player/companion/dialogue; the picker is
+rng-only — title/config → shop/economy → town → dungeon → scripted). Follow-up
+(non-blocking): the port's `--state` sidecar re-slices on its next drive (currently
+un-gated-wide but join-correct).
 
 ## Tooling
 
-`tools/parity/state_codec.py` · `state_merkle.py` · `state_producer.py` · `state.py`
-· CLI `tools/parity_state.py` · schema `docs/schemas/state-volatile-v1.json` · gate
-`tools/test_parity_state.py` (72 checks). Wired: `parity_prove.resolve_observations`
+`tools/parity/state_codec.py` · `state_merkle.py` (+`all_divergent_leaves`) ·
+`state_producer.py` (+`paired_state_from_view`) · `state.py` · **`state_diff.py`
+(ST-04)** · CLIs `tools/parity_state.py` + **`tools/state_diff.py` (ST-04)** · schema
+`docs/schemas/state-volatile-v1.json` · gates `tools/test_parity_state.py` (72) +
+**`tools/test_state_diff.py` (43)**. Wired: `parity_prove.resolve_observations`
 bridges the view inline; `state` out of `UNBUILT_PILLARS`. ★NEXT-d touched the CAPTURE
 path: `tools/frida_capture.py` (strip `{calltrace}` on any v3 drive ⇒ un-gated state
 emit) + `tools/trace_studio_v3/v3cache.py` (`_store_call_trace` slices the sidecar to
