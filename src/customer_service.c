@@ -1148,6 +1148,121 @@ int32_t customer_service_eligible(int i)
     return s_eligible[i];
 }
 
+/* ── Request category table (DAT_005c6f04 — 8 customers × 20 categories) ────── */
+static const int32_t s_cust_req_cats[8][20] = {
+    { 1, 9, 11, 12, 14, 13, 15, 16, 18, 17, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0 },
+    { 2, 9, 11, 13, 15, 18, 21, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 3, 9, 10, 13, 15, 19, 18, 21, 17, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 4, 9, 11, 13, 15, 19, 18, 17, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 5, 9, 10, 13, 15, 18, 21, 17, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 6, 9, 11, 12, 14, 13, 15, 16, 19, 18, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0 },
+    { 7, 9, 10, 11, 15, 18, 21, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 84, 9, 11, 12, 15, 16, 19, 18, 22, 20, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+};
+
+/* ── FUN_0049ed12 — item category family distinctness ──────────────────────── */
+static int cs_categories_distinct(int cat1, int cat2)
+{
+    if (cat1 == cat2) return 0;
+    if ((cat1 == 13 || cat1 == 14) && (cat2 == 13 || cat2 == 14)) return 0;
+    if ((cat1 >= 9 && cat1 <= 12) && (cat2 >= 9 && cat2 <= 12)) return 0;
+    if ((cat1 == 15 || cat1 == 16) && (cat2 == 15 || cat2 == 16)) return 0;
+    return 1;
+}
+
+/* ── FUN_00468d6b — customer request category match ────────────────────────── */
+static int cs_check_customer_request_category(int item_handle, int cust_idx)
+{
+    if (cust_idx < 0 || cust_idx >= 8) return 0;
+    int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
+    if (slot < 0) return 0;
+    if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
+    int32_t cat = g_item.records[slot].category;
+    for (int i = 0; i < 20; i++) {
+        int32_t req_cat = s_cust_req_cats[cust_idx][i];
+        if (req_cat == -1) return 0;
+        if (cat == req_cat) return 1;
+    }
+    return 0;
+}
+
+/* ── FUN_00468ddc — customer request slot eligibility ──────────────────────── */
+static int cs_check_request_eligibility(int cust_idx, int slot_idx, int item_handle)
+{
+    if (cust_idx < 0 || item_handle < 0) return 1;
+    if (cust_idx >= 8) return 1;
+
+    int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
+    if (slot < 0) return 0;
+    if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
+    int32_t cat = g_item.records[slot].category;
+    if (slot_idx == 0 && cat != s_cust_req_cats[cust_idx][0]) return 0;
+
+    int matched = cs_check_customer_request_category(item_handle, cust_idx);
+    if (!matched) {
+        if (slot_idx == -1 && cat == 0) return 1;
+        return 0;
+    }
+    if (slot_idx == -1) return 1;
+
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL) return 1;
+
+    const int32_t *req_slots = (const int32_t *)(bank + 0x2ceb4 + cust_idx * 0x6c);
+    for (int i = 0; i < 5; i++) {
+        if (i != slot_idx) {
+            int32_t other_h = req_slots[i];
+            if (other_h >= 0) {
+                int other_slot = tables_item_find_slot_by_id(&g_item, other_h >> 6);
+                if (other_slot >= 0) {
+                    int32_t other_cat = g_item.records[other_slot].category;
+                    if (!cs_categories_distinct(cat, other_cat)) return 0;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+/* ── FUN_0045ecc0 — customer budget calculation ────────────────────────────── */
+static int32_t cs_budget(int kyaku_id, int cand_idx)
+{
+    if (kyaku_id < 0 || kyaku_id >= KYAKU_COUNT) return 0;
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int cl_raw = 0;
+    if (bank != NULL && cand_idx >= 0) {
+        const int16_t *cl_ptr = (const int16_t *)(bank + 0x2d210);
+        cl_raw = (int)cl_ptr[cand_idx * 2];
+    }
+    int tier = cl_raw / 10;
+    if (tier > 10) tier = 10;
+    if (tier < 0) tier = 0;
+
+    int32_t b_low = g_kyaku.records[kyaku_id].budget_low;
+    int32_t b_high = g_kyaku.records[kyaku_id].budget_high;
+    return ((b_high - b_low) * tier) / 10 + b_low;
+}
+
+/* ── FUN_00461011 — budget level scaled by shop day ────────────────────────── */
+int32_t customer_service_budget_level_day(int cand_idx)
+{
+    static const int32_t level_table[9] = { 500, 500, 3000, 6000, 10000, 10000, 15000, 18000, 20000 };
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL) return 0;
+
+    int level = 0;
+    if (cand_idx >= 0) {
+        const int16_t *cl_ptr = (const int16_t *)(bank + 0x2d210);
+        level = (int)cl_ptr[cand_idx * 2 + 1];
+    }
+    if (level > 8) level = 8;
+    if (level < 0) level = 0;
+
+    int32_t day = *(const int32_t *)(bank + 0x2c3ec);
+    float val = (float)level_table[level] * ((float)day / 7.0f);
+    return (int32_t)val;
+}
+
 /* ── FUN_00461303 — the customer-service kind selector ───────────────────────
  * Binds the active customer (b56c/b570 from the queue) + the offered-item handle
  * + the b5a8==2 dispatch, branching on the sale-flag bytes:
@@ -1160,17 +1275,20 @@ int32_t customer_service_eligible(int i)
  *     {1,2,3,4,11,12,13} (DAT_005c6be0).  b564 gates a 2-rng particle emit in the
  *     master tick (all.c:60240, FUN_00471089×2), so it is RNG-load-bearing.
  *   else (general live customer, all.c:59350+, rng-DRAWN item) →
- *     PORT-DEBT(cs-kind-select-general); not reached by the current f404/f406
- *     traces — fall back to the scripted 0xc0 so an item still resolves. */
+ *     Full item search across display grid (request pass local_c=0 or normal pass local_c=1). */
 static int cs_kind_select(void)
 {
     const uint8_t *bank =
         (const uint8_t *)save_work_dwords_at(save_work_active_slot());
     int e = s_roster_perm[s_b318];
 
-    g_scene_buy_current_page = s_queue[e * CS_QUEUE_STRIDE + 0]; /* b56c = queue[*].kyaku */
-    s_b570                   = s_queue[e * CS_QUEUE_STRIDE + 1]; /* b570 = queue[*].item_slot */
+    int kyaku_id = s_queue[e * CS_QUEUE_STRIDE + 0];             /* b56c = queue[*].kyaku */
+    int cand_idx = s_queue[e * CS_QUEUE_STRIDE + 1];             /* b570 = queue[*].item_slot */
+    g_scene_buy_current_page = kyaku_id;
+    s_b570                   = cand_idx;
     s_b5a8                   = 2;
+
+    if (kyaku_id == -1) return 0;
 
     int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
     int f406 = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF]    != 0;
@@ -1195,8 +1313,106 @@ static int cs_kind_select(void)
         }
         return 1;
     }
-    s_b5a4 = 0xc0;   /* PORT-DEBT(cs-kind-select-general) fallback */
-    return 1;
+
+    /* General live customer item selection (all.c:59350-59517) */
+    int pass = 1;                                               /* normal WANT pass */
+    if (kyaku_id >= 2 && kyaku_id < 10 && (rng_next15() % 5 == 0) && s_b5e8 == 0) {
+        pass = 0;                                               /* request pass */
+    }
+
+    const int32_t *grid = (const int32_t *)bank + SAVE_BANK_FIELD_DISPLAY_GRID;
+
+    while (pass < 2) {
+        int32_t rows[15];
+        for (int i = 0; i < 15; i++) rows[i] = i;
+        if ((rng_next15() & 3) == 0) {
+            roster_shuffle(rows, 15);
+        } else if ((rng_next15() & 3) == 0) {
+            roster_shuffle(rows + 1, 14);
+        }
+
+        for (int r_idx = 0; r_idx < 15; r_idx++) {
+            int row = rows[r_idx];
+            int32_t cols[20];
+            for (int i = 0; i < 20; i++) cols[i] = i;
+            roster_shuffle(cols, 20);
+
+            for (int c_idx = 0; c_idx < 20; c_idx++) {
+                int col = cols[c_idx];
+                int32_t handle = grid[row * 20 + col];
+                if (handle == -1) continue;
+
+                int slot = tables_item_find_slot_by_id(&g_item, handle >> 6);
+                if (slot < 0) continue;
+
+                int32_t item_id = g_item.records[slot].item_id;
+                if (s_b568 != 0 && (item_id == 0xc1d || item_id == 0xc26 || item_id == 0xc22))
+                    continue;
+                if (item_id > 5200 && item_id < 5300)
+                    continue;
+                int want = 0;
+                if (s_b5e8 == 0) {
+                    if ((g_kyaku.records[kyaku_id].like_attr_mask & g_item.records[slot].attr_mask) != 0)
+                        want = 1;
+                    for (int k = 0; k < g_kyaku.records[kyaku_id].like_count; k++) {
+                        if (g_item.records[slot].category == g_kyaku.records[kyaku_id].like_kinds[k]) {
+                            want = 1;
+                            break;
+                        }
+                    }
+                    if (item_id >= 3000 && item_id <= 3099) {
+                        if ((rng_next15() % 10) != 0)
+                            want = 0;
+                    }
+                } else {
+                    if (s_b5ec < 0) {
+                        if (s_b5f4 == 0)
+                            want = (g_item.records[slot].category == s_b5f0);
+                        else
+                            want = ((g_item.records[slot].attr_mask & s_b5f4) != 0);
+                    } else {
+                        want = (slot == s_b5ec);
+                    }
+                }
+
+                if (pass == 0) {
+                    want = 0;
+                    if (bank != NULL) {
+                        const int32_t *req_slots = (const int32_t *)(bank + 0x2ceb4 + (kyaku_id - 2) * 0x6c);
+                        for (int req_k = 0; req_k < 5; req_k++) {
+                            if (req_slots[req_k] >= 0 && cs_check_request_eligibility(kyaku_id - 2, req_k, handle)) {
+                                want = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!want) continue;
+
+                int32_t budget = cs_budget(kyaku_id, cand_idx);
+                int is_special = 0;
+                if (row == 0) {
+                    static const int special[7] = { 1, 2, 3, 4, 11, 12, 13 };
+                    for (int k = 0; k < 7; k++) {
+                        if (col == special[k]) { is_special = 1; break; }
+                    }
+                    if (is_special)
+                        budget = (int32_t)((float)budget * 1.2f);
+                }
+
+                if (budget <= g_item.records[slot].price) continue;
+
+                s_b5a4 = handle;
+                s_b564 = is_special ? 1 : 0;
+                s_b5a8 = 2;
+                return 1;
+            }
+        }
+        pass++;
+    }
+
+    return 0;
 }
 
 /* ── greeting base/ask (FUN_00462403 @ 0x46343d-0x463503) ────────────────────
@@ -2858,3 +3074,14 @@ void customer_service_cand_extra_set_for_test(int idx, int32_t v)   /* d564 */
 }
 int32_t customer_service_b53c(void) { return s_b53c; }
 int32_t customer_service_pushback_line_for_test(void) { return cs_pushback_line(); }
+int     customer_service_kind_select_for_test(void) { return cs_kind_select(); }
+void    customer_service_set_queue_for_test(int idx, int32_t kyaku, int32_t item_slot, int32_t kind)
+{
+    if (idx >= 0 && idx < CS_QUEUE_ENTRIES) {
+        s_queue[idx * CS_QUEUE_STRIDE + 0] = kyaku;
+        s_queue[idx * CS_QUEUE_STRIDE + 1] = item_slot;
+        s_queue[idx * CS_QUEUE_STRIDE + 2] = kind;
+        s_roster_perm[idx] = idx;
+        s_b318 = idx;
+    }
+}

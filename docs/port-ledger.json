@@ -8,20 +8,20 @@
   "inv_instrumented_full": 72,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 501,
-  "inv_discovered": 1962,
-  "referenced_or_better": 586,
-  "pct_referenced_or_better": 23.0,
+  "inv_source_referenced": 503,
+  "inv_discovered": 1960,
+  "referenced_or_better": 588,
+  "pct_referenced_or_better": 23.1,
   "runtime_proven": 1,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 28,
   "verified": 72,
   "stubbed": 13,
-  "ported": 501,
-  "unported": 1962,
-  "touched": 586,
-  "pct_touched": 23.0,
+  "ported": 503,
+  "unported": 1960,
+  "touched": 588,
+  "pct_touched": 23.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -12375,7 +12375,8 @@
    "proofs": [],
    "src": [
     "src/customer_haggle.c",
-    "src/customer_haggle.h"
+    "src/customer_haggle.h",
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -12997,11 +12998,11 @@
    "size": 87,
    "is_thunk": false,
    "is_call_target": false,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -13013,8 +13014,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x461068",
@@ -26483,11 +26486,11 @@
    "size": 99,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -26499,8 +26502,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49ed75",

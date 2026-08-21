@@ -48,7 +48,7 @@ result-*
 *.pdb
 *.ilk
 *.map
-
+*.sqlite
 # ─── Python caches ────────────────────────────────────────────────────────
 __pycache__/
 *.pyc

@@ -1144,3 +1144,78 @@ int test_cs_pushback_line_patience(void)
     T_ASSERT_EQ_I(customer_service_pushback_line_for_test(), 3);
     return 0;
 }
+
+/* FUN_00461011 — budget level calculation based on shop day and loyalty level */
+int test_cs_budget_level_day(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    bank[SAVE_BANK_FIELD_SHOP_DAY] = 7; /* day 7 */
+    *cs_test_close_hi(bank, 0) = 0;     /* level 0 -> 500 * 7 / 7 = 500 */
+    T_ASSERT_EQ_I(customer_service_budget_level_day(0), 500);
+
+    *cs_test_close_hi(bank, 0) = 2;     /* level 2 -> 3000 * 7 / 7 = 3000 */
+    T_ASSERT_EQ_I(customer_service_budget_level_day(0), 3000);
+
+    *cs_test_close_hi(bank, 0) = 8;     /* level 8 -> 20000 * 7 / 7 = 20000 */
+    T_ASSERT_EQ_I(customer_service_budget_level_day(0), 20000);
+
+    bank[SAVE_BANK_FIELD_SHOP_DAY] = 14; /* day 14 -> 2x */
+    *cs_test_close_hi(bank, 0) = 4;      /* level 4 -> 10000 * 14 / 7 = 20000 */
+    T_ASSERT_EQ_I(customer_service_budget_level_day(0), 20000);
+    return 0;
+}
+
+/* FUN_00461303 — general customer item pick from display grid */
+int test_cs_kind_select_general_customer_pick(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    ((uint8_t *)bank)[F404_SELL_ACTIVE_BYTE_OFF] = 0;
+    ((uint8_t *)bank)[F406_TUTORIAL_BYTE_OFF] = 0;
+
+    /* Place an item in display grid:
+     * Cell (0, 1) = special front-counter slot (col 1), item_id 100 (1H Sword, handle 100<<6) */
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + 0 * 20 + 1] = (100 << 6);
+
+    int32_t save_count = g_item.count;
+    int32_t save_id    = g_item.records[0].item_id;
+    int32_t save_price = g_item.records[0].price;
+    int32_t save_cat   = g_item.records[0].category;
+    uint32_t save_aud  = g_item.records[0].aud_mask;
+    uint32_t save_attr = g_item.records[0].attr_mask;
+
+    g_item.count = 1;
+    g_item.records[0].valid = 1;
+    g_item.records[0].item_id = 100;
+    g_item.records[0].category = 1; /* 1H Sword */
+    g_item.records[0].price = 100;
+    g_item.records[0].aud_mask = 0xffffffffu;
+    g_item.records[0].attr_mask = 0;
+
+    /* Customer 2 (Louie): likes category 1 */
+    g_kyaku.records[2].active = 1;
+    g_kyaku.records[2].budget_low = 1000;
+    g_kyaku.records[2].budget_high = 2000;
+    g_kyaku.records[2].like_count = 1;
+    g_kyaku.records[2].like_kinds[0] = 1;
+    g_kyaku.records[2].like_attr_mask = 0;
+
+    rng_seed(19937);
+    customer_service_set_queue_for_test(0, 2, 0, 0); /* kyaku 2 (Louie), slot 0 */
+    int res = customer_service_kind_select_for_test();
+    T_ASSERT_EQ_I(res, 1);
+
+    struct cs_render_state cs;
+    customer_service_get_render_state(&cs);
+    g_item.records[0].item_id = save_id;
+    g_item.records[0].price = save_price;
+    g_item.records[0].category = save_cat;
+    g_item.records[0].aud_mask = save_aud;
+    g_item.records[0].attr_mask = save_attr;
+
+    T_ASSERT_EQ_I(customer_service_b5a8(), 2);
+    T_ASSERT_EQ_I(cs.b5a4, (100 << 6));
+    T_ASSERT_EQ_I(cs.b564, 1); /* Special front counter slot */
+    return 0;
+}

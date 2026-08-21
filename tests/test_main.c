@@ -488,6 +488,8 @@ struct test_case {
     X(cs_live_decision_tutorial_gates) \
     X(cs_loyalty_latch_rules) \
     X(cs_pushback_line_patience) \
+    X(cs_budget_level_day) \
+    X(cs_kind_select_general_customer_pick) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

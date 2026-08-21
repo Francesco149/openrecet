@@ -91,6 +91,7 @@ int32_t customer_service_player_ask(void);
 int32_t customer_service_offer(void);
 int32_t customer_service_variant(void);  /* DAT_0730b5e0 — last cs_pick_line variant (trace probe) */
 int32_t customer_service_base_price(void);
+int32_t customer_service_budget_level_day(int cand_idx);
 
 /* Flow-trace / render state: the transaction-type selector (DAT_0730b5a8),
  * active customer record index (DAT_0730b56c), arrival-anim counter
@@ -226,12 +227,13 @@ int32_t customer_service_popup_queue_val(int i);
 /* Entry i's display counter (DAT_0730b304[i]) — the render alpha/slide
  * timeline the master tick advances. */
 int32_t customer_service_popup_disp(int i);
+void    customer_service_cand_extra_set_for_test(int idx, int32_t v);
+int32_t customer_service_b53c(void);
+int32_t customer_service_pushback_line_for_test(void);
+int     customer_service_kind_select_for_test(void);
+void    customer_service_set_queue_for_test(int idx, int32_t kyaku, int32_t item_slot, int32_t kind);
 
-/* FUN_004361b2 binding — the market price-trend for an item handle
- * (id<<6|quality), evaluated against the live daily-news list with the
- * engine's tutorial-sell head gate (b1c0==1 && stage.maptype==0 &&
- * cc08==4 && f404).  {-2,-1,0,1}: feeds the haggle round-0 tilt
- * (haggle_offer_up trend param) and the two trend-tinted texts (the
+/* FUN_004361b2 — daily-news price-trend classifier (reads the active
  * haggle price panel + the merchant-HUD item tooltip).  Neutral 0 while
  * the news list is empty (all pre-day-9 traces). */
 int32_t cs_news_price_trend(int32_t item_handle);

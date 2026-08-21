@@ -12,7 +12,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 501, discovered 1962 → 586 referenced-or-better (23.0%)
+- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 503, discovered 1960 → 588 referenced-or-better (23.1%)
 - **runtime:** 1 proven (0.0%) — every rung needs a `parity-proof-index.json` bundle
 - orphan refs (in src/, not in function table): 7
 
@@ -111,7 +111,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (501) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (503) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -299,7 +299,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ |  | music.h |
 | 0x45e80f | FUN_0045e80f | 298 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
-| 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ |  | customer_haggle.c, customer_haggle.h |
+| 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x45ed12 | FUN_0045ed12 | 152 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ |  | customer_roster.h, customer_service.c, customer_service.h (+3) |
 | 0x45ff11 | FUN_0045ff11 | 32 | ✓ |  | customer_service.c |
@@ -320,6 +320,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x460f16 | FUN_00460f16 | 67 | ✓ |  | customer_service.c, customer_service.h |
 | 0x460f59 | FUN_00460f59 | 78 | ✓ |  | customer_service.c, save_bank.h |
 | 0x460fa7 | FUN_00460fa7 | 106 | ✓ |  | customer_service.c, scene1_player_ctrl.c |
+| 0x461011 | FUN_00461011 | 87 |  |  | customer_service.c |
 | 0x461068 | FUN_00461068 | 667 | ✓ |  | customer_service.c |
 | 0x461303 | FUN_00461303 | 1167 | ✓ |  | customer_service.c, scene1_player_ctrl.c |
 | 0x461792 | FUN_00461792 | 1124 | ✓ |  | customer_service.c |
@@ -578,6 +579,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x49e849 | FUN_0049e849 | 350 | ✓ |  | tables_item.c, tables_item.h |
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ |  | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ |  | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
+| 0x49ed12 | FUN_0049ed12 | 99 | ✓ |  | customer_service.c |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ |  | tables_item.c, tables_item.h |
 | 0x49ef78 | FUN_0049ef78 | 64 | ✓ |  | encyclopedia.c, news_daily.c, scene1_display_menu.c |
 | 0x49efb8 | FUN_0049efb8 | 90 | ✓ |  | encyclopedia.c, encyclopedia.h |

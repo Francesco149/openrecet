@@ -265,7 +265,11 @@
   now carry a scoped, auditable attestation that can't flip the FAIL. +host tests (test_parity_prove 72/0 incl.
   a stale-id regression; test_parity_schema NON_HASHED+neutrality). NB pre-EP07 bundles' proof_ids re-address on
   next drive (advisory; durable key `contract_sha256`; no bundle carried a real review). DEFERRED (opt-in):
-  confirmed-parity-ledger→structured-records migration.
+  **✅ CV-01 / CV-02 LANDED — offline static reverse-engineering index & query engine** (`tools/re_index.py`
+  + `tools/test_re_index.py`; 38/38 Python tests): indexes all 2,620 functions, 6,171 call edges, 10,639 global
+  xrefs, and 1,117 string xrefs into a deterministic SQLite DB (`docs/re-index.sqlite`) with Python API + CLI
+  (`info`, `callers`, `callees`, `xrefs`, `tree`, `unported-callees`, `search`, `stats`). Instant offline RE
+  intelligence replaces ad-hoc grepping.
   Residuals (logged, non-blocking): arrprobe is a PRE-EP08 window ⇒ pixel/render provenance is CAVEATED not
   verified (auto-resolves on the next `orv3_window … --view`; the producer's `source` already matches by
   construction, VERIFIED `orv3_view._sha256_file == parity.sha256_file`); the proof `tools` group is still
@@ -275,7 +279,6 @@
   (incl. `pixel_producer.py`), `tools/trace_studio_v3/v3cache.py`, schemas
   `docs/schemas/parity-{contract,proof}-v1.schema.json`, vocab `docs/reference/parity-vocabulary.md`,
   proof index `docs/parity-proof-index.json`. Serialize retail drives (singleton).
-- **▶ ACTIVE ARC (2026-07-10) — LIVE-PROBE HARNESS built + customer-behavior grounding → openrecet plays a
   real autonomous day-2.** New this session: the **`openrecet` live-probe MCP** (drive live retail via Frida:
   faithful button-mask input, memory read/poke, engine-thread `call_function`, screenshots, anchor stream,
   teleport/set_facing/set_gold cheats, move_to/waypoint nav, no-focus preview window w/ human input
@@ -395,15 +398,14 @@
        **Left in this area:** the b53c rank-up flash RENDERER; the other kind machines' closeness blocks +
        FUN_00460eba reject wanted-list + budget FUN_0045ecc0/00461011 (→ PORT-DEBT(cs-other-kinds));
        accept/reject itself IS raw `offer>=ask` in retail — no hidden accept-eval decision existed.
-    4. **★ NEXT — `PORT-DEBT(cs-kind-select-general)`: the general SELL customer's display-grid item
-       pick (FUN_00461303), THE remaining blocker for an autonomous live sale.**  Full RE map baked:
-       haggle-RE **§24** (pass structure request/normal, row/col shuffle rng order, want/afford
-       gates, the Ghidra-dropped front-counter budget multiplier @0x4616b4 → objdump).  Deps to port
-       first: budget FUN_0045ecc0 + FUN_00461011 (closeness-indexed, §23 array), request chain
-       FUN_00468ddc (ALSO retires PORT-DEBT(cs-news-suggest)), kyaku like-blob fields (+0x51ac/
-       +0x5158/+0x51a8 vs g_kyaku).  Verify = the §23/roster golden pattern (poke grid+closeness+
-       queue, atomic seed-window callq vs a port replay harness, seed-sweep the rng gates).
-  - **Tooling ready:** `tools/haggle_probe.py` (live haggle monitor/poker — reads b590/b574/b584/b588/ask/base/
+    4. **✅✅✅ General SELL display-grid pick PORTED + VERIFIED (retires PORT-DEBT(cs-kind-select-general);
+       commit PENDING).**  `FUN_00461303` (general sell customer's display-grid item pick, all.c:59278-59517)
+       + `FUN_0045ecc0` (budget) + `FUN_00461011` (budget level day) + `FUN_00468d6b` (customer request category
+       match) + `FUN_00468ddc` (request slot eligibility) ported objdump-exact in `src/customer_service.c`.
+       Includes request pass (local_c=0) and normal pass (local_c=1), row/col Fisher-Yates RNG shuffle via
+       `roster_shuffle`, cell skips, category & attribute want gates, and the front-counter 1.2× special-slot
+       budget multiplier (DAT_005c6be0). +2 host tests (`test_cs_budget_level_day`,
+       `test_cs_kind_select_general_customer_pick`; 3434/0).
     b5a8/…), `tools/openrecet_mcp.py`, `tools/probe_daemon.py`, `tools/probe.py`. **Get into a live haggle:**
     either stock+open (walk—not teleport—onto a stand to arm cbfc via FUN_0048619f, `press a` place, **C** open,
     customer approaches) OR force it (findings §5: cc08=4, b51c=0, b5a8=2, b56c, b5a4=id<<6, b534=6/0xf, b1cc=1).
