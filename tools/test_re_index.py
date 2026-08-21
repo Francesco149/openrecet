@@ -120,6 +120,12 @@ class TestReIndex(unittest.TestCase):
         res_str = self.idx.search("save_dat")
         self.assertTrue(any("save_dat" in s["string_name"] for s in res_str["strings"]))
 
+    def test_disasm(self):
+        self.idx.build(force=True)
+        text = self.idx.disasm(0x461011)
+        self.assertIn("push", text)
+        self.assertIn("ret", text)
+
 
 if __name__ == "__main__":
     unittest.main()

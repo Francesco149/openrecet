@@ -30,10 +30,10 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-
 REPO = Path(__file__).resolve().parent.parent
 DECOMPILED_DIR = REPO / "docs" / "decompiled"
 FUNCTIONS_CSV = DECOMPILED_DIR / "functions.csv"
@@ -367,6 +367,29 @@ class ReIndex:
         va = parse_va(target) if not isinstance(target, int) else target
         cur.execute("SELECT string_name FROM string_xrefs WHERE func_va=? ORDER BY string_name", (va,))
         return [r[0] for r in cur.fetchall()]
+    def disasm(self, target: str | int, att: bool = False, exe_path: Optional[Path] = None) -> str:
+        fn = self.get_function(target)
+        if not fn:
+            raise ValueError(f"Function not found: {target}")
+        va = fn["va"]
+        sz = fn["size"]
+        if exe_path is None:
+            exe_path = REPO / "vendor" / "unpacked" / "recettear.unpacked.exe"
+        if not exe_path.exists():
+            raise FileNotFoundError(f"Executable not found: {exe_path}")
+        syntax = ["-M", "intel"] if not att else []
+        cmd = [
+            "objdump", "-d", *syntax,
+            f"--start-address=0x{va:x}",
+            f"--stop-address=0x{va + sz:x}",
+            str(exe_path),
+        ]
+        try:
+            return subprocess.check_output(cmd, text=True)
+        except subprocess.CalledProcessError as e:
+            return f"objdump failed with exit code {e.returncode}: {e.output}"
+        except FileNotFoundError:
+            return "objdump not found in environment (run via nix develop)"
 
     def get_call_tree(self, target: str | int, max_depth: int = 3, _visited: Optional[Set[int]] = None) -> Dict[str, Any]:
         if _visited is None:
@@ -589,6 +612,16 @@ def cmd_tree(idx: ReIndex, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_disasm(idx: ReIndex, args: argparse.Namespace) -> int:
+    try:
+        text = idx.disasm(args.target, att=args.att)
+        print(text)
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"disasm error: {e}\n")
+        return 1
+
+
 def cmd_unported_callees(idx: ReIndex, args: argparse.Namespace) -> int:
     va = parse_va(args.target)
     callees = idx.get_callees(va)
@@ -665,6 +698,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp_tree.add_argument("target", help="function VA or name")
     sp_tree.add_argument("--depth", type=int, default=3, help="max depth (default: 3)")
 
+    sp_disasm = sub.add_parser("disasm", help="disassemble function from retail binary via objdump")
+    sp_disasm.add_argument("target", help="function VA or name")
+    sp_disasm.add_argument("--att", action="store_true", help="use AT&T syntax instead of Intel")
+
     sp_unported = sub.add_parser("unported-callees", help="list unported callees")
     sp_unported.add_argument("target", help="function VA or name")
 
@@ -684,6 +721,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "callees": cmd_callees,
         "xrefs": cmd_xrefs,
         "tree": cmd_tree,
+        "disasm": cmd_disasm,
         "unported-callees": cmd_unported_callees,
         "search": cmd_search,
         "stats": cmd_stats,
