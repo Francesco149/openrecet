@@ -10,12 +10,15 @@ This file is dense on purpose and auto-loads every session. It holds orientation
 conventions; deeper detail lives in `docs/` (pointers below). **The repo is the source of
 truth, not the uncommitted auto-memory.**
 
-## Current front
+## Fast orientation recipe (run on session start / after /clear)
+1. `git log -n 3 --oneline` — instant ground truth of the latest commits/micro-task.
+2. `read docs/FRONT.md:1-60` — the active fronts and pinned `★ NEXT MICRO-TASK`.
+
+## Current front & plans
 → `docs/FRONT.md` (the ONE hand-edited "current front") which is injected into
 `docs/STATUS.md` (derived). Active multi-session plan: `docs/plans/`. Do **not** trust
 point-in-time memory snapshots (archived under `memory/archive/`) for current state.
 Long-horizon proof/coverage/tooling program: `docs/plans/parity-evidence-roadmap.md`.
-
 ## How we work here (conventions)
 - **Output-efficiency (TERSE MODE — added 2026-06-21; REVERTIBLE: `git revert` the commit or
   delete this bullet). Lever = DIRECT max-thinking, never CUT it.** Max-thinking stays ON
@@ -211,6 +214,8 @@ Long-horizon proof/coverage/tooling program: `docs/plans/parity-evidence-roadmap
 - **Build:** `nix develop --command make -C src` (mingw32; **don't** override `CC`) →
   `build/openrecet.exe` (+ `-debug.exe`, console). **Tests:** `make -C tests run` (~3000,
   ASan/UBSan; run before committing C).
+- **Test layout:** `tests/test_*.c` = C host engine tests (`make -C tests run`); `tools/test_*.py` = Python tool test suites (`python3 tools/run_python_tests.py`).
+- **Offline Static RE Index (CV-01/02):** `nix develop --command python3 tools/re_index.py {info|text|disasm|callers|callees|xrefs|tree|search|stats} <target>`.
 - **Run the exe ONLY via `tools/run-openrecet.sh`** (or the supervisor) — bare-exe launches
   are forbidden (Job-Object reap + singleton mutex). Defaults to `--turbo --silent-audio`.
 - **Disassembly/hex:** use `vendor/unpacked/` (not `vendor/original/`, still SteamStub-
