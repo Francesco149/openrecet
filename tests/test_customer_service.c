@@ -1219,3 +1219,50 @@ int test_cs_kind_select_general_customer_pick(void)
     T_ASSERT_EQ_I(cs.b564, 1); /* Special front counter slot */
     return 0;
 }
+
+/* FUN_00460b93 — customer equipment upgrade upon buying an item */
+int test_cs_adventurer_equip_upgrade(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+
+    int32_t save_count = g_item.count;
+    g_item.count = 2;
+
+    /* Old sword: ID 100, Cat 1, ATK 10 */
+    g_item.records[0].valid = 1;
+    g_item.records[0].item_id = 100;
+    g_item.records[0].category = 1;
+    g_item.records[0].attack = 10;
+    g_item.records[0].defense = 0;
+    g_item.records[0].magic_attack = 0;
+    g_item.records[0].magic_defense = 0;
+    g_item.records[0].aud_mask = 0xffffffffu;
+
+    /* Better sword: ID 101, Cat 1, ATK 25 */
+    g_item.records[1].valid = 1;
+    g_item.records[1].item_id = 101;
+    g_item.records[1].category = 1;
+    g_item.records[1].attack = 25;
+    g_item.records[1].defense = 0;
+    g_item.records[1].magic_attack = 0;
+    g_item.records[1].magic_defense = 0;
+    g_item.records[1].aud_mask = 0xffffffffu;
+
+    /* Louie (kyaku 2, cust_idx 0) has slot 0 equipped with Old Sword (100 << 6) */
+    uint8_t *bb = (uint8_t *)bank;
+    int32_t *req_slots = (int32_t *)(bb + 0x2ceb4 + 0 * 0x6c);
+    int32_t *equip_slots = (int32_t *)(bb + 0x2cec8 + 0 * 0x6c);
+    req_slots[0] = (100 << 6);
+    equip_slots[0] = (100 << 6);
+
+    /* Louie buys Better Sword (101 << 6) */
+    customer_service_adventurer_equip_upgrade_for_test(2, (101 << 6));
+
+    /* Verify slot 0 is updated to Better Sword | 0x20 */
+    T_ASSERT_EQ_I(req_slots[0], (101 << 6) | 0x20);
+    T_ASSERT_EQ_I(equip_slots[0], (101 << 6) | 0x20);
+
+    g_item.count = save_count;
+    return 0;
+}

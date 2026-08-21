@@ -490,6 +490,7 @@ struct test_case {
     X(cs_pushback_line_patience) \
     X(cs_budget_level_day) \
     X(cs_kind_select_general_customer_pick) \
+    X(cs_adventurer_equip_upgrade) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

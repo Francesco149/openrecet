@@ -19869,6 +19869,7 @@
    "src": [
     "src/chara_equip.c",
     "src/chara_equip.h",
+    "src/customer_service.c",
     "src/encyclopedia.c"
    ],
    "status": "verified"

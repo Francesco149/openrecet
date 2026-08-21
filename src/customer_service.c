@@ -27,7 +27,7 @@
 #include "tables_news.h"      /* g_news — the daily-news featured-item defs (DAT_056e0de0) */
 #include "news_daily.h"       /* news_daily_update (FUN_00436623) + g_news_ticker_timer */
 #include "tables_tuto.h"      /* g_tuto — the scripted-sell script (FUN_00461c00 consumer) */
-#include "customer_haggle.h"  /* haggle_offer_up (FUN_00460161) */
+#include "chara_equip.h"     /* chara_equip_item_stats (FUN_0048093f) */
 #include "scene1_shop_display.h"  /* SHOP_DISPLAY_TIER_SELECTOR (0xb378) */
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
 #include "scene.h"                /* g_scene_state (DAT_0438b1c0) — trend head gate */
@@ -2332,6 +2332,61 @@ static void cs_display_grid_clear(int32_t item_handle,
     }
 }
 
+/* ── FUN_00460b93 — customer equipment upgrade upon buying an item ───────────
+ * When an adventurer customer (kyaku 2..9) buys an item, checks their 5 request/
+ * equip slots. If the bought item matches an equipment category family and has
+ * strictly better stats (and total stats within 1.5×), equips it into both the
+ * request slot (+0x2ceb4) and starter equip slot (+0x2cec8) with tag `| 0x20`. */
+static void cs_adventurer_equip_upgrade(void)
+{
+    int32_t item_h = (s_price_bc8 != -1) ? s_price_bc8 : s_b5a4;
+    int kyaku = g_scene_buy_current_page; /* s_b56c */
+    if (kyaku < 2 || kyaku > 9 || item_h == -1) return;
+
+    int cust_idx = kyaku - 2;
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL) return;
+
+    int bought_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)item_h >> 6);
+    if (bought_slot < 0) return;
+
+    int32_t *req_slots = (int32_t *)(bank + 0x2ceb4 + cust_idx * 0x6c);
+    int32_t *equip_slots = (int32_t *)(bank + 0x2cec8 + cust_idx * 0x6c);
+
+    for (int slot_idx = 0; slot_idx < 5; slot_idx++) {
+        int32_t curr_h = req_slots[slot_idx];
+        if (curr_h >= 0) {
+            if (cs_check_request_eligibility(cust_idx, slot_idx, item_h)) {
+                int curr_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)curr_h >> 6);
+                if (curr_slot >= 0) {
+                    if (cs_categories_distinct(g_item.records[bought_slot].category,
+                                               g_item.records[curr_slot].category) == 0) {
+                        int32_t bought_stats[4] = {0};
+                        int32_t curr_stats[4] = {0};
+                        chara_equip_item_stats((uint32_t)item_h, bought_stats);
+                        chara_equip_item_stats((uint32_t)curr_h, curr_stats);
+
+                        int32_t bought_sum = bought_stats[0] + bought_stats[1] + bought_stats[2] + bought_stats[3];
+                        int32_t curr_sum = curr_stats[0] + curr_stats[1] + curr_stats[2] + curr_stats[3];
+
+                        int stat_better = (bought_stats[0] > curr_stats[0] ||
+                                           bought_stats[1] > curr_stats[1] ||
+                                           bought_stats[2] > curr_stats[2] ||
+                                           bought_stats[3] > curr_stats[3]);
+
+                        if (stat_better && (float)curr_sum < (float)bought_sum * 1.5f) {
+                            uint32_t new_val = (uint32_t)item_h | 0x20u;
+                            req_slots[slot_idx] = (int32_t)new_val;
+                            equip_slots[slot_idx] = (int32_t)new_val;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /* Popup-queue accessors for the renderer chip + host tests. */
 int32_t customer_service_popup_queue_len(void)  { return s_b5bc; }
 int32_t customer_service_popup_queue_active(void) { return s_b5c0; }
@@ -2420,10 +2475,7 @@ static void cs_live_machine(void)
             s_cust_active[1] = 0;
             /* f404==0 → the live-sale commit (engine 4658ab accept block;
              * f404 is 0 on the tutorial walnut-bread sale too — retail runs
-             * this block there, RE §21.31).  Engine order all.c:62538-62548.
-             * PORT-DEBT(cs-news-suggest): only FUN_00460b93 (news
-             * suggestion — needs the FUN_00468ddc eligibility chain)
-             * remains unported. */
+             * this block there, RE §21.31).  Engine order all.c:62538-62548. */
             {
                 uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
                 int f404 = bankw &&
@@ -2442,7 +2494,7 @@ static void cs_live_machine(void)
                                                      * display-stand cell (note #18) */
                         cs_display_grid_clear(s_b5a4, &col, &row);
                     }
-                    /* FUN_00460b93 — PORT-DEBT(cs-news-suggest) */
+                    cs_adventurer_equip_upgrade();  /* FUN_00460b93 */
                 }
             }
             s_b534 = 10;
@@ -3084,4 +3136,11 @@ void    customer_service_set_queue_for_test(int idx, int32_t kyaku, int32_t item
         s_roster_perm[idx] = idx;
         s_b318 = idx;
     }
+}
+void customer_service_adventurer_equip_upgrade_for_test(int32_t kyaku, int32_t item_handle)
+{
+    g_scene_buy_current_page = kyaku;
+    s_b5a4 = item_handle;
+    s_price_bc8 = -1;
+    cs_adventurer_equip_upgrade();
 }

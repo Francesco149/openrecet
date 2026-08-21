@@ -84,7 +84,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x47b73c | FUN_0047b73c | 1779 | ✓ |  | input.c, input.h, sim.c (+1) |
 | 0x47be2f | FUN_0047be2f | 99 | ✓ |  | tick.c, tick.h |
 | 0x47c29d | FUN_0047c29d | 215 | ✓ |  | font.c, font.h, sim.c |
-| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, encyclopedia.c |
+| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, customer_service.c (+1) |
 | 0x48407f | FUN_0048407f | 795 | ✓ |  | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_conversation_pose.c (+4) |
 | 0x4844ef | FUN_004844ef | 310 | ✓ |  | chara_equip.c, chara_equip.h, scene_pause.c (+2) |
 | 0x4850ec | FUN_004850ec | 18 | ✓ | stub | anchor_trace.c, scene1_player_ctrl.c, scene1_player_ctrl.h |
