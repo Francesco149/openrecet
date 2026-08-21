@@ -7,12 +7,14 @@ docs/decompiled/by-address/*.c into a fast, queryable SQLite database
 
 Provides instant answers for:
   - info <va|name>: function size, calling convention, thunk status, callers/callees/xrefs count, port status
+  - text <va|name> [-n]: print decompiled C source text of function
+  - disasm <va|name> [--att]: print objdump disassembly of function
   - callers <va|name>: all functions that call target
   - callees <va|name>: all functions called by target
   - xrefs <DAT_va|s_name|hex_va>: all functions reading/writing a global or string
   - tree <va|name> [--depth N]: call tree up to depth N
   - unported-callees <va|name>: callees of target that are not yet implemented in port
-  - search <query>: regex/substring search over functions, globals, and strings
+  - search <query> [--code]: regex/substring search over functions, globals, strings, and code
   - stats: overall index statistics
 
 Run from repo root:
@@ -391,6 +393,32 @@ class ReIndex:
         except FileNotFoundError:
             return "objdump not found in environment (run via nix develop)"
 
+    def get_text(self, target: str | int, line_numbers: bool = False) -> str:
+        fn = self.get_function(target)
+        if not fn:
+            raise ValueError(f"Function not found: {target}")
+        file_path_str = fn.get("file_path")
+        p = None
+        if file_path_str:
+            cand = REPO / file_path_str
+            if cand.exists():
+                p = cand
+        if p is None:
+            va = fn["va"]
+            for cand in [BY_ADDRESS_DIR / f"{va:x}.c", BY_ADDRESS_DIR / f"{va:06x}.c", BY_ADDRESS_DIR / f"{va:08x}.c"]:
+                if cand.exists():
+                    p = cand
+                    break
+        if p is None or not p.exists():
+            raise FileNotFoundError(f"Decompiled file not found for {fn['name']} ({format_va(fn['va'])})")
+
+        text = p.read_text(encoding="utf-8", errors="replace")
+        if line_numbers:
+            lines = text.splitlines()
+            width = max(3, len(str(len(lines))))
+            return "\n".join(f"{i:>{width}d}: {line}" for i, line in enumerate(lines, 1))
+        return text
+
     def get_call_tree(self, target: str | int, max_depth: int = 3, _visited: Optional[Set[int]] = None) -> Dict[str, Any]:
         if _visited is None:
             _visited = set()
@@ -421,7 +449,7 @@ class ReIndex:
             node["children"].append(child)
         return node
 
-    def search(self, query: str, limit: int = 50) -> Dict[str, List[Dict[str, Any]]]:
+    def search(self, query: str, limit: int = 50, search_code: bool = False) -> Dict[str, List[Dict[str, Any]]]:
         conn = self.connect()
         cur = conn.cursor()
         q = f"%{query}%"
@@ -458,10 +486,36 @@ class ReIndex:
         """, (q, q, limit))
         globals_list = [dict(r) for r in cur.fetchall()]
 
+        code_matches = []
+        if search_code:
+            decomp_files = sorted(BY_ADDRESS_DIR.glob("*.c")) if BY_ADDRESS_DIR.exists() else []
+            pattern = re.compile(re.escape(query), re.IGNORECASE)
+            for fpath in decomp_files:
+                va = parse_va(fpath.stem)
+                content = fpath.read_text(encoding="utf-8", errors="replace")
+                lines = content.splitlines()
+                matches_in_file = []
+                for lineno, line in enumerate(lines, 1):
+                    if pattern.search(line):
+                        matches_in_file.append({"line": lineno, "text": line.strip()})
+                        if len(matches_in_file) >= 5:
+                            break
+                if matches_in_file:
+                    fn = self.get_function(va)
+                    code_matches.append({
+                        "va": format_va(va),
+                        "name": fn["name"] if fn else format_fun(va),
+                        "port_status": fn.get("port_status", "discovered") if fn else "discovered",
+                        "matches": matches_in_file,
+                    })
+                    if len(code_matches) >= limit:
+                        break
+
         return {
             "functions": funcs,
             "strings": strings,
             "globals": globals_list,
+            "code": code_matches,
         }
 
     def stats(self) -> Dict[str, Any]:
@@ -621,6 +675,35 @@ def cmd_disasm(idx: ReIndex, args: argparse.Namespace) -> int:
         sys.stderr.write(f"disasm error: {e}\n")
         return 1
 
+def cmd_text(idx: ReIndex, args: argparse.Namespace) -> int:
+    try:
+        fn = idx.get_function(args.target)
+        if not fn:
+            sys.stderr.write(f"Function not found: {args.target}\n")
+            return 1
+        raw_text = idx.get_text(args.target, line_numbers=False)
+        if args.json:
+            out = {
+                "va": format_va(fn["va"]),
+                "name": fn["name"],
+                "file_path": fn.get("file_path"),
+                "line_count": fn.get("line_count"),
+                "port_status": fn.get("port_status"),
+                "text": raw_text,
+            }
+            print(json.dumps(out, indent=1))
+        else:
+            if args.numbers:
+                text = idx.get_text(args.target, line_numbers=True)
+            else:
+                text = raw_text
+            print(text)
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"text error: {e}\n")
+        return 1
+
+
 
 def cmd_unported_callees(idx: ReIndex, args: argparse.Namespace) -> int:
     va = parse_va(args.target)
@@ -636,7 +719,7 @@ def cmd_unported_callees(idx: ReIndex, args: argparse.Namespace) -> int:
 
 
 def cmd_search(idx: ReIndex, args: argparse.Namespace) -> int:
-    res = idx.search(args.query, limit=args.limit)
+    res = idx.search(args.query, limit=args.limit, search_code=args.code)
     if args.json:
         print(json.dumps(res, indent=1))
     else:
@@ -653,8 +736,13 @@ def cmd_search(idx: ReIndex, args: argparse.Namespace) -> int:
             print(f"  Globals ({len(res['globals'])}):")
             for g in res["globals"]:
                 print(f"    DAT_{g['global_va']:08x} ({g['count']} references)")
+        if res.get("code"):
+            print(f"  Code matches ({len(res['code'])}):")
+            for c in res["code"]:
+                print(f"    {c['name']} @ {c['va']} [{c['port_status']}]:")
+                for m in c["matches"]:
+                    print(f"      L{m['line']}: {m['text']}")
     return 0
-
 
 def cmd_stats(idx: ReIndex, args: argparse.Namespace) -> int:
     st = idx.stats()
@@ -684,6 +772,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     sp_info = sub.add_parser("info", help="show function summary")
     sp_info.add_argument("target", help="function VA or name (e.g. 0x4905a8 or FUN_004905a8)")
+    sp_text = sub.add_parser("text", help="display decompiled C source text of function")
+    sp_text.add_argument("target", help="function VA or name (e.g. 0x4905a8 or FUN_004905a8)")
+    sp_text.add_argument("-n", "--numbers", action="store_true", help="show 1-based line numbers")
+
 
     sp_callers = sub.add_parser("callers", help="list callers of a function")
     sp_callers.add_argument("target", help="function VA or name")
@@ -708,6 +800,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp_search = sub.add_parser("search", help="search functions, strings, globals")
     sp_search.add_argument("query", help="search string")
     sp_search.add_argument("--limit", type=int, default=30, help="max results (default: 30)")
+    sp_search.add_argument("-c", "--code", action="store_true", help="search decompiled C function bodies as well")
 
     sub.add_parser("stats", help="index statistics")
 
@@ -722,6 +815,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "xrefs": cmd_xrefs,
         "tree": cmd_tree,
         "disasm": cmd_disasm,
+        "text": cmd_text,
         "unported-callees": cmd_unported_callees,
         "search": cmd_search,
         "stats": cmd_stats,

@@ -125,6 +125,26 @@ class TestReIndex(unittest.TestCase):
         text = self.idx.disasm(0x461011)
         self.assertIn("push", text)
         self.assertIn("ret", text)
+    def test_get_text(self):
+        self.idx.build(force=True)
+        text = self.idx.get_text(0x4905a8)
+        self.assertIn("void FUN_004905a8(int param_1)", text)
+        self.assertIn("DAT_056e6280", text)
+
+        # Test with line numbers
+        num_text = self.idx.get_text(0x4905a8, line_numbers=True)
+        self.assertIn(" 1: /* =====", num_text)
+
+        # Test invalid function
+        with self.assertRaises(ValueError):
+            self.idx.get_text(0x12345678)
+
+    def test_search_code(self):
+        self.idx.build(force=True)
+        res = self.idx.search("DAT_056e6280", search_code=True)
+        self.assertIn("code", res)
+        self.assertTrue(any(c["va"] == "0x4905a8" for c in res["code"]))
+
 
 
 if __name__ == "__main__":
