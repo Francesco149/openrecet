@@ -306,13 +306,14 @@ def _openrecet_screen_dims() -> tuple[int, int]:
 
 
 def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
-                                remote: str, *,
+                                remote: str,
                                 turbo: bool = False,
                                 silent_audio: bool = False,
                                 show_fps: bool = False,
                                 d3d_trace: bool = False,
                                 d3d_trace_verts: bool = False,
-                                call_trace: bool = False) -> dict:
+                                call_trace: bool = False,
+                                coverage: bool = False) -> dict:
     """Drive the retail unpacked exe via Frida; capture matching artifacts.
 
     Delegates to tools/frida_capture.run_capture with input injection
@@ -357,6 +358,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
             d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
             call_trace=call_trace,
             suppress_loads=scen.suppress_loads,
+            coverage=coverage,
         )
 
     return frida_capture.run_capture(
@@ -375,6 +377,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
         call_trace=call_trace,
         suppress_loads=scen.suppress_loads,
+        coverage=coverage,
     )
 
 
@@ -1048,6 +1051,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="capture an aligned call_trace.jsonl on each target "
                          "(with declared payloads) for tools/flow_diff.py — the "
                          "execution+dataflow drill-in.")
+    ap.add_argument("--coverage", action="store_true",
+                    help="collect retail dynamic block and edge coverage via Frida Stalker (CV-03)")
     ap.add_argument("--no-calltrace", action="store_true",
                     help="suppress the scenario's built-in {calltrace} window on "
                          "the PORT drive (don't pass --call-trace to the exe). The "
@@ -1136,7 +1141,8 @@ def main(argv: list[str] | None = None) -> int:
                         show_fps=args.show_fps,
                         d3d_trace=args.d3d_trace,
                         d3d_trace_verts=args.d3d_trace_verts,
-                        call_trace=args.call_trace)
+                        call_trace=args.call_trace,
+                        coverage=args.coverage)
                 else:
                     m = run_scenario_capture(
                         scen, sub_dir,
@@ -1234,7 +1240,8 @@ def main(argv: list[str] | None = None) -> int:
                 show_fps=args.show_fps,
                 d3d_trace=args.d3d_trace,
                 d3d_trace_verts=args.d3d_trace_verts,
-                call_trace=args.call_trace)
+                call_trace=args.call_trace,
+                coverage=args.coverage)
         else:
             meta = run_scenario_capture(
                 scen, run_dir,

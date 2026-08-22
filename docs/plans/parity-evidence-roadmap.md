@@ -717,6 +717,15 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### CV-07 — Next-experiment prioritizer
 
+> **✅ LANDED 2026-08-22** — `tools/coverage_atlas.py` + `tools/re_index.py` +
+> `tools/test_coverage_atlas.py` (18 checks passed). Multi-factor scoring model
+> (`CV-07-v1.0`) across 7 dimensions (`new_coverage_potential`, `new_semantic_potential`,
+> `distance_from_certified`, `port_readiness`, `proof_deficit`, `runtime_cost_efficiency`,
+> `active_front_affinity`). CLI subcommands `coverage_atlas.py prioritize` and `re_index.py prioritize`
+> support candidate kind filters (`all`, `functions`, `edges`, `semantics`, `scenarios`),
+> active development front focus (`--front <name>`), `--min-readiness`, `--weights` override,
+> and structured table / Markdown / JSON output with natural language explanations for every candidate.
+
 - **Reasoning:** R3 freezes scoring; R2 implements.
 - **Depends:** CV-02 through CV-06.
 - **Inputs:** new blocks/edges, new semantic content, distance from certified node,
@@ -727,13 +736,27 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### CV-08 — Calibrate coverage truth
 
+> **✅ LANDED 2026-08-22 — ARC 1 COMPLETE** — `tools/coverage_atlas.py` + `tools/re_index.py` +
+> `tools/test_coverage_atlas.py` (26 checks passed). Dynamic coverage truth calibration
+> engine (`CV-08-v1.0`) assessing 4 weighted factors:
+> (1) `collector_integrity` (0.25): evaluates event counts, lost events, and buffer overflow penalties;
+> (2) `cross_collector_agreement` (0.30): cross-checks Stalker basic block executions against entry/exit call traces and semantic events, highlighting missing and extra function sets;
+> (3) `cfg_structural_validity` (0.25): validates PE module code ranges (0x401000..0x540000), function entry block execution, and continuous control-flow graph alignment;
+> (4) `determinism` (0.20): computes block and edge Jaccard similarity across repeat scenario drives;
+> (5) `blind_spot_penalty` (capped at 0.15): catalogs instrumentation blind spots across touched code (external thunk boundaries, short basic blocks <16B, indirect dynamic calls, jump tables, exception handlers) with actionable remedies.
+> CLI subcommands `coverage_atlas.py calibrate` and `re_index.py calibrate` support `--scenario`, `--run-id`,
+> `--mode` (`DYNAMIC_STALKER`, `DYNAMIC_CALL_TRACE`, `DYNAMIC_TTD`, `STATIC_CFG_INFERRED`, `STATIC_PROVEN`, `SYNTHETIC_HYBRID`),
+> `--cross-check-call-trace`, `--min-confidence`, `--markdown`, and structured JSON output.
+> **CV-08 Invariant strictly enforced:** `get_summary()` and `re_index.py coverage` gate global coverage claims,
+> requiring passed calibration with explicit collection mode, confidence score (0.0..1.0), and confidence band
+> (`CERTIFIED`, `HIGH`, `MODERATE`, `LOW`, `UNVERIFIED`, `UNCALIBRATED`) annotations before publishing global percentages.
+
 - **Reasoning:** R3.
 - **Depends:** CV-03, CV-07.
 - **Procedure:** compare Stalker against call traces, static CFG, TTD, and repeated runs
   on representative direct/indirect/switch/exception paths. Document blind spots.
 - **Acceptance:** coverage claims include collection mode and confidence; no dashboard
   publishes a global percentage until calibration passes.
-
 ## 9. Workstream GX — D3D8 capture completeness
 
 ### GX-00 — Device/resource method census

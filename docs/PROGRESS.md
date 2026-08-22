@@ -7,6 +7,95 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-22 — CV-08 — Coverage Truth Calibration (Arc 1 Complete)
+
+Roadmap §8 CV-08.
+
+- **Dynamic Coverage Truth Calibration Engine (`tools/coverage_atlas.py`):** Implemented the `CV-08-v1.0`
+  calibration model evaluating dynamic coverage fidelity across 4 weighted factors:
+  1. `collector_integrity` (0.25): verifies total event volume, module vs out-of-module execution, and assesses loss penalties for Frida Stalker dropped events;
+  2. `cross_collector_agreement` (0.30): validates Stalker basic block executions against function entry/exit call traces and semantic dimension records, flagging missing and extra function sets;
+  3. `cfg_structural_validity` (0.25): confirms basic blocks reside in PE code range (`0x401000..0x540000`) and evaluates function entry-point hit ratios;
+  4. `determinism` (0.20): calculates multi-run block and edge Jaccard similarity across identical scenario runs.
+- **Instrumentation Blind Spot Cataloging:** Dynamically scans touched functions against static properties and disassembly,
+  identifying and quantifying potential blind spots (external runtime/API thunk wrappers, short basic blocks <16B, indirect dynamic calls with register targets, switch jump tables, exception handlers) and applying a bounded penalty (`blind_spot_penalty` ≤ 0.15).
+- **Enforced Acceptance Gating (CV-08 Invariant):** Gated global coverage summaries and 2-axis parity reports behind
+  explicit calibration (`get_summary()`, `coverage_atlas.py summary`, `re_index.py coverage`), requiring a passed calibration record with collection mode (`DYNAMIC_STALKER`, `DYNAMIC_CALL_TRACE`, `DYNAMIC_TTD`, `STATIC_CFG_INFERRED`, `STATIC_PROVEN`, `SYNTHETIC_HYBRID`) and confidence annotations (`CERTIFIED`, `HIGH`, `MODERATE`, `LOW`, `UNVERIFIED`, `UNCALIBRATED`) before declaring coverage percentages.
+- **CLI Interfaces (`tools/coverage_atlas.py calibrate`, `tools/re_index.py calibrate`):** Added `calibrate` subcommands
+  supporting target scenario/run selection, `--mode`, `--cross-check-call-trace`, `--min-confidence`, `--markdown`, and structured JSON output.
+- **Testing (`tools/test_coverage_atlas.py`):** Expanded test suite to 26 comprehensive unit and integration tests covering clean run passes, lost event penalties, cross-collector discrepancies, CFG validity, repeat-run determinism, blind spot cataloging, summary gating invariants, and CLI execution.
+
+## 2026-08-22 — CV-07 — Next-Experiment Prioritizer
+
+Roadmap §8 CV-07.
+
+- **Multi-Factor Prioritization Engine (`tools/coverage_atlas.py`):** Implemented the `CV-07-v1.0`
+  scoring model ranking candidate experiments across 7 normalized dimensions:
+  1. `new_coverage_potential`: estimated volume of unvisited code (bytes/blocks) unlocked in reachable subgraph;
+  2. `new_semantic_potential`: unobserved VM opcodes, transitions, content IDs, or audio IDs;
+  3. `distance_from_certified`: BFS call-graph distance from already covered / proven execution frontier;
+  4. `port_readiness`: implementation and instrumented state (verified > ported > stubbed > referenced > discovered);
+  5. `proof_deficit`: priority boost for executed-unimplemented (CV-06 critical gap), executed-unproven, and port-debt tags;
+  6. `runtime_cost_efficiency`: estimated execution complexity and distance-to-verify;
+  7. `active_front_affinity`: dynamic multiplier for human-selected or active development focus front.
+- **Candidate Entity Generation:** Ranks candidate functions (identifying immediate frontier callees of covered code),
+  call edges (unexercised transitions from covered callers), semantic dimension items (unrecorded opcodes/transitions),
+  and scenario executions (scenarios with unmet coverage declarations).
+- **Transparent Explanations & Policy Metadata:** Every candidate returns a human-readable, grounded explanation
+  detailing why it was prioritized (e.g. distance, port status, logic unlocked, proof deficit, front match) alongside
+  its composite score and factor breakdown; output records policy version and normalized weights.
+- **CLI Interfaces (`tools/coverage_atlas.py prioritize`, `tools/re_index.py prioritize`):** Added `prioritize`
+  subcommands with options `--kind` (`all`, `functions`, `edges`, `semantics`, `scenarios`), `--front` (`customer_service`,
+  `day2_transition`, `shop_loop`, `save_system`, `dungeon`, etc.), `--min-readiness`, `--weights` (custom JSON override),
+  `--limit`, and formatted table, Markdown, and JSON output modes.
+- **Testing (`tools/test_coverage_atlas.py`):** 18 comprehensive tests covering multi-factor scoring, active front affinity,
+  candidate kind filters, readiness filtering, custom weight overrides, explanation generation, and CLI subcommands.
+
+## 2026-08-22 — CV-04 / CV-05 — Semantic Coverage Dimensions & Scenario Declarations
+
+Roadmap §8 CV-04 / CV-05.
+
+- **Semantic Coverage Engine (`tools/coverage_atlas.py`):** Added `coverage_semantics` SQLite table
+  tracking 9 semantic dimensions: `functions`, `blocks`, `vm_operations` (dialogue & tutorial opcodes),
+  `transitions` (scene & anchor rising edges), `content_ids` (item, customer, enemy, event IDs),
+  `assets` (mesh, texture, lnk assets), `audio_ids` (BGM track & SE sound effect IDs), `save_ops`
+  (slot commit/read ops), and `boundary_outcomes`.
+- **Automatic Semantic Derivation & Validation:** Ingests dynamic semantic events alongside basic blocks;
+  automatically attributes function-level and block-level semantic coverage; validates ID formats and bounds
+  fail-closed (`validate_semantic_item_id`).
+- **Scenario Declarations Validation (`tools/coverage_atlas.py`):** Added `validate_scenario_declarations`
+  and `audit_all_scenarios` subcommands (`validate-scenario`, `audit-scenarios`, `semantics`). Validates
+  `coverage_expectations` in `scenario.yaml` against the parity contract schema, verifies identifier
+  well-formedness, and cross-checks declared vs satisfied expectations against the atlas.
+- **Scenario Declarations:** Populated concrete intentional coverage declarations in opted-in scenarios
+  `house-firstcust-arrprobe` (functions, tutorial VM opcodes, transitions, kyaku content ID, asset, SE) and
+  `house-pause-save-commit` (save commit functions, pause/save picker transitions, SE).
+- **Static Index Integration (`tools/re_index.py`):** Enhanced `parse_va` for `DAT_`/`PTR_`/`s_` prefixes
+  and added dynamic semantic dimension reporting to `re_index coverage`.
+- **Testing (`tools/test_coverage_atlas.py`):** Expanded to 12 comprehensive unit and integration tests
+  covering semantic ingestion, item validation, scenario declaration auditing, and CLI interfaces.
+
+## 2026-08-22 — CV-03 — Dynamic block/edge coverage collection & Coverage Atlas
+
+Roadmap §8 CV-03 / CV-02 / CV-06.
+
+- **Dynamic Coverage Collector (`tools/frida/openrecet-agent.js`):** In-process Frida Stalker block/edge
+  tracer with module-filtering (restricts execution tracking to `recettear.unpacked.exe`), canonical
+  ImageBase `0x00400000` address normalization, window gating (frame range / anchor-relative windows),
+  lost-event counters, and deterministic `coverage_report` emission + RPC `getCoverage()`.
+- **Capture Integration (`tools/frida_capture.py`, `tools/scenario-test.py`):** Added `--coverage`,
+  `--coverage-start-frame`, `--coverage-end-frame`, `--coverage-anchor`, and automated `coverage.json`
+  artifact generation per scenario run.
+- **Coverage Atlas Engine & CLI (`tools/coverage_atlas.py`):** SQLite-backed storage (`coverage_runs`,
+  `coverage_blocks`, `coverage_edges`), interval-tree/binary-search block-to-function ownership attribution
+  across all 2,620 functions, multi-scenario coverage delta calculation (`delta`), and CV-06 gap analysis
+  (`gaps` --unimplemented, --unexecuted, --branches).
+- **Static Index Integration (`tools/re_index.py`):** Extended `coverage` subcommand to display dynamic
+  block, edge, and scenario statistics alongside 2-axis static inventory matrices.
+- **Testing (`tools/test_coverage_atlas.py`):** 8 comprehensive unit & integration tests covering address
+  normalization, function resolution, idempotent SHA-256 ingestion, scenario deltas, CV-06 reporting,
+  and CLI invocation.
+
 ## 2026-07-17 — GX-06 — graphics-capture regression corpus (the GX arc is COMPLETE)
 
 Roadmap §9 GX-06. Finding: `docs/findings/gx06-graphics-corpus.md`. Commits `b1ae8de`

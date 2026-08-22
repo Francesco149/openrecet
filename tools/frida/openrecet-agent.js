@@ -784,6 +784,27 @@ let g_auto_3d_trace_frames = 60;
 let g_auto_3d_hooked       = false;
 let g_auto_3d_done_sent    = false;
 
+// ─── Dynamic Block/Edge Coverage Collection (CV-03) ────────────────────────
+let g_coverage_enabled          = false;
+let g_coverage_active           = false;
+let g_coverage_start_frame      = 0;
+let g_coverage_end_frame        = -1;
+let g_coverage_anchor           = null;
+let g_coverage_anchor_offset    = 0;
+let g_coverage_anchor_count     = -1;
+let g_coverage_anchor_frame     = -1;
+let g_cov_blocks                = new Map(); // va -> hits
+let g_cov_edges                 = new Map(); // "src->dst" -> hits
+let g_cov_prev_block_end        = 0;
+let g_cov_total_events          = 0;
+let g_cov_module_events         = 0;
+let g_cov_out_of_module_events  = 0;
+let g_cov_lost_events           = 0;
+let g_stalker_followed_thread   = null;
+let g_cov_module_base           = null;
+let g_cov_module_end            = null;
+let g_coverage_report_emitted   = false;
+
 // Pre-3D-trace mode (inverse of auto_3d_trace).  When `pre_3d_trace` is
 // true the agent installs the same DrawIndexedPrimitive trigger but
 // arms call_trace emit for every frame BEFORE the first 3D draw, then
@@ -1843,6 +1864,17 @@ function installPresentHook(devicePtr) {
                 g_cap_anchor_done_sent = true;
                 send({kind: 'capture_at_anchor_done', frame: fn});
             }
+            if (g_coverage_enabled) {
+                if (g_max_frames > 0 && fn >= g_max_frames) {
+                    emitCoverageReportIfNeeded();
+                }
+                if (g_v3_shutdown_frame > 0 && fn >= g_v3_shutdown_frame) {
+                    emitCoverageReportIfNeeded();
+                }
+                if (g_coverage_end_frame >= 0 && fn >= g_coverage_end_frame) {
+                    emitCoverageReportIfNeeded();
+                }
+            }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
             // already observed frameNo() == fn (this is the desired
@@ -2017,6 +2049,22 @@ function installInputHook() {
                 // fire in), so a queued engine call can never race the sim.
                 if (g_probe_calls.length > 0) {
                     probeRunQueuedCalls();
+                }
+                if (g_coverage_enabled) {
+                    startCoverageStalker(this.threadId);
+                    if (g_coverage_anchor) {
+                        if (g_coverage_anchor_frame >= 0) {
+                            const cstart = g_coverage_anchor_frame + g_coverage_anchor_offset;
+                            const cend = (g_coverage_anchor_count > 0) ? (cstart + g_coverage_anchor_count) : -1;
+                            g_coverage_active = (fn >= cstart && (cend < 0 || fn < cend));
+                        } else {
+                            g_coverage_active = false;
+                        }
+                    } else {
+                        const cstart = g_coverage_start_frame;
+                        const cend = (g_coverage_end_frame >= 0) ? g_coverage_end_frame : -1;
+                        g_coverage_active = (fn >= cstart && (cend < 0 || fn <= cend));
+                    }
                 }
 
                 // Injection (optional). Advance the monotonic cursor
@@ -3848,6 +3896,9 @@ function sendAnchor(name, frame) {
     try { gframe = rva(ADDR.var_frame_counter).readU32(); } catch (e) {}
     try { rng    = rva(ADDR.var_lcg_seed).readU32(); } catch (e) {}
     send({kind: 'anchor', anchor: name, frame: frame, gframe: gframe, rng: rng});
+    if (g_coverage_anchor && name === g_coverage_anchor && g_coverage_anchor_frame < 0) {
+        g_coverage_anchor_frame = frame;
+    }
     v3ArmOnAnchor(name, frame);   // studio-v3: arm the capture proxy on its anchor
 }
 
@@ -5093,6 +5144,140 @@ function installCallTraceHooks(vasArray) {
           n_req:  vasArray.length});
 }
 
+// ─── dynamic coverage collection helpers (CV-03) ────────────────────────────
+
+function initCoverageModuleBounds() {
+    if (g_cov_module_base !== null) return;
+    ensureBase();
+    let mod = null;
+    try {
+        mod = Process.findModuleByName(MODULE_NAME) || Process.enumerateModules()[0];
+    } catch (e) {
+        mod = null;
+    }
+    if (mod) {
+        g_cov_module_base = mod.base;
+        g_cov_module_end  = mod.base.add(mod.size);
+    } else {
+        g_cov_module_base = g_base;
+        g_cov_module_end  = g_base.add(0x200000);
+    }
+}
+
+function normalizeCoverageVa(ptrVal) {
+    if (!ptrVal) return 0;
+    const p = ptr(ptrVal);
+    if (p.compare(g_cov_module_base) >= 0 && p.compare(g_cov_module_end) < 0) {
+        return 0x00400000 + p.sub(g_cov_module_base).toInt32();
+    }
+    return 0; // out of module
+}
+
+function startCoverageStalker(threadId) {
+    if (!g_coverage_enabled || g_stalker_followed_thread !== null) return;
+    initCoverageModuleBounds();
+    g_stalker_followed_thread = threadId;
+
+    try {
+        Stalker.follow(threadId, {
+            events: {
+                block: true,
+                compile: false,
+                exec: false,
+                call: false,
+                ret: false
+            },
+            onReceive: function (events) {
+                if (!g_coverage_active) return;
+                try {
+                    const parsed = Stalker.parse(events, { annotate: false, stringify: false });
+                    for (let i = 0; i < parsed.length; i++) {
+                        const ev = parsed[i];
+                        g_cov_total_events++;
+                        // ev: ['block', start, end]
+                        const startPtr = ev[1];
+                        const endPtr   = ev[2];
+                        const startVa  = normalizeCoverageVa(startPtr);
+                        const endVa    = normalizeCoverageVa(endPtr);
+
+                        if (startVa === 0) {
+                            g_cov_out_of_module_events++;
+                            g_cov_prev_block_end = 0;
+                            continue;
+                        }
+
+                        g_cov_module_events++;
+                        g_cov_blocks.set(startVa, (g_cov_blocks.get(startVa) || 0) + 1);
+
+                        if (g_cov_prev_block_end !== 0) {
+                            const edgeKey = (g_cov_prev_block_end >>> 0) + '->' + (startVa >>> 0);
+                            g_cov_edges.set(edgeKey, (g_cov_edges.get(edgeKey) || 0) + 1);
+                        }
+                        g_cov_prev_block_end = endVa;
+                    }
+                } catch (e) {
+                    g_cov_lost_events++;
+                }
+            }
+        });
+        log('Stalker coverage follow started on thread ' + threadId);
+    } catch (e) {
+        err('startCoverageStalker', e.message);
+    }
+}
+
+function flushCoverageStalker() {
+    if (g_stalker_followed_thread !== null) {
+        try {
+            Stalker.flush();
+            Stalker.unfollow(g_stalker_followed_thread);
+        } catch (e) {
+            // tolerate
+        }
+        g_stalker_followed_thread = null;
+    }
+}
+
+function getCoverageReport() {
+    flushCoverageStalker();
+    const blockList = [];
+    g_cov_blocks.forEach(function (hits, va) {
+        blockList.push({ va: va, hits: hits });
+    });
+    blockList.sort(function (a, b) { return a.va - b.va; });
+
+    const edgeList = [];
+    g_cov_edges.forEach(function (hits, key) {
+        const parts = key.split('->');
+        edgeList.push({
+            src: parseInt(parts[0], 10),
+            dst: parseInt(parts[1], 10),
+            hits: hits
+        });
+    });
+    edgeList.sort(function (a, b) { return a.src !== b.src ? a.src - b.src : a.dst - b.dst; });
+
+    return {
+        total_events: g_cov_total_events,
+        module_events: g_cov_module_events,
+        out_of_module_events: g_cov_out_of_module_events,
+        lost_events: g_cov_lost_events,
+        unique_blocks: blockList.length,
+        unique_edges: edgeList.length,
+        blocks: blockList,
+        edges: edgeList
+    };
+}
+
+function emitCoverageReportIfNeeded() {
+    if (g_coverage_enabled && !g_coverage_report_emitted) {
+        g_coverage_report_emitted = true;
+        const rep = getCoverageReport();
+        send({ kind: 'coverage_report', report: rep });
+    }
+}
+
+
 // ─── mesh dump hook ─────────────────────────────────────────────────────
 //
 // Bit-level parser validation. Hooks FUN_00472836 (the engine's .x
@@ -6147,6 +6332,28 @@ rpc.exports = {
         g_quad_events      = [];
         g_quad_hist_map    = {};
 
+        // Dynamic coverage collection (CV-03).
+        g_coverage_enabled       = !!config.coverage;
+        g_coverage_active        = false;
+        g_coverage_start_frame   = (config.coverage_start_frame | 0) || 0;
+        g_coverage_end_frame     = (config.coverage_end_frame !== undefined && config.coverage_end_frame !== null)
+                                   ? (config.coverage_end_frame | 0) : -1;
+        g_coverage_anchor        = (typeof config.coverage_anchor === 'string' && config.coverage_anchor)
+                                   ? config.coverage_anchor : null;
+        g_coverage_anchor_offset = (config.coverage_anchor_offset | 0) || 0;
+        g_coverage_anchor_count  = (config.coverage_anchor_count !== undefined && config.coverage_anchor_count !== null)
+                                   ? (config.coverage_anchor_count | 0) : -1;
+        g_coverage_anchor_frame  = -1;
+        g_coverage_report_emitted= false;
+        g_cov_blocks.clear();
+        g_cov_edges.clear();
+        g_cov_prev_block_end     = 0;
+        g_cov_total_events       = 0;
+        g_cov_module_events      = 0;
+        g_cov_out_of_module_events = 0;
+        g_cov_lost_events        = 0;
+        if (g_coverage_anchor) g_anchor_trace_enabled = true;
+
         // RNG caller histogram (finds per-frame shared-LCG consumers).
         g_rng_callers        = !!config.rng_callers;
         g_rng_count          = !!config.rng_count;
@@ -6996,5 +7203,8 @@ rpc.exports = {
     // the main-path SetVolume).
     captureFadeCentibel: function (slider) {
         return captureFadeCentibel(slider | 0);
+    },
+    getCoverage: function () {
+        return getCoverageReport();
     },
 };

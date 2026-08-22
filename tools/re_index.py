@@ -14,7 +14,9 @@ Provides instant answers for:
   - xrefs <DAT_va|s_name|hex_va>: all functions reading/writing a global or string
   - tree <va|name> [--depth N]: call tree up to depth N
   - unported-callees <va|name>: callees of target that are not yet implemented in port
-  - coverage [--unimplemented] [--unexecuted]: 2-axis inventory and runtime proof coverage report
+  - coverage [--unimplemented] [--unexecuted]: 2-axis inventory and runtime proof coverage report with CV-08 calibration gating
+  - calibrate [--scenario <name>] [--mode <mode>] [--cross-check-call-trace <path>]: CV-08 coverage truth calibration
+  - prioritize [--front <name>] [--kind <all|functions|edges|semantics|scenarios>]: CV-07 candidate prioritizer
   - search <query> [--code]: regex/substring search over functions, globals, strings, and code
   - stats: overall index statistics and runtime breakdown
 
@@ -38,6 +40,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 REPO = Path(__file__).resolve().parent.parent
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 DECOMPILED_DIR = REPO / "docs" / "decompiled"
 FUNCTIONS_CSV = DECOMPILED_DIR / "functions.csv"
 BY_ADDRESS_DIR = DECOMPILED_DIR / "by-address"
@@ -53,12 +57,11 @@ def parse_va(val: str | int) -> int:
     if isinstance(val, int):
         return val
     s = str(val).strip()
-    if s.lower().startswith("fun_"):
-        s = s[4:]
-    elif s.lower().startswith("0x"):
-        s = s[2:]
+    for prefix in ("fun_", "dat_", "_dat_", "ptr_", "_ptr_", "s_", "0x"):
+        if s.lower().startswith(prefix):
+            s = s[len(prefix):]
+            break
     return int(s, 16)
-
 
 def format_va(va: int) -> str:
     return f"0x{va:06x}"
@@ -593,6 +596,16 @@ class ReIndex:
         cur.execute("SELECT COUNT(*) FROM functions")
         all_total = cur.fetchone()[0]
 
+        dynamic_cov = None
+        try:
+            from tools.coverage_atlas import CoverageAtlas, COVERAGE_DB
+            if COVERAGE_DB.exists():
+                atlas = CoverageAtlas(db_path=COVERAGE_DB, re_index_path=self.db_path)
+                dynamic_cov = atlas.get_summary()
+                atlas.close()
+        except Exception:
+            pass
+
         return {
             "total_functions": all_total,
             "implemented_functions": implemented_total,
@@ -600,6 +613,7 @@ class ReIndex:
             "matrix": matrix,
             "unimplemented": unimplemented_list,
             "unexecuted": unexecuted_list,
+            "dynamic_coverage": dynamic_cov,
         }
 
 # ─── CLI Handlers ────────────────────────────────────────────────────────────
@@ -823,11 +837,28 @@ def cmd_coverage(idx: ReIndex, args: argparse.Namespace) -> int:
         print("OpenRecet 2-Axis Parity Coverage Report:")
         print(f"  Implemented/Instrumented: {cov['implemented_functions']}/{cov['total_functions']} ({cov['implemented_functions']*100.0/max(1,cov['total_functions']):.1f}%)")
         print(f"  Runtime Proven:           {cov['proven_functions']}/{cov['total_functions']} ({cov['proven_functions']*100.0/max(1,cov['total_functions']):.1f}%)")
+        if cov.get("dynamic_coverage") and cov["dynamic_coverage"].get("total_runs", 0) > 0:
+            dyn = cov["dynamic_coverage"]
+            print(f"  Dynamic Blocks Covered:   {dyn['unique_blocks_covered']}")
+            print(f"  Dynamic Edges Covered:    {dyn['unique_edges_covered']}")
+            print(f"  Dynamic Functions Reached:{dyn['touched_functions']}/{dyn['total_functions_in_index']} ({dyn['function_coverage_ratio']*100:.1f}%)")
+            print(f"  Scenarios Ingested:       {dyn['total_scenarios']} ({dyn['total_runs']} run(s))")
+            if dyn.get("cv08_calibration"):
+                calib = dyn["cv08_calibration"]
+                if calib.get("calibrated"):
+                    print(f"  CV-08 Calibration:        {calib['verdict']} [Mode: {calib['collection_mode']}, Confidence: {calib['confidence_score']:.2f} ({calib['confidence_band']})]")
+                    print(f"  Global Coverage Claim:    {calib['coverage_claim']}")
+                else:
+                    print(f"  CV-08 Calibration:        ⚠️  {calib.get('verdict', 'UNCALIBRATED')} (Run 're_index.py calibrate')")
+                    print(f"  Global Coverage Claim:    {calib.get('coverage_claim', 'UNCALIBRATED')}")
+            if dyn.get("semantic_dimensions"):
+                print(f"  Semantic Dimensions:      {len(dyn['semantic_dimensions'])} dimension(s) tracked (CV-05)")
+                for d_name, d_info in sorted(dyn["semantic_dimensions"].items()):
+                    print(f"    - {d_name:<18}: {d_info['unique_items']:>4} items ({d_info['total_hits']} hits)")
         print("\n  2-Axis Cross-Tab (Inventory × Runtime):")
         for inv_state, row in sorted(cov["matrix"].items()):
             row_str = ", ".join(f"{rt}: {cnt}" for rt, cnt in sorted(row.items()))
             print(f"    {inv_state:<20} -> {row_str}")
-
         if args.unimplemented:
             print(f"\n  Executed but Unimplemented Functions ({len(cov['unimplemented'])}):")
             for f in cov["unimplemented"]:
@@ -838,61 +869,101 @@ def cmd_coverage(idx: ReIndex, args: argparse.Namespace) -> int:
             for f in cov["unexecuted"]:
                 print(f"    {f['name']} @ {format_va(f['va'])} (size {f['size']}B) [{f['port_status']}]")
     return 0
+def cmd_prioritize(idx: ReIndex, args: argparse.Namespace) -> int:
+    try:
+        from tools.coverage_atlas import CoverageAtlas, cmd_prioritize as atlas_cmd_prioritize
+        atlas = CoverageAtlas(re_index_path=idx.db_path)
+        try:
+            return atlas_cmd_prioritize(atlas, args)
+        finally:
+            atlas.close()
+    except Exception as e:
+        sys.stderr.write(f"Failed to run prioritizer: {e}\n")
+        return 1
+def cmd_calibrate(idx: ReIndex, args: argparse.Namespace) -> int:
+    try:
+        from tools.coverage_atlas import CoverageAtlas, cmd_calibrate as atlas_cmd_calibrate, COVERAGE_DB
+        atlas = CoverageAtlas(db_path=COVERAGE_DB, re_index_path=idx.db_path)
+        try:
+            return atlas_cmd_calibrate(atlas, args)
+        finally:
+            atlas.close()
+    except Exception as e:
+        sys.stderr.write(f"Failed to run coverage calibration: {e}\n")
+        return 1
+
+
 
 
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--json", action="store_true", help="output JSON")
-    ap.add_argument("--db", type=Path, default=DB_PATH, help=f"SQLite database path (default: {DB_PATH})")
+    parent = argparse.ArgumentParser(add_help=False)
+    parent.add_argument("--json", action="store_true", help="output JSON")
+    parent.add_argument("--db", type=Path, default=argparse.SUPPRESS, help=f"SQLite database path (default: {DB_PATH})")
 
+    ap = argparse.ArgumentParser(description=__doc__, parents=[parent], formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    sp_build = sub.add_parser("build", help="build or rebuild SQLite index")
+    sp_build = sub.add_parser("build", parents=[parent], help="build or rebuild SQLite index")
     sp_build.add_argument("--force", action="store_true", help="force rebuild")
 
-    sp_info = sub.add_parser("info", help="show function summary")
+    sp_info = sub.add_parser("info", parents=[parent], help="show function summary")
     sp_info.add_argument("target", help="function VA or name (e.g. 0x4905a8 or FUN_004905a8)")
-    sp_text = sub.add_parser("text", help="display decompiled C source text of function")
+    sp_text = sub.add_parser("text", parents=[parent], help="display decompiled C source text of function")
     sp_text.add_argument("target", help="function VA or name (e.g. 0x4905a8 or FUN_004905a8)")
     sp_text.add_argument("-n", "--numbers", action="store_true", help="show 1-based line numbers")
 
-
-    sp_callers = sub.add_parser("callers", help="list callers of a function")
+    sp_callers = sub.add_parser("callers", parents=[parent], help="list callers of a function")
     sp_callers.add_argument("target", help="function VA or name")
 
-    sp_callees = sub.add_parser("callees", help="list callees of a function")
+    sp_callees = sub.add_parser("callees", parents=[parent], help="list callees of a function")
     sp_callees.add_argument("target", help="function VA or name")
 
-    sp_xrefs = sub.add_parser("xrefs", help="list functions referencing global or string")
+    sp_xrefs = sub.add_parser("xrefs", parents=[parent], help="list functions referencing global or string")
     sp_xrefs.add_argument("target", help="global address (e.g. DAT_056e6280, 0x56e6280) or string name (s_save_dat_005cfa98)")
 
-    sp_tree = sub.add_parser("tree", help="call tree")
+    sp_tree = sub.add_parser("tree", parents=[parent], help="call tree")
     sp_tree.add_argument("target", help="function VA or name")
     sp_tree.add_argument("--depth", type=int, default=3, help="max depth (default: 3)")
 
-    sp_disasm = sub.add_parser("disasm", help="disassemble function from retail binary via objdump")
+    sp_disasm = sub.add_parser("disasm", parents=[parent], help="disassemble function from retail binary via objdump")
     sp_disasm.add_argument("target", help="function VA or name")
     sp_disasm.add_argument("--att", action="store_true", help="use AT&T syntax instead of Intel")
 
-    sp_unported = sub.add_parser("unported-callees", help="list unported callees")
+    sp_unported = sub.add_parser("unported-callees", parents=[parent], help="list unported callees")
     sp_unported.add_argument("target", help="function VA or name")
 
-    sp_search = sub.add_parser("search", help="search functions, strings, globals")
+    sp_search = sub.add_parser("search", parents=[parent], help="search functions, strings, globals")
     sp_search.add_argument("query", help="search string")
     sp_search.add_argument("--limit", type=int, default=30, help="max results (default: 30)")
     sp_search.add_argument("-c", "--code", action="store_true", help="search decompiled C function bodies as well")
 
-    sp_coverage = sub.add_parser("coverage", help="show 2-axis inventory and runtime coverage report")
+    sp_coverage = sub.add_parser("coverage", parents=[parent], help="show 2-axis inventory and runtime coverage report")
     sp_coverage.add_argument("--unimplemented", action="store_true", help="list executed-but-unimplemented functions (CV-06 gap)")
     sp_coverage.add_argument("--unexecuted", action="store_true", help="list implemented functions lacking runtime proof")
     sp_coverage.add_argument("--limit", type=int, default=50, help="max functions to list (default: 50)")
+    sp_prio = sub.add_parser("prioritize", parents=[parent], help="CV-07 next-experiment candidate prioritizer")
+    sp_prio.add_argument("--kind", choices=["all", "functions", "edges", "semantics", "scenarios"], default="all", help="candidate kinds to evaluate (default: all)")
+    sp_prio.add_argument("--front", help="active development front focus (e.g. customer_service, day2_transition, shop_loop, save_system, dungeon)")
+    sp_prio.add_argument("--min-readiness", choices=["discovered", "referenced", "stubbed", "ported", "verified"], help="minimum port readiness filter")
+    sp_prio.add_argument("--weights", help="JSON string overriding scoring weights")
+    sp_prio.add_argument("--markdown", action="store_true", help="output formatted markdown table")
+    sp_prio.add_argument("--limit", type=int, default=20, help="max candidates to display (default: 20)")
 
-    sub.add_parser("stats", help="index statistics")
+    sp_cal = sub.add_parser("calibrate", parents=[parent], help="CV-08 coverage truth calibration and confidence scoring")
+    sp_cal.add_argument("--scenario", help="target scenario to calibrate")
+    sp_cal.add_argument("--run-id", help="specific run_id to calibrate")
+    sp_cal.add_argument("--mode", default="DYNAMIC_STALKER", help="collection mode (default: DYNAMIC_STALKER)")
+    sp_cal.add_argument("--cross-check-call-trace", help="path to call trace JSONL or comma-separated VAs to cross-check")
+    sp_cal.add_argument("--min-confidence", type=float, default=0.85, help="minimum confidence threshold for PASS verdict (default: 0.85)")
+    sp_cal.add_argument("--markdown", action="store_true", help="output formatted markdown report")
+    sp_cal.add_argument("--no-save", action="store_true", help="do not persist calibration record into database")
 
+    sub.add_parser("stats", parents=[parent], help="index statistics")
     args = ap.parse_args(argv)
-    idx = ReIndex(db_path=args.db)
+    db_path = getattr(args, "db", DB_PATH)
+    idx = ReIndex(db_path=db_path)
 
     handlers = {
         "build": cmd_build,
@@ -907,6 +978,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "search": cmd_search,
         "stats": cmd_stats,
         "coverage": cmd_coverage,
+        "prioritize": cmd_prioritize,
+        "calibrate": cmd_calibrate,
     }
 
     try:

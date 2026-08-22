@@ -49,10 +49,25 @@ proof:
       reason: "Benign warm-up strip: retail draws an 80-triangle degenerate/off-screen strip that paints 0 px on every HOUSE_FREEROAM frame (FRONT 'tex b494 80tris retail-only'); the port omits it.  Pixels are human-confirmed 1:1.  Recorded for review; the gate does NOT auto-tolerate it (exceptions stay descriptive until EP-07 bridges human review), so render_program still FAILs here — honest."
       approved_by: "R3-review-2026-07-16"
 coverage_expectations:
-  functions: []
+  functions:
+    - "FUN_0045edaa"
+    - "FUN_00462403"
+    - "FUN_00463cfb"
+    - "FUN_00460b93"
   blocks: []
-  vm_operations: []
-  content_ids: []
-  transitions: []
-  assets: []
-  audio_ids: []
+  vm_operations:
+    - "TUTO_CHR0"
+    - "TUTO_BUN0"
+    - "TUTO_NEDAN"
+  content_ids:
+    - "KYAKU:13"
+  transitions:
+    - "BOOT"
+    - "LOADING_START"
+    - "LOADING_END"
+    - "HOUSE_FREEROAM"
+    - "CUSTOMER_SERVICE_ENTER"
+  assets:
+    - "bg/house_1st.x"
+  audio_ids:
+    - "se_001_id0010"

@@ -300,6 +300,14 @@ class CaptureConfig:
     # Skip-event probe: directly call FUN_0045337b (WndProc ESC skip entry)
     # once at this manual frame. -1/None = disabled. See esc-skip-event.md.
     arm_skip_at_frame: int | None = None
+    # Dynamic block/edge coverage collection (CV-03). When enabled, Stalker
+    # follows the engine thread and records visited basic block VAs + edges.
+    coverage:               bool = False
+    coverage_start_frame:   int = 0
+    coverage_end_frame:     int = -1
+    coverage_anchor:        str | None = None
+    coverage_anchor_offset: int = 0
+    coverage_anchor_count:  int = -1
     # D3D state-trace emitter (Phase D.4). When `d3d_trace` is true,
     # the agent hooks IDirect3DDevice8 vtable slots and buffers one
     # event per state-change or draw call; the Present hook flushes
@@ -947,6 +955,19 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                         f"distinct={len(hist)} top="
                         + ", ".join(f"{k}:{v}" for k, v in top) + "\n")
             return
+        if kind == "coverage_report":
+            rep = p.get("report") or {}
+            try:
+                (run_dir / "coverage.json").write_text(
+                    json.dumps(rep, indent=2), encoding="utf-8")
+                f_log.write(
+                    f"[coverage] report written to coverage.json: "
+                    f"{rep.get('unique_blocks',0)} blocks, "
+                    f"{rep.get('unique_edges',0)} edges, "
+                    f"{rep.get('module_events',0)}/{rep.get('total_events',0)} events\n")
+            except Exception as e:
+                f_log.write(f"[coverage] write failed: {e}\n")
+            return
 
         if kind == "rng_callsites":
             # Per-frame caller histograms over the armed [lo,hi) range — the
@@ -1445,6 +1466,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["rng_count"] = True
     if cfg.rng_callsites:
         init_cfg["rng_callsites"] = int(cfg.rng_callsites)
+    if cfg.coverage:
+        init_cfg["coverage"] = True
+        init_cfg["coverage_start_frame"] = int(cfg.coverage_start_frame)
+        init_cfg["coverage_end_frame"] = int(cfg.coverage_end_frame)
+        if cfg.coverage_anchor:
+            init_cfg["coverage_anchor"] = str(cfg.coverage_anchor)
+            init_cfg["coverage_anchor_offset"] = int(cfg.coverage_anchor_offset)
+            init_cfg["coverage_anchor_count"] = int(cfg.coverage_anchor_count)
     # Defer the rng LCG hook to the f406 entry (cc08==4 && b51c==0) — explicitly, or
     # auto when this is the f406 first-customer trace (a {bgnpcpin} op marks it). The
     # boot hook taxes the initial Continue-load into a ~14000f stretch that breaks the
@@ -2053,6 +2082,18 @@ def main(argv: list[str] | None = None) -> int:
                          "of openrecet's --rng-seed. Makes RNG-driven positions "
                          "(foot-dust, motes, particles) comparable across "
                          "targets. Omit to keep retail's wall-clock seed.")
+    ap.add_argument("--coverage", action="store_true",
+                    help="Collect dynamic retail block and edge coverage via Frida Stalker (CV-03)")
+    ap.add_argument("--coverage-start-frame", type=int, default=0,
+                    help="Frame number at which dynamic coverage collection starts (default: 0)")
+    ap.add_argument("--coverage-end-frame", type=int, default=-1,
+                    help="Frame number at which dynamic coverage collection stops (default: -1 = until exit)")
+    ap.add_argument("--coverage-anchor", type=str, default=None,
+                    help="Anchor name to gate coverage on (e.g. LOADING_END, HOUSE_FREEROAM)")
+    ap.add_argument("--coverage-anchor-offset", type=int, default=0,
+                    help="Offset frames from anchor at which coverage starts (default: 0)")
+    ap.add_argument("--coverage-anchor-count", type=int, default=-1,
+                    help="Duration in frames from anchor+offset for coverage (default: -1 = until exit)")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -2183,6 +2224,12 @@ def main(argv: list[str] | None = None) -> int:
         rng_count=args.rng_count,
         rng_callsites=args.rng_callsites,
         rng_hook_defer=args.rng_hook_defer,
+        coverage=args.coverage,
+        coverage_start_frame=args.coverage_start_frame,
+        coverage_end_frame=args.coverage_end_frame,
+        coverage_anchor=args.coverage_anchor,
+        coverage_anchor_offset=args.coverage_anchor_offset,
+        coverage_anchor_count=args.coverage_anchor_count,
         bgnpc_pin_retail=args.bgnpc_pin_retail,
         skip_wrapup=args.skip_wrapup,
         skip_wrapup_off=args.skip_wrapup_off,

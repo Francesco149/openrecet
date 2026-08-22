@@ -68,10 +68,20 @@ proof:
   # sim ran before the anchor could arm the old {calltrace} window) is captured.  This is the
   # first three-pillar (identity · save · state) volatile+persistent proof in the program.
 coverage_expectations:
-  functions: []
+  functions:
+    - "FUN_004905a8"
+    - "FUN_0047f5bc"
+    - "FUN_00434def"
+    - "FUN_00473a3e"
   blocks: []
   vm_operations: []
   content_ids: []
-  transitions: []
+  transitions:
+    - "BOOT"
+    - "HOUSE_FREEROAM"
+    - "PAUSE_OPEN"
+    - "PAUSE_READY"
+    - "SAVE_PICKER_READY"
   assets: []
-  audio_ids: []
+  audio_ids:
+    - "se_001_id0010"
