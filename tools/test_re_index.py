@@ -144,6 +144,23 @@ class TestReIndex(unittest.TestCase):
         res = self.idx.search("DAT_056e6280", search_code=True)
         self.assertIn("code", res)
         self.assertTrue(any(c["va"] == "0x4905a8" for c in res["code"]))
+    def test_coverage(self):
+        self.idx.build(force=True)
+        cov = self.idx.coverage()
+        self.assertIn("matrix", cov)
+        self.assertGreater(cov["total_functions"], 0)
+        self.assertIn("implemented_functions", cov)
+        self.assertIn("proven_functions", cov)
+
+        # Test with unimplemented and unexecuted filters
+        cov_filters = self.idx.coverage(unimplemented=True, unexecuted=True, limit=10)
+        self.assertIsInstance(cov_filters["unimplemented"], list)
+        self.assertIsInstance(cov_filters["unexecuted"], list)
+
+        # Test stats runtime breakdown
+        st = self.idx.stats()
+        self.assertIn("runtime_breakdown", st)
+
 
 
 

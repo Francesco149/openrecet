@@ -14,8 +14,9 @@ Provides instant answers for:
   - xrefs <DAT_va|s_name|hex_va>: all functions reading/writing a global or string
   - tree <va|name> [--depth N]: call tree up to depth N
   - unported-callees <va|name>: callees of target that are not yet implemented in port
+  - coverage [--unimplemented] [--unexecuted]: 2-axis inventory and runtime proof coverage report
   - search <query> [--code]: regex/substring search over functions, globals, strings, and code
-  - stats: overall index statistics
+  - stats: overall index statistics and runtime breakdown
 
 Run from repo root:
   python3 tools/re_index.py build
@@ -535,6 +536,9 @@ class ReIndex:
         cur.execute("SELECT port_status, COUNT(*) FROM functions GROUP BY port_status")
         status_counts = {r[0]: r[1] for r in cur.fetchall()}
 
+        cur.execute("SELECT runtime_status, COUNT(*) FROM functions WHERE runtime_status IS NOT NULL GROUP BY runtime_status")
+        runtime_counts = {r[0]: r[1] for r in cur.fetchall()}
+
         return {
             "total_functions": total_funcs,
             "non_thunk_functions": non_thunk_funcs,
@@ -542,8 +546,61 @@ class ReIndex:
             "global_xrefs": total_globals,
             "string_xrefs": total_strings,
             "inventory_breakdown": status_counts,
+            "runtime_breakdown": runtime_counts,
         }
 
+    def coverage(self, unimplemented: bool = False, unexecuted: bool = False, limit: int = 50) -> Dict[str, Any]:
+        conn = self.connect()
+        cur = conn.cursor()
+
+        cur.execute("SELECT port_status, runtime_status, COUNT(*) FROM functions GROUP BY port_status, runtime_status")
+        matrix_rows = cur.fetchall()
+        matrix: Dict[str, Dict[str, int]] = {}
+        for inv, rt, count in matrix_rows:
+            rt_key = rt if rt else "unexecuted"
+            if inv not in matrix:
+                matrix[inv] = {}
+            matrix[inv][rt_key] = count
+
+        unimplemented_list = []
+        if unimplemented:
+            cur.execute("""
+                SELECT va, name, size, port_status, runtime_status
+                FROM functions
+                WHERE runtime_status IS NOT NULL
+                  AND port_status IN ('discovered', 'source-referenced')
+                ORDER BY va
+                LIMIT ?
+            """, (limit,))
+            unimplemented_list = [dict(r) for r in cur.fetchall()]
+
+        unexecuted_list = []
+        if unexecuted:
+            cur.execute("""
+                SELECT va, name, size, port_status
+                FROM functions
+                WHERE port_status IN ('implemented', 'instrumented')
+                  AND (runtime_status IS NULL OR runtime_status = 'unexecuted')
+                ORDER BY va
+                LIMIT ?
+            """, (limit,))
+            unexecuted_list = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT COUNT(*) FROM functions WHERE port_status IN ('implemented', 'instrumented')")
+        implemented_total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM functions WHERE runtime_status IS NOT NULL")
+        proven_total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM functions")
+        all_total = cur.fetchone()[0]
+
+        return {
+            "total_functions": all_total,
+            "implemented_functions": implemented_total,
+            "proven_functions": proven_total,
+            "matrix": matrix,
+            "unimplemented": unimplemented_list,
+            "unexecuted": unexecuted_list,
+        }
 
 # ─── CLI Handlers ────────────────────────────────────────────────────────────
 
@@ -758,6 +815,31 @@ def cmd_stats(idx: ReIndex, args: argparse.Namespace) -> int:
         for k, v in sorted(st["inventory_breakdown"].items()):
             print(f"    {k:<20}: {v:>5}")
     return 0
+def cmd_coverage(idx: ReIndex, args: argparse.Namespace) -> int:
+    cov = idx.coverage(unimplemented=args.unimplemented, unexecuted=args.unexecuted, limit=args.limit)
+    if args.json:
+        print(json.dumps(cov, indent=1))
+    else:
+        print("OpenRecet 2-Axis Parity Coverage Report:")
+        print(f"  Implemented/Instrumented: {cov['implemented_functions']}/{cov['total_functions']} ({cov['implemented_functions']*100.0/max(1,cov['total_functions']):.1f}%)")
+        print(f"  Runtime Proven:           {cov['proven_functions']}/{cov['total_functions']} ({cov['proven_functions']*100.0/max(1,cov['total_functions']):.1f}%)")
+        print("\n  2-Axis Cross-Tab (Inventory × Runtime):")
+        for inv_state, row in sorted(cov["matrix"].items()):
+            row_str = ", ".join(f"{rt}: {cnt}" for rt, cnt in sorted(row.items()))
+            print(f"    {inv_state:<20} -> {row_str}")
+
+        if args.unimplemented:
+            print(f"\n  Executed but Unimplemented Functions ({len(cov['unimplemented'])}):")
+            for f in cov["unimplemented"]:
+                print(f"    {f['name']} @ {format_va(f['va'])} (size {f['size']}B) [{f['port_status']} | {f['runtime_status']}]")
+
+        if args.unexecuted:
+            print(f"\n  Implemented but Unexecuted Functions ({len(cov['unexecuted'])}):")
+            for f in cov["unexecuted"]:
+                print(f"    {f['name']} @ {format_va(f['va'])} (size {f['size']}B) [{f['port_status']}]")
+    return 0
+
+
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -802,6 +884,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp_search.add_argument("--limit", type=int, default=30, help="max results (default: 30)")
     sp_search.add_argument("-c", "--code", action="store_true", help="search decompiled C function bodies as well")
 
+    sp_coverage = sub.add_parser("coverage", help="show 2-axis inventory and runtime coverage report")
+    sp_coverage.add_argument("--unimplemented", action="store_true", help="list executed-but-unimplemented functions (CV-06 gap)")
+    sp_coverage.add_argument("--unexecuted", action="store_true", help="list implemented functions lacking runtime proof")
+    sp_coverage.add_argument("--limit", type=int, default=50, help="max functions to list (default: 50)")
+
     sub.add_parser("stats", help="index statistics")
 
     args = ap.parse_args(argv)
@@ -819,6 +906,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "unported-callees": cmd_unported_callees,
         "search": cmd_search,
         "stats": cmd_stats,
+        "coverage": cmd_coverage,
     }
 
     try:
