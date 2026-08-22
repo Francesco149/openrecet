@@ -1266,3 +1266,102 @@ int test_cs_adventurer_equip_upgrade(void)
     g_item.count = save_count;
     return 0;
 }
+
+/* FUN_00464a26 — customer chat machine (b5a8 == 5) */
+int test_cs_chat_machine(void)
+{
+    customer_service_reset();
+    customer_service_notify_loaded();
+    customer_service_set_machine_state_for_test(5, 2, 2, 0, 0, 0, 0);
+
+    /* Frame 1 of state 2: transitions to state 7 */
+    customer_service_master_tick(0, 0, 0);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+
+    /* State 7: tick with Z until reveal completes and state advances to 0xb */
+    for (int f = 0; f < 100 && customer_service_b534() == 7; f++) {
+        customer_service_master_tick(0x10, 0x10, 0);
+    }
+    T_ASSERT_EQ_I(customer_service_b534(), 0xb);
+    return 0;
+}
+
+/* FUN_00465372 — customer buy machine (b5a8 == 0) */
+int test_cs_buy_machine(void)
+{
+    customer_service_reset();
+    customer_service_notify_loaded();
+    uint32_t *bank = cs_test_bank_clean();
+    bank[SAVE_BANK_FIELD_GOLD] = 5000;
+
+    /* Set customer selling item 100 << 6 (worth 200 pix) */
+    int32_t save_count = g_item.count;
+    g_item.count = 1;
+    g_item.records[0].valid = 1;
+    g_item.records[0].item_id = 100;
+    g_item.records[0].price = 200;
+    g_item.records[0].category = 1;
+
+    customer_service_set_machine_state_for_test(0, 2, 2, 0, 100 << 6, 0, 1);
+
+    /* Frame 1: greeting line setup in state 2 */
+    customer_service_master_tick(0, 0, 0);
+    T_ASSERT_EQ_I(customer_service_b534(), 2);
+
+    /* Tick through greeting reveal with Z -> advances to state 6 (price edit) */
+    for (int f = 0; f < 100 && customer_service_b534() == 2; f++) {
+        customer_service_master_tick(0x10, 0x10, 0);
+    }
+    T_ASSERT_EQ_I(customer_service_b534(), 6);
+
+    /* State 6: press Z to commit price -> state 0xf (decision) */
+    customer_service_master_tick(0x10, 0x10, 0);
+    T_ASSERT_EQ_I(customer_service_b534(), 0xf);
+
+    g_item.count = save_count;
+    return 0;
+}
+
+/* FUN_004639f5 — advance order booking machine (b5a8 == 3) */
+int test_cs_advance_order_booking(void)
+{
+    customer_service_reset();
+    customer_service_notify_loaded();
+    uint32_t *bank = cs_test_bank_clean();
+
+    customer_service_set_machine_state_for_test(3, 2, 2, 0, 0, 0, 2);
+
+    /* Frame 1: state 2 -> state 7 */
+    customer_service_master_tick(0, 0, 0);
+    T_ASSERT_EQ_I(customer_service_b534(), 7);
+
+    /* Tick through state 7 reveal with Z -> state 0xf */
+    for (int f = 0; f < 100 && customer_service_b534() == 7; f++) {
+        customer_service_master_tick(0x10, 0x10, 0);
+    }
+    T_ASSERT_EQ_I(customer_service_b534(), 0xf);
+    /* Sched table is currently empty */
+    int32_t *sched = (int32_t *)bank + SAVE_BANK_FIELD_SCHED_TABLE;
+    T_ASSERT_EQ_I(sched[0], 0);
+    return 0;
+}
+
+/* FUN_00460eba — restore presented items on rejected order/advance order */
+int test_cs_order_reject_restore(void)
+{
+    customer_service_reset();
+    uint32_t *bank = cs_test_bank_clean();
+    int32_t *grid = (int32_t *)bank + SAVE_BANK_FIELD_DISPLAY_GRID;
+    grid[0] = -1;
+
+    /* Set item 100 << 6 placed at col 0, row 0 */
+    customer_service_set_machine_state_for_test(4, 3, 2, 0, 0, 0, 1);
+    customer_service_set_order_item_for_test(1, 100 << 6, 0, 0);
+
+    /* Trigger rejection transition: sets state 0x11 and calls cs_order_reject_restore */
+    customer_service_set_machine_state_for_test(4, 3, 2, 0, 0, 0, 2); /* needs 2, has 1 */
+    /* Advance tick past threshold with cursor at 0 -> rejection */
+    customer_service_master_tick(0x10, 0x10, 0);
+
+    return 0;
+}

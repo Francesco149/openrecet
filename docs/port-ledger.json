@@ -8,20 +8,20 @@
   "inv_instrumented_full": 72,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 503,
-  "inv_discovered": 1960,
-  "referenced_or_better": 588,
-  "pct_referenced_or_better": 23.1,
+  "inv_source_referenced": 507,
+  "inv_discovered": 1956,
+  "referenced_or_better": 592,
+  "pct_referenced_or_better": 23.2,
   "runtime_proven": 1,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 28,
   "verified": 72,
   "stubbed": 13,
-  "ported": 503,
-  "unported": 1960,
-  "touched": 588,
-  "pct_touched": 23.1,
+  "ported": 507,
+  "unported": 1956,
+  "touched": 592,
+  "pct_touched": 23.2,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -13251,11 +13251,11 @@
    "size": 774,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -13267,8 +13267,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x463cfb",
@@ -13304,11 +13306,11 @@
    "size": 202,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -13320,8 +13322,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x464af0",
@@ -13329,11 +13333,11 @@
    "size": 2178,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -13345,8 +13349,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x465372",
@@ -13354,11 +13360,11 @@
    "size": 1337,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false,
@@ -13370,8 +13376,10 @@
    },
    "quality_flags": [],
    "proofs": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4658ab",

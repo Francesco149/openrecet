@@ -7,10 +7,9 @@
  * is the kind-2 machine FUN_004658ab (NOT the kind-4 FUN_00463cfb — see the RE
  * doc §3.5 correction); this file ports the entry (FUN_0045edaa) first.
  */
-
 #include <stdio.h>            /* snprintf — the <I>/<Y> sale-line macro formats */
+#include <string.h>
 #include <math.h>             /* sqrt — the FUN_00460d52 sale-stat root term */
-
 #include "customer_service.h"
 #include "customer_haggle.h"
 #include "rng.h"
@@ -40,6 +39,7 @@
 #include "title_save_dialog.h"    /* the shared menu hand-cursor (FUN_00435612/1a/693/710) */
 #include "scene1_per_frame_open.h" /* Table-A projected alloc (FUN_004132c1) — the sale coin shower */
 #include "audio.h"                /* audio_play_se_by_id (FUN_00499519) — sale SEs 0x14d/0x17b/0x156 */
+#include "scene1_display_menu.h" /* display_menu_inventory_return, etc. */
 
 /* ── per-frame input masks (the engine's DAT_073dddd0/d4/d6 button quad) ──────
  * The cc08==4 driver reads three masks: cur (DAT_073dddd0, this frame's raw
@@ -177,7 +177,55 @@ static int32_t s_b570;   /* DAT_0730b570 — the active customer's CANDIDATE ind
                           * NOT an item slot (old misnomer): every serve-time
                           * closeness read/write indexes by it (FUN_0045e80f
                           * param_2, FUN_00460672 deltas, FUN_00460e50/f16). */
+#define s_b56c g_scene_buy_current_page /* DAT_0730b56c */
+
+static int cs_kind_select_buy(void);
+static int cs_kind_select_request_fallback(void);
+
 static int32_t s_b5a4;   /* DAT_0730b5a4 — offered-item handle (id = b5a4>>6) */
+static char    s_order_want_text[0x100]; /* DAT_0730b2bc — order/request item text */
+static int32_t s_order_want_text_len;   /* DAT_0730b300 */
+static char    s_due_text[0x100];        /* DAT_0730ac80 — due date text */
+static int32_t s_due_text_len;          /* DAT_0730b2fc */
+
+static void cs_due_date_format(int days)
+{
+    if (days == 1)
+        snprintf(s_due_text, sizeof s_due_text, "by tomorrow");
+    else
+        snprintf(s_due_text, sizeof s_due_text, "in %d days", days);
+    s_due_text_len = (int32_t)strlen(s_due_text);
+}
+
+static int cs_category_matches(int cat1, int cat2)
+{
+    if (cat1 == cat2) return 1;
+    if ((cat1 == 0xd || cat1 == 0xe) && (cat2 == 0xd || cat2 == 0xe)) return 1;
+    if ((cat1 >= 9 && cat1 <= 12) && (cat2 >= 9 && cat2 <= 12)) return 1;
+    if ((cat1 == 0xf || cat1 == 0x10) && (cat2 == 0xf || cat2 == 0x10)) return 1;
+    return 0;
+}
+
+static void cs_order_reject_restore(void)
+{
+    if (s_b5dc <= 0) return;
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    if (!bankw) return;
+    int32_t *grid = (int32_t *)bankw + SAVE_BANK_FIELD_DISPLAY_GRID;
+    for (int i = 0; i < s_b5dc && i < 5; i++) {
+        int32_t handle = s_item_pick[(1 + i) * 3 + 0];
+        int32_t col    = s_item_pick[(1 + i) * 3 + 1];
+        int32_t row    = s_item_pick[(1 + i) * 3 + 2];
+        if (handle != -1) {
+            if (col == -1) {
+                display_menu_inventory_return(bankw, handle);
+            } else if (row >= 0 && row < 15 && col >= 0 && col < 20) {
+                grid[col + row * 20] = handle;
+            }
+        }
+    }
+}
+
 static int32_t s_b600;   /* DAT_0730b600 — script step phase (0 = first frame) */
 static int32_t s_b604;   /* DAT_0730b604 — script program counter */
 static int32_t s_b608;   /* DAT_0730b608 — script sub-state */
@@ -1447,8 +1495,45 @@ static void cs_queue_advance(void)
     if (s_b318 < s_queue_count) {
         s_price_bc4 = 1;                    /* bc4 = count = 1 */
         s_b564 = 0;
-        if (s_price_fileidx != 2 && s_price_fileidx != 1)
-            cs_kind_select();               /* FUN_00461303 → b5a8=2, b56c=1, b5a4=0xc0 */
+        if (s_price_fileidx != 2 && s_price_fileidx != 1) {
+            int e = s_roster_perm[s_b318];
+            int q_kind = s_queue[e * CS_QUEUE_STRIDE + 2];
+            if (q_kind == 4) {
+                s_b5a8 = 5;
+                s_b56c = s_queue[e * CS_QUEUE_STRIDE + 0];
+                s_b570 = s_queue[e * CS_QUEUE_STRIDE + 1];
+                s_b5d8 = s_queue[e * CS_QUEUE_STRIDE + 3];
+                s_b5dc = s_queue[e * CS_QUEUE_STRIDE + 4];
+                cs_due_date_format(s_queue[e * CS_QUEUE_STRIDE + 5]);
+            } else if (q_kind == 3) {
+                s_b5a8 = 4;
+                s_b56c = s_queue[e * CS_QUEUE_STRIDE + 0];
+                s_b570 = s_queue[e * CS_QUEUE_STRIDE + 1];
+                s_b5d8 = s_queue[e * CS_QUEUE_STRIDE + 3];
+                s_b5dc = s_queue[e * CS_QUEUE_STRIDE + 4];
+                cs_due_date_format(s_queue[e * CS_QUEUE_STRIDE + 5]);
+            } else if (q_kind == 2) {
+                s_b56c = s_queue[e * CS_QUEUE_STRIDE + 0];
+                s_b570 = s_queue[e * CS_QUEUE_STRIDE + 1];
+                s_b5d8 = s_queue[e * CS_QUEUE_STRIDE + 3];
+                s_b5dc = s_queue[e * CS_QUEUE_STRIDE + 4];
+                s_b5a8 = 3;
+                cs_due_date_format(s_queue[e * CS_QUEUE_STRIDE + 5]);
+            } else if (q_kind == 1) {
+                if (!cs_kind_select_buy()) {
+                    s_b534 = 0;
+                    s_b524 = 0;
+                }
+            } else if (q_kind == 0) {
+                if (!cs_kind_select()) {
+                    if (!cs_kind_select_request_fallback()) {
+                        s_b534 = 0;
+                        s_b524 = 0;
+                    }
+                }
+            }
+            s_b318 += 1;
+        }
     }
     s_price_bc8 = -1;                       /* DAT_005c6bc8 = 0xffffffff */
     s_b54c = 0;
@@ -2607,6 +2692,925 @@ lab_tail:
      * card (FUN_004681db/68286 + SE 0x2c6). */
     return;
 }
+/* ── FUN_00464a26 — customer chat machine (b5a8 == 5) ─────────────────────── */
+static void cs_chat_machine(void)
+{
+    s_b544 += 1;
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            s_b544 = 0;
+            s_b534 = 7;
+            return;
+        }
+    } else if (s_b534 == 7) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 0x12, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+    }
+}
+
+/* ── FUN_00465372 — customer buy machine (b5a8 == 0) ──────────────────────── */
+static void cs_buy_machine(void)
+{
+    s_b544 += 1;
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 0, 1);
+            s_cust_active[1] = -1;
+            s_b5a0 = 1;
+            title_save_dialog_cursor_set_visible(0);
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 6;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            cs_digit_count();
+        }
+        return;
+    }
+    if (s_b534 != 0xf) {
+        if (s_b534 == 6) {
+            s_cust_active[1] = 0;
+            if (s_b59c == 0) s_b59c = 1;
+            if (s_b544 == 1)
+                cs_pick_line(0, 10, 0);
+            title_save_dialog_cursor_set_visible(0);
+            if ((s_in_pressed & 0x10) == 0) {
+                cs_digit_edit();
+            } else {
+                s_cust_active[1] = 0;
+                s_b534 = 0xf;
+                s_b590 = 0;
+                s_b540 = 0;
+                audio_play_se_by_id(0x143);
+                title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);
+            }
+            return;
+        }
+        if (s_b534 == 7) {
+            if (s_b544 == 1) {
+                cs_pick_line(s_b56c, 0xd, 1);
+                s_cust_active[1] = -1;
+            }
+            if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+                return;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+            int f404 = bankw && ((const uint8_t *)bankw)[CS_F404_SELL_ACTIVE_BYTE_OFF];
+            if (!f404 && bankw) {
+                int count = s_price_bc4 > 0 ? s_price_bc4 : 1;
+                for (int i = 0; i < count; i++) {
+                    display_menu_inventory_return(bankw, s_b5a4);
+                    cs_sold_list_append(s_b5a4, 1);
+                }
+                bankw[SAVE_BANK_FIELD_GOLD] = (uint32_t)((int32_t)bankw[SAVE_BANK_FIELD_GOLD] - s_price_ask);
+                audio_play_se_by_id(0x14d);
+                cs_sale_commit_stats_fx(1);
+                cs_sale_popup_queue_build();
+            }
+            s_b544 = 0;
+            s_b5a0 = 0;
+            s_b534 = 10;
+            return;
+        }
+        if (s_b534 == 8) {
+            int line = cs_pushback_line();
+            if (s_b544 == 1) {
+                s_b5c4 = 0;
+                uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+                int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+                int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+                int uVar8;
+                if (!f404 || s_b538 != 1) {
+                    if (s_b584 == line && !f406) uVar8 = 7;
+                    else                         uVar8 = 3;
+                } else {
+                    uVar8 = 0xf;
+                }
+                cs_pick_line(s_b56c, uVar8, 1);
+                s_cust_active[1] = -1;
+            }
+            if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+                s_b55c = 0;
+                s_cust_active[1] = 0;
+                uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+                int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+                int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+                if ((!f404 || s_b538 != 1) && (s_b584 == line && !f406)) {
+                    s_b534 = 0xb;
+                    s_b5a0 = 0;
+                } else {
+                    s_b534 = 6;
+                }
+                s_b544 = 0;
+            }
+            return;
+        }
+        if (s_b534 == 9) {
+            if (s_b544 == 1) {
+                cs_pick_line(s_b56c, 7, 1);
+                s_cust_active[1] = -1;
+            }
+            if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+                s_b55c = 0;
+                s_cust_active[1] = 0;
+                s_b534 = 0xb;
+                s_b544 = 0;
+                s_b5a0 = 0;
+            }
+            return;
+        }
+        return;
+    }
+    int poll = cs_input_poll();
+    if (poll != 1) {
+        if (poll == 2) s_b534 = 6;
+        return;
+    }
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+    int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+    s_b538 = 0;
+    if (s_b584 == 3 && !f404 && bank)
+        *rs_close(bank, s_b570) -= 1;
+    if (s_price_ask < s_b574) {
+        if (s_price_ask > s_b580 || f406) {
+            s_b534 = 8;
+        } else {
+            s_b534 = 9;
+            if (!f404 && bank) *rs_close(bank, s_b570) -= 1;
+        }
+    } else if ((double)s_price_ask < (double)s_price_base * 0.9 || !f404) {
+        int grade = cs_accept_eval();
+        if (!f404 && bank) {
+            int16_t *c = rs_close(bank, s_b570);
+            *c = (int16_t)(*c + ((grade == 1) ? 5 : (grade == 2) ? 2 : 1));
+        }
+        if (cs_loyalty_latch()) s_b53c = 1;
+        s_b534 = 7;
+    } else {
+        s_b538 = 1;
+        s_b534 = 8;
+    }
+    if (bank && *rs_close(bank, s_b570) < 0)
+        *rs_close(bank, s_b570) = 0;
+    s_b59c = 0;
+    s_b544 = 0;
+    title_save_dialog_cursor_set_visible(0);
+}
+
+/* ── FUN_00464af0 — customer request machine (b5a8 == 1) ──────────────────── */
+static void cs_request_machine(void)
+{
+    s_b544 += 1;
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            if (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                snprintf(s_order_want_text, sizeof s_order_want_text, "%s", g_oder.entries[s_b5d8].name_singular);
+            s_order_want_text_len = (int32_t)strlen(s_order_want_text);
+            cs_pick_line(s_b56c, 0xc, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_b544 = 0;
+            s_b534 = 3;
+            s_cust_active[1] = 0;
+            s_b5b0 = 1;
+            s_b5d0 = 3;
+            s_b5d4 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 3) {
+        int r = display_menu_update(1);
+        if (r == 3) {
+            audio_play_se_by_id(0x143);
+        } else if (r == 1) {
+            s_b544 = 0;
+            s_b5a4 = display_menu_selected();
+            title_save_dialog_cursor_set_visible(0);
+            s_b5d0 = 0;
+            if (s_b5a4 == -1) {
+                s_b534 = 0x11;
+            } else {
+                s_b534 = 4;
+                int slot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+                int32_t bp = (slot >= 0) ? g_item.records[slot].price : 0;
+                s_price_runsum = bp;
+                s_price_base = bp;
+                s_price_ask = bp;
+                cs_set_item_macro(s_b5a4);
+                char pix[DLG_MACRO_BUFSZ];
+                snprintf(pix, sizeof pix, "%dpix", s_price_ask);
+                dlg_macro_set(DLG_MAC_Y, pix);
+            }
+        }
+        return;
+    }
+    if (s_b534 == 4) {
+        if (s_b544 == 1) {
+            cs_pick_line(0, 1, 0);
+            s_cust_active[0] = 1;
+            s_b5a0 = 1;
+        }
+        title_save_dialog_cursor_set_visible(0);
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            int slot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+            int match = 0;
+            if (slot >= 0 && s_b5d8 >= 0 && s_b5d8 < g_oder.count) {
+                if ((g_oder.entries[s_b5d8].attr_mask & g_item.records[slot].attr_mask) != 0 ||
+                    cs_category_matches(g_item.records[slot].category, g_oder.entries[s_b5d8].attr_index))
+                    match = 1;
+            }
+            s_b534 = match ? 5 : 0x10;
+            s_b544 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 5) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 2, 1);
+            s_cust_active[1] = -1;
+            title_save_dialog_cursor_set_visible(0);
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 6;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            cs_offer_up();
+            cs_digit_count();
+        }
+        return;
+    }
+    if (s_b534 == 0x11) {
+        if (s_b544 == 1)
+            cs_pick_line(0, 2, 0);
+        s_cust_active[0] = 1;
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            s_b534 = 0x12;
+            s_b544 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 0x10) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 8, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 0x12) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 9, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 6) {
+        s_cust_active[1] = 0;
+        if (s_b59c == 0) s_b59c = 1;
+        if (s_b544 == 1)
+            cs_pick_line(0, 9, 0);
+        title_save_dialog_cursor_set_visible(0);
+        if ((s_in_pressed & 0x10) == 0) {
+            cs_digit_edit();
+        } else {
+            s_cust_active[1] = 0;
+            s_b534 = 0xf;
+            s_b590 = 0;
+            s_b540 = 0;
+            audio_play_se_by_id(0x143);
+            title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);
+        }
+        return;
+    }
+    if (s_b534 == 7) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 5, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            return;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+        int f404 = bankw && ((const uint8_t *)bankw)[CS_F404_SELL_ACTIVE_BYTE_OFF];
+        if (!f404 && bankw) {
+            int32_t col = 0, row = 0;
+            cs_display_grid_clear(s_b5a4, &col, &row);
+            cs_sold_list_append(s_b5a4, 0);
+            bankw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
+            audio_play_se_by_id(0x14d);
+            cs_sale_commit_stats_fx(0);
+            cs_sale_record_minmax();
+            cs_sale_popup_queue_build();
+            cs_adventurer_equip_upgrade();
+        }
+        s_b544 = 0;
+        s_b5a0 = 0;
+        s_b534 = 10;
+        return;
+    }
+    if (s_b534 == 8 || s_b534 == 0x28) {
+        int line = cs_pushback_line();
+        if (s_b544 == 1) {
+            s_b5c4 = 0;
+            uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+            int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+            int uVar11;
+            if (!f404 || s_b538 != 1) {
+                if (s_b584 == line && !f406) uVar11 = 10;
+                else if (s_b534 == 8)        uVar11 = 4;
+                else                         uVar11 = 0x13;
+            } else {
+                uVar11 = 0xe;
+            }
+            cs_pick_line(s_b56c, uVar11, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+            if (s_b584 == line && !f406) {
+                s_b534 = 0xb;
+                s_b544 = 0;
+                s_b5a0 = 0;
+                return;
+            }
+            s_b534 = 6;
+            s_b544 = 0;
+            cs_offer_up();
+        }
+        return;
+    }
+    if (s_b534 == 9) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 6, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b55c = 0;
+            s_b5a0 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 0xf) {
+        int poll = cs_input_poll();
+        if (poll != 1) {
+            if (poll == 2) s_b534 = 6;
+            return;
+        }
+        uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+        int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+        s_b538 = 0;
+        if (s_b584 == 3 && !f404 && bank)
+            *rs_close(bank, s_b570) -= 1;
+        int budget = cs_budget(s_b56c, s_b570);
+        if ((double)s_price_ask <= (double)budget * 1.2 || f404) {
+            if (s_b574 < s_price_ask) {
+                if (s_price_ask < s_b580 || f406) {
+                    s_b534 = 8;
+                } else {
+                    s_b534 = 9;
+                    if (!f404 && bank) *rs_close(bank, s_b570) -= 1;
+                }
+            } else if ((double)s_price_base * 0.8 < (double)s_price_ask || !f404) {
+                int grade = cs_accept_eval();
+                if (!f404 && bank) {
+                    int16_t *c = rs_close(bank, s_b570);
+                    *c = (int16_t)(*c + ((grade == 1) ? 5 : (grade == 2) ? 2 : 1));
+                }
+                if (cs_loyalty_latch()) s_b53c = 1;
+                s_b534 = 7;
+            } else {
+                s_b538 = 1;
+                s_b534 = 8;
+            }
+        } else {
+            s_b534 = 0x28;
+        }
+        if (bank && *rs_close(bank, s_b570) < 0)
+            *rs_close(bank, s_b570) = 0;
+        s_b544 = 0;
+        s_b59c = 0;
+        title_save_dialog_cursor_set_visible(0);
+    }
+}
+
+/* ── FUN_004639f5 — advance order booking machine (b5a8 == 3) ─────────────── */
+static void cs_advance_order_book_machine(void)
+{
+    s_b544 += 1;
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            s_b544 = 0;
+            s_b534 = 7;
+        }
+    } else if (s_b534 == 7) {
+        if (s_b544 == 1) {
+            if (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                snprintf(s_order_want_text, sizeof s_order_want_text, "%s", g_oder.entries[s_b5d8].name_plural);
+            s_order_want_text_len = (int32_t)strlen(s_order_want_text);
+            cs_pick_line(s_b56c, 0xf, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            cs_pick_line(0, 0xd, 0);
+            s_cust_active[0] = 1;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            s_b534 = 0xf;
+            audio_play_se_by_id(0x143);
+        }
+    } else if (s_b534 == 0xf) {
+        if (s_b544 >= 0xf) {
+            int poll = cs_input_poll();
+            if (poll == 1) {
+                s_b544 = 0;
+                s_b534 = 10;
+                s_b5a0 = 0;
+                title_save_dialog_cursor_set_visible(0);
+                /* Book appointment into SAVE_BANK_FIELD_SCHED_TABLE */
+                uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+                if (bankw) {
+                    int32_t *sched = (int32_t *)bankw + SAVE_BANK_FIELD_SCHED_TABLE;
+                    for (int i = 0; i < SAVE_BANK_SCHED_COUNT; i++) {
+                        if (sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 0] == 0) {
+                            sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 0] = 1;
+                            sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 1] = s_b5d8;
+                            sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 2] = s_queue[s_b318 * CS_QUEUE_STRIDE + 5];
+                            int16_t *shorts = (int16_t *)&sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 3];
+                            shorts[0] = (int16_t)s_b570;
+                            shorts[1] = (int16_t)s_b56c;
+                            sched[i * SAVE_BANK_SCHED_STRIDE_DWORDS + 4] = s_b5dc;
+                            break;
+                        }
+                    }
+                }
+            } else if (poll == 2) {
+                s_b534 = 0x10;
+                s_b544 = 0;
+                s_b5a0 = 0;
+                title_save_dialog_cursor_set_visible(0);
+                s_cust_active[0] = 0;
+            }
+        }
+    } else if (s_b534 == 0x10) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 0x11, 1);
+            s_cust_active[1] = 1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 0x11;
+            s_cust_active[1] = 0;
+            s_b55c = 0;
+            s_b544 = 0;
+        }
+    } else if (s_b534 == 0x11) {
+        if (s_b544 == 1) {
+            cs_pick_line(0, 0xc, 0);
+            s_cust_active[0] = 1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 0xd;
+            s_cust_active[0] = 0;
+            s_b55c = 0;
+            s_b544 = 0;
+        }
+    }
+}
+
+/* ── FUN_00463cfb — advance order pickup / fulfill machine (b5a8 == 4) ────── */
+static void cs_advance_order_pickup_machine(void)
+{
+    s_b544 += 1;
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            if (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                snprintf(s_order_want_text, sizeof s_order_want_text, "%s", g_oder.entries[s_b5d8].name_plural);
+            s_order_want_text_len = (int32_t)strlen(s_order_want_text);
+            cs_pick_line(s_b56c, 0x10, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_b544 = 0;
+            s_cust_active[1] = 0;
+            s_b5d4 = 0;
+            s_b534 = 3;
+            s_b5b0 = 1;
+            s_b5d0 = 1;
+            for (int i = 0; i < 18; i++) s_item_pick[i] = -1;
+            s_price_cursor = 1;
+        }
+        return;
+    }
+    if (s_b534 == 3) {
+        if (s_b5cc != 0) {
+            int r = display_menu_update(1);
+            if (r == 3) {
+                audio_play_se_by_id(0x143);
+            } else if (r == 2) {
+                audio_play_se_by_id(0x13d);
+                s_b5cc = 0;
+            } else if (r == 1) {
+                int sel = display_menu_selected();
+                int cur = s_price_cursor;
+                int prev = s_item_pick[cur * 3 + 0];
+                uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+                if (prev != -1 && bankw) {
+                    if (s_item_pick[cur * 3 + 1] == -1) {
+                        display_menu_inventory_return(bankw, prev);
+                    } else {
+                        int col = s_item_pick[cur * 3 + 1];
+                        int row = s_item_pick[cur * 3 + 2];
+                        if (row >= 0 && row < 15 && col >= 0 && col < 20) {
+                            int32_t *grid = (int32_t *)bankw + SAVE_BANK_FIELD_DISPLAY_GRID;
+                            grid[col + row * 20] = prev;
+                        }
+                    }
+                }
+                s_item_pick[cur * 3 + 0] = sel;
+                if (sel != -1 && bankw) {
+                    display_menu_inventory_remove(bankw, sel);
+                }
+                s_b5cc = 0;
+            }
+            return;
+        }
+        if (s_b544 > 0x16) {
+            if ((s_in_pressed & 0x10) != 0) {
+                audio_play_se_by_id(0x143);
+                if (s_price_cursor == 0) {
+                    int count = 0;
+                    for (int i = 0; i < s_b5dc && i < 5; i++) {
+                        if (s_item_pick[(1 + i) * 3 + 0] != -1)
+                            count++;
+                    }
+                    if (count < s_b5dc) {
+                        s_b534 = 0x11;
+                        cs_order_reject_restore();
+                    } else {
+                        s_b534 = 4;
+                    }
+                    s_b544 = 0;
+                    title_save_dialog_cursor_set_visible(0);
+                } else {
+                    s_b5cc = 2;
+                    display_menu_cursor_to_row();
+                }
+            }
+        }
+        return;
+    }
+    if (s_b534 == 4) {
+        if (s_b544 == 1) {
+            cs_pick_line(0, 1, 0);
+            s_b5d0 = 2;
+            s_b5d4 = 0;
+            s_cust_active[0] = 1;
+        }
+        title_save_dialog_cursor_set_visible(0);
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            s_b5a4 = s_item_pick[1 * 3 + 0];
+            cs_set_item_macro(s_b5a4);
+            char pix[DLG_MACRO_BUFSZ];
+            snprintf(pix, sizeof pix, "%dpix", s_price_ask);
+            dlg_macro_set(DLG_MAC_Y, pix);
+            int match_count = 0;
+            s_price_runsum = 0;
+            for (int i = 0; i < s_b5dc && i < 5; i++) {
+                int handle = s_item_pick[(1 + i) * 3 + 0];
+                if (handle != -1) {
+                    int slot = tables_item_find_slot_by_id(&g_item, handle >> 6);
+                    if (slot >= 0 && s_b5d8 >= 0 && s_b5d8 < g_oder.count) {
+                        if ((g_oder.entries[s_b5d8].attr_mask & g_item.records[slot].attr_mask) != 0 ||
+                            cs_category_matches(g_item.records[slot].category, g_oder.entries[s_b5d8].attr_index)) {
+                            match_count++;
+                            s_price_runsum += g_item.records[slot].price;
+                        }
+                    }
+                }
+            }
+            s_price_base = s_price_runsum;
+            s_price_ask = s_price_base;
+            if (match_count == s_b5dc) {
+                s_b534 = 5;
+            } else {
+                s_b534 = 0x10;
+                cs_order_reject_restore();
+            }
+            s_b544 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 5) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 2, 1);
+            s_cust_active[1] = -1;
+            title_save_dialog_cursor_set_visible(0);
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 6;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            cs_offer_up();
+            cs_digit_count();
+        }
+        return;
+    }
+    if (s_b534 == 0x11) {
+        if (s_b544 == 1) {
+            s_b5c4 = 0;
+            cs_pick_line(0, 2, 0);
+        }
+        s_cust_active[0] = 1;
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b5d0 = 0;
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            s_b534 = 0x12;
+            s_b544 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 0x10) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 8, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 0x12) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 9, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+        return;
+    }
+    if (s_b534 == 6) {
+        s_cust_active[1] = 0;
+        if (s_b59c == 0) s_b59c = 1;
+        if (s_b544 == 1)
+            cs_pick_line(0, 9, 0);
+        title_save_dialog_cursor_set_visible(0);
+        if ((s_in_pressed & 0x10) == 0) {
+            cs_digit_edit();
+        } else {
+            s_cust_active[1] = 0;
+            s_b534 = 0xf;
+            s_b590 = 0;
+            s_b540 = 0;
+            audio_play_se_by_id(0x143);
+            title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);
+        }
+        return;
+    }
+    if (s_b534 == 7) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 5, 1);
+            s_b5d0 = 0;
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            return;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+        int f404 = bankw && ((const uint8_t *)bankw)[CS_F404_SELL_ACTIVE_BYTE_OFF];
+        if (!f404 && bankw) {
+            bankw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
+            audio_play_se_by_id(0x14d);
+            cs_sale_commit_stats_fx(0);
+            cs_sale_popup_queue_build();
+            cs_adventurer_equip_upgrade();
+        }
+        s_b544 = 0;
+        s_b5a0 = 0;
+        s_b534 = 10;
+        return;
+    }
+    if (s_b534 == 8 || s_b534 == 0x28) {
+        int line = cs_pushback_line();
+        if (s_b544 == 1) {
+            s_b5c4 = 0;
+            uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+            int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+            int uVar16;
+            if (!f404 || s_b538 != 1) {
+                if (s_b584 == line && !f406) uVar16 = 10;
+                else if (s_b534 == 8)        uVar16 = 4;
+                else                         uVar16 = 0x13;
+            } else {
+                uVar16 = 0xe;
+            }
+            cs_pick_line(s_b56c, uVar16, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+            if (s_b584 == line && !f406) {
+                cs_order_reject_restore();
+                s_b534 = 0xb;
+                s_b544 = 0;
+                s_b5a0 = 0;
+                s_b5d0 = 0;
+                return;
+            }
+            s_b534 = 6;
+            s_b544 = 0;
+            cs_offer_up();
+        }
+        return;
+    }
+    if (s_b534 == 9) {
+        if (s_b544 == 1) {
+            cs_pick_line(s_b56c, 6, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_cust_active[1] = 0;
+            s_b534 = 0xb;
+            s_b544 = 0;
+            s_b55c = 0;
+            s_b5a0 = 0;
+            s_b5d0 = 0;
+            cs_order_reject_restore();
+        }
+        return;
+    }
+    if (s_b534 == 0xf) {
+        int poll = cs_input_poll();
+        if (poll != 1) {
+            if (poll == 2) s_b534 = 6;
+            return;
+        }
+        uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+        int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+        s_b538 = 0;
+        if (s_b584 == 3 && !f404 && bank)
+            *rs_close(bank, s_b570) -= 1;
+        int budget = cs_budget(s_b56c, s_b570) * (s_b5dc > 0 ? s_b5dc : 1);
+        if ((double)s_price_ask <= (double)budget * 1.2 || f404) {
+            if (s_b574 < s_price_ask) {
+                if (s_price_ask < s_b580 || f406) {
+                    s_b534 = 8;
+                } else {
+                    s_b534 = 9;
+                    if (!f404 && bank) *rs_close(bank, s_b570) -= 1;
+                    cs_order_reject_restore();
+                }
+            } else if ((double)s_price_base * 0.8 < (double)s_price_ask || !f404) {
+                int grade = cs_accept_eval();
+                if (!f404 && bank) {
+                    int16_t *c = rs_close(bank, s_b570);
+                    *c = (int16_t)(*c + ((grade == 1) ? 5 : (grade == 2) ? 2 : 1));
+                }
+                if (cs_loyalty_latch()) s_b53c = 1;
+                s_b534 = 7;
+            } else {
+                s_b538 = 1;
+                s_b534 = 8;
+            }
+        } else {
+            s_b534 = 0x28;
+            if (!f404 && bank)
+                *rs_close(bank, s_b570) -= 1;
+        }
+        if (bank && *rs_close(bank, s_b570) < 0)
+            *rs_close(bank, s_b570) = 0;
+        s_b544 = 0;
+        s_b59c = 0;
+        title_save_dialog_cursor_set_visible(0);
+    }
+}
+
+/* ── FUN_00461792 — customer buying / selling to player item selector ──────── */
+static int cs_kind_select_buy(void)
+{
+    const uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    if (!bankw) return 0;
+    int f404 = ((const uint8_t *)bankw)[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+
+    int owned = display_menu_owned_count(bankw);
+    if (owned > 14999 && !f404) return 0;
+    if (bankw[SAVE_BANK_FIELD_GOLD] < 1000 && !f404) return 0;
+    if (s_b5ac > 2 && !f404) return 0;
+
+    int e = s_b318;
+    if (e < 0 || e >= s_queue_count) return 0;
+    int kyaku_id = s_queue[e * CS_QUEUE_STRIDE + 0];
+    int cand_idx = s_queue[e * CS_QUEUE_STRIDE + 1];
+    if (kyaku_id == -1) return 0;
+
+    s_b56c = kyaku_id;
+    s_b570 = cand_idx;
+    g_scene_buy_current_page = kyaku_id;
+
+    int tier = (int)(*rs_close((uint8_t *)bankw, cand_idx) / 10) + 1;
+    int merch_level = (int)bankw[0xb0fd / 4];
+    if (merch_level <= tier) tier = merch_level;
+
+    int cand_count = 0;
+    int cand_slots[100];
+    for (int i = 0; i < g_item.count && cand_count < 100; i++) {
+        if (g_item.records[i].valid && g_item.records[i].price > 0 && g_item.records[i].rank > 0) {
+            if (g_item.records[i].rank <= tier) {
+                cand_slots[cand_count++] = i;
+            }
+        }
+    }
+    if (cand_count == 0) return 0;
+
+    int pick = (int)(rng_next15() % (uint32_t)cand_count);
+    s_b5a4 = g_item.records[cand_slots[pick]].item_id << 6;
+    s_b5a8 = 0;
+    s_b5ac += 1;
+    if (!f404)
+        s_queue[e * CS_QUEUE_STRIDE + 0] = -1;
+    return 1;
+}
+
+/* ── FUN_00460fa7 — request fallback when display grid has no match ───────── */
+static int cs_kind_select_request_fallback(void)
+{
+    uint8_t *bank = save_work_bank_at(save_work_active_slot());
+    if (!bank) return 0;
+    int e = s_b318;
+    if (e < 0 || e >= s_queue_count) return 0;
+    int kyaku = s_queue[e * CS_QUEUE_STRIDE + 0];
+    int cand  = s_queue[e * CS_QUEUE_STRIDE + 1];
+    if (kyaku != -1) {
+        s_b56c = kyaku;
+        s_b570 = cand;
+        s_b5d8 = roster_pick_item(bank, &g_kyaku.records[kyaku], cand,
+                                  &(roster_news_event_t){ s_b5e8, s_b5f0, s_b5f4 });
+        s_b5a8 = 1;
+        return (s_b5d8 != -1);
+    }
+    return 0;
+}
+
 
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
@@ -2994,10 +3998,29 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
             return;
         } else if (s_b534 != 0xc && s_b534 != 0xd) {
             /* the b5a8 transaction dispatch (all.c:60563-60588) for the live states
-             * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
-             * PORT-DEBT(cs-other-kinds): 0/1/3/4/5 = buy/chat/kind0/kind5. */
+             * (2/6/0xf/7/8/9). */
+            if (s_b5a8 == 3) {
+                cs_advance_order_book_machine();   /* FUN_004639f5 */
+                return;
+            }
+            if (s_b5a8 == 4) {
+                cs_advance_order_pickup_machine(); /* FUN_00463cfb */
+                return;
+            }
+            if (s_b5a8 == 5) {
+                cs_chat_machine();                 /* FUN_00464a26 */
+                return;
+            }
+            if (s_b5a8 == 1) {
+                cs_request_machine();              /* FUN_00464af0 */
+                return;
+            }
+            if (s_b5a8 == 0) {
+                cs_buy_machine();                  /* FUN_00465372 */
+                return;
+            }
             if (s_b5a8 == 2) {
-                cs_live_machine();            /* FUN_004658ab */
+                cs_live_machine();                 /* FUN_004658ab */
                 return;
             }
             return;
@@ -3143,4 +4166,23 @@ void customer_service_adventurer_equip_upgrade_for_test(int32_t kyaku, int32_t i
     s_b5a4 = item_handle;
     s_price_bc8 = -1;
     cs_adventurer_equip_upgrade();
+}
+void customer_service_set_machine_state_for_test(int32_t b5a8, int32_t b534, int32_t b56c, int32_t b570, int32_t b5a4, int32_t b5d8, int32_t b5dc)
+{
+    s_b5a8 = b5a8;
+    s_b534 = b534;
+    g_scene_buy_current_page = b56c;
+    s_b570 = b570;
+    s_b5a4 = b5a4;
+    s_b5d8 = b5d8;
+    s_b5dc = b5dc;
+}
+
+void customer_service_set_order_item_for_test(int idx, int32_t handle, int32_t col, int32_t row)
+{
+    if (idx >= 0 && idx < 6) {
+        s_item_pick[idx * 3 + 0] = handle;
+        s_item_pick[idx * 3 + 1] = col;
+        s_item_pick[idx * 3 + 2] = row;
+    }
 }

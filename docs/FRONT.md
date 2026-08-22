@@ -13,15 +13,15 @@
   Code-tagged PORT-DEBT lives in docs/port-debt.md (derived).
 -->
 <!-- FRONT:BEGIN -->
-- **★ NEXT MICRO-TASK:** Customer service unported kind machines (`PORT-DEBT(cs-other-kinds)`: buy/about/wanted-list `FUN_00460eba`), or CV-03 dynamic block/edge coverage instrumentation.
+- **★ NEXT MICRO-TASK:** CV-03 dynamic block/edge coverage collection (Frida Stalker bitmap capture + coverage atlas), or `b53c` loyalty rank-up flash renderer.
 
 - **▶ ACTIVE ARC 1 — REVERSE-ENGINEERING & COVERAGE ATLAS (CV-01→CV-03).**
   - **✅ CV-01 / CV-02 LANDED (`tools/re_index.py`, `tools/test_re_index.py`):** Deterministic SQLite index (`docs/re-index.sqlite`) covering all 2,620 functions, 6,171 call edges, 10,639 global xrefs, 1,117 string xrefs. Fast subcommands: `info`, `text` (decompiled C with `-n`), `disasm` (objdump assembly), `callers`, `callees`, `xrefs`, `tree`, `unported-callees`, `search` (with `--code`), `stats`.
   - **★ NEXT:** **CV-03** dynamic block/edge coverage collection (Frida Stalker bitmap capture + coverage atlas).
 
 - **▶ ACTIVE ARC 2 — CUSTOMER SERVICE & AUTONOMOUS DAY-2 SALE.**
-  - **✅ LANDED:** Roster scan (`cs_roster_scan`, 1:1 verified vs golden), daily news list generator & trend classifier (`FUN_00436623`, `FUN_004361b2`, 1:1 verified), general display-grid item pick (`FUN_00461303`, `4c62e00`), adventurer equip upgrade (`FUN_00460b93`, `a1b37a8`), closeness serve-time deltas (`FUN_004658ab`, `edc2061`), sale fanfare & coin shower (1:1 bit-exact).
-  - **★ NEXT:** `PORT-DEBT(cs-other-kinds)` — the buy (kind 1) and about (kind 2) customer state machines + `FUN_00460eba` reject wanted-list; `b53c` rank-up flash renderer.
+  - **✅ LANDED:** Roster scan (`cs_roster_scan`, 1:1 verified vs golden), daily news list generator & trend classifier (`FUN_00436623`, `FUN_004361b2`), general display-grid item pick (`FUN_00461303`), adventurer equip upgrade (`FUN_00460b93`), all 5 customer kind machines (`cs_buy_machine` `FUN_00465372`, `cs_request_machine` `FUN_00464af0`, `cs_advance_order_book_machine` `FUN_004639f5`, `cs_advance_order_pickup_machine` `FUN_00463cfb`, `cs_chat_machine` `FUN_00464a26`, `FUN_00460eba` reject restore; retired `PORT-DEBT(cs-other-kinds)`).
+  - **★ NEXT:** `b53c` loyalty rank-up flash renderer + live autonomous day-2 play-through test.
 
 - **▶ ACTIVE ARC 3 — PARITY EVIDENCE COMPILER (roadmap program).**
   - **✅ LANDED:** Wave-0 (EP-00→EP-08) complete. Save pillar (ST-00/ST-01), volatile state pillar (ST-02..05, Merkle roots + mutation consumer), pixels pillar, D3D8 capture census & opcode corpus (GX-00→GX-06) complete. First multi-pillar passing proof bundle on `house-pause-save-commit`.

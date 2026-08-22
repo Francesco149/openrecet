@@ -491,6 +491,10 @@ struct test_case {
     X(cs_budget_level_day) \
     X(cs_kind_select_general_customer_pick) \
     X(cs_adventurer_equip_upgrade) \
+    X(cs_chat_machine) \
+    X(cs_buy_machine) \
+    X(cs_advance_order_booking) \
+    X(cs_order_reject_restore) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

@@ -12,7 +12,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 503, discovered 1960 → 588 referenced-or-better (23.1%)
+- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 507, discovered 1956 → 592 referenced-or-better (23.2%)
 - **runtime:** 1 proven (0.0%) — every rung needs a `parity-proof-index.json` bundle
 - orphan refs (in src/, not in function table): 7
 
@@ -111,7 +111,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (503) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (507) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -329,7 +329,11 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ |  | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ |  | customer_service.c |
 | 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_service.c, customer_service.h, scene1_camera.c (+4) |
+| 0x4639f5 | FUN_004639f5 | 774 | ✓ |  | customer_service.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ |  | customer_service.c, customer_service.h |
+| 0x464a26 | FUN_00464a26 | 202 | ✓ |  | customer_service.c |
+| 0x464af0 | FUN_00464af0 | 2178 | ✓ |  | customer_service.c |
+| 0x465372 | FUN_00465372 | 1337 | ✓ |  | customer_service.c |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ |  | customer_service.c, customer_service.h, save_bank.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service_render.c, dialogue_macros.c (+4) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
