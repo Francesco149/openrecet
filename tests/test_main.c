@@ -495,6 +495,16 @@ struct test_case {
     X(cs_buy_machine) \
     X(cs_advance_order_booking) \
     X(cs_order_reject_restore) \
+    X(day2_transition_cascade_state) \
+    X(day2_news_generation_and_trends) \
+    X(day2_display_grid_and_pricing) \
+    X(day2_customer_roster_scan_day2) \
+    X(day2_customer_service_sell_machine) \
+    X(day2_customer_service_buy_machine) \
+    X(day2_customer_service_advance_order_booking) \
+    X(day2_customer_service_advance_order_pickup) \
+    X(day2_customer_service_chat_machine) \
+    X(day2_evening_and_persistence) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

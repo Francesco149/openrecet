@@ -7,6 +7,25 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-22 — Arc 2 — Autonomous Day-2 Play-Through & Subsystem Integration (Arc 2 Complete)
+
+Autonomous Day-2 play-through and lifecycle validation (`tests/test_day2_playthrough.c`, `tools/test_day2_autonomous.py`).
+
+- **C Host Subsystem Integration Tests (`tests/test_day2_playthrough.c`):** Implemented 10 comprehensive
+  end-to-end lifecycle and subsystem tests running under host ASan/UBSan:
+  1. `test_day2_transition_cascade_state`: verifies complete tutorial flag cascade (`iv1_5`..`iv1_8`), `iv2_3` day advance (`fb84++`), `iv2_5` 190f beat arming, and HUD day synchronization.
+  2. `test_day2_news_generation_and_trends`: exercises Day-2 morning news generation (`FUN_00436623`, `news_daily_update`), headline buffering, active news table population, and price-trend classification (`FUN_004361b2`, `news_price_trend`).
+  3. `test_day2_display_grid_and_pricing`: validates display grid stocking across special counter and general shelf cells (`SAVE_BANK_FIELD_DISPLAY_GRID`) with encoded item handles.
+  4. `test_day2_customer_roster_scan_day2`: validates customer roster scanning (`FUN_0045f2da`, `cs_roster_scan`), budget level calculations (`customer_service_budget_level_day`), tier weighting, like-attribute matching, and candidate queue ordering.
+  5. `test_day2_customer_service_sell_machine`: verifies Customer Sell (Kind 2) haggle flow, pushback patience calculation, loyalty rank level advance (`b53c`), and adventurer equipment upgrade (`FUN_00460b93`).
+  6. `test_day2_customer_service_buy_machine`: verifies Customer Buy (Kind 0) transaction loop, price editing, and decision mechanics (`FUN_00465372`).
+  7. `test_day2_customer_service_advance_order_booking`: verifies Advance Order Booking (Kind 3) machine and schedule table commits (`FUN_004639f5`).
+  8. `test_day2_customer_service_advance_order_pickup`: verifies Advance Order Pickup (Kind 4) machine, presentation, and order reject item restoration (`FUN_00463cfb`, `FUN_00460eba`).
+  9. `test_day2_customer_service_chat_machine`: verifies Customer Chat (Kind 5) machine, dialogue progression, and script program counter advances (`FUN_00464a26`).
+  10. `test_day2_evening_and_persistence`: verifies shop day-end closure, daily stats tally, and persistent closeness and loyalty data integrity at slot 0.
+- **Autonomous Python Test Runner (`tools/test_day2_autonomous.py`):** Orchestrates and validates the end-to-end
+  execution of `house-firstcust-cutscene-day2-full` replay on `openrecet` (`exit=0`, 867 semantic anchors, 16,382+ frames to `CONV_POSE_END`), verifying anchor milestones, C subsystem gates, and semantic coverage atlas dimensions.
+
 ## 2026-08-22 — CV-08 — Coverage Truth Calibration (Arc 1 Complete)
 
 Roadmap §8 CV-08.
