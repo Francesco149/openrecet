@@ -27,11 +27,74 @@
 #include <fstream>
 #include <algorithm>
 using json = nlohmann::json;
+static LONG WINAPI MyCrashHandler(EXCEPTION_POINTERS *ep)
+{
+    FILE *f = fopen("C:\\openrecet-studio\\crash.log", "w");
+    if (!f) f = stderr;
+
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+    void *addr = ep->ExceptionRecord->ExceptionAddress;
+    fprintf(f, "=== VIEWER CRASH CAUGHT ===\n");
+    fprintf(f, "ExceptionCode:    0x%08lX\n", (unsigned long)code);
+    fprintf(f, "ExceptionAddress: 0x%08lX\n", (unsigned long)addr);
+
+    if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2) {
+        ULONG_PTR op = ep->ExceptionRecord->ExceptionInformation[0];
+        ULONG_PTR target = ep->ExceptionRecord->ExceptionInformation[1];
+        fprintf(f, "Access Violation: Attempted to %s address 0x%08lX\n",
+                op == 0 ? "READ" : (op == 1 ? "WRITE" : "EXECUTE"), (unsigned long)target);
+    }
+
+    CONTEXT *ctx = ep->ContextRecord;
+    if (ctx) {
+        fprintf(f, "\nRegisters (x86-32):\n");
+        fprintf(f, "  EIP: 0x%08lX   EFLAGS: 0x%08lX\n", (unsigned long)ctx->Eip, (unsigned long)ctx->EFlags);
+        fprintf(f, "  EAX: 0x%08lX   EBX:    0x%08lX\n", (unsigned long)ctx->Eax, (unsigned long)ctx->Ebx);
+        fprintf(f, "  ECX: 0x%08lX   EDX:    0x%08lX\n", (unsigned long)ctx->Ecx, (unsigned long)ctx->Edx);
+        fprintf(f, "  ESI: 0x%08lX   EDI:    0x%08lX\n", (unsigned long)ctx->Esi, (unsigned long)ctx->Edi);
+        fprintf(f, "  ESP: 0x%08lX   EBP:    0x%08lX\n", (unsigned long)ctx->Esp, (unsigned long)ctx->Ebp);
+
+        fprintf(f, "\nStack Call Frames (EBP chain):\n");
+        ULONG_PTR *ebp = (ULONG_PTR *)ctx->Ebp;
+        int frame_num = 0;
+        while (ebp && !IsBadReadPtr(ebp, 8) && frame_num < 32) {
+            ULONG_PTR ret_addr = ebp[1];
+            fprintf(f, "  #%02d: 0x%08lX (ebp=0x%08lX)\n", frame_num++, (unsigned long)ret_addr, (unsigned long)ebp);
+            ULONG_PTR *next_ebp = (ULONG_PTR *)ebp[0];
+            if (next_ebp <= ebp) break;
+            ebp = next_ebp;
+        }
+    }
+
+    fprintf(f, "===========================\n");
+    fflush(f);
+    if (f != stderr) fclose(f);
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static void MyTerminateHandler()
+{
+    FILE *f = fopen("C:\\openrecet-studio\\crash.log", "w");
+    if (!f) f = stderr;
+    fprintf(f, "=== UNHANDLED C++ EXCEPTION ===\n");
+    try {
+        auto ep = std::current_exception();
+        if (ep) std::rethrow_exception(ep);
+    } catch (const std::exception &e) {
+        fprintf(f, "std::exception: %s\n", e.what());
+    } catch (...) {
+        fprintf(f, "unknown non-std exception\n");
+    }
+    fprintf(f, "===============================\n");
+    fflush(f);
+    if (f != stderr) fclose(f);
+    abort();
+}
 
 static LPDIRECT3D9       g_d3d = nullptr;
 static LPDIRECT3DDEVICE9 g_dev = nullptr;
 static D3DPRESENT_PARAMETERS g_pp;
-
 // ── the loaded view ──
 // one genuinely-divergent texture in a frame's draw-program (orv3_draws material_diff)
 struct DivTex { std::string tex; int port_tris = 0, retail_tris = 0, port_draws = 0, retail_draws = 0; };
@@ -943,6 +1006,8 @@ static int do_interactive(const char *view)
 
 int main(int argc, char **argv)
 {
+    SetUnhandledExceptionFilter(MyCrashHandler);
+    std::set_terminate(MyTerminateHandler);
     const char *shot = nullptr, *view = nullptr;
     int col = 0, draw_step = -1, pick_x = -1, pick_y = -1;
     for (int i = 1; i < argc; i++) {
