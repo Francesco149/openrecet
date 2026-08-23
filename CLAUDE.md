@@ -15,6 +15,7 @@ truth, not the uncommitted auto-memory.**
 1. `git log -n 3 --oneline` — instant ground truth of the latest commits/micro-task.
 2. `read docs/FRONT.md:1-60` — the active fronts and pinned `★ NEXT MICRO-TASK`.
 3. **Pending Human Verifications:** Check and notify of any items gated by human verification (eyeball/feel/game knowledge). For eyeball checks in the Trace Studio viewer, ALWAYS include the exact 1-command line with `--launch` that points the viewer to the correct trace, materializes/slices the window, and starts it on Windows: `nix develop --command python3 tools/trace_studio_v3/orv3_window.py <scenario> --window <OFFSET>:<COUNT> --launch` (or `cmd.exe /c C:\openrecet-studio\open-studio.bat`). Notify at the end of every session until unblocked, prioritizing items that unblock the largest downstream scope of work.
+4. **Commit Co-Author:** Check `OPENRECET_AI_COAUTHOR` in `.claude/settings.local.json` (or shell env) — ensure it matches the active running model slug (e.g. `gemini-3.7-flash-tiered <noreply@google.com>` for Gemini 3.7 Flash) so every commit is properly co-signed via the `tools/git-hooks/commit-msg` hook.
 
 ## Current front & plans
 → `docs/FRONT.md` (the ONE hand-edited "current front") which is injected into
