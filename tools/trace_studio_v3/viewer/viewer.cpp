@@ -511,6 +511,14 @@ static void game_state_panel(const Col &c)
                             "orv3_window --state — to capture the once-per-frame engine fields)");
         return;
     }
+    if (!c.has_state || !c.sretail.is_object() || !c.sport.is_object()) {
+        char hdr[96] = "game state — (no state at this column)###gamestate";
+        ImGui::SetNextItemOpen(g_show_state, ImGuiCond_Once);
+        if (ImGui::CollapsingHeader(hdr)) {
+            ImGui::TextDisabled("(no engine state at this column — a gap, or outside the state window)");
+        }
+        return;
+    }
     std::vector<std::string> keys;
     for (auto it = c.sretail.begin(); it != c.sretail.end(); ++it) keys.push_back(it.key());
     for (auto it = c.sport.begin();   it != c.sport.end();   ++it)
@@ -523,9 +531,6 @@ static void game_state_panel(const Col &c)
     snprintf(hdr, sizeof hdr, "game state — %d fields, %d differ###gamestate", (int)keys.size(), ndiff);
     ImGui::SetNextItemOpen(g_show_state, ImGuiCond_Once);
     if (!ImGui::CollapsingHeader(hdr)) return;
-    if (!c.has_state) { ImGui::TextDisabled("(no engine state at this column — a gap, or outside the state window)"); return; }
-    ImGui::SetNextItemWidth(160); ImGui::InputText("filter##state", g_state_filter, sizeof g_state_filter);
-    ImGui::SameLine(); ImGui::Checkbox("diffs only", &g_state_diff_only);
     ImGui::SameLine(); ImGui::TextDisabled("(red = port != retail)");
     if (ImGui::BeginTable("gstate", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame |
                           ImGuiTableFlags_ScrollY, ImVec2(0, 210))) {

@@ -268,7 +268,7 @@ static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
         if (do_calls) {
             IDirect3DSurface8 *cs = resolve_surface(R, ck, cr);
             IDirect3DSurface8 *ds = resolve_surface(R, dk, dr);
-            IDirect3DDevice8_SetRenderTarget(dev, cs, ds);
+            if (cs) IDirect3DDevice8_SetRenderTarget(dev, cs, ds);
             if (cs) IDirect3DSurface8_Release(cs);
             if (ds) IDirect3DSurface8_Release(ds);
         }
