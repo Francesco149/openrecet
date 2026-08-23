@@ -545,8 +545,10 @@ static void game_state_panel(const Col &c)
             ImGui::TableNextRow();
             ImGui::TableNextColumn(); ImGui::TextDisabled("%s", k.c_str());
             ImVec4 col = differ ? ImVec4(1, 0.42f, 0.42f, 1) : ImVec4(0.84f, 0.86f, 0.88f, 1);
-            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", hr ? fmt_state_val(c.sretail[k]).c_str() : "-");
-            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", hp ? fmt_state_val(c.sport[k]).c_str() : "-");
+            std::string s_ret = hr ? fmt_state_val(c.sretail[k]) : "-";
+            std::string s_port = hp ? fmt_state_val(c.sport[k]) : "-";
+            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", s_ret.c_str());
+            ImGui::TableNextColumn(); ImGui::TextColored(col, "%s", s_port.c_str());
         }
         ImGui::EndTable();
     }
@@ -583,9 +585,8 @@ static void draw_ui()
     if (ImGui::SliderInt("##scrub", &sel, 0, (int)g_cols.size() - 1)) seek(sel);
     ImGui::SameLine(); if (ImGui::Button(">")) seek(g_cur + 1);
     ImGui::SameLine(); if (ImGui::Button(">|")) seek((int)g_cols.size() - 1);
-    ImGui::SameLine(); ImGui::Text("col %d/%d · %s", g_cur, (int)g_cols.size() - 1,
-                     c.label.size() ? c.label.c_str() : std::to_string(c.offset).c_str());
-
+    std::string col_lbl = c.label.empty() ? std::to_string(c.offset) : c.label;
+    ImGui::SameLine(); ImGui::Text("col %d/%d · %s", g_cur, (int)g_cols.size() - 1, col_lbl.c_str());
     // notes toolbar + inline draft editor — flag a divergence for Claude to inspect.
     // In note mode a drag on a panel becomes a crop box; 'note frame' flags the whole
     // frame. Persisted to the Windows-local notes file (orv3_notes.py reads it on WSL).
@@ -604,8 +605,9 @@ static void draw_ui()
     }
     if (g_draft.editing) {
         ImGui::TextColored(ImVec4(1, 0.85f, 0.4f, 1), "NEW NOTE");
+        std::string draft_lbl = g_draft.label.empty() ? ("col " + std::to_string(g_draft.col)) : g_draft.label;
         ImGui::SameLine(); ImGui::Text("@ %s [%s]%s:",
-            g_draft.label.empty() ? ("col " + std::to_string(g_draft.col)).c_str() : g_draft.label.c_str(),
+            draft_lbl.c_str(),
             g_draft.side == "frame" ? "frame" : g_draft.side.c_str(),
             g_draft.hasbox ? "" : " whole frame");
         if (g_draft.hasbox) { ImGui::SameLine(); ImGui::TextDisabled("[%.0f,%.0f,%.0f,%.0f]",
@@ -670,16 +672,18 @@ static void draw_ui()
     int worst = 0; for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].gt8 > g_cols[worst].gt8) worst = (int)i;
     if (ImGui::Button("worst (w)")) seek(worst);
     ImGui::SameLine(); if (ImGui::Button("next gt8>0 (n)")) { for (size_t i = g_cur + 1; i < g_cols.size(); i++) if (g_cols[i].gt8 > 0) { seek((int)i); break; } }
-    ImGui::SameLine(); ImGui::TextDisabled("worst: %s gt8=%dpx",
-        g_cols[worst].label.size() ? g_cols[worst].label.c_str() : std::to_string(g_cols[worst].offset).c_str(),
-        g_cols[worst].gt8);
+    ImGui::SameLine();
+    std::string worst_lbl = g_cols[worst].label.empty() ? std::to_string(g_cols[worst].offset) : g_cols[worst].label;
+    ImGui::SameLine(); ImGui::TextDisabled("worst: %s gt8=%dpx", worst_lbl.c_str(), g_cols[worst].gt8);
 
     ImGui::Separator();
     const Col &dm = g_step_on ? g_stepmetric : c;   // stepped diff vs full-frame diff
+    std::string id_lbl = c.label.empty() ? (g_anchor + "+" + std::to_string(c.offset)) : c.label;
+    std::string gap_badge = c.gap.empty() ? "" : "  (GAP)";
     ImGui::Text("identity: %s   |   diff%s: gt8 %d px · meanabs %.4f · max|d| %d%s",
-                c.label.size() ? c.label.c_str() : (g_anchor + "+" + std::to_string(c.offset)).c_str(),
+                id_lbl.c_str(),
                 g_step_on ? " (stepped)" : "",
-                dm.gt8, dm.meanabs, dm.maxd, c.gap.size() ? "  (GAP)" : "");
+                dm.gt8, dm.meanabs, dm.maxd, gap_badge.c_str());
     if (ImGui::BeginTable("state", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame)) {
         ImGui::TableSetupColumn("field"); ImGui::TableSetupColumn("retail"); ImGui::TableSetupColumn("port");
         ImGui::TableHeadersRow();
@@ -748,9 +752,10 @@ static void draw_ui()
                 ImGui::SameLine(); if (ImGui::SmallButton("del")) del = (int)i;
                 ImGui::SameLine();
                 bool oncur = n.label.empty() ? n.col == g_cur : n.label == g_cols[g_cur].label;
+                std::string loc = n.label.empty() ? "" : (" @" + n.label);
                 ImGui::TextColored(oncur ? ImVec4(0.55f, 0.9f, 0.55f, 1) : ImVec4(0.8f, 0.82f, 0.84f, 1),
                     "#%d %s%s%s — %s", n.id, n.side.empty() ? "frame" : n.side.c_str(),
-                    n.label.empty() ? "" : (" @" + n.label).c_str(),
+                    loc.c_str(),
                     n.hasbox ? "" : " (whole)", n.text.c_str());
                 ImGui::PopID();
             }
@@ -917,9 +922,20 @@ static int do_interactive(const char *view)
             if (m.message == WM_QUIT) running = false;
         }
         if (!running) break;
+        if (g_dev) {
+            HRESULT hr = g_dev->TestCooperativeLevel();
+            if (hr == D3DERR_DEVICELOST) {
+                Sleep(20);
+                continue;
+            } else if (hr == D3DERR_DEVICENOTRESET) {
+                ImGui_ImplDX9_InvalidateDeviceObjects();
+                g_dev->Reset(&g_pp);
+                ImGui_ImplDX9_CreateDeviceObjects();
+            }
+        }
         begin_frame(); handle_keys(); draw_ui(); end_frame();
         pump_metrics(8.0);   // background diff-metric fill (~8 ms/frame) — non-blocking open
-        g_dev->Present(nullptr, nullptr, nullptr, nullptr);
+        if (g_dev) g_dev->Present(nullptr, nullptr, nullptr, nullptr);
     }
     shutdown_all(); DestroyWindow(hwnd);
     return 0;
