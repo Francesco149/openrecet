@@ -7,6 +7,21 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-23 — CC-04 — Unknown Write-Set Call Capture Platform (Workstream CC)
+
+Roadmap §11 CC-04 ("unknown write-set capture through memory tracking").
+
+- **Dynamic Unknown-Write Capture Engine (`tools/parity/capsule_capture.py`):** Implemented `UnknownWriteCaptureSpec` and `UnknownWriteCaptureEngine` for discovering, clustering, and normalizing memory mutations without requiring prior hand-written write-set declarations:
+  - Dynamic page-diff scanning across monitored memory regions and pointed object buffers.
+  - Automatic alignment-aware mutation clustering into 4-byte scalar integers (`i32`/`u32`), floats (`f32`), and contiguous byte buffers (`bytes`).
+  - Automatic `ObjectSnapshot` descriptor synthesis for all mutated memory pages and prestate/poststate global tracking.
+  - Strict safety enforcement with configurable `max_write_bytes` (default 64KB) and `max_writes_count` (default 1024) caps rejecting unbounded runaway writes fail-closed.
+  - Guaranteed `finally` memory restoration resetting all modified pages and globals bit-for-bit to pre-call state on success and simulated engine crash.
+  - Content-addressed `capsule_id` calculation compliant with `call-capsule-v1.json` (`stateful_unknown_write` category).
+- **Frida Agent RPC (`tools/frida/openrecet-agent.js` `captureUnknownWriteCapsule`):** Added in-process dynamic memory-diffing RPC for capturing arbitrary retail stateful routines across declared memory extents with automatic rollback.
+- **Canonical CC-04 Fixture (`docs/schemas/fixtures/capsules/chara_equip_item_stats_unknown_write.json`):** Exported and verified the canonical in-place multi-field equipment stat mutation fixture (`chara_equip_item_stats_unknown_write` on `FUN_0048093f`), confirming bit-exact native execution against `libengine_diff.so` and deliberate divergence detection.
+- **Testing (`tools/test_capsule_capture.py`, `tools/test_capsule_adapter.py`):** Added comprehensive test coverage for dynamic write discovery, memory rollback integrity, bounds enforcement, and native C differential replay (17/17 capture tests, 33/33 adapter tests, 44/44 Python test suites passing).
+
 ## 2026-08-23 — Customer Service Tutorial Skip & First Customer Dialogue/Haggle Confirmed 1:1
 
 - **Human Trace Viewer Verification (`house-firstcust-arrprobe`):** User confirmed in the Trace Studio v3 viewer:

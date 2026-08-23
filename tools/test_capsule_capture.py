@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import struct
 import sys
 import unittest
 
@@ -36,7 +37,11 @@ from tools.parity.capsule_capture import (
     KnownWriteCaptureEngine,
     KNOWN_CALL_SPECS,
     RacePolicy,
+    UnknownWriteCaptureEngine,
+    UNKNOWN_CALL_SPECS,
+    UnknownWriteCaptureSpec,
     get_cc01_canonical_fixtures,
+    get_cc04_canonical_fixtures,
     host_port_audio_fade_compute,
     host_port_audio_is_one_shot_track,
     host_port_boss_id_allowed,
@@ -50,7 +55,6 @@ from tools.parity.capsule_capture import (
     host_port_rng_next15,
     host_port_tables_item_find_slot_by_id,
 )
-
 
 class TestCallCaptureSpec(unittest.TestCase):
     """Test CallCaptureSpec validation and serialization."""
@@ -227,6 +231,101 @@ class TestCorpusHostReplay(unittest.TestCase):
         self.assertEqual(rep.verdict, "FAIL")
         self.assertIn("poststate", rep.divergent_field)
 
+
+class TestUnknownWriteCaptureEngine(unittest.TestCase):
+    """Test CC-04 unknown write-set dynamic capture and rollback."""
+
+    def setUp(self):
+        self.spec = UNKNOWN_CALL_SPECS["chara_equip_item_stats_unknown_write"]
+
+    def test_unknown_write_capture_success(self):
+        def runtime_fn(flag, ptr_addr, globals_dict, pages_dict):
+            # Mutates 16 bytes in stats struct
+            stats_page = pages_dict["0x056db0ac"]
+            # Write atk=15, def=10, mag=5, mdef=2
+            struct.pack_into("<iiii", stats_page, 0, 15, 10, 5, 2)
+            globals_dict["DAT_005c80ac"] = 42
+            return 0
+
+        initial_pages = {
+            "0x056db0ac": bytearray(64),
+            "0x005c80ac": bytearray(16),
+        }
+        initial_globals = {"DAT_005c80ac": 0}
+
+        res = UnknownWriteCaptureEngine.capture_simulated(
+            self.spec,
+            runtime_fn,
+            memory_pages=initial_pages,
+            initial_globals=initial_globals,
+        )
+        self.assertTrue(res.success)
+        self.assertIsNotNone(res.capsule)
+        self.assertTrue(res.restored)
+        self.assertGreaterEqual(len(res.capsule.ordered_writes), 2)
+        self.assertIn("0x056db0ac", res.capsule.pointed_objects)
+        self.assertEqual(res.capsule.poststate["DAT_005c80ac"], 42)
+
+    def test_unknown_write_inviolable_rollback(self):
+        initial_pages = {
+            "0x056db0ac": bytearray(b"\x00" * 64),
+            "0x005c80ac": bytearray(b"\x00" * 16),
+        }
+        initial_globals = {"DAT_005c80ac": 0}
+
+        def crashing_fn(flag, ptr_addr, globals_dict, pages_dict):
+            pages_dict["0x056db0ac"][:4] = b"\xff\xff\xff\xff"
+            globals_dict["DAT_005c80ac"] = 9999
+            raise RuntimeError("simulated engine fault during mutation")
+
+        res = UnknownWriteCaptureEngine.capture_simulated(
+            self.spec,
+            crashing_fn,
+            memory_pages=initial_pages,
+            initial_globals=initial_globals,
+        )
+        self.assertFalse(res.success)
+        self.assertTrue(res.restored)
+        # Verify prestate was restored bit-for-bit
+        self.assertEqual(initial_pages["0x056db0ac"], bytearray(b"\x00" * 64))
+        self.assertEqual(initial_globals["DAT_005c80ac"], 0)
+
+    def test_unknown_write_max_bytes_overflow_rejected(self):
+        tight_spec = copy.deepcopy(self.spec)
+        tight_spec.max_write_bytes = 4  # Cap at 4 bytes
+
+        def overflow_fn(flag, ptr_addr, globals_dict, pages_dict):
+            # Mutate 16 bytes (> 4 bytes limit)
+            pages_dict["0x056db0ac"][:16] = b"\xaa" * 16
+            return 0
+
+        initial_pages = {"0x056db0ac": bytearray(64)}
+        res = UnknownWriteCaptureEngine.capture_simulated(
+            tight_spec,
+            overflow_fn,
+            memory_pages=initial_pages,
+        )
+        self.assertFalse(res.success)
+        self.assertIn("max_write_bytes exceeded", res.error)
+
+    def test_unknown_write_max_writes_count_overflow_rejected(self):
+        tight_spec = copy.deepcopy(self.spec)
+        tight_spec.max_writes_count = 1  # Cap at 1 write
+
+        def multi_write_fn(flag, ptr_addr, globals_dict, pages_dict):
+            # Mutate 2 discrete 4-byte chunks
+            pages_dict["0x056db0ac"][0:4] = b"\x11" * 4
+            pages_dict["0x056db0ac"][8:12] = b"\x22" * 4
+            return 0
+
+        initial_pages = {"0x056db0ac": bytearray(64)}
+        res = UnknownWriteCaptureEngine.capture_simulated(
+            tight_spec,
+            multi_write_fn,
+            memory_pages=initial_pages,
+        )
+        self.assertFalse(res.success)
+        self.assertIn("max_writes_count exceeded", res.error)
 
 if __name__ == "__main__":
     unittest.main()

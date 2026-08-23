@@ -440,6 +440,25 @@ class TestDivergenceDetection(unittest.TestCase):
             self.assertIn("race_status", cap.provenance, f"Capsule {name} missing race_status")
             self.assertIn("retail_build_sha256", cap.provenance, f"Capsule {name} missing retail build hash")
 
+    def test_cc04_unknown_write_native_replay(self):
+        from tools.parity.capsule_capture import get_cc04_canonical_fixtures
+        cc04 = get_cc04_canonical_fixtures()
+        cap = cc04["chara_equip_item_stats_unknown_write"]
+        res = NativeHostDiffAdapter.execute_native(cap)
+        self.assertTrue(res.matched)
+        self.assertEqual(res.verdict, "PASS")
+        self.assertTrue(res.poststate_matched)
+
+    def test_cc04_unknown_write_divergence_detection(self):
+        from tools.parity.capsule_capture import get_cc04_canonical_fixtures
+        cc04 = get_cc04_canonical_fixtures()
+        cap = cc04["chara_equip_item_stats_unknown_write"]
+        corrupted = DivergenceInjector.inject_poststate_mismatch(cap)
+        res = NativeHostDiffAdapter.execute_native(corrupted)
+        self.assertFalse(res.matched)
+        self.assertEqual(res.verdict, "FAIL")
+        self.assertIn("poststate", res.divergent_field)
+
 
 class TestZeroBoilerplateRegistration(unittest.TestCase):
     """Test adding a simple known-write leaf with only a descriptor plus port symbol."""

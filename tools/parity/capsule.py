@@ -24,6 +24,7 @@ SUPPORTED_CATEGORIES = {
     "struct_mutation",
     "rng_consumer",
     "unsupported_os_call",
+    "stateful_unknown_write",
 }
 
 

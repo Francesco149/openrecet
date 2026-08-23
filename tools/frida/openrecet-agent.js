@@ -7422,4 +7422,133 @@ rpc.exports = {
             }
         }
     },
+
+    // CC-04: Dynamic unknown write-set call capture.
+    // Snapshots monitored memory ranges, executes function under designated ABI,
+    // diffs memory to discover modified byte intervals, clusters writes,
+    // verifies safety limits, and restores all memory in finally block.
+    captureUnknownWriteCapsule: function (spec) {
+        if (!g_diff_test_enabled) {
+            throw new Error('captureUnknownWriteCapsule: diff_test mode required (init with diff_test: true)');
+        }
+        ensureBase();
+        spec = spec || {};
+        const targetVa = spec.target_va;
+        if (!targetVa) throw new Error('captureUnknownWriteCapsule: target_va required');
+
+        const monitoredRegions = spec.monitored_regions || [];
+        const maxWriteBytes = (spec.max_write_bytes | 0) || 65536;
+        const maxWritesCount = (spec.max_writes_count | 0) || 1024;
+        const savedPages = [];
+
+        // 1. Snapshot all monitored memory regions
+        for (let i = 0; i < monitoredRegions.length; i++) {
+            const r = monitoredRegions[i];
+            const p = ptr(r.base || '0x01000000');
+            const sz = (r.size | 0) || 64;
+            savedPages.push({
+                base: p,
+                size: sz,
+                label: r.label || ('region_' + i),
+                bytes: p.readByteArray(sz)
+            });
+        }
+
+        try {
+            // 2. Invoke function via NativeFunction under designated ABI
+            const retType = spec.return_type || 'int';
+            const argTypes = spec.arg_types || [];
+            const abi = spec.abi || 'cdecl';
+            const fn = new NativeFunction(rva(parseInt(targetVa, 16)), retType, argTypes, abi);
+
+            const rawArgs = spec.args || [];
+            const marshaledArgs = rawArgs.map(function (a, idx) {
+                const at = argTypes[idx] || 'int';
+                if (at === 'pointer' && typeof a === 'string') return ptr(a);
+                return a;
+            });
+
+            const rawRet = fn.apply(null, marshaledArgs);
+            let retVal = rawRet;
+            if (retType === 'void') retVal = null;
+            else if (retType === 'int' || retType === 's32') retVal = rawRet | 0;
+            else if (retType === 'uint32' || retType === 'u32') retVal = rawRet >>> 0;
+
+            // 3. Diff memory regions to discover all unknown writes
+            const orderedWrites = [];
+            const pointedObjects = {};
+            let writeSeq = 0;
+            let totalBytes = 0;
+
+            for (let i = 0; i < savedPages.length; i++) {
+                const sp = savedPages[i];
+                const origBuf = new Uint8Array(sp.bytes);
+                const currBuf = new Uint8Array(sp.base.readByteArray(sp.size));
+                let pageTouched = false;
+
+                for (let off = 0; off + 4 <= sp.size; off += 4) {
+                    let diff = false;
+                    for (let b = 0; b < 4; b++) {
+                        if (origBuf[off + b] !== currBuf[off + b]) { diff = true; break; }
+                    }
+                    if (diff) {
+                        pageTouched = true;
+                        totalBytes += 4;
+                        if (totalBytes > maxWriteBytes) {
+                            throw new Error('max_write_bytes exceeded: ' + totalBytes);
+                        }
+                        const oldVal = (origBuf[off] | (origBuf[off+1] << 8) | (origBuf[off+2] << 16) | (origBuf[off+3] << 24));
+                        const newVal = (currBuf[off] | (currBuf[off+1] << 8) | (currBuf[off+2] << 16) | (currBuf[off+3] << 24));
+                        orderedWrites.push({
+                            seq: writeSeq++,
+                            addr: '0x' + sp.base.add(off).toString(16),
+                            type: 'i32',
+                            old: oldVal,
+                            new: newVal,
+                            owner_va: targetVa,
+                        });
+                        if (writeSeq > maxWritesCount) {
+                            throw new Error('max_writes_count exceeded: ' + writeSeq);
+                        }
+                    }
+                }
+
+                if (pageTouched) {
+                    pointedObjects[sp.label] = {
+                        base_ptr: '0x' + sp.base.toString(16),
+                        size_bytes: sp.size,
+                        fields: {},
+                    };
+                }
+            }
+
+            return {
+                success: true,
+                capsule: {
+                    target_va: targetVa,
+                    target_symbol: spec.target_symbol || ('FUN_' + targetVa.slice(2)),
+                    caller_va: spec.caller_va || '0x00400000',
+                    abi: abi,
+                    category: spec.category || 'stateful_unknown_write',
+                    stack_args: rawArgs,
+                    pointed_objects: pointedObjects,
+                    prestate: {},
+                    return_val: retVal,
+                    ordered_writes: orderedWrites,
+                    poststate: {},
+                    provenance: Object.assign({}, spec.provenance || {}, {
+                        race_status: spec.race_policy || 'DIFF_TEST_SUSPENDED',
+                        discovered_writes_count: orderedWrites.length,
+                        total_bytes_written: totalBytes,
+                        captured_via: 'frida_rpc'
+                    }),
+                }
+            };
+        } finally {
+            for (let i = 0; i < savedPages.length; i++) {
+                const sp = savedPages[i];
+                sp.base.writeByteArray(sp.bytes);
+            }
+        }
+    },
 };

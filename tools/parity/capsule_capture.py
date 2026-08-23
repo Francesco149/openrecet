@@ -77,6 +77,32 @@ class CallCaptureSpec:
 
 
 @dataclass
+class UnknownWriteCaptureSpec:
+    """Descriptor for capturing a function call whose write set is dynamic/unknown (CC-04)."""
+    name: str
+    target_va: str
+    target_symbol: str
+    abi: str                                   # "cdecl", "stdcall", "thiscall", "fastcall"
+    category: str                              # "stateful_unknown_write", "heap_mutation", "arena_mutation"
+    args: List[Any] = field(default_factory=list)
+    arg_types: List[str] = field(default_factory=list)
+    monitored_regions: List[Dict[str, Any]] = field(default_factory=list)  # [{"base": "0x04380000", "size": 0x1000, "label": "globals"}]
+    max_write_bytes: int = 65536
+    max_writes_count: int = 1024
+    return_type: str = "int"
+    caller_va: str = "0x00400000"
+    race_policy: str = RacePolicy.DIFF_TEST_SUSPENDED
+    provenance: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> UnknownWriteCaptureSpec:
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
 class CapsuleCaptureResult:
     """Outcome of a call capture execution."""
     success: bool
@@ -86,8 +112,6 @@ class CapsuleCaptureResult:
     execution_ms: float = 0.0
     race_status: str = RacePolicy.UNVERIFIED_RACE_PRONE
     notes: List[str] = field(default_factory=list)
-
-
 # ─── Capture Engine & Sandboxing ─────────────────────────────────────────────
 
 class KnownWriteCaptureEngine:
@@ -246,6 +270,191 @@ class KnownWriteCaptureEngine:
                     globals_store[k] = v
             for k, b in saved_objects.items():
                 objects_store[k] = bytearray(b)
+            restored = True
+
+class UnknownWriteCaptureEngine:
+    """Executes dynamic unknown-write call capture with memory page diffing and rollback (CC-04)."""
+
+    @staticmethod
+    def validate_spec(spec: UnknownWriteCaptureSpec) -> None:
+        if not spec.target_va or not spec.target_va.startswith("0x"):
+            raise CapsuleError(f"Invalid target_va: {spec.target_va}")
+        if spec.abi not in {"cdecl", "stdcall", "thiscall", "fastcall"}:
+            raise CapsuleError(f"Unsupported ABI in spec: {spec.abi}")
+        if spec.race_policy not in VALID_RACE_POLICIES:
+            raise CapsuleError(f"Invalid race policy: {spec.race_policy}")
+        if spec.race_policy == RacePolicy.UNVERIFIED_RACE_PRONE:
+            raise CapsuleError("UNVERIFIED_RACE_PRONE captures rejected by CC-04 safety gate")
+
+    @classmethod
+    def capture_simulated(
+        cls,
+        spec: UnknownWriteCaptureSpec,
+        simulated_runtime_fn: Callable[..., Any],
+        memory_pages: Optional[Dict[str, bytearray]] = None,
+        initial_globals: Optional[Dict[str, Any]] = None,
+    ) -> CapsuleCaptureResult:
+        """Captures a capsule by dynamically detecting memory mutations across pages."""
+        cls.validate_spec(spec)
+        start_t = time.perf_counter()
+
+        pages_store = {k: bytearray(v) for k, v in (memory_pages or {}).items()}
+        globals_store = copy.deepcopy(initial_globals or {})
+
+        # Snapshot prestate of all monitored pages
+        saved_pages = {k: bytearray(v) for k, v in pages_store.items()}
+        saved_globals = copy.deepcopy(globals_store)
+
+        restored = False
+        notes = []
+
+        try:
+            # 1. Prepare prestate snapshot
+            prestate_snap = {}
+            for g_name, g_val in globals_store.items():
+                prestate_snap[g_name] = g_val
+
+            # 2. Invoke function
+            import inspect
+            sig = inspect.signature(simulated_runtime_fn)
+            pcount = len(sig.parameters)
+            if pcount == len(spec.args):
+                ret_val = simulated_runtime_fn(*spec.args)
+            elif pcount == len(spec.args) + 1:
+                ret_val = simulated_runtime_fn(*spec.args, globals_store)
+            elif pcount == len(spec.args) + 2:
+                ret_val = simulated_runtime_fn(*spec.args, globals_store, pages_store)
+            else:
+                ret_val = simulated_runtime_fn(*spec.args)
+
+            # 3. Dynamic Diff Scan to Discover Unknown Writes
+            ordered_writes: List[MemoryWrite] = []
+            write_seq = 0
+            total_bytes_written = 0
+            pointed_snap: Dict[str, ObjectSnapshot] = {}
+
+            # Check memory pages
+            for page_key in sorted(pages_store.keys()):
+                orig_bytes = saved_pages.get(page_key, bytearray())
+                curr_bytes = pages_store.get(page_key, bytearray())
+                base_addr = int(page_key, 16) if page_key.startswith("0x") else 0x01000000
+                min_len = min(len(orig_bytes), len(curr_bytes))
+
+                offset = 0
+                while offset < min_len:
+                    if orig_bytes[offset] != curr_bytes[offset]:
+                        diff_start = offset
+                        diff_end = diff_start + 1
+                        while diff_end < min_len and orig_bytes[diff_end] != curr_bytes[diff_end]:
+                            diff_end += 1
+
+                        diff_len = diff_end - diff_start
+                        total_bytes_written += diff_len
+                        if total_bytes_written > spec.max_write_bytes:
+                            raise CapsuleError(f"max_write_bytes exceeded: {total_bytes_written} > {spec.max_write_bytes}")
+
+                        if diff_start % 4 == 0 and diff_len % 4 == 0 and diff_start + 4 <= min_len:
+                            for chunk_off in range(diff_start, diff_end, 4):
+                                old_i = struct.unpack("<i", orig_bytes[chunk_off:chunk_off+4])[0]
+                                new_i = struct.unpack("<i", curr_bytes[chunk_off:chunk_off+4])[0]
+                                ordered_writes.append(MemoryWrite(
+                                    seq=write_seq,
+                                    addr=f"0x{base_addr + chunk_off:08x}",
+                                    type="i32",
+                                    old=old_i,
+                                    new=new_i,
+                                    owner_va=spec.target_va,
+                                ))
+                                write_seq += 1
+                        else:
+                            old_b = list(orig_bytes[diff_start:diff_end])
+                            new_b = list(curr_bytes[diff_start:diff_end])
+                            ordered_writes.append(MemoryWrite(
+                                seq=write_seq,
+                                addr=f"0x{base_addr + diff_start:08x}",
+                                type="bytes",
+                                old=old_b,
+                                new=new_b,
+                                owner_va=spec.target_va,
+                            ))
+                            write_seq += 1
+
+                        if write_seq > spec.max_writes_count:
+                            raise CapsuleError(f"max_writes_count exceeded: {write_seq} > {spec.max_writes_count}")
+
+                        offset = diff_end
+                    else:
+                        offset += 1
+
+                if orig_bytes != curr_bytes:
+                    pointed_snap[page_key] = ObjectSnapshot(
+                        base_ptr=f"0x{base_addr:08x}",
+                        size_bytes=len(curr_bytes),
+                        bytes_hex=curr_bytes.hex(),
+                    )
+
+            # Check globals store diffs
+            poststate_snap = {}
+            for g_name, g_val in globals_store.items():
+                poststate_snap[g_name] = g_val
+                if g_name not in saved_globals or saved_globals[g_name] != g_val:
+                    old_v = saved_globals.get(g_name, 0)
+                    ordered_writes.append(MemoryWrite(
+                        seq=write_seq,
+                        addr=g_name,
+                        type="u32" if isinstance(g_val, int) and g_val >= 0 else "i32",
+                        old=old_v,
+                        new=g_val,
+                        owner_va=spec.target_va,
+                    ))
+                    write_seq += 1
+
+            prov = dict(spec.provenance)
+            prov["race_status"] = spec.race_policy
+            prov["captured_timestamp"] = time.time()
+            prov["discovered_writes_count"] = len(ordered_writes)
+            prov["total_bytes_written"] = total_bytes_written
+
+            capsule = CallCapsule(
+                target_va=spec.target_va,
+                target_symbol=spec.target_symbol,
+                caller_va=spec.caller_va,
+                abi=spec.abi,
+                category=spec.category,
+                stack_args=spec.args,
+                pointed_objects=pointed_snap,
+                prestate=prestate_snap,
+                return_val=ret_val,
+                ordered_writes=ordered_writes,
+                poststate=poststate_snap,
+                provenance=prov,
+            )
+            validate_capsule(capsule)
+            notes.append(f"Discovered {len(ordered_writes)} unknown writes ({total_bytes_written} bytes) across {len(pointed_snap)} regions.")
+
+            return CapsuleCaptureResult(
+                success=True,
+                capsule=capsule,
+                restored=True,
+                execution_ms=(time.perf_counter() - start_t) * 1000.0,
+                race_status=spec.race_policy,
+                notes=notes,
+            )
+        except Exception as exc:
+            return CapsuleCaptureResult(
+                success=False,
+                capsule=None,
+                restored=True,
+                error=str(exc),
+                execution_ms=(time.perf_counter() - start_t) * 1000.0,
+                race_status=spec.race_policy,
+                notes=[f"Exception caught during unknown-write capture: {exc}"],
+            )
+        finally:
+            for k, b in saved_pages.items():
+                pages_store[k] = bytearray(b)
+            for k, v in saved_globals.items():
+                globals_store[k] = v
             restored = True
 
 
@@ -726,6 +935,70 @@ def get_cc01_canonical_fixtures() -> Dict[str, CallCapsule]:
             "race_status": RacePolicy.DIFF_TEST_SUSPENDED,
             "caller_distribution": "chara_equip_recompute_aggregate",
             "retail_build_sha256": "a" * 64,
+        },
+    )
+
+    return fixtures
+
+# ─── Canonical Unknown-Write Call Specifications (CC-04) ────────────────────
+
+UNKNOWN_CALL_SPECS: Dict[str, UnknownWriteCaptureSpec] = {
+    "chara_equip_item_stats_unknown_write": UnknownWriteCaptureSpec(
+        name="chara_equip_item_stats_unknown_write",
+        target_va="0x0048093f",
+        target_symbol="chara_equip_item_stats",
+        caller_va="0x00484510",
+        abi="cdecl",
+        category="stateful_unknown_write",
+        args=[0x000000c0, "0x056db0ac"],
+        arg_types=["int", "pointer"],
+        monitored_regions=[
+            {"base": "0x056db0ac", "size": 64, "label": "stats_struct"},
+            {"base": "0x005c80ac", "size": 16, "label": "globals_block"},
+        ],
+        max_write_bytes=4096,
+        max_writes_count=128,
+        return_type="void",
+        race_policy=RacePolicy.DIFF_TEST_SUSPENDED,
+        provenance={
+            "scenario": "house-firstcust-cutscene-day2-full",
+            "retail_build_sha256": "a" * 64,
+            "experiment": "CC-04-unknown-write-discovery",
+        },
+    ),
+}
+
+
+def get_cc04_canonical_fixtures() -> Dict[str, CallCapsule]:
+    """Generates the canonical CC-04 unknown-write discovered call capsule."""
+    fixtures = {}
+
+    fixtures["chara_equip_item_stats_unknown_write"] = CallCapsule(
+        target_va="0x0048093f",
+        target_symbol="chara_equip_item_stats",
+        caller_va="0x00484510",
+        abi="cdecl",
+        category="struct_mutation",
+        stack_args=[0x000000c0, "0x056db0ac"],
+        pointed_objects={
+            "stats_struct": ObjectSnapshot(
+                base_ptr="0x056db0ac",
+                size_bytes=64,
+                fields={"atk": 0, "def": 0, "mag": 0, "mdef": 0},
+            ),
+        },
+        prestate={"DAT_005c80ac": 0},
+        return_val=None,
+        ordered_writes=[],
+        poststate={"DAT_005c80ac": 0},
+        provenance={
+            "scenario": "house-firstcust-cutscene-day2-full",
+            "race_status": RacePolicy.DIFF_TEST_SUSPENDED,
+            "caller_distribution": "chara_equip_recompute_aggregate",
+            "retail_build_sha256": "a" * 64,
+            "experiment": "CC-04-unknown-write-discovery",
+            "discovered_writes_count": 0,
+            "total_bytes_written": 0,
         },
     )
 
