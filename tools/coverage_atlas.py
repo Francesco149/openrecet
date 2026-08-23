@@ -873,14 +873,29 @@ class CoverageAtlas:
         funcs_with_entry_covered = 0
         funcs_with_blocks = set()
 
+        # Check against static basic blocks if re_index has blocks table
+        static_known_blocks: Set[int] = set()
+        if self.re_index_path.exists():
+            try:
+                rconn = sqlite3.connect(str(self.re_index_path))
+                rcur = rconn.cursor()
+                rcur.execute("SELECT block_va FROM blocks")
+                static_known_blocks = {row[0] for row in rcur.fetchall()}
+                rconn.close()
+            except Exception:
+                static_known_blocks = set()
+
         for row in covered_blocks:
             b_va = int(row["block_va"])
             f_va = int(row["func_va"])
-            if 0x401000 <= b_va <= 0x540000:
-                valid_block_count += 1
+            if static_known_blocks:
+                if b_va in static_known_blocks:
+                    valid_block_count += 1
+            else:
+                if 0x401000 <= b_va <= 0x540000:
+                    valid_block_count += 1
             if f_va != 0:
                 funcs_with_blocks.add(f_va)
-
         for f_va in funcs_with_blocks:
             cur.execute(f"""
                 SELECT 1 FROM coverage_blocks

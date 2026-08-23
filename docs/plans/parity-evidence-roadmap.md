@@ -1033,6 +1033,18 @@ drives themselves stay serialized because the game/proxy uses singleton state.
 
 ### CC-01 — Capture known-write-set calls
 
+> **✅ LANDED 2026-08-23** — `tools/parity/capsule_capture.py`, `tools/capsule_capture.py`, `tools/test_capsule_capture.py` (13/13 unit tests passing), `tools/frida/openrecet-agent.js` (`captureCallCapsule` RPC), and 5/5 canonical real engine call capsules verified bit-exact.
+> **Key Features:**
+> 1. **Snapshot-Try-Finally-Restore Lifecycle:** Snapshots declared globals and pointed objects, executes target function with declared ABI/arguments, extracts poststate and ordered writes, and strictly restores all memory in `finally` (proven under simulated engine crashes).
+> 2. **Explicit Race Safety Invariant:** Enforces `RacePolicy` classification (`DIFF_TEST_SUSPENDED`, `MUTEX_LOCKED`, `SINGLE_THREADED_SAFE`), rejecting unverified/race-prone invocations.
+> 3. **5 Canonical Real Engine Fixtures:**
+>    - `FUN_00431990` (`stage_gate_boss_id_allowed`): pure leaf predicate, cdecl.
+>    - `FUN_0043195d` (`stage_gate_floor_is_checkpoint`): known globals reader (`DAT_0438b4c8`, `DAT_0438b4cc`), signed modulo logic.
+>    - `FUN_005041f6` (`rng_next15`): RNG consumer/mutator (`DAT_006023a0`), LCG step calculation.
+>    - `FUN_00447f4f` (`records_a_spawn`): struct/arena mutation (`DAT_069b2f80`), count update (`DAT_0076b960`).
+>    - `FUN_00499583` (`audio_fade_compute`): mathematical volume cosine curve, hard silence boundary.
+> 4. **Host Differential Replay:** All 5 canonical capsules replay bit-exact against ported C routines.
+
 - **Reasoning:** R2.
 - **Depends:** CC-00.
 - **Extends:** existing `diff_test.py`/Frida RPC pattern and E.4 plan.
@@ -1040,8 +1052,15 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   return/declared writes, restore in `finally`; mirror through host adapter.
 - **Acceptance:** at least five varied real call capsules replay bit-exact; exception
   path restores retail state; race status explicit.
-
 ### CC-02 — Generate host adapters and corpus tests
+
+> **✅ LANDED 2026-08-23** — `tools/parity/host_diff_adapter.py`, `tools/parity/adapter_gen.py`, `tools/parity/corpus_store.py`, `tools/test_capsule_adapter.py` (17/17 unit tests passing), `docs/schemas/fixtures/capsules/` (5 exported canonical capsule fixtures).
+> **Key Features:**
+> 1. **Native Host Ctypes Diff Adapter (`host_diff_adapter.py`):** Automatically links/compiles `tests/build/libengine_diff.so` and executes CallCapsules directly against native C functions via ctypes marshaling, proving bit-exact output equivalence.
+> 2. **Automated Adapter Generator (`adapter_gen.py`):** Synthesizes C struct headers, function shims, and runtime dynamic ctypes adapters directly from `CallCaptureSpec` descriptors, achieving zero-boilerplate target registration (descriptor + port symbol).
+> 3. **Boundary Mutation Engine (`BoundaryMutator`):** Probes boundary edge cases ($v \pm 1$, 0, max/min int, float edges, PRNG seeds) and cross-validates 100% agreement between oracle logic and native C implementations.
+> 4. **Persistent Corpus Storage (`corpus_store.py`):** Manages disk serialization in `docs/schemas/fixtures/capsules/`, indexing, and batch native differential replay across the corpus.
+> 5. **Divergence Detection:** Deliberate return value, poststate global, and write-order mismatches are caught and precisely localized.
 
 - **Reasoning:** R2; R1 may add schema-prescribed targets.
 - **Depends:** CC-01.
@@ -1050,7 +1069,6 @@ drives themselves stay serialized because the game/proxy uses singleton state.
   observed vectors.
 - **Acceptance:** adding a simple known-write leaf requires only a descriptor plus port
   symbol; deliberate return/write/order mismatches are detected.
-
 ### CC-03 — Expand observed capsule corpus
 
 - **Reasoning:** R1 collection; R3 chooses targets/interprets failures.

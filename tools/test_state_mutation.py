@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import state_diff as diff_cli  # noqa: E402
 from parity.observations import LogicalFrame, ObservationError  # noqa: E402
+from parity.mutation_producer import MutationProducer
 from parity.state_codec import StateSchema, encode_value  # noqa: E402
 from parity.state_mutation import (  # noqa: E402
     COMPARED,
@@ -269,6 +270,57 @@ def test_schema_doc():
           "schema: save_slot_commit grounded to FUN_004905a8")
     check(COMPARED == frozenset({"semantic", "derived"}), "schema: noise is the only excluded class")
 
+def test_mutation_producer():
+    producer = MutationProducer()
+    frames = [
+        {
+            "logical_frame": ["TITLE_MENU", 1, 0],
+            "state": {
+                "title_menu": {"cursor_pos": 0, "submenu_cursor": 0},
+                "customer_service": {"gold": 1000},
+            },
+        },
+        {
+            "logical_frame": ["TITLE_MENU", 1, 1],
+            "state": {
+                "title_menu": {"cursor_pos": 1, "submenu_cursor": 0},  # cursor_pos changed
+                "customer_service": {"gold": 1000},                    # gold unchanged
+            },
+        },
+        {
+            "logical_frame": ["TITLE_MENU", 1, 2],
+            "state": {
+                "title_menu": {"cursor_pos": 1, "submenu_cursor": 0},
+                "customer_service": {"gold": 1500},                    # gold changed
+            },
+        },
+    ]
+
+    doc = producer.produce_from_state_frames(frames, side="port")
+    check(doc["schema_version"] == 1, "producer: schema version 1")
+    check(doc["side"] == "port", "producer: declared side port")
+    
+    # Initial snapshot: 3 mutations (cursor_pos, submenu_cursor, gold)
+    # Frame 1: 1 mutation (cursor_pos 0 -> 1)
+    # Frame 2: 1 mutation (gold 1000 -> 1500)
+    check(len(doc["mutations"]) == 5, f"producer: 5 mutations produced (got {len(doc['mutations'])})")
+    
+    # Writer attribution
+    cursor_muts = [m for m in doc["mutations"] if m["path"] == "title_menu/cursor_pos"]
+    gold_muts = [m for m in doc["mutations"] if m["path"] == "customer_service/gold"]
+    
+    check(cursor_muts[1]["old"] == 0 and cursor_muts[1]["new"] == 1, "producer: cursor delta 0->1")
+    check(cursor_muts[1]["owner_va"] == "0x0049a59e", "producer: cursor owner VA 0x0049a59e")
+    check(gold_muts[1]["old"] == 1000 and gold_muts[1]["new"] == 1500, "producer: gold delta 1000->1500")
+    check(gold_muts[1]["owner_va"] == "0x00460672", "producer: gold owner VA 0x00460672")
+
+    # Validates cleanly under load_stream
+    side, loaded_muts = load_stream(doc)
+    check(side == "port" and len(loaded_muts) == 5, "producer: produced stream parses and dedups cleanly")
+
+    # Ordering invariant check
+    ordering_ok = MutationProducer.verify_ordering_invariant(doc, first_divergent_frame="TITLE_MENU#1+2")
+    check(ordering_ok, "producer: ordering invariant holds")
 
 def main() -> int:
     test_parse()
@@ -281,6 +333,7 @@ def main() -> int:
     test_provenance()
     test_cli_end_to_end()
     test_schema_doc()
+    test_mutation_producer()
 
     if _failures:
         print(f"FAIL — {len(_failures)}/{_checks} checks failed:")

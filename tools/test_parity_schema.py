@@ -154,14 +154,13 @@ def main() -> int:
     )
 
     # 5. no proprietary bytes: every fixture is small text; no hex/base64 blob > 64
-    for fp in sorted(FIX.iterdir()):
+    for fp in sorted(p for p in FIX.rglob("*") if p.is_file()):
         raw = fp.read_bytes()
         check(len(raw) < 8192, f"{fp.name} unexpectedly large for a fixture")
         check(
             raw.decode("utf-8", "strict") is not None,
             f"{fp.name} must be valid UTF-8 text",
         )
-
     # 6. standing gate: any real scenario that opts in (schema_version==2) validates
     scen_dir = ROOT / "tests" / "scenarios"
     opted = 0

@@ -38,13 +38,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT       = Path(__file__).resolve().parent.parent.parent
-PROXY_DLL  = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
-REPLAY_EXE = ROOT / "tools" / "trace_studio_v3" / "replay" / "replay.exe"
-PORT_EXE   = ROOT / "build" / "openrecet.exe"
-STAGED_DLL = ROOT / "build" / "d3d8.dll"
-SCENARIO_TEST = ROOT / "tools" / "scenario-test.py"
-DEFAULT_SCENARIO = "house-loaded-display-pinned"
+ROOT              = Path(__file__).resolve().parent.parent.parent
+PROXY_DLL         = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
+REPLAY_EXE        = ROOT / "tools" / "trace_studio_v3" / "replay" / "replay.exe"
+PORT_EXE          = ROOT / "build" / "openrecet.exe"
+STAGED_DLL        = ROOT / "build" / "d3d8.dll"
+ORIGINAL_DLL      = ROOT / "vendor" / "original" / "d3d8.dll"
+ORIGINAL_PORT_EXE = ROOT / "vendor" / "original" / "openrecet.exe"
+SCENARIO_TEST     = ROOT / "tools" / "scenario-test.py"
+DEFAULT_SCENARIO  = "house-loaded-display-pinned"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import v3cache                                                         # noqa: E402
@@ -139,9 +141,15 @@ def main() -> int:
     # stage proxy + clear stale capture. A v3proxy.cfg's capframe selects WINDOW
     # mode (present-count keep, like retail); without one the port runs the
     # GetBackBuffer MULTI trigger. refhash (default) makes references fnv1a-64
-    # lines in v3refs.txt instead of a 3 MB raw per frame.
+    # stage proxy + clear stale capture in both build/ and vendor/original/ (cwd on Windows).
     shutil.copy2(PROXY_DLL, STAGED_DLL)
+    try:
+        shutil.copy2(PROXY_DLL, ORIGINAL_DLL)
+        shutil.copy2(PORT_EXE, ORIGINAL_PORT_EXE)
+    except Exception as e:
+        print(f"[stage] warning: copy to vendor/original failed: {e}")
     cfg = STAGED_DLL.parent / "v3proxy.cfg"
+    cfg_orig = ORIGINAL_DLL.parent / "v3proxy.cfg"
     cfg_lines = [] if args.raw_refs else ["refhash=1", "refraw_every=500"]
     if win_start is not None:
         cfg_lines += [f"capframe={win_start}", f"capcount={win_count}"]
@@ -149,9 +157,15 @@ def main() -> int:
     else:
         mode = "MULTI (GetBackBuffer)"
     if cfg_lines:
-        cfg.write_text("".join(ln + "\n" for ln in cfg_lines))
-    else:
+        cfg_text = "".join(ln + "\n" for ln in cfg_lines)
+        cfg.write_text(cfg_text)
+        try:
+            cfg_orig.write_text(cfg_text)
+        except Exception:
+            pass
         cfg.unlink(missing_ok=True)
+        cfg_orig.unlink(missing_ok=True)
+
     for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3refs.txt", v3 / "v3replay_chk.raw"]:
         f.unlink(missing_ok=True)
     print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  ({mode}, "
@@ -162,23 +176,21 @@ def main() -> int:
     run_root = ROOT / "runs" / "studio-v3-experiments" / f"port-{args.scenario}"
     try:
         print(f"[run]   scenario-test {args.scenario} --target openrecet …")
-        # ignore scenario-test's pass/fail (golden compare is irrelevant to v3 —
-        # we only need the port to run the caprange window so the proxy captures).
+        env = dict(os.environ)
+        if ORIGINAL_PORT_EXE.exists():
+            env["OPENRECET_PORT_EXE"] = str(ORIGINAL_PORT_EXE)
         subprocess.run([sys.executable, str(SCENARIO_TEST), args.scenario,
                         "--target", "openrecet",
-                        # v3 reconstructs frames from the proxy's draw-call stream,
-                        # so the port drive must NOT dump per-frame BMPs (the staged
-                        # proxy still keeps each frame via the GetBackBuffer trigger).
-                        # Without this every v3 drive leaked ~5 GB of unused pixels.
                         "--capture-trigger-only",
-                        "--run-dir-root", str(run_root)], cwd=ROOT)
+                        "--run-dir-root", str(run_root)], cwd=ROOT, env=env)
     finally:
         if not args.keep_proxy:
             STAGED_DLL.unlink(missing_ok=True)
+            ORIGINAL_DLL.unlink(missing_ok=True)
+            ORIGINAL_PORT_EXE.unlink(missing_ok=True)
             cfg.unlink(missing_ok=True)
+            cfg_orig.unlink(missing_ok=True)
             print(f"[stage] unstaged {STAGED_DLL.name}")
-
-    # The proxy FINALIZEs as the port exits; the DrvFs write can lag a bare
     # exists() check (race), so wait for the terminal FINALIZE + a settled
     # v3cap.bin before declaring failure.
     rc.wait_for_capture(cap, log)

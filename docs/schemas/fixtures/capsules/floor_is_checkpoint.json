@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "capsule_id": "ed6837a90f2d18c52688048c4c7777b4d7d9539931cee941e16b389aee9d1f23",
+  "target_va": "0x0043195d",
+  "target_symbol": "stage_gate_floor_is_checkpoint",
+  "caller_va": "0x00431a00",
+  "abi": "cdecl",
+  "category": "known_globals",
+  "registers_in": {},
+  "stack_args": [],
+  "pointed_objects": {},
+  "prestate": {
+    "DAT_0438b4c8": 0,
+    "DAT_0438b4cc": 4
+  },
+  "return_val": 1,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {
+    "DAT_0438b4c8": 0,
+    "DAT_0438b4cc": 4
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "canonical-cc01-checkpoint",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

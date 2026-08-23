@@ -42,14 +42,15 @@ Every byte the model tracks is exactly one of:
 2. **volatile-deterministic** — live game state, reproducible under pinned inputs
    but not itself on disk unless committed. The **working arena** (same layout;
    fields tagged `working_alias` in the map) PLUS the non-arena scene state the
-   **`state` pillar** (ST-03, LANDED 2026-07-17 — `findings/parity-state-producer.md`;
-   map `schemas/state-volatile-v1.json`; Merkle roots over `tools/parity/state_codec.py`
-   + `state_merkle.py`) captures: the raw RNG state `rng` (`DAT_006023a0`), phase
-   counters (`db054`, `g_sim`), player/companion pos/anim, interaction +
-   customer-service machines, menu/dialogue cursors — the fields `flow_diff.py` + the
-   v3 game-state panel already read. NB `rngcalls` is BENIGN-EXCLUDED from this class:
-   the Frida-agent cumulative counter has a per-side capture ORIGIN (class-3
-   environmental), so the deterministic value is the raw `rng` state, not the count.
+   **`state` pillar** (ST-03/ST-06, expanded across all 5 scene domains —
+   `findings/parity-state-producer.md`; map `schemas/state-volatile-v1.json`;
+   Merkle roots over `tools/parity/state_codec.py` + `state_merkle.py`) captures:
+   - **Title / Config:** `title_menu`, `fade_tick`
+   - **Shop / Economy:** `customer_service`, `player`, `companion`, `shop_npc`, `interaction`, `camera`, `dust_fx`, `dialogue_house`
+   - **Town / World Map:** `town_map` (`town_target`, `town_cursor`, `facility_mode`, `guild_cursor`)
+   - **Dungeon / Combat:** `dungeon_sim` (`floor_index`, `mob_count`, `player_hp`, `player_sp`)
+   - **Scripted Events / Timeline:** `dialogue_intro`, `sim_dispatcher` (`clock_phase`, `shoptime`, `shopaccum`, `cardday`)
+   - **Core Engine:** `rng` state (`DAT_006023a0`), `phase` (`db054`, `gsim`)
 3. **environmental** — load-timing / host-dependent ORIGIN, not a logic value: the
    phase offset the intro-video freeze bakes into `db054`/playtime, the
    completion-based load-bracket frame counts (`findings/phase-state-census.md`).

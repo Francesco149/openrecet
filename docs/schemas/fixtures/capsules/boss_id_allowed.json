@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "capsule_id": "8f8e6272b559328aca5234d855c4bc27bc5a3b531c5407e2ffd597167463cfa9",
+  "target_va": "0x00431990",
+  "target_symbol": "stage_gate_boss_id_allowed",
+  "caller_va": "0x00431b20",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    23
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": 1,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "canonical-cc01-boss-id",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

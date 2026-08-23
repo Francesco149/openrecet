@@ -8,7 +8,11 @@
     "0x47be92": "tick_scheduler  — rng (LCG state DAT_006023a0) + rngcalls (cumulative draws): the frame-determinism root",
     "0x48670f": "house_update    — HOUSE free-roam actors/phase/interaction/customer-service (fires when cc08 arm is free-roam)",
     "0x49a59e": "scene_title_sim — title-screen menu state machine",
-    "0x46c320": "dialogue_tick   — opening-prologue dialogue reveal + standee tween"
+    "0x46c320": "dialogue_tick   — opening-prologue dialogue reveal + standee tween",
+    "0x4526ab": "fade_tick       — screen fade in/out state",
+    "0x4536cb": "sim_step_a      — top-level simulation dispatcher",
+    "0x48526d": "scene_world_map — town and world map facility navigation",
+    "0x476320": "dungeon_sim     — dungeon floor simulation and player combat stats"
   },
 
   "policy": {
@@ -30,11 +34,16 @@
     "dust_fx":          {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["dustn", "dustage", "dustsx", "dustsz", "dustvx", "dustvz"], "note": "the records_a_dust particle aggregate (count/age + spawn pos/vel) — sim-driven FX state."},
     "dialogue_house":   {"class": "volatile_deterministic", "va": "0x48670f", "fields": ["b1c8", "b924", "b928", "scene7a2c", "sub7a30"], "note": "the in-HOUSE dialogue gate + iv2 idle-beat timer/arm + active dialogue scene/sub-index."},
     "title_menu":       {"class": "volatile_deterministic", "va": "0x49a59e", "fields": ["frame_counter", "cursor_pos", "cursor_anim", "select_phase", "pulse_phase", "menu_folding_out", "submenu_cursor", "settings_dirty", "fade_counter"], "note": "the title-screen menu state machine (cursor/phase/submenu/fade)."},
-    "dialogue_intro":   {"class": "volatile_deterministic", "va": "0x46c320", "fields": ["box_open", "reveal", "line_row", "st5_active", "st5_x", "st5_y", "st5_tx", "st5_ty", "skip_prompt", "skip_e20", "skipbox"], "note": "the opening-prologue dialogue: box-open/reveal counter/line row + standee 5 slide tween + the ESC skip-event box state."}
+    "dialogue_intro":   {"class": "volatile_deterministic", "va": "0x46c320", "fields": ["box_open", "reveal", "line_row", "st5_active", "st5_x", "st5_y", "st5_tx", "st5_ty", "skip_prompt", "skip_e20", "skipbox"], "note": "the opening-prologue dialogue: box-open/reveal counter/line row + standee 5 slide tween + the ESC skip-event box state."},
+    "fade":             {"class": "volatile_deterministic", "va": "0x4526ab", "fields": ["phase", "counter", "duration", "mode"], "note": "screen fade-in/fade-out controller state."},
+    "sim_dispatcher":   {"class": "volatile_deterministic", "va": "0x4536cb", "fields": ["clock_phase", "shoptime", "shopaccum", "todslot", "cardday"], "note": "top-level continuous frame-phase and shop calendar dispatcher."},
+    "town_map":         {"class": "volatile_deterministic", "va": "0x48526d", "fields": ["town_target", "town_cursor", "facility_mode", "guild_cursor"], "note": "town world map selection and guild facility interaction state."},
+    "dungeon_sim":      {"class": "volatile_deterministic", "va": "0x476320", "fields": ["floor_index", "mob_count", "player_hp", "player_sp"], "note": "dungeon floor exploration and player combat parameters."}
   },
 
   "benign": [
     {"subsystem": "title_menu", "field": "submenu_state", "reason": "engine leaves DAT_09643524 set after a submenu back-out (render is cursor_anim-gated); the port clears it at cursor_anim==0 for its input gate — no render/input effect (engine-quirks §102). Same benign mark retail_fields.json carries."},
-    {"subsystem": "rng", "field": "rngcalls", "reason": "the agent-maintained CUMULATIVE LCG-draw counter (retail_fields.json src:rngcalls = the Frida agent's g_rng_count_total) has a per-SIDE ORIGIN: the port counts from process start, the retail counter from Frida hook-install — so its ABSOLUTE value is capture-origin-dependent (class-3 environmental), NOT a game global; comparing it cross-side compares origins, not logic (VERIFIED on the confirmed-1:1 house-firstcust-arrprobe --state view: raw rng matched 1498/1498 while absolute rngcalls read retail 0 vs port 1902+). The deterministic RNG value is the raw state `rng`; per-frame consumption COUNT is flow_diff --rng-drill's domain (a future per-frame-DELTA leaf could add it)."}
+    {"subsystem": "rng", "field": "rngcalls", "reason": "the agent-maintained CUMULATIVE LCG-draw counter (retail_fields.json src:rngcalls = the Frida agent's g_rng_count_total) has a per-SIDE ORIGIN: the port counts from process start, the retail counter from Frida hook-install — so its ABSOLUTE value is capture-origin-dependent (class-3 environmental), NOT a game global; comparing it cross-side compares origins, not logic (VERIFIED on the confirmed-1:1 house-firstcust-arrprobe --state view: raw rng matched 1498/1498 while absolute rngcalls read retail 0 vs port 1902+). The deterministic RNG value is the raw state `rng`; per-frame consumption COUNT is flow_diff --rng-drill's domain (a future per-frame-DELTA leaf could add it)."},
+    {"subsystem": "fade", "field": "duration", "reason": "Dormant while phase==0 (fade_tick returns early without reading it; src/fade.c:69). Retail's 170 is leftover from intro fade; port is 0."}
   ]
 }

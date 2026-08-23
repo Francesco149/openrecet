@@ -1,0 +1,2404 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "exported_at": 1787363076.0110373,
+    "total_nodes": 13,
+    "total_edges": 68
+  },
+  "nodes": {
+    "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb": {
+      "node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "anchor": "BOOT",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:_firstcust"
+      ],
+      "description": "Initial state for _firstcust-skip-probe",
+      "metadata": {}
+    },
+    "aa6a3d1f7e774e5b722cd23a43ef5b6fafbf0cc844dac252716be3a35902774e": {
+      "node_id": "aa6a3d1f7e774e5b722cd23a43ef5b6fafbf0cc844dac252716be3a35902774e",
+      "anchor": "DOWN_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:down_ready"
+      ],
+      "description": "Destination state reached by title-down-press",
+      "metadata": {}
+    },
+    "d4af2a13ad6a1f099d9bab1fb4e955c5eb910ba5a915291a220519cf6756bc79": {
+      "node_id": "d4af2a13ad6a1f099d9bab1fb4e955c5eb910ba5a915291a220519cf6756bc79",
+      "anchor": "ENCYCLOPEDIA_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:encyclopedia_ready"
+      ],
+      "description": "Destination state reached by title-encyclopedia",
+      "metadata": {}
+    },
+    "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2": {
+      "node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "anchor": "HOUSE_FREEROAM",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:house"
+      ],
+      "description": "Initial state for house-customer-skip-tutorial",
+      "metadata": {}
+    },
+    "d718e7945bea19582a488db6eb059ae09a9ca2ef97d42ce31d3111b504c40f9f": {
+      "node_id": "d718e7945bea19582a488db6eb059ae09a9ca2ef97d42ce31d3111b504c40f9f",
+      "anchor": "LOAD_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:load_ready"
+      ],
+      "description": "Destination state reached by title-load-confirm",
+      "metadata": {}
+    },
+    "6baa4ee1b8291db7184ea3c9ef27385acd0e6345a30de841204fb4a5e9a58cb9": {
+      "node_id": "6baa4ee1b8291db7184ea3c9ef27385acd0e6345a30de841204fb4a5e9a58cb9",
+      "anchor": "OPTIONS_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:options_ready"
+      ],
+      "description": "Destination state reached by title-options",
+      "metadata": {}
+    },
+    "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925": {
+      "node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "anchor": "PAUSE_OPEN",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:pause_open"
+      ],
+      "description": "Destination state reached by house-pause-encyclopedia",
+      "metadata": {}
+    },
+    "ef298df35acca19ab4b19b9566d00510da121fade0f6af59ca5ac3556b593557": {
+      "node_id": "ef298df35acca19ab4b19b9566d00510da121fade0f6af59ca5ac3556b593557",
+      "anchor": "PICKER_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:picker_ready"
+      ],
+      "description": "Destination state reached by title-picker-cancel",
+      "metadata": {}
+    },
+    "69840486981e50b0468a969101266cf04ba74bce197bd2df28765edf96b807ff": {
+      "node_id": "69840486981e50b0468a969101266cf04ba74bce197bd2df28765edf96b807ff",
+      "anchor": "RECORDS_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:records_ready"
+      ],
+      "description": "Destination state reached by title-records",
+      "metadata": {}
+    },
+    "0b61a6b940877397cdb1c373f4de646cfabbdbb4e1eaaff5276cd22c055d74f1": {
+      "node_id": "0b61a6b940877397cdb1c373f4de646cfabbdbb4e1eaaff5276cd22c055d74f1",
+      "anchor": "SAVE_PICKER_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:save_picker_ready"
+      ],
+      "description": "Destination state reached by house-pause-save-commit",
+      "metadata": {}
+    },
+    "3511a2aa2f28bb042c2e4044dd65c08108ae51e882143b4049144e46b774a81f": {
+      "node_id": "3511a2aa2f28bb042c2e4044dd65c08108ae51e882143b4049144e46b774a81f",
+      "anchor": "SURVIVAL_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:survival_ready"
+      ],
+      "description": "Destination state reached by title-survival",
+      "metadata": {}
+    },
+    "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5": {
+      "node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "anchor": "TITLE_MENU",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:title"
+      ],
+      "description": "Initial state for title-down-press",
+      "metadata": {}
+    },
+    "19eb0b706d95ea8d3ccc07902b0430a53ae94d47506e57e5cc2a15691610c7bd": {
+      "node_id": "19eb0b706d95ea8d3ccc07902b0430a53ae94d47506e57e5cc2a15691610c7bd",
+      "anchor": "Z_READY",
+      "occurrence": 1,
+      "persistent_state_root": null,
+      "volatile_state_root": null,
+      "rng_state": null,
+      "config_id": "reference-1024-windowed",
+      "retail_build_sha256": "",
+      "tags": [
+        "scene:z_ready"
+      ],
+      "description": "Destination state reached by title-z-press",
+      "metadata": {}
+    }
+  },
+  "edges": {
+    "23d4eeaa043c1a3e740906689bbe9c1719a58ad6e226823c438eec0cf6ee26e0": {
+      "edge_id": "23d4eeaa043c1a3e740906689bbe9c1719a58ad6e226823c438eec0cf6ee26e0",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "_firstcust-skip-probe",
+      "input_digest": "7c1a6062ec72fe0be62840fe2f92b77c35d0cb603bffd63f6cc973fadb92eda5",
+      "duration_frames": 40000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 40000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "_firstcust-skip-probe"
+      ],
+      "scenario_ref": "_firstcust-skip-probe",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "PROBE (retail b150 lifecycle): load \u2192 tutorial \u2192 ESC-skip \u2192 first customer,\ntruncated after the first BARGAIN round. For RE of the cc08==4 skip\u2192first-\ncustomer b150 modal-hold (rec f461\u2192f1018). NOT a parity scenario.\n"
+      }
+    },
+    "eda5da2036d38cd0aa9c1f0cca0abe617ee7297e5738e9c5699ff7cadd20d3c7": {
+      "edge_id": "eda5da2036d38cd0aa9c1f0cca0abe617ee7297e5738e9c5699ff7cadd20d3c7",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "_probe-dayend-memsnap",
+      "input_digest": "363cde56684c98e35eb58d0b62c1d63787def99bc383d29fa7454e3cf5008cc3",
+      "duration_frames": 90000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 90000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "_probe-dayend-memsnap"
+      ],
+      "scenario_ref": "_probe-dayend-memsnap",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Full post-tutorial story-cutscene flow \u2192 day 2.  Recorded skip path:\nload \u2192 tutorial \u2192 ESC-skip \u2192 first customer \u2192 cutscenes \u2192 day 2 brooming.\n"
+      }
+    },
+    "056718799990a4f9bd35123f5a4b20da5c159ccac2620618140472c69653b290": {
+      "edge_id": "056718799990a4f9bd35123f5a4b20da5c159ccac2620618140472c69653b290",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "_probe-dayend-rngcs",
+      "input_digest": "42c3b3008bdadaaaeaad49193ce5aa94094b77b07e93336f2ab1f287b335bcdd",
+      "duration_frames": 90000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 90000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "_probe-dayend-rngcs"
+      ],
+      "scenario_ref": "_probe-dayend-rngcs",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Full post-tutorial story-cutscene flow \u2192 day 2.  Recorded skip path:\nload \u2192 tutorial \u2192 ESC-skip \u2192 first customer \u2192 cutscenes \u2192 day 2 brooming.\n"
+      }
+    },
+    "0508c298f59208567fba906e168a8d6f4250d1f0e486e409c899e3d2094f6a30": {
+      "edge_id": "0508c298f59208567fba906e168a8d6f4250d1f0e486e409c899e3d2094f6a30",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "_saves",
+      "input_digest": "7c87afe021d4d8351b178759b29293d9748cfb74ab7ff14fe98faf2420810f73",
+      "duration_frames": 0,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "_saves"
+      ],
+      "scenario_ref": "_saves",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": ""
+      }
+    },
+    "84bb3bade778df33e538335e936aee9f513ae6767b79fe2a6d30ce351dabecaa": {
+      "edge_id": "84bb3bade778df33e538335e936aee9f513ae6767b79fe2a6d30ce351dabecaa",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "bench-load-overview",
+      "input_digest": "3ffa4c820966ac00145169efaf62ed363d80cc251ba7be7ec260fc480259b8ca",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "bench-load-overview"
+      ],
+      "scenario_ref": "bench-load-overview",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "From-NEW_GAME overview spanning the Continue/Load worker load \u2014 the speed\nbenchmark for D1 capture-suppression. Port load-stretch ~1750 frames.\n"
+      }
+    },
+    "d5ddda3ada345cd41123593ecd2e174793ac89bd990ebc2e3d3bb37b3e77f706": {
+      "edge_id": "d5ddda3ada345cd41123593ecd2e174793ac89bd990ebc2e3d3bb37b3e77f706",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "boot-idle",
+      "input_digest": "0f55a4c0c231d9e245102eb08d090d7c1f534966cf49e775887438e88097deea",
+      "duration_frames": 65,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 65
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "boot-idle"
+      ],
+      "scenario_ref": "boot-idle",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "title boots, no input, hold 60 frames \u2014 captures cursor pulse + BG scroll"
+      }
+    },
+    "988b4f826a417fc70e4a96d86627eff4d5dc70babb8b5ecea580173eedca2f67": {
+      "edge_id": "988b4f826a417fc70e4a96d86627eff4d5dc70babb8b5ecea580173eedca2f67",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "guild-buyout",
+      "input_digest": "81ae25ab47d7590dff6cb69becf16dda121dfaac6d279484a45d08f34e456eeb",
+      "duration_frames": 26000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 26000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "guild-buyout"
+      ],
+      "scenario_ref": "guild-buyout",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Guild buy menu -> max-qty buy of the Worn Sword -> the row sells out (cap 0)\n-> the buy list draws \"Out Of Stock\". Capture EXTRA_SPRITE_END+480..840 to\ncompare the sold-out overlay port vs retail.\n"
+      }
+    },
+    "b049d70a22d0e5536e55f975c412a49d16ac6023bac9b3afff98273231b7ca38": {
+      "edge_id": "b049d70a22d0e5536e55f975c412a49d16ac6023bac9b3afff98273231b7ca38",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "guild-ui-flow",
+      "input_digest": "a2f70a539f92d03420d8bf4b309b989edbb16addbded4aaed481144a82a2aa85",
+      "duration_frames": 26000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 26000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "guild-ui-flow"
+      ],
+      "scenario_ref": "guild-ui-flow",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Merchants-guild buy-flow UI bench (v3 N4 stress): 2600-frame caprange across\nseveral load seams \u2014 house exit, world map, guild entry, cutscene, buy menu.\n"
+      }
+    },
+    "ac2604135a1a4beb692a1a242028fa9819432869fbb8369aa92c8029f979f928": {
+      "edge_id": "ac2604135a1a4beb692a1a242028fa9819432869fbb8369aa92c8029f979f928",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-customer-skip-tutorial",
+      "input_digest": "d79bad2a44fa6e05539bf0e33393c723ba77db5d47f1afb90c208b70ea499a65",
+      "duration_frames": 40000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 40000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-customer-skip-tutorial"
+      ],
+      "scenario_ref": "house-customer-skip-tutorial",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "cc08==4 ESC skip: inject ESC + Z during the haggle tutorial \u2192 \"Cancelling\ntutorial. Are you sure?\" \u2192 Yes \u2192 dissolve to free-roam (not the pause menu).\n"
+      }
+    },
+    "1560850b1ba7d0dea4686684badd0b96b7f15ca9b4cce7820b3f1fdfb93ccd66": {
+      "edge_id": "1560850b1ba7d0dea4686684badd0b96b7f15ca9b4cce7820b3f1fdfb93ccd66",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-customer-tutorial",
+      "input_digest": "f4b2dfbf3008b8a7dcde8b036381041ef502340a74bc49c92c8b98fa8f0b5676",
+      "duration_frames": 40000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 40000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-customer-tutorial"
+      ],
+      "scenario_ref": "house-customer-tutorial",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "In-shop customer-service / price-haggling tutorial (first-customer selling).\nMilestone-1 window: counter approach \u2192 Z initiate \u2192 first haggle UI.\n"
+      }
+    },
+    "a4dc55fa4842dfbfed176908f64eb3a53669918b106ef643401b43a9feb5d05a": {
+      "edge_id": "a4dc55fa4842dfbfed176908f64eb3a53669918b106ef643401b43a9feb5d05a",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-customer-walk-probe",
+      "input_digest": "66f094e2c3b014851435292f21fe0896f152ab6f5c2bce2fbad45c740bdef839",
+      "duration_frames": 40000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 40000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-customer-walk-probe"
+      ],
+      "scenario_ref": "house-customer-walk-probe",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "In-shop customer-service / price-haggling tutorial (first-customer selling).\nMilestone-1 window: counter approach \u2192 Z initiate \u2192 first haggle UI.\n"
+      }
+    },
+    "a13168e9a3f79b151295c8ce6e8072f2f779cbe8385bc14c0c916864a6f81512": {
+      "edge_id": "a13168e9a3f79b151295c8ce6e8072f2f779cbe8385bc14c0c916864a6f81512",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-display-remove",
+      "input_digest": "c01cd40aecfccf7912abe536055ee8788214dfdf41f7c7717c0db02448cf1cb4",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-display-remove"
+      ],
+      "scenario_ref": "house-display-remove",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Continue/load the fa7c82 save \u2192 HOUSE free-roam \u2192 walk to the back-stand\nswords \u2192 action-button opens the display context menu \u2192 MANAGE DISPLAY \u2192\nremove the top-right sword. {calltrace} over the interaction window so a\n--target retail (or both) run drops the cc08 interaction-state timeline.\n"
+      }
+    },
+    "ee7074d343008b058f53a89138e2f45edce514cc328167f4d3babcadc4d11cf2": {
+      "edge_id": "ee7074d343008b058f53a89138e2f45edce514cc328167f4d3babcadc4d11cf2",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-display-remove-opentrace",
+      "input_digest": "e9ca203d114e1a513b6f21dbb366f46e22b437c4515d1596dce68c91728d3755",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-display-remove-opentrace"
+      ],
+      "scenario_ref": "house-display-remove-opentrace",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Continue/load fa7c82 \u2192 HOUSE \u2192 walk to the back-stand swords \u2192 Z opens the\ndisplay-stand remove-item menu.  Contiguous {caprange} over the open so the\nwhite-HUD leak, the menu panel render (FUN_0046b00a/FUN_00485f8c), and the\nplayer interact pose/facing can be matched frame-for-frame vs retail.\n"
+      }
+    },
+    "7b36e48922b3ae365615a12ab3a99e759877db522eda9f31c150f09cf21dafce": {
+      "edge_id": "7b36e48922b3ae365615a12ab3a99e759877db522eda9f31c150f09cf21dafce",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-display-remove-pinned",
+      "input_digest": "f3f8ac0833e3528ad30780c7a88777b7018177ff7cd6a22752028de581effbaf",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-display-remove-pinned"
+      ],
+      "scenario_ref": "house-display-remove-pinned",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "PINNED variant of house-display-remove: same drive (load fa7c82 \u2192 walk to the\nback stand \u2192 Z opens the cc04==1 remove menu) but with {phasepin}+canonical\n{rngseed:19937} so the RNG-driven sparkle + bg-NPCs are bit-aligned port\u2194retail.\n"
+      }
+    },
+    "c49892134513310180d333d6dcc657e35c395e4026675a3647f224b12e99d64e": {
+      "edge_id": "c49892134513310180d333d6dcc657e35c395e4026675a3647f224b12e99d64e",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-door",
+      "input_digest": "6097d217733d842d28bdeb5568e6bb1a1758f931f53585a76b5d75634e506ae6",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-door"
+      ],
+      "scenario_ref": "house-door",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "HOUSE free-roam \u2192 walk to the shop door \u2192 hold.  caprange LOADING_END+140..260\ncaptures the door \"go!\" tooltip (retail draws it; the port does not yet).\nPinned (phasepin 282 + rngseed [282,19937] + tutloadpin 8) like the guild traces.\n"
+      }
+    },
+    "0f73efcee0621545e8e2e4bc25c062d0532455dc68946b94a21dc895bf7d1a9a": {
+      "edge_id": "0f73efcee0621545e8e2e4bc25c062d0532455dc68946b94a21dc895bf7d1a9a",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-firstcust-arrprobe",
+      "input_digest": "051e06b2db7b1896182562bf268899b61f7ec710435b11e043e0ed288a370bd4",
+      "duration_frames": 6000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "HOUSE_FREEROAM",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-firstcust-arrprobe"
+      ],
+      "scenario_ref": "house-firstcust-arrprobe",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [
+          "FUN_0045edaa",
+          "FUN_00462403",
+          "FUN_00463cfb",
+          "FUN_00460b93"
+        ],
+        "blocks": [],
+        "transitions": [
+          "BOOT",
+          "LOADING_START",
+          "LOADING_END",
+          "HOUSE_FREEROAM",
+          "CUSTOMER_SERVICE_ENTER"
+        ],
+        "opcodes": [
+          "TUTO_CHR0",
+          "TUTO_BUN0",
+          "TUTO_NEDAN"
+        ]
+      },
+      "status": "parity_proven",
+      "metadata": {
+        "description": "Trimmed first-customer-arrival probe (load \u2192 tutorial \u2192 skip \u2192 wrap-up \u2192 first\ncustomer \u2192 first BARGAIN).  Same pins as house-firstcust-cutscene-day2.\n"
+      }
+    },
+    "2a707bebc47517062d3f237242904a4d95ee91cf442d24efa33de69d543460e5": {
+      "edge_id": "2a707bebc47517062d3f237242904a4d95ee91cf442d24efa33de69d543460e5",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-firstcust-cutscene-day2",
+      "input_digest": "14679582c134e0f3e7b3fbba12f2b32d694c9578141a09e0a0db85597a07f359",
+      "duration_frames": 90000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 90000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-firstcust-cutscene-day2"
+      ],
+      "scenario_ref": "house-firstcust-cutscene-day2",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Full post-tutorial story-cutscene flow \u2192 day 2.  Recorded skip path:\nload \u2192 tutorial \u2192 ESC-skip \u2192 first customer \u2192 cutscenes \u2192 day 2 brooming.\n"
+      }
+    },
+    "92e8ffa8ca2b580ec05eb4b0e55d1b6f1330f7b841e83abd0b12a01a4dbff66a": {
+      "edge_id": "92e8ffa8ca2b580ec05eb4b0e55d1b6f1330f7b841e83abd0b12a01a4dbff66a",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-firstcust-cutscene-day2-full",
+      "input_digest": "97e87cdeac0907749cd0938d0dd817ab78b121c3a70169e1aca9ffe3cb725d7f",
+      "duration_frames": 25000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 25000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-firstcust-cutscene-day2-full"
+      ],
+      "scenario_ref": "house-firstcust-cutscene-day2-full",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Full post-tutorial story-cutscene flow \u2192 day 2.  Recorded skip path:\nload \u2192 tutorial \u2192 ESC-skip \u2192 first customer \u2192 cutscenes \u2192 day 2 brooming.\n"
+      }
+    },
+    "6ab9470a03edf4da896da1462fcc73d45ffbf966d3066152cebf29aac369fdfa": {
+      "edge_id": "6ab9470a03edf4da896da1462fcc73d45ffbf966d3066152cebf29aac369fdfa",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-idle",
+      "input_digest": "52aadb2e2247c8c8f225de4095753627cfdbd51079530bdb7c699890e650141f",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-idle"
+      ],
+      "scenario_ref": "house-idle",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "HOUSE real free-roam, Recette idle at the bottom, back-window NPC on screen.\nREADME house hero \u2014 drive with --show-fps. Sweeps HF#2 +60..+1560 to locate\nthe NPC-visible cap.\n"
+      }
+    },
+    "ed44d9a8e5b3fdbafde2813760ff25a54537ecfc0ac370c2508429d4f42f0e9c": {
+      "edge_id": "ed44d9a8e5b3fdbafde2813760ff25a54537ecfc0ac370c2508429d4f42f0e9c",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-idle-drift-tearpin",
+      "input_digest": "642cab62ed7cdb808cc509a41d3439e44de92fba1cf2c1563542acf74f725737",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-idle-drift-tearpin"
+      ],
+      "scenario_ref": "house-idle-drift-tearpin",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "HOUSE real free-roam flow-trace bench \u2014 Recette idle at the bottom, {calltrace}\nover the capture window. Drive --target both --call-trace, then flow_diff\n--verdict to confirm the HOUSE actor-state is phase-clean vs retail.\n"
+      }
+    },
+    "852b27b93d016b2fbc7c20bdff0e44cbfcdea98fcfddaaa48f84e89f3e12e294": {
+      "edge_id": "852b27b93d016b2fbc7c20bdff0e44cbfcdea98fcfddaaa48f84e89f3e12e294",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-idle-npc-drift",
+      "input_digest": "d74d974803be2d2cad35ae9f9ec127e3ede4c2b888a7a3f586fae6cce419876b",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-idle-npc-drift"
+      ],
+      "scenario_ref": "house-idle-npc-drift",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "HOUSE real free-roam, Recette idle at the bottom, back-window NPC on screen.\nREADME house hero (docs/img/hero-house-freeroam.png). Sweeps HF#2 +60..+1560\nto locate the NPC-visible cap.\n"
+      }
+    },
+    "2e56781243f2bb83d97104ea49dcc13afccedd2cf84ceb8ff9438a4cc1d7591a": {
+      "edge_id": "2e56781243f2bb83d97104ea49dcc13afccedd2cf84ceb8ff9438a4cc1d7591a",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-loaded-display",
+      "input_digest": "ca90f434d099991f61dfdef5708e3384a6d66d0d64d1980cce7e8f1d56580f86",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-loaded-display"
+      ],
+      "scenario_ref": "house-loaded-display",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Continue/load the fa7c82 save \u2192 HOUSE free-roam with 3 swords on the back\nstand; capture LOADING_END+120..168 to eyeball the per-item sparkle emitter.\n"
+      }
+    },
+    "1f3efdd3eea3bcc4d0250637a37ba6399e9688cf5ecb9d2a38deb6601686195c": {
+      "edge_id": "1f3efdd3eea3bcc4d0250637a37ba6399e9688cf5ecb9d2a38deb6601686195c",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-loaded-display-pinned",
+      "input_digest": "27372173d23dc5c49590dbdb8a26abc09d571c63e30efc87e8656fff077b1f0c",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-loaded-display-pinned"
+      ],
+      "scenario_ref": "house-loaded-display-pinned",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Continue/load the fa7c82 save \u2192 HOUSE free-roam with 3 swords on the back\nstand; capture LOADING_END+120..168 to eyeball the per-item sparkle emitter.\n"
+      }
+    },
+    "c0a7f395701aba0585fd2aeb9852ff6ab67393faf43be59d8ef17ff3a5b317de": {
+      "edge_id": "c0a7f395701aba0585fd2aeb9852ff6ab67393faf43be59d8ef17ff3a5b317de",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-movement",
+      "input_digest": "fb69a9c19428e113eed5bf673585d0e087760feb19f4b6a9a95ca28887775a1d",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-movement"
+      ],
+      "scenario_ref": "house-movement",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 walk left. Three anchor-relative captures, all keyed to\nthe 2nd HOUSE_FREEROAM (which lands in the shop tutorial; free-roam is\n~1500 frames later once the A-spam clears the dialog \u2014 engine-quirks \u00a755):\ncap_00 idle free-roam (+1540), cap_01 walking after LEFT (+1640), cap_02\nstill walking (+1900). The port player is frozen (movement controller\nunported) so the walking caps are the intended port(frozen)-vs-retail\n(striding) parity baseline until FUN_0048b850 ports.\n"
+      }
+    },
+    "540b4da0372fdb9390373ea0953fb8424e3ecda0549dbb3cefe30c719287d0af": {
+      "edge_id": "540b4da0372fdb9390373ea0953fb8424e3ecda0549dbb3cefe30c719287d0af",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-pause",
+      "input_digest": "f9bf20bf17a3e766925d17f4b544bc33c0722696ef13ff39abec235a137b7720",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause"
+      ],
+      "scenario_ref": "house-pause",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "HOUSE free-roam idle \u2192 ESC at +160 \u2192 retail opens the pause menu; the port\nswallows ESC (unported).  Capture LOADING_END+120..360 to compare port vs\nretail.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "977e1e21c796a7b292b55851f1cde123035e4ffe06b028ce707a76f9928b45f7": {
+      "edge_id": "977e1e21c796a7b292b55851f1cde123035e4ffe06b028ce707a76f9928b45f7",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-encyclopedia",
+      "input_digest": "9d8a6e58b2253e3d737736a91e65070cbfa45615887ad27b31f471ccbcbef212",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-encyclopedia"
+      ],
+      "scenario_ref": "house-pause-encyclopedia",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 1\u00d7down to ENCYCLOPEDIA \u2192 Z opens the type-6 submenu.  Capture the\nPAUSE_READY+0..300 extent; slice the open + resting catalog region for the\nport\u2194retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "223a641eea03e06e5ebcb1cfe140cdb8340d9d38a9bcd4647521910068f840ab": {
+      "edge_id": "223a641eea03e06e5ebcb1cfe140cdb8340d9d38a9bcd4647521910068f840ab",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-encyclopedia-detail",
+      "input_digest": "a4acf2166ef65c379cecaca08a9fc8b1c7e5b39da1bc96bd33ad378dfdeb9c06",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-encyclopedia-detail"
+      ],
+      "scenario_ref": "house-pause-encyclopedia-detail",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 Encyclopedia \u2192 {wait ENCYCLOPEDIA_READY} \u2192 0x40 examine (detail overlay)\n\u2192 0x40 close.  Pinned (phasepin 80).\n"
+      }
+    },
+    "5dfe602dbd439fd89aa740d0fb533cd620aabcfd35dcaf158d5022c304a3eeec": {
+      "edge_id": "5dfe602dbd439fd89aa740d0fb533cd620aabcfd35dcaf158d5022c304a3eeec",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-encyclopedia-max",
+      "input_digest": "d5db196ddf92dbbf8cad8e5eaaaf9e1e17ce1b9f58c726600801be30b675ca6c",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-encyclopedia-max"
+      ],
+      "scenario_ref": "house-pause-encyclopedia-max",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 1\u00d7down to ENCYCLOPEDIA \u2192 Z opens the type-6 submenu.  Capture the\nPAUSE_READY+0..300 extent; slice the open + resting catalog region for the\nport\u2194retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "54acba86e71adf2a457a6651f71bf616319ae31644ce65ca186bb241ff93d502": {
+      "edge_id": "54acba86e71adf2a457a6651f71bf616319ae31644ce65ca186bb241ff93d502",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-encyclopedia-max-detail",
+      "input_digest": "f0e85b48895b1c8567458f1afd72720931de740c3d17ae034bd24aa09426696f",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-encyclopedia-max-detail"
+      ],
+      "scenario_ref": "house-pause-encyclopedia-max-detail",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 1\u00d7down to ENCYCLOPEDIA \u2192 Z opens the type-6 submenu.  Capture the\nPAUSE_READY+0..300 extent; slice the open + resting catalog region for the\nport\u2194retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "f9c49b2dbec35f9da9a0b62166f05cd3accb4aa7b44b5625d03b94b968949eac": {
+      "edge_id": "f9c49b2dbec35f9da9a0b62166f05cd3accb4aa7b44b5625d03b94b968949eac",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-encyclopedia-nav",
+      "input_digest": "af8983393bcebf601ff6c7294393c470bc3c2ffd514e8cfc9228e91e8e6ce86b",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-encyclopedia-nav"
+      ],
+      "scenario_ref": "house-pause-encyclopedia-nav",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 1\u00d7down to Encyclopedia \u2192 Z; {wait ENCYCLOPEDIA_READY} \u2192 page categories\n(R/L shoulder), column/edge (Right/Left), rows (Down/Up).  Pinned (phasepin 80).\n"
+      }
+    },
+    "f12f1c11b52aeef09fb77be09bc6ab59743cfb2e1a7fcb21ef7ed4cea4cf4908": {
+      "edge_id": "f12f1c11b52aeef09fb77be09bc6ab59743cfb2e1a7fcb21ef7ed4cea4cf4908",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-exit",
+      "input_digest": "69efb89cf93343995de0be4a238172f3e44d9c283489a46341ca20b8ef5065f6",
+      "duration_frames": 30000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-exit"
+      ],
+      "scenario_ref": "house-pause-exit",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 4\u00d7down to EXIT GAME \u2192 Z opens the exit-confirm dialog \u2192 Z confirms.\nCapture PAUSE_READY+0..500 to cover the menu nav \u2192 dialog \u2192 confirm \u2192 the\nfade/title transition.\n"
+      }
+    },
+    "31fe37266d76eeb14f0c4ebcf7f6a0073aaf64eb23ee61cc02a9e048cee51be9": {
+      "edge_id": "31fe37266d76eeb14f0c4ebcf7f6a0073aaf64eb23ee61cc02a9e048cee51be9",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-items",
+      "input_digest": "2171d6f54e75641f591200199e6fba6005714ddb8ce528713b0edad715478bd6",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-items"
+      ],
+      "scenario_ref": "house-pause-items",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 Z opens the type-1 Items submenu (display_menu mode 5).  Capture the\nPAUSE_READY+0..300 extent; slice the open + resting inventory grid for the\nport\u2194retail diff.  Pinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "7b4c1c8a5897cd5092848c6ba51d36118bd6b4647a2412771ec4af9a3e9a92a0": {
+      "edge_id": "7b4c1c8a5897cd5092848c6ba51d36118bd6b4647a2412771ec4af9a3e9a92a0",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-options",
+      "input_digest": "728ca6dc8eafa934a12b01cf87386841596124065c8f4f6472d2e6a198d05a66",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-options"
+      ],
+      "scenario_ref": "house-pause-options",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 2\u00d7down to OPTIONS \u2192 Z opens the type-2 submenu; then (rebased on\nOPTIONS_READY) drive the config-panel nav \u2014 cursor down through all 5 rows +\nchange Sound / Message Speed / Unread Text Skip.  Capture the OPTIONS_READY\n+0..300 extent for the port\u2194retail diff (drive with --anchor OPTIONS_READY).\nPinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "c0988bd6ebf76feb7b27dfe5c3fc239268eedee15a0a54f4b896a442d6b8c39f": {
+      "edge_id": "c0988bd6ebf76feb7b27dfe5c3fc239268eedee15a0a54f4b896a442d6b8c39f",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-save",
+      "input_digest": "1c2395ecaf294d7773f9a9d49a1264fe0d5e4c4218b4b0e0e972fe0236bb76a1",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-save"
+      ],
+      "scenario_ref": "house-pause-save",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 3\u00d7down to SAVE \u2192 Z opens the save submenu.  Capture the PAUSE_OPEN+0..360\nextent; slice the nav+submenu region (PAUSE_OPEN+~110..) for the port\u2194retail diff.\nPinned (phasepin 80) so the pre-ESC free-roam matches 1:1.\n"
+      }
+    },
+    "d43131bcf54303e065733b957edd683c25a6df36ef105c479b73f5746008ac2b": {
+      "edge_id": "d43131bcf54303e065733b957edd683c25a6df36ef105c479b73f5746008ac2b",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "0b61a6b940877397cdb1c373f4de646cfabbdbb4e1eaaff5276cd22c055d74f1",
+      "label": "house-pause-save-commit",
+      "input_digest": "1b63375790afd8477d6bbe61c49ac13dd87e78d3afa691e5541b69c0881823d5",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "SAVE_PICKER_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-save-commit"
+      ],
+      "scenario_ref": "house-pause-save-commit",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [
+          "FUN_004905a8",
+          "FUN_0047f5bc",
+          "FUN_00434def",
+          "FUN_00473a3e"
+        ],
+        "blocks": [],
+        "transitions": [
+          "BOOT",
+          "HOUSE_FREEROAM",
+          "PAUSE_OPEN",
+          "PAUSE_READY",
+          "SAVE_PICKER_READY"
+        ],
+        "opcodes": []
+      },
+      "status": "parity_proven",
+      "metadata": {
+        "description": "Pause \u2192 3\u00d7down to SAVE \u2192 Z opens the save submenu \u2192 A on the occupied home\nslot 0 \u2192 \"Overwriting file?\" Yes \u2192 the commit animation runs \u2192 the picker rests\nshowing the re-saved slot.  Capture SAVE_PICKER_READY+0..200; slice for the\nport\u2194retail diff of the overwrite dialog + commit anim + progress bar.\n"
+      }
+    },
+    "72ae9fa93d032f5b54d115c48c42e82522eb4ecfd0d28e23a88565f1205bb510": {
+      "edge_id": "72ae9fa93d032f5b54d115c48c42e82522eb4ecfd0d28e23a88565f1205bb510",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-save-commit-empty",
+      "input_digest": "8487456638f6d5df667b9fd5ae06f6c59d75a3169f57a8b369bbc7f38d3c0db3",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-save-commit-empty"
+      ],
+      "scenario_ref": "house-pause-save-commit-empty",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 3\u00d7down to SAVE \u2192 Z \u2192 DOWN onto empty slot 1 \u2192 A \u2192 the empty-slot direct\ncommit animation. Capture SAVE_PICKER_READY+0..160; compare the commit anim +\nthe card NO-DATA\u2192occupied transform vs retail (port#N vs retail#N+1 seam).\n"
+      }
+    },
+    "a8f61d3cca6bd40a1a34d567234f40b3b8e2053220f3eea34692cb573fc86048": {
+      "edge_id": "a8f61d3cca6bd40a1a34d567234f40b3b8e2053220f3eea34692cb573fc86048",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-save-nav",
+      "input_digest": "21a5a0744123f2df5d8f181f74c034258958294ad21419a9bfd9e78801730955",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-save-nav"
+      ],
+      "scenario_ref": "house-pause-save-nav",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Pause \u2192 3\u00d7down to SAVE \u2192 Z opens the save submenu \u2192 DOWN \u00d75 / UP \u00d74 scroll the\n100-slot list \u2192 B closes.  Capture PAUSE_READY+0..360; slice the open+nav region\nfor the port\u2194retail diff (the render is already pixel-1:1 per cursor/scroll, so\na matching nav \u21d2 pixel-1:1 scrolling).\n"
+      }
+    },
+    "34e7ca381b55739b4d95ca33217205fdb3c05a5fbf7d2ca7c8da059cb5f69cb4": {
+      "edge_id": "34e7ca381b55739b4d95ca33217205fdb3c05a5fbf7d2ca7c8da059cb5f69cb4",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "f6a0629c590f65c336f73c78cf1dc7177901e121ce38eede94b12fc6106ad925",
+      "label": "house-pause-unpause",
+      "input_digest": "7c81280774e8a1f330f6c3df17401f5d5760b6858b54c786cb49232c4c973a8b",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PAUSE_OPEN",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-pause-unpause"
+      ],
+      "scenario_ref": "house-pause-unpause",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Walk UP off spawn \u2192 ESC (pause) \u2192 ESC (unpause) \u2192 resume.  Capture\nPAUSE_READY+0..140 (open menu over the frozen scene \u2192 close ramp \u2192 resumed\nfree-roam); the state panel px/py must stay at the walked-to spot, not spawn.\n"
+      }
+    },
+    "b86d36529e76e7e5224a8758505ff04d87497355f1576ccfd23b73832ea2102c": {
+      "edge_id": "b86d36529e76e7e5224a8758505ff04d87497355f1576ccfd23b73832ea2102c",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-table-corner",
+      "input_digest": "32c7d3c7d5a339b71be16af37645203f35af410475cacd740856ead06e84ded1",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-table-corner"
+      ],
+      "scenario_ref": "house-table-corner",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 slide against the central round table; capture 9 frames\n(rel 1805\u20131851) drilling into the table-corner collision divergence. Permanent\nregression guard derived from the house-walk-tables full-slide trace.\n"
+      }
+    },
+    "86572e91a8a787608d59d045d1fbdc22b64d32a649eb032a8c5ffee94edbbb48": {
+      "edge_id": "86572e91a8a787608d59d045d1fbdc22b64d32a649eb032a8c5ffee94edbbb48",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-1min-noturbo",
+      "input_digest": "8ebf3bfcd283ea5f5dc3ffa7ea2ca26ab109b6f8c0413860f977984463fa1d43",
+      "duration_frames": 0,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-1min-noturbo"
+      ],
+      "scenario_ref": "house-walk-1min-noturbo",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": ""
+      }
+    },
+    "622d9e17b5052dcd1fde15aa368f4a72eb288ba8e272cef69e93f946f4e79639": {
+      "edge_id": "622d9e17b5052dcd1fde15aa368f4a72eb288ba8e272cef69e93f946f4e79639",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-down",
+      "input_digest": "3f973a0e31ebe83105c83fd9d4b4234ad746a34b406ce2629296aa4c64e41e4a",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-down"
+      ],
+      "scenario_ref": "house-walk-down",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 hold DOWN into the front of the room. cap_00 idle (+1540),\ncap_01 after walking down (+2400). Pair with --player-pos-log / --watch +\ntools/wall_collide_diff.py for the px/pz/py accuracy diff.\n"
+      }
+    },
+    "9aefd64ed1d3b077ac89cb1198a83707fdf1af2f1f6d0e1d2a61b6e95c7c5920": {
+      "edge_id": "9aefd64ed1d3b077ac89cb1198a83707fdf1af2f1f6d0e1d2a61b6e95c7c5920",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-down-dense",
+      "input_digest": "193bd2593426ae77505554c34fdd9a2a50874288609d7c20dc52e1dbe4fa6e38",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-down-dense"
+      ],
+      "scenario_ref": "house-walk-down-dense",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Hold DOWN; capture every frame anchor+1592..1628. Foot-dust depth + phase check.\n"
+      }
+    },
+    "a64cb91b3b0c731e5d7be43f737545c5f8069ca93de649de1f3e97a73c52da46": {
+      "edge_id": "a64cb91b3b0c731e5d7be43f737545c5f8069ca93de649de1f3e97a73c52da46",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-down-mid",
+      "input_digest": "419753e7fb471c5d0ca06e5bcf9337d61076accd14dcb1083df03f1f702964b3",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-down-mid"
+      ],
+      "scenario_ref": "house-walk-down-mid",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Hold DOWN in HOUSE free-roam; 5 mid-walk captures. Checks the foot dust draws\nbehind the walking player (depth/order parity).\n"
+      }
+    },
+    "bbb9b26808872feb85e27221ecbf1ea8e836b5d102352610f2d702a1da2a9c7b": {
+      "edge_id": "bbb9b26808872feb85e27221ecbf1ea8e836b5d102352610f2d702a1da2a9c7b",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-left",
+      "input_digest": "b81ed1a2fff3a506f30d54fce76ed03f168adee6dfddb72b0e9789b021f02b4f",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-left"
+      ],
+      "scenario_ref": "house-walk-left",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 hold LEFT into the central table / behind-counter furniture.\ncap_00 idle (+1540), cap_01 after walking left (+2100). Pair with\n--player-pos-log / --watch + tools/wall_collide_diff.py.\n"
+      }
+    },
+    "1cb405872826737044cdef140c049340c75e9c7a0e2974dee3d86036b2a02dad": {
+      "edge_id": "1cb405872826737044cdef140c049340c75e9c7a0e2974dee3d86036b2a02dad",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-table",
+      "input_digest": "9f7d8ff155a53489fb101b8c4fb538d37fadb68b729351512f193eeea60bbbad",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-table"
+      ],
+      "scenario_ref": "house-walk-table",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 navigate behind the counter (RIGHT, UP) then LEFT into the\ncentral round table. Retail pins head-on at px=0.729 pz=0.107 (w4-table3).\ncap_00 idle (+1540), cap_01 against the table (+1760).\n"
+      }
+    },
+    "35e8bb922d875d3a9e652bfb4bd9d3e48cb7ea9473f9ee8843d53c2bf10379dc": {
+      "edge_id": "35e8bb922d875d3a9e652bfb4bd9d3e48cb7ea9473f9ee8843d53c2bf10379dc",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-walk-tables",
+      "input_digest": "a97e4d75f6daa6c7ecfacd3d1de80ce2d910dfb7bdcd2b88e245a1e262bd79d1",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-walk-tables"
+      ],
+      "scenario_ref": "house-walk-tables",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 thorough collision tour against the HOUSE display tables\n(diagonal movement), 22 capture points along the path. User-recorded (F2/F3) +\ndistilled. Regression bench for the multi-object furniture collision vs retail.\n"
+      }
+    },
+    "597829b7c16707d2326c9afa53d5ba3717bf4dd33633517774b9c13be8e52811": {
+      "edge_id": "597829b7c16707d2326c9afa53d5ba3717bf4dd33633517774b9c13be8e52811",
+      "src_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "dst_node_id": "8229b38cc136af7da782c8a3013f88d2afb9103730654b5e51accf3e9abd78a2",
+      "label": "house-wall-collide",
+      "input_digest": "a79a5d3c6bdf561e8538f617332c32ef36f1e0f478d3643e75b5c3b8dbda7f9c",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "house-wall-collide"
+      ],
+      "scenario_ref": "house-wall-collide",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 HOUSE \u2192 walk RIGHT into the right wall. Two anchor-relative captures\nkeyed to the 2nd HOUSE_FREEROAM: cap_00 idle free-roam (+1540), cap_01 pressed\nagainst the right wall after holding RIGHT (+1780). Pair with --player-pos-log\n(port) / --watch (retail) + tools/wall_collide_diff.py for the px/pz accuracy\ndiff \u2014 the visual caps alone don't show the sub-unit standoff.\n"
+      }
+    },
+    "12b53b7c00023dd288ed25c283238a59ab8e8e4621cbdb56afda6c3b9d92f646": {
+      "edge_id": "12b53b7c00023dd288ed25c283238a59ab8e8e4621cbdb56afda6c3b9d92f646",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-dialogue-lines",
+      "input_digest": "faba5126322c70d843b0ec7a144c2b93eee8a9dcd2ac56a6d915dc27384b6326",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-dialogue-lines"
+      ],
+      "scenario_ref": "intro-dialogue-lines",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 opening prologue; one capture per dialogue line at TEXT_ANIM_END\n(46 lines). Phase-0 per-line reference images for the opening cutscene/dialogue.\n"
+      }
+    },
+    "bb39594cc964871390ecb89b9a9b77e7c85211eca7bba51ccbffee1765eaf767": {
+      "edge_id": "bb39594cc964871390ecb89b9a9b77e7c85211eca7bba51ccbffee1765eaf767",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-fade",
+      "input_digest": "3cd7680abc9fc4ef217f2908125f67245268c6ce6fef7bd3d473e6b3a05a2efa",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-fade"
+      ],
+      "scenario_ref": "intro-fade",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_1 fade-from-black anchored to EXTRA_SPRITE_FADEOUT \u2014 5 frames.\n"
+      }
+    },
+    "0919926fc0b2eb3a55c03755be7475ed07b786c9bf91fd6b6ff621d2a8d0c3ae": {
+      "edge_id": "0919926fc0b2eb3a55c03755be7475ed07b786c9bf91fd6b6ff621d2a8d0c3ae",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-iv2-blink",
+      "input_digest": "6197de2272dab2d26c877d929ca6672c7c43519af4c3a0e70d9a7fc560c9091f",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-iv2-blink"
+      ],
+      "scenario_ref": "intro-iv2-blink",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_2 conversation pose synced at the anim-6 frame-1 blink (CONV_POSE_BLINK, a\nunique once-per-cycle eyes-closed marker) after the iv1_2 load (HF#2) \u2014 both\nmontages land on the SAME blink, zoomed onto Recette's freeroam sprite. Spans\n+0..+44 (the frame-1 blink, the d32 open hold, the frame-3 blink at +38).\n"
+      }
+    },
+    "82db05f459058ee910d6d86ec6db4dc0ba4c1fad62805acb66b6bff0d3072c41": {
+      "edge_id": "82db05f459058ee910d6d86ec6db4dc0ba4c1fad62805acb66b6bff0d3072c41",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-iv2-gap",
+      "input_digest": "53a51a3094db90b7f03bc0c5ea925cc38ade406f42ab041bd9e43f793d2d3e21",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-iv2-gap"
+      ],
+      "scenario_ref": "intro-iv2-gap",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_2 opening (post-fade, during char slide-in) \u2014 Recette look-up + blink,\nzoomed onto her sprite; dense reference for diffing vs retail.\n"
+      }
+    },
+    "a000c91f3b275cb40b79e920637342b687d9ed3f10f873b1af7d6052e25b60ef": {
+      "edge_id": "a000c91f3b275cb40b79e920637342b687d9ed3f10f873b1af7d6052e25b60ef",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-iv2-v3",
+      "input_digest": "6413dbe693222488ab74b5fc577a7eaad915d859ebc29b43399333cff0e9cbc1",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-iv2-v3"
+      ],
+      "scenario_ref": "intro-iv2-v3",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_2 overlay conversation (covers=false, HOUSE scene behind) v3 draw-program\nwindow at HF#2 for prologue drawcall parity vs retail.\n"
+      }
+    },
+    "5c1ccb8cfc73045baa9ba37be5fcb04b7db372a3ec9e590eef077eb25c649f11": {
+      "edge_id": "5c1ccb8cfc73045baa9ba37be5fcb04b7db372a3ec9e590eef077eb25c649f11",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-opening",
+      "input_digest": "8e9f8a3508e425a6cc7b25220cecb23609013cfae90831322340eef832bd323a",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-opening"
+      ],
+      "scenario_ref": "intro-opening",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_1 opening: fade-from-black (kuro) + Tear slide-in, 8 frames pre-line-1.\n"
+      }
+    },
+    "efef270270c6c85c5e1dcc1b0c770484d4170cad277679068f43f996c5176b15": {
+      "edge_id": "efef270270c6c85c5e1dcc1b0c770484d4170cad277679068f43f996c5176b15",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-patience-settle",
+      "input_digest": "7d6cb7af5de87a24740f1de899c0e7746c7539aed3eec572c2d1c488009ebdad",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-patience-settle"
+      ],
+      "scenario_ref": "intro-patience-settle",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Settle on the iv1_2 \"Patience, Recette\" line (Tear); capture the speaker\nnameplate fading in (TEXT_ANIM_END +2/+30/+60/+120/+240).\n"
+      }
+    },
+    "0d6702013725181d9559291f97487a72506844f8ec3e191b6b5290ce2178eb4f": {
+      "edge_id": "0d6702013725181d9559291f97487a72506844f8ec3e191b6b5290ce2178eb4f",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-prologue",
+      "input_digest": "3970f4a404e44c2df473b4b617d2a3d0615977bfec990c62bb270da033b6c8a3",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 22000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-prologue"
+      ],
+      "scenario_ref": "intro-prologue",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game \u2192 opening prologue (Recette/Tear), call-trace over the prologue\nsegment (1st HOUSE_FREEROAM + 1600 frames). Phase-0 ground-truth for the\nopening cutscene/dialogue subsystem.\n"
+      }
+    },
+    "f6886f38dc8219e376bc581f4f68298a6f8fcfb4a00fd553406e5aaea2c16ebd": {
+      "edge_id": "f6886f38dc8219e376bc581f4f68298a6f8fcfb4a00fd553406e5aaea2c16ebd",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-prologue-v3",
+      "input_digest": "55c3925be0a1771f006663e09fcd83f3443a5b14acdf2e42a76dddfda17dfc2c",
+      "duration_frames": 16000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 16000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-prologue-v3"
+      ],
+      "scenario_ref": "intro-prologue-v3",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "New game -> opening prologue cutscene start (1st HOUSE_FREEROAM). v3 window\nover the first iv1_1 dialogue line for drawcall + flow-trace parity vs retail.\n"
+      }
+    },
+    "833350bb70eed9848f9310cf3aedc8e5908d387733e8dbaa8f841f758396516a": {
+      "edge_id": "833350bb70eed9848f9310cf3aedc8e5908d387733e8dbaa8f841f758396516a",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-sigh",
+      "input_digest": "85528725a0c8c95cbd2c847adb338b486c15a7a1b802b9aa84a15dc20b3ab973",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-sigh"
+      ],
+      "scenario_ref": "intro-sigh",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "iv1_1 sigh effect sprite (chr:6) framed by EXTRA_SPRITE_START \u2014 3 fade-in +\n3 fade-out frames; verifies extra-sprite fade renders 1:1 vs retail.\n"
+      }
+    },
+    "2b1799379734fb6c60193af924053dca7982433806ef41b05b109f0dce43a030": {
+      "edge_id": "2b1799379734fb6c60193af924053dca7982433806ef41b05b109f0dce43a030",
+      "src_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "dst_node_id": "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb",
+      "label": "intro-skip-prompt",
+      "input_digest": "fcd15f7ba8a0a861d8cbd699047c6a18cdf8b7e71b54708a1983c3c0271c5341",
+      "duration_frames": 24000,
+      "completion_condition": {
+        "kind": "frame_count",
+        "count": 24000
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "intro-skip-prompt"
+      ],
+      "scenario_ref": "intro-skip-prompt",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "ESC skip Yes/No choice box over a settled line, armed via the {esc} TAS op +\n{phasepin} (cursor bob phase-1:1). cap_00 Yes / cap_01 No.\n"
+      }
+    },
+    "4498f8c0beb4ee73ebbd90315a5ecc388386d4b5c31336a022d3456dc53e800c": {
+      "edge_id": "4498f8c0beb4ee73ebbd90315a5ecc388386d4b5c31336a022d3456dc53e800c",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "aa6a3d1f7e774e5b722cd23a43ef5b6fafbf0cc844dac252716be3a35902774e",
+      "label": "title-down-press",
+      "input_digest": "0254168bdedd3e12fa02cb82f203eff642766c4b25b487d7e7026df5b3e2dc2a",
+      "duration_frames": 60,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "DOWN_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-down-press"
+      ],
+      "scenario_ref": "title-down-press",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "DOWN press at frame 30 \u2014 cursor steps NEW GAME \u2192 MINIGAME"
+      }
+    },
+    "91425ed612cda19579aae18922553c7c2411484bafbb230f57beefec5e9a4a24": {
+      "edge_id": "91425ed612cda19579aae18922553c7c2411484bafbb230f57beefec5e9a4a24",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "d4af2a13ad6a1f099d9bab1fb4e955c5eb910ba5a915291a220519cf6756bc79",
+      "label": "title-encyclopedia",
+      "input_digest": "7cb90b58b88b3d5645bb5c0128283737b40f48c1517b685db5376cd4847c364a",
+      "duration_frames": 200,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "ENCYCLOPEDIA_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-encyclopedia"
+      ],
+      "scenario_ref": "title-encyclopedia",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 DOWN\u00d71 \u2192 A \u2192 all-banks encyclopedia slides in (FUN_0049f8b8 render)"
+      }
+    },
+    "c4ebf46690109b6eff15de1e5b57d86e6a6db9f5f85470ec9b9e2fb496ce3529": {
+      "edge_id": "c4ebf46690109b6eff15de1e5b57d86e6a6db9f5f85470ec9b9e2fb496ce3529",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "d4af2a13ad6a1f099d9bab1fb4e955c5eb910ba5a915291a220519cf6756bc79",
+      "label": "title-encyclopedia-max",
+      "input_digest": "fa44a9930a8362a49537a592b52fd207b2a70f684aab849f1dfa8ea9426cd0dd",
+      "duration_frames": 8000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "ENCYCLOPEDIA_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-encyclopedia-max"
+      ],
+      "scenario_ref": "title-encyclopedia-max",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 DOWN\u00d71 \u2192 A \u2192 all-banks \u56f3\u9451, MAXED save (populated grid 1:1)"
+      }
+    },
+    "b9cb2741d9e2ab12a05a37fcae698f9939133f758c3910b0857fc524435a226c": {
+      "edge_id": "b9cb2741d9e2ab12a05a37fcae698f9939133f758c3910b0857fc524435a226c",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "d718e7945bea19582a488db6eb059ae09a9ca2ef97d42ce31d3111b504c40f9f",
+      "label": "title-load-confirm",
+      "input_digest": "3bb54948faeee947426463cbdf082264f2798fb0808005cbb36307afeb49be0e",
+      "duration_frames": 22000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "LOAD_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "title-load-confirm"
+      ],
+      "scenario_ref": "title-load-confirm",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 A (LOAD GAME) \u2192 A (confirm slot) \u2192 fade \u2192 LOADING \u2192 HOUSE free-roam;\ncapture the fade-out, the loading bracket, and the first playable HOUSE frames\nfor transition + in-game-arrival parity vs retail.\n"
+      }
+    },
+    "dddb0427d261105f29d5c8073aa7f0619cd9c45e76ff4e055b005d250079e975": {
+      "edge_id": "dddb0427d261105f29d5c8073aa7f0619cd9c45e76ff4e055b005d250079e975",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "d718e7945bea19582a488db6eb059ae09a9ca2ef97d42ce31d3111b504c40f9f",
+      "label": "title-load-picker",
+      "input_digest": "5a0cbac90c3213f081571fdaa4e0186b609d05d8b104ee582b4c1bc1ca98bddb",
+      "duration_frames": 4000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "LOAD_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "title-load-picker"
+      ],
+      "scenario_ref": "title-load-picker",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 A (LOAD GAME) \u2192 continue/load slot picker; capture the slide-in +\nsteady picker grid for render parity vs retail.\n"
+      }
+    },
+    "ca192bd775a68fe32cfcad236a55ff33e6a8d8b730535ccfb0ef1398c002da85": {
+      "edge_id": "ca192bd775a68fe32cfcad236a55ff33e6a8d8b730535ccfb0ef1398c002da85",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "6baa4ee1b8291db7184ea3c9ef27385acd0e6345a30de841204fb4a5e9a58cb9",
+      "label": "title-options",
+      "input_digest": "c43e3ecc4c9922d49f7624272de68a12ccc430f3e1d0edae1d857eaeca42fb7b",
+      "duration_frames": 80,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "OPTIONS_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-options"
+      ],
+      "scenario_ref": "title-options",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 DOWN\u00d72 \u2192 A \u2192 settings panel slides in (FUN_0049c050 render)"
+      }
+    },
+    "4089d7e074dd0654070895a9b0bf2589461c3947fd9961982811f9995d919341": {
+      "edge_id": "4089d7e074dd0654070895a9b0bf2589461c3947fd9961982811f9995d919341",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "ef298df35acca19ab4b19b9566d00510da121fade0f6af59ca5ac3556b593557",
+      "label": "title-picker-cancel",
+      "input_digest": "849bf3800d17e45c6d7386716f7c3d43a03fb71ba8324e74fc1897541535626a",
+      "duration_frames": 600,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "PICKER_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {},
+      "action_tags": [
+        "title-picker-cancel"
+      ],
+      "scenario_ref": "title-picker-cancel",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 A (open LOAD GAME picker) \u2192 B (back out) \u2192 DOWN. The post-cancel\nDOWN must move the main-menu cursor; proves the back-out re-opens input.\n"
+      }
+    },
+    "bfa7766c9a95e786f8214f96e8bd4cfc59af5ee4725d9aa1b8246ae787e6c4bf": {
+      "edge_id": "bfa7766c9a95e786f8214f96e8bd4cfc59af5ee4725d9aa1b8246ae787e6c4bf",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "69840486981e50b0468a969101266cf04ba74bce197bd2df28765edf96b807ff",
+      "label": "title-records",
+      "input_digest": "9bf4b5525ae6c07928398b8d233236c50f9e03999371d7f7605f76f75041372b",
+      "duration_frames": 8000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "RECORDS_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-records"
+      ],
+      "scenario_ref": "title-records",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 DOWN\u00d72 \u2192 A \u2192 Records screen (crafted records, populated 1:1)"
+      }
+    },
+    "beaa738b9621c6ebcf2ccf3516aa649f39826db70a9689f5a3b3a52e04372dc3": {
+      "edge_id": "beaa738b9621c6ebcf2ccf3516aa649f39826db70a9689f5a3b3a52e04372dc3",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "3511a2aa2f28bb042c2e4044dd65c08108ae51e882143b4049144e46b774a81f",
+      "label": "title-survival",
+      "input_digest": "f8b57c6b8c58a76a3f9e40afcc023986b53f190abd2575f236c299403e04d938",
+      "duration_frames": 8000,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "SURVIVAL_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-survival"
+      ],
+      "scenario_ref": "title-survival",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Title \u2192 UP \u2192 A \u2192 Survival difficulty selector (Hell/Normal, 1:1)"
+      }
+    },
+    "637f0114ffdda34c86071bf53d8b33ec619816e6aa4723dbebe9507420eafb7e": {
+      "edge_id": "637f0114ffdda34c86071bf53d8b33ec619816e6aa4723dbebe9507420eafb7e",
+      "src_node_id": "420125726eb93ab5a4b3bdf14d6ebb578be14f1486ed4c0b275d4799250772e5",
+      "dst_node_id": "19eb0b706d95ea8d3ccc07902b0430a53ae94d47506e57e5cc2a15691610c7bd",
+      "label": "title-z-press",
+      "input_digest": "9c51f57a887c740d21572fa92e145232155e8cba9138dd4536a51a54d1eb9d25",
+      "duration_frames": 120,
+      "completion_condition": {
+        "kind": "anchor_reached",
+        "anchor": "Z_READY",
+        "occurrence": 1
+      },
+      "normalization_policy": {
+        "rngseed": 1
+      },
+      "action_tags": [
+        "title-z-press"
+      ],
+      "scenario_ref": "title-z-press",
+      "proof_id": null,
+      "coverage_delta": {
+        "functions": [],
+        "blocks": [],
+        "transitions": [],
+        "opcodes": []
+      },
+      "status": "port_verified",
+      "metadata": {
+        "description": "Z (button A) press at frame 30 \u2192 select countdown \u2192 dispatch at 44 \u2192 fade-OUT, then placeholder INGAME fades in"
+      }
+    }
+  },
+  "entry_nodes": [
+    "5656956b639d4b86363dbe7563ed543452686a5038b08d7f3293c9db5741e6eb"
+  ],
+  "action_grammars": {
+    "customer_service": {
+      "scene": "customer_service",
+      "description": "Customer transaction, haggling, and counter service interactions",
+      "preconditions": [
+        "anchor == 'CUSTOMER_SERVICE_ENTER' || cc08 == 4"
+      ],
+      "actions": {
+        "accept_offer": {
+          "semantic_intent": "Accept customer offer at current proposed price",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "cc08 == 0 || b534 == 0"
+          }
+        },
+        "reject_offer": {
+          "semantic_intent": "Reject transaction or refuse to sell item",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "B"
+              ],
+              "mask": 32
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "b534 == 0"
+          }
+        },
+        "advance_dialogue": {
+          "semantic_intent": "Advance customer speech bubble text",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            }
+          ],
+          "expected_completion": {
+            "kind": "dialogue_advance"
+          }
+        }
+      }
+    },
+    "house_pause": {
+      "scene": "house_pause",
+      "description": "In-house pause menu and save picker interactions",
+      "preconditions": [
+        "anchor == 'HOUSE_FREEROAM' || anchor == 'PAUSE_OPEN'"
+      ],
+      "actions": {
+        "open_pause": {
+          "semantic_intent": "Press ESC to open in-game pause menu",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "ESC"
+              ],
+              "mask": 256
+            }
+          ],
+          "expected_completion": {
+            "kind": "anchor_reached",
+            "anchor": "PAUSE_OPEN"
+          }
+        },
+        "navigate_to_save": {
+          "semantic_intent": "Navigate down 3 times to Save option",
+          "inputs": [
+            {
+              "frame": 5,
+              "buttons": [
+                "DOWN"
+              ],
+              "mask": 4
+            },
+            {
+              "frame": 10,
+              "buttons": [
+                "DOWN"
+              ],
+              "mask": 4
+            },
+            {
+              "frame": 15,
+              "buttons": [
+                "DOWN"
+              ],
+              "mask": 4
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "pause_cursor == 3"
+          }
+        },
+        "open_save_picker": {
+          "semantic_intent": "Open save slot picker",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            }
+          ],
+          "expected_completion": {
+            "kind": "anchor_reached",
+            "anchor": "SAVE_PICKER_READY"
+          }
+        },
+        "commit_save_slot": {
+          "semantic_intent": "Confirm overwrite and commit save to selected slot",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            },
+            {
+              "frame": 15,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            }
+          ],
+          "expected_completion": {
+            "kind": "save_committed"
+          }
+        }
+      }
+    },
+    "title_menu": {
+      "scene": "title_menu",
+      "description": "Title screen menu navigation and option selection",
+      "preconditions": [
+        "anchor == 'TITLE_MENU' || anchor == 'TITLE_BOOT'"
+      ],
+      "actions": {
+        "navigate_down": {
+          "semantic_intent": "Move title menu cursor down by one slot",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "DOWN"
+              ],
+              "mask": 4
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "cursor_pos == old + 1"
+          }
+        },
+        "navigate_up": {
+          "semantic_intent": "Move title menu cursor up by one slot",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "UP"
+              ],
+              "mask": 1
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "cursor_pos == old - 1"
+          }
+        },
+        "select_option": {
+          "semantic_intent": "Confirm selected title menu option",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "A"
+              ],
+              "mask": 16
+            }
+          ],
+          "expected_completion": {
+            "kind": "anchor_reached",
+            "anchor": "OPTIONS_MENU_READY"
+          }
+        },
+        "dismiss_submenu": {
+          "semantic_intent": "Back out of active title submenu",
+          "inputs": [
+            {
+              "frame": 0,
+              "buttons": [
+                "B"
+              ],
+              "mask": 32
+            }
+          ],
+          "expected_completion": {
+            "kind": "state_predicate",
+            "predicate": "submenu_state == 0"
+          }
+        }
+      }
+    }
+  }
+}

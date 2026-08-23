@@ -7,6 +7,54 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-23 — CV-01 — Offline Ghidra & Static RE Index Platform (Workstream CV)
+
+Roadmap §8 CV-01 ("export an offline Ghidra index").
+
+- **Headless Ghidra Index Post-Script (`tools/ghidra-scripts/ExportGhidraIndex.java`):** Implemented a deterministic Java headless export post-script leveraging Ghidra's `BasicBlockModel`, `Listing`, and `ReferenceManager` APIs to extract complete static program structures:
+  - Functions with entry VA, name, size, thunk status, calling convention, return type, parameter count, and machine code byte SHA-256 hash.
+  - Basic Blocks with start VA, end VA, size, instruction count, owning function VA, flow type (`FALL_THROUGH`, `CONDITIONAL_JUMP`, `UNCONDITIONAL_JUMP`, `RETURN`, `COMPUTED_JUMP`, `TERMINAL`), entry flag, and exit flag.
+  - Control Flow Graph (CFG) flow edges with source VA, destination VA, owning function VA, and flow classification (`FALL_THROUGH`, `BRANCH_TAKEN`, `UNCONDITIONAL_JUMP`, `RETURN`).
+  - Call edges (direct and indirect) with caller VA, callee VA, call site instruction VA, and call type.
+  - Memory and global data cross-references with access classifications (`READ`, `WRITE`, `DATA`).
+  - String cross-references with string names, target VAs, and decoded ASCII string literals.
+  - Switch / jump tables with function VA, switch site VA, case indices, and branch targets.
+  - Manifest with schema version `cv01-v1.0`, executable SHA-256, and entity counts.
+- **Headless Runner Script (`tools/ghidra-headless.sh`):** Extended to support export modes `--all`, `--index`, and `--decompile` with pre-flight verification of both `ExportDecompiledC.java` and `ExportGhidraIndex.java`.
+- **High-Performance Static x86 Binary & CFG Parser (`tools/re_index.py`):** Implemented a pure-Python x86-32 instruction length/branch decoder and PE section parser capable of indexing all 2,620 functions, 55,343 basic blocks, 82,167 CFG flow edges, 23,436 call edges, 5,794 global xrefs, and 1,300 string xrefs from `recettear.unpacked.exe` in under 600ms, completely removing the dependency on heavy runtime analysis tools.
+- **Extended SQLite Schema & Query Engine (`tools/re_index.py`):** Expanded `docs/re-index.sqlite` schema with `blocks`, `flows`, `calls`, `data_xrefs`, `global_xrefs`, `string_xrefs`, `switch_cases`, and `metadata` tables backed by composite primary keys and B-tree indexes. Added Python query APIs and CLI subcommands:
+  - `re_index.py blocks <va>`: inspects basic blocks within function.
+  - `re_index.py flows <va>`: inspects CFG flow edges (fall-through vs branch-taken).
+  - `re_index.py switches [<va>]`: inspects switch jump tables and case targets.
+  - `re_index.py data-xrefs <va|DAT>`: inspects data read/write cross-references.
+  - `re_index.py hash <va>`: returns machine code SHA-256 byte hash.
+  - `re_index.py export-json [--out <dir>]`: exports deterministic JSON tables.
+  - `re_index.py import-json <dir>`: imports JSON tables into SQLite index.
+- **Coverage Atlas Integration (`tools/coverage_atlas.py`):** Integrated static basic block queries into CV-08 coverage truth calibration (Factor 3: CFG Structural Validity), verifying Stalker dynamic coverage blocks directly against the static basic block database.
+- **Verification (`tools/test_re_index.py`):** Added comprehensive test coverage for basic block queries, CFG flow edges, data xref access types, byte hashes, JSON export/import round-trips, and CLI commands (16/16 tests passing, 44/44 Python test suites passing, 3,449/3,449 C host tests passing).
+
+## 2026-08-23 — CC-03 — Observed Capsule Corpus Expansion (Workstream CC)
+
+Roadmap §11 CC-03 ("expand observed capsule corpus").
+
+- **Corpus Target Expansion:** Expanded the canonical observed call capsule corpus from 5 to 12 verified targets across all major gameplay subsystems:
+  1. `stage_gate_boss_id_allowed` (`FUN_00431990`): pure leaf boss ID range predicate.
+  2. `stage_gate_floor_is_checkpoint` (`FUN_0043195d`): known globals reader for checkpoint floor calculation.
+  3. `rng_next15` (`FUN_005041f6`): LCG pseudo-random number generator consumer and state mutator.
+  4. `records_a_spawn` / `scene1_spawn_particle` (`FUN_00447f4f`): dust/anchor particle in-place struct & arena allocation.
+  5. `audio_fade_compute` (`FUN_00499583`): pure cosine-curve audio volume formula.
+  6. `haggle_decide` (`FUN_00460672`): pure leaf price decision evaluator (ACCEPT=1, COUNTER=2, REJECT=0).
+  7. `haggle_budget_ceiling` (`FUN_0045ecc0`): customer hard budget ceiling calculation.
+  8. `audio_is_one_shot_track` (`FUN_00498ef4`): pure leaf BGM track looping predicate (tracks 10, 11, 13, 19).
+  9. `customer_service_pushback_patience` (`FUN_00460f16`): pushback line and patience variant selection based on customer loyalty.
+  10. `customer_service_budget_level_day` (`FUN_00461011`): customer budget calculation scaled by active shop day and loyalty rank.
+  11. `tables_item_find_slot_by_id` (`FUN_004681f6`): high fan-in (41 callers) item ID to record slot lookup.
+  12. `chara_equip_item_stats` (`FUN_0048093f`): in-place 4-attribute stat accumulation and enchantment bonus distribution.
+- **C Host ABI Shims (`src/diff_entry.h`, `src/diff_entry.c`, `tests/build/libengine_diff.so`):** Implemented native host ABI entry points (`engine_haggle_decide`, `engine_haggle_budget_ceiling`, `engine_audio_is_one_shot_track`, `engine_customer_service_pushback_patience`, `engine_customer_service_budget_level_day`, `engine_tables_item_find_slot_by_id`, `engine_chara_equip_item_stats`), updated `DIFF_SRCS` in `tests/Makefile`, and resolved stub requirements in `tests/diff_stubs.c`.
+- **Native Differential Replay Adapter (`tools/parity/host_diff_adapter.py`):** Added ctypes structure bindings, CDLL signatures, and native execution logic for all 12 targets with full bit-exact verification against ported C routines.
+- **Corpus Fixture Storage (`docs/schemas/fixtures/capsules/`):** Exported and validated all 12 content-addressed JSON fixtures conforming to `call-capsule-v1.json`, including complete scenario and caller distribution provenance.
+- **Testing (`tools/test_capsule_adapter.py`, `tools/test_capsule_capture.py`):** Expanded test suite to 31 tests in `test_capsule_adapter.py` and 13 tests in `test_capsule_capture.py`, verifying schema conformance, native C execution, boundary mutation probing, and deliberate divergence detection fail-closed across all 12 targets.
+
 ## 2026-08-22 — Arc 2 — Autonomous Day-2 Play-Through & Subsystem Integration (Arc 2 Complete)
 
 Autonomous Day-2 play-through and lifecycle validation (`tests/test_day2_playthrough.c`, `tools/test_day2_autonomous.py`).

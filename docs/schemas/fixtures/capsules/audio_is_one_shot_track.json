@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "capsule_id": "3a8efc14d7322fc45bbfdc2a03cb1a9443732f1076ccfc303b637230fbe3d4b1",
+  "target_va": "0x00498ef4",
+  "target_symbol": "audio_is_one_shot_track",
+  "caller_va": "0x00499250",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    10
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": 1,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-pause-save-commit",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "caller_distribution": "audio_track_swap",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

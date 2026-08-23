@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Francesco149/openrecet/master/docs/schemas/call-capsule-v1.json",
+  "title": "OpenRecet Call Capsule Schema v1",
+  "description": "CC-00 observed call capsule ABI, pointed-object memory model, and execution envelope specification.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "capsule_id",
+    "target_va",
+    "abi",
+    "category",
+    "prestate",
+    "poststate",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Call Capsule schema version major (always 1)."
+    },
+    "capsule_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Deterministic SHA-256 digest computed over canonical capsule inputs and invocation preimage."
+    },
+    "target_va": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{6,8}$",
+      "description": "Target retail function virtual address (e.g. 0x005041f6)."
+    },
+    "target_symbol": {
+      "type": "string",
+      "description": "Optional human-readable symbol or function name (e.g. rng_next15, cs_accept_eval)."
+    },
+    "caller_va": {
+      "type": ["string", "null"],
+      "pattern": "^(0x[0-9a-fA-F]{6,8})?$",
+      "description": "Observed caller return address (e.g. 0x00470184)."
+    },
+    "abi": {
+      "type": "string",
+      "enum": ["cdecl", "stdcall", "thiscall", "fastcall"],
+      "description": "Observed x86-32 calling convention."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "pure_leaf",
+        "known_globals",
+        "struct_mutation",
+        "rng_consumer",
+        "unsupported_os_call"
+      ],
+      "description": "Architectural classification of the call capsule."
+    },
+    "registers_in": {
+      "type": "object",
+      "description": "CPU and FPU register state at function entry.",
+      "additionalProperties": true,
+      "properties": {
+        "eax": {"type": ["integer", "string"]},
+        "ecx": {"type": ["integer", "string"]},
+        "edx": {"type": ["integer", "string"]},
+        "ebx": {"type": ["integer", "string"]},
+        "esi": {"type": ["integer", "string"]},
+        "edi": {"type": ["integer", "string"]},
+        "ebp": {"type": ["integer", "string"]},
+        "esp": {"type": ["integer", "string"]},
+        "flags": {"type": ["integer", "string"]},
+        "x87_st0": {"type": ["number", "string", "null"]},
+        "x87_st1": {"type": ["number", "string", "null"]},
+        "x87_st2": {"type": ["number", "string", "null"]},
+        "x87_st3": {"type": ["number", "string", "null"]},
+        "x87_st4": {"type": ["number", "string", "null"]},
+        "x87_st5": {"type": ["number", "string", "null"]},
+        "x87_st6": {"type": ["number", "string", "null"]},
+        "x87_st7": {"type": ["number", "string", "null"]}
+      }
+    },
+    "stack_args": {
+      "type": "array",
+      "description": "Ordered 32-bit stack arguments passed at invocation (param 0 = stack_args[0]).",
+      "items": {}
+    },
+    "pointed_objects": {
+      "type": "object",
+      "description": "Memory snapshot of heap, stack, or arena objects referenced by pointers in args/registers.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["base_ptr", "size_bytes"],
+        "properties": {
+          "base_ptr": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{6,8}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]*$"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "relocations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "prestate": {
+      "type": "object",
+      "description": "Relevant global variables, working arena fields, or RNG state prior to execution.",
+      "additionalProperties": true
+    },
+    "return_val": {
+      "description": "Function return value (integer, float, pointer address, or null for void)."
+    },
+    "registers_out": {
+      "type": "object",
+      "description": "CPU and FPU registers modified or returned by the function.",
+      "additionalProperties": true
+    },
+    "ordered_writes": {
+      "type": "array",
+      "description": "Ordered sequence of memory writes observed during function execution.",
+      "items": {
+        "type": "object",
+        "required": ["seq", "addr", "new"],
+        "properties": {
+          "seq": {"type": "integer", "minimum": 0},
+          "addr": {"type": "string"},
+          "type": {"type": "string", "enum": ["u8", "i8", "u16", "i16", "u32", "i32", "f32", "f64", "hex", "bytes"]},
+          "old": {},
+          "new": {},
+          "owner_va": {"type": "string"}
+        }
+      }
+    },
+    "external_calls": {
+      "type": "array",
+      "description": "Nested external function calls or sub-dispatches made during execution.",
+      "items": {
+        "type": "object",
+        "required": ["seq", "target_va"],
+        "properties": {
+          "seq": {"type": "integer", "minimum": 0},
+          "target_va": {"type": "string", "pattern": "^0x[0-9a-fA-F]{6,8}$"},
+          "args": {"type": "array"},
+          "return_val": {}
+        }
+      }
+    },
+    "poststate": {
+      "type": "object",
+      "description": "Modified globals, working arena values, or RNG state after function completion.",
+      "additionalProperties": true
+    },
+    "relocation_map": {
+      "type": "object",
+      "description": "Mapping from retail memory pointers to relative sandbox buffers.",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["scenario", "retail_build_sha256"],
+      "properties": {
+        "scenario": {"type": "string"},
+        "logical_frame": {"type": "string"},
+        "retail_build_sha256": {"type": "string"},
+        "proof_id": {"type": ["string", "null"]},
+        "status": {"type": "string", "enum": ["observed", "synthetic", "certified", "unsupported"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "capsule_id": "a1fc6da5788fa68305921aa83ba90a1d6e0b501dd268dc8d97e40e082782925d",
+  "target_va": "0x0045ecc0",
+  "target_symbol": "haggle_budget_ceiling",
+  "caller_va": "0x0045ed40",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    3000,
+    500,
+    5000
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": 5000,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-arrprobe",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "caller_distribution": "customer_service_budget_calc",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

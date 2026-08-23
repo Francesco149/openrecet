@@ -11,8 +11,10 @@ conventions; deeper detail lives in `docs/` (pointers below). **The repo is the 
 truth, not the uncommitted auto-memory.**
 
 ## Fast orientation recipe (run on session start / after /clear)
+0. **Harness & Model Environment (OMP + Gemini 3.7 Flash):** We run under the Oh My Pi (`omp`) coding harness with Google Gemini 3.7 Flash (tiered reasoning). ALWAYS run commands in the Nix dev environment via `nix develop --command <cmd>` (or enter `nix develop`). Raw host shell lacks `python3`, `mingw32`, `make`, `ghidra`, `frida`, and test toolchains. Gemini 3.7 Flash is natively multimodal (`input: [text, image]`) — `read` of any image file (.png/.jpg) delivers native images directly into context without external fallback.
 1. `git log -n 3 --oneline` — instant ground truth of the latest commits/micro-task.
 2. `read docs/FRONT.md:1-60` — the active fronts and pinned `★ NEXT MICRO-TASK`.
+3. **Pending Human Verifications:** Check and notify of any items gated by human verification (eyeball/feel/game knowledge). For eyeball checks in the Trace Studio viewer, ALWAYS include the exact 1-command line with `--launch` that points the viewer to the correct trace, materializes/slices the window, and starts it on Windows: `nix develop --command python3 tools/trace_studio_v3/orv3_window.py <scenario> --window <OFFSET>:<COUNT> --launch` (or `cmd.exe /c C:\openrecet-studio\open-studio.bat`). Notify at the end of every session until unblocked, prioritizing items that unblock the largest downstream scope of work.
 
 ## Current front & plans
 → `docs/FRONT.md` (the ONE hand-edited "current front") which is injected into
@@ -205,6 +207,13 @@ Long-horizon proof/coverage/tooling program: `docs/plans/parity-evidence-roadmap
   conventions, harness facts — lives HERE (or `docs/`), not in `~/.claude` auto-memory**
   (which stays thin + pointer-only). If you catch yourself writing a process fact to
   auto-memory, put it in this file instead and leave only a pointer in memory.
+- **HUMAN VERIFICATION QUEUE & FRICTIONLESS TEST SETUPS (standing policy):**
+  For anything gated by human verification (eyeball, visual alignment, animation feel, gameplay feel, subjective game knowledge, or audio/input verification):
+  1. **Prepare a frictionless test setup & trace viewer launch:** Never ask the human to manually configure, poke, or reconstruct state. For eyeball checks in the Trace Studio viewer, ALWAYS provide the exact 1-command line with `--launch` that points the viewer to the correct trace, materializes/slices the window, updates the desktop shortcut pointer (`C:\openrecet-studio\studio-current.txt`), and starts the native Windows viewer (`viewer.exe`) on the user's desktop with the relevant frames loaded side-by-side:
+     `nix develop --command python3 tools/trace_studio_v3/orv3_window.py <scenario> --window <OFFSET>:<COUNT> --launch`
+     (or `cmd.exe /c C:\openrecet-studio\open-studio.bat` if the window is already materialized). Clearly state the exact expected behavior vs divergence to save maximum human time.
+  2. **Active Notification Queue:** Proactively notify the user of all pending human verifications at the conclusion of every session until they are resolved and unblocked.
+  3. **Priority Order:** Rank and report pending items prioritized by the impact/scope of work they unblock (e.g. blocker on core game loop / major subsystem > isolated cosmetic effect).
 
 ## Run / build (host tools need `nix develop --command` prefix)
 - **There is NO bare `python3`/`pip` on this NixOS box.** Every Python/host-tool
@@ -265,8 +274,8 @@ Long-horizon proof/coverage/tooling program: `docs/plans/parity-evidence-roadmap
   `docs/reference/decompile-gotchas.md` — the 17 burned-us-once gotchas (Ghidra FPU drops,
   enum value-vs-name, bit-pattern literals, probe timing, diff-before-theories).
 - **Orchestration / reasoning tiers / delegation:** `docs/AGENT-WORKFLOW.md`.
+- **Standing conventions & feedback registry (in-repo truth for all models):** `docs/reference/standing-conventions.md`.
 - **Docs ownership/staleness:** `docs/DOCUMENTATION.md`.
-- **Active plan:** `docs/plans/`. **Project charter:** `docs/PLAN.md`.
   **Long-horizon evidence/tooling program:** `docs/plans/parity-evidence-roadmap.md`.
   **Historical harness phases:** `docs/harness-roadmap.md`.
   **Methodology/tooling audit (settled strategy verdicts +

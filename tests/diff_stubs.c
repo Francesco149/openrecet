@@ -41,4 +41,11 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub)
  * real TUs in.  g_scene1_combat_stage_id IS injected by the checkpoint
  * target — diff_entry.c writes it directly. */
 int32_t g_scene1_combat_stage_id;
+int32_t g_scene1_combat_damage_base_idle;
+int32_t g_scene1_combat_damage_base_idle2;
+
+int audio_is_one_shot_track(int track)
+{
+    return track == 10 || track == 11 || track == 13 || track == 19;
+}
 enemylist_state_t g_enemylist;

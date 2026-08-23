@@ -3869,9 +3869,9 @@ function v3ArmOnAnchor(name, frame) {
     }
     if (!g_v3_arm_fn) {
         const m = Process.findModuleByName('d3d8.dll');
-        const fn = m ? m.findExportByName('OrV3ArmWindowAt') : null;
+        const fn = m ? (m.findExportByName('OrV3ArmWindowAt') || m.findExportByName('_OrV3ArmWindowAt@8')) : null;
         if (!fn) {
-            log('v3_arm: OrV3ArmWindowAt not found (proxy d3d8.dll not staged?) — skipped');
+            log('v3_arm: OrV3ArmWindowAt not found — skipped');
             g_v3_arm_fired = true;   // don't re-probe every anchor
             return;
         }
@@ -6294,10 +6294,42 @@ rpc.exports = {
         g_v3_arm_fn = null;
         g_v3_arm_fired = false;
         g_v3_arm_count = 0;
-        g_v3_shutdown_frame = 0;
-        if (g_v3_arm) g_anchor_trace_enabled = true;
-
-        // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
+        if (g_v3_arm) {
+            g_anchor_trace_enabled = true;
+            try {
+                const proxyPath = g_v3_arm.proxy_dll || 'd3d8.dll';
+                let proxyMod = null;
+                for (const cand of [
+                    proxyPath,
+                    'C:\\openrecet-studio\\d3d8.dll',
+                    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Recettear\\d3d8.dll',
+                    'd3d8.dll'
+                ]) {
+                    try {
+                        proxyMod = Module.load(cand);
+                        if (proxyMod && proxyMod.findExportByName('OrV3ArmWindowAt')) break;
+                    } catch (e) {}
+                }
+                if (proxyMod) {
+                    const proxyArm = proxyMod.findExportByName('OrV3ArmWindowAt') || proxyMod.findExportByName('_OrV3ArmWindowAt@8');
+                    const proxyCreate = proxyMod.findExportByName('Direct3DCreate8') || proxyMod.findExportByName('_Direct3DCreate8@4');
+                    if (proxyArm) {
+                        g_v3_arm_fn = new NativeFunction(proxyArm, 'void', ['uint', 'uint'], 'stdcall');
+                        log('v3_arm: resolved OrV3ArmWindowAt from ' + proxyMod.path);
+                    }
+                    if (proxyCreate) {
+                        const sysD3d = Process.findModuleByName('d3d8.dll');
+                        const realCreate = sysD3d ? sysD3d.findExportByName('Direct3DCreate8') : Module.findExportByName(null, 'Direct3DCreate8');
+                        if (realCreate && realCreate.toString() !== proxyCreate.toString()) {
+                            Interceptor.replace(realCreate, proxyCreate);
+                            log('v3_arm: redirected Direct3DCreate8 -> ' + proxyMod.path);
+                        }
+                    }
+                }
+            } catch (e) {
+                log('v3_arm: proxy init warning: ' + e);
+            }
+        }
         // with auto_z_spam to drive a fresh new-game to HOUSE.
         // dump_records_b_offsets is an optional list of frame offsets from
         // the anchor (default [0, 30, 120, 300]; sorted ascending so the
@@ -7206,5 +7238,188 @@ rpc.exports = {
     },
     getCoverage: function () {
         return getCoverageReport();
+    },
+
+    // CC-01 — Generic known-write call capsule capture RPC.
+    // Snapshots declared globals and pointed objects, injects inputs,
+    // calls the target function via NativeFunction under designated ABI,
+    // captures return value / poststate / ordered writes, and restores
+    // all memory bit-for-bit in a finally block.
+    captureCallCapsule: function (spec) {
+        if (!g_diff_test_enabled) {
+            throw new Error('captureCallCapsule: diff_test mode required (init with diff_test: true)');
+        }
+        ensureBase();
+        spec = spec || {};
+        const targetVa = spec.target_va;
+        if (!targetVa) throw new Error('captureCallCapsule: target_va required');
+
+        const declaredGlobals = spec.declared_globals || {};
+        const declaredObjects = spec.declared_objects || {};
+        const savedGlobals = {};
+        const savedObjects = {};
+
+        // 1. Snapshot declared state
+        for (const gKey in declaredGlobals) {
+            const g = declaredGlobals[gKey];
+            const p = rva(parseInt(g.addr || gKey, 16));
+            const t = g.type || 'u32';
+            if (t === 'f32') savedGlobals[gKey] = p.readFloat();
+            else if (t === 's32') savedGlobals[gKey] = p.readS32();
+            else if (t === 'u16') savedGlobals[gKey] = p.readU16();
+            else if (t === 's16') savedGlobals[gKey] = p.readS16();
+            else if (t === 'u8')  savedGlobals[gKey] = p.readU8();
+            else savedGlobals[gKey] = p.readU32();
+        }
+
+        for (const objKey in declaredObjects) {
+            const obj = declaredObjects[objKey];
+            const p = ptr(obj.base_ptr || '0x01000000');
+            const sz = (obj.size_bytes | 0) || 64;
+            savedObjects[objKey] = p.readByteArray(sz);
+        }
+
+        const prestateSnap = {};
+        const pointedSnap = {};
+
+        try {
+            // 2. Inject declared inputs
+            for (const gKey in declaredGlobals) {
+                const g = declaredGlobals[gKey];
+                const p = rva(parseInt(g.addr || gKey, 16));
+                const t = g.type || 'u32';
+                if (g.val !== undefined) {
+                    if (t === 'f32') p.writeFloat(Number(g.val));
+                    else if (t === 's32') p.writeS32(g.val | 0);
+                    else if (t === 'u16') p.writeU16((g.val | 0) & 0xffff);
+                    else if (t === 's16') p.writeS16(g.val | 0);
+                    else if (t === 'u8')  p.writeU8((g.val | 0) & 0xff);
+                    else p.writeU32((g.val >>> 0));
+                }
+                if (t === 'f32') prestateSnap[gKey] = p.readFloat();
+                else if (t === 's32') prestateSnap[gKey] = p.readS32();
+                else prestateSnap[gKey] = p.readU32();
+            }
+
+            for (const objKey in declaredObjects) {
+                const obj = declaredObjects[objKey];
+                const p = ptr(obj.base_ptr || '0x01000000');
+                const sz = (obj.size_bytes | 0) || 64;
+                if (obj.initial_bytes && Array.isArray(obj.initial_bytes)) {
+                    p.writeByteArray(obj.initial_bytes);
+                }
+                pointedSnap[objKey] = {
+                    base_ptr: obj.base_ptr,
+                    size_bytes: sz,
+                    fields: obj.fields || {},
+                };
+            }
+
+            // 3. Prepare function signature and invoke
+            const retType = spec.return_type || 'int';
+            const argTypes = spec.arg_types || [];
+            const abi = spec.abi || 'cdecl';
+            const fn = new NativeFunction(rva(parseInt(targetVa, 16)), retType, argTypes, abi);
+
+            const rawArgs = spec.args || [];
+            const marshaledArgs = rawArgs.map(function (a, idx) {
+                const at = argTypes[idx] || 'int';
+                if (at === 'pointer' && typeof a === 'string') return ptr(a);
+                return a;
+            });
+
+            const rawRet = fn.apply(null, marshaledArgs);
+            let retVal = rawRet;
+            if (retType === 'void') retVal = null;
+            else if (retType === 'int' || retType === 's32') retVal = rawRet | 0;
+            else if (retType === 'uint32' || retType === 'u32') retVal = rawRet >>> 0;
+
+            // 4. Capture poststate
+            const poststateSnap = {};
+            for (const gKey in declaredGlobals) {
+                const g = declaredGlobals[gKey];
+                const p = rva(parseInt(g.addr || gKey, 16));
+                const t = g.type || 'u32';
+                if (t === 'f32') poststateSnap[gKey] = p.readFloat();
+                else if (t === 's32') poststateSnap[gKey] = p.readS32();
+                else poststateSnap[gKey] = p.readU32();
+            }
+
+            // Derive ordered writes from object differences
+            const orderedWrites = [];
+            let writeSeq = 0;
+            for (const objKey in declaredObjects) {
+                const obj = declaredObjects[objKey];
+                const p = ptr(obj.base_ptr || '0x01000000');
+                const sz = (obj.size_bytes | 0) || 64;
+                const origBuf = new Uint8Array(savedObjects[objKey]);
+                const currBuf = new Uint8Array(p.readByteArray(sz));
+                const baseAddr = parseInt(obj.base_ptr || '0x01000000', 16);
+
+                for (let off = 0; off + 4 <= sz; off += 4) {
+                    let diff = false;
+                    for (let b = 0; b < 4; b++) {
+                        if (origBuf[off + b] !== currBuf[off + b]) { diff = true; break; }
+                    }
+                    if (diff) {
+                        const oldVal = (origBuf[off] | (origBuf[off+1] << 8) | (origBuf[off+2] << 16) | (origBuf[off+3] << 24));
+                        const newVal = (currBuf[off] | (currBuf[off+1] << 8) | (currBuf[off+2] << 16) | (currBuf[off+3] << 24));
+                        orderedWrites.push({
+                            seq: writeSeq++,
+                            addr: '0x' + (baseAddr + off).toString(16),
+                            type: 'i32',
+                            old: oldVal,
+                            new: newVal,
+                            owner_va: targetVa,
+                        });
+                    }
+                }
+            }
+
+            return {
+                success: true,
+                capsule: {
+                    target_va: targetVa,
+                    target_symbol: spec.target_symbol || ('FUN_' + targetVa.slice(2)),
+                    caller_va: spec.caller_va || '0x00400000',
+                    abi: abi,
+                    category: spec.category || 'pure_leaf',
+                    stack_args: rawArgs,
+                    pointed_objects: pointedSnap,
+                    prestate: prestateSnap,
+                    return_val: retVal,
+                    ordered_writes: orderedWrites,
+                    poststate: poststateSnap,
+                    provenance: Object.assign({}, spec.provenance || {}, {
+                        race_status: spec.race_policy || 'DIFF_TEST_SUSPENDED',
+                        captured_via: 'frida_rpc',
+                    }),
+                },
+            };
+
+        } finally {
+            // 5. Inviolable restore
+            for (const gKey in declaredGlobals) {
+                const g = declaredGlobals[gKey];
+                const p = rva(parseInt(g.addr || gKey, 16));
+                const t = g.type || 'u32';
+                const val = savedGlobals[gKey];
+                if (val !== undefined) {
+                    if (t === 'f32') p.writeFloat(Number(val));
+                    else if (t === 's32') p.writeS32(val | 0);
+                    else if (t === 'u16') p.writeU16((val | 0) & 0xffff);
+                    else if (t === 's16') p.writeS16(val | 0);
+                    else if (t === 'u8')  p.writeU8((val | 0) & 0xff);
+                    else p.writeU32((val >>> 0));
+                }
+            }
+
+            for (const objKey in declaredObjects) {
+                const obj = declaredObjects[objKey];
+                const p = ptr(obj.base_ptr || '0x01000000');
+                const saved = savedObjects[objKey];
+                if (saved) p.writeByteArray(saved);
+            }
+        }
     },
 };

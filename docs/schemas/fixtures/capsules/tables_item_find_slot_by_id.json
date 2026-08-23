@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "capsule_id": "8877186d7423bb681f1d683fd6e367726c2597f02f5badec83ccc445b5630beb",
+  "target_va": "0x004681f6",
+  "target_symbol": "tables_item_find_slot_by_id",
+  "caller_va": "0x004607f3",
+  "abi": "cdecl",
+  "category": "known_globals",
+  "registers_in": {},
+  "stack_args": [
+    3
+  ],
+  "pointed_objects": {},
+  "prestate": {
+    "DAT_005c80ac": 0
+  },
+  "return_val": -1,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {
+    "DAT_005c80ac": 0
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-arrprobe",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "caller_distribution": "cs_dialogue_macro_item_name",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

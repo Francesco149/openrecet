@@ -55,11 +55,13 @@ import retail_capture as rc                                            # noqa: E
 import v3cache                                                         # noqa: E402
 import orv3_state                                                      # noqa: E402
 
-ROOT      = Path(__file__).resolve().parent.parent.parent
-PROXY_SRC = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
-PROXY_DLL = ROOT / "vendor" / "unpacked" / "d3d8.dll"
-SCEN_DIR  = ROOT / "tests" / "scenarios"
-
+ROOT         = Path(__file__).resolve().parent.parent.parent
+PROXY_SRC    = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
+PROXY_DLL    = ROOT / "vendor" / "unpacked" / "d3d8.dll"
+ORIGINAL_DLL = ROOT / "vendor" / "original" / "d3d8.dll"
+UNPACKED_EXE = ROOT / "vendor" / "unpacked" / "recettear.unpacked.exe"
+ORIGINAL_EXE = ROOT / "vendor" / "original" / "recettear.unpacked.exe"
+SCEN_DIR     = ROOT / "tests" / "scenarios"
 
 def wait_occ(trace_path: Path, anchor: str) -> int:
     """The OCCURRENCE of `anchor` the scenario's caprange lands on = the number of
@@ -171,17 +173,33 @@ def main() -> int:
     # Resolve {savefile} → sandboxed save_ref (the replay never touches the real save).
     save_ref = trace_save.resolve_save(trace_path)
 
-    # Stage proxy + armwait cfg. NO capframe: the agent arms the present-window
-    # live at the anchor (config.v3_arm → OrV3ArmWindowAt). armwait makes the proxy
-    # idle (keep nothing) until then. refhash (default): references are fnv1a-64
-    # lines in v3refs.txt + a raw every 500th — the thousands-of-frames shape.
-    shutil.copy2(PROXY_SRC, PROXY_DLL)
-    cfg_path = PROXY_DLL.parent / "v3proxy.cfg"
+    # Stage proxy + armwait cfg in both unpacked and original (C:\ drive) locations.
+    # Spawning from C:\ avoids Windows UNC DLL loading restrictions.
+    try:
+        ORIGINAL_DLL.unlink(missing_ok=True)
+        shutil.copy2(PROXY_SRC, ORIGINAL_DLL)
+    except Exception as e:
+        print(f"[stage] warning: could not copy to {ORIGINAL_DLL}: {e}")
+    try:
+        studio_dll = Path("/mnt/c/openrecet-studio/d3d8.dll")
+        if studio_dll.parent.is_dir():
+            studio_dll.unlink(missing_ok=True)
+            shutil.copy2(PROXY_SRC, studio_dll)
+    except Exception:
+        pass
+
+    try:
+        PROXY_DLL.unlink(missing_ok=True)
+        shutil.copy2(PROXY_SRC, PROXY_DLL)
+    except Exception:
+        pass
+    target_exe = ORIGINAL_EXE if ORIGINAL_EXE.exists() else UNPACKED_EXE
     cfg_lines = ["armwait=1"] + ([] if args.raw_refs else ["refhash=1", "refraw_every=500"])
-    cfg_path.write_text("".join(ln + "\n" for ln in cfg_lines))
+    cfg_text = "".join(ln + "\n" for ln in cfg_lines)
+    (PROXY_DLL.parent / "v3proxy.cfg").write_text(cfg_text)
+    (ORIGINAL_DLL.parent / "v3proxy.cfg").write_text(cfg_text)
     print(f"[stage] {PROXY_DLL.name} + v3proxy.cfg({','.join(cfg_lines)}) → ARM "
           f"{args.anchor}+{args.offset}:{args.count} (agent in-process)")
-
     # Clear stale capture in the proxy's output dir.
     v3 = rc.localappdata_v3()
     v3.mkdir(parents=True, exist_ok=True)
@@ -195,11 +213,6 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     res_w, res_h = rc.openrecet_screen_dims()
-    # OCCURRENCE to arm at: explicit --arm-occ, else AUTO = the count of {wait:<anchor>}
-    # ops in the scenario trace (the segtrace lands the caprange on the Nth firing of
-    # the anchor, so retail must arm there too — else it grabs an earlier cutscene's
-    # firing, e.g. iv1_2's window arming on iv1_1's HOUSE_FREEROAM). ==1 for every
-    # unique-anchor scenario ⇒ no behaviour change there.
     arm_occ = int(args.arm_occ) if args.arm_occ else wait_occ(trace_path, args.anchor)
     v3_arm = {"anchor": args.anchor, "offset": int(args.offset), "count": int(args.count),
               "occ": arm_occ}
@@ -221,6 +234,7 @@ def main() -> int:
     try:
         frida_capture.run_capture(
             scen, run_dir,
+            exe=target_exe,
             remote=args.frida_remote,
             input_segtrace_path=trace_path,
             save_ref=save_ref,
@@ -234,10 +248,23 @@ def main() -> int:
     finally:
         # Unstage the proxy so it can't load into a later v2 scenario-test retail run.
         if not args.keep_proxy:
-            PROXY_DLL.unlink(missing_ok=True)
-            cfg_path.unlink(missing_ok=True)
+            try:
+                PROXY_DLL.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                ORIGINAL_DLL.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                (PROXY_DLL.parent / "v3proxy.cfg").unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                (ORIGINAL_DLL.parent / "v3proxy.cfg").unlink(missing_ok=True)
+            except Exception:
+                pass
             print(f"[stage] unstaged {PROXY_DLL.name}")
-
     # ── pull + report + verify ──
     # The proxy FINALIZEs as the agent terminates retail; the DrvFs write can lag
     # a bare exists() check (race), so wait for the terminal FINALIZE + a settled

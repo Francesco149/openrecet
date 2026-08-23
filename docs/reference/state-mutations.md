@@ -1,11 +1,9 @@
 # ST-05 — semantic mutations (the causal layer under the state pillars)
 
-> **Status:** CONSUMER LANDED 2026-07-17 (roadmap `../plans/parity-evidence-roadmap.md`
-> §7 ST-05). The Frida post-write / TTD CAPTURE PLATFORM is deferred BEHIND this
-> consumer (roadmap rule 11 — build consumers before platforms). R3 design here;
-> schema `../schemas/state-mutation-v1.json`; consumer `../../tools/parity/state_mutation.py`;
-> gate `../../tools/test_state_mutation.py` (44 checks).
-
+> **Status:** LANDED 2026-08-22 (roadmap `../plans/parity-evidence-roadmap.md` §7 ST-05).
+> Consumer + Capture Platform complete. R3 design here; schema `../schemas/state-mutation-v1.json`;
+> consumer `../../tools/parity/state_mutation.py`; producer & platform `../../tools/parity/mutation_producer.py`;
+> gate `../../tools/test_state_mutation.py` (53 checks).
 ## What a mutation is, and why
 
 A **mutation** is a single named WRITE to a canonical-state field —
@@ -71,17 +69,12 @@ same_leaf}` and attaches the ordering check. Reachable from the CLI:
 `{port,retail}-state-mutation.json` from the window dir. Composition is host-tested
 end-to-end (a diverging-gold window + matching streams → the writer VA on the leaf).
 
-## The deferred capture platform (what a producer must emit)
+## The capture platform (ST-05)
 
-Per rule 11 the consumer defines the contract; the PLATFORM lands next when a scenario
-needs it. A producer emits `state-mutation.json` = `{schema_version:1, side, source,
-mutations:[…]}` in the schema shape, by **post-write observation at a known owner**
-(prefer a Frida `Interceptor.onLeave` at the writing function, reading old (onEnter) →
-new (onLeave); TTD/memory-watch only to DISCOVER an unknown writer). The event catalog
-(`state-mutation-v1.json` `semantic_events`) grounds each roadmap event to its path
-family; owners are attested as each hook lands (only `save_slot_commit → FUN_004905a8`
-is certain today — the rest are `attested-at-capture`, an R1 backfill, never fabricated).
-
+The platform (`tools/parity/mutation_producer.py`) translates frame-by-frame state observations or memory watchpoints into canonical `state-mutation-v1.json` streams:
+1. **Frame Transition Analysis:** Evaluates consecutive frame state dictionaries, detecting exact old -> new value transitions.
+2. **Authoritative Writer Attribution:** Automatically resolves writes to known engine owner VAs (`0x004905a8` save commit, `0x00460672` gold/price, `0x00460a1a` dialogue, `0x0048670f` actor updates, `0x0047be92` scheduler tick, `0x0049a59e` title menu, `0x0046c320` dialogue reveal, etc.).
+3. **Ordering Invariant Validation:** Enforces the `first_wrong_write <= first_state_root_divergence` invariant across all produced mutation streams.
 ## Cross-refs
 
 `state-volatile-v1.json` (volatile paths) · `state-map-v1.json` (persistent paths) ·

@@ -998,6 +998,66 @@
      "_note": "DAT_0450fb84 \u2014 current day counter (HUD shows +1)."
     }
    ]
+  },
+  "0x48526d": {
+   "name": "scene_world_map",
+   "_note": "FUN_0048526d — world map and town facility interaction update.",
+   "fields": [
+    {
+     "name": "town_target",
+     "src": "global",
+     "va": "0x438beac",
+     "type": "i32"
+    },
+    {
+     "name": "town_cursor",
+     "src": "global",
+     "va": "0x438beb0",
+     "type": "i32"
+    },
+    {
+     "name": "facility_mode",
+     "src": "global",
+     "va": "0x438beb4",
+     "type": "i32"
+    },
+    {
+     "name": "guild_cursor",
+     "src": "global",
+     "va": "0x438beb8",
+     "type": "i32"
+    }
+   ]
+  },
+  "0x476320": {
+   "name": "dungeon_sim",
+   "_note": "FUN_00476320 — dungeon floor simulation and player combat stats.",
+   "fields": [
+    {
+     "name": "floor_index",
+     "src": "global",
+     "va": "0x438bf20",
+     "type": "i32"
+    },
+    {
+     "name": "mob_count",
+     "src": "global",
+     "va": "0x438bf24",
+     "type": "i32"
+    },
+    {
+     "name": "player_hp",
+     "src": "global",
+     "va": "0x438bf28",
+     "type": "i32"
+    },
+    {
+     "name": "player_sp",
+     "src": "global",
+     "va": "0x438bf2c",
+     "type": "i32"
+    }
+   ]
   }
  }
 }

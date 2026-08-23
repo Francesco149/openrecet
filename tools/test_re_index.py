@@ -161,6 +161,110 @@ class TestReIndex(unittest.TestCase):
         st = self.idx.stats()
         self.assertIn("runtime_breakdown", st)
 
+    def test_blocks_and_flows(self):
+        self.idx.build(force=True)
+        blocks = self.idx.get_blocks(0x4905A8)
+        self.assertGreaterEqual(len(blocks), 1)
+        first_block = blocks[0]
+        self.assertEqual(first_block["block_va"], 0x4905A8)
+        self.assertEqual(first_block["func_va"], 0x4905A8)
+        self.assertTrue(first_block["is_entry"])
+        self.assertGreater(first_block["size"], 0)
+        self.assertIn("flow_type", first_block)
+
+        # Test flows
+        flows = self.idx.get_flows(0x4905A8)
+        self.assertGreaterEqual(len(flows), 1)
+        for fl in flows:
+            self.assertEqual(fl["func_va"], 0x4905A8)
+            self.assertIn(fl["flow_type"], ("FALL_THROUGH", "BRANCH_TAKEN", "CONDITIONAL_JUMP", "UNCONDITIONAL_JUMP", "RETURN", "FLOW"))
+
+    def test_data_xrefs(self):
+        self.idx.build(force=True)
+        # Query by function VA
+        xrefs_fn = self.idx.get_data_xrefs(0x4905A8)
+        self.assertGreaterEqual(len(xrefs_fn), 1)
+        data_vas = {x["data_va"] for x in xrefs_fn}
+        self.assertTrue(0x438B1E0 in data_vas or 0x56E6280 in data_vas)
+
+        # Query by global VA
+        xrefs_dat = self.idx.get_data_xrefs(0x438B1E0)
+        self.assertGreaterEqual(len(xrefs_dat), 1)
+        for x in xrefs_dat:
+            self.assertEqual(x["data_va"], 0x438B1E0)
+            self.assertIn("access_type", x)
+
+    def test_byte_hash(self):
+        self.idx.build(force=True)
+        h = self.idx.get_byte_hash(0x4905A8)
+        self.assertIsNotNone(h)
+        self.assertEqual(len(h), 64)
+        # Verify hex format
+        int(h, 16)
+
+    def test_json_export_and_import_roundtrip(self):
+        self.idx.build(force=True)
+        export_dir = Path(self.tmp_dir.name) / "json_export"
+        res_exp = self.idx.export_json(export_dir)
+        self.assertEqual(res_exp["status"], "exported")
+        self.assertTrue((export_dir / "manifest.json").exists())
+        self.assertTrue((export_dir / "functions.json").exists())
+        self.assertTrue((export_dir / "blocks.json").exists())
+        self.assertTrue((export_dir / "flows.json").exists())
+        self.assertTrue((export_dir / "calls.json").exists())
+        self.assertTrue((export_dir / "data_xrefs.json").exists())
+        self.assertTrue((export_dir / "string_xrefs.json").exists())
+
+        # Import into fresh database
+        imported_db = Path(self.tmp_dir.name) / "imported.sqlite"
+        new_idx = ReIndex(db_path=imported_db)
+        res_imp = new_idx.import_json(export_dir)
+        self.assertEqual(res_imp["status"], "built")
+        self.assertEqual(res_imp["functions"], res_exp["manifest"]["functions_count"])
+        self.assertEqual(res_imp["blocks"], res_exp["manifest"]["blocks_count"])
+
+        # Verify queries work identically on imported database
+        fn = new_idx.get_function(0x4905A8)
+        self.assertIsNotNone(fn)
+        self.assertEqual(fn["name"], "FUN_004905a8")
+        self.assertEqual(fn["byte_hash"], self.idx.get_byte_hash(0x4905A8))
+
+        blocks = new_idx.get_blocks(0x4905A8)
+        self.assertEqual(len(blocks), len(self.idx.get_blocks(0x4905A8)))
+        new_idx.close()
+
+    def test_cli_subcommands(self):
+        from tools.re_index import main
+        self.idx.build(force=True)
+        db_arg = ["--db", str(self.db_path)]
+
+        # Test info --json
+        ret = main(["info", "0x4905a8", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test blocks --json
+        ret = main(["blocks", "0x4905a8", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test flows --json
+        ret = main(["flows", "0x4905a8", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test hash --json
+        ret = main(["hash", "0x4905a8", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test data-xrefs --json
+        ret = main(["data-xrefs", "0x4905a8", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test switches --json
+        ret = main(["switches", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
+
+        # Test stats --json
+        ret = main(["stats", *db_arg, "--json"])
+        self.assertEqual(ret, 0)
 
 
 

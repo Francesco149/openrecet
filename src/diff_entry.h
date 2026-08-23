@@ -87,4 +87,102 @@ typedef struct EngineCheckpointOut {
 void engine_stage_gate_floor_is_checkpoint(const EngineCheckpointIn *in,
                                            EngineCheckpointOut *out);
 
+/* ── haggle_decide (FUN_00460672 / Accept-Counter-Reject Evaluator) ─── */
+
+typedef struct EngineHaggleDecideIn {
+    int32_t player_ask;     /* named ask price */
+    int32_t accept_ref;     /* customer reference price */
+} EngineHaggleDecideIn;
+
+typedef struct EngineHaggleDecideOut {
+    int32_t verdict;        /* 1 = ACCEPT, 2 = COUNTER, 0 = REJECT */
+} EngineHaggleDecideOut;
+
+void engine_haggle_decide(const EngineHaggleDecideIn *in,
+                          EngineHaggleDecideOut *out);
+
+/* ── haggle_budget_ceiling (FUN_0045ecc0 / Customer Budget Calculator) ─ */
+
+typedef struct EngineHaggleBudgetCeilingIn {
+    int32_t market_price;   /* item market price */
+    int32_t budget_low;     /* customer low budget */
+    int32_t budget_high;    /* customer high budget */
+} EngineHaggleBudgetCeilingIn;
+
+typedef struct EngineHaggleBudgetCeilingOut {
+    int32_t ceiling;        /* computed hard budget ceiling */
+} EngineHaggleBudgetCeilingOut;
+
+void engine_haggle_budget_ceiling(const EngineHaggleBudgetCeilingIn *in,
+                                  EngineHaggleBudgetCeilingOut *out);
+
+/* ── audio_is_one_shot_track (FUN_00498ef4 / Track Loop Predicate) ──── */
+
+typedef struct EngineAudioOneShotIn {
+    int32_t track;          /* BGM track index */
+} EngineAudioOneShotIn;
+
+typedef struct EngineAudioOneShotOut {
+    int32_t is_one_shot;    /* 1 if one-shot, 0 if looping */
+} EngineAudioOneShotOut;
+
+void engine_audio_is_one_shot_track(const EngineAudioOneShotIn *in,
+                                    EngineAudioOneShotOut *out);
+
+/* ── customer_service_pushback_patience (FUN_00460f16) ──────────────── */
+
+typedef struct EnginePushbackPatienceIn {
+    int32_t loyalty_level;  /* customer loyalty level (0..8) */
+    int32_t sell_active;    /* player-initiated sell flag (0 or 1) */
+} EnginePushbackPatienceIn;
+
+typedef struct EnginePushbackPatienceOut {
+    int32_t patience_variant; /* pushback line variant (2, 3, or 4) */
+} EnginePushbackPatienceOut;
+
+void engine_customer_service_pushback_patience(const EnginePushbackPatienceIn *in,
+                                              EnginePushbackPatienceOut *out);
+
+/* ── customer_service_budget_level_day (FUN_00461011) ───────────────── */
+
+typedef struct EngineBudgetLevelDayIn {
+    int32_t cand_idx;       /* candidate index */
+    int32_t shop_day;       /* current shop day */
+    int32_t closeness_level;/* customer closeness level (0..8) */
+} EngineBudgetLevelDayIn;
+
+typedef struct EngineBudgetLevelDayOut {
+    int32_t budget;         /* day-scaled budget */
+} EngineBudgetLevelDayOut;
+
+void engine_customer_service_budget_level_day(const EngineBudgetLevelDayIn *in,
+                                             EngineBudgetLevelDayOut *out);
+
+/* ── tables_item_find_slot_by_id (FUN_004681f6 / Item ID Slot Lookup) ── */
+
+typedef struct EngineItemFindSlotIn {
+    int32_t item_id;        /* target item id */
+} EngineItemFindSlotIn;
+
+typedef struct EngineItemFindSlotOut {
+    int32_t slot_idx;       /* matched slot index or -1 */
+} EngineItemFindSlotOut;
+
+void engine_tables_item_find_slot_by_id(const EngineItemFindSlotIn *in,
+                                        EngineItemFindSlotOut *out);
+
+/* ── chara_equip_item_stats (FUN_0048093f / Equipment Stat Distributor) ─ */
+
+typedef struct EngineCharaEquipStatsIn {
+    uint32_t slot_val;      /* encoded item slot value */
+    int32_t initial_sum[4]; /* initial stats sum (atk, def, mag, mdef) */
+} EngineCharaEquipStatsIn;
+
+typedef struct EngineCharaEquipStatsOut {
+    int32_t sum[4];         /* mutated stats sum */
+} EngineCharaEquipStatsOut;
+
+void engine_chara_equip_item_stats(const EngineCharaEquipStatsIn *in,
+                                   EngineCharaEquipStatsOut *out);
+
 #endif /* OPENRECET_DIFF_ENTRY_H */

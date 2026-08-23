@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "capsule_id": "f1d32480553490c2f89a9ba5a7c7cc3170bd0f0a52e3a7f9281e47d3c42801d2",
+  "target_va": "0x00460672",
+  "target_symbol": "haggle_decide",
+  "caller_va": "0x00465a12",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    1000,
+    1000
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": 1,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-arrprobe",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "caller_distribution": "customer_haggle_decision_machine",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

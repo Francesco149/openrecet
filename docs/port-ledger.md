@@ -66,7 +66,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ |  | chr_sprite_meta.h, scene1_bg_npc.c, scene1_bg_npc.h (+9) |
 | 0x45aa36 | FUN_0045aa36 | 4493 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c (+3) |
 | 0x45bbf9 | FUN_0045bbf9 | 134 | ✓ |  | main.c, mesh_draw.c, mesh_draw.h (+3) |
-| 0x4681f6 | FUN_004681f6 | 42 | ✓ |  | chara_equip.h, customer_roster.c, customer_service.c (+10) |
+| 0x4681f6 | FUN_004681f6 | 42 | ✓ |  | chara_equip.h, customer_roster.c, customer_service.c (+12) |
 | 0x4682d0 | FUN_004682d0 | 8 | ✓ |  | customer_service.c, scene.c, scene.h (+7) |
 | 0x4693e3 | FUN_004693e3 | 41 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+4) |
 | 0x46f2a3 | FUN_0046f2a3 | 894 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_player_ctrl.c |
@@ -84,7 +84,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x47b73c | FUN_0047b73c | 1779 | ✓ |  | input.c, input.h, sim.c (+1) |
 | 0x47be2f | FUN_0047be2f | 99 | ✓ |  | tick.c, tick.h |
 | 0x47c29d | FUN_0047c29d | 215 | ✓ |  | font.c, font.h, sim.c |
-| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, customer_service.c (+1) |
+| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, customer_service.c (+3) |
 | 0x48407f | FUN_0048407f | 795 | ✓ |  | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_conversation_pose.c (+4) |
 | 0x4844ef | FUN_004844ef | 310 | ✓ |  | chara_equip.c, chara_equip.h, scene_pause.c (+2) |
 | 0x4850ec | FUN_004850ec | 18 | ✓ | stub | anchor_trace.c, scene1_player_ctrl.c, scene1_player_ctrl.h |
@@ -299,7 +299,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ |  | music.h |
 | 0x45e80f | FUN_0045e80f | 298 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
-| 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
+| 0x45ecc0 | FUN_0045ecc0 | 82 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c (+2) |
 | 0x45ed12 | FUN_0045ed12 | 152 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ |  | customer_roster.h, customer_service.c, customer_service.h (+3) |
 | 0x45ff11 | FUN_0045ff11 | 32 | ✓ |  | customer_service.c |
@@ -308,7 +308,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x460083 | FUN_00460083 | 222 | ✓ |  | customer_service.c, save_bank.h |
 | 0x460161 | FUN_00460161 | 622 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4603cf | FUN_004603cf | 675 | ✓ |  | customer_haggle.c, customer_haggle.h |
-| 0x460672 | FUN_00460672 | 138 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
+| 0x460672 | FUN_00460672 | 138 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c (+2) |
 | 0x4606fc | FUN_004606fc | 205 | ✓ |  | customer_service.c, customer_service.h |
 | 0x4607f3 | FUN_004607f3 | 196 | ✓ |  | customer_service.c, dialogue_macros.h |
 | 0x46098f | FUN_0046098f | 139 | ✓ |  | customer_service.c |
@@ -317,10 +317,10 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x460b93 | FUN_00460b93 | 447 | ✓ |  | customer_service.c |
 | 0x460d52 | FUN_00460d52 | 254 | ✓ |  | customer_service.c |
 | 0x460e50 | FUN_00460e50 | 106 | ✓ |  | customer_service.c |
-| 0x460f16 | FUN_00460f16 | 67 | ✓ |  | customer_service.c, customer_service.h |
+| 0x460f16 | FUN_00460f16 | 67 | ✓ |  | customer_service.c, customer_service.h, diff_entry.c (+1) |
 | 0x460f59 | FUN_00460f59 | 78 | ✓ |  | customer_service.c, save_bank.h |
 | 0x460fa7 | FUN_00460fa7 | 106 | ✓ |  | customer_service.c, scene1_player_ctrl.c |
-| 0x461011 | FUN_00461011 | 87 |  |  | customer_service.c |
+| 0x461011 | FUN_00461011 | 87 |  |  | customer_service.c, diff_entry.c, diff_entry.h |
 | 0x461068 | FUN_00461068 | 667 | ✓ |  | customer_service.c |
 | 0x461303 | FUN_00461303 | 1167 | ✓ |  | customer_service.c, scene1_player_ctrl.c |
 | 0x461792 | FUN_00461792 | 1124 | ✓ |  | customer_service.c |
@@ -549,7 +549,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x49404b | FUN_0049404b | 2600 | ✓ |  | scene_guild.c, scene_title.c |
 | 0x494a73 | FUN_00494a73 | 561 | ✓ |  | main.c, scene_guild.c, scene_guild.h |
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h |
-| 0x498ef4 | FUN_00498ef4 | 736 | ✓ |  | audio.c, audio.h, main.c |
+| 0x498ef4 | FUN_00498ef4 | 736 | ✓ |  | audio.c, audio.h, diff_entry.c (+2) |
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ |  | audio.c, audio.h, customer_service.c (+7) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "capsule_id": "7c12e84769bc9e48afc4aedb31f81142adfbb75dc36b06546386462a3584029b",
+  "target_va": "0x0048093f",
+  "target_symbol": "chara_equip_item_stats",
+  "caller_va": "0x00484510",
+  "abi": "cdecl",
+  "category": "struct_mutation",
+  "registers_in": {},
+  "stack_args": [
+    192,
+    "0x056db0ac"
+  ],
+  "pointed_objects": {
+    "sum": {
+      "base_ptr": "0x056db0ac",
+      "size_bytes": 16,
+      "bytes_hex": "",
+      "fields": {
+        "atk": 0,
+        "def": 0,
+        "mag": 0,
+        "mdef": 0
+      },
+      "relocations": {}
+    }
+  },
+  "prestate": {
+    "DAT_005c80ac": 0
+  },
+  "return_val": null,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {
+    "DAT_005c80ac": 0
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-cutscene-day2-full",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "caller_distribution": "chara_equip_recompute_aggregate",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

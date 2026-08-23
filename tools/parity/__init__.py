@@ -73,6 +73,35 @@ from .state_mutation import (
 )
 from .state_producer import from_view_json as state_metrics_from_view_json
 from .state_map import Locus, StateMap, StateMapError
+from .capsule import (
+    CallCapsule,
+    CapsuleError,
+    CapsuleReplayResult,
+    MemoryWrite,
+    ObjectSnapshot,
+    compute_capsule_id,
+    replay_capsule,
+    validate_capsule,
+)
+from .capsule_capture import (
+    CallCaptureSpec,
+    CapsuleCaptureResult,
+    KnownWriteCaptureEngine,
+    KNOWN_CALL_SPECS,
+    RacePolicy,
+    get_cc01_canonical_fixtures,
+)
+from .host_diff_adapter import (
+    NativeHostDiffAdapter,
+    ensure_libengine_diff,
+    get_diff_lib,
+)
+from .adapter_gen import (
+    AdapterGenerator,
+    BoundaryMutator,
+    DivergenceInjector,
+)
+from .corpus_store import CorpusStore
 
 __all__ = [
     # canonicalization (§4.4, frozen)
@@ -142,4 +171,27 @@ __all__ = [
     "StateMap",
     "StateMapError",
     "Locus",
+    # CC-00 / CC-01 observed call capsules
+    "CallCapsule",
+    "CapsuleError",
+    "CapsuleReplayResult",
+    "MemoryWrite",
+    "ObjectSnapshot",
+    "compute_capsule_id",
+    "replay_capsule",
+    "validate_capsule",
+    "CallCaptureSpec",
+    "CapsuleCaptureResult",
+    "KnownWriteCaptureEngine",
+    "KNOWN_CALL_SPECS",
+    "RacePolicy",
+    "get_cc01_canonical_fixtures",
+    # CC-02 host adapters and corpus tests
+    "NativeHostDiffAdapter",
+    "ensure_libengine_diff",
+    "get_diff_lib",
+    "AdapterGenerator",
+    "BoundaryMutator",
+    "DivergenceInjector",
+    "CorpusStore",
 ]

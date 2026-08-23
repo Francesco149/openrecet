@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "capsule_id": "1ff9ab4d3d970062bf721990b25877666d809fab5918872577de1c7de6108c9c",
+  "target_va": "0x005041f6",
+  "target_symbol": "rng_next15",
+  "caller_va": "0x00470184",
+  "abi": "cdecl",
+  "category": "rng_consumer",
+  "registers_in": {},
+  "stack_args": [],
+  "pointed_objects": {},
+  "prestate": {
+    "DAT_006023a0": 19937
+  },
+  "return_val": 32376,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {
+    "DAT_006023a0": 4269308192
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "canonical-cc01-rng",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

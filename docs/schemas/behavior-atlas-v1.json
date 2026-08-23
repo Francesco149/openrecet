@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openrecet.org/schemas/behavior-atlas-v1.json",
+  "title": "OpenRecet Behavior Atlas Schema (BA-00)",
+  "description": "Content-addressed behavior graph schema: nodes, edges, action grammars, and traversal paths (roadmap parity-evidence-roadmap.md §10 Workstream BA).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "created_at": { "type": "string" },
+        "retail_build_sha256": { "$ref": "#/$defs/sha256_hex" },
+        "total_nodes": { "type": "integer", "minimum": 0 },
+        "total_edges": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "nodes": {
+      "type": "object",
+      "description": "Mapping of node_id (SHA-256 hex) to Node objects.",
+      "additionalProperties": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "object",
+      "description": "Mapping of edge_id (SHA-256 hex) to Edge objects.",
+      "additionalProperties": { "$ref": "#/$defs/edge" }
+    },
+    "entry_nodes": {
+      "type": "array",
+      "description": "List of node IDs that represent root/entry states (e.g., cold boot).",
+      "items": { "$ref": "#/$defs/sha256_hex" }
+    },
+    "action_grammars": {
+      "type": "object",
+      "description": "Registered action grammars per scene domain.",
+      "additionalProperties": { "$ref": "#/$defs/action_grammar" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256_hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "node": {
+      "type": "object",
+      "description": "A certified game execution state node.",
+      "required": [
+        "node_id",
+        "anchor",
+        "occurrence",
+        "config_id",
+        "retail_build_sha256"
+      ],
+      "properties": {
+        "node_id": { "$ref": "#/$defs/sha256_hex" },
+        "anchor": {
+          "type": "string",
+          "description": "Semantic anchor name (e.g., BOOT, TITLE_MENU, HOUSE_FREEROAM, SAVE_PICKER_READY, DIALOGUE_CHOICE)."
+        },
+        "occurrence": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "persistent_state_root": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Merkle root hash of the persistent save arena state (or null if stateless / uninitialized)."
+        },
+        "volatile_state_root": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Merkle root hash of the volatile scene state (from state_merkle.py, or null if uninitialized)."
+        },
+        "rng_state": {
+          "type": ["integer", "null"],
+          "description": "Raw 32-bit LCG RNG state (DAT_006023a0) at node boundary."
+        },
+        "config_id": {
+          "type": "string",
+          "description": "Execution configuration environment profile (e.g., reference-1024-windowed)."
+        },
+        "retail_build_sha256": { "$ref": "#/$defs/sha256_hex" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "description": "A state transition edge driven by inputs or timed execution.",
+      "required": [
+        "edge_id",
+        "src_node_id",
+        "completion_condition",
+        "normalization_policy",
+        "status"
+      ],
+      "properties": {
+        "edge_id": { "$ref": "#/$defs/sha256_hex" },
+        "src_node_id": { "$ref": "#/$defs/sha256_hex" },
+        "dst_node_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Target node ID reached upon completion (or null if unclassified / terminal)."
+        },
+        "label": { "type": "string" },
+        "input_digest": {
+          "$ref": "#/$defs/sha256_hex",
+          "description": "SHA-256 hash of the canonical input sequence."
+        },
+        "duration_frames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completion_condition": { "$ref": "#/$defs/completion_condition" },
+        "normalization_policy": { "$ref": "#/$defs/normalization_policy" },
+        "action_tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "scenario_ref": {
+          "type": ["string", "null"],
+          "description": "Scenario directory name if sourced from an existing test scenario."
+        },
+        "proof_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "EP-05 proof bundle ID certifying this transition under multi-pillar parity."
+        },
+        "coverage_delta": {
+          "type": "object",
+          "properties": {
+            "functions": { "type": "array", "items": { "type": "string" } },
+            "blocks": { "type": "array", "items": { "type": "string" } },
+            "transitions": { "type": "array", "items": { "type": "string" } },
+            "opcodes": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "untested",
+            "port_verified",
+            "retail_verified",
+            "parity_proven",
+            "divergent",
+            "needs_r3_boundary"
+          ]
+        },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "completion_condition": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "anchor_reached",
+            "frame_count",
+            "state_predicate",
+            "dialogue_advance",
+            "scene_change",
+            "save_committed"
+          ]
+        },
+        "anchor": { "type": "string" },
+        "occurrence": { "type": "integer", "minimum": 1 },
+        "count": { "type": "integer", "minimum": 1 },
+        "predicate": { "type": "string" },
+        "timeout_frames": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "normalization_policy": {
+      "type": "object",
+      "properties": {
+        "phasepin": { "type": ["integer", "null"] },
+        "rngseed": { "type": ["integer", "null"] },
+        "playtimepin": { "type": ["integer", "null"] },
+        "csloadpin": { "type": ["integer", "null"] },
+        "tutloadpin": { "type": ["integer", "null"] },
+        "bgnpcpin": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "action_grammar": {
+      "type": "object",
+      "required": ["scene", "actions"],
+      "properties": {
+        "scene": { "type": "string" },
+        "description": { "type": "string" },
+        "preconditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["semantic_intent", "inputs"],
+            "properties": {
+              "semantic_intent": { "type": "string" },
+              "inputs": { "type": "array" },
+              "expected_completion": { "$ref": "#/$defs/completion_condition" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "capsule_id": "8764a558384ed8d86637c82a3859c931b4da427a2ae234458cb42a47bd42e903",
+  "target_va": "0x00461011",
+  "target_symbol": "customer_service_budget_level_day",
+  "caller_va": "0x0045e590",
+  "abi": "cdecl",
+  "category": "known_globals",
+  "registers_in": {},
+  "stack_args": [
+    0
+  ],
+  "pointed_objects": {},
+  "prestate": {
+    "DAT_0450fb84": 2,
+    "DAT_045109aa": 1
+  },
+  "return_val": 142,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {
+    "DAT_0450fb84": 2,
+    "DAT_045109aa": 1
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-cutscene-day2-full",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "caller_distribution": "cs_roster_scan_budget",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

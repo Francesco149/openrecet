@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "capsule_id": "1c97a33d094853c19ff316cbc408a4fb224d3def81cdd9f8ee33055b8272cc16",
+  "target_va": "0x00460f16",
+  "target_symbol": "customer_service_pushback_patience",
+  "caller_va": "0x00465c84",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    2,
+    0
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": 3,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "house-firstcust-arrprobe",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "caller_distribution": "cs_pushback_line_variant",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

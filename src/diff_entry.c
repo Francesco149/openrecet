@@ -31,6 +31,10 @@
 #include "rng.h"
 #include "audio_fade.h"
 #include "stage_gate.h"
+#include "customer_haggle.h"
+#include "audio.h"
+#include "tables_item.h"
+#include "chara_equip.h"
 
 /* DAT_0438b4c8 (current dungeon id) is owned by scene1_combat_sm.c; the
  * checkpoint predicate reads it.  We only need the storage symbol to
@@ -95,4 +99,76 @@ void engine_stage_gate_floor_is_checkpoint(const EngineCheckpointIn *in,
     g_scene1_combat_stage_id = in->dungeon_id;   /* DAT_0438b4c8 */
     stage_gate_set_next(in->next_floor);         /* DAT_0438b4cc */
     out->is_checkpoint = stage_gate_floor_is_checkpoint();
+}
+
+void engine_haggle_decide(const EngineHaggleDecideIn *in,
+                          EngineHaggleDecideOut *out)
+{
+    /* FUN_00460672 — price haggle decision (ACCEPT=1, COUNTER=2, REJECT=0). */
+    out->verdict = haggle_decide(in->player_ask, in->accept_ref);
+}
+
+void engine_haggle_budget_ceiling(const EngineHaggleBudgetCeilingIn *in,
+                                  EngineHaggleBudgetCeilingOut *out)
+{
+    /* FUN_0045ecc0 — customer hard budget ceiling calculation. */
+    out->ceiling = haggle_budget_ceiling(in->market_price,
+                                         in->budget_low,
+                                         in->budget_high);
+}
+
+void engine_audio_is_one_shot_track(const EngineAudioOneShotIn *in,
+                                    EngineAudioOneShotOut *out)
+{
+    /* FUN_00498ef4 — BGM track one-shot loop predicate. */
+    out->is_one_shot = audio_is_one_shot_track(in->track);
+}
+
+void engine_customer_service_pushback_patience(const EnginePushbackPatienceIn *in,
+                                              EnginePushbackPatienceOut *out)
+{
+    /* FUN_00460f16 — pushback patience variant (2, 3, or 4). */
+    int ret = 2;
+    int lvl = in->loyalty_level;
+    if (lvl < 5) {
+        if (lvl > 0) ret = 3;
+    } else {
+        ret = 4;
+    }
+    if (in->sell_active != 0) {
+        ret = 3;
+    }
+    out->patience_variant = ret;
+}
+
+void engine_customer_service_budget_level_day(const EngineBudgetLevelDayIn *in,
+                                             EngineBudgetLevelDayOut *out)
+{
+    /* FUN_00461011 — budget level scaled by shop day. */
+    static const int32_t level_table[9] = {
+        500, 500, 3000, 6000, 10000, 10000, 15000, 18000, 20000
+    };
+    int level = in->closeness_level;
+    if (level > 8) level = 8;
+    if (level < 0) level = 0;
+
+    float val = (float)level_table[level] * ((float)in->shop_day / 7.0f);
+    out->budget = (int32_t)val;
+}
+
+void engine_tables_item_find_slot_by_id(const EngineItemFindSlotIn *in,
+                                        EngineItemFindSlotOut *out)
+{
+    /* FUN_004681f6 — item-id to table-slot lookup. */
+    out->slot_idx = tables_item_find_slot_by_id(&g_item, in->item_id);
+}
+
+void engine_chara_equip_item_stats(const EngineCharaEquipStatsIn *in,
+                                   EngineCharaEquipStatsOut *out)
+{
+    /* FUN_0048093f — distribute item stats into sum array. */
+    for (int i = 0; i < 4; i++) {
+        out->sum[i] = in->initial_sum[i];
+    }
+    chara_equip_item_stats(in->slot_val, out->sum);
 }

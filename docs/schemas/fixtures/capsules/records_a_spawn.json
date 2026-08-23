@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "capsule_id": "8c3e83bd29eb1efd5a2e97808eb0cd6be75fed37b4144d08ef8a54f554b5d809",
+  "target_va": "0x00447f4f",
+  "target_symbol": "scene1_spawn_particle",
+  "caller_va": "0x004105f3",
+  "abi": "cdecl",
+  "category": "struct_mutation",
+  "registers_in": {},
+  "stack_args": [
+    0,
+    10.0,
+    0.0,
+    5.0,
+    96,
+    1.0,
+    1
+  ],
+  "pointed_objects": {
+    "slot_0": {
+      "base_ptr": "0x069b2f80",
+      "size_bytes": 148,
+      "bytes_hex": "",
+      "fields": {
+        "type": 96,
+        "age": 0,
+        "pos_x": 10.0,
+        "pos_y": 0.0,
+        "pos_z": 5.0
+      },
+      "relocations": {}
+    }
+  },
+  "prestate": {
+    "DAT_006023a0": 12345,
+    "DAT_0076b960": 0
+  },
+  "return_val": null,
+  "registers_out": {},
+  "ordered_writes": [
+    {
+      "seq": 0,
+      "addr": "0x069b2fb0",
+      "type": "i32",
+      "new": 96,
+      "old": -1,
+      "owner_va": "0x00447f4f"
+    },
+    {
+      "seq": 1,
+      "addr": "0x0076b960",
+      "type": "i32",
+      "new": 1,
+      "old": 0,
+      "owner_va": "0x00447f4f"
+    }
+  ],
+  "external_calls": [],
+  "poststate": {
+    "DAT_006023a0": 12345,
+    "DAT_0076b960": 1
+  },
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "canonical-cc01-dust-spawn",
+    "race_status": "DIFF_TEST_SUSPENDED",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

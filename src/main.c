@@ -2566,7 +2566,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 /* ─── d3d8.dll dynamic load — mirrors the original's LoadLibrary pattern ─── */
 static BOOL load_d3d8(void)
 {
-    g_d3d8_dll = LoadLibraryA("d3d8.dll");
+    char full_dll_path[MAX_PATH] = {0};
+    GetCurrentDirectoryA(sizeof(full_dll_path) - 16, full_dll_path);
+    strcat(full_dll_path, "\\d3d8.dll");
+    g_d3d8_dll = LoadLibraryExA(full_dll_path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (!g_d3d8_dll) {
+        g_d3d8_dll = LoadLibraryA("d3d8.dll");
+    }
     if (!g_d3d8_dll) {
         g_d3d8_dll = LoadLibraryA("d3d8d.dll");        /* debug runtime fallback */
         if (!g_d3d8_dll) return FALSE;

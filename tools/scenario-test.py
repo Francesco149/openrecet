@@ -65,9 +65,8 @@ import trace_save  # noqa: E402 — TAS save interception (embedded {savefile} o
 
 ROOT       = Path(__file__).resolve().parent.parent
 SCENARIOS  = ROOT / "tests" / "scenarios"
-BUILD_EXE  = ROOT / "build" / "openrecet.exe"
+BUILD_EXE  = Path(os.environ.get("OPENRECET_PORT_EXE", ROOT / "build" / "openrecet.exe"))
 ASSET_CWD  = ROOT / "vendor" / "original"
-
 # Win32 Job-Object supervisor — guarantees the openrecet child dies
 # with the harness even if the message pump wedges in WaitMessage with
 # g_paused=TRUE. See tools/supervisor/run-supervised.c.

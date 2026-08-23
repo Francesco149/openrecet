@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "capsule_id": "daaa88be6d6b2cfee419d763aac5faae36fe25afe9fda0e5df990d6463406ac4",
+  "target_va": "0x00499583",
+  "target_symbol": "audio_fade_compute",
+  "caller_va": "0x00499620",
+  "abi": "cdecl",
+  "category": "pure_leaf",
+  "registers_in": {},
+  "stack_args": [
+    0,
+    0
+  ],
+  "pointed_objects": {},
+  "prestate": {},
+  "return_val": -10000,
+  "registers_out": {},
+  "ordered_writes": [],
+  "external_calls": [],
+  "poststate": {},
+  "relocation_map": {},
+  "provenance": {
+    "scenario": "canonical-cc01-audio-fade",
+    "race_status": "SINGLE_THREADED_SAFE",
+    "retail_build_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}
