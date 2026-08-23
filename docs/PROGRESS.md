@@ -7,6 +7,14 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-23 — Customer Service Tutorial Skip & First Customer Dialogue/Haggle Confirmed 1:1
+
+- **Human Trace Viewer Verification (`house-firstcust-arrprobe`):** User confirmed in the Trace Studio v3 viewer:
+  - Window `500:200`: "skip this event" dialogue accepted, identical window NPC RNG stream, and first customer chibi sprite walking in identically on both sides.
+  - Window `0:1500`: "cancelling tutorial" prompt accepted, then skip event, then first customer dialogue entry with basically bit-identical frames across the entire sequence.
+  - Customer 1st offer price reaction: both sides show identical text ("That's really rather expensive") for the 120 pix offer on Walnut Bread.
+  - Recorded in `docs/findings/confirmed-parity-ledger.md`.
+
 ## 2026-08-23 — CV-01 — Offline Ghidra & Static RE Index Platform (Workstream CV)
 
 Roadmap §8 CV-01 ("export an offline Ghidra index").
