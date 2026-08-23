@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openrecet.org/schemas/boundary-event-v1.json",
+  "title": "OpenRecet System Boundary Event Stream Schema v1",
+  "description": "Formal specification for observing, recording, and comparing external system boundary interactions across Win32, DirectInput, Filesystem, INI, Audio, Window, and Mutex APIs (roadmap docs/plans/parity-evidence-roadmap.md §12 BT-00).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "stream_id",
+    "scenario",
+    "target",
+    "events",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Boundary Event schema version major (always 1)."
+    },
+    "stream_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Deterministic SHA-256 digest computed over canonical event stream preimage."
+    },
+    "scenario": {
+      "type": "string",
+      "description": "Scenario name or test identifier (e.g. house-firstcust-arrprobe)."
+    },
+    "target": {
+      "type": "string",
+      "enum": ["retail", "port", "synthetic", "reference"],
+      "description": "Execution origin of the boundary event stream."
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["captured_timestamp", "environment"],
+      "additionalProperties": true,
+      "properties": {
+        "captured_timestamp": { "type": "number" },
+        "environment": { "type": "string" },
+        "retail_build_sha256": { "type": "string" },
+        "port_build_sha256": { "type": "string" },
+        "driver": { "type": "string" }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "Ordered sequence of normalized system boundary events.",
+      "items": {
+        "$ref": "#/$defs/BoundaryEvent"
+      }
+    }
+  },
+  "$defs": {
+    "BoundaryEvent": {
+      "type": "object",
+      "required": [
+        "seq",
+        "logical_frame",
+        "domain",
+        "api",
+        "args",
+        "result"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Monotonic intra-stream event sequence index."
+        },
+        "logical_frame": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": [
+            { "type": "string", "description": "Anchor name (e.g. HOUSE_FREEROAM)" },
+            { "type": "integer", "minimum": 1, "description": "Occurrence (1-based)" },
+            { "type": "integer", "description": "Offset from anchor frame" }
+          ],
+          "description": "Logical anchor-relative frame coordinate [anchor, occurrence, offset]."
+        },
+        "thread_id": {
+          "type": "integer",
+          "default": 0,
+          "description": "Logical thread index (0 = main engine thread, 1 = worker thread)."
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "win32_msg",
+            "dinput_device",
+            "filesystem_io",
+            "ini_config",
+            "audio_device",
+            "window_lifecycle",
+            "mutex_sync"
+          ],
+          "description": "Architectural boundary category."
+        },
+        "api": {
+          "type": "string",
+          "description": "API or interface method name (e.g. CreateFileA, IDirectInputDevice8::GetDeviceState)."
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Normalized arguments with pointers and platform-specific handles replaced by canonical object IDs."
+        },
+        "result": {
+          "description": "Normalized return value or status code."
+        },
+        "buffer_hash": {
+          "type": ["string", "null"],
+          "pattern": "^([0-9a-f]{64})?$",
+          "description": "SHA-256 hash of read/written buffer payloads (zero raw proprietary bytes stored)."
+        },
+        "buffer_size": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Size in bytes of the associated payload buffer."
+        },
+        "side_effects": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Observable external side effects (e.g. file mutations, volume changes, focus shifts)."
+        },
+        "caller_va": {
+          "type": ["string", "null"],
+          "pattern": "^(0x[0-9a-fA-F]{6,8})?$",
+          "description": "Observed caller virtual address inside executable."
+        },
+        "caller_module": {
+          "type": ["string", "null"],
+          "description": "Originating binary module name."
+        }
+      }
+    }
+  }
+}

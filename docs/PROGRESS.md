@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-08-23 — BT-00 — System Boundary Events and Equivalence Model (Workstream BT)
+
+Roadmap §12 BT-00 ("define boundary-event schema").
+
+- **System Boundary Event Schema (`docs/schemas/boundary-event-v1.json`, `docs/reference/boundary-events.md`):** Adopted formal R3 contract and JSON schema for capturing and comparing interactions between the engine and external OS/hardware interfaces:
+  - **7 Architectural Domains:** `win32_msg` (message pump, activation, focus), `dinput_device` (DirectInput8 COM creation, cooperative level, acquisition, poll), `filesystem_io` (Win32 file handles, reads, writes, seeks), `ini_config` (recet.ini keys, sections, defaults), `audio_device` (DirectMusic/DirectSound audio paths, segments, volumes), `window_lifecycle` (CreateWindow, ShowWindow, SetWindowPos), and `mutex_sync` (singleton locks, thread synchronization).
+  - **Handle & Path Normalization Model:** Volatile Win32 handles/pointers mapped to canonical object IDs; drive letters and WSL UNC prefixes normalized to engine-relative paths; payloads cryptographic SHA-256 hashed with zero raw game assets stored.
+  - **3-Tier Equivalence Model:**
+    1. `CALL_SEQUENCE_EQUIVALENT`: exact 1:1 call ordering, arguments, and status codes.
+    2. `RESULT_EQUIVALENT`: functional outcome parity across benign retry and multi-poll loops.
+    3. `EFFECT_EQUIVALENT`: identical final external environment side effects on files, audio, and window state.
+- **Boundary Engine & Comparator (`tools/parity/boundary.py`):** Implemented `BoundaryEvent`, `BoundaryStream`, `BoundaryEquivalenceComparator`, and stream validation with deterministic content-addressed `stream_id` identity calculation.
+- **Testing (`tools/test_boundary_events.py`):** Added 11 comprehensive unit and integration tests verifying schema validation, path normalization, 3-tier equivalence comparisons, and multi-domain divergence detection (11/11 tests passing, 45/45 Python test suites passing).
+
 ## 2026-08-23 — CC-04 — Unknown Write-Set Call Capture Platform (Workstream CC)
 
 Roadmap §11 CC-04 ("unknown write-set capture through memory tracking").
