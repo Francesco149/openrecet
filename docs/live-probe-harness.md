@@ -1,5 +1,8 @@
 # Live-probe harness — driving retail Recettear live via MCP
 
+> **LEGACY (2026-10-13):** the live-probe MCP is RETIRED (`.mcp.json` removed); superseded by the in-process retail host (`tools/rhost/README.md`,
+> `docs/audits/2026-10-13-methodology-reset.md`). Kept for reference; do not extend.
+
 Terse. The **interactive** counterpart to the deterministic trace pipeline:
 one persistent retail process you drive turn-by-turn (inputs, memory,
 engine-thread calls, screenshots) instead of a fixed TAS replay. Use it to

@@ -1,5 +1,8 @@
 # Harness roadmap — graphics & audio smoke tooling
 
+> **LEGACY (2026-10-13):** superseded by the in-process retail host (`tools/rhost/README.md`,
+> `docs/audits/2026-10-13-methodology-reset.md`). Kept for reference; do not extend.
+
 > Living document. Sub-plan of `PLAN.md`; cross-linked from its §6.
 >
 > **2026-06-09: phases A–E below are LANDED or superseded as their inline

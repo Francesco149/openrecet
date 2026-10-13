@@ -1,5 +1,8 @@
 # Flow-trace cheatsheet — the ONE way to compare port↔retail state
 
+> **LEGACY (2026-10-13):** superseded by the in-process retail host (`tools/rhost/README.md`,
+> `docs/audits/2026-10-13-methodology-reset.md`). Kept for reference; do not extend.
+
 The flow-trace is how we compare *any* per-frame state between the port and
 retail. It replaces the retired ad-hoc per-frame logs (`--player-pos-log`,
 `--dlg-log`, `--dust-log`, retail `--watch`) and the old `phase_probe.py`. The

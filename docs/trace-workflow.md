@@ -1,5 +1,8 @@
 # Trace workflow — current deterministic parity loop
 
+> **LEGACY (2026-10-13):** superseded by the in-process retail host (`tools/rhost/README.md`,
+> `docs/audits/2026-10-13-methodology-reset.md`). Kept for reference; do not extend.
+
 > **Status:** authoritative operational guide  \
 > **Last verified:** 2026-07-16  \
 > **Renderer workflow:** Trace Studio v3  \
