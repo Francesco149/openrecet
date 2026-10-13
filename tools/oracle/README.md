@@ -17,6 +17,8 @@ DLL injection, no cross-process sync. Same exe runs on Windows and wine.
 | `p1_pure.c` | P1: retail `rand`/`haggle_decide` vs port C, 3 x87 PC modes |
 | `p1b_more.c` (+`p1b_stubs.c`) | P1b: `boss_id_allowed`, `floor_is_checkpoint`, `audio_fade` (fake COM AudioPath records `SetVolume`) |
 | `p2_run.c` | P2: run retail in-process; virtual clock, scripted input, deferred loader, virtual time, seed pin, shadow exec, `rand` replace, snapshot |
+| `p3_run.c` | P3 = P2 + replay of existing `tests/scenarios/*/trace.jsonl` (reuses `src/input_segtrace.c`; anchors ported from the Frida agent) + live `haggle_decide` shadow (port c11 vs gnu11 vs retail) |
+| `build.sh` | builds all of the above into `build/oracle/` |
 
 ## Build (mingw32; host must sit at 0x200000, no ASLR)
 
