@@ -1,0 +1,12 @@
+# day2-buy-tutorial — human recording 2026-10-13 (rhost.py record, Windows, keyboard).
+# Save 5816458d… (Day 2): Load Game → 3rd slot → shop through the day → the BUYING
+# tutorial (a customer sells to you: haggle_offer_down) → one more selling session
+# → pause → saved in slot 8 → window closed @f16118 (scene 9).
+# No customer buys from you after the tutorial that day (owner note).
+# The slot-8 save it wrote = _saves/d85ac24ac4ffcac455fb5e0cf5df740991894f677ce1d4fc890ddf238978c94f
+# (bank 7 + last_slot_used only) — a starting point for a later day with buyers.
+# rhost: record self-check PASS (f16118 rng f1526e98, same state_sem); det -n 2 PASS.
+# verify 2026-10-13: haggle_decide 14 / offer_up 11 / offer_down 2 / rand 33,689, 0 div.
+# portanchors 2026-10-13: port CUSTOMER_SERVICE_ENTER f1355 vs retail f1423 (−68), then desyncs.
+description: |
+  Day-2 buying tutorial (customer sells → offer_down) + a selling session; ends saved in slot 8.
