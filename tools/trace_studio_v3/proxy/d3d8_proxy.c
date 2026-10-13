@@ -767,6 +767,9 @@ __declspec(dllexport) void WINAPI OrV3ArmWindowAt(unsigned start, unsigned count
               g_capframe, g_capframe + g_capcount, g_frame);
 }
 
+/* Present-count of the NEXT frame (rhost: arm a window at an exact host tick). */
+__declspec(dllexport) unsigned WINAPI OrV3PresentCount(void) { return g_frame; }
+
 /* ── factory custom ── */
 static HRESULT STDMETHODCALLTYPE my_IDirect3D8_QueryInterface(IDirect3D8 *This, REFIID riid, void **ppv)
 {

@@ -1,0 +1,74 @@
+# tools/rhost — in-process retail host
+
+Runs the user's own `recettear.unpacked.exe` **inside our process**, deterministically,
+so the retail side of every comparison is a reproducible function of (save, input
+script). Phase 0 of `docs/audits/2026-10-13-methodology-reset.md`; prototype history in
+`tools/oracle/` and `docs/findings/in-process-retail-host.md`.
+
+## Quick use (Windows native, from maximus)
+
+```sh
+python3 tools/rhost/rhost.py run house-idle            # replay a scenario (off-screen window)
+python3 tools/rhost/rhost.py run house-idle --show     # visible window
+python3 tools/rhost/rhost.py det house-idle -n 3       # determinism gate (3 runs, end dumps, diff)
+python3 tools/rhost/rhost.py corpus                    # all tests/scenarios, summary.tsv
+python3 tools/rhost/rhost.py diff A.rhs B.rhs          # classify two state dumps
+python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → flat trace
+python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
+```
+Results land in `/mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/` (`rhost.log`, last
+line `RESULT key=value…`). The driver builds + stages automatically.
+
+## What makes a run deterministic
+
+| source of run-to-run difference | rhost layer |
+|---|---|
+| wall clock (QPC/timeGetTime/GetLocalTime/…) | virtual time: `1000000 + 17·frame` ms |
+| loader `CreateThread` race (load length in frames) | DEFER: workers start suspended, run to completion at the next tick — every load = 1 frame |
+| LFH heap placement (≈280 pointers/run) | `rh_heap.c`: retail's Heap*/VirtualAlloc(NULL) → fixed-address arena 0x20000000.. |
+| kernel handle numbers (CRT `__pioinfo`, loader thread handle) | `rh_handles.c`: sequence-numbered fake handles, translated in every consuming import |
+| stack addresses in globals (CRT `__NLG_Notify` → 0x602374) | fixed stacks: main 0x58000000, workers 0x59000000; TEB bounds set |
+| command line / environment / startup info / std handles copied by the CRT | fixed values |
+| temp-file names, run-dir names leaking into retail memory | `GetTempPathA`/`GetTempFileNameA` virtual + deterministic |
+| user's save / recet.ini / any game-dir write | `rh_files.c` overlay: game dir read-only, writes copy-on-write into the run dir; `save.dat` absent unless supplied |
+| real devices (keyboard, pads incl. player-2 slot) | the DInput poll is not called; masks come from the script |
+| focus / minimise pausing the main loop | `WaitMessage` → gate up, return (not in `--record`) |
+| RNG seed | `DAT_006023a0` = 19937 at frame 0 (trace `{rngseed}` ops still apply) |
+
+Residual run-to-run differences after all of the above (Win11 native, `house-idle`
+4418 frames, 3 runs): **only** slots holding system-DLL/COM pointers (≈282) and the
+HWND. Those addresses are listed in `volatile.txt` (calibrated by
+`rhost.py det SCEN --calibrate`) and masked in `state_sem`; `state_full` hashes every byte.
+`det` fails on any other class of difference.
+
+## Determinism gate and dumps
+
+`--dump-at F,…|end` writes `state_*.rhs` (retail .data/.bss + committed heap arena + a
+per-page "external mapping" bitmap). `rhs.py` classifies each differing dword:
+`ext-ptr(both)` / `ext-ptr(stale)` (DLL pointers), `volatile-addr`, `det-ptr`, `value`.
+Masking is by ADDRESS only — masking by value was tried and is flaky (heap pixel data
+is random bits; ~10% falls inside whatever ranges DLLs occupy in that run).
+
+## Hooks (`--hook shadow:NAME,replace:NAME`)
+
+`rh_hooks.c` registry; port code is linked in, compiled with the port's own `-std`.
+RET hooks (`haggle_decide`, `rand`) compare return value + listed state words;
+STATE hooks (`sim_a`, `sim_b`) use `rh_shadow()` (snapshot .data + arena + allocator
+metadata → retail → restore → port/retail → compare; retail stays authoritative).
+Add a port function = one wrapper + one table row.
+
+## Windows plumbing
+
+- `ssh win` = Windows OpenSSH on cutestation:2222 (port 22 there is the WSL portproxy).
+  sshd sessions have no desktop (session 0 ⇒ no D3D device), so jobs go through
+  **`win/runner.ps1`**, a queue runner in the interactive logon session (scheduled task
+  `orc-rhost-runner`, at logon; install: `win/install-runner.ps1`). WSL is not needed.
+- `C:\orc-rhost\{bin,game,runs,queue}`; `game\` is a pristine copy of the game data.
+- `--d3d-proxy` + `--cap FROM:COUNT` records the D3D8 stream with the v3 proxy
+  (loaded in-process; armed at an exact host tick via `OrV3PresentCount`).
+
+## Not yet
+
+wine/Linux target (works for the prototype; driver support TODO), podman container,
+port-side determinism knobs (same timeline as rhost ⇒ port↔retail by frame number),
+heap objects in RET-hook snapshots, D3D/file effect recording during shadow runs.

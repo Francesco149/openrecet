@@ -44,44 +44,55 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 > Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
 
-<!--
-  The ONE hand-edited status block.  tools/gen_port_ledger.py injects everything
-  below the marker line verbatim into docs/STATUS.md's "Current front" section, so
-  STATUS can never drift from reality.  Update THIS when the active front moves;
-  keep it short (a 60-second read).  Everything else in STATUS is derived from code.
+**Methodology:** in-process retail host (rhost), adopted 2026-10-13 by owner decision
+(`docs/audits/2026-10-13-methodology-reset.md` §3, Phase 0 approved). Pilot after
+Phase 0: dungeon hybrid (§3 Phase 1).
 
-  RULES: keep ONLY open/forward-looking items here. When an item RESOLVES, move its
-  story to PROGRESS.md / the findings doc in the same edit — do not let resolved arcs
-  accumulate. Full pre-cleanup snapshots:
-  - archive/FRONT-2026-06-09-full.md (world-map backlog, dialogue fixes, load-arc, shop-display chips)
-  - archive/FRONT-2026-07-01-full.md (customer-service/haggle, title/pause/guild/prologue arcs, v3 build-out)
-  - archive/FRONT-2026-08-22-full.md (evidence compiler Wave-0, GX-00→06, ST-00→05, day-2 transition arcs)
-  Code-tagged PORT-DEBT lives in docs/port-debt.md (derived).
--->
-<!-- FRONT:BEGIN -->
-- **⏸ PAUSED — methodology decision pending (2026-10-13).** Read
-  `docs/audits/2026-10-13-methodology-reset.md` (TL;DR + §7 checklist) before any work.
-  Proposed: in-process retail host (`tools/oracle/`, findings
-  `docs/findings/in-process-retail-host.md`) → Phase 0 foundation → dungeon hybrid pilot.
-  ⚠ The Arc 2 / Arc 3 "✅ LANDED" items below dated 2026-08-22/23 (BA-*, CC-00..04,
-  CV-*, BT-00, day-2 playthrough) are largely UNVERIFIED or synthetic per audit §1.3 —
-  do not build on them.
-- ~~★ NEXT MICRO-TASK: BT-01 boundary instrumentation (Arc 3), or CC-05 hybrid retail function replacement.~~
+### Phase 0 — foundation (in progress)
+- ✅ `tools/rhost/` productized:
+  - deterministic heap / handles / stacks / time / loads / file overlay;
+  - quiet off-screen windows;
+  - Windows queue runner via `ssh win` (WSL not needed);
+  - `det` gate; corpus; record; flatten; hook table; D3D proxy arm.
+  - Determinism: only DLL-pointer slots differ run-to-run (README).
+- ☐ **★ NEXT: corpus triage**:
+  - re-record the `cad868` first-customer / day-2 family natively (`rhost.py record`);
+    their traces need Frida-era pins;
+  - flatten every completing legacy trace;
+  - calibrate `volatile.txt` over the corpus.
+- ☐ **x87 float sweep → `-std=gnu11`** (owner: "re-check that floats behave the same"):
+  1. P1/rhost-hook every float-literal-heavy ported fn (5,352 `f` literals / 81 files)
+     under c11 vs gnu11 vs retail;
+  2. switch `src/Makefile`;
+  3. re-run tests + corpus shadows.
+- ☐ **`DAT_095d3728` save-sweep fix** (findings `in-process-retail-host.md` §7):
+  - make `save_bank_init_one` == `FUN_0049001c`;
+  - drop the normal-bucket gate;
+  - flip 2 host tests;
+  - prove with an rhost crafted-save run + `tools/save_compare.py`.
+- ☐ **Port-side determinism knobs** (virtual time, deferred loads, same boot timeline) so
+  port↔retail traces align by frame number; port under wine for Linux runs.
+- ☐ **v3 viewer fed by rhost:**
+  - retail D3D stream from rhost (`--d3d --cap`);
+  - port stream from the port;
+  - join by frame number.
+- ☐ wine/Linux target in `rhost.py` + bounded podman container
+  (recettear-decomp `container.sh` pattern, recycle-race fixed).
 
-- **▶ ACTIVE ARC 2 — AUTONOMOUS DAY-2 PLAY-THROUGH & SUBSYSTEM INTEGRATION (LANDED — ARC 2 COMPLETE).**
-  - **✅ LANDED (`tests/test_day2_playthrough.c`, `tools/test_day2_autonomous.py`):** Complete autonomous Day-2 game lifecycle verified under host ASan/UBSan (10/10 tests) and Python test runner (4/4 tests).
+### Re-verification program (owner: "re-verify everything with the new methodology")
+Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
+Re-check each flow by shadowing its ported functions over rhost scenarios, in this order:
+1. **Customer service + haggle beyond the first customer.** Earlier evidence covered only
+   customer #1. Needs multi-customer scenarios (record).
+2. **End of tutorial.** One very long cutscene plus load seams — the stress test for long
+   cutscenes and loaders under DEFER.
+3. Title / intro / prologue; house free-roam, pause menus, save commit (`save_compare.py`);
+   guild / world map; day 2.
+Per flow: list the ported fns it runs (rhost `--coverage` ∩ port ledger), add shadow hooks,
+and record the evidence line in the findings doc.
 
-- **▶ ACTIVE ARC 3 — PARITY EVIDENCE COMPILER & BEHAVIOR ATLAS (roadmap program).**
-  - **✅ LANDED:** Wave-0 (EP-00→EP-08) complete. Save pillar (ST-00/ST-01), volatile state pillar (ST-02..06 complete — Merkle roots, mutation consumer, ST-05 mutation producer platform `tools/parity/mutation_producer.py`, ST-06 5-scene volatile state map expansion in `docs/schemas/state-volatile-v1.json`), pixels pillar, D3D8 capture census & opcode corpus (GX-00→GX-06) complete. First multi-pillar passing proof bundle on `house-pause-save-commit`.
-  - **✅ LANDED (BA-00..BA-08 Behavior Atlas — `tools/atlas/`, `tools/behavior_atlas.py`, `tools/test_behavior_atlas.py` 31/31 tests passing):** Workstream BA COMPLETE. Content-addressed behavior graph (Node & Edge SHA-256 identity, SQLite store + JSON export/import, 68/68 scenarios indexed, BFS pathfinding & traversal execution engine, scene action grammars, BA-05 coverage-guided exploration scheduler, BA-06 hierarchical trace minimizer, BA-07 RNG callsite map & LCG seed solver, BA-08 multi-dimensional atlas health & risk reporter).
-  - **✅ LANDED (CC-00 Call Capsules — `docs/schemas/call-capsule-v1.json`, `docs/reference/call-capsules.md`, `tools/parity/capsule.py`, `tools/test_call_capsule.py` 8/8 checks passing):** Capsule ABI & pointed-object memory model specification adopted. Content-addressed identity, cdecl/stdcall/thiscall/fastcall support, x87 bit-preservation, relocation sandboxing, memory mutation validation, and 5 canonical category fixtures (pure leaf, known globals, in-place struct mutation, RNG consumer, unsupported OS-coupled call).
-  - **✅ LANDED (CC-01 Known-Write Call Capture — `tools/parity/capsule_capture.py`, `tools/capsule_capture.py`, `tools/test_capsule_capture.py` 13/13 tests passing, `tools/frida/openrecet-agent.js` `captureCallCapsule` RPC):** Snapshot-try-finally-restore lifecycle with bit-for-bit memory rollback on success and simulated crash, explicit `RacePolicy` classification, 5 canonical real engine fixtures (`boss_id_allowed`, `floor_is_checkpoint`, `rng_next15`, `records_a_spawn`, `audio_fade_compute`), and bit-exact host differential replay against ported C routines.
-  - **✅ LANDED (CC-02 Host Adapters & Corpus Tests — `tools/parity/host_diff_adapter.py`, `tools/parity/adapter_gen.py`, `tools/parity/corpus_store.py`, `tools/test_capsule_adapter.py` 17/17 tests passing, `docs/schemas/fixtures/capsules/`):** Direct native C execution against `tests/build/libengine_diff.so` via ctypes marshaling, automated C struct/shim and dynamic runtime adapter synthesis from `CallCaptureSpec` (descriptor + port symbol zero boilerplate), boundary mutation cross-validation, persistent fixture store, and deliberate return/poststate/order divergence detection.
-  - **✅ LANDED (CC-03 Observed Capsule Corpus Expansion — `docs/schemas/fixtures/capsules/`, `tools/parity/capsule_capture.py`, `tools/parity/host_diff_adapter.py`, `src/diff_entry.h`, `src/diff_entry.c`, `tools/test_capsule_adapter.py` 31/31 tests passing, `tools/test_capsule_capture.py` 13/13 tests passing):** Expanded canonical observed corpus to 12 targets across customer service, haggle math, item tables, equipment stats, audio predicates, stage gates, and particle systems (`haggle_decide`, `haggle_budget_ceiling`, `audio_is_one_shot_track`, `customer_service_pushback_patience`, `customer_service_budget_level_day`, `tables_item_find_slot_by_id`, `chara_equip_item_stats`), with native C shims in `libengine_diff.so`, boundary mutations, and verified caller/scenario provenance.
-  - **✅ LANDED (CV-01 Offline Ghidra & Static RE Index Platform — `tools/ghidra-scripts/ExportGhidraIndex.java`, `tools/ghidra-headless.sh`, `tools/re_index.py`, `tools/coverage_atlas.py`, `tools/test_re_index.py` 16/16 tests passing):** Complete deterministic static index export platform. Headless Java post-script extracting functions, basic blocks, CFG flows, call edges, memory/data read/write xrefs, string xrefs, and switch tables; pure-Python x86-32 length/branch instruction decoder indexing all 2,620 functions, 55,343 basic blocks, 82,167 CFG flow edges, 23,436 call edges, 5,794 global xrefs, and 1,300 string xrefs in <600ms; expanded SQLite schema in `docs/re-index.sqlite` with Python APIs and CLI (`blocks`, `flows`, `switches`, `data-xrefs`, `hash`, `export-json`, `import-json`); and integrated static block verification in `coverage_atlas.py` CV-08 CFG structural calibration.
-  - **✅ LANDED (CC-04 Unknown Write-Set Call Capture Platform — `tools/parity/capsule_capture.py`, `tools/frida/openrecet-agent.js`, `tools/parity/host_diff_adapter.py`, `docs/schemas/fixtures/capsules/chara_equip_item_stats_unknown_write.json`, `tools/test_capsule_capture.py` 17/17 tests passing, `tools/test_capsule_adapter.py` 33/33 tests passing):** Dynamic memory-diffing capture engine and Frida RPC (`captureUnknownWriteCapsule`) for discovering, clustering, and normalizing memory writes into discrete `MemoryWrite` objects without upfront hand-declarations; strict safety caps on write bytes (64KB) and write count (1024); guaranteed bit-for-bit `finally` rollback; canonical fixture for multi-field equipment stat calculation (`chara_equip_item_stats_unknown_write` on `FUN_0048093f`); and native C differential replay against `libengine_diff.so` with deliberate divergence detection.
-  - **✅ LANDED (BT-00 System Boundary Events & Equivalence Model — `docs/schemas/boundary-event-v1.json`, `docs/reference/boundary-events.md`, `tools/parity/boundary.py`, `tools/test_boundary_events.py` 11/11 tests passing):** Formal R3 specification and validation engine for system boundary event streams across 7 architectural domains (`win32_msg`, `dinput_device`, `filesystem_io`, `ini_config`, `audio_device`, `window_lifecycle`, `mutex_sync`); handle and relative path normalization with SHA-256 buffer payload hashing (zero asset leaks); and 3-tier cross-target equivalence evaluation (`CALL_SEQUENCE_EQUIVALENT`, `RESULT_EQUIVALENT`, `EFFECT_EQUIVALENT`).
-- ~~★ NEXT: BT-01 boundary instrumentation (Arc 3), or CC-05 hybrid retail function replacement.~~ (superseded — see PAUSED note at top)
+### Human queue (report at session end; ranked by what it unblocks)
+- (none open)
 
 ## Where to read next
 
