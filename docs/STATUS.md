@@ -67,6 +67,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - Done: the haggle family (oracle-exact under c11 + gnu11). Port now builds gnu11.
 - ◐ **Port-side determinism**: port↔retail traces should align by frame number.
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
+  - `--det-loads` (DEFER twin): loader threads run at the frame boundary, and every
+    `.ivt` bracket is 1 frame like retail under DEFER (14/14 measured), including the
+    first prologue load. House load: `LOADING_END` f73 both (plain turbo: f3546).
+  - `rhost.py portanchors house-idle`: **192/195 anchors identical (name + frame)** over
+    4,418 frames.
+  - ★ next: the 2 prologue script ends (`CONV_POSE_END` f1565/2883 port vs f1566/2884
+    retail). The port ends the pose 1 frame early. Retail's gate-clear lag
+    (`DAT_0438b1c8` drops in `FUN_004536cb`'s tail, §119) is modelled for tutorial scripts
+    (`D_TUT_DONE`) but not for the prologue (`D_SCRIPT1/2`). Then portanchors on the
+    other scenarios, then frame-by-frame `state` fields.
   - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
     replays rhost's flat trace with `--det-loads`, no pins (findings §11). First
     pin-free equality. One command: `rhost.py portsave SCEN`.
