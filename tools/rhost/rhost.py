@@ -295,7 +295,8 @@ def cmd_corpus(a):
         for n in names:
             src = os.path.join(bdir, n, "trace.flat.jsonl")
             if res.get(n, {}).get("complete") == "1" and os.path.exists(src):
-                shutil.copy(src, os.path.join(SCEN, n, "trace.flat.jsonl"))
+                ref = next((l for l in open(os.path.join(SCEN, n, "trace.jsonl")) if '"savefile"' in l), "")
+                open(os.path.join(SCEN, n, "trace.flat.jsonl"), "w").write(ref + open(src).read())
         print("flat traces written next to each completed scenario's trace.jsonl")
 
 

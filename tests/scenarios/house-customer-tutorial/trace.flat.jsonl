@@ -1,0 +1,188 @@
+{"savefile": "../_saves/cad868211e87465d3f4491d577fb919f2cb50bc33895b70e9702717136130c78.sav.gz"}
+# rhost flat trace (C:\orc-rhost\runs\20261013-174608-corpus\house-customer-tutorial\trace.jsonl): frame-absolute from boot; replays deterministically in rhost
+{"rngseed": [0, 19937]}
+{"rngseed": [1, 208096806]}
+{"frame": 1, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 100, "buttons": "0x0000"}
+{"rngseed": [121, 208096806]}
+{"frame": 186, "buttons": "0x0010"}
+{"frame": 190, "buttons": "0x0000"}
+{"rngseed": [232, 208096806]}
+{"rngseed": [233, 1501087713]}
+{"frame": 298, "buttons": "0x0002"}
+{"frame": 307, "buttons": "0x0000"}
+{"frame": 388, "buttons": "0x0010"}
+{"rngseed": [389, 608851275]}
+{"rngseed": [390, 110612738]}
+{"frame": 390, "buttons": "0x0000"}
+{"frame": 613, "buttons": "0x0020"}
+{"frame": 2243, "buttons": "0x0000"}
+{"frame": 2310, "buttons": "0x0001"}
+{"frame": 2313, "buttons": "0x0000"}
+{"frame": 2515, "buttons": "0x0020"}
+{"frame": 2631, "buttons": "0x0000"}
+{"frame": 2770, "buttons": "0x0001"}
+{"frame": 2774, "buttons": "0x0000"}
+{"frame": 2794, "buttons": "0x0004"}
+{"frame": 2797, "buttons": "0x0000"}
+{"frame": 2889, "buttons": "0x0010"}
+{"rngseed": [2890, 615637847]}
+{"frame": 2892, "buttons": "0x0000"}
+{"frame": 3005, "buttons": "0x0010"}
+{"frame": 3009, "buttons": "0x0000"}
+{"rngseed": [3020, 3993189625]}
+{"frame": 3118, "buttons": "0x0020"}
+{"frame": 4591, "buttons": "0x0000"}
+{"frame": 4677, "buttons": "0x0001"}
+{"frame": 4681, "buttons": "0x0000"}
+{"frame": 4701, "buttons": "0x0004"}
+{"frame": 4705, "buttons": "0x0000"}
+{"frame": 4713, "buttons": "0x0004"}
+{"frame": 4717, "buttons": "0x0000"}
+{"frame": 4754, "buttons": "0x0010"}
+{"rngseed": [4755, 753974734]}
+{"frame": 4758, "buttons": "0x0000"}
+{"frame": 4881, "buttons": "0x0010"}
+{"frame": 4886, "buttons": "0x0000"}
+{"rngseed": [4896, 1935527107]}
+{"frame": 4971, "buttons": "0x0020"}
+{"frame": 5761, "buttons": "0x0000"}
+{"frame": 5832, "buttons": "0x0020"}
+{"frame": 5838, "buttons": "0x0000"}
+{"frame": 5944, "buttons": "0x0001"}
+{"frame": 5948, "buttons": "0x0000"}
+{"frame": 5972, "buttons": "0x0008"}
+{"frame": 5975, "buttons": "0x0000"}
+{"frame": 5992, "buttons": "0x0001"}
+{"frame": 5996, "buttons": "0x0000"}
+{"frame": 6005, "buttons": "0x0004"}
+{"frame": 6009, "buttons": "0x0000"}
+{"frame": 6016, "buttons": "0x0004"}
+{"frame": 6020, "buttons": "0x0000"}
+{"frame": 6027, "buttons": "0x0004"}
+{"frame": 6030, "buttons": "0x0000"}
+{"frame": 6068, "buttons": "0x0010"}
+{"rngseed": [6069, 3297004088]}
+{"frame": 6071, "buttons": "0x0000"}
+{"frame": 6104, "buttons": "0x0010"}
+{"frame": 6108, "buttons": "0x0000"}
+{"rngseed": [6119, 2706710334]}
+{"frame": 6182, "buttons": "0x0020"}
+{"frame": 6438, "buttons": "0x0000"}
+{"rngseed": [6482, 2885918552]}
+{"rngseed": [6483, 2984555640]}
+{"frame": 6636, "buttons": "0x0020"}
+{"frame": 6729, "buttons": "0x0000"}
+{"frame": 6738, "buttons": "0x0020"}
+{"frame": 6785, "buttons": "0x0000"}
+{"frame": 6802, "buttons": "0x0010"}
+{"frame": 6806, "buttons": "0x0000"}
+{"frame": 6926, "buttons": "0x0010"}
+{"frame": 6930, "buttons": "0x0000"}
+{"frame": 7110, "buttons": "0x0001"}
+{"frame": 7113, "buttons": "0x0000"}
+{"frame": 7179, "buttons": "0x0004"}
+{"frame": 7184, "buttons": "0x0000"}
+{"frame": 7193, "buttons": "0x0004"}
+{"frame": 7196, "buttons": "0x0000"}
+{"frame": 7216, "buttons": "0x0004"}
+{"frame": 7220, "buttons": "0x0000"}
+{"frame": 7248, "buttons": "0x0004"}
+{"frame": 7253, "buttons": "0x0000"}
+{"frame": 7312, "buttons": "0x0010"}
+{"rngseed": [7313, 963847369]}
+{"frame": 7315, "buttons": "0x0000"}
+{"frame": 7376, "buttons": "0x0010"}
+{"frame": 7379, "buttons": "0x0000"}
+{"rngseed": [7391, 2451534555]}
+{"frame": 7463, "buttons": "0x0010"}
+{"frame": 7467, "buttons": "0x0000"}
+{"frame": 7519, "buttons": "0x0010"}
+{"frame": 7524, "buttons": "0x0000"}
+{"frame": 7590, "buttons": "0x0010"}
+{"frame": 7594, "buttons": "0x0000"}
+{"frame": 7709, "buttons": "0x0010"}
+{"frame": 7713, "buttons": "0x0000"}
+{"rngseed": [7802, 3889493459]}
+{"rngseed": [7803, 3217068659]}
+{"frame": 7972, "buttons": "0x0010"}
+{"frame": 7975, "buttons": "0x0000"}
+{"frame": 8073, "buttons": "0x0010"}
+{"frame": 8076, "buttons": "0x0000"}
+{"frame": 8214, "buttons": "0x0001"}
+{"frame": 8220, "buttons": "0x0000"}
+{"frame": 8255, "buttons": "0x0004"}
+{"frame": 8260, "buttons": "0x0000"}
+{"frame": 8268, "buttons": "0x0004"}
+{"frame": 8272, "buttons": "0x0000"}
+{"frame": 8279, "buttons": "0x0004"}
+{"frame": 8283, "buttons": "0x0000"}
+{"frame": 8290, "buttons": "0x0004"}
+{"frame": 8294, "buttons": "0x0000"}
+{"frame": 8301, "buttons": "0x0004"}
+{"frame": 8305, "buttons": "0x0000"}
+{"frame": 8311, "buttons": "0x0004"}
+{"frame": 8315, "buttons": "0x0000"}
+{"frame": 8353, "buttons": "0x0010"}
+{"rngseed": [8354, 2242986563]}
+{"frame": 8356, "buttons": "0x0000"}
+{"frame": 8389, "buttons": "0x0010"}
+{"frame": 8393, "buttons": "0x0000"}
+{"rngseed": [8404, 1914239156]}
+{"frame": 8472, "buttons": "0x0010"}
+{"frame": 8477, "buttons": "0x0000"}
+{"frame": 8517, "buttons": "0x0010"}
+{"frame": 8521, "buttons": "0x0000"}
+{"frame": 8586, "buttons": "0x0010"}
+{"frame": 8590, "buttons": "0x0000"}
+{"frame": 8694, "buttons": "0x0010"}
+{"frame": 8699, "buttons": "0x0000"}
+{"frame": 8750, "buttons": "0x0010"}
+{"frame": 8754, "buttons": "0x0000"}
+{"rngseed": [8933, 3523399074]}
+{"rngseed": [8934, 3460913072]}
+{"rngseed": [8954, 474079526]}
+{"rngseed": [9018, 135000454]}
+{"rngseed": [9054, 1405708964]}
+{"rngseed": [9082, 2414629350]}
+{"frame": 9104, "buttons": "0x0020"}
+{"rngseed": [9118, 3489055748]}
+{"rngseed": [9127, 3125712]}
+{"rngseed": [9141, 697398056]}
+{"rngseed": [9146, 528155206]}
+{"rngseed": [9150, 444931764]}
+{"rngseed": [9163, 3817683678]}
+{"rngseed": [9174, 268213464]}
+{"rngseed": [9183, 2086436200]}
+{"rngseed": [9210, 3942897482]}
+{"rngseed": [9226, 1357042530]}
+{"rngseed": [9264, 617283360]}
+{"rngseed": [9273, 2642298282]}
+{"rngseed": [9284, 2547704086]}
+{"rngseed": [9293, 4170939088]}
+{"rngseed": [9333, 3116251027]}
+{"rngseed": [9338, 487931641]}
+{"rngseed": [9342, 58630255]}
+{"rngseed": [9355, 3261144133]}
+{"rngseed": [9373, 2590851283]}
+{"rngseed": [9382, 2762741167]}
+{"rngseed": [9395, 1288342385]}
+{"rngseed": [9402, 1675370093]}
+{"rngseed": [9428, 1498728673]}
+{"rngseed": [9437, 2322450099]}
+{"rngseed": [9460, 392776273]}
+{"rngseed": [9466, 3288428365]}
+{"rngseed": [9469, 1158193059]}
+{"rngseed": [9499, 2003457552]}
+{"rngseed": [9508, 3042095900]}
+{"rngseed": [9521, 2925704948]}
+{"rngseed": [9528, 2057810482]}
+{"rngseed": [9530, 3363812800]}
+{"rngseed": [9537, 1741576140]}
+{"rngseed": [9581, 224672642]}
+{"rngseed": [9582, 1371860517]}
+{"frame": 9590, "buttons": "0x0000"}
+{"rngseed": [9641, 1305825743]}
+{"rngseed": [9642, 3923036407]}
+{"frame": 9942, "buttons": "0x0000"}

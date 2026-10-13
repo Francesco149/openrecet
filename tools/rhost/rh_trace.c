@@ -196,7 +196,11 @@ void rh_trace_after_tick(uint32_t frame)
 }
 int rh_trace_done(uint32_t frame) { return g_done_at && frame >= g_done_at; }
 /* an anchor-segmented trace whose current {wait} never resolves would spin forever */
-int rh_trace_stalled(uint32_t frame) { return g_seg_on && !g_done_at && O.stall_frames && frame - g_last_seg_change > O.stall_frames; }
+int rh_trace_stalled(uint32_t frame)
+{
+    return g_seg_on && !g_done_at && O.stall_frames && g_seg.cur_seg < g_seg.n_segs &&
+           g_seg.segs[g_seg.cur_seg].has_wait && frame - g_last_seg_change > O.stall_frames;
+}
 
 void rh_trace_finish(void)
 {
