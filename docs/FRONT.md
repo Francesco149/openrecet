@@ -30,8 +30,13 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
   - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
     port `LOADING_END` f72 vs retail f73, then a constant +1.
-  - ★ next: find that off-by-one (where the load flags clear relative to the deferral
-    point, port vs rhost); then compare `state` fields frame by frame.
+  - ★ next: the off-by-one is located.
+    - Retail runs a SECOND deferred worker, `LAB_00452aab` (the `.ivt` tutorial-dialogue
+      loader via `FUN_00452d07`). It is created in tick 72, holds gate `DAT_06a49960`,
+      and finishes at the next boundary, giving `LOADING_END@73`.
+    - The port loads that dialogue inline (`scene1_intro_dialogue_loading`, no worker).
+    - Fix: route it through `worker_load_spawn_sec(AAB)` so `--det-loads` defers it.
+    - Then compare `state` fields frame by frame.
   - Port runs need their own cwd: it writes `openrecet-calltrace-*.jsonl` into the cwd.
 - ◐ **v3 viewer fed by rhost:**
   - retail D3D stream from rhost (`--d3d --cap`): ✅ captured + replayed BIT-EXACT (house-idle f600-602);
