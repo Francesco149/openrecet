@@ -59,9 +59,7 @@ from the source, not hand-maintained marketing):
 
 The generated status is the only authoritative source for changing counts.
 Its current function labels are implementation/source-instrumentation inventory,
-not a claim that every labelled function has full behavioral proof; the proof-ledger
-migration is scoped in
-[`docs/plans/parity-evidence-roadmap.md`](docs/plans/parity-evidence-roadmap.md).
+not a claim that every labelled function has full behavioral proof.
 
 ## How it's verified
 
@@ -77,9 +75,9 @@ binary**, not guesswork:
 - **A large host unit suite** for portable decoders and game logic, run
   under AddressSanitizer + UndefinedBehaviorSanitizer on C changes.
 
-Methodology lives in
-[`docs/plans/parity-evidence-roadmap.md`](docs/plans/parity-evidence-roadmap.md),
-the operational trace guide in
+The current methodology decision record is
+[`docs/audits/2026-10-13-methodology-reset.md`](docs/audits/2026-10-13-methodology-reset.md),
+the operational trace guide is in
 [`docs/trace-workflow.md`](docs/trace-workflow.md), and delegation conventions in
 [`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md).
 

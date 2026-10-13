@@ -88,7 +88,8 @@ static int verify_hashes(OrV3Replay *r, const char *refs_path)
     return (nfail == 0 && ntotal > 0) ? 0 : 1;
 }
 
-/* batch RGB DUMP for the parity pixel producer (tools/parity/pixel_producer.py):
+/* batch RGB DUMP (written for the pixel producer tools/parity/pixel_producer.py,
+ * retired 2026-10-13; the mode itself is kept as a headless frame dumper):
  * render the kept frames listed (ascending, one per line) in <wanted.txt> on the
  * RESIDENT core and write each as <outdir>/f<kept:05d>.raw (8-byte [w,h] u32 header
  * + tightly-packed BGRA — the v3ref/read_raw_rgb format). This is the render half of

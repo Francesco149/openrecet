@@ -2,8 +2,7 @@
 
 > **Status:** authoritative orchestration policy  \
 > **Last verified:** 2026-07-16  \
-> **Reasoning-tier definitions:** shared with
-> `plans/parity-evidence-roadmap.md` §2
+> **Methodology context:** `audits/2026-10-13-methodology-reset.md` (2026-10-13)
 
 OpenRecet's exact-parity work benefits from delegation, but only after judgment has
 reduced a problem to a bounded contract. This document names roles by required reasoning,

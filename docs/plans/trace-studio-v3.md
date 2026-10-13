@@ -6,8 +6,7 @@
 >
 > **Operational guide:** `../trace-workflow.md`
 >
-> **Open preservation-grade proof/capture gaps:**
-> `parity-evidence-roadmap.md` EP and GX workstreams
+> **Methodology context (2026-10-13):** `../audits/2026-10-13-methodology-reset.md`
 
 This file is the detailed v3 design/build log. Early entries below retain their dated
 “design/de-risking” wording as history; do not read them as current platform status.

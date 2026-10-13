@@ -25,6 +25,5 @@ Important limits:
 - Output identifies candidate accesses, not semantic ownership or parity. R3 must
   interpret the writer and decide the next chip.
 
-New unknown-write work should feed the canonical state/mutation or call-capsule consumer
-defined in `parity-evidence-roadmap.md` ST-05/CC-04 rather than creating an isolated
-capture.
+(The 2026-07/08 state-mutation / call-capsule consumers this once fed were retired on
+2026-10-13; see `../archive/2026-10-13-agent-era-cleanup.md`.)

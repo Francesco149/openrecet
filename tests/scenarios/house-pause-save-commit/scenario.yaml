@@ -11,7 +11,6 @@
 # (SAVE_PICKER_READY, offset).  Pinned (phasepin 80) so the pre-ESC free-roam
 # matches 1:1.  The {savefile} sandbox means the commit's disk write never
 # touches the user's real save (the harness captures it for verification).
-schema_version: 2
 description: |
   Pause → 3×down to SAVE → Z opens the save submenu → A on the occupied home
   slot 0 → "Overwriting file?" Yes → the commit animation runs → the picker rests
@@ -20,58 +19,18 @@ description: |
 max_frames: 22000   # turbo load-stretch headroom (matches house-pause-save-nav)
 duration_ceiling_ms: 180000
 
-# ─── Parity contract (EP-01/§4.3; the SAVE-pillar corpus contract, 2026-07-16) ──────
-# The ST-01 subject: the persistent-state (save.dat) axis of parity — invisible to every
-# pixel/frame pillar.  Scoped to the gap-free SAVE_PICKER_READY occ-1 window [1,19] (the
-# resting picker; offset 0 is the join's only head gap, excluded — the port's
-# SAVE_PICKER_READY fires 1f later, so port#0 == retail#1).  `identity` PASSES there.
-# `save` is declared REQUIRED and now PASSES: the two save.dat a `--target both` drive
-# writes are BYTE-IDENTICAL (ndiff=0, drive-stable across >=2 both-runs) — the first fully-
-# passing multi-pillar bundle in the evidence program.  Three divergences the save pillar
-# CAUGHT along the way, all resolved:
-#   * encyclopedia_discovery re-init across banks 1–99 (6435 B) — the port's verify sweep
-#     clobbered loaded non-active banks; FIXED byte-exact (commit 6c9c85d).
-#   * house_cam_flag (0xb37d) — the continue-resume didn't clear the from-world-map camera
-#     flag (a REAL port bug, not phase); FIXED (scene.c, engine FUN_0049a59e all.c:100642).
-#   * occupied_playtime — the total-playtime FRAME accumulator counts the two completion-
-#     based async-load brackets (house + pause menu), a wall-clock CreateThread race under
-#     turbo (the port swung ~4000 frames run-to-run vs retail's ~40): a drive-variable PHASE
-#     ORIGIN normalized by the bilateral {playtimepin} (both sides forced to a canonical
-#     origin AFTER the last variable load -> deterministic + cross-target-equal at COMMIT).
+# Save compare: `scenario-test.py house-pause-save-commit --target both`, then
+# `tools/save_compare.py --scenario house-pause-save-commit` (byte-exact save.dat,
+# region-localized).  Divergences it caught here (2026-07, cross-process drives):
+#   * encyclopedia_discovery re-init across banks 1-99 (6435 B) — the port's verify
+#     sweep clobbered loaded non-active banks (6c9c85d; mechanism revisited by
+#     docs/findings/in-process-retail-host.md §7).
+#   * house_cam_flag (0xb37d) — continue-resume didn't clear the from-world-map camera
+#     flag; fixed in scene.c (engine FUN_0049a59e).
+#   * occupied_playtime — total-playtime frame counter; a load-timing phase origin,
+#     normalized by the bilateral {playtimepin}.
 # Arm the v3 window at SAVE_PICKER_READY (NOT the default HOUSE_FREEROAM, which desyncs
 # under load-stretch → 0 pairs):
 #     orv3_window.py house-pause-save-commit --window 0:200 --anchor SAVE_PICKER_READY --view
 # NB the commit-animation frames (offset 20+) do NOT identity-join: the port stays on
-# SAVE_PICKER_READY while retail re-anchors to PAUSE_OPEN during the disk write — a
-# commit-region identity divergence (a lead; findings/parity-save-producer.md).  The save
-# pillar is scenario-scoped (one committed save.dat, not a per-frame join), so it proves
-# the persistent OUTCOME regardless of that render-frame gap.
-proof:
-  contract_version: 1
-  start_node: null
-  join:
-    anchor: SAVE_PICKER_READY
-    occurrence: 1
-    window: [1, 19]
-  required_pillars:
-    - identity
-    - save
-    - state
-  seeds: [19937]
-  configurations: [reference-1024-windowed]
-  # No exceptions — save PASSES byte-exact (the phase-origin playtime residual is normalized
-  # by the bilateral {playtimepin}, not tolerated).  The gate reports an honest full PASS.
-  # `state` (the once-per-frame VOLATILE pillar) is now REQUIRED and PASSES: [1,19] is
-  # 19/19 Merkle-identical, the full window 200/200.  ★NEXT-d closed the retail --state head
-  # warm-up — a --state drive now emits the 4 once-per-frame VAs UN-GATED and v3cache windows
-  # the sidecar to the kept d3d presents by identity, so the window head (offsets 0-1, whose
-  # sim ran before the anchor could arm the old {calltrace} window) is captured.  This is the
-  # first three-pillar (identity · save · state) volatile+persistent proof in the program.
-coverage_expectations:
-  functions: []
-  blocks: []
-  vm_operations: []
-  content_ids: []
-  transitions: []
-  assets: []
-  audio_ids: []
+# SAVE_PICKER_READY while retail re-anchors to PAUSE_OPEN during the disk write.

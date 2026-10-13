@@ -3,8 +3,9 @@
 > Living document. Sub-plan of `PLAN.md`; cross-linked from its §6.
 >
 > **2026-06-09: phases A–E below are LANDED or superseded as their inline
-> audit notes say; this file is now the harness HISTORY.** The authoritative
-> current implementation program is `plans/parity-evidence-roadmap.md`.
+> audit notes say; this file is now the harness HISTORY.** Current methodology:
+> `audits/2026-10-13-methodology-reset.md` (the 2026-07 evidence roadmap was retired
+> 2026-10-13).
 > The June ranked list remains at `audits/2026-06-09-methodology-audit.md`
 > as a dated decision record. Come here only for why existing harness pieces
 > have their present shape.

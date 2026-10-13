@@ -41,7 +41,7 @@ CACHE_ROOT = ROOT / "runs" / "studio-v3-cache"
 # EP-08 cache provenance. Bumping CACHE_SCHEMA (or changing any input below) re-keys
 # every entry ⇒ the next orv3_window re-drives (retail is serialized/slow — paid once).
 # 2 = the full-provenance re-key (was an 8-hex trace+arm digest that never invalidated
-# on a rebuilt proxy / edited frida agent). See docs/findings/parity-EP08-*.
+# on a rebuilt proxy / edited frida agent). History: commit 5713074a (EP-08).
 CACHE_SCHEMA = 2
 
 # The capture-determining inputs, as MODULE-LEVEL paths so tests monkeypatch them to
@@ -412,18 +412,13 @@ def store(dest: Path, ident: FrameIdentity, src: Path | None = None,
     # clear any stale prior entry so a shorter window can't leave orphan refs (and a
     # no-state re-drive can't leave a stale call_trace.jsonl behind fresh pixels)
     for f in [dest / "v3cap.bin", *dest.glob("v3ref_*.raw"),
-              dest / "v3refs.txt", dest / "v3meta.json", dest / "call_trace.jsonl",
-              dest / "v3cap.census.json"]:
+              dest / "v3refs.txt", dest / "v3meta.json", dest / "call_trace.jsonl"]:
         f.unlink(missing_ok=True)
     shutil.copy2(cap, dest / "v3cap.bin")
     for ref in sorted(src.glob("v3ref_*.raw")):
         shutil.copy2(ref, dest / ref.name)
     if (src / "v3refs.txt").exists():
         shutil.copy2(src / "v3refs.txt", dest / "v3refs.txt")
-    # GX-00 dynamic census: the proxy's per-forwarded-method call-count sidecar, so
-    # d3d_census.py --dynamic can gate this cached side (capture-completeness).
-    if (src / "v3cap.census.json").exists():
-        shutil.copy2(src / "v3cap.census.json", dest / "v3cap.census.json")
     if call_trace_path is not None and Path(call_trace_path).exists():
         _store_call_trace(Path(call_trace_path), dest / "call_trace.jsonl", kept_presents)
     (dest / "v3meta.json").write_text(json.dumps(asdict(ident), indent=1))

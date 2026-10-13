@@ -4,7 +4,7 @@
 The ledger maps every engine function (from the Ghidra export
 ``docs/decompiled/functions.csv``) to a **two-axis lifecycle**, derived purely
 from artifacts already in the tree — it is regenerated, never hand-maintained,
-so it cannot drift.  The two axes are kept SEPARATE (roadmap EP-06: "do not
+so it cannot drift.  The two axes are kept SEPARATE (EP-06: "do not
 collapse to one strongest global label"); a function can be retail-executed yet
 unimplemented, so a single label would lie.
 
@@ -18,16 +18,13 @@ unimplemented, so a single label would lie.
   instrumented      a CALL_TRACE_ENTER(0xVA) probe wired (runtime-DIFFABLE, not
                     runtime-PROVEN).  _STUB → instrumented + a "stub" flag.
 
-  RUNTIME axis  (proof-artifact-derived — each rung needs an artifact)
-  ------------  source of truth
-  retail-executed / port-executed / call-I/O-aligned /
-  scenario-pillar-proven / matrix-proven
-                    docs/parity-proof-index.json — a git-tracked binding of a VA
-                    to a parity-proof bundle, keyed on the DURABLE
-                    ``contract_sha256`` (parity_prove's stable, drive- and
-                    commit-INDEPENDENT scenario-contract hash), never the volatile
-                    per-drive proof_id.  The local runs/proofs/ store is gitignored
-                    and is NEVER read here (keeps --check reproducible).
+  RUNTIME axis  (needs runtime evidence — none is bound today)
+  ------------
+  ``runtime_state`` is null for every function.  The 2026-07 proof-bundle
+  binding (parity_prove + docs/parity-proof-index.json) was retired on
+  2026-10-13 with the methodology reset; runtime evidence is to come from the
+  in-process retail host (docs/findings/in-process-retail-host.md).  The field
+  stays in the JSON so consumers keep a stable shape.
 
 A DEPRECATED legacy ``status`` (verified/stubbed/ported/unported) is preserved
 per function for existing consumers (mem_watch.py) and human continuity.
@@ -41,7 +38,7 @@ Run from the repo root:  python3 tools/gen_port_ledger.py
 Add --check to fail (exit 3) if the on-disk ledger is stale (for a pre-commit
 hook): it regenerates into memory and diffs against what's committed.
 
-Design + rationale: docs/findings/parity-EP06-ledger-lifecycle.md.
+Design history: commit 2f9bad71 (EP-06), simplified 2026-10-13.
 """
 
 from __future__ import annotations
@@ -57,7 +54,6 @@ REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 FUNCTIONS_CSV = REPO / "docs" / "decompiled" / "functions.csv"
 CALL_TARGETS_JSON = REPO / "tools" / "ttd" / "data" / "engine_function_vas.json"
-PROOF_INDEX_JSON = REPO / "docs" / "parity-proof-index.json"
 
 LEDGER_JSON = REPO / "docs" / "port-ledger.json"
 LEDGER_MD = REPO / "docs" / "port-ledger.md"
@@ -68,13 +64,8 @@ STATUS_MD = REPO / "docs" / "STATUS.md"
 # can never drift from reality.  Everything else in STATUS is derived from code.
 FRONT_MD = REPO / "docs" / "FRONT.md"
 
-# --- lifecycle ladders (roadmap EP-06) ------------------------------------
+# --- inventory ladder (EP-06) ---------------------------------------------
 INVENTORY_LADDER = ["discovered", "source-referenced", "implemented", "instrumented"]
-RUNTIME_LADDER = [
-    "retail-executed", "port-executed", "call-I/O-aligned",
-    "scenario-pillar-proven", "matrix-proven",
-]
-RUNTIME_SET = set(RUNTIME_LADDER)
 
 
 def read_front() -> str:
@@ -96,7 +87,7 @@ PROBE_STUB_RE = re.compile(r"CALL_TRACE_ENTER_STUB\(\s*0x([0-9a-fA-F]+)u?\s*\)")
 FUN_RE = re.compile(r"FUN_([0-9a-fA-F]{6,8})")
 # PORT-OF(0xVA) — an opt-in, comment-only author attestation that the enclosing
 # src function faithfully ports engine FUN_<va>.  INVENTORY-level (source
-# fidelity, like objdump-exact), NOT a runtime claim.  See the EP-06 finding.
+# fidelity, like objdump-exact), NOT a runtime claim.
 PORT_OF_RE = re.compile(r"PORT-OF\(\s*0x([0-9a-fA-F]+)u?\s*\)")
 # PORT-DEBT(...) markers — MVP/synthetic shortcuts inside ported code. The full
 # registry is tools/gen_port_debt.py → docs/port-debt.{md,json}; here we only
@@ -124,53 +115,6 @@ def load_engine_functions() -> dict[int, dict]:
 def load_call_targets() -> set[int]:
     data = json.loads(CALL_TARGETS_JSON.read_text())
     return set(data.get("vas", []))
-
-
-def _is_sha256(v) -> bool:
-    """True iff v is a lowercase 64-hex sha256 string."""
-    return isinstance(v, str) and len(v) == 64 and all(c in "0123456789abcdef" for c in v)
-
-
-def load_proof_index(path: Path = PROOF_INDEX_JSON) -> dict[int, list[dict]]:
-    """VA -> list of runtime proof refs, from the git-tracked proof index.
-
-    Each entry binds an engine VA to a parity-proof bundle.  The DURABLE key is
-    the ``contract_sha256`` — parity_prove's stable hash of the scenario's
-    ``proof`` contract block, which is drive- and commit-INDEPENDENT (it
-    reproduces from the committed scenario.yaml, so it can be cited inside the
-    very commit that adds the entry).  An entry carries a runtime ``state`` (one
-    of RUNTIME_LADDER), that ``contract_sha256``, and a ``scope``.  ``proof_id``
-    is OPTIONAL + ADVISORY — a recording-time snapshot of the local bundle that
-    established the binding (it binds git_commit + drive and advances every
-    commit; runs/proofs/ is gitignored) — never the identity.  Absent file or
-    empty ``entries`` -> {} (the honest default until a VA->proof binding
-    exists).  Never reads runs/proofs/."""
-    if not path.exists():
-        return {}
-    data = json.loads(path.read_text())
-    out: dict[int, list[dict]] = {}
-    for e in data.get("entries", []):
-        try:
-            va = int(e["va"], 16) if isinstance(e["va"], str) else int(e["va"])
-        except (KeyError, ValueError, TypeError):
-            raise SystemExit(f"proof-index entry missing/invalid 'va': {e!r}")
-        st = e.get("state")
-        if st not in RUNTIME_SET:
-            raise SystemExit(
-                f"proof-index entry for {e.get('va')} declares invalid runtime "
-                f"state {st!r} (must be one of {RUNTIME_LADDER})")
-        if not _is_sha256(e.get("contract_sha256")):
-            raise SystemExit(
-                f"proof-index entry for {e.get('va')} has no valid contract_sha256 "
-                f"— a runtime state binds to a parity-proof CONTRACT (the stable, "
-                f"drive-independent key; roadmap EP-06 ★NEXT-b′)")
-        pid = e.get("proof_id")
-        if pid is not None and not _is_sha256(pid):
-            raise SystemExit(
-                f"proof-index entry for {e.get('va')} has a malformed proof_id "
-                f"{pid!r} (must be a 64-hex sha256 or omitted — it is advisory)")
-        out.setdefault(va, []).append(e)
-    return out
 
 
 def scan_src():
@@ -217,14 +161,6 @@ def inventory_state(has_probe, has_stub, has_port_of, has_fun) -> str:
     return "discovered"
 
 
-def runtime_state(refs: list[dict]):
-    """Furthest RUNTIME rung declared by the proof index, or None."""
-    if not refs:
-        return None
-    idx = max(RUNTIME_LADDER.index(r["state"]) for r in refs)
-    return RUNTIME_LADDER[idx]
-
-
 def legacy_status(has_probe, has_stub, has_ref) -> str:
     """DEPRECATED per-function alias — kept byte-identical for mem_watch.py and
     human continuity.  verified=full probe, stubbed=stub probe, ported=any src
@@ -238,7 +174,7 @@ def legacy_status(has_probe, has_stub, has_ref) -> str:
     return "unported"
 
 
-def classify(funcs, call_targets, verified, stubbed, ported, port_of, proof_index):
+def classify(funcs, call_targets, verified, stubbed, ported, port_of):
     """Assign the two-axis lifecycle per engine VA, plus collect 'referenced but
     not an engine function' VAs (indirect/vtable-target or sub-helper hints)."""
     entries: dict[int, dict] = {}
@@ -249,10 +185,8 @@ def classify(funcs, call_targets, verified, stubbed, ported, port_of, proof_inde
         has_port_of = va in port_of
         has_fun = va in ported
         has_ref = has_fun or has_port_of
-        refs = proof_index.get(va, [])
 
         inv = inventory_state(has_probe, has_stub, has_port_of, has_fun)
-        rt = runtime_state(refs)
         quality = ["stub"] if (has_stub and not has_probe) else []
 
         # src files that reference this VA (probe / FUN_ / PORT-OF), deduped.
@@ -266,9 +200,6 @@ def classify(funcs, call_targets, verified, stubbed, ported, port_of, proof_inde
             "instrumented": has_probe or has_stub,
             "instrumented_stub": has_stub and not has_probe,
         }
-        for rung in RUNTIME_LADDER:
-            reached = rt is not None and RUNTIME_LADDER.index(rt) >= RUNTIME_LADDER.index(rung)
-            evidence[rung.replace("-", "_").replace("I/O", "io").lower()] = reached
 
         entries[va] = {
             "va": f"0x{va:06x}",
@@ -277,16 +208,9 @@ def classify(funcs, call_targets, verified, stubbed, ported, port_of, proof_inde
             "is_thunk": info["is_thunk"],
             "is_call_target": va in call_targets,
             "inventory_state": inv,
-            "runtime_state": rt,          # None until a proof-index entry exists
+            "runtime_state": None,        # no runtime evidence bound (see docstring)
             "evidence": evidence,
             "quality_flags": quality,
-            "proofs": [
-                {"contract_sha256": r["contract_sha256"], "state": r["state"],
-                 "scenario": r.get("scenario"), "scope": r.get("scope"),
-                 "pillars": r.get("pillars"),
-                 "proof_id": r.get("proof_id")}  # advisory snapshot, may be stale
-                for r in refs
-            ],
             "src": src,
             "status": legacy_status(has_probe, has_stub, has_ref),  # DEPRECATED alias
         }
@@ -324,7 +248,7 @@ def summarize(entries, funcs, orphans, port_debt=0):
         "inv_discovered": discovered_only,
         "referenced_or_better": referenced_plus,
         "pct_referenced_or_better": round(100.0 * referenced_plus / max(1, non_thunk), 1),
-        # --- RUNTIME axis (needs a proof artifact) ---
+        # --- RUNTIME axis (no runtime evidence bound yet) ---
         "runtime_proven": runtime_proven,
         "pct_runtime_proven": round(100.0 * runtime_proven / max(1, non_thunk), 1),
         "orphan_refs_not_in_function_table": len(orphans),
@@ -344,13 +268,13 @@ def summarize(entries, funcs, orphans, port_debt=0):
 def render_json(entries, orphans, counts) -> str:
     payload = {
         "_generated_by": "tools/gen_port_ledger.py",
-        "_note": "DERIVED FILE — do not edit by hand; run the generator. EP-06 "
-                 "two-axis lifecycle (inventory_state = source markers; "
-                 "runtime_state = proof-index artifacts, null until bound). "
-                 "'status' is a DEPRECATED legacy alias. Output is a pure "
-                 "function of src/ + functions.csv + the VAs JSON + "
-                 "parity-proof-index.json, so it is idempotent (safe for a "
-                 "pre-commit --check). See docs/findings/parity-EP06-ledger-lifecycle.md.",
+        "_note": "DERIVED FILE — do not edit by hand; run the generator. "
+                 "inventory_state = source markers (NOT runtime proof); "
+                 "runtime_state = null for every function (no runtime evidence "
+                 "bound since the 2026-10-13 methodology reset). 'status' is a "
+                 "DEPRECATED legacy alias. Output is a pure function of src/ + "
+                 "functions.csv + the VAs JSON, so it is idempotent (safe for a "
+                 "pre-commit --check).",
         "counts": counts,
         "orphan_refs": [f"0x{va:06x}" for va in orphans],
         "functions": [entries[va] for va in sorted(entries)],
@@ -383,20 +307,19 @@ def render_status(counts) -> str:
 | discovered         | {c['inv_discovered']:>5} | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **{c['non_thunk_functions']:>3}** | of {c['engine_functions_total']} incl. thunks |
 
-## Port RUNTIME proof (cross-target — proof artifacts)
+## Port RUNTIME proof (cross-target)
 
 ```
 {c['runtime_proven']} function{'' if c['runtime_proven'] == 1 else 's'} runtime-proven   ({c['pct_runtime_proven']}%)
 ```
 
-Every runtime rung (retail-executed / port-executed / call-I/O-aligned /
-scenario-pillar-proven / matrix-proven) requires a bundle in
-`parity-proof-index.json` (git-tracked, hashes only). **INVENTORY ≠ PARITY**: an
-instrumented probe is a *diffable* point, not proof a function ran or matched
-retail. The index binds a VA→proof only when EP-05 `parity_prove.py` covers it in
-its proven scope. Human cross-target attestations live separately in
-`findings/confirmed-parity-ledger.md`. Rationale:
-`findings/parity-EP06-ledger-lifecycle.md`.
+**INVENTORY ≠ PARITY**: an instrumented probe is a *diffable* point, not proof a
+function ran or matched retail. No runtime evidence is bound today: the
+2026-07 proof-bundle binding was retired on 2026-10-13 (methodology reset,
+`audits/2026-10-13-methodology-reset.md`); runtime evidence is to come from the
+in-process retail host (`findings/in-process-retail-host.md`). Prior human
+attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
+re-verification.
 
 {c['orphan_refs_not_in_function_table']} VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
@@ -418,7 +341,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - `port-debt.md` / `.json` — MVP/synthetic shortcuts inside ported code (derived).
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
-- `plans/parity-evidence-roadmap.md` — the evidence-compiler program (EP-06 here).
+- `audits/2026-10-13-methodology-reset.md` — current methodology decision record.
 - `AGENT-WORKFLOW.md` — how to work on this repo.
 """
 
@@ -429,13 +352,12 @@ def render_md(entries, orphans, counts) -> str:
         "# OpenRecet — port ledger",
         "",
         "> **DERIVED FILE** — regenerate with `python3 tools/gen_port_ledger.py`.",
-        "> See `STATUS.md` for the headline; `findings/parity-EP06-ledger-lifecycle.md`",
-        "> for the two-axis lifecycle model.",
+        "> See `STATUS.md` for the headline.",
         "",
-        "Per-engine-function lifecycle, two independent axes (roadmap EP-06):",
-        "an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /",
-        "`CALL_TRACE_ENTER`) and a **RUNTIME** rung derived from proof bundles",
-        "(`parity-proof-index.json`). A `src/` marker is INVENTORY, never parity.",
+        "Per-engine-function lifecycle, two independent axes: an **INVENTORY** rung",
+        "derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a",
+        "**RUNTIME** rung that needs runtime evidence (none bound since the",
+        "2026-10-13 methodology reset). A `src/` marker is INVENTORY, never parity.",
         "",
         "## Summary",
         "",
@@ -448,7 +370,7 @@ def render_md(entries, orphans, counts) -> str:
         f"discovered {c['inv_discovered']} "
         f"→ {c['referenced_or_better']} referenced-or-better ({c['pct_referenced_or_better']}%)",
         f"- **runtime:** {c['runtime_proven']} proven ({c['pct_runtime_proven']}%) "
-        f"— every rung needs a `parity-proof-index.json` bundle",
+        f"— no runtime evidence bound",
         f"- orphan refs (in src/, not in function table): {c['orphan_refs_not_in_function_table']}",
         "",
     ]
@@ -476,32 +398,22 @@ def render_md(entries, orphans, counts) -> str:
     # Runtime-proven functions (empty today) — an explicit section so the axis is
     # visible even at zero.
     proven = [e for e in real if e["runtime_state"] is not None]
-    lines.append(f"## runtime-proven ({len(proven)}) — bound to a parity-proof bundle")
+    lines.append(f"## runtime-proven ({len(proven)})")
     lines.append("")
-    if proven:
-        lines.append("| VA | name | runtime state | contract_sha256 | scope |")
-        lines.append("|----|------|---------------|-----------------|-------|")
-        for e in proven:
-            p = e["proofs"][-1] if e["proofs"] else {}
-            lines.append(
-                f"| {e['va']} | {e['name']} | {e['runtime_state']} | "
-                f"{(p.get('contract_sha256') or '')[:12]} | {p.get('scope') or ''} |")
-    else:
-        lines.append("_None yet — `parity-proof-index.json` has no entries. A VA is "
-                     "listed here only when a `parity_prove.py` bundle covers it in "
-                     "its proven scope (INVENTORY ≠ PARITY)._")
+    lines.append("_None — no runtime evidence is bound (INVENTORY ≠ PARITY). The "
+                 "2026-07 proof-bundle bindings were retired on 2026-10-13; re-verify "
+                 "under the in-process retail host._")
     lines.append("")
     return "\n".join(lines) + "\n"
 
 
-def build(proof_index_path: Path = PROOF_INDEX_JSON):
+def build():
     """Pure builder: returns (entries, orphans, counts). Used by tests."""
     funcs = load_engine_functions()
     call_targets = load_call_targets()
     verified, stubbed, ported, port_of = scan_src()
-    proof_index = load_proof_index(proof_index_path)
     entries, orphans = classify(
-        funcs, call_targets, verified, stubbed, ported, port_of, proof_index)
+        funcs, call_targets, verified, stubbed, ported, port_of)
     counts = summarize(entries, funcs, orphans, count_port_debt())
     return entries, orphans, counts
 

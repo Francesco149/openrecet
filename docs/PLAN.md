@@ -6,7 +6,7 @@
 >
 > **Live implementation front:** `FRONT.md`
 >
-> **Long-horizon evidence/tooling program:** `plans/parity-evidence-roadmap.md`
+> **Methodology (2026-10-13 reset):** `audits/2026-10-13-methodology-reset.md`
 
 This file owns stable goals and constraints. It deliberately does not duplicate live
 coverage counts, the active gameplay gap, or detailed implementation backlogs.
@@ -74,8 +74,9 @@ Parity is a scoped claim, never a global adjective. Every claim names:
 
 Joining two frame streams proves correspondence, not equality. Same-side replay proves
 capture/replayer consistency, not retail/port equivalence. Source annotations prove
-inventory, not runtime execution. The detailed claim vocabulary and implementation
-plan live in `plans/parity-evidence-roadmap.md`.
+inventory, not runtime execution. Runtime verification is moving to the in-process
+retail host (`findings/in-process-retail-host.md`; decision record
+`audits/2026-10-13-methodology-reset.md`).
 
 The deterministic pinned lane and the real-time unpinned lane answer different
 questions and must remain separate:
@@ -124,7 +125,7 @@ Neither lane can substitute for the other.
 |---|---|
 | Current gameplay/RE target | `FRONT.md` |
 | Derived implementation inventory | `STATUS.md`, `port-ledger.*`, `port-debt.*` |
-| Long-horizon proof, coverage, and exploration work | `plans/parity-evidence-roadmap.md` |
+| Verification methodology (2026-10-13 reset) | `audits/2026-10-13-methodology-reset.md` |
 | Active per-subsystem plans | `plans/README.md` |
 | Operational trace workflow | `trace-workflow.md` |
 | Durable findings | `findings/INDEX.md` |
@@ -132,9 +133,8 @@ Neither lane can substitute for the other.
 | Agent/reasoning split | `AGENT-WORKFLOW.md` |
 | Documentation ownership/staleness rules | `DOCUMENTATION.md` |
 
-`STATUS.md` is a generated source-inventory view. Until the evidence-roadmap ledger
-migration lands, its `verified`/`ported` labels must not be read as whole-game parity
-proof.
+`STATUS.md` is a generated source-inventory view. Its `verified`/`ported` labels must
+not be read as whole-game parity proof; no runtime evidence is bound today.
 
 ## 7. Macro sequencing
 
@@ -159,7 +159,6 @@ until its proof and coverage obligations are recorded.
 nix develop --command make -C src
 nix develop --command make -C tests run
 nix develop --command python3 tools/run_python_tests.py
-nix develop --command python3 tools/ci/check_docs.py
 ```
 
 Run Windows binaries only through `tools/run-openrecet.sh` or the scenario/probe

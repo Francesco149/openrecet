@@ -2,7 +2,8 @@
 
 > **Status:** REFERENCE (2026-07-16). Synthesis of prior-art AI-driven and
 > human-driven matching-decomp / reimplementation projects, mapped to our work.
-> Feeds `../plans/parity-evidence-roadmap.md` + `../AGENT-WORKFLOW.md`. Read when
+> Feeds `../AGENT-WORKFLOW.md` (the 2026-07 evidence roadmap it also fed was retired
+> 2026-10-13). Read when
 > designing an agent porting loop or new parity tooling.
 
 ## The universal loop
@@ -38,7 +39,7 @@ a matching-decomp loop) and published their architecture — the closest prior a
    `feedback_subagent_parity_exact_caution` + AGENT-WORKFLOW §6.
    → **NEW package: oracle-guard hooks** (below). Scope to the delegated/porting
    loop; the R3 orchestrator legitimately edits pins/ledger, so guard sub-agent
-   write-sets + force `scenario-test`/`flow_diff`/`parity_prove` as the sole gate,
+   write-sets + force `scenario-test`/`flow_diff` (now: rhost shadow) as the sole gate,
    never a self-graded residual.
 
 2. **Annotated-diff feedback + bounded loop** (Macabeus). Feed the agent ONLY the

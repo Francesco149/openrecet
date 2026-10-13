@@ -32,12 +32,11 @@ class.
 
 ## Stable terminology
 
-- Use reasoning tiers `R3`, `R2`, and `R1`; do not encode current provider/model names in
-  workflow policy.
+- Use reasoning tiers `R3`, `R2`, and `R1` when describing delegation.
 - Do not use double-bracket private auto-memory/wiki references in authoritative docs.
   Link a real repository file/heading.
 - Distinguish source inventory, runtime coverage, proof, human confirmation, join, and
-  replay. Definitions live in `plans/parity-evidence-roadmap.md`.
+  replay; never let one stand in for another.
 - Avoid “current,” “today,” or mutable numeric claims without a date or generated source.
 
 ## Active plan requirements
@@ -67,28 +66,7 @@ done-as-scoped reference.
 
 ## Link and convention checks
 
-Run:
-
-```sh
-nix develop --command python3 tools/ci/check_docs.py
-```
-
-The checker validates local Markdown links and rejects known fragile conventions in the
-current entry points, operational guides, front, and every non-archive plan. New plan
-files are discovered automatically. Archive/audit/finding prose is intentionally
-excluded from style/staleness checks, but local links may be audited separately when
-those files are actively edited.
-
-When adding another authoritative entry point or operational guide outside `docs/plans/`,
-add it to `CURRENT_ENTRY_AND_GUIDE_DOCS` in the checker and to the source-of-truth table
-in `PLAN.md`.
-
-## Change procedure
-
-1. Identify which document owns the truth.
-2. Update that source first.
-3. Regenerate derived views.
-4. Replace duplicates with links.
-5. Archive or banner superseded instructions.
-6. Run the documentation checker.
-7. Review the diff for accidental rewriting of historical evidence.
+No automated checker. `tools/ci/check_docs.py` (link check + a CI ban on model names
+in docs) was retired on 2026-10-13 with the rest of the 2026-07 proof tooling
+(`archive/2026-10-13-agent-era-cleanup.md`). Check local links by hand when editing an
+entry point.

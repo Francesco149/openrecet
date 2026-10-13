@@ -1,5 +1,16 @@
 # Save pillar PRODUCER + canonical state model (ST-00/ST-01) — 2026-07-16
 
+> **2026-10-13 update.** The comparator survives as **`tools/save_compare.py`**
+> (+ region map `tools/save_arena_map.json`, was `docs/schemas/state-map-v1.json`;
+> test `tools/test_save_compare.py`; identical results to the old producer). Usage:
+> `scenario-test.py <scen> --target both`, then `save_compare.py --scenario <scen>`.
+> Everything below about pillars, `parity_prove`/`parity_save`, proof bundles,
+> `contract_sha256` and the proof index describes tooling **removed** 2026-10-13
+> (`../archive/2026-10-13-agent-era-cleanup.md`); read it as history. The
+> `DAT_095d3728` gate mechanism described below was revisited by the in-process
+> retail host (`in-process-retail-host.md` §7: retail does not set the gate on
+> normal loads; the real gap is `save_bank_init_one` ≠ `FUN_0049001c`).
+
 > Wave-1 of `plans/parity-evidence-roadmap.md` §7 (ST). The `save` pillar was the
 > UNBUILT `NOT_CAPTURED` stub `parity_prove.py` carried; THIS is its producer +
 > the canonical state model it localizes against. Roadmap **M1** (first-state

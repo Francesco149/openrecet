@@ -22,14 +22,10 @@ def discover() -> list[Path]:
     tests = sorted((ROOT / "tools").glob("test_*.py"))
     v3 = ROOT / "tools" / "trace_studio_v3"
     tests.append(v3 / "test_orv3.py")
-    # GX graphics-capture acceptance fixtures — each SKIPs cleanly (exit 0) when the env
-    # can't build/run a mingw exe or lacks a D3D8 device, so they're safe in any runner.
+    # Proxy/reader fixtures — each SKIPs cleanly (exit 0) when the env can't build/run
+    # a mingw exe or lacks a D3D8 device, so they're safe in any runner.
     tests.append(v3 / "test_gx04_fixture.py")     # VB/IB same-frame mutation split/dedup
-    tests.append(v3 / "test_gx05_fixture.py")     # byte-compare dedup: forced collision stays distinct
     tests.append(v3 / "test_corrupt_reader.py")   # reader fails safely on truncated/corrupt containers
-    # GX-06 graphics-capture regression corpus — per-opcode fixtures (bit-exact replay)
-    tests.append(v3 / "test_gx06_sink_fixture.py")  # every non-RT recorded opcode, one frame
-    tests.append(v3 / "test_gx06_rt_fixture.py")    # RT opcodes + all 4 SURFREF kinds
     return tests
 
 

@@ -336,7 +336,7 @@ def main() -> int:
     drove = [s for s, a in (("retail", r_act), ("port", p_act)) if a == "drove"]
     saved = "nothing re-driven (pure cache slice)" if not drove else f"drove only: {', '.join(drove)}"
     print(f"\n=== LOOP DONE — {res['join_verdict']} · {saved} ===")
-    print("    (JOIN = identity pairing only — NOT a parity pass; run parity_prove for equality)")
+    print("    (JOIN = identity pairing only — NOT a parity pass)")
     print(f"    window dir: {win_dir}  (port/ retail/ pairs.json"
           f"{', view.json' if (args.view or args.launch) else ''})")
     return 0 if res["join_verdict"] == "JOIN_COMPLETE" else 1

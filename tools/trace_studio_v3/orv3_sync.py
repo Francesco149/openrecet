@@ -157,8 +157,7 @@ def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = Fa
     join_verdict, verdict = cls["join_verdict"], cls["verdict"]
     say(f"\nJOIN VERDICT: {join_verdict}  "
         f"({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)")
-    say("  identity pairing only — NOT a parity/equality claim; the pillar gate "
-        "(parity_prove, EP-05) tests equality.")
+    say("  identity pairing only — NOT a parity/equality claim.")
 
     result = {"join_verdict": join_verdict, "verdict": verdict, "pairs": pairs,
               "port_only": port_only, "retail_only": retail_only, "naive": naive,

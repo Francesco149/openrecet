@@ -19,20 +19,19 @@
 | discovered         |  1960 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
-## Port RUNTIME proof (cross-target — proof artifacts)
+## Port RUNTIME proof (cross-target)
 
 ```
-1 function runtime-proven   (0.0%)
+0 functions runtime-proven   (0.0%)
 ```
 
-Every runtime rung (retail-executed / port-executed / call-I/O-aligned /
-scenario-pillar-proven / matrix-proven) requires a bundle in
-`parity-proof-index.json` (git-tracked, hashes only). **INVENTORY ≠ PARITY**: an
-instrumented probe is a *diffable* point, not proof a function ran or matched
-retail. The index binds a VA→proof only when EP-05 `parity_prove.py` covers it in
-its proven scope. Human cross-target attestations live separately in
-`findings/confirmed-parity-ledger.md`. Rationale:
-`findings/parity-EP06-ledger-lifecycle.md`.
+**INVENTORY ≠ PARITY**: an instrumented probe is a *diffable* point, not proof a
+function ran or matched retail. No runtime evidence is bound today: the
+2026-07 proof-bundle binding was retired on 2026-10-13 (methodology reset,
+`audits/2026-10-13-methodology-reset.md`); runtime evidence is to come from the
+in-process retail host (`findings/in-process-retail-host.md`). Prior human
+attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
+re-verification.
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
@@ -91,5 +90,5 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - `port-debt.md` / `.json` — MVP/synthetic shortcuts inside ported code (derived).
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
-- `plans/parity-evidence-roadmap.md` — the evidence-compiler program (EP-06 here).
+- `audits/2026-10-13-methodology-reset.md` — current methodology decision record.
 - `AGENT-WORKFLOW.md` — how to work on this repo.

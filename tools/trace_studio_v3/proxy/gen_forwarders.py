@@ -67,9 +67,9 @@ def emit_census_preamble(fwd_list, out):
     capture-gated — because a `render_affecting_unsupported` method that fires even
     once ANYWHERE up to the compared window must be caught: device state persists, so
     an uncaptured forwarded call would silently desync the replay. d3d8_proxy.c writes
-    these to v3cap.census.json at each kept frame; tools/parity/d3d_census.py
-    cross-references them against the risk set (0 observed ⇒ safe to forward for this
-    title/scenario, >0 ⇒ GX-01 record-or-fail). `fwd_list` is [(iface, name), …] in
+    these to v3cap.census.json at each kept frame (its checker, tools/d3d_census.py,
+    was retired 2026-10-13 — inspect the sidecar by hand: a render-affecting forwarded
+    method with >0 calls means the replay may desync). `fwd_list` is [(iface, name), …] in
     global vtable order, so the enum index is stable across regenerations."""
     out.append("/* ── GX-00 dynamic census: per-forwarded-method call counters ──")
     out.append(" * Every fwd_ thunk below InterlockedIncrements its FWD_ slot on each")

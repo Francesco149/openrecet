@@ -13,8 +13,8 @@ done-as-scoped.
 
 | Plan | Status |
 |---|---|
-| `parity-evidence-roadmap.md` | ADOPTED — long-horizon proof, state, coverage, capture, behavior-atlas, boundary, audio/timing, and CI program; contains R3/R2/R1 work packages |
-| `tas-framework.md` | VISION — deterministic full-playthrough trace/anchor framework; behavior-atlas work now develops the scalable form |
+| ~~`parity-evidence-roadmap.md`~~ | RETIRED 2026-10-13 — removed with its proof tooling (`../archive/2026-10-13-agent-era-cleanup.md`); methodology now `../audits/2026-10-13-methodology-reset.md` |
+| `tas-framework.md` | VISION — deterministic full-playthrough trace/anchor framework |
 | `un-mvp-structural-parity.md` | STANDING — systematic `PORT-DEBT` retirement strategy |
 
 ## Active gameplay/subsystem plans

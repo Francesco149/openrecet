@@ -46,9 +46,8 @@ The command:
 6. writes `pairs.json` and optionally `view.json`.
 
 Important: current `ALIGNED`/future `JOIN_COMPLETE` means the identities paired. It does
-not prove cross-target pixels, draws, state, audio, or saves equal. Until
-`plans/parity-evidence-roadmap.md` EP-05 lands, inspect and record those pillars
-explicitly.
+not prove cross-target pixels, draws, state, audio, or saves equal; inspect and record
+those explicitly (saves: `tools/save_compare.py`).
 
 ### Read user viewer notes
 

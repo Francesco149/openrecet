@@ -1,19 +1,18 @@
 # OpenRecet — port ledger
 
 > **DERIVED FILE** — regenerate with `python3 tools/gen_port_ledger.py`.
-> See `STATUS.md` for the headline; `findings/parity-EP06-ledger-lifecycle.md`
-> for the two-axis lifecycle model.
+> See `STATUS.md` for the headline.
 
-Per-engine-function lifecycle, two independent axes (roadmap EP-06):
-an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
-`CALL_TRACE_ENTER`) and a **RUNTIME** rung derived from proof bundles
-(`parity-proof-index.json`). A `src/` marker is INVENTORY, never parity.
+Per-engine-function lifecycle, two independent axes: an **INVENTORY** rung
+derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
+**RUNTIME** rung that needs runtime evidence (none bound since the
+2026-10-13 methodology reset). A `src/` marker is INVENTORY, never parity.
 
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 503, discovered 1960 → 588 referenced-or-better (23.1%)
-- **runtime:** 1 proven (0.0%) — every rung needs a `parity-proof-index.json` bundle
+- **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 7
 
 ## instrumented (85) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
@@ -619,9 +618,7 @@ an **INVENTORY** rung derived from `src/` markers (`FUN_` / `PORT-OF` /
 | 0x5045eb | FUN_005045eb | 220 | ✓ |  | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ |  | rng.h |
 
-## runtime-proven (1) — bound to a parity-proof bundle
+## runtime-proven (0)
 
-| VA | name | runtime state | contract_sha256 | scope |
-|----|------|---------------|-----------------|-------|
-| 0x4905a8 | FUN_004905a8 | scenario-pillar-proven | c8c9a6a528a1 | save-commit path rooted at FUN_004905a8 (save_io_commit_slot): over house-pause-save-commit win-0-200 @SAVE_PICKER_READY[1,19] the committed save.dat is byte-identical to retail AND the once-per-frame VOLATILE state (rng/phase, the save-picker's deterministic LCG) is Merkle-identical port↔retail (19/19; the full 200-frame window 200/200). parity_prove verdict PASS (required pillars identity+save+state, 0 divergences; render_program PASS bonus) — the first three-pillar (identity·save·state) volatile+persistent proof. Normalized origins: {rngseed 19937}, {phasepin}, load pins, and the bilateral {playtimepin} (playtime-at-commit is a load-timing phase origin, not the logic contract). |
+_None — no runtime evidence is bound (INVENTORY ≠ PARITY). The 2026-07 proof-bundle bindings were retired on 2026-10-13; re-verify under the in-process retail host._
 
