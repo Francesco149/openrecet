@@ -2,7 +2,7 @@
 
 Prepared overnight by Claude (Opus 5.5) for the project owner. Evidence lives in
 `docs/findings/in-process-retail-host.md` and the prototype in `tools/oracle/`
-(commit `feb1f27c`). **§7 is the checklist of things that need you.**
+(commits `feb1f27c`..`87ab51bc`; build with `tools/oracle/build.sh`). **§7 is the checklist of things that need you.**
 
 ---
 
@@ -53,8 +53,9 @@ Prepared overnight by Claude (Opus 5.5) for the project owner. Evidence lives in
 7. **IDA 9.4 beats Ghidra here.**
    - Headless: 13.6 s analysis, 509 MB peak, all 3,550 functions decompiled
      in 91 s with 0 failures.
-   - Correct x87: Ghidra emitted `__ftol()` with no operands for
-     `haggle_decide`; IDA shows the float/double math.
+   - Correct x87. Ghidra 12.1.4, re-tested fairly, is now light (1.25 GB,
+     179 s) but still emits `__ftol()` with no operands for `haggle_decide`
+     and garbles `audio_fade`. IDA shows the float/double math exactly.
    - **No MCP needed.** A full pseudocode export plus a call index is now at
      `/mnt/ephemeral/openrecet/decompiled-ida/`.
 8. **wslop urgent:** F: has **10 GB free**. It holds a 903 GB, non-sparse
@@ -470,6 +471,12 @@ pixel truth, IDA.**
   unpack) until the port reaches 100%.
 - **x87 CW** was measured inside rhost, not in a normal launch. A one-minute
   Frida check settles it.
+- **The `cad868` first-customer / day-2 traces don't replay in rhost yet.** They
+  depend on Frida-exact `{bgnpcpin}` and load-pin semantics; re-record them
+  natively. The deepest content therefore still has no deterministic rhost
+  trace.
+- **Prototype quality.** `tools/oracle/*` is proof-of-concept code driven by
+  env knobs, not yet a tool. Phase 0 is the productizing step.
 
 ---
 
@@ -481,7 +488,9 @@ pixel truth, IDA.**
    later), deleting `runs/`, and `wsl --shutdown` + compaction (admin;
    diskpart or `--set-sparse`). Until then, avoid big writes inside WSL.
 2. **Unpushed wslop-only work** (OpenMare 7 commits, omni-ingest, bak,
-   recettear-study / shop): push, or OK a fresh cold backup.
+   recettear-study / shop): push, or OK a fresh cold backup. The gitignored
+   scenario saves (`tests/scenarios/**/_saves/*.sav.gz`) also lived only on
+   wslop. I copied them to this machine tonight.
 
 **P1 — decisions (they change what I do next)**
 
@@ -535,6 +544,8 @@ pixel truth, IDA.**
 | prototype + findings | `tools/oracle/`, `docs/findings/in-process-retail-host.md` |
 | IDA export | `/mnt/ephemeral/openrecet/decompiled-ida/{all_ida.c,functions_ida.tsv}` (228k lines; FLIRT lib flag; callers/callees) |
 | IDA DB / scripts | `C:\orc-ida\` (wslop: `/mnt/c/orc-ida/`); run `powershell -File C:\orc-ida\run_export.ps1` |
-| Windows rhost scratch | `C:\orc-oracle\game\p2_run.exe` + `C:\orc-oracle\load.txt` |
+| Windows rhost scratch | `C:\orc-oracle\game\{p2_run,p3_run}.exe`; demo `C:\orc-oracle\demo.sh` |
+| corpus replay + coverage | `C:\orc-oracle\run_corpus_win.sh` / `run_corpus_cov.sh` → `corpus*.tsv`, `scen\<name>\{run.log,cov.txt}`; join with `tools/oracle/coverage_join.py <dir>` |
+| Ghidra eval | `C:\orc-ghidra\` (`run_ghidra.ps1`, `DecompEval.java`, `out\`) |
 | decomp names/types | `/opt/src/recettear-decomp/config/{functions,vendorlib,data-manifest}.tsv` |
 | interop recipe | `ssh -o BatchMode=yes wslop '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command "…" </dev/null'`. The wslop login shell is fish: wrap scripts in `bash -c` or `bash /tmp/x.sh`. Pass env through `WSLENV` |
