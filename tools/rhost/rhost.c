@@ -345,9 +345,11 @@ static void __cdecl hook_tick(void)
     if (is_dump_frame(g_frame)) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); dump_now(t); }
     if (O.log_every && g_frame % O.log_every == 0) {
         uint16_t cw; __asm__ volatile("fnstcw %0" : "=m"(cw));
-        rh_log("frame %u scene=%d rng=%08x mask=%04x cw=%04x thr=%ld/%ld player=(%.2f,%.2f,%.2f)\n", g_frame,
+        char wb[256] = ""; size_t wo = 0;
+        for (int i = 0; i < O.n_watch; i++) wo += snprintf(wb + wo, sizeof wb - wo, " %x=%d", O.watch[i], (int)G32(O.watch[i]));
+        rh_log("frame %u scene=%d rng=%08x mask=%04x cw=%04x thr=%ld/%ld player=(%.2f,%.2f,%.2f)%s\n", g_frame,
                (int)G32(DAT_SCENE), G32(DAT_RNG), g_mask, cw, g_live_threads, g_threads_created,
-               GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8));
+               GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8), wb);
     }
     for (int i = 0; i < O.n_shot; i++)
         if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
@@ -454,6 +456,10 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-ext")) O.log_ext = 1;
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--log-sbh")) O.log_sbh = ARG();
+        else if (!strcmp(a, "--watch")) {
+            char b[256]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && O.n_watch < 16; t = strtok(NULL, ",")) O.watch[O.n_watch++] = strtoul(t, 0, 16);
+        }
         else { fprintf(stderr, "unknown option %s\n", a); usage(); }
         #undef ARG
     }

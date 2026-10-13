@@ -53,6 +53,7 @@ typedef struct {
     uint32_t stall_ms;
     const char *hooks;          /* hook spec, see rh_hooks.c */
     const char *log_sbh;        /* diagnostic: CRT small-block-heap call log */
+    uint32_t watch[16]; int n_watch;   /* dwords appended to each status line */
 } rh_opts_t;
 
 extern rh_opts_t O;
