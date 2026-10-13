@@ -8,20 +8,20 @@
   "inv_instrumented_full": 72,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 499,
-  "inv_discovered": 1964,
-  "referenced_or_better": 584,
-  "pct_referenced_or_better": 22.9,
+  "inv_source_referenced": 504,
+  "inv_discovered": 1959,
+  "referenced_or_better": 589,
+  "pct_referenced_or_better": 23.1,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 30,
   "verified": 72,
   "stubbed": 13,
-  "ported": 499,
-  "unported": 1964,
-  "touched": 584,
-  "pct_touched": 22.9,
+  "ported": 504,
+  "unported": 1959,
+  "touched": 589,
+  "pct_touched": 23.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -1139,6 +1139,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/math3d.h",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
     "src/scene1_overlay.h",
@@ -21403,6 +21404,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/math3d.h",
     "src/scene1_pass_f.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
@@ -21512,18 +21514,20 @@
    "size": 13,
    "is_thunk": false,
    "is_call_target": false,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/math3d.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a2f42",
@@ -21886,18 +21890,20 @@
    "size": 328,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/math3d.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a3c9a",
@@ -21974,6 +21980,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/math3d.h",
     "src/mesh_draw.c",
     "src/scene1_render.c",
     "src/scene1_render.h"
@@ -22119,18 +22126,20 @@
    "size": 13,
    "is_thunk": false,
    "is_call_target": false,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/math3d.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a4461",
@@ -22423,18 +22432,20 @@
    "size": 13,
    "is_thunk": false,
    "is_call_target": false,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/math3d.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a4f5f",
@@ -43030,18 +43041,20 @@
    "size": 232,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/math3d.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4f8820",
