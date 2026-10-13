@@ -16,6 +16,7 @@ DLL injection, no cross-process sync. Same exe runs on Windows and wine.
 | `retail_map.h` | PE mapper + `RETAIL_HOLE_DEFINE` (bss hole reserving 0x400000..) |
 | `p1_pure.c` | P1: retail `rand`/`haggle_decide` vs port C, 3 x87 PC modes |
 | `p1b_more.c` (+`p1b_stubs.c`) | P1b: `boss_id_allowed`, `floor_is_checkpoint`, `audio_fade` (fake COM AudioPath records `SetVolume`) |
+| `p1_math3d.c` | P1: every `src/math3d.c` fn (c11 + gnu11) vs retail's CPU-dispatched D3DX8 variant (logs mode + slots), PC53/24/64; optional per-case retail digest dump/compare across machines |
 | `p2_run.c` | P2: run retail in-process; virtual clock, scripted input, deferred loader, virtual time, seed pin, shadow exec, `rand` replace, snapshot |
 | `p3_run.c` | P3 = P2 + replay of existing `tests/scenarios/*/trace.jsonl` (reuses `src/input_segtrace.c`; anchors ported from the Frida agent) + live `haggle_decide` shadow (port c11 vs gnu11 vs retail) |
 | `build.sh` | builds all of the above into `build/oracle/` |

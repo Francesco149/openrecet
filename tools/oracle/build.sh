@@ -24,4 +24,11 @@ $CC -std=c11 -O2 "${INC[@]}" -c -o "$B/hag_c11.o" "$S/customer_haggle.c"
 $CC -std=gnu11 -O2 "${INC[@]}" -Dhaggle_offer_up=haggle_offer_up_gnu11 -Dhaggle_offer_down=haggle_offer_down_gnu11 \
     -Dhaggle_decide=haggle_decide_gnu11 -Dhaggle_budget_ceiling=haggle_budget_ceiling_gnu11 -c -o "$B/hag_gnu11r.o" "$S/customer_haggle.c"
 $CC -std=c11 -O2 "${INC[@]}" "${LDF[@]}" -o "$B/p1_haggle_offers.exe" "$O/p1_haggle_offers.c" "$B/hag_c11.o" "$B/hag_gnu11r.o" "$S/rng.c"
+# P1 math3d: retail D3DX8 (dispatched variant, fast table @0x5fda48) vs port math3d.c built c11 AND gnu11
+M3REN=(); for f in vec3_normalize mat4_lookat_rh mat4_perspective_fov_rh mat4_mul mat4_identity mat4_translation \
+    mat4_scaling mat4_rotation_x mat4_rotation_y mat4_rotation_z plane_from_point_normal mat4_shadow mat4_inverse; do
+    M3REN+=("-D$f=${f}_gnu11"); done
+$CC -std=c11   -O2 "${INC[@]}" -c -o "$B/m3_c11.o"   "$S/math3d.c"
+$CC -std=gnu11 -O2 "${INC[@]}" "${M3REN[@]}" -c -o "$B/m3_gnu11.o" "$S/math3d.c"
+$CC -std=c11 -O2 "${INC[@]}" "${LDF[@]}" -o "$B/p1_math3d.exe" "$O/p1_math3d.c" "$B/m3_c11.o" "$B/m3_gnu11.o"
 ls -la "$B"/*.exe
