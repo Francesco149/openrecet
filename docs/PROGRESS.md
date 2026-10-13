@@ -7,6 +7,22 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-13 — methodology reset executed: rhost Phase 0, cleanup, save + float fixes
+- Owner approved the audit (`docs/audits/2026-10-13-methodology-reset.md`):
+  - rhost is the verification foundation (Phase 0);
+  - Gemini/GPT theatre removed (`docs/archive/2026-10-13-agent-era-cleanup.md`);
+  - every earlier "1:1" claim is to be re-verified.
+- `tools/rhost/` productized (deterministic heap / handles / stacks / time / loads /
+  overlay; Windows queue runner; det / corpus / record / flatten; quiet windows;
+  screenshots).
+  - Corpus: 61/67 complete in 245 s.
+  - Determinism: only DLL-pointer slots differ run-to-run.
+- Save sweep fixed: the port's reset bank equals retail's byte-for-byte (0/47,090 dwords
+  differ, vs 66 before). `in-process-retail-host.md` §7.
+- x87 sweep: neither `-std` is retail-exact; `src/x87.h` rule; haggle family oracle-exact;
+  port builds `-std=gnu11` (`x87-float-semantics.md`).
+- recettear-decomp archived (read-only, GitHub archived). The live-probe MCP is retired.
+
 ## 2026-10-13 — Agent-era cleanup (Gemini + GPT eras)
 
 - Reverted/quarantined the Gemini-era theater (day-2 "playthrough", 61b0e7f1 bundle,

@@ -60,16 +60,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     their traces need Frida-era pins;
   - flatten every completing legacy trace;
   - calibrate `volatile.txt` over the corpus.
-- ☐ **x87 float sweep → `-std=gnu11`** (owner: "re-check that floats behave the same"):
-  1. P1/rhost-hook every float-literal-heavy ported fn (5,352 `f` literals / 81 files)
-     under c11 vs gnu11 vs retail;
-  2. switch `src/Makefile`;
-  3. re-run tests + corpus shadows.
-- ☐ **`DAT_095d3728` save-sweep fix** (findings `in-process-retail-host.md` §7):
-  - make `save_bank_init_one` == `FUN_0049001c`;
-  - drop the normal-bucket gate;
-  - flip 2 host tests;
-  - prove with an rhost crafted-save run + `tools/save_compare.py`.
+- ☐ **x87: convert the remaining 283 affected fns** (`docs/findings/x87-float-semantics.md`):
+  - neither `-std` is retail-exact; mirror the disasm with `src/x87.h`;
+  - verify per fn with a P1 oracle or an rhost hook;
+  - go flow by flow with the re-verification program.
+  - Done: the haggle family (oracle-exact under c11 + gnu11). Port now builds gnu11.
 - ☐ **Port-side determinism knobs** (virtual time, deferred loads, same boot timeline) so
   port↔retail traces align by frame number; port under wine for Linux runs.
 - ☐ **v3 viewer fed by rhost:**
