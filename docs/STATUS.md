@@ -67,6 +67,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - Done: the haggle family (oracle-exact under c11 + gnu11). Port now builds gnu11.
 - ◐ **Port-side determinism**: port↔retail traces should align by frame number.
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
+  - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
+    replays rhost's flat trace with `--det-loads`, no pins (findings §11). First
+    pin-free equality.
   - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
     port `LOADING_END` f72 vs retail f73, then a constant +1.
   - ★ next: route the port's load brackets through real (deferrable) workers.

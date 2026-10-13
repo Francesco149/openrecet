@@ -233,3 +233,20 @@ masked 580k dwords of heap pixel data differently per run.
 - Wine is a valid oracle for pure logic and for determinism within wine. RNG-exact retail
   ground truth is Windows native (or a wine with working DirectMusic: open item).
 - Stack scrubbing (zeroing below ESP each tick) made no difference — not stack garbage.
+
+## 11. First pin-free port↔retail equality: house-pause-save-commit (2026-10-13)
+
+Retail ran under rhost with the anchor trace, `rhost.py flatten` wrote the resolved
+frame-absolute trace (no pins, only inputs + the trace's own `{rngseed}`), and the port
+replayed that flat trace on Windows with `--det-loads --save-override <fa7c82 seed>`.
+The committed `save.dat` came out **byte-identical (18,838,832 bytes)**.
+
+With the legacy anchor trace the port instead applies the Frida-era `{playtimepin}`
+(rhost ignores pins), and the saves differ in exactly 5 bytes (bank 0
+occupied_playtime + checksum).
+
+This validates end-to-end:
+- the `FUN_0049001c` reset-pattern fix (banks 1–99);
+- `--det-loads`;
+- the flat-trace replay;
+- playtime-counter alignment.

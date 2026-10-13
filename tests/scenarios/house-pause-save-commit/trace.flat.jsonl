@@ -1,0 +1,23 @@
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+# rhost flat trace (C:\orc-rhost\runs\20261013-182729-corpus\house-pause-save-commit\trace.jsonl): frame-absolute from boot; replays deterministically in rhost
+{"rngseed": [0, 19937]}
+{"frame": 1, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"rngseed": [342, 19937]}
+{"esc": 422}
+{"frame": 456, "buttons": "0x0008"}
+{"frame": 459, "buttons": "0x0000"}
+{"frame": 469, "buttons": "0x0008"}
+{"frame": 472, "buttons": "0x0000"}
+{"frame": 482, "buttons": "0x0008"}
+{"frame": 485, "buttons": "0x0000"}
+{"frame": 498, "buttons": "0x0010"}
+{"frame": 501, "buttons": "0x0000"}
+{"frame": 541, "buttons": "0x0010"}
+{"frame": 544, "buttons": "0x0000"}
+{"frame": 569, "buttons": "0x0010"}
+{"frame": 572, "buttons": "0x0000"}
+{"frame": 1021, "buttons": "0x0000"}
