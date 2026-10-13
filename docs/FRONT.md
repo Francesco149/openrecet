@@ -30,7 +30,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
   - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
     replays rhost's flat trace with `--det-loads`, no pins (findings §11). First
-    pin-free equality.
+    pin-free equality. One command: `rhost.py portsave SCEN`.
+  - ◐ **day2-save-commit** (whole tutorial → Day 2 → save, 33k frames): port reaches
+    `SAVE_PICKER_READY` on the SAME frame as retail (33199); its save differs in only
+    **106 / 18.8M bytes**. Leads:
+    1. bank 0 `sold_list` dwords 0xb0b4/0xb0bf..: the port writes 22 dwords of
+       pair-like data `(0,3)(3,1)…(6,12)`; retail leaves the reset pattern. A wrong-bank
+       write in the port's commit / day-advance path.
+    2. flags: header +0x63 (2 B), +0x99 (6 B) and their mirrors at the active bank
+       +0x2d3e3/+0x2d419 are `01 01`/`01 01 01 00 01 01` in retail, 0 in the port.
+       Flags set during the tutorial / day transition that the port never sets.
   - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
     port `LOADING_END` f72 vs retail f73, then a constant +1.
   - ★ next: route the port's load brackets through real (deferrable) workers.

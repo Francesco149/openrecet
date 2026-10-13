@@ -390,6 +390,49 @@ def cmd_verify(a):
     return 0 if all(tot.get(h, [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
 
 
+def cmd_portsave(a):
+    """whole-flow port↔retail check: retail (rhost) vs port (--det-loads, flat trace) committed save.dat"""
+    name = a.scenario
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portsave-retail", fetch=("rhost.log", "save.dat", "trace.flat.jsonl"))
+    r = res.get(name, {})
+    retail_save = os.path.join(bdir, name, "save.dat")
+    if not os.path.exists(retail_save):
+        print("retail run wrote no save.dat — scenario must commit a save"); return 2
+    flat = os.path.join(bdir, name, "trace.flat.jsonl")
+    frames = int(r.get("frame", "0")) or 120000
+    pdir_l = os.path.join(bdir, "port")
+    os.makedirs(pdir_l)
+    shutil.copy(flat, os.path.join(pdir_l, "trace.jsonl"))
+    if save:
+        open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
+    pw = f"{WROOT}\\runs\\{batch}\\port"
+    args = ["--save-write-dir", pw, "--input-segtrace", pw + "\\trace.jsonl", "--anchor-trace-record", pw + "\\anchors.jsonl",
+            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads"]
+    args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
+    ps = ["$ErrorActionPreference = 'Continue'", f"New-Item -ItemType Directory -Force {pw}\\cwd | Out-Null",
+          # the port reads game data from its cwd and writes call traces there: give it a cwd of links
+          f"if (!(Test-Path {WROOT}\\portcwd\\bin)) {{ New-Item -ItemType Directory -Force {WROOT}\\portcwd | Out-Null; "
+          f"Get-ChildItem {WROOT}\\game | % {{ if ($_.PSIsContainer) {{ cmd /c mklink /J \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} "
+          f"else {{ cmd /c mklink /H \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} }} }}",
+          f"Set-Location {WROOT}\\portcwd",
+          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ") -Wait -PassThru",
+          "\"port exit=$($p.ExitCode)\"",
+          f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
+    open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
+    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; exit 0")
+    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
+    scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
+    print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
+    scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/save.dat", os.path.join(pdir_l, "save.dat"))
+    out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "save_compare.py"), os.path.join(pdir_l, "save.dat"), retail_save],
+                         capture_output=True, text=True).stdout
+    print(out.strip())
+    return 0 if "IDENTICAL" in out else 1
+
+
 def cmd_flatten(a):
     a.flatten = True
     a.only = "^(" + "|".join(re.escape(s) for s in a.scenarios) + ")$"
@@ -468,6 +511,7 @@ def main():
     p = sp.add_parser("run"); p.add_argument("scenarios", nargs="*"); p.add_argument("--masks"); p.add_argument("--save"); common(p); p.set_defaults(fn=cmd_run)
     p = sp.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=2); p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
+    p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
