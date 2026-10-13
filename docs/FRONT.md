@@ -74,10 +74,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     truth (findings §10);
   - ☐ wine DirectMusic, or a fix for the audio flag;
   - ☐ bounded podman container.
-- ◐ **Day-2 shop** (`day2-shop`, first native recording, 2 buying customers):
-  retail replays exactly; shadows 0 div. Port: `portanchors day2-shop` →
-  CUSTOMER_SERVICE_ENTER f900 vs retail f963 (−63) — chase with `portstate`
-  (save-load → shop-open path).
+- ◐ **Day-2 shop** — native recordings `day2-shop` (2 buyers) + `day2-buy-tutorial`
+  (buying tutorial = first offer_down; saved slot 8 → `_saves/d85ac24a…`): retail
+  replays exactly, shadows 0 div. ★ Port: CUSTOMER_SERVICE_ENTER early on both
+  (f900 vs 963; f1355 vs 1423), then desync — chase with `portstate` (save-load →
+  shop-open path).
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
@@ -88,8 +89,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Re-verification program (owner: "re-verify everything with the new methodology")
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
 Re-check each flow by shadowing its ported functions over rhost scenarios, in this order:
-1. **Customer service + haggle beyond the first customer.** `day2-shop` adds 2 buying
-   customers (shadows 0 div). Still missing: a customer who SELLS (offer_down).
+1. **Customer service + haggle beyond the first customer.** `day2-shop` +
+   `day2-buy-tutorial`: decide 16 / offer_up 15 / offer_down 2 calls, 0 div. Next: the
+   port side (shop entry diverges, above).
 2. **End of tutorial.** One very long cutscene plus load seams — the stress test for long
    cutscenes and loaders under DEFER.
 3. Title / intro / prologue; house free-roam, pause menus, save commit (`save_compare.py`);
@@ -100,15 +102,13 @@ Per flow:
 3. `rhost.py verify` = one table of calls/divergences over all scenarios.
 
 2026-10-13 verify: haggle_decide 20 calls / 0 div (8 scenarios); offer_up 22 / 0;
-**offer_down 0 calls (no customer-sells-to-you haggle in the corpus — record one)**;
-rand 1,156,264 / 0 (68 scenarios). +day2-shop: decide 2 / offer_up 4 / rand 21,659, 0 div.
+rand 1,156,264 / 0 (68 scenarios). + day2-shop, day2-buy-tutorial: decide 16 /
+offer_up 15 / **offer_down 2** / rand 55,348, 0 div.
 
 ### Human queue (report at session end; ranked by what it unblocks)
-1. **Record a shop session with a customer who SELLS to you** (haggle_offer_down has 0
-   calls in the corpus). From maximus:
-   `python3 tools/rhost/rhost.py record day2-shop-sell --save 5816458d8f4f6508a3c2ca89640d3a6eb234cec49b54b7a4f1307567f1223903`
-   - Load Game → 3rd slot (Day 2) → open the shop → serve until a customer offers to
-     sell; haggle a few rounds (and some more buyers if convenient);
-   - close the window. Keyboard only; click the window once so it has focus.
-   - `day2-shop` (2 buyers) recorded 2026-10-13.
+1. (optional) **A day with buyers after the buy tutorial**: start from the slot-8 save
+   (`_saves/d85ac24a…`, Load Game → slot 8) and play a later shop day with buying
+   customers + haggles: `python3 tools/rhost/rhost.py record day3-shop --save
+   d85ac24ac4ffcac455fb5e0cf5df740991894f677ce1d4fc890ddf238978c94f`. Keyboard; click the
+   window once for focus.
 <!-- FRONT:END -->
