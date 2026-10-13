@@ -1,0 +1,11 @@
+# day2-shop — human recording 2026-10-13 (rhost.py record, Windows native, keyboard).
+# Save 5816458d…: Day 2, 155 pix. Load Game → 3rd slot → open the shop → two
+# customers who BUY (the port's haggle_offer_up path):
+#   1. offered too high twice → the customer leaves;
+#   2. opened too high → accepted.
+# The recording ends there (window closed @f4408).
+# rhost: replays to f4408 with rng 5087810f (= the recording); det PASS.
+# verify 2026-10-13: haggle_decide 2 / offer_up 4 / rand 21,659 calls, 0 divergences.
+# portanchors 2026-10-13: port CUSTOMER_SERVICE_ENTER f900 vs retail f963 (−63).
+description: |
+  Day-2 shop, 2 buying customers: too-high ×2 → leaves; too-high → accepted.

@@ -213,6 +213,13 @@ static BOOL WINAPI my_SetWindowPlacement(HWND h, const WINDOWPLACEMENT *wp)
  * and return. (--record keeps the real behaviour.) */
 static BOOL WINAPI my_WaitMessage(void) { G32(DAT_TICKGATE) = 1; return TRUE; }
 
+/* FUN_0040110f/0040112a (from the WndProc, 47b6cf/47b6de): EnumWindows saves the
+ * WINDOWPLACEMENT of every visible titled HOST window except Progman into
+ * 0x603dc0[100] (count DAT_00605080) and restores them later — host desktop state
+ * (z-order!) leaking into retail memory (day2-shop record vs replay: two entries
+ * swapped). Hermetic: enumerate nothing; no game logic reads the table. */
+static BOOL WINAPI my_EnumWindows(WNDENUMPROC cb, LPARAM lp) { (void)cb; (void)lp; return TRUE; }
+
 /* ---- module identity ---- */
 static HMODULE WINAPI my_GetModuleHandleA(LPCSTR n) { return n ? GetModuleHandleA(n) : (HMODULE)0x400000; }
 static DWORD WINAPI my_GetModuleFileNameA(HMODULE h, LPSTR buf, DWORD n)
@@ -522,6 +529,7 @@ int main(int argc, char **argv)
     if (retail_map(exe_abs, &img, 1)) rh_fatal("map %s failed", exe_abs);
     rh_log("rhost: mapped %s (imports %d resolved, %d stubbed) entry=%08x\n", exe_abs, img.n_imports_resolved, img.n_imports_stubbed, img.entry);
     iat_override("GetModuleHandleA", my_GetModuleHandleA);
+    iat_override("EnumWindows", my_EnumWindows);
     iat_override("GetModuleFileNameA", my_GetModuleFileNameA);
     iat_override("CreateThread", my_CreateThread);
     iat_override("ExitProcess", my_ExitProcess);
