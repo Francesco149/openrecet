@@ -152,6 +152,45 @@ static void anchors_tick(uint32_t frame)
     #undef R
 }
 
+/* ---- first-hit function coverage: INT3 at every listed entry, VEH restores ----
+ * COVERAGE=<file of hex VAs>  COVERAGE_OUT=<file>: writes "va first_frame" per hit. */
+static uint32_t *g_cov_va; static uint8_t *g_cov_orig; static uint32_t *g_cov_hit; static int g_cov_n;
+static int cov_find(uint32_t va)
+{ int lo = 0, hi = g_cov_n - 1; while (lo <= hi) { int m = (lo + hi) / 2; if (g_cov_va[m] == va) return m; if (g_cov_va[m] < va) lo = m + 1; else hi = m - 1; } return -1; }
+static uint32_t g_frame_now(void);
+static LONG CALLBACK cov_veh(EXCEPTION_POINTERS *e)
+{
+    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_BREAKPOINT) return EXCEPTION_CONTINUE_SEARCH;
+    uint32_t a = (uint32_t)(uintptr_t)e->ExceptionRecord->ExceptionAddress;
+    int i = cov_find(a);
+    if (i < 0) return EXCEPTION_CONTINUE_SEARCH;
+    *(volatile uint8_t *)(uintptr_t)a = g_cov_orig[i];
+    if (!g_cov_hit[i]) g_cov_hit[i] = g_frame_now() + 1;
+    e->ContextRecord->Eip = a;
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+static void cov_install(const char *path)
+{
+    FILE *f = fopen(path, "r"); if (!f) return;
+    unsigned v; int cap = 4096; g_cov_va = malloc(cap * 4);
+    while (fscanf(f, "%x", &v) == 1) { if (g_cov_n == cap) { cap *= 2; g_cov_va = realloc(g_cov_va, cap * 4); } g_cov_va[g_cov_n++] = v; }
+    fclose(f);
+    for (int i = 1; i < g_cov_n; i++) { uint32_t x = g_cov_va[i]; int j = i - 1; while (j >= 0 && g_cov_va[j] > x) { g_cov_va[j + 1] = g_cov_va[j]; j--; } g_cov_va[j + 1] = x; }
+    g_cov_orig = malloc(g_cov_n); g_cov_hit = calloc(g_cov_n, 4);
+    AddVectoredExceptionHandler(1, cov_veh);
+    for (int i = 0; i < g_cov_n; i++) { g_cov_orig[i] = *(uint8_t *)(uintptr_t)g_cov_va[i]; *(uint8_t *)(uintptr_t)g_cov_va[i] = 0xCC; }
+    printf("coverage: %d function entries armed\n", g_cov_n);
+}
+static void cov_dump(void)
+{
+    if (!g_cov_n || !getenv("COVERAGE_OUT")) return;
+    FILE *f = fopen(getenv("COVERAGE_OUT"), "w"); if (!f) return;
+    int hits = 0;
+    for (int i = 0; i < g_cov_n; i++) if (g_cov_hit[i]) { fprintf(f, "%08x %u\n", g_cov_va[i], g_cov_hit[i] - 1); hits++; }
+    fclose(f);
+    printf("coverage: %d/%d functions hit\n", hits, g_cov_n);
+}
+
 /* ---- haggle_decide shadow: retail FUN_00460672 vs port (c11 + gnu11 builds) ---- */
 extern int32_t haggle_decide(int32_t player_ask, int32_t accept_ref);        /* -std=c11 (shipping flags) */
 extern int32_t haggle_decide_gnu11(int32_t player_ask, int32_t accept_ref);  /* same source, -std=gnu11 */
@@ -413,7 +452,7 @@ static void __cdecl hook_tick(void)
         fflush(g_log);
     }
     if (g_frame >= g_frames_max && getenv("STALL_END")) { fprintf(g_log, "stalling for screenshot\n"); fflush(g_log); Sleep(1000 * atoi(getenv("STALL_END"))); }
-    if (g_frame >= g_frames_max) { fprintf(g_log, "done at frame %u; seg %u/%u (last anchor %s) esc=%ld complete=%d; anchors=%ld haggle_calls=%ld mis_c11=%ld mis_gnu11=%ld; shadow runs=%ld divergent=%ld; data_hash=%016llx semantic_hash=%016llx rng=%08x\n", g_frame, (unsigned)g_seg.cur_seg, (unsigned)g_seg.n_segs, g_seg.base_anchor, g_esc_count, g_trace_done_at != 0, g_anchor_count, g_hag_calls, g_hag_mis_c11, g_hag_mis_gnu11, g_sh_runs, g_sh_div, (unsigned long long)data_hash(), (unsigned long long)data_hash_nonptr(), G32(0x6023a0)); fflush(g_log); ExitProcess(0); }
+    if (g_frame >= g_frames_max) { cov_dump(); fprintf(g_log, "done at frame %u; seg %u/%u (last anchor %s) esc=%ld complete=%d; anchors=%ld haggle_calls=%ld mis_c11=%ld mis_gnu11=%ld; shadow runs=%ld divergent=%ld; data_hash=%016llx semantic_hash=%016llx rng=%08x\n", g_frame, (unsigned)g_seg.cur_seg, (unsigned)g_seg.n_segs, g_seg.base_anchor, g_esc_count, g_trace_done_at != 0, g_anchor_count, g_hag_calls, g_hag_mis_c11, g_hag_mis_gnu11, g_sh_runs, g_sh_div, (unsigned long long)data_hash(), (unsigned long long)data_hash_nonptr(), G32(0x6023a0)); fflush(g_log); ExitProcess(0); }
     g_frame++;
     ((void (__cdecl *)(void))0x47be92)();
     anchors_tick(g_frame);
@@ -477,6 +516,7 @@ int main(int argc, char **argv)
         fprintf(g_log, "load pins: primary=%u cs=%u (tut via segments)\n", g_pin_primary, g_pin_cs);
         g_seg_on = 1; fprintf(g_log, "TRACE %s loaded\n", getenv("TRACE"));
     }
+    if (getenv("COVERAGE")) cov_install(getenv("COVERAGE"));
     if (getenv("HAGGLE_SHADOW")) fprintf(g_log, "haggle_decide shadow: %d call sites\n", redirect_calls(0x460672, hook_haggle_decide));
     if (getenv("SHADOW_FROM")) g_shadow_from = strtoul(getenv("SHADOW_FROM"), 0, 0);
     if (getenv("SHADOW_EVERY")) g_shadow_every = strtoul(getenv("SHADOW_EVERY"), 0, 0);
