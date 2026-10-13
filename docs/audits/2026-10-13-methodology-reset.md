@@ -119,7 +119,12 @@ CLIs themselves use.
 - A CI ban on the words "Opus/Sonnet/Haiku" in authoritative docs.
 - CLAUDE.md switched to `--view`.
 - Two tests now lock opposite values for `DAT_095d3728` (6c9c85d3 vs
-  `src/save_io.h:18-22`). Unresolved.
+  `src/save_io.h:18-22`).
+- **Resolved overnight with rhost** (findings §7). Retail does NOT set the gate on
+  normal loads; its sweep resets stale banks to a canonical pattern. The seed only
+  matched because its banks already were that pattern. 6c9c85d3 fixed the right
+  symptom with the wrong mechanism: the real bug is `save_bank_init_one` ≠
+  `FUN_0049001c`. A fix is proposed and not applied (checklist 4).
 
 ### 1.3 Gemini era (2026-08-22..23 on master; Aug 24–29 on `discarded`)
 
@@ -449,8 +454,8 @@ pixel truth, IDA.**
    stay on Option A only.
 4. **Gemini/GPT cleanup.** Approve the §1.3 actions: revert 375205f2, most of
    61b0e7f1, and CC-04; quarantine 3c7a0ef3 and restore its PORT-DEBT tags;
-   restore the viewer filter controls; resolve the `DAT_095d3728`
-   contradiction.
+   restore the viewer filter controls; apply the `DAT_095d3728` fix from
+   findings §7, which flips 2 host tests.
 5. **39cc8dd7** records you confirming 1:1 on tutorial skip, first customer
    arrival and first haggle. Did you, and on which build? If not, I'll mark it
    unverified.

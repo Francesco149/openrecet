@@ -113,3 +113,30 @@ cross-platform. Demo: `ssh wslop 'bash /mnt/c/orc-oracle/demo.sh'`.
 - External effects during shadow (D3D/DirectMusic/file) not yet recorded/stubbed.
 - Only the house-load worker exercised under DEFER; cutscene/dungeon loaders untested.
 - No retail-layout port function beyond `rand` run in-game yet.
+
+## 7. First use as an RE oracle: the `DAT_095d3728` save-sweep contradiction (resolved)
+
+Question (audit §1.2): 6c9c85d3 says retail's `FUN_004901c2` verify sweep is gated off
+on save-load because `FUN_004902fe` sets `DAT_095d3728`; `src/save_io.h:18-22` says the
+normal-size bucket does NOT set it. Two host tests lock opposite values.
+
+- IDA (`all_ida.c`): the only writes of `dword_95D3728` are in `FUN_004902fe`'s two
+  LEGACY buckets (size 0x11EFCE0 / 0xF30AE0). Normal 0x11F7530 bucket = memcpy →
+  `FUN_00499583` → `FUN_004901c2` (sweep runs when the gate is 0).
+- rhost live: after boot-loading fa7c82 (normal size) `DAT_095d3728 == 0` (wine + Win).
+- rhost controlled experiment (crafted save: bank 7 valid magic, word100=0x12345678,
+  checksum 0): **retail RESETS bank 7** via `FUN_0049001c`; the result is byte-identical
+  (0 differing dwords) to the seed's bank 0, i.e. the canonical reset pattern: full
+  memset + field init + catalog-derived key/count (`DAT_005c80ac`=571 loaded at boot),
+  checksum LEFT 0 (calc 0x345e7bcf).
+- ⇒ The save-pillar seed's banks 1–99 (magic ok, stored ck 0, calc 0x345e7bcf) ARE that
+  reset pattern, so retail's sweep re-resets them idempotently ⇒ retail == seed. The
+  port diverged because `save_bank_init_one` ≠ `FUN_0049001c` (it zeroed key+count and
+  STAMPED a checksum), not because of a skip gate.
+- 6c9c85d3's fix (`save_bank_set_skip_verify(1)` on the normal bucket,
+  `src/save_io.c:~200`) passes that seed by coincidence and diverges for any stale bank
+  whose content isn't the reset pattern (retail resets it, port keeps it).
+- **Proposed fix (not applied; needs owner OK, flips 2 host tests):** drop the gate on
+  the normal bucket (keep it on the legacy ones); make `save_bank_init_one` reproduce
+  `FUN_0049001c` exactly (catalog key/count fill, no checksum stamp); re-run the
+  save pillar plus a rhost crafted-save test.
