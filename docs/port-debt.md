@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **26**
-- distinct retiring engine functions: **22**
+- total open debts: **27**
+- distinct retiring engine functions: **23**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 8 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 7 | reduced control flow / state machine vs retail |
+| simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 2 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -50,6 +50,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_0048670f | 1 |
+| FUN_004cdd9f | 1 |
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
@@ -70,7 +71,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (7)
+## simplified (8)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -80,6 +81,7 @@ _none_
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:421 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:299 | the engine teardown also restores the |
+| FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:339 | sim_loading_pump() |
 
 ## hardcode (2)

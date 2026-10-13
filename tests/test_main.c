@@ -354,7 +354,7 @@ struct test_case {
     X(prewindow_particle_zero_deterministic_from_seed_1) \
     X(prewindow_advances_rng_by_600) \
     X(prewindow_proj_matrix_is_finite) \
-    X(prewindow_view_is_degenerate_nan_or_inf) \
+    X(prewindow_view_degenerate_is_retail_zero) \
     \
     X(tick_init_zeros_state) \
     X(tick_speed_thresholds_match_rdata) \

@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 503, discovered 1960 → 588 referenced-or-better (23.1%)
+- **inventory:** instrumented **85** (72 full + 13 stub), implemented 0, source-referenced 499, discovered 1964 → 584 referenced-or-better (22.9%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 7
 
@@ -110,7 +110,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (503) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (499) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -585,21 +585,17 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49f012 | FUN_0049f012 | 851 | ✓ |  | encyclopedia.c, encyclopedia.h, save_bank.h (+3) |
 | 0x49f365 | FUN_0049f365 | 1363 | ✓ |  | encyclopedia.c, encyclopedia.h, scene_pause.c (+1) |
 | 0x49f8b8 | FUN_0049f8b8 | 2033 | ✓ |  | anchor_trace.c, anchor_trace.h, encyclopedia.c (+3) |
-| 0x4a2a03 | FUN_004a2a03 | 13 |  |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
-| 0x4a2f35 | FUN_004a2f35 | 13 |  |  | math3d.h |
-| 0x4a33d2 | FUN_004a33d2 | 46 |  |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |
-| 0x4a3462 | FUN_004a3462 | 46 |  |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |
+| 0x4a2a03 | FUN_004a2a03 | 13 |  |  | scene1_pass_f.c, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+2) |
+| 0x4a33d2 | FUN_004a33d2 | 46 |  |  | scene1_render.c, scene1_wide_followup_helpers.c |
+| 0x4a3462 | FUN_004a3462 | 46 |  |  | scene1_render.c, scene1_wide_followup_helpers.c |
 | 0x4a3537 | FUN_004a3537 | 28 |  |  | scene1_wide_followup_helpers.c |
 | 0x4a35d3 | FUN_004a35d3 | 28 |  |  | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x4a3670 | FUN_004a3670 | 28 |  |  | scene1_wide_followup_helpers.c |
-| 0x4a3b52 | FUN_004a3b52 | 328 | ✓ |  | math3d.h |
-| 0x4a3ee8 | FUN_004a3ee8 | 148 | ✓ |  | main.c, math3d.h, mesh_draw.c (+2) |
-| 0x4a4454 | FUN_004a4454 | 13 |  |  | math3d.h |
-| 0x4a4f52 | FUN_004a4f52 | 13 |  |  | math3d.h |
+| 0x4a3ee8 | FUN_004a3ee8 | 148 | ✓ |  | main.c, mesh_draw.c, scene1_render.c (+1) |
 | 0x4aaad7 | FUN_004aaad7 | 278 | ✓ |  | mesh.c, mesh.h |
 | 0x4c75e3 | FUN_004c75e3 | 4634 | ✓ |  | mesh_draw.c, scene1_emit_record.c |
 | 0x4c8f74 | FUN_004c8f74 | 704 | ✓ |  | mesh_load.c |
-| 0x4cdd9f | FUN_004cdd9f | 221 | ✓ |  | math3d.h |
+| 0x4cdd9f | FUN_004cdd9f | 221 | ✓ |  | math3d.c, math3d.h |
 | 0x5031e4 | FUN_005031e4 | 9 | ✓ |  | customer_service.c, scene1_particles_tick.c, scene1_player_ctrl.c (+2) |
 | 0x5036af | FUN_005036af | 47 | ✓ |  | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ |  | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |

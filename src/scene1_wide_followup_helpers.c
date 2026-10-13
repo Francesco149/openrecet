@@ -630,10 +630,10 @@ void wf_pass_e_fan_billboard_matrix(float out[16], const int32_t *slot,
      * billboard's local +Z = velocity direction; +Y axis aligned with
      * the camera-relative up).  Singular if eye == target (zero velocity)
      * OR if (camera - pos) is parallel to velocity; the engine doesn't
-     * guard either case — the resulting matrix has NaN/inf entries which
-     * pass through SetTransform fine (the draw is just invisible).  We
-     * preserve that behavior; mat4_inverse's singular-return signal is
-     * ignored. */
+     * guard either case.  Retail's SSE2 D3DX normalize maps the zero axis to
+     * (0,0,0) (no NaN), the lookat's 3x3 is then zero, det == 0 and
+     * D3DXMatrixInverse returns NULL leaving `out` unwritten — mat4_inverse
+     * does the same; its singular-return signal is ignored like retail. */
     float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
     float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
     float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];

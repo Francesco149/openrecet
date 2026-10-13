@@ -21,6 +21,10 @@
  *   __ftol           → x87_ftol() of the long double value
  * Code written this way computes identically under c11 and gnu11, at any CW.
  * Verify with a P1 oracle (tools/oracle/) or an rhost shadow hook.
+ *
+ * Exception: retail's statically linked D3DX8 math is NOT x87 on modern CPUs —
+ * it runs the CPU-dispatched SSE2 table (rsqrtss/rcpss/mulps…).  math3d.c mirrors
+ * that with SSE intrinsics (docs/findings/x87-float-semantics.md "D3DX8 math").
  */
 #ifndef OPENRECET_X87_H
 #define OPENRECET_X87_H
@@ -29,5 +33,14 @@
 static inline int32_t x87_ftol(long double v) { return (int32_t)v; }               /* __ftol */
 static inline float  spill32(long double x) { volatile float  v = (float)x;  return v; }  /* fstp m32 */
 static inline double spill64(long double x) { volatile double v = (double)x; return v; }  /* fstp m64 */
+/* fsincos: the x87 instruction itself (libm sinf/cosf are other algorithms).  Result
+ * precision follows the CW like every x87 op.  |x| >= 2^63 is out of range (C2 set,
+ * no push) — retail never feeds that. */
+static inline void x87_fsincos(long double x, long double *s, long double *c)
+{
+    long double cv, sv;
+    __asm__("fsincos" : "=t"(cv), "=u"(sv) : "0"(x));
+    *s = sv; *c = cv;
+}
 
 #endif

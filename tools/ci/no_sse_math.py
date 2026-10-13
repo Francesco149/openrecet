@@ -13,6 +13,13 @@ instructions — arithmetic, conversion, comparison. Pure data moves (movss/mova
 and integer SIMD (p*) are NOT flagged: runtime-dispatched CRT memcpy/strlen may
 legally use SIMD loads/stores without touching float results.
 
+Exception (SSE_ALLOWED): retail's statically linked D3DX8 math is NOT x87 on any
+modern CPU — D3DXCpuOptimizations (0x4cdd9f) installs the SSE2 function table, so
+retail itself executes SSE for these (P1 oracle tools/oracle/p1_math3d.c, Intel +
+AMD; docs/findings/x87-float-semantics.md "D3DX8 math").  src/math3d.c mirrors those
+instruction-for-instruction; SSE float math is allowed in exactly those functions
+(attributed by symbol label — a stripped exe has none, so it fails closed).
+
 Usage: no_sse_math.py [exe]            (default build/openrecet.exe)
 Exit 0 = clean · 1 = SSE float math found · 2 = cannot scan
 """
@@ -35,6 +42,13 @@ SSE_FLOAT = re.compile(
     r"|vf(?:n?m(?:add|sub))\w*)$")
 
 MNEMONIC = re.compile(r"^\s*[0-9a-f]+:\s+(?:[0-9a-f]{2} )+\s*([a-z][a-z0-9.]*)")
+
+# src/math3d.c functions mirroring retail's SSE2 D3DX table (slots 7/3/18/27/30/31).
+SSE_ALLOWED = frozenset({
+    "_vec3_normalize", "_mat4_mul", "_mat4_inverse", "_mat4_shadow",
+    "_mat4_rotation_x", "_mat4_rotation_y", "_d3dx_sse2_sincos",
+})
+LABEL = re.compile(r"^[0-9a-f]+ <([^>]+)>:$")
 
 
 def find_objdump() -> str | None:
@@ -59,10 +73,19 @@ def main(argv: list[str]) -> int:
         print(f"no_sse_math: objdump failed: {r.stderr[:400]}", file=sys.stderr)
         return 2
     hits: list[str] = []
+    allowed = 0
+    fn = ""
     for ln in r.stdout.splitlines():
+        lm = LABEL.match(ln)
+        if lm:
+            fn = lm.group(1)
+            continue
         m = re.match(r"^\s*[0-9a-f]+:\s+(\S+)", ln)
         if m and SSE_FLOAT.match(m.group(1)):
-            hits.append(ln.strip())
+            if fn in SSE_ALLOWED:
+                allowed += 1
+            else:
+                hits.append(f"{ln.strip()}  <{fn}>")
     if hits:
         print(f"no_sse_math: FAIL — {len(hits)} SSE float-math instruction(s) in "
               f"{exe} (FP model must stay x87 for retail parity; check Makefile/"
@@ -72,7 +95,9 @@ def main(argv: list[str]) -> int:
         if len(hits) > 12:
             print(f"  … +{len(hits) - 12} more", file=sys.stderr)
         return 1
-    print(f"no_sse_math: OK — no SSE float math in {exe} (x87 invariant holds)")
+    print(f"no_sse_math: OK — no SSE float math in {exe} outside the retail-SSE D3DX "
+          f"mirror ({allowed} allowed instruction(s) in {', '.join(sorted(SSE_ALLOWED))}; "
+          f"x87 invariant holds elsewhere)")
     return 0
 
 

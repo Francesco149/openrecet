@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 26,
+  "total": 27,
   "by_kind": {
    "stub": 8,
    "synthetic-data": 0,
-   "simplified": 7,
+   "simplified": 8,
    "hardcode": 2,
    "scaffold": 0,
    "force-flag": 0
@@ -20,7 +20,7 @@
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 22,
+  "retiring_engine_fns": 23,
   "by_engine_fn": {
    "FUN_004176ff": 2,
    "FUN_00436f97": 2,
@@ -42,6 +42,7 @@
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
    "FUN_0048670f": 1,
+   "FUN_004cdd9f": 1,
    "FUN_005031e4": 1,
    "scene1-rng-stream-parity.md": 1
   }
@@ -173,6 +174,14 @@
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
    "line": 299,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_004cdd9f",
+   "desc": "only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only).",
+   "file": "src/math3d.c",
+   "line": 29,
    "kind_known": true
   },
   {

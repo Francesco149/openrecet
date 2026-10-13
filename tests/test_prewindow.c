@@ -3,7 +3,7 @@
  *
  * Checks all six named globals, the object table init pattern, the
  * particle randomization (with deterministic seed=1, matching engine
- * boot), and the matrix outputs (degenerate view → NaN; proj is finite).
+ * boot), and the matrix outputs (degenerate view → retail zero matrix; proj finite).
  */
 
 #include "t.h"
@@ -168,23 +168,22 @@ int test_prewindow_proj_matrix_is_finite(void)
     return 0;
 }
 
-int test_prewindow_view_is_degenerate_nan_or_inf(void)
+int test_prewindow_view_degenerate_is_retail_zero(void)
 {
-    /* With eye=target=(0,0,0), zaxis tries to normalise (0,0,0) →
-     * 0/0 = NaN.  Engine reproduces the same garbage; we should too. */
+    /* eye=target=(0,0,0): retail's dispatched D3DXVec3Normalize (SSE2 table,
+     * 0x4ecb60) returns (0,0,0) for len² < 2^-46, so z = x = y = 0 and the
+     * lookat is all zero except out[15]=1 (translation −0).  view = lookat·proj
+     * is then zero except view[14] = proj[14] (P1 oracle tools/oracle/p1_math3d.c,
+     * bit-exact incl. this exact boot input).  The old expectation (NaN/inf)
+     * encoded a plain-C 0/0 normalize that retail never executes. */
     rng_seed(1);
     prewindow_init();
 
-    /* At minimum the diagonal rotation entries shouldn't be finite
-     * non-zero values — they're either inf or NaN. (We don't pin the
-     * exact bit pattern since 0/0 vs 0/-0 depends on the host.) */
-    int saw_bad = 0;
     for (int i = 0; i < 16; i++) {
-        if (isnan(g_prewindow.view[i]) || isinf(g_prewindow.view[i])) {
-            saw_bad = 1;
-            break;
-        }
+        if (i == 14) continue;
+        if (g_prewindow.view[i] != 0.0f) T_FAIL("view[%d]=%g want 0", i, g_prewindow.view[i]);
     }
-    if (!saw_bad) T_FAIL("expected NaN/inf somewhere in degenerate view");
+    if (g_prewindow.view[14] != g_prewindow.proj[14])
+        T_FAIL("view[14]=%g want proj[14]=%g", g_prewindow.view[14], g_prewindow.proj[14]);
     return 0;
 }
