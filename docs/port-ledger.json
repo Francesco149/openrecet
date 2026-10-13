@@ -14880,7 +14880,9 @@
     "src/main.c",
     "src/rng.h",
     "src/tick.c",
-    "src/tick.h"
+    "src/tick.h",
+    "src/worker_load.c",
+    "src/worker_load.h"
    ],
    "status": "ported"
   },

@@ -441,7 +441,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ |  | main.c, prewindow.c, scene.h (+1) |
 | 0x47b2e7 | FUN_0047b2e7 | 1061 |  |  | esc_dispatch.h, main.c |
-| 0x47be92 | FUN_0047be92 | 289 | ✓ |  | input.c, input.h, main.c (+3) |
+| 0x47be92 | FUN_0047be92 | 289 | ✓ |  | input.c, input.h, main.c (+5) |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ |  | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ |  | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ |  | font.h, font_atlas.c, font_atlas.h (+1) |

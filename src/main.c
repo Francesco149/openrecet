@@ -2289,6 +2289,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * (animations/fades/RNG that key off tick_now_ms), not
                  * just frame-counted sim. Don't diverge this from the
                  * agent. */
+                /* --det-loads: finish deferred loader workers HERE, at the frame
+                 * boundary right before the tick — the same point rhost resolves
+                 * retail's (tools/rhost DEFER), so loads align by frame number. */
+                worker_load_run_deferred();
                 if (input_harness_driven()) {
                     uint32_t vms = (g_tick.frame_count + 1) * 17u;
                     tick_step_with_now(vms,
@@ -3789,6 +3793,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--save-fresh") == 0) {
             g_save_fresh = 1;
+        } else if (lstrcmpA(tok, "--det-loads") == 0) {
+            worker_load_set_deterministic(1);
         } else if (lstrcmpA(tok, "--save-write-dir") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

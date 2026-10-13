@@ -465,4 +465,10 @@ int  worker_load_primary_pin_elapsed(void);
  * it).  No-op under the unit-test build (no thread). */
 void worker_load_force_primary_complete(void);
 
+/* --det-loads (rhost DEFER twin): loader threads start suspended and run to
+ * completion at the next frame boundary — worker_load_run_deferred() is called
+ * by the main loop right before the FUN_0047be92 tick. */
+void worker_load_set_deterministic(int on);
+void worker_load_run_deferred(void);
+
 #endif /* OPENRECET_WORKER_LOAD_H */

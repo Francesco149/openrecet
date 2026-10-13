@@ -284,6 +284,38 @@ void worker_load_reset(void)
 static HANDLE g_worker_handle    = NULL;
 static DWORD  g_worker_thread_id = 0;
 
+/* --det-loads: the port twin of rhost's DEFER (tools/rhost). Loader threads are
+ * created SUSPENDED and run to completion at the next frame boundary
+ * (worker_load_run_deferred, called by the main loop right before the
+ * FUN_0047be92 tick), so a load spans a FIXED number of frames instead of
+ * "wall time x turbo fps" (house-idle: LOADING_END f73 under rhost vs f3546 in a
+ * plain turbo port run). Off by default — real play keeps real threads. */
+static int    s_det_loads;
+static HANDLE s_deferred[8];
+static int    s_ndeferred;
+void worker_load_set_deterministic(int on) { s_det_loads = on ? 1 : 0; }
+static HANDLE wl_create_thread(LPTHREAD_START_ROUTINE proc, DWORD *tid)
+{
+    if (!s_det_loads)
+        return CreateThread(NULL, 0, proc, NULL, 0, tid);
+    HANDLE h = CreateThread(NULL, 0, proc, NULL, CREATE_SUSPENDED, tid);
+    if (h && s_ndeferred < (int)(sizeof s_deferred / sizeof s_deferred[0])) {
+        HANDLE dup = NULL;   /* the thread's own cleanup closes `h` */
+        DuplicateHandle(GetCurrentProcess(), h, GetCurrentProcess(), &dup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+        s_deferred[s_ndeferred++] = dup;
+    }
+    return h;
+}
+void worker_load_run_deferred(void)
+{
+    for (int i = 0; i < s_ndeferred; i++) {
+        ResumeThread(s_deferred[i]);
+        WaitForSingleObject(s_deferred[i], INFINITE);
+        CloseHandle(s_deferred[i]);
+    }
+    s_ndeferred = 0;
+}
+
 void worker_load_close(void)
 {
     /* E.2 probe — FUN_00452917 @ 0x452917. */
@@ -368,8 +400,7 @@ void worker_load_spawn(void)
      * scheduled. */
     worker_load_begin();
 
-    g_worker_handle = CreateThread(NULL, 0, worker_load_thread_proc,
-                                    NULL, 0, &g_worker_thread_id);
+    g_worker_handle = wl_create_thread(worker_load_thread_proc, &g_worker_thread_id);
     if (!g_worker_handle) {
         /* Engine has no fallback — but if CreateThread fails we'd
          * leak the busy state forever, blocking any future scene
@@ -386,8 +417,7 @@ void worker_load_spawn_alt(void)
      * then CreateThread. */
     worker_load_begin();
 
-    g_worker_handle = CreateThread(NULL, 0, worker_load_thread_proc_alt,
-                                    NULL, 0, &g_worker_thread_id);
+    g_worker_handle = wl_create_thread(worker_load_thread_proc_alt, &g_worker_thread_id);
     if (!g_worker_handle) {
         worker_load_end();
     }
@@ -454,8 +484,7 @@ static void sec_spawn_common(int param, LPTHREAD_START_ROUTINE proc)
     worker_load_begin_secondary();
     g_worker_sec_param = param;
 
-    g_worker_handle = CreateThread(NULL, 0, proc, NULL, 0,
-                                    &g_worker_thread_id);
+    g_worker_handle = wl_create_thread(proc, &g_worker_thread_id);
     if (!g_worker_handle) {
         worker_load_end_secondary();
     }
@@ -468,8 +497,7 @@ void worker_load_spawn_d07(int param)
     worker_load_begin_secondary();
     g_worker_sec_param = param;
     if (g_sec_d07_pre_spawn) g_sec_d07_pre_spawn();
-    g_worker_handle = CreateThread(NULL, 0, thread_proc_sec_aab, NULL, 0,
-                                    &g_worker_thread_id);
+    g_worker_handle = wl_create_thread(thread_proc_sec_aab, &g_worker_thread_id);
     if (!g_worker_handle) worker_load_end_secondary();
 }
 
@@ -556,6 +584,9 @@ void worker_load_force_primary_complete(void)
 }
 
 #else  /* !_WIN32 ── non-Win32 build (unit tests on Linux) ───────────── */
+
+void worker_load_set_deterministic(int on) { (void)on; }
+void worker_load_run_deferred(void) { }
 
 void worker_load_close(void)
 {
