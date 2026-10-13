@@ -22,7 +22,8 @@ Dense on purpose; auto-loads every session. **The repo is the source of truth**;
   sshd runs in session 0 (no desktop ⇒ no D3D), so GUI/D3D jobs go through the rhost
   queue runner (`tools/rhost/README.md`). IDA Pro 9.4 lives here (`C:\orc-ida\`).
 - **`ssh wslop`** — WSL NixOS on the same box. Optional now. Port 22 there is a portproxy
-  to WSL.
+  to WSL. WSL only stays up while the owner has a WSL terminal open: "connection reset"
+  means it is down. Ask the owner; don't start keepalives.
 - **`cold`** — backups.
 
 ## Methodology (2026-10-13 reset — `docs/audits/2026-10-13-methodology-reset.md`)
