@@ -138,7 +138,10 @@ static struct { uint32_t frame; uint16_t mask; } *g_m; static int g_nm, g_im; st
 static WNDPROC g_orig_wp;
 static LRESULT CALLBACK rec_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
+    static int n_keys;
     if (m == WM_KEYDOWN && w == VK_ESCAPE && !(l & 0x40000000)) rh_trace_record_esc(g_frame);
+    if (m == WM_ACTIVATE) rh_log("rec: WM_ACTIVATE %u minimized=%u (frame %u)\n", LOWORD(w), HIWORD(w), g_frame);
+    if (m == WM_KEYDOWN && n_keys < 8) { n_keys++; rh_log("rec: WM_KEYDOWN vk=%02x (frame %u) — the window has keyboard focus\n", (unsigned)w, g_frame); }
     /* closing the window ends the recording at THIS frame, before retail's exit
      * prompt/shutdown mutate state, so a replay to the same frame compares equal */
     if (m == WM_CLOSE) rh_finish("window-closed");
