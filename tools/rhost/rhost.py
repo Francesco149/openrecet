@@ -526,6 +526,8 @@ def cmd_diff(a):
 
 def cmd_record(a):
     """human play on the Windows desktop, realtime, real input; writes a flat trace"""
+    if os.path.exists(os.path.join(SCEN, a.name, "trace.jsonl")) and not a.force:
+        print(f"record: scenario {a.name} already exists — pick a new name (or --force to overwrite)"); return 2
     ensure_staged()
     save = None
     if a.save:
@@ -599,7 +601,8 @@ def main():
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
-    p = sp.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); common(p); p.set_defaults(fn=cmd_record)
+    p = sp.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
+    common(p); p.set_defaults(fn=cmd_record)
     a = ap.parse_args()
     r = a.fn(a)
     sys.exit(r or 0)
