@@ -129,8 +129,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
 Re-check each flow by shadowing its ported functions over rhost scenarios, in this order:
 1. **Customer service + haggle beyond the first customer.** `day2-shop`,
-   `day2-buy-tutorial`, `day3-shop` (multi-day, suggest-item flow): decide 40 /
-   offer_up 30 / offer_down 2 calls, 0 div. Next: the port side (shop entry diverges,
+   `day2-buy-tutorial`, `day3-shop` (multi-day, suggest-item flow), `day4-shop` (a seller;
+   guild intro): decide 48 / offer_up 34 / offer_down 3 calls, 0 div. Next: the port side (shop entry diverges,
    above).
 2. **End of tutorial.** One very long cutscene plus load seams — the stress test for long
    cutscenes and loaders under DEFER.
@@ -144,13 +144,15 @@ Per flow:
 2026-10-13 verify: haggle_decide 20 calls / 0 div (8 scenarios); offer_up 22 / 0;
 rand 1,156,264 / 0 (68 scenarios). + day2-shop, day2-buy-tutorial: decide 16 /
 offer_up 15 / **offer_down 2** / rand 55,348, 0 div; + day3-shop: decide 24 /
-offer_up 15 / rand 126,716, 0 div.
+offer_up 15 / rand 126,716, 0 div; + day4-shop: decide 8 / offer_up 4 / offer_down 1 /
+rand 91,150, 0 div.
 
 ### Human queue (report at session end; ranked by what it unblocks)
 1. (optional) **A shop day where a customer buys from you**: continue from the slot-9
    save written by `day3-shop`:
-   `python3 tools/rhost/rhost.py record day4-shop --save 3d2f5b18846ea4e9fb9465dbaa9abdebb3a31b55046c3deec5c6ec83df9f1b8c`
-   (Load Game → slot 9). Keyboard; click the window once for focus. Save in a new slot
+   `python3 tools/rhost/rhost.py record day5-shop --save dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`
+   (Load Game → slot 10; written by `day4-shop`). Wanted: a buyer who REJECTS (the
+   rejection dialogue) and one who buys. Keyboard; click the window once for focus. Save in a new slot
    before closing if you want to continue later.
 
 ## Where to read next
