@@ -143,6 +143,10 @@ def rhost_args(a, run_win, inputs_win):
             args += ["--cap", a.cap]
     if a.stall_ms:
         args += ["--stall-ms", str(a.stall_ms)]
+    if getattr(a, "shot_at", None):
+        args += ["--shot-at", a.shot_at]
+    if getattr(a, "shot_every", None):
+        args += ["--shot-every", str(a.shot_every)]
     if not getattr(a, "show", False):
         args += ["--quiet"]
     if a.extra:
@@ -173,7 +177,7 @@ def make_batch(a, runs, tag):
             shutil.copy(masks, os.path.join(rdir, "masks.txt"))
             inputs = ["--masks", f"{run_win}\\masks.txt"]
         if getattr(a, "flatten_out", None):
-            inputs += ["--flatten", f"{run_win}\\trace.flat.jsonl"]
+            inputs += ["--flatten", "trace.flat.jsonl"]
         if a.coverage:
             shutil.copy(a.coverage, os.path.join(rdir, "coverage_in.txt"))
         args = rhost_args(a, run_win, inputs)
@@ -201,10 +205,8 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
             results.setdefault(cur + "#notes", []).append(line.strip())
     for name, *_ in runs:
         for f in fetch:
-            r = subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", os.path.join(bdir, name, f)],
-                               capture_output=True, text=True)
-            if r.returncode and not f.startswith("state_"):
-                pass
+            dst = os.path.join(bdir, name) if "*" in f else os.path.join(bdir, name, f)
+            subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", dst], capture_output=True, text=True)
     print(f"[batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s → {bdir}]")
     return batch, bdir, results, out
 
@@ -236,7 +238,7 @@ def cmd_run(a):
     else:
         runs = resolve_runs(a.scenarios)
     a.flatten_out = False
-    batch, bdir, res, out = run_batch(a, runs, "run", fetch=("rhost.log", "coverage.txt"))
+    batch, bdir, res, out = run_batch(a, runs, "run", fetch=("rhost.log", "coverage.txt", "shot_*.png"))
     print_results(res, [r[0] for r in runs])
 
 
@@ -316,10 +318,9 @@ def cmd_record(a):
     a.frames = a.frames or 0
     a.flatten_out = False
     a.show = True
-    a.extra = (a.extra or "") + f" --record {WROOT}\\runs\\REC\\trace.flat.jsonl"
+    a.dump_at = "end"
+    a.extra = (a.extra or "") + " --record trace.flat.jsonl"
     batch, bdir = make_batch(a, [("rec", None, None, save)], "record-" + a.name)
-    go = open(os.path.join(bdir, "go.ps1")).read().replace("REC", f"{batch}\\rec")
-    open(os.path.join(bdir, "go.ps1"), "w").write(go)
     scp(bdir, f"{WIN}:C:/orc-rhost/runs/", recursive=True)
     print("recording: play in the game window on the Windows desktop; close the window to finish")
     out = win_job(batch, f"{WROOT}\\runs\\{batch}\\go.ps1", timeout=6 * 3600)
@@ -327,12 +328,26 @@ def cmd_record(a):
     dst = os.path.join(SCEN, a.name)
     os.makedirs(dst, exist_ok=True)
     scp(f"{WIN}:C:/orc-rhost/runs/{batch}/rec/trace.flat.jsonl", os.path.join(dst, "trace.jsonl"))
+    scp(f"{WIN}:C:/orc-rhost/runs/{batch}/rec/state_end.rhs", os.path.join(bdir, "rec", "state_end.rhs"))
     if save:
         # keep the scenario's save reference
         body = open(os.path.join(dst, "trace.jsonl")).read()
         rel = os.path.relpath(save, dst)
         open(os.path.join(dst, "trace.jsonl"), "w").write(json.dumps({"savefile": rel}) + "\n" + body)
     print("wrote", os.path.join(dst, "trace.jsonl"))
+    # self-check: replaying the recording must reproduce the recorded final state
+    m = re.search(r"RESULT .*?frame=(\d+).*?state_sem=([0-9a-f]+)", out)
+    if not m:
+        print("record: no RESULT line — cannot self-check"); return 1
+    a2 = argparse.Namespace(**{k: None for k in ("seed", "hook", "hash_every", "coverage", "cap", "stall_ms", "extra", "shot_at", "shot_every")})
+    a2.d3d = False; a2.show = False; a2.frames = int(m.group(1)); a2.flatten_out = False; a2.dump_at = "end"
+    _, rb, res, _ = run_batch(a2, [(a.name, os.path.join(dst, "trace.jsonl"), None, save)], "recheck", fetch=("rhost.log", "state_end.rhs"))
+    rep = res.get(a.name, {})
+    rows = rhs.diff(os.path.join(bdir, "rec", "state_end.rhs"), os.path.join(rb, a.name, "state_end.rhs"), show=20)
+    real = [r for r in rows if r[3] not in ("ext-ptr(both)", "ext-ptr(stale)", "volatile-addr")]
+    ok = not real and rep.get("frame") == m.group(1)
+    print(f"record self-check: recorded f={m.group(1)} | replay f={rep.get('frame')} | non-pointer diffs={len(real)} → {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
 
 
 def common(p):
@@ -346,6 +361,8 @@ def common(p):
     p.add_argument("--cap")
     p.add_argument("--stall-ms", type=int)
     p.add_argument("--extra")
+    p.add_argument("--shot-at", help="F[,F..|end]: PNG of the game window at those frames")
+    p.add_argument("--shot-every", type=int)
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
 
 

@@ -329,6 +329,7 @@ static void __cdecl hook_input(void)
 }
 
 static void finish(const char *why);
+void rh_finish(const char *why) { finish(why); }
 static LARGE_INTEGER g_t0, g_qf;
 static int is_dump_frame(uint32_t f) { for (int i = 0; i < O.n_dump; i++) if (O.dump_at[i] == f) return 1; return 0; }
 static void dump_now(const char *tag)
@@ -348,6 +349,9 @@ static void __cdecl hook_tick(void)
                (int)G32(DAT_SCENE), G32(DAT_RNG), g_mask, cw, g_live_threads, g_threads_created,
                GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8));
     }
+    for (int i = 0; i < O.n_shot; i++)
+        if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+    if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
         rh_log("hash f%u full=%016llx sem=%016llx masked=%u\n", g_frame, (unsigned long long)h.full, (unsigned long long)h.semantic, h.masked);
@@ -378,6 +382,7 @@ static void finish(const char *why)
     cov_dump();
     rh_hooks_report();
     if (is_dump_frame(0xffffffffu)) dump_now("end");
+    for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
     char hs[256]; rh_heap_stats(hs, sizeof hs);
     rh_log("%s\n", hs);
     if (O.log_ext) rh_state_ext_report();
@@ -425,6 +430,12 @@ static void parse(int argc, char **argv)
                 O.dump_at[O.n_dump++] = !strcmp(t, "end") ? 0xffffffffu : strtoul(t, 0, 0);
         }
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--shot-at")) {
+            char b[512]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && O.n_shot < 64; t = strtok(NULL, ","))
+                O.shot_at[O.n_shot++] = !strcmp(t, "end") ? 0xffffffffu : strtoul(t, 0, 0);
+        }
+        else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--log-every")) O.log_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--tail")) O.tail = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--stall-frames")) O.stall_frames = strtoul(ARG(), 0, 0);
@@ -447,6 +458,10 @@ static void parse(int argc, char **argv)
         #undef ARG
     }
     if (!O.exe || !O.gamedir || !O.rundir) usage();
+    /* --record/--flatten relative paths live in the run dir */
+    static char rec_abs[MAX_PATH], flat_abs[MAX_PATH];
+    if (O.record && !strchr(O.record, ':') && O.record[0] != '\\') { snprintf(rec_abs, sizeof rec_abs, "%s\\%s", O.rundir, O.record); O.record = rec_abs; }
+    if (O.flatten && !strchr(O.flatten, ':') && O.flatten[0] != '\\') { snprintf(flat_abs, sizeof flat_abs, "%s\\%s", O.rundir, O.flatten); O.flatten = flat_abs; }
     if (!O.frames) O.frames = O.record ? 0xfffffff0u : (O.trace || O.masks) ? 120000u : 3000u;
 }
 

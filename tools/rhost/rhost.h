@@ -38,6 +38,7 @@ typedef struct {
     const char *record;         /* realtime human play: write a flat trace.jsonl */
     const char *flatten;        /* write the replayed trace as a flat (frame-absolute) trace */
     uint32_t dump_at[16]; int n_dump;
+    uint32_t shot_at[64]; int n_shot; uint32_t shot_every;
     uint32_t hash_every;        /* log state hash every N frames (0 = only at end) */
     uint32_t log_every;         /* status line every N frames */
     uint32_t tail;              /* frames after the last trace entry (300) */
@@ -59,6 +60,7 @@ extern volatile uint32_t g_frame;
 extern FILE *g_log;
 void rh_log(const char *fmt, ...);
 void rh_fatal(const char *fmt, ...);
+void rh_finish(const char *why);   /* end the run now: hash, dumps, RESULT, ExitProcess */
 void iat_override(const char *name, void *fn);
 void *iat_lookup(const char *name);
 int  redirect_calls(uint32_t va, void *hook);
@@ -98,6 +100,9 @@ void rh_trace_record(uint32_t frame, uint16_t mask);
 void rh_trace_record_esc(uint32_t frame);
 void rh_trace_finish(void);
 const char *rh_trace_status(void);
+
+/* rh_shot.c */
+void rh_shot(const char *tag);
 
 /* rh_hooks.c */
 void rh_hooks_install(void);
