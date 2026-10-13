@@ -8,7 +8,11 @@ CC        = i686-w64-mingw32-gcc
 WINDRES    = i686-w64-mingw32-windres
 STRIP      = i686-w64-mingw32-strip
 
-CFLAGS    ?= -std=c11 -O2 -g \
+# -std=gnu11: on x87, c11's -fexcess-precision=standard widens `0.1f` literals to
+# long double (retail MSVC6 uses the m32 constant) — the dominant float divergence
+# class (175 fns, P1 oracle 2026-10-13). Retail-exact float code does not depend on
+# this flag at all: see x87.h.
+CFLAGS    ?= -std=gnu11 -O2 -g \
              -Wall -Wextra -Wno-unused-parameter \
              -DUNICODE=0 -D_UNICODE=0 \
              -DWINVER=0x0500 -D_WIN32_WINNT=0x0500 \

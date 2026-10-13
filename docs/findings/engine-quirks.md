@@ -4928,3 +4928,9 @@ harness; the port's async loads swing ~4000).  Consequence for parity: a save CO
 `occupied_playtime` is an environmental phase origin, normalized by the bilateral
 `{playtimepin}` (both sides ticked identically: `playtime = engine_frame_at_commit + const`;
 see `findings/parity-save-producer.md`).
+
+## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
+Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
+and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
+(`fstp m32/m64`); constants are m32 (some m64) operands; `__ftol` truncates the unrounded
+ST0. Port rule + evidence: `docs/findings/x87-float-semantics.md`, `src/x87.h`.

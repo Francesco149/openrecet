@@ -12676,6 +12676,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_haggle.c",
     "src/customer_haggle.h",
     "src/customer_service.c",
     "src/rng.h",
