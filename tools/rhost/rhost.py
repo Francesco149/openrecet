@@ -358,6 +358,38 @@ def cmd_corpus(a):
         print("flat traces written next to each completed scenario's trace.jsonl")
 
 
+# every RET hook that compares a port function against retail (rh_hooks.c registry)
+VERIFY_HOOKS = ["haggle_decide", "haggle_offer_up", "haggle_offer_down", "rand"]
+
+
+def cmd_verify(a):
+    """re-verification dashboard: all scenarios × all shadow hooks → per-function evidence"""
+    names = sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    a.hook = ",".join("shadow:" + h for h in VERIFY_HOOKS)
+    a.flatten_out = False
+    runs = resolve_runs(names)
+    frames = {"day1-tutorial-to-day2": 40000}
+    batch, bdir, res, out = run_batch(a, runs, "verify")
+    tot = {}
+    for n in names:
+        for note in res.get(n + "#notes", []):
+            m = re.match(r"hook-result shadow (\S+) calls=(\d+) diverge=(\d+) skipped=(\d+)(?: first: (.*))?", note)
+            if m:
+                t = tot.setdefault(m.group(1), [0, 0, 0, set(), ""])
+                t[0] += int(m.group(2)); t[1] += int(m.group(3)); t[2] += int(m.group(4))
+                if int(m.group(2)): t[3].add(n)
+                if m.group(5) and not t[4]: t[4] = f"{n}: {m.group(5)}"
+    done = sum(1 for n in names if res.get(n, {}).get("complete") == "1")
+    print(f"\nVERIFY ({done}/{len(names)} scenarios complete)")
+    print(f"{'function':22s} {'calls':>8s} {'diverge':>8s} {'skipped':>8s} scenarios")
+    for h in VERIFY_HOOKS:
+        c, d, k, sc, first = tot.get(h, [0, 0, 0, set(), ""])
+        print(f"{h:22s} {c:8d} {d:8d} {k:8d} {len(sc)}" + (f"  FIRST: {first}" if d else ""))
+    return 0 if all(tot.get(h, [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
+
+
 def cmd_flatten(a):
     a.flatten = True
     a.only = "^(" + "|".join(re.escape(s) for s in a.scenarios) + ")$"
@@ -436,6 +468,7 @@ def main():
     p = sp.add_parser("run"); p.add_argument("scenarios", nargs="*"); p.add_argument("--masks"); p.add_argument("--save"); common(p); p.set_defaults(fn=cmd_run)
     p = sp.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=2); p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
+    p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sp.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); common(p); p.set_defaults(fn=cmd_record)

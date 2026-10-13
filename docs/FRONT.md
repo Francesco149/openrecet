@@ -63,8 +63,14 @@ Re-check each flow by shadowing its ported functions over rhost scenarios, in th
    cutscenes and loaders under DEFER.
 3. Title / intro / prologue; house free-roam, pause menus, save commit (`save_compare.py`);
    guild / world map; day 2.
-Per flow: list the ported fns it runs (rhost `--coverage` ∩ port ledger), add shadow hooks,
-and record the evidence line in the findings doc.
+Per flow:
+1. list the ported fns it runs (rhost `--coverage` ∩ port ledger);
+2. add shadow hooks (`rh_hooks.c`) and register them in `rhost.py` `VERIFY_HOOKS`;
+3. `rhost.py verify` = one table of calls/divergences over all scenarios.
+
+2026-10-13 verify: haggle_decide 20 calls / 0 div (8 scenarios); offer_up 22 / 0;
+**offer_down 0 calls (no customer-sells-to-you haggle in the corpus — record one)**;
+rand 1,156,264 / 0 (68 scenarios).
 
 ### Human queue (report at session end; ranked by what it unblocks)
 1. **Record a Day-2 shop session** (multi-customer haggle; only customer #1 was ever
