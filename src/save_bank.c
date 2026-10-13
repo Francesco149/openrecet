@@ -34,6 +34,7 @@
  */
 
 #include "save_bank.h"
+#include "tables_item.h"
 
 #include <string.h>
 
@@ -524,13 +525,27 @@ void save_bank_init_one(int bank_idx)
      * for fidelity but no-op. */
     /* (No work needed — memset zeroed the whole region already.) */
 
-    /* (6) Conditional chara-name carry-over: only fires if
-     * DAT_005c80ac (chara count) is non-zero, indexing into
-     * DAT_095d3808 (chara descriptor table). Both are upstream-
-     * untracked in our port; until the recruit/NPC system lands we
-     * skip this entire block. The fields it writes (bank
-     * positions [0x9e64 + N*0x12]) stay zero from the memset, which
-     * matches the engine on a first-boot DAT_005c80ac=0 path. */
+    /* (6) Distinct-category store key+count (the encyclopedia discovery store,
+     * bank dword 0x9e76, 18-dword records).  FUN_0049001c @0x4900ee..0x49012b:
+     * walk the item catalog in table order (DAT_005c80ac records, category =
+     * DAT_095d3808[i*0xb3]); each run of equal consecutive categories opens the
+     * next record: rec[0] = category, rec[1] += 1 per item.  A first category
+     * of -1 opens nothing (retail's run key starts at -1).  Retail has the
+     * catalog loaded (571 items) before the boot sweep, so every reset bank
+     * carries these counts — the "canonical reset pattern" rhost measured
+     * (findings/in-process-retail-host.md §7). */
+    {
+        int32_t prev = -1;
+        int ci = -1;
+        for (int i = 0; i < g_item.count; i++) {
+            int32_t cat = g_item.records[i].category;
+            if (cat != prev) { ci++; prev = cat; }
+            if (ci >= 0 && ci < 100) {
+                bank[0x9e76 + 18 * ci]  = (uint32_t)cat;
+                bank[0x9e77 + 18 * ci] += 1;
+            }
+        }
+    }
 
     /* (7) FUN_0048ffd9 — starter flag-pairs for the bank's current
      * chara index (zero from memset → STARTER_FLAG_PAIRS[0]). */
@@ -597,8 +612,9 @@ void save_bank_init_one(int bank_idx)
      * aggregate fires items_find_by_id 5× instead of retail's 4×. */
     apply_starter_items(bank_bytes, bank_idx);
 
-    /* (10) Stamp checksum so future verify passes accept this bank. */
-    save_bank_stamp_checksum(bank_idx);
+    /* (10) No checksum stamp: FUN_0049001c returns straight from FUN_0048ff93.
+     * A reset bank keeps checksum 0 (≠ its content sum), so every later boot
+     * sweep resets it again — idempotently, since the pattern is canonical. */
 }
 
 /* ── FUN_004901c2 body ── */

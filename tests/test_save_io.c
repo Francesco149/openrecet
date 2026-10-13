@@ -14,6 +14,7 @@
 
 #include "save_bank.h"
 #include "save_io.h"
+#include "tables_item.h"
 #include "save_work.h"
 #include "scene_title.h"
 
@@ -542,14 +543,13 @@ int test_save_io_write_then_load_round_trip(void)
     return 0;
 }
 
-/* Regression for the save-pillar ranking_records FAIL (findings/
- * parity-save-producer.md): a loaded non-active bank with a STALE
- * checksum (0) — like the seed's never-committed slots whose
- * encyclopedia (図鑑) key+count a prior title-図鑑 open populated — must
- * be PRESERVED on load, not re-inited (which zeroed the key+count and
- * stamped a fresh checksum). Retail keeps it verbatim; the fix gates the
- * post-load verify sweep (engine DAT_095d3728). */
-int test_save_io_load_preserves_stale_checksum_nonactive_bank(void)
+/* A normal-size (0x11f7530) load does NOT gate the verify sweep (engine
+ * FUN_004902fe sets DAT_095d3728 only in the two legacy buckets), so a loaded
+ * bank whose stored checksum is stale is RESET to the canonical pattern —
+ * exactly what retail did to a crafted bank under rhost (2026-10-13,
+ * findings/in-process-retail-host.md §7). Replaces the 6c9c85d3 test that
+ * locked the opposite (gated) behaviour. */
+int test_save_io_load_resets_stale_checksum_bank(void)
 {
     /* Encyclopedia discovery store: bank dword 0x9e76 (byte 0x279d8),
      * record 0 = {key@+0, catalog_count@+1}. */
@@ -565,30 +565,36 @@ int test_save_io_load_preserves_stale_checksum_nonactive_bank(void)
     uint32_t *dw = (uint32_t *)blob;
     dw[0] = SAVE_BANK_MAGIC;                        /* header magic */
 
-    /* Bank 5: valid magic, a populated encyclopedia record, and a
-     * DELIBERATELY STALE checksum (0 ≠ its real content sum). */
+    /* Bank 5: valid magic, foreign content, DELIBERATELY STALE checksum. */
     uint32_t *bank5 =
         (uint32_t *)(blob + SAVE_BANK_HEADER_BYTES + 5 * SAVE_BANK_STRIDE_BYTES);
     bank5[SAVE_BANK_FIELD_MAGIC]      = SAVE_BANK_MAGIC;
-    bank5[ENC_DISC_DWORD + 0]         = 3;          /* record 0 key   */
-    bank5[ENC_DISC_DWORD + 1]         = 16;         /* record 0 count */
+    bank5[SAVE_BANK_FIELD_GOLD]       = 4242;
+    bank5[ENC_DISC_DWORD + 0]         = 3;
+    bank5[ENC_DISC_DWORD + 1]         = 16;
     bank5[SAVE_BANK_FIELD_CHECKSUM]   = 0;          /* stale, unstamped */
 
     T_ASSERT(write_file(p, blob, arena_bytes));
     free(blob);
 
+    item_state_t saved_items = g_item;            /* reset rebuilds key/count from the catalog */
+    memset(&g_item, 0, sizeof g_item);
     save_bank_arena_clear();
     save_bank_init_all();
-    T_ASSERT_EQ_I(save_io_try_load(p, NULL), 1);
+    int loaded_ok = save_io_try_load(p, NULL);
+    g_item = saved_items;
+    T_ASSERT_EQ_I(loaded_ok, 1);
 
-    /* The load must have gated the verify sweep. */
-    T_ASSERT_EQ_I(save_bank_get_skip_verify(), 1);
+    /* No gate on this bucket. */
+    T_ASSERT_EQ_I(save_bank_get_skip_verify(), 0);
 
-    /* Bank 5's encyclopedia key+count survive verbatim (NOT zeroed by a
-     * re-init), and its stale checksum is left untouched. */
+    /* Bank 5 was reset: canonical gold, key/count rebuilt from the (here
+     * empty) catalog, checksum left unstamped (0) as retail leaves it. */
     uint32_t *loaded = save_bank_dwords_at(5);
-    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 0], 3u);
-    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 1], 16u);
+    T_ASSERT_EQ_U(loaded[SAVE_BANK_FIELD_MAGIC], SAVE_BANK_MAGIC);
+    T_ASSERT_EQ_U(loaded[SAVE_BANK_FIELD_GOLD], 1000u);
+    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 0], 0u);
+    T_ASSERT_EQ_U(loaded[ENC_DISC_DWORD + 1], 0u);
     T_ASSERT_EQ_U(loaded[SAVE_BANK_FIELD_CHECKSUM], 0u);
 
     unlink_path(p);

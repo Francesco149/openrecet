@@ -98,7 +98,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49001c | FUN_0049001c | 422 | ✓ |  | save_bank.c, save_bank.h, scene.c (+2) |
 | 0x49065b | FUN_0049065b | 314 | ✓ | stub | scene1_hud.c, scene1_overlay.c, scene1_overlay.h (+1) |
 | 0x490e56 | FUN_00490e56 | 494 | ✓ |  | npc_schedule.c, npc_schedule.h, scene.c (+1) |
-| 0x499583 | FUN_00499583 | 231 | ✓ |  | audio.c, audio.h, audio_fade.c (+10) |
+| 0x499583 | FUN_00499583 | 231 | ✓ |  | audio.c, audio.h, audio_fade.c (+11) |
 | 0x49966a | FUN_0049966a | 1412 | ✓ |  | audio.c, audio.h, audio_fade.h (+7) |
 | 0x49a558 | FUN_0049a558 | 35 | ✓ |  | music.c, music.h |
 | 0x49b425 | FUN_0049b425 | 207 | ✓ |  | main.c, render_quad.c, render_quad.h (+7) |

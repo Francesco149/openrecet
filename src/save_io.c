@@ -187,17 +187,14 @@ int save_io_try_load(const char *primary, const char *backup)
             memcpy(arena, buf, (size_t)size);
             /* g_save_loaded_known_format stays 0 — matches engine.
              *
-             * A loaded save now occupies the arena: gate the verify sweep
-             * so init_all does NOT re-init the loaded banks.  The engine's
-             * fallback bucket (in FUN_004902fe @ 0x4902fe) does the same raw
-             * memcpy then FUN_004901c2, relying on DAT_095d3728 already
-             * being set so those loaded banks are preserved (byte-confirmed
-             * vs retail: non-active slots keep their stale-checksum
-             * encyclopedia data; findings/parity-save-producer.md).  Left
-             * ungated, init_all's sweep re-inited every non-active bank
-             * whose stored checksum is stale (0), wiping their discovery
-             * key+count — the ranking_records FAIL the save pillar found. */
-            save_bank_set_skip_verify(1);
+             * NO verify-sweep gate here: FUN_004902fe writes DAT_095d3728 only
+             * in the two legacy buckets (IDA). This bucket is memcpy →
+             * FUN_00499583 → FUN_004901c2 with the gate 0, so the sweep RESETS
+             * every bank whose stored checksum is stale. rhost (2026-10-13):
+             * a crafted bank (valid magic, word100 changed, checksum 0) comes
+             * back as the canonical reset pattern; the seed's never-committed
+             * banks already ARE that pattern, which is why gating looked
+             * right (6c9c85d3) — it diverges for any other stale bank. */
             save_bank_init_all();
         }
 

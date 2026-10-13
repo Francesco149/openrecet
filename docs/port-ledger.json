@@ -19687,6 +19687,7 @@
     "src/music.h",
     "src/save_bank.c",
     "src/save_bank.h",
+    "src/save_io.c",
     "src/scene_pause.c",
     "src/scene_title.c"
    ],

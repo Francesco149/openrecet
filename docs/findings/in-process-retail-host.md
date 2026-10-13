@@ -141,10 +141,14 @@ normal-size bucket does NOT set it. Two host tests lock opposite values.
   retail's committed `save.dat` vs seed: header 0 diffs, banks 1–99 0 diffs (seed
   banks: stored ck 0, calc 0x345e7bcf = the reset-pattern checksum above), bank 0
   (active) 3 dwords. Consistent with "sweep ran, reset was idempotent".
-- **Proposed fix (not applied; needs owner OK, flips 2 host tests):** drop the gate on
-  the normal bucket (keep it on the legacy ones); make `save_bank_init_one` reproduce
-  `FUN_0049001c` exactly (catalog key/count fill, no checksum stamp); re-run the
-  save pillar plus a rhost crafted-save test.
+- **Fix APPLIED 2026-10-13 (owner OK):** normal bucket no longer gates the sweep (legacy
+  buckets still do); `save_bank_init_one` == `FUN_0049001c`: category run-length
+  key/count over the item catalog (@0x4900ee) + NO checksum stamp. Evidence: port reset
+  bank (real item.txt 571 items + chara.txt) vs retail-written seed fa7c82 banks
+  1/2/50/99: **0 / 47,090 dwords differ** (pre-fix: 66 — key/counts + stamped checksum
+  0x345e76b1 vs 0). Side effect, also toward retail: a load that resets N stale banks now
+  consumes 8·N `rand()` like retail (the gated port consumed none). Host tests: 2 flipped
+  + 1 added.
 
 ## 8. Existing scenario corpus replays inside rhost (P3)
 

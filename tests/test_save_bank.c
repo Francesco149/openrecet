@@ -10,6 +10,7 @@
 #include "t.h"
 #include "chara_equip.h"
 #include "save_bank.h"
+#include "tables_item.h"
 #include "tables_chara.h"
 #include "rng.h"
 
@@ -103,13 +104,13 @@ int test_save_bank_init_all_stamps_all_banks(void)
     rng_seed(1);
     save_bank_init_all();
 
-    /* Every bank should now have live magic + valid checksum. */
+    /* Every bank is reset to live magic with an UNSTAMPED checksum (0):
+     * FUN_0049001c never stamps (retail seed banks: stored 0, content sum
+     * 0x345e7bcf), so a fresh arena re-resets them on every boot sweep. */
     for (int idx = 0; idx < SAVE_BANK_COUNT; idx++) {
         uint32_t *bank = save_bank_dwords_at(idx);
         T_ASSERT_EQ_U(bank[SAVE_BANK_FIELD_MAGIC], SAVE_BANK_MAGIC);
-        if (!save_bank_checksum_ok(idx)) {
-            T_FAIL("bank %d checksum mismatch after init_all", idx);
-        }
+        T_ASSERT_EQ_U(bank[SAVE_BANK_FIELD_CHECKSUM], 0u);
     }
     return 0;
 }
@@ -348,7 +349,8 @@ int test_save_bank_checksum_detects_tamper(void)
     rng_seed(1);
     save_bank_init_all();
 
-    /* Live bank — checksum should match. */
+    /* A committed bank (checksum stamped, as the save commit does) verifies. */
+    save_bank_stamp_checksum(3);
     T_ASSERT(save_bank_checksum_ok(3));
 
     /* Tamper with one byte and re-verify — should fail. */
@@ -356,9 +358,9 @@ int test_save_bank_checksum_detects_tamper(void)
     bank[SAVE_BANK_FIELD_GOLD] = 99999;
     T_ASSERT(!save_bank_checksum_ok(3));
 
-    /* save_bank_init_all re-runs init_one for any failing bank. */
+    /* save_bank_init_all re-runs init_one for any failing bank (unstamped). */
     save_bank_init_all();
-    T_ASSERT(save_bank_checksum_ok(3));
+    T_ASSERT_EQ_U(save_bank_dwords_at(3)[SAVE_BANK_FIELD_CHECKSUM], 0u);
     T_ASSERT_EQ_U(save_bank_dwords_at(3)[SAVE_BANK_FIELD_GOLD], 1000u);
     return 0;
 }
@@ -389,11 +391,44 @@ int test_save_bank_skip_verify_preserves_stale_bank(void)
     T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_GOLD], 4242u);
     T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_CHECKSUM], 0u);
 
-    /* Gate OFF → the sweep runs again → the stale bank is re-inited. */
+    /* Gate OFF → the sweep runs again → the stale bank is re-inited, and
+     * (FUN_0049001c) left with an UNSTAMPED checksum. */
     save_bank_set_skip_verify(0);
     save_bank_init_all();
     T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_GOLD], 1000u);
-    T_ASSERT(save_bank_checksum_ok(7));
+    T_ASSERT_EQ_U(save_bank_dwords_at(7)[SAVE_BANK_FIELD_CHECKSUM], 0u);
+    T_ASSERT(!save_bank_checksum_ok(7));
+    return 0;
+}
+
+/* FUN_0049001c @0x4900ee: distinct-category store key+count from the item
+ * catalog — one 18-dword record per run of equal consecutive categories. */
+int test_save_bank_init_one_catalog_category_runs(void)
+{
+    save_bank_arena_clear();
+    seed_chara_zero();
+    rng_seed(1);
+    item_state_t saved = g_item;
+    memset(&g_item, 0, sizeof g_item);
+    const int32_t cats[] = { 4, 4, 4, 9, 2, 2, 9 };   /* runs: 4x3, 9x1, 2x2, 9x1 */
+    g_item.count = 7;
+    for (int i = 0; i < 7; i++) { g_item.records[i].valid = 1; g_item.records[i].category = cats[i]; }
+
+    save_bank_init_one(3);
+    const uint32_t *b = save_bank_dwords_at(3);
+    T_ASSERT_EQ_U(b[0x9e76 + 0 * 18], 4u);  T_ASSERT_EQ_U(b[0x9e77 + 0 * 18], 3u);
+    T_ASSERT_EQ_U(b[0x9e76 + 1 * 18], 9u);  T_ASSERT_EQ_U(b[0x9e77 + 1 * 18], 1u);
+    T_ASSERT_EQ_U(b[0x9e76 + 2 * 18], 2u);  T_ASSERT_EQ_U(b[0x9e77 + 2 * 18], 2u);
+    T_ASSERT_EQ_U(b[0x9e76 + 3 * 18], 9u);  T_ASSERT_EQ_U(b[0x9e77 + 3 * 18], 1u);
+    T_ASSERT_EQ_U(b[0x9e76 + 4 * 18], 0u);  T_ASSERT_EQ_U(b[0x9e77 + 4 * 18], 0u);
+    T_ASSERT_EQ_U(b[SAVE_BANK_FIELD_CHECKSUM], 0u);     /* never stamped */
+
+    /* a leading category of -1 opens no record (retail's run key starts at -1) */
+    g_item.records[0].category = -1; g_item.count = 1;
+    save_bank_init_one(4);
+    T_ASSERT_EQ_U(save_bank_dwords_at(4)[0x9e76], 0u);
+    T_ASSERT_EQ_U(save_bank_dwords_at(4)[0x9e77], 0u);
+    g_item = saved;
     return 0;
 }
 
