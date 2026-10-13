@@ -12376,9 +12376,7 @@
    "src": [
     "src/customer_haggle.c",
     "src/customer_haggle.h",
-    "src/customer_service.c",
-    "src/diff_entry.c",
-    "src/diff_entry.h"
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -12634,9 +12632,7 @@
    "src": [
     "src/customer_haggle.c",
     "src/customer_haggle.h",
-    "src/customer_service.c",
-    "src/diff_entry.c",
-    "src/diff_entry.h"
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -12936,9 +12932,7 @@
    "proofs": [],
    "src": [
     "src/customer_service.c",
-    "src/customer_service.h",
-    "src/diff_entry.c",
-    "src/diff_entry.h"
+    "src/customer_service.h"
    ],
    "status": "ported"
   },
@@ -13021,9 +13015,7 @@
    "quality_flags": [],
    "proofs": [],
    "src": [
-    "src/customer_service.c",
-    "src/diff_entry.c",
-    "src/diff_entry.h"
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -13757,8 +13749,6 @@
     "src/chara_equip.h",
     "src/customer_roster.c",
     "src/customer_service.c",
-    "src/diff_entry.c",
-    "src/diff_entry.h",
     "src/encyclopedia.c",
     "src/news_daily.c",
     "src/save_bank.h",
@@ -19888,8 +19878,6 @@
     "src/chara_equip.c",
     "src/chara_equip.h",
     "src/customer_service.c",
-    "src/diff_entry.c",
-    "src/diff_entry.h",
     "src/encyclopedia.c"
    ],
    "status": "verified"
@@ -24782,8 +24770,6 @@
    "src": [
     "src/audio.c",
     "src/audio.h",
-    "src/diff_entry.c",
-    "src/diff_entry.h",
     "src/main.c"
    ],
    "status": "ported"
