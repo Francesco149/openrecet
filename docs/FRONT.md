@@ -26,14 +26,25 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - verify per fn with a P1 oracle or an rhost hook;
   - go flow by flow with the re-verification program.
   - Done: the haggle family (oracle-exact under c11 + gnu11). Port now builds gnu11.
-- ☐ **Port-side determinism knobs** (virtual time, deferred loads, same boot timeline) so
-  port↔retail traces align by frame number; port under wine for Linux runs.
-- ☐ **v3 viewer fed by rhost:**
-  - retail D3D stream from rhost (`--d3d --cap`);
+- ◐ **Port-side determinism**: port↔retail traces should align by frame number.
+  - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
+  - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
+    port `LOADING_END` f72 vs retail f73, then a constant +1.
+  - ★ next: find that off-by-one (where the load flags clear relative to the deferral
+    point, port vs rhost); then compare `state` fields frame by frame.
+  - Port runs need their own cwd: it writes `openrecet-calltrace-*.jsonl` into the cwd.
+- ◐ **v3 viewer fed by rhost:**
+  - retail D3D stream from rhost (`--d3d --cap`): ✅ captured + replayed BIT-EXACT (house-idle f600-602);
   - port stream from the port;
   - join by frame number.
-- ☐ wine/Linux target in `rhost.py` + bounded podman container
-  (recettear-decomp `container.sh` pattern, recycle-race fixed).
+- ◐ wine/Linux target:
+  - ✅ `rhost.py --target wine -j N`;
+  - ⚠ RNG diverges from Windows at new game: retail's SE path runs only with working
+    audio (`DAT_096430fc`), and headless wine has no DirectMusic. Windows native = RNG
+    truth (findings §10);
+  - ☐ wine DirectMusic, or a fix for the audio flag;
+  - ☐ bounded podman container.
+- ☐ **Day-2 shop / multi-customer haggle**: recording needed (Human queue).
 
 ### Re-verification program (owner: "re-verify everything with the new methodology")
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
@@ -48,5 +59,10 @@ Per flow: list the ported fns it runs (rhost `--coverage` ∩ port ledger), add 
 and record the evidence line in the findings doc.
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- (none open)
+1. **Record a Day-2 shop session** (multi-customer haggle; only customer #1 was ever
+   checked). From maximus:
+   `python3 tools/rhost/rhost.py record day2-shop --save 5816458d8f4f6508a3c2ca89640d3a6eb234cec49b54b7a4f1307567f1223903`
+   - a window opens on the Windows desktop: Load Game → 3rd slot (Day 2, 155 pix);
+   - open the shop, serve ~5–10 customers (sell + buy, haggle several rounds);
+   - close the window. Keyboard only (pads are hidden). The trace self-checks on finish.
 <!-- FRONT:END -->
