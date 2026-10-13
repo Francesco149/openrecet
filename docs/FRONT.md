@@ -30,12 +30,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
   - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
     port `LOADING_END` f72 vs retail f73, then a constant +1.
-  - ★ next: the off-by-one is located.
-    - Retail runs a SECOND deferred worker, `LAB_00452aab` (the `.ivt` tutorial-dialogue
-      loader via `FUN_00452d07`). It is created in tick 72, holds gate `DAT_06a49960`,
-      and finishes at the next boundary, giving `LOADING_END@73`.
-    - The port loads that dialogue inline (`scene1_intro_dialogue_loading`, no worker).
-    - Fix: route it through `worker_load_spawn_sec(AAB)` so `--det-loads` defers it.
+  - ★ next: route the port's load brackets through real (deferrable) workers.
+    - Retail under DEFER: every load bracket is exactly 1 frame (14/14 over the
+      tutorial). Workers: `0x452aab` ×7, `0x452b13` ×4, `0x452ae8` ×2, primary ×1.
+      Chained workers add up: the new-game house load is 2 frames (primary, then
+      `0x452aab` for the first `.ivt`).
+    - The port fakes these as frame counters (`D_LOAD`, `D_TUT_LOAD` = 2, the cs load)
+      and has no bracket for the first prologue `.ivt`, hence `LOADING_END` f72 vs f73.
+    - Fix: spawn via the existing `worker_load_spawn_sec(...)` procs, so
+      `--det-loads` = 1 frame each and real play = real threads like retail.
     - Then compare `state` fields frame by frame.
   - Port runs need their own cwd: it writes `openrecet-calltrace-*.jsonl` into the cwd.
 - ◐ **v3 viewer fed by rhost:**
