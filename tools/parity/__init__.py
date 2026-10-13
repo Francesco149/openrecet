@@ -102,17 +102,6 @@ from .adapter_gen import (
     DivergenceInjector,
 )
 from .corpus_store import CorpusStore
-from .boundary import (
-    BoundaryError,
-    BoundaryEvent,
-    BoundaryEquivalenceComparator,
-    BoundaryStream,
-    EquivalenceResult,
-    compute_stream_id,
-    hash_buffer,
-    normalize_path,
-    validate_stream,
-)
 
 __all__ = [
     # canonicalization (§4.4, frozen)
@@ -205,14 +194,4 @@ __all__ = [
     "BoundaryMutator",
     "DivergenceInjector",
     "CorpusStore",
-    # system boundary events (BT-00)
-    "BoundaryError",
-    "BoundaryEvent",
-    "BoundaryEquivalenceComparator",
-    "BoundaryStream",
-    "EquivalenceResult",
-    "compute_stream_id",
-    "hash_buffer",
-    "normalize_path",
-    "validate_stream",
 ]
