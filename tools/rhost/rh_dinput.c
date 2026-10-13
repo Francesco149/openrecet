@@ -5,7 +5,11 @@
  * diverged at new game, 2026-10-13). Retail's IDirectInput8A gets a vtable copy
  * whose EnumDevices reports NO game controllers; keyboard/mouse are untouched.
  * Input itself never comes from devices in deterministic runs (rhost scripts the
- * mask); in --record mode the keyboard is the recorded device. */
+ * mask); in --record mode the keyboard is the recorded device.
+ * hinst: retail passes WinMain's hInstance (DAT_073de628 → FUN_0047af52), which
+ * rhost fakes as 0x400000 — not a loader-known module, so Windows dinput8 rejected
+ * it and every Windows run before 2026-10-13 had NO DInput (wine accepts it).
+ * Hand dinput8 the host module instead; retail state never sees the value. */
 #include "rhost.h"
 
 #define DI8DEVCLASS_GAMECTRL_ 4
@@ -23,7 +27,9 @@ static HRESULT WINAPI my_EnumDevices(void *self, DWORD type, void *cb, void *ref
 }
 static HRESULT WINAPI my_DirectInput8Create(HINSTANCE h, DWORD ver, REFIID iid, LPVOID *out, LPUNKNOWN outer)
 {
+    if (h == (HINSTANCE)0x400000) h = GetModuleHandleA(NULL);
     HRESULT r = real_create(h, ver, iid, out, outer);
+    if (r < 0) rh_log("dinput: DirectInput8Create failed hr=%08lx\n", (unsigned long)r);
     if (r >= 0 && out && *out) {
         void ***obj = (void ***)*out;
         memcpy(g_vt, *obj, 11 * sizeof(void *));    /* IDirectInput8A: QI AddRef Release CreateDevice EnumDevices ... */
