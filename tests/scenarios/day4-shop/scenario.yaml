@@ -1,0 +1,11 @@
+# day4-shop — human recording 2026-10-13 (rhost.py record, Windows, keyboard).
+# Starts from the slot-9 save written by day3-shop (_saves/3d2f5b18…, Load Game →
+# slot 9). A customer SELLS an item to the player and the player buys it (no
+# rejection dialogue); also (accidentally) the ADVENTURERS' GUILD intro dialogue.
+# Saved in slot 10 → _saves/dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4
+# (bank 9 + header only), window closed @f26474 (scene 9).
+# rhost: replay f26474 rng 3a5e195f = recording; only DLL-pointer slots differ
+# (calibrated: volatile.txt 420 → 476); det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-13: haggle_decide 8 / offer_up 4 / offer_down 1 / rand 91,150, 0 div.
+description: |
+  Customer sells → player buys (offer_down); adventurers' guild intro; ends saved in slot 10.
