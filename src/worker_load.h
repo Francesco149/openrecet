@@ -471,5 +471,8 @@ void worker_load_force_primary_complete(void);
 void worker_load_set_deterministic(int on);
 int  worker_load_deterministic(void);
 void worker_load_run_deferred(void);
+/* Queue fn to run at that same boundary (after the deferred threads): the
+ * completion of a loader the port models without a thread. */
+void worker_load_defer_fn(void (*fn)(void));
 
 #endif /* OPENRECET_WORKER_LOAD_H */

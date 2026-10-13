@@ -8,6 +8,7 @@
 #include "t.h"
 #include "skip_event.h"
 #include "scene1_intro_dialogue.h"
+#include "worker_load.h"
 #include "title_save_dialog.h"   /* shared hand cursor — the snapshot/restore */
 
 /* Button bits (mirror src/input.c input_binding_mask[]). */
@@ -186,12 +187,16 @@ int test_skip_to_end_forces_dormant(void)
 {
     /* scene1_intro_dialogue_skip_to_end() ends only the CURRENT script (user-
      * confirmed: skipping iv1_1 advances to iv1_2, the 2nd dialogue over the
-     * free-roam map; only skipping iv1_2 reaches free control). So a skip from
-     * iv1_1 (D_SCRIPT1) lands in the inter-script load bracket (D_LOAD) — the
-     * dialogue is not active, but it is loading the next script, NOT dormant. */
+     * free-roam map; only skipping iv1_2 reaches free control). A skip takes the
+     * natural end's path: one settle frame (pose held, retail's gate-clear lag),
+     * then iv1_1 → the inter-script load bracket, iv1_2 → free-roam. */
     scene1_intro_dialogue_arm();          /* → D_SCRIPT1 */
-    scene1_intro_dialogue_skip_to_end();
+    scene1_intro_dialogue_skip_to_end();  /* → D_SCRIPT1_END */
     T_ASSERT_EQ_I(scene1_intro_dialogue_active(), 0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 1);    /* settle frame */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+    scene1_intro_dialogue_tick(0);        /* → D_LOAD */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 0);
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);   /* → iv1_2, not free-roam */
 
     /* A second skip (during the load) jumps straight to iv1_2 (D_SCRIPT2). The
@@ -200,10 +205,38 @@ int test_skip_to_end_forces_dormant(void)
     scene1_intro_dialogue_skip_to_end();
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
 
-    /* Skipping the last script (iv1_2) → fully dormant (free control). */
-    scene1_intro_dialogue_skip_to_end();
+    /* Skipping the last script (iv1_2) → settle frame → dormant (free control). */
+    scene1_intro_dialogue_skip_to_end();  /* → D_SCRIPT2_END */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 1);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_done(), 0);
+    scene1_intro_dialogue_tick(0);        /* → D_DONE */
     T_ASSERT_EQ_I(scene1_intro_dialogue_active(), 0);
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_done(), 1);
+    scene1_intro_dialogue_reset();
+    return 0;
+}
+
+int test_skip_det_loads_interscript_ends_at_boundary(void)
+{
+    /* --det-loads: the iv1_1→iv1_2 bracket ends where retail's DEFER'd
+     * LAB_00452aab worker clears DAT_06a49960 — worker_load_run_deferred() at the
+     * next frame boundary — not on a frame counter (rhost house-idle:
+     * LOADING_START @1566, LOADING_END @1567). */
+    worker_load_set_deterministic(1);
+    scene1_intro_dialogue_arm();          /* → D_LOAD_FIRST */
+    scene1_intro_dialogue_tick(0);        /* → D_SCRIPT1 */
+    scene1_intro_dialogue_skip_to_end();  /* → D_SCRIPT1_END */
+    scene1_intro_dialogue_tick(0);        /* → D_LOAD, completion queued */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    scene1_intro_dialogue_tick(0);        /* no counter under det-loads */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    worker_load_run_deferred();           /* frame boundary → D_SCRIPT2 */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+    worker_load_run_deferred();           /* queue drained: no-op */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+    worker_load_set_deterministic(0);
     scene1_intro_dialogue_reset();
     return 0;
 }

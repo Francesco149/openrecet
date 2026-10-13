@@ -273,6 +273,25 @@ void worker_load_reset(void)
     worker_load_close();
 }
 
+/* --det-loads: completions of loaders the port MODELS as frame counters instead
+ * of threads (the .ivt dialogue brackets).  Retail's dialogue-load worker
+ * (LAB_00452aab & co.) clears its own gate DAT_06a49960 when it runs, so under
+ * DEFER the bracket ends at the next frame boundary; the queued fn runs there. */
+static void (*s_deferred_fn[8])(void);
+static int s_ndeferred_fn;
+void worker_load_defer_fn(void (*fn)(void))
+{
+    if (s_ndeferred_fn < (int)(sizeof s_deferred_fn / sizeof s_deferred_fn[0]))
+        s_deferred_fn[s_ndeferred_fn++] = fn;
+}
+static void run_deferred_fns(void)
+{
+    int n = s_ndeferred_fn;
+    s_ndeferred_fn = 0;
+    for (int i = 0; i < n; i++)
+        s_deferred_fn[i]();
+}
+
 /* ─── Win32 spawn + thread proc ───────────────────────────────────────── */
 
 #ifdef _WIN32
@@ -315,6 +334,7 @@ void worker_load_run_deferred(void)
         CloseHandle(s_deferred[i]);
     }
     s_ndeferred = 0;
+    run_deferred_fns();
 }
 
 void worker_load_close(void)
@@ -589,7 +609,7 @@ void worker_load_force_primary_complete(void)
 static int s_det_loads_host;
 void worker_load_set_deterministic(int on) { s_det_loads_host = on ? 1 : 0; }
 int  worker_load_deterministic(void) { return s_det_loads_host; }
-void worker_load_run_deferred(void) { }
+void worker_load_run_deferred(void) { run_deferred_fns(); }
 
 void worker_load_close(void)
 {

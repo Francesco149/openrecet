@@ -50,7 +50,12 @@
  * 1→0 in FUN_004536cb's outer-loop tail, AFTER that frame's FUN_0044bd0d
  * dispatch has already run and seen it still busy, so the scheduler arms the
  * NEXT tutorial only the following frame.  See the D_TUT_DONE case + §119. */
-enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE, D_LOAD_FIRST };
+/* D_SCRIPT1_END / D_SCRIPT2_END = the same settle frame for the two PROLOGUE
+ * scripts: the END frame keeps the pose and holds off the iv1_2 load / free-roam
+ * one frame (rhost house-idle: gate 0 after f1565 + f2883; CONV_POSE_END and
+ * LOADING_START @1566, CONV_POSE_END @2884). */
+enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE, D_LOAD_FIRST,
+       D_SCRIPT1_END, D_SCRIPT2_END };
 
 /* Tutorial load-bracket length (frames _loading() reports true).  Retail's
  * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
@@ -130,6 +135,23 @@ static void emit_dialogue_calltrace(void)
  * below (68 / 2) model wall-time Frida-era captures and stay for real play. */
 static int det_bracket(int frames) { return worker_load_deterministic() ? 1 : frames; }
 
+/* The iv1_1→iv1_2 load (FUN_00452d07 → LAB_00452aab).  Under --det-loads it ends
+ * where retail's DEFER'd worker clears DAT_06a49960 itself: the next frame
+ * boundary, before the sim latches nowloading — a 1-frame bracket (rhost
+ * house-idle LOADING_START @1566 / END @1567). */
+static void interscript_load_done(void)
+{
+    if (g_state == D_LOAD)   /* not if a skip already moved on */
+        g_state = D_SCRIPT2;
+}
+static void enter_interscript_load(void)
+{
+    g_state    = D_LOAD;
+    g_load_ctr = 0;
+    if (worker_load_deterministic())
+        worker_load_defer_fn(interscript_load_done);
+}
+
 void scene1_intro_dialogue_arm(void)
 {
     g_state            = worker_load_deterministic() ? D_LOAD_FIRST : D_SCRIPT1;
@@ -189,10 +211,14 @@ void scene1_intro_dialogue_tick(uint16_t held)
         emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
         ive_runtime_step(&g_rt, held);
         if (g_rt.complete) {       /* end: → ret 3; ive sets active=0 too */
-            g_state       = D_LOAD; /* raise the inter-script loading bracket */
-            g_load_ctr    = 0;
+            g_state       = D_SCRIPT1_END;   /* settle frame, then the load */
             g_rt.complete = 0;     /* clear so the script-2 lazy-load fires */
         }
+        break;
+
+    case D_SCRIPT1_END:
+        (void)held;
+        enter_interscript_load();   /* raise the inter-script loading bracket */
         break;
 
     case D_LOAD:
@@ -203,7 +229,9 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * The interpreter is idle here (dlg inactive), matching retail's gate==2
          * loading state. `held` is unused while loading. */
         (void)held;
-        if (++g_load_ctr >= det_bracket(IVE_INTERSCRIPT_LOAD_FRAMES))
+        if (worker_load_deterministic())
+            break;                 /* ends in interscript_load_done */
+        if (++g_load_ctr >= IVE_INTERSCRIPT_LOAD_FRAMES)
             g_state = D_SCRIPT2;   /* next tick lazy-loads iv1_2 */
         break;
 
@@ -216,10 +244,14 @@ void scene1_intro_dialogue_tick(uint16_t held)
         }
         emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
         ive_runtime_step(&g_rt, held);
-        if (g_rt.complete) {
-            g_state = D_DONE;
-            g_freeroam_started = 1;   /* prologue complete → FREEROAM_START fires */
-        }
+        if (g_rt.complete)
+            g_state = D_SCRIPT2_END;  /* settle frame, then free-roam */
+        break;
+
+    case D_SCRIPT2_END:
+        (void)held;
+        g_state = D_DONE;
+        g_freeroam_started = 1;   /* prologue complete → FREEROAM_START fires */
         break;
 
     case D_TUT_LOAD:
@@ -317,9 +349,21 @@ void scene1_intro_dialogue_skip_to_end(void)
      * irrelevant here — the dialogue plays over the already-spawned HOUSE. */
     switch (g_state) {
     case D_SCRIPT1:
-        /* End iv1_1 → raise the inter-script load bracket → iv1_2 (same as the
-         * natural g_rt.complete transition in _tick). */
-        g_state       = D_LOAD;
+        /* End iv1_1 → settle frame → inter-script load bracket → iv1_2 (same as
+         * the natural g_rt.complete transition in _tick). */
+        g_state       = D_SCRIPT1_END;
+        g_load_ctr    = 0;
+        g_rt.active   = 0;
+        g_rt.complete = 0;
+        break;
+    case D_SCRIPT1_END:
+    case D_SCRIPT2_END:
+        /* Already ending (not skippable: _active() is false) — the settle frame
+         * finishes on the next tick. */
+        break;
+    case D_SCRIPT2:
+        /* End iv1_2 → settle frame → free-roam (natural-end transition). */
+        g_state       = D_SCRIPT2_END;
         g_load_ctr    = 0;
         g_rt.active   = 0;
         g_rt.complete = 0;
@@ -356,9 +400,8 @@ void scene1_intro_dialogue_skip_to_end(void)
         g_rt.active   = 0;
         g_rt.complete = 0;
         break;
-    case D_SCRIPT2:
     default:
-        /* End iv1_2 (the last script) → free-roam. */
+        /* Anything else (D_LOAD_FIRST / idle / done) → free-roam. */
         g_state            = D_DONE;
         g_load_ctr         = 0;
         g_rt.active        = 0;
@@ -468,8 +511,10 @@ int scene1_intro_dialogue_posing(void)
      * load deliberately blips the pose off.)  D_TUT_DONE (the one-frame post-script
      * settle latch) keeps the pose on for the completion frame too: retail still
      * poses on that frame (the blip-off lands at the NEXT dialogue's LOADING_START,
-     * not at script-completion), so without it the pose would blip a frame early. */
-    if (g_state == D_TUT_LOAD || g_state == D_TUT || g_state == D_TUT_DONE)
+     * not at script-completion), so without it the pose would blip a frame early.
+     * The prologue's D_SCRIPT1_END / D_SCRIPT2_END settle frames do the same. */
+    if (g_state == D_TUT_LOAD || g_state == D_TUT || g_state == D_TUT_DONE ||
+        g_state == D_SCRIPT1_END || g_state == D_SCRIPT2_END)
         return 1;
     return scene1_intro_dialogue_active();
 }

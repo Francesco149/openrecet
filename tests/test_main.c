@@ -861,6 +861,7 @@ struct test_case {
     X(skip_event_cancel_restores_cursor) \
     X(skip_event_hidden_cursor_stays_hidden) \
     X(skip_to_end_forces_dormant) \
+    X(skip_det_loads_interscript_ends_at_boundary) \
     \
     X(choice_box_open_lays_state) \
     X(choice_box_open_anim_then_interactive) \
