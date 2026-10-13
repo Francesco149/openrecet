@@ -433,6 +433,53 @@ def cmd_portsave(a):
     return 0 if "IDENTICAL" in out else 1
 
 
+def cmd_portanchors(a):
+    """port vs retail anchor timeline on the same flat trace (port --det-loads): first divergence"""
+    name = a.scenario
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    a.extra = ((a.extra or "") + " --log-anchors").strip()
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portanchors-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    frames = int(res.get(name, {}).get("frame", "0")) or 120000
+    retail = [(m.group(1), int(m.group(2))) for m in re.finditer(r"^anchor (\S+) @(\d+)", open(os.path.join(bdir, name, "rhost.log")).read(), re.M)]
+    pdir_l = os.path.join(bdir, "port")
+    os.makedirs(pdir_l)
+    shutil.copy(os.path.join(bdir, name, "trace.flat.jsonl"), os.path.join(pdir_l, "trace.jsonl"))
+    if save:
+        open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
+    pw = f"{WROOT}\\runs\\{batch}\\port"
+    args = ["--save-write-dir", pw, "--input-segtrace", pw + "\\trace.jsonl", "--anchor-trace-record", pw + "\\anchors.jsonl",
+            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads"]
+    args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
+    ps = [f"Set-Location {WROOT}\\portcwd",
+          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ") -Wait -PassThru",
+          "\"port exit=$($p.ExitCode)\"", f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
+    open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
+    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
+    scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
+    print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
+    scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/anchors.jsonl", os.path.join(pdir_l, "anchors.jsonl"))
+    port = [(json.loads(l)["anchor"], int(json.loads(l)["frame"])) for l in open(os.path.join(pdir_l, "anchors.jsonl")) if l.strip()]
+    skip = {"BOOT", "CONV_POSE_BLINK", "PAUSE_OPEN", "PAUSE_CLOSE"}      # differently-defined / cosmetic on the two sides
+    # the two sides emit same-frame anchors in different orders: canonical order = (frame, name)
+    R = sorted(x for x in retail if x[0] not in skip)
+    P = sorted(x for x in port if x[0] not in skip)
+    R = sorted(R, key=lambda x: (x[1], x[0])); P = sorted(P, key=lambda x: (x[1], x[0]))
+    n = min(len(R), len(P))
+    first_name = next((i for i in range(n) if R[i][0] != P[i][0]), None)
+    offs = [P[i][1] - R[i][1] for i in range(first_name if first_name is not None else n)]
+    from collections import Counter
+    print(f"anchors: retail {len(R)} / port {len(P)}; same names for the first {first_name if first_name is not None else n}; "
+          f"frame offset (port-retail) histogram: {dict(Counter(offs).most_common(6))}")
+    i0 = next((i for i, o in enumerate(offs) if o != 0), None)
+    if i0 is not None:
+        print(f"first frame mismatch: #{i0} {R[i0][0]} retail f{R[i0][1]} / port f{P[i0][1]}")
+    if first_name is not None:
+        print(f"first NAME mismatch: #{first_name} retail {R[first_name]} / port {P[first_name]}")
+    return 0 if i0 is None and first_name is None and len(R) == len(P) else 1
+
+
 def cmd_flatten(a):
     a.flatten = True
     a.only = "^(" + "|".join(re.escape(s) for s in a.scenarios) + ")$"
@@ -512,6 +559,7 @@ def main():
     p = sp.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=2); p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
+    p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)

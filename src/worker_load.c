@@ -294,6 +294,7 @@ static int    s_det_loads;
 static HANDLE s_deferred[8];
 static int    s_ndeferred;
 void worker_load_set_deterministic(int on) { s_det_loads = on ? 1 : 0; }
+int  worker_load_deterministic(void) { return s_det_loads; }
 static HANDLE wl_create_thread(LPTHREAD_START_ROUTINE proc, DWORD *tid)
 {
     if (!s_det_loads)
@@ -585,7 +586,9 @@ void worker_load_force_primary_complete(void)
 
 #else  /* !_WIN32 ── non-Win32 build (unit tests on Linux) ───────────── */
 
-void worker_load_set_deterministic(int on) { (void)on; }
+static int s_det_loads_host;
+void worker_load_set_deterministic(int on) { s_det_loads_host = on ? 1 : 0; }
+int  worker_load_deterministic(void) { return s_det_loads_host; }
 void worker_load_run_deferred(void) { }
 
 void worker_load_close(void)

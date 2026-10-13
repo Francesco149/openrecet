@@ -469,6 +469,7 @@ void worker_load_force_primary_complete(void);
  * completion at the next frame boundary — worker_load_run_deferred() is called
  * by the main loop right before the FUN_0047be92 tick. */
 void worker_load_set_deterministic(int on);
+int  worker_load_deterministic(void);
 void worker_load_run_deferred(void);
 
 #endif /* OPENRECET_WORKER_LOAD_H */

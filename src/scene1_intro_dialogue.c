@@ -4,6 +4,7 @@
  * anchor state.
  */
 #include "scene1_intro_dialogue.h"
+#include "worker_load.h"
 
 #include "scene1_dialogue.h"
 #include "scene1_dialogue_run.h"
@@ -49,7 +50,7 @@
  * 1→0 in FUN_004536cb's outer-loop tail, AFTER that frame's FUN_0044bd0d
  * dispatch has already run and seen it still busy, so the scheduler arms the
  * NEXT tutorial only the following frame.  See the D_TUT_DONE case + §119. */
-enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE };
+enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE, D_LOAD_FIRST };
 
 /* Tutorial load-bracket length (frames _loading() reports true).  Retail's
  * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
@@ -122,9 +123,16 @@ static void emit_dialogue_calltrace(void)
     CALL_TRACE_END();
 }
 
+/* --det-loads (rhost DEFER twin): every retail .ivt load is a LAB_00452aab worker
+ * that completes at the next frame boundary, i.e. a 1-frame LOADING bracket —
+ * including the FIRST prologue script right after the house load (retail
+ * LOADING_END f73 vs the port's f72 before this). The frame-counted brackets
+ * below (68 / 2) model wall-time Frida-era captures and stay for real play. */
+static int det_bracket(int frames) { return worker_load_deterministic() ? 1 : frames; }
+
 void scene1_intro_dialogue_arm(void)
 {
-    g_state            = D_SCRIPT1;
+    g_state            = worker_load_deterministic() ? D_LOAD_FIRST : D_SCRIPT1;
     g_load_ctr         = 0;
     g_rt.active        = 0;     /* lazy-load iv1_1 on the first tick */
     g_rt.complete      = 0;
@@ -165,6 +173,12 @@ static int start_script(int scene, int sub)
 void scene1_intro_dialogue_tick(uint16_t held)
 {
     switch (g_state) {
+    case D_LOAD_FIRST:
+        /* --det-loads only: the first prologue .ivt load bracket (1 frame). */
+        (void)held;
+        if (++g_load_ctr >= 1) { g_state = D_SCRIPT1; g_load_ctr = 0; }
+        break;
+
     case D_SCRIPT1:
         if (!g_rt.active && !g_rt.complete &&
             !start_script(IVE_OPENING_SCENE, IVE_OPENING_SUB1)) {
@@ -189,7 +203,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * The interpreter is idle here (dlg inactive), matching retail's gate==2
          * loading state. `held` is unused while loading. */
         (void)held;
-        if (++g_load_ctr >= IVE_INTERSCRIPT_LOAD_FRAMES)
+        if (++g_load_ctr >= det_bracket(IVE_INTERSCRIPT_LOAD_FRAMES))
             g_state = D_SCRIPT2;   /* next tick lazy-loads iv1_2 */
         break;
 
@@ -216,7 +230,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * script is NOT loaded yet, so the box/text do not render this window. */
         (void)held;
         if (++g_load_ctr >= (g_tut_load_frames_pin > 0 ? g_tut_load_frames_pin
-                                                       : IVE_TUT_LOAD_FRAMES))
+                                                       : det_bracket(IVE_TUT_LOAD_FRAMES)))
             g_state = D_TUT;   /* next tick lazy-loads the script */
         break;
 
@@ -400,7 +414,7 @@ int scene1_intro_dialogue_loading(void)
     /* D_LOAD = the prologue iv1_1→iv1_2 bracket; D_TUT_LOAD = a tutorial
      * dialogue's activation bracket (retail FUN_00452d07 worker).  Both fold into
      * anchor_world.loading_active → LOADING_START/END (+ HOUSE_FREEROAM). */
-    return (g_state == D_LOAD || g_state == D_TUT_LOAD) ? 1 : 0;
+    return (g_state == D_LOAD || g_state == D_TUT_LOAD || g_state == D_LOAD_FIRST) ? 1 : 0;
 }
 
 int scene1_intro_dialogue_busy(void)
