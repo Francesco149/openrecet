@@ -33,6 +33,10 @@ SCEN = os.path.join(ROOT, "tests", "scenarios")
 BUILD = os.path.join(ROOT, "build", "rhost")
 LOCAL_RUNS = os.environ.get("RHOST_RUNS", "/mnt/ephemeral/openrecet/rhost-runs")
 WIN = os.environ.get("RHOST_WIN", "win")             # ssh alias of the Windows host (OpenSSH, port 2222)
+# wine target: a prefix whose drive_c/orc-rhost -> WINE_ROOT, so retail sees the SAME
+# Windows paths (C:\orc-rhost\game, ...\runs\<batch>\<run>) as on the Windows host
+WINE_ROOT = os.environ.get("RHOST_WINE_ROOT", "/mnt/ephemeral/openrecet/rhost-wine")
+WINE_PREFIX = os.environ.get("RHOST_WINEPREFIX", "/mnt/ephemeral/openrecet/prefix")
 WROOT = "C:\\orc-rhost"
 VOLATILE = os.path.join(HERE, "volatile.txt")
 sys.path.insert(0, HERE)
@@ -188,7 +192,61 @@ def make_batch(a, runs, tag):
     return batch, bdir
 
 
+def wine_stage():
+    os.makedirs(os.path.join(WINE_ROOT, "bin"), exist_ok=True)
+    for f in ("rhost.exe", "v3proxy_d3d8.dll"):
+        dst = os.path.join(WINE_ROOT, "bin", f)
+        src = os.path.join(BUILD, f)
+        if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+            shutil.copy2(src, dst)
+    link = os.path.join(WINE_PREFIX, "drive_c", "orc-rhost")
+    if not os.path.islink(link):
+        os.symlink(WINE_ROOT, link)
+
+
+def run_batch_wine(a, runs, tag):
+    """same batch layout, executed locally under wine + Xvfb (parallel -j)"""
+    import concurrent.futures
+    if not os.path.exists(os.path.join(BUILD, "rhost.exe")):
+        cmd_build(None)
+    wine_stage()
+    global LOCAL_RUNS
+    saved, LOCAL_RUNS = LOCAL_RUNS, os.path.join(WINE_ROOT, "runs")
+    try:
+        batch, bdir = make_batch(a, runs, tag)
+    finally:
+        LOCAL_RUNS = saved
+    go = open(os.path.join(bdir, "go.ps1")).read()
+    cmds = re.findall(r"^& (\S+rhost\.exe) (.*?) \| Select-String", go, re.M)
+    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+    def one(i):
+        exe, args = cmds[i]
+        argv = [x.strip("'").replace("''", "'") for x in re.findall(r"'(?:[^']|'')*'", args)]
+        r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
+                           capture_output=True, text=True, env=env, timeout=a.wine_timeout)
+        return runs[i][0], r.stdout
+    t0 = time.time()
+    out_lines = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        for name, out in ex.map(one, range(len(cmds))):
+            out_lines.append(f"=== {name}")
+            out_lines += [l for l in out.splitlines() if re.search(r"RESULT|FATAL|DIVERGE|hook-result", l)]
+    out = "\n".join(out_lines)
+    results, cur = {}, None
+    for line in out_lines:
+        if line.startswith("=== "):
+            cur = line[4:].strip()
+        elif cur and line.startswith("RESULT"):
+            results[cur] = dict(kv.split("=", 1) for kv in line.split()[1:] if "=" in kv)
+        elif cur and line.strip():
+            results.setdefault(cur + "#notes", []).append(line.strip())
+    print(f"[wine batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s, -j{a.jobs} → {bdir}]")
+    return batch, bdir, results, out
+
+
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
+    if getattr(a, "target", "win") == "wine":
+        return run_batch_wine(a, runs, tag)
     ensure_staged()
     batch, bdir = make_batch(a, runs, tag)
     scp(bdir, f"{WIN}:C:/orc-rhost/runs/", recursive=True)
@@ -365,6 +423,9 @@ def common(p):
     p.add_argument("--shot-at", help="F[,F..|end]: PNG of the game window at those frames")
     p.add_argument("--shot-every", type=int)
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
+    p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
+    p.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 4) // 2), help="wine: parallel runs")
+    p.add_argument("--wine-timeout", type=int, default=3600)
 
 
 def main():

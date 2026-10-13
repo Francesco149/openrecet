@@ -150,6 +150,7 @@ void rh_hooks_install(void)
         if (h->is_state && m == REPLACE) rh_fatal("%s: STATE hooks have no port body yet (shadow only)", h->name);
         h->mode = m;
         if (m != OFF) h->sites = redirect_calls(h->va, h->hook);
+        if (m != OFF && h->va == VA_RAND) h->sites += redirect_calls(0x471084u, h->hook);   /* j__rand thunk callers */
         rh_log("hook %s %s @%08x: %d call sites\n", tok, h->name, h->va, h->sites);
     }
 }

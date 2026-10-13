@@ -308,6 +308,19 @@ static void __cdecl my_sbh_free(void *hdr, void *p)
     ((void (__cdecl *)(void *, void *))0x50829f)(hdr, p);
 }
 
+/* ---- --log-rand FROM:TO: every retail rand() call in a frame window (diagnostic) ---- */
+static uint32_t g_lr_from = 1, g_lr_to = 0;
+static uint32_t __cdecl logrand(void)
+{
+    uint32_t s0 = G32(DAT_RNG);
+    uint32_t r = ((uint32_t (__cdecl *)(void))VA_RAND)();
+    if (g_frame >= g_lr_from && g_frame <= g_lr_to) {
+        char st[96]; sbh_stack(st, sizeof st);
+        rh_log("rand f%u seed %08x -> %08x [%s]\n", g_frame, s0, G32(DAT_RNG), st);
+    }
+    return r;
+}
+
 /* ---- the three engine hooks ---- */
 static uint32_t __cdecl hook_clock(void) { return g_vclock; }
 
@@ -456,6 +469,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--log-ext")) O.log_ext = 1;
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--log-sbh")) O.log_sbh = ARG();
+        else if (!strcmp(a, "--log-rand")) { if (sscanf(ARG(), "%u:%u", &g_lr_from, &g_lr_to) != 2) usage(); }
         else if (!strcmp(a, "--watch")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && O.n_watch < 16; t = strtok(NULL, ",")) O.watch[O.n_watch++] = strtoul(t, 0, 16);
@@ -526,6 +540,7 @@ int main(int argc, char **argv)
     if (!O.no_overlay) rh_files_install();
     rh_handles_install();                            /* after files/threads: wraps their overrides */
     if (!O.record) iat_override("WaitMessage", my_WaitMessage);
+    rh_dinput_install();
     if (O.quiet) {
         iat_override("CreateWindowExA", my_CreateWindowExA);
         iat_override("ShowWindow", my_ShowWindow);
@@ -540,6 +555,10 @@ int main(int argc, char **argv)
         rh_log("log-sbh: alloc sites=%d free sites=%d\n", redirect_calls(0x5085ca, my_sbh_alloc), redirect_calls(0x50829f, my_sbh_free));
     }
     rh_trace_init();
+    if (g_lr_to >= g_lr_from) {   /* rand is mostly reached through the thunk j__rand @0x471084 (jmp 0x5041f6) */
+        int a = redirect_calls(VA_RAND, logrand), b = redirect_calls(0x471084u, logrand);
+        rh_log("log-rand: %d direct + %d thunk call sites\n", a, b);
+    }
     rh_hooks_install();
     if (O.coverage) cov_install();
     if (O.d3d_proxy) d3d_proxy_install();

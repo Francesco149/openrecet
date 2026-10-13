@@ -102,6 +102,9 @@ void rh_trace_record_esc(uint32_t frame);
 void rh_trace_finish(void);
 const char *rh_trace_status(void);
 
+/* rh_dinput.c */
+void rh_dinput_install(void);
+
 /* rh_shot.c */
 void rh_shot(const char *tag);
 

@@ -200,3 +200,36 @@ functions, 640 KB.
   references them. Either the house reuses the floor/room builder (the port
   reimplemented it differently, which is a parity lead), or the decomp's
   agent-invented names are wrong. Check before trusting either.
+
+## 10. Productized rhost: residual nondeterminism, wine vs Windows (2026-10-13)
+
+`tools/rhost/` (README) adds, on top of DEFER + VTIME + seed:
+- fixed-address heap arena (LFH placed ~280 pointers differently per run);
+- fake kernel handles (CRT `__pioinfo` osfhnd 0x380 vs 0x388);
+- fixed stacks (CRT `__NLG_Notify` stores EBP at 0x602374);
+- fixed command line / environment / startup info / std handles (the CRT copied the
+  `--run` path into its heap: `"det_a"` vs `"det_b"`);
+- deterministic temp names; file overlay; no real DInput poll; WaitMessage never parks;
+- game controllers hidden from enumeration.
+
+**Windows, run to run:** only system-DLL/COM pointer slots differ (`volatile.txt`, 358
+slots calibrated over 12 scenarios incl. the 40k-frame tutorial-end → Day 2). `det` PASS
+everywhere.
+
+**Lesson:** mask by address, never by value. A value-classified "external pointer" mask
+masked 580k dwords of heap pixel data differently per run.
+
+**Wine vs Windows** (`house-idle`):
+- identical until the new-game frame f71;
+- there, the first 807 `rand()` calls match, then Windows makes one extra;
+- first-hit coverage shows two environment differences:
+  1. wine enumerated a game controller (now hidden for hermeticity — not the cause);
+  2. only on Windows does retail run its sound-effect path (`EnableSoundEffectByIndex`
+     0x4994f3, `PlaySoundEffectSegmentByIndex` 0x499c63 from f12). On headless wine the
+     audio-ready flag `DAT_096430fc` stays 0 (DirectMusic init fails), so those calls
+     return early.
+- ⇒ **retail's RNG trajectory depends on audio availability** (the extra draw sits on an
+  audio-dependent path; exact consumer not yet pinned).
+- Wine is a valid oracle for pure logic and for determinism within wine. RNG-exact retail
+  ground truth is Windows native (or a wine with working DirectMusic: open item).
+- Stack scrubbing (zeroing below ESP each tick) made no difference — not stack garbage.
