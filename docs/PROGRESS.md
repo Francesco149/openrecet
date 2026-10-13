@@ -7,6 +7,18 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-13 — Agent-era cleanup (Gemini + GPT eras)
+
+- Reverted/quarantined the Gemini-era theater (day-2 "playthrough", 61b0e7f1 bundle,
+  CC-04, BT-00, coverage atlas, re_index, 3c7a0ef3 kind machines); fixed FUN_00460b93
+  (equip-slot compare + hint path); restored the viewer state-panel filter.
+- Removed the 2026-07 proof bureaucracy (tools/parity, parity_* CLIs, schemas, census/
+  corpus, check_docs, evidence roadmap). Kept: `tools/save_compare.py` (ST-01 save
+  compare), the EP-08 v3 cache keying, GX-04 VB/IB wrapping, the inventory ledger
+  (runtime axis now 0).
+- confirmed-parity-ledger marked UNVERIFIED pending rhost re-verification.
+- Index (recover with `git show`): `archive/2026-10-13-agent-era-cleanup.md`.
+
 ## 2026-08-23 — Customer Service Tutorial Skip & First Customer Dialogue/Haggle Confirmed 1:1 — ⚠ UNVERIFIED
 
 > **2026-10-13:** UNVERIFIED — this record (39cc8dd7, Gemini era) cites no build,
