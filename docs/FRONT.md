@@ -35,8 +35,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     `SAVE_PICKER_READY` on the SAME frame as retail (33199); its save differs in only
     **88 / 18.8M bytes** (was 106). Leads:
     1. bank 0 `sold_list` dwords 0xb0b4/0xb0bf..: the port writes 22 dwords of
-       pair-like data `(0,3)(3,1)…(6,12)`; retail leaves the reset pattern. A wrong-bank
-       write in the port's commit / day-advance path.
+       pair-like data `(0,3)(3,1)…(6,12)`; retail leaves the reset pattern.
+       - Runtime watch: file-arena bank 0 changes in **port frame 233**, just after the
+         save-load bracket (retail `LOADING_START@231`), while the active slot is still 0.
+       - Every non-save use of `save_bank_*` is read-only, so suspect a miscomputed
+         pointer or offset copy.
+       - Next: trap the write. A page-protect + VEH attempt crashed before frame 1, so
+         use a hardware watch (DR0) or bisect with `--call-trace-frames 232,233` plus a
+         per-callsite bank0 checksum.
     2. ✅ FIXED: the "script viewed" flags. `FUN_0046c320`'s END handler (ret 3) marks
        (group, sub) in work bank +0x2d3a0 and save header +0x20; the port never did.
        Diff 106 → 88 bytes. The header and the whole active bank now match.
