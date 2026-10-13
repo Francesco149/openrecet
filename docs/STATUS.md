@@ -70,18 +70,32 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - `--det-loads` (DEFER twin): loader threads run at the frame boundary, and every
     `.ivt` bracket is 1 frame like retail under DEFER (14/14 measured), including the
     first prologue load. House load: `LOADING_END` f73 both (plain turbo: f3546).
-  - `rhost.py portanchors house-idle`: **192/195 anchors identical (name + frame)** over
-    4,418 frames.
-  - ★ next: the 2 prologue script ends (`CONV_POSE_END` f1565/2883 port vs f1566/2884
-    retail). The port ends the pose 1 frame early. Retail's gate-clear lag
-    (`DAT_0438b1c8` drops in `FUN_004536cb`'s tail, §119) is modelled for tutorial scripts
-    (`D_TUT_DONE`) but not for the prologue (`D_SCRIPT1/2`). Then portanchors on the
-    other scenarios, then frame-by-frame `state` fields.
+  - ✅ `rhost.py portanchors house-idle`: **195/195 anchors identical (name + frame)**
+    over 4,418 frames (prologue settle frames + 1-frame iv1_2 load, PROGRESS).
+  - `rhost.py portstate SCEN --va …` = frame-by-frame retail VA vs port mirror
+    (`src/state_va.c` table). ★ next, in frame order:
+    1. **Tick-0 label offset.** `gsim` (`DAT_0438b8cc`) is port = retail+1 at every
+       label. rhost labels retail's first tick 1; the port labels its first tick 0 and
+       that tick is logic-dead (anchors still align by label). Every `%8` consumer
+       (display sparkle `%8==3`) therefore fires a frame early. Decide: drop the dead
+       tick + relabel, or don't count it. Check the ms clock (port vms=(L+1)·17 vs
+       rhost L·17) and other per-tick counters with portstate before choosing.
+    2. **cs d3e load under DEFER** (house-customer-tutorial): retail `b524` starts at
+       f389, port f390. The port's `b1cc_pre` gate (`scene1_player_ctrl.c` ~1900) is a
+       Frida-era compensation for real-thread timing. The 2nd d3e load is then 448 vs
+       449 (portanchors' first mismatch).
+    3. Port boots `cc08`=1; retail has 0 until the house init.
+    4. RNG: legacy traces' Frida-era `{rngseed}` pins (applied to both sides) hide long
+       divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
+       Re-record or strip the pins, then chase per frame (`--log-rand` retail;
+       a port-side caller log is still TODO).
   - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
-    replays rhost's flat trace with `--det-loads`, no pins (findings §11). First
-    pin-free equality. One command: `rhost.py portsave SCEN`.
+    replays rhost's flat trace with `--det-loads` (findings §11). The trace still
+    re-seeds rng at f342 (`{rngseed}` pin); -empty is the one pin-free equality.
+    One command: `rhost.py portsave SCEN`.
   - ✅ **day2-save-commit: port `save.dat` byte-IDENTICAL to retail.** The whole tutorial
-    → end-of-day cutscene → Day 2 → save, 33k frames, no pins. The port also reaches
+    → end-of-day cutscene → Day 2 → save, 33k frames. **Not pin-free:** 62 Frida-era
+    `{rngseed}` pins. The port also reaches
     `SAVE_PICKER_READY` on the same frame (33199). The save compare found 2 real port
     bugs, both fixed:
     - scripts were never marked viewed at END (`FUN_0046c320`), 7 bytes;
@@ -104,7 +118,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
-  day2-save-commit}: all **IDENTICAL** as of 2026-10-13.
+  day2-save-commit}: all **IDENTICAL** as of 2026-10-13 (after the prologue settle fix).
+- `rhost.py portanchors house-idle`: 195/195.
 
 ### Re-verification program (owner: "re-verify everything with the new methodology")
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
@@ -131,6 +146,8 @@ rand 1,156,264 / 0 (68 scenarios).
    - a window opens on the Windows desktop: Load Game → 3rd slot (Day 2, 155 pix);
    - open the shop, serve ~5–10 customers (sell + buy, haggle several rounds);
    - close the window. Keyboard only (pads are hidden). The trace self-checks on finish.
+   - Keyboard input fixed 2026-10-13 (DInput was dead on Windows). Click the window once
+     so it has foreground focus.
 
 ## Where to read next
 

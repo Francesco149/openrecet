@@ -7,6 +7,23 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-13 (evening) — DInput on Windows, prologue settle frame, `portstate`
+- **Correction to the entry below:** the save equalities are NOT pin-free.
+  house-pause-save-commit re-seeds the RNG at f342, and day2-save-commit carries 62
+  Frida-era `{rngseed}` pins applied to BOTH sides. Only -empty is pin-free. The saves
+  are still byte-identical, but the pins mask real RNG divergences (below).
+- rhost: retail's DInput init gets WinMain's hInstance, which rhost fakes as 0x400000;
+  Windows dinput8 rejected it, so no Windows rhost run ever had DInput, and `record`
+  read no keys. The host module is now passed instead. rng / anchors unchanged;
+  +2 COM slots in `volatile.txt`.
+- Prologue: retail holds the pose one frame after each script END (the gate clears in
+  `FUN_004536cb`'s tail). The iv1_2 load worker clears its own gate → a 1-frame bracket
+  under DEFER. Port: `D_SCRIPT1_END` / `D_SCRIPT2_END` settle states, plus
+  `worker_load_defer_fn()`. house-idle anchors **195/195** identical (was 192);
+  portsave ×3 still IDENTICAL.
+- New `rhost.py portstate SCEN --va …`: per-frame retail VA values (rhost `post` line)
+  vs the port's mirrors (`--state-va`, `src/state_va.c`). First findings are in FRONT.
+
 ## 2026-10-13 — methodology reset executed: rhost Phase 0, cleanup, save + float fixes
 - Owner approved the audit (`docs/audits/2026-10-13-methodology-reset.md`):
   - rhost is the verification foundation (Phase 0);
