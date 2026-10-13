@@ -101,7 +101,10 @@ All numbers below measured on wine 11.19 + Xvfb (Arch) and Win11 native (wslop h
 `hook_input`: after the real poll, write mask to `DAT_073dddd0`, force tick gate
 `DAT_073dfca0=1`. 0x10=A, 0x1/0x2/0x4/0x8 move the player (pos floats @0x56da1d8:
 (-0.30,0,9.35)→(3.10,0,5.24)→(-6.38,0,3.10)→…). Screenshot of the headless run renders
-the Day-1 house correctly.
+the Day-1 house correctly. **Same script on Win11 native → identical player pos + rng at
+every 100-frame checkpoint** (f500 (3.10,0,5.24) aae821a0; f700 (-7.44,0,0.25) e2a868f9;
+f1000 (-4.45,0,3.10) 4307f8b8) ⇒ gameplay (incl. float movement) is frame-exact
+cross-platform. Demo: `ssh wslop 'bash /mnt/c/orc-oracle/demo.sh'`.
 
 ## Open / not yet shown
 
