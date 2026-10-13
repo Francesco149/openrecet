@@ -52,8 +52,7 @@
         "known_globals",
         "struct_mutation",
         "rng_consumer",
-        "unsupported_os_call",
-        "stateful_unknown_write"
+        "unsupported_os_call"
       ],
       "description": "Architectural classification of the call capsule."
     },
