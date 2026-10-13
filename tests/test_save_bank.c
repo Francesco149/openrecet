@@ -10,6 +10,7 @@
 #include "t.h"
 #include "chara_equip.h"
 #include "save_bank.h"
+#include "save_work.h"
 #include "tables_item.h"
 #include "tables_chara.h"
 #include "rng.h"
@@ -477,5 +478,25 @@ int test_save_bank_header_slider_setters_clamp(void)
     T_ASSERT_EQ_I(save_header_get_slider3(), 2);
     save_header_set_slider3(-1);
     T_ASSERT_EQ_I(save_header_get_slider3(), 0);
+    return 0;
+}
+
+/* FUN_0046c320 END handler: script (group, sub) marked viewed in the active work
+ * bank (+0x2d3a0) and the save header (+0x20) — the 7 bytes the day2-save-commit
+ * port<->retail save compare found missing (iv1_7 .. iv2_6). */
+int test_save_work_mark_script_viewed(void)
+{
+    save_bank_arena_clear();
+    seed_chara_zero();
+    rng_seed(1);
+    save_bank_init_all();
+    save_work_mark_script_viewed(2, 5);
+    const uint8_t *bank = save_work_bank_at(save_work_active_slot());
+    T_ASSERT(bank != NULL);
+    T_ASSERT_EQ_U(bank[0x2d3a0 + 60 * 2 + 5], 1u);
+    T_ASSERT_EQ_U(save_bank_header_bytes()[0x20 + 60 * 2 + 5], 1u);
+    T_ASSERT_EQ_U(bank[0x2d3a0 + 60 * 2 + 4], 0u);           /* only that script */
+    save_work_mark_script_viewed(-1, 0);                      /* ignored */
+    save_work_mark_script_viewed(1, 60);                      /* ignored */
     return 0;
 }

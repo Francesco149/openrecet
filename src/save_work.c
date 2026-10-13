@@ -87,3 +87,13 @@ void save_work_clear(void)
     memset(g_work, 0, sizeof g_work);
     g_active_slot = 0;
 }
+
+void save_work_mark_script_viewed(int group, int sub)
+{
+    if (group < 0 || sub < 0 || sub >= 60) return;
+    const int idx = 60 * group + sub;
+    if (SAVE_HEADER_SCRIPT_VIEWED_BYTE_OFF + idx >= SAVE_BANK_HEADER_BYTES) return;
+    uint8_t *bank = save_work_bank_at(save_work_active_slot());
+    if (bank) bank[SAVE_WORK_SCRIPT_VIEWED_BYTE_OFF + idx] = 1;
+    save_bank_header_bytes()[SAVE_HEADER_SCRIPT_VIEWED_BYTE_OFF + idx] = 1;
+}

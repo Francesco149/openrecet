@@ -152,6 +152,8 @@ static int start_script(int scene, int sub)
     if (!scene1_dialogue_load(scene, sub, &g_prog))
         return 0;
     ive_runtime_init(&g_rt, &g_prog);
+    g_rt.script_group = scene;   /* DAT_005c7a2c/30: what FUN_0046c320 marks viewed at END */
+    g_rt.script_sub   = sub;
     g_script_gen++;   /* the render pass reloads bg/chr assets on a new gen */
     return 1;
 #else

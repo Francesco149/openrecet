@@ -9,6 +9,7 @@
  * §"handler bodies + runtime tick".
  */
 #include "scene1_dialogue_run.h"
+#include "save_work.h"
 
 #include <math.h>
 
@@ -137,6 +138,8 @@ void ive_runtime_init(struct ive_runtime *rt, const struct ive_program *prog)
     rt->prog      = prog;
     rt->active    = 1;
     rt->complete  = 0;
+    rt->script_group = -1;   /* the owner sets (group, sub) after init */
+    rt->script_sub   = -1;
     rt->cmd       = 0;
     rt->reveal    = 0;
     rt->revealed  = 0;
@@ -517,6 +520,10 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
         if (r == IVE_R_COMPLETE) {
             rt->complete = 1;
             rt->active   = 0;       /* dialogue gate drops */
+            /* FUN_0046c320, handler ret 3: mark the script VIEWED in the active work
+             * bank and the save header (byte_4510B38 / byte_56E5790). */
+            if (rt->script_group >= 0)
+                save_work_mark_script_viewed(rt->script_group, rt->script_sub);
             break;
         }
         rt->cmd++;                  /* CONTINUE and YIELD both advance past the cmd */

@@ -110,6 +110,7 @@ int save_bank_get_skip_verify(void)
 
 /* ── Header accessors ── */
 
+uint8_t *save_bank_header_bytes(void)       { return (uint8_t *)header_dwords(); }
 uint32_t save_header_magic(void)            { return header_dwords()[0]; }
 int      save_header_get_se_slider(void)    { return (int)header_dwords()[1]; }
 int      save_header_get_bgm_slider(void)   { return (int)header_dwords()[2]; }

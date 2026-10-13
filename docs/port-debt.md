@@ -80,7 +80,7 @@ _none_
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:421 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:299 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:301 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:339 | sim_loading_pump() |
 
@@ -103,7 +103,7 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1190 | the engine also zeroes |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1147 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |

@@ -11883,6 +11883,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/save_work.h",
     "src/scene1_dialogue.c",
     "src/scene1_dialogue.h",
     "src/scene1_dialogue_run.c",

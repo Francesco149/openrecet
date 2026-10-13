@@ -69,4 +69,12 @@ void save_work_sync_from_save(void);
 /* Zero the whole working arena + reset the active slot to 0. */
 void save_work_clear(void);
 
+/* FUN_0046c320 (script END, handler ret 3): mark script (group, sub) viewed —
+ *   byte_4510B38[188360*slot + 60*group + sub] = 1  (active work bank +0x2d3a0)
+ *   byte_56E5790[60*group + sub] = 1                 (save-file header +0x20)
+ * Out-of-range ids are ignored. */
+void save_work_mark_script_viewed(int group, int sub);
+#define SAVE_WORK_SCRIPT_VIEWED_BYTE_OFF   0x2d3a0
+#define SAVE_HEADER_SCRIPT_VIEWED_BYTE_OFF 0x20
+
 #endif /* OPENRECET_SAVE_WORK_H */

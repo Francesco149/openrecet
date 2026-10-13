@@ -338,6 +338,8 @@ uint8_t *save_arena_base(void);
 
 /* Returns a pointer to bank `bank_idx`. Returns NULL if out of range. */
 uint8_t *save_bank_at(int bank_idx);
+/* The save-file arena header (DAT_056e5770, SAVE_BANK_HEADER_BYTES). */
+uint8_t *save_bank_header_bytes(void);
 
 /* Returns a uint32_t pointer to the same address (typed accessor for
  * cleaner field reads). Returns NULL if out of range. */

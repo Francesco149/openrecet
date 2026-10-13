@@ -100,6 +100,8 @@ struct ive_runtime {
 
     int      active;        /* DAT_0438b1c8 == 1 — dialogue running           */
     int      complete;      /* end: (ret 3) reached — script done             */
+    int      script_group;  /* DAT_005c7a2c — the loaded script's group (-1 = unknown) */
+    int      script_sub;    /* DAT_005c7a30 — its sub-index                   */
     int      cmd;           /* DAT_073a6bd4 — command-walk index              */
 
     int32_t  reveal;        /* DAT_073a3e00 — per-line reveal counter (0..0x800) */

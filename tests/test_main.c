@@ -671,6 +671,7 @@ struct test_case {
     X(save_bank_checksum_detects_tamper) \
     X(save_bank_skip_verify_preserves_stale_bank) \
     X(save_bank_init_one_catalog_category_runs) \
+    X(save_work_mark_script_viewed) \
     X(save_bank_header_init_hook_fires_once_per_reset) \
     X(save_bank_header_slider_setters_clamp) \
     \
