@@ -91,6 +91,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ☐ bounded podman container.
 - ☐ **Day-2 shop / multi-customer haggle**: recording needed (Human queue).
 
+### Regression gate (run before claiming a port change is safe)
+- `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
+- `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
+  day2-save-commit}: all **IDENTICAL** as of 2026-10-13.
+
 ### Re-verification program (owner: "re-verify everything with the new methodology")
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
 Re-check each flow by shadowing its ported functions over rhost scenarios, in this order:
