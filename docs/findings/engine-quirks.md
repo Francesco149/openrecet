@@ -4934,3 +4934,12 @@ Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost o
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
 (`fstp m32/m64`); constants are m32 (some m64) operands; `__ftol` truncates the unrounded
 ST0. Port rule + evidence: `docs/findings/x87-float-semantics.md`, `src/x87.h`.
+
+## D3DX8 math is SSE and CPU-vendor dependent (2026-10-13)
+Retail's statically linked D3DX8 picks its math implementation at the first math call
+(`D3DXCpuOptimizations` 0x4cdd9f): on every SSE2 CPU without 3DNow! it installs the SSE2
+table, so Vec3Normalize/MatrixMultiply/Inverse/Shadow/RotationX/Y run SSE code (rsqrtss,
+rcpss, polynomial sincos), not x87. rsqrtss/rcpss bits differ between Intel and AMD ⇒ the
+same retail build computes different low bits for view matrices, inverses and shadow
+matrices on an Intel vs an AMD machine (measured: LookAtRH 56% / Shadow 50% of random cases
+identical). Evidence + table: `docs/findings/x87-float-semantics.md` "D3DX8 math".
