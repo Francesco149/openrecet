@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  23.2% referenced-or-better   (85 instrumented)
+█████░░░░░░░░░░░░░░░  23.1% referenced-or-better   (85 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    85 | `CALL_TRACE_ENTER(_STUB)` probe wired (72 full + 13 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   507 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1956 | exists in the engine, no `src/` reference    |
+| source-referenced  |   503 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1960 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target — proof artifacts)
