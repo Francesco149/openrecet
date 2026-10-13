@@ -176,3 +176,22 @@ Win11 native, 67 scenario dirs:
   either port build (no call hit the ×1.05 boundary).
 - Wine replay of `house-customer-tutorial` matches Win11: same 85 anchors, same
   haggle calls, final rng `e3341701`.
+
+## 9. Function coverage of retail under the scenario corpus
+
+Method: `COVERAGE` arms a one-shot INT3 at each of IDA's 3,550 function entries; a
+VEH handler logs the first-hit frame and restores the byte. The run is otherwise
+unperturbed (same completion). Join: `tools/oracle/coverage_join.py`. "Game"
+excludes IDA FLIRT libs + the decomp's `vendorlib.tsv` (d3dx8/libc) ⇒ 1,597
+functions, 640 KB.
+
+66 scenarios (Win11 native, ~6 min):
+- **912 functions hit; 614 game functions = 388 KB = 61% of game code bytes.**
+  The not-hit 39% is consistent with the unported dungeon / endings / adventurers.
+- Port inventory of the hit game bytes: source-referenced 274.6 KB + instrumented
+  98.9 KB = **96%**. 211 hit-but-unreferenced functions = 14.3 KB.
+- Lead: `0x47df4d` / `0x47d622` / `0x432473` / `0x42df55` / `0x47ddc2` (decomp names:
+  dungeon floor build/maze/spawn) run in 57 house scenarios, but the port never
+  references them. Either the house reuses the floor/room builder (the port
+  reimplemented it differently, which is a parity lead), or the decomp's
+  agent-invented names are wrong. Check before trusting either.

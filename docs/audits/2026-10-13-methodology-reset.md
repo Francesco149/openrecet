@@ -261,6 +261,13 @@ exes, static data, a single-threaded sim.
 - Live `haggle_decide` shadowing over the corpus: 12 retail calls, 0 port
   mismatches.
 
+**Coverage.** rhost instruments every retail function entry (one-shot INT3).
+Across the corpus, **614 game functions = 61% of game code bytes are
+exercised**, and the port references 96% of those bytes. 211 small functions
+(14 KB) run in retail but the port never references them (findings §9). The
+unexercised 39% is consistent with the unported dungeon. This is the planning
+map the Gemini "coverage atlas" claimed but never produced data for.
+
 **First real use as an RE oracle.** Settled the open `DAT_095d3728`
 save-sweep contradiction in minutes, using IDA plus a crafted-save experiment
 and a replay of the save-pillar scenario (findings §7).
