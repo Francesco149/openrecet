@@ -13,6 +13,7 @@
 #include "scene.h"
 #include "scene1_player_ctrl.h"
 #include "sim.h"
+#include "tick.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_scene(void) { return g_scene_state; }
@@ -20,6 +21,8 @@ static int32_t get_cc08(void)  { return player_ctrl_cc08(); }
 static int32_t get_b1cc(void)  { return customer_service_b1cc(); }
 static int32_t get_b524(void)  { return customer_service_b524(); }
 static int32_t get_gsim(void)  { return (int32_t)g_sim_frame_count; }
+static int32_t get_tickn(void) { return (int32_t)g_tick.frame_count; }
+static int32_t get_tprev(void) { return (int32_t)g_tick.prev_ms; }
 
 typedef struct { uint32_t va; const char *name; int32_t (*get)(void); } state_va_t;
 static const state_va_t k_map[] = {
@@ -29,6 +32,8 @@ static const state_va_t k_map[] = {
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
     { 0x438b8ccu, "sim frame counter gsim (DAT_0438b8cc)", get_gsim },
+    { 0x73dfcfcu, "tick frame_count (DAT_073dfcfc)",  get_tickn },
+    { 0x73de61cu, "tick prev_ms (DAT_073de61c)",      get_tprev },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 
