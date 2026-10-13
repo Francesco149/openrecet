@@ -233,6 +233,8 @@ int32_t customer_service_pushback_line_for_test(void);
 int     customer_service_kind_select_for_test(void);
 void    customer_service_set_queue_for_test(int idx, int32_t kyaku, int32_t item_slot, int32_t kind);
 void    customer_service_adventurer_equip_upgrade_for_test(int32_t kyaku, int32_t item_handle);
+void    customer_service_set_equip_hint_slot_for_test(int32_t slot);  /* DAT_005c6c34; -1 = none */
+int32_t customer_service_b5a4_for_test(void);
 
 /* FUN_004361b2 — daily-news price-trend classifier (reads the active
  * haggle price panel + the merchant-HUD item tooltip).  Neutral 0 while

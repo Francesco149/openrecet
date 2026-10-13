@@ -491,6 +491,10 @@ struct test_case {
     X(cs_budget_level_day) \
     X(cs_kind_select_general_customer_pick) \
     X(cs_adventurer_equip_upgrade) \
+    X(cs_equip_upgrade_compares_equip_slot_not_request) \
+    X(cs_equip_upgrade_weaker_equip_slot_upgrades) \
+    X(cs_equip_upgrade_ratio_boundary) \
+    X(cs_equip_upgrade_hint_slot_forced_write) \
     X(kyaku_dialogue_parse_fields) \
     X(kyaku_dialogue_parse_caps) \
     X(kyaku_dialogue_store) \

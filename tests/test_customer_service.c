@@ -1266,3 +1266,120 @@ int test_cs_adventurer_equip_upgrade(void)
     g_item.count = save_count;
     return 0;
 }
+
+/* ── FUN_00460b93 retail re-check (2026-10-13, IDA sub_460B93 + disasm) ─────
+ * The stat compare reads the EQUIP slot (+0x2cec8, @0x460ca3), the category
+ * check the REQUEST slot (+0x2ceb4); 1.5x is (float)bought*1.5f > (float)equip;
+ * DAT_005c6c34 (hint slot) != -1 forces the write after the first
+ * non-upgrading slot; b5a4 is restored on exit. */
+static item_record_t s_eq_saved[4];
+static int32_t s_eq_saved_count;
+
+static void eq_item(int i, int32_t id, int32_t cat, int32_t atk, int32_t def)
+{
+    item_record_t *r = &g_item.records[i];
+    memset(r, 0, sizeof *r);
+    r->valid = 1;
+    r->item_id = id;
+    r->category = cat;
+    r->attack = atk;
+    r->defense = def;
+    r->aud_mask = 0xffffffffu;
+}
+
+/* Louie (kyaku 2, cust 0): request + equip slots all empty (-1). */
+static int32_t *eq_setup(int32_t **equip_out)
+{
+    customer_service_reset();
+    uint8_t *bb = (uint8_t *)cs_test_bank_clean();
+    memcpy(s_eq_saved, g_item.records, sizeof s_eq_saved);
+    s_eq_saved_count = g_item.count;
+    g_item.count = 4;
+    int32_t *req = (int32_t *)(bb + 0x2ceb4);
+    int32_t *equip = (int32_t *)(bb + 0x2cec8);
+    for (int k = 0; k < 5; k++) req[k] = equip[k] = -1;
+    *equip_out = equip;
+    return req;
+}
+
+static void eq_teardown(void)
+{
+    memcpy(g_item.records, s_eq_saved, sizeof s_eq_saved);
+    g_item.count = s_eq_saved_count;
+    customer_service_set_equip_hint_slot_for_test(-1);
+}
+
+/* Request slot holds a weak sword but the EQUIPPED one is stronger than the
+ * purchase: retail compares against the equipped sword → no upgrade.  (The
+ * 9a41212e port compared the request slot and upgraded here.) */
+int test_cs_equip_upgrade_compares_equip_slot_not_request(void)
+{
+    int32_t *equip, *req = eq_setup(&equip);
+    eq_item(0, 100, 1, 10, 0);   /* weak sword (request slot)  */
+    eq_item(1, 101, 1, 25, 0);   /* purchase                   */
+    eq_item(2, 102, 1, 30, 0);   /* strong sword (equip slot)  */
+    req[0] = 100 << 6;
+    equip[0] = 102 << 6;
+    customer_service_adventurer_equip_upgrade_for_test(2, 101 << 6);
+    int r0 = req[0], e0 = equip[0];
+    eq_teardown();
+    T_ASSERT_EQ_I(r0, 100 << 6);
+    T_ASSERT_EQ_I(e0, 102 << 6);
+    return 0;
+}
+
+/* Converse: strong request-slot item, weak equipped one → upgrade (both slots). */
+int test_cs_equip_upgrade_weaker_equip_slot_upgrades(void)
+{
+    int32_t *equip, *req = eq_setup(&equip);
+    eq_item(0, 100, 1, 10, 0);
+    eq_item(1, 101, 1, 25, 0);
+    eq_item(2, 102, 1, 30, 0);
+    req[0] = 102 << 6;
+    equip[0] = 100 << 6;
+    customer_service_adventurer_equip_upgrade_for_test(2, 101 << 6);
+    int r0 = req[0], e0 = equip[0];
+    eq_teardown();
+    T_ASSERT_EQ_I(r0, (101 << 6) | 0x20);
+    T_ASSERT_EQ_I(e0, (101 << 6) | 0x20);
+    return 0;
+}
+
+/* 1.5x boundary is strict: bought total 20 → 30 > equip total 30 is false. */
+int test_cs_equip_upgrade_ratio_boundary(void)
+{
+    int32_t *equip, *req = eq_setup(&equip);
+    eq_item(0, 100, 1, 10, 0);   /* request-slot item (category family 1) */
+    eq_item(1, 101, 1, 20, 0);   /* purchase: ATK 20, total 20            */
+    eq_item(2, 102, 1, 0, 30);   /* equipped: DEF 30, total 30            */
+    eq_item(3, 103, 1, 0, 29);   /* equipped: DEF 29, total 29            */
+    req[0] = 100 << 6;
+    equip[0] = 102 << 6;
+    customer_service_adventurer_equip_upgrade_for_test(2, 101 << 6);
+    int e_eq = equip[0];
+    equip[0] = 103 << 6;
+    customer_service_adventurer_equip_upgrade_for_test(2, 101 << 6);
+    int e_lt = equip[0], r_lt = req[0];
+    eq_teardown();
+    T_ASSERT_EQ_I(e_eq, 102 << 6);                 /* 30 > 30 false */
+    T_ASSERT_EQ_I(e_lt, (101 << 6) | 0x20);        /* 30 > 29       */
+    T_ASSERT_EQ_I(r_lt, (101 << 6) | 0x20);
+    return 0;
+}
+
+/* DAT_005c6c34 hint: slot 0 empty → write lands in the hint slot; b5a4 kept. */
+int test_cs_equip_upgrade_hint_slot_forced_write(void)
+{
+    int32_t *equip, *req = eq_setup(&equip);
+    eq_item(1, 101, 1, 25, 0);
+    customer_service_set_equip_hint_slot_for_test(3);
+    customer_service_adventurer_equip_upgrade_for_test(2, 101 << 6);
+    int r0 = req[0], r3 = req[3], e3 = equip[3];
+    int b5a4 = customer_service_b5a4_for_test();
+    eq_teardown();
+    T_ASSERT_EQ_I(r0, -1);
+    T_ASSERT_EQ_I(r3, (101 << 6) | 0x20);
+    T_ASSERT_EQ_I(e3, (101 << 6) | 0x20);
+    T_ASSERT_EQ_I(b5a4, 101 << 6);
+    return 0;
+}

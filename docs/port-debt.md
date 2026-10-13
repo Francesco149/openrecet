@@ -11,15 +11,15 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **25**
-- distinct retiring engine functions: **21**
+- total open debts: **26**
+- distinct retiring engine functions: **22**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 8 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
-| hardcode | 1 | fixed constant where the engine computes/sources it |
+| hardcode | 2 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
@@ -44,6 +44,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
 | FUN_0045de68 | 1 |
+| FUN_0046602e | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
@@ -81,10 +82,11 @@ _none_
 | FUN_00473c03 | src/scene1_intro_dialogue.c:299 | the engine teardown also restores the |
 | scene1-rng-stream-parity.md | src/sim.c:339 | sim_loading_pump() |
 
-## hardcode (1)
+## hardcode (2)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_0046602e | src/customer_service.c:217 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)

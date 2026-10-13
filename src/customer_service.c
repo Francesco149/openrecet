@@ -212,6 +212,13 @@ static int32_t s_price_base;     /* DAT_005c6bc0 — base/reference price (= run
 static int32_t s_price_bc4;      /* DAT_005c6bc4 — item count (base = runsum*count) */
 static int32_t s_price_bc8;      /* DAT_005c6bc8 — alt item handle (-1 = none) */
 static int32_t s_price_cursor;   /* DAT_005c6bcc — item-pick cursor */
+/* DAT_005c6c34 — adventurer upgrade-hint slot (0..4, .data init -1), read by
+ * FUN_00460b93 (cs_adventurer_equip_upgrade).
+ * PORT-DEBT(hardcode, FUN_0046602e): always -1 in the port — its only writer,
+ * the upgrade check inside the haggle render FUN_0046602e (IDA sub_46602E:
+ * -1, then the best slot when bought*1.5 > equipped total), is unported, so
+ * FUN_00460b93's forced hint-slot write never fires outside host tests. */
+static int32_t s_equip_hint_slot = -1;
 
 /* customer-service-active global (DAT_0438b7b0) — set 1 on session init. */
 static int32_t s_cs_active;      /* DAT_0438b7b0 */
@@ -2333,58 +2340,79 @@ static void cs_display_grid_clear(int32_t item_handle,
 }
 
 /* ── FUN_00460b93 — customer equipment upgrade upon buying an item ───────────
- * When an adventurer customer (kyaku 2..9) buys an item, checks their 5 request/
- * equip slots. If the bought item matches an equipment category family and has
- * strictly better stats (and total stats within 1.5×), equips it into both the
- * request slot (+0x2ceb4) and starter equip slot (+0x2cec8) with tag `| 0x20`. */
+ * Re-checked 2026-10-13 against IDA sub_460B93 + the disassembly
+ * (0x460b93..0x460d51).  For an adventurer customer (b56c = kyaku 2..9) with
+ * bought item h (bc8 if != -1, else b5a4), per-customer block at
+ * bank + 0x2ceb0 + 0x6c*(kyaku-2):
+ *   +0x04+4k  REQUEST slot k (k = 0..4)     +0x18+4k  EQUIP slot k
+ * For each k with REQUEST[k] >= 0:
+ *   FUN_00468ddc(cust, k, h) eligibility, then FUN_0049ed12(cat(REQUEST[k]),
+ *   cat(h)) == 0 (same family), then FUN_0048093f stats of h vs the EQUIP[k]
+ *   item (@0x460ca3 `push [eax+esi+0x14]` = +0x18+4k — NOT the request slot;
+ *   9a41212e compared the request slot here); upgrade iff some stat of h is
+ *   strictly greater AND (float)sum(h) * 1.5f > (float)sum(EQUIP[k]) (x87:
+ *   fild/fstp f32, fmul f32 [0x5198e0]=1.5f, fcomp f32, ja).  Upgrade writes
+ *   h|0x20 into REQUEST[k] and EQUIP[k] and stops.
+ * After any non-upgrading slot, if DAT_005c6c34 (upgrade-hint slot, .data
+ * init -1) != -1, h|0x20 is written into REQUEST/EQUIP[hint] and the loop
+ * stops (so with a hint only slot 0 is ever examined).
+ * Epilogue restores b5a4 to its value on entry. */
 static void cs_adventurer_equip_upgrade(void)
 {
+    const int32_t saved_b5a4 = s_b5a4;
     int32_t item_h = (s_price_bc8 != -1) ? s_price_bc8 : s_b5a4;
-    int kyaku = g_scene_buy_current_page; /* s_b56c */
-    if (kyaku < 2 || kyaku > 9 || item_h == -1) return;
+    int kyaku = g_scene_buy_current_page; /* DAT_0730b56c */
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (kyaku < 2 || kyaku > 9 || item_h == -1 || bank == NULL) goto out;
 
     int cust_idx = kyaku - 2;
-    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
-    if (bank == NULL) return;
-
-    int bought_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)item_h >> 6);
-    if (bought_slot < 0) return;
-
-    int32_t *req_slots = (int32_t *)(bank + 0x2ceb4 + cust_idx * 0x6c);
+    int32_t *req_slots   = (int32_t *)(bank + 0x2ceb4 + cust_idx * 0x6c);
     int32_t *equip_slots = (int32_t *)(bank + 0x2cec8 + cust_idx * 0x6c);
+    const uint32_t new_val = (uint32_t)item_h | 0x20u;
 
     for (int slot_idx = 0; slot_idx < 5; slot_idx++) {
-        int32_t curr_h = req_slots[slot_idx];
-        if (curr_h >= 0) {
-            if (cs_check_request_eligibility(cust_idx, slot_idx, item_h)) {
-                int curr_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)curr_h >> 6);
-                if (curr_slot >= 0) {
-                    if (cs_categories_distinct(g_item.records[bought_slot].category,
-                                               g_item.records[curr_slot].category) == 0) {
-                        int32_t bought_stats[4] = {0};
-                        int32_t curr_stats[4] = {0};
-                        chara_equip_item_stats((uint32_t)item_h, bought_stats);
-                        chara_equip_item_stats((uint32_t)curr_h, curr_stats);
+        int32_t req_h = req_slots[slot_idx];
+        if (req_h >= 0 && cs_check_request_eligibility(cust_idx, slot_idx, item_h)) {
+            /* retail indexes the item table with whatever FUN_004681f6 returns;
+             * a missing id (-1) is out of contract — skip instead of reading
+             * record[-1]. */
+            int bought_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)item_h >> 6);
+            int req_slot    = tables_item_find_slot_by_id(&g_item, (uint32_t)req_h >> 6);
+            if (bought_slot >= 0 && req_slot >= 0 &&
+                cs_categories_distinct(g_item.records[req_slot].category,
+                                       g_item.records[bought_slot].category) == 0) {
+                int32_t bought_stats[4] = {0};
+                int32_t equip_stats[4]  = {0};
+                chara_equip_item_stats((uint32_t)item_h, bought_stats);
+                chara_equip_item_stats((uint32_t)equip_slots[slot_idx], equip_stats);
 
-                        int32_t bought_sum = bought_stats[0] + bought_stats[1] + bought_stats[2] + bought_stats[3];
-                        int32_t curr_sum = curr_stats[0] + curr_stats[1] + curr_stats[2] + curr_stats[3];
-
-                        int stat_better = (bought_stats[0] > curr_stats[0] ||
-                                           bought_stats[1] > curr_stats[1] ||
-                                           bought_stats[2] > curr_stats[2] ||
-                                           bought_stats[3] > curr_stats[3]);
-
-                        if (stat_better && (float)curr_sum < (float)bought_sum * 1.5f) {
-                            uint32_t new_val = (uint32_t)item_h | 0x20u;
-                            req_slots[slot_idx] = (int32_t)new_val;
-                            equip_slots[slot_idx] = (int32_t)new_val;
-                            return;
-                        }
-                    }
+                int32_t bought_sum = 0, equip_sum = 0;
+                for (int i = 0; i < 4; i++) {
+                    bought_sum += bought_stats[i];
+                    equip_sum  += equip_stats[i];
+                }
+                int stat_better = (bought_stats[0] > equip_stats[0] ||
+                                   bought_stats[1] > equip_stats[1] ||
+                                   bought_stats[2] > equip_stats[2] ||
+                                   bought_stats[3] > equip_stats[3]);
+                /* f32-rounded sums; an f32 x 1.5 product is exact in double, so
+                 * this matches the x87 compare under any FLT_EVAL_METHOD. */
+                if (stat_better &&
+                    (double)(float)bought_sum * 1.5 > (double)(float)equip_sum) {
+                    req_slots[slot_idx]   = (int32_t)new_val;
+                    equip_slots[slot_idx] = (int32_t)new_val;
+                    goto out;
                 }
             }
         }
+        if (s_equip_hint_slot != -1) {
+            req_slots[s_equip_hint_slot]   = (int32_t)new_val;
+            equip_slots[s_equip_hint_slot] = (int32_t)new_val;
+            goto out;
+        }
     }
+out:
+    s_b5a4 = saved_b5a4;
 }
 
 /* Popup-queue accessors for the renderer chip + host tests. */
@@ -3100,6 +3128,7 @@ void customer_service_reset(void)
     g_scene_buy_current_page = 0;          /* DAT_0730b56c */
     s_price_fileidx = s_price_bb4 = s_price_ask = s_price_runsum = 0;
     s_price_base = s_price_bc4 = s_price_bc8 = s_price_cursor = 0;
+    s_equip_hint_slot = -1;   /* .data init; retail never resets it (no writer ported) */
     s_cs_active = 0;
 }
 
@@ -3144,3 +3173,8 @@ void customer_service_adventurer_equip_upgrade_for_test(int32_t kyaku, int32_t i
     s_price_bc8 = -1;
     cs_adventurer_equip_upgrade();
 }
+void customer_service_set_equip_hint_slot_for_test(int32_t slot)
+{
+    s_equip_hint_slot = (slot >= 0 && slot < 5) ? slot : -1;
+}
+int32_t customer_service_b5a4_for_test(void) { return s_b5a4; }
