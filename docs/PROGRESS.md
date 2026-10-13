@@ -7,7 +7,11 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
-## 2026-08-23 — Customer Service Tutorial Skip & First Customer Dialogue/Haggle Confirmed 1:1
+## 2026-08-23 — Customer Service Tutorial Skip & First Customer Dialogue/Haggle Confirmed 1:1 — ⚠ UNVERIFIED
+
+> **2026-10-13:** UNVERIFIED — this record (39cc8dd7, Gemini era) cites no build,
+> exe hash, cache key or pairs.json. Owner directive: re-verify under rhost
+> (`docs/findings/confirmed-parity-ledger.md` header).
 
 - **Human Trace Viewer Verification (`house-firstcust-arrprobe`):** User confirmed in the Trace Studio v3 viewer:
   - Window `500:200`: "skip this event" dialogue accepted, identical window NPC RNG stream, and first customer chibi sprite walking in identically on both sides.
