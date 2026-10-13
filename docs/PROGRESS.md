@@ -22,6 +22,18 @@ the test harness has coverage metrics worth reporting.
 - x87 sweep: neither `-std` is retail-exact; `src/x87.h` rule; haggle family oracle-exact;
   port builds `-std=gnu11` (`x87-float-semantics.md`).
 - recettear-decomp archived (read-only, GitHub archived). The live-probe MCP is retired.
+- **First pin-free port↔retail equalities** (`rhost.py portsave`): the committed
+  `save.dat` is byte-IDENTICAL for house-pause-save-commit, -empty and
+  **day2-save-commit** (the whole tutorial → Day 2, 33k frames). The compare found and
+  fixed 2 port bugs: scripts never marked viewed (`FUN_0046c320`), and the furniture
+  seed (`FUN_0048ffd9`) written into the save-file arena instead of the work record.
+- Port `--det-loads` (DEFER twin) + 1-frame `.ivt` brackets: house-idle anchors
+  192/195 identical in name and frame (`rhost.py portanchors`).
+- math3d (subagent): retail D3DX8 math is the CPU-dispatched **SSE2** table
+  (`rsqrtss`/`rcpss`). Retail itself differs between Intel and AMD; the port now mirrors
+  it bit-exactly (7.2M oracle cases, 0 mismatches).
+- `rhost.py verify`: haggle_decide/offer_up/rand shadowed over all scenarios, 0
+  divergences. offer_down is never exercised (needs a recording).
 
 ## 2026-10-13 — Agent-era cleanup (Gemini + GPT eras)
 
