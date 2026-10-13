@@ -136,7 +136,43 @@ normal-size bucket does NOT set it. Two host tests lock opposite values.
 - 6c9c85d3's fix (`save_bank_set_skip_verify(1)` on the normal bucket,
   `src/save_io.c:~200`) passes that seed by coincidence and diverges for any stale bank
   whose content isn't the reset pattern (retail resets it, port keeps it).
+- Reproduced end-to-end: `house-pause-save-commit` replayed in rhost (Win11, ~2 s);
+  retail's committed `save.dat` vs seed: header 0 diffs, banks 1–99 0 diffs (seed
+  banks: stored ck 0, calc 0x345e7bcf = the reset-pattern checksum above), bank 0
+  (active) 3 dwords. Consistent with "sweep ran, reset was idempotent".
 - **Proposed fix (not applied; needs owner OK, flips 2 host tests):** drop the gate on
   the normal bucket (keep it on the legacy ones); make `save_bank_init_one` reproduce
   `FUN_0049001c` exactly (catalog key/count fill, no checksum stamp); re-run the
   save pillar plus a rhost crafted-save test.
+
+## 8. Existing scenario corpus replays inside rhost (P3)
+
+`tools/oracle/p3_run.c` replays `tests/scenarios/*/trace.jsonl` unchanged:
+- The port's own `src/input_segtrace.c` provides the parser and state machine.
+- The anchor predicates are ported from the Frida agent's `anchorTick`.
+- `{rngseed}` is applied to `DAT_006023a0`; `{esc}` is posted as
+  `WM_KEYDOWN VK_ESCAPE`.
+- The other pins are ignored: DEFER loads + VTIME make them unnecessary for a
+  retail-only run.
+- Each scenario runs with its own save (`_saves/` are gitignored; they lived only
+  on wslop and are now copied locally too).
+
+Win11 native, 67 scenario dirs:
+- **61 complete**, in **125 s total wall** (≈2 s each), including the 65-segment
+  `house-customer-tutorial`, `guild-*`, all `house-pause-*`, `intro-*` and
+  `title-*`.
+- **Not complete:**
+  - The `cad868` first-customer family (`house-firstcust-arrprobe`,
+    `-cutscene-day2`, `-cutscene-day2-full`, plus the `_firstcust-skip-probe` and
+    `_probe-dayend-memsnap` probes). All stall at seg 24, waiting for a
+    PAUSE_OPEN after timed shop-menu navigation.
+    - These traces rely on `{bgnpcpin}` and Frida-exact `{cs,primary,tut}loadpin`
+      semantics. The opt-in `LOAD_PINS=1` approximation (hold N frames from
+      worker creation) gets less far, reaching seg 15.
+    - Fix: re-record them natively in rhost, where no pins are needed.
+  - `_probe-dayend-rngcs` uses a Frida-only `{rngcs}` op that the port parser
+    rejects.
+- Live `haggle_decide` shadow over the corpus: 12 retail calls, 0 mismatches for
+  either port build (no call hit the ×1.05 boundary).
+- Wine replay of `house-customer-tutorial` matches Win11: same 85 anchors, same
+  haggle calls, final rng `e3341701`.

@@ -15,6 +15,8 @@ Prepared overnight by Claude (Opus 5.5) for the project owner. Evidence lives in
 2. **Tonight's prototype removes that problem.** It runs the user's own retail
    exe *inside our own process* (Windows native or wine), so the host owns
    every hook and snapshot. Measured:
+   - **Replays the existing scenario corpus.** 61/67 traces finish in 125 s
+     total on Windows native, versus 15–50 min per retail re-drive before.
    - **Deterministic across a load seam.** With virtual time, a deferred
      loader, a pinned seed and scripted input, two independent runs differ in
      0 non-pointer bytes of 152 MB state.
@@ -249,6 +251,24 @@ exes, static data, a single-threaded sim.
 | Speed | ~1000 fps Win native, ~115 fps wine + Xvfb llvmpipe |
 | x87 | In-game control word is **0x027F (53-bit)** on both platforms; the repo note claiming D3D8 single precision is wrong in practice |
 
+**P3 — the existing scenario corpus replays inside rhost unchanged.**
+- It reuses `src/input_segtrace.c` and a C port of the Frida anchors.
+- **61 of 67 scenarios complete natively in 125 s total** (≈2 s each). That
+  includes the 65-segment customer tutorial, guild, pause menus, intro and
+  title.
+- The `cad868` first-customer/day-2 family stalls at the same pin-dependent
+  segment. Those should be re-recorded in rhost.
+- Live `haggle_decide` shadowing over the corpus: 12 retail calls, 0 port
+  mismatches.
+
+**First real use as an RE oracle.** Settled the open `DAT_095d3728`
+save-sweep contradiction in minutes, using IDA plus a crafted-save experiment
+and a replay of the save-pillar scenario (findings §7).
+
+**The current port also boots under wine headless.** It loads all tables and
+runs the intro, then faults near its `--max-frames` exit (unexamined), so the
+whole loop could run on Linux.
+
 **How this maps to the old pain points:**
 - **Sync across load seams / loader race:** no second process. Loads are
   deterministic (1 frame).
@@ -369,10 +389,18 @@ x86), idalib and Python 3.12.
 - FLIRT identified 440 CRT functions; combine that with the decomp's
   `vendorlib.tsv`.
 
-**Ghidra:**
-- Drops x87 operands (confirmed on `haggle_decide`).
-- The pyghidra MCP OOM'd the box in July.
-- Not needed.
+**Ghidra, re-evaluated fairly** (12.1.4 headless on Windows,
+`C:\orc-ghidra\`):
+- Cost is fine: 179 s for import + analysis + decompile of all 2,617
+  functions, 0 failures, java peak 1.25 GB. The July OOMs came from the
+  pyghidra MCP daemon, not from headless use.
+- **Accuracy is the problem.** On `haggle_decide` it emits `__ftol()` with no
+  operands, so the float math is gone. On `audio_fade` (0x499583) it drops the
+  `×vol×9600−9600` math and invents extra `SetVolume` arguments.
+- IDA gets both exactly right: `cos`, `v4 * v8 * 9600.0 - 9600.0`,
+  `SetVolume(this, v, 0)`, and the −10000 silence path.
+- IDA also finds more functions (3,550 vs 2,779) and names the CRT via FLIRT.
+- **Verdict:** IDA primary. Ghidra not needed for this project.
 
 **MCP:**
 - **None for openrecet.** Use static exports (`all_ida.c`, `functions_ida.tsv`)

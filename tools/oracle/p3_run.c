@@ -55,7 +55,21 @@
  * Anchor predicates = C port of tools/frida/openrecet-agent.js anchorTick(),
  * sampled at end of each tick (agent samples at Present = end of frame). */
 static struct input_segtrace g_seg; static int g_seg_on;
-static struct { int init, scene, loading, reveal, revflag, linep, conv, blink, cc08, pause, tpick; } A;
+static struct { int init, scene, loading, reveal, revflag, linep, conv, blink, cc08, pause, tpick,
+                 fx, savep, encp, optp, itemp, tset, tenc, trec, tsurv; } A;
+static int fx_alpha(int dlg)   /* agent anchorFxAlpha: max standee alpha, slots 2..31 */
+{
+    if (!dlg) return 0;
+    int maxa = 0;
+    for (int i = 2; i <= 31; i++) {
+        uint32_t sb = 0x073a3e70u + i * 0x70u;
+        if (*(volatile int32_t *)(uintptr_t)(sb + 0x2c) == 0) continue;
+        int a = (int)*(volatile float *)(uintptr_t)(sb + 0x48);
+        if (a < 0) a = 0; else if (a > 255) a = 255;
+        if (a > maxa) maxa = a;
+    }
+    return maxa;
+}
 static long g_anchor_count;
 static HWND g_game_hwnd;
 static BOOL CALLBACK find_wnd(HWND h, LPARAM lp)
@@ -88,7 +102,15 @@ static void anchors_tick(uint32_t frame)
     int linep = dlg && R(0x73a6a38) >= 0;
     int conv = R(0x56daafc), blink = conv == 6 && R(0x56daaf8) == 1;
     int cc08 = R(0x438cc08), pause = R(0x438b150) != 0;
-    int tpick = scene == 0 && R(0x9643520) == 10 && R(0x9643524) == 1;
+    int tsub = (scene == 0 && R(0x9643520) == 10) ? R(0x9643524) : 0;
+    int tpick = tsub == 1, tset = tsub == 2, tenc = tsub == 3, trec = tsub == 4;
+    int tsurv = scene == 0 && R(0x9643520) == 0 && R(0x9643524) == 0 && R(0x9643550) == 8;
+    int fx = fx_alpha(dlg);
+    int savep = 0, encp = 0, optp = 0, itemp = 0;
+    if (scene == 9 && R(0x74b2880) == 10) {
+        int sel = R(0x74b2878);
+        if (sel >= 0 && sel < 8) { int t = R(0x74b2844 + sel * 4); savep = t == 3; encp = t == 6; optp = t == 2; itemp = t == 1; }
+    }
     if (!A.init) {
         A.init = 1; anchor_fire("BOOT", frame);
     } else {
@@ -109,10 +131,24 @@ static void anchors_tick(uint32_t frame)
         if (A.pause && !pause) anchor_fire("PAUSE_CLOSE", frame);
         if (A.loading && !loading && scene == 9) anchor_fire("PAUSE_READY", frame);
         if (A.scene != 0 && scene == 0) anchor_fire("TITLE_RETURN", frame);
+        if (A.fx == 0 && fx > 0) anchor_fire("EXTRA_SPRITE_START", frame);
+        if (fx >= 255 && A.fx < 255) anchor_fire("EXTRA_SPRITE_FADED_IN", frame);
+        if (A.fx >= 255 && fx < 255 && fx > 0) anchor_fire("EXTRA_SPRITE_FADEOUT", frame);
+        if (A.fx > 0 && fx == 0) anchor_fire("EXTRA_SPRITE_END", frame);
+        if (!A.savep && savep) anchor_fire("SAVE_PICKER_READY", frame);
+        if (!A.encp && encp) anchor_fire("ENCYCLOPEDIA_READY", frame);
+        if (!A.optp && optp) anchor_fire("OPTIONS_READY", frame);
+        if (!A.itemp && itemp) anchor_fire("ITEMS_READY", frame);
         if (!A.tpick && tpick) anchor_fire("TITLE_PICKER_READY", frame);
+        if (!A.tset && tset) anchor_fire("TITLE_SETTINGS_READY", frame);
+        if (!A.tenc && tenc) anchor_fire("TITLE_ENCYCLOPEDIA_READY", frame);
+        if (!A.trec && trec) anchor_fire("TITLE_RECORDS_READY", frame);
+        if (!A.tsurv && tsurv) anchor_fire("TITLE_SURVIVAL_READY", frame);
     }
     A.scene = scene; A.loading = loading; A.reveal = reveal; A.revflag = revflag; A.linep = linep;
     A.conv = conv; A.blink = blink; A.cc08 = cc08; A.pause = pause; A.tpick = tpick;
+    A.fx = fx; A.savep = savep; A.encp = encp; A.optp = optp; A.itemp = itemp;
+    A.tset = tset; A.tenc = tenc; A.trec = trec; A.tsurv = tsurv;
     #undef R
 }
 
