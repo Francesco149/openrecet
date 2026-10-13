@@ -47,7 +47,8 @@ All numbers below measured on wine 11.19 + Xvfb (Arch) and Win11 native (wslop h
   `VTIME` (timeGetTime/GetTickCount/QPC/QPF/GetLocalTime/GetSystemTime virtualized):
   **0 non-pointer diffs** across 2 wine runs (93 heap/COM pointer values differ —
   allocation addresses, not state). Windows run-to-run: 1 non-pointer diff
-  (`0x73dfc7c`, window/GDI handle).
+  (`0x73dfc7c`, window/GDI handle). That dword is now excluded from
+  `semantic_hash`, so two Win11 demo runs give an identical hash (`a4c15035…`).
 - RNG trajectory identical wine vs Windows (`7b2df9f6` @f1500, `5510bda9` @f3000).
   Wine↔Windows non-pointer diffs are environmental only: CRT handle table 0x603dc0..,
   path strings (0x73d8dec, 0x964d190), desktop res (0x73dfc90/94: 1920×1080 vs

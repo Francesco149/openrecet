@@ -231,6 +231,7 @@ static uint64_t data_hash_nonptr(void)
     for (const uint32_t *p = (const uint32_t *)D_LO; p < (const uint32_t *)(D_HI & ~3u); p++) {
         uint32_t v = *p;
         if (v >= 0x00a00000u && !(v >= 0x00400000u && v < 0x09955000u)) v = 0x9e3779b9u;
+        if ((uintptr_t)p == 0x73dfc7cu) v = 0;   /* HWND/GDI handle: differs per run on Windows */
         h ^= v; h *= 1099511628211ull;
     }
     return h;
