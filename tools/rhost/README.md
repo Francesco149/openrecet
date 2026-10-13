@@ -31,7 +31,8 @@ line `RESULT key=value…`). The driver builds + stages automatically.
 | command line / environment / startup info / std handles copied by the CRT | fixed values |
 | temp-file names, run-dir names leaking into retail memory | `GetTempPathA`/`GetTempFileNameA` virtual + deterministic |
 | user's save / recet.ini / any game-dir write | `rh_files.c` overlay: game dir read-only, writes copy-on-write into the run dir; `save.dat` absent unless supplied |
-| real devices (keyboard, pads incl. player-2 slot) | the DInput poll is not called; masks come from the script |
+| real devices (keyboard, pads incl. player-2 slot) | the DInput poll is not called; masks come from the script; pads hidden from enumeration |
+| fake `hInstance` 0x400000 rejected by Windows dinput8 | `rh_dinput.c` hands DirectInput8Create the host module (before 2026-10-13 no Windows run had DInput, so `--record` read no keys) |
 | focus / minimise pausing the main loop | `WaitMessage` → gate up, return (not in `--record`) |
 | RNG seed | `DAT_006023a0` = 19937 at frame 0 (trace `{rngseed}` ops still apply) |
 

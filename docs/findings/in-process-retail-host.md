@@ -210,7 +210,12 @@ functions, 640 KB.
 - fixed command line / environment / startup info / std handles (the CRT copied the
   `--run` path into its heap: `"det_a"` vs `"det_b"`);
 - deterministic temp names; file overlay; no real DInput poll; WaitMessage never parks;
-- game controllers hidden from enumeration.
+- game controllers hidden from enumeration;
+- DInput gets the host module as hinst: retail passes WinMain's hInstance
+  (`DAT_073de628`, `FUN_0047af52`) = rhost's fake 0x400000, which Windows dinput8
+  rejects (wine accepts). Until 2026-10-13 every Windows run had no DInput objects
+  (`--record` read no keys). Turning it on changed no rng/anchor/scene
+  (`house-idle`); +2 COM slots `073dfcc0`/`073dfcc4` in `volatile.txt`.
 
 **Windows, run to run:** only system-DLL/COM pointer slots differ (`volatile.txt`, 358
 slots calibrated over 12 scenarios incl. the 40k-frame tutorial-end → Day 2). `det` PASS
