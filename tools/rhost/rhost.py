@@ -390,19 +390,9 @@ def cmd_verify(a):
     return 0 if all(tot.get(h, [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
 
 
-def cmd_portsave(a):
-    """whole-flow port↔retail check: retail (rhost) vs port (--det-loads, flat trace) committed save.dat"""
-    name = a.scenario
-    tr, save = scenario_inputs(name)
-    a.flatten_out = True
-    a.dump_at = None
-    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portsave-retail", fetch=("rhost.log", "save.dat", "trace.flat.jsonl"))
-    r = res.get(name, {})
-    retail_save = os.path.join(bdir, name, "save.dat")
-    if not os.path.exists(retail_save):
-        print("retail run wrote no save.dat — scenario must commit a save"); return 2
-    flat = os.path.join(bdir, name, "trace.flat.jsonl")
-    frames = int(r.get("frame", "0")) or 120000
+def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
+    """the port (--det-loads, turbo) on rhost's flat trace of the same run, on Windows.
+    Returns the local port dir; `fetch` names files the port wrote into it."""
     pdir_l = os.path.join(bdir, "port")
     os.makedirs(pdir_l)
     shutil.copy(flat, os.path.join(pdir_l, "trace.jsonl"))
@@ -410,9 +400,10 @@ def cmd_portsave(a):
         open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
     pw = f"{WROOT}\\runs\\{batch}\\port"
     args = ["--save-write-dir", pw, "--input-segtrace", pw + "\\trace.jsonl", "--anchor-trace-record", pw + "\\anchors.jsonl",
-            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads"]
+            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads", *extra]
     args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
-    ps = ["$ErrorActionPreference = 'Continue'", f"New-Item -ItemType Directory -Force {pw}\\cwd | Out-Null",
+    args = [x.replace("{pw}", pw) for x in args]
+    ps = ["$ErrorActionPreference = 'Continue'",
           # the port reads game data from its cwd and writes call traces there: give it a cwd of links
           f"if (!(Test-Path {WROOT}\\portcwd\\bin)) {{ New-Item -ItemType Directory -Force {WROOT}\\portcwd | Out-Null; "
           f"Get-ChildItem {WROOT}\\game | % {{ if ($_.PSIsContainer) {{ cmd /c mklink /J \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} "
@@ -426,7 +417,24 @@ def cmd_portsave(a):
     scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
     scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
     print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
-    scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/save.dat", os.path.join(pdir_l, "save.dat"))
+    for f in ("anchors.jsonl", *fetch):
+        scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f))
+    return pdir_l
+
+
+def cmd_portsave(a):
+    """whole-flow port↔retail check: retail (rhost) vs port (--det-loads, flat trace) committed save.dat"""
+    name = a.scenario
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portsave-retail", fetch=("rhost.log", "save.dat", "trace.flat.jsonl"))
+    r = res.get(name, {})
+    retail_save = os.path.join(bdir, name, "save.dat")
+    if not os.path.exists(retail_save):
+        print("retail run wrote no save.dat — scenario must commit a save"); return 2
+    frames = int(r.get("frame", "0")) or 120000
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames, fetch=("save.dat",))
     out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "save_compare.py"), os.path.join(pdir_l, "save.dat"), retail_save],
                          capture_output=True, text=True).stdout
     print(out.strip())
@@ -443,23 +451,7 @@ def cmd_portanchors(a):
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portanchors-retail", fetch=("rhost.log", "trace.flat.jsonl"))
     frames = int(res.get(name, {}).get("frame", "0")) or 120000
     retail = [(m.group(1), int(m.group(2))) for m in re.finditer(r"^anchor (\S+) @(\d+)", open(os.path.join(bdir, name, "rhost.log")).read(), re.M)]
-    pdir_l = os.path.join(bdir, "port")
-    os.makedirs(pdir_l)
-    shutil.copy(os.path.join(bdir, name, "trace.flat.jsonl"), os.path.join(pdir_l, "trace.jsonl"))
-    if save:
-        open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
-    pw = f"{WROOT}\\runs\\{batch}\\port"
-    args = ["--save-write-dir", pw, "--input-segtrace", pw + "\\trace.jsonl", "--anchor-trace-record", pw + "\\anchors.jsonl",
-            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads"]
-    args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
-    ps = [f"Set-Location {WROOT}\\portcwd",
-          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ") -Wait -PassThru",
-          "\"port exit=$($p.ExitCode)\"", f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
-    open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
-    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
-    scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
-    print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
-    scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/anchors.jsonl", os.path.join(pdir_l, "anchors.jsonl"))
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames)
     port = [(json.loads(l)["anchor"], int(json.loads(l)["frame"])) for l in open(os.path.join(pdir_l, "anchors.jsonl")) if l.strip()]
     skip = {"BOOT", "CONV_POSE_BLINK", "PAUSE_OPEN", "PAUSE_CLOSE"}      # differently-defined / cosmetic on the two sides
     # the two sides emit same-frame anchors in different orders: canonical order = (frame, name)
@@ -478,6 +470,48 @@ def cmd_portanchors(a):
     if first_name is not None:
         print(f"first NAME mismatch: #{first_name} retail {R[first_name]} / port {P[first_name]}")
     return 0 if i0 is None and first_name is None and len(R) == len(P) else 1
+
+
+def parse_post(path):
+    """`post N va=val ..` lines (rhost --watch / port --state-va) → {frame: {va: int}}"""
+    rows = {}
+    for m in re.finditer(r"^post (\d+)((?: [0-9a-f]+=-?\d+)+)\s*$", open(path, errors="replace").read(), re.M):
+        rows[int(m.group(1))] = {k: int(v) for k, v in (kv.split("=") for kv in m.group(2).split())}
+    return rows
+
+
+def cmd_portstate(a):
+    """port vs retail, frame by frame: retail VAs (rhost --watch) vs their port mirrors (--state-va)"""
+    name = a.scenario
+    vas = [format(int(v, 16), "x") for v in a.va.split(",")]
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    a.extra = ((a.extra or "") + f" --watch {','.join(vas)} --log-every 1").strip()
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portstate-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    frames = int(res.get(name, {}).get("frame", "0")) or 120000
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames,
+                      extra=("--state-va", ",".join(vas), "--state-log", "{pw}\\state.log"), fetch=("state.log",))
+    R = parse_post(os.path.join(bdir, name, "rhost.log"))
+    P = parse_post(os.path.join(pdir_l, "state.log"))
+    common_f = sorted(set(R) & set(P))
+    print(f"frames: retail {len(R)} / port {len(P)} / both {len(common_f)}")
+    firsts = []
+    for va in vas:
+        diff = [f for f in common_f if R[f].get(va) != P[f].get(va)]
+        if diff:
+            f = diff[0]; firsts.append(f)
+            print(f"  {va:>8s}  first diff f{f}: retail {R[f].get(va)} / port {P[f].get(va)}  ({len(diff)} frames differ)")
+        else:
+            print(f"  {va:>8s}  IDENTICAL")
+    if firsts:
+        f0 = min(firsts)
+        print(f"around f{f0} (retail | port):")
+        for f in range(max(0, f0 - a.context), f0 + a.context + 1):
+            if f in R and f in P:
+                mark = " *" if any(R[f].get(v) != P[f].get(v) for v in vas) else ""
+                print(f"  f{f:<6d} " + "  ".join(f"{v}={R[f].get(v)}|{P[f].get(v)}" for v in vas) + mark)
+    return 1 if firsts else 0
 
 
 def cmd_flatten(a):
@@ -560,6 +594,8 @@ def main():
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
+    p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
+    p.add_argument("--context", type=int, default=4); common(p); p.set_defaults(fn=cmd_portstate)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)

@@ -1056,6 +1056,9 @@ struct test_case {
     X(title_save_dialog_anim_tick_shake_interpolates) \
     X(title_save_dialog_stub_renders_dont_crash) \
     \
+    X(state_va_logs_selected_in_order) \
+    X(state_va_rejects_unmapped) \
+    X(state_va_keeps_outer_strtok) \
     X(worker_load_case_count_is_seventeen) \
     X(worker_load_reset_zeroes_all_state) \
     X(worker_load_begin_raises_busy_and_nowloading) \

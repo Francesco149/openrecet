@@ -384,6 +384,13 @@ static void __cdecl hook_tick(void)
         if (due > now + 1) Sleep((DWORD)(due - now));
     }
     ((void (__cdecl *)(void))VA_TICK)();
+    if (O.n_watch && O.log_every && g_frame % O.log_every == 0) {
+        /* the state the anchors see: after tick N, BEFORE the next boundary's
+         * deferred workers (which clear e.g. a dialogue load's DAT_06a49960). */
+        char wb[256] = ""; size_t wo = 0;
+        for (int i = 0; i < O.n_watch; i++) wo += snprintf(wb + wo, sizeof wb - wo, " %x=%d", O.watch[i], (int)G32(O.watch[i]));
+        rh_log("post %u%s\n", g_frame, wb);
+    }
     rh_trace_after_tick(g_frame);
     if (rh_trace_done(g_frame) && O.frames > g_frame) O.frames = g_frame;
     if (rh_trace_stalled(g_frame)) finish("stalled");
@@ -470,7 +477,7 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--log-sbh")) O.log_sbh = ARG();
         else if (!strcmp(a, "--log-rand")) { if (sscanf(ARG(), "%u:%u", &g_lr_from, &g_lr_to) != 2) usage(); }
-        else if (!strcmp(a, "--watch")) {
+        else if (!strcmp(a, "--watch")) {   /* hex VAs: in each `frame` log line + a `post N` line after tick N */
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && O.n_watch < 16; t = strtok(NULL, ",")) O.watch[O.n_watch++] = strtoul(t, 0, 16);
         }

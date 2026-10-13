@@ -107,6 +107,7 @@
 #include "tick.h"
 #include "d3d_trace.h"
 #include "call_trace.h"
+#include "state_va.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -412,6 +413,11 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                <file>; also echoed to stderr. Keyed on
  *                                g_tick.frame_count (== --capture-frames
  *                                index). See src/anchor_trace.h.
+ *   --state-va <va,..>           with --state-log <file>: after each
+ *                                anchor evaluation write `post N va=val..`
+ *                                for those retail VAs' port mirrors (the
+ *                                rhost --watch post line; rhost.py
+ *                                portstate). See src/state_va.h.
  *   --capture-at-anchor NAME[+k] capture at frame (anchor_frame + k)
  *                                when anchor NAME fires — robust to the
  *                                non-deterministic load frame (unlike a
@@ -489,6 +495,10 @@ static int input_harness_driven(void)
 static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
 static struct anchor_trace_state g_anchor_state             = {0};
+static char                     *g_state_log_path           = NULL;
+static FILE                     *g_state_log_fp             = NULL;
+static int                       g_state_log_pending        = 0;
+static uint32_t                  g_state_log_frame          = 0;
 
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
  * Buffers the per-frame player-1 button mask while recording, plus a list of
@@ -1785,6 +1795,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* Anchor-trace record: open the file sink before the loop so the
      * BOOT anchor (first ticked frame) is captured.  Failure is
      * non-fatal — the stderr echo still emits the stream. */
+    if (g_state_log_path) g_state_log_fp = fopen(g_state_log_path, "w");
     if (g_anchor_trace_record_path) {
         g_anchor_record_fp = fopen(g_anchor_trace_record_path, "w");
         if (g_anchor_record_fp) {
@@ -2301,6 +2312,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 } else {
                     tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
                 }
+                if (g_state_log_pending) {
+                    state_va_log(g_state_log_fp, g_state_log_frame);
+                    g_state_log_pending = 0;
+                }
 
                 /* Frame-budget exit. Checked AFTER tick so the Nth
                  * frame actually renders + (if listed) captures
@@ -2397,6 +2412,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_record_close();
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
+    if (g_state_log_fp) { fclose(g_state_log_fp); g_state_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -2923,6 +2939,10 @@ static void render_dispatch(void)
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
+        /* logged once the WHOLE tick (render too) is done — retail's rhost
+         * `post` line follows FUN_0047be92, render-side rand() included. */
+        g_state_log_pending = 1;
+        g_state_log_frame   = g_tick.frame_count;
     }
 
     /* TAS recorder: capture this frame's player-1 input mask (read here, before
@@ -3801,6 +3821,21 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char save_wd_buf[MAX_PATH];
                 lstrcpynA(save_wd_buf, val, (int)sizeof(save_wd_buf));
                 g_save_write_dir = save_wd_buf;
+            }
+        } else if (lstrcmpA(tok, "--state-va") == 0) {
+            char *val = strtok(NULL, " ");
+            uint32_t bad = 0;
+            if (val && state_va_select(val, &bad) < 0) {
+                fprintf(stderr, "openrecet: --state-va: no port mirror for %x (known: %s)\n",
+                        (unsigned)bad, state_va_known());
+                ExitProcess(2);
+            }
+        } else if (lstrcmpA(tok, "--state-log") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char sl_buf[MAX_PATH];
+                lstrcpynA(sl_buf, val, (int)sizeof(sl_buf));
+                g_state_log_path = sl_buf;
             }
         } else if (lstrcmpA(tok, "--anchor-trace-record") == 0) {
             char *val = strtok(NULL, " ");
