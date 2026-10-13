@@ -31,34 +31,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
     replays rhost's flat trace with `--det-loads`, no pins (findings §11). First
     pin-free equality. One command: `rhost.py portsave SCEN`.
-  - ◐ **day2-save-commit** (whole tutorial → Day 2 → save, 33k frames): port reaches
-    `SAVE_PICKER_READY` on the SAME frame as retail (33199); its save differs in only
-    **88 / 18.8M bytes** (was 106). Leads:
-    1. bank 0 `sold_list` dwords 0xb0b4/0xb0bf..: the port writes 22 dwords of
-       pair-like data `(0,3)(3,1)…(6,12)`; retail leaves the reset pattern.
-       - Runtime watch: file-arena bank 0 changes in **port frame 233**, just after the
-         save-load bracket (retail `LOADING_START@231`), while the active slot is still 0.
-       - Every non-save use of `save_bank_*` is read-only, so suspect a miscomputed
-         pointer or offset copy.
-       - Next: trap the write. A page-protect + VEH attempt crashed before frame 1, so
-         use a hardware watch (DR0) or bisect with `--call-trace-frames 232,233` plus a
-         per-callsite bank0 checksum.
-    2. ✅ FIXED: the "script viewed" flags. `FUN_0046c320`'s END handler (ret 3) marks
-       (group, sub) in work bank +0x2d3a0 and save header +0x20; the port never did.
-       Diff 106 → 88 bytes. The header and the whole active bank now match.
-  - `--det-loads` (DEFER twin) cut the house-load gap from 3,475 frames to **1**:
-    port `LOADING_END` f72 vs retail f73, then a constant +1.
-  - ★ next: route the port's load brackets through real (deferrable) workers.
-    - Retail under DEFER: every load bracket is exactly 1 frame (14/14 over the
-      tutorial). Workers: `0x452aab` ×7, `0x452b13` ×4, `0x452ae8` ×2, primary ×1.
-      Chained workers add up: the new-game house load is 2 frames (primary, then
-      `0x452aab` for the first `.ivt`).
-    - The port fakes these as frame counters (`D_LOAD`, `D_TUT_LOAD` = 2, the cs load)
-      and has no bracket for the first prologue `.ivt`, hence `LOADING_END` f72 vs f73.
-    - Fix: spawn via the existing `worker_load_spawn_sec(...)` procs, so
-      `--det-loads` = 1 frame each and real play = real threads like retail.
-    - Then compare `state` fields frame by frame.
-  - Port runs need their own cwd: it writes `openrecet-calltrace-*.jsonl` into the cwd.
+  - ✅ **day2-save-commit: port `save.dat` byte-IDENTICAL to retail.** The whole tutorial
+    → end-of-day cutscene → Day 2 → save, 33k frames, no pins. The port also reaches
+    `SAVE_PICKER_READY` on the same frame (33199). The save compare found 2 real port
+    bugs, both fixed:
+    - scripts were never marked viewed at END (`FUN_0046c320`), 7 bytes;
+    - `FUN_0048ffd9`'s furniture seed went to the header-less save-file arena (bank 0)
+      instead of the active work record, 88 bytes; the furniture readers never saw the
+      loaded save either.
 - ◐ **v3 viewer fed by rhost:**
   - retail D3D stream from rhost (`--d3d --cap`): ✅ captured + replayed BIT-EXACT (house-idle f600-602);
   - port stream from the port;

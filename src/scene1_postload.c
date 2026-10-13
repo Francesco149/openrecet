@@ -47,7 +47,8 @@
 #include <string.h>
 
 #include "chara_equip.h"      /* chara_equip_get_current_bank — active save slot */
-#include "save_bank.h"        /* save_arena_base + SAVE_BANK_STRIDE_BYTES */
+#include "save_bank.h"        /* SAVE_BANK_STRIDE_BYTES */
+#include "save_work.h"        /* the active working record */
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_particles_tick.h"
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
@@ -447,10 +448,15 @@ k_house_furniture_template[SCENE1_HOUSE_FURNITURE_TIERS][10][2] = {
 #define SCENE1_REC_CHARMODE_OFF   0x2ce0c   /* camera char_mode (DAT_045105a4) */
 #define SCENE1_REC_FURNITURE_OFF  0x2ce10   /* 10 × (int32 x, int32 z) furniture pairs */
 
+/* The ACTIVE WORKING record (DAT_044e3798 + DAT_0438b1e0*0x2dfc8) — the record
+ * retail's FUN_0048ffd9 seeds and the Cf walker reads.  Was save_arena_base() +
+ * slot*stride: the SAVE-FILE arena without its 0xb10-byte header, so the seed
+ * landed in file bank 0 dwords 0xb0b4.. (found 2026-10-13 by rhost.py portsave
+ * day2-save-commit: exactly the tier-0 furniture template, 88 bytes) and the
+ * readers never saw the loaded save's own record. */
 static uint8_t *scene1_active_save_record(void)
 {
-    int32_t slot = chara_equip_get_current_bank();
-    return save_arena_base() + (size_t)slot * SAVE_BANK_STRIDE_BYTES;
+    return save_work_bank_at(chara_equip_get_current_bank());
 }
 
 /* Test/debug scene_type override for the loader.  <0 (default) → use the
@@ -507,9 +513,14 @@ void scene1_postload_load_house_phase2_inputs(void)
      * reads below source real (new-game-correct) state.  NOTE: scoped to
      * the new-game HOUSE path — a loaded save would set these via save-load
      * (gameplay-state sync not yet ported). */
+    /* Only the -1 artifact is normalised: a loaded save's record already holds
+     * its real selector/char_mode (copied save→work on load). */
     const int32_t zero = 0;
-    memcpy(rec + SCENE1_REC_LAYOUT_SEL_OFF, &zero, sizeof zero);
-    memcpy(rec + SCENE1_REC_CHARMODE_OFF,   &zero, sizeof zero);
+    int32_t sel, cm;
+    memcpy(&sel, rec + SCENE1_REC_LAYOUT_SEL_OFF, sizeof sel);
+    memcpy(&cm,  rec + SCENE1_REC_CHARMODE_OFF,   sizeof cm);
+    if (sel == -1) memcpy(rec + SCENE1_REC_LAYOUT_SEL_OFF, &zero, sizeof zero);
+    if (cm == -1)  memcpy(rec + SCENE1_REC_CHARMODE_OFF,   &zero, sizeof zero);
 
     scene1_postload_seed_house_furniture();
 

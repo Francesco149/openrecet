@@ -23,6 +23,7 @@
 #include "chara_equip.h"
 #include "rng.h"
 #include "save_bank.h"
+#include "save_work.h"
 #include "scene1_camera.h"
 #include "scene1_particles_tick.h"
 #include "scene1_postload.h"
@@ -1073,6 +1074,7 @@ int test_scene1_postload_load_house_inputs_from_save_record(void)
      * (FUN_0048ffd9) + arena read replace --force-walker-phase2 0. */
     reset_world();
     save_bank_init_all();              /* clean arena: record fields all 0 */
+    save_work_clear();                 /* the ACTIVE WORKING record is what FUN_0048ffd9 seeds */
     chara_equip_set_current_bank(0);
     g_scene1_camera_char_mode = 7;     /* sentinel — loader must reset to 0 */
 
@@ -1087,7 +1089,8 @@ int test_scene1_postload_load_house_inputs_from_save_record(void)
         {3, 3}, {1, 0}, {0, 1}, {9, 1}, {10, 3},
         {11, 0}, {3, 6}, {6, 6}, {9, 6}, {12, 6},
     };
-    uint8_t *rec = save_arena_base();   /* slot 0 */
+    /* the active WORK record — not the save-file arena (the 2026-10-13 bank-0 bug) */
+    uint8_t *rec = save_work_bank_at(0);
     const int32_t *furn = (const int32_t *)(rec + 0x2ce10);
     for (int i = 0; i < 10; i++) {
         T_ASSERT_EQ_I(furn[i * 2 + 0], row0[i][0]);

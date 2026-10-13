@@ -250,3 +250,19 @@ This validates end-to-end:
 - `--det-loads`;
 - the flat-trace replay;
 - playtime-counter alignment.
+
+## 12. Whole-flow equality: day2-save-commit (2026-10-13)
+
+`rhost.py portsave day2-save-commit` drives the whole tutorial (customers, haggles, the
+end-of-tutorial cutscene, the day advance) to a Day-2 save, 33k frames, with no pins.
+The diff went 106 → 88 → **0 bytes** (IDENTICAL) after two real port fixes:
+
+1. `FUN_0046c320` END handler (ret 3): marks script (group, sub) viewed in work bank
+   +0x2d3a0 and save header +0x20. The port never did.
+2. `FUN_0048ffd9` furniture seed: the port wrote it through `save_arena_base() +
+   slot*stride` (the save-file arena WITHOUT its 0xb10 header, so it landed in file
+   bank 0) instead of the active work record.
+
+The port also reached `SAVE_PICKER_READY` on the same frame as retail (33199). The save
+file is a strong whole-state checksum: every committed scenario is now a regression
+gate (`rhost.py portsave`).
