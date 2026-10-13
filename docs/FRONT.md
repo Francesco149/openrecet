@@ -112,7 +112,7 @@ rand 91,150, 0 div.
 1. (optional) **A shop day where a customer buys from you**: continue from the slot-9
    save written by `day3-shop`:
    `python3 tools/rhost/rhost.py record day5-shop --save dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`
-   (Load Game → slot 10; written by `day4-shop`). Wanted: a buyer who REJECTS (the
-   rejection dialogue) and one who buys. Keyboard; click the window once for focus. Save in a new slot
+   (Load Game → slot 10; written by `day4-shop`). Wanted: a customer selling to you,
+   haggled down until they refuse (the rejection dialogue), and a customer who buys. Keyboard; click the window once for focus. Save in a new slot
    before closing if you want to continue later.
 <!-- FRONT:END -->
