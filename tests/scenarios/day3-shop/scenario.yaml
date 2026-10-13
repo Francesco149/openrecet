@@ -1,0 +1,11 @@
+# day3-shop — human recording 2026-10-13 (rhost.py record, Windows, keyboard).
+# Starts from the slot-8 save written by day2-buy-tutorial (_saves/d85ac24a…, Load
+# Game → slot 8). Several days played: DAY TRANSITIONS, more TUTORIAL, the
+# SUGGEST-ITEM-TO-CUSTOMER flow, shop sessions with haggles (no customer bought
+# from the player). Saved in slot 9 → _saves/3d2f5b18846ea4e9fb9465dbaa9abdebb3a31b55046c3deec5c6ec83df9f1b8c
+# (bank 8 + header only), window closed @f34510 (scene 9).
+# rhost: replay f34510 rng d1e5c12d = recording; only DLL-pointer slots differ
+# (calibrated into volatile.txt: 360 → 420); det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-13: haggle_decide 24 / offer_up 15 / rand 126,716, 0 div.
+description: |
+  Multi-day: day transitions, tutorial, suggest-item flow, shop haggles; ends saved in slot 9.
