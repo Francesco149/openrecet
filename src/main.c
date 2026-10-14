@@ -4251,11 +4251,16 @@ static void segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user)
  * replay faithfully.  Mirrors the retail agent's WM_KEYDOWN(VK_ESCAPE) post. */
 static void segtrace_esc_cb(void *user)
 {
+    /* Post the key like rhost's replay (and a real keypress): the {esc} op
+     * fires in the pre-sim input poll of tick N, but the WndProc ESC arm runs
+     * in the message pump AFTER that tick — the pause opens on tick N+1, as in
+     * retail (day2-buy-tutorial f15595: retail ran the house tick on N). */
     (void)user;
-    esc_result_t r = esc_pressed();
-    fprintf(stderr, "segtrace: synthesised ESC (result=%d)\n", (int)r);
-    if (r == ESC_RESULT_QUIT && g_hwnd)
-        PostMessageA(g_hwnd, WM_CLOSE, 0, 0);
+    fprintf(stderr, "segtrace: synthesised ESC (posted)\n");
+    if (g_hwnd) {
+        PostMessageA(g_hwnd, WM_KEYDOWN, VK_ESCAPE, 0x00010001);
+        PostMessageA(g_hwnd, WM_KEYUP, VK_ESCAPE, 0xC0010001);
+    }
 }
 
 /* --input-segtrace replacement for input_poll: anchor-segmented forcing.

@@ -7,6 +7,14 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (morning) — trace ESC replays like a key press
+- The port's `{esc: N}` replay called esc_pressed() inside tick N's input poll, so the pause
+  opened on tick N; rhost (and a real key) posts WM_KEYDOWN, handled in the message pump
+  after tick N — retail ran tick N's house sim (day2-buy-tutorial f15595: 7 draws vs 0).
+  The port now posts the key too.
+- Evidence: portrng day2-buy-tutorial IDENTICAL f1–f16418 (was f15594); `rhost.py gates`
+  14/14 (now incl. day2-buy-tutorial); portanchors house-pause-save-commit 9/9.
+
 ## 2026-10-14 (early morning) — the summary's Z → the next morning; the b928 beat
 - New scenario `day-end-next-morning`: buy-counter-raise-accept's inputs + a scripted Z on
   the summary (f7600) — retail replays the next-day fade into Day 6 without a new

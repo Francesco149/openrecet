@@ -182,7 +182,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        b924 50/110/150 morning voices (74b2ee8), and b928 = 0 at a game load /
        dungeon entry (the port clears it at house load and iv2_6). The night arm
        of the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
-    2. day2-buy-tutorial f15595: retail 7 draws (Tear FUN_00447f4f + bg NPC), port 0.
+    2. ✅ day2-buy-tutorial f15595 (retail ran the house tick, port 0 draws): the
+       port's `{esc}` replay called esc_pressed() inside tick N's input poll; rhost
+       (like a real key) posts WM_KEYDOWN, handled in the message pump after tick N.
+       The port now posts too → **day2-buy-tutorial IDENTICAL to its end**.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
     4. Boot-time working bank: retail's slot-0 gold is 1000 from f1 (initialised
        before any load); the port's working arena stays 0 until the load.
@@ -191,7 +194,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command (portsave ×3,
-  portanchors ×2, portrng over 8 shop scenarios, windows clamped to the retail run), one
+  portanchors ×2, portrng over 9 shop/day scenarios, windows clamped to the retail run), one
   line each. Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,

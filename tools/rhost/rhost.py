@@ -615,7 +615,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
-                                      "day-end-next-morning")])
+                                      "day-end-next-morning", "day2-buy-tutorial")])
 
 
 def cmd_gates(a):
