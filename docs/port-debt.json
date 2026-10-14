@@ -61,7 +61,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1190,
+   "line": 1194,
    "kind_known": false
   },
   {
@@ -69,7 +69,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1147,
+   "line": 1151,
    "kind_known": false
   },
   {
@@ -125,7 +125,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1213,
+   "line": 1217,
    "kind_known": false
   },
   {
@@ -165,7 +165,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 421,
+   "line": 423,
    "kind_known": true
   },
   {
@@ -189,7 +189,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 339,
+   "line": 341,
    "kind_known": true
   },
   {
@@ -205,7 +205,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "C3b furniture-stand tooltip branch (name + \"%d/%d\" slot count) not rendered; item branch only.",
    "file": "src/scene1_merchant_hud.c",
-   "line": 185,
+   "line": 186,
    "kind_known": true
   },
   {
@@ -237,7 +237,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2387,
+   "line": 2444,
    "kind_known": true
   },
   {

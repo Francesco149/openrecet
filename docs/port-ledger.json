@@ -1314,6 +1314,7 @@
     "src/customer_service_render.c",
     "src/render_quad.c",
     "src/render_quad.h",
+    "src/scene1_counter_menu.c",
     "src/scene1_fps.c",
     "src/scene_worldmap.c",
     "src/title_save_dialog.c"
@@ -1360,6 +1361,7 @@
     "src/font_draw.c",
     "src/render_quad.c",
     "src/render_quad.h",
+    "src/scene1_counter_menu.c",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -1574,6 +1576,7 @@
    "src": [
     "src/scene.c",
     "src/scene.h",
+    "src/scene1_postload.c",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
     "src/scene_new_game.c",
@@ -1985,6 +1988,8 @@
    "src": [
     "src/customer_service.h",
     "src/customer_service_render.c",
+    "src/scene1_counter_menu.c",
+    "src/scene1_counter_menu.h",
     "src/scene1_hud.c",
     "src/scene1_merchant_hud.c",
     "src/scene1_merchant_hud.h",
@@ -5935,6 +5940,8 @@
     "src/scene1_render.c",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h",
+    "src/scene1_top_hud.c",
+    "src/scene1_top_hud.h",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_walker_pass_init.h",
     "src/scene_worldmap.c",
@@ -6243,6 +6250,7 @@
     "src/scene1_particles_tick.h",
     "src/scene1_sim.c",
     "src/scene1_sim.h",
+    "src/scene1_top_hud.c",
     "src/sim.c",
     "src/sim.h"
    ],
@@ -7968,6 +7976,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_player_ctrl.c",
     "src/scene_floor.h",
     "src/worker_load.c"
    ],
@@ -9756,6 +9765,7 @@
     "src/customer_service.h",
     "src/npc_schedule.h",
     "src/save_bank.h",
+    "src/scene1_counter_menu.h",
     "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
@@ -10186,8 +10196,7 @@
    },
    "quality_flags": [],
    "src": [
-    "src/customer_service.c",
-    "src/scene1_player_ctrl.c"
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -15119,6 +15128,7 @@
    "src": [
     "src/choice_box.c",
     "src/font_draw.h",
+    "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
     "src/scene1_fx_overlays.c",
     "src/scene1_merchant_hud.c",
@@ -16408,7 +16418,8 @@
    "src": [
     "src/anchor_trace.c",
     "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.h",
+    "src/scene1_postload.c"
    ],
    "status": "stubbed"
   },
@@ -16429,6 +16440,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_counter_menu.c",
+    "src/scene1_counter_menu.h",
     "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
@@ -16875,6 +16888,8 @@
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
+    "src/scene1_counter_menu.c",
+    "src/scene1_counter_menu.h",
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -19544,6 +19559,7 @@
     "src/customer_service.c",
     "src/encyclopedia.c",
     "src/scene1_combat_sm.h",
+    "src/scene1_counter_menu.c",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
     "src/scene1_player_ctrl.c",

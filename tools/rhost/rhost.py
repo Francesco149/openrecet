@@ -453,7 +453,8 @@ def cmd_portanchors(a):
     retail = [(m.group(1), int(m.group(2))) for m in re.finditer(r"^anchor (\S+) @(\d+)", open(os.path.join(bdir, name, "rhost.log")).read(), re.M)]
     pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames)
     port = [(json.loads(l)["anchor"], int(json.loads(l)["frame"])) for l in open(os.path.join(pdir_l, "anchors.jsonl")) if l.strip()]
-    skip = {"BOOT", "CONV_POSE_BLINK", "PAUSE_OPEN", "PAUSE_CLOSE"}      # differently-defined / cosmetic on the two sides
+    skip = {"BOOT", "CONV_POSE_BLINK", "PAUSE_OPEN", "PAUSE_CLOSE",   # differently-defined / cosmetic on the two sides
+            "FREEROAM_START"}                                         # port-only (no rhost predicate)
     # the two sides emit same-frame anchors in different orders: canonical order = (frame, name)
     R = sorted(x for x in retail if x[0] not in skip)
     P = sorted(x for x in port if x[0] not in skip)
