@@ -27,6 +27,17 @@ static int32_t get_scene(void) { return g_scene_state; }
 static int32_t get_cc08(void)  { return player_ctrl_cc08(); }
 static int32_t get_b1cc(void)  { return customer_service_b1cc(); }
 static int32_t get_b524(void)  { return customer_service_b524(); }
+static int32_t get_b534(void)  { return customer_service_b534(); }
+static int32_t get_b544(void)  { return customer_service_b544(); }
+static int32_t get_b584(void)  { return customer_service_round(); }
+static int32_t get_b574(void)  { return customer_service_offer(); }
+static int32_t get_bb8(void)   { return customer_service_player_ask(); }
+static int32_t get_b5a8(void)  { return customer_service_b5a8(); }
+static int32_t get_b56c(void)  { return customer_service_b56c(); }
+static int32_t get_b520(void)  { return customer_service_b520(); }
+static int32_t get_db054(void) { return scene1_companion_db054(); }
+static int32_t get_b318(void)  { return customer_service_b318(); }
+static int32_t get_b528(void)  { return customer_service_b528(); }
 static int32_t get_gsim(void)  { return (int32_t)g_sim_frame_count; }
 static int32_t get_tickn(void) { return (int32_t)g_tick.frame_count; }
 static int32_t get_tprev(void) { return (int32_t)g_tick.prev_ms; }
@@ -63,6 +74,17 @@ static const state_va_t k_map[] = {
     { 0x438cc08u, "house mode cc08 (DAT_0438cc08)",   get_cc08  },
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
+    { 0x730b534u, "cs sub-state b534 (DAT_0730b534)", get_b534 },
+    { 0x730b544u, "cs state timer b544 (DAT_0730b544)", get_b544 },
+    { 0x730b584u, "cs haggle round b584 (DAT_0730b584)", get_b584 },
+    { 0x730b574u, "cs customer price b574 (DAT_0730b574)", get_b574 },
+    { 0x5c6bb8u,  "cs player price bb8 (DAT_005c6bb8)", get_bb8 },
+    { 0x730b5a8u, "cs transaction kind b5a8 (DAT_0730b5a8)", get_b5a8 },
+    { 0x730b56cu, "cs customer b56c (DAT_0730b56c)", get_b56c },
+    { 0x730b520u, "cs leave phase b520 (DAT_0730b520)", get_b520 },
+    { 0x56db054u, "companion phase counter db054 (DAT_056db054)", get_db054 },
+    { 0x730b318u, "cs queue head b318 (DAT_0730b318)", get_b318 },
+    { 0x730b528u, "cs customers advanced b528 (DAT_0730b528)", get_b528 },
     { 0x438b8ccu, "sim frame counter gsim (DAT_0438b8cc)", get_gsim },
     { 0x73dfcfcu, "tick frame_count (DAT_073dfcfc)",  get_tickn },
     { 0x73de61cu, "tick prev_ms (DAT_073de61c)",      get_tprev },
@@ -88,8 +110,21 @@ static const state_va_t k_map[] = {
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 
-static const state_va_t *s_sel[16];
+/* Any dword of the working save banks (DAT_044e3798 + slot·0x2dfc8 + off) is
+ * mirrored generically: the port's save_work arena has the engine layout. */
+#define WORK_BANK_VA   0x44e3798u
+#define WORK_BANK_SIZE 0x2dfc8u
+#define WORK_BANKS     8u
+typedef struct { uint32_t va; int32_t (*get)(void); } sel_t;
+static sel_t s_sel[16];
 static int s_nsel;
+
+static int32_t bank_dword(uint32_t va)
+{
+    uint32_t rel = va - WORK_BANK_VA;
+    const uint32_t *w = save_work_dwords_at((int)(rel / WORK_BANK_SIZE));
+    return w ? (int32_t)w[(rel % WORK_BANK_SIZE) / 4] : 0;
+}
 
 int state_va_select(const char *list, uint32_t *bad)
 {
@@ -103,13 +138,15 @@ int state_va_select(const char *list, uint32_t *bad)
         t = end;
         int k = 0;
         while (k < K_N && k_map[k].va != va) k++;
-        if (k == K_N) {
+        int in_bank = va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
+                      ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0;
+        if (k == K_N && !in_bank) {
             if (bad) *bad = va;
             s_nsel = 0;
             return -1;
         }
         if (s_nsel < (int)(sizeof s_sel / sizeof s_sel[0]))
-            s_sel[s_nsel++] = &k_map[k];
+            s_sel[s_nsel++] = (sel_t){ va, k < K_N ? k_map[k].get : NULL };
     }
     return s_nsel;
 }
@@ -119,7 +156,8 @@ void state_va_log(FILE *fp, uint32_t frame)
     if (!fp || s_nsel == 0) return;
     fprintf(fp, "post %u", (unsigned)frame);
     for (int i = 0; i < s_nsel; i++)
-        fprintf(fp, " %x=%d", (unsigned)s_sel[i]->va, (int)s_sel[i]->get());
+        fprintf(fp, " %x=%d", (unsigned)s_sel[i].va,
+                (int)(s_sel[i].get ? s_sel[i].get() : bank_dword(s_sel[i].va)));
     fputc('\n', fp);
 #if defined(__i386__) || defined(__x86_64__)
     /* x87 control word (rhost logs retail's per frame): "cw N xxxx" on change */
@@ -135,11 +173,13 @@ void state_va_log(FILE *fp, uint32_t frame)
 
 const char *state_va_known(void)
 {
-    static char out[512];
+    static char out[2048];
     size_t o = 0;
     out[0] = '\0';
     for (int k = 0; k < K_N && o < sizeof out; k++)
         o += (size_t)snprintf(out + o, sizeof out - o, "%s%x %s", k ? ", " : "",
                               (unsigned)k_map[k].va, k_map[k].name);
+    if (o < sizeof out)
+        snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798..");
     return out;
 }

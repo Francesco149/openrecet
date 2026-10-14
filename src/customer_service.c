@@ -13,6 +13,7 @@
 
 #include "customer_service.h"
 #include "customer_haggle.h"
+#include "x87.h"                /* spill32 — FUN_00465372 decision compare */
 #include "rng.h"
 #include "save_work.h"
 #include "save_bank.h"
@@ -35,6 +36,7 @@
 #include "scene.h"                /* g_scene_state (DAT_0438b1c0) — trend head gate */
 #include "scene1_maplight.h"      /* scene1_current_stage_record (maptype) — trend gate */
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
+#include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_count (DAT_0438bfb4) */
 #include "scene1_shop_walker.h"   /* in-shop browsing-customer NPCs (FUN_0046f8ba/892) */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
@@ -106,6 +108,9 @@ static int32_t s_eligible[CS_ELIGIBLE_N];                   /* DAT_06a5d450 */
  * latch (FUN_00460e50) to suppress the level-up flash on a copy slot.
  * Runtime BSS in retail (not save-persisted), re-zeroed by every scan. */
 static int32_t s_cand_extra[100];                           /* DAT_06a5d564 (+0xc of d558) */
+static int32_t s_cand_kyaku[100];                           /* DAT_06a5d558 */
+static int32_t s_cand_flag[100];                            /* DAT_06a5d55c */
+static int32_t s_cand_score[100];                           /* DAT_06a5d560 */
 
 /* Item-pick array — DAT_0730b274[], stride 3 dwords/entry: {id, col, row}.
  * NB the master tick reuses [0].col/[0].row (DAT_0730b278/b27c) as the 2
@@ -304,10 +309,11 @@ static void cs_roster_scan(uint8_t *bank)
 {
     const int32_t *bd = (const int32_t *)bank;
 
-    /* Candidate scratch (DAT_06a5d558/55c/560/564, 100 records stride-4). */
-    int32_t cand_kyaku[100];   /* d558 */
-    int32_t cand_flag [100];   /* d55c — 0/1/2 story classification */
-    int32_t cand_score[100];   /* d560 */
+    /* Candidate records (DAT_06a5d558/55c/560/564, 100 records stride-16):
+     * module statics — the idle shelf sales (FUN_00461068) read them back. */
+    int32_t *cand_kyaku = s_cand_kyaku;   /* d558 */
+    int32_t *cand_flag  = s_cand_flag;    /* d55c — 0/1/2 story classification */
+    int32_t *cand_score = s_cand_score;   /* d560 */
     /* d564 = the module-static s_cand_extra (read back at serve time). */
     /* Parallel pool/index arrays (local_6a0 init -2, local_a88 init -1). */
     int32_t pool_kyaku[250];   /* local_6a0 */
@@ -1032,6 +1038,8 @@ int32_t customer_service_f404(void)
 }
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
+int32_t customer_service_b318(void)        { return s_b318; }
+int32_t customer_service_b528(void)        { return s_b528; }
 int32_t customer_service_variant(void)     { return s_cs_variant; }
 int32_t customer_service_b520(void)        { return s_b520; }
 int32_t customer_service_b524(void)        { return s_b524; }
@@ -1592,6 +1600,8 @@ static void cs_queue_advance(void)
     }
 }
 
+static void cs_shelf_sales(void);   /* FUN_00461068 */
+
 /* ── idle (FUN_00462403 b534==0, all.c:60670-61027) ─────────────────────────
  * The pre-greeting idle: a frame counter (b524) gates the walk-setup (0x14),
  * story-event probe (0x32, inert — eligible list all -1), queue advance (0x3c),
@@ -1601,9 +1611,11 @@ static void cs_idle_tick(void)
     s_b524 += 1;
     /* b524==10: FUN_004733cc() — PORT-DEBT(cs-idle-asset-refresh). */
     if (s_b524 == 0x14) {
-        /* (b528&1)==0 || f404 → skip the walk setup (the sell path has f404 set)
-         * AND skip the rest of the idle this frame (engine `goto LAB_0046350e`).
-         * PORT-DEBT(cs-walk-setup): FUN_00461068 (autonomous customer walk). */
+        /* odd b528 && !f404 → the idle shelf sales (FUN_00461068); either way the
+         * rest of the idle is a no-op this frame (engine → LAB_0046350e). */
+        const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if ((s_b528 & 1) != 0 && bank != NULL && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] == 0)
+            cs_shelf_sales();
         if (s_b530 > 0)
             s_b530 -= 1;
         return;
@@ -1660,8 +1672,8 @@ static void cs_digit_count(void)
 
 /* ── FUN_0045ff31 — edit the asking-price digit at the cursor (L/R + U/D) ─────
  * Held bits (DAT_073dddd6): 2=R, 1=L move the cursor (mod 7); 4=U, 8=D ±1 the
- * digit.  Result clamped ≥1.  PORT-DEBT(cs-ask-gold-cap): the b5a8==0 buy path's
- * gold ceiling (all.c:58323) never applies on the sell path (b5a8==2). */
+ * digit.  Result clamped ≥1, and on the b5a8==0 buy path (outside the scripted
+ * f404 sell) to the player's gold. */
 static void cs_digit_edit(void)
 {
     if (s_in_held & 2) s_b560 = (s_b560 + 8) % 7;   /* R (SE 0x146) */
@@ -1675,6 +1687,11 @@ static void cs_digit_edit(void)
     s_price_ask += mul * val;
     if (s_price_ask < 1)
         s_price_ask = 1;
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (s_b5a8 == 0 && bank != NULL &&
+        ((const uint8_t *)bank)[CS_F404_SELL_ACTIVE_BYTE_OFF] == 0 &&
+        s_price_ask > (int32_t)bank[SAVE_BANK_FIELD_GOLD])
+        s_price_ask = (int32_t)bank[SAVE_BANK_FIELD_GOLD];
 }
 
 /* ── FUN_004622d9 — the price-confirm input poll (Yes/No + patience) ──────────
@@ -1737,6 +1754,34 @@ static void cs_offer_up(void)
     int is_tut = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
     haggle_offer_up(&st, &c, s_price_base, s_price_ask,
                     cs_news_price_trend(s_b5a4), is_tut);
+    s_b584 = st.round; s_b574 = st.offer; s_b57c = st.work_price;
+    s_b580 = st.floor; s_b588 = st.accept_ref;
+}
+
+/* ── FUN_004603cf binding — the customer lowers its asking price (haggle DOWN) ─
+ * The b5a8==0 (customer SELLS) twin of cs_offer_up: same bindings, plus the
+ * customer index (kyaku 0x12 pre-scales the work price and the player's ask). */
+static void cs_offer_down(void)
+{
+    int idx = g_scene_buy_current_page;                  /* b56c */
+    const kyaku_record_t *kr = &g_kyaku.records[(idx < 0 || idx >= KYAKU_COUNT) ? 0 : idx];
+    haggle_customer_t c = {
+        .initial     = kr->initial,
+        .random      = kr->random,
+        .gullibility = kr->gullibility,
+        .rise1       = kr->rise1,
+        .rise2       = kr->rise2,
+        .budget_low  = kr->budget_low,
+        .budget_high = kr->budget_high,
+    };
+    haggle_state_t st = {
+        .round = s_b584, .offer = s_b574, .work_price = s_b57c,
+        .floor = s_b580, .accept_ref = s_b588,
+    };
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int is_tut = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF] != 0;
+    haggle_offer_down(&st, &c, s_price_base, &s_price_ask,
+                      cs_news_price_trend(s_b5a4), is_tut, idx);
     s_b584 = st.round; s_b574 = st.offer; s_b57c = st.work_price;
     s_b580 = st.floor; s_b588 = st.accept_ref;
 }
@@ -2417,11 +2462,11 @@ static void cs_sold_list_append(int32_t item_handle, int type)
 
 /* FUN_00460f59 — encyclopedia "sold" mark: append (catalog_slot, 3) to
  * the 100-pair list; free slot = first int == 0. */
-static void cs_encyclopedia_sold_mark(void)
+static void cs_encyclopedia_sold_mark(int32_t item_handle)
 {
     uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
     if (!bankw) return;
-    int32_t cslot = tables_item_find_slot_by_id(&g_item, s_b5a4 >> 6);
+    int32_t cslot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
     int32_t *pairs = (int32_t *)bankw + SAVE_BANK_FIELD_ENCYC_SOLD;
     for (int i = 0; i < SAVE_BANK_ENCYC_SOLD_PAIRS; i++) {
         if (pairs[i * 2] == 0) {
@@ -2452,6 +2497,78 @@ static void cs_display_grid_clear(int32_t item_handle,
             }
         }
     }
+}
+
+/* ── FUN_00461068 — idle shelf sales (b524==0x14, odd b528, !f404) ───────────
+ * Browsing customers buy straight off the furniture shelves while the counter
+ * idles: the shelves (DAT_0438bfb4 placements) are visited in a shuffled order;
+ * each with its per-furniture dword (0xb1d4+k) set draws one candidate among the
+ * story-flagged ones (d55c), whose half budget (FUN_0045ecc0/2) must beat the
+ * price of one of three random cells of the shelf's 20-slot list (0xb1e8+20k).
+ * 3000-3099 items sell 1 in 10, falling-trend items 1 in 10.  At most half the
+ * flagged-and-scored (d560 ≥ 65) candidates shop.  A sale adds the price to
+ * gold, logs it sold (FUN_00460083 + FUN_00460f59) and empties the cell; any
+ * sale plays SE 0x14d.  Disasm 0x461068-0x461302. */
+#define CS_SHELF_FLAGS_DWORD 0xb1d4   /* per-furniture dword (SHOP_DISPLAY_SUPPRESS_FLAGS) */
+#define CS_SHELF_ITEMS_DWORD 0xb1e8   /* 20 item handles per furniture (-1 = empty) */
+static void cs_shelf_sales(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL) return;
+    int32_t order[100];
+    for (int i = 0; i < 100; i++) order[i] = i;
+    const int32_t nshelf = g_scene1_walker_phase2_count;      /* DAT_0438bfb4 */
+    roster_shuffle(order, (uint32_t)nshelf);                  /* FUN_0045e505 */
+    int32_t shoppers = 0;
+    for (int i = 0; i < 100; i++)
+        if (s_cand_flag[i] != 0 && s_cand_score[i] >= 65) shoppers++;
+    int sold = 0, visits = 0;
+    for (int n = 0; n < nshelf; n++) {
+        const int32_t k = order[n];
+        if (bank[CS_SHELF_FLAGS_DWORD + k] == 0) continue;
+        int32_t cand = -1;
+        uint32_t pick = 0;
+        for (int pass = 0; pass < 2; pass++) {
+            uint32_t m = 0;
+            for (int c = 0; c < 100; c++) {
+                if (s_cand_flag[c] == 0) continue;
+                if (pass == 1 && m == pick) { cand = c; break; }
+                m++;
+            }
+            if (pass == 0) {
+                if (m == 0) break;
+                pick = rng_next15() % m;
+            }
+        }
+        if (cand == -1) continue;
+        const int32_t half_budget = cs_budget(s_cand_kyaku[cand], cand) / 2;
+        int32_t cols[10];
+        for (int c = 0; c < 10; c++) cols[c] = c;
+        roster_shuffle(cols, 10);                             /* inlined at 0x46118b */
+        int32_t *row = (int32_t *)bank + CS_SHELF_ITEMS_DWORD + 20 * k;
+        for (int t = 0; t < 3; t++) {
+            const int32_t h = row[cols[t]];
+            if (h == -1) continue;
+            const int slot = tables_item_find_slot_by_id(&g_item, h >> 6);
+            if (slot < 0) continue;      /* retail reads before the table; never stocked */
+            const item_record_t *it = &g_item.records[slot];
+            int want = 1;
+            if (it->item_id >= 3000 && it->item_id < 3100 && rng_next15() % 10u != 0)
+                want = 0;
+            if (cs_news_price_trend(h) <= -1 && rng_next15() % 10u != 0)
+                want = 0;
+            if (!want || it->price >= half_budget) continue;
+            bank[SAVE_BANK_FIELD_GOLD] += (uint32_t)it->price;
+            sold = 1;
+            cs_sold_list_append(h, 0);                        /* FUN_00460083(h,0) */
+            cs_encyclopedia_sold_mark(h);                     /* FUN_00460f59(h) */
+            row[cols[t]] = -1;
+            break;
+        }
+        if (++visits >= shoppers / 2) break;
+    }
+    if (sold)
+        audio_play_se_by_id(0x14d);
 }
 
 /* ── FUN_00460b93 — customer equipment upgrade upon buying an item ───────────
@@ -2631,7 +2748,7 @@ static void cs_live_machine(void)
                     cs_sale_record_minmax();        /* FUN_00460b3a */
                     cs_sale_popup_queue_build();    /* FUN_004606fc */
                     cs_sold_list_append(s_b5a4, 0); /* FUN_00460083(b5a4,0) */
-                    cs_encyclopedia_sold_mark();    /* FUN_00460f59(b5a4) */
+                    cs_encyclopedia_sold_mark(s_b5a4); /* FUN_00460f59(b5a4) */
                     {
                         int32_t col = 0, row = 0;   /* FUN_0046002a — clears the
                                                      * display-stand cell (note #18) */
@@ -2751,6 +2868,175 @@ lab_tail:
     return;
 }
 
+/* ── FUN_00465372 — the b5a8==0 machine: the customer SELLS the player an item ──
+ * 2 greeting → (Z) customer names its price (FUN_004603cf) → 6 the player edits
+ * an offer (gold-capped) → (Z) 0xf decision:
+ *   offer ≥ asking price → [f404: only if base·0.9 > offer] 7 accept (closeness
+ *     +5/+2/+1 by the FUN_00460672 grade + the handle's low nibble);
+ *   offer < asking price, > floor (or f406) → 8 counter → (Z) the customer comes
+ *     down again (FUN_004603cf) unless patience is spent (round == FUN_00460f16
+ *     → 0xb leave);
+ *   offer ≤ floor → 9 walkout (closeness −1).
+ * 7 commit (f404==0): bought list, gold −= offer, stats (sign 1), popups, the
+ * item into the bag; → 10.  Disasm 0x465372-0x4658aa. */
+static void cs_buy_machine(void)
+{
+    static const float k_scripted_cap = 0.9f;             /* 0x519718 */
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+    int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+    int rec = g_scene_buy_current_page;                   /* edi = &ea90[b56c] */
+
+    s_b544 += 1;
+    /* FUN_004681e6 detail-card query → 0 in steady state (PORT-DEBT(cs-details-overlay)). */
+
+    switch (s_b534) {
+    case 2:                                     /* greeting */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 0, 1);            /* FUN_00460a1a(rec,0,1) */
+            s_cust_active[1] = -1;
+            s_b5a0 = 1;
+            title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 6;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            cs_offer_down();                    /* FUN_004603cf — the asking price */
+            cs_digit_count();                   /* FUN_0045ff11 */
+        }
+        break;
+
+    case 0xf: {                                 /* decision (FUN_004622d9 poll) */
+        int poll = cs_input_poll();
+        if (poll != 1) {
+            if (poll == 2) s_b534 = 6;
+            break;
+        }
+        s_b538 = 0;
+        if (s_b584 == 3 && !f404 && bank)       /* round-3 patience penalty */
+            *rs_close(bank, s_b570) -= 1;
+        if (s_price_ask >= s_b574) {            /* offer meets the asking price */
+            if ((long double)spill32(s_price_base) * k_scripted_cap >
+                    (long double)spill32(s_price_ask) || !f404) {
+                int grade = cs_accept_eval();   /* FUN_00460672 */
+                if (!f404 && bank) {
+                    int16_t d = (int16_t)(s_b5a4 & 0xf);
+                    d += (grade == 1) ? 5 : (grade == 2) ? 2 : 1;
+                    *rs_close(bank, s_b570) += d;
+                }
+                if (cs_loyalty_latch())         /* FUN_00460e50 */
+                    s_b53c = 1;
+                s_b534 = 7;
+            } else {
+                s_b538 = 1;
+                s_b534 = 8;
+            }
+        } else if (s_price_ask > s_b580 || f406) {
+            s_b534 = 8;                         /* counter */
+        } else {
+            s_b534 = 9;                         /* at/below the floor → walkout */
+            if (!f404 && bank)
+                *rs_close(bank, s_b570) -= 1;
+        }
+        if (bank && *rs_close(bank, s_b570) < 0)
+            *rs_close(bank, s_b570) = 0;
+        s_b59c = 0;
+        s_b544 = 0;
+        title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+        break;
+    }
+
+    case 6:                                     /* the player edits an offer */
+        s_cust_active[1] = 0;
+        if (s_b59c == 0) s_b59c = 1;
+        if (s_b544 == 1)
+            cs_pick_line(0, 10, 0);             /* FUN_00460a1a(&ea90,10,0) */
+        title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+        if ((s_in_pressed & 0x10) == 0) {
+            cs_digit_edit();                    /* FUN_0045ff31 */
+            break;
+        }
+        s_cust_active[1] = 0;
+        s_b534 = 0xf;
+        s_b590 = 0;
+        s_b540 = 0;
+        audio_play_se_by_id(0x143);
+        title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 0x30) + 386.0f);   /* FUN_00435693 */
+        break;
+
+    case 7:                                     /* accept */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 13, 1);           /* FUN_00460a1a(rec,0xd,1) */
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            break;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        if (!f404 && bank) {
+            for (int i = 0; i != s_price_bc4; i++)
+                cs_sold_list_append(s_b5a4, 1); /* FUN_00460083(b5a4,1) — bought list */
+            ((uint32_t *)bank)[SAVE_BANK_FIELD_GOLD] -= (uint32_t)s_price_ask;
+            audio_play_se_by_id(0x14d);
+            cs_sale_commit_stats_fx(1);         /* FUN_00460d52(1) */
+            cs_sale_popup_queue_build();        /* FUN_004606fc */
+            for (int i = 0; i != s_price_bc4; i++)
+                display_menu_inventory_return((uint32_t *)bank, s_b5a4);   /* FUN_00468d22 */
+        }
+        s_b544 = 0;
+        s_b5a0 = 0;
+        s_b534 = 10;
+        break;
+
+    case 8: {                                   /* counter */
+        int patience = cs_pushback_line();      /* FUN_00460f16 */
+        if (s_b544 == 1) {
+            s_b5c4 = 0;
+            int line = (f404 && s_b538 == 1) ? 0xf
+                     : (s_b584 == patience && !f406) ? 7 : 3;
+            cs_pick_line(rec, line, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            break;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        if (f404 && s_b538 == 1) {
+            s_b534 = 6;
+        } else if (s_b584 == patience && !f406) {
+            s_b534 = 0xb;                       /* patience spent → leave */
+            s_b5a0 = 0;
+        } else {
+            s_b534 = 6;
+            cs_offer_down();                    /* FUN_004603cf */
+        }
+        s_b544 = 0;
+        break;
+    }
+
+    case 9:                                     /* walkout */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 7, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            break;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        s_b534 = 0xb;
+        s_b544 = 0;
+        s_b5a0 = 0;
+        break;
+
+    default:
+        break;
+    }
+    /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → FUN_004681db(1) +
+     * FUN_00468286(b5a4) + SE 0x2c6. */
+}
+
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
  * Owns the per-frame timers + the arrival-anim ramp, then the b534 state switch.
@@ -2799,7 +3085,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
 
     s_b5b4 += 1;
     if (s_b53c > 0) { s_b53c += 1; if (0x4f < s_b53c) s_b53c = 0; }
-    /* FUN_0048a833() — PORT-DEBT(cs-misc-tick): per-frame housekeeping, no cc08 state. */
+    player_ctrl_companion_tick_from_cs();    /* FUN_0048a833 — Tear (0x4624a1) */
     if (s_b5d0 == 0) s_b5d4 = 0;
     else if (s_b5d4 < 0xf) s_b5d4 += 1;
 
@@ -3138,12 +3424,15 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         } else if (s_b534 != 0xc && s_b534 != 0xd) {
             /* the b5a8 transaction dispatch (all.c:60563-60588) for the live states
              * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
-             * PORT-DEBT(cs-other-kinds): b5a8 0 = FUN_00465372 (customer sells),
-             * 1 = FUN_00464af0 (oder), 3/4/5 = FUN_004639f5/463cfb/464a26. */
+             * b5a8==0 = the customer-sells machine FUN_00465372.
+             * PORT-DEBT(cs-other-kinds): 1 = FUN_00464af0 (oder), 3/4/5 =
+             * FUN_004639f5/463cfb/464a26. */
             if (s_b5a8 == 2) {
                 cs_live_machine();            /* FUN_004658ab */
                 return;
             }
+            if (s_b5a8 == 0)
+                cs_buy_machine();             /* FUN_00465372 */
             return;
         } else {                              /* 0xc / 0xd — closing (all.c:60590-60662) */
             int cVar1 = f404;
@@ -3223,7 +3512,8 @@ void customer_service_reset(void)
     for (int i = 0; i < (int)(sizeof s_queue / sizeof s_queue[0]); i++) s_queue[i] = 0;
     for (int i = 0; i < CS_ROSTER_PERM_N; i++) s_roster_perm[i] = 0;
     for (int i = 0; i < CS_ELIGIBLE_N; i++) s_eligible[i] = 0;
-    for (int i = 0; i < 100; i++) s_cand_extra[i] = 0;
+    for (int i = 0; i < 100; i++)
+        s_cand_extra[i] = s_cand_kyaku[i] = s_cand_flag[i] = s_cand_score[i] = 0;
     for (int i = 0; i < (int)(sizeof s_item_pick / sizeof s_item_pick[0]); i++) s_item_pick[i] = 0;
     s_cust_active[0] = s_cust_active[1] = 0;
     s_queue_count = 0;

@@ -170,7 +170,7 @@ int test_companion_at_counter_pose(void)
     g_scene1_actor_pos[2][2] = 8.8f;
     const int32_t *rec = player_ctrl_actor_record(2);
 
-    scene1_companion_ctrl_tick();
+    player_ctrl_companion_tick_from_cs();   /* cc08==4: the master tick owns it */
 
     if (rec[CHR_ACTOR_ANIM] != 4)   T_FAIL("at-counter → canim 4 (got %d)", rec[CHR_ACTOR_ANIM]);
     if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("companion +x of player → octant 2 (got %d)",
@@ -197,7 +197,7 @@ int test_companion_at_counter_settle(void)
     const int32_t *rec = player_ctrl_actor_record(2);
 
     for (int i = 0; i < 120; i++) {
-        scene1_companion_ctrl_tick();
+        player_ctrl_companion_tick_from_cs();
         /* db054 is FROZEN in cc08==4 (RE §8.8) — do NOT advance the phase. */
     }
     T_NEAR(g_scene1_actor_pos[2][0], -3.2f);   /* player.x(-4.5) + 1.3 */
@@ -223,7 +223,7 @@ int test_companion_first_customer_freeroam(void)
     g_scene1_actor_pos[2][2] = 8.6f;
     const int32_t *rec = player_ctrl_actor_record(2);
 
-    scene1_companion_ctrl_tick();
+    player_ctrl_companion_tick_from_cs();
 
     /* free-roam inside the radius → no XZ move + idle, NOT the at-counter
      * step-to-player+1.3 (-3.47) and canim 4. */

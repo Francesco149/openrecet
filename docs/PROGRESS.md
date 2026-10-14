@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (evening) — shop queue dispatch, buy machine, shelf sales, Tear order
+- **Queue advance** (FUN_00462403 b524==0x3c) dispatches on the queue entry's kind;
+  FUN_00461792 (customer sells; `src/customer_seller.c`, rhost shadow `seller_select`
+  11 calls / 0 div) and FUN_00460fa7 (oder) ported (`8f59eee2`).
+- **FUN_00465372**, the b5a8==0 machine: greeting → the customer names a price
+  (offer_down) → the player's offer, digit edit capped at gold (FUN_0045ff31's
+  b5a8==0 clause) → decide: accept [f404: only if base·0.9f > offer], counter,
+  walkout at/below the floor; accept buys the item into the bag (bought list,
+  gold −= offer, stats sign 1). Closeness delta adds the handle's low nibble.
+- **FUN_00461068** idle shelf sales (b524==0x14, odd b528, !f404): flagged
+  candidates buy off the furniture shelves (0xb1d4/0xb1e8) below half budget.
+  The candidate records d558/d55c/d560 are now module statics (retail globals).
+- **Tear in cc08==4** ticks inside the master tick (0x4624a1), before the b534
+  dispatch; the port ticked her after it, so a same-frame Tear wander pick and a
+  cs_pick_line draw swapped LCG values (buy-40pct-accept f1680).
+- **Tutorial .ivt bracket** under --det-loads ends at the frame boundary
+  (`99d64922`): house-customer-tutorial 64/64 anchors.
+- `portstate --va` accepts any working-bank dword; cs rows b534/b544/b584/b574/
+  bb8/b5a8/b56c/b520/b318/b528, db054.
+- Evidence: `portrng buy-40pct-accept` per-tick draws IDENTICAL f1–f2450 (whole
+  scenario, was f910); portsave ×3 IDENTICAL; house-idle 195/195.
+
 ## 2026-10-14 (later) — x87 PC53, Tear's wander, actor seats, b1cc release order
 - **x87:** the port ran every float at PC24. CreateDevice without FPU_PRESERVE sets
   0x007F, and retail's WinMain resets PC53 right after (0x47c0ec), a step the port

@@ -399,6 +399,11 @@ void player_ctrl_cc08_markers_frame_clear(void); /* frame-top clear of both mark
                                              * scene1_ingame_tick (every arm, every frame). */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
 int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
+/* cc08==4: the master tick (FUN_00462403) owns the companion tick — FUN_0048a833
+ * at 0x4624a1, after its b1cc / ESC-skip gates and BEFORE the b534 dispatch, so
+ * Tear's draws precede the machine's.  Ticks it + sets the once-per-frame latch. */
+void player_ctrl_companion_tick_from_cs(void);
+int  player_ctrl_companion_from_cs(void);   /* true inside that call */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 int  player_ctrl_cc08_f406_pending(void);   /* pure: f406 first-customer entry armed (RE §21.18) */

@@ -409,12 +409,13 @@ void scene1_companion_ctrl_tick(void)
         return;
     }
 
-    /* Retail: FUN_00462403 returns at its top while b1cc == 2, else calls
-     * FUN_0048a833 BEFORE anything that tick can spawn a load (the b524 == 60
-     * second d3e load) — so only the tick-start state gates the companion.  The
-     * 1→4 entries skip above; the menu "Open Store" tick runs it (case 10). */
+    /* Retail cc08==4 runs FUN_0048a833 only from the master tick head (0x4624a1,
+     * player_ctrl_companion_tick_from_cs) — never while b1cc == 2 (the load) or
+     * the ESC-skip choice is up (b5e4).  Reached here from the scene1_sim
+     * fallback on those frames: only the per-actor anim tick (FUN_004897c6).
+     * The 1→4 entries skip above; the menu "Open Store" tick runs it (case 10). */
     if (player_ctrl_cc08() == 4 && !player_ctrl_cc08_menu_open_this_frame() &&
-        customer_service_load_at_frame_start()) {
+        !player_ctrl_companion_from_cs()) {
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
         return;
     }

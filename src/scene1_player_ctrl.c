@@ -689,6 +689,16 @@ int player_ctrl_companion_ticked(void)
     return s_companion_ticked_in_b850;
 }
 
+static int s_companion_from_cs;
+void player_ctrl_companion_tick_from_cs(void)
+{
+    s_companion_from_cs = 1;
+    scene1_companion_ctrl_tick();
+    s_companion_from_cs = 0;
+    s_companion_ticked_in_b850 = 1;
+}
+int player_ctrl_companion_from_cs(void) { return s_companion_from_cs; }
+
 /* Debug/test hook: force the cc08 state id.  Stands in for the unported
  * state-transition writers (customer-approach → 4, counter-open → 0x32, talk →
  * the cc04 path, …) so the host suite can verify the dispatch actually gates the
@@ -2064,8 +2074,9 @@ static void player_ctrl_cc08_unported_arm(void)
          * holding at its last frame).  UNGATED — the draw runs every frame INCLUDING
          * the d3e bg-load (retail's pcnt climbs through the load, panim 5 from
          * entry+2; RE §21.10), so it must NOT sit inside the master-tick gate.  The
-         * companion is advanced by scene1_companion_ctrl_tick (the scene1_sim
-         * non-walk fallback, which runs because b850_move didn't this frame). */
+         * companion ticks inside the master tick (player_ctrl_companion_tick_from_cs);
+         * on frames that skip it (load, ESC-skip choice) the scene1_sim fallback
+         * advances only her anim. */
         chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
         return;
     }

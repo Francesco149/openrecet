@@ -76,16 +76,18 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     over 4,418 frames (prologue settle frames + 1-frame iv1_2 load, PROGRESS).
   - `rhost.py portstate SCEN --va …` = frame-by-frame retail VA vs port mirror
     (`src/state_va.c` table). ★ next, in frame order:
-    1. **Tick-0 label offset.** `gsim` (`DAT_0438b8cc`) is port = retail+1 at every
-       label. rhost labels retail's first tick 1; the port labels its first tick 0 and
-       that tick is logic-dead (anchors still align by label). Every `%8` consumer
-       (display sparkle `%8==3`) therefore fires a frame early. Decide: drop the dead
-       tick + relabel, or don't count it. Check the ms clock (port vms=(L+1)·17 vs
-       rhost L·17) and other per-tick counters with portstate before choosing.
-    2. ✅ cs d3e load under DEFER: the port snapshotted b1cc before applying the
-       worker's release (Frida-era compensation) → master tick + Tear a tick late.
-       Fixed 2026-10-14; house-customer-tutorial portanchors first mismatch is now
-       #20 HOUSE_FREEROAM f8933/8934 (was the 2nd d3e load, ~f448).
+    1. **Tick-0 label offset — now the earliest port-side split on 3 shop scenarios.**
+       Measured 2026-10-14 (`portstate house-idle --va 438b8cc,73dfcfc,73de61c,44e37a0`):
+       gsim, tick frame_count and prev_ms are ALL port = retail+1 from f1; playtime
+       identical. rhost labels a tick by its post-increment count (first tick = 1);
+       the port labels pre-increment (first tick = 0, logic-dead). The display
+       sparkle `gsim%8==3` therefore fires 1 f early: day2-shop f771, day2-buy-tutorial
+       f1283, day2-save-commit f9587 (pin-healed there). Plan: drop the dead tick and
+       label post-increment (port label L = L ticks run, vms = L·17) — touches the
+       segtrace/anchor/state-log labels, so re-run every gate after.
+    2. ✅ cs d3e load under DEFER (b1cc release order) and ✅ the tutorial .ivt bracket
+       (D_TUT_LOAD now ends at the frame boundary, `99d64922`):
+       `portanchors house-customer-tutorial` **64/64** frame-identical.
     3. Port boots `cc08`=1; retail has 0 until the house init.
     4. RNG: legacy traces' Frida-era `{rngseed}` pins (applied to both sides) hide long
        divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
@@ -134,22 +136,30 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     macros), 1 → FUN_00461792 seller (`src/customer_seller.c`), 0 → kind-select /
     FUN_00460fa7 oder. rhost shadow `seller_select` 11 calls / 0 div (kyaku≠18
     path only). `portrng buy-40pct-accept` identical f880–f1086 (was f911).
-  - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **Port the b5a8==0 buy machine FUN_00465372** (1337 B; the customer
-       sells, uses offer_down — already verified). f1087: retail draws in
-       FUN_0048a833 < FUN_00460a1a < FUN_00465372; the port has no b5a8==0 arm
-       (`PORT-DEBT(cs-other-kinds)`).
-    2. Tear diverges at f1118 (x) — recheck after item 1 (`portstate --va
-       438be6c,438be70,56da1f0,56da1f8`).
-    3. Idle walk setup FUN_00461068 (`PORT-DEBT(cs-walk-setup)`): runs on
-       !f404 with odd b528 — draws rand; check when portrng reaches it.
+  - ✅ FUN_00465372 (b5a8==0 buy machine: customer sells; offer_down, gold-capped
+    digit edit), FUN_00461068 (idle shelf sales, odd b528 && !f404), and Tear's
+    FUN_0048a833 tick moved INTO the master tick head (0x4624a1, before the b534
+    dispatch — retail's draw order). **`portrng buy-40pct-accept`: per-tick draws
+    IDENTICAL over the whole scenario (f1–f2450)**; cs b534/b544/b584/b574/b5a8/b56c
+    identical every frame.
+  - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
+    1. gsim +1 sparkle phase (Phase-0 item 1 above): day2-shop f771,
+       day2-buy-tutorial f1283.
+    2. buy-counter-raise-accept f725, buy-45pct-accept f1694: retail draws in
+       FUN_00460a1a (cs_pick_line), the port does not — find which b534 state.
+    3. buy-35/50pct-accept f1125/f1416, buy-lowball-walkout f1297: retail 6× NPC pump
+       (FUN_0047019f) + 1× pick_line; port 6× Tear wing sparkle (`init_type_1f_100`).
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
-  day2-save-commit}: all **IDENTICAL** (2026-10-14, after PC53 + wander).
-- `rhost.py verify` now also shadows floor_layout + actor_spawn_reset.
-- `rhost.py portanchors house-idle`: 195/195.
+  day2-save-commit}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
+  Tear order + D_TUT_LOAD). NB portsave/portstate/portrng do NOT rebuild
+  `build/openrecet.exe` — `make -C src` first (a stale exe once faked a regression).
+  day2-save-commit's equality leans on 64 Frida-era `{rngseed}` pins.
+- `rhost.py verify` shadows floor_layout + actor_spawn_reset + seller_select.
+- `rhost.py portanchors house-idle`: 195/195; house-customer-tutorial: 64/64.
+- `portstate --va` takes any working-bank dword VA (0x44e3798 + slot·0x2dfc8 + off).
 
 ### Re-verification program (owner: "re-verify everything with the new methodology")
 Every earlier "1:1"/"verified" claim is UNVERIFIED (`docs/findings/confirmed-parity-ledger.md`).
