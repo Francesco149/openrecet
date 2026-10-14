@@ -135,9 +135,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     FUN_0049126b. **`multiday-tutorials-suggest`: portrng + portsave IDENTICAL over the
     whole run (f1–f34810), pin-free.**
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    0. **buy-from-seller-guild-intro f17263**: retail runs FUN_00436f97 (43 draws) on a
-       scene entry the port lacks — the adventurers'-guild trip (world-map dest 6 →
-       mode 0xb, FUN_0045c051, unported). Was f11002 before this arc.
+    0. **buy-from-seller-guild-intro**: both enter mode 11 (world-map dest 6, the
+       adventurers' guild) at f11003; retail plays its intro dialogue (from f11064) and
+       leaves to the world map at f17014; the port's mode 11 is a blank stub (update
+       FUN_0045c051 3021 B, loader FUN_0045bdc2 + FUN_00473874, render) and never
+       leaves. First RNG split f17263 (retail's next world-map exit). Was f11002.
     1. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
        arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
        FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
