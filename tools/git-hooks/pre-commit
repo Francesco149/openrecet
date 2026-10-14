@@ -86,10 +86,4 @@ if echo "$staged" | grep -qE '^(src/Makefile|flake\.nix|flake\.lock)$' \
     fi
 fi
 
-# --- 5. Remind to regen visual comparisons after render/logic edits -------
-if echo "$staged" | grep -qE '^src/(scene1_|render|d3d|font_|sprite|layers|tables).*\.(c|h)$'; then
-    echo "pre-commit: render/logic files changed — remember to run" >&2
-    echo "            tools/regen-comparisons.py and eyeball runs/comparisons/index.html" >&2
-fi
-
 exit 0

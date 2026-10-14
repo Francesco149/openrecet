@@ -2,6 +2,9 @@
 """
 tools/regen-comparisons.py — refresh the cross-target comparison suite.
 
+LEGACY (Frida retail drive, superseded 2026-10-13 by rhost + the v3 viewer;
+no longer wired into the pre-commit hook). Kept for reference; don't extend.
+
 For each scenario under tests/scenarios/, run scenario-test.py --target
 both to produce a side-by-side openrecet|retail capture, then assemble a
 static HTML index at runs/comparisons/index.html. Each scenario card
