@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 506, discovered 1951 → 597 referenced-or-better (23.4%)
+- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 510, discovered 1947 → 601 referenced-or-better (23.6%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 7
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (506) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (510) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -317,6 +317,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x460672 | FUN_00460672 | 138 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4606fc | FUN_004606fc | 205 | ✓ |  | customer_service.c, customer_service.h |
 | 0x4607f3 | FUN_004607f3 | 196 | ✓ |  | customer_service.c, dialogue_macros.h |
+| 0x46094a | FUN_0046094a | 69 | ✓ |  | customer_service.c |
 | 0x46098f | FUN_0046098f | 139 | ✓ |  | customer_service.c |
 | 0x460a1a | FUN_00460a1a | 288 | ✓ |  | customer_dialogue.c, customer_dialogue.h, customer_service.c (+1) |
 | 0x460b3a | FUN_00460b3a | 88 | ✓ |  | customer_service.c, save_bank.h |
@@ -329,13 +330,16 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x461011 | FUN_00461011 | 87 |  |  | customer_service.c |
 | 0x461068 | FUN_00461068 | 667 | ✓ |  | customer_service.c |
 | 0x461303 | FUN_00461303 | 1167 | ✓ |  | customer_service.c, scene1_player_ctrl.c |
-| 0x461792 | FUN_00461792 | 1124 | ✓ |  | customer_service.c |
+| 0x461792 | FUN_00461792 | 1124 | ✓ |  | customer_seller.h, customer_service.c |
 | 0x461bf6 | FUN_00461bf6 | 10 | ✓ |  | customer_service.h, scene1_player_ctrl.c |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ |  | customer_service.c, customer_service.h, tables_tuto.h |
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ |  | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ |  | customer_service.c |
-| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_service.c, customer_service.h, scene1_camera.c (+5) |
+| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_seller.h, customer_service.c, customer_service.h (+6) |
+| 0x4639f5 | FUN_004639f5 | 774 | ✓ |  | customer_service.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ |  | customer_service.c, customer_service.h |
+| 0x464af0 | FUN_00464af0 | 2178 | ✓ |  | customer_service.c |
+| 0x465372 | FUN_00465372 | 1337 | ✓ |  | customer_service.c |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ |  | customer_service.c, customer_service.h, save_bank.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service_render.c, dialogue_macros.c (+4) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
@@ -543,7 +547,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49174e | FUN_0049174e | 354 |  |  | scene_guild.c, scene_guild.h |
 | 0x4918b0 | FUN_004918b0 | 191 | ✓ |  | scene_guild.c |
 | 0x49196f | FUN_0049196f | 423 | ✓ |  | scene1_display_menu.c |
-| 0x491b16 | FUN_00491b16 | 41 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h |
+| 0x491b16 | FUN_00491b16 | 41 | ✓ |  | customer_seller.h, customer_service.c, scene1_display_menu.c (+1) |
 | 0x491b3f | FUN_00491b3f | 23 | ✓ |  | main.c |
 | 0x491bc0 | FUN_00491bc0 | 544 | ✓ |  | scene_guild.c |
 | 0x491de0 | FUN_00491de0 | 1248 | ✓ |  | scene_guild.c |

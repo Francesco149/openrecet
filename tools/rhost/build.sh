@@ -11,7 +11,7 @@ mkdir -p "$B"
 $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/customer_haggle.o" "$S/customer_haggle.c"
 $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/rng.o" "$S/rng.c"
 PORT_OBJS=("$B/customer_haggle.o" "$B/rng.o")
-for f in floor_layout actor_spawn audio_mci call_trace; do
+for f in floor_layout actor_spawn audio_mci call_trace customer_seller; do
     $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/$f.o" "$S/$f.c"
     PORT_OBJS+=("$B/$f.o")
 done

@@ -92,7 +92,7 @@ _none_
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00436f97 | src/scene1_preload.c:228 | DAT_0438b4dc has no port mirror; |
-| FUN_0046602e | src/customer_service.c:217 | always -1 in the port — its only writer, |
+| FUN_0046602e | src/customer_service.c:222 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)

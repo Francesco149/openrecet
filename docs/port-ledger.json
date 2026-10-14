@@ -8,20 +8,20 @@
   "inv_instrumented_full": 78,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 506,
-  "inv_discovered": 1951,
-  "referenced_or_better": 597,
-  "pct_referenced_or_better": 23.4,
+  "inv_source_referenced": 510,
+  "inv_discovered": 1947,
+  "referenced_or_better": 601,
+  "pct_referenced_or_better": 23.6,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 33,
   "verified": 78,
   "stubbed": 13,
-  "ported": 506,
-  "unported": 1951,
-  "touched": 597,
-  "pct_touched": 23.4,
+  "ported": 510,
+  "unported": 1947,
+  "touched": 601,
+  "pct_touched": 23.6,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -9994,18 +9994,20 @@
    "size": 69,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x46098f",
@@ -10302,6 +10304,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_seller.h",
     "src/customer_service.c"
    ],
    "status": "ported"
@@ -10410,6 +10413,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_seller.h",
     "src/customer_service.c",
     "src/customer_service.h",
     "src/scene1_camera.c",
@@ -10427,18 +10431,20 @@
    "size": 774,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x463cfb",
@@ -10487,18 +10493,20 @@
    "size": 2178,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x465372",
@@ -10506,18 +10514,20 @@
    "size": 1337,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4658ab",
@@ -18521,6 +18531,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_seller.h",
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h"
    ],

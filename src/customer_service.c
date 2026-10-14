@@ -23,6 +23,8 @@
 #include "dialogue_macros.h"  /* dlg_macro_set — the <I>/<Y> sale-line macros */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
 #include "customer_roster.h"  /* roster_* helpers (FUN_0045e55c/e80f/e6e0/ed12/e505/a68f/48439a) */
+#include "customer_seller.h"  /* seller_select (FUN_00461792) */
+#include "scene1_display_menu.h" /* display_menu_owned_count (FUN_00491b16) */
 #include "tables_oder.h"      /* g_oder — the oder (item-request) pool (roster_pick_item) */
 #include "tables_news.h"      /* g_news — the daily-news featured-item defs (DAT_056e0de0) */
 #include "news_daily.h"       /* news_daily_update (FUN_00436623) + g_news_ticker_timer */
@@ -62,6 +64,9 @@ static uint32_t s_in_held;      /* DAT_073dddd6 */
 #define CS_F400_DISPLAY_SUPPRESS_OFF 0x2bc68   /* DAT_0450f400 — shop-display suppress */
 #define CS_F402_BYTE_OFF             0x2bc6a   /* DAT_0450f402 */
 #define CS_F405_BYTE_OFF             0x2bc6d   /* DAT_0450f405 */
+/* DAT_0450f429 — item requests (oders) unlocked: gates FUN_00460fa7 and the
+ * kind-0 queue head's rand&3 oder roll (0x4633c4). */
+#define CS_REQUESTS_UNLOCKED_BYTE_OFF 0x2bc91
 
 /* Sale-commit stats accumulator — bank DWORD at byte +0x2c3e0 (engine
  * FUN_00460d52 writes DAT_044e3798 + slot·0x2dfc8 + 0x2c3e0). */
@@ -235,6 +240,11 @@ static int32_t s_b5fc;   /* DAT_0730b5fc — buysell-debug "all customers eligib
 static int32_t s_news_target;   /* DAT_005c6bfc — featured news target_group */
 static int32_t s_buysell_dbg;   /* DAT_073dddb8 — buysell-debug forced-kyaku enable (0) */
 static int32_t s_buysell_kyaku; /* DAT_073dddbc — the forced kyaku id */
+static int32_t s_buysell_kind;  /* DAT_073dddc0 — buysell-debug arm (0 buy/oder, 1 sell, else oder) */
+/* kinds 2/3/4 text macros (0x46333e, FUN_0046094a) */
+static char    s_ac70[16];      /* DAT_0730ac70 — "%d" of queue field 4 */
+static char    s_ac80[20];      /* DAT_0730ac80 — "by tomorrow" / "in %d days" */
+static int32_t s_b2fc;          /* DAT_0730b2fc — strlen(ac80) */
 /* The prologue's customer_count (local_1c, 57456) — the normal-branch pass-1
  * admit cap; passed to cs_roster_scan since it's computed before the branch. */
 static int32_t s_roster_customer_count;
@@ -1440,22 +1450,127 @@ static void cs_greeting_base_ask(void)
     s_b584 = 0;
 }
 
-/* ── queue advance (FUN_00462403 b524==0x3c, the f404 path) ──────────────────
- * The sell-active dispatch (all.c:60886-61000): bump the per-customer counter and
- * run the kind selector (b5b0∉{1,2} ⇒ FUN_00461303 → b5a8=2).  b520 leave only
- * arms once the queue is exhausted (inert in the captured window: b528≤1<count+1).
- * PORT-DEBT(cs-queue-advance-fileidx): b5b0==1 → FUN_00461792, ==2 → FUN_00460fa7. */
+/* ── FUN_00460fa7 — the oder (item-request) customer ─────────────────────────
+ * Gated on the save byte +0x2bc91 (requests unlocked); binds b56c/b570 from the
+ * queue head and picks the oder via FUN_0045e80f → b5d8, b5a8 = 1 (FUN_00464af0
+ * machine).  Returns whether an oder was found. */
+static int cs_oder_select(void)
+{
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || bank[CS_REQUESTS_UNLOCKED_BYTE_OFF] == 0)
+        return 0;
+    int e = s_roster_perm[s_b318];
+    g_scene_buy_current_page = s_queue[e * CS_QUEUE_STRIDE + 0];
+    s_b570                   = s_queue[e * CS_QUEUE_STRIDE + 1];
+    if (g_scene_buy_current_page == -1)
+        return 0;
+    s_b5d8 = roster_pick_item(bank, &g_kyaku.records[g_scene_buy_current_page], s_b570,
+                              &(roster_news_event_t){ s_b5e8, s_b5f0, s_b5f4 });
+    s_b5a8 = 1;
+    return s_b5d8 != -1;
+}
+
+/* ── FUN_00461792 — the seller customer (customer_seller.c) ──────────────────
+ * Wraps the pure core over the b5xx statics; b5a8 = 0 (FUN_00465372 machine). */
+static int cs_seller_select(void)
+{
+    const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    seller_state_t st = { g_scene_buy_current_page, s_b570, s_b5a4, s_b5a8, s_b5ac };
+    int r = seller_select(bank, display_menu_owned_count((const uint32_t *)bank),
+                          &s_queue[s_roster_perm[s_b318] * CS_QUEUE_STRIDE], &st);
+    g_scene_buy_current_page = st.b56c;
+    s_b570 = st.b570;
+    s_b5a4 = st.b5a4;
+    s_b5a8 = st.b5a8;
+    s_b5ac = st.b5ac;
+    return r;
+}
+
+/* the f404 / debug arms: FUN_00461303 first, FUN_00460fa7 when it finds nothing. */
+static int cs_kind_or_oder(void)
+{
+    return cs_kind_select() != 0 || cs_oder_select() != 0;
+}
+
+/* ── kinds 2/3/4: the request delivery / story customers (0x46331e-0x46336a) ──
+ * Bind b56c/b570/b5d8/b5dc from the entry and format the two text macros the
+ * FUN_004639f5/463cfb/464a26 machines draw: DAT_0730ac70 = "%d" of entry[4]
+ * (length → b274) and FUN_0046094a(entry[5]) → DAT_0730ac80 "by tomorrow" /
+ * "in %d days" (length → b2fc). */
+static void cs_bind_story_entry(const int32_t *q, int32_t kind_b5a8)
+{
+    s_b5a8 = kind_b5a8;
+    g_scene_buy_current_page = q[0];
+    s_b570 = q[1];
+    s_b5d8 = q[3];
+    s_b5dc = q[4];
+    s_item_pick[0] = snprintf(s_ac70, sizeof s_ac70, "%d", q[4]);        /* b274 */
+    if (q[5] == 1)
+        s_b2fc = snprintf(s_ac80, sizeof s_ac80, "by tomorrow");
+    else
+        s_b2fc = snprintf(s_ac80, sizeof s_ac80, "in %d days", q[5]);
+}
+
+/* ── queue advance (FUN_00462403 b524==0x3c, 0x46324b-0x46343c) ───────────────
+ * Arms the leave once the queue is exhausted, then serves the queue head:
+ *   f404 (scripted sell) → by dialogue file bb0: 2 → oder, 1 → seller,
+ *     else kind-select (FUN_00461303) then oder;
+ *   buysell debug (dddb8) → by dddc0, same three arms;
+ *   else by the ENTRY's kind: 4/3 → b5a8 5/4 (story), 2 → b5a8 3 (delivery),
+ *     1 → seller (FUN_00461792), 0 → [rand&3==0 if requests unlocked → oder]
+ *     else kind-select, oder as the fallback; then b318++.
+ * A failed arm (or an exhausted queue) drops back to idle: b534 = b524 = 0. */
 static void cs_queue_advance(void)
 {
+    const uint8_t *bank =
+        (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int f404 = (bank != NULL) && bank[CS_F404_SELL_ACTIVE_BYTE_OFF] != 0;
+    int f406 = (bank != NULL) && bank[CS_F406_TUTORIAL_BYTE_OFF]    != 0;
+    int ok = 1;
+
     s_price_bb4 = -1;                       /* DAT_005c6bb4 = 0xffffffff */
     s_b528 += 1;
-    if (s_queue_count + 1 <= s_b528)        /* f406==0 on this path */
+    if (!f406 && s_queue_count + 1 <= s_b528)
         s_b520 = 1;
-    if (s_b318 < s_queue_count) {
-        s_price_bc4 = 1;                    /* bc4 = count = 1 */
+    if (s_b318 >= s_queue_count) {
+        ok = 0;
+    } else {
         s_b564 = 0;
-        if (s_price_fileidx != 2 && s_price_fileidx != 1)
-            cs_kind_select();               /* FUN_00461303 → b5a8=2, b56c=1, b5a4=0xc0 */
+        s_price_bc4 = 1;                    /* bc4 = count = 1 */
+        if (f404) {
+            ok = s_price_fileidx == 2 ? cs_oder_select()
+               : s_price_fileidx == 1 ? cs_seller_select()
+               : cs_kind_or_oder();
+        } else if (s_buysell_dbg != 0) {
+            ok = s_buysell_kind == 0 ? cs_kind_or_oder()
+               : s_buysell_kind == 1 ? cs_seller_select()
+               : cs_oder_select();
+        } else {
+            const int32_t *q = &s_queue[s_roster_perm[s_b318] * CS_QUEUE_STRIDE];
+            switch (q[2]) {
+            case 4: cs_bind_story_entry(q, 5); break;
+            case 3: cs_bind_story_entry(q, 4); break;
+            case 2: cs_bind_story_entry(q, 3); break;
+            case 1: ok = cs_seller_select(); break;
+            case 0: {
+                int oder_first = 0;
+                if (bank != NULL && bank[CS_REQUESTS_UNLOCKED_BYTE_OFF] != 0)
+                    oder_first = (rng_next15() & 3) == 0;
+                if (s_b5e8 != 0 && s_b5ec >= 0)
+                    oder_first = 0;
+                ok = (!oder_first && cs_kind_select() != 0) || cs_oder_select() != 0;
+                break;
+            }
+            default: break;
+            }
+            s_b318 += 1;
+        }
+    }
+    if (!ok) {
+        s_b534 = 0;
+        s_b524 = 0;
     }
     s_price_bc8 = -1;                       /* DAT_005c6bc8 = 0xffffffff */
     s_b54c = 0;
@@ -3023,7 +3138,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         } else if (s_b534 != 0xc && s_b534 != 0xd) {
             /* the b5a8 transaction dispatch (all.c:60563-60588) for the live states
              * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
-             * PORT-DEBT(cs-other-kinds): 0/1/3/4/5 = buy/chat/kind0/kind5. */
+             * PORT-DEBT(cs-other-kinds): b5a8 0 = FUN_00465372 (customer sells),
+             * 1 = FUN_00464af0 (oder), 3/4/5 = FUN_004639f5/463cfb/464a26. */
             if (s_b5a8 == 2) {
                 cs_live_machine();            /* FUN_004658ab */
                 return;
@@ -3119,6 +3235,8 @@ void customer_service_reset(void)
     s_b540 = s_b544 = s_b548 = s_b54c = s_b550 = s_b55c = s_b560 = s_b570 = 0;
     s_b270 = NULL;
     s_line_buf[0] = s_line_tail[0] = '\0';
+    s_ac70[0] = s_ac80[0] = '\0';
+    s_b2fc = s_b5d8 = s_b5dc = 0;
     s_b5a4 = s_b600 = s_b604 = s_b608 = 0;
     s_b574 = s_b57c = s_b580 = s_b584 = s_b588 = 0;
     s_b1cc = 0;

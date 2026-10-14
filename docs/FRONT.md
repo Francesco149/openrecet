@@ -90,19 +90,20 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ Tear's random wander (FUN_0048a833 `!v32` arm), FUN_004851e2 actor seats,
     b1cc release order, menu "Open Store" companion tick, WinMain PC53 (§138):
     `portrng buy-40pct-accept` identical f1–f910; Tear state identical to f1117.
+  - ✅ Queue advance dispatches on the entry's KIND (FUN_00462403 0x46324b):
+    f404 → by bb0; debug dddb8 → by dddc0; else kind 4/3/2 → b5a8 5/4/3 (+ text
+    macros), 1 → FUN_00461792 seller (`src/customer_seller.c`), 0 → kind-select /
+    FUN_00460fa7 oder. rhost shadow `seller_select` 11 calls / 0 div (kyaku≠18
+    path only). `portrng buy-40pct-accept` identical f880–f1086 (was f911).
   - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **Queue advance dispatches on the queue entry's KIND** (FUN_00462403,
-       all_ida 65233+770..812): `k = DAT_0730aca8[6·DAT_0730b1a8[b318]]`;
-       4 → b5a8 = 5; 1 → FUN_00461792 (the customer SELLS to the player: every
-       buy-* scenario); 0 → [rand&3 if work byte +0x2bc91] FUN_00461303 (kind
-       select) else FUN_00460fa7; 2/3 → other arms. The port only has the k = 0
-       path (`cs_queue_advance` → `cs_kind_select`, keyed on the wrong variable:
-       `PORT-DEBT(cs-queue-advance-fileidx)`). f911 buy-40pct-accept: retail 1
-       draw in FUN_00461792 vs the port's kind-select + 40-draw shuffle. Port
-       FUN_00461792 (1124 B) + FUN_00460fa7 (106 B) + the dispatch, then follow
-       the buy-side state machine (offer_down is already ported + verified).
+    1. **Port the b5a8==0 buy machine FUN_00465372** (1337 B; the customer
+       sells, uses offer_down — already verified). f1087: retail draws in
+       FUN_0048a833 < FUN_00460a1a < FUN_00465372; the port has no b5a8==0 arm
+       (`PORT-DEBT(cs-other-kinds)`).
     2. Tear diverges at f1118 (x) — recheck after item 1 (`portstate --va
        438be6c,438be70,56da1f0,56da1f8`).
+    3. Idle walk setup FUN_00461068 (`PORT-DEBT(cs-walk-setup)`): runs on
+       !f404 with odd b528 — draws rand; check when portrng reaches it.
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.

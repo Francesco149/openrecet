@@ -15,13 +15,17 @@
 #include "actor_spawn.h"
 #include "audio_mci.h"
 #include "customer_haggle.h"
+#include "customer_seller.h"
 #include "floor_layout.h"
 #include "rng.h"
 #include "scene1_particles_tick.h"
+#include "tables_item.h"
 
 /* actor_spawn.c clears fields of the port's people table; rhost links no
  * scene1_particles_tick.c, so it owns the storage here. */
 scene1_people_entry_t g_scene1_people[SCENE1_PEOPLE_COUNT];
+/* customer_seller.c reads g_item; synced from retail's table (0x95d37d0) per call. */
+item_state_t g_item;
 
 extern volatile LONG g_live_threads;
 typedef enum { OFF, SHADOW, REPLACE } mode_t_;
@@ -33,7 +37,7 @@ typedef struct {
     char first[200];
 } hook_t;
 
-#define NH 8
+#define NH 9
 static hook_t H[NH];
 static void note(hook_t *h, const char *fmt, ...)
 {
@@ -60,6 +64,7 @@ static uint32_t port_rand(void)
 #define H_OFFER_DOWN 5
 #define H_FLOOR      6
 #define H_ACTOR_RST  7
+#define H_SELLER     8
 
 static int32_t __cdecl hook_haggle(void)
 {
@@ -205,6 +210,36 @@ static void __cdecl hook_actor_reset(void)
                   g_actor_spawn_order[4], g_actor_spawn_order[5], g_actor_spawn_order[6], g_actor_spawn_order[7], g_rng_seed);
 }
 
+/* ---- seller customer (FUN_00461792): the b5xx words + queue entry + LCG ---- */
+static int32_t __cdecl hook_seller(void)
+{
+    hook_t *h = &H[H_SELLER]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    const uint32_t rec = 0x44e3798u + 188360u * G32(0x438b1e0u);
+    const uint32_t ea = 0x730aca0u + 24u * G32(0x730b1a8u + 4u * G32(0x730b318u));
+    seller_state_t st = { (int32_t)G32(0x730b56cu), (int32_t)G32(0x730b570u), (int32_t)G32(0x730b5a4u),
+                          (int32_t)G32(0x730b5a8u), (int32_t)G32(0x730b5acu) };
+    int32_t entry[6];
+    memcpy(entry, (void *)(uintptr_t)ea, sizeof entry);
+    memcpy(g_item.records, (void *)(uintptr_t)0x95d37d0u, sizeof g_item.records);
+    g_item.count = (int32_t)G32(0x5c80acu);
+    const int32_t owned = ((int32_t (__cdecl *)(void))0x491b16u)();
+    const uint32_t seed0 = G32(DAT_RNG);
+    const int32_t r = ((int32_t (__cdecl *)(void))0x461792u)();
+    rng_seed(seed0);
+    const int p = seller_select((const uint8_t *)(uintptr_t)rec, owned, entry, &st);
+    const int32_t ret_[7] = { r, (int32_t)G32(0x730b56cu), (int32_t)G32(0x730b570u), (int32_t)G32(0x730b5a4u),
+                              (int32_t)G32(0x730b5a8u), (int32_t)G32(0x730b5acu), (int32_t)G32(ea) };
+    const int32_t port[7] = { p, st.b56c, st.b570, st.b5a4, st.b5a8, st.b5ac, entry[0] };
+    rh_log("seller f%u k=%d idx=%d owned=%d -> r=%d b5a4=%x(id %d) b5ac=%d rng=%08x\n", g_frame, ret_[1], ret_[2],
+           owned, r, ret_[3], ret_[3] >> 6, ret_[5], G32(DAT_RNG));
+    if (memcmp(ret_, port, sizeof port) || g_rng_seed != G32(DAT_RNG))
+        note(h, "retail r=%d k=%d idx=%d b5a4=%x b5a8=%d b5ac=%d q=%d rng=%08x | port r=%d k=%d idx=%d b5a4=%x b5a8=%d b5ac=%d q=%d rng=%08x",
+             ret_[0], ret_[1], ret_[2], ret_[3], ret_[4], ret_[5], ret_[6], G32(DAT_RNG),
+             port[0], port[1], port[2], port[3], port[4], port[5], port[6], g_rng_seed);
+    return r;
+}
+
 static void state_hook(hook_t *h)
 {
     h->calls++;
@@ -225,6 +260,7 @@ static hook_t H[NH] = {
     [H_OFFER_DOWN] = { "haggle_offer_down", 0x4603cfu, 0, (void *)hook_offer_down },
     [H_FLOOR]      = { "floor_layout",      0x47df4du, 0, (void *)hook_floor_layout },
     [H_ACTOR_RST]  = { "actor_spawn_reset", 0x41f252u, 0, (void *)hook_actor_reset },
+    [H_SELLER]     = { "seller_select",     0x461792u, 0, (void *)hook_seller },
 };
 
 void rh_hooks_install(void)
