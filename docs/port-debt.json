@@ -62,7 +62,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1233,
+   "line": 1234,
    "kind_known": false
   },
   {
@@ -70,7 +70,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1190,
+   "line": 1191,
    "kind_known": false
   },
   {
@@ -134,7 +134,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1256,
+   "line": 1257,
    "kind_known": false
   },
   {
@@ -254,7 +254,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2479,
+   "line": 2494,
    "kind_known": true
   },
   {

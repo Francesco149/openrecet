@@ -200,7 +200,7 @@ void scene1_ingame_default_arm_tick(void)
      * the db054 advance additionally requires the frame to have DISPATCHED
      * outside the menu (cc04_at_dispatch — see above; advance_phase itself
      * still re-checks the live cc04 for the menu-OPEN frame, set mid-frame). */
-    if (!player_ctrl_companion_ticked()) {
+    if (!player_ctrl_companion_ticked() && !player_ctrl_companion_skip_this_frame()) {
         scene1_companion_ctrl_tick();
         /* db054 advances ONLY in free-roam: the engine bumps it at the
          * FUN_0048b850 tail, which does NOT run in cc08==4 (customer service) —

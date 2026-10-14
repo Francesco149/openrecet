@@ -404,6 +404,7 @@ int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion 
  * Tear's draws precede the machine's.  Ticks it + sets the once-per-frame latch. */
 void player_ctrl_companion_tick_from_cs(void);
 int  player_ctrl_companion_from_cs(void);   /* true inside that call */
+int  player_ctrl_companion_skip_this_frame(void);   /* the arm skipped FUN_0048a833 */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 int  player_ctrl_cc08_f406_pending(void);   /* pure: f406 first-customer entry armed (RE §21.18) */

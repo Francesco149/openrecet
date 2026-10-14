@@ -396,6 +396,7 @@ static int   s_cc08             = 1;              /* DAT_0438cc08 */
  * later-running controllers (the companion) can mirror that.  Cleared at the
  * top of scene1_player_ctrl_tick each frame. */
 static int   s_cc08_entered_this_frame = 0;       /* walk-arm entry 1→4 / 1→0 this frame */
+static int   s_companion_skip_frame   = 0;       /* arm ended at LABEL_675: no FUN_0048a833 */
 static int   s_cc08_menu_open_this_frame = 0;     /* counter menu "Open Store" 10→4 this frame */
 static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
@@ -1308,8 +1309,18 @@ int player_ctrl_cc08_left_4_this_frame(void)
 /* Frame-top clear for both boundary markers — called from scene1_ingame_tick
  * (which runs on EVERY sim frame, default AND event arms) so a marker lives
  * for exactly the frame whose arm set it. */
+/* The display-stand open (cc04 0→1) ends the frame at LABEL_675 (FUN_00486435 +
+ * the rumble) — no FUN_004897c6 anim tick and no FUN_0048a833, so the companion
+ * sits this frame out (rhost multiday-tutorials-suggest f1410: Tear's wander
+ * timer holds). */
+int player_ctrl_companion_skip_this_frame(void)
+{
+    return s_companion_skip_frame;
+}
+
 void player_ctrl_cc08_markers_frame_clear(void)
 {
+    s_companion_skip_frame = 0;
     s_cc08_entered_this_frame = 0;
     s_cc08_left_4_this_frame  = 0;
     s_cc08_menu_open_this_frame = 0;
@@ -1422,6 +1433,7 @@ static int player_ctrl_cc08_dpad_interact(void)
         if (player_ctrl_at_shop_door(g_scene1_player_pos[0], s_player_facing,
                                      exited)) {
             player_ctrl_worldmap_exit_arm();
+            s_companion_skip_frame = 1;   /* the arm frame: no b850, no FUN_0048a833 */
             return 1;   /* consume the frame (engine goto LAB_004890d1). */
         }
     }
@@ -1488,6 +1500,7 @@ static int player_ctrl_cc08_dpad_interact(void)
     /* cc04 = 1 + the open-once latch DAT_0438cbe8 (all.c:87718-87722). */
     int first_open = (s_cbe8 == 0);
     s_cc04 = 1;
+    s_companion_skip_frame = 1;
     if (first_open)
         s_cbe8 = 1;
 
@@ -2458,18 +2471,20 @@ void scene1_player_ctrl_tick(void)
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
         return;
 
-    /* world-map exit stage 2 (all.c:86877-86888, the DAT_074b2ec4==1 block near
-     * the top of FUN_0048670f): while the door-exit is armed the engine freezes
-     * the HOUSE tick each frame until the dissolve fade completes, then flips to
-     * mode 8 + kicks the world-map load.  Returns 1 while frozen → early-out
-     * (the engine's goto LAB_004893ff). */
-    if (player_ctrl_worldmap_exit_stage2())
-        return;
-
     /* prologue (all.c:86580, BEFORE the transition arms): drop the periodic
      * "目玉商品" sparkles over the items on display.  No-op (no RNG) on an empty
      * display, so it leaves the foot-dust/wing RNG stream untouched there. */
     player_ctrl_display_sparkle_emit();
+
+    /* world-map exit stage 2 (all_ida 96366, the DAT_074b2ec4==1 block — AFTER
+     * the sparkle prologue): while the door-exit is armed the engine freezes the
+     * HOUSE tick each frame until the dissolve fade completes, then flips to
+     * mode 8 + kicks the world-map load.  Returns 1 while frozen → early-out
+     * (the engine's goto LABEL_675: no anim tick, no FUN_0048a833). */
+    if (player_ctrl_worldmap_exit_stage2()) {
+        s_companion_skip_frame = 1;
+        return;
+    }
 
     /* prologue (all.c:86697-86703 / asm 486b7d-486bb2, gated SHOP_DAY ≥ 9 —
      * dormant through the tutorial traces): the news-break ticker pump.

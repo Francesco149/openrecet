@@ -393,7 +393,7 @@ void scene1_companion_ctrl_tick(void)
      * FUN_0048a833 — so the companion gets NO tick and NO writes on the entry
      * frame (probe-proven RE §21.28: retail ccnt freezes across frames 304 + 825;
      * the port's load gate used to tick here, the +1 phase blips 307..327). */
-    if (player_ctrl_cc08_entered_this_frame())
+    if (player_ctrl_cc08_entered_this_frame() || player_ctrl_companion_skip_this_frame())
         return;
 
     /* cc08 4→1 LEAVE frame (the b520 dissolve completion, mid-frame in the

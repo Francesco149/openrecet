@@ -154,7 +154,13 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     empty list is just "Nothing" (retail num_tabs 0, list[0] −1); the reveal budget
     walks the macro-EXPANDED line (FUN_00465db4 pass 1); price scalars boot at their
     .data values. All cs rows now identical; only boot-time gold differs (below).
-  - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
+  - ✅ Companion skip frames: FUN_0048670f arms that end at LABEL_675 (display-stand
+    open, door-exit arm + the exit-fade stage 2) run no FUN_004897c6 / FUN_0048a833,
+    so Tear and db054 hold; the 目玉 sparkle prologue precedes the exit stage 2.
+  - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:N`):
+    0. Scene loads the port lacks (retail lays out a new floor, FUN_0047df4d /
+       47ddc2 / 47d622): multiday-tutorials-suggest f1722 (MARKET_ENTER — the market
+       scene), buy-from-seller-guild-intro f9127, debt-gameover-restart f1785.
     1. buy-counter-raise-accept f7156: the 4th cs leave of the day hits retail's
        shop-full branch (shoptime +0x2c3f0 ≥ 4 → `b4e0 = 1; FUN_0048526d()`: house
        re-layout via FUN_00436f97 + the day-end conversation) —
