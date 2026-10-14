@@ -69,6 +69,10 @@ void scene1_postload_pose_player(void);
  */
 void scene1_postload_pose_house_standing(void);
 
+/* FUN_004851e2: seat player / actor 1 / Tear at door-table entry
+ * [shop tier + 4·a] (a = 0 counter spot, 1 front door). */
+void scene1_postload_place_actors(int a);
+
 /*
  * The DAY-2 in-scene actor re-place (retail FUN_0048526d → FUN_00436f97, polled
  * at the day-advance).  POSITIONS ONLY — re-seat the two live actors at the

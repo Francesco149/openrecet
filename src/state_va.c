@@ -14,7 +14,9 @@
 #include "save_bank.h"
 #include "save_work.h"
 #include "scene.h"
+#include "scene1_companion_ctrl.h"
 #include "scene1_counter_menu.h"
+#include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_top_hud.h"
 #include "sim.h"
@@ -36,6 +38,18 @@ static int32_t get_fl_w(void)  { return g_floor_w; }
 static int32_t get_fl_h(void)  { return g_floor_h; }
 static int32_t get_fl_n(void)  { return g_floor_ncells; }
 static int32_t get_fl_tot(void) { return g_floor_rooms_total; }
+static int32_t fbits(float f) { union { float f; int32_t i; } u = { .f = f }; return u.i; }
+static int32_t get_wst(void)  { return scene1_companion_wander_state(); }
+static int32_t get_wt(void)   { return scene1_companion_wander_t(); }
+static int32_t get_wtx(void)  { return fbits(scene1_companion_wander_tx()); }
+static int32_t get_wtz(void)  { return fbits(scene1_companion_wander_tz()); }
+static int32_t get_tx(void)   { return fbits(g_scene1_actor_pos[2][0]); }
+static int32_t get_ty(void)   { return fbits(g_scene1_actor_pos[2][1]); }
+static int32_t get_tz(void)   { return fbits(g_scene1_actor_pos[2][2]); }
+static int32_t tear_rec(int k) { const int32_t *r = player_ctrl_actor_record(2); return r ? r[k] : 0; }
+static int32_t get_tsel(void) { return tear_rec(5); }
+static int32_t get_tfac(void) { return tear_rec(6); }
+static int32_t get_tfrm(void) { return tear_rec(4); }
 static int32_t get_mexp(void)
 {
     const uint32_t *w = save_work_dwords_at(save_work_active_slot());
@@ -61,6 +75,16 @@ static const state_va_t k_map[] = {
     { 0x73e1540u, "floor layout cells (DAT_073e1540)", get_fl_n },
     { 0x438b4b0u, "floor rooms total (DAT_0438b4b0)", get_fl_tot },
     { 0x450fb8cu, "work slot 0 merchant exp (DAT_0450fb8c)", get_mexp },
+    { 0x438be6cu, "Tear wander state (DAT_0438be6c)",  get_wst },
+    { 0x438be70u, "Tear wander timer (DAT_0438be70)",  get_wt },
+    { 0x438be74u, "Tear wander target x bits (DAT_0438be74)", get_wtx },
+    { 0x438be78u, "Tear wander target z bits (DAT_0438be78)", get_wtz },
+    { 0x56da1f0u, "Tear x bits (DAT_056da1f0)",        get_tx },
+    { 0x56da1f4u, "Tear y bits (DAT_056da1f4)",        get_ty },
+    { 0x56da1f8u, "Tear z bits (DAT_056da1f8)",        get_tz },
+    { 0x56dab54u, "Tear anim sel (DAT_056dab54)",      get_tsel },
+    { 0x56dab58u, "Tear facing (DAT_056dab58)",        get_tfac },
+    { 0x56dab50u, "Tear anim frame (DAT_056dab50)",    get_tfrm },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 
@@ -97,6 +121,16 @@ void state_va_log(FILE *fp, uint32_t frame)
     for (int i = 0; i < s_nsel; i++)
         fprintf(fp, " %x=%d", (unsigned)s_sel[i]->va, (int)s_sel[i]->get());
     fputc('\n', fp);
+#if defined(__i386__) || defined(__x86_64__)
+    /* x87 control word (rhost logs retail's per frame): "cw N xxxx" on change */
+    static unsigned s_last_cw = 0x10000u;
+    unsigned short cw;
+    __asm__ volatile("fnstcw %0" : "=m"(cw));
+    if (cw != s_last_cw) {
+        fprintf(fp, "cw %u %04x\n", (unsigned)frame, (unsigned)cw);
+        s_last_cw = cw;
+    }
+#endif
 }
 
 const char *state_va_known(void)

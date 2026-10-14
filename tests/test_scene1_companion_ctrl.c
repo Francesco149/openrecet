@@ -17,7 +17,8 @@
 #include "scene1_companion_ctrl.h"
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos, ground_y, camera_yaw */
 #include "scene1_spawn.h"           /* wing-glow emit → scene1_spawn trace */
-#include "save_work.h"              /* save_work_dwords_at — the f404 sell-active byte */
+#include "save_work.h"
+#include "scene1_postload.h"         /* scene1_postload_place_actors */              /* save_work_dwords_at — the f404 sell-active byte */
 
 /* DAT_0450f404[slot] within a save-work bank (rel. save_work_dwords_at).  The
  * companion's at-counter arm gates on f404 != 0 (else the free-roam follow). */
@@ -41,10 +42,15 @@ static int near_f(float a, float b)
 
 static void setup(float px, float pz)
 {
-    player_ctrl_pose_house_standing(0);   /* actor2 = char 1 @ (0.6,3.0,9.35) */
+    player_ctrl_pose_house_standing(0);   /* actor2 = char 1 */
     scene1_companion_ctrl_reset();
+    scene1_companion_ctrl_stage_reset();
     player_ctrl_debug_set_cc08(1);        /* default free-roam (not the at-counter arm) */
     set_f404(0);                          /* sell NOT active by default — isolate tests */
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(0);
+    bb[0x2bc6f] = 0;                      /* f407 clear: follow, not the post-tutorial wander */
+    ((uint32_t *)bb)[0x2cde0 / 4] = 0;    /* shop tier 0 */
+    scene1_postload_place_actors(0);      /* FUN_004851e2: actor2 @ (-0.3+0.9, 3.0, 9.35) */
     g_scene1_player_ground_y = 0.0f;
     g_scene1_actor_pos[0][0] = px;
     g_scene1_actor_pos[0][1] = 0.0f;

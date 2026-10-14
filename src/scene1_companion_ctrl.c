@@ -23,6 +23,10 @@
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* record-field indices */
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y + g_scene1_camera_yaw */
 #include "scene1_spawn.h"         /* scene1_spawn (FUN_00447f4f) + the dab58 init global */
+#include "rng.h"
+#include "save_work.h"            /* work-record f407 / +0x2bcd8 (the wander gate) */
+#include "stage_palette.h"        /* g_stage_palette->mode (*DAT_068dd2f0) */
+#include "x87.h"
 
 /* ── engine float constants (FUN_0048a4d1 .rdata, objdump 2026-05-31) ──
  *   0x5198cc = 0.15 (spring + Y lerp)   0x519bc4 = 0.35 (velocity clamp)
@@ -100,6 +104,118 @@ static int s_bob_counter = 0;
 void scene1_companion_ctrl_reset(void)
 {
     s_bob_counter = 0;
+}
+
+/* ── random wander (FUN_0048a833 `!v32` arm, 0x48af62-0x48b276) ─────────────
+ * Post-tutorial house (work-record f407 set): instead of following, Tear idles
+ * 90 ticks (anim 0), flies at 0.05/tick per axis to a random cell
+ * (2·rand%7 − 9, 2·rand%6 − 6.5) with anim 1, then holds anim 2 or 3 (rand&1)
+ * for 90 ticks, and repeats.  Y lerps 0.1 toward sin(db054·0.04)·0.2 + 3.0 (no
+ * ground term).  DAT_0438be6c / be70 / be74 / be78, zeroed by FUN_00436f97. */
+static void co_set_anim(int32_t *rec, int anim_id);
+static int32_t s_wander_state;   /* DAT_0438be6c */
+static int32_t s_wander_t;       /* DAT_0438be70 */
+static float   s_wander_tx;      /* DAT_0438be74 */
+static float   s_wander_tz;      /* DAT_0438be78 */
+
+void scene1_companion_ctrl_stage_reset(void)
+{
+    s_wander_state = 0;
+    s_wander_t = 0;
+    s_wander_tx = 0.0f;
+    s_wander_tz = 0.0f;
+}
+
+int32_t scene1_companion_wander_state(void) { return s_wander_state; }
+int32_t scene1_companion_wander_t(void)     { return s_wander_t; }
+float   scene1_companion_wander_tx(void)    { return s_wander_tx; }
+float   scene1_companion_wander_tz(void)    { return s_wander_tz; }
+
+/* FUN_0048a833 local v32: follow the player (FUN_0048a4d1) rather than wander.
+ * PORT-DEBT(stub, FUN_0049e163): retail also forces it while
+ * DAT_0438b928 == 2 && DAT_0438b924 < 60 — b928 = 2 is written only by the
+ * unported dungeon return FUN_0049e163. */
+static int co_follow_mode(void)
+{
+    if (g_stage_palette && g_stage_palette->mode != 0)
+        return 1;
+    const uint8_t *wr = save_work_bank_at(save_work_active_slot());
+    if (!wr)
+        return 1;
+    return wr[0x2bc6f] == 0 || wr[0x2bcd8] != 0;
+}
+
+static const float k_wander_step = 0.05f;   /* m32 0x5198f8 */
+static const float k_wander_x0   = 9.0f;    /* m32 0x5196b4 */
+static const float k_wander_z0   = 6.5f;    /* m32 0x5196b0 */
+static const float k_bob_freq    = 0.04f;   /* m32 0x5198c4 */
+static const float k_bob_amp     = 0.2f;    /* m32 0x5198d8 */
+static const float k_bob_off     = 3.0f;    /* m32 0x519438 */
+static const float k_bob_lerp    = 0.1f;    /* m32 0x5193a0 */
+
+static void co_wander_tick(int32_t *rec, float *comp)
+{
+    if (s_wander_state == 0) {
+        co_set_anim(rec, 0);
+        if (++s_wander_t == 90) {
+            s_wander_t = 0;
+            s_wander_state = 1;
+        }
+    } else if (s_wander_state == 1) {
+        co_set_anim(rec, 1);
+        if (s_wander_t == 0) {
+            int32_t cx = (int32_t)((uint32_t)rng_next15() % 7u);
+            int32_t cz = (int32_t)((uint32_t)rng_next15() % 6u);
+            long double fx = spill32((long double)cx);
+            s_wander_tx = spill32(fx + fx - k_wander_x0);
+            long double fz = spill32((long double)cz);
+            s_wander_tz = spill32(fz + fz - k_wander_z0);
+        }
+        int moved = 0;
+        if ((long double)s_wander_tx - k_wander_step > (long double)comp[0]) {
+            rec[CHR_ACTOR_FACING] = 6;
+            moved = 1;
+            comp[0] = spill32((long double)comp[0] + k_wander_step);
+        }
+        if (!((long double)s_wander_tx + k_wander_step >= (long double)comp[0])) {
+            rec[CHR_ACTOR_FACING] = 2;
+            moved = 1;
+            comp[0] = spill32((long double)comp[0] - k_wander_step);
+        }
+        if ((long double)s_wander_tz - k_wander_step > (long double)comp[2]) {
+            moved = 1;
+            comp[2] = spill32((long double)comp[2] + k_wander_step);
+        }
+        if (!((long double)s_wander_tz + k_wander_step >= (long double)comp[2])) {
+            moved = 1;
+            comp[2] = spill32((long double)comp[2] - k_wander_step);
+        }
+        float adx = spill32(fabsl((long double)comp[0] - s_wander_tx));
+        float adz = spill32(fabsl((long double)comp[2] - s_wander_tz));
+        if (moved) {
+            if (adx > adz)
+                rec[CHR_ACTOR_FACING] = comp[0] >= s_wander_tx ? 2 : 6;
+            else
+                rec[CHR_ACTOR_FACING] = comp[2] >= s_wander_tz ? 0 : 4;
+        }
+        s_wander_t++;
+        if (!moved) {
+            s_wander_t = 0;
+            s_wander_state = (int32_t)(rng_next15() & 1) + 2;
+        }
+    } else if (s_wander_state == 2 || s_wander_state == 3) {
+        co_set_anim(rec, s_wander_state);
+        if (++s_wander_t == 90) {
+            s_wander_t = 0;
+            s_wander_state = 0;
+        }
+    }
+    /* Y bob: fild db054 → m32 → ×0.04 → m32 → _sin → m32 → ×0.2 + 3.0 → m32 →
+     * (t − y)·0.1 + y → m32 */
+    float a = spill32((long double)spill32((long double)s_bob_counter) * k_bob_freq);
+    float sn = spill32(x87_crt_sin(a));
+    float t = spill32((long double)sn * k_bob_amp + k_bob_off);
+    comp[1] = spill32(((long double)t - comp[1]) * k_bob_lerp + comp[1]);
 }
 
 /* Trace-harness phase normalization (the segtrace `{phasepin}` op).  The
@@ -270,13 +386,8 @@ void scene1_companion_ctrl_tick(void)
      * NO move / at-counter pose / wing sparkle fire (RE §21.10).  Verified: retail
      * canim 0 + cx frozen across the 24f load, cframe cycling; the port had run
      * co_at_counter (canim 4, cx ramping) through the load.
-     *   Gate on (live b1cc==2) OR (frame-start b1cc==2): the load both SPAWNS and
-     * CLEARS mid-frame, and the companion runs AFTER scene1_player_ctrl_tick, so on
-     * the SPAWN frame (entry) only the live b1cc is 2 (the cc08 arm hasn't set the
-     * note — the entry path returns early), while on the RELEASE frame only the
-     * frame-start snapshot is 2 (notify_loaded already cleared the live b1cc).  The
-     * OR keeps the companion idle for off0..release inclusive ⇒ it arrives the frame
-     * AFTER the load clears, matching retail (was 1f early on the release frame). */
+     *   The gate is the tick-start b1cc (published by the cc08==4 arm after the
+     * worker's release is applied); see the check below. */
     /* cc08 1→4 / counter-Z 1→0 ENTRY frame: the engine's entry arms `goto
      * LAB_004893ff` — past the FUN_004897c6 per-actor anim-tick loop AND
      * FUN_0048a833 — so the companion gets NO tick and NO writes on the entry
@@ -298,8 +409,12 @@ void scene1_companion_ctrl_tick(void)
         return;
     }
 
-    if (player_ctrl_cc08() == 4 &&
-        (customer_service_d3e_loading() || customer_service_load_at_frame_start())) {
+    /* Retail: FUN_00462403 returns at its top while b1cc == 2, else calls
+     * FUN_0048a833 BEFORE anything that tick can spawn a load (the b524 == 60
+     * second d3e load) — so only the tick-start state gates the companion.  The
+     * 1→4 entries skip above; the menu "Open Store" tick runs it (case 10). */
+    if (player_ctrl_cc08() == 4 && !player_ctrl_cc08_menu_open_this_frame() &&
+        customer_service_load_at_frame_start()) {
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
         return;
     }
@@ -343,6 +458,20 @@ void scene1_companion_ctrl_tick(void)
     }
 
     float pre_x = comp[0], pre_z = comp[2];   /* for the moved-delta anim test */
+
+    if (!scene1_tutorial_dispatch_iv2_beat_active() && !scene1_conversation_pose_active() &&
+        !co_follow_mode()) {
+        /* post-tutorial house: the random wander instead of FUN_0048a4d1.  Anim
+         * set then the free-roam tick rule (skip on a transition frame), then the
+         * shared wing-sparkle tail (LAB_0048b2a0; the facing copy is skipped). */
+        int prev_sel = rec[CO_REC_ANIMSEL];
+        co_wander_tick(rec, comp);
+        if (player_ctrl_cc08() == 4 || rec[CO_REC_ANIMSEL] == prev_sel)
+            chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
+        if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
+            co_emit_wing_sparkle(rec, comp);
+        return;
+    }
 
     if (scene1_tutorial_dispatch_iv2_beat_active()) {
         /* The "Recette looks up at Tear" BEAT — retail's FUN_0048a833 else-branch

@@ -396,6 +396,7 @@ static int   s_cc08             = 1;              /* DAT_0438cc08 */
  * later-running controllers (the companion) can mirror that.  Cleared at the
  * top of scene1_player_ctrl_tick each frame. */
 static int   s_cc08_entered_this_frame = 0;       /* walk-arm entry 1→4 / 1→0 this frame */
+static int   s_cc08_menu_open_this_frame = 0;     /* counter menu "Open Store" 10→4 this frame */
 static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
@@ -535,13 +536,8 @@ void player_ctrl_pose_house_standing(int player_char)
      * and diverged from retail's animated wings — the fix is to animate, not to
      * pick a frame.  See docs/findings/scene1-wing-glow.md, engine-quirks §81. */
 
-    /* Companion position (DAT_056da1f0/f4/f8 = g_scene1_actor_pos[2], aliased by
-     * g_scene1_spawn_origin).  Seed to the retail controllable-onset value
-     * (0.6, 3.0, 9.35) beside the player spawn; the controller's 0.1 lerp
-     * settles any residual within ~1 s. */
-    g_scene1_actor_pos[2][0] = 0.6f;
-    g_scene1_actor_pos[2][1] = 3.0f;
-    g_scene1_actor_pos[2][2] = 9.35f;
+    /* Companion position (DAT_056da1f0/f4/f8 = g_scene1_actor_pos[2]): seated by
+     * scene1_postload_place_actors (FUN_004851e2) with the player. */
 }
 
 int player_ctrl_actor_char(int i)
@@ -1273,6 +1269,16 @@ void player_ctrl_cc08_markers_frame_clear(void)
 {
     s_cc08_entered_this_frame = 0;
     s_cc08_left_4_this_frame  = 0;
+    s_cc08_menu_open_this_frame = 0;
+}
+
+/* cc08 10→4 THIS frame via the counter menu's "Open Store".  FUN_0048670f's
+ * cc08==10 case ends `goto LABEL_133 → FUN_0048a833()`, so the companion still
+ * runs its normal update on this tick even though session_init just spawned the
+ * d3e load (b1cc 2) — unlike the 1→4 entries, which skip it. */
+int player_ctrl_cc08_menu_open_this_frame(void)
+{
+    return s_cc08_menu_open_this_frame;
 }
 
 static int player_ctrl_cc08_sell_counter_enter(void)
@@ -1684,6 +1690,7 @@ static void player_ctrl_cc08_counter_menu_arm(void)
         s_cc08 = 1;
     } else if (entry == COUNTER_MENU_OPEN_STORE) {
         s_cc08 = 4;                                         /* DAT_0438cc08 = 4 */
+        s_cc08_menu_open_this_frame = 1;
         customer_service_session_init();                    /* FUN_0045edaa */
         /* rand()%5 picks Recette's / Tear's "let's open!" voice (asm 0x4870f3). */
         static const char *const k_open_se[5] = {
@@ -1954,44 +1961,31 @@ static void player_ctrl_cc08_unported_arm(void)
      * the secondary worker is no longer pending, so the master tick + render
      * activate exactly when retail's do (at LOADING_END). */
     if (s_cc08 == 4) {
-        /* b1cc at FRAME START — captured BEFORE the inline load-release below.
-         * Retail's house_update is gated on the load-SCREEN counter (be94<0x78,
-         * all.c:40591), which the async worker drops a frame AFTER it clears b1cc;
-         * so retail's arrival anim + master tick (the b524 idle counter) first run
-         * the frame AFTER b1cc clears, NOT on the clear frame.  The port releases
-         * the load INLINE here (notify_loaded), so gating the body on the LIVE b1cc
-         * would run it on the SAME frame ⇒ b524 advances a frame early ⇒ the 2nd
-         * d3e load (b524==0x3c) fires 1 frame early = the §21.10 first −1 drift
-         * (confirmed: retail's b524 first ++ at LOADING_END+2 vs the port's at +1).
-         * Gate the arrival + master tick on this pre-release value so they resume
-         * one frame later, matching retail.  The NPC pump stays unconditional (§19). */
-        int b1cc_pre = customer_service_b1cc();
-        /* publish the frame-start load state for later-in-frame consumers (the
-         * companion ctrl, scene1_sim, runs AFTER this) — see RE §21.10 / the
-         * companion gate.  Done BEFORE the inline notify_loaded below. */
-        customer_service_note_frame_load(b1cc_pre == 2);
-
-        /* {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
+        /* d3e load release.  Retail's loader worker (LAB_00452ae8/b13) writes
+         * DAT_0438b1cc = 1 itself, so the master tick sees the release on the first
+         * tick after the worker finishes (rhost DEFER: the boundary right after the
+         * spawn tick — buy-40pct-accept b1cc 2@851 → 1@852, b524 1@852).  The port
+         * keeps the worker's write in g_worker_sec_state_1cc and mirrors it into
+         * customer_service's b1cc here, BEFORE anything this tick reads b1cc.  (The
+         * old frame-start snapshot taken before this release was a Frida-era
+         * real-thread compensation; it ran the master tick + companion one tick
+         * late — the b524 +1.)
+         *
+         * {csloadpin} bracket: load_pin_elapsed() is the LEFT operand so it runs
          * (and increments) every b1cc==2 frame; it returns 1 unless a pin is set,
-         * so unpinned play still clears purely on the async worker. */
-        if (b1cc_pre == 2 && customer_service_load_pin_elapsed()) {
-            /* The pinned minimum N has elapsed (or no pin → always true).  The
-             * port's d3e asset load is a real CreateThread (worker_load) whose
-             * completion lands whenever the OS schedules it — racy, +4f
-             * run-to-run (RE §21.16: it ran 28f here vs retail's frida-held 24f,
-             * and that surplus carries into free-roam as the wing-flap / chibi
-             * walk-cycle phase drift, viewer notes #20/#21).  When a pin is
-             * active, FORCE the worker to completion now so the load clears
-             * DETERMINISTICALLY at exactly N like retail's pinned worker — and the
-             * load-anchored {rngseed} re-pin then lands at the same entry-relative
-             * off on both sides (completes §21.9).  Unpinned, pin_active is 0 and
-             * load_pin_elapsed is always 1, so this reduces to the original
-             * `g_worker_sec_state_1cc != 2` async release. */
+         * so unpinned play still clears purely on the worker.  With a pin active,
+         * force the real-thread worker to completion so the load clears at exactly
+         * N frames. */
+        if (customer_service_b1cc() == 2 && customer_service_load_pin_elapsed()) {
             if (customer_service_load_pin_active() && g_worker_sec_state_1cc == 2)
                 worker_load_force_d3e_complete();
             if (g_worker_sec_state_1cc != 2)
                 customer_service_notify_loaded();
         }
+        int b1cc_pre = customer_service_b1cc();
+        /* publish this tick's load state for later-in-frame consumers (the
+         * companion ctrl, scene1_sim, runs AFTER this). */
+        customer_service_note_frame_load(b1cc_pre == 2);
 
         /* The arrival anim + camera ramp run THROUGH the d3e bg-load (UNGATED),
          * matching retail (RE §21.10).  The d3e customer-asset load is a BACKGROUND
@@ -2058,11 +2052,8 @@ static void player_ctrl_cc08_unported_arm(void)
         if (b1cc_pre != 2) {
             /* the master tick (FUN_00462403): owns the b534 state switch + the
              * scripted-sell dispatch + the cinematic counter camera.  INERT during
-             * the d3e load (it self-gates on b1cc==2); gated here on b1cc_pre so it
-             * resumes the frame AFTER the load clears — NOT on the release frame —
-             * so the b524 idle counter advances in lockstep with retail (the §21.10
-             * first −1 fix; the 2nd d3e load at b524==0x3c then fires on retail's
-             * frame).  cur/pressed/held = DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
+             * the d3e load (it self-gates on b1cc==2 at its top).
+             * cur/pressed/held = DAT_073dddd0/d4/d6 (g_sim_buttons[0]). */
             customer_service_master_tick(g_sim_buttons[0].cur,
                                          g_sim_buttons[0].pressed,
                                          g_sim_buttons[0].held);

@@ -37,6 +37,8 @@
 #ifndef OPENRECET_SCENE1_COMPANION_CTRL_H
 #define OPENRECET_SCENE1_COMPANION_CTRL_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,6 +68,15 @@ void scene1_companion_ctrl_advance_phase_event(void);
 /* Reset the per-scene hover-bob phase counter (engine DAT_056db054).  Called on
  * HOUSE entry from scene1_postload, alongside the actor seed. */
 void scene1_companion_ctrl_reset(void);
+
+/* FUN_00436f97's reset of the random-wander state (DAT_0438be6c/70/74/78). */
+void scene1_companion_ctrl_stage_reset(void);
+
+/* Random-wander state (state_va mirrors): DAT_0438be6c / be70 / be74 / be78. */
+int32_t scene1_companion_wander_state(void);
+int32_t scene1_companion_wander_t(void);
+float   scene1_companion_wander_tx(void);
+float   scene1_companion_wander_tz(void);
 
 /* Read the shared per-frame phase counter DAT_056db054 (the companion bob phase).
  * Other db054 readers (the player foot-dust emit) call this; it returns the

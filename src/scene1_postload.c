@@ -66,6 +66,7 @@
 #include "scene1_walker_pass_init.h"
 #include "stage_palette.h"
 #include "stage_post_load.h"      /* stage_post_load_get_dat_056da1cc (player char) */
+#include "x87.h"
 
 /* g_scene1_stage_player_default_pos (DAT_0438b1ec) lives in floor_layout.c,
  * its retail writer FUN_0047df4d. */
@@ -115,23 +116,40 @@ void scene1_postload_pose_player(void)
     g_scene1_player_pos[2] = g_scene1_stage_player_default_pos[2];
 }
 
+/* FUN_004851e2 (0x4851e2): seat the player, actor 1 and Tear at the door-table
+ * entry [shop tier (work record +0x2cde0) + 4·a] of rodata 0x5cd0c4 —
+ * a = 0 the counter standing spot, a = 1 the front door (FUN_00436f97 picks a by
+ * work-record dword +0x2cdf4).  Tear sits +0.9 to the side at y 3.0. */
+static const float k_door_spawn[8][2] = {
+    { -0.3f, 9.35f }, { -0.3f, 9.35f }, { -0.25f, 9.5f }, { 10.7f, 17.0f },
+    {  2.0f, -3.24f }, { 5.0f, -5.67f }, {  5.0f, -5.67f }, {  5.0f, -5.67f },
+};
+static const float k_tear_side = 0.9f;   /* m32 0x519718 */
+
+void scene1_postload_place_actors(int a)
+{
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    int idx = (w ? (int)w[0x2cde0 / 4] : 0) + 4 * a;
+    if (idx < 0 || idx >= 8)   /* retail reads past the 8 real entries */
+        idx = 4 * a;
+    const float x = k_door_spawn[idx][0], z = k_door_spawn[idx][1];
+    g_scene1_actor_pos[0][0] = x;  g_scene1_actor_pos[0][1] = 0.0f;  g_scene1_actor_pos[0][2] = z;
+    g_scene1_actor_pos[1][0] = x;  g_scene1_actor_pos[1][1] = 0.0f;  g_scene1_actor_pos[1][2] = z;
+    g_scene1_actor_pos[2][0] = spill32((long double)x + k_tear_side);
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = z;
+}
+
 void scene1_postload_pose_house_standing(void)
 {
-    /* Cchr.2h — the HOUSE standing player pose (de-MVP of the per-call
-     * scene1_shop_walker_set_player_inject).
-     *
-     * Position: the engine derives the runtime standing position from
-     * door/spawn placement (DAT_0438b1ec → DAT_056da1d8, all.c:34425); that
-     * placement isn't ported, so until it lands we seed the leaf-validated
-     * value directly — runs/cchr2b HOUSE frame 17544 / scene1-char-sprite-
-     * trace.md both give (-0.30, 0, 9.35).  This OVERRIDES the (-40,0,-60)
-     * stage default that pose_player set as the engine pre-gate mirror.
-     *
-     * The remaining actor state (char id, scale, sprite-state record) is
-     * seeded in scene1_player_ctrl from the same capture. */
-    g_scene1_player_pos[0] = -0.30f;
-    g_scene1_player_pos[1] =  0.0f;
-    g_scene1_player_pos[2] =  9.35f;
+    /* The HOUSE standing pose: FUN_00436f97's alt-stage arm seats the actors via
+     * FUN_004851e2 (overriding the floor-layout spawn origin pose_player copied);
+     * the actor state (char id, scale, sprite record) is seeded in
+     * scene1_player_ctrl.
+     * PORT-DEBT(simplified, FUN_00436f97): always the counter spot (a = 0);
+     * retail takes the front-door entry (a = 1, + facing/yaw) when work dword
+     * +0x2cdf4 is set. */
+    scene1_postload_place_actors(0);
 
     /* FUN_00436f97 calls FUN_004060ff (top-HUD tooltip band/counter = -1) right
      * before FUN_004850ec (cc08 = 1, inside pose_house_standing). */
@@ -173,12 +191,7 @@ void scene1_postload_day2_actor_replace(void)
      * The companion then holds cx≈0.6 (free-roam law: dist 0.9 < CO_THRESHOLD 1.5);
      * retail's cx 0.6→1.0 ease is FUN_0048a833's b928/b924 intro branch, a
      * separate follow-up (finding cutscene-replay-anchor-drift §DAY2 #4). */
-    g_scene1_player_pos[0] = -0.30f;
-    g_scene1_player_pos[1] =  0.0f;
-    g_scene1_player_pos[2] =  9.35f;
-    g_scene1_actor_pos[2][0] = 0.6f;
-    g_scene1_actor_pos[2][1] = 3.0f;
-    g_scene1_actor_pos[2][2] = 9.35f;
+    scene1_postload_place_actors(0);
 }
 
 void scene1_postload_ambient_spawn(void)

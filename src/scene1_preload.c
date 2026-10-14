@@ -15,6 +15,7 @@
 #include "save_work.h"
 #include "scene1_bg_npc.h"
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
+#include "scene1_companion_ctrl.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
 #include "stage_gate.h"
@@ -267,6 +268,7 @@ int scene1_preload_house(void)
     /* FUN_0041f252 (block 17, after FUN_0040d132 / FUN_0040f64b): actor-table
      * reset + the 8-draw spawn-order shuffle. */
     actor_spawn_reset();
+    scene1_companion_ctrl_stage_reset();   /* block 7: DAT_0438be6c/70/74/78 = 0 */
     /* FUN_0046f1e9 (block 19): bg-window NPC stage reset — slot 0 static,
      * warmup cursor 1. */
     {

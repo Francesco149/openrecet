@@ -388,6 +388,9 @@ int  player_ctrl_cc08_entered_this_frame(void); /* cc08 flipped 1→4 THIS frame
                                              * FUN_004897c6 anim-tick loop + the companion
                                              * ctrl, so the entry frame ticks no actor
                                              * anim (probe-proven, RE §21.28). */
+int  player_ctrl_cc08_menu_open_this_frame(void); /* cc08 10→4 THIS frame via the counter
+                                               * menu "Open Store" (FUN_0048670f case 10
+                                               * still runs FUN_0048a833 afterwards) */
 int  player_ctrl_cc08_left_4_this_frame(void); /* cc08 flipped 4→1 THIS frame (the b520
                                              * dissolve leave) — retail's frame took the
                                              * cc08==4 arm, so the companion free-roam law

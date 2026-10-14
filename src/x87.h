@@ -42,5 +42,28 @@ static inline void x87_fsincos(long double x, long double *s, long double *c)
     __asm__("fsincos" : "=t"(cv), "=u"(sv) : "0"(x));
     *s = sv; *c = cv;
 }
+/* MSVC6 CRT _sin / _cos (0x503a44 / 0x503994): fsin / fcos with CW forced to 0x027F
+ * for the call (53-bit, whatever the caller's CW), result left unrounded in ST0.
+ * |x| < 2^63 (the CRT's fprem1 reduction path is not mirrored). */
+static inline long double x87_crt_sin(double x)
+{
+    unsigned short cw, cw53 = 0x027f;
+    long double r;
+    __asm__ volatile("fnstcw %0" : "=m"(cw));
+    __asm__ volatile("fldcw %0" : : "m"(cw53));
+    __asm__ volatile("fsin" : "=t"(r) : "0"((long double)x));
+    __asm__ volatile("fldcw %0" : : "m"(cw));
+    return r;
+}
+static inline long double x87_crt_cos(double x)
+{
+    unsigned short cw, cw53 = 0x027f;
+    long double r;
+    __asm__ volatile("fnstcw %0" : "=m"(cw));
+    __asm__ volatile("fldcw %0" : : "m"(cw53));
+    __asm__ volatile("fcos" : "=t"(r) : "0"((long double)x));
+    __asm__ volatile("fldcw %0" : : "m"(cw));
+    return r;
+}
 
 #endif

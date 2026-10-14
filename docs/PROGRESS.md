@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (later) — x87 PC53, Tear's wander, actor seats, b1cc release order
+- **x87:** the port ran every float at PC24. CreateDevice without FPU_PRESERVE sets
+  0x007F, and retail's WinMain resets PC53 right after (0x47c0ec), a step the port
+  missed. Ported (engine-quirks §138); portstate now prints both sides' CW.
+- **Tear's random wander** (FUN_0048a833 `!v32` arm, post-tutorial house: f407 set):
+  90-tick idle → fly to (2·rand%7−9, 2·rand%6−6.5) at 0.05/axis → anim 2|3 for 90.
+  Ported from the disasm (m32 constants, x87 `_sin` at forced 0x027F via
+  `x87_crt_sin`); DAT_0438be6c/70/74/78 reset in the house loader (436f97 block 7).
+- **FUN_004851e2** door-table actor seats (rodata 0x5cd0c4, shop tier + 4·a): Tear =
+  table.x + 0.9f = 0.59999996, not the old 0.6f literal. a=1 (front door) is
+  PORT-DEBT.
+- **b1cc release order:** the port snapshotted b1cc before applying the loader
+  worker's release (a Frida-era compensation), so the master tick + companion ran a
+  tick late (b524 +1). It now mirrors the worker's write first. The counter menu's
+  "Open Store" tick runs the companion (FUN_0048670f case 10 → LABEL_133). The
+  companion's load gate uses only the tick-start b1cc (FUN_00462403 calls
+  FUN_0048a833 before it can spawn the b524==60 load).
+- Evidence: `portrng buy-40pct-accept` identical per-tick draws f1–f910 (was f741);
+  `portstate`: b1cc / b524 IDENTICAL over the scenario, Tear wander state identical
+  to f1117. portsave ×3 IDENTICAL (day2-save-commit again; no longer luck);
+  house-idle 195/195; house-customer-tutorial first anchor mismatch moved from the
+  2nd d3e load (~f448) to #20 HOUSE_FREEROAM (f8933/8934). Host tests 3449 pass.
+- Also: bg-window NPC render gates (toorioff, slot-0 story flags).
+
 ## 2026-10-14 — house-entry RNG: floor layout, actor reset, bg-NPC stage reset
 - Continue load (buy-40pct-accept f652): retail's loader-thread FUN_00436f97 makes 42
   draws the port never made: the floor-layout generator FUN_0047df4d (34) and the

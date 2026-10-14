@@ -65,6 +65,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - verify per fn with a P1 oracle or an rhost hook;
   - go flow by flow with the re-verification program.
   - Done: the haggle family (oracle-exact under c11 + gnu11). Port now builds gnu11.
+  - 2026-10-14: the port ran at PC24 (missed WinMain's PC53 step, §138) — fixed;
+    earlier port-side float comparisons were made at the wrong precision.
 - ◐ **Port-side determinism**: port↔retail traces should align by frame number.
   - Boot→title already aligns (`title-options` `TITLE_SETTINGS_READY` f39 both).
   - `--det-loads` (DEFER twin): loader threads run at the frame boundary, and every
@@ -80,10 +82,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (display sparkle `%8==3`) therefore fires a frame early. Decide: drop the dead
        tick + relabel, or don't count it. Check the ms clock (port vms=(L+1)·17 vs
        rhost L·17) and other per-tick counters with portstate before choosing.
-    2. **cs d3e load under DEFER** (house-customer-tutorial): retail `b524` starts at
-       f389, port f390. The port's `b1cc_pre` gate (`scene1_player_ctrl.c` ~1900) is a
-       Frida-era compensation for real-thread timing. The 2nd d3e load is then 448 vs
-       449 (portanchors' first mismatch).
+    2. ✅ cs d3e load under DEFER: the port snapshotted b1cc before applying the
+       worker's release (Frida-era compensation) → master tick + Tear a tick late.
+       Fixed 2026-10-14; house-customer-tutorial portanchors first mismatch is now
+       #20 HOUSE_FREEROAM f8933/8934 (was the 2nd d3e load, ~f448).
     3. Port boots `cc08`=1; retail has 0 until the house init.
     4. RNG: legacy traces' Frida-era `{rngseed}` pins (applied to both sides) hide long
        divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
@@ -124,25 +126,22 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (FUN_0047df4d) + actor reset (FUN_0041f252) + bg-NPC stage reset (FUN_0046f1e9)
     ported (PROGRESS 2026-10-14). `portrng buy-40pct-accept`: per-tick draws identical
     f1–f741.
+  - ✅ Tear's random wander (FUN_0048a833 `!v32` arm), FUN_004851e2 actor seats,
+    b1cc release order, menu "Open Store" companion tick, WinMain PC53 (§138):
+    `portrng buy-40pct-accept` identical f1–f910; Tear state identical to f1117.
   - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **Tear's random wander** — f742 retail 2 draws in FUN_00483170 < FUN_0048a833
-       (`!v32` branch: house + f407≠0, post-tutorial). `DAT_0438be6c` state machine:
-       90 f idle → fly to (`rand()%7`, `rand()%6`) cell → idle anim 90 f. Unported:
-       the port spring-follows. Visual + RNG (`rhost.py portshots buy-40pct-accept
-       --at 780`).
-    2. `b524` starts 1 f late → 2nd d3e load f911 vs 912.
-  - ★ day2-save-commit (DIFFER since the bg-NPC reset; was IDENTICAL by luck): the
-    tutorial sale's haggle (offer_up f10030 → haggle_decide class 2 = 15+2 EXP;
-    port gets class 1 = 30+2) is after the last `{rngseed}` pin (f9642). Port draws
-    8,109 vs retail 3,481 over f9642–10400:
-    - port `init_type_1f_100` makes 6 draws EVERY frame there; retail draws none;
-    - display sparkle fires a tick early (tick-0 label item 1 above).
-    `rhost.py portrng day2-save-commit --window 9642:10400`.
+    1. **2nd d3e load (f911, b524 == 60):** the port draws cs_kind_select (3) + a
+       40-draw roster_shuffle inline in the master tick; retail draws 1 there
+       (stack 46343c in FUN_00462403) and no shuffle in f911–913. Find where
+       retail's roster pick runs (`rhost.py portrng buy-40pct-accept --window
+       905:930`).
+    2. Tear diverges at f1118 (x) — recheck after item 1 (`portstate --va
+       438be6c,438be70,56da1f0,56da1f8`).
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
-- `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty}:
-  **IDENTICAL** (2026-10-14). day2-save-commit: DIFFER, attributed (★ above).
+- `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
+  day2-save-commit}: all **IDENTICAL** (2026-10-14, after PC53 + wander).
 - `rhost.py verify` now also shadows floor_layout + actor_spawn_reset.
 - `rhost.py portanchors house-idle`: 195/195.
 
