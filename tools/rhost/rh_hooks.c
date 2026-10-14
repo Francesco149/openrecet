@@ -12,8 +12,16 @@
  * Every hook is a direct-call-site rewrite (redirect_calls); retail stays callable
  * at its VA. A port function must never call its own retail VA (lint TODO). */
 #include "rhost.h"
+#include "actor_spawn.h"
+#include "audio_mci.h"
 #include "customer_haggle.h"
+#include "floor_layout.h"
 #include "rng.h"
+#include "scene1_particles_tick.h"
+
+/* actor_spawn.c clears fields of the port's people table; rhost links no
+ * scene1_particles_tick.c, so it owns the storage here. */
+scene1_people_entry_t g_scene1_people[SCENE1_PEOPLE_COUNT];
 
 extern volatile LONG g_live_threads;
 typedef enum { OFF, SHADOW, REPLACE } mode_t_;
@@ -25,7 +33,7 @@ typedef struct {
     char first[200];
 } hook_t;
 
-#define NH 6
+#define NH 8
 static hook_t H[NH];
 static void note(hook_t *h, const char *fmt, ...)
 {
@@ -50,6 +58,8 @@ static uint32_t port_rand(void)
 #define H_SIM_B  3
 #define H_OFFER_UP   4
 #define H_OFFER_DOWN 5
+#define H_FLOOR      6
+#define H_ACTOR_RST  7
 
 static int32_t __cdecl hook_haggle(void)
 {
@@ -118,6 +128,83 @@ static void offer_hook(hook_t *h, int down)
 static void __cdecl hook_offer_up(void)   { offer_hook(&H[H_OFFER_UP], 0); }
 static void __cdecl hook_offer_down(void) { offer_hook(&H[H_OFFER_DOWN], 1); }
 
+/* ---- floor layout (FUN_0047df4d): seed the port tables from retail, run retail, run the
+ * port on the same inputs + LCG state, compare every table it writes ---- */
+static int ret_43195d(void) { return ((int (__cdecl *)(void))0x43195du)(); }
+static int ret_4319d6(void) { return ((int (__cdecl *)(void))0x4319d6u)(); }
+typedef struct { const char *name; uint32_t va; void *port; size_t n; } region_t;
+static const region_t floor_regions[] = {
+    { "W",          0x5cc2e8u,  &g_floor_w,             4 },
+    { "H",          0x5cc2ecu,  &g_floor_h,             4 },
+    { "maze",       0x73e11bcu, g_floor_maze,           sizeof g_floor_maze },
+    { "ncells",     0x73e1540u, &g_floor_ncells,        4 },
+    { "list",       0x73e008cu, g_floor_list,           sizeof g_floor_list },
+    { "grid",       0x73dfd08u, g_floor_grid,           sizeof g_floor_grid },
+    { "rooms",      0x73e03acu, g_floor_rooms,          sizeof g_floor_rooms },
+    { "origin",     0x438b1f8u, g_floor_origin,         8 },
+    { "extra_n",    0x438b430u, &g_floor_extra_n,       4 },
+    { "marks",      0x438b434u, g_floor_marks,          sizeof g_floor_marks },
+    { "pick_pos",   0x438b200u, g_floor_pick_pos,       sizeof g_floor_pick_pos },
+    { "pick_cell",  0x438b2f0u, g_floor_pick_cell,      sizeof g_floor_pick_cell },
+    { "pick_type",  0x438b390u, g_floor_pick_type,      sizeof g_floor_pick_type },
+    { "pick_flag",  0x438b3e0u, g_floor_pick_flag,      sizeof g_floor_pick_flag },
+    { "rooms_total",0x438b4b0u, &g_floor_rooms_total,   4 },
+    { "c148",       0x438c148u, &g_floor_c148,          4 },
+    { "spawn",      0x438b1ecu, g_scene1_stage_player_default_pos, 12 },
+    { "dbgtext",    0x6a47aacu, g_audio_mci_buffer,     AUDIO_MCI_BUFFER_SIZE },
+};
+#define N_FR ((int)(sizeof floor_regions / sizeof floor_regions[0]))
+static void __cdecl hook_floor_layout(void)
+{
+    hook_t *h = &H[H_FLOOR]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    const uint32_t rec = 0x44e3798u + 188360u * G32(0x438b1e0u), pal = G32(0x68dd2f0u);
+    floor_layout_in_t in = { (int32_t)G32(0x438b4c8u), (int32_t)G32(0x438b4ccu), (int32_t)G32(0x438b4dcu),
+                             pal && G32(pal) == 1, *(volatile uint8_t *)(uintptr_t)(rec + 0x2bce2u),
+                             *(volatile uint8_t *)(uintptr_t)(rec + 0x2bcf8u), ret_43195d, ret_4319d6 };
+    for (int i = 0; i < N_FR; i++) memcpy(floor_regions[i].port, (void *)(uintptr_t)floor_regions[i].va, floor_regions[i].n);
+    const uint32_t seed0 = G32(DAT_RNG);
+    ((void (__cdecl *)(void))0x47df4du)();
+    rng_seed(seed0);
+    floor_layout_generate(&in);
+    if (g_rng_seed != G32(DAT_RNG)) note(h, "rng retail %08x port %08x", G32(DAT_RNG), g_rng_seed);
+    char b[160]; size_t o = 0; b[0] = 0;
+    for (int i = 0; i < N_FR; i++) {
+        const region_t *r = &floor_regions[i];
+        if (!memcmp(r->port, (void *)(uintptr_t)r->va, r->n)) continue;
+        size_t k = 0;
+        while (((uint8_t *)r->port)[k] == *(volatile uint8_t *)(uintptr_t)(r->va + k)) k++;
+        o += snprintf(b + o, sizeof b - o, "%s+%zx ", r->name, k);
+    }
+    rh_log("floor_layout f%u cls=%d floor=%d -> W=%d H=%d ncells=%d start=(%d,%d) exit=(%d,%d) extra=%d rng=%08x\n",
+           g_frame, in.stage_class, in.floor, (int)G32(0x5cc2e8u), (int)G32(0x5cc2ecu), (int)G32(0x73e1540u),
+           (int)G32(0x438b434u), (int)G32(0x438b438u), (int)G32(0x438b43cu), (int)G32(0x438b440u), (int)G32(0x438b430u), G32(DAT_RNG));
+    if (b[0]) note(h, "cls=%d floor=%d differs: %s", in.stage_class, in.floor, b);
+}
+
+/* ---- actor-table reset (FUN_0041f252): spawn order + counters + LCG ---- */
+static void __cdecl hook_actor_reset(void)
+{
+    hook_t *h = &H[H_ACTOR_RST]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    const uint32_t seed0 = G32(DAT_RNG);
+    ((void (__cdecl *)(void))0x41f252u)();
+    rng_seed(seed0);
+    g_actor_spawn_7c8c58 = g_actor_spawn_done = g_actor_spawn_serial = -1;
+    actor_spawn_reset();
+    int bad = g_rng_seed != G32(DAT_RNG) || g_actor_spawn_7c8c58 != (int32_t)G32(0x7c8c58u) ||
+              g_actor_spawn_done != (int32_t)G32(0x7c8c5cu) || g_actor_spawn_serial != (int32_t)G32(0x7c8c60u);
+    for (int i = 0; i < ACTOR_SPAWN_ORDER_N; i++) bad |= g_actor_spawn_order[i] != (int32_t)G32(0x7c8c38u + 4u * i);
+    for (int i = 0; i < SCENE1_PEOPLE_COUNT; i++) {
+        uint32_t e = 0x76bd54u + 0xba4u * (uint32_t)i;
+        bad |= G32(e + 0x44u) != 0 || G32(e + 0x6ecu) != 0 || G32(e + 0x774u) != 0;
+    }
+    if (bad) note(h, "retail order %d%d%d%d%d%d%d%d rng %08x | port %d%d%d%d%d%d%d%d rng %08x",
+                  G32(0x7c8c38u), G32(0x7c8c3cu), G32(0x7c8c40u), G32(0x7c8c44u), G32(0x7c8c48u), G32(0x7c8c4cu), G32(0x7c8c50u), G32(0x7c8c54u), G32(DAT_RNG),
+                  g_actor_spawn_order[0], g_actor_spawn_order[1], g_actor_spawn_order[2], g_actor_spawn_order[3],
+                  g_actor_spawn_order[4], g_actor_spawn_order[5], g_actor_spawn_order[6], g_actor_spawn_order[7], g_rng_seed);
+}
+
 static void state_hook(hook_t *h)
 {
     h->calls++;
@@ -136,6 +223,8 @@ static hook_t H[NH] = {
     [H_SIM_B]  = { "sim_b",         0x49966au, 1, (void *)hook_sim_b },
     [H_OFFER_UP]   = { "haggle_offer_up",   0x460161u, 0, (void *)hook_offer_up },
     [H_OFFER_DOWN] = { "haggle_offer_down", 0x4603cfu, 0, (void *)hook_offer_down },
+    [H_FLOOR]      = { "floor_layout",      0x47df4du, 0, (void *)hook_floor_layout },
+    [H_ACTOR_RST]  = { "actor_spawn_reset", 0x41f252u, 0, (void *)hook_actor_reset },
 };
 
 void rh_hooks_install(void)

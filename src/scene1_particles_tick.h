@@ -287,6 +287,11 @@ typedef struct {
     float   npc_hp_curr_42c;
     int32_t npc_extra_gate_428;
     float   npc_postdmg_ab4;
+
+    /* Cleared with `alive` by the stage-entry actor reset FUN_0041f252
+     * (actor_spawn.c); no reader ported yet. */
+    int32_t npc_field_6ec;      /* +0x6ec */
+    int32_t npc_field_774;      /* +0x774 */
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

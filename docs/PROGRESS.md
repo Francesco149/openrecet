@@ -7,6 +7,39 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 — house-entry RNG: floor layout, actor reset, bg-NPC stage reset
+- Continue load (buy-40pct-accept f652): retail's loader-thread FUN_00436f97 makes 42
+  draws the port never made: the floor-layout generator FUN_0047df4d (34) and the
+  actor reset FUN_0041f252 (8). Ported: `src/floor_layout.c` (FUN_0047df4d / 0047d622
+  / 0047ddc2 / 0045bc7f, every table at its retail VA) and `src/actor_spawn.c`, both
+  called from `scene1_preload_house` in retail order (engine-quirks §136).
+- The bg-window NPC warmup then spawned 6 NPCs vs retail's 5: FUN_0046f1e9 (block 19)
+  parks slot 0 as a static townsperson and sets the cursor to 1. Ported as
+  `scene1_bg_npc_stage_reset` (§137).
+- Evidence:
+  - P1 oracle `tools/oracle/p1_floor_layout.c`: floor_layout 216,000/216,000 exact
+    (stage class 0–5 × floor 0–99 × dungeon flag × record flags × 60 seeds; every
+    table + debug text + LCG); actor_spawn_reset 20,000/20,000.
+  - rhost shadow: floor_layout 105 calls / 70 scenarios, 0 divergences;
+    actor_spawn_reset 105 / 70, 0 (`verify`, both added to VERIFY_HOOKS).
+    The corpus covers the house only (cls 0 / floor 0, 41 distinct seeds).
+  - `portrng buy-40pct-accept`: identical per-tick draw counts f1–f741 (was f652).
+- Gates: house-pause-save-commit(+empty) IDENTICAL, house-idle anchors 195/195.
+  **day2-save-commit now DIFFERs (merchant_exp 32 vs 17).** The tutorial sale's
+  haggle at f10030 (offer_up acc → haggle_decide class) lies after the last pin
+  (f9642). There, both the old and new port streams were already wrong (port
+  8,070 / 8,109 vs retail 3,481 draws over f9642–10400: per-frame `init_type_1f_100`
+  draws, display-sparkle tick offset), so the old IDENTICAL was luck. Bisect: only
+  the bg-NPC reset moves it.
+- Tools:
+  - rhost tags deferred-worker draws (`… worker`); portrng relabels only those (+1).
+    The old blanket +1 had mislabelled every tick.
+  - portrng prints per-tick consumer runs instead of an LCG-chain compare that could
+    never diverge.
+  - rhost auto-rebuilds when tools/rhost or src sources change; `run --dump-at`
+    fetches the dumps.
+  - New state_va rows: floor W/H/cells/total, work-slot merchant exp.
+
 ## 2026-10-13 (evening) — DInput on Windows, prologue settle frame, `portstate`
 - **Correction to the entry below:** the save equalities are NOT pin-free.
   house-pause-save-commit re-seeds the RNG at f342, and day2-save-commit carries 62

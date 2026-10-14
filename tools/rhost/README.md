@@ -22,6 +22,8 @@ python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick
 made by a deferred loader worker (the boundary before tick N, logged `fN-1 … worker`)
 and portrng counts them in tick N, as the port does. Caveat: a port caller reached
 through a sibling-call (tail) jump is reported as its caller's caller (e.g. `sim_step_a`).
+`--hook shadow:floor_layout` / `shadow:actor_spawn_reset` compare FUN_0047df4d /
+FUN_0041f252 table by table (both in `verify`).
 Results land in `/mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/` (`rhost.log`, last
 line `RESULT key=value…`). The driver builds + stages automatically, rebuilding
 rhost.exe when tools/rhost or src sources change; `run --dump-at F,..` fetches the

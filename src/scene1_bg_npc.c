@@ -103,6 +103,34 @@ void scene1_bg_npc_reset(void)
     g_bg_npc_frame        = 0;
 }
 
+/* FUN_0046f1e9 (0x46f1e9, 186 B): the stage-entry reset FUN_00436f97 runs
+ * (block 19).  Hides every record, re-arms the 180x warmup, and parks slot 0 as
+ * a STATIC townsperson (dir 0 → never drifts, never spawned by the warmup) at
+ * the window: type 16 once work-record byte +0x2bcfd (DAT_0450f495) is set,
+ * else 14.  The warmup then spawns slots 1..5 — retail's "cursor already 1". */
+void scene1_bg_npc_stage_reset(int flag_2bcfd)
+{
+    CALL_TRACE_ENTER(0x46f1e9u);
+
+    for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++)
+        g_scene1_bg_npc[i].visible = -1;
+    g_bg_npc_frame       = 0;
+    g_bg_npc_warmup_done = 0;
+    scene1_bg_npc_t *m = &g_scene1_bg_npc[0];
+    m->arec[CHR_ACTOR_STATE] = -1;    /* +0x14 */
+    m->visible = 0;                   /* +0x48 */
+    m->arec[7] = 0;                   /* +0x1c */
+    m->arec[8] = 0;                   /* +0x20 */
+    m->arec[9] = 0;                   /* +0x24 */
+    m->type = flag_2bcfd ? 16 : 14;   /* +0x4c */
+    m->arec[CHR_ACTOR_FACING] = 4;    /* +0x18 */
+    m->dir = 0;                       /* +0x44 */
+    m->x = -2.8f;                     /* m32 0x519d84 */
+    m->y = 1.2f;                      /* m32 0x519924 */
+    m->z = -10.5f;                    /* m32 0x519ed0 */
+    g_bg_npc_spawn_cursor = 1;
+}
+
 /* Forward decl — defined near scene1_bg_npc_pin() below; used earlier by
  * scene1_bg_npc_tick()'s {bgnpcseed} dead-slot injection. */
 static void bg_npc_write_record_from_dwords(int idx, const uint32_t *r);

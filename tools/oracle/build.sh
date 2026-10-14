@@ -9,6 +9,10 @@ mkdir -p "$B"
 # P1 / P1b: port compiled with the SHIPPING flags (-std=c11) vs retail
 $CC -std=c11 -O2 "${INC[@]}" "${LDF[@]}" -o "$B/p1_pure.exe" "$O/p1_pure.c" "$S/rng.c" "$S/customer_haggle.c"
 $CC -std=c11 -O2 "${INC[@]}" "${LDF[@]}" -o "$B/p1b_more.exe" "$O/p1b_more.c" "$O/p1b_stubs.c" "$S/stage_gate.c" "$S/audio_fade.c"
+# P1 floor layout: retail FUN_0047df4d / FUN_0041f252 vs src/floor_layout.c / src/actor_spawn.c (port flags)
+PSTD=$(sed -n 's/^CFLAGS *?= *\(-std=[a-z0-9]*\).*/\1/p' "$S/Makefile")
+$CC $PSTD -O2 "${INC[@]}" "${LDF[@]}" -o "$B/p1_floor_layout.exe" "$O/p1_floor_layout.c" "$S/floor_layout.c" \
+    "$S/actor_spawn.c" "$S/audio_mci.c" "$S/call_trace.c" "$S/rng.c"
 # P2: in-process runner
 $CC -std=gnu11 -O2 "${LDF[@]}" -o "$B/p2_run.exe" "$O/p2_run.c"
 # P3: scenario replay + haggle_decide shadow (port built twice: c11 and gnu11)

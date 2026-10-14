@@ -10,9 +10,14 @@ PORT_STD=${PORT_STD:-$(sed -n 's/^CFLAGS *?= *\(-std=[a-z0-9]*\).*/\1/p' "$S/Mak
 mkdir -p "$B"
 $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/customer_haggle.o" "$S/customer_haggle.c"
 $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/rng.o" "$S/rng.c"
+PORT_OBJS=("$B/customer_haggle.o" "$B/rng.o")
+for f in floor_layout actor_spawn audio_mci call_trace; do
+    $CC $PORT_STD -O2 -I"$S" -include "$S/d3d_trace_macros.h" -c -o "$B/$f.o" "$S/$f.c"
+    PORT_OBJS+=("$B/$f.o")
+done
 $CC -std=gnu11 -O2 -Wall -Wno-unused-function -Wno-format-truncation -I"$S" -I"$H" "${LDF[@]}" -o "$B/rhost.exe" \
     "$H"/rhost.c "$H"/rh_heap.c "$H"/rh_files.c "$H"/rh_state.c "$H"/rh_trace.c "$H"/rh_hooks.c "$H"/rh_handles.c "$H"/rh_shot.c "$H"/rh_dinput.c \
-    "$S/input_segtrace.c" "$B/customer_haggle.o" "$B/rng.o" -luser32 -lgdi32
+    "$S/input_segtrace.c" "${PORT_OBJS[@]}" -luser32 -lgdi32
 make -s -C "$ROOT/tools/trace_studio_v3/proxy" d3d8.dll
 cp "$ROOT/tools/trace_studio_v3/proxy/d3d8.dll" "$B/v3proxy_d3d8.dll"
 echo "built $B/rhost.exe (port std: $PORT_STD)"

@@ -9,9 +9,13 @@
  * PORT-DEBT(simplified, FUN_00436f97): of the 710-line state-entry init this
  * file ports block-11 i=0, block-23, and the block-21 stage-placement writer
  * (scene1_postload_walker_phase2_init — which now also feeds collision_house's
- * DAT_0438c058 object origins, retiring its hardcoded k_house_objects[]); the
- * remaining ~22 logical blocks (the global-zeroing preamble, the cc08/event
- * machine seed, the alt-stage menu arm) are deferred. Retire = plan Step 3.4.
+ * DAT_0438c058 object origins, retiring its hardcoded k_house_objects[]).
+ * scene1_preload_house also runs, in retail order, the floor-layout generator
+ * FUN_0047df4d (floor_layout.c, + the 0x438b484 clear), the actor reset
+ * FUN_0041f252 (actor_spawn.c) and the bg-NPC stage reset FUN_0046f1e9 — every
+ * rand() draw FUN_00436f97 makes in the house.  The remaining ~20 logical
+ * blocks (the global-zeroing preamble, the cc08/event machine seed, the
+ * alt-stage menu arm) are deferred. Retire = plan Step 3.4.
  *
  * Asm reference for block-23 (verified via objdump -d at 0x438199):
  *
@@ -63,7 +67,8 @@
 #include "stage_palette.h"
 #include "stage_post_load.h"      /* stage_post_load_get_dat_056da1cc (player char) */
 
-float g_scene1_stage_player_default_pos[3] = {-40.0f, 0.0f, -60.0f};
+/* g_scene1_stage_player_default_pos (DAT_0438b1ec) lives in floor_layout.c,
+ * its retail writer FUN_0047df4d. */
 
 /* CLI overrides — see scene1_postload.h for the contract.  Module-
  * static so they survive a later stage_palette_init_house() reset

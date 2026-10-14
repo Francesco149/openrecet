@@ -4929,6 +4929,31 @@ harness; the port's async loads swing ~4000).  Consequence for parity: a save CO
 `{playtimepin}` (both sides ticked identically: `playtime = engine_frame_at_commit + const`;
 see `findings/parity-save-producer.md`).
 
+## 136. The house builds a dungeon floor on every entry (FUN_0047df4d), and its rand() draws are live
+
+The stage-entry init FUN_00436f97 calls the floor-layout generator FUN_0047df4d
+unconditionally, so even the house (stage class 0, floor 0) generates a maze: up to 50
+tries of FUN_0047d622 (W×H pick, the recursive 2-step carver FUN_0047ddc2, loop/edge
+extension), then room patterns, start / exit / marked cells and treasure picks. Nothing
+in the house reads the layout, but it costs ~30–40 rand() draws per entry (34 on the
+buy-40pct-accept Continue load: 7×5, 7 cells), followed by FUN_0041f252's 8-draw shuffle
+of the fixed-actor variant order. Skipping either shifts every later consumer (the
+bg-window NPC warmup first). It also writes the stage spawn origin DAT_0438b1ec/f4
+(cell × −40) that the player placement copies before the house pose overrides it.
+The start/exit/marks run at DAT_0438b434 is 15 pairs (to 0x438b4ac); FUN_00436f97
+zeroes pairs 10..14 before the generator. Verified: P1 oracle 216,000/216,000 over
+every stage class × floor 0..99 × flags (`tools/oracle/p1_floor_layout.c`); rhost
+shadow 105 calls / 70 scenarios, 0 divergences.
+
+## 137. The bg-window NPC slot 0 is a static townsperson, not a dead slot (FUN_0046f1e9)
+
+FUN_0046f1e9 (stage-entry reset, FUN_00436f97 block 19) hides all six bg-window NPC
+records (+0x48 = −1), re-arms the 180× warmup latch, and parks slot 0 as a STATIC NPC
+at (−2.8, 1.2, −10.5), facing 4, dir 0 (never drifts), type 16 once work-record byte
++0x2bcfd (DAT_0450f495) is set, else 14. It sets the spawn cursor to 1, so the warmup
+spawns only slots 1..5 (40 draws, not 48). The earlier port note calling slot 0 a
+"dead slot spawned by some earlier activity" was this function.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

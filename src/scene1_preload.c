@@ -6,10 +6,18 @@
 
 #include "scene1_preload.h"
 
+#include <string.h>
+
+#include "actor_spawn.h"
 #include "call_trace.h"
+#include "floor_layout.h"
 #include "mesh_load.h"
+#include "save_work.h"
+#include "scene1_bg_npc.h"
+#include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "scene1_postload.h"
 #include "scene1_records.h"
+#include "stage_gate.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "worker_load.h"
@@ -206,6 +214,29 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
     scene1_preload_chr_party_sheets();
 }
 
+/* FUN_00436f97 → FUN_0047df4d: the floor-layout generator runs on every stage
+ * entry, the house too (its draws are real; its layout is unused there).  It
+ * writes the spawn origin DAT_0438b1ec that pose_player copies — the slot the
+ * old init_stage_defaults filled with a FUN_0044f13d constant. */
+static void scene1_preload_floor_layout(void)
+{
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    floor_layout_in_t in = {
+        .stage_class   = g_scene1_combat_stage_id,
+        .floor         = stage_gate_get_next(),
+        /* PORT-DEBT(hardcode, FUN_00436f97): DAT_0438b4dc has no port mirror;
+         * HOUSE = 0.  Only feeds the generator's debug text row. */
+        .stage_no      = 0,
+        .dungeon       = 0,   /* this loader is the HOUSE arm (*DAT_068dd2f0 == 0) */
+        .rec_flag_a    = rec ? rec[0x2bce2] : 0,
+        .rec_flag_b    = rec ? rec[0x2bcf8] : 0,
+        .is_checkpoint = stage_gate_floor_is_checkpoint,
+        .gate_query    = stage_gate_query,
+    };
+    memset(g_floor_marks[10], 0, 0x28);   /* FUN_00436f97: memset(&DAT_0438b484, 0, 0x28) */
+    floor_layout_generate(&in);
+}
+
 int scene1_preload_house(void)
 {
     /* E.2 probe — FUN_00474a9a @ 0x474a9a.  Marker for `--align-on-first
@@ -222,18 +253,26 @@ int scene1_preload_house(void)
      * FUN_00414902 — deferred until their consumers port. */
     scene1_records_reset(1);
 
-    /* Cf.1 — engine FUN_00436f97 tail (the 200-iter ambient spawn loop
-     * at L690-700).  Wiring here is a stand-in: the engine doesn't run
-     * FUN_00436f97 on HOUSE entry from title (it's called from sub-
-     * scene transitions via FUN_0048526d / FUN_0049e163, both
-     * unported).  The gate `ambient_spawn_flag` at stage_palette +
-     * 0x1b28 is BSS-zero for HOUSE, so the spawn loop no-ops here
-     * unless tests / a future force-flag CLI trip it.  Pose-player
-     * + init_stage_defaults run unconditionally to mirror the
-     * engine's pre-gate work.  See docs/findings/scene1-postload-
-     * init.md for the 25-block survey + Cf.1 scope. */
-    scene1_postload_init_stage_defaults();
+    /* FUN_00436f97 — the stage-entry init.  Retail runs it in this same
+     * INGAME loader (case 1: FUN_00474a9a + FUN_00436f97) on EVERY house
+     * entry, Continue included: rhost --log-rand attributes its draws to the
+     * loader thread (StartAddress 0x45293d).  Also reached from FUN_0048526d
+     * (day-advance re-place) and FUN_0049e163, both unported.  Ported here, in
+     * retail order: the floor layout, the player pose, the actor reset, the
+     * bg-NPC reset, and the 200-iter ambient spawn loop (L690-700; its gate
+     * stage_palette+0x1b28 is 0 for HOUSE).  See docs/findings/scene1-
+     * postload-init.md for the 25-block survey. */
+    scene1_preload_floor_layout();
     scene1_postload_pose_player();
+    /* FUN_0041f252 (block 17, after FUN_0040d132 / FUN_0040f64b): actor-table
+     * reset + the 8-draw spawn-order shuffle. */
+    actor_spawn_reset();
+    /* FUN_0046f1e9 (block 19): bg-window NPC stage reset — slot 0 static,
+     * warmup cursor 1. */
+    {
+        const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+        scene1_bg_npc_stage_reset(rec ? rec[0x2bcfd] != 0 : 0);
+    }
     scene1_postload_ambient_spawn();
 
     /* Cf — phase-2 walker-array writer (engine FUN_00436f97 alt-stage

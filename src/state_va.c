@@ -9,7 +9,10 @@
 #include <string.h>
 
 #include "customer_service.h"
+#include "floor_layout.h"
 #include "rng.h"
+#include "save_bank.h"
+#include "save_work.h"
 #include "scene.h"
 #include "scene1_counter_menu.h"
 #include "scene1_player_ctrl.h"
@@ -29,6 +32,15 @@ static int32_t get_b74c(void)  { return counter_menu_slide(); }
 static int32_t get_b754(void)  { return counter_menu_timer(); }
 static int32_t get_cc0c(void)  { return counter_menu_cursor(); }
 static int32_t get_ttctr(void) { return scene1_top_hud_tooltip_ctr(); }
+static int32_t get_fl_w(void)  { return g_floor_w; }
+static int32_t get_fl_h(void)  { return g_floor_h; }
+static int32_t get_fl_n(void)  { return g_floor_ncells; }
+static int32_t get_fl_tot(void) { return g_floor_rooms_total; }
+static int32_t get_mexp(void)
+{
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    return w ? (int32_t)w[SAVE_BANK_FIELD_MERCHANT_EXP] : 0;
+}
 
 typedef struct { uint32_t va; const char *name; int32_t (*get)(void); } state_va_t;
 static const state_va_t k_map[] = {
@@ -44,6 +56,11 @@ static const state_va_t k_map[] = {
     { 0x438b754u, "counter-menu timer b754 (DAT_0438b754)", get_b754 },
     { 0x438cc0cu, "counter-menu cursor cc0c (DAT_0438cc0c)", get_cc0c },
     { 0x529704u,  "top-HUD tooltip counter (DAT_00529704)", get_ttctr },
+    { 0x5cc2e8u,  "floor layout W (DAT_005cc2e8)",    get_fl_w  },
+    { 0x5cc2ecu,  "floor layout H (DAT_005cc2ec)",    get_fl_h  },
+    { 0x73e1540u, "floor layout cells (DAT_073e1540)", get_fl_n },
+    { 0x438b4b0u, "floor rooms total (DAT_0438b4b0)", get_fl_tot },
+    { 0x450fb8cu, "work slot 0 merchant exp (DAT_0450fb8c)", get_mexp },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 

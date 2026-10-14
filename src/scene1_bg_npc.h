@@ -101,8 +101,12 @@ void scene1_bg_npc_tick(void);
 /* FUN_0046f2a3: one spawn+integrate(+anim-step) pass (warmup + tests). */
 void scene1_bg_npc_sim_once(void);
 
-/* Zero all NPC state + cursors (scene (re)entry). */
+/* Zero all NPC state + cursors (host tests / the {phasepin} re-arm). */
 void scene1_bg_npc_reset(void);
+
+/* FUN_0046f1e9: stage-entry reset (hide all, re-arm warmup, slot 0 = static
+ * window townsperson, cursor 1).  `flag_2bcfd` = work-record byte +0x2bcfd. */
+void scene1_bg_npc_stage_reset(int flag_2bcfd);
 
 /* Canonical RNG origin for the {phasepin} normalization.  The retail Frida
  * agent MUST seed DAT_006023a0 to the SAME value at the FUN_0046f621 warmup

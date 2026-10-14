@@ -36,6 +36,17 @@ Cross-referenced via `grep -rn "FUN_00436f97" docs/decompiled/by-address/`:
 | `FUN_0049e163`        | `LAB_0049e304` (L98)  | State-8 (dungeon combat) exit-to-INGAME transition. Runs after `FUN_004528b3()` poll succeeds and the new state has been committed. |
 | `FUN_0048526d` (142 B wrapper) | L8  | Always paired with `FUN_004851e2(1)` + camera/UI commits. Called from 4 sites: `FUN_00462403:249`, `FUN_00442cef:335`, `FUN_0048670f:214/218`. The `442cef:335` site commits `DAT_0438b1c0 = 1` immediately after the wrapper — this is the canonical "enter INGAME" hook. |
 
+> **2026-10-14 (rhost, authoritative) — FUN_00436f97 runs in the INGAME loader
+> thread on EVERY house entry, Continue included** (`rhost.py portrng
+> buy-40pct-accept`: its draws carry StartAddress 0x45293d on the stack, at the
+> deferred-worker boundary before the first house tick). In the house its only
+> rand() consumers are FUN_0047df4d (floor-layout generator, 34 draws on that
+> load) and FUN_0041f252 (actor reset, 8). FUN_0046f1e9 (block 19) is the
+> bg-window NPC stage reset. All three are now ported (`src/floor_layout.c`,
+> `src/actor_spawn.c`, `scene1_bg_npc_stage_reset`) and called from
+> `scene1_preload_house` in retail order; evidence in PROGRESS 2026-10-14.
+> Block-table rows 17/19 below predate this.
+
 > **CORRECTION 2026-05-29 — FUN_00436f97 *does* fire on new-game HOUSE
 > entry.** The claim below (that HOUSE state-1 entry skips FUN_00436f97)
 > was a static-analysis inference and is **wrong**. Empirical proof via

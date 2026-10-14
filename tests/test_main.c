@@ -881,6 +881,9 @@ struct test_case {
     X(scene_new_game_ui_scratch_clear_idempotent) \
     X(scene_new_game_stage_load_pulse_b_clear_zeroes) \
     \
+    X(floor_layout_house_continue_golden) \
+    X(floor_layout_actor_spawn_reset_golden) \
+    X(floor_layout_rec_flag_is_3x3_without_picks) \
     X(stage_gate_boss_id_low_range_17_to_19) \
     X(stage_gate_boss_id_pair_1b_1c_singletons_29_2b) \
     X(stage_gate_boss_id_high_range_36_to_49) \
