@@ -9,6 +9,7 @@
 #include "scene_new_game.h"
 #include "scene_title.h"   /* g_scene_title_anim.continue_mode */
 #include "save_work.h"     /* seed working slot 0 */
+#include "scene_adv_guild.h" /* adv_guild_continue_reset */
 #include "scene1_top_hud.h" /* load DAT_0438b918 money from the working slot */
 #include "stage_post_load.h"
 #include "worker_load.h"
@@ -89,6 +90,12 @@ void scene_post_fade_init(void)
         uint32_t *work = save_work_dwords_at(save_work_active_slot());
         if (work && work[SAVE_BANK_FIELD_RESUME_MODE] == 0)
             work[SAVE_BANK_FIELD_HOUSE_CAM_FLAG] = 0;
+        /* L111855-111863: the expedition bag size by merchant level + an empty
+         * bag.  PORT-DEBT(continue-arm, FUN_0049a59e): the rest of the arm (the
+         * stock / equip validity sweeps, DAT_0438b4dc = work +0x2cde0, the
+         * resume-mode dispatch) is not ported. */
+        if (work)
+            adv_guild_continue_reset((int)work[SAVE_BANK_FIELD_MERCHANT_LEVEL]);
     }
 
     /* Engine FUN_0049a59e commit: restore the live top-HUD globals from the

@@ -140,29 +140,46 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     FUN_0045cc1e, the party list FUN_0047f1ce (pause "Status" after Louie joins), the
     FUN_00434ceb box state; the dialogue tick runs in every LABEL_106 mode.
     **`buy-from-seller-guild-intro`: portsave + portrng IDENTICAL f1–f26774, pin-free**
-    (now in `gates`). The menus past the intro have no recording yet (human queue).
+    (now in `gates`).
+  - ✅ **The guild menus + the Merchants' Guild pause** (`adv-guild-pack-leave`, native,
+    PROGRESS 2026-10-14 night): Continue bag size, the mode-6/11 unpause restore
+    (FUN_00468338 rebuild + FUN_0049161d / FUN_0045bd36), the item-window price spill +
+    trend, the 3-pass mode-11 item window, the message box FUN_00435117, row dimming
+    (FUN_00468ddc). portstate mode / guild / bag VAs identical f1–f17745; portshots 7
+    frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
+    identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
+    1. **adv-guild-pack-leave f8013** (quirk §141): a guild Leave runs FUN_0045bcea →
+       `DAT_0438b4dc` = the dungeon stage, so the Merchants' Guild entry's FUN_00436f97
+       repoints `DAT_068dd2f0` at stage 4 and runs the dungeon arm (retail 2102 draws,
+       port 43). Needs: a b4dc mirror + `DAT_068dd2f0` into the parsed stage table
+       (`src/tables_stage.c`; the port's `g_stage_palette` is HOUSE-only), FUN_0045bcea
+       (FUN_0045bc7f + FUN_0047fa4f), the floor layout's `*DAT_068dd2f0 == 1` coin flips,
+       FUN_00436f97's `> 4` arm (per-dungeon FUN_0044c88f… + FUN_00431d54 enemy placement
+       + FUN_0041f4a6 / FUN_0041f903). This is the dungeon pilot's door (methodology §3
+       Phase 1): shadow each fn (`rh_hooks.c`) as it lands. The scenario continues into
+       dungeon 0 (f14270: combat, damage, pause Items / Equip).
+    2. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
        arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
        FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
        Retail there: bg-NPC ticks from the story block, no Tear tick.
-    2. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
+    3. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
        payment screen (FUN_0048e49c + FUN_0044ba2c scripts), the week-end story /
        game-over scenes (FUN_0049d2e5 / FUN_0049da9e), the b924 50/110/150 morning
        voices (74b2ee8), b928 = 0 at a dungeon entry (FUN_0045c051). The night arm of
        the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
-    3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
-    4. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
+    4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
+    5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
        delivery + story customers) — no scenario reaches them yet.
-    5. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
-       FUN_00468fd0, the expansion's FUN_004864fd, the FUN_00434ceb message box, the
-       variant-1 market's textures; FUN_0044ba2c's `mode` argument (what runs at a
-       dialogue's end) is not modeled.
-    6. "Now Loading" on a dialogue's arm frame: retail draws the disc (gate 2 →
+    6. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
+       FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures,
+       FUN_004682ee (bag picker's first-wearable tab); FUN_0044ba2c's `mode` argument
+       (what runs at a dialogue's end) is not modeled.
+    7. "Now Loading" on a dialogue's arm frame: retail draws the disc (gate 2 →
        DAT_06a49960) at f11003 of buy-from-seller-guild-intro, the port does not — sim.c
        latches nowloading at the tick head, before the scene arms the .ivt load (render
        only; the anchors fold the same state, so re-check portanchors when moving it).
-    7. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
+    8. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
        56da1f0) — not RNG-visible yet; x87 sweep candidate (FUN_0048a833/a4d1).
 
 ### Regression gate (run before claiming a port change is safe)
@@ -206,12 +223,12 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record the Adventurers' Guild menus** (verifies FUN_0045c051 past the intro + the
-  render): `python3 tools/rhost/rhost.py record adv-guild-pack-leave --save
-  dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`, Load Game → slot 10,
-  leave the shop → world map → the Adventurers' Guild (top right). Then: move the cursor
-  over "Leave" and back, pick Louie, close the "Pick the items" box, pack 3 items
-  (up/down and left/right in the bag, replace one, press C on a packed item once), X back
-  to the list, X to leave. Back on the map, enter the guild again, pick Louie and
-  "Depart!". Close the window once the dungeon has loaded.
+- **Record a dungeon floor-to-floor + a dungeon save** (the dungeon pilot's corpus: the
+  stage-4 floor build, enemy AI / combat RNG, the stairs, the "Saving here…" commit):
+  `python3 tools/rhost/rhost.py record dungeon0-floors-save --save
+  dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`, Load Game → slot 9,
+  map → Adventurers' Guild → Louie → pack 2 items → Depart!. In the dungeon: fight a few
+  enemies, take the stairs down at least twice, then ESC → Save → slot 9 → confirm the
+  warning → Yes. Do NOT open Equip before saving (quirk §140 freezes Save). Close the
+  window after the save bar finishes.
 <!-- FRONT:END -->

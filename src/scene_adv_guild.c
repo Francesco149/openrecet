@@ -139,6 +139,37 @@ void scene_adv_guild_reset(void)
 
 static uint32_t *work(void) { return save_work_dwords_at(save_work_active_slot()); }
 
+/* DAT_005c5a98 by merchant level (FUN_0045bdc2 and FUN_0049a59e's Continue arm). */
+static void set_bag_size(int lvl)
+{
+    s.bag_size = 20;
+    if (lvl >= 16) s.bag_size = 25;
+    if (lvl >= 23) s.bag_size = 30;
+    if (lvl >= 39) s.bag_size = 35;
+}
+
+/* FUN_0045bd36 — the unpause hook (FUN_00453384, mode 11): the item window's
+ * scroll / cursor back (it was rebuilt by FUN_00468338); in the bag, the
+ * highlighted slot and the hand cursor; the compared adventurer. */
+void scene_adv_guild_unpause(void)
+{
+    if (!stage_load_pulse_get_active())                       /* FUN_004682bf */
+        return;
+    display_menu_state_restore();                             /* FUN_00468131 */
+    if (s.bag_mode == 1) {
+        display_menu_set_highlight(s.bag_row + s.bag_top != 0 ? s_bag[s.bag_row] : -1);
+        title_save_dialog_cursor_snap(k_bag_cur_x, (float)(40 * (s.bag_row - s.bag_top)) + k_bag_cur_y);
+    }
+    display_menu_set_compare(party_roster_row_id(s.chara_row), -1);   /* FUN_00468233 */
+}
+
+void adv_guild_continue_reset(int merchant_level)
+{
+    set_bag_size(merchant_level);
+    for (int k = 1; k <= ADV_GUILD_BAG_SLOTS; k++)   /* memset(DAT_0438b5ec, 0xff, 0x98) */
+        s_bag[k] = -1;
+}
+
 static int32_t *chara_rec(uint32_t *w, int id)
 {
     return (int32_t *)(w + W_CHARA + (uint32_t)(W_CHARA_STRIDE * id));
@@ -168,11 +199,7 @@ static void adv_guild_enter(void)
      * PORT-DEBT(stub, FUN_0047f172): no port backup bank; retire with the dungeon. */
     w[W_RESUME_MODE] = 1;
     /* FUN_0044c7bb: DAT_0438b8a4 = 0 — no port mirror (dungeon-side). */
-    const int lvl = (int32_t)w[W_MERCHANT_LEVEL];
-    s.bag_size = 20;
-    if (lvl >= 16) s.bag_size = 25;
-    if (lvl >= 23) s.bag_size = 30;
-    if (lvl >= 39) s.bag_size = 35;
+    set_bag_size((int32_t)w[W_MERCHANT_LEVEL]);
     for (int k = 1; k <= ADV_GUILD_BAG_SLOTS; k++)
         s_bag[k] = s_bag2[k] = -1;
     s.commit     = 0;
@@ -714,6 +741,7 @@ void scene_adv_guild_render(struct IDirect3DDevice8 *dev) { (void)dev; }
 
 #include "customer_service.h" /* cs_news_price_trend (FUN_004361b2) */
 #include "font_draw.h"     /* FUN_0047ca05 / 0047d14c / 0047d2db */
+#include "choice_box.h"    /* FUN_0043537e */
 #include "render_quad.h"   /* render_quad_state_setup/bind/add/flush */
 #include "scene1_top_hud.h" /* FUN_00406d50 */
 #include "sprite.h"        /* sprite_t, sprite_load */
@@ -781,13 +809,21 @@ static int tex_bind(IDirect3DDevice8 *d, const sprite_t *t)
     return 1;
 }
 
-/* FUN_0040a765 as mode 11 sees it: its shop block is mode-1 gated; the
- * clock/Day/money HUD (FUN_00406d50) and the hand cursor (FUN_00435747) draw. */
+/* FUN_0040a765 as mode 11 sees it: its shop blocks are mode-1 gated; the
+ * clock/Day/money HUD (FUN_00406d50), the item window (FUN_0046b00a), the
+ * choice box (FUN_0043537e), the hand cursor (FUN_00435747) and the message box
+ * (FUN_00435117) draw.  Mode 11 runs it twice a frame (inside FUN_0045cc85 and
+ * after it) and FUN_0045cc85 draws the item window once more: three layers of
+ * the 0.8-alpha parchment are why the guild's bag picker looks opaque (one
+ * layer in the Merchants' Guild). */
 static void adv_hud(IDirect3DDevice8 *d)
 {
     render_quad_state_setup(d);                /* FUN_0049b425 */
     scene1_top_hud_render(d);                  /* FUN_00406d50 */
+    display_menu_render(d, 0.0f);              /* FUN_0046b00a */
+    choice_box_draw(d);                        /* FUN_0043537e */
     title_save_dialog_cursor_render(d);        /* FUN_00435747 */
+    title_save_dialog_render(d);               /* FUN_00435117 */
 }
 
 /* FUN_0046add8(x, y, item, alpha) — one item row: the name (+N, or the

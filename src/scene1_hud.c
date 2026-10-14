@@ -344,7 +344,7 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* FUN_00435117 (all.c:7499) — the save/load dialog frame, immediately after
      * the cursor like retail.  Self-gates (no active dialog ⇒ no-op). */
-    title_save_dialog_render();
+    title_save_dialog_render(dev);
 }
 
 #endif /* _WIN32 */

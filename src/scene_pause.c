@@ -29,7 +29,8 @@
 #include "save_io.h"     /* save_io_commit_slot = FUN_004905a8(slot) (M4c) */
 #include "choice_box.h"  /* the "Overwriting file." dialog (FUN_00434def/ed2) */
 #include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
-#include "scene_new_game.h"   /* FUN_004682b9 — DAT_0734b9a4 (stage_load_pulse_b) */
+#include "scene_guild.h"      /* FUN_0049161d — the mode-6 unpause hook */
+#include "scene_adv_guild.h"  /* FUN_0045bd36 — the mode-11 unpause hook */
 #include "chara_equip.h"      /* FUN_004844ef — re-aggregate equip stats on unpause */
 #include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
 
@@ -355,13 +356,21 @@ void pause_dispatch(int action)
             if (g_pause_snap_cursor_vis)
                 title_save_dialog_cursor_snap(g_pause_snap_cursor_x,
                                               g_pause_snap_cursor_y);  /* FUN_00435693 */
-            /* Shop-display restore (engine L50277-50280): only when a shop grid
-             * was active at pause (DAT_06a499b8). Inert in HOUSE/guild-menu
-             * (pulse==0); the full FUN_00468338 rebuild = PORT-DEBT(pause-shop-restore).
-             *   if (g_pause_snap_pulse) { FUN_00468338(g_pause_snap_pulse_b,1); FUN_004682e3(); }
-             * action 0 → FUN_004681d3 (DAT_0734b96c shop-interaction reset) is also
-             * unported (a shop-grid index, 0/inert in HOUSE). */
-            (void)g_pause_snap_pulse; (void)g_pause_snap_pulse_b;
+            /* (cc08 == 50 → 1: the house display-cell detail popup, all_ida
+             * 97436 — the port never enters cc08 50.) */
+            /* The item window, if one was up at pause (DAT_06a499b8): rebuilt
+             * with its first-open reset (cursor / scroll / tab zeroed), slid
+             * fully in; modes 6 / 11 put the cursor back below. */
+            if (g_pause_snap_pulse) {
+                display_menu_open(g_pause_snap_pulse_b, 1);  /* FUN_00468338(b9a4, 1) */
+                stage_load_pulse_reset_counter_to_5();      /* FUN_004682e3 */
+            }
+            if (action == 0)
+                display_menu_detail_close();                /* FUN_004681d3 */
+            if (g_scene_state == 6)
+                scene_guild_unpause();                      /* FUN_0049161d */
+            if (g_scene_state == 11)
+                scene_adv_guild_unpause();                  /* FUN_0045bd36 */
         }
     } else if (sim_get_counter_998() == 0) {
         /* ENTER PAUSE (engine L50292). */
@@ -377,11 +386,13 @@ void pause_dispatch(int action)
         title_save_dialog_cursor_capture_target(&g_pause_snap_cursor_x,
                                                 &g_pause_snap_cursor_y);    /* DAT_06a499b0/b4 = FUN_00435644 */
         g_pause_snap_pulse   = stage_load_pulse_get_active();               /* DAT_06a499b8 = FUN_004682bf */
-        g_pause_snap_pulse_b = scene_new_game_stage_load_pulse_b_get();     /* DAT_06a499bc = FUN_004682b9 */
+        g_pause_snap_pulse_b = display_menu_open_mode();                    /* DAT_06a499bc = FUN_004682b9 */
         sim_set_counter_998(1);                         /* ramp = 1     */
         sim_set_counter_99c(1);                         /* slide ramp = 1 */
         sim_set_mode_9a0(1);                            /* dir = opening */
-        /* (engine L50306 FUN_004681d3 = DAT_0734b96c reset — unported, inert) */
+        display_menu_detail_close();                    /* FUN_004681d3 */
+        if (g_scene_state == 6 || g_scene_state == 11)
+            display_menu_state_save();                  /* FUN_00491618 / FUN_0045bd31 → FUN_004681a6 */
     }
 }
 
@@ -423,6 +434,9 @@ void pause_menu_setup(void)
     g_pause_entries[n + 3] = 4;                  /* Exit Game */
     g_pause_count = n + 4;                       /* DAT_073e154c */
     g_pause_row_spacing = (0xb - g_pause_count) * 0xc;  /* DAT_005cc678 */
+    /* the shared hand goes away (0x47f426) — a menu cursor up at pause (the
+     * guild lists) would otherwise draw over the pause menu */
+    title_save_dialog_cursor_set_visible(0);     /* FUN_00435612 */
 
     /* FUN_0049f012(0) (engine L81616) — build the Encyclopedia catalog from the
      * active bank's discovery store + the item DB.  RNG-neutral / idempotent. */
@@ -1547,7 +1561,7 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
      * unconditionally to match the engine's draw program. */
     choice_box_draw(d);                  /* FUN_0043537e */
     title_save_dialog_cursor_render(d);  /* FUN_00435747 */
-    title_save_dialog_render();          /* FUN_00435117 */
+    title_save_dialog_render(d);         /* FUN_00435117 */
 }
 
 void scene_pause_reset(void)

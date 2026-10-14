@@ -5,7 +5,7 @@
  *
  *   FUN_00434d6a @ 0x434d6a (85 B)  L32484
  *   FUN_004356cd @ 0x4356cd (67 B)  L32904
- *   FUN_00435117 @ 0x435117 (615 B) L32676    [STUB]
+ *   FUN_00435117 @ 0x435117 (615 B) L32676
  *   FUN_0043537e @ 0x43537e (660 B) L32754    [STUB]
  *   FUN_00435747 @ 0x435747 (300 B) L32937    [STUB]
  *
@@ -31,6 +31,8 @@
 #include <math.h>         /* sinf / fabsf — FUN_00503a44 (sin) + abs */
 #include "render_quad.h"  /* render_quad_bind/add/flush — FUN_00404efc/405354 */
 #include "sysassets.h"    /* g_sysassets.nowloading_tga — DAT_073cc770 */
+#include "font_draw.h"    /* font_draw_text_centered — FUN_0047d14c */
+#include "x87.h"          /* spill32 / x87_crt_sin */
 #endif
 
 /* ─── module state ────────────────────────────────────────────────── */
@@ -272,29 +274,57 @@ void title_save_dialog_anim_tick(void)
     }
 }
 
-/* ─── FUN_00435117 (STUB body) ────────────────────────────────────── */
+/* ─── FUN_00435117 — the message box (FUN_00434ceb's) ─────────────── */
 /*
- * Engine body (deferred):
- *
- *   if (DAT_0438b148 > 0) {
- *       // bind dim texture; draw full-screen alpha-fade quad
- *       // bind frame texture; draw scaled dialog frame
- *       // draw text strings keyed off DAT_0438ac0c (save/load/delete)
- *   }
- *
- * Stub keeps only the early-return.  In normal play g_active_counter
- * stays at 0 forever, so the gate fires.  Body lands when the save/
- * load dialog port chip arrives. */
-void title_save_dialog_render(void)
+ * s = DAT_0438b148 / 8 (the open ramp, 1..8):
+ *   - a full-screen dim: system.bmp src (0,0,7,7), black, alpha (int)(s·64);
+ *   - COLOROP = ADDSIGNED; the savewindow.tga banner src (0,0,512,128) at
+ *     (320 − 256s, 224 − 64s, 512s, 128s), 0xff7f7f7f;
+ *   - the lines centered at x 320, 0x7f7f7f with alpha (int)(s·255):
+ *     0 breaks y 212 ×1.0; 1 break y 196 / 228 ×1.0; 2 breaks y 192 / 220 /
+ *     248 ×0.9;
+ *   - COLOROP back to MODULATE.
+ * Every product is exact (s is k/8), so no x87 care is needed. */
+void title_save_dialog_render(struct IDirect3DDevice8 *dev)
 {
-    /* E.2 probe — FUN_00435117 @ 0x435117. Body deferred. */
-    CALL_TRACE_ENTER_STUB(0x435117u);
+    CALL_TRACE_ENTER(0x435117u);
 
-    if (g_active_counter <= 0) {
+    if (g_active_counter <= 0)
         return;
+#ifdef _WIN32
+    if (dev == NULL)
+        return;
+    const float s = (float)g_active_counter / 8.0f;
+    const sprite_t *dim = &g_sysassets.system_bmp;        /* DAT_073aa188 */
+    if (dim->tex != NULL) {
+        const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+        const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };
+        render_quad_bind(dev, dim);
+        render_quad_add(dst, src, dim->width, dim->height, (uint32_t)(int)(s * 64.0f) << 24);
+        render_quad_flush(dev);
     }
-
-    /* Engine body deferred — see header. */
+    const uint32_t col = ((uint32_t)(int)(s * 255.0f) << 24) | 0x7f7f7fu;
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    const sprite_t *bg = &g_sysassets.savewindow_tga;     /* DAT_073d8dc0 */
+    if (bg->tex != NULL) {
+        const float dst[4] = { 320.0f - s * 256.0f, 224.0f - s * 64.0f, s * 512.0f, s * 128.0f };
+        const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
+        render_quad_bind(dev, bg);
+        render_quad_add(dst, src, bg->width, bg->height, 0xff7f7f7fu);
+        render_quad_flush(dev);
+    }
+    if (g_msg_breaks == 0) {
+        font_draw_text_centered(dev, 320.0f, 212.0f, g_msg_line[0], col, 1.0f);
+    } else if (g_msg_breaks == 1) {
+        font_draw_text_centered(dev, 320.0f, 196.0f, g_msg_line[0], col, 1.0f);
+        font_draw_text_centered(dev, 320.0f, 228.0f, g_msg_line[1], col, 1.0f);
+    } else {
+        font_draw_text_centered(dev, 320.0f, 192.0f, g_msg_line[0], col, 0.9f);
+        font_draw_text_centered(dev, 320.0f, 220.0f, g_msg_line[1], col, 0.9f);
+        font_draw_text_centered(dev, 320.0f, 248.0f, g_msg_line[2], col, 0.9f);
+    }
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+#endif
 }
 
 /* ─── FUN_0043537e (STUB body) ────────────────────────────────────── */
@@ -354,11 +384,17 @@ void title_save_dialog_cursor_render(struct IDirect3DDevice8 *dev)
     /* bob = |sin(anim_counter · 0.1)| · 8 — engine takes the ABS of the
      * sin so the hand wobbles LEFT-only (0..8 toward the row) at period
      * π (FUN_00435747 L32955-32965). Same shape choice_box.c uses. */
-    const float bob = fabsf(sinf((float)g_anim_counter * 0.1f)) * 8.0f;
+    /* 0x43574d-0x4357e6: every step is spilled to the float local; the CRT
+     * sin (FUN_00503a44) takes the spilled value widened to double; the sign
+     * test re-runs the same chain and negates. */
+    float a = spill32((float)g_anim_counter);
+    a = spill32(a * 0.1f);
+    const float sn = spill32(x87_crt_sin((double)a));
+    const float bob = spill32(sn * 8.0f < 0.0f ? -(sn * 8.0f) : sn * 8.0f);
 
     /* 40×40 hand glyph at src (192,0)-(232,40) of nowloading.tga, drawn
      * at (shake_pos_x - bob, shake_pos_y - 20). */
-    const float dst[4] = { g_shake_pos_x - bob, g_shake_pos_y - 20.0f,
+    const float dst[4] = { spill32(g_shake_pos_x - bob), spill32(g_shake_pos_y - 20.0f),
                            40.0f, 40.0f };
     const float src[4] = { 192.0f, 0.0f, 232.0f, 40.0f };
     render_quad_bind(dev, cur);

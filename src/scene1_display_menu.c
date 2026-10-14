@@ -40,6 +40,7 @@
 #include "audio.h"               /* audio_play_se_by_id (nav SE, no RNG) */
 #include "scene_guild.h"         /* scene_guild_variant (DAT_0963c5f0) for mode-7 buy */
 #include "customer_service.h"    /* cs_news_price_trend (FUN_004361b2, live) */
+#include "x87.h"                 /* spill32 / x87_ftol */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
@@ -54,6 +55,11 @@ static int s_tab_scroll[DISPLAY_MENU_MAX_TABS];         /* DAT_073376c0 */
 static int s_tab_count[DISPLAY_MENU_MAX_TABS];          /* DAT_07337210 */
 static int s_tab_first_item[DISPLAY_MENU_MAX_TABS];     /* DAT_073373a0 (render tab icon) */
 static int s_cur_tab     = 0;   /* DAT_0734b968 */
+static int s_open_mode   = 0;   /* DAT_0734b9a4 — FUN_00468338's mode (FUN_004682b9) */
+/* the pause-time copy (FUN_004681a6 / FUN_00468131) */
+static int s_saved_tab_scroll[DISPLAY_MENU_MAX_TABS];   /* DAT_0734b7d8 */
+static int s_saved_tab_cursor[DISPLAY_MENU_MAX_TABS];   /* DAT_07337530 */
+static int s_saved_cur_tab = 0;                         /* DAT_0734b99c */
 static int s_num_tabs    = 0;   /* DAT_0731f404 */
 static int s_mode        = 0;   /* DAT_0734b9a8 */
 static int s_confirm_ctr = 0;   /* DAT_0734b994 */
@@ -184,6 +190,10 @@ void display_menu_reset(void)
     s_cur_tab     = 0;
     s_num_tabs    = 0;
     s_mode        = 0;
+    s_open_mode   = 0;
+    memset(s_saved_tab_scroll, 0, sizeof s_saved_tab_scroll);
+    memset(s_saved_tab_cursor, 0, sizeof s_saved_tab_cursor);
+    s_saved_cur_tab = 0;
     s_confirm_ctr = 0;
     s_highlight   = -1;
     s_window_flag = 0;
@@ -221,6 +231,32 @@ void display_menu_set_highlight(int item)
     display_menu_recount();
 }
 
+int display_menu_open_mode(void) { return s_open_mode; }
+
+/* FUN_00468294 — highlight the current row's item + recount. */
+void display_menu_highlight_row(void)
+{
+    display_menu_set_highlight(display_menu_selected());
+}
+
+/* FUN_004681a6 — copy the per-tab scroll / cursor + the current tab aside. */
+void display_menu_state_save(void)
+{
+    memcpy(s_saved_tab_scroll, s_tab_scroll, sizeof s_saved_tab_scroll);
+    s_saved_cur_tab = s_cur_tab;
+    memcpy(s_saved_tab_cursor, s_tab_cursor, sizeof s_saved_tab_cursor);
+}
+
+/* FUN_00468131 — put them back, snap the hand cursor onto the row, re-highlight. */
+void display_menu_state_restore(void)
+{
+    memcpy(s_tab_scroll, s_saved_tab_scroll, sizeof s_tab_scroll);
+    s_cur_tab = s_saved_cur_tab;
+    memcpy(s_tab_cursor, s_saved_tab_cursor, sizeof s_tab_cursor);
+    display_menu_cursor_snap_to_row();   /* FUN_00435693(280, 36·(cursor − scroll) + 96) */
+    display_menu_highlight_row();        /* FUN_00468294 */
+}
+
 /* FUN_00468233 — the adventurer the list compares against (DAT_005c6ee0) and
  * DAT_0734b978; FUN_00468338's first open resets them to -1 / 0. */
 static int s_compare_chara = -1;   /* DAT_005c6ee0 */
@@ -253,6 +289,8 @@ void display_menu_open(int mode, int first_open)
     }
     party_roster_rebuild();
     /* per-open reset (all.c:64184-64193): mode, countdown, slide active. */
+    s_price_mult  = 1.0f;          /* _DAT_005c6ee8 = 1.0 */
+    s_open_mode   = mode;          /* DAT_0734b9a4 = param_1 */
     s_mode        = mode;          /* DAT_0734b9a8 = param_1 */
     s_confirm_ctr = 0;             /* DAT_0734b994 */
     s_highlight   = -1;            /* DAT_0734b998 = 0xffffffff */
@@ -739,7 +777,7 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
  * worst frame = mid-close-slide, item-display-2 label 181, gt8≈185k).  param_2
  * stays 0 (no vertical slide).  All text is white (DAT_005c7184=0xffffffff) at
  * scale 0.8 (0x3f4ccccd).
- * PORT-DEBT(stub, FUN_00469b3a): the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). */
+ * PORT-DEBT(stub, FUN_00469b3a): the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). */
 static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
 {
     const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
@@ -783,7 +821,21 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
      * → "Base Price- %s" at (80,420) (all.c:65665-65701).  The multiplier is 1.0
      * for the house stand, 0.7 for guild buy, 0.3 for guild sell. */
     {
-        int price = (int)((float)r->price * s_price_mult);
+        /* 0x46a155-0x46a1bf: every product is spilled to the float local
+         * (fstps) and __ftol'd from there — 400 · 0.7f = 279.99999 rounds to
+         * 280.0f; truncating the unrounded product gives 279.  In the guild
+         * (scene 6) the news trend scales it again (fmuls m32 1.5 / 1.2 / 0.7 /
+         * 0.8 for trend >= 2 / 1 / <= -2 / -1). */
+        float v = spill32((float)r->price);
+        v = spill32(v * s_price_mult);
+        const int trend = cs_news_price_trend(s_highlight);   /* FUN_004361b2 */
+        if (g_scene_state == 6) {
+            if (trend >= 2)       v = spill32(v * 1.5f);
+            else if (trend >= 1)  v = spill32(v * 1.2f);
+            else if (trend <= -2) v = spill32(v * 0.7f);
+            else if (trend <= -1) v = spill32(v * 0.8f);
+        }
+        int price = x87_ftol(v);
         char num[32], line[64];
         if (price < 1000)
             snprintf(num, sizeof num, "%d", price);
@@ -926,7 +978,8 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     {
         int hcat = -1;
         int hfirst = s_tab_first_item[tab];     /* DAT_073373a0 (entry after -1) */
-        if (hfirst >= 0) {
+        /* an empty list (DAT_0731f404 <= 0) draws no name (0x46b23a LABEL_32) */
+        if (s_num_tabs > 0 && hfirst >= 0) {
             int hrec = tables_item_find_slot_by_id(&g_item, hfirst >> 6);
             if (hrec >= 0)
                 hcat = g_item.records[hrec].category;
@@ -980,11 +1033,22 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
         const float dst[4] = { icon_x, iy, 32.0f, 32.0f };
         const float src[4] = { (float)((idx % 8) * 32), (float)((idx / 8) * 32),
                                (float)((idx % 8) * 32 + 32), (float)((idx / 8) * 32 + 32) };
-        /* grey-0x7f diffuse ⇒ ADDSIGNED passthrough (the icon as-is).  PORT-DEBT
-         * (FUN_00468ddc availability): retail greys an unavailable/unaffordable
-         * row's icon to 0xff4d4d4d (all.c:66747); not yet ported — the affordable
-         * in-stock case is grey-0x7f either way. */
-        render_quad_add(dst, src, icon->width, icon->height, 0xff7f7f7fu);
+        /* 0x46b9c4-0x46ba11: 0xff4d4d4d unless the compared adventurer can wear
+         * it (FUN_00468ddc; no adventurer ⇒ yes) and it is appraised; then grey
+         * v·0x010101, v = 127, flashing on the cursor row while the confirm
+         * countdown runs: 127 − ftol(sin(ctr·π/6)·−128), all float spills. */
+        uint32_t icol = 0xff4d4d4du;
+        if (item_equip_check(s_compare_chara, s_b978, item) && !((item >> 4) & 1)) {
+            int v = 127;
+            if (r == s_tab_cursor[tab] - s_tab_scroll[tab] && s_confirm_ctr != 0) {
+                float a = spill32((float)s_confirm_ctr);
+                a = spill32(a * 3.1415927f / 6.0f);
+                a = spill32(x87_crt_sin((double)a));
+                v = 127 - x87_ftol(a * -128.0f);
+            }
+            icol = 0xff000000u | ((uint32_t)v & 0xff) * 0x010101u;
+        }
+        render_quad_add(dst, src, icon->width, icon->height, icol);
         render_quad_flush(dev);
     }
 
@@ -1022,12 +1086,17 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
          * / ≤-2 0000ff.  Neutral while the news list is empty (all
          * pre-day-9 traces — pixels unchanged there). */
         {
+            /* a row the compared adventurer can't wear (FUN_00468ddc, or
+             * unappraised) takes the dim set: grey 0xff505050 and the trend
+             * tints at half strength (0x46b577 / all_ida FUN_0046b00a). */
+            const int ok = item < 0
+                || (item_equip_check(s_compare_chara, s_b978, item) && !((item >> 4) & 1));
             int trend = (int)cs_news_price_trend(item);
-            uint32_t ncol = 0xff7f7f7fu;
-            if (trend >= 2)       ncol = 0xffff0000u;
-            else if (trend == 1)  ncol = 0xffff4d4du;
-            else if (trend <= -2) ncol = 0xff0000ffu;
-            else if (trend == -1) ncol = 0xff4d4dffu;
+            uint32_t ncol = ok ? 0xff7f7f7fu : 0xff505050u;
+            if (trend >= 2)       ncol = ok ? 0xffff0000u : 0xff7f0000u;
+            else if (trend == 1)  ncol = ok ? 0xffff4d4du : 0xff7f6464u;
+            else if (trend <= -2) ncol = ok ? 0xff0000ffu : 0xff00007fu;
+            else if (trend == -1) ncol = ok ? 0xff4d4dffu : 0xff64647fu;
             font_draw_text(dev, text_x, ty, buf, ncol, 0.8f);
         }
 

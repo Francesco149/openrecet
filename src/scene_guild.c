@@ -231,6 +231,19 @@ static void guild_open_item_window(int type)
     }
 }
 
+/* FUN_0049161d — the unpause hook (FUN_00453384, mode 6): the item window's
+ * scroll / cursor back (it was rebuilt by FUN_00468338), the qty overlay's
+ * Yes/No cursor, the price multiplier.
+ * PORT-DEBT(guild-fusion): the Fusion row's re-highlight (FUN_004916a7). */
+void scene_guild_unpause(void)
+{
+    if (stage_load_pulse_get_active())                       /* FUN_004682bf */
+        display_menu_state_restore();                         /* FUN_00468131 */
+    if (s_menu.ov_slide > 0)                                  /* DAT_09642c50 */
+        title_save_dialog_cursor_snap((float)(96 * s_menu.yn_cursor) + 340.0f, 252.0f);
+    display_menu_set_price_mult(s_menu.entries[s_menu.cursor] != 0 ? 0.3f : 0.7f);
+}
+
 /* ─── buy-flow helpers (item list mode 0 → qty overlay mode 8) ─────────────── */
 
 /* working-bank gold (engine (&DAT_044e37a4)[loc*0xb7f2] = dword 3). */
@@ -1364,8 +1377,8 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
                                                     * the slide counter is 0).     */
         /* FUN_0043537e (secondary banner) is a no-op at rest. */
         scene_guild_qty_overlay_render(d);         /* FUN_00491de0 — buy/sell confirm */
-        /* FUN_00435117 (dialog frame): no-op gate. */
         title_save_dialog_cursor_render(d);        /* FUN_00435747 — hand cursor */
+        title_save_dialog_render(d);               /* FUN_00435117 — message box */
     }
 }
 

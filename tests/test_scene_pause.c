@@ -415,6 +415,8 @@ static void sm_prep(int mode, int status_count, int stage_type)
     sim_init();
     worker_load_reset();
     pause_sm_reset();
+    stage_load_pulse_reset();   /* no item window left open by an earlier test */
+    display_menu_reset();
     g_scene_state = mode;
     g_pause_saved_mode = mode;
     pause_set_menu_inputs(status_count, stage_type);
@@ -621,6 +623,34 @@ int test_pause_dispatch_unpause_cursor_stays_hidden(void)
     pause_dispatch(0);                 /* unpause */
 
     T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 0);  /* still hidden */
+    return 0;
+}
+
+int test_pause_dispatch_unpause_rebuilds_item_window(void)
+{
+    /* An item window open at pause (DAT_06a499b8) is rebuilt on unpause in the
+     * mode it was opened with (FUN_00468338(DAT_0734b9a4, 1)) and slid fully in
+     * (FUN_004682e3); a window that was closed stays closed. */
+    sm_prep(6, 0, 0);
+    display_menu_open(5, 1);                /* the guild Sell list */
+    T_ASSERT_EQ_I(display_menu_open_mode(), 5);
+    pause_dispatch(0);                      /* enter → snapshots pulse 1, mode 5 */
+    open_pause_then(6);
+    display_menu_open(0, 1);                /* anything the pause did meanwhile */
+    stage_load_pulse_set_active(0);
+
+    pause_dispatch(0);                      /* unpause */
+
+    T_ASSERT_EQ_I(g_scene_state, 6);
+    T_ASSERT_EQ_I(display_menu_open_mode(), 5);
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 1);
+    T_ASSERT_EQ_I(stage_load_pulse_get_counter(), 5);
+
+    sm_prep(6, 0, 0);                       /* closed at pause → stays closed */
+    pause_dispatch(0);
+    open_pause_then(6);
+    pause_dispatch(0);
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 0);
     return 0;
 }
 

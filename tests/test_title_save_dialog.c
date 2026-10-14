@@ -183,12 +183,12 @@ int test_title_save_dialog_stub_renders_dont_crash(void)
      * observable side effects in this chip; just verify the calls
      * are safe and don't trip ASan/UBSan. */
     clean_state();
-    title_save_dialog_render();
+    title_save_dialog_render(NULL);
     title_save_dialog_secondary_render();
     title_save_dialog_cursor_render(NULL);  /* host: D3D draw is _WIN32-only */
 
     title_save_dialog_set_active_counter(4);
-    title_save_dialog_render();
+    title_save_dialog_render(NULL);
     title_save_dialog_secondary_render();
     title_save_dialog_cursor_render(NULL);  /* host: D3D draw is _WIN32-only */
     return 0;

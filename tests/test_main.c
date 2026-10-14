@@ -1285,6 +1285,7 @@ struct test_case {
     X(party_roster_lists_recruited_in_id_order) \
     X(title_save_dialog_message_open_splits_br) \
     X(scene_adv_guild_enter_sets_bag_size_floors_and_rows) \
+    X(adv_guild_continue_reset_bag_size_and_empty_bag) \
     X(scene_adv_guild_intro_two_scripts_then_world_map) \
     X(pause_menu_setup_house_list) \
     X(pause_menu_setup_status_entry) \
@@ -1299,6 +1300,7 @@ struct test_case {
     X(pause_dispatch_unpause_no_reload) \
     X(pause_dispatch_unpause_restores_cursor) \
     X(pause_dispatch_unpause_cursor_stays_hidden) \
+    X(pause_dispatch_unpause_rebuilds_item_window) \
     X(pause_nav_up_down_wrap) \
     X(pause_nav_a_starts_select_anim) \
     X(pause_nav_b_closes) \

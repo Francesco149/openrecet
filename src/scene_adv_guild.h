@@ -44,6 +44,13 @@ void scene_adv_guild_render(struct IDirect3DDevice8 *dev);
 
 void scene_adv_guild_reset(void);
 
+/* FUN_0049a59e's Continue arm: the bag size by merchant level (DAT_005c5a98)
+ * and an empty bag (DAT_0438b5ec[] = -1). */
+void adv_guild_continue_reset(int merchant_level);
+
+/* FUN_0045bd36 — what the unpause (FUN_00453384) restores in mode 11. */
+void scene_adv_guild_unpause(void);
+
 /* State mirrors for --state-va (DAT_06a49b44 … DAT_005c5aa0). */
 int adv_guild_dbg(uint32_t va, int32_t *out);
 

@@ -1218,14 +1218,17 @@ static int cs_check_customer_request_category(int item_handle, int cust_idx)
     return 0;
 }
 
-/* ── FUN_00468ddc — customer request slot eligibility ──────────────────────── */
-static int cs_check_request_eligibility(int cust_idx, int slot_idx, int item_handle)
+/* ── FUN_00468ddc — can adventurer `cust_idx` (0..7, -1 = none) wear
+ * `item_handle` in equip slot `slot_idx` (-1 = any) next to its other four
+ * slots (work +0x2ceb4 + 0x6c·idx)?  Used by the request-slot checks here and by
+ * the item window's row tint (FUN_0046b00a). ──────────────────────────────── */
+int item_equip_check(int cust_idx, int slot_idx, int item_handle)
 {
     if (cust_idx < 0 || item_handle < 0) return 1;
     if (cust_idx >= 8) return 1;
 
     int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
-    if (slot < 0) return 0;
+    if (slot < 0) return 1;   /* not in the item DB (0x468e1a) */
     if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
     int32_t cat = g_item.records[slot].category;
     if (slot_idx == 0 && cat != s_cust_req_cats[cust_idx][0]) return 0;
@@ -1412,7 +1415,7 @@ static int cs_kind_select(void)
                     if (bank != NULL) {
                         const int32_t *req_slots = (const int32_t *)(bank + 0x2ceb4 + (kyaku_id - 2) * 0x6c);
                         for (int req_k = 0; req_k < 5; req_k++) {
-                            if (req_slots[req_k] >= 0 && cs_check_request_eligibility(kyaku_id - 2, req_k, handle)) {
+                            if (req_slots[req_k] >= 0 && item_equip_check(kyaku_id - 2, req_k, handle)) {
                                 want = 1;
                                 break;
                             }
@@ -2632,7 +2635,7 @@ static void cs_adventurer_equip_upgrade(void)
 
     for (int slot_idx = 0; slot_idx < 5; slot_idx++) {
         int32_t req_h = req_slots[slot_idx];
-        if (req_h >= 0 && cs_check_request_eligibility(cust_idx, slot_idx, item_h)) {
+        if (req_h >= 0 && item_equip_check(cust_idx, slot_idx, item_h)) {
             /* retail indexes the item table with whatever FUN_004681f6 returns;
              * a missing id (-1) is out of contract — skip instead of reading
              * record[-1]. */

@@ -79,6 +79,24 @@ int test_scene_adv_guild_enter_sets_bag_size_floors_and_rows(void)
     return 0;
 }
 
+int test_adv_guild_continue_reset_bag_size_and_empty_bag(void)
+{
+    /* FUN_0049a59e's Continue arm: DAT_005c5a98 by merchant level, the bag
+     * DAT_0438b5ec[] all -1 (the .data default is 38). */
+    scene_adv_guild_reset();
+    int32_t v = 0;
+    T_ASSERT(adv_guild_dbg(0x5c5a98u, &v)); T_ASSERT_EQ_I(v, 38);
+    adv_guild_continue_reset(3);
+    T_ASSERT(adv_guild_dbg(0x5c5a98u, &v)); T_ASSERT_EQ_I(v, 20);
+    adv_guild_continue_reset(16);
+    T_ASSERT(adv_guild_dbg(0x5c5a98u, &v)); T_ASSERT_EQ_I(v, 25);
+    adv_guild_continue_reset(39);
+    T_ASSERT(adv_guild_dbg(0x5c5a98u, &v)); T_ASSERT_EQ_I(v, 35);
+    T_ASSERT_EQ_I(adv_guild_bag_slot(1), -1);
+    T_ASSERT_EQ_I(adv_guild_bag_slot(ADV_GUILD_BAG_SLOTS), -1);
+    return 0;
+}
+
 int test_scene_adv_guild_intro_two_scripts_then_world_map(void)
 {
     uint8_t *bb = fresh_bank();

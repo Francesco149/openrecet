@@ -105,6 +105,18 @@ void display_menu_possessed_invalidate(void);   /* DAT_005c6ee4 = -1 */
  * "Number possessed" DAT_005c6ee4. */
 void display_menu_set_highlight(int item);
 
+/* FUN_004682b9: the mode the window was last opened with (DAT_0734b9a4). */
+int display_menu_open_mode(void);
+
+/* FUN_00468294: highlight the current row's item (DAT_0734b998) + recount. */
+void display_menu_highlight_row(void);
+
+/* FUN_004681a6 / FUN_00468131: the pause (modes 6 / 11) sets the per-tab scroll
+ * and cursor and the current tab aside; the unpause puts them back, snaps the
+ * hand cursor onto the row and re-highlights it. */
+void display_menu_state_save(void);
+void display_menu_state_restore(void);
+
 /* FUN_00468233(chara, b): DAT_005c6ee0 (the adventurer the list compares
  * equipment against, -1 none) and DAT_0734b978. */
 void display_menu_set_compare(int chara, int b978);

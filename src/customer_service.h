@@ -245,4 +245,8 @@ int32_t customer_service_b5a4_for_test(void);
  * haggle price panel + the merchant-HUD item tooltip).  Neutral 0 while
  * the news list is empty (all pre-day-9 traces). */
 int32_t cs_news_price_trend(int32_t item_handle);
+
+/* FUN_00468ddc — can adventurer `chara` (-1 = none ⇒ 1) wear `item` in equip
+ * slot `slot` (-1 = any)? */
+int item_equip_check(int chara, int slot, int item);
 #endif /* OPENRECET_CUSTOMER_SERVICE_H */

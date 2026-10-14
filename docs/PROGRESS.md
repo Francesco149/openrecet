@@ -7,6 +7,36 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (night) — the guild menus verified; the Merchants' Guild pause; rhost shots
+`adv-guild-pack-leave` (native recording, slot 9, Day 5, 21,252 frames: two guild
+visits, the Merchants' Guild with a pause in the Buy list, packing, Depart, the dungeon,
+the dungeon pause, the frozen dungeon Save). Port fixes, in frame order:
+- **Continue** (FUN_0049a59e): bag size by merchant level + an empty bag at load
+  (the port kept the `.data` 38 until the guild).
+- **Pause in modes 6 / 11** (FUN_00453384): the entry copy (FUN_004681a6) and the
+  unpause rebuild (FUN_00468338(DAT_0734b9a4, 1) + FUN_004682e3) + the per-mode
+  restores FUN_0049161d / FUN_0045bd36 (FUN_00468131). Before: the Buy list went dead
+  after the unpause and the port never left the Merchants' Guild (f9609). The pause
+  build FUN_0047f2f6 hides the hand cursor.
+- **Item window** (FUN_0046b00a / FUN_00469b3a): the price is spilled to float before
+  `__ftol` (400·0.7 = 280, was 279) and takes the guild's news-trend factors; no tab name
+  on an empty list; rows the compared adventurer can't wear are dimmed (FUN_00468ddc,
+  now exported as `item_equip_check`, unknown item ⇒ 1 as retail).
+- **Mode 11 renders the item window three times** (FUN_0040a765 ×2 + FUN_0045cc85): the
+  stacked 0.8-alpha parchment is why the guild's bag looks opaque. The message box
+  FUN_00435117 is no longer a stub ("Pick the items…").
+- Quirks §140 (Equip → B → Save freezes the dungeon pause menu, DAT_074b28a4) and §141
+  (a guild Leave leaves b4dc on the dungeon stage: the next destination's FUN_00436f97
+  runs the dungeon arm — the port's first split, f8013).
+- Tools: `rh_shot` reads the backbuffer through retail's device (PrintWindow lagged up to
+  ~1000 frames at rhost speed); the port gets rhost's canonical recet.ini (it ran 640×480
+  and portshots compared an upscaled frame); `stage` kills only our own rhost.exe by path
+  (sibling projects run the same architecture); `portstate` refuses an empty compare;
+  `--state-va` mirrors the hand cursor.
+- Evidence: portstate mode / guild / bag VAs identical f1–f17745; portshots at 7
+  guild / Merchants' Guild frames gt8 ≤ 0.04% (the hand cursor's outline); portrng first
+  split f8013 (§141).
+
 ## 2026-10-14 (evening) — the Adventurers' Guild (mode 11)
 `buy-from-seller-guild-intro` (native recording: a customer sells, the guild intro, a
 save in slot 10) now replays **RNG- and save.dat-identical over all 26,774 frames**,

@@ -84,6 +84,31 @@ floor list ("Floor N～M" / "Boss Rush", best times `0xb10b + 20·d + g` as h:m:
 Engine quirk (§139): the adventurer panel ORs 0x20 into each shown equipment slot of the
 WORK bank — a render-side save write.
 
+The item window is drawn **three times** a frame: `FUN_0040a765` calls `FUN_0046b00a`
+(+ the choice box `FUN_0043537e`, the hand `FUN_00435747`, the message box `FUN_00435117`)
+unconditionally, it runs twice (inside `FUN_0045cc85` and after it), and `FUN_0045cc85`
+calls `FUN_0046b00a` once more after the bag rows. The parchment's texel alpha is 203, so
+one layer (the Merchants' Guild, mode 6) is see-through and the stacked guild layers read
+as opaque. Device state is identical at every one of those draws (v3 capture, f5600 vs
+f8600). Row tint: with an adventurer compared (`DAT_005c6ee0`), a row it can't wear
+(`FUN_00468ddc`, or unappraised) draws its icon at `0xff4d4d4d` and its name at
+`0xff505050` / the half-strength trend tints.
+
+## Pause from modes 6 / 11 (`FUN_00453384`)
+Entry: `FUN_004681d3` (detail popup shut) and, in 6 / 11, `FUN_004681a6` copies the item
+window's per-tab scroll / cursor and tab aside. Unpause: when a window was up
+(`DAT_06a499b8`) `FUN_00468338(DAT_0734b9a4, 1)` rebuilds it (cursor / scroll zeroed) and
+`FUN_004682e3` slides it fully in; then mode 6 `FUN_0049161d` / mode 11 `FUN_0045bd36` put
+the copy back (`FUN_00468131`, cursor snap, row re-highlight) — mode 11 also re-highlights
+the bag slot and the compared adventurer, mode 6 the qty-overlay cursor and the price
+multiplier. Without this the port's guild Buy list went dead after an unpause and the
+`adv-guild-pack-leave` player never left the Merchants' Guild (f9609).
+
+## Continue (`FUN_0049a59e`)
+The Continue arm sets the bag size from the merchant level and empties the bag
+(`memset(DAT_0438b5ec, 0xff, 0x98)`) before any guild visit — retail shows 20 from the
+load frame, the port kept the `.data` 38 until the guild (fixed).
+
 ## Open
 - `PORT-DEBT(stub, FUN_004682ee)`: the bag picker's first-equippable-tab preselect
   (`FUN_00468ddc` equip check); the display menu's mode-0 population is itself partial.
@@ -91,6 +116,7 @@ WORK bank — a render-side save write.
 - `PORT-DEBT(stub, NONE)`: Depart loads the dungeon (no dungeon port);
   `PORT-DEBT(stub, FUN_0045bcea)`: `DAT_0438b4dc` has no port mirror.
 - `PORT-DEBT(stub, FUN_00452809)`: the intro's blackout + mode-1 load fades (as at the guild).
-- The message box render `FUN_00435117` is still a stub (the box state is ported).
-- Evidence for the menus needs a recording that hires an adventurer, packs the bag and
-  leaves / departs (FRONT human queue).
+- Evidence: `adv-guild-pack-leave` (slot 9, native) — portstate on the mode / guild /
+  bag VAs identical f1–f17745 (two guild visits, the Merchants' Guild with a pause,
+  packing, Depart); portshots at 7 guild/Merchants' Guild frames gt8 ≤ 0.04%, the
+  rest is the hand cursor's anti-aliased outline (position identical).

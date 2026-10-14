@@ -1562,7 +1562,7 @@ void scene_title_render(IDirect3DDevice8 *dev,
      * regardless. */
     title_save_dialog_secondary_render();
     title_save_dialog_cursor_render(dev);
-    title_save_dialog_render();
+    title_save_dialog_render(dev);
 
     /* Smoke-test "openrecet 0.1" font draw removed 2026-05-27:
      * pre_3d_trace diff showed it was responsible for +12

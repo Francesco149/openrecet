@@ -56,7 +56,7 @@
  *     anim-counter increment-while-dialog-closed.  Always safe to
  *     call; idempotent on BSS-zero defaults.
  *
- *   title_save_dialog_render             — FUN_00435117, 615 B, STUB body.
+ *   title_save_dialog_render             — FUN_00435117, 615 B.
  *   title_save_dialog_secondary_render   — FUN_0043537e, 660 B, STUB body.
  *   title_save_dialog_cursor_render      — FUN_00435747, 300 B, STUB body.
  *     All three keep the engine VA + the gate-check stripped down to
@@ -99,9 +99,11 @@ void title_save_dialog_anim_tick(void);
 
 /* ─── render helpers (STUB body — gate-check only) ─────────────────── */
 
-/* FUN_00435117 — save/load dialog frame render.  Stub: only the
- * early-return gate `if (counter == 0) return;` is preserved. */
-void title_save_dialog_render(void);
+/* FUN_00435117 — the message box render (FUN_00434ceb's box): the dim,
+ * the savewindow.tga banner and the lines, scaled by the open ramp.  No-op
+ * while the counter is 0. */
+struct IDirect3DDevice8;
+void title_save_dialog_render(struct IDirect3DDevice8 *dev);
 
 /* FUN_0043537e — secondary dialog frame render.  Stub: only the
  * early-return gate `if (DAT_0438af34 == 0) return;` is preserved. */

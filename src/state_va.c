@@ -32,6 +32,7 @@
 #include "sim.h"
 #include "speech_bubble.h"
 #include "tick.h"
+#include "title_save_dialog.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_scene(void) { return g_scene_state; }
@@ -72,6 +73,11 @@ static int32_t get_fl_h(void)  { return g_floor_h; }
 static int32_t get_fl_n(void)  { return g_floor_ncells; }
 static int32_t get_fl_tot(void) { return g_floor_rooms_total; }
 static int32_t fbits(float f) { union { float f; int32_t i; } u = { .f = f }; return u.i; }
+static int32_t get_hand_anim(void) { return title_save_dialog_get_anim_counter(); }
+static int32_t get_hand_x(void)    { return fbits(title_save_dialog_get_shake_pos_x()); }
+static int32_t get_hand_y(void)    { return fbits(title_save_dialog_get_shake_pos_y()); }
+static int32_t get_hand_vis(void)  { return title_save_dialog_cursor_get_visible(); }
+static int32_t get_hand_ctr(void)  { return title_save_dialog_get_shake_counter(); }
 static int32_t get_wst(void)  { return scene1_companion_wander_state(); }
 static int32_t get_wt(void)   { return scene1_companion_wander_t(); }
 static int32_t get_wtx(void)  { return fbits(scene1_companion_wander_tx()); }
@@ -154,6 +160,11 @@ static const state_va_t k_map[] = {
     { 0x734b968u, "display menu tab (DAT_0734b968)", get_dm_tab },
     { 0x731f404u, "display menu tab count (DAT_0731f404)", get_dm_ntab },
     { 0x7337850u, "display menu tab-0 cursor (DAT_07337850)", get_dm_cur0 },
+    { 0x438b154u, "hand cursor bob counter (DAT_0438b154)", get_hand_anim },
+    { 0x438abf4u, "hand cursor x, float bits (DAT_0438abf4)", get_hand_x },
+    { 0x438abf8u, "hand cursor y, float bits (DAT_0438abf8)", get_hand_y },
+    { 0x438b150u, "hand cursor visible (DAT_0438b150)", get_hand_vis },
+    { 0x438ac18u, "hand cursor slide countdown (DAT_0438ac18)", get_hand_ctr },
     { 0x7337210u, "display menu tab-0 entries (DAT_07337210)", get_dm_cnt0 },
     { 0x731f598u, "display menu list[0] (DAT_0731f598)", get_dm_l0 },
     { 0x731f5a0u, "display menu list[2] (DAT_0731f5a0)", get_dm_l2 },

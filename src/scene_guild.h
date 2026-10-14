@@ -60,6 +60,9 @@ void scene_guild_enter_reset(void);
  * sim.c's scene dispatch (case 6). */
 void scene_guild_sim(void);
 
+/* FUN_0049161d — what the unpause (FUN_00453384) restores in mode 6. */
+void scene_guild_unpause(void);
+
 #ifdef _WIN32
 
 /* Register the worker_load case-6 loader + cache the device.  Call once at
