@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (late night) — shop arrivals, rank lessons, request machine
+- Master-tick arrival ramp: SE 0x17b + the b564 special-slot sparkles (FUN_00414766,
+  2 LCG draws per even frame from b5a0 38).
+- Merchant-rank arrivals (FUN_0048670f free-roam arm): rank 1 → the scripted buy
+  lesson (f428), rank 2 → f429. The port had a stub ("customer escalate").
+- FUN_00464af0, the request machine (b5a8 1): name the request → pick from bag or
+  stands (FUN_00468338 mode 1 adds the display grid; mode 10 = the lesson's fixed
+  list) → match by attr mask or category → haggle (offer_up; ask > budget·1.2f → 40)
+  → sale takes the item out of the bag or off its stand.
+- Evidence: portrng IDENTICAL over whole scenarios: day2-shop, buy-35/40/45/50pct-
+  accept, buy-lowball-walkout; day2-buy-tutorial to f15594, buy-counter-raise to
+  f7155. portsave ×3 IDENTICAL.
+
 ## 2026-10-14 (night) — port tick labels = tick count (rhost convention)
 - The port labelled its k-th tick k−1 (pre-increment frame_count) and fed it trace
   input k−1; rhost labels tick k as k. Logic driven by inputs lined up, but every

@@ -145,16 +145,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     arrivals (rank 1 → f428 scripted buy lesson, rank 2 → f429; was a stub):
     **`portrng day2-shop` IDENTICAL f1–f4700**, **day2-buy-tutorial identical
     f1–f15594** (was f1283).
+  - ✅ b5a8==1 request machine FUN_00464af0 + the pick menu (FUN_00468338 modes 1/10,
+    FUN_00469351, opened by the master tick once the poses settle). **portrng
+    IDENTICAL over the whole scenario: buy-35/40/45/50pct-accept,
+    buy-lowball-walkout, day2-shop.**
   - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
-    1. **b5a8==1 request (oder) machine FUN_00464af0** (2178 B, unported): buy-35/
-       45/50pct-accept, buy-counter-raise, buy-lowball split where a kind-0 customer
-       rolls a request (f725…f1694). States 2 (name the request) → 3 (item menu:
-       master tick opens it when b5b0 != 0: FUN_00469351 + FUN_00468338(f404||b5b0!=1
-       ? 10 : 1, 1); `PORT-DEBT(cs-target-window-spawn)`) → 4 (match: oder attr &
-       item attr, or oder category) → 5/16/17/18 → 6/15 haggle (offer_up, cap
-       budget·1.2) → 7 sale (item out of the bag/stand) / 8·40 counter / 9 walkout.
+    1. buy-counter-raise-accept f7156: retail 190 draws incl. FUN_0047df4d (house
+       floor layout = a house (re)load), port 7 — the day-end / next-day path.
     2. day2-buy-tutorial f15595: retail 7 draws (Tear FUN_00447f4f + bg NPC), port 0.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
+    4. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
+       delivery + story customers) — no scenario reaches them yet.
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.

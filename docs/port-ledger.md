@@ -363,8 +363,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x468d22 | FUN_00468d22 | 73 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
 | 0x468d6b | FUN_00468d6b | 113 | ✓ |  | customer_service.c |
 | 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, scene1_display_menu.c |
-| 0x469241 | FUN_00469241 | 99 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
-| 0x469351 | FUN_00469351 | 73 | ✓ |  | customer_service.c |
+| 0x469241 | FUN_00469241 | 99 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+1) |
+| 0x469351 | FUN_00469351 | 73 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h |
 | 0x46939a | FUN_0046939a | 73 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x469414 | FUN_00469414 | 1516 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
 | 0x469a00 | FUN_00469a00 | 131 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |

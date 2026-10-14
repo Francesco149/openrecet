@@ -250,6 +250,17 @@ void display_menu_open(int mode, int first_open)
         n = scan_guild_buy_stock(s_scan_keys, s_scan_items);
         for (int i = 0; i < n; i++)
             s_scan_idx[i] = i;
+    } else if (mode == 10) {
+        /* the scripted request lesson (0x468xxx a1==10): a fixed list — handles
+         * 2, 3 and 1002 (<<6) keyed by their raw value, the rest -1. */
+        static const int k_lesson[3] = { 128, 192, 64128 };
+        for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {
+            int v = i < 3 ? k_lesson[i] : -1;
+            s_scan_keys[n]  = v;
+            s_scan_items[n] = v;
+            s_scan_idx[n]   = i;
+            n++;
+        }
     } else if (bank != NULL) {
         const int32_t *inv = (const int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
         for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {
@@ -268,6 +279,30 @@ void display_menu_open(int mode, int first_open)
             s_scan_items[n] = item;
             s_scan_idx[n]   = n;
             n++;
+        }
+        if (mode == 1) {
+            /* the cs request pick (0x46869c): the stand items too (display grid,
+             * 15×20), minus 5201..5299.  NB the 0x10-flag remap here takes the
+             * item-table SLOT of key>>6 (not key>>6 itself) — a retail quirk
+             * (0x468729-0x468757). */
+            const int32_t *grid = (const int32_t *)bank + SAVE_BANK_FIELD_DISPLAY_GRID;
+            for (int c = 0; c < SAVE_BANK_DISPLAY_GRID_CELLS && n < SAVE_BANK_ITEM_TABLE_COUNT; c++) {
+                int item = grid[c];
+                if (item == -1)
+                    continue;
+                int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+                int id = (rec >= 0) ? g_item.records[rec].item_id : 0;
+                if (id >= 5201 && id < 5300)
+                    continue;
+                int rank = (rec >= 0) ? g_item.records[rec].rank : 0;
+                int key = item + 0xc80 * (rank + (id / 100) * 100 + 10);
+                if (key & 0x10)
+                    key = ((tables_item_find_slot_by_id(&g_item, key >> 6) + 0x10) << 6) | (key % 0x10);
+                s_scan_keys[n]  = key;
+                s_scan_items[n] = item;
+                s_scan_idx[n]   = n;
+                n++;
+            }
         }
     }
     chr_prepass_sort(s_scan_keys, s_scan_idx, n);   /* FUN_0045526a co-sort */
@@ -422,6 +457,14 @@ void display_menu_buy_post_add(uint32_t *bank)
 void display_menu_cursor_to_row(void)
 {
     title_save_dialog_cursor_slide(
+        280.0f,
+        (float)((s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab]) * 0x24) + 96.0f);
+}
+
+/* FUN_00469351 — the same row target, snapped (FUN_00435693) instead of slid. */
+void display_menu_cursor_snap_to_row(void)
+{
+    title_save_dialog_cursor_snap(
         280.0f,
         (float)((s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab]) * 0x24) + 96.0f);
 }

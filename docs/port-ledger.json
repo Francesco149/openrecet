@@ -11367,6 +11367,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c"
@@ -11409,7 +11410,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
    ],
    "status": "ported"
   },

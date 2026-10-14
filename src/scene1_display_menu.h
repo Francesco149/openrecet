@@ -85,6 +85,8 @@ void display_menu_buy_post_add(uint32_t *bank);
 /* FUN_0046939a(): slide the shared hand cursor back onto the current list row
  * (used when the qty overlay closes and the item list regains focus). */
 void display_menu_cursor_to_row(void);
+/* FUN_00469351(): the same, snapped (no slide) — the cs request-pick open. */
+void display_menu_cursor_snap_to_row(void);
 
 /* DAT_005c6ee4: how many of the highlighted item the player holds in inventory
  * ("Number possessed" in the description panel).  Recomputed inside

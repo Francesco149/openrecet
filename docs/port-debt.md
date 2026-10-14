@@ -65,7 +65,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2479 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:148 | f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported), |
-| FUN_00469b3a | src/scene1_display_menu.c:636 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_00469b3a | src/scene1_display_menu.c:679 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
 | FUN_0048670f | src/news_daily.h:20 | the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported — wire the news call when the timed shop clock lands. |
 | FUN_0049e163 | src/scene1_companion_ctrl.c:135 | retail also forces it while |
 
@@ -92,7 +92,7 @@ _none_
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00436f97 | src/scene1_preload.c:228 | DAT_0438b4dc has no port mirror; |
-| FUN_0046602e | src/customer_service.c:228 | always -1 in the port — its only writer, |
+| FUN_0046602e | src/customer_service.c:229 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
