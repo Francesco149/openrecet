@@ -1895,6 +1895,10 @@ struct test_case {
     X(display_menu_inventory_return_appends_and_counts) \
     X(display_menu_inventory_remove_shifts_and_counts) \
     \
+    X(counter_menu_build_by_level) \
+    X(counter_menu_slide_ramp) \
+    X(counter_menu_input_and_close) \
+    \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \
     X(scene1_camera_house_groundtruth_matches_retail) \

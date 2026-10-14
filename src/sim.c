@@ -45,6 +45,8 @@
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
+#include "scene1_counter_menu.h" /* counter_menu_cursor (DAT_0438cc0c) — mode-1 tooltip band */
+#include "scene1_maplight.h"     /* scene1_current_stage_record (*DAT_068dd2f0 maptype) */
 #include "scene1_tutorial_dispatch.h" /* iv2 beat b924/b928 — continuous card-fade phase probe */
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record indices — RE §21.28 ccnt probe */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
@@ -490,6 +492,13 @@ void sim_step_a(void)
          * path also runs 5 unported siblings (player + NPC + world
          * tick + UI + camera).  See src/scene1_sim.c header. */
         scene1_ingame_tick();
+        /* FUN_00406584 mode-1 tooltip block (all.c:4655-4664, before its
+         * FUN_004356cd call): the counter-menu "Opening the shop…" band. */
+        {
+            const stage_record_t *st = scene1_current_stage_record();
+            scene1_top_hud_house_tooltip_tick(st == NULL || st->maptype == 0,
+                                              player_ctrl_cc08(), counter_menu_cursor());
+        }
         /* FUN_00406584 (Cs3) runs right after FUN_004427d3 on every
          * state-1 frame (engine FUN_004536cb L50556). Its only part we
          * need here is the FUN_004356cd call it makes — the shared menu

@@ -28,6 +28,7 @@
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "scene1_display_menu.h" /* cc04==1 remove-item menu update/removal (A2) */
+#include "scene1_counter_menu.h" /* cc08 0/10 counter menu (Open Store / Cancel) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
 #include "news_daily.h"          /* g_news_ticker_timer (DAT_0438b92c) pump  */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
@@ -394,7 +395,7 @@ static int   s_cc08             = 1;              /* DAT_0438cc08 */
  * the frame's behavior on the FRAME-START cc08; these flag a mid-frame flip so
  * later-running controllers (the companion) can mirror that.  Cleared at the
  * top of scene1_player_ctrl_tick each frame. */
-static int   s_cc08_entered_this_frame = 0;       /* 1→4 this frame */
+static int   s_cc08_entered_this_frame = 0;       /* walk-arm entry 1→4 / 1→0 this frame */
 static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
@@ -1044,27 +1045,31 @@ static int player_ctrl_cc08_customer_escalate(void)
 #define PC_WORLDMAP_TUTORIAL_BYTE_OFF 0x2bc61   /* DAT_0450f3f9 */
 #define PC_DOOR_FIRSTEXIT_BYTE_OFF    0x2bc62   /* DAT_0450f3fa */
 
-/* bVar3 (all.c:87542-87551): does the player stand at the SELL COUNTER facing it?
- * Counter rect by shop tier (DAT_04510578): tier<3 → X∈(-5,0), Z>6.9 (the only
- * tier handled — PORT-DEBT(cs-counter-tier); tier>=3 is X∈[5.7,10.7], Z>15).
- * Facing: the world angle DAT_056db05c ∈ (-1.8849558, -1.2566371) (≈ -π/2 ± 0.1π,
- * looking "down" at the counter).  Shared by the Z-entry
- * (player_ctrl_cc08_sell_counter_enter) AND the free-roam "!" affordance emote
- * (player_ctrl_cc08_proximity_detect).  PORT-DEBT(cs-entry-flags): the engine also
- * gates on DAT_0450f3fd[slot]==1 (a customer queued, set by the unported iv1_7
- * cutscene — never set in the port), so we detect on position + facing alone,
- * which the recorded prologue (walk to counter) exercises. */
+/* bVar3 (v132, all.c:97319-97333): does the player stand at the SELL COUNTER
+ * facing it, with the shop stocked?  Counter rect by shop tier (DAT_04510578):
+ * tier<3 → X∈(-5,0), Z>6.9; tier>=3 → X∈(5.7,10.7), Z>15.  DAT_0450f3fd == 1 (all
+ * stands stocked — the iv1_6 latch the display menu sets, or the save's).  Facing:
+ * the world angle DAT_056db05c ∈ (-1.8849558, -1.2566371) (≈ -π/2 ± 0.1π, looking
+ * "down" at the counter).  Shared by the Z-entry (player_ctrl_cc08_sell_counter_
+ * enter) AND the free-roam "!" affordance emote (player_ctrl_cc08_proximity_detect). */
+#define PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF 0x2bc65  /* DAT_0450f3fd — all stands stocked (iv1_6) */
+#define PC_F3FF_SHOP_SELL_BYTE_OFF         0x2bc67  /* DAT_0450f3ff — iv1_6 sale armed (counter → sell) */
+
 static int player_ctrl_at_sell_counter(void)
 {
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (bank == NULL)
         return 0;
+    /* v132 (all.c:97319-97333): counter rect by shop tier, the all-stocked latch
+     * DAT_0450f3fd == 1, facing ≈ -π/2 ± 0.1π. */
     int tier = (int)bank[SHOP_DISPLAY_TIER_SELECTOR];
-    if (tier >= 3)
-        return 0;
+    float xr = (tier < 3) ? 0.0f : 10.7f;
+    float zr = (tier < 3) ? 6.9f : 15.0f;
     float px = g_scene1_player_pos[0];
     float pz = g_scene1_player_pos[2];
-    if (!(px < 0.0f && px > -5.0f && pz > 6.9f))
+    if (!(px < xr && xr - 5.0f < px && pz > zr))
+        return 0;
+    if (((const uint8_t *)bank)[PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF] != 1)
         return 0;
     return (s_player_facing > -1.8849558f && s_player_facing < -1.2566371f);
 }
@@ -1135,7 +1140,6 @@ int player_ctrl_emote_type(void)  { return s_emote_type; }
 /* confirm-path display-state bytes (asm 0x489224 / 0x48933c, rec-relative). */
 #define PC_SHOP_DISPLAY_CHANGED_BYTE_OFF  0x2bc60   /* DAT_0450f3f8 — "display changed" */
 #define PC_SHOP_DISPLAY_BACKROW_BYTE_OFF  0x2bc63   /* DAT_0450f3fb — back-row (cc00==0) dirty */
-#define PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF 0x2bc65  /* DAT_0450f3fd — all stands stocked (iv1_6) */
 
 /* ── T1: shop-door exit → world map (engine FUN_0048670f) ──────────────────
  *
@@ -1226,32 +1230,24 @@ int player_ctrl_worldmap_exit_stage2(void)
 int  player_ctrl_worldmap_exit_armed(void) { return s_worldmap_exit_armed; }
 void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
 
-/* ── sell-counter customer-service entry (the bVar3 Z-arm, FUN_0048670f) ──────
+/* ── sell-counter Z (the bVar3/v132 Z-arm, FUN_0048670f) ──────────────────────
  *
- * bVar3 (all.c:87542-87551): the player stands at the SELL COUNTER facing it.
- * Counter rect by shop tier (DAT_04510578): tier<3 → X∈(-5,0), Z>6.9; tier>=3 →
- * X∈(5.7,10.7), Z>15.  Facing octant: the world angle DAT_056db05c ∈
- * (-1.8849558, -1.2566371) (≈ -π/2 ± 0.1π, looking "down" at the counter).
+ * bVar3 (all.c:97319-97333, player_ctrl_at_sell_counter): the player stands at
+ * the SELL COUNTER facing it, and DAT_0450f3fd (all stands stocked) == 1.
  *
- * Z-arm (all.c:87680-87695): `if (bVar3) { if (f3ff==0) <counter menu> else {
- * f404=1; FUN_00461bf6(idx); cc08=4; FUN_0045edaa(); } }`.  We take the sell
- * branch directly: set the sell-active flag (f404), seed the script-file index
- * (FUN_00461bf6 — this player-Z entry pushes **0**, objdump 0x488bbf `push 0x0`
- * → DAT_005c6bb0=0; the OTHER entry sites at 0x48756a/0x4877b6/0x4884c7 — the
- * autonomous/cutscene arrivals — push 2, which is what an earlier note conflated),
- * flip cc08=4, and run the session init (the f404 sell-active scripted-sell path,
- * RE §3.7).  fileidx=0 is load-bearing: cs_queue_advance dispatches FUN_00461303
- * (b5a8=2, the kind-select) on fileidx∉{1,2}, but FUN_00460fa7 (b5a8=1) on
- * fileidx==2 — the retail capture shows b5a8=2, so fileidx MUST be 0.
- *
- * PORT-DEBT(cs-entry-flags): the engine gates bVar3 on DAT_0450f3fd[slot]==1
- * (a customer queued) and the sell branch on DAT_0450f3ff[slot]!=0 — both set by
- * the unported tutorial-cutscene machinery (iv1_7, RE §5) during the prologue,
- * not the save.  Until that lands we enter the sell directly on the position +
- * facing + Z, which is what the recorded prologue does (the player walks to the
- * counter + presses Z).  Retire when the iv1_7 flag-set is ported.
- * PORT-DEBT(cs-counter-menu): the f3ff==0 branch (cc08=0, the counter-display
- * menu FUN_004850fe) is a different feature — not the sell. */
+ * Z-arm (asm 0x488bb6-0x488c18): `if (f3ff != 0) { f404=1; FUN_00461bf6(0);
+ * cc08=4; FUN_0045edaa(); } else { cc08=0; b754=cc0c=cc10=0; FUN_004850fe();
+ * SE 00re_sys06; FUN_00499519(0x174); }  db000=0; goto LAB_004893ff`.
+ *   - f3ff != 0 (set with f3fe when iv1_6 fires, cleared at the cs leave): the
+ *     tutorial's scripted sale — enter customer service directly.  The script
+ *     index FUN_00461bf6 pushes 0 here (objdump 0x488bbf `push 0x0`; the
+ *     autonomous/cutscene arrivals at 0x48756a/0x4877b6/0x4884c7 push 2).
+ *     fileidx=0 is load-bearing: cs_queue_advance dispatches FUN_00461303
+ *     (b5a8=2, the kind-select) on fileidx∉{1,2}.
+ *   - f3ff == 0 (every ordinary shop day): open the counter menu (cc08 0 →
+ *     "Open Store" → cc08 10 → 15 frames → cc08 4, scene1_counter_menu.c).
+ * Both arms goto the tail, past the per-actor anim tick and the companion
+ * (s_cc08_entered_this_frame). */
 #define PC_F404_SELL_ACTIVE_BYTE_OFF  0x2bc6c   /* DAT_0450f404 — sell-active flag */
 
 /* cc08 flipped 1→4 THIS frame (any cs entry flavor).  The engine's entry arms
@@ -1281,22 +1277,27 @@ void player_ctrl_cc08_markers_frame_clear(void)
 
 static int player_ctrl_cc08_sell_counter_enter(void)
 {
-    if (!player_ctrl_at_sell_counter())     /* bVar3: tier<3, counter rect + facing */
+    if (!player_ctrl_at_sell_counter())     /* bVar3 */
         return 0;
-    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    if (bank == NULL)
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bb == NULL)
         return 0;
 
-    /* enter customer service (the sell branch).  Set the sell-active flag in the
-     * working bank so session_init takes the f404 scripted-sell path. */
-    ((uint8_t *)bank)[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;   /* DAT_0450f404 = 1 */
-    customer_service_set_script_file(0);                   /* FUN_00461bf6(0) → DAT_005c6bb0 */
-    s_cc08 = 4;                                            /* DAT_0438cc08 = 4 */
+    if (bb[PC_F3FF_SHOP_SELL_BYTE_OFF] != 0) {
+        bb[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;              /* DAT_0450f404 = 1 */
+        customer_service_set_script_file(0);               /* FUN_00461bf6(0) → DAT_005c6bb0 */
+        s_cc08 = 4;                                        /* DAT_0438cc08 = 4 */
+        customer_service_session_init();                   /* FUN_0045edaa */
+    } else {
+        s_cc08 = 0;                                        /* DAT_0438cc08 = 0 */
+        counter_menu_open();                               /* b754 = cc0c = cc10 = 0 */
+        counter_menu_build(bb);                            /* FUN_004850fe */
+        audio_play_se_file("bin/se/00re/system/00re_sys06.bin");   /* FUN_0049933c */
+        audio_play_se_by_id(0x174);                        /* FUN_00499519(0x174) */
+    }
     s_cc08_entered_this_frame = 1;                         /* RE §21.28 entry no-tick */
-    customer_service_session_init();                       /* FUN_0045edaa */
-    s_emote_level = 0;   /* DAT_056db000 = 0 (all.c:87696): consume the counter "!"
-                          * affordance on entry, so it doesn't linger frozen through
-                          * cc08==4 (the free-roam arm that would decay it stops). */
+    s_emote_level = 0;   /* DAT_056db000 = 0 (asm 0x488c11): consume the counter "!"
+                          * affordance on entry, so it doesn't linger frozen. */
     return 1;
 }
 
@@ -1645,6 +1646,62 @@ static void player_ctrl_cc04_menu_arm(void)
      * (companion facing — the player is frozen, so it is a no-op here, matching
      * retail's frozen companion under the §110 db054 freeze) are not run; the
      * companion controller is gated to the walk arm, which the menu skips. */
+}
+
+/* ── cc08 0 / 10: the counter menu (FUN_0048670f case 0 asm 0x487880-0x487929,
+ * case 10 asm 0x4870b9-0x487347) ──────────────────────────────────────────────
+ * case 0: hold the counter pose (anim 3), wait for the slide-in (b74c >= 10),
+ * then cancel (0x20 → cc08 1) / confirm (Z → cc08 10) / move the cursor; exits
+ * via LABEL_132 = FUN_004897c6 (the player anim tick) + FUN_0048a833.
+ * case 10: the 15-frame close, then dispatch the entry; exits via LABEL_133 =
+ * FUN_0048a833 only (no player anim tick).  FUN_0048a833 is the scene1_sim
+ * companion fallback; the tail (FUN_00486435/FUN_00485861) is the dispatch tail. */
+static void player_ctrl_cc08_counter_menu_arm(void)
+{
+    if (s_cc08 == 0) {
+        if (s_actor_record[0][CHR_ACTOR_STATE] != 3) {      /* DAT_056daafc != 3 */
+            s_actor_record[0][CHR_ACTOR_STATE]   = 3;       /* DAT_056daafc */
+            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;       /* DAT_056daaf8 */
+            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;       /* DAT_056daaf0 = 0.0f */
+            s_actor_record[0][CHR_ACTOR_TIMER]   = 0;       /* DAT_056daaf4 */
+            s_actor_record[0][CHR_ACTOR_ANIM]    = 3;       /* DAT_056daae8 */
+        }
+        if (counter_menu_slide() >= 10) {                   /* DAT_0438b74c >= 10 */
+            int in = counter_menu_input(g_sim_buttons[0].pressed, g_sim_buttons[0].held);
+            if (in == COUNTER_MENU_IN_CANCEL)
+                s_cc08 = 1;
+            else if (in == COUNTER_MENU_IN_CONFIRM)
+                s_cc08 = 10;
+        }
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);   /* FUN_004897c6 */
+        return;
+    }
+
+    int entry = counter_menu_close_tick();                  /* ++DAT_0438b754 == 15 */
+    if (entry < 0)
+        return;
+    if (entry == COUNTER_MENU_CANCEL) {
+        s_cc08 = 1;
+    } else if (entry == COUNTER_MENU_OPEN_STORE) {
+        s_cc08 = 4;                                         /* DAT_0438cc08 = 4 */
+        customer_service_session_init();                    /* FUN_0045edaa */
+        /* rand()%5 picks Recette's / Tear's "let's open!" voice (asm 0x4870f3). */
+        static const char *const k_open_se[5] = {
+            "bin/se/00re/system/00re_sys11a.bin",
+            "bin/se/00re/system/00re_sys11b.bin",
+            "bin/se/00re/system/00re_sys11c.bin",
+            "bin/se/01ti/system/01ti_sys11a.bin",
+            "bin/se/01ti/system/01ti_sys11b.bin",
+        };
+        audio_play_se_file(k_open_se[rng_next15() % 5u]);
+    } else {
+        /* PORT-DEBT(counter-menu-decor): entries 1..5 (Change Flooring / Walls /
+         * Carpet / Tables, Move Tables; merchant level >= 5) set cc08 0x17 and
+         * start the decor camera move (FUN_00452dc1/d85/dfd/e39 + the b7b4..b7d0
+         * snapshot, SE 00re_sys04c) — the decor editor is unported, so the menu
+         * just closes. */
+        s_cc08 = 1;
+    }
 }
 
 static void player_ctrl_cc08_freeroam_arm(void)
@@ -2470,11 +2527,17 @@ void scene1_player_ctrl_tick(void)
     if (s_cc08 != 4)
         scene1_camera_set_freeroam_class();
 
+    /* counter-menu slide ramp (all.c:96212-96225): after the grid rebuild,
+     * before the cc08 dispatch, on this frame's dispatch value. */
+    counter_menu_slide_tick(s_cc08);
+
     if (s_cc08 == 1 &&
         !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
         !scene1_intro_dialogue_posing() &&
         !scene1_tutorial_dispatch_iv2_beat_active())
         player_ctrl_cc08_freeroam_arm();
+    else if (s_cc08 == 0 || s_cc08 == 10)
+        player_ctrl_cc08_counter_menu_arm();
     else
         player_ctrl_cc08_unported_arm();
 

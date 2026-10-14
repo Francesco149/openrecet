@@ -66,6 +66,12 @@ int32_t scene1_top_hud_levelup_timer(void);
  * `_reset` (FUN_004060ff) restarts the slide-in at world-map init. */
 void scene1_top_hud_worldmap_tooltip_tick(int sel_dest, int return_pending);
 void scene1_top_hud_tooltip_reset(void);
+/* FUN_00406584 mode-1 block: band 2 ("Opening the shop will take 1 period of
+ * time") while the counter menu (cc08 0/10) has "Open Store" (cursor 0). */
+void scene1_top_hud_house_tooltip_tick(int shop_stage, int cc08, int cursor);
+/* FUN_004060ff from the HOUSE init (FUN_00436f97): band + counter = -1. */
+void scene1_top_hud_tooltip_house_entry(void);
+int  scene1_top_hud_tooltip_ctr(void);   /* DAT_00529704 */
 
 #ifdef _WIN32
 struct IDirect3DDevice8;

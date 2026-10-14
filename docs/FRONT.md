@@ -74,16 +74,22 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     truth (findings §10);
   - ☐ wine DirectMusic, or a fix for the audio flag;
   - ☐ bounded podman container.
-- ◐ **Day-2 shop** — native recordings `day2-shop` (2 buyers) + `day2-buy-tutorial`
-  (buying tutorial = first offer_down; saved slot 8 → `_saves/d85ac24a…`): retail
-  replays exactly, shadows 0 div. ★ Port: CUSTOMER_SERVICE_ENTER early on both
-  (f900 vs 963; f1355 vs 1423), then desync — chase with `portstate` (save-load →
-  shop-open path).
+- ◐ **Shop days (port side)** — native recordings `day2-shop`, `day2-buy-tutorial`,
+  `buy-*`, `debt-gameover-restart` (retail replays exactly, shadows 0 div).
+  - ✅ Shop entry: the port skipped the counter menu ("Open Store / Cancel", cc08 0 →
+    10 → 4), so `CUSTOMER_SERVICE_ENTER` came 58–68 f early. Ported
+    (`docs/findings/shop-counter-menu-RE.md`); entry now frame-exact on all 7 shop
+    scenarios; cc08 / b74c / b754 / cc0c / help-box counter identical per frame
+    (`portstate buy-40pct-accept`).
+  - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
+    1. **RNG at the save load:** retail `0xce6f3ab8` / port `0x1f4411fb` at f652
+       (LOADING_END of the Continue load), before any shop logic.
+    2. `b524` starts 1 f late → 2nd d3e load f911 vs 912 (= item 2 above).
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
-  day2-save-commit}: all **IDENTICAL** as of 2026-10-13 (after the prologue settle fix).
+  day2-save-commit}: all **IDENTICAL** as of 2026-10-14 (after the counter menu).
 - `rhost.py portanchors house-idle`: 195/195.
 
 ### Re-verification program (owner: "re-verify everything with the new methodology")

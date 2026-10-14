@@ -55,6 +55,7 @@
 #include "scene1_conversation_pose.h"/* scene1_conversation_pose_reset */
 #include "scene1_tutorial_dispatch.h"/* scene1_tutorial_dispatch_reset (iv2 beat) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
+#include "scene1_top_hud.h"       /* scene1_top_hud_tooltip_house_entry (FUN_004060ff) */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
 #include "scene1_spawn.h"
@@ -127,6 +128,9 @@ void scene1_postload_pose_house_standing(void)
     g_scene1_player_pos[1] =  0.0f;
     g_scene1_player_pos[2] =  9.35f;
 
+    /* FUN_00436f97 calls FUN_004060ff (top-HUD tooltip band/counter = -1) right
+     * before FUN_004850ec (cc08 = 1, inside pose_house_standing). */
+    scene1_top_hud_tooltip_house_entry();
     player_ctrl_pose_house_standing(stage_post_load_get_dat_056da1cc());
 
     /* Reset the companion hover-bob phase (engine DAT_056db054) on scene entry,

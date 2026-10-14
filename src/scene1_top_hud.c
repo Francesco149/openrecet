@@ -174,13 +174,13 @@ void scene1_top_hud_money_tick(int bank_gold)
  *   band 1  "Returning to the shop will take 1 period of time" (dest 0, DAT_045105a0!=0)
  *   band 3  "If you return now no time will pass"              (dest 0, DAT_045105a0==0)
  *   band 4  "This action will not take any time"               (any other dest)
- * (band 2 is the mode-1 "Opening the shop will take 1 period of time" counter
- * hint — a separate, still-unported path.)  All five bands are baked 120x80
+ * (band 2 = the mode-1 "Opening the shop will take 1 period of time" counter-
+ * menu hint, scene1_top_hud_house_tooltip_tick.)  All five bands are baked 120x80
  * into item_win.tga stacked from (832,0); the render lives in
  * scene1_top_hud_render.  DAT_00529708 = band id (-1 = hidden); DAT_00529704 =
  * the 0->15 slide-in counter consumed by the FUN_0046c86f scale animator. */
 static int g_tooltip_msg = -1;   /* DAT_00529708 */
-static int g_tooltip_ctr =  0;   /* DAT_00529704 */
+static int g_tooltip_ctr = -1;   /* DAT_00529704 (.data init -1) */
 
 /* FUN_00406584 mode-8 block (all.c:4776-4790): pick the band from the selected
  * destination, then ramp the slide-in counter toward 15.  Called once per
@@ -193,6 +193,32 @@ void scene1_top_hud_worldmap_tooltip_tick(int sel_dest, int return_pending)
     else if (sel_dest == 0) g_tooltip_msg = return_pending ? 1 : 3; /* the shop */
     else                    g_tooltip_msg = 4;                      /* other    */
     if (g_tooltip_ctr < 0xf) g_tooltip_ctr++;
+}
+
+/* FUN_00406584 mode-1 block (all.c:4655-4664): in the shop stage (maptype 0),
+ * band 2 slides in while the counter menu is up with the cursor on "Open Store"
+ * (cc08 0/10, cc0c 0), else slides out.  Other stages leave it untouched.  Runs
+ * AFTER the HOUSE tick (FUN_004427d3), so the Z frame that opens the menu
+ * already counts. */
+void scene1_top_hud_house_tooltip_tick(int shop_stage, int cc08, int cursor)
+{
+    if (!shop_stage)
+        return;
+    if ((cc08 == 0 || cc08 == 10) && cursor == 0) {
+        g_tooltip_msg = 2;
+        if (g_tooltip_ctr < 0xf) g_tooltip_ctr++;
+    } else if (g_tooltip_ctr > 0) {
+        g_tooltip_ctr--;
+    }
+}
+
+int scene1_top_hud_tooltip_ctr(void) { return g_tooltip_ctr; }
+
+/* FUN_004060ff as the HOUSE init FUN_00436f97 calls it: both -1. */
+void scene1_top_hud_tooltip_house_entry(void)
+{
+    g_tooltip_msg = -1;
+    g_tooltip_ctr = -1;
 }
 
 /* FUN_004060ff resets DAT_00529704/8.  The port calls this at world-map init so
@@ -326,10 +352,9 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
      * A baked help band from item_win.tga — src (832, msg*80)-(952, msg*80+80),
      * 120x80 — chosen by the destination under the cursor, slid in via the
      * FUN_0046c86f scale animator on the 0->15 counter.  Same texture as the
-     * gold frame above, so it batches into the SAME flush below.  Gated to the
-     * world map (g_scene_state==8): only the mode-8 sim ramps the counter, and
-     * the house (mode 1) shares this render path. */
-    if (g_scene_state == SCENE_STATE_WORLDMAP &&
+     * gold frame above, so it batches into the SAME flush below.  Ramped by the
+     * world-map sim (mode 8) and the HOUSE counter menu (mode 1, band 2). */
+    if ((g_scene_state == SCENE_STATE_WORLDMAP || g_scene_state == SCENE_STATE_INGAME) &&
         g_tooltip_ctr > 0 && g_tooltip_msg >= 0) {
         float sx = 1.0f, sy = 1.0f;
         int   alpha = 0xff;

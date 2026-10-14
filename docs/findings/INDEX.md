@@ -69,6 +69,7 @@ that subsystem.
 
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
+| [shop-counter-menu-RE.md](shop-counter-menu-RE.md) | Counter Z → "Open Store / Cancel" menu (cc08 0 → 10 → 4, FUN_004850fe lists, b74c/b754 timing, render, "Opening the shop…" help band); root cause of the port's early shop entry. | 2026-10-14 |
 | [esc-skip-event.md](esc-skip-event.md) | Context-sensitive ESC dispatch (WndProc `FUN_0047b2e7`) + the skip-event yes/no prompt (`FUN_00453384`/`454191`); pause-menu gate. Phase A (dispatch) landed. | 2026-06-02 |
 
 ## Audio

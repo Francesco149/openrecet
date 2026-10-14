@@ -159,7 +159,8 @@ void scene1_ingame_default_arm_tick(void)
      * flipped-to-1 LEAVE value and advanced db054 a frame early — the +1 drift
      * from CONV_POSE_START (632); gating on the DISPATCH value alone catches the
      * leave but wrongly advances on the entry (dispatch still 1).  Require BOTH
-     * != 4 = "no cc08==4 involvement this frame" = FUN_0048b850 actually ran.
+     * == 1 = "free-roam at dispatch and after" = FUN_0048b850 actually ran (the
+     * counter menu cc08 0/10 skips it too: switch cases, not the walk).
      * (The +1 drift cascaded into the late 目玉 sparkle / chibi walk phase via
      * the shared LCG — viewer notes #20/#22.) */
     int cc08_at_dispatch = player_ctrl_cc08();
@@ -209,8 +210,8 @@ void scene1_ingame_default_arm_tick(void)
          * while it keeps incrementing — this is the cc08==4 ambient-particle rng
          * the port was under-drawing (~5.5/f vs retail ~10/f).  Freeze it here to
          * match (RE §8.8 — the resolved §8.5 rng-rate gap). */
-        if (cc04_at_dispatch == 0 && cc08_at_dispatch != 4 &&
-            player_ctrl_cc08() != 4)
+        if (cc04_at_dispatch == 0 && cc08_at_dispatch == 1 &&
+            player_ctrl_cc08() == 1)
             scene1_companion_ctrl_advance_phase();
     }
 

@@ -43,6 +43,7 @@ int scene1_merchant_hud_level(void) { return g_level; }
 #include "scene1_render.h"       /* scene1_project_world (FUN_00490c78)      */
 #include "scene1_shop_display.h" /* cbfc / cc00 / bf68 + grid stride          */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 (DAT_0438cc08)          */
+#include "scene1_counter_menu.h" /* counter_menu_render (cc08 0/10 block)    */
 #include "save_work.h"           /* working-bank dwords (the live item grid) */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID (DAT_044f7030) */
 #include "scene1_maplight.h"     /* scene1_current_stage_record (*068dd2f0)  */
@@ -317,6 +318,10 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
         if (wb) level = (int)wb[SAVE_BANK_FIELD_MERCHANT_LEVEL];
         scene1_merchant_hud_draw_level(dev, ox + 16.0f, oy, level, 0xffffffffu);
     }
+
+    /* FUN_00409925's cc08 0/10 block (after the level badge + the pop): the
+     * counter-menu entry buttons + labels. */
+    counter_menu_render(dev_in, player_ctrl_cc08());
 
     /* The "LEVEL UP!" pop (FUN_00407ab4, gated 0 < DAT_0438b920): the timer
      * is LIVE now (scene1_top_hud_levelup_timer, armed by the xp_tick level-

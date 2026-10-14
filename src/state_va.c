@@ -11,7 +11,9 @@
 #include "customer_service.h"
 #include "rng.h"
 #include "scene.h"
+#include "scene1_counter_menu.h"
 #include "scene1_player_ctrl.h"
+#include "scene1_top_hud.h"
 #include "sim.h"
 #include "tick.h"
 
@@ -23,6 +25,10 @@ static int32_t get_b524(void)  { return customer_service_b524(); }
 static int32_t get_gsim(void)  { return (int32_t)g_sim_frame_count; }
 static int32_t get_tickn(void) { return (int32_t)g_tick.frame_count; }
 static int32_t get_tprev(void) { return (int32_t)g_tick.prev_ms; }
+static int32_t get_b74c(void)  { return counter_menu_slide(); }
+static int32_t get_b754(void)  { return counter_menu_timer(); }
+static int32_t get_cc0c(void)  { return counter_menu_cursor(); }
+static int32_t get_ttctr(void) { return scene1_top_hud_tooltip_ctr(); }
 
 typedef struct { uint32_t va; const char *name; int32_t (*get)(void); } state_va_t;
 static const state_va_t k_map[] = {
@@ -34,6 +40,10 @@ static const state_va_t k_map[] = {
     { 0x438b8ccu, "sim frame counter gsim (DAT_0438b8cc)", get_gsim },
     { 0x73dfcfcu, "tick frame_count (DAT_073dfcfc)",  get_tickn },
     { 0x73de61cu, "tick prev_ms (DAT_073de61c)",      get_tprev },
+    { 0x438b74cu, "counter-menu slide b74c (DAT_0438b74c)", get_b74c },
+    { 0x438b754u, "counter-menu timer b754 (DAT_0438b754)", get_b754 },
+    { 0x438cc0cu, "counter-menu cursor cc0c (DAT_0438cc0c)", get_cc0c },
+    { 0x529704u,  "top-HUD tooltip counter (DAT_00529704)", get_ttctr },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 

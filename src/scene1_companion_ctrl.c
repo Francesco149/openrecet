@@ -277,12 +277,12 @@ void scene1_companion_ctrl_tick(void)
      * frame-start snapshot is 2 (notify_loaded already cleared the live b1cc).  The
      * OR keeps the companion idle for off0..release inclusive ⇒ it arrives the frame
      * AFTER the load clears, matching retail (was 1f early on the release frame). */
-    /* cc08 1→4 ENTRY frame: the engine's entry arms `goto LAB_004893ff` — past
-     * the FUN_004897c6 per-actor anim-tick loop AND FUN_0048a833 — so the
-     * companion gets NO tick and NO writes on the entry frame (probe-proven
-     * RE §21.28: retail ccnt freezes across frames 304 + 825; the port's load
-     * gate used to tick here, the +1 phase blips 307..327). */
-    if (player_ctrl_cc08() == 4 && player_ctrl_cc08_entered_this_frame())
+    /* cc08 1→4 / counter-Z 1→0 ENTRY frame: the engine's entry arms `goto
+     * LAB_004893ff` — past the FUN_004897c6 per-actor anim-tick loop AND
+     * FUN_0048a833 — so the companion gets NO tick and NO writes on the entry
+     * frame (probe-proven RE §21.28: retail ccnt freezes across frames 304 + 825;
+     * the port's load gate used to tick here, the +1 phase blips 307..327). */
+    if (player_ctrl_cc08_entered_this_frame())
         return;
 
     /* cc08 4→1 LEAVE frame (the b520 dissolve completion, mid-frame in the
