@@ -1282,6 +1282,10 @@ struct test_case {
     X(scene_pause_state_init_overrides_dirty_state) \
     X(scene_pause_reset_zeroes_state) \
     X(scene_pause_selector_independent_from_siblings) \
+    X(party_roster_lists_recruited_in_id_order) \
+    X(title_save_dialog_message_open_splits_br) \
+    X(scene_adv_guild_enter_sets_bag_size_floors_and_rows) \
+    X(scene_adv_guild_intro_two_scripts_then_world_map) \
     X(pause_menu_setup_house_list) \
     X(pause_menu_setup_status_entry) \
     X(pause_menu_setup_dungeon_entry) \

@@ -4965,6 +4965,15 @@ skipped this and ran every float at PC24 (portstate: port 007f@f0). Example: Tea
 `y += (sin(db054·0.04)·0.2 + 3 − y)·0.1` came out 1 ulp low from the first tick, exactly
 the PC24 result of the same x87 sequence. Ported in main.c (2026-10-14).
 
+## 139. The Adventurers' Guild render writes the save: it ORs 0x20 into shown equipment (FUN_0045cc85)
+
+While the adventurer list is up (`DAT_06a49b5c`) with an adventurer highlighted, the mode-11
+render walks that adventurer's equipment slots `rec[1..DAT_06a49b78]` (work `0xb3ac + 27·id`)
+and, for each non-empty one, writes `slot | 0x20` back into the WORK bank before drawing
+it (`FUN_0046add8`). A render pass mutates save state: a save taken after the list has
+been seen carries the bits. The port does it in `scene_adv_guild_render`, as retail does;
+skipped frames (a `bgset:` dialogue covering the scene) skip the write too.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

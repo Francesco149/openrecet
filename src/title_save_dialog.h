@@ -84,6 +84,15 @@ void title_save_dialog_reset(void);
 int title_save_dialog_gate_tick(void);
 void title_save_dialog_gate_reset(void);   /* FUN_00434ce3 */
 
+/* FUN_00434ceb(msg) — open the message box: split `msg` at each "<BR>" into
+ * up to 3 lines (DAT_0438ae2c / DAT_0438ad2c / DAT_0438ac28, line count
+ * DAT_0438ac0c), closing flag DAT_0438ad28 = 0, counter DAT_0438b148 = 1.
+ * title_save_dialog_gate_tick then ramps it open and closes it on Z/X. */
+void title_save_dialog_message_open(const char *msg);
+/* The parsed lines (render; FUN_00435117 is still a stub). */
+int         title_save_dialog_message_lines(void);   /* DAT_0438ac0c */
+const char *title_save_dialog_message_line(int i);
+
 /* FUN_004356cd — per-frame shake-position interpolation +
  * anim-counter increment-while-closed. */
 void title_save_dialog_anim_tick(void);

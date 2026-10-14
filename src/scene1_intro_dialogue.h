@@ -83,6 +83,11 @@ int scene1_intro_dialogue_line_present(void);
  * first one's startup seam. */
 int     scene1_intro_dialogue_busy(void);
 
+/* The retail gate value DAT_0438b1c8 itself, end of tick (the state_va mirror):
+ * 2 armed / loading, 1 a script running, 0 idle.  The settle frames read 0 — the
+ * frame a script ends, retail's LABEL_112 already cleared the gate. */
+int     scene1_intro_dialogue_gate(void);
+
 /* Engine DAT_0438bf74 — the screen-blackout flag, armed at the opening-prologue
  * dialogue dispatch and active across iv1_1/iv1_2 (the whole cutscene).  Gates
  * scene1_fx_screen_blackout (FUN_00453d9c), the invisible full-screen black quad

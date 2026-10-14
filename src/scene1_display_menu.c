@@ -24,6 +24,7 @@
 
 #include "scene1_display_menu.h"
 #include "encyclopedia.h"   /* encyclopedia_mark_seen (FUN_0049126b) */
+#include "party_roster.h"   /* FUN_0047f1ce (the open rebuilds the party list) */
 
 #include <stdio.h>
 #include <string.h>
@@ -213,12 +214,44 @@ static void display_menu_recount(void)
 int display_menu_possessed(void) { return s_possessed; }
 void display_menu_possessed_invalidate(void) { s_possessed = -1; }
 
+/* FUN_00468286 — highlight `item` (DAT_0734b998) + recount DAT_005c6ee4. */
+void display_menu_set_highlight(int item)
+{
+    s_highlight = item;
+    display_menu_recount();
+}
+
+/* FUN_00468233 — the adventurer the list compares against (DAT_005c6ee0) and
+ * DAT_0734b978; FUN_00468338's first open resets them to -1 / 0. */
+static int s_compare_chara = -1;   /* DAT_005c6ee0 */
+static int s_b978          = 0;    /* DAT_0734b978 */
+void display_menu_set_compare(int chara, int b978)
+{
+    s_compare_chara = chara;
+    s_b978          = b978;
+}
+int display_menu_compare_chara(void) { return s_compare_chara; }
+
+/* FUN_004681db / 004681e6 / 004681d3 — DAT_0734b96c, the item-detail popup
+ * (row + 1 while open). */
+static int s_detail = 0;
+void display_menu_detail_open(int row) { s_detail = row + 1; }
+int  display_menu_detail(void)         { return s_detail; }
+void display_menu_detail_close(void)   { s_detail = 0; }
+
 /* FUN_004681ec — the prompt-bubble window-type flag (DAT_0734b990). */
 void display_menu_set_window_flag(int flag) { s_window_flag = flag; }
 
 /* ── FUN_00468338 — OPEN / list init (A2: minimal) ────────────────────── */
 void display_menu_open(int mode, int first_open)
 {
+    /* first open: no compared adventurer (DAT_005c6ee0 = -1, DAT_0734b978 = 0);
+     * then FUN_0047f1ce, the party list the equipment marks read. */
+    if (first_open) {
+        s_compare_chara = -1;
+        s_b978          = 0;
+    }
+    party_roster_rebuild();
     /* per-open reset (all.c:64184-64193): mode, countdown, slide active. */
     s_mode        = mode;          /* DAT_0734b9a8 = param_1 */
     s_confirm_ctr = 0;             /* DAT_0734b994 */

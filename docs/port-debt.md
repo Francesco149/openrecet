@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **33**
-- distinct retiring engine functions: **26**
+- total open debts: **38**
+- distinct retiring engine functions: **30**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 14 | wired call boundary, body incomplete |
+| stub | 19 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 3 | fixed constant where the engine computes/sources it |
@@ -43,13 +43,17 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00430c00 | 1 |
 | FUN_00435c98 | 1 |
 | FUN_0043a5d9 | 1 |
+| FUN_00452809 | 1 |
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
+| FUN_0045bcea | 1 |
 | FUN_0046602e | 1 |
+| FUN_004682ee | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
+| FUN_0047f172 | 1 |
 | FUN_004864fd | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0049d2e5 | 1 |
@@ -57,7 +61,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (14)
+## stub (19)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -69,12 +73,17 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:383 | the message box is unported. |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2554 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_00452809 | src/scene_adv_guild.c:223 | the blackout (DAT_0438bf74) |
+| FUN_0045bcea | src/scene_adv_guild.c:260 | DAT_0438b4dc has no port mirror yet. |
+| FUN_004682ee | src/scene_adv_guild.c:549 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:426 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:709 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_00469b3a | src/scene1_display_menu.c:742 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_0047f172 | src/scene_adv_guild.c:168 | no port backup bank; retire with the dungeon. |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
 | FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
+| NONE | src/scene_adv_guild.c:337 | Depart loads the dungeon; no dungeon port yet. |
 
 ## synthetic-data (0)
 
@@ -88,10 +97,10 @@ _none_
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_00453384 | src/scene_pause.c:290 | the engine has a thicket of mode-1 |
-| FUN_004536cb | src/sim.c:425 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:434 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
-| scene1-rng-stream-parity.md | src/sim.c:343 | sim_loading_pump() |
+| scene1-rng-stream-parity.md | src/sim.c:345 | sim_loading_pump() |
 
 ## hardcode (3)
 

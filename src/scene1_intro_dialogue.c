@@ -495,6 +495,15 @@ int scene1_intro_dialogue_busy(void)
     return (g_state != D_IDLE && g_state != D_DONE) ? 1 : 0;
 }
 
+int scene1_intro_dialogue_gate(void)
+{
+    switch (g_state) {
+    case D_LOAD: case D_TUT_LOAD: case D_LOAD_FIRST: return 2;
+    case D_SCRIPT1: case D_SCRIPT2: case D_TUT:       return 1;
+    default:                                          return 0;
+    }
+}
+
 int scene1_intro_dialogue_blackout_active(void)
 {
     /* Engine DAT_0438bf74 (armed by FUN_00452809): the screen-blackout flag.

@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  24.4% referenced-or-better   (91 instrumented)
+█████░░░░░░░░░░░░░░░  24.7% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (79 full + 12 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   531 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1926 | exists in the engine, no `src/` reference    |
+| source-referenced  |   539 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1918 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -33,10 +33,10 @@ in-process retail host (`findings/in-process-retail-host.md`). Prior human
 attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
 re-verification.
 
-7 VAs are referenced in src/ but absent from the function table
+8 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 52 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 57 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -173,12 +173,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     the return beat, the display-menu re-open clamp, scripted-sell ops 10/11,
     FUN_0049126b. **`multiday-tutorials-suggest`: portrng + portsave IDENTICAL over the
     whole run (f1–f34810), pin-free.**
+  - ✅ **The Adventurers' Guild, mode 11** (`docs/findings/adventurers-guild-RE.md`):
+    loader FUN_0045bdc2 + FUN_00473874, update FUN_0045c051 (the intro FUN_0044c7c3
+    iv2_7 → iv2_8 → world map, and the whole menu machine), render FUN_0045cc85 /
+    FUN_0045cc1e, the party list FUN_0047f1ce (pause "Status" after Louie joins), the
+    FUN_00434ceb box state; the dialogue tick runs in every LABEL_106 mode.
+    **`buy-from-seller-guild-intro`: portsave + portrng IDENTICAL f1–f26774, pin-free**
+    (now in `gates`). The menus past the intro have no recording yet (human queue).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    0. **buy-from-seller-guild-intro**: both enter mode 11 (world-map dest 6, the
-       adventurers' guild) at f11003; retail plays its intro dialogue (from f11064) and
-       leaves to the world map at f17014; the port's mode 11 is a blank stub (update
-       FUN_0045c051 3021 B, loader FUN_0045bdc2 + FUN_00473874, render) and never
-       leaves. First RNG split f17263 (retail's next world-map exit). Was f11002.
     1. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
        arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
        FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
@@ -195,7 +197,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        FUN_00468fd0, the expansion's FUN_004864fd, the FUN_00434ceb message box, the
        variant-1 market's textures; FUN_0044ba2c's `mode` argument (what runs at a
        dialogue's end) is not modeled.
-    6. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
+    6. "Now Loading" on a dialogue's arm frame: retail draws the disc (gate 2 →
+       DAT_06a49960) at f11003 of buy-from-seller-guild-intro, the port does not — sim.c
+       latches nowloading at the tick head, before the scene arms the .ivt load (render
+       only; the anchors fold the same state, so re-check portanchors when moving it).
+    7. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
        56da1f0) — not RNG-visible yet; x87 sweep candidate (FUN_0048a833/a4d1).
 
 ### Regression gate (run before claiming a port change is safe)
@@ -239,8 +245,14 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- (empty) Haggle cases recorded 2026-10-14: refusal walkout, 50/45/40/35% accepts,
-  counter-then-accept, week-1 game over.
+- **Record the Adventurers' Guild menus** (verifies FUN_0045c051 past the intro + the
+  render): `python3 tools/rhost/rhost.py record adv-guild-pack-leave --save
+  dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`, Load Game → slot 10,
+  leave the shop → world map → the Adventurers' Guild (top right). Then: move the cursor
+  over "Leave" and back, pick Louie, close the "Pick the items" box, pack 3 items
+  (up/down and left/right in the bag, replace one, press C on a packed item once), X back
+  to the list, X to leave. Back on the map, enter the guild again, pick Louie and
+  "Depart!". Close the window once the dungeon has loaded.
 
 ## Where to read next
 

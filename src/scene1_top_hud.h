@@ -72,6 +72,8 @@ void scene1_top_hud_house_tooltip_tick(int shop_stage, int cc08, int cursor);
 /* FUN_004060ff from the HOUSE init (FUN_00436f97): band + counter = -1. */
 void scene1_top_hud_tooltip_house_entry(void);
 int  scene1_top_hud_tooltip_ctr(void);   /* DAT_00529704 */
+/* FUN_00406584 outside modes 1 and 8: the band counter DAT_00529704 = 0. */
+void scene1_top_hud_tooltip_off(void);
 
 #ifdef _WIN32
 struct IDirect3DDevice8;

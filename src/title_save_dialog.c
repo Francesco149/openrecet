@@ -175,6 +175,44 @@ void  title_save_dialog_set_shake_delta(float dx, float dy)
 /* FUN_00434ce3: DAT_0438b148 = 0 (the message box shut). */
 void title_save_dialog_gate_reset(void) { g_active_counter = 0; }
 
+/* FUN_00434ceb's line buffers: DAT_0438ae2c (line 0), DAT_0438ad2c (1),
+ * DAT_0438ac28 (2); DAT_0438ac0c = the "<BR>" count. */
+static char g_msg_line[3][256];
+static int  g_msg_breaks = 0;
+
+/* FUN_00434ceb @ 0x434ceb.  Copies up to 255 bytes; at '<' the current line
+ * ends (line 0 → its own buffer, any later line → line 1's buffer: retail's
+ * quirk, it only matters past a 4th line) and the 3 bytes "BR>" are skipped. */
+void title_save_dialog_message_open(const char *msg)
+{
+    int line = 0, pos = 0;
+    g_msg_breaks = 0;
+    for (int i = 0; i != 255; i++) {
+        const char c = msg[i];
+        g_msg_line[line == 0 ? 0 : (line == 1 ? 1 : 2)][pos] = c;
+        if (c == 0)
+            break;
+        if (c == '<') {
+            g_msg_line[line != 0 ? 1 : 0][pos] = 0;
+            line++;
+            pos = 0;
+            g_msg_breaks = line;
+            i += 3;
+        } else {
+            pos++;
+        }
+    }
+    g_closing_mode   = 0;   /* DAT_0438ad28 */
+    g_active_counter = 1;   /* DAT_0438b148 */
+}
+
+int title_save_dialog_message_lines(void) { return g_msg_breaks; }
+
+const char *title_save_dialog_message_line(int i)
+{
+    return (i >= 0 && i < 3) ? g_msg_line[i] : "";
+}
+
 int title_save_dialog_gate_tick(void)
 {
     /* E.2 probe — FUN_00434d6a @ 0x434d6a. Full body parity. */

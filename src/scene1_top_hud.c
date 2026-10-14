@@ -214,6 +214,9 @@ void scene1_top_hud_house_tooltip_tick(int shop_stage, int cc08, int cursor)
 
 int scene1_top_hud_tooltip_ctr(void) { return g_tooltip_ctr; }
 
+/* FUN_00406584 outside modes 1 and 8: DAT_00529704 = 0. */
+void scene1_top_hud_tooltip_off(void) { g_tooltip_ctr = 0; }
+
 /* FUN_004060ff as the HOUSE init FUN_00436f97 calls it: both -1. */
 void scene1_top_hud_tooltip_house_entry(void)
 {

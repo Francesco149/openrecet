@@ -42,6 +42,8 @@
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
 #include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
+#include "scene_adv_guild.h" /* scene_adv_guild_sim — mode-11 per-state callee (FUN_0045c051) */
+#include "party_roster.h"   /* FUN_0047f1ce — the pause build's party count */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
 #include "scene_day_end.h"  /* day_end_tick — pause action 1 (FUN_0048dbfb) */
@@ -397,7 +399,14 @@ void sim_step_a(void)
      * guild dialogue tick WITHOUT the modal ("prologue-only"); that left the
      * armed choice box un-ticked, so its grow anim never reached cb_active==4 —
      * the box rendered half-expanded with no text (cb_active<4 gates the text). */
-    if (g_scene_state == SCENE_STATE_INGAME || g_scene_state == 6) {
+    /* Retail runs this tick (LABEL_112, FUN_0046c320) for INGAME and for every
+     * LABEL_106 mode — 2, 3, 6, 7, 8, 11, 13..16 — whenever DAT_0438b1c8 != 0;
+     * idle (D_IDLE / D_DONE) it is a no-op. */
+    const int dlg_mode = g_scene_state == SCENE_STATE_INGAME ||
+        g_scene_state == 2 || g_scene_state == 3 || g_scene_state == 6 ||
+        g_scene_state == 7 || g_scene_state == 8 || g_scene_state == 11 ||
+        (g_scene_state >= 13 && g_scene_state <= 16);
+    if (dlg_mode) {
         /* The skip prompt is armed through the real ESC dispatch
          * (esc_pressed() → skip_event_arm()). In normal play that fires from
          * WndProc's WM_KEYDOWN; under the TAS harness the segtrace {esc:N} op
@@ -448,9 +457,10 @@ void sim_step_a(void)
      * 0xc→0x14→0, never re-hitting 3). */
     if (sim_get_counter_998() == 3) {
         g_scene_state = 9;
-        /* Capture the menu-build inputs (DAT_0741bed8 party count =
-         * PORT-DEBT 0; *DAT_068dd2f0 stage type). */
-        pause_set_menu_inputs(0, g_stage_palette ? g_stage_palette->mode : 0);
+        /* Capture the menu-build inputs (DAT_0741bed8 party count, rebuilt
+         * by FUN_0047f2f6's FUN_0047f1ce; *DAT_068dd2f0 stage type). */
+        party_roster_rebuild();   /* FUN_0047f2f6 → FUN_0047f1ce */
+        pause_set_menu_inputs(party_roster_count(), g_stage_palette ? g_stage_palette->mode : 0);
         pause_menu_setup();   /* FUN_0047f2f6 */
         worker_load_spawn();  /* FUN_00452cde — primary worker, case-9 load */
     }
@@ -549,8 +559,8 @@ void sim_step_a(void)
 
     /* Cs2 — LAB_00453bed mass dispatch.  The mode-8 per-state callee
      * FUN_0049e163 is wired (scene_worldmap_sim, above).  The rest
-     * (FUN_0049d8a4 / FUN_0041ee24 / FUN_00490e24 / FUN_0049db8a /
-     * FUN_0045c051 / FUN_0045e053 / FUN_0045e1a5 / FUN_0045e2dd /
+     * (FUN_0049d8a4 / FUN_0041ee24 / FUN_0049db8a /
+     * FUN_0045e053 / FUN_0045e1a5 / FUN_0045e2dd /
      * FUN_0045e3dc) stay stubbed — scene-specific update routines
      * (cutscene / dialog / dungeon / ending) with no consumer wired today. */
     case SCENE_STATE_WORLDMAP:  /* 8 — WORLD / TOWN map */
@@ -581,6 +591,7 @@ void sim_step_a(void)
          * through the iv1_3 cutscene).  FUN_00406584's parts here: the speech
          * bubble head, FUN_004356cd, the XP bar, the shake, the money roll. */
         speech_bubble_tick();
+        scene1_top_hud_tooltip_off();     /* DAT_00529704 = 0 outside modes 1 / 8 */
         title_save_dialog_anim_tick();
         {
             uint32_t *wb = save_work_dwords_at(save_work_active_slot());
@@ -593,10 +604,27 @@ void sim_step_a(void)
         scene_guild_sim();
         break;
 
+    case 0xb:  /* the Adventurers' Guild (engine FUN_0045c051) */
+        /* LABEL_106: FUN_00406584 (its mode-6 parts, as above) → FUN_0040fb3a
+         * → FUN_0045c051 only while no dialogue runs (DAT_0438b1c8 == 0). */
+        speech_bubble_tick();
+        scene1_top_hud_tooltip_off();
+        title_save_dialog_anim_tick();
+        {
+            uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+            scene1_top_hud_xp_tick(wb);
+            scene1_top_hud_shake_tick();
+            if (wb)
+                scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
+        }
+        scene1_particles_tick();
+        if (!scene1_intro_dialogue_busy())
+            scene_adv_guild_sim();
+        break;
+
     case 2:    /* cutscene  (engine FUN_0049d8a4) */
     case 3:    /* dialog    (engine FUN_0041ee24) */
     case 7:    /* dungeon idle  (engine FUN_0049db8a) */
-    case 0xb:  /* (engine FUN_0045c051, 3021 B — biggest scene callee) */
     case 0xd:  /* ending arm A (engine FUN_0045e3dc) */
     case 0xe:  /* ending arm B (engine FUN_0045e053) */
     case 0xf:  /* ending arm C (engine FUN_0045e1a5) */

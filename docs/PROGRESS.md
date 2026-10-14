@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (evening) — the Adventurers' Guild (mode 11)
+`buy-from-seller-guild-intro` (native recording: a customer sells, the guild intro, a
+save in slot 10) now replays **RNG- and save.dat-identical over all 26,774 frames**,
+pin-free (was split at f17014, where retail left the guild and the port's blank mode 11
+never did). `docs/findings/adventurers-guild-RE.md`:
+- **Mode 11 ported** (`src/scene_adv_guild.c`): the load FUN_0045bdc2 + FUN_00473874, the
+  update FUN_0045c051 on retail's control flow (the intro FUN_0044c7c3: iv2_7 → iv2_8 →
+  out to the world map with the cursor on dest 6; the adventurer list, the "Pick the
+  items" box, the bag + item picker, the dungeon map, the floor list, the depart / Leave
+  commit with the fee and the bag compaction), the render FUN_0045cc85 / FUN_0045cc1e +
+  FUN_0046add8 rows. rhost timeline: scene 11 f11002, iv2_7 armed f11003, iv2_8 f12804,
+  mode 8 f17014 — the port's D_TUT bracket/settle reproduces it exactly.
+- **FUN_0047f1ce** party list (`src/party_roster.c`): the pause build now lists "Status"
+  once an adventurer is recruited (the intro recruits Louie; the slot-10 save goes
+  through that menu). Also called by the item-window open.
+- **FUN_00434ceb** message-box open (line split + the gate state; the render
+  FUN_00435117 is still a stub).
+- The dialogue tick runs in every LABEL_106 mode (2, 3, 6, 7, 8, 11, 13–16), as LABEL_112
+  does; FUN_00406584 zeroes the tooltip counter outside modes 1 / 8.
+- Engine quirk §139: the guild render ORs 0x20 into shown equipment slots of the work bank.
+- Tooling: `--state-va` mirrors for the dialogue gate DAT_0438b1c8 and the mode-11 state;
+  `rhost.py gates` adds the scenario (portsave + portrng).
+- Evidence: `rhost.py gates` 18/18 (portsave + portrng buy-from-seller-guild-intro
+  IDENTICAL f1–f26774); portshots f11500 (iv2_7) identical; host tests 3459/0.
+
 ## 2026-10-14 (afternoon) — the market trip, the return home, the Day-3 morning
 `multiday-tutorials-suggest` (a native 34.8k-frame recording, no Frida pins: guild visit
 with 6 purchases, home, day close, Day 3 morning tutorial, a second market trip, the

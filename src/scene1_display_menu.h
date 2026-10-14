@@ -101,6 +101,21 @@ int display_menu_dbg_list(int i);
 int display_menu_possessed(void);
 void display_menu_possessed_invalidate(void);   /* DAT_005c6ee4 = -1 */
 
+/* FUN_00468286(item): highlight `item` (DAT_0734b998) and recount the
+ * "Number possessed" DAT_005c6ee4. */
+void display_menu_set_highlight(int item);
+
+/* FUN_00468233(chara, b): DAT_005c6ee0 (the adventurer the list compares
+ * equipment against, -1 none) and DAT_0734b978. */
+void display_menu_set_compare(int chara, int b978);
+int  display_menu_compare_chara(void);
+
+/* DAT_0734b96c, the item-detail popup: FUN_004681db(row) opens it (row + 1),
+ * FUN_004681e6 reads it, FUN_004681d3 closes it. */
+void display_menu_detail_open(int row);
+int  display_menu_detail(void);
+void display_menu_detail_close(void);
+
 /* FUN_00468d22(bank, item): return `item` to the first empty inventory slot of
  * `bank` (the working-bank dword array) and bump the live item count.  No-op on
  * item == -1.  Used to give a removed display item back to the player's bag. */

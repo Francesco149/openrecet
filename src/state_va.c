@@ -14,6 +14,7 @@
 #include "save_bank.h"
 #include "save_work.h"
 #include "scene.h"
+#include "scene_adv_guild.h"
 #include "scene_day_end.h"
 #include "scene_title.h"
 #include "scene1_actor_say.h"
@@ -22,6 +23,7 @@
 #include "scene1_counter_menu.h"
 #include "scene1_day_close.h"
 #include "scene1_display_menu.h"
+#include "scene1_intro_dialogue.h"
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_shop_display.h"
@@ -109,6 +111,21 @@ static int32_t get_b600(void)  { return customer_service_b600(); }
 static int32_t get_b608(void)  { return customer_service_b608(); }
 static int32_t get_b928(void)  { return scene1_beat_flag(); }
 static int32_t get_b924(void)  { return scene1_beat_counter(); }
+static int32_t get_b1c8(void)  { return scene1_intro_dialogue_gate(); }
+static int32_t adv(uint32_t va) { int32_t v = 0; adv_guild_dbg(va, &v); return v; }
+static int32_t get_ag_b44(void) { return adv(0x6a49b44u); }
+static int32_t get_ag_b48(void) { return adv(0x6a49b48u); }
+static int32_t get_ag_b4c(void) { return adv(0x6a49b4cu); }
+static int32_t get_ag_b50(void) { return adv(0x6a49b50u); }
+static int32_t get_ag_b54(void) { return adv(0x6a49b54u); }
+static int32_t get_ag_b5c(void) { return adv(0x6a49b5cu); }
+static int32_t get_ag_b60(void) { return adv(0x6a49b60u); }
+static int32_t get_ag_b6c(void) { return adv(0x6a49b6cu); }
+static int32_t get_ag_b70(void) { return adv(0x6a49b70u); }
+static int32_t get_ag_b74(void) { return adv(0x6a49b74u); }
+static int32_t get_ag_a98(void) { return adv(0x5c5a98u); }
+static int32_t get_ag_a9c(void) { return adv(0x5c5a9cu); }
+static int32_t get_ag_aa0(void) { return adv(0x5c5aa0u); }
 static int32_t get_clkph(void)  { return fbits(scene1_top_hud_clock_phase()); }
 static int32_t get_de_t(void)   { return day_end_frame(); }
 static int32_t get_de_p(void)   { return day_end_profit_shown(); }
@@ -195,6 +212,20 @@ static const state_va_t k_map[] = {
     { 0x730b600u, "cs script step phase b600 (DAT_0730b600)", get_b600 },
     { 0x730b608u, "cs script sub-state b608 (DAT_0730b608)", get_b608 },
     { 0x438b924u, "beat counter b924 (DAT_0438b924)", get_b924 },
+    { 0x438b1c8u, "dialogue gate (DAT_0438b1c8)", get_b1c8 },
+    { 0x6a49b44u, "adv guild commit (DAT_06a49b44)", get_ag_b44 },
+    { 0x6a49b48u, "adv guild map open (DAT_06a49b48)", get_ag_b48 },
+    { 0x6a49b4cu, "adv guild floor list (DAT_06a49b4c)", get_ag_b4c },
+    { 0x6a49b50u, "adv guild dungeon (DAT_06a49b50)", get_ag_b50 },
+    { 0x6a49b54u, "adv guild floor (DAT_06a49b54)", get_ag_b54 },
+    { 0x6a49b5cu, "adv guild chara list (DAT_06a49b5c)", get_ag_b5c },
+    { 0x6a49b60u, "adv guild bag mode (DAT_06a49b60)", get_ag_b60 },
+    { 0x6a49b6cu, "adv guild ticks (DAT_06a49b6c)", get_ag_b6c },
+    { 0x6a49b70u, "adv guild msg (DAT_06a49b70)", get_ag_b70 },
+    { 0x6a49b74u, "adv guild dungeons (DAT_06a49b74)", get_ag_b74 },
+    { 0x5c5a98u,  "adv guild bag size (DAT_005c5a98)", get_ag_a98 },
+    { 0x5c5a9cu,  "adv guild chara row (DAT_005c5a9c)", get_ag_a9c },
+    { 0x5c5aa0u,  "adv guild bag row (DAT_005c5aa0)", get_ag_aa0 },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 

@@ -25,7 +25,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/anchor_trace.c \
                  ../src/call_trace.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
-                 ../src/render_quad.c ../src/scene.c ../src/esc_dispatch.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/scene_guild.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/save_work.c ../src/save_picker.c ../src/encyclopedia.c ../src/title_continue_picker.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/state_va.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
+                 ../src/render_quad.c ../src/scene.c ../src/esc_dispatch.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/scene_guild.c ../src/scene_adv_guild.c ../src/party_roster.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/save_work.c ../src/save_picker.c ../src/encyclopedia.c ../src/title_continue_picker.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/state_va.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \
                  ../src/tables_enemy.c ../src/tables_enemylist.c ../src/tables_event.c \
                  ../src/tables_gousei.c ../src/tables_item.c \
@@ -155,7 +155,8 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_conversation_pose.c \
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \
                  test_se_pack.c test_scene1_dialogue.c test_scene1_dialogue_run.c \
-                 test_skip_event.c test_choice_box.c
+                 test_skip_event.c test_choice_box.c \
+                 test_scene_adv_guild.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)
