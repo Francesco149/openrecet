@@ -12,14 +12,14 @@ the answer to *"what's still faked in code that looks done?"*
 ## Summary
 
 - total open debts: **41**
-- distinct retiring engine functions: **33**
+- distinct retiring engine functions: **35**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 19 | wired call boundary, body incomplete |
+| stub | 20 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
-| hardcode | 3 | fixed constant where the engine computes/sources it |
+| hardcode | 2 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
@@ -30,9 +30,9 @@ the answer to *"what's still faked in code that looks done?"*
 
 | engine fn | open debts |
 |-----------|-----------:|
-| FUN_00436f97 | 3 |
 | FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
+| FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_00468fd0 | 2 |
 | DAT_056db000 | 1 |
@@ -45,15 +45,17 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00432e50 | 1 |
 | FUN_00435c98 | 1 |
 | FUN_0043a5d9 | 1 |
+| FUN_0044ad81 | 1 |
+| FUN_0044c88f | 1 |
 | FUN_00452809 | 1 |
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
-| FUN_0045bcea | 1 |
 | FUN_0046602e | 1 |
 | FUN_004682ee | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
+| FUN_00473c15 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_0047f172 | 1 |
 | FUN_004864fd | 1 |
@@ -64,7 +66,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (19)
+## stub (20)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -75,18 +77,19 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2554 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_0044ad81 | src/scene1_postload.c:291 | the floor objects (the exit portal at the |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_00452809 | src/scene_adv_guild.c:250 | the blackout (DAT_0438bf74) |
-| FUN_0045bcea | src/scene_adv_guild.c:287 | DAT_0438b4dc has no port mirror yet. |
-| FUN_004682ee | src/scene_adv_guild.c:576 | the tab stays where the open put it. |
+| FUN_0044c88f | src/scene1_postload.c:276 | the per-dungeon setups FUN_0044c88f / |
+| FUN_00452809 | src/scene_adv_guild.c:252 | the blackout (DAT_0438bf74) |
+| FUN_004682ee | src/scene_adv_guild.c:588 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:439 | the removal is unported, |
 | FUN_00469b3a | src/scene1_display_menu.c:780 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
-| FUN_0047f172 | src/scene_adv_guild.c:199 | no port backup bank; retire with the dungeon. |
+| FUN_00473c15 | src/scene_adv_guild.c:375 | the dungeon loader arm (FUN_00474a9a's |
+| FUN_0047f172 | src/scene_adv_guild.c:201 | no port backup bank; retire with the dungeon. |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
 | FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
-| NONE | src/scene_adv_guild.c:364 | Depart loads the dungeon; no dungeon port yet. |
 
 ## synthetic-data (0)
 
@@ -105,11 +108,10 @@ _none_
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:345 | sim_loading_pump() |
 
-## hardcode (3)
+## hardcode (2)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00436f97 | src/scene1_preload.c:66 | DAT_0438b4dc has no port mirror; |
 | FUN_0046602e | src/customer_service.c:231 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:52 | active save-slot pinned to bank 0; |
 

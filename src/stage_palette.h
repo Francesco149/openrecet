@@ -144,6 +144,23 @@ extern stage_palette_t *g_stage_palette;
  * and point `g_stage_palette` at it. Idempotent. */
 void stage_palette_init_house(void);
 
+/* DAT_0438b4dc — the current stage index into the stage.idx records.  The
+ * guild's FUN_0045bcea sets it to the dungeon stage (Depart and Leave, quirk
+ * §141); the stage loader FUN_00474a9a replaces a shop stage (< 4) with the
+ * shop tier (work +0x2cde0). */
+extern int32_t g_stage_b4dc;
+
+/* DAT_068dd2f0 = &DAT_068dd2f8[idx] (FUN_00474681, FUN_00436f97's head): point
+ * g_stage_palette at the parsed stage.idx record `idx` (tables_stage.h, the same
+ * 0x1b3c layout).  Falls back to the zero HOUSE record when stage.idx is not
+ * loaded (host tests). */
+void    stage_palette_select(int32_t idx);
+/* the record index g_stage_palette points at; -1 = the zero fallback */
+int32_t stage_palette_index(void);
+/* FUN_0047fa4f: the first stage whose dungeon_id (+0x104) == id; the stage
+ * count when none matches. */
+int32_t stage_index_for_id(int32_t id);
+
 /* FUN_0043244c @ 0x43244c — engine "per-stage cache clear".
  *
  * Engine body (decomp at all.c L30720-L30738) clears two BSS slabs:

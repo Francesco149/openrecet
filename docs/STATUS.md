@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  25.1% referenced-or-better   (91 instrumented)
+█████░░░░░░░░░░░░░░░  25.2% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 11 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   548 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1909 | exists in the engine, no `src/` reference    |
+| source-referenced  |   550 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1907 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -188,16 +188,22 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **adv-guild-pack-leave f8013** (quirk §141): a guild Leave runs FUN_0045bcea →
-       `DAT_0438b4dc` = the dungeon stage, so the Merchants' Guild entry's FUN_00436f97
-       repoints `DAT_068dd2f0` at stage 4 and runs the dungeon arm (retail 2102 draws,
-       port 43). Needs: a b4dc mirror + `DAT_068dd2f0` into the parsed stage table
-       (`src/tables_stage.c`; the port's `g_stage_palette` is HOUSE-only), FUN_0045bcea
-       (FUN_0045bc7f + FUN_0047fa4f), the floor layout's `*DAT_068dd2f0 == 1` coin flips,
-       FUN_00436f97's `> 4` arm (per-dungeon FUN_0044c88f… + FUN_00431d54 enemy placement
-       + FUN_0041f4a6 / FUN_0041f903). This is the dungeon pilot's door (methodology §3
-       Phase 1): shadow each fn (`rh_hooks.c`) as it lands. The scenario continues into
-       dungeon 0 (f14270: combat, damage, pause Items / Equip).
+    1. **The dungeon pilot — Depart's dungeon load** (dungeon0-floors-save **f3409**,
+       adv-guild-pack-leave **f14267**). Done (PROGRESS 2026-10-14 late): map collision
+       (`map_collision.c`, rhost 0 div over the corpus), actor table + enemy placement
+       (`actor_table.c`, `enemy_place.c`, shadow 0 div), b4dc / DAT_068dd2f0 / FUN_0045bcea /
+       FUN_00474681 slots, the §141 town-visit dungeon arm (portrng identical through every
+       Merchants' Guild visit). Next, in frame order at f3409:
+       - the case-1 load with b4dc = a dungeon stage: FUN_00474a9a's maptype ≥ 1 branch
+         (chr by DAT_0438b7d8, the object meshes) + FUN_00473c15; the port still runs the house
+         preload/postload (retail: floor layout + FUN_00436f97's dungeon arm inside the load,
+         then the per-frame dungeon tick FUN_00442cef → FUN_0048b3f6, 1 draw/frame);
+       - FUN_00436f97's remaining dungeon pieces: DAT_056da1cc/1d0 (player char by b7d8),
+         FUN_0044c88f.. per-dungeon setups, FUN_0044ad81 floor objects (exit portal, marked
+         cells), FUN_00432473, the actor-0 spawn probe (FUN_00432e50, now ported);
+       - then in-dungeon: enemy AI / combat / portals / chests (the scenario has all of them).
+       Shadow each fn (`rh_hooks.c`) as it lands; the house player collision moves to
+       `map_collision.c` (`PORT-DEBT(semantic-collision)`).
     2. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
        arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
        FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
@@ -222,9 +228,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        56da1f0) — not RNG-visible yet; x87 sweep candidate (FUN_0048a833/a4d1).
 
 ### Regression gate (run before claiming a port change is safe)
-- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command (portsave ×4,
-  portanchors ×2, portrng over 10 shop/day scenarios, windows clamped to the retail run), one
-  line each. Don't run other rhost jobs meanwhile (they share the port exe upload).
+- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
+  each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
+  end, plus dungeon0-floors-save / adv-guild-pack-leave up to their Depart (f3408 / f14266).
+  Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
   day2-save-commit, multiday-tutorials-suggest}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
@@ -262,14 +269,7 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record a dungeon floor-to-floor + a dungeon save** (the dungeon pilot's corpus: the
-  stage-4 floor build, enemy AI / combat RNG, the stairs, the "Saving here…" commit):
-  `python3 tools/rhost/rhost.py record dungeon0-floors-save --save
-  dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`, Load Game → slot 9,
-  map → Adventurers' Guild → Louie → pack 2 items → Depart!. In the dungeon: fight a few
-  enemies, take the stairs down at least twice, then ESC → Save → slot 9 → confirm the
-  warning → Yes. Do NOT open Equip before saving (quirk §140 freezes Save). Close the
-  window after the save bar finishes.
+- (empty — `dungeon0-floors-save` recorded 2026-10-14.)
 
 ## Where to read next
 

@@ -23,6 +23,9 @@
 #define _DEFAULT_SOURCE 1
 #include "t.h"
 #include "stage_palette.h"
+#include "tables_stage.h"
+
+#include <string.h>
 
 int test_stage_palette_size(void)
 {
@@ -128,19 +131,29 @@ int test_stage_palette_clear_resource_caches_does_not_crash(void)
     return 0;
 }
 
-int test_stage_palette_load_for_stage_does_not_clobber_palette(void)
+int test_stage_palette_load_for_stage_selects_b4dc(void)
 {
-    /* FUN_00474681's pointer set is delegated to stage_palette_init_house;
-     * this function should not zero or repoint the palette record. */
-    stage_palette_init_house();
-    g_stage_palette_house.mode = 7;  /* mutate to detect a clobber */
-
+    /* FUN_00474681 / FUN_00436f97's head: DAT_068dd2f0 = &DAT_068dd2f8[b4dc]. */
+    static stage_state_t saved;
+    saved = g_stage;
+    memset(&g_stage, 0, sizeof g_stage);
+    g_stage.count = 5;
+    g_stage.records[4].maptype = 1;
+    g_stage.records[4].dungeon_id = 5;
+    g_stage_b4dc = 4;
     stage_palette_load_for_stage();
-
+    T_ASSERT(g_stage_palette == (stage_palette_t *)(void *)&g_stage.records[4]);
+    T_ASSERT_EQ_I(g_stage_palette->mode, 1);
+    T_ASSERT_EQ_I(stage_palette_index(), 4);
+    T_ASSERT_EQ_I(stage_index_for_id(5), 4);     /* FUN_0047fa4f */
+    T_ASSERT_EQ_I(stage_index_for_id(99), 5);    /* none → the stage count */
+    /* out of range (or stage.idx not loaded): the zero HOUSE record */
+    g_stage_b4dc = 9;
+    stage_palette_load_for_stage();
     T_ASSERT(g_stage_palette == &g_stage_palette_house);
-    T_ASSERT_EQ_I(g_stage_palette_house.mode, 7);
-
-    /* Cleanup: re-init for downstream tests. */
+    T_ASSERT_EQ_I(stage_palette_index(), -1);
+    g_stage = saved;
+    g_stage_b4dc = 0;
     stage_palette_init_house();
     return 0;
 }

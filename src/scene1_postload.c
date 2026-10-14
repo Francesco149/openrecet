@@ -51,6 +51,12 @@
 #include <string.h>
 
 #include "actor_spawn.h"           /* actor_spawn_reset (FUN_0041f252) */
+#include "actor_table.h"           /* g_actor_alloc_n (DAT_0438b1bc) */
+#include "enemy_place.h"           /* FUN_00431d54 / FUN_00431b1c */
+#include "map_collision.h"         /* g_mapcol_objs (DAT_0438bfb0..) */
+#include "scene1_combat_sm.h"      /* g_scene1_combat_stage_id (DAT_0438b4c8) */
+#include "scene1_maplight.h"       /* scene1_current_stage_record (DAT_068dd2f0) */
+#include "stage_gate.h"            /* DAT_0438b4cc, FUN_0043195d, FUN_004319d6 */
 #include "chara_equip.h"      /* chara_equip_get_current_bank — active save slot */
 #include "customer_roster.h"         /* roster_compute_centroid (FUN_0048439a) */
 #include "news_daily.h"            /* g_news_ticker_timer (DAT_0438b92c) */
@@ -239,8 +245,62 @@ static void postload_seat(void)
     scene1_postload_place_actors(1);
 }
 
+/* The placed collision objects of the house arm, in retail's aliased layout:
+ * phase-1 i → object i, phase-2 j → object 5+j (DAT_0438bfb8.., c008/c058/c0a8/c0f8). */
+static void postload_mapcol_objs_from_walker(void)
+{
+    g_mapcol_objs.n1 = g_scene1_walker_phase1_count;
+    g_mapcol_objs.n2 = g_scene1_walker_phase2_count;
+    for (int i = 0; i < g_scene1_walker_phase1_count && i < 5; i++) {
+        g_mapcol_objs.slot[i] = g_scene1_walker_phase1_mesh_index[i];
+        g_mapcol_objs.rot[i]  = g_scene1_walker_phase1_rot_y[i];
+        g_mapcol_objs.x[i]    = g_scene1_walker_phase1_pos_x[i];
+        g_mapcol_objs.y[i]    = g_scene1_walker_phase1_pos_y[i];
+        g_mapcol_objs.z[i]    = g_scene1_walker_phase1_pos_z[i];
+    }
+    for (int j = 0; j < g_scene1_walker_phase2_count && 5 + j < MAPCOL_OBJS; j++) {
+        g_mapcol_objs.slot[5 + j] = g_scene1_walker_phase2_mesh_type[j];
+        g_mapcol_objs.rot[5 + j]  = g_scene1_walker_phase2_rot_y[j];
+        g_mapcol_objs.x[5 + j]    = g_scene1_walker_phase2_pos_x[j];
+        g_mapcol_objs.y[5 + j]    = g_scene1_walker_phase2_pos_y[j];
+        g_mapcol_objs.z[5 + j]    = g_scene1_walker_phase2_pos_z[j];
+    }
+}
+
+/* FUN_00436f97's `> 4` arm (L388..): the per-dungeon setup, the enemy
+ * placement, then the floor objects. */
+static void postload_dungeon_arm(void)
+{
+    uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    if (rec == NULL) return;
+    /* PORT-DEBT(stub, FUN_0044c88f): the per-dungeon setups FUN_0044c88f /
+     * 44d1e4 / 44d9d3 / 44e08f / 450443 / 450ee0 (boss-room objects, no rand on
+     * dungeon 0's floors), and DAT_0438bea0 (b4d0 >= 0 && b4d4 == 0, or 5/30). */
+    const enemy_place_in_t in = {
+        { g_scene1_combat_stage_id, stage_gate_get_next(), stage_post_load_get_mode_b4d0(),
+          0 /* DAT_0438cbe4, zeroed by the head */, rec[0x2bc57] },
+        rec, stage_gate_floor_is_checkpoint, stage_gate_query,
+    };
+    if (stage_gate_floor_is_checkpoint()) enemy_place_boss(&in);   /* FUN_00431b1c */
+    else enemy_place_floor(&in);                                   /* FUN_00431d54 */
+    rec[0x2bc82] = 0;
+    if (g_scene1_combat_stage_id == 0 && stage_gate_get_next() == 4) {
+        int32_t v; memcpy(&v, rec + 0x2dd64, 4);
+        if (!(rec[0x2bc81] != 0 || v == 2)) rec[0x2bc82] = 1;
+    }
+    /* PORT-DEBT(stub, FUN_0044ad81): the floor objects (the exit portal at the
+     * exit cell, the DAT_0438b430 marked cells' objects, the boss-floor extras)
+     * with their FUN_00432e50 spiral probes (no rand), and DAT_0438b4c4 →
+     * FUN_00406551(180, 1). */
+}
+
 void scene1_postload_stage_entry_init(void)
 {
+    /* L1-2: DAT_068dd2f0 = the DAT_0438b4dc record (a guild Leave leaves the
+     * dungeon stage there, quirk §141); DAT_0438b1bc = 0; DAT_0438cbe4 = 0
+     * (no port mirror outside the placement input). */
+    stage_palette_select(g_stage_b4dc);
+    g_actor_alloc_n = 0;
     /* L8-L84: the scene BSS resets the port mirrors — the actor-say bubble
      * driver (b764/b76c), the counter-menu slides (b74c/b750/b754), the news
      * ticker (b92c), the camera snap flag (cc68).  b924 = 0 has no port mirror outside the iv2 beat. */
@@ -252,6 +312,14 @@ void scene1_postload_stage_entry_init(void)
 
     /* L116-127: the companion wander state (DAT_0438be6c/70/74/78). */
     scene1_companion_ctrl_stage_reset();
+
+    /* the 20-entry object columns DAT_0438bfb8 / c008 / c058 / c0a8 / c0f8 = 0
+     * (the counts bfb0/bfb4 are left alone) */
+    memset(g_mapcol_objs.slot, 0, sizeof g_mapcol_objs.slot);
+    memset(g_mapcol_objs.rot, 0, sizeof g_mapcol_objs.rot);
+    memset(g_mapcol_objs.x, 0, sizeof g_mapcol_objs.x);
+    memset(g_mapcol_objs.y, 0, sizeof g_mapcol_objs.y);
+    memset(g_mapcol_objs.z, 0, sizeof g_mapcol_objs.z);
 
     /* L21 + L180: DAT_0438b484 clear + the floor-layout generator. */
     scene1_preload_floor_layout();
@@ -277,17 +345,23 @@ void scene1_postload_stage_entry_init(void)
         scene1_bg_npc_stage_reset(rec ? rec[0x2bcfd] != 0 : 0);
     }
 
-    /* L607-725 the alt-stage (house) arm: camera yaw π + the furniture /
-     * room placement (walker_phase2_init, inputs unchanged since the load),
-     * then the seat: work dword +0x2cdf4 == 0 → the counter spot facing +π/2;
-     * else the front door, facing down (octant 4, +0x2cde0 set) or left
-     * (octant 2, −π/2). */
-    scene1_postload_walker_phase2_init();
-    /* L668-677: qword DAT_0438cbfc = -1 (no faced display cell), DAT_0438cbe8 = 0
-     * (the display menu's open-once latch). */
-    shop_display_highlight_clear();
-    player_ctrl_display_latch_reset();
-    postload_seat();
+    const stage_record_t *sr = scene1_current_stage_record();
+    if (sr != NULL && sr->dungeon_id > 4) {
+        postload_dungeon_arm();
+    } else {
+        /* L607-725 the alt-stage (house) arm: camera yaw π + the furniture /
+         * room placement (walker_phase2_init, inputs unchanged since the load),
+         * then the seat: work dword +0x2cdf4 == 0 → the counter spot facing +π/2;
+         * else the front door, facing down (octant 4, +0x2cde0 set) or left
+         * (octant 2, −π/2). */
+        scene1_postload_walker_phase2_init();
+        postload_mapcol_objs_from_walker();
+        /* L668-677: qword DAT_0438cbfc = -1 (no faced display cell), DAT_0438cbe8 = 0
+         * (the display menu's open-once latch). */
+        shop_display_highlight_clear();
+        player_ctrl_display_latch_reset();
+        postload_seat();
+    }
 
     /* L727-740 the ambient spawn (gated off in the house). */
     scene1_postload_ambient_spawn();

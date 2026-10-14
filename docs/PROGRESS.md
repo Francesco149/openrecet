@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (late) — dungeon pilot: map collision, enemy placement, the §141 stage init
+`dungeon0-floors-save` (native recording, slot 9 → save slot 11, 12,371 frames: guild Leave,
+the Merchants' Guild, Depart, dungeon 0 floors 1→3 via the portals, 3–4 enemy kinds, a "?"
+ingredient, a slime-trap chest, the dungeon Save). rhost det -n 3 PASS.
+- **Map collision in retail layout** (`src/map_collision.c`): the 20 stage collision slots
+  built by FUN_00471d45 (the `.x` line state machine, D3DX slot-1 Vec3Transform, `×0.2f`) +
+  FUN_0043289b + FUN_00432ac6; the ground query FUN_00432e50 and the raycast FUN_00433674
+  (house objects and the dungeon cell wrap). Built slots byte-exact vs retail (house 11 +
+  dungeon-0 13 slots). The old semantic `collision_*` port stays on the house player for now
+  (`PORT-DEBT(semantic-collision)`). Quirk §142.
+- **Actor table** (`src/actor_table.c`, 128 × 0xba4 @0x76b970): FUN_0041f4a6 / 41f319 /
+  41f903 / 482a51. **Enemy placement** (`src/enemy_place.c`): FUN_00431d54 + FUN_00431b1c.
+- **The stage-entry init's dungeon arm** (FUN_00436f97): `g_stage_b4dc` (DAT_0438b4dc) +
+  `stage_palette_select` (DAT_068dd2f0 now points at the parsed stage record), FUN_0045bcea at
+  the guild's Leave/Depart, FUN_00474a9a's shop-tier clamp, FUN_00474681 builds the slots,
+  the floor layout gets the real `*DAT_068dd2f0 == 1` flag, the `> 4` arm runs the placement.
+- Evidence: rhost `verify` (83 scenarios) mapcol_build 895 / mapcol_ground 922,546 /
+  mapcol_ray 2,385,138 calls, 0 div; shadow enemy_place 9 calls / 2 scenarios, 0 div (whole
+  actor table + LCG + b1bc + debug text). portrng first split: dungeon0-floors-save
+  f2195 → **f3409**, adv-guild-pack-leave f8013 → **f14267** (both = the Depart's dungeon
+  load).
+
 ## 2026-10-14 (night) — the guild menus verified; the Merchants' Guild pause; rhost shots
 `adv-guild-pack-leave` (native recording, slot 9, Day 5, 21,252 frames: two guild
 visits, the Merchants' Guild with a pause in the Buy list, packing, Depart, the dungeon,

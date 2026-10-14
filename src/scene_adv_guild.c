@@ -39,6 +39,8 @@
 #include "scene1_tutorial_dispatch.h" /* scene1_beat_set_flag (DAT_0438b928)       */
 #include "scene_worldmap.h"         /* scene_worldmap_set_sel_dest (FUN_0049de0e)  */
 #include "stage_gate.h"             /* stage_gate_set_next (DAT_0438b4cc)          */
+#include "stage_palette.h"          /* g_stage_b4dc, FUN_0047fa4f                  */
+#include "floor_layout.h"           /* floor_layout_boss_group (FUN_0045bc7f)      */
 #include "stage_load_pulse.h"       /* FUN_004682c5 / d0 / e3                      */
 #include "stage_post_load.h"        /* FUN_00435c98, DAT_0438b4d0                  */
 #include "sim.h"                    /* g_sim_buttons (DAT_073dddd4)                */
@@ -280,12 +282,21 @@ static void adv_guild_to_worldmap(void)
     scene_worldmap_set_sel_dest(6);          /* FUN_0049de0e(6) */
 }
 
-static void adv_guild_load_out(void)
+/* FUN_0045bcea: DAT_0438b4dc = the stage of (DAT_0438b4c8, DAT_0438b4cc):
+ * FUN_0047fa4f(20) when either work flag +0x2bce2 / +0x2bcf8 is set, else
+ * FUN_0047fa4f(FUN_0045bc7f()).  On Leave too, so the next town destination's
+ * stage init builds a dungeon floor (quirk §141). */
+static void adv_guild_set_stage(const uint8_t *bb)
 {
-    /* FUN_0045bcea: DAT_0438b4dc = the stage for (DAT_0438b4c8, DAT_0438b4cc)
-     * via FUN_0045bc7f + FUN_0047fa4f (the house load re-derives it).
-     * PORT-DEBT(stub, FUN_0045bcea): DAT_0438b4dc has no port mirror yet.
-     * FUN_0044bce7: DAT_06a4707c/84/80/88/64 = 0 — no port mirrors. */
+    g_stage_b4dc = (bb[0x2bce2] != 0 || bb[0x2bcf8] != 0)
+        ? stage_index_for_id(20)
+        : stage_index_for_id(floor_layout_boss_group(g_scene1_combat_stage_id, stage_gate_get_next()));
+}
+
+static void adv_guild_load_out(const uint8_t *bb)
+{
+    adv_guild_set_stage(bb);                 /* FUN_0045bcea */
+    /* FUN_0044bce7: DAT_06a4707c/84/80/88/64 = 0 — no port mirrors. */
     fade_phase_out_start(0, 0x11);           /* FUN_0045281c(0,17) */
     worker_load_spawn();                     /* FUN_00452cde */
 }
@@ -361,9 +372,10 @@ static void adv_guild_commit(uint32_t *w)
         }
         rec[20]++;                           /* trips */
         /* The case-1 load that follows is the dungeon's (DAT_0438b4dc = its stage).
-         * PORT-DEBT(stub, NONE): Depart loads the dungeon; no dungeon port yet. */
+         * PORT-DEBT(stub, FUN_00473c15): the dungeon loader arm (FUN_00474a9a's
+         * maptype >= 1 branch + FUN_00473c15); the house assets stand in. */
     }
-    adv_guild_load_out();
+    adv_guild_load_out(bb);
 }
 
 /* ── FUN_0045c051 ─────────────────────────────────────────────────────── */

@@ -626,7 +626,9 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
                                       "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
-                                      "buy-from-seller-guild-intro")])
+                                      "buy-from-seller-guild-intro")]
+         # (kind, scenario, window): RNG identical up to the Depart's dungeon load (the dungeon port's front)
+         + [("portrng", "dungeon0-floors-save", "1:3408"), ("portrng", "adv-guild-pack-leave", "1:14266")])
 
 
 def cmd_gates(a):
@@ -635,12 +637,12 @@ def cmd_gates(a):
     fns = {"portsave": cmd_portsave, "portanchors": cmd_portanchors, "portrng": cmd_portrng}
     only = re.compile(a.only) if a.only else None
     fails = 0
-    for kind, scen in GATES:
+    for kind, scen, *win in GATES:
         if only and not only.search(f"{kind} {scen}"):
             continue
         b = copy.copy(a)
         b.scenario = scen
-        b.window, b.context = "1:end", 3
+        b.window, b.context = (win[0] if win else "1:end"), 3
         buf = io.StringIO()
         try:
             with contextlib.redirect_stdout(buf):

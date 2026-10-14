@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "scene_map_meshes.h"   /* SCENE_MAP_STAGE_HOUSE */
+#include "stage_palette.h"      /* stage_palette_index (DAT_068dd2f0) */
 
 /* scene1_render_draw_counter (DAT_06a49b24, +=1/frame) is declared in
  * scene1_render.h, but that header's body is entirely _WIN32-guarded, so
@@ -26,9 +27,12 @@ uint32_t scene1_render_draw_counter(void);   /* mode 1 animation phase */
 
 const stage_record_t *scene1_current_stage_record(void)
 {
-    /* Active stage is fixed at HOUSE today.  g_stage is populated by
-     * tables_parse_stage (tables.c) at boot; if the load failed the
-     * count is zero and we report "no record" (lighting off). */
+    /* DAT_068dd2f0: the record stage_palette_select picked; before any
+     * select, the HOUSE record.  g_stage is populated by tables_parse_stage
+     * (tables.c) at boot; if the load failed the count is zero and we report
+     * "no record" (lighting off). */
+    const int32_t idx = stage_palette_index();
+    if (idx >= 0) return &g_stage.records[idx];
     if (g_stage.count <= SCENE_MAP_STAGE_HOUSE) return NULL;
     return &g_stage.records[SCENE_MAP_STAGE_HOUSE];
 }

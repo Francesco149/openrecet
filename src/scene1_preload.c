@@ -20,6 +20,7 @@
 #include "scene1_records.h"
 #include "stage_gate.h"
 #include "stage_palette.h"
+#include "map_collision.h"   /* mapcol_maptype (*DAT_068dd2f0) */
 #include "stage_state.h"
 #include "worker_load.h"
 
@@ -63,10 +64,8 @@ void scene1_preload_floor_layout(void)
     floor_layout_in_t in = {
         .stage_class   = g_scene1_combat_stage_id,
         .floor         = stage_gate_get_next(),
-        /* PORT-DEBT(hardcode, FUN_00436f97): DAT_0438b4dc has no port mirror;
-         * HOUSE = 0.  Only feeds the generator's debug text row. */
-        .stage_no      = 0,
-        .dungeon       = 0,   /* this loader is the HOUSE arm (*DAT_068dd2f0 == 0) */
+        .stage_no      = g_stage_b4dc,                 /* debug text row only */
+        .dungeon       = mapcol_maptype() == 1,        /* *DAT_068dd2f0 == 1 */
         .rec_flag_a    = rec ? rec[0x2bce2] : 0,
         .rec_flag_b    = rec ? rec[0x2bcf8] : 0,
         .is_checkpoint = stage_gate_floor_is_checkpoint,
@@ -310,9 +309,12 @@ int scene1_preload_house(void)
      * dispatch is exercised end-to-end. */
     scene1_postload_smoke_b_spawn();
 
-    /* Engine guards: top-of-FUN_00474a9a clamps DAT_0438b4dc to the
-     * selector table. We seeded selectors in stage_state at boot, so
-     * a no-op here unless future stage-change code wants to refresh. */
+    /* Top of FUN_00474a9a: a shop stage (DAT_0438b4dc < 4) becomes the shop
+     * tier's stage (work dword +0x2cde0); a dungeon stage stays. */
+    {
+        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        if ((uint32_t)g_stage_b4dc < 4u && w != NULL) g_stage_b4dc = (int32_t)w[0x2cde0 / 4];
+    }
     stage_init_house();
 
     /* Engine FUN_0047281e — 24-byte texture cache clear. Drops all
@@ -322,10 +324,9 @@ int scene1_preload_house(void)
      * being reused for the new scene's atlas. */
     mesh_tex_cache_reset();
 
-    /* Engine FUN_00474681 — per-stage pre-load.  Probes the engine
-     * call site, invokes FUN_0043244c (cache clear, no-op for port).
-     * Pointer-set is delegated to stage_palette_init_house below — see
-     * stage_palette.h "deviation note" for why. */
+    /* Engine FUN_00474681 — per-stage pre-load: DAT_068dd2f0 = the
+     * DAT_0438b4dc record, FUN_0043244c, the collision slots from the
+     * stage's `map:` list (FUN_00471d45; the render meshes follow below). */
     stage_palette_load_for_stage();
 
     /* FUN_00474681 mesh-load loop (PII.3c) — load the HOUSE stage's
@@ -349,12 +350,6 @@ int scene1_preload_house(void)
      * crude 2-line bounds clamp).  Furniture collision is deferred with its
      * placement chip (engine-quirks §65).  See collision_house.h. */
     collision_house_build();
-
-    /* Stage palette HOUSE record reset + g_stage_palette pointer set.
-     * The 2 conditional render-side reads (palette+0x52c, palette+0x108)
-     * are zero for HOUSE, so the rest of scene1_preload_house body
-     * sees a clean palette pointer. */
-    stage_palette_init_house();
 
     /* Engine FUN_00473c15 — early-returns when *DAT_068dd2f0 == 0,
      * so HOUSE skips it entirely. The 562-line body is DUNGEON-only

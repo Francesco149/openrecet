@@ -5,6 +5,7 @@
 
 #include "call_trace.h"
 #include "rng.h"
+#include "actor_table.h"             /* g_actor (DAT_0076b970) */
 #include "scene1_particles_tick.h"   /* g_scene1_people */
 
 int32_t g_actor_spawn_order[ACTOR_SPAWN_ORDER_N];
@@ -17,6 +18,11 @@ void actor_spawn_reset(void)
     /* E.2 probe — FUN_0041f252 @ 0x41f252. */
     CALL_TRACE_ENTER(0x41f252u);
 
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        act_seti(&g_actor[i], ACT_INUSE, 0);
+        act_seti(&g_actor[i], ACT_BUSY, 0);
+        act_seti(&g_actor[i], ACT_COOLDOWN, 0);
+    }
     for (int i = 0; i < SCENE1_PEOPLE_COUNT; i++) {
         g_scene1_people[i].alive = 0;          /* +0x44 */
         g_scene1_people[i].npc_field_6ec = 0;

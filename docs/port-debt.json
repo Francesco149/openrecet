@@ -4,10 +4,10 @@
  "counts": {
   "total": 41,
   "by_kind": {
-   "stub": 19,
+   "stub": 20,
    "synthetic-data": 0,
    "simplified": 8,
-   "hardcode": 3,
+   "hardcode": 2,
    "scaffold": 0,
    "force-flag": 0
   },
@@ -22,11 +22,11 @@
    "semantic-collision": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 33,
+  "retiring_engine_fns": 35,
   "by_engine_fn": {
-   "FUN_00436f97": 3,
    "FUN_004176ff": 2,
    "FUN_00434ceb": 2,
+   "FUN_00436f97": 2,
    "FUN_0044bd0d": 2,
    "FUN_00468fd0": 2,
    "DAT_056db000": 1,
@@ -39,15 +39,17 @@
    "FUN_00432e50": 1,
    "FUN_00435c98": 1,
    "FUN_0043a5d9": 1,
+   "FUN_0044ad81": 1,
+   "FUN_0044c88f": 1,
    "FUN_00452809": 1,
    "FUN_00453384": 1,
    "FUN_004536cb": 1,
-   "FUN_0045bcea": 1,
    "FUN_0046602e": 1,
    "FUN_004682ee": 1,
    "FUN_00469b3a": 1,
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
+   "FUN_00473c15": 1,
    "FUN_00474d92": 1,
    "FUN_0047f172": 1,
    "FUN_004864fd": 1,
@@ -123,14 +125,6 @@
    "file": "src/scene1_tutorial_dispatch.h",
    "line": 26,
    "kind_known": false
-  },
-  {
-   "kind": "hardcode",
-   "engine_fn": "FUN_00436f97",
-   "desc": "DAT_0438b4dc has no port mirror;",
-   "file": "src/scene1_preload.c",
-   "line": 66,
-   "kind_known": true
   },
   {
    "kind": "hardcode",
@@ -294,6 +288,14 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_0044ad81",
+   "desc": "the floor objects (the exit portal at the",
+   "file": "src/scene1_postload.c",
+   "line": 291,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_0044bd0d",
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
@@ -302,18 +304,18 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_00452809",
-   "desc": "the blackout (DAT_0438bf74)",
-   "file": "src/scene_adv_guild.c",
-   "line": 250,
+   "engine_fn": "FUN_0044c88f",
+   "desc": "the per-dungeon setups FUN_0044c88f /",
+   "file": "src/scene1_postload.c",
+   "line": 276,
    "kind_known": true
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0045bcea",
-   "desc": "DAT_0438b4dc has no port mirror yet.",
+   "engine_fn": "FUN_00452809",
+   "desc": "the blackout (DAT_0438bf74)",
    "file": "src/scene_adv_guild.c",
-   "line": 287,
+   "line": 252,
    "kind_known": true
   },
   {
@@ -321,7 +323,7 @@
    "engine_fn": "FUN_004682ee",
    "desc": "the tab stays where the open put it.",
    "file": "src/scene_adv_guild.c",
-   "line": 576,
+   "line": 588,
    "kind_known": true
   },
   {
@@ -350,10 +352,18 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_00473c15",
+   "desc": "the dungeon loader arm (FUN_00474a9a's",
+   "file": "src/scene_adv_guild.c",
+   "line": 375,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_0047f172",
    "desc": "no port backup bank; retire with the dungeon.",
    "file": "src/scene_adv_guild.c",
-   "line": 199,
+   "line": 201,
    "kind_known": true
   },
   {
@@ -378,14 +388,6 @@
    "desc": "the port takes the",
    "file": "src/scene_day_end.c",
    "line": 203,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "NONE",
-   "desc": "Depart loads the dungeon; no dungeon port yet.",
-   "file": "src/scene_adv_guild.c",
-   "line": 364,
    "kind_known": true
   }
  ]

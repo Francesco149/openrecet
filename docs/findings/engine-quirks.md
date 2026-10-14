@@ -5004,6 +5004,10 @@ enemy placement FUN_00431d54, all while the player is at a shop counter.
 `adv-guild-pack-leave` f8013: retail draws rand() 2102 times (2040+ in FUN_00431d54);
 the port's house-arm init draws 43. The first intro visit leaves through iv2_8 without
 FUN_0045bcea and keeps b4dc = 0.
+Port (2026-10-14): modeled. FUN_0045bcea runs at the guild's Leave and Depart
+(`g_stage_b4dc`), the stage init points DAT_068dd2f0 at that record, and its dungeon arm places
+enemies over the house collision slots. `adv-guild-pack-leave` f8013: retail spawns 2 enemies at
+the Merchants' Guild; the port matches (portrng identical to the Depart, f14267).
 
 ## 142. Map collision: `gake` faces are type 1, the ground query accepts far ground on its 4th pass, the raycast's plane output is plane[0] ×4
 
