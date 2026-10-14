@@ -4974,6 +4974,37 @@ it (`FUN_0046add8`). A render pass mutates save state: a save taken after the li
 been seen carries the bits. The port does it in `scene_adv_guild_render`, as retail does;
 skipped frames (a `bgset:` dialogue covering the scene) skip the write too.
 
+## 140. Equip → B → Save freezes the dungeon pause menu: `DAT_074b28a4` leaks between submenus (FUN_0047f5bc)
+
+`DAT_074b28a4` is shared by three pause submenus: Items place-mode, Equip's slot list,
+and Save's "Overwriting file" confirm. The main nav FUN_00480614 sets it to 1 when it
+opens Equip (type 5, dungeon pause only: saved mode 1 and stage type > 0) and clears it
+when it opens Items (type 1). Equip's B-close (FUN_004802cf, the `0x20` arm) slides the submenu
+shut without clearing it, and opening Save does not touch it. FUN_0047f5bc then sees
+`74b28a4 == 1` and polls the choice box FUN_00434ed2(1), which was never opened. Nothing
+comes back, and it returns before the nav and B handling, so cursor moves, A and B all do
+nothing. Only a new pause clears the flag (FUN_0047f2f6); the menu itself can't be exited.
+The dungeon's "Saving here will save your data as it was prior to entering." box
+(`74b28a0`) still shows and closes first, because its check comes earlier. Equip exists
+only in the dungeon pause, so the house can't hit this. Recorded: `adv-guild-pack-leave`
+(Equip B-close f19464, Save f19948, frozen until the end, f21252; rhost replay
+deterministic). Port: Equip is still `PORT-DEBT(pause-submenu-*)`; when it lands, keep
+the leak.
+
+## 141. Leaving the Adventurers' Guild leaves the dungeon stage current: the next town destination builds a dungeon floor (FUN_00436f97)
+
+The guild's load-out FUN_0045bcea sets the stage index `DAT_0438b4dc` to the dungeon stage
+for (`b4c8`, `b4cc`) (FUN_0045bc7f → FUN_0047fa4f). It does this on Leave too, not only on
+Depart. The world-map exit runs the stage-entry init FUN_00436f97 for every destination
+(§136). Its head repoints `DAT_068dd2f0 = &DAT_068dd2f8[0x1b3c·b4dc]`, so a Merchants'
+Guild (or market) visit after a guild Leave runs the dungeon arm: the floor layout gets
+the dungeon room-variant coin flips (`*DAT_068dd2f0 == 1`), then the stage kind
+`DAT_068dd3fc[..] > 4` takes the per-dungeon setup (FUN_0044c88f for dungeon 0) and the
+enemy placement FUN_00431d54, all while the player is at a shop counter.
+`adv-guild-pack-leave` f8013: retail draws rand() 2102 times (2040+ in FUN_00431d54);
+the port's house-arm init draws 43. The first intro visit leaves through iv2_8 without
+FUN_0045bcea and keeps b4dc = 0.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
