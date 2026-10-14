@@ -57,6 +57,7 @@ static int32_t __cdecl hook_haggle(void)
     if (h->mode == REPLACE) return port_haggle_decide();
     int32_t r = ((int32_t (__cdecl *)(void))0x460672)();
     int32_t p = port_haggle_decide();
+    rh_log("haggle decide f%u base=%d ask=%d ref=%d -> %d\n", g_frame, (int)G32(0x5c6bc0), (int)G32(0x5c6bb8), (int)G32(0x730b588), r);
     if (p != r) note(h, "ref=%d ask=%d retail=%d port=%d", (int)G32(0x730b588), (int)G32(0x5c6bb8), r, p);
     return r;
 }
@@ -99,6 +100,9 @@ static void offer_hook(hook_t *h, int down)
     int tut = *(volatile uint8_t *)(uintptr_t)(0x450f406u + 188360u * G32(0x438b1e0u)) != 0;
     ((void (__cdecl *)(void))(uintptr_t)va)();
     for (int i = 0; i < N_OW; i++) { ret_[i] = G32(offer_words[i]); G32(offer_words[i]) = pre[i]; }
+    rh_log("haggle %s f%u idx=%d round=%u base=%d ask=%d trend=%d tut=%d -> offer=%d work=%d floor=%d acc=%d\n",
+           down ? "offer_down" : "offer_up", g_frame, idx, pre[0], (int)G32(W_BASE), (int)pre[5], trend, tut,
+           (int)ret_[1], (int)ret_[2], (int)ret_[3], (int)ret_[4]);
     haggle_state_t st = { (int32_t)pre[0], (int32_t)pre[1], (int32_t)pre[2], (int32_t)pre[3], (int32_t)pre[4] };
     int32_t ask = (int32_t)pre[5];
     rng_seed(pre[6]);
