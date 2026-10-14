@@ -43,6 +43,8 @@
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
 #include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
+#include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
+#include "scene_day_end.h"  /* day_end_tick — pause action 1 (FUN_0048dbfb) */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
 #include "scene1_counter_menu.h" /* counter_menu_cursor (DAT_0438cc0c) — mode-1 tooltip band */
@@ -480,9 +482,13 @@ void sim_step_a(void)
      * freezes through the open/close animation. The mode-9 menu update runs
      * once the ramp is past 3 (menu visible). */
     if (sim_get_counter_998() != 0) {
-        if (g_scene_state == 9 && sim_get_counter_998() > 3 && g_pause_action == 0)
-            pause_menu_update();   /* FUN_0047fa76 */
-        /* pause actions 1/2 (FUN_0048dbfb / FUN_0048f931) — PORT-DEBT */
+        if (g_scene_state == 9 && sim_get_counter_998() > 3) {
+            if (g_pause_action == 0)
+                pause_menu_update();   /* FUN_0047fa76 */
+            else if (g_pause_action == 1)
+                day_end_tick(g_sim_buttons[0].pressed, g_sim_buttons[0].held);   /* FUN_0048dbfb */
+            /* action 2 (FUN_0048f931) — PORT-DEBT(stub, FUN_0048f931) */
+        }
     } else switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         scene_title_sim_default();
@@ -492,6 +498,9 @@ void sim_step_a(void)
          * path also runs 5 unported siblings (player + NPC + world
          * tick + UI + camera).  See src/scene1_sim.c header. */
         scene1_ingame_tick();
+        /* FUN_00406584's speech-bubble block (all.c:4615-4630) — its head,
+         * before the mode-specific tooltip. */
+        speech_bubble_tick();
         /* FUN_00406584 mode-1 tooltip block (all.c:4655-4664, before its
          * FUN_004356cd call): the counter-menu "Opening the shop…" band. */
         {
@@ -553,6 +562,7 @@ void sim_step_a(void)
          * sim arms via FUN_00435710 — it MUST run before the sim each frame
          * so the cursor position tracks retail (T4). The bob (b154) it also
          * advances is consumed by the destination-pointer render. */
+        speech_bubble_tick();            /* FUN_00406584 head (all.c:4615) */
         title_save_dialog_anim_tick();
         /* FUN_00406584 mode-8 selector (all.c:4776): set the travel-time tooltip
          * band from the destination under the cursor + ramp its slide-in.  Runs
@@ -581,8 +591,10 @@ void sim_step_a(void)
          * box logic toggles cb_sel, but the cursor sprite is title_save_dialog's
          * and only this tick advances its 6-frame ease).  Mirrors the prologue,
          * where INGAME runs this tick unconditionally so the box cursor slides. */
-        if (!scene1_intro_dialogue_busy() || skip_event_open())
+        if (!scene1_intro_dialogue_busy() || skip_event_open()) {
+            speech_bubble_tick();        /* FUN_00406584 head (all.c:4615) */
             title_save_dialog_anim_tick();
+        }
         scene1_particles_tick();
         scene_guild_sim();
         break;

@@ -1902,6 +1902,13 @@ struct test_case {
     X(counter_menu_slide_ramp) \
     X(counter_menu_input_and_close) \
     \
+    X(speech_bubble_splits_br_lines) \
+    X(speech_bubble_close_runs_ten_ticks) \
+    X(actor_say_day_close_lines) \
+    X(actor_say_ages_and_closes_at_duration) \
+    X(day_close_exchange_timeline) \
+    X(day_end_counts_up_to_the_targets) \
+    \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \
     X(scene1_camera_house_groundtruth_matches_retail) \

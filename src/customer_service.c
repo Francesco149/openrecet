@@ -38,6 +38,7 @@
 #include "scene.h"                /* g_scene_state (DAT_0438b1c0) — trend head gate */
 #include "scene1_maplight.h"      /* scene1_current_stage_record (maptype) — trend gate */
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
+#include "scene1_day_close.h"     /* day_close_begin (shop-full leave), FUN_0045e028 */
 #include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_count (DAT_0438bfb4) */
 #include "scene1_shop_walker.h"   /* in-shop browsing-customer NPCs (FUN_0046f8ba/892) */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
@@ -3513,16 +3514,12 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
          * free-roams the CONV_POSE cutscene off the repositioned player, the port had
          * left the stale cc08==4 counter cam).  PORT-DEBT(cs-leave-restore) still
          * defers the render/anim rest: FUN_0048439a (3D scene), FUN_00473332,
-         * FUN_0045e028 (real-sale tally, f404==0 only), the player octant
-         * DAT_056dab00 + DAT_056db05c/048; the shop-FULL (fb88>=4) branch is
-         * PORT-DEBT(cs-leave-shopfull).  FUN_0046f892 (the cs-NPC array reset) IS
-         * now ported below — it despawns the SERVED customer so it no longer
-         * roams through the day-end CONV_POSE cutscene (viewer notes #24/#25;
-         * RE §21.33). */
+         * the player octant DAT_056dab00 + DAT_056db05c/048 of the fb88<4 arm.
+         * FUN_0045e028 and the shop-FULL (fb88>=4) branch are ported below.
+         * FUN_0046f892 (the cs-NPC array reset) despawns the SERVED customer so
+         * it no longer roams through the day-end CONV_POSE cutscene (viewer
+         * notes #24/#25; RE §21.33). */
         s_cs_active = 0;                     /* DAT_0438b7b0 = 0 */
-        player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 (the fb88<4 arm;
-                                              * PORT-DEBT(cs-leave-shopfull): the
-                                              * fb88>=4 "shop full" branch) */
 
         /* FUN_0046f892 (all.c:60337 — retail order b7b0=0 → FUN_00473332 →
          * FUN_0046f892 → fb88++) — reset the in-shop customer-NPC array so the
@@ -3535,6 +3532,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         scene1_customer_npc_reset();         /* FUN_0046f892 */
         {
             uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            if (bank == NULL)
+                player_ctrl_cc08_enter_freeroam();
             if (bank != NULL) {
                 /* Engine FUN_00462403 L60338-60340: on a real transaction
                  * (f404==0, which includes the tutorial walnut-bread sale)
@@ -3544,14 +3543,21 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                  * the new target and maplight mode-3 warms the scene (RE §21.32;
                  * ground truth: shoptime 1→2 here, clock eases 1→2).  Read f404
                  * BEFORE the clear below (retail order preserved).  The paired
-                 * FUN_0045e028 real-sale tally stays deferred as
-                 * PORT-DEBT(cs-leave-restore) — it draws no shared LCG, so
-                 * omitting it does not perturb the verified day-end rng stream.
-                 * (The engine gates the reposition below on shoptime<4; the port
-                 * treats this whole branch as the <4 arm — the fb88>=4 shop-full
-                 * path is PORT-DEBT(cs-leave-shopfull).) */
-                if (bank[CS_F404_SELL_ACTIVE_BYTE_OFF] == 0)
+                 * FUN_0045e028 clears the per-period event-checked bytes. */
+                if (bank[CS_F404_SELL_ACTIVE_BYTE_OFF] == 0) {
                     ((int32_t *)bank)[SAVE_BANK_FIELD_CLOCK_TARGET] += 1;
+                    shop_period_events_clear(bank);           /* FUN_0045e028 */
+                }
+
+                /* The 4th period of the day ends the shop day (all.c:65560-65565):
+                 * shop-time = 4, then the night sequence — b4e0 = 1 + the house
+                 * re-layout FUN_0048526d (scene1_day_close.c).  No cc08 = 1 /
+                 * hop-down seat here: FUN_0048526d seats the actors itself. */
+                if (((int32_t *)bank)[SAVE_BANK_FIELD_CLOCK_TARGET] >= 4) {
+                    ((int32_t *)bank)[SAVE_BANK_FIELD_CLOCK_TARGET] = 4;
+                    day_close_begin();
+                } else {
+                player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 */
 
                 /* Recette hop-down reposition (all.c:60349-371, the fb88<4 arm).
                  * Read f404 BEFORE the clear below (retail order).  Sets the
@@ -3582,6 +3588,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                         news_daily_update(bank);
                         g_news_ticker_timer = 1;   /* DAT_0438b92c = 1 */
                     }
+                }
                 }
                 if (bank[CS_F406_TUTORIAL_BYTE_OFF] != 0) {    /* all.c:60381-384 */
                     bank[CS_F406_TUTORIAL_BYTE_OFF] = 0;

@@ -14,14 +14,18 @@
 #include "save_bank.h"
 #include "save_work.h"
 #include "scene.h"
+#include "scene_day_end.h"
 #include "scene_title.h"
+#include "scene1_actor_say.h"
 #include "scene1_companion_ctrl.h"
 #include "scene1_counter_menu.h"
+#include "scene1_day_close.h"
 #include "scene1_display_menu.h"
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_top_hud.h"
 #include "sim.h"
+#include "speech_bubble.h"
 #include "tick.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
@@ -80,6 +84,26 @@ static int32_t get_mexp(void)
     return w ? (int32_t)w[SAVE_BANK_FIELD_MERCHANT_EXP] : 0;
 }
 
+static int32_t get_b4e0(void)  { return day_close_b4e0(); }
+static int32_t get_2eec(void)  { return day_close_variant(); }
+static int32_t get_b764(void)  { return actor_say_age(); }
+static int32_t get_b76c(void)  { return actor_say_msg(); }
+static int32_t get_bage(void)  { return speech_bubble_age(); }
+static int32_t get_db048(void) { return player_ctrl_db048(); }
+static int32_t prec(int k) { const int32_t *r = player_ctrl_actor_record(0); return r ? r[k] : 0; }
+static int32_t get_psel(void) { return prec(5); }
+static int32_t get_pfac(void) { return prec(6); }
+static int32_t get_px(void)   { return fbits(g_scene1_actor_pos[0][0]); }
+static int32_t get_pz(void)   { return fbits(g_scene1_actor_pos[0][2]); }
+
+static int32_t get_clkph(void)  { return fbits(scene1_top_hud_clock_phase()); }
+static int32_t get_de_t(void)   { return day_end_frame(); }
+static int32_t get_de_p(void)   { return day_end_profit_shown(); }
+static int32_t get_de_pt(void)  { return day_end_profit(); }
+static int32_t get_de_s(void)   { return day_end_score_shown(); }
+static int32_t get_de_a(void)   { return day_end_after(); }
+static int32_t get_de_r(void)   { return day_end_rating(); }
+
 typedef struct { uint32_t va; const char *name; int32_t (*get)(void); } state_va_t;
 static const state_va_t k_map[] = {
     { 0x6023a0u,  "rng (DAT_006023a0)",               get_rng   },
@@ -131,6 +155,23 @@ static const state_va_t k_map[] = {
     { 0x56dab54u, "Tear anim sel (DAT_056dab54)",      get_tsel },
     { 0x56dab58u, "Tear facing (DAT_056dab58)",        get_tfac },
     { 0x56dab50u, "Tear anim frame (DAT_056dab50)",    get_tfrm },
+    { 0x438b4e0u, "day-close b4e0 (DAT_0438b4e0)",     get_b4e0 },
+    { 0x74b2eecu, "day-close variant (DAT_074b2eec)",  get_2eec },
+    { 0x438b764u, "actor-say age (DAT_0438b764)",      get_b764 },
+    { 0x438b76cu, "actor-say msg (DAT_0438b76c)",      get_b76c },
+    { 0x648258u,  "speech bubble age (DAT_00648258)",  get_bage },
+    { 0x438b7d4u, "clock phase bits (DAT_0438b7d4)",   get_clkph },
+    { 0x74b2f58u, "day-end frame (DAT_074b2f58)",      get_de_t },
+    { 0x74b2f1cu, "day-end profit shown (DAT_074b2f1c)", get_de_p },
+    { 0x74b2f20u, "day-end profit (DAT_074b2f20)",     get_de_pt },
+    { 0x74b2f24u, "day-end score shown (DAT_074b2f24)", get_de_s },
+    { 0x74b2f2cu, "day-end after-count (DAT_074b2f2c)", get_de_a },
+    { 0x74b2f34u, "day-end rating (DAT_074b2f34)",     get_de_r },
+    { 0x56db048u, "player pose hold db048 (DAT_056db048)", get_db048 },
+    { 0x56daafcu, "player anim sel (DAT_056daafc)",    get_psel },
+    { 0x56dab00u, "player facing (DAT_056dab00)",      get_pfac },
+    { 0x56da1d8u, "player x bits (DAT_056da1d8)",      get_px },
+    { 0x56da1e0u, "player z bits (DAT_056da1e0)",      get_pz },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 

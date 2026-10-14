@@ -7,6 +7,34 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (after midnight) — the shop day close and the day-end summary
+- The 4th period of the day now ends it: the cs leave's shop-full arm and the free-roam
+  period advance (return from town; its rand%5 news draw) set shop-time 4 and start the
+  night — FUN_0048526d (the house re-layout: FUN_00436f97 run in-scene, actors at the
+  door, Recette's tired pose facing Tear, db048 15), then the b4e0 exchange: one of three
+  variants (DAT_074b2eec cycles per close) of Recette's line + Tear's reply, with voices,
+  in speech bubbles (new: the actor-say driver FUN_00485861/48544a/485413 — the old
+  "tail rumble" stub — and the bubble widget FUN_00406159 family + its FUN_0040c4eb draw).
+  Tear takes FUN_0048a833's face-the-player branch (db048 15); the window NPCs neither
+  spawn nor draw; ESC pause is refused.
+- At b4e0 160 the day-end summary opens as pause action 1: worker case 9 runs
+  FUN_0048da71 (profit = gold − day-start gold, score total, Tear's rating) + the
+  result_bord01 / hanko / choushuu loads; FUN_0048dbfb counts profit and score up (1 rand
+  per frame), Tear's stamp + voice, panel scroll; FUN_0048ef00 draws "Daily Profits".
+  The Z → next-day / payment / game-over tails are ported where their callees exist,
+  `PORT-DEBT(stub, …)` where not (`docs/findings/day-close-RE.md`).
+- Visual (portshots f7158–f7560, retail | port): the bubbles, the summary panels, values
+  and Tear's stamp match. Two pre-existing render bugs surfaced and are fixed: the
+  closed-shop night map light (FUN_00458f67, shop-time ≥ 4) is its own deep-blue preset,
+  not the night table row; FUN_00436f97 raises the camera snap flag DAT_0438cc68, so the
+  re-layout cuts to the door instead of panning from the counter.
+- Tools: `rhost.py gates` (the regression set in one command); portrng clamps its
+  window to the retail run (`--window 1:end`).
+- Evidence: buy-counter-raise-accept portstate (scene, cc08, b4e0, variant, b764/b76c,
+  fb88, player/Tear pose + position, db054) IDENTICAL; portrng IDENTICAL over the whole
+  run, incl. the summary count-up (was f7155). `rhost.py gates`: 12/12 (portsave ×3
+  IDENTICAL, portanchors 195/195 + 64/64, portrng IDENTICAL over 7 shop scenarios).
+
 ## 2026-10-14 (late night) — shop arrivals, rank lessons, request machine
 - Master-tick arrival ramp: SE 0x17b + the b564 special-slot sparkles (FUN_00414766,
   2 LCG draws per even frame from b5a0 38).

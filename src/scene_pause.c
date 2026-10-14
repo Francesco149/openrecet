@@ -15,6 +15,8 @@
 #include "sim.h"     /* the ramp counters g_sim_counter_998/99c + g_sim_mode_9a0
                       * (engine DAT_06a49998/9c/a0), g_sim_buttons[0] (input) */
 #include "scene.h"   /* g_scene_state (engine DAT_0438b1c0) */
+#include "scene1_day_close.h" /* day_close_b4e0 — no ESC pause during the night exchange */
+#include "scene_day_end.h"   /* pause action 1: the day-end summary (FUN_0048da71/473618) */
 #include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
 #include "audio_fade.h"  /* Music/Sound/Voice sliders + FUN_00499583 BGM re-apply */
 #include "settings.h"    /* Message Speed / Unread Text Skip sliders (slider3/4) */
@@ -307,9 +309,12 @@ void pause_dispatch(int action)
 
     g_pause_action = action;
 
-    /* cVar4 (L50191): pausable unless the mode is 7/2/3/10. */
+    /* cVar4 (L50191): pausable unless the mode is 7/2/3/10 — and, in the
+     * house, not the ESC pause during the day-close exchange (all_ida 54407:
+     * `DAT_0438b4e0 != 0 && action == 0`). */
     const int pausable = (g_scene_state != 7 && g_scene_state != 2
-                          && g_scene_state != 3 && g_scene_state != 10);
+                          && g_scene_state != 3 && g_scene_state != 10)
+                         && !(g_scene_state == 1 && day_close_b4e0() != 0 && action == 0);
     if (!pausable) {
         audio_play_se_by_id(0x16a);   /* L50246 — the "can't pause" beep */
         return;
@@ -342,7 +347,8 @@ void pause_dispatch(int action)
             chara_equip_recompute_aggregate();             /* FUN_004844ef — re-aggregate equip stats */
             if (action == 0)
                 d3d_pool_release_type(0xc);                /* FUN_00473c03 — free pause assets (type 0xc) */
-            /* (actions 1/2 → FUN_00473668/672 — PORT-DEBT) */
+            /* actions 1/2 → FUN_00473668/672 (release type 5): the day-end
+             * sprites are module-owned and reloaded on the next open. */
             sim_set_mode_9a0(0);                            /* DAT_06a499a0 = 0 (closing) */
             /* Restore the shared hand cursor IFF it was visible at pause
              * (engine L50274). Inert in HOUSE free-roam (cursor hidden). */
@@ -1034,6 +1040,86 @@ void pause_menu_update(void)
 
 /* ─── Win32 worker_load wiring + sprite storage ─────────────────────── */
 
+/* ─── calendar / quota date math (engine FUN_00482033/59, FUN_0048d997) ───
+ *
+ * All three read the WORKING save bank by byte offset (engine reads
+ * &DAT_044e3798 + slot*0x2dfc8 + off; the port's save_work_dwords_at(slot)
+ * is that same arena, dword-indexed).  Field map (dword index / byte off):
+ *   gold     3      / 0xc       day      0xb0fb / 0x2c3ec
+ *   pe-cache 0xb0fa / 0x2c3e8   xp-cur   0xb0fd / 0x2c3f4
+ *   xp-start 0xb0fe / 0x2c3f8   xp-end   0xb0ff / 0x2c3fc
+ *   level    0xb100 / 0x2c400   mode     0xb759 / 0x2dd64
+ *   discount byte 0x2bc56.
+ * NB the save_bank.h "DAY_INDEX"(0xb0fe)/"RANK_THRESHOLD"(0xb0ff) names are
+ * the merchant-rank XP start/next-threshold here (FUN_00406xxx XP animator),
+ * NOT calendar fields; the calendar day is CARD_DAY (0xb0fb). */
+
+/* FUN_00482033 (all.c:83631) — the calendar "today" day index for `bank`. */
+int pause_day_index(const uint32_t *bank)
+{
+    int day  = (int32_t)bank[0xb0fb];      /* +0x2c3ec */
+    int mode = (int32_t)bank[0xb759];      /* +0x2dd64 */
+    if (mode != 2) {
+        if (mode != 3)
+            return day;                     /* normal mode: raw day */
+        day -= 0x24;                        /* mode 3: day - 36 */
+    }
+    return day % 0x23;                      /* mode 2/3: wrap to the 35-day cycle */
+}
+
+/* FUN_00482059 (all.c:83649) — the period-end (next "payment due") day, the
+ * day rounded up to the next week boundary; cached back to +0x2c3e8 (the
+ * engine writes it, idempotent for a given day). */
+int pause_period_end(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (!bank) return 0;
+    int day  = pause_day_index(bank);
+    int mode = (int32_t)bank[0xb759];
+    int pe;
+    if (mode == 2 || mode == 3) {
+        pe = (day / 7) * 7 + 6;
+    } else if (day == 0) {
+        bank[0xb0fa] = 7;                   /* +0x2c3e8 cache */
+        return 7;
+    } else {
+        pe = ((day - 1) / 7 + 1) * 7;       /* round up to next multiple of 7 */
+    }
+    bank[0xb0fa] = (uint32_t)pe;
+    return pe;
+}
+
+/* FUN_0048d997 (all.c:91012) — the weekly quota number (the payment due by
+ * the period end); halved-by-100 when the discount byte +0x2bc56 is set. */
+int pause_weekly_quota(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (!bank) return 0;
+    int mode = (int32_t)bank[0xb759];
+    int q = 500000;
+    if (mode == 2) {
+        int week = (int32_t)bank[0xb0fb] / 7;   /* DAT_0450fb84 = day field +0x2c3ec */
+        if (week == 0)      q = 20000;
+        else if (week == 1) q = 80000;
+        else if (week == 2) q = 200000;
+        else if (week == 3) q = 500000;
+        else if (week == 4) q = 1000000;
+        else if (week == 5) q = 2000000;
+        else                q = (week - 3) * 1000000;
+    } else {
+        int pe = pause_period_end();
+        if (pe == 0)        q = 300;
+        else if (pe < 9)    q = 10000;
+        else if (pe < 0x10) q = 30000;          /* < 16 */
+        else if (pe > 0x16) q = (pe > 0x1d) ? 500000   /* > 29: default */
+                                            : 200000;  /* 23..29     */
+        else                q = 80000;          /* 16..22 */
+    }
+    if (((const uint8_t *)bank)[0x2bc56] != 0)  /* discount halves to 1/100 */
+        q /= 100;
+    return q;
+}
+
 #ifdef _WIN32
 
 #include <d3d8.h>
@@ -1104,8 +1190,13 @@ static void scene_pause_body(void)
  * C4E-only; pause_menu_setup already ran it on the main thread. */
 static void pause_worker_case9(void)
 {
-    if (g_pause_action == 0)
+    if (g_pause_action == 0) {
         scene_pause_load_with(win32_load_fn, g_scene_pause_dev);
+    } else if (g_pause_action == 1) {
+        day_end_init();                                  /* FUN_0048da71 */
+        day_end_load_assets(g_scene_pause_dev);          /* FUN_00473618 */
+    }
+    /* action 2: FUN_0048f87c + nullsub — PORT-DEBT(stub, FUN_0048f931) */
 }
 
 void scene_pause_init(struct IDirect3DDevice8 *dev)
@@ -1115,86 +1206,6 @@ void scene_pause_init(struct IDirect3DDevice8 *dev)
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, scene_pause_body);
     /* The LIVE pause-load path: primary worker case 9. */
     worker_load_set_cb(9, pause_worker_case9);
-}
-
-/* ─── calendar / quota date math (engine FUN_00482033/59, FUN_0048d997) ───
- *
- * All three read the WORKING save bank by byte offset (engine reads
- * &DAT_044e3798 + slot*0x2dfc8 + off; the port's save_work_dwords_at(slot)
- * is that same arena, dword-indexed).  Field map (dword index / byte off):
- *   gold     3      / 0xc       day      0xb0fb / 0x2c3ec
- *   pe-cache 0xb0fa / 0x2c3e8   xp-cur   0xb0fd / 0x2c3f4
- *   xp-start 0xb0fe / 0x2c3f8   xp-end   0xb0ff / 0x2c3fc
- *   level    0xb100 / 0x2c400   mode     0xb759 / 0x2dd64
- *   discount byte 0x2bc56.
- * NB the save_bank.h "DAY_INDEX"(0xb0fe)/"RANK_THRESHOLD"(0xb0ff) names are
- * the merchant-rank XP start/next-threshold here (FUN_00406xxx XP animator),
- * NOT calendar fields; the calendar day is CARD_DAY (0xb0fb). */
-
-/* FUN_00482033 (all.c:83631) — the calendar "today" day index for `bank`. */
-static int pause_day_index(const uint32_t *bank)
-{
-    int day  = (int32_t)bank[0xb0fb];      /* +0x2c3ec */
-    int mode = (int32_t)bank[0xb759];      /* +0x2dd64 */
-    if (mode != 2) {
-        if (mode != 3)
-            return day;                     /* normal mode: raw day */
-        day -= 0x24;                        /* mode 3: day - 36 */
-    }
-    return day % 0x23;                      /* mode 2/3: wrap to the 35-day cycle */
-}
-
-/* FUN_00482059 (all.c:83649) — the period-end (next "payment due") day, the
- * day rounded up to the next week boundary; cached back to +0x2c3e8 (the
- * engine writes it, idempotent for a given day). */
-static int pause_period_end(void)
-{
-    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    if (!bank) return 0;
-    int day  = pause_day_index(bank);
-    int mode = (int32_t)bank[0xb759];
-    int pe;
-    if (mode == 2 || mode == 3) {
-        pe = (day / 7) * 7 + 6;
-    } else if (day == 0) {
-        bank[0xb0fa] = 7;                   /* +0x2c3e8 cache */
-        return 7;
-    } else {
-        pe = ((day - 1) / 7 + 1) * 7;       /* round up to next multiple of 7 */
-    }
-    bank[0xb0fa] = (uint32_t)pe;
-    return pe;
-}
-
-/* FUN_0048d997 (all.c:91012) — the weekly quota number (the payment due by
- * the period end); halved-by-100 when the discount byte +0x2bc56 is set. */
-static int pause_weekly_quota(void)
-{
-    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    if (!bank) return 0;
-    int mode = (int32_t)bank[0xb759];
-    int q = 500000;
-    if (mode == 2) {
-        int week = (int32_t)bank[0xb0fb] / 7;   /* DAT_0450fb84 = day field +0x2c3ec */
-        if (week == 0)      q = 20000;
-        else if (week == 1) q = 80000;
-        else if (week == 2) q = 200000;
-        else if (week == 3) q = 500000;
-        else if (week == 4) q = 1000000;
-        else if (week == 5) q = 2000000;
-        else                q = (week - 3) * 1000000;
-    } else {
-        int pe = pause_period_end();
-        if (pe == 0)        q = 300;
-        else if (pe < 9)    q = 10000;
-        else if (pe < 0x10) q = 30000;          /* < 16 */
-        else if (pe > 0x16) q = (pe > 0x1d) ? 500000   /* > 29: default */
-                                            : 200000;  /* 23..29     */
-        else                q = 80000;          /* 16..22 */
-    }
-    if (((const uint8_t *)bank)[0x2bc56] != 0)  /* discount halves to 1/100 */
-        q /= 100;
-    return q;
 }
 
 /* FUN_004820ba — the pause-menu render.

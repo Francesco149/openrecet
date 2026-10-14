@@ -69,6 +69,7 @@ that subsystem.
 
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
+| [day-close-RE.md](day-close-RE.md) | Shop day close: the 4th-period arms (cs leave / town return), FUN_0048526d in-scene re-layout, the b4e0 night exchange + actor-say bubbles (FUN_00485861 / FUN_00406159), the day-end summary entry (pause action 1). | 2026-10-14 |
 | [shop-counter-menu-RE.md](shop-counter-menu-RE.md) | Counter Z → "Open Store / Cancel" menu (cc08 0 → 10 → 4, FUN_004850fe lists, b74c/b754 timing, render, "Opening the shop…" help band); root cause of the port's early shop entry. | 2026-10-14 |
 | [esc-skip-event.md](esc-skip-event.md) | Context-sensitive ESC dispatch (WndProc `FUN_0047b2e7`) + the skip-event yes/no prompt (`FUN_00453384`/`454191`); pause-menu gate. Phase A (dispatch) landed. | 2026-06-02 |
 

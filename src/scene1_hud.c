@@ -100,6 +100,8 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene1_render.h"        /* scene1_project_world (FUN_00490c78)               */
 #include "scene1_camera.h"        /* scene1_camera_class_off_z (b778)                  */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3]                           */
+#include "scene1_intro_dialogue.h" /* the dialogue-box gate (DAT_0438b1c8) */
+#include "speech_bubble.h"        /* speech_bubble_render (FUN_0040c4eb)                */
 #include "call_trace.h"
 #include <math.h>                 /* sinf */
 
@@ -302,6 +304,12 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * The trailing shop/stocking UI is shop-state gated and dormant in
      * free-roam.  FUN_00406d50 (the top HUD) is emitted later by the
      * aggregator, so it draws last. */
+    /* FUN_0040c4eb (all.c:7193) — the speech bubble (the day-close lines),
+     * right after the status-screen takeover and before FUN_00409925.  Its
+     * scene gates: the dialogue box (DAT_0438b1c8) — the rest
+     * (b1d0/b1d8/bebc/be94/be9c/beb4) are 0 in the house scenes it shows in. */
+    speech_bubble_render(dev_in, scene1_intro_dialogue_busy());
+
     scene1_merchant_hud_render(dev_in);
 
     /* The interaction-affordance emote bubble (FUN_0040a765 inline @ all.c:6900):

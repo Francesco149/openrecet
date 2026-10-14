@@ -84,6 +84,10 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_conversation_pose.c \
                  ../src/scene1_intro_dialogue.c \
                  ../src/scene1_tutorial_dispatch.c \
+                 ../src/scene1_day_close.c \
+                 ../src/scene1_actor_say.c \
+                 ../src/speech_bubble.c \
+                 ../src/scene_day_end.c \
                  ../src/skip_event.c \
                  ../src/choice_box.c \
                  ../src/scene1_dialogue.c \
@@ -121,6 +125,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_shop_display.c \
                  test_scene1_display_menu.c \
                  test_scene1_counter_menu.c \
+                 test_scene1_day_close.c \
                  test_scene1_maplight.c \
                  test_scene1_wide_followup_helpers.c \
                  test_scene1_dungeon_clear_banner.c \

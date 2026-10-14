@@ -92,7 +92,9 @@ float scene1_camera_class_off_z(void) { return g_class_off_z; }
 /* Engine `_DAT_0438cc68`: first-frame snap flag.  Init to 1 via
  * scene1_camera_init() — the engine's runtime-allocated writer for this
  * address isn't ported yet (see Cc.0 open question #5). */
-static int g_first_frame = 1;
+static int g_first_frame = 1;   /* DAT_0438cc68 — the next pose snaps (no 0.2 lerp) */
+
+void scene1_camera_snap_next(void) { g_first_frame = 1; }
 
 /* ─── init ────────────────────────────────────────────────────────────── */
 

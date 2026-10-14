@@ -47,6 +47,7 @@
 #include "title_save_dialog.h"   /* title_save_dialog_phasepin — cursor bob pin */
 #include "audio_mci.h"          /* audio_mci_clear (FUN_00451863) */
 #include "worker_load.h"         /* worker_load_set_cb(0, scene_title_reinit) */
+#include "scene_day_end.h"       /* day_end_render — pause action 1 */
 #include "scene_buy.h"
 #include "scene_floor.h"
 #include "scene_jutan.h"
@@ -3457,8 +3458,11 @@ static void render_dispatch(void)
     {
         int32_t v99c = sim_get_counter_99c();
         if (g_scene_state == 9 && v99c > 3 && v99c < 0xd
-            && !nowloading_is_active() && g_pause_action == 0) {
-            pause_menu_render(g_dev);
+            && !nowloading_is_active()) {
+            if (g_pause_action == 0)
+                pause_menu_render(g_dev);
+            else if (g_pause_action == 1)
+                day_end_render(g_dev);                  /* FUN_0048ef00 */
         }
     }
 

@@ -46,6 +46,7 @@
 #include "math3d.h"
 #include "rng.h"
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) + CHR_ACTOR_* */
+#include "scene1_day_close.h"    /* day_close_b4e0 — the night spawn/render gate */
 
 /* DAT_005c7dd8 — per-NPC sprite-type index, indexed by spawn idx % 6. */
 static const int BG_NPC_TYPE_TABLE[SCENE1_BG_NPC_COUNT] = { 0, 1, 6, 7, 9, 8 };
@@ -293,12 +294,14 @@ void scene1_bg_npc_sim_once(void)
 {
     CALL_TRACE_ENTER(0x46f2a3u);
 
-    /* spawn block — engine gates it on the sim-freeze flag (DAT_0438b4e0==0),
-     * which is 0 in steady free-roam.  Spawns one NPC per call until the cursor
+    /* spawn block — gated on the day-close flag DAT_0438b4e0 == 0 (the night
+     * exchange spawns no one).  Spawns one NPC per call until the cursor
      * reaches the count; the cursor then keeps incrementing but seeds nothing. */
-    if (g_bg_npc_spawn_cursor < SCENE1_BG_NPC_COUNT)
-        bg_npc_spawn(g_bg_npc_spawn_cursor);
-    g_bg_npc_spawn_cursor++;
+    if (day_close_b4e0() == 0) {
+        if (g_bg_npc_spawn_cursor < SCENE1_BG_NPC_COUNT)
+            bg_npc_spawn(g_bg_npc_spawn_cursor);
+        g_bg_npc_spawn_cursor++;
+    }
 
     /* tick loop — runs over all SCENE1_BG_NPC_COUNT records every call. */
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++)
@@ -499,6 +502,8 @@ void scene1_bg_npc_shadow_render(struct IDirect3DDevice8 *dev_in)
 
     if (dev_in == NULL || g_bg_npc_toorioff != 0)   /* FUN_0046f648: DAT_0438b188 == 0 */
         return;
+    if (day_close_b4e0() != 0)                       /* … && DAT_0438b4e0 == 0 */
+        return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++) {
@@ -557,7 +562,7 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
 {
     CALL_TRACE_ENTER(0x46f737u);
 
-    if (dev_in == NULL)
+    if (dev_in == NULL || day_close_b4e0() != 0)     /* FUN_0046f737: DAT_0438b4e0 == 0 */
         return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 

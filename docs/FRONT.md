@@ -118,14 +118,27 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ Companion skip frames: FUN_0048670f arms that end at LABEL_675 (display-stand
     open, door-exit arm + the exit-fade stage 2) run no FUN_004897c6 / FUN_0048a833,
     so Tear and db054 hold; the 目玉 sparkle prologue precedes the exit stage 2.
-  - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:N`):
+  - ✅ **Day close + day-end summary** (`docs/findings/day-close-RE.md`): the cs
+    leave's shop-full arm (shop-time 4) + the town-return period advance →
+    FUN_0048526d (in-scene FUN_00436f97: floor layout + actor reset rand, NPC
+    warmup re-arm) → the b4e0 night exchange (variant lines + voices through the
+    actor-say driver FUN_00485861 / speech bubble FUN_00406159, Tear face-to-face,
+    window NPCs hidden) → pause action 1: FUN_0048da71 / FUN_0048dbfb / FUN_0048ef00
+    ("Daily Profits" count-up, 1 rand/frame). buy-counter-raise-accept: portstate
+    scene / cc08 / b4e0 / variant / b764 / b76c / fb88 / player / Tear rows
+    IDENTICAL; **portrng IDENTICAL over the whole run** (was f7155).
+  - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
     0. Scene loads the port lacks (retail lays out a new floor, FUN_0047df4d /
        47ddc2 / 47d622): multiday-tutorials-suggest f1722 (MARKET_ENTER — the market
        scene), buy-from-seller-guild-intro f9127, debt-gameover-restart f1785.
-    1. buy-counter-raise-accept f7156: the 4th cs leave of the day hits retail's
-       shop-full branch (shoptime +0x2c3f0 ≥ 4 → `b4e0 = 1; FUN_0048526d()`: house
-       re-layout via FUN_00436f97 + the day-end conversation) —
-       `PORT-DEBT(cs-leave-shopfull)`.
+    1. The summary's Z → the next morning (no recording presses Z yet): the
+       morning beat (FUN_0048da71 sets b928 = 1 / b924 = 0; the port mirrors b928
+       only as the iv2 tutorial beat), FUN_004852fb's day-8 collector
+       (FUN_004706ea) / day-15 arms, the payment screen (FUN_0048e49c +
+       FUN_0044ba2c scripts), the week-end story / game-over scenes
+       (FUN_0049d2e5 / FUN_0049da9e) — all `PORT-DEBT(stub, …)` in
+       `src/scene_day_end.c`. The night arm of the dungeon exit
+       (FUN_00442cef all_ida 44950) waits for the dungeon port.
     2. day2-buy-tutorial f15595: retail 7 draws (Tear FUN_00447f4f + bg NPC), port 0.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
     4. Boot-time working bank: retail's slot-0 gold is 1000 from f1 (initialised
@@ -134,6 +147,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        delivery + story customers) — no scenario reaches them yet.
 
 ### Regression gate (run before claiming a port change is safe)
+- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command (portsave ×3,
+  portanchors ×2, portrng over 7 shop scenarios, windows clamped to the retail run), one
+  line each. Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
   day2-save-commit}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +

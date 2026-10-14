@@ -86,6 +86,19 @@ void scene1_postload_place_actors(int a);
 void scene1_postload_day2_actor_replace(void);
 
 /*
+ * FUN_00436f97 run IN-SCENE (no asset load) — the stage-entry init as
+ * FUN_0048526d (scene1_day_close.c) reaches it.  Retail order, port-mirrored
+ * state only: the BSS resets (actor-say b764/b76c, counter-menu slides, news
+ * ticker), the companion wander state, the floor layout (FUN_0047df4d, rand),
+ * the actor spawn pose + player-controller resets, db054, the records reset
+ * (FUN_0040f64b), the actor reset (FUN_0041f252, 8 rand), FUN_004060ff,
+ * FUN_004850ec (cc08 = 1), the bg-NPC stage reset (FUN_0046f1e9), the
+ * alt-stage arm (camera yaw π, placement, door/counter seat by work dwords
+ * +0x2cdf4 / +0x2cde0), the ambient spawn, FUN_0046f892, FUN_00435612.
+ */
+void scene1_postload_stage_entry_init(void);
+
+/*
  * Block-23 of engine FUN_00436f97 (L690-700).  No-op when
  * `g_stage_palette == NULL` or `g_stage_palette->ambient_spawn_flag
  * == 0` (the engine gate at `*(DAT_068dd2f0 + 0x1b28) != 0`).  When

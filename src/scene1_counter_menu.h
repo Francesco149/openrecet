@@ -62,6 +62,7 @@ int counter_menu_slide(void);          /* DAT_0438b74c */
 int counter_menu_timer(void);          /* DAT_0438b754 */
 const char *counter_menu_label(int entry);   /* off_0052974c[entry] */
 
+void counter_menu_stage_reset(void);   /* FUN_00436f97: slides + timer = 0 */
 void counter_menu_reset(void);         /* BSS state (tests / new process) */
 
 /* FUN_00409925's cc08 0/10 block: the entry buttons + labels (item_win.tga).

@@ -53,6 +53,29 @@ void (*scene1_preload_get_post_house_callback(void))(void)
     return g_scene1_preload_post_house_cb;
 }
 
+/* FUN_00436f97 → FUN_0047df4d: the floor-layout generator runs on every stage
+ * entry, the house too (its draws are real; its layout is unused there).  It
+ * writes the spawn origin DAT_0438b1ec that pose_player copies — the slot the
+ * old init_stage_defaults filled with a FUN_0044f13d constant. */
+void scene1_preload_floor_layout(void)
+{
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    floor_layout_in_t in = {
+        .stage_class   = g_scene1_combat_stage_id,
+        .floor         = stage_gate_get_next(),
+        /* PORT-DEBT(hardcode, FUN_00436f97): DAT_0438b4dc has no port mirror;
+         * HOUSE = 0.  Only feeds the generator's debug text row. */
+        .stage_no      = 0,
+        .dungeon       = 0,   /* this loader is the HOUSE arm (*DAT_068dd2f0 == 0) */
+        .rec_flag_a    = rec ? rec[0x2bce2] : 0,
+        .rec_flag_b    = rec ? rec[0x2bcf8] : 0,
+        .is_checkpoint = stage_gate_floor_is_checkpoint,
+        .gate_query    = stage_gate_query,
+    };
+    memset(g_floor_marks[10], 0, 0x28);   /* FUN_00436f97: memset(&DAT_0438b484, 0, 0x28) */
+    floor_layout_generate(&in);
+}
+
 #ifdef _WIN32
 
 #include <d3d8.h>
@@ -213,29 +236,6 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
      * first HOUSE draw — matching the engine's boot-time load of the resident
      * party (player 0, companion 1, guest 2). */
     scene1_preload_chr_party_sheets();
-}
-
-/* FUN_00436f97 → FUN_0047df4d: the floor-layout generator runs on every stage
- * entry, the house too (its draws are real; its layout is unused there).  It
- * writes the spawn origin DAT_0438b1ec that pose_player copies — the slot the
- * old init_stage_defaults filled with a FUN_0044f13d constant. */
-static void scene1_preload_floor_layout(void)
-{
-    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
-    floor_layout_in_t in = {
-        .stage_class   = g_scene1_combat_stage_id,
-        .floor         = stage_gate_get_next(),
-        /* PORT-DEBT(hardcode, FUN_00436f97): DAT_0438b4dc has no port mirror;
-         * HOUSE = 0.  Only feeds the generator's debug text row. */
-        .stage_no      = 0,
-        .dungeon       = 0,   /* this loader is the HOUSE arm (*DAT_068dd2f0 == 0) */
-        .rec_flag_a    = rec ? rec[0x2bce2] : 0,
-        .rec_flag_b    = rec ? rec[0x2bcf8] : 0,
-        .is_checkpoint = stage_gate_floor_is_checkpoint,
-        .gate_query    = stage_gate_query,
-    };
-    memset(g_floor_marks[10], 0, 0x28);   /* FUN_00436f97: memset(&DAT_0438b484, 0, 0x28) */
-    floor_layout_generate(&in);
 }
 
 int scene1_preload_house(void)

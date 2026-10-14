@@ -50,22 +50,34 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "actor_spawn.h"           /* actor_spawn_reset (FUN_0041f252) */
 #include "chara_equip.h"      /* chara_equip_get_current_bank — active save slot */
+#include "customer_roster.h"         /* roster_compute_centroid (FUN_0048439a) */
+#include "news_daily.h"            /* g_news_ticker_timer (DAT_0438b92c) */
 #include "save_bank.h"        /* SAVE_BANK_STRIDE_BYTES */
 #include "save_work.h"        /* the active working record */
+#include "scene1_actor_say.h"      /* actor_say_stage_reset (DAT_0438b764/b76c) */
+#include "scene1_bg_npc.h"         /* scene1_bg_npc_stage_reset (FUN_0046f1e9) */
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
-#include "scene1_particles_tick.h"
+#include "scene1_chr_sprite.h"     /* CHR_ACTOR_FACING */
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
 #include "scene1_conversation_pose.h"/* scene1_conversation_pose_reset */
-#include "scene1_tutorial_dispatch.h"/* scene1_tutorial_dispatch_reset (iv2 beat) */
+#include "scene1_counter_menu.h"   /* counter_menu_stage_reset (DAT_0438b74c..b754) */
+#include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
-#include "scene1_top_hud.h"       /* scene1_top_hud_tooltip_house_entry (FUN_004060ff) */
+#include "scene1_preload.h"        /* scene1_preload_floor_layout (FUN_0047df4d) */
+#include "scene1_records.h"        /* scene1_records_reset (FUN_0040f64b) */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
+#include "scene1_shop_walker.h"    /* scene1_customer_npc_reset (FUN_0046f892) */
 #include "scene1_spawn.h"
+#include "scene1_top_hud.h"       /* scene1_top_hud_tooltip_house_entry (FUN_004060ff) */
+#include "scene1_tutorial_dispatch.h"/* scene1_tutorial_dispatch_reset (iv2 beat) */
 #include "scene1_walker_pass_init.h"
+#include "speech_bubble.h"         /* FUN_004060ff's bubble part */
 #include "stage_palette.h"
 #include "stage_post_load.h"      /* stage_post_load_get_dat_056da1cc (player char) */
+#include "title_save_dialog.h"     /* FUN_00435612 cursor hide */
 #include "x87.h"
 
 /* g_scene1_stage_player_default_pos (DAT_0438b1ec) lives in floor_layout.c,
@@ -192,6 +204,86 @@ void scene1_postload_day2_actor_replace(void)
      * retail's cx 0.6→1.0 ease is FUN_0048a833's b928/b924 intro branch, a
      * separate follow-up (finding cutscene-replay-anchor-drift §DAY2 #4). */
     scene1_postload_place_actors(0);
+}
+
+void scene1_postload_stage_entry_init(void)
+{
+    /* L8-L84: the scene BSS resets the port mirrors — the actor-say bubble
+     * driver (b764/b76c), the counter-menu slides (b74c/b750/b754), the news
+     * ticker (b92c), the camera snap flag (cc68).  b924 = 0 has no port mirror outside the iv2 beat. */
+    actor_say_stage_reset();
+    counter_menu_stage_reset();
+    g_news_ticker_timer = 0;
+    scene1_camera_snap_next();          /* DAT_0438cc68 = 1 */
+
+    /* L116-127: the companion wander state (DAT_0438be6c/70/74/78). */
+    scene1_companion_ctrl_stage_reset();
+
+    /* L21 + L180: DAT_0438b484 clear + the floor-layout generator. */
+    scene1_preload_floor_layout();
+
+    /* L208-263 block 11: the spawn pose (the spiral collision retry is
+     * PORT-DEBT(stub, FUN_00432e50) — the house seat below overrides it). */
+    scene1_postload_pose_player();
+
+    /* L250-370 blocks 12-15: actor records, velocity, facing π, db048 …;
+     * db054 (DAT_056db054) = 0. */
+    player_ctrl_stage_entry_reset();
+    scene1_companion_ctrl_reset();
+
+    /* L384-399: FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1),
+     * FUN_0041f252, FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
+    scene1_records_reset(1);
+    actor_spawn_reset();
+    scene1_top_hud_tooltip_house_entry();
+    speech_bubble_reset();
+    player_ctrl_cc08_enter_freeroam();
+    {
+        const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+        scene1_bg_npc_stage_reset(rec ? rec[0x2bcfd] != 0 : 0);
+    }
+
+    /* L607-725 the alt-stage (house) arm: camera yaw π + the furniture /
+     * room placement (walker_phase2_init, inputs unchanged since the load),
+     * then the seat: work dword +0x2cdf4 == 0 → the counter spot facing +π/2;
+     * else the front door, facing down (octant 4, +0x2cde0 set) or left
+     * (octant 2, −π/2). */
+    scene1_postload_walker_phase2_init();
+    {
+        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        if (w == NULL || w[0x2cdf4 / 4] == 0) {
+            player_ctrl_set_facing_angle(1.5707964f);
+            scene1_postload_place_actors(0);
+        } else {
+            int32_t *p0 = player_ctrl_actor_record_mut(0);
+            int32_t *p2 = player_ctrl_actor_record_mut(2);
+            if (w[0x2cde0 / 4] != 0) {
+                p0[CHR_ACTOR_FACING] = 4;
+                p2[CHR_ACTOR_FACING] = 4;
+                player_ctrl_set_facing_angle(0.0f);
+            } else {
+                player_ctrl_set_facing_angle(-1.5707964f);
+                p0[CHR_ACTOR_FACING] = 2;
+                p2[CHR_ACTOR_FACING] = 2;
+            }
+            scene1_postload_place_actors(1);
+        }
+    }
+
+    /* L727-740 the ambient spawn (gated off in the house). */
+    scene1_postload_ambient_spawn();
+
+    /* L741-746: FUN_0046f892, FUN_00435612, FUN_0048439a (the shop attribute
+     * centroid).  FUN_004852fb runs only under b928 == 1 (the morning beat —
+     * not reached in-scene); FUN_00435fbb(0, -1) is
+     * PORT-DEBT(stub, FUN_00435fbb). */
+    scene1_customer_npc_reset();
+    title_save_dialog_cursor_set_visible(0);
+    {
+        const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+        if (rec != NULL)
+            roster_compute_centroid(rec);
+    }
 }
 
 void scene1_postload_ambient_spawn(void)

@@ -17,7 +17,8 @@
  * Call sites (engine): customer-leave restore all.c:60358 (rng%3),
  * master-tick clock advance 86738 (rng%5), morning beat 86711
  * (unconditional).
- * PORT-DEBT(stub, FUN_0048670f): the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported — wire the news call when the timed shop clock lands.
+ * The free-roam period advance's rng%5 site lives in scene1_day_close.c
+ * (shop_period_return_tick).
  *
  * Pure C (host-testable): the save-bank slot base is passed in; table
  * data comes from g_news / g_item; rng from rng_next15().

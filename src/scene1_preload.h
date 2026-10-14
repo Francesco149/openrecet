@@ -46,6 +46,11 @@
 #define SCENE1_PRELOAD_CHR_PORTRAIT_COUNT 21
 extern const int32_t g_scene1_chr_portrait_ids[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT];
 
+/* FUN_00436f97's floor-layout step: clear DAT_0438b484 + run the generator
+ * FUN_0047df4d for the current stage (its rand() draws are real in the house
+ * too).  Shared by the house loader and the in-scene re-layout. */
+void scene1_preload_floor_layout(void);
+
 #ifdef _WIN32
 
 #include "sprite.h"   /* sprite_t — returned by scene1_preload_chr_sheet */

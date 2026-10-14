@@ -377,6 +377,21 @@ void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);
 /* Set the stored world facing db05c (conversation-pose ±π/2 write). */
 void player_ctrl_set_facing_angle(float angle);
 
+/* DAT_056db048 — the player pose-hold state (0 free; 0xc the display-stand
+ * carry; 15 the day-close tired pose, FUN_0048526d). */
+void player_ctrl_emote_reset(void);   /* DAT_056db000/004 = 0 */
+int  player_ctrl_db048(void);
+void player_ctrl_set_db048(int v);
+
+/* FUN_00436f97's player-controller resets (blocks 11-15): every actor's
+ * facing octant 4 + flags 0 + scale 1.0, the walk velocity 0, the facing
+ * angle db05c = π, db048/db04c/emote/burst counters 0. */
+void player_ctrl_stage_entry_reset(void);
+
+/* The frame left FUN_0048670f through LABEL_132/133 with no FUN_0048b850
+ * (the day-close exchange): the companion still ticks, db054 does not. */
+int  player_ctrl_no_b850_this_frame(void);
+
 /* ── FUN_0048670f cc08 dispatch state (Chip 4, engine-quirks §78) ────────────
  * The in-game interaction state the controller dispatches on each frame
  * (DAT_0438cc08): 1 = free-roam walk; other values are the unported event /

@@ -40,6 +40,13 @@ void counter_menu_reset(void)
     s_slide = s_slide2 = s_timer = 0;
 }
 
+/* FUN_00436f97 (all.c:36981-36984): DAT_0438b74c/b750/b754 = 0 at every stage
+ * entry (the cursors and lists are left alone). */
+void counter_menu_stage_reset(void)
+{
+    s_slide = s_slide2 = s_timer = 0;
+}
+
 void counter_menu_build(const uint8_t *bank)
 {
     const int32_t *bd = (const int32_t *)bank;

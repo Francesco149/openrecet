@@ -438,7 +438,11 @@ void scene1_companion_ctrl_tick(void)
      * Tear just follows the player to the counter (RE §18: canim 0, oct 0, cx≈-3.0).
      * The scold pose + 集中線 on the reaction beat are a SEPARATE live-machine
      * overlay (b534==6), ported later. */
-    if (player_ctrl_cc08() == 4 && customer_service_f404()) {
+    /* FUN_0048a833 v39 (all.c:99223-99230): the same face-the-player branch for
+     * the player pose holds db048 14 / 15 (15 = the day-close tired pose,
+     * FUN_0048526d) — Tear stays beside Recette instead of wandering. */
+    if ((player_ctrl_cc08() == 4 && customer_service_f404()) ||
+        player_ctrl_db048() == 14 || player_ctrl_db048() == 15) {
         co_at_counter_tick(rec, comp, player);
         /* cc08==4 tick order is anim-SET first, ONE unconditional tick at the
          * frame tail (the engine's inline dab54 writes / FUN_0048a833 run

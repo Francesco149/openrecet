@@ -42,6 +42,8 @@
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
 #include "customer_service.h"    /* cc08==4 customer-service session_init / master_tick */
 #include "scene1_shop_walker.h"  /* scene1_customer_npc_pump (FUN_0047019f) — chibi crowd */
+#include "scene1_actor_say.h"   /* actor_say_tick (FUN_00485861, the LAB_004893ff tail) */
+#include "scene1_day_close.h"   /* the night sequence (DAT_0438b4e0) + period advance */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -397,6 +399,7 @@ static int   s_cc08             = 1;              /* DAT_0438cc08 */
  * top of scene1_player_ctrl_tick each frame. */
 static int   s_cc08_entered_this_frame = 0;       /* walk-arm entry 1→4 / 1→0 this frame */
 static int   s_companion_skip_frame   = 0;       /* arm ended at LABEL_675: no FUN_0048a833 */
+static int   s_no_b850_frame          = 0;       /* arm ended at LABEL_132/133: companion, no b850 */
 static int   s_cc08_menu_open_this_frame = 0;     /* counter menu "Open Store" 10→4 this frame */
 static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
@@ -636,6 +639,38 @@ void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
 void player_ctrl_set_facing_angle(float angle)
 {
     s_player_facing = angle;
+}
+
+void player_ctrl_emote_reset(void) { s_emote_level = 0; s_emote_type = 0; }
+int  player_ctrl_db048(void)       { return s_db048; }
+void player_ctrl_set_db048(int v)  { s_db048 = v; }
+int  player_ctrl_no_b850_this_frame(void) { return s_no_b850_frame; }
+
+/* FUN_00436f97 blocks 11-15 (all.c:37155-37370), the player-controller part:
+ * per actor i the walk velocity (DAT_056daabc + 3·i) = 0, the record facing
+ * octant (DAT_056dab00 + 0xb·i) = 4, its flags (+0x1c..+0x28) = 0, the scales
+ * (DAT_056dae18[i], DAT_056dae24[i]) = 1.0; then db05c = π (DAT_056db05c),
+ * db048/db04c = 0, the emote ramp (DAT_056db000/004) = 0, the after-image
+ * counters (DAT_056daae0, DAT_056dae14) = 0.  The anim fields are kept. */
+void player_ctrl_stage_entry_reset(void)
+{
+    for (int i = 0; i < PC_NUM_ACTORS; i++) {
+        s_actor_record[i][CHR_ACTOR_FACING] = 4;
+        s_actor_record[i][CHR_ACTOR_FLAG7]  = 0;
+        s_actor_record[i][CHR_ACTOR_FLAG8]  = 0;
+        s_actor_record[i][CHR_ACTOR_FLAG9]  = 0;
+        s_actor_record[i][CHR_ACTOR_AGE]    = 0;
+        s_actor_scale_xz[i] = 1.0f;
+        s_actor_scale_y[i]  = 1.0f;
+    }
+    s_player_vel[0] = s_player_vel[1] = s_player_vel[2] = 0.0f;
+    s_player_facing = 3.1415927f;
+    s_db048 = 0;
+    s_db04c = 0;
+    s_emote_level = 0;
+    s_emote_type  = 0;
+    s_burst_count = 0;
+    s_decay_spawn = 0;
 }
 
 /* ── FUN_0048670f cc08 dispatch state writer + accessors (Chip 4) ──────────── */
@@ -1014,13 +1049,12 @@ static int player_ctrl_scene_transition_tick(void)
     return 0;
 }
 
-/* FUN_00485861 (0x485861, 280 B): the FUN_0048670f tail screen-rumble update
- * (LAB_004893ff).  Gated on DAT_0438b764 (BSS-zero in HOUSE free-roam → the
- * whole body is skipped), so the faithful free-roam behaviour is a no-op;
- * structural stub. */
+/* FUN_00485861 (0x485861, 280 B): the FUN_0048670f tail (LAB_004893ff) — the
+ * actor-say bubble driver, gated on DAT_0438b764 (scene1_actor_say.c). */
 static void player_ctrl_tail_rumble(void)
 {
-    CALL_TRACE_ENTER_STUB(0x485861u);
+    CALL_TRACE_ENTER(0x485861u);
+    actor_say_tick();
 }
 
 /* ── cc08==1 arm inert sub-regions (FUN_0048670f all.c:919-1313) ─────────────
@@ -1321,6 +1355,7 @@ int player_ctrl_companion_skip_this_frame(void)
 void player_ctrl_cc08_markers_frame_clear(void)
 {
     s_companion_skip_frame = 0;
+    s_no_b850_frame = 0;
     s_cc08_entered_this_frame = 0;
     s_cc08_left_4_this_frame  = 0;
     s_cc08_menu_open_this_frame = 0;
@@ -2483,6 +2518,7 @@ void scene1_player_ctrl_tick(void)
      * (the engine's goto LABEL_675: no anim tick, no FUN_0048a833). */
     if (player_ctrl_worldmap_exit_stage2()) {
         s_companion_skip_frame = 1;
+        actor_say_tick();                /* LABEL_675 tail: FUN_00485861 */
         return;
     }
 
@@ -2577,9 +2613,30 @@ void scene1_player_ctrl_tick(void)
     if (s_cc08 != 4)
         scene1_camera_set_freeroam_class();
 
+    /* the free-roam period advance (asm 0x486c87, return from town) and the
+     * night re-layout re-run while b4e0 == 1 (0x486d04) — both before the
+     * slide ramp reads cc08. */
+    shop_period_return_tick(s_cc08, s_cc04);
+    day_close_relayout_tick();
+
     /* counter-menu slide ramp (all.c:96212-96225): after the grid rebuild,
      * before the cc08 dispatch, on this frame's dispatch value. */
     counter_menu_slide_tick(s_cc08);
+
+    /* the day-close exchange (asm 0x486e27, after b924++): while b4e0 > 0 the
+     * frame leaves through LABEL_132 — the player anim tick, FUN_0048a833 (no
+     * FUN_0048b850, so db054 holds), then the LABEL_675 tail (FUN_00486435 +
+     * FUN_00485861) — and skips the cc08 dispatch. */
+    if (day_close_machine_tick()) {
+        s_no_b850_frame = 1;
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+        scene1_companion_ctrl_tick();
+        s_companion_ticked_in_b850 = 1;
+        player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                     &g_scene1_player_pos[2]);
+        actor_say_tick();
+        return;
+    }
 
     if (s_cc08 == 1 &&
         !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&

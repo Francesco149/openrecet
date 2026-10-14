@@ -122,6 +122,10 @@ float scene1_camera_class_off_z(void);
  * transition gets a clean start. */
 void scene1_camera_init(void);
 
+/* DAT_0438cc68 = 1: the next pose compute snaps the smoothed eye/lookat
+ * instead of easing (FUN_00436f97, FUN_004852fb's collector / day-15 arms). */
+void scene1_camera_snap_next(void);
+
 /* Default-path port of FUN_00441c3e.  Reads:
  *   - `g_scene1_camera_char_mode` (stand-in for the +0x2dfc8 char rec)
  *   - `g_scene1_camera_stage_view_mode` (stand-in for the +0x6cf stage rec)

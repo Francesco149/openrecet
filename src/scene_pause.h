@@ -221,6 +221,13 @@ void pause_set_menu_inputs(int status_count, int stage_type);
  * the unpause) when already fully paused. */
 void pause_dispatch(int action);
 
+/* The calendar / quota date math (FUN_00482033 / FUN_00482059 / FUN_0048d997),
+ * on the active working bank.  pause_period_end writes its cache (work
+ * dword 0xb0fa) like the engine. */
+int pause_day_index(const uint32_t *bank);
+int pause_period_end(void);
+int pause_weekly_quota(void);
+
 /* FUN_0047f2f6 — build the menu entry-type list from the captured
  * inputs + g_pause_saved_mode, reset the cursor/anim, run the FPU
  * layout init. Called at ramp==3 (mode just flipped to 9). */
