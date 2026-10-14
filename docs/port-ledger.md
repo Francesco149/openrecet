@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (79 full + 12 stub), implemented 0, source-referenced 539, discovered 1918 → 630 referenced-or-better (24.7%)
+- **inventory:** instrumented **91** (80 full + 11 stub), implemented 0, source-referenced 544, discovered 1913 → 635 referenced-or-better (24.9%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 8
 
@@ -35,8 +35,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4319d6 | FUN_004319d6 | 170 | ✓ |  | floor_layout.h, scene1_combat_sm.c, scene1_combat_sm.h (+4) |
 | 0x43244c | FUN_0043244c | 39 | ✓ |  | scene1_preload.c, stage_palette.c, stage_palette.h |
 | 0x434d6a | FUN_00434d6a | 85 | ✓ |  | scene1_player_ctrl.c, scene_guild.c, scene_title.c (+2) |
-| 0x435117 | FUN_00435117 | 615 | ✓ | stub | scene1_hud.c, scene_guild.c, scene_pause.c (+2) |
-| 0x43537e | FUN_0043537e | 660 | ✓ | stub | choice_box.c, choice_box.h, customer_service_render.c (+7) |
+| 0x435117 | FUN_00435117 | 615 | ✓ |  | scene1_hud.c, scene_adv_guild.c, scene_guild.c (+3) |
+| 0x43537e | FUN_0043537e | 660 | ✓ | stub | choice_box.c, choice_box.h, customer_service_render.c (+8) |
 | 0x4356cd | FUN_004356cd | 67 | ✓ |  | scene_pause.c, scene_title.c, sim.c (+3) |
 | 0x435747 | FUN_00435747 | 300 | ✓ |  | choice_box.c, choice_box.h, main.c (+8) |
 | 0x435c98 | FUN_00435c98 | 309 | ✓ |  | chara_equip.h, chara_skills.h, save_bank.h (+9) |
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (539) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (544) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -276,7 +276,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4532bc | FUN_004532bc | 29 | ✓ |  | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ |  | main.c, scene_day_end.c, scene_pause.c (+1) |
 | 0x45337b | FUN_0045337b | 9 | ✓ |  | esc_dispatch.h, scene_pause.c, sim.c (+1) |
-| 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+6) |
+| 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+10) |
 | 0x4536b9 | FUN_004536b9 | 9 | ✓ |  | scene1_day_close.c, scene1_day_close.h, scene_day_end.c (+1) |
 | 0x4536cb | FUN_004536cb | 1745 | ✓ |  | esc_dispatch.c, font.h, input_segtrace.h (+13) |
 | 0x453d9c | FUN_00453d9c | 243 | ✓ |  | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
@@ -296,6 +296,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4597dd | FUN_004597dd | 106 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x459847 | FUN_00459847 | 1444 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+3) |
 | 0x45bcea | FUN_0045bcea | 56 | ✓ |  | scene_adv_guild.c |
+| 0x45bd36 | FUN_0045bd36 | 140 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h, scene_pause.c |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ |  | party_roster.h, scene_adv_guild.c, scene_adv_guild.h (+1) |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ |  | scene1_tutorial_dispatch.h, scene_adv_guild.c, scene_adv_guild.h (+1) |
 | 0x45cc1e | FUN_0045cc1e | 103 | ✓ |  | main.c, scene_adv_guild.c, scene_adv_guild.h |
@@ -357,6 +358,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x466a9a | FUN_00466a9a | 225 | ✓ |  | customer_service_render.c |
 | 0x466b7b | FUN_00466b7b | 5305 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x468034 | FUN_00468034 | 253 | ✓ |  | customer_service_render.c |
+| 0x468131 | FUN_00468131 | 117 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_adv_guild.c (+1) |
+| 0x4681a6 | FUN_004681a6 | 45 |  |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
 | 0x4681d3 | FUN_004681d3 | 8 | ✓ |  | customer_service.c, encyclopedia.c, scene1_display_menu.h (+2) |
 | 0x4681db | FUN_004681db | 11 | ✓ |  | customer_service.c, encyclopedia.c, scene1_display_menu.c (+2) |
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ |  | customer_service.c, scene1_display_menu.h, scene_adv_guild.c (+1) |
@@ -364,8 +367,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x468233 | FUN_00468233 | 19 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_adv_guild.c |
 | 0x468246 | FUN_00468246 | 64 |  |  | scene1_display_menu.h |
 | 0x468286 | FUN_00468286 | 14 | ✓ |  | customer_service.c, encyclopedia.c, scene1_display_menu.c (+2) |
-| 0x4682b9 | FUN_004682b9 | 6 | ✓ |  | scene_pause.c |
-| 0x4682bf | FUN_004682bf | 6 | ✓ |  | scene_pause.c, stage_load_pulse.h |
+| 0x468294 | FUN_00468294 | 37 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h |
+| 0x4682b9 | FUN_004682b9 | 6 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
+| 0x4682bf | FUN_004682bf | 6 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_pause.c (+1) |
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_pause.c (+1) |
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ |  | scene_adv_guild.c, scene_pause.c, stage_load_pulse.h |
@@ -373,7 +377,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x468338 | FUN_00468338 | 2490 | ✓ |  | customer_service.c, main.c, party_roster.h (+9) |
 | 0x468d22 | FUN_00468d22 | 73 | ✓ |  | customer_service.c, encyclopedia.c, encyclopedia.h (+6) |
 | 0x468d6b | FUN_00468d6b | 113 | ✓ |  | customer_service.c |
-| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, scene1_display_menu.c, scene_adv_guild.c |
+| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, customer_service.h, scene1_display_menu.c (+1) |
 | 0x468fd0 | FUN_00468fd0 | 328 | ✓ |  | scene_guild.c |
 | 0x469241 | FUN_00469241 | 99 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+2) |
 | 0x469351 | FUN_00469351 | 73 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h |
@@ -386,7 +390,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ |  | scene1_display_menu.c |
 | 0x46a336 | FUN_0046a336 | 2722 | ✓ |  | chara_equip.c, chara_equip.h, encyclopedia.c (+1) |
 | 0x46add8 | FUN_0046add8 | 562 | ✓ |  | scene1_display_menu.c, scene_adv_guild.c |
-| 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | main.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
+| 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | customer_service.c, main.c, scene1_display_menu.c (+4) |
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ |  | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ |  | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ |  | sim.c |
@@ -479,7 +483,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47cbcb | FUN_0047cbcb | 855 | ✓ |  | font.h, font_alloc.c, font_alloc.h (+3) |
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ |  | font.h, font_upload.c, font_upload.h |
 | 0x47d0ea | FUN_0047d0ea | 98 | ✓ |  | font_draw.c, font_draw.h |
-| 0x47d14c | FUN_0047d14c | 399 | ✓ |  | choice_box.c, font_draw.h, scene1_counter_menu.c (+4) |
+| 0x47d14c | FUN_0047d14c | 399 | ✓ |  | choice_box.c, font_draw.h, scene1_counter_menu.c (+5) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ |  | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ |  | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ |  | sim.c |
@@ -570,6 +574,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49126b | FUN_0049126b | 115 | ✓ |  | encyclopedia.c, encyclopedia.h, scene1_display_menu.c |
 | 0x4912de | FUN_004912de | 820 | ✓ |  | tables.c, tables_item.c, tables_item.h |
 | 0x491612 | FUN_00491612 | 6 | ✓ |  | scene1_display_menu.c |
+| 0x49161d | FUN_0049161d | 138 | ✓ |  | scene_guild.c, scene_guild.h, scene_pause.c |
 | 0x4916a7 | FUN_004916a7 | 167 | ✓ |  | scene_guild.c |
 | 0x49174e | FUN_0049174e | 354 |  |  | scene_guild.c, scene_guild.h, scene_worldmap.c |
 | 0x4918b0 | FUN_004918b0 | 191 | ✓ |  | scene_guild.c |
@@ -597,7 +602,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ |  | main.c, music.h, scene_pause.c (+3) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ |  | main.c, save_io.c, save_io.h (+2) |
 | 0x49a585 | FUN_0049a585 | 25 | ✓ |  | esc_dispatch.c, esc_dispatch.h |
-| 0x49a59e | FUN_0049a59e | 3719 | ✓ |  | audio_fade.h, d3d_pool.h, main.c (+14) |
+| 0x49a59e | FUN_0049a59e | 3719 | ✓ |  | audio_fade.h, d3d_pool.h, main.c (+16) |
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ |  | scene_title.c, title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ |  | save_picker.c, save_picker.h, scene_pause.c (+3) |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ |  | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |

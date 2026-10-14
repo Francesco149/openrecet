@@ -5,23 +5,23 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "inv_instrumented": 91,
-  "inv_instrumented_full": 79,
-  "inv_instrumented_stub": 12,
+  "inv_instrumented_full": 80,
+  "inv_instrumented_stub": 11,
   "inv_implemented": 0,
-  "inv_source_referenced": 539,
-  "inv_discovered": 1918,
-  "referenced_or_better": 630,
-  "pct_referenced_or_better": 24.7,
+  "inv_source_referenced": 544,
+  "inv_discovered": 1913,
+  "referenced_or_better": 635,
+  "pct_referenced_or_better": 24.9,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 57,
-  "verified": 79,
-  "stubbed": 12,
-  "ported": 539,
-  "unported": 1918,
-  "touched": 630,
-  "pct_touched": 24.7,
+  "port_debt": 58,
+  "verified": 80,
+  "stubbed": 11,
+  "ported": 544,
+  "unported": 1913,
+  "touched": 635,
+  "pct_touched": 24.9,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -5354,21 +5354,20 @@
    "evidence": {
     "discovered": true,
     "source_referenced": true,
-    "implemented": false,
+    "implemented": true,
     "instrumented": true,
-    "instrumented_stub": true
+    "instrumented_stub": false
    },
-   "quality_flags": [
-    "stub"
-   ],
+   "quality_flags": [],
    "src": [
     "src/scene1_hud.c",
+    "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
    ],
-   "status": "stubbed"
+   "status": "verified"
   },
   {
    "va": "0x43537e",
@@ -5394,6 +5393,7 @@
     "src/customer_service_render.c",
     "src/scene1_dialogue_draw.c",
     "src/scene1_hud.c",
+    "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/skip_event.h",
@@ -8373,7 +8373,11 @@
     "src/scene1_day_close.c",
     "src/scene1_day_close.h",
     "src/scene1_intro_dialogue.h",
+    "src/scene_adv_guild.c",
+    "src/scene_adv_guild.h",
     "src/scene_day_end.h",
+    "src/scene_guild.c",
+    "src/scene_guild.h",
     "src/scene_pause.c",
     "src/scene_pause.h",
     "src/skip_event.c"
@@ -9253,18 +9257,20 @@
    "size": 5,
    "is_thunk": true,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x45bd36",
@@ -9272,18 +9278,22 @@
    "size": 140,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_adv_guild.c",
+    "src/scene_adv_guild.h",
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x45bdc2",
@@ -10811,18 +10821,23 @@
    "size": 117,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene_adv_guild.c",
+    "src/scene_guild.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4681a6",
@@ -10830,18 +10845,22 @@
    "size": 45,
    "is_thunk": false,
    "is_call_target": false,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4681d3",
@@ -11050,18 +11069,21 @@
    "size": 37,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4682b9",
@@ -11080,6 +11102,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -11101,6 +11125,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_adv_guild.c",
+    "src/scene_guild.c",
     "src/scene_pause.c",
     "src/stage_load_pulse.h"
    ],
@@ -11404,6 +11430,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/customer_service.h",
     "src/scene1_display_menu.c",
     "src/scene_adv_guild.c"
    ],
@@ -11848,6 +11875,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
@@ -15370,7 +15398,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_fx_overlays.c",
     "src/scene1_merchant_hud.c",
-    "src/scene_worldmap.c"
+    "src/scene_worldmap.c",
+    "src/title_save_dialog.c"
    ],
    "status": "ported"
   },
@@ -18668,18 +18697,20 @@
    "size": 5,
    "is_thunk": true,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49161d",
@@ -18687,18 +18718,22 @@
    "size": 138,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h",
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4916a7",
@@ -20418,6 +20453,8 @@
     "src/scene.h",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
+    "src/scene_adv_guild.c",
+    "src/scene_adv_guild.h",
     "src/scene_new_game.h",
     "src/scene_title.c",
     "src/scene_title.h",

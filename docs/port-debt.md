@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **38**
-- distinct retiring engine functions: **30**
+- total open debts: **39**
+- distinct retiring engine functions: **31**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **8 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), focused (3), house-teardown (1), stage-scratch (1).
+> ⚠️  **9 tag(s) use an unknown kind**: continue-arm (1), deferred (1), door-exit-reset (1), door-proximity (1), focused (3), house-teardown (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -56,6 +56,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0047f172 | 1 |
 | FUN_004864fd | 1 |
 | FUN_0048e49c | 1 |
+| FUN_0049a59e | 1 |
 | FUN_0049d2e5 | 1 |
 | FUN_004cdd9f | 1 |
 | FUN_005031e4 | 1 |
@@ -70,20 +71,20 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
-| FUN_00434ceb | src/scene_guild.c:383 | the message box is unported. |
+| FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2554 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_00452809 | src/scene_adv_guild.c:223 | the blackout (DAT_0438bf74) |
-| FUN_0045bcea | src/scene_adv_guild.c:260 | DAT_0438b4dc has no port mirror yet. |
-| FUN_004682ee | src/scene_adv_guild.c:549 | the tab stays where the open put it. |
+| FUN_00452809 | src/scene_adv_guild.c:250 | the blackout (DAT_0438bf74) |
+| FUN_0045bcea | src/scene_adv_guild.c:287 | DAT_0438b4dc has no port mirror yet. |
+| FUN_004682ee | src/scene_adv_guild.c:576 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
-| FUN_00468fd0 | src/scene_guild.c:426 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:742 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
-| FUN_0047f172 | src/scene_adv_guild.c:168 | no port backup bank; retire with the dungeon. |
+| FUN_00468fd0 | src/scene_guild.c:439 | the removal is unported, |
+| FUN_00469b3a | src/scene1_display_menu.c:780 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
+| FUN_0047f172 | src/scene_adv_guild.c:199 | no port backup bank; retire with the dungeon. |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
 | FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
-| NONE | src/scene_adv_guild.c:337 | Depart loads the dungeon; no dungeon port yet. |
+| NONE | src/scene_adv_guild.c:364 | Depart loads the dungeon; no dungeon port yet. |
 
 ## synthetic-data (0)
 
@@ -96,7 +97,7 @@ _none_
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_00453384 | src/scene_pause.c:290 | the engine has a thicket of mode-1 |
+| FUN_00453384 | src/scene_pause.c:291 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:434 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
@@ -108,7 +109,7 @@ _none_
 |--------|----------|------------------|
 | FUN_00436f97 | src/scene1_preload.c:66 | DAT_0438b4dc has no port mirror; |
 | FUN_0046602e | src/customer_service.c:231 | always -1 in the port — its only writer, |
-| NONE | src/scene.c:51 | active save-slot pinned to bank 0; |
+| NONE | src/scene.c:52 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
 
@@ -122,6 +123,7 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
+| continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1273 | the engine also zeroes |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1230 | the engine also gates on a |

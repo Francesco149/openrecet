@@ -1,8 +1,18 @@
-/* rh_shot.c — screenshot the game window at exact frames (--shot-at F[,F..]).
- * PrintWindow(PW_RENDERFULLCONTENT) reads the DWM redirection surface, so it works
- * for the off-screen --quiet window too. Written as PNG (stored deflate blocks, no
+/* rh_shot.c — screenshot the game at exact frames (--shot-at F[,F..]).
+ * Primary: read retail's D3D8 backbuffer through its device (DAT_073dfcbc) with the
+ * v3 CopyRects-through-sysmem helper — the frame tick F presented, deterministic.
+ * Fallback (no device / readback failed): PrintWindow(PW_RENDERFULLCONTENT) on the
+ * DWM redirection surface. That one lags at rhost speed: at ~1000 fps DWM composes
+ * only now and then, and a shot came out up to ~1000 frames stale (adv-guild-pack-
+ * leave f8600 showed the f7600 picture). Written as PNG (stored deflate blocks, no
  * zlib dependency) to <rundir>\shot_fNNNNNN.png. */
 #include "rhost.h"
+#define COBJMACROS
+#define CINTERFACE
+#include <d3d8.h>
+#include "../trace_studio_v3/format/orv3_format.h"   /* orv3_readback_bgra */
+
+#define DAT_D3D_DEVICE 0x73dfcbcu   /* retail's IDirect3DDevice8* */
 
 static uint32_t crc_tab[256];
 static uint32_t crc32_upd(uint32_t c, const uint8_t *p, size_t n)
@@ -64,8 +74,25 @@ void rh_shot_warm(void)
     SelectObject(mdc, old); DeleteObject(bm); DeleteDC(mdc); ReleaseDC(hw, wdc);
 }
 
+static int shot_from_device(const char *path, const char *tag)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)(uintptr_t)G32(DAT_D3D_DEVICE);
+    if (!dev) return -1;
+    uint32_t w = 0, h = 0;
+    uint8_t *px = orv3_readback_bgra(dev, &w, &h);   /* B,G,R,X per pixel */
+    if (!px) return -1;
+    uint8_t *rgb = malloc((size_t)w * h * 3);
+    for (uint32_t i = 0; i < w * h; i++) { rgb[3 * i] = px[4 * i + 2]; rgb[3 * i + 1] = px[4 * i + 1]; rgb[3 * i + 2] = px[4 * i]; }
+    int r = write_png(path, rgb, (int)w, (int)h);
+    free(rgb); free(px);
+    if (r == 0) rh_log("shot %s %ux%u (backbuffer) -> %s\n", tag, w, h, path);
+    return r;
+}
+
 void rh_shot(const char *tag)
 {
+    char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, tag);
+    if (shot_from_device(path, tag) == 0) return;
     HWND hw = NULL; EnumWindows(find_wnd, (LPARAM)&hw);
     if (!hw) { rh_log("shot %s: no window\n", tag); return; }
     RECT rc; GetClientRect(hw, &rc);
@@ -79,8 +106,7 @@ void rh_shot(const char *tag)
     GdiFlush();
     uint8_t *rgb = malloc((size_t)w * h * 3);
     for (int i = 0; i < w * h; i++) { const uint8_t *p = (const uint8_t *)bits + 4 * i; rgb[3 * i] = p[2]; rgb[3 * i + 1] = p[1]; rgb[3 * i + 2] = p[0]; }
-    char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, tag);
     write_png(path, rgb, w, h);
     free(rgb); SelectObject(mdc, old); DeleteObject(bm); DeleteDC(mdc); ReleaseDC(hw, wdc);
-    rh_log("shot %s %dx%d -> %s\n", tag, w, h, path);
+    rh_log("shot %s %dx%d (PrintWindow) -> %s\n", tag, w, h, path);
 }

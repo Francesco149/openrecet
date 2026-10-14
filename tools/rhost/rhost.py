@@ -438,6 +438,9 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
     open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
     ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; exit 0")
     scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
+    # the port reads recet.ini next to its exe: give it retail's (rhost's canonical) one — without it
+    # the port ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame
+    scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/port/recet.ini")
     scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
     print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
     for f in ("anchors.jsonl", *fetch):
@@ -678,6 +681,9 @@ def cmd_portstate(a):
     P = parse_post(os.path.join(pdir_l, "state.log"))
     common_f = sorted(set(R) & set(P))
     print(f"frames: retail {len(R)} / port {len(P)} / both {len(common_f)}")
+    if not common_f:
+        print("no frames on both sides — nothing compared (port run failed? see the port state.log)")
+        return 2
     rcw = sorted(set(re.findall(r"^frame \d+ .*? cw=([0-9a-f]{4})", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)))
     pcw = re.findall(r"^cw (\d+) ([0-9a-f]{4})", open(os.path.join(pdir_l, "state.log")).read(), re.M)
     print(f"x87 CW: retail {','.join(rcw) or '?'} / port " + (", ".join(f"{c}@f{f}" for f, c in pcw) or "?"))

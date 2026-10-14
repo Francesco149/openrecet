@@ -18,6 +18,10 @@ python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail 
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 ```
+`--shot-at F` reads retail's backbuffer through its D3D device (`DAT_073dfcbc`) at the
+tick-F boundary — the frame tick F presented, deterministic (PrintWindow, the fallback,
+lags up to ~1000 frames at rhost speed). Port runs get rhost's canonical `recet.ini`
+next to the exe, so both sides render 1024×768 with the same settings.
 `portrng` labels: tick N's draws are `fN` on both sides; `--log-rand` tags draws
 made by a deferred loader worker (the boundary before tick N, logged `fN-1 … worker`)
 and portrng counts them in tick N, as the port does. Caveat: a port caller reached
