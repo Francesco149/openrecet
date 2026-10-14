@@ -612,11 +612,12 @@ def cmd_portrng(a):
 
 # The regression gate (docs/FRONT.md §Regression gate): every row is expected IDENTICAL.
 GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save-commit-empty", "day2-save-commit",
-                                      "multiday-tutorials-suggest")]
+                                      "multiday-tutorials-suggest", "buy-from-seller-guild-intro")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
-                                      "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest")])
+                                      "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
+                                      "buy-from-seller-guild-intro")])
 
 
 def cmd_gates(a):
