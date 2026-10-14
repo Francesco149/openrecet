@@ -131,13 +131,14 @@ int32_t scene1_companion_wander_t(void)     { return s_wander_t; }
 float   scene1_companion_wander_tx(void)    { return s_wander_tx; }
 float   scene1_companion_wander_tz(void)    { return s_wander_tz; }
 
-/* FUN_0048a833 local v32: follow the player (FUN_0048a4d1) rather than wander.
- * PORT-DEBT(stub, FUN_0049e163): retail also forces it while
- * DAT_0438b928 == 2 && DAT_0438b924 < 60 — b928 = 2 is written only by the
- * unported dungeon return FUN_0049e163. */
+/* FUN_0048a833 local v32: follow the player (FUN_0048a4d1) rather than wander —
+ * outside the shop, before the wander unlocks, or for the first 60 ticks after
+ * a world-map return (DAT_0438b928 == 2 && DAT_0438b924 < 60, FUN_0049e163). */
 static int co_follow_mode(void)
 {
     if (g_stage_palette && g_stage_palette->mode != 0)
+        return 1;
+    if (scene1_beat_flag() == 2 && scene1_beat_counter() < 60)
         return 1;
     const uint8_t *wr = save_work_bank_at(save_work_active_slot());
     if (!wr)

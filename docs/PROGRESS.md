@@ -7,6 +7,47 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (afternoon) — the market trip, the return home, the Day-3 morning
+`multiday-tutorials-suggest` (a native 34.8k-frame recording, no Frida pins: guild visit
+with 6 purchases, home, day close, Day 3 morning tutorial, a second market trip, the
+rank-2 request lesson, save) now replays **RNG- and save.dat-identical**. Fixes in frame
+order:
+- **World-map exit** (FUN_0049e163 is the mode-8 tick, not a "dungeon return"): every
+  destination runs FUN_00436f97 in the exit tick (b4dc still the house stage); the home
+  arm sets work +0x2cdf4 = 1 (door seat), b4e0 = 0, **b928 = 2**, FUN_004060ff. b928 is
+  cleared only at a title load (FUN_0049a59e) / dungeon entry, not on house loads.
+- **FUN_0045de68** (town-event probe) ported (`src/event_probe.c`); the world-map
+  highlight uses it. `WM_DW_05A0` was 0xb3a2, DAT_045105a0 is work dword 0xb382.
+- **FUN_004922c0** (the market/guild tick) rewritten on retail's control flow: the
+  entry-tick-2 arms (first visit, town events, iv6_2/3/4), B/Leave → the c2c (first
+  Leave → iv1_16 + gift) / c28 (→ world map) fades, the buy price ×trend with retail's
+  two float spills, purchase bookkeeping (today's score +3, the first-buy flags, the
+  11-item first-visit cap, iv1_15), the expansion Yes/No. FUN_0049174e now runs at the
+  world-map exit and sets work 0xb382/0xb381 = 1 (the trip home costs a period).
+  FUN_00406584's parts run every mode-6 frame (a dialogue only skips the tick —
+  rhost guild-ui-flow: b154 advances through iv1_3).
+- **Door-exit stage 2** (DAT_074b2ec4) sat before the master-tick prologue; retail runs
+  the whole prologue (window NPCs drift through the fade, f1606–1621) and only then
+  the stage-2 wait → LABEL_675 (the room clamp + FUN_00485861).
+- **FUN_0044bd0d** ported whole (was iv1_5…iv2_6): iv7_1, iv1_4, iv0_6, iv1_17/18,
+  iv2_14/15, iv0_17, iv12_x, iv4_4/4_5, the survival opener, the story arms; the
+  b928 gate wraps the whole cascade. The prologue machine sets the iv1_1/iv1_2 flags.
+- **FUN_00468338 re-open** (param_2 == 0) clamps each tab's cursor/scroll to the rebuilt
+  list (was debt). FUN_00436f97 (in-scene) clears cbe8 + the faced cell, and calls
+  **FUN_004852fb** on a b928 == 1 day (world-map exit on a morning-beat day).
+- **House loader seat**: work +0x2cdf4 set → the front door (was always the counter).
+- **The return beat** (b928 == 2): for 60 ticks both actors idle and Tear follows
+  (FUN_0048a833 v32); input waits until b924 45; SE 0x150 + 00re_sys10 at b924 1.
+- The morning beat no longer hides the rank arrivals (retail checks them from b924 192).
+- **FUN_00461c00** op 10 writes DAT_0730b5b0 = 2 (the port wrote the script-file index)
+  and waits on the pick; op 11 branches on the picked item's attr bit 1.
+- **FUN_0049126b** (IDA-unlisted, called by FUN_00468d22): the item's encyclopedia
+  "discovered" byte + the 100% check (+0x2bd10).
+- Tooling: state_va mirrors for the window NPCs (73a7f80+i·100), b928/b924, cbe8,
+  cbfc/cc00, the scripted-sell PC; `rhost.py gates` adds multiday (portsave + portrng).
+- Evidence: `rhost.py gates` 16/16 (portsave + portrng multiday-tutorials-suggest
+  IDENTICAL f1–f34810); host tests 3455/0.
+
 ## 2026-10-14 (morning) — boot copies the save arena into the working arena
 - FUN_004902fe (boot save load) ends every path — loaded, re-initialised, no file — with
   memcpy(DAT_044e2c88, DAT_056e5770, arena): the working banks start as the save's. The

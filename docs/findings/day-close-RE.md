@@ -40,7 +40,8 @@ draws, f7158 the second warmup).
 ## 3. The exchange — `DAT_0438b4e0` 2..160
 
 At asm 0x486e27 (after `b924++`), while `b4e0 > 0`: `++b4e0` (held while
-`b928 == 2 && b924 < 200`, the dungeon return), at 2 the variant
+`b928 == 2 && b924 < 200`, the world-map return — FUN_0049e163's home arm; `v6`
+keeps the un-incremented b4e0, so the `v6 == N` beats repeat while held), at 2 the variant
 `DAT_074b2eec = (+1) % 3`. Lines (via the actor-say driver, §4):
 
 | variant | b4e0 10 (Recette, bubble left) | close | reply (Tear, bubble right) |

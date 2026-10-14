@@ -1,5 +1,14 @@
 # Merchant's Guild scene (engine mode 6 / Market) — RE + port plan
 
+> **2026-10-14:** the tick `FUN_004922c0` is now ported on retail's control flow
+> (`src/scene_guild.c` header lists the remaining debts: fusion, the Sell commit's
+> FUN_00468fd0, the expansion's FUN_004864fd, the FUN_00434ceb box). rhost
+> `multiday-tutorials-suggest` (6 purchases + Leave) replays RNG- and save-identical.
+> Corrections to the notes below: the scene init `FUN_0049174e` runs in the world-map
+> exit tick (FUN_00490e16), not the loader, and sets work 0xb382 / 0xb381 = 1; the
+> update dispatch runs FUN_00406584 + FUN_0040fb3a every mode-6 frame (only the tick
+> waits for a dialogue); the buy price is `ftol(f32(f32(price·0.7f)·trend))`.
+
 Status: **scene shell + first-visit cutscene + post-cutscene MAIN MENU LANDED**
 (`a998fb4` 2026-06-10, `06e9fdf`+`6ea5a3a` 2026-06-11) — the menu (panel/options/HUD/
 bubble/cursor) renders pixel-identical to retail at rest (see "Main menu UI" below). The

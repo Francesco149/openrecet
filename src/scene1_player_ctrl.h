@@ -387,6 +387,8 @@ void player_ctrl_set_db048(int v);
  * facing octant 4 + flags 0 + scale 1.0, the walk velocity 0, the facing
  * angle db05c = π, db048/db04c/emote/burst counters 0. */
 void player_ctrl_stage_entry_reset(void);
+void player_ctrl_display_latch_reset(void);   /* DAT_0438cbe8 = 0 */
+int  player_ctrl_display_latch(void);
 
 /* The frame left FUN_0048670f through LABEL_132/133 with no FUN_0048b850
  * (the day-close exchange): the companion still ticks, db054 does not. */

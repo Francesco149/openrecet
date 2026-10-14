@@ -12,6 +12,7 @@
 #include "scene1_top_hud.h" /* load DAT_0438b918 money from the working slot */
 #include "stage_post_load.h"
 #include "worker_load.h"
+#include "scene1_tutorial_dispatch.h" /* scene1_beat_set_flag — DAT_0438b928 */
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
 int32_t g_scene_substate = 0;
@@ -129,6 +130,7 @@ void scene_post_fade_init(void)
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
+    scene1_beat_set_flag(0);             /* DAT_0438b928 = 0 */
 
     /* Arm the opening-prologue dialogue (iv1_1 → iv1_2) — NEW GAME only.
      * It drives the TEXT_ANIM anchors AND the inter-script loading

@@ -110,6 +110,8 @@ void scene1_house_morning_reseat(void)
     wb[0x2bd07] = 0;
 }
 
+void day_close_arm(void) { s_b4e0 = 1; }
+
 void day_close_begin(void)
 {
     s_b4e0 = 1;
@@ -140,10 +142,10 @@ int day_close_machine_tick(void)
 {
     if (s_b4e0 <= 0)
         return 0;
-    /* The count holds while DAT_0438b928 == 2 && DAT_0438b924 < 200 — b928 = 2
-     * is written only by the dungeon return FUN_0049e163
-     * (PORT-DEBT(stub, FUN_0049e163)); in the house it always advances. */
-    int v = ++s_b4e0;
+    /* The count holds while DAT_0438b928 == 2 && DAT_0438b924 < 200 (the first
+     * 200 ticks after a world-map return, FUN_0049e163's home arm): v6 keeps
+     * the un-incremented b4e0, so the v == N beats below repeat while held. */
+    int v = (scene1_beat_flag() != 2 || scene1_beat_counter() >= 200) ? ++s_b4e0 : s_b4e0;
     if (v == 2)
         s_variant = (s_variant + 1) % 3;
     const int k = s_variant;

@@ -172,6 +172,9 @@ void  title_save_dialog_set_shake_delta(float dx, float dy)
  * FUN_00499519(0x143) plays SE id 0x143 = "menu confirm".  Mapped to
  * our `audio_play_se_by_id(0x143)`.
  */
+/* FUN_00434ce3: DAT_0438b148 = 0 (the message box shut). */
+void title_save_dialog_gate_reset(void) { g_active_counter = 0; }
+
 int title_save_dialog_gate_tick(void)
 {
     /* E.2 probe — FUN_00434d6a @ 0x434d6a. Full body parity. */

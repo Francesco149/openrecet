@@ -90,6 +90,9 @@ typedef struct {
 
 /* The live NPC array (inspection / host tests). */
 extern scene1_bg_npc_t g_scene1_bg_npc[SCENE1_BG_NPC_COUNT];
+/* --state-va mirrors: the spawn cursor DAT_073a8bb4, the warmup latch DAT_073a8bb8. */
+int scene1_bg_npc_dbg_cursor(void);
+int scene1_bg_npc_dbg_warmup_done(void);
 
 /* type → sprite-sheet char id (engine DAT_005c7ce0[type*2], static .data).
  * Returns -1 for an unmapped type. */

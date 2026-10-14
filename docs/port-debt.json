@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 31,
+  "total": 33,
   "by_kind": {
-   "stub": 10,
+   "stub": 14,
    "synthetic-data": 0,
-   "simplified": 9,
+   "simplified": 8,
    "hardcode": 3,
    "scaffold": 0,
    "force-flag": 0
@@ -15,16 +15,17 @@
    "deferred": 1,
    "door-exit-reset": 1,
    "door-proximity": 1,
-   "event-probe": 1,
    "focused": 3,
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 25,
+  "retiring_engine_fns": 26,
   "by_engine_fn": {
-   "FUN_00436f97": 4,
+   "FUN_00436f97": 3,
    "FUN_004176ff": 2,
+   "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
+   "FUN_00468fd0": 2,
    "DAT_056db000": 1,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
@@ -35,15 +36,14 @@
    "FUN_0043a5d9": 1,
    "FUN_00453384": 1,
    "FUN_004536cb": 1,
-   "FUN_0045de68": 1,
    "FUN_0046602e": 1,
    "FUN_00469b3a": 1,
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
+   "FUN_004864fd": 1,
    "FUN_0048e49c": 1,
    "FUN_0049d2e5": 1,
-   "FUN_0049e163": 1,
    "FUN_004cdd9f": 1,
    "FUN_005031e4": 1,
    "scene1-rng-stream-parity.md": 1
@@ -63,7 +63,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1268,
+   "line": 1273,
    "kind_known": false
   },
   {
@@ -71,15 +71,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1225,
-   "kind_known": false
-  },
-  {
-   "kind": "event-probe",
-   "engine_fn": "FUN_0045de68",
-   "desc": "the per-destination \"has an event",
-   "file": "src/scene_worldmap.c",
-   "line": 143,
+   "line": 1230,
    "kind_known": false
   },
   {
@@ -127,7 +119,7 @@
    "engine_fn": "NONE",
    "desc": "active save-slot pinned to bank 0;",
    "file": "src/scene.c",
-   "line": 50,
+   "line": 51,
    "kind_known": true
   },
   {
@@ -135,7 +127,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1291,
+   "line": 1296,
    "kind_known": false
   },
   {
@@ -164,14 +156,6 @@
   },
   {
    "kind": "simplified",
-   "engine_fn": "FUN_00436f97",
-   "desc": "always the counter spot (a = 0);",
-   "file": "src/scene1_postload.c",
-   "line": 161,
-   "kind_known": true
-  },
-  {
-   "kind": "simplified",
    "engine_fn": "FUN_00453384",
    "desc": "the engine has a thicket of mode-1",
    "file": "src/scene_pause.c",
@@ -191,7 +175,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 361,
+   "line": 370,
    "kind_known": true
   },
   {
@@ -215,7 +199,7 @@
    "engine_fn": "FUN_00435c98",
    "desc": "the engine tail re-inits the",
    "file": "src/scene_worldmap.c",
-   "line": 241,
+   "line": 243,
    "kind_known": false
   },
   {
@@ -252,10 +236,26 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_00434ceb",
+   "desc": "the \"Item limit reached\" box.",
+   "file": "src/scene_guild.c",
+   "line": 17,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00434ceb",
+   "desc": "the message box is unported.",
+   "file": "src/scene_guild.c",
+   "line": 383,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2530,
+   "line": 2554,
    "kind_known": true
   },
   {
@@ -263,7 +263,23 @@
    "engine_fn": "FUN_0044bd0d",
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
-   "line": 278,
+   "line": 411,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00468fd0",
+   "desc": "the Sell commit's bag removal;",
+   "file": "src/scene_guild.c",
+   "line": 15,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00468fd0",
+   "desc": "the removal is unported,",
+   "file": "src/scene_guild.c",
+   "line": 426,
    "kind_known": true
   },
   {
@@ -271,7 +287,15 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 686,
+   "line": 709,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004864fd",
+   "desc": "the expansion's shop re-layout;",
+   "file": "src/scene_guild.c",
+   "line": 16,
    "kind_known": true
   },
   {
@@ -288,14 +312,6 @@
    "desc": "the port takes the",
    "file": "src/scene_day_end.c",
    "line": 203,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0049e163",
-   "desc": "retail also forces it while",
-   "file": "src/scene1_companion_ctrl.c",
-   "line": 135,
    "kind_known": true
   }
  ]

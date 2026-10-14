@@ -11,28 +11,30 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **31**
-- distinct retiring engine functions: **25**
+- total open debts: **33**
+- distinct retiring engine functions: **26**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 10 | wired call boundary, body incomplete |
+| stub | 14 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 9 | reduced control flow / state machine vs retail |
+| simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 3 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **9 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), stage-scratch (1).
+> ⚠️  **8 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), focused (3), house-teardown (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
 
 | engine fn | open debts |
 |-----------|-----------:|
-| FUN_00436f97 | 4 |
+| FUN_00436f97 | 3 |
 | FUN_004176ff | 2 |
+| FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
+| FUN_00468fd0 | 2 |
 | DAT_056db000 | 1 |
 | FUN_00409925 | 1 |
 | FUN_004161c7 | 1 |
@@ -43,20 +45,19 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0043a5d9 | 1 |
 | FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
-| FUN_0045de68 | 1 |
 | FUN_0046602e | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
+| FUN_004864fd | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0049d2e5 | 1 |
-| FUN_0049e163 | 1 |
 | FUN_004cdd9f | 1 |
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (10)
+## stub (14)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -64,28 +65,31 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2530 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
-| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:278 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_00469b3a | src/scene1_display_menu.c:686 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
+| FUN_00434ceb | src/scene_guild.c:383 | the message box is unported. |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2554 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
+| FUN_00468fd0 | src/scene_guild.c:426 | the removal is unported, |
+| FUN_00469b3a | src/scene1_display_menu.c:709 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
+| FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
 | FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
-| FUN_0049e163 | src/scene1_companion_ctrl.c:135 | retail also forces it while |
 
 ## synthetic-data (0)
 
 _none_
 
-## simplified (9)
+## simplified (8)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_00436f97 | src/scene1_postload.c:161 | always the counter spot (a = 0); |
 | FUN_00453384 | src/scene_pause.c:290 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:425 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:361 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:343 | sim_loading_pump() |
 
@@ -95,7 +99,7 @@ _none_
 |--------|----------|------------------|
 | FUN_00436f97 | src/scene1_preload.c:66 | DAT_0438b4dc has no port mirror; |
 | FUN_0046602e | src/customer_service.c:231 | always -1 in the port — its only writer, |
-| NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
+| NONE | src/scene.c:51 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
 
@@ -110,12 +114,11 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1268 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1225 | the engine also gates on a |
-| event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1273 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1230 | the engine also gates on a |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1291 | the engine frees the shop |
-| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1296 | the engine frees the shop |
+| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:243 | the engine tail re-inits the |
 

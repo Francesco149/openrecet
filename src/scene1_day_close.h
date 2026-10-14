@@ -32,6 +32,8 @@ int  day_close_variant(void);          /* DAT_074b2eec */
 /* The shared arm tail: shop-time = 4 is the caller's; b4e0 = 1 then
  * FUN_0048526d. */
 void day_close_begin(void);
+/* DAT_0438b4e0 = 1 alone (the next master tick re-lays the room). */
+void day_close_arm(void);
 
 /* FUN_0048526d — in-scene house re-layout (FUN_00436f97 + FUN_004851e2(1)
  * + the tired pose facing Tear + cc08 = 1, db048 = 15, b924 = 300). */

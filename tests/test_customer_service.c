@@ -847,6 +847,8 @@ int test_cs_iv1_7_wrapup_trigger(void)
     bb[F3FD_IV1_6_COND_BYTE_OFF] = 0;
     bb[F401_IV1_7_DONE_BYTE_OFF] = 0;
     bb[F406_TUTORIAL_BYTE_OFF]   = 0;
+    bb[0x2bc58] = 1;                    /* past the opening (iv1_1 / iv1_2 played) */
+    bb[0x2bc59] = 1;
 
     /* f400 == 0 (the fresh-load state): the tick must NOT fire iv1_7. */
     scene1_intro_dialogue_reset();
@@ -870,6 +872,8 @@ int test_cs_iv1_7_wrapup_trigger(void)
     bb[F400_IV1_7_TRIG_BYTE_OFF] = 0;   /* teardown: clear the trigger + latches */
     bb[F401_IV1_7_DONE_BYTE_OFF] = 0;
     bb[F406_TUTORIAL_BYTE_OFF]   = 0;
+    bb[0x2bc58] = 0;
+    bb[0x2bc59] = 0;
     scene1_conversation_pose_reset();
     return 0;
 }

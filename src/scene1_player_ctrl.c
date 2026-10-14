@@ -652,6 +652,11 @@ int  player_ctrl_no_b850_this_frame(void) { return s_no_b850_frame; }
  * (DAT_056dae18[i], DAT_056dae24[i]) = 1.0; then db05c = π (DAT_056db05c),
  * db048/db04c = 0, the emote ramp (DAT_056db000/004) = 0, the after-image
  * counters (DAT_056daae0, DAT_056dae14) = 0.  The anim fields are kept. */
+/* FUN_00436f97's house arm: DAT_0438cbe8 = 0 — the next display-menu open is
+ * a first open (FUN_00468338(0, 1): the list cursors reset). */
+void player_ctrl_display_latch_reset(void) { s_cbe8 = 0; }
+int  player_ctrl_display_latch(void)       { return s_cbe8; }
+
 void player_ctrl_stage_entry_reset(void)
 {
     for (int i = 0; i < PC_NUM_ACTORS; i++) {
@@ -1823,8 +1828,38 @@ static void player_ctrl_cc08_freeroam_arm(void)
         return;
     }
 
+    /* The world-map return (all_ida 97260, b928 == 2 && b924 < 60): both actors
+     * drop to idle, Tear ticks (FUN_0048a833 — following, see co_follow_mode),
+     * then LABEL_448: no door/counter detection, the affordance gauge decays.
+     * While b924 < 45 LABEL_499 jumps to LABEL_508 — the player anim tick
+     * (FUN_004897c6) and no walk; from 45 the walk below runs (and FUN_0048b850
+     * ticks Tear a second time). */
+    int return_beat = 0;
+    if (scene1_beat_flag() == 2 && scene1_beat_counter() < 60) {
+        for (int a = 0; a <= 2; a += 2) {
+            int32_t *r = s_actor_record[a];
+            if (r[CHR_ACTOR_STATE] != 0) {
+                r[CHR_ACTOR_STATE]   = 0;
+                r[CHR_ACTOR_FRAME]   = 0;
+                r[CHR_ACTOR_COUNTER] = 0;
+                r[CHR_ACTOR_TIMER]   = 0;
+                r[CHR_ACTOR_ANIM]    = 0;
+            }
+        }
+        scene1_companion_ctrl_tick();
+        s_companion_ticked_in_b850 = 1;
+        player_ctrl_emote_ramp_step(0, 0, &s_emote_level, &s_emote_type);
+        if (scene1_beat_counter() < 45) {
+            s_no_b850_frame = 1;
+            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+            return;
+        }
+        return_beat = 1;
+    }
+
     /* proximity / approach detection: inert (no customer/item live). */
-    player_ctrl_cc08_proximity_detect();
+    if (!return_beat)
+        player_ctrl_cc08_proximity_detect();
 
     /* d-pad interaction (door/talk/pickup): the whole block sits under the
      * engine's `if (DAT_056db048 == 0)` (all.c:87617) — a held carry pose
@@ -2511,17 +2546,6 @@ void scene1_player_ctrl_tick(void)
      * display, so it leaves the foot-dust/wing RNG stream untouched there. */
     player_ctrl_display_sparkle_emit();
 
-    /* world-map exit stage 2 (all_ida 96366, the DAT_074b2ec4==1 block — AFTER
-     * the sparkle prologue): while the door-exit is armed the engine freezes the
-     * HOUSE tick each frame until the dissolve fade completes, then flips to
-     * mode 8 + kicks the world-map load.  Returns 1 while frozen → early-out
-     * (the engine's goto LABEL_675: no anim tick, no FUN_0048a833). */
-    if (player_ctrl_worldmap_exit_stage2()) {
-        s_companion_skip_frame = 1;
-        actor_say_tick();                /* LABEL_675 tail: FUN_00485861 */
-        return;
-    }
-
     /* prologue (all.c:86697-86703 / asm 486b7d-486bb2, gated SHOP_DAY ≥ 9 —
      * dormant through the tutorial traces): the news-break ticker pump.
      * While armed (g_news_ticker_timer = DAT_0438b92c > 0) it counts every
@@ -2644,12 +2668,36 @@ void scene1_player_ctrl_tick(void)
         return;
     }
 
+    /* world-map exit stage 2 (all_ida 96366, the DAT_074b2ec4 == 1 block, after
+     * the b4e0 machine and before the cc08 dispatch): the whole prologue — the
+     * window-NPC pump, the period advance, the slides, ++b924 — still runs on
+     * the door-exit frames (rhost multiday-tutorials-suggest f1606-1621: the
+     * window NPCs keep drifting); then wait for the dissolve, mode 8 + the
+     * world-map load, and LABEL_675 (FUN_00486435 + FUN_00485861) — no anim
+     * tick, no FUN_0048a833. */
+    if (player_ctrl_worldmap_exit_stage2()) {
+        s_companion_skip_frame = 1;
+        player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                     &g_scene1_player_pos[2]);
+        actor_say_tick();
+        return;
+    }
+
     if (s_cc08 == 1 &&
         !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
         !scene1_intro_dialogue_posing() &&
         !scene1_tutorial_dispatch_iv2_beat_active())
         player_ctrl_cc08_freeroam_arm();
-    else if (s_cc08 == 0 || s_cc08 == 10)
+    else if (s_cc08 == 1 && scene1_tutorial_dispatch_iv2_beat_active() &&
+             !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
+             !scene1_intro_dialogue_posing()) {
+        /* the morning beat (b928 == 1 && b924 < 200): retail's cc08 == 1 arm
+         * still runs its head — the rank arrivals (from b924 192) and the f406
+         * entry — before LABEL_448 holds the pose (rhost multiday-tutorials-
+         * suggest f27643: the rank-2 lesson at b924 192). */
+        if (!player_ctrl_cc08_customer_escalate())
+            (void)player_ctrl_cc08_f406_entry();
+    } else if (s_cc08 == 0 || s_cc08 == 10)
         player_ctrl_cc08_counter_menu_arm();
     else
         player_ctrl_cc08_unported_arm();

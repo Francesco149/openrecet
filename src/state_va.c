@@ -17,13 +17,16 @@
 #include "scene_day_end.h"
 #include "scene_title.h"
 #include "scene1_actor_say.h"
+#include "scene1_bg_npc.h"
 #include "scene1_companion_ctrl.h"
 #include "scene1_counter_menu.h"
 #include "scene1_day_close.h"
 #include "scene1_display_menu.h"
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
+#include "scene1_shop_display.h"
 #include "scene1_top_hud.h"
+#include "scene1_tutorial_dispatch.h"
 #include "sim.h"
 #include "speech_bubble.h"
 #include "tick.h"
@@ -96,6 +99,16 @@ static int32_t get_pfac(void) { return prec(6); }
 static int32_t get_px(void)   { return fbits(g_scene1_actor_pos[0][0]); }
 static int32_t get_pz(void)   { return fbits(g_scene1_actor_pos[0][2]); }
 
+static int32_t get_cbfc(void)  { return shop_display_cbfc(); }
+static int32_t get_cc00(void)  { return shop_display_cc00(); }
+static int32_t get_dsel(void)  { return display_menu_selected(); }
+static int32_t get_cbe8(void)  { return player_ctrl_display_latch(); }
+static int32_t get_b51c(void)  { return customer_service_b51c(); }
+static int32_t get_b604(void)  { return customer_service_b604(); }
+static int32_t get_b600(void)  { return customer_service_b600(); }
+static int32_t get_b608(void)  { return customer_service_b608(); }
+static int32_t get_b928(void)  { return scene1_beat_flag(); }
+static int32_t get_b924(void)  { return scene1_beat_counter(); }
 static int32_t get_clkph(void)  { return fbits(scene1_top_hud_clock_phase()); }
 static int32_t get_de_t(void)   { return day_end_frame(); }
 static int32_t get_de_p(void)   { return day_end_profit_shown(); }
@@ -172,6 +185,16 @@ static const state_va_t k_map[] = {
     { 0x56dab00u, "player facing (DAT_056dab00)",      get_pfac },
     { 0x56da1d8u, "player x bits (DAT_056da1d8)",      get_px },
     { 0x56da1e0u, "player z bits (DAT_056da1e0)",      get_pz },
+    { 0x438cbfcu, "faced display cell col (DAT_0438cbfc)", get_cbfc },
+    { 0x438cc00u, "faced display cell row (DAT_0438cc00)", get_cc00 },
+    { 0x469a9fu,  "display menu selection (FUN_00469a9f) — rhost: none", get_dsel },
+    { 0x438cbe8u, "display menu open-once latch (DAT_0438cbe8)", get_cbe8 },
+    { 0x438b928u, "morning / return beat b928 (DAT_0438b928)", get_b928 },
+    { 0x730b51cu, "cs scripted latch b51c (DAT_0730b51c)", get_b51c },
+    { 0x730b604u, "cs script PC b604 (DAT_0730b604)", get_b604 },
+    { 0x730b600u, "cs script step phase b600 (DAT_0730b600)", get_b600 },
+    { 0x730b608u, "cs script sub-state b608 (DAT_0730b608)", get_b608 },
+    { 0x438b924u, "beat counter b924 (DAT_0438b924)", get_b924 },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 
@@ -180,8 +203,39 @@ static const state_va_t k_map[] = {
 #define WORK_BANK_VA   0x44e3798u
 #define WORK_BANK_SIZE 0x2dfc8u
 #define WORK_BANKS     8u
+/* The window NPCs (DAT_073a7f80 + i·100, FUN_0046f2a3's records) + the
+ * spawn cursor / warmup latch, mirrored generically by record offset. */
+#define BG_NPC_VA 0x73a7f80u
+static int32_t bg_npc_dword(uint32_t va)
+{
+    if (va == 0x73a8bb4u) return scene1_bg_npc_dbg_cursor();
+    if (va == 0x73a8bb8u) return scene1_bg_npc_dbg_warmup_done();
+    const scene1_bg_npc_t *m = &g_scene1_bg_npc[(va - BG_NPC_VA) / 100];
+    const uint32_t off = (va - BG_NPC_VA) % 100;
+    if (off < 0x2c) return off / 4 < BG_NPC_REC_DWORDS ? m->arec[off / 4] : 0;
+    switch (off) {
+    case 0x2c: return fbits(m->x);
+    case 0x30: return fbits(m->y);
+    case 0x34: return fbits(m->z);
+    case 0x44: return m->dir;
+    case 0x48: return m->visible;
+    case 0x4c: return m->type;
+    case 0x50: return fbits(m->speed);
+    case 0x54: return m->pause;
+    case 0x58: return fbits(m->vthresh);
+    case 0x5c: return m->mode;
+    case 0x60: return m->prob;
+    default:   return 0;
+    }
+}
+static int is_bg_npc_va(uint32_t va)
+{
+    return (va >= BG_NPC_VA && va < BG_NPC_VA + SCENE1_BG_NPC_COUNT * 100u && va % 4 == 0)
+        || va == 0x73a8bb4u || va == 0x73a8bb8u;
+}
+
 typedef struct { uint32_t va; int32_t (*get)(void); } sel_t;
-static sel_t s_sel[16];
+static sel_t s_sel[64];
 static int s_nsel;
 
 static int32_t bank_dword(uint32_t va)
@@ -205,7 +259,7 @@ int state_va_select(const char *list, uint32_t *bad)
         while (k < K_N && k_map[k].va != va) k++;
         int in_bank = va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
                       ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0;
-        if (k == K_N && !in_bank) {
+        if (k == K_N && !in_bank && !is_bg_npc_va(va)) {
             if (bad) *bad = va;
             s_nsel = 0;
             return -1;
@@ -222,7 +276,9 @@ void state_va_log(FILE *fp, uint32_t frame)
     fprintf(fp, "post %u", (unsigned)frame);
     for (int i = 0; i < s_nsel; i++)
         fprintf(fp, " %x=%d", (unsigned)s_sel[i].va,
-                (int)(s_sel[i].get ? s_sel[i].get() : bank_dword(s_sel[i].va)));
+                (int)(s_sel[i].get ? s_sel[i].get()
+                      : is_bg_npc_va(s_sel[i].va) ? bg_npc_dword(s_sel[i].va)
+                      : bank_dword(s_sel[i].va)));
     fputc('\n', fp);
 #if defined(__i386__) || defined(__x86_64__)
     /* x87 control word (rhost logs retail's per frame): "cw N xxxx" on change */
@@ -245,6 +301,6 @@ const char *state_va_known(void)
         o += (size_t)snprintf(out + o, sizeof out - o, "%s%x %s", k ? ", " : "",
                               (unsigned)k_map[k].va, k_map[k].name);
     if (o < sizeof out)
-        snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798..");
+        snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798.., bg-NPC 73a7f80+i*100+off, 73a8bb4/bb8");
     return out;
 }

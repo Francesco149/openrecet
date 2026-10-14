@@ -12,6 +12,10 @@
 #include "save_bank.h"               /* SAVE_BANK_FIELD_GAME_MODE           */
 #include "news_daily.h"              /* news_daily_update, g_news_ticker_timer */
 #include "npc_schedule.h"            /* npc_schedule_apply (FUN_00490e56)   */
+#include "scene.h"                   /* g_scene_state (DAT_0438b1c0)        */
+#include "scene_pause.h"             /* pause_period_end (FUN_00482059)     */
+#include "scene1_day_close.h"        /* day_close_arm (DAT_0438b4e0 = 1)    */
+#include "stage_palette.h"           /* g_stage_palette->mode (*DAT_068dd2f0) */
 
 #include <stdint.h>
 #include <stddef.h>   /* NULL */
@@ -88,99 +92,228 @@ static int g_day2_replace_pending = 0;
 #define TUT_SUB_IV1_7 7
 #define TUT_SUB_IV1_8 8
 
+/* The other FUN_0044bd0d flags (work-record bytes; DAT_0450f3f0 → 0x2bc58). */
+#define TUT_IV1_1_DONE_OFF     0x2bc58   /* DAT_0450f3f0 — the opening iv1_1 played  */
+#define TUT_IV1_2_DONE_OFF     0x2bc59   /* DAT_0450f3f1 — iv1_2 played              */
+#define TUT_GUILD_SEEN_OFF     0x2bc5c   /* DAT_0450f3f4 — the guild's first visit   */
+#define TUT_IV1_4_DONE_OFF     0x2bc5e   /* DAT_0450f3f6                             */
+#define TUT_IV0_6_DONE_OFF     0x2bc89   /* DAT_0450f421 — the first payment-day talk */
+#define TUT_IV2_15_DONE_OFF    0x2bc8a   /* DAT_0450f422 — day ≥ 2 morning          */
+#define TUT_IV2_14_DONE_OFF    0x2bc8b   /* DAT_0450f423 — day ≥ 2, the evening      */
+#define TUT_IV1_17_DONE_OFF    0x2bc93   /* DAT_0450f42b — day 31                    */
+#define TUT_IV1_18_DONE_OFF    0x2bc94   /* DAT_0450f42c — day 35                    */
+#define TUT_IV4_4_TRIG_OFF     0x2bcbc   /* DAT_0450f454                             */
+#define TUT_IV4_5_TRIG_OFF     0x2bcbd   /* DAT_0450f455                             */
+#define TUT_IV7_1_TRIG_OFF     0x2bcbe   /* DAT_0450f456                             */
+#define TUT_STORY_SCENE_OFF    0x2bcd8   /* DAT_0450f470 — FUN_00470a46's scene      */
+#define TUT_IV7_1_DONE_OFF     0x2bcdd   /* DAT_0450f475                             */
+#define TUT_MODE2_DONE_OFF     0x2bcec   /* DAT_0450f484 — survival mode's opener    */
+#define TUT_IV9_1_ARM_OFF      0x2bced   /* DAT_0450f485                             */
+#define TUT_IV9_1_DONE_OFF     0x2bcee   /* DAT_0450f486                             */
+#define TUT_IV12_2_DONE_OFF    0x2bcf2   /* DAT_0450f48a                             */
+#define TUT_IV12_3_DONE_OFF    0x2bcf3   /* DAT_0450f48b                             */
+#define TUT_IV12_1_TRIG_OFF    0x2bcfc   /* DAT_0450f494                             */
+#define TUT_NO_CASCADE_OFF     0x2bcfd   /* DAT_0450f495 — the cascade is off        */
+#define TUT_IV0_17_TRIG_OFF    0x2bd10   /* DAT_0450f4a8                             */
+#define TUT_IV0_17_DONE_OFF    0x2bd11   /* DAT_0450f4a9                             */
+#define TUT_IV12_A_OFF         0x2bc4c   /* DAT_0450f3e4..ea, paired with …          */
+#define TUT_IV12_B_OFF         0x2bd18   /* DAT_0450f4b0..b6                         */
+#define TUT_MODE2_ALT_DWORD    (0x2de34 / 4)   /* dword 46989 — survival opener 19 vs 18 */
+
+/* FUN_0044bd0d's dispatch: DAT_005c7a2c/30 = grp/idx, DAT_0438b1c8 = 2,
+ * FUN_00452d07(mode).  The port's start_single owns the load bracket; the
+ * worker `mode` (what runs at the dialogue's end) and the FUN_00452809
+ * blackout arms are PORT-DEBT(blackout-tut-dispatch) as before. */
+static int tut_idle(void) { return !scene1_intro_dialogue_busy(); }
+
+/* FUN_0044bd0d (0x44bd0d, 2723 B, all_ida 49399): the house story / tutorial
+ * cascade, one dialogue at a time while none runs (DAT_0438b1c8 == 0). */
 void scene1_tutorial_dispatch_tick(void)
 {
-    /* Gate: no dialogue armed/loading/active (retail DAT_0438b1c8 == 0).  Uses
-     * _busy() rather than _active()||_loading() because the latter has a 1-frame
-     * hole at the D_TUT_LOAD→D_TUT lazy-load seam (loading already false, active
-     * not yet true) through which iv1_6 would fire and clobber iv1_5.  Blocks
-     * during the prologue too; serialises iv1_5 → iv1_6 (iv1_6 only once iv1_5 has
-     * fully completed and g_state returns to D_IDLE). */
-    if (scene1_intro_dialogue_busy())
-        return;
-
     uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (bank == NULL)
         return;
     uint8_t *bb = (uint8_t *)bank;
+    const int day    = (int32_t)bank[TUT_DAY_DWORD];
+    const int period = (int32_t)bank[TUT_SHOPTIME_DWORD];
 
-    /* iv1_5 (all.c:45666): the window-counter placement dialogue.  Priority over
-     * iv1_6 (if/else-if), so when a single placement sets BOTH flags this fires
-     * first; iv1_6 then fires once this one completes and the gate reopens. */
-    if (bb[TUT_BACKROW_DONE_OFF] == 0 && bb[TUT_BACKROW_OFF] == 1) {
-        scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_5);
-        bb[TUT_BACKROW_DONE_OFF] = 1;        /* DAT_0450f3fc = 1 */
+    /* survival mode: its opener (iv0_19 / iv0_18), once. */
+    if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] == 2) {
+        if (bb[TUT_MODE2_DONE_OFF] != 0 || !tut_idle())
+            return;
+        scene1_intro_dialogue_start_single(0, bank[TUT_MODE2_ALT_DWORD] != 0 ? 19 : 18);
+        bb[TUT_MODE2_DONE_OFF] = 1;
         return;
     }
-
-    /* iv1_6 (all.c:45677): the "all wares displayed" dialogue. */
-    if (bb[TUT_ALLFILLED_DONE_OFF] == 0 && bb[TUT_ALLFILLED_OFF] == 1) {
-        scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_6);
-        bb[TUT_ALLFILLED_DONE_OFF]  = 1;     /* DAT_0450f3fe = 1 */
-        bb[TUT_ALLFILLED_DONE2_OFF] = 1;     /* DAT_0450f3ff = 1 */
+    if (bb[TUT_STORY_SCENE_OFF] != 0) {
+        /* FUN_00470a46 — the scripted story scene's director
+         * (PORT-DEBT(stub, FUN_00470a46)). */
         return;
     }
+    /* sprintf("OHA:%4d", b924) → FUN_00451874: a debug text line, no state. */
+    if (bb[TUT_F488_OFF] != 0) {
+        if (g_iv2_beat_ctr == 630 && tut_idle()) {
+            scene1_intro_dialogue_start_single(0, 8);
+            bb[TUT_F488_OFF] = 0;
+        }
+        return;
+    }
+    if (bb[TUT_IV9_1_ARM_OFF] != 0) {
+        if (g_iv2_beat_ctr == 300 && bb[TUT_IV9_1_DONE_OFF] == 0 && tut_idle()) {
+            scene1_intro_dialogue_start_single(9, 1);
+            bb[TUT_IV9_1_DONE_OFF] = 1;
+        }
+        return;
+    }
+    if (bb[TUT_NO_CASCADE_OFF] != 0)
+        return;
 
-    /* iv1_7 (all.c:45715): the post-tutorial wrap-up dialogue ("And that is,
-     * essentially, how it goes…").  In retail an INDEPENDENT `if` after the
-     * iv1_5/iv1_6 block (not the else-if chain), gated the same way (b1c8==0 →
-     * _busy()).  Fires once the SELL tutorial closes: the cs leave/dissolve
-     * (FUN_00462403 all.c:60389, mirrored in customer_service.c) sets f400=1 when
-     * f404 (sell-active) clears.  f400 has EXACTLY ONE writer (that close), so it
-     * is 0 at the cad868 LOAD (RE §12, probe-confirmed 3014/3014 free-roam rows
-     * f400==0) → NO premature fire during the load — the frame-231 hang the first
-     * P2 attempt saw was an env confound, not this branch.  Sets f401 (done) +
-     * f406 (→ iv1_8 "now sit at the counter", the P3 first-customer entry). */
-    if (bb[TUT_IV1_7_DONE_OFF] == 0 && bb[TUT_IV1_7_TRIG_OFF] == 1) {
+    /* The morning beat holds the cascade: in the shop with b928 == 1, nothing
+     * fires until b924 reaches 190 (b924 is bumped by the master tick before
+     * this dispatch runs, so b924 = 1..189 hold). */
+    int open = 1;
+    if (g_scene_state == 1 && g_stage_palette != NULL && g_stage_palette->mode == 0 &&
+        g_iv2_beat_active == 1)
+        open = g_iv2_beat_ctr >= 190;
+
+    /* iv7_1: the second-week morning (b924 1, before the day's first period). */
+    if (bb[TUT_IV7_1_TRIG_OFF] != 0 && bb[TUT_IV7_1_DONE_OFF] == 0 && period == 0 && day != 8 &&
+        g_iv2_beat_active == 1 && g_iv2_beat_ctr == 1 && tut_idle()) {
+        scene1_intro_dialogue_start_single(7, 1);
+        bb[TUT_IV7_1_DONE_OFF] = 1;
+    }
+    if (!open)
+        return;
+
+    if (bb[TUT_IV1_1_DONE_OFF] == 0) {
+        /* iv1_1, the opening: the port's prologue machine plays it
+         * (scene1_intro_dialogue_arm) and sets this flag. */
+        if (tut_idle()) {
+            scene1_intro_dialogue_start_single(1, 1);
+            bb[TUT_IV1_1_DONE_OFF] = 1;
+        }
+    } else if (bb[TUT_IV1_2_DONE_OFF] == 0) {
+        if (tut_idle()) {
+            scene1_intro_dialogue_start_single(1, 2);
+            bb[TUT_IV1_2_DONE_OFF] = 1;
+        }
+    } else if (bb[TUT_IV12_1_TRIG_OFF] == 1 && tut_idle()) {
+        scene1_intro_dialogue_start_single(12, 1);
+        bb[TUT_IV12_1_TRIG_OFF] = 0;
+    }
+
+    /* LABEL_44 */
+    if (bb[TUT_GUILD_SEEN_OFF] != 0 && bb[TUT_IV1_4_DONE_OFF] == 0 && tut_idle()) {
+        scene1_intro_dialogue_start_single(1, 4);
+        bb[TUT_IV1_4_DONE_OFF] = 1;
+        bb[TUT_F3F2_OFF]       = 1;
+    }
+    if (pause_period_end() == day && bb[TUT_IV0_6_DONE_OFF] == 0 && tut_idle()) {
+        scene1_intro_dialogue_start_single(0, 6);
+        bb[TUT_IV0_6_DONE_OFF] = 1;
+    }
+    if (day == 31 && bb[TUT_IV1_17_DONE_OFF] == 0 && tut_idle()) {
+        scene1_intro_dialogue_start_single(1, 17);
+        bb[TUT_IV1_17_DONE_OFF] = 1;
+    }
+    if (day == 35 && bb[TUT_IV1_18_DONE_OFF] == 0 && tut_idle()) {
+        scene1_intro_dialogue_start_single(1, 18);
+        bb[TUT_IV1_18_DONE_OFF] = 1;
+    }
+    if (day >= 2) {
+        if (bb[TUT_IV2_15_DONE_OFF] != 0) {
+            if (bb[TUT_IV2_14_DONE_OFF] == 0 && period == 2 && tut_idle()) {
+                scene1_intro_dialogue_start_single(2, 14);
+                bb[TUT_IV2_14_DONE_OFF] = 1;
+            }
+        } else if (tut_idle()) {
+            scene1_intro_dialogue_start_single(2, 15);
+            bb[TUT_IV2_15_DONE_OFF] = 1;
+        }
+    }
+    if (bb[TUT_IV0_17_TRIG_OFF] != 0 && bb[TUT_IV0_17_DONE_OFF] == 0 && tut_idle()) {
+        scene1_intro_dialogue_start_single(0, 17);
+        bb[TUT_IV0_17_DONE_OFF] = 1;
+    }
+    if (day > 35 && g_iv2_beat_active == 1 && g_iv2_beat_ctr < 200) {
+        /* every one of the 7 pairs (+0x2bc4c+k, +0x2bd18+k) has a side set */
+        int all = 1;
+        for (int k = 0; k < 7; k++)
+            if (bb[TUT_IV12_A_OFF + k] == 0 && bb[TUT_IV12_B_OFF + k] == 0)
+                all = 0;
+        if (all) {
+            if (bb[TUT_IV12_2_DONE_OFF] != 0) {
+                if (bb[TUT_IV12_3_DONE_OFF] == 0 && tut_idle()) {
+                    scene1_intro_dialogue_start_single(12, 3);
+                    bb[TUT_IV12_3_DONE_OFF] = 1;
+                }
+            } else if (tut_idle()) {
+                scene1_intro_dialogue_start_single(12, 2);
+                bb[TUT_IV12_2_DONE_OFF] = 1;
+            }
+        }
+    }
+    if (bb[TUT_IV4_4_TRIG_OFF] != 0) {
+        if (tut_idle()) {
+            scene1_intro_dialogue_start_single(4, 4);
+            bb[TUT_IV4_4_TRIG_OFF] = 0;
+            bb[TUT_IV4_5_TRIG_OFF] = 1;
+            if ((int32_t)bank[TUT_SHOPTIME_DWORD] >= 4) {
+                bank[TUT_SHOPTIME_DWORD] = 4;
+                day_close_arm();                     /* DAT_0438b4e0 = 1 */
+            }
+        }
+    } else if (bb[TUT_IV4_5_TRIG_OFF] == 0 || period != 0) {
+        if (bb[TUT_BACKROW_DONE_OFF] != 0 || bb[TUT_BACKROW_OFF] != 1) {
+            /* iv1_6: the "all wares displayed" dialogue. */
+            if (bb[TUT_ALLFILLED_DONE_OFF] == 0 && bb[TUT_ALLFILLED_OFF] == 1 && tut_idle()) {
+                scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_6);
+                bb[TUT_ALLFILLED_DONE_OFF]  = 1;     /* DAT_0450f3fe = 1 */
+                bb[TUT_ALLFILLED_DONE2_OFF] = 1;     /* DAT_0450f3ff = 1 */
+            }
+        } else if (tut_idle()) {
+            /* iv1_5: the window-counter placement dialogue. */
+            scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_5);
+            bb[TUT_BACKROW_DONE_OFF] = 1;            /* DAT_0450f3fc = 1 */
+        }
+    } else if (tut_idle()) {
+        scene1_intro_dialogue_start_single(4, 5);
+        bb[TUT_IV4_5_TRIG_OFF] = 0;
+        bb[TUT_IV7_1_TRIG_OFF] = 1;
+    }
+    /* iv1_7: the post-sale wrap-up ("And that is, essentially, how it goes…"),
+     * armed by the cs leave (f400); → f406, the iv1_8 first-customer entry. */
+    if (bb[TUT_IV1_7_DONE_OFF] == 0 && bb[TUT_IV1_7_TRIG_OFF] == 1 && tut_idle()) {
         scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_7);
-        bb[TUT_IV1_7_DONE_OFF] = 1;          /* DAT_0450f401 = 1 */
-        bb[TUT_IV1_7_F406_OFF] = 1;          /* DAT_0450f406 = 1 */
-        return;
+        bb[TUT_IV1_7_DONE_OFF] = 1;              /* DAT_0450f401 = 1 */
+        bb[TUT_IV1_7_F406_OFF] = 1;              /* DAT_0450f406 = 1 */
     }
 
-    /* The beat gate.  FUN_0044bd0d's `if (b928==1 && b924 < 0xbe) bVar1 =
-     * false; ... if (!bVar1) return;` (all.c:45489/45507): while the beat holds
-     * the whole story cascade below is withheld (iv2_6 — the DAY2 load — can't
-     * fire).  b924 is bumped by the master tick (scene1_beat_master_count,
-     * FUN_0048670f asm 0x486e2d) before this dispatch runs, so the beat holds
-     * for b924 = 1..189 and releases the frame it reaches 0xbe.  b928 itself
-     * stays set (the iv2_6 fire below clears it, standing in for the DAY2
-     * load's clear). */
-    if (g_iv2_beat_active == 1 && g_iv2_beat_ctr < IV2_BEAT_FRAMES)
-        return;
-
-    /* ── The post-first-sale story chain (all.c:45726-45813, RE §21.31) ──────
-     * iv1_8 → iv2_1 → iv2_2 → iv2_3 (the DAY ADVANCE) → iv2_5 → iv2_6, the
-     * day-1-evening → day-2 cutscene series the day2 trace replays.  Retail's
-     * cascade is if (f403==0) {iv1_8} else if … — mirrored exactly.  Each
-     * retail entry also runs FUN_00452d07(N) (the dialogue load worker —
-     * start_single models the bracket; N selects worker assets, not modeled)
-     * and, where noted, FUN_00452809 (the screen-blackout arm —
-     * PORT-DEBT(blackout-tut-dispatch), scene1_intro_dialogue_blackout_active
-     * exists unwired). */
+    /* ── The post-first-sale story chain: iv1_8 → iv2_1 → iv2_2 → iv2_3 (the
+     * DAY ADVANCE) → iv2_5 → iv2_6, the day-1-evening → day-2 series. ── */
     if (bb[TUT_IV1_8_DONE_OFF] == 0) {
-        if (bb[TUT_IV1_8_TRIG_OFF] == 1) {   /* f402: set at the cs LEAVE */
+        if (bb[TUT_IV1_8_TRIG_OFF] == 1 && tut_idle()) {   /* f402: set at the cs LEAVE */
             scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_8);
             bb[TUT_IV1_8_DONE_OFF] = 1;      /* DAT_0450f403 = 1 */
             bb[TUT_IV2_1_TRIG_OFF] = 1;      /* DAT_0450f409 = 1 */
             bb[TUT_F407_OFF]       = 1;      /* DAT_0450f407 = 1 */
         }
     } else if (bb[TUT_IV2_1_DONE_OFF] == 0) {
-        if (bb[TUT_IV2_1_TRIG_OFF] == 1) {
+        if (bb[TUT_IV2_1_TRIG_OFF] == 1 && tut_idle()) {
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 1);
             bb[TUT_IV2_1_DONE_OFF] = 1;      /* DAT_0450f40a = 1 */
             bb[TUT_IV2_2_TRIG_OFF] = 1;      /* DAT_0450f40b = 1 */
         }
     } else if (bb[TUT_IV2_2_DONE_OFF] == 0) {
-        if (bb[TUT_IV2_2_TRIG_OFF] == 1) {
+        if (bb[TUT_IV2_2_TRIG_OFF] == 1 && tut_idle()) {
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 2);
             bb[TUT_IV2_2_DONE_OFF] = 1;      /* DAT_0450f40c = 1 */
             bb[TUT_IV2_3_TRIG_OFF] = 1;      /* DAT_0450f40d = 1 */
         }
     } else if (bb[TUT_IV2_3_DONE_OFF] == 0) {
-        if (bb[TUT_IV2_3_TRIG_OFF] == 1) {
-            /* iv2_3 = the DAY ADVANCE (all.c:45765-45783): day++ + the
-             * day-block resets that reopen the shop for day 2. */
+        if (bb[TUT_IV2_3_TRIG_OFF] == 1 && tut_idle()) {
+            /* iv2_3 = the DAY ADVANCE: day++ + the day-block resets that reopen
+             * the shop for day 2. */
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 3);
             bb[TUT_IV2_3_DONE_OFF] = 1;      /* DAT_0450f40e = 1 */
             bank[TUT_DAY_DWORD] += 1;        /* DAT_0450fb84 += 1 (day counter) */
@@ -195,26 +328,19 @@ void scene1_tutorial_dispatch_tick(void)
             bb[TUT_IV2_5_TRIG_OFF] = 1;      /* DAT_0450f410 = 1 */
         }
     } else if (bb[TUT_IV2_5_DONE_OFF] == 0) {
-        if (bb[TUT_IV2_5_TRIG_OFF] == 1) {
+        if (bb[TUT_IV2_5_TRIG_OFF] == 1 && tut_idle()) {
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 5);
             bb[TUT_IV2_5_DONE_OFF] = 1;      /* DAT_0450f411 = 1 */
             bb[TUT_IV2_6_TRIG_OFF] = 1;      /* DAT_0450f412 = 1 */
-            /* Arm the "Recette looks up at Tear" beat (retail 45798-99:
-             * DAT_0438b928=1, DAT_0438b924=0).  The gate at the top of the iv2
-             * cascade then withholds iv2_6 (the DAY2 load) for IV2_BEAT_FRAMES of
-             * free-roam, and the pose driver holds the pose across it — closing
-             * the 189f DAY2-entry drift (Residual B) + the port-only pose blip
-             * (Residual A).  FUN_00452809 (blackout) still PORT-DEBT(blackout-
-             * tut-dispatch); FUN_004852fb's day-8/15-gated flag set is inert here
-             * (day 1→2 → the fb84==8 gate never binds; f470 stays 0, verified). */
-            scene1_tutorial_dispatch_arm_beat();   /* DAT_0438b928 = 1, b924 = 0 */
-            /* Arm the DAY-2 actor re-place: consumed on the first free-roam frame
-             * (the default-arm top), i.e. the frame the beat starts counting —
-             * matching retail's day2 beat @15470 where the actors are already at
-             * the house-standing pose (player -0.30, companion 0.6). */
+            /* FUN_004852fb (PORT-DEBT(stub, FUN_004852fb)), then the morning
+             * beat: b928 = 1, b924 = 0 (the cascade holds for 190 ticks, the
+             * pose driver holds the actors). */
+            scene1_tutorial_dispatch_arm_beat();
+            /* the DAY-2 actor re-place, consumed on the first free-roam frame
+             * of the beat (retail day2 @15470: player -0.30, companion 0.6). */
             g_day2_replace_pending = 1;
         }
-    } else if (bb[TUT_IV2_6_DONE_OFF] == 0 && bb[TUT_IV2_6_TRIG_OFF] == 1) {
+    } else if (bb[TUT_IV2_6_DONE_OFF] == 0 && bb[TUT_IV2_6_TRIG_OFF] == 1 && tut_idle()) {
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
         bb[TUT_IV2_6_DONE_OFF] = 1;          /* DAT_0450f413 = 1 */
         bb[TUT_F414_OFF]       = 1;          /* DAT_0450f414 = 1 */
@@ -242,15 +368,22 @@ void scene1_tutorial_dispatch_arm_beat(void)
 }
 
 void scene1_beat_set_counter(int v) { g_iv2_beat_ctr = v; }
+void scene1_beat_set_flag(int v)    { g_iv2_beat_active = v; }
+int  scene1_beat_flag(void)         { return g_iv2_beat_active; }
+int  scene1_beat_counter(void)      { return g_iv2_beat_ctr; }
 
 static int g_greet_alt;   /* DAT_074b2ee8 — which pair greets (toggled per morning) */
 
 void scene1_beat_master_voices(void)
 {
     /* FUN_0048670f asm 0x486d75-0x486e26 (before ++b924): at b924 1 the
-     * dungeon-return beat (b928 2: SE 0x150 + 00re_sys10 — the dungeon return
-     * FUN_0049e163 is unported) or the morning's pair toggle; then the morning
-     * greetings: Recette at 50 + Tear at 110, or Tear at 50 + Recette at 150. */
+     * world-map return beat (b928 2, armed by FUN_0049e163's home arm: SE 0x150
+     * + 00re_sys10) or the morning's pair toggle; then the morning greetings:
+     * Recette at 50 + Tear at 110, or Tear at 50 + Recette at 150. */
+    if (g_iv2_beat_ctr == 1 && g_iv2_beat_active == 2) {
+        audio_play_se_by_id(0x150);
+        audio_play_se_file("bin/se/00re/system/00re_sys10.bin");
+    }
     if (g_iv2_beat_ctr == 1 && g_iv2_beat_active == 1)
         g_greet_alt ^= 1;
     if (g_iv2_beat_active != 1)
@@ -309,6 +442,14 @@ void scene1_tutorial_dispatch_consume_day2_replace(void)
         g_day2_replace_pending = 0;
         scene1_postload_day2_actor_replace();
     }
+}
+
+void scene1_tutorial_dispatch_house_entry(void)
+{
+    /* b928 survives a house load (the world-map return's 2 rides into it);
+     * FUN_0049a59e clears it at a title load (scene_post_fade_init). */
+    g_iv2_beat_ctr         = 0;
+    g_day2_replace_pending = 0;
 }
 
 void scene1_tutorial_dispatch_reset(void)

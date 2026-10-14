@@ -68,6 +68,13 @@ void scene1_beat_master_prologue(void);
 void scene1_beat_master_voices(void);   /* the b924 1/50/110/150 greetings (before the count) */
 void scene1_beat_master_count(void);
 void scene1_beat_set_counter(int v);
+/* DAT_0438b928: 1 = the morning beat (iv2_5 / FUN_0048da71), 2 = the world-map
+ * return (FUN_0049e163's home arm), 0 = a title load (FUN_0049a59e) or a dungeon
+ * entry (FUN_0045c051).  It persists across house loads (FUN_00436f97 only
+ * zeroes b924). */
+void scene1_beat_set_flag(int v);
+int  scene1_beat_flag(void);
+int  scene1_beat_counter(void);
 
 /* The beat counter DAT_0438b924 (0..190).  Drives the "Day N" day-transition CARD
  * (FUN_0040a765 all.c:7500-7559): black backdrop + centred "Day N" text (alpha
@@ -85,5 +92,8 @@ void scene1_tutorial_dispatch_consume_day2_replace(void);
 
 /* Clear the transient beat state (a fresh prologue / scenario re-entry). */
 void scene1_tutorial_dispatch_reset(void);
+/* House load (pose_house_standing): b924 = 0 + the day-2 re-place disarmed;
+ * b928 is kept (only a title load / dungeon entry clears it). */
+void scene1_tutorial_dispatch_house_entry(void);
 
 #endif /* OPENRECET_SCENE1_TUTORIAL_DISPATCH_H */

@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  24.3% referenced-or-better   (91 instrumented)
+█████░░░░░░░░░░░░░░░  24.4% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (79 full + 12 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   528 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1929 | exists in the engine, no `src/` reference    |
+| source-referenced  |   531 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1926 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 45 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 52 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -166,40 +166,43 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     ("Daily Profits" count-up, 1 rand/frame). buy-counter-raise-accept: portstate
     scene / cc08 / b4e0 / variant / b764 / b76c / fb88 / player / Tear rows
     IDENTICAL; **portrng IDENTICAL over the whole run** (was f7155).
+  - ✅ **The market trip + the return home + the Day-3 morning** (PROGRESS 2026-10-14
+    afternoon): world-map exit (FUN_0049e163 runs FUN_00436f97 for every destination;
+    home → b928 = 2, door seat), the guild tick FUN_004922c0 on retail's control flow
+    (Leave fades, purchase bookkeeping), FUN_0045de68, the whole FUN_0044bd0d cascade,
+    the return beat, the display-menu re-open clamp, scripted-sell ops 10/11,
+    FUN_0049126b. **`multiday-tutorials-suggest`: portrng + portsave IDENTICAL over the
+    whole run (f1–f34810), pin-free.**
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    0. Scene loads the port lacks (retail lays out a new floor, FUN_0047df4d /
-       47ddc2 / 47d622): multiday-tutorials-suggest f1722 (MARKET_ENTER — the market
-       scene), buy-from-seller-guild-intro f9127, debt-gameover-restart f1785.
-    1. ✅ The summary's Z → the next morning: `day-end-next-morning` (derived from
-       buy-counter-raise-accept + a scripted Z at f7600) — **portrng IDENTICAL over
-       the whole run** (Day 6 morning to f9500). The iv2 beat is now retail's
-       b928/b924: b928 persists (armed by iv2_5 and FUN_0048da71), b924 is the
-       master-tick counter (++ at LABEL_104; FUN_00436f97 → 0, FUN_0048526d → 300),
-       hold while b924 < 200, the day-9+ morning block in the FUN_0048670f prologue.
-       Still `PORT-DEBT(stub, …)`: FUN_004852fb's day-8 collector (FUN_004706ea) /
-       day-15 arms, the payment screen (FUN_0048e49c + FUN_0044ba2c scripts), the
-       week-end story / game-over scenes (FUN_0049d2e5 / FUN_0049da9e), the
-       b924 50/110/150 morning voices (74b2ee8), and b928 = 0 at a game load /
-       dungeon entry (the port clears it at house load and iv2_6). The night arm
-       of the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
-    2. ✅ day2-buy-tutorial f15595 (retail ran the house tick, port 0 draws): the
-       port's `{esc}` replay called esc_pressed() inside tick N's input poll; rhost
-       (like a real key) posts WM_KEYDOWN, handled in the message pump after tick N.
-       The port now posts too → **day2-buy-tutorial IDENTICAL to its end**.
+    0. **buy-from-seller-guild-intro f17263**: retail runs FUN_00436f97 (43 draws) on a
+       scene entry the port lacks — the adventurers'-guild trip (world-map dest 6 →
+       mode 0xb, FUN_0045c051, unported). Was f11002 before this arc.
+    1. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
+       arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
+       FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
+       Retail there: bg-NPC ticks from the story block, no Tear tick.
+    2. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
+       payment screen (FUN_0048e49c + FUN_0044ba2c scripts), the week-end story /
+       game-over scenes (FUN_0049d2e5 / FUN_0049da9e), the b924 50/110/150 morning
+       voices (74b2ee8), b928 = 0 at a dungeon entry (FUN_0045c051). The night arm of
+       the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
-    4. ✅ Boot-time working bank: FUN_004902fe ends every path with a whole
-       save-arena → working-arena copy; the port now does too (portstate
-       buy-40pct-accept work gold IDENTICAL from f1).
-    5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
+    4. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
        delivery + story customers) — no scenario reaches them yet.
+    5. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
+       FUN_00468fd0, the expansion's FUN_004864fd, the FUN_00434ceb message box, the
+       variant-1 market's textures; FUN_0044ba2c's `mode` argument (what runs at a
+       dialogue's end) is not modeled.
+    6. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
+       56da1f0) — not RNG-visible yet; x87 sweep candidate (FUN_0048a833/a4d1).
 
 ### Regression gate (run before claiming a port change is safe)
-- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command (portsave ×3,
-  portanchors ×2, portrng over 9 shop/day scenarios, windows clamped to the retail run), one
+- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command (portsave ×4,
+  portanchors ×2, portrng over 10 shop/day scenarios, windows clamped to the retail run), one
   line each. Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
-  day2-save-commit}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
+  day2-save-commit, multiday-tutorials-suggest}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
   Tear order + D_TUT_LOAD). NB portsave/portstate/portrng do NOT rebuild
   `build/openrecet.exe` — `make -C src` first (a stale exe once faked a regression).
   day2-save-commit's equality leans on 64 Frida-era `{rngseed}` pins.

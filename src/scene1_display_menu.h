@@ -99,6 +99,7 @@ int display_menu_dbg_list(int i);
  * ("Number possessed" in the description panel).  Recomputed inside
  * display_menu_open / _update; -1 before the first recount. */
 int display_menu_possessed(void);
+void display_menu_possessed_invalidate(void);   /* DAT_005c6ee4 = -1 */
 
 /* FUN_00468d22(bank, item): return `item` to the first empty inventory slot of
  * `bank` (the working-bank dword array) and bump the live item count.  No-op on

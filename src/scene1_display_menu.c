@@ -23,6 +23,7 @@
  */
 
 #include "scene1_display_menu.h"
+#include "encyclopedia.h"   /* encyclopedia_mark_seen (FUN_0049126b) */
 
 #include <stdio.h>
 #include <string.h>
@@ -210,6 +211,7 @@ static void display_menu_recount(void)
 }
 
 int display_menu_possessed(void) { return s_possessed; }
+void display_menu_possessed_invalidate(void) { s_possessed = -1; }
 
 /* FUN_004681ec — the prompt-bubble window-type flag (DAT_0734b990). */
 void display_menu_set_window_flag(int flag) { s_window_flag = flag; }
@@ -374,14 +376,38 @@ void display_menu_open(int mode, int first_open)
         s_tab_first_item[t] = (e * 2 + 0 < DISPLAY_MENU_MAX_LIST) ? s_list[e * 2] : -1;
     }
 
-    /* open-cursor init (FUN_00468338 tail, all.c:64635-64639, the param_2!=0
-     * full-open branch): reset to tab 0 and, when tab 0 leads with the -1
-     * "Nothing" entry, START the cursor on the first REAL item (index 1).  That
-     * is why retail's freshly-opened menu highlights the displayed item (and its
-     * description), not "Nothing".  (The param_2==0 re-open clamp loop, all.c:
-     * 64597-64633, only matters for re-opens with a saved cursor — PORT-DEBT;
-     * the removal drive is always a first-open.) */
-    if (first_open) {
+    /* open-cursor init (FUN_00468338 tail, all_ida 65027-65062).
+     * A re-open (param_2 == 0) keeps each tab's cursor/scroll but clamps them to
+     * the rebuilt list: pull the scroll back inside (count − min(count,7)),
+     * dragging the cursor along, then step the cursor down while it sits in
+     * [min(count,7), 7) — at most 1024 steps a tab; an empty tab ends at −1.
+     * (Its "XPOS" debug text, FUN_00451874, is dropped.)  A full open
+     * (param_2 != 0): tab 0 and, when tab 0 leads with the -1 "Nothing" entry,
+     * the cursor STARTS on the first REAL item (index 1) — why retail's freshly
+     * opened menu highlights the displayed item, not "Nothing". */
+    if (!first_open) {
+        for (int t = 0; t < DISPLAY_MENU_MAX_TABS; t++) {
+            const int cnt = s_tab_count[t];
+            const int vis = cnt < 7 ? cnt : 7;
+            int steps = 0;
+            for (;;) {
+                while (s_tab_scroll[t] > cnt - vis) {
+                    s_tab_scroll[t]--;
+                    s_tab_cursor[t]--;
+                    if (++steps == 1024)
+                        goto next_tab;
+                }
+                if (s_tab_cursor[t] > vis - 1 && s_tab_cursor[t] < 7) {
+                    s_tab_cursor[t]--;
+                    if (++steps == 1024)
+                        goto next_tab;
+                    continue;
+                }
+                break;
+            }
+        next_tab:;
+        }
+    } else {
         s_cur_tab = 0;
         if (s_tab_count[0] > 1 && s_list[s_tab_base[0] * 2] == -1)
             s_tab_cursor[0] = 1;
@@ -620,10 +646,7 @@ void display_menu_inventory_return(uint32_t *bank, int item)
     if (bank == NULL || item == -1)
         return;
 
-    /* PORT-DEBT(FUN_0049126b): the item-category-"seen" marker the engine calls
-     * first (DAT_0450b170 records + the FUN_0049f012 unlock gate) is idempotent
-     * for an item that was already on display (its category was marked seen when
-     * first stocked), so it does not change the save bytes for the removal. */
+    encyclopedia_mark_seen((uint8_t *)bank, item);   /* FUN_0049126b */
 
     uint32_t *items = bank + SAVE_BANK_ITEM_TABLE_DWORD;   /* DAT_044e37b0 */
     for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {

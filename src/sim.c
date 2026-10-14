@@ -575,25 +575,19 @@ void sim_step_a(void)
         break;
 
     case 6:    /* Merchant's Guild / Market (engine FUN_00490e24 → FUN_004922c0) */
-        /* LAB_00453bed for mode 6: FUN_00406584 (shared cursor anim) →
-         * FUN_0040fb3a (particles) → the per-state callee FUN_00490e24, in that
-         * order.  FUN_00406584 eases + bobs the shared hand cursor the guild
-         * menu raises; gate it on !dialogue-busy like the rest of the dispatch
-         * (retail's call-trace shows the whole mode-6 dispatch — cursor + sim —
-         * is skipped while the first-visit cutscene runs, so the cursor bob
-         * freezes through it and resumes at the menu reveal).  scene_guild_sim
-         * is the per-state event tick (entry-tick + first-visit trigger + the
-         * resting menu-state counters); it self-gates on busy too.
-         * EXCEPTION: the ESC skip box (skip_event_open()) uses the SAME shared
-         * cursor and is up DURING the (now-frozen-but-still-busy) cutscene, so
-         * its Yes/No nav slide + bob must be stepped here too — without this the
-         * box's hand cursor freezes on Yes and never eases to No on a nav (the
-         * box logic toggles cb_sel, but the cursor sprite is title_save_dialog's
-         * and only this tick advances its 6-frame ease).  Mirrors the prologue,
-         * where INGAME runs this tick unconditionally so the box cursor slides. */
-        if (!scene1_intro_dialogue_busy() || skip_event_open()) {
-            speech_bubble_tick();        /* FUN_00406584 head (all.c:4615) */
-            title_save_dialog_anim_tick();
+        /* LABEL_106 for mode 6: FUN_00406584 → FUN_0040fb3a → FUN_00490e24, the
+         * first two EVERY frame — a dialogue (DAT_0438b1c8) only skips the
+         * per-state callee (rhost guild-ui-flow: the cursor bob b154 advances
+         * through the iv1_3 cutscene).  FUN_00406584's parts here: the speech
+         * bubble head, FUN_004356cd, the XP bar, the shake, the money roll. */
+        speech_bubble_tick();
+        title_save_dialog_anim_tick();
+        {
+            uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+            scene1_top_hud_xp_tick(wb);
+            scene1_top_hud_shake_tick();
+            if (wb)
+                scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
         }
         scene1_particles_tick();
         scene_guild_sim();

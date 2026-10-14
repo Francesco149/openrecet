@@ -1079,6 +1079,7 @@ int32_t customer_service_active(void)      { return s_cs_active; }
 int32_t customer_service_b51c(void)        { return s_b51c; }
 int32_t customer_service_b608(void)        { return s_b608; }
 int32_t customer_service_b604(void)        { return s_b604; }   /* the script PC (g_tuto index) */
+int32_t customer_service_b600(void)        { return s_b600; }
 int32_t customer_service_fileidx(void)     { return s_price_fileidx; }
 /* The BARGAIN price-confirm choice is open — retail sets DAT_0438b150 (the
  * shared modal-cursor flag, → the PAUSE_OPEN anchor) here via choice_box_open;
@@ -1846,9 +1847,16 @@ static void cs_scripted_tick(void)
         op = r->opcode;
         s_b600 = 1;
         if (op != 10) {
-            if (op == 0xb) {                       /* sword-select result */
-                /* PORT-DEBT(cs-sword-select): FUN_00469a9f + the like-attr GOTO. */
+            if (op == 0xb) {                       /* the pick's verdict */
+                /* GOTO args[1]; GOTO args[0] instead when the picked item
+                 * (FUN_00469a9f) carries attribute bit 1 (a sword). */
+                const int sel = display_menu_selected();
                 cs_goto(r->args[1]);
+                if (sel != -1) {
+                    const int slot = tables_item_find_slot_by_id(&g_item, sel >> 6);
+                    if (slot >= 0 && (g_item.records[slot].attr_mask & 1u) != 0)
+                        cs_goto(r->args[0]);
+                }
                 s_b600 = 0;
                 s_b608 = -1;
                 goto lab_tail;
@@ -1982,9 +1990,10 @@ static void cs_scripted_tick(void)
             s_cust_active[0] = 0;
             goto lab_b608_3;
         }
-        /* op == 10: ITEM menu (PORT-DEBT) */
+        /* op == 10: ITEM — the master tick opens the pick menu (mode 10, b5b0 =
+         * 2, asm 0x461cde) once the poses settle; wait on it (b608 = 6). */
         s_b608 = 6;
-        s_price_fileidx = 2;
+        s_b5b0 = 2;
         s_cust_active[1] = 0;
         s_cust_active[0] = 0;
         goto lab_item_menu;
@@ -2074,10 +2083,19 @@ lab_tout_dec:                                       /* LAB_00462200 */
     s_b52c -= 1;
     goto lab_tail;
 
-lab_item_menu:                                      /* LAB_00462225 (PORT-DEBT) */
-    /* PORT-DEBT(cs-item-menu): FUN_00469414 item-window pick + FUN_004682d0; the
-     * buy-from-customer item-select flow, not the sell tutorial's price path. */
-    goto lab_tail;
+lab_item_menu:                                      /* LABEL_97: the op-10 pick */
+    {
+        const int r = display_menu_update(1);       /* FUN_00469414(1) */
+        if (r == 3) {
+            audio_play_se_by_id(0x143);
+        } else if (r == 1) {
+            title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+            stage_load_pulse_set_active(0);            /* FUN_004682d0 */
+            s_b59c = 0;
+            goto lab_advance_pc;                       /* LABEL_101/111 */
+        }
+    }
+    goto lab_check_ret;
 
 lab_tail:                                           /* LAB_004622c6 */
     if (s_b58c > 0)

@@ -64,6 +64,10 @@ extern int32_t g_enc_rows_prev;    /* DAT_0964368c — previous-category row cou
  */
 int  encyclopedia_setup(int all_banks);
 
+/* FUN_0049126b — an item entered the bag (FUN_00468d22): mark it discovered,
+ * then the 100% check (+0x2bd10).  `bank` = the active working bank (bytes). */
+void encyclopedia_mark_seen(uint8_t *bank, int handle);
+
 /* FUN_0049efb8 — slide the shared hand cursor to the current (col,row-scroll). */
 void encyclopedia_cursor_recompute(void);
 

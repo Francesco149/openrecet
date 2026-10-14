@@ -34,7 +34,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/customer_haggle.c \
                  ../src/customer_roster.c \
                  ../src/customer_seller.c \
-                 ../src/news_daily.c \
+                 ../src/news_daily.c ../src/event_probe.c \
                  ../src/customer_dialogue.c \
                  ../src/dialogue_macros.c \
                  ../src/customer_service.c \

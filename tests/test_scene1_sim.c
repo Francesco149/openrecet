@@ -62,6 +62,12 @@ static void reset_world(void)
     /* A prior test may leave a loaded save in the working arena; at shop rank
      * >= 1 the free-roam arm would fire the rank-1 lesson (cc08 → 4). */
     save_work_clear();
+    /* A cleared arena is pre-opening: FUN_0044bd0d would dispatch iv1_1 from the
+     * free-roam arm.  These tests model free roam after it — mark iv1_1/iv1_2 played. */
+    {
+        uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if (bb != NULL) { bb[0x2bc58] = 1; bb[0x2bc59] = 1; }
+    }
     /* The opening-prologue dialogue (src/scene1_intro_dialogue.c) is armed by
      * scene_post_fade_init; sim_step_a ticks it on INGAME frames. A prior test
      * may have left it armed, so reset it here for a hermetic sim_step_a aging

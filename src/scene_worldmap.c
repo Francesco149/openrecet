@@ -26,6 +26,12 @@
 #include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
 #include "call_trace.h"         /* CALL_TRACE_* — flow-trace fields for the both-target verify */
 #include "scene_guild.h"        /* scene_guild_set_variant — mode-6 variant on dest 3/1 */
+#include "scene1_postload.h"    /* scene1_postload_stage_entry_init — FUN_00436f97 */
+#include "event_probe.h"       /* FUN_0045de68 */
+#include "scene1_day_close.h"   /* day_close_clear — DAT_0438b4e0 = 0 */
+#include "scene1_tutorial_dispatch.h" /* scene1_beat_set_flag — DAT_0438b928 */
+
+#define WORK_SEAT_AT_DOOR (0x2cdf4 / 4)   /* work dword 45949 — FUN_00436f97's seat pick */
 
 /* ─── pre-baked asset table ──────────────────────────────────────────── */
 
@@ -138,18 +144,14 @@ int scene_worldmap_dest_pos(int i)
 #define WM_OFF_EVENT_FLAG  0x2bc7c      /* DAT_0450f414 */
 #define WM_DW_DAY          SAVE_BANK_FIELD_CARD_DAY    /* 0xb0fb — DAT_0450fb84 (day#) */
 #define WM_DW_TOD          SAVE_BANK_FIELD_CLOCK_TARGET/* 0xb0fc — DAT_0450fb88 (0 day/1 eve/2 night) */
-#define WM_DW_05A0         0xb3a2u                     /* DAT_045105a0 */
+#define WM_DW_05A0         0xb382u                     /* DAT_045105a0 (work +0x2ce08) */
 
-/* PORT-DEBT(event-probe, FUN_0045de68): the per-destination "has an event
- * today" probe reads the event-table arena (DAT_06a49c44, 5000-int strides)
- * + the day/tod gates — the event system is unported. Returns 0 (no event).
- * Only affects ENABLED destinations (state != 0); in the tutorial gate (the
- * town-map-load recording) only dest 3 is enabled and already at state 2, so
- * this is a no-op there. Retire when the event tables port. */
+/* FUN_0045de68(dest, …, 0): an enabled dest 1..5 with an event today is
+ * highlighted (FUN_0049de20's tail loop). */
 static int scene_worldmap_dest_has_event(int dest)
 {
-    (void)dest;
-    return 0;
+    int grp, idx;
+    return event_probe(save_work_dwords_at(save_work_active_slot()), dest, &grp, &idx, 0);
 }
 
 /* DAT_045105a0[slot] != 0 — the dest-0 ("your shop") tooltip variant selector
@@ -232,7 +234,7 @@ void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
     }
 
     /* Event upgrade (all.c:102905): dest 1..5 — an enabled dest with an event
-     * today becomes highlighted. PORT-DEBT event probe → no-op for now. */
+     * today becomes highlighted. */
     for (i = 1; i < 6; i++) {
         if (scene_worldmap_dest_has_event(i) && s_dest_state[i] != 0)
             s_dest_state[i] = 2;
@@ -322,26 +324,29 @@ static void scene_worldmap_cursor_nav(int param)
     }
 }
 
-/* Destination transition tail — port of FUN_0049e163's LAB_0049e304 +
- * dest→mode table (all.c:103079). Fires once the exit dissolve completes:
- * picks the selected destination's scene mode, then kicks the fade-in + asset
- * load — the same machinery the door-exit uses (scene1_player_ctrl.c stage-2).
+/* Destination transition tail — port of FUN_0049e163's exit arm (all_ida
+ * 114355-114398). Fires once the exit dissolve completes: picks the selected
+ * destination's scene mode, then (every destination) the world-map teardown,
+ * the stage-entry init FUN_00436f97 and the fade-in + asset load — the same
+ * machinery the door-exit uses (scene1_player_ctrl.c stage-2).
  *
- * PORT-DEBT(worldmap-dest-scenes): the destination scenes themselves
- * (modes 1/6/0xb/0xd/0xe/0xf) are separate, mostly-unported arcs — selecting a
- * destination fades out, spawns the load, and switches g_scene_state to the
- * target mode, which renders blank until that scene ports. main.c's render
- * `default` + the worker's unconditional thread cleanup (and bounds-checked
- * dispatch) keep this safe (no hang/crash). The per-destination scene-init
- * helpers (FUN_0045e019/196/3cd, FUN_00490e16, FUN_004060ff, FUN_0044bce7) +
- * the worldmap teardown (FUN_0047360f slot-10 unload, FUN_00436f97 furniture)
- * are deferred no-ops. The tutorial recording never presses Z at the town map,
- * so this is NOT exercised by T4's verification. Retire with each dest arc. */
+ * FUN_00436f97 runs HERE, in the mode-8 tick, with DAT_0438b4dc still the
+ * house stage: rhost --log-rand puts its floor-layout + actor-reset draws on
+ * the exit frame for every destination (multiday-tutorials-suggest f1722, the
+ * market). A home return runs it twice: here, then in the house loader
+ * (StartAddress case 1: FUN_00474a9a + FUN_00436f97).
+ *
+ * PORT-DEBT(worldmap-dest-scenes): the destination scenes (modes 0xb/0xd/0xe/
+ * 0xf, and most of mode 6) are separate arcs — their scene-init helpers
+ * (FUN_0045e019/196/3cd) are no-ops and the scene renders blank until it
+ * ports. FUN_0047360f (slot-10 unload), DAT_0438b1e4 = 0, FUN_0044bce7
+ * (DAT_06a4707c/84/80/88/64 = 0) and DAT_0438b4dc = work +0x2cde0 have no
+ * port mirrors. */
 static void scene_worldmap_exit_to_dest(void)
 {
     int mode;
     switch (s_sel_dest) {                /* DAT_09643684 → DAT_0438b1c0 */
-    case 0:  mode = 1;    break;         /* your shop / home (INGAME) — FUN_004060ff */
+    case 0:  mode = 1;    break;         /* your shop / home (INGAME) */
     case 6:  mode = 0xb;  break;
     case 5:  mode = 0xd;  break;         /* FUN_0045e3cd */
     case 4:  mode = 0xf;  break;         /* FUN_0045e196 */
@@ -350,14 +355,28 @@ static void scene_worldmap_exit_to_dest(void)
     default: mode = 6;    break;         /* dest 1 — FUN_00490e16(1) */
     }
 
-    /* Mode 6 (Market) variant flag — engine FUN_00490e16(v): dest 3 enters the
-     * Merchant's Guild (variant 0, the tutorial-forced target), the default
-     * dest-1 enters variant 1.  Set before the load worker so scene_guild's
-     * case-6 cb picks the right texture set. */
-    if (mode == 6)
+    /* Mode 6 (Market) — engine FUN_00490e16(v): the variant flag (dest 3 the
+     * Merchant's Guild = 0, dest 1 the market = 1; set before the load worker
+     * so the case-6 cb picks the texture set) + the scene init FUN_0049174e. */
+    if (mode == 6) {
         scene_guild_set_variant(s_sel_dest == 3 ? 0 : 1);
+        scene_guild_enter_reset();       /* FUN_0049174e */
+    }
+
+    if (s_sel_dest == 0) {
+        /* Home: work +0x2cdf4 = 1 (FUN_00436f97 seats the actors at the front
+         * door), DAT_0438b4e0 = 0, DAT_0438b928 = 2 (the return beat: Tear
+         * follows for 60 ticks, the greeting at b924 1), FUN_004060ff. */
+        uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        if (w != NULL)
+            w[WORK_SEAT_AT_DOOR] = 1;
+        day_close_clear();
+        scene1_beat_set_flag(2);
+        scene1_top_hud_tooltip_house_entry();
+    }
 
     g_scene_state = mode;                /* DAT_0438b1c0 = <dest mode> */
+    scene1_postload_stage_entry_init();  /* FUN_00436f97 */
     fade_phase_out_start(0, 0x11);       /* FUN_0045281c(0,0x11) — fade-IN */
     worker_load_spawn();                 /* FUN_00452cde — load worker */
 }

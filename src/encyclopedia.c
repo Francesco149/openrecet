@@ -221,6 +221,33 @@ int encyclopedia_setup(int all_banks)
 
 /* ── FUN_0049f365 — the per-frame update / navigation ──────────────────────
  * Returns 1 to CLOSE the submenu (B pressed); 0 otherwise. */
+/* FUN_0049126b (0x49126b; IDA lists no function there): an item entered the bag
+ * (FUN_00468d22) — mark it discovered in its category's store record (the one
+ * keyed by the item's category: byte 7 + subindex), then, until the completion
+ * scene has played (+0x2bd11), rebuild the catalog (FUN_0049f012(0)) and raise
+ * +0x2bd10 (FUN_0044bd0d's iv0_17 trigger) at 100%.  Unappraised handles
+ * (bit 0x10) skip it all. */
+void encyclopedia_mark_seen(uint8_t *bank, int handle)
+{
+    if (bank == NULL || (handle & 0x10) != 0)
+        return;
+    const int slot = tables_item_find_slot_by_id(&g_item, handle >> 6);
+    if (slot < 0)
+        return;
+    const item_record_t *it = &g_item.records[slot];
+    uint8_t *rec = bank + 0x279d8;
+    for (int i = 0; i < 100; i++, rec += 0x48) {
+        int32_t key;
+        memcpy(&key, rec, 4);
+        if (key == it->category) {
+            rec[7 + it->subindex] = 1;
+            break;
+        }
+    }
+    if (bank[0x2bd11] == 0 && encyclopedia_setup(0))
+        bank[0x2bd10] = 1;
+}
+
 int encyclopedia_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;  /* DAT_073dddd4 */

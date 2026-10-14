@@ -2,18 +2,21 @@
  * scene_guild.c — see scene_guild.h.
  *
  * Engine sources:
- *   FUN_004922c0 @ 0x4922c0  — per-location event tick.  Ported here: the
- *     entry-tick counter (DAT_09642c38) + the first-visit cutscene branch
- *     (all.c:94764-94775) + the RESTING menu-state counter update
- *     (all.c:94811-94833: the guildmaster-bubble ramp DAT_09642c40, the
- *     bob/text-budget DAT_09642c48, the bubble-text-variant timer
- *     DAT_09642c4c).  The full interactive state machine (cursor nav, the
- *     buy/sell/talk submenus, store expansion — all.c:94885+) is
- *     PORT-DEBT(guild-menu-nav), deferred to the buy-flow trace; the
- *     fade gate (FUN_00434d6a), daily-event probe (FUN_0045de68) and the
- *     group-6 follow-on cutscenes remain PORT-DEBT too.
- *   FUN_0049174e @ 0x49174e  — scene-init: resets the menu state, builds
- *     the option table (FUN_004918b0) and snaps the hand cursor.
+ *   FUN_004922c0 @ 0x4922c0  — the mode-6 tick (Merchant's Guild / market):
+ *     the entry tick + its entry-tick-2 arms (the iv1_3 first visit, the town
+ *     event FUN_0045de68 = event_probe, the iv6_2/3/4 story beats), the
+ *     guildmaster bubble counters, the Leave fades (c2c: the first Leave → the
+ *     iv1_16 gift; c28: out to the world map), the main menu (nav, Buy / Sell /
+ *     Talk / Expansion, B = Leave), the shared item window (mode 0), the qty
+ *     overlay (mode 8), the Talk submenu (mode 2), the expansion Yes/No (mode
+ *     4).  rhost multiday-tutorials-suggest (6 guild purchases + Leave) replays
+ *     RNG- and save-identical.  PORT-DEBT(guild-fusion): the Fusion option
+ *     (modes 5/6 + the recipe list, FUN_004916a7 / 00469155 / 00469118 /
+ *     004132c1); PORT-DEBT(stub, FUN_00468fd0): the Sell commit's bag removal;
+ *     PORT-DEBT(stub, FUN_004864fd): the expansion's shop re-layout;
+ *     PORT-DEBT(stub, FUN_00434ceb): the "Item limit reached" box.
+ *   FUN_0049174e @ 0x49174e  — scene init (via FUN_00490e16 at the world-map
+ *     exit): the menu reset, work 0xb382/0xb381 = 1, the option table.
  *   FUN_004918b0 @ 0x4918b0  — builds the option-type table _DAT_09640624
  *     + count DAT_005cfab4 (guild fresh-visit → {Buy,Sell,Talk,Leave}).
  *   FUN_00494a73 @ 0x494a73  — the 2D bg blit (guild variant 0) + menu UI.
@@ -21,15 +24,10 @@
  *     speech bubble (the FUN_00494a73 tail).
  *   FUN_00473769 @ 0x473769  — the texture-group-7 load (guild variant 0).
  *
- * The menu is gated on `!scene1_intro_dialogue_busy()`: retail's call-trace
- * shows FUN_004922c0 + FUN_0049404b run only BEFORE the first-visit cutscene
- * arms and AFTER it completes — never during (the dialogue takes over the
- * mode-6 update/render).  So the counters freeze through the cutscene and the
- * menu pops in once it ends, exactly as retail.
- *
- * The first-visit cutscene is iv1_3.ivt, armed through the shared dialogue
- * runtime (scene1_intro_dialogue_start_single(1,3) = port of FUN_0044ba2c(1,3,1)
- * → FUN_00452d07).  See docs/findings/merchant-guild-RE.md.
+ * The update dispatch FUN_004536cb skips FUN_00490e24 while a dialogue runs
+ * (DAT_0438b1c8 != 0), so the tick freezes through cutscenes; the menu render
+ * stays up behind an overlay dialogue (the iv1_9 reminder).
+ * See docs/findings/merchant-guild-RE.md.
  */
 
 #include "scene_guild.h"
@@ -46,7 +44,17 @@
 #include "stage_load_pulse.h"         /* the item-window slide ramp (FUN_004693e3) */
 #include "tables_item.h"              /* g_item DB (price / name for the qty overlay) */
 #include "save_bank.h"                /* SAVE_BANK_FIELD_GOLD / _ITEM_TABLE_DWORD     */
-#include "scene1_top_hud.h"           /* the money rolling-counter (FUN_00406584)     */
+#include "choice_box.h"                /* the expansion Yes/No (FUN_00434def/ed2)      */
+#include "event_probe.h"               /* FUN_0045de68                                */
+#include "fade.h"                      /* FUN_004526f5 / 004528b3 / 0045281c          */
+#include "news_daily.h"                /* news_price_trend (FUN_004361b2)             */
+#include "scene.h"                     /* g_scene_state (DAT_0438b1c0)                */
+#include "scene_worldmap.h"            /* scene_worldmap_set_sel_dest (FUN_0049de0e)  */
+#include "scene1_records.h"            /* scene1_records_reset (FUN_0040f64b)         */
+#include "worker_load.h"               /* worker_load_spawn (FUN_00452cde)            */
+#include "x87.h"                       /* spill32 / x87_ftol                          */
+
+#include <stdio.h>                     /* snprintf — the expansion prompt             */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
@@ -61,12 +69,19 @@
 /* Slot-0-pinned dword indices into the working bank (DAT_0450fb98 / DAT_04510578
  * fall inside slot 0's 0x2dfc8-byte bank — PORT-DEBT(loc-routing), slot 0 only). */
 #define GUILD_STORE_LEVEL_DWORD  0xb100   /* DAT_0450fb98 — store/merchant level */
-#define GUILD_PERIOD_DWORD       0xb378   /* DAT_04510578 — time-of-day period   */
+#define GUILD_TIER_DWORD         0xb378   /* DAT_04510578 — shop tier (work +0x2cde0) */
 #define GUILD_RESTRICTED_OFF     0x2bc49  /* DAT_0450f3e1 — early-game fixed-stock
                                            * flag; while set, gold is force-pinned
                                            * to 10,000,000 (tutorial infinite money,
                                            * engine FUN_004922c0 all.c:94756-94758). */
 #define GUILD_TUTORIAL_GOLD      10000000u /* DAT_00989680 (the pinned value)        */
+#define GUILD_FIRSTLEAVE_DONE_OFF 0x2bc92 /* DAT_0450f42a — iv1_16 + the gift seen: Leave
+                                           * goes straight out (c28) from then on */
+#define GUILD_STORY_OFF          0x2bcd0  /* DAT_0450f468..6c — the iv6_2/3/4 guild beats */
+#define GUILD_TUT_A_OFF          0x2bc61  /* DAT_0450f3f9 — world map: the market lit  */
+#define GUILD_TUT_B_OFF          0x2bc70  /* DAT_0450f408 — world map: home lit        */
+#define W_SCORE_TODAY            0xb0f8   /* today's score (+3 per purchase)           */
+#define W_PERIOD_FLAG            0xb382   /* DAT_045105a0 — the trip home costs a period */
 
 /* Market variant flag (engine DAT_0963c5f0). */
 static int s_variant = 0;
@@ -90,6 +105,10 @@ static struct {
     int c14;          /* DAT_09642c14 — confirm-transition flag            */
     int c18;          /* DAT_09642c18 — item-list→menu slide-OUT flag      */
     int transition;   /* DAT_09642c3c — 1 = mid daily-event transition     */
+    int c28;          /* DAT_09642c28 — Leave: the fade out to the world map */
+    int c2c;          /* DAT_09642c2c — the first Leave: fade → iv1_16      */
+    int f_cursor;     /* DAT_09642c30 — fusion recipe cursor               */
+    int f_scroll;     /* DAT_09642c34 — fusion recipe scroll               */
     int entries[8];   /* _DAT_09640624 — per-row option type codes         */
     int count;        /* DAT_005cfab4  — option count                      */
 
@@ -128,7 +147,7 @@ static void scene_guild_build_table(void)
     uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (bank != NULL) {
         store_level = (int)bank[GUILD_STORE_LEVEL_DWORD];   /* DAT_0450fb98 */
-        period      = (int)bank[GUILD_PERIOD_DWORD];        /* DAT_04510578 */
+        period      = (int)bank[GUILD_TIER_DWORD];        /* DAT_04510578 */
     }
 
     s_menu.entries[0] = 0;           /* Buy  */
@@ -150,48 +169,66 @@ static void scene_guild_build_table(void)
     s_menu.count = i + 2;
 }
 
-/* ─── scene-init menu reset (FUN_0049174e relevant subset) ──────────────────
- * Called by the worker-load cb on scene entry.  Resets the menu to its open
- * resting state + snaps the hand cursor onto the top option. */
+/* ─── scene-init FUN_0049174e (via FUN_00490e16 at the world-map exit) ──────── */
 void scene_guild_enter_reset(void)
 {
-    s_menu.entry_tick  = 0;          /* DAT_09642c38 = 0 */
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    title_save_dialog_gate_reset();  /* FUN_00434ce3: DAT_0438b148 = 0 */
+    s_menu.ov_slide    = 0;          /* DAT_09642c50 */
+    if (bank != NULL) {
+        bank[W_PERIOD_FLAG]                = 1;   /* the trip home costs a period */
+        bank[SAVE_BANK_FIELD_RESUME_MODE]  = 1;
+    }
+    s_menu.yn_cursor   = 0;          /* DAT_09640600 */
+    s_menu.flash_ctr   = 0;          /* DAT_096405fc */
+    s_menu.price_anim  = 0;          /* DAT_09642c54 */
+    s_menu.c28         = 0;
+    s_menu.c2c         = 0;
     s_menu.mode        = 1;          /* DAT_09642c00 = 1 (menu open) */
-    s_menu.cursor      = 0;          /* DAT_09642c04 = 0 */
-    s_menu.scroll      = 0;          /* DAT_09642c08 = 0 */
-    s_menu.bubble      = 0;          /* DAT_09642c40 = 0 */
-    s_menu.bob         = 0;          /* DAT_09642c48 = 0 */
-    s_menu.text_timer  = 0;          /* DAT_09642c4c = 0 */
-    s_menu.sub_anim    = 0;          /* DAT_09642c1c = 0 */
-    s_menu.scroll_anim = 0;          /* DAT_09642c20 = 0 */
-    s_menu.c24         = 0;          /* DAT_09642c24 = 0 */
-    s_menu.item_cursor = 0;          /* DAT_09642c10 = 0 */
-    s_menu.item_scroll = 0;          /* DAT_09642c0c = 0 */
-    s_menu.c14         = 0;          /* DAT_09642c14 = 0 */
-    s_menu.c18         = 0;          /* DAT_09642c18 = 0 */
-    s_menu.transition  = 0;          /* DAT_09642c3c = 0 */
-    s_menu.ov_slide    = 0;          /* DAT_09642c50 = 0 — overlay closed */
-    s_menu.yn_cursor   = 0;
-    s_menu.flash_ctr   = 0;
-    s_menu.price_anim  = 0;
-    s_menu.up_bob      = 0;
-    s_menu.dn_bob      = 0;
-    s_menu.qty         = 0;
-    s_menu.max_qty     = 0;
-    s_menu.unit_price  = 0;
-    s_menu.item_rec    = 0;
-
-    scene_guild_build_table();       /* FUN_004918b0 */
-
-    /* the shared item window starts closed: zero the slide counter so
-     * display_menu_render is a no-op until a Buy/Sell opens it (a stale house
-     * display-stand slide must not bleed into the resting guild menu). */
-    stage_load_pulse_reset();
-
-    /* FUN_0043561a + FUN_00435693(0x43a40000, cursor*0x22 + 84.0): raise +
-     * snap the shared hand cursor onto the top option (328, 84). */
+    s_menu.cursor      = 0;          /* DAT_09642c04 */
+    s_menu.scroll      = 0;          /* DAT_09642c08 */
+    s_menu.item_cursor = 0;          /* DAT_09642c10 */
+    s_menu.item_scroll = 0;          /* DAT_09642c0c */
+    /* FUN_0043561a + FUN_00435693(328, cursor·34 + 84): raise + snap the shared
+     * hand cursor onto the top option. */
     title_save_dialog_cursor_set_visible(1);
     title_save_dialog_cursor_snap(328.0f, (float)(s_menu.cursor * 0x22) + 84.0f);
+    s_menu.entry_tick  = 0;          /* DAT_09642c38 */
+    s_menu.transition  = 0;          /* DAT_09642c3c */
+    s_menu.bubble      = 0;          /* DAT_09642c40 */
+    s_menu.bob         = 0;          /* DAT_09642c48 */
+    s_menu.text_timer  = 0;          /* DAT_09642c4c */
+    s_menu.sub_anim    = 0;          /* DAT_09642c1c */
+    /* FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1). */
+    scene1_records_reset(1);
+    s_menu.c14         = 0;
+    s_menu.c18         = 0;
+    s_menu.scroll_anim = 0;          /* DAT_09642c20 */
+    s_menu.c24         = 0;
+    scene_guild_build_table();       /* FUN_004918b0 */
+    /* DAT_09642bf4 (the fusion recipe count from DAT_09642bf0 + merchant
+     * level), DAT_005cfab8 = 1, DAT_09642c44 = 0, DAT_09642bfc = 0 —
+     * PORT-DEBT(guild-fusion). */
+    s_menu.qty = s_menu.max_qty = s_menu.unit_price = s_menu.item_rec = 0;
+    s_menu.up_bob = s_menu.dn_bob = 0;
+
+    /* the shared item window starts closed: zero the slide counter so
+     * display_menu_render is a no-op until a Buy/Sell opens it (port-side: a
+     * house display-stand slide must not bleed into the resting guild menu). */
+    stage_load_pulse_reset();
+}
+
+/* FUN_004682c5 + FUN_00468338(7 buy | 5 sell, 1) + FUN_004682d8(0.7 | 0.3):
+ * open the shared item window on the guild stock / the bag. */
+static void guild_open_item_window(int type)
+{
+    if (type != 0) {
+        display_menu_open(5, 1);
+        display_menu_set_price_mult(0.3f);   /* 0x3e99999a */
+    } else {
+        display_menu_open(7, 1);
+        display_menu_set_price_mult(0.7f);   /* 0x3f333333 */
+    }
 }
 
 /* ─── buy-flow helpers (item list mode 0 → qty overlay mode 8) ─────────────── */
@@ -292,70 +329,84 @@ static int guild_qty_overlay_input(void)
     return -1;
 }
 
-/* FUN_004922c0 return-3 (A-edge, all.c:95258-95320): set the highlighted item's
- * preview unit price (DAT_09642c60) + confirm/error SE.  Buy = base·0.7,
- * Sell = base·0.3 (PORT-DEBT(price-trend FUN_004361b2): market factor = 1.0). */
-static void guild_buy_price_preview(int sel)
+/* The unit price (asm 0x493252-0x4932bd / 0x4932e8-0x493353): the item's base
+ * price × 0.7 (buy) or 0.3 (sell), each step spilled to a float, then × the
+ * FUN_004361b2 trend factor (≥2 → 1.5, 1 → 1.2, ≤−2 → 0.7, −1 → 0.8, 0 → none)
+ * and __ftol'd.  The guild is mode 6, so the trend's tutorial-sell gate is off. */
+static int guild_unit_price(const uint32_t *bank, int rec, int handle, float mult)
 {
-    int id = display_menu_selected();
-    if (id == -1)
-        return;
-    int rec = tables_item_find_slot_by_id(&g_item, id >> 6);
-    if (rec < 0)
-        return;
-    const float mult = (sel == 0) ? 0.7f : 0.3f;
-    if (sel == 0) {                                /* Buy */
-        const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-        if (display_menu_owned_count(bank) < 15000) {
-            s_menu.unit_price = (int)((float)g_item.records[rec].price * mult);
-            if (display_menu_stock_cap() != 0 && s_menu.unit_price <= guild_gold()) {
-                audio_play_se_by_id(0x143);
-                return;
-            }
-        }
-        audio_play_se_by_id(0x16a);
-    } else {                                       /* Sell */
-        s_menu.unit_price = (int)((float)g_item.records[rec].price * mult);
-        s_menu.max_qty    = display_menu_stock_cap();
-        audio_play_se_by_id(0x143);
-    }
+    float p = spill32((long double)spill32((long double)g_item.records[rec].price) * mult);
+    const int t = news_price_trend((const uint8_t *)bank, handle, 0);
+    if (t >= 2)       p = spill32((long double)p * 1.5f);
+    else if (t >= 1)  p = spill32((long double)p * 1.2f);
+    else if (t <= -2) p = spill32((long double)p * 0.7f);
+    else if (t <= -1) p = spill32((long double)p * 0.8f);
+    return x87_ftol(p);
 }
 
-/* FUN_004922c0 return-1 (countdown done, all.c:95322-95389): cap the quantity
- * and open the mode-8 qty overlay.  Buy path only (Sell qty-cap is the simpler
- * stock cap, set in the preview). */
-static void guild_buy_open_qty_overlay(int sel)
+/* FUN_004922c0 item-list return 3 (A-edge, all_ida 105210-105282): set the
+ * highlighted item's unit price (DAT_09642c60) + the confirm/error SE. */
+static void guild_buy_price_preview(uint32_t *bank, int sel)
 {
-    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    int owned = display_menu_owned_count(bank);
-    if (owned > 14999 && sel == 0)                 /* PORT-DEBT(item-limit msg) */
+    int handle = display_menu_selected();
+    if (handle == -1)
         return;
-    /* PORT-DEBT(first-buy tutorial FUN_0044ba2c(1,0xf,0)): owns>9 & flag unset →
-     * a tutorial dialogue; not reached by this early-visit trace. */
-    int id = display_menu_selected();
-    if (id == -1)
-        return;
-    int rec = tables_item_find_slot_by_id(&g_item, id >> 6);
+    int rec = tables_item_find_slot_by_id(&g_item, handle >> 6);
     if (rec < 0)
         return;
-    if (sel == 0) {                                /* Buy: clamp the qty cap */
-        int gold = guild_gold();
-        int max  = (s_menu.unit_price > 0) ? gold / s_menu.unit_price : 99;
-        if (max > 99) max = 99;
-        if (owned + max > 14999) max = 15000 - owned;
-        int stock = display_menu_stock_cap();
-        if (stock < max) max = stock;
-        if (max > 99) max = 99;
-        /* PORT-DEBT(first-sale 0xb-level cap, all.c:95354): skipped — the trace
-         * qty (≤2) is well under it. */
-        s_menu.max_qty = max;
-        if (display_menu_stock_cap() == 0)         /* out of stock */
+    if (sel == 0) {                                /* Buy */
+        if (display_menu_owned_count(bank) >= 15000) {
+            audio_play_se_by_id(0x16a);
             return;
-        if (gold < s_menu.unit_price)              /* can't afford one */
+        }
+        s_menu.unit_price = guild_unit_price(bank, rec, handle, 0.7f);
+        if (display_menu_stock_cap() == 0 || guild_gold() < s_menu.unit_price) {
+            audio_play_se_by_id(0x16a);
+            return;
+        }
+    } else {                                       /* Sell */
+        s_menu.unit_price = guild_unit_price(bank, rec, display_menu_selected(), 0.3f);
+        s_menu.max_qty    = display_menu_stock_cap();
+    }
+    audio_play_se_by_id(0x143);
+}
+
+/* FUN_004922c0 item-list return 1 (the confirm countdown elapsed, all_ida
+ * 105159-105208): the item-limit / first-visit gates, the quantity cap, then
+ * open the mode-8 qty overlay. */
+static void guild_buy_open_qty_overlay(uint32_t *bank, int sel)
+{
+    const uint8_t *bb = (const uint8_t *)bank;
+    int owned = display_menu_owned_count(bank);                 /* FUN_00491b16 */
+    if (owned >= 15000 && sel == 0) {
+        /* FUN_00434ceb("Item limit reached, cannot buy any more.") —
+         * PORT-DEBT(stub, FUN_00434ceb): the message box is unported. */
+        return;
+    }
+    if (bb[GUILD_FIRSTLEAVE_DONE_OFF] == 0 && (int32_t)bank[SAVE_BANK_FIELD_ITEM_COUNT] >= 10) {
+        scene1_intro_dialogue_start_single(1, 15);              /* FUN_0044ba2c(1,15,0) */
+        return;
+    }
+    int handle = display_menu_selected();
+    if (handle == -1)
+        return;
+    int rec = tables_item_find_slot_by_id(&g_item, handle >> 6);
+    if (sel == 0) {                                /* Buy: cap the quantity */
+        /* retail divides unguarded (a 0 price would fault); the port caps at 99 */
+        int max = s_menu.unit_price > 0 ? guild_gold() / s_menu.unit_price : 99;
+        if (max > 99) max = 99;
+        if (owned + max >= 15000) max = 15000 - owned;
+        if (max > display_menu_stock_cap()) max = display_menu_stock_cap();
+        if (max > 99) max = 99;
+        int count = (int32_t)bank[SAVE_BANK_FIELD_ITEM_COUNT];
+        if (bb[GUILD_FIRSTLEAVE_DONE_OFF] == 0 && max > 11 - count)
+            max = 11 - count;                      /* the first visit: 11 items */
+        s_menu.max_qty = max;
+        if (display_menu_stock_cap() == 0 || guild_gold() < s_menu.unit_price)
             return;
     }
-    s_menu.qty        = 1;                          /* DAT_09642c5c */
     s_menu.item_rec   = rec;                        /* DAT_09642c58 */
+    s_menu.qty        = 1;                          /* DAT_09642c5c */
     s_menu.mode       = 8;                          /* DAT_09642c00 = 8 */
     s_menu.ov_slide   = 1;                          /* DAT_09642c50 = 1 */
     s_menu.yn_cursor  = 0;                          /* DAT_09640600 = 0 (Yes) */
@@ -366,361 +417,440 @@ static void guild_buy_open_qty_overlay(int sel)
     title_save_dialog_cursor_snap(340.0f, 252.0f); /* FUN_00435693 — Yes position */
 }
 
-/* mode-8 confirm tail (all.c:95543-95566): add `qty` of the item to inventory,
- * deduct the cost, decrement the row stock + daily limit, play the purchase SE. */
-static void guild_buy_commit(void)
+/* mode-8 confirm (all_ida 105246-105292). */
+static void guild_buy_commit(uint32_t *bank)
 {
-    int sel = s_menu.entries[s_menu.cursor];
-    if (sel != 0)                                   /* Sell path is PORT-DEBT */
+    uint8_t *bb = (uint8_t *)bank;
+    if (s_menu.entries[s_menu.cursor] != 0) {
+        /* Sell: qty × FUN_00468fd0 (take the row's item out of the bag), gold +=
+         * price·qty.  PORT-DEBT(stub, FUN_00468fd0): the removal is unported,
+         * so the guild Sell commit stays inert. */
         return;
-    int id = display_menu_selected();
-    if (id == -1)
+    }
+    int handle = display_menu_selected();
+    if (handle == -1)
         return;
-    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    if (bank == NULL)
-        return;
-    int total = s_menu.qty * s_menu.unit_price;
-    if (total > guild_gold())                       /* can't afford the batch */
+    int total = s_menu.unit_price * s_menu.qty;
+    if (guild_gold() < total)
         return;
     for (int i = 0; i < s_menu.qty; i++) {
-        display_menu_inventory_return(bank, id);    /* FUN_00468d22 */
-        display_menu_buy_post_add(bank);            /* FUN_00469a00 */
+        display_menu_inventory_return(bank, handle);    /* FUN_00468d22 */
+        display_menu_buy_post_add(bank);                /* FUN_00469a00 */
     }
-    bank[SAVE_BANK_FIELD_GOLD] = (uint32_t)(guild_gold() - total);  /* gold -= cost */
-    audio_play_se_by_id(0x14d);                     /* purchase SE */
-    /* PORT-DEBT(first-buy save flags 0450f3f5/3f9): tutorial bookkeeping. */
+    bank[W_SCORE_TODAY] += 3;
+    bank[SAVE_BANK_FIELD_GOLD] = (uint32_t)(guild_gold() - total);
+    display_menu_possessed_invalidate();                /* DAT_005c6ee4 = -1 */
+    audio_play_se_by_id(0x14d);
+    if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 && (int32_t)bank[SAVE_BANK_FIELD_CARD_DAY] == 0) {
+        bb[GUILD_FIRSTLEAVE_OFF] = 1;                   /* a purchase unlocks Leave */
+        bb[GUILD_TUT_A_OFF]      = 0;
+    }
 }
 
 /* item_cursor 0..5 → talk-dialogue script (FUN_004922c0 94937-94955).  Shared by
  * the sim (mode-2 dispatch) so it lives outside the Win32 render block. */
 static const int k_talk_scripts[6] = { 0x0a, 0x0b, 0x0c, 0x0e, 0x18, 0x19 };
 
-/* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0) ──────────────────────── */
+/* DAT_005cfad4: the store-expansion cost per shop tier (work +0x2cde0). */
+static const int k_expand_cost[4] = { 10000, 30000, 100000, 500000 };
+
+/* FUN_004922c0's cursor tail: LABEL_114 raises the shared hand cursor
+ * (FUN_0043561a); LABEL_329/331/332 ease it (FUN_00435710) onto the main
+ * option, the fusion row and the submenu row. */
+static void guild_cursor_tail(int show, int main_row, int fusion_row, int sub_row)
+{
+    if (show)
+        title_save_dialog_cursor_set_visible(1);
+    if (main_row)
+        title_save_dialog_cursor_slide(328.0f, (float)((s_menu.cursor - s_menu.scroll) * 0x22) + 84.0f);
+    if (fusion_row)
+        title_save_dialog_cursor_slide(92.0f, (float)(s_menu.f_cursor - s_menu.f_scroll) * 32.0f + 148.0f);
+    if (sub_row)
+        title_save_dialog_cursor_slide(328.0f,
+                                       (float)((s_menu.item_cursor - s_menu.item_scroll) * 0x22) + 84.0f);
+}
+
+/* LABEL_53: out to the world map — cursor off, item window off, the mode-8
+ * load + fade-in (FUN_0047386b's texture-group-7 release has no port twin). */
+static void guild_exit_to_worldmap(void)
+{
+    title_save_dialog_cursor_set_visible(0);             /* FUN_00435612 */
+    stage_load_pulse_set_active(0);                      /* FUN_004682d0 */
+    worker_load_spawn();                                 /* FUN_00452cde */
+    fade_phase_out_start(0, 0x11);                       /* FUN_0045281c(0,17) */
+}
+
+/* The entry-tick-2 arms (all_ida 104897-104952).  Returns 1 when the tick ends. */
+static int guild_entry_events(uint32_t *bank)
+{
+    uint8_t *bb = (uint8_t *)bank;
+    if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] == 2)
+        return 0;
+    /* first visit: mark seen + the iv1_3 cutscene (FUN_0044ba2c(1,3,1)) +
+     * FUN_00452809 (PORT-DEBT(stub, FUN_00452809), as at the tutorial sites). */
+    if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
+        bb[GUILD_FIRSTVISIT_OFF] = 1;
+        scene1_intro_dialogue_start_single(1, 3);
+        return 1;
+    }
+    int grp, idx;
+    if (event_probe(bank, s_variant == 0 ? 3 : 1, &grp, &idx, 1)) {
+        scene1_intro_dialogue_start_single(grp, idx);   /* FUN_0044ba2c(grp,idx,1) */
+        s_menu.transition = 1;
+        return 1;
+    }
+    /* the story-mode guild beats: flag 0x2bcd0 set, before the evening, at the
+     * guild — iv6_2, iv6_3, iv6_4 (each re-arms the entry tick), then straight
+     * back out to the world map. */
+    if (bb[GUILD_STORY_OFF] == 1 && (int32_t)bank[SAVE_BANK_FIELD_CLOCK_TARGET] < 2 && s_variant == 0) {
+        for (int k = 1; k <= 3; k++) {
+            if (bb[GUILD_STORY_OFF + k] == 0) {
+                bb[GUILD_STORY_OFF + k] = 1;
+                scene1_intro_dialogue_start_single(6, k + 1);
+                s_menu.transition = 1;
+                s_menu.entry_tick = 1;
+                return 1;
+            }
+        }
+        if (bb[GUILD_STORY_OFF + 4] == 0) {
+            bb[GUILD_STORY_OFF + 4] = 1;
+            g_scene_state = 8;
+            guild_exit_to_worldmap();
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0, all_ida 104808) ──────── */
 
 void scene_guild_sim(void)
 {
-    /* FUN_00490e24: the gate FUN_0044c7b8() is a `return 0` stub, so the event
-     * tick FUN_004922c0 always runs — EXCEPT the engine's mode-6 dispatch does
-     * not call it while the first-visit dialogue is active (retail call-trace:
-     * FUN_004922c0 fires only on the 2 pre-cutscene ticks + post-cutscene,
-     * never during).  Model that by freezing the whole tick while busy, so the
-     * menu counters resume from their pre-cutscene values when it ends. */
+    /* The update dispatch FUN_004536cb reaches FUN_00490e24 only while no
+     * dialogue runs (DAT_0438b1c8 == 0), so the whole tick — the entry-tick
+     * counter included — freezes through a cutscene. */
     if (scene1_intro_dialogue_busy())
         return;
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return;
+    uint8_t *bb = (uint8_t *)bank;
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 lo  */
+    const uint16_t held    = g_sim_buttons[0].held;      /* the auto-repeat hi word */
+    int v70 = 0;   /* ease the cursor onto the main option */
+    int v69 = 0;   /* … onto the submenu row */
+    int v71 = 0;   /* … onto the fusion row */
 
-    /* FUN_004922c0 top (all.c:94752): the entry-tick counter. */
-    s_menu.entry_tick++;
+    s_menu.entry_tick++;                                 /* DAT_09642c38 */
+    /* the tutorial's fixed stock: gold pinned to 10,000,000 every frame. */
+    if (bb[GUILD_RESTRICTED_OFF] != 0)
+        bank[SAVE_BANK_FIELD_GOLD] = GUILD_TUTORIAL_GOLD;
+    if (title_save_dialog_gate_tick() == -1)            /* FUN_00434d6a: a message box */
+        return;
+    if (s_menu.entry_tick == 2 && guild_entry_events(bank))
+        return;
 
-    /* Tutorial infinite money (all.c:94756-94758): while the early-game
-     * restricted-stock flag is set, gold is force-pinned to 10,000,000 every
-     * frame.  So the buy flow's qty cap comes from the per-item stock ("N
-     * Left"), NOT affordability, and the displayed gold never drops.  (The HUD
-     * mirror was synced from this bank dword at scene entry, so leaving it is
-     * correct — it stays at the pinned value, matching retail.) */
-    {
-        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-        if (bank != NULL) {
-            if (((const uint8_t *)bank)[GUILD_RESTRICTED_OFF] != 0)
-                bank[SAVE_BANK_FIELD_GOLD] = GUILD_TUTORIAL_GOLD;
-            /* money rolling-counter (FUN_00406584, pre-sim, all.c:4849): ease the
-             * displayed gold toward the bank value so a purchase rolls the digits
-             * down (one frame after the deduct, matching the engine's pre-sim
-             * ordering).  No-op + no RNG at rest. */
-            scene1_top_hud_money_tick((int)bank[SAVE_BANK_FIELD_GOLD]);
-        }
-    }
+    const int v73 = s_menu.entries[s_menu.cursor];
 
-    /* First-visit branch (all.c:94764-94775), gated on the 2nd entry tick. */
-    if (s_menu.entry_tick == 2) {
-        /* Guard (&DAT_045114fc)[loc] != 2 (not a dungeon) is structurally
-         * always-true for mode 6 — not read literally (PORT-DEBT(loc-routing),
-         * the 0xb7f2 stride is unreliable under slot pinning). */
-        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-        if (bank != NULL) {
-            uint8_t *bb = (uint8_t *)bank;
-            /* (&DAT_0450f3f4)[loc] == 0 — first-visit unseen: mark seen (once,
-             * persists) + arm the iv1_3 cutscene, then return (busy next tick). */
-            if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
-                bb[GUILD_FIRSTVISIT_OFF] = 1;
-                scene1_intro_dialogue_start_single(1, 3);  /* FUN_0044ba2c(1,3,1) */
-                return;
-            }
-        }
-        /* PORT-DEBT(guild-events): the daily-event probe (FUN_0045de68) and the
-         * group-6 follow-on cutscenes (all.c:94776-94808) are not ported. */
-    }
-
-    /* ── RESTING menu-state counter update (FUN_004922c0 94811-94833) ──────────
-     * The full input/navigation state machine (all.c:94834+) is
-     * PORT-DEBT(guild-menu-nav) — this trace drives no menu input, so only the
-     * idle counters matter. */
-    int sel_type = s_menu.entries[s_menu.cursor];
-
-    /* Guildmaster bubble ramp: pop in while the menu is settled (or the
-     * Expansion option is selected); pop out otherwise. */
-    if (sel_type == 6 ||
-        (s_menu.mode != 0 && s_menu.scroll_anim == 0 &&
-         s_menu.entry_tick > 0xe && s_menu.c24 == 0)) {
-        if (s_menu.bubble < 0xf)
+    /* the guildmaster's bubble: pops in while the menu is settled (or Expansion
+     * is highlighted); the bob/reveal budget runs while it is fully open. */
+    if (v73 == 6 || (s_menu.mode != 0 && s_menu.scroll_anim == 0 &&
+                     s_menu.entry_tick >= 15 && s_menu.c24 == 0)) {
+        if (s_menu.bubble < 15)
             s_menu.bubble++;
     } else if (s_menu.bubble > 0) {
         s_menu.bubble--;
     }
-
-    /* Bob / text-reveal budget runs only while the bubble is fully open. */
-    if (s_menu.bubble == 0xf)
+    if (s_menu.bubble == 15)
         s_menu.bob++;
     else
         s_menu.bob = 0;
-
-    /* Bubble-text-variant timer: ≥0x78 switches "Before you stock up…" →
-     * "Time to stock up a bit, eh?".  (Engine also force-sets 0x78 on menu
-     * input via _DAT_073dddd4 & 0xc0000 — no input modeled at rest.) */
     s_menu.text_timer++;
-    /* Holding a direction snaps the bubble text to variant B (94830:
-     * _DAT_073dddd4 & 0xc0000 = held up|down). */
-    if ((g_sim_buttons[0].held & 0x0cu) != 0)
-        s_menu.text_timer = 0x78;
+    if ((held & 0x0cu) != 0)                             /* DAT_073dddd4 & 0xc0000 */
+        s_menu.text_timer = 120;
+    s_menu.transition = 0;
 
-    s_menu.transition = 0;           /* DAT_09642c3c = 0 */
+    /* the first Leave after the first purchase: fade, then iv1_16 (Tear's
+     * "back to Recettear" scene; FUN_0044ba2c(1,16,4) — PORT-DEBT(simplified,
+     * FUN_0044ba2c): the port's spawn has no mode-4 end arm, FUN_004526f5(0,3)),
+     * the gift item 0x3ea00 into the bag, and on to the c28 exit. */
+    if (s_menu.c2c > 0) {
+        if (++s_menu.c2c == 2)
+            fade_phase1_start(0, 0x11);                  /* FUN_004526f5(0,17) */
+        if (s_menu.c2c >= 3 && fade_is_done()) {
+            scene1_intro_dialogue_start_single(1, 16);
+            s_menu.c2c = 0;
+            bb[GUILD_FIRSTLEAVE_DONE_OFF] = 1;
+            s_menu.c28 = 3;
+            int n = (int32_t)bank[SAVE_BANK_FIELD_ITEM_COUNT];
+            bank[6 + n] = 0x3ea00u;
+            bank[SAVE_BANK_FIELD_ITEM_COUNT] = (uint32_t)(n + 1);
+        }
+        return;
+    }
+    /* Leave: fade, then the world map with the cursor on this market. */
+    if (s_menu.c28 > 0) {
+        if (++s_menu.c28 == 2)
+            fade_phase1_start(0, 0x11);
+        if (s_menu.c28 > 2 && fade_is_done()) {
+            g_scene_state = 8;
+            scene_worldmap_set_sel_dest(s_variant != 0 ? 1 : 3);   /* FUN_0049de0e */
+            guild_exit_to_worldmap();
+        }
+        return;
+    }
 
-    /* ── main-menu cursor navigation (FUN_004922c0 95074-95084) ───────────────
-     * Step 1 of the buy-flow nav: Up/Down move the option cursor (wrap + nav SE
-     * + the 6-frame cursor slide).  Deliberately NOT the A-press dispatch: a Buy/
-     * Sell A-press starts the submenu slide-in that slides the main panel OUT,
-     * and without the item-window render sliding IN behind it the menu blanks
-     * (a parity dip vs retail's list) — so the slide-in + mode-0 item list + the
-     * qty overlay land together as step 2 (with FUN_00468338's guild-stock
-     * population + render).  See merchant-guild-RE.md "BUY FLOW".
-     *
-     * Input = engine _DAT_073dddd4 = pressed(low16) | held(high16): actions A/B
-     * are pressed & 0x10/0x20 (edge), directions Up/Down are held & 0x04/0x08
-     * (auto-repeat — the engine's high-word 0x40000/0x80000 bits). */
-    const uint16_t pressed = g_sim_buttons[0].pressed;
-    const uint16_t held    = g_sim_buttons[0].held;
-    int cursor_moved = 0;       /* local_14 — main-menu cursor slide       */
-    int sub_cursor_moved = 0;   /* local_18 — talk-submenu row cursor slide */
+    if (s_menu.mode == 2) {
+        /* ── submenu (Talk at the guild; the Buy/Sell picker at the market) ── */
+        if (s_menu.c14 != 0) {                           /* closing */
+            if (s_menu.sub_anim <= 15) {
+                s_menu.sub_anim = 0;
+                s_menu.mode     = 1;
+                s_menu.c14      = 0;
+            } else {
+                s_menu.sub_anim--;
+            }
+        } else if (s_menu.sub_anim < 25) {
+            s_menu.sub_anim++;
+        }
+        if (s_menu.scroll_anim <= 0) {
+            if (s_menu.sub_anim != 25) {
+                guild_cursor_tail(1, v70, v71, v69);
+                return;
+            }
+            const int n = (s_variant == 0 && v73 != 0) ? 7 : 3;
+            if ((pressed & 0x20u) == 0 && ((pressed & 0x10u) == 0 || s_menu.item_cursor != n - 1)) {
+                if ((pressed & 0x10u) == 0) {
+                    if (held & 0x04u) {
+                        if (s_menu.item_cursor > 0) {
+                            audio_play_se_by_id(0x146);
+                            v69 = 1;
+                            if (--s_menu.item_cursor - s_menu.item_scroll < 0)
+                                s_menu.item_scroll--;
+                        }
+                    } else if ((held & 0x08u) && s_menu.item_cursor < n - 1) {
+                        audio_play_se_by_id(0x146);
+                        v69 = 1;
+                        if (++s_menu.item_cursor - s_menu.item_scroll > 5)
+                            s_menu.item_scroll++;
+                    }
+                    guild_cursor_tail(1, v70, v71, v69);
+                    return;
+                }
+                s_menu.scroll_anim = 1;                  /* A on a row */
+                audio_play_se_by_id(0x143);
+                guild_cursor_tail(1, v70, v71, v69);
+                return;
+            }
+            /* B, or A on the last row */
+            if (s_variant != 0) {
+                if (bb[GUILD_FIRSTLEAVE_DONE_OFF] != 0)
+                    s_menu.c28++;
+                else
+                    s_menu.c2c++;
+            } else {
+                s_menu.c14 = 1;
+                v70 = 1;
+            }
+            audio_play_se_by_id(0x13d);
+            guild_cursor_tail(1, v70, v71, v69);
+            return;
+        }
+        if (s_menu.c18 == 1) {                           /* the row flash backing out */
+            if (--s_menu.scroll_anim <= 15) {
+                s_menu.scroll_anim = 0;
+                s_menu.c18 = 0;
+            }
+            return;
+        }
+        if (++s_menu.scroll_anim == 16) {
+            if (s_variant == 0 && v73 == 2) {
+                /* a Talk topic: its dialogue + the "New" badge off. */
+                const int c = s_menu.item_cursor;
+                if (c >= 0 && c < 6)
+                    scene1_intro_dialogue_start_single(1, k_talk_scripts[c]);
+                s_menu.scroll_anim = 0;
+                bb[GUILD_TALKSEEN_OFF + c] = 1;
+                return;
+            }
+            guild_open_item_window(s_menu.entries[s_menu.cursor]);
+        }
+        if (s_menu.scroll_anim == 25) {
+            if (s_variant != 0 || s_menu.entries[s_menu.cursor] != 1)
+                s_menu.mode = 0;
+            else
+                s_menu.scroll_anim = 0;
+        }
+        return;
+    }
 
-    if (s_menu.mode == 1 && s_menu.entry_tick > 0xe) {
-        if (s_menu.c18 == 1) {
-            /* ── slide-OUT (item list backed out → main menu, 95060-95067) ──────
-             * c20/c24 ramp back down from ~0x19; below 0x10 the panel is home and
-             * the slide-out flag clears. */
-            s_menu.scroll_anim = s_menu.c24 - 1;         /* c20 = c24 - 1 */
-            s_menu.c24 = s_menu.scroll_anim;             /* c24 = c20 */
-            if (s_menu.scroll_anim < 0x10) {
+    switch (s_menu.mode) {
+    case 4: {   /* ── the expansion Yes/No ── */
+        const int r = choice_box_poll(pressed, 0);       /* FUN_00434ed2(0) */
+        if (r == 1) {
+            const int tier = (int32_t)bank[GUILD_TIER_DWORD];
+            const int cost = k_expand_cost[tier & 3];
+            if ((int32_t)bank[SAVE_BANK_FIELD_GOLD] < cost)
+                return;
+            bank[SAVE_BANK_FIELD_GOLD] -= (uint32_t)cost;
+            audio_play_se_by_id(0x14d);
+            s_menu.mode = 1;
+            if (tier < 3)
+                bank[GUILD_TIER_DWORD] = (uint32_t)(tier + 1);
+            /* FUN_004864fd: re-lay the shop for the new tier —
+             * PORT-DEBT(stub, FUN_004864fd). */
+            s_menu.count = 0;
+            scene_guild_build_table();
+        } else if (r != 2) {
+            return;
+        } else {
+            s_menu.mode = 1;
+        }
+        guild_cursor_tail(0, 1, v71, v69);
+        return;
+    }
+    case 1: {   /* ── the main menu ── */
+        if (s_menu.entry_tick < 15) {
+            guild_cursor_tail(1, v70, v71, v69);
+            return;
+        }
+        if (s_menu.c18 == 1) {                           /* panel sliding back in */
+            int v = s_menu.c24 - 1;
+            s_menu.c24 = v;
+            if (v <= 15) {
+                v = 0;
                 s_menu.c24 = 0;
                 s_menu.c18 = 0;
-                s_menu.scroll_anim = 0;
             }
-        } else if (s_menu.c24 < 1) {
-            /* ── resting main menu (DAT_09642c24 == 0, all.c:95069-95130) ─────────
-             * c1c < 1: cursor nav + A-dispatch (+ B/Leave, PORT-DEBT).
-             * c1c >= 1: the Talk submenu slide-in ramp → mode 2 at c1c == 0xf. */
-            if (s_menu.sub_anim < 1) {
-                if ((pressed & 0x20u) == 0) {            /* B not pressed (95071) */
-                    if ((pressed & 0x10u) == 0) {
-                        /* A not pressed → Up/Down option-cursor nav (95074-95084). */
-                        int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;
-                        if (dir != 0 && s_menu.count > 0) {
-                            s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
-                            audio_play_se_by_id(0x146);  /* FUN_00499519(0x146) nav SE */
-                            cursor_moved = 1;
-                        }
-                    } else {
-                        /* A pressed → dispatch the selected option (95086-95105). */
-                        int sel = s_menu.entries[s_menu.cursor];
-                        if (sel == 0 || sel == 1) {
-                            /* Buy / Sell → start the item-window submenu slide-in. */
-                            s_menu.c24 = 1;              /* DAT_09642c24 = 1 */
-                            s_menu.scroll_anim = 1;      /* DAT_09642c20 = 1 */
-                            s_menu.item_cursor = 0;      /* DAT_09642c10 = 0 */
-                            s_menu.item_scroll = 0;      /* DAT_09642c0c = 0 */
-                            audio_play_se_by_id(0x143);  /* SE 0x143 (select) */
-                        } else if (sel == 2) {
-                            /* Talk → start the submenu open anim (c1c = 1); the ramp
-                             * below flips to mode 2 (the submenu) at c1c == 0xf. */
-                            s_menu.sub_anim    = 1;      /* DAT_09642c1c = 1 */
-                            s_menu.item_cursor = 0;      /* DAT_09642c10 = 0 */
-                            s_menu.item_scroll = 0;      /* DAT_09642c0c = 0 */
-                            audio_play_se_by_id(0x143);
-                        } else if (sel == 4 || sel == 5) {
-                            /* Leave (LAB_00492ad7).  First-leave gate: if the per-
-                             * location first-leave flag (save[0x2bc5d], DAT_0450f3f5)
-                             * is clear — the player tries to leave before their first
-                             * purchase — the guildmaster stops them with the iv1_9
-                             * "here's some bread" tutorial cutscene (FUN_0044ba2c(1,9,0)).
-                             * The dialogue overlay freezes the guild tick (the busy gate
-                             * at the top of scene_guild_sim) and resumes the menu when it
-                             * ends; the flag is NOT set here (a purchase sets it).  Once
-                             * set, Leave instead runs the c2c/c28 leave-transition out to
-                             * the world map (its iv1_16 fade + scene-mode swap, then the
-                             * return-to-Recettear Tear cutscene) — PORT-DEBT(guild-leave-
-                             * transition), the follow-on gap.  SE 0x13d (the back beep,
-                             * LAB_00492821) plays either way. */
-                            uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-                            if (bank != NULL &&
-                                ((const uint8_t *)bank)[GUILD_FIRSTLEAVE_OFF] == 0)
-                                scene1_intro_dialogue_start_single(1, 9);  /* iv1_9 */
-                            audio_play_se_by_id(0x13d);
-                        }
-                        /* Fusion(3)/Expansion(6) dispatch — PORT-DEBT(guild-menu-nav). */
-                    }
-                }
-            } else {
-                /* ── Talk submenu slide-in ramp (95126-95130) ── c1c counts to 0xf,
-                 * then hands off to mode 2 (the submenu state machine below). */
-                s_menu.sub_anim++;
-                if (s_menu.sub_anim == 0xf) {
-                    s_menu.mode      = 2;               /* DAT_09642c00 = 2 */
-                    sub_cursor_moved = 1;               /* local_18 → snap cursor row 0 */
-                }
-            }
-        } else {
-            /* ── submenu slide-in ramp (DAT_09642c24 >= 1, 95132-95167) ──────────
-             * c20/c24 count up to 0x19; at 0xf arm + populate the item window; at
-             * 0x19 hand off to the mode-0 item list. */
-            s_menu.scroll_anim = s_menu.c24 + 1;         /* c20 = c24 + 1 */
-            s_menu.c24 = s_menu.scroll_anim;             /* c24 = c20 */
-            int sel = s_menu.entries[s_menu.cursor];
-            if (s_menu.scroll_anim == 0xf && sel != 6 && sel != 3) {
-                /* FUN_004682c5 (slide-activate) + FUN_00468338(7=buy/5=sell,1)
-                 * (population) + FUN_004682d8 (price multiplier).
-                 * display_menu_open arms the stage_load_pulse slide itself. */
-                if (sel == 0) {                          /* Buy */
-                    display_menu_open(7, 1);
-                    display_menu_set_price_mult(0.7f);   /* 0x3f333333 */
-                } else if (sel == 1) {                   /* Sell */
-                    display_menu_open(5, 1);
-                    display_menu_set_price_mult(0.3f);   /* 0x3e99999a */
-                }
-            }
-            if (sel != 6 && s_menu.c24 == 0x19)
-                s_menu.mode = 0;                         /* → item list (DAT_09642c00=0) */
+            s_menu.scroll_anim = v;
+            guild_cursor_tail(1, v70, v71, v69);
+            return;
         }
-    } else if (s_menu.mode == 0) {
-        /* ── item list (FUN_004922c0 mode 0, all.c:95242-95389) ────────────────
-         * Buy/Sell drive the SHARED item window; the main cursor still points at
-         * the Buy/Sell option (sel) so we know the price multiplier and direction.
-         * display_menu_update returns 3 on the A-edge (and arms its own 6-frame
-         * confirm countdown), then 1 when it elapses, 2 on B, 0 while navigating. */
-        int sel = s_menu.entries[s_menu.cursor];
-        display_menu_set_price_mult(sel == 0 ? 0.7f : 0.3f);    /* FUN_004682d8 */
-        int r = display_menu_update(1);                          /* FUN_00469414(1) */
-        if (r == 2) {
-            /* B → back to the main menu (95251-95256): arm the panel slide-out
-             * and let the item-window slide retract. */
-            s_menu.mode = 1;
-            s_menu.c18  = 1;
-            stage_load_pulse_set_active(0);                      /* FUN_004682d0 */
-            audio_play_se_by_id(0x13d);
-        } else if (r == 3) {
-            guild_buy_price_preview(sel);                        /* A-edge: preview price */
-        } else if (r == 1) {
-            guild_buy_open_qty_overlay(sel);                     /* open the qty overlay */
-        }
-    } else if (s_menu.mode == 8) {
-        /* ── qty-confirm overlay (FUN_004922c0 mode 8, all.c:95536-95589) ──────── */
-        int r = guild_qty_overlay_input();                       /* FUN_00491bc0(0) */
-        if (r == 1 || r == 2) {
-            if (r == 1)
-                guild_buy_commit();                              /* purchase */
-            display_menu_cursor_to_row();                        /* FUN_0046939a */
-            s_menu.mode = 0;                                     /* → item list */
-            title_save_dialog_cursor_set_visible(1);            /* FUN_0043561a */
-        }
-        /* r == -1: still animating — stay in mode 8. */
-    } else if (s_menu.mode == 2) {
-        /* ── Talk submenu (FUN_004922c0 mode 2, all.c:94885-95029) ───────────────
-         * 6 topics ("What is the guild?" … "About fusion") + a 7th "Never mind"
-         * close row → 7 cursor positions (item_cursor 0..6), no-wrap U/D nav.
-         * Selecting a topic (0..5) plays its dialogue (iv1_0a/0b/0c/0e/18/19) and
-         * sets that topic's seen flag (save[0x2bc98+i]), clearing its "New" badge.
-         * B or A-on-"Never mind" closes back to the main menu.  The dialogue runs
-         * through the shared runtime, so scene_guild_sim freezes while it's busy
-         * (the early-return at the top), then resumes here in mode 2. */
-
-        /* slide anim (c1c): in to 0x19; out (then → mode 1) while closing (c14). */
-        if (s_menu.c14 == 0) {
-            if (s_menu.sub_anim < 0x19)
-                s_menu.sub_anim++;
-        } else if (s_menu.sub_anim < 0x10) {
-            s_menu.sub_anim = 0;
-            s_menu.mode     = 1;             /* back to the main menu */
-            s_menu.c14      = 0;
-        } else {
-            s_menu.sub_anim--;
-        }
-
-        /* dialogue-select sub-slide (c20): A on a topic ramps c20 1→0x10 (a brief
-         * confirm flash on the row), then fires the dialogue + sets the seen flag. */
-        if (s_menu.mode == 2 && s_menu.scroll_anim > 0) {
-            s_menu.scroll_anim++;            /* DAT_09642c20++ (94911) */
-            if (s_menu.scroll_anim != 0x10) {
-                s_menu.transition = 0;
-                return;                      /* still flashing — skip the cursor tick */
-            }
-            /* c20 == 0x10: fire the topic's dialogue + set its seen flag (94937). */
-            if (s_menu.item_cursor >= 0 && s_menu.item_cursor < 6) {
-                scene1_intro_dialogue_start_single(1, k_talk_scripts[s_menu.item_cursor]);
-                uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-                if (bank != NULL)              /* save[0x2bc98 + i] = 1 (94959) */
-                    ((uint8_t *)bank)[GUILD_TALKSEEN_OFF + s_menu.item_cursor] = 1;
-            }
-            s_menu.scroll_anim = 0;          /* DAT_09642c20 = 0 (LAB_00492697) */
-            return;                          /* dialogue armed — skip the cursor tick */
-        }
-
-        /* idle nav (only once fully slid in, c1c == 0x19; all.c:94962-95009). */
-        if (s_menu.mode == 2 && s_menu.sub_anim == 0x19) {
-            const int n = 7;                 /* 6 topics + "Never mind" (iVar4, 94965) */
-            if ((pressed & 0x20u) == 0 &&    /* B not pressed AND not (A on last row) */
-                ((pressed & 0x10u) == 0 || s_menu.item_cursor != n - 1)) {
-                if ((pressed & 0x10u) == 0) {
-                    /* A not pressed → Up/Down nav, no-wrap (94969-94988). */
-                    if ((held & 0x04u) == 0) {                    /* Up not held */
-                        if ((held & 0x08u) && s_menu.item_cursor < n - 1) {  /* Down */
-                            audio_play_se_by_id(0x146);
-                            s_menu.item_cursor++;
-                            sub_cursor_moved = 1;
-                            if (s_menu.item_cursor - s_menu.item_scroll > 5)
-                                s_menu.item_scroll++;
-                        }
-                    } else if (s_menu.item_cursor > 0) {          /* Up */
-                        audio_play_se_by_id(0x146);
-                        s_menu.item_cursor--;
-                        sub_cursor_moved = 1;
-                        if (s_menu.item_cursor - s_menu.item_scroll < 0)
-                            s_menu.item_scroll--;
-                    }
+        if (s_menu.c24 > 0) {                            /* panel sliding out */
+            const int v = ++s_menu.c24;
+            s_menu.scroll_anim = v;
+            if (v == 15 && v73 != 6) {
+                if (v73 == 3) {
+                    s_menu.f_cursor = 0;
+                    s_menu.f_scroll = 0;
+                    v71 = 1;
                 } else {
-                    /* A on a topic (0..5) → start the dialogue confirm slide. */
-                    s_menu.scroll_anim = 1;                       /* DAT_09642c20 = 1 */
-                    audio_play_se_by_id(0x143);
+                    guild_open_item_window(s_menu.entries[s_menu.cursor]);
                 }
-            } else {
-                /* B, or A on "Never mind" → close the submenu (94994-94997). */
-                s_menu.c14   = 1;                                 /* DAT_09642c14 = 1 */
-                cursor_moved = 1;                                 /* local_14 → main cursor */
-                audio_play_se_by_id(0x13d);
+            }
+            if (s_menu.entries[s_menu.cursor] == 6) {
+                if (v == 15) {
+                    char msg[96];
+                    s_menu.mode = 4;
+                    s_menu.scroll_anim = 0;
+                    s_menu.c24 = 0;
+                    snprintf(msg, sizeof msg, "Expanding the store will cost %dpix.<BR>Continue?",
+                             k_expand_cost[(int32_t)bank[GUILD_TIER_DWORD] & 3]);
+                    choice_box_open(msg, 0, 0);          /* FUN_00434def */
+                }
+            } else if (v == 25) {
+                s_menu.mode = 0;
+            }
+            guild_cursor_tail(1, v70, v71, v69);
+            return;
+        }
+        if (s_menu.sub_anim > 0) {                       /* the submenu opening */
+            if (++s_menu.sub_anim == 15) {
+                s_menu.mode = 2;
+                v69 = 1;
+            }
+            guild_cursor_tail(1, v70, v71, v69);
+            return;
+        }
+        if ((pressed & 0x20u) == 0) {
+            if ((pressed & 0x10u) == 0) {                /* LABEL_158: Up/Down */
+                int d = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;
+                if (d != 0) {
+                    v70 = 1;
+                    s_menu.cursor = (s_menu.count + s_menu.cursor + d) % s_menu.count;
+                    audio_play_se_by_id(0x146);
+                }
+                guild_cursor_tail(1, v70, v71, v69);
+                return;
+            }
+            if (v73 != 4 && v73 != 5) {                  /* A: open the option */
+                if (v73 == 2) {
+                    s_menu.sub_anim = 1;
+                } else if (v73 == 3) {
+                    /* Fusion — PORT-DEBT(guild-fusion): the recipe list
+                     * (FUN_004916a7 / 00469155 / 00469118, modes 5/6) is
+                     * unported; the option stays shut. */
+                    guild_cursor_tail(1, v70, v71, v69);
+                    return;
+                } else {
+                    if (v73 == 6 && (int32_t)bank[SAVE_BANK_FIELD_GOLD]
+                                    < k_expand_cost[(int32_t)bank[GUILD_TIER_DWORD] & 3]) {
+                        audio_play_se_by_id(0x16a);
+                        guild_cursor_tail(1, v70, v71, v69);
+                        return;
+                    }
+                    s_menu.c24 = 1;
+                    s_menu.scroll_anim = 1;
+                }
+                s_menu.item_cursor = 0;
+                s_menu.item_scroll = 0;
+                audio_play_se_by_id(0x143);
+                guild_cursor_tail(1, v70, v71, v69);
+                return;
             }
         }
+        /* LABEL_163 — Leave (B, or A on Leave): blocked by the iv1_9 "buy
+         * something first" reminder until the first purchase; else the exit. */
+        if (bb[GUILD_FIRSTLEAVE_OFF] != 0) {
+            if (bb[GUILD_FIRSTLEAVE_DONE_OFF] != 0)
+                s_menu.c28++;
+            else
+                s_menu.c2c++;
+            if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 && (int32_t)bank[SAVE_BANK_FIELD_CARD_DAY] == 0) {
+                bb[GUILD_TUT_A_OFF] = 0;
+                bb[GUILD_TUT_B_OFF] = 1;
+            }
+        } else {
+            scene1_intro_dialogue_start_single(1, 9);    /* FUN_0044ba2c(1,9,0) */
+        }
+        audio_play_se_by_id(0x13d);
+        guild_cursor_tail(1, v70, v71, v69);
+        return;
+    }
+    case 8: {   /* ── the qty Yes/No overlay ── */
+        const int r = guild_qty_overlay_input();         /* FUN_00491bc0(0) */
+        if (r == 1)
+            guild_buy_commit(bank);
+        else if (r != 2)
+            return;
+        display_menu_cursor_to_row();                    /* FUN_0046939a */
+        s_menu.mode = 0;
+        title_save_dialog_cursor_set_visible(1);
+        return;
+    }
+    case 5:
+    case 6:
+        /* the fusion confirm / result — PORT-DEBT(guild-fusion). */
+        return;
+    default:
+        break;   /* mode 3 is never set (dead in retail) */
     }
 
-    /* LAB_0049282c: cursor visible (FUN_0043561a) — mode-1 nav AND mode-2 talk-nav
-     * (incl. the slide-in) — then the eased cursor slide on a move: the main-menu
-     * cursor (local_14) or the talk-row cursor (local_18), both x=328,
-     * y=(idx−scroll)·0x22 + 84 (LAB_00493563 / LAB_004935d6).  display_menu_open
-     * snaps the cursor onto the item row at buy/sell slide frame 0xf. */
-    if (s_menu.mode == 1 || s_menu.mode == 2)
-        title_save_dialog_cursor_set_visible(1);
-    if (cursor_moved) {
-        float cy = (float)((s_menu.cursor - s_menu.scroll) * 0x22) + 84.0f;
-        title_save_dialog_cursor_slide(328.0f, cy);
-    }
-    if (sub_cursor_moved) {
-        float cy = (float)((s_menu.item_cursor - s_menu.item_scroll) * 0x22) + 84.0f;
-        title_save_dialog_cursor_slide(328.0f, cy);
+    /* ── mode 0: the shared item window (Buy / Sell) ── */
+    if (v73 == 3)
+        return;   /* the fusion list — PORT-DEBT(guild-fusion) */
+    display_menu_set_price_mult(v73 == 0 ? 0.7f : 0.3f); /* FUN_004682d8 */
+    const int r = display_menu_update(1);                /* FUN_00469414(1) */
+    if (r == 2) {                                        /* B: back to the menu */
+        s_menu.mode = 1;
+        s_menu.c18 = 1;
+        stage_load_pulse_set_active(0);                  /* FUN_004682d0 */
+        audio_play_se_by_id(0x13d);
+        guild_cursor_tail(0, 1, v71, v69);
+    } else if (r == 3) {
+        guild_buy_price_preview(bank, v73);
+    } else if (r == 1) {
+        guild_buy_open_qty_overlay(bank, v73);
     }
 }
 
@@ -1133,13 +1263,12 @@ static void scene_guild_qty_overlay_render(IDirect3DDevice8 *d)
     IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
-/* worker_load case-6 body — port of the scene-init FUN_0049174e's relevant
- * effects (reset the menu state + build the option table + snap the cursor) +
- * the FUN_00473769 texture load.  Runs on the load worker; serialized before
+/* worker_load case-6 body — the FUN_00473769 texture load.  Runs on the load worker; serialized before
  * the first mode-6 sim tick by the worker_load_busy() gate in sim_step_a. */
 static void scene_guild_load_cb(void)
 {
-    scene_guild_enter_reset();   /* FUN_0049174e: menu reset + table + cursor */
+    /* FUN_0049174e ran at the world-map exit (FUN_00490e16); the loader only
+     * brings in the textures. */
 
     /* PORT-DEBT(variant-1 ichiba): only the guild variant (DAT_0963c5f0 == 0,
      * world-map dest 3) loads its texture set; the variant-1 (ichiba) set

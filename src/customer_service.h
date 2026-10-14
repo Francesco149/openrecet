@@ -115,6 +115,7 @@ int32_t customer_service_b544(void);
 int32_t customer_service_b590(void);
 int32_t customer_service_b318(void);   /* DAT_0730b318 — queue head */
 int32_t customer_service_b5d8(void);   /* DAT_0730b5d8 — oder / want-list index */
+int32_t customer_service_b600(void);   /* DAT_0730b600 — script step phase */
 int32_t customer_service_b548(void);   /* DAT_0730b548 — text-reveal budget */
 int32_t customer_service_b528(void);   /* DAT_0730b528 — customers advanced */
 

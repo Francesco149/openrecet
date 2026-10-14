@@ -4,6 +4,7 @@
  * anchor state.
  */
 #include "scene1_intro_dialogue.h"
+#include "save_work.h"   /* the opening-script flags FUN_0044bd0d reads */
 #include "worker_load.h"
 
 #include "scene1_dialogue.h"
@@ -159,6 +160,14 @@ void scene1_intro_dialogue_arm(void)
     g_rt.active        = 0;     /* lazy-load iv1_1 on the first tick */
     g_rt.complete      = 0;
     g_freeroam_started = 0;     /* fresh prologue → FREEROAM_START not yet reached */
+    /* FUN_0044bd0d's own flags for the two opening scripts (DAT_0450f3f0/f1):
+     * retail's cascade dispatches iv1_1 then iv1_2 and sets them; this machine
+     * plays both (busy throughout), so the cascade must see them done after. */
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bb != NULL) {
+        bb[0x2bc58] = 1;
+        bb[0x2bc59] = 1;
+    }
 }
 
 void scene1_intro_dialogue_reset(void)

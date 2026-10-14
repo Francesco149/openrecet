@@ -179,7 +179,14 @@ frame 435  LOADING_END                             (world-map assets loaded, mod
 - When idle (no Z): `FUN_0049dfc1(0)` = the **cursor-move** handler.
 - On **Z** (`DAT_073dddd4 & 0x10`) with the dest **enabled** (`DAT_09643588[sel] != 0`):
   unload slot 10 (`FUN_0047360f`), `FUN_00436f97` (stage furniture positions), begin the next
-  scene load (`FUN_0045281c(0,0x11)`+`FUN_00452cde`), and set the **destination's mode**:
+  scene load (`FUN_0045281c(0,0x11)`+`FUN_00452cde`), and set the **destination's mode**.
+  **rhost-verified 2026-10-14** (multiday-tutorials-suggest f1722 / f4769): `FUN_00436f97`
+  is the WHOLE stage-entry init (floor layout + actor reset, ~67 draws) and runs in this
+  exit tick for EVERY destination with `DAT_0438b4dc` still the house stage; a home
+  return runs it again in the house loader. The home arm also sets work +0x2cdf4 = 1
+  (the door seat both inits honour) and `DAT_0438b928 = 2` (the return beat: Tear
+  follows and input waits for 60 / 45 ticks, the day-close count holds 200, SE 0x150 +
+  00re_sys10 at b924 1). `FUN_0049e163` is this world-map tick, not a "dungeon return".
 
   | `DAT_09643684` (sel) | new `DAT_0438b1c0` | extra | dest (likely) |
   |---|---|---|---|

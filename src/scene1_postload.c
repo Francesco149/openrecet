@@ -63,16 +63,18 @@
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
 #include "scene1_conversation_pose.h"/* scene1_conversation_pose_reset */
 #include "scene1_counter_menu.h"   /* counter_menu_stage_reset (DAT_0438b74c..b754) */
+#include "scene1_day_close.h"      /* scene1_house_morning_reseat (FUN_004852fb) */
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
 #include "scene1_preload.h"        /* scene1_preload_floor_layout (FUN_0047df4d) */
 #include "scene1_records.h"        /* scene1_records_reset (FUN_0040f64b) */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
+#include "scene1_shop_display.h"   /* shop_display_highlight_clear (DAT_0438cbfc) */
 #include "scene1_shop_walker.h"    /* scene1_customer_npc_reset (FUN_0046f892) */
 #include "scene1_spawn.h"
 #include "scene1_top_hud.h"       /* scene1_top_hud_tooltip_house_entry (FUN_004060ff) */
-#include "scene1_tutorial_dispatch.h"/* scene1_tutorial_dispatch_reset (iv2 beat) */
+#include "scene1_tutorial_dispatch.h"/* the iv2 beat: house entry, scene1_beat_flag (b928) */
 #include "scene1_walker_pass_init.h"
 #include "speech_bubble.h"         /* FUN_004060ff's bubble part */
 #include "stage_palette.h"
@@ -152,15 +154,15 @@ void scene1_postload_place_actors(int a)
     g_scene1_actor_pos[2][2] = z;
 }
 
+static void postload_seat(void);
+
 void scene1_postload_pose_house_standing(void)
 {
     /* The HOUSE standing pose: FUN_00436f97's alt-stage arm seats the actors via
      * FUN_004851e2 (overriding the floor-layout spawn origin pose_player copied);
      * the actor state (char id, scale, sprite record) is seeded in
-     * scene1_player_ctrl.
-     * PORT-DEBT(simplified, FUN_00436f97): always the counter spot (a = 0);
-     * retail takes the front-door entry (a = 1, + facing/yaw) when work dword
-     * +0x2cdf4 is set. */
+     * scene1_player_ctrl.  The counter spot here; the door seat (work +0x2cdf4,
+     * the world-map return) is applied below, after the record seed. */
     scene1_postload_place_actors(0);
 
     /* FUN_00436f97 calls FUN_004060ff (top-HUD tooltip band/counter = -1) right
@@ -175,8 +177,14 @@ void scene1_postload_pose_house_standing(void)
     /* Drop any held iv1_2 conversation pose latch on scene entry. */
     scene1_conversation_pose_reset();
 
-    /* Clear the transient iv2_5→iv2_6 idle-beat timer on scene entry. */
-    scene1_tutorial_dispatch_reset();
+    /* Clear the beat timer b924 on scene entry (b928 rides through). */
+    scene1_tutorial_dispatch_house_entry();
+
+    /* the world-map return seats the pair at the front door (rhost
+     * multiday-tutorials-suggest f20576: Tear x 2.9, not the counter's 0.6). */
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    if (w != NULL && w[0x2cdf4 / 4] != 0)
+        postload_seat();
 }
 
 void scene1_postload_day2_actor_replace(void)
@@ -204,6 +212,31 @@ void scene1_postload_day2_actor_replace(void)
      * retail's cx 0.6→1.0 ease is FUN_0048a833's b928/b924 intro branch, a
      * separate follow-up (finding cutscene-replay-anchor-drift §DAY2 #4). */
     scene1_postload_place_actors(0);
+}
+
+/* FUN_00436f97 L706-724, the house seat: work dword +0x2cdf4 == 0 → the
+ * counter spot facing +π/2; else (the world-map return) the front door, facing
+ * down (octant 4, angle 0, shop tier +0x2cde0 set) or left (octant 2, −π/2). */
+static void postload_seat(void)
+{
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    if (w == NULL || w[0x2cdf4 / 4] == 0) {
+        player_ctrl_set_facing_angle(1.5707964f);
+        scene1_postload_place_actors(0);
+        return;
+    }
+    int32_t *p0 = player_ctrl_actor_record_mut(0);
+    int32_t *p2 = player_ctrl_actor_record_mut(2);
+    if (w[0x2cde0 / 4] != 0) {
+        p0[CHR_ACTOR_FACING] = 4;
+        p2[CHR_ACTOR_FACING] = 4;
+        player_ctrl_set_facing_angle(0.0f);
+    } else {
+        player_ctrl_set_facing_angle(-1.5707964f);
+        p0[CHR_ACTOR_FACING] = 2;
+        p2[CHR_ACTOR_FACING] = 2;
+    }
+    scene1_postload_place_actors(1);
 }
 
 void scene1_postload_stage_entry_init(void)
@@ -250,36 +283,23 @@ void scene1_postload_stage_entry_init(void)
      * else the front door, facing down (octant 4, +0x2cde0 set) or left
      * (octant 2, −π/2). */
     scene1_postload_walker_phase2_init();
-    {
-        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
-        if (w == NULL || w[0x2cdf4 / 4] == 0) {
-            player_ctrl_set_facing_angle(1.5707964f);
-            scene1_postload_place_actors(0);
-        } else {
-            int32_t *p0 = player_ctrl_actor_record_mut(0);
-            int32_t *p2 = player_ctrl_actor_record_mut(2);
-            if (w[0x2cde0 / 4] != 0) {
-                p0[CHR_ACTOR_FACING] = 4;
-                p2[CHR_ACTOR_FACING] = 4;
-                player_ctrl_set_facing_angle(0.0f);
-            } else {
-                player_ctrl_set_facing_angle(-1.5707964f);
-                p0[CHR_ACTOR_FACING] = 2;
-                p2[CHR_ACTOR_FACING] = 2;
-            }
-            scene1_postload_place_actors(1);
-        }
-    }
+    /* L668-677: qword DAT_0438cbfc = -1 (no faced display cell), DAT_0438cbe8 = 0
+     * (the display menu's open-once latch). */
+    shop_display_highlight_clear();
+    player_ctrl_display_latch_reset();
+    postload_seat();
 
     /* L727-740 the ambient spawn (gated off in the house). */
     scene1_postload_ambient_spawn();
 
-    /* L741-746: FUN_0046f892, FUN_00435612, FUN_0048439a (the shop attribute
-     * centroid).  FUN_004852fb runs only under b928 == 1 (the morning beat —
-     * not reached in-scene); FUN_00435fbb(0, -1) is
-     * PORT-DEBT(stub, FUN_00435fbb). */
+    /* L741-746: FUN_0046f892, FUN_00435612, FUN_004852fb (in the shop while
+     * b928 == 1 — a world-map exit on a morning-beat day: the actors re-seat
+     * at the counter, Recette facing Tear, anim 6), FUN_0048439a (the shop
+     * attribute centroid); FUN_00435fbb(0, -1) is PORT-DEBT(stub, FUN_00435fbb). */
     scene1_customer_npc_reset();
     title_save_dialog_cursor_set_visible(0);
+    if (g_stage_palette != NULL && g_stage_palette->mode == 0 && scene1_beat_flag() == 1)
+        scene1_house_morning_reseat();
     {
         const uint8_t *rec = save_work_bank_at(save_work_active_slot());
         if (rec != NULL)

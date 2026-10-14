@@ -97,6 +97,8 @@ static int      g_bg_npc_pin_dead_count;
  * NPCs; any non-zero value skips the whole shadow pass. */
 static int g_bg_npc_toorioff;
 void scene1_bg_npc_set_toorioff(int v) { g_bg_npc_toorioff = v; }
+int  scene1_bg_npc_dbg_cursor(void)      { return g_bg_npc_spawn_cursor; }   /* DAT_073a8bb4 */
+int  scene1_bg_npc_dbg_warmup_done(void) { return g_bg_npc_warmup_done; }    /* DAT_073a8bb8 */
 
 void scene1_bg_npc_reset(void)
 {

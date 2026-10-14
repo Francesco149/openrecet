@@ -82,6 +82,7 @@ void title_save_dialog_reset(void);
 /* FUN_00434d6a — per-frame counter management for the save/load
  * dialog open/close ramp.  See header for return semantics. */
 int title_save_dialog_gate_tick(void);
+void title_save_dialog_gate_reset(void);   /* FUN_00434ce3 */
 
 /* FUN_004356cd — per-frame shake-position interpolation +
  * anim-counter increment-while-closed. */
