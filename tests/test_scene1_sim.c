@@ -34,6 +34,7 @@
 #include "scene1_spawn.h"
 #include "rng.h"
 #include "sim.h"
+#include "save_work.h"
 #include "worker_load.h"
 #include "scene1_intro_dialogue.h"
 
@@ -58,6 +59,9 @@ static void reset_world(void)
 
     sim_init();
     worker_load_reset();
+    /* A prior test may leave a loaded save in the working arena; at shop rank
+     * >= 1 the free-roam arm would fire the rank-1 lesson (cc08 → 4). */
+    save_work_clear();
     /* The opening-prologue dialogue (src/scene1_intro_dialogue.c) is armed by
      * scene_post_fade_init; sim_step_a ticks it on INGAME frames. A prior test
      * may have left it armed, so reset it here for a hermetic sim_step_a aging

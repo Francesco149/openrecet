@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 510, discovered 1947 → 601 referenced-or-better (23.6%)
+- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 512, discovered 1945 → 603 referenced-or-better (23.7%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 7
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (510) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (512) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -144,6 +144,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x405b1a | FUN_00405b1a | 598 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x405d70 | FUN_00405d70 | 911 | ✓ |  | scene1_render.c, scene1_render.h, stage_palette.h |
 | 0x406159 | FUN_00406159 | 185 | ✓ |  | customer_service.c |
+| 0x406212 | FUN_00406212 | 29 | ✓ |  | scene1_player_ctrl.c |
 | 0x40656e | FUN_0040656e | 22 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_top_hud.c (+1) |
 | 0x406584 | FUN_00406584 | 1017 | ✓ |  | main.c, save_bank.h, scene1_top_hud.c (+6) |
 | 0x406a60 | FUN_00406a60 | 516 | ✓ |  | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
@@ -161,7 +162,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x412a89 | FUN_00412a89 | 490 | ✓ |  | main.c, scene1_overlay.c, scene1_overlay.h (+2) |
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ |  | customer_service.c, scene1_per_frame_open.h |
 | 0x41331d | FUN_0041331d | 89 | ✓ |  | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
-| 0x414345 | FUN_00414345 | 1057 | ✓ |  | scene1_overlay.c, scene1_overlay.h, scene1_per_frame_open.c (+1) |
+| 0x414345 | FUN_00414345 | 1057 | ✓ |  | customer_service.c, scene1_overlay.c, scene1_overlay.h (+2) |
+| 0x414766 | FUN_00414766 | 111 | ✓ |  | customer_service.c |
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ |  | scene1_combat_sm.h, scene1_player_ctrl.c, scene1_records_b_tick.c |
 | 0x414813 | FUN_00414813 | 239 | ✓ |  | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |
@@ -240,7 +242,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44b16c | FUN_0044b16c | 84 | ✓ |  | scene1_combat_sm.h |
 | 0x44b219 | FUN_0044b219 | 60 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
-| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | customer_service.c, scene_guild.c, scene_worldmap.c |
+| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | customer_service.c, scene1_player_ctrl.c, scene_guild.c (+1) |
 | 0x44baad | FUN_0044baad | 109 | ✓ |  | scene1_intro_dialogue.c |
 | 0x44bce7 | FUN_0044bce7 | 28 | ✓ |  | scene_worldmap.c |
 | 0x44bd0b | FUN_0044bd0b | 1 | ✓ |  | scene1_player_ctrl.c |

@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  23.6% referenced-or-better   (91 instrumented)
+█████░░░░░░░░░░░░░░░  23.7% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (78 full + 13 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   510 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1947 | exists in the engine, no `src/` reference    |
+| source-referenced  |   512 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1945 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -141,13 +141,20 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     dispatch — retail's draw order). **`portrng buy-40pct-accept`: per-tick draws
     IDENTICAL over the whole scenario (f1–f2450)**; cs b534/b544/b584/b574/b5a8/b56c
     identical every frame.
+  - ✅ Arrival FX (b564 special-slot sparkles, FUN_00414766) + the merchant-rank
+    arrivals (rank 1 → f428 scripted buy lesson, rank 2 → f429; was a stub):
+    **`portrng day2-shop` IDENTICAL f1–f4700**, **day2-buy-tutorial identical
+    f1–f15594** (was f1283).
   - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
-    1. ✅ gsim sparkle phase (tick label fix): day2-shop now matches to f1212.
-       day2-save-commit anchors frame-identical for the first 534 (was 64).
-    2. buy-counter-raise-accept f725, buy-45pct-accept f1694: retail draws in
-       FUN_00460a1a (cs_pick_line), the port does not — find which b534 state.
-    3. buy-35/50pct-accept f1125/f1416, buy-lowball-walkout f1297: retail 6× NPC pump
-       (FUN_0047019f) + 1× pick_line; port 6× Tear wing sparkle (`init_type_1f_100`).
+    1. **b5a8==1 request (oder) machine FUN_00464af0** (2178 B, unported): buy-35/
+       45/50pct-accept, buy-counter-raise, buy-lowball split where a kind-0 customer
+       rolls a request (f725…f1694). States 2 (name the request) → 3 (item menu:
+       master tick opens it when b5b0 != 0: FUN_00469351 + FUN_00468338(f404||b5b0!=1
+       ? 10 : 1, 1); `PORT-DEBT(cs-target-window-spawn)`) → 4 (match: oder attr &
+       item attr, or oder category) → 5/16/17/18 → 6/15 haggle (offer_up, cap
+       budget·1.2) → 7 sale (item out of the bag/stand) / 8·40 counter / 9 walkout.
+    2. day2-buy-tutorial f15595: retail 7 draws (Tear FUN_00447f4f + bg NPC), port 0.
+    3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.

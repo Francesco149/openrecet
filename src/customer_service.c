@@ -13,6 +13,7 @@
 
 #include "customer_service.h"
 #include "customer_haggle.h"
+#include "scene1_overlay.h"       /* scene1_overlay_spawn (FUN_00414345) */
 #include "x87.h"                /* spill32 — FUN_00465372 decision compare */
 #include "rng.h"
 #include "save_work.h"
@@ -3037,6 +3038,18 @@ static void cs_buy_machine(void)
      * FUN_00468286(b5a4) + SE 0x2c6. */
 }
 
+/* ── FUN_00414766 — a screen-space overlay particle ───────────────────────────
+ * Maps a 640×480 screen point onto the overlay plane (16.5 − x/19.5,
+ * 12.4 − y/19.5, z −520) and spawns `tpl` there (FUN_00414345 mode 1).
+ * Disasm 0x414766: every step spills to m32. */
+static void cs_screen_particle(float x, float y, int tpl, float scale, int dur, int shape_mode)
+{
+    static const float k_div = 19.5f, k_x0 = 16.5f, k_y0 = 12.4f, k_z = -520.0f;
+    float px = spill32((long double)k_x0 - spill32((long double)x / k_div));
+    float py = spill32((long double)k_y0 - spill32((long double)y / k_div));
+    scene1_overlay_spawn(NULL, px, py, k_z, tpl, scale, dur, 0, shape_mode, 1);
+}
+
 /* ── customer_service_master_tick — FUN_00462403 ─────────────────────────────
  * Run every frame while cc08==4 (once the asset-load worker has cleared b1cc).
  * Owns the per-frame timers + the arrival-anim ramp, then the b534 state switch.
@@ -3123,11 +3136,26 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
     if (s_b51c == 0 && s_b534 != 0xf && s_b58c > 0)
         s_b58c -= 1;
 
-    /* arrival-anim ramp (all.c:60238-60255): once the script starts it (b5a0>0),
-     * climb to 0x3c.  The '!' sparkle emit + arrival SE are gated on b564 (==0
-     * here) ⇒ inert; PORT-DEBT(cs-arrival-fx) for the bubble particle + the SE. */
-    if (s_b5a0 > 0 && s_b5a0 < 0x3c)
-        s_b5a0 += 1;
+    /* arrival-anim ramp (0x4625a1-0x46268e): once started (b5a0>0) it climbs to
+     * 0x3c; SE 0x17b on its 2nd frame.  A customer whose item sits in a special
+     * display slot (b564) gets the screen sparkles: template 0x3b at a random
+     * (304,128)±32 every even b5b4 from b5a0 38 on (2 LCG draws each), and one
+     * template 0x3d burst at b5a0 29.  DAT_0438b1a0 (easydisp) = 0. */
+    if (s_b5a0 > 0) {
+        static const float k_half = 0.5f, k_spread = 64.0f, k_cx = 304.0f, k_cy = 128.0f,
+                           k_scale = 0.8f;
+        if (s_b5a0 >= 0x26 && s_b564 != 0 && s_b5b4 % 2 == 0) {
+            float x = spill32(((long double)rng_next_unit() - k_half) * k_spread + k_cx);
+            float y = spill32(((long double)rng_next_unit() - k_half) * k_spread + k_cy);
+            cs_screen_particle(x, y, 0x3b, k_scale, -1, 0);   /* FUN_00414766 */
+        }
+        if (s_b5a0 < 0x3c) {
+            if (s_b564 != 0 && s_b5a0 == 0x1d)
+                cs_screen_particle(k_cx, k_cy, 0x3d, 1.0f, -1, 0);
+            if (++s_b5a0 == 2)
+                audio_play_se_by_id(0x17b);
+        }
+    }
     /* PORT-DEBT(cs-payout-anim): the b5c0 sale-payout coin anim (post-sale). */
 
     /* the cc08==4 COUNTER camera (all.c:60280-60314).  Pin the lookat to the

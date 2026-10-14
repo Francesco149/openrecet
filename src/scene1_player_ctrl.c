@@ -1033,13 +1033,46 @@ static void player_ctrl_tail_rumble(void)
  * CALL_TRACE marker — matching player_ctrl_scene_transition_tick (Chip 3).  Each
  * is the home a future chip fleshes out as the corresponding feature lands.
  *
- * customer-approach escalation (922-957): when shop customers are present
- * ((&DAT_0450fb98)[shop] > 0) the controller escalates to cc08==4 (scripted
- * approach) and consumes the frame.  No customer is spawned in the port, so the
- * three count-gated guards are all false → returns 0 ("no escalation"). */
+ * merchant-rank arrivals (all_ida 97213-97245): unless the iv2 "Day N" beat is
+ * still up (b928==1 && b924<192), reaching shop rank 1 (DAT_0450fb98) runs the
+ * scripted buy tutorial once (f428, script file 1) and rank 2 the next lesson
+ * (f429, file 2; outside game mode 2): f404 = f405 = 1, cc08 = 4, the session
+ * init, and FUN_00406212(0) — then FUN_0048670f returns.
+ * PORT-DEBT(rank-arrival-tail): FUN_00406212(0) (DAT_00647e20 = 1) and the rank
+ * ≥6 / ≥14 FUN_0044ba2c(19,1|2,0) story triggers (f4c5/f4c6). */
+#define PC_F428_RANK1_BYTE_OFF  0x2bc90   /* DAT_0450f428 — rank-1 buy lesson shown */
+#define PC_F429_RANK2_BYTE_OFF  0x2bc91   /* DAT_0450f429 — rank-2 lesson (requests on) */
+#define PC_F404_SELL_ACTIVE_OFF 0x2bc6c   /* DAT_0450f404 */
+#define PC_F405_ARRIVED_OFF     0x2bc6d   /* DAT_0450f405 */
 static int player_ctrl_cc08_customer_escalate(void)
 {
-    return 0;
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bb == NULL)
+        return 0;
+    if (scene1_tutorial_dispatch_iv2_beat_active() &&
+        scene1_tutorial_dispatch_iv2_beat_ctr() < 192)
+        return 0;
+    const int32_t *bd = (const int32_t *)bb;
+    const int32_t rank = bd[SAVE_BANK_FIELD_SHOP_RANK];
+    const int mode2 = bd[SAVE_BANK_FIELD_GAME_MODE] == 2;
+    int file = -1;
+    if (rank >= 1 && bb[PC_F428_RANK1_BYTE_OFF] == 0 && !mode2) {
+        bb[PC_F428_RANK1_BYTE_OFF] = 1;
+        file = 1;
+    } else if (rank >= 2 && bb[PC_F429_RANK2_BYTE_OFF] == 0) {
+        bb[PC_F429_RANK2_BYTE_OFF] = 1;
+        if (!mode2)
+            file = 2;
+    }
+    if (file < 0)
+        return 0;
+    bb[PC_F404_SELL_ACTIVE_OFF] = 1;
+    s_cc08 = 4;
+    bb[PC_F405_ARRIVED_OFF] = 1;
+    customer_service_set_script_file(file);        /* FUN_00461bf6 */
+    customer_service_session_init();               /* FUN_0045edaa */
+    s_cc08_entered_this_frame = 1;
+    return 1;
 }
 
 /* world-map door-exit bank flags (T1; all.c:87531/87643, rec-relative like the

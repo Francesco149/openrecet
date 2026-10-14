@@ -8,20 +8,20 @@
   "inv_instrumented_full": 78,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 510,
-  "inv_discovered": 1947,
-  "referenced_or_better": 601,
-  "pct_referenced_or_better": 23.6,
+  "inv_source_referenced": 512,
+  "inv_discovered": 1945,
+  "referenced_or_better": 603,
+  "pct_referenced_or_better": 23.7,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
   "port_debt": 33,
   "verified": 78,
   "stubbed": 13,
-  "ported": 510,
-  "unported": 1947,
-  "touched": 601,
-  "pct_touched": 23.6,
+  "ported": 512,
+  "unported": 1945,
+  "touched": 603,
+  "pct_touched": 23.7,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -1612,18 +1612,20 @@
    "size": 29,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40622f",
@@ -2722,6 +2724,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_per_frame_open.c",
@@ -2735,18 +2738,20 @@
    "size": 111,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4147d5",
@@ -6835,6 +6840,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
     "src/scene_worldmap.c"
    ],
