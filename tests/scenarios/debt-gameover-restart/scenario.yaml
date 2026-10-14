@@ -1,0 +1,12 @@
+# debt-gameover-restart (recorded as day5-shop) — human recording 2026-10-14 (rhost.py
+# record, Windows, keyboard). Starts from the slot-10 save written by
+# buy-from-seller-guild-intro (_saves/dbdd2808…, Load Game → slot 10). Shop days (9
+# offer_up sales, 2 market visits) up to the WEEK-1 DEBT DEADLINE: 4,371 of 10,000 pix →
+# collection form VOID → GAME OVER (cardboard-box scene) → the bad-end restart cutscene
+# (Tear: "That smile you had while sleeping…") → "Day 2" → shop with 1,000 pix.
+# Window closed @f30452 (scene 1). No save written.
+# rhost: replay f30452 rng a1c4848d = recording; 48 new DLL-pointer slots calibrated
+# (volatile.txt 476 → 524); det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-14: haggle_decide 16 / offer_up 9 / rand 81,310, 0 div.
+description: |
+  Shop days → week-1 debt unpaid → GAME OVER → bad-end restart cutscene → Day 2 again.

@@ -1,0 +1,8 @@
+# buy-35pct-accept (recorded as day10-shop) — human recording 2026-10-14 (rhost.py record, Windows,
+# keyboard). Slot-9 save (_saves/3d2f5b18…, Day 5).
+# A customer SELLS (base 1100; offer_down round 0: offer 385 floor 292 acc 765); the player offers 390 (35%) →
+# accepted at once. Window closed @f4114. No save written.
+# rhost: replay f4114 rng 9275379f = recording; det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-14: haggle_decide 2 / offer_down 1 / rand 15,424, 0 div.
+description: |
+  Buy offer at 35% of base accepted at once.

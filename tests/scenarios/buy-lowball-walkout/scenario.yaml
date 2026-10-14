@@ -1,0 +1,10 @@
+# buy-lowball-walkout (recorded as day6-shop) — human recording 2026-10-14 (rhost.py
+# record, Windows, keyboard). Slot-9 save (_saves/3d2f5b18…, Day 5). A customer BUYS
+# (offer_up: base 140 → offer 180; player asks 170 → sold), then a customer SELLS a
+# Thankful Statue (base 4,550; offer_down round 0: offer 1865 floor 1119 acc 3107);
+# the player offers 834 (18%, below floor) → the seller refuses and walks out (no
+# haggle_decide call). Window closed @f6233. No save written.
+# rhost: replay f6233 rng a078d7eb = recording; det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-14: haggle_decide 2 / offer_up 1 / offer_down 1 / rand 23,744, 0 div.
+description: |
+  Seller walks out on an 18% buy offer (below floor); one sale before it.

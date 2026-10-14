@@ -1,0 +1,12 @@
+# buy-counter-raise-accept (recorded as day11-shop) — human recording 2026-10-14
+# (rhost.py record, Windows, keyboard). Slot-9 save (_saves/3d2f5b18…, Day 5).
+# 1. A customer BUYS: offer_up round 0 (base 140 → offer 169); player asks 170 →
+#    counter (offer_up round 1 → 176); player asks 160 → sold.
+# 2. A customer SELLS an Unthankful Statue (base 140; offer_down round 0: offer 49
+#    floor 39 acc 99); player offers 42 (30%) → not accepted (offer_down round 1 →
+#    offer 32); player raises to 72 (51%) → accepted ("Thanks! Please come again!").
+# Window closed @f7562 (scene 9). No save written.
+# rhost: replay f7562 rng 0c87f693 = recording; det -n 2 PASS, 1 semantic hash.
+# verify 2026-10-14: haggle_decide 4 / offer_up 2 / offer_down 2 / rand 27,602, 0 div.
+description: |
+  Buy: 30% offer → counter round → raised to 51% → accepted; a sale with a counter round first.
