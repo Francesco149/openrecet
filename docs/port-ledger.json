@@ -2807,6 +2807,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/party.h",
     "src/scene1_combat_sm.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c"
@@ -4890,6 +4891,7 @@
     "src/enemy_place.h",
     "src/map_collision.c",
     "src/map_collision.h",
+    "src/party.h",
     "src/scene1_camera.c",
     "src/scene1_chr_shadow.c",
     "src/scene1_chr_shadow.h",
@@ -6544,6 +6546,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/party.h",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -17325,6 +17328,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/party.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_player_ctrl.c",
@@ -17450,6 +17454,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/stage_post_load.h",
     "src/xp_curve.c",
     "src/xp_curve.h"
    ],

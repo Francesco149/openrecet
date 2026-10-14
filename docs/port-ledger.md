@@ -95,7 +95,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4850ec | FUN_004850ec | 18 | ✓ | stub | anchor_trace.c, scene1_player_ctrl.c, scene1_player_ctrl.h (+2) |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stub | stage_post_load.c |
 | 0x485861 | FUN_00485861 | 280 | ✓ |  | customer_service.c, customer_service.h, scene1_actor_say.h (+2) |
-| 0x48a331 | FUN_0048a331 | 23 | ✓ |  | xp_curve.c, xp_curve.h |
+| 0x48a331 | FUN_0048a331 | 23 | ✓ |  | stage_post_load.h, xp_curve.c, xp_curve.h |
 | 0x48a4d1 | FUN_0048a4d1 | 866 | ✓ |  | customer_service.c, scene1_companion_ctrl.c, scene1_companion_ctrl.h (+1) |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | stub | collision_resolve.c, main.c, scene1_chr_walker.c (+10) |
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ |  | main.c, scene1_dungeon_clear_banner.c, scene1_dungeon_clear_banner.h (+1) |
@@ -169,7 +169,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41331d | FUN_0041331d | 89 | ✓ |  | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
 | 0x414345 | FUN_00414345 | 1057 | ✓ |  | customer_service.c, scene1_overlay.c, scene1_overlay.h (+2) |
 | 0x414766 | FUN_00414766 | 111 | ✓ |  | customer_service.c |
-| 0x4147d5 | FUN_004147d5 | 62 | ✓ |  | scene1_combat_sm.h, scene1_player_ctrl.c, scene1_records_b_tick.c |
+| 0x4147d5 | FUN_004147d5 | 62 | ✓ |  | party.h, scene1_combat_sm.h, scene1_player_ctrl.c (+1) |
 | 0x414813 | FUN_00414813 | 239 | ✓ |  | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |
 | 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
@@ -198,7 +198,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x431d54 | FUN_00431d54 | 1762 | ✓ |  | actor_table.h, enemy_place.c, enemy_place.h (+1) |
 | 0x43289b | FUN_0043289b | 555 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+1) |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+2) |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | collision_house.c, collision_mesh.h, collision_query.c (+15) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | collision_house.c, collision_mesh.h, collision_query.c (+16) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ |  | collision_resolve.c, collision_resolve.h, enemy_place.h (+6) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ |  | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ |  | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
@@ -241,7 +241,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ |  | scene1_sim.c, scene1_sim.h, scene1_top_hud.c |
 | 0x4427f1 | FUN_004427f1 | 90 | ✓ |  | scene1_sim.c, scene1_tutorial_dispatch.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ |  | scene1_records_b_tick.c |
-| 0x44376a | FUN_0044376a | 8538 | ✓ |  | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
+| 0x44376a | FUN_0044376a | 8538 | ✓ |  | main.c, party.h, scene1_particles_tick.h (+7) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ |  | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
 | 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+9) |
 | 0x44ad81 | FUN_0044ad81 | 367 | ✓ |  | scene1_postload.c |
@@ -539,7 +539,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4864fd | FUN_004864fd | 216 | ✓ |  | scene_guild.c |
 | 0x48670f | FUN_0048670f | 11519 | ✓ |  | customer_service.h, party_roster.h, scene1_actor_say.h (+15) |
 | 0x48960d | FUN_0048960d | 441 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
-| 0x4897c6 | FUN_004897c6 | 870 | ✓ |  | scene1_companion_ctrl.c, scene1_conversation_pose.c, scene1_player_ctrl.c (+1) |
+| 0x4897c6 | FUN_004897c6 | 870 | ✓ |  | party.h, scene1_companion_ctrl.c, scene1_conversation_pose.c (+2) |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ |  | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ |  | chara_skills.h |
 | 0x489e66 | FUN_00489e66 | 1227 | ✓ |  | scene1_player_ctrl.c |

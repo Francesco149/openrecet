@@ -76,7 +76,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2554 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2555 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_0044ad81 | src/scene1_postload.c:291 | the floor objects (the exit portal at the |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044c88f | src/scene1_postload.c:276 | the per-dungeon setups FUN_0044c88f / |
@@ -130,12 +130,12 @@ _none_
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1273 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1230 | the engine also gates on a |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1274 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1231 | the engine also gates on a |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1296 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1297 | the engine frees the shop |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the house player still runs this |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:243 | the engine tail re-inits the |
 

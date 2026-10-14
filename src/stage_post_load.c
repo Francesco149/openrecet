@@ -19,26 +19,34 @@
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "stage_gate.h"
 #include "xp_curve.h"
+#include "party.h"
+#include "save_work.h"
 
 /* ─── per-chara record storage ─────────────────────────────────────────── */
 
-static int32_t g_stage_chara[STAGE_POST_LOAD_CHARA_COUNT]
-                            [STAGE_POST_LOAD_CHARA_DWORDS];
+/* The chara records live in the active work record: +0x2ceb0 + 0x6c·chara
+ * (DAT_04510648 + DAT_0438b7d8·0x6c). */
+static int32_t *chara_rec(int idx)
+{
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    return w ? (int32_t *)(void *)(w + 0x2ceb0 + STAGE_POST_LOAD_CHARA_BYTES * idx) : NULL;
+}
 
 /* ─── scratch globals (engine VAs preserved in names) ──────────────────── */
 
-static int32_t g_dat_056da1cc;
-static int32_t g_dat_056da1d0;
-static int32_t g_dat_056da1d4;
-static int32_t g_dat_056db0d8;
-static float   g_dat_056db0bc;
-static float   g_dat_056db0c0;
-static float   g_dat_056db0c4;
-static float   g_dat_056db0c8;
+/* the party block (party.h) */
+#define g_dat_056da1cc (g_party.chr[0])
+#define g_dat_056da1d0 (g_party.chr[1])
+#define g_dat_056da1d4 (g_party.chr[2])
+#define g_dat_056db0d8 (PW(0x56db0d8u).i)
+#define g_dat_056db0bc (PW(0x56db0bcu).f)   /* HP */
+#define g_dat_056db0c0 (PW(0x56db0c0u).f)   /* SP */
+#define g_dat_056db0c4 (PW(0x56db0c4u).f)   /* the HP gauge's shown value */
+#define g_dat_056db0c8 (PW(0x56db0c8u).f)   /* the SP gauge's shown value */
 static int32_t g_dat_0438bea0;
 static float   g_dat_0438b91c;
 static int32_t g_dat_0438b4c4;
-static int32_t g_dat_056dae44[6];
+#define g_dat_056dae44 (&PW(0x56dae44u).i)   /* [6] */
 static int32_t g_dat_0438b4ec[25];
 static int32_t g_dat_0438bedc[6];
 static int32_t g_dat_0438bef4[6];
@@ -366,23 +374,26 @@ int32_t stage_post_load_chara_field(int chara_idx, int dword_idx)
 {
     if (chara_idx < 0 || chara_idx >= STAGE_POST_LOAD_CHARA_COUNT) return 0;
     if (dword_idx < 0 || dword_idx >= STAGE_POST_LOAD_CHARA_DWORDS) return 0;
-    return g_stage_chara[chara_idx][dword_idx];
+    const int32_t *c = chara_rec(chara_idx);
+    return c ? c[dword_idx] : 0;
 }
 
 void stage_post_load_set_chara_field(int chara_idx, int dword_idx, int32_t value)
 {
     if (chara_idx < 0 || chara_idx >= STAGE_POST_LOAD_CHARA_COUNT) return;
     if (dword_idx < 0 || dword_idx >= STAGE_POST_LOAD_CHARA_DWORDS) return;
-    g_stage_chara[chara_idx][dword_idx] = value;
+    int32_t *c = chara_rec(chara_idx);
+    if (c) c[dword_idx] = value;
 }
 
 int16_t stage_post_load_get_chara_short(int chara_idx, int byte_off)
 {
     if (chara_idx < 0 || chara_idx >= STAGE_POST_LOAD_CHARA_COUNT) return 0;
     if (byte_off < 0 || byte_off + (int)sizeof(int16_t) > STAGE_POST_LOAD_CHARA_BYTES) return 0;
-    const uint8_t *p = (const uint8_t *)g_stage_chara[chara_idx] + byte_off;
+    const int32_t *c = chara_rec(chara_idx);
+    if (!c) return 0;
     int16_t out;
-    memcpy(&out, p, sizeof(int16_t));
+    memcpy(&out, (const uint8_t *)c + byte_off, sizeof(int16_t));
     return out;
 }
 
@@ -390,8 +401,8 @@ void stage_post_load_set_chara_short(int chara_idx, int byte_off, int16_t value)
 {
     if (chara_idx < 0 || chara_idx >= STAGE_POST_LOAD_CHARA_COUNT) return;
     if (byte_off < 0 || byte_off + (int)sizeof(int16_t) > STAGE_POST_LOAD_CHARA_BYTES) return;
-    uint8_t *p = (uint8_t *)g_stage_chara[chara_idx] + byte_off;
-    memcpy(p, &value, sizeof(int16_t));
+    int32_t *c = chara_rec(chara_idx);
+    if (c) memcpy((uint8_t *)c + byte_off, &value, sizeof(int16_t));
 }
 
 /* ─── scratch global accessors ────────────────────────────────────────── */
@@ -401,12 +412,14 @@ int32_t stage_post_load_get_dat_056da1d0(void) { return g_dat_056da1d0; }
 int32_t stage_post_load_get_dat_056da1d4(void) { return g_dat_056da1d4; }
 int32_t stage_post_load_get_dat_056db0d8(void) { return g_dat_056db0d8; }
 float   stage_post_load_get_dat_056db0bc(void) { return g_dat_056db0bc; }
+void    stage_post_load_set_dat_056db0bc(float v) { g_dat_056db0bc = v; }
 float   stage_post_load_get_dat_056db0c0(void) { return g_dat_056db0c0; }
 float   stage_post_load_get_dat_056db0c4(void) { return g_dat_056db0c4; }
 float   stage_post_load_get_dat_056db0c8(void) { return g_dat_056db0c8; }
 int32_t stage_post_load_get_dat_0438bea0(void) { return g_dat_0438bea0; }
 float   stage_post_load_get_dat_0438b91c(void) { return g_dat_0438b91c; }
 int32_t stage_post_load_get_dat_0438b4c4(void) { return g_dat_0438b4c4; }
+void    stage_post_load_set_dat_0438b4c4(int32_t v) { g_dat_0438b4c4 = v; }
 
 int32_t stage_post_load_get_dat_056dae44(int idx)
 {
@@ -443,7 +456,10 @@ float stage_post_load_get_dat_0438bef4_as_float(int idx)
 
 void stage_post_load_reset_for_test(void)
 {
-    memset(g_stage_chara, 0, sizeof(g_stage_chara));
+    for (int k = 0; k < STAGE_POST_LOAD_CHARA_COUNT; k++) {
+        int32_t *c = chara_rec(k);
+        if (c) memset(c, 0, STAGE_POST_LOAD_CHARA_BYTES);
+    }
     g_dat_056da1cc = 0;
     g_dat_056da1d0 = 0;
     g_dat_056da1d4 = 0;
@@ -455,7 +471,7 @@ void stage_post_load_reset_for_test(void)
     g_dat_0438bea0 = 0;
     g_dat_0438b91c = 0.0f;
     g_dat_0438b4c4 = 0;
-    memset(g_dat_056dae44, 0, sizeof(g_dat_056dae44));
+    memset(g_dat_056dae44, 0, 6 * sizeof(int32_t));
     memset(g_dat_0438b4ec, 0, sizeof(g_dat_0438b4ec));
     memset(g_dat_0438bedc, 0, sizeof(g_dat_0438bedc));
     memset(g_dat_0438bef4, 0, sizeof(g_dat_0438bef4));
@@ -489,11 +505,10 @@ void stage_post_load_init(void)
     /* E.3 probe — FUN_00435c98 @ 0x435c98 (post-new-game stage init). */
     CALL_TRACE_ENTER(0x435c98u);
 
-    /* Engine L33111-13: iVar4 = DAT_0438b1e0 (stage), iVar5 = stage *
-     * 0x2dfc8 (record offset), piVar2 = &record[+0x2ceb0] +
-     * DAT_0438b7d8 * 0x6c (active chara record).  Both BSS-zero on
-     * NEW GAME → stage 0, chara 0. */
-    int32_t *chara = g_stage_chara[0];
+    /* piVar2 = the active chara's record in the work record (+0x2ceb0 +
+     * DAT_0438b7d8 * 0x6c). */
+    int32_t *chara = chara_rec(chara_equip_get_current_chara());
+    if (chara == NULL) return;
 
     /* L33114: stat aggregator — full body in chara_equip. */
     chara_equip_recompute_aggregate();
@@ -515,27 +530,23 @@ void stage_post_load_init(void)
      * 9th call needed for call-count parity). */
     save_bank_apply_chara_interp(chara_equip_get_current_bank());
 
-    /* L33119-33124: position carry-forward.
-     *   Engine: sum the low int16 of piVar2[0xf] (chara bytes 0x3c..0x3d)
-     *   with the int16 at bytes 0x3e..0x3f, both sign-extended.  Mirror
-     *   for Y at 0x40 / 0x42.  Then copy DAT_056db0bc/c0 → DAT_056db0c4/c8
-     *   as the "previous position" backup pair.
-     *   Use memcpy to avoid strict-aliasing UB on the int16 reads. */
+    /* L33119-33124: HP = max HP (int16 +0x3c + int16 +0x3e), SP = +0x40 + +0x42;
+     * the gauges' shown values (db0c4 / db0c8) start full. */
     g_dat_056db0d8 = 0;
     {
-        int16_t pos_x_lo, pos_x_hi;
+        int16_t hp_base, hp_bonus;
         const uint8_t *p = (const uint8_t *)chara;
-        memcpy(&pos_x_lo, p + 0x3c, sizeof(pos_x_lo));
-        memcpy(&pos_x_hi, p + 0x3e, sizeof(pos_x_hi));
-        g_dat_056db0bc = (float)((int32_t)pos_x_lo + (int32_t)pos_x_hi);
+        memcpy(&hp_base, p + 0x3c, sizeof(hp_base));
+        memcpy(&hp_bonus, p + 0x3e, sizeof(hp_bonus));
+        g_dat_056db0bc = (float)((int32_t)hp_base + (int32_t)hp_bonus);
     }
     g_dat_0438bea0 = 0;
     {
-        int16_t pos_y_lo, pos_y_hi;
+        int16_t sp_base, sp_bonus;
         const uint8_t *p = (const uint8_t *)chara;
-        memcpy(&pos_y_lo, p + 0x40, sizeof(pos_y_lo));
-        memcpy(&pos_y_hi, p + 0x42, sizeof(pos_y_hi));
-        g_dat_056db0c0 = (float)((int32_t)pos_y_lo + (int32_t)pos_y_hi);
+        memcpy(&sp_base, p + 0x40, sizeof(sp_base));
+        memcpy(&sp_bonus, p + 0x42, sizeof(sp_bonus));
+        g_dat_056db0c0 = (float)((int32_t)sp_base + (int32_t)sp_bonus);
     }
     g_dat_056db0c4 = g_dat_056db0bc;
     g_dat_056db0c8 = g_dat_056db0c0;
@@ -557,9 +568,11 @@ void stage_post_load_init(void)
         chara[0x11] = chara[0x13];
     }
 
-    /* L33136: DAT_0438b91c = (float)(int)stage_record[+0x2c3f4].
-     * Stage record isn't ported; default to 0 for stage 0. */
-    g_dat_0438b91c = 0.0f;
+    /* L33136: DAT_0438b91c = (float)work dword +0x2c3f4. */
+    {
+        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        g_dat_0438b91c = w ? (float)(int32_t)w[0x2c3f4 / 4] : 0.0f;
+    }
 
     /* L33137: post-init sibling — full body in chara_skills. */
     chara_skills_init_at_stage_load();

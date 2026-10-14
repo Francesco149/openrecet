@@ -11,6 +11,8 @@
  */
 #include "t.h"
 
+#include <string.h>
+
 #include <math.h>
 
 #include "collision_mesh.h"
@@ -157,6 +159,7 @@ static void make_floor_at(collision_object *o, collision_tri *t, float y)
     float b[3] = {0, y, 10};
     float c[3] = {10, y, 0};
     collision_tri_build(t, a, b, c, 0, COLLISION_PAD_SMALL);
+    memset(o, 0, sizeof *o);   /* origin / rot_y: the object sits at the world origin */
     o->tris = t; o->tri_count = 1;
 }
 

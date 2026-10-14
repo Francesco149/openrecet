@@ -18,6 +18,7 @@
 #include "rng.h"
 #include "scene1_records.h"
 #include "scene1_spawn.h"
+#include "scene1_particles_tick.h"   /* g_scene1_camera_yaw_alt (party block) */
 
 static void reset_records_and_trace(void)
 {
@@ -1201,7 +1202,6 @@ int test_scene1_spawn_type_6d_camera_yaw_drives_pos(void)
 {
     /* Body reads g_scene1_camera_yaw_alt; vary it and see pos change. */
     extern uint32_t g_rng_seed;
-    extern float g_scene1_camera_yaw_alt;
     uint32_t saved = g_rng_seed;
     float saved_yaw = g_scene1_camera_yaw_alt;
 
@@ -1293,7 +1293,6 @@ int test_scene1_spawn_type_1f_scene_counter_drives_pos(void)
 {
     /* Body reads g_scene1_spawn_scene_counter_dab58 — vary and check. */
     extern uint32_t g_rng_seed;
-    extern int g_scene1_spawn_scene_counter_dab58;
     uint32_t saved = g_rng_seed;
     int saved_c = g_scene1_spawn_scene_counter_dab58;
 

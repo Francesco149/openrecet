@@ -1098,14 +1098,6 @@ static void init_type_3e(int i, int count_index, float y, float scale)
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r & 0xffu);
 }
 
-/* Scene-counter stand-in for types 0x1f/100.  Engine reads
- * `DAT_056dab58` (set by FUN_00436f97 sim caller to small ints like 2 or
- * 4 representing player-state mode).  Used as angle-source for the
- * scene-counter wave: `angle = DAT_056dab58 * 2π / 8`.  Default 0 →
- * sin(0)=0, cos(0)=1 (constant offset).  Tests set this global to drive
- * the trig dependency.  Logged in pending-human-check #8 alongside the
- * 0x96 camera-counter stub. */
-int g_scene1_spawn_scene_counter_dab58;
 
 /* ─── per-type init: 0x3d — 20-spawn string-style orbit (L736-753) ────
  *

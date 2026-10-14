@@ -4,6 +4,7 @@
  */
 
 #include "scene1_player_ctrl.h"
+#include "party.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -361,10 +362,10 @@ void player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
  * timer 5.0f was a steady-state capture, NOT the entry state — RE §21.30).
  * This replaces the per-call scene1_shop_walker_set_player_inject MVP. */
 
-static int32_t s_actor_char[PC_NUM_ACTORS]     = { -1, -1, -1 };
-static float   s_actor_scale_xz[PC_NUM_ACTORS] = { 0.0f, 0.0f, 0.0f };
-static float   s_actor_scale_y[PC_NUM_ACTORS]  = { 0.0f, 0.0f, 0.0f };
-static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
+#define s_actor_char     (g_party.chr)        /* DAT_056da1cc */
+#define s_actor_scale_xz (g_party.scale_xz)   /* DAT_056dae18 */
+#define s_actor_scale_y  (g_party.scale_y)    /* DAT_056dae24 */
+#define s_actor_record   (g_party.rec)        /* DAT_056daae8 */
 
 /* ── W3 free-roam walk state (the live player-controller globals) ──────────
  *   s_player_vel    = (daabc, daac0, daac4)  — world velocity (x, y, z)
@@ -372,9 +373,9 @@ static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
  *   s_facing_sticky = dae3c                  — diagonal-snap horizontal bias
  * Reset to the idle standing pose by player_ctrl_pose_house_standing(): the
  * idle capture shows facing +π/2 (oct 6), zero velocity. */
-static float s_player_vel[3]    = { 0.0f, 0.0f, 0.0f };
-static float s_player_facing    = 1.57079633f;   /* +π/2, idle facing */
-static int   s_facing_sticky    = 0;
+#define s_player_vel     (g_party.vel[0])     /* DAT_056daabc */
+#define s_player_facing  (PW(0x56db05cu).f)
+#define s_facing_sticky  (PW(0x56dae3cu).i)
 static int   s_player_moving    = 0;              /* last frame's moving state
                                                    * (held across opposing-pair
                                                    * d-pad frames, §69) */
@@ -411,8 +412,8 @@ static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-me
  * hands-up carry pose (26 free-roam frames after the menu closes).  While
  * non-zero: d-pad interactions (all.c:87617) and the walk impulse (all.c:
  * 87524) are gated off; the b850 move/damp still runs. */
-static int   s_db048            = 0;              /* DAT_056db048 */
-static int   s_db04c            = 0;              /* DAT_056db04c */
+#define s_db048          (PW(0x56db048u).i)
+#define s_db04c          (PW(0x56db04cu).i)
 
 /* DAT_056db000 / DAT_056db004 — the free-roam INTERACTION-AFFORDANCE emote
  * bubble (the "GO!" door tooltip + the talk/pick-up prompts).  Driven per frame
@@ -426,8 +427,8 @@ static int   s_db04c            = 0;              /* DAT_056db04c */
  *     ((type%4)·48+320, (type/4)·48).  7 = the shop-door "GO!" (the only path the
  *     port drives today); 0/1 = talk / talk-with-pending-customer (faithful
  *     no-op here — no live customers); 4 = the dungeon combat prompt (combat_sm). */
-static int   s_emote_level      = 0;              /* DAT_056db000 */
-static int   s_emote_type       = 0;              /* DAT_056db004 */
+#define s_emote_level    (PW(0x56db000u).i)
+#define s_emote_type     (PW(0x56db004u).i)
 
 /* Per-frame latch: set when player_ctrl_b850_move() ticks the companion inline
  * (the free-roam walk path, mirroring the engine's FUN_0048a833-nested-in-
@@ -456,12 +457,12 @@ static int   s_companion_ticked_in_b850 = 0;
  * and the walker draws no after-images, matching retail's plain walk.  This is
  * the faithful replacement for the synthetic single-slot inject that
  * scene1_chr_walker.c previously hand-built. */
-static float   s_pos_hist[PC_HIST_SLOTS][3];
-static int32_t s_rec_hist[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS];
-static int32_t s_trail_bank[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS];
-static int32_t s_burst_bank[PC_BURST_RECORDS][PC_TRAIL_REC_DWORDS];
-static int     s_burst_count = 0;   /* DAT_056daae0 (burst/egg after-image counter) */
-static int     s_decay_spawn = 0;   /* DAT_056dae14 down-counter (trail alloc edge) */
+#define s_pos_hist       (g_party.pos_hist)   /* DAT_056da1fc */
+#define s_rec_hist       (g_party.rec_hist)   /* DAT_056da3dc */
+#define s_trail_bank     (g_party.trail)      /* DAT_056dab6c */
+#define s_burst_bank     (g_party.burst)      /* DAT_056dacc0 */
+#define s_burst_count    (PW(0x56daae0u).i)   /* burst/egg after-image counter */
+#define s_decay_spawn    (PW(0x56dae14u).i)   /* trail alloc edge down-counter */
 
 void player_ctrl_pose_house_standing(int player_char)
 {

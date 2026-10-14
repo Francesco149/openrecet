@@ -12,6 +12,8 @@
 
 #include "scene1_companion_ctrl.h"
 
+#include "party.h"
+
 #include <math.h>
 #include <stdint.h>
 
@@ -99,7 +101,7 @@
  * companion-local counter (the companion is currently db054's only port reader,
  * and in HOUSE free-roam this tick runs once per frame).  Promote to a shared
  * g_scene1_anim_counter when other db054 readers land. */
-static int s_bob_counter = 0;
+#define s_bob_counter (PW(0x56db054u).i)
 
 void scene1_companion_ctrl_reset(void)
 {
@@ -281,10 +283,6 @@ static void co_emit_wing_sparkle(const int32_t *rec, const float *comp)
 {
     int   facing = rec[CHR_ACTOR_FACING];      /* DAT_056dab58 octant */
     float angle  = (float)facing * CO_TWO_PI / 8.0f - g_scene1_camera_yaw;
-    /* The type-0x1f init body re-reads dab58 for its per-particle jitter; the
-     * companion controller IS the engine's dab58 writer, so keep the spawn-side
-     * model (g_scene1_spawn_scene_counter_dab58) in step with the live facing. */
-    g_scene1_spawn_scene_counter_dab58 = facing;
     scene1_spawn(0,
                  comp[0] - sinf(angle) * CO_SPARKLE_OFFSET,
                  comp[1] + CO_SPARKLE_Y,

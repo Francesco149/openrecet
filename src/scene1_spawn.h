@@ -31,6 +31,8 @@
 
 #include <stdint.h>
 
+#include "party.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -209,12 +211,9 @@ extern int32_t g_scene1_spawn_50_rot_y_ea4;
  * counter is the observable proxy that the arm-flag fired. */
 extern int g_scene1_spawn_type_24_arm_count;
 
-/* Stand-in for types 0x1f/100's scene-counter wave.  Engine reads
- * `DAT_056dab58` (a small int set by the sim caller FUN_00436f97 — see
- * its lines 680/685 for assignments to 2/4).  Default 0 → sin(0)=0,
- * cos(0)=1, so pos.x gets a constant `(u-0.5) + x` offset and pos.z
- * collapses to z.  Tests set this to verify the trig dependency. */
-extern int g_scene1_spawn_scene_counter_dab58;
+/* Types 0x1f/100 read DAT_056dab58 = Tear's facing octant (the party
+ * block's actor-2 record, party.h) as their spread angle (·2π/8). */
+#define g_scene1_spawn_scene_counter_dab58 (g_party.rec[2][6])
 
 /*
  * Trace ring — kept for tests + debug instrumentation.  Reset by

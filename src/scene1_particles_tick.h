@@ -36,6 +36,8 @@
 
 #include <stdint.h>
 
+#include "party.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -60,10 +62,9 @@ extern "C" {
  *   DAT_056daff4           → g_scene1_scene_counter      (per-scene int
  *                            tick counter, reset at scene entry.  Type 0x62
  *                            kill-gates on `counter <= 0x2c`.)
- *   DAT_056db05c           → g_scene1_camera_yaw_alt     (second camera
- *                            yaw, read by type 0x4a's sin/cos pos calc.
- *                            Distinct from _DAT_073de39c above — they have
- *                            different writers; sharing is unsafe.)
+ *   DAT_056db05c           → g_scene1_camera_yaw_alt     (the player's
+ *                            facing angle, read by type 0x4a's sin/cos pos
+ *                            calc — not a camera value)
  */
 /*
  * Actor position array — the engine's contiguous 3×3 float block at
@@ -79,15 +80,16 @@ extern "C" {
  * The companion controller (scene1_companion_ctrl, engine FUN_0048a833) is the
  * live writer of slot 2; see runs/companion-truth/FINDINGS.md (engine §71).
  */
-extern float g_scene1_actor_pos[3][3];
-#define g_scene1_player_pos   (g_scene1_actor_pos[0])
-#define g_scene1_spawn_origin (g_scene1_actor_pos[2])
-extern int   g_scene1_scene_alive;
+/* The party-block fields (party.h) under their historical names. */
+#define g_scene1_actor_pos       (g_party.pos)
+#define g_scene1_player_pos      (g_scene1_actor_pos[0])
+#define g_scene1_spawn_origin    (g_scene1_actor_pos[2])
+#define g_scene1_scene_alive     (PW(0x56dae8cu).i)
+#define g_scene1_player_ground_y (g_party.ground_y[0])
+#define g_scene1_scene_counter   (PW(0x56daff4u).i)
+#define g_scene1_camera_yaw_alt  (PW(0x56db05cu).f)   /* the player's facing angle */
 extern float g_scene1_camera_yaw;
 extern float g_scene1_camera_anchor[2];
-extern float g_scene1_player_ground_y;
-extern int   g_scene1_scene_counter;
-extern float g_scene1_camera_yaw_alt;
 
 /*
  * NPC tables consumed by the C8h.4c anchor-snap handlers.
