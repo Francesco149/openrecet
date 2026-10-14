@@ -75,6 +75,9 @@ Add a port function = one wrapper + one table row.
   **`win/runner.ps1`**, a queue runner in the interactive logon session (scheduled task
   `orc-rhost-runner`, at logon; install: `win/install-runner.ps1`). WSL is not needed.
 - `C:\orc-rhost\{bin,game,runs,queue}`; `game\` is a pristine copy of the game data.
+- Sibling projects run the same architecture in parallel (OpenSummoners `C:\oss-rhost`,
+  DioramaEngine `C:\de-rhost`). `stage` kills only `C:\orc-rhost\bin\rhost.exe`, matched
+  by full path; never kill by process name.
 - `--d3d-proxy` + `--cap FROM:COUNT` records the D3D8 stream with the v3 proxy
   (loaded in-process; armed at an exact host tick via `OrV3PresentCount`).
 

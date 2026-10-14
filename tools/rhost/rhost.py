@@ -87,8 +87,13 @@ def cmd_build(a):
 
 
 def cmd_stage(a):
+    # free bin\rhost.exe for the upload: kill only OUR binary, matched by full path — sibling
+    # projects (OpenSummoners C:\oss-rhost, DioramaEngine C:\de-rhost) run the same rhost
+    # architecture in parallel; a by-NAME kill once took down their in-flight batches
     ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\bin,{WROOT}\\runs,{WROOT}\\queue | Out-Null; "
-            f"Get-Process rhost -ErrorAction SilentlyContinue | Stop-Process -Force; exit 0")
+            f"Get-CimInstance Win32_Process -Filter \"Name='rhost.exe'\" | "
+            f"Where-Object {{ $_.ExecutablePath -eq '{WROOT}\\bin\\rhost.exe' }} | "
+            f"ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}; exit 0")
     for f in ("rhost.exe", "v3proxy_d3d8.dll"):
         scp(os.path.join(BUILD, f), f"{WIN}:C:/orc-rhost/bin/{f}")
     scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/recet.ini")
