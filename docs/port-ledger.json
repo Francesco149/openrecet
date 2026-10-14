@@ -5,23 +5,23 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "inv_instrumented": 91,
-  "inv_instrumented_full": 78,
-  "inv_instrumented_stub": 13,
+  "inv_instrumented_full": 79,
+  "inv_instrumented_stub": 12,
   "inv_implemented": 0,
-  "inv_source_referenced": 512,
-  "inv_discovered": 1945,
-  "referenced_or_better": 603,
-  "pct_referenced_or_better": 23.7,
+  "inv_source_referenced": 528,
+  "inv_discovered": 1929,
+  "referenced_or_better": 619,
+  "pct_referenced_or_better": 24.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
-  "port_debt": 33,
-  "verified": 78,
-  "stubbed": 13,
-  "ported": 512,
-  "unported": 1945,
-  "touched": 603,
-  "pct_touched": 23.7,
+  "port_debt": 45,
+  "verified": 79,
+  "stubbed": 12,
+  "ported": 528,
+  "unported": 1929,
+  "touched": 619,
+  "pct_touched": 24.3,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -1577,11 +1577,14 @@
     "src/scene.c",
     "src/scene.h",
     "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
     "src/scene_new_game.c",
     "src/scene_new_game.h",
-    "src/scene_worldmap.c"
+    "src/scene_worldmap.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
    ],
    "status": "verified"
   },
@@ -1602,7 +1605,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
    ],
    "status": "ported"
   },
@@ -1623,7 +1628,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
    ],
    "status": "ported"
   },
@@ -1633,18 +1640,22 @@
    "size": 18,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x406241",
@@ -1761,7 +1772,9 @@
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/sim.c",
-    "src/skip_event.c"
+    "src/skip_event.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
    ],
    "status": "ported"
   },
@@ -1771,18 +1784,21 @@
    "size": 19,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x406990",
@@ -1790,18 +1806,21 @@
    "size": 11,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4069a6",
@@ -1809,18 +1828,21 @@
    "size": 21,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4069bb",
@@ -2080,7 +2102,10 @@
    },
    "quality_flags": [],
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/scene1_hud.c",
+    "src/speech_bubble.c",
+    "src/speech_bubble.h"
    ],
    "status": "ported"
   },
@@ -2285,6 +2310,7 @@
     "src/actor_spawn.h",
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
+    "src/scene1_postload.c",
     "src/scene1_preload.c"
    ],
    "status": "ported"
@@ -2307,9 +2333,12 @@
    "quality_flags": [],
    "src": [
     "src/scene1_per_frame_open.h",
+    "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene1_preload.c",
     "src/scene1_records.c",
-    "src/scene1_records.h"
+    "src/scene1_records.h",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -2396,6 +2425,7 @@
     "src/scene1_render.c",
     "src/scene1_sim.c",
     "src/scene1_sim.h",
+    "src/scene_day_end.c",
     "src/scene_worldmap.c",
     "src/sim.c"
    ],
@@ -2986,7 +3016,8 @@
     "src/scene1_render.h",
     "src/scene1_wide_followup.c",
     "src/scene1_wide_followup.h",
-    "src/scene1_wide_followup_helpers.c"
+    "src/scene1_wide_followup_helpers.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -3182,6 +3213,7 @@
     "src/actor_spawn.h",
     "src/scene1_particles_tick.h",
     "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene1_preload.c"
    ],
    "status": "verified"
@@ -5377,6 +5409,8 @@
     "src/encyclopedia.c",
     "src/main.c",
     "src/scene1_player_ctrl.c",
+    "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene_pause.c",
     "src/scene_title.c",
     "src/skip_event.c",
@@ -5723,6 +5757,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_postload.c",
     "src/stage_post_load.c",
     "src/stage_post_load.h"
    ],
@@ -5944,13 +5979,19 @@
     "src/main.c",
     "src/save_bank.h",
     "src/scene.c",
+    "src/scene1_actor_say.h",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_bg_npc.c",
+    "src/scene1_camera.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
+    "src/scene1_counter_menu.c",
+    "src/scene1_counter_menu.h",
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -5965,6 +6006,7 @@
     "src/scene1_top_hud.h",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_walker_pass_init.h",
+    "src/scene_day_end.c",
     "src/scene_worldmap.c",
     "src/stage_palette.h",
     "src/worker_load.h"
@@ -6179,7 +6221,8 @@
     "src/scene1_camera.c",
     "src/scene1_camera.h",
     "src/scene1_render.c",
-    "src/scene1_render.h"
+    "src/scene1_render.h",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -6360,6 +6403,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_day_close.h",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -6547,7 +6591,8 @@
     "src/scene1_records.h",
     "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c",
-    "src/scene1_spawn.h"
+    "src/scene1_spawn.h",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -6841,6 +6886,7 @@
    "src": [
     "src/customer_service.c",
     "src/scene1_player_ctrl.c",
+    "src/scene_day_end.c",
     "src/scene_guild.c",
     "src/scene_worldmap.c"
    ],
@@ -7573,7 +7619,8 @@
     "src/scene1_camera.h",
     "src/scene1_combat_sm.c",
     "src/scene1_shop_walker_helpers.c",
-    "src/scene1_sim.c"
+    "src/scene1_sim.c",
+    "src/scene_day_end.c"
    ],
    "status": "verified"
   },
@@ -7726,6 +7773,7 @@
     "src/fade.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
+    "src/scene_day_end.c",
     "src/scene_pause.c",
     "src/scene_title.c",
     "src/scene_title.h",
@@ -7779,6 +7827,7 @@
     "src/scene1_intro_dialogue.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
+    "src/scene_day_end.c",
     "src/scene_pause.c",
     "src/scene_worldmap.c"
    ],
@@ -7805,6 +7854,7 @@
     "src/fade.c",
     "src/fade.h",
     "src/scene1_player_ctrl.c",
+    "src/scene_day_end.c",
     "src/scene_pause.c",
     "src/scene_worldmap.c"
    ],
@@ -8233,6 +8283,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/scene_day_end.c",
     "src/scene_pause.c",
     "src/sim.h"
    ],
@@ -8281,7 +8332,10 @@
    "src": [
     "src/esc_dispatch.c",
     "src/scene.h",
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h",
     "src/scene1_intro_dialogue.h",
+    "src/scene_day_end.h",
     "src/scene_pause.c",
     "src/scene_pause.h",
     "src/skip_event.c"
@@ -8294,18 +8348,23 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h",
+    "src/scene_day_end.c",
+    "src/scene_day_end.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4536c2",
@@ -8350,6 +8409,7 @@
     "src/scene1_particles_tick.h",
     "src/scene1_sim.c",
     "src/scene1_sim.h",
+    "src/scene_day_end.h",
     "src/scene_worldmap.c",
     "src/sim.c",
     "src/sim.h",
@@ -9345,7 +9405,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/customer_service.c"
+    "src/customer_service.c",
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h"
    ],
    "status": "ported"
   },
@@ -9603,18 +9665,20 @@
    "size": 39,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x45e6a5",
@@ -10426,6 +10490,7 @@
     "src/customer_service.h",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
+    "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_tutorial_dispatch.c",
@@ -10830,11 +10895,13 @@
     "src/encyclopedia.c",
     "src/news_daily.c",
     "src/save_bank.h",
+    "src/scene1_actor_say.c",
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_wide_followup.c",
     "src/scene1_wide_followup.h",
     "src/scene1_wide_followup_helpers.c",
+    "src/scene_day_end.c",
     "src/tables_item.c",
     "src/tables_item.h"
    ],
@@ -12203,6 +12270,7 @@
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene1_preload.c"
    ],
    "status": "verified"
@@ -12226,6 +12294,7 @@
    "src": [
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
+    "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c"
    ],
    "status": "verified"
@@ -12321,6 +12390,8 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/scene1_shop_walker_helpers.c"
    ],
    "status": "ported"
@@ -12538,18 +12609,21 @@
    "size": 525,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_actor_say.h",
+    "src/scene1_day_close.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4708f7",
@@ -12750,7 +12824,8 @@
     "src/scene1_records_c_spawn.c",
     "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c",
-    "src/scene1_top_hud.c"
+    "src/scene1_top_hud.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -13657,18 +13732,22 @@
    "size": 80,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c",
+    "src/scene_day_end.h",
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x473668",
@@ -13687,6 +13766,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_day_end.c",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -14328,6 +14408,7 @@
    "quality_flags": [],
    "src": [
     "src/scene1_player_ctrl.c",
+    "src/scene_day_end.c",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -15294,7 +15375,9 @@
     "src/floor_layout.c",
     "src/floor_layout.h",
     "src/scene1_postload.c",
-    "src/scene1_preload.c"
+    "src/scene1_postload.h",
+    "src/scene1_preload.c",
+    "src/scene1_preload.h"
    ],
    "status": "verified"
   },
@@ -15904,7 +15987,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_pause.c"
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ],
    "status": "ported"
   },
@@ -15925,7 +16009,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_pause.c"
+    "src/scene_day_end.c",
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ],
    "status": "ported"
   },
@@ -16169,7 +16255,8 @@
     "src/customer_roster.h",
     "src/customer_service.c",
     "src/save_bank.h",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene1_postload.c"
    ],
    "status": "ported"
   },
@@ -16480,7 +16567,8 @@
     "src/anchor_trace.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
-    "src/scene1_postload.c"
+    "src/scene1_postload.c",
+    "src/scene1_postload.h"
    ],
    "status": "stubbed"
   },
@@ -16524,6 +16612,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h"
@@ -16547,6 +16637,10 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
+    "src/scene1_companion_ctrl.c",
+    "src/scene1_day_close.h",
+    "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
@@ -16573,9 +16667,14 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_actor_say.h",
+    "src/scene1_camera.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
-    "src/scene1_tutorial_dispatch.c"
+    "src/scene1_day_close.h",
+    "src/scene1_postload.c",
+    "src/scene1_tutorial_dispatch.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -16596,6 +16695,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_actor_say.h",
     "src/scene1_combat_sm.h"
    ],
    "status": "ported"
@@ -16606,18 +16706,20 @@
    "size": 408,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_actor_say.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4855e2",
@@ -16712,19 +16814,19 @@
    "evidence": {
     "discovered": true,
     "source_referenced": true,
-    "implemented": false,
+    "implemented": true,
     "instrumented": true,
-    "instrumented_stub": true
+    "instrumented_stub": false
    },
-   "quality_flags": [
-    "stub"
-   ],
+   "quality_flags": [],
    "src": [
     "src/customer_service.c",
     "src/customer_service.h",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_actor_say.h",
+    "src/scene1_player_ctrl.c",
+    "src/speech_bubble.h"
    ],
-   "status": "stubbed"
+   "status": "verified"
   },
   {
    "va": "0x485979",
@@ -16949,12 +17051,14 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.h",
-    "src/news_daily.h",
+    "src/scene1_actor_say.h",
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_counter_menu.c",
     "src/scene1_counter_menu.h",
+    "src/scene1_day_close.c",
+    "src/scene1_day_close.h",
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -16962,6 +17066,7 @@
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
+    "src/scene_day_end.c",
     "src/sim.h"
    ],
    "status": "ported"
@@ -17268,6 +17373,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_actor_say.h",
     "src/scene1_player_ctrl.h",
     "src/scene1_sim.c"
    ],
@@ -17417,18 +17523,20 @@
    "size": 67,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48d997",
@@ -17447,7 +17555,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_pause.c"
+    "src/scene_day_end.c",
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ],
    "status": "ported"
   },
@@ -17457,18 +17567,23 @@
    "size": 394,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c",
+    "src/scene_day_end.h",
+    "src/scene_pause.c",
+    "src/speech_bubble.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48dbfb",
@@ -17487,7 +17602,10 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_day_close.h",
     "src/scene1_particles_tick.h",
+    "src/scene_day_end.c",
+    "src/scene_day_end.h",
     "src/sim.c"
    ],
    "status": "ported"
@@ -17498,18 +17616,20 @@
    "size": 2173,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48ed19",
@@ -17547,7 +17667,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/encyclopedia.c"
+    "src/encyclopedia.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -17568,7 +17689,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/encyclopedia.c"
+    "src/encyclopedia.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
@@ -17578,18 +17700,22 @@
    "size": 2288,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/main.c",
+    "src/scene_day_end.c",
+    "src/scene_day_end.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48f7f0",
@@ -17635,18 +17761,20 @@
    "size": 63,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48f8bb",
@@ -17684,6 +17812,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_pause.c",
     "src/sim.c"
    ],
    "status": "ported"
@@ -18091,6 +18220,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_actor_say.c",
     "src/scene1_hud.c",
     "src/scene1_merchant_hud.c",
     "src/scene1_render.c",
@@ -19571,6 +19701,7 @@
     "src/audio.h",
     "src/customer_service.c",
     "src/scene1_combat_sm.h",
+    "src/scene1_day_close.c",
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_player_ctrl.c",
@@ -20186,9 +20317,11 @@
     "src/scene1_fx_overlays.c",
     "src/scene1_hud.c",
     "src/scene1_render.h",
+    "src/scene_day_end.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
-    "src/scene_worldmap.c"
+    "src/scene_worldmap.c",
+    "src/speech_bubble.c"
    ],
    "status": "verified"
   },
@@ -20355,18 +20488,20 @@
    "size": 64,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49d325",
@@ -20475,18 +20610,20 @@
    "size": 34,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_day_end.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49dac0",
@@ -20685,6 +20822,7 @@
    "src": [
     "src/scene.h",
     "src/scene1_companion_ctrl.c",
+    "src/scene1_day_close.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
     "src/scene_worldmap.c",

@@ -11,6 +11,7 @@
   rhost.py flatten SCEN                  write tests/scenarios/<SCEN>/trace.flat.jsonl
   rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
   rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
+  rhost.py gates [--only RE]             the regression gate: portsave / portanchors / portrng, one line each
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --hash-every N
              --coverage FILE --d3d --cap FROM:COUNT --stall-ms N --extra "raw rhost args"
@@ -556,12 +557,18 @@ def cmd_portrng(a):
     """RNG consumers, port vs retail on the same flat trace: every LCG step in a frame window with its caller
     (retail rhost --log-rand stack | port --rng-log); per-tick draw counts + the consumer runs of the first differing ticks"""
     name = a.scenario
-    lo, hi = (int(x) for x in a.window.split(":"))
+    lo_s, hi_s = a.window.split(":")
+    lo, hi = int(lo_s), (10 ** 7 if hi_s == "end" else int(hi_s))
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
     a.extra = ((a.extra or "") + f" --log-rand {lo - 1}:{hi}").strip()
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portrng-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    # retail stops at its run end (trace end + the tail); past it every port draw would read as a diff
+    rlast = int(res.get(name, {}).get("frame", "0") or 0)
+    if rlast and hi > rlast:
+        print(f"window clamped to the retail run: f{lo}..f{rlast} (asked f{hi})")
+        hi = rlast
     pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), hi + 2,
                       extra=("--rng-log", "{pw}\\rng.log", f"{lo}:{hi}"), fetch=("rng.log",))
     # rhost labels tick N's draws fN (= its `post N`, = the port's label); a deferred loader's draws at
@@ -601,6 +608,42 @@ def cmd_portrng(a):
     else:
         print("frames with different draw counts (retail/port): " + ", ".join(f"f{f} {rc.get(f, 0)}/{pc.get(f, 0)}" for f in bad[:12]))
     return 0 if not bad else 1
+
+
+# The regression gate (docs/FRONT.md §Regression gate): every row is expected IDENTICAL.
+GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save-commit-empty", "day2-save-commit")]
+         + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
+         + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
+                                      "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop")])
+
+
+def cmd_gates(a):
+    """the regression gate in one command: port saves, anchors and RNG streams vs retail, one line per gate"""
+    import contextlib, copy, io
+    fns = {"portsave": cmd_portsave, "portanchors": cmd_portanchors, "portrng": cmd_portrng}
+    only = re.compile(a.only) if a.only else None
+    fails = 0
+    for kind, scen in GATES:
+        if only and not only.search(f"{kind} {scen}"):
+            continue
+        b = copy.copy(a)
+        b.scenario = scen
+        b.window, b.context = "1:end", 3
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                r = fns[kind](b)
+        except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
+            r = 1
+            buf.write(f"error: {e}\n")
+        out = buf.getvalue()
+        keys = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
+        lines = [l.strip() for l in out.splitlines() if l.strip().startswith(keys)]
+        verdict = "ok  " if not r else "FAIL"
+        fails += bool(r)
+        print(f"{verdict} {kind:<11s} {scen:<32s} " + " | ".join(lines[:3]), flush=True)
+    print(f"gates: {fails} failed")
+    return 1 if fails else 0
 
 
 def parse_post(path):
@@ -732,11 +775,12 @@ def main():
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
     p.add_argument("--context", type=int, default=4); common(p); p.set_defaults(fn=cmd_portstate)
-    p = sp.add_parser("portrng"); p.add_argument("scenario"); p.add_argument("--window", required=True, help="FROM:TO frames")
+    p = sp.add_parser("portrng"); p.add_argument("scenario"); p.add_argument("--window", required=True, help="FROM:TO frames (TO may be \"end\"; clamped to the retail run)")
     p.add_argument("--context", type=int, default=3); common(p); p.set_defaults(fn=cmd_portrng)
     p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
+    p = sp.add_parser("gates"); p.add_argument("--only", help="regex over 'KIND SCENARIO'"); common(p); p.set_defaults(fn=cmd_gates)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sp.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
