@@ -78,7 +78,7 @@ pop since a reset else 0x172. `FUN_00406584`'s head ages it (`648258++`,
 Draw `FUN_0040c4eb` (HUD aggregator, before `FUN_00409925`): item_win.tga
 balloon (0,608)-(280,703), pop scale min(pop/10, 1), text after age 10.
 
-## 5. The day-end summary (pause action 1) — next
+## 5. The day-end summary (pause action 1)
 
 Worker case 9 with `DAT_06a4997c == 1`: `FUN_0048da71` (init: profit
 `gold − day-start gold`, score total += today's, the rating stamp, b928 = 1,
@@ -86,3 +86,23 @@ b924 = 0) + `FUN_00473618` (choushuu.tga, result_board, hanko.tga). Tick
 `FUN_0048dbfb` (count-ups draw 1 rand / frame; Z after 130 → day++ and the
 payment check / next day), render `FUN_0048ef00`. Retail's first summary draw
 is f7363 on buy-counter-raise-accept.
+
+## 6. The next morning — the b928 beat
+
+Z after the count (s_after > 130): day++, the payment check (work byte +0x2bc4b,
+or today == the period end) → the payment screen, else the exit fade → FUN_0048d954
+(day-start gold, today's score and lists reset), shop-time 0, b4e0 0, clock phase 0,
+FUN_0045e67e, then FUN_004536b9 (close), FUN_0048da71 (re-init: b928 = 1, b924 = 0),
+work +0x2cdf4 = 0, b1c0 1, FUN_004852fb (counter seat, pose 6 facing Tear, db048 0).
+Day 8 / 36 (story mode) or a short payment take the story / game-over scene instead.
+
+The morning is the same DAT_0438b928 beat as the tutorial's iv2_5 → iv2_6 pause:
+b928 stays 1 (cleared only by a game load FUN_0049a59e or dungeon entry FUN_0045c051);
+b924 counts master ticks. While b924 < 200 FUN_0048670f's cc08 1 arm takes LABEL_448
+→ Recette faces Tear in pose 6 → FUN_0048a833 (v39 = b928: face branch) → LABEL_508,
+no FUN_0048b850 (db054 frozen, so Tear's wing sparkle fires every frame); FUN_0044bd0d
+withholds the story cascade while b924 < 0xbe; the "Day N" card draws while b924 < 0x8c;
+the merchant-rank arrivals wait for 192. Greetings (DAT_074b2ee8 toggles at b924 1):
+00re_sys01a @50 + 01ti_sys01a @110, or 01ti_sys01b @50 + 00re_sys01b @150.
+Measured (day-end-next-morning): Z f7600, house f7625, hold ends f7824 (b924 200),
+Tear's first wander f7914.

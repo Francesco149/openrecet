@@ -20,6 +20,7 @@
 #include "scene_day_end.h"
 #include "scene_pause.h"
 #include "speech_bubble.h"
+#include "scene1_tutorial_dispatch.h"
 
 int test_speech_bubble_splits_br_lines(void)
 {
@@ -121,6 +122,8 @@ int test_day_close_exchange_timeline(void)
     T_ASSERT_EQ_I(day_close_machine_tick(), 0);
     day_close_reset();
     pause_sm_reset();
+    scene1_tutorial_dispatch_reset();
+    player_ctrl_set_db048(0);
     return 0;
 }
 
@@ -154,5 +157,9 @@ int test_day_end_counts_up_to_the_targets(void)
     T_ASSERT_EQ_I(day_end_profit_shown(), 2200);
     T_ASSERT_EQ_I(day_end_score_shown(), 340);
     T_ASSERT_EQ_I(day_end_after(), 1);
+    /* FUN_0048da71 armed the next morning's beat (b928 = 1, b924 = 0) */
+    T_ASSERT_EQ_I(scene1_tutorial_dispatch_iv2_beat_active(), 1);
+    T_ASSERT_EQ_I(scene1_tutorial_dispatch_iv2_beat_ctr(), 0);
+    scene1_tutorial_dispatch_reset();
     return 0;
 }

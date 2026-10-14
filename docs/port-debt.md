@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **32**
-- distinct retiring engine functions: **26**
+- total open debts: **31**
+- distinct retiring engine functions: **25**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 11 | wired call boundary, body incomplete |
+| stub | 10 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 9 | reduced control flow / state machine vs retail |
 | hardcode | 3 | fixed constant where the engine computes/sources it |
@@ -49,7 +49,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
-| FUN_0048670f | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0049d2e5 | 1 |
 | FUN_0049e163 | 1 |
@@ -57,7 +56,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (11)
+## stub (10)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -66,11 +65,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2530 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
-| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:148 | f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported), |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:278 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_00469b3a | src/scene1_display_menu.c:686 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
-| FUN_0048670f | src/scene_day_end.c:108 | the post-summary morning beat (b928 == 1: |
-| FUN_0048e49c | src/scene_day_end.c:152 | the payment-screen 3D shop |
-| FUN_0049d2e5 | src/scene_day_end.c:205 | the port takes the |
+| FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
+| FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
 | FUN_0049e163 | src/scene1_companion_ctrl.c:135 | retail also forces it while |
 
 ## synthetic-data (0)

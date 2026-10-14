@@ -44,11 +44,30 @@ void scene1_tutorial_dispatch_tick(void);
  * increments b924 every free-roam frame (all.c:86801); FUN_0044bd0d gates the whole
  * scenario cascade behind `b928==1 && b924 < 0xbe(190)` (all.c:45489 → the
  * `if(!bVar1) return` @45507), so iv2_6 (the DAY2 load) can't fire until the 190-frame
- * beat elapses.  1 while the beat holds — the conversation pose driver ORs this into
+ * beat elapses.  1 while b928 == 1 && b924 < 200 (retail's hold) — the conversation
+ * pose driver ORs this into
  * its pose gate so the actors stay posed (panim 6 / canim 4) across the beat instead
  * of releasing to idle at iv2_5's dialogue end.  See
  * docs/findings/cutscene-replay-anchor-drift.md (Residual B). */
 int  scene1_tutorial_dispatch_iv2_beat_active(void);
+
+/* Arm the beat (b928 = 1, b924 = 0): iv2_5's dispatch and the day-end summary
+ * init FUN_0048da71 (the next morning's beat — the "Day N" card, Recette facing
+ * Tear for 200 master ticks, the day-9+ morning block at b924 0). */
+/* The same hold as seen by code that runs BEFORE this frame's master-tick bump
+ * (the conversation-pose driver at the default-arm top): b924 + 1 < 200. */
+int  scene1_tutorial_dispatch_beat_holds_this_tick(void);
+
+void scene1_tutorial_dispatch_arm_beat(void);
+
+/* The master-tick side of DAT_0438b924 (FUN_0048670f): the day-9+ morning block
+ * in the prologue (before the bg-NPC pump), the ++b924 at LABEL_104 (after the
+ * counter-menu slide, before the cc08 dispatch), and the re-layout writes
+ * (FUN_00436f97 → 0, FUN_0048526d → 300). */
+void scene1_beat_master_prologue(void);
+void scene1_beat_master_voices(void);   /* the b924 1/50/110/150 greetings (before the count) */
+void scene1_beat_master_count(void);
+void scene1_beat_set_counter(int v);
 
 /* The beat counter DAT_0438b924 (0..190).  Drives the "Day N" day-transition CARD
  * (FUN_0040a765 all.c:7500-7559): black backdrop + centred "Day N" text (alpha

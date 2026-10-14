@@ -215,6 +215,7 @@ void scene1_postload_stage_entry_init(void)
     counter_menu_stage_reset();
     g_news_ticker_timer = 0;
     scene1_camera_snap_next();          /* DAT_0438cc68 = 1 */
+    scene1_beat_set_counter(0);         /* DAT_0438b924 = 0 */
 
     /* L116-127: the companion wander state (DAT_0438be6c/70/74/78). */
     scene1_companion_ctrl_stage_reset();

@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 32,
+  "total": 31,
   "by_kind": {
-   "stub": 11,
+   "stub": 10,
    "synthetic-data": 0,
    "simplified": 9,
    "hardcode": 3,
@@ -20,7 +20,7 @@
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 26,
+  "retiring_engine_fns": 25,
   "by_engine_fn": {
    "FUN_00436f97": 4,
    "FUN_004176ff": 2,
@@ -41,7 +41,6 @@
    "FUN_0046c9a2": 1,
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
-   "FUN_0048670f": 1,
    "FUN_0048e49c": 1,
    "FUN_0049d2e5": 1,
    "FUN_0049e163": 1,
@@ -262,9 +261,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_0044bd0d",
-   "desc": "f488's day-9 morning consumer \u2014 the b924==0x276 wait at all.c:45449 firing scene0/sub8 \u2014 is unported),",
+   "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
-   "line": 148,
+   "line": 278,
    "kind_known": true
   },
   {
@@ -277,18 +276,10 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0048670f",
-   "desc": "the post-summary morning beat (b928 == 1:",
-   "file": "src/scene_day_end.c",
-   "line": 108,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_0048e49c",
    "desc": "the payment-screen 3D shop",
    "file": "src/scene_day_end.c",
-   "line": 152,
+   "line": 150,
    "kind_known": true
   },
   {
@@ -296,7 +287,7 @@
    "engine_fn": "FUN_0049d2e5",
    "desc": "the port takes the",
    "file": "src/scene_day_end.c",
-   "line": 205,
+   "line": 203,
    "kind_known": true
   },
   {

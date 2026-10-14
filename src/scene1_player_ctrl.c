@@ -2539,6 +2539,7 @@ void scene1_player_ctrl_tick(void)
             g_news_ticker_timer++;
         }
     }
+    scene1_beat_master_prologue();       /* the day-9+ morning block (b928 == 1) */
 
     /* prologue: per-frame background-window-NPC pump (FUN_0046f621 → the
      * spawn/drift sim FUN_0046f2a3, ported in scene1_bg_npc.c).  The first call
@@ -2622,6 +2623,11 @@ void scene1_player_ctrl_tick(void)
     /* counter-menu slide ramp (all.c:96212-96225): after the grid rebuild,
      * before the cc08 dispatch, on this frame's dispatch value. */
     counter_menu_slide_tick(s_cc08);
+
+    /* LABEL_104 (asm 0x486e2d): ++b924, the master-tick counter the beat holds
+     * (b928 == 1 && b924 < 200) read from here on this frame. */
+    scene1_beat_master_voices();
+    scene1_beat_master_count();
 
     /* the day-close exchange (asm 0x486e27, after b924++): while b4e0 > 0 the
      * frame leaves through LABEL_132 — the player anim tick, FUN_0048a833 (no

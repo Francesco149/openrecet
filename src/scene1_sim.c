@@ -210,8 +210,10 @@ void scene1_ingame_default_arm_tick(void)
          * while it keeps incrementing — this is the cc08==4 ambient-particle rng
          * the port was under-drawing (~5.5/f vs retail ~10/f).  Freeze it here to
          * match (RE §8.8 — the resolved §8.5 rng-rate gap). */
+        /* … and not while the b928 beat holds (b924 < 200): FUN_0048670f's
+         * LABEL_448 → LABEL_416 path runs FUN_0048a833 but not FUN_0048b850. */
         if (cc04_at_dispatch == 0 && cc08_at_dispatch == 1 &&
-            player_ctrl_cc08() == 1)
+            player_ctrl_cc08() == 1 && !scene1_tutorial_dispatch_iv2_beat_active())
             scene1_companion_ctrl_advance_phase();
     }
 

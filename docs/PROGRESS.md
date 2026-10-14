@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (early morning) — the summary's Z → the next morning; the b928 beat
+- New scenario `day-end-next-morning`: buy-counter-raise-accept's inputs + a scripted Z on
+  the summary (f7600) — retail replays the next-day fade into Day 6 without a new
+  recording.
+- The port's "iv2 beat" was a tutorial-only fold of retail's DAT_0438b928/b924. Now: b928
+  persists (iv2_5 and FUN_0048da71 arm it), b924 is the master-tick counter (++ at
+  FUN_0048670f LABEL_104; FUN_00436f97 → 0, FUN_0048526d → 300), the hold lasts while
+  b924 < 200 (the walk arm, Tear's face branch, db054 frozen — no FUN_0048b850), the
+  story cascade waits for 0xbe, the day-9+ morning block (f488, FUN_00490e56, news,
+  the ticker arm at 191) runs in the master-tick prologue, the morning greetings at
+  b924 50/110/150. The pose driver (top of the frame) sees the hold as b924 + 1 < 200.
+- Evidence: portrng day-end-next-morning IDENTICAL f1–f9500 (was f7625); day2-buy-tutorial
+  still identical to f15594 (the iv2 beat); `rhost.py gates` 13/13.
+
 ## 2026-10-14 (after midnight) — the shop day close and the day-end summary
 - The 4th period of the day now ends it: the cs leave's shop-full arm and the free-roam
   period advance (return from town; its rand%5 news draw) set shop-time 4 and start the

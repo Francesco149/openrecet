@@ -1,0 +1,8 @@
+# day-end-next-morning — DERIVED from buy-counter-raise-accept (human recording 2026-10-14,
+# slot-9 save _saves/3d2f5b18…, Day 5): the same inputs through the day close and the
+# "Daily Profits" summary (f7317), then a scripted Z at f7600 (the count + stamp are done
+# by ~f7530) → the next-day fade → Day 6 morning in the house; runs to f9200.
+# rhost: replays to f9500 (b1c0 1 from ~f7625, day 4→5, b928 1, b924 counting).
+# portrng 2026-10-14: IDENTICAL f1–f9500.
+description: |
+  Day close → day-end summary → Z → the next morning (scripted Z on the summary).

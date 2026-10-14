@@ -6004,7 +6004,7 @@
     "src/scene1_spawn.h",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
-    "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h",
     "src/scene1_walker_pass_init.h",
     "src/scene_day_end.c",
     "src/scene_worldmap.c",
@@ -17066,7 +17066,6 @@
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
-    "src/scene_day_end.c",
     "src/sim.h"
    ],
    "status": "ported"
@@ -17352,7 +17351,8 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
-    "src/scene1_sim.c"
+    "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.c"
    ],
    "status": "ported"
   },
@@ -17578,6 +17578,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_tutorial_dispatch.h",
     "src/scene_day_end.c",
     "src/scene_day_end.h",
     "src/scene_pause.c",
@@ -19706,6 +19707,7 @@
     "src/scene1_dialogue_run.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_top_hud.c",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene_pause.c",
     "src/scene_title.c"
    ],
@@ -20282,6 +20284,7 @@
     "src/save_bank.h",
     "src/scene.c",
     "src/scene.h",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene_new_game.h",
     "src/scene_title.c",
     "src/scene_title.h",
@@ -20825,6 +20828,7 @@
     "src/scene1_day_close.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
+    "src/scene1_tutorial_dispatch.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/sim.c"

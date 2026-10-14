@@ -14,6 +14,7 @@
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos */
 #include "scene1_player_ctrl.h"
 #include "scene1_postload.h"      /* the in-scene FUN_00436f97, FUN_004851e2 */
+#include "scene1_tutorial_dispatch.h" /* DAT_0438b924 */
 #include "scene_pause.h"          /* pause_dispatch (FUN_00453384) */
 #include "speech_bubble.h"
 
@@ -68,9 +69,7 @@ void scene1_house_relayout(void)
     }
     player_ctrl_cc08_enter_freeroam();           /* DAT_0438cc08 = 1 */
     player_ctrl_set_db048(15);                   /* DAT_056db048 = 15 */
-    /* DAT_0438b924 = 300: the master-tick counter has no port mirror outside
-     * the iv2 beat (scene1_tutorial_dispatch); its readers (the iv2 / morning
-     * beats, b928 == 1) are not live here. */
+    scene1_beat_set_counter(300);                /* DAT_0438b924 = 300: past any b928 hold */
 }
 
 void day_close_clear(void) { s_b4e0 = 0; }

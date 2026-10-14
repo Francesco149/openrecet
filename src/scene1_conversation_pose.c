@@ -133,7 +133,7 @@ void scene1_conversation_pose_tick(void)
      * drift (Residual B) + the port-only CONV_POSE_END/START blip (Residual A).
      * scene1_tutorial_dispatch owns the beat timer; the pose driver just mirrors
      * its state into the pose gate. */
-    if (!posing && scene1_tutorial_dispatch_iv2_beat_active())
+    if (!posing && scene1_tutorial_dispatch_beat_holds_this_tick())
         posing = 1;
 
     /* RE §21.18 — hold the conversation pose ONE frame past the dialogue's

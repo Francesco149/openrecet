@@ -4,6 +4,8 @@
  */
 #include "scene1_tutorial_dispatch.h"
 
+#include "audio.h"              /* the morning greetings (FUN_0049933c) */
+
 #include "scene1_intro_dialogue.h"   /* _busy / _start_single */
 #include "scene1_postload.h"         /* scene1_postload_day2_actor_replace */
 #include "save_work.h"               /* save_work_dwords_at / _active_slot  */
@@ -64,8 +66,13 @@
  * Armed at the iv2_5 fire, counted once per free-roam dispatch tick (= retail's
  * master-tick b924++, which only runs in the default/free-roam arm — during a
  * dialogue the sim takes the event arm and neither this tick nor b924 advances). */
-static int g_iv2_beat_active = 0;   /* DAT_0438b928 == 1 */
+static int g_iv2_beat_active = 0;   /* DAT_0438b928 (the beat flag; stays 1 after
+                                     * the summary's arm until a game load) */
 static int g_iv2_beat_ctr    = 0;   /* DAT_0438b924       */
+
+/* Retail holds the free-roam arm / Tear's face branch while b928 == 1 && b924 < 200
+ * (FUN_0048670f 0x4880xx LABEL_448, FUN_0048a833 v39); the cascade gate is 0xbe. */
+#define BEAT_HOLD_FRAMES 200
 
 /* One-shot: armed when iv2_5 arms the beat, consumed on the FIRST free-roam
  * frame of the beat (the default-arm top, before the pose derives facing) to run
@@ -131,46 +138,16 @@ void scene1_tutorial_dispatch_tick(void)
         return;
     }
 
-    /* The iv2_5→iv2_6 idle beat.  Mirrors FUN_0044bd0d's `if (b928==1 &&
-     * b924 < 0xbe) bVar1 = false; ... if (!bVar1) return;` (all.c:45489/45507):
-     * while the beat holds, the whole scenario cascade below is withheld, so
-     * iv2_6 (the DAY2 load) can't fire.  b924 increments in the master tick every
-     * free-roam frame; this dispatch tick runs exactly on those frames (a dialogue
-     * routes the sim to the event arm, which skips this tick), so counting here
-     * matches retail's cadence.  Increment-then-test (retail bumps b924 in the
-     * master tick, then FUN_0044bd0d tests the bumped value the same frame): the
-     * beat holds for b924 = 1..189 and releases the frame b924 hits 0xbe. */
-    if (g_iv2_beat_active) {
-        /* Morning-beat daily block (retail FUN_0048670f 486b7d-486c1b, ALL
-         * gated SHOP_DAY ≥ 9 — dormant through the day-2 trace, zero rng).
-         * At b924==0, pre-bump (retail order): the day-9 f488 morning-
-         * cutscene arm (mode≠2 only;
-         * PORT-DEBT(stub, FUN_0044bd0d): f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported),
-         * the daily NPC-schedule pass
-         * FUN_00490e56(0), then the daily-news generator FUN_00436623
-         * (findings/news-daily-RE.md). */
-        if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8) {
-            if (g_iv2_beat_ctr == 0) {
-                if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 &&
-                    (int32_t)bank[TUT_DAY_DWORD] == 9)
-                    bb[TUT_F488_OFF] = 1;    /* DAT_0450f488 = 1 */
-                npc_schedule_apply(0);       /* push edi(0) @486bdc */
-                news_daily_update((uint8_t *)bank);
-            }
-        }
-        g_iv2_beat_ctr++;
-        if (g_iv2_beat_ctr < IV2_BEAT_FRAMES)
-            return;
-        g_iv2_beat_active = 0;   /* beat elapsed — fall through, fire iv2_6 */
-        /* Retail arms the news ticker at b924==0xbf (486c09): b924 keeps
-         * counting ~2 master-tick frames into the iv2_6 load (b928 only
-         * clears at load COMPLETION, all.c:55492).  The port's folded
-         * counter stops here at 0xbe, so arm on the release frame — the
-         * ≤2-frame skew is unobservable until the ticker render lands
-         * (the FUN_00436f97 stub debt in scene1_player_ctrl.c owns it). */
-        if (bank != NULL && (int32_t)bank[TUT_DAY_DWORD] > 8)
-            g_news_ticker_timer = 1;
-    }
+    /* The beat gate.  FUN_0044bd0d's `if (b928==1 && b924 < 0xbe) bVar1 =
+     * false; ... if (!bVar1) return;` (all.c:45489/45507): while the beat holds
+     * the whole story cascade below is withheld (iv2_6 — the DAY2 load — can't
+     * fire).  b924 is bumped by the master tick (scene1_beat_master_count,
+     * FUN_0048670f asm 0x486e2d) before this dispatch runs, so the beat holds
+     * for b924 = 1..189 and releases the frame it reaches 0xbe.  b928 itself
+     * stays set (the iv2_6 fire below clears it, standing in for the DAY2
+     * load's clear). */
+    if (g_iv2_beat_active == 1 && g_iv2_beat_ctr < IV2_BEAT_FRAMES)
+        return;
 
     /* ── The post-first-sale story chain (all.c:45726-45813, RE §21.31) ──────
      * iv1_8 → iv2_1 → iv2_2 → iv2_3 (the DAY ADVANCE) → iv2_5 → iv2_6, the
@@ -230,8 +207,7 @@ void scene1_tutorial_dispatch_tick(void)
              * (Residual A).  FUN_00452809 (blackout) still PORT-DEBT(blackout-
              * tut-dispatch); FUN_004852fb's day-8/15-gated flag set is inert here
              * (day 1→2 → the fb84==8 gate never binds; f470 stays 0, verified). */
-            g_iv2_beat_active = 1;           /* DAT_0438b928 = 1 */
-            g_iv2_beat_ctr    = 0;           /* DAT_0438b924 = 0 */
+            scene1_tutorial_dispatch_arm_beat();   /* DAT_0438b928 = 1, b924 = 0 */
             /* Arm the DAY-2 actor re-place: consumed on the first free-roam frame
              * (the default-arm top), i.e. the frame the beat starts counting —
              * matching retail's day2 beat @15470 where the actors are already at
@@ -242,12 +218,79 @@ void scene1_tutorial_dispatch_tick(void)
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
         bb[TUT_IV2_6_DONE_OFF] = 1;          /* DAT_0450f413 = 1 */
         bb[TUT_F414_OFF]       = 1;          /* DAT_0450f414 = 1 */
+        /* b928 = 0: retail clears it when the DAY2 load completes; the port's
+         * iv2_6 is a dialogue load, so the clear lands on its start
+         * (PORT-DEBT(simplified, FUN_0049a59e)). */
+        g_iv2_beat_active = 0;
     }
 }
 
 int scene1_tutorial_dispatch_iv2_beat_active(void)
 {
-    return g_iv2_beat_active;
+    return g_iv2_beat_active == 1 && g_iv2_beat_ctr < BEAT_HOLD_FRAMES;
+}
+
+int scene1_tutorial_dispatch_beat_holds_this_tick(void)
+{
+    return g_iv2_beat_active == 1 && g_iv2_beat_ctr + 1 < BEAT_HOLD_FRAMES;
+}
+
+void scene1_tutorial_dispatch_arm_beat(void)
+{
+    g_iv2_beat_active = 1;
+    g_iv2_beat_ctr    = 0;
+}
+
+void scene1_beat_set_counter(int v) { g_iv2_beat_ctr = v; }
+
+static int g_greet_alt;   /* DAT_074b2ee8 — which pair greets (toggled per morning) */
+
+void scene1_beat_master_voices(void)
+{
+    /* FUN_0048670f asm 0x486d75-0x486e26 (before ++b924): at b924 1 the
+     * dungeon-return beat (b928 2: SE 0x150 + 00re_sys10 — the dungeon return
+     * FUN_0049e163 is unported) or the morning's pair toggle; then the morning
+     * greetings: Recette at 50 + Tear at 110, or Tear at 50 + Recette at 150. */
+    if (g_iv2_beat_ctr == 1 && g_iv2_beat_active == 1)
+        g_greet_alt ^= 1;
+    if (g_iv2_beat_active != 1)
+        return;
+    if (g_greet_alt == 0) {
+        if (g_iv2_beat_ctr == 50)
+            audio_play_se_file("bin/se/00re/system/00re_sys01a.bin");
+        if (g_iv2_beat_ctr == 110)
+            audio_play_se_file("bin/se/01ti/system/01ti_sys01a.bin");
+    } else {
+        if (g_iv2_beat_ctr == 50)
+            audio_play_se_file("bin/se/01ti/system/01ti_sys01b.bin");
+        if (g_iv2_beat_ctr == 150)
+            audio_play_se_file("bin/se/00re/system/00re_sys01b.bin");
+    }
+}
+
+void scene1_beat_master_count(void) { g_iv2_beat_ctr++; }
+
+void scene1_beat_master_prologue(void)
+{
+    /* FUN_0048670f 0x486b7d-0x486c1b, all under SHOP_DAY >= 9 (dormant through
+     * the tutorial days): at the morning (b928 == 1, b924 == 0) the day-9 f488
+     * morning-cutscene arm (story mode only;
+     * PORT-DEBT(stub, FUN_0044bd0d): its b924 == 0x276 consumer, scene0/sub8),
+     * the daily NPC-schedule pass FUN_00490e56(0) and the daily news
+     * FUN_00436623; at b924 191 the news ticker arms (b92c = 1). */
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || (int32_t)bank[TUT_DAY_DWORD] < 9 || g_iv2_beat_active != 1)
+        return;
+    uint8_t *bb = (uint8_t *)bank;
+    if (g_iv2_beat_ctr == 0) {
+        if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 &&
+            (int32_t)bank[TUT_DAY_DWORD] == 9)
+            bb[TUT_F488_OFF] = 1;            /* DAT_0450f488 = 1 */
+        npc_schedule_apply(0);               /* push edi(0) @486bdc */
+        news_daily_update((uint8_t *)bank);
+    } else if (g_iv2_beat_ctr == 191) {
+        g_news_ticker_timer = 1;             /* DAT_0438b92c = 1 (asm 0x486c09) */
+    }
 }
 
 int scene1_tutorial_dispatch_iv2_beat_ctr(void)

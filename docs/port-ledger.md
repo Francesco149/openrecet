@@ -517,7 +517,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x48619f | FUN_0048619f | 328 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.h |
 | 0x486435 | FUN_00486435 | 200 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h |
-| 0x48670f | FUN_0048670f | 11519 | ✓ |  | customer_service.h, scene1_actor_say.h, scene1_bg_npc.h (+15) |
+| 0x48670f | FUN_0048670f | 11519 | ✓ |  | customer_service.h, scene1_actor_say.h, scene1_bg_npc.h (+14) |
 | 0x48960d | FUN_0048960d | 441 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x4897c6 | FUN_004897c6 | 870 | ✓ |  | scene1_companion_ctrl.c, scene1_conversation_pose.c, scene1_player_ctrl.c (+1) |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ |  | chara_skills.h |
@@ -525,14 +525,14 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x489e66 | FUN_00489e66 | 1227 | ✓ |  | scene1_player_ctrl.c |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ |  | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ |  | xp_curve.h |
-| 0x48a833 | FUN_0048a833 | 3011 | ✓ |  | customer_service.c, customer_service.h, scene1_chr_shadow.c (+7) |
+| 0x48a833 | FUN_0048a833 | 3011 | ✓ |  | customer_service.c, customer_service.h, scene1_chr_shadow.c (+8) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ |  | scene1_actor_say.h, scene1_player_ctrl.h, scene1_sim.c |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h, scene_pause.c |
 | 0x48cdcc | FUN_0048cdcc | 2058 | ✓ |  | scene1_player_ctrl.c |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ |  | chara_skills.h |
 | 0x48d954 | FUN_0048d954 | 67 | ✓ |  | scene_day_end.c |
 | 0x48d997 | FUN_0048d997 | 218 | ✓ |  | scene_day_end.c, scene_pause.c, scene_pause.h |
-| 0x48da71 | FUN_0048da71 | 394 | ✓ |  | scene_day_end.c, scene_day_end.h, scene_pause.c (+1) |
+| 0x48da71 | FUN_0048da71 | 394 | ✓ |  | scene1_tutorial_dispatch.h, scene_day_end.c, scene_day_end.h (+2) |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ |  | scene1_day_close.h, scene1_particles_tick.h, scene_day_end.c (+2) |
 | 0x48e49c | FUN_0048e49c | 2173 | ✓ |  | scene_day_end.c |
 | 0x48edee | FUN_0048edee | 137 | ✓ |  | encyclopedia.c, scene_day_end.c |
@@ -574,7 +574,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ |  | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
-| 0x49933c | FUN_0049933c | 439 | ✓ |  | audio.c, audio.h, customer_service.c (+8) |
+| 0x49933c | FUN_0049933c | 439 | ✓ |  | audio.c, audio.h, customer_service.c (+9) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |
 | 0x499519 | FUN_00499519 | 23 | ✓ |  | audio.c, audio.h, audio_se_names.h (+16) |
 | 0x499538 | FUN_00499538 | 20 | ✓ |  | music.h |
@@ -586,7 +586,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ |  | main.c, music.h, scene_pause.c (+3) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ |  | main.c, save_io.c, save_io.h (+2) |
 | 0x49a585 | FUN_0049a585 | 25 | ✓ |  | esc_dispatch.c, esc_dispatch.h |
-| 0x49a59e | FUN_0049a59e | 3719 | ✓ |  | audio_fade.h, d3d_pool.h, main.c (+12) |
+| 0x49a59e | FUN_0049a59e | 3719 | ✓ |  | audio_fade.h, d3d_pool.h, main.c (+13) |
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ |  | scene_title.c, title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ |  | save_picker.c, save_picker.h, scene_pause.c (+3) |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ |  | anchor_trace.c, anchor_trace.h, font_draw.h (+7) |
@@ -601,7 +601,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49de0e | FUN_0049de0e | 10 | ✓ |  | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h (+2) |
 | 0x49de20 | FUN_0049de20 | 374 | ✓ |  | main.c, scene.h, scene1_player_ctrl.c (+3) |
 | 0x49dfc1 | FUN_0049dfc1 | 409 | ✓ |  | scene_worldmap.c |
-| 0x49e163 | FUN_0049e163 | 575 | ✓ |  | scene.h, scene1_companion_ctrl.c, scene1_day_close.c (+5) |
+| 0x49e163 | FUN_0049e163 | 575 | ✓ |  | scene.h, scene1_companion_ctrl.c, scene1_day_close.c (+6) |
 | 0x49e3a3 | FUN_0049e3a3 | 739 | ✓ |  | main.c, scene.h, scene_worldmap.c (+1) |
 | 0x49e686 | FUN_0049e686 | 45 | ✓ |  | main.c, scene_worldmap.c |
 | 0x49e6b3 | FUN_0049e6b3 | 203 | ✓ |  | news_daily.c, news_daily.h |

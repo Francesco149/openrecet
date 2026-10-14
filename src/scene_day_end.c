@@ -20,6 +20,7 @@
 #include "scene1_particles_tick.h"/* scene1_particles_tick (FUN_0040fb3a) */
 #include "scene1_spawn.h"         /* scene1_spawn (FUN_00447f4f) */
 #include "scene1_top_hud.h"       /* scene1_top_hud_set_clock_phase (DAT_0438b7d4) */
+#include "scene1_tutorial_dispatch.h" /* the morning beat (DAT_0438b928/b924) */
 #include "scene_pause.h"          /* pause_dispatch, pause_weekly_quota, pause_day_index, pause_period_end */
 #include "speech_bubble.h"        /* FUN_0040622f */
 
@@ -104,10 +105,7 @@ void day_end_init(void)
     else if (v > 40) s_rating = 2;
     else             s_rating = (v <= 20) + 3;
     s_day = w[W_DAY];
-    /* DAT_0438b928 = 1, DAT_0438b924 = 0: the next morning's beat —
-     * PORT-DEBT(stub, FUN_0048670f): the post-summary morning beat (b928 == 1:
-     * the greeting voices at b924 50/110/150, Tear facing Recette until 200)
-     * has no port mirror outside the iv2 tutorial beat. */
+    scene1_tutorial_dispatch_arm_beat();                 /* DAT_0438b928 = 1, b924 = 0 */
     s_t = 0;
     scene1_records_reset(1);                             /* FUN_0040f64b(1) */
 }
