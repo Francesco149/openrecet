@@ -14,6 +14,7 @@
 #include "save_bank.h"
 #include "save_work.h"
 #include "scene.h"
+#include "scene_title.h"
 #include "scene1_companion_ctrl.h"
 #include "scene1_counter_menu.h"
 #include "scene1_particles_tick.h"
@@ -36,6 +37,7 @@ static int32_t get_b5a8(void)  { return customer_service_b5a8(); }
 static int32_t get_b56c(void)  { return customer_service_b56c(); }
 static int32_t get_b520(void)  { return customer_service_b520(); }
 static int32_t get_db054(void) { return scene1_companion_db054(); }
+static int32_t get_ttfc(void) { return (int32_t)g_scene_title_anim.frame_counter; }
 static int32_t get_b318(void)  { return customer_service_b318(); }
 static int32_t get_b528(void)  { return customer_service_b528(); }
 static int32_t get_gsim(void)  { return (int32_t)g_sim_frame_count; }
@@ -83,6 +85,7 @@ static const state_va_t k_map[] = {
     { 0x730b56cu, "cs customer b56c (DAT_0730b56c)", get_b56c },
     { 0x730b520u, "cs leave phase b520 (DAT_0730b520)", get_b520 },
     { 0x56db054u, "companion phase counter db054 (DAT_056db054)", get_db054 },
+    { 0x9643518u, "title frame counter (DAT_09643518)", get_ttfc },
     { 0x730b318u, "cs queue head b318 (DAT_0730b318)", get_b318 },
     { 0x730b528u, "cs customers advanced b528 (DAT_0730b528)", get_b528 },
     { 0x438b8ccu, "sim frame counter gsim (DAT_0438b8cc)", get_gsim },

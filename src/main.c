@@ -412,7 +412,7 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *   --anchor-trace-record <file> emit the TAS anchor event stream
  *                                ({"anchor":NAME,"frame":N} JSONL) to
  *                                <file>; also echoed to stderr. Keyed on
- *                                g_tick.frame_count (== --capture-frames
+ *                                tick_label() (== --capture-frames
  *                                index). See src/anchor_trace.h.
  *   --state-va <va,..>           with --state-log <file>: after each
  *                                anchor evaluation write `post N va=val..`
@@ -433,7 +433,7 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                for scenarios that want a fixed frame
  *                                budget instead of a wall-clock budget.
  *   --capture-frames i,j,k       capture ONLY at the listed sim-frame
- *                                indices (g_tick.frame_count). Used by
+ *                                indices (tick_label()). Used by
  *                                the scenario runner for fixed
  *                                pixel-diff anchors. When set, the
  *                                older time-based --capture-every-ms
@@ -491,7 +491,7 @@ static int input_harness_driven(void)
  * ({"anchor":NAME,"frame":N} JSONL) to <file>.  Always also echoed to
  * stderr (prefixed "anchor:") so it shows up in run-openrecet logs even
  * without a file sink.  See src/anchor_trace.h.  The stream is keyed on
- * g_tick.frame_count — the same index --capture-frames uses — so an
+ * tick_label() — the same index --capture-frames uses — so an
  * anchor frame is directly comparable to a capture frame. */
 static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
@@ -504,12 +504,21 @@ static FILE                     *g_state_log_fp             = NULL;
 static int                       g_state_log_pending        = 0;
 static uint32_t                  g_state_log_frame          = 0;
 
+/* Frame label of the tick being run: tick #k (1-based) is frame k — rhost's
+ * convention (its `post k` = k ticks done), so a port label is the same tick as
+ * the retail one: same input, same gsim / tick count / ms clock (k·17).  Inside a
+ * tick g_tick.frame_count still holds k-1 (tick_step bumps it after render). */
+static inline uint32_t tick_label(void) { return g_tick.frame_count + 1u; }
+/* 1 once the main loop runs; boot-time RNG (before any tick) logs as frame 0. */
+static int g_main_loop_started = 0;
+static void segtrace_capture_cb(uint32_t frame, void *user);
+
 /* --rng-log: one line per LCG step / reseed in the frame window, labelled like
- * the state log (g_tick.frame_count) and rhost --log-rand.  @rva = caller -
+ * the state log (tick_label()) and rhost --log-rand.  @rva = caller -
  * image base (symbolize with addr2line -e build/openrecet.exe 0x400000+rva). */
 static void rng_log_trace(int is_seed, uint32_t before, uint32_t after, const void *caller)
 {
-    uint32_t f = g_tick.frame_count;
+    uint32_t f = g_main_loop_started ? tick_label() : 0u;
     if (!g_rng_log_fp || f < g_rng_log_from || f > g_rng_log_to) return;
     uint32_t rva = (uint32_t)((uintptr_t)caller - (uintptr_t)GetModuleHandleA(NULL));
     fprintf(g_rng_log_fp, "%s f%u %08x -> %08x @%06x\n", is_seed ? "seed" : "rand",
@@ -591,7 +600,7 @@ static void trace_rec_on_save_write(void *user)
     uint8_t digest[SHA256_DIGEST_LEN];
     sha256(save_arena_base(), SAVE_BANK_ARENA_BYTES, digest);
     sha256_hex(digest, sw->sha);
-    sw->rel = g_tick.frame_count - g_trace_rec_start_frame;
+    sw->rel = tick_label() - g_trace_rec_start_frame;
     snprintf(sw->file, sizeof sw->file,
              "openrecet-trace-%lu-recsave-%d.bin",
              (unsigned long)GetCurrentProcessId(), g_trace_rec_saves_count);
@@ -623,7 +632,7 @@ static void trace_rec_start(void)
     g_trace_rec_ct_count     = 0;
     g_trace_rec_anchor_count = 0;
     g_trace_rec_ct_open     = -1;
-    g_trace_rec_start_frame = g_tick.frame_count;
+    g_trace_rec_start_frame = tick_label();
     /* Snapshot the live LCG state NOW — this is the pre-state the first recorded
      * frame's sim consumers will read.  distill_trace.py re-injects it via a
      * {rngseed} op at the recorded segment's first frame so the recording's
@@ -710,11 +719,11 @@ static void trace_rec_add_esc(void)
 
 /* Record an anchor firing while recording: its relative frame (for rebasing
  * subsequent inputs anchor-relative on replay → 100%-reproducible offset) AND
- * the absolute global frame counter g_tick.frame_count (`gframe`) at that instant
+ * the absolute global frame counter tick_label() (`gframe`) at that instant
  * — some engine state (the time-of-day HUD clock, DAT_073dfcfc-derived) is keyed
  * off the absolute frame, so logging it lets distill optionally PIN the frame
  * counter at an anchor later.  Called from anchor_emit_tee for every anchor.
- * `gframe` is the absolute frame the anchor fired on (== g_tick.frame_count). */
+ * `gframe` is the absolute frame the anchor fired on (== tick_label()). */
 static void trace_rec_add_anchor(const char *name, uint32_t gframe)
 {
     if (!g_trace_rec_active) return;
@@ -2311,9 +2320,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * (FUN_0047be92) and sim probes in the SAME bucket as the
                  * render, so flow_diff's per-frame call chain is whole and
                  * seq is monotonic (scheduler → sim → render). */
-                d3d_trace_begin_frame(g_tick.frame_count);
-                call_trace_begin_frame(g_tick.frame_count);
-                audio_trace_set_frame((int)g_tick.frame_count);
+                /* Frame 0 = the boundary before tick 1: fire the trace's frame-0
+                 * ops (the {rngseed} boot seed) BEFORE the boot-spawned deferred
+                 * workers run, as rhost does (hook_tick g_frame==0). */
+                if (!g_main_loop_started && g_input_segtrace_path != NULL)
+                    (void)input_segtrace_tick(&g_segtrace, 0, segtrace_capture_cb, NULL);
+                g_main_loop_started = 1;
+                d3d_trace_begin_frame(tick_label());
+                call_trace_begin_frame(tick_label());
+                audio_trace_set_frame((int)tick_label());
 
                 /* Under --input-trace-replay, drive virtual time so
                  * the tick scheduler never returns DELAYED — we want
@@ -2335,7 +2350,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * retail's (tools/rhost DEFER), so loads align by frame number. */
                 worker_load_run_deferred();
                 if (input_harness_driven()) {
-                    uint32_t vms = (g_tick.frame_count + 1) * 17u;
+                    uint32_t vms = tick_label() * 17u;
                     tick_step_with_now(vms,
                                        g_d3d != NULL && g_dev != NULL,
                                        &tick_cb, NULL);
@@ -2969,12 +2984,12 @@ static void render_dispatch(void)
             /* TITLE_SURVIVAL_READY: the title Survival difficulty selector is open + at rest. */
             .title_survival_active = scene_title_survival_navigable(g_scene_state),
         };
-        anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
+        anchor_trace_tick(&g_anchor_state, tick_label(), w,
                           anchor_emit_tee, NULL);
         /* logged once the WHOLE tick (render too) is done — retail's rhost
          * `post` line follows FUN_0047be92, render-side rand() included. */
         g_state_log_pending = 1;
-        g_state_log_frame   = g_tick.frame_count;
+        g_state_log_frame   = tick_label();
     }
 
     /* TAS recorder: capture this frame's player-1 input mask (read here, before
@@ -3508,7 +3523,7 @@ static void render_dispatch(void)
          * scenario runner gets deterministic anchors.
          *
          * The capture decision runs every render call, before
-         * Present, so g_tick.frame_count is the index of the frame
+         * Present, so tick_label() is the index of the frame
          * about to be presented. The post-render frame_count++ in
          * tick.c bumps it AFTER this returns. */
         int should_capture = 0;
@@ -3529,7 +3544,7 @@ static void render_dispatch(void)
         if (g_capture_frames_count > 0 || g_anchor_captures_count > 0
                 || capture_range_active() || g_input_segtrace_path != NULL) {
             should_capture =
-                capture_frame_is_listed(g_tick.frame_count);
+                capture_frame_is_listed(tick_label());
         } else if (g_capture_last_ms == 0 ||
                    (now_ms - g_capture_last_ms) >= g_capture_every_ms) {
             should_capture = 1;
@@ -4032,14 +4047,14 @@ static void parse_cmdline(LPSTR lpCmdLine)
  *   accumulator step. No DirectInput call — input_init was skipped.
  *
  * Record: call the real input_poll, then snapshot the resulting mask.
- *   `record_frame(g_tick.frame_count, …)` records under the frame
+ *   `record_frame(tick_label(), …)` records under the frame
  *   index of the frame we're about to render (tick.c bumps frame_count
  *   AFTER render returns), so trace lines line up with capture indices.
  */
 static void replay_input_poll(void)
 {
     g_input_state[0].buttons =
-        input_trace_lookup(&g_replay_trace, g_tick.frame_count);
+        input_trace_lookup(&g_replay_trace, tick_label());
     g_input_state[1].buttons = 0;
 }
 
@@ -4245,7 +4260,7 @@ static void segtrace_esc_cb(void *user)
 static void segtrace_input_poll(void)
 {
     g_input_state[0].buttons =
-        input_segtrace_tick(&g_segtrace, g_tick.frame_count,
+        input_segtrace_tick(&g_segtrace, tick_label(),
                             segtrace_capture_cb, NULL);
     g_input_state[1].buttons = 0;
 }
@@ -4253,7 +4268,7 @@ static void segtrace_input_poll(void)
 static void recording_input_poll(void)
 {
     input_poll();
-    input_trace_record_frame(g_tick.frame_count, g_input_state[0].buttons);
+    input_trace_record_frame(tick_label(), g_input_state[0].buttons);
 }
 
 /* --auto-z-spam wrapper.  Runs the real input_poll (so any user
@@ -4361,7 +4376,7 @@ static void capture_backbuffer(void)
      * capture), fall back to the monotonic capture counter. */
     char path[MAX_PATH];
     unsigned tag = (g_capture_frames_count > 0 || capture_range_active())
-                       ? (unsigned)g_tick.frame_count
+                       ? (unsigned)tick_label()
                        : g_capture_count;
     wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, tag);
 

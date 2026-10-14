@@ -37,15 +37,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     over 4,418 frames (prologue settle frames + 1-frame iv1_2 load, PROGRESS).
   - `rhost.py portstate SCEN --va …` = frame-by-frame retail VA vs port mirror
     (`src/state_va.c` table). ★ next, in frame order:
-    1. **Tick-0 label offset — now the earliest port-side split on 3 shop scenarios.**
-       Measured 2026-10-14 (`portstate house-idle --va 438b8cc,73dfcfc,73de61c,44e37a0`):
-       gsim, tick frame_count and prev_ms are ALL port = retail+1 from f1; playtime
-       identical. rhost labels a tick by its post-increment count (first tick = 1);
-       the port labels pre-increment (first tick = 0, logic-dead). The display
-       sparkle `gsim%8==3` therefore fires 1 f early: day2-shop f771, day2-buy-tutorial
-       f1283, day2-save-commit f9587 (pin-healed there). Plan: drop the dead tick and
-       label post-increment (port label L = L ticks run, vms = L·17) — touches the
-       segtrace/anchor/state-log labels, so re-run every gate after.
+    1. ✅ **Tick label = tick count** (2026-10-14): the port labelled tick #k as k−1
+       and fed it trace input k−1, so gsim / the title counter / the ms clock ran +1
+       vs rhost (label = ticks done). Now `tick_label()` = frame_count+1 everywhere
+       the harness indexes frames, and the trace's frame-0 ops fire at the boundary
+       before the first deferred workers (rhost `hook_tick` g_frame==0). house-idle:
+       gsim, DAT_09643518, prev_ms IDENTICAL. DAT_073dfcfc still differs — retail
+       resets it in FUN_0047cbcb and never reads it (write-only), the port keeps it as
+       the label counter.
     2. ✅ cs d3e load under DEFER (b1cc release order) and ✅ the tutorial .ivt bracket
        (D_TUT_LOAD now ends at the frame boundary, `99d64922`):
        `portanchors house-customer-tutorial` **64/64** frame-identical.
@@ -104,8 +103,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     IDENTICAL over the whole scenario (f1–f2450)**; cs b534/b544/b584/b574/b5a8/b56c
     identical every frame.
   - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
-    1. gsim +1 sparkle phase (Phase-0 item 1 above): day2-shop f771,
-       day2-buy-tutorial f1283.
+    1. ✅ gsim sparkle phase (tick label fix): day2-shop now matches to f1212.
+       day2-save-commit anchors frame-identical for the first 534 (was 64).
     2. buy-counter-raise-accept f725, buy-45pct-accept f1694: retail draws in
        FUN_00460a1a (cs_pick_line), the port does not — find which b534 state.
     3. buy-35/50pct-accept f1125/f1416, buy-lowball-walkout f1297: retail 6× NPC pump

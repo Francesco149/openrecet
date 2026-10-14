@@ -7,6 +7,18 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (night) — port tick labels = tick count (rhost convention)
+- The port labelled its k-th tick k−1 (pre-increment frame_count) and fed it trace
+  input k−1; rhost labels tick k as k. Logic driven by inputs lined up, but every
+  frame-counted value ran one tick ahead: gsim (`%8` 目玉 sparkle), the title
+  frame counter, the ms clock. `tick_label()` now indexes inputs, anchors, state
+  and RNG logs, captures and trace frames; the trace's frame-0 ops fire before the
+  boot-spawned deferred workers, as rhost seeds at g_frame 0.
+- Evidence: portstate house-idle gsim / DAT_09643518 / prev_ms IDENTICAL (were
+  +1); portanchors day2-save-commit first 534 frame-identical (was 64),
+  house-customer-tutorial 64/64, house-idle 195/195; portsave ×3 IDENTICAL;
+  portrng buy-40pct-accept identical f1–f2450.
+
 ## 2026-10-14 (evening) — shop queue dispatch, buy machine, shelf sales, Tear order
 - **Queue advance** (FUN_00462403 b524==0x3c) dispatches on the queue entry's kind;
   FUN_00461792 (customer sells; `src/customer_seller.c`, rhost shadow `seller_select`
