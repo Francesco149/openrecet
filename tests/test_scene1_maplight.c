@@ -6,7 +6,8 @@
  *
  *   1. mode 3 (town / time-of-day): shoptime + clock_phase select/interpolate
  *      the preset row — shoptime<2 → daytime row 0, shoptime==2 lerps row0→row1
- *      (day→dusk) as clock_phase 1→2, ==3 lerps row1→row2, >=4 → night row 2.
+ *      (day→dusk) as clock_phase 1→2, ==3 lerps row1→row2, >=4 → the inline
+ *      closed-night preset (deep blue).
  *      lit == 1.  HOUSE is mode 3.
  *   2. mode 2 (static dungeon): lightdir / lightcolor / lightamb pass
  *      straight through to direction / diffuse / ambient.
@@ -166,7 +167,8 @@ int test_maplight_mode3_evening_to_night(void)
     return 0;
 }
 
-/* shoptime>=4 → row 2 (night), no interp. */
+/* shoptime>=4 (shop closed) → the inline closed-night preset, no interp
+ * (all_ida FUN_00458f67; rhost portshots buy-counter-raise-accept f7200). */
 int test_maplight_mode3_night(void)
 {
     stage_record_t rec;
@@ -176,16 +178,15 @@ int test_maplight_mode3_night(void)
     scene1_maplight_values_t v;
     int lit = scene1_maplight_compute(&rec, 4, 3.5f, &v);
     T_ASSERT_EQ_I(lit, 1);
-    /* MAPLIGHT3_PRESET row 2 (dim/night). */
     T_ASSERT_NEAR(v.direction[0], 1.0);
     T_ASSERT_NEAR(v.direction[1], 0.0);
     T_ASSERT_NEAR(v.direction[2], 0.0);
     T_ASSERT_NEAR(v.diffuse[0], 0.3);
     T_ASSERT_NEAR(v.diffuse[1], 0.3);
-    T_ASSERT_NEAR(v.diffuse[2], 0.3);
-    T_ASSERT_NEAR(v.ambient[0], 0.6);
-    T_ASSERT_NEAR(v.ambient[1], 0.6);
-    T_ASSERT_NEAR(v.ambient[2], 1.2);
+    T_ASSERT_NEAR(v.diffuse[2], 0.6);
+    T_ASSERT_NEAR(v.ambient[0], 0.2);
+    T_ASSERT_NEAR(v.ambient[1], 0.2);
+    T_ASSERT_NEAR(v.ambient[2], 0.8);
     return 0;
 }
 

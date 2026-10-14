@@ -104,11 +104,14 @@ int scene1_maplight_compute(const stage_record_t *rec,
             out->diffuse[0]   = o[3]; out->diffuse[1]   = o[4]; out->diffuse[2]   = o[5];
             out->ambient[0]   = o[6]; out->ambient[1]   = o[7]; out->ambient[2]   = o[8];
         } else {
-            /* L53782-L53792: shoptime >= 4 → row 2 (night), no interp. */
-            const float *p = MAPLIGHT3_PRESET[2];
-            out->direction[0] = p[0]; out->direction[1] = p[1]; out->direction[2] = p[2];
-            out->diffuse[0]   = p[3]; out->diffuse[1]   = p[4]; out->diffuse[2]   = p[5];
-            out->ambient[0]   = p[6]; out->ambient[1]   = p[7]; out->ambient[2]   = p[8];
+            /* shoptime >= 4 (the shop closed — the day-close night): a fourth,
+             * deep-blue preset written inline, not a table row (all_ida
+             * FUN_00458f67: dir (1,0,0), diffuse (0.3,0.3,0.6), ambient
+             * (0.2,0.2,0.8)).  The port used row 2 here until 2026-10-14 —
+             * a brighter, greyer night (portshots buy-counter-raise-accept). */
+            out->direction[0] = 1.0f; out->direction[1] = 0.0f; out->direction[2] = 0.0f;
+            out->diffuse[0]   = 0.3f; out->diffuse[1]   = 0.3f; out->diffuse[2]   = 0.6f;
+            out->ambient[0]   = 0.2f; out->ambient[1]   = 0.2f; out->ambient[2]   = 0.8f;
         }
     } else if (mode == 2) {
         /* L53805-L53813: static lightdir / lightcolor / lightamb. */
