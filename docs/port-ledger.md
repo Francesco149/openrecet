@@ -299,7 +299,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ |  | sim.c |
 | 0x45e3cd | FUN_0045e3cd | 15 | ✓ |  | scene_worldmap.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ |  | sim.c |
-| 0x45e505 | FUN_0045e505 | 50 | ✓ |  | customer_roster.c, customer_roster.h |
+| 0x45e505 | FUN_0045e505 | 50 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e55c | FUN_0045e55c | 290 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x45e6a5 | FUN_0045e6a5 | 59 | ✓ |  | customer_service.c, customer_service.h, esc_dispatch.c |
 | 0x45e6e0 | FUN_0045e6e0 | 215 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
@@ -313,7 +313,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x46002a | FUN_0046002a | 89 | ✓ |  | customer_service.c |
 | 0x460083 | FUN_00460083 | 222 | ✓ |  | customer_service.c, save_bank.h |
 | 0x460161 | FUN_00460161 | 622 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
-| 0x4603cf | FUN_004603cf | 675 | ✓ |  | customer_haggle.c, customer_haggle.h |
+| 0x4603cf | FUN_004603cf | 675 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x460672 | FUN_00460672 | 138 | ✓ |  | customer_haggle.c, customer_haggle.h, customer_service.c |
 | 0x4606fc | FUN_004606fc | 205 | ✓ |  | customer_service.c, customer_service.h |
 | 0x4607f3 | FUN_004607f3 | 196 | ✓ |  | customer_service.c, dialogue_macros.h |
@@ -351,14 +351,14 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4681e6 | FUN_004681e6 | 6 | ✓ |  | customer_service.c, scene_pause.c |
 | 0x4681ec | FUN_004681ec | 10 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x468246 | FUN_00468246 | 64 |  |  | scene1_display_menu.h |
-| 0x468286 | FUN_00468286 | 14 | ✓ |  | encyclopedia.c |
+| 0x468286 | FUN_00468286 | 14 | ✓ |  | customer_service.c, encyclopedia.c |
 | 0x4682b9 | FUN_004682b9 | 6 | ✓ |  | scene_pause.c |
 | 0x4682bf | FUN_004682bf | 6 | ✓ |  | scene_pause.c, stage_load_pulse.h |
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ |  | scene_guild.c, scene_pause.c, stage_load_pulse.h |
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ |  | scene_pause.c, stage_load_pulse.h |
 | 0x468338 | FUN_00468338 | 2490 | ✓ |  | customer_service.c, main.c, scene1_display_menu.c (+6) |
-| 0x468d22 | FUN_00468d22 | 73 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+2) |
+| 0x468d22 | FUN_00468d22 | 73 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+3) |
 | 0x468d6b | FUN_00468d6b | 113 | ✓ |  | customer_service.c |
 | 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, scene1_display_menu.c |
 | 0x469241 | FUN_00469241 | 99 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |

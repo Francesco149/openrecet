@@ -9563,7 +9563,8 @@
    "quality_flags": [],
    "src": [
     "src/customer_roster.c",
-    "src/customer_roster.h"
+    "src/customer_roster.h",
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -9917,7 +9918,8 @@
    "quality_flags": [],
    "src": [
     "src/customer_haggle.c",
-    "src/customer_haggle.h"
+    "src/customer_haggle.h",
+    "src/customer_service.c"
    ],
    "status": "ported"
   },
@@ -10418,8 +10420,8 @@
     "src/customer_service.h",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h"
    ],
@@ -10889,6 +10891,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/encyclopedia.c"
    ],
    "status": "ported"
@@ -11194,6 +11197,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",

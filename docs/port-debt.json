@@ -62,7 +62,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1190,
+   "line": 1200,
    "kind_known": false
   },
   {
@@ -70,7 +70,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1147,
+   "line": 1157,
    "kind_known": false
   },
   {
@@ -118,7 +118,7 @@
    "engine_fn": "FUN_0046602e",
    "desc": "always -1 in the port \u2014 its only writer,",
    "file": "src/customer_service.c",
-   "line": 222,
+   "line": 227,
    "kind_known": true
   },
   {
@@ -134,7 +134,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1213,
+   "line": 1223,
    "kind_known": false
   },
   {
@@ -190,7 +190,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 347,
+   "line": 361,
    "kind_known": true
   },
   {
@@ -254,7 +254,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2435,
+   "line": 2446,
    "kind_known": true
   },
   {

@@ -131,9 +131,9 @@ static void emit_dialogue_calltrace(void)
 /* --det-loads (rhost DEFER twin): every retail .ivt load is a LAB_00452aab worker
  * that completes at the next frame boundary, i.e. a 1-frame LOADING bracket —
  * including the FIRST prologue script right after the house load (retail
- * LOADING_END f73 vs the port's f72 before this). The frame-counted brackets
- * below (68 / 2) model wall-time Frida-era captures and stay for real play. */
-static int det_bracket(int frames) { return worker_load_deterministic() ? 1 : frames; }
+ * LOADING_END f73 vs the port's f72 before this).  Each bracket ends through a
+ * worker_load_defer_fn callback; the frame-counted brackets (68 / 2) model
+ * wall-time Frida-era captures and stay for real play. */
 
 /* The iv1_1→iv1_2 load (FUN_00452d07 → LAB_00452aab).  Under --det-loads it ends
  * where retail's DEFER'd worker clears DAT_06a49960 itself: the next frame
@@ -259,10 +259,12 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * _loading() reports true here → LOADING_START/END (+ HOUSE_FREEROAM,
          * matching retail's re-fire at the bracket), and the conversation pose
          * starts (_posing()) so CONV_POSE_START lands between START and END.  The
-         * script is NOT loaded yet, so the box/text do not render this window. */
+         * script is NOT loaded yet, so the box/text do not render this window.
+         * Under --det-loads the bracket ends at the frame boundary instead
+         * (tut_load_done), so this case is not reached. */
         (void)held;
         if (++g_load_ctr >= (g_tut_load_frames_pin > 0 ? g_tut_load_frames_pin
-                                                       : det_bracket(IVE_TUT_LOAD_FRAMES)))
+                                                       : IVE_TUT_LOAD_FRAMES))
             g_state = D_TUT;   /* next tick lazy-loads the script */
         break;
 
@@ -318,6 +320,16 @@ void scene1_intro_dialogue_tick(uint16_t held)
  * so _active() reports false until then.  Only meaningful post-prologue (the
  * dispatcher gates on no-dialogue-active); does not touch the FREEROAM_START
  * latch. */
+/* --det-loads: retail's FUN_00452d07 .ivt worker is DEFER'd to the frame
+ * boundary — gate 2 on the arm frame, 1 (script running) from the next (rhost
+ * day2-save-commit f8932/f8933).  So the bracket ends there and the next tick
+ * already runs the script: a 1-frame LOADING bracket, first step on arm+1. */
+static void tut_load_done(void)
+{
+    if (g_state == D_TUT_LOAD)   /* not if a skip already moved on */
+        g_state = D_TUT;
+}
+
 void scene1_intro_dialogue_start_single(int scene, int sub)
 {
     g_tut_scene   = scene;
@@ -326,6 +338,8 @@ void scene1_intro_dialogue_start_single(int scene, int sub)
     g_load_ctr    = 0;
     g_rt.active   = 0;     /* lazy-load when the bracket ends (D_TUT) */
     g_rt.complete = 0;
+    if (worker_load_deterministic() && g_tut_load_frames_pin <= 0)
+        worker_load_defer_fn(tut_load_done);
 }
 
 void scene1_intro_dialogue_skip_to_end(void)
