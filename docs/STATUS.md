@@ -130,11 +130,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     b1cc release order, menu "Open Store" companion tick, WinMain PC53 (§138):
     `portrng buy-40pct-accept` identical f1–f910; Tear state identical to f1117.
   - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **2nd d3e load (f911, b524 == 60):** the port draws cs_kind_select (3) + a
-       40-draw roster_shuffle inline in the master tick; retail draws 1 there
-       (stack 46343c in FUN_00462403) and no shuffle in f911–913. Find where
-       retail's roster pick runs (`rhost.py portrng buy-40pct-accept --window
-       905:930`).
+    1. **Queue advance dispatches on the queue entry's KIND** (FUN_00462403,
+       all_ida 65233+770..812): `k = DAT_0730aca8[6·DAT_0730b1a8[b318]]`;
+       4 → b5a8 = 5; 1 → FUN_00461792 (the customer SELLS to the player: every
+       buy-* scenario); 0 → [rand&3 if work byte +0x2bcd1] FUN_00461303 (kind
+       select) else FUN_00460fa7; 2/3 → other arms. The port only has the k = 0
+       path (`cs_queue_advance` → `cs_kind_select`, keyed on the wrong variable:
+       `PORT-DEBT(cs-queue-advance-fileidx)`). f911 buy-40pct-accept: retail 1
+       draw in FUN_00461792 vs the port's kind-select + 40-draw shuffle. Port
+       FUN_00461792 (1124 B) + FUN_00460fa7 (106 B) + the dispatch, then follow
+       the buy-side state machine (offer_down is already ported + verified).
     2. Tear diverges at f1118 (x) — recheck after item 1 (`portstate --va
        438be6c,438be70,56da1f0,56da1f8`).
 
