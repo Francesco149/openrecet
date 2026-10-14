@@ -260,9 +260,10 @@ int state_va_select(const char *list, uint32_t *bad)
         int in_bank = va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
                       ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0;
         if (k == K_N && !in_bank && !is_bg_npc_va(va)) {
+            /* no port mirror: skip it (the diff reports it retail-only) and tell
+             * the caller — a missing mirror must not kill the whole run */
             if (bad) *bad = va;
-            s_nsel = 0;
-            return -1;
+            continue;
         }
         if (s_nsel < (int)(sizeof s_sel / sizeof s_sel[0]))
             s_sel[s_nsel++] = (sel_t){ va, k < K_N ? k_map[k].get : NULL };

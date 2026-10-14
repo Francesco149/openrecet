@@ -3882,11 +3882,9 @@ static void parse_cmdline(LPSTR lpCmdLine)
         } else if (lstrcmpA(tok, "--state-va") == 0) {
             char *val = strtok(NULL, " ");
             uint32_t bad = 0;
-            if (val && state_va_select(val, &bad) < 0) {
-                fprintf(stderr, "openrecet: --state-va: no port mirror for %x (known: %s)\n",
+            if (val && (state_va_select(val, &bad), bad != 0))
+                fprintf(stderr, "openrecet: --state-va: no port mirror for %x (skipped; known: %s)\n",
                         (unsigned)bad, state_va_known());
-                ExitProcess(2);
-            }
         } else if (lstrcmpA(tok, "--rng-log") == 0) {
             char *val = strtok(NULL, " ");
             char *rng = strtok(NULL, " ");

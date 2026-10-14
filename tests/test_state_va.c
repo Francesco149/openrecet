@@ -27,8 +27,9 @@ int test_state_va_logs_selected_in_order(void)
 
 int test_state_va_rejects_unmapped(void)
 {
+    /* an unmapped VA is skipped (reported via `bad`), the rest still log */
     uint32_t bad = 0;
-    T_ASSERT_EQ_I(state_va_select("6023a0,deadbe", &bad), -1);
+    T_ASSERT_EQ_I(state_va_select("6023a0,deadbe", &bad), 1);
     T_ASSERT_EQ_I((int)bad, 0xdeadbe);
     return 0;
 }
