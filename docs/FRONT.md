@@ -82,9 +82,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     scenarios; cc08 / b74c / b754 / cc0c / help-box counter identical per frame
     (`portstate buy-40pct-accept`).
   - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **RNG at the save load:** retail `0xce6f3ab8` / port `0x1f4411fb` at f652
-       (LOADING_END of the Continue load), before any shop logic.
-    2. `b524` starts 1 f late → 2nd d3e load f911 vs 912 (= item 2 above).
+    1. **RNG at the Continue load (f652)** — `rhost.py portrng buy-40pct-accept
+       --window 651:654`. Retail load tick = 42 draws inside the house init
+       FUN_00436f97: FUN_0047df4d → FUN_0047d622 (stage-layout picks) +
+       FUN_0040d132; the port has none of them. The port runs the bg-NPC warmup
+       (FUN_0046f621/2a3, 41 draws) + the type-1f init on the load tick; retail does
+       them the tick after (f653).
+    2. **Tear's random wander** (FUN_0048a833 `!v32` branch: house + f407≠0, i.e.
+       post-tutorial). `DAT_0438be6c` state machine: 90 f idle → fly to
+       (`rand()%7`, `rand()%6`) cell → idle anim 90 f. Unported: the port
+       spring-follows. Visual + RNG (`rhost.py portshots buy-40pct-accept --at 780`).
+    3. `b524` starts 1 f late → 2nd d3e load f911 vs 912 (= item 2 above).
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
