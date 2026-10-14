@@ -187,8 +187,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (like a real key) posts WM_KEYDOWN, handled in the message pump after tick N.
        The port now posts too → **day2-buy-tutorial IDENTICAL to its end**.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
-    4. Boot-time working bank: retail's slot-0 gold is 1000 from f1 (initialised
-       before any load); the port's working arena stays 0 until the load.
+    4. ✅ Boot-time working bank: FUN_004902fe ends every path with a whole
+       save-arena → working-arena copy; the port now does too (portstate
+       buy-40pct-accept work gold IDENTICAL from f1).
     5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
        delivery + story customers) — no scenario reaches them yet.
 

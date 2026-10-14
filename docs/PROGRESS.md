@@ -7,6 +7,12 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-14 (morning) — boot copies the save arena into the working arena
+- FUN_004902fe (boot save load) ends every path — loaded, re-initialised, no file — with
+  memcpy(DAT_044e2c88, DAT_056e5770, arena): the working banks start as the save's. The
+  port's working arena stayed zero until a load (retail's slot-0 gold was 1000 from f1).
+- Evidence: portstate buy-40pct-accept work gold (0x44e37a4) IDENTICAL from f1; `rhost.py gates` 14/14.
+
 ## 2026-10-14 (morning) — trace ESC replays like a key press
 - The port's `{esc: N}` replay called esc_pressed() inside tick N's input poll, so the pause
   opened on tick N; rhost (and a real key) posts WM_KEYDOWN, handled in the message pump

@@ -2147,6 +2147,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         save_bank_apply_bgm_via_audio_fade();
     }
 
+    /* FUN_004902fe ends every path (loaded, re-initialised, no file) with
+     * memcpy(DAT_044e2c88, DAT_056e5770, arena size): the working arena starts
+     * as a copy of the save arena, so retail's working slot 0 already holds
+     * the save's (or the fresh bank's 1000) gold from frame 0. */
+    save_work_sync_from_save();
+
     /* Re-build the title menu with the (possibly loaded) save state.
      * has_any_score / has_any_adv_cleared / has_any_adv8_cleared /
      * hidden_char_unlocked drive which menu items appear — see
