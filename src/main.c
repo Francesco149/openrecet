@@ -1351,6 +1351,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
         g_windowed = (g_ini.winmode == 1);
         mesh_load_set_easydisp(g_ini.easydisp);
+        scene1_bg_npc_set_toorioff(g_ini.toorioff);
         fprintf(stderr,
             "recet.ini: winmode=%d screen=%d (%dx%d) se=%d mu=%d\n",
             g_ini.winmode, g_ini.screen, g_ini.width, g_ini.height,

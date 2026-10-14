@@ -92,6 +92,11 @@ static int      g_bg_npc_pin_cursor;
 static uint32_t g_bg_npc_pin_dead_soa[SCENE1_BG_NPC_COUNT * BG_NPC_ENGINE_DWORDS];
 static int      g_bg_npc_pin_dead_count;
 
+/* DAT_0438b188 — recet.ini [setup] toorioff ("street off"): 1 hides the drifting
+ * NPCs; any non-zero value skips the whole shadow pass. */
+static int g_bg_npc_toorioff;
+void scene1_bg_npc_set_toorioff(int v) { g_bg_npc_toorioff = v; }
+
 void scene1_bg_npc_reset(void)
 {
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++) {
@@ -460,6 +465,7 @@ void scene1_bg_npc_pin(const uint32_t *soa, size_t n_dwords)
 #define CINTERFACE
 #include <d3d8.h>
 
+#include "save_work.h"       /* the active work record (story flags) */
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
 #include "scene1_preload.h"  /* scene1_preload_chr_sheet / _load_chr_sheet */
 #include "sprite.h"          /* sprite_t */
@@ -491,7 +497,7 @@ void scene1_bg_npc_shadow_render(struct IDirect3DDevice8 *dev_in)
 {
     CALL_TRACE_ENTER(0x46f648u);
 
-    if (dev_in == NULL)
+    if (dev_in == NULL || g_bg_npc_toorioff != 0)   /* FUN_0046f648: DAT_0438b188 == 0 */
         return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
@@ -577,9 +583,16 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
 
     int last_char = -1;
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++) {
         scene1_bg_npc_t *m = &g_scene1_bg_npc[i];
-        if (m->visible == -1 || m->dir == 0)         /* hidden / unspawned */
+        if (m->visible == -1)                        /* +0x48 hidden */
+            continue;
+        /* FUN_0046f737: a drifting NPC draws unless toorioff == 1; the static
+         * slot-0 townsperson (dir 0, FUN_0046f1e9) only once work-record byte
+         * +0x2bced or +0x2bcfd is set. */
+        if (m->dir != 0 ? g_bg_npc_toorioff == 1
+                        : !(rec && (rec[0x2bced] != 0 || rec[0x2bcfd] != 0)))
             continue;
 
         int char_id = scene1_bg_npc_type_to_char(m->type);

@@ -108,6 +108,9 @@ void scene1_bg_npc_reset(void);
  * window townsperson, cursor 1).  `flag_2bcfd` = work-record byte +0x2bcfd. */
 void scene1_bg_npc_stage_reset(int flag_2bcfd);
 
+/* DAT_0438b188 (recet.ini [setup] toorioff) for the two render gates. */
+void scene1_bg_npc_set_toorioff(int v);
+
 /* Canonical RNG origin for the {phasepin} normalization.  The retail Frida
  * agent MUST seed DAT_006023a0 to the SAME value at the FUN_0046f621 warmup
  * entry, or the pinned layouts won't match.  Any fixed value works (it only
