@@ -8,19 +8,19 @@
   "inv_instrumented_full": 78,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 505,
-  "inv_discovered": 1952,
-  "referenced_or_better": 596,
+  "inv_source_referenced": 506,
+  "inv_discovered": 1951,
+  "referenced_or_better": 597,
   "pct_referenced_or_better": 23.4,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
-  "port_debt": 31,
+  "port_debt": 33,
   "verified": 78,
   "stubbed": 13,
-  "ported": 505,
-  "unported": 1952,
-  "touched": 596,
+  "ported": 506,
+  "unported": 1951,
+  "touched": 597,
   "pct_touched": 23.4,
   "pct_verified": 0.0
  },
@@ -5944,6 +5944,7 @@
     "src/scene1_bg_npc.c",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
+    "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
@@ -10413,6 +10414,7 @@
     "src/customer_service.h",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
+    "src/scene1_companion_ctrl.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h"
@@ -16488,18 +16490,22 @@
    "size": 139,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_player_ctrl.c",
+    "src/scene1_postload.c",
+    "src/scene1_postload.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48526d",
@@ -20653,6 +20659,7 @@
    "quality_flags": [],
    "src": [
     "src/scene.h",
+    "src/scene1_companion_ctrl.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
     "src/scene_worldmap.c",

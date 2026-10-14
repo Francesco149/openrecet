@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 28,
+  "total": 30,
   "by_kind": {
-   "stub": 8,
+   "stub": 9,
    "synthetic-data": 0,
-   "simplified": 8,
+   "simplified": 9,
    "hardcode": 3,
    "scaffold": 0,
    "force-flag": 0
@@ -20,9 +20,9 @@
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 23,
+  "retiring_engine_fns": 24,
   "by_engine_fn": {
-   "FUN_00436f97": 3,
+   "FUN_00436f97": 4,
    "FUN_004176ff": 2,
    "FUN_0044bd0d": 2,
    "DAT_056db000": 1,
@@ -42,6 +42,7 @@
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
    "FUN_0048670f": 1,
+   "FUN_0049e163": 1,
    "FUN_004cdd9f": 1,
    "FUN_005031e4": 1,
    "scene1-rng-stream-parity.md": 1
@@ -61,7 +62,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1194,
+   "line": 1190,
    "kind_known": false
   },
   {
@@ -69,7 +70,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1151,
+   "line": 1147,
    "kind_known": false
   },
   {
@@ -109,7 +110,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "DAT_0438b4dc has no port mirror;",
    "file": "src/scene1_preload.c",
-   "line": 227,
+   "line": 228,
    "kind_known": true
   },
   {
@@ -133,7 +134,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1217,
+   "line": 1213,
    "kind_known": false
   },
   {
@@ -158,6 +159,14 @@
    "desc": "of the 710-line state-entry init this",
    "file": "src/scene1_postload.c",
    "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_00436f97",
+   "desc": "always the counter spot (a = 0);",
+   "file": "src/scene1_postload.c",
+   "line": 149,
    "kind_known": true
   },
   {
@@ -245,7 +254,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2444,
+   "line": 2435,
    "kind_known": true
   },
   {
@@ -270,6 +279,14 @@
    "desc": "the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported \u2014 wire the news call when the timed shop clock lands.",
    "file": "src/news_daily.h",
    "line": 20,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0049e163",
+   "desc": "retail also forces it while",
+   "file": "src/scene1_companion_ctrl.c",
+   "line": 135,
    "kind_known": true
   }
  ]

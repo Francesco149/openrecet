@@ -4954,6 +4954,17 @@ at (−2.8, 1.2, −10.5), facing 4, dir 0 (never drifts), type 16 once work-rec
 spawns only slots 1..5 (40 draws, not 48). The earlier port note calling slot 0 a
 "dead slot spawned by some earlier activity" was this function.
 
+## 138. WinMain forces 53-bit x87 precision right after Direct3D init (0x47c0ec)
+
+CreateDevice without D3DCREATE_FPU_PRESERVE (retail and port both pass 0x44) leaves the
+calling thread at PC24, CW 0x007F (measured on Win11 with a probe exe:
+037f → CreateDevice → 007f; FPU_PRESERVE keeps 027f). Retail's WinMain undoes it right
+after the "init start" log: `fstcw; and ah,0xfc; or ah,2; fldcw` (PC = 53-bit), then
+FUN_00451863 ("init print ok"). That is why rhost measures 0x027F at every tick. The port
+skipped this and ran every float at PC24 (portstate: port 007f@f0). Example: Tear's bob
+`y += (sin(db054·0.04)·0.2 + 3 − y)·0.1` came out 1 ulp low from the first tick, exactly
+the PC24 result of the same x87 sequence. Ported in main.c (2026-10-14).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

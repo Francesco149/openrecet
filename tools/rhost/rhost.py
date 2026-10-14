@@ -414,7 +414,9 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
         open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
     pw = f"{WROOT}\\runs\\{batch}\\port"
     args = ["--save-write-dir", pw, "--input-segtrace", pw + "\\trace.jsonl", "--anchor-trace-record", pw + "\\anchors.jsonl",
-            "--max-frames", str(frames), "--turbo", "--silent-audio", "--rng-seed", "19937", "--hidden", "--det-loads", *extra]
+            "--max-frames", str(frames), "--turbo", "--rng-seed", "19937", "--hidden", "--det-loads", *extra]
+    if not os.environ.get("PORT_AUDIO"):
+        args.insert(args.index("--turbo") + 1, "--silent-audio")
     args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
     args = [x.replace("{pw}", pw) for x in args]
     ps = ["$ErrorActionPreference = 'Continue'",
@@ -624,6 +626,9 @@ def cmd_portstate(a):
     P = parse_post(os.path.join(pdir_l, "state.log"))
     common_f = sorted(set(R) & set(P))
     print(f"frames: retail {len(R)} / port {len(P)} / both {len(common_f)}")
+    rcw = sorted(set(re.findall(r"^frame \d+ .*? cw=([0-9a-f]{4})", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)))
+    pcw = re.findall(r"^cw (\d+) ([0-9a-f]{4})", open(os.path.join(pdir_l, "state.log")).read(), re.M)
+    print(f"x87 CW: retail {','.join(rcw) or '?'} / port " + (", ".join(f"{c}@f{f}" for f, c in pcw) or "?"))
     firsts = []
     for va in vas:
         diff = [f for f in common_f if R[f].get(va) != P[f].get(va)]

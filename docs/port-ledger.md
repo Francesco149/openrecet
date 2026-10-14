@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 505, discovered 1952 → 596 referenced-or-better (23.4%)
+- **inventory:** instrumented **91** (78 full + 13 stub), implemented 0, source-referenced 506, discovered 1951 → 597 referenced-or-better (23.4%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 7
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (505) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (506) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -217,7 +217,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43647f | FUN_0043647f | 61 | ✓ |  | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ |  | tables_snews.h |
 | 0x436623 | FUN_00436623 | 2420 | ✓ |  | customer_service.c, news_daily.c, news_daily.h (+4) |
-| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | actor_spawn.h, collision_house.c, collision_house.h (+27) |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | actor_spawn.h, collision_house.c, collision_house.h (+28) |
 | 0x43824b | FUN_0043824b | 940 | ✓ |  | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ |  | scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ |  | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+4) |
@@ -334,7 +334,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ |  | customer_service.c, customer_service.h, tables_tuto.h |
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ |  | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ |  | customer_service.c |
-| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_service.c, customer_service.h, scene1_camera.c (+4) |
+| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_service.c, customer_service.h, scene1_camera.c (+5) |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ |  | customer_service.c, customer_service.h |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ |  | customer_service.c, customer_service.h, save_bank.h |
 | 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service_render.c, dialogue_macros.c (+4) |
@@ -492,6 +492,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x484e45 | FUN_00484e45 | 82 | ✓ |  | scene1_combat_sm.h |
 | 0x484e97 | FUN_00484e97 | 286 | ✓ |  | scene1_records_c_spawn.h |
 | 0x4850fe | FUN_004850fe | 228 | ✓ |  | scene1_counter_menu.c, scene1_counter_menu.h, scene1_player_ctrl.c |
+| 0x4851e2 | FUN_004851e2 | 139 | ✓ |  | scene1_player_ctrl.c, scene1_postload.c, scene1_postload.h |
 | 0x48526d | FUN_0048526d | 142 | ✓ |  | scene1_postload.c, scene1_postload.h, scene1_preload.c (+3) |
 | 0x4852fb | FUN_004852fb | 280 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c |
 | 0x485413 | FUN_00485413 | 55 | ✓ |  | scene1_combat_sm.h |
@@ -578,7 +579,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x49de0e | FUN_0049de0e | 10 | ✓ |  | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h (+2) |
 | 0x49de20 | FUN_0049de20 | 374 | ✓ |  | main.c, scene.h, scene1_player_ctrl.c (+3) |
 | 0x49dfc1 | FUN_0049dfc1 | 409 | ✓ |  | scene_worldmap.c |
-| 0x49e163 | FUN_0049e163 | 575 | ✓ |  | scene.h, scene1_postload.h, scene1_preload.c (+3) |
+| 0x49e163 | FUN_0049e163 | 575 | ✓ |  | scene.h, scene1_companion_ctrl.c, scene1_postload.h (+4) |
 | 0x49e3a3 | FUN_0049e3a3 | 739 | ✓ |  | main.c, scene.h, scene_worldmap.c (+1) |
 | 0x49e686 | FUN_0049e686 | 45 | ✓ |  | main.c, scene_worldmap.c |
 | 0x49e6b3 | FUN_0049e6b3 | 203 | ✓ |  | news_daily.c, news_daily.h |

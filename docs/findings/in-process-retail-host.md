@@ -60,8 +60,9 @@ All numbers below measured on wine 11.19 + Xvfb (Arch) and Win11 native (wslop h
 
 - In-game x87 CW = **0x027F (53-bit PC)** on BOTH Windows native and wine, measured on
   the main thread at every tick. Contradicts `winmain-and-bootstrap.md:176`
-  ("engine accepts the DX8 default of single precision") — D3D8 on Win11 does not leave
-  PC24 in effect here. Verify once in a normal (non-hosted) retail launch.
+  ("engine accepts the DX8 default of single precision"). Resolved 2026-10-14: D3D8
+  CreateDevice DOES set PC24, and retail's WinMain resets PC53 right after
+  (engine-quirks §138). Hosted or not, retail ticks at 0x027F.
 - Port build uses `-std=c11` ⇒ gcc `-fexcess-precision=standard` ⇒ on x87, `1.05f`
   literals are evaluated as `1.05L` (long double), and products are rounded to float on
   assignment. Retail (MSVC6) multiplies by the FLOAT constant and `__ftol`s the

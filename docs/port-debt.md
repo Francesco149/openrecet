@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **28**
-- distinct retiring engine functions: **23**
+- total open debts: **30**
+- distinct retiring engine functions: **24**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 8 | wired call boundary, body incomplete |
+| stub | 9 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 8 | reduced control flow / state machine vs retail |
+| simplified | 9 | reduced control flow / state machine vs retail |
 | hardcode | 3 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -30,7 +30,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 | engine fn | open debts |
 |-----------|-----------:|
-| FUN_00436f97 | 3 |
+| FUN_00436f97 | 4 |
 | FUN_004176ff | 2 |
 | FUN_0044bd0d | 2 |
 | DAT_056db000 | 1 |
@@ -50,11 +50,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00474d92 | 1 |
 | FUN_0048670f | 1 |
+| FUN_0049e163 | 1 |
 | FUN_004cdd9f | 1 |
 | FUN_005031e4 | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (8)
+## stub (9)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -62,22 +63,24 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2444 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2435 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:148 | f488's day-9 morning consumer — the b924==0x276 wait at all.c:45449 firing scene0/sub8 — is unported), |
 | FUN_00469b3a | src/scene1_display_menu.c:636 | the description-panel price-status line (Price Up/Down/…, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend). |
 | FUN_0048670f | src/news_daily.h:20 | the timed clock-advance shoptime block (all.c:86733-86740) incl. its rng%5 news site is unported — wire the news call when the timed shop clock lands. |
+| FUN_0049e163 | src/scene1_companion_ctrl.c:135 | retail also forces it while |
 
 ## synthetic-data (0)
 
 _none_
 
-## simplified (8)
+## simplified (9)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
+| FUN_00436f97 | src/scene1_postload.c:149 | always the counter spot (a = 0); |
 | FUN_00453384 | src/scene_pause.c:288 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:423 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:347 | the engine teardown also restores the |
@@ -88,7 +91,7 @@ _none_
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00436f97 | src/scene1_preload.c:227 | DAT_0438b4dc has no port mirror; |
+| FUN_00436f97 | src/scene1_preload.c:228 | DAT_0438b4dc has no port mirror; |
 | FUN_0046602e | src/customer_service.c:217 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
 
@@ -105,12 +108,12 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1194 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1151 | the engine also gates on a |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1190 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1147 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:143 | the per-destination "has an event |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1217 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1213 | the engine frees the shop |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
 

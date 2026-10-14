@@ -45,6 +45,7 @@
 #include "scene_ingame.h"
 #include "scene_title.h"
 #include "title_save_dialog.h"   /* title_save_dialog_phasepin — cursor bob pin */
+#include "audio_mci.h"          /* audio_mci_clear (FUN_00451863) */
 #include "worker_load.h"         /* worker_load_set_cb(0, scene_title_reinit) */
 #include "scene_buy.h"
 #include "scene_floor.h"
@@ -1389,14 +1390,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             fprintf(stderr, "chr-player: disabled (formdata load failed)\n");
     }
 
-    /* TODO "init print ok"   — FUN_00451863 */
-
     if (!load_d3d8() || !init_render(g_hwnd)) {
         MessageBoxA(g_hwnd, "Failed to initialize Direct3D 8",
                     "openrecet", MB_OK | MB_ICONERROR);
         return 0;
     }
     /* "init start" — section marker logged by FUN_0047ac6a on success. */
+
+    /* WinMain 0x47c0ec: right after "init start", force x87 precision control to
+     * 53-bit (`fstcw; and ah,0xfc; or ah,2; fldcw`).  CreateDevice without
+     * D3DCREATE_FPU_PRESERVE leaves PC24 (0x007F, measured on Win11); retail undoes
+     * it here, so every retail float runs at CW 0x027F (rhost: every tick).  The
+     * port had stayed at D3D's 0x007F (engine-quirks §138). */
+    {
+        unsigned short cw;
+        __asm__ volatile("fnstcw %0" : "=m"(cw));
+        cw = (unsigned short)((cw & ~0x0300u) | 0x0200u);
+        __asm__ volatile("fldcw %0" : : "m"(cw));
+    }
+    audio_mci_clear();   /* FUN_00451863 — "init print ok" */
 
     /* D.5: open trace file + remember which device to wrap.  Wrap is at
      * the call-site macro level (see d3d_trace_macros.h, injected via

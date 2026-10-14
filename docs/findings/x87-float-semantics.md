@@ -3,7 +3,10 @@
 Owner request: "re-check that floats behave the same" before switching `-std`.
 
 ## Facts
-- Retail (MSVC6) in-game x87 CW = **0x027F (53-bit)** (rhost, Win11 + wine).
+- Retail (MSVC6) in-game x87 CW = **0x027F (53-bit)** (rhost, Win11 + wine). Source:
+  WinMain sets PC53 right after CreateDevice, which had left PC24 (engine-quirks §138).
+  **Until 2026-10-14 the port ran at PC24 (0x007F)**: it missed that WinMain step.
+  `rhost.py portstate` now prints both sides' CW.
 - Retail keeps intermediates in ST0, rounds only at spills (`fstp m32/m64`), uses m32
   (sometimes m64) constant operands, `__ftol` truncates the unrounded ST0. Example
   FUN_00460161 @0x4602bc: `fild rate; fstp m32; fild work; fstp m32; fld; fmul; fdiv m32
