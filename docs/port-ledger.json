@@ -4,24 +4,24 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "inv_instrumented": 85,
-  "inv_instrumented_full": 72,
+  "inv_instrumented": 91,
+  "inv_instrumented_full": 78,
   "inv_instrumented_stub": 13,
   "inv_implemented": 0,
-  "inv_source_referenced": 504,
-  "inv_discovered": 1959,
-  "referenced_or_better": 589,
-  "pct_referenced_or_better": 23.1,
+  "inv_source_referenced": 505,
+  "inv_discovered": 1952,
+  "referenced_or_better": 596,
+  "pct_referenced_or_better": 23.4,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 7,
-  "port_debt": 30,
-  "verified": 72,
+  "port_debt": 31,
+  "verified": 78,
   "stubbed": 13,
-  "ported": 504,
-  "unported": 1959,
-  "touched": 589,
-  "pct_touched": 23.1,
+  "ported": 505,
+  "unported": 1952,
+  "touched": 596,
+  "pct_touched": 23.4,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -2280,8 +2280,10 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_spawn.h",
     "src/scene1_overlay.h",
-    "src/scene1_overlay_helpers.c"
+    "src/scene1_overlay_helpers.c",
+    "src/scene1_preload.c"
    ],
    "status": "ported"
   },
@@ -3160,18 +3162,24 @@
    "size": 113,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_spawn.c",
+    "src/actor_spawn.h",
+    "src/scene1_particles_tick.h",
+    "src/scene1_postload.c",
+    "src/scene1_preload.c"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x41f2c3",
@@ -4311,18 +4319,20 @@
    "size": 593,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_spawn.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42e1a6",
@@ -4583,6 +4593,7 @@
    "src": [
     "src/diff_entry.c",
     "src/diff_entry.h",
+    "src/floor_layout.h",
     "src/stage_gate.c",
     "src/stage_gate.h"
    ],
@@ -4629,6 +4640,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/floor_layout.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
     "src/scene1_particles_tick.h",
@@ -5920,13 +5932,16 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_spawn.h",
     "src/collision_house.c",
     "src/collision_house.h",
+    "src/floor_layout.h",
     "src/main.c",
     "src/save_bank.h",
     "src/scene.c",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
+    "src/scene1_bg_npc.c",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_companion_ctrl.h",
@@ -7392,7 +7407,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_postload.h"
+    "src/scene1_postload.h",
+    "src/scene1_preload.c"
    ],
    "status": "ported"
   },
@@ -7542,6 +7558,7 @@
     "src/audio_mci.h",
     "src/customer_service.c",
     "src/encyclopedia.c",
+    "src/floor_layout.c",
     "src/font.c",
     "src/font.h",
     "src/music.h",
@@ -9064,18 +9081,21 @@
    "size": 107,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/floor_layout.c",
+    "src/floor_layout.h"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x45bcea",
@@ -12144,18 +12164,23 @@
    "size": 186,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_bg_npc.c",
+    "src/scene1_bg_npc.h",
+    "src/scene1_postload.c",
+    "src/scene1_preload.c"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x46f2a3",
@@ -15186,18 +15211,21 @@
    "size": 1952,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/floor_layout.c",
+    "src/floor_layout.h"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x47ddc2",
@@ -15205,18 +15233,21 @@
    "size": 395,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/floor_layout.c",
+    "src/floor_layout.h"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x47df4d",
@@ -15224,18 +15255,23 @@
    "size": 1980,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "instrumented",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
-    "implemented": false,
-    "instrumented": false,
+    "source_referenced": true,
+    "implemented": true,
+    "instrumented": true,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/floor_layout.c",
+    "src/floor_layout.h",
+    "src/scene1_postload.c",
+    "src/scene1_preload.c"
+   ],
+   "status": "verified"
   },
   {
    "va": "0x47e711",

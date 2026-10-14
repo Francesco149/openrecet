@@ -128,6 +128,7 @@ static uint32_t __attribute__((noinline)) call_on_stack(void *fn, void *arg, uin
 
 /* ---- threads: deferred loader workers ---- */
 static struct { HANDLE h; uint32_t fn, frame; } g_def[32]; static int g_ndef;
+static volatile int g_in_defer;   /* run_deferred is resolving workers (boundary before tick g_frame+1) */
 typedef struct { LPTHREAD_START_ROUTINE fn; LPVOID arg; } thr_wrap_t;
 static DWORD WINAPI thread_wrapper(LPVOID p)
 {
@@ -154,6 +155,7 @@ static HANDLE WINAPI my_CreateThread(LPSECURITY_ATTRIBUTES sa, SIZE_T st, LPTHRE
 }
 static void run_deferred(void)
 {
+    g_in_defer = 1;
     for (int i = 0; i < g_ndef; i++) {
         ResumeThread(g_def[i].h);
         DWORD r = WaitForSingleObject(g_def[i].h, 120000);
@@ -162,6 +164,7 @@ static void run_deferred(void)
         CloseHandle(g_def[i].h);
     }
     g_ndef = 0;
+    g_in_defer = 0;
 }
 
 /* ---- virtual time ---- */
@@ -323,7 +326,9 @@ static uint32_t __cdecl logrand(void)
     uint32_t r = ((uint32_t (__cdecl *)(void))VA_RAND)();
     if (g_frame >= g_lr_from && g_frame <= g_lr_to) {
         char st[96]; sbh_stack(st, sizeof st);
-        rh_log("rand f%u seed %08x -> %08x [%s]\n", g_frame, s0, G32(DAT_RNG), st);
+        /* " worker": drawn by a deferred loader at the boundary BEFORE tick g_frame+1
+         * (the port labels such draws with that upcoming tick) */
+        rh_log("rand f%u seed %08x -> %08x [%s]%s\n", g_frame, s0, G32(DAT_RNG), st, g_in_defer ? " worker" : "");
     }
     return r;
 }

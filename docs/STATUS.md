@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  23.1% referenced-or-better   (85 instrumented)
+█████░░░░░░░░░░░░░░░  23.4% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
-| instrumented       |    85 | `CALL_TRACE_ENTER(_STUB)` probe wired (72 full + 13 stub) |
+| instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (78 full + 13 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   504 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1959 | exists in the engine, no `src/` reference    |
+| source-referenced  |   505 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1952 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 30 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 31 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -120,23 +120,30 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (`docs/findings/shop-counter-menu-RE.md`); entry now frame-exact on all 7 shop
     scenarios; cc08 / b74c / b754 / cc0c / help-box counter identical per frame
     (`portstate buy-40pct-accept`).
+  - ✅ House-entry RNG (Continue load f652): FUN_00436f97's floor layout
+    (FUN_0047df4d) + actor reset (FUN_0041f252) + bg-NPC stage reset (FUN_0046f1e9)
+    ported (PROGRESS 2026-10-14). `portrng buy-40pct-accept`: per-tick draws identical
+    f1–f741.
   - ★ next, in frame order (buy-40pct-accept, 2.4k frames):
-    1. **RNG at the Continue load (f652)** — `rhost.py portrng buy-40pct-accept
-       --window 651:654`. Retail load tick = 42 draws inside the house init
-       FUN_00436f97: FUN_0047df4d → FUN_0047d622 (stage-layout picks) +
-       FUN_0040d132; the port has none of them. The port runs the bg-NPC warmup
-       (FUN_0046f621/2a3, 41 draws) + the type-1f init on the load tick; retail does
-       them the tick after (f653).
-    2. **Tear's random wander** (FUN_0048a833 `!v32` branch: house + f407≠0, i.e.
-       post-tutorial). `DAT_0438be6c` state machine: 90 f idle → fly to
-       (`rand()%7`, `rand()%6`) cell → idle anim 90 f. Unported: the port
-       spring-follows. Visual + RNG (`rhost.py portshots buy-40pct-accept --at 780`).
-    3. `b524` starts 1 f late → 2nd d3e load f911 vs 912 (= item 2 above).
+    1. **Tear's random wander** — f742 retail 2 draws in FUN_00483170 < FUN_0048a833
+       (`!v32` branch: house + f407≠0, post-tutorial). `DAT_0438be6c` state machine:
+       90 f idle → fly to (`rand()%7`, `rand()%6`) cell → idle anim 90 f. Unported:
+       the port spring-follows. Visual + RNG (`rhost.py portshots buy-40pct-accept
+       --at 780`).
+    2. `b524` starts 1 f late → 2nd d3e load f911 vs 912.
+  - ★ day2-save-commit (DIFFER since the bg-NPC reset; was IDENTICAL by luck): the
+    tutorial sale's haggle (offer_up f10030 → haggle_decide class 2 = 15+2 EXP;
+    port gets class 1 = 30+2) is after the last `{rngseed}` pin (f9642). Port draws
+    8,109 vs retail 3,481 over f9642–10400:
+    - port `init_type_1f_100` makes 6 draws EVERY frame there; retail draws none;
+    - display sparkle fires a tick early (tick-0 label item 1 above).
+    `rhost.py portrng day2-save-commit --window 9642:10400`.
 
 ### Regression gate (run before claiming a port change is safe)
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
-- `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
-  day2-save-commit}: all **IDENTICAL** as of 2026-10-14 (after the counter menu).
+- `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty}:
+  **IDENTICAL** (2026-10-14). day2-save-commit: DIFFER, attributed (★ above).
+- `rhost.py verify` now also shadows floor_layout + actor_spawn_reset.
 - `rhost.py portanchors house-idle`: 195/195.
 
 ### Re-verification program (owner: "re-verify everything with the new methodology")

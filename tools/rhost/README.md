@@ -18,10 +18,14 @@ python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail 
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 ```
-`portrng` caveat: a port caller reached through a sibling-call (tail) jump is
-reported as its caller's caller (e.g. `sim_step_a`).
+`portrng` labels: tick N's draws are `fN` on both sides; `--log-rand` tags draws
+made by a deferred loader worker (the boundary before tick N, logged `fN-1 … worker`)
+and portrng counts them in tick N, as the port does. Caveat: a port caller reached
+through a sibling-call (tail) jump is reported as its caller's caller (e.g. `sim_step_a`).
 Results land in `/mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/` (`rhost.log`, last
-line `RESULT key=value…`). The driver builds + stages automatically.
+line `RESULT key=value…`). The driver builds + stages automatically, rebuilding
+rhost.exe when tools/rhost or src sources change; `run --dump-at F,..` fetches the
+`state_f*.rhs` dumps.
 
 ## What makes a run deterministic
 

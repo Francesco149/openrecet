@@ -96,10 +96,21 @@ def cmd_stage(a):
     print("staged", BUILD, "->", WROOT)
 
 
+def rhost_stale():
+    """rhost.exe missing or older than any tools/rhost source"""
+    exe = os.path.join(BUILD, "rhost.exe")
+    if not os.path.exists(exe):
+        return True
+    t = os.path.getmtime(exe)
+    src = os.path.join(ROOT, "src")   # shadow hooks link port code (build.sh)
+    return any(os.path.getmtime(os.path.join(d, f)) > t for d in (HERE, src) for f in os.listdir(d)
+               if f.endswith((".c", ".h", ".sh")))
+
+
 def ensure_staged():
     exe = os.path.join(BUILD, "rhost.exe")
     stamp = os.path.join(BUILD, ".staged")
-    if not os.path.exists(exe):
+    if rhost_stale():
         cmd_build(None)
     if not os.path.exists(stamp) or os.path.getmtime(stamp) < os.path.getmtime(exe):
         cmd_stage(None)
@@ -209,7 +220,7 @@ def wine_stage():
 def run_batch_wine(a, runs, tag):
     """same batch layout, executed locally under wine + Xvfb (parallel -j)"""
     import concurrent.futures
-    if not os.path.exists(os.path.join(BUILD, "rhost.exe")):
+    if rhost_stale():
         cmd_build(None)
     wine_stage()
     global LOCAL_RUNS
@@ -298,7 +309,8 @@ def cmd_run(a):
     else:
         runs = resolve_runs(a.scenarios)
     a.flatten_out = False
-    batch, bdir, res, out = run_batch(a, runs, "run", fetch=("rhost.log", "coverage.txt", "shot_*.png"))
+    fetch = ("rhost.log", "coverage.txt", "shot_*.png") + (("state_*.rhs",) if a.dump_at else ())
+    batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
     print_results(res, [r[0] for r in runs])
 
 
@@ -539,44 +551,51 @@ def port_fn_of(rvas):
 
 def cmd_portrng(a):
     """RNG consumers, port vs retail on the same flat trace: every LCG step in a frame window with its caller
-    (retail rhost --log-rand stack | port --rng-log); reports the first diverging step and per-frame counts"""
+    (retail rhost --log-rand stack | port --rng-log); per-tick draw counts + the consumer runs of the first differing ticks"""
     name = a.scenario
     lo, hi = (int(x) for x in a.window.split(":"))
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
-    a.extra = ((a.extra or "") + f" --log-rand {lo - 1}:{hi - 1}").strip()
+    a.extra = ((a.extra or "") + f" --log-rand {lo - 1}:{hi}").strip()
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portrng-retail", fetch=("rhost.log", "trace.flat.jsonl"))
     pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), hi + 2,
                       extra=("--rng-log", "{pw}\\rng.log", f"{lo}:{hi}"), fetch=("rng.log",))
-    # rhost logs a tick's draws under g_frame before its ++ (post N ⇐ draws "fN-1"): +1 = the port's label
-    R = [(int(m.group(1)) + 1, "rand", m.group(2), m.group(3), [x.strip() for x in m.group(4).split(",") if x.strip()])
-         for m in re.finditer(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*)\]", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)]
+    # rhost labels tick N's draws fN (= its `post N`, = the port's label); a deferred loader's draws at
+    # the boundary before tick N are logged "fN-1 … worker" — the port labels those N too
+    R = [(int(m.group(1)) + (1 if m.group(5) else 0), "rand", m.group(2), m.group(3), [x.strip() for x in m.group(4).split(",") if x.strip()])
+         for m in re.finditer(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)]
+    R = [r for r in R if lo <= r[0] <= hi]
     P = [(int(m.group(2)), m.group(1), m.group(3), m.group(4), int(m.group(5), 16))
          for m in re.finditer(r"^(rand|seed) f(\d+) ([0-9a-f]+) -> ([0-9a-f]+) @([0-9a-f]+)", open(os.path.join(pdir_l, "rng.log")).read(), re.M)]
-    rmap = retail_fn_of({int(x, 16) for r in R for x in r[4][:3] if re.fullmatch(r"[0-9a-f]+", x)})
+    rmap = retail_fn_of({int(x, 16) for r in R for x in r[4][:4] if re.fullmatch(r"[0-9a-f]+", x)})
     pmap = port_fn_of({p[4] for p in P})
-    def rdesc(r): return " < ".join(rmap.get(int(x, 16), x) for x in r[4][:3] if re.fullmatch(r"[0-9a-f]+", x))
     from collections import Counter
     rc, pc = Counter(r[0] for r in R), Counter(p[0] for p in P if p[1] == "rand")
     print(f"window f{lo}..f{hi}: retail {len(R)} draws / port {sum(pc.values())} draws, {sum(1 for p in P if p[1] == 'seed')} port reseeds")
-    for i in range(max(len(R), len(P))):
-        r = R[i] if i < len(R) else None
-        p = P[i] if i < len(P) else None
-        if r and p and (r[2], r[3]) == (p[2], p[3]) and p[1] == "rand":
-            continue
-        print(f"first divergence at step #{i}:")
-        for j in range(max(0, i - a.context), i + a.context + 1):
-            rr = R[j] if j < len(R) else None
-            pp = P[j] if j < len(P) else None
-            mark = "*" if j >= i else " "
-            print(f" {mark} retail " + (f"f{rr[0]} {rr[2]}->{rr[3]} {rdesc(rr)}" if rr else "-"))
-            print(f" {mark} port   " + (f"f{pp[0]} {pp[1]} {pp[2]}->{pp[3]} {pmap.get(pp[4], pp[4])}" if pp else "-"))
-        break
-    else:
-        print("IDENTICAL draw stream in the window")
+    # the LCG chain is the same whoever draws, so compare per tick: draw counts, then the consumers
+    if R and P and R[0][2] != P[0][2]:
+        print(f"  LCG state differs at the window start: retail {R[0][2]} / port {P[0][2]} (diverged earlier)")
     bad = [f for f in range(lo, hi + 1) if rc.get(f, 0) != pc.get(f, 0)]
-    if bad:
+    def runs(keys):
+        out = []
+        for k in keys:
+            if out and out[-1][0] == k: out[-1][1] += 1
+            else: out.append([k, 1])
+        return out
+    def rkey(r):   # consumer chain without offsets / the rand wrapper / CRT (stale stack slots)
+        names = [rmap.get(int(x, 16), x).split("+")[0] for x in r[4][:4] if re.fullmatch(r"[0-9a-f]+", x)]
+        names = [n for n in names if n.startswith("FUN_") and n not in ("FUN_00471084", "FUN_00471089")]
+        return " < ".join(dict.fromkeys(names[:3]))
+    for f in bad[:3]:
+        print(f"f{f}: retail {rc.get(f, 0)} draws / port {pc.get(f, 0)} draws")
+        for k, n in runs([rkey(r) for r in R if r[0] == f]):
+            print(f"   retail {n:4d}x {k}")
+        for k, n in runs([pmap.get(p[4], hex(p[4])).split(" (")[0] for p in P if p[0] == f and p[1] == "rand"]):
+            print(f"   port   {n:4d}x {k}")
+    if not bad:
+        print("IDENTICAL per-tick draw counts in the window")
+    else:
         print("frames with different draw counts (retail/port): " + ", ".join(f"f{f} {rc.get(f, 0)}/{pc.get(f, 0)}" for f in bad[:12]))
     return 0 if not bad else 1
 

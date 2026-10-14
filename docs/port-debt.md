@@ -11,7 +11,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **27**
+- total open debts: **28**
 - distinct retiring engine functions: **23**
 
 | kind | count | meaning |
@@ -19,7 +19,7 @@ the answer to *"what's still faked in code that looks done?"*
 | stub | 8 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
-| hardcode | 2 | fixed constant where the engine computes/sources it |
+| hardcode | 3 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
@@ -30,8 +30,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 | engine fn | open debts |
 |-----------|-----------:|
+| FUN_00436f97 | 3 |
 | FUN_004176ff | 2 |
-| FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
 | DAT_056db000 | 1 |
 | FUN_00409925 | 1 |
@@ -84,10 +84,11 @@ _none_
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:341 | sim_loading_pump() |
 
-## hardcode (2)
+## hardcode (3)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_00436f97 | src/scene1_preload.c:227 | DAT_0438b4dc has no port mirror; |
 | FUN_0046602e | src/customer_service.c:217 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:50 | active save-slot pinned to bank 0; |
 
