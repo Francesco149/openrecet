@@ -48,6 +48,22 @@ static int write_png(const char *path, const uint8_t *rgb, int w, int h)
 static BOOL CALLBACK find_wnd(HWND h, LPARAM lp)
 { DWORD pid; GetWindowThreadProcessId(h, &pid); if (pid == GetCurrentProcessId() && IsWindowVisible(h)) { *(HWND *)lp = h; return FALSE; } return TRUE; }
 
+/* The first PrintWindow(PW_RENDERFULLCONTENT) of a process returns a blank
+ * surface (DWM builds the redirection surface on that request) — every run's
+ * first --shot-at frame came out white.  rhost.c calls this at frame 1 when shots
+ * are requested, so the real captures find the surface ready. */
+void rh_shot_warm(void)
+{
+    HWND hw = NULL; EnumWindows(find_wnd, (LPARAM)&hw);
+    if (!hw) return;
+    HDC wdc = GetDC(hw), mdc = CreateCompatibleDC(wdc);
+    HBITMAP bm = CreateCompatibleBitmap(wdc, 16, 16);
+    HGDIOBJ old = SelectObject(mdc, bm);
+    PrintWindow(hw, mdc, 0x1 | 0x2);
+    GdiFlush();
+    SelectObject(mdc, old); DeleteObject(bm); DeleteDC(mdc); ReleaseDC(hw, wdc);
+}
+
 void rh_shot(const char *tag)
 {
     HWND hw = NULL; EnumWindows(find_wnd, (LPARAM)&hw);

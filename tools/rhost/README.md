@@ -15,7 +15,11 @@ python3 tools/rhost/rhost.py corpus                    # all tests/scenarios, su
 python3 tools/rhost/rhost.py diff A.rhs B.rhs          # classify two state dumps
 python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → flat trace
 python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
+python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
+python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 ```
+`portrng` caveat: a port caller reached through a sibling-call (tail) jump is
+reported as its caller's caller (e.g. `sim_step_a`).
 Results land in `/mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/` (`rhost.log`, last
 line `RESULT key=value…`). The driver builds + stages automatically.
 

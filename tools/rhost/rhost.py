@@ -9,6 +9,8 @@
   rhost.py diff A.rhs B.rhs              classify the differences between two dumps
   rhost.py record NAME [--save SHA|PATH] HUMAN PLAY (Windows desktop, realtime) → flat trace
   rhost.py flatten SCEN                  write tests/scenarios/<SCEN>/trace.flat.jsonl
+  rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
+  rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --hash-every N
              --coverage FILE --d3d --cap FROM:COUNT --stall-ms N --extra "raw rhost args"
@@ -473,6 +475,112 @@ def cmd_portanchors(a):
     return 0 if i0 is None and first_name is None and len(R) == len(P) else 1
 
 
+def cmd_portshots(a):
+    """visual port↔retail check: retail (rhost --shot-at) and port (--capture-frames) screenshots of the
+    same frames on the same flat trace, joined side by side (retail | port) in the batch dir"""
+    name = a.scenario
+    fs = [int(x) for x in a.at.split(",")]
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    a.shot_at = ",".join(str(f) for f in fs)
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portshots-retail", fetch=("rhost.log", "trace.flat.jsonl", "shot_*.png"))
+    run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), max(fs) + 2,
+             extra=("--capture-to", "{pw}", "--capture-frames", a.shot_at))
+    pdir_l = os.path.join(bdir, "port")
+    subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/port/frame_*.bmp", pdir_l], capture_output=True, text=True)
+    out = []
+    for f in fs:
+        r = os.path.join(bdir, name, f"shot_f{f:06d}.png")
+        p = os.path.join(pdir_l, f"frame_{f:05d}.bmp")
+        dst = os.path.join(bdir, f"cmp_f{f:06d}.png")
+        if not (os.path.exists(r) and os.path.exists(p)):
+            print(f"f{f}: missing {'retail' if not os.path.exists(r) else 'port'} shot"); continue
+        if shutil.which("magick"):
+            sh(["magick", r, "-resize", "1024x768!", p, "-resize", "1024x768!", "+append", dst])
+            out.append(dst)
+    print("\n".join(out) if out else f"shots in {bdir}")
+    return 0 if len(out) == len(fs) else 1
+
+
+IDA_TSV = "/mnt/ephemeral/openrecet/decompiled-ida/functions_ida.tsv"
+
+
+def retail_fn_of(addrs):
+    """retail VA → 'FUN_xxxxxx+off' via the IDA function table (start, size)"""
+    fns = []
+    if os.path.exists(IDA_TSV):
+        for l in open(IDA_TSV):
+            f = l.split("\t")
+            try:
+                fns.append((int(f[0], 16), int(f[1])))
+            except (ValueError, IndexError):
+                pass
+    fns.sort()
+    import bisect
+    starts = [f[0] for f in fns]
+    out = {}
+    for a in addrs:
+        i = bisect.bisect_right(starts, a) - 1
+        out[a] = f"FUN_{fns[i][0]:08x}+{a - fns[i][0]:x}" if i >= 0 and a < fns[i][0] + fns[i][1] else f"{a:08x}"
+    return out
+
+
+def port_fn_of(rvas):
+    """port caller RVA → function (file:line) via addr2line on build/openrecet.exe (image base 0x400000)"""
+    exe = os.path.join(ROOT, "build", "openrecet.exe")
+    rvas = sorted(set(rvas))
+    if not rvas or not shutil.which("i686-w64-mingw32-addr2line"):
+        return {r: f"@{r:06x}" for r in rvas}
+    r = subprocess.run(["i686-w64-mingw32-addr2line", "-f", "-s", "-e", exe] + [hex(0x400000 + v) for v in rvas],
+                       capture_output=True, text=True).stdout.splitlines()
+    return {v: f"{r[2 * i]} ({r[2 * i + 1]})" for i, v in enumerate(rvas) if 2 * i + 1 < len(r)}
+
+
+def cmd_portrng(a):
+    """RNG consumers, port vs retail on the same flat trace: every LCG step in a frame window with its caller
+    (retail rhost --log-rand stack | port --rng-log); reports the first diverging step and per-frame counts"""
+    name = a.scenario
+    lo, hi = (int(x) for x in a.window.split(":"))
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    a.extra = ((a.extra or "") + f" --log-rand {lo - 1}:{hi - 1}").strip()
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portrng-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), hi + 2,
+                      extra=("--rng-log", "{pw}\\rng.log", f"{lo}:{hi}"), fetch=("rng.log",))
+    # rhost logs a tick's draws under g_frame before its ++ (post N ⇐ draws "fN-1"): +1 = the port's label
+    R = [(int(m.group(1)) + 1, "rand", m.group(2), m.group(3), [x.strip() for x in m.group(4).split(",") if x.strip()])
+         for m in re.finditer(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*)\]", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)]
+    P = [(int(m.group(2)), m.group(1), m.group(3), m.group(4), int(m.group(5), 16))
+         for m in re.finditer(r"^(rand|seed) f(\d+) ([0-9a-f]+) -> ([0-9a-f]+) @([0-9a-f]+)", open(os.path.join(pdir_l, "rng.log")).read(), re.M)]
+    rmap = retail_fn_of({int(x, 16) for r in R for x in r[4][:3] if re.fullmatch(r"[0-9a-f]+", x)})
+    pmap = port_fn_of({p[4] for p in P})
+    def rdesc(r): return " < ".join(rmap.get(int(x, 16), x) for x in r[4][:3] if re.fullmatch(r"[0-9a-f]+", x))
+    from collections import Counter
+    rc, pc = Counter(r[0] for r in R), Counter(p[0] for p in P if p[1] == "rand")
+    print(f"window f{lo}..f{hi}: retail {len(R)} draws / port {sum(pc.values())} draws, {sum(1 for p in P if p[1] == 'seed')} port reseeds")
+    for i in range(max(len(R), len(P))):
+        r = R[i] if i < len(R) else None
+        p = P[i] if i < len(P) else None
+        if r and p and (r[2], r[3]) == (p[2], p[3]) and p[1] == "rand":
+            continue
+        print(f"first divergence at step #{i}:")
+        for j in range(max(0, i - a.context), i + a.context + 1):
+            rr = R[j] if j < len(R) else None
+            pp = P[j] if j < len(P) else None
+            mark = "*" if j >= i else " "
+            print(f" {mark} retail " + (f"f{rr[0]} {rr[2]}->{rr[3]} {rdesc(rr)}" if rr else "-"))
+            print(f" {mark} port   " + (f"f{pp[0]} {pp[1]} {pp[2]}->{pp[3]} {pmap.get(pp[4], pp[4])}" if pp else "-"))
+        break
+    else:
+        print("IDENTICAL draw stream in the window")
+    bad = [f for f in range(lo, hi + 1) if rc.get(f, 0) != pc.get(f, 0)]
+    if bad:
+        print("frames with different draw counts (retail/port): " + ", ".join(f"f{f} {rc.get(f, 0)}/{pc.get(f, 0)}" for f in bad[:12]))
+    return 0 if not bad else 1
+
+
 def parse_post(path):
     """`post N va=val ..` lines (rhost --watch / port --state-va) → {frame: {va: int}}"""
     rows = {}
@@ -599,6 +707,10 @@ def main():
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
     p.add_argument("--context", type=int, default=4); common(p); p.set_defaults(fn=cmd_portstate)
+    p = sp.add_parser("portrng"); p.add_argument("scenario"); p.add_argument("--window", required=True, help="FROM:TO frames")
+    p.add_argument("--context", type=int, default=3); common(p); p.set_defaults(fn=cmd_portrng)
+    p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
+    common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)

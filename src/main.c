@@ -495,10 +495,25 @@ static int input_harness_driven(void)
 static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
 static struct anchor_trace_state g_anchor_state             = {0};
+static char                     *g_rng_log_path             = NULL;   /* --rng-log PATH FROM:TO */
+static FILE                     *g_rng_log_fp               = NULL;
+static uint32_t                  g_rng_log_from = 1, g_rng_log_to = 0;
 static char                     *g_state_log_path           = NULL;
 static FILE                     *g_state_log_fp             = NULL;
 static int                       g_state_log_pending        = 0;
 static uint32_t                  g_state_log_frame          = 0;
+
+/* --rng-log: one line per LCG step / reseed in the frame window, labelled like
+ * the state log (g_tick.frame_count) and rhost --log-rand.  @rva = caller -
+ * image base (symbolize with addr2line -e build/openrecet.exe 0x400000+rva). */
+static void rng_log_trace(int is_seed, uint32_t before, uint32_t after, const void *caller)
+{
+    uint32_t f = g_tick.frame_count;
+    if (!g_rng_log_fp || f < g_rng_log_from || f > g_rng_log_to) return;
+    uint32_t rva = (uint32_t)((uintptr_t)caller - (uintptr_t)GetModuleHandleA(NULL));
+    fprintf(g_rng_log_fp, "%s f%u %08x -> %08x @%06x\n", is_seed ? "seed" : "rand",
+            (unsigned)f, (unsigned)before, (unsigned)after, (unsigned)rva);
+}
 
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
  * Buffers the per-frame player-1 button mask while recording, plus a list of
@@ -1796,6 +1811,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * BOOT anchor (first ticked frame) is captured.  Failure is
      * non-fatal — the stderr echo still emits the stream. */
     if (g_state_log_path) g_state_log_fp = fopen(g_state_log_path, "w");
+    if (g_rng_log_path && (g_rng_log_fp = fopen(g_rng_log_path, "w")) != NULL)
+        g_rng_trace = rng_log_trace;
     if (g_anchor_trace_record_path) {
         g_anchor_record_fp = fopen(g_anchor_trace_record_path, "w");
         if (g_anchor_record_fp) {
@@ -2413,6 +2430,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
     if (g_state_log_fp) { fclose(g_state_log_fp); g_state_log_fp = NULL; }
+    g_rng_trace = NULL;
+    if (g_rng_log_fp) { fclose(g_rng_log_fp); g_rng_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -3829,6 +3848,16 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 fprintf(stderr, "openrecet: --state-va: no port mirror for %x (known: %s)\n",
                         (unsigned)bad, state_va_known());
                 ExitProcess(2);
+            }
+        } else if (lstrcmpA(tok, "--rng-log") == 0) {
+            char *val = strtok(NULL, " ");
+            char *rng = strtok(NULL, " ");
+            if (val && rng) {
+                static char rl_buf[MAX_PATH];
+                lstrcpynA(rl_buf, val, (int)sizeof(rl_buf));
+                g_rng_log_path = rl_buf;
+                unsigned a = 0, b = 0;
+                if (sscanf(rng, "%u:%u", &a, &b) == 2) { g_rng_log_from = a; g_rng_log_to = b; }
             }
         } else if (lstrcmpA(tok, "--state-log") == 0) {
             char *val = strtok(NULL, " ");

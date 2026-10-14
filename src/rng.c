@@ -1,4 +1,5 @@
 #include "rng.h"
+#include <stddef.h>
 
 #ifdef _WIN32
 # define WIN32_LEAN_AND_MEAN
@@ -15,21 +16,33 @@ unsigned long g_rng_call_count = 0;
 
 unsigned long rng_call_count(void) { return g_rng_call_count; }
 
+/* Diagnostic hook (main.c --rng-log): every reseed + LCG step with its caller. */
+rng_trace_fn g_rng_trace = NULL;
+
 void rng_seed(uint32_t seed)
 {
+    uint32_t before = g_rng_seed;
     g_rng_seed = seed;
+    if (g_rng_trace) g_rng_trace(1, before, seed, __builtin_return_address(0));
+}
+
+static inline uint16_t rng_step(const void *caller)
+{
+    uint32_t before = g_rng_seed;
+    g_rng_call_count++;
+    g_rng_seed = g_rng_seed * 0x343fdu + 0x269ec3u;
+    if (g_rng_trace) g_rng_trace(0, before, g_rng_seed, caller);
+    return (uint16_t)((g_rng_seed >> 16) & 0x7fffu);
 }
 
 uint16_t rng_next15(void)
 {
-    g_rng_call_count++;
-    g_rng_seed = g_rng_seed * 0x343fdu + 0x269ec3u;
-    return (uint16_t)((g_rng_seed >> 16) & 0x7fffu);
+    return rng_step(__builtin_return_address(0));
 }
 
 float rng_next_unit(void)
 {
-    return (float)rng_next15() / 32768.0f;
+    return (float)rng_step(__builtin_return_address(0)) / 32768.0f;
 }
 
 int32_t rng_compute_seed(int year, int month, int day,

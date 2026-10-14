@@ -371,6 +371,7 @@ static void __cdecl hook_tick(void)
                (int)G32(DAT_SCENE), G32(DAT_RNG), g_mask, cw, g_live_threads, g_threads_created,
                GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8), wb);
     }
+    if (g_frame == 1 && (O.n_shot || O.shot_every)) rh_shot_warm();
     for (int i = 0; i < O.n_shot; i++)
         if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
     if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }

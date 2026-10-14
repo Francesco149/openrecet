@@ -36,6 +36,12 @@ unsigned long rng_call_count(void);
 
 void     rng_seed(uint32_t seed);
 
+/* Diagnostic: when set, called on every rng_seed (is_seed=1) and LCG step
+ * (is_seed=0) with the LCG state before/after and the caller's return address.
+ * NULL in normal runs (main.c --rng-log arms it). */
+typedef void (*rng_trace_fn)(int is_seed, uint32_t before, uint32_t after, const void *caller);
+extern rng_trace_fn g_rng_trace;
+
 /* One LCG step. Returns the 15-bit value the engine exposes via
  * FUN_005041f6 (= classic MSVC rand() result). */
 uint16_t rng_next15(void);

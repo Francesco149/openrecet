@@ -107,6 +107,7 @@ void rh_dinput_install(void);
 
 /* rh_shot.c */
 void rh_shot(const char *tag);
+void rh_shot_warm(void);   /* first PrintWindow is blank: warm the DWM surface */
 
 /* rh_hooks.c */
 void rh_hooks_install(void);
