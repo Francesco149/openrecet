@@ -133,7 +133,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     1. **Queue advance dispatches on the queue entry's KIND** (FUN_00462403,
        all_ida 65233+770..812): `k = DAT_0730aca8[6·DAT_0730b1a8[b318]]`;
        4 → b5a8 = 5; 1 → FUN_00461792 (the customer SELLS to the player: every
-       buy-* scenario); 0 → [rand&3 if work byte +0x2bcd1] FUN_00461303 (kind
+       buy-* scenario); 0 → [rand&3 if work byte +0x2bc91] FUN_00461303 (kind
        select) else FUN_00460fa7; 2/3 → other arms. The port only has the k = 0
        path (`cs_queue_advance` → `cs_kind_select`, keyed on the wrong variable:
        `PORT-DEBT(cs-queue-advance-fileidx)`). f911 buy-40pct-accept: retail 1
