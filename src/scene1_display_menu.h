@@ -87,6 +87,13 @@ void display_menu_buy_post_add(uint32_t *bank);
 void display_menu_cursor_to_row(void);
 /* FUN_00469351(): the same, snapped (no slide) — the cs request-pick open. */
 void display_menu_cursor_snap_to_row(void);
+/* Engine-global mirrors for the --state-va tool: DAT_0734b968, DAT_0731f404,
+ * DAT_07337850[0], DAT_07337210[0], DAT_0731f598[i]. */
+int display_menu_dbg_cur_tab(void);
+int display_menu_dbg_num_tabs(void);
+int display_menu_dbg_tab_cursor0(void);
+int display_menu_dbg_tab_count0(void);
+int display_menu_dbg_list(int i);
 
 /* DAT_005c6ee4: how many of the highlighted item the player holds in inventory
  * ("Number possessed" in the description panel).  Recomputed inside

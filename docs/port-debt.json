@@ -118,7 +118,7 @@
    "engine_fn": "FUN_0046602e",
    "desc": "always -1 in the port \u2014 its only writer,",
    "file": "src/customer_service.c",
-   "line": 229,
+   "line": 230,
    "kind_known": true
   },
   {
@@ -270,7 +270,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026, the FUN_004361b2 consumer @all.c:65666) + the b1c0==6 counter price multipliers are unported; skipping == the type-0 (no-trend) path.  The classifier itself is now live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 679,
+   "line": 686,
    "kind_known": true
   },
   {

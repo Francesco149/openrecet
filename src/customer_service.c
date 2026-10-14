@@ -216,14 +216,15 @@ static int32_t s_csload_pin  = 0;   /* pinned bracket length (0 = unset) */
 static int32_t s_csload_hold = 0;   /* frames elapsed in the current b1cc==2 bracket */
 
 /* shared price scalars (DAT_005c6bXX). */
-static int32_t s_price_fileidx;  /* DAT_005c6bb0 — active dialogue-file index */
-static int32_t s_price_bb4;      /* DAT_005c6bb4 — committed/prev asking price (-1 = none) */
-static int32_t s_price_ask;      /* DAT_005c6bb8 — player's asking price */
-static int32_t s_price_runsum;   /* DAT_005c6bbc — running base-price sum / item base */
-static int32_t s_price_base;     /* DAT_005c6bc0 — base/reference price (= runsum*count) */
-static int32_t s_price_bc4;      /* DAT_005c6bc4 — item count (base = runsum*count) */
-static int32_t s_price_bc8;      /* DAT_005c6bc8 — alt item handle (-1 = none) */
-static int32_t s_price_cursor;   /* DAT_005c6bcc — item-pick cursor */
+/* .data initial values (0x5c6bb0..0x5c6bcf): 1, -1, 1000, 1000, 1000, 5, -1, 1. */
+static int32_t s_price_fileidx = 1;     /* DAT_005c6bb0 — active dialogue-file index */
+static int32_t s_price_bb4 = -1;        /* DAT_005c6bb4 — committed/prev asking price (-1 = none) */
+static int32_t s_price_ask = 1000;      /* DAT_005c6bb8 — player's asking price */
+static int32_t s_price_runsum = 1000;   /* DAT_005c6bbc — running base-price sum / item base */
+static int32_t s_price_base = 1000;     /* DAT_005c6bc0 — base/reference price (= runsum*count) */
+static int32_t s_price_bc4 = 5;         /* DAT_005c6bc4 — item count (base = runsum*count) */
+static int32_t s_price_bc8 = -1;        /* DAT_005c6bc8 — alt item handle (-1 = none) */
+static int32_t s_price_cursor = 1;      /* DAT_005c6bcc — item-pick cursor */
 /* DAT_005c6c34 — adventurer upgrade-hint slot (0..4, .data init -1), read by
  * FUN_00460b93 (cs_adventurer_equip_upgrade).
  * PORT-DEBT(hardcode, FUN_0046602e): always -1 in the port — its only writer,
@@ -1041,6 +1042,8 @@ int32_t customer_service_f404(void)
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
 int32_t customer_service_b318(void)        { return s_b318; }
+int32_t customer_service_b5d8(void)        { return s_b5d8; }
+int32_t customer_service_b548(void)        { return s_b548; }
 int32_t customer_service_b528(void)        { return s_b528; }
 int32_t customer_service_variant(void)     { return s_cs_variant; }
 int32_t customer_service_b520(void)        { return s_b520; }
@@ -2156,7 +2159,11 @@ static void cs_dialogue_reveal_tick(void)
     if (s_b270 == NULL)
         return;
     int budget = s_b548;
-    const char *p = s_b270;
+    /* FUN_00465db4 pass 1: the macros (<S>/<I>/<Y>/<D…>/<T>) are expanded first;
+     * the reveal budget walks the EXPANDED text (a request's "<S>" = "a treasure"). */
+    char expanded[0x100];
+    dlg_macro_expand(s_b270, expanded, sizeof expanded);
+    const char *p = expanded;
     int in_lead = 0;
     for (int guard = 0; guard < 0x200; guard++) {
         char c = *p;

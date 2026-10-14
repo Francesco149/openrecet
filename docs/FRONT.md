@@ -110,12 +110,21 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     FUN_00469351, opened by the master tick once the poses settle). **portrng
     IDENTICAL over the whole scenario: buy-35/40/45/50pct-accept,
     buy-lowball-walkout, day2-shop.**
+  - ✅ Hidden state splits found by a portstate sweep (cs b534/b5a8/b56c/b584/b574/
+    bb8/b528/b548 + gold/EXP/item count, all 8 shop scenarios): the pick menu's
+    empty list is just "Nothing" (retail num_tabs 0, list[0] −1); the reveal budget
+    walks the macro-EXPANDED line (FUN_00465db4 pass 1); price scalars boot at their
+    .data values. All cs rows now identical; only boot-time gold differs (below).
   - ★ next, earliest port-side split per shop scenario (`portrng SCEN --window 1:N`):
-    1. buy-counter-raise-accept f7156: retail 190 draws incl. FUN_0047df4d (house
-       floor layout = a house (re)load), port 7 — the day-end / next-day path.
+    1. buy-counter-raise-accept f7156: the 4th cs leave of the day hits retail's
+       shop-full branch (shoptime +0x2c3f0 ≥ 4 → `b4e0 = 1; FUN_0048526d()`: house
+       re-layout via FUN_00436f97 + the day-end conversation) —
+       `PORT-DEBT(cs-leave-shopfull)`.
     2. day2-buy-tutorial f15595: retail 7 draws (Tear FUN_00447f4f + bg NPC), port 0.
     3. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
-    4. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
+    4. Boot-time working bank: retail's slot-0 gold is 1000 from f1 (initialised
+       before any load); the port's working arena stays 0 until the load.
+    5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
        delivery + story customers) — no scenario reaches them yet.
 
 ### Regression gate (run before claiming a port change is safe)

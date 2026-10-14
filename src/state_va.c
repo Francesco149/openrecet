@@ -17,6 +17,7 @@
 #include "scene_title.h"
 #include "scene1_companion_ctrl.h"
 #include "scene1_counter_menu.h"
+#include "scene1_display_menu.h"
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_top_hud.h"
@@ -38,6 +39,15 @@ static int32_t get_b56c(void)  { return customer_service_b56c(); }
 static int32_t get_b520(void)  { return customer_service_b520(); }
 static int32_t get_db054(void) { return scene1_companion_db054(); }
 static int32_t get_ttfc(void) { return (int32_t)g_scene_title_anim.frame_counter; }
+static int32_t get_dm_tab(void)  { return display_menu_dbg_cur_tab(); }
+static int32_t get_dm_ntab(void) { return display_menu_dbg_num_tabs(); }
+static int32_t get_dm_cur0(void) { return display_menu_dbg_tab_cursor0(); }
+static int32_t get_dm_cnt0(void) { return display_menu_dbg_tab_count0(); }
+static int32_t get_dm_l0(void)   { return display_menu_dbg_list(0); }
+static int32_t get_dm_l2(void)   { return display_menu_dbg_list(2); }
+static int32_t get_dm_l4(void)   { return display_menu_dbg_list(4); }
+static int32_t get_b5d8(void)  { return customer_service_b5d8(); }
+static int32_t get_b548(void)  { return customer_service_b548(); }
 static int32_t get_b318(void)  { return customer_service_b318(); }
 static int32_t get_b528(void)  { return customer_service_b528(); }
 static int32_t get_gsim(void)  { return (int32_t)g_sim_frame_count; }
@@ -86,6 +96,15 @@ static const state_va_t k_map[] = {
     { 0x730b520u, "cs leave phase b520 (DAT_0730b520)", get_b520 },
     { 0x56db054u, "companion phase counter db054 (DAT_056db054)", get_db054 },
     { 0x9643518u, "title frame counter (DAT_09643518)", get_ttfc },
+    { 0x734b968u, "display menu tab (DAT_0734b968)", get_dm_tab },
+    { 0x731f404u, "display menu tab count (DAT_0731f404)", get_dm_ntab },
+    { 0x7337850u, "display menu tab-0 cursor (DAT_07337850)", get_dm_cur0 },
+    { 0x7337210u, "display menu tab-0 entries (DAT_07337210)", get_dm_cnt0 },
+    { 0x731f598u, "display menu list[0] (DAT_0731f598)", get_dm_l0 },
+    { 0x731f5a0u, "display menu list[2] (DAT_0731f5a0)", get_dm_l2 },
+    { 0x731f5a8u, "display menu list[4] (DAT_0731f5a8)", get_dm_l4 },
+    { 0x730b5d8u, "cs oder / want-list index b5d8 (DAT_0730b5d8)", get_b5d8 },
+    { 0x730b548u, "cs text-reveal budget b548 (DAT_0730b548)", get_b548 },
     { 0x730b318u, "cs queue head b318 (DAT_0730b318)", get_b318 },
     { 0x730b528u, "cs customers advanced b528 (DAT_0730b528)", get_b528 },
     { 0x438b8ccu, "sim frame counter gsim (DAT_0438b8cc)", get_gsim },

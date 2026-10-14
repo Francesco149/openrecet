@@ -311,6 +311,8 @@ void display_menu_open(int mode, int first_open)
      * at all.c:64395) have NO leading "-1 Nothing" entry and seed tab_count 0; the
      * house display stand (mode 0) leads each tab with -1 and seeds 1. */
     const int has_none = (mode < 2) || (mode > 5 && (mode < 7 || mode > 8));
+    if (has_none)
+        s_list[0] = -1;              /* DAT_0731f598[0]: an empty list is just "Nothing" */
     for (int t = 0; t < DISPLAY_MENU_MAX_TABS; t++)
         s_tab_count[t] = has_none ? 1 : 0;
     int cur_tab  = -1;     /* local_420 (becomes 0 on the first item) */
@@ -359,9 +361,7 @@ void display_menu_open(int mode, int first_open)
             list_pos++;
         }
     }
-    s_num_tabs = cur_tab + 1;                         /* DAT_0731f404 */
-    if (s_num_tabs <= 0)
-        s_num_tabs = 1;
+    s_num_tabs = cur_tab + 1;                         /* DAT_0731f404 (0 = empty) */
     if (s_num_tabs <= s_cur_tab)
         s_cur_tab = -1;
     if (s_cur_tab < 0)
@@ -460,6 +460,13 @@ void display_menu_cursor_to_row(void)
         280.0f,
         (float)((s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab]) * 0x24) + 96.0f);
 }
+
+/* state-mirror accessors (src/state_va.c rows) */
+int display_menu_dbg_cur_tab(void)      { return s_cur_tab; }
+int display_menu_dbg_num_tabs(void)     { return s_num_tabs; }
+int display_menu_dbg_tab_cursor0(void)  { return s_tab_cursor[0]; }
+int display_menu_dbg_tab_count0(void)   { return s_tab_count[0]; }
+int display_menu_dbg_list(int i)        { return (i >= 0 && i < DISPLAY_MENU_MAX_LIST) ? s_list[i] : 0; }
 
 /* FUN_00469351 — the same row target, snapped (FUN_00435693) instead of slid. */
 void display_menu_cursor_snap_to_row(void)
