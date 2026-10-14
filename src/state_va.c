@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "actor_ai.h"
 #include "actor_table.h"
 #include "customer_service.h"
 #include "dungeon_flow.h"
@@ -284,7 +285,8 @@ static int is_bg_npc_va(uint32_t va)
 
 /* Retail-layout blocks the port keeps byte for byte: the party block
  * (party.h), the actor table (actor_table.h), the stage objects
- * (dungeon_objects.h), and the floor-flow scalars (dungeon_flow.h). */
+ * (dungeon_objects.h), the number popups (actor_ai.h) and the floor-flow
+ * scalars (dungeon_flow.h). */
 static const int32_t *layout_dword(uint32_t va)
 {
     if (va % 4) return NULL;
@@ -293,6 +295,8 @@ static const int32_t *layout_dword(uint32_t va)
         return (const int32_t *)(const void *)((const uint8_t *)g_actor + (va - 0x76b970u));
     if (va >= 0x695ef78u && va < 0x695ef78u + DOBJ_COUNT * sizeof(dobj_t))
         return (const int32_t *)(const void *)((const uint8_t *)g_dobj + (va - 0x695ef78u));
+    if (va >= 0x44e28f0u && va < 0x44e28f0u + sizeof g_popup)
+        return &g_popup[0][0] + (va - 0x44e28f0u) / 4;
     static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
         { 0x438b4b4u, &g_floor_intro },     { 0x438b8d0u, &g_floor_frames },
         { 0x438b1e8u, &g_floor_time },      { 0x438c85cu, &g_floor_timer[0] },

@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-█████░░░░░░░░░░░░░░░  26.4% referenced-or-better   (92 instrumented)
+█████░░░░░░░░░░░░░░░  27.1% referenced-or-better   (92 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    92 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 11 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   580 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1876 | exists in the engine, no `src/` reference    |
+| source-referenced  |   598 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1858 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 8 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 106 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 118 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -188,8 +188,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f5294**,
-       adv-guild-pack-leave **f15920**: the first enemy AI draw). Done (PROGRESS 2026-10-15):
+    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f5410**,
+       adv-guild-pack-leave **f16202**: Louie's first attack, FUN_0049831c). Done (PROGRESS 2026-10-15):
        the case-1 dungeon load (FUN_00474a9a's dungeon branch + FUN_00436f97's dungeon arm:
        party spawn probe, floor objects FUN_0044ad81, the floor title, b4b4 = 200), FUN_00442cef
        on retail's control flow (the house's FUN_0048670f reconstruction in its slot), the intro
@@ -197,11 +197,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        FUN_0048a4d1 / FUN_0048407f dungeon paths, the walk FUN_0048cdcc → FUN_00489e66, the move
        + collision FUN_00483170, the party block in retail layout (`party.h`). portrng identical
        f3405–f5293; portstate party pos / vel / facing / db054 / records identical to f5400.
+       The actor pass FUN_00430c6d (`src/actor_ai.c`: slimes FUN_0042c9b3, FUN_0042f28c,
+       FUN_004304b3, view depths) → portrng to f5409 / f16201; 9 slimes' pos / vel / yaw /
+       state / facing identical f3405–f5409 (depth +0x450: 22 frames ±11 ulp = the camera).
        Next, in frame order:
-       - the actor (enemy) pass FUN_00430c6d: FUN_0042df55, FUN_0049065b, the AI states
-         FUN_0042f28c (→ FUN_0042c9b3) / FUN_0042f7ad, FUN_004304b3, FUN_0042e1a6 / FUN_0042e791;
-       - Louie's attack state (db048 2 → FUN_0049831c), FUN_0044376a (the attack's hit
-         records), the table-B tick FUN_0043ae20 / the combat SM FUN_0043865e;
+       - ★ Louie's attack state (db048 2 → FUN_0049831c, FUN_0049a052), FUN_0044376a (the
+         attack's hit records), the table-B tick FUN_0043ae20 / the combat SM FUN_0043865e;
+       - actor pass debts: FUN_00445a8c (slime hit reaction / type-4 hop records),
+         FUN_0042e1a6 (death), FUN_0042f7ad (dying), FUN_0042e791 (poison), the other
+         types' AI, the golem parts, FUN_0042df55's lists for stages >= 20;
        - the floor-event ticker end (b92c → 0 in the HUD render FUN_0040a765, quirk §143),
          FUN_00441aab ("?" spots), FUN_0043a5d9 (stage objects), the portals' floor change
          (FUN_00452f16 → FUN_004536cb's 6a49964 arm → the LAB_00452a6b reload), pickups
@@ -235,7 +239,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
-  end, plus dungeon0-floors-save / adv-guild-pack-leave into the dungeon (to f5293 / f15919).
+  end, plus dungeon0-floors-save / adv-guild-pack-leave into the dungeon (to f5409 / f16201).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,

@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 11,
   "inv_implemented": 0,
-  "inv_source_referenced": 580,
-  "inv_discovered": 1876,
-  "referenced_or_better": 672,
-  "pct_referenced_or_better": 26.4,
+  "inv_source_referenced": 598,
+  "inv_discovered": 1858,
+  "referenced_or_better": 690,
+  "pct_referenced_or_better": 27.1,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 106,
+  "port_debt": 118,
   "verified": 81,
   "stubbed": 11,
-  "ported": 580,
-  "unported": 1876,
-  "touched": 672,
-  "pct_touched": 26.4,
+  "ported": 598,
+  "unported": 1858,
+  "touched": 690,
+  "pct_touched": 27.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3824,18 +3824,20 @@
    "size": 1370,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x426811",
@@ -3957,18 +3959,20 @@
    "size": 679,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4284ba",
@@ -3995,18 +3999,20 @@
    "size": 567,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x428718",
@@ -4014,18 +4020,20 @@
    "size": 972,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x428ae4",
@@ -4033,18 +4041,20 @@
    "size": 1062,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x428f0a",
@@ -4052,18 +4062,20 @@
    "size": 1254,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4293f0",
@@ -4147,18 +4159,20 @@
    "size": 1038,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42a74c",
@@ -4166,18 +4180,20 @@
    "size": 1226,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42ac16",
@@ -4244,18 +4260,20 @@
    "size": 270,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42c9b3",
@@ -4263,18 +4281,21 @@
    "size": 1124,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42ce17",
@@ -4282,18 +4303,20 @@
    "size": 441,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42cfd0",
@@ -4388,6 +4411,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h",
     "src/actor_spawn.h"
    ],
    "status": "ported"
@@ -4398,18 +4423,20 @@
    "size": 1515,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42e791",
@@ -4428,6 +4455,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
     "src/scene1_particles_tick.h"
@@ -4461,18 +4489,21 @@
    "size": 795,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42f685",
@@ -4518,18 +4549,20 @@
    "size": 3334,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4304b3",
@@ -4537,18 +4570,21 @@
    "size": 1869,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x430c00",
@@ -4589,6 +4625,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h",
     "src/scene1_particles_tick.c",
     "src/scene1_particles_tick.h",
     "src/scene1_sim.c"
@@ -4650,6 +4688,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/diff_entry.c",
     "src/diff_entry.h",
     "src/dungeon_flow.c",
@@ -4892,6 +4931,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/collision_house.c",
     "src/collision_mesh.h",
     "src/collision_query.c",
@@ -4935,6 +4975,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/collision_resolve.c",
     "src/collision_resolve.h",
     "src/dungeon_party.c",
@@ -5978,6 +6019,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_flow.h",
     "src/party_move.c",
     "src/scene1_combat_sm.h",
@@ -6307,6 +6349,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
     "src/scene1_render.c",
@@ -6495,6 +6538,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.h",
     "src/customer_service.c",
     "src/dungeon_flow.h",
     "src/scene1_day_close.h",
@@ -6634,6 +6678,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/scene1_records.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
@@ -6677,6 +6722,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_party.c",
     "src/main.c",
     "src/scene1_combat_sm.h",
@@ -6836,18 +6882,20 @@
    "size": 89,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x44b219",
@@ -13068,6 +13116,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/actor_table.c",
     "src/customer_haggle.c",
     "src/customer_haggle.h",
@@ -16375,6 +16424,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_party.c",
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
@@ -18452,6 +18502,8 @@
     "stub"
    ],
    "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h",
     "src/scene1_hud.c",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
@@ -18465,18 +18517,20 @@
    "size": 139,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x490820",
@@ -18506,18 +18560,20 @@
    "size": 41,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4909a5",
@@ -20130,6 +20186,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/audio.c",
     "src/audio.h",
     "src/audio_se_names.h",

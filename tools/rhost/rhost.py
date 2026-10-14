@@ -628,7 +628,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
                                       "buy-from-seller-guild-intro")]
          # (kind, scenario, window): RNG identical up to the Depart's dungeon load (the dungeon port's front)
-         + [("portrng", "dungeon0-floors-save", "1:5293"), ("portrng", "adv-guild-pack-leave", "1:15919")])
+         + [("portrng", "dungeon0-floors-save", "1:5409"), ("portrng", "adv-guild-pack-leave", "1:16201")])
 
 
 def cmd_gates(a):

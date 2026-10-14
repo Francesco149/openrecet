@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — the actor pass: slimes (dungeon pilot)
+`src/actor_ai.c`: FUN_00430c6d (respawn countdown, HP-bar ease, sleep/wake by distance,
+room-seen flag, poison sparkle, anim tick, the per-state AI, physics, head points, view
+depths FUN_0049065b / FUN_0049097c, the falls), FUN_0042f28c (dispatch + gravity),
+FUN_0042c9b3 (slimes: wander / lunge / type-4 hop), FUN_004304b3 (ground, body push vs
+the player, move, damping, facing, wall rays, leash), FUN_0044b1c0 (number popups;
+DAT_044e28f0, FUN_00442cef counts [3]). **portrng dungeon0-floors-save identical
+f3405–f5409** (was f5293), adv-guild-pack-leave to f16201 (was f15919); both next split at
+Louie's attack FUN_0049831c. portstate: 9 slimes' pos / vel / yaw / state / facing / ground
+identical f3405–f5409; +0x450 depth differs 22 frames by ~11 ulp (render camera, the
+unported FUN_00441c3e). Debts: FUN_00445a8c, FUN_0042e1a6, FUN_0042f7ad, FUN_0042e791, the
+other enemy types, golem parts.
+
 ## 2026-10-15 — the dungeon floor: load, intro, the walk (dungeon pilot)
 `dungeon0-floors-save`: **portrng identical f3405–f5293** (was f3409 — the Depart's load):
 the load, the 200-tick intro, the iv2_10 dialogue, the "Equip items in bag?" prompt and

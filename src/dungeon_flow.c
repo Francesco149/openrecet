@@ -67,7 +67,6 @@ int32_t g_dat_0438b550;
 int32_t g_dat_0438b554[20];
 int32_t g_dat_0064e818;
 int32_t g_dat_06a46fa4;
-int32_t g_dat_044e28fc[32][7];
 float   g_floor_spawn_yaw;
 
 int32_t g_title_banner;

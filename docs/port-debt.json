@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 79,
+  "total": 89,
   "by_kind": {
-   "stub": 56,
+   "stub": 65,
    "synthetic-data": 0,
    "simplified": 8,
    "hardcode": 2,
@@ -19,13 +19,15 @@
    "door-proximity": 1,
    "focused": 3,
    "house-teardown": 1,
+   "render-coupled": 1,
    "semantic-collision": 1,
    "stage-scratch": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 67,
+  "retiring_engine_fns": 75,
   "by_engine_fn": {
    "FUN_00436f97": 3,
+   "FUN_00445a8c": 3,
    "FUN_004176ff": 2,
    "FUN_00434ceb": 2,
    "FUN_0043a5d9": 2,
@@ -42,11 +44,18 @@
    "FUN_004176ff L3876": 1,
    "FUN_004176ff L4958": 1,
    "FUN_0041f4a6": 1,
+   "FUN_0042c8a5": 1,
+   "FUN_0042df55": 1,
+   "FUN_0042e1a6": 1,
+   "FUN_0042e791": 1,
+   "FUN_0042f28c": 1,
+   "FUN_0042f7ad": 1,
    "FUN_00430c00": 1,
    "FUN_00430c6d": 1,
    "FUN_00432e50": 1,
    "FUN_00435c98": 1,
    "FUN_00441aab": 1,
+   "FUN_00441c3e": 1,
    "FUN_004426a7": 1,
    "FUN_00442cef": 1,
    "FUN_0044376a": 1,
@@ -140,7 +149,7 @@
    "engine_fn": "FUN_00430c00",
    "desc": "no town NPCs exist in",
    "file": "src/scene1_sim.c",
-   "line": 124,
+   "line": 125,
    "kind_known": false
   },
   {
@@ -148,7 +157,7 @@
    "engine_fn": "FUN_0043a5d9",
    "desc": "no consumer wired; no RNG.",
    "file": "src/scene1_sim.c",
-   "line": 134,
+   "line": 135,
    "kind_known": false
   },
   {
@@ -181,6 +190,14 @@
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
    "line": 1297,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00441c3e",
+   "desc": "the view matrix is the render's;",
+   "file": "src/actor_ai.c",
+   "line": 134,
    "kind_known": false
   },
   {
@@ -268,7 +285,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "one retail-shaped master tick.",
    "file": "src/scene1_sim.c",
-   "line": 149,
+   "line": 150,
    "kind_known": false
   },
   {
@@ -321,10 +338,58 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_0042c8a5",
+   "desc": "the knocked-back pose",
+   "file": "src/actor_ai.c",
+   "line": 241,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042df55",
+   "desc": "stages >= 20 index past the dungeon",
+   "file": "src/actor_ai.c",
+   "line": 110,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042e1a6",
+   "desc": "the death (EXP, drops, the kill count)",
+   "file": "src/actor_ai.c",
+   "line": 554,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042e791",
+   "desc": "the poison tick (ftol(p), 4)",
+   "file": "src/actor_ai.c",
+   "line": 511,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042f28c",
+   "desc": "the other types' AI (FUN_0042ce17,",
+   "file": "src/actor_ai.c",
+   "line": 253,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042f7ad",
+   "desc": "the dying actor",
+   "file": "src/actor_ai.c",
+   "line": 557,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_00430c6d",
-   "desc": "the townsfolk / enemy AI pass",
-   "file": "src/scene1_sim.c",
-   "line": 508,
+   "desc": "the golem parts (types 62 / 63 / 65 / 66)",
+   "file": "src/actor_ai.c",
+   "line": 564,
    "kind_known": true
   },
   {
@@ -364,7 +429,7 @@
    "engine_fn": "FUN_0043a5d9",
    "desc": "the stage objects' tick",
    "file": "src/scene1_sim.c",
-   "line": 511,
+   "line": 512,
    "kind_known": true
   },
   {
@@ -372,7 +437,7 @@
    "engine_fn": "FUN_00441aab",
    "desc": "the \"?\" spots / item radar",
    "file": "src/scene1_sim.c",
-   "line": 507,
+   "line": 508,
    "kind_known": true
   },
   {
@@ -380,7 +445,7 @@
    "engine_fn": "FUN_004426a7",
    "desc": "the cinematic camera ramp",
    "file": "src/scene1_sim.c",
-   "line": 528,
+   "line": 529,
    "kind_known": true
   },
   {
@@ -388,7 +453,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 370,
+   "line": 371,
    "kind_known": true
   },
   {
@@ -397,6 +462,30 @@
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
    "line": 954,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00445a8c",
+   "desc": "the slime's hit reaction (kind 11)",
+   "file": "src/actor_ai.c",
+   "line": 148,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00445a8c",
+   "desc": "the hop's hit record (kind 31)",
+   "file": "src/actor_ai.c",
+   "line": 158,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00445a8c",
+   "desc": "kind 31",
+   "file": "src/actor_ai.c",
+   "line": 162,
    "kind_known": true
   },
   {
@@ -436,7 +525,7 @@
    "engine_fn": "FUN_0044c9ba",
    "desc": "dungeon 0 floor 4 \u2014 the iv2_11 / iv2_9",
    "file": "src/dungeon_flow.c",
-   "line": 202,
+   "line": 201,
    "kind_known": true
   },
   {
@@ -452,7 +541,7 @@
    "engine_fn": "FUN_0044d47d",
    "desc": "dungeons 1..5's events \u2014 FUN_0044d47d,",
    "file": "src/dungeon_flow.c",
-   "line": 217,
+   "line": 216,
    "kind_known": true
   },
   {
@@ -476,7 +565,7 @@
    "engine_fn": "FUN_00452f16",
    "desc": "the next floor's load (b4cc + 1,",
    "file": "src/scene1_sim.c",
-   "line": 363,
+   "line": 364,
    "kind_known": true
   },
   {
@@ -484,7 +573,7 @@
    "engine_fn": "FUN_0045bd22",
    "desc": "the last floor's return (be98 3)",
    "file": "src/scene1_sim.c",
-   "line": 335,
+   "line": 336,
    "kind_known": true
   },
   {
@@ -556,7 +645,7 @@
    "engine_fn": "FUN_0047f46a",
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
-   "line": 292,
+   "line": 293,
    "kind_known": true
   },
   {
@@ -588,7 +677,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 160,
+   "line": 159,
    "kind_known": true
   },
   {

@@ -46,6 +46,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "actor_ai.h"
 #include "audio.h"
 #include "chara_equip.h"
 #include "choice_box.h"
@@ -505,7 +506,7 @@ void scene1_ingame_default_arm_tick(void)
             house_master_tick();             /* FUN_0048670f */
         if (g_floor_intro == 0) {
             /* PORT-DEBT(stub, FUN_00441aab): the "?" spots / item radar */
-            /* PORT-DEBT(stub, FUN_00430c6d): the townsfolk / enemy AI pass */
+            actor_pass();                    /* FUN_00430c6d */
             scene1_records_b_tick();         /* FUN_0043ae20 */
             /* PORT-DEBT(stub, FUN_0042ea35) */
             /* PORT-DEBT(stub, FUN_0043a5d9): the stage objects' tick */
@@ -514,7 +515,7 @@ void scene1_ingame_default_arm_tick(void)
     if (g_scene1_combat_dat_0438b908 > 0) --g_scene1_combat_dat_0438b908;
     scene1_records_c_tick();                 /* FUN_0044284b */
     for (int k = 0; k < 32; k++)
-        if (g_dat_044e28fc[k][0] > 0) --g_dat_044e28fc[k][0];
+        if (g_popup[k][3] > 0) --g_popup[k][3];
     g_dat_0064e818 = 1;
 tail:
     /* FUN_004427f1 (the house's story cascade / the dungeon's events) */

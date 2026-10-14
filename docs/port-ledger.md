@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **92** (81 full + 11 stub), implemented 0, source-referenced 580, discovered 1876 → 672 referenced-or-better (26.4%)
+- **inventory:** instrumented **92** (81 full + 11 stub), implemented 0, source-referenced 598, discovered 1858 → 690 referenced-or-better (27.1%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 8
 
@@ -30,7 +30,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4141c0 | FUN_004141c0 | 389 | ✓ | stub | scene1_hud.c, scene1_hud.h |
 | 0x414929 | FUN_00414929 | 1465 | ✓ |  | scene1_particles_tick.c, scene1_particles_tick.h, scene1_per_frame_open.c (+2) |
 | 0x41f252 | FUN_0041f252 | 113 | ✓ |  | actor_spawn.c, actor_spawn.h, scene1_particles_tick.h (+3) |
-| 0x43195d | FUN_0043195d | 51 | ✓ |  | diff_entry.c, diff_entry.h, dungeon_flow.c (+6) |
+| 0x43195d | FUN_0043195d | 51 | ✓ |  | actor_ai.c, diff_entry.c, diff_entry.h (+7) |
 | 0x431990 | FUN_00431990 | 70 | ✓ |  | diff_entry.c, diff_entry.h, stage_gate.c (+1) |
 | 0x4319d6 | FUN_004319d6 | 170 | ✓ |  | enemy_place.h, floor_layout.h, scene1_combat_sm.c (+6) |
 | 0x43244c | FUN_0043244c | 39 | ✓ |  | map_collision.h, scene1_preload.c, stage_palette.c (+1) |
@@ -46,7 +46,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43ae20 | FUN_0043ae20 | 25750 | ✓ |  | scene1_combat_sm.h, scene1_player_ctrl.h, scene1_preload.c (+5) |
 | 0x4427d3 | FUN_004427d3 | 30 | ✓ | stub | scene1_particles_tick.h, scene1_sim.c, scene1_sim.h (+3) |
 | 0x44284b | FUN_0044284b | 1083 | ✓ |  | scene1_records_c_tick.c, scene1_records_c_tick.h, scene1_sim.c (+1) |
-| 0x442cef | FUN_00442cef | 2490 | ✓ |  | customer_service.c, dungeon_flow.h, scene1_day_close.h (+7) |
+| 0x442cef | FUN_00442cef | 2490 | ✓ |  | actor_ai.h, customer_service.c, dungeon_flow.h (+8) |
 | 0x451874 | FUN_00451874 | 47 | ✓ |  | audio.h, audio_mci.c, audio_mci.h (+17) |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ |  | main.c, scene1_fps.c, scene1_fps.h |
 | 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, fade.c, fade.h (+9) |
@@ -103,7 +103,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48ff93 | FUN_0048ff93 | 70 | ✓ |  | chara_equip.h, save_bank.c |
 | 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ |  | save_bank.c, scene1_postload.c, scene1_postload.h (+1) |
 | 0x49001c | FUN_0049001c | 422 | ✓ |  | save_bank.c, save_bank.h, scene.c (+2) |
-| 0x49065b | FUN_0049065b | 314 | ✓ | stub | scene1_hud.c, scene1_overlay.c, scene1_overlay.h (+1) |
+| 0x49065b | FUN_0049065b | 314 | ✓ | stub | actor_ai.c, actor_ai.h, scene1_hud.c (+3) |
 | 0x490e56 | FUN_00490e56 | 494 | ✓ |  | npc_schedule.c, npc_schedule.h, scene.c (+1) |
 | 0x499583 | FUN_00499583 | 231 | ✓ |  | audio.c, audio.h, audio_fade.c (+11) |
 | 0x49966a | FUN_0049966a | 1412 | ✓ |  | audio.c, audio.h, audio_fade.h (+7) |
@@ -117,7 +117,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (580) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (598) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -188,19 +188,34 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41f903 | FUN_0041f903 | 308 | ✓ |  | actor_table.h, dungeon_party.c, enemy_place.h |
 | 0x42353c | FUN_0042353c | 330 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x423b58 | FUN_00423b58 | 2118 | ✓ |  | scene1_top_hud.c |
+| 0x4262b7 | FUN_004262b7 | 1370 | ✓ |  | actor_ai.c |
+| 0x428213 | FUN_00428213 | 679 | ✓ |  | actor_ai.c |
+| 0x4284e1 | FUN_004284e1 | 567 | ✓ |  | actor_ai.c |
+| 0x428718 | FUN_00428718 | 972 | ✓ |  | actor_ai.c |
+| 0x428ae4 | FUN_00428ae4 | 1062 | ✓ |  | actor_ai.c |
+| 0x428f0a | FUN_00428f0a | 1254 | ✓ |  | actor_ai.c |
+| 0x42a33e | FUN_0042a33e | 1038 | ✓ |  | actor_ai.c |
+| 0x42a74c | FUN_0042a74c | 1226 | ✓ |  | actor_ai.c |
 | 0x42b6b7 | FUN_0042b6b7 | 4590 | ✓ |  | scene1_particles_tick.c |
-| 0x42df55 | FUN_0042df55 | 593 | ✓ |  | actor_spawn.h |
-| 0x42e791 | FUN_0042e791 | 676 | ✓ |  | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h |
+| 0x42c8a5 | FUN_0042c8a5 | 270 | ✓ |  | actor_ai.c |
+| 0x42c9b3 | FUN_0042c9b3 | 1124 | ✓ |  | actor_ai.c, actor_ai.h |
+| 0x42ce17 | FUN_0042ce17 | 441 | ✓ |  | actor_ai.c |
+| 0x42df55 | FUN_0042df55 | 593 | ✓ |  | actor_ai.c, actor_ai.h, actor_spawn.h |
+| 0x42e1a6 | FUN_0042e1a6 | 1515 | ✓ |  | actor_ai.c |
+| 0x42e791 | FUN_0042e791 | 676 | ✓ |  | actor_ai.c, scene1_combat_sm.c, scene1_combat_sm.h (+1) |
 | 0x42ea35 | FUN_0042ea35 | 2135 | ✓ |  | scene1_sim.c |
+| 0x42f28c | FUN_0042f28c | 795 | ✓ |  | actor_ai.c, actor_ai.h |
+| 0x42f7ad | FUN_0042f7ad | 3334 | ✓ |  | actor_ai.c |
+| 0x4304b3 | FUN_004304b3 | 1869 | ✓ |  | actor_ai.c, actor_ai.h |
 | 0x430c00 | FUN_00430c00 | 109 | ✓ |  | scene1_sim.c, scene1_sim.h |
-| 0x430c6d | FUN_00430c6d | 3022 | ✓ |  | scene1_particles_tick.c, scene1_particles_tick.h, scene1_sim.c |
+| 0x430c6d | FUN_00430c6d | 3022 | ✓ |  | actor_ai.c, actor_ai.h, scene1_particles_tick.c (+2) |
 | 0x431a80 | FUN_00431a80 | 156 | ✓ |  | scene1_preload.c, scene1_preload.h |
 | 0x431b1c | FUN_00431b1c | 568 | ✓ |  | enemy_place.h, scene1_postload.c |
 | 0x431d54 | FUN_00431d54 | 1762 | ✓ |  | actor_table.h, enemy_place.c, enemy_place.h (+1) |
 | 0x43289b | FUN_0043289b | 555 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+1) |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+2) |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | collision_house.c, collision_mesh.h, collision_query.c (+20) |
-| 0x433674 | FUN_00433674 | 2354 | ✓ |  | collision_resolve.c, collision_resolve.h, dungeon_party.c (+7) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | actor_ai.c, collision_house.c, collision_mesh.h (+21) |
+| 0x433674 | FUN_00433674 | 2354 | ✓ |  | actor_ai.c, collision_resolve.c, collision_resolve.h (+8) |
 | 0x433fa6 | FUN_00433fa6 | 426 | ✓ |  | party_move.c, party_move.h |
 | 0x434198 | FUN_00434198 | 60 | ✓ |  | party_move.h |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ |  | storage.c |
@@ -228,7 +243,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x436180 | FUN_00436180 | 50 |  |  | news_daily.c, news_daily.h |
 | 0x4361b2 | FUN_004361b2 | 532 | ✓ |  | customer_haggle.h, customer_service.c, customer_service.h (+7) |
 | 0x4363c6 | FUN_004363c6 | 185 | ✓ |  | news_daily.c, news_daily.h |
-| 0x43647f | FUN_0043647f | 61 | ✓ |  | dungeon_flow.h, party_move.c, scene1_combat_sm.h (+3) |
+| 0x43647f | FUN_0043647f | 61 | ✓ |  | actor_ai.c, dungeon_flow.h, party_move.c (+4) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ |  | dungeon_flow.h, dungeon_party.c, tables_snews.h |
 | 0x436623 | FUN_00436623 | 2420 | ✓ |  | customer_service.c, news_daily.c, news_daily.h (+4) |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | actor_spawn.h, collision_house.c, collision_house.h (+41) |
@@ -239,21 +254,22 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43ab6e | FUN_0043ab6e | 690 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x4412b6 | FUN_004412b6 | 2037 | ✓ |  | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x441aab | FUN_00441aab | 403 | ✓ |  | scene1_render.c, scene1_sim.c |
-| 0x441c3e | FUN_00441c3e | 2217 | ✓ |  | scene1_camera.c, scene1_camera.h, scene1_render.c (+2) |
+| 0x441c3e | FUN_00441c3e | 2217 | ✓ |  | actor_ai.c, scene1_camera.c, scene1_camera.h (+3) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ |  | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ |  | scene1_sim.c, scene1_sim.h, scene1_top_hud.c |
 | 0x4427f1 | FUN_004427f1 | 90 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c (+1) |
 | 0x442c86 | FUN_00442c86 | 105 | ✓ |  | scene1_sim.c |
 | 0x44375e | FUN_0044375e | 12 | ✓ |  | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ |  | dungeon_party.c, main.c, party.h (+8) |
-| 0x445a8c | FUN_00445a8c | 8952 | ✓ |  | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
-| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | dungeon_party.c, main.c, scene1_combat_sm.h (+10) |
+| 0x445a8c | FUN_00445a8c | 8952 | ✓ |  | actor_ai.c, scene1_records.h, scene1_records_b_spawn.c (+2) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | actor_ai.c, dungeon_party.c, main.c (+11) |
 | 0x44ad81 | FUN_0044ad81 | 367 | ✓ |  | dungeon_objects.c, dungeon_objects.h, scene1_postload.c |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ |  | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
 | 0x44af50 | FUN_0044af50 | 419 | ✓ |  | scene1_records_c_spawn.c, scene1_records_c_spawn.h |
 | 0x44b0f3 | FUN_0044b0f3 | 60 | ✓ |  | scene1_particles_tick.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
 | 0x44b12f | FUN_0044b12f | 61 | ✓ |  | dungeon_party.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h |
 | 0x44b16c | FUN_0044b16c | 84 | ✓ |  | scene1_combat_sm.h |
+| 0x44b1c0 | FUN_0044b1c0 | 89 | ✓ |  | actor_ai.h |
 | 0x44b219 | FUN_0044b219 | 60 | ✓ |  | scene1_postload.c, scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b257 | FUN_0044b257 | 55 | ✓ |  | scene1_postload.c |
@@ -442,7 +458,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x470a46 | FUN_00470a46 | 766 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ |  | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ |  | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_table.c, customer_haggle.c, customer_haggle.h (+14) |
+| 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_ai.c, actor_table.c, customer_haggle.c (+15) |
 | 0x47183b | FUN_0047183b | 151 | ✓ |  | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ |  | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ |  | d3d_tex_names.h, scene1_dungeon_clear_banner.c, scene1_preload.c (+13) |
@@ -531,7 +547,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x482059 | FUN_00482059 | 97 | ✓ |  | scene1_tutorial_dispatch.c, scene_day_end.c, scene_pause.c (+1) |
 | 0x4820ba | FUN_004820ba | 2455 | ✓ |  | choice_box.c, encyclopedia.h, main.c (+2) |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ |  | actor_table.h, dungeon_flow.c, dungeon_party.h (+8) |
-| 0x482a71 | FUN_00482a71 | 118 | ✓ |  | dungeon_party.c, scene1_bg_npc.c, scene1_bg_npc.h (+7) |
+| 0x482a71 | FUN_00482a71 | 118 | ✓ |  | actor_ai.c, dungeon_party.c, scene1_bg_npc.c (+8) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ |  | dungeon_party.c, scene1_records_b_tick.c |
 | 0x482c43 | FUN_00482c43 | 1198 | ✓ |  | party_move.h |
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ |  | collision_resolve.c, collision_resolve.h, party_move.h |
@@ -593,7 +609,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4902aa | FUN_004902aa | 84 | ✓ |  | save_bank.h, save_work.c, save_work.h (+1) |
 | 0x4902fe | FUN_004902fe | 682 | ✓ |  | audio_fade.h, main.c, save_bank.h (+2) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ |  | main.c, save_io.c, save_io.h (+4) |
+| 0x490795 | FUN_00490795 | 139 | ✓ |  | actor_ai.h |
 | 0x490820 | FUN_00490820 | 348 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x49097c | FUN_0049097c | 41 | ✓ |  | actor_ai.h |
 | 0x490c78 | FUN_00490c78 | 77 | ✓ |  | dungeon_party.c, scene1_actor_say.c, scene1_hud.c (+3) |
 | 0x490cc6 | FUN_00490cc6 | 99 | ✓ |  | scene1_render.c |
 | 0x490d29 | FUN_00490d29 | 84 | ✓ |  | scene1_render.c, scene1_render.h |
@@ -629,7 +647,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ |  | audio.c, audio.h, customer_service.c (+10) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |
-| 0x499519 | FUN_00499519 | 23 | ✓ |  | audio.c, audio.h, audio_se_names.h (+19) |
+| 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+20) |
 | 0x499538 | FUN_00499538 | 20 | ✓ |  | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ |  | music.h |
 | 0x499560 | FUN_00499560 | 15 |  |  | music.c, music.h, scene_title.c |
