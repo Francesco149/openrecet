@@ -19,6 +19,7 @@
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "stage_gate.h"
 #include "xp_curve.h"
+#include "dungeon_flow.h"
 #include "party.h"
 #include "save_work.h"
 
@@ -43,7 +44,7 @@ static int32_t *chara_rec(int idx)
 #define g_dat_056db0c0 (PW(0x56db0c0u).f)   /* SP */
 #define g_dat_056db0c4 (PW(0x56db0c4u).f)   /* the HP gauge's shown value */
 #define g_dat_056db0c8 (PW(0x56db0c8u).f)   /* the SP gauge's shown value */
-static int32_t g_dat_0438bea0;
+#define g_dat_0438bea0 g_equip_prompt       /* dungeon_flow.h */
 static float   g_dat_0438b91c;
 static int32_t g_dat_0438b4c4;
 #define g_dat_056dae44 (&PW(0x56dae44u).i)   /* [6] */

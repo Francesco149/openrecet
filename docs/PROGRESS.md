@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — the dungeon floor: load, intro, the walk (dungeon pilot)
+`dungeon0-floors-save`: **portrng identical f3405–f5293** (was f3409 — the Depart's load):
+the load, the 200-tick intro, the iv2_10 dialogue, the "Equip items in bag?" prompt and
+~110 ticks of walking with collision. portstate (party pos / vel / facing / db054 / the
+three sprite records) bit-identical to f5400. adv-guild-pack-leave identical to f15919.
+- **The party block in retail layout** (`src/party.h`, DAT_056da1b8..DAT_056dd7dc): the
+  player controller's private copies (actor records, velocity, facing, rings, banks,
+  db054, char ids, HP / SP) now alias it; `PW(va)` reads any dword by its retail VA.
+  FUN_00435c98 reads the active chara's record from the work record (was a zero table).
+- **The case-1 dungeon load**: FUN_00474a9a's clamp + `maptype != 0` branch (texture cache,
+  FUN_00474681), then FUN_00436f97 with the head resets (`dungeon_flow_stage_reset`), the
+  party spawn (`party_stage_reset`: 3 actors 1.5 apart, actor 0's 5-point ground probe), the
+  object table reset, the c85c timers, and the dungeon arm: equip-prompt arm, enemy placement,
+  the floor objects FUN_0044ad81 (`src/dungeon_objects.c`: the exit portal, the marked
+  cells' objects) and the floor title FUN_00406551 + b4b4 = 200.
+- **FUN_00442cef on retail's control flow** (`scene1_sim.c`): the portal proximity scan, the
+  bea0 equip prompt, the be9c portal prompt, the be98 floor end, the b4b4 intro (iv2_10 at 1,
+  bea0 at 0), FUN_0044bb1a (falls), FUN_0048b3f6 vs the house's FUN_0048670f slot, the
+  FUN_004427f1 gating. The event arm runs FUN_0048407f's dungeon branch.
+- **The party on a floor** (`src/dungeon_party.c`, `src/party_move.c`): FUN_0048b850's dungeon
+  path (pad lock, gauges, the floor event pick FUN_004364bc, the hurry-up timer + ghost
+  spawn, gravity, the speed cap, the facing octant, damping, the after-image banks, the
+  auto-map), FUN_0048a833 / FUN_0048a4d1 (the partner follows the player, Tear the partner),
+  FUN_0048cdcc → FUN_00489e66 / FUN_00489db8 (the walk), FUN_0048d5d6 (the attack press),
+  FUN_00483170 + FUN_00482c43 / FUN_004830f1 / FUN_00433fa6 (the move, body pushes, the
+  slope-edge slide, the radial wall push, the ground snap). Quirk §143.
+- The enemy table is seeded with its whole .data record (sprite id, scale, the body
+  radius / height floats; was names + flags only).
+- Tools: `portstate --window`; `state_va` mirrors the party block, the actor table, the
+  object table and the floor-flow scalars generically by VA.
+
 ## 2026-10-14 (late) — dungeon pilot: map collision, enemy placement, the §141 stage init
 `dungeon0-floors-save` (native recording, slot 9 → save slot 11, 12,371 frames: guild Leave,
 the Merchants' Guild, Depart, dungeon 0 floors 1→3 via the portals, 3–4 enemy kinds, a "?"

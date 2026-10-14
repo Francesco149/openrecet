@@ -149,20 +149,25 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — Depart's dungeon load** (dungeon0-floors-save **f3409**,
-       adv-guild-pack-leave **f14267**). Done (PROGRESS 2026-10-14 late): map collision
-       (`map_collision.c`, rhost 0 div over the corpus), actor table + enemy placement
-       (`actor_table.c`, `enemy_place.c`, shadow 0 div), b4dc / DAT_068dd2f0 / FUN_0045bcea /
-       FUN_00474681 slots, the §141 town-visit dungeon arm (portrng identical through every
-       Merchants' Guild visit). Next, in frame order at f3409:
-       - the case-1 load with b4dc = a dungeon stage: FUN_00474a9a's maptype ≥ 1 branch
-         (chr by DAT_0438b7d8, the object meshes) + FUN_00473c15; the port still runs the house
-         preload/postload (retail: floor layout + FUN_00436f97's dungeon arm inside the load,
-         then the per-frame dungeon tick FUN_00442cef → FUN_0048b3f6, 1 draw/frame);
-       - FUN_00436f97's remaining dungeon pieces: DAT_056da1cc/1d0 (player char by b7d8),
-         FUN_0044c88f.. per-dungeon setups, FUN_0044ad81 floor objects (exit portal, marked
-         cells), FUN_00432473, the actor-0 spawn probe (FUN_00432e50, now ported);
-       - then in-dungeon: enemy AI / combat / portals / chests (the scenario has all of them).
+    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f5294**,
+       adv-guild-pack-leave **f15920**: the first enemy AI draw). Done (PROGRESS 2026-10-15):
+       the case-1 dungeon load (FUN_00474a9a's dungeon branch + FUN_00436f97's dungeon arm:
+       party spawn probe, floor objects FUN_0044ad81, the floor title, b4b4 = 200), FUN_00442cef
+       on retail's control flow (the house's FUN_0048670f reconstruction in its slot), the intro
+       countdown → iv2_10 → the equip prompt, FUN_0048b3f6 / FUN_0048b850 / FUN_0048a833 /
+       FUN_0048a4d1 / FUN_0048407f dungeon paths, the walk FUN_0048cdcc → FUN_00489e66, the move
+       + collision FUN_00483170, the party block in retail layout (`party.h`). portrng identical
+       f3405–f5293; portstate party pos / vel / facing / db054 / records identical to f5400.
+       Next, in frame order:
+       - the actor (enemy) pass FUN_00430c6d: FUN_0042df55, FUN_0049065b, the AI states
+         FUN_0042f28c (→ FUN_0042c9b3) / FUN_0042f7ad, FUN_004304b3, FUN_0042e1a6 / FUN_0042e791;
+       - Louie's attack state (db048 2 → FUN_0049831c), FUN_0044376a (the attack's hit
+         records), the table-B tick FUN_0043ae20 / the combat SM FUN_0043865e;
+       - the floor-event ticker end (b92c → 0 in the HUD render FUN_0040a765, quirk §143),
+         FUN_00441aab ("?" spots), FUN_0043a5d9 (stage objects), the portals' floor change
+         (FUN_00452f16 → FUN_004536cb's 6a49964 arm → the LAB_00452a6b reload), pickups
+         FUN_0048cbf6, chests;
+       - render: no dungeon renderer yet (FUN_00473c15's assets are `PORT-DEBT(stub)`).
        Shadow each fn (`rh_hooks.c`) as it lands; the house player collision moves to
        `map_collision.c` (`PORT-DEBT(semantic-collision)`).
     2. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
@@ -191,7 +196,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
-  end, plus dungeon0-floors-save / adv-guild-pack-leave up to their Depart (f3408 / f14266).
+  end, plus dungeon0-floors-save / adv-guild-pack-leave into the dungeon (to f5293 / f15919).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,

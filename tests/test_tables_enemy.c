@@ -21,6 +21,15 @@
 
 /* ─────────────────────────────────────────────────────────────────── */
 
+/* a record the parse does not touch keeps its pre-baked value */
+static const enemy_record_t *init_ref(void)
+{
+    static enemy_record_t ref[ENEMY_COUNT];
+    static int done;
+    if (!done) { tables_enemy_init(ref); done = 1; }
+    return ref;
+}
+
 int test_tables_enemy_init_pre_baked_names(void)
 {
     /* tables_enemy_init must populate the canonical 64 names + boss
@@ -47,9 +56,13 @@ int test_tables_enemy_init_pre_baked_names(void)
     T_ASSERT_EQ_I(memcmp(recs[63].name, "\x83\x53\x81\x5b\x83\x8c\x83\x80\x8d\xb6", 10), 0);
     T_ASSERT_EQ_I(recs[63].flags, 1);
 
-    /* Stats start at zero before any parse. */
-    T_ASSERT_EQ_I(recs[0].hp, 0);
-    T_ASSERT_EQ_I(recs[0].drop_common, 0);  /* not yet set to -1 */
+    /* The rest of the record comes from the same .data block: the stats
+     * enemy.txt rewrites and the runtime floats (scale, body radius /
+     * height) nothing rewrites. */
+    T_ASSERT_EQ_I(recs[0].hp, 15);
+    T_ASSERT(recs[0].runtime_floats[0] == 0.8f);
+    T_ASSERT(recs[0].runtime_floats[1] == 1.5f);
+    T_ASSERT(recs[0].runtime_floats[2] == 2.0f);
     return 0;
 }
 
@@ -75,8 +88,8 @@ int test_tables_enemy_basic_record(void)
     T_ASSERT_EQ_I(recs[0].drop_rare,   -1);
 
     /* Other records untouched. */
-    T_ASSERT_EQ_I(recs[1].hp,           0);
-    T_ASSERT_EQ_I(recs[6].hp,           0);
+    T_ASSERT_EQ_I(recs[1].hp, init_ref()[1].hp);
+    T_ASSERT_EQ_I(recs[6].hp, init_ref()[6].hp);
     return 0;
 }
 
@@ -98,8 +111,8 @@ int test_tables_enemy_longest_prefix_wins(void)
     T_ASSERT_EQ_I(recs[7].exp_reward, 88);
     T_ASSERT_EQ_I(recs[7].at, 77);
     /* Record 6 = アーリマン (the shorter prefix) — must stay zero. */
-    T_ASSERT_EQ_I(recs[6].hp, 0);
-    T_ASSERT_EQ_I(recs[6].at, 0);
+    T_ASSERT_EQ_I(recs[6].hp, init_ref()[6].hp);
+    T_ASSERT_EQ_I(recs[6].at, init_ref()[6].at);
     return 0;
 }
 
@@ -120,9 +133,9 @@ int test_tables_enemy_shorter_prefix_when_no_longer_match(void)
     T_ASSERT_EQ_I(recs[6].hp, 10);
     T_ASSERT_EQ_I(recs[6].md, 60);
     /* Suffix-records untouched. */
-    T_ASSERT_EQ_I(recs[7].hp, 0);
-    T_ASSERT_EQ_I(recs[8].hp, 0);
-    T_ASSERT_EQ_I(recs[9].hp, 0);
+    T_ASSERT_EQ_I(recs[7].hp, init_ref()[7].hp);
+    T_ASSERT_EQ_I(recs[8].hp, init_ref()[8].hp);
+    T_ASSERT_EQ_I(recs[9].hp, init_ref()[9].hp);
     return 0;
 }
 
@@ -149,8 +162,8 @@ int test_tables_enemy_comments_and_blanks_skipped(void)
     T_ASSERT_EQ_I(recs[22].drop_common, -1);
 
     /* Records on either side stay zeroed. */
-    T_ASSERT_EQ_I(recs[21].hp, 0);
-    T_ASSERT_EQ_I(recs[23].hp, 0);
+    T_ASSERT_EQ_I(recs[21].hp, init_ref()[21].hp);
+    T_ASSERT_EQ_I(recs[23].hp, init_ref()[23].hp);
     return 0;
 }
 
@@ -213,13 +226,13 @@ int test_tables_enemy_placeholder_records_skip_match(void)
 
     tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
-    T_ASSERT_EQ_I(recs[29].hp, 0);
-    T_ASSERT_EQ_I(recs[31].hp, 0);
-    T_ASSERT_EQ_I(recs[32].hp, 0);
-    T_ASSERT_EQ_I(recs[33].hp, 0);
-    T_ASSERT_EQ_I(recs[56].hp, 0);
-    T_ASSERT_EQ_I(recs[57].hp, 0);
-    T_ASSERT_EQ_I(recs[58].hp, 0);
+    T_ASSERT_EQ_I(recs[29].hp, init_ref()[29].hp);
+    T_ASSERT_EQ_I(recs[31].hp, init_ref()[31].hp);
+    T_ASSERT_EQ_I(recs[32].hp, init_ref()[32].hp);
+    T_ASSERT_EQ_I(recs[33].hp, init_ref()[33].hp);
+    T_ASSERT_EQ_I(recs[56].hp, init_ref()[56].hp);
+    T_ASSERT_EQ_I(recs[57].hp, init_ref()[57].hp);
+    T_ASSERT_EQ_I(recs[58].hp, init_ref()[58].hp);
     /* Sanity: real record DID populate. */
     T_ASSERT_EQ_I(recs[0].hp, 15);
     return 0;

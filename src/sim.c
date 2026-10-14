@@ -26,6 +26,7 @@
  */
 
 #include "sim.h"
+#include "dungeon_flow.h"   /* the title banner (FUN_00406551) */
 
 #include "call_trace.h"
 
@@ -511,6 +512,7 @@ void sim_step_a(void)
         /* FUN_00406584's speech-bubble block (all.c:4615-4630) — its head,
          * before the mode-specific tooltip. */
         speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         /* FUN_00406584 mode-1 tooltip block (all.c:4655-4664, before its
          * FUN_004356cd call): the counter-menu "Opening the shop…" band. */
         {
@@ -573,6 +575,7 @@ void sim_step_a(void)
          * so the cursor position tracks retail (T4). The bob (b154) it also
          * advances is consumed by the destination-pointer render. */
         speech_bubble_tick();            /* FUN_00406584 head (all.c:4615) */
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         title_save_dialog_anim_tick();
         /* FUN_00406584 mode-8 selector (all.c:4776): set the travel-time tooltip
          * band from the destination under the cursor + ramp its slide-in.  Runs
@@ -591,6 +594,7 @@ void sim_step_a(void)
          * through the iv1_3 cutscene).  FUN_00406584's parts here: the speech
          * bubble head, FUN_004356cd, the XP bar, the shake, the money roll. */
         speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();     /* DAT_00529704 = 0 outside modes 1 / 8 */
         title_save_dialog_anim_tick();
         {
@@ -608,6 +612,7 @@ void sim_step_a(void)
         /* LABEL_106: FUN_00406584 (its mode-6 parts, as above) → FUN_0040fb3a
          * → FUN_0045c051 only while no dialogue runs (DAT_0438b1c8 == 0). */
         speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();
         title_save_dialog_anim_tick();
         {

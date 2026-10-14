@@ -237,12 +237,40 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
     scene1_preload_chr_party_sheets();
 }
 
+/* The INGAME load (case 1: FUN_00474a9a + FUN_00436f97) of a dungeon floor
+ * (the stage record's maptype != 0): the texture cache clear FUN_0047281e, the
+ * per-stage pre-load FUN_00474681 (the record, the collision slots), then the
+ * stage-entry init FUN_00436f97 with its dungeon arm. */
+static int scene1_preload_dungeon(void)
+{
+    mesh_tex_cache_reset();             /* FUN_0047281e */
+    stage_palette_load_for_stage();     /* FUN_00474681 */
+    /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
+     * sprites / meshes of the floor roster (FUN_00431a80), the dungeon title,
+     * and FUN_00474a9a's dungeon arm (the player's chr sheet by DAT_0438b7d8, the
+     * trees, the dungeon objects, map.bmp, the hikari frames, mahoujin, the
+     * clear banner, the ice / train / lattice / vector meshes).  No dungeon
+     * renderer consumes them yet. */
+    scene1_postload_stage_entry_init(); /* FUN_00436f97 */
+    return 0;
+}
+
 int scene1_preload_house(void)
 {
     /* E.2 probe — FUN_00474a9a @ 0x474a9a.  Marker for `--align-on-first
      * 0x474a9a`: this is the worker-load INGAME callback that fires once
      * per HOUSE entry on both port and retail. */
     CALL_TRACE_ENTER(0x474a9au);
+
+    /* Top of FUN_00474a9a: a shop stage (DAT_0438b4dc < 4) becomes the shop
+     * tier's stage (work dword +0x2cde0); a dungeon stage stays. */
+    {
+        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        if ((uint32_t)g_stage_b4dc < 4u && w != NULL) g_stage_b4dc = (int32_t)w[0x2cde0 / 4];
+    }
+    stage_palette_select(g_stage_b4dc);
+    if (mapcol_maptype() != 0)
+        return scene1_preload_dungeon();
 
     /* C8g.1 — engine FUN_0040f64b's 3-table preamble.  Sentinel-resets
      * the per-record tables read by the scene-1 mesh walkers.  Called
@@ -309,12 +337,6 @@ int scene1_preload_house(void)
      * dispatch is exercised end-to-end. */
     scene1_postload_smoke_b_spawn();
 
-    /* Top of FUN_00474a9a: a shop stage (DAT_0438b4dc < 4) becomes the shop
-     * tier's stage (work dword +0x2cde0); a dungeon stage stays. */
-    {
-        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
-        if ((uint32_t)g_stage_b4dc < 4u && w != NULL) g_stage_b4dc = (int32_t)w[0x2cde0 / 4];
-    }
     stage_init_house();
 
     /* Engine FUN_0047281e — 24-byte texture cache clear. Drops all

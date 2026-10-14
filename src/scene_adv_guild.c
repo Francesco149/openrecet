@@ -39,6 +39,7 @@
 #include "scene1_tutorial_dispatch.h" /* scene1_beat_set_flag (DAT_0438b928)       */
 #include "scene_worldmap.h"         /* scene_worldmap_set_sel_dest (FUN_0049de0e)  */
 #include "stage_gate.h"             /* stage_gate_set_next (DAT_0438b4cc)          */
+#include "dungeon_flow.h"            /* DAT_0438b4d4 / b4d8              */
 #include "stage_palette.h"          /* g_stage_b4dc, FUN_0047fa4f                  */
 #include "floor_layout.h"           /* floor_layout_boss_group (FUN_0045bc7f)      */
 #include "stage_load_pulse.h"       /* FUN_004682c5 / d0 / e3                      */
@@ -123,8 +124,9 @@ static struct adv_guild_state s = { .bag_size = 38, .chara_row = 1, .bag_row = 1
 static int s_bag[ADV_GUILD_BAG_SLOTS + 1];
 static int s_bag2[ADV_GUILD_BAG_SLOTS + 1];
 
-/* Dungeon-run globals with no other port owner: DAT_0438b4d4, DAT_0438b4d8. */
-static int s_b4d4 = 0, s_b4d8 = 0;
+/* DAT_0438b4d4 / DAT_0438b4d8 (dungeon_flow.h) */
+#define s_b4d4 g_dat_0438b4d4
+#define s_b4d8 g_dat_0438b4d8
 
 int adv_guild_bag_slot(int k)
 {

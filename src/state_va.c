@@ -8,7 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "actor_table.h"
 #include "customer_service.h"
+#include "dungeon_flow.h"
+#include "dungeon_objects.h"
+#include "news_daily.h"
+#include "party.h"
+#include "stage_palette.h"
 #include "floor_layout.h"
 #include "rng.h"
 #include "save_bank.h"
@@ -276,6 +282,35 @@ static int is_bg_npc_va(uint32_t va)
         || va == 0x73a8bb4u || va == 0x73a8bb8u;
 }
 
+/* Retail-layout blocks the port keeps byte for byte: the party block
+ * (party.h), the actor table (actor_table.h), the stage objects
+ * (dungeon_objects.h), and the floor-flow scalars (dungeon_flow.h). */
+static const int32_t *layout_dword(uint32_t va)
+{
+    if (va % 4) return NULL;
+    if (va >= PARTY_VA && va < PARTY_VA + PARTY_SIZE) return &PW(va).i;
+    if (va >= 0x76b970u && va < 0x76b970u + ACTOR_COUNT * ACTOR_SIZE)
+        return (const int32_t *)(const void *)((const uint8_t *)g_actor + (va - 0x76b970u));
+    if (va >= 0x695ef78u && va < 0x695ef78u + DOBJ_COUNT * sizeof(dobj_t))
+        return (const int32_t *)(const void *)((const uint8_t *)g_dobj + (va - 0x695ef78u));
+    static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
+        { 0x438b4b4u, &g_floor_intro },     { 0x438b8d0u, &g_floor_frames },
+        { 0x438b1e8u, &g_floor_time },      { 0x438c85cu, &g_floor_timer[0] },
+        { 0x438be94u, &g_floor_end_timer }, { 0x438be98u, &g_floor_end_kind },
+        { 0x438be9cu, &g_portal_prompt },   { 0x438bea8u, &g_portal_return },
+        { 0x438c14cu, &g_portal_cooldown }, { 0x438bea0u, &g_equip_prompt },
+        { 0x438b8b0u, &g_ctrl_lock },       { 0x438b770u, &g_fall_timer },
+        { 0x438b8a4u, &g_event_tick },      { 0x438b8a0u, &g_event_stage },
+        { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },
+        { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
+        { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
+        { 0x438b4dcu, &g_stage_b4dc },      { 0x438b4d4u, &g_dat_0438b4d4 },
+    };
+    for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
+        if (k_flow[k].va == va) return k_flow[k].p;
+    return NULL;
+}
+
 typedef struct { uint32_t va; int32_t (*get)(void); } sel_t;
 static sel_t s_sel[64];
 static int s_nsel;
@@ -301,7 +336,7 @@ int state_va_select(const char *list, uint32_t *bad)
         while (k < K_N && k_map[k].va != va) k++;
         int in_bank = va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
                       ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0;
-        if (k == K_N && !in_bank && !is_bg_npc_va(va)) {
+        if (k == K_N && !in_bank && !is_bg_npc_va(va) && layout_dword(va) == NULL) {
             /* no port mirror: skip it (the diff reports it retail-only) and tell
              * the caller — a missing mirror must not kill the whole run */
             if (bad) *bad = va;
@@ -321,6 +356,7 @@ void state_va_log(FILE *fp, uint32_t frame)
         fprintf(fp, " %x=%d", (unsigned)s_sel[i].va,
                 (int)(s_sel[i].get ? s_sel[i].get()
                       : is_bg_npc_va(s_sel[i].va) ? bg_npc_dword(s_sel[i].va)
+                      : layout_dword(s_sel[i].va) ? *layout_dword(s_sel[i].va)
                       : bank_dword(s_sel[i].va)));
     fputc('\n', fp);
 #if defined(__i386__) || defined(__x86_64__)

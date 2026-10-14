@@ -26,6 +26,7 @@
 #include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
 #include "call_trace.h"         /* CALL_TRACE_* — flow-trace fields for the both-target verify */
 #include "scene_guild.h"        /* scene_guild_set_variant — mode-6 variant on dest 3/1 */
+#include "stage_palette.h"     /* g_stage_b4dc (DAT_0438b4dc) */
 #include "scene1_postload.h"    /* scene1_postload_stage_entry_init — FUN_00436f97 */
 #include "event_probe.h"       /* FUN_0045de68 */
 #include "scene1_day_close.h"   /* day_close_clear — DAT_0438b4e0 = 0 */
@@ -340,8 +341,7 @@ static void scene_worldmap_cursor_nav(int param)
  * 0xf, and most of mode 6) are separate arcs — their scene-init helpers
  * (FUN_0045e019/196/3cd) are no-ops and the scene renders blank until it
  * ports. FUN_0047360f (slot-10 unload), DAT_0438b1e4 = 0, FUN_0044bce7
- * (DAT_06a4707c/84/80/88/64 = 0) and DAT_0438b4dc = work +0x2cde0 have no
- * port mirrors. */
+ * (DAT_06a4707c/84/80/88/64 = 0) have no port mirrors. */
 static void scene_worldmap_exit_to_dest(void)
 {
     int mode;
@@ -368,8 +368,10 @@ static void scene_worldmap_exit_to_dest(void)
          * door), DAT_0438b4e0 = 0, DAT_0438b928 = 2 (the return beat: Tear
          * follows for 60 ticks, the greeting at b924 1), FUN_004060ff. */
         uint32_t *w = save_work_dwords_at(save_work_active_slot());
-        if (w != NULL)
+        if (w != NULL) {
             w[WORK_SEAT_AT_DOOR] = 1;
+            g_stage_b4dc = (int32_t)w[0x2cde0 / 4];   /* DAT_0438b4dc = the shop tier's stage */
+        }
         day_close_clear();
         scene1_beat_set_flag(2);
         scene1_top_hud_tooltip_house_entry();

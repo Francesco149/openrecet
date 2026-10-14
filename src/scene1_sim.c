@@ -43,6 +43,29 @@
 
 #include "scene1_sim.h"
 
+#include <math.h>
+#include <string.h>
+
+#include "audio.h"
+#include "chara_equip.h"
+#include "choice_box.h"
+#include "dungeon_flow.h"
+#include "dungeon_objects.h"
+#include "dungeon_party.h"
+#include "fade.h"
+#include "map_collision.h"
+#include "news_daily.h"
+#include "party.h"
+#include "save_work.h"
+#include "scene1_camera.h"
+#include "scene1_combat_sm.h"
+#include "scene_pause.h"
+#include "sim.h"
+#include "stage_gate.h"
+#include "stage_post_load.h"
+#include "title_save_dialog.h"
+#include "x87.h"
+
 #include "scene1_particles_tick.h"
 #include "scene1_companion_ctrl.h"
 #include "scene1_conversation_pose.h"
@@ -89,8 +112,12 @@ void scene1_ingame_transition_arm_tick(void)
      * branch (lean tick, shared with the default arm's release frame) + the
      * tail the lean tick deliberately omits (bg-NPC pump, companion
      * spring-follow + wing emit, the unconditional db054++). */
-    scene1_conversation_pose_tick();
-    scene1_event_actor_tail_tick();
+    if (mapcol_maptype() >= 1) {
+        dungeon_event_actor_tick();          /* FUN_0048407f, *DAT_068dd2f0 >= 1 */
+    } else {
+        scene1_conversation_pose_tick();
+        scene1_event_actor_tail_tick();
+    }
 
     /* FUN_004427d3 L9 — FUN_00430c00: town-NPC anim pump (iterates the
      * 0x2e9-dword townfolk records; chr_anim_tick per live slot, then
@@ -114,11 +141,14 @@ void scene1_ingame_transition_arm_tick(void)
      * no RNG.  PORT-DEBT(focused, FUN_004426a7). */
 }
 
-void scene1_ingame_default_arm_tick(void)
-{
-    /* E.2 probe — FUN_00442cef @ 0x442cef. */
-    CALL_TRACE_ENTER(0x442cefu);
+static void stage_event_tick(void);
 
+/* FUN_0048670f's slot of FUN_00442cef on a house stage: the port's house
+ * controller (the conversation-pose release, scene1_player_ctrl_tick = the
+ * FUN_0048670f reconstruction, the companion fallback).
+ * PORT-DEBT(structure, FUN_0048670f): one retail-shaped master tick. */
+static void house_master_tick(void)
+{
     /* DAY-2 actor re-place one-shot (retail FUN_0048526d scene-entry re-seat).
      * FIRST, before the conversation-pose tick derives the face-each-other
      * octants and before render — the default arm runs only on non-dialogue
@@ -217,56 +247,295 @@ void scene1_ingame_default_arm_tick(void)
             scene1_companion_ctrl_advance_phase();
     }
 
-    /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
-     * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer
-     * loop + preamble pos+=vel + age++ + dead-slot skip).  Per-type
-     * dispatch is a no-op stub until sub-chip ladder fills in bodies.
-     * See docs/findings/scene1-records-b-tick.md. */
-    scene1_records_b_tick();
+}
 
-    /* FUN_00442cef L40611 — unconditional inside the default-running
-     * nested block. */
-    scene1_records_c_tick();
+/* the portal check at the top of FUN_00442cef: standing within 1 of a portal
+ * (kind 8, or kind 6 once its state is 1) arms the Yes/No (be9c = 1) unless
+ * the cooldown runs; walking 1 away from a declined one re-arms it (-1 → 0) */
+static void stage_portal_scan(void)
+{
+    static const float k3 = 3.0f, k1 = 1.0f;
+    for (int n = 0; n < DOBJ_COUNT; n++) {
+        const dobj_t *o = &g_dobj[n];
+        const int32_t kind = o->i[DOBJ_KIND];
+        if (kind == -1) continue;
+        if (kind == 6) { if (o->i[DOBJ_STATE] != 1) continue; }
+        else if (kind != 8) continue;
+        if (o->i[DOBJ_STATE] == 3) continue;
+        const float dx = spill32((long double)g_party.pos[0][0] - o->f[DOBJ_POS + 0]);
+        const float dz = spill32((long double)g_party.pos[0][2] - o->f[DOBJ_POS + 2]);
+        const float d = spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+        if (!(d < k3)) continue;
+        g_portal_return = kind == 6;
+        if (g_portal_prompt != 0) {
+            if (g_portal_prompt == -1 && d > k1) g_portal_prompt = 0;
+        } else if (g_portal_cooldown <= 0 && d < k1) {
+            g_portal_prompt = 1;
+            g_portal_cooldown = 30;
+        }
+    }
+}
 
-    /* FUN_00442cef L40849 — the FUN_004427f1 → FUN_0044bd0d story-event
-     * scheduler, just before the particles tail.  Focused port: only the
-     * shop-display tutorial branches (iv1_5/iv1_6).  Runs AFTER the player
-     * controller so a placement's condition flags (D1) are seen the same frame;
-     * RNG-neutral (FUN_0044bd0d consumes no shared LCG), so its position relative
-     * to the particles/overlay tail does not affect parity. */
-    scene1_tutorial_dispatch_tick();
+/* the "Equip items in bag?" prompt (bea0) at a run's first floor */
+static void stage_equip_prompt(void)
+{
+    if (!fade_in_settled()) return;          /* FUN_004528e2 */
+    if (g_equip_prompt < 118) ++g_equip_prompt;
+    if (g_equip_prompt == 2) {
+        audio_play_se_by_id(371);
+        choice_box_open("Equip items in bag?", 1, 0);   /* FUN_00434def(…, 1, 0) */
+    }
+    if (g_equip_prompt <= 2) return;
+    const int r = choice_box_poll(g_sim_buttons[0].pressed, 1);   /* FUN_00434ed2(1) */
+    g_ctrl_lock = 0;
+    if (r == CB_OPT0) {
+        /* PORT-DEBT(stub, FUN_0047f46a): equip the bag's items */
+        chara_equip_recompute_aggregate();   /* FUN_004844ef */
+    } else if (r != CB_OPT1) {
+        return;
+    }
+    g_equip_prompt = 0;
+    choice_box_reset();                      /* FUN_00434dbf */
+    title_save_dialog_cursor_set_visible(0); /* FUN_00435612 */
+    g_ctrl_lock = -1;
+}
 
-    /* FUN_00442cef L40851 (LAB_004435f7) — unconditional tail; reaches
-     * every code path of the function including the early-return pause
-     * branches. */
-    scene1_particles_tick();
+/* the portal Yes/No (be9c 1..3), then the floor change (120: next floor, or
+ * the return pause), the fade, the record times, the next load (121+) */
+static void stage_portal_prompt(uint8_t *rec)
+{
+    int32_t v = g_portal_prompt;
+    if (v < 118) v = ++g_portal_prompt;
+    if (rec[0x2bc82] != 0) {
+        /* dungeon 0 floor 4's tutorial portal */
+        g_ctrl_lock = 0;
+        if (v == 2) scene1_intro_dialogue_start_single(2, 12);   /* FUN_0044ba2c(2, 12, 0) */
+        if (g_portal_prompt == 3) {
+            g_portal_prompt = 0;
+            rec[0x2bc81] = 1;
+            rec[0x2bc82] = 0;
+            g_ctrl_lock = -1;
+            rec[0x2bc80] = 1;
+        }
+    } else {
+        if (v == 2) {
+            audio_play_se_by_id(371);
+            choice_box_open(g_portal_return ? "Return to town now?" : "Go to the next floor?", 1, 0);
+            /* the best-time records of the floor: PORT-DEBT(stub, FUN_00442cef)
+             * the work +181292 / +181692 / +181704 time tables (b1e8) */
+        }
+        if (g_portal_prompt > 2) {
+            const int r = choice_box_poll(g_sim_buttons[0].pressed, 1);
+            g_ctrl_lock = 0;
+            if (r == CB_OPT0) {
+                g_party.vel[0][0] = 0.0f;
+                g_party.vel[0][1] = 0.0f;
+                g_party.vel[0][2] = 0.0f;
+                if (g_portal_return) {
+                    /* PORT-DEBT(stub, FUN_0045bd22): the last floor's return (be98 3)
+                     * vs a mid-run return (be98 2) + the voice */
+                    g_floor_end_kind = 2;
+                    g_portal_prompt = 0;
+                } else {
+                    g_portal_prompt = 120;
+                    if (stage_gate_get_next() == 98 && rec[0x2bcf1] == 0) {
+                        scene1_intro_dialogue_start_single(12, 21);
+                        rec[0x2bcf1] = 1;
+                        g_portal_prompt = 119;
+                    }
+                }
+                g_ctrl_lock = -1;
+            } else if (r == CB_OPT1) {
+                g_portal_prompt = -1;
+                choice_box_reset();
+                title_save_dialog_cursor_set_visible(0);
+                g_ctrl_lock = -1;
+            }
+        }
+    }
+    if (g_portal_prompt == 119) {
+        g_portal_prompt = 120;
+    } else {
+        if (g_portal_prompt == 120) {
+            if (g_portal_return) {
+                pause_dispatch(2);           /* FUN_004536c2 = FUN_00453384(2) */
+            } else {
+                /* PORT-DEBT(stub, FUN_00452f16): the next floor's load (b4cc + 1,
+                 * b4d4 + 1, FUN_0045bcea's stage) */
+            }
+            choice_box_reset();
+            title_save_dialog_cursor_set_visible(0);
+        }
+        if (g_portal_prompt > 120 && fade_is_done()) {
+            /* PORT-DEBT(stub, FUN_00442cef): the run's end (FUN_00442c86,
+             * FUN_0048f7f0, FUN_00474d92, the deepest-floor / trips records,
+             * FUN_0045e028, the world map or FUN_0048526d) */
+        }
+    }
+}
 
-    /* FUN_00442cef tail, immediately after FUN_0040fb3a (scene1_particles_
-     * tick) + FUN_004426a7 (unported, consumes no RNG): the engine's
-     * developer coordinate overlay.  It calls the raw LCG once
-     * (thunk_FUN_005041f6 @ 0x471084 → 442cef.c L421, ret 0x443606) and
-     * sprintf()s the result as "%d", then the player X/Y/Z (DAT_056da1d8/dc/e0)
-     * as "X:%f"/"Y:%f"/"Z:%f", into the debug text grid at DAT_06a47aac rows
-     * 4-6 (FUN_00451874).  That grid is NOT drawn in the retail Steam build, so
-     * we faithfully consume the RNG step but render nothing.
-     *
-     * The step is **UNCONDITIONAL** — `442cef.c` L418-421 `LAB_004435f7` reaches
-     * the `thunk_FUN_005041f6()` on EVERY path to the function tail (the gates at
-     * L412-416 only decide whether `FUN_004427f1` runs *before* it), so the
-     * overlay LCG step fires once per render frame regardless of player movement.
-     *
-     * §95 REVISED-AGAIN 2026-06-05: a 2026-06-04 pass briefly **movement-gated**
-     * this, mis-reading a `house-idle rngcalls DESYNC` as "retail consumes 0 when
-     * idle".  That measurement was **confounded by the un-pinned background-window
-     * NPCs** (which share this LCG and were freely desyncing port↔retail until the
-     * 2026-06-05 bg-NPC {phasepin}).  With the NPCs pinned, a clean
-     * `house-idle-npc-drift --target both` rng-callsite drill shows retail
-     * consuming `0x443606` **every idle frame** (per-frame caller tally = 1, not
-     * 0) — and the decompile is unconditional.  Reverted to unconditional; both
-     * idle AND walk stay rngcalls-ALIGNED (walk was unaffected — every walk frame
-     * moved, so the gate was open there anyway).  engine-quirks §95;
-     * docs/findings/freeroam-rng-consumption.md (Lead C). */
-    scene1_debug_overlay_consume_rng();
+/* the floor end (be98 > 0): the defeat voice at be94 60, the result pause at 119 */
+static void stage_floor_end(uint8_t *rec)
+{
+    static const char *const k_down_voice[8] = {
+        "bin/se/00re/action/00re_btl11.bin", "bin/se/00re/action/00re_btl12.bin",
+        "bin/se/00re/action/00re_btl13.bin", "bin/se/00re/action/00re_btl14.bin",
+        "bin/se/00re/action/00re_btl16.bin", "bin/se/00re/action/00re_btl15.bin",
+        "bin/se/00re/action/00re_btl17.bin", "bin/se/00re/action/00re_btl18.bin",
+    };
+    g_ctrl_lock = 0;
+    g_cut_follow = 0;
+    if (g_floor_end_timer == 60) {
+        const int32_t c = chara_equip_get_current_chara();
+        if (g_floor_end_kind == 1 && c >= 0 && c < 8)
+            audio_play_se_file(k_down_voice[c]);
+        else {
+            ++g_floor_end_timer;
+            goto check;
+        }
+    }
+    if (g_floor_end_timer < 118) {
+        ++g_floor_end_timer;
+    } else if (g_floor_end_kind != 1) {
+        g_floor_end_timer = 119;
+    } else if (rec[0x2bc88] == 0) {
+        rec[0x2bc88] = 1;
+        int32_t story; memcpy(&story, rec + 0x2dd64, 4);
+        if (story != 2) scene1_intro_dialogue_start_single(2, 13);
+    } else if (g_sim_buttons[0].pressed & 0x10) {
+        g_floor_end_timer = 119;
+    }
+check:
+    if (g_floor_end_timer == 119) {
+        pause_dispatch(2);                   /* FUN_004536c2 */
+        uint8_t *cr = rec + 0x2ceb0 + 0x6c * chara_equip_get_current_chara();
+        int32_t *cnt = (int32_t *)(void *)(cr + (g_floor_end_kind == 1 ? 0x54 : g_floor_end_kind == 2 ? 0x58 : 0x5c));
+        ++*cnt;
+    }
+}
+
+void scene1_ingame_default_arm_tick(void)
+{
+    /* E.2 probe — FUN_00442cef @ 0x442cef. */
+    CALL_TRACE_ENTER(0x442cefu);
+    uint8_t *rec = save_work_bank_at(save_work_active_slot());
+
+    /* DAT_0438b8bc = 0 (the light-pass gate, never set in the port); DAT_06a46fa4 = 0 */
+    g_dat_06a46fa4 = 0;
+    if (g_portal_cooldown > 0) --g_portal_cooldown;
+    if (g_scene1_camera_stage_class == 0 && g_floor_end_kind == 0 && g_dat_0438becc == 0 && g_ctrl_lock == -1)
+        stage_portal_scan();
+    if (g_dat_0438beb4 > 0) {
+        --g_dat_0438beb4;
+        /* PORT-DEBT(stub, FUN_0044b38c) */
+        goto tail;
+    }
+    if (g_dat_0438bebc <= 0) {
+        if (g_scene1_combat_dat_0438bed8 <= 0) {
+            g_sim_buttons[0].pressed |= (uint16_t)g_input_hold;
+            g_input_hold = 0;
+        } else {
+            g_input_hold |= g_sim_buttons[0].pressed;
+        }
+    }
+    if (g_dat_0438bebc > 0) {
+        --g_dat_0438bebc;
+        /* PORT-DEBT(stub, FUN_0044b635) */
+        goto tail;
+    }
+    if (g_news_ticker_timer != 0 && mapcol_maptype() != 0) {
+        /* the floor event's ticker: the player waits (FUN_0048b844 = the status
+         * tick only); SE 701 at 30; A/B/C fast-forwards (b950 = 2, +7/tick).
+         * The ticker's end (b92c = 0) is decided by the HUD render FUN_0040a765
+         * from the text width — PORT-DEBT(render-coupled, FUN_0040a765). */
+        if (g_ctrl_lock == -1 && g_news_ticker_timer > 0) {
+            int32_t v = g_news_ticker_timer;
+            if (g_dat_0438b950 == 2) v += 7;
+            ++v;
+            g_news_ticker_timer = v;
+            if (v > 30 && (g_sim_buttons[0].pressed & 0x70)) g_dat_0438b950 = 2;
+            if (v == 30 && !stage_gate_floor_is_checkpoint() && g_floor_event_n > 0)
+                audio_play_se_by_id(701);
+        }
+        party_status_tick();                 /* FUN_0048b844 */
+        goto tail;
+    }
+    if (g_scene1_combat_dat_0438bed8 > 0) {
+        --g_scene1_combat_dat_0438bed8;
+        g_dat_06a46fa4 = 1;
+        goto tail;
+    }
+    if (g_equip_prompt > 0 && rec != NULL && (rec[0x2bce2] == 0 || rec[0x2bcf8] != 0)) {
+        stage_equip_prompt();
+        goto tail;
+    }
+    if (g_portal_prompt > 0 && rec != NULL) {
+        stage_portal_prompt(rec);
+        goto tail;
+    }
+    if (g_dat_0438beb0 > 0) --g_dat_0438beb0;
+    if (g_floor_intro == 0) ++g_floor_frames;
+    if (g_floor_end_kind == 0) ++g_floor_time;
+    if (g_floor_end_kind > 0 && rec != NULL) stage_floor_end(rec);
+    {
+        int32_t v = g_dat_0438becc;
+        if (g_dat_0438becc > 0) v = --g_dat_0438becc;
+        if (v % 3 != 0)
+            return;                          /* the off-frames end here, no tail */
+    }
+    if (g_floor_intro > 0) {
+        --g_floor_intro;
+        g_ctrl_lock = 0;
+        if (g_floor_intro == 1) {
+            if (rec != NULL && rec[0x2bc83] == 0) {
+                rec[0x2bc83] = 1;
+                int32_t story; memcpy(&story, rec + 0x2dd64, 4);
+                if (story != 2)
+                    scene1_intro_dialogue_start_single(2, 10);   /* FUN_0044ba2c(2, 10, 0) */
+            }
+        } else if (g_floor_intro == 0) {
+            g_equip_prompt = 1;
+        }
+    }
+    if (g_floor_end_timer < 120) {
+        dungeon_fall_tick();                 /* FUN_0044bb1a */
+        if (dungeon_flow_is_dungeon())
+            dungeon_player_tick();           /* FUN_0048b3f6 */
+        else
+            house_master_tick();             /* FUN_0048670f */
+        if (g_floor_intro == 0) {
+            /* PORT-DEBT(stub, FUN_00441aab): the "?" spots / item radar */
+            /* PORT-DEBT(stub, FUN_00430c6d): the townsfolk / enemy AI pass */
+            scene1_records_b_tick();         /* FUN_0043ae20 */
+            /* PORT-DEBT(stub, FUN_0042ea35) */
+            /* PORT-DEBT(stub, FUN_0043a5d9): the stage objects' tick */
+        }
+    }
+    if (g_scene1_combat_dat_0438b908 > 0) --g_scene1_combat_dat_0438b908;
+    scene1_records_c_tick();                 /* FUN_0044284b */
+    for (int k = 0; k < 32; k++)
+        if (g_dat_044e28fc[k][0] > 0) --g_dat_044e28fc[k][0];
+    g_dat_0064e818 = 1;
+tail:
+    /* FUN_004427f1 (the house's story cascade / the dungeon's events) */
+    if ((stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == 0) ||
+        (g_scene1_combat_stage_id == 5 && stage_gate_get_next() == 30)) {
+        if (g_equip_prompt <= 1) stage_event_tick();
+    } else if (g_scene1_combat_dat_0438bed8 == 0) {
+        stage_event_tick();
+    }
+    scene1_particles_tick();                 /* FUN_0040fb3a */
+    /* PORT-DEBT(stub, FUN_004426a7): the cinematic camera ramp */
+    scene1_debug_overlay_consume_rng();      /* the overlay rand + X/Y/Z text */
+}
+
+/* FUN_004427f1 */
+static void stage_event_tick(void)
+{
+    if (dungeon_flow_is_dungeon())
+        dungeon_event_tick();
+    else
+        scene1_tutorial_dispatch_tick();     /* FUN_0044bd0d */
 }
 
 /* §95 dev-overlay LCG step (442cef.c L421 / ret 0x443606), UNCONDITIONAL: the

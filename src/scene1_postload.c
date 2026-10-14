@@ -52,7 +52,13 @@
 
 #include "actor_spawn.h"           /* actor_spawn_reset (FUN_0041f252) */
 #include "actor_table.h"           /* g_actor_alloc_n (DAT_0438b1bc) */
+#include "dungeon_flow.h"          /* the floor-flow scalars (b4b4, bea0, …) */
+#include "dungeon_objects.h"       /* FUN_0044ad81 */
+#include "dungeon_party.h"         /* the party resets */
+#include "party.h"
 #include "enemy_place.h"           /* FUN_00431d54 / FUN_00431b1c */
+#include "floor_layout.h"          /* the marks DAT_0438b434, DAT_0438b4b0 */
+#include <math.h>
 #include "map_collision.h"         /* g_mapcol_objs (DAT_0438bfb0..) */
 #include "scene1_combat_sm.h"      /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "scene1_maplight.h"       /* scene1_current_stage_record (DAT_068dd2f0) */
@@ -267,31 +273,100 @@ static void postload_mapcol_objs_from_walker(void)
     }
 }
 
-/* FUN_00436f97's `> 4` arm (L388..): the per-dungeon setup, the enemy
- * placement, then the floor objects. */
+/* The ground probe FUN_00436f97 runs around a floor-object spot: the spot,
+ * then up to 4 points 2 away ((k + 0.5)·2π/4); a point is taken when the
+ * ground is within 0.5 of y 0.  Returns 0 when none is (p = the last try). */
+static int postload_spot_probe(float p[3], float cx, float cz)
+{
+    static const float k_quad = 4.0f, k2pi = 6.2831854820251465f, k0p5 = 0.5f;
+    for (int k = 0; k < 5; k++) {
+        p[0] = cx; p[1] = 0.0f; p[2] = cz;
+        if (k > 0) {
+            float a = spill32((long double)k);
+            a = spill32(((long double)a + k0p5) * k2pi / k_quad);
+            const double ad = a;
+            float t = spill32(x87_crt_sin(ad));
+            p[0] = spill32((long double)t + t + p[0]);
+            t = spill32(x87_crt_cos(ad));
+            p[2] = spill32((long double)t + t + p[2]);
+        }
+        mapcol_hit_t hit;
+        if (mapcol_ground(p[0], spill32((long double)p[1] + k0p5), p[2], &hit) == 1 &&
+            spill32(fabsl((long double)hit.height)) < k0p5)
+            return 1;
+    }
+    return 0;
+}
+
+/* a cell's centre: (-cell·40) */
+static float postload_cell_xy(int32_t c)
+{
+    return spill32((long double)spill32((long double)-c) * 40.0f);
+}
+
+/* FUN_00436f97's `> 4` arm: the per-dungeon setup, the enemy placement, the
+ * floor objects (FUN_0044ad81), the floor title. */
 static void postload_dungeon_arm(void)
 {
+    static const float k0p35 = 0.3499999940395355f, k0p5 = 0.5f;
     uint8_t *rec = save_work_bank_at(save_work_active_slot());
     if (rec == NULL) return;
-    /* PORT-DEBT(stub, FUN_0044c88f): the per-dungeon setups FUN_0044c88f /
-     * 44d1e4 / 44d9d3 / 44e08f / 450443 / 450ee0 (boss-room objects, no rand on
-     * dungeon 0's floors), and DAT_0438bea0 (b4d0 >= 0 && b4d4 == 0, or 5/30). */
+    int32_t story; memcpy(&story, rec + 187748, 4);   /* work dword +0x2dd64 */
+    if (g_scene1_combat_stage_id == 0) {
+        /* FUN_0044c88f: dungeon 0 floor 4 (the tutorial boss) —
+         * PORT-DEBT(stub, FUN_0044c88f): the party line-up + FUN_0044b257 */
+    } else {
+        /* PORT-DEBT(stub, FUN_0044d1e4): dungeons 1..5's setups FUN_0044d1e4 /
+         * 44d9d3 / 44e08f / 450443 / 450ee0 */
+    }
+    if ((stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == 0) ||
+        (g_scene1_combat_stage_id == 5 && stage_gate_get_next() == 30))
+        g_equip_prompt = 1;
     const enemy_place_in_t in = {
         { g_scene1_combat_stage_id, stage_gate_get_next(), stage_post_load_get_mode_b4d0(),
-          0 /* DAT_0438cbe4, zeroed by the head */, rec[0x2bc57] },
+          g_ghost_count, rec[0x2bc57] },
         rec, stage_gate_floor_is_checkpoint, stage_gate_query,
     };
     if (stage_gate_floor_is_checkpoint()) enemy_place_boss(&in);   /* FUN_00431b1c */
     else enemy_place_floor(&in);                                   /* FUN_00431d54 */
     rec[0x2bc82] = 0;
     if (g_scene1_combat_stage_id == 0 && stage_gate_get_next() == 4) {
-        int32_t v; memcpy(&v, rec + 0x2dd64, 4);
-        if (!(rec[0x2bc81] != 0 || v == 2)) rec[0x2bc82] = 1;
+        const float *o = g_scene1_stage_player_default_pos;
+        if (rec[0x2bc81] != 0 || story == 2) {
+            const float p[3] = { o[0], spill32((long double)o[1] + 2.0f), spill32((long double)o[2] + 10.0f) };
+            const float sc[3] = { k0p35, k0p35, k0p35 };
+            dobj_spawn(p, sc, 0.0f, 6);
+        } else {
+            rec[0x2bc82] = 1;
+            const float p[3] = { o[0], 2.0f, spill32((long double)o[2] + 10.0f) };
+            const float sc[3] = { k0p5, k0p5, k0p5 };
+            dobj_spawn(p, sc, 0.0f, 4);
+        }
+    } else if (rec[0x2bce2] == 0 && rec[0x2bcf8] == 0 && !stage_gate_floor_is_checkpoint()) {
+        /* the next-floor portal at the exit cell */
+        float ex[3];
+        const float cx = postload_cell_xy(g_floor_marks[1][0]), cz = postload_cell_xy(g_floor_marks[1][1]);
+        if (!postload_spot_probe(ex, cx, cz)) { ex[0] = cx; ex[1] = 0.0f; ex[2] = cz; }
+        const float sc5[3] = { k0p5, k0p5, k0p5 };
+        dobj_spawn(ex, sc5, 0.0f, 8);
+        if (g_scene1_combat_stage_id == 5 && (stage_gate_get_next() == 9 || stage_gate_get_next() == 19)) {
+            /* PORT-DEBT(stub, FUN_00436f97): dungeon 5's return portal 6 beside
+             * the exit (floors 9 / 19) */
+        }
+        /* the marked cells' objects, 4 / 5 alternating */
+        for (int32_t k = 0; k < g_floor_extra_n; k++) {
+            float p[3];
+            if (!postload_spot_probe(p, postload_cell_xy(g_floor_marks[2 + k][0]),
+                                     postload_cell_xy(g_floor_marks[2 + k][1])))
+                continue;
+            dobj_spawn(p, sc5, 0.0f, (k & 1) ? 5 : 4);
+        }
+        if (stage_post_load_get_dat_0438b4c4() != 0) {
+            dungeon_title_banner_open(180, 1);   /* FUN_00406551 */
+            g_floor_intro = 200;
+            stage_post_load_set_dat_0438b4c4(0);
+        }
     }
-    /* PORT-DEBT(stub, FUN_0044ad81): the floor objects (the exit portal at the
-     * exit cell, the DAT_0438b430 marked cells' objects, the boss-floor extras)
-     * with their FUN_00432e50 spiral probes (no rand), and DAT_0438b4c4 →
-     * FUN_00406551(180, 1). */
 }
 
 void scene1_postload_stage_entry_init(void)
@@ -301,6 +376,13 @@ void scene1_postload_stage_entry_init(void)
      * (no port mirror outside the placement input). */
     stage_palette_select(g_stage_b4dc);
     g_actor_alloc_n = 0;
+    /* the floor-flow scalars of the head (b4b4, b8b0 = -1, be94..becc, b1e8 …)
+     * and DAT_0438c150 (the mover count) = 0 */
+    dungeon_flow_stage_reset();
+    g_mapcol_movers.on[0] = 0;
+    /* the camera yaw DAT_073de39c = 0 (the house arm sets π below);
+     * PORT-DEBT(stub, FUN_0044b219): the camera shake reset, DAT_073de3a0 = 45 */
+    g_scene1_camera_yaw = 0.0f;
     /* L8-L84: the scene BSS resets the port mirrors — the actor-say bubble
      * driver (b764/b76c), the counter-menu slides (b74c/b750/b754), the news
      * ticker (b92c), the camera snap flag (cc68).  b924 = 0 has no port mirror outside the iv2 beat. */
@@ -321,17 +403,42 @@ void scene1_postload_stage_entry_init(void)
     memset(g_mapcol_objs.y, 0, sizeof g_mapcol_objs.y);
     memset(g_mapcol_objs.z, 0, sizeof g_mapcol_objs.z);
 
+    /* DAT_0438c85c..: 225 cells of 2400 (7200 in dungeon 0); cbe0 / cbe4 = 0
+     * (dungeon_flow_stage_reset).  The party chars: a dungeon floor's party is
+     * the adventurer (by DAT_0438b7d8), Recette, Tear; the house's Recette and
+     * Tear (actor 1 off). */
+    for (int k = 0; k < 225; k++) g_floor_timer[k] = g_scene1_combat_stage_id != 0 ? 2400 : 7200;
+    g_ghost_timer = 0;
+    g_ghost_count = 0;
+    {
+        const stage_record_t *st = scene1_current_stage_record();
+        if (st != NULL && (uint32_t)st->dungeon_id > 4u) {
+            static const int32_t k_chr[8] = { 3, 27, 28, 30, 40, 31, 41, 42 };
+            const int32_t c = chara_equip_get_current_chara();
+            g_party.chr[0] = (c >= 0 && c < 8) ? k_chr[c] : 42;
+            g_party.chr[1] = 0;
+        } else {
+            g_party.chr[1] = -1;
+            g_party.chr[0] = 0;
+        }
+        g_party.chr[2] = 1;
+    }
+
     /* L21 + L180: DAT_0438b484 clear + the floor-layout generator. */
     scene1_preload_floor_layout();
 
-    /* L208-263 block 11: the spawn pose (the spiral collision retry is
-     * PORT-DEBT(stub, FUN_00432e50) — the house seat below overrides it). */
-    scene1_postload_pose_player();
+    /* the hurry-up timer: rooms × 3600 / 2400 / 2100 / 1800 / 1200 / 900 by dungeon */
+    {
+        static const int32_t k_per_room[6] = { 3600, 2400, 2100, 1800, 1200, 900 };
+        const int32_t d = g_scene1_combat_stage_id;
+        if (d >= 0 && d < 6) g_floor_timer[0] = k_per_room[d] * g_floor_rooms_total;
+    }
 
-    /* L250-370 blocks 12-15: actor records, velocity, facing π, db048 …;
-     * db054 (DAT_056db054) = 0. */
-    player_ctrl_stage_entry_reset();
-    scene1_companion_ctrl_reset();
+    /* the party: the three actors at the floor origin (actor 0 probed for ground),
+     * their records / scales, the history rings, the block's scalars, db054 */
+    party_stage_reset();
+    /* the stage object table */
+    dobj_reset();
 
     /* L384-399: FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1),
      * FUN_0041f252, FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
@@ -339,7 +446,12 @@ void scene1_postload_stage_entry_init(void)
     actor_spawn_reset();
     scene1_top_hud_tooltip_house_entry();
     speech_bubble_reset();
+    g_title_banner = g_title_banner_len = g_title_banner_kind = 0;   /* FUN_004060ff's part */
     player_ctrl_cc08_enter_freeroam();
+    /* b8a0 = b8a4 = 0 (the per-dungeon event stage / counter; b8a0 was 1
+     * through the init), DAT_0438ccb0 = DAT_0438b8fc = 0, FUN_0044bd03 */
+    g_event_stage = 0;
+    g_event_tick = 0;
     {
         const uint8_t *rec = save_work_bank_at(save_work_active_slot());
         scene1_bg_npc_stage_reset(rec ? rec[0x2bcfd] != 0 : 0);
@@ -362,6 +474,8 @@ void scene1_postload_stage_entry_init(void)
         player_ctrl_display_latch_reset();
         postload_seat();
     }
+
+    g_floor_spawn_yaw = PW(0x56db05cu).f;   /* DAT_0438b4ac */
 
     /* L727-740 the ambient spawn (gated off in the house). */
     scene1_postload_ambient_spawn();
@@ -762,10 +876,10 @@ void scene1_postload_walker_phase2_init(void)
      * FUN_00436f97 zeroes yaw at its top (L40) then writes π *only* in
      * this alt-stage else-branch — i.e. exactly when this writer fires.
      * Porting it here (rather than the flag-gated camera-groundtruth MVP)
-     * makes the 180° HOUSE camera flip faithful.  The sibling spawn-angle
-     * `_DAT_056db060 = π` (L590) is not modelled — it feeds the particle
-     * spawn-camera, not the render pose. */
+     * makes the 180° HOUSE camera flip faithful.  The sibling
+     * `_DAT_056db060 = π` (L590) is the yaw FUN_0048b850 eases the camera to. */
     g_scene1_camera_yaw = 3.1415927f;
+    PW(0x56db060u).f = 3.1415927f;
 
     /* iVar8 is the engine constant 3 (FUN_00436f97 L178 `iVar8 = 3`); it
      * is NOT a per-game runtime input.  On the alt-stage path nothing

@@ -82,6 +82,13 @@ void fade_tick(void)
     }
 }
 
+int fade_in_settled(void)
+{
+    if (g_fade_phase != -1) return 1;
+    if (g_fade_mode == 2) return g_fade_counter == 30;
+    return g_fade_counter == g_fade_duration;
+}
+
 int fade_is_done(void)
 {
     /* E.2 probe — FUN_004528b3 @ 0x4528b3. */

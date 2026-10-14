@@ -66,6 +66,10 @@ void fade_tick(void);
  * AND (mode==2 ? counter==0x1f : counter==duration). 0 otherwise. */
 int  fade_is_done(void);
 
+/* FUN_004528e2 — no fade-in running (phase != -1), or it reached its end
+ * (mode 2: counter 30, else counter == duration). */
+int  fade_in_settled(void);
+
 /* Reset to BSS-zero. Tests + lifecycle. */
 void fade_reset(void);
 

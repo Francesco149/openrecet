@@ -628,7 +628,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
                                       "buy-from-seller-guild-intro")]
          # (kind, scenario, window): RNG identical up to the Depart's dungeon load (the dungeon port's front)
-         + [("portrng", "dungeon0-floors-save", "1:3408"), ("portrng", "adv-guild-pack-leave", "1:14266")])
+         + [("portrng", "dungeon0-floors-save", "1:5293"), ("portrng", "adv-guild-pack-leave", "1:15919")])
 
 
 def cmd_gates(a):
@@ -683,6 +683,9 @@ def cmd_portstate(a):
     R = parse_post(os.path.join(bdir, name, "rhost.log"))
     P = parse_post(os.path.join(pdir_l, "state.log"))
     common_f = sorted(set(R) & set(P))
+    if getattr(a, "window", None):
+        lo, hi = (int(x) for x in a.window.split(":"))
+        common_f = [f for f in common_f if lo <= f <= hi]
     print(f"frames: retail {len(R)} / port {len(P)} / both {len(common_f)}")
     if not common_f:
         print("no frames on both sides — nothing compared (port run failed? see the port state.log)")
@@ -791,7 +794,9 @@ def main():
     p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
-    p.add_argument("--context", type=int, default=4); common(p); p.set_defaults(fn=cmd_portstate)
+    p.add_argument("--context", type=int, default=4)
+    p.add_argument("--window", help="FROM:TO: compare only these frames")
+    common(p); p.set_defaults(fn=cmd_portstate)
     p = sp.add_parser("portrng"); p.add_argument("scenario"); p.add_argument("--window", required=True, help="FROM:TO frames (TO may be \"end\"; clamped to the retail run)")
     p.add_argument("--context", type=int, default=3); common(p); p.set_defaults(fn=cmd_portrng)
     p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")

@@ -5038,6 +5038,32 @@ returns the object loop index at `+0x18`.
 rhost shadow `mapcol_build` / `mapcol_ground` / `mapcol_ray`, `verify` 2026-10-14:
 895 / 922,546 / 2,385,138 calls over 73 scenarios, 0 divergences.
 
+## 143. Dungeon party movement: the slope-edge slide takes `atan2(ex, ex)`; Tear's follow writes the partner's facing
+
+`FUN_00483170` (the player's move + collision, `src/party_move.c`):
+- When the try-move lands on a type-1/2 (slope edge) face, the velocity is turned along
+  the crossed triangle edge. The direction check compares `atan2(vx, vz) + π` with
+  `atan2(ex, ex) + π` — the second call passes the edge's x twice (0x483775..0x483789),
+  so the "same direction" test is against a fixed 45° / 225° angle, not the edge.
+- Bodies push through `FUN_00482c43`: if the player is inside the circle the push is
+  `(r − c)·dir·0.5`; moving toward it, the velocity is turned onto the tangent
+  (len + 1e-4 out), the other tangent when the turn exceeds 90°..270°.
+- The radial wall push uses 8 rays at +0.7; on a house stage past z 0.7, 20 rays
+  (stacked from +0.18 in 0.08 steps). Only actors 0 and 1 get a ground probe here.
+
+`FUN_0048a4d1(target, 1)` (Tear's spring-follow) writes its walk octant to
+`DAT_056dab2c` — actor 1's facing — then copies the target's facing into Tear's
+`DAT_056dab58`. On a dungeon floor Tear follows actor 1 (the partner), and the
+partner's facing that `FUN_0048a833` just set is overwritten by Tear's direction.
+
+The floor event ticker (`DAT_0438b92c`, the snews banner at a floor's first controllable
+tick) ends in the HUD render `FUN_0040a765`: it resets b92c to 0 once the scroll passes
+the text width (font metrics). Until then `FUN_00442cef` freezes the player
+(`FUN_0048b844` only) — a render-side value gates the simulation.
+
+rhost portstate dungeon0-floors-save f3409–f5400 (2026-10-15): party positions,
+velocities, facing, db054 and the three sprite records bit-identical.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
