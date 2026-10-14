@@ -380,7 +380,8 @@ def cmd_corpus(a):
 
 # every RET hook that compares a port function against retail (rh_hooks.c registry)
 VERIFY_HOOKS = ["haggle_decide", "haggle_offer_up", "haggle_offer_down", "rand", "floor_layout", "actor_spawn_reset",
-                "seller_select"]
+                "seller_select", "mapcol_build", "mapcol_ground", "mapcol_ray", "enemy_place",
+                "enemy_place_boss"]
 
 
 def cmd_verify(a):

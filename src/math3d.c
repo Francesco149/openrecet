@@ -146,6 +146,19 @@ M3_SSE void mat4_mul(float out[16], const float a[16], const float b[16])
     for (int i = 0; i < 4; i++) _mm_storeu_ps(out + i * 4, r[i]);
 }
 
+/* D3DXVec3Transform, SSE2 table slot 1 @0x4ec790 (dispatch entry 0x4a2227): out is a
+ * vec4, (x·M0 + y·M1) + (z·M2 + M3) per lane, float-rounded per op, no w-divide
+ * (slot 2 @0x4ec850 is the TransformCoord variant).  Both of retail's branches
+ * (16-aligned M or not) add in this order. */
+M3_SSE void vec3_transform(float out[4], const float v[3], const float m[16])
+{
+    const __m128 r0 = _mm_loadu_ps(m), r1 = _mm_loadu_ps(m + 4),
+                 r2 = _mm_loadu_ps(m + 8), r3 = _mm_loadu_ps(m + 12);
+    const __m128 xy = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(v[0]), r0), _mm_mul_ps(_mm_set1_ps(v[1]), r1));
+    const __m128 zw = _mm_add_ps(_mm_mul_ps(_mm_set1_ps(v[2]), r2), r3);
+    _mm_storeu_ps(out, _mm_add_ps(xy, zw));
+}
+
 void mat4_identity(float out[16])
 {
     static const float ident[16] = {

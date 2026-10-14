@@ -11,6 +11,11 @@
  * After the sweep, the hit counts only if the ground is within 5 units below
  * the query Y (FUN_00432e50 L265).  The output normal is recomputed from the
  * winning triangle's edges exactly as the engine does (L271-279).
+ *
+ * PORT-DEBT(semantic-collision, FUN_00432e50): the house player still runs this
+ * semantic port (no retry passes, so it rejects ground more than 5 below, which
+ * retail accepts on pass 3, quirk §142; libm object rotation). map_collision.c is
+ * the retail-exact port (rhost shadow 0 div over the corpus): move the callers.
  */
 #include "collision_query.h"
 

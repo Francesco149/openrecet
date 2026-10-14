@@ -882,6 +882,14 @@ struct test_case {
     X(scene_new_game_stage_load_pulse_b_clear_zeroes) \
     \
     X(floor_layout_house_continue_golden) \
+    X(map_collision_parse_types_and_vertices) \
+    X(map_collision_ground_house) \
+    X(map_collision_ground_far_below_quirk) \
+    X(map_collision_ray_house) \
+    X(map_collision_dungeon_cell_wrap) \
+    X(actor_table_enemy_level) \
+    X(actor_table_alloc_defaults_and_cooldown) \
+    X(actor_table_spawn_enemy_hp) \
     X(floor_layout_actor_spawn_reset_golden) \
     X(floor_layout_rec_flag_is_3x3_without_picks) \
     X(stage_gate_boss_id_low_range_17_to_19) \

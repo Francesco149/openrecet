@@ -43,10 +43,10 @@ SSE_FLOAT = re.compile(
 
 MNEMONIC = re.compile(r"^\s*[0-9a-f]+:\s+(?:[0-9a-f]{2} )+\s*([a-z][a-z0-9.]*)")
 
-# src/math3d.c functions mirroring retail's SSE2 D3DX table (slots 7/3/18/27/30/31).
+# src/math3d.c functions mirroring retail's SSE2 D3DX table (slots 1/7/3/18/27/30/31).
 SSE_ALLOWED = frozenset({
     "_vec3_normalize", "_mat4_mul", "_mat4_inverse", "_mat4_shadow",
-    "_mat4_rotation_x", "_mat4_rotation_y", "_d3dx_sse2_sincos",
+    "_mat4_rotation_x", "_mat4_rotation_y", "_d3dx_sse2_sincos", "_vec3_transform",
 })
 LABEL = re.compile(r"^[0-9a-f]+ <([^>]+)>:$")
 

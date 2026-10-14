@@ -5005,6 +5005,35 @@ enemy placement FUN_00431d54, all while the player is at a shop counter.
 the port's house-arm init draws 43. The first intro visit leaves through iv2_8 without
 FUN_0045bcea and keeps b4dc = 0.
 
+## 142. Map collision: `gake` faces are type 1, the ground query accepts far ground on its 4th pass, the raycast's plane output is plane[0] ×4
+
+Slot build FUN_00471d45 (`src/map_collision.c`, byte-exact vs retail slots):
+- Material classification stores `edx` for `gake`, which still holds the 1 loaded at the
+  top of the line loop (0x471dd6), so cliff faces are type 1. `yuki_` is 6, as expected.
+- The vertex matrix is `child × … × root`, and the root is multiplied in again at every
+  `Mesh` line. A second Mesh under the same frame gets the root twice. Vertices go through
+  D3DXVec3Transform (slot 1, SSE2, no w-divide), then `× 0.2f`.
+- FUN_0043289b's slot AABB loops over copy A for **all** faces, nohit (type 4) included.
+  Records past the kept ones are whatever an earlier build of that slot left there. This
+  only grows the box, so query results do not change.
+
+Ground query FUN_00432e50 runs up to five passes with probe offsets (0,0), (.001,0),
+(.001,.001), (0,0), (.001,.001):
+- pass 0 succeeds only if the ground is less than 5 below the probe;
+- passes 1 and 2 are thrown away; `+0x1c` (flag) is reset every pass, `+0x20` (slope height)
+  is not;
+- pass 3 (and pass 4, if pass 3 found nothing) accepts any ground at all;
+- the object/slot loop variables carry over between passes (movers).
+
+So a probe more than 5 above the floor still returns 1. The older semantic house port
+`collision_query.c` returns 0 there.
+
+Raycast FUN_00433674 writes `plane[0]` into all four plane slots (`+0x34..+0x40`) and
+returns the object loop index at `+0x18`.
+
+rhost shadow `mapcol_build` / `mapcol_ground` / `mapcol_ray`, `verify` 2026-10-14:
+895 / 922,546 / 2,385,138 calls over 73 scenarios, 0 divergences.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

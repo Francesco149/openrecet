@@ -8,20 +8,20 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 11,
   "inv_implemented": 0,
-  "inv_source_referenced": 544,
-  "inv_discovered": 1913,
-  "referenced_or_better": 635,
-  "pct_referenced_or_better": 24.9,
+  "inv_source_referenced": 548,
+  "inv_discovered": 1909,
+  "referenced_or_better": 639,
+  "pct_referenced_or_better": 25.1,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 58,
+  "port_debt": 60,
   "verified": 80,
   "stubbed": 11,
-  "ported": 544,
-  "unported": 1913,
-  "touched": 635,
-  "pct_touched": 24.9,
+  "ported": 548,
+  "unported": 1909,
+  "touched": 639,
+  "pct_touched": 25.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3259,6 +3259,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_table.h",
     "src/scene1_combat_sm.h"
    ],
    "status": "ported"
@@ -3290,18 +3291,20 @@
    "size": 690,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_table.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x41f758",
@@ -3366,18 +3369,21 @@
    "size": 308,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_table.h",
+    "src/enemy_place.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x41fa37",
@@ -4635,6 +4641,7 @@
    "src": [
     "src/diff_entry.c",
     "src/diff_entry.h",
+    "src/enemy_place.h",
     "src/floor_layout.h",
     "src/stage_gate.c",
     "src/stage_gate.h"
@@ -4682,6 +4689,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/enemy_place.h",
     "src/floor_layout.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
@@ -4720,18 +4728,20 @@
    "size": 568,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/enemy_place.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x431d54",
@@ -4739,18 +4749,22 @@
    "size": 1762,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_table.h",
+    "src/enemy_place.c",
+    "src/enemy_place.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x43244c",
@@ -4769,6 +4783,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/map_collision.h",
     "src/scene1_preload.c",
     "src/stage_palette.c",
     "src/stage_palette.h"
@@ -4812,7 +4827,9 @@
    "quality_flags": [],
    "src": [
     "src/collision_mesh.c",
-    "src/collision_mesh.h"
+    "src/collision_mesh.h",
+    "src/map_collision.c",
+    "src/map_collision.h"
    ],
    "status": "ported"
   },
@@ -4834,7 +4851,9 @@
    "quality_flags": [],
    "src": [
     "src/collision_mesh.c",
-    "src/collision_mesh.h"
+    "src/collision_mesh.h",
+    "src/map_collision.c",
+    "src/map_collision.h"
    ],
    "status": "ported"
   },
@@ -4861,6 +4880,9 @@
     "src/collision_query.h",
     "src/collision_resolve.c",
     "src/collision_resolve.h",
+    "src/enemy_place.h",
+    "src/map_collision.c",
+    "src/map_collision.h",
     "src/scene1_camera.c",
     "src/scene1_chr_shadow.c",
     "src/scene1_chr_shadow.h",
@@ -4892,6 +4914,8 @@
    "src": [
     "src/collision_resolve.c",
     "src/collision_resolve.h",
+    "src/enemy_place.h",
+    "src/map_collision.h",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene1_records_c_tick.c",
@@ -5996,6 +6020,7 @@
     "src/actor_spawn.h",
     "src/collision_house.c",
     "src/collision_house.h",
+    "src/enemy_place.h",
     "src/floor_layout.h",
     "src/main.c",
     "src/save_bank.h",
@@ -7637,6 +7662,8 @@
     "src/audio_mci.h",
     "src/customer_service.c",
     "src/encyclopedia.c",
+    "src/enemy_place.c",
+    "src/enemy_place.h",
     "src/floor_layout.c",
     "src/font.c",
     "src/font.h",
@@ -12938,6 +12965,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_table.c",
     "src/customer_haggle.c",
     "src/customer_haggle.h",
     "src/customer_service.c",
@@ -13387,6 +13415,8 @@
    "src": [
     "src/collision_mesh.c",
     "src/collision_mesh.h",
+    "src/map_collision.c",
+    "src/map_collision.h",
     "src/scene_map_meshes.h",
     "src/stage_palette.c",
     "src/stage_palette.h"
@@ -14254,6 +14284,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/map_collision.h",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene_map_meshes.c",
@@ -16202,6 +16233,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_table.h",
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_combat_sm.c",

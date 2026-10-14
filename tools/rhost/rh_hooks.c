@@ -17,8 +17,12 @@
 #include "customer_haggle.h"
 #include "customer_seller.h"
 #include "floor_layout.h"
+#include "map_collision.h"
+#include "enemy_place.h"
+#include "tables_enemylist.h"
 #include "rng.h"
 #include "scene1_particles_tick.h"
+#include "stage_palette.h"
 #include "tables_item.h"
 
 /* actor_spawn.c clears fields of the port's people table; rhost links no
@@ -26,6 +30,11 @@
 scene1_people_entry_t g_scene1_people[SCENE1_PEOPLE_COUNT];
 /* customer_seller.c reads g_item; synced from retail's table (0x95d37d0) per call. */
 item_state_t g_item;
+/* map_collision.c reads *DAT_068dd2f0 through it; pointed at retail's record per call. */
+stage_palette_t *g_stage_palette;
+/* enemy_place.c / actor_table.c read these; synced from retail (0x53f8e8 / 0x5c23f0) per call. */
+enemylist_state_t g_enemylist;
+enemy_record_t g_enemy[ENEMY_COUNT];
 
 extern volatile LONG g_live_threads;
 typedef enum { OFF, SHADOW, REPLACE } mode_t_;
@@ -37,7 +46,7 @@ typedef struct {
     char first[200];
 } hook_t;
 
-#define NH 9
+#define NH 14
 static hook_t H[NH];
 static void note(hook_t *h, const char *fmt, ...)
 {
@@ -65,6 +74,11 @@ static uint32_t port_rand(void)
 #define H_FLOOR      6
 #define H_ACTOR_RST  7
 #define H_SELLER     8
+#define H_MC_BUILD   9
+#define H_MC_GROUND  10
+#define H_MC_RAY     11
+#define H_EPLACE     12
+#define H_EPLACE_B   13
 
 static int32_t __cdecl hook_haggle(void)
 {
@@ -240,6 +254,149 @@ static int32_t __cdecl hook_seller(void)
     return r;
 }
 
+/* ---- map collision (map_collision.c): the slot build FUN_00471d45 and the two queries ---- */
+#define MC_STRIDE 0x2f8020u
+static uint32_t fbits(float f) { uint32_t u; memcpy(&u, &f, 4); return u; }
+static const uint32_t mc_skip_fields = (1u << 5) | (1u << 9) | (1u << 13) | (1u << 17) | (1u << 21) | (1u << 25) | (1u << 29);
+/* FUN_00471d45(path, slot): retail builds the slot; the port builds the same file into its own
+ * g_mapcol_slot[slot] (its copy-A history = every hooked build, like retail's); compare the header
+ * and every triangle field */
+static int __cdecl hook_mc_build(const char *path, int32_t slot)
+{
+    hook_t *h = &H[H_MC_BUILD]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    const int r = ((int (__cdecl *)(const char *, int32_t))0x471d45u)(path, slot);
+    char full[MAX_PATH]; snprintf(full, sizeof full, "%s\\%s", O.gamedir, path);
+    for (char *c = full; *c; c++) if (*c == '/') *c = '\\';
+    FILE *f = fopen(full, "rb");
+    if (!f) { h->skipped++; rh_log("mc_build f%u %s: port cannot open %s\n", g_frame, path, full); return r; }
+    fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)n); n = (long)fread(buf, 1, (size_t)n, f); fclose(f);
+    const uint32_t b4dc = G32(0x438b4dcu);
+    const int large = (int32_t)G32(0x68dd2f8u + 0x1b3cu * b4dc) >= 1;
+    mapcol_load_x(slot, buf, (size_t)n, large);
+    free(buf);
+    const mapcol_slot_t *ps = &g_mapcol_slot[slot];
+    const uint32_t hdr = 0xac2434u + MC_STRIDE * (uint32_t)slot, rec0 = 0x7ca434u + MC_STRIDE * (uint32_t)slot;
+    const int32_t rn = (int32_t)G32(hdr);
+    int bad = 0; char why[160] = "";
+    if (rn != ps->count || (int32_t)G32(hdr + 4) != ps->count2) { bad = 1; snprintf(why, sizeof why, "count %d/%d count2 %d/%d", rn, ps->count, (int32_t)G32(hdr + 4), ps->count2); }
+    for (int k = 0; !bad && k < 6; k++)
+        if ((k == 0 || k == 2 || k == 3 || k == 5) && G32(hdr + 8 + 4u * k) != fbits(ps->aabb[k])) {
+            bad = 1; snprintf(why, sizeof why, "aabb[%d] %08x/%08x", k, G32(hdr + 8 + 4u * k), fbits(ps->aabb[k]));
+        }
+    for (int32_t i = 0; !bad && i < rn; i++) {
+        const uint32_t *pr = (const uint32_t *)&ps->tris[i];
+        for (int fi = 0; fi < 37; fi++) {
+            if (mc_skip_fields >> fi & 1) continue;
+            if (G32(rec0 + 152u * (uint32_t)i + 4u * (uint32_t)fi) != pr[fi]) {
+                bad = 1; snprintf(why, sizeof why, "tri %d field %d %08x/%08x", i, fi, G32(rec0 + 152u * (uint32_t)i + 4u * (uint32_t)fi), pr[fi]);
+                break;
+            }
+        }
+    }
+    rh_log("mc_build f%u slot %d %s -> %d tris pad=%d%s%s\n", g_frame, slot, path, rn, large, bad ? " DIFF " : "", why);
+    if (bad) note(h, "slot %d %s: %s", slot, path, why);
+    return r;
+}
+/* point the port's tables at retail's state for one query (the port's own slots are saved/restored) */
+static mapcol_slot_t mc_saved[MAPCOL_SLOTS];
+static void mc_sync_in(void)
+{
+    memcpy(mc_saved, g_mapcol_slot, sizeof mc_saved);
+    for (uint32_t k = 0; k < MAPCOL_SLOTS; k++) {
+        mapcol_slot_t *s = &g_mapcol_slot[k];
+        const uint32_t hdr = 0xac2434u + MC_STRIDE * k;
+        s->tris = (mapcol_tri_t *)(uintptr_t)(0x7ca434u + MC_STRIDE * k);
+        s->count = (int32_t)G32(hdr); s->count2 = (int32_t)G32(hdr + 4);
+        memcpy(s->aabb, (const void *)(uintptr_t)(hdr + 8), sizeof s->aabb);
+    }
+    memcpy(&g_mapcol_objs, (const void *)(uintptr_t)0x438bfb0u, sizeof g_mapcol_objs);
+    memcpy(&g_mapcol_movers, (const void *)(uintptr_t)0x438c150u, sizeof g_mapcol_movers);
+    g_mapcol_wall_pass = (int32_t)G32(0x438bed0u);
+    memcpy(g_floor_rooms, (const void *)(uintptr_t)0x73e03acu, sizeof g_floor_rooms);
+    g_floor_c148 = (int32_t)G32(0x438c148u);
+    g_stage_palette = (stage_palette_t *)(uintptr_t)G32(0x68dd2f0u);
+}
+static void mc_sync_out(void) { memcpy(g_mapcol_slot, mc_saved, sizeof mc_saved); }
+static int __cdecl hook_mc_ground(float x, float y, float z, mapcol_hit_t *out)
+{
+    hook_t *h = &H[H_MC_GROUND]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    mapcol_hit_t pre = *out;
+    const int r = ((int (__cdecl *)(float, float, float, mapcol_hit_t *))0x432e50u)(x, y, z, out);
+    mapcol_hit_t p = pre;
+    mc_sync_in();
+    const int pr = mapcol_ground(x, y, z, &p);
+    mc_sync_out();
+    if (pr != r || memcmp(&p, out, sizeof p)) {
+        const uint32_t *a = (const uint32_t *)out, *b = (const uint32_t *)&p; int w = 0;
+        while (w < 17 && a[w] == b[w]) w++;
+        note(h, "(%.4f,%.4f,%.4f) ret %d/%d word %d %08x/%08x", x, y, z, r, pr, w, w < 17 ? a[w] : 0, w < 17 ? b[w] : 0);
+    }
+    return r;
+}
+static int __cdecl hook_mc_ray(float px, float py, float pz, float dx, float dy, float dz, float *frac, mapcol_hit_t *out)
+{
+    hook_t *h = &H[H_MC_RAY]; h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    mapcol_hit_t pre = *out; const float fpre = *frac;
+    const int r = ((int (__cdecl *)(float, float, float, float, float, float, float *, mapcol_hit_t *))0x433674u)(px, py, pz, dx, dy, dz, frac, out);
+    mapcol_hit_t p = pre; float pf = fpre;
+    mc_sync_in();
+    const int pr = mapcol_ray(px, py, pz, dx, dy, dz, &pf, &p);
+    mc_sync_out();
+    if (pr != r || memcmp(&p, out, sizeof p) || memcmp(&pf, frac, 4)) {
+        const uint32_t *a = (const uint32_t *)out, *b = (const uint32_t *)&p; int w = 0;
+        while (w < 17 && a[w] == b[w]) w++;
+        note(h, "(%.4f,%.4f,%.4f)+(%.4f,%.4f,%.4f) ret %d/%d frac %08x/%08x word %d %08x/%08x", px, py, pz, dx, dy, dz, r, pr,
+             fbits(*frac), fbits(pf), w, w < 17 ? a[w] : 0, w < 17 ? b[w] : 0);
+    }
+    return r;
+}
+
+/* ---- enemy placement (FUN_00431d54 / FUN_00431b1c): pre-state → port mirrors, run retail, run the
+ * port on the same LCG state, compare the LCG, the whole actor table, DAT_0438b1bc and the debug text ---- */
+#define VA_ACTORS 0x76b970u
+static void eplace_hook(hook_t *h, uint32_t va, int boss)
+{
+    h->calls++;
+    if (h->mode == REPLACE) rh_fatal("%s: REPLACE not wired (shadow only)", h->name);
+    const uint32_t recva = 0x44e3798u + 188360u * G32(0x438b1e0u);
+    memcpy(g_actor, (const void *)(uintptr_t)VA_ACTORS, sizeof g_actor);
+    g_actor_alloc_n = (int32_t)G32(0x438b1bcu);
+    memcpy(g_audio_mci_buffer, (const void *)(uintptr_t)0x6a47aacu, AUDIO_MCI_BUFFER_SIZE);
+    memcpy(g_enemylist.sections, (const void *)(uintptr_t)0x53f8e8u, sizeof g_enemylist.sections);
+    memcpy(g_enemy, (const void *)(uintptr_t)0x5c23f0u, sizeof g_enemy);
+    g_floor_w = (int32_t)G32(0x5cc2e8u); g_floor_h = (int32_t)G32(0x5cc2ecu);
+    g_floor_rooms_total = (int32_t)G32(0x438b4b0u);
+    memcpy(g_floor_marks, (const void *)(uintptr_t)0x438b434u, sizeof g_floor_marks);
+    mc_sync_in();
+    const enemy_place_in_t in = {
+        { (int32_t)G32(0x438b4c8u), (int32_t)G32(0x438b4ccu), (int32_t)G32(0x438b4d0u), (int32_t)G32(0x438cbe4u),
+          *(volatile uint8_t *)(uintptr_t)(recva + 0x2bc57u) },
+        (const uint8_t *)(uintptr_t)recva, ret_43195d, ret_4319d6 };
+    const uint32_t seed0 = G32(DAT_RNG);
+    ((void (__cdecl *)(void))(uintptr_t)va)();
+    rng_seed(seed0);
+    if (boss) enemy_place_boss(&in); else enemy_place_floor(&in);
+    mc_sync_out();
+    int nsp = 0;
+    for (int i = 0; i < ACTOR_COUNT; i++) nsp += act_geti(&g_actor[i], ACT_INUSE) != 0;
+    rh_log("enemy_place%s f%u d=%d floor=%d rooms=%d rng %08x/%08x actors=%d alloc=%d\n", boss ? "_boss" : "", g_frame,
+           in.st.dungeon, in.st.floor, g_floor_rooms_total, G32(DAT_RNG), g_rng_seed, nsp, (int)G32(0x438b1bcu));
+    if (g_rng_seed != G32(DAT_RNG)) note(h, "rng retail %08x port %08x", G32(DAT_RNG), g_rng_seed);
+    else if (memcmp(g_actor, (const void *)(uintptr_t)VA_ACTORS, sizeof g_actor)) {
+        size_t k = 0;
+        while (((const uint8_t *)g_actor)[k] == *(volatile uint8_t *)(uintptr_t)(VA_ACTORS + k)) k++;
+        note(h, "actor %u +0x%03x retail %08x port %08x", (unsigned)(k / ACTOR_SIZE), (unsigned)(k % ACTOR_SIZE & ~3u),
+             G32(VA_ACTORS + (k & ~3u)), *(const uint32_t *)((const uint8_t *)g_actor + (k & ~3u)));
+    } else if (g_actor_alloc_n != (int32_t)G32(0x438b1bcu)) note(h, "b1bc retail %d port %d", (int)G32(0x438b1bcu), g_actor_alloc_n);
+    else if (memcmp(g_audio_mci_buffer, (const void *)(uintptr_t)0x6a47aacu, AUDIO_MCI_BUFFER_SIZE)) note(h, "debug text differs");
+}
+static void __cdecl hook_eplace(void) { eplace_hook(&H[H_EPLACE], 0x431d54u, 0); }
+static void __cdecl hook_eplace_boss(void) { eplace_hook(&H[H_EPLACE_B], 0x431b1cu, 1); }
+
 static void state_hook(hook_t *h)
 {
     h->calls++;
@@ -261,6 +418,11 @@ static hook_t H[NH] = {
     [H_FLOOR]      = { "floor_layout",      0x47df4du, 0, (void *)hook_floor_layout },
     [H_ACTOR_RST]  = { "actor_spawn_reset", 0x41f252u, 0, (void *)hook_actor_reset },
     [H_SELLER]     = { "seller_select",     0x461792u, 0, (void *)hook_seller },
+    [H_MC_BUILD]   = { "mapcol_build",      0x471d45u, 0, (void *)hook_mc_build },
+    [H_MC_GROUND]  = { "mapcol_ground",     0x432e50u, 0, (void *)hook_mc_ground },
+    [H_MC_RAY]     = { "mapcol_ray",        0x433674u, 0, (void *)hook_mc_ray },
+    [H_EPLACE]     = { "enemy_place",       0x431d54u, 0, (void *)hook_eplace },
+    [H_EPLACE_B]   = { "enemy_place_boss",  0x431b1cu, 0, (void *)hook_eplace_boss },
 };
 
 void rh_hooks_install(void)

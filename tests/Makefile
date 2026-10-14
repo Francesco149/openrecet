@@ -94,6 +94,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_dialogue_run.c \
                  ../src/collision_mesh.c ../src/collision_query.c ../src/collision_resolve.c \
                  ../src/collision_house.c \
+                 ../src/map_collision.c ../src/actor_table.c ../src/enemy_place.c \
                  ../src/sha256.c ../src/se_pack.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c test_input_segtrace.c test_anchor_trace.c \
@@ -134,7 +135,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_debug_param_tick.c \
                  test_title_save_dialog.c \
                  test_scene_new_game.c \
-                 test_stage_gate.c test_floor_layout.c \
+                 test_stage_gate.c test_floor_layout.c test_map_collision.c test_actor_table.c \
                  test_xp_curve.c \
                  test_stage_post_load.c \
                  test_d3d_pool.c \

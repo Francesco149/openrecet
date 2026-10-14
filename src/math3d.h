@@ -48,6 +48,10 @@ void mat4_perspective_fov_rh(float out[16], float fov_y, float aspect,
 void mat4_mul(float out[16], const float a[16], const float b[16]);
 
 /* Identity matrix. Matches D3DXMatrixIdentity (inline helper FUN_00404bb8). */
+/* D3DXVec3Transform (slot 1, SSE2 @0x4ec790): out vec4 = (x·M0 + y·M1) + (z·M2 + M3),
+ * no w-divide. */
+void vec3_transform(float out[4], const float v[3], const float m[16]);
+
 void mat4_identity(float out[16]);
 
 /* Translation matrix.  Matches D3DXMatrixTranslation (slot 26, c_ 0x4a34b6).
