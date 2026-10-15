@@ -5130,6 +5130,32 @@ arena centre is hard-coded — re-rolled up to 30 times until it is more than 10
 The absorbed slimes still count toward the cap on the tick they are eaten. Recorded:
 `dungeon1-run2` floor 5 (f33570..).
 
+## 150. ESC does nothing while a fade runs (FUN_00453384)
+
+The WndProc ESC arm (FUN_0045337b → FUN_00453384(0)) only toggles the pause when no fade is in
+flight: with DAT_0438bf7c (the fade phase) or DAT_06a49990 (the pause fade counter) non-zero, an
+ESC (action 0) returns silently — only the day-end summary (1) and the dungeon results (2) pass.
+Before that: a dialogue up (DAT_0438b1c8) arms the skip box or beeps (0x16a); a choice / message
+box up (FUN_00434dd6: DAT_0438af34 / DAT_0438b148) beeps; modes 2 / 3 / 7 / 10 beep; in the house
+the night exchange, the morning beat's first 140 ticks, cc08 2 / 0x17 and the work flags +0x2bced /
++0x2bcfd beep, +0x2bcd8 / +0x2bcf0 swallow. Recorded: `dungeon1-deep` f1748 (ESC during the
+Merchants' Guild's leave fade: retail stays, an ungated pause would open).
+
+## 151. The mushroom king eats its own mushrooms (FUN_0042b6b7, types 24 / 59 / 60)
+
+Dungeon 1's floor-10 boss keeps up to 4 mushrooms (13 / 14) on the floor: every 180 ticks under
+4 it plants one rising (+0xae4 2) at 2..12 from the hard-coded arena centre (-40, -40). After a
+wander (state 0) it picks, half the time, the nearest mushroom older than 600 ticks (+0x398) and
+more than 4 away, walks to 1.4 in front of its mouth and eats it at tick 38: a red one (13)
+heals 1/6 of its max HP (ring 67, a popup), a blue one (14) powers it up (state 4). Else 1 in 20
+the spin (13 sweeping records 38), else 3 in 4 the approach and a swing set (type 60: three
+lunges, the last with the shock ring 67). Its contact record 15 is re-spawned every tick after
+the first 60 of a wander and lives one tick (owner at record +0x14). On death (FUN_0042f7ad):
+the slow-motion (DAT_0438becc 60: the floor ticks every 3rd frame), at tick 60 every other live
+actor starts dying, table B / A records are cleared (FUN_0040f64b(0)) and the cinematic camera
+(FUN_004426a7) orbits (-40, 6, -40) for 400 ticks. Recorded: `dungeon1-deep` floor 10
+(f56444 .. f71830 kill).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

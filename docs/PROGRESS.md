@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — dungeon1-deep passes end to end: floors 6..10, the mushroom king (dungeon pilot)
+New native recording `dungeon1-deep` (from dungeon1-run2's end save: the guild, dungeon 1
+floors 6..10, the floor-10 boss, home). **portrng IDENTICAL f1–f77136 (234,509 draws) +
+portsave IDENTICAL**; both rows in `gates`. Splits closed, in order:
+- f1751: FUN_00453384 (the ESC / pause toggle) on the disasm — `esc_pressed` is now the WndProc
+  arm (primary load busy → swallow, in game → `pause_dispatch(0)`), and `pause_dispatch` has all
+  of retail's gates: the dialogue skip box (FUN_0046c2cb), the box beeps (FUN_00434dd6), the
+  house gates, **no ESC while a fade runs** (quirk §150 — the user pressed ESC during the guild's
+  leave fade), the floor-end gate;
+- f12265: the mushrooms' burrow / rise arms FUN_00428718 / FUN_004284e1;
+- f55042: the pause Items choice read up / down from the 16-bit `pressed` (retail's 0x40000 /
+  0x80000 are the HELD bits of the DAT_073dddd4 dword), so Throw away never got picked; the
+  thrown items now drop at the player's feet (FUN_0048b850 → FUN_0044b12f) and FUN_0047f2f6
+  clears the queue + the submenu scratch and runs FUN_004360b6 at every pause open;
+- f56444: the mushroom king FUN_0042b6b7 (types 24 / 59 / 60, quirk §151) + the multi-part
+  anim cross-fade FUN_0041f759; FUN_00482ae7 exported from `dungeon_party.c` (`angle_ease`);
+- f57586: table-B kind 15 (the king's contact record) read its owner at +0x10 — the record never
+  ticked or died and piled up; now +0x14 (FUN_00445a8c's) and x87-faithful;
+- f61926: the pause nav's commit arm (FUN_00480614) on the disasm — the Status submenu
+  (FUN_0047fe98: detail toggle, L / R through the party), a select anim past 15 closes the
+  pause, the shared resets; the dungeon Equip entry (type 5, FUN_004802cf) stays a stub;
+- f71831: the king's death arm (FUN_0042f7ad 24 / 59 / 60: the slow-motion, every other actor
+  dying, the records cleared), the cinematic camera FUN_004426a7 / FUN_0044269c, and the rest of
+  FUN_0040f64b (DAT_0064e818, the popup timers).
+Tools: state_va mirrors for the ESC gates (af34 / b148 / 995c / 998 / 990 / 997c / bf7c), the
+item window (734b96c / 97c / 988 / 994 / 9a8 / 98c) and the Items choice (74b28a8 / 74b28ac).
+
 ## 2026-10-15 — dungeon 1 passes end to end (dungeon pilot)
 Two native recordings from dungeon0-full's end save: `dungeon1-run2` (town visits, the market,
 dungeon 1 floors 1..5, the crown-slime boss, the door home, a save) and `dungeon1-run` (the
