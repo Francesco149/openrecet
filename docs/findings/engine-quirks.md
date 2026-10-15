@@ -5088,6 +5088,48 @@ facing -π; other: (6, -6.8)), plus the facing band and the edge. Recorded:
 `dungeon0-full` f476, `dungeon0-wipe` f537 (rhost portstate: retail db054 holds, the
 player position holds).
 
+## 146. A dungeon's floor-event ticker ends in the HUD render, and the player waits for it (FUN_0040a765)
+
+While DAT_0438b92c (the ticker) runs on a dungeon floor, FUN_00442cef gives the player only
+the status tick (FUN_0048b844): no walk, no Tear, db054 frozen. b92c counts +1 a tick (+8 once
+A/B/C fast-forwards). Nothing in the sim ends it: the HUD aggregator FUN_0040a765 (render, every
+frame) measures the texts (FUN_0047d0ea at 1.1, Σ (w + 8) / 2 · scale + 320 · scale, scale 0.5
+in a dungeon / 0.7 in the house), and once b92c passes that run + 60 it shrinks the 64-high band
+by 3.2 a tick; the band at < 0 sets b92c = 0 and b954 = 1. So how long the player stands still
+on a floor with an event depends on the font's glyph widths. Recorded: `dungeon1-run2` floor 3,
+b92c 0 at f20439 (346 ticks; the port waited for ever before the block was ported).
+
+## 147. A dungeon floor's trees and grass come from marker triangles in the room models (FUN_00432473)
+
+FUN_00436f97 (every stage init) scans each floor cell's room model (the collision slot of
+DAT_073e03ac) for triangles of materials tree01 / tree02 / kusa01 / kusa02 / taimatu (types
+8..11, 16) and places a stage object (kinds 0..3, 8) at the marker's lowest vertex: piece
+x / z through RotationY(pattern · π/2) (0x4a35ef is RotationY — the table slot 31 — though
+several port comments called it X), minus the cell origin; y from a ray straight down from 20
+**in the piece's own coordinates**, so it hits whatever lies there in world space (else 10).
+barrel / treasure / candlestand / crystal (12..15) are recognised and place nothing. Dungeon 0's
+rooms have no markers; dungeon 1's (the forest) have dozens. Recorded: `dungeon1-run2` f8715.
+
+## 148. A lit bomb rolls and blows on the first actor within 1.5 or a wall ahead (FUN_0042f7ad types 37..40)
+
+Trap 9 spawns a red bomb already dying (+0x428 = 2, fuse +0xaf0 = 0). The death arm clamps the
+fuse to 240 / 480 / 360 / 240 (red / blue / green / yellow) and blows it at 540 — or at once
+while it rolls faster than 0.01 and any other live actor (enemy or not) is within 1.5, or a
+non-type-2 wall lies within its reach (enemy +0x5c · scale · 3, at least the speed) ahead:
+SE 328, burst 12, a 32-tick shake, the blast record 18 (FUN_00445a8c(a, 18, 3)). It also
+normalises its heading into ±π and never uses it. Recorded: `dungeon1-run2` f10651 → f10737
+(Louie's swing knocked it into an enemy).
+
+## 149. The crown slime eats old blue slimes and spawns new ones around (-40, -40) (FUN_0042aef7)
+
+Every blue slime (type 2) older than 600 ticks slides toward the crown slime at 0.2 a tick and,
+within 3 (and 2 in height), is absorbed: power +0xab8 += 4 (max 5), a shake and a burst. Every
+300 ticks the power above 1 sheds 1.34. Whenever fewer blue slimes live than the dungeon's cap
+(1 in dungeon 1; 3 / 4 / 5 in dungeons 2 / 3 / 4), one spawns at 2..10 from (-40, -40) — the
+arena centre is hard-coded — re-rolled up to 30 times until it is more than 10 from the player.
+The absorbed slimes still count toward the cap on the tick they are eaten. Recorded:
+`dungeon1-run2` floor 5 (f33570..).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

@@ -149,29 +149,42 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — all three recordings pass end to end** (PROGRESS 2026-10-15):
-       dungeon0-floors-save (portrng + portsave), **dungeon0-full (the whole dungeon, the
-       boss, the run's end, home, a save: portrng IDENTICAL f1–f44741 + portsave
-       IDENTICAL)**, **dungeon0-wipe (portrng IDENTICAL f1–f6257)**; all in `gates`. Next
-       needs recordings of dungeons 1+ (Human queue). Hidden state `portblock` still shows
-       at their ends (not RNG-visible yet):
+    1. **The dungeon pilot — dungeons 0 and 1 pass end to end** (PROGRESS 2026-10-15):
+       dungeon0-floors-save / -full / -wipe, **dungeon1-run2 (town visits, the market,
+       floors 1..5, the crown-slime boss, home, a save: portrng IDENTICAL f1–f46347 +
+       portsave IDENTICAL)**, **dungeon1-run (the party falls at the boss: portrng IDENTICAL
+       f1–f45646)**; all in `gates`. Next needs recordings of dungeon 1's deeper floors
+       (Charme, floor 15) and dungeons 2+ (Human queue). Known, not RNG-visible yet:
+       - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
+         the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
+         mat4_rotation_x for 0x4a35ef / _y for 0x4a3553 (`scene1_pass_f.c`,
+         `scene1_particles_tick.c`, `scene1_overlay_helpers.c` 0x4157b7 / 0x41517a / 0x415b8e,
+         `scene1_shop_walker_helpers.c`); `scene1_camera.c` is right. Audit each site against
+         its call's thunk (render only; check with `portshots`). record_hit.c's record kinds
+         44 / 140 (the "MATRIX0 transposed" rows) are fixed;
+       - the camera pose FUN_00441c3e is still the semantic port (C floats, not the disasm);
+         actor +0x450 (the view depth the kobold's FUN_0049065b reads) matched at f10736 once
+         the hit-pause hold and the b7ac blend landed — re-check when a split points there;
        - the house loader (`scene1_preload.c`) runs its own partial copy of FUN_00436f97
          instead of `scene1_postload_stage_entry_init`: no FUN_00435fbb(0, -1) step on a
          home load (drop rows bef4 / bf24 one step behind), the map objects bfb0.. differ;
          unify it (`PORT-DEBT(simplified, FUN_00436f97)`);
        - the house walker's history ring (party +0x224) is one entry off (legacy walker,
-         item 2); DAT_00648294 (the got-item window) is never cleared;
-       - records' MATRIX0 (+0xc8) come out transposed for some table-B kinds (render only);
+         item 2); DAT_00648294 (the got-item window) is never cleared; DAT_0438b768 (the
+         notice duration) lags from the start of dungeon1-run2;
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
-       Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (slimes 0–5,
-       type 16 and the fliers 17..21 / 56..58 done), the golem parts / multi-part anchors,
-       FUN_0042e791 types 25/28/41/73, FUN_0042df55's lists for stages >= 20, the other
-       chars' swings / skills, FUN_0042f7ad's boss arms, FUN_0042ea35, FUN_004426a7 (the
-       cinematic camera), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5
-       overlay stubs, dungeons 1..5's events / setups (FUN_0044d47d, FUN_0044d1e4 …);
-       render: no dungeon renderer, the results screen, the pause Items choice / messages;
-       the legacy table-B tick bodies beyond 2 / 11 / 13+21 / 31 / 34 / 44 / 84 / 86 are
-       unverified (re-check each against the disasm as a recording reaches it).
+       Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (done: slimes
+       0–5, bees 10..12, mushrooms 13/14, kobold 16, fliers 17..21 / 56..58, rabbit 22,
+       crown slime 23; the mushrooms' burrow arms FUN_00428718 / FUN_004284e1 are not), the
+       golem parts / multi-part anchors, FUN_0042e791 types 25/28/41/73, FUN_0042df55's
+       lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
+       arms (24/25/27/28/41/59..74), FUN_0042ea35, FUN_004426a7 (the cinematic camera),
+       FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeon 1's
+       floor 14 (FUN_0044d47d / FUN_0044d1e4's Charme timeline + FUN_0041fa6e), dungeons
+       2..5's events / setups (FUN_0044d9d3 …, FUN_00450877, FUN_00451546); render: no
+       dungeon renderer, the results screen, the pause Items choice / messages; the legacy
+       table-B bodies beyond those recordings reached are unverified (re-check each against
+       the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
     2. ★ **debt-gameover-restart f7383** (re-diagnosed 2026-10-15; not the day-8 scene —
        retail never sets work +0x2bcd8 in this run): retail opens the display-stand menu
        (cc04 0 → 1, the faced cell cbfc/cc00 = 3/4 from f7359), the port faces no cell (-1).
@@ -205,9 +218,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
-  each: portsave ×7 (incl. the dungeon Save + dungeon0-full), portanchors ×2, portrng over
-  11 shop/day scenarios + dungeon0-floors-save / -full / -wipe + adv-guild-pack-leave, each
-  to the retail run's end.  Don't build the port while it runs (each row uploads
+  each: portsave ×8 (incl. the dungeon Save, dungeon0-full, dungeon1-run2), portanchors ×2,
+  portrng over 11 shop/day scenarios + dungeon0-floors-save / -full / -wipe, dungeon1-run /
+  -run2 + adv-guild-pack-leave, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
@@ -247,12 +260,13 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record a dungeon-1 run** (unblocks the next enemy types, traps and events; dungeon 0 is
-  done end to end). On maximus, the user plays on the Windows desktop:
-  `python3 tools/rhost/rhost.py record dungeon1-run --from dungeon0-full`. That replays
-  dungeon0-full (~50 s) and starts from the save it commits (`60b595ef…`, bank 10: guild
-  map on (0x2bc81 = 1), so the guild lists dungeons 0 + 1). At the title, Load the slot
-  dungeon0-full saved to (the newest one). Play: guild → dungeon 1 on the map, fight every enemy kind,
-  open chests, use an item from the pause menu, take the exit portal or reach the boss,
-  let the run end and return home.
+- **Record dungeon 1's deeper floors and dungeon 2** (unblocks Charme's fight on floor 15,
+  the floor-14 timeline, dungeon 2's enemies, traps and events; dungeon 1 floors 1..5 are done
+  end to end). On maximus, the user plays on the Windows desktop:
+  `python3 tools/rhost/rhost.py record dungeon1-deep --from dungeon1-run2` (replays
+  dungeon1-run2, ~50 s, and starts from the save it commits). At the title, Load the newest
+  slot. Play: guild → dungeon 1 → start from the deepest floor offered, fight on to floor 15
+  (Charme) and through her fight; then, if dungeon 2 is open, a second recording
+  `record dungeon2-run --from dungeon1-deep`: guild → dungeon 2, every enemy kind, a chest, an
+  item from the pause menu, the exit or the boss, home.
 <!-- FRONT:END -->

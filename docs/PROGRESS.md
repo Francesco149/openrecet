@@ -7,6 +7,29 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — dungeon 1 passes end to end (dungeon pilot)
+Two native recordings from dungeon0-full's end save: `dungeon1-run2` (town visits, the market,
+dungeon 1 floors 1..5, the crown-slime boss, the door home, a save) and `dungeon1-run` (the
+same start; the party falls at the boss). **portrng dungeon1-run2 IDENTICAL f1–f46347 (116,602
+draws) + portsave IDENTICAL; portrng dungeon1-run IDENTICAL f1–f45646 (131,135 draws).** All in
+`gates`. Splits closed, in order:
+- the town visits (modes 13..16, `scene_town_event.c`) and FUN_00406584's XP / shake / money
+  roll in mode 8 (a purchase's roll continued onto the world map);
+- enemies: the mushrooms FUN_00428ae4 (13/14), the rabbit FUN_00429962 (22), the bees
+  FUN_00428f0a (10..12), the crown slime FUN_0042aef7 (23; quirk §149) and its death arm
+  (23/49/54/55: FUN_0042f685, FUN_0042f746), the bombs' arm (37..40; quirk §148);
+  FUN_004532bc (the screen wobble, also the records' hook);
+- table B: kind 10 reaches body 6 (the port had 0x10 there), kinds 0x10/0x16/0x17 got their
+  own body (0x43bf83), kinds 0xe/0x12 read the owner at +0x14 (were OWNER_A);
+- the floor: FUN_00432473 (the rooms' marker objects, quirk §147), the hit-pause camera hold
+  (FUN_0045bbf9 skips FUN_00441c3e while DAT_06a46fa4), the floor-event ticker's end
+  (FUN_0040a765 0x40b0df, quirk §146), the warp trap's spin + FUN_004960a4;
+- dungeon 1's events FUN_0044d47d (the checkpoint arm FUN_0044d0a4, the voice FUN_0044cbe4)
+  and setup FUN_0044d1e4 → FUN_0044cc80 (the arena: party, portals, the camera blend b7ac,
+  which the port camera now applies).
+Found: retail's 0x4a35ef is D3DXMatrixRotationY (slot 31) and 0x4a3553 RotationX — several
+port comments (and record_hit.c's record matrices) had them swapped (FRONT).
+
 ## 2026-10-15 — dungeon0-full and dungeon0-wipe pass end to end (dungeon pilot)
 Two new native recordings (the whole of dungeon 0 + the boss + the return home + a save;
 a party wipe). **portrng dungeon0-full IDENTICAL f1–f44741 (126,069 draws) + portsave
