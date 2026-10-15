@@ -417,6 +417,8 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                <file>; also echoed to stderr. Keyed on
  *                                tick_label() (== --capture-frames
  *                                index). See src/anchor_trace.h.
+ *   --block-dump F <file>        after tick F write the retail-layout blocks
+ *                                (state_va_block_dump; rhost.py portblock).
  *   --state-va <va,..>           with --state-log <file>: after each
  *                                anchor evaluation write `post N va=val..`
  *                                for those retail VAs' port mirrors (the
@@ -506,6 +508,8 @@ static char                     *g_state_log_path           = NULL;
 static FILE                     *g_state_log_fp             = NULL;
 static int                       g_state_log_pending        = 0;
 static uint32_t                  g_state_log_frame          = 0;
+static const char               *g_block_dump_path          = NULL;   /* --block-dump F path */
+static uint32_t                  g_block_dump_frame         = 0;
 
 /* Frame label of the tick being run: tick #k (1-based) is frame k — rhost's
  * convention (its `post k` = k ticks done), so a port label is the same tick as
@@ -2370,6 +2374,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 }
                 if (g_state_log_pending) {
                     state_va_log(g_state_log_fp, g_state_log_frame);
+                    if (g_block_dump_path && g_state_log_frame == g_block_dump_frame)
+                        state_va_block_dump(g_block_dump_path, g_state_log_frame);
                     g_state_log_pending = 0;
                 }
 
@@ -3907,6 +3913,15 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 g_rng_log_path = rl_buf;
                 unsigned a = 0, b = 0;
                 if (sscanf(rng, "%u:%u", &a, &b) == 2) { g_rng_log_from = a; g_rng_log_to = b; }
+            }
+        } else if (lstrcmpA(tok, "--block-dump") == 0) {
+            char *f = strtok(NULL, " ");
+            char *val = strtok(NULL, " ");
+            if (f && val) {
+                static char bd_buf[MAX_PATH];
+                lstrcpynA(bd_buf, val, (int)sizeof(bd_buf));
+                g_block_dump_path  = bd_buf;
+                g_block_dump_frame = (uint32_t)strtoul(f, NULL, 10);
             }
         } else if (lstrcmpA(tok, "--state-log") == 0) {
             char *val = strtok(NULL, " ");

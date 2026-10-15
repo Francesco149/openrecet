@@ -20,5 +20,8 @@ int  state_va_select(const char *list, uint32_t *bad);
 void state_va_log(FILE *fp, uint32_t frame);
 /* The mapped VAs, for usage text: "6023a0 rng, 438b1c0 scene, ..." */
 const char *state_va_known(void);
+/* the retail-layout blocks (party, actors, objects, records, …) + the active
+ * work bank at `frame` into `path` (rhost.py portblock) */
+void state_va_block_dump(const char *path, uint32_t frame);
 
 #endif /* OPENRECET_STATE_VA_H */

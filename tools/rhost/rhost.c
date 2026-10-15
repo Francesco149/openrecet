@@ -320,12 +320,24 @@ static void __cdecl my_sbh_free(void *hdr, void *p)
 
 /* ---- --log-rand FROM:TO: every retail rand() call in a frame window (diagnostic) ---- */
 static uint32_t g_lr_from = 1, g_lr_to = 0;
+/* the call site exactly (this hook's return address), then the text addresses
+ * scanned from just above its return slot: stale slots below the caller's
+ * frame no longer lead the list */
+static void __attribute__((noinline)) logrand_stack(char *b, size_t n, uint32_t ra, const uint32_t *above)
+{
+    size_t o = (size_t)snprintf(b, n, "%x", ra);
+    const uint32_t *top = (const uint32_t *)((NT_TIB *)NtCurrentTeb())->StackBase;   /* never past the stack */
+    for (int i = 0, k = 1; i < 256 && k < 5 && above + i < top; i++)
+        if (above[i] >= RT_TEXT_LO && above[i] < RT_TEXT_LO + RT_TEXT_SZ) { o += snprintf(b + o, n - o, ",%x", above[i]); k++; }
+}
 static uint32_t __cdecl logrand(void)
 {
     uint32_t s0 = G32(DAT_RNG);
     uint32_t r = ((uint32_t (__cdecl *)(void))VA_RAND)();
     if (g_frame >= g_lr_from && g_frame <= g_lr_to) {
-        char st[96]; sbh_stack(st, sizeof st);
+        char st[96];
+        logrand_stack(st, sizeof st, (uint32_t)(uintptr_t)__builtin_return_address(0),
+                      (const uint32_t *)__builtin_frame_address(0) + 2);
         /* " worker": drawn by a deferred loader at the boundary BEFORE tick g_frame+1
          * (the port labels such draws with that upcoming tick) */
         rh_log("rand f%u seed %08x -> %08x [%s]%s\n", g_frame, s0, G32(DAT_RNG), st, g_in_defer ? " worker" : "");

@@ -20,6 +20,7 @@
 #include "map_collision.h"
 #include "news_daily.h"
 #include "party.h"
+#include "stage_post_load.h"
 #include "stage_palette.h"
 #include "floor_layout.h"
 #include "rng.h"
@@ -291,6 +292,37 @@ static int is_bg_npc_va(uint32_t va)
         || va == 0x73a8bb4u || va == 0x73a8bb8u;
 }
 
+/* the floor-flow / pause scalars the port keeps one by one */
+static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
+    { 0x438b4b4u, &g_floor_intro },     { 0x438b8d0u, &g_floor_frames },
+    { 0x438b1e8u, &g_floor_time },      { 0x438c85cu, &g_floor_timer[0] },
+    { 0x438be94u, &g_floor_end_timer }, { 0x438be98u, &g_floor_end_kind },
+    { 0x438be9cu, &g_portal_prompt },   { 0x438bea8u, &g_portal_return },
+    { 0x438c14cu, &g_portal_cooldown }, { 0x438bea0u, &g_equip_prompt },
+    { 0x438b8b0u, &g_ctrl_lock },       { 0x438b770u, &g_fall_timer },
+    { 0x438b8a4u, &g_event_tick },      { 0x438b8a0u, &g_event_stage },
+    { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },
+    { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
+    { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
+    { 0x438b4dcu, &g_stage_b4dc },      { 0x438b4d4u, &g_dat_0438b4d4 },
+    { 0x438b900u, &g_orb_pick_n },      { 0x438b90cu, &g_kill_combo },
+    { 0x438b910u, &g_kill_combo_type }, { 0x438b914u, &g_kill_combo_timer },
+    { 0x438b904u, &g_scene1_combat_dat_0438b904 },
+    { 0x438b908u, &g_scene1_combat_dat_0438b908 },
+    { 0x438bed8u, &g_scene1_combat_dat_0438bed8 },
+    { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
+    { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
+    { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
+    { 0x438b768u, &g_notice_ticks },
+    { 0x74b2878u, &g_pause_sel },       { 0x74b2870u, &g_pause_sel_anim },
+    { 0x74b2880u, &g_pause_sub_anim },  { 0x74b2884u, &g_pause_sub_dir },
+    { 0x73e154cu, &g_pause_count },     { 0x74b2830u, &g_pause_exit_confirm },
+    { 0x74b2834u, &g_pause_save_cursor }, { 0x74b2820u, &g_pause_save_scroll },
+    { 0x74b289cu, &g_pause_save_phase }, { 0x74b28a0u, &g_pause_save_warn }, { 0x74b28a4u, &g_pause_save_overwrite },
+    { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
+    { 0x74b2894u, &g_pause_save_hscroll },
+};
+
 /* Retail-layout blocks the port keeps byte for byte: the party block
  * (party.h), the actor table (actor_table.h), the stage objects
  * (dungeon_objects.h), the number popups (actor_ai.h) and the floor-flow
@@ -309,35 +341,7 @@ static const int32_t *layout_dword(uint32_t va)
         return &g_scene1_records_b[(va - 0x69324b0u) / 4];
     if (va >= 0x6956cb0u && va < 0x6956cb0u + SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE * 4u)
         return &g_scene1_records_c[(va - 0x6956cb0u) / 4];
-    static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
-        { 0x438b4b4u, &g_floor_intro },     { 0x438b8d0u, &g_floor_frames },
-        { 0x438b1e8u, &g_floor_time },      { 0x438c85cu, &g_floor_timer[0] },
-        { 0x438be94u, &g_floor_end_timer }, { 0x438be98u, &g_floor_end_kind },
-        { 0x438be9cu, &g_portal_prompt },   { 0x438bea8u, &g_portal_return },
-        { 0x438c14cu, &g_portal_cooldown }, { 0x438bea0u, &g_equip_prompt },
-        { 0x438b8b0u, &g_ctrl_lock },       { 0x438b770u, &g_fall_timer },
-        { 0x438b8a4u, &g_event_tick },      { 0x438b8a0u, &g_event_stage },
-        { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },
-        { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
-        { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
-        { 0x438b4dcu, &g_stage_b4dc },      { 0x438b4d4u, &g_dat_0438b4d4 },
-        { 0x438b900u, &g_orb_pick_n },      { 0x438b90cu, &g_kill_combo },
-        { 0x438b910u, &g_kill_combo_type }, { 0x438b914u, &g_kill_combo_timer },
-        { 0x438b904u, &g_scene1_combat_dat_0438b904 },
-        { 0x438b908u, &g_scene1_combat_dat_0438b908 },
-        { 0x438bed8u, &g_scene1_combat_dat_0438bed8 },
-        { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
-        { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
-        { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
-        { 0x438b768u, &g_notice_ticks },
-        { 0x74b2878u, &g_pause_sel },       { 0x74b2870u, &g_pause_sel_anim },
-        { 0x74b2880u, &g_pause_sub_anim },  { 0x74b2884u, &g_pause_sub_dir },
-        { 0x73e154cu, &g_pause_count },     { 0x74b2830u, &g_pause_exit_confirm },
-        { 0x74b2834u, &g_pause_save_cursor }, { 0x74b2820u, &g_pause_save_scroll },
-        { 0x74b289cu, &g_pause_save_phase }, { 0x74b28a0u, &g_pause_save_warn }, { 0x74b28a4u, &g_pause_save_overwrite },
-        { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
-        { 0x74b2894u, &g_pause_save_hscroll },
-    };
+    if (stage_post_load_va(va)) return stage_post_load_va(va);
     if (va >= 0x73a6db8u && va < 0x73a6db8u + sizeof g_story_visitor)
         return &g_story_visitor[(va - 0x73a6db8u) / 4];
     if (va >= 0x73a8b38u && va < 0x73a8b38u + sizeof g_story_visitor_pos)
@@ -430,4 +434,67 @@ const char *state_va_known(void)
     if (o < sizeof out)
         snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798.., bg-NPC 73a7f80+i*100+off, 73a8bb4/bb8");
     return out;
+}
+
+/* --block-dump: the retail-layout blocks at one frame, for rhost.py portblock:
+ * "PBLK" frame n, n x (va, len, bytes) */
+static const struct { uint32_t va, len; } k_blocks[] = {
+    { PARTY_VA, PARTY_SIZE },
+    { 0x76b970u, ACTOR_COUNT * ACTOR_SIZE },
+    { 0x695ef78u, DOBJ_COUNT * (uint32_t)sizeof(dobj_t) },
+    { 0x44e28f0u, (uint32_t)sizeof g_popup },
+    { 0x69324b0u, SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE * 4u },
+    { 0x6956cb0u, SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE * 4u },
+    { 0x438bedcu, 0x60u },
+    { 0x438bfb0u, (uint32_t)sizeof g_mapcol_objs },
+};
+
+static void put32(FILE *fp, uint32_t v) { fwrite(&v, 4, 1, fp); }
+
+/* a port pointer into a retail-layout block → that block's retail VA (retail
+ * stores e.g. a record's owner as &DAT_056da1b8; the port as &g_party) */
+static uint32_t to_retail_ptr(uint32_t v)
+{
+    const struct { const void *p; uint32_t va, len; } k[] = {
+        { &g_party, PARTY_VA, PARTY_SIZE },
+        { g_actor, 0x76b970u, ACTOR_COUNT * ACTOR_SIZE },
+        { g_dobj, 0x695ef78u, DOBJ_COUNT * (uint32_t)sizeof(dobj_t) },
+        { g_scene1_records_b, 0x69324b0u, SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE * 4u },
+        { g_scene1_records_c, 0x6956cb0u, SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE * 4u },
+    };
+    for (size_t i = 0; i < sizeof k / sizeof k[0]; i++) {
+        const uint32_t base = (uint32_t)(uintptr_t)k[i].p;
+        if (v >= base && v < base + k[i].len) return k[i].va + (v - base);
+    }
+    return v;
+}
+
+void state_va_block_dump(const char *path, uint32_t frame)
+{
+    FILE *fp = fopen(path, "wb");
+    if (!fp) return;
+    const uint32_t nb = (uint32_t)(sizeof k_blocks / sizeof k_blocks[0]);
+    const uint32_t nf = (uint32_t)(sizeof k_flow / sizeof k_flow[0]);
+    fwrite("PBLK", 4, 1, fp);
+    put32(fp, frame);
+    put32(fp, nb + nf + 1);
+    for (uint32_t k = 0; k < nb; k++) {
+        put32(fp, k_blocks[k].va);
+        put32(fp, k_blocks[k].len);
+        for (uint32_t o = 0; o < k_blocks[k].len; o += 4) {
+            const int32_t *p = layout_dword(k_blocks[k].va + o);
+            put32(fp, p ? to_retail_ptr((uint32_t)*p) : 0u);
+        }
+    }
+    for (uint32_t k = 0; k < nf; k++) {
+        put32(fp, k_flow[k].va);
+        put32(fp, 4);
+        put32(fp, (uint32_t)*k_flow[k].p);
+    }
+    const int slot = save_work_active_slot();
+    const uint32_t *w = save_work_dwords_at(slot);
+    put32(fp, WORK_BANK_VA + (uint32_t)slot * WORK_BANK_SIZE);
+    put32(fp, WORK_BANK_SIZE);
+    for (uint32_t o = 0; o < WORK_BANK_SIZE; o += 4) put32(fp, w ? w[o / 4] : 0u);
+    fclose(fp);
 }

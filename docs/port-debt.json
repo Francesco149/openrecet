@@ -526,7 +526,7 @@
    "engine_fn": "FUN_0044d47d",
    "desc": "dungeons 1..5's events \u2014 FUN_0044d47d,",
    "file": "src/dungeon_flow.c",
-   "line": 373,
+   "line": 377,
    "kind_known": true
   },
   {
@@ -638,7 +638,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 171,
+   "line": 175,
    "kind_known": true
   },
   {

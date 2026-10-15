@@ -131,7 +131,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044b219 | src/scene1_postload.c:402 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044d1e4 | src/scene1_postload.c:337 | dungeons 1..5's setups FUN_0044d1e4 / |
-| FUN_0044d47d | src/dungeon_flow.c:373 | dungeons 1..5's events — FUN_0044d47d, |
+| FUN_0044d47d | src/dungeon_flow.c:377 | dungeons 1..5's events — FUN_0044d47d, |
 | FUN_0044f078 | src/dungeon_party.c:508 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
@@ -145,7 +145,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0047f46a | src/scene1_sim.c:294 | equip the bag's items |
 | FUN_004855e2 | src/dungeon_party.c:384 | the accessory-break follow-up |
 | FUN_00485712 | src/dungeon_party.c:381 | the status-guard accessory 2504 (the |
-| FUN_00485c74 | src/dungeon_flow.c:171 | the party damage (HP bar + |
+| FUN_00485c74 | src/dungeon_flow.c:175 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1520 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:1501 | the faced stand's item |

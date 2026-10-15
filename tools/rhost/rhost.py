@@ -11,6 +11,7 @@
   rhost.py flatten SCEN                  write tests/scenarios/<SCEN>/trace.flat.jsonl
   rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
   rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
+  rhost.py portblock SCEN --at F         port vs retail, every dword of the layout blocks + work bank at frame F
   rhost.py gates [--only RE]             the regression gate: portsave / portanchors / portrng, one line each
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --hash-every N
@@ -26,6 +27,7 @@ import os
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -612,6 +614,15 @@ def cmd_portrng(a):
             print(f"   retail {n:4d}x {k}")
         for k, n in runs([pmap.get(p[4], hex(p[4])).split(" (")[0] for p in P if p[0] == f and p[1] == "rand"]):
             print(f"   port   {n:4d}x {k}")
+    if bad and getattr(a, "seq", False):
+        # the first differing tick draw by draw, retail | port side by side (the LCG chain is shared, so row i
+        # is the same LCG step on both sides until the extra / missing draw); --rng-log gives one port frame
+        f = bad[0]
+        rs = [rkey(r) or "?" for r in R if r[0] == f]
+        ps = [pmap.get(p[4], hex(p[4])).split(" (")[0] for p in P if p[0] == f and p[1] == "rand"]
+        print(f"f{f} draw by draw (retail | port):")
+        for i in range(max(len(rs), len(ps))):
+            print(f"  {i:4d}  {(rs[i] if i < len(rs) else '-')[:70]:70s} | {ps[i] if i < len(ps) else '-'}")
     if not bad:
         print("IDENTICAL per-tick draw counts in the window")
     else:
@@ -703,6 +714,18 @@ def cmd_portstate(a):
             print(f"  {va:>8s}  first diff f{f}: retail {R[f].get(va)} / port {P[f].get(va)}  ({len(diff)} frames differ)")
         else:
             print(f"  {va:>8s}  IDENTICAL")
+    if getattr(a, "changes", False):
+        # every frame where any listed VA changes on either side: the two timelines of the writes
+        def fmt(v):
+            return v if not a.floats or v is None else "%.6g" % struct.unpack("<f", struct.pack("<i", int(v)))[0]
+        prev = None
+        print("changes (retail | port):")
+        for f in common_f:
+            cur = tuple(R[f].get(v) for v in vas) + tuple(P[f].get(v) for v in vas)
+            if cur != prev:
+                mark = " *" if any(R[f].get(v) != P[f].get(v) for v in vas) else ""
+                print(f"  f{f:<6d} " + "  ".join(f"{v}={fmt(R[f].get(v))}|{fmt(P[f].get(v))}" for v in vas) + mark)
+                prev = cur
     if firsts:
         f0 = min(firsts)
         print(f"around f{f0} (retail | port):")
@@ -711,6 +734,75 @@ def cmd_portstate(a):
                 mark = " *" if any(R[f].get(v) != P[f].get(v) for v in vas) else ""
                 print(f"  f{f:<6d} " + "  ".join(f"{v}={R[f].get(v)}|{P[f].get(v)}" for v in vas) + mark)
     return 1 if firsts else 0
+
+
+# the port's --block-dump blocks: name, retail VA, record stride (0 = flat)
+PORT_BLOCKS = [("party", 0x56da1b8, 0), ("actors", 0x76b970, 0xba4), ("dobj", 0x695ef78, 0x2a0),
+               ("popup", 0x44e28f0, 28), ("recb", 0x69324b0, 0x124), ("recc", 0x6956cb0, 0x94),
+               ("drop", 0x438bedc, 0x18), ("mapcol_objs", 0x438bfb0, 0)]
+
+
+def read_pblk(path):
+    b = open(path, "rb").read()
+    if b[:4] != b"PBLK":
+        raise SystemExit(f"{path}: not a PBLK block dump")
+    frame, n = struct.unpack_from("<2I", b, 4)
+    off, out = 12, []
+    for _ in range(n):
+        va, ln = struct.unpack_from("<2I", b, off)
+        off += 8
+        out.append((va, list(struct.unpack_from(f"<{ln // 4}I", b, off))))
+        off += ln
+    return frame, out
+
+
+def cmd_portblock(a):
+    """port vs retail at one frame: every dword of the retail-layout blocks (party, actors, stage objects,
+    popups, records B / C, drop rows, map objects, flow scalars, the active work bank), grouped by record"""
+    name, f = a.scenario, a.at
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = str(f)
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portblock-retail",
+                                    fetch=("rhost.log", "trace.flat.jsonl", "state_*.rhs"))
+    rhs_path = os.path.join(bdir, name, f"state_f{f:06d}.rhs")
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), f + 2,
+                      extra=("--block-dump", str(f), "{pw}\\blocks.bin"), fetch=("blocks.bin",))
+    R = rhs.Dump(rhs_path)
+    pf, P = read_pblk(os.path.join(pdir_l, "blocks.bin"))
+
+    def rword(va):
+        for lo, hi in R.ranges:
+            if lo <= va < hi:
+                return R.words[lo][(va - lo) // 4]
+        return None
+
+    def fmt(v):
+        fv = struct.unpack("<f", struct.pack("<I", v))[0]
+        return f"{v:#010x} {struct.unpack('<i', struct.pack('<I', v))[0]:>11d} {fv:>13.7g}"
+
+    total = 0
+    for va0, words in P:
+        blk = next((b for b in PORT_BLOCKS if b[1] == va0), None)
+        bname, stride = (blk[0], blk[2]) if blk else (("work" if 0x44e3798 <= va0 < 0x44e3798 + 8 * 0x2dfc8 else f"{va0:x}"), 0)
+        diffs = []
+        for i, pv in enumerate(words):
+            va = va0 + 4 * i
+            rv = rword(va)
+            if rv is None or rv == pv or va in R.vol:
+                continue
+            diffs.append((va, rv, pv))
+        if not diffs:
+            continue
+        total += len(diffs)
+        print(f"== {bname} ({va0:#x}): {len(diffs)} dwords differ")
+        for va, rv, pv in diffs[:a.list]:
+            where = f"#{(va - va0) // stride} +{(va - va0) % stride:#x}" if stride else f"+{va - va0:#x}"
+            print(f"   {va:#09x} {where:>12s}   retail {fmt(rv)}   port {fmt(pv)}")
+        if len(diffs) > a.list:
+            print(f"   … {len(diffs) - a.list} more")
+    print(f"portblock f{f} (port dump f{pf}): {total} dwords differ" if total else f"portblock f{f}: all blocks IDENTICAL")
+    return 1 if total else 0
 
 
 def cmd_flatten(a):
@@ -798,9 +890,15 @@ def main():
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
     p.add_argument("--context", type=int, default=4)
     p.add_argument("--window", help="FROM:TO: compare only these frames")
+    p.add_argument("--changes", action="store_true", help="list every frame where a VA changes on either side")
+    p.add_argument("--floats", action="store_true", help="--changes: show the values as floats")
     common(p); p.set_defaults(fn=cmd_portstate)
     p = sp.add_parser("portrng"); p.add_argument("scenario"); p.add_argument("--window", required=True, help="FROM:TO frames (TO may be \"end\"; clamped to the retail run)")
-    p.add_argument("--context", type=int, default=3); common(p); p.set_defaults(fn=cmd_portrng)
+    p.add_argument("--context", type=int, default=3)
+    p.add_argument("--seq", action="store_true", help="list the first differing tick's draws in order, retail | port")
+    common(p); p.set_defaults(fn=cmd_portrng)
+    p = sp.add_parser("portblock"); p.add_argument("scenario"); p.add_argument("--at", type=int, required=True, help="frame F")
+    p.add_argument("--list", type=int, default=40, help="dwords listed per block"); common(p); p.set_defaults(fn=cmd_portblock)
     p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)

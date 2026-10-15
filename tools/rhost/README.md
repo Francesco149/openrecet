@@ -17,7 +17,16 @@ python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → 
 python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
+python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first differing tick draw by draw
+python3 tools/rhost/rhost.py portstate X --va 438bef4,438bf24 --changes   # every frame a VA changes, both sides
+python3 tools/rhost/rhost.py portblock X --at 29806          # every dword of the layout blocks + work bank
 ```
+`portblock` compares, at one frame, retail's `--dump-at` memory against the port's
+`--block-dump` (src/state_va.c): the party block, the actor table, the stage objects,
+the popups, records B / C, the drop-weight rows, the map objects, the floor-flow scalars
+and the active work bank — differing dwords listed per block with record index + offset.
+`--log-rand` logs each draw's exact call site first (the hook's return address), then
+the text addresses scanned from just above it (heuristic: stale slots can still appear).
 `--shot-at F` reads retail's backbuffer through its D3D device (`DAT_073dfcbc`) at the
 tick-F boundary — the frame tick F presented, deterministic (PrintWindow, the fallback,
 lags up to ~1000 frames at rhost speed). Port runs get rhost's canonical `recet.ini`
