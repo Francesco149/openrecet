@@ -5064,6 +5064,17 @@ the text width (font metrics). Until then `FUN_00442cef` freezes the player
 rhost portstate dungeon0-floors-save f3409–f5400 (2026-10-15): party positions,
 velocities, facing, db054 and the three sprite records bit-identical.
 
+## 144. A dungeon pause Save writes the state at the Adventurers' Guild entry, not the live one (FUN_0047f5bc)
+
+The guild's scene init FUN_0045bdc2 copies the working bank to backup bank 0
+(FUN_0047f172(0), DAT_0741bee0) before it sets the resume mode. The pause Save commit
+copies the working bank to backup 1, and in a dungeon (saved mode 1, stage type >= 1)
+loads backup 0 back into the working bank (FUN_0047f1a0(0)). It writes the slot
+(FUN_004905a8) and restores backup 1. So the slot gets the guild-entry bank: the
+expedition's items, EXP, floors and its own card stamp (the commit's card fields go to
+the working bank, which backup 0 then overwrites) are not in it. Recorded:
+`dungeon0-floors-save` (slot 9 → save slot 11; port save.dat byte-identical, 2026-10-15).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

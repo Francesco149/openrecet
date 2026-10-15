@@ -21,6 +21,23 @@
 /* ── Working arena (engine DAT_044e2c88 header / DAT_044e3798 banks) ── */
 static uint8_t g_work[SAVE_BANK_ARENA_BYTES];
 
+/* ── The two backup banks (engine DAT_0741bee0 + i·0x2dfc8): 0 = the
+ * expedition's restore point (the Adventurers' Guild entry), 1 = the pause
+ * save's scratch copy ── */
+static uint8_t g_backup[2][SAVE_BANK_STRIDE_BYTES];
+
+void save_work_backup_store(int i)
+{
+    const uint8_t *src = save_work_bank_at(save_work_active_slot());
+    if (src && (i == 0 || i == 1)) memcpy(g_backup[i], src, SAVE_BANK_STRIDE_BYTES);
+}
+
+void save_work_backup_restore(int i)
+{
+    uint8_t *dst = save_work_bank_at(save_work_active_slot());
+    if (dst && (i == 0 || i == 1)) memcpy(dst, g_backup[i], SAVE_BANK_STRIDE_BYTES);
+}
+
 /* Engine DAT_0438b1e0 — active working slot ("current stage index"). */
 static int g_active_slot = 0;
 

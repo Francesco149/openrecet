@@ -149,32 +149,35 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f9872**: floor 2's
-       first type-16 enemy (FUN_004262b7 + its walk FUN_00423789, FUN_0042f28c's dispatch);
-       adv-guild-pack-leave **identical to the end**). The floor change landed (FUN_00452f16,
-       FUN_004536cb's 6a49964 arm, LAB_00452a6b) → portrng to f9871. Next, in frame order:
-       - ★ the other enemy types' AI as floors 2–3 reach them (FUN_0042f28c's table);
-       - the "got an item" window (DAT_00648250 / 648294, FUN_0040c923) is never consumed
-         in the port (retail clears 648294); the run's end (be9c > 120, FUN_00442c86 …) and
-         FUN_004427f1's event-arm floor loads (460 / 45) are `PORT-DEBT(stub)`;
-       - PORT-DEBT left in the combat path: FUN_004412b6 traps 1/2/3/6/8/9/10, FUN_0043824b
-         (the chest's item roll), FUN_00484e45 / FUN_00485413 (bag full), FUN_004147d5
-         overlays, FUN_0042f7ad's boss arms, the other chars' swings / skills, FUN_0048a383;
-       - the legacy table-B tick (`scene1_records_b_tick.c`) / spawn (`scene1_records_b_spawn.c`)
-         are pre-reset ports: re-verify each record kind as the dungeon reaches it (kinds 2 /
-         11 / 31 / 34 / 84 fixed so far; the legacy phase B / C in `scene1_combat_sm.c` on
-         `g_scene1_people` / `g_scene1_projectiles` are dead code now — retire with their tests);
-       - actor pass debts: FUN_0042e791 types 25/28/41/73 hooks, the other types' AI, the
-         golem parts / multi-part anchors, FUN_0042df55's lists for stages >= 20,
-         enemy types >= 64 (retail reads past DAT_005c23f0);
+    1. **The dungeon pilot — both recordings pass end to end.** dungeon0-floors-save:
+       **portrng IDENTICAL f1–f12671 + portsave IDENTICAL** (three floors, slimes + type 16,
+       the portals, a level-up, the dungeon pause Save — quirk §144); adv-guild-pack-leave
+       identical to its end. Both in `gates`. Next needs new recordings (Human queue):
+       deeper floors / other enemy types, the return portal + the run's end, a party
+       defeat. Debts the recordings will hit:
+       - the run's end (be9c > 120: FUN_00442c86, FUN_0048f7f0, FUN_00474d92, the records,
+         the world map / FUN_0048526d) and FUN_004427f1's event-arm floor loads (460 / 45)
+         are `PORT-DEBT(stub)`; the "got an item" window (DAT_00648250 / 648294,
+         FUN_0040c923) is never consumed in the port (retail clears 648294);
+       - the other enemy types' AI (FUN_0042f28c's table; slimes 0–5 + type 16 done), the
+         golem parts / multi-part anchors, FUN_0042e791 types 25/28/41/73 hooks,
+         FUN_0042df55's lists for stages >= 20, enemy types >= 64 (retail reads past
+         DAT_005c23f0);
+       - the combat path: FUN_004412b6 traps 1/2/3/6/8/9/10, FUN_0043824b (the chest's
+         item roll), FUN_00484e45 / FUN_00485413 (bag full), FUN_0042f7ad's boss arms, the
+         other chars' swings / skills, the remaining FUN_004147d5 overlay stubs;
+       - the legacy table-B tick / spawn (`scene1_records_b_{tick,spawn}.c`) are pre-reset
+         ports: re-verify each record kind against the disasm as a recording reaches it
+         (kinds 2 / 11 / 13+21 / 31 / 34 / 84 / 86 fixed so far — 13 / 21 read the owner from
+         +0x10 instead of +0x14, so they never ticked); the legacy phase B / C in
+         `scene1_combat_sm.c` are dead code — retire with their tests;
        - the stat aggregate FUN_004844ef runs at f702 in the port, f686 in retail (not
-         RNG-visible);
-       - the floor-event ticker end (b92c → 0 in the HUD render FUN_0040a765, quirk §143),
+         RNG-visible); the floor-event ticker end (b92c → 0 in FUN_0040a765, quirk §143),
          FUN_00441aab ("?" spots);
        - render: no dungeon renderer yet (FUN_00473c15's assets are `PORT-DEBT(stub)`).
        Shadow each fn (`rh_hooks.c`) as it lands; the house player collision moves to
        `map_collision.c` (`PORT-DEBT(semantic-collision)`).
-    2. **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
+    2. ★ **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
        arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
        FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
        Retail there: bg-NPC ticks from the story block, no Tear tick.
@@ -199,8 +202,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
-  each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
-  end, plus dungeon0-floors-save into the dungeon (to f9871), adv-guild-pack-leave to its end.
+  each: portsave ×6 (incl. the dungeon Save), portanchors ×2, portrng over 11 shop/day
+  scenarios + dungeon0-floors-save + adv-guild-pack-leave, each to the retail run's end.
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
@@ -239,5 +242,11 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- (empty — `dungeon0-floors-save` recorded 2026-10-14.)
+- **Record a longer dungeon run** (unblocks the dungeon pilot's next stage; both current
+  recordings pass end to end). On maximus, the user plays on the Windows desktop:
+  `python3 tools/rhost/rhost.py record dungeon0-full --save dbdd2808170bab0ebf5bcf10847b7fe8a050b831d0a30a509c4f1abb8cad85b4`
+  (the dungeon0-floors-save input). Play: Continue slot 9 → world map → Adventurers'
+  Guild → Depart to dungeon 0 → every floor to the end (fight each enemy kind, open
+  chests, take the floor-4 portal), let the run end and return to town (world map /
+  shop). A second, optional recording: the party defeated on a floor.
 <!-- FRONT:END -->

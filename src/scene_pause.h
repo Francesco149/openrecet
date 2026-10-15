@@ -204,6 +204,7 @@ extern int32_t g_pause_save_scroll;  /* DAT_074b2820 (val2[0]) — window top   
 extern int32_t g_pause_save_vscroll; /* DAT_074b2898 (c898)    — column slide  */
 extern int32_t g_pause_save_hscroll; /* DAT_074b2894 (c894)    — row slide     */
 extern int32_t g_pause_save_phase;   /* DAT_074b289c (c89c)    — save anim     */
+extern int32_t g_pause_save_warn;    /* DAT_074b28a0 — the dungeon save warning (0 / 1 / 2) */
 extern int32_t g_pause_save_overwrite; /* DAT_074b28a4 — "Overwriting file." up */
 
 /* Options submenu (type 2) state. */

@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — dungeon0-floors-save passes end to end (dungeon pilot)
+**portrng dungeon0-floors-save IDENTICAL f1–f12671 (the whole run, 31,167 draws) and
+portsave IDENTICAL** (was f9871 / save differing); both in `gates` now.
+- `actor_ai.c`: FUN_004262b7 (enemy type 16: the line-of-four variant 2, the charge with
+  record 21 + the trail overlay 91, the shot 86) and its walk-and-line-up FUN_00423789.
+- Legacy table-B fixes (x87-faithful, owner field per disasm): kinds 13 / 21 read the owner
+  at +0x14 (were +0x10, so the record never ticked, hit or died); kind 86's spawn.
+- `dungeon_party.c`: FUN_0048a383's level-up burst FUN_004147d5(party, 33) (85 overlay draws).
+- The dungeon pause Save (quirk §144): backup banks FUN_0047f172 / FUN_0047f1a0
+  (`save_work.c`), backup 0 at the Adventurers' Guild entry, the "Saving here will save your
+  data as it was prior to entering." box (DAT_074b28a0) and the commit's 0 / 1 swaps.
+- `state_va`: the pause menu + Save picker globals (74b2844.., 74b2878, 74b2834, 74b289c …).
+
 ## 2026-10-15 — the portal's floor change (dungeon pilot)
 **portrng dungeon0-floors-save identical f1–f9871** (was f8012): the exit portal, the fade,
 the next floor's load (199 worker draws) and ~1840 ticks of floor 2.

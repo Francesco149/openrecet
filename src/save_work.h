@@ -64,6 +64,11 @@ void save_work_load_slot(int src_save_bank);
  * the "clear all / new-from-picker" special path. */
 void save_work_sync_from_save(void);
 
+/* FUN_0047f172(i): the active working bank → backup bank i (DAT_0741bee0 +
+ * i·0x2dfc8); FUN_0047f1a0(i): backup bank i → the active working bank. */
+void save_work_backup_store(int i);
+void save_work_backup_restore(int i);
+
 /* ── Test helper ── */
 
 /* Zero the whole working arena + reset the active slot to 0. */

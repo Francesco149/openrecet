@@ -27,6 +27,7 @@
 #include "scene.h"
 #include "scene_adv_guild.h"
 #include "scene_day_end.h"
+#include "scene_pause.h"
 #include "scene_title.h"
 #include "scene1_actor_say.h"
 #include "scene1_bg_npc.h"
@@ -326,7 +327,16 @@ static const int32_t *layout_dword(uint32_t va)
         { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
         { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
         { 0x438b768u, &g_notice_ticks },
+        { 0x74b2878u, &g_pause_sel },       { 0x74b2870u, &g_pause_sel_anim },
+        { 0x74b2880u, &g_pause_sub_anim },  { 0x74b2884u, &g_pause_sub_dir },
+        { 0x73e154cu, &g_pause_count },     { 0x74b2830u, &g_pause_exit_confirm },
+        { 0x74b2834u, &g_pause_save_cursor }, { 0x74b2820u, &g_pause_save_scroll },
+        { 0x74b289cu, &g_pause_save_phase }, { 0x74b28a0u, &g_pause_save_warn }, { 0x74b28a4u, &g_pause_save_overwrite },
+        { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
+        { 0x74b2894u, &g_pause_save_hscroll },
     };
+    if (va >= 0x74b2844u && va < 0x74b2844u + 4u * SCENE_PAUSE_MAX_ENTRIES)
+        return &g_pause_entries[(va - 0x74b2844u) / 4];
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;
     return NULL;

@@ -202,8 +202,8 @@ static void adv_guild_enter(void)
     title_save_dialog_gate_reset();          /* FUN_00434ce3 */
     s.ticks = 0;
     /* FUN_0047f172(0): the working bank → backup bank 0 (DAT_0741bee0), the
-     * expedition's restore point (only the dungeon reads it back).
-     * PORT-DEBT(stub, FUN_0047f172): no port backup bank; retire with the dungeon. */
+     * expedition's restore point (the dungeon's pause Save writes it) */
+    save_work_backup_store(0);
     w[W_RESUME_MODE] = 1;
     /* FUN_0044c7bb: DAT_0438b8a4 = 0 — no port mirror (dungeon-side). */
     set_bag_size((int32_t)w[W_MERCHANT_LEVEL]);

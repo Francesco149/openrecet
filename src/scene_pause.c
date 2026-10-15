@@ -45,6 +45,8 @@ void title_save_dialog_cursor_capture_target(float *x, float *y);
 void title_save_dialog_cursor_snap(float x, float y);
 void title_save_dialog_cursor_slide(float x, float y);  /* FUN_00435710 — 6-frame ease */
 void title_save_dialog_anim_tick(void);   /* FUN_004356cd — cursor bob + slide step */
+void title_save_dialog_message_open(const char *msg);   /* FUN_00434ceb */
+int  title_save_dialog_gate_tick(void);                 /* FUN_00434d6a */
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -217,6 +219,7 @@ int32_t g_pause_save_scroll  = 0;   /* DAT_074b2820 (val2[0]) */
 int32_t g_pause_save_vscroll = 0;   /* DAT_074b2898 (c898)    */
 int32_t g_pause_save_hscroll = 0;   /* DAT_074b2894 (c894)    */
 int32_t g_pause_save_phase   = 0;   /* DAT_074b289c (c89c)    */
+int32_t g_pause_save_warn    = 0;   /* DAT_074b28a0 — the dungeon save warning: 0 / 1 up / 2 done */
 int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — Save: overwrite-confirm dialog
                                      * up; Items (type 1): place-mode flag (dungeon-
                                      * only, always 0 in the house). ONE engine DAT —
@@ -484,6 +487,7 @@ void pause_menu_nav(void)
                 /* type-3 branch (engine L82694): clear the save anims, init the
                  * 100-slot perm, seed the cursor from the last-used slot. */
                 g_pause_save_phase   = 0;          /* DAT_074b289c */
+                g_pause_save_warn    = 0;          /* DAT_074b28a0 */
                 g_pause_save_vscroll = 0;          /* DAT_074b2898 (c898) */
                 g_pause_save_hscroll = 0;          /* DAT_074b2894 (c894) */
                 g_save_picker_restricted = 0;      /* DAT_09643564 */
@@ -583,12 +587,13 @@ static void pause_save_commit_tick(void)
 
         save_header_set_last_slot(tslot);              /* DAT_056e578c */
 
-        /* The engine brackets the write with FUN_0047f172(1)/FUN_0047f1a0(1)
-         * (a working↔scratch backup/restore) + a dungeon-only FUN_0047f1a0(0)
-         * swap. In the HOUSE (non-dungeon) the bracket wraps only the
-         * working→slot copy, which never mutates the working bank ⇒ a provable
-         * no-op; omitted with the dungeon swap as PORT-DEBT(save-commit-dungeon). */
+        /* the working bank → backup 1; in a dungeon the slot gets backup 0 (the
+         * state at the Adventurers' Guild); then backup 1 comes back */
+        save_work_backup_store(1);                     /* FUN_0047f172(1) */
+        if (g_pause_saved_mode == 1 && g_pause_in_stage_type >= 1)
+            save_work_backup_restore(0);               /* FUN_0047f1a0(0) */
         save_io_commit_slot(tslot);                    /* FUN_004905a8(tslot) */
+        save_work_backup_restore(1);                   /* FUN_0047f1a0(1) */
     }
 
     g_pause_save_phase++;                               /* engine 0x47f73a */
@@ -616,16 +621,26 @@ static void pause_save_commit_tick(void)
  *            (phase=1), an OCCUPIED slot pops the "Overwriting file." choice
  *            box (FUN_00434def), whose Yes/No is polled below.
  *
- * PORT-DEBT(save-commit-dungeon): the dungeon "Saving here will save your
- * data<BR>as it was prior to entering." warning (engine 0x47f5da, gated
- * saved_mode==1 && stage_type>0 — inert in the HOUSE where stage_type==0, so
- * the engine falls straight through and skipping it here is exactly
- * equivalent) + the FUN_0047f1a0(0) town-state swap; both need a dungeon
- * save trace. */
+ * In a dungeon (saved_mode 1, stage type >= 1) the "Saving here will save
+ * your data<BR>as it was prior to entering." box comes first (DAT_074b28a0:
+ * 0 open, 1 until FUN_00434d6a reports it closed, 2 the picker). */
 void pause_save_submenu_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;  /* DAT_073dddd4 */
     const uint16_t held    = g_sim_buttons[0].held;     /* DAT_073dddd6 */
+
+    if (g_pause_saved_mode == 1 && g_pause_in_stage_type >= 1) {
+        if (g_pause_save_warn == 0) {
+            g_pause_save_warn = 1;
+            title_save_dialog_message_open("Saving here will save your data<BR>as it was prior to entering.");
+            return;
+        }
+        if (g_pause_save_warn == 1) {
+            if (title_save_dialog_gate_tick() == 1)    /* FUN_00434d6a */
+                g_pause_save_warn = 2;
+            return;
+        }
+    }
 
     /* phase>=1 → the commit animation is running (engine: DAT_074b289c >= 1
      * wraps the whole nav block). Tick the 60-frame sequence and bail. */
