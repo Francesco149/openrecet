@@ -7,6 +7,29 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — dungeon0-full and dungeon0-wipe pass end to end (dungeon pilot)
+Two new native recordings (the whole of dungeon 0 + the boss + the return home + a save;
+a party wipe). **portrng dungeon0-full IDENTICAL f1–f44741 (126,069 draws) + portsave
+IDENTICAL; portrng dungeon0-wipe IDENTICAL f1–f6257.** All three rows in `gates`.
+Splits closed, in order (each a commit):
+- the house: any 0x10 / 0x20 / 0x40 press in free-roam ends the frame (quirk §145); the door
+  zone v59's 1.8 radius by scene type;
+- the trap spots FUN_00441aab and FUN_004412b6's traps 1/2/3/6/8/9/10, FUN_004458c4; record
+  0x2c on the disasm; the table-B ground hook installed (every body's ground query missed);
+- the chest roll FUN_0043824b; FUN_00435dcd on the disasm (mode = b4c8 when b4d0 is -1);
+  FUN_00436f97's FUN_00435fbb(0, -1) and the world map's FUN_00435c98 (the drop rows drifted);
+- the dungeon pause Items: use / throw away (FUN_0047ff40, FUN_004849a6, FUN_00484bcb), the
+  mode-6 bag list, FUN_00468fd0;
+- the fliers FUN_0042a74c (types 17..21, 56..58) + FUN_0041f789; particles 0x75 / 0x93 / 0x98;
+- the boss floor: FUN_0044c88f, the intro FUN_0044c9ba, the portal FUN_0044b257 / 2e6 / 38c;
+  the dialogue arm's FUN_00430c00 and FUN_0043a5d9;
+- the run's end: the results screen FUN_0048f931 / FUN_0048f87c (keep-all or keep 1..3 after
+  a defeat, the score, the period, world map or home), FUN_00442c86, FUN_0048f7f0 /
+  FUN_0048f8bb; FUN_00469414 completed (the message holds, the detail popup, mode 6's
+  "Nothing" → bag sort returning 4).
+Tools: `rhost.py portblock` (every dword of the layout blocks + work bank at one frame),
+`portrng --seq`, `portstate --changes`, exact rand call sites in `--log-rand`.
+
 ## 2026-10-15 — the day-8 visitor (ported, no recording reaches it)
 `src/story_visitor.c`: FUN_004706ea (the setup, armed by FUN_004852fb on the day-8 morning),
 FUN_00470a46 (the director from FUN_0044bd0d: the walk FUN_0046fbee from b924 180, the meet
