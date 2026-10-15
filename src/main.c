@@ -78,6 +78,7 @@
 #include "mesh_draw.h"
 #include "mesh_load.h"
 #include "scene1_camera.h"
+#include "record_hit.h"
 #include "scene1_combat_sm.h"
 #include "scene1_dungeon_clear_banner.h"
 #include "scene1_overlay_table.h"
@@ -1363,6 +1364,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
         g_windowed = (g_ini.winmode == 1);
         mesh_load_set_easydisp(g_ini.easydisp);
+        g_s_easydisp = g_ini.s_easydisp;
         scene1_bg_npc_set_toorioff(g_ini.toorioff);
         fprintf(stderr,
             "recet.ini: winmode=%d screen=%d (%dx%d) se=%d mu=%d\n",
@@ -1783,7 +1785,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * slot is dead and the SM never fires.  Smoke flags
      * (--force-b-npc / --force-b-entity) spawn slots that exercise the
      * SM through the integrator's state_machine_call(_ret) helpers. */
-    scene1_combat_sm_install();
+    record_sm_install();   /* FUN_0043865e (record_hit.c; the legacy SM's object scan) */
 
     /* C7e: wire FUN_00474a9a (scene-1 pre-load entry, HOUSE branch) as
      * the worker_load slot-1 INGAME callback. After title fade-out,

@@ -24,6 +24,7 @@
 #include "scene1_camera.h"       /* DAT_0438cc68 */
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) */
 #include "scene1_particles_tick.h" /* g_scene1_camera_yaw (DAT_073de39c) */
+#include "scene1_records_b_spawn.h" /* FUN_0044376a */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
 #include "sim.h"                 /* DAT_073dddd0 */
 #include "scene1_combat_sm.h"    /* DAT_0438b4c8 */
@@ -640,6 +641,76 @@ static void party_attack_input(void)
     }
 }
 
+/* FUN_0049a052: a bag of 9 voice picks (0, 1, 2 three times each), shuffled
+ * when dealt from the top; DAT_096432b4 / DAT_096432dc */
+static int32_t s_voice_bag[9], s_voice_bag_n;
+static int32_t voice_bag3(void)
+{
+    if (s_voice_bag_n == 0) {
+        for (int k = 0; k < 9; k++) s_voice_bag[k] = k % 3;
+        for (int k = 0; k < 9; k++) {
+            const unsigned r = (unsigned)rng_next15() % 9u;
+            const int32_t t = s_voice_bag[r];
+            s_voice_bag[r] = s_voice_bag[k];
+            s_voice_bag[k] = t;
+        }
+    }
+    const int32_t v = s_voice_bag[s_voice_bag_n++];
+    if (s_voice_bag_n == 9) s_voice_bag_n = 0;
+    return v;
+}
+
+/* FUN_0049831c: Louie's swing (attack state 2 of the default char): the
+ * crit roll at 1, the crit flash at 3, the voice + the hit record at 4
+ * (FUN_0044376a kind 2, 84 on a crit), the skill keys from 5, the end at
+ * 25 (30 after a crit roll) */
+static void party_attack_louie(void)
+{
+    static const char *const k_voice[2][3] = {
+        { "bin/se/02li/action/02li_01.bin", "bin/se/02li/action/02li_02.bin",
+          "bin/se/02li/action/02li_03.bin" },
+        { "bin/se/02li/action/02li_04.bin", "bin/se/02li/action/02li_05a.bin",
+          "bin/se/02li/action/02li_05b.bin" },
+    };
+    static const float k1p5 = 1.5f;
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        PW(0x56daff8u).i = 1;
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+    }
+    if (PW(0x56db04cu).i == 3 && PW(0x56db064u).i != 0) {
+        if (PW(0x56db0f4u).i < 8) PW(0x56db0f4u).i = 8;
+        g_scene1_combat_dat_0438bed8 = 30;
+        audio_play_se_by_id(342);
+        scene1_spawn(0, g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + k1p5),
+                     g_party.pos[0][2], 44, 1.0f, 1);
+    }
+    if (PW(0x56db04cu).i == 4) {
+        audio_play_se_by_id(343);
+        const int crit = PW(0x56db064u).i != 0;
+        const int32_t v = voice_bag3();
+        if (v >= 0 && v <= 2) audio_play_se_file(k_voice[crit][v]);
+        scene1_record_b_spawn_entity(&g_party, crit ? 84 : 2, -1);
+    }
+    if (PW(0x56db04cu).i >= 5 && (PW(0x56da1b8u).i & 2)) {
+        const uint16_t pr = g_sim_buttons[0].pressed;
+        if (pr & 0x3e00) {
+            /* PORT-DEBT(stub, FUN_00489d52): the direct skill keys */
+        } else if (pr & 0x20) {
+            /* PORT-DEBT(stub, FUN_00489c79): the selected skill (SP) */
+        }
+    }
+    if (PW(0x56db04cu).i >= (PW(0x56daff8u).i != 0 ? 30 : 25)) {
+        PW(0x56db04cu).i = 0;
+        PW(0x56db048u).i = 0;
+    }
+}
+
 /* FUN_0048cdcc: the player state machine */
 static void party_state_tick(void)
 {
@@ -705,9 +776,21 @@ static void party_state_tick(void)
         }
         if (PW(0x56db04cu).i >= 12) { PW(0x56db04cu).i = 0; PW(0x56db048u).i = 0; }
         break;
+    case 2:
+        switch (g_party.chr[0]) {
+        case 27: case 28: case 40: case 41: case 42: case 30: case 31:
+            /* PORT-DEBT(stub, FUN_0048cdcc): the other chars' swings (FUN_004977df,
+             * FUN_00497e3a, FUN_00494ca4, FUN_004984bf, FUN_004986ee, FUN_0049791f,
+             * FUN_00497c83) */
+            break;
+        default:
+            party_attack_louie();            /* FUN_0049831c */
+            break;
+        }
+        break;
     default:
-        /* PORT-DEBT(stub, FUN_0048cdcc): the attack / skill states 2..8 by char
-         * (FUN_0049831c, FUN_00496fca, FUN_00496f12, …) */
+        /* PORT-DEBT(stub, FUN_0048cdcc): the skill states 3..8 by char
+         * (FUN_00496fca, FUN_00496f12, FUN_00494dc5, …) */
         break;
     }
     if ((floor_event_active(9) || PW(0x56db100u).i > 0) && !chara_has_item(0x96b)) {

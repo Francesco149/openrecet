@@ -9,6 +9,9 @@
 #include <string.h>
 
 #include "actor_ai.h"
+#include "scene1_combat_sm.h"
+#include "scene1_records.h"
+#include "record_hit.h"
 #include "actor_table.h"
 #include "customer_service.h"
 #include "dungeon_flow.h"
@@ -297,6 +300,10 @@ static const int32_t *layout_dword(uint32_t va)
         return (const int32_t *)(const void *)((const uint8_t *)g_dobj + (va - 0x695ef78u));
     if (va >= 0x44e28f0u && va < 0x44e28f0u + sizeof g_popup)
         return &g_popup[0][0] + (va - 0x44e28f0u) / 4;
+    if (va >= 0x69324b0u && va < 0x69324b0u + SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE * 4u)
+        return &g_scene1_records_b[(va - 0x69324b0u) / 4];
+    if (va >= 0x6956cb0u && va < 0x6956cb0u + SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE * 4u)
+        return &g_scene1_records_c[(va - 0x6956cb0u) / 4];
     static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
         { 0x438b4b4u, &g_floor_intro },     { 0x438b8d0u, &g_floor_frames },
         { 0x438b1e8u, &g_floor_time },      { 0x438c85cu, &g_floor_timer[0] },
@@ -309,6 +316,12 @@ static const int32_t *layout_dword(uint32_t va)
         { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
         { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
         { 0x438b4dcu, &g_stage_b4dc },      { 0x438b4d4u, &g_dat_0438b4d4 },
+        { 0x438b900u, &g_orb_pick_n },      { 0x438b90cu, &g_kill_combo },
+        { 0x438b910u, &g_kill_combo_type }, { 0x438b914u, &g_kill_combo_timer },
+        { 0x438b904u, &g_scene1_combat_dat_0438b904 },
+        { 0x438b908u, &g_scene1_combat_dat_0438b908 },
+        { 0x438bed8u, &g_scene1_combat_dat_0438bed8 },
+        { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
     };
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;

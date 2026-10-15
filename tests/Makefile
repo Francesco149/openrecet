@@ -95,7 +95,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/collision_mesh.c ../src/collision_query.c ../src/collision_resolve.c \
                  ../src/collision_house.c \
                  ../src/map_collision.c ../src/actor_table.c ../src/enemy_place.c \
-                 ../src/party.c ../src/dungeon_objects.c ../src/dungeon_flow.c ../src/dungeon_party.c ../src/party_move.c ../src/actor_ai.c \
+                 ../src/party.c ../src/dungeon_objects.c ../src/dungeon_flow.c ../src/dungeon_party.c ../src/party_move.c ../src/actor_ai.c ../src/record_hit.c \
                  ../src/sha256.c ../src/se_pack.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c test_input_segtrace.c test_anchor_trace.c \

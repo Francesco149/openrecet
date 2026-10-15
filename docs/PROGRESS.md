@@ -7,6 +7,23 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — Louie's swing, the hit, the kill (dungeon pilot)
+**portrng dungeon0-floors-save identical f3405–f5457** (was f5409; the first kill at f5448
+matches draw for draw: damage roll, 64 spark draws, 3 + 2 EXP orbs, the drop roll),
+adv-guild-pack-leave to f16278.
+- FUN_0049831c (Louie's attack state 2) + FUN_0049a052 (the 9-voice bag) in
+  `dungeon_party.c`; FUN_0044376a kind 2 / 84 (legacy `scene1_records_b_spawn.c`) made
+  x87-faithful.
+- `src/record_hit.c`: FUN_0043865e as the table-B hook (`record_sm_tick`: pause gates, the
+  actor arm, the legacy object scan; the player arm is PORT-DEBT), FUN_0042e791,
+  FUN_0042e1a6, FUN_0043183e, FUN_004385fb, FUN_0041f46d, FUN_0044b16c. FUN_0044af50's
+  velocity made x87-faithful.
+- Legacy shadows folded: chara_equip's private record copy → the work bank (+0x2ceb0,
+  0x6c / chara; save_bank's mirror writes dropped), its stat outputs DAT_056db074..b8 and
+  the combat SM's `damage_base_idle{,2}` → the party block; `records_b_tick_anim_drive` =
+  DAT_06a46f94; DAT_0438b904 is the hit actor's index (int). FUN_00436f97 resets the kill
+  combo (b910 = −1).
+
 ## 2026-10-15 — the actor pass: slimes (dungeon pilot)
 `src/actor_ai.c`: FUN_00430c6d (respawn countdown, HP-bar ease, sleep/wake by distance,
 room-seen flag, poison sparkle, anim tick, the per-state AI, physics, head points, view

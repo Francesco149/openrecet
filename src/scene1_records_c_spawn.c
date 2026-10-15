@@ -11,7 +11,7 @@
  * Engine globals consumed:
  *   thunk_FUN_005041f6 → rng_next15()         (rng.h)
  *   FUN_00471089       → rng_next_unit()      (rng.h)
- *   FUN_00503a44 / 994 → sinf / cosf          (math.h)
+ *   FUN_00503a44 / 994 → x87_crt_sin / cos    (x87.h)
  *
  * The four allocators write through the slot's true base (offset 0 =
  * pos.x) — the engine names DAT_06956cb0 as the slot base.  Our
@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include "rng.h"
+#include "x87.h"
 
 #ifndef TWO_PI_F
 #define TWO_PI_F 6.2831855f
@@ -176,14 +177,15 @@ void scene1_records_c_spawn_world_drop(int owner, float px, float py,
          *   vel.x = sin(angle) * fVar1 * mag
          *   u3 = rng_next_unit();       vel.y = (u3 + 0.2) * mag * 0.5
          *   vel.z = cos(angle) * fVar1 * mag    (reuses angle from sin) */
-        float u1    = rng_next_unit();
-        float fVar1 = (u1 + 0.2f) * 0.5f;
-        float u2    = rng_next_unit();
-        float angle = u2 * TWO_PI_F;
-        float vx = sinf(angle) * fVar1 * mag;
-        float u3 = rng_next_unit();
-        float vy = (u3 + 0.2f) * mag * 0.5f;
-        float vz = cosf(angle) * fVar1 * mag;
+        /* asm 0x44b04b..0x44b0d0: each product spilled to m32; CRT sin/cos
+         * of the m32 angle. */
+        const float spd   = spill32(((long double)rng_next_unit() + 0.2f) * 0.5f);
+        const float angle = spill32((long double)rng_next_unit() * TWO_PI_F);
+        const float sa    = spill32(x87_crt_sin(angle));
+        float vx = spill32((long double)sa * spd * mag);
+        float vy = spill32((((long double)rng_next_unit() + 0.2f) * mag) * 0.5f);
+        const float ca    = spill32(x87_crt_cos(angle));
+        float vz = spill32((long double)ca * spd * mag);
         slot_set_f(i, SCENE1_RECORDS_C_OFF_VEL_X, vx);
         slot_set_f(i, SCENE1_RECORDS_C_OFF_VEL_Y, vy);
         slot_set_f(i, SCENE1_RECORDS_C_OFF_VEL_Z, vz);

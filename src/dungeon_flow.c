@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "audio.h"               /* audio_play_se_file (FUN_0049933c) */
+#include "record_hit.h"          /* DAT_0438b900 / b90c..b914 */
 #include "call_trace.h"
 #include "chara_equip.h"         /* DAT_0438b7d8 */
 #include "floor_layout.h"        /* DAT_0438b1ec (the floor origin) */
@@ -112,7 +113,12 @@ void dungeon_flow_stage_reset(void)
     g_dat_0438bebc = 0;
     g_dat_0438becc = 0;
     g_fall_timer = 0;
+    g_orb_pick_n = 0;
+    g_scene1_combat_dat_0438b904 = 0;
     g_scene1_combat_dat_0438b908 = 0;
+    g_kill_combo = 0;
+    g_kill_combo_type = -1;
+    g_kill_combo_timer = 0;
     g_ctrl_lock = -1;
     g_dat_0438b8b4 = 0;
     g_dat_0438b8b8 = 0;

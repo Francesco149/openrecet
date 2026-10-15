@@ -44,6 +44,7 @@
 #include "rng.h"
 #include "scene1_particles_tick.h"  /* g_scene1_camera_yaw, g_scene1_people */
 #include "sim.h"                    /* g_sim_frame_count (engine DAT_0438b8cc) */
+#include "x87.h"
 
 int g_scene1_record_b_seq_counter;
 
@@ -368,26 +369,29 @@ static int init_entity_drift_cluster(int i, const void *owner, int type,
 {
     (void)part_idx;
 
-    /* L41597-41598: NPC bend angle into ROT_X. */
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    /* L41597-41598: NPC bend angle into ROT_X (asm 0x4448b1: fild, fstp m32,
+     * · 2π / 8). */
+    const float bend_i = spill32((long double)owner_read_i(owner, 0x948));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,
+               spill32((long double)bend_i * B_TWO_PI_F / 8.0f));
 
-    /* L41599-41603: velocity from sin/cos(owner+0xea4)*3. */
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    /* L41599-41603: velocity from sin/cos(owner+0xea4)*3 (CRT sin/cos,
+     * each spilled to m32). */
+    const double ang = owner_read_f(owner, 0xea4);
+    const float sa = spill32(x87_crt_sin(ang));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 3.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+    const float ca = spill32(x87_crt_cos(ang));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 3.0f));
 
     /* L41604-41611: read-modify-write pos with -sin/-cos*0.5 jitter and
      * +1.0 y lift on top of preamble. */
-    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - (long double)ca * 0.5f));
 
     /* L41612-41620: per-type SCALE_X. */
     if (type == 0x67) slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.2f);
