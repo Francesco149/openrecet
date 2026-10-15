@@ -60,6 +60,12 @@ void dobj_reset(void);
 int  dobj_spawn(const float pos[3], const float scale[3], float yaw, int32_t kind);
 void dobj_tick(void);                                              /* FUN_0043a5d9 */
 
+/* FUN_0044b257: spawn an object of `kind` for `role`, spent (state 3); its
+ * slot goes to DAT_06a47054[role] */
+void dobj_spawn_special(int role, int32_t kind, const float pos[3], const float scale[3], float yaw);
+extern int32_t g_dobj_special[4];   /* DAT_06a47054 */
+extern int32_t g_dobj_special_up;   /* DAT_06a4705c */
+
 #ifdef __cplusplus
 }
 #endif

@@ -407,6 +407,16 @@ void scene1_camera_cs_counter_cam(int shop_tier)
     g_smooth_eye[2] = g_smooth_lookat[2] - radius * cosf(yaw);
 }
 
+/* An event camera (dungeon 0 floor 4's intro, FUN_0044c9ba): the smoothed eye
+ * DAT_0438cc38..40 and lookat DAT_0438cc50..58 written directly */
+void scene1_camera_set_targets(const float eye[3], const float look[3])
+{
+    for (int k = 0; k < 3; k++) {
+        g_smooth_eye[k] = eye[k];
+        g_smooth_lookat[k] = look[k];
+    }
+}
+
 /* Reset to the free-roam player-follow camera (stage_class 0) — called from the
  * cc08==1 free-roam arm so the camera resumes tracking after customer service. */
 void scene1_camera_set_freeroam_class(void)

@@ -25,6 +25,17 @@ static const int32_t k_dobj_attr[22] = {
     -1, -1, -1, -1, 1, 1, 1, 3, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 };
 
+int32_t g_dobj_special[4];   /* DAT_06a47054: FUN_0044b257's objects by role */
+int32_t g_dobj_special_up;   /* DAT_06a4705c */
+
+/* FUN_0044b257: an object of `kind` for role `role`, spawned spent (state 3) */
+void dobj_spawn_special(int role, int32_t kind, const float pos[3], const float scale[3], float yaw)
+{
+    const int n = dobj_spawn(pos, scale, yaw, kind);   /* FUN_0044ad81 */
+    if (role >= 0 && role < 4) g_dobj_special[role] = n;
+    g_dobj[n].i[DOBJ_STATE] = 3;
+}
+
 void dobj_reset(void)
 {
     for (int n = 0; n < DOBJ_COUNT; n++) {

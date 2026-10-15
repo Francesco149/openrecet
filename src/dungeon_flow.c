@@ -11,6 +11,8 @@
 #include "chara_equip.h"         /* DAT_0438b7d8 */
 #include "floor_layout.h"        /* DAT_0438b1ec (the floor origin) */
 #include "dungeon_party.h"       /* FUN_0048b850 (the dungeon path) */
+#include "dungeon_objects.h"     /* DAT_0695ef78, DAT_06a47054 */
+#include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "party.h"
 #include "tables_snews.h"        /* DAT_073b2108 / DAT_073d8ee0 */
 #include <stdio.h>
@@ -25,6 +27,8 @@
 #include "stage_gate.h"          /* DAT_0438b4cc, FUN_0043195d */
 #include "stage_palette.h"
 #include "stage_post_load.h"     /* DAT_0438b4d0, HP DAT_056db0bc */
+#include "scene1_spawn.h"
+#include "sim.h"
 #include "x87.h"
 
 int32_t g_floor_intro;
@@ -48,6 +52,8 @@ int32_t g_ghost_timer;
 int32_t g_ghost_count;
 int32_t g_dat_0438beb0;
 int32_t g_dat_0438beb4;
+int32_t g_dat_0438beb8;
+int32_t g_dat_09643128;
 int32_t g_dat_0438bebc;
 int32_t g_dat_0438becc;
 int32_t g_dat_0438b8d4;
@@ -196,17 +202,162 @@ void dungeon_fall_tick(void)
     }
 }
 
-/* FUN_0044c9ba: dungeon 0's events — only its floor 4 (the boss floor's
- * tutorial camera and dialogues) does anything; every floor counts b8a4. */
+/* FUN_0044b2e6: raise the special object `role` (DAT_06a47054) if still spent:
+ * 120 ticks of FUN_0044b38c (DAT_0438beb4), state 0, sunk 5 below its home */
+void dobj_raise_special(int role)
+{
+    static const float k5 = 5.0f;
+    dobj_t *o = &g_dobj[g_dobj_special[role]];
+    if (o->i[DOBJ_STATE] != 3) return;
+    g_dat_0438beb4 = 120;
+    o->i[DOBJ_STATE] = 0;
+    g_dat_0438beb8 = 0;
+    g_dobj_special_up = role != 0;
+    o->f[DOBJ_POS + 1] = spill32((long double)o->f[DOBJ_HOME + 1] - k5);
+}
+
+/* FUN_0044b38c: the special objects rising (while DAT_0438beb4 counts down,
+ * DAT_0438beb8 counts up; the first tick starts the fade sub-counter): 5 below
+ * their home, at 30 SE 364 + a puff (type 46), 30..50 shaking up into place
+ * (two rand per object a tick), a kind-8 one scaling in instead; the camera
+ * circles their mean (eye 20 out, sinking 0.01 a tick) */
+void dobj_rise_tick(void)
+{
+    static const float k5 = 5.0f, k0p11 = 0.10999999940395355f, k0p1 = 0.10000000149011612f;
+    static const float k2 = 2.0f, k2p5 = 2.5f, k0p5 = 0.5f, k20 = 20.0f, k3 = 3.0f, k10 = 10.0f;
+    static const float k0p002 = 0.0020000000949949026f, k0p01 = 0.009999999776482582f;
+    static const float k_pi = 3.1415927410125732f;
+    int32_t t = g_dat_0438beb8;
+    if (t == 0) {
+        sim_set_counter_990(1);              /* FUN_004532b1 */
+        t = g_dat_0438beb8;
+    }
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
+    if (g_dobj_special_up != -1) {
+        for (int k = 0; k != g_dobj_special_up + 1; k++) {
+            dobj_t *o = &g_dobj[g_dobj_special[k]];
+            g_scene1_camera_stage_class = 0;
+            if (t == 0) o->f[DOBJ_POS + 1] = spill32((long double)o->f[DOBJ_HOME + 1] - k5);
+            if (t == 30) {
+                audio_play_se_by_id(364);
+                scene1_spawn(0, o->f[DOBJ_POS + 0], o->f[DOBJ_POS + 1], o->f[DOBJ_POS + 2], 46, k0p11, 1);
+                t = g_dat_0438beb8;
+            }
+            if (t >= 30 && t <= 50) {
+                const float u = spill32((long double)(t - 30));
+                o->f[DOBJ_POS + 1] = spill32((long double)o->f[DOBJ_HOME + 1] - ((long double)k2 - (long double)u * k0p1) * k2p5);
+                o->f[DOBJ_POS + 0] = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + o->f[DOBJ_HOME + 0]);
+                o->f[DOBJ_POS + 2] = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + o->f[DOBJ_HOME + 2]);
+                t = g_dat_0438beb8;
+            }
+            if (t == 50) {
+                o->f[DOBJ_POS + 0] = o->f[DOBJ_HOME + 0];
+                o->f[DOBJ_POS + 1] = o->f[DOBJ_HOME + 1];
+                o->f[DOBJ_POS + 2] = o->f[DOBJ_HOME + 2];
+            }
+            if (k != 0) {
+                cx = spill32(((long double)o->f[DOBJ_HOME + 0] - cx) * k0p5 + cx);
+                cy = spill32(((long double)o->f[DOBJ_HOME + 1] - cy) * k0p5 + cy);
+                cz = spill32(((long double)o->f[DOBJ_HOME + 2] - cz) * k0p5 + cz);
+            } else {
+                cx = o->f[DOBJ_HOME + 0];
+                cy = o->f[DOBJ_HOME + 1];
+                cz = o->f[DOBJ_HOME + 2];
+            }
+            if (o->i[DOBJ_KIND] == 8) {
+                if (t < 30) {
+                    o->f[DOBJ_SCALE + 0] = 0.0f;
+                } else if (t <= 50) {
+                    const float u = spill32((long double)(t - 30));
+                    o->f[DOBJ_SCALE + 0] = spill32((long double)u * o->f[DOBJ_SCALE + 1] / k20);
+                }
+                o->f[DOBJ_POS + 0] = o->f[DOBJ_HOME + 0];
+                o->f[DOBJ_POS + 1] = o->f[DOBJ_HOME + 1];
+                o->f[DOBJ_POS + 2] = o->f[DOBJ_HOME + 2];
+            }
+        }
+    }
+    if (t > 0) {
+        const float a = spill32((long double)spill32((long double)g_dat_0438beb8) * k0p002 + k_pi);
+        const double ad = a;
+        const float look[3] = { cx, spill32((long double)cy + k3), cz };
+        const float fb = spill32((long double)g_dat_0438beb8);
+        const float eye[3] = {
+            spill32((long double)spill32(x87_crt_sin(ad)) * k20 + cx),
+            spill32(((long double)cy + k10) - (long double)fb * k0p01),
+            spill32((long double)spill32(x87_crt_cos(ad)) * ((long double)k20 - (long double)fb * k0p01) + cz),
+        };
+        scene1_camera_set_targets(eye, look);
+        g_scene1_camera_stage_class = 1;
+        t = g_dat_0438beb8;
+    }
+    g_dat_0438beb8 = t + 1;
+    if (g_dat_0438beb4 == 0) {
+        g_scene1_camera_stage_class = 0;
+        scene1_camera_snap_next();           /* DAT_0438cc68 = 1 */
+    }
+}
+
+/* FUN_0044c9ba: dungeon 0's events — floor 4 (the tutorial boss) before the
+ * story reaches 2: a pending iv2_11 (work +0x2bc84) or raising the exit portal
+ * (+0x2bc80); until b8a4 471 (+0x2bc81 clear) the intro: the controls locked,
+ * the party facing 0 and scaling in from b8a4 350, the camera circling in to
+ * the player, iv2_9 at 470.  Every floor counts b8a4. */
 static void dungeon0_event_tick(void)
 {
-    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    static const float k0p1 = 0.10000000149011612f, k2 = 2.0f, k1 = 1.0f;
+    static const float k40 = 40.0f, k1_14 = 0.0714285746216774f, k15 = 15.0f, k5 = 5.0f;
+    static const float k_pi2 = 1.5707963705062866f, k350 = 350.0f;
+    uint8_t *rec = save_work_bank_at(save_work_active_slot());
     int32_t v = 0;
     if (rec) memcpy(&v, rec + 187748, 4);
-    if (stage_gate_get_next() == 4 && v != 2) {
-        /* PORT-DEBT(stub, FUN_0044c9ba): dungeon 0 floor 4 — the iv2_11 / iv2_9
-         * dialogues, FUN_0044b2e6, the b8b0 / b4e8 locks, the actor scale-in and
-         * the orbiting camera (b8a4 < 471). */
+    if (stage_gate_get_next() == 4 && v != 2 && rec != NULL) {
+        if (g_dat_0438beb4 == 0) {
+            if (rec[0x2bc84] != 0) {
+                rec[0x2bc84] = 0;
+                rec[0x2bc80] = 0;
+                scene1_intro_dialogue_start_single(2, 11);   /* FUN_0044ba2c(2, 11, 0) */
+            } else if (rec[0x2bc80] != 0) {
+                rec[0x2bc84] = 1;
+                dobj_raise_special(0);                       /* FUN_0044b2e6(0) */
+            }
+        }
+        g_ctrl_lock = -1;
+        g_scene1_camera_stage_class = 0;                     /* DAT_0438b4e8 */
+        if (rec[0x2bc81] == 0) {
+            if (g_event_tick == 470)
+                scene1_intro_dialogue_start_single(2, 9);    /* FUN_0044ba2c(2, 9, 0) */
+            const int32_t t = g_event_tick;
+            if (t < 471) {
+                g_ctrl_lock = 0;
+                g_scene1_camera_stage_class = 1;
+                for (int i = 0; i < 3; i++) {
+                    g_party.rec[i][6] = 0;
+                    g_party.scale_xz[i] = 0.0f;
+                    g_party.scale_y[i] = 1.0f;
+                    if (t >= 350) {
+                        const float s = spill32((long double)spill32((long double)(t - 350)) * k0p1);
+                        g_party.scale_xz[i] = s;
+                        g_party.scale_y[i] = spill32((long double)k2 - s);
+                        if (g_party.scale_xz[i] > k1) g_party.scale_xz[i] = 1.0f;
+                        if (g_party.scale_y[i] < k1) g_party.scale_y[i] = 1.0f;
+                    }
+                }
+                const float ft = spill32((long double)t);
+                float h = spill32((long double)k40 - (long double)ft * k1_14);
+                if (h < k15) h = k15;
+                float a = spill32((long double)ft * k_pi2 / k350 - k_pi2);
+                if (a > 0.0f) a = 0.0f;
+                const double ad = a;
+                const float lx = g_party.pos[0][0], lz = g_party.pos[0][2];
+                const float eye[3] = {
+                    spill32((long double)spill32(x87_crt_sin(ad)) * k15 + lx), h,
+                    spill32((long double)lz - (long double)spill32(x87_crt_cos(ad)) * k15),
+                };
+                const float look[3] = { lx, k5, lz };
+                scene1_camera_set_targets(eye, look);        /* DAT_0438cc38.. / cc50.. */
+            }
+        }
     }
     ++g_event_tick;
 }

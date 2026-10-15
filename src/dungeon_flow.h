@@ -45,6 +45,10 @@ extern int32_t g_ghost_timer;        /* DAT_0438cbe0: ticks since the first hurr
 extern int32_t g_ghost_count;        /* DAT_0438cbe4: hurry-up spawns on this floor */
 extern int32_t g_dat_0438beb0;
 extern int32_t g_dat_0438beb4;       /* > 0: FUN_0044b38c owns the tick */
+extern int32_t g_dat_0438beb8;
+extern int32_t g_dat_09643128;
+void dobj_raise_special(int role);   /* FUN_0044b2e6 */
+void dobj_rise_tick(void);            /* FUN_0044b38c */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */
 extern int32_t g_dat_0438b8d4;       /* the HP-check voice countdown (FUN_0048b3f6) */

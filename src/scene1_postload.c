@@ -313,8 +313,26 @@ static void postload_dungeon_arm(void)
     if (rec == NULL) return;
     int32_t story; memcpy(&story, rec + 187748, 4);   /* work dword +0x2dd64 */
     if (g_scene1_combat_stage_id == 0) {
-        /* FUN_0044c88f: dungeon 0 floor 4 (the tutorial boss) —
-         * PORT-DEBT(stub, FUN_0044c88f): the party line-up + FUN_0044b257 */
+        /* FUN_0044c88f: dungeon 0 floor 4 (the tutorial boss) — the party
+         * lined up 1.5 apart in x from the spawn (5 further in z once the
+         * story is past 2), facing 0, and the exit portal (kind 6, spent) on
+         * the spawn */
+        static const float k1p5 = 1.5f, k5 = 5.0f;
+        g_dat_09643128 = 0;
+        g_event_tick = 0;
+        if (stage_gate_get_next() == 4) {
+            PW(0x56db05cu).f = 0.0f;
+            for (int i = 0; i < 3; i++) {
+                const float o = spill32((long double)spill32((long double)i) * k1p5);
+                g_party.pos[i][0] = spill32((long double)o + g_scene1_stage_player_default_pos[0]);
+                g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+                g_party.pos[i][2] = story == 2
+                    ? spill32(((long double)g_scene1_stage_player_default_pos[2] - o) + k5)
+                    : spill32((long double)g_scene1_stage_player_default_pos[2] - o);
+            }
+            const float sc[3] = { k0p35, k0p35, k0p35 };
+            dobj_spawn_special(0, 6, g_scene1_stage_player_default_pos, sc, 0.0f);   /* FUN_0044b257 */
+        }
     } else {
         /* PORT-DEBT(stub, FUN_0044d1e4): dungeons 1..5's setups FUN_0044d1e4 /
          * 44d9d3 / 44e08f / 450443 / 450ee0 */

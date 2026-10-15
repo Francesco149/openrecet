@@ -98,9 +98,8 @@ int g_scene1_ingame_paused_flag     = 0;  /* DAT_0438b1c8 (explicit-writer mirro
 
 void scene1_ingame_transition_arm_tick(void)
 {
-    /* E.2 probe — FUN_004427d3 @ 0x4427d3.  STUB→partial: 4 of the engine's 6
-     * calls run; FUN_00430c00 / FUN_0043a5d9 / FUN_004426a7 stay stubbed (see
-     * below) so the row keeps its ≈ marker.
+    /* E.2 probe — FUN_004427d3 @ 0x4427d3.  5 of the engine's 6 calls run;
+     * FUN_004426a7 (the cinematic camera) stays stubbed (see below).
      *
      * This is the arm retail dispatches EVERY dialogue/event frame to
      * (FUN_004536cb routes b1c8 != 0 here INSTEAD of FUN_00442cef — verified on
@@ -126,19 +125,15 @@ void scene1_ingame_transition_arm_tick(void)
         scene1_event_actor_tail_tick();
     }
 
-    /* FUN_004427d3 L9 — FUN_00430c00: town-NPC anim pump (iterates the
-     * 0x2e9-dword townfolk records; chr_anim_tick per live slot, then
-     * FUN_0042ea35).  PORT-DEBT(focused, FUN_00430c00): no town NPCs exist in
-     * the HOUSE scenes we verify; the loop body is a no-op there and consumes
-     * no RNG. */
+    /* FUN_004427d3 L9 — FUN_00430c00: the actors' anims during the event */
+    actor_event_anim_pump();
 
     /* FUN_004427d3 L10 — FUN_0043ae20 (table B tick; the same skeleton the
      * default arm runs). */
     scene1_records_b_tick();
 
-    /* FUN_004427d3 L11 — FUN_0043a5d9: slide-panel/banner offset updater
-     * (0x2a0-stride array at DAT_0695ef78, ±0.1 ramps, clamp −13).
-     * PORT-DEBT(focused, FUN_0043a5d9): no consumer wired; no RNG. */
+    /* FUN_004427d3 L11 — FUN_0043a5d9: the stage objects (they draw rand) */
+    dobj_tick();
 
     /* FUN_004427d3 L12 — FUN_0040fb3a (table A particle integrator). */
     scene1_particles_tick();
@@ -474,7 +469,7 @@ void scene1_ingame_default_arm_tick(void)
         stage_portal_scan();
     if (g_dat_0438beb4 > 0) {
         --g_dat_0438beb4;
-        /* PORT-DEBT(stub, FUN_0044b38c) */
+        dobj_rise_tick();                    /* FUN_0044b38c */
         goto tail;
     }
     if (g_dat_0438bebc <= 0) {

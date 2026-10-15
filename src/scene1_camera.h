@@ -107,6 +107,10 @@ void scene1_camera_cs_counter_cam(int shop_tier);
  * free-roam arm so the camera resumes tracking after customer service. */
 void scene1_camera_set_freeroam_class(void);
 
+/* An event camera: write the smoothed eye (DAT_0438cc38..40) and lookat
+ * (DAT_0438cc50..58) directly (FUN_0044c9ba). */
+void scene1_camera_set_targets(const float eye[3], const float look[3]);
+
 /* Z-roll constant (engine: `_DAT_006051c4`).  Cc.0 verified this lands
  * in BSS-zero in the unpacked exe.  Tests can set a non-zero value to
  * exercise the `RotZ` post-multiply inside `scene1_camera_build_view_matrix`;
