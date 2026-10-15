@@ -12,6 +12,9 @@
 #include "scene.h"
 #include "scene_title.h"
 #include "worker_load.h"
+#include "fade.h"
+#include "stage_gate.h"
+#include "stage_palette.h"
 
 /* ─── button-state ring ──────────────────────────────────────────────── */
 
@@ -417,3 +420,50 @@ int test_sim_step_a_idle_clears_nowloading_gate(void)
     return 0;
 }
 
+
+/* ─── the stage-load request (FUN_00452f16 + the DAT_06a49964 arm) ───── */
+
+int test_sim_stage_load_request_waits_for_fade(void)
+{
+    /* FUN_004526f5(0, 17) starts at counter 1: 16 ticks of fade-out with the
+     * dispatch held (no b8cc++), then b4dc / b4cc, the alt worker, the fade-in. */
+    sim_init();
+    worker_load_reset();
+    fade_reset();
+    scene_state_set_title();
+    scene_title_menu_init_fresh(&g_scene_title_menu);
+    scene_title_anim_init_fresh(&g_scene_title_anim);
+    g_stage_b4dc = 7;
+    stage_gate_set_next(0);
+
+    sim_stage_load_request(9, 0, 0, 1);
+    T_ASSERT_EQ_I(sim_stage_load_pending(), 1);
+    for (int k = 0; k < 16; k++) {
+        sim_step_a();
+        T_ASSERT_EQ_I(sim_stage_load_pending(), 1);
+        T_ASSERT_EQ_I(worker_load_busy(), 0);
+    }
+    T_ASSERT_EQ_U(g_sim_frame_count, 0u);
+    T_ASSERT_EQ_I(fade_is_done(), 1);
+
+    sim_step_a();
+    T_ASSERT_EQ_I(sim_stage_load_pending(), 0);
+    T_ASSERT_EQ_I(sim_stage_load_same(), 0);
+    T_ASSERT_EQ_I(g_stage_b4dc, 9);
+    T_ASSERT_EQ_I(stage_gate_get_next(), 1);
+    T_ASSERT_EQ_I(worker_load_busy(), 1);   /* FUN_00452eed */
+    T_ASSERT_EQ_I(fade_is_done(), 0);       /* the fade-in FUN_0045281c */
+    T_ASSERT_EQ_U(g_sim_frame_count, 0u);
+
+    /* ignored while the primary loader is busy */
+    sim_stage_load_request(3, 0, 0, 2);
+    T_ASSERT_EQ_I(sim_stage_load_pending(), 0);
+
+    worker_load_reset();
+    nowloading_reset();
+    fade_reset();
+    sim_stage_load_reset();
+    g_stage_b4dc = 0;
+    stage_gate_set_next(0);
+    return 0;
+}

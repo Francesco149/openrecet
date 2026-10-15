@@ -54,6 +54,7 @@
 #include "dungeon_objects.h"
 #include "dungeon_party.h"
 #include "fade.h"
+#include "floor_layout.h"
 #include "map_collision.h"
 #include "news_daily.h"
 #include "party.h"
@@ -61,6 +62,8 @@
 #include "scene1_camera.h"
 #include "scene1_combat_sm.h"
 #include "scene_pause.h"
+#include "scene_adv_guild.h"
+#include "stage_palette.h"
 #include "sim.h"
 #include "stage_gate.h"
 #include "stage_post_load.h"
@@ -302,8 +305,35 @@ static void stage_equip_prompt(void)
     g_ctrl_lock = -1;
 }
 
-/* the portal Yes/No (be9c 1..3), then the floor change (120: next floor, or
- * the return pause), the fade, the record times, the next load (121+) */
+/* the portal prompt's best-time records (b1e8 into the work record): a boss
+ * run's return portal → +0x2c42c[b4d0][count/5]; a regular dungeon's every 5th
+ * floor → +0x2c42c[b4c8][b4cc/5]; dungeon 5 every 10th below 30 → +0x2c5bc;
+ * dungeon 5 from 30 on, the return portal → +0x2c5c8 */
+static void portal_time_record(uint8_t *rec)
+{
+    const int32_t fl = stage_gate_get_next();
+    uint8_t *slot = NULL;
+    if (g_dat_0438b4d4 >= 0) {
+        if (g_portal_return == 0) return;
+        const int32_t d = stage_post_load_get_mode_b4d0();
+        slot = rec + 0x2c42c + 80 * d + 4 * (floor_layout_floor_count(d) / 5);
+    } else if (g_scene1_combat_stage_id != 5) {
+        if (fl % 5 != 4) return;
+        slot = rec + 0x2c42c + 80 * g_scene1_combat_stage_id + 4 * (fl / 5);
+    } else if (fl < 30) {
+        if (fl % 10 != 9) return;
+        slot = rec + 0x2c5bc + 4 * (fl / 10);
+    } else if (g_portal_return != 0) {
+        slot = rec + 0x2c5c8;
+    } else {
+        return;
+    }
+    int32_t t; memcpy(&t, slot, 4);
+    if (t == 0 || t > g_floor_time) memcpy(slot, &g_floor_time, 4);
+}
+
+/* the portal Yes/No (be9c 1..3), then the floor change (120: the next floor's
+ * load request, or the return pause), the run's end (121+) */
 static void stage_portal_prompt(uint8_t *rec)
 {
     int32_t v = g_portal_prompt;
@@ -323,8 +353,7 @@ static void stage_portal_prompt(uint8_t *rec)
         if (v == 2) {
             audio_play_se_by_id(371);
             choice_box_open(g_portal_return ? "Return to town now?" : "Go to the next floor?", 1, 0);
-            /* the best-time records of the floor: PORT-DEBT(stub, FUN_00442cef)
-             * the work +181292 / +181692 / +181704 time tables (b1e8) */
+            portal_time_record(rec);
         }
         if (g_portal_prompt > 2) {
             const int r = choice_box_poll(g_sim_buttons[0].pressed, 1);
@@ -334,15 +363,20 @@ static void stage_portal_prompt(uint8_t *rec)
                 g_party.vel[0][1] = 0.0f;
                 g_party.vel[0][2] = 0.0f;
                 if (g_portal_return) {
-                    /* PORT-DEBT(stub, FUN_0045bd22): the last floor's return (be98 3)
-                     * vs a mid-run return (be98 2) + the voice */
-                    g_floor_end_kind = 2;
+                    /* the last floor's return (be98 3) or a mid-run one (2) */
+                    if (stage_gate_get_next() == floor_layout_floor_count(g_scene1_combat_stage_id) - 1) {
+                        g_floor_end_kind = 3;
+                        audio_play_se_file("bin/se/00re/shop/re_yata.bin");
+                    } else {
+                        g_floor_end_kind = 2;
+                        audio_play_se_file("bin/se/01ti/action/01ti_btl03.bin");
+                    }
                     g_portal_prompt = 0;
                 } else {
                     g_portal_prompt = 120;
-                    if (stage_gate_get_next() == 98 && rec[0x2bcf1] == 0) {
+                    if (stage_gate_get_next() == 98 && rec[0x2bd01] == 0) {
                         scene1_intro_dialogue_start_single(12, 21);
-                        rec[0x2bcf1] = 1;
+                        rec[0x2bd01] = 1;
                         g_portal_prompt = 119;
                     }
                 }
@@ -362,8 +396,17 @@ static void stage_portal_prompt(uint8_t *rec)
             if (g_portal_return) {
                 pause_dispatch(2);           /* FUN_004536c2 = FUN_00453384(2) */
             } else {
-                /* PORT-DEBT(stub, FUN_00452f16): the next floor's load (b4cc + 1,
-                 * b4d4 + 1, FUN_0045bcea's stage) */
+                /* the next floor's stage (FUN_0045bcea on b4cc + 1; b4d4 + 1 stays),
+                 * requested with b4cc + 1 (FUN_00452f16) */
+                const int32_t fl = stage_gate_get_next();
+                const int32_t cur = g_stage_b4dc;
+                if (g_dat_0438b4d4 >= 0) ++g_dat_0438b4d4;
+                stage_gate_set_next(fl + 1);
+                adv_guild_set_stage(rec);    /* FUN_0045bcea */
+                stage_gate_set_next(fl);
+                const int32_t next = g_stage_b4dc;
+                g_stage_b4dc = cur;
+                sim_stage_load_request(next, 0, 0, fl + 1);
             }
             choice_box_reset();
             title_save_dialog_cursor_set_visible(0);

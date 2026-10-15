@@ -706,6 +706,7 @@ struct test_case {
     X(sim_init_zeros_counter_state) \
     X(sim_step_a_busy_freezes_input_and_dispatch) \
     X(sim_step_a_idle_clears_nowloading_gate) \
+    X(sim_stage_load_request_waits_for_fade) \
     \
     X(music_init_engine_data_defaults) \
     X(music_select_title_bare_returns_track_zero) \

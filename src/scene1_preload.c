@@ -23,6 +23,7 @@
 #include "map_collision.h"   /* mapcol_maptype (*DAT_068dd2f0) */
 #include "stage_state.h"
 #include "worker_load.h"
+#include "sim.h"
 
 /*
  * The 21-entry chr portrait id table at .rdata 0x5c8058..0x5c80ac.
@@ -224,10 +225,27 @@ static void scene1_preload_house_cb(void)
     (void)scene1_preload_house();
 }
 
+/* LAB_00452a6b — the stage loader of a floor change (FUN_00452eed, spawned by
+ * FUN_004536cb's DAT_06a49964 arm): a new stage releases the stage meshes
+ * FUN_0047472c and builds its record + collision slots FUN_00474681; then
+ * FUN_004746fc (texture group 15), FUN_00473c15 and the stage-entry init. */
+static void scene1_preload_floor_cb(void)
+{
+    if (!sim_stage_load_same()) {
+        /* FUN_0047472c: the render meshes — no port twin yet */
+        stage_palette_load_for_stage();     /* FUN_00474681 */
+    }
+    /* FUN_004746fc (texture group 15, the 20 sprite records, DAT_073a96a8) and
+     * PORT-DEBT(stub, FUN_00473c15): the floor's render assets (see
+     * scene1_preload_dungeon). */
+    scene1_postload_stage_entry_init(); /* FUN_00436f97 */
+}
+
 void scene1_preload_init(struct IDirect3DDevice8 *dev)
 {
     g_scene1_preload_dev = (IDirect3DDevice8 *)dev;
     worker_load_set_cb(1 /* INGAME */, scene1_preload_house_cb);
+    worker_load_set_alt_cb(scene1_preload_floor_cb);
 
     /* Boot "read systemtex" party-sheet load (FUN_00472f5d, engine-quirks §72).
      * The device is live here (main.c passes g_dev), and chr sheets are sprite_t

@@ -105,6 +105,12 @@ int32_t floor_layout_boss_group(int32_t stage_class, int32_t floor)
     return k_boss_group[stage_class][g];
 }
 
+/* FUN_0045bd22 — the dungeon's floor count (5 × DAT_005c64c0[d]). */
+int32_t floor_layout_floor_count(int32_t stage_class)
+{
+    return 5 * k_floors_div5[stage_class];
+}
+
 /* FUN_0047ddc2 — carve two steps from (x,y) toward (dx,dy), then recurse in
  * a shuffled direction order.  Stops at the cell budget, the bounds or an
  * already-open target. */

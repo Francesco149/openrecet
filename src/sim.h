@@ -124,6 +124,17 @@ void sim_phasepin(void);
  * the retail capture's auto-on.  Inert by default. */
 void sim_enable_wrapup_skip_driver(void);
 
+/* FUN_00452f16: request a stage load (a dungeon floor change).  Ignored while
+ * the primary loader is busy; else the fade-out FUN_004526f5(fade_mode, 17)
+ * starts and sim_step_a's DAT_06a49964 arm holds the scene dispatch until it
+ * is done, then sets DAT_0438b4dc = stage, DAT_0438b4cc = floor, spawns the
+ * stage loader FUN_00452eed (LAB_00452a6b: the worker_load alt callback) and,
+ * unless no_fade_in, the fade-in FUN_0045281c(fade_mode, 17). */
+void sim_stage_load_request(int32_t stage, int32_t fade_mode, int32_t no_fade_in, int32_t floor);
+int  sim_stage_load_pending(void);   /* DAT_06a49964 */
+int  sim_stage_load_same(void);      /* DAT_06a4996c: the request kept DAT_0438b4dc */
+void sim_stage_load_reset(void);
+
 /* The tick-scheduler `.sim_a` callback. Reads `g_input_state[i].buttons`,
  * advances the per-player button ring into `g_sim_buttons[i]`, and
  * dispatches by scene state (currently only state==0 / title). Tail:

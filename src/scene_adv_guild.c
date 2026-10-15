@@ -291,7 +291,7 @@ static void adv_guild_to_worldmap(void)
  * FUN_0047fa4f(20) when either work flag +0x2bce2 / +0x2bcf8 is set, else
  * FUN_0047fa4f(FUN_0045bc7f()).  On Leave too, so the next town destination's
  * stage init builds a dungeon floor (quirk §141). */
-static void adv_guild_set_stage(const uint8_t *bb)
+void adv_guild_set_stage(const uint8_t *bb)
 {
     g_stage_b4dc = (bb[0x2bce2] != 0 || bb[0x2bcf8] != 0)
         ? stage_index_for_id(20)

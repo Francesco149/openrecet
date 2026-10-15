@@ -149,22 +149,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f8013**: the exit
-       portal's floor change — A on the portal at f8002, retail's stage tick stops at f8013;
-       adv-guild-pack-leave **identical to the end**). Then the dying actor FUN_0042f7ad (regular arm), the camera shake (FUN_0044b219 +
-       FUN_00441c3e block L), Louie's skill (FUN_00489c79 / FUN_00489d52 / FUN_00489b2c /
-       FUN_00496fca / FUN_00485712), FUN_0043865e's object arm (chests: FUN_004412b6 traps 4 / 5)
-       and player arm (FUN_00485c74 / FUN_00485979), the stage objects' tick FUN_0043a5d9,
-       the slimes' records (FUN_00445a8c kinds 11 / 31) and the monster-house ring
-       FUN_0042c8a5 → portrng to f7589; adv-guild-pack-leave identical f1–f21552.
-       Next, in frame order:
-       The pickups FUN_0048cbf6 / FUN_00484e97 / FUN_00484dd1 / FUN_00484da3 / FUN_00484e45,
-       the level-up FUN_0048a383 and table C's tick FUN_0044284b (`table_c.c`, bounded by the
-       render's DAT_0076b968) → portrng to f8012.
-       - ★ the portal floor change: FUN_00452f16 → FUN_004536cb's 6a49964 arm → the
-         LAB_00452a6b reload (the next floor's load + intro); the "got an item" window
-         (DAT_00648250 / 648294, FUN_0040c923) is never consumed in the port (retail clears
-         648294);
+    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f9872**: floor 2's
+       first type-16 enemy (FUN_004262b7 + its walk FUN_00423789, FUN_0042f28c's dispatch);
+       adv-guild-pack-leave **identical to the end**). The floor change landed (FUN_00452f16,
+       FUN_004536cb's 6a49964 arm, LAB_00452a6b) → portrng to f9871. Next, in frame order:
+       - ★ the other enemy types' AI as floors 2–3 reach them (FUN_0042f28c's table);
+       - the "got an item" window (DAT_00648250 / 648294, FUN_0040c923) is never consumed
+         in the port (retail clears 648294); the run's end (be9c > 120, FUN_00442c86 …) and
+         FUN_004427f1's event-arm floor loads (460 / 45) are `PORT-DEBT(stub)`;
        - PORT-DEBT left in the combat path: FUN_004412b6 traps 1/2/3/6/8/9/10, FUN_0043824b
          (the chest's item roll), FUN_00484e45 / FUN_00485413 (bag full), FUN_004147d5
          overlays, FUN_0042f7ad's boss arms, the other chars' swings / skills, FUN_0048a383;
@@ -178,9 +170,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - the stat aggregate FUN_004844ef runs at f702 in the port, f686 in retail (not
          RNG-visible);
        - the floor-event ticker end (b92c → 0 in the HUD render FUN_0040a765, quirk §143),
-         FUN_00441aab ("?" spots), FUN_0043a5d9 (stage objects), the portals' floor change
-         (FUN_00452f16 → FUN_004536cb's 6a49964 arm → the LAB_00452a6b reload), pickups
-         FUN_0048cbf6, chests;
+         FUN_00441aab ("?" spots);
        - render: no dungeon renderer yet (FUN_00473c15's assets are `PORT-DEBT(stub)`).
        Shadow each fn (`rh_hooks.c`) as it lands; the house player collision moves to
        `map_collision.c` (`PORT-DEBT(semantic-collision)`).
@@ -210,7 +200,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
-  end, plus dungeon0-floors-save into the dungeon (to f8012), adv-guild-pack-leave to its end.
+  end, plus dungeon0-floors-save into the dungeon (to f9871), adv-guild-pack-leave to its end.
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,

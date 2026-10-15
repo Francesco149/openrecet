@@ -7,6 +7,18 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — the portal's floor change (dungeon pilot)
+**portrng dungeon0-floors-save identical f1–f9871** (was f8012): the exit portal, the fade,
+the next floor's load (199 worker draws) and ~1840 ticks of floor 2.
+- `sim.c`: FUN_00452f16 (`sim_stage_load_request`) + FUN_004536cb's DAT_06a49964 arm — the
+  scene dispatch (and the dialogue tick) waits for the fade-out with only the fade ticking (no
+  clock ease, no b8cc++), then b4dc / b4cc, FUN_00452eed and the fade-in.
+- `scene1_preload.c`: LAB_00452a6b as the worker_load alt callback (FUN_00474681 only when the
+  stage changed, DAT_06a4996c; FUN_00473c15 still `PORT-DEBT(stub)`; FUN_00436f97).
+- `scene1_sim.c`: the portal prompt's be9c 120 arm (FUN_0045bcea on b4cc + 1, b4d4 + 1), the
+  best-time records (+0x2c42c / +0x2c5bc / +0x2c5c8), the return portal's be98 3 / 2 + voices
+  (FUN_0045bd22); the floor-98 latch is work byte +0x2bd01 (was +0x2bcf1).
+
 ## 2026-10-15 — pickups, level-ups, table C (dungeon pilot)
 **portrng dungeon0-floors-save identical f1–f8012** (was f7589), up to the exit portal.
 - `dungeon_party.c`: FUN_0048cbf6 (EXP orbs taken after 30 ticks, the item under the

@@ -13,8 +13,8 @@
  *     helper are stubbed (no consumers yet in our skeleton).
  *   - Scene dispatch for state == 0 → `scene_title_sim_default`.
  *     Other scene states (1..16) and the mode-escape sub-blocks
- *     (DAT_06a49954/DAT_06a499c4/DAT_06a49964/DAT_06a49998) are
- *     omitted — they unlock as scenes get ported.
+ *     (DAT_06a49954/DAT_06a499c4/DAT_06a49998) unlock as scenes get
+ *     ported; the stage-load request DAT_06a49964 is in.
  *
  * Not yet ported:
  *   - FUN_0049966a (sim_b) entirely — the scheduler tolerates NULL.
@@ -64,6 +64,8 @@
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 #include "scene_pause.h"  /* the mode-9 pause: ramp==3 arm + pause_menu_update */
 #include "stage_palette.h" /* g_stage_palette->mode (*DAT_068dd2f0 stage type) */
+#include "stage_gate.h"    /* DAT_0438b4cc — the stage-load request's floor */
+#include "tick.h"          /* g_tick.state_alt (DAT_073dfca8) */
 #include "save_work.h"    /* the live working bank — the per-frame playtime tick */
 #include "save_bank.h"    /* SAVE_BANK_FIELD_PLAYTIME (working dword 2) */
 
@@ -96,6 +98,30 @@ static int s_wrapup_skip_on     = 0;
 static int s_wrapup_box_latched = 0;
 
 void sim_enable_wrapup_skip_driver(void) { s_wrapup_skip_on = 1; }
+
+/* ─── the stage-load request (FUN_00452f16 + FUN_004536cb's DAT_06a49964 arm) ── */
+static int32_t s_load_req;          /* DAT_06a49964 */
+static int32_t s_load_stage;        /* DAT_06a49968: the DAT_0438b4dc to load */
+static int32_t s_load_same;         /* DAT_06a4996c: the stage did not change */
+static int32_t s_load_floor;        /* DAT_06a49970: the DAT_0438b4cc to load */
+static int32_t s_load_fade;         /* DAT_06a49974: the fades' mode */
+static int32_t s_load_no_fade_in;   /* DAT_06a49978 */
+
+void sim_stage_load_request(int32_t stage, int32_t fade_mode, int32_t no_fade_in, int32_t floor)
+{
+    if (worker_load_busy())                  /* DAT_06a49954 */
+        return;
+    s_load_fade = fade_mode;
+    fade_phase1_start(fade_mode, 17);        /* FUN_004526f5(a2, 17) */
+    s_load_stage = stage;
+    s_load_floor = floor;
+    s_load_req = 1;
+    s_load_no_fade_in = no_fade_in;
+}
+
+int sim_stage_load_pending(void) { return s_load_req; }
+int sim_stage_load_same(void)    { return s_load_same; }
+void sim_stage_load_reset(void)  { s_load_req = s_load_same = 0; }
 
 /* ─── pure-C button-state ring (FUN_004536cb lines 42-70) ────────────── */
 
@@ -242,6 +268,7 @@ void sim_init(void)
     g_sim_counter_99c   = 0;
     g_sim_mode_9a0      = 0;
     g_sim_threshold94   = 0;
+    sim_stage_load_reset();
 }
 
 void sim_step_a(void)
@@ -403,10 +430,12 @@ void sim_step_a(void)
     /* Retail runs this tick (LABEL_112, FUN_0046c320) for INGAME and for every
      * LABEL_106 mode — 2, 3, 6, 7, 8, 11, 13..16 — whenever DAT_0438b1c8 != 0;
      * idle (D_IDLE / D_DONE) it is a no-op. */
-    const int dlg_mode = g_scene_state == SCENE_STATE_INGAME ||
+    /* (A stage-load request, DAT_06a49964, skips it: retail ticks the dialogue
+     * inside the scene dispatch, which the request's arm below replaces.) */
+    const int dlg_mode = !s_load_req && (g_scene_state == SCENE_STATE_INGAME ||
         g_scene_state == 2 || g_scene_state == 3 || g_scene_state == 6 ||
         g_scene_state == 7 || g_scene_state == 8 || g_scene_state == 11 ||
-        (g_scene_state >= 13 && g_scene_state <= 16);
+        (g_scene_state >= 13 && g_scene_state <= 16));
     if (dlg_mode) {
         /* The skip prompt is armed through the real ESC dispatch
          * (esc_pressed() → skip_event_arm()). In normal play that fires from
@@ -468,6 +497,26 @@ void sim_step_a(void)
 
     debug_param_tick();   /* FUN_00405552 — body deferred (gate=0 path) */
     stage_load_pulse_tick(); /* FUN_004693e3 — counter ramp 0..5 */
+
+    /* The stage-load request (DAT_06a49964, FUN_00452f16): the scene dispatch
+     * waits for the fade-out (the fade still ticks unless DAT_073dfca8; no
+     * clock ease, no DAT_0438b8cc++), then the new DAT_0438b4dc / b4cc, the
+     * stage loader FUN_00452eed (LAB_00452a6b) and the fade-in. */
+    if (s_load_req) {
+        if (!fade_is_done()) {               /* FUN_004528b3 */
+            if (g_tick.state_alt == 0)
+                fade_tick();                 /* LABEL_56: FUN_004526ab */
+            return;
+        }
+        s_load_same = g_stage_b4dc == s_load_stage;
+        g_stage_b4dc = s_load_stage;
+        stage_gate_set_next(s_load_floor);
+        worker_load_spawn_alt();             /* FUN_00452eed */
+        if (s_load_no_fade_in == 0)
+            fade_phase_out_start(s_load_fade, 17);   /* FUN_0045281c */
+        s_load_req = 0;
+        return;
+    }
 
     /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
      *

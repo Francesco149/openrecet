@@ -84,6 +84,7 @@ extern float g_scene1_stage_player_default_pos[3];
 void    floor_layout_generate(const floor_layout_in_t *in);   /* FUN_0047df4d */
 void    floor_layout_maze(const floor_layout_in_t *in);       /* FUN_0047d622 */
 int32_t floor_layout_boss_group(int32_t stage_class, int32_t floor);   /* FUN_0045bc7f */
+int32_t floor_layout_floor_count(int32_t stage_class);               /* FUN_0045bd22 */
 
 #ifdef __cplusplus
 }
