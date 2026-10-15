@@ -120,7 +120,8 @@ void scene1_ingame_transition_arm_tick(void)
     if (mapcol_maptype() >= 1) {
         dungeon_event_actor_tick();          /* FUN_0048407f, *DAT_068dd2f0 >= 1 */
     } else {
-        scene1_conversation_pose_tick();
+        if (!scene1_conversation_pose_story_tick())
+            scene1_conversation_pose_tick();
         scene1_event_actor_tail_tick();
     }
 

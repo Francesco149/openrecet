@@ -72,6 +72,9 @@ int scene1_conversation_pose_apply(int32_t *player_rec, int32_t *comp_rec,
  * The frame the conversation ends it issues one release (actors → idle), then
  * goes inert and hands the actors back to the freeroam controllers.
  */
+/* FUN_0048407f during the day-8 visitor's scene: 1 = it ran (the event arm
+ * then skips scene1_conversation_pose_tick) */
+int  scene1_conversation_pose_story_tick(void);
 void scene1_conversation_pose_tick(void);
 
 /* The FUN_0048407f tail the lean tick above does not run (bg-NPC pump +

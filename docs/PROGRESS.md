@@ -7,6 +7,14 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — the day-8 visitor (ported, no recording reaches it)
+`src/story_visitor.c`: FUN_004706ea (the setup, armed by FUN_004852fb on the day-8 morning),
+FUN_00470a46 (the director from FUN_0044bd0d: the walk FUN_0046fbee from b924 180, the meet
+within 2.5 → iv10_1, the leave, iv10_2, the fade), FUN_00470970 (the event arm faces the
+visitor), FUN_004708f7; FUN_0048670f's +0x2bcd8 block in `scene1_player_ctrl.c` (the house
+walk factored as `player_ctrl_walk`). debt-gameover-restart's day 8 never sets +0x2bcd8, so
+this is unverified; its f7383 split is the house walker (FRONT).
+
 ## 2026-10-15 — the walker FUN_0046fbee on the disasm; the house's collision objects
 - `scene1_shop_walker_helpers.c`: FUN_0046fbee re-ported from the disasm — x87 spills, the
   8-ray FUN_00433674 wall nudge (types 1 / 2 / 7, or 0 with |n.y| < 0.75), the 0.2 step cap,

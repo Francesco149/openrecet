@@ -2,6 +2,7 @@
  * scene1_day_close.c — see scene1_day_close.h.
  */
 #include "scene1_day_close.h"
+#include "story_visitor.h"
 
 #include "audio.h"                /* audio_play_se_file (FUN_0049933c) */
 #include "news_daily.h"           /* news_daily_update, g_news_ticker_timer */
@@ -10,6 +11,7 @@
 #include "save_work.h"
 #include "scene.h"                /* g_scene_state (DAT_0438b1c0) */
 #include "scene1_actor_say.h"
+#include "scene1_camera.h"         /* DAT_0438cc68 */
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* */
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos */
 #include "scene1_player_ctrl.h"
@@ -101,12 +103,15 @@ void scene1_house_morning_reseat(void)
     /* DAT_0438b4e8 = 0: no port mirror. */
     if (wb == NULL)
         return;
-    /* Day 8 (shop-time 0, story mode, work byte +0x2bce8 clear): FUN_004706ea
-     * — the debt collector's visit — then +0x2bcd8 = 1 + DAT_0438cc68 = 1.
-     * Day 15 (+0x2bcee clear): +0x2bced = 1 + cc68 = 1 — the FUN_0048670f
-     * `v0[179437]` camera sequence.  Both scenes are unported, so neither flag
-     * is raised: PORT-DEBT(stub, FUN_004706ea). */
-    (void)w;
+    /* Day 8 (shop-time 0, not survival mode, work byte +0x2bce8 clear): the
+     * visitor's scene FUN_004706ea, +0x2bcd8 = 1, DAT_0438cc68 = 1. */
+    if (w[0x2c3ec / 4] == 8 && w[0x2c3f0 / 4] == 0 && w[0x2dd64 / 4] != 2 && wb[0x2bce8] == 0) {
+        story_visitor_start();                   /* FUN_004706ea */
+        wb[STORY_SCENE_OFF] = 1;
+        scene1_camera_snap_next();               /* DAT_0438cc68 = 1 */
+    }
+    /* Day 15 (+0x2bcee clear): +0x2bced = 1 + cc68 = 1 — the FUN_0048670f
+     * `v0[179437]` camera sequence: PORT-DEBT(stub, FUN_0048670f). */
     wb[0x2bd07] = 0;
 }
 

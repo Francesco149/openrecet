@@ -51,7 +51,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_fx_overlays.c \
                  ../src/scene1_postload.c ../src/scene1_preload.c ../src/scene1_sim.c ../src/scene1_camera.c ../src/floor_layout.c ../src/actor_spawn.c \
                  ../src/scene1_per_frame_open.c \
-                 ../src/scene1_shop_walker_helpers.c \
+                 ../src/scene1_shop_walker_helpers.c ../src/story_visitor.c \
                  ../src/scene1_walker_pass_init.c \
                  ../src/scene1_maplight.c \
                  ../src/scene1_wide_followup_helpers.c \
@@ -115,7 +115,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_xfile.c test_mesh.c test_mesh_load.c test_mesh_draw.c \
                  test_scene_table.c test_scene_map_meshes.c test_scene_sc1.c test_stage_state.c \
                  test_stage_palette.c \
-                 test_scene1_spawn.c test_scene1_particles_tick.c test_scene1_postload.c test_scene1_preload.c test_scene1_sim.c \
+                 test_story_visitor.c test_scene1_spawn.c test_scene1_particles_tick.c test_scene1_postload.c test_scene1_preload.c test_scene1_sim.c \
                  test_scene1_records_c_tick.c test_scene1_records_c_spawn.c \
                  test_scene1_records_b_spawn.c test_scene1_records_b_tick.c \
                  test_scene1_combat_sm.c \

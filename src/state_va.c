@@ -45,6 +45,7 @@
 #include "scene1_tutorial_dispatch.h"
 #include "sim.h"
 #include "speech_bubble.h"
+#include "story_visitor.h"
 #include "tick.h"
 #include "title_save_dialog.h"
 
@@ -337,6 +338,14 @@ static const int32_t *layout_dword(uint32_t va)
         { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
         { 0x74b2894u, &g_pause_save_hscroll },
     };
+    if (va >= 0x73a6db8u && va < 0x73a6db8u + sizeof g_story_visitor)
+        return &g_story_visitor[(va - 0x73a6db8u) / 4];
+    if (va >= 0x73a8b38u && va < 0x73a8b38u + sizeof g_story_visitor_pos)
+        return (const int32_t *)(const void *)&g_story_visitor_pos[0][0] + (va - 0x73a8b38u) / 4;
+    if (va >= 0x73a8b50u && va < 0x73a8b50u + sizeof g_story_visitor_chr)
+        return &g_story_visitor_chr[0][0] + (va - 0x73a8b50u) / 4;
+    if (va == 0x73a8bbcu) return &g_story_visitor_frame;
+    if (va == 0x5c7df0u) return &g_story_visitor_meet;
     if (va >= 0x438bfb0u && va < 0x438bfb0u + sizeof g_mapcol_objs)
         return (const int32_t *)(const void *)((const uint8_t *)&g_mapcol_objs + (va - 0x438bfb0u));
     if (va >= 0x73a6e50u && va < 0x73a6e50u + 4u * CS_NPC_MAX * CS_NPC_STRIDE) {

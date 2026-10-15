@@ -3,6 +3,7 @@
  * FUN_0044bd0d (all.c:45664-45688).
  */
 #include "scene1_tutorial_dispatch.h"
+#include "story_visitor.h"
 
 #include "audio.h"              /* the morning greetings (FUN_0049933c) */
 
@@ -146,8 +147,7 @@ void scene1_tutorial_dispatch_tick(void)
         return;
     }
     if (bb[TUT_STORY_SCENE_OFF] != 0) {
-        /* FUN_00470a46 — the scripted story scene's director
-         * (PORT-DEBT(stub, FUN_00470a46)). */
+        story_visitor_tick();                    /* FUN_00470a46 */
         return;
     }
     /* sprintf("OHA:%4d", b924) → FUN_00451874: a debug text line, no state. */

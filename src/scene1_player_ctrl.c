@@ -23,6 +23,8 @@
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
 #include "audio.h"               /* display-menu SE (FUN_0049933c file / FUN_00499519 id) */
+#include "story_visitor.h"        /* the day-8 visitor (work +0x2bcd8) */
+#include "dungeon_party.h"        /* FUN_004897c6 */
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 #include "scene1_tutorial_dispatch.h" /* iv2_5→iv2_6 beat — suppress the walk arm */
@@ -1808,6 +1810,10 @@ static void player_ctrl_cc08_counter_menu_arm(void)
     }
 }
 
+static void player_ctrl_walk_and_highlight(void);
+static void player_ctrl_walk_move(void);
+static void player_ctrl_walk_anim(void);
+
 static void player_ctrl_cc08_freeroam_arm(void)
 {
     /* customer-approach escalation: inert (no customers) → falls through. */
@@ -1868,6 +1874,38 @@ static void player_ctrl_cc08_freeroam_arm(void)
     if (s_db048 == 0 && player_ctrl_cc08_dpad_interact())
         return;
 
+    player_ctrl_walk_and_highlight();
+}
+
+/* The FUN_0048b850 call of the cc08==1 arm: the walk (impulse, the move, the
+ * anim select) with FUN_0048670f's display-cell highlight between the move and
+ * the anim tail. */
+static void player_ctrl_walk_and_highlight(void)
+{
+    player_ctrl_walk_move();
+    /* walk tail (all.c:87749-87757): after the move, resolve which display cell
+     * the player is facing.  Gated on the shop-display-present flag DAT_0450f3f2
+     * (bank byte +0x2bc5a): when the shop has display fixtures, run the
+     * cell-highlight detector FUN_0048619f (sets cbfc/cc00); otherwise force
+     * "none".  This is what arms the cc04==1 open gate (A1). */
+    if (player_ctrl_shop_display_present())
+        shop_display_highlight_update(g_scene1_player_pos[0],
+                                      g_scene1_player_pos[2],
+                                      s_player_facing);
+    else
+        shop_display_highlight_clear();
+    player_ctrl_walk_anim();
+}
+
+/* FUN_0048b850 as the day-8 scene calls it (no display highlight) */
+void player_ctrl_walk(void)
+{
+    player_ctrl_walk_move();
+    player_ctrl_walk_anim();
+}
+
+static void player_ctrl_walk_move(void)
+{
     /* ===== the validated free-roam walk (all.c:1216 + the controllable impulse) ===== */
 
     /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
@@ -1893,18 +1931,10 @@ static void player_ctrl_cc08_freeroam_arm(void)
     /* FUN_0048b850 free-roam body: clamp → octant(→FACING) → integrate+collide
      * → damp (engine-quirks §75). */
     player_ctrl_b850_move();
+}
 
-    /* walk tail (all.c:87749-87757): after the move, resolve which display cell
-     * the player is facing.  Gated on the shop-display-present flag DAT_0450f3f2
-     * (bank byte +0x2bc5a): when the shop has display fixtures, run the
-     * cell-highlight detector FUN_0048619f (sets cbfc/cc00); otherwise force
-     * "none".  This is what arms the cc04==1 open gate (A1). */
-    if (player_ctrl_shop_display_present())
-        shop_display_highlight_update(g_scene1_player_pos[0],
-                                      g_scene1_player_pos[2],
-                                      s_player_facing);
-    else
-        shop_display_highlight_clear();
+static void player_ctrl_walk_anim(void)
+{
 
     /* ── FUN_0048cdcc db048==0xc — the carry-pose hold (all.c:90640-90652 +
      * the shared release tail 90793-90794) ──────────────────────────────────
@@ -2546,6 +2576,27 @@ void scene1_player_ctrl_tick(void)
      * "目玉商品" sparkles over the items on display.  No-op (no RNG) on an empty
      * display, so it leaves the foot-dust/wing RNG stream untouched there. */
     player_ctrl_display_sparkle_emit();
+
+    /* the day-8 visitor's scene (work +0x2bcd8, all_ida FUN_0048670f): b924++;
+     * from 121 the bg NPCs, the party (FUN_004897c6 once the visitor has spoken,
+     * else FUN_0048b850) and the room clamp; +0x2bce8 / +0x2bce9 = 1, return */
+    if (story_visitor_active()) {
+        uint8_t *sb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        s_companion_skip_frame = 1;               /* Tear ticks only inside FUN_0048b850 */
+        scene1_beat_set_counter(scene1_beat_counter() + 1);
+        if (scene1_beat_counter() > 120) {
+            scene1_bg_npc_tick();                 /* FUN_0046f621 */
+            if (sb[STORY_MET_OFF] != 0) {
+                party_status_tick();              /* FUN_004897c6(&DAT_056da1b8) */
+            } else {
+                player_ctrl_walk();               /* FUN_0048b850 */
+            }
+            player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);   /* FUN_00486435 */
+        }
+        sb[0x2bce8] = 1;
+        sb[0x2bce9] = 1;
+        return;
+    }
 
     /* prologue (all.c:86697-86703 / asm 486b7d-486bb2, gated SHOP_DAY ≥ 9 —
      * dormant through the tutorial traces): the news-break ticker pump.

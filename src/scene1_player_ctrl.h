@@ -382,6 +382,9 @@ void player_ctrl_set_facing_angle(float angle);
 void player_ctrl_emote_reset(void);   /* DAT_056db000/004 = 0 */
 int  player_ctrl_db048(void);
 void player_ctrl_set_db048(int v);
+/* FUN_0048b850 as FUN_0048670f's day-8 scene block calls it: the walk (pad
+ * impulse, move, anim) without the display-cell highlight */
+void player_ctrl_walk(void);
 
 /* FUN_00436f97's player-controller resets (blocks 11-15): every actor's
  * facing octant 4 + flags 0 + scale 1.0, the walk velocity 0, the facing

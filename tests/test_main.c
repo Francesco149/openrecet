@@ -707,6 +707,8 @@ struct test_case {
     X(sim_step_a_busy_freezes_input_and_dispatch) \
     X(sim_step_a_idle_clears_nowloading_gate) \
     X(sim_stage_load_request_waits_for_fade) \
+    X(story_visitor_start_places_the_visitor) \
+    X(story_visitor_meets_a_near_player_and_ends_after_the_fade) \
     \
     X(music_init_engine_data_defaults) \
     X(music_select_title_bare_returns_track_zero) \

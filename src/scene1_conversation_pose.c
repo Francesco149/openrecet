@@ -5,6 +5,8 @@
  */
 
 #include "scene1_conversation_pose.h"
+#include "story_visitor.h"
+#include "dungeon_party.h"   /* FUN_00482a51 */
 
 #include "scene1_chr_sprite.h"      /* CHR_ACTOR_* indices + chr_anim_tick */
 #include "scene1_player_ctrl.h"     /* actor record (mut/read) + facing setter */
@@ -98,9 +100,36 @@ int scene1_conversation_pose_player_blink(void)
     return rec[CHR_ACTOR_FRAME] == 1 ? 1 : 0;
 }
 
+/* FUN_0048407f's other branch, the day-8 visitor's scene (work +0x2bcd8,
+ * cc08 != 4): the player and Tear drop to anim 0 and face the visitor
+ * (FUN_00470970), then every live actor's anim ticks.  Event frames only. */
+int scene1_conversation_pose_story_tick(void)
+{
+    if (!story_visitor_active() || player_ctrl_cc08() == 4)
+        return 0;
+    CALL_TRACE_ENTER(0x48407fu);
+    s_pose_active = 0;
+    if (player_ctrl_actor_char(0) == -1)
+        return 1;
+    party_anim_set(player_ctrl_actor_record_mut(0), 0);
+    if (player_ctrl_actor_char(2) != -1)
+        party_anim_set(player_ctrl_actor_record_mut(2), 0);
+    story_visitor_face();                        /* FUN_00470970 */
+    for (int a = 0; a < 3; a++)
+        if (player_ctrl_actor_char(a) != -1)
+            chr_anim_tick(player_ctrl_actor_record_mut(a), player_ctrl_actor_char(a), 1.0f);
+    return 1;
+}
+
 void scene1_conversation_pose_tick(void)
 {
     CALL_TRACE_ENTER(0x48407fu);
+
+    /* the day-8 scene owns the actors (FUN_0048670f's block / the event arm) */
+    if (story_visitor_active() && player_ctrl_cc08() != 4) {
+        s_pose_active = 0;
+        return;
+    }
 
     /* The talk-event flag (DAT_0450f470 == 0 → pose).  PORT-DEBT: the faithful
      * producer is the intro event timeline FUN_00470a46 (clears the flag at the
@@ -241,8 +270,7 @@ void scene1_conversation_pose_tick(void)
  * Unported tail pieces (all inert in the HOUSE event windows, no RNG when
  * inert):  FUN_00483e7b (status-aura emitter — fires only with a status up),
  * FUN_0047019f (cc08==4 customer pump), FUN_0044f078 (scene-4/99 cutscene
- * helper), FUN_004708f7 (event-window aux anim pair, chars 0x2f/0x30 — anim
- * only).  PORT-DEBT(focused, FUN_0048407f).
+ * helper).  PORT-DEBT(focused, FUN_0048407f).
  *
  * Guarded on a live player actor — the engine's own driver is gated on the
  * scene's actor context (*DAT_068dd2f0 < 1), and the transition arm also runs
@@ -259,6 +287,8 @@ void scene1_event_actor_tail_tick(void)
      * controller — which does not run on event frames — so it may hold a stale
      * 1 from the last free-roam walk frame. */
     scene1_companion_ctrl_tick();                /* FUN_0048a4d1 + wing emit */
+
+    story_visitor_aux_tick();                    /* FUN_004708f7 */
 
     scene1_companion_ctrl_advance_phase_event(); /* DAT_056db054++ (84658) */
 }

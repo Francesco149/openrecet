@@ -36,7 +36,7 @@ re-verification.
 8 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 120 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 121 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -216,10 +216,18 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - render: no dungeon renderer yet (FUN_00473c15's assets are `PORT-DEBT(stub)`).
        Shadow each fn (`rh_hooks.c`) as it lands; the house player collision moves to
        `map_collision.c` (`PORT-DEBT(semantic-collision)`).
-    2. ★ **debt-gameover-restart f7383**: the day-8 debt collector — FUN_004852fb's day-8
-       arm (FUN_004706ea + work +0x2bcd8 = 1 → FUN_0048670f's v0[179416] story block,
-       FUN_0044bd0d's FUN_00470a46 director) is `PORT-DEBT(stub, FUN_004706ea)`.
-       Retail there: bg-NPC ticks from the story block, no Tear tick.
+    2. ★ **debt-gameover-restart f7383** (re-diagnosed 2026-10-15; not the day-8 scene —
+       retail never sets work +0x2bcd8 in this run): retail opens the display-stand menu
+       (cc04 0 → 1, the faced cell cbfc/cc00 = 3/4 from f7359), the port faces no cell (-1).
+       Root: the legacy house walker (`scene1_player_ctrl.c`, semantic). Its facing is the exact
+       ±π/2 (0x3fc90fdb) where retail's is atan2-derived (0x3fc90fda) from f2700; the
+       position drifts by ulps from f6805. Port the house FUN_0048b850 / FUN_0048cdcc /
+       FUN_00483170 path on the party block (the dungeon's `dungeon_party.c` /
+       `party_move.c` already do it) and FUN_0048619f (the faced-cell detector) from the
+       disasm, and retire `PORT-DEBT(semantic-collision)`.
+       The day-8 visitor itself (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
+       FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
+       recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
     3. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
        payment screen (FUN_0048e49c + FUN_0044ba2c scripts), the week-end story /
        game-over scenes (FUN_0049d2e5 / FUN_0049da9e), the b924 50/110/150 morning
