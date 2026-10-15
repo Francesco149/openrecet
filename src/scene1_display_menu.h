@@ -139,6 +139,25 @@ void display_menu_inventory_return(uint32_t *bank, int item);
  * the "select none" removal; ported for the future place-an-item path. */
 int display_menu_inventory_remove(uint32_t *bank, int item);
 
+/* FUN_00468fd0: take the selected row's item out of the bag (mode 6) or the
+ * inventory and drop it from the list. */
+void display_menu_remove_selected(uint32_t *bank);
+
+/* the dungeon pause Items messages: FUN_00468d05 ("used", DAT_0734b97c++),
+ * FUN_00468d0c ("threw away", DAT_0734b988++), FUN_00468d13 (both 0),
+ * FUN_00468cf2 (the HP / SP gains shown, DAT_0734b980 / 984), DAT_0734b9ac
+ * (the target was already full) */
+void display_menu_msg_use(void);
+void display_menu_msg_throw(void);
+void display_menu_msg_reset(void);
+void display_menu_set_gains(int hp, int sp);
+void display_menu_set_full(int full);
+int  display_menu_msg_use_count(void);
+int  display_menu_msg_throw_count(void);
+int  display_menu_gain_hp(void);
+int  display_menu_gain_sp(void);
+int  display_menu_full(void);
+
 /* Reset the picker state to BSS-zero (HOUSE re-entry / test setup). */
 void display_menu_reset(void);
 

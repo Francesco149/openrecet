@@ -1914,6 +1914,7 @@ struct test_case {
     X(display_menu_idle_returns_0) \
     X(display_menu_inventory_return_appends_and_counts) \
     X(display_menu_inventory_remove_shifts_and_counts) \
+    X(display_menu_mode6_bag_list_and_remove) \
     \
     X(counter_menu_build_by_level) \
     X(counter_menu_slide_ramp) \

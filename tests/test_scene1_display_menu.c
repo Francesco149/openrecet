@@ -20,6 +20,7 @@
 #include "save_bank.h"
 #include "save_work.h"
 #include "tables_item.h"        /* synthetic g_item for the list-init path */
+#include "scene_adv_guild.h"     /* the expedition bag (mode 6) */
 
 /* Drive one input frame: set the player-1 edge mask, return its effect via the
  * caller. */
@@ -174,5 +175,41 @@ int test_display_menu_inventory_remove_shifts_and_counts(void)
     T_ASSERT_EQ_I(display_menu_inventory_remove(bank, -1), 0);
     T_ASSERT_EQ_I(display_menu_inventory_remove(bank, 999), 0);
     T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 2);
+    return 0;
+}
+
+/* FUN_00468338(6, 1): the dungeon pause lists the expedition bag as it lies —
+ * one tab, "Nothing" first, the cursor on the first item; FUN_00468fd0 takes
+ * the selected item out of the bag (the tail shifts down) and off the list. */
+int test_display_menu_mode6_bag_list_and_remove(void)
+{
+    display_menu_reset();
+    set_pressed(0);
+    adv_guild_continue_reset(1);
+    int *bag = adv_guild_bag();
+    const int n = adv_guild_bag_size();
+    T_ASSERT(n >= 3);
+    bag[0] = 0x40;
+    bag[1] = 0x80;
+    bag[2] = 0xc0;
+    display_menu_open(6, 1);
+    T_ASSERT_EQ_I(display_menu_dbg_list(0), -1);
+    T_ASSERT_EQ_I(display_menu_dbg_list(2), 0x40);
+    T_ASSERT_EQ_I(display_menu_dbg_list(4), 0x80);
+    T_ASSERT_EQ_I(display_menu_dbg_list(6), 0xc0);
+    T_ASSERT_EQ_I(display_menu_dbg_tab_count0(), 4);
+    T_ASSERT_EQ_I(display_menu_dbg_tab_cursor0(), 1);
+    T_ASSERT_EQ_I(display_menu_selected(), 0x40);
+
+    display_menu_remove_selected(NULL);
+    T_ASSERT_EQ_I(bag[0], 0x80);
+    T_ASSERT_EQ_I(bag[1], 0xc0);
+    T_ASSERT_EQ_I(bag[2], -1);
+    T_ASSERT_EQ_I(display_menu_dbg_tab_count0(), 3);
+    T_ASSERT_EQ_I(display_menu_dbg_list(2), 0x80);
+    T_ASSERT_EQ_I(display_menu_dbg_list(4), 0xc0);
+    T_ASSERT_EQ_I(display_menu_dbg_list(6), -1);
+    T_ASSERT_EQ_I(display_menu_dbg_tab_cursor0(), 1);
+    adv_guild_continue_reset(1);
     return 0;
 }

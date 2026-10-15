@@ -41,6 +41,7 @@
 #include "scene_guild.h"         /* scene_guild_variant (DAT_0963c5f0) for mode-7 buy */
 #include "customer_service.h"    /* cs_news_price_trend (FUN_004361b2, live) */
 #include "x87.h"                 /* spill32 / x87_ftol */
+#include "scene_adv_guild.h"     /* the expedition bag DAT_0438b5ec (mode 6) */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
@@ -66,6 +67,14 @@ static int s_confirm_ctr = 0;   /* DAT_0734b994 */
 static int s_highlight   = -1;  /* DAT_0734b998 */
 static int s_window_flag = 0;   /* DAT_0734b990 */
 static int s_possessed   = -1;  /* DAT_005c6ee4 (-1 = recount-needed sentinel) */
+/* the dungeon pause Items messages (FUN_0047ff40): the "used" / "threw away"
+ * counters (FUN_00468d05 / FUN_00468d0c, zeroed by FUN_00468d13 and the open),
+ * the HP / SP gains shown (FUN_00468cf2) and the "already full" flag */
+static int s_msg_use     = 0;   /* DAT_0734b97c */
+static int s_msg_throw   = 0;   /* DAT_0734b988 */
+static int s_gain_hp     = 0;   /* DAT_0734b980 */
+static int s_gain_sp     = 0;   /* DAT_0734b984 */
+static int s_full        = 0;   /* DAT_0734b9ac */
 
 /* scratch for the inventory scan + co-sort (DAT_0730b60c keys / DAT_07323418
  * items / DAT_073379e0 indices — all 20000-wide in the engine). */
@@ -301,6 +310,8 @@ void display_menu_open(int mode, int first_open)
      * in sim.c). */
     stage_load_pulse_reset();          /* DAT_0734b98c = 0, DAT_0734b9a0 = 0 */
     stage_load_pulse_set_active(1);    /* DAT_0734b9a0 = 1 */
+    s_msg_use   = 0;                   /* DAT_0734b97c */
+    s_msg_throw = 0;                   /* DAT_0734b988 */
 
     /* ── FUN_00468338 population (param_1==0 display-stand path) ──────────
      * Scan the working-bank inventory, group by item-DB category into tabs,
@@ -317,6 +328,27 @@ void display_menu_open(int mode, int first_open)
 
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     int n = 0;
+    if (mode == 6) {
+        /* the dungeon pause: one tab, "Nothing" then the expedition bag
+         * DAT_0438b5ec (all 38 slots) as it lies, each count 1 */
+        memset(s_tab_base, 0, sizeof s_tab_base);
+        s_list[0] = -1;
+        for (int t = 0; t < DISPLAY_MENU_MAX_TABS; t++)
+            s_tab_count[t] = 1;
+        const int *bag = adv_guild_bag();
+        int e = 1;
+        for (int k = 0; k < 38; k++) {
+            if (bag[k] == -1) continue;
+            s_tab_count[0]++;
+            s_list[e * 2]     = bag[k];
+            s_list[e * 2 + 1] = 1;
+            e++;
+        }
+        s_num_tabs = 1;
+        if (s_cur_tab >= 1) s_cur_tab = -1;
+        if (s_cur_tab < 0) s_cur_tab = 0;
+        goto cursor_init;
+    }
     if (mode == 7) {
         /* guild Buy (FUN_00468338(7,1)): scan the item DB, identity-fill the
          * index array (the engine's mode-7 branch fills DAT_073379e0[i]=i). */
@@ -447,6 +479,7 @@ void display_menu_open(int mode, int first_open)
         s_tab_first_item[t] = (e * 2 + 0 < DISPLAY_MENU_MAX_LIST) ? s_list[e * 2] : -1;
     }
 
+cursor_init:
     /* open-cursor init (FUN_00468338 tail, all_ida 65027-65062).
      * A re-open (param_2 == 0) keeps each tab's cursor/scroll but clamps them to
      * the rebuilt list: pull the scroll back inside (count − min(count,7)),
@@ -748,6 +781,63 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
     }
     return 0;
 }
+
+/* FUN_00468fd0: take the selected row's item out — from the expedition bag
+ * (mode 6: the cursor-th live bag slot, the tail shifted down) or the
+ * inventory (FUN_00469241) — and drop one from the row's count; an emptied row
+ * leaves the list (the rows below move up, the scroll / cursor step back) */
+void display_menu_remove_selected(uint32_t *bank)
+{
+    const int cur = s_tab_cursor[s_cur_tab];
+    if (s_mode == 6) {
+        int *bag = adv_guild_bag();
+        const int n = adv_guild_bag_size();
+        for (int k = 0, live = 0; k < n; k++) {
+            if (bag[k] == -1) continue;
+            if (live == cur - 1) {
+                bag[k] = -1;
+                for (int j = k; j < n - 1; j++) bag[j] = bag[j + 1];
+                bag[n - 1] = -1;
+                break;
+            }
+            ++live;
+        }
+    } else {
+        const int item = display_menu_selected();
+        if (item != -1) display_menu_inventory_remove(bank, item);
+    }
+    const int base = s_tab_base[s_cur_tab];
+    const int e = base + s_tab_cursor[s_cur_tab];
+    if (e < 0 || e * 2 + 1 >= DISPLAY_MENU_MAX_LIST) return;
+    if (--s_list[e * 2 + 1] > 0) return;
+    const int cnt = s_tab_count[s_cur_tab], last = cnt - 1;
+    for (int i = base + cur; i < base + last && (i + 1) * 2 + 1 < DISPLAY_MENU_MAX_LIST; i++) {
+        s_list[i * 2]     = s_list[(i + 1) * 2];
+        s_list[i * 2 + 1] = s_list[(i + 1) * 2 + 1];
+    }
+    s_tab_count[s_cur_tab] = last;
+    if ((base + last) * 2 + 1 < DISPLAY_MENU_MAX_LIST && base + last >= 0) {
+        s_list[(base + last) * 2]     = -1;
+        s_list[(base + last) * 2 + 1] = 0;
+    }
+    const int c = s_tab_cursor[s_cur_tab];
+    if (c > 0) {
+        const int sc = s_tab_scroll[s_cur_tab];
+        if (sc + 7 > last && sc > 0) s_tab_scroll[s_cur_tab] = sc - 1;
+        if (c >= last) s_tab_cursor[s_cur_tab] = c - 1;
+    }
+}
+
+void display_menu_msg_use(void)   { s_msg_use++; }                  /* FUN_00468d05 */
+void display_menu_msg_throw(void) { s_msg_throw++; }                /* FUN_00468d0c */
+void display_menu_msg_reset(void) { s_msg_use = 0; s_msg_throw = 0; }   /* FUN_00468d13 */
+void display_menu_set_gains(int hp, int sp) { s_gain_hp = hp; s_gain_sp = sp; }   /* FUN_00468cf2 */
+void display_menu_set_full(int full) { s_full = full; }
+int  display_menu_msg_use_count(void)   { return s_msg_use; }
+int  display_menu_msg_throw_count(void) { return s_msg_throw; }
+int  display_menu_gain_hp(void) { return s_gain_hp; }
+int  display_menu_gain_sp(void) { return s_gain_sp; }
+int  display_menu_full(void)    { return s_full; }
 
 /* ── FUN_0046b00a — menu RENDER (C4b) ─────────────────────────────────────
  * Win32 only (uses render_quad + g_sysassets textures + font_draw).  Ported

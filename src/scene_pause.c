@@ -11,6 +11,8 @@
 
 #include "scene_pause.h"
 
+#include <string.h>
+
 #include "worker_load.h"
 #include "sim.h"     /* the ramp counters g_sim_counter_998/99c + g_sim_mode_9a0
                       * (engine DAT_06a49998/9c/a0), g_sim_buttons[0] (input) */
@@ -33,6 +35,11 @@
 #include "scene_adv_guild.h"  /* FUN_0045bd36 — the mode-11 unpause hook */
 #include "chara_equip.h"      /* FUN_004844ef — re-aggregate equip stats on unpause */
 #include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
+#include "dungeon_flow.h"     /* DAT_0438b550 / b554 — the thrown-away queue */
+#include "item_use.h"         /* FUN_004848c4 / 484948 / 4849a6 / 484bcb / 49ef78 */
+#include "map_collision.h"    /* *DAT_068dd2f0 (the stage type) */
+#include "party.h"            /* HP / SP, dae9c / daea4 */
+#include "x87.h"
 
 /* FUN_00435612/625/644/693 — the SHARED hand-cursor snapshot/restore used by the
  * pause open/close (and the Save-submenu B-cancel). Defined in title_save_dialog.c
@@ -225,6 +232,8 @@ int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — Save: overwrite-confirm 
                                      * only, always 0 in the house). ONE engine DAT —
                                      * only one submenu is open at a time, and each
                                      * open resets it, so the storage is shared. */
+int32_t g_pause_items_done = 0;     /* DAT_074b28a8 — Items: the use / throw result is up */
+int32_t g_pause_items_opt  = 0;     /* DAT_074b28ac — Items: Use (0) / Throw away (1) */
 
 /* Options submenu (type 2) state — the config-panel cursor row + the dirty/exit
  * phase. Engine row = DAT_074b2834[cur] (aliases the Save cursor's slot, but only
@@ -278,6 +287,8 @@ void pause_sm_reset(void)
     g_pause_save_hscroll = 0;
     g_pause_save_phase   = 0;
     g_pause_save_overwrite = 0;
+    g_pause_items_done     = 0;
+    g_pause_items_opt      = 0;
     g_pause_options_row   = 0;
     g_pause_options_phase = 0;
     g_pause_snap_cursor_vis = 0;
@@ -517,9 +528,8 @@ void pause_menu_nav(void)
                  * right.  display_menu_open resets+activates the slide
                  * (stage_load_pulse), scans the working-bank inventory, groups it
                  * into category tabs, and snaps the shared hand cursor to the
-                 * first item.  The dungeon variant (mode 6, place-mode) is gated
-                 * on saved_mode==1 && stage_type>0 ⇒ PORT-DEBT(pause-items-dungeon);
-                 * the house stage_type is 0 so mode 5 is always taken here.
+                 * first item.  On a dungeon floor (saved mode 1, stage type > 0)
+                 * it is mode 6, the expedition bag.
                  * DAT_074b288c=1 (the value-array index) is set by the engine but
                  * inert — the display_menu path uses its OWN cursor, not val[]. */
                 g_pause_save_overwrite = 0;        /* DAT_074b28a4 = 0 (place-mode off) */
@@ -872,26 +882,130 @@ void pause_options_submenu_update(void)
 
 /* FUN_0047ff40 — the Items submenu (type 1) update.
  *
- * Dispatched from pause_menu_update once the submenu is fully open (sub_anim==10)
- * and Items (type 1) is selected.  The HOUSE path is just the display-menu grid
- * nav (display_menu_update) + B-close; the place / use-item paths (placing a
- * carried item, using medicines, the equip read-out) are dungeon-only — gated on
- * saved_mode==1 && *DAT_068dd2f0>0 — and stay PORT-DEBT(pause-items-dungeon).
- *
- * Engine house path (DAT_074b28a4==0, stage_type 0), r = display_menu_update(1):
- *   3 — pick-up arm (the Z edge that arms the confirm countdown) → SE 0x143
- *   2 — CANCEL (B) → close: sub_dir=0 (the submenu slides shut), sel_anim=0,
- *       hide the shared cursor (FUN_00435612), slide inactive (FUN_004682d0),
- *       SE 0x13d
- *   1 — CONFIRM → the engine gates place-mode on saved_mode==1 && stage_type>0;
- *       the house stage_type is 0 ⇒ it returns (no-op)
- *   0 — idle / still sliding in. */
+ * The list (FUN_00469414(1)): Z picks (SE 0x143), B closes the submenu (SE
+ * 0x13d); a confirm on a dungeon floor (saved mode 1, stage type >= 1) opens the
+ * Use / Throw away choice (DAT_074b28a4 = 1, the cursor at (32, 108 + 56·opt)).
+ * In the choice: up / down (0x40000 / 0x80000) toggle it (SE 326), B backs out
+ * (SE 317), Z acts on the selected item:
+ *   - Throw away: queued for FUN_0048b850 (DAT_0438b550 = 1, the first free
+ *     DAT_0438b554 slot), out of the bag (FUN_00468fd0), SE 323;
+ *   - Use: not while boosted (dae9c / daea4) nor off a floor; Food restores HP /
+ *     SP (FUN_004849a6) unless both are full (DAT_0734b9ac); Medicine
+ *     (FUN_00484bcb); a used item leaves the bag, SE 323; else SE 362;
+ *   - an item flagged 0x20 (or 0x10 for Use) cannot be: SE 362.
+ * Every outcome raises the result message (DAT_074b28a8); Z / B then closes it.
+ * The render is scene_pause's. */
 void pause_items_submenu_update(void)
 {
-    /* place-mode (DAT_074b28a4 != 0) is dungeon-only and is never entered in the
-     * house — PORT-DEBT(pause-items-dungeon). */
-    if (g_pause_save_overwrite != 0)
+    const uint16_t pressed = g_sim_buttons[0].pressed;    /* DAT_073dddd4 */
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (g_pause_save_overwrite != 0) {                    /* DAT_074b28a4 */
+        if (g_pause_items_done != 0) {
+            if (g_pause_items_opt != 0) display_menu_msg_throw();   /* FUN_00468d0c */
+            else display_menu_msg_use();                           /* FUN_00468d05 */
+            if (pressed & 0x30u) {
+                display_menu_msg_reset();                 /* FUN_00468d13 */
+                g_pause_save_overwrite = 0;
+                g_pause_items_done = 0;
+                title_save_dialog_cursor_set_visible(1);  /* FUN_0043561a */
+                display_menu_cursor_to_row();             /* FUN_0046939a */
+                display_menu_highlight_row();             /* FUN_00468294 */
+            }
+            return;
+        }
+        if (pressed & 0x20u) {
+            g_pause_save_overwrite = 0;
+            display_menu_cursor_to_row();
+            audio_play_se_by_id(317);
+            return;
+        }
+        if ((pressed & 0x10u) == 0) {
+            if (pressed & 0x40000u) g_pause_items_opt = (g_pause_items_opt + 1) % 2;
+            else if (pressed & 0x80000u) g_pause_items_opt = (g_pause_items_opt + 3) % 2;
+            else return;
+            audio_play_se_by_id(326);
+            title_save_dialog_cursor_slide(32.0f, spill32((long double)spill32((long double)(56 * g_pause_items_opt)) + 108.0f));
+            return;
+        }
+        const int item = display_menu_selected();         /* FUN_00469a9f */
+        if (item == -1) return;
+        if (item & 0x20) {
+            if (g_pause_items_opt != 0) {
+                display_menu_msg_throw();
+                goto refuse;
+            }
+        } else if ((item & 0x10) == 0 || g_pause_items_opt != 0) {
+            if (g_pause_items_opt != 0) {                 /* Throw away */
+                audio_play_se_by_id(323);
+                g_dat_0438b550 = 1;
+                for (int k = 0; k < 20; k++)
+                    if (g_dat_0438b554[k] == -1) { g_dat_0438b554[k] = item; break; }
+                display_menu_remove_selected(bank);       /* FUN_00468fd0 */
+                display_menu_msg_throw();
+                title_save_dialog_cursor_set_visible(0);  /* FUN_00435612 */
+                g_pause_items_done = 1;
+                return;
+            }
+            int used = 0;
+            display_menu_set_full(0);                     /* DAT_0734b9ac = 0 */
+            if (PW(0x56dae9cu).i != 0 || PW(0x56daea4u).i != 0) {
+                g_pause_items_done = 1;
+                title_save_dialog_cursor_set_visible(0);
+                audio_play_se_by_id(362);
+                return;
+            }
+            if (mapcol_maptype() < 1) {
+                audio_play_se_by_id(362);
+                return;
+            }
+            if (item_category_is(item, "Food")) {
+                const uint8_t *w = (const uint8_t *)bank;
+                const uint8_t *c = w ? w + 0x2ceb0 + 0x6c * chara_equip_get_current_chara() : NULL;
+                int16_t h0 = 0, h1 = 0, s0 = 0, s1 = 0;
+                if (c) { memcpy(&h0, c + 0x3c, 2); memcpy(&h1, c + 0x3e, 2); memcpy(&s0, c + 0x40, 2); memcpy(&s1, c + 0x42, 2); }
+                const int32_t hp = item_hp_recovery(item), sp = item_sp_recovery(item);   /* FUN_004848c4 / FUN_00484948 */
+                const float hmax = spill32((long double)(h0 + h1)), smax = spill32((long double)(s0 + s1));
+                int room;
+                if (hp <= 0) room = PW(0x56db0c0u).f < smax;
+                else if (sp > 0 && PW(0x56db0c0u).f < smax) room = 1;
+                else room = PW(0x56db0bcu).f < hmax;
+                if (room) {
+                    used = 1;
+                    int32_t dh = 0, ds = 0;
+                    switch (item_use_food(item, &dh, &ds)) {   /* FUN_004849a6 */
+                    case 1: display_menu_set_gains(dh, -1); break;
+                    case 2: display_menu_set_gains(-1, ds); break;
+                    case 3: display_menu_set_gains(dh, ds); break;
+                    default: break;
+                    }
+                } else {
+                    display_menu_set_full(1);
+                    g_pause_items_done = 1;
+                    title_save_dialog_cursor_set_visible(0);
+                }
+            }
+            if (item_category_is(item, "Medicines")) {
+                used = 1;
+                display_menu_set_gains(item_use_medicine(item), 0);   /* FUN_00484bcb */
+            }
+            if (used) {
+                display_menu_remove_selected(bank);
+                display_menu_msg_use();
+                title_save_dialog_cursor_set_visible(0);
+                g_pause_items_done = 1;
+                audio_play_se_by_id(323);
+            } else {
+                audio_play_se_by_id(362);
+            }
+            return;
+        }
+        display_menu_msg_use();
+    refuse:
+        audio_play_se_by_id(362);
+        title_save_dialog_cursor_set_visible(0);
+        g_pause_items_done = 1;
         return;
+    }
 
     const int r = display_menu_update(1);          /* FUN_00469414(1) */
     if (r == 3) {
@@ -902,9 +1016,11 @@ void pause_items_submenu_update(void)
         title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
         stage_load_pulse_set_active(0);            /* FUN_004682d0 (DAT_0734b9a0=0) */
         audio_play_se_by_id(0x13d);                /* cancel SE */
+    } else if (r == 1 && g_pause_saved_mode == 1 && mapcol_maptype() >= 1) {
+        g_pause_save_overwrite = 1;                /* the Use / Throw away choice */
+        g_pause_items_opt = 0;
+        title_save_dialog_cursor_slide(32.0f, 108.0f);
     }
-    /* r == 1 (CONFIRM): house stage_type 0 ⇒ the engine's place-mode gate fails
-     * and it returns — no-op here.  r == 0: idle. */
 }
 
 /* The Items submenu is open + navigable (the ITEMS_READY anchor predicate):
@@ -1548,8 +1664,10 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
         } else if (t == 1) {
             /* engine L83946: FUN_0048196b → FUN_0046b00a(640 - sub_anim*64, 0).
              * The house path is just the display-menu grid sliding in from the
-             * right (slide_x 640→0 as sub_anim 0→10); the dungeon medicine/equip
-             * option loop is gated on *DAT_068dd2f0>0 ⇒ skipped in the house. */
+             * right (slide_x 640→0 as sub_anim 0→10).
+             * PORT-DEBT(render-coupled, FUN_0048196b): the dungeon's Use / Throw
+             * away choice and the result messages (DAT_074b28a8, DAT_0734b97c /
+             * b988 / b980 / b984 / b9ac) are not drawn. */
             display_menu_render(d, 640.0f - (float)(g_pause_sub_anim << 6));
         } else if (t == 2) {
             /* engine L83941: FUN_0048150c — slide_x = sub_anim*64-640 (≤0,

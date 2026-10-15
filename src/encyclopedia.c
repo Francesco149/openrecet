@@ -415,6 +415,7 @@ int encyclopedia_update(void)
 #include "font_draw.h"     /* font_draw_text / _centered / _right (FUN_0047ca05/d14c/d2db) */
 #include "sysassets.h"     /* g_sysassets.item_win_tga / data_win_tga / item_icons[] */
 #include "chara_equip.h"   /* chara_equip_item_stats (FUN_0048093f) — the detail Effect line */
+#include "item_use.h"      /* FUN_0049ef78 / FUN_004848c4 / FUN_00484948 */
 #include <stdio.h>
 
 /* FUN_00435644 — capture the shared cursor's resting target (pure-C, in
@@ -586,38 +587,10 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py,
 /* ── item-detail overlay helpers (FUN_0049ef78 / FUN_004848c4 / FUN_00484948 /
  *    FUN_0048486f) ── */
 
-/* FUN_0049ef78 — does the (encoded) item's category name start with `name`? */
-static int enc_category_is(int item_enc, const char *name)
-{
-    int rec = tables_item_find_slot_by_id(&g_item, item_enc >> 6);
-    if (rec < 0) return 0;
-    int c = g_item.records[rec].category;
-    if (c < 0 || c >= ITEM_CATEGORY_COUNT) return 0;
-    return memcmp(g_item.categories[c].singular, name, 4) == 0;
-}
-
-/* FUN_004848c4 — HP recovery (stat slot 0), scaled by the quality nibble. */
-static int enc_hp_recovery(uint32_t item_enc)
-{
-    int32_t s[4] = { 0, 0, 0, 0 };
-    chara_equip_item_stats(item_enc & 0xfffffff0u, s);
-    if ((item_enc & 0xf) != 0 && s[0] > 0)
-        s[0] = (int)((float)s[0]);   /* engine __ftol of (float)s[0] — identity */
-    return s[0];
-}
-
-/* FUN_00484948 — SP recovery (stat slot 1), quality-scaled (·quality/5, ≥1). */
-static int enc_sp_recovery(uint32_t item_enc)
-{
-    int32_t s[4] = { 0, 0, 0, 0 };
-    chara_equip_item_stats(item_enc & 0xfffffff0u, s);
-    if ((item_enc & 0xf) != 0 && s[1] > 0) {
-        int v = (int)((item_enc & 0xf) * s[1]) / 5;
-        if (v < 1) v = 1;
-        return v;
-    }
-    return s[1];
-}
+/* FUN_0049ef78 / FUN_004848c4 / FUN_00484948 (item_use.c) */
+static int enc_category_is(int item_enc, const char *name) { return item_category_is(item_enc, name); }
+static int enc_hp_recovery(uint32_t item_enc) { return item_hp_recovery((int32_t)item_enc); }
+static int enc_sp_recovery(uint32_t item_enc) { return item_sp_recovery((int32_t)item_enc); }
 
 /* FUN_0048486f — the "Gives N Max HP" tier (item ids 0x1005..0x1008 → 2..5). */
 static int enc_maxhp_tier(uint32_t item_enc)
