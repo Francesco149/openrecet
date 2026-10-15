@@ -4692,7 +4692,7 @@ int test_records_b_tick_t11_type_d_kills_at_age_0x28(void)
  * via the table-B state directly: confirm a new live slot exists with
  * the expected type. */
 
-/* ─── 0xf walker arm ──────────────────────────────────────────────── */
+/* ─── 0xf: the mushroom king's contact record (owner at +0x14) ──────────────────────────────────────────────── */
 
 int test_records_b_tick_t12_type_f_no_motion_match_is_noop(void)
 {
@@ -4702,7 +4702,7 @@ int test_records_b_tick_t12_type_f_no_motion_match_is_noop(void)
     owner_a_blob_set_i(0x424, 0x99);
     owner_a_blob_set_f(0x3f0, 999.0f);  /* should NOT be written. */
     stage_live(0, 0xf, /*px=*/1.0f, /*py=*/2.0f, /*pz=*/3.0f, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);   /* FUN_00445a8c's owner, +0x14 */
     scene1_records_b_tick();
     /* POS_X = 1.0 (unchanged from stage_live, preamble adds vel=0). */
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 1.0f) < 1e-6f);
@@ -4721,7 +4721,7 @@ int test_records_b_tick_t12_type_f_motion_18_writes_pose(void)
     owner_a_blob_set_f(0x3f8, 30.0f);
     owner_a_blob_set_f(0x420, 0.0f);
     stage_live(0, 0xf, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);   /* FUN_00445a8c's owner, +0x14 */
     scene1_records_b_tick();
     /* Pose first (sin=0, cos=1):
      *   POS_X = 0.5*0 + 10 = 10
@@ -4742,7 +4742,7 @@ int test_records_b_tick_t12_type_f_motion_3b_also_matches(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x424, 0x3b);
     stage_live(0, 0xf, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);   /* FUN_00445a8c's owner, +0x14 */
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.5f) < 1e-6f);
     return 0;
@@ -4754,7 +4754,7 @@ int test_records_b_tick_t12_type_f_motion_3c_also_matches(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x424, 0x3c);
     stage_live(0, 0xf, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);   /* FUN_00445a8c's owner, +0x14 */
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.5f) < 1e-6f);
     return 0;
@@ -4768,7 +4768,7 @@ int test_records_b_tick_t12_type_f_calls_state_machine(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     s_sm_calls = 0;
     stage_live(0, 0xf, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);   /* FUN_00445a8c's owner, +0x14 */
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 1);
     return 0;

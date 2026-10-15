@@ -79,6 +79,8 @@ int32_t g_dat_0438b550;
 int32_t g_dat_0438b554[20];
 int32_t g_dat_0064e818;
 int32_t g_dat_06a46fa4;
+int32_t g_dat_06a46fa0;            /* the cinematic camera counter (FUN_004426a7) */
+float   g_dat_0438bec4 = 1.0f;     /* eased to 0.5 by the cinematic (no port reader) */
 float   g_floor_spawn_yaw;
 
 int32_t g_title_banner;
@@ -123,6 +125,7 @@ void dungeon_flow_stage_reset(void)
     g_dat_0438beb4 = 0;
     g_dat_0438bebc = 0;
     g_dat_0438becc = 0;
+    g_dat_0438bec4 = 1.0f;
     g_fall_timer = 0;
     g_orb_pick_n = 0;
     g_scene1_combat_dat_0438b904 = 0;

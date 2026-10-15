@@ -11,11 +11,9 @@
  *                                      tables, called once at the top
  *                                      of scene1_render_meshes.
  *
- * The full FUN_0040f64b also touches sibling tables DAT_044e28fc /
- * DAT_0695e07c / DAT_0064e818 and calls FUN_00414902 (an unrelated
- * 39 B init).  This module ports ONLY the three record-table touches;
- * the sibling tables land when their consumers port (no consumer reads
- * them today).
+ * The full FUN_0040f64b also touches sibling tables DAT_044e28fc (the
+ * popup timers) / DAT_0695e07c / DAT_0064e818 and calls FUN_00414902;
+ * all but DAT_0695e07c (no port mirror) are reset here too.
  *
  * Tables stay sentinel-empty until the sim-side populator FUN_0040fb3a
  * (8071 B, unported — "Mt. Everest" of the scene-1 render path) lands.

@@ -3275,35 +3275,30 @@ static void body_0xd_or_0x15(int i, int32_t type)
  *   0x519c28 = π/40  0x519434 = π/2   0x519320 = 0.0   0x519a20 = 3.5
  */
 
-/* Engine 0x43e22b..0x43e2ed — type 0xf body (wide-followup walker arm).
+/* Engine 0x43e22b..0x43e2ed — type 0xf body: the mushroom king's contact
+ * record (FUN_0042b6b7 state 0 / record 15).
  *
- *   Gate: owner+0x424 in {0x18, 0x3b, 0x3c}; else no-op.
+ *   Gate: the owner (slot+0x14, OWNER_B — FUN_00445a8c's) is type 0x18 / 0x3b /
+ *   0x3c; else no-op.
  *   DRAG = 1.5
- *   POS_X = 0.5 * sin(owner+0x420) + owner+0x3f0
- *   POS_Y = owner+0x3f4 + 1.0
- *   POS_Z = 0.5 * cos(owner+0x420) + owner+0x3f8
- *   state_machine
- *   kill on AGE >= 1 (slot dies on first tick after pose write).
+ *   POS = owner pos + 0.5·(sin, ·, cos)(owner yaw), y + 1.0
+ *   FUN_0043865e, kill on AGE >= 1 (edi).
  */
 static void body_0xf_motion_walker(int i)
 {
-    void *owner = slot_owner_a(i);
+    static const float k0p5 = 0.5f, k1 = 1.0f, k1p5 = 1.5f;
+    const void *owner = slot_owner(i);
     if (!owner) return;
 
     int32_t motion = owner_read_i(owner, 0x424);
     if (motion != 0x18 && motion != 0x3b && motion != 0x3c) return;
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.5f);
-
-    float bend = owner_read_f(owner, 0x420);
-    float opx  = owner_read_f(owner, 0x3f0);
-    float opy  = owner_read_f(owner, 0x3f4);
-    float opz  = owner_read_f(owner, 0x3f8);
-    float s    = sinf(bend);
-    float c    = cosf(bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, s * 0.5f + opx);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, opy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, c * 0.5f + opz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k1p5);
+    const float s = spill32(x87_crt_sin(owner_read_f(owner, 0x420)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)s * k0p5 + owner_read_f(owner, 0x3f0)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x3f4) + k1));
+    const float c = spill32(x87_crt_cos(owner_read_f(owner, 0x420)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)c * k0p5 + owner_read_f(owner, 0x3f8)));
 
     state_machine_call(slot_base(i));
 

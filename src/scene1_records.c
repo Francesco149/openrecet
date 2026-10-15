@@ -8,6 +8,8 @@
 
 #include "scene1_records.h"
 
+#include "actor_ai.h"             /* g_popup (DAT_044e28f0) */
+#include "dungeon_flow.h"         /* DAT_0064e818 */
 #include "scene1_overlay.h"
 #include "scene1_per_frame_open.h"
 
@@ -71,6 +73,12 @@ void scene1_records_reset(int reset_c)
      * empty ones. */
     scene1_overlay_reset();
     scene1_pfo_table_a_init();
+
+    /* the rest of FUN_0040f64b: DAT_0064e818 = 0, the number popups' timers
+     * (DAT_044e28fc, 32 × 7 dw) = 0; DAT_0695e07c (8 × 0x79 dw, first dword
+     * = -1) has no port mirror */
+    g_dat_0064e818 = 0;
+    for (int k = 0; k < 32; k++) g_popup[k][3] = 0;
 }
 
 void scene1_records_counter_scan(void)

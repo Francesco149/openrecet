@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 void party_anim_set(int32_t *rec, int32_t anim);   /* FUN_00482a51 */
+float angle_ease(float a, float b, float step);    /* FUN_00482ae7 */
 void party_follow(int target, int set_anim);       /* FUN_0048a4d1 */
 void party_status_tick(void);                      /* FUN_004897c6(&DAT_056da1b8) */
 void party_aura_tick(void);                        /* FUN_00483e7b */

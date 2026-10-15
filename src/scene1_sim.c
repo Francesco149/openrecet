@@ -96,10 +96,44 @@ int g_scene1_ingame_transition_flag = 0;  /* DAT_0438b1d0 */
 int g_scene1_ingame_skip_flag       = 0;  /* DAT_0438b1d8 */
 int g_scene1_ingame_paused_flag     = 0;  /* DAT_0438b1c8 (explicit-writer mirror) */
 
+/* FUN_004426a7: the cinematic camera (a boss death arms it, FUN_0044269c):
+ * DAT_06a46fa0 counts up; from 231 DAT_0438bec4 eases down 0.01 a tick to
+ * 0.5; the camera (class 1, DAT_0438b4e8) looks at (-40, 6, -40) from a slow
+ * orbit (radius 16, the eye falling 0.01 a tick from 12) until 400, then hands
+ * back (class 0) */
+static void cinematic_camera_tick(void)
+{
+    static const float k0p01 = 0.009999999776482582f, k0p5 = 0.5f, km40 = -40.0f, k6 = 6.0f;
+    static const float k0p002 = 0.0020000000949949026f;   /* 0x5198d4 */
+    static const float k_pi = 3.1415927410125732f, k16 = 16.0f, k12 = 12.0f, k40 = 40.0f;
+    int32_t v = g_dat_06a46fa0;
+    if (v <= 0) return;
+    g_dat_06a46fa0 = ++v;
+    if (v > 230) {
+        g_dat_0438bec4 = spill32((long double)g_dat_0438bec4 - k0p01);
+        if (!(g_dat_0438bec4 >= k0p5)) g_dat_0438bec4 = k0p5;
+    }
+    g_scene1_camera_stage_class = 1;
+    const float look[3] = { km40, k6, km40 };
+    scene1_camera_set_lookat(look);
+    if (v > 400) {
+        g_dat_06a46fa0 = 0;
+        g_scene1_camera_stage_class = 0;
+        return;
+    }
+    const float t = (float)(v + 60);                                     /* [ebp-4] */
+    const double ad = spill32((long double)t * k0p002 + k_pi);          /* [ebp-8] → QWORD */
+    float eye[3];
+    eye[0] = spill32((long double)spill32(x87_crt_sin(ad)) * k16 - k40);
+    const float h = spill32((long double)t * k0p01);
+    eye[1] = spill32((long double)k12 - h);
+    eye[2] = spill32((long double)spill32(x87_crt_cos(ad)) * ((long double)k16 - h) - k40);
+    scene1_camera_set_eye(eye);
+}
+
 void scene1_ingame_transition_arm_tick(void)
 {
-    /* E.2 probe — FUN_004427d3 @ 0x4427d3.  5 of the engine's 6 calls run;
-     * FUN_004426a7 (the cinematic camera) stays stubbed (see below).
+    /* E.2 probe — FUN_004427d3 @ 0x4427d3: the engine's 6 calls.
      *
      * This is the arm retail dispatches EVERY dialogue/event frame to
      * (FUN_004536cb routes b1c8 != 0 here INSTEAD of FUN_00442cef — verified on
@@ -138,9 +172,8 @@ void scene1_ingame_transition_arm_tick(void)
     /* FUN_004427d3 L12 — FUN_0040fb3a (table A particle integrator). */
     scene1_particles_tick();
 
-    /* FUN_004427d3 L13 — FUN_004426a7: cinematic camera ramp, gated on
-     * DAT_06a46fa0 > 0 (a cutscene counter, 0 in our windows); sin/cos only,
-     * no RNG.  PORT-DEBT(focused, FUN_004426a7). */
+    /* FUN_004427d3 L13 — FUN_004426a7: the cinematic camera */
+    cinematic_camera_tick();
 }
 
 static void stage_event_tick(void);
@@ -567,7 +600,7 @@ tail:
         stage_event_tick();
     }
     scene1_particles_tick();                 /* FUN_0040fb3a */
-    /* PORT-DEBT(stub, FUN_004426a7): the cinematic camera ramp */
+    cinematic_camera_tick();                 /* FUN_004426a7 */
     scene1_debug_overlay_consume_rng();      /* the overlay rand + X/Y/Z text */
 }
 

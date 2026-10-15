@@ -67,6 +67,8 @@ extern int32_t g_dat_0438b8b8;
 extern int32_t g_dat_0438b550;       /* 1: FUN_0048b850 spawns the queued b554 effects */
 extern int32_t g_dat_0438b554[20];   /* -1 = empty */
 extern int32_t g_dat_0064e818;       /* set 1 by every full FUN_00442cef tick */
+extern int32_t g_dat_06a46fa0;       /* > 0: the cinematic camera FUN_004426a7 runs (a boss death) */
+extern float   g_dat_0438bec4;
 extern int32_t g_dat_06a46fa4;       /* 1 on a bed8 hit-pause tick (the camera holds) */
 
 /* FUN_00406551 / the floor title DAT_00648270/74/78 (FUN_00406584 counts it up

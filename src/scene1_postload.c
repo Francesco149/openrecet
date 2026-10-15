@@ -462,6 +462,7 @@ void scene1_postload_stage_entry_init(void)
 
     /* L384-399: FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1),
      * FUN_0041f252, FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
+    g_dat_06a46fa0 = 0;
     scene1_records_reset(1);
     actor_spawn_reset();
     dobj_place_markers();                /* FUN_00432473 */

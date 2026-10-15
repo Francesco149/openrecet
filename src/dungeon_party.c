@@ -3,6 +3,8 @@
  * disassembly (x87.h): ST0 chains are long double, every fstp m32 is spill32.
  */
 #include "dungeon_party.h"
+#include "scene1_records_c_spawn.h"
+#include "tables_item.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -153,7 +155,7 @@ static void party_gauge_tick(void)
 }
 
 /* FUN_00482ae7: step angle a toward b by at most `step` (both wrapped to ±π) */
-static float angle_ease(float a, float b, float step)
+float angle_ease(float a, float b, float step)
 {
     while (a < k_mpi) a = spill32((long double)a + k_2pi);
     while (a > k_pi) a = spill32((long double)a - k_2pi);
@@ -1269,8 +1271,22 @@ void dungeon_party_tick(void)
     }
     if (mapcol_maptype() != 0) {
         if (g_dat_0438b550 == 1) {
+            /* the items thrown away from the pause (FUN_0047ff40) drop at the
+             * player's feet: FUN_0044b12f(party, pos, record id + 7, 1, 0.7,
+             * appraised bit, 0, the low nibble); the queue stays until the next
+             * pause open (FUN_0047f2f6) */
+            static const float k0p7 = 0.699999988079071f;   /* 0x519748 */
             g_dat_0438b550 = 0;
-            /* PORT-DEBT(stub, FUN_0044b12f): the queued b554 item effects */
+            for (int k = 0; k < 20; k++) {
+                const int32_t v = g_dat_0438b554[k];
+                if (v == -1) continue;
+                const int32_t slot = tables_item_find_slot_by_id(&g_item, v >> 6);   /* FUN_004681f6 */
+                if (slot < 0) continue;   /* retail would read record -1; a bag item always resolves */
+                scene1_records_c_spawn_world_drop_typed((int)(intptr_t)&g_party, PW(0x56da1d8u).f,
+                                                        PW(0x56da1dcu).f, PW(0x56da1e0u).f,
+                                                        g_item.records[slot].item_id + 7, 1, k0p7,
+                                                        (v >> 4) & 1, 0, v & 0xf);
+            }
         }
         if (g_ctrl_lock == -1 && g_news_ticker_timer == 0 && g_dat_0438b950 == 0) {
             floor_event_pick();              /* FUN_004364bc */
