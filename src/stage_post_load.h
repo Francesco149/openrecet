@@ -95,8 +95,8 @@ void stage_post_load_pulse_5fold(int reset_arrays, int reset_counter_idx);
  * Behavior summary (decomp L33163-L33250):
  *   1. Optionally reset bedc[0..5] and bf0c[0..5] to 0.
  *   2. Optionally force-clear one bedc slot.
- *   3. Pick mode based on g_dat_0438b4d0 (with a deep-dungeon override
- *      for (-1, dungeon_id==5, next_floor>0x1d) → mode 4).
+ *   3. Pick mode: g_dat_0438b4d0, or with -1 the dungeon DAT_0438b4c8
+ *      (dungeon 5 from floor 30 → mode 4).
  *   4. Write a mode-specific carve-up into bedc[]:
  *        mode 0: bedc[0] = 1.0
  *        mode 1: bedc[1] = clamp01_high( (bf0c[1]-2)*0.02, 0.2 );
@@ -105,9 +105,9 @@ void stage_post_load_pulse_5fold(int reset_arrays, int reset_counter_idx);
  *                bedc[slot+1] = clamp_high(bf0c[slot+1]*0.04, 0.2)
  *                bedc[slot+2] = clamp_high((bf0c[slot+2]-3)*0.005, 0.05)
  *                bedc[slot]   = 1.0 - bedc[slot+1] - bedc[slot+2]
- *   5. Increment bf0c[0..5] by 1, or by 5 on the rng-gated equipped-item
- *      predicate path (only reachable from tick-time callers via the
- *      reset_arrays==0 branch).
+ *   5. Increment bf0c[0..5] by 1, or by 5 when a tick-time call
+ *      (reset_arrays 0) rolls rand % 10 == 0 and FUN_00485712(2509, 3, 30)
+ *      procs.
  *
  * On NEW GAME (g_dat_0438b4d0 BSS-zero, bf0c BSS-zero): bedc[0] = 1.0,
  * all other bedc slots stay 0, bf0c[0..5] all increment from 0 → 1.
@@ -116,6 +116,9 @@ void stage_post_load_pulse_5fold(int reset_arrays, int reset_counter_idx);
  * is int32_t (shared with stage_post_load_init's zero pass); memcpy
  * mediates the float view to keep strict-aliasing clean. */
 void stage_post_load_pulse_first_row(int reset_arrays, int force_clear_idx);
+
+/* DAT_0438bedc..0x438bf3b (the four 6-dword drop rows) by retail VA, else NULL */
+const int32_t *stage_post_load_va(uint32_t va);
 
 /* g_dat_0438b4d0 — primary mode selector for the first-row dispatch.
  * Future stage-change subsystem wires this; until then, test-only. */

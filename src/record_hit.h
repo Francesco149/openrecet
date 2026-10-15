@@ -45,6 +45,8 @@ extern int32_t g_orb_pick_n;        /* DAT_0438b900: FUN_004385fb's call count *
 extern int32_t g_kill_combo;        /* DAT_0438b90c: kills of the same type in a row */
 extern int32_t g_kill_combo_type;   /* DAT_0438b910 */
 extern int32_t g_kill_combo_timer;  /* DAT_0438b914 */
+extern int32_t g_dat_06a46f8c;      /* the last chest roll: 1 */
+extern int32_t g_dat_06a46f90;      /* … and its tier */
 
 int         record_sm_tick(int32_t *slot);                           /* FUN_0043865e */
 void        record_sm_install(void);    /* the table-B tick's state-machine hook */

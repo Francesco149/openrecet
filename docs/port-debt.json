@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 89,
+  "total": 88,
   "by_kind": {
-   "stub": 63,
+   "stub": 62,
    "synthetic-data": 0,
    "simplified": 8,
    "hardcode": 2,
@@ -19,12 +19,11 @@
    "focused": 3,
    "house-teardown": 1,
    "oob": 1,
-   "render-coupled": 3,
+   "render-coupled": 4,
    "semantic-collision": 1,
-   "stage-scratch": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 72,
+  "retiring_engine_fns": 71,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -53,8 +52,7 @@
    "FUN_00430c6d": 1,
    "FUN_0043183e": 1,
    "FUN_00432e50": 1,
-   "FUN_00435c98": 1,
-   "FUN_0043824b": 1,
+   "FUN_00435dcd": 1,
    "FUN_0043865e": 1,
    "FUN_0043a5d9": 1,
    "FUN_00441c3e": 1,
@@ -79,7 +77,7 @@
    "FUN_00473c03": 1,
    "FUN_00474d92": 1,
    "FUN_0047f46a": 1,
-   "FUN_00484e45 / FUN_00485413": 1,
+   "FUN_0048196b": 1,
    "FUN_004855e2": 1,
    "FUN_00485712": 1,
    "FUN_00485c74": 1,
@@ -199,6 +197,14 @@
   },
   {
    "kind": "render-coupled",
+   "engine_fn": "FUN_0048196b",
+   "desc": "the dungeon's Use / Throw",
+   "file": "src/scene_pause.c",
+   "line": 1668,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
    "engine_fn": "FUN_00490c78",
    "desc": "the notice's side is Tear's",
    "file": "src/dungeon_party.c",
@@ -250,7 +256,7 @@
    "engine_fn": "FUN_00453384",
    "desc": "the engine has a thicket of mode-1",
    "file": "src/scene_pause.c",
-   "line": 294,
+   "line": 305,
    "kind_known": true
   },
   {
@@ -284,14 +290,6 @@
    "file": "src/sim.c",
    "line": 373,
    "kind_known": true
-  },
-  {
-   "kind": "stage-scratch",
-   "engine_fn": "FUN_00435c98",
-   "desc": "the engine tail re-inits the",
-   "file": "src/scene_worldmap.c",
-   "line": 244,
-   "kind_known": false
   },
   {
    "kind": "structure",
@@ -330,7 +328,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the overlay spark (25, 1.0, -1)",
    "file": "src/record_hit.c",
-   "line": 628,
+   "line": 630,
    "kind_known": true
   },
   {
@@ -410,7 +408,7 @@
    "engine_fn": "FUN_0043183e",
    "desc": "the event floors' floor tables",
    "file": "src/record_hit.c",
-   "line": 164,
+   "line": 166,
    "kind_known": true
   },
   {
@@ -431,6 +429,14 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_00435dcd",
+   "desc": "modes outside 0..5 read the caps past",
+   "file": "src/stage_post_load.c",
+   "line": 222,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
@@ -447,18 +453,10 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0043824b",
-   "desc": "the chest's item roll at",
-   "file": "src/record_hit.c",
-   "line": 1057,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_0043865e",
    "desc": "the multi-part anchors",
    "file": "src/record_hit.c",
-   "line": 411,
+   "line": 413,
    "kind_known": true
   },
   {
@@ -586,7 +584,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026) is unported; the scene-6 trend multipliers are live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 780,
+   "line": 870,
    "kind_known": true
   },
   {
@@ -627,14 +625,6 @@
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
    "line": 299,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00484e45 / FUN_00485413",
-   "desc": "the bag-full",
-   "file": "src/record_hit.c",
-   "line": 1054,
    "kind_known": true
   },
   {
@@ -698,7 +688,7 @@
    "engine_fn": "FUN_0048a383",
    "desc": "the level-up of s_easydisp",
    "file": "src/record_hit.c",
-   "line": 248,
+   "line": 250,
    "kind_known": true
   },
   {

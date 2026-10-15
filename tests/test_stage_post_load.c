@@ -525,18 +525,14 @@ int test_stage_post_load_435dcd_deep_dungeon_override_to_mode_4(void)
 
 int test_stage_post_load_435dcd_no_override_when_stage_id_not_5(void)
 {
-    /* g_dat_0438b4d0 = -1 but g_scene1_combat_stage_id != 5 → no override.
-     * Mode = -1 falls into the else branch with slot = 2 (engine's
-     * initial iVar6) and out-of-range RDATA — clamp values are 0
-     * (engine reads denormal-effectively-0 floats at .data[-8]; port
-     * matches by treating out-of-range mode as clamp-to-0).
-     * Result: pfvar4 = 0 (0.04 clamped down to 0), pfvar1 = 0,
-     * bedc[2] = 1.0 - 0 - 0 = 1.0.  bedc[3..4] = 0. */
+    /* g_dat_0438b4d0 = -1 → the mode is the dungeon DAT_0438b4c8 (0x435e03):
+     * stage 0 → mode 0 → bedc[0] = 1.0, the rest 0. */
     stage_post_load_reset_for_test();
     stage_post_load_set_mode_b4d0(-1);
     /* g_scene1_combat_stage_id stays at 0 from the reset. */
     stage_post_load_pulse_first_row(1, 0);
-    T_ASSERT(stage_post_load_get_dat_0438bedc_as_float(2) == 1.0f);
+    T_ASSERT(stage_post_load_get_dat_0438bedc_as_float(0) == 1.0f);
+    T_ASSERT(stage_post_load_get_dat_0438bedc_as_float(2) == 0.0f);
     T_ASSERT(stage_post_load_get_dat_0438bedc_as_float(3) == 0.0f);
     T_ASSERT(stage_post_load_get_dat_0438bedc_as_float(4) == 0.0f);
     return 0;

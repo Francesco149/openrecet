@@ -483,7 +483,7 @@ void scene1_postload_stage_entry_init(void)
     /* L741-746: FUN_0046f892, FUN_00435612, FUN_004852fb (in the shop while
      * b928 == 1 — a world-map exit on a morning-beat day: the actors re-seat
      * at the counter, Recette facing Tear, anim 6), FUN_0048439a (the shop
-     * attribute centroid); FUN_00435fbb(0, -1) is PORT-DEBT(stub, FUN_00435fbb). */
+     * attribute centroid), FUN_00435fbb(0, -1) (the drop weights step). */
     scene1_customer_npc_reset();
     title_save_dialog_cursor_set_visible(0);
     if (g_stage_palette != NULL && g_stage_palette->mode == 0 && scene1_beat_flag() == 1)
@@ -493,6 +493,7 @@ void scene1_postload_stage_entry_init(void)
         if (rec != NULL)
             roster_compute_centroid(rec);
     }
+    stage_post_load_pulse_5fold(0, -1);
 }
 
 void scene1_postload_ambient_spawn(void)

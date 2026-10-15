@@ -22,6 +22,8 @@
 #include "dungeon_flow.h"
 #include "party.h"
 #include "save_work.h"
+#include "dungeon_party.h"   /* FUN_00485712 */
+#include "x87.h"
 
 /* ─── per-chara record storage ─────────────────────────────────────────── */
 
@@ -167,206 +169,85 @@ void stage_post_load_pulse_5fold(int param_1, int param_2)
     }
 }
 
-/* FUN_00485712 @ 0x485712 — STUB.
- *
- * In engine, walks the per-(bank,chara) equipped-item table
- * (DAT_04510648 + chara*0x6c + bank*0x2dfc8) for a slot whose
- * (slot >> 6) == arg1; if found, applies rng-gated combat side effects
- * and returns 1; else returns 0.
- *
- * On NEW GAME the equipped-item table is BSS-zero, so the walk yields
- * no hit and the function returns 0.  Our stub returns 0 unconditionally
- * — bit-exact with the engine's NEW-GAME behavior until the
- * equipped-item subsystem ports.  The probe surfaces any future caller
- * in call_trace, and a `≠` row in the diff will flag the day this stub
- * starts diverging from retail.
- *
- * Only callable from stage_post_load_pulse_first_row's tick-time branch
- * (reset_arrays == 0), which never fires from stage_post_load_init
- * (always passes reset_arrays = 1). */
-static int stage_post_load_predicate_485712_stub(int arg1, int arg2, int arg3)
-{
-    (void)arg1; (void)arg2; (void)arg3;
-    CALL_TRACE_ENTER_STUB(0x485712u);
-    return 0;
-}
-
-/* RDATA at 0x5c4fcc..0x5c4ff3 — per-mode high clamps for the iVar3 ∈
- * {2,3,4,5} fanout branch.  Each entry is two floats: high_a caps
- * `bedc[slot+1]`, high_b caps `bedc[slot+2]`.  Verified via objdump @
- * vendor/unpacked/recettear.unpacked.exe.
- *
- * Layout: 6 entries × 8 bytes = 48 bytes.  Entries 0 and 1 hold
- * unrelated semantics that other engine code paths consume
- * (DAT_005c4fd0 = -1.8f is read elsewhere as `_DAT_0438b77c = -1.8 -
- * _DAT_005c4fd0`).  This function only reads entries 2..5 — those four
- * are uniform (0.2, 0.05).  Modes 0 and 1 are kept here for layout
- * fidelity but the body never indexes them. */
-static const float kFun435dcdHighA[6] = {
-    /* mode 0 — not read; binary stores int=1 */
-    0.0f,
-    /* mode 1 — not read; binary stores float=14.0 */
-    14.0f,
-    0.2f,  /* mode 2 */
-    0.2f,  /* mode 3 */
-    0.2f,  /* mode 4 */
-    0.2f,  /* mode 5 */
-};
-static const float kFun435dcdHighB[6] = {
-    /* mode 0 — not read; binary stores float=-1.8 (DAT_005c4fd0) */
-    -1.8f,
-    /* mode 1 — not read; binary stores float=21.0 */
-    21.0f,
-    0.05f,  /* mode 2 */
-    0.05f,  /* mode 3 */
-    0.05f,  /* mode 4 */
-    0.05f,  /* mode 5 */
-};
-
+/* FUN_00435dcd: the treasure-rarity weights DAT_0438bedc[6] (the chest roll
+ * FUN_0043824b and the drops read them) from the per-tier counters
+ * DAT_0438bf0c[6].  `reset` 1 zeroes both rows; `clear` >= 0 zeroes one
+ * weight.  The mode is DAT_0438b4d0, or with -1 the dungeon DAT_0438b4c8
+ * (dungeon 5 from floor 30 counts as 4).  Then every counter steps 1 — 5 when
+ * a tick-time call (reset 0) rolls rand % 10 == 0 and the accessory 2509
+ * procs (FUN_00485712). */
 void stage_post_load_pulse_first_row(int reset_arrays, int force_clear_idx)
 {
-    /* E.3 probe — FUN_00435dcd @ 0x435dcd. */
     CALL_TRACE_ENTER(0x435dcdu);
-
-    /* L33176-83: reset_arrays==1 zeros bedc[0..5] AND bf0c[0..5].
-     * Engine does this via a pointer walk that increments by 1 dword
-     * each iteration and reads both *p and p[12] — i.e. two parallel
-     * 6-element zero passes, with the second row sitting 12 dwords
-     * ahead at &DAT_0438bf0c. */
+    /* .data 0x5c4fcc + 8·mode / 0x5c4fd0 + 8·mode: the caps of the mode's
+     * second / third weight (modes 2..5 read (0.2, 0.05)) */
+    static const uint32_t k_cap_a[6] = { 0x00000001u, 0x41600000u, 0x3e4ccccdu, 0x3e4ccccdu, 0x3e4ccccdu, 0x3e4ccccdu };
+    static const uint32_t k_cap_b[6] = { 0xbfe66666u, 0x41a80000u, 0x3d4ccccdu, 0x3d4ccccdu, 0x3d4ccccdu, 0x3d4ccccdu };
+    static const float k0p02 = 0.019999999552965164f, k0p2 = 0.20000000298023224f;
+    static const float k0p04 = 0.03999999910593033f, k0p005 = 0.004999999888241291f;
+    float w[6];
+    memcpy(w, g_dat_0438bedc, sizeof w);
     if (reset_arrays == 1) {
         for (int i = 0; i < 6; i++) {
-            g_dat_0438bedc[i] = 0;
             g_dat_0438bf0c[i] = 0;
+            w[i] = 0.0f;
         }
     }
-
-    /* L33184-86: force-clear a single bedc slot.  Engine's `-1 < param_2`
-     * checks `param_2 >= 0`; we additionally bound-check to keep the
-     * index in-range under any caller. */
-    if (force_clear_idx >= 0 && force_clear_idx < 6) {
-        g_dat_0438bedc[force_clear_idx] = 0;
-    }
-
-    /* L33187-91: mode selection.  Primary input is g_dat_0438b4d0
-     * (BSS-zero on boot → mode 0).  The deep-dungeon override snaps
-     * (-1, dungeon_id == 5, next_floor > 0x1d) back to mode 4 — engine
-     * uses this to keep the d5 boss arena rendering with the same
-     * weight split as the regular d4 boss arenas. */
+    if (force_clear_idx >= 0 && force_clear_idx < 6)
+        w[force_clear_idx] = 0.0f;
     int mode = g_dat_0438b4d0;
-    if (g_dat_0438b4d0 == -1
-        && g_scene1_combat_stage_id == 5
-        && stage_gate_get_next() > 0x1d) {
-        mode = 4;
+    if (mode == -1) {
+        mode = g_scene1_combat_stage_id;
+        if (mode == 5 && stage_gate_get_next() >= 30) mode = 4;
     }
-
     if (mode == 0) {
-        /* L33192-93: weight all on slot 0. */
-        const float one = 1.0f;
-        memcpy(&g_dat_0438bedc[0], &one, sizeof(float));
+        w[0] = 1.0f;
     } else if (mode == 1) {
-        /* L33194-33207: mode-1 carve-out.
-         *   bedc[1] = clamp01_high( (bf0c[1] - 2) * 0.02,  high = 0.2 )
-         *             (default 0 when bf0c[1] <= 2)
-         *   bedc[0] = 1.0 - (bedc[1] + bedc[2] + bedc[3] + bedc[4])
-         *
-         * Engine walks pfVar4 from &DAT_0438bee0 (= &bedc[1]) until
-         * reaching &DAT_0438bef0 (= &bedc[5]) — 4 iterations summing
-         * bedc[1..4] into bedc[0]. */
-        float bedc1 = 0.0f;
-        const int32_t bf0c1_int = g_dat_0438bf0c[1];
-        if (bf0c1_int > 2) {
-            bedc1 = (float)(bf0c1_int - 2) * 0.02f;
-            if (bedc1 > 0.2f) {
-                bedc1 = 0.2f;
-            }
+        w[1] = 0.0f;
+        if (g_dat_0438bf0c[1] > 2) {
+            w[1] = spill32((long double)spill32((long double)(g_dat_0438bf0c[1] - 2)) * k0p02);
+            if (w[1] > k0p2) w[1] = k0p2;
         }
-        memcpy(&g_dat_0438bedc[1], &bedc1, sizeof(float));
-
-        float bedc0 = 1.0f;
-        for (int i = 1; i < 5; i++) {
-            float cur;
-            memcpy(&cur, &g_dat_0438bedc[i], sizeof(float));
-            bedc0 -= cur;
-        }
-        memcpy(&g_dat_0438bedc[0], &bedc0, sizeof(float));
+        w[0] = 1.0f;
+        for (int i = 1; i < 5; i++) w[0] = spill32((long double)w[0] - w[i]);
     } else {
-        /* L33208-33238: mode ∈ {2,3,4,5} → slot ∈ {0,1,2,3}.
-         *
-         * Engine maps:    mode 2 → iVar6 = 0
-         *                 mode 3 → iVar6 = 1
-         *                 mode 4 → iVar6 = 2  (matches initial iVar6=2)
-         *                 mode 5 → iVar6 = 3
-         * Any other mode entering this branch falls through with iVar6 = 2
-         * (engine's initial value).  Out-of-range modes don't fire today
-         * — defensive default keeps the access bounded. */
-        int slot;
-        if      (mode == 2) slot = 0;
-        else if (mode == 3) slot = 1;
-        else if (mode == 5) slot = 3;
-        else                slot = 2;  /* mode == 4 + any other mode */
-
-        /* Initial bedc[slot] = 1.0 (re-derived at the bottom). */
-        {
-            const float one = 1.0f;
-            memcpy(&g_dat_0438bedc[slot], &one, sizeof(float));
+        int k = 2;
+        if (mode == 2) k = 0;
+        else if (mode == 3) k = 1;
+        else if (mode == 5) k = 3;
+        w[k] = 1.0f;
+        w[k + 1] = k0p04;
+        if (g_dat_0438bf0c[k + 1] > 0)
+            w[k + 1] = spill32((long double)spill32((long double)g_dat_0438bf0c[k + 1]) * k0p04);
+        /* PORT-DEBT(stub, FUN_00435dcd): modes outside 0..5 read the caps past
+         * the table in .data — no stage has one */
+        float ca = 0.0f, cb = 0.0f;
+        if (mode >= 0 && mode < 6) {
+            memcpy(&ca, &k_cap_a[mode], 4);
+            memcpy(&cb, &k_cap_b[mode], 4);
         }
-
-        /* RDATA lookup is bounds-checked here.  Engine reads
-         * `*(float *)(&DAT_005c4fcc + mode * 8)` directly — for valid
-         * mode ∈ {2,3,4,5} this lands on (0.2, 0.05).  For mode ∈
-         * {0, 1, -1, …} the read lands on unrelated .data bytes whose
-         * float reinterp is denormal-effectively-zero (verified via
-         * objdump at 0x5c4fc4..0x5c4fd0).  Port treats out-of-range
-         * mode as "clamp to 0" — same outcome as denormals clamp 0.04+
-         * values down to 0. */
-        const float high_a = (mode >= 0 && mode < 6) ? kFun435dcdHighA[mode] : 0.0f;
-        const float high_b = (mode >= 0 && mode < 6) ? kFun435dcdHighB[mode] : 0.0f;
-
-        /* bee0[slot] = bf0c[slot+1]-driven, clamped to high_a. */
-        float pfvar4 = 0.04f;
-        const int32_t bf_a = g_dat_0438bf0c[slot + 1];
-        if (bf_a > 0) {
-            pfvar4 = (float)bf_a * 0.04f;
-        }
-        if (high_a < pfvar4) {
-            pfvar4 = high_a;
-        }
-        memcpy(&g_dat_0438bedc[slot + 1], &pfvar4, sizeof(float));
-
-        /* bee4[slot] = (bf0c[slot+2] - 3) * 0.005-driven, clamped to high_b. */
-        float pfvar1 = 0.0f;
-        const int32_t bf_b = g_dat_0438bf0c[slot + 2];
-        if (bf_b > 3) {
-            pfvar1 = (float)(bf_b - 3) * 0.005f;
-        }
-        if (high_b < pfvar1) {
-            pfvar1 = high_b;
-        }
-        memcpy(&g_dat_0438bedc[slot + 2], &pfvar1, sizeof(float));
-
-        /* bedc[slot] = 1.0 - bee0[slot] - bee4[slot]. */
-        const float result = (1.0f - pfvar4) - pfvar1;
-        memcpy(&g_dat_0438bedc[slot], &result, sizeof(float));
+        if (w[k + 1] > ca) w[k + 1] = ca;
+        w[k + 2] = 0.0f;
+        if (g_dat_0438bf0c[k + 2] > 3)
+            w[k + 2] = spill32((long double)spill32((long double)(g_dat_0438bf0c[k + 2] - 3)) * k0p005);
+        if (w[k + 2] > cb) w[k + 2] = cb;
+        w[k] = spill32((long double)1.0f - w[k + 1] - w[k + 2]);
     }
-
-    /* L33239-33243: counter step.  Default 1.  On the tick-time path
-     * (reset_arrays == 0), an rng/predicate gate boosts step to 5 when
-     *   rng_next15() % 10 == 0  AND  predicate_485712(0x9cd, 3, 0x1e) != 0
-     * Both gates fail on NEW GAME (rng is fine; predicate stubs to 0). */
+    memcpy(g_dat_0438bedc, w, sizeof w);
     int32_t step = 1;
-    if (reset_arrays == 0) {
-        const uint32_t r = (uint32_t)rng_next15();
-        if (r % 10u == 0u) {
-            if (stage_post_load_predicate_485712_stub(0x9cd, 3, 0x1e) != 0) {
-                step = 5;
-            }
-        }
-    }
+    if (reset_arrays == 0 && rng_next15() % 10u == 0 && party_accessory_proc(2509, 3, 30) != 0)
+        step = 5;
+    for (int i = 0; i < 6; i++) g_dat_0438bf0c[i] += step;
+}
 
-    /* L33244-33248: bf0c[0..5] += step. */
-    for (int i = 0; i < 6; i++) {
-        g_dat_0438bf0c[i] += step;
-    }
+/* the drop-weight rows DAT_0438bedc / bef4 / bf0c / bf24 by retail VA
+ * (state_va: portstate --va) */
+const int32_t *stage_post_load_va(uint32_t va)
+{
+    if (va % 4 || va < 0x438bedcu || va >= 0x438bf3cu) return NULL;
+    const uint32_t k = (va - 0x438bedcu) / 4;
+    int32_t *rows[4] = { g_dat_0438bedc, g_dat_0438bef4, g_dat_0438bf0c, g_dat_0438bf24 };
+    return &rows[k / 6][k % 6];
 }
 
 /* ─── chara record accessors ──────────────────────────────────────────── */

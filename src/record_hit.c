@@ -24,7 +24,8 @@
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"   /* DAT_06a46fb8 */
 #include "scene1_records_b_tick.h"    /* DAT_06a46f98, the state-machine hook */
-#include "scene1_records_c_spawn.h"   /* FUN_0044b0f3 */
+#include "scene1_records_c_spawn.h"   /* FUN_0044b0f3, FUN_0044aef0 */
+#include "scene1_actor_say.h"        /* FUN_00485413 */
 #include "scene1_sim.h"              /* DAT_0438b1c8 */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
 #include "stage_gate.h"          /* DAT_0438b4cc, FUN_00431990, FUN_004319d6 */
@@ -39,6 +40,7 @@ int32_t g_orb_pick_n;
 int32_t g_kill_combo;
 int32_t g_kill_combo_type;
 int32_t g_kill_combo_timer;
+int32_t g_dat_06a46f8c, g_dat_06a46f90;
 
 #define AI(a, off)  (*(int32_t *)(void *)((a)->b + (off)))
 #define AF(a, off)  (*(float *)(void *)((a)->b + (off)))
@@ -942,6 +944,134 @@ void trap_spots_tick(void)
     }
 }
 
+/* FUN_0043824b's rarity tallies: an item's three dungeon bytes (+0x44) are
+ * tier or tier·10 + w (weight 11 - w; a plain tier weighs 1) */
+static int32_t roll_weight(int8_t b, int32_t *tier)
+{
+    int32_t v = b, w = 1;
+    if (v >= 10) {
+        w = 11 - v % 10;
+        v /= 10;
+    }
+    *tier = v;
+    return w;
+}
+
+static int item_rollable(const item_record_t *it)
+{
+    return it->valid == 1 && it->price > 0;
+}
+
+/* FUN_0043824b: a treasure chest's item at (x, y + 0.5, z) — dungeon 1
+ * floor 14's first chest is 3020; dungeon 5's floors 29 / 59 pick by x
+ * (the two fixed lists or a weighted pick of tier >= 1 | 6); else a tier from
+ * the weights DAT_0438bedc (rand % 1000), the weights re-carved
+ * (FUN_00435dcd(0, tier)), and a weighted item of that tier.  1 = spawned. */
+static int chest_item_roll(float x, float y, float z)
+{
+    static const int32_t k_list_a[22] = { 12, 111, 211, 311, 411, 511, 611, 711, 1011, 1012, 1112,
+                                          1211, 1311, 1411, 1512, 1611, 1711, 2011, 2107, 2207, 2307, 2407 };
+    static const int32_t k_list_b[21] = { 13, 113, 212, 313, 413, 513, 613, 713, 1014, 1113, 1213,
+                                          1313, 1413, 1513, 1613, 1713, 2108, 2208, 2308, 2412, 2413 };
+    static const float km42 = -42.0f, km38 = -38.0f;
+    const int32_t n = g_item.count;
+    const int32_t dg = g_scene1_combat_stage_id, fl = stage_gate_get_next();
+    uint8_t *w = work();
+    int32_t item = -1;
+    if (dg == 1) {
+        if (fl == 14 && w && w[0x2bc77] == 0) {
+            w[0x2bc77] = 1;
+            item = 3020;
+        }
+    } else if (dg == 5 && (fl == 29 || fl == 59)) {
+        int high = 0, pick = 0;   /* 0 = the weighted pick, 1 / 2 = list a / b */
+        if (!(x < km42)) {
+            if (x > km38) {
+                high = 1;
+            } else if (fl == 29 && g_dat_0438b4d8 == 20) {
+                if (rng_next15() & 1) pick = 1;
+            } else {
+                const uint32_t r = rng_next15() % 3u;
+                if (r == 1) pick = 1;
+                else if (r == 2) pick = 2;
+            }
+        }
+        if (pick == 1) {
+            item = k_list_a[rng_next15() % 22u] + 7;
+        } else if (pick == 2) {
+            item = k_list_b[rng_next15() % 21u] + 7;
+        } else {
+            /* two passes over the table: pass 0 tallies the weight of the
+             * tiers >= `min` and re-rolls r = rand % tally after every item
+             * once the tally is positive; pass 1 walks to r */
+            const int32_t min = high ? 6 : 1;
+            int32_t r = 0;
+            for (int pass = 0; pass != 2; pass++) {
+                int32_t acc = 0;
+                for (int32_t k = 0; k < n; k++) {
+                    const item_record_t *it = &g_item.records[k];
+                    if (item_rollable(it)) {
+                        for (int j = 0; j != 3; j++) {
+                            int32_t t;
+                            const int32_t wt = roll_weight((int8_t)it->stock_info[4 + j], &t);
+                            if (t < min) continue;
+                            if (pass == 1 && acc + wt >= r) {
+                                scene1_records_c_spawn_pickup(0, x, spill32((long double)y + k0p5), z,
+                                                              it->item_id + 7);
+                                return 1;
+                            }
+                            acc += wt;
+                        }
+                    }
+                    if (pass == 0 && acc > 0) r = (int32_t)(rng_next15() % (uint32_t)acc);
+                }
+            }
+            return 0;
+        }
+    }
+    if (item < 0) {
+        static const float k1000 = 1000.0f;
+        int32_t tier = 0;
+        const float u = spill32((long double)(int32_t)(rng_next15() % 1000u));
+        float cum = 0.0f;
+        for (int k = 0; k < 6; k++) {
+            cum = spill32((long double)stage_post_load_get_dat_0438bedc_as_float(k) * k1000 + cum);
+            if (u < cum) { tier = k; break; }
+        }
+        g_dat_06a46f8c = 1;
+        g_dat_06a46f90 = tier;
+        stage_post_load_pulse_first_row(0, tier);   /* FUN_00435dcd */
+        const int32_t want = tier + 1;
+        int32_t total = 0;
+        for (int32_t k = 0; k < n; k++) {
+            const item_record_t *it = &g_item.records[k];
+            if (!item_rollable(it)) continue;
+            for (int j = 0; j != 3; j++) {
+                int32_t t;
+                const int32_t wt = roll_weight((int8_t)it->stock_info[4 + j], &t);
+                if (t == want) total += wt;
+            }
+        }
+        if (total <= 0) return 0;
+        const int32_t r = (int32_t)(rng_next15() % (uint32_t)total);
+        int32_t acc = 0;
+        for (int32_t k = 0; k < n && item < 0; k++) {
+            const item_record_t *it = &g_item.records[k];
+            if (!item_rollable(it)) continue;
+            for (int j = 0; j != 3; j++) {
+                int32_t t;
+                const int32_t wt = roll_weight((int8_t)it->stock_info[4 + j], &t);
+                if (t != want) continue;
+                if (acc + wt >= r) { item = it->item_id + 7; break; }
+                acc += wt;
+            }
+        }
+        if (item < 0) return 0;
+    }
+    scene1_records_c_spawn_pickup(0, x, spill32((long double)y + k0p5), z, item);
+    return 1;
+}
+
 /* FUN_0043865e's object arm (0x439f28..0x43a5d4): the first stage object in
  * reach (state 0; not kinds 8..13 / 18 / 19 / 22 / 30) takes the hit — pots
  * break (ATTR hits), chests open (kind 5: the trap; kind 4: the treasure) */
@@ -1051,12 +1181,20 @@ int record_hit_objects(int32_t *slot)
         } else {
             PW(0x56db004u).i = 4;
             PW(0x56db008u).i = 1;
-            /* PORT-DEBT(stub, FUN_00484e45 / FUN_00485413): the bag-full
-             * check and its message (ATTR = 1, the chest stays shut) */
-            o->i[DOBJ_STATE] = 2;
-            /* PORT-DEBT(stub, FUN_0043824b): the chest's item roll at
-             * (x, y + 0.5, z) (×1000 with work +0x2bd21) */
-            if (w) { int32_t n; memcpy(&n, w + 0x2c3e0, 4); n += 2; memcpy(w + 0x2c3e0, &n, 4); }
+            if (party_bag_full()) {                    /* FUN_00484e45 */
+                o->i[DOBJ_ATTR] = 1;                   /* stays shut */
+                actor_say_set(1, 0, 2, 0, 180);        /* FUN_00485413 */
+            } else {
+                o->i[DOBJ_STATE] = 2;
+                const float iy = spill32((long double)oy + k0p5);
+                if (w && w[0x2bd21] == 1) {
+                    for (int k = 1000; k != 0; --k)
+                        (void)chest_item_roll(ox, iy, oz);   /* misses log to FUN_0048a348 */
+                } else {
+                    (void)chest_item_roll(ox, iy, oz);
+                }
+                if (w) { int32_t n; memcpy(&n, w + 0x2c3e0, 4); n += 2; memcpy(w + 0x2c3e0, &n, 4); }
+            }
         }
         break;
     case 0x15:

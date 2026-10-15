@@ -12,6 +12,7 @@
  */
 
 #include "scene_worldmap.h"
+#include "stage_post_load.h"   /* FUN_00435c98 */
 
 #include <stdint.h>
 
@@ -241,11 +242,9 @@ void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
             s_dest_state[i] = 2;
     }
 
-    /* PORT-DEBT(stage-scratch, FUN_00435c98): the engine tail re-inits the
-     * INGAME stage/camera scratch + the day-display float (_DAT_0438b91c).
-     * Deferred — it runs AFTER the destination state array is set, so it has
-     * no effect on the model; revisit if the world-map render (T3) needs the
-     * camera / day-display globals. */
+    /* the tail: FUN_00435c98 — the stage init (HP / SP, the drop-weight rows
+     * DAT_0438bedc.., …) on every world-map entry */
+    stage_post_load_init();
 }
 
 /* Cursor navigation — port of FUN_0049dfc1(param) @ 0x49dfc1 (409 B,
