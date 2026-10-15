@@ -12,6 +12,7 @@
 #include "floor_layout.h"        /* DAT_0438b1ec (the floor origin) */
 #include "dungeon_party.h"       /* FUN_0048b850 (the dungeon path) */
 #include "dungeon_objects.h"     /* DAT_0695ef78, DAT_06a47054 */
+#include "dungeon_results.h"     /* DAT_0438b718.. */
 #include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "party.h"
 #include "tables_snews.h"        /* DAT_073b2108 / DAT_073d8ee0 */
@@ -125,6 +126,9 @@ void dungeon_flow_stage_reset(void)
     g_kill_combo = 0;
     g_kill_combo_type = -1;
     g_kill_combo_timer = 0;
+    g_results_kept[1] = g_results_kept[2] = g_results_kept[3] = -1;   /* DAT_0438b71c..724 */
+    g_results_row = 1;
+    g_results_picking = 0;
     g_ctrl_lock = -1;
     g_dat_0438b8b4 = 0;
     g_dat_0438b8b8 = 0;

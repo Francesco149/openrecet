@@ -2464,7 +2464,7 @@ static void cs_sale_popup_queue_build(void)
  * count[8]>8 block also queues a news short-pair.  The trailing 20
  * FUN_005038ff/FUN_00451874 rows write debug text grid 7, which the
  * retail Steam build never draws — no-op here. */
-static void cs_sold_list_append(int32_t item_handle, int type)
+void cs_item_log_append(int32_t item_handle, int type)
 {
     uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
     if (!bankw || item_handle == -1) return;
@@ -2591,7 +2591,7 @@ static void cs_shelf_sales(void)
             if (!want || it->price >= half_budget) continue;
             bank[SAVE_BANK_FIELD_GOLD] += (uint32_t)it->price;
             sold = 1;
-            cs_sold_list_append(h, 0);                        /* FUN_00460083(h,0) */
+            cs_item_log_append(h, 0);                        /* FUN_00460083(h,0) */
             cs_encyclopedia_sold_mark(h);                     /* FUN_00460f59(h) */
             row[cols[t]] = -1;
             break;
@@ -2778,7 +2778,7 @@ static void cs_live_machine(void)
                     cs_sale_commit_stats_fx(0);     /* FUN_00460d52(0) */
                     cs_sale_record_minmax();        /* FUN_00460b3a */
                     cs_sale_popup_queue_build();    /* FUN_004606fc */
-                    cs_sold_list_append(s_b5a4, 0); /* FUN_00460083(b5a4,0) */
+                    cs_item_log_append(s_b5a4, 0); /* FUN_00460083(b5a4,0) */
                     cs_encyclopedia_sold_mark(s_b5a4); /* FUN_00460f59(b5a4) */
                     {
                         int32_t col = 0, row = 0;   /* FUN_0046002a — clears the
@@ -3008,7 +3008,7 @@ static void cs_buy_machine(void)
         s_cust_active[1] = 0;
         if (!f404 && bank) {
             for (int i = 0; i != s_price_bc4; i++)
-                cs_sold_list_append(s_b5a4, 1); /* FUN_00460083(b5a4,1) — bought list */
+                cs_item_log_append(s_b5a4, 1); /* FUN_00460083(b5a4,1) — bought list */
             ((uint32_t *)bank)[SAVE_BANK_FIELD_GOLD] -= (uint32_t)s_price_ask;
             audio_play_se_by_id(0x14d);
             cs_sale_commit_stats_fx(1);         /* FUN_00460d52(1) */
@@ -3277,7 +3277,7 @@ static void cs_oder_machine(void)
                 int32_t col = 0, row = 0;
                 cs_display_grid_clear(h, &col, &row);     /* FUN_0046002a — off its stand */
             }
-            cs_sold_list_append(h, 0);                    /* FUN_00460083(h,0) */
+            cs_item_log_append(h, 0);                    /* FUN_00460083(h,0) */
             ((uint32_t *)bank)[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
             audio_play_se_by_id(0x14d);
             cs_sale_commit_stats_fx(0);                   /* FUN_00460d52(0) */

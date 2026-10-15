@@ -32,6 +32,7 @@ struct IDirect3DDevice8;
 #define ADV_GUILD_BAG_SLOTS 38
 int adv_guild_bag_slot(int k);     /* k = 1..ADV_GUILD_BAG_SLOTS */
 int *adv_guild_bag(void);          /* &DAT_0438b5ec[0] (slot 1) */
+int *adv_guild_bag_brought(void);  /* &DAT_0438b684[0]: what each slot held from the shop */
 int  adv_guild_bag_size(void);     /* DAT_005c5a98 */
 
 /* FUN_0045bcea: DAT_0438b4dc = the stage of (DAT_0438b4c8, DAT_0438b4cc);

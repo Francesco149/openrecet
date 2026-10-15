@@ -129,6 +129,7 @@ static int s_bag2[ADV_GUILD_BAG_SLOTS + 1];
 #define s_b4d8 g_dat_0438b4d8
 
 int *adv_guild_bag(void) { return &s_bag[1]; }   /* DAT_0438b5ec */
+int *adv_guild_bag_brought(void) { return &s_bag2[1]; }   /* DAT_0438b684 */
 int  adv_guild_bag_size(void) { return s.bag_size; }   /* DAT_005c5a98 */
 
 int adv_guild_bag_slot(int k)

@@ -610,80 +610,130 @@ void display_menu_cursor_snap_to_row(void)
  * Faithful port of the cc04 display-stand menu update.  Returns 0 = idle,
  * 1 = CONFIRM (after the 6-frame countdown), 2 = CANCEL, 3 = pick-up arm,
  * 4 = mode-6 auto-sort (counter menu — PORT-DEBT, never reached for mode 0). */
-int display_menu_update(int param)
+/* the bag sort of FUN_00469414 (mode 6, Z on "Nothing"): a pass per slot that
+ * swaps a later item in when the slot's item is flagged 0x10 (unappraised) and
+ * the later one is not, or both are plain and the slot's key (FUN_00468338's:
+ * category·100 + rank + 10, ·0xc80, + the item) is the larger */
+static int32_t bag_sort_key(int32_t item)
 {
-    int ret   = 0;
-    int moved = 0;
-    uint16_t pressed, held;
-    int item_under, handled = 0;
+    const int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+    if (rec < 0) return item;   /* retail reads record -1 */
+    const int32_t id = g_item.records[rec].item_id;
+    return item + 0xc80 * (100 * (id / 100) + g_item.records[rec].rank + 10);
+}
 
-    /* slide gate (all.c:65234): no input until the window has fully slid in. */
-    if (stage_load_pulse_get_counter() < 5)
-        return 0;
-
-    /* confirm countdown (all.c:65240): once armed by a Z-press, count 6 frames
-     * then fire CONFIRM.  The brief delay is the pick-up animation window. */
-    if (s_confirm_ctr != 0) {
-        s_confirm_ctr++;
-        if (s_confirm_ctr > 6) {
-            s_confirm_ctr = 0;
-            return 1;               /* CONFIRM (recount not needed — closing) */
-        }
-        handled = 1;                /* skip input; fall to recount */
-    }
-
-    /* PORT-DEBT(A3): the message-hold countdowns DAT_0734b97c / b988 / b96c
-     * (all.c:65248-65263) are only armed by the place-an-item "full inventory"
-     * / "sell?" prompts, never by the removal — left BSS-zero, so they fall
-     * through. */
-
-    pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 edge mask */
-    held    = g_sim_buttons[0].held;      /* DAT_073dddd6 auto-repeat */
-
-    if (!handled && (pressed & 0x10u)) {   /* Z / confirm (all.c:65264) */
-        /* PORT-DEBT(A3): the mode-6 (DAT_0734b9a8==6) counter auto-sort confirm
-         * (all.c:65266-65345) is the shop counter, never the house display
-         * stand — fall to the normal arm (all.c:65348). */
-        if (s_tab_count[s_cur_tab] >= 1) {
-            if (param != 0)
-                s_confirm_ctr = 1;  /* LAB_004696bf: arm the countdown */
-            ret = 3;                /* pick-up arm (iVar14 = 3) */
-        }
-        handled = 1;
-    }
-
-    if (!handled && (pressed & 0x20u)) {   /* X / cancel (all.c:65355) */
-        ret = 2;
-        handled = 1;
-    }
-
-    item_under = display_menu_selected();   /* uVar2 = list[cursor] */
-
-    /* PORT-DEBT(A3): the (DAT_073dddd4 & 0x40) "use / sell this item" sub-path
-     * (all.c:65451-65461) — only the use-item / counter-sell menus.  For the
-     * removal the cursor's item is -1, or 0x40 is never pressed, so we always
-     * take the navigation branch (all.c:65316-65450). */
-    if (!handled &&
-        ((pressed & 0x40u) == 0 || item_under == -1 || s_tab_count[s_cur_tab] < 1)) {
-        /* tab switch (all.c:65318): held-left (bit 2) prev, held-right (bit 1)
-         * next, wrapped mod num_tabs. */
-        if (s_num_tabs > 0) {
-            int do_tab = 1, delta = 0;
-            if (held & 0x2u)      delta = s_num_tabs - 1;   /* prev */
-            else if (held & 0x1u) delta = s_num_tabs + 1;   /* next */
-            else                  do_tab = 0;
-            if (do_tab) {
-                moved = 1;
-                s_cur_tab = (delta + s_cur_tab) % s_num_tabs;
-                if (s_num_tabs > 1)
-                    audio_play_se_by_id(0x146);             /* nav SE (no RNG) */
+static void bag_sort(void)
+{
+    int *bag = adv_guild_bag();
+    const int n = adv_guild_bag_size();
+    for (int i = 1; i - 1 != n - 1; i++) {
+        int *a = &bag[i - 1];
+        if (*a == -1 || i == n) continue;
+        for (int j = i; j < n; j++) {
+            const int bv = bag[j];
+            if (bv == -1) continue;
+            const int av = *a;
+            if ((av & 0x10) && !(bv & 0x10)) {
+                *a = bv;
+                bag[j] = av;
+                continue;
+            }
+            if (bag_sort_key(av) > bag_sort_key(bv) && !(av & 0x10) && !(bv & 0x10)) {
+                *a = bv;
+                bag[j] = av;
             }
         }
+    }
+    for (int k = 0; k < n; k++) {
+        s_list[2 + 2 * k] = bag[k];
+        s_list[3 + 2 * k] = 1;
+    }
+}
 
-        int count   = s_tab_count[s_cur_tab];
-        int visible = (count < 7) ? count : 7;
-
-        /* cursor UP (bit 4, all.c:65383). */
+/* FUN_00469414(param): one frame of the item window.  Nothing until slid in;
+ * the 6-frame confirm countdown (→ 1); while a use / throw message (DAT_0734b97c
+ * / b988) is up it only counts; an open detail popup (DAT_0734b96c) closes on
+ * Z / X / C.  Z: in the dungeon bag (mode 6) on "Nothing" sorts the bag (→ 4),
+ * else picks (→ 3; the countdown armed in mode 6 or with param != 0); X → 2;
+ * C opens the selected item's detail (an unappraised one beeps); else the
+ * tab / row / page navigation.  The "number possessed" recount follows a move or
+ * a result. */
+int display_menu_update(int param)
+{
+    int ret = 0, moved = 0;
+    if (stage_load_pulse_get_counter() < 5)
+        return 0;
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 edge mask */
+    const uint16_t held    = g_sim_buttons[0].held;      /* DAT_073dddd6 auto-repeat */
+    if (s_confirm_ctr != 0) {
+        if (++s_confirm_ctr > 6) {
+            s_confirm_ctr = 0;
+            return 1;
+        }
+        goto recount;
+    }
+    if (s_msg_use != 0) { ++s_msg_use; goto recount; }
+    if (s_msg_throw != 0) { ++s_msg_throw; goto recount; }
+    if (s_detail != 0) {
+        if (pressed & 0x70u) {
+            s_detail = 0;
+            title_save_dialog_cursor_set_visible(1);     /* FUN_0043561a */
+            audio_play_se_by_id(710);
+        }
+        goto recount;
+    }
+    if (pressed & 0x10u) {
+        if (s_mode == 6) {
+            const int e = s_tab_cursor[s_cur_tab] + s_tab_base[s_cur_tab];
+            if (s_list[2 * e] == -1 && s_tab_cursor[s_cur_tab] == 0) {
+                audio_play_se_by_id(710);
+                bag_sort();
+                return 4;
+            }
+            if (s_tab_count[s_cur_tab] > 0) {
+                s_confirm_ctr = 1;
+                ret = 3;
+            }
+        } else if (s_tab_count[s_cur_tab] > 0) {
+            if (param != 0)
+                s_confirm_ctr = 1;
+            ret = 3;
+        }
+        goto recount;
+    }
+    if (pressed & 0x20u) {
+        ret = 2;
+        goto recount;
+    }
+    {
+        const int item_under = display_menu_selected();
+        if ((pressed & 0x40u) && item_under != -1 && s_tab_count[s_cur_tab] > 0) {
+            if (item_under & 0x10) {
+                audio_play_se_by_id(362);
+            } else {
+                s_detail = 1;                             /* DAT_0734b96c */
+                title_save_dialog_cursor_set_visible(0);  /* FUN_00435612 */
+                audio_play_se_by_id(710);
+            }
+            goto highlight;
+        }
+    }
+    /* tab switch: held-left (bit 2) prev, held-right (bit 1) next */
+    if (s_num_tabs > 0) {
+        int delta = 0, tab = 1;
+        if (held & 0x2u) delta = s_num_tabs - 1;
+        else if (held & 0x1u) delta = s_num_tabs + 1;
+        else tab = 0;
+        if (tab) {
+            moved = 1;
+            s_cur_tab = (delta + s_cur_tab) % s_num_tabs;
+            if (s_num_tabs > 1)
+                audio_play_se_by_id(0x146);
+        }
+    }
+    {
+        const int count   = s_tab_count[s_cur_tab];
+        const int visible = (count < 7) ? count : 7;
         if ((held & 0x4u) != 0 && s_tab_cursor[s_cur_tab] > 0) {
             moved = 1;
             audio_play_se_by_id(0x146);
@@ -691,7 +741,6 @@ int display_menu_update(int param)
             if (s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab] < 0)
                 s_tab_scroll[s_cur_tab]--;
         }
-        /* cursor DOWN (bit 8, all.c:65395). */
         if ((held & 0x8u) != 0 && s_tab_cursor[s_cur_tab] < count - 1) {
             moved = 1;
             audio_play_se_by_id(0x146);
@@ -699,13 +748,11 @@ int display_menu_update(int param)
             if (s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab] > visible - 1)
                 s_tab_scroll[s_cur_tab]++;
         }
-
-        /* single-tab page jump (all.c:65405): with one tab, held-left/right page
-         * the list by 6. */
+        /* one tab: held-left / right page the list by 6 */
         if (s_num_tabs == 1) {
             int *cur = &s_tab_cursor[s_cur_tab];
             int *scr = &s_tab_scroll[s_cur_tab];
-            if ((held & 0x2u) != 0) {              /* page up */
+            if ((held & 0x2u) != 0) {
                 int prev = *cur;
                 if (*cur > 0) {
                     audio_play_se_by_id(0x146);
@@ -715,9 +762,9 @@ int display_menu_update(int param)
                     moved = 1;
                 }
                 if (prev < 0) *cur = 0;
-                if (*scr < 0)  *scr = 0;
-            } else if ((held & 0x1u) != 0) {       /* page down */
-                int last = count - 1;
+                if (*scr < 0) *scr = 0;
+            } else if ((held & 0x1u) != 0) {
+                const int last = count - 1;
                 if (*cur < last) {
                     audio_play_se_by_id(0x146);
                     *cur += 6;
@@ -731,14 +778,11 @@ int display_menu_update(int param)
             }
         }
     }
-
-    /* highlight = list[cursor] (all.c:65462); slide the cursor if it moved. */
+highlight:
+    s_highlight = display_menu_selected();                /* DAT_0734b998 */
     if (moved)
-        display_menu_cursor_to_row();
-
-    /* "number possessed" recount (all.c:65468): on a move, a fired result, or
-     * the -1 sentinel. */
-    s_highlight = display_menu_selected();
+        display_menu_cursor_to_row();                     /* FUN_0046939a */
+recount:
     if (s_possessed == -1 || moved || ret != 0)
         display_menu_recount();
     return ret;
@@ -826,6 +870,21 @@ void display_menu_remove_selected(uint32_t *bank)
         if (sc + 7 > last && sc > 0) s_tab_scroll[s_cur_tab] = sc - 1;
         if (c >= last) s_tab_cursor[s_cur_tab] = c - 1;
     }
+}
+
+/* FUN_00468f6d: put `item` in the selected row (and the bag slot under it),
+ * return what the row held */
+int display_menu_swap_selected(int item)
+{
+    const int cur = s_tab_cursor[s_cur_tab];
+    const int e = 2 * (cur + s_tab_base[s_cur_tab]);
+    const int old = s_list[e];
+    const int n = adv_guild_bag_size();
+    if (n != 0 && cur - 1 >= 0 && cur - 1 < n)
+        adv_guild_bag()[cur - 1] = item;
+    s_list[e] = item;
+    s_list[e + 1] = item == -1 ? 0 : 1;
+    return old;
 }
 
 void display_menu_msg_use(void)   { s_msg_use++; }                  /* FUN_00468d05 */

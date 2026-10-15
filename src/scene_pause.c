@@ -37,6 +37,7 @@
 #include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
 #include "dungeon_flow.h"     /* DAT_0438b550 / b554 — the thrown-away queue */
 #include "item_use.h"         /* FUN_004848c4 / 484948 / 4849a6 / 484bcb / 49ef78 */
+#include "dungeon_results.h"  /* pause action 2 */
 #include "map_collision.h"    /* *DAT_068dd2f0 (the stage type) */
 #include "party.h"            /* HP / SP, dae9c / daea4 */
 #include "x87.h"
@@ -1341,7 +1342,10 @@ static void pause_worker_case9(void)
         day_end_init();                                  /* FUN_0048da71 */
         day_end_load_assets(g_scene_pause_dev);          /* FUN_00473618 */
     }
-    /* action 2: FUN_0048f87c + nullsub — PORT-DEBT(stub, FUN_0048f931) */
+    else if (g_pause_action == 2) {
+        dungeon_results_open();                          /* FUN_0048f87c */
+        /* PORT-DEBT(render-coupled, FUN_0048f87c): the results screen's assets */
+    }
 }
 
 void scene_pause_init(struct IDirect3DDevice8 *dev)

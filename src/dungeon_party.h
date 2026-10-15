@@ -44,6 +44,7 @@ extern int32_t g_notice_item, g_notice_kind, g_notice_side, g_notice_on, g_notic
 extern int32_t g_broke_on, g_broke_item;
 
 int  party_bag_full(void);                                     /* FUN_00484e45 */
+int  party_bag_add(int32_t item, int32_t cap);                 /* FUN_00484da3 */
 void party_get_item(int32_t kind, int32_t rare, int32_t grade);   /* FUN_00484dd1 */
 extern int32_t g_got_item, g_got_item_on, g_got_item_bubble;    /* DAT_00648290 / 94 / 50 */
 

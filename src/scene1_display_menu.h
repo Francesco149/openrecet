@@ -143,6 +143,10 @@ int display_menu_inventory_remove(uint32_t *bank, int item);
  * inventory and drop it from the list. */
 void display_menu_remove_selected(uint32_t *bank);
 
+/* FUN_00468f6d: swap `item` into the selected row and the bag slot under it;
+ * returns the row's previous item */
+int display_menu_swap_selected(int item);
+
 /* the dungeon pause Items messages: FUN_00468d05 ("used", DAT_0734b97c++),
  * FUN_00468d0c ("threw away", DAT_0734b988++), FUN_00468d13 (both 0),
  * FUN_00468cf2 (the HP / SP gains shown, DAT_0734b980 / 984), DAT_0734b9ac

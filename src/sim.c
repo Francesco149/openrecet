@@ -48,6 +48,7 @@
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
 #include "scene_day_end.h"  /* day_end_tick — pause action 1 (FUN_0048dbfb) */
+#include "dungeon_results.h" /* pause action 2 (FUN_0048f931) */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 — RE §21.23 db054-freeze mode probe */
 #include "scene1_counter_menu.h" /* counter_menu_cursor (DAT_0438cc0c) — mode-1 tooltip band */
@@ -547,7 +548,8 @@ void sim_step_a(void)
                 pause_menu_update();   /* FUN_0047fa76 */
             else if (g_pause_action == 1)
                 day_end_tick(g_sim_buttons[0].pressed, g_sim_buttons[0].held);   /* FUN_0048dbfb */
-            /* action 2 (FUN_0048f931) — PORT-DEBT(stub, FUN_0048f931) */
+            else
+                dungeon_results_tick();          /* FUN_0048f931 */
         }
     } else switch (g_scene_state) {
     case SCENE_STATE_TITLE:

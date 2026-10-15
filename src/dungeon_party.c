@@ -824,7 +824,7 @@ static void party_skill_louie(void)
 int32_t g_got_item, g_got_item_on, g_got_item_bubble;
 
 /* FUN_00484da3: the item into the first free bag slot of `cap` (0 = full) */
-static int bag_add(int32_t item, int32_t cap)
+int party_bag_add(int32_t item, int32_t cap)
 {
     int *bag = adv_guild_bag();
     if (cap == 0) return 0;
@@ -861,7 +861,7 @@ void party_get_item(int32_t kind, int32_t rare, int32_t grade)
     g_got_item = item;                       /* FUN_0040c923 */
     g_got_item_on = 1;
     g_got_item_bubble = 1;
-    if (bag_add(item, adv_guild_bag_size())) audio_play_se_by_id(332);
+    if (party_bag_add(item, adv_guild_bag_size())) audio_play_se_by_id(332);
 }
 
 /* FUN_00484e97: pick up table-C item 0x56dae40 — a gem (kind < 4) into the
