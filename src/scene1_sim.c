@@ -509,7 +509,7 @@ void scene1_ingame_default_arm_tick(void)
             actor_pass();                    /* FUN_00430c6d */
             scene1_records_b_tick();         /* FUN_0043ae20 */
             /* PORT-DEBT(stub, FUN_0042ea35) */
-            /* PORT-DEBT(stub, FUN_0043a5d9): the stage objects' tick */
+            dobj_tick();                     /* FUN_0043a5d9 */
         }
     }
     if (g_scene1_combat_dat_0438b908 > 0) --g_scene1_combat_dat_0438b908;

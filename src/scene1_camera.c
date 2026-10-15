@@ -16,6 +16,8 @@
 #include <math.h>
 
 #include "math3d.h"
+#include "rng.h"                    /* FUN_00471084 / FUN_00471089 */
+#include "x87.h"
 #include "scene1_particles_tick.h"  /* g_scene1_camera_anchor[], g_scene1_camera_yaw */
 #include "stage_palette.h"           /* g_stage_palette */
 
@@ -48,6 +50,21 @@ int   g_scene1_camera_sample_counter   = 0;     /* engine DAT_0438bfa8 */
 float g_scene1_camera_sample_smoothed  = 0.0f;  /* engine DAT_0438bfac */
 
 /* ─── module-internal smoothed state (engine `_DAT_0438cc38..58`) ─────── */
+
+/* DAT_0438cc14..cc2c: the shake (FUN_0044b219 arms it, block L runs it) */
+int32_t g_shake_ticks, g_shake_dx, g_shake_dz, g_shake_xr, g_shake_zr;
+float   g_shake_y, g_shake_amp;
+
+void camera_shake(int32_t ticks, int32_t xr, int32_t zr, float amp)
+{
+    g_shake_dx = 0;
+    g_shake_dz = 0;
+    g_shake_ticks = ticks;
+    g_shake_xr = xr;
+    g_shake_y = 0.0f;
+    g_shake_zr = zr;
+    g_shake_amp = amp;
+}
 
 static float g_smooth_eye[3]    = { 0, 0, 0 };
 static float g_smooth_lookat[3] = { 0, 0, 0 };
@@ -319,10 +336,8 @@ void scene1_camera_pose_compute(void)
     }
 
     /* Block I (L205-L213) — canonical writeback.  Engine adds
-     * _DAT_0438cc20 (shake.y) to both eye.y and lookat.y; that channel
-     * is BSS-zero (block L gates on a non-existent writer) so we treat
-     * shake.y as 0. */
-    const float shake_y = 0.0f;
+     * _DAT_0438cc20 (shake.y, last frame's) to both eye.y and lookat.y. */
+    const float shake_y = g_shake_y;
     g_scene1_camera_eye[0]    = g_smooth_eye[0];
     g_scene1_camera_eye[1]    = g_smooth_eye[1] + shake_y;
     g_scene1_camera_eye[2]    = g_smooth_eye[2];
@@ -335,6 +350,25 @@ void scene1_camera_pose_compute(void)
      * engine `_DAT_073de328` + `_DAT_073de330`. */
     g_scene1_camera_anchor[0] = g_scene1_camera_lookat[0];
     g_scene1_camera_anchor[1] = g_scene1_camera_lookat[2];
+
+    /* Block L (0x442411): the shake — x / z jitter (rand % range − range / 2),
+     * y = (u − 0.5) · amp / 2, added to eye.y and lookat.y once more. */
+    if (g_shake_ticks > 0) {
+        if (--g_shake_ticks == 0) {
+            g_shake_dx = 0;
+            g_shake_dz = 0;
+            g_shake_y = 0.0f;
+        } else {
+            if (g_shake_xr > 0)
+                g_shake_dx = (int32_t)(rng_next15() % (uint32_t)g_shake_xr) - g_shake_xr / 2;
+            if (g_shake_zr > 0)
+                g_shake_dz = (int32_t)(rng_next15() % (uint32_t)g_shake_zr) - g_shake_zr / 2;
+            if (g_shake_amp > 0.0f)
+                g_shake_y = spill32(((long double)rng_next_unit() - 0.5f) * g_shake_amp / 2.0f);
+        }
+    }
+    g_scene1_camera_eye[1]    = spill32((long double)g_shake_y + g_scene1_camera_eye[1]);
+    g_scene1_camera_lookat[1] = spill32((long double)g_shake_y + g_scene1_camera_lookat[1]);
 }
 
 /* ─── FUN_00462403 cinematic block: the cc08==4 customer-service COUNTER camera ─

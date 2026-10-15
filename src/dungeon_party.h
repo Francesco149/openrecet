@@ -38,6 +38,11 @@ void dungeon_event_actor_tick(void);               /* FUN_0048407f */
  * up to 5 points around it for ground (FUN_00432e50). */
 void party_stage_reset(void);
 
+/* FUN_00485712: an accessory's proc (1 = worn; the break roll, the notice) */
+int party_accessory_proc(int32_t id, uint32_t brk, int32_t stop);
+extern int32_t g_notice_item, g_notice_kind, g_notice_side, g_notice_on, g_notice_ticks, g_notice_b76c;
+extern int32_t g_broke_on, g_broke_item;
+
 #ifdef __cplusplus
 }
 #endif

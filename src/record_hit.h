@@ -11,6 +11,11 @@
  *                                    alive): the first actor in reach takes
  *                                    the hit (damage roll, knock-back, sparks,
  *                                    SE) — 1 on a hit, 0 when none
+ *                 record_hit_objects the object arm: pots break, chests open
+ *                 (the player arm: an enemy record hitting the player)
+ *   FUN_00485c74  party_take_damage  HP −, the hurt voice, the HP accessories
+ *   FUN_00485979  party_hurt_voice   the active chara's hurt voice
+ *   FUN_004412b6  chest_trap         a chest's trap (4 / 5: the slimes)
  *   FUN_0041f46d  enemy_level_mul    1 + level · (0.1 | 0.12)
  *   FUN_0042e791  actor_damage       HP −, the popups, the EXP orbs of a
  *                                    flagged hit, the kill at HP < 1
@@ -41,6 +46,10 @@ extern int32_t g_kill_combo_timer;  /* DAT_0438b914 */
 int         record_sm_tick(int32_t *slot);                           /* FUN_0043865e */
 void        record_sm_install(void);    /* the table-B tick's state-machine hook */
 int         record_hit_actors(int32_t *slot);                        /* FUN_0043865e's actor arm */
+int         record_hit_objects(int32_t *slot);                       /* FUN_0043865e's object arm */
+int         chest_trap(float x, float z, int32_t kind);              /* FUN_004412b6 */
+void        party_take_damage(int32_t dmg);                          /* FUN_00485c74 */
+void        party_hurt_voice(int down);                              /* FUN_00485979 */
 long double enemy_level_mul(int32_t type);                           /* FUN_0041f46d */
 void        actor_damage(actor_t *a, int32_t dmg, int32_t flags);    /* FUN_0042e791 */
 void        actor_kill(actor_t *a);                                  /* FUN_0042e1a6 */

@@ -10,10 +10,16 @@
 #include "audio.h"               /* FUN_00499519 */
 #include "chara_equip.h"         /* DAT_0438b7d8 */
 #include "dungeon_flow.h"        /* FUN_0043647f, DAT_0438cbe4 */
+#include "dungeon_objects.h"     /* the stage objects DAT_0695ef78 */
+#include "dungeon_party.h"       /* FUN_00485712 */
+#include "floor_layout.h"        /* DAT_073e03ac */
+#include "map_collision.h"       /* FUN_00433674 */
 #include "party.h"
 #include "rng.h"                 /* FUN_00471084 / FUN_00471089 */
 #include "save_work.h"
+#include "scene1_camera.h"       /* FUN_0044b219 */
 #include "scene1_combat_sm.h"    /* DAT_0438b4c8, DAT_0438bed8, DAT_0438b904/908, DAT_06a46f94 */
+#include "scene1_per_frame_open.h"   /* FUN_0041331d */
 #include "scene1_records.h"
 #include "scene1_records_b_tick.h"    /* DAT_06a46f98, the state-machine hook */
 #include "scene1_records_c_spawn.h"   /* FUN_0044b0f3 */
@@ -42,6 +48,7 @@ static const float k0p12 = 0.11999999731779099f, k1 = 1.0f, k2 = 2.0f, k3 = 3.0f
 static const float k0p2 = 0.20000000298023224f, k0p3 = 0.30000001192092896f, k0p5 = 0.5f;
 static const float k0p7 = 0.699999988079071f, k0p8 = 0.800000011920929f;
 static const float k0p85 = 0.8500000238418579f, k1p2 = 1.2000000476837158f, k1p5 = 1.5f;
+static const float k0p4 = 0.4000000059604645f, k20 = 20.0f, km40 = -40.0f;
 static const float k1000 = 1000.0f;
 static const float k_pi = 3.1415927410125732f, k_mpi = -3.1415927410125732f;
 static const float k_2pi = 6.2831854820251465f;
@@ -660,6 +667,479 @@ int record_hit_actors(int32_t *slot)
     return 1;
 }
 
+/* the stage objects' kind table (.data 0x5c4c90, 9 dwords a kind): [3] radius,
+ * [4] height */
+static const float k_obj_r[22] = { 3.0f, 2.0f, 1.0f, 1.0f, 5.0f, 5.0f, 4.0f, 0.30000001192092896f,
+                                   0.30000001192092896f, 0.800000011920929f, 0.800000011920929f,
+                                   0.800000011920929f, 0.800000011920929f, 0.800000011920929f,
+                                   0.800000011920929f, 0.800000011920929f, 0.800000011920929f,
+                                   0.0f, 0.0f, 0.800000011920929f, 0.800000011920929f, 0.0f };
+static const float k_obj_h[22] = { 10.0f, 2.0f, 10.0f, 10.0f, 6.0f, 6.0f, 6.0f, 2.0f, 2.0f,
+                                   10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f,
+                                   10.0f, 10.0f, 10.0f, 10.0f, 10.0f };
+
+int chest_trap(float x, float z, int32_t kind)
+{
+    static const float k9 = 9.0f, k10 = 10.0f, k3c = 3.0f;
+    const uint8_t *w = work();
+    if ((w && w[0x2bd20] == 1) || party_accessory_proc(2508, 4, 30)) return 0;   /* FUN_0048584f */
+    const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                               stage_post_load_get_mode_b4d0(), g_ghost_count,
+                               w ? w[0x2bc57] : 0 };
+    switch (kind) {
+    case 4:
+        for (int32_t k = 0; k != 4; k++) {
+            float ang = spill32((long double)spill32((long double)k) * k_2pi / k4 + k_pi4);
+            for (int tries = 0; tries != 10; tries++) {
+                const double ad = ang;
+                float sx = spill32((long double)spill32(x87_crt_sin(ad)) * k9);
+                float sz = spill32((long double)spill32(x87_crt_cos(ad)) * k9);
+                float frac = 0.0f;
+                mapcol_hit_t h;
+                h.tri = 0;
+                h.slot = 0;
+                float ex, ez;
+                if (mapcol_ray(x, k0p5, z, sx, 0.0f, sz, &frac, &h) != 0) {
+                    ex = spill32(((long double)frac * sx) * k0p8 + x);
+                    ez = spill32(((long double)frac * sz) * k0p8 + z);
+                } else {
+                    ex = spill32((long double)sx + x);
+                    ez = spill32((long double)sz + z);
+                }
+                const float dx = spill32((long double)g_party.pos[0][0] - ex);
+                const float dz = spill32((long double)g_party.pos[0][2] - ez);
+                const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+                if (!(d < k3c)) {
+                    actor_spawn_enemy(&st, ex, k0p5, ez, 2);
+                    break;
+                }
+                ang = spill32((long double)ang + k_pi4);
+            }
+        }
+        break;
+    case 5:
+        for (int32_t k = 0; k != 8; k++) {
+            const float ang = spill32((long double)spill32((long double)k) * k_2pi / 8.0f);
+            const double ad = ang;
+            const float ex = spill32((long double)spill32(x87_crt_sin(ad)) * k10 + x);
+            const float ez = spill32((long double)spill32(x87_crt_cos(ad)) * k10 + z);
+            actor_t *a = actor_spawn_enemy(&st, ex, 0.0f, ez, 2);
+            if (a) {
+                AF(a, 0xb48) = x;
+                AF(a, 0xb4c) = 0.0f;
+                AI(a, ACT_INUSE) = 1;
+                AI(a, 0xb40) = 1;
+                AF(a, 0xb50) = z;
+                AI(a, 0xb44) = k;
+            }
+        }
+        break;
+    default:
+        /* PORT-DEBT(stub, FUN_004412b6): traps 1 (kind-140 objects), 2 / 3 (the
+         * falling rocks 44), 6 / 8 (the stun / slow gas), 9 (the rolling rock),
+         * 10 (the bomb ring) */
+        break;
+    }
+    return 1;
+}
+
+/* FUN_0043865e's object arm (0x439f28..0x43a5d4): the first stage object in
+ * reach (state 0; not kinds 8..13 / 18 / 19 / 22 / 30) takes the hit — pots
+ * break (ATTR hits), chests open (kind 5: the trap; kind 4: the treasure) */
+int record_hit_objects(int32_t *slot)
+{
+    const int32_t state = RI(slot, 0x04);
+    if (state == 1 || state == 3) return 0;
+    const float px = RF(slot, 0x5c), py = RF(slot, 0x60), pz = RF(slot, 0x64);
+    const float reach = RF(slot, 0xa8);
+    dobj_t *o = NULL;
+    float dx = 0, dy = 0, dz = 0;
+    for (int i = 0; i < DOBJ_COUNT; i++) {
+        dobj_t *c = &g_dobj[i];
+        const int32_t kind = c->i[DOBJ_KIND];
+        if (kind == -1) continue;
+        const int32_t st = c->i[DOBJ_STATE];
+        if (st == 3 || st == 7) continue;
+        if (kind == 0x16 || kind == 0x1e || kind == 9 || kind == 10 || kind == 0x12 ||
+            kind == 0x13 || kind == 0xc || kind == 0xd || kind == 0xb || kind == 8)
+            continue;
+        if (st != 0) continue;
+        int h = 0;
+        while (h < 10 && RI(slot, 0x11c) != c->i[DOBJ_LINKS + h]) h++;
+        if (h < 10) continue;
+        dx = spill32((long double)c->f[DOBJ_POS + 0] - px);
+        dy = spill32((long double)c->f[DOBJ_POS + 1] - py);
+        dz = spill32((long double)c->f[DOBJ_POS + 2] - pz);
+        if (dx == k0 && dz == k0) dz = k0p01;
+        float g = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+        g = spill32((long double)g - reach);
+        const int ki = kind >= 0 && kind < 22 ? kind : 0;
+        const float rr = spill32((long double)k_obj_r[ki] * c->f[DOBJ_SCALE + 0]);
+        const float hh = spill32((long double)k_obj_h[ki] * c->f[DOBJ_SCALE + 0]);
+        if (!(g < rr)) continue;
+        if (!(dy < reach)) continue;
+        if (!(-((long double)hh + reach) < dy)) continue;
+        o = c;
+        break;
+    }
+    if (o == NULL) return 0;
+    o->i[DOBJ_LINKS + o->i[166]] = RI(slot, 0x11c);
+    o->i[166] = (o->i[166] + 1) % 10;
+    o->i[9] = 5;
+    const int32_t rtype = RI(slot, 0x00);
+    if (rtype == 2 || rtype == 0x54 || rtype == 0x6d || rtype == 0x6f || rtype == 0x70)
+        PW(0x56da1b8u).i |= 2;
+    const int32_t kind = o->i[DOBJ_KIND];
+    const float ox = o->f[DOBJ_POS + 0], oy = o->f[DOBJ_POS + 1], oz = o->f[DOBJ_POS + 2];
+    if (kind != 2 && kind != 3) {
+        audio_play_se_by_id(kind == 0x15 ? 0x180 : 0x169);
+    } else {
+        o->i[9] = 0;
+        scene1_spawn(0, spill32(ox - (long double)dx * k0p5), spill32((long double)o->f[DOBJ_SCALE + 1] * k0p5 + oy),
+                     spill32(oz - (long double)dz * k0p5), 0x15, o->f[DOBJ_SCALE + 0], 6);
+        audio_play_se_by_id(0x159);
+    }
+    if (o->i[DOBJ_KIND] == 0)
+        scene1_spawn(0, spill32(ox - (long double)dx * k0p5), spill32((long double)o->f[DOBJ_SCALE + 1] * 20.5f + oy),
+                     spill32(oz - (long double)dz * k0p5), 0x16, o->f[DOBJ_SCALE + 0], 6);
+    int ret = 1;
+    if (o->i[DOBJ_ATTR] == -1) {
+        if (o->i[DOBJ_KIND] == 2 || o->i[DOBJ_KIND] == 3) return 1;
+        scene1_spawn(0, px, py, pz, 1, k0p2, 1);
+        return 1;
+    }
+    if (o->i[DOBJ_ATTR] > 0) --o->i[DOBJ_ATTR];
+    if (o->i[DOBJ_ATTR] > 0) {
+        scene1_spawn(0, px, py, pz, 1, k0p2, 1);
+        return 1;
+    }
+    o->i[DOBJ_ATTR] = 0;
+    uint8_t *w = work();
+    switch (o->i[DOBJ_KIND]) {
+    case 6:
+        o->i[DOBJ_STATE] = 1;
+        break;
+    case 4: case 5: case 8:
+        if (w && w[0x2bc82] != 0) {
+            o->i[DOBJ_STATE] = 2;
+            g_portal_prompt = 1;
+            break;
+        }
+        if (o->i[DOBJ_KIND] == 5) {
+            const int32_t cx = x87_ftol(((long double)ox - k20) / km40);
+            const int32_t cz = x87_ftol(((long double)oz - k20) / km40);
+            const int32_t var = g_floor_rooms[cz * FLOOR_GRID_STRIDE + cx].var;
+            int fired = 0;
+            if (g_scene1_combat_stage_id == 0) {
+                fired = chest_trap(ox, oz, var >= 5 ? 5 : 4);
+            } else if (rng_next15() % 10u == 0) {
+                (void)chest_trap(ox, oz, 10);   /* the leftover ecx = 10 */
+            } else {
+                static const int32_t k_trap[4] = { 8, 9, 6, 4 };
+                int32_t t = k_trap[rng_next15() & 3];
+                if (t == 4 && var >= 5) t = 5;
+                fired = chest_trap(ox, oz, t);
+            }
+            o->i[DOBJ_STATE] = 2;
+            if (fired == 1) {
+                const uint32_t v = rng_next15() % 3u;
+                if (v == 0) audio_play_se_file("bin/se/01ti/tuika/ti_wana_b.bin");
+                else if (v == 1) audio_play_se_file("bin/se/01ti/tuika/ti_wana_a.bin");
+                else audio_play_se_file("bin/se/00re/event/re_wana.bin");
+                PW(0x56db00cu).i = 60;
+            }
+            if (w) { int32_t n; memcpy(&n, w + 0x2c3e0, 4); n += 2; memcpy(w + 0x2c3e0, &n, 4); }
+        } else {
+            PW(0x56db004u).i = 4;
+            PW(0x56db008u).i = 1;
+            /* PORT-DEBT(stub, FUN_00484e45 / FUN_00485413): the bag-full
+             * check and its message (ATTR = 1, the chest stays shut) */
+            o->i[DOBJ_STATE] = 2;
+            /* PORT-DEBT(stub, FUN_0043824b): the chest's item roll at
+             * (x, y + 0.5, z) (×1000 with work +0x2bd21) */
+            if (w) { int32_t n; memcpy(&n, w + 0x2c3e0, 4); n += 2; memcpy(w + 0x2c3e0, &n, 4); }
+        }
+        break;
+    case 0x15:
+        o->i[DOBJ_KIND] = -1;
+        for (int32_t k = 0; k != 5; k++) {
+            const float off = spill32((long double)spill32((long double)k) * k4);
+            scene1_spawn(0, ox, spill32(((long double)rng_next_unit() + oy) + off), oz, 2, k0p4, 1);
+            scene1_spawn(0, ox, spill32(((long double)rng_next_unit() + oy) + off), oz, 0xf, k0p8, 1);
+        }
+        break;
+    default:
+        o->i[DOBJ_STATE] = 1;
+        scene1_spawn(0, px, py, pz, 2, k0p2, 1);
+        break;
+    }
+    if (o->i[DOBJ_D36] == 0) o->i[DOBJ_D36] = ret;
+    return ret;
+}
+
+/* FUN_00485979: the active chara's hurt voice (chara 6 has a KO set) */
+void party_hurt_voice(int down)
+{
+    static const char *const k_li[4] = {
+        "bin/se/02li/action/02li_10.bin", "bin/se/02li/action/02li_11a.bin",
+        "bin/se/02li/action/02li_11b.bin", "bin/se/02li/action/02li_11c.bin" };
+    static const char *const k_sy[4] = {
+        "bin/se/03sy/action/03sy_09a.bin", "bin/se/03sy/action/03sy_09b.bin",
+        "bin/se/03sy/action/03sy_10a.bin", "bin/se/03sy/action/03sy_10b.bin" };
+    static const char *const k_ca[5] = {
+        "bin/se/04ca/damage/04ca_14a.bin", "bin/se/04ca/damage/04ca_15a.bin",
+        "bin/se/04ca/damage/04ca_15b.bin", "bin/se/04ca/damage/04ca_16a.bin",
+        "bin/se/04ca/damage/04ca_16b.bin" };
+    static const char *const k_ti[6] = {
+        "bin/se/05ti/damage/05ti_15a.bin", "bin/se/05ti/damage/05ti_16.bin",
+        "bin/se/05ti/damage/05ti_16a.bin", "bin/se/05ti/damage/05ti_17.bin",
+        "bin/se/05ti/damage/05ti_17c.bin", "bin/se/05ti/damage/05ti_18.bin" };
+    static const char *const k_el[7] = {
+        "bin/se/06el/damage/dmg01.bin", "bin/se/06el/damage/dmg02.bin",
+        "bin/se/06el/damage/dmg03.bin", "bin/se/06el/damage/dmg04.bin",
+        "bin/se/06el/damage/dmg05.bin", "bin/se/06el/damage/dmg06.bin",
+        "bin/se/06el/damage/dmg07.bin" };
+    static const char *const k_na[6] = {
+        "bin/se/07na/damage/n_14_a.bin", "bin/se/07na/damage/n_14_b.bin",
+        "bin/se/07na/damage/n_15_a.bin", "bin/se/07na/damage/n_15_b.bin",
+        "bin/se/07na/damage/n_16_a.bin", "bin/se/07na/damage/n_16_b.bin" };
+    static const char *const k_gr_ko[3] = {
+        "bin/se/08gr/damage/08gr_16.bin", "bin/se/08gr/damage/08gr_16b.bin",
+        "bin/se/08gr/damage/08gr_16c.bin" };
+    static const char *const k_gr[7] = {
+        "bin/se/08gr/damage/08gr_13.bin", "bin/se/08gr/damage/08gr_13b.bin",
+        "bin/se/08gr/damage/08gr_14.bin", "bin/se/08gr/damage/08gr_14a.bin",
+        "bin/se/08gr/damage/08gr_14b.bin", "bin/se/08gr/damage/08gr_15.bin",
+        "bin/se/08gr/damage/08gr_15a.bin" };
+    static const char *const k_ar[3] = {
+        "bin/se/09ar/damage/09ar_06.bin", "bin/se/09ar/damage/09ar_07.bin",
+        "bin/se/09ar/damage/09ar_08.bin" };
+    const char *f = NULL;
+    switch (chara_equip_get_current_chara()) {
+    case 0: f = k_li[rng_next15() & 3]; break;
+    case 1: f = k_sy[rng_next15() & 3]; break;
+    case 2: f = k_ca[rng_next15() % 5u]; break;
+    case 3: f = k_ti[rng_next15() % 6u]; break;
+    case 4: f = k_el[rng_next15() % 7u]; break;
+    case 5: f = k_na[rng_next15() % 6u]; break;
+    case 6: f = down == 1 ? k_gr_ko[rng_next15() % 3u] : k_gr[rng_next15() % 7u]; break;
+    case 7: f = k_ar[rng_next15() % 3u]; break;
+    default: break;
+    }
+    if (f) audio_play_se_file(f);
+}
+
+/* FUN_00485c74: the player takes `dmg` — the hurt voice, the revive (2510)
+ * and the low-HP heal (2505) accessories, the HP bar flash */
+void party_take_damage(int32_t dmg)
+{
+    PW(0x56db0bcu).f = spill32((long double)PW(0x56db0bcu).f - spill32((long double)dmg));
+    const uint8_t *m = member();
+    int16_t hp_a = 0, hp_b = 0;
+    if (m) { memcpy(&hp_a, m + 0x3c, 2); memcpy(&hp_b, m + 0x3e, 2); }
+    if (PW(0x56dae9cu).i == 0 && PW(0x56daea4u).i == 0)
+        party_hurt_voice(PW(0x56db0bcu).f > k0 ? 0 : 1);
+    if (!(PW(0x56db0bcu).f > k0) && party_accessory_proc(2510, 1, 30))
+        PW(0x56db0bcu).f = spill32((long double)(hp_b + hp_a));
+    const float thr = spill32((long double)(hp_a / 2));
+    if (PW(0x56db0bcu).f < thr && PW(0x56db0bcu).f > k0 && party_accessory_proc(2505, 5, 30)) {
+        int32_t v = (hp_b + hp_a) / 2;
+        if (v > 100) v = 100;
+        PW(0x56db0bcu).f = spill32((long double)spill32((long double)v) + PW(0x56db0bcu).f);
+    }
+    if (PW(0x56db0bcu).f > k0) {
+        if (g_dat_0438b8d8 == 0) g_dat_0438b8d4 = 30;
+        g_dat_0438b8d8 = 120;
+    }
+    PW(0x56daff4u).i = 0;
+}
+
+/* FUN_0043865e's player arm (0x438933..0x439f23): an enemy record (state 1 /
+ * 3) within 2 of the player: the guard (Louie / Nagi facing it; Charme's
+ * counter), the damage roll (AT or MA vs the party's DF / MD), the knock-back,
+ * the popup and SE.  -1 = no contact (the object scan runs), else the
+ * state-machine result */
+static int record_hit_player(int32_t *slot)
+{
+    static const float k5 = 5.0f, km5 = -5.0f, km0p2 = -0.20000000298023224f;
+    const float px = RF(slot, 0x5c), py = RF(slot, 0x60), pz = RF(slot, 0x64);
+    const float reach = RF(slot, 0xa8);
+    const int32_t rtype = RI(slot, 0x00);
+    float dx = spill32((long double)g_party.pos[0][0] - px);
+    const float dy = spill32((long double)g_party.pos[0][1] - py);
+    float dz = spill32((long double)g_party.pos[0][2] - pz);
+    if (dx == k0 && dz == k0) dz = k0p01;
+    const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+    const float g = spill32((long double)d - reach);
+    if (rtype == 0x53) {
+        if (g < k2 && dy < reach && -((long double)reach + k5) < dy) {
+            g_party.vel[0][0] = 0.0f;
+            g_party.vel[0][2] = 0.0f;
+            return 1;
+        }
+        return 0;
+    }
+    if (rtype == 0x27) {
+        if (g < k2 && dy < k0p1 && dy > km5 && PW(0x56db108u).i == 0) {
+            PW(0x56db108u).i = 500;
+            PW(0x56db10cu).i = RI(slot, 0x08);
+        }
+        return 1;
+    }
+    if (!(g < k2) || !(dy < reach) || !(-((long double)reach + k5) < dy)) return -1;
+    const float ex = spill32((long double)g_party.pos[0][0] - ((long double)dx + dx) / d);
+    const float ey = py;
+    const float ez = spill32((long double)g_party.pos[0][2] - ((long double)dz + dz) / d);
+    if (RF(slot, 0x68) != k0 || RF(slot, 0x6c) != k0 || RF(slot, 0x70) != k0) {
+        dx = RF(slot, 0x68);
+        dz = RF(slot, 0x70);
+    }
+    if (dx == k0 && dz == k0) dz = k0p01;
+    float kl = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+    if (kl > k0) kl = spill32((long double)(rtype == 0x24 ? k1 : k0p3) / kl);
+    int guard = 0;
+    if (PW(0x56db048u).i == 0) {
+        const float v = hit_angle(dx, dz, PW(0x56db05cu).f);
+        if (v < k_pi4 && v > k_mpi4) {
+            const int32_t c = chara_equip_get_current_chara();
+            if (c == 0 || c == 5) {
+                if (rtype == 0x56 || rtype == 0x96) { guard = 1; audio_play_se_by_id(361); }
+                if (c == 0 && (rtype == 0x1f || rtype == 0x51 || rtype == 0x6c)) {
+                    guard = 2;
+                    audio_play_se_by_id(361);
+                }
+            } else if (c == 1 && PW(0x56dae30u).i > 0 && PW(0x56dae30u).i < 30) {
+                guard = 1;
+                PW(0x56dae38u).i = 30;
+                party_anim_set(g_party.rec[0], 6);
+                audio_play_se_by_id(379);
+            }
+        }
+    }
+    if (guard) {
+        PW(0x56db0f4u).i = 15;
+        g_scene1_combat_dat_0438bed8 = 4;
+        PW(0x56dab04u).i = 4;
+    } else {
+        PW(0x56dab04u).i = 6;
+        PW(0x56db0f4u).i = 30;
+        g_scene1_combat_dat_0438bed8 = 4;
+    }
+    const uint8_t *ob = owner_of(RI(slot, 0x14));
+    const int32_t ot = ob ? *(const int32_t *)(const void *)(ob + ACT_TYPE) : 26;
+    const enemy_record_t *oe = ob ? enemy_at(ot) : &g_enemy[26];
+    int magic = 0;
+    switch (rtype) {
+    case 18: case 20: case 31: case 33: case 38: case 42: case 43: case 70: case 90:
+    case 107: case 108: case 137: case 152: case 153: case 154:
+        magic = 1;
+        break;
+    default:
+        break;
+    }
+    int32_t dmg;
+    int proc;
+    if (magic) {
+        const float x = spill32(enemy_level_mul(ot) * spill32((long double)oe->ma));
+        const float df = spill32((long double)PW(0x56db0b8u).i);
+        dmg = x87_ftol((long double)x / k2 - (long double)df / k4);
+        proc = party_accessory_proc(2503, 10, 5);
+    } else {
+        const float x = spill32(enemy_level_mul(ot) * spill32((long double)oe->at));
+        const float df = spill32((long double)PW(0x56db0b0u).i);
+        dmg = x87_ftol((long double)x / (rtype == 0xf ? k4 : k2) - (long double)df / k4);
+        proc = party_accessory_proc(2502, 10, 5);
+    }
+    if (proc) dmg /= 4;
+    if (PW(0x56dae9cu).i != 0 || PW(0x56daea4u).i != 0) {
+        const int32_t fl = PW(0x56daeacu).i & 0xff;
+        if (fl & 0x20) dmg /= 4;
+        else if (fl & 0x10) dmg /= 3;
+        else dmg /= 2;
+    }
+    if (floor_event_active(4) || floor_event_active(3)) dmg *= 2;
+    if (floor_event_active(8) || floor_event_active(6)) dmg /= 2;
+    if (PW(0x56db018u).i > 0 || PW(0x56db01cu).i > 0) dmg /= 2;
+    int32_t hit = 0;
+    if (!guard) {
+        if (rtype == 0x11 && PW(0x56db0fcu).i < 120) PW(0x56db0fcu).i = 120;
+        hit = x87_ftol((long double)spill32((long double)dmg) * RF(slot, 0xb4));
+        if (hit < 1) hit = 1;
+        if (hit >= 5) {
+            const uint32_t q = (uint32_t)rng_next15();
+            hit += (int32_t)(q % (uint32_t)(hit / 5));
+        } else {
+            hit += (int32_t)(rng_next15() & 1);
+        }
+        if (ob && *(const int32_t *)(const void *)(ob + 0xb40) == 2) {
+            const int32_t cap = x87_ftol(PW(0x56db0bcu).f) - 1;
+            if (hit > cap) hit = cap;
+        }
+        party_take_damage(hit);                       /* FUN_00485c74 */
+    }
+    g_scene1_combat_dat_06a46f94 = hit;
+    if ((PW(0x56dae9cu).i != 0 || PW(0x56daea4u).i != 0 || PW(0x56daea0u).i != 0) &&
+        PW(0x56db0bcu).f > k0) {
+        PW(0x56daeb0u).i = 0;
+    } else if (guard) {
+        PW(0x56daeb0u).i = 0;
+        const float t = spill32((long double)kl * dx);
+        g_party.vel[0][0] = spill32((long double)t * k0p5);
+        const float u = spill32((long double)kl * dz);
+        g_party.vel[0][2] = spill32((long double)u * k0p5);
+        if (rtype == 0x56 || rtype == 0x96) {
+            RF(slot, 0x68) = spill32((long double)t * km0p2);
+            RF(slot, 0x70) = spill32((long double)u * km0p2);
+        }
+    } else if (rtype == 0xa0) {
+        PW(0x56daeb0u).i = 0;
+        PW(0x56db0f4u).i = 4;
+        g_scene1_combat_dat_0438bed8 = 2;
+        PW(0x56db048u).i = 1;
+        party_anim_set(g_party.rec[0], 2);
+        g_party.vel[0][0] = spill32((long double)dx * k0p1);
+        g_party.vel[0][1] = 0.0f;
+        g_party.vel[0][2] = spill32((long double)dz * k0p1);
+    } else if (rtype == 0x13 && PW(0x56db0bcu).f > k0) {
+        uint8_t *o2 = owner_of(RI(slot, 0x14));
+        if (o2) *(int32_t *)(void *)(o2 + 0xa54) = 1;
+    } else {
+        PW(0x56daeb0u).i = (rtype == 0xe || rtype == 0x12 || rtype == 0xa1) ? 70 : 30;
+        PW(0x56db048u).i = 1;
+        party_anim_set(g_party.rec[0], 2);
+        g_party.vel[0][0] = spill32((long double)kl * dx);
+        g_party.vel[0][1] = k0p4;
+        g_party.vel[0][2] = spill32((long double)kl * dz);
+    }
+    if (hit == 0 && PW(0x56daeb0u).i > 2) PW(0x56daeb0u).i = 2;
+    if (!(PW(0x56db0bcu).f > k0)) {
+        g_floor_end_kind = 1;
+        PW(0x56db0bcu).f = 0.0f;
+        g_party.vel[0][1] = k0p5;
+    }
+    if (rtype == 0x13 && ob)
+        scene1_spawn(0, ex, ey, ez, 0x75, k0p2, *(const int32_t *)(const void *)(ob + 0xb3c));
+    if (guard == 0) {
+        popup_push(g_party.pos[0][0], g_party.pos[0][1], g_party.pos[0][2], hit, 5);
+        int se = 319;
+        if (rtype == 0xb || rtype == 0x13 || rtype == 0x14) se = 331;
+        else if (rtype == 0xd || rtype == 0x10 || rtype == 0x11 || rtype == 0x16 || rtype == 0x17) se = 341;
+        else if (rtype == 0x1f) se = 350;
+        audio_play_se_by_id((uint16_t)se);
+        if (magic) {
+            scene1_pfo_table_a_alloc_passthrough(0, ex, ey, ez, 11, 1.0f, -1, 0, 0);
+        } else {
+            scene1_spawn(0, ex, ey, ez, 1, k0p2, 1);
+            scene1_spawn(0, ex, ey, ez, 25, k0p2, 1);
+        }
+        return 1;
+    }
+    scene1_spawn(0, ex, ey, ez, 1, k0p1, 1);
+    scene1_spawn(0, ex, ey, ez, 25, k0p1, 1);
+    if (guard == 2) RI(slot, 0x00) = 0;
+    return 2;
+}
+
 /* FUN_0043865e: the record state machine — the pause gates, the actor arm,
  * the player arm (records in state 1 / 3), the object scan */
 int record_sm_tick(int32_t *slot)
@@ -671,14 +1151,40 @@ int record_sm_tick(int32_t *slot)
     if (record_hit_actors(slot)) return 1;
     const int32_t state = RI(slot, 0x04);
     if ((state == 1 || state == 3) && PW(0x56db0f4u).i <= 0) {
-        /* PORT-DEBT(stub, FUN_0043865e): the player arm 0x438940..0x439f28
-         * (an enemy record hitting the player: guard, damage, knock-back) */
-        return 0;
+        const int r = record_hit_player(slot);
+        if (r >= 0) return r;
     }
-    return scene1_combat_sm_objects_scan(slot);     /* 0x439f28 */
+    return record_hit_objects(slot);                /* 0x439f28 */
+}
+
+/* the table-B tick's wall probe: FUN_00433674 (frac, +0x10 tri, +0x14 slot,
+ * +0x18 object) and the hit triangle's type */
+static int wall_ray(float ox, float oy, float oz, float dx, float dy, float dz,
+                    scene1_b_wall_ray_result_t *out)
+{
+    mapcol_hit_t h;
+    memset(&h, 0, sizeof h);
+    float frac = 0.0f;
+    const int r = mapcol_ray(ox, oy, oz, dx, dy, dz, &frac, &h);
+    out->t = frac;
+    out->wall_x = h.tri;
+    out->wall_z = h.slot;
+    out->wall_id = h.obj;
+    return r;
+}
+
+static int wall_type(int32_t tri, int32_t slot)
+{
+    if (slot < 0 || slot >= MAPCOL_SLOTS || g_mapcol_slot[slot].tris == NULL ||
+        tri < 0 || tri >= g_mapcol_slot[slot].cap)
+        return 0;
+    return g_mapcol_slot[slot].tris[tri].type;
 }
 
 void record_sm_install(void)
 {
+    scene1_records_b_set_wall_raycast_hook(wall_ray);
+    scene1_records_b_set_wall_flag_at_hook(wall_type);
     scene1_records_b_set_state_machine_hook(record_sm_tick);
+    scene1_records_b_set_notify_queue_hook(camera_shake);   /* FUN_0044b219 */
 }

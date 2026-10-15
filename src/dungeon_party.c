@@ -13,6 +13,7 @@
 #include "audio_mci.h"           /* FUN_00451874 debug text rows */
 #include "call_trace.h"
 #include "chara_equip.h"         /* DAT_0438b7d8 */
+#include "chara_skills.h"        /* DAT_0438b7dc, DAT_0438b7fc */
 #include "dungeon_flow.h"
 #include "floor_layout.h"        /* g_floor_rooms (DAT_073e03ac), the marks (DAT_0438b434) */
 #include "map_collision.h"       /* FUN_00432e50, FUN_00433674 */
@@ -24,6 +25,7 @@
 #include "scene1_camera.h"       /* DAT_0438cc68 */
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) */
 #include "scene1_particles_tick.h" /* g_scene1_camera_yaw (DAT_073de39c) */
+#include "scene1_per_frame_open.h" /* FUN_0041331d */
 #include "scene1_records_b_spawn.h" /* FUN_0044376a */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
 #include "sim.h"                 /* DAT_073dddd0 */
@@ -70,6 +72,8 @@ static int32_t octant(float a)
 }
 
 static const uint8_t *work_rec(void) { return save_work_bank_at(save_work_active_slot()); }
+static void party_skill_selected(void);   /* FUN_00489c79 */
+static void party_skill_direct(void);     /* FUN_00489d52 */
 /* the active chara's record: work +0x2ceb0 + 0x6c·DAT_0438b7d8 */
 static const uint8_t *chara_rec(void)
 {
@@ -618,9 +622,9 @@ static void party_attack_input(void)
         if (pr & 0x40) {
             /* PORT-DEBT(stub, FUN_0048d5d6): the skill cycle (DAT_0438b7dc, SE 326) */
         } else if (pr & 0x3e00) {
-            /* PORT-DEBT(stub, FUN_00489d52): the direct skill keys */
+            party_skill_direct();                       /* FUN_00489d52 */
         } else if ((pr & 0x20) && PW(0x56dae9cu).i == 0 && PW(0x56daea4u).i == 0) {
-            /* PORT-DEBT(stub, FUN_00489c79): the selected skill (SP) */
+            party_skill_selected();                     /* FUN_00489c79 */
         }
     } else {
         if (PW(0x56dae40u).i != -1) {
@@ -638,6 +642,175 @@ static void party_attack_input(void)
             PW(0x56daff8u).i = 0;
             PW(0x56daff4u).i = 0;
         }
+    }
+}
+
+/* the accessory notice of FUN_00485712 (DAT_0438b758..b76c) and the broken
+ * accessory (DAT_074b2ec8 / cc) */
+int32_t g_notice_item, g_notice_kind, g_notice_side, g_notice_on, g_notice_ticks, g_notice_b76c;
+int32_t g_broke_on, g_broke_item;
+
+/* FUN_00485712: the active chara wears item `id`? — then the proc: a
+ * 1-in-`brk` chance it breaks (into 0x27140), the burst 9, SE 381, the notice,
+ * a hit-stop of `stop`; 1.  Not worn: 0 (no draw). */
+int party_accessory_proc(int32_t id, uint32_t brk, int32_t stop)
+{
+    uint8_t *m = save_work_bank_at(save_work_active_slot());
+    if (m == NULL) return 0;
+    m += 0x2ceb0 + 0x6c * chara_equip_get_current_chara();
+    int k = 0;
+    int32_t v;
+    for (;;) {
+        memcpy(&v, m + 4 + 4 * k, 4);
+        if ((v >> 6) == id) break;
+        if (++k == 5) return 0;
+    }
+    const int broke = rng_next15() % brk == 0;
+    scene1_pfo_table_a_alloc_passthrough((int)(intptr_t)&g_party, 0.0f, 2.0f, 0.0f, 9, 1.2000000476837158f, -1, 0, 1);
+    audio_play_se_by_id(381);
+    g_notice_on = 1;
+    g_notice_item = v;
+    g_notice_kind = 2;
+    g_notice_b76c = 4;
+    g_notice_ticks = 90;
+    /* PORT-DEBT(render-coupled, FUN_00490c78): the notice's side is Tear's
+     * screen x < 320 */
+    g_notice_side = 1;
+    g_scene1_combat_dat_0438bed8 = stop;
+    if (broke) {
+        g_broke_on = 1;
+        g_broke_item = v;
+        const int32_t b = 160064;
+        memcpy(m + 4 + 4 * k, &b, 4);
+    }
+    return 1;
+}
+
+/* FUN_00489b2c: spend `cost` SP (halved by floor event 1 unless char 42;
+ * the half-cost accessory 2507 on a second halving; the refill accessory 2506
+ * below half max) — 0 when short */
+static int party_spend_sp(int32_t cost)
+{
+    if (g_party.chr[0] != 42 && floor_event_active(1)) cost /= 2;
+    if (cost < 1) cost = 1;
+    int32_t half = cost / 2;
+    if (half < 1) half = 1;
+    const float hf = spill32((long double)half);
+    float sp;
+    if (!(PW(0x56db0c0u).f < hf) && g_party.chr[0] != 42 && party_accessory_proc(2507, 10, 10)) {
+        sp = spill32((long double)PW(0x56db0c0u).f - hf);
+    } else {
+        const float cf = spill32((long double)cost);
+        if (PW(0x56db0c0u).f < cf) return 0;
+        sp = spill32((long double)PW(0x56db0c0u).f - cf);
+    }
+    PW(0x56db0d4u).i = 60;
+    PW(0x56db0c0u).f = sp;
+    const uint8_t *m = work_rec() + 0x2ceb0 + 0x6c * chara_equip_get_current_chara();
+    int16_t a, b;
+    memcpy(&a, m + 0x40, 2);
+    memcpy(&b, m + 0x42, 2);
+    const float thr = spill32((long double)((b + a) / 2));
+    if (PW(0x56db0c0u).f < thr && party_accessory_proc(2506, 5, 30)) {
+        int32_t add = (b + a) / 4;
+        if (add > 100) add = 100;
+        PW(0x56db0c0u).f = spill32((long double)spill32((long double)add) + PW(0x56db0c0u).f);
+    }
+    return 1;
+}
+
+/* FUN_00489c79: the selected skill (slot 0x56db0d8): its SP (DAT_005ce520,
+ * char 42 the max SP, 1 with work +0x2bc48) → state 4..8 by the skill */
+static void party_skill_selected(void)
+{
+    static const int32_t k_sp_cost[8][5] = {
+        { 5, 5, 5, 5, 0 }, { 5, 5, 5, 5, 0 }, { 5, 5, 5, 25, 5 }, { 4, 5, 8, 10, 0 },
+        { 5, 20, 5, 5, 0 }, { 5, 8, 10, 5, 0 }, { 10, 20, 30, 5, 0 }, { 5, 5, 5, 5, 0 },
+    };
+    const int32_t c = chara_equip_get_current_chara();
+    const int32_t slot = PW(0x56db0d8u).i;
+    const uint8_t *w = work_rec();
+    int32_t cost = (c >= 0 && c < 8 && slot >= 0 && slot < 5) ? k_sp_cost[c][slot] : 0;
+    if (g_party.chr[0] == 42) {
+        int16_t a, b;
+        memcpy(&a, w + 0x2ceb0 + 0x6c * c + 0x40, 2);
+        memcpy(&b, w + 0x2ceb0 + 0x6c * c + 0x42, 2);
+        cost = a + b;
+    }
+    if (w[0x2bc48] != 0) cost = 1;
+    if (!party_spend_sp(cost)) return;
+    PW(0x56db064u).i = 0;
+    const int32_t sk = chara_skills_get_slot(c, slot);
+    switch (sk) {
+    case 0: PW(0x56db048u).i = 4; break;
+    case 1: PW(0x56db048u).i = 5; break;
+    case 2: PW(0x56db048u).i = 6; break;
+    case 3: PW(0x56db048u).i = 7; break;
+    case 4: PW(0x56db048u).i = 8; break;
+    default: break;
+    }
+    PW(0x56db04cu).i = 0;
+}
+
+/* FUN_00489d52: the direct skill keys (0x200..0x2000 → slots 0..4) */
+static void party_skill_direct(void)
+{
+    if (PW(0x56dae9cu).i != 0 || PW(0x56daea4u).i != 0) return;
+    const uint16_t pr = g_sim_buttons[0].pressed;
+    int32_t k = 0;
+    if (pr & 0x2000) k = 4;
+    if (pr & 0x1000) k = 3;
+    if (pr & 0x800) k = 2;
+    if (pr & 0x400) k = 1;
+    if (pr & 0x200) k = 0;
+    if (chara_skills_get_count(chara_equip_get_current_chara()) > k) {
+        PW(0x56db0d8u).i = k;
+        party_skill_selected();
+    }
+}
+
+/* FUN_00499fda: a bag of 6 voice picks (0, 1 three times each);
+ * DAT_0964326c / DAT_096432d8 */
+static int32_t s_voice_bag2[6], s_voice_bag2_n;
+static int32_t voice_bag2(void)
+{
+    if (s_voice_bag2_n == 0) {
+        for (int k = 0; k < 6; k++) s_voice_bag2[k] = k % 2;
+        for (int k = 0; k < 6; k++) {
+            const unsigned r = (unsigned)rng_next15() % 6u;
+            const int32_t t = s_voice_bag2[r];
+            s_voice_bag2[r] = s_voice_bag2[k];
+            s_voice_bag2[k] = t;
+        }
+    }
+    const int32_t v = s_voice_bag2[s_voice_bag2_n++];
+    if (s_voice_bag2_n == 6) s_voice_bag2_n = 0;
+    return v;
+}
+
+/* FUN_00496fca: Louie's skill state 4 — the spin: the voice, the record kind
+ * 34 and a hop at 5, 15 ticks of 0.419-rad turns, the end at 35 */
+static void party_skill_louie(void)
+{
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+        const int32_t v = voice_bag2();
+        if (v == 0) audio_play_se_file("bin/se/02li/action/02li_06.bin");
+        else if (v == 1) audio_play_se_file("bin/se/02li/action/02li_07.bin");
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 5) {
+        audio_play_se_by_id(692);
+        scene1_record_b_spawn_entity(&g_party, 34, -1);
+        g_party.vel[0][1] = 0.30000001192092896f;
+    }
+    const int32_t t = PW(0x56db04cu).i;
+    if (t >= 5 && t < 20)
+        PW(0x56db05cu).f = spill32((long double)PW(0x56db05cu).f + 0.41887903213500977f);
+    if (t >= 35) {
+        PW(0x56db04cu).i = 0;
+        PW(0x56db048u).i = 0;
     }
 }
 
@@ -699,11 +872,8 @@ static void party_attack_louie(void)
     }
     if (PW(0x56db04cu).i >= 5 && (PW(0x56da1b8u).i & 2)) {
         const uint16_t pr = g_sim_buttons[0].pressed;
-        if (pr & 0x3e00) {
-            /* PORT-DEBT(stub, FUN_00489d52): the direct skill keys */
-        } else if (pr & 0x20) {
-            /* PORT-DEBT(stub, FUN_00489c79): the selected skill (SP) */
-        }
+        if (pr & 0x3e00) party_skill_direct();          /* FUN_00489d52 */
+        else if (pr & 0x20) party_skill_selected();     /* FUN_00489c79 */
     }
     if (PW(0x56db04cu).i >= (PW(0x56daff8u).i != 0 ? 30 : 25)) {
         PW(0x56db04cu).i = 0;
@@ -788,9 +958,21 @@ static void party_state_tick(void)
             break;
         }
         break;
+    case 4:
+        switch (g_party.chr[0]) {
+        case 27: case 40: case 28: case 30: case 31: case 41: case 42:
+            /* PORT-DEBT(stub, FUN_0048cdcc): the other chars' skill 4
+             * (FUN_00494f87, FUN_00495305, FUN_00495a32, FUN_004964bf,
+             * FUN_00496a63, FUN_0049708e, FUN_0049755c) */
+            break;
+        default:
+            party_skill_louie();             /* FUN_00496fca */
+            break;
+        }
+        break;
     default:
-        /* PORT-DEBT(stub, FUN_0048cdcc): the skill states 3..8 by char
-         * (FUN_00496fca, FUN_00496f12, FUN_00494dc5, …) */
+        /* PORT-DEBT(stub, FUN_0048cdcc): the skill states 3, 5..8 by char
+         * (FUN_00496f12, FUN_00494dc5, …) */
         break;
     }
     if ((floor_event_active(9) || PW(0x56db100u).i > 0) && !chara_has_item(0x96b)) {

@@ -58,6 +58,7 @@ void dobj_reset(void);
 /* FUN_0044ad81: returns the record index (0 if the table is full — retail
  * MessageBoxes and returns 0). */
 int  dobj_spawn(const float pos[3], const float scale[3], float yaw, int32_t kind);
+void dobj_tick(void);                                              /* FUN_0043a5d9 */
 
 #ifdef __cplusplus
 }

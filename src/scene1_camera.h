@@ -44,6 +44,8 @@
 #ifndef OPENRECET_SCENE1_CAMERA_H
 #define OPENRECET_SCENE1_CAMERA_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -121,6 +123,13 @@ float scene1_camera_class_off_z(void);
  * flag and clears the smoothed-state scratch so a test or scene
  * transition gets a clean start. */
 void scene1_camera_init(void);
+
+/* DAT_0438cc14..cc2c: the camera shake.  FUN_0044b219 arms it (ticks, x / z
+ * pixel ranges, y amplitude); FUN_00441c3e's block L draws the jitter each
+ * frame it runs (rand × 2 + unit). */
+extern int32_t g_shake_ticks, g_shake_dx, g_shake_dz, g_shake_xr, g_shake_zr;
+extern float   g_shake_y, g_shake_amp;
+void camera_shake(int32_t ticks, int32_t xr, int32_t zr, float amp);   /* FUN_0044b219 */
 
 /* DAT_0438cc68 = 1: the next pose compute snaps the smoothed eye/lookat
  * instead of easing (FUN_00436f97, FUN_004852fb's collector / day-15 arms). */

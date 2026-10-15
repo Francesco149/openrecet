@@ -7,6 +7,24 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — dying, skills, chests, traps, getting hit (dungeon pilot)
+**portrng dungeon0-floors-save identical f1–f7589** (was f5457); **adv-guild-pack-leave
+identical over the whole retail run (f1–f21552)**.
+- `actor_ai.c`: FUN_0042f7ad (the regular enemies' death: the slot frees at tick 2, the
+  1-in-3 respawn, the shake, the burst overlay), FUN_0042c8a5 (the monster-house ring), the
+  slimes' FUN_00445a8c records (kind 11 contact, kind 31 hop shots).
+- `scene1_camera.c`: FUN_0044b219 + FUN_00441c3e block L (the shake's per-frame draws).
+- `dungeon_party.c`: Louie's skill path FUN_00489d52 → FUN_00489c79 → FUN_00489b2c (SP)
+  → state 4 FUN_00496fca (+ FUN_00499fda); FUN_00485712 (accessory procs).
+- `record_hit.c`: FUN_0043865e's object arm (pots, chests; FUN_004412b6 traps 4 / 5) and
+  player arm (guard, the damage roll, knock-back; FUN_00485c74, FUN_00485979).
+- `dungeon_objects.c`: FUN_0043a5d9 (the stage objects' tick: doors, levers, an open
+  chest's glow, the hit shake).
+- Legacy table-B fixes: kind 31 x87-faithful; the anchored bodies (kinds 10/11/19/20/153,
+  12/17) read OWNER_B and the enemy records (the "motion table" stand-in removed); the kind-2
+  group reaches the shared wall test (LAB_00440dc1) and uses CRT sin/cos; the wall-ray hooks
+  are FUN_00433674 + the triangle type.
+
 ## 2026-10-15 — Louie's swing, the hit, the kill (dungeon pilot)
 **portrng dungeon0-floors-save identical f3405–f5457** (was f5409; the first kill at f5448
 matches draw for draw: damage roll, 64 spark draws, 3 + 2 EXP orbs, the drop roll),

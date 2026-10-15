@@ -13,7 +13,10 @@
 #include "map_collision.h"       /* FUN_00432e50, FUN_00433674 */
 #include "party.h"
 #include "rng.h"                 /* FUN_00471089, j__rand */
+#include "scene1_camera.h"       /* FUN_0044b219 */
 #include "scene1_chr_sprite.h"   /* FUN_00482a71 */
+#include "scene1_per_frame_open.h" /* FUN_0041331d */
+#include "scene1_records_b_spawn.h" /* FUN_00445a8c */
 #include "scene1_particles_tick.h" /* g_scene1_camera_yaw (DAT_073de39c) */
 #include "scene1_render.h"       /* the view / projection matrices (DAT_073de29c / 2dc) */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
@@ -145,7 +148,7 @@ void actor_ai_slime(actor_t *a)
     int i = 0;
     if (AI(a, 0xb8c) != 0) {
         AI(a, 0xb8c) = 0;
-        /* PORT-DEBT(stub, FUN_00445a8c): the slime's hit reaction (kind 11) */
+        scene1_record_b_spawn_npc(a, 11, 1);     /* FUN_00445a8c: the contact record */
     }
     actor_anim_set(a, 0);
     const int32_t st = AI(a, 0xa54);
@@ -155,11 +158,11 @@ void actor_ai_slime(actor_t *a)
         if (t == 2) AF(a, 0x400) = k0p3;
         if (t == 17) AF(a, 0x400) = k0p3;
         if (t == 5) {
-            /* PORT-DEBT(stub, FUN_00445a8c): the hop's hit record (kind 31) */
+            scene1_record_b_spawn_npc(a, 31, 1);  /* FUN_00445a8c: the shot */
             audio_play_se_by_id(330);
         }
         if (AI(a, 0xa58) == 20) {
-            /* PORT-DEBT(stub, FUN_00445a8c): kind 31 */
+            scene1_record_b_spawn_npc(a, 31, 1);
             audio_play_se_by_id(330);
         }
         if (AI(a, 0xa58) == 30) { AI(a, 0xa58) = 0; AI(a, 0xa54) = 0; }
@@ -233,12 +236,78 @@ void actor_ai_slime(actor_t *a)
     if (type == 5) AI(a, 0xb54) = 1;
 }
 
+/* FUN_0042f7ad: a dying actor (+0x428 == 2) — the regular enemies' arm: at
+ * tick 2 the slot frees (a 1-in-3 respawn timer of 600 off the checkpoint
+ * floors), the shake, SE 337 and the burst overlay 3; a reviving one
+ * (+0xadc) stands up at 60 / 90 */
+void actor_dying(actor_t *a)
+{
+    static const float k0p025 = 0.02500000037252903f;
+    const int32_t type = AI(a, ACT_TYPE);
+    const enemy_record_t *e = enemy_of(a);
+    AI(a, 0xb58) = 20;
+    const int32_t t = ++AI(a, 0xaf0);
+    AF(a, 0x400) = spill32((long double)AF(a, 0x400) - (AI(a, 0xb98) == 1 ? k0p025 : k0p05));
+    switch (type) {
+    case 23: case 24: case 25: case 27: case 28: case 37: case 38: case 39: case 40:
+    case 41: case 49: case 54: case 55: case 59: case 60: case 61: case 64: case 67:
+    case 68: case 69: case 70: case 71: case 73: case 74:
+        /* PORT-DEBT(stub, FUN_0042f7ad): the bosses' / special enemies'
+         * death arms (the boss cut-ins, FUN_0042f685 / FUN_0042f746,
+         * FUN_0041f759, FUN_0042439e, the rolling rocks 37..40) */
+        return;
+    default:
+        break;
+    }
+    if (AI(a, 0xadc) != 0) {
+        if (t == 1) { actor_anim_set(a, 4); audio_play_se_by_id(335); }
+        if (AI(a, 0xaf0) == 60) { actor_anim_set(a, 5); audio_play_se_by_id(334); }
+        if (AI(a, 0xaf0) == 90) { --AI(a, 0xadc); AI(a, ACT_INUSE) = 1; }
+        return;
+    }
+    if (t != 2) return;
+    AI(a, ACT_INUSE) = 0;
+    if (AI(a, 0xb40) == 0 && AI(a, 0xb2c) == 0 && rng_next15() % 3u == 0 &&
+        !stage_gate_floor_is_checkpoint())
+        AI(a, 0xad0) = 600;
+    camera_shake(8, 4, 4, k1);
+    audio_play_se_by_id(337);
+    scene1_pfo_table_a_alloc_passthrough(0, AF(a, 0x3f0),
+                                         spill32((long double)e->runtime_floats[2] * e->runtime_floats[0] + AF(a, 0x3f4)),
+                                         AF(a, 0x3f8), 3, 0.699999988079071f, -1, 0, 0);
+}
+
+/* FUN_0042c8a5: a monster-house slime (+0xb40 == 1) circles the chest point
+ * (+0xb48..b50) at a radius that shrinks from 10 over 280 ticks and back,
+ * slot +0xb44 of 8 around the ring, turning 0.015 a tick */
+static void actor_ai_ring(actor_t *a)
+{
+    static const float k10 = 10.0f, k300 = 300.0f, k0p015 = 0.014999999664723873f;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        scene1_record_b_spawn_npc(a, 11, 1);     /* FUN_00445a8c */
+    }
+    const float r = spill32((long double)k10 - (long double)spill32((long double)AI(a, 0xa58)) * k10 / k300);
+    const float ang = spill32((long double)spill32((long double)AI(a, 0xb44)) * k_2pi / 8.0f +
+                              (long double)spill32((long double)AI(a, 0xa5c)) * k0p015);
+    const double ad = ang;
+    AF(a, 0x3f0) = spill32((long double)spill32(x87_crt_sin(ad)) * r + AF(a, 0xb48));
+    AF(a, 0x3f4) = AF(a, 0xb4c);
+    AF(a, 0x3f8) = spill32((long double)spill32(x87_crt_cos(ad)) * r + AF(a, 0xb50));
+    ++AI(a, 0xa5c);
+    if (AI(a, 0xa60) == 0) {
+        if (++AI(a, 0xa58) == 280) AI(a, 0xa60) = 1;
+    } else if (--AI(a, 0xa58) == 0) {
+        AI(a, 0xa60) = 0;
+    }
+}
+
 /* FUN_0042f28c */
 void actor_ai_alive(actor_t *a)
 {
     if (AI(a, 0xb40) == 1) {
         actor_anim_set(a, 0);
-        /* PORT-DEBT(stub, FUN_0042c8a5): the knocked-back pose */
+        actor_ai_ring(a);                        /* FUN_0042c8a5 */
     } else {
         const int32_t sub = AI(a, 0xae4), type = AI(a, ACT_TYPE);
         if (sub == 1 && (type == 13 || type == 14)) {
@@ -554,7 +623,7 @@ void actor_pass(void)
                 /* PORT-DEBT(stub, FUN_0042e1a6): the death (EXP, drops, the kill count) */
             }
             if (AI(a, ACT_INUSE) == 2) {
-                /* PORT-DEBT(stub, FUN_0042f7ad): the dying actor */
+                actor_dying(a);              /* FUN_0042f7ad */
             } else if (AI(a, ACT_INUSE) == 1) {
                 actor_ai_alive(a);           /* FUN_0042f28c */
             }
