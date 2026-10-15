@@ -2902,7 +2902,42 @@ static void body_0x27(int i)
  *   0x51935c = 0.5f    0x519c20 = -0.8f
  */
 
-/* Engine 0x43dc03..0x43dcdb — Body 6 (types 0x10/0xb/0x14/0x13/0x99).
+/* Engine 0x43bf83..0x43c0df — types 0x10 / 0x16 / 0x17: a swing line held at
+ * the owner (OWNER_B).  DRAG = 1.5; POS = owner + (sin, 1, cos)(ROT_X), ALT =
+ * owner + (sin·t, 1, cos·t)(ROT_X) with t = PART_IDX·-0.4.  Unless the owner is
+ * in state 1 (+0xa54) the record dies; PART_IDX 0 at AGE 6..9 runs the hit
+ * test (FUN_0043865e) up to 5 times while it reports a hit; dies at AGE 20. */
+static void body_0x10_16_17(int i)
+{
+    static const float k1p5 = 1.5f, km0p4 = -0.4000000059604645f, k1 = 1.0f;
+    const void *owner = slot_owner(i);
+    if (!owner) return;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k1p5);
+    const float t = spill32((long double)spill32((float)slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX)) * km0p4);
+    const double a = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               spill32((long double)spill32(x87_crt_sin(a)) + owner_read_f(owner, 0x3f0)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x3f4) + k1));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               spill32((long double)spill32(x87_crt_cos(a)) + owner_read_f(owner, 0x3f8)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X,
+               spill32((long double)t * spill32(x87_crt_sin(a)) + owner_read_f(owner, 0x3f0)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, spill32((long double)owner_read_f(owner, 0x3f4) + k1));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z,
+               spill32((long double)t * spill32(x87_crt_cos(a)) + owner_read_f(owner, 0x3f8)));
+    if (owner_read_i(owner, 0xa54) != 1) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    const int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0 && age >= 6 && age < 10)
+        for (int k = 0; k != 5; k++)
+            if (state_machine_call_ret(slot_base(i)) == 0) break;
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 20)
+        scene1_records_b_tick_kill_slot(i);
+}
+
+/* Engine 0x43dc03..0x43dcdb — Body 6 (types 0xa/0xb/0x14/0x13/0x99).
  *
  *   if owner+0x428 != 1: kill slot
  *   motion_idx = owner+0x424
@@ -3082,7 +3117,8 @@ static void body_0x97(int i)
  */
 static void body_0xe_or_0x12(int i)
 {
-    void *owner = slot_owner_a(i);
+    /* asm 0x43df29: the owner is slot+0x14 (OWNER_B, FUN_00445a8c's) */
+    const void *owner = slot_owner(i);
     if (!owner) return;
 
     int32_t motion = owner_read_i(owner, 0x424);
@@ -6533,8 +6569,13 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x27:
         body_0x27(slot_idx);
         break;
-    /* C8j-tick.10 — Body 6 + Body 7 (motion-table anchor). */
     case 0x10:
+    case 0x16:
+    case 0x17:
+        body_0x10_16_17(slot_idx);
+        break;
+    /* C8j-tick.10 — Body 6 + Body 7 (motion-table anchor). */
+    case 0xa:
     case 0xb:
     case 0x14:
     case 0x13:

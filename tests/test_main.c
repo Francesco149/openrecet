@@ -1298,6 +1298,8 @@ struct test_case {
     X(scene_adv_guild_enter_sets_bag_size_floors_and_rows) \
     X(adv_guild_continue_reset_bag_size_and_empty_bag) \
     X(scene_adv_guild_intro_two_scripts_then_world_map) \
+    X(scene_town_event_tavern_script_fade_then_world_map) \
+    X(scene_town_event_mode16_leaves_on_z_only) \
     X(pause_menu_setup_house_list) \
     X(pause_menu_setup_status_entry) \
     X(pause_menu_setup_dungeon_entry) \
@@ -2333,6 +2335,7 @@ struct test_case {
     X(records_b_tick_t9_type_27_flag_0_ground_hit_transitions_to_grow) \
     \
     X(records_b_tick_t10_body6_killed_when_owner_gate_zero) \
+    X(records_b_tick_type_10_swing_line_follows_owner_state_1) \
     X(records_b_tick_t10_body6_motion_d_uses_fixed_drag_minus_0_8) \
     X(records_b_tick_t10_body6_motion_e_uses_fixed_drag_minus_0_8) \
     X(records_b_tick_t10_body6_other_motion_uses_drag_formula) \

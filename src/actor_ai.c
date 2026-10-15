@@ -23,6 +23,7 @@
 #include "scene1_overlay.h"      /* FUN_00414345 */
 #include "scene1_render.h"       /* the view / projection matrices (DAT_073de29c / 2dc) */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
+#include "sim.h"                 /* FUN_004532bc */
 #include "stage_gate.h"          /* FUN_0043195d */
 #include "stage_post_load.h"     /* DAT_0438b4d0 */
 #include "stage_palette.h"
@@ -453,6 +454,91 @@ static void actor_ai_t16(actor_t *a)
     }
 }
 
+/* FUN_0042f7ad's bomb arm (types 37..40; trap 9 spawns them lit): the fuse
+ * (+0xaf0) starts at 240 / 480 / 360 / 240 (red / blue / green / yellow) and
+ * blows at 540; a bomb rolling faster than 0.01 blows early on another live
+ * actor within 1.5 or a wall (not type 2) within its reach (+0x5c · scale · 3)
+ * ahead: SE 328, the burst 12, the shake, the blast record 18.  (The heading it
+ * also normalises into ±π is never used.) */
+static void actor_bomb_fuse(actor_t *a, int32_t t)
+{
+    static const float k0p2 = 0.20000000298023224f, k1p5 = 1.5f, k2f = 2.0f, k3f = 3.0f;
+    const int32_t type = AI(a, ACT_TYPE);
+    if (type == 37 && t < 240) AI(a, 0xaf0) = 240;
+    if (type == 39 && AI(a, 0xaf0) < 360) AI(a, 0xaf0) = 360;
+    if (type == 38 && AI(a, 0xaf0) < 480) AI(a, 0xaf0) = 480;
+    if (type == 40 && AI(a, 0xaf0) < 240) AI(a, 0xaf0) = 240;
+    int hit = 0;
+    const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
+    const float s2 = spill32((long double)vx * vx + (long double)vz * vz);
+    if (s2 > 0.0f) {
+        const float sp = spill32(crt_sqrt(s2));
+        if (sp > k0p01) {
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                const actor_t *o = &g_actor[i];
+                if (AI(o, ACT_INUSE) == 0 || o == a || AI(o, ACT_TYPE) < 0) continue;
+                const float dx = spill32((long double)AF(a, 0x3f0) - AF(o, 0x3f0));
+                const float dz = spill32((long double)AF(a, 0x3f8) - AF(o, 0x3f8));
+                const float d = spill32(crt_sqrt((double)((long double)dz * dz + (long double)dx * dx)));
+                if (d < k1p5) hit = 1;
+            }
+            const float yb = spill32((long double)AF(a, 0x3f4) + k0p2);
+            const float *rf = enemy_of(a)->runtime_floats;
+            const float r = spill32((long double)rf[6] * rf[0] * k3f);
+            float rx = AF(a, 0x3fc), rz = AF(a, 0x404);
+            if (sp < r) {
+                rx = spill32((long double)r * AF(a, 0x3fc) / sp);
+                rz = spill32((long double)r * AF(a, 0x404) / sp);
+            }
+            float frac = 0.0f;
+            mapcol_hit_t h;
+            h.tri = 0;
+            h.slot = 0;
+            if (mapcol_ray(AF(a, 0x3f0), yb, AF(a, 0x3f8), rx, 0.0f, rz, &frac, &h) != 0 &&
+                hit_type(h.slot, h.tri) != 2 && frac < k1)
+                hit = 1;
+        }
+    }
+    if (AI(a, 0xaf0) != 540 && !hit) return;
+    AI(a, ACT_INUSE) = 0;
+    audio_play_se_by_id(328);
+    scene1_pfo_table_a_alloc_passthrough(0, AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8),
+                                         12, k2f, -1, 0, 0);   /* FUN_0041331d */
+    camera_shake(32, 4, 4, k1);
+    scene1_record_b_spawn_npc(a, 18, 3);         /* FUN_00445a8c */
+}
+
+/* FUN_0042f685: every 8th tick of a boss's death (from 61) a shake, two SEs and
+ * a burst at a random point within 2.5 / 0..5 above. */
+static void actor_boss_burst(actor_t *a)
+{
+    if (AI(a, 0xaf0) % 8 != 1) return;
+    camera_shake(8, 4, 4, k1);
+    audio_play_se_by_id(328);
+    audio_play_se_by_id(319);
+    const float x = spill32(((long double)rng_next_unit() - k0p5) * k5 + AF(a, 0x3f0));
+    const float y = spill32((long double)rng_next_unit() * k5 + AF(a, 0x3f4));
+    const float z = spill32(((long double)rng_next_unit() - k0p5) * k5 + AF(a, 0x3f8));
+    scene1_pfo_table_a_alloc_passthrough(0, x, y, z, 3, 1.0f, -1, 0, 0);   /* FUN_0041331d */
+}
+
+/* FUN_0042f746: when no other actor of `a`'s type is alive (+0x428 == 1), every
+ * live actor starts dying (+0x428 = 2, +0xaf0 = 0, anim 2). */
+static void actor_last_of_kind(actor_t *a)
+{
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        const actor_t *o = &g_actor[i];
+        if (o != a && AI(o, ACT_INUSE) == 1 && AI(o, ACT_TYPE) == AI(a, ACT_TYPE)) return;
+    }
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        actor_t *o = &g_actor[i];
+        if (AI(o, ACT_INUSE) != 1) continue;
+        AI(o, ACT_INUSE) = 2;
+        AI(o, 0xaf0) = 0;
+        actor_anim_set(o, 2);
+    }
+}
+
 /* FUN_0042f7ad: a dying actor (+0x428 == 2) — the regular enemies' arm: at
  * tick 2 the slot frees (a 1-in-3 respawn timer of 600 off the checkpoint
  * floors), the shake, SE 337 and the burst overlay 3; a reviving one
@@ -466,12 +552,37 @@ void actor_dying(actor_t *a)
     const int32_t t = ++AI(a, 0xaf0);
     AF(a, 0x400) = spill32((long double)AF(a, 0x400) - (AI(a, 0xb98) == 1 ? k0p025 : k0p05));
     switch (type) {
-    case 23: case 24: case 25: case 27: case 28: case 37: case 38: case 39: case 40:
-    case 41: case 49: case 54: case 55: case 59: case 60: case 61: case 64: case 67:
+    case 23: case 49: case 54: case 55:
+        /* the crown slime / the black knight / the boss ahriman / the pumpkin
+         * ghost: a 120-tick burst; the last of its kind takes the floor down */
+        if (t == 1) {
+            g_dat_0438becc = 60;
+            int n = 0;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                const actor_t *o = &g_actor[i];
+                if (o != a && AI(o, ACT_INUSE) == 1 && AI(o, ACT_TYPE) == type) n++;
+            }
+            PW(0x56db0f4u).i = n != 0 ? 60 : 1200;
+            camera_shake(8, 4, 4, k1);
+            audio_play_se_by_id(328);
+            audio_play_se_by_id(319);
+            scene1_pfo_table_a_alloc_passthrough(0, AF(a, 0x3f0),
+                spill32((long double)e->runtime_floats[2] * e->runtime_floats[0] + AF(a, 0x3f4)),
+                AF(a, 0x3f8), 3, 1.0f, -1, 0, 0);   /* FUN_0041331d */
+            AI(a, 0x3dc) = 0;
+        }
+        if (AI(a, 0xaf0) == 60) actor_last_of_kind(a);   /* FUN_0042f746 */
+        if (AI(a, 0xaf0) > 60) actor_boss_burst(a);      /* FUN_0042f685 */
+        if (AI(a, 0xaf0) == 120) AI(a, ACT_INUSE) = 0;
+        return;
+    case 37: case 38: case 39: case 40:
+        actor_bomb_fuse(a, t);
+        return;
+    case 24: case 25: case 27: case 28:
+    case 41: case 59: case 60: case 61: case 64: case 67:
     case 68: case 69: case 70: case 71: case 73: case 74:
-        /* PORT-DEBT(stub, FUN_0042f7ad): the bosses' / special enemies'
-         * death arms (the boss cut-ins, FUN_0042f685 / FUN_0042f746,
-         * FUN_0041f759, FUN_0042439e, the rolling rocks 37..40) */
+        /* PORT-DEBT(stub, FUN_0042f7ad): the other bosses' / special enemies'
+         * death arms (the boss cut-ins, FUN_0041f759, FUN_0042439e) */
         return;
     default:
         break;
@@ -649,6 +760,483 @@ static void actor_ai_flier(actor_t *a)
     AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * speed + AF(a, 0x404));
 }
 
+/* FUN_00428ae4: types 13 / 14 on foot — state 0 (+0xa54): pick a heading to a
+ * random point 8 from the player, walk it 40 ticks at 0.02 (on the ground every
+ * 9th tick a 0.6 hop, the heading re-rolled: a right angle or the dominant axis
+ * toward a point 3 from the player, up to 20 tries for a clear 5-ray); six walks
+ * → state 1 (anim 3): a 0.04 lunge on ticks 2..40, back to state 0 at 91. */
+static void actor_ai_t13(actor_t *a)
+{
+    static const float k0p04 = 0.03999999910593033f, k3 = 3.0f;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        scene1_record_b_spawn_npc(a, 10, 1);     /* FUN_00445a8c */
+    }
+    if (AI(a, 0xae4) == 1) return;
+    const int32_t st = AI(a, 0xa54);
+    if (st == 1) {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t < 1) return;
+        if (t - 1 >= 1 && t - 1 < 40) {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p04 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p04 + AF(a, 0x404));
+        }
+        if (t - 1 == 90) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    actor_anim_set(a, 0);
+    if (++AI(a, 0xa58) == 1) {
+        const double r = spill32((long double)rng_next_unit() * k_2pi);
+        const float tx = spill32((long double)spill32(x87_crt_sin(r)) * k8 + PX);
+        const float tz = spill32((long double)spill32(x87_crt_cos(r)) * k8 + PZ);
+        const float dx = spill32((long double)tx - AF(a, 0x3f0));
+        const float dz = spill32((long double)tz - AF(a, 0x3f8));
+        AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < 0) return;
+    if (t >= 40) {
+        AI(a, 0xa58) = 0;
+        if (++AI(a, 0xa5c) == 6) {
+            AI(a, 0xa5c) = 0;
+            AI(a, 0xa54) = 1;
+            actor_anim_set(a, 3);
+        }
+        return;
+    }
+    {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+    }
+    if (AF(a, 0x3f4) != AF(a, 0x3e0) || ++AI(a, 0xa60) <= 8) return;
+    AI(a, 0xa60) = 0;
+    AF(a, 0x400) = k0p6;
+    const double r = spill32((long double)rng_next_unit() * k_2pi);
+    const float tx = spill32((long double)spill32(x87_crt_sin(r)) * k3 + PX);
+    const float tz = spill32((long double)spill32(x87_crt_cos(r)) * k3 + PZ);
+    float dx = spill32((long double)tx - AF(a, 0x3f0));
+    float dz = spill32((long double)tz - AF(a, 0x3f8));
+    const float adx = dx < 0.0f ? -dx : dx, adz = dz < 0.0f ? -dz : dz;
+    if (adx > adz) dz = 0.0f;
+    else dx = 0.0f;
+    for (int i = 0; i != 20; i++) {
+        const float q = (float)(int32_t)(rng_next15() & 3u);
+        AF(a, 0x420) = spill32((long double)q * k_pi2);
+        if (rng_next15() & 1u)
+            AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+        const double h = AF(a, 0x420);
+        const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k5);
+        const float sz = spill32((long double)spill32(x87_crt_cos(h)) * k5);
+        float frac = 0.0f;
+        mapcol_hit_t hit;
+        hit.tri = 0;
+        hit.slot = 0;
+        if (mapcol_ray(AF(a, 0x3f0), spill32((long double)AF(a, 0x3f4) + k1), AF(a, 0x3f8),
+                       sx, 0.0f, sz, &frac, &hit) == 0)
+            break;
+    }
+}
+
+/* FUN_00429962: type 22 (the rabbit) — state 0: a heading to a point 2 from the
+ * player (up to 20 tries for a clear 3-ray), a 30 + rand&63 tick pause after 30
+ * ticks of 0.02 walk, then on the ground state 1 (anim 3): the hop (0.6 at tick
+ * 2, 0.04 forward ticks 2..30, record 12 at 5, back at 41).  The player's swing
+ * (DAT_056db048 2, DAT_056db04c < 20) within 4 → state 2: a 0.04 backstep for 30
+ * ticks, with a 0.6 jump when the 3-ray behind is clear (+0xb08 for 6 ticks). */
+static void actor_ai_t22(actor_t *a)
+{
+    static const float k0p04 = 0.03999999910593033f, k3 = 3.0f, km3 = -3.0f;
+    float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    float dist;
+    if (d2 == 0.0f) {
+        dz = k0p01;
+        dist = k0p01;
+    } else {
+        dist = spill32(crt_sqrt(d2));
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 2) {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t < 1) return;
+        const int32_t e = t - 1;
+        if (e < 30) {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) - (long double)spill32(x87_crt_sin(h)) * k0p04);
+            AF(a, 0x404) = spill32((long double)AF(a, 0x404) - (long double)spill32(x87_crt_cos(h)) * k0p04);
+        }
+        if (e == 0) {
+            const double h = AF(a, 0x420);
+            const float sx = spill32((long double)spill32(x87_crt_sin(h)) * km3);
+            const float sz = spill32((long double)spill32(x87_crt_cos(h)) * km3);
+            float frac = 0.0f;
+            mapcol_hit_t hit;
+            hit.tri = 0;
+            hit.slot = 0;
+            if (mapcol_ray(AF(a, 0x3f0), spill32((long double)AF(a, 0x3f4) + k1), AF(a, 0x3f8),
+                           sx, 0.0f, sz, &frac, &hit) != 0)
+                return;
+            AI(a, 0xb08) = 1;
+            AF(a, 0x400) = k0p6;
+        }
+        if (e >= 6) AI(a, 0xb08) = 0;
+        if (e == 60) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st == 1) {
+        if (++AI(a, 0xa58) == 5)
+            scene1_record_b_spawn_npc(a, 12, 1);  /* FUN_00445a8c */
+        const int32_t t = AI(a, 0xa58);
+        if (t < 1) return;
+        const int32_t e = t - 1;
+        if (e == 1) AF(a, 0x400) = k0p6;
+        if (e >= 1 && e < 30) {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p04 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p04 + AF(a, 0x404));
+        }
+        if (e == 40) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    actor_anim_set(a, 0);
+    if (++AI(a, 0xa58) == 1) {
+        for (int i = 0; ; ) {
+            const double r = spill32((long double)rng_next_unit() * k_2pi);
+            const float s = spill32(x87_crt_sin(r));
+            const float tx = spill32((long double)s + s + PX);
+            const float c = spill32(x87_crt_cos(r));
+            const float tz = spill32((long double)c + c + PZ);
+            const float ddx = spill32((long double)tx - AF(a, 0x3f0));
+            const float ddz = spill32((long double)tz - AF(a, 0x3f8));
+            const float h = spill32(crt_atan2(ddx, ddz));
+            AF(a, 0x420) = h;
+            const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k3);
+            const float sz = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * k3);
+            float frac = 0.0f;
+            mapcol_hit_t hit;
+            hit.tri = 0;
+            hit.slot = 0;
+            if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0)
+                break;
+            if (++i == 20) break;
+        }
+        AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+    }
+    if (PW(0x56db048u).i == 2 && PW(0x56db04cu).i < 20 && dist < k4) {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 2;
+        AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+        return;
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < 30) return;
+    const int32_t e = t - 30;
+    if (e >= 1 && e < 60) {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+    }
+    if (e < AI(a, 0xa60) + 30) return;
+    AI(a, 0xa58) = 0;
+    if (AF(a, 0x3f4) == AF(a, 0x3e0)) {
+        AI(a, 0xa54) = 1;
+        actor_anim_set(a, 3);
+    }
+}
+
+/* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
+ * 2.5 + 2 sin(t·0.05) (vy eased, clamped ±0.1) and circle a drifting centre
+ * (+0xa9c / +0xaa4, 5% a tick toward the player — or home when +0xa64 % 4 >= 2)
+ * at radius 5 on a sin-wobbled sector (+0xa50 & 7 of 7), 288-tick cycles; at
+ * tick 130 + rand&127 of the cycle state 1 (anim 3; the player phase) or stay.
+ * State 1: turn in, record 17 at 20, the -0.18 dive at 0.07 on ticks 15..54, back
+ * at 70.  State 2: home again at 15, back at 70.  The head's player distance
+ * (its sqrt discarded) is dead. */
+static void actor_ai_bee(actor_t *a)
+{
+    static const float k2p5 = 2.5f, k0p0285 = 0.028499998152256012f;
+    static const float k0p07 = 0.07000000029802322f, km0p18 = -0.18000000715255737f;
+    static const float km0p1 = -0.10000000149011612f, k0p04 = 0.03999999910593033f;
+    static const float k7 = 7.0f, k0p628 = 0.6283185482025146f, k0p033 = 0.032999999821186066f;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AI(a, 0xb04) = 1;
+    }
+    AI(a, 0xa00) = 1;
+    const int32_t st = AI(a, 0xa54);
+    if (st == 2) {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t == 15) {
+            AF(a, 0x3f0) = AF(a, 0x414);
+            AF(a, 0x3f4) = AF(a, 0x418);
+            AF(a, 0x3f8) = AF(a, 0x41c);
+        }
+        if (t == 70) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st == 1) {
+        if (++AI(a, 0xa58) == 20)
+            scene1_record_b_spawn_npc(a, 17, 1);  /* FUN_00445a8c */
+        if (AI(a, 0xa58) < 20)
+            actor_turn_to_player(a, k0p1);        /* FUN_0041f789 */
+        const int32_t t = AI(a, 0xa58);
+        if (t >= 15 && t < 55) {
+            AF(a, 0x400) = km0p18;
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p07 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p07 + AF(a, 0x404));
+        }
+        if (AI(a, 0xa58) == 70) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    const int32_t cyc = AI(a, 0xa5c) % 288;
+    const float ph = spill32((long double)spill32((float)AI(a, 0x398)) * k0p05);
+    const float s0 = spill32(x87_crt_sin(ph));
+    const float hy = spill32((long double)s0 + s0 + k2p5);
+    if ((long double)hy - k0p5 > AF(a, 0x3f4))
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p0285);
+    else if ((long double)hy + k0p5 < AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p03) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+    ++AI(a, 0xa5c);
+    if (cyc == 1) {
+        AI(a, 0xa60) = (int32_t)(rng_next15() & 0x7fu);
+        if (AI(a, 0xa64) % 4 < 2) {
+            AF(a, 0xa9c) = PX;
+            AF(a, 0xaa4) = PZ;
+        } else {
+            AF(a, 0xa9c) = AF(a, 0x414);
+            AF(a, 0xaa4) = AF(a, 0x41c);
+        }
+    }
+    const int32_t w = AI(a, 0xa60);
+    if (cyc == w + 130) {
+        AI(a, 0xa54) = AI(a, 0xa64) % 4 < 2 ? 1 : 0;
+        actor_anim_set(a, 3);
+        const int32_t r = (int32_t)(rng_next15() & 7u);
+        ++AI(a, 0xa64);
+        AI(a, 0xa50) = r;
+        return;
+    }
+    float tx, tz;
+    if (AI(a, 0xa64) % 4 < 2) {
+        tx = PX;
+        tz = PZ;
+    } else {
+        tx = AF(a, 0x414);
+        tz = AF(a, 0x41c);
+    }
+    const float wp = spill32((long double)spill32((float)(AI(a, 0xa5c) + 2 * w)) * k0p04);
+    const float s = spill32(x87_crt_sin(wp));
+    const float q = spill32((float)(AI(a, 0xa50) & 7));
+    const float ang = spill32((long double)q * k_2pi / k7 + (long double)s * k0p628);
+    AF(a, 0xa9c) = spill32(((long double)tx - AF(a, 0xa9c)) * k0p05 + AF(a, 0xa9c));
+    AF(a, 0xaa4) = spill32(((long double)tz - AF(a, 0xaa4)) * k0p05 + AF(a, 0xaa4));
+    const float ax = spill32((long double)ang - g_scene1_camera_yaw);
+    const float px2 = spill32((long double)spill32(x87_crt_sin(ax)) * k5 + AF(a, 0xa9c));
+    const float az = spill32((long double)ang - g_scene1_camera_yaw);
+    const float pz2 = spill32((long double)spill32(x87_crt_cos(az)) * k5 + AF(a, 0xaa4));
+    const float ddx = spill32((long double)px2 - AF(a, 0x3f0));
+    const float ddz = spill32((long double)pz2 - AF(a, 0x3f8));
+    const float d2 = spill32((long double)ddz * ddz + (long double)ddx * ddx);
+    if (d2 > 0.0f) {
+        const float dist = spill32(crt_sqrt(d2));
+        actor_turn_to_player(a, k0p1);            /* FUN_0041f789 */
+        if ((double)dist > 1.0) {
+            AF(a, 0x3fc) = spill32((long double)ddx * k0p033 / dist + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)ddz * k0p033 / dist + AF(a, 0x404));
+        }
+    }
+    actor_anim_set(a, 0);
+}
+
+/* FUN_0042aef7: type 23 (the crown slime boss).  Every blue slime (type 2) older
+ * than 600 ticks slides to it at 0.2 and, within 3 and 2 high, is absorbed (power
+ * +0xab8 += 4, max 5).  Every 300 ticks the power above 1 sheds 1.34 (a ring of
+ * 10 particles).  +0xabc eases 0.1 a tick toward 0.15 + power·0.15.  While fewer
+ * blue slimes live than the dungeon's cap (1; 3 / 4 / 5 in dungeons 2 / 3 / 4),
+ * one spawns 10 ticks into the 600-tick cycle (+0xa64) at 2..10 from (-40, -40),
+ * more than 10 from the player.  State 0 walks (hops 0.3 at 32 / 48 / 64) to a
+ * point 8 from the player; then on the ground state 2: the leap (vy 1, homing at
+ * 0.025 for 20 ticks, the landing record 14 + shake + wobble 16 at 31).  State 8
+ * (set elsewhere): the shake at 30, back at 240. */
+static void actor_ai_t23(actor_t *a)
+{
+    static const float k3 = 3.0f, k0p2 = 0.20000000298023224f, k1p34 = 1.340000033378601f;
+    static const float k0p45 = 0.44999998807907104f, k0p75 = 0.75f, k0p025 = 0.02500000037252903f;
+    static const float k0p015 = 0.014999999664723873f, k2p5 = 2.5f, k10 = 10.0f;
+    int32_t count = 0;
+    const float dx0 = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz0 = spill32((long double)PZ - AF(a, 0x3f8));
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AF(a, 0xab8) = k5;
+    }
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        actor_t *b = &g_actor[i];
+        if (AI(b, ACT_INUSE) == 0 || AI(b, ACT_TYPE) != 2) continue;
+        if (AI(b, 0x398) >= 600) {
+            const float ddx = spill32((long double)AF(a, 0x3f0) - AF(b, 0x3f0));
+            const float ddy = spill32((long double)AF(a, 0x3f4) - AF(b, 0x3f4));
+            const float ddz = spill32((long double)AF(a, 0x3f8) - AF(b, 0x3f8));
+            const float d = spill32(crt_sqrt((double)((long double)ddz * ddz + (long double)ddx * ddx)));
+            if (d >= k3) {
+                AF(b, 0x3f0) = spill32((long double)ddx * k0p2 / d + AF(b, 0x3f0));
+                AF(b, 0x3f8) = spill32((long double)ddz * k0p2 / d + AF(b, 0x3f8));
+            } else if ((ddy < 0.0f ? -ddy : ddy) < k2 && AI(b, ACT_INUSE) != 2) {
+                AI(b, ACT_INUSE) = 0;
+                camera_shake(8, 4, 4, k1);           /* FUN_0044b219 */
+                audio_play_se_by_id(0x13f);
+                scene1_spawn(0, AF(b, 0x3f0), spill32((long double)AF(b, 0x3f4) + k0p5),
+                             AF(b, 0x3f8), 0x93, k0p2, AI(a, ACT_SLOT));   /* FUN_00447f4f */
+                AI(a, 0xb90) = -1;
+                AI(a, 0xb94) = 30;
+                AI(a, 0xa5c) = 0;
+                audio_play_se_by_id(0x151);
+                AF(b, ACT_HP) = 0.0f;
+                const float p = spill32((long double)AF(a, 0xab8) + k4);
+                AI(b, 0xadc) = 0;
+                AF(a, 0xab8) = p;
+                if (p >= k5) AF(a, 0xab8) = k5;
+            }
+        }
+        count++;
+    }
+    if (AI(a, 0xa54) == 8) {
+        if (++AI(a, 0xa58) == 30) {
+            camera_shake(30, 4, 4, k1);
+            audio_play_se_by_id(0x16d);
+            sim_screen_wobble(32);                   /* FUN_004532bc */
+        }
+        if (AI(a, 0xa58) == 240) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    if (++AI(a, 0xa5c) >= 300) {
+        AI(a, 0xa5c) = 0;
+        if (AF(a, 0xab8) > k1) {
+            audio_play_se_by_id(0x16e);
+            const float p = spill32((long double)AF(a, 0xab8) - k1p34);
+            AF(a, 0xab8) = p;
+            if (p < k1) AF(a, 0xab8) = k1;
+            for (int i = 0; i != 10; i++) {
+                const double r = spill32((long double)spill32((float)i) * k_pi4);
+                const float s = spill32(x87_crt_sin(r));
+                const float px = spill32((long double)s + s + AF(a, 0x3f0));
+                const float c = spill32(x87_crt_cos(r));
+                const float pz = spill32((long double)c + c + AF(a, 0x3f8));
+                scene1_spawn(0, px, spill32((long double)AF(a, 0x3f4) + k2p5), pz, 14, k0p45, 4);
+            }
+        }
+    }
+    const float sc = spill32((long double)AF(a, 0xab8) / k5 * k0p75 + k0p15);
+    if ((long double)sc - k0p1 >= AF(a, 0xabc))
+        AF(a, 0xabc) = spill32((long double)AF(a, 0xabc) + k0p1);
+    else if ((long double)sc + k0p1 <= AF(a, 0xabc))
+        AF(a, 0xabc) = spill32((long double)AF(a, 0xabc) - k0p1);
+    if (AI(a, 0xa64) >= 10) AI(a, 0xa64)++;
+    int32_t cap = 1;
+    if (g_scene1_combat_stage_id == 4) cap = 5;
+    if (g_scene1_combat_stage_id == 3) cap = 4;
+    if (g_scene1_combat_stage_id == 2) cap = 3;
+    if (count < cap) {
+        if (AI(a, 0xa64) < 10) AI(a, 0xa64)++;
+        if (AI(a, 0xa64) == 10) {
+            float tx = 0.0f, tz = 0.0f;
+            for (int i = 0; i != 30; i++) {
+                const float r = spill32((long double)rng_next_unit() * k_2pi);
+                const float rad = spill32((long double)rng_next_unit() * k8 + k2);
+                const double X = r;
+                tx = spill32((long double)spill32(x87_crt_sin(X)) * rad - k40);
+                tz = spill32((long double)spill32(x87_crt_cos(X)) * rad - k40);
+                const float ddx = spill32((long double)PX - tx);
+                const float ddz = spill32((long double)PZ - tz);
+                if (ddx == 0.0f && ddz == 0.0f) continue;
+                const float d = spill32(crt_sqrt((double)((long double)ddz * ddz + (long double)ddx * ddx)));
+                if (d > k10) break;
+            }
+            const actor_stage_t st = stage_now();
+            actor_t *n = actor_spawn_enemy(&st, tx, k10, tz, 2);   /* FUN_0041f903 */
+            if (n) AI(n, 0xb2c) = 1;                 /* retail does not check */
+        }
+    }
+    if (AI(a, 0xa64) == 600) AI(a, 0xa64) = 0;
+    AI(a, 0xb20) = 1;
+    const int32_t st = AI(a, 0xa54);
+    if (st == 2) {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t == 1) AF(a, 0x400) = k1;
+        AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p95);
+        AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p95);
+        if (t < 20) {
+            const float d2 = spill32((long double)dz0 * dz0 + (long double)dx0 * dx0);
+            if (d2 > 0.0f) {
+                AF(a, 0x3fc) = spill32((long double)dx0 * k0p025);
+                AF(a, 0x404) = spill32((long double)dz0 * k0p025);
+            }
+        }
+        if (t == 31) {
+            scene1_record_b_spawn_npc(a, 14, 1);  /* FUN_00445a8c */
+            camera_shake(30, 4, 4, k1);
+            audio_play_se_by_id(0x16d);
+            sim_screen_wobble(16);
+        }
+        if (AI(a, 0xa58) > 60) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    actor_anim_set(a, 0);
+    if (++AI(a, 0xa58) == 1) {
+        const double r = spill32((long double)rng_next_unit() * k_2pi);
+        const float tx = spill32((long double)spill32(x87_crt_sin(r)) * k8 + PX);
+        const float tz = spill32((long double)spill32(x87_crt_cos(r)) * k8 + PZ);
+        const float ddx = spill32((long double)tx - AF(a, 0x3f0));
+        const float ddz = spill32((long double)tz - AF(a, 0x3f8));
+        AF(a, 0x420) = spill32(crt_atan2(ddx, ddz));
+        AI(a, 0xa60) = (int32_t)(rng_next15() & 0x7fu) + 0x3f;
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < 30) return;
+    const int32_t e = t - 30;
+    if (AF(a, 0x3f4) == AF(a, 0x3e0) && (e == 2 || e == 18 || e == 34))
+        AF(a, 0x400) = k0p3;
+    if (e >= 1 && e < 40) {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p015 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p015 + AF(a, 0x404));
+    }
+    if (e < AI(a, 0xa60) + 30) return;
+    AI(a, 0xa58) = 0;
+    if (AF(a, 0x3f4) == AF(a, 0x3e0)) AI(a, 0xa54) = 2;
+}
+
 /* FUN_0042f28c */
 void actor_ai_alive(actor_t *a)
 {
@@ -665,6 +1253,14 @@ void actor_ai_alive(actor_t *a)
             if (AI(a, 0xa00) == 1) AF(a, 0x400) = spill32((long double)AF(a, 0x400) * 0.75f);
         } else if (type >= 0 && type <= 5) {
             actor_ai_slime(a);
+        } else if (type >= 10 && type <= 12) {
+            actor_ai_bee(a);                     /* FUN_00428f0a */
+        } else if (type == 13 || type == 14) {
+            actor_ai_t13(a);                     /* FUN_00428ae4 */
+        } else if (type == 22) {
+            actor_ai_t22(a);                     /* FUN_00429962 */
+        } else if (type == 23) {
+            actor_ai_t23(a);                     /* FUN_0042aef7 */
         } else if (type == 16 && sub != 3) {
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {

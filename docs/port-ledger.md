@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 650, discovered 1807 → 741 referenced-or-better (29.1%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 654, discovered 1803 → 745 referenced-or-better (29.2%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 9
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (650) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (654) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -136,8 +136,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x404e44 | FUN_00404e44 | 29 | ✓ |  | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ |  | encyclopedia.c, render_quad.c, render_quad.h (+1) |
 | 0x404e98 | FUN_00404e98 | 100 | ✓ |  | render_quad.c, render_quad.h |
-| 0x404efc | FUN_00404efc | 562 | ✓ |  | customer_service_render.c, render_quad.c, render_quad.h (+5) |
-| 0x405354 | FUN_00405354 | 76 | ✓ |  | customer_service_render.c, font_draw.c, render_quad.c (+4) |
+| 0x404efc | FUN_00404efc | 562 | ✓ |  | customer_service_render.c, render_quad.c, render_quad.h (+6) |
+| 0x405354 | FUN_00405354 | 76 | ✓ |  | customer_service_render.c, font_draw.c, render_quad.c (+5) |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ |  | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  |  | debug_param_tick.h |
 | 0x405a52 | FUN_00405a52 | 162 | ✓ |  | scene1_dialogue_draw.c, scene1_dialogue_run.c |
@@ -226,10 +226,11 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x431a80 | FUN_00431a80 | 156 | ✓ |  | scene1_preload.c, scene1_preload.h |
 | 0x431b1c | FUN_00431b1c | 568 | ✓ |  | enemy_place.h, scene1_postload.c |
 | 0x431d54 | FUN_00431d54 | 1762 | ✓ |  | actor_table.h, enemy_place.c, enemy_place.h (+1) |
+| 0x432473 | FUN_00432473 | 1064 | ✓ |  | dungeon_objects.c, dungeon_objects.h, scene1_postload.c |
 | 0x43289b | FUN_0043289b | 555 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+1) |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+2) |
 | 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | actor_ai.c, collision_house.c, collision_mesh.h (+24) |
-| 0x433674 | FUN_00433674 | 2354 | ✓ |  | actor_ai.c, collision_resolve.c, collision_resolve.h (+10) |
+| 0x433674 | FUN_00433674 | 2354 | ✓ |  | actor_ai.c, collision_resolve.c, collision_resolve.h (+11) |
 | 0x433fa6 | FUN_00433fa6 | 426 | ✓ |  | party_move.c, party_move.h |
 | 0x434198 | FUN_00434198 | 60 | ✓ |  | party_move.h |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ |  | storage.c |
@@ -287,7 +288,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44b1c0 | FUN_0044b1c0 | 89 | ✓ |  | actor_ai.h |
 | 0x44b219 | FUN_0044b219 | 60 | ✓ |  | actor_ai.c, record_hit.c, scene1_camera.c (+4) |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
-| 0x44b257 | FUN_0044b257 | 55 | ✓ |  | dungeon_objects.c, dungeon_objects.h, scene1_postload.c |
+| 0x44b257 | FUN_0044b257 | 55 | ✓ |  | dungeon_flow.c, dungeon_objects.c, dungeon_objects.h (+1) |
 | 0x44b2e6 | FUN_0044b2e6 | 85 | ✓ |  | dungeon_flow.c, dungeon_flow.h |
 | 0x44b38c | FUN_0044b38c | 681 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c |
 | 0x44b635 | FUN_0044b635 | 1015 | ✓ |  | dungeon_flow.h, scene1_sim.c |
@@ -303,9 +304,11 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44c88f | FUN_0044c88f | 299 | ✓ |  | scene1_postload.c, stage_palette.h |
 | 0x44c9ba | FUN_0044c9ba | 554 |  |  | dungeon_flow.c, dungeon_flow.h, scene1_camera.c (+1) |
 | 0x44cbe4 | FUN_0044cbe4 | 156 | ✓ |  | dungeon_flow.c |
+| 0x44cc80 | FUN_0044cc80 | 1060 | ✓ |  | dungeon_flow.c, scene1_camera.c |
 | 0x44d0a4 | FUN_0044d0a4 | 320 | ✓ |  | dungeon_flow.c |
-| 0x44d1e4 | FUN_0044d1e4 | 665 | ✓ |  | scene1_postload.c |
+| 0x44d1e4 | FUN_0044d1e4 | 665 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
 | 0x44d47d | FUN_0044d47d | 1366 |  |  | dungeon_flow.c |
+| 0x44d9d3 | FUN_0044d9d3 | 361 | ✓ |  | scene1_postload.c |
 | 0x44f078 | FUN_0044f078 | 197 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ |  | scene1_postload.h, scene1_preload.c |
 | 0x450877 | FUN_00450877 | 1641 |  |  | dungeon_flow.c |
@@ -355,6 +358,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45bd22 | FUN_0045bd22 | 15 | ✓ |  | floor_layout.c, floor_layout.h |
 | 0x45bd36 | FUN_0045bd36 | 140 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h, scene_pause.c |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ |  | party_roster.h, scene_adv_guild.c, scene_adv_guild.h (+1) |
+| 0x45c025 | FUN_0045c025 | 44 | ✓ |  | dungeon_flow.c |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ |  | scene1_tutorial_dispatch.h, scene_adv_guild.c, scene_adv_guild.h (+1) |
 | 0x45cc1e | FUN_0045cc1e | 103 | ✓ |  | main.c, scene_adv_guild.c, scene_adv_guild.h |
 | 0x45cc85 | FUN_0045cc85 | 4579 | ✓ |  | main.c, scene_adv_guild.c, scene_adv_guild.h |
@@ -546,10 +550,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47c228 | FUN_0047c228 | 61 | ✓ |  | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ |  | font.h, font_atlas.c, font_atlas.h (+1) |
 | 0x47c474 | FUN_0047c474 | 1425 | ✓ |  | font.h, font_atlas.c, font_atlas.h (+1) |
-| 0x47ca05 | FUN_0047ca05 | 454 | ✓ |  | choice_box.c, encyclopedia.c, font.h (+5) |
+| 0x47ca05 | FUN_0047ca05 | 454 | ✓ |  | choice_box.c, encyclopedia.c, font.h (+6) |
 | 0x47cbcb | FUN_0047cbcb | 855 | ✓ |  | font.h, font_alloc.c, font_alloc.h (+3) |
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ |  | font.h, font_upload.c, font_upload.h |
-| 0x47d0ea | FUN_0047d0ea | 98 | ✓ |  | font_draw.c, font_draw.h |
+| 0x47d0ea | FUN_0047d0ea | 98 | ✓ |  | font_draw.c, font_draw.h, scene1_hud.c |
 | 0x47d14c | FUN_0047d14c | 399 | ✓ |  | choice_box.c, font_draw.h, scene1_counter_menu.c (+5) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ |  | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ |  | font_draw.c, font_draw.h, scene1_dialogue_draw.c |

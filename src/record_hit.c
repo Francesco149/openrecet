@@ -13,7 +13,7 @@
 #include "dungeon_objects.h"     /* the stage objects DAT_0695ef78 */
 #include "dungeon_party.h"       /* FUN_00485712 */
 #include "floor_layout.h"        /* DAT_073e03ac, the trap spots DAT_0438b200 / b390 / b3e0 */
-#include "math3d.h"              /* FUN_004a35ef / FUN_004a3553 / FUN_004a2a10 */
+#include "math3d.h"              /* FUN_004a35ef RotationY / FUN_004a3553 RotationX / FUN_004a2a10 */
 #include "map_collision.h"       /* FUN_00433674 */
 #include "party.h"
 #include "rng.h"                 /* FUN_00471084 / FUN_00471089 */
@@ -30,6 +30,7 @@
 #include "scene1_spawn.h"        /* FUN_00447f4f */
 #include "stage_gate.h"          /* DAT_0438b4cc, FUN_00431990, FUN_004319d6 */
 #include "stage_post_load.h"     /* DAT_0438b4d0, DAT_0438bef4, FUN_00435fbb */
+#include "sim.h"                  /* FUN_004532bc */
 #include "tables_enemy.h"
 #include "tables_enemylist.h"
 #include "tables_item.h"
@@ -714,8 +715,8 @@ static void trap_body_spawn(int32_t type, float x, float y, float z, float ang)
             RF(s, 0x8c) = spill32((long double)rng_next_unit() * k_2pi);
             RF(s, 0x94) = spill32((long double)rng_next_unit() * k_2pi);
             float r[16];
-            mat4_rotation_x(m, RF(s, 0x8c));        /* FUN_004a35ef */
-            mat4_rotation_y(r, RF(s, 0x94));        /* FUN_004a3553 */
+            mat4_rotation_y(m, RF(s, 0x8c));        /* FUN_004a35ef (RotationY) */
+            mat4_rotation_x(r, RF(s, 0x94));        /* FUN_004a3553 (RotationX) */
             mat4_mul(m, r, m);                      /* FUN_004a2a10 */
             RF(s, 0x60) = spill32((long double)RF(s, 0x60) + k2);
             RF(s, 0x68) = 0.0f; RF(s, 0x6c) = 0.0f; RF(s, 0x70) = 0.0f;
@@ -725,7 +726,7 @@ static void trap_body_spawn(int32_t type, float x, float y, float z, float ang)
         } else if (type == 140) {
             const float yaw = spill32((long double)rng_next_unit() * k_2pi);
             RF(s, 0x90) = yaw;
-            mat4_rotation_x(m, yaw);                /* FUN_004a35ef */
+            mat4_rotation_y(m, yaw);                /* FUN_004a35ef (RotationY) */
             const double ad = ang;
             RF(s, 0x68) = spill32((long double)spill32(x87_crt_sin(ad)) * k0p2);
             RF(s, 0x6c) = 0.0f;
@@ -1531,4 +1532,5 @@ void record_sm_install(void)
     scene1_records_b_set_wall_flag_at_hook(wall_type);
     scene1_records_b_set_state_machine_hook(record_sm_tick);
     scene1_records_b_set_notify_queue_hook(camera_shake);   /* FUN_0044b219 */
+    scene1_records_b_set_aux_4532bc_hook(sim_screen_wobble); /* FUN_004532bc */
 }

@@ -23,10 +23,10 @@
    "semantic-collision": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 70,
+  "retiring_engine_fns": 69,
   "by_engine_fn": {
+   "FUN_00436f97": 4,
    "FUN_0048cdcc": 4,
-   "FUN_00436f97": 3,
    "FUN_00473c15": 3,
    "FUN_00490c78": 3,
    "FUN_004147d5": 2,
@@ -86,7 +86,6 @@
    "FUN_00489e66": 1,
    "FUN_0048a383": 1,
    "FUN_0048a833": 1,
-   "FUN_0048b850 b930": 1,
    "FUN_0048b850 da1bc": 1,
    "FUN_0048b850 trail": 1,
    "FUN_0048e49c": 1,
@@ -167,7 +166,7 @@
    "engine_fn": "0x43e...",
    "desc": "types >= 64 read past DAT_005c23f0 into",
    "file": "src/scene1_records_b_tick.c",
-   "line": 3137,
+   "line": 3173,
    "kind_known": false
   },
   {
@@ -319,7 +318,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the boost aura (types 24 / 22)",
    "file": "src/dungeon_party.c",
-   "line": 1314,
+   "line": 1390,
    "kind_known": true
   },
   {
@@ -367,7 +366,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 1534,
+   "line": 1590,
    "kind_known": true
   },
   {
@@ -375,7 +374,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 1491,
+   "line": 1547,
    "kind_known": true
   },
   {
@@ -383,7 +382,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 1246,
+   "line": 1302,
    "kind_known": true
   },
   {
@@ -391,7 +390,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 1213,
+   "line": 1269,
    "kind_known": true
   },
   {
@@ -399,7 +398,7 @@
    "engine_fn": "FUN_0042f7ad",
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 527,
+   "line": 584,
    "kind_known": true
   },
   {
@@ -407,7 +406,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 1544,
+   "line": 1600,
    "kind_known": true
   },
   {
@@ -453,9 +452,17 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_00436f97",
+   "desc": "dungeons 2..5's setups FUN_0044d9d3 /",
+   "file": "src/scene1_postload.c",
+   "line": 339,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 371,
+   "line": 373,
    "kind_known": true
   },
   {
@@ -479,7 +486,7 @@
    "engine_fn": "FUN_004427f1",
    "desc": "dungeons 2..5's events \u2014 the",
    "file": "src/dungeon_flow.c",
-   "line": 469,
+   "line": 591,
    "kind_known": true
   },
   {
@@ -495,7 +502,7 @@
    "engine_fn": "FUN_0044376a",
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
-   "line": 1391,
+   "line": 1467,
    "kind_known": true
   },
   {
@@ -503,7 +510,7 @@
    "engine_fn": "FUN_0044b12f",
    "desc": "the queued b554 item effects",
    "file": "src/dungeon_party.c",
-   "line": 1222,
+   "line": 1273,
    "kind_known": true
   },
   {
@@ -511,7 +518,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 402,
+   "line": 404,
    "kind_known": true
   },
   {
@@ -525,9 +532,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_0044d1e4",
-   "desc": "dungeons 1..5's setups FUN_0044d1e4 /",
-   "file": "src/scene1_postload.c",
-   "line": 337,
+   "desc": "floor 14 \u2014 the portals by the story",
+   "file": "src/dungeon_flow.c",
+   "line": 555,
    "kind_known": true
   },
   {
@@ -535,7 +542,7 @@
    "engine_fn": "FUN_0044d47d",
    "desc": "the floor-14 timeline (Charme, type 25,",
    "file": "src/dungeon_flow.c",
-   "line": 448,
+   "line": 570,
    "kind_known": true
   },
   {
@@ -647,7 +654,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 176,
+   "line": 181,
    "kind_known": true
   },
   {
@@ -703,15 +710,7 @@
    "engine_fn": "FUN_0048b850",
    "desc": "the water splash after the move (hit",
    "file": "src/dungeon_party.c",
-   "line": 1320,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0048b850 b930",
-   "desc": "the spin-out (FUN_004960a4 at 60)",
-   "file": "src/dungeon_party.c",
-   "line": 1231,
+   "line": 1396,
    "kind_known": true
   },
   {
@@ -719,7 +718,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 1317,
+   "line": 1393,
    "kind_known": true
   },
   {
@@ -727,7 +726,7 @@
    "engine_fn": "FUN_0048b850 trail",
    "desc": "the orbiting after-images",
    "file": "src/dungeon_party.c",
-   "line": 1394,
+   "line": 1470,
    "kind_known": true
   },
   {

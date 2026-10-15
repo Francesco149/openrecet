@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 650,
-  "inv_discovered": 1807,
-  "referenced_or_better": 741,
-  "pct_referenced_or_better": 29.1,
+  "inv_source_referenced": 654,
+  "inv_discovered": 1803,
+  "referenced_or_better": 745,
+  "pct_referenced_or_better": 29.2,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
   "port_debt": 115,
   "verified": 81,
   "stubbed": 10,
-  "ported": 650,
-  "unported": 1807,
-  "touched": 741,
-  "pct_touched": 29.1,
+  "ported": 654,
+  "unported": 1803,
+  "touched": 745,
+  "pct_touched": 29.2,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -1319,6 +1319,7 @@
     "src/render_quad.h",
     "src/scene1_counter_menu.c",
     "src/scene1_fps.c",
+    "src/scene1_hud.c",
     "src/scene_town_event.c",
     "src/scene_worldmap.c",
     "src/title_save_dialog.c"
@@ -1366,6 +1367,7 @@
     "src/render_quad.c",
     "src/render_quad.h",
     "src/scene1_counter_menu.c",
+    "src/scene1_hud.c",
     "src/scene_pause.c",
     "src/scene_town_event.c"
    ],
@@ -4906,18 +4908,22 @@
    "size": 1064,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_objects.c",
+    "src/dungeon_objects.h",
+    "src/scene1_postload.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x43289b",
@@ -5035,6 +5041,7 @@
     "src/actor_ai.c",
     "src/collision_resolve.c",
     "src/collision_resolve.h",
+    "src/dungeon_flow.c",
     "src/dungeon_party.c",
     "src/enemy_place.h",
     "src/map_collision.h",
@@ -7059,6 +7066,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
     "src/dungeon_objects.c",
     "src/dungeon_objects.h",
     "src/scene1_postload.c"
@@ -7454,18 +7462,21 @@
    "size": 1060,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_flow.c",
+    "src/scene1_camera.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x44d0a4",
@@ -7505,6 +7516,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
+    "src/dungeon_flow.h",
     "src/scene1_postload.c"
    ],
    "status": "ported"
@@ -7536,18 +7549,20 @@
    "size": 361,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_postload.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x44db3c",
@@ -9645,18 +9660,20 @@
    "size": 44,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_flow.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x45c051",
@@ -15731,6 +15748,7 @@
     "src/font_draw.c",
     "src/font_draw.h",
     "src/save_picker.c",
+    "src/scene1_hud.c",
     "src/scene_adv_guild.c",
     "src/settings_panel.c"
    ],
@@ -15803,7 +15821,8 @@
    "quality_flags": [],
    "src": [
     "src/font_draw.c",
-    "src/font_draw.h"
+    "src/font_draw.h",
+    "src/scene1_hud.c"
    ],
    "status": "ported"
   },

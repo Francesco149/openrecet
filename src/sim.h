@@ -223,4 +223,7 @@ void    sim_set_counter_998(int32_t v);
 void    sim_set_counter_99c(int32_t v);
 void    sim_set_mode_9a0(int32_t v);
 
+/* FUN_004532bc: DAT_06a49994 = 1, DAT_005c5938 = period, unless DAT_06a49998. */
+void    sim_screen_wobble(int32_t period);
+
 #endif /* OPENRECET_SIM_H */

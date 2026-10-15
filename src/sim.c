@@ -740,3 +740,13 @@ void sim_step_a(void)
 
     g_sim_frame_count++;
 }
+
+/* FUN_004532bc: start the screen wobble (DAT_06a49994 = 1, its period
+ * DAT_005c5938) unless the pause ramp DAT_06a49998 runs. */
+void sim_screen_wobble(int32_t period)
+{
+    if (g_sim_counter_998 == 0) {
+        g_sim_counter_994 = 1;
+        g_sim_threshold94 = period;
+    }
+}

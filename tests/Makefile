@@ -158,7 +158,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \
                  test_se_pack.c test_scene1_dialogue.c test_scene1_dialogue_run.c \
                  test_skip_event.c test_choice_box.c \
-                 test_scene_adv_guild.c
+                 test_scene_adv_guild.c test_scene_town_event.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)
