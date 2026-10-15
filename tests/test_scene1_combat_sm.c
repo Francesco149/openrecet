@@ -4144,10 +4144,8 @@ int test_combat_sm_phase_b_emit_writes_dat_0438b904_b908(void)
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_0438b908, 0xb4);
-    /* dat_0438b904 = (dist - slot_reach); precise value depends on the
-     * arm_collision_at pose (0, 0, -0.5) and slot reach 1.0:
-     * dist = 0.5, dist - 1 = -0.5. */
-    T_ASSERT_EQ_F(g_scene1_combat_dat_0438b904, -0.5f, 1e-6f);
+    /* dat_0438b904 = the hit actor's index (the scan counter ebp-0x28). */
+    T_ASSERT_EQ_I(g_scene1_combat_dat_0438b904, 0);
     return 0;
 }
 

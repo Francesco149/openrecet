@@ -9,6 +9,8 @@
  */
 #include "t.h"
 #include "chara_equip.h"
+#include <string.h>
+
 #include "save_bank.h"
 #include "save_work.h"
 #include "tables_item.h"
@@ -269,46 +271,42 @@ int test_save_bank_init_one_chara_records(void)
 
 int test_save_bank_init_one_mirrors_starter_items_into_chara_equip(void)
 {
-    /* apply_starter_items writes into both save_bank arena (faithfully)
-     * AND chara_equip storage (mirror, since the port has the two
-     * arenas in SEPARATE memory while the engine overlaps them).
-     * Without the mirror, slot A[0] would stay BSS-zero and the stat
-     * aggregator would fire items_find_by_id 5× instead of retail's 4×.
+    /* FUN_0048ff93 (puVar4 = bank + 0x2cec8, 0x6c per chara) writes each
+     * starter item twice: puVar4[slot - 5] = the chara record's equip
+     * slots (bank + 0x2ceb0 + chara * 0x6c + 4 + slot * 4, the ones
+     * FUN_004844ef sums) and puVar4[slot] = the copy at record + 0x18.
+     * chara_equip reads the same layout from the work bank.
      *
-     * For chara 0, STARTER_ITEMS[0] = {1, 1301, 1501, 2301, -1}.
-     * The symmetric L/R write pattern places STARTER_ITEMS[0][4] = -1
-     * at chara_equip[0].slot_A[0] (via the L write of the last inner
-     * iter, which lands at puVar4 - 0x14 + 4 = chara_equip[0] + 4).
-     * Slot A[1..4] hold STARTER_ITEMS[0][0..3] encoded.  Slot B[0] also
-     * holds the sentinel.  Level field gets stomped with the encoded
-     * STARTER_ITEMS[0][3] = 2301. */
+     * For chara 0, STARTER_ITEMS[0] = {1, 1301, 1501, 2301, -1}. */
     save_bank_arena_clear();
     chara_equip_reset_for_test();
     seed_chara_zero();
     rng_seed(1);
     save_bank_init_one(0);
 
-    /* Slot A[0] = sentinel — the chip's whole point. */
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 0), 0xffffffffu);
-    /* Slot A[1..4] = STARTER_ITEMS[0][0..3] encoded. */
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 1), (1u    << 6) | 0x20u);
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 2), (1301u << 6) | 0x20u);
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 3), (1501u << 6) | 0x20u);
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 4), (2301u << 6) | 0x20u);
-    /* Slot B[0] (record byte +0x18) = sentinel from the same final iter. */
-    T_ASSERT_EQ_U(chara_equip_get_record_dword(0, 0, 0x18), 0xffffffffu);
-    /* Level field (record byte +0) gets stomped with encoded
-     * STARTER_ITEMS[0][3] = 2301 (via the L write of iter 4). */
-    T_ASSERT_EQ_U(chara_equip_get_record_dword(0, 0, 0x00),
-                  (2301u << 6) | 0x20u);
+    const uint8_t *rec0 = save_bank_at(0) + 0x2ceb0;
+    uint32_t v;
+    static const uint32_t k_c0[5] = {
+        (1u << 6) | 0x20u, (1301u << 6) | 0x20u, (1501u << 6) | 0x20u,
+        (2301u << 6) | 0x20u, 0xffffffffu,
+    };
+    for (int k = 0; k < 5; k++) {
+        memcpy(&v, rec0 + 4 + 4 * k, 4);
+        T_ASSERT_EQ_U(v, k_c0[k]);
+        memcpy(&v, rec0 + 0x18 + 4 * k, 4);
+        T_ASSERT_EQ_U(v, k_c0[k]);
+    }
+    /* Chara 7: STARTER_ITEMS[7] = {701, 1201, 1601, -1, -1}. */
+    const uint8_t *rec7 = save_bank_at(0) + 0x2ceb0 + 7 * 0x6c;
+    memcpy(&v, rec7 + 4, 4);
+    T_ASSERT_EQ_U(v, (701u << 6) | 0x20u);
+    memcpy(&v, rec7 + 4 + 4 * 4, 4);
+    T_ASSERT_EQ_U(v, 0xffffffffu);
 
-    /* Chara 7 (last) — same pattern with STARTER_ITEMS[7] =
-     * {701, 1201, 1601, -1, -1}.  Slot A[0] still the sentinel
-     * (STARTER_ITEMS[7][4] = -1).  Slot A[4] is ALSO a sentinel
-     * (STARTER_ITEMS[7][3] = -1 lands at slot A[4]). */
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 0), 0xffffffffu);
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 1), (701u  << 6) | 0x20u);
-    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 4), 0xffffffffu);
+    /* Copied into the work bank, chara_equip sees the same slots. */
+    memcpy(save_work_bank_at(0) + 0x2ceb0, rec0, 8 * 0x6c);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 0), k_c0[0]);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 4), k_c0[4]);
     return 0;
 }
 

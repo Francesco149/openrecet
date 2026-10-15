@@ -149,8 +149,6 @@ int32_t g_scene1_combat_phase_b_heavy_atk_count;
 int32_t g_scene1_combat_dat_0438bed8;
 
 /* C8jb.5b general damage formula globals. */
-int32_t g_scene1_combat_damage_base_idle;     /* DAT_056db0b4 */
-int32_t g_scene1_combat_damage_base_idle2;    /* DAT_056db0ac */
 int32_t g_scene1_combat_scene_mul_014;        /* DAT_056db014 */
 int32_t g_scene1_combat_scene_mul_01c;        /* DAT_056db01c */
 int32_t g_scene1_combat_dat_056da1b8;         /* DAT_056da1b8 */
@@ -169,7 +167,7 @@ int32_t g_scene1_combat_phase_b_emit_count;
 float   g_scene1_combat_phase_b_emit_pose[3];
 int32_t g_scene1_combat_phase_b_emit_templates[2];
 int32_t g_scene1_combat_phase_b_emit_se_id;
-float   g_scene1_combat_dat_0438b904;
+int32_t g_scene1_combat_dat_0438b904;
 int32_t g_scene1_combat_dat_0438b908;
 int32_t g_scene1_combat_dat_06a46f94;
 int32_t g_scene1_combat_emit_aux_42e791_call_count;
@@ -1549,7 +1547,7 @@ static int phase_b_emit_hit_cluster(scene1_people_entry_t *npc,
 
     /* Engine 0x4395c3-0x4395d9 — DAT writes (distance latch + 180-frame
      * timer + post-hit pose lock for idle + is_player). */
-    g_scene1_combat_dat_0438b904 = dist_minus_reach;
+    g_scene1_combat_dat_0438b904 = (int32_t)(npc - g_scene1_people);   /* the actor index (ebp-0x28) */
     g_scene1_combat_dat_0438b908 = 0xb4;
     if (idle && is_player) {
         g_scene1_combat_dat_0438bed8 = 8;
@@ -2581,6 +2579,12 @@ int scene1_combat_sm_tick(int32_t *slot)
  * hook produces no observable change — every slot is dead → SM never
  * fires → canaries bit-exact.
  */
+/* The 0x439f28 object scan alone (record_sm_tick's tail). */
+int scene1_combat_sm_objects_scan(int32_t *slot)
+{
+    return slot != NULL ? phase_c_scan(slot) : 0;
+}
+
 void scene1_combat_sm_install(void)
 {
     scene1_records_b_set_state_machine_hook(scene1_combat_sm_tick);

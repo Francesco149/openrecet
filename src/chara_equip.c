@@ -11,21 +11,23 @@
 #include <string.h>
 
 #include "call_trace.h"
+#include "party.h"
+#include "save_work.h"
 #include "scene1_combat_sm.h"  /* g_scene1_combat_damage_base_idle{,_2} */
 #include "tables_item.h"
 
 /* ─── Active bank/chara selectors ──────────────────────────────────── */
 
-static int32_t g_dat_0438b1e0;  /* current bank/stage index */
 static int32_t g_dat_0438b7d8;  /* active chara within bank */
 
+/* DAT_0438b1e0 is the active working slot (save_work.h). */
 void chara_equip_set_current_bank(int32_t bank_idx)
 {
-    g_dat_0438b1e0 = bank_idx;
+    save_work_set_active_slot(bank_idx);
 }
 int32_t chara_equip_get_current_bank(void)
 {
-    return g_dat_0438b1e0;
+    return save_work_active_slot();
 }
 void chara_equip_set_current_chara(int32_t chara_idx)
 {
@@ -38,20 +40,13 @@ int32_t chara_equip_get_current_chara(void)
 
 /* ─── Per-(bank, chara) record storage ─────────────────────────────── */
 
-/* Flat byte buffer matching engine layout — `bank * 0x2dfc8 + chara *
- * 0x6c + offset` indexing.  Engine allocates 0x2dfc8 per bank; the port
- * only models the per-chara 0x6c portion, since no caller reads outside
- * the 0..0x3b range we model.  Compact: 1 bank * 8 chara * 0x6c =
- * 0x360 bytes (864).  Expand BANK_COUNT when save-load lands. */
-static uint8_t g_record_bytes[CHARA_EQUIP_BANK_COUNT]
-                             [CHARA_EQUIP_CHARA_COUNT]
-                             [CHARA_EQUIP_RECORD_BYTES];
-
+/* The work bank's party members: bank + 0x2ceb0 + chara * 0x6c (the
+ * engine's `&DAT_04510648 + bank * 0x2dfc8 + chara * 0x6c`). */
 static uint8_t *record_at(int32_t bank, int32_t chara)
 {
-    if (bank  < 0 || bank  >= CHARA_EQUIP_BANK_COUNT)  return NULL;
     if (chara < 0 || chara >= CHARA_EQUIP_CHARA_COUNT) return NULL;
-    return &g_record_bytes[bank][chara][0];
+    uint8_t *b = save_work_bank_at(bank);
+    return b ? b + 0x2ceb0 + (size_t)chara * CHARA_EQUIP_RECORD_BYTES : NULL;
 }
 
 uint32_t chara_equip_get_slot(int32_t bank, int32_t chara, int slot_idx)
@@ -158,18 +153,19 @@ void chara_equip_set_record_dword(int32_t bank, int32_t chara,
  * already-ported code (scene1_combat_sm).  The rest are write-only on
  * the NEW-GAME path.  Allocate the read-only-by-engine ones as
  * module-locals; access via the public getter for tests. */
-static int32_t g_dat_056db074;
-static int32_t g_dat_056db078;
-static int32_t g_dat_056db07c;
-static int32_t g_dat_056db080;
-static int32_t g_dat_056db084;
-static int32_t g_dat_056db088;
-static int32_t g_dat_056db08c;
-static uint8_t g_dat_056db090[24];   /* 056db090..056db0a7 */
-static int32_t g_dat_056db0a8;       /* counter, set to 5 */
+/* The party block (party.h) holds 056db074..056db0b8. */
+#define g_dat_056db074 (PW(0x56db074u).i)
+#define g_dat_056db078 (PW(0x56db078u).i)
+#define g_dat_056db07c (PW(0x56db07cu).i)
+#define g_dat_056db080 (PW(0x56db080u).i)
+#define g_dat_056db084 (PW(0x56db084u).i)
+#define g_dat_056db088 (PW(0x56db088u).i)
+#define g_dat_056db08c (PW(0x56db08cu).i)
+#define g_dat_056db090 ((uint8_t *)&PW(0x56db090u))   /* 056db090..056db0a7 */
+#define g_dat_056db0a8 (PW(0x56db0a8u).i)
+#define g_dat_056db0b0 (PW(0x56db0b0u).i)             /* sum[1] */
+#define g_dat_056db0b8 (PW(0x56db0b8u).i)             /* sum[3] */
 static int32_t g_dat_074b2ec0;
-static int32_t g_dat_056db0b0;       /* sum[1] */
-static int32_t g_dat_056db0b8;       /* sum[3] */
 
 int32_t chara_equip_get_dat_056db0a8(void)
 {
@@ -293,7 +289,7 @@ void chara_equip_recompute_aggregate(void)
     g_dat_056db084 = 0;
     g_dat_056db088 = 0;
     g_dat_056db08c = 0;
-    memset(g_dat_056db090, 0, sizeof(g_dat_056db090));
+    memset(g_dat_056db090, 0, 24);
     g_dat_074b2ec0 = 0;
     g_dat_056db0a8 = 5;
 
@@ -305,7 +301,7 @@ void chara_equip_recompute_aggregate(void)
      * On a record-out-of-range bank/chara (shouldn't happen on NEW
      * GAME), the get/set helpers return 0 silently → all 5 calls fire
      * with slot_val = 0. */
-    int32_t bank  = g_dat_0438b1e0;
+    int32_t bank  = save_work_active_slot();
     int32_t chara = g_dat_0438b7d8;
     for (int i = 0; i < CHARA_EQUIP_SLOT_COUNT; i++) {
         uint32_t slot_val = chara_equip_get_slot(bank, chara, i);
@@ -324,9 +320,9 @@ void chara_equip_recompute_aggregate(void)
 
 void chara_equip_reset_for_test(void)
 {
-    g_dat_0438b1e0 = 0;
+    save_work_set_active_slot(0);
     g_dat_0438b7d8 = 0;
-    memset(g_record_bytes, 0, sizeof(g_record_bytes));
+    memset(record_at(0, 0), 0, (size_t)CHARA_EQUIP_CHARA_COUNT * CHARA_EQUIP_RECORD_BYTES);
     g_dat_056db074 = 0;
     g_dat_056db078 = 0;
     g_dat_056db07c = 0;
@@ -334,7 +330,7 @@ void chara_equip_reset_for_test(void)
     g_dat_056db084 = 0;
     g_dat_056db088 = 0;
     g_dat_056db08c = 0;
-    memset(g_dat_056db090, 0, sizeof(g_dat_056db090));
+    memset(g_dat_056db090, 0, 24);
     g_dat_056db0a8 = 0;
     g_dat_074b2ec0 = 0;
     g_dat_056db0b0 = 0;

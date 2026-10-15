@@ -524,7 +524,8 @@ extern scene1_b_motion_entry_t g_scene1_b_motion_table[256];
  * (/10, min 1) and writes it to owner_a+0xe30/+0xe38 as an anim-drive
  * frame counter.  Tests with a custom state_machine hook can write this
  * global to exercise the type-4 special case. */
-extern int32_t g_scene1_records_b_tick_anim_drive;
+#include "scene1_combat_sm.h"
+#define g_scene1_records_b_tick_anim_drive g_scene1_combat_dat_06a46f94   /* DAT_06a46f94 */
 
 /* Hook signatures. */
 typedef void (*scene1_b_per_type_body_fn)(int slot_idx, int32_t type);

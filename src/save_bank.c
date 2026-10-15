@@ -299,13 +299,9 @@ static const int32_t STARTER_FLAG_PAIRS[SAVE_BANK_CHARA_COUNT][10][2] = {
  * after.  Per-chara range covered: 10 dwords at
  * [bank + 0x2ceb4 + chara*0x6c, bank + 0x2cedc + chara*0x6c).
  *
- * This range overlaps the chara_equip arena (engine: same memory at
- * bank + 0x2cec0 + chara*0x6c).  In the port the two arenas are
- * SEPARATE backing stores, so mirror writes that land inside the
- * chara_equip 0x6c record into chara_equip storage explicitly.  The
- * non-overlapping prefix (bytes 0x2ceb4..0x2cebf = 3 dwords) lands in
- * save_bank arena only — those bytes have no current readers, so they
- * stay as raw save_bank state. */
+ * puVar4[slot - 5] are the chara record's equip slots (bank + 0x2ceb0 +
+ * chara*0x6c + 4, the ones FUN_004844ef sums), puVar4[slot] the copy at
+ * record + 0x18. */
 static void apply_starter_items(uint8_t *bank_bytes, int bank_idx)
 {
     /* E.2 probe — FUN_0048ff93 @ 0x48ff93. */
@@ -324,18 +320,6 @@ static void apply_starter_items(uint8_t *bank_bytes, int bank_idx)
             puVar4[slot]     = encoded;
             puVar4[slot - 5] = encoded;
 
-            /* Mirror into chara_equip storage.  chara_equip[chara]
-             * starts at bank + 0x2cec0 + chara*0x6c; puVar4 points at
-             * chara_equip[chara] + 8.  The R write (puVar4 + slot)
-             * lands at chara_equip[chara] + 8 + slot*4; the L write
-             * (puVar4 + slot - 5) at chara_equip[chara] + 8 + slot*4 - 0x14.
-             * set_record_dword is a no-op for out-of-range offsets — the
-             * pre-record bytes (-0xc..-4 for slots 0..2) are dropped
-             * silently, exactly what we want. */
-            int off_R = 8 + slot * 4;
-            int off_L = off_R - 0x14;
-            chara_equip_set_record_dword(bank_idx, chara, off_R, encoded);
-            chara_equip_set_record_dword(bank_idx, chara, off_L, encoded);
         }
         puVar4 += SAVE_BANK_CHARA_STRIDE_DWORDS;
     }
@@ -606,11 +590,7 @@ void save_bank_init_one(int bank_idx)
 
     /* (9) FUN_0048ff93 — starter items for all 8 charas. Reads the
      * 40-dword STARTER_ITEMS table and writes encoded slot dwords
-     * into the bank's starter-inventory windows.  Also mirrors writes
-     * into chara_equip storage (engine has the two arenas overlapping;
-     * the port stores them separately).  Without this mirror, slot
-     * A[0] of every chara stays BSS-zero and chara_equip_recompute_
-     * aggregate fires items_find_by_id 5× instead of retail's 4×. */
+     * into the bank's chara records (chara_equip reads the work bank's). */
     apply_starter_items(bank_bytes, bank_idx);
 
     /* (10) No checksum stamp: FUN_0049001c returns straight from FUN_0048ff93.

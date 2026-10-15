@@ -50,7 +50,6 @@
 #include "sim.h"                       /* g_sim_frame_count (engine DAT_0438b8cc) */
 
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
-int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
 
 /* Engine DAT_005c2434/8/c — 256-entry per-NPC-motion-style table read by
  * C8j-tick.10 (Body 6 + Body 7) and presumably deeper bodies.  PHC #19;

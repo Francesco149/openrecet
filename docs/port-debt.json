@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 89,
+  "total": 97,
   "by_kind": {
-   "stub": 65,
+   "stub": 73,
    "synthetic-data": 0,
    "simplified": 8,
    "hardcode": 2,
@@ -24,22 +24,25 @@
    "stage-scratch": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 75,
+  "retiring_engine_fns": 78,
   "by_engine_fn": {
    "FUN_00436f97": 3,
    "FUN_00445a8c": 3,
+   "FUN_0048cdcc": 3,
+   "FUN_004147d5": 2,
    "FUN_004176ff": 2,
    "FUN_00434ceb": 2,
+   "FUN_0043865e": 2,
    "FUN_0043a5d9": 2,
    "FUN_0044bd0d": 2,
    "FUN_00468fd0": 2,
    "FUN_00473c15": 2,
+   "FUN_00489c79": 2,
+   "FUN_00489d52": 2,
    "FUN_0048b850": 2,
-   "FUN_0048cdcc": 2,
    "FUN_0048d5d6": 2,
    "DAT_056db000": 1,
    "FUN_00409925": 1,
-   "FUN_004147d5": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
    "FUN_004176ff L4958": 1,
@@ -52,6 +55,7 @@
    "FUN_0042f7ad": 1,
    "FUN_00430c00": 1,
    "FUN_00430c6d": 1,
+   "FUN_0043183e": 1,
    "FUN_00432e50": 1,
    "FUN_00435c98": 1,
    "FUN_00441aab": 1,
@@ -86,9 +90,8 @@
    "FUN_00485c74": 1,
    "FUN_004864fd": 1,
    "FUN_0048670f": 1,
-   "FUN_00489c79": 1,
-   "FUN_00489d52": 1,
    "FUN_00489e66": 1,
+   "FUN_0048a383": 1,
    "FUN_0048a833": 1,
    "FUN_0048b850 b930": 1,
    "FUN_0048b850 da1bc": 1,
@@ -309,7 +312,15 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the boost aura (types 24 / 22)",
    "file": "src/dungeon_party.c",
-   "line": 877,
+   "line": 960,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004147d5",
+   "desc": "the overlay spark (25, 1.0, -1)",
+   "file": "src/record_hit.c",
+   "line": 619,
    "kind_known": true
   },
   {
@@ -394,6 +405,14 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_0043183e",
+   "desc": "the event floors' floor tables",
+   "file": "src/record_hit.c",
+   "line": 155,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_00434ceb",
    "desc": "the \"Item limit reached\" box.",
    "file": "src/scene_guild.c",
@@ -422,6 +441,22 @@
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
    "line": 353,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0043865e",
+   "desc": "the multi-part anchors",
+   "file": "src/record_hit.c",
+   "line": 402,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0043865e",
+   "desc": "the player arm 0x438940..0x439f28",
+   "file": "src/record_hit.c",
+   "line": 674,
    "kind_known": true
   },
   {
@@ -461,7 +496,7 @@
    "engine_fn": "FUN_0044376a",
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
-   "line": 954,
+   "line": 1037,
    "kind_known": true
   },
   {
@@ -493,7 +528,7 @@
    "engine_fn": "FUN_0044b12f",
    "desc": "the queued b554 item effects",
    "file": "src/dungeon_party.c",
-   "line": 785,
+   "line": 868,
    "kind_known": true
   },
   {
@@ -525,7 +560,7 @@
    "engine_fn": "FUN_0044c9ba",
    "desc": "dungeon 0 floor 4 \u2014 the iv2_11 / iv2_9",
    "file": "src/dungeon_flow.c",
-   "line": 201,
+   "line": 207,
    "kind_known": true
   },
   {
@@ -541,7 +576,7 @@
    "engine_fn": "FUN_0044d47d",
    "desc": "dungeons 1..5's events \u2014 FUN_0044d47d,",
    "file": "src/dungeon_flow.c",
-   "line": 216,
+   "line": 222,
    "kind_known": true
   },
   {
@@ -549,7 +584,7 @@
    "engine_fn": "FUN_0044f078",
    "desc": "dungeon 4 floor 99's event helper",
    "file": "src/dungeon_party.c",
-   "line": 495,
+   "line": 496,
    "kind_known": true
   },
   {
@@ -613,7 +648,7 @@
    "engine_fn": "FUN_004708f7",
    "desc": "the event-window pair (chars 0x2f / 0x30)",
    "file": "src/dungeon_party.c",
-   "line": 511,
+   "line": 512,
    "kind_known": true
   },
   {
@@ -653,7 +688,7 @@
    "engine_fn": "FUN_00484e97",
    "desc": "the pickup under the player",
    "file": "src/dungeon_party.c",
-   "line": 626,
+   "line": 627,
    "kind_known": true
   },
   {
@@ -661,7 +696,7 @@
    "engine_fn": "FUN_004855e2",
    "desc": "the accessory-break follow-up",
    "file": "src/dungeon_party.c",
-   "line": 371,
+   "line": 372,
    "kind_known": true
   },
   {
@@ -669,7 +704,7 @@
    "engine_fn": "FUN_00485712",
    "desc": "the status-guard accessory 2504 (the",
    "file": "src/dungeon_party.c",
-   "line": 368,
+   "line": 369,
    "kind_known": true
   },
   {
@@ -677,7 +712,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 159,
+   "line": 165,
    "kind_known": true
   },
   {
@@ -693,7 +728,15 @@
    "engine_fn": "FUN_00489c79",
    "desc": "the selected skill (SP)",
    "file": "src/dungeon_party.c",
-   "line": 622,
+   "line": 623,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00489c79",
+   "desc": "the selected skill (SP)",
+   "file": "src/dungeon_party.c",
+   "line": 705,
    "kind_known": true
   },
   {
@@ -701,7 +744,15 @@
    "engine_fn": "FUN_00489d52",
    "desc": "the direct skill keys",
    "file": "src/dungeon_party.c",
-   "line": 620,
+   "line": 621,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00489d52",
+   "desc": "the direct skill keys",
+   "file": "src/dungeon_party.c",
+   "line": 703,
    "kind_known": true
   },
   {
@@ -709,7 +760,15 @@
    "engine_fn": "FUN_00489e66",
    "desc": "the dash (double-tap, db034 / db03c /",
    "file": "src/dungeon_party.c",
-   "line": 560,
+   "line": 561,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0048a383",
+   "desc": "the level-up of s_easydisp",
+   "file": "src/record_hit.c",
+   "line": 239,
    "kind_known": true
   },
   {
@@ -717,7 +776,7 @@
    "engine_fn": "FUN_0048a833",
    "desc": "the db048 14 / 15 / work +0x2bc6c arm",
    "file": "src/dungeon_party.c",
-   "line": 297,
+   "line": 298,
    "kind_known": true
   },
   {
@@ -725,7 +784,7 @@
    "engine_fn": "FUN_0048b850",
    "desc": "the water splash after the move (hit",
    "file": "src/dungeon_party.c",
-   "line": 883,
+   "line": 966,
    "kind_known": true
   },
   {
@@ -733,7 +792,7 @@
    "engine_fn": "FUN_0048b850 b930",
    "desc": "the spin-out (FUN_004960a4 at 60)",
    "file": "src/dungeon_party.c",
-   "line": 794,
+   "line": 877,
    "kind_known": true
   },
   {
@@ -741,7 +800,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 880,
+   "line": 963,
    "kind_known": true
   },
   {
@@ -749,7 +808,7 @@
    "engine_fn": "FUN_0048b850 trail",
    "desc": "the orbiting after-images",
    "file": "src/dungeon_party.c",
-   "line": 957,
+   "line": 1040,
    "kind_known": true
   },
   {
@@ -757,7 +816,7 @@
    "engine_fn": "FUN_0048cbf6",
    "desc": "pickups (table C) and the level-up check",
    "file": "src/dungeon_party.c",
-   "line": 805,
+   "line": 888,
    "kind_known": true
   },
   {
@@ -765,15 +824,23 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the dash's wall bonk (a ray 1.4 ahead)",
    "file": "src/dungeon_party.c",
-   "line": 668,
+   "line": 739,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_0048cdcc",
-   "desc": "the attack / skill states 2..8 by char",
+   "desc": "the other chars' swings (FUN_004977df,",
    "file": "src/dungeon_party.c",
-   "line": 709,
+   "line": 782,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0048cdcc",
+   "desc": "the skill states 3..8 by char",
+   "file": "src/dungeon_party.c",
+   "line": 792,
    "kind_known": true
   },
   {
@@ -781,7 +848,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "char 42's gauge refill + the random",
    "file": "src/dungeon_party.c",
-   "line": 611,
+   "line": 612,
    "kind_known": true
   },
   {
@@ -789,7 +856,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "the skill cycle (DAT_0438b7dc, SE 326)",
    "file": "src/dungeon_party.c",
-   "line": 618,
+   "line": 619,
    "kind_known": true
   },
   {
@@ -805,7 +872,7 @@
    "engine_fn": "FUN_00490c78",
    "desc": "the buff-end bubble over Tear",
    "file": "src/dungeon_party.c",
-   "line": 379,
+   "line": 380,
    "kind_known": true
   },
   {

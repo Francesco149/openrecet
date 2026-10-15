@@ -352,8 +352,9 @@ extern int32_t g_scene1_combat_dat_0438bed8;
  * otherwise the literal 0x1a (default).  Default NULL hook returns 1.0f
  * (deterministic damage).
  */
-extern int32_t g_scene1_combat_damage_base_idle;     /* DAT_056db0b4 */
-extern int32_t g_scene1_combat_damage_base_idle2;    /* DAT_056db0ac */
+#include "party.h"
+#define g_scene1_combat_damage_base_idle  (PW(0x56db0b4u).i)   /* DAT_056db0b4 */
+#define g_scene1_combat_damage_base_idle2 (PW(0x56db0acu).i)   /* DAT_056db0ac */
 extern int32_t g_scene1_combat_scene_mul_014;        /* DAT_056db014 */
 extern int32_t g_scene1_combat_scene_mul_01c;        /* DAT_056db01c */
 extern int32_t g_scene1_combat_dat_056da1b8;         /* DAT_056da1b8 */
@@ -514,7 +515,7 @@ extern int32_t g_scene1_combat_phase_b_emit_se_id;
 /*
  * Engine globals written by the emit cluster.  Useful as observables.
  *
- *   g_scene1_combat_dat_0438b904 — DAT_0438b904 float, set to local_2c
+ *   g_scene1_combat_dat_0438b904 — DAT_0438b904 int, the hit actor's index (local_2c)
  *                                  (= dist - reach) at every emit fire.
  *   g_scene1_combat_dat_0438b908 — DAT_0438b908 int, set to 0xb4 (= 180
  *                                  frames) at every emit fire.
@@ -525,7 +526,7 @@ extern int32_t g_scene1_combat_phase_b_emit_se_id;
  *                                  body); here the SM-emit path writes
  *                                  the damage value, not 1.
  */
-extern float   g_scene1_combat_dat_0438b904;
+extern int32_t g_scene1_combat_dat_0438b904;
 extern int32_t g_scene1_combat_dat_0438b908;
 extern int32_t g_scene1_combat_dat_06a46f94;
 
@@ -1295,6 +1296,9 @@ int scene1_combat_sm_tick(int32_t *slot);
  * Tests can call scene1_combat_sm_uninstall() (= set hook to NULL) to
  * detach the SM and restore the pre-C8jb.fin "no hook = ret 0" baseline.
  */
+/* FUN_0043865e @ 0x439f28: the object scan alone (records in state 1 / 3
+ * skip it).  record_sm_tick (record_hit.c) runs it after the actor arm. */
+int scene1_combat_sm_objects_scan(int32_t *slot);
 void scene1_combat_sm_install(void);
 void scene1_combat_sm_uninstall(void);
 
