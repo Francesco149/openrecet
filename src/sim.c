@@ -44,6 +44,7 @@
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
 #include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
 #include "scene_adv_guild.h" /* scene_adv_guild_sim — mode-11 per-state callee (FUN_0045c051) */
+#include "scene_town_event.h" /* scene_town_event_sim — modes 13..16 (FUN_0045e3dc / 053 / 1a5 / 2dd) */
 #include "party_roster.h"   /* FUN_0047f1ce — the pause build's party count */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
@@ -270,6 +271,18 @@ void sim_init(void)
     g_sim_mode_9a0      = 0;
     g_sim_threshold94   = 0;
     sim_stage_load_reset();
+}
+
+/* FUN_00406584's XP-bar ease (rng-neutral) → shake jitter (0x406762, 4 LCG
+ * draws per shake frame) → money roll (1 draw per rolling frame), in its block
+ * order; every mode that runs FUN_00406584 (1, 6, 8, 0xb, 13..16). */
+static void hud_xp_shake_money_tick(void)
+{
+    uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+    scene1_top_hud_xp_tick(wb);
+    scene1_top_hud_shake_tick();
+    if (wb)
+        scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
 }
 
 void sim_step_a(void)
@@ -634,6 +647,7 @@ void sim_step_a(void)
          * one frame, matching the engine's pre-sim FUN_00406584. */
         scene1_top_hud_worldmap_tooltip_tick(scene_worldmap_sel_dest(),
                                              scene_worldmap_return_pending());
+        hud_xp_shake_money_tick();       /* FUN_00406584: XP, shake, money roll */
         scene1_particles_tick();
         scene_worldmap_sim();
         break;
@@ -648,13 +662,7 @@ void sim_step_a(void)
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();     /* DAT_00529704 = 0 outside modes 1 / 8 */
         title_save_dialog_anim_tick();
-        {
-            uint32_t *wb = save_work_dwords_at(save_work_active_slot());
-            scene1_top_hud_xp_tick(wb);
-            scene1_top_hud_shake_tick();
-            if (wb)
-                scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
-        }
+        hud_xp_shake_money_tick();
         scene1_particles_tick();
         scene_guild_sim();
         break;
@@ -666,25 +674,31 @@ void sim_step_a(void)
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();
         title_save_dialog_anim_tick();
-        {
-            uint32_t *wb = save_work_dwords_at(save_work_active_slot());
-            scene1_top_hud_xp_tick(wb);
-            scene1_top_hud_shake_tick();
-            if (wb)
-                scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
-        }
+        hud_xp_shake_money_tick();
         scene1_particles_tick();
         if (!scene1_intro_dialogue_busy())
             scene_adv_guild_sim();
         break;
 
+    case 0xd:  /* 教会 (engine FUN_0045e3dc) */
+    case 0xe:  /* 広場 (engine FUN_0045e053) */
+    case 0xf:  /* 酒場 (engine FUN_0045e1a5) */
+    case 0x10: /* (engine FUN_0045e2dd; nothing enters it) */
+        /* LABEL_106: FUN_00406584 (its mode-6 parts) → FUN_0040fb3a → the
+         * town-visit update only while no dialogue runs (DAT_0438b1c8 == 0). */
+        speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
+        scene1_top_hud_tooltip_off();
+        title_save_dialog_anim_tick();
+        hud_xp_shake_money_tick();
+        scene1_particles_tick();
+        if (!scene1_intro_dialogue_busy())
+            scene_town_event_sim(g_scene_state);
+        break;
+
     case 2:    /* cutscene  (engine FUN_0049d8a4) */
     case 3:    /* dialog    (engine FUN_0041ee24) */
     case 7:    /* dungeon idle  (engine FUN_0049db8a) */
-    case 0xd:  /* ending arm A (engine FUN_0045e3dc) */
-    case 0xe:  /* ending arm B (engine FUN_0045e053) */
-    case 0xf:  /* ending arm C (engine FUN_0045e1a5) */
-    case 0x10: /* ending arm D (engine FUN_0045e2dd) */
         scene1_particles_tick();
         break;
 

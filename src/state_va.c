@@ -28,6 +28,7 @@
 #include "save_work.h"
 #include "scene.h"
 #include "scene_adv_guild.h"
+#include "scene_town_event.h"
 #include "scene_day_end.h"
 #include "scene_pause.h"
 #include "scene_title.h"
@@ -135,6 +136,11 @@ static int32_t get_b928(void)  { return scene1_beat_flag(); }
 static int32_t get_b924(void)  { return scene1_beat_counter(); }
 static int32_t get_b1c8(void)  { return scene1_intro_dialogue_gate(); }
 static int32_t adv(uint32_t va) { int32_t v = 0; adv_guild_dbg(va, &v); return v; }
+static int32_t town(uint32_t va) { int32_t v = 0; scene_town_event_dbg(va, &v); return v; }
+static int32_t get_te_d400(void) { return town(0x6a5d400u); }
+static int32_t get_money_disp(void) { return scene1_top_hud_money(); }
+static int32_t get_slot(void) { return save_work_active_slot(); }
+static int32_t get_te_d404(void) { return town(0x6a5d404u); }
 static int32_t get_ag_b44(void) { return adv(0x6a49b44u); }
 static int32_t get_ag_b48(void) { return adv(0x6a49b48u); }
 static int32_t get_ag_b4c(void) { return adv(0x6a49b4cu); }
@@ -240,6 +246,10 @@ static const state_va_t k_map[] = {
     { 0x730b608u, "cs script sub-state b608 (DAT_0730b608)", get_b608 },
     { 0x438b924u, "beat counter b924 (DAT_0438b924)", get_b924 },
     { 0x438b1c8u, "dialogue gate (DAT_0438b1c8)", get_b1c8 },
+    { 0x438b918u, "money shown (DAT_0438b918)", get_money_disp },
+    { 0x438b1e0u, "active slot (DAT_0438b1e0)", get_slot },
+    { 0x6a5d400u, "town visit leaving (DAT_06a5d400)", get_te_d400 },
+    { 0x6a5d404u, "town visit ticks (DAT_06a5d404)", get_te_d404 },
     { 0x6a49b44u, "adv guild commit (DAT_06a49b44)", get_ag_b44 },
     { 0x6a49b48u, "adv guild map open (DAT_06a49b48)", get_ag_b48 },
     { 0x6a49b4cu, "adv guild floor list (DAT_06a49b4c)", get_ag_b4c },

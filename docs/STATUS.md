@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-██████░░░░░░░░░░░░░░  28.7% referenced-or-better   (91 instrumented)
+██████░░░░░░░░░░░░░░  29.1% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   641 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1816 | exists in the engine, no `src/` reference    |
+| source-referenced  |   650 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1807 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -33,10 +33,10 @@ in-process retail host (`findings/in-process-retail-host.md`). Prior human
 attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
 re-verification.
 
-8 VAs are referenced in src/ but absent from the function table
+9 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 114 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 115 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 

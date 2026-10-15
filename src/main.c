@@ -58,6 +58,7 @@
 #include "scene_worldmap.h"
 #include "scene_guild.h"
 #include "scene_adv_guild.h"
+#include "scene_town_event.h"
 #include "sysassets.h"
 #include "screen_rt.h"
 #include "sim.h"
@@ -1690,6 +1691,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_worldmap_init(g_dev);
     scene_guild_init(g_dev);   /* mode-6 Merchant's Guild — worker_load case 6 */
     scene_adv_guild_init(g_dev);   /* mode-11 Adventurers' Guild — worker_load case 11 */
+    scene_town_event_init(g_dev);  /* modes 13..16, the town visits — worker_load cases 13..16 */
     scene_table_init(g_dev);
     scene_sc1_init(g_dev);
 
@@ -3439,6 +3441,14 @@ static void render_dispatch(void)
              * the dialogue on top (LABEL_80 → FUN_0046c090). */
             if (!scene1_intro_dialogue_covers_screen())
                 scene_adv_guild_render(g_dev);
+            scene1_dialogue_draw(g_dev);
+            break;
+        case 0xd: case 0xe: case 0xf: case 0x10:
+            /* The town visits — FUN_004547ab cases 13..16: a dialogue whose
+             * script paints a bg skips the scene; else FUN_0045e48b / 11c /
+             * 254 / 353; then the dialogue on top (LABEL_80). */
+            if (!scene1_intro_dialogue_covers_screen())
+                scene_town_event_render(g_dev);
             scene1_dialogue_draw(g_dev);
             break;
         default:

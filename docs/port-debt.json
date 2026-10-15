@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 87,
+  "total": 88,
   "by_kind": {
-   "stub": 61,
+   "stub": 62,
    "synthetic-data": 0,
    "simplified": 8,
    "hardcode": 2,
@@ -23,7 +23,7 @@
    "semantic-collision": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 69,
+  "retiring_engine_fns": 70,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -57,6 +57,7 @@
    "FUN_0043865e": 1,
    "FUN_00441c3e": 1,
    "FUN_004426a7": 1,
+   "FUN_004427f1": 1,
    "FUN_00442cef": 1,
    "FUN_0044376a": 1,
    "FUN_0044b12f": 1,
@@ -174,7 +175,7 @@
    "engine_fn": "FUN_00441c3e",
    "desc": "the view matrix is the render's;",
    "file": "src/actor_ai.c",
-   "line": 141,
+   "line": 142,
    "kind_known": false
   },
   {
@@ -262,7 +263,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 465,
+   "line": 478,
    "kind_known": true
   },
   {
@@ -286,7 +287,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 374,
+   "line": 387,
    "kind_known": true
   },
   {
@@ -326,7 +327,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the overlay spark (25, 1.0, -1)",
    "file": "src/record_hit.c",
-   "line": 630,
+   "line": 631,
    "kind_known": true
   },
   {
@@ -358,7 +359,7 @@
    "engine_fn": "FUN_0042df55",
    "desc": "stages >= 20 index past the dungeon",
    "file": "src/actor_ai.c",
-   "line": 117,
+   "line": 118,
    "kind_known": true
   },
   {
@@ -366,7 +367,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 994,
+   "line": 1534,
    "kind_known": true
   },
   {
@@ -374,7 +375,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 951,
+   "line": 1491,
    "kind_known": true
   },
   {
@@ -382,7 +383,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 706,
+   "line": 1246,
    "kind_known": true
   },
   {
@@ -390,15 +391,15 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 673,
+   "line": 1213,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_0042f7ad",
-   "desc": "the bosses' / special enemies'",
+   "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 472,
+   "line": 527,
    "kind_known": true
   },
   {
@@ -406,7 +407,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 1004,
+   "line": 1544,
    "kind_known": true
   },
   {
@@ -414,7 +415,7 @@
    "engine_fn": "FUN_0043183e",
    "desc": "the event floors' floor tables",
    "file": "src/record_hit.c",
-   "line": 166,
+   "line": 167,
    "kind_known": true
   },
   {
@@ -462,7 +463,7 @@
    "engine_fn": "FUN_0043865e",
    "desc": "the multi-part anchors",
    "file": "src/record_hit.c",
-   "line": 413,
+   "line": 414,
    "kind_known": true
   },
   {
@@ -471,6 +472,14 @@
    "desc": "the cinematic camera ramp",
    "file": "src/scene1_sim.c",
    "line": 570,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004427f1",
+   "desc": "dungeons 2..5's events \u2014 the",
+   "file": "src/dungeon_flow.c",
+   "line": 469,
    "kind_known": true
   },
   {
@@ -524,9 +533,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_0044d47d",
-   "desc": "dungeons 1..5's events \u2014 FUN_0044d47d,",
+   "desc": "the floor-14 timeline (Charme, type 25,",
    "file": "src/dungeon_flow.c",
-   "line": 377,
+   "line": 448,
    "kind_known": true
   },
   {
@@ -638,7 +647,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 175,
+   "line": 176,
    "kind_known": true
   },
   {
@@ -678,7 +687,7 @@
    "engine_fn": "FUN_0048a383",
    "desc": "the level-up of s_easydisp",
    "file": "src/record_hit.c",
-   "line": 250,
+   "line": 251,
    "kind_known": true
   },
   {

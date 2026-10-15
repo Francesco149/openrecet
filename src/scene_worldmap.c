@@ -27,6 +27,7 @@
 #include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
 #include "call_trace.h"         /* CALL_TRACE_* — flow-trace fields for the both-target verify */
 #include "scene_guild.h"        /* scene_guild_set_variant — mode-6 variant on dest 3/1 */
+#include "scene_town_event.h"   /* FUN_0045e019 / 196 / 3cd — modes 0xe / 0xf / 0xd */
 #include "stage_palette.h"     /* g_stage_b4dc (DAT_0438b4dc) */
 #include "scene1_postload.h"    /* scene1_postload_stage_entry_init — FUN_00436f97 */
 #include "event_probe.h"       /* FUN_0045de68 */
@@ -336,11 +337,10 @@ static void scene_worldmap_cursor_nav(int param)
  * market). A home return runs it twice: here, then in the house loader
  * (StartAddress case 1: FUN_00474a9a + FUN_00436f97).
  *
- * PORT-DEBT(worldmap-dest-scenes): the destination scenes (modes 0xb/0xd/0xe/
- * 0xf, and most of mode 6) are separate arcs — their scene-init helpers
- * (FUN_0045e019/196/3cd) are no-ops and the scene renders blank until it
- * ports. FUN_0047360f (slot-10 unload), DAT_0438b1e4 = 0, FUN_0044bce7
- * (DAT_06a4707c/84/80/88/64 = 0) have no port mirrors. */
+ * The destination scenes: mode 6 (scene_guild.c), 0xb (scene_adv_guild.c),
+ * 0xd / 0xe / 0xf (scene_town_event.c). FUN_0047360f (slot-10 unload),
+ * DAT_0438b1e4 = 0, FUN_0044bce7 (DAT_06a4707c/84/80/88/64 = 0) have no port
+ * mirrors. */
 static void scene_worldmap_exit_to_dest(void)
 {
     int mode;
@@ -360,6 +360,8 @@ static void scene_worldmap_exit_to_dest(void)
     if (mode == 6) {
         scene_guild_set_variant(s_sel_dest == 3 ? 0 : 1);
         scene_guild_enter_reset();       /* FUN_0049174e */
+    } else if (mode >= 0xd && mode <= 0xf) {
+        scene_town_event_reset();        /* FUN_0045e3cd / 196 / 019 */
     }
 
     if (s_sel_dest == 0) {
