@@ -5075,6 +5075,19 @@ expedition's items, EXP, floors and its own card stamp (the commit's card fields
 the working bank, which backup 0 then overwrites) are not in it. Recorded:
 `dungeon0-floors-save` (slot 9 → save slot 11; port save.dat byte-identical, 2026-10-15).
 
+## 145. In the house, any press of button 0x10 / 0x20 / 0x40 ends the frame: no walk, no Tear tick (FUN_0048670f)
+
+The free-roam arm's button block (`DAT_056db048 == 0`) checks 0x20, then 0x40, then 0x10
+on the edge mask DAT_073dddd4. Every branch ends at LABEL_675 (FUN_00486435 +
+FUN_00485861), whether or not the press did anything: 0x10 (Z) facing no cell, 0x20, or 0x40 with no
+item in view all skip FUN_0048b850 for that frame. So the player does not move,
+FUN_004897c6 does not tick the anims, Tear (FUN_0048a833) does not tick and db054 does not
+advance. A Z press while walking stops the player for exactly one frame. The door zone v59
+is a 1.8 radius around the door point by scene type (0: (3, -3.4); 1..4: (6, -6.7)
+facing -π; other: (6, -6.8)), plus the facing band and the edge. Recorded:
+`dungeon0-full` f476, `dungeon0-wipe` f537 (rhost portstate: retail db054 holds, the
+player position holds).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

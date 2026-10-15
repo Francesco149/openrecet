@@ -1144,22 +1144,27 @@ int test_player_render_banks_stay_dormant_while_walking(void)
 
 int test_player_door_predicate_position_facing(void)
 {
-    /* free-roam, X past the door edge (>2.895), facing ≈ +π/2, not exited → at
-     * the door (engine bVar17, all.c:87531-87539, stage-type 0). */
-    if (!player_ctrl_at_shop_door(3.0f, 1.5707964f, 0))
-        T_FAIL("X=3.0 facing=π/2 not-exited should be AT the door");
+    /* scene type 0: within 1.8 of (3, -3.4), x past 2.895, facing ≈ +π/2, not
+     * exited → v59 (FUN_0048670f 0x488616). */
+    if (!player_ctrl_at_shop_door(3.0f, -3.4f, 1.5707964f, 0, 0))
+        T_FAIL("(3, -3.4) facing π/2 not-exited should be AT the door");
     /* facing inside the ±0.1π band still counts. */
-    if (!player_ctrl_at_shop_door(2.90f, 1.5707964f + 0.30f, 0))
+    if (!player_ctrl_at_shop_door(2.90f, -3.4f, 1.5707964f + 0.30f, 0, 0))
         T_FAIL("facing within +0.1π of the door dir should count");
-    if (!player_ctrl_at_shop_door(2.90f, 1.5707964f - 0.30f, 0))
+    if (!player_ctrl_at_shop_door(2.90f, -3.4f, 1.5707964f - 0.30f, 0, 0))
         T_FAIL("facing within -0.1π of the door dir should count");
+    /* scene types 1..4: the door at (6, -6.7) facing -π, edge z < -6.7. */
+    if (!player_ctrl_at_shop_door(6.0f, -7.0f, -3.1415927f, 2, 0))
+        T_FAIL("scene type 2: (6, -7) facing -π should be AT the door");
+    if (player_ctrl_at_shop_door(6.0f, -6.6f, -3.1415927f, 2, 0))
+        T_FAIL("scene type 2: z -6.6 is not past the -6.7 edge");
     return 0;
 }
 
 int test_player_door_predicate_rejects_already_exited(void)
 {
     /* the DAT_0450f3f7 "already exited" guard blocks re-triggering. */
-    if (player_ctrl_at_shop_door(3.0f, 1.5707964f, 1))
+    if (player_ctrl_at_shop_door(3.0f, -3.4f, 1.5707964f, 0, 1))
         T_FAIL("already-exited guard must block the door");
     return 0;
 }
@@ -1167,10 +1172,10 @@ int test_player_door_predicate_rejects_already_exited(void)
 int test_player_door_predicate_rejects_wrong_facing(void)
 {
     /* facing 0 (not toward the door) is outside the ±0.1π band. */
-    if (player_ctrl_at_shop_door(3.0f, 0.0f, 0))
+    if (player_ctrl_at_shop_door(3.0f, -3.4f, 0.0f, 0, 0))
         T_FAIL("facing 0 (outside ±0.1π of +π/2) must not trigger");
     /* just past the band edge (0.1π ≈ 0.31416). */
-    if (player_ctrl_at_shop_door(3.0f, 1.5707964f + 0.33f, 0))
+    if (player_ctrl_at_shop_door(3.0f, -3.4f, 1.5707964f + 0.33f, 0, 0))
         T_FAIL("facing past the +0.1π band must not trigger");
     return 0;
 }
@@ -1178,10 +1183,13 @@ int test_player_door_predicate_rejects_wrong_facing(void)
 int test_player_door_predicate_rejects_inside(void)
 {
     /* X not past the door edge (2.895) → not at the door, even facing it. */
-    if (player_ctrl_at_shop_door(0.0f, 1.5707964f, 0))
+    if (player_ctrl_at_shop_door(0.0f, -3.4f, 1.5707964f, 0, 0))
         T_FAIL("player X=0 (not past 2.895) must not be at the door");
-    if (player_ctrl_at_shop_door(2.895f, 1.5707964f, 0))
+    if (player_ctrl_at_shop_door(2.895f, -3.4f, 1.5707964f, 0, 0))
         T_FAIL("player X exactly 2.895 is not strictly past the edge");
+    /* past the edge but 1.8 or more from the door point. */
+    if (player_ctrl_at_shop_door(3.0f, -1.5f, 1.5707964f, 0, 0))
+        T_FAIL("1.9 from the door point must not be at the door");
     return 0;
 }
 

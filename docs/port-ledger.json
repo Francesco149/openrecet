@@ -8,19 +8,19 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 11,
   "inv_implemented": 0,
-  "inv_source_referenced": 628,
-  "inv_discovered": 1828,
-  "referenced_or_better": 720,
+  "inv_source_referenced": 629,
+  "inv_discovered": 1827,
+  "referenced_or_better": 721,
   "pct_referenced_or_better": 28.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 121,
+  "port_debt": 120,
   "verified": 81,
   "stubbed": 11,
-  "ported": 628,
-  "unported": 1828,
-  "touched": 720,
+  "ported": 629,
+  "unported": 1827,
+  "touched": 721,
   "pct_touched": 28.3,
   "pct_verified": 0.0
  },
@@ -1145,6 +1145,7 @@
     "src/scene1_camera.h",
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
+    "src/scene1_records_b_tick.c",
     "src/scene1_shop_walker.h"
    ],
    "status": "ported"
@@ -4983,6 +4984,7 @@
     "src/map_collision.c",
     "src/map_collision.h",
     "src/party.h",
+    "src/record_hit.c",
     "src/scene1_camera.c",
     "src/scene1_chr_shadow.c",
     "src/scene1_chr_shadow.h",
@@ -4990,6 +4992,7 @@
     "src/scene1_postload.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
+    "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene1_records_c_tick.h",
     "src/table_c.c"
@@ -5729,6 +5732,7 @@
    "src": [
     "src/customer_service.c",
     "src/scene1_display_menu.c",
+    "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -6380,6 +6384,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
+    "src/record_hit.h",
     "src/scene1_render.c",
     "src/scene1_sim.c"
    ],
@@ -6702,18 +6708,20 @@
    "size": 456,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/record_hit.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x445a8c",
@@ -11167,6 +11175,7 @@
     "src/encyclopedia.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c",
     "src/scene_adv_guild.c"
    ],
    "status": "ported"
@@ -11318,6 +11327,7 @@
     "src/encyclopedia.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c",
     "src/scene_adv_guild.c"
    ],
    "status": "ported"
@@ -15911,6 +15921,7 @@
     "src/customer_service.c",
     "src/party_roster.h",
     "src/scene1_display_menu.c",
+    "src/scene1_player_ctrl.c",
     "src/scene_adv_guild.c",
     "src/sim.c"
    ],
@@ -22259,18 +22270,21 @@
    "size": 6,
    "is_thunk": true,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/record_hit.c",
+    "src/scene1_records_b_tick.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a2c4c",
@@ -22516,18 +22530,20 @@
    "size": 6,
    "is_thunk": true,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/record_hit.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a35d3",
@@ -22557,18 +22573,20 @@
    "size": 6,
    "is_thunk": true,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/record_hit.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4a3670",

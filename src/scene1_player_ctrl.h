@@ -434,10 +434,11 @@ int  player_ctrl_cc08_f406_entry(void);     /* the f406 autonomous first-custome
                                              * free-roam arm. */
 
 /* T1 — shop-door exit → the world map (mode 8).  `player_ctrl_at_shop_door` is the
- * pure door-zone predicate (the engine bVar17 subset, all.c:87531-87539); the arm
+ * pure door-zone predicate (v59, FUN_0048670f 0x488616-0x48872e); the arm
  * + stage-2 drive the dissolve fade (FUN_004526f5) and the mode-8 load
  * (FUN_0045281c / FUN_00452cde).  See scene1_player_ctrl.c. */
-int  player_ctrl_at_shop_door(float player_x, float facing, int already_exited);
+int  player_ctrl_at_shop_door(float x, float z, float facing, int scene_type,
+                              int already_exited);
 void player_ctrl_worldmap_exit_arm(void);
 int  player_ctrl_worldmap_exit_stage2(void);
 int  player_ctrl_worldmap_exit_armed(void);  /* test accessor */

@@ -44,6 +44,7 @@
 #include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
 #include "customer_service.h"    /* cc08==4 customer-service session_init / master_tick */
+#include "x87.h"                 /* spill32 / spill64 (the door-zone distance) */
 #include "scene1_shop_walker.h"  /* scene1_customer_npc_pump (FUN_0047019f) — chibi crowd */
 #include "scene1_actor_say.h"   /* actor_say_tick (FUN_00485861, the LAB_004893ff tail) */
 #include "scene1_day_close.h"   /* the night sequence (DAT_0438b4e0) + period advance */
@@ -1172,7 +1173,7 @@ static int player_ctrl_at_sell_counter(void)
  * (&DAT_0450f407)[iVar15] (NPC present) is 0 ⇒ be7c never arms ⇒ db004=0.  The
  * be7c NPC-approach path + the b928 scene-intro early branches remain
  * PORT-DEBT(emote-npc-approach) — inert with no live customer/item writer. */
-static void player_ctrl_cc08_proximity_detect(void)
+static void player_ctrl_cc08_proximity_detect(int *at_door_out, int *at_counter_out)
 {
     /* Only when not carrying (the engine's `if (DAT_056db048 != 0) goto
      * LAB_004885eb` gate at all.c:87524 — carrying suppresses the affordance). */
@@ -1182,15 +1183,18 @@ static void player_ctrl_cc08_proximity_detect(void)
         int exited = (bank != NULL)
                    ? ((const uint8_t *)bank)[PC_DOOR_EXITED_BYTE_OFF] : 0;
         at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
-                                           s_player_facing, exited);
-        if (!at_door)                              /* door wins (engine: !bVar17) */
-            at_counter = player_ctrl_at_sell_counter();
+                                           g_scene1_player_pos[2], s_player_facing,
+                                           g_scene1_camera_stage_view_mode, exited);
+        /* v132 is computed whatever v59 is; v59 wins at the ramp and the Z arm */
+        at_counter = player_ctrl_at_sell_counter();
     }
 
     if (at_door)
         player_ctrl_emote_ramp_step(1, 7, &s_emote_level, &s_emote_type);
     else
         player_ctrl_emote_ramp_step(at_counter, 0, &s_emote_level, &s_emote_type);
+    *at_door_out = at_door;
+    *at_counter_out = at_counter;
 }
 
 /* Pure emote-bubble ramp step (the LAB_00488906 / LAB_004885eb tails, all.c:
@@ -1225,27 +1229,35 @@ int player_ctrl_emote_type(void)  { return s_emote_type; }
 
 /* ── T1: shop-door exit → world map (engine FUN_0048670f) ──────────────────
  *
- * Door-zone predicate `bVar17` (all.c:87491-87539, the cc04==0 free-roam branch,
- * stage-type 0 = the shop).  A faithful subset: the player faces the door
- * (≈ +π/2 ± 0.1π) AND is at the door edge (world X > 2.895) AND has not already
- * exited (DAT_0450f3f7 == 0).
- *
- * PORT-DEBT(door-proximity, FUN_005031e4): the engine also gates on a
- * sqrt(dist²) < 1.8 proximity radius to the door point (FUN_005031e4 = fsqrt).
- * Omitted pending the door-point reference RE; the recording's deliberate
- * approach satisfies the position+facing subset, so anchors reproduce.  Retire
- * by adding the radius once the door point (the sqrt arg) is decoded. */
-int player_ctrl_at_shop_door(float player_x, float facing, int already_exited)
+ * v59, the door zone (0x488616-0x48872e): within 1.8 of the door point, not
+ * exited (work +0x2bc5f), facing within ±0.1π of the door's direction, past its
+ * edge.  The door by the stage's scene type DAT_068dd3fc[stage·0x6cf]:
+ *   0     → (3, -3.4), facing +π/2, edge x > 2.895;
+ *   1..4  → (6, -6.7), facing -π,   edge z < -6.7;
+ *   other → (6, -6.8), facing +π/2, edge z < -6.7.
+ * All .rdata m32; the distance is _sqrt (0x5031e4) of the double sum. */
+int player_ctrl_at_shop_door(float x, float z, float facing, int scene_type,
+                             int already_exited)
 {
-    if (already_exited)
+    static const float k_band = 0.3141592741012573f;   /* 0x519a30 */
+    float px = 6.0f, pz = -6.800000190734863f, face = 1.5707963705062866f;
+    if (scene_type == 0) {
+        px = 3.0f;
+        pz = -3.4000000953674316f;
+    } else if (scene_type > 0 && scene_type <= 4) {
+        pz = -6.699999809265137f;
+        face = -3.1415927410125732f;
+    }
+    const float dx = spill32((long double)px - x);
+    const float dz = spill32((long double)pz - z);
+    const float d = spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+    if (!(d < 1.7999999523162842f) || already_exited)
         return 0;
-    /* facing within ±0.1π of +π/2 (the shop door faces +X; all.c:87525/87531). */
-    const float door_face = 1.5707964f;   /* +π/2 */
-    const float band      = 0.31415927f;  /* 0.1π */
-    if (!(facing > door_face - band && facing < door_face + band))
+    if (!((long double)face - k_band < facing) || !((long double)face + k_band > facing))
         return 0;
-    /* at the door edge: player world X (DAT_056da1d8) > 2.895 (all.c:87535). */
-    return player_x > 2.895f;
+    if (scene_type != 0)
+        return z < -6.699999809265137f;
+    return x > 2.894999980926514f;
 }
 
 /* Door-exit arm (all.c:87637-87648): Z at the door zone → arm the world-map
@@ -1453,66 +1465,65 @@ int player_ctrl_cc08_f406_pending(void)
            ((const uint8_t *)bank)[PC_F406_TUTORIAL_BYTE_OFF] != 0;
 }
 
-/* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
- * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
- * interaction).  The wired sub-paths are the **shop-door exit** (the bVar17
- * branch, all.c:87637-87649 — checked FIRST) and the **in-house display-stand
- * open gate** (all.c:87700-87727).  Returns 1 when a sub-path consumes the frame
- * (skip the walk — engine goto LAB_004893ff). */
-static int player_ctrl_cc08_dpad_interact(void)
+/* The db048 == 0 button block of the free-roam arm (FUN_0048670f, IDA 97393+):
+ * a press of 0x20, 0x40 or 0x10 (DAT_073dddd4, the edge mask) ALWAYS ends the
+ * frame at LABEL_675 (FUN_00486435 + FUN_00485861) — no FUN_0048b850 walk, no
+ * FUN_004897c6 anim tick, no FUN_0048a833 — whether or not the press acted
+ * (rhost dungeon0-full f476: a Z press facing no cell holds the player and
+ * db054).  `at_door` / `at_counter` are the frame's v59 / v132.  Returns 1 when
+ * the frame ended here. */
+static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
 {
-    /* action button Z (DAT_073dddd4 & 0x10): the per-frame EDGE mask
-     * (g_sim_buttons[0].pressed), NOT the held mask the walk reads. */
-    if ((g_sim_buttons[0].pressed & 0x10u) == 0)
+    const uint16_t pressed = g_sim_buttons[0].pressed;
+    if ((pressed & 0x70u) == 0)
         return 0;
-
-    /* door exit (the bVar17 branch, all.c:87637-87649) — checked BEFORE the
-     * display-stand open (the engine's `if (bVar17)` precedes the stand gate).
-     * Z while at the shop door zone → arm the world-map transition + the fade. */
-    {
-        const uint32_t *bank0 = save_work_dwords_at(save_work_active_slot());
-        int exited = (bank0 != NULL)
-                   ? ((const uint8_t *)bank0)[PC_DOOR_EXITED_BYTE_OFF] : 0;
-        if (player_ctrl_at_shop_door(g_scene1_player_pos[0], s_player_facing,
-                                     exited)) {
-            player_ctrl_worldmap_exit_arm();
-            s_companion_skip_frame = 1;   /* the arm frame: no b850, no FUN_0048a833 */
-            return 1;   /* consume the frame (engine goto LAB_004890d1). */
-        }
-    }
-
-    /* ── sell-counter → customer-service entry (the bVar3 Z-arm, all.c:87680-
-     * 87695) — checked AFTER the door (bVar17) and BEFORE the display-stand open,
-     * matching the engine order.  Z while standing at the sell counter facing it
-     * enters the cc08==4 customer-service / haggle mode: set the sell-active flag
-     * (f404), seed the script-file index (FUN_00461bf6(2)), flip cc08=4, and run
-     * the session init (FUN_0045edaa → the sell-active scripted-sell path). */
-    if (player_ctrl_cc08_sell_counter_enter())
-        return 1;   /* entered customer service: consume the frame. */
-
-    int cbfc = shop_display_cbfc();
-    if (cbfc == -1)                          /* no display cell highlighted */
-        return 0;
-    int cc00 = shop_display_cc00();
+    s_companion_skip_frame = 1;
+    if (pressed & 0x20u)
+        return 1;
 
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (bank == NULL)
-        return 0;
+        return 1;
     const uint8_t *bb = (const uint8_t *)bank;
-
-    /* shop gates (all.c:87703): displays present (DAT_0450f3f2 != 0) AND not
-     * suppressed (DAT_0450f400 == 0). */
-    if (bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] == 0)
-        return 0;
-    if (bb[PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF] != 0)
-        return 0;
-
-    /* furniture-suppression flag (all.c:87700-87701): DAT_0450fee8[fidx] == 0 is
-     * a visible stand → the cc04==1 remove menu.  != 0 is the cc04==2
-     * furniture-grid mode (deferred — fall through to the walk). */
+    int cbfc = shop_display_cbfc();
+    int cc00 = shop_display_cc00();
+    /* v68 = FUN_004860c8(cbfc, cc00); retail reads the furniture word at v68
+     * even when it is -1 (the dword before the array) */
     int fidx = shop_display_furniture_index(cbfc, cc00);
-    if (fidx >= 0 && bank[SHOP_DISPLAY_SUPPRESS_FLAGS + (uint32_t)fidx] != 0)
-        return 0;
+    const int32_t furn = (int32_t)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + fidx];
+
+    if (pressed & 0x40u) {
+        if (!at_door && !at_counter && furn == 0 &&
+            bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] != 0 &&
+            bb[PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF] == 0 && cbfc != -1 &&
+            (int32_t)bank[SAVE_BANK_FIELD_DISPLAY_GRID +
+                          (uint32_t)(cbfc + cc00 * SHOP_DISPLAY_GRID_STRIDE)] != -1) {
+            /* PORT-DEBT(stub, FUN_0048670f cc08 50): the faced stand's item
+             * status — FUN_0047f1ce, cc08 = 50, FUN_00468286(item),
+             * FUN_004681db(2), SE 710 */
+        }
+        return 1;
+    }
+
+    /* 0x10 (Z) */
+    if (at_door) {                       /* v59 implies !+0x2bc5f */
+        player_ctrl_worldmap_exit_arm();
+        return 1;
+    }
+    /* PORT-DEBT(emote-npc-approach): the be7c talk arm (cc08 = 15, FUN_004850fe,
+     * one rand for the voice) — be7c never arms in the port */
+    if (at_counter) {
+        player_ctrl_cc08_sell_counter_enter();
+        return 1;
+    }
+    if (furn != 0) {
+        /* PORT-DEBT(stub, FUN_0048670f cc04 2): the furniture-grid mode (cc04 = 2,
+         * FUN_00468338, the 74b2ed4.. cursor, SE 323, FUN_00435710) */
+        return 1;
+    }
+    if (bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] == 0 ||
+        bb[PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF] != 0 || cbfc == -1)
+        return 1;
 
     /* ===== open the cc04==1 display-stand menu (all.c:87705-87724) ===== */
 
@@ -1529,15 +1540,9 @@ static int player_ctrl_cc08_dpad_interact(void)
         audio_play_se_file(k_open_se[rng_next15() % 3]);
     }
 
-    /* interact pose (all.c:87710-87716): actor 0 anim → 3 (the lean-in pose),
-     * frame/counter/timer reset, then one anim tick (FUN_00482a71). */
-    if (s_actor_record[0][CHR_ACTOR_ANIM] != 3) {
-        union { float f; int32_t i; } z = { .f = 0.0f };
-        s_actor_record[0][CHR_ACTOR_ANIM]    = 3;
-        s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
-        s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
-        s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
-    }
+    /* interact pose: actor 0 anim 3 (the lean-in, keyed on daafc), then one
+     * anim tick (FUN_00482a71). */
+    party_anim_set(s_actor_record[0], 3);
     chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
 
     /* cc04 = 1 + the open-once latch DAT_0438cbe8 (all.c:87718-87722). */
@@ -1864,14 +1869,15 @@ static void player_ctrl_cc08_freeroam_arm(void)
         return_beat = 1;
     }
 
-    /* proximity / approach detection: inert (no customer/item live). */
+    /* proximity / approach detection (v59 / v132 + the affordance ramp); the
+     * return beat jumps past it (LABEL_448, both 0) */
+    int at_door = 0, at_counter = 0;
     if (!return_beat)
-        player_ctrl_cc08_proximity_detect();
+        player_ctrl_cc08_proximity_detect(&at_door, &at_counter);
 
-    /* d-pad interaction (door/talk/pickup): the whole block sits under the
-     * engine's `if (DAT_056db048 == 0)` (all.c:87617) — a held carry pose
-     * swallows interactions. */
-    if (s_db048 == 0 && player_ctrl_cc08_dpad_interact())
+    /* the button block sits under `if (DAT_056db048 == 0)` — a held carry pose
+     * swallows the presses */
+    if (s_db048 == 0 && player_ctrl_cc08_dpad_interact(at_door, at_counter))
         return;
 
     player_ctrl_walk_and_highlight();
