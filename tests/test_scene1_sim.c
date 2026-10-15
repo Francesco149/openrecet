@@ -29,6 +29,7 @@
 #include "scene1_records.h"
 #include "scene1_records_c_tick.h"
 #include "scene1_sim.h"
+#include "table_c.h"
 #include "scene1_player_ctrl.h"
 #include "title_save_dialog.h"
 #include "scene1_spawn.h"
@@ -99,6 +100,7 @@ static void stage_c_pickup(int slot, int type, int age)
     g_scene1_records_c[base + SCENE1_RECORDS_C_OFF_AUX]     = 0;
     if (slot >= g_scene1_records_c_count)
         g_scene1_records_c_count = slot + 1;
+    table_c_bound_update();   /* the previous frame's render (DAT_0076b968) */
 }
 
 static int c_slot_get_i(int slot, int off)

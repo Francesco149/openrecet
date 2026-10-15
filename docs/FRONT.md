@@ -149,32 +149,22 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
-    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f7590**: the item
-       pickup FUN_00484e97 / FUN_00484dd1 from the walk; adv-guild-pack-leave **identical to
-       the end**). Done (PROGRESS 2026-10-15):
-       the case-1 dungeon load (FUN_00474a9a's dungeon branch + FUN_00436f97's dungeon arm:
-       party spawn probe, floor objects FUN_0044ad81, the floor title, b4b4 = 200), FUN_00442cef
-       on retail's control flow (the house's FUN_0048670f reconstruction in its slot), the intro
-       countdown → iv2_10 → the equip prompt, FUN_0048b3f6 / FUN_0048b850 / FUN_0048a833 /
-       FUN_0048a4d1 / FUN_0048407f dungeon paths, the walk FUN_0048cdcc → FUN_00489e66, the move
-       + collision FUN_00483170, the party block in retail layout (`party.h`). portrng identical
-       f3405–f5293; portstate party pos / vel / facing / db054 / records identical to f5400.
-       The actor pass FUN_00430c6d (`src/actor_ai.c`: slimes FUN_0042c9b3, FUN_0042f28c,
-       FUN_004304b3, view depths) → portrng to f5409 / f16201; 9 slimes' pos / vel / yaw /
-       state / facing identical f3405–f5409 (depth +0x450: 22 frames ±11 ulp = the camera).
-       Louie's swing FUN_0049831c (`dungeon_party.c`) → the hit record FUN_0044376a (kind
-       2 / 84) → FUN_0043865e's actor arm (`record_hit.c`: damage roll, knock-back, sparks,
-       SE) → FUN_0042e791 (popups, EXP orbs FUN_0044af50) → FUN_0042e1a6 (EXP, combo, drop
-       roll) → portrng to f5457 / f16278.
-       Then the dying actor FUN_0042f7ad (regular arm), the camera shake (FUN_0044b219 +
+    1. **The dungeon pilot — in-dungeon play** (dungeon0-floors-save **f8013**: the exit
+       portal's floor change — A on the portal at f8002, retail's stage tick stops at f8013;
+       adv-guild-pack-leave **identical to the end**). Then the dying actor FUN_0042f7ad (regular arm), the camera shake (FUN_0044b219 +
        FUN_00441c3e block L), Louie's skill (FUN_00489c79 / FUN_00489d52 / FUN_00489b2c /
        FUN_00496fca / FUN_00485712), FUN_0043865e's object arm (chests: FUN_004412b6 traps 4 / 5)
        and player arm (FUN_00485c74 / FUN_00485979), the stage objects' tick FUN_0043a5d9,
        the slimes' records (FUN_00445a8c kinds 11 / 31) and the monster-house ring
        FUN_0042c8a5 → portrng to f7589; adv-guild-pack-leave identical f1–f21552.
        Next, in frame order:
-       - ★ the pickups: FUN_00484e97 (the item under the player) → FUN_00484dd1, from
-         FUN_00489e66 / FUN_0048cdcc / FUN_0048d5d6 (PORT-DEBT stubs), FUN_0048cbf6;
+       The pickups FUN_0048cbf6 / FUN_00484e97 / FUN_00484dd1 / FUN_00484da3 / FUN_00484e45,
+       the level-up FUN_0048a383 and table C's tick FUN_0044284b (`table_c.c`, bounded by the
+       render's DAT_0076b968) → portrng to f8012.
+       - ★ the portal floor change: FUN_00452f16 → FUN_004536cb's 6a49964 arm → the
+         LAB_00452a6b reload (the next floor's load + intro); the "got an item" window
+         (DAT_00648250 / 648294, FUN_0040c923) is never consumed in the port (retail clears
+         648294);
        - PORT-DEBT left in the combat path: FUN_004412b6 traps 1/2/3/6/8/9/10, FUN_0043824b
          (the chest's item roll), FUN_00484e45 / FUN_00485413 (bag full), FUN_004147d5
          overlays, FUN_0042f7ad's boss arms, the other chars' swings / skills, FUN_0048a383;
@@ -220,7 +210,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×5, portanchors ×2, portrng over 11 shop/day scenarios to the retail run's
-  end, plus dungeon0-floors-save into the dungeon (to f7589), adv-guild-pack-leave to its end.
+  end, plus dungeon0-floors-save into the dungeon (to f8012), adv-guild-pack-leave to its end.
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,

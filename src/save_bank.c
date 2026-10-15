@@ -404,7 +404,11 @@ void save_bank_apply_chara_interp(int bank_idx)
      * to keep per-frame call counts in lockstep with retail. */
     CALL_TRACE_ENTER(0x47a8c0u);
 
-    uint8_t *bank_bytes = save_bank_at(bank_idx);
+    save_bank_apply_chara_interp_at(save_bank_at(bank_idx));
+}
+
+void save_bank_apply_chara_interp_at(uint8_t *bank_bytes)
+{
     if (!bank_bytes) return;
 
     uint32_t *interp_base = (uint32_t *)(bank_bytes + BANK_OFFSET_CHARA_INTERP_BYTES);

@@ -7,6 +7,7 @@
  */
 
 #include "scene1_render.h"
+#include "table_c.h"
 
 /* ── world→screen projection — port of FUN_00490c78 → FUN_00490d29 ──────
  * Pure math (no D3D), so it lives ABOVE the _WIN32 guard and is host-tested
@@ -445,6 +446,7 @@ void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
      * the full L51..L257 port lives in scene1_render_meshes (C8a)
      * with all four pass-walker call sites stubbed for follow-up
      * chips. */
+    table_c_bound_update();   /* FUN_00459dfd's head: DAT_0076b968 (the sim's table-C loops) */
     scene1_render_meshes(dev);
 }
 

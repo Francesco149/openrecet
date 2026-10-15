@@ -31,6 +31,8 @@ struct IDirect3DDevice8;
  * DAT_0438b5e8[k]); -1 = empty.  The dungeon (FUN_00468338 mode 6) reads it. */
 #define ADV_GUILD_BAG_SLOTS 38
 int adv_guild_bag_slot(int k);     /* k = 1..ADV_GUILD_BAG_SLOTS */
+int *adv_guild_bag(void);          /* &DAT_0438b5ec[0] (slot 1) */
+int  adv_guild_bag_size(void);     /* DAT_005c5a98 */
 
 /* FUN_0045c051 — one update tick (sim.c case 11; the caller gates on no
  * dialogue, as LABEL_106 does). */

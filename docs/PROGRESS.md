@@ -7,6 +7,17 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — pickups, level-ups, table C (dungeon pilot)
+**portrng dungeon0-floors-save identical f1–f8012** (was f7589), up to the exit portal.
+- `dungeon_party.c`: FUN_0048cbf6 (EXP orbs taken after 30 ticks, the item under the
+  player), FUN_00484e97 (gems into the 6-slot ring, items into the bag), FUN_00484dd1,
+  FUN_00484da3, FUN_00484e45, FUN_0048a383 (level-up; `save_bank_apply_chara_interp_at` on
+  the work bank).
+- `table_c.c`: FUN_0044284b replaces the legacy hook-based table-C tick in production (the
+  ground bounce, the 3-ray wall push, the orbs homing, the float to the bag); its loops stop
+  at DAT_0076b968 (= the legacy `g_scene1_records_c_count`), which the render's FUN_00459dfd
+  recomputes — a record spawned past it waits a frame, as in retail.
+
 ## 2026-10-15 — dying, skills, chests, traps, getting hit (dungeon pilot)
 **portrng dungeon0-floors-save identical f1–f7589** (was f5457); **adv-guild-pack-leave
 identical over the whole retail run (f1–f21552)**.

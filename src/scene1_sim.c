@@ -74,6 +74,7 @@
 #include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
+#include "table_c.h"
 #include "scene1_tutorial_dispatch.h"
 #include "rng.h"
 #include "call_trace.h"
@@ -513,7 +514,7 @@ void scene1_ingame_default_arm_tick(void)
         }
     }
     if (g_scene1_combat_dat_0438b908 > 0) --g_scene1_combat_dat_0438b908;
-    scene1_records_c_tick();                 /* FUN_0044284b */
+    table_c_tick();                          /* FUN_0044284b */
     for (int k = 0; k < 32; k++)
         if (g_popup[k][3] > 0) --g_popup[k][3];
     g_dat_0064e818 = 1;

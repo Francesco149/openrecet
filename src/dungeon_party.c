@@ -22,6 +22,12 @@
 #include "party_move.h"           /* FUN_00483170 */
 #include "rng.h"                 /* FUN_00471089 */
 #include "save_work.h"
+#include "xp_curve.h"             /* FUN_0048a331 */
+#include "scene_adv_guild.h"      /* the bag DAT_0438b5ec */
+#include "scene1_top_hud.h"       /* DAT_0438b920 */
+#include "scene1_records.h"       /* table C DAT_06956cb0 */
+#include "table_c.h"              /* DAT_0076b968 */
+#include "save_bank.h"           /* FUN_0047a8c0 */
 #include "scene1_camera.h"       /* DAT_0438cc68 */
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) */
 #include "scene1_particles_tick.h" /* g_scene1_camera_yaw (DAT_073de39c) */
@@ -73,6 +79,7 @@ static int32_t octant(float a)
 
 static const uint8_t *work_rec(void) { return save_work_bank_at(save_work_active_slot()); }
 static void party_skill_selected(void);   /* FUN_00489c79 */
+static void party_pickup_item(void);      /* FUN_00484e97 */
 static void party_skill_direct(void);     /* FUN_00489d52 */
 /* the active chara's record: work +0x2ceb0 + 0x6c·DAT_0438b7d8 */
 static const uint8_t *chara_rec(void)
@@ -627,9 +634,7 @@ static void party_attack_input(void)
             party_skill_selected();                     /* FUN_00489c79 */
         }
     } else {
-        if (PW(0x56dae40u).i != -1) {
-            /* PORT-DEBT(stub, FUN_00484e97): the pickup under the player */
-        }
+        if (PW(0x56dae40u).i != -1) party_pickup_item();   /* FUN_00484e97 */
         if (attack_ok) {
             if (!((floor_event_active(9) || PW(0x56db100u).i > 0) && !chara_has_item(0x96b)) && chr != 30) {
                 g_party.vel[0][0] = 0.0f;
@@ -814,6 +819,168 @@ static void party_skill_louie(void)
     }
 }
 
+/* DAT_00648290 / 648294 / 648250: the "got an item" notice (FUN_0040c923) */
+int32_t g_got_item, g_got_item_on, g_got_item_bubble;
+
+/* FUN_00484da3: the item into the first free bag slot of `cap` (0 = full) */
+static int bag_add(int32_t item, int32_t cap)
+{
+    int *bag = adv_guild_bag();
+    if (cap == 0) return 0;
+    int k = 0;
+    while (bag[k] != -1) if (++k == cap) return 0;
+    bag[k] = item;
+    return 1;
+}
+
+/* FUN_00484e45: the bag is full (its items + the table-C items flying to it) */
+int party_bag_full(void)
+{
+    const int *bag = adv_guild_bag();
+    const int cap = adv_guild_bag_size();
+    int n = 0;
+    for (int k = 0; k < cap; k++) if (bag[k] != -1) n++;
+    for (int k = 0; k < g_table_c_bound; k++) {
+        const int32_t *r = &g_scene1_records_c[k * SCENE1_RECORDS_C_STRIDE];
+        if (r[10] != -1 && r[36] != 1 && r[16] == 2) n++;
+    }
+    return n == cap;
+}
+
+/* FUN_00484dd1: an item (table-C kind >= 7: id + 7, the rare flag, the grade)
+ * into the bag: the pickup count, the voice, the notice, SE 332 */
+void party_get_item(int32_t kind, int32_t rare, int32_t grade)
+{
+    if (kind < 7) return;
+    const int32_t item = grade | (rare << 4) | ((kind - 7) << 6);
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    if (w) { int32_t n; memcpy(&n, w + 0x2c3e0, 4); ++n; memcpy(w + 0x2c3e0, &n, 4); }
+    audio_play_se_file((rng_next15() & 1) ? "bin/se/00re/action/00re_btl05a.bin"
+                                          : "bin/se/00re/action/00re_btl05b.bin");
+    g_got_item = item;                       /* FUN_0040c923 */
+    g_got_item_on = 1;
+    g_got_item_bubble = 1;
+    if (bag_add(item, adv_guild_bag_size())) audio_play_se_by_id(332);
+}
+
+/* FUN_00484e97: pick up table-C item 0x56dae40 — a gem (kind < 4) into the
+ * 6-slot ring 0x56dae44.., else into the bag (or the "bag full" notice) */
+static void party_pickup_item(void)
+{
+    int32_t *r = &g_scene1_records_c[PW(0x56dae40u).i * SCENE1_RECORDS_C_STRIDE];
+    const int32_t kind = r[10];
+    if (kind < 4) {
+        for (uint32_t va = 0x56dae58u; va != 0x56dae44u; va -= 4) PW(va).i = PW(va - 4).i;
+        PW(0x56dae44u).i = kind;
+        audio_play_se_by_id(351);
+        r[10] = -1;
+        return;
+    }
+    if (!party_bag_full()) {
+        party_get_item(r[10], r[14], r[15]);
+        r[10] = -1;
+        return;
+    }
+    g_notice_on = 1;
+    g_notice_item = 0;
+    g_notice_kind = 2;
+    g_notice_b76c = 1;
+    g_notice_ticks = 90;
+    /* PORT-DEBT(render-coupled, FUN_00490c78): the side is Tear's screen x < 320 */
+    g_notice_side = 1;
+}
+
+/* FUN_0048a383: a level-up of party member `m` (at 98: the EXP is capped) */
+static void party_level_up(uint8_t *m)
+{
+    int32_t lv;
+    memcpy(&lv, m, 4);
+    int16_t a, b, c, d;
+    if (lv < 98) {
+        int32_t nx;
+        memcpy(&nx, m + 0x4c, 4);
+        ++lv;
+        memcpy(m, &lv, 4);
+        memcpy(m + 0x48, &nx, 4);
+        const int32_t t = xp_curve_threshold(lv + 1);
+        memcpy(m + 0x4c, &t, 4);
+        scene1_top_hud_levelup_arm();                       /* DAT_0438b920 = 1 */
+        save_bank_apply_chara_interp_at(save_work_bank_at(save_work_active_slot()));   /* FUN_0047a8c0 */
+        memcpy(&a, m + 0x3c, 2); memcpy(&b, m + 0x3e, 2);
+        memcpy(&c, m + 0x40, 2); memcpy(&d, m + 0x42, 2);
+        PW(0x56db0bcu).f = spill32((long double)(b + a));
+        PW(0x56db0c0u).f = spill32((long double)(d + c));
+        chara_equip_recompute_aggregate();                  /* FUN_004844ef */
+        audio_play_se_file("bin/se/00re/system/00re_sys03b.bin");
+        chara_skills_init_at_stage_load();                  /* FUN_004360b6 */
+        /* PORT-DEBT(stub, FUN_004147d5): the level-up burst 33 over the party */
+        PW(0x56daeb8u).i = 20;
+    } else {
+        memcpy(&a, m + 0x3c, 2); memcpy(&b, m + 0x3e, 2);
+        memcpy(&c, m + 0x40, 2); memcpy(&d, m + 0x42, 2);
+        PW(0x56db0bcu).f = spill32((long double)(b + a));
+        PW(0x56db0c0u).f = spill32((long double)(d + c));
+        /* PORT-DEBT(stub, FUN_004147d5): the burst 33 */
+        PW(0x56daeb8u).i = 20;
+        memcpy(m + 0x44, m + 0x48, 4);
+    }
+    chara_skills_init_at_stage_load();
+}
+
+/* FUN_0048cbf6: table C around the player — EXP orbs (kinds 0..3) older than
+ * 30 ticks within 1.5 are taken (+10, +1 for a hit's orb, +100 with work
+ * +0x2bc55; doubled on floor event 2); the nearest item marks 0x56dae40 (taken
+ * at once with the auto-pickup 0x56db084) */
+static void party_pickups(void)
+{
+    static const float k10 = 10.0f, k1p5 = 1.5f;
+    float best = k10;
+    PW(0x56dae40u).i = -1;
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    uint8_t *m = w ? w + 0x2ceb0 + 0x6c * chara_equip_get_current_chara() : NULL;
+    int got = 0;
+    for (int k = 0; k < g_table_c_bound; k++) {          /* DAT_0076b968 */
+        int32_t *r = &g_scene1_records_c[k * SCENE1_RECORDS_C_STRIDE];
+        if (r[10] == -1 || r[16] == 2) continue;
+        if (!((uint32_t)r[10] >= 4u || PW(0x56dae58u).i == -1)) continue;
+        float fx, fy, fz;
+        memcpy(&fx, &r[0], 4); memcpy(&fy, &r[1], 4); memcpy(&fz, &r[2], 4);
+        const float dx = spill32((long double)g_party.pos[0][0] - fx);
+        const float dy = spill32((long double)g_party.pos[0][1] - fy);
+        const float dz = spill32((long double)g_party.pos[0][2] - fz);
+        const float d = spill32((long double)sqrt(spill64(((long double)dz * dz + (long double)dy * dy) + (long double)dx * dx)));
+        if (!(d < k1p5) || !(d < best)) continue;
+        if (r[10] <= 3) {
+            if (r[11] > 30) {
+                audio_play_se_by_id(332);
+                r[10] = -1;
+                if (PW(0x56db0bcu).f > 0.0f && m) {
+                    int32_t x;
+                    memcpy(&x, m + 0x44, 4);
+                    if (w[0x2bc55] != 0) x += 100;
+                    else if (r[17] == 1) { ++x; if (floor_event_active(2)) ++x; }
+                    else { x += 10; if (floor_event_active(2)) x += 10; }
+                    memcpy(m + 0x44, &x, 4);
+                    got = 1;
+                }
+            }
+        } else {
+            best = d;
+            PW(0x56dae40u).i = k;
+        }
+    }
+    if (PW(0x56dae40u).i != -1 && PW(0x56db084u).i != 0) {
+        party_pickup_item();
+        PW(0x56dae40u).i = -1;
+    }
+    if (got && m) {
+        int32_t x, nx;
+        memcpy(&x, m + 0x44, 4);
+        memcpy(&nx, m + 0x4c, 4);
+        if (x >= nx) party_level_up(m);
+    }
+}
+
 /* FUN_0049a052: a bag of 9 voice picks (0, 1, 2 three times each), shuffled
  * when dealt from the top; DAT_096432b4 / DAT_096432dc */
 static int32_t s_voice_bag[9], s_voice_bag_n;
@@ -941,9 +1108,7 @@ static void party_state_tick(void)
         PW(0x56db048u).i = 0;
         break;
     case 11:
-        if (++PW(0x56db04cu).i == 6 && PW(0x56dae40u).i != -1) {
-            /* PORT-DEBT(stub, FUN_00484e97) */
-        }
+        if (++PW(0x56db04cu).i == 6 && PW(0x56dae40u).i != -1) party_pickup_item();
         if (PW(0x56db04cu).i >= 12) { PW(0x56db04cu).i = 0; PW(0x56db048u).i = 0; }
         break;
     case 2:
@@ -1067,7 +1232,7 @@ void dungeon_party_tick(void)
     }
     party_status_tick();                     /* FUN_004897c6 */
     party_state_tick();                      /* FUN_0048cdcc */
-    /* PORT-DEBT(stub, FUN_0048cbf6): pickups (table C) and the level-up check */
+    party_pickups();                         /* FUN_0048cbf6 */
     if (mapcol_maptype() != 0 && !stage_gate_floor_is_checkpoint()) {
         if (g_ghost_timer > 0) ++g_ghost_timer;
         if (PW(0x56db0bcu).f > k0 && g_ghost_timer >= 60 && rec != NULL && rec[0x2bd16] == 0) {

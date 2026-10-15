@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "actor_ai.h"
+#include "dungeon_party.h"
 #include "scene1_combat_sm.h"
 #include "scene1_records.h"
 #include "record_hit.h"
@@ -322,6 +323,9 @@ static const int32_t *layout_dword(uint32_t va)
         { 0x438b908u, &g_scene1_combat_dat_0438b908 },
         { 0x438bed8u, &g_scene1_combat_dat_0438bed8 },
         { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
+        { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
+        { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
+        { 0x438b768u, &g_notice_ticks },
     };
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;

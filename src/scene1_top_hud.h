@@ -59,6 +59,7 @@ void    scene1_top_hud_xp_snap(int bank_exp);
 float   scene1_top_hud_xp_anim(void);
 int32_t scene1_top_hud_xp_flash(void);
 int32_t scene1_top_hud_levelup_timer(void);
+void    scene1_top_hud_levelup_arm(void);      /* DAT_0438b920 = 1 */
 
 /* World-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584 mode-8
  * band selector).  `_tick` is called per world-map sim frame with the selected

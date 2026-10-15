@@ -404,6 +404,8 @@ void save_bank_init_one(int bank_idx);
  * the engine's call pattern matches retail's per-frame call-count for
  * the function. */
 void save_bank_apply_chara_interp(int bank_idx);
+/* The same on a bank image (the work bank of a level-up). */
+void save_bank_apply_chara_interp_at(uint8_t *bank_bytes);
 
 /* Recompute + stamp checksum at bank[SAVE_BANK_FIELD_CHECKSUM]. */
 void save_bank_stamp_checksum(int bank_idx);

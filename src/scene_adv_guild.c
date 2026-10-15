@@ -128,6 +128,9 @@ static int s_bag2[ADV_GUILD_BAG_SLOTS + 1];
 #define s_b4d4 g_dat_0438b4d4
 #define s_b4d8 g_dat_0438b4d8
 
+int *adv_guild_bag(void) { return &s_bag[1]; }   /* DAT_0438b5ec */
+int  adv_guild_bag_size(void) { return s.bag_size; }   /* DAT_005c5a98 */
+
 int adv_guild_bag_slot(int k)
 {
     return (k >= 1 && k <= ADV_GUILD_BAG_SLOTS) ? s_bag[k] : -1;

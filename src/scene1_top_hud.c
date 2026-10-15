@@ -84,6 +84,7 @@ void scene1_top_hud_shake_tick(void)
 static float   g_hud_xp_anim;      /* _DAT_0438b91c */
 static int32_t g_hud_xp_flash;     /* DAT_0064827c (0..0x1d glow phase) */
 static int32_t g_hud_levelup_t;    /* DAT_0438b920 (0..99 level-up banner) */
+void scene1_top_hud_levelup_arm(void) { g_hud_levelup_t = 1; }
 static int     g_hud_xp_snapped;   /* load-snap latch (engine load sites) */
 
 float   scene1_top_hud_xp_anim(void)       { return g_hud_xp_anim; }
