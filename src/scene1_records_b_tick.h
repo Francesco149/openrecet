@@ -560,20 +560,13 @@ typedef void (*scene1_b_notify_queue_fn)(int32_t a, int32_t b, int32_t c,
  * a stub state machine that doesn't write anything). */
 typedef int (*scene1_b_cull_query_fn)(float x, float y);
 
-/* Stand-in for engine FUN_00432e50 (2084 B, 0x432e50) — terrain ground-
- * height query (PHC #15).  Engine signature is 4-arg: takes a world
- * position (x, y, z) plus a pointer to a 4-float scratch buffer; writes
- * the hit point into the buffer (engine reads ground_y at buffer+0xc =
- * 4th float).  Returns 1 on hit, 0 on miss.
- *
- * Our hook collapses the 4-float buffer to a single `float *out_y` since
- * the C8j-tick bodies that consume it only read the ground Y component.
- * Default returns 0 ("no ground"); bounce gates that compare POS_Y to
- * (ground_y + 1.0f) therefore never trigger.  Hook receives the slot's
- * pre-preamble pos.{x,y,z} since the integrator preamble has already
- * added vel into pos by the time per-type bodies run. */
+/* FUN_00432e50 — the ground under (x, y, z): 1 = hit, the 0x44-byte hit
+ * record (mapcol_hit_t: normal, +0xc height, tri, slot, …) written to `out`.
+ * Some bodies pass the slot's own record at +0x18 (type 0x2c reads its +0x24
+ * height back as AUX_9); the rest a local one.  Default NULL = no hit. */
+#define SCENE1_B_GROUND_HIT_DWORDS 17
 typedef int (*scene1_b_tick_ground_query_fn)(float x, float y, float z,
-                                        float *out_y);
+                                             int32_t out[SCENE1_B_GROUND_HIT_DWORDS]);
 
 /* Stand-in for engine FUN_004532bc (29 B, 0x4532bc) — small 1-arg state
  * writer.  Engine implementation: `if (DAT_06a49998 == 0): DAT_06a49994

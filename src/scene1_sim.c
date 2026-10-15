@@ -42,6 +42,7 @@
  */
 
 #include "scene1_sim.h"
+#include "record_hit.h"          /* FUN_00441aab */
 
 #include <math.h>
 #include <string.h>
@@ -550,7 +551,7 @@ void scene1_ingame_default_arm_tick(void)
         else
             house_master_tick();             /* FUN_0048670f */
         if (g_floor_intro == 0) {
-            /* PORT-DEBT(stub, FUN_00441aab): the "?" spots / item radar */
+            trap_spots_tick();               /* FUN_00441aab */
             actor_pass();                    /* FUN_00430c6d */
             scene1_records_b_tick();         /* FUN_0043ae20 */
             /* PORT-DEBT(stub, FUN_0042ea35) */

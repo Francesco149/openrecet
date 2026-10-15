@@ -322,11 +322,19 @@ static inline void notify_queue_call(int32_t a, int32_t b, int32_t c, float d)
     if (g_notify_queue_hook) g_notify_queue_hook(a, b, c, d);
 }
 
+/* FUN_00432e50 into a caller's hit record */
+static inline int ground_query_into(float x, float y, float z, int32_t *rec)
+{
+    return g_ground_query_hook ? g_ground_query_hook(x, y, z, rec) : 0;
+}
+
+/* FUN_00432e50 into a local record; the height (+0xc) out */
 static inline int ground_query(float x, float y, float z, float *out_y)
 {
-    if (g_ground_query_hook) return g_ground_query_hook(x, y, z, out_y);
-    *out_y = 0.0f;
-    return 0;
+    int32_t rec[SCENE1_B_GROUND_HIT_DWORDS] = { 0 };
+    const int r = ground_query_into(x, y, z, rec);
+    memcpy(out_y, &rec[3], sizeof *out_y);
+    return r;
 }
 
 static inline void aux_4532bc_call(int32_t arg1)
@@ -2105,83 +2113,63 @@ static void body_0x8c(int i)
  */
 static void body_0x2c(int i)
 {
+    static const float k0p02 = 0.019999999552965164f, k0p95 = 0.949999988079071f;
+    static const float k0p05 = 0.05000000074505806f, k0p03 = 0.029999999329447746f;
+    static const float km0p8 = -0.800000011920929f, k1p2 = 1.2000000476837158f;
     int32_t *slot = slot_base(i);
 
-    /* L37544 / asm 0x43cf67-0x43cf89: VEL_Y = (VEL_Y - 0.02) * 0.95. */
-    float vel_y = (slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.02f) * 0.95f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+               spill32(((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - k0p02) * k0p95));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + k0p05));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + k0p03));
 
-    /* L37545-46 / asm 0x43cf8c-0x43cf9e: ROT_SCR += 0.05; ROT_Z += 0.03. */
-    float rot_scr = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.05f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
-    float rot_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
-
-    /* L37547-49 / asm 0x43cfa0-0x43cfc6: MATRIX0 = rot_y(ROT_Z) *
-     * rot_x(ROT_SCR).  Engine asm pushes (MATRIX0, scratch, MATRIX0) to
-     * mat4_multiply; our `mat4_mul(out, a, b)` computes out = a * b. */
+    /* MATRIX0 = RotY(+0x94) × RotX(+0x8c): FUN_004a2a10(m, tmp, m) */
     float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
     float scratch[16];
-    mat4_rotation_x(mat0, rot_scr);
-    mat4_rotation_y(scratch, rot_z);
+    mat4_rotation_x(mat0, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR));
+    mat4_rotation_y(scratch, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z));
     mat4_mul(mat0, scratch, mat0);
 
-    /* L37550-63 / asm 0x43cfcb-0x43d05d: bounce gate.  Three conjoined
-     * conditions all must hold. */
-    if (vel_y < 0.0f) {
-        float gy = 0.0f;
-        float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-        float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-        float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        int hit = ground_query(pos_x, pos_y, pos_z, &gy);
-        if (hit == 1) {
-            float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
-            float aux9      = slot_get_f(i, SCENE1_RECORDS_B_OFF_AUX_9);
-            float threshold = life_mult * 0.5f + aux9;
-            if (pos_y <= threshold) {
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
-                vel_y *= -0.8f;
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
-                if (slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0) {
-                    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
-                    notify_queue_call(4, 4, 4, 1.0f);
-                    se_play(0x168);
-                }
+    /* falling: the ground into the slot's own hit record (+0x18; its +0x24
+     * height is AUX_9); at or under scale·0.5 above it, sit on it and bounce
+     * -0.8 — the first bounce shakes the camera and plays SE 0x168 */
+    if (slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) < 0.0f &&
+        ground_query_into(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X),
+                          slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                          slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), slot + 6) == 1) {
+        const float top = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * 0.5f +
+                                  slot_get_f(i, SCENE1_RECORDS_B_OFF_AUX_9));
+        if (!(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) > top)) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, top);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+                       spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * km0p8));
+            if (slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0) {
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+                notify_queue_call(4, 4, 4, 1.0f);
+                se_play(0x168);
             }
         }
     }
 
-    /* L37564-67 / asm 0x43d064-0x43d075: FLAG > 0 → FLAG++. */
+    /* 30 frames after the first bounce it is gone; until then it hits
+     * (DRAG = scale·1.2, FUN_0043865e) */
     int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
-    if (flag > 0) {
-        flag = flag + 1;
-        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, flag);
-    }
-
-    /* L37568 / asm 0x43d077-0x43d07c: FLAG == 0x1e → kill + skip remainder. */
+    if (flag > 0)
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, ++flag);
     if (flag == 0x1e) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }
-
-    /* L37569-72 / asm 0x43d082-0x43d09e: FLAG == 0 → DRAG = LIFE_MULT *
-     * 1.2; state_machine(slot).  State machine consumes MATRIX0. */
     if (flag == 0) {
-        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 1.2f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,
+                   spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k1p2));
         state_machine_call(slot);
     }
-
-    /* L37573 / asm 0x43d09f-0x43d0a1: mat4_identity(MATRIX0) — engine
-     * wipes the scratch matrix for the next consumer.  Without this, the
-     * pre-multiply work would leak into whoever next reads slot[MATRIX0]
-     * (likely a different per-type body next tick, or the render path). */
-    mat4_identity(mat0);
-
-    /* L37574-76 / asm 0x43d0a5-0x43d0b0: AGE >= 0x12c (300) → kill. */
-    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 0x12c) {
+    mat4_identity(mat0);                     /* FUN_00404bb8 */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 0x12c)
         scene1_records_b_tick_kill_slot(i);
-    }
 }
 
 /* Engine 0x43d100..0x43d3f4 — type 0x23 body.  Ground-bouncer with

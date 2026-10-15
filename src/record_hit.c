@@ -12,7 +12,8 @@
 #include "dungeon_flow.h"        /* FUN_0043647f, DAT_0438cbe4 */
 #include "dungeon_objects.h"     /* the stage objects DAT_0695ef78 */
 #include "dungeon_party.h"       /* FUN_00485712 */
-#include "floor_layout.h"        /* DAT_073e03ac */
+#include "floor_layout.h"        /* DAT_073e03ac, the trap spots DAT_0438b200 / b390 / b3e0 */
+#include "math3d.h"              /* FUN_004a35ef / FUN_004a3553 / FUN_004a2a10 */
 #include "map_collision.h"       /* FUN_00433674 */
 #include "party.h"
 #include "rng.h"                 /* FUN_00471084 / FUN_00471089 */
@@ -21,6 +22,7 @@
 #include "scene1_combat_sm.h"    /* DAT_0438b4c8, DAT_0438bed8, DAT_0438b904/908, DAT_06a46f94 */
 #include "scene1_per_frame_open.h"   /* FUN_0041331d */
 #include "scene1_records.h"
+#include "scene1_records_b_spawn.h"   /* DAT_06a46fb8 */
 #include "scene1_records_b_tick.h"    /* DAT_06a46f98, the state-machine hook */
 #include "scene1_records_c_spawn.h"   /* FUN_0044b0f3 */
 #include "scene1_sim.h"              /* DAT_0438b1c8 */
@@ -678,6 +680,79 @@ static const float k_obj_h[22] = { 10.0f, 2.0f, 10.0f, 10.0f, 6.0f, 6.0f, 6.0f, 
                                    10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f, 10.0f,
                                    10.0f, 10.0f, 10.0f, 10.0f, 10.0f };
 
+/* FUN_004458c4: claim the first free table-B slot for a trap's falling body —
+ * 44 (a rock: random X / Z tumble, 2 up, scale 0.6) or 140 (a sliding block:
+ * random yaw, 0.2 along `ang`, scale 0.3); other types claim nothing */
+static void trap_body_spawn(int32_t type, float x, float y, float z, float ang)
+{
+    static const float k0p6 = 0.6000000238418579f, k0p3s = 0.30000001192092896f;
+    for (int i = 0; i < SCENE1_RECORDS_B_COUNT; i++) {
+        int32_t *s = &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+        if (RI(s, 0x00) != 0) continue;
+        RI(s, 0x04) = 3;
+        RI(s, 0x98) = 0;
+        RF(s, 0x8c) = 0.0f; RF(s, 0x90) = 0.0f; RF(s, 0x94) = 0.0f;
+        RI(s, 0x00) = type;
+        RF(s, 0x68) = 0.0f; RF(s, 0x6c) = 0.0f; RF(s, 0x70) = 0.0f;
+        RF(s, 0x5c) = x; RF(s, 0x60) = y; RF(s, 0x64) = z;
+        RI(s, 0x14) = 0;
+        RI(s, 0x10) = 0;
+        RF(s, 0xa8) = 0.0f;
+        RF(s, 0x108) = 1.0f;
+        RI(s, 0xa0) = -1;
+        RI(s, 0x110) = 0;
+        RI(s, 0x9c) = 0;
+        RI(s, 0x0c) = -1;
+        RI(s, 0x11c) = g_scene1_record_b_seq_counter++;
+        RF(s, 0xb4) = 1.0f;
+        RI(s, 0xb8) = 0;
+        RI(s, 0xc4) = 0;
+        float *m = &RF(s, 0xc8);
+        if (type == 44) {
+            RF(s, 0x8c) = spill32((long double)rng_next_unit() * k_2pi);
+            RF(s, 0x94) = spill32((long double)rng_next_unit() * k_2pi);
+            float r[16];
+            mat4_rotation_x(m, RF(s, 0x8c));        /* FUN_004a35ef */
+            mat4_rotation_y(r, RF(s, 0x94));        /* FUN_004a3553 */
+            mat4_mul(m, r, m);                      /* FUN_004a2a10 */
+            RF(s, 0x60) = spill32((long double)RF(s, 0x60) + k2);
+            RF(s, 0x68) = 0.0f; RF(s, 0x6c) = 0.0f; RF(s, 0x70) = 0.0f;
+            RF(s, 0x94) = spill32((long double)rng_next_unit() * k_2pi);
+            RF(s, 0x108) = k0p6;
+            RF(s, 0xa8) = 0.0f;
+        } else if (type == 140) {
+            const float yaw = spill32((long double)rng_next_unit() * k_2pi);
+            RF(s, 0x90) = yaw;
+            mat4_rotation_x(m, yaw);                /* FUN_004a35ef */
+            const double ad = ang;
+            RF(s, 0x68) = spill32((long double)spill32(x87_crt_sin(ad)) * k0p2);
+            RF(s, 0x6c) = 0.0f;
+            RF(s, 0x70) = spill32((long double)spill32(x87_crt_cos(ad)) * k0p2);
+            RF(s, 0x108) = k0p3s;
+        } else {
+            continue;
+        }
+        return;
+    }
+}
+
+/* FUN_004412b6 kinds 6 / 8 / 10: 16 dust puffs (type 14) on a ring of radius
+ * 3..6 around (x, z) */
+static void trap_dust_ring(float x, float z)
+{
+    static const float k0p75 = 0.75f;
+    for (int32_t k = 0; k != 16; k++) {
+        const float a = spill32((long double)spill32((long double)k) * k_2pi / 8.0f + k_pi4);
+        const float r = spill32(((long double)rng_next_unit() + k1) * k3);
+        const double ad = a;
+        const float sx = spill32((long double)spill32(x87_crt_sin(ad)) * r + x);
+        const float sz = spill32((long double)spill32(x87_crt_cos(ad)) * r + z);
+        const float pz = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + sz);
+        const float px = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + sx);
+        scene1_spawn(0, px, k0p5, pz, 14, k0p75, 1);
+    }
+}
+
 int chest_trap(float x, float z, int32_t kind)
 {
     static const float k9 = 9.0f, k10 = 10.0f, k3c = 3.0f;
@@ -734,13 +809,137 @@ int chest_trap(float x, float z, int32_t kind)
             }
         }
         break;
+    case 9: {   /* the rolling rock: enemy 37 rolling out 9 at π/4 */
+        const float ang = spill32((long double)k0 / k4 + k_pi4);
+        const double ad = ang;
+        const float sx = spill32((long double)spill32(x87_crt_sin(ad)) * k9);
+        const float sz = spill32((long double)spill32(x87_crt_cos(ad)) * k9);
+        float frac = 0.0f;
+        mapcol_hit_t h;
+        h.tri = 0;
+        h.slot = 0;
+        float ex, ez;
+        if (mapcol_ray(x, k0p5, z, sx, 0.0f, sz, &frac, &h) != 0) {
+            ex = spill32((long double)frac * sx + x);
+            ez = spill32((long double)frac * sz + z);
+        } else {
+            ex = spill32((long double)sx + x);
+            ez = spill32((long double)sz + z);
+        }
+        actor_t *a = actor_spawn_enemy(&st, ex, k0p5, ez, 37);
+        if (a) {   /* retail does not check */
+            AI(a, 0xaf0) = 0;
+            AI(a, 0xb98) = 1;
+            AF(a, ACT_HP) = 0.0f;
+            AI(a, ACT_INUSE) = 2;
+            AI(a, 0xb40) = 2;
+            actor_anim_set(a, 2);
+        }
+        break;
+    }
+    case 1: {   /* three sliding blocks (140) at 15 / 18 / 21, aimed back in */
+        static const float k15 = 15.0f;
+        for (int32_t k = 0; k != 9; k += 3) {
+            const float ang = spill32((long double)rng_next_unit() * k_2pi);
+            const float r = spill32((long double)spill32((long double)k) + k15);
+            const double ad = ang;
+            const float sx = spill32((long double)spill32(x87_crt_sin(ad)) * r + x);
+            const float sz = spill32((long double)spill32(x87_crt_cos(ad)) * r + z);
+            trap_body_spawn(140, sx, 0.0f, sz, spill32((long double)ang + k_pi));
+        }
+        break;
+    }
+    case 10:   /* the bomb: the dust ring + the spin-out (b930) */
+        g_dat_0438b930 = 1;
+        trap_dust_ring(x, z);
+        break;
+    case 6:
+    case 8: {   /* the gas: the dust ring; 6 stuns (db0fc / actor +0xb14 180
+                 * within 12), 8 slows (db100 1800) */
+        static const float k12 = 12.0f;
+        trap_dust_ring(x, z);
+        if (kind == 6) {
+            float dx = spill32((long double)g_party.pos[0][0] - x);
+            float dz = spill32((long double)g_party.pos[0][2] - z);
+            float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+            if (d < k12) PW(0x56db0fcu).i = 180;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                actor_t *a = &g_actor[i];
+                const int32_t use = AI(a, ACT_INUSE);
+                if (use == 0 || AI(a, 0xaf4) > 0 || AI(a, 0xb08) != 0) continue;
+                if (use != 1 && (AI(a, 0xb98) == 0 || use != 2)) continue;
+                dx = spill32((long double)AF(a, ACT_POS + 0) - x);
+                dz = spill32((long double)AF(a, ACT_POS + 8) - z);
+                d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+                if (d < k12) AI(a, 0xb14) = 180;
+            }
+        } else {
+            PW(0x56db100u).i = 1800;
+        }
+        break;
+    }
+    case 2:
+    case 3: {   /* the falling rocks: ten 44s over a 2..8 ring, 11..15 + k up
+                 * (kind 2: 4 higher) */
+        static const float k6 = 6.0f, k11 = 11.0f;
+        for (int32_t k = 0; k != 20; k += 2) {
+            const float ang = spill32((long double)rng_next_unit() * k_2pi);
+            const float r = spill32((long double)rng_next_unit() * k6 + k2);
+            const double ad = ang;
+            const float sx = spill32((long double)spill32(x87_crt_sin(ad)) * r + x);
+            const long double u4 = (long double)rng_next_unit() * k4;
+            const float fk = spill32((long double)k);
+            float sy = spill32(u4 + fk + k11);
+            const float sz = spill32((long double)spill32(x87_crt_cos(ad)) * r + z);
+            if (kind == 2) sy = spill32((long double)sy + k4);
+            trap_body_spawn(44, sx, sy, sz, 0.0f);
+        }
+        break;
+    }
     default:
-        /* PORT-DEBT(stub, FUN_004412b6): traps 1 (kind-140 objects), 2 / 3 (the
-         * falling rocks 44), 6 / 8 (the stun / slow gas), 9 (the rolling rock),
-         * 10 (the bomb ring) */
         break;
     }
     return 1;
+}
+
+/* FUN_00441aab: Louie's trap sense (chara 1: a kind-5 chest within 3 pops the
+ * "!" — db004 0, db008 1), then the floor's trap spots: a live spot (floor
+ * event 21 shows them all, else its own flag) within 6 of the player fires
+ * FUN_004412b6 (fired: db00c 60 + SE 00re_btl04) and is spent */
+void trap_spots_tick(void)
+{
+    static const float k6 = 6.0f;
+    if (chara_equip_get_current_chara() == 1) {
+        for (int i = 0; i < DOBJ_COUNT; i++) {
+            const dobj_t *o = &g_dobj[i];
+            const int32_t kind = o->i[DOBJ_KIND];
+            if (kind == -1 || o->i[DOBJ_STATE] == 3 || kind != 5) continue;
+            const float dx = spill32((long double)o->f[DOBJ_POS + 0] - g_party.pos[0][0]);
+            const float dz = spill32((long double)o->f[DOBJ_POS + 2] - g_party.pos[0][2]);
+            if (!(dx == k0 && dz == k0)) {
+                const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+                if (!(d < k3)) continue;
+            }
+            PW(0x56db004u).i = 0;
+            PW(0x56db008u).i = 1;
+        }
+    }
+    for (int i = 0; i < FLOOR_PICK_MAX; i++) {
+        if (g_floor_pick_type[i] == 0) continue;
+        if (!floor_event_active(21) && g_floor_pick_flag[i] == 0) continue;
+        const float *p = g_floor_pick_pos[i];
+        const float dx = spill32((long double)p[0] - g_party.pos[0][0]);
+        const float dz = spill32((long double)p[2] - g_party.pos[0][2]);
+        if (!(dx == k0 && dz == k0)) {
+            const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+            if (!(d < k6)) continue;
+        }
+        if (chest_trap(p[0], p[2], g_floor_pick_type[i]) != 0) {
+            PW(0x56db00cu).i = 60;
+            audio_play_se_file("bin/se/00re/action/00re_btl04.bin");
+        }
+        g_floor_pick_type[i] = 0;
+    }
 }
 
 /* FUN_0043865e's object arm (0x439f28..0x43a5d4): the first stage object in
@@ -1181,8 +1380,15 @@ static int wall_type(int32_t tri, int32_t slot)
     return g_mapcol_slot[slot].tris[tri].type;
 }
 
+/* the table-B tick's ground probe: FUN_00432e50 into the caller's hit record */
+static int ground_hit(float x, float y, float z, int32_t *out)
+{
+    return mapcol_ground(x, y, z, (mapcol_hit_t *)(void *)out);
+}
+
 void record_sm_install(void)
 {
+    scene1_records_b_set_ground_query_hook(ground_hit);
     scene1_records_b_set_wall_raycast_hook(wall_ray);
     scene1_records_b_set_wall_flag_at_hook(wall_type);
     scene1_records_b_set_state_machine_hook(record_sm_tick);

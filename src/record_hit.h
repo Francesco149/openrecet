@@ -15,7 +15,10 @@
  *                 (the player arm: an enemy record hitting the player)
  *   FUN_00485c74  party_take_damage  HP −, the hurt voice, the HP accessories
  *   FUN_00485979  party_hurt_voice   the active chara's hurt voice
- *   FUN_004412b6  chest_trap         a chest's trap (4 / 5: the slimes)
+ *   FUN_004412b6  chest_trap         a trap fires: the slimes (4 / 5), the blocks (1),
+ *                                    the rocks (2 / 3), the gas (6 / 8), the roller (9),
+ *                                    the bomb (10)
+ *   FUN_00441aab  trap_spots_tick    the floor's trap spots + Louie's trap sense
  *   FUN_0041f46d  enemy_level_mul    1 + level · (0.1 | 0.12)
  *   FUN_0042e791  actor_damage       HP −, the popups, the EXP orbs of a
  *                                    flagged hit, the kill at HP < 1
@@ -48,6 +51,7 @@ void        record_sm_install(void);    /* the table-B tick's state-machine hook
 int         record_hit_actors(int32_t *slot);                        /* FUN_0043865e's actor arm */
 int         record_hit_objects(int32_t *slot);                       /* FUN_0043865e's object arm */
 int         chest_trap(float x, float z, int32_t kind);              /* FUN_004412b6 */
+void        trap_spots_tick(void);                                   /* FUN_00441aab */
 void        party_take_damage(int32_t dmg);                          /* FUN_00485c74 */
 void        party_hurt_voice(int down);                              /* FUN_00485979 */
 long double enemy_level_mul(int32_t type);                           /* FUN_0041f46d */

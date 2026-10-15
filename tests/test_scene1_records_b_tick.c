@@ -2864,11 +2864,11 @@ static int   s_gq_calls;
 static int   s_gq_hit;       /* return value mocked by next call */
 static float s_gq_out_y;     /* value written to out_y */
 static float s_gq_last_x, s_gq_last_y, s_gq_last_z;
-static int gq_canned(float x, float y, float z, float *out_y)
+static int gq_canned(float x, float y, float z, int32_t *out)
 {
     s_gq_calls++;
     s_gq_last_x = x; s_gq_last_y = y; s_gq_last_z = z;
-    *out_y = s_gq_out_y;
+    memcpy(&out[3], &s_gq_out_y, sizeof s_gq_out_y);   /* +0xc height */
     return s_gq_hit;
 }
 
