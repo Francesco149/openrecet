@@ -37,6 +37,7 @@ extern int32_t g_popup[32][7];
 extern float g_view_proj[16], g_view_mat[16];
 
 void  actor_pass(void);                                   /* FUN_00430c6d */
+void  actor_event_anim_pump(void);                        /* FUN_00430c00 */
 void  actor_stage_spawns(void);                           /* FUN_0042df55 */
 void  actor_view_plane(void);                             /* FUN_0049065b */
 float actor_view_depth(float x, float y, float z);        /* FUN_0049097c */

@@ -519,6 +519,136 @@ static void actor_ai_ring(actor_t *a)
     }
 }
 
+/* FUN_0041f789: turn the facing (+0x420, wrapped into ±π first) toward the
+ * player by at most `rate`; within `rate` (or 2π - rate) it snaps */
+static void actor_turn_to_player(actor_t *a, float rate)
+{
+    static const float k_pi = 3.1415927410125732f, k_mpi = -3.1415927410125732f;
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float to = spill32(spill32(crt_atan2(dx, dz)));
+    while (AF(a, 0x420) < k_mpi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k_2pi);
+    while (AF(a, 0x420) > k_pi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) - k_2pi);
+    const float f = AF(a, 0x420);
+    const float d = spill32((long double)f - to);
+    const float ad = spill32(fabsl((long double)d));
+    long double r;
+    if (ad < rate || (long double)k_2pi - rate < ad) r = to;
+    else if (f < to) r = ((long double)to - f < k_pi) ? (long double)rate + f : (long double)f - rate;
+    else r = (d >= k_pi) ? (long double)rate + f : (long double)f - rate;
+    AF(a, 0x420) = spill32(r);
+    if (AF(a, 0x420) > k_pi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) - k_2pi);
+    else if (AF(a, 0x420) < k_mpi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k_2pi);
+}
+
+/* FUN_0042a74c: the fliers (types 17..21, 56..58).  A fresh one (+0xb8c)
+ * spawns its contact record 19 and faces the player; a group leader (variant
+ * 1) brings a second of its type 18 off the player — the first of three
+ * directions whose ray from the player is clear.  State 0 drifts toward the
+ * player (turning by the type's rate, pushed along the facing); type 19 backs
+ * off (state 1: pushed away for 20 ticks) every 120..134 ticks, type 21 pauses
+ * and sheds sparkles (overlay 15) on a 400-tick cycle. */
+static void actor_ai_flier(actor_t *a)
+{
+    static const float k18 = 18.0f, km18 = -18.0f, k0p7 = 0.699999988079071f;
+    static const float k0p015 = 0.014999999664723873f, k0p023 = 0.023000000044703484f;
+    static const float k0p027 = 0.027000000700354576f, k0p04 = 0.03999999910593033f;
+    static const float k0p025 = 0.02500000037252903f, k0p06 = 0.05999999865889549f;
+    AI(a, 0xb04) = 1;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        scene1_record_b_spawn_npc(a, 19, 1);     /* FUN_00445a8c */
+        actor_turn_to_player(a, 1.0f);
+        if (AI(a, 0xae4) == 1) {
+            const float dx = spill32((long double)PX - AF(a, 0x3f0));
+            const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+            const float adx = spill32(fabsl((long double)dx));
+            const float adz = spill32(fabsl((long double)dz));
+            float ox[3], oz[3];
+            if (adx > adz) {
+                ox[0] = dx > 0.0f ? k18 : km18; ox[1] = 0.0f; ox[2] = 0.0f;
+                oz[0] = 0.0f; oz[1] = k18; oz[2] = km18;
+            } else {
+                oz[0] = dz > 0.0f ? k18 : km18; oz[1] = 0.0f; oz[2] = 0.0f;
+                ox[0] = 0.0f; ox[1] = k18; ox[2] = km18;
+            }
+            for (int i = 0; i != 3; i++) {
+                float frac = 0.0f;
+                mapcol_hit_t h;
+                h.tri = 0;
+                h.slot = 0;
+                if (mapcol_ray(PX, k0p7, PZ, ox[i], k0p5, oz[i], &frac, &h) != 0) continue;
+                const actor_stage_t st = stage_now();
+                actor_t *n = actor_spawn_enemy(&st, spill32((long double)PX + ox[i]), 0.0f,
+                                               spill32((long double)PZ + oz[i]), AI(a, ACT_TYPE));
+                if (n) {   /* retail does not check */
+                    AI(n, 0xae4) = 2;
+                    AI(n, 0xb2c) = 1;
+                }
+                break;
+            }
+        }
+    }
+    const int32_t type = AI(a, ACT_TYPE);
+    if (type == 19 || type == 20) AI(a, 0xb54) = 2;
+    else if (type >= 56 && type <= 58) AI(a, 0xb54) = 1;
+    float speed = k0p015, turn = k0p03;
+    switch (type) {
+    case 17: speed = k0p015; turn = k0p03; break;
+    case 18: speed = k0p023; turn = k0p03; break;
+    case 19: speed = k0p02;  turn = k0p04; break;
+    case 20: speed = k0p027; turn = k0p05; break;
+    case 21: speed = k0p023; turn = k0p05; break;
+    case 56: case 57: case 58: speed = k0p025; turn = k0p06; break;
+    default: break;
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 1) {
+        actor_turn_to_player(a, turn);
+        if (AI(a, 0xa58) < 20) {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) - (long double)spill32(x87_crt_sin(h)) * speed);
+            AF(a, 0x404) = spill32((long double)AF(a, 0x404) - (long double)spill32(x87_crt_cos(h)) * speed);
+        }
+        if (++AI(a, 0xa58) == 1) AI(a, 0xa60) = (int32_t)(rng_next15() % 15u);
+        if (AI(a, 0xa58) > AI(a, 0xa60) + 30) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    actor_anim_set(a, 0);
+    ++AI(a, 0xa58);
+    if (type == 19) {
+        if (AI(a, 0xa58) == 1) AI(a, 0xa60) = (int32_t)(rng_next15() % 15u);
+        if (AI(a, 0xa58) > AI(a, 0xa60) + 120) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 1;
+        }
+    }
+    if (type == 21) {
+        const int32_t t = AI(a, 0xa58) % 400;
+        speed = k0p023;
+        AI(a, 0xb54) = 0;
+        if (t >= 30 && t < 60) speed = 0.0f;
+        if (t >= 60 && t < 180) {
+            speed = k0p023;
+            ++AI(a, 0xa5c);
+            AI(a, 0xb54) = 1;
+        }
+        if (t >= 30 && t < 180 && AI(a, 0xa5c) % 4 == 0) {
+            const float z = AF(a, 0x3f8);
+            const float y = spill32(((long double)rng_next_unit() + AF(a, 0x3f4)) + k0p5);
+            scene1_overlay_spawn(NULL, AF(a, 0x3f0), y, z, 15, k0p5, -1, 0, 0, 0);   /* FUN_004147d5 */
+        }
+    }
+    actor_turn_to_player(a, turn);
+    const double h = AF(a, 0x420);
+    AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * speed + AF(a, 0x3fc));
+    AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * speed + AF(a, 0x404));
+}
+
 /* FUN_0042f28c */
 void actor_ai_alive(actor_t *a)
 {
@@ -537,10 +667,12 @@ void actor_ai_alive(actor_t *a)
             actor_ai_slime(a);
         } else if (type == 16 && sub != 3) {
             actor_ai_t16(a);
+        } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {
+            actor_ai_flier(a);                   /* FUN_0042a74c */
         } else {
             /* PORT-DEBT(stub, FUN_0042f28c): the other types' AI (FUN_0042ce17,
-             * FUN_00428f0a, FUN_00428ae4, FUN_0042a33e, FUN_004262b7,
-             * FUN_0042a74c, … FUN_00428213 for the rest) */
+             * FUN_00428f0a, FUN_00428ae4, FUN_0042a33e, … FUN_00428213 for
+             * the rest) */
         }
     }
     if (AI(a, 0xa00) != 0) {
@@ -552,6 +684,26 @@ void actor_ai_alive(actor_t *a)
         const int32_t t = AI(a, ACT_TYPE);
         if (t != 61 && t != 64 && vy < -0.699999988079071f) AF(a, 0x400) = -0.699999988079071f;
     }
+}
+
+/* FUN_00430c00: the actors during an event (the dialogue arm FUN_004427d3):
+ * the multi-part kinds (enemy flags != 0) only advance their two anim timers
+ * (+0x54 / +0x58) by 1, the rest tick their sprite anim unless knocked back
+ * (+0xb18); then FUN_0042ea35 */
+void actor_event_anim_pump(void)
+{
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        actor_t *a = &g_actor[i];
+        if (AI(a, ACT_INUSE) == 0) continue;
+        const enemy_record_t *e = enemy_of(a);
+        if (e->flags != 0) {
+            AF(a, 0x54) = spill32((long double)AF(a, 0x54) + k1);
+            AF(a, 0x58) = spill32((long double)AF(a, 0x58) + k1);
+        } else if (AI(a, 0xb18) == 0) {
+            chr_anim_tick((int32_t *)(void *)a->b, e->unknown_24, 1.0f);   /* FUN_00482a71 */
+        }
+    }
+    /* PORT-DEBT(stub, FUN_0042ea35): the multi-part bone timers (no rand) */
 }
 
 /* FUN_004304b3 */

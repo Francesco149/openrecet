@@ -180,6 +180,7 @@
  */
 
 #include "scene1_spawn.h"
+#include "x87.h"
 
 #include <math.h>
 
@@ -742,6 +743,33 @@ static void init_type_36_74(int i, float x, float y, float z, float scale)
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_SCALE,
                (rng_next_unit() + 1.0f) * scale);
+}
+
+/* ─── per-type init: 0x75 / 0x93 / 0x98 — 32 sparks (0x44aa52) ─────────
+ *
+ * The 0x36 body on x87 (spill32 at every fstp) plus PARAM2 = param_7 (the
+ * hit's owner slot for 0x75): mag = u + 0.5, a = u·2π, vel = (sin a·s·mag,
+ * (u - 0.5)·s·3, cos a·s·mag) with s the preamble scale, PARAM1 = (rand & 15)
+ * + 16, AGE 0, scale = (u + 1)·scale. */
+static void init_type_75_93_98(int i, float x, float y, float z, float scale, int param7)
+{
+    const float s = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_SCALE);
+    const float mag = spill32((long double)rng_next_unit() + 0.5f);
+    const float a = spill32((long double)rng_next_unit() * 6.2831854820251465f);
+    const double ad = a;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               spill32((long double)spill32(x87_crt_sin(ad)) * s * mag));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               spill32(((long double)rng_next_unit() - 0.5f) * s * 3.0f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               spill32((long double)spill32(x87_crt_cos(ad)) * s * mag));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z);
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(rng_next15() & 0xfu) + 0x10;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_SCALE, spill32(((long double)rng_next_unit() + 1.0f) * scale));
 }
 
 /* ─── per-type init: 0x4e — 3-spawn narrowed vel + wide pos (L499-527) ─
@@ -2422,6 +2450,7 @@ static int spawn_count_for_type(int type)
     case 0x34: return 24;
     case 0x35: return 1;
     case 0x2c: return 32;
+    case 0x75: case 0x93: case 0x98: return 32;
     case 0x29: return 14;
     case 0x32: return 2;
     case 0x4c: case 0x55: return 1;
@@ -2516,6 +2545,9 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
     case 0x40: init_type_40(i, count_index, x, y, z, scale); break;
     case 0x36: case 0x74:
         init_type_36_74(i, x, y, z, scale);
+        break;
+    case 0x75: case 0x93: case 0x98:
+        init_type_75_93_98(i, x, y, z, scale, param7);
         break;
     case 0x4e: init_type_4e(i, x, y, z, scale); break;
     case 0x34: init_type_34(i, count_index, x, y, z, scale); break;

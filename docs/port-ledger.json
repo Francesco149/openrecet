@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 636,
-  "inv_discovered": 1821,
-  "referenced_or_better": 727,
-  "pct_referenced_or_better": 28.5,
+  "inv_source_referenced": 641,
+  "inv_discovered": 1816,
+  "referenced_or_better": 732,
+  "pct_referenced_or_better": 28.7,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 118,
+  "port_debt": 114,
   "verified": 81,
   "stubbed": 10,
-  "ported": 636,
-  "unported": 1821,
-  "touched": 727,
-  "pct_touched": 28.5,
+  "ported": 641,
+  "unported": 1816,
+  "touched": 732,
+  "pct_touched": 28.7,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3370,18 +3370,20 @@
    "size": 378,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x41f903",
@@ -4507,6 +4509,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/scene1_sim.c"
    ],
    "status": "ported"
@@ -4636,6 +4639,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h",
     "src/scene1_sim.c",
     "src/scene1_sim.h"
    ],
@@ -5562,8 +5567,10 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/main.c",
+    "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
@@ -5597,6 +5604,7 @@
    "src": [
     "src/encyclopedia.c",
     "src/main.c",
+    "src/scene1_display_menu.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
@@ -5705,6 +5713,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/scene_pause.c",
     "src/scene_title.c",
     "src/sim.c",
@@ -5870,6 +5879,7 @@
    "src": [
     "src/chara_equip.h",
     "src/chara_skills.h",
+    "src/dungeon_results.c",
     "src/save_bank.h",
     "src/scene.c",
     "src/scene1_player_ctrl.c",
@@ -6506,6 +6516,7 @@
     "stub"
    ],
    "src": [
+    "src/actor_ai.c",
     "src/scene1_particles_tick.h",
     "src/scene1_sim.c",
     "src/scene1_sim.h",
@@ -6581,6 +6592,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h",
     "src/scene1_sim.c"
    ],
    "status": "ported"
@@ -7035,6 +7048,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_objects.c",
+    "src/dungeon_objects.h",
     "src/scene1_postload.c"
    ],
    "status": "ported"
@@ -7056,7 +7071,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_flow.c"
+    "src/dungeon_flow.c",
+    "src/dungeon_flow.h"
    ],
    "status": "ported"
   },
@@ -7077,6 +7093,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
     "src/dungeon_flow.h",
     "src/scene1_sim.c"
    ],
@@ -7122,6 +7139,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_flow.h",
     "src/dungeon_party.c",
     "src/scene1_player_ctrl.c",
@@ -7391,7 +7409,9 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_flow.c",
-    "src/dungeon_flow.h"
+    "src/dungeon_flow.h",
+    "src/scene1_camera.c",
+    "src/scene1_camera.h"
    ],
    "status": "ported"
   },
@@ -8041,6 +8061,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
     "src/scene1_player_ctrl.c",
@@ -8100,6 +8121,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
     "src/scene.c",
@@ -8135,6 +8157,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
     "src/scene1_player_ctrl.c",
@@ -8236,6 +8259,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/music.c",
     "src/scene.c",
     "src/scene1_player_ctrl.c",
@@ -8508,6 +8532,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
     "src/scene1_fx_overlays.h",
     "src/scene1_render.h",
     "src/sim.h"
@@ -8580,6 +8605,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/main.c",
     "src/scene_day_end.c",
     "src/scene_pause.c",
@@ -9746,6 +9772,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/scene1_day_close.c",
     "src/scene1_day_close.h",
     "src/scene1_sim.c",
@@ -10287,6 +10314,8 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/customer_service.h",
+    "src/dungeon_results.c",
     "src/save_bank.h"
    ],
    "status": "ported"
@@ -11152,6 +11181,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.h",
     "src/scene_adv_guild.c",
@@ -11177,6 +11207,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
@@ -11203,6 +11234,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/scene1_display_menu.h",
     "src/scene_adv_guild.c",
     "src/scene_pause.c"
@@ -11252,6 +11284,7 @@
     "src/chara_equip.h",
     "src/customer_roster.c",
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/item_use.c",
     "src/news_daily.c",
@@ -11330,6 +11363,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
@@ -11450,6 +11484,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/scene.c",
     "src/scene.h",
     "src/scene1_player_ctrl.c",
@@ -11548,6 +11583,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/main.c",
     "src/party_roster.h",
     "src/scene1_display_menu.c",
@@ -11671,6 +11707,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/encyclopedia.h",
     "src/scene1_display_menu.c",
@@ -11752,18 +11789,22 @@
    "size": 99,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_results.c",
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x468fd0",
@@ -11911,6 +11952,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene_adv_guild.c",
@@ -11983,6 +12025,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
@@ -13602,6 +13645,7 @@
    "src": [
     "src/d3d_pool.c",
     "src/d3d_pool.h",
+    "src/dungeon_results.c",
     "src/scene_pause.c"
    ],
    "status": "verified"
@@ -14243,18 +14287,20 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_results.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4736bd",
@@ -14866,6 +14912,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_sim.c",
     "src/scene_day_end.c",
@@ -16979,7 +17026,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c"
+    "src/dungeon_party.c",
+    "src/dungeon_party.h",
+    "src/dungeon_results.c"
    ],
    "status": "ported"
   },
@@ -18323,6 +18372,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h",
     "src/scene1_sim.c"
    ],
    "status": "ported"
@@ -18333,18 +18384,21 @@
    "size": 52,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48f87c",
@@ -18363,6 +18417,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -18373,18 +18429,21 @@
    "size": 118,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48f931",
@@ -18403,7 +18462,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_pause.c",
+    "src/dungeon_results.c",
+    "src/dungeon_results.h",
     "src/sim.c"
    ],
    "status": "ported"
@@ -20410,6 +20470,7 @@
     "src/customer_service.c",
     "src/dungeon_objects.c",
     "src/dungeon_party.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/party_move.c",
     "src/record_hit.c",

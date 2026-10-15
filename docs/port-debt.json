@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 88,
+  "total": 87,
   "by_kind": {
-   "stub": 62,
+   "stub": 61,
    "synthetic-data": 0,
    "simplified": 8,
    "hardcode": 2,
@@ -16,14 +16,14 @@
    "continue-arm": 1,
    "deferred": 1,
    "door-exit-reset": 1,
-   "focused": 3,
+   "focused": 1,
    "house-teardown": 1,
    "oob": 1,
-   "render-coupled": 4,
+   "render-coupled": 6,
    "semantic-collision": 1,
    "structure": 2
   },
-  "retiring_engine_fns": 71,
+  "retiring_engine_fns": 69,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -34,6 +34,7 @@
    "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
    "FUN_00468fd0": 2,
+   "FUN_00474d92": 2,
    "FUN_0048b850": 2,
    "FUN_0048d5d6": 2,
    "0x43e...": 1,
@@ -46,23 +47,20 @@
    "FUN_0042df55": 1,
    "FUN_0042e1a6": 1,
    "FUN_0042e791": 1,
+   "FUN_0042ea35": 1,
    "FUN_0042f28c": 1,
    "FUN_0042f7ad": 1,
-   "FUN_00430c00": 1,
    "FUN_00430c6d": 1,
    "FUN_0043183e": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
    "FUN_0043865e": 1,
-   "FUN_0043a5d9": 1,
    "FUN_00441c3e": 1,
    "FUN_004426a7": 1,
    "FUN_00442cef": 1,
    "FUN_0044376a": 1,
    "FUN_0044b12f": 1,
    "FUN_0044b219": 1,
-   "FUN_0044c88f": 1,
-   "FUN_0044c9ba": 1,
    "FUN_0044d1e4": 1,
    "FUN_0044d47d": 1,
    "FUN_0044f078": 1,
@@ -75,7 +73,6 @@
    "FUN_0046c9a2": 1,
    "FUN_004708f7": 1,
    "FUN_00473c03": 1,
-   "FUN_00474d92": 1,
    "FUN_0047f46a": 1,
    "FUN_0048196b": 1,
    "FUN_004855e2": 1,
@@ -92,6 +89,7 @@
    "FUN_0048b850 da1bc": 1,
    "FUN_0048b850 trail": 1,
    "FUN_0048e49c": 1,
+   "FUN_0048f87c": 1,
    "FUN_0049a59e": 1,
    "FUN_0049d2e5": 1,
    "FUN_004cdd9f": 1,
@@ -129,22 +127,6 @@
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
    "line": 1288,
-   "kind_known": false
-  },
-  {
-   "kind": "focused",
-   "engine_fn": "FUN_00430c00",
-   "desc": "no town NPCs exist in",
-   "file": "src/scene1_sim.c",
-   "line": 131,
-   "kind_known": false
-  },
-  {
-   "kind": "focused",
-   "engine_fn": "FUN_0043a5d9",
-   "desc": "no consumer wired; no RNG.",
-   "file": "src/scene1_sim.c",
-   "line": 141,
    "kind_known": false
   },
   {
@@ -197,10 +179,26 @@
   },
   {
    "kind": "render-coupled",
+   "engine_fn": "FUN_00474d92",
+   "desc": "the dungeon's D3D teardown",
+   "file": "src/dungeon_results.c",
+   "line": 152,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
    "engine_fn": "FUN_0048196b",
    "desc": "the dungeon's Use / Throw",
    "file": "src/scene_pause.c",
-   "line": 1668,
+   "line": 1672,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_0048f87c",
+   "desc": "the results screen's assets",
+   "file": "src/scene_pause.c",
+   "line": 1347,
    "kind_known": false
   },
   {
@@ -256,7 +254,7 @@
    "engine_fn": "FUN_00453384",
    "desc": "the engine has a thicket of mode-1",
    "file": "src/scene_pause.c",
-   "line": 305,
+   "line": 306,
    "kind_known": true
   },
   {
@@ -264,7 +262,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 464,
+   "line": 465,
    "kind_known": true
   },
   {
@@ -288,7 +286,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 373,
+   "line": 374,
    "kind_known": true
   },
   {
@@ -296,7 +294,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "one retail-shaped master tick.",
    "file": "src/scene1_sim.c",
-   "line": 156,
+   "line": 151,
    "kind_known": false
   },
   {
@@ -368,7 +366,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 842,
+   "line": 994,
    "kind_known": true
   },
   {
@@ -376,7 +374,15 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 799,
+   "line": 951,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0042ea35",
+   "desc": "the multi-part bone timers (no rand)",
+   "file": "src/actor_ai.c",
+   "line": 706,
    "kind_known": true
   },
   {
@@ -384,7 +390,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 541,
+   "line": 673,
    "kind_known": true
   },
   {
@@ -400,7 +406,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 852,
+   "line": 1004,
    "kind_known": true
   },
   {
@@ -448,7 +454,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 353,
+   "line": 371,
    "kind_known": true
   },
   {
@@ -464,7 +470,7 @@
    "engine_fn": "FUN_004426a7",
    "desc": "the cinematic camera ramp",
    "file": "src/scene1_sim.c",
-   "line": 575,
+   "line": 570,
    "kind_known": true
   },
   {
@@ -472,7 +478,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 417,
+   "line": 412,
    "kind_known": true
   },
   {
@@ -496,7 +502,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 384,
+   "line": 402,
    "kind_known": true
   },
   {
@@ -509,26 +515,10 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0044c88f",
-   "desc": "the party line-up + FUN_0044b257",
-   "file": "src/scene1_postload.c",
-   "line": 317,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044c9ba",
-   "desc": "dungeon 0 floor 4 \u2014 the iv2_11 / iv2_9",
-   "file": "src/dungeon_flow.c",
-   "line": 207,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_0044d1e4",
    "desc": "dungeons 1..5's setups FUN_0044d1e4 /",
    "file": "src/scene1_postload.c",
-   "line": 319,
+   "line": 337,
    "kind_known": true
   },
   {
@@ -536,7 +526,7 @@
    "engine_fn": "FUN_0044d47d",
    "desc": "dungeons 1..5's events \u2014 FUN_0044d47d,",
    "file": "src/dungeon_flow.c",
-   "line": 222,
+   "line": 373,
    "kind_known": true
   },
   {
@@ -552,7 +542,7 @@
    "engine_fn": "FUN_00452809",
    "desc": "the blackout (DAT_0438bf74)",
    "file": "src/scene_adv_guild.c",
-   "line": 257,
+   "line": 258,
    "kind_known": true
   },
   {
@@ -560,7 +550,7 @@
    "engine_fn": "FUN_004682ee",
    "desc": "the tab stays where the open put it.",
    "file": "src/scene_adv_guild.c",
-   "line": 593,
+   "line": 594,
    "kind_known": true
   },
   {
@@ -584,7 +574,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026) is unported; the scene-6 trend multipliers are live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 870,
+   "line": 929,
    "kind_known": true
   },
   {
@@ -616,7 +606,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the dungeon loader arm (FUN_00474a9a's",
    "file": "src/scene_adv_guild.c",
-   "line": 380,
+   "line": 381,
    "kind_known": true
   },
   {
@@ -624,7 +614,7 @@
    "engine_fn": "FUN_0047f46a",
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
-   "line": 299,
+   "line": 294,
    "kind_known": true
   },
   {
@@ -648,7 +638,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 165,
+   "line": 171,
    "kind_known": true
   },
   {
