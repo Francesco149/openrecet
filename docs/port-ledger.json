@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 11,
   "inv_implemented": 0,
-  "inv_source_referenced": 611,
-  "inv_discovered": 1845,
-  "referenced_or_better": 703,
-  "pct_referenced_or_better": 27.6,
+  "inv_source_referenced": 625,
+  "inv_discovered": 1831,
+  "referenced_or_better": 717,
+  "pct_referenced_or_better": 28.1,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 130,
+  "port_debt": 126,
   "verified": 81,
   "stubbed": 11,
-  "ported": 611,
-  "unported": 1845,
-  "touched": 703,
-  "pct_touched": 27.6,
+  "ported": 625,
+  "unported": 1831,
+  "touched": 717,
+  "pct_touched": 28.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -2642,7 +2642,9 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_party.c",
+    "src/record_hit.c",
     "src/scene1_per_frame_open.h",
     "src/scene1_player_ctrl.h",
     "src/scene1_records_b_tick.c"
@@ -3342,18 +3344,20 @@
    "size": 48,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x41f789",
@@ -3697,18 +3701,20 @@
    "size": 363,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x424509",
@@ -4525,18 +4531,20 @@
    "size": 193,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42f746",
@@ -4544,18 +4552,20 @@
    "size": 103,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42f7ad",
@@ -4574,7 +4584,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/actor_ai.c"
+    "src/actor_ai.c",
+    "src/actor_ai.h"
    ],
    "status": "ported"
   },
@@ -5000,6 +5011,7 @@
     "src/dungeon_party.c",
     "src/enemy_place.h",
     "src/map_collision.h",
+    "src/record_hit.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene1_records_c_tick.c",
@@ -6181,6 +6193,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h"
    ],
@@ -6255,6 +6268,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_objects.c",
+    "src/dungeon_objects.h",
     "src/scene1_particles_tick.h",
     "src/scene1_render.c",
     "src/scene1_sim.c",
@@ -6329,6 +6344,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
+    "src/record_hit.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h"
    ],
@@ -6747,6 +6764,7 @@
    "quality_flags": [],
    "src": [
     "src/actor_ai.c",
+    "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/main.c",
     "src/record_hit.c",
@@ -6941,6 +6959,10 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
+    "src/record_hit.c",
+    "src/scene1_camera.c",
+    "src/scene1_camera.h",
     "src/scene1_postload.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h"
@@ -13123,6 +13145,7 @@
    "src": [
     "src/news_daily.c",
     "src/record_hit.c",
+    "src/scene1_camera.c",
     "src/scene1_combat_sm.h"
    ],
    "status": "ported"
@@ -13149,9 +13172,11 @@
     "src/customer_haggle.c",
     "src/customer_haggle.h",
     "src/customer_service.c",
+    "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/record_hit.c",
     "src/rng.h",
+    "src/scene1_camera.c",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
     "src/scene1_overlay.c",
@@ -16889,6 +16914,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
     "src/scene1_combat_sm.h"
    ],
    "status": "ported"
@@ -17084,6 +17110,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
     "src/scene1_actor_say.h",
     "src/scene1_combat_sm.h"
    ],
@@ -17173,6 +17200,8 @@
    ],
    "src": [
     "src/dungeon_party.c",
+    "src/dungeon_party.h",
+    "src/record_hit.c",
     "src/stage_post_load.c"
    ],
    "status": "stubbed"
@@ -17183,18 +17212,20 @@
    "size": 18,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/record_hit.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x485861",
@@ -17241,6 +17272,8 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_flow.c",
+    "src/record_hit.c",
+    "src/record_hit.h",
     "src/scene1_records_b_tick.h"
    ],
    "status": "ported"
@@ -17263,7 +17296,9 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_flow.c",
-    "src/dungeon_flow.h"
+    "src/dungeon_flow.h",
+    "src/record_hit.c",
+    "src/record_hit.h"
    ],
    "status": "ported"
   },
@@ -17547,18 +17582,20 @@
    "size": 333,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x489c79",
@@ -19357,18 +19394,20 @@
    "size": 261,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49508c",
@@ -19414,18 +19453,20 @@
    "size": 543,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x495524",
@@ -19490,18 +19531,20 @@
    "size": 522,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x495c3c",
@@ -19606,18 +19649,20 @@
    "size": 240,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4965af",
@@ -19682,18 +19727,20 @@
    "size": 517,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x496c68",
@@ -19800,18 +19847,20 @@
    "size": 687,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49733d",
@@ -19857,18 +19906,20 @@
    "size": 338,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4976ae",
@@ -20238,6 +20289,7 @@
     "src/audio_se_names.h",
     "src/choice_box.c",
     "src/customer_service.c",
+    "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/encyclopedia.c",
     "src/party_move.c",
@@ -20499,18 +20551,20 @@
    "size": 120,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49a052",

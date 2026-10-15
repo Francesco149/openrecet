@@ -2407,43 +2407,39 @@ static int init_npc_1f(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
+    /* asm 0x446854..0x4469e1: each product spilled to m32; CRT sin/cos of
+     * the m32 angle (kept as a double). */
     int   sub  = owner_read_i(owner, 0x424);
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    const float bend = spill32((long double)spill32((long double)owner_read_i(owner, 0x18))
+                               * B_TWO_PI_F / 8.0f);
+    float amp = 0.10000000149011612f;
+    if (sub == 7)    amp = 0.11999999731779099f;
+    if (sub == 8)    amp = 0.14000000059604645f;
+    if (sub == 9)    amp = 0.1599999964237213f;
+    if (sub == 0x24) amp = 0.15000000596046448f;
+    if (sub == 0x23) amp = 0.20000000298023224f;
 
-    /* L42686-42701: write-after-write switch — no else, so for
-     * overlapping conditions the LAST matching write wins (they don't
-     * overlap here since values are distinct). */
-    float amp = 0.1f;
-    if (sub == 7)    amp = 0.12f;
-    if (sub == 8)    amp = 0.14f;
-    if (sub == 9)    amp = 0.16f;
-    if (sub == 0x24) amp = 0.15f;
-    if (sub == 0x23) amp = 0.2f;
-
-    float sa = sinf(bend);
-    float ca = cosf(bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * amp);
+    const double ad = bend;
+    const float vx = spill32((long double)spill32(x87_crt_sin(ad)) * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * amp);
+    const float vz = spill32((long double)spill32(x87_crt_cos(ad)) * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
 
-    float ox = owner_read_f(owner, 0x3f0);
-    float oy = owner_read_f(owner, 0x3f4);
-    float oz = owner_read_f(owner, 0x3f8);
-
+    const float ox = owner_read_f(owner, 0x3f0);
+    const float oy = owner_read_f(owner, 0x3f4);
+    const float oz = owner_read_f(owner, 0x3f8);
     if (sub == 0x24 || sub == 0x23) {
-        /* L42712-42718: pos = sin/cos(bend)*1.5 + owner.  Engine re-
-         * calls sin/cos; mathematically equivalent to cached sa/ca. */
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 1.5f + ox);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.5f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 1.5f + oz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)spill32(x87_crt_sin(ad)) * 1.5f + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 1.5f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)spill32(x87_crt_cos(ad)) * 1.5f + oz));
     } else {
-        /* L42720-42725: pos = VEL*3 + owner (vel.y=0 → +1.5y absorbed). */
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * amp * 3.0f + ox);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.5f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * amp * 3.0f + oz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)vx * 3.0f + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32(((long double)0.0f * 3.0f + oy) + 1.5f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)vz * 3.0f + oz));
     }
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);   /* atan2(0.1f, 0.5) */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,   bend);
 
     /* LAB_004469d2: DRAG=20.0, AUX_C8=1.  uVar5=1 → cap=1. */

@@ -509,13 +509,8 @@ extern int32_t g_scene1_records_b_tick_flag;
  * to "no in-binary writer" in C8c.F).  Default BSS-zero produces drag
  * = -0.3 (post-formula) and POS_Y = owner+0x3f4 (anchor only).  Tests
  * inject values directly by writing to this table. */
-typedef struct {
-    float drag_mul;
-    float drag_base;
-    float pos_y_mul;
-} scene1_b_motion_entry_t;
-
-extern scene1_b_motion_entry_t g_scene1_b_motion_table[256];
+/* (The "motion table" is the enemy records DAT_005c23f0: drag_mul = +0x44
+ * runtime_floats[0], drag_base = [1], pos_y_mul = [2]; read from g_enemy.) */
 
 /* Engine DAT_06a46f94 — cleared by the C8j-tick.4 body before each
  * state-machine call in the type {2/3/4/0x22/0x54/0x67/0x6d..0x70} loop;

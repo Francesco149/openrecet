@@ -48,13 +48,14 @@
 #include "scene1_records_b_spawn.h"
 #include "scene1_spawn.h"
 #include "sim.h"                       /* g_sim_frame_count (engine DAT_0438b8cc) */
+#include "tables_enemy.h"              /* DAT_005c23f0 */
+#include "x87.h"
 
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 
 /* Engine DAT_005c2434/8/c — 256-entry per-NPC-motion-style table read by
  * C8j-tick.10 (Body 6 + Body 7) and presumably deeper bodies.  PHC #19;
  * default BSS-zero. */
-scene1_b_motion_entry_t g_scene1_b_motion_table[256];
 
 /* Engine DAT_438c218 / DAT_438c3a8 — wall-id lifetime / freshness banks.
  * See scene1_records_b_tick.h.  Sized 256; production exercises these
@@ -1279,8 +1280,9 @@ static void body_kill_bounce(int i, int32_t type)
 
     int32_t flag_b = slot_get_i(i, SCENE1_RECORDS_B_OFF_FLAG_B);
     float   rotx   = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
-    float   sa     = sinf(rotx);
-    float   ca     = cosf(rotx);
+    /* CRT sin/cos of the m32 angle, each spilled (asm 0x43c176..) */
+    const float sa = spill32(x87_crt_sin(rotx));
+    const float ca = spill32(x87_crt_cos(rotx));
 
     if (flag_b < 0) {
         /* Simple branch: pose anchored at owner+0x20. */
@@ -1361,7 +1363,10 @@ static void body_kill_bounce(int i, int32_t type)
     }
     if (age == 0x14) {
         scene1_records_b_tick_kill_slot(i);
+        return;
     }
+    /* a live swing falls through to the shared wall test (LABEL_990) */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ─── C8j-tick.5 — Body 2 (L812-L1050) ───────────────────────────────── */
@@ -2927,51 +2932,28 @@ static void body_0x27(int i)
  */
 static void body_motion_anchor_keep(int i, int32_t type)
 {
-    void *owner = slot_owner_a(i);
-    if (!owner) {
-        /* Engine reads owner+0x428 via this pointer; NULL owner would crash
-         * retail.  In our port we keep the slot alive (no kill) since the
-         * smoke flag's owner is a static blob and always non-NULL. */
-        return;
-    }
-
-    /* asm 0x43dc37-0x43dc41: gate on owner+0x428 == 1, else kill. */
+    /* asm 0x43dc24: the owner is slot+0x14 (OWNER_B, the npc allocator's) */
+    void *owner = (void *)slot_owner(i);
+    if (!owner) return;
     if (owner_read_i(owner, 0x428) != 1) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }
-
-    /* asm 0x43dc27-0x43dc32: motion_idx = owner+0x424. */
-    int32_t motion_idx = owner_read_i(owner, 0x424);
-    /* Clamp to valid table range; engine reads unchecked (would OOB for
-     * motion_idx >= 256 or < 0).  In production motion IDs are byte-sized
-     * NPC enum values so OOB is unreachable; defensive clamp here keeps
-     * host tests from corrupting adjacent memory if a test stages an
-     * out-of-band ID. */
-    if (motion_idx < 0 || motion_idx >= 256) motion_idx = 0;
-    const scene1_b_motion_entry_t *entry = &g_scene1_b_motion_table[motion_idx];
-
+    const int32_t et = owner_read_i(owner, 0x424);
+    const float *rf = g_enemy[et >= 0 && et < ENEMY_COUNT ? et : 0].runtime_floats;
+    const float abc = owner_read_f(owner, 0xabc);
     float drag;
-    if (motion_idx == 0xd || motion_idx == 0xe) {
-        /* asm 0x43dc46-0x43dc4e: fixed DRAG = -0.8 for these motion IDs. */
-        drag = -0.8f;
+    if (et == 0xd || et == 0xe) {
+        drag = -0.800000011920929f;
     } else {
-        /* asm 0x43dc50-0x43dc6e: formula. */
-        float owner_abc = owner_read_f(owner, 0xabc);
-        drag = ((entry->drag_base + 0.1f) - 1.5f) * owner_abc * entry->drag_mul
-               - 0.3f;
+        drag = spill32(((((long double)rf[1] + 0.10000000149011612f) - 1.5f) * abc) * rf[0]
+                       - 0.30000001192092896f);
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
-
-    /* asm 0x43dc7c-0x43dcb3: pose write from owner anchor. */
-    float opx = owner_read_f(owner, 0x3f0);
-    float opy = owner_read_f(owner, 0x3f4);
-    float opz = owner_read_f(owner, 0x3f8);
-    float owner_abc = owner_read_f(owner, 0xabc);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, opx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_abc * entry->pos_y_mul * entry->drag_mul * 0.5f + opy);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, opz);
+               spill32((((long double)abc * rf[2]) * rf[0]) * 0.5f + owner_read_f(owner, 0x3f4)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
 
     /* asm 0x43dcb3-0x43dcd1: state_machine + type-0x13 anim-drive write. */
     int prog = state_machine_call_ret(slot_base(i));
@@ -2998,52 +2980,29 @@ static void body_motion_anchor_keep(int i, int32_t type)
  */
 static void body_motion_anchor_kill_7(int i, int32_t type)
 {
-    void *owner = slot_owner_a(i);
+    void *owner = (void *)slot_owner(i);   /* slot+0x14 (OWNER_B) */
     if (!owner) return;
-
-    /* asm 0x43dcfc-0x43dd02: gate on owner+0x428 == 1, else kill. */
     if (owner_read_i(owner, 0x428) != 1) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }
-
-    /* asm 0x43dcee-0x43dcf7: motion_idx = owner+0x424. */
-    int32_t motion_idx = owner_read_i(owner, 0x424);
-    if (motion_idx < 0 || motion_idx >= 256) motion_idx = 0;
-    const scene1_b_motion_entry_t *entry = &g_scene1_b_motion_table[motion_idx];
-
+    const int32_t et = owner_read_i(owner, 0x424);
+    const float *rf = g_enemy[et >= 0 && et < ENEMY_COUNT ? et : 0].runtime_floats;
+    const float abc = owner_read_f(owner, 0xabc);
     float drag;
     if (type == 0x11) {
-        /* asm 0x43dd04-0x43dd0b: type 0x11 → DRAG = 0. */
         drag = 0.0f;
     } else {
-        /* asm 0x43dd0d-0x43dd2b: type 0xc → motion formula. */
-        float owner_abc = owner_read_f(owner, 0xabc);
-        drag = ((entry->drag_base + 0.1f) - 1.5f) * owner_abc * entry->drag_mul
-               - 0.3f;
+        drag = spill32(((((long double)rf[1] + 0.10000000149011612f) - 1.5f) * abc) * rf[0]
+                       - 0.30000001192092896f);
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
-
-    /* asm 0x43dd31-0x43dd68: pose write. */
-    float opx = owner_read_f(owner, 0x3f0);
-    float opy = owner_read_f(owner, 0x3f4);
-    float opz = owner_read_f(owner, 0x3f8);
-    float owner_abc = owner_read_f(owner, 0xabc);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, opx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_abc * entry->pos_y_mul * entry->drag_mul * 0.5f + opy);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, opz);
-
-    /* asm 0x43dd68: state_machine; return ignored. */
+               spill32((((long double)abc * rf[2]) * rf[0]) * 0.5f + owner_read_f(owner, 0x3f4)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
     state_machine_call(slot_base(i));
-
-    /* asm 0x43dd6d-0x43dd77: kill on AGE == 7 only.  Engine inverts:
-     *   if (AGE != 7) goto LAB_0043dd79; *piVar14 = 0;
-     * Either branch falls through into the next-type cascade. */
-    (void)type;
-    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 7) {
-        scene1_records_b_tick_kill_slot(i);
-    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 7) scene1_records_b_tick_kill_slot(i);
 }
 
 /* ═══ C8j-tick.11 — Body 7a (asm 0x43dd79..0x43e22b) ═══════════════════
@@ -3187,7 +3146,10 @@ static void body_0xe_or_0x12(int i)
          * 1.15; SM; kill AGE >= 1 (always). */
         int32_t mi = motion;
         if (mi < 0 || mi >= 256) mi = 0;
-        float drag = g_scene1_b_motion_table[mi].drag_mul * 1.15f;
+        /* PORT-DEBT(oob, 0x43e...): types >= 64 read past DAT_005c23f0 into
+         * the kind table in retail; the port clamps (and the x87 order is
+         * unverified) */
+        float drag = g_enemy[mi >= 0 && mi < ENEMY_COUNT ? mi : 0].runtime_floats[0] * 1.15f;
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
         state_machine_call(slot);
         if (age >= 1) scene1_records_b_tick_kill_slot(i);

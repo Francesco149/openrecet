@@ -21,6 +21,7 @@
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_b_tick.h"
+#include "tables_enemy.h"
 #include "scene1_spawn.h"
 #include "sim.h"                       /* g_sim_frame_count (engine DAT_0438b8cc) */
 
@@ -3877,16 +3878,26 @@ static void owner_a_blob_set_f(int byte_off, float v)
  * we zero it explicitly in each test below since the table is global. */
 static void motion_table_zero(void)
 {
-    memset(g_scene1_b_motion_table, 0,
-           sizeof g_scene1_b_motion_table);
+    for (int k = 0; k < ENEMY_COUNT; k++)
+        memset(g_enemy[k].runtime_floats, 0, sizeof g_enemy[k].runtime_floats);
 }
 
+/* The anchored bodies read the enemy record of owner+0x424: [0] drag_mul,
+ * [1] drag_base, [2] pos_y_mul. */
 static void motion_table_set(int idx, float drag_mul, float drag_base,
                              float pos_y_mul)
 {
-    g_scene1_b_motion_table[idx].drag_mul  = drag_mul;
-    g_scene1_b_motion_table[idx].drag_base = drag_base;
-    g_scene1_b_motion_table[idx].pos_y_mul = pos_y_mul;
+    if (idx >= ENEMY_COUNT) idx = 0;   /* the port's clamp (PORT-DEBT oob) */
+    g_enemy[idx].runtime_floats[0] = drag_mul;
+    g_enemy[idx].runtime_floats[1] = drag_base;
+    g_enemy[idx].runtime_floats[2] = pos_y_mul;
+}
+
+/* Body 6 / 7 records come from the npc allocator: the owner is OWNER_B. */
+static void bind_owner_b_blob(int slot_idx)
+{
+    owner_a_blob_ensure();
+    slot_set_i(slot_idx, SCENE1_RECORDS_B_OFF_OWNER_B, (int32_t)(uintptr_t)g_test_owner_a_blob);
 }
 
 /* Body 6 — types {0x10, 0xb, 0x14, 0x13, 0x99}. */
@@ -3899,7 +3910,7 @@ int test_records_b_tick_t10_body6_killed_when_owner_gate_zero(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x428, 0);  /* gate closed */
     stage_live(0, 0x10, 0, 0, 0, 0, 0, 0, /*age=*/5);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     return 0;
@@ -3917,7 +3928,7 @@ int test_records_b_tick_t10_body6_motion_d_uses_fixed_drag_minus_0_8(void)
     motion_table_set(0xd, /*drag_mul=*/99.0f, /*drag_base=*/99.0f,
                      /*pos_y_mul=*/99.0f);
     stage_live(0, 0xb, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - -0.8f) < 1e-6f);
     return 0;
@@ -3933,7 +3944,7 @@ int test_records_b_tick_t10_body6_motion_e_uses_fixed_drag_minus_0_8(void)
     owner_a_blob_set_i(0x424, 0xe);
     owner_a_blob_set_f(0xabc, 99.0f);
     stage_live(0, 0x14, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - -0.8f) < 1e-6f);
     return 0;
@@ -3955,7 +3966,7 @@ int test_records_b_tick_t10_body6_other_motion_uses_drag_formula(void)
     owner_a_blob_set_f(0xabc, 3.0f);
     motion_table_set(5, 2.0f, 4.0f, 0.0f);
     stage_live(0, 0x13, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 15.3f) < 1e-4f);
     return 0;
@@ -3979,7 +3990,7 @@ int test_records_b_tick_t10_body6_writes_pose_from_owner_anchor(void)
     motion_table_set(7, /*drag_mul=*/2.0f, /*drag_base=*/0.0f,
                      /*pos_y_mul=*/3.0f);
     stage_live(0, 0x99, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) -  50.0f) < 1e-5f);
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 112.0f) < 1e-5f);
@@ -3997,7 +4008,7 @@ int test_records_b_tick_t10_body6_calls_state_machine(void)
     s_sm_calls = 0;
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     stage_live(0, 0x10, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 1);
     return 0;
@@ -4015,7 +4026,7 @@ int test_records_b_tick_t10_body6_type_13_writes_anim_drive_on_progress(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     g_scene1_records_b_tick_anim_drive = 0x1234;
     stage_live(0, 0x13, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb90), 0x1234);
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb94), 0x1e);
@@ -4033,7 +4044,7 @@ int test_records_b_tick_t10_body6_type_other_skips_anim_drive(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     g_scene1_records_b_tick_anim_drive = 0xbeef;
     stage_live(0, 0x99, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb90), 0);
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb94), 0);
@@ -4049,7 +4060,7 @@ int test_records_b_tick_t10_body6_type_13_no_progress_skips_write(void)
     owner_a_blob_set_i(0x428, 1);
     g_scene1_records_b_tick_anim_drive = 0xcafe;
     stage_live(0, 0x13, 0, 0, 0, 0, 0, 0, 0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb90), 0);
     T_ASSERT_EQ_I(owner_a_blob_get_i(0xb94), 0);
@@ -4066,7 +4077,7 @@ int test_records_b_tick_t10_body6_does_not_age_kill(void)
     owner_a_blob_set_i(0x428, 1);
     /* Stage AGE near common kill thresholds; slot should survive each. */
     stage_live(0, 0x14, 0, 0, 0, 0, 0, 0, /*age=*/0x100);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x14);
     return 0;
@@ -4081,7 +4092,7 @@ int test_records_b_tick_t10_body7_killed_when_owner_gate_zero(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x428, 0);
     stage_live(0, 0x11, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     return 0;
@@ -4097,7 +4108,7 @@ int test_records_b_tick_t10_body7_type_11_uses_drag_zero(void)
     owner_a_blob_set_i(0x424, 9);
     motion_table_set(9, 99.0f, 99.0f, 99.0f);
     stage_live(0, 0x11, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
     return 0;
@@ -4116,7 +4127,7 @@ int test_records_b_tick_t10_body7_type_c_uses_motion_formula(void)
                      /*pos_y_mul=*/0.0f);
     /* DRAG = ((1.4 + 0.1 - 1.5) * 1.0 * 1.0) - 0.3 = 0 - 0.3 = -0.3 */
     stage_live(0, 0xc, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - -0.3f) < 1e-6f);
     return 0;
@@ -4138,7 +4149,7 @@ int test_records_b_tick_t10_body7_writes_pose_from_owner(void)
                      /*pos_y_mul=*/0.5f);
     /* POS_Y = 2.0 * 0.5 * 4.0 * 0.5 + 8.0 = 2.0 + 8.0 = 10.0 */
     stage_live(0, 0xc, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) -  7.0f) < 1e-5f);
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 10.0f) < 1e-5f);
@@ -4155,7 +4166,7 @@ int test_records_b_tick_t10_body7_age_7_kills(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x428, 1);
     stage_live(0, 0x11, 0, 0, 0, 0, 0, 0, /*age=*/6);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     return 0;
@@ -4169,7 +4180,7 @@ int test_records_b_tick_t10_body7_age_other_survives(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x428, 1);
     stage_live(0, 0xc, 0, 0, 0, 0, 0, 0, /*age=*/5);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     /* Preamble bumps AGE 5→6, which is not 7. */
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xc);
@@ -4185,7 +4196,7 @@ int test_records_b_tick_t10_body7_calls_state_machine(void)
     s_sm_calls = 0;
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     stage_live(0, 0xc, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_b_blob(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 1);
     return 0;
