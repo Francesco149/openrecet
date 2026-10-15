@@ -7,6 +7,18 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-15 — the walker FUN_0046fbee on the disasm; the house's collision objects
+- `scene1_shop_walker_helpers.c`: FUN_0046fbee re-ported from the disasm — x87 spills, the
+  8-ray FUN_00433674 wall nudge (types 1 / 2 / 7, or 0 with |n.y| < 0.75), the 0.2 step cap,
+  the 60-tick dwell of a walker without a type (+0x58 == -1, the day-8 visitor); FUN_0046f892
+  no longer clears the slots, the roster or the cap (retail sets only +0x54 / +0x5c).
+- `scene1_preload.c`: the house load copies the placed furniture into the collision objects
+  DAT_0438bfb0.. (FUN_00436f97's house arm) — the port's table was empty in every house.
+- portstate: customer slots 0–9 (pos x / z, walk state, facing) identical over the whole of
+  day2-shop and multiday-tutorials-suggest (34,810 frames); gates 0 failed.
+- rhost `--watch` took 16 VAs and overflowed its 256-byte status line past ~12 (the retail
+  log of a wide portstate ended early); now 64, checked, and portstate refuses more.
+
 ## 2026-10-15 — dungeon0-floors-save passes end to end (dungeon pilot)
 **portrng dungeon0-floors-save IDENTICAL f1–f12671 (the whole run, 31,167 draws) and
 portsave IDENTICAL** (was f9871 / save differing); both in `gates` now.

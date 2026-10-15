@@ -123,14 +123,14 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0043183e | src/record_hit.c:162 | the event floors' floor tables |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2555 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2606 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:353 | dungeon 5's return portal 6 beside |
 | FUN_0043824b | src/record_hit.c:858 | the chest's item roll at |
 | FUN_0043865e | src/record_hit.c:409 | the multi-part anchors |
 | FUN_004412b6 | src/record_hit.c:738 | traps 1 (kind-140 objects), 2 / 3 (the |
-| FUN_00441aab | src/scene1_sim.c:552 | the "?" spots / item radar |
-| FUN_004426a7 | src/scene1_sim.c:573 | the cinematic camera ramp |
-| FUN_00442cef | src/scene1_sim.c:415 | the run's end (FUN_00442c86, |
+| FUN_00441aab | src/scene1_sim.c:553 | the "?" spots / item radar |
+| FUN_004426a7 | src/scene1_sim.c:574 | the cinematic camera ramp |
+| FUN_00442cef | src/scene1_sim.c:416 | the run's end (FUN_00442c86, |
 | FUN_0044376a | src/dungeon_party.c:1391 | its 0 edge |
 | FUN_0044b12f | src/dungeon_party.c:1222 | the queued b554 item effects |
 | FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
@@ -149,7 +149,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:239 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:266 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:380 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0047f46a | src/scene1_sim.c:297 | equip the bag's items |
+| FUN_0047f46a | src/scene1_sim.c:298 | equip the bag's items |
 | FUN_00484e45 / FUN_00485413 | src/record_hit.c:855 | the bag-full |
 | FUN_004855e2 | src/dungeon_party.c:384 | the accessory-break follow-up |
 | FUN_00485712 | src/dungeon_party.c:381 | the status-guard accessory 2504 (the |
@@ -211,18 +211,18 @@ _none_
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1274 | the engine also zeroes |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1231 | the engine also gates on a |
-| focused | FUN_00430c00 | src/scene1_sim.c:129 | no town NPCs exist in |
-| focused | FUN_0043a5d9 | src/scene1_sim.c:139 | no consumer wired; no RNG. |
+| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:1276 | the engine also zeroes |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1233 | the engine also gates on a |
+| focused | FUN_00430c00 | src/scene1_sim.c:130 | no town NPCs exist in |
+| focused | FUN_0043a5d9 | src/scene1_sim.c:140 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1297 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1299 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3149 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00441c3e | src/actor_ai.c:141 | the view matrix is the render's; |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:682 | the notice's side is Tear's |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:890 | the side is Tear's screen x < 320 |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the house player still runs this |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:244 | the engine tail re-inits the |
-| structure | FUN_0048670f | src/scene1_sim.c:154 | one retail-shaped master tick. |
+| structure | FUN_0048670f | src/scene1_sim.c:155 | one retail-shaped master tick. |
 | structure | FUN_0048b850 | src/dungeon_party.h:17 | one port for both. |
 

@@ -338,6 +338,7 @@ int scene1_preload_house(void)
      * scene1_postload_pose_house_standing, so the camera follows the player.) */
     scene1_postload_load_house_phase2_inputs();
     scene1_postload_walker_phase2_init();
+    scene1_postload_mapcol_objs_from_walker();
 
     /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or
      * `_spawn_world_drop_default` once per HOUSE entry when their CLI

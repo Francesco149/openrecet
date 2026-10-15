@@ -6,6 +6,8 @@
 #include "retail_map.h"
 #include <stdarg.h>
 
+#define RH_MAX_WATCH 64   /* --watch VAs (portstate --va) */
+
 #define G32(va) (*(volatile uint32_t *)(uintptr_t)(va))
 #define G16(va) (*(volatile uint16_t *)(uintptr_t)(va))
 #define GF(va)  (*(volatile float *)(uintptr_t)(va))
@@ -53,7 +55,7 @@ typedef struct {
     uint32_t stall_ms;
     const char *hooks;          /* hook spec, see rh_hooks.c */
     const char *log_sbh;        /* diagnostic: CRT small-block-heap call log */
-    uint32_t watch[16]; int n_watch;   /* dwords appended to each status line */
+    uint32_t watch[RH_MAX_WATCH]; int n_watch;   /* dwords appended to each status line */
 } rh_opts_t;
 
 extern rh_opts_t O;

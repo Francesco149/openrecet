@@ -672,6 +672,8 @@ def cmd_portstate(a):
     """port vs retail, frame by frame: retail VAs (rhost --watch) vs their port mirrors (--state-va)"""
     name = a.scenario
     vas = [format(int(v, 16), "x") for v in a.va.split(",")]
+    if len(vas) > 64:   # RH_MAX_WATCH (tools/rhost/rhost.h)
+        raise SystemExit(f"portstate: {len(vas)} VAs, rhost watches at most 64")
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None

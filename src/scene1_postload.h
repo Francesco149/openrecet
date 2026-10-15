@@ -257,6 +257,8 @@ void scene1_postload_smoke_b_spawn(void);
  * section for full asm-decoded structure + reachability analysis.
  */
 void scene1_postload_walker_phase2_init(void);
+/* the walker's placed furniture → the collision objects DAT_0438bfb0.. (FUN_00436f97's house arm) */
+void scene1_postload_mapcol_objs_from_walker(void);
 
 /*
  * Set the scene_type used by the writer.  Values in [0..4] enable the

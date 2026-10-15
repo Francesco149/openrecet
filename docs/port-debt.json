@@ -132,7 +132,7 @@
    "engine_fn": "DAT_056db000",
    "desc": "the engine also zeroes",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1274,
+   "line": 1276,
    "kind_known": false
   },
   {
@@ -140,7 +140,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1231,
+   "line": 1233,
    "kind_known": false
   },
   {
@@ -148,7 +148,7 @@
    "engine_fn": "FUN_00430c00",
    "desc": "no town NPCs exist in",
    "file": "src/scene1_sim.c",
-   "line": 129,
+   "line": 130,
    "kind_known": false
   },
   {
@@ -156,7 +156,7 @@
    "engine_fn": "FUN_0043a5d9",
    "desc": "no consumer wired; no RNG.",
    "file": "src/scene1_sim.c",
-   "line": 139,
+   "line": 140,
    "kind_known": false
   },
   {
@@ -188,7 +188,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1297,
+   "line": 1299,
    "kind_known": false
   },
   {
@@ -308,7 +308,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "one retail-shaped master tick.",
    "file": "src/scene1_sim.c",
-   "line": 154,
+   "line": 155,
    "kind_known": false
   },
   {
@@ -444,7 +444,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2555,
+   "line": 2606,
    "kind_known": true
   },
   {
@@ -484,7 +484,7 @@
    "engine_fn": "FUN_00441aab",
    "desc": "the \"?\" spots / item radar",
    "file": "src/scene1_sim.c",
-   "line": 552,
+   "line": 553,
    "kind_known": true
   },
   {
@@ -492,7 +492,7 @@
    "engine_fn": "FUN_004426a7",
    "desc": "the cinematic camera ramp",
    "file": "src/scene1_sim.c",
-   "line": 573,
+   "line": 574,
    "kind_known": true
   },
   {
@@ -500,7 +500,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 415,
+   "line": 416,
    "kind_known": true
   },
   {
@@ -652,7 +652,7 @@
    "engine_fn": "FUN_0047f46a",
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
-   "line": 297,
+   "line": 298,
    "kind_known": true
   },
   {

@@ -17,6 +17,7 @@
 #include "customer_service.h"
 #include "dungeon_flow.h"
 #include "dungeon_objects.h"
+#include "map_collision.h"
 #include "news_daily.h"
 #include "party.h"
 #include "stage_palette.h"
@@ -39,6 +40,7 @@
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_shop_display.h"
+#include "scene1_shop_walker.h"
 #include "scene1_top_hud.h"
 #include "scene1_tutorial_dispatch.h"
 #include "sim.h"
@@ -335,6 +337,12 @@ static const int32_t *layout_dword(uint32_t va)
         { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
         { 0x74b2894u, &g_pause_save_hscroll },
     };
+    if (va >= 0x438bfb0u && va < 0x438bfb0u + sizeof g_mapcol_objs)
+        return (const int32_t *)(const void *)((const uint8_t *)&g_mapcol_objs + (va - 0x438bfb0u));
+    if (va >= 0x73a6e50u && va < 0x73a6e50u + 4u * CS_NPC_MAX * CS_NPC_STRIDE) {
+        const uint32_t d = (va - 0x73a6e50u) / 4;
+        return scene1_customer_npc_slot((int)(d / CS_NPC_STRIDE)) + d % CS_NPC_STRIDE;
+    }
     if (va >= 0x74b2844u && va < 0x74b2844u + 4u * SCENE_PAUSE_MAX_ENTRIES)
         return &g_pause_entries[(va - 0x74b2844u) / 4];
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)

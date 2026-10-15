@@ -253,7 +253,7 @@ static void postload_seat(void)
 
 /* The placed collision objects of the house arm, in retail's aliased layout:
  * phase-1 i → object i, phase-2 j → object 5+j (DAT_0438bfb8.., c008/c058/c0a8/c0f8). */
-static void postload_mapcol_objs_from_walker(void)
+void scene1_postload_mapcol_objs_from_walker(void)
 {
     g_mapcol_objs.n1 = g_scene1_walker_phase1_count;
     g_mapcol_objs.n2 = g_scene1_walker_phase2_count;
@@ -467,7 +467,7 @@ void scene1_postload_stage_entry_init(void)
          * else the front door, facing down (octant 4, +0x2cde0 set) or left
          * (octant 2, −π/2). */
         scene1_postload_walker_phase2_init();
-        postload_mapcol_objs_from_walker();
+        scene1_postload_mapcol_objs_from_walker();
         /* L668-677: qword DAT_0438cbfc = -1 (no faced display cell), DAT_0438cbe8 = 0
          * (the display menu's open-once latch). */
         shop_display_highlight_clear();

@@ -65,5 +65,16 @@ static inline long double x87_crt_cos(double x)
     __asm__ volatile("fldcw %0" : : "m"(cw));
     return r;
 }
+/* MSVC6 CRT atan2 (0x503dd0): fpatan at CW 0x027F, result unrounded in ST0. */
+static inline long double x87_crt_atan2(double y, double x)
+{
+    unsigned short cw, cw53 = 0x027f;
+    long double r;
+    __asm__ volatile("fnstcw %0" : "=m"(cw));
+    __asm__ volatile("fldcw %0" : : "m"(cw53));
+    __asm__ volatile("fpatan" : "=t"(r) : "0"((long double)x), "u"((long double)y) : "st(1)");
+    __asm__ volatile("fldcw %0" : : "m"(cw));
+    return r;
+}
 
 #endif

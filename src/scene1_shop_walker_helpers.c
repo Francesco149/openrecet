@@ -22,6 +22,8 @@
 #include "scene1_shop_display.h" /* shop_display_grid_cell (DAT_074b28e8 walk grid) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_facing_octant (b850 angle→octant) */
 #include "scene1_particles_tick.h"/* g_scene1_camera_yaw (_DAT_073de39c) */
+#include "map_collision.h"       /* FUN_00433674 — the step's wall rays */
+#include "x87.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -606,17 +608,15 @@ static int cs_cell_walkable(int x, int y)
 }
 
 /* FUN_0046f892 @ 0x46f892 — NPC-array reset: each slot's [0x15] (active) = -1
- * and [0x17] (render scale) = 1.0f, then the frame/spawn counters = 0. */
+ * and [0x17] (render scale) = 1.0f, then the frame/spawn counters = 0.  The
+ * rest of a slot, the roster and the cap keep their values. */
 void scene1_customer_npc_reset(void)
 {
-    memset(s_cs_npc, 0, sizeof s_cs_npc);
     for (int i = 0; i < CS_NPC_MAX; i++) {
         int32_t *slot = &s_cs_npc[i * CS_NPC_STRIDE];
         slot[CS_NPC_OFF_ACTIVE] = -1;                   /* puVar1[-2] = 0xffffffff */
         cs_slot_set_f(slot, CS_NPC_OFF_SCALE17, 1.0f);  /* *puVar1 = 0x3f800000 */
     }
-    memset(s_cs_roster, 0, sizeof s_cs_roster);
-    s_cs_cap     = 0;
     s_cs_frame   = 0;                                    /* DAT_073a8ba8 = 0 */
     s_cs_spawned = 0;                                    /* DAT_073a8bac = 0 */
 }
@@ -856,9 +856,14 @@ static void cs_npc_set_anim(int32_t *slot, int32_t id)
 
 static void cs_npc_tick(int32_t *slot, int shop_tier)
 {
-    int   wstate = slot[CS_NPC_OFF_WSTATE];             /* +0x74 */
-    float old_x  = cs_slot_f(slot, CS_NPC_OFF_POS_X);   /* +0x2c */
-    float old_z  = cs_slot_f(slot, CS_NPC_OFF_POS_Z);   /* +0x34 */
+    static const float k2pi = 6.2831854820251465f, k8 = 8.0f, k_pi8 = 0.39269909262657166f;
+    static const float k9 = 9.0f, k7 = 7.0f, k20 = 20.0f, k16p5 = 16.5f;
+    static const float k0p1 = 0.10000000149011612f, km0p1 = -0.10000000149011612f;
+    static const float k0p2 = 0.20000000298023224f, k0p7 = 0.699999988079071f, k0p75 = 0.75f;
+    const int    wstate = slot[CS_NPC_OFF_WSTATE];      /* +0x74 */
+    const float  old_x  = cs_slot_f(slot, CS_NPC_OFF_POS_X);   /* +0x2c */
+    const float  old_z  = cs_slot_f(slot, CS_NPC_OFF_POS_Z);   /* +0x34 */
+    const int    typed  = slot[CS_NPC_OFF_TYPE_IDX] != -1;      /* +0x58: -1 = the story visitor */
 
     if (wstate == -1) {
         /* ── retarget BURST: up to 30 tries, 2 LCG draws each ──
@@ -897,39 +902,35 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
         }
     } else if (wstate == 0) {
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
-        /* FUN_00482a51(slot, 1) on +0x58 != -1 (objdump 0x46fd74: push 1) —
-         * the walk anim; TYPE_IDX is always ≥ 0 for a spawned NPC. */
-        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+        /* FUN_00482a51(slot, 1) (objdump 0x46fd74) — the walk anim */
+        if (typed)
             cs_npc_set_anim(slot, 1);
         if (slot[CS_NPC_OFF_WTIMER] > 0) {
             slot[CS_NPC_OFF_WTIMER] = 0;                /* +0x78 = 0 */
             slot[CS_NPC_OFF_WSTATE] = 1;                /* +0x74 = 1 */
-            float h = rng_next_unit();                  /* heading RNG draw */
-            cs_slot_set_f(slot, CS_NPC_OFF_SPAWN_ANG, h * 6.2831855f); /* +0x50 */
+            cs_slot_set_f(slot, CS_NPC_OFF_SPAWN_ANG,   /* +0x50: the heading draw */
+                          spill32((long double)rng_next_unit() * k2pi));
             cs_pathfind_step(slot);                     /* +1 rng15 (FUN_0046fa31) */
 
-            /* recompute world target from the (possibly stepped) grid cell. */
-            float gx = (float)slot[CS_NPC_OFF_GRID_X];
-            float gy = (float)slot[CS_NPC_OFF_GRID_Y];
-            float wx = (gx + gx) - 9.0f;                /* +0x38 */
-            float wz = (gy + gy) - 7.0f;                /* +0x40 */
+            /* the world target of the (possibly stepped) cell, the velocity
+             * over param21 + 20 ticks, clamped to ±0.1 (asm 0x46fda7..0x46fe75) */
+            const float wx = spill32(2.0L * spill32((long double)slot[CS_NPC_OFF_GRID_X]) - k9);
             cs_slot_set_f(slot, CS_NPC_OFF_DRAW_X, wx);
+            const float wz = spill32(2.0L * spill32((long double)slot[CS_NPC_OFF_GRID_Y]) - k7);
             cs_slot_set_f(slot, CS_NPC_OFF_DRAW_Z, wz);
-
-            float denom = (float)slot[CS_NPC_OFF_PARAM21] + 20.0f;  /* +0x84 + 20 */
-            float vx = (wx - cs_slot_f(slot, CS_NPC_OFF_POS_X)) / denom;
-            float vz = (wz - cs_slot_f(slot, CS_NPC_OFF_POS_Z)) / denom;
-            if (vx < -0.1f) vx = -0.1f;                 /* clamp ±0.1 (0xbdcccccd) */
-            if (vx >  0.1f) vx =  0.1f;
-            if (vz < -0.1f) vz = -0.1f;
-            if (vz >  0.1f) vz =  0.1f;
-            cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, vx);  /* +0x44 */
-            cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, vz);  /* +0x4c */
+            const float denom = spill32((long double)spill32((long double)slot[CS_NPC_OFF_PARAM21]) + k20);
+            const float vx = spill32(((long double)wx - cs_slot_f(slot, CS_NPC_OFF_POS_X)) / denom);
+            cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, vx);
+            const float vz = spill32(((long double)wz - cs_slot_f(slot, CS_NPC_OFF_POS_Z)) / denom);
+            cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, vz);
+            if (vx < km0p1) cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, km0p1);
+            if (cs_slot_f(slot, CS_NPC_OFF_VEL_X) > k0p1) cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, k0p1);
+            if (vz < km0p1) cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, km0p1);
+            if (cs_slot_f(slot, CS_NPC_OFF_VEL_Z) > k0p1) cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, k0p1);
         }
     } else if (wstate == 1) {
-        /* FUN_00482a51(slot, 1) on +0x58 != -1 (objdump 0x46fd09: push 1;
-         * BEFORE the WTIMER++ in this arm) — hold the walk anim. */
-        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+        /* FUN_00482a51(slot, 1) (objdump 0x46fd09; before the WTIMER++) */
+        if (typed)
             cs_npc_set_anim(slot, 1);
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
         if (slot[CS_NPC_OFF_WTIMER] == slot[CS_NPC_OFF_PARAM21] + 0x14) {  /* +0x84+0x14 */
@@ -945,65 +946,84 @@ static void cs_npc_tick(int32_t *slot, int shop_tier)
                 slot[CS_NPC_OFF_WSTATE] = 2;            /* reached target → 2 */
         }
     } else if (wstate == 2) {
-        /* FUN_00482a51(slot, 0) on +0x58 != -1 (objdump 0x46fc48: push 0) —
-         * the idle/dwell anim.  Then zero velocity + the dwell timer. */
-        if (slot[CS_NPC_OFF_TYPE_IDX] != -1)
+        /* the dwell: anim 0 (objdump 0x46fc48), stop, face FACE_DIR (+0x70 →
+         * 1: (-1, 0), 3: (1, 0), 2: (0, -1), 0: (0, 1) as atan2(y, x)), then
+         * retarget after 120 ticks (60 for the story visitor, +0x58 == -1) */
+        if (typed)
             cs_npc_set_anim(slot, 0);
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_X, 0.0f);    /* +0x44 = 0 */
         cs_slot_set_f(slot, CS_NPC_OFF_VEL_Z, 0.0f);    /* +0x4c = 0 */
-        /* facing octant (+0x18) from FACE_DIR (+0x70) — the engine's idle-dwell
-         * facing (asm 0x46fc52-0x46fce2).  FACE_DIR → dir vector (fx=x, fy=z):
-         * 0:(1,0) 1:(0,-1) 2:(-1,0) 3:(0,1); FACING = octant(atan2(fy,fx)).
-         * RNG-neutral (render). */
-        {
-            float fx = 0.0f, fy = 0.0f;
-            switch (slot[CS_NPC_OFF_FACE_DIR]) {        /* +0x70 */
-                case 0: fx =  1.0f; break;
-                case 1: fy = -1.0f; break;
-                case 2: fx = -1.0f; break;
-                case 3: fy =  1.0f; break;
-                default: break;                         /* atan2(0,0) = 0 */
-            }
-            slot[CS_NPC_OFF_FACING] = cs_npc_facing_octant(atan2f(fy, fx));
+        float ay = 0.0f, ax = 0.0f;
+        switch (slot[CS_NPC_OFF_FACE_DIR]) {
+        case 1: ay = -1.0f; break;
+        case 3: ay =  1.0f; break;
+        case 2: ax = -1.0f; break;
+        case 0: ax =  1.0f; break;
+        default: break;
         }
+        const float a = spill32(x87_crt_atan2(ay, ax));
+        slot[CS_NPC_OFF_FACING] = x87_ftol(((((long double)a + g_scene1_camera_yaw) + k_pi8) / k2pi) * k8 + k8) & 7;
         slot[CS_NPC_OFF_WTIMER] += 1;                   /* +0x78++ */
-        /* dwell: +0x58 (TYPE_IDX) is ALWAYS != -1 for a spawned NPC, so the
-         * engine takes the 0x78 (120-frame) branch and retargets when
-         * WTIMER > 0x78 (the signed `cmp WTIMER,0x78; !=&&>=` = strictly >). */
-        if (slot[CS_NPC_OFF_WTIMER] > 0x78) {
+        if (slot[CS_NPC_OFF_WTIMER] > (typed ? 0x78 : 0x3c)) {
             slot[CS_NPC_OFF_WTIMER] = 0;
             slot[CS_NPC_OFF_WSTATE] = -1;               /* +0x74 = -1 → retarget */
         }
     }
 
-    /* ── position interp (RNG-neutral; engine all.c:69451-69505) ── */
-    float speed = cs_slot_f(slot, CS_NPC_OFF_SPEED);    /* +0x80 */
-    float vx = cs_slot_f(slot, CS_NPC_OFF_VEL_X);
-    float vz = cs_slot_f(slot, CS_NPC_OFF_VEL_Z);
-    float nx = speed * vx + cs_slot_f(slot, CS_NPC_OFF_POS_X);
-    float nz = speed * vz + cs_slot_f(slot, CS_NPC_OFF_POS_Z);
-    cs_slot_set_f(slot, CS_NPC_OFF_POS_X, nx);
-    /* z hard-clamp band by shop tier (engine: tier<3 → 9.0, else 16.5). */
-    if (shop_tier < 3) {
-        if (nz > 9.0f) nz = 9.0f;                       /* 0x41100000 */
-    } else {
-        if (nz > 16.5f) nz = 16.5f;                     /* 0x41840000 */
-    }
+    /* ── the step (asm 0x46ff5d): pos += speed · vel, z clamped by shop tier ── */
+    const float speed = cs_slot_f(slot, CS_NPC_OFF_SPEED);    /* +0x80 */
+    cs_slot_set_f(slot, CS_NPC_OFF_POS_X,
+                  spill32((long double)speed * cs_slot_f(slot, CS_NPC_OFF_VEL_X) + cs_slot_f(slot, CS_NPC_OFF_POS_X)));
+    const float nz = spill32((long double)speed * cs_slot_f(slot, CS_NPC_OFF_VEL_Z) + cs_slot_f(slot, CS_NPC_OFF_POS_Z));
     cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, nz);
+    if (shop_tier < 3) {
+        if (nz > k9) cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, k9);
+    } else if (nz > k16p5) {
+        cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, k16p5);
+    }
 
-    /* engine 69466-69497: an 8-step radial collision nudge against FUN_00433674
-     * — geometry only, NO RNG.  The collision mesh for the chibi crowd is not
-     * modeled (PORT-DEBT(cs-walker-collide)); it cannot perturb the LCG, so its
-     * omission is RNG-safe.  Re-clamp the per-tick step magnitude to 0.2 like
-     * the engine's trailing normalize (69498-69505). */
-    float dx = cs_slot_f(slot, CS_NPC_OFF_POS_X) - old_x;
-    float dz = cs_slot_f(slot, CS_NPC_OFF_POS_Z) - old_z;
-    float len = sqrtf(dx * dx + dz * dz);
-    if (len > 0.2f) {
-        cs_slot_set_f(slot, CS_NPC_OFF_POS_X, (dx * 0.2f) / len + old_x);
-        cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, (dz * 0.2f) / len + old_z);
+    /* ── moving: 8 rays of 1 from 0.7 up (FUN_00433674); a hit on a wall face
+     * (type 1 / 2 / 7, or a type-0 face with |n.y| < 0.75) pushes back by the
+     * ray's unused part (asm 0x46ffd6..0x47012d) ── */
+    if (cs_slot_f(slot, CS_NPC_OFF_VEL_X) != 0.0f || cs_slot_f(slot, CS_NPC_OFF_VEL_Z) != 0.0f) {
+        for (int i = 0; i != 8; i++) {
+            const float ang = spill32((long double)spill32((long double)(i % 8)) * k2pi / k8);
+            const double ad = ang;
+            const float rx = cs_slot_f(slot, CS_NPC_OFF_POS_X);
+            const float ry = spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_Y) + k0p7);
+            const float rz = cs_slot_f(slot, CS_NPC_OFF_POS_Z);
+            const float sx = spill32(x87_crt_sin(ad));
+            const float sz = spill32(x87_crt_cos(ad));
+            float frac = 0.0f;
+            mapcol_hit_t h;
+            memset(&h, 0, sizeof h);
+            if (mapcol_ray(rx, ry, rz, sx, 0.0f, sz, &frac, &h) == 0)
+                continue;
+            int32_t type = 0;
+            if (h.slot >= 0 && h.slot < MAPCOL_SLOTS && g_mapcol_slot[h.slot].tris != NULL &&
+                h.tri >= 0 && h.tri < g_mapcol_slot[h.slot].cap)
+                type = g_mapcol_slot[h.slot].tris[h.tri].type;
+            int push = type == 1 || type == 2 || type == 7;
+            if (type == 0 && spill32(fabsl((long double)h.n[1])) < k0p75) push = 1;
+            if (push) {
+                const float t = spill32(1.0L - frac);
+                cs_slot_set_f(slot, CS_NPC_OFF_POS_X, spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_X) - (long double)t * sx));
+                cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_Z) - (long double)t * sz));
+            }
+        }
+    }
+
+    /* ── the step capped at 0.2 (asm 0x470133) ── */
+    const float dx = spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_X) - old_x);
+    const float dz = spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_Z) - old_z);
+    const float len = spill32((long double)spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx))));
+    if (len > k0p2) {
+        cs_slot_set_f(slot, CS_NPC_OFF_POS_X, spill32((long double)dx * k0p2 / len + old_x));
+        cs_slot_set_f(slot, CS_NPC_OFF_POS_Z, spill32((long double)dz * k0p2 / len + old_z));
     }
 }
+
+void scene1_customer_npc_walk(int32_t *slot, int shop_tier) { cs_npc_tick(slot, shop_tier); }
 
 /* FUN_0047019f @ 0x47019f — the cc08==4 per-frame pump (RNG-consuming core).
  * Returns the number of LCG draws consumed this call (host RNG-accounting).

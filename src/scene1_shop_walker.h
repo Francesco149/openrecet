@@ -403,6 +403,9 @@ unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier);
 /* Direct slot accessor (for tests + the future render).  Returns NULL for an
  * out-of-range index; the slot is CS_NPC_STRIDE dwords. */
 int32_t *scene1_customer_npc_slot(int idx);
+/* FUN_0046fbee on any walker record (a customer slot or the day-8 visitor,
+ * +0x58 == -1); `shop_tier` = work +0x2cde0. */
+void scene1_customer_npc_walk(int32_t *slot, int shop_tier);
 
 #ifdef _WIN32
 

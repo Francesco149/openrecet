@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 121,
+  "port_debt": 120,
   "verified": 81,
   "stubbed": 11,
   "ported": 628,
@@ -7115,7 +7115,8 @@
     "src/scene1_sim.c",
     "src/scene_day_end.c",
     "src/scene_guild.c",
-    "src/scene_worldmap.c"
+    "src/scene_worldmap.c",
+    "src/story_visitor.c"
    ],
    "status": "ported"
   },
@@ -7270,7 +7271,8 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
-    "src/scene1_tutorial_dispatch.h"
+    "src/scene1_tutorial_dispatch.h",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -8038,7 +8040,8 @@
     "src/scene_title.h",
     "src/scene_worldmap.c",
     "src/sim.c",
-    "src/sim.h"
+    "src/sim.h",
+    "src/story_visitor.c"
    ],
    "status": "verified"
   },
@@ -8096,7 +8099,8 @@
     "src/scene_pause.c",
     "src/scene_worldmap.c",
     "src/sim.c",
-    "src/sim.h"
+    "src/sim.h",
+    "src/story_visitor.c"
    ],
    "status": "verified"
   },
@@ -8125,7 +8129,8 @@
     "src/scene_day_end.c",
     "src/scene_pause.c",
     "src/scene_worldmap.c",
-    "src/sim.c"
+    "src/sim.c",
+    "src/story_visitor.c"
    ],
    "status": "verified"
   },
@@ -12883,7 +12888,9 @@
    "quality_flags": [],
    "src": [
     "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker_helpers.c",
+    "src/story_visitor.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -13001,7 +13008,9 @@
    "quality_flags": [],
    "src": [
     "src/scene1_actor_say.h",
-    "src/scene1_day_close.c"
+    "src/scene1_day_close.c",
+    "src/story_visitor.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -13023,7 +13032,9 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_party.c",
-    "src/scene1_conversation_pose.c"
+    "src/scene1_conversation_pose.c",
+    "src/story_visitor.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -13044,7 +13055,10 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_conversation_pose.h"
+    "src/scene1_conversation_pose.c",
+    "src/scene1_conversation_pose.h",
+    "src/story_visitor.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -13067,7 +13081,9 @@
    "src": [
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
-    "src/scene1_tutorial_dispatch.c"
+    "src/scene1_tutorial_dispatch.c",
+    "src/story_visitor.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -16487,10 +16503,12 @@
     "src/scene1_bg_npc.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
+    "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.h",
     "src/scene1_records_b_tick.h",
     "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker_helpers.c",
+    "src/story_visitor.c"
    ],
    "status": "ported"
   },
@@ -16521,7 +16539,8 @@
     "src/scene1_conversation_pose.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker_helpers.c",
+    "src/story_visitor.c"
    ],
    "status": "ported"
   },
@@ -17072,7 +17091,8 @@
     "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_postload.c",
-    "src/scene1_postload.h"
+    "src/scene1_postload.h",
+    "src/story_visitor.c"
    ],
    "status": "ported"
   },
@@ -17130,7 +17150,8 @@
     "src/scene1_day_close.h",
     "src/scene1_postload.c",
     "src/scene1_tutorial_dispatch.c",
-    "src/scene_day_end.c"
+    "src/scene_day_end.c",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
@@ -17544,7 +17565,8 @@
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
-    "src/sim.h"
+    "src/sim.h",
+    "src/story_visitor.h"
    ],
    "status": "ported"
   },
