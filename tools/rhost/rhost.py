@@ -7,7 +7,9 @@
   rhost.py det SCEN [-n N] [--calibrate] run N times, dump at end, diff (determinism gate)
   rhost.py corpus [opts]                 every scenario; summary table
   rhost.py diff A.rhs B.rhs              classify the differences between two dumps
-  rhost.py record NAME [--save SHA|PATH] HUMAN PLAY (Windows desktop, realtime) → flat trace
+  rhost.py record NAME [--save S|--from SCEN]  HUMAN PLAY (Windows desktop, realtime) → flat trace;
+                                         --save SHA[prefix]|PATH|SCEN (the save SCEN starts from),
+                                         --from SCEN = the save SCEN ends with (replayed, stored in _saves)
   rhost.py flatten SCEN                  write tests/scenarios/<SCEN>/trace.flat.jsonl
   rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
   rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
@@ -45,7 +47,9 @@ WINE_PREFIX = os.environ.get("RHOST_WINEPREFIX", "/mnt/ephemeral/openrecet/prefi
 WROOT = "C:\\orc-rhost"
 VOLATILE = os.path.join(HERE, "volatile.txt")
 sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.join(ROOT, "tools"))
 import rhs  # noqa: E402
+import trace_save  # noqa: E402
 
 SSH_NOISE = re.compile(r"post-quantum|pq\.html|may need to be upgraded|store now, decrypt later")
 
@@ -145,6 +149,48 @@ def save_bytes(path):
     if path.endswith(".gz"):
         return gzip.open(path, "rb").read()
     return open(path, "rb").read()
+
+
+def save_arg(s):
+    """--save S: a path, a _saves sha (a unique prefix will do), or a scenario name (the save it starts from)"""
+    if os.path.exists(s):
+        return s
+    if os.path.exists(os.path.join(SCEN, s, "trace.jsonl")):
+        save = scenario_inputs(s)[1]
+        if not save:
+            raise SystemExit(f"--save {s}: that scenario starts fresh (@fresh)")
+        return save
+    store = os.path.join(SCEN, "_saves")
+    hits = sorted(f for f in os.listdir(store) if f.startswith(s.lower()) and f.endswith(".sav.gz")) if os.path.isdir(store) else []
+    if len(hits) != 1:
+        raise SystemExit(f"--save {s}: not a path, scenario or _saves sha" + (f" ({len(hits)} shas match)" if hits else ""))
+    return os.path.join(store, hits[0])
+
+
+def replay_args(**over):
+    """options for a plain retail replay: no hooks / dumps / shots, off-screen, Windows (= RNG truth)"""
+    a = argparse.Namespace(**{k: None for k in ("frames", "seed", "hook", "dump_at", "hash_every", "coverage", "cap",
+                                                "stall_ms", "extra", "shot_at", "shot_every")})
+    a.d3d = a.show = a.flatten_out = False
+    a.target = "win"
+    vars(a).update(over)
+    return a
+
+
+def end_save(name):
+    """the save.dat scenario NAME ends with: replayed in rhost, stored content-addressed in _saves → its path"""
+    tr, start = scenario_inputs(name)
+    print(f"[replaying {name} for the save it ends with]")
+    _, bdir, res, out = run_batch(replay_args(), [(name, tr, None, start)], "endsave-" + name, fetch=("rhost.log", "save.dat"))
+    r = res.get(name, {})
+    if r.get("complete") != "1":
+        raise SystemExit(f"replaying {name} did not complete: {r or out[-2000:]}")
+    raw = os.path.join(bdir, name, "save.dat")
+    if not os.path.exists(raw) or (start and open(raw, "rb").read() == save_bytes(start)):
+        raise SystemExit(f"{name} commits no save: nothing to start from")
+    sha, blob = trace_save.store_save(raw, os.path.join(SCEN, "_saves"))
+    print(f"[{name} ends with save {sha} (f{r.get('frame')})]")
+    return str(blob)
 
 
 def rhost_args(a, run_win, inputs_win):
@@ -313,7 +359,7 @@ def print_results(results, names):
 
 def cmd_run(a):
     if a.masks:
-        runs = [("masks", None, a.masks, a.save)]
+        runs = [("masks", None, a.masks, a.save and save_arg(a.save))]
     else:
         runs = resolve_runs(a.scenarios)
     a.flatten_out = False
@@ -820,10 +866,12 @@ def cmd_record(a):
     """human play on the Windows desktop, realtime, real input; writes a flat trace"""
     if os.path.exists(os.path.join(SCEN, a.name, "trace.jsonl")) and not a.force:
         print(f"record: scenario {a.name} already exists — pick a new name (or --force to overwrite)"); return 2
+    if a.from_scen and a.save:
+        print("record: --from or --save, not both"); return 2
     ensure_staged()
-    save = None
-    if a.save:
-        save = a.save if os.path.exists(a.save) else os.path.join(SCEN, "_saves", a.save + ".sav.gz")
+    save = end_save(a.from_scen) if a.from_scen else save_arg(a.save) if a.save else None
+    if save:
+        print(f"[recording from {os.path.relpath(save, ROOT)}]")
     a.frames = a.frames or 0
     a.flatten_out = False
     a.show = True
@@ -842,14 +890,14 @@ def cmd_record(a):
         # keep the scenario's save reference
         body = open(os.path.join(dst, "trace.jsonl")).read()
         rel = os.path.relpath(save, dst)
-        open(os.path.join(dst, "trace.jsonl"), "w").write(json.dumps({"savefile": rel}) + "\n" + body)
+        src = f"# save: the one {a.from_scen} ends with (rhost.py record --from {a.from_scen})\n" if a.from_scen else ""
+        open(os.path.join(dst, "trace.jsonl"), "w").write(json.dumps({"savefile": rel}) + "\n" + src + body)
     print("wrote", os.path.join(dst, "trace.jsonl"))
     # self-check: replaying the recording must reproduce the recorded final state
     m = re.search(r"RESULT .*?frame=(\d+).*?state_sem=([0-9a-f]+)", out)
     if not m:
         print("record: no RESULT line — cannot self-check"); return 1
-    a2 = argparse.Namespace(**{k: None for k in ("seed", "hook", "hash_every", "coverage", "cap", "stall_ms", "extra", "shot_at", "shot_every")})
-    a2.d3d = False; a2.show = False; a2.frames = int(m.group(1)); a2.flatten_out = False; a2.dump_at = "end"
+    a2 = replay_args(frames=int(m.group(1)), dump_at="end")
     _, rb, res, _ = run_batch(a2, [(a.name, os.path.join(dst, "trace.jsonl"), None, save)], "recheck", fetch=("rhost.log", "state_end.rhs"))
     rep = res.get(a.name, {})
     rows = rhs.diff(os.path.join(bdir, "rec", "state_end.rhs"), os.path.join(rb, a.name, "state_end.rhs"), show=20)
@@ -906,7 +954,10 @@ def main():
     p = sp.add_parser("gates"); p.add_argument("--only", help="regex over 'KIND SCENARIO'"); common(p); p.set_defaults(fn=cmd_gates)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
-    p = sp.add_parser("record"); p.add_argument("name"); p.add_argument("--save"); p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
+    p = sp.add_parser("record"); p.add_argument("name")
+    p.add_argument("--save", help="SHA (unique prefix ok) | PATH | SCEN (the save scenario SCEN starts from)")
+    p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")
+    p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
     common(p); p.set_defaults(fn=cmd_record)
     a = ap.parse_args()
     r = a.fn(a)

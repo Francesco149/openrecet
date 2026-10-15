@@ -14,6 +14,7 @@ python3 tools/rhost/rhost.py det house-idle -n 3       # determinism gate (3 run
 python3 tools/rhost/rhost.py corpus                    # all tests/scenarios, summary.tsv
 python3 tools/rhost/rhost.py diff A.rhs B.rhs          # classify two state dumps
 python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → flat trace
+python3 tools/rhost/rhost.py record my-scenario --from X      # … from the save scenario X ends with
 python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
@@ -21,6 +22,13 @@ python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first diffe
 python3 tools/rhost/rhost.py portstate X --va 438bef4,438bf24 --changes   # every frame a VA changes, both sides
 python3 tools/rhost/rhost.py portblock X --at 29806          # every dword of the layout blocks + work bank
 ```
+`record --save` takes a `_saves` sha (a unique prefix will do), a path, or a scenario name
+(the save that scenario starts from). `record --from X` replays X in rhost to its end and
+starts from the save.dat X commits, stored content-addressed in `tests/scenarios/_saves/`
+(user data, gitignored). The new trace's `savefile` points at that blob, with a
+`# save: the one X ends with` comment line under it. This is how saves chain: dungeon 0
+starts from buy-from-seller-guild-intro's end save, dungeon 1 from dungeon0-full's.
+
 `portblock` compares, at one frame, retail's `--dump-at` memory against the port's
 `--block-dump` (src/state_va.c): the party block, the actor table, the stage objects,
 the popups, records B / C, the drop-weight rows, the map objects, the floor-flow scalars

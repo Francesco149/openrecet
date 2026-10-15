@@ -288,10 +288,12 @@ rhost.log: base / ask / offer / floor / acc).
 ### Human queue (report at session end; ranked by what it unblocks)
 - **Record a dungeon-1 run** (unblocks the next enemy types, traps and events; dungeon 0 is
   done end to end). On maximus, the user plays on the Windows desktop:
-  `python3 tools/rhost/rhost.py record dungeon1-run --save <sha>` from a save that has
-  dungeon 1 open (or play dungeon 0 again first in the same recording). Play: into the
-  dungeon, fight every enemy kind, open chests, use an item from the pause menu, take the
-  exit portal or reach the boss, let the run end and return home.
+  `python3 tools/rhost/rhost.py record dungeon1-run --from dungeon0-full`. That replays
+  dungeon0-full (~50 s) and starts from the save it commits (`60b595ef…`, bank 10: guild
+  map on (0x2bc81 = 1), so the guild lists dungeons 0 + 1). At the title, Load the slot
+  dungeon0-full saved to (the newest one). Play: guild → dungeon 1 on the map, fight every enemy kind,
+  open chests, use an item from the pause menu, take the exit portal or reach the boss,
+  let the run end and return home.
 
 ## Where to read next
 
