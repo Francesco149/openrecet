@@ -2559,23 +2559,24 @@ static int init_npc_56(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    float sa   = sinf(bend);
-    float ca   = cosf(bend);
-
+    /* asm 0x445b7f..0x445ca6: m32 spills of the CRT sin / cos (x87.h) */
+    static const float k2pi = 6.2831854820251465f, k8 = 8.0f, k1p5 = 1.5f;
+    static const float k1p8 = 1.7999999523162842f, k0p3 = 0.30000001192092896f;
+    const float bend = spill32((long double)spill32((long double)owner_read_i(owner, 0x18)) * k2pi / k8);
+    const double bd = bend;
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sa * 1.5f + owner_read_f(owner, 0x3f0));
+               spill32((long double)spill32(x87_crt_sin(bd)) * k1p5 + owner_read_f(owner, 0x3f0)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 1.8f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + k1p8));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               ca * 1.5f + owner_read_f(owner, 0x3f8));
+               spill32((long double)spill32(x87_crt_cos(bd)) * k1p5 + owner_read_f(owner, 0x3f8)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.3f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.15f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)spill32(x87_crt_sin(bd)) * k0p3));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.15000000596046448f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)spill32(x87_crt_cos(bd)) * k0p3));
 
-    float rot_x_angle = rng_next_unit() * B_TWO_PI_F;   /* slot.ROT_SCR */
-    float rot_y_angle = rng_next_unit() * B_TWO_PI_F;   /* slot.ROT_Z   */
+    float rot_x_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_SCR */
+    float rot_y_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_Z   */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_x_angle);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rot_y_angle);
 

@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 8,
-  "port_debt": 124,
+  "port_debt": 121,
   "verified": 81,
   "stubbed": 11,
   "ported": 628,
@@ -5345,6 +5345,7 @@
    "quality_flags": [],
    "src": [
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/title_continue_picker.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -5370,6 +5371,7 @@
    "src": [
     "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
+    "src/scene_pause.c",
     "src/scene_title.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -15845,6 +15847,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/save_work.h",
     "src/scene_adv_guild.c",
     "src/scene_pause.c"
    ],
@@ -15867,6 +15870,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/save_work.h",
     "src/scene_pause.c"
    ],
    "status": "ported"

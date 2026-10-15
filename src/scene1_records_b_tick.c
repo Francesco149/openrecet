@@ -3208,7 +3208,7 @@ static void body_0xe_or_0x12(int i)
  */
 static void body_0xd_or_0x15(int i, int32_t type)
 {
-    void *owner = slot_owner_a(i);
+    const void *owner = slot_owner(i);       /* +0x14 (asm 0x43e162) */
     if (!owner) return;
 
     float drag = 0.5f;
@@ -3217,15 +3217,14 @@ static void body_0xd_or_0x15(int i, int32_t type)
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
 
-    float bend = owner_read_f(owner, 0x420);
-    float opx  = owner_read_f(owner, 0x3f0);
-    float opy  = owner_read_f(owner, 0x3f4);
-    float opz  = owner_read_f(owner, 0x3f8);
-    float s    = sinf(bend);
-    float c    = cosf(bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, s + s + opx);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, opy + 2.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, c + c + opz);
+    /* CRT sin / cos of the m32 heading, spilled, doubled + the owner (m32) */
+    static const float k2 = 2.0f;
+    const double bend = owner_read_f(owner, 0x420);
+    const float s = spill32(x87_crt_sin(bend));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32(2.0L * s + owner_read_f(owner, 0x3f0)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x3f4) + k2));
+    const float c = spill32(x87_crt_cos(bend));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32(2.0L * c + owner_read_f(owner, 0x3f8)));
 
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     int age_lo, age_hi;

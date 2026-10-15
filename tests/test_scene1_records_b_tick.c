@@ -912,6 +912,14 @@ static void bind_owner_a(int slot_idx)
     slot_set_i(slot_idx, SCENE1_RECORDS_B_OFF_OWNER_A, ptr);
 }
 
+/* the same blob as the NPC owner (+0x14) — the field retail's 0xd / 0x15 body reads */
+static void bind_owner_a_blob_as_b(int slot_idx)
+{
+    owner_a_blob_ensure();
+    int32_t ptr = (int32_t)(uintptr_t)g_test_owner_a_blob;
+    slot_set_i(slot_idx, SCENE1_RECORDS_B_OFF_OWNER_B, ptr);
+}
+
 /* Cull-query hook capture. */
 static int s_cull_calls;
 static int s_cull_return;
@@ -4567,7 +4575,7 @@ int test_records_b_tick_t11_type_d_writes_pose_and_drag_0_5(void)
     owner_a_blob_set_f(0x3f8, 300.0f);
     owner_a_blob_set_f(0x420, 0.0f);  /* sin=0, cos=1 */
     stage_live(0, 0xd, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) -  0.5f) < 1e-6f);
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 100.0f) < 1e-5f);
@@ -4583,7 +4591,7 @@ int test_records_b_tick_t11_type_15_motion_19_uses_drag_0(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x424, 0x19);
     stage_live(0, 0x15, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-7f);
     return 0;
@@ -4595,7 +4603,7 @@ int test_records_b_tick_t11_type_15_motion_other_uses_drag_0_5(void)
     owner_a_blob_reset();
     owner_a_blob_set_i(0x424, 0x18);
     stage_live(0, 0x15, 0, 0, 0, 0, 0, 0, /*age=*/0);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 0.5f) < 1e-6f);
     return 0;
@@ -4609,7 +4617,7 @@ int test_records_b_tick_t11_type_d_sm_fires_in_age_5_to_9(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     s_sm_calls = 0;
     stage_live(0, 0xd, 0, 0, 0, 0, 0, 0, /*age=*/4);  /* preamble→5 */
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 1);
     return 0;
@@ -4622,7 +4630,7 @@ int test_records_b_tick_t11_type_d_sm_skipped_outside_window(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     s_sm_calls = 0;
     stage_live(0, 0xd, 0, 0, 0, 0, 0, 0, /*age=*/8);  /* preamble→9 */
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 0);
     return 0;
@@ -4636,7 +4644,7 @@ int test_records_b_tick_t11_type_15_sm_fires_in_age_0_to_0xf(void)
     scene1_records_b_set_state_machine_hook(capture_state_machine);
     s_sm_calls = 0;
     stage_live(0, 0x15, 0, 0, 0, 0, 0, 0, /*age=*/0xd);  /* preamble→0xe */
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_sm_calls, 1);
     return 0;
@@ -4647,7 +4655,7 @@ int test_records_b_tick_t11_type_d_kills_at_age_0x28(void)
     reset_world();
     owner_a_blob_reset();
     stage_live(0, 0xd, 0, 0, 0, 0, 0, 0, /*age=*/0x27);
-    bind_owner_a(0);
+    bind_owner_a_blob_as_b(0);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     return 0;

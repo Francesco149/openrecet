@@ -19,6 +19,7 @@
 #include "map_collision.h"       /* FUN_00432e50, FUN_00433674 */
 #include "news_daily.h"          /* DAT_0438b92c */
 #include "party.h"
+#include "scene1_overlay.h"
 #include "party_move.h"           /* FUN_00483170 */
 #include "rng.h"                 /* FUN_00471089 */
 #include "save_work.h"
@@ -890,6 +891,12 @@ static void party_pickup_item(void)
     g_notice_side = 1;
 }
 
+/* the level-up burst: FUN_004147d5(party block, 0, 0.5, 0, 33, 0.3, -1, 0, 1) */
+static void level_burst(void)
+{
+    scene1_overlay_spawn(&g_party, 0.0f, 0.5f, 0.0f, 33, 0.30000001192092896f, -1, 0, 1, 0);
+}
+
 /* FUN_0048a383: a level-up of party member `m` (at 98: the EXP is capped) */
 static void party_level_up(uint8_t *m)
 {
@@ -913,14 +920,14 @@ static void party_level_up(uint8_t *m)
         chara_equip_recompute_aggregate();                  /* FUN_004844ef */
         audio_play_se_file("bin/se/00re/system/00re_sys03b.bin");
         chara_skills_init_at_stage_load();                  /* FUN_004360b6 */
-        /* PORT-DEBT(stub, FUN_004147d5): the level-up burst 33 over the party */
+        level_burst();                                      /* FUN_004147d5 */
         PW(0x56daeb8u).i = 20;
     } else {
         memcpy(&a, m + 0x3c, 2); memcpy(&b, m + 0x3e, 2);
         memcpy(&c, m + 0x40, 2); memcpy(&d, m + 0x42, 2);
         PW(0x56db0bcu).f = spill32((long double)(b + a));
         PW(0x56db0c0u).f = spill32((long double)(d + c));
-        /* PORT-DEBT(stub, FUN_004147d5): the burst 33 */
+        level_burst();
         PW(0x56daeb8u).i = 20;
         memcpy(m + 0x44, m + 0x48, 4);
     }

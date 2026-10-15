@@ -34,7 +34,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x431990 | FUN_00431990 | 70 | ✓ |  | diff_entry.c, diff_entry.h, record_hit.c (+2) |
 | 0x4319d6 | FUN_004319d6 | 170 | ✓ |  | enemy_place.h, floor_layout.h, record_hit.c (+7) |
 | 0x43244c | FUN_0043244c | 39 | ✓ |  | map_collision.h, scene1_preload.c, stage_palette.c (+1) |
-| 0x434d6a | FUN_00434d6a | 85 | ✓ |  | scene1_player_ctrl.c, scene_guild.c, scene_title.c (+2) |
+| 0x434d6a | FUN_00434d6a | 85 | ✓ |  | scene1_player_ctrl.c, scene_guild.c, scene_pause.c (+3) |
 | 0x435117 | FUN_00435117 | 615 | ✓ |  | scene1_hud.c, scene_adv_guild.c, scene_guild.c (+3) |
 | 0x43537e | FUN_0043537e | 660 | ✓ | stub | choice_box.c, choice_box.h, customer_service_render.c (+8) |
 | 0x4356cd | FUN_004356cd | 67 | ✓ |  | scene_pause.c, scene_title.c, sim.c (+3) |
@@ -239,7 +239,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x434c2c | FUN_00434c2c | 125 | ✓ |  | bmp_lzw.c, bmp_lzw.h |
 | 0x434ca9 | FUN_00434ca9 | 58 | ✓ |  | bmp_lzw.c, bmp_lzw.h |
 | 0x434ce3 | FUN_00434ce3 | 8 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_title.c (+2) |
-| 0x434ceb | FUN_00434ceb | 127 | ✓ |  | scene_guild.c, title_continue_picker.c, title_save_dialog.c (+1) |
+| 0x434ceb | FUN_00434ceb | 127 | ✓ |  | scene_guild.c, scene_pause.c, title_continue_picker.c (+2) |
 | 0x434dbf | FUN_00434dbf | 23 | ✓ |  | choice_box.c, choice_box.h, main.c (+1) |
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ |  | choice_box.c, choice_box.h, scene_pause.c |
 | 0x434def | FUN_00434def | 227 | ✓ |  | choice_box.c, choice_box.h, scene.h (+6) |
@@ -538,8 +538,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47d2db | FUN_0047d2db | 393 | ✓ |  | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ |  | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ |  | sim.c |
-| 0x47f172 | FUN_0047f172 | 46 | ✓ |  | scene_adv_guild.c, scene_pause.c |
-| 0x47f1a0 | FUN_0047f1a0 | 46 | ✓ |  | scene_pause.c |
+| 0x47f172 | FUN_0047f172 | 46 | ✓ |  | save_work.h, scene_adv_guild.c, scene_pause.c |
+| 0x47f1a0 | FUN_0047f1a0 | 46 | ✓ |  | save_work.h, scene_pause.c |
 | 0x47f1ce | FUN_0047f1ce | 296 | ✓ |  | customer_service.c, party_roster.h, scene1_display_menu.c (+2) |
 | 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ |  | party_roster.h, scene_pause.c, scene_pause.h (+1) |
 | 0x47f46a | FUN_0047f46a | 338 | ✓ |  | scene1_sim.c |
