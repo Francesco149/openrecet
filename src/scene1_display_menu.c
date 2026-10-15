@@ -597,6 +597,18 @@ int display_menu_dbg_num_tabs(void)     { return s_num_tabs; }
 int display_menu_dbg_tab_cursor0(void)  { return s_tab_cursor[0]; }
 int display_menu_dbg_tab_count0(void)   { return s_tab_count[0]; }
 int display_menu_dbg_list(int i)        { return (i >= 0 && i < DISPLAY_MENU_MAX_LIST) ? s_list[i] : 0; }
+int display_menu_dbg_va(uint32_t va, int32_t *out)
+{
+    switch (va) {
+    case 0x734b96cu: *out = s_detail; return 1;
+    case 0x734b97cu: *out = s_msg_use; return 1;
+    case 0x734b988u: *out = s_msg_throw; return 1;
+    case 0x734b994u: *out = s_confirm_ctr; return 1;
+    case 0x734b9a8u: *out = s_mode; return 1;
+    case 0x734b98cu: *out = stage_load_pulse_get_counter(); return 1;
+    default: return 0;
+    }
+}
 
 /* FUN_00469351 — the same row target, snapped (FUN_00435693) instead of slid. */
 void display_menu_cursor_snap_to_row(void)

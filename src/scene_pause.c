@@ -33,6 +33,8 @@
 #include "stage_load_pulse.h" /* FUN_004682bf/d0 — DAT_0734b9a0 (stage-load-pulse active) */
 #include "scene_guild.h"      /* FUN_0049161d — the mode-6 unpause hook */
 #include "scene_adv_guild.h"  /* FUN_0045bd36 — the mode-11 unpause hook */
+#include "party_roster.h"       /* DAT_0741bed8 / DAT_07477e74 */
+#include "chara_skills.h"      /* FUN_004360b6 — at every pause open */
 #include "chara_equip.h"      /* FUN_004844ef — re-aggregate equip stats on unpause */
 #include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
 #include "dungeon_flow.h"     /* DAT_0438b550 / b554 — the thrown-away queue */
@@ -41,6 +43,12 @@
 #include "map_collision.h"    /* *DAT_068dd2f0 (the stage type) */
 #include "party.h"            /* HP / SP, dae9c / daea4 */
 #include "x87.h"
+#include "skip_event.h"           /* FUN_0046c2cb — the ESC skip box */
+#include "scene1_intro_dialogue.h" /* DAT_0438b1c8, the skip_prompt gate */
+#include "customer_service.h"     /* FUN_0045e6a5 — the haggle tutorial's cancel box */
+#include "scene1_player_ctrl.h"   /* cc08 */
+#include "scene1_tutorial_dispatch.h" /* b928 / b924 */
+#include "stage_palette.h"        /* *DAT_068dd2f0 */
 
 /* FUN_00435612/625/644/693 — the SHARED hand-cursor snapshot/restore used by the
  * pause open/close (and the Save-submenu B-cancel). Defined in title_save_dialog.c
@@ -55,6 +63,7 @@ void title_save_dialog_cursor_slide(float x, float y);  /* FUN_00435710 — 6-fr
 void title_save_dialog_anim_tick(void);   /* FUN_004356cd — cursor bob + slide step */
 void title_save_dialog_message_open(const char *msg);   /* FUN_00434ceb */
 int  title_save_dialog_gate_tick(void);                 /* FUN_00434d6a */
+int  title_save_dialog_get_active_counter(void);        /* DAT_0438b148 */
 
 /* ─── module state ───────────────────────────────────────────────────── */
 
@@ -234,6 +243,8 @@ int32_t g_pause_save_overwrite = 0; /* DAT_074b28a4 — Save: overwrite-confirm 
                                      * only one submenu is open at a time, and each
                                      * open resets it, so the storage is shared. */
 int32_t g_pause_items_done = 0;     /* DAT_074b28a8 — Items: the use / throw result is up */
+int32_t g_pause_value_idx  = 0;     /* DAT_074b288c — the cursor index (Status: the shown party member) */
+int32_t g_pause_status_detail = 0;  /* DAT_074b2888 — Status: the detail page is up */
 int32_t g_pause_items_opt  = 0;     /* DAT_074b28ac — Items: Use (0) / Throw away (1) */
 
 /* Options submenu (type 2) state — the config-panel cursor row + the dirty/exit
@@ -301,46 +312,79 @@ void pause_sm_reset(void)
     g_pause_in_stage_type   = 0;
 }
 
-/* FUN_00453384 — the ESC trigger / pause toggle.
- *
- * PORT-DEBT(simplified, FUN_00453384): the engine has a thicket of mode-1
- * sub-gates (FUN_00434dd6 overlay, shop/dialogue state DAT_0438cc08/b928,
- * the choice-box DAT_0438b1c8 path → cursor-snapshot arm) and a multi-clause
- * toggle gate (the fade dir DAT_0438bf7c, DAT_0438be98/be94). For the resting
- * free-roam scene none of those fire; we port the plain path. The unpause
- * restore (cursor snapshot DAT_06a499ac/b0/b4, the FUN_004682d0/00473c03
- * resume teardown) is deferred — PORT-DEBT(pause-unpause-restore). */
+/* FUN_0046c2cb — the "Do you want to skip this event?" arm: 0 while the
+ * prompt is up or the line has shown < 2 frames (DAT_073a3e18 <= 1;
+ * DAT_073a6db0, the skip-disable flag, is never set by a ported path). */
+static int esc_skip_event_arm(void)
+{
+    if (skip_event_open() || !scene1_intro_dialogue_skippable())
+        return 0;
+    return skip_event_arm(1);
+}
+
+/* FUN_00453384(action) — ESC (0, FUN_0045337b from the WndProc), the day-end
+ * summary (1, FUN_004536b9) and the dungeon results (2, FUN_004536c2): open the
+ * pause overlay or close it. On the disasm (0x453384..0x4536b8): v2 (edi) is
+ * 1 = toggle, 0 = the 0x16a beep, 2 = a skip box took the press. */
 void pause_dispatch(int action)
 {
-    /* Gate A (L50180): a transition is mid-flight with a DIFFERENT action
-     * queued → reject with the denied beep. */
-    if ((g_scene_state == 9 || sim_get_counter_998() > 0)
-        && g_pause_action != action) {
+    /* 0x4533a7: a ramp is up with a different action → the denied beep */
+    if ((g_scene_state == 9 || sim_get_counter_998() > 0) && g_pause_action != action) {
         audio_play_se_by_id(0x16a);
         return;
     }
-    /* Gate B (L50186): the secondary asset-load worker is busy → bail. */
-    if (worker_load_busy_secondary() != 0)
+    if (worker_load_busy_secondary() != 0)          /* DAT_06a4995c */
         return;
-
-    g_pause_action = action;
-
-    /* cVar4 (L50191): pausable unless the mode is 7/2/3/10 — and, in the
-     * house, not the ESC pause during the day-close exchange (all_ida 54407:
-     * `DAT_0438b4e0 != 0 && action == 0`). */
-    const int pausable = (g_scene_state != 7 && g_scene_state != 2
-                          && g_scene_state != 3 && g_scene_state != 10)
-                         && !(g_scene_state == 1 && day_close_b4e0() != 0 && action == 0);
-    if (!pausable) {
-        audio_play_se_by_id(0x16a);   /* L50246 — the "can't pause" beep */
-        return;
+    g_pause_action = action;                        /* DAT_06a4997c */
+    int v2 = 1;
+    if (g_scene_state == 10 || g_scene_state == 3 || g_scene_state == 2 || g_scene_state == 7)
+        v2 = 0;
+    if (scene1_intro_dialogue_gate() != 0) {        /* DAT_0438b1c8 */
+        if (esc_skip_event_arm()) {                 /* FUN_0046c2cb */
+            audio_play_se_by_id(0x143);
+            return;
+        }
+        v2 = 0;
+    } else if (choice_box_anim() > 0 || title_save_dialog_get_active_counter() > 0) {
+        v2 = 0;                                     /* FUN_00434dd6: af34 / b148 */
+    } else if (g_scene_state == 1) {
+        const int house = (g_stage_palette ? g_stage_palette->mode : 0) == 0;   /* *DAT_068dd2f0 */
+        if (house) {
+            if (day_close_b4e0() != 0 && g_pause_action == 0)
+                v2 = 0;
+            if (player_ctrl_cc08() == 4) {
+                if (customer_service_esc_skip_arm() != 0) {   /* FUN_0045e6a5 */
+                    v2 = 2;
+                    audio_play_se_by_id(0x143);
+                } else {
+                    v2 = 0;
+                }
+            }
+            if (scene1_beat_flag() == 1 && scene1_beat_counter() <= 0x8c)
+                v2 = 0;
+            if (player_ctrl_cc08() == 2 || player_ctrl_cc08() == 0x17)
+                v2 = 0;
+        }
+        const uint8_t *w = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if (w[0x2bcd8] != 0) v2 = 2;
+        if (w[0x2bcf0] != 0) v2 = 2;
+        if (w[0x2bced] != 0) v2 = 0;
+        if (w[0x2bcfd] != 0) v2 = 0;
     }
-
-    /* Toggle gate (L50248): no fade in flight. PORT-DEBT(simplified): the
-     * engine also checks DAT_0438bf7c==0 + DAT_0438be98==0, both 0 on a
-     * resting scene; we gate on the fade sub-counter DAT_06a49990 idle. */
-    if (sim_get_counter_990() != 0)
+    if (v2 == 0)
+        audio_play_se_by_id(0x16a);                 /* 0x4534d4 */
+    if (v2 != 1)
         return;
+
+    /* 0x4534e8: a fade in flight (DAT_0438bf7c) or the pause fade counter
+     * (DAT_06a49990) blocks the ESC toggle; actions 1 / 2 go through */
+    if ((g_fade_phase != 0 || sim_get_counter_990() != 0) && g_pause_action != 1 && g_pause_action != 2)
+        return;
+    /* 0x453511: the floor end (DAT_0438be98) lets only actions 1 / 2 through,
+     * and only before its 120th tick */
+    if (g_floor_end_kind != 0 && (g_floor_end_timer >= 0x78 || g_pause_action < 1))
+        return;
+    sim_set_counter_990(0);                         /* 0x453536 */
 
     if (g_scene_state == 9) {
         /* UNPAUSE (engine L50252): only once fully open (ramp past 0xb).
@@ -414,15 +458,28 @@ void pause_dispatch(int action)
 /* FUN_0047f2f6 — build the menu entry-type list. */
 void pause_menu_setup(void)
 {
-    /* Cursor + anim reset (L81556-81560). The engine also clears ~15
-     * submenu-scratch globals + the DAT_0438b554[0x14] array + calls
-     * FUN_004360b6/FUN_0049f012 — all submenu/render scratch, PORT-DEBT. */
+    /* The submenu scratch (0x47f2f6..): DAT_074b2870 / 2874 / 2878 / 2880 / 2884
+     * / 2890 / 28a4 / 28a8 / 28ac, the cursors 2834.. and scrolls 2820.. (one
+     * scalar each here: cur is always 0); FUN_004360b6; the thrown-away queue
+     * DAT_0438b550 / b554. DAT_07477e9c / 074b286c / 074b287c / 005cca80 have no
+     * port reader. */
     g_pause_sel_anim     = 0;
     g_pause_frame        = 0;
     g_pause_sel          = 0;
     g_pause_sub_anim     = 0;
     g_pause_sub_dir      = 0;
+    g_pause_options_phase = 0;
+    g_pause_save_overwrite = 0;
+    g_pause_items_done   = 0;
+    g_pause_items_opt    = 0;
+    g_pause_save_cursor  = 0;
+    g_pause_options_row  = 0;
+    g_pause_save_scroll  = 0;
+    chara_skills_init_at_stage_load();          /* FUN_004360b6 */
+    g_dat_0438b550 = 0;
+    memset(g_dat_0438b554, 0xff, sizeof g_dat_0438b554);
     g_pause_exit_confirm = 0;
+    g_pause_exit_phase   = 0;                   /* DAT_073e1550 */
 
     /* FPU layout consts (engine 0x435873, C4E-only; harmless to set here —
      * the basic menu may not read them, but a future status sub-screen
@@ -452,6 +509,8 @@ void pause_menu_setup(void)
     /* the shared hand goes away (0x47f426) — a menu cursor up at pause (the
      * guild lists) would otherwise draw over the pause menu */
     title_save_dialog_cursor_set_visible(0);     /* FUN_00435612 */
+
+    g_pause_value_idx = chara_equip_get_current_chara();   /* DAT_074b288c = DAT_0438b7d8 */
 
     /* FUN_0049f012(0) (engine L81616) — build the Encyclopedia catalog from the
      * active bank's discovery store + the item DB.  RNG-neutral / idempotent. */
@@ -485,72 +544,119 @@ void pause_menu_nav(void)
         }
         audio_play_se_by_id(se);
     } else {
-        /* Select anim running (engine L82637). At sel_anim==0xf the engine
-         * commits the selection (LAB_004806a1: shared reset + per-type init,
-         * then sub_anim++ / sub_dir=1 to open the submenu). Only the Save
-         * submenu (type 3) is ported here; the Status/Items/Options/
-         * Encyclopedia/dungeon submenus + the type-4 exit confirm stay
-         * PORT-DEBT(pause-submenu-*) — for those types we tick the anim but
-         * don't open. */
+        /* Select anim running (0x480614..): at 15 the selection commits (the
+         * shared reset + per-type init, then sub_anim++ / sub_dir = 1 opens the
+         * submenu; Exit Game arms its confirm box instead); a select anim that
+         * runs past 15 (a type with no submenu) closes the pause
+         * (FUN_0045337b). */
         g_pause_sel_anim++;
-        if (g_pause_sel_anim == 0xf) {
-            const int t = g_pause_entries[g_pause_sel];
-            if (t == 3) {
-                /* type-3 branch (engine L82694): clear the save anims, init the
-                 * 100-slot perm, seed the cursor from the last-used slot. */
-                g_pause_save_phase   = 0;          /* DAT_074b289c */
-                g_pause_save_warn    = 0;          /* DAT_074b28a0 */
-                g_pause_save_vscroll = 0;          /* DAT_074b2898 (c898) */
-                g_pause_save_hscroll = 0;          /* DAT_074b2894 (c894) */
-                g_save_picker_restricted = 0;      /* DAT_09643564 */
-                save_picker_perm_init();           /* FUN_0049b537 */
-                const int last = save_header_get_last_slot();        /* DAT_056e578c */
-                g_pause_save_cursor = last;                           /* val[cur]  */
-                g_pause_save_scroll = (last - 2 < 0) ? 0 : last - 2;  /* val2[cur] */
-                g_pause_sub_anim++;                 /* DAT_074b2880 — open */
-                g_pause_sub_dir = 1;               /* DAT_074b2884 — opening */
-            } else if (t == 6) {
-                /* type-6 branch (engine L82671): snap the shared hand cursor to
-                 * the grid's first cell (72,112) and open the submenu.  The
-                 * catalog itself was built in pause_menu_setup (FUN_0049f012). */
-                title_save_dialog_cursor_snap(72.0f, 112.0f);  /* FUN_00435693 */
-                g_pause_sub_anim++;
-                g_pause_sub_dir = 1;
-            } else if (t == 2) {
-                /* type-2 branch (engine L82707): start at row 0 + snap the shared
-                 * hand cursor to the first row (168,168), then open the submenu. */
-                g_pause_options_row = 0;                        /* DAT_074b2834[cur] */
-                title_save_dialog_cursor_snap(168.0f, 168.0f);  /* FUN_00435693 */
-                g_pause_sub_anim++;
-                g_pause_sub_dir = 1;
-            } else if (t == 1) {
-                /* type-1 Items (engine L82682-82693): open the display menu in
-                 * mode 5 (the house inventory grid) and slide it in from the
-                 * right.  display_menu_open resets+activates the slide
-                 * (stage_load_pulse), scans the working-bank inventory, groups it
-                 * into category tabs, and snaps the shared hand cursor to the
-                 * first item.  On a dungeon floor (saved mode 1, stage type > 0)
-                 * it is mode 6, the expedition bag.
-                 * DAT_074b288c=1 (the value-array index) is set by the engine but
-                 * inert — the display_menu path uses its OWN cursor, not val[]. */
-                g_pause_save_overwrite = 0;        /* DAT_074b28a4 = 0 (place-mode off) */
-                stage_load_pulse_set_active(1);    /* FUN_004682c5 (DAT_0734b9a0 = 1) */
-                const int dmode =
-                    (g_pause_saved_mode == 1 && g_pause_in_stage_type > 0) ? 6 : 5;
-                display_menu_open(dmode, 1);        /* FUN_00468338(mode, 1) */
-                g_pause_sub_anim++;
-                g_pause_sub_dir = 1;
-            } else if (t == 4) {
-                /* type-4 Exit Game (engine FUN_00480614 L82724-82728): arm the
-                 * exit-confirm dialog + snap the shared cursor to (180,228).
-                 * Unlike the other types it does NOT open a submenu (no
-                 * sub_anim++, which the engine gates iVar1<4) — the dialog runs
-                 * through the DAT_074b2830 branch of pause_menu_update instead.
-                 * The engine's _DAT_0741bed4/074b281c/073e1548 clears are inert
-                 * in the house exit path (never read) — skipped. */
-                g_pause_exit_confirm = 1;                       /* DAT_074b2830 = 1 */
-                g_pause_exit_phase   = 0;                        /* DAT_073e1550 reset */
-                title_save_dialog_cursor_snap(180.0f, 228.0f);  /* FUN_00435693 */
+        if (g_pause_sel_anim != 0xf) {
+            if (g_pause_sel_anim > 0xf && g_pause_entries[g_pause_sel] != 4)
+                pause_dispatch(0);                           /* FUN_0045337b */
+            return;
+        }
+        const int t = g_pause_entries[g_pause_sel];
+        if (t < 0) return;
+        if (t == 4) {
+            /* type-4 Exit Game: arm the exit-confirm dialog + snap the shared
+             * cursor to (180,228); no submenu. DAT_0741bed4 / 074b281c /
+             * 073e1548 (also cleared) have no port reader. */
+            g_pause_exit_confirm = 1;                       /* DAT_074b2830 = 1 */
+            g_pause_exit_phase   = 0;                       /* DAT_073e1550 reset */
+            title_save_dialog_cursor_snap(180.0f, 228.0f);  /* FUN_00435693 */
+            return;
+        }
+        if (t > 6) return;
+        g_pause_value_idx = 0;                              /* DAT_074b288c */
+        g_pause_save_cursor = 0;                            /* DAT_074b2834.. (cur 0) */
+        g_pause_options_row = 0;
+        g_pause_save_scroll = 0;                            /* DAT_074b2820.. */
+        if (t == 0) {
+            /* Status: show the active character (DAT_0438b7d8) */
+            for (int k = 0; k < party_roster_count(); k++)
+                if (party_roster_row_id(k + 1) == chara_equip_get_current_chara())
+                    g_pause_value_idx = k;                  /* DAT_07477e74[k] */
+            g_pause_status_detail = 0;                      /* DAT_074b2888 */
+        }
+        if (t == 6) {
+            /* Encyclopedia: snap the shared hand cursor to the grid's first
+             * cell; the catalog was built in pause_menu_setup (FUN_0049f012). */
+            title_save_dialog_cursor_snap(72.0f, 112.0f);   /* FUN_00435693 */
+        }
+        if (t == 5) {
+            /* the dungeon Equip screen: the bag list (mode 6) slid in, the
+             * equip-slot cursor (28ac 0, 28a4 1) at (16, 80).
+             * PORT-DEBT(stub, FUN_004802cf): its update */
+            stage_load_pulse_set_active(1);                 /* FUN_004682c5 */
+            display_menu_open(6, 1);                        /* FUN_00468338(6, 1) */
+            g_pause_value_idx = 1;
+            g_pause_items_opt = 0;
+            g_pause_save_overwrite = 1;
+            title_save_dialog_cursor_slide(16.0f, 80.0f);   /* FUN_00435710 */
+        }
+        if (t == 1) {
+            /* Items: the display menu in mode 5 (the house inventory) or, on a
+             * dungeon floor (saved mode 1, stage type > 0), mode 6 (the bag),
+             * slid in from the right; 288c = 1 (its own cursor is used). */
+            g_pause_save_overwrite = 0;                     /* DAT_074b28a4 */
+            g_pause_value_idx = 1;
+            stage_load_pulse_set_active(1);                 /* FUN_004682c5 (DAT_0734b9a0 = 1) */
+            const int dmode = (g_pause_saved_mode == 1 && g_pause_in_stage_type > 0) ? 6 : 5;
+            display_menu_open(dmode, 1);                    /* FUN_00468338(mode, 1) */
+        }
+        if (t == 3) {
+            /* Save: clear the save anims, init the 100-slot perm, seed the
+             * cursor from the last-used slot. */
+            g_pause_save_phase   = 0;                       /* DAT_074b289c */
+            g_pause_save_warn    = 0;                       /* DAT_074b28a0 */
+            g_pause_save_vscroll = 0;                       /* DAT_074b2898 (c898) */
+            g_pause_save_hscroll = 0;                       /* DAT_074b2894 (c894) */
+            g_save_picker_restricted = 0;                   /* DAT_09643564 */
+            save_picker_perm_init();                        /* FUN_0049b537 */
+            const int last = save_header_get_last_slot();   /* DAT_056e578c */
+            g_pause_save_cursor = last;                     /* val[cur]  */
+            g_pause_save_scroll = (last - 2 < 0) ? 0 : last - 2;   /* val2[cur] */
+        }
+        if (t == 2) {
+            /* Options: row 0 + the shared hand cursor on it */
+            g_pause_options_row = 0;                        /* DAT_074b2834[cur] */
+            title_save_dialog_cursor_snap(168.0f, 168.0f);  /* FUN_00435693 */
+        }
+        g_pause_sub_anim++;                                 /* DAT_074b2880 — open */
+        g_pause_sub_dir = 1;                                /* DAT_074b2884 — opening */
+    }
+}
+
+/* FUN_0047fe98 — the Status submenu (type 0): B backs out of the detail page,
+ * else closes the submenu (SE 317); A toggles the detail page (SE 323); with
+ * more than one adventurer left / right (held: 0x20000 / 0x10000 in the dword)
+ * page through them (SE 326). The render is not ported. */
+static void pause_status_submenu_update(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 */
+    const uint16_t held    = g_sim_buttons[0].held;      /* DAT_073dddd6 */
+    if (pressed & 0x20u) {
+        if (g_pause_status_detail != 0) {
+            g_pause_status_detail = 0;
+            audio_play_se_by_id(317);
+            return;
+        }
+        audio_play_se_by_id(317);
+        g_pause_sub_dir  = 0;                            /* DAT_074b2884 */
+        g_pause_sel_anim = 0;                            /* DAT_074b2870 */
+    } else if (pressed & 0x10u) {
+        g_pause_status_detail ^= 1;
+        audio_play_se_by_id(323);
+    } else {
+        const int n = party_roster_count();              /* DAT_0741bed8 */
+        if (n > 1) {
+            if (held & 0x2u) {
+                g_pause_value_idx = (g_pause_value_idx + n - 1) % n;
+                audio_play_se_by_id(326);
+            }
+            if (held & 0x1u) {
+                g_pause_value_idx = (g_pause_value_idx + n + 1) % n;
+                audio_play_se_by_id(326);
             }
         }
     }
@@ -886,7 +992,7 @@ void pause_options_submenu_update(void)
  * The list (FUN_00469414(1)): Z picks (SE 0x143), B closes the submenu (SE
  * 0x13d); a confirm on a dungeon floor (saved mode 1, stage type >= 1) opens the
  * Use / Throw away choice (DAT_074b28a4 = 1, the cursor at (32, 108 + 56·opt)).
- * In the choice: up / down (0x40000 / 0x80000) toggle it (SE 326), B backs out
+ * In the choice: up / down (held: 0x40000 / 0x80000 in the dword) toggle it (SE 326), B backs out
  * (SE 317), Z acts on the selected item:
  *   - Throw away: queued for FUN_0048b850 (DAT_0438b550 = 1, the first free
  *     DAT_0438b554 slot), out of the bag (FUN_00468fd0), SE 323;
@@ -921,8 +1027,10 @@ void pause_items_submenu_update(void)
             return;
         }
         if ((pressed & 0x10u) == 0) {
-            if (pressed & 0x40000u) g_pause_items_opt = (g_pause_items_opt + 1) % 2;
-            else if (pressed & 0x80000u) g_pause_items_opt = (g_pause_items_opt + 3) % 2;
+            /* DAT_073dddd4 as a dword: 0x40000 / 0x80000 = held (DAT_073dddd6) up / down */
+            const uint16_t held = g_sim_buttons[0].held;
+            if (held & 0x4u) g_pause_items_opt = (g_pause_items_opt + 1) % 2;
+            else if (held & 0x8u) g_pause_items_opt = (g_pause_items_opt + 3) % 2;
             else return;
             audio_play_se_by_id(326);
             title_save_dialog_cursor_slide(32.0f, spill32((long double)spill32((long double)(56 * g_pause_items_opt)) + 108.0f));
@@ -1145,14 +1253,16 @@ void pause_menu_update(void)
                 if (g_pause_sub_anim > 10) g_pause_sub_anim = 10;
             }
             /* L82031 — once fully open, dispatch to the per-type submenu
-             * updater. Save (type 3 → FUN_0047f5bc), Options (type 2 →
-             * FUN_0047fc44), Encyclopedia (type 6 → FUN_0049f365) and Items
-             * (type 1 → FUN_0047ff40, house path) are ported; the dungeon (5)/
-             * Status (0) updaters stay PORT-DEBT(pause-submenu-*). */
+             * updater: Save (3 → FUN_0047f5bc), Status (0 → FUN_0047fe98),
+             * Options (2 → FUN_0047fc44), Encyclopedia (6 → FUN_0049f365),
+             * Items (1 → FUN_0047ff40); the dungeon Equip screen (5 →
+             * FUN_004802cf) is PORT-DEBT(stub, FUN_004802cf). */
             if (g_pause_sub_anim == 10) {
                 const int t = g_pause_entries[g_pause_sel];
                 if (t == 3) {
                     pause_save_submenu_update();
+                } else if (t == 0) {
+                    pause_status_submenu_update();    /* FUN_0047fe98 */
                 } else if (t == 2) {
                     pause_options_submenu_update();   /* FUN_0047fc44 */
                 } else if (t == 1) {

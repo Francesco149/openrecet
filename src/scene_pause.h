@@ -206,6 +206,8 @@ extern int32_t g_pause_save_hscroll; /* DAT_074b2894 (c894)    — row slide    
 extern int32_t g_pause_save_phase;   /* DAT_074b289c (c89c)    — save anim     */
 extern int32_t g_pause_save_warn;    /* DAT_074b28a0 — the dungeon save warning (0 / 1 / 2) */
 extern int32_t g_pause_save_overwrite; /* DAT_074b28a4 — "Overwriting file." up */
+extern int32_t g_pause_items_done;     /* DAT_074b28a8 — Items: the use / throw result is up */
+extern int32_t g_pause_items_opt;      /* DAT_074b28ac — Items: Use (0) / Throw away (1) */
 
 /* Options submenu (type 2) state. */
 extern int32_t g_pause_options_row;    /* DAT_074b2834[0] — config cursor row 0..4 */

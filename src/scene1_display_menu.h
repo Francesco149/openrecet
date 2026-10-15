@@ -94,6 +94,7 @@ int display_menu_dbg_num_tabs(void);
 int display_menu_dbg_tab_cursor0(void);
 int display_menu_dbg_tab_count0(void);
 int display_menu_dbg_list(int i);
+int display_menu_dbg_va(uint32_t va, int32_t *out);   /* state_va: DAT_0734b96c / 97c / 988 / 994 / 9a8 / 98c */
 
 /* DAT_005c6ee4: how many of the highlighted item the player holds in inventory
  * ("Number possessed" in the description panel).  Recomputed inside

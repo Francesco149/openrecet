@@ -8,9 +8,11 @@
 #include "t.h"
 #include "esc_dispatch.h"
 #include "scene.h"
+#include "worker_load.h"
 
 int test_esc_quit_only_at_title(void)
 {
+    worker_load_reset();   /* FUN_00452911: a busy primary load swallows ESC */
     g_esc_disabled = 0;
     g_scene_state  = SCENE_STATE_TITLE;
     T_ASSERT_EQ_I((int)esc_pressed(), (int)ESC_RESULT_QUIT);

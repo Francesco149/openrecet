@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **88**
-- distinct retiring engine functions: **69**
+- total open debts: **86**
+- distinct retiring engine functions: **67**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 62 | wired call boundary, body incomplete |
+| stub | 61 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 8 | reduced control flow / state machine vs retail |
+| simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 2 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -61,17 +61,14 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00435dcd | 1 |
 | FUN_0043865e | 1 |
 | FUN_00441c3e | 1 |
-| FUN_004426a7 | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044376a | 1 |
-| FUN_0044b12f | 1 |
 | FUN_0044b219 | 1 |
 | FUN_0044d1e4 | 1 |
 | FUN_0044d47d | 1 |
 | FUN_0044f078 | 1 |
 | FUN_00452809 | 1 |
-| FUN_00453384 | 1 |
 | FUN_004536cb | 1 |
 | FUN_0046602e | 1 |
 | FUN_004682ee | 1 |
@@ -80,6 +77,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_0047f46a | 1 |
+| FUN_004802cf | 1 |
 | FUN_0048196b | 1 |
 | FUN_004855e2 | 1 |
 | FUN_00485712 | 1 |
@@ -100,23 +98,23 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (62)
+## stub (61)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
-| FUN_004147d5 | src/dungeon_party.c:1390 | the boost aura (types 24 / 22) |
+| FUN_004147d5 | src/dungeon_party.c:1406 | the boost aura (types 24 / 22) |
 | FUN_004147d5 | src/record_hit.c:631 | the overlay spark (25, 1.0, -1) |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
-| FUN_0042df55 | src/actor_ai.c:118 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:1590 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:1547 | the poison tick (ftol(p), 4) |
-| FUN_0042ea35 | src/actor_ai.c:1302 | the multi-part bone timers (no rand) |
-| FUN_0042f28c | src/actor_ai.c:1269 | the other types' AI (FUN_0042ce17, |
-| FUN_0042f7ad | src/actor_ai.c:584 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:1600 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_0042df55 | src/actor_ai.c:123 | stages >= 20 index past the dungeon |
+| FUN_0042e1a6 | src/actor_ai.c:2165 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:2122 | the poison tick (ftol(p), 4) |
+| FUN_0042ea35 | src/actor_ai.c:1877 | the multi-part bone timers (no rand) |
+| FUN_0042f28c | src/actor_ai.c:1844 | the other types' AI (FUN_0042ce17, |
+| FUN_0042f7ad | src/actor_ai.c:642 | the other bosses' / special enemies' |
+| FUN_00430c6d | src/actor_ai.c:2175 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_0043183e | src/record_hit.c:167 | the event floors' floor tables |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
@@ -125,60 +123,58 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | src/scene1_postload.c:339 | dungeons 2..5's setups FUN_0044d9d3 / |
 | FUN_00436f97 | src/scene1_postload.c:373 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:414 | the multi-part anchors |
-| FUN_004426a7 | src/scene1_sim.c:570 | the cinematic camera ramp |
-| FUN_004427f1 | src/dungeon_flow.c:591 | dungeons 2..5's events — the |
-| FUN_00442cef | src/scene1_sim.c:412 | the run's end (FUN_00442c86, |
-| FUN_0044376a | src/dungeon_party.c:1467 | its 0 edge |
-| FUN_0044b12f | src/dungeon_party.c:1273 | the queued b554 item effects |
+| FUN_004427f1 | src/dungeon_flow.c:594 | dungeons 2..5's events — the |
+| FUN_00442cef | src/scene1_sim.c:445 | the run's end (FUN_00442c86, |
+| FUN_0044376a | src/dungeon_party.c:1483 | its 0 edge |
 | FUN_0044b219 | src/scene1_postload.c:404 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044d1e4 | src/dungeon_flow.c:555 | floor 14 — the portals by the story |
-| FUN_0044d47d | src/dungeon_flow.c:570 | the floor-14 timeline (Charme, type 25, |
-| FUN_0044f078 | src/dungeon_party.c:508 | dungeon 4 floor 99's event helper |
+| FUN_0044d1e4 | src/dungeon_flow.c:558 | floor 14 — the portals by the story |
+| FUN_0044d47d | src/dungeon_flow.c:573 | the floor-14 timeline (Charme, type 25, |
+| FUN_0044f078 | src/dungeon_party.c:510 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:439 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:929 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
-| FUN_004708f7 | src/dungeon_party.c:524 | the event-window pair (chars 0x2f / 0x30) |
+| FUN_00469b3a | src/scene1_display_menu.c:941 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
+| FUN_004708f7 | src/dungeon_party.c:526 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:239 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:266 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0047f46a | src/scene1_sim.c:294 | equip the bag's items |
-| FUN_004855e2 | src/dungeon_party.c:384 | the accessory-break follow-up |
-| FUN_00485712 | src/dungeon_party.c:381 | the status-guard accessory 2504 (the |
-| FUN_00485c74 | src/dungeon_flow.c:181 | the party damage (HP bar + |
+| FUN_0047f46a | src/scene1_sim.c:327 | equip the bag's items |
+| FUN_004802cf | src/scene_pause.c:589 | its update |
+| FUN_004855e2 | src/dungeon_party.c:386 | the accessory-break follow-up |
+| FUN_00485712 | src/dungeon_party.c:383 | the status-guard accessory 2504 (the |
+| FUN_00485c74 | src/dungeon_flow.c:184 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1520 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:1501 | the faced stand's item |
-| FUN_00489e66 | src/dungeon_party.c:573 | the dash (double-tap, db034 / db03c / |
+| FUN_00489e66 | src/dungeon_party.c:575 | the dash (double-tap, db034 / db03c / |
 | FUN_0048a383 | src/record_hit.c:251 | the level-up of s_easydisp |
-| FUN_0048a833 | src/dungeon_party.c:310 | the db048 14 / 15 / work +0x2bc6c arm |
-| FUN_0048b850 | src/dungeon_party.c:1396 | the water splash after the move (hit |
-| FUN_0048b850 da1bc | src/dungeon_party.c:1393 | the attack lunge (da1bc 1..ccb8) |
-| FUN_0048b850 trail | src/dungeon_party.c:1470 | the orbiting after-images |
-| FUN_0048cdcc | src/dungeon_party.c:1083 | the dash's wall bonk (a ray 1.4 ahead) |
-| FUN_0048cdcc | src/dungeon_party.c:1124 | the other chars' swings (FUN_004977df, |
-| FUN_0048cdcc | src/dungeon_party.c:1136 | the other chars' skill 4 |
-| FUN_0048cdcc | src/dungeon_party.c:1146 | the skill states 3, 5..8 by char |
-| FUN_0048d5d6 | src/dungeon_party.c:624 | char 42's gauge refill + the random |
-| FUN_0048d5d6 | src/dungeon_party.c:631 | the skill cycle (DAT_0438b7dc, SE 326) |
+| FUN_0048a833 | src/dungeon_party.c:312 | the db048 14 / 15 / work +0x2bc6c arm |
+| FUN_0048b850 | src/dungeon_party.c:1412 | the water splash after the move (hit |
+| FUN_0048b850 da1bc | src/dungeon_party.c:1409 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048b850 trail | src/dungeon_party.c:1486 | the orbiting after-images |
+| FUN_0048cdcc | src/dungeon_party.c:1085 | the dash's wall bonk (a ray 1.4 ahead) |
+| FUN_0048cdcc | src/dungeon_party.c:1126 | the other chars' swings (FUN_004977df, |
+| FUN_0048cdcc | src/dungeon_party.c:1138 | the other chars' skill 4 |
+| FUN_0048cdcc | src/dungeon_party.c:1148 | the skill states 3, 5..8 by char |
+| FUN_0048d5d6 | src/dungeon_party.c:626 | char 42's gauge refill + the random |
+| FUN_0048d5d6 | src/dungeon_party.c:633 | the skill cycle (DAT_0438b7dc, SE 326) |
 | FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
-| FUN_00490c78 | src/dungeon_party.c:392 | the buff-end bubble over Tear |
+| FUN_00490c78 | src/dungeon_party.c:394 | the buff-end bubble over Tear |
 | FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
 
 ## synthetic-data (0)
 
 _none_
 
-## simplified (8)
+## simplified (7)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_00453384 | src/scene_pause.c:306 | the engine has a thicket of mode-1 |
 | FUN_004536cb | src/sim.c:478 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
@@ -210,13 +206,13 @@ _none_
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1311 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
-| render-coupled | FUN_00441c3e | src/actor_ai.c:142 | the view matrix is the render's; |
+| render-coupled | FUN_00441c3e | src/actor_ai.c:147 | the view matrix is the render's; |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_0048196b | src/scene_pause.c:1672 | the dungeon's Use / Throw |
-| render-coupled | FUN_0048f87c | src/scene_pause.c:1347 | the results screen's assets |
-| render-coupled | FUN_00490c78 | src/dungeon_party.c:682 | the notice's side is Tear's |
-| render-coupled | FUN_00490c78 | src/dungeon_party.c:890 | the side is Tear's screen x < 320 |
+| render-coupled | FUN_0048196b | src/scene_pause.c:1782 | the dungeon's Use / Throw |
+| render-coupled | FUN_0048f87c | src/scene_pause.c:1457 | the results screen's assets |
+| render-coupled | FUN_00490c78 | src/dungeon_party.c:684 | the notice's side is Tear's |
+| render-coupled | FUN_00490c78 | src/dungeon_party.c:892 | the side is Tear's screen x < 320 |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the house player still runs this |
-| structure | FUN_0048670f | src/scene1_sim.c:151 | one retail-shaped master tick. |
+| structure | FUN_0048670f | src/scene1_sim.c:184 | one retail-shaped master tick. |
 | structure | FUN_0048b850 | src/dungeon_party.h:17 | one port for both. |
 

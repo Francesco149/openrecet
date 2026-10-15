@@ -52,6 +52,9 @@
 #include "story_visitor.h"
 #include "tick.h"
 #include "title_save_dialog.h"
+#include "choice_box.h"
+#include "fade.h"
+#include "worker_load.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_scene(void) { return g_scene_state; }
@@ -158,6 +161,20 @@ static int32_t get_ag_b74(void) { return adv(0x6a49b74u); }
 static int32_t get_ag_a98(void) { return adv(0x5c5a98u); }
 static int32_t get_ag_a9c(void) { return adv(0x5c5a9cu); }
 static int32_t get_ag_aa0(void) { return adv(0x5c5aa0u); }
+static int32_t dm(uint32_t va) { int32_t v = 0; display_menu_dbg_va(va, &v); return v; }
+static int32_t get_dm_96c(void) { return dm(0x734b96cu); }
+static int32_t get_dm_97c(void) { return dm(0x734b97cu); }
+static int32_t get_dm_988(void) { return dm(0x734b988u); }
+static int32_t get_dm_994(void) { return dm(0x734b994u); }
+static int32_t get_dm_9a8(void) { return dm(0x734b9a8u); }
+static int32_t get_dm_98c(void) { return dm(0x734b98cu); }
+static int32_t get_cb_af34(void) { return choice_box_anim(); }
+static int32_t get_sd_b148(void) { return title_save_dialog_get_active_counter(); }
+static int32_t get_wl_995c(void) { return worker_load_busy_secondary(); }
+static int32_t get_c998(void)    { return sim_get_counter_998(); }
+static int32_t get_c990(void)    { return sim_get_counter_990(); }
+static int32_t get_pact(void)    { return g_pause_action; }
+static int32_t get_fade(void)    { return g_fade_phase; }
 static int32_t get_clkph(void)  { return fbits(scene1_top_hud_clock_phase()); }
 static int32_t get_de_t(void)   { return day_end_frame(); }
 static int32_t get_de_p(void)   { return day_end_profit_shown(); }
@@ -269,6 +286,19 @@ static const state_va_t k_map[] = {
     { 0x5c5a98u,  "adv guild bag size (DAT_005c5a98)", get_ag_a98 },
     { 0x5c5a9cu,  "adv guild chara row (DAT_005c5a9c)", get_ag_a9c },
     { 0x5c5aa0u,  "adv guild bag row (DAT_005c5aa0)", get_ag_aa0 },
+    { 0x734b96cu, "item window detail popup (DAT_0734b96c)", get_dm_96c },
+    { 0x734b97cu, "item window use message (DAT_0734b97c)", get_dm_97c },
+    { 0x734b988u, "item window throw message (DAT_0734b988)", get_dm_988 },
+    { 0x734b994u, "item window confirm countdown (DAT_0734b994)", get_dm_994 },
+    { 0x734b9a8u, "item window mode (DAT_0734b9a8)", get_dm_9a8 },
+    { 0x734b98cu, "item window slide (DAT_0734b98c)", get_dm_98c },
+    { 0x438af34u, "choice box anim (DAT_0438af34)", get_cb_af34 },
+    { 0x438b148u, "message / save box counter (DAT_0438b148)", get_sd_b148 },
+    { 0x6a4995cu, "secondary load busy (DAT_06a4995c)", get_wl_995c },
+    { 0x6a49998u, "pause ramp (DAT_06a49998)", get_c998 },
+    { 0x6a49990u, "pause fade counter (DAT_06a49990)", get_c990 },
+    { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },
+    { 0x438bf7cu, "fade phase (DAT_0438bf7c)", get_fade },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 
@@ -340,7 +370,8 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x74b2834u, &g_pause_save_cursor }, { 0x74b2820u, &g_pause_save_scroll },
     { 0x74b289cu, &g_pause_save_phase }, { 0x74b28a0u, &g_pause_save_warn }, { 0x74b28a4u, &g_pause_save_overwrite },
     { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
-    { 0x74b2894u, &g_pause_save_hscroll },
+    { 0x74b2894u, &g_pause_save_hscroll }, { 0x74b28a8u, &g_pause_items_done },
+    { 0x74b28acu, &g_pause_items_opt },
 };
 
 /* Retail-layout blocks the port keeps byte for byte: the party block
