@@ -333,9 +333,11 @@ static void postload_dungeon_arm(void)
             const float sc[3] = { k0p35, k0p35, k0p35 };
             dobj_spawn_special(0, 6, g_scene1_stage_player_default_pos, sc, 0.0f);   /* FUN_0044b257 */
         }
+    } else if (g_scene1_combat_stage_id == 1) {
+        dungeon1_stage_setup();                  /* FUN_0044d1e4 */
     } else {
-        /* PORT-DEBT(stub, FUN_0044d1e4): dungeons 1..5's setups FUN_0044d1e4 /
-         * 44d9d3 / 44e08f / 450443 / 450ee0 */
+        /* PORT-DEBT(stub, FUN_00436f97): dungeons 2..5's setups FUN_0044d9d3 /
+         * 44e08f / 450443 / 450ee0 */
     }
     if ((stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == 0) ||
         (g_scene1_combat_stage_id == 5 && stage_gate_get_next() == 30))
@@ -462,6 +464,7 @@ void scene1_postload_stage_entry_init(void)
      * FUN_0041f252, FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
     scene1_records_reset(1);
     actor_spawn_reset();
+    dobj_place_markers();                /* FUN_00432473 */
     scene1_top_hud_tooltip_house_entry();
     speech_bubble_reset();
     g_title_banner = g_title_banner_len = g_title_banner_kind = 0;   /* FUN_004060ff's part */

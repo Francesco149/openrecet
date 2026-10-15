@@ -12,6 +12,7 @@
  */
 
 #include "scene1_camera.h"
+#include "dungeon_flow.h"   /* DAT_0438b7ac / b7a0 / b7a8 */
 
 #include <math.h>
 
@@ -214,7 +215,12 @@ void scene1_camera_pose_compute(void)
     if (uVar2 > 1) {
         bias_z = bias_z - 5.0f;
     }
-    /* DAT_0438b7ac (cinematic blend gate) BSS-zero → skip blend. */
+    /* DAT_0438b7ac: the look target halfway between the player and b7a0 / b7a8
+     * (a checkpoint floor's arena, FUN_0044cc80) — overrides the -5 above. */
+    if (g_cam_blend != 0) {
+        bias_x = (g_scene1_player_pos[0] - g_cam_blend_x) * 0.5f + g_cam_blend_x;
+        bias_z = (g_scene1_player_pos[2] - g_cam_blend_z) * 0.5f + g_cam_blend_z;
+    }
 
     /* `(uVar2 & 1) == 0` clamp dispatch.  Char_mode=2 (even) opens the
      * gate; the inner branch on stage_view_mode picks one of four

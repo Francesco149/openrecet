@@ -58,6 +58,16 @@ void dobj_reset(void);
 /* FUN_0044ad81: returns the record index (0 if the table is full — retail
  * MessageBoxes and returns 0). */
 int  dobj_spawn(const float pos[3], const float scale[3], float yaw, int32_t kind);
+
+/* FUN_00432473 (FUN_00436f97, after the actor reset): every floor cell's room
+ * model is scanned for marker triangles (materials tree01 / tree02 / kusa01 /
+ * kusa02 / taimatu → kinds 0 / 1 / 2 / 3 / 8; barrel / treasure / candlestand /
+ * crystal are recognised but place nothing): an object at the marker's lowest
+ * vertex (its piece x / z through the cell's pattern rotation, minus the cell
+ * origin; y from a 1000-long ray down from 20 in the piece coordinates, else
+ * 10), sized by the marker (its height / 12 and the base edge / 12, ×5), facing
+ * along the base edge. */
+void dobj_place_markers(void);
 void dobj_tick(void);                                              /* FUN_0043a5d9 */
 
 /* FUN_0044b257: spawn an object of `kind` for `role`, spent (state 3); its

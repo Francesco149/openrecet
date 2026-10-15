@@ -102,6 +102,13 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3]                           */
 #include "scene1_intro_dialogue.h" /* the dialogue-box gate (DAT_0438b1c8) */
 #include "speech_bubble.h"        /* speech_bubble_render (FUN_0040c4eb)                */
+#include "dungeon_flow.h"         /* the floor events (DAT_0438b938 / b96c), b954     */
+#include "font_draw.h"            /* FUN_0047ca05 / FUN_0047d0ea                      */
+#include "map_collision.h"        /* mapcol_maptype (*DAT_068dd2f0)                   */
+#include "news_daily.h"           /* DAT_0438b92c                                     */
+#include "save_bank.h"
+#include "save_work.h"
+#include "x87.h"
 #include "call_trace.h"
 #include <math.h>                 /* sinf */
 
@@ -185,6 +192,82 @@ static void scene1_hud_emote_bubble(IDirect3DDevice8 *dev)
         const float src[4] = { src_x, src_y, src_x + 48.0f, src_y + 48.0f };
         render_quad_add(dst, src, hp->width, hp->height, 0xffffffffu);
         render_quad_flush(dev);
+    }
+}
+
+/* CRT sprintf(buf, str) with the text as the format and no arguments: "%%"
+ * folds to "%" (the texts carry no other conversions). */
+static void ticker_sprintf(char *buf, size_t n, const char *str)
+{
+    size_t o = 0;
+    for (size_t k = 0; str[k] != 0 && o + 1 < n; k++) {
+        if (str[k] == '%' && str[k + 1] == '%') k++;
+        buf[o++] = str[k];
+    }
+    buf[o] = 0;
+}
+
+/* FUN_0040a765 0x40b0df..0x40b3dd — the news / floor-event ticker band (mode 1):
+ * the texts (the floor events DAT_0438b96c × b938 in a dungeon, the headlines
+ * at work +0x2a6c4 × work +0x2a6c0 in the house) scroll in from the right at
+ * 2 px a tick ÷ scale (0.5 dungeon, 0.7 house); the band opens to 64 at 3.2 a
+ * tick and, once b92c passes the texts' run (Σ (width + 8) / 2 · scale +
+ * 320 · scale + 60), closes at 3.2 a tick — closed, b92c = 0 and b954 = 1 (the
+ * dungeon's player waits on b92c). */
+static void news_ticker_render(IDirect3DDevice8 *dev)
+{
+    static const float k0p5 = 0.5f, k0p7 = 0.699999988079071f, k3p2 = 3.200000047683716f;
+    static const float k64 = 64.0f, k1p1 = 1.100000023841858f, k8 = 8.0f, k2 = 2.0f;
+    static const float k320 = 320.0f, k60 = 60.0f, k640 = 640.0f, k52 = 52.0f, k32 = 32.0f;
+    const int dungeon = mapcol_maptype() != 0;
+    const float scale = dungeon ? k0p5 : k0p7;
+    if (g_news_ticker_timer == 0) return;
+    const sprite_t *win = &g_sysassets.item_win_tga;      /* DAT_073d8748 */
+    if (win->tex) render_quad_bind(dev, win);
+    float h = spill32((long double)spill32((float)g_news_ticker_timer) * k3p2);
+    if (h > k64) h = k64;
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    int32_t n = bank != NULL ? (int32_t)bank[SAVE_BANK_FIELD_NEWS_HL_COUNT] : 0;
+    const char *house_txt = bank != NULL ? (const char *)(bank + SAVE_BANK_FIELD_NEWS_HL_COUNT + 1) : NULL;
+    if (dungeon) n = g_floor_event_n;
+    if (n <= 0) return;
+    char buf[256];
+    float total = 0.0f;
+    for (int32_t k = 0; k < n; k++) {
+        ticker_sprintf(buf, sizeof buf, dungeon ? g_floor_event_text[k] : house_txt + 256 * k);
+        const float w = font_measure_text((struct IDirect3DDevice8 *)dev, buf, k1p1);   /* FUN_0047d0ea */
+        total = spill32(((long double)w + k8) / k2 * scale + total);
+    }
+    total = spill32((long double)scale * k320 + total);
+    const float t = spill32((float)g_news_ticker_timer);
+    const float lim = spill32((long double)total + k60);
+    if (t > lim) {
+        h = spill32((long double)h - ((long double)t - lim) * k3p2);
+        if (h < 0.0f) {
+            g_news_ticker_timer = 0;
+            g_dat_0438b954 = 1;
+            h = 0.0f;
+        }
+    }
+    if (win->tex) {
+        if (h > 0.0f) {
+            const float dst[4] = { 0.0f, spill32(k64 - (long double)h * k0p5), k640, h };
+            const float src[4] = { 0.0f, 512.0f, 64.0f, 575.0f };
+            render_quad_add(dst, src, win->width, win->height, 0xffffffffu);   /* FUN_00404efc */
+        }
+        if (g_news_ticker_timer > 30 && g_news_ticker_timer < 60) {
+            const float dst[4] = { 208.0f, 48.0f, 224.0f, 32.0f };
+            const float src[4] = { 0.0f, 480.0f, 224.0f, 512.0f };
+            render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+        }
+        render_quad_flush(dev);                           /* FUN_00405354 */
+    }
+    float x = spill32(k640 - (long double)spill32((float)(2 * g_news_ticker_timer - 120)) / scale);
+    for (int32_t k = 0; k < n; k++) {
+        ticker_sprintf(buf, sizeof buf, dungeon ? g_floor_event_text[k] : house_txt + 256 * k);
+        font_draw_text((struct IDirect3DDevice8 *)dev, x, k52, buf, 0xffffffffu, k1p1);   /* FUN_0047ca05 */
+        const float w = font_measure_text((struct IDirect3DDevice8 *)dev, buf, k1p1);
+        x = spill32((long double)w + x + k32);
     }
 }
 
@@ -334,6 +417,9 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * §21.26, ret_va probe runs/probe-skipbox-callers: FUN_0043537e fires at
      * 0x40b0df + 0x46c0a8 on every modal frame).  Self-gates on cb_active. */
     choice_box_draw(dev);
+
+    if (scene_mode == 1)
+        news_ticker_render(dev);          /* 0x40b0df..0x40b3dd */
 
     /* FUN_00435747 (all.c:7498, LAB_0040c1e4) — the shared menu hand-cursor,
      * drawn LAST in the house aggregator (after the cc08 haggle overlay so the

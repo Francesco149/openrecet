@@ -3,10 +3,13 @@
  */
 #include "dungeon_objects.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "audio.h"           /* FUN_00499519 */
 #include "dungeon_flow.h"    /* DAT_0438bebc */
+#include "floor_layout.h"    /* the floor grid (DAT_073e03ac, DAT_005cc2e8 / ec) */
+#include "math3d.h"          /* D3DXMatrixTranslation / RotationY / Multiply */
 #include "map_collision.h"   /* mapcol_ground (FUN_00432e50) */
 #include "rng.h"             /* FUN_00471089 */
 #include "save_work.h"       /* the active work record */
@@ -232,3 +235,61 @@ void dobj_tick(void)
         ++o->i[27];
     }
 }
+
+/* FUN_00432473 */
+void dobj_place_markers(void)
+{
+    static const float k10 = 10.0f, k20 = 20.0f, km1000 = -1000.0f, k1000 = 1000.0f;
+    static const float k12 = 12.0f, k40 = 40.0f, k5 = 5.0f, k3 = 3.0f;
+    static const float k_pi2 = 1.5707963705062866f;
+    for (int32_t row = 0; row < g_floor_h; row++) {
+        for (int32_t col = 0; col < g_floor_w; col++) {
+            const floor_room_t *rm = &g_floor_rooms[row * FLOOR_GRID_STRIDE + col];
+            if (rm->type == -1 || rm->type < 0 || rm->type >= MAPCOL_SLOTS) continue;
+            const mapcol_slot_t *sl = &g_mapcol_slot[rm->type];
+            for (int32_t i = 0; i < sl->count; i++) {
+                const mapcol_tri_t *t = &sl->tris[i];
+                const int32_t type = t->type;
+                if (!(type >= 8 && type <= 16)) continue;
+                int lo = 0, a = 1, b = 2;
+                if (!(t->vy[0] < t->vy[1] && t->vy[0] < t->vy[2])) {
+                    if (t->vy[1] < t->vy[0] && t->vy[1] < t->vy[2]) { lo = 1; a = 0; b = 2; }
+                    else { lo = 2; a = 0; b = 1; }
+                }
+                float pos[3] = { -t->vx[lo], k10, t->vz[lo] };
+                float frac = 0.0f;
+                mapcol_hit_t hit;
+                if (mapcol_ray(pos[0], k20, pos[2], 0.0f, km1000, 0.0f, &frac, &hit) != 0)
+                    pos[1] = spill32(((long double)pos[1] - (long double)frac * k1000) + k10);
+                const float dz = spill32((long double)t->vz[a] - t->vz[b]);
+                const float dx = spill32((long double)t->vx[a] - t->vx[b]);
+                const float yaw = spill32(x87_crt_atan2(dx, dz));
+                float m[16], r[16], tr[16];
+                mat4_translation(m, 0.0f, 0.0f, 0.0f);
+                mat4_rotation_y(r, spill32((long double)spill32((float)rm->pat) * k_pi2));
+                mat4_mul(m, r, m);
+                mat4_translation(tr, pos[0], 0.0f, pos[2]);
+                mat4_mul(m, tr, m);
+                pos[0] = spill32((long double)-m[12] - (long double)spill32((float)col) * k40);
+                pos[2] = spill32((long double)m[14] - (long double)spill32((float)row) * k40);
+                float sc[3];
+                sc[1] = spill32(((long double)t->vy[a] - t->vy[lo]) / k12);
+                const float ex = spill32((long double)t->vx[b] - t->vx[a]);
+                const float ez = spill32((long double)t->vz[b] - t->vz[a]);
+                const float len = spill32(spill32(sqrt((double)((long double)ez * ez + (long double)ex * ex))) / k12);
+                sc[0] = spill32((long double)len * k5);
+                sc[1] = spill32((long double)sc[1] * k5);
+                sc[2] = sc[0];
+                if (type == 15)
+                    for (int k = 0; k < 3; k++) sc[k] = spill32((long double)sc[k] * k3);
+                if (type >= 8 && type <= 11)
+                    dobj_spawn(pos, sc, yaw, type - 8);              /* FUN_0044ad81 */
+                if (type == 16) {
+                    for (int k = 0; k < 3; k++) sc[k] = spill32((long double)sc[k] * k5);
+                    dobj_spawn(pos, sc, yaw, 8);
+                }
+            }
+        }
+    }
+}
+

@@ -49,12 +49,15 @@ extern int32_t g_dat_0438beb8;
 extern int32_t g_dat_09643128;
 void dobj_raise_special(int role);   /* FUN_0044b2e6 */
 void dobj_rise_tick(void);            /* FUN_0044b38c */
+void dungeon1_stage_setup(void);      /* FUN_0044d1e4 (FUN_00436f97's dungeon-1 arm) */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */
 extern int32_t g_dat_0438b8d4;       /* the HP-check voice countdown (FUN_0048b3f6) */
 extern int32_t g_dat_0438b8d8;       /* re-arm guard of b8d4 (FUN_00485c74 sets 120) */
 extern int32_t g_cut_follow;         /* DAT_0438b788: the partner follows a fixed point (b78c / b794) */
 extern float   g_cut_follow_x, g_cut_follow_y, g_cut_follow_z;   /* DAT_0438b78c / 790 / 794 */
+extern int32_t g_cam_blend;          /* DAT_0438b7ac: the camera looks halfway between the player and b7a0 / b7a8 */
+extern float   g_cam_blend_x, g_cam_blend_y, g_cam_blend_z;      /* DAT_0438b7a0 / 7a4 / 7a8 */
 extern float   g_floor_spawn_yaw;    /* DAT_0438b4ac: the player's facing after the stage init */
 extern int32_t g_dat_0438b930;
 extern int32_t g_dat_0438b950;

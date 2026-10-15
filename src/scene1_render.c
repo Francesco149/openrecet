@@ -7,6 +7,7 @@
  */
 
 #include "scene1_render.h"
+#include "dungeon_flow.h"      /* DAT_06a46fa4 */
 #include "table_c.h"
 
 /* ── world→screen projection — port of FUN_00490c78 → FUN_00490d29 ──────
@@ -404,7 +405,7 @@ void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
         /* light-debug (F5): the free dolly camera owns the view matrix;
          * the game pose keeps simulating but stops writing it. */
         light_debug_camera_tick(g_scene1_view);
-    } else if (sim_get_counter_998() == 0 /* && counter_6fa4 == 0 */) {
+    } else if (sim_get_counter_998() == 0 && g_dat_06a46fa4 == 0) {   /* FUN_0045bbf9: the hit-pause holds the camera */
         scene1_camera_pose_compute();
         scene1_camera_build_view_matrix(g_scene1_view);
     }

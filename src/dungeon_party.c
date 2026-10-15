@@ -1192,6 +1192,57 @@ static void party_hurry_up(void)
     }
 }
 
+/* FUN_004960a4: the warp trap — a random room at least 20 away from the player
+ * on either axis (pass 0 counts them, rand % n picks, pass 1 finds it), then a
+ * random right angle (rand & 3) tried 4 ways for a clear 5-ray from (x, 0.3, z):
+ * the party lands 5 along the first clear one (else on the room's origin), the
+ * partner and Tear 0.5 / 1 to its +x. */
+static void party_warp_random_room(void)
+{
+    static const float k40 = 40.0f, k20 = 20.0f, k0p3 = 0.30000001192092896f, k5 = 5.0f;
+    static const float k_pi2 = 1.5707963705062866f;
+    uint32_t pick = 0;
+    for (int pass = 0; pass != 2; pass++) {
+        uint32_t count = 0;
+        for (int32_t r = 0; r < g_floor_h; r++) {
+            for (int32_t c = 0; c < g_floor_w; c++) {
+                if (g_floor_rooms[r * FLOOR_GRID_STRIDE + c].type == -1) continue;
+                const float dx = spill32((long double)spill32((float)-c) * k40 - g_party.pos[0][0]);
+                const float dz = spill32((long double)spill32((float)-r) * k40 - g_party.pos[0][2]);
+                const float adx = dx < 0.0f ? -dx : dx, adz = dz < 0.0f ? -dz : dz;
+                if (adx < k20 && adz < k20) continue;
+                if (pass == 1 && count == pick) {
+                    float x = spill32((long double)spill32((float)-c) * k40);
+                    float z = spill32((long double)spill32((float)-r) * k40);
+                    float ang = spill32((long double)spill32((float)(int32_t)(rng_next15() & 3u)) * k_pi2);
+                    for (int k = 0; k != 4; k++) {
+                        const double X = ang;
+                        const float s5 = spill32((long double)spill32(x87_crt_sin(X)) * k5);
+                        const float c5 = spill32((long double)spill32(x87_crt_cos(X)) * k5);
+                        float frac = 0.0f;
+                        mapcol_hit_t h;
+                        if (mapcol_ray(x, k0p3, z, s5, 0.0f, c5, &frac, &h) == 0 || frac > k1) {
+                            x = spill32((long double)s5 + x);
+                            z = spill32((long double)c5 + z);
+                            break;
+                        }
+                        ang = spill32((long double)ang + k_pi2);
+                    }
+                    g_party.pos[0][0] = x;
+                    g_party.pos[0][2] = z;
+                    g_party.pos[1][0] = spill32((long double)x + k0p5);
+                    g_party.pos[1][2] = z;
+                    g_party.pos[2][0] = spill32((long double)x + k1);
+                    g_party.pos[2][2] = z;
+                    return;
+                }
+                count++;
+            }
+        }
+        if (pass == 0 && count > 0) pick = (uint32_t)rng_next15() % count;
+    }
+}
+
 /* FUN_0048b850 on a dungeon floor */
 void dungeon_party_tick(void)
 {
@@ -1228,7 +1279,32 @@ void dungeon_party_tick(void)
         if (g_dat_0438b954 > 0 && ++g_dat_0438b954 > 200) g_dat_0438b954 = 200;
     }
     if (g_dat_0438b930 > 0) {
-        /* PORT-DEBT(stub, FUN_0048b850 b930): the spin-out (FUN_004960a4 at 60) */
+        /* the warp trap's spin (b930): the player turns 0.5 a tick, SE 709 at 35,
+         * the warp FUN_004960a4 at 60, done at 120; b8b8 eases up from 30 and
+         * back down from 60, the camera snaps over 60..109 */
+        PW(0x56db05cu).f = spill32((long double)PW(0x56db05cu).f + k0p5);
+        int32_t v = ++g_dat_0438b930;
+        if (v == 35) {
+            audio_play_se_by_id(709);
+            v = g_dat_0438b930;
+        }
+        if (v == 60) {
+            party_warp_random_room();        /* FUN_004960a4 */
+            v = g_dat_0438b930;
+        }
+        if (v == 120) {
+            v = 0;
+            g_dat_0438b930 = 0;
+        }
+        if (v >= 60) {
+            if (g_dat_0438b8b8 > 0) --g_dat_0438b8b8;
+        } else if (v >= 30 && g_dat_0438b8b8 < 30) {
+            ++g_dat_0438b8b8;
+        }
+        if (v >= 60 && v < 110) scene1_camera_snap_next();   /* DAT_0438cc68 = 1 */
+        if (PW(0x56db0f4u).i <= 60) PW(0x56db0f4u).i = 60;
+        g_party.rec[0][6] = x87_ftol(((long double)PW(0x56db05cu).f + g_scene1_camera_yaw + k_pi8)
+                                     / k_2pi * k8 + k8) & 7;
         return;
     }
     if (PW(0x56dafecu).i > 0 && --PW(0x56dafecu).i == 0) {

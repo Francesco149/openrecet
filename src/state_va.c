@@ -16,6 +16,8 @@
 #include "actor_table.h"
 #include "customer_service.h"
 #include "dungeon_flow.h"
+#include "stage_gate.h"
+#include "scene1_camera.h"        /* the shake DAT_0438cc14.. */
 #include "dungeon_objects.h"
 #include "map_collision.h"
 #include "news_daily.h"
@@ -53,6 +55,8 @@
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_scene(void) { return g_scene_state; }
+static int32_t get_floor(void) { return stage_gate_get_next(); }
+static int32_t get_dungeon(void) { return g_scene1_combat_stage_id; }
 static int32_t get_cc08(void)  { return player_ctrl_cc08(); }
 static int32_t get_b1cc(void)  { return customer_service_b1cc(); }
 static int32_t get_b524(void)  { return customer_service_b524(); }
@@ -166,6 +170,8 @@ typedef struct { uint32_t va; const char *name; int32_t (*get)(void); } state_va
 static const state_va_t k_map[] = {
     { 0x6023a0u,  "rng (DAT_006023a0)",               get_rng   },
     { 0x438b1c0u, "scene state (DAT_0438b1c0)",       get_scene },
+    { 0x438b4ccu, "floor (DAT_0438b4cc)",             get_floor },
+    { 0x438b4c8u, "dungeon (DAT_0438b4c8)",           get_dungeon },
     { 0x438cc08u, "house mode cc08 (DAT_0438cc08)",   get_cc08  },
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
@@ -324,6 +330,10 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
     { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
     { 0x438b768u, &g_notice_ticks },
+    { 0x438b7acu, &g_cam_blend },      { 0x438b788u, &g_cut_follow },
+    { 0x438beb4u, &g_dat_0438beb4 },   { 0x438bebcu, &g_dat_0438bebc }, { 0x438beb8u, &g_dat_0438beb8 },
+    { 0x6a46fa4u, &g_dat_06a46fa4 },   { 0x438beccu, &g_dat_0438becc },
+    { 0x438cc14u, &g_shake_ticks },    { 0x438cc18u, &g_shake_dx },   { 0x438cc1cu, &g_shake_dz },
     { 0x74b2878u, &g_pause_sel },       { 0x74b2870u, &g_pause_sel_anim },
     { 0x74b2880u, &g_pause_sub_anim },  { 0x74b2884u, &g_pause_sub_dir },
     { 0x73e154cu, &g_pause_count },     { 0x74b2830u, &g_pause_exit_confirm },

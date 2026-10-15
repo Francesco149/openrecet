@@ -5,11 +5,13 @@
 
 #include <string.h>
 
+#include "actor_table.h"         /* the actor table (FUN_0044d0a4's count) */
 #include "audio.h"               /* audio_play_se_file (FUN_0049933c) */
 #include "record_hit.h"          /* DAT_0438b900 / b90c..b914 */
 #include "call_trace.h"
 #include "chara_equip.h"         /* DAT_0438b7d8 */
 #include "floor_layout.h"        /* DAT_0438b1ec (the floor origin) */
+#include "map_collision.h"       /* FUN_00433674 */
 #include "dungeon_party.h"       /* FUN_0048b850 (the dungeon path) */
 #include "dungeon_objects.h"     /* DAT_0695ef78, DAT_06a47054 */
 #include "dungeon_results.h"     /* DAT_0438b718.. */
@@ -60,6 +62,8 @@ int32_t g_dat_0438becc;
 int32_t g_dat_0438b8d4;
 int32_t g_dat_0438b8d8;
 int32_t g_cut_follow;
+int32_t g_cam_blend;
+float   g_cam_blend_x, g_cam_blend_y, g_cam_blend_z;
 float   g_cut_follow_x, g_cut_follow_y, g_cut_follow_z;
 int32_t g_floor_event_n;
 int32_t g_floor_event_id[5];
@@ -129,6 +133,8 @@ void dungeon_flow_stage_reset(void)
     g_results_kept[1] = g_results_kept[2] = g_results_kept[3] = -1;   /* DAT_0438b71c..724 */
     g_results_row = 1;
     g_results_picking = 0;
+    g_cam_blend = 0;
+    g_cut_follow = 0;
     g_ctrl_lock = -1;
     g_dat_0438b8b4 = 0;
     g_dat_0438b8b8 = 0;
@@ -366,6 +372,211 @@ static void dungeon0_event_tick(void)
     ++g_event_tick;
 }
 
+/* FUN_0044cbe4: the hired adventurer's (DAT_0438b7d8) line as a boss shows. */
+static void boss_intro_voice(void)
+{
+    const char *v = NULL;
+    switch (chara_equip_get_current_chara()) {
+    case 0: v = "bin/se/02li/action/02li_09.bin"; break;
+    case 1: v = (rng_next15() & 1u) ? "bin/se/03sy/action/03sy_13b.bin"
+                                     : "bin/se/03sy/action/03sy_13a.bin"; break;
+    case 2: v = (rng_next15() & 1u) ? "bin/se/04ca/start/04ca_13e.bin"
+                                     : "bin/se/04ca/start/04ca_13a.bin"; break;
+    case 3: v = (rng_next15() & 1u) ? "bin/se/05ti/start/05ti_14.bin"
+                                     : "bin/se/05ti/start/05ti_13a.bin"; break;
+    case 4: v = "bin/se/06el/start/06el_15.bin"; break;
+    case 6: v = "bin/se/08gr/start/08gr_12a.bin"; break;
+    case 7: v = "bin/se/09ar/start/09ar_19a.bin"; break;
+    default: break;
+    }
+    if (v != NULL)
+        audio_play_se_file(v);               /* FUN_0049933c */
+}
+
+/* FUN_0044d0a4: a checkpoint floor's boss (event stage 0).  With a boss here
+ * (FUN_004319d6): the title at 30, the fixed arena camera (yaw 0, look
+ * (-40, 3.5, -40) from (-40, 12, -65)) for 240 ticks with the controls locked,
+ * the adventurer's line at 240, then control back with the partner held
+ * (b788) and the camera class 2; else just the title at 30.  From 60 on, once
+ * no actor is in use: `raise` → both special objects (the portals), b788 /
+ * 09643128 cleared, event stage 1. */
+static void boss_floor_event(int raise)
+{
+    if (g_event_stage != 0) return;
+    if (stage_gate_query()) {
+        if (g_event_tick == 30) {
+            dungeon_title_banner_open(180, 0);   /* FUN_00406551 */
+            g_dat_09643128 = 1;
+        }
+        if ((uint32_t)g_event_tick < 240u) {
+            static const float eye[3] = { -40.0f, 12.0f, -65.0f };
+            static const float look[3] = { -40.0f, 3.5f, -40.0f };
+            g_scene1_camera_stage_class = 1;     /* DAT_0438b4e8 */
+            g_scene1_camera_yaw = 0.0f;          /* DAT_073de39c */
+            scene1_camera_set_targets(eye, look);
+        }
+        g_ctrl_lock = 0;
+        if (g_event_tick == 240)
+            boss_intro_voice();                  /* FUN_0044cbe4 */
+        if (g_event_tick >= 240) {
+            g_ctrl_lock = -1;
+            g_cut_follow = 1;
+            g_scene1_camera_stage_class = 2;
+        }
+    } else if (g_event_tick == 30) {
+        dungeon_title_banner_open(180, 0);
+    }
+    if (g_event_tick > 60) {
+        int n = 0;
+        for (int i = 0; i < ACTOR_COUNT; i++)
+            if (*(const int32_t *)(const void *)(g_actor[i].b + ACT_INUSE) != 0)
+                n++;
+        if (n == 0) {
+            if (raise) {
+                dobj_raise_special(0);           /* FUN_0044b2e6 */
+                dobj_raise_special(1);
+            }
+            g_cut_follow = 0;
+            g_dat_09643128 = 0;
+            g_event_tick = 0;
+            g_event_stage = 1;
+        }
+    }
+}
+
+/* FUN_0045c025: a boss run's floor count by its mode (DAT_0438b4d0). */
+static int32_t boss_run_floors(void)
+{
+    switch (stage_post_load_get_mode_b4d0()) {
+    case 1: return 3;
+    case 2: return 5;
+    case 3: return 8;
+    case 4: return 13;
+    default: return 0;
+    }
+}
+
+/* FUN_0044cc80: a checkpoint floor's arena.  With a boss here (FUN_004319d6):
+ * the partner's fixed point b78c steps -22, -23, … (x) at z -41 until the
+ * floor ray from (-40, 0.3, -40) is blocked short of it (10 tries); the camera
+ * blend on (-40, 0, -40), class 2; the party lined up from the origin 5 back,
+ * 1 apart, facing 0.  `portals` 1: the next-floor portal (kind 8, (-35, 0, -40),
+ * scale 0 / 0.5 / 0.5) and the return portal (6, (-45, 0, -40), 0.35), both
+ * spent until the boss falls; else one at (-40, 0, -40) — the return portal on
+ * a boss run's last floor.  Without a boss: the pair beside the first variant-5
+ * room (x 3.5 − col·40, the return 7 left), else the next-floor portal in the
+ * first room and the return portal in the second. */
+static void boss_floor_setup(int portals)
+{
+    static const float km22 = -22.0f, km41 = -41.0f, km40 = -40.0f, k0p3 = 0.30000001192092896f;
+    static const float km1 = -1.0f, k1 = 1.0f, k5 = 5.0f, k3p5 = 3.5f, k7 = 7.0f, k40 = 40.0f;
+    static const float km35 = -35.0f, km45 = -45.0f, k0p5 = 0.5f, k0p35 = 0.3499999940395355f;
+    if (stage_gate_query()) {
+        float frac = 0.0f;
+        for (int i = 0; i != 10; i++) {
+            const float fi = spill32((float)i);
+            g_cut_follow_x = spill32((long double)km22 - fi);
+            g_cut_follow_y = 0.0f;
+            g_cut_follow_z = km41;
+            const float dx = spill32((long double)g_cut_follow_x - km40);
+            mapcol_hit_t h;
+            if (mapcol_ray(km40, k0p3, km40, dx, 0.0f, km1, &frac, &h) == 0) break;
+            if (frac >= k1) break;
+        }
+        g_cam_blend = 1;
+        g_scene1_camera_stage_class = 2;     /* DAT_0438b4e8 */
+        g_cam_blend_x = km40;
+        g_cam_blend_y = 0.0f;
+        g_cam_blend_z = km40;
+        PW(0x56db05cu).f = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            const float fi = spill32((float)i);
+            g_party.pos[i][0] = spill32((long double)fi + g_scene1_stage_player_default_pos[0]);
+            g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+            g_party.pos[i][2] = spill32(((long double)g_scene1_stage_player_default_pos[2] - k5) - fi);
+            party_anim_set(g_party.rec[i], 0);   /* FUN_00482a51 */
+            g_party.rec[i][6] = 0;
+        }
+    }
+    if (portals == 0) return;
+    const float sc8[3] = { 0.0f, k0p5, k0p5 };
+    const float sc6[3] = { k0p35, k0p35, k0p35 };
+    if (stage_gate_query()) {
+        if (portals == 1) {
+            float p[3] = { km35, 0.0f, km40 };
+            dobj_spawn_special(0, 8, p, sc8, 0.0f);   /* FUN_0044b257 */
+            p[0] = km45;
+            dobj_spawn_special(1, 6, p, sc6, 0.0f);
+        } else {
+            const float p[3] = { km40, 0.0f, km40 };
+            if (stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == boss_run_floors() - 1)
+                dobj_spawn_special(0, 6, p, sc6, 0.0f);
+            else
+                dobj_spawn_special(0, 8, p, sc8, 0.0f);
+        }
+        return;
+    }
+    for (int32_t row = 0; row < g_floor_h; row++) {
+        for (int32_t col = 0; col < g_floor_w; col++) {
+            const floor_room_t *rm = &g_floor_rooms[row * FLOOR_GRID_STRIDE + col];
+            if (rm->type == -1 || rm->var < 5) continue;
+            float p[3] = { spill32((long double)k3p5 - (long double)spill32((float)col) * k40), 0.0f,
+                           spill32((long double)spill32((float)-row) * k40) };
+            dobj_spawn_special(0, 8, p, sc8, 0.0f);
+            p[0] = spill32((long double)p[0] - k7);
+            dobj_spawn_special(1, 6, p, sc6, 0.0f);
+            return;
+        }
+    }
+    int found = 0;
+    for (int32_t row = 0; row < g_floor_h; row++) {
+        for (int32_t col = 0; col < g_floor_w; col++) {
+            if (g_floor_rooms[row * FLOOR_GRID_STRIDE + col].type == -1) continue;
+            const float p[3] = { spill32((long double)spill32((float)-col) * k40), 0.0f,
+                                 spill32((long double)spill32((float)-row) * k40) };
+            if (found) {
+                dobj_spawn_special(1, 6, p, sc6, 0.0f);
+                return;
+            }
+            dobj_spawn_special(0, 8, p, sc8, 0.0f);
+            found = 1;
+        }
+    }
+}
+
+/* FUN_0044d1e4: dungeon 1's floor setup (FUN_00436f97's dungeon arm): floor 14
+ * (Charme's), or a checkpoint floor's arena FUN_0044cc80(1); b8a4 = 0. */
+void dungeon1_stage_setup(void)
+{
+    g_dat_09643128 = 0;
+    g_scene1_camera_stage_class = 0;
+    const int32_t floor = stage_gate_get_next();
+    if (floor == 14) {
+        /* PORT-DEBT(stub, FUN_0044d1e4): floor 14 — the portals by the story
+         * bytes (work +0x2bc8d / +0x2bc8c, game mode 2), the party, Charme
+         * (type 25, state 8) — no recording reaches it. */
+    } else if (floor % 5 == 4) {
+        boss_floor_setup(1);
+    }
+    g_event_tick = 0;
+}
+
+/* FUN_0044d47d: dungeon 1's events — floor 14 (Charme), the checkpoint floors
+ * (b4cc % 5 == 4) through FUN_0044d0a4(1); every floor counts b8a4. */
+static void dungeon1_event_tick(void)
+{
+    const int32_t floor = stage_gate_get_next();
+    if (floor == 14) {
+        /* PORT-DEBT(stub, FUN_0044d47d): the floor-14 timeline (Charme, type 25,
+         * spawned at b8a4 60 with iv3_1; the camera swing, iv3_2, the fight, the
+         * fade, iv3_3 / iv3_8, the portals) — no recording reaches it, and
+         * Charme's AI FUN_0041fa6e is unported. */
+    } else if (floor % 5 == 4) {
+        boss_floor_event(1);
+    }
+    ++g_event_tick;
+}
+
 /* FUN_004427f1: the house's story cascade, or the dungeon's events. */
 void dungeon_event_tick(void)
 {
@@ -373,9 +584,12 @@ void dungeon_event_tick(void)
     case 0:
         dungeon0_event_tick();          /* FUN_0044c9ba */
         break;
+    case 1:
+        dungeon1_event_tick();          /* FUN_0044d47d */
+        break;
     default:
-        /* PORT-DEBT(stub, FUN_0044d47d): dungeons 1..5's events — FUN_0044d47d,
-         * the dungeon-2 arm inline in FUN_004427f1 (the b8a4 timeline on floors
+        /* PORT-DEBT(stub, FUN_004427f1): dungeons 2..5's events — the
+         * dungeon-2 arm inline in FUN_004427f1 (the b8a4 timeline on floors
          * 29 / 49), FUN_00450877, FUN_00451546. */
         break;
     }
