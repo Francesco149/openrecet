@@ -198,17 +198,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
        multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro,
        adv-guild-pack-leave, tear-lectures-gameover and debt-week1-paid are IDENTICAL in every
-       block at their ends; the dungeon runs' party blocks too. Left, all on the floors:
+       block at their ends, and so is dungeon0-full; the dungeon runs' party blocks too. Left,
+       all on the floors:
        - actor #0's +0x458..0x4d8 and +0x6fc..0x7dc (dungeon1-deep f77120): written while
          drawing — the D3DX code at 0x4d1dc3 / 0x4d32e1 and FUN_00404870's anchor matrices
          (callers 0x4552d0 / 0x456d48 / 0x459847, the draw loops); waits for the dungeon
          renderer;
-       - table B records of kind 0x56 (dungeon0-full #0..2 from f30222, dungeon1-deep #0):
-         dwords 6..22 rewritten in retail while both are otherwise frozen — find the writer
-         (a watch on 0x69324d8 in rhost would name it). dungeon1-charme f70000 shows the same on
-         free records (type 0: #0, #2 dwords 6..22; #10's 3×3 at +0xc8..0xec is a rotation about
-         another axis — compare the D3DX RotationX / Y thunk note in 1.); 27 dwords there, with
-         actor #0's +0x450.
+       - ✅ table B (2026-10-16): the "kind 0x56 rows" were the ground query's hit struct
+         (FUN_00432e50 writes into record +0x18) and the shared wall step LAB_00440dc1, whose
+         Path B kills every type but 0x1f; with the D3DX axis fix (34 sites) dungeon0-full is
+         IDENTICAL in every block at f44700 and dungeon1-charme / -deep differ only in actor #0's
+         draw-written fields (+0x450; +0x458..0x4d8 / +0x6fc..0x7dc).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).

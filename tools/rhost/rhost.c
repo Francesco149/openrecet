@@ -273,7 +273,7 @@ static void cov_dump(void)
 }
 
 /* ---- --watch-write: x86 debug-register write traps that name a global's writers ---- */
-static uint32_t g_ww_va[4]; static int g_ww_n; static uint32_t g_ww_from, g_ww_to = 0xffffffffu;
+static uint32_t g_ww_va[4]; static int g_ww_n; static int g_ww_exec[4]; static uint32_t g_ww_from, g_ww_to = 0xffffffffu;
 static FILE *g_ww_log; static long g_ww_lines;
 static int ww_stack_ok(uint32_t p)
 {
@@ -297,12 +297,18 @@ static LONG CALLBACK ww_veh(EXCEPTION_POINTERS *e)
             so += snprintf(st + so, sizeof st - so, " %08x", *(uint32_t *)(uintptr_t)(bp + 4));
             bp = *(uint32_t *)(uintptr_t)bp;
         }
-        fprintf(g_ww_log, "ww f%u %08x=%08x eip=%08x%s%s\n", g_frame, g_ww_va[i],
-                *(volatile uint32_t *)(uintptr_t)g_ww_va[i], (uint32_t)c->Eip, so ? " <" : "", st);
+        if (g_ww_exec[i])
+            fprintf(g_ww_log, "wx f%u %08x eax=%08x ecx=%08x edx=%08x esi=%08x edi=%08x%s%s\n", g_frame, g_ww_va[i],
+                    (uint32_t)c->Eax, (uint32_t)c->Ecx, (uint32_t)c->Edx, (uint32_t)c->Esi, (uint32_t)c->Edi,
+                    so ? " <" : "", st);
+        else
+            fprintf(g_ww_log, "ww f%u %08x=%08x eip=%08x%s%s\n", g_frame, g_ww_va[i],
+                    *(volatile uint32_t *)(uintptr_t)g_ww_va[i], (uint32_t)c->Eip, so ? " <" : "", st);
         if (++g_ww_lines % 256 == 0) fflush(g_ww_log);
     }
     c->Dr6 = 0;
     c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
+    c->EFlags |= 0x10000;   /* RF: an execute trap is a fault — don't re-fire on the same instruction */
     return EXCEPTION_CONTINUE_EXECUTION;
 }
 /* debug registers can't be set on the running thread: a helper thread suspends
@@ -315,7 +321,8 @@ static DWORD WINAPI ww_arm_helper(LPVOID p)
     c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
     DWORD ok = GetThreadContext(t, &c);
     DWORD dr7 = 0;
-    for (int i = 0; i < g_ww_n; i++) dr7 |= (1u << (2 * i)) | (0xdu << (16 + 4 * i));   /* L_i, R/W 01 write, LEN 11 dword */
+    for (int i = 0; i < g_ww_n; i++)   /* L_i; write: R/W 01 LEN 11 (dword); exec: R/W 00 LEN 00 */
+        dr7 |= (1u << (2 * i)) | ((g_ww_exec[i] ? 0u : 0xdu) << (16 + 4 * i));
     c.Dr0 = g_ww_va[0]; c.Dr1 = g_ww_va[1]; c.Dr2 = g_ww_va[2]; c.Dr3 = g_ww_va[3];
     c.Dr6 = 0; c.Dr7 = dr7;
     c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
@@ -526,7 +533,7 @@ static void usage(void)
                     "  [--flatten F] [--record F] [--realtime] [--dump-at F[,F|end]] [--hash-every N] [--log-every N]\n"
                     "  [--hook SPEC] [--coverage F] [--d3d-proxy DLL --cap FROM:COUNT] [--stall-ms N] [--tail N]\n"
                     "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n"
-                    "  [--watch-write VA[,VA..] (<= 4) [--ww-frames FROM:TO]]\n");
+                    "  [--watch-write VA[,VA..] --watch-exec VA[,VA..] (<= 4 in all) [--ww-frames FROM:TO]]\n");
     ExitProcess(2);
 }
 static void parse(int argc, char **argv)
@@ -566,6 +573,10 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--watch-write")) {   /* up to 4 dword VAs: log every write (x86 debug registers) */
             char b[128]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_ww_n < 4; t = strtok(NULL, ",")) g_ww_va[g_ww_n++] = strtoul(t, 0, 16) & ~3u;
+        }
+        else if (!strcmp(a, "--watch-exec")) {    /* code VAs sharing the 4 debug registers: log registers on execution */
+            char b[128]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && g_ww_n < 4; t = strtok(NULL, ",")) { g_ww_exec[g_ww_n] = 1; g_ww_va[g_ww_n++] = strtoul(t, 0, 16); }
         }
         else if (!strcmp(a, "--ww-frames")) { if (sscanf(ARG(), "%u:%u", &g_ww_from, &g_ww_to) != 2) usage(); }
         else if (!strcmp(a, "--d3d-proxy")) O.d3d_proxy = ARG();

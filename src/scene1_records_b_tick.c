@@ -5251,25 +5251,21 @@ static void body_entity_bounce_inner(int i, int32_t type)
     /* 2e. asm 0x440464-0x440474: types 0x56/0x96 take the inline ground-
      * bounce body and BYPASS the cull check + general SM cascade. */
     if (type == 0x56 || type == 0x96) {
-        /* asm 0x4405f3-0x440605: DRAG = -0.15. */
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, -0.15f);
-
-        /* asm 0x44060b-0x44061b: VEL_Y -= 0.01. */
-        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f;
+        /* asm 0x4405f3..0x44070e (x87: every store an m32 spill) */
+        static const float km0p15 = -0.15000000596046448f, k0p01 = 0.009999999776482582f;
+        static const float k0p05 = 0.05000000074505806f, k0p03 = 0.029999999329447746f;
+        static const float k0p3 = 0.30000001192092896f, km0p5 = -0.5f, k0p7 = 0.699999988079071f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, km0p15);
+        const float vy = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - k0p01);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
-
-        /* asm 0x44061e-0x440630: ROT_SCR += 0.05; ROT_Z += 0.03. */
-        float rot_scr =
-            slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.05f;
+        const float rot_scr = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + k0p05);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
-        float rot_z =
-            slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f;
+        const float rot_z = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + k0p03);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
 
-        /* asm 0x440632-0x44065c: MATRIX0 = RotY(ROT_Z) * RotX(ROT_SCR).
-         * Engine pushes (slot[MATRIX0], scratch, slot[MATRIX0]) — our
-         * `mat4_mul(out, a, b)` writes out = a * b, so the call matches
-         * scratch * slot[MATRIX0] = RotY(ROT_Z) * RotX(ROT_SCR). */
+        /* asm 0x440632-0x44065c: MATRIX0 = RotX(ROT_Z) × RotY(ROT_SCR)
+         * (0x4a35ef RotationY into MATRIX0, 0x4a3553 RotationX into the
+         * scratch, D3DXMatrixMultiply(MATRIX0, scratch, MATRIX0)). */
         int32_t *slot = slot_base(i);
         float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
         float scratch[16];
@@ -5277,46 +5273,33 @@ static void body_entity_bounce_inner(int i, int32_t type)
         mat4_rotation_x(scratch, rot_z);
         mat4_mul(mat0, scratch, mat0);
 
-        /* asm 0x44065d-0x4406ab: VEL_Y < 0 + ground hit + POS_Y <=
-         * ground+0.3 gate. */
-        int bounced = 0;
+        /* asm 0x44065d-0x44070e: falling, FUN_00432e50 writes its hit into
+         * the record (+0x18; the height at +0x24): at or under ground + 0.3
+         * the bounce — y snapped, vy · -0.5, vx / vz · 0.7, a count (+0x9c),
+         * the SE at the first, the kill at the second. */
         if (vy < 0.0f) {
-            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-            float gy = 0.0f;
-            if (ground_query(px, py, pz, &gy) == 1) {
-                float threshold = gy + 0.3f;
-                if (py <= threshold) {
-                    /* asm 0x4406ae-0x4406d8: snap POS_Y, damp velocity,
-                     * bounce_count++. */
-                    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
-                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy * -0.5f);
-                    float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
-                    float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.7f);
-                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.7f);
-                    int bc =
-                        slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) + 1;
+            if (ground_query_into(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X),
+                                  slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                                  slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), slot + 6) == 1) {
+                const float th = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_AUX_9) + k0p3);
+                if (!(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) > th)) {
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, th);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+                               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * km0p5));
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
+                               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * k0p7));
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
+                               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * k0p7));
+                    const int bc = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) + 1;
                     slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc);
-
-                    /* asm 0x4406de-0x4406fc: bounce_count == 1 → SE
-                     * (0x158 for 0x56, 0x168 for 0x96). */
-                    if (bc == 1) {
-                        se_play(type == 0x56 ? 0x158 : 0x168);
-                    }
-
-                    /* asm 0x4406fd-0x440706: bounce_count >= 2 → KILL
-                     * (skip SM + LAB_00440741). */
+                    if (bc == 1) se_play(type == 0x56 ? 0x158 : 0x168);
                     if (bc >= 2) {
                         scene1_records_b_tick_kill_slot(i);
                         return;
                     }
-                    bounced = 1;
                 }
             }
         }
-        (void)bounced;
 
         /* asm 0x440714: g_scene1_records_b_tick_flag = 1 always. */
         g_scene1_records_b_tick_flag = 1;
@@ -5337,10 +5320,12 @@ static void body_entity_bounce_inner(int i, int32_t type)
             slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc + 1);
         }
 
-        /* LAB_00440741: kill on AGE == 0x78 (else default-tail deferred). */
-        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+        /* LAB_00440741 (→ 0x4402a2): AGE 0x78 kills (0x43f73a), then the
+         * shared wall step LAB_00440dc1 either way (a dead slot returns at
+         * once) */
+        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78)
             scene1_records_b_tick_kill_slot(i);
-        }
+        scene1_records_b_run_lab_00440dc1(i);
         return;
     }
 
@@ -6231,10 +6216,10 @@ static void body_0x7c(int i)
  *       scene1_pfo_table_a_alloc_passthrough(owner_a, hit_pos, 1, 0.3,
  *                                            -1, 0.0, 0) + 0x44b255 + KILL.
  *
- * Path B specials:
- *   - 0xa0 → scene1_overlay_spawn(NULL, slot.pos, 0x14, 0.8, -1, 0.0, 0).
- *   - 0x1f → slot[AGE] = 0x70 (reset AGE to 0x70).
- *   - other types → no action (just falls through to next slot).
+ * Path B (a wall hit):
+ *   - 0xa0 → scene1_overlay_spawn(NULL, slot.pos, 0x14, 0.8, -1, 0.0, 0), KILL.
+ *   - 0x1f → slot[AGE] = 0x70 (reset AGE to 0x70), lives on.
+ *   - other types → KILL (0x4412a1 jne 0x43fbb9).
  *
  * Constants verified via tools/analyze/pe.py:
  *   0x5198d8 = 0.2     (back-step ray origin scale; also overlay_spawn arg)
@@ -6275,7 +6260,7 @@ void scene1_records_b_run_lab_00440dc1(int i)
          * Engine raycasts from current slot.POS with current slot.VEL
          * (no back-step), reads the same wall record flag, then for
          * TYPE 0xa0 spawns a different overlay; TYPE 0x1f resets AGE
-         * to 0x70.  No other TYPEs take any action in this path. */
+         * to 0x70 and lives on; every other type is killed. */
         float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
@@ -6298,21 +6283,26 @@ void scene1_records_b_run_lab_00440dc1(int i)
                           slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z),
                           0x14, 0.8f, -1, 0, 0, 0);
         }
+        /* 0x44129e: 0x1f lives on with AGE 0x70; every other type dies
+         * (jne 0x43fbb9) */
         if (type == 0x1f) {
             slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 0x70);
+            return;
         }
+        scene1_records_b_tick_kill_slot(i);
         return;
     }
 
     /* ── Path A: 0x440def — OWNER_A != 0.
      *
      * Ray origin = pos - 0.2 * vel (back-step); ray dir = vel. */
-    float ox = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X)
-             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * 0.2f;
-    float oy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y)
-             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * 0.2f;
-    float oz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z)
-             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * 0.2f;
+    static const float k0p2 = 0.20000000298023224f, k0p3 = 0.30000001192092896f;   /* 0x5198d8 / 0x5194ec */
+    float ox = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X)
+                       - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * k0p2);
+    float oy = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y)
+                       - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * k0p2);
+    float oz = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z)
+                       - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * k0p2);
     float dx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
     float dy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
     float dz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
@@ -6320,16 +6310,16 @@ void scene1_records_b_run_lab_00440dc1(int i)
     if (type == 0x58) {
         /* 0x440e33-0x440e87: type-0x58 substitutes (age-6) * vel * 0.3
          * + (pos - vel) for the ray origin. */
-        float f = (float)(slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) - 6);
-        float vxc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
-        float vyc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
-        float vzc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-        ox = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - vxc)
-           + f * vxc * 0.3f;
-        oy = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - vyc)
-           + f * vyc * 0.3f;
-        oz = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - vzc)
-           + f * vzc * 0.3f;
+        const float f = spill32((long double)(slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) - 6));
+        const float vxc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        const float vyc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        const float vzc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        ox = spill32(((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - vxc)
+                     + (long double)f * vxc * k0p3);
+        oy = spill32((long double)f * vyc * k0p3
+                     + ((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - vyc));
+        oz = spill32((long double)f * vzc * k0p3
+                     + ((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - vzc));
     }
 
     scene1_b_wall_ray_result_t ray;
@@ -6368,9 +6358,9 @@ void scene1_records_b_run_lab_00440dc1(int i)
 
     /* wall_id == 0: per-TYPE bounce particle response.
      * hit_pos = back_step_origin + out_t * direction. */
-    float hit_x = ox + ray.t * dx;
-    float hit_y = oy + ray.t * dy;
-    float hit_z = oz + ray.t * dz;
+    const float hit_x = spill32((long double)ray.t * dx + ox);
+    const float hit_y = spill32((long double)ray.t * dy + oy);
+    const float hit_z = spill32((long double)ray.t * dz + oz);
 
     /* TYPEs in {0x2, 0x54, 0x3, 0x4, 0x22, 0x67, 0x6d, 0x6e, 0x6f, 0x70}
      * → LAB_0044117a: scene1_spawn pair (0x29 + 0x2a, scale 0.2) +

@@ -7,6 +7,22 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — table B's hidden splits: the D3DX axes, the hit struct, the wall step's kill
+The floors' last hidden-state rows (FRONT's "kind 0x56" records) are gone:
+- an audit of every mat4_rotation_x / _y call against its retail thunk: 34 sites had X and Y
+  swapped (0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX; the port's comments had them
+  inverted); angles and multiply order were right everywhere (render matrices; 13 host tests
+  encoded the old axes);
+- new `rhost.py run X --extra "--watch-write VA[,..]"` / `--watch-exec VA[,..]`: debug-register
+  traps that log each write (value, eip, EBP-chain callers) or execution (registers). They
+  showed dwords 6..22 of the records are FUN_00432e50's hit struct (the 0x56 / 0x96 bounce and
+  the 0x2c body pass rec + 0x18), and that retail kills the record in the shared wall step
+  LAB_00440dc1: its Path B (owner A 0) kills every type but 0x1f — the port's left them alive;
+- the 0x56 / 0x96 bounce body rewritten on the disasm (x87 spills, the hit into the record, the
+  wall step after the AGE check); the wall step's Path A arithmetic made x87-explicit.
+dungeon0-full portblock f44700: every block IDENTICAL; dungeon1-charme f70000 / dungeon1-deep
+f77120: only actor #0's draw-written fields. Dungeon gate rows: 12 / 12 ok.
+
 ## 2026-10-16 — dungeon1-charme, tear-lectures-gameover, debt-week1-paid pass end to end
 Three native recordings from dungeon1-deep's end save (the last two renamed from
 dungeon1-charme2 / -charme3). **portrng IDENTICAL over every run** — dungeon1-charme f1–f70052

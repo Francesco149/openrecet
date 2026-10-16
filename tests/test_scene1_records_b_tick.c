@@ -9855,7 +9855,8 @@ int test_records_b_tick_dc1_path_b_type_a0_overlay_spawn(void)
     T_ASSERT(s_overlay_last.owner == NULL);
     T_ASSERT_EQ_I(s_overlay_last.type, 0x14);
     T_ASSERT(fabsf(s_overlay_last.scale - 0.8f) < 1e-5f);
-    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa0);  /* NOT killed */
+    /* 0x44129e: every Path B type but 0x1f dies after the hit (jne 0x43fbb9) */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     restore_overlay();
     return 0;
 }
