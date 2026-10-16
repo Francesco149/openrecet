@@ -1,0 +1,6 @@
+# debt-week1-paid (recorded as dungeon1-charme3) — human recording 2026-10-16
+# (rhost.py record --from dungeon1-deep). Shop days up to the week-1 deadline; the first
+# debt installment is paid; play goes on; a save is written. 34898 frames.
+# det -n 2 PASS. portrng IDENTICAL f1–f34898, portblock end IDENTICAL, portsave IDENTICAL.
+description: |
+  Shop days → week-1 debt paid → the next week; ends saved.

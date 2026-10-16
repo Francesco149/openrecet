@@ -187,6 +187,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (FUN_00468ddc). portstate mode / guild / bag VAs identical f1–f17745; portshots 7
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
+  - ✅ **Tear's menu + the adventurer's want panel** (PROGRESS 2026-10-16, quirk §154): the be7c
+    talk arm, cc08 15 / 16 / 17 / 18 / 30 (her note, the lectures, the arrangements), and
+    FUN_0046602e's render-written hint slot. **tear-lectures-gameover: portrng IDENTICAL
+    f1–f18457, every block IDENTICAL at the end; debt-week1-paid (the week-1 debt paid): portrng
+    IDENTICAL f1–f34898 + portsave IDENTICAL.** Render: the menu / note / lecture / arrangement
+    windows and the want panel are not drawn (`PORT-DEBT(render-coupled, FUN_00409925)`).
   - ✅ **The house walk + the game over** (PROGRESS 2026-10-16): FUN_0048b850 drives the
     house too; the payment verdict scripts, mode 2 (FUN_0049d8a4, FUN_0049d55c's restart
     reset) and the restarted house. **`debt-gameover-restart`: portrng IDENTICAL over the
@@ -197,8 +203,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        floors 1..5, the crown-slime boss, home, a save: portrng IDENTICAL f1–f46347 +
        portsave IDENTICAL)**, **dungeon1-run (the party falls at the boss: portrng IDENTICAL
        f1–f45646)**, **dungeon1-deep (from dungeon1-run2's save: the guild, floors 6..10,
-       the mushroom king, home: portrng IDENTICAL f1–f77136 + portsave IDENTICAL)**; all in
-       `gates`. Next needs recordings of floors 11..15 (Charme) and dungeons 2+ (Human queue).
+       the mushroom king, home: portrng IDENTICAL f1–f77136 + portsave IDENTICAL)**,
+       **dungeon1-charme (the title's attract movie, floors 11..15, Charme's fight on floor 15,
+       the party falls: portrng IDENTICAL f1–f70052)**; all in `gates`. Next needs the dungeon-1
+       clear (Charme beaten) and dungeons 2+ (Human queue).
        Known, not RNG-visible yet:
        - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
          the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
@@ -216,28 +224,30 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - the cinematic camera FUN_004426a7 writes the class-1 eye / lookat, but the semantic
          FUN_00441c3e has no class-1 arm (render only); DAT_0438bec4 has no port reader;
        Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (done: slimes
-       0–5, bees 10..12, mushrooms 13/14 + their burrow arms, kobold 16, fliers 17..21 /
-       56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60), the
-       golem parts / multi-part anchors, FUN_0042e791 types 25/28/41/73, FUN_0042df55's
+       0–5, bats 6..9, bees 10..12, mushrooms 13/14 + their burrow arms, kobold 16, fliers 17..21 /
+       56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60, Charme 25, 44..48), the
+       golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
-       arms (25/27/28/41/61..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeon 1's
-       floor 14 (FUN_0044d47d / FUN_0044d1e4's Charme timeline + FUN_0041fa6e), dungeons
+       arms (25/27/28/41/61..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, Charme's
+       death arm (FUN_0042f7ad 25: no recording beats her yet), dungeons
        2..5's events / setups (FUN_0044d9d3 …, FUN_00450877, FUN_00451546); render: no
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
     2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
-       multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro and
-       adv-guild-pack-leave are IDENTICAL in every block at their ends; the dungeon runs' party
-       blocks too. Left, all on the floors:
+       multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro,
+       adv-guild-pack-leave, tear-lectures-gameover and debt-week1-paid are IDENTICAL in every
+       block at their ends; the dungeon runs' party blocks too. Left, all on the floors:
        - actor #0's +0x458..0x4d8 and +0x6fc..0x7dc (dungeon1-deep f77120): written while
          drawing — the D3DX code at 0x4d1dc3 / 0x4d32e1 and FUN_00404870's anchor matrices
          (callers 0x4552d0 / 0x456d48 / 0x459847, the draw loops); waits for the dungeon
          renderer;
        - table B records of kind 0x56 (dungeon0-full #0..2 from f30222, dungeon1-deep #0):
          dwords 6..22 rewritten in retail while both are otherwise frozen — find the writer
-         (a watch on 0x69324d8 in rhost would name it).
-       Also open: the Tear talk arm (be7c + Z → cc08 15..18, 30; no recording talks to her).
+         (a watch on 0x69324d8 in rhost would name it). dungeon1-charme f70000 shows the same on
+         free records (type 0: #0, #2 dwords 6..22; #10's 3×3 at +0xc8..0xec is a rotation about
+         another axis — compare the D3DX RotationX / Y thunk note in 1.); 27 dwords there, with
+         actor #0's +0x450.
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
@@ -261,9 +271,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
-  each: portsave ×9 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep),
-  portanchors ×2, portrng over 12 shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
-  dungeon1-run / -run2 / -deep + adv-guild-pack-leave, each to the retail run's end.  Don't build the port while it runs (each row uploads
+  each: portsave ×10 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep,
+  debt-week1-paid), portanchors ×2, portrng over 12 shop/day scenarios (incl. debt-gameover-restart)
+  + dungeon0-floors-save / -full / -wipe, dungeon1-run / -run2 / -deep / -charme, adv-guild-pack-leave,
+  tear-lectures-gameover, debt-week1-paid, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
@@ -303,14 +314,15 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record dungeon 1's floors 11..15 and dungeon 2** (unblocks Charme's fight on floor 15, the
-  floor-14 timeline, dungeon 2's enemies, traps and events; floors 1..10 + both bosses are done
-  end to end). On maximus, the user plays on the Windows desktop:
-  `python3 tools/rhost/rhost.py record dungeon1-charme --from dungeon1-deep` (replays
-  dungeon1-deep, ~70 s, and starts from the save it ends with). At the title, Load the newest
-  slot. Play: guild → dungeon 1 → start from the deepest floor offered (11), fight on to floor 15
-  (Charme) and through her fight; then, if dungeon 2 is open, a second recording
-  `record dungeon2-run --from dungeon1-charme`: guild → dungeon 2, every enemy kind, a chest, an
+- **Record the dungeon-1 clear, then dungeon 2** (unblocks Charme's death arm, the clear /
+  results flow after her, dungeon 2's enemies, traps and events; dungeon 1 floors 1..15 incl.
+  Charme's fight are done end to end). On maximus, the user plays on the Windows desktop:
+  `python3 tools/rhost/rhost.py record dungeon1-clear --from debt-week1-paid` (replays
+  debt-week1-paid, ~40 s, and starts from the save it ends with; `--from dungeon1-deep` works
+  too). At the title, Load the newest slot (press a key within ~2 min, or the attract movie
+  plays — harmless, now ported). Play: guild → dungeon 1 → start from floor 11 → beat Charme on
+  floor 15 → her dialogue + the clear → home → save. Then, if dungeon 2 is open,
+  `record dungeon2-run --from dungeon1-clear`: guild → dungeon 2, every enemy kind, a chest, an
   item from the pause menu (incl. the Equip entry), the exit or the boss, home.
 
 ## Where to read next

@@ -1,0 +1,7 @@
+# tear-lectures-gameover (recorded as dungeon1-charme2) — human recording 2026-10-16
+# (rhost.py record --from dungeon1-deep). Shop days with haggling (an adventurer customer:
+# FUN_0046602e's item-want panel), talking to Tear (cc08 15: her note, the lectures list
+# cc08 18, the arrangements cc08 30), the week's debt unpaid → game over. No save written.
+# 18457 frames. det -n 2 PASS. portrng IDENTICAL f1–f18457, portblock end IDENTICAL.
+description: |
+  Shop days + adventurer customer; Tear's menu (note, lectures, arrangements); game over.

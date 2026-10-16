@@ -248,6 +248,10 @@ which D3DX revision actually expanded the buffer.
 
 ## 13. The opening movie plays via `mciSendString`
 
+> **Corrected 2026-10-16 (§153):** wrong — no code calls `mciSendString`. FUN_0040cc87 builds a
+> DirectShow filter graph (CLSID_FilterGraph e436ebb3-…, IID_IGraphBuilder 56a868a9-…); the title
+> opens it after 7140 idle ticks. The text below is the original guess.
+
 `recet_op.wmv` is the EGS logo intro.  The engine opens it with
 **`mciSendString("open … type mpegvideo")`**, an MCI command-string
 API that was already feeling vintage in 2007 and now triggers a
@@ -5167,6 +5171,29 @@ arm, reaching −x (behind her). −π/2 (→ −5, the else arm: −x), 0 (→ 
 are exact.
 Seen: `debt-gameover-restart` f2700 (the legacy walker's exact π/2) → f7383 (retail opens the
 display-stand menu on cell 3/4; the old port faced no cell).
+
+## 153. The title plays its attract movie after 7140 idle ticks — and the whole sim waits on it
+
+The title's main-menu counter DAT_09643518 counts every tick the menu is up; from 7110 the
+cursor stops taking input (a white fade starts in the render), and at 7140 FUN_0049a59e calls
+FUN_0040cc87("recet_op.wmv"): a DirectShow graph (CLSID_FilterGraph → IMediaControl,
+IVideoWindow child of the game window, IMediaEvent, IBasicAudio), not MCI. Success sets
+DAT_006483bc = 1 and returns 1; failure resets the BGM id DAT_005d1960 = −1 and the counter to 0.
+While the graph exists FUN_004536cb returns right after the button ring (FUN_0040cea6 polls
+`WaitForCompletion(0)` and sets the volume every tick): **no sim runs during the movie**. A
+(pressed 0x10) stops it (FUN_0040ce0d) and restarts the counter; so does EC_COMPLETE — which
+is wall-clock, so how long the movie lasts in ticks depends on the frame rate (rhost: ~1000 fps).
+Recorded: `dungeon1-charme` (movie f7140 .. the A press f10915).
+
+## 154. The customer-service render writes sim state (FUN_0046602e's item-want panel)
+
+FUN_0046602e is a render function (FUN_00409925 → FUN_0040a765), yet for an adventurer
+customer (b56c 2..9) with the panel up (b5a0 != 0 or b5d0 == 2) it computes which request slot
+the offered item would upgrade and writes **DAT_005c6c34** (the hint slot, −1 else) and
+**`request[slot] |= 0x20`** (the rare bit) into the work record. FUN_00460b93 (the equip
+upgrade at the sale) reads the hint: with one set, the bought item goes into that slot
+whatever the per-slot test says. A port that skips the panel's draw loses the upgrade.
+Recorded: `tear-lectures-gameover` f12730 (Louie's accessory slot 4).
 
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11

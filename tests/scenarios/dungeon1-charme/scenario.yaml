@@ -1,0 +1,8 @@
+# dungeon1-charme — human recording 2026-10-16 (rhost.py record --from dungeon1-deep, Windows,
+# keyboard). Load the newest slot; idles >7140 frames at the title, so the attract movie
+# (recet_op.wmv, f7140) plays until the A press at f10915; guild → dungeon 1 from floor 11,
+# floors 11..14 (types 6..9, 44..48), floor 15 (b4cc 14) = Charme (FUN_0044d47d's timeline, her AI
+# FUN_0041fa6e); the party falls in her fight. No save written. 70052 frames.
+# det -n 2 PASS (205 volatile slots). portrng IDENTICAL f1–f70052 (2026-10-16).
+description: |
+  Title attract movie; dungeon 1 floors 11..15; Charme's floor-15 fight (the party falls).

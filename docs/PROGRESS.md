@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — dungeon1-charme, tear-lectures-gameover, debt-week1-paid pass end to end
+Three native recordings from dungeon1-deep's end save (the last two renamed from
+dungeon1-charme2 / -charme3). **portrng IDENTICAL over every run** — dungeon1-charme f1–f70052
+(181,001 draws), tear-lectures-gameover f1–f18457 (73,829), debt-week1-paid f1–f34898 (135,085);
+portblock at the ends: tear-lectures-gameover and debt-week1-paid every block IDENTICAL;
+**debt-week1-paid portsave IDENTICAL**. All `det -n 2` PASS; all in `gates`. Splits closed:
+- dungeon1-charme f11254 (the port made no move after the title): the user idled 7140 ticks at
+  the title, and retail played the attract movie (quirk §153). Ported FUN_0040cc87 /
+  FUN_0040cea6 / FUN_0040ce0d on DirectShow (`src/movie.c`), the 7140 trigger and
+  FUN_004536cb's movie gate (A stops it). Quirk §13's "mciSendString" was wrong;
+- f17582: enemy types 6..9 (FUN_0042ce17, the bobbing flier on the line-up step; FUN_00424509,
+  the +0xae4 3 drift); f19286: types 44..48 (FUN_00427f59, five tunings of the lunge);
+- f63115: dungeon 1's floor 15 (b4cc 14) — FUN_0044d1e4's arm (the portals by +0x2bc8d, the party, Charme
+  waiting on a later visit) and FUN_0044d47d's timeline (stages 0..7: her entrance, the camera
+  swing, the fight, the fade, iv3_1 / 2 / 3 / 8, the portals rise), Charme's AI FUN_0041fa6e
+  (type 25: stalk / slash / spin / dash / flee after 3 hits) with her voice FUN_004976ae and the
+  shared 24-pick voice bag FUN_0049a2a9 (`voice_bag8`, next to FUN_00499fda's `voice_bag2`);
+- f64940: the bosses' hit counters in FUN_0042e791 (FUN_0041fa37 / 0042460a / 00425bff, type
+  73's FUN_00420591 HP floor);
+- tear-lectures-gameover f5345: Tear's menu — the be7c talk arm (cc08 15, her "Yes? What is
+  it?" line, one rand for the voice) and FUN_0048670f's cases 15 / 16 / 17 / 18 / 30 (her note,
+  the lectures list over DAT_005291c0's levels, the shop arrangements → FUN_00461bf6), with
+  FUN_00436f97 zeroing b8c0 / b8c4 / b8c8;
+- its last hidden split (f12730, Louie's accessory slot): FUN_0046602e — a render function —
+  computes the upgrade-hint slot DAT_005c6c34 and sets the request slot's rare bit (quirk §154);
+  the port runs that part (`customer_service_want_panel_tick`) where it draws the panel.
+debt-week1-paid passed once the above landed (its split was the same Tear arm).
+Tools: state_va rows cc10, b750, b8c0, b8c4, b8c8; `save_bank_starter_item` (FUN_0048ff7e).
+
 ## 2026-10-16 — the pause's Equip screen; equip checks read the equip class
 adv-guild-pack-leave's last hidden split (the pause cursors from f18961, chara 0's weapon at
 f19126) was the stubbed Equip screen. Ported: FUN_004802cf (the 6-row slot list — row 0
