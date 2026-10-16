@@ -946,6 +946,13 @@ static void party_skill_louie(void)
 /* DAT_00648290 / 648294 / 648250: the "got an item" notice (FUN_0040c923) */
 int32_t g_got_item, g_got_item_on, g_got_item_bubble;
 
+/* FUN_00406584 (LABEL_31): the got-item window closes 120 ticks after it opened */
+void party_got_item_tick(void)
+{
+    if (g_got_item_on != 0 && ++g_got_item_on == 120)
+        g_got_item_on = 0;
+}
+
 /* FUN_00484da3: the item into the first free bag slot of `cap` (0 = full) */
 int party_bag_add(int32_t item, int32_t cap)
 {

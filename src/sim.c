@@ -49,6 +49,7 @@
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
 #include "scene_gameover.h" /* FUN_0049d8a4 — mode 2 */
+#include "dungeon_party.h"  /* FUN_00406584: the got-item window */
 #include "scene_day_end.h"  /* day_end_tick — pause action 1 (FUN_0048dbfb) */
 #include "dungeon_results.h" /* pause action 2 (FUN_0048f931) */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
@@ -599,6 +600,7 @@ void sim_step_a(void)
          * accumulated; without this the port's bob would be frozen at the
          * stale title-scene value (a visible cursor-position divergence on
          * the skip prompt). */
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         /* FUN_00406584's money rolling-counter (all.c:4849-4870, AFTER the
          * FUN_004356cd cursor tick): DAT_0438b918 eases toward the bank gold,
@@ -646,6 +648,7 @@ void sim_step_a(void)
          * advances is consumed by the destination-pointer render. */
         speech_bubble_tick();            /* FUN_00406584 head (all.c:4615) */
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         /* FUN_00406584 mode-8 selector (all.c:4776): set the travel-time tooltip
          * band from the destination under the cursor + ramp its slide-in.  Runs
@@ -667,6 +670,7 @@ void sim_step_a(void)
         speech_bubble_tick();
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();     /* DAT_00529704 = 0 outside modes 1 / 8 */
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         hud_xp_shake_money_tick();
         scene1_particles_tick();
@@ -679,6 +683,7 @@ void sim_step_a(void)
         speech_bubble_tick();
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         hud_xp_shake_money_tick();
         scene1_particles_tick();
@@ -695,6 +700,7 @@ void sim_step_a(void)
         speech_bubble_tick();
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         hud_xp_shake_money_tick();
         scene1_particles_tick();
@@ -708,6 +714,7 @@ void sim_step_a(void)
         speech_bubble_tick();
         dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
         scene1_top_hud_tooltip_off();
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
         title_save_dialog_anim_tick();
         hud_xp_shake_money_tick();
         scene1_particles_tick();

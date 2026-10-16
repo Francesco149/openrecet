@@ -413,6 +413,7 @@ void scene1_postload_stage_entry_init(void)
     scene1_top_hud_tooltip_house_entry();
     speech_bubble_reset();
     g_title_banner = g_title_banner_len = g_title_banner_kind = 0;   /* FUN_004060ff's part */
+    g_got_item_on = 0;                   /* DAT_00648294 */
     player_ctrl_cc08_enter_freeroam();
     player_ctrl_tear_reach_reset();      /* DAT_0438be7c = 0, be80 = 1 */
     /* b8a0 = b8a4 = 0 (the per-dungeon event stage / counter; b8a0 was 1

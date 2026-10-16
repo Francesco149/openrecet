@@ -210,7 +210,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - the camera pose FUN_00441c3e is still the semantic port (C floats, not the disasm);
          actor +0x450 (the view depth the kobold's FUN_0049065b reads) matched at f10736 once
          the hit-pause hold and the b7ac blend landed — re-check when a split points there;
-       - DAT_00648294 (the got-item window) is never cleared; the notice side DAT_0438b760
+       - the notice side DAT_0438b760
          (Tear's screen x < 320, FUN_00490c78) is render-coupled (dungeon1-run2 f31406);
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
        - the cinematic camera FUN_004426a7 writes the class-1 eye / lookat, but the semantic
@@ -229,8 +229,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
        multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro and
        adv-guild-pack-leave are IDENTICAL in every block at their ends. Left: dungeon0-full
-       f44730 table B 27 dwords + DAT_00648294; dungeon1-deep f77120 party 90 / actors 44 /
-       table B 16 + DAT_00648294. Find each one's first frame with `portstate --va`, fix from
+       f44730 table B records #0..2 (kind 0x56, live, frozen in both until retail rewrites
+       dwords 6..22 — anim counters / weights — at f30222 / f30226: a multi-part actor's
+       anim path, likely the stubbed multi-part anchors); dungeon1-deep f77120 party 90 /
+       actors 44 / table B 16. Find each one's first frame with `portstate --va`, fix from
        the disasm.
        Also open: the Tear talk arm (be7c + Z → cc08 15..18, 30; no recording talks to her).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
