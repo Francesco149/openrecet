@@ -228,11 +228,8 @@ static int32_t s_price_bc4 = 5;         /* DAT_005c6bc4 — item count (base = r
 static int32_t s_price_bc8 = -1;        /* DAT_005c6bc8 — alt item handle (-1 = none) */
 static int32_t s_price_cursor = 1;      /* DAT_005c6bcc — item-pick cursor */
 /* DAT_005c6c34 — adventurer upgrade-hint slot (0..4, .data init -1), read by
- * FUN_00460b93 (cs_adventurer_equip_upgrade).
- * PORT-DEBT(hardcode, FUN_0046602e): always -1 in the port — its only writer,
- * the upgrade check inside the haggle render FUN_0046602e (IDA sub_46602E:
- * -1, then the best slot when bought*1.5 > equipped total), is unported, so
- * FUN_00460b93's forced hint-slot write never fires outside host tests. */
+ * FUN_00460b93 (cs_adventurer_equip_upgrade); written by the haggle render
+ * FUN_0046602e (customer_service_want_panel_tick, quirk §154). */
 static int32_t s_equip_hint_slot = -1;
 
 /* customer-service-active global (DAT_0438b7b0) — set 1 on session init. */

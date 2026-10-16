@@ -559,6 +559,37 @@ void actor_dying(actor_t *a)
     const int32_t t = ++AI(a, 0xaf0);
     AF(a, 0x400) = spill32((long double)AF(a, 0x400) - (AI(a, 0xb98) == 1 ? k0p025 : k0p05));
     switch (type) {
+    case 25: {
+        /* Charme beaten: the slow-mo (becc 120) and DAT_056db0f4 1200 at 1.  In
+         * dungeon 5 she fades (+0x3dc - 16 from 60) and frees; on floor 15 she
+         * stays for the scene — event stage 5 holds her 3 left / 1.5 back of the
+         * start facing +x, stage 6 shrinks her away (+0xac0 - 0.05, +0xac4 + 0.2,
+         * rising b8a4 · 0.25) until +0xac0 drops below 0 */
+        static const float k3 = 3.0f, k1p5 = 1.5f, k0p2 = 0.20000000298023224f, k0p25 = 0.25f;
+        if (t == 1) {
+            g_dat_0438becc = 120;
+            PW(0x56db0f4u).i = 1200;
+        }
+        if (g_scene1_combat_stage_id == 5) {
+            if (t >= 60 && (AI(a, 0x3dc) -= 16) < 0) AI(a, ACT_INUSE) = 0;
+            return;
+        }
+        if (g_event_stage == 5) {
+            AF(a, 0x3f0) = spill32((long double)g_scene1_stage_player_default_pos[0] - k3);
+            AF(a, 0x3f4) = g_scene1_stage_player_default_pos[1];
+            AF(a, 0x3f8) = spill32((long double)g_scene1_stage_player_default_pos[2] - k1p5);
+            actor_anim_set(a, 0);
+            AI(a, 0x18) = 2;
+            AF(a, 0x420) = k_pi2;
+        }
+        if (g_event_stage != 6) return;
+        const float sxz = spill32((long double)AF(a, 0xac0) - k0p05);
+        AF(a, 0xac0) = sxz;
+        AF(a, 0xac4) = spill32((long double)AF(a, 0xac4) + k0p2);
+        AF(a, 0x3f4) = spill32((long double)spill32((long double)g_event_tick) * k0p25);
+        if (sxz < 0.0f) AI(a, ACT_INUSE) = 0;
+        return;
+    }
     case 23: case 49: case 54: case 55:
         /* the crown slime / the black knight / the boss ahriman / the pumpkin
          * ghost: a 120-tick burst; the last of its kind takes the floor down */
@@ -636,7 +667,7 @@ void actor_dying(actor_t *a)
         }
         return;
     }
-    case 25: case 27: case 28:
+    case 27: case 28:
     case 41: case 61: case 64: case 67:
     case 68: case 69: case 70: case 71: case 73: case 74:
         /* PORT-DEBT(stub, FUN_0042f7ad): the other bosses' / special enemies'

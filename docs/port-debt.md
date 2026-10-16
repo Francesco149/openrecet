@@ -11,15 +11,15 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **82**
-- distinct retiring engine functions: **63**
+- total open debts: **81**
+- distinct retiring engine functions: **62**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 58 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
-| hardcode | 2 | fixed constant where the engine computes/sources it |
+| hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
@@ -68,7 +68,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044f078 | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
-| FUN_0046602e | 1 |
 | FUN_004682ee | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
@@ -172,11 +171,10 @@ _none_
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:391 | sim_loading_pump() |
 
-## hardcode (2)
+## hardcode (1)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_0046602e | src/customer_service.c:232 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:52 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
