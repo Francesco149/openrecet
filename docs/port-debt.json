@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 78,
+  "total": 76,
   "by_kind": {
-   "stub": 57,
+   "stub": 55,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 61,
+  "retiring_engine_fns": 59,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -68,8 +68,6 @@
    "FUN_00473c03": 1,
    "FUN_0047f46a": 1,
    "FUN_0048196b": 1,
-   "FUN_004855e2": 1,
-   "FUN_00485712": 1,
    "FUN_00485c74": 1,
    "FUN_004864fd": 1,
    "FUN_0048670f cc04 2": 1,
@@ -277,7 +275,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the boost aura (types 24 / 22)",
    "file": "src/dungeon_party.c",
-   "line": 1565,
+   "line": 1586,
    "kind_known": true
   },
   {
@@ -453,7 +451,7 @@
    "engine_fn": "FUN_0044376a",
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
-   "line": 1642,
+   "line": 1663,
    "kind_known": true
   },
   {
@@ -477,7 +475,7 @@
    "engine_fn": "FUN_0044f078",
    "desc": "dungeon 4 floor 99's event helper",
    "file": "src/dungeon_party.c",
-   "line": 650,
+   "line": 651,
    "kind_known": true
   },
   {
@@ -525,7 +523,7 @@
    "engine_fn": "FUN_004708f7",
    "desc": "the event-window pair (chars 0x2f / 0x30)",
    "file": "src/dungeon_party.c",
-   "line": 655,
+   "line": 656,
    "kind_known": true
   },
   {
@@ -558,22 +556,6 @@
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
    "line": 255,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_004855e2",
-   "desc": "the accessory-break follow-up",
-   "file": "src/dungeon_party.c",
-   "line": 501,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00485712",
-   "desc": "the status-guard accessory 2504 (the",
-   "file": "src/dungeon_party.c",
-   "line": 498,
    "kind_known": true
   },
   {
@@ -613,7 +595,7 @@
    "engine_fn": "FUN_00489e66",
    "desc": "the dash (double-tap, db034 / db03c /",
    "file": "src/dungeon_party.c",
-   "line": 704,
+   "line": 705,
    "kind_known": true
   },
   {
@@ -629,7 +611,7 @@
    "engine_fn": "FUN_0048b850",
    "desc": "the water splash after the move (hit",
    "file": "src/dungeon_party.c",
-   "line": 1571,
+   "line": 1592,
    "kind_known": true
   },
   {
@@ -637,7 +619,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 1568,
+   "line": 1589,
    "kind_known": true
   },
   {
@@ -645,7 +627,7 @@
    "engine_fn": "FUN_0048b850 trail",
    "desc": "the orbiting after-images",
    "file": "src/dungeon_party.c",
-   "line": 1645,
+   "line": 1666,
    "kind_known": true
   },
   {
@@ -653,7 +635,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the dash's wall bonk (a ray 1.4 ahead)",
    "file": "src/dungeon_party.c",
-   "line": 1240,
+   "line": 1261,
    "kind_known": true
   },
   {
@@ -661,7 +643,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' swings (FUN_004977df,",
    "file": "src/dungeon_party.c",
-   "line": 1285,
+   "line": 1306,
    "kind_known": true
   },
   {
@@ -669,7 +651,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' skill 4",
    "file": "src/dungeon_party.c",
-   "line": 1297,
+   "line": 1318,
    "kind_known": true
   },
   {
@@ -677,7 +659,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the skill states 3, 5..8 by char",
    "file": "src/dungeon_party.c",
-   "line": 1307,
+   "line": 1328,
    "kind_known": true
   },
   {
@@ -685,7 +667,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "char 42's gauge refill + the random",
    "file": "src/dungeon_party.c",
-   "line": 755,
+   "line": 756,
    "kind_known": true
   },
   {
@@ -693,7 +675,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "the skill cycle (DAT_0438b7dc, SE 326)",
    "file": "src/dungeon_party.c",
-   "line": 762,
+   "line": 763,
    "kind_known": true
   },
   {

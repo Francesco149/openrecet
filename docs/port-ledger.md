@@ -612,7 +612,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4852fb | FUN_004852fb | 280 | ✓ |  | scene1_actor_say.h, scene1_camera.h, scene1_conversation_pose.c (+8) |
 | 0x485413 | FUN_00485413 | 55 | ✓ |  | record_hit.c, scene1_actor_say.h, scene1_combat_sm.h |
 | 0x48544a | FUN_0048544a | 408 | ✓ |  | scene1_actor_say.h |
-| 0x4855e2 | FUN_004855e2 | 245 | ✓ |  | dungeon_party.c |
+| 0x4855e2 | FUN_004855e2 | 245 | ✓ |  | dungeon_party.c, dungeon_party.h |
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ |  | dungeon_party.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ |  | dungeon_party.c, dungeon_party.h, record_hit.c (+3) |
 | 0x48584f | FUN_0048584f | 18 | ✓ |  | record_hit.c |

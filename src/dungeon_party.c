@@ -494,12 +494,13 @@ void party_status_tick(void)
     if (PW(0x56db100u).i > 0) { --PW(0x56db100u).i; ticked = 1; }
     if (PW(0x56db104u).i > 0) { --PW(0x56db104u).i; ticked = 1; }
     if (PW(0x56db0fcu).i > 0) { --PW(0x56db0fcu).i; ticked = 1; }
-    if (ticked) {
-        /* PORT-DEBT(stub, FUN_00485712): the status-guard accessory 2504 (the
-         * proc chance draws rand) — returns 0 without it */
+    /* the status guard (accessory 2504): a running status ends at once */
+    if (ticked && party_accessory_proc(2504, 5, 30)) {           /* FUN_00485712 */
+        PW(0x56db100u).i = 0;
+        PW(0x56db104u).i = 0;
+        PW(0x56db0fcu).i = 0;
     }
-    /* PORT-DEBT(stub, FUN_004855e2): the accessory-break follow-up
-     * (DAT_074b2ec8 > 0) */
+    party_broke_tick();                                          /* FUN_004855e2 */
     int32_t end = 0;
     for (int k = 0; k < 4; k++) {
         const uint32_t va = 0x56db010u + 4u * (uint32_t)k;
@@ -786,6 +787,26 @@ static void party_attack_input(void)
  * accessory (DAT_074b2ec8 / cc) */
 int32_t g_notice_item, g_notice_kind, g_notice_side, g_notice_on, g_notice_ticks, g_notice_b76c;
 int32_t g_broke_on, g_broke_item;
+
+/* FUN_004855e2: 30 ticks after an accessory broke (DAT_074b2ec8), the burst
+ * 10, SE 331 and "%s has broken!" over Tear (b76c 5, the item DAT_074b2ecc) */
+void party_broke_tick(void)
+{
+    if (g_broke_on > 0 && ++g_broke_on == 30) {
+        g_broke_on = 0;
+        scene1_pfo_table_a_alloc_passthrough((int)(intptr_t)&g_party, 0.0f, 2.0f, 0.0f, 10,
+                                              1.2999999523162842f, -1, 0, 1);   /* FUN_0041331d */
+        audio_play_se_by_id(331);
+        const float sx = actor_screen_x(g_party.pos[2][0], g_party.pos[2][1], g_party.pos[2][2]);
+        g_notice_on = 1;
+        g_notice_kind = 2;
+        g_notice_b76c = 5;
+        g_notice_ticks = 90;
+        g_notice_item = g_broke_item;
+        g_notice_side = sx < 320.0f;
+        g_scene1_combat_dat_0438bed8 = 30;
+    }
+}
 
 /* FUN_00485712: the active chara wears item `id`? — then the proc: a
  * 1-in-`brk` chance it breaks (into 0x27140), the burst 9, SE 381, the notice,
