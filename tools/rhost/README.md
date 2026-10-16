@@ -21,6 +21,7 @@ python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick
 python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first differing tick draw by draw
 python3 tools/rhost/rhost.py portstate X --va 438bef4,438bf24 --changes   # every frame a VA changes, both sides
 python3 tools/rhost/rhost.py portblock X --at 29806          # every dword of the layout blocks + work bank
+python3 tools/rhost/rhost.py run X --extra "--watch-write 69324d8 --ww-frames 40000:50000"   # name every writer of a dword
 ```
 `record --save` takes a `_saves` sha (a unique prefix will do), a path, or a scenario name
 (the save that scenario starts from). `record --from X` replays X in rhost to its end and
@@ -28,6 +29,11 @@ starts from the save.dat X commits, stored content-addressed in `tests/scenarios
 (user data, gitignored). The new trace's `savefile` points at that blob, with a
 `# save: the one X ends with` comment line under it. This is how saves chain: dungeon 0
 starts from buy-from-seller-guild-intro's end save, dungeon 1 from dungeon0-full's.
+
+`--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
+thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:
+`ww fN VA=newvalue eip=<after the store> < return addresses` (the EBP chain); `--ww-frames A:B`
+limits the log. The traps don't touch retail memory; `run` fetches the log.
 
 `portblock` compares, at one frame, retail's `--dump-at` memory against the port's
 `--block-dump` (src/state_va.c): the party block, the actor table, the stage objects,

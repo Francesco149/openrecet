@@ -363,7 +363,7 @@ def cmd_run(a):
     else:
         runs = resolve_runs(a.scenarios)
     a.flatten_out = False
-    fetch = ("rhost.log", "coverage.txt", "shot_*.png") + (("state_*.rhs",) if a.dump_at else ())
+    fetch = ("rhost.log", "coverage.txt", "shot_*.png", "watchwrite.log") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
     print_results(res, [r[0] for r in runs])
 

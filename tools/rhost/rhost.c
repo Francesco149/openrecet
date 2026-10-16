@@ -127,12 +127,14 @@ static uint32_t __attribute__((noinline)) call_on_stack(void *fn, void *arg, uin
 }
 
 /* ---- threads: deferred loader workers ---- */
+static void ww_arm_thread(void);
 static struct { HANDLE h; uint32_t fn, frame; } g_def[32]; static int g_ndef;
 static volatile int g_in_defer;   /* run_deferred is resolving workers (boundary before tick g_frame+1) */
 typedef struct { LPTHREAD_START_ROUTINE fn; LPVOID arg; } thr_wrap_t;
 static DWORD WINAPI thread_wrapper(LPVOID p)
 {
     thr_wrap_t w = *(thr_wrap_t *)p; free(p);
+    ww_arm_thread();
     /* retail thread procs end in a plain `ret` (cdecl). DEFER serializes workers,
      * so they can share one fixed stack; without DEFER they keep OS stacks. */
     DWORD r = O.no_defer ? ((DWORD (__cdecl *)(LPVOID))w.fn)(w.arg)
@@ -268,6 +270,77 @@ static void cov_dump(void)
     for (int i = 0; i < g_cov_n; i++) if (g_cov_hit[i]) { fprintf(f, "%08x %u\n", g_cov_va[i], g_cov_hit[i] - 1); hits++; }
     fclose(f);
     rh_log("coverage: %d/%d hit\n", hits, g_cov_n);
+}
+
+/* ---- --watch-write: x86 debug-register write traps that name a global's writers ---- */
+static uint32_t g_ww_va[4]; static int g_ww_n; static uint32_t g_ww_from, g_ww_to = 0xffffffffu;
+static FILE *g_ww_log; static long g_ww_lines;
+static int ww_stack_ok(uint32_t p)
+{
+    MEMORY_BASIC_INFORMATION mi;
+    return p >= 0x10000 && (p & 3) == 0 && VirtualQuery((void *)(uintptr_t)p, &mi, sizeof mi) &&
+           mi.State == MEM_COMMIT && !(mi.Protect & (PAGE_NOACCESS | PAGE_GUARD));
+}
+static LONG CALLBACK ww_veh(EXCEPTION_POINTERS *e)
+{
+    CONTEXT *c = e->ContextRecord;
+    const DWORD code = e->ExceptionRecord->ExceptionCode;
+    if (code != EXCEPTION_SINGLE_STEP) return EXCEPTION_CONTINUE_SEARCH;
+    const DWORD dr6 = c->Dr6;
+    if (!(dr6 & 0xf)) return EXCEPTION_CONTINUE_SEARCH;
+    for (int i = 0; i < g_ww_n; i++) {
+        if (!(dr6 & (1u << i))) continue;
+        if (g_frame < g_ww_from || g_frame > g_ww_to || !g_ww_log) continue;
+        char st[160]; size_t so = 0;
+        uint32_t bp = c->Ebp;
+        for (int k = 0; k < 4 && ww_stack_ok(bp) && ww_stack_ok(bp + 4); k++) {
+            so += snprintf(st + so, sizeof st - so, " %08x", *(uint32_t *)(uintptr_t)(bp + 4));
+            bp = *(uint32_t *)(uintptr_t)bp;
+        }
+        fprintf(g_ww_log, "ww f%u %08x=%08x eip=%08x%s%s\n", g_frame, g_ww_va[i],
+                *(volatile uint32_t *)(uintptr_t)g_ww_va[i], (uint32_t)c->Eip, so ? " <" : "", st);
+        if (++g_ww_lines % 256 == 0) fflush(g_ww_log);
+    }
+    c->Dr6 = 0;
+    c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+/* debug registers can't be set on the running thread: a helper thread suspends
+ * it, writes Dr0..3 / Dr7 with SetThreadContext and resumes it */
+static DWORD WINAPI ww_arm_helper(LPVOID p)
+{
+    HANDLE t = (HANDLE)p;
+    if (SuspendThread(t) == (DWORD)-1) return 1;
+    CONTEXT c; memset(&c, 0, sizeof c);
+    c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+    DWORD ok = GetThreadContext(t, &c);
+    DWORD dr7 = 0;
+    for (int i = 0; i < g_ww_n; i++) dr7 |= (1u << (2 * i)) | (0xdu << (16 + 4 * i));   /* L_i, R/W 01 write, LEN 11 dword */
+    c.Dr0 = g_ww_va[0]; c.Dr1 = g_ww_va[1]; c.Dr2 = g_ww_va[2]; c.Dr3 = g_ww_va[3];
+    c.Dr6 = 0; c.Dr7 = dr7;
+    c.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+    if (ok) ok = SetThreadContext(t, &c);
+    ResumeThread(t);
+    return ok ? 0 : 2;
+}
+static void ww_arm_thread(void)
+{
+    if (!g_ww_n) return;
+    HANDLE self;
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &self, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    HANDLE h = CreateThread(NULL, 0, ww_arm_helper, self, 0, NULL);
+    WaitForSingleObject(h, INFINITE);
+    DWORD rc = 1; GetExitCodeThread(h, &rc);
+    CloseHandle(h); CloseHandle(self);
+    if (rc) rh_log("watch-write: arming thread %lu failed (%lu)\n", GetCurrentThreadId(), rc);
+}
+static void ww_install(void)
+{
+    char p[MAX_PATH]; snprintf(p, sizeof p, "%s\\watchwrite.log", O.rundir);
+    g_ww_log = fopen(p, "w");
+    AddVectoredExceptionHandler(1, ww_veh);
+    ww_arm_thread();
+    rh_log("watch-write: %d VA(s) armed, frames %u..%u\n", g_ww_n, g_ww_from, g_ww_to);
 }
 
 /* ---- D3D8 stream recording via the v3 proxy (loaded in-process) ---- */
@@ -427,6 +500,7 @@ static void finish(const char *why)
     g_finished = 1;
     rh_trace_finish();
     cov_dump();
+    if (g_ww_log) { fflush(g_ww_log); rh_log("watch-write: %ld writes logged\n", g_ww_lines); }
     rh_hooks_report();
     if (is_dump_frame(0xffffffffu)) dump_now("end");
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
@@ -451,7 +525,8 @@ static void usage(void)
     fprintf(stderr, "usage: rhost --exe RETAIL --game DIR --run DIR [--frames N] [--seed S|--no-seed] [--trace F|--masks F]\n"
                     "  [--flatten F] [--record F] [--realtime] [--dump-at F[,F|end]] [--hash-every N] [--log-every N]\n"
                     "  [--hook SPEC] [--coverage F] [--d3d-proxy DLL --cap FROM:COUNT] [--stall-ms N] [--tail N]\n"
-                    "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n");
+                    "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n"
+                    "  [--watch-write VA[,VA..] (<= 4) [--ww-frames FROM:TO]]\n");
     ExitProcess(2);
 }
 static void parse(int argc, char **argv)
@@ -488,6 +563,11 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--stall-frames")) O.stall_frames = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--hook")) O.hooks = ARG();
         else if (!strcmp(a, "--coverage")) O.coverage = ARG();
+        else if (!strcmp(a, "--watch-write")) {   /* up to 4 dword VAs: log every write (x86 debug registers) */
+            char b[128]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && g_ww_n < 4; t = strtok(NULL, ",")) g_ww_va[g_ww_n++] = strtoul(t, 0, 16) & ~3u;
+        }
+        else if (!strcmp(a, "--ww-frames")) { if (sscanf(ARG(), "%u:%u", &g_ww_from, &g_ww_to) != 2) usage(); }
         else if (!strcmp(a, "--d3d-proxy")) O.d3d_proxy = ARG();
         else if (!strcmp(a, "--cap")) { unsigned f, c; if (sscanf(ARG(), "%u:%u", &f, &c) != 2) usage(); O.cap_from = f; O.cap_count = c; O.has_cap = 1; }
         else if (!strcmp(a, "--stall-ms")) O.stall_ms = strtoul(ARG(), 0, 0);
@@ -597,6 +677,7 @@ int main(int argc, char **argv)
     }
     rh_hooks_install();
     if (O.coverage) cov_install();
+    if (g_ww_n) ww_install();
     if (O.d3d_proxy) d3d_proxy_install();
     rh_log("rhost: det vtime=%d defer=%d arena=%d overlay=%d seed=%s%u frames<=%u realtime=%d\n",
            !O.no_vtime, !O.no_defer, !O.no_arena, !O.no_overlay, O.has_seed ? "" : "none/", O.seed, O.frames, O.realtime);
