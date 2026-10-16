@@ -5156,6 +5156,18 @@ actor starts dying, table B / A records are cleared (FUN_0040f64b(0)) and the ci
 (FUN_004426a7) orbits (-40, 6, -40) for 400 ticks. Recorded: `dungeon1-deep` floor 10
 (f56444 .. f71830 kill).
 
+## 152. Facing +x in the house is one ulp short of π/2 (FUN_00489db8, FUN_0048619f)
+
+The house camera yaw DAT_073de39c is π (FUN_00436f97's house arm; the legacy port assumed −π).
+FUN_00489db8 sets the facing to `a − yaw` with `a` the pad direction (pad bit 0x1: 4.712389 =
+3π/2): x87 gives 1.5707962513 → `fstp m32` 0x3fc90fda, one ulp under π/2 (0x3fc90fdb).
+FUN_0048619f (the faced display cell) takes `__ftol(facing / π · 10)` = 4.9999997 → **4**, the
+`== 4` arm that reaches +x — the way she faces. An exact π/2 would give 5 and fall to the else
+arm, reaching −x (behind her). −π/2 (→ −5, the else arm: −x), 0 (→ 0: +z) and −π (→ −10: −z)
+are exact.
+Seen: `debt-gameover-restart` f2700 (the legacy walker's exact π/2) → f7383 (retail opens the
+display-stand menu on cell 3/4; the old port faced no cell).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

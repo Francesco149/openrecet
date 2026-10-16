@@ -744,7 +744,8 @@ def cmd_portstate(a):
     P = parse_post(os.path.join(pdir_l, "state.log"))
     common_f = sorted(set(R) & set(P))
     if getattr(a, "window", None):
-        lo, hi = (int(x) for x in a.window.split(":"))
+        lo, hi = a.window.split(":")
+        lo, hi = int(lo or 0), (1 << 31) if hi in ("", "end") else int(hi)
         common_f = [f for f in common_f if lo <= f <= hi]
     print(f"frames: retail {len(R)} / port {len(P)} / both {len(common_f)}")
     if not common_f:

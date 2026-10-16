@@ -7,6 +7,27 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — the house walks on FUN_0048b850 (one player controller, house and floor)
+The house's legacy walker (`scene1_player_ctrl.c`: a semantic move on the legacy collision
+mesh, the impulse in FUN_0048670f, π/2 facings) is gone; FUN_0048670f's cc08 == 1 arm and the
+day-8 scene call `party_tick` (dungeon_party.c, the x87-faithful FUN_0048b850 the floors already
+ran) and then FUN_0048619f. **debt-gameover-restart: facing IDENTICAL over the whole run,
+position / rng / cc04 identical to f24682 (was f2700 facing, f7383 the display-stand menu)**;
+`gates`: 29 rows, 0 failed. What it took:
+- FUN_0048a833 in full (`party_follow_tick`): the house arms — Tear beside the player at ±1.3
+  (db048 14 / 15, a counter sale +0x2bc6c, the morning beat), the open-shop wander
+  (DAT_0438be6c.., shared with the legacy companion) — and the morning-beat arm of FUN_0048cdcc;
+- FUN_0048619f (the faced display cell) on x87: retail's +x facing is one ulp under π/2, and
+  `__ftol(facing / π · 10)` = 4 picks the +x reach (quirk §152) — the legacy exact π/2 reached
+  backwards; FUN_00486435 with its large-room arm; FUN_004850ec clears DAT_074b2ec4;
+- the house loader runs the full FUN_00436f97 (`scene1_postload_stage_entry_init`) after the
+  FUN_00474a9a assets, as retail's StartAddress case 1 does: the party block, the stage-object
+  table (its kinds were 0, not −1 — phantom bodies at the origin for FUN_00483170) and the
+  floor-flow scalars are now reset on every house entry; the partial copy is retired.
+Removed with the legacy walker: 16 dead FUN_0048b850 leaves of `scene1_player_ctrl.c` and the
+host tests that drove the old walk (rhost checks the walk against retail now).
+Tools: `portstate --window F:end`; state_va row 73de39c (the camera yaw).
+
 ## 2026-10-15 — dungeon1-deep passes end to end: floors 6..10, the mushroom king (dungeon pilot)
 New native recording `dungeon1-deep` (from dungeon1-run2's end save: the guild, dungeon 1
 floors 6..10, the floor-10 boss, home). **portrng IDENTICAL f1–f77136 (234,509 draws) +
