@@ -108,12 +108,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_0042df55 | src/actor_ai.c:123 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:2165 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:2122 | the poison tick (ftol(p), 4) |
-| FUN_0042ea35 | src/actor_ai.c:1877 | the multi-part bone timers (no rand) |
-| FUN_0042f28c | src/actor_ai.c:1844 | the other types' AI (FUN_0042ce17, |
+| FUN_0042e1a6 | src/actor_ai.c:2306 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:2263 | the poison tick (ftol(p), 4) |
+| FUN_0042ea35 | src/actor_ai.c:2018 | the multi-part bone timers (no rand) |
+| FUN_0042f28c | src/actor_ai.c:1985 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:642 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:2175 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_00430c6d | src/actor_ai.c:2316 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_0043183e | src/record_hit.c:167 | the event floors' floor tables |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |

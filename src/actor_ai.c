@@ -1810,6 +1810,142 @@ static void actor_ai_t24(actor_t *a)
     AF(a, 0xaa4) = spill32((long double)PZ - (long double)spill32(x87_crt_cos(ang)) * k1p5);
 }
 
+/* FUN_0042ce17: types 6..9 (the bats, +0xae4 != 3) fly (+0xa00 = 1), bobbing
+ * 0.5 ± 0.3 over the ground on a sine of +0xa58 (the climb eases at 0.95,
+ * clamped to ±0.1).  State 0 walks the line-up step (FUN_00423789: reach 18,
+ * wait 20, 0.025, from 5, rest 30); in line → state 1: anim 3, the bite
+ * (record 31 + SE 330 at 26 unless stunned, +0xb14), anim 0 from 60, back to
+ * 0 after 91. */
+static void actor_ai_t6(actor_t *a)
+{
+    static const float k0p04 = 0.03999999910593033f, k0p019 = 0.01899999938905239f;
+    static const float km0p1 = -0.10000000149011612f, k0p025 = 0.02500000037252903f, k18 = 18.0f;
+    const float ph = spill32((long double)spill32((float)AI(a, 0xa58)) * k0p04);
+    ++AI(a, 0xa5c);
+    AI(a, 0xa00) = 1;
+    const float h = spill32((long double)spill32(x87_crt_sin(ph)) * k0p3 + k0p5);
+    if ((long double)h + AF(a, 0x3e0) > AF(a, 0x3f4))
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p019);
+    else if ((long double)h + k1 + AF(a, 0x3e0) < AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p02) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+    if (AI(a, 0xa54) == 0) {
+        actor_anim_set(a, 0);
+        if (actor_ai_line_up(a, k18, 20, k0p025, 5, 30, 0)) {
+            AI(a, 0xa5c) = 0;
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 1;
+            actor_anim_set(a, 3);
+        }
+    } else if (AI(a, 0xa54) == 1) {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t >= 60) actor_anim_set(a, 0);
+        else if (t >= 0) actor_anim_set(a, 3);
+        if (AI(a, 0xa58) == 26 && AI(a, 0xb14) <= 0) {
+            scene1_record_b_spawn_npc(a, 31, 1);    /* FUN_00445a8c */
+            audio_play_se_by_id(330);
+        }
+        if (AI(a, 0xa58) >= 1 && AI(a, 0xa58) - 1 == 90) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    }
+}
+
+/* FUN_00424509: types 6..9 with +0xae4 == 3 — a fresh one (+0xb8c) spawns
+ * record 0x99 and flies; it holds 1 up and drifts along its facing at
+ * 0.3..0.4 a tick; from 40 (once +0x9fc is clear) it turns normal, at 100 it
+ * is gone (+0x428 = 0). */
+static void actor_ai_t6_drift(actor_t *a)
+{
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        scene1_record_b_spawn_npc(a, 0x99, 1);
+        AI(a, 0xa00) = 1;
+        AI(a, 0xb04) = 1;
+        AI(a, 0xb08) = 1;
+        AI(a, 0xac8) = 1;
+        AI(a, 0xacc) = 1;
+    }
+    AF(a, 0x3f4) = k1;
+    const float r = spill32((long double)rng_next_unit() * k0p1 + k0p3);
+    AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(AF(a, 0x420))) * r);
+    AF(a, 0x400) = 0.0f;
+    AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * r);
+    actor_anim_set(a, 0);
+    const int32_t t = ++AI(a, 0xa58);
+    if (t >= 40 && AI(a, 0x9fc) == 0) {
+        AI(a, 0xb04) = 0;
+        AI(a, 0xb08) = 0;
+        AI(a, 0xae4) = 0;
+    }
+    if (t >= 100) {
+        AI(a, 0x428) = 0;
+        AI(a, 0xad0) = 0;
+    }
+}
+
+/* FUN_00427f59: types 44..48 — the line-up step (FUN_00423789, reach =
+ * lunge·260) with per-type tunings, then the lunge: record 13 at 20, the push
+ * along the facing for ticks 16..35, back to 0 at the type's end.  +0xb9c
+ * (set every tick) clears once the lunge passes the type's gate.  State 4
+ * holds 20 ticks (anim 1). */
+static void actor_ai_t44(actor_t *a)
+{
+    static const float k0p015 = 0.014999999664723873f, k0p025 = 0.02500000037252903f;
+    static const float k0p035 = 0.03500000014901161f, k0p04 = 0.03999999910593033f;
+    static const float k260 = 260.0f;
+    float speed = k0p025, lunge = k0p05;
+    int32_t end = 90, wait = 20, start = 5, rest = 30, min_runs = 0, gate = 20;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AI(a, 0xb9c) = 1;
+    }
+    AI(a, 0xb9c) = 1;
+    switch (AI(a, ACT_TYPE)) {
+    case 44: speed = k0p015; end = 60; lunge = k0p03; gate = 5; start = 20; wait = 40; rest = 40; min_runs = 2; break;
+    case 45: speed = k0p02; end = 80; lunge = k0p03; gate = 10; rest = 20; start = 30; wait = 30; min_runs = 1; break;
+    case 46: speed = k0p035; end = 90; lunge = k0p04; min_runs = 1; break;
+    case 47: speed = k0p02; end = 70; lunge = k0p04; start = 0; rest = 15; break;
+    case 48: end = 50; break;
+    default: break;
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 1 && AI(a, 0xa58) >= gate) AI(a, 0xb9c) = 0;
+    if (st == 0) {
+        actor_anim_set(a, 0);
+        const float reach = spill32((long double)lunge * k260);
+        if (actor_ai_line_up(a, reach, wait, speed, start, rest, min_runs) &&
+            AF(a, 0x3f4) == AF(a, 0x3e0)) {
+            AI(a, 0xa5c) = 0;
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 1;
+            actor_anim_set(a, 3);
+        }
+    } else if (st == 1) {
+        if (++AI(a, 0xa58) == 20) scene1_record_b_spawn_npc(a, 13, 1);   /* FUN_00445a8c */
+        const int32_t t = AI(a, 0xa58);
+        if (t >= 1) {
+            const int32_t u = t - 1;
+            if (u >= 15 && u < 35) {
+                AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(AF(a, 0x420))) * lunge + AF(a, 0x3fc));
+                AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * lunge + AF(a, 0x404));
+            }
+            if (u == end) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        }
+    } else if (st == 4) {
+        if (++AI(a, 0xa58) == 20) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+            actor_anim_set(a, 1);
+        }
+    }
+}
+
 /* FUN_0042f28c */
 void actor_ai_alive(actor_t *a)
 {
@@ -1826,12 +1962,17 @@ void actor_ai_alive(actor_t *a)
             if (AI(a, 0xa00) == 1) AF(a, 0x400) = spill32((long double)AF(a, 0x400) * 0.75f);
         } else if (type >= 0 && type <= 5) {
             actor_ai_slime(a);
+        } else if (type >= 6 && type <= 9) {
+            if (sub == 3) actor_ai_t6_drift(a);  /* FUN_00424509 */
+            else actor_ai_t6(a);                 /* FUN_0042ce17 */
         } else if (type >= 10 && type <= 12) {
             actor_ai_bee(a);                     /* FUN_00428f0a */
         } else if (type == 13 || type == 14) {
             actor_ai_t13(a);                     /* FUN_00428ae4 */
         } else if (type == 22) {
             actor_ai_t22(a);                     /* FUN_00429962 */
+        } else if (type >= 44 && type <= 48) {
+            actor_ai_t44(a);                     /* FUN_00427f59 */
         } else if (type == 23) {
             actor_ai_t23(a);                     /* FUN_0042aef7 */
         } else if (type == 24 || type == 59 || type == 60) {

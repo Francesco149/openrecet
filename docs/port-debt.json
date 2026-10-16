@@ -345,7 +345,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 2165,
+   "line": 2306,
    "kind_known": true
   },
   {
@@ -353,7 +353,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 2122,
+   "line": 2263,
    "kind_known": true
   },
   {
@@ -361,7 +361,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 1877,
+   "line": 2018,
    "kind_known": true
   },
   {
@@ -369,7 +369,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 1844,
+   "line": 1985,
    "kind_known": true
   },
   {
@@ -385,7 +385,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 2175,
+   "line": 2316,
    "kind_known": true
   },
   {

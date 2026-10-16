@@ -8,9 +8,9 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 666,
-  "inv_discovered": 1792,
-  "referenced_or_better": 756,
+  "inv_source_referenced": 668,
+  "inv_discovered": 1790,
+  "referenced_or_better": 758,
   "pct_referenced_or_better": 29.7,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
@@ -18,9 +18,9 @@
   "port_debt": 104,
   "verified": 80,
   "stubbed": 10,
-  "ported": 666,
-  "unported": 1792,
-  "touched": 756,
+  "ported": 668,
+  "unported": 1790,
+  "touched": 758,
   "pct_touched": 29.7,
   "pct_verified": 0.0
  },
@@ -3747,18 +3747,20 @@
    "size": 257,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x42460a",
@@ -3981,18 +3983,20 @@
    "size": 698,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x428213",

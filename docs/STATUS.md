@@ -15,8 +15,8 @@
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    90 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   666 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1792 | exists in the engine, no `src/` reference    |
+| source-referenced  |   668 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1790 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
