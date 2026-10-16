@@ -228,12 +228,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
     2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
        multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro and
-       adv-guild-pack-leave are IDENTICAL in every block at their ends. Left: dungeon0-full
-       f44730 table B records #0..2 (kind 0x56, live, frozen in both until retail rewrites
-       dwords 6..22 — anim counters / weights — at f30222 / f30226: a multi-part actor's
-       anim path, likely the stubbed multi-part anchors); dungeon1-deep f77120 party 90 /
-       actors 44 / table B 16. Find each one's first frame with `portstate --va`, fix from
-       the disasm.
+       adv-guild-pack-leave are IDENTICAL in every block at their ends; the dungeon runs' party
+       blocks too. Left, all on the floors:
+       - actor #0's +0x458..0x4d8 and +0x6fc..0x7dc (dungeon1-deep f77120): written while
+         drawing — the D3DX code at 0x4d1dc3 / 0x4d32e1 and FUN_00404870's anchor matrices
+         (callers 0x4552d0 / 0x456d48 / 0x459847, the draw loops); waits for the dungeon
+         renderer;
+       - table B records of kind 0x56 (dungeon0-full #0..2 from f30222, dungeon1-deep #0):
+         dwords 6..22 rewritten in retail while both are otherwise frozen — find the writer
+         (a watch on 0x69324d8 in rhost would name it).
        Also open: the Tear talk arm (be7c + Z → cc08 15..18, 30; no recording talks to her).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
