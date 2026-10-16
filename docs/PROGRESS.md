@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — dungeon1-clear passes end to end: the lost girl, Charme beaten
+Native recording from debt-week1-paid's end save: floors 11..15, a lost-girl encounter on floor 12,
+Charme beaten on floor 15 (stages 0..7 through iv3_3 / iv3_8 and the portals), a dungeon Save.
+`det -n 2` PASS. The one split (f19825) was type 29's AI, a stub: the lost girl, FUN_00431d54's
+special 3 (from day 8 once dungeon 0's intro is done (+0x2bc81), not on a boss floor, not met
+today (+0x2bd07, cleared at day close), fewer than 4 meetings (+0x2bcc0..c3), rand % 10 == 0;
+room 3 holds her alone). Ported FUN_0042da1d on the disasm: the type-22-like wander (rand & 63
+hold; 20 tries of a quarter-turn or a heading toward the player on the larger axis, a 5.0 ray),
+within 3.0 the next meeting flag + dialogue 8/1..4 (the flag is spent even when a dialogue is
+already open and refuses), then a clear heading of 8 (15.0 ray), the walk, the alpha fade from
+tick 90 and the free. **portrng IDENTICAL f1–f71384 (235,021 draws), portblock f21990 / f71380
+every block IDENTICAL, portsave IDENTICAL**; Charme's death arm (FUN_0042f7ad 25, ported
+blind) is now verified. In `gates` (portsave + portrng).
+
 ## 2026-10-16 — the camera pose FUN_00441c3e on the disasm
 The pose was a house-only semantic port: the scene type and the char mode came from cached
 house globals (0, 2), so the house clamps pinned the dungeon camera's x at -5 (retail -39.6 on

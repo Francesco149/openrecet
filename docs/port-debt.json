@@ -155,7 +155,7 @@
    "engine_fn": "FUN_00441c3e",
    "desc": "the view matrix is the render's;",
    "file": "src/actor_ai.c",
-   "line": 172,
+   "line": 173,
    "kind_known": false
   },
   {
@@ -315,7 +315,7 @@
    "engine_fn": "FUN_0042df55",
    "desc": "stages >= 20 index past the dungeon",
    "file": "src/actor_ai.c",
-   "line": 124,
+   "line": 125,
    "kind_known": true
   },
   {
@@ -323,7 +323,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 2612,
+   "line": 2717,
    "kind_known": true
   },
   {
@@ -331,7 +331,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 2569,
+   "line": 2674,
    "kind_known": true
   },
   {
@@ -339,7 +339,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 2324,
+   "line": 2429,
    "kind_known": true
   },
   {
@@ -347,7 +347,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 2291,
+   "line": 2396,
    "kind_known": true
   },
   {
@@ -355,7 +355,7 @@
    "engine_fn": "FUN_0042f7ad",
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 698,
+   "line": 699,
    "kind_known": true
   },
   {
@@ -363,7 +363,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 2622,
+   "line": 2727,
    "kind_known": true
   },
   {

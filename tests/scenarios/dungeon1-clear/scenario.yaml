@@ -1,0 +1,11 @@
+# dungeon1-clear — human recording 2026-10-16 (rhost.py record --from debt-week1-paid, Windows,
+# keyboard). Load the newest slot; guild → dungeon 1 from floor 11, floors 11..15 (b4cc 10..14).
+# Floor 12 (b4cc 11): the lost girl (type 29, FUN_00431d54's special 3; AI FUN_0042da1d) —
+# dialogue 8/1 f19968–f21919, then she walks off and fades. Floor 15: Charme's timeline
+# (FUN_0044d47d stages 0..7: iv3_1 f58951, iv3_2 f59967, the fight f60416, beaten f63777 —
+# her death arm FUN_0042f7ad 25 — iv3_3 f64066, iv3_8 f65380, the portals f65751); the pause
+# Save (f66523–f67362, the floor reloads); the pause again, Esc. 71384 frames.
+# det -n 2 PASS (311 volatile dwords). portrng IDENTICAL f1–f71384; portblock f21990 / f71380
+# every block IDENTICAL; portsave IDENTICAL (2026-10-16).
+description: |
+  Dungeon 1 floors 11..15: the lost girl (type 29) on floor 12; Charme beaten on floor 15; a dungeon Save.

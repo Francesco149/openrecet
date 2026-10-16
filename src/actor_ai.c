@@ -16,6 +16,7 @@
 #include "math3d.h"                /* vec3_transform (D3DXVec3Transform) */       /* FUN_00432e50, FUN_00433674 */
 #include "dungeon_party.h"        /* FUN_00482ae7 */
 #include "scene1_records.h"
+#include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "party.h"
 #include "rng.h"                 /* FUN_00471089, j__rand */
 #include "scene1_camera.h"       /* FUN_0044b219 */
@@ -1070,6 +1071,108 @@ static void actor_ai_t22(actor_t *a)
         AI(a, 0xa54) = 1;
         actor_anim_set(a, 3);
     }
+}
+
+/* FUN_0042da1d: type 29, the lost girl (FUN_00431d54's special 3, room 3).
+ * Within 3.0 of the player (once): the next of work +0x2bcc0..c3 is set and
+ * dialogue 8/1..4 opens (FUN_0044ba2c); on success +0xa64 = 1, work +0x2bd07 = 1.
+ * State 0: a wander like type 22's — on tick 1 of a cycle the hold +0xa60
+ * (rand & 63) and up to 20 headings (rand & 3 quarter turns, or on rand & 1
+ * toward the player along the larger axis) until a 5.0 ray is clear; ticks
+ * 31..89 drift 0.02; the cycle restarts at 90 + hold.  After the dialogue
+ * (state 1): a clear heading of 8 (rand & 7, 15.0 ray, ≤ 20 tries; or after
+ * 120 ticks the old one), walk 0.02, from tick 90 the alpha +0x3dc -8 a tick,
+ * below 0 the actor is freed. */
+static void actor_ai_t29(actor_t *a)
+{
+    static const float k3 = 3.0f, k15 = 15.0f;
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    const float dx0 = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz0 = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz0 * dz0 + (long double)dx0 * dx0);
+    const float dist = d2 == 0.0f ? k0p01 : spill32(crt_sqrt(d2));
+    AI(a, 0xb08) = 1;
+    AI(a, 0xb04) = 0;
+    if (AI(a, 0xa64) == 0 && dist < k3 && w != NULL) {
+        int32_t n = 0;
+        for (int k = 0; k < 4; k++)
+            if (w[0x2bcc0 + k] == 0) { w[0x2bcc0 + k] = 1; n = k + 1; break; }
+        if (n != 0 && !scene1_intro_dialogue_busy()) {
+            scene1_intro_dialogue_start_single(8, n);    /* FUN_0044ba2c(8, n, 0) */
+            AI(a, 0xa64) = 1;
+            w[0x2bd07] = 1;
+        }
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 1) {
+        if (AI(a, 0xa58) == 0) {
+            if (++AI(a, 0xa5c) == 120) AI(a, 0xa58) = 1;
+            for (int i = 0; i != 20; i++) {
+                const float r = (float)(int32_t)(rng_next15() & 7u);
+                const float ang = spill32((long double)r * k_2pi / k8);
+                const double angd = ang;
+                const float sx = spill32((long double)spill32(x87_crt_sin(angd)) * k15);
+                const float sz = spill32((long double)spill32(x87_crt_cos(angd)) * k15);
+                float frac = 0.0f;
+                mapcol_hit_t hit;
+                hit.tri = 0;
+                hit.slot = 0;
+                if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0) {
+                    AI(a, 0xa58) = 1;
+                    AF(a, 0x420) = ang;
+                    break;
+                }
+            }
+        } else {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+            const int32_t t = ++AI(a, 0xa58);
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+            if (t >= 90 && (AI(a, 0x3dc) -= 8) < 0) AI(a, 0x428) = 0;
+        }
+    } else if (st == 0) {
+        if (++AI(a, 0xa58) == 1) {
+            (void)rng_next_unit();                       /* FUN_00471089, discarded */
+            float dx = spill32((long double)PX - AF(a, 0x3f0));
+            float dz = spill32((long double)PZ - AF(a, 0x3f8));
+            AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+            const float adx = dx < 0.0f ? -dx : dx, adz = dz < 0.0f ? -dz : dz;
+            if (adx <= adz) dx = 0.0f;
+            else dz = 0.0f;
+            for (int i = 0; i != 20; i++) {
+                AF(a, 0x420) = spill32((long double)(float)(int32_t)(rng_next15() & 3u) * k_pi2);
+                if (rng_next15() & 1u) AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+                const double h = AF(a, 0x420);
+                const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k5);
+                const float sz = spill32((long double)spill32(x87_crt_cos(h)) * k5);
+                float frac = 0.0f;
+                mapcol_hit_t hit;
+                hit.tri = 0;
+                hit.slot = 0;
+                if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0)
+                    break;
+            }
+        }
+        if (AI(a, 0xa64) != 0) {
+            AI(a, 0xa54) = 1;
+            AI(a, 0xa58) = 0;
+        } else {
+            const int32_t t = AI(a, 0xa58);
+            if (t >= 30) {
+                const int32_t e = t - 30;
+                if (e >= 1 && e < 60) {
+                    const double h = AF(a, 0x420);
+                    AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+                    AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+                }
+                if (e >= AI(a, 0xa60) + 60) AI(a, 0xa58) = 0;
+            }
+        }
+    }
+    const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
+    const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
+    const float d = spill32(crt_sqrt(s2));
+    actor_anim_set(a, d > k0p02 ? 1 : 0);
 }
 
 /* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
@@ -2283,6 +2386,8 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t24(a);                     /* FUN_0042b6b7 */
         } else if (type == 25) {
             actor_ai_t25(a);                     /* FUN_0041fa6e */
+        } else if (type == 29) {
+            actor_ai_t29(a);                     /* FUN_0042da1d */
         } else if (type == 16 && sub != 3) {
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {
