@@ -7,6 +7,22 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — dungeon 2's first floors ported ahead of a recording (unverified)
+From the disasm, with no recording to check them yet (dungeon 2's roster from the user's
+enemylist.txt): the bombs 37..40 (FUN_004293f0: the fuse spark while lit, the hover over the
+ground, the wander toward a point 8 from the player, the lob — record 90, SE 330), the pumpkin
+15 variant 0 (FUN_0042a33e: asleep until 13, the float 6.5..7.5 up, the drop within 4 with the
+landing shake), the boss ahriman 54 (FUN_00426811: the descent, the ahriman summons capped per
+dungeon, the 400-tick circling of the player, the record-137 attack), Ohm 67 (FUN_00422ed6: the
+bee summons, walk / charge with dust / the 8-shot record-33 bursts), FUN_0042f7ad's 61 / 64 / 67 /
+68 / 69 death arm (the fade mirrored onto the golem parts), dungeon 2's floor setup FUN_0044d9d3
+(Tielle's floor 30: the party column, her spawn in state 8) and FUN_004427f1's dungeon-2 arm (the
+checkpoint floors through FUN_0044d0a4(1)); and FUN_00431d54's second special, types 30 / 31
+(FUN_0042d676 dialogue 10/3 / FUN_0042d392). The boss summons share `boss_minion_point`, the NPC
+wanders `npc_wander_pick` / `_drift`. All gate rows unchanged. Still stubs in dungeon 2: the crab
+68 (FUN_00422092, 3.6 KB: the burrow jump, the bomb summons), Tielle 27 (FUN_00423b58, her
+timeline FUN_0044db3c, her death arm), the pumpkin variants 1 / 2.
+
 ## 2026-10-16 — dungeon1-clear passes end to end: the lost girl, Charme beaten
 Native recording from debt-week1-paid's end save: floors 11..15, a lost-girl encounter on floor 12,
 Charme beaten on floor 15 (stages 0..7 through iv3_3 / iv3_8 and the portals), a dungeon Save.

@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 76,
+  "total": 77,
   "by_kind": {
-   "stub": 55,
+   "stub": 56,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 59,
+  "retiring_engine_fns": 60,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -58,6 +58,7 @@
    "FUN_00442cef": 1,
    "FUN_0044376a": 1,
    "FUN_0044b219": 1,
+   "FUN_0044db3c": 1,
    "FUN_0044f078": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
@@ -323,7 +324,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 2791,
+   "line": 3321,
    "kind_known": true
   },
   {
@@ -331,7 +332,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 2748,
+   "line": 3278,
    "kind_known": true
   },
   {
@@ -339,7 +340,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 2503,
+   "line": 3033,
    "kind_known": true
   },
   {
@@ -347,7 +348,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 2470,
+   "line": 3000,
    "kind_known": true
   },
   {
@@ -355,7 +356,7 @@
    "engine_fn": "FUN_0042f7ad",
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 699,
+   "line": 729,
    "kind_known": true
   },
   {
@@ -363,7 +364,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 2801,
+   "line": 3331,
    "kind_known": true
   },
   {
@@ -409,9 +410,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_00436f97",
-   "desc": "dungeons 2..5's setups FUN_0044d9d3 /",
+   "desc": "dungeons 3..5's setups FUN_0044e08f /",
    "file": "src/scene1_postload.c",
-   "line": 283,
+   "line": 285,
    "kind_known": true
   },
   {
@@ -419,7 +420,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 317,
+   "line": 319,
    "kind_known": true
   },
   {
@@ -433,9 +434,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_004427f1",
-   "desc": "dungeons 2..5's events \u2014 the",
+   "desc": "dungeons 3..5's events \u2014 the",
    "file": "src/dungeon_flow.c",
-   "line": 829,
+   "line": 899,
    "kind_known": true
   },
   {
@@ -459,7 +460,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 348,
+   "line": 350,
    "kind_known": true
   },
   {
@@ -468,6 +469,14 @@
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
    "line": 400,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0044db3c",
+   "desc": "Tielle's floor-30 timeline (her",
+   "file": "src/dungeon_flow.c",
+   "line": 877,
    "kind_known": true
   },
   {

@@ -41,6 +41,7 @@ extern int32_t g_fall_timer;         /* DAT_0438b770: FUN_0044bb1a's respawn cou
 extern int32_t g_input_hold;         /* DAT_0438cd74: pad edges held back while bed8 > 0 */
 extern int32_t g_event_tick;         /* DAT_0438b8a4: the per-dungeon event counter (FUN_004427f1's arms) */
 extern int32_t g_event_stage;        /* DAT_0438b8a0: the per-dungeon event stage (1 during the stage init) */
+extern int32_t g_dat_0438b8a8;       /* DAT_0438b8a8: Tielle's phase */
 extern int32_t g_ghost_timer;        /* DAT_0438cbe0: ticks since the first hurry-up spawn */
 extern int32_t g_ghost_count;        /* DAT_0438cbe4: hurry-up spawns on this floor */
 extern int32_t g_charme_portal;      /* DAT_06a47098: the floor-14 portal object */
@@ -51,6 +52,7 @@ extern int32_t g_dat_09643128;
 void dobj_raise_special(int role);   /* FUN_0044b2e6 */
 void dobj_rise_tick(void);            /* FUN_0044b38c */
 void dungeon1_stage_setup(void);      /* FUN_0044d1e4 (FUN_00436f97's dungeon-1 arm) */
+void dungeon2_stage_setup(void);      /* FUN_0044d9d3 (FUN_00436f97's dungeon-2 arm) */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */
 extern int32_t g_dat_0438b8d4;       /* the HP-check voice countdown (FUN_0048b3f6) */

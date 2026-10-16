@@ -550,6 +550,7 @@ static void boss_floor_setup(int portals)
 
 int32_t g_charme_portal;          /* DAT_06a47098: the floor-14 portal object */
 actor_t *g_dungeon_boss;          /* DAT_06a47094: the scripted boss (floor 14, dungeon 2) */
+int32_t g_dat_0438b8a8;           /* DAT_0438b8a8: Tielle's phase (FUN_00423b58 reads it) */
 
 static actor_t *charme_spawn(float x, float y, float z)
 {
@@ -815,6 +816,72 @@ static void dungeon1_event_tick(void)
     ++g_event_tick;
 }
 
+/* FUN_0044d9d3's floor-29 arm: the spent town portal at (-45, 0, 65), the party
+ * in a column at x -40 from z -54 (1.3 apart) facing +z; until Tielle was beaten
+ * (+0x2bd12 1, or story mode 2) event stage 0 with Tielle (type 27, state 8) at
+ * (-40, 0, -40), else stage 10.  (Her timeline FUN_0044db3c is a stub.) */
+static void tielle_floor_setup(void)
+{
+    static const float km45 = -45.0f, k65 = 65.0f, km40 = -40.0f, km54 = -54.0f;
+    static const float k0p35 = 0.3499999940395355f, k1p3 = 1.2999999523162842f;
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    const float p[3] = { km45, 0.0f, k65 };
+    const float sc[3] = { k0p35, k0p35, k0p35 };
+    dobj_spawn_special(0, 6, p, sc, 0.0f);              /* FUN_0044b257 */
+    for (int i = 0; i < 3; i++) {
+        g_party.pos[i][0] = km40;
+        g_party.pos[i][1] = 0.0f;
+        g_party.pos[i][2] = spill32((long double)km54 - (long double)spill32((long double)i) * k1p3);
+        party_anim_set(g_party.rec[i], 0);              /* FUN_00482a51 */
+        g_party.rec[i][6] = 0;
+    }
+    PW(0x56db05cu).f = 0.0f;
+    if (rec == NULL || rec[0x2bd12] != 1 || work_mode(rec) == 2) {
+        g_event_stage = 0;
+        const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                                   stage_post_load_get_mode_b4d0(), g_ghost_count,
+                                   rec ? rec[0x2bc57] : 0 };
+        g_dungeon_boss = actor_spawn_enemy(&st, km40, 0.0f, km40, 27);   /* FUN_0041f903 */
+        if (g_dungeon_boss != NULL) {
+            act_seti(g_dungeon_boss, ACT_INUSE, 1);
+            act_seti(g_dungeon_boss, 0xa54, 8);
+        }
+        g_dat_0438b8a8 = 0;
+    } else {
+        g_event_stage = 10;
+    }
+}
+
+/* FUN_0044d9d3: dungeon 2's floor setup: floor 29 (Tielle's), or a checkpoint
+ * floor's arena FUN_0044cc80(1); b8a4 = 0.  Ported from the disasm; no
+ * recording reaches dungeon 2 yet. */
+void dungeon2_stage_setup(void)
+{
+    g_dat_09643128 = 0;
+    g_scene1_camera_stage_class = 0;
+    const int32_t floor = stage_gate_get_next();
+    if (floor == 29) {
+        tielle_floor_setup();
+    } else if (floor % 5 == 4) {
+        boss_floor_setup(1);
+    }
+    g_event_tick = 0;
+}
+
+/* FUN_004427f1's dungeon-2 arm: floor 29 → Tielle's timeline, a checkpoint
+ * floor → FUN_0044d0a4(1); every floor counts b8a4. */
+static void dungeon2_event_tick(void)
+{
+    const int32_t floor = stage_gate_get_next();
+    if (floor == 29) {
+        /* PORT-DEBT(stub, FUN_0044db3c): Tielle's floor-30 timeline (her
+         * entrance, the fight, the scenes; arg = story mode 2) */
+    } else if (floor % 5 == 4) {
+        boss_floor_event(1);
+    }
+    ++g_event_tick;
+}
+
 /* FUN_004427f1: the house's story cascade, or the dungeon's events. */
 void dungeon_event_tick(void)
 {
@@ -825,9 +892,12 @@ void dungeon_event_tick(void)
     case 1:
         dungeon1_event_tick();          /* FUN_0044d47d */
         break;
+    case 2:
+        dungeon2_event_tick();          /* inline in FUN_004427f1 */
+        break;
     default:
-        /* PORT-DEBT(stub, FUN_004427f1): dungeons 2..5's events — the
-         * dungeon-2 arm inline in FUN_004427f1 (the b8a4 timeline on floors
+        /* PORT-DEBT(stub, FUN_004427f1): dungeons 3..5's events — the
+         * dungeon-3 arm inline in FUN_004427f1 (the b8a4 timelines on floors
          * 29 / 49), FUN_00450877, FUN_00451546. */
         break;
     }

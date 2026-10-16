@@ -279,9 +279,11 @@ static void postload_dungeon_arm(void)
         }
     } else if (g_scene1_combat_stage_id == 1) {
         dungeon1_stage_setup();                  /* FUN_0044d1e4 */
+    } else if (g_scene1_combat_stage_id == 2) {
+        dungeon2_stage_setup();                  /* FUN_0044d9d3 */
     } else {
-        /* PORT-DEBT(stub, FUN_00436f97): dungeons 2..5's setups FUN_0044d9d3 /
-         * 44e08f / 450443 / 450ee0 */
+        /* PORT-DEBT(stub, FUN_00436f97): dungeons 3..5's setups FUN_0044e08f /
+         * 450443 / 450ee0 */
     }
     if ((stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == 0) ||
         (g_scene1_combat_stage_id == 5 && stage_gate_get_next() == 30))

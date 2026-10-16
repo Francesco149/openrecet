@@ -693,9 +693,39 @@ void actor_dying(actor_t *a)
         }
         return;
     }
+    case 61: case 64: case 67: case 68: case 69: {
+        /* the golems / Ohm / the crabs: the slow-mo (becc 60) and DAT_056db0f4
+         * 1200 at 1, the last-of-kind check at 60, the burst to 119; from 100
+         * the alpha -8 a tick (at 0 the slot frees), mirrored onto every golem
+         * part (62 / 63 / 65 / 66); the death anim (61 / 64: 10, 67: 5, 68 /
+         * 69: 14).  Unverified (no recording kills one yet). */
+        if (t == 1) {
+            g_dat_0438becc = 60;
+            PW(0x56db0f4u).i = 1200;
+        }
+        if (t == 60) actor_last_of_kind(a);          /* FUN_0042f746 */
+        if (AI(a, 0xaf0) < 120) actor_boss_burst(a); /* FUN_0042f685 */
+        if (AI(a, 0xaf0) >= 100) {
+            if ((AI(a, 0x3dc) -= 8) < 0) {
+                AI(a, 0x3dc) = 0;
+                AI(a, ACT_INUSE) = 0;
+            }
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                actor_t *o = &g_actor[i];
+                const int32_t ot = AI(o, ACT_TYPE);
+                if (ot == 63 || ot == 66 || ot == 62 || ot == 65) {
+                    AI(o, 0x3dc) = AI(a, 0x3dc);
+                    AI(o, ACT_INUSE) = AI(a, ACT_INUSE);
+                }
+            }
+        }
+        if (type == 68 || type == 69) actor_anim_blend(a, 14);
+        else if (type == 67) actor_anim_blend(a, 5);
+        else actor_anim_blend(a, 10);
+        return;
+    }
     case 27: case 28:
-    case 41: case 61: case 64: case 67:
-    case 68: case 69: case 70: case 71: case 73: case 74:
+    case 41: case 70: case 71: case 73: case 74:
         /* PORT-DEBT(stub, FUN_0042f7ad): the other bosses' / special enemies'
          * death arms (the boss cut-ins, FUN_0041f759, FUN_0042439e) */
         return;
@@ -1243,6 +1273,497 @@ static void actor_ai_t31(actor_t *a)
         npc_wander_drift(a);
     }
     npc_walk_anim(a);
+}
+
+/* FUN_004293f0: types 37..40, the bombs, float (+0xa00 = 1).  Lit (+0x398 & 1):
+ * a fuse spark each tick (FUN_00447f4f 0x5c / 0x6f blue / 0x5f green, behind the
+ * facing octant +0x18, 2 up).  The bob: vy eases toward a hover of
+ * 0.5 + 0.3 sin(+0xa58 · 0.04) .. +1 over the ground (+0x3e0), clamped ±0.1.
+ * State 0 (anim 0): on tick 1 up to 20 headings at a random point 8 around the
+ * player until a 3.0 ray (1 up) is clear, then the hold rand & 63; ticks 31..89
+ * drift 0.02; at 60 + hold the cycle restarts and on rand % 3 == 0 within 15 of
+ * the player state 1 (anim 3).  State 1: at 5, unless +0xb14 > 0, the
+ * record 90 + SE 330 (the lob); back to 0 at 81.  State 8: a 240-tick wait.
+ * Ported from the disasm; dungeon 2's floors meet them (unverified). */
+static void actor_ai_bomb(actor_t *a)
+{
+    static const float k_pi = 3.1415927410125732f, k1p5 = 1.5f, k0p4 = 0.4000000059604645f;
+    static const float k0p125 = 0.125f, k0p25 = 0.25f, k0p04 = 0.03999999910593033f;
+    static const float k0p019 = 0.01899999938905239f, km0p1 = -0.10000000149011612f;
+    static const float k3 = 3.0f, k15 = 15.0f;
+    const int32_t type = AI(a, ACT_TYPE);
+    const enemy_record_t *e = enemy_of(a);
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    const float dist = d2 == 0.0f ? k0p01 : spill32(crt_sqrt(d2));
+    AI(a, 0xb98) = 1;
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0x398) & 1) {
+        const float off = spill32(((long double)rng_next_unit() + k0p5) * k_pi);
+        const float rad = spill32((long double)rng_next_unit() * e->runtime_floats[0] * k1p5);
+        const float fa = spill32((long double)spill32((long double)(float)AI(a, 0x18)) * k_2pi / k8);
+        const double fd = fa;
+        const float s1 = spill32(x87_crt_sin(fd));
+        const double a2 = (double)((long double)fa + off);
+        const float s2 = spill32(x87_crt_sin(a2));
+        const float x = spill32(((long double)s2 * rad + AF(a, 0x3f0)) - (long double)s1 * k0p4);
+        const float y = spill32((long double)AF(a, 0x3f4) + k2);
+        const float c1 = spill32(x87_crt_cos(fd));
+        const float c2 = spill32(x87_crt_cos(a2));
+        const float z = spill32(((long double)c2 * rad + AF(a, 0x3f8)) - (long double)c1 * k0p4);
+        const float sc = e->runtime_floats[0];
+        if (type == 38)
+            scene1_spawn(0, x, y, z, 0x6f, spill32((long double)sc * k0p125), 1);   /* FUN_00447f4f */
+        else if (type == 39)
+            scene1_spawn(0, x, spill32((long double)y - (long double)sc * k0p8), z, 0x5f,
+                         spill32((long double)sc * k0p25), 1);
+        else
+            scene1_spawn(0, x, y, z, 0x5c, spill32((long double)sc * k0p125), 1);
+    }
+    AI(a, 0xa00) = 1;
+    const float bt = spill32((long double)spill32((long double)(float)AI(a, 0xa58)) * k0p04);
+    const float hov = spill32((long double)spill32(x87_crt_sin(bt)) * k0p3 + k0p5);
+    if ((long double)hov + AF(a, 0x3e0) > (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p019);
+    else if (((long double)hov + k1) + AF(a, 0x3e0) < (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p02) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+    const int32_t st = AI(a, 0xa54);
+    if (st == 8) {
+        if (++AI(a, 0xa58) == 240) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    if (st == 1) {
+        if (++AI(a, 0xa58) == 5 && AI(a, 0xb14) <= 0) {
+            scene1_record_b_spawn_npc(a, 90, 1);         /* FUN_00445a8c */
+            audio_play_se_by_id(330);                    /* FUN_00499519 */
+        }
+        if (AI(a, 0xa58) == 81) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    actor_anim_set(a, 0);
+    if (++AI(a, 0xa58) == 1) {
+        for (int i = 0; i != 20; i++) {
+            const float r = spill32((long double)rng_next_unit() * k_2pi);
+            const double rd = r;
+            const float tx = spill32((long double)spill32(x87_crt_sin(rd)) * k8 + PX);
+            const float tz = spill32((long double)spill32(x87_crt_cos(rd)) * k8 + PZ);
+            const float ddx = spill32((long double)tx - AF(a, 0x3f0));
+            const float ddz = spill32((long double)tz - AF(a, 0x3f8));
+            const float h = spill32(crt_atan2(ddx, ddz));
+            AF(a, 0x420) = h;
+            const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k3);
+            const float sz = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * k3);
+            float frac = 0.0f;
+            mapcol_hit_t hit;
+            hit.tri = 0;
+            hit.slot = 0;
+            if (mapcol_ray(AF(a, 0x3f0), spill32((long double)AF(a, 0x3f4) + k1), AF(a, 0x3f8),
+                           sx, 0.0f, sz, &frac, &hit) == 0)
+                break;
+        }
+        AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < 30) return;
+    const int32_t el = t - 30;
+    if (el >= 1 && el < 60) {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+    }
+    if (el < AI(a, 0xa60) + 30) return;
+    AI(a, 0xa58) = 0;
+    if ((uint32_t)rng_next15() % 3u == 0 && dist < k15) {
+        AI(a, 0xa54) = 1;
+        actor_anim_set(a, 3);
+    }
+}
+
+/* FUN_0042a33e: type 15 variant 0, the pumpkin.  Asleep (+0xa60 0) until the
+ * player comes within 13.  State 0 floats (+0xa00 = 1; vy eases toward 6.5 ..
+ * 7.5 over the ground, clamped ±0.1; anim 0): on tick 1 up to 20 headings at a
+ * random point 2 around the player until a 3.0 ray is clear, the hold +0xa5c
+ * (rand & 63); ticks 31..89 drift 0.02; at 60 + hold the cycle restarts, and
+ * within 4 state 1 (anim 3).  State 1 drops (+0xa00 = 0): within 2.5 of the
+ * ground the record 14 each tick, the landing (+0xa64 1) shakes (10, 4, 4) +
+ * SE 365; back to 0 at 121.  Ported from the disasm (unverified). */
+static void actor_ai_pumpkin(actor_t *a)
+{
+    static const float k13 = 13.0f, k2p5 = 2.5f, k6p5 = 6.5f, k7p5 = 7.5f, k3 = 3.0f;
+    static const float k0p019 = 0.01899999938905239f, km0p1 = -0.10000000149011612f;
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    const float dist = d2 == 0.0f ? k0p01 : spill32(crt_sqrt(d2));
+    if (AI(a, 0xb8c) != 0) AI(a, 0xb8c) = 0;
+    if (AI(a, 0xa60) == 0) {
+        if (dist < k13) AI(a, 0xa60) = 1;
+        return;
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 1) {
+        const float g = AF(a, 0x3e0);
+        ++AI(a, 0xa58);
+        AI(a, 0xa00) = 0;
+        if ((long double)AF(a, 0x3f4) <= (long double)g + k0p5) {
+            ++AI(a, 0xa64);
+        } else if ((long double)g + k2p5 > (long double)AF(a, 0x3f4)) {
+            scene1_record_b_spawn_npc(a, 14, 1);         /* FUN_00445a8c */
+        }
+        if (AI(a, 0xa64) == 1) {
+            camera_shake(10, 4, 4, k1);                  /* FUN_0044b219 */
+            audio_play_se_by_id(365);
+        }
+        if (AI(a, 0xa58) == 121) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (st != 0) return;
+    AI(a, 0xa00) = 1;
+    if ((long double)AF(a, 0x3e0) + k6p5 > (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p019);
+    else if ((long double)AF(a, 0x3e0) + k7p5 < (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p02) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+    actor_anim_set(a, 0);
+    if (++AI(a, 0xa58) == 1) {
+        for (int i = 0; i != 20; i++) {
+            const float r = spill32((long double)rng_next_unit() * k_2pi);
+            const double rd = r;
+            const float sn = spill32(x87_crt_sin(rd));
+            const float tx = spill32((long double)sn + sn + PX);
+            const float cs = spill32(x87_crt_cos(rd));
+            const float tz = spill32((long double)cs + cs + PZ);
+            const float ddx = spill32((long double)tx - AF(a, 0x3f0));
+            const float ddz = spill32((long double)tz - AF(a, 0x3f8));
+            const float h = spill32(crt_atan2(ddx, ddz));
+            AF(a, 0x420) = h;
+            const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k3);
+            const float sz = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * k3);
+            float frac = 0.0f;
+            mapcol_hit_t hit;
+            hit.tri = 0;
+            hit.slot = 0;
+            if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0)
+                break;
+        }
+        AI(a, 0xa5c) = (int32_t)(rng_next15() & 0x3fu);
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < 30) return;
+    const int32_t el = t - 30;
+    if (el >= 1 && el < 60) {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+    }
+    if (el < AI(a, 0xa5c) + 30) return;
+    AI(a, 0xa58) = 0;
+    if (dist < k4) {
+        AI(a, 0xa64) = 0;
+        AI(a, 0xa54) = 1;
+        actor_anim_set(a, 3);
+    }
+}
+
+/* the bosses' minion drop point (FUN_00426811 / FUN_00422ed6): up to 30 random
+ * points 2..10 around (-40, -40) until one is over 10 from the player (the
+ * last one otherwise) */
+static void boss_minion_point(float *x, float *z)
+{
+    static const float k10 = 10.0f;
+    float sx = 0.0f, sz = 0.0f;
+    for (int i = 0; i != 30; i++) {
+        const float r = spill32((long double)rng_next_unit() * k_2pi);
+        const float rad = spill32((long double)rng_next_unit() * k8 + k2);
+        const double rd = r;
+        sx = spill32((long double)spill32(x87_crt_sin(rd)) * rad - k40);
+        sz = spill32((long double)spill32(x87_crt_cos(rd)) * rad - k40);
+        const float ex = spill32((long double)PX - sx);
+        const float ez = spill32((long double)PZ - sz);
+        if (ex == 0.0f && ez == 0.0f) continue;
+        const float d = spill32(spill32(crt_sqrt(spill64((long double)ez * ez + (long double)ex * ex))));
+        if (d > k10) break;
+    }
+    *x = sx;
+    *z = sz;
+}
+
+/* FUN_00422ed6: type 67, Ohm (dungeon 2 floor 10; placed in state 8: 240 ticks
+ * idle).  While fewer than `cap` bees (type 10; 3, dungeon 3: 5, 4+: 8) live,
+ * every 120 ticks one more (+0xa68; past cap the pause is 320, past 2·cap 520,
+ * none from 5·cap) at a minion point, y 10, +0xb2c = 1.  State 0 (anim 0): a
+ * hold of 10 + rand & 63, then — facing within 0.2π of the player (or 7/8 of
+ * a turn), or rand & 7 == 0, unless a second rand & 7 == 0 — the charge (2),
+ * else 3/4 the walk (1), 1/4 the burst (3).  1 (anim 1): 180 ticks at 0.01,
+ * turning 0.02π toward the player.  2: anims 2 / 3 (SE 369) / 4 at 1 / 61 /
+ * 111, ticks 61..120 at 0.05 turning 0.005π with dust (43) at its feet, the
+ * record 14 at 70, done at 211.  3: at 20 / 24 / 28 / 32 eight record-33
+ * shots from the DAT_0052b92c offsets (angle ±0.6..0.85π, reach, height),
+ * done at 60.  Ported from the disasm (unverified). */
+static void actor_ai_t67(actor_t *a)
+{
+    static const float k_pi = 3.1415927410125732f, k_pi200 = 0.015707964077591896f;
+    static const float k_pi50 = 0.06283185631036758f, k0p2pi = 0.6283185482025146f;
+    static const float k1p8pi = 5.654866695404053f, k10 = 10.0f, k0p3 = 0.30000001192092896f;
+    static const float k_ang[4] = { 0.6000000238418579f, 0.800000011920929f, 0.8500000238418579f,
+                                    0.44999998807907104f };          /* DAT_0052b92c */
+    static const float k_reach[4] = { 3.0f, 3.0f, 3.0f, 0.5f };    /* DAT_0052b93c */
+    static const float k_up[4] = { 2.0f, 0.5f, 3.200000047683716f, 3.5f };   /* DAT_0052b94c */
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float to = spill32(crt_atan2(dx, dz));
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xa54) == 8) {
+        if (++AI(a, 0xa58) == 240) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    int32_t live = 0;
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        const actor_t *o = &g_actor[i];
+        if (AI(o, ACT_INUSE) != 0 && AI(o, ACT_TYPE) == 10) ++live;
+    }
+    const int32_t dg = g_scene1_combat_stage_id;
+    int32_t cap = 3;
+    if (dg == 3) cap = 5;
+    if (dg >= 4) cap = 8;
+    if (live < cap && ++AI(a, 0xa64) >= 120) {
+        const int32_t n = ++AI(a, 0xa68);
+        AI(a, 0xa64) = 0;
+        if (n > cap) AI(a, 0xa64) = -200;
+        if (n > 2 * cap) AI(a, 0xa64) = -400;
+        if (n < 5 * cap) {
+            float sx, sz;
+            boss_minion_point(&sx, &sz);
+            const actor_stage_t stg = stage_now();
+            actor_t *m = actor_spawn_enemy(&stg, sx, k10, sz, 10);   /* FUN_0041f903 */
+            if (m) AI(m, 0xb2c) = 1;
+        }
+    }
+    switch (AI(a, 0xa54)) {
+    case 3: {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t == 20 || t == 24 || t == 28 || t == 32) {
+            const float x0 = AF(a, 0x3f0), y0 = AF(a, 0x3f4), z0 = AF(a, 0x3f8), f0 = AF(a, 0x420);
+            for (int k = 0; k != 8; k++) {
+                const int j = k & 3;
+                const float off = spill32((long double)k_ang[j] * k_pi);
+                AF(a, 0x420) = spill32((long double)off + f0);
+                if (k >= 4) AF(a, 0x420) = spill32((long double)f0 - off);
+                const double h = AF(a, 0x420);
+                AF(a, 0x3f0) = spill32((long double)spill32(x87_crt_sin(h)) * k_reach[j] + x0);
+                AF(a, 0x3f4) = spill32((long double)y0 + k_up[j]);
+                AF(a, 0x3f8) = spill32((long double)spill32(x87_crt_cos(h)) * k_reach[j] + z0);
+                scene1_record_b_spawn_npc(a, 33, 1);    /* FUN_00445a8c */
+            }
+            AF(a, 0x3f0) = x0;
+            AF(a, 0x3f4) = y0;
+            AF(a, 0x3f8) = z0;
+            AF(a, 0x420) = f0;
+        }
+        if (AI(a, 0xa58) == 60) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        break;
+    }
+    case 2: {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t >= 61 && t < 121) {
+            const double h = AF(a, 0x420);
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p05 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p05 + AF(a, 0x404));
+            AF(a, 0x420) = angle_ease(AF(a, 0x420), to, k_pi200);   /* FUN_00482ae7 */
+            const float z = spill32(((long double)rng_next_unit() - k0p5) * k5 + AF(a, 0x3f8));
+            const float x = spill32(((long double)rng_next_unit() - k0p5) * k5 + AF(a, 0x3f0));
+            scene1_spawn(0, x, k0p5, z, 43, k0p3, 1);   /* FUN_00447f4f */
+        }
+        if (AI(a, 0xa58) == 1) actor_anim_blend(a, 2);
+        if (AI(a, 0xa58) == 61) {
+            actor_anim_blend(a, 3);
+            audio_play_se_by_id(369);
+        }
+        if (AI(a, 0xa58) == 70) scene1_record_b_spawn_npc(a, 14, 1);
+        if (AI(a, 0xa58) == 111) actor_anim_blend(a, 4);
+        if (AI(a, 0xa58) == 211) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        break;
+    }
+    case 1: {
+        actor_anim_blend(a, 1);
+        ++AI(a, 0xa58);
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p01 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p01 + AF(a, 0x404));
+        if (AI(a, 0xa58) == 180) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        AF(a, 0x420) = angle_ease(AF(a, 0x420), to, k_pi50);
+        break;
+    }
+    case 0: {
+        actor_anim_blend(a, 0);
+        if (++AI(a, 0xa58) == 1) AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+        if (AI(a, 0xa58) != AI(a, 0xa60) + 10) break;
+        AI(a, 0xa58) = 0;
+        const float d = spill32((long double)AF(a, 0x420) - to);
+        const float ad = d < 0.0f ? -d : d;
+        int go = ad > k1p8pi || ad < k0p2pi;
+        if ((rng_next15() & 7u) == 0) go = 1;
+        if ((rng_next15() & 7u) == 0) go = 0;
+        if (go) AI(a, 0xa54) = 2;
+        else AI(a, 0xa54) = (rng_next15() & 3u) != 0 ? 1 : 3;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+/* FUN_00426811: type 54, the boss ahriman (dungeon 2 floor 5; FUN_00431b10
+ * places it in state 8).  State 8: the descent from y 16 at 1/16 a tick, 240
+ * ticks.  State 1 (anim 3): at 20 the record 137 + SE 698, at 100 a 0.5 kick
+ * back along the facing octant, the velocity × 0.95, back to 0 at 300; state 0
+ * anim 0.  Every tick but in 8: while fewer than `cap` ahrimans (types 6..9,
+ * DAT_0052b95c) live, every 30 ticks one more (+0xa68 counts them; past 2·cap
+ * the pause is 90, past 4·cap 150, none from 5·cap) at a random point 2..10
+ * around (-40, -40) at least 10 from the player (30 tries), y 10, of the first
+ * `kinds` types; it gets +0xb2c = 1.  A 400-tick cycle (+0xa5c): at 1 the hold
+ * +0xa60 (rand & 63), at 300 + hold state 1.  It circles 8 from the player
+ * (+0xa9c / +0xaa4) on the heading to the player swung by 0.2π sin(phase),
+ * steering 0.005 a tick (×0.96), turning 0.1 toward the player in state 0;
+ * vy hovers 1.5 + 0.5 sin(3 · phase) .. +1 over max(ground, +0x418).
+ * Ported from the disasm (unverified). */
+static void actor_ai_t54(actor_t *a)
+{
+    static const float k16 = 16.0f, k0p0625 = 0.0625f, k10 = 10.0f, k400 = 400.0f, k50 = 50.0f;
+    static const float k3 = 3.0f, k1p5 = 1.5f, k0p2pi = 0.6283185482025146f, k0p005 = 0.004999999888241291f;
+    static const float k0p96 = 0.9599999785423279f, k0p0095 = 0.009499999694526196f;
+    static const float km0p1 = -0.10000000149011612f;
+    static const int32_t k_minion[4] = { 6, 7, 8, 9 };     /* DAT_0052b95c */
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    if (d2 == 0.0f) dz = k0p01;
+    const float ang = spill32(crt_atan2(dx, dz));
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xb8c) != 0) AI(a, 0xb8c) = 0;
+    const int32_t st = AI(a, 0xa54);
+    if (st == 8) {
+        const int32_t t = ++AI(a, 0xa58);
+        AF(a, 0x3f4) = spill32((long double)k16 - (long double)spill32((long double)(float)t) * k0p0625);
+        if (t == 240) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    if (st == 1) {
+        actor_anim_set(a, 3);
+        if (++AI(a, 0xa58) == 20) {
+            scene1_record_b_spawn_npc(a, 137, 1);        /* FUN_00445a8c */
+            audio_play_se_by_id(698);
+        }
+        if (AI(a, 0xa58) == 100) {
+            const float fa = spill32((long double)spill32((long double)(float)AI(a, 0x18)) * k_2pi / k8);
+            const double fd = fa;
+            AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) - (long double)spill32(x87_crt_sin(fd)) * k0p5);
+            AF(a, 0x404) = spill32((long double)AF(a, 0x404) - (long double)spill32(x87_crt_cos(fd)) * k0p5);
+        }
+        AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p95);
+        AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p95);
+        if (AI(a, 0xa58) == 300) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    } else if (st == 0) {
+        actor_anim_set(a, 0);
+    }
+    int32_t live = 0;
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        const actor_t *o = &g_actor[i];
+        if (AI(o, ACT_INUSE) == 0) continue;
+        for (int k = 0; k < 4; k++)
+            if (AI(o, ACT_TYPE) == k_minion[k]) ++live;
+    }
+    const int32_t dg = g_scene1_combat_stage_id, fl = stage_gate_get_next();
+    int32_t kinds = 2, cap = 3;
+    if (dg == 2) cap = 4;
+    if (dg == 3) { kinds = 3; cap = 6; }
+    if (dg == 4) { kinds = 4; cap = 8; }
+    if (dg == 5) {
+        if (fl < 38) cap = 4;
+        else if (fl < 45) { kinds = 3; cap = 6; }
+        else { kinds = 4; cap = 8; }
+    }
+    if (live < cap && ++AI(a, 0xa64) >= 30) {
+        AI(a, 0xa64) = 0;
+        const int32_t n = ++AI(a, 0xa68);
+        if (n > 2 * cap) AI(a, 0xa64) = -60;
+        if (n > 4 * cap) AI(a, 0xa64) = -120;
+        if (n < 5 * cap) {
+            float sx, sz;
+            boss_minion_point(&sx, &sz);
+            const int32_t type = k_minion[(uint32_t)rng_next15() % (uint32_t)kinds];
+            const actor_stage_t stg = stage_now();
+            actor_t *m = actor_spawn_enemy(&stg, sx, k10, sz, type);   /* FUN_0041f903 */
+            if (m) AI(m, 0xb2c) = 1;
+        }
+    }
+    const int32_t cyc = AI(a, 0xa5c) % 400;
+    ++AI(a, 0xa5c);
+    if (cyc == 1) AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+    if (cyc == AI(a, 0xa60) + 300) {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 1;
+    }
+    const float ph = spill32((long double)(float)(AI(a, 0xa50) & 7));
+    const float ph_t = spill32(((long double)ph * k50 + (float)cyc) * k_2pi / k400);
+    const float hov = spill32((long double)spill32(x87_crt_sin((double)((long double)ph_t * k3))) * k0p5 + k1p5);
+    const float sw = spill32((long double)spill32(x87_crt_sin(ph_t)) * k0p2pi);
+    AF(a, 0xa9c) = spill32(((long double)PX - AF(a, 0xa9c)) + AF(a, 0xa9c));
+    AF(a, 0xaa4) = spill32(((long double)PZ - AF(a, 0xaa4)) + AF(a, 0xaa4));
+    const double a2 = (double)((long double)sw + ang);
+    const float tx = spill32((long double)AF(a, 0xa9c) - (long double)spill32(x87_crt_sin(a2)) * k8);
+    const float tz = spill32((long double)AF(a, 0xaa4) - (long double)spill32(x87_crt_cos(a2)) * k8);
+    const float ex = spill32((long double)tx - AF(a, 0x3f0));
+    const float ez = spill32((long double)tz - AF(a, 0x3f8));
+    const float e2 = spill32((long double)ez * ez + (long double)ex * ex);
+    if (e2 > 0.0f) {
+        const float d = spill32(crt_sqrt(e2));
+        if (AI(a, 0xa54) == 0) actor_turn_to_player(a, k0p1);   /* FUN_0041f789 */
+        AF(a, 0x3fc) = spill32((long double)ex * k0p005 / d + (long double)AF(a, 0x3fc) * k0p96);
+        AF(a, 0x404) = spill32((long double)ez * k0p005 / d + (long double)AF(a, 0x404) * k0p96);
+    }
+    AI(a, 0x9f4) = 1;
+    float base = AF(a, 0x3e0);
+    if (base < AF(a, 0x418)) base = AF(a, 0x418);
+    base = spill32((long double)base + hov);
+    if (AF(a, 0x3f4) < base)
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p0095);
+    else if ((long double)base + k1 < (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p01) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
 }
 
 /* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
@@ -2462,6 +2983,15 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t30(a);                     /* FUN_0042d676 (99: FUN_0044f009, stub) */
         } else if (type == 31) {
             actor_ai_t31(a);                     /* FUN_0042d392 */
+        } else if (type >= 37 && type <= 40) {
+            actor_ai_bomb(a);                    /* FUN_004293f0 */
+        } else if (type == 67) {
+            actor_ai_t67(a);                     /* FUN_00422ed6 */
+        } else if (type == 54) {
+            actor_ai_t54(a);                     /* FUN_00426811 */
+        } else if (type == 15 && sub == 0) {
+            actor_ai_pumpkin(a);                 /* FUN_0042a33e (sub 1: FUN_0042a23c, else
+                                                    FUN_00429e6f — stubs) */
         } else if (type == 16 && sub != 3) {
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {

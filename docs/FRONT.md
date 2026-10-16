@@ -188,12 +188,18 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (done: slimes
        0–5, bats 6..9, bees 10..12, mushrooms 13/14 + their burrow arms, kobold 16, fliers 17..21 /
        56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60, Charme 25, the lost girl
-       29, 44..48; FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392,
-       dialogue 10/3, from day 10 in dungeons 0..2), is ported but no recording meets it), the
+       29, 44..48; **ported ahead of a dungeon-2 recording, unverified**: FUN_00431d54's other
+       special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3, from day 10 in
+       dungeons 0..2), the bombs 37..40 (FUN_004293f0), the pumpkin 15 variant 0
+       (FUN_0042a33e), the boss ahriman 54 (FUN_00426811), Ohm 67 (FUN_00422ed6), FUN_0042f7ad's
+       61 / 64 / 67 / 68 / 69 arm, dungeon 2's setup FUN_0044d9d3 + its checkpoint events; still
+       stubs for dungeon 2: the crab 68 (FUN_00422092), Tielle 27 (FUN_00423b58, her floor-30
+       timeline FUN_0044db3c, her death arm), the pumpkin variants 1 / 2), the
        golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
-       arms (27/28/41/61..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
-       2..5's events / setups (FUN_0044d9d3 …, FUN_00450877, FUN_00451546); render: no
+       arms (27/28/41/70..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
+       3..5's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f …,
+       FUN_00450877, FUN_00451546); render: no
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
