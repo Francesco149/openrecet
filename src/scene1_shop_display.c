@@ -99,8 +99,8 @@ static const int32_t k_display_base_template[4][300] = {
 static int32_t s_grid[SHOP_DISPLAY_GRID_CELLS];
 
 /* DAT_0438cbfc / DAT_0438cc00 — the highlighted display cell col / row. */
-static int s_cbfc = -1;
-static int s_cc00 = -1;
+static int s_cbfc;   /* BSS 0 until FUN_00436f97's house arm sets -1 */
+static int s_cc00;
 /* _DAT_0438cbf4 / _DAT_0438cbf8 — float render position of the highlight. */
 static float s_render_x = 0.0f;
 static float s_render_z = 0.0f;

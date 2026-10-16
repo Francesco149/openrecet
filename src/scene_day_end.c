@@ -23,6 +23,9 @@
 #include "scene1_tutorial_dispatch.h" /* the morning beat (DAT_0438b928/b924) */
 #include "scene_pause.h"          /* pause_dispatch, pause_weekly_quota, pause_day_index, pause_period_end */
 #include "speech_bubble.h"        /* FUN_0040622f */
+#include "worker_load.h"           /* FUN_00452cde */
+#include "sim.h"                   /* FUN_00453373 (DAT_06a499a0) */
+#include "scene_gameover.h"        /* FUN_0049d2e5 */
 
 /* work-record dwords */
 #define W_GOLD          3
@@ -70,6 +73,9 @@ int day_end_rating(void)       { return s_rating; }
 int day_end_exit_phase(void)   { return s_exit; }
 int day_end_paying(void)       { return s_pay; }
 
+int32_t g_day_end_short;     /* DAT_0438b798 — the payment fell short (the game over) */
+int32_t g_day_end_ending;    /* DAT_0438b79c — the day-36 payment made (the ending) */
+
 void day_end_init(void)
 {
     int32_t *w = (int32_t *)save_work_dwords_at(save_work_active_slot());
@@ -112,7 +118,7 @@ void day_end_init(void)
 
 /* FUN_0048d954 — start a new day: the day-start gold, today's score, the three
  * lists (-1) and their counts. */
-static void day_start_reset(int32_t *w)
+void day_end_day_start_reset(int32_t *w)
 {
     w[W_SCORE_TODAY] = 0;
     w[W_DAY_START_GOLD] = w[W_GOLD];
@@ -165,7 +171,9 @@ void day_end_tick(uint16_t pressed, uint16_t held)
 
     /* L335-340: a dialogue box is up (the payment event script) — only the
      * coin shower runs. */
-    if (scene1_intro_dialogue_busy()) {           /* DAT_0438b1c8 != 0 */
+    /* DAT_0438b1c8 itself (the gate): the mode-9 arm cleared it this frame when
+     * the script ended, before this tick — not busy()'s settle frame */
+    if (scene1_intro_dialogue_gate() != 0) {
         if (s_pay_t > s_pay_end && s_pay_broke == 0)
             coin_shower();
         return;
@@ -179,16 +187,16 @@ void day_end_tick(uint16_t pressed, uint16_t held)
             fade_phase1_start(0, 0x11);                  /* FUN_004526f5(0, 17) */
         ++s_exit;
         if (fade_is_done()) {
-            day_start_reset(w);                          /* FUN_0048d954 */
+            day_end_day_start_reset(w);                  /* FUN_0048d954 */
             w[W_SHOPTIME] = 0;
             day_close_clear();                           /* DAT_0438b4e0 = 0 */
             scene1_top_hud_set_clock_phase(0.0f);        /* DAT_0438b7d4 = 0 */
             /* DAT_0438b4dc = w[W_TIER] — the stage index; PORT-DEBT(hardcode,
              * FUN_00436f97): no port mirror (scene1_preload_floor_layout). */
             day_timers_tick(w);                          /* FUN_0045e67e */
-            int ending = 0;                              /* DAT_0438b79c */
+            g_day_end_ending = 0;                        /* DAT_0438b79c */
             if (s_pay != 0 && s_pay_short == 0)
-                ending = w[W_DAY] == 36;
+                g_day_end_ending = w[W_DAY] == 36;
             int story = 0;
             if (w[W_DAY] == 8 || w[W_DAY] == 36) {
                 story = 1;
@@ -196,15 +204,23 @@ void day_end_tick(uint16_t pressed, uint16_t held)
                     story = 0;
             }
             if ((s_pay != 0 && s_pay_short != 0) || story != 0) {
-                /* the week-end story scene / game over / ending: DAT_0438b798 =
-                 * short, FUN_00453373, b1c0 = 7 + FUN_0049da9e (ending) or
-                 * b1c0 = 2 + FUN_0049d2e5, then FUN_00474d92 + FUN_00473668 +
-                 * FUN_0045281c + FUN_0048da71 + the scene load.  Those scenes are
-                 * unported — PORT-DEBT(stub, FUN_0049d2e5): the port takes the
-                 * next-day path below instead. */
-                (void)ending;
-            }
-            {
+                /* the game over, the ending, the week-end story: mode 2
+                 * (FUN_0049d2e5) or 7 (FUN_0049da9e) and its scene load */
+                g_day_end_short = s_pay_short;           /* DAT_0438b798 */
+                sim_set_mode_9a0(0);                     /* FUN_00453373: the pause closes */
+                if (g_day_end_ending != 0) {
+                    g_scene_state = 7;
+                    /* PORT-DEBT(stub, FUN_0049da9e): the ending's entry + mode 7 FUN_0049db8a */
+                } else {
+                    g_scene_state = 2;
+                    scene_gameover_enter();              /* FUN_0049d2e5 */
+                }
+                /* FUN_00474d92 (the D3D teardown) + FUN_00473668 (the scene's
+                 * textures): render side */
+                fade_phase_out_start(0, 0x11);           /* FUN_0045281c(0, 17) */
+                day_end_init();                          /* FUN_0048da71 */
+                worker_load_spawn();                     /* FUN_00452cde */
+            } else {
                 pause_dispatch(1);                       /* FUN_004536b9: close */
                 fade_phase_out_start(0, 0x11);           /* FUN_0045281c(0, 17) */
                 day_end_init();                          /* FUN_0048da71 */
@@ -236,8 +252,13 @@ void day_end_tick(uint16_t pressed, uint16_t held)
                 coin_shower();
             if (s_pay_t > s_pay_end + 100 && (in & 0x10)) {
                 s_exit = 1;
-                /* FUN_0044ba2c(0, 5 | 4, 0) / (1, 19, 0) on day 36 — the
-                 * payment event scripts: PORT-DEBT(stub, FUN_0044ba2c). */
+                /* Tear's verdict: broke (0, 5), the day-36 payment (1, 19), paid (0, 4) */
+                if (s_pay_broke != 0)
+                    scene1_intro_dialogue_start_single(0, 5);   /* FUN_0044ba2c(0, 5, 0) */
+                else if (w[W_DAY] == 36)
+                    scene1_intro_dialogue_start_single(1, 19);  /* FUN_0044ba2c(1, 19, 0) */
+                else
+                    scene1_intro_dialogue_start_single(0, 4);   /* FUN_0044ba2c(0, 4, 0) */
             }
         }
         ++s_pay_t;

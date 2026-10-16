@@ -88,7 +88,7 @@
    "FUN_0048e49c": 1,
    "FUN_0048f87c": 1,
    "FUN_0049a59e": 1,
-   "FUN_0049d2e5": 1,
+   "FUN_0049da9e": 1,
    "FUN_004cdd9f": 1,
    "scene1-rng-stream-parity.md": 1
   }
@@ -243,7 +243,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 478,
+   "line": 479,
    "kind_known": true
   },
   {
@@ -267,7 +267,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 387,
+   "line": 388,
    "kind_known": true
   },
   {
@@ -483,7 +483,7 @@
    "engine_fn": "FUN_0044bd0d",
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
-   "line": 411,
+   "line": 409,
    "kind_known": true
   },
   {
@@ -739,7 +739,7 @@
    "engine_fn": "FUN_0048e49c",
    "desc": "the payment-screen 3D shop",
    "file": "src/scene_day_end.c",
-   "line": 150,
+   "line": 156,
    "kind_known": true
   },
   {
@@ -752,10 +752,10 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0049d2e5",
-   "desc": "the port takes the",
+   "engine_fn": "FUN_0049da9e",
+   "desc": "the ending's entry + mode 7 FUN_0049db8a",
    "file": "src/scene_day_end.c",
-   "line": 203,
+   "line": 213,
    "kind_known": true
   }
  ]

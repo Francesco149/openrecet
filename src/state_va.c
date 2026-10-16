@@ -32,6 +32,7 @@
 #include "scene_adv_guild.h"
 #include "scene_town_event.h"
 #include "scene_day_end.h"
+#include "scene_gameover.h"
 #include "scene_pause.h"
 #include "scene_title.h"
 #include "scene1_actor_say.h"
@@ -131,6 +132,11 @@ static int32_t get_pfac(void) { return prec(6); }
 static int32_t get_px(void)   { return fbits(g_scene1_actor_pos[0][0]); }
 static int32_t get_pz(void)   { return fbits(g_scene1_actor_pos[0][2]); }
 static int32_t get_camyaw(void) { return fbits(g_scene1_camera_yaw); }
+static int32_t get_go_step(void) { return scene_gameover_step(); }
+static int32_t get_go_exit(void) { return scene_gameover_exit_t(); }
+static int32_t get_b798(void)  { return g_day_end_short; }
+static int32_t get_de_exit(void) { return day_end_exit_phase(); }
+static int32_t get_b79c(void)  { return g_day_end_ending; }
 
 static int32_t get_cbfc(void)  { return shop_display_cbfc(); }
 static int32_t get_cc00(void)  { return shop_display_cc00(); }
@@ -176,6 +182,7 @@ static int32_t get_c998(void)    { return sim_get_counter_998(); }
 static int32_t get_c990(void)    { return sim_get_counter_990(); }
 static int32_t get_pact(void)    { return g_pause_action; }
 static int32_t get_fade(void)    { return g_fade_phase; }
+static int32_t get_fadec(void)   { return g_fade_counter; }
 static int32_t get_clkph(void)  { return fbits(scene1_top_hud_clock_phase()); }
 static int32_t get_de_t(void)   { return day_end_frame(); }
 static int32_t get_de_p(void)   { return day_end_profit_shown(); }
@@ -260,6 +267,11 @@ static const state_va_t k_map[] = {
     { 0x56da1d8u, "player x bits (DAT_056da1d8)",      get_px },
     { 0x56da1e0u, "player z bits (DAT_056da1e0)",      get_pz },
     { 0x73de39cu, "camera yaw bits (DAT_073de39c)",    get_camyaw },
+    { 0x9643584u, "game-over step (DAT_09643584)",     get_go_step },
+    { 0x964357cu, "game-over exit countdown (DAT_0964357c)", get_go_exit },
+    { 0x438b798u, "day-end payment short (DAT_0438b798)", get_b798 },
+    { 0x74b2f08u, "day-end exit fade (DAT_074b2f08)",  get_de_exit },
+    { 0x438b79cu, "day-end ending (DAT_0438b79c)",     get_b79c },
     { 0x438cbfcu, "faced display cell col (DAT_0438cbfc)", get_cbfc },
     { 0x438cc00u, "faced display cell row (DAT_0438cc00)", get_cc00 },
     { 0x469a9fu,  "display menu selection (FUN_00469a9f) — rhost: none", get_dsel },
@@ -301,6 +313,7 @@ static const state_va_t k_map[] = {
     { 0x6a49990u, "pause fade counter (DAT_06a49990)", get_c990 },
     { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },
     { 0x438bf7cu, "fade phase (DAT_0438bf7c)", get_fade },
+    { 0x438bf78u, "fade counter (DAT_0438bf78)", get_fadec },
 };
 #define K_N ((int)(sizeof k_map / sizeof k_map[0]))
 

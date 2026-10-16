@@ -48,6 +48,7 @@
 #include "party_roster.h"   /* FUN_0047f1ce — the pause build's party count */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
+#include "scene_gameover.h" /* FUN_0049d8a4 — mode 2 */
 #include "scene_day_end.h"  /* day_end_tick — pause action 1 (FUN_0048dbfb) */
 #include "dungeon_results.h" /* pause action 2 (FUN_0048f931) */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 — continuous per-frame probe (RE §21.23) */
@@ -557,6 +558,11 @@ void sim_step_a(void)
      * once the ramp is past 3 (menu visible). */
     if (sim_get_counter_998() != 0) {
         if (g_scene_state == 9 && sim_get_counter_998() > 3) {
+            /* a dialogue started from the pause (the payment verdict) ticks here
+             * (FUN_004536cb's mode-9 arm: FUN_0046c320 while DAT_0438b1c8 != 0),
+             * then the pause action runs as every frame */
+            if (scene1_intro_dialogue_busy())
+                scene1_intro_dialogue_tick(g_input_state[0].buttons);
             if (g_pause_action == 0)
                 pause_menu_update();   /* FUN_0047fa76 */
             else if (g_pause_action == 1)
@@ -696,9 +702,21 @@ void sim_step_a(void)
             scene_town_event_sim(g_scene_state);
         break;
 
-    case 2:    /* cutscene  (engine FUN_0049d8a4) */
+    case 2:    /* the game over / week-end story (engine FUN_0049d8a4) */
+        /* LABEL_106: FUN_00406584 → FUN_0040fb3a → FUN_0049d8a4 only while no
+         * dialogue runs (DAT_0438b1c8 == 0). */
+        speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
+        scene1_top_hud_tooltip_off();
+        title_save_dialog_anim_tick();
+        hud_xp_shake_money_tick();
+        scene1_particles_tick();
+        if (!scene1_intro_dialogue_busy())
+            scene_gameover_tick();
+        break;
+
     case 3:    /* dialog    (engine FUN_0041ee24) */
-    case 7:    /* dungeon idle  (engine FUN_0049db8a) */
+    case 7:    /* the ending  (engine FUN_0049db8a) */
         scene1_particles_tick();
         break;
 

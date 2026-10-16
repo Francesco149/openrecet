@@ -39,6 +39,13 @@ int day_end_rating(void);          /* DAT_074b2f34 */
 int day_end_exit_phase(void);      /* DAT_074b2f08 */
 int day_end_paying(void);          /* DAT_074b2f0c */
 
+/* FUN_0048d954 — start a new day: the day-start gold, today's score, the three
+ * lists and their counts */
+void day_end_day_start_reset(int32_t *w);
+
+extern int32_t g_day_end_short;    /* DAT_0438b798: the payment fell short (game over) */
+extern int32_t g_day_end_ending;   /* DAT_0438b79c: the day-36 payment made (the ending) */
+
 #ifdef _WIN32
 struct IDirect3DDevice8;
 /* FUN_00473618 — choushuu.tga, result_bord01.tga, hanko.tga. */

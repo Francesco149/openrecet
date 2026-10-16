@@ -105,7 +105,7 @@ __attribute__((weak)) const char *openrecet_capture_dir(void) { return 0; }
  * are unported features, so both stay at their free-roam values in steady play.
  * That keeps the dispatch a real read of live state (not the old unconditional
  * shell) while the off-path arms remain honest stubs. */
-static int   s_cc08             = 1;              /* DAT_0438cc08 */
+static int   s_cc08             = 0;              /* DAT_0438cc08 (BSS 0 until FUN_004850ec) */
 /* cc08 boundary-frame markers (RE §21.28): the engine entry/leave arms decide
  * the frame's behavior on the FRAME-START cc08; these flag a mid-frame flip so
  * later-running controllers (the companion) can mirror that.  Cleared at the

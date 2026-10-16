@@ -93,7 +93,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048e49c | 1 |
 | FUN_0048f87c | 1 |
 | FUN_0049a59e | 1 |
-| FUN_0049d2e5 | 1 |
+| FUN_0049da9e | 1 |
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
@@ -126,7 +126,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00442cef | src/scene1_sim.c:445 | the run's end (FUN_00442c86, |
 | FUN_0044376a | src/dungeon_party.c:1601 | its 0 edge |
 | FUN_0044b219 | src/scene1_postload.c:373 | the camera shake reset, DAT_073de3a0 = 45 |
-| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:411 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:409 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044d1e4 | src/dungeon_flow.c:558 | floor 14 — the portals by the story |
 | FUN_0044d47d | src/dungeon_flow.c:573 | the floor-14 timeline (Charme, type 25, |
 | FUN_0044f078 | src/dungeon_party.c:624 | dungeon 4 floor 99's event helper |
@@ -158,9 +158,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048cdcc | src/dungeon_party.c:1266 | the skill states 3, 5..8 by char |
 | FUN_0048d5d6 | src/dungeon_party.c:740 | char 42's gauge refill + the random |
 | FUN_0048d5d6 | src/dungeon_party.c:747 | the skill cycle (DAT_0438b7dc, SE 326) |
-| FUN_0048e49c | src/scene_day_end.c:150 | the payment-screen 3D shop |
+| FUN_0048e49c | src/scene_day_end.c:156 | the payment-screen 3D shop |
 | FUN_00490c78 | src/dungeon_party.c:508 | the buff-end bubble over Tear |
-| FUN_0049d2e5 | src/scene_day_end.c:203 | the port takes the |
+| FUN_0049da9e | src/scene_day_end.c:213 | the ending's entry + mode 7 FUN_0049db8a |
 
 ## synthetic-data (0)
 
@@ -172,10 +172,10 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
-| FUN_004536cb | src/sim.c:478 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:479 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
-| scene1-rng-stream-parity.md | src/sim.c:387 | sim_loading_pump() |
+| scene1-rng-stream-parity.md | src/sim.c:388 | sim_loading_pump() |
 
 ## hardcode (2)
 

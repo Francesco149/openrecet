@@ -88,6 +88,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_actor_say.c \
                  ../src/speech_bubble.c \
                  ../src/scene_day_end.c \
+                 ../src/scene_gameover.c \
                  ../src/skip_event.c \
                  ../src/choice_box.c \
                  ../src/scene1_dialogue.c \

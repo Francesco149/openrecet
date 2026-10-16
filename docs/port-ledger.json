@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 657,
-  "inv_discovered": 1800,
-  "referenced_or_better": 748,
-  "pct_referenced_or_better": 29.4,
+  "inv_source_referenced": 661,
+  "inv_discovered": 1796,
+  "referenced_or_better": 752,
+  "pct_referenced_or_better": 29.5,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 109,
+  "port_debt": 107,
   "verified": 81,
   "stubbed": 10,
-  "ported": 657,
-  "unported": 1800,
-  "touched": 748,
-  "pct_touched": 29.4,
+  "ported": 661,
+  "unported": 1796,
+  "touched": 752,
+  "pct_touched": 29.5,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -5592,6 +5592,7 @@
     "src/scene1_postload.h",
     "src/scene1_sim.c",
     "src/scene_adv_guild.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -6207,6 +6208,7 @@
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene1_render.c",
+    "src/scene1_shop_display.c",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h",
     "src/scene1_top_hud.c",
@@ -7166,6 +7168,7 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_sim.c",
     "src/scene_day_end.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_town_event.c",
     "src/scene_worldmap.c",
@@ -8102,6 +8105,7 @@
     "src/scene1_player_ctrl.h",
     "src/scene_adv_guild.c",
     "src/scene_day_end.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -8165,6 +8169,7 @@
     "src/scene1_player_ctrl.h",
     "src/scene_adv_guild.c",
     "src/scene_day_end.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_town_event.c",
@@ -8199,6 +8204,7 @@
     "src/scene1_player_ctrl.c",
     "src/scene_adv_guild.c",
     "src/scene_day_end.c",
+    "src/scene_gameover.c",
     "src/scene_pause.c",
     "src/scene_town_event.c",
     "src/scene_worldmap.c",
@@ -8302,6 +8308,8 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene_adv_guild.c",
+    "src/scene_day_end.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -8785,6 +8793,7 @@
     "src/scene1_sim.h",
     "src/scene_adv_guild.h",
     "src/scene_day_end.h",
+    "src/scene_gameover.h",
     "src/scene_guild.c",
     "src/scene_town_event.h",
     "src/scene_worldmap.c",
@@ -14178,6 +14187,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_gameover.h",
     "src/worker_load.h"
    ],
    "status": "ported"
@@ -14188,18 +14198,20 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_gameover.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x473585",
@@ -16341,18 +16353,20 @@
    "size": 68,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_gameover.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48093f",
@@ -18259,7 +18273,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_day_end.c"
+    "src/scene_day_end.c",
+    "src/scene_day_end.h",
+    "src/scene_gameover.c"
    ],
    "status": "ported"
   },
@@ -18814,6 +18830,7 @@
     "src/save_io.c",
     "src/save_io.h",
     "src/save_picker.h",
+    "src/scene_gameover.c",
     "src/scene_pause.c",
     "src/scene_pause.h",
     "src/scene_title.c"
@@ -21318,7 +21335,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_day_end.c"
+    "src/scene_day_end.c",
+    "src/scene_gameover.c",
+    "src/scene_gameover.h"
    ],
    "status": "ported"
   },
@@ -21328,18 +21347,20 @@
    "size": 72,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_gameover.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49d36d",
@@ -21369,18 +21390,21 @@
    "size": 840,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_gameover.c",
+    "src/scene_gameover.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49d8a4",
@@ -21399,6 +21423,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_gameover.c",
+    "src/scene_gameover.h",
     "src/scene_title.c",
     "src/sim.c"
    ],
@@ -21480,6 +21506,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_day_end.c",
     "src/sim.c"
    ],
    "status": "ported"

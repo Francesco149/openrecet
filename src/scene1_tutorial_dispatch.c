@@ -344,10 +344,8 @@ void scene1_tutorial_dispatch_tick(void)
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
         bb[TUT_IV2_6_DONE_OFF] = 1;          /* DAT_0450f413 = 1 */
         bb[TUT_F414_OFF]       = 1;          /* DAT_0450f414 = 1 */
-        /* b928 = 0: retail clears it when the DAY2 load completes; the port's
-         * iv2_6 is a dialogue load, so the clear lands on its start
-         * (PORT-DEBT(simplified, FUN_0049a59e)). */
-        g_iv2_beat_active = 0;
+        /* b928 stays 1: the beat ends by b924 reaching 200 (retail clears b928
+         * only at a title load, FUN_0049a59e, and a guild dungeon entry) */
     }
 }
 
