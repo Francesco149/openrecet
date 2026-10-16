@@ -8,20 +8,20 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 668,
-  "inv_discovered": 1790,
-  "referenced_or_better": 758,
-  "pct_referenced_or_better": 29.7,
+  "inv_source_referenced": 670,
+  "inv_discovered": 1788,
+  "referenced_or_better": 760,
+  "pct_referenced_or_better": 29.8,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 104,
+  "port_debt": 98,
   "verified": 80,
   "stubbed": 10,
-  "ported": 668,
-  "unported": 1790,
-  "touched": 758,
-  "pct_touched": 29.7,
+  "ported": 670,
+  "unported": 1788,
+  "touched": 760,
+  "pct_touched": 29.8,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3417,6 +3417,7 @@
    "src": [
     "src/actor_ai.c",
     "src/actor_table.h",
+    "src/dungeon_flow.c",
     "src/dungeon_party.c",
     "src/enemy_place.h"
    ],
@@ -3460,7 +3461,7 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_flow.c"
+    "src/actor_ai.c"
    ],
    "status": "ported"
   },
@@ -8112,6 +8113,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
@@ -8174,6 +8176,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
@@ -8212,6 +8215,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_results.c",
     "src/fade.c",
     "src/fade.h",
@@ -20231,18 +20235,20 @@
    "size": 119,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x497745",
@@ -20532,6 +20538,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/audio.c",
     "src/audio.h",
     "src/customer_service.c",
@@ -20867,7 +20874,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c"
+    "src/actor_ai.c",
+    "src/dungeon_party.c",
+    "src/dungeon_party.h"
    ],
    "status": "ported"
   },
@@ -20974,18 +20983,22 @@
    "size": 120,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c",
+    "src/dungeon_party.c",
+    "src/dungeon_party.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49a324",

@@ -43,6 +43,7 @@ extern int32_t g_event_tick;         /* DAT_0438b8a4: the per-dungeon event coun
 extern int32_t g_event_stage;        /* DAT_0438b8a0: the per-dungeon event stage (1 during the stage init) */
 extern int32_t g_ghost_timer;        /* DAT_0438cbe0: ticks since the first hurry-up spawn */
 extern int32_t g_ghost_count;        /* DAT_0438cbe4: hurry-up spawns on this floor */
+extern int32_t g_charme_portal;      /* DAT_06a47098: the floor-14 portal object */
 extern int32_t g_dat_0438beb0;
 extern int32_t g_dat_0438beb4;       /* > 0: FUN_0044b38c owns the tick */
 extern int32_t g_dat_0438beb8;

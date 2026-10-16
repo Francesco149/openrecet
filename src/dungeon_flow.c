@@ -15,6 +15,7 @@
 #include "dungeon_party.h"       /* FUN_0048b850 (the dungeon path) */
 #include "dungeon_objects.h"     /* DAT_0695ef78, DAT_06a47054 */
 #include "dungeon_results.h"     /* DAT_0438b718.. */
+#include "fade.h"                /* FUN_004526f5 / 0045281c / 004528b3 */
 #include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "party.h"
 #include "tables_snews.h"        /* DAT_073b2108 / DAT_073d8ee0 */
@@ -547,6 +548,243 @@ static void boss_floor_setup(int portals)
     }
 }
 
+int32_t g_charme_portal;          /* DAT_06a47098: the floor-14 portal object */
+actor_t *g_dungeon_boss;          /* DAT_06a47094: the scripted boss (floor 14, dungeon 2) */
+
+static actor_t *charme_spawn(float x, float y, float z)
+{
+    const uint8_t *w = save_work_bank_at(save_work_active_slot());
+    const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                               stage_post_load_get_mode_b4d0(), g_ghost_count,
+                               w ? w[0x2bc57] : 0 };
+    actor_t *a = actor_spawn_enemy(&st, x, y, z, 25);    /* FUN_0041f903 */
+    if (a != NULL) {
+        act_seti(a, ACT_INUSE, 1);
+        act_seti(a, 0xa54, 8);
+    }
+    return a;
+}
+
+/* the work record's +0x2dd64 (2 skips the story beats) */
+static int32_t work_mode(const uint8_t *rec)
+{
+    int32_t v = 0;
+    if (rec) memcpy(&v, rec + 0x2dd64, 4);
+    return v;
+}
+
+/* FUN_0044d1e4's floor-14 arm: the town portal at (-35, 0, -30) and the
+ * floor portal at (-40, 0, -30) (DAT_06a47098) — raised at once (dobj_spawn)
+ * once Charme was beaten (+0x2bc8d), else the spent pair (FUN_0044b257) the
+ * timeline raises.  Beaten → event stage 6.  The first visit (+0x2bc8c) lines
+ * the party up 1 apart (stage 0: Charme comes at 60); a later one 1.3 apart,
+ * 5 back, with Charme waiting at (-40, 10, -32) (stage 2). */
+static void charme_floor_setup(void)
+{
+    static const float km35 = -35.0f, km30 = -30.0f, km40 = -40.0f, k0p35 = 0.3499999940395355f;
+    static const float k1p3 = 1.2999999523162842f, k5 = 5.0f, k10 = 10.0f, km32 = -32.0f;
+    uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    const int32_t mode = work_mode(rec);
+    const int beaten = rec != NULL && rec[0x2bc8d] != 0 && mode != 2;
+    float p[3] = { km35, 0.0f, km30 };
+    const float sc[3] = { k0p35, k0p35, k0p35 };
+    if (beaten) dobj_spawn(p, sc, 0.0f, 6);
+    else dobj_spawn_special(0, 6, p, sc, 0.0f);
+    p[0] = km40;
+    p[2] = km30;
+    g_charme_portal = dobj_spawn(p, sc, 0.0f, 4);
+    if (!beaten) dobj_spawn_special(1, 4, p, sc, 0.0f);
+    if (beaten) {
+        g_event_stage = 6;
+        return;
+    }
+    if (rec != NULL && rec[0x2bc8c] == 0 && mode != 2) {
+        rec[0x2bc8c] = 1;
+        for (int i = 0; i < 3; i++) {
+            const float fi = spill32((long double)i);
+            g_party.pos[i][0] = spill32((long double)fi + g_scene1_stage_player_default_pos[0]);
+            g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+            g_party.pos[i][2] = spill32((long double)g_scene1_stage_player_default_pos[2] - fi);
+            party_anim_set(g_party.rec[i], 0);   /* FUN_00482a51 */
+            g_party.rec[i][6] = 0;
+        }
+        PW(0x56db05cu).f = 0.0f;
+        return;
+    }
+    for (int i = 0; i < 3; i++) {
+        const float fi = spill32((long double)spill32((long double)i) * k1p3);
+        g_party.pos[i][0] = spill32((long double)fi + g_scene1_stage_player_default_pos[0]);
+        g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+        g_party.pos[i][2] = spill32(((long double)g_scene1_stage_player_default_pos[2] - k5) - fi);
+        party_anim_set(g_party.rec[i], 0);
+        g_party.rec[i][6] = 0;
+    }
+    PW(0x56db05cu).f = 0.0f;
+    g_event_stage = 2;
+    g_dungeon_boss = charme_spawn(km40, k10, km32);
+}
+
+/* FUN_0044d47d's floor-14 timeline (DAT_0438b8a0 / b8a4; the controls locked
+ * (b8b0 0) in stages 0..6, free in 7):
+ *   0 at 60: iv3_1, Charme at (-40, 5, -20) (type 25, state 8) → 1;
+ *   1 the event camera (class 1) swings in from the floor's end over 40 ticks
+ *     (look (-40, ≤4, ≤-22), yaw → -π/4, 15 out) and back from 240; at 300
+ *     iv3_2 → 2;
+ *   2 at 1: the floor portal sinks a step (spent), the partner holds at
+ *     (-27, 0, -41), the camera blends to (-40, 0, -40), the title banner,
+ *     her voice; at 120 the adventurer's line → 3;
+ *   3 the fight: no enemy left → 4 (mode 2: 6);
+ *   4 at 60 the fade-out; once done the party back at the start facing -x,
+ *     the fade-in → 5;
+ *   5 at 30 iv3_3 → 6 at 31;
+ *   6 at 30 iv3_8 the first time (+0x2bc8d); at 31 both portals rise → 7. */
+static void charme_floor_event(void)
+{
+    static const float k4 = 4.0f, k40 = 40.0f, k12 = 12.0f, k34 = 34.0f, km22 = -22.0f;
+    static const float km_pi4 = -0.7853981852531433f, k240 = 240.0f, k0p05 = 0.05000000074505806f;
+    static const float k0p25 = 0.25f, km34 = -34.0f, k15 = 15.0f, km40 = -40.0f, k5 = 5.0f;
+    static const float km20 = -20.0f, k0p5 = 0.5f, km10 = -10.0f, km27 = -27.0f, km41 = -41.0f;
+    static const float k1p5 = 1.5f, km_pi2 = -1.5707963705062866f;
+    uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    g_ctrl_lock = -1;
+    switch (g_event_stage) {
+    case 0:
+        g_ctrl_lock = 0;
+        if (g_event_tick == 60) {
+            scene1_intro_dialogue_start_single(3, 1);    /* FUN_0044ba2c(3, 1, 0) */
+            charme_spawn(km40, k5, km20);
+            g_event_stage = 1;
+            g_event_tick = 0;
+        }
+        break;
+    case 1: {
+        g_ctrl_lock = 0;
+        if (g_event_tick >= 0) {
+            g_scene1_camera_stage_class = 1;              /* DAT_0438b4e8 */
+            float ft = spill32((long double)g_event_tick);
+            float ly = spill32((long double)ft * k4 / k40);
+            if (ly > k4) ly = k4;
+            float lz = spill32((long double)ft * k12 / k40 - k34);
+            if (lz > km22) lz = km22;
+            float yaw = spill32((long double)ft * km_pi4 / k40);
+            if (yaw < km_pi4) yaw = km_pi4;
+            if (g_event_tick >= 240) {
+                ft = spill32((long double)ft - k240);
+                ly = spill32((long double)k4 - (long double)ft * k0p05);
+                if (ly < 0.0f) ly = 0.0f;
+                lz = spill32((long double)km22 - (long double)ft * k0p25);
+                if (lz < km34) lz = km34;
+            }
+            const float look[3] = { km40, ly, lz };
+            const double X = yaw;
+            const float eye[3] = {
+                spill32((long double)spill32(x87_crt_sin(X)) * k15 + look[0]),
+                spill32((long double)look[1] + k15),
+                spill32((long double)look[2] - (long double)spill32(x87_crt_cos(X)) * k15),
+            };
+            scene1_camera_set_targets(eye, look);         /* DAT_0438cc38.. / cc50.. */
+        }
+        if (g_event_tick == 300) {
+            g_event_tick = 0;
+            g_event_stage = 2;
+            scene1_intro_dialogue_start_single(3, 2);
+        }
+        break;
+    }
+    case 2:
+        g_scene1_camera_stage_class = 0;
+        g_ctrl_lock = 0;
+        if (g_event_tick == 1) {
+            dobj_t *o = &g_dobj[g_charme_portal];
+            if (o->i[DOBJ_KIND] != -1) {
+                o->i[DOBJ_STATE] = 3;
+                const float y = spill32((long double)o->f[DOBJ_POS + 1] - k0p5);
+                o->f[DOBJ_POS + 1] = y;
+                if (y < km10) o->i[DOBJ_KIND] = -1;
+            }
+            g_cut_follow_x = km27;
+            g_cut_follow = 1;
+            g_cam_blend = 1;
+            g_cut_follow_y = 0.0f;
+            g_cut_follow_z = km41;
+            g_cam_blend_x = km40;
+            g_cam_blend_y = 0.0f;
+            g_cam_blend_z = km40;
+            dungeon_title_banner_open(180, 0);           /* FUN_00406551 */
+            g_dat_09643128 = 1;
+            audio_play_se_file("bin/se/03sy/action/03sy_13a.bin");   /* FUN_0049933c */
+        }
+        if (g_event_tick == 120) {
+            boss_intro_voice();                          /* FUN_0044cbe4 */
+            g_event_stage = 3;
+            g_event_tick = 0;
+        }
+        break;
+    case 3:
+        if (g_event_tick > 0) {
+            int n = 0;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                const int32_t u = act_geti(&g_actor[i], ACT_INUSE);
+                if (u != 0 && u != 2) n++;
+            }
+            if (n == 0) {
+                g_event_stage = 4;
+                g_event_tick = 0;
+                g_dat_09643128 = 0;
+                if (work_mode(rec) == 2) g_event_stage = 6;
+            }
+        }
+        break;
+    case 4:
+        g_ctrl_lock = 0;
+        if (g_event_tick == 60) fade_phase1_start(0, 120);   /* FUN_004526f5 */
+        if (g_event_tick > 60 && fade_is_done()) {            /* FUN_004528b3 */
+            g_cam_blend = 0;
+            g_cut_follow = 0;
+            for (int i = 0; i < 3; i++) {
+                g_party.pos[i][0] = g_scene1_stage_player_default_pos[0];
+                g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+                const float fi = spill32((long double)i);
+                g_party.pos[i][2] = spill32((long double)g_scene1_stage_player_default_pos[2] - (long double)fi * k1p5);
+                party_anim_set(g_party.rec[i], 0);
+                g_party.rec[i][6] = 6;
+            }
+            PW(0x56db05cu).f = km_pi2;
+            g_event_tick = 0;
+            g_event_stage = 5;
+            fade_phase_out_start(0, 30);                  /* FUN_0045281c */
+        }
+        break;
+    case 5:
+        g_ctrl_lock = 0;
+        if (g_event_tick == 30) scene1_intro_dialogue_start_single(3, 3);
+        if (g_event_tick == 31) {
+            g_event_stage = 6;
+            g_event_tick = 0;
+        }
+        break;
+    case 6:
+        g_ctrl_lock = 0;
+        if (g_event_tick == 30) {
+            if (rec == NULL || rec[0x2bc8d] != 0 || work_mode(rec) == 2) break;
+            rec[0x2bc8d] = 1;
+            scene1_intro_dialogue_start_single(3, 8);
+        }
+        if (g_event_tick == 31) {
+            dobj_raise_special(0);                       /* FUN_0044b2e6 */
+            dobj_raise_special(1);
+            g_event_stage = 7;
+            g_event_tick = 0;
+        }
+        break;
+    case 7:
+        g_ctrl_lock = -1;
+        break;
+    default:
+        break;
+    }
+}
+
 /* FUN_0044d1e4: dungeon 1's floor setup (FUN_00436f97's dungeon arm): floor 14
  * (Charme's), or a checkpoint floor's arena FUN_0044cc80(1); b8a4 = 0. */
 void dungeon1_stage_setup(void)
@@ -555,9 +793,7 @@ void dungeon1_stage_setup(void)
     g_scene1_camera_stage_class = 0;
     const int32_t floor = stage_gate_get_next();
     if (floor == 14) {
-        /* PORT-DEBT(stub, FUN_0044d1e4): floor 14 — the portals by the story
-         * bytes (work +0x2bc8d / +0x2bc8c, game mode 2), the party, Charme
-         * (type 25, state 8) — no recording reaches it. */
+        charme_floor_setup();
     } else if (floor % 5 == 4) {
         boss_floor_setup(1);
     }
@@ -570,10 +806,9 @@ static void dungeon1_event_tick(void)
 {
     const int32_t floor = stage_gate_get_next();
     if (floor == 14) {
-        /* PORT-DEBT(stub, FUN_0044d47d): the floor-14 timeline (Charme, type 25,
-         * spawned at b8a4 60 with iv3_1; the camera swing, iv3_2, the fight, the
-         * fade, iv3_3 / iv3_8, the portals) — no recording reaches it, and
-         * Charme's AI FUN_0041fa6e is unported. */
+        charme_floor_event();
+        ++g_event_tick;
+        return;
     } else if (floor % 5 == 4) {
         boss_floor_event(1);
     }

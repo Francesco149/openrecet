@@ -27,6 +27,8 @@ extern "C" {
 #endif
 
 void party_anim_set(int32_t *rec, int32_t anim);   /* FUN_00482a51 */
+int32_t voice_bag2(void);                          /* FUN_00499fda: 0 / 1 */
+int32_t voice_bag8(void);                          /* FUN_0049a2a9: 0..7 */
 float angle_ease(float a, float b, float step);    /* FUN_00482ae7 */
 void party_follow(int target, int set_anim);       /* FUN_0048a4d1 */
 void party_status_tick(void);                      /* FUN_004897c6(&DAT_056da1b8) */

@@ -320,15 +320,40 @@ out:
     (void)rng_next15();
 }
 
+/* FUN_0041fa37 / FUN_0042460a: a boss's hit — inside its 60-tick window
+ * (+0xa64) the hit count (+0xa60) rises and the run restarts; past it the
+ * stagger (+0x440) and the window clear.  +0xb08 = `guard` either way. */
+static void actor_hit_count(actor_t *a, int32_t guard)
+{
+    if (AI(a, 0xa64) < 60) {
+        ++AI(a, 0xa60);
+        AI(a, 0xa58) = 0;
+    } else {
+        AI(a, 0x440) = 0;
+        AI(a, 0xa64) = 0;
+    }
+    AI(a, 0xb08) = guard;
+}
+
 void actor_damage(actor_t *a, int32_t dmg, int32_t flags)
 {
     const float df = spill32((long double)dmg);
     AF(a, ACT_HP) = spill32((long double)AF(a, ACT_HP) - df);
     AI(a, 0x44c) = 30;
     const int32_t type = AI(a, ACT_TYPE);
-    if (type == 25) { /* PORT-DEBT(stub, FUN_0041fa37) */ }
-    if (type == 28) { /* PORT-DEBT(stub, FUN_0042460a) */ }
-    if (type == 41) { /* PORT-DEBT(stub, FUN_00425bff) */ }
+    if (type == 25) actor_hit_count(a, 10);   /* FUN_0041fa37 */
+    if (type == 28) actor_hit_count(a, 1);    /* FUN_0042460a */
+    if (type == 41) {                         /* FUN_00425bff */
+        if (AI(a, 0xa64) < 60) {
+            ++AI(a, 0xa60);
+            AI(a, 0xa58) = 0;
+            AI(a, 0xb08) = 30;
+        } else {
+            AI(a, 0x440) = 0;
+            AI(a, 0xa64) = 0;
+            AI(a, 0xb08) = 10;
+        }
+    }
     if (dmg == 0) flags = 0;
     const float hx = AF(a, 0x3e4), hy = AF(a, 0x3e8), hz = AF(a, 0x3ec);
     popup_push(hx, hy, hz, dmg, 0);
@@ -368,7 +393,16 @@ void actor_damage(actor_t *a, int32_t dmg, int32_t flags)
             }
         }
     }
-    if (type == 73) { /* PORT-DEBT(stub, FUN_00420591) */ }
+    if (type == 73) {                         /* FUN_00420591: the HP floor steps down by 1/6 per phase */
+        static const float k6 = 6.0f;
+        const float ph = spill32((long double)(AI(a, 0xa64) + 1));
+        const float floor_hp = spill32((long double)AF(a, ACT_HP_MAX) - (long double)AF(a, ACT_HP_MAX) / k6 * ph);
+        if (AF(a, ACT_HP) < floor_hp) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa60) = 1;
+            AF(a, ACT_HP) = floor_hp;
+        }
+    }
     if (AI(a, 0xba0) > 0 && AF(a, ACT_HP) < k1) {
         AF(a, ACT_HP) = 0.0f;
     } else if (AF(a, ACT_HP) < k1) {

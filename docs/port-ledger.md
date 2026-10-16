@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 668, discovered 1790 → 758 referenced-or-better (29.7%)
+- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 670, discovered 1788 → 760 referenced-or-better (29.8%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 9
 
@@ -49,9 +49,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x442cef | FUN_00442cef | 2490 | ✓ |  | actor_ai.h, customer_service.c, dungeon_flow.h (+8) |
 | 0x451874 | FUN_00451874 | 47 | ✓ |  | actor_ai.c, audio.h, audio_mci.c (+19) |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ |  | main.c, scene1_fps.c, scene1_fps.h |
-| 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_results.c, fade.c (+15) |
-| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_results.c, fade.c (+15) |
-| 0x4528b3 | FUN_004528b3 | 47 | ✓ |  | customer_service.c, dungeon_results.c, fade.c (+10) |
+| 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+16) |
+| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+16) |
+| 0x4528b3 | FUN_004528b3 | 47 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+11) |
 | 0x452917 | FUN_00452917 | 38 | ✓ |  | customer_service.c, main.c, scene.h (+2) |
 | 0x452cde | FUN_00452cde | 41 | ✓ |  | dungeon_results.c, music.c, scene.c (+13) |
 | 0x453147 | FUN_00453147 | 362 | ✓ |  | nowloading.c, nowloading.h, render_quad.h (+1) |
@@ -115,7 +115,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (668) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (670) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -188,9 +188,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41f4a6 | FUN_0041f4a6 | 690 | ✓ |  | actor_table.h |
 | 0x41f759 | FUN_0041f759 | 48 | ✓ |  | actor_ai.c |
 | 0x41f789 | FUN_0041f789 | 378 | ✓ |  | actor_ai.c |
-| 0x41f903 | FUN_0041f903 | 308 | ✓ |  | actor_ai.c, actor_table.h, dungeon_party.c (+1) |
+| 0x41f903 | FUN_0041f903 | 308 | ✓ |  | actor_ai.c, actor_table.h, dungeon_flow.c (+2) |
 | 0x41fa37 | FUN_0041fa37 | 55 | ✓ |  | record_hit.c |
-| 0x41fa6e | FUN_0041fa6e | 2851 | ✓ |  | dungeon_flow.c |
+| 0x41fa6e | FUN_0041fa6e | 2851 | ✓ |  | actor_ai.c |
 | 0x420591 | FUN_00420591 | 84 | ✓ |  | record_hit.c |
 | 0x42353c | FUN_0042353c | 330 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x423789 | FUN_00423789 | 975 | ✓ |  | actor_ai.c |
@@ -700,6 +700,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x496fca | FUN_00496fca | 196 | ✓ |  | dungeon_party.c |
 | 0x49708e | FUN_0049708e | 687 | ✓ |  | dungeon_party.c |
 | 0x49755c | FUN_0049755c | 338 | ✓ |  | dungeon_party.c |
+| 0x4976ae | FUN_004976ae | 119 | ✓ |  | actor_ai.c |
 | 0x4977df | FUN_004977df | 320 | ✓ |  | dungeon_party.c |
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h, dungeon_party.c |
 | 0x497c83 | FUN_00497c83 | 439 | ✓ |  | dungeon_party.c |
@@ -709,7 +710,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4986ee | FUN_004986ee | 1994 | ✓ |  | dungeon_party.c |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ |  | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
-| 0x49933c | FUN_0049933c | 439 | ✓ |  | audio.c, audio.h, customer_service.c (+10) |
+| 0x49933c | FUN_0049933c | 439 | ✓ |  | actor_ai.c, audio.c, audio.h (+11) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |
 | 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+23) |
 | 0x499538 | FUN_00499538 | 20 | ✓ |  | music.h |
@@ -717,8 +718,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x499560 | FUN_00499560 | 15 |  |  | music.c, music.h, scene_title.c |
 | 0x499579 | FUN_00499579 | 10 | ✓ |  | worker_load.c, worker_load.h |
 | 0x499c63 | FUN_00499c63 | 477 | ✓ |  | audio.c, audio.h, audio_fade.h (+3) |
-| 0x499fda | FUN_00499fda | 120 | ✓ |  | dungeon_party.c |
+| 0x499fda | FUN_00499fda | 120 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h |
 | 0x49a052 | FUN_0049a052 | 120 | ✓ |  | dungeon_party.c |
+| 0x49a2a9 | FUN_0049a2a9 | 120 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h |
 | 0x49a324 | FUN_0049a324 | 127 | ✓ |  | save_io.c, save_io.h, scene_title.c (+1) |
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ |  | main.c, music.h, scene_pause.c (+3) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ |  | main.c, save_io.c, save_io.h (+2) |

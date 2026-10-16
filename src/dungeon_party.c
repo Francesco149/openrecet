@@ -898,10 +898,11 @@ static void party_skill_direct(void)
     }
 }
 
-/* FUN_00499fda: a bag of 6 voice picks (0, 1 three times each);
- * DAT_0964326c / DAT_096432d8 */
+/* FUN_00499fda: a bag of 6 voice picks (0, 1 three times each), shuffled by
+ * rand when it refills; DAT_0964326c / DAT_096432d8 (shared by every voice
+ * caller) */
 static int32_t s_voice_bag2[6], s_voice_bag2_n;
-static int32_t voice_bag2(void)
+int32_t voice_bag2(void)
 {
     if (s_voice_bag2_n == 0) {
         for (int k = 0; k < 6; k++) s_voice_bag2[k] = k % 2;
@@ -914,6 +915,25 @@ static int32_t voice_bag2(void)
     }
     const int32_t v = s_voice_bag2[s_voice_bag2_n++];
     if (s_voice_bag2_n == 6) s_voice_bag2_n = 0;
+    return v;
+}
+
+/* FUN_0049a2a9: the same with 24 picks, 0..7 three times each;
+ * DAT_0964320c / DAT_096432f0 */
+static int32_t s_voice_bag8[24], s_voice_bag8_n;
+int32_t voice_bag8(void)
+{
+    if (s_voice_bag8_n == 0) {
+        for (int k = 0; k < 24; k++) s_voice_bag8[k] = k % 8;
+        for (int k = 0; k < 24; k++) {
+            const unsigned r = (unsigned)rng_next15() % 24u;
+            const int32_t t = s_voice_bag8[r];
+            s_voice_bag8[r] = s_voice_bag8[k];
+            s_voice_bag8[k] = t;
+        }
+    }
+    const int32_t v = s_voice_bag8[s_voice_bag8_n++];
+    if (s_voice_bag8_n == 24) s_voice_bag8_n = 0;
     return v;
 }
 
