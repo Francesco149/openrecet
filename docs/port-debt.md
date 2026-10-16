@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **82**
-- distinct retiring engine functions: **64**
+- total open debts: **83**
+- distinct retiring engine functions: **65**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 59 | wired call boundary, body incomplete |
+| stub | 60 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 2 | fixed constant where the engine computes/sources it |
@@ -44,6 +44,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
 | FUN_00409925 | 1 |
+| FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
 | FUN_004176ff L4958 | 1 |
@@ -95,11 +96,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (59)
+## stub (60)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
+| FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1538 | the boost aura (types 24 / 22) |
 | FUN_004147d5 | src/record_hit.c:631 | the overlay spark (25, 1.0, -1) |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
@@ -169,10 +171,10 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
-| FUN_004536cb | src/sim.c:480 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:494 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
-| scene1-rng-stream-parity.md | src/sim.c:389 | sim_loading_pump() |
+| scene1-rng-stream-parity.md | src/sim.c:391 | sim_loading_pump() |
 
 ## hardcode (2)
 

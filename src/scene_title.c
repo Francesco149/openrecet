@@ -27,6 +27,7 @@
 #include "call_trace.h"   /* CALL_TRACE_ENTER_STUB at scene_title entry points */
 #include "encyclopedia.h" /* the all-banks 図鑑 (FUN_0049f012(1)/f365/f8b8) — title submenu_state 3 */
 #include "fade.h"         /* scene-fade phase-1 trigger + done query */
+#include "movie.h"        /* FUN_0040cc87 — the attract movie */
 #include "save_bank.h"    /* save_header_set_*_slider for persistence */
 #include "scene.h"        /* g_scene_state transition on fade complete */
 #include "settings.h"     /* non-audio rows 3 & 4 */
@@ -623,11 +624,8 @@ void scene_title_sim(scene_title_anim_t *anim,
 
             /* Past 0x1bc6 (7110) the engine stops accepting cursor
              * input — input handling sits inside this `<` gate. At
-             * frame == 0x1be4 (7140) the engine would attempt to
-             * play recet_op.wmv (attract loop); on success the scene
-             * transitions, on failure frame_counter is reset to 0.
-             * Neither path is wired in the bare slice — frame_counter
-             * just keeps incrementing past the input window. */
+             * frame == 0x1be4 (7140) it plays recet_op.wmv (below,
+             * 0x49b3ed). */
             if (anim->frame_counter < 0x1bc6) {
                 if (pressed & TITLE_INPUT_A) {
                     /* Start the select countdown. Engine plays the confirm
@@ -659,6 +657,13 @@ void scene_title_sim(scene_title_anim_t *anim,
                         audio_play_se_by_id(TITLE_SE_CURSOR);
                     }
                 }
+            }
+            /* 0x49b3ed: the attract movie (FUN_0040cc87); while it plays
+             * FUN_0040cea6 holds the whole tick (sim_step_a).  On failure
+             * the BGM id resets and the counter restarts. */
+            if (anim->frame_counter == 0x1be4 && !movie_open("recet_op.wmv")) {
+                g_music.current_track = -1;          /* DAT_005d1960 */
+                anim->frame_counter = 0;
             }
         } else {
             /* Select-countdown branch. Engine (FUN_0049a59e L521-594):

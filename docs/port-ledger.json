@@ -8,20 +8,20 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 663,
-  "inv_discovered": 1795,
-  "referenced_or_better": 753,
-  "pct_referenced_or_better": 29.6,
+  "inv_source_referenced": 666,
+  "inv_discovered": 1792,
+  "referenced_or_better": 756,
+  "pct_referenced_or_better": 29.7,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 103,
+  "port_debt": 104,
   "verified": 80,
   "stubbed": 10,
-  "ported": 663,
-  "unported": 1795,
-  "touched": 753,
-  "pct_touched": 29.6,
+  "ported": 666,
+  "unported": 1792,
+  "touched": 756,
+  "pct_touched": 29.7,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -2213,18 +2213,22 @@
    "size": 378,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/main.c",
+    "src/movie.h",
+    "src/scene_title.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40ce0d",
@@ -2232,18 +2236,21 @@
    "size": 153,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/movie.h",
+    "src/sim.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40cea6",
@@ -2262,6 +2269,9 @@
    },
    "quality_flags": [],
    "src": [
+    "src/movie.c",
+    "src/movie.h",
+    "src/scene_title.c",
     "src/sim.c"
    ],
    "status": "ported"
@@ -2283,6 +2293,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/movie.c",
     "src/music.c"
    ],
    "status": "ported"
@@ -8785,6 +8796,7 @@
    "src": [
     "src/font.h",
     "src/input_segtrace.h",
+    "src/movie.h",
     "src/scene1_intro_dialogue.c",
     "src/scene1_particles_tick.h",
     "src/scene1_preload.c",
@@ -15335,18 +15347,20 @@
    "size": 80,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/movie.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x47aa8b",

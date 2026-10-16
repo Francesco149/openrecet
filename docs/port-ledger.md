@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 663, discovered 1795 → 753 referenced-or-better (29.6%)
+- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 666, discovered 1792 → 756 referenced-or-better (29.7%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 9
 
@@ -115,7 +115,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (663) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (666) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -158,8 +158,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ |  | main.c, scene1_hud.c, speech_bubble.c (+1) |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ |  | scene1_spawn.c |
 | 0x40c923 | FUN_0040c923 | 23 | ✓ |  | dungeon_party.c |
-| 0x40cea6 | FUN_0040cea6 | 226 | ✓ |  | sim.c |
-| 0x40cf88 | FUN_0040cf88 | 403 | ✓ |  | music.c |
+| 0x40cc87 | FUN_0040cc87 | 378 | ✓ |  | main.c, movie.h, scene_title.c |
+| 0x40ce0d | FUN_0040ce0d | 153 | ✓ |  | movie.h, sim.c |
+| 0x40cea6 | FUN_0040cea6 | 226 | ✓ |  | movie.c, movie.h, scene_title.c (+1) |
+| 0x40cf88 | FUN_0040cf88 | 403 | ✓ |  | movie.c, music.c |
 | 0x40d11b | FUN_0040d11b | 23 | ✓ |  | scene1_bg_npc.c, scene1_chr_shadow.c, scene1_shop_walker.c |
 | 0x40d132 | FUN_0040d132 | 9497 | ✓ |  | actor_spawn.h, scene1_overlay.h, scene1_overlay_helpers.c (+2) |
 | 0x40f64b | FUN_0040f64b | 128 | ✓ |  | actor_ai.c, scene1_per_frame_open.h, scene1_postload.c (+5) |
@@ -337,7 +339,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+11) |
 | 0x4536b9 | FUN_004536b9 | 9 | ✓ |  | scene1_day_close.c, scene1_day_close.h, scene_day_end.c (+2) |
 | 0x4536c2 | FUN_004536c2 | 9 | ✓ |  | scene1_sim.c, scene_pause.c |
-| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | font.h, input_segtrace.h, scene1_intro_dialogue.c (+15) |
+| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | font.h, input_segtrace.h, movie.h (+16) |
 | 0x453d9c | FUN_00453d9c | 243 | ✓ |  | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ |  | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ |  | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
@@ -539,6 +541,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47a474 | FUN_0047a474 | 912 | ✓ |  | main.c, recet_ini.c, recet_ini.h |
 | 0x47aa30 | FUN_0047aa30 | 1 | ✓ |  | main.c |
 | 0x47aa31 | FUN_0047aa31 | 1 | ✓ |  | tables_enemylist.c, tables_gousei.c, tables_snews.c |
+| 0x47aa3b | FUN_0047aa3b | 80 | ✓ |  | movie.c |
 | 0x47aa8b | FUN_0047aa8b | 402 | ✓ |  | main.c |
 | 0x47ac6a | FUN_0047ac6a | 507 | ✓ |  | main.c |
 | 0x47ae65 | FUN_0047ae65 | 237 | ✓ |  | main.c, screen_rt.c, screen_rt.h |

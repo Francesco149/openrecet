@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 82,
+  "total": 83,
   "by_kind": {
-   "stub": 59,
+   "stub": 60,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 2,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 64,
+  "retiring_engine_fns": 65,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -38,6 +38,7 @@
    "FUN_0048d5d6": 2,
    "0x43e...": 1,
    "FUN_00409925": 1,
+   "FUN_0040cea6": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
    "FUN_004176ff L4958": 1,
@@ -240,7 +241,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 480,
+   "line": 494,
    "kind_known": true
   },
   {
@@ -264,7 +265,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 389,
+   "line": 391,
    "kind_known": true
   },
   {
@@ -281,6 +282,14 @@
    "desc": "C3b furniture-stand tooltip branch (name + \"%d/%d\" slot count) not rendered; item branch only.",
    "file": "src/scene1_merchant_hud.c",
    "line": 186,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0040cea6",
+   "desc": "the BGM stream's loop (FUN_0040cf88,",
+   "file": "src/movie.c",
+   "line": 102,
    "kind_known": true
   },
   {

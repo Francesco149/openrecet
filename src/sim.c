@@ -59,6 +59,8 @@
 #include "scene1_tutorial_dispatch.h" /* iv2 beat b924/b928 — continuous card-fade phase probe */
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record indices — RE §21.28 ccnt probe */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
+#include "movie.h"        /* FUN_0040cea6 — the attract movie poll */
+#include "music.h"        /* DAT_005d1960 */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
                                 * cursor's FUN_004356cd (bob b154 + shake slide),
@@ -425,6 +427,18 @@ void sim_step_a(void)
                                &g_sim_buttons[i].pressed,
                                &g_sim_buttons[i].held);
         g_sim_buttons[i].cur = cur;
+    }
+
+    /* 0x45388e: while the attract movie plays (FUN_0040cea6) the tick ends
+     * here; A (pressed 0x10, DAT_073dddd4) stops it and restarts the title's
+     * counter. */
+    if (movie_poll()) {
+        if (g_sim_buttons[0].pressed & 0x10) {
+            movie_release();                         /* FUN_0040ce0d */
+            g_music.current_track = -1;              /* DAT_005d1960 */
+            g_scene_title_anim.frame_counter = 0;    /* DAT_09643518 */
+        }
+        return;
     }
 
     /* Opening-prologue dialogue. Ticks on INGAME, non-loading frames (we only

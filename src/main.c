@@ -62,6 +62,7 @@
 #include "sysassets.h"
 #include "screen_rt.h"
 #include "sim.h"
+#include "movie.h"
 #include "music.h"
 #include "audio.h"
 #include "audio_fade.h"
@@ -2063,6 +2064,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * tools/frida/openrecet-agent.js installSilentAudioFromPath. */
     if (g_silent_audio) {
         audio_fade_set_apply_hook(silent_audio_apply_hook);
+        movie_set_silent(1);
         fprintf(stderr,
             "audio: --silent-audio active — SetVolume clamped to -10000\n");
     }
@@ -2533,6 +2535,7 @@ static BOOL create_main_window(HINSTANCE hInst, int nCmdShow)
         rc.right - rc.left, rc.bottom - rc.top,
         NULL, NULL, hInst, NULL);
     light_debug_set_hwnd(g_hwnd);   /* mouse-capture recentre target (F5 mode) */
+    movie_set_owner(g_hwnd);        /* FUN_0040cc87's video window owner */
     return g_hwnd != NULL;
 }
 

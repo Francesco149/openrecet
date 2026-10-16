@@ -19,7 +19,7 @@ CFLAGS    ?= -std=gnu11 -O2 -g \
              -include d3d_trace_macros.h \
              -MMD -MP
 LDFLAGS   ?= -static-libgcc
-LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \
+LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm -lstrmiids \
              -lgdi32 -luser32 -lkernel32 -lole32 -ladvapi32 -lshell32 \
              -lpsapi
 
