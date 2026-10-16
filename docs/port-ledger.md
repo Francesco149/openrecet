@@ -352,7 +352,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45672a | FUN_0045672a | 1317 | ✓ |  | chr_sprite_meta.h, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x456c4f | FUN_00456c4f | 249 | ✓ |  | scene1_chr_prepass.c, scene1_chr_prepass.h |
 | 0x456d48 | FUN_00456d48 | 526 | ✓ |  | scene1_chr_walker.c, scene1_chr_walker.h, scene1_render.c (+3) |
-| 0x456f56 | FUN_00456f56 | 1982 | ✓ |  | chr_sprite_meta.h, main.c, scene1_camera.c (+8) |
+| 0x456f56 | FUN_00456f56 | 1982 | ✓ |  | chr_sprite_meta.h, main.c, scene1_camera.h (+7) |
 | 0x458bdf | FUN_00458bdf | 904 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ |  | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ |  | scene1_render.c, scene1_render.h |

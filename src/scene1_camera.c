@@ -122,6 +122,10 @@ void scene1_camera_snap_next(void) { g_first_frame = 1; }
 int scene1_camera_state_va(uint32_t va, float *out)
 {
     const float *p = NULL;
+    if (va >= 0x438cdf8u && va < 0x438cdf8u + 64u && va % 4 == 0) {   /* the orient matrix */
+        *out = g_scene1_camera_orient[(va - 0x438cdf8u) / 4];
+        return 1;
+    }
     switch (va) {
     case 0x438cc38u: p = &g_smooth_eye[0]; break;
     case 0x438cc3cu: p = &g_smooth_eye[1]; break;
@@ -454,52 +458,27 @@ void scene1_camera_set_freeroam_class(void)
 
 void scene1_camera_angle_compute(void)
 {
-    /* L16-L20: dx/dz in the horizontal plane.  Singular-dx-dz guard
-     * injects dz=0.01 so atan2 stays well-defined. */
-    float dx = g_scene1_camera_eye[0] - g_scene1_camera_lookat[0];
-    float dz = g_scene1_camera_eye[2] - g_scene1_camera_lookat[2];
-
-    if (dx == 0.0f && dz == 0.0f) {
-        dz = 0.01f;
-    }
-
-    /* L21: yaw_xz = atan2(dx, dz).
-     * L22: dist   = sqrt(dx² + dz²).
-     * L23-25: zero-dist guard — engine calls FUN_00404bb8 (error
-     *        reporter); we mirror by bailing out before any matrix
-     *        write so the previous frame's orientation persists. */
-    float yaw_xz = atan2f(dx, dz);
-    float dist   = sqrtf(dx * dx + dz * dz);
-
-    if (dist == 0.0f) {
-        return;
-    }
-
-    /* L27: pitch = atan2(dist, eye.y - lookat.y). */
-    float pitch_atan = atan2f(dist,
-                              g_scene1_camera_eye[1] - g_scene1_camera_lookat[1]);
-
-    /* Engine matrix build (objdump @ 0x4425bc-0x4425f1):
-     *   0x438cd78 = Rotation(angle = π/2 − pitch_atan)  via thunk 0x4a3553
-     *   0x438cdb8 = Rotation(angle = yaw_xz + π)        via thunk 0x4a35ef
-     *   0x438cdf8 = 0x438cd78 × 0x438cdb8               via Multiply 0x4a2a10
-     *
-     * CORRECTION (2026-05-29, call-trace + capture A/B): the two rotation
-     * thunks were mislabeled.  The (π/2 − pitch) angle feeds **RotationX**
-     * and the (yaw + π) angle feeds **RotationY** (the thunks jmp to
-     * distinct D3DX imports 0x5fdac0 / 0x5fdac4), so
-     *   orient = RotX(π/2 − pitch) × RotY(yaw + π).
-     * The old RotY(π/2 − pitch) × RotX(yaw + π) was edge-on for character
-     * billboards (FUN_00456f56 reads this as DAT_0438cdf8) — Recette drew
-     * as a diagonal line.  Verified: RotX(π/2 − pitch) × RotY(yaw + π)
-     * reproduces the captured HOUSE player world matrix to 5 decimals.
-     * (Consumed by the chr walker billboard base AND wide_followup Pass D.) */
-    float angle_x = 1.5707964f - pitch_atan;
-    float angle_y = yaw_xz + 3.1415927f;
-
+    /* 0x4424ed..0x4425f1 (x87): yaw = atan2(dx, dz) + π, the horizontal
+     * distance, the pitch atan2(dist, dy); orient = RotX(π/2 − pitch) ×
+     * RotY(yaw) (0x4a3553 / 0x4a35ef / 0x4a2a10).  A zero distance makes the
+     * first matrix the identity (FUN_00404bb8) — the RotY and the multiply
+     * still run. */
+    static const float k_pi = 3.1415927410125732f, k_pi2 = 1.5707963705062866f;
+    static const float k0p01 = 0.009999999776482582f;
+    const float dx = spill32((long double)g_scene1_camera_eye[0] - g_scene1_camera_lookat[0]);
+    float dz = spill32((long double)g_scene1_camera_eye[2] - g_scene1_camera_lookat[2]);
+    if (dx == 0.0f && dz == 0.0f) dz = k0p01;
+    const float angle_y = spill32((long double)spill32(x87_crt_atan2(dx, dz)) + k_pi);
+    const float dist = spill32(spill32(sqrtl((long double)spill64((long double)dz * dz + (long double)dx * dx))));
     float m_x[16];
     float m_y[16];
-    mat4_rotation_x(m_x, angle_x);
+    if (dist != 0.0f) {
+        const float dy = spill32((long double)g_scene1_camera_eye[1] - g_scene1_camera_lookat[1]);
+        const float pitch = spill32(x87_crt_atan2(dist, dy));
+        mat4_rotation_x(m_x, spill32((long double)k_pi2 - pitch));
+    } else {
+        mat4_identity(m_x);
+    }
     mat4_rotation_y(m_y, angle_y);
     mat4_mul(g_scene1_camera_orient, m_x, m_y);
 
