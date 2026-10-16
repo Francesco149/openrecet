@@ -663,9 +663,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x490795 | FUN_00490795 | 139 | ✓ |  | actor_ai.h |
 | 0x490820 | FUN_00490820 | 348 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x49097c | FUN_0049097c | 41 | ✓ |  | actor_ai.h |
-| 0x490c78 | FUN_00490c78 | 77 | ✓ |  | dungeon_party.c, scene1_actor_say.c, scene1_hud.c (+3) |
-| 0x490cc6 | FUN_00490cc6 | 99 | ✓ |  | scene1_render.c |
-| 0x490d29 | FUN_00490d29 | 84 | ✓ |  | scene1_render.c, scene1_render.h |
+| 0x490c78 | FUN_00490c78 | 77 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_party.c (+5) |
+| 0x490cc6 | FUN_00490cc6 | 99 | ✓ |  | actor_ai.c, scene1_render.c |
+| 0x490d29 | FUN_00490d29 | 84 | ✓ |  | actor_ai.c, scene1_render.c, scene1_render.h |
 | 0x490e15 | FUN_00490e15 | 1 | ✓ |  | scene_pause.c |
 | 0x490e16 | FUN_00490e16 | 14 | ✓ |  | scene.h, scene_guild.c, scene_guild.h (+1) |
 | 0x490e24 | FUN_00490e24 | 17 | ✓ |  | scene_guild.c, scene_guild.h, sim.c |

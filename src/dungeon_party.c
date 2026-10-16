@@ -3,6 +3,7 @@
  * disassembly (x87.h): ST0 chains are long double, every fstp m32 is spill32.
  */
 #include "dungeon_party.h"
+#include "actor_ai.h"          /* FUN_00490c78 (actor_screen_x) */
 #include "scene1_records_c_spawn.h"
 #include "tables_item.h"
 
@@ -802,9 +803,8 @@ int party_accessory_proc(int32_t id, uint32_t brk, int32_t stop)
     g_notice_kind = 2;
     g_notice_b76c = 4;
     g_notice_ticks = 90;
-    /* PORT-DEBT(render-coupled, FUN_00490c78): the notice's side is Tear's
-     * screen x < 320 */
-    g_notice_side = 1;
+    /* FUN_00490c78: the side is Tear's screen x < 320 */
+    g_notice_side = actor_screen_x(g_party.pos[2][0], g_party.pos[2][1], g_party.pos[2][2]) < 320.0f;
     g_scene1_combat_dat_0438bed8 = stop;
     if (broke) {
         g_broke_on = 1;
@@ -1037,8 +1037,8 @@ static void party_pickup_item(void)
     g_notice_kind = 2;
     g_notice_b76c = 1;
     g_notice_ticks = 90;
-    /* PORT-DEBT(render-coupled, FUN_00490c78): the side is Tear's screen x < 320 */
-    g_notice_side = 1;
+    /* FUN_00490c78: the side is Tear's screen x < 320 */
+    g_notice_side = actor_screen_x(g_party.pos[2][0], g_party.pos[2][1], g_party.pos[2][2]) < 320.0f;
 }
 
 /* the level-up burst: FUN_004147d5(party block, 0, 0.5, 0, 33, 0.3, -1, 0, 1) */

@@ -40,7 +40,9 @@ void  actor_pass(void);                                   /* FUN_00430c6d */
 void  actor_event_anim_pump(void);                        /* FUN_00430c00 */
 void  actor_stage_spawns(void);                           /* FUN_0042df55 */
 void  actor_view_plane(void);                             /* FUN_0049065b */
-float actor_view_depth(float x, float y, float z);        /* FUN_0049097c */
+float actor_view_depth(float x, float y, float z);
+/* FUN_00490c78's screen x (the render's last view / projection) */
+float actor_screen_x(float x, float y, float z);        /* FUN_0049097c */
 void  actor_ai_alive(actor_t *a);                         /* FUN_0042f28c */
 void  actor_dying(actor_t *a);                            /* FUN_0042f7ad */
 void  actor_ai_slime(actor_t *a);                         /* FUN_0042c9b3 */

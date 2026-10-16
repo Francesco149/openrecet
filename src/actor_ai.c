@@ -12,7 +12,8 @@
 #include "audio.h"               /* FUN_00499519 */
 #include "dungeon_flow.h"        /* FUN_0043647f */
 #include "floor_layout.h"        /* g_floor_rooms (the visited flags), DAT_0438c148 */
-#include "map_collision.h"       /* FUN_00432e50, FUN_00433674 */
+#include "map_collision.h"
+#include "math3d.h"                /* vec3_transform (D3DXVec3Transform) */       /* FUN_00432e50, FUN_00433674 */
 #include "dungeon_party.h"        /* FUN_00482ae7 */
 #include "scene1_records.h"
 #include "party.h"
@@ -140,6 +141,30 @@ void actor_view_plane(void)
     if (g_view_proj[11] == 0.0f) return;   /* host builds: no render matrices */
     s_screen[0] = spill32((long double)g_view_proj[0] * k320 / g_view_proj[11]);
     s_screen[1] = spill32((long double)g_view_proj[5] * km240 / g_view_proj[11]);
+}
+
+/* FUN_00490c78 → FUN_00490d29 (+ FUN_00490cc6): the screen x of a world
+ * point through the last frame's view DAT_073de29c and projection
+ * DAT_073de2dc — 320 − (proj·(1,1,1)).x · 640 / 2 · v.x / v.z */
+float actor_screen_x(float x, float y, float z)
+{
+    static const float k640 = 640.0f, k2 = 2.0f, k320 = 320.0f;
+#ifdef _WIN32
+    const float *view = scene1_render_view_matrix();
+    const float *proj = scene1_render_proj_matrix();
+#else
+    static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    const float *view = ident, *proj = ident;
+#endif
+    static const float one[3] = { 1.0f, 1.0f, 1.0f };
+    float n[4], v[4];
+    vec3_transform(n, one, proj);                      /* FUN_004a2227 */
+    const float fx = spill32((long double)n[0] * k640 / k2);
+    const float p[3] = { x, y, z };
+    vec3_transform(v, p, view);                        /* FUN_004a22c5: w 1 (affine) */
+    const float vx = spill32((long double)v[0] / v[3]);
+    const float vz = spill32((long double)v[2] / v[3]);
+    return spill32((long double)k320 - (long double)fx * vx / vz);
 }
 
 float actor_view_depth(float x, float y, float z)

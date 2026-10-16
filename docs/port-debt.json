@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 81,
+  "total": 79,
   "by_kind": {
    "stub": 58,
    "synthetic-data": 0,
@@ -18,7 +18,7 @@
    "focused": 1,
    "house-teardown": 1,
    "oob": 1,
-   "render-coupled": 8,
+   "render-coupled": 6,
    "semantic-collision": 1,
    "structure": 1
   },
@@ -27,7 +27,6 @@
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
    "FUN_00473c15": 3,
-   "FUN_00490c78": 3,
    "FUN_00409925": 2,
    "FUN_004147d5": 2,
    "FUN_004176ff": 2,
@@ -82,6 +81,7 @@
    "FUN_0048b850 trail": 1,
    "FUN_0048e49c": 1,
    "FUN_0048f87c": 1,
+   "FUN_00490c78": 1,
    "FUN_0049a59e": 1,
    "FUN_0049da9e": 1,
    "FUN_004cdd9f": 1,
@@ -158,7 +158,7 @@
    "engine_fn": "FUN_00441c3e",
    "desc": "the view matrix is the render's;",
    "file": "src/actor_ai.c",
-   "line": 147,
+   "line": 172,
    "kind_known": false
   },
   {
@@ -191,22 +191,6 @@
    "desc": "the results screen's assets",
    "file": "src/scene_pause.c",
    "line": 1596,
-   "kind_known": false
-  },
-  {
-   "kind": "render-coupled",
-   "engine_fn": "FUN_00490c78",
-   "desc": "the notice's side is Tear's",
-   "file": "src/dungeon_party.c",
-   "line": 805,
-   "kind_known": false
-  },
-  {
-   "kind": "render-coupled",
-   "engine_fn": "FUN_00490c78",
-   "desc": "the side is Tear's screen x < 320",
-   "file": "src/dungeon_party.c",
-   "line": 1040,
    "kind_known": false
   },
   {
@@ -334,7 +318,7 @@
    "engine_fn": "FUN_0042df55",
    "desc": "stages >= 20 index past the dungeon",
    "file": "src/actor_ai.c",
-   "line": 123,
+   "line": 124,
    "kind_known": true
   },
   {
@@ -342,7 +326,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 2587,
+   "line": 2612,
    "kind_known": true
   },
   {
@@ -350,7 +334,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 2544,
+   "line": 2569,
    "kind_known": true
   },
   {
@@ -358,7 +342,7 @@
    "engine_fn": "FUN_0042ea35",
    "desc": "the multi-part bone timers (no rand)",
    "file": "src/actor_ai.c",
-   "line": 2299,
+   "line": 2324,
    "kind_known": true
   },
   {
@@ -366,7 +350,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 2266,
+   "line": 2291,
    "kind_known": true
   },
   {
@@ -374,7 +358,7 @@
    "engine_fn": "FUN_0042f7ad",
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 673,
+   "line": 698,
    "kind_known": true
   },
   {
@@ -382,7 +366,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 2597,
+   "line": 2622,
    "kind_known": true
   },
   {
@@ -494,7 +478,7 @@
    "engine_fn": "FUN_0044f078",
    "desc": "dungeon 4 floor 99's event helper",
    "file": "src/dungeon_party.c",
-   "line": 642,
+   "line": 643,
    "kind_known": true
   },
   {
@@ -542,7 +526,7 @@
    "engine_fn": "FUN_004708f7",
    "desc": "the event-window pair (chars 0x2f / 0x30)",
    "file": "src/dungeon_party.c",
-   "line": 647,
+   "line": 648,
    "kind_known": true
   },
   {
@@ -582,7 +566,7 @@
    "engine_fn": "FUN_004855e2",
    "desc": "the accessory-break follow-up",
    "file": "src/dungeon_party.c",
-   "line": 500,
+   "line": 501,
    "kind_known": true
   },
   {
@@ -590,7 +574,7 @@
    "engine_fn": "FUN_00485712",
    "desc": "the status-guard accessory 2504 (the",
    "file": "src/dungeon_party.c",
-   "line": 497,
+   "line": 498,
    "kind_known": true
   },
   {
@@ -630,7 +614,7 @@
    "engine_fn": "FUN_00489e66",
    "desc": "the dash (double-tap, db034 / db03c /",
    "file": "src/dungeon_party.c",
-   "line": 696,
+   "line": 697,
    "kind_known": true
   },
   {
@@ -702,7 +686,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "char 42's gauge refill + the random",
    "file": "src/dungeon_party.c",
-   "line": 747,
+   "line": 748,
    "kind_known": true
   },
   {
@@ -710,7 +694,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "the skill cycle (DAT_0438b7dc, SE 326)",
    "file": "src/dungeon_party.c",
-   "line": 754,
+   "line": 755,
    "kind_known": true
   },
   {
@@ -726,7 +710,7 @@
    "engine_fn": "FUN_00490c78",
    "desc": "the buff-end bubble over Tear",
    "file": "src/dungeon_party.c",
-   "line": 508,
+   "line": 509,
    "kind_known": true
   },
   {

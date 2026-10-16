@@ -36,7 +36,7 @@ re-verification.
 9 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 98 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 96 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -218,8 +218,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - ✅ the camera pose FUN_00441c3e is on the disasm (2026-10-16): the pose IDENTICAL
          over all of dungeon1-deep, actor +0x450 (the view depth FUN_0049065b reads) too; FUN_004424e7 too
          (its orient write matches; retail rewrites DAT_0438cdf8 later from FUN_00417504);
-       - the notice side DAT_0438b760
-         (Tear's screen x < 320, FUN_00490c78) is render-coupled (dungeon1-run2 f31406);
+       - ✅ the notice side DAT_0438b760 (Tear's screen x < 320, FUN_00490c78 on the render's
+         last view / projection): IDENTICAL over dungeon0-full / dungeon1-run2 / -deep / -charme;
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
        - the cinematic camera FUN_004426a7 writes the class-1 eye / lookat, but the semantic
          FUN_00441c3e has no class-1 arm (render only); DAT_0438bec4 has no port reader;
