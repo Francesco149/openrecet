@@ -177,9 +177,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
          its call's thunk (render only; check with `portshots`). record_hit.c's record kinds
          44 / 140 (the "MATRIX0 transposed" rows) are fixed;
        - ✅ the camera pose FUN_00441c3e is on the disasm (2026-10-16): the pose IDENTICAL
-         over all of dungeon1-deep, actor +0x450 (the view depth FUN_0049065b reads) too. The
-         angle helper FUN_004424e7's dist == 0 path still returns early (retail writes identity
-         and runs RotY + the multiply — rotation audit);
+         over all of dungeon1-deep, actor +0x450 (the view depth FUN_0049065b reads) too; FUN_004424e7 too
+         (its orient write matches; retail rewrites DAT_0438cdf8 later from FUN_00417504);
        - the notice side DAT_0438b760
          (Tear's screen x < 320, FUN_00490c78) is render-coupled (dungeon1-run2 f31406);
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
