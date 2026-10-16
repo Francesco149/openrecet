@@ -12,6 +12,8 @@
 #include <math.h>             /* sqrt — the FUN_00460d52 sale-stat root term */
 
 #include "customer_service.h"
+
+#include <string.h>
 #include "customer_haggle.h"
 #include "stage_load_pulse.h"      /* FUN_004682d0 menu slide-out */
 #include "scene1_overlay.h"       /* scene1_overlay_spawn (FUN_00414345) */
@@ -26,6 +28,7 @@
 #include "dialogue_macros.h"  /* dlg_macro_set — the <I>/<Y> sale-line macros */
 #include "tables_item.h"      /* g_item / tables_item_find_slot_by_id (FUN_004681f6) */
 #include "customer_roster.h"  /* roster_* helpers (FUN_0045e55c/e80f/e6e0/ed12/e505/a68f/48439a) */
+#include "scene1_intro_dialogue.h" /* FUN_0044ba2c — the story probe's scenes */
 #include "customer_seller.h"  /* seller_select (FUN_00461792) */
 #include "scene1_display_menu.h" /* display_menu_owned_count (FUN_00491b16) */
 #include "tables_oder.h"      /* g_oder — the oder (item-request) pool (roster_pick_item) */
@@ -1610,6 +1613,207 @@ static void cs_queue_advance(void)
 
 static void cs_shelf_sales(void);   /* FUN_00461068 */
 
+/* the eligible list DAT_06a5d450 holds kind k (the scan stops at a negative,
+ * 40 entries) */
+static int cs_eligible_has(int32_t k)
+{
+    for (int i = 0; i < 40; i++) {
+        if (s_eligible[i] < 0) return 0;
+        if (s_eligible[i] == k) return 1;
+    }
+    return 0;
+}
+
+static int16_t cs_bank_i16(const uint8_t *b, int32_t idx)
+{
+    int16_t v;
+    memcpy(&v, b + 2 * idx, 2);
+    return v;
+}
+
+/* FUN_0045e6e0's item quest: hand over items 3101 / 3110 / 3106 — each out of
+ * the bag (FUN_00460083 logs it, the bag closes up), or off the display grid
+ * when the bag has none; their prices sum into the ask DAT_005c6bb8, scaled by
+ * the quest's grade (1: x3, 2: x2, 3: x1.5) */
+static void cs_story_item_quest(uint8_t *b, int grade)
+{
+    static const float k1p5 = 1.5f;
+    int32_t *bd = (int32_t *)(void *)b;
+    b[179403] = 1;
+    s_price_ask = 0;
+    for (int k = 0; k != 3; k++) {
+        const int32_t id = k == 1 ? 3110 : k == 2 ? 3106 : 3101;
+        const int slot = tables_item_find_slot_by_id(&g_item, (uint32_t)id);   /* FUN_004681f6 */
+        s_price_ask += slot >= 0 ? g_item.records[slot].price : 0;
+        int n = 0;
+        int32_t *inv = bd + SAVE_BANK_ITEM_TABLE_DWORD;
+        while (id != (inv[n] >> 6)) {
+            if (++n == SAVE_BANK_ITEM_TABLE_COUNT) {
+                int32_t *grid = bd + 80024 / 4;
+                for (int m = 0; m < 15 * 20; m++)
+                    if (grid[m] != -1 && id == (grid[m] >> 6)) grid[m] = -1;
+                goto next;
+            }
+        }
+        cs_item_log_append(inv[n], 0);                      /* FUN_00460083 */
+        for (int m = n; m < SAVE_BANK_ITEM_TABLE_COUNT - 1; m++) inv[m] = inv[m + 1];
+        bd[20005] = -1;
+        --bd[SAVE_BANK_FIELD_ITEM_COUNT];
+next:   ;
+    }
+    if (grade == 1) s_price_ask *= 3;
+    if (grade == 2) s_price_ask *= 2;
+    if (grade == 3) s_price_ask = x87_ftol((long double)spill32((long double)s_price_ask) * k1p5);
+    ++s_b528;
+    s_b568 = 0;
+    s_b534 = 30;
+}
+
+/* FUN_00462403's b524 == 50 story probe (all_ida 65599..65928): on the day's
+ * first customer (b528 0, not survival mode) at most one adventurer story
+ * scene per kind in the eligible list, by the work bytes and the friendship
+ * counters (int16 +0x2d214..): Charme (3: iv3_4 after floor 15, iv3_5, iv3_7),
+ * 2 (iv7_5), 7 (iv8_5 / 8_6), 8 (iv7_4 / 7_9 / 7_10), 9 (iv9_2), 5 (iv4_6,
+ * iv17_42), 6 (iv6_5 / 6_6), 4 (the item quest iv5_1..5_7, iv5_5) and 19 (the
+ * table DAT_005c6c7c). */
+static void cs_story_probe(void)
+{
+    static const int32_t k_t19[4][4] = {   /* DAT_005c6c7c: flag, threshold, scene, sub */
+        { 435, 2, 17, 3 }, { 436, 6, 17, 40 }, { 437, 10, 17, 49 }, { 438, 14, 18, 9 },
+    };
+    uint8_t *b = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (b == NULL || s_b528 != 0 || ((const int32_t *)(const void *)b)[46937] == 2) return;
+    int done = 0;
+    if (cs_eligible_has(3)) {
+        if (b[179341] != 0) {
+            if (b[179342] == 0) {
+                b[179342] = 1;
+                scene1_intro_dialogue_start_single(3, 4);   /* FUN_0044ba2c(3, 4, 0) */
+                done = 1;
+            } else if (b[179343] == 0 && cs_bank_i16(b, 92426) > 2) {
+                b[179343] = 1;
+                b[179277] = 1;
+                scene1_intro_dialogue_start_single(3, 5);
+                done = 1;
+            }
+        }
+        if (b[179384] == 1 && b[179385] == 0 && b[179277] != 0 && !done) {
+            b[179385] = 1;
+            scene1_intro_dialogue_start_single(3, 7);
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(2) && b[179424] == 1 && b[179425] == 0 && !done) {
+        b[179425] = 1;
+        scene1_intro_dialogue_start_single(7, 5);
+        done = 1;
+    }
+    if (cs_eligible_has(7)) {
+        if (b[179395] == 1 && b[179396] == 0 && !done) {
+            b[179396] = 1;
+            scene1_intro_dialogue_start_single(8, 5);
+            done = 1;
+        }
+        if (b[179396] == 1 && b[179397] == 0 && cs_bank_i16(b, 92434) > 2 && !done) {
+            b[179397] = 1;
+            b[179281] = 1;
+            scene1_intro_dialogue_start_single(8, 6);
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(8)) {
+        if (b[179423] == 1 && b[179424] == 0 && !done) {
+            b[179424] = 1;
+            scene1_intro_dialogue_start_single(7, 4);
+            done = 1;
+        }
+        if (b[179431] == 1 && b[179434] == 0 && !done) {
+            b[179434] = 1;
+            scene1_intro_dialogue_start_single(7, 9);
+            done = 1;
+        }
+        if (b[179434] == 1 && (b[179282] == 0 || b[179477] == 1) && cs_bank_i16(b, 92436) > 2 && !done) {
+            b[179477] = 0;
+            b[179282] = 1;
+            scene1_intro_dialogue_start_single(7, 10);
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(9) && b[179438] == 1 && b[179439] == 0 && !done) {
+        b[179439] = 1;
+        scene1_intro_dialogue_start_single(9, 2);
+        done = 1;
+    }
+    if (cs_eligible_has(5)) {
+        if (b[179390] != 1 || b[179391] != 0) {
+            if (b[179391] != 0 && b[179592] != 0 && b[179594] != 0 && b[179595] == 0 && !done) {
+                b[179595] = 1;
+                scene1_intro_dialogue_start_single(17, 42);
+                done = 1;
+            }
+        } else if (cs_bank_i16(b, 92430) > 2 && !done) {
+            b[179391] = 1;
+            b[179279] = 1;
+            scene1_intro_dialogue_start_single(4, 6);
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(6)) {
+        if (b[179414] == 0 && b[179413] == 1 && !done) {
+            b[179414] = 1;
+            scene1_intro_dialogue_start_single(6, 5);
+            done = 1;
+        }
+        if (b[179415] == 0 && b[179414] == 1 && cs_bank_i16(b, 92432) > 2 && !done) {
+            b[179415] = 1;
+            b[179280] = 1;
+            scene1_intro_dialogue_start_single(6, 6);
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(4)) {
+        int grade = 0;
+        if (b[179401] != 0) {
+            if (b[179403] == 0) {
+                const int32_t ev = roster_event_state(b);   /* FUN_0045e6e0 */
+                if (ev != 0 && !done) {
+                    if (ev == 1) { scene1_intro_dialogue_start_single(5, 2); done = 1; }
+                    if (ev == 2) { scene1_intro_dialogue_start_single(5, 3); grade = 2; done = 1; }
+                    if (ev == 3) { scene1_intro_dialogue_start_single(5, 3); grade = 3; done = 1; }
+                    if (ev == 4) { scene1_intro_dialogue_start_single(5, 4); grade = 4; done = 1; }
+                    if (grade != 0) cs_story_item_quest(b, grade);
+                }
+            }
+        } else if (!done) {
+            b[179401] = 1;
+            b[179402] = b[181228];
+            const int32_t ev = roster_event_state(b);
+            done = 1;
+            if (ev == 2 || ev == 3 || ev == 4) {
+                scene1_intro_dialogue_start_single(5, 7);
+                cs_story_item_quest(b, 1);
+            } else {
+                scene1_intro_dialogue_start_single(5, 1);
+            }
+        }
+        if (b[179403] == 1 && b[179404] == 0 && cs_bank_i16(b, 92428) > 2 && !done) {
+            scene1_intro_dialogue_start_single(5, 5);
+            b[179404] = 1;
+            b[179278] = 1;
+            done = 1;
+        }
+    }
+    if (cs_eligible_has(19)) {
+        for (int i = 0; i < 4; i++) {
+            if (b[k_t19[i][0] + 179272] == 0 && cs_bank_i16(b, 92468) > k_t19[i][1] && !done) {
+                b[k_t19[i][0] + 179272] = 1;
+                scene1_intro_dialogue_start_single(k_t19[i][2], k_t19[i][3]);
+                done = 1;
+            }
+        }
+    }
+}
+
 /* ── idle (FUN_00462403 b534==0, all.c:60670-61027) ─────────────────────────
  * The pre-greeting idle: a frame counter (b524) gates the walk-setup (0x14),
  * story-event probe (0x32, inert — eligible list all -1), queue advance (0x3c),
@@ -1628,8 +1832,8 @@ static void cs_idle_tick(void)
             s_b530 -= 1;
         return;
     }
-    /* b524==0x32 story-event probe — inert (eligible list all -1 on the sell
-     * path); PORT-DEBT(cs-story-probe): the FUN_0044ba2c story triggers. */
+    if (s_b524 == 0x32)
+        cs_story_probe();                    /* the day's first customer: a story scene */
     if (s_b524 == 0x3c)
         cs_queue_advance();
     if (0x77 < s_b524) {

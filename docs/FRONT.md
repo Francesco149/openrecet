@@ -220,7 +220,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
     4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
     5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
-       delivery + story customers) — no scenario reaches them yet.
+       delivery + story customers) — no scenario reaches them yet. The b524 == 50 story probe
+       (Charme's iv3_4 visit after floor 15, the other adventurers' scenes, the item quest) is
+       ported but unverified: no recording has a story flag set yet.
     6. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
        FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures,
        FUN_004682ee (bag picker's first-wearable tab); FUN_0044ba2c's `mode` argument
