@@ -33,7 +33,9 @@ starts from buy-from-seller-guild-intro's end save, dungeon 1 from dungeon0-full
 `--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
 thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:
 `ww fN VA=newvalue eip=<after the store> < return addresses` (the EBP chain); `--ww-frames A:B`
-limits the log. The traps don't touch retail memory; `run` fetches the log.
+limits the log. `--watch-exec VA[,..]` shares the 4 registers: an execute trap logs
+`wx fN VA eax= ecx= edx= esi= edi= < callers` each time the instruction runs (a function's
+path: trap its branch targets). The traps don't touch retail memory; `run` fetches the log.
 
 `portblock` compares, at one frame, retail's `--dump-at` memory against the port's
 `--block-dump` (src/state_va.c): the party block, the actor table, the stage objects,
