@@ -19,6 +19,7 @@
 #include "scene.h"   /* g_scene_state (engine DAT_0438b1c0) */
 #include "scene1_day_close.h" /* day_close_b4e0 — no ESC pause during the night exchange */
 #include "scene_day_end.h"   /* pause action 1: the day-end summary (FUN_0048da71/473618) */
+#include <stdio.h>
 #include "audio.h"   /* audio_play_se_by_id (engine FUN_00499519) */
 #include "audio_fade.h"  /* Music/Sound/Voice sliders + FUN_00499583 BGM re-apply */
 #include "settings.h"    /* Message Speed / Unread Text Skip sliders (slider3/4) */
@@ -43,6 +44,7 @@
 #include "map_collision.h"    /* *DAT_068dd2f0 (the stage type) */
 #include "party.h"            /* HP / SP, dae9c / daea4 */
 #include "x87.h"
+#include "audio_mci.h"            /* FUN_00451874 (the debug rows) */
 #include "skip_event.h"           /* FUN_0046c2cb — the ESC skip box */
 #include "scene1_intro_dialogue.h" /* DAT_0438b1c8, the skip_prompt gate */
 #include "customer_service.h"     /* FUN_0045e6a5 — the haggle tutorial's cancel box */
@@ -68,6 +70,9 @@ int  title_save_dialog_get_active_counter(void);        /* DAT_0438b148 */
 /* ─── module state ───────────────────────────────────────────────────── */
 
 int32_t g_scene_pause_selector = 0;
+
+/* DAT_005cca80: the Equip screen's slot count (5, set at every pause open) */
+static int32_t s_equip_slots = 1;
 
 int32_t g_scene_pause_state_b150 = 0;
 int32_t g_scene_pause_state_b158 = 0;
@@ -461,8 +466,8 @@ void pause_menu_setup(void)
     /* The submenu scratch (0x47f2f6..): DAT_074b2870 / 2874 / 2878 / 2880 / 2884
      * / 2890 / 28a4 / 28a8 / 28ac, the cursors 2834.. and scrolls 2820.. (one
      * scalar each here: cur is always 0); FUN_004360b6; the thrown-away queue
-     * DAT_0438b550 / b554. DAT_07477e9c / 074b286c / 074b287c / 005cca80 have no
-     * port reader. */
+     * DAT_0438b550 / b554. DAT_07477e9c / 074b286c / 074b287c have no port
+     * reader. */
     g_pause_sel_anim     = 0;
     g_pause_frame        = 0;
     g_pause_sel          = 0;
@@ -480,6 +485,7 @@ void pause_menu_setup(void)
     memset(g_dat_0438b554, 0xff, sizeof g_dat_0438b554);
     g_pause_exit_confirm = 0;
     g_pause_exit_phase   = 0;                   /* DAT_073e1550 */
+    s_equip_slots        = 5;                   /* DAT_005cca80 */
 
     /* FPU layout consts (engine 0x435873, C4E-only; harmless to set here —
      * the basic menu may not read them, but a future status sub-screen
@@ -584,9 +590,8 @@ void pause_menu_nav(void)
             title_save_dialog_cursor_snap(72.0f, 112.0f);   /* FUN_00435693 */
         }
         if (t == 5) {
-            /* the dungeon Equip screen: the bag list (mode 6) slid in, the
-             * equip-slot cursor (28ac 0, 28a4 1) at (16, 80).
-             * PORT-DEBT(stub, FUN_004802cf): its update */
+            /* the Equip screen: the bag list (mode 6) slid in, the
+             * equip-slot cursor (28ac 0, 28a4 1) at (16, 80) */
             stage_load_pulse_set_active(1);                 /* FUN_004682c5 */
             display_menu_open(6, 1);                        /* FUN_00468338(6, 1) */
             g_pause_value_idx = 1;
@@ -1002,6 +1007,139 @@ void pause_options_submenu_update(void)
  *   - an item flagged 0x20 (or 0x10 for Use) cannot be: SE 362.
  * Every outcome raises the result message (DAT_074b28a8); Z / B then closes it.
  * The render is scene_pause's. */
+/* FUN_0047f46a: Equip's "best" (row 0): for each of the 5 slots, the bag's
+ * wearable that beats the worn one on the sum of its 4 stats (FUN_0048093f)
+ * swaps in; then the bag closes its gaps */
+static void pause_equip_auto(int32_t *eq, int chara)
+{
+    int *bag = adv_guild_bag();
+    const int n = adv_guild_bag_size();
+    for (int i = 0; i != 5; i++) {
+        for (int k = 0; k != n; k++) {
+            int *b = &bag[k];
+            if (*b == -1 || (*b & 0x10) != 0 || !item_equip_check(chara, i, *b))
+                continue;
+            int32_t worn[4] = { 0 }, cand[4] = { 0 };
+            chara_equip_item_stats((uint32_t)eq[i + 1], worn);
+            chara_equip_item_stats((uint32_t)*b, cand);
+            if (worn[0] + worn[1] + worn[2] + worn[3] < cand[0] + cand[1] + cand[2] + cand[3]) {
+                const int t = eq[i + 1];
+                eq[i + 1] = *b;
+                *b = t;
+            }
+        }
+    }
+    for (int i = 0; i != n; i++) {
+        for (int pass = 0; pass < 2 && bag[i] == -1; pass++) {
+            for (int j = i; j < n - 1; j++) bag[j] = bag[j + 1];
+            bag[n - 1] = -1;
+        }
+    }
+}
+
+/* the Equip cursor's spot: (16, 36 · row + 80) */
+static float equip_row_y(void)
+{
+    return spill32((long double)spill32((long double)(36 * g_pause_items_opt)) + 80.0f);
+}
+
+/* FUN_004802cf: the pause's Equip screen (type 5).  28a4 set: the 6-row slot
+ * list (row 0 = best, rows 1..5 = the worn items, cursor 28ac); clear: the bag
+ * list (mode 6) for the chosen slot. */
+void pause_equip_submenu_update(void)
+{
+    const uint32_t in = (uint32_t)g_sim_buttons[0].pressed | ((uint32_t)g_sim_buttons[0].held << 16);
+    const int chara = chara_equip_get_current_chara();
+    uint8_t *wb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (wb == NULL)
+        return;
+    int32_t *eq = (int32_t *)(void *)(wb + 0x2ceb0 + 108 * chara);   /* DAT_04510648 */
+    {
+        const int *bag = adv_guild_bag();
+        char buf[64];
+        for (int k = 0; k < 10; k++) {
+            snprintf(buf, sizeof buf, "HI:%d     ", bag[k]);
+            audio_mci_record_command(55, k + 10, buf);   /* FUN_00451874 */
+        }
+    }
+    if (g_pause_save_overwrite != 0) {                    /* DAT_074b28a4 */
+        if (display_menu_detail() != 0) {                 /* FUN_004681e6 */
+            if (in & 0x70u) {
+                display_menu_detail_close();              /* FUN_004681d3 */
+                title_save_dialog_cursor_set_visible(1);  /* FUN_0043561a */
+                audio_play_se_by_id(710);
+            }
+        } else if (in & 0x20u) {
+            audio_play_se_by_id(317);
+            g_pause_sub_dir  = 0;                         /* DAT_074b2884 */
+            g_pause_sel_anim = 0;                         /* DAT_074b2870 */
+            title_save_dialog_cursor_set_visible(0);      /* FUN_00435612 */
+            stage_load_pulse_set_active(0);               /* FUN_004682d0 */
+        } else if (in & 0x40u) {
+            if (g_pause_items_opt > 0 && eq[g_pause_items_opt] != -1) {
+                display_menu_detail_open(0);              /* FUN_004681db(0) */
+                display_menu_set_highlight(eq[g_pause_items_opt]);   /* FUN_00468286 */
+                title_save_dialog_cursor_set_visible(0);
+                audio_play_se_by_id(710);
+            }
+        } else if ((in & 0x10u) == 0) {
+            const int rows = s_equip_slots + 1;
+            if (in & 0x40000u) g_pause_items_opt = (g_pause_items_opt + s_equip_slots) % rows;
+            else if (in & 0x80000u) g_pause_items_opt = (g_pause_items_opt + rows + 1) % rows;
+            else goto tail;
+            audio_play_se_by_id(326);
+            title_save_dialog_cursor_slide(16.0f, equip_row_y());   /* FUN_00435710 */
+        } else {
+            audio_play_se_by_id(323);
+            if (g_pause_items_opt != 0) {
+                g_pause_save_overwrite = 0;
+                display_menu_cursor_to_row();             /* FUN_0046939a */
+                display_menu_set_compare(chara, g_pause_items_opt - 1);   /* FUN_00468233 */
+            } else {
+                pause_equip_auto(eq, chara);              /* FUN_0047f46a */
+                display_menu_open(6, 1);                  /* FUN_00468338(6, 1) */
+                stage_load_pulse_reset_counter_to_5();    /* FUN_004682e3 */
+                title_save_dialog_cursor_snap(16.0f, equip_row_y());    /* FUN_00435693 */
+            }
+        }
+    } else {
+        const int r = display_menu_update(1);             /* FUN_00469414(1) */
+        if (r == 2) {
+            g_pause_save_overwrite = 1;
+            display_menu_set_compare(-1, 0);
+            audio_play_se_by_id(317);
+            title_save_dialog_cursor_slide(16.0f, equip_row_y());
+        } else if (r == 1 || r == 3) {
+            const int item = display_menu_selected();     /* FUN_00469a9f */
+            if ((item & 0x10) == 0 && item_equip_check(chara, g_pause_items_opt - 1, item)) {
+                if (r != 1) {
+                    audio_play_se_by_id(323);
+                    goto tail;
+                }
+                g_pause_save_overwrite = 1;
+                eq[g_pause_items_opt] = display_menu_swap_selected(eq[g_pause_items_opt]);   /* FUN_00468f6d */
+                display_menu_set_compare(-1, 0);
+                int *bag = adv_guild_bag();
+                const int n = adv_guild_bag_size();
+                for (int k = 0; k != n; k++) {
+                    if (bag[k] != -1) continue;
+                    for (int j = k; j < n - 1; j++) bag[j] = bag[j + 1];
+                    bag[n - 1] = -1;
+                }
+                display_menu_open(6, 0);
+                stage_load_pulse_reset_counter_to_5();
+                title_save_dialog_cursor_slide(16.0f, equip_row_y());
+            } else if (r == 3) {
+                audio_play_se_by_id(362);
+                display_menu_confirm_cancel();            /* FUN_0046940c */
+            }
+        }
+    }
+tail:
+    if (g_pause_save_overwrite == 1)
+        display_menu_set_highlight(g_pause_items_opt != 0 ? eq[g_pause_items_opt] : -2);
+}
+
 void pause_items_submenu_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;    /* DAT_073dddd4 */
@@ -1255,8 +1393,7 @@ void pause_menu_update(void)
             /* L82031 — once fully open, dispatch to the per-type submenu
              * updater: Save (3 → FUN_0047f5bc), Status (0 → FUN_0047fe98),
              * Options (2 → FUN_0047fc44), Encyclopedia (6 → FUN_0049f365),
-             * Items (1 → FUN_0047ff40); the dungeon Equip screen (5 →
-             * FUN_004802cf) is PORT-DEBT(stub, FUN_004802cf). */
+             * Items (1 → FUN_0047ff40), Equip (5 → FUN_004802cf). */
             if (g_pause_sub_anim == 10) {
                 const int t = g_pause_entries[g_pause_sel];
                 if (t == 3) {
@@ -1267,6 +1404,8 @@ void pause_menu_update(void)
                     pause_options_submenu_update();   /* FUN_0047fc44 */
                 } else if (t == 1) {
                     pause_items_submenu_update();     /* FUN_0047ff40 */
+                } else if (t == 5) {
+                    pause_equip_submenu_update();     /* FUN_004802cf */
                 } else if (t == 6) {
                     /* engine L82045: close on B (returns 1). */
                     if (encyclopedia_update() == 1) {

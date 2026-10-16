@@ -7,6 +7,17 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — the pause's Equip screen; equip checks read the equip class
+adv-guild-pack-leave's last hidden split (the pause cursors from f18961, chara 0's weapon at
+f19126) was the stubbed Equip screen. Ported: FUN_004802cf (the 6-row slot list — row 0
+"best", rows 1..5 the worn items; B / A detail / Z into the bag list for the slot; the swap,
+the bag's gaps closed) and FUN_0047f46a (best: per slot the bag item with the larger 4-stat
+sum, FUN_0048093f); DAT_005cca80 = 5 at every pause open; FUN_0046940c. Found on the way: the
+port's FUN_00468ddc / FUN_00468d6b and the adventurer-customer equip upgrade compared the
+item's `category` (record +0x38, id / 100) where retail reads the equip class (+0x2c) —
+item 64 (id 1, a sword) was refused for Louie's weapon slot. adv-guild-pack-leave now ends
+with every block IDENTICAL.
+
 ## 2026-10-16 — hidden state: a portblock sweep of the house runs
 After the walk and the game over, `portblock` at the end of each long house run showed the
 splits RNG does not: multiday-tutorials-suggest now ends with **every block IDENTICAL**

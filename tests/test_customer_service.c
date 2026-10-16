@@ -1192,7 +1192,8 @@ int test_cs_kind_select_general_customer_pick(void)
     g_item.count = 1;
     g_item.records[0].valid = 1;
     g_item.records[0].item_id = 100;
-    g_item.records[0].category = 1; /* 1H Sword */
+    g_item.records[0].category = 1;
+    g_item.records[0].equip_class = 1; /* 1H Sword */
     g_item.records[0].price = 100;
     g_item.records[0].aud_mask = 0xffffffffu;
     g_item.records[0].attr_mask = 0;
@@ -1215,6 +1216,7 @@ int test_cs_kind_select_general_customer_pick(void)
     g_item.records[0].item_id = save_id;
     g_item.records[0].price = save_price;
     g_item.records[0].category = save_cat;
+    g_item.records[0].equip_class = save_cat;
     g_item.records[0].aud_mask = save_aud;
     g_item.records[0].attr_mask = save_attr;
 
@@ -1237,6 +1239,7 @@ int test_cs_adventurer_equip_upgrade(void)
     g_item.records[0].valid = 1;
     g_item.records[0].item_id = 100;
     g_item.records[0].category = 1;
+    g_item.records[0].equip_class = 1;
     g_item.records[0].attack = 10;
     g_item.records[0].defense = 0;
     g_item.records[0].magic_attack = 0;
@@ -1247,6 +1250,7 @@ int test_cs_adventurer_equip_upgrade(void)
     g_item.records[1].valid = 1;
     g_item.records[1].item_id = 101;
     g_item.records[1].category = 1;
+    g_item.records[1].equip_class = 1;
     g_item.records[1].attack = 25;
     g_item.records[1].defense = 0;
     g_item.records[1].magic_attack = 0;
@@ -1286,6 +1290,7 @@ static void eq_item(int i, int32_t id, int32_t cat, int32_t atk, int32_t def)
     r->valid = 1;
     r->item_id = id;
     r->category = cat;
+    r->equip_class = cat;   /* the field the equip checks read (+0x2c) */
     r->attack = atk;
     r->defense = def;
     r->aud_mask = 0xffffffffu;

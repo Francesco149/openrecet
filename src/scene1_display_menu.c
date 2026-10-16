@@ -886,6 +886,8 @@ void display_menu_remove_selected(uint32_t *bank)
 
 /* FUN_00468f6d: put `item` in the selected row (and the bag slot under it),
  * return what the row held */
+void display_menu_confirm_cancel(void) { s_confirm_ctr = 0; }   /* FUN_0046940c */
+
 int display_menu_swap_selected(int item)
 {
     const int cur = s_tab_cursor[s_cur_tab];

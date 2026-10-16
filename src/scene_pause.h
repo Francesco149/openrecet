@@ -266,6 +266,7 @@ void pause_options_submenu_update(void);
  * g_sim_buttons[0] (via display_menu_update); mutates the display-menu cursor +
  * the submenu close state. */
 void pause_items_submenu_update(void);
+void pause_equip_submenu_update(void);   /* FUN_004802cf: the Equip screen */
 
 /* Reset the state machine globals (tests + pause_menu_setup share it). */
 void pause_sm_reset(void);

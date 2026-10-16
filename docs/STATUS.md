@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-██████░░░░░░░░░░░░░░  29.5% referenced-or-better   (90 instrumented)
+██████░░░░░░░░░░░░░░  29.6% referenced-or-better   (90 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    90 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   662 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1796 | exists in the engine, no `src/` reference    |
+| source-referenced  |   663 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1795 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 9 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 105 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 103 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -220,19 +220,18 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60), the
        golem parts / multi-part anchors, FUN_0042e791 types 25/28/41/73, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
-       arms (25/27/28/41/61..74), FUN_0042ea35, the pause's dungeon Equip screen (type 5,
-       FUN_004802cf), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeon 1's
+       arms (25/27/28/41/61..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeon 1's
        floor 14 (FUN_0044d47d / FUN_0044d1e4's Charme timeline + FUN_0041fa6e), dungeons
        2..5's events / setups (FUN_0044d9d3 …, FUN_00450877, FUN_00451546); render: no
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end; multiday and
-       debt-gameover-restart's party / Tear / emote state is identical every frame):
-       buy-from-seller-guild-intro f26760 party 10 dwords; adv-guild-pack-leave f21540 the
-       pause's 74b2878 / 834 / 820 / 8a0 / 8ac + 1 work dword; dungeon0-full f44730 table B
-       27 dwords + DAT_00648294; dungeon1-deep f77120 party 90 / actors 44 / table B 16 +
-       DAT_00648294. Find each one's first frame with `portstate --va`, fix from the disasm.
+    2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
+       multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro and
+       adv-guild-pack-leave are IDENTICAL in every block at their ends. Left: dungeon0-full
+       f44730 table B 27 dwords + DAT_00648294; dungeon1-deep f77120 party 90 / actors 44 /
+       table B 16 + DAT_00648294. Find each one's first frame with `portstate --va`, fix from
+       the disasm.
        Also open: the Tear talk arm (be7c + Z → cc08 15..18, 30; no recording talks to her).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no

@@ -1210,7 +1210,7 @@ static int cs_check_customer_request_category(int item_handle, int cust_idx)
     int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
     if (slot < 0) return 0;
     if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
-    int32_t cat = g_item.records[slot].category;
+    int32_t cat = g_item.records[slot].equip_class;   /* record +0x2c (FUN_00468d6b) */
     for (int i = 0; i < 20; i++) {
         int32_t req_cat = s_cust_req_cats[cust_idx][i];
         if (req_cat == -1) return 0;
@@ -1231,7 +1231,7 @@ int item_equip_check(int cust_idx, int slot_idx, int item_handle)
     int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
     if (slot < 0) return 1;   /* not in the item DB (0x468e1a) */
     if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
-    int32_t cat = g_item.records[slot].category;
+    int32_t cat = g_item.records[slot].equip_class;   /* record +0x2c */
     if (slot_idx == 0 && cat != s_cust_req_cats[cust_idx][0]) return 0;
 
     int matched = cs_check_customer_request_category(item_handle, cust_idx);
@@ -1251,7 +1251,7 @@ int item_equip_check(int cust_idx, int slot_idx, int item_handle)
             if (other_h >= 0) {
                 int other_slot = tables_item_find_slot_by_id(&g_item, other_h >> 6);
                 if (other_slot >= 0) {
-                    int32_t other_cat = g_item.records[other_slot].category;
+                    int32_t other_cat = g_item.records[other_slot].equip_class;
                     if (!cs_categories_distinct(cat, other_cat)) return 0;
                 }
             }
@@ -2643,8 +2643,8 @@ static void cs_adventurer_equip_upgrade(void)
             int bought_slot = tables_item_find_slot_by_id(&g_item, (uint32_t)item_h >> 6);
             int req_slot    = tables_item_find_slot_by_id(&g_item, (uint32_t)req_h >> 6);
             if (bought_slot >= 0 && req_slot >= 0 &&
-                cs_categories_distinct(g_item.records[req_slot].category,
-                                       g_item.records[bought_slot].category) == 0) {
+                cs_categories_distinct(g_item.records[req_slot].equip_class,
+                                       g_item.records[bought_slot].equip_class) == 0) {
                 int32_t bought_stats[4] = {0};
                 int32_t equip_stats[4]  = {0};
                 chara_equip_item_stats((uint32_t)item_h, bought_stats);

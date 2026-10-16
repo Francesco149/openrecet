@@ -8,20 +8,20 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 662,
-  "inv_discovered": 1796,
-  "referenced_or_better": 752,
-  "pct_referenced_or_better": 29.5,
+  "inv_source_referenced": 663,
+  "inv_discovered": 1795,
+  "referenced_or_better": 753,
+  "pct_referenced_or_better": 29.6,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 105,
+  "port_debt": 103,
   "verified": 80,
   "stubbed": 10,
-  "ported": 662,
-  "unported": 1796,
-  "touched": 752,
-  "pct_touched": 29.5,
+  "ported": 663,
+  "unported": 1795,
+  "touched": 753,
+  "pct_touched": 29.6,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -1777,6 +1777,8 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_flow.h",
+    "src/dungeon_party.c",
+    "src/dungeon_party.h",
     "src/main.c",
     "src/save_bank.h",
     "src/scene1_top_hud.c",
@@ -7945,7 +7947,8 @@
     "src/scene1_shop_walker_helpers.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene_adv_guild.c",
-    "src/scene_day_end.c"
+    "src/scene_day_end.c",
+    "src/scene_pause.c"
    ],
    "status": "verified"
   },
@@ -11284,7 +11287,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
-    "src/scene_adv_guild.c"
+    "src/scene_adv_guild.c",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -11393,7 +11397,8 @@
    "src": [
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
-    "src/scene_adv_guild.c"
+    "src/scene_adv_guild.c",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -11441,7 +11446,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
-    "src/scene_adv_guild.c"
+    "src/scene_adv_guild.c",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -11875,7 +11881,8 @@
    "src": [
     "src/dungeon_results.c",
     "src/scene1_display_menu.c",
-    "src/scene1_display_menu.h"
+    "src/scene1_display_menu.h",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -12067,18 +12074,22 @@
    "size": 8,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x469414",
@@ -16137,7 +16148,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_sim.c"
+    "src/scene1_sim.c",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -16297,7 +16309,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene_pause.c"
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ],
    "status": "ported"
   },
@@ -16385,7 +16398,8 @@
     "src/chara_equip.h",
     "src/customer_service.c",
     "src/encyclopedia.c",
-    "src/item_use.c"
+    "src/item_use.c",
+    "src/scene_pause.c"
    ],
    "status": "verified"
   },

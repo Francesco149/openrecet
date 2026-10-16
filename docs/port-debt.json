@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 83,
+  "total": 82,
   "by_kind": {
-   "stub": 60,
+   "stub": 59,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 2,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 65,
+  "retiring_engine_fns": 64,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -70,7 +70,6 @@
    "FUN_004708f7": 1,
    "FUN_00473c03": 1,
    "FUN_0047f46a": 1,
-   "FUN_004802cf": 1,
    "FUN_0048196b": 1,
    "FUN_004855e2": 1,
    "FUN_00485712": 1,
@@ -177,7 +176,7 @@
    "engine_fn": "FUN_0048196b",
    "desc": "the dungeon's Use / Throw",
    "file": "src/scene_pause.c",
-   "line": 1782,
+   "line": 1921,
    "kind_known": false
   },
   {
@@ -193,7 +192,7 @@
    "engine_fn": "FUN_0048f87c",
    "desc": "the results screen's assets",
    "file": "src/scene_pause.c",
-   "line": 1457,
+   "line": 1596,
    "kind_known": false
   },
   {
@@ -209,7 +208,7 @@
    "engine_fn": "FUN_00490c78",
    "desc": "the side is Tear's screen x < 320",
    "file": "src/dungeon_party.c",
-   "line": 1013,
+   "line": 1020,
    "kind_known": false
   },
   {
@@ -241,7 +240,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 479,
+   "line": 480,
    "kind_known": true
   },
   {
@@ -265,7 +264,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 388,
+   "line": 389,
    "kind_known": true
   },
   {
@@ -289,7 +288,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the boost aura (types 24 / 22)",
    "file": "src/dungeon_party.c",
-   "line": 1531,
+   "line": 1538,
    "kind_known": true
   },
   {
@@ -465,7 +464,7 @@
    "engine_fn": "FUN_0044376a",
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
-   "line": 1608,
+   "line": 1615,
    "kind_known": true
   },
   {
@@ -545,7 +544,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026) is unported; the scene-6 trend multipliers are live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 941,
+   "line": 943,
    "kind_known": true
   },
   {
@@ -586,14 +585,6 @@
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
    "line": 255,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_004802cf",
-   "desc": "its update",
-   "file": "src/scene_pause.c",
-   "line": 589,
    "kind_known": true
   },
   {
@@ -665,7 +656,7 @@
    "engine_fn": "FUN_0048b850",
    "desc": "the water splash after the move (hit",
    "file": "src/dungeon_party.c",
-   "line": 1537,
+   "line": 1544,
    "kind_known": true
   },
   {
@@ -673,7 +664,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 1534,
+   "line": 1541,
    "kind_known": true
   },
   {
@@ -681,7 +672,7 @@
    "engine_fn": "FUN_0048b850 trail",
    "desc": "the orbiting after-images",
    "file": "src/dungeon_party.c",
-   "line": 1611,
+   "line": 1618,
    "kind_known": true
   },
   {
@@ -689,7 +680,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the dash's wall bonk (a ray 1.4 ahead)",
    "file": "src/dungeon_party.c",
-   "line": 1206,
+   "line": 1213,
    "kind_known": true
   },
   {
@@ -697,7 +688,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' swings (FUN_004977df,",
    "file": "src/dungeon_party.c",
-   "line": 1251,
+   "line": 1258,
    "kind_known": true
   },
   {
@@ -705,7 +696,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' skill 4",
    "file": "src/dungeon_party.c",
-   "line": 1263,
+   "line": 1270,
    "kind_known": true
   },
   {
@@ -713,7 +704,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the skill states 3, 5..8 by char",
    "file": "src/dungeon_party.c",
-   "line": 1273,
+   "line": 1280,
    "kind_known": true
   },
   {
