@@ -506,7 +506,14 @@ void party_status_tick(void)
         if (PW(va).i > 0 && --PW(va).i == 0) end = 262912 + 64 * k;
     }
     if (end != 0) {
-        /* PORT-DEBT(stub, FUN_00490c78): the buff-end bubble over Tear */
+        /* the "worn off" line over Tear (b76c 6, the buff's item code), on the
+         * side of her screen x (FUN_00490c78) */
+        g_notice_side = actor_screen_x(g_party.pos[2][0], g_party.pos[2][1], g_party.pos[2][2]) < 320.0f;
+        g_notice_on = 1;
+        g_notice_item = end;
+        g_notice_kind = 2;
+        g_notice_b76c = 6;
+        g_notice_ticks = 90;
     }
     if (PW(0x56daea0u).i != 0) --PW(0x56daea0u).i;
     if (PW(0x56dae9cu).i != 0) --PW(0x56dae9cu).i;
