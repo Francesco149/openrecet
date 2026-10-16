@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — the camera pose FUN_00441c3e on the disasm
+The pose was a house-only semantic port: the scene type and the char mode came from cached
+house globals (0, 2), so the house clamps pinned the dungeon camera's x at -5 (retail -39.6 on
+dungeon1-deep's floors), and the floor bias ignored the player's y and the stage's fall line.
+Now on the disasm (x87 spills): the scene type DAT_068dd3fc[b4dc · 0x6cf] (the stage record's
++0x104; the port's stage table matches retail: 1 / 6 / 10 / 11) and the char mode work +0x2ce0c
+read every pose, the clamps by scene type, class 1 holding the floor bias at 3, the floor-end
+swing (be94 61..239), the 0.2 smoothing. Also the day end's camera head (FUN_0048dbfb L5-17, class
+1 at (-1.8, 36, 3.5), then FUN_00441c3e — retail runs the pose from the sim in mode 9) and
+FUN_004852fb's b4e8 = 0. **portstate dungeon1-deep: the pose IDENTICAL over all 77,136 frames**
+(was 6,196 off); portblock dungeon1-charme f70000: every block IDENTICAL. Tools: state_va mirrors
+for the pose (cc38.. / cc50.., 06a46f9c, b774..b77c, 073de31c..330), the stage table DAT_068dd2f8
+and the now-loading gate.
+
 ## 2026-10-16 — table B's hidden splits: the D3DX axes, the hit struct, the wall step's kill
 The floors' last hidden-state rows (FRONT's "kind 0x56" records) are gone:
 - an audit of every mat4_rotation_x / _y call against its retail thunk: 34 sites had X and Y
