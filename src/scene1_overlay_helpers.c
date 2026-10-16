@@ -349,9 +349,9 @@ void scene1_overlay_shape_3_compose_world(float out[16],
     float scratch[16];
     mat4_rotation_z(scratch, rz_val);
     mat4_mul(out, scratch, out);
-    mat4_rotation_y(scratch, ry_val);
+    mat4_rotation_x(scratch, ry_val);
     mat4_mul(out, scratch, out);
-    mat4_rotation_x(scratch, rx_val);
+    mat4_rotation_y(scratch, rx_val);
     mat4_mul(out, scratch, out);
 }
 
@@ -366,7 +366,7 @@ void scene1_overlay_shape_4_compose_world(float out[16],
     /* Engine asm 0x41571b..0x41573d — hard-coded RotY(π/2) via
      * .rdata 0x519434 = 1.5707963f. */
     float scratch[16];
-    mat4_rotation_y(scratch, 1.5707963f);
+    mat4_rotation_x(scratch, 1.5707963f);
     mat4_mul(out, scratch, out);
 }
 
@@ -383,7 +383,7 @@ void scene1_overlay_shape_6_compose_world(float out[16],
      * but the engine applies it as a RotX value.  */
     float rx_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Y);
     float scratch[16];
-    mat4_rotation_x(scratch, rx_val);
+    mat4_rotation_y(scratch, rx_val);
     mat4_mul(out, scratch, out);
 }
 
@@ -511,7 +511,7 @@ void scene1_overlay_shape_1_compose_world(float out[16],
      *   world = scale × world (0x415527..0x41552e)
      * so final composition = scale × RotY × inverse(lookat)). */
     float scratch[16];
-    mat4_rotation_y(scratch, 1.5707963f);
+    mat4_rotation_x(scratch, 1.5707963f);
     mat4_mul(out, scratch, out);
 
     mat4_scaling(scratch, sx, sy, sz);
@@ -645,11 +645,11 @@ void scene1_overlay_shape_7_compose_world(float out[16],
 
     float scratch[16];
     mat4_scaling(out, sx, sy, sy);                 /* S (sz aliased to sy) */
-    mat4_rotation_y(scratch, ry_val);
+    mat4_rotation_x(scratch, ry_val);
     mat4_mul(out, out, scratch);                    /* S × RotY */
     mat4_rotation_z(scratch, rz_val);
     mat4_mul(out, out, scratch);                    /* (S×RotY) × RotZ */
-    mat4_rotation_x(scratch, rx_val);
+    mat4_rotation_y(scratch, rx_val);
     mat4_mul(out, out, scratch);                    /* ((S×RotY)×RotZ) × RotX */
     mat4_translation(scratch, pos_x, pos_y, pos_z);
     mat4_mul(out, out, scratch);                    /* × T */
@@ -866,7 +866,7 @@ void scene1_overlay_shape_89_10_compose_world(float out[16],
      *   out = Scale × (RotX × T) = S × RotX × T */
     float scratch[16];
     mat4_translation(out, pos_x, pos_y, pos_z);
-    mat4_rotation_x(scratch, rx_val);
+    mat4_rotation_y(scratch, rx_val);
     mat4_mul(out, scratch, out);                  /* RotX × T */
     mat4_scaling(scratch, s_h, s_v, s_h);         /* sz aliased to sx */
     mat4_mul(out, scratch, out);                  /* S × RotX × T */
@@ -1023,8 +1023,8 @@ void scene1_overlay_setup_compute(const float eye[3],
     }
 
     float rot_y[16], rot_x[16];
-    mat4_rotation_y(rot_y, rot_y_angle);
-    mat4_rotation_x(rot_x, rot_x_angle);
+    mat4_rotation_x(rot_y, rot_y_angle);
+    mat4_rotation_y(rot_x, rot_x_angle);
 
     if (pre_matrix) {
         mat4_mul(pre_matrix, rot_y, rot_x);

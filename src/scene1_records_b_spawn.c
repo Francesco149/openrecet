@@ -899,7 +899,7 @@ static int init_entity_23(int i, const void *owner, int type, int flag,
      * uses math3d's mat4_rotation_x which produces the same row-major
      * 4x4 matrix layout. */
     float mat[16];
-    mat4_rotation_x(mat, u_angle);
+    mat4_rotation_y(mat, u_angle);
     int32_t *slot_mat_ptr = slot_base(i) + SCENE1_RECORDS_B_OFF_MATRIX0;
     memcpy(slot_mat_ptr, mat, sizeof mat);
 
@@ -2537,13 +2537,13 @@ static int init_npc_cluster_b(int i, const void *owner, int type, int flag,
  *   VEL_X    = sin(bend)*0.3
  *   VEL_Y    = 0.15                            (= 0x3e19999a)
  *   VEL_Z    = cos(bend)*0.3
- *   ROT_SCR  = u1 * 2π                          (random RotX angle)
- *   ROT_Z    = u2 * 2π                          (random RotY angle)
- *   slot.MATRIX0 = RotY(ROT_Z) × RotX(ROT_SCR)
- *     — engine chains mat4_rotation_x(MATRIX0, ROT_SCR),
- *       mat4_rotation_y(scratch, ROT_Z),
- *       mat4_mul(MATRIX0, scratch, MATRIX0) — so MATRIX0 ends up as
- *       scratch * MATRIX0 = RotY * RotX.
+ *   ROT_SCR  = u1 * 2π                          (the RotY angle)
+ *   ROT_Z    = u2 * 2π                          (the RotX angle)
+ *   slot.MATRIX0 = RotX(ROT_Z) × RotY(ROT_SCR)
+ *     — engine chains 0x4a35ef = RotationY(MATRIX0, ROT_SCR) (0x445c62),
+ *       0x4a3553 = RotationX(scratch, ROT_Z) (0x445c78),
+ *       D3DXMatrixMultiply(MATRIX0, scratch, MATRIX0) — so MATRIX0 ends up
+ *       as scratch * MATRIX0 = RotX * RotY.
  *   LIFE_MULT = 0.15
  *   ROT_X     = bend                            (LAB_00445c9a)
  *   DRAG      = 0.5                             (LAB_004469d2)
@@ -2575,20 +2575,20 @@ static int init_npc_56(int i, const void *owner, int type, int flag,
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.15000000596046448f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)spill32(x87_crt_cos(bd)) * k0p3));
 
-    float rot_x_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_SCR */
-    float rot_y_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_Z   */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_x_angle);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rot_y_angle);
+    float rot_y_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_SCR */
+    float rot_x_angle = spill32((long double)rng_next_unit() * k2pi);   /* slot.ROT_Z   */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_y_angle);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rot_x_angle);
 
-    /* slot.MATRIX0 = RotY(rot_y_angle) × RotX(rot_x_angle).  Use
+    /* slot.MATRIX0 = RotX(rot_x_angle) × RotY(rot_y_angle).  Use
      * float[16] scratch then write into slot via memcpy — slot fields
      * are int32_t but the bit-pattern is the float matrix. */
-    float matrix_rx[16];
     float matrix_ry[16];
+    float matrix_rx[16];
     float matrix_out[16];
-    mat4_rotation_x(matrix_rx, rot_x_angle);
     mat4_rotation_y(matrix_ry, rot_y_angle);
-    mat4_mul(matrix_out, matrix_ry, matrix_rx);
+    mat4_rotation_x(matrix_rx, rot_x_angle);
+    mat4_mul(matrix_out, matrix_rx, matrix_ry);
     int32_t *r = slot_base(i);
     memcpy(&r[SCENE1_RECORDS_B_OFF_MATRIX0], matrix_out, sizeof matrix_out);
 

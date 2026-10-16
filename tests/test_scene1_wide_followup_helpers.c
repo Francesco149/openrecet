@@ -444,7 +444,7 @@ int test_wf_pass_a_scale_uses_life_mult(void)
 int test_wf_pass_a_compose_world_translation_in_row_3(void)
 {
     /* At AGE=5 (no ramp), LIFE_MULT 1.0, ROT_X 0:
-     *   M = RotZ(π) × RotY(π/2) × S(0.005) × T(10, 20, 30).
+     *   M = RotZ(π) × RotX(π/2) × S(0.005) × T(10, 20, 30).
      *
      * Translation row stays at (10, 20, 30, 1) — scale only touches
      * rows 0..2's diagonal, rotations have row 3 = (0,0,0,1).  */
@@ -471,16 +471,19 @@ int test_wf_pass_a_compose_world_translation_in_row_3(void)
 int test_wf_pass_a_compose_world_rot_x_pi_cancels_rot_z(void)
 {
     /* slot[ROT_X] = π → RotZ(π - π) = RotZ(0) = identity.
-     * Then M = I × RotY(π/2) × S × T = RotY(π/2) × S × T.
+     * Then M = I × RotX(π/2) × S × T = RotX(π/2) × S × T
+     * (the π/2 goes through thunk 0x4a3553 = D3DXMatrixRotationX).
      *
-     * mat4_rotation_y(θ) returns the standard right-handed rotation:
-     *   [  cos θ  0  -sin θ  0 ]
-     *   [  0      1   0      0 ]
-     *   [  sin θ  0   cos θ  0 ]
-     *   [  0      0   0      1 ]
+     * mat4_rotation_x(θ) returns the D3DX row-major rotation:
+     *   [  1  0       0      0 ]
+     *   [  0  cos θ   sin θ  0 ]
+     *   [  0  -sin θ  cos θ  0 ]
+     *   [  0  0       0      1 ]
      *
-     * For θ=π/2: cos=0, sin=1 → world[2] = -0.005 (x-row), world[5] =
-     * +0.005 (y-row diagonal), world[8] = +0.005 (z-row's x-col).  */
+     * For θ=π/2: cos=0, sin=1 → world[0] = +0.005 (x-row diagonal),
+     * world[5] = 0, world[6] = +0.005 (y-row's z-col), world[9] =
+     * -0.005 (z-row's y-col).  An uncancelled RotZ(π) would flip
+     * world[0] to -0.005.  */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_init_zero_b(slot);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x77;
@@ -494,8 +497,12 @@ int test_wf_pass_a_compose_world_rot_x_pi_cancels_rot_z(void)
     float world[16];
     wf_pass_a_compose_world(world, slot);
 
-    /* Y-row's diagonal is unaffected by RotY (only X/Z rows rotate). */
-    T_ASSERT_NEAR_WF(world[5], 0.005f, 1e-5f);
+    /* X-row's diagonal is unaffected by RotX (only Y/Z rows rotate),
+     * and survives only if RotZ cancelled. */
+    T_ASSERT_NEAR_WF(world[0], 0.005f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[5], 0.0f,   1e-5f);
+    T_ASSERT_NEAR_WF(world[6], 0.005f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[9], -0.005f, 1e-5f);
     return 0;
 }
 
@@ -503,7 +510,7 @@ int test_wf_pass_a_compose_world_rot_x_pi_cancels_rot_z(void)
  *
  * Same table memory as Pass A; different filter (single type 0x53),
  * different scale formula (raw LIFE_MULT, no ramp), and a simpler
- * matrix chain (RotY(π/2) × S × T — no per-record yaw RotZ).
+ * matrix chain (RotX(π/2) × S × T — no per-record yaw RotZ).
  */
 
 int test_wf_pass_b_should_emit_accepts_0x53(void)
@@ -559,10 +566,10 @@ int test_wf_pass_b_scale_ignores_age(void)
 
 int test_wf_pass_b_compose_world_translation_in_row_3(void)
 {
-    /* M = RotY(π/2) × S(1.0) × T(10, 20, 30).
+    /* M = RotX(π/2) × S(1.0) × T(10, 20, 30).
      *
      * Translation row stays at (10, 20, 30, 1) — scale only touches
-     * rows 0..2's diagonal, RotY has row 3 = (0,0,0,1).  */
+     * rows 0..2's diagonal, RotX has row 3 = (0,0,0,1).  */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_init_zero_b(slot);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
@@ -581,19 +588,20 @@ int test_wf_pass_b_compose_world_translation_in_row_3(void)
     return 0;
 }
 
-int test_wf_pass_b_compose_world_roty_pi_over_2(void)
+int test_wf_pass_b_compose_world_rotx_pi_over_2(void)
 {
     /* No translation, LIFE_MULT=1.0:
-     *   M = RotY(π/2) × S(1.0) × T(0) = RotY(π/2).
+     *   M = RotX(π/2) × S(1.0) × T(0) = RotX(π/2)
+     * (thunk 0x4a3553 = D3DXMatrixRotationX).
      *
-     * mat4_rotation_y(θ) returns the standard right-handed rotation:
-     *   [  cos θ  0  -sin θ  0 ]
-     *   [  0      1   0      0 ]
-     *   [  sin θ  0   cos θ  0 ]
-     *   [  0      0   0      1 ]
+     * mat4_rotation_x(θ) returns the D3DX row-major rotation:
+     *   [  1  0       0      0 ]
+     *   [  0  cos θ   sin θ  0 ]
+     *   [  0  -sin θ  cos θ  0 ]
+     *   [  0  0       0      1 ]
      *
-     * For θ=π/2: cos=0, sin=1 → world[0]=0, world[2]=-1,
-     * world[5]=1, world[8]=1, world[10]=0.  No RotZ tail, so the
+     * For θ=π/2: cos=0, sin=1 → world[0]=1, world[5]=0,
+     * world[6]=1, world[9]=-1, world[10]=0.  No RotZ tail, so the
      * matrix doesn't get an extra Z rotation (the distinguishing
      * feature vs Pass A).  */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
@@ -604,10 +612,10 @@ int test_wf_pass_b_compose_world_roty_pi_over_2(void)
     float world[16];
     wf_pass_b_compose_world(world, slot);
 
-    T_ASSERT_NEAR_WF(world[0],  0.0f, 1e-5f);
-    T_ASSERT_NEAR_WF(world[2], -1.0f, 1e-5f);
-    T_ASSERT_NEAR_WF(world[5],  1.0f, 1e-5f);
-    T_ASSERT_NEAR_WF(world[8],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[0],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[5],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[6],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[9], -1.0f, 1e-5f);
     T_ASSERT_NEAR_WF(world[10], 0.0f, 1e-5f);
     return 0;
 }
@@ -1228,9 +1236,9 @@ int test_wf_pass_e_fan_billboard_translation_at_pos(void)
 
 int test_wf_pass_e_fan_compose_world_includes_translation(void)
 {
-    /* Full compose_world stack: S × RotY(π/2) × billboard.  Translation
+    /* Full compose_world stack: S × RotX(π/2) × billboard.  Translation
      * should still land at POS because the billboard matrix is the only
-     * one that touches row 3; the RotY and S left-multiplies preserve
+     * one that touches row 3; the RotX and S left-multiplies preserve
      * row 3 = (0,0,0,1) under the row-major convention. */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_init_zero_b(slot);
@@ -1249,8 +1257,8 @@ int test_wf_pass_e_fan_compose_world_includes_translation(void)
     wf_pass_e_fan_compose_world(world, slot, camera_eye);
 
     T_ASSERT_NEAR_WF(world[15], 1.0f, 1e-5f);
-    /* Translation row preserved through S*Ry: S scales row 3 by 1
-     * (homogeneous coord), Ry leaves it untouched, so M[12..14] = POS. */
+    /* Translation row preserved through S*Rx: S scales row 3 by 1
+     * (homogeneous coord), Rx leaves it untouched, so M[12..14] = POS. */
     T_ASSERT_NEAR_WF(world[12], 5.0f, 1e-3f);
     T_ASSERT_NEAR_WF(world[13], 6.0f, 1e-3f);
     T_ASSERT_NEAR_WF(world[14], 7.0f, 1e-3f);

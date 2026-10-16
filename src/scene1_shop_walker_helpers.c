@@ -191,7 +191,7 @@ void sw_pass_b_compose_world_main(float out[16], const int32_t *slot)
     mat4_scaling(scratch, -scale, scale, scale);
     mat4_mul(out, scratch, out);   /* out = S × T */
 
-    mat4_rotation_x(scratch, rot_x);
+    mat4_rotation_y(scratch, rot_x);
     mat4_mul(out, scratch, out);   /* out = Rx × S × T */
 
     mat4_mul(out, matrix0, out);   /* out = MATRIX0 × Rx × S × T */
@@ -216,10 +216,10 @@ void sw_pass_b_compose_world_outer(float out[16], const int32_t *slot)
     mat4_scaling(scratch, -scale, scale, scale);
     mat4_mul(out, scratch, out);   /* out = S × T */
 
-    mat4_rotation_x(scratch, -rot_x);
+    mat4_rotation_y(scratch, -rot_x);
     mat4_mul(out, scratch, out);   /* out = Rx × S × T */
 
-    mat4_rotation_y(scratch, rot_scr);
+    mat4_rotation_x(scratch, rot_scr);
     mat4_mul(out, scratch, out);   /* out = Ry × Rx × S × T */
 }
 
@@ -353,7 +353,7 @@ void sw_pass_c_compose_world(float out[16], const int32_t *slot)
     mat4_scaling(scratch, -scale, scale, scale);
     mat4_mul(out, scratch, out);   /* out = S × T */
 
-    mat4_rotation_y(scratch, rot_scr);
+    mat4_rotation_x(scratch, rot_scr);
     mat4_mul(out, scratch, out);   /* out = Ry × S × T */
 
     mat4_mul(out, matrix0, out);   /* out = MATRIX0 × Ry × S × T */
@@ -457,7 +457,7 @@ void sw_pass_a_compose_world(float out[16], const int32_t *slot)
     mat4_scaling(scratch, -0.04f, 0.04f, 0.04f);
     mat4_mul(out, scratch, out);    /* out = S × T */
 
-    mat4_rotation_x(scratch, rot_angle);
+    mat4_rotation_y(scratch, rot_angle);
     mat4_mul(out, scratch, out);    /* out = Rx × S × T */
 }
 

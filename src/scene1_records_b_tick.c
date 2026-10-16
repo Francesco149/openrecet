@@ -2128,8 +2128,8 @@ static void body_0x2c(int i)
     /* MATRIX0 = RotY(+0x94) × RotX(+0x8c): FUN_004a2a10(m, tmp, m) */
     float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
     float scratch[16];
-    mat4_rotation_x(mat0, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR));
-    mat4_rotation_y(scratch, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z));
+    mat4_rotation_y(mat0, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR));
+    mat4_rotation_x(scratch, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z));
     mat4_mul(mat0, scratch, mat0);
 
     /* falling: the ground into the slot's own hit record (+0x18; its +0x24
@@ -2701,8 +2701,8 @@ static void body_0x2b(int i)
          * rot_x(ROT_SCR). */
         float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
         float scratch[16];
-        mat4_rotation_x(mat0, rot_scr);
-        mat4_rotation_y(scratch, rot_z);
+        mat4_rotation_y(mat0, rot_scr);
+        mat4_rotation_x(scratch, rot_z);
         mat4_mul(mat0, scratch, mat0);
 
         /* asm 0x43d8d4-0x43d8e2: VEL_Y -= 0.02. */
@@ -5273,8 +5273,8 @@ static void body_entity_bounce_inner(int i, int32_t type)
         int32_t *slot = slot_base(i);
         float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
         float scratch[16];
-        mat4_rotation_x(mat0, rot_scr);
-        mat4_rotation_y(scratch, rot_z);
+        mat4_rotation_y(mat0, rot_scr);
+        mat4_rotation_x(scratch, rot_z);
         mat4_mul(mat0, scratch, mat0);
 
         /* asm 0x44065d-0x4406ab: VEL_Y < 0 + ground hit + POS_Y <=
@@ -5823,11 +5823,11 @@ static void body_0x75(int i)
 
         float mat[16], scratch[16];
         mat4_translation(mat, 0.0f, 0.0f, 0.0f);
-        mat4_rotation_y(scratch, 0.0f);     /* ROT_SCR = 0 */
+        mat4_rotation_x(scratch, 0.0f);     /* ROT_SCR = 0 */
         mat4_mul(mat, scratch, mat);
         mat4_rotation_z(scratch, 0.0f);     /* ROT_Z = 0 */
         mat4_mul(mat, scratch, mat);
-        mat4_rotation_x(scratch, rot_x);
+        mat4_rotation_y(scratch, rot_x);
         mat4_mul(mat, scratch, mat);
 
         float scale = (float)slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) * 0.1f;

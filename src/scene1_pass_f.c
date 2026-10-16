@@ -108,10 +108,10 @@ static void pass_f_compose_world(float out[16],
     /* Engine quirk: rot-field-X drives RotationY thunk (3537), and
      * rot-field-Y drives RotationX thunk (35d3).  Verbatim.  See
      * docs/findings/scene1-particles-tick.md "Pass F" matrix chain. */
-    mat4_rotation_y(scratch, rot_x);
+    mat4_rotation_x(scratch, rot_x);
     mat4_mul(out, scratch, out);
 
-    mat4_rotation_x(scratch, rot_y);
+    mat4_rotation_y(scratch, rot_y);
     mat4_mul(out, scratch, out);
 }
 

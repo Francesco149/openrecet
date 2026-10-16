@@ -1165,30 +1165,33 @@ int test_records_b_spawn_npc_56_matrix_init_and_lift(void)
     return 0;
 }
 
-int test_records_b_spawn_npc_56_matrix_is_roty_times_rotx(void)
+int test_records_b_spawn_npc_56_matrix_is_rotx_times_roty(void)
 {
     /* Re-derive the matrix using the same RNG seed and the documented
-     * formula: MATRIX0 = RotY(rot_y) × RotX(rot_x) where rot_x is the
-     * 1st rng_next_unit()*2π and rot_y is the 2nd.  Engine order:
-     *   1. rng → rot_x  → slot.ROT_SCR
-     *   2. rng → rot_y  → slot.ROT_Z
-     *   3. MATRIX0 = mat_rot_y(rot_y) * mat_rot_x(rot_x) */
+     * formula: MATRIX0 = RotX(rot_x) × RotY(rot_y) where rot_y is the
+     * 1st rng_next_unit()*2π and rot_x is the 2nd.  Engine order:
+     *   1. rng → rot_y  → slot.ROT_SCR
+     *   2. rng → rot_x  → slot.ROT_Z
+     *   3. 0x4a35ef = RotationY(MATRIX0, rot_y) (0x445c62),
+     *      0x4a3553 = RotationX(scratch, rot_x) (0x445c78),
+     *      Multiply(MATRIX0, scratch, MATRIX0)
+     *      → MATRIX0 = mat_rot_x(rot_x) * mat_rot_y(rot_y) */
     reset_world();
     seed_owner_b_cluster_b(0);
 
     rng_seed(1);
-    float rot_x_angle = rng_next_unit() * 6.2831855f;
     float rot_y_angle = rng_next_unit() * 6.2831855f;
-    float expect_rx[16], expect_ry[16], expect_out[16];
-    mat4_rotation_x(expect_rx, rot_x_angle);
+    float rot_x_angle = rng_next_unit() * 6.2831855f;
+    float expect_ry[16], expect_rx[16], expect_out[16];
     mat4_rotation_y(expect_ry, rot_y_angle);
-    mat4_mul(expect_out, expect_ry, expect_rx);
+    mat4_rotation_x(expect_rx, rot_x_angle);
+    mat4_mul(expect_out, expect_rx, expect_ry);
 
     rng_seed(1);
     scene1_record_b_spawn_npc(g_owner_b, 0x56, 0);
 
-    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR), rot_x_angle));
-    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_Z),   rot_y_angle));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR), rot_y_angle));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_Z),   rot_x_angle));
     for (int k = 0; k < 16; k++) {
         T_ASSERT(APPROX(
             slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + k),
@@ -1471,15 +1474,16 @@ int test_records_b_spawn_entity_23_people_branch_reads_target(void)
     return 0;
 }
 
-int test_records_b_spawn_entity_23_writes_matrix_via_rotation_x(void)
+int test_records_b_spawn_entity_23_writes_matrix_via_rotation_y(void)
 {
-    /* Matrix must be overwritten by RotationX(ROT_Z) — the preamble's
-     * owner+0xde8 copy is discarded.  RotationX(a) at MATRIX0 has:
-     *   M[0]=1, M[5]=cos(a), M[6]=sin(a), M[9]=-sin(a), M[10]=cos(a),
+    /* Matrix must be overwritten by RotationY(ROT_Z) (thunk 0x4a35ef) —
+     * the preamble's owner+0xde8 copy is discarded.  RotationY(a) at
+     * MATRIX0 has:
+     *   M[0]=cos(a), M[2]=-sin(a), M[5]=1, M[8]=sin(a), M[10]=cos(a),
      *   M[15]=1 (per math3d's row-major D3DX layout).
      * Hard to assert the exact angle without knowing the rng draw, but
-     * we can assert ROT_Z is in [0, 2π) and the matrix's [0]/[15] are
-     * 1 and the [5]/[10] trig pair matches cos(ROT_Z). */
+     * we can assert ROT_Z is in [0, 2π), the matrix's [5]/[15] are 1,
+     * and the [0]/[2]/[8] trig entries match ROT_Z. */
     reset_world();
     seed_owner_a_yaw();
     /* Pre-seed owner matrix to a "wrong" sentinel so we can verify it's
@@ -1494,13 +1498,17 @@ int test_records_b_spawn_entity_23_writes_matrix_via_rotation_x(void)
     T_ASSERT(rot_z >= 0.0f && rot_z < 6.2831856f);
 
     float m0  = slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + 0);
+    float m2  = slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + 2);
     float m5  = slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + 5);
+    float m8  = slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + 8);
     float m15 = slot_f(0, SCENE1_RECORDS_B_OFF_MATRIX0 + 15);
-    T_ASSERT(APPROX(m0,  1.0f));
+    T_ASSERT(APPROX(m5,  1.0f));
     T_ASSERT(APPROX(m15, 1.0f));
-    T_ASSERT(APPROX(m5,  cosf(rot_z)));
+    T_ASSERT(APPROX(m0,  cosf(rot_z)));
+    T_ASSERT(APPROX(m2, -sinf(rot_z)));
+    T_ASSERT(APPROX(m8,  sinf(rot_z)));
     /* And NOT the sentinel. */
-    T_ASSERT(!APPROX(m0, -99.0f));
+    T_ASSERT(!APPROX(m5, -99.0f));
     return 0;
 }
 

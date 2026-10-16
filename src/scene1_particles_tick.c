@@ -1047,9 +1047,9 @@ static void handle_type_34(int i)
          * matrix subsystem). */
         float M[16], scratch[16];
         mat4_translation(M, 0.0f, 0.0f, 0.0f);
-        mat4_rotation_x(scratch, vy);
+        mat4_rotation_y(scratch, vy);
         mat4_mul(M, scratch, M);
-        mat4_rotation_y(scratch, vz);
+        mat4_rotation_x(scratch, vz);
         mat4_mul(M, scratch, M);
         mat4_translation(scratch, 0.0f, 0.0f, dist);
         mat4_mul(M, scratch, M);
@@ -1101,9 +1101,9 @@ static void handle_type_35(int i)
          * shape).  M_new = scratch × M_prev (LEFT-multiply). */
         float M[16], scratch[16];
         mat4_translation(M, 0.0f, 0.0f, 0.0f);
-        mat4_rotation_x(scratch, ry);
+        mat4_rotation_y(scratch, ry);
         mat4_mul(M, scratch, M);
-        mat4_rotation_y(scratch, rz);
+        mat4_rotation_x(scratch, rz);
         mat4_mul(M, scratch, M);
         mat4_translation(scratch, 0.0f, 0.0f, 1.0f);
         mat4_mul(M, scratch, M);
@@ -1160,11 +1160,11 @@ static void handle_type_4a(int i)
 
     float M[16], scratch[16];
     mat4_translation(M, 0.0f, 0.0f, 0.0f);
-    mat4_rotation_y(scratch, rot_x);
+    mat4_rotation_x(scratch, rot_x);
     mat4_mul(M, scratch, M);
     mat4_rotation_z(scratch, rot_z);
     mat4_mul(M, scratch, M);
-    mat4_rotation_x(scratch, rot_y);
+    mat4_rotation_y(scratch, rot_y);
     mat4_mul(M, scratch, M);
     mat4_translation(scratch, 0.0f, 1.0f, 1.0f);
     mat4_mul(M, scratch, M);

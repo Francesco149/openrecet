@@ -264,7 +264,7 @@ void wf_pass_a_compose_world(float out[16], const int32_t *slot)
     mat4_scaling(scratch, scale, scale, scale);
     mat4_mul(out, scratch, out);
 
-    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_rotation_x(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
     mat4_mul(out, scratch, out);
 
     mat4_rotation_z(scratch, 3.1415927f - rot_x);
@@ -339,7 +339,7 @@ void wf_pass_b_compose_world(float out[16], const int32_t *slot)
     mat4_scaling(scratch, scale, scale, scale);
     mat4_mul(out, scratch, out);
 
-    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_rotation_x(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
     mat4_mul(out, scratch, out);
 }
 
@@ -668,7 +668,7 @@ void wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
     wf_pass_e_fan_billboard_matrix(out, slot, camera_eye);
 
     float scratch[16];
-    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_rotation_x(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
     mat4_mul(out, scratch, out);
 
     float sx, sy, sz;

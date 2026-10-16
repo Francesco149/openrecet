@@ -1152,28 +1152,21 @@ int test_overlay_shape_2_uses_pre_matrix(void)
     return 0;
 }
 
-int test_overlay_shape_4_applies_roty_quarter(void)
+int test_overlay_shape_4_applies_rotx_quarter(void)
 {
-    /* Shape 4: RotY(π/2) × (S × T).  With a unit-scale ST and a unit
-     * pos at (0,0,0), the world matrix should be pure RotY(π/2).
-     * RotY(π/2):
-     *   [cos, 0, -sin, 0]   [0, 0, -1, 0]
-     *   [0,   1,  0,   0] = [0, 1,  0, 0]
-     *   [sin, 0,  cos, 0]   [1, 0,  0, 0]
-     *   [0,   0,  0,   1]   [0, 0,  0, 1]
+    /* Shape 4: RotX(π/2) × (S × T) — engine asm 0x41571b..0x41573d
+     * calls 0x4a3553 = D3DXMatrixRotationX with .rdata 0x519434 = π/2.
+     * With a unit-scale ST and pos at (0,0,0), the world matrix should
+     * be RotX(π/2) × scaling(s).
+     * mat4_rotation_x (D3DX row-major):
+     *   [1,  0,   0,   0]   [1,  0, 0, 0]
+     *   [0,  cos, sin, 0] = [0,  0, 1, 0]
+     *   [0, -sin, cos, 0]   [0, -1, 0, 0]
+     *   [0,  0,   0,   1]   [0,  0, 0, 1]
      * S × T with S=scaling(s) and T=trans(0): M = scaling(s).
-     * Then RotY × scaling(s) leaves:
-     *   row 0: [0*s, 0, -1*s, 0] = [0, 0, -s, 0]
-     *   row 2: [1*s, 0, 0, 0] = [s, 0, 0, 0]
-     *
-     * Actually let me check actual D3DXMatrixRotationY convention.
-     * Our mat4_rotation_y produces row-major:
-     *   [cos, 0, -sin, 0]
-     *   [0,   1,  0,   0]
-     *   [sin, 0,  cos, 0]
-     *   [0,   0,  0,   1]
-     * For π/2: cos=0, sin=1. So M_world[2] = -s (since RotY[0][2] = -sin = -1,
-     * times scaling[2][2] = s).
+     * Then RotX × scaling(s) leaves:
+     *   row 1: [0, 0*s,  1*s, 0] = [0,  0, s, 0]
+     *   row 2: [0, -1*s, 0*s, 0] = [0, -s, 0, 0]
      */
     int32_t *slot = fresh_slot(0);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
@@ -1181,49 +1174,55 @@ int test_overlay_shape_4_applies_roty_quarter(void)
     float s = 0.003f;   /* matches formula */
     float world[16];
     scene1_overlay_shape_4_compose_world(world, slot, 1.0f);
-    /* world[0..3] = RotY[0] * scaling = [0, 0, -s, 0] */
-    T_ASSERT(fabsf(world[0]) < 1e-6f);
-    T_ASSERT(fabsf(world[2] - -s) < 1e-6f);
-    /* world[8..11] = RotY[2] * scaling = [s, 0, 0, 0] */
-    T_ASSERT(fabsf(world[8] - s) < 1e-6f);
+    /* world[4..7] = RotX[1] * scaling = [0, 0, s, 0] */
+    T_ASSERT(fabsf(world[5]) < 1e-6f);
+    T_ASSERT(fabsf(world[6] - s) < 1e-6f);
+    /* world[8..11] = RotX[2] * scaling = [0, -s, 0, 0] */
+    T_ASSERT(fabsf(world[9] - -s) < 1e-6f);
     T_ASSERT(fabsf(world[10]) < 1e-6f);
     return 0;
 }
 
-int test_overlay_shape_6_uses_rot_x_field(void)
+int test_overlay_shape_6_uses_rot_y_field(void)
 {
     /* Shape 6 reads slot[+0x3c] (= OFF_ROT_Y, Ghidra-named "rot.y")
-     * and applies it via RotationX.  Set the "rot.x" field (OFF_ROT_X)
-     * to something nonzero to prove the engine doesn't read it. */
+     * and applies it via RotationY (asm 0x4157b7..0x4157d3:
+     * `fld [ebx+0x3c]; call 0x4a35ef`, 0x4a35ef = D3DXMatrixRotationY).
+     * Set the "rot.x" field (OFF_ROT_X) to something nonzero to prove
+     * the engine doesn't read it. */
     int32_t *slot = fresh_slot(0);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_X, 5.0f);   /* should be IGNORED */
-    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_Y, 1.5707963f);  /* π/2 → RotX */
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_Y, 1.5707963f);  /* π/2 → RotY */
 
     float world[16];
     scene1_overlay_shape_6_compose_world(world, slot, 1.0f);
-    /* RotX(π/2) row 1: [0, cos, sin, 0] = [0, 0, 1, 0]
+    /* RotY(π/2) row 0: [cos, 0, -sin, 0] = [0, 0, -1, 0]
+     *           row 2: [sin, 0,  cos, 0] = [1, 0,  0, 0]
      * After scaling(s,s,s) × T(0): M = scaling(s).
-     * Then RotX × scaling(s):
-     *   row 1: [0*s, 0, 1*s, 0] = [0, 0, s, 0]
-     *   row 2: [0*s, -1*s, 0, 0] = [0, -s, 0, 0] */
+     * Then RotY × scaling(s):
+     *   row 0: [0*s, 0, -1*s, 0] = [0, 0, -s, 0]
+     *   row 1: [0, s, 0, 0]      (Y untouched — a RotX(5) from the
+     *                             ignored ROT_X field would change it)
+     *   row 2: [1*s, 0, 0*s, 0]  = [s, 0, 0, 0] */
     float s = 0.003f;
-    T_ASSERT(fabsf(world[5]) < 1e-6f);          /* row 1 col 1 */
-    T_ASSERT(fabsf(world[6] - s) < 1e-6f);      /* row 1 col 2 */
-    T_ASSERT(fabsf(world[9] - -s) < 1e-6f);     /* row 2 col 1 */
+    T_ASSERT(fabsf(world[0]) < 1e-6f);          /* row 0 col 0 */
+    T_ASSERT(fabsf(world[2] - -s) < 1e-6f);     /* row 0 col 2 */
+    T_ASSERT(fabsf(world[5] - s) < 1e-6f);      /* row 1 col 1 */
+    T_ASSERT(fabsf(world[8] - s) < 1e-6f);      /* row 2 col 0 */
     return 0;
 }
 
-int test_overlay_shape_3_off_diagonal_field_mapping(void)
+int test_overlay_shape_3_diagonal_field_mapping(void)
 {
-    /* Shape 3 applies:
-     *   slot[ROT_Z] → about Z axis  (canonical)
-     *   slot[ROT_X] → about Y axis  (off-diagonal)
-     *   slot[ROT_Y] → about X axis  (off-diagonal)
+    /* Shape 3 applies (0x4a3553 = RotX, 0x4a35ef = RotY):
+     *   slot[ROT_Z] (+0x40) → about Z axis
+     *   slot[ROT_X] (+0x38) → about X axis
+     *   slot[ROT_Y] (+0x3c) → about Y axis
      *
      * To verify: set ROT_X to π/2, leave ROT_Y/ROT_Z at 0.  Expected
-     * result is RotY(π/2) × (S × T) — same as shape 4's matrix.  */
+     * result is RotX(π/2) × (S × T) — same as shape 4's matrix.  */
     int32_t *slot4 = fresh_slot(0);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
@@ -1233,7 +1232,7 @@ int test_overlay_shape_3_off_diagonal_field_mapping(void)
     int32_t *slot3 = fresh_slot(1);
     slot_set_f_dir(1, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
     slot_set_f_dir(1, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
-    slot_set_f_dir(1, SCENE1_OVERLAY_OFF_ROT_X,      1.5707963f);  /* drives RotY in shape 3 */
+    slot_set_f_dir(1, SCENE1_OVERLAY_OFF_ROT_X,      1.5707963f);  /* drives RotX in shape 3 */
     float world3[16];
     scene1_overlay_shape_3_compose_world(world3, slot3, 1.0f);
 
@@ -1390,7 +1389,7 @@ int test_overlay_shape_1_world_translation_matches_pos(void)
     /* The lookat+inverse should restore the world translation to pos
      * (engine builds lookat from pos as eye, inverts it; the inverse
      * lookat moves the local origin to world pos).  Verify M[12..14]
-     * roughly equals pos after the additional RotY × scale layers
+     * roughly equals pos after the additional RotX × scale layers
      * (rotations + scales don't move the translation row, so M[12..14]
      * stays = pos). */
     int32_t *slot = fresh_slot(0);
@@ -1597,25 +1596,35 @@ int test_overlay_shape_7_compose_world_translation_matches_pos(void)
     return 0;
 }
 
-int test_overlay_shape_7_compose_world_off_diagonal_field_mapping(void)
+int test_overlay_shape_7_compose_world_diagonal_field_mapping(void)
 {
-    /* Same off-diagonal mapping as shape 3: setting ROT_X to π/2 with
-     * zero ROT_Y/ROT_Z should produce S × RotY(π/2) × T, matching shape
-     * 3's result for the same input (after accounting for shape 3's
+    /* Same mapping as shape 3: slot[ROT_X] → RotationX (asm 0x415167
+     * call 0x4a3553), slot[ROT_Y] → RotationY (0x41517a call 0x4a35ef),
+     * slot[ROT_Z] → RotationZ.  Setting ROT_X to π/2 with zero
+     * ROT_Y/ROT_Z should produce S × RotX(π/2) × T, matching shape 3's
+     * result for the same input (after accounting for shape 3's
      * uniform-scale vs shape 7's blend-split). */
     int32_t *slot = fresh_slot(0);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
-    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.0f);
+    /* blend_mix=0.5 (not 0): RotX leaves row 0 alone, so with
+     * blend_mix=0 (sy = sz = 0) S would zero exactly the rows RotX
+     * acts on and the rotation would be invisible. */
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.5f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_X,      1.5707963f);
 
-    /* With blend_mix=0: sx = 1.0*0.01*1.0*1.0/0.5 = 0.02; sy = 0; sz=sy=0
-     * S = diag(0.02, 0, 0).  RotY(π/2) applied: world[0]=0, world[2]=-0.02
-     * (RotY[0][2] = -sin = -1, times scaling[0][0]=0.02). */
+    /* With blend_mix=0.5: sx = 0.5*0.01*1.0*1.0/0.5 = 0.01; sy = sz = 0.01.
+     * S = diag(0.01, 0.01, 0.01).  S × RotX(π/2):
+     *   row 0 = (0.01, 0, 0)       (a RotY/RotZ would move this row)
+     *   row 1 = 0.01 × (0, cos, sin) = (0, 0, 0.01)
+     *   row 2 = 0.01 × (0, -sin, cos) = (0, -0.01, 0) */
     float world[16];
     scene1_overlay_shape_7_compose_world(world, slot, 1.0f);
-    T_ASSERT(fabsf(world[0]) < 1e-6f);
-    T_ASSERT(fabsf(world[2] - -0.02f) < 1e-5f);
+    T_ASSERT(fabsf(world[0] - 0.01f) < 1e-5f);
+    T_ASSERT(fabsf(world[2]) < 1e-6f);
+    T_ASSERT(fabsf(world[5]) < 1e-6f);
+    T_ASSERT(fabsf(world[6] - 0.01f) < 1e-5f);
+    T_ASSERT(fabsf(world[9] - -0.01f) < 1e-5f);
     return 0;
 }
 
@@ -1761,12 +1770,11 @@ int test_overlay_shape_89_10_compose_world_translation_matches_pos(void)
     return 0;
 }
 
-int test_overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_x(void)
+int test_overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_y(void)
 {
-    /* Off-diagonal field mapping: slot[ROT_Y] (Ghidra's "rot.y") drives
-     * RotationX.  With ROT_X = π/2 in that slot, ROT_Y/ROT_Z stay 0
-     * (but reads them per scaling), the matrix should rotate vector
-     * (0, 1, 0) → (0, 0, 1) (after S × T × RotX). */
+    /* slot[ROT_Y] (Ghidra's "rot.y") drives RotationY (engine asm
+     * 0x415b8e calls 0x4a35ef = D3DXMatrixRotationY).  With π/2 in that
+     * slot (ROT_X/ROT_Z stay 0), world = S(s_h, s_v, s_h) × RotY(π/2) × T. */
     int32_t *slot = fresh_slot(0);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE,    1.0f);
     slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,       1.0f);
@@ -1776,13 +1784,18 @@ int test_overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_x(void)
 
     float world[16];
     scene1_overlay_shape_89_10_compose_world(world, slot, 1.0f);
-    /* RotX(π/2) basis: world[5] = cos(π/2) = 0, world[6] = sin(π/2) = 1,
-     * but our matrix has S applied first.  Check the off-diagonal:
-     * mat[5] (= S_v * cos(rx)) should be ~0; mat[6] depends on
-     * row-vs-column-major.  Since we use mat4_rotation_x consistently,
-     * just verify *some* off-diagonal entry is nonzero. */
-    T_ASSERT(fabsf(world[5]) < 1e-4f);
-    T_ASSERT(fabsf(world[6]) > 1e-4f || fabsf(world[9]) > 1e-4f);
+    float s_h, s_v;
+    scene1_overlay_shape_89_10_scale(slot, 1.0f, &s_h, &s_v);
+    /* RotY(π/2) rows (c,0,-s)(0,1,0)(s,0,c) = (0,0,-1)(0,1,0)(1,0,0);
+     * S × RotY scales row 0/2 by s_h and row 1 by s_v:
+     *   world[0] = 0,  world[2] = -s_h
+     *   world[5] = s_v (Y row untouched; a RotX would zero it)
+     *   world[8] = s_h, world[10] = 0 */
+    T_ASSERT(fabsf(world[0]) < 1e-4f);
+    T_ASSERT(fabsf(world[2] - -s_h) < 1e-4f);
+    T_ASSERT(fabsf(world[5] - s_v) < 1e-4f);
+    T_ASSERT(fabsf(world[8] - s_h) < 1e-4f);
+    T_ASSERT(fabsf(world[10]) < 1e-4f);
     return 0;
 }
 
@@ -1903,10 +1916,12 @@ int test_overlay_setup_compute_engine_state_pre_matrix_is_rot_y_quarter(void)
     float view[16], proj[16], pre[16];
     scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
 
-    /* Engine state → atan2(0, eye_z=-550) + π = 2π → RotX(2π) = identity.
+    /* Engine state → rot_x_angle = atan2(0, eye_z=-550) + π = 2π →
+     * 0x4a35ef RotY(2π) = identity.
      * dy = 0, hyp = 550 → atan2(hyp=550, dy=0) = π/2 (engine
-     * FUN_00503dd0 arg order: hyp is atan2's y) → RotY(π/2 - π/2) =
-     * RotY(0) = identity.  mat4_mul(out, Y, X) = I × I = IDENTITY —
+     * FUN_00503dd0 arg order: hyp is atan2's y) → rot_y_angle =
+     * π/2 - π/2 = 0 → 0x4a3553 RotX(0) = identity.
+     * pre = RotX(rot_y_angle) × RotY(rot_x_angle) = I × I = IDENTITY —
      * capture-proven (§21.31.4): retail's shape-0 coin worlds are pure
      * T×S, no rotation.  (The pre-fix expectation here was RotY(π/2),
      * from the swapped atan2(dy, hyp) — that matrix turned every
@@ -1983,10 +1998,10 @@ int test_overlay_setup_compute_proj_uses_engine_constants(void)
 
 int test_overlay_setup_compute_singular_collapses_rot_y_to_zero(void)
 {
-    /* hyp = 0 → port sets rot_y_angle = 0 (identity Y).
+    /* hyp = 0 → port sets rot_y_angle = 0 (identity RotX).
      * For eye_y > lookat_y, rot_x = atan2(0, +1) + π = π;
-     * RotY(0) × RotX(π) = RotX(π):
-     *   [0][0] = 1; [1][1] = -1; [2][2] = -1; [3][3] = 1
+     * RotX(0) × RotY(π) = RotY(π):
+     *   [0][0] = -1; [1][1] = 1; [2][2] = -1; [3][3] = 1
      */
     const float eye[3]    = { 0.0f, 5.0f, 0.0f };
     const float lookat[3] = { 0.0f, 1.0f, 1.0f };    /* z != 0 → atan2(0, 1) defined */

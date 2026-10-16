@@ -196,7 +196,7 @@ void scene1_chr_prepass_render(struct IDirect3DDevice8 *dev_in)
                          prepass_f(rec, SCENE1_RECORDS_A_OFF_POS_Z));
         mat4_scaling(scale, -size, size, size);
         mat4_mul(world, scale, world);                 /* world = scale × T   */
-        mat4_rotation_y(roty, prepass_f(rec, SCENE1_RECORDS_A_OFF_ROT_X));
+        mat4_rotation_x(roty, prepass_f(rec, SCENE1_RECORDS_A_OFF_ROT_X));
         mat4_mul(world, roty, world);                  /* world = rotY × …     */
         {   /* engine Scaling(1,1,1) no-op. */
             float ident[16];

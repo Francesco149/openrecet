@@ -386,7 +386,7 @@ int test_scene1_pass_b_outer_rejects_other_types(void)
 int test_scene1_pass_b_main_compose_propagates_matrix0(void)
 {
     /* If MATRIX0 is identity and POS=(0,0,0), ROT_X=0, scale=0 (s=0),
-     * the chain reduces to Identity × Rx(0) × S(0) × T(0) = S(0).
+     * the chain reduces to Identity × Ry(0) × S(0) × T(0) = S(0).
      * With LIFE_MULT=0, scale=0 ⇒ row 0/1/2 = 0; row 3 = (0,0,0,1). */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_b_init_zero(slot);
@@ -441,7 +441,7 @@ int test_scene1_pass_b_main_compose_matrix0_translates(void)
     float M[16];
     sw_pass_b_compose_world_main(M, slot);
 
-    /* MATRIX0_translation × (Rx(0) × S × T(0,0,0)):
+    /* MATRIX0_translation × (Ry(0) × S × T(0,0,0)):
      * inner = S(-0.06, 0.06, 0.06) (4×4 with diag scale, row 3 = 0).
      * MATRIX0_t × inner: row 3 of (MATRIX0_t × inner) = MATRIX0_t.row3 × inner
      *   = (10, 20, 30, 1) × inner = (10*-0.06, 20*0.06, 30*0.06, 1) =
@@ -521,30 +521,33 @@ int test_scene1_pass_b_outer_compose_translation_in_row_3(void)
 
 int test_scene1_pass_b_outer_compose_rot_x_negates(void)
 {
-    /* Outer body uses RotX(-ROT_X) (engine asm: fld then fchs).
-     * With LIFE_MULT=5 → scale=0.25 (diag -0.25, 0.25, 0.25).
-     * ROT_X = π/2 → engine builds Rx(-π/2).  Result row 1 = (0, 0, -1),
-     * row 2 = (0, 1, 0) — opposite sign from Pass D's Rx(+ROT_X). */
+    /* Outer body feeds -ROT_X (engine asm: fld then fchs) to
+     * 0x4a35ef = D3DXMatrixRotationY, and ROT_SCR to 0x4a3553 =
+     * RotationX:  M = RotX(ROT_SCR) × RotY(-ROT_X) × S × T.
+     * ROT_X = π/2 → engine builds Ry(-π/2).  Result row 0 = (0, 0, 1),
+     * row 2 = (1, 0, 0) — opposite sign from the main body's Ry(+ROT_X). */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_b_init_zero(slot);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x9b;
     slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 20.0f);
     slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_ROT_X, 1.5707963267948966f);
-    /* ROT_SCR=0 → Ry(0) = identity. */
+    /* ROT_SCR=0 → Rx(0) = identity. */
 
     float M[16];
     sw_pass_b_compose_world_outer(M, slot);
 
     /* scale = 20 * 0.05 = 1.0 (clean diag).
-     * After Rx(-π/2) × S(-1, 1, 1):
-     *   row 0 = (-1, 0, 0)
-     *   row 1 = (0, cos(-π/2)*1, sin(-π/2)*1) = (0, 0, -1)
-     *   row 2 = (0, -sin(-π/2)*1, cos(-π/2)*1) = (0, 1, 0)
+     * Ry(θ) rows (c,0,-s)(0,1,0)(s,0,c); θ = -π/2 → c=0, s=-1.
+     * After Ry(-π/2) × S(-1, 1, 1) (column 0 negated):
+     *   row 0 = (0·-1, 0, -s·1)  = (0, 0, 1)
+     *   row 1 = (0, 1, 0)
+     *   row 2 = (s·-1, 0, c·1)   = (1, 0, 0)
+     * Ry(+π/2) would give M[2] = -1, M[8] = -1.
      */
-    T_ASSERT_NEAR_D(M[0], -1.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[5],  0.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[6], -1.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[9],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[0],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[2],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[5],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[8],  1.0f, 1e-5f);
     T_ASSERT_NEAR_D(M[10], 0.0f, 1e-5f);
     return 0;
 }
@@ -762,19 +765,19 @@ int test_scene1_pass_c_compose_scale_uses_0_2_factor(void)
     return 0;
 }
 
-int test_scene1_pass_c_compose_rotation_y_mixes_x_z(void)
+int test_scene1_pass_c_compose_rotation_x_mixes_y_z(void)
 {
-    /* Pass C uses RotY (not Rx like Pass B 0x8c).  D3DX row-major
-     * RotY(π/2) =
-     *   |  0  0 -1  0 |
-     *   |  0  1  0  0 |
+    /* Pass C feeds ROT_SCR to 0x4a3553 = RotX (not RotY like Pass B
+     * 0x8c's ROT_X).  D3DX row-major RotX(π/2) =
      *   |  1  0  0  0 |
+     *   |  0  0  1  0 |
+     *   |  0 -1  0  0 |
      *   |  0  0  0  1 |
      * S(-1, 1, 1) × (T=I) = diag(-1, 1, 1, 1).
-     * Ry × S (row-major (Ry*S)[i][j] = Σ Ry[i][k]·S[k][j]):
-     *   row 0: (0·-1, 0·1, -1·1, 0) = (0, 0, -1, 0)
-     *   row 1: (0,    1·1, 0,    0)
-     *   row 2: (1·-1, 0,   0·1,  0) = (-1, 0, 0, 0)
+     * Rx × S (row-major (Rx*S)[i][j] = Σ Rx[i][k]·S[k][j]):
+     *   row 0: (1·-1, 0,    0,   0) = (-1, 0, 0, 0)
+     *   row 1: (0,    0·1,  1·1, 0) = ( 0, 0, 1, 0)
+     *   row 2: (0,   -1·1,  0·1, 0) = ( 0,-1, 0, 0)
      * Then MATRIX0=I no-op. */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_b_init_zero(slot);
@@ -789,14 +792,14 @@ int test_scene1_pass_c_compose_rotation_y_mixes_x_z(void)
     float M[16];
     sw_pass_c_compose_world(M, slot);
 
-    T_ASSERT_NEAR_D(M[0],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[0], -1.0f, 1e-5f);
     T_ASSERT_NEAR_D(M[1],  0.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[2], -1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[2],  0.0f, 1e-5f);
     T_ASSERT_NEAR_D(M[4],  0.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[5],  1.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[6],  0.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[8], -1.0f, 1e-5f);
-    T_ASSERT_NEAR_D(M[9],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[5],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[6],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[8],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[9], -1.0f, 1e-5f);
     T_ASSERT_NEAR_D(M[10], 0.0f, 1e-5f);
     return 0;
 }
@@ -820,7 +823,7 @@ int test_scene1_pass_c_compose_propagates_matrix0_translation(void)
     float M[16];
     sw_pass_c_compose_world(M, slot);
 
-    /* inner = Ry(0) × S(-0.2, 0.2, 0.2) × T(0) = S (4×4 diagonal,
+    /* inner = Rx(0) × S(-0.2, 0.2, 0.2) × T(0) = S (4×4 diagonal,
      * row 3 = 0). MATRIX0_t × inner: row 3 = (10, 20, 30, 1) × inner =
      * (10·-0.2, 20·0.2, 30·0.2, 1) = (-2, 4, 6, 1). */
     T_ASSERT_NEAR_D(M[12], -2.0f, 1e-6f);
@@ -971,7 +974,7 @@ int test_scene1_pass_a_compose_variant_0_reads_first_pos_triplet(void)
     /* T × S (S = diag(-0.04, 0.04, 0.04), T row 3 = (1, 2, 3)).
      * Row 3 of (S × T) is T's row 3 unchanged (post-multiplying by S
      * doesn't shift translation row in row-major D3D convention).
-     * Then Rx(0) × ... leaves translation row alone too. */
+     * Then Ry(0) × ... leaves translation row alone too. */
     T_ASSERT_NEAR_D(M[12], 1.0f, 1e-6f);
     T_ASSERT_NEAR_D(M[13], 2.0f, 1e-6f);
     T_ASSERT_NEAR_D(M[14], 3.0f, 1e-6f);
@@ -1009,12 +1012,12 @@ int test_scene1_pass_a_compose_scale_is_hard_coded_0_04(void)
     slot_a_init_zero(buf);
     int32_t *slot = slot_a_anchor(buf);
     slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;   /* variant 0 */
-    slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC] = 0;       /* Rx(0) = identity */
+    slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC] = 0;       /* Ry(0) = identity */
 
     float M[16];
     sw_pass_a_compose_world(M, slot);
 
-    /* With pos=0 and rot=0, M = Rx(0) × S × T(0) = diag(-0.04, 0.04,
+    /* With pos=0 and rot=0, M = Ry(0) × S × T(0) = diag(-0.04, 0.04,
      * 0.04, 1). */
     T_ASSERT_NEAR_D(M[0],  -0.04f, 1e-6f);
     T_ASSERT_NEAR_D(M[5],   0.04f, 1e-6f);
@@ -1143,29 +1146,31 @@ int test_scene1_pass_a_compose_rot_src_is_int_scaled_by_0_05(void)
     slot_a_init_zero(buf);
     int32_t *slot = slot_a_anchor(buf);
     slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;   /* variant 0 */
-    /* angle = 31 * 0.05 = 1.55 rad ≈ 88.8°.  Rx(1.55) ≈
-     *   |1   0          0         0|
-     *   |0   cos(1.55) -sin(1.55) 0|
-     *   |0   sin(1.55)  cos(1.55) 0|
-     *   |0   0          0         1|
+    /* angle = 31 * 0.05 = 1.55 rad ≈ 88.8°, fed to 0x4a35ef =
+     * D3DXMatrixRotationY.  Ry(1.55) (D3DX row-major) ≈
+     *   | cos(1.55)  0  -sin(1.55)  0|
+     *   | 0          1   0          0|
+     *   | sin(1.55)  0   cos(1.55)  0|
+     *   | 0          0   0          1|
      *  with cos(1.55) ≈ 0.0208, sin(1.55) ≈ 0.99979. */
     slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC] = 31;
 
     float M[16];
     sw_pass_a_compose_world(M, slot);
 
-    /* mat4_rotation_x: out[5]=cos, out[6]=sin, out[9]=-sin, out[10]=cos.
+    /* mat4_rotation_y: out[0]=cos, out[2]=-sin, out[8]=sin, out[10]=cos.
      * S × T = diag(-0.04, 0.04, 0.04) (translation row 3 = 0).
-     * Then M = Rx × (S × T).  Row-major D3D convention: row i of M is
-     *   row_i(M) = Σ_k Rx[i][k] · ST[k]
-     * which gives:
-     *   M[5] = cos · 0.04, M[6] = sin · 0.04
-     *   M[9] = -sin · 0.04, M[10] = cos · 0.04 */
+     * Then M = Ry × (S × T).  Row-major D3D convention: row i of M is
+     *   row_i(M) = Σ_k Ry[i][k] · ST[k]
+     * which gives (column 0 carries S's -0.04):
+     *   M[0] = cos · -0.04, M[2] = -sin · 0.04
+     *   M[8] = sin · -0.04, M[10] = cos · 0.04, M[5] = 0.04 */
     float cos_a = cosf(1.55f);
     float sin_a = sinf(1.55f);
-    T_ASSERT_NEAR_D(M[5],  cos_a *  0.04f, 1e-5f);
-    T_ASSERT_NEAR_D(M[6],  sin_a *  0.04f, 1e-5f);
-    T_ASSERT_NEAR_D(M[9], -sin_a *  0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[0],  cos_a * -0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[2], -sin_a *  0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[5],          0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[8],  sin_a * -0.04f, 1e-5f);
     T_ASSERT_NEAR_D(M[10], cos_a *  0.04f, 1e-5f);
     return 0;
 }

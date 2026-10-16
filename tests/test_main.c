@@ -1982,7 +1982,7 @@ struct test_case {
     X(scene1_pass_c_should_emit_part_idx_gate_for_23_2c_2b) \
     X(scene1_pass_c_should_emit_rejects_other_types) \
     X(scene1_pass_c_compose_scale_uses_0_2_factor) \
-    X(scene1_pass_c_compose_rotation_y_mixes_x_z) \
+    X(scene1_pass_c_compose_rotation_x_mixes_y_z) \
     X(scene1_pass_c_compose_propagates_matrix0_translation) \
     X(scene1_pass_a_should_emit_rejects_inactive) \
     X(scene1_pass_a_should_emit_rejects_visible) \
@@ -2051,7 +2051,7 @@ struct test_case {
     X(wf_pass_b_scale_reads_life_mult_directly) \
     X(wf_pass_b_scale_ignores_age) \
     X(wf_pass_b_compose_world_translation_in_row_3) \
-    X(wf_pass_b_compose_world_roty_pi_over_2) \
+    X(wf_pass_b_compose_world_rotx_pi_over_2) \
     X(wf_pass_e_spear_should_emit_rejects_sentinel) \
     X(wf_pass_e_spear_should_emit_accepts_spear_types) \
     X(wf_pass_e_spear_should_emit_rejects_fan_types) \
@@ -2814,7 +2814,7 @@ struct test_case {
     X(records_b_spawn_npc_cluster_b_4e_one_particle) \
     X(records_b_spawn_npc_cluster_b_implemented_macro) \
     X(records_b_spawn_npc_56_matrix_init_and_lift) \
-    X(records_b_spawn_npc_56_matrix_is_roty_times_rotx) \
+    X(records_b_spawn_npc_56_matrix_is_rotx_times_roty) \
     X(records_b_spawn_npc_53_low_lift) \
     X(records_b_spawn_npc_51_mid_lift_cap_1) \
     X(records_b_spawn_npc_68_player_aim_alt_target) \
@@ -2824,7 +2824,7 @@ struct test_case {
     X(records_b_spawn_entity_5f_uses_owner_ea4_rot_x) \
     X(records_b_spawn_entity_23_yaw_branch_writes_full_pose) \
     X(records_b_spawn_entity_23_people_branch_reads_target) \
-    X(records_b_spawn_entity_23_writes_matrix_via_rotation_x) \
+    X(records_b_spawn_entity_23_writes_matrix_via_rotation_y) \
     X(records_b_spawn_entity_29_yaw_branch_pos_no_vel_writes) \
     X(records_b_spawn_entity_29_people_branch_no_ground_default) \
     X(records_b_spawn_entity_29_ground_hook_clamps_pos_y) \
@@ -2960,9 +2960,9 @@ struct test_case {
     X(overlay_init_also_resets_layers) \
     X(overlay_shape_2346_uniform_scale_formula) \
     X(overlay_shape_2_uses_pre_matrix) \
-    X(overlay_shape_4_applies_roty_quarter) \
-    X(overlay_shape_6_uses_rot_x_field) \
-    X(overlay_shape_3_off_diagonal_field_mapping) \
+    X(overlay_shape_4_applies_rotx_quarter) \
+    X(overlay_shape_6_uses_rot_y_field) \
+    X(overlay_shape_3_diagonal_field_mapping) \
     X(overlay_shape_1346_emit_no_flip) \
     X(overlay_shape_2346_uniform_scale_ignores_blend_mix) \
     X(overlay_shape_1_extra_scale_default) \
@@ -2980,14 +2980,14 @@ struct test_case {
     X(overlay_shape_7_compute_strip_fade_subtract) \
     X(overlay_shape_7_scale_xy_formula) \
     X(overlay_shape_7_compose_world_translation_matches_pos) \
-    X(overlay_shape_7_compose_world_off_diagonal_field_mapping) \
+    X(overlay_shape_7_compose_world_diagonal_field_mapping) \
     X(overlay_shape_7_emit_strip_uv_layout) \
     X(overlay_shape_89_vbuf_init_positions) \
     X(overlay_shape_10_vbuf_init_positions) \
     X(overlay_shape_89_10_scale_formula) \
     X(overlay_shape_89_10_scale_y_ratio_scales_s_v_only) \
     X(overlay_shape_89_10_compose_world_translation_matches_pos) \
-    X(overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_x) \
+    X(overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_y) \
     X(overlay_shape_89_emit_strip_uv_layout) \
     X(overlay_shape_89_emit_strip_does_not_touch_positions) \
     X(overlay_shape_10_emit_strip_uv_layout_sliding_window) \

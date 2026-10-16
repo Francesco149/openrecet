@@ -807,7 +807,7 @@ int test_particles_tick_type_34_lives_and_orbits(void)
     scene1_particles_tick();
 
     /* age 0 → dist = (0x18 - 0) * 1.0 = 24.  vel.y=0 means no
-     * RotX rotation; vel.z=0 means no RotY.  So M = T(0,0,24);
+     * RotY rotation; vel.z=0 means no RotX.  So M = T(0,0,24);
      * M[12..14] = (0, 0, 24).  pos = (10+0, 7+0, -3+24) = (10, 7, 21). */
     if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 10.0f) > 1e-5f)
         T_FAIL("pos.x wrong");
@@ -1842,14 +1842,16 @@ int test_particles_tick_type_4a_zero_rotation(void)
 
 int test_particles_tick_type_4a_rot_y_quarter_turn(void)
 {
-    /* Set ROT_Y = π/2.  M = T(0,1,1) × RotX(π/2) × Rz(0) × Ry(0)
-     *                     = T(0,1,1) × RotX(π/2).
+    /* Set ROT_Y = π/2.  Retail chain (0x4a3553 = RotX, 0x4a35ef = RotY):
+     *   M = T(0,1,1) × RotY(ROT_Y) × Rz(ROT_Z) × RotX(ROT_X)
+     *     = T(0,1,1) × RotY(π/2).
      * Apply to (0,0,0,1):
      *   (0,0,0,1) × T(0,1,1) = (0,1,1,1)
-     *   (0,1,1,1) × RotX(π/2) with [c=0,s=1]:
-     *     y_new = 1*0 + 1*(-1) = -1
-     *     z_new = 1*1 + 1*0    =  1
-     *   → (0, -1, 1)
+     *   (0,1,1,1) × RotY(π/2) [rows (c,0,-s)(0,1,0)(s,0,c), c=0,s=1]:
+     *     x_new = 0*c + 1*s    =  1
+     *     y_new = 1             =  1
+     *     z_new = -0*s + 1*c   =  0
+     *   → (1, 1, 0)
      * That's vel. */
     reset_world();
     int slot = 0;
@@ -1860,14 +1862,14 @@ int test_particles_tick_type_4a_rot_y_quarter_turn(void)
 
     scene1_particles_tick();
 
-    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X)) > 1e-6f)
-        T_FAIL("vel.x = %f, expected 0",
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) - 1.0f) > 1e-5f)
+        T_FAIL("vel.x = %f, expected 1.0",
                (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X));
-    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - -1.0f) > 1e-5f)
-        T_FAIL("vel.y = %f, expected -1.0",
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - 1.0f) > 1e-5f)
+        T_FAIL("vel.y = %f, expected 1.0",
                (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y));
-    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z) - 1.0f) > 1e-5f)
-        T_FAIL("vel.z = %f, expected 1.0",
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z)) > 1e-6f)
+        T_FAIL("vel.z = %f, expected 0",
                (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z));
     return 0;
 }
@@ -1988,14 +1990,16 @@ int test_particles_tick_type_34_rotation_is_applied(void)
 {
     reset_world();
     /* player at origin (defaults).  vel = (1, π/2, 0):
-     *   age 0 → dist = 24.  M = T(0,0,24) × RotY(0) × RotX(π/2).
+     *   age 0 → dist = 24.  Retail chain (0x4a35ef = RotY on vel.y,
+     *   0x4a3553 = RotX on vel.z):
+     *   M = T(0,0,24) × RotX(vel.z=0) × RotY(vel.y=π/2).
      *   (0,0,0,1) × T = (0,0,24).
-     *   (0,0,24,1) × RotY(0) = (0,0,24,1).
-     *   (0,0,24,1) × RotX(π/2) [c=0,s=1]:
-     *     y_new = 0*0 + 24*(-1) = -24
-     *     z_new = 0*1 + 24*0    =   0
-     *   → displacement (0, -24, 0).  pos = player + (0, 2 + -24, 0)
-     *                                    = (0, -22, 0). */
+     *   (0,0,24,1) × RotX(0) = (0,0,24,1).
+     *   (0,0,24,1) × RotY(π/2) [rows (c,0,-s)(0,1,0)(s,0,c), c=0,s=1]:
+     *     x_new = 0*c + 24*s  = 24
+     *     z_new = -0*s + 24*c =  0
+     *   → displacement (24, 0, 0).  pos = player + (24, 2 + 0, 0)
+     *                                   = (24, 2, 0). */
     int slot = 0;
     int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
     r[SCENE1_RECORDS_A_OFF_TYPE] = 0x34;
@@ -2006,11 +2010,11 @@ int test_particles_tick_type_34_rotation_is_applied(void)
 
     scene1_particles_tick();
 
-    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X)) > 1e-4f)
-        T_FAIL("0x34 pos.x = %f, expected 0",
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 24.0f) > 1e-4f)
+        T_FAIL("0x34 pos.x = %f, expected 24.0 (rotation applied)",
                (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
-    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - -22.0f) > 1e-4f)
-        T_FAIL("0x34 pos.y = %f, expected -22.0 (rotation applied)",
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 2.0f) > 1e-4f)
+        T_FAIL("0x34 pos.y = %f, expected 2.0",
                (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
     if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z)) > 1e-4f)
         T_FAIL("0x34 pos.z = %f, expected 0",
