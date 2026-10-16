@@ -110,8 +110,12 @@ void scene1_house_morning_reseat(void)
         wb[STORY_SCENE_OFF] = 1;
         scene1_camera_snap_next();               /* DAT_0438cc68 = 1 */
     }
-    /* Day 15 (+0x2bcee clear): +0x2bced = 1 + cc68 = 1 — the FUN_0048670f
-     * `v0[179437]` camera sequence: PORT-DEBT(stub, FUN_0048670f). */
+    /* Day 15 (shop-time 0, not survival mode, work byte +0x2bcee clear): the
+     * day-15 scene (+0x2bced, FUN_0048670f's block), DAT_0438cc68 = 1. */
+    if (w[0x2c3ec / 4] == 15 && w[0x2c3f0 / 4] == 0 && w[0x2dd64 / 4] != 2 && wb[0x2bcee] == 0) {
+        wb[0x2bced] = 1;
+        scene1_camera_snap_next();               /* DAT_0438cc68 = 1 */
+    }
     wb[0x2bd07] = 0;
 }
 

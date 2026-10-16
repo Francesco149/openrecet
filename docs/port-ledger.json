@@ -17355,6 +17355,7 @@
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
     "src/scene1_day_close.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_postload.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene_day_end.c",

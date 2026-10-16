@@ -1949,6 +1949,30 @@ void scene1_player_ctrl_tick(void)
         return;
     }
 
+    /* the day-15 scene (work +0x2bced, set by FUN_004852fb): b924++, the bg
+     * NPCs, FUN_004897c6, the room clamp; the camera eases over the shop (class
+     * 1: lookat x → −4, z → max(4 − b924·0.05, −9) at 0.2 a tick —
+     * PORT-DEBT(render-coupled, FUN_0048670f): the eye / lookat writes); the
+     * fade at b924 301, the flag clears once it is done (from 302) */
+    {
+        uint8_t *sb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if (sb != NULL && sb[0x2bced] != 0) {
+            s_companion_skip_frame = 1;
+            s_no_b850_frame = 1;
+            scene1_beat_set_counter(scene1_beat_counter() + 1);
+            scene1_bg_npc_tick();                 /* FUN_0046f621 */
+            party_status_tick();                  /* FUN_004897c6(&DAT_056da1b8) */
+            player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);   /* FUN_00486435 */
+            if (scene1_beat_counter() == 301)
+                fade_phase1_start(0, 0x11);       /* FUN_004526f5(0, 17) */
+            if (scene1_beat_counter() >= 302 && fade_is_done()) {
+                fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0, 17) */
+                sb[0x2bced] = 0;
+            }
+            return;
+        }
+    }
+
     /* prologue (all.c:86697-86703 / asm 486b7d-486bb2, gated SHOP_DAY ≥ 9 —
      * dormant through the tutorial traces): the news-break ticker pump.
      * While armed (g_news_ticker_timer = DAT_0438b92c > 0) it counts every

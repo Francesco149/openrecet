@@ -11,7 +11,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **83**
+- total open debts: **84**
 - distinct retiring engine functions: **66**
 
 | kind | count | meaning |
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), door-exit-reset (1), focused (1), house-teardown (1), oob (1), render-coupled (6), semantic-collision (1), structure (1).
+> ⚠️  **16 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), door-exit-reset (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -40,6 +40,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044bd0d | 2 |
 | FUN_00468fd0 | 2 |
 | FUN_00474d92 | 2 |
+| FUN_0048670f | 2 |
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
 | DAT_056db000 | 1 |
@@ -82,7 +83,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00485712 | 1 |
 | FUN_00485c74 | 1 |
 | FUN_004864fd | 1 |
-| FUN_0048670f | 1 |
 | FUN_0048670f cc04 2 | 1 |
 | FUN_0048670f cc08 50 | 1 |
 | FUN_00489e66 | 1 |
@@ -118,7 +118,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_player_ctrl.c:1957 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:1981 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:308 | dungeons 2..5's setups FUN_0044d9d3 / |
 | FUN_00436f97 | src/scene1_postload.c:342 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:414 | the multi-part anchors |
@@ -206,6 +206,7 @@ _none_
 | render-coupled | FUN_00441c3e | src/actor_ai.c:147 | the view matrix is the render's; |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048196b | src/scene_pause.c:1782 | the dungeon's Use / Throw |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:1955 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1457 | the results screen's assets |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:798 | the notice's side is Tear's |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:1006 | the side is Tear's screen x < 320 |

@@ -238,9 +238,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
-    3. Still `PORT-DEBT(stub, …)` around the day: the day-15 camera sequence (FUN_004852fb
-       sets work +0x2bced; FUN_0048670f's +0x2bced block: b924 counts, the camera eases
-       over the shop, the fade at 301 / 302), the payment screen's render (FUN_0048e49c) and
+    3. Still `PORT-DEBT(stub, …)` around the day: the day-15 scene's camera eases (its
+       state — FUN_004852fb's +0x2bced, b924, the bg NPCs, the fade at 301 / 302 — is
+       ported, no recording reaches it), the payment screen's render (FUN_0048e49c) and
        the game-over screen's (mode 2, FUN_0047355d's assets), the ending (FUN_0049da9e,
        mode 7 FUN_0049db8a; no recording reaches day 36). The night arm of the dungeon exit
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
