@@ -7495,8 +7495,7 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_flow.c",
-    "src/scene1_camera.c"
+    "src/dungeon_flow.c"
    ],
    "status": "ported"
   },
@@ -18369,6 +18368,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_camera.c",
+    "src/scene1_camera.h",
     "src/scene1_day_close.h",
     "src/scene1_particles_tick.h",
     "src/scene_day_end.c",

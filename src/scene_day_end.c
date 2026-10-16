@@ -5,6 +5,7 @@
  * FUN_0045e67e.
  */
 #include "scene_day_end.h"
+#include "scene1_camera.h"     /* FUN_0048dbfb's camera */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -152,9 +153,10 @@ void day_end_tick(uint16_t pressed, uint16_t held)
     int32_t *w = (int32_t *)save_work_dwords_at(save_work_active_slot());
     const uint32_t in = (uint32_t)pressed | ((uint32_t)held << 16);   /* DAT_073dddd4 */
 
-    /* L5-17: the payment camera (DAT_0438b774..77c, DAT_0438cc38..58) +
-     * FUN_00441c3e — PORT-DEBT(stub, FUN_0048e49c): the payment-screen 3D shop
-     * render is unported, so its camera is not driven here. */
+    /* L5-17: the day end's camera (DAT_0438b774..77c, DAT_0438cc38..58) and
+     * FUN_00441c3e (its shake draws rand); PORT-DEBT(stub, FUN_0048e49c): the
+     * 3D shop behind it is not drawn. */
+    scene1_camera_day_end_pose();
     g_scene1_records_a_count = SCENE1_RECORDS_A_COUNT;   /* DAT_0076b960 = 0x1000 */
     scene1_particles_tick();                             /* FUN_0040fb3a */
     s_coin_flag = 0;

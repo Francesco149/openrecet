@@ -716,9 +716,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_0048e49c",
-   "desc": "the payment-screen 3D shop",
+   "desc": "the",
    "file": "src/scene_day_end.c",
-   "line": 156,
+   "line": 157,
    "kind_known": true
   },
   {
@@ -734,7 +734,7 @@
    "engine_fn": "FUN_0049da9e",
    "desc": "the ending's entry + mode 7 FUN_0049db8a",
    "file": "src/scene_day_end.c",
-   "line": 213,
+   "line": 215,
    "kind_known": true
   }
  ]

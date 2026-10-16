@@ -636,7 +636,7 @@ static void player_ctrl_cc08_proximity_detect(int *at_door_out, int *at_counter_
     int exited = bb != NULL ? bb[PC_DOOR_EXITED_BYTE_OFF] : 0;
     at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
                                        g_scene1_player_pos[2], s_player_facing,
-                                       g_scene1_camera_stage_view_mode, exited);
+                                       scene1_camera_view_mode(), exited);
     /* v132 is computed whatever v59 is; v59 wins at the ramp and the Z arm */
     at_counter = player_ctrl_at_sell_counter();
 
@@ -1421,7 +1421,7 @@ static void player_ctrl_cs_arrival_tick(void)
             /* camera-pos ramp by scene_type (DAT_068dd3fc[stage*0x6cf]).  The
              * tutorial HOUSE view_mode 0 (<3) → x_target 0, z_target 6.9. */
             float x_target = 0.0f, z_target = 0.0f;
-            int view_mode = g_scene1_camera_stage_view_mode;
+            int view_mode = scene1_camera_view_mode();
             if (view_mode >= 0) {
                 if (view_mode < 3)      { x_target = 0.0f;  z_target = 6.9f;  }
                 else if (view_mode < 5) { x_target = 10.7f; z_target = 15.0f; }

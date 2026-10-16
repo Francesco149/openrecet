@@ -308,7 +308,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44c88f | FUN_0044c88f | 299 | ✓ |  | scene1_postload.c, stage_palette.h |
 | 0x44c9ba | FUN_0044c9ba | 554 |  |  | dungeon_flow.c, dungeon_flow.h, scene1_camera.c (+1) |
 | 0x44cbe4 | FUN_0044cbe4 | 156 | ✓ |  | dungeon_flow.c |
-| 0x44cc80 | FUN_0044cc80 | 1060 | ✓ |  | dungeon_flow.c, scene1_camera.c |
+| 0x44cc80 | FUN_0044cc80 | 1060 | ✓ |  | dungeon_flow.c |
 | 0x44d0a4 | FUN_0044d0a4 | 320 | ✓ |  | dungeon_flow.c |
 | 0x44d1e4 | FUN_0044d1e4 | 665 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
 | 0x44d47d | FUN_0044d47d | 1366 |  |  | dungeon_flow.c |
@@ -643,7 +643,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48d954 | FUN_0048d954 | 67 | ✓ |  | scene_day_end.c, scene_day_end.h, scene_gameover.c |
 | 0x48d997 | FUN_0048d997 | 218 | ✓ |  | scene_day_end.c, scene_pause.c, scene_pause.h |
 | 0x48da71 | FUN_0048da71 | 394 | ✓ |  | scene1_tutorial_dispatch.h, scene_day_end.c, scene_day_end.h (+2) |
-| 0x48dbfb | FUN_0048dbfb | 2209 | ✓ |  | scene1_day_close.h, scene1_particles_tick.h, scene_day_end.c (+2) |
+| 0x48dbfb | FUN_0048dbfb | 2209 | ✓ |  | scene1_camera.c, scene1_camera.h, scene1_day_close.h (+4) |
 | 0x48e49c | FUN_0048e49c | 2173 | ✓ |  | scene_day_end.c |
 | 0x48edee | FUN_0048edee | 137 | ✓ |  | encyclopedia.c, scene_adv_guild.c, scene_day_end.c |
 | 0x48ee77 | FUN_0048ee77 | 137 | ✓ |  | encyclopedia.c, scene_adv_guild.c, scene_day_end.c |

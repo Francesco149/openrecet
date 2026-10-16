@@ -21,9 +21,11 @@
 #include "dungeon_objects.h"
 #include "map_collision.h"
 #include "news_daily.h"
+#include "nowloading.h"
 #include "party.h"
 #include "stage_post_load.h"
 #include "stage_palette.h"
+#include "tables_stage.h"         /* the stage table DAT_068dd2f8 */
 #include "floor_layout.h"
 #include "rng.h"
 #include "save_bank.h"
@@ -58,6 +60,7 @@
 #include "worker_load.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
+static int32_t get_nowloading(void) { return nowloading_is_active(); }
 static int32_t get_scene(void) { return g_scene_state; }
 static int32_t get_floor(void) { return stage_gate_get_next(); }
 static int32_t get_dungeon(void) { return g_scene1_combat_stage_id; }
@@ -204,6 +207,7 @@ static const state_va_t k_map[] = {
     { 0x438b4ccu, "floor (DAT_0438b4cc)",             get_floor },
     { 0x438b4c8u, "dungeon (DAT_0438b4c8)",           get_dungeon },
     { 0x438cc08u, "house mode cc08 (DAT_0438cc08)",   get_cc08  },
+    { 0x6a49958u, "now-loading gate (DAT_06a49958 | 06a49960, the port's one flag)", get_nowloading },
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
     { 0x730b534u, "cs sub-state b534 (DAT_0730b534)", get_b534 },
@@ -436,6 +440,8 @@ static const int32_t *layout_dword(uint32_t va)
     }
     if (va >= 0x74b2844u && va < 0x74b2844u + 4u * SCENE_PAUSE_MAX_ENTRIES)
         return &g_pause_entries[(va - 0x74b2844u) / 4];
+    if (va >= 0x68dd2f8u && va < 0x68dd2f8u + (uint32_t)STAGE_KEY_COUNT * sizeof(stage_record_t))
+        return (const int32_t *)(const void *)((const uint8_t *)g_stage.records + (va - 0x68dd2f8u));
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;
     return NULL;
@@ -466,7 +472,9 @@ int state_va_select(const char *list, uint32_t *bad)
         while (k < K_N && k_map[k].va != va) k++;
         int in_bank = va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
                       ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0;
-        if (k == K_N && !in_bank && !is_bg_npc_va(va) && layout_dword(va) == NULL) {
+        float camf;
+        if (k == K_N && !in_bank && !is_bg_npc_va(va) && layout_dword(va) == NULL &&
+            !scene1_camera_state_va(va, &camf)) {
             /* no port mirror: skip it (the diff reports it retail-only) and tell
              * the caller — a missing mirror must not kill the whole run */
             if (bad) *bad = va;
@@ -483,11 +491,15 @@ void state_va_log(FILE *fp, uint32_t frame)
     if (!fp || s_nsel == 0) return;
     fprintf(fp, "post %u", (unsigned)frame);
     for (int i = 0; i < s_nsel; i++)
+    {
+        float camf;
         fprintf(fp, " %x=%d", (unsigned)s_sel[i].va,
                 (int)(s_sel[i].get ? s_sel[i].get()
                       : is_bg_npc_va(s_sel[i].va) ? bg_npc_dword(s_sel[i].va)
                       : layout_dword(s_sel[i].va) ? *layout_dword(s_sel[i].va)
+                      : scene1_camera_state_va(s_sel[i].va, &camf) ? fbits(camf)
                       : bank_dword(s_sel[i].va)));
+    }
     fputc('\n', fp);
 #if defined(__i386__) || defined(__x86_64__)
     /* x87 control word (rhost logs retail's per frame): "cw N xxxx" on change */

@@ -193,4 +193,14 @@ void scene1_camera_build_view_matrix(float out[16]);
 }
 #endif
 
+/* state_va: the pose globals by retail VA (DAT_0438cc38.., cc50.., 06a46f9c,
+ * 0438b774..7c, 073de31c..330); 0 if `va` is not one */
+int scene1_camera_state_va(uint32_t va, float *out);
+
+/* DAT_068dd3fc[DAT_0438b4dc · 0x6cf]: the current stage's scene type */
+int scene1_camera_view_mode(void);
+
+/* FUN_0048dbfb's camera head: the day-end class-1 pose, then FUN_00441c3e */
+void scene1_camera_day_end_pose(void);
+
 #endif /* OPENRECET_SCENE1_CAMERA_H */

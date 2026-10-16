@@ -100,7 +100,7 @@ void scene1_house_morning_reseat(void)
         p0[CHR_ACTOR_ANIM]    = 6;
     }
     player_ctrl_set_db048(0);
-    /* DAT_0438b4e8 = 0: no port mirror. */
+    g_scene1_camera_stage_class = 0;             /* DAT_0438b4e8 = 0 (0x4853a7) */
     if (wb == NULL)
         return;
     /* Day 8 (shop-time 0, not survival mode, work byte +0x2bce8 clear): the

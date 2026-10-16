@@ -20,7 +20,11 @@
 #include "rng.h"                    /* FUN_00471084 / FUN_00471089 */
 #include "x87.h"
 #include "scene1_particles_tick.h"  /* g_scene1_camera_anchor[], g_scene1_camera_yaw */
-#include "stage_palette.h"           /* g_stage_palette */
+#include "stage_palette.h"           /* g_stage_palette, DAT_0438b4dc */
+#include "tables_stage.h"            /* the stage table DAT_068dd2f8 */
+#include "party.h"                   /* DAT_056da1d8.. */
+#include "save_work.h"               /* work +0x2ce0c */
+#include <string.h>
 
 /* ─── .rdata constants (Cc.0-resolved via PE section parse) ───────────── */
 static const float DAT_005c4fd0 = -1.8f;
@@ -114,6 +118,33 @@ static int g_first_frame = 1;   /* DAT_0438cc68 — the next pose snaps (no 0.2 
 
 void scene1_camera_snap_next(void) { g_first_frame = 1; }
 
+/* state_va: the pose globals by retail VA (float bits); 0 if unknown */
+int scene1_camera_state_va(uint32_t va, float *out)
+{
+    const float *p = NULL;
+    switch (va) {
+    case 0x438cc38u: p = &g_smooth_eye[0]; break;
+    case 0x438cc3cu: p = &g_smooth_eye[1]; break;
+    case 0x438cc40u: p = &g_smooth_eye[2]; break;
+    case 0x438cc50u: p = &g_smooth_lookat[0]; break;
+    case 0x438cc54u: p = &g_smooth_lookat[1]; break;
+    case 0x438cc58u: p = &g_smooth_lookat[2]; break;
+    case 0x6a46f9cu: p = &g_floor_bias; break;
+    case 0x438b774u: p = &g_class_off_y; break;
+    case 0x438b778u: p = &g_class_off_z; break;
+    case 0x438b77cu: p = &g_class_off_x; break;
+    case 0x73de31cu: p = &g_scene1_camera_eye[0]; break;
+    case 0x73de320u: p = &g_scene1_camera_eye[1]; break;
+    case 0x73de324u: p = &g_scene1_camera_eye[2]; break;
+    case 0x73de328u: p = &g_scene1_camera_lookat[0]; break;
+    case 0x73de32cu: p = &g_scene1_camera_lookat[1]; break;
+    case 0x73de330u: p = &g_scene1_camera_lookat[2]; break;
+    default: return 0;
+    }
+    *out = *p;
+    return 1;
+}
+
 /* ─── init ────────────────────────────────────────────────────────────── */
 
 void scene1_camera_init(void)
@@ -141,204 +172,161 @@ void scene1_camera_init(void)
     g_looky_add  = -1.8f;   /* _DAT_069b2f78 */
 }
 
-/* ─── FUN_00441c3e default-path pose helper ───────────────────────────── */
+/* DAT_068dd3fc[stage · 0x6cf]: the stage record's +0x104 (the camera's
+ * scene type: 0 the house, its rooms 1..3; the floors 6 and up) */
+static int32_t stage_scene_type(int32_t idx)
+{
+    return (idx >= 0 && idx < g_stage.count) ? g_stage.records[idx].dungeon_id : 0;
+}
+
+int scene1_camera_view_mode(void)
+{
+    return stage_scene_type(g_stage_b4dc);
+}
+
+/* ─── FUN_00441c3e: the camera pose (0x441c3e..0x442207, x87 on the disasm) ─ */
 
 void scene1_camera_pose_compute(void)
 {
-    /* Block A (L45-L49) — uVar2 = char_mode, gated by stage view-mode in
-     * [0, 5).  HOUSE: stage_view_mode = 0 (in range), so the gate opens
-     * and uVar2 picks up char_mode.  Other stage modes (≥ 5 or negative)
-     * leave uVar2 at 0 — equivalent to "shop view disabled". */
-    int uVar2 = 0;
-    if (g_scene1_camera_stage_view_mode >= 0 &&
-        g_scene1_camera_stage_view_mode < 5) {
-        uVar2 = g_scene1_camera_char_mode;
-    }
+    static const float k4 = 4.0f, k3 = 3.0f, k0p1 = 0.10000000149011612f, k0p3 = 0.30000001192092896f;
+    static const float k5 = 5.0f, km5 = -5.0f, k1 = 1.0f, km3 = -3.0f, k15 = 15.0f, k8p5 = 8.5f;
+    static const float km1 = -1.0f, k0p5 = 0.5f, k0p2 = 0.20000000298023224f;
+    static const float k_pi2 = 1.5707963705062866f, k180 = 180.0f;
+    static const float km1p8 = -1.7999999523162842f, k18 = 18.0f, k11p8 = 11.800000190734863f;
+    static const float k19 = 19.0f, k25p8 = 25.799999237060547f, k29 = 29.0f, k33 = 33.0f;
 
-    /* Block B (L50-L71) — class-offset triplet.  Class 0 = HOUSE (engine
-     * BSS-zero) splits on uVar2 < 2 vs ≥ 2.  Class 1 (transition) is
-     * deferred to Cc.2; class 2/3 are dungeon variants — port the
-     * arithmetic for completeness so the stage-class writer doesn't
-     * surprise us when it lands. */
-    int stage_class = g_scene1_camera_stage_class;  /* _DAT_0438b4e8 */
+    /* 0x441c47: the char mode (work +0x2ce0c) counts only while the stage's
+     * scene type (DAT_068dd3fc[b4dc · 0x6cf]) is 0..4 */
+    const int32_t view = stage_scene_type(g_stage_b4dc);
+    int32_t mode = 0;
+    if (view >= 0 && view <= 4) {
+        const uint8_t *w = save_work_bank_at(save_work_active_slot());
+        if (w) memcpy(&mode, w + 0x2ce0c, 4);
+    }
+    g_scene1_camera_char_mode = mode;
+
+    /* 0x441c7c: the class offsets b77c / b774 / b778 */
+    const int stage_class = g_scene1_camera_stage_class;   /* DAT_0438b4e8 */
     if (stage_class == 0) {
-        if (uVar2 < 2) {
+        if (mode >= 2) {
+            g_class_off_x = spill32((long double)km1p8 - DAT_005c4fd0);
+            g_class_off_y = spill32((long double)k18 - DAT_005c4fd4);
+            g_class_off_z = spill32((long double)k11p8 - DAT_005c4fd8);
+        } else {
             g_class_off_x = 0.0f;
             g_class_off_y = 0.0f;
             g_class_off_z = 0.0f;
-        } else {
-            g_class_off_x = -1.8f - DAT_005c4fd0;  /* = 0 */
-            g_class_off_y = 18.0f - DAT_005c4fd4;  /* = 4 */
-            g_class_off_z = 11.8f - DAT_005c4fd8;  /* = -9.2 */
         }
-    } else if (stage_class == 2) {
-        g_class_off_x = -1.8f - DAT_005c4fd0;
-        g_class_off_y = 19.0f - DAT_005c4fd4;
-        g_class_off_z = 25.8f - DAT_005c4fd8;
-    } else if (stage_class == 3) {
-        g_class_off_x = -1.8f - DAT_005c4fd0;
-        g_class_off_y = 29.0f - DAT_005c4fd4;
-        g_class_off_z = 33.0f - DAT_005c4fd8;
+    }
+    if (stage_class == 2) {
+        g_class_off_x = spill32((long double)km1p8 - DAT_005c4fd0);
+        g_class_off_y = spill32((long double)k19 - DAT_005c4fd4);
+        g_class_off_z = spill32((long double)k25p8 - DAT_005c4fd8);
+    }
+    if (stage_class == 3) {
+        g_class_off_x = spill32((long double)km1p8 - DAT_005c4fd0);
+        g_class_off_y = spill32((long double)k29 - DAT_005c4fd4);
+        g_class_off_z = spill32((long double)k33 - DAT_005c4fd8);
     }
 
-    /* Block C (L72-L85) — floor-height bias.  Engine:
-     *   local_8 = max(DAT_056da1dc - 4, 0)
-     *   local_c = (float)*(int*)(palette + 0x1b1c)
-     *   local_8 = max(local_8, local_c)
-     *   _DAT_06a46f9c =
-     *       first_frame ? local_8 + 3.0 : lerp(local_8, _DAT_06a46f9c, 0.1) + 0.3
-     *
-     * DAT_056da1dc is the vertical input bias (BSS-zero today, no writer).
-     * palette + 0x1b1c is BSS-zero on HOUSE (`stage_palette_t` doesn't
-     * type the field yet; treating as 0 is engine-faithful for HOUSE).
-     * Therefore local_8 = 0, and the floor-bias collapses to a fixed
-     * point at 3.0 (steady state: old' = 0.9*old + 0.3 → fp = 3.0). */
-    const float local_8_floor = 0.0f;  /* both candidates fold to 0 */
-    if (g_first_frame == 0) {
-        g_floor_bias = (local_8_floor - g_floor_bias) * 0.1f
-                       + g_floor_bias + 0.3f;
-    } else {
-        g_floor_bias = local_8_floor + 3.0f;
+    /* 0x441d4c: the floor bias DAT_06a46f9c follows max(player y − 4, 0, the
+     * stage's fall line +0x1b1c) — snapped (+3) on a snap frame, else eased */
+    float lo = 0.0f;
+    const float py4 = spill32((long double)g_party.pos[0][1] - k4);
+    if (0.0f < py4) lo = py4;
+    {
+        const uint8_t *st = (const uint8_t *)g_stage_palette;
+        int32_t fy = 0;
+        if (st) memcpy(&fy, st + 0x1b1c, 4);
+        const float ffy = spill32((long double)fy);
+        if (lo < ffy) lo = ffy;
     }
+    if (g_first_frame != 0)
+        g_floor_bias = spill32((long double)lo + k3);
+    else
+        g_floor_bias = spill32((((long double)lo - g_floor_bias) * k0p1 + g_floor_bias) + k0p3);
 
-    /* Block E (L86-L163) — default-path eye/lookat compute.  No class-1
-     * arm (deferred Cc.2). */
-    /* engine: local_10 = DAT_056da1d8, local_8 = DAT_056da1e0 — the LIVE
-     * player position (g_scene1_player_pos[0]/[2]).  Reading it each frame is
-     * what makes the camera pan to follow the walking player (W3 controller
-     * writes these); the clamps below bound it to the room. */
-    float bias_x = g_scene1_player_pos[0];
-    float bias_z = g_scene1_player_pos[2];
-
-    /* `(uVar2 > 1) → local_8 -= 5`.  Char_mode=2 (shop view) lifts the
-     * eye 5 units further from the target along z. */
-    if (uVar2 > 1) {
-        bias_z = bias_z - 5.0f;
-    }
-    /* DAT_0438b7ac: the look target halfway between the player and b7a0 / b7a8
-     * (a checkpoint floor's arena, FUN_0044cc80) — overrides the -5 above. */
-    if (g_cam_blend != 0) {
-        bias_x = (g_scene1_player_pos[0] - g_cam_blend_x) * 0.5f + g_cam_blend_x;
-        bias_z = (g_scene1_player_pos[2] - g_cam_blend_z) * 0.5f + g_cam_blend_z;
-    }
-
-    /* `(uVar2 & 1) == 0` clamp dispatch.  Char_mode=2 (even) opens the
-     * gate; the inner branch on stage_view_mode picks one of four
-     * clamp shapes.  For HOUSE (view_mode=0) bias_x is clamped to
-     * [-5, -1] (lower edge, since initial 0 > -1 → -1).  bias_z gets a
-     * max-of-1 ceiling but no floor — its post-uVar2 value of -5
-     * stays.
-     *
-     * Even-only gate means the odd char_modes (1, 3, ...) skip clamps —
-     * an engine quirk we preserve verbatim. */
-    if ((uVar2 & 1) == 0) {
-        int view_mode = g_scene1_camera_stage_view_mode;
-        if (view_mode == 0) {
-            if (bias_x > -1.0f) bias_x = -1.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  1.0f) bias_z =  1.0f;
-            /* fallthrough to LAB_00441ff9: skips second-block clamp */
-        } else if (view_mode == 1) {
-            /* iVar1==1 branch: clamp twice (first pair, then
-             * LAB_00441f05) and then the second-block clamp. */
-            if (bias_x >  5.0f) bias_x =  5.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  1.0f) bias_z =  1.0f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-            /* LAB_00441f05: */
-            if (bias_x > 15.0f) bias_x = 15.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  1.0f) bias_z =  1.0f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-            /* second-block clamp: */
-            if (bias_x > 15.0f) bias_x = 15.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  8.5f) bias_z =  8.5f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-        } else if (view_mode == 2) {
-            /* iVar1==2 branch: LAB_00441f05 then second-block. */
-            if (bias_x > 15.0f) bias_x = 15.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  1.0f) bias_z =  1.0f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-            if (bias_x > 15.0f) bias_x = 15.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  8.5f) bias_z =  8.5f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-        } else if (view_mode == 3) {
-            /* iVar1==3 branch: second-block only. */
-            if (bias_x > 15.0f) bias_x = 15.0f;
-            if (bias_x < -5.0f) bias_x = -5.0f;
-            if (bias_z >  8.5f) bias_z =  8.5f;
-            if (bias_z < -3.0f) bias_z = -3.0f;
-        }
-        /* view_mode out of {0..3}: skip all clamps (engine: LAB_00441ff9
-         * via `goto`). */
-    }
-
-    /* Block F (L164-L175) — cinematic counter ramp.  Gated on
-     * DAT_0438be94 > 0x3c; BSS-zero here, so local_c stays 0. */
-    const float cinematic = 0.0f;
-
-    /* Block G (L176-L187) — compose eye + lookat.
-     *
-     * Lookat (= block-2 "static" target — eq engine `_DAT_073de328/2c/30`):
-     *   x = bias_x
-     *   y = _DAT_0438b77c + _DAT_069b2f78 (BSS=0) + _DAT_06a46f9c
-     *   z = bias_z
-     *
-     * Eye (= block-1 "orbital" — eq engine `_DAT_073de31c/320/324`):
-     *   x = radius_xz * sin(yaw) + bias_x
-     *   y = _DAT_0438b778 + _DAT_044e2c70 (BSS=0) + cinematic + lookat.y
-     *   z = bias_z - radius_xz * cos(yaw)
-     *
-     * Where radius_xz = _DAT_0438b774 + _DAT_0695ef70 (BSS=0) + cinematic.
-     *
-     * For HOUSE + char_mode=2 + yaw=0 this yields:
-     *   lookat = (-1, 3.0, -5)        — target at floor level, slightly back
-     *   eye    = (-1, 3.0 + -9.2, -9) = (-1, -6.2, -9)
-     *                                  — 6.2 above floor (y-down), 4 back
-     * Pitch downward ≈ atan(6.2 / 4) ≈ 57°.  Camera looks down toward
-     * the static room interior centered near world-origin. */
-    float yaw       = g_scene1_camera_yaw;
-    float radius_xz = g_class_off_y + g_radius_add + cinematic;
-
-    float lookat_x = bias_x;
-    float lookat_y = g_class_off_x + g_looky_add + g_floor_bias;
-    float lookat_z = bias_z;
-
-    float eye_x = radius_xz * sinf(yaw) + bias_x;
-    float eye_y = g_class_off_z + g_eyey_add + cinematic + lookat_y;
-    float eye_z = bias_z - radius_xz * cosf(yaw);
-
-    /* stage_class==1 (FUN_00441c3e @0x441880): the cc08==4 customer-service
-     * cinematic counter camera.  customer_service's master tick (via
-     * scene1_camera_cs_counter_cam) has ALREADY written the smoothed eye/lookat
-     * to a fixed per-tier counter target, so use them verbatim instead of the
-     * player-follow above — the Block-H lerp below then re-reads the same values
-     * (a no-op, matching the engine's pass-through).  Verified vs retail:
-     * tier-0 lookat (-3.0, 0.0), eye (-3.0, 14.0) at the settled counter view. */
+    float eye_x, eye_y, eye_z, lookat_x, lookat_y, lookat_z;
     if (stage_class == 1) {
-        eye_x    = g_smooth_eye[0];    eye_y    = g_smooth_eye[1];    eye_z    = g_smooth_eye[2];
+        /* 0x441dc5: an event camera — its targets are the smoothed pose
+         * itself, the floor bias held at 3 */
         lookat_x = g_smooth_lookat[0]; lookat_y = g_smooth_lookat[1]; lookat_z = g_smooth_lookat[2];
+        eye_x = g_smooth_eye[0]; eye_y = g_smooth_eye[1]; eye_z = g_smooth_eye[2];
+        g_floor_bias = k3;
+    } else {
+        /* 0x441e1e: follow the player (5 back in the shop view), halfway to
+         * b7a0 / b7a8 with the arena blend (b7ac) */
+        float bx = g_party.pos[0][0], bz = g_party.pos[0][2];
+        if (mode >= 2) bz = spill32((long double)bz - k5);
+        if (g_cam_blend != 0) {
+            bx = spill32(((long double)g_party.pos[0][0] - g_cam_blend_x) * k0p5 + g_cam_blend_x);
+            bz = spill32(((long double)g_party.pos[0][2] - g_cam_blend_z) * k0p5 + g_cam_blend_z);
+        }
+        /* 0x441e7e: the room clamps by scene type (even modes only) */
+        if ((mode & 1) == 0) {
+            switch (view) {
+            case 0:
+                if (bx > km1) bx = km1;
+                if (bx < km5) bx = km5;
+                if (bz > k1) bz = k1;
+                break;
+            case 1:
+                if (bx > k5) bx = k5;
+                if (bx < km5) bx = km5;
+                if (bz > k1) bz = k1;
+                if (bz < km3) bz = km3;
+                /* fall through */
+            case 2:
+                if (bx > k15) bx = k15;
+                if (bx < km5) bx = km5;
+                if (bz > k1) bz = k1;
+                if (bz < km3) bz = km3;
+                /* fall through */
+            case 3:
+                if (bx > k15) bx = k15;
+                if (bx < km5) bx = km5;
+                if (bz > k8p5) bz = k8p5;
+                if (bz < km3) bz = km3;
+                break;
+            default:
+                break;
+            }
+        }
+        /* 0x441ff9: the floor-end swing — be94 61..239 eases the radius /
+         * height out by 5 · sin((be94 − 60) · π/2 / 180), 5 after */
+        float cine = 0.0f;
+        if (g_floor_end_timer > 60) {
+            if (g_floor_end_timer < 240) {
+                const float a = spill32((long double)spill32((long double)(g_floor_end_timer - 60)) * k_pi2 / k180);
+                cine = spill32((long double)spill32(x87_crt_sin(a)) * k5);
+            } else {
+                cine = k5;
+            }
+        }
+        /* 0x442053: the pose */
+        lookat_x = bx;
+        lookat_y = spill32(((long double)g_class_off_x + g_looky_add) + g_floor_bias);
+        lookat_z = bz;
+        const double yaw = g_scene1_camera_yaw;
+        const float s = spill32(x87_crt_sin(yaw));
+        eye_x = spill32((long double)s * (((long double)g_class_off_y + g_radius_add) + cine) + bx);
+        eye_y = spill32(((((long double)g_class_off_z + g_eyey_add) + cine) + lookat_y));
+        const float c = spill32(x87_crt_cos(yaw));
+        eye_z = spill32((long double)bz - (long double)c * (((long double)g_class_off_y + g_radius_add) + cine));
     }
 
-    /* Block H (L188-L204) — smoothing lerp / first-frame snap. */
-    if (g_first_frame == 0) {
-        g_smooth_eye[0]    = (eye_x    - g_smooth_eye[0])    * 0.2f + g_smooth_eye[0];
-        g_smooth_eye[1]    = (eye_y    - g_smooth_eye[1])    * 0.2f + g_smooth_eye[1];
-        g_smooth_eye[2]    = (eye_z    - g_smooth_eye[2])    * 0.2f + g_smooth_eye[2];
-        g_smooth_lookat[0] = (lookat_x - g_smooth_lookat[0]) * 0.2f + g_smooth_lookat[0];
-        g_smooth_lookat[1] = (lookat_y - g_smooth_lookat[1]) * 0.2f + g_smooth_lookat[1];
-        g_smooth_lookat[2] = (lookat_z - g_smooth_lookat[2]) * 0.2f + g_smooth_lookat[2];
-    } else {
+    /* 0x442104: the smoothed pose DAT_0438cc38.. / cc50.. — snapped, else 0.2 */
+    if (g_first_frame != 0) {
         g_first_frame = 0;
-        g_smooth_eye[0]    = eye_x;
-        g_smooth_eye[1]    = eye_y;
-        g_smooth_eye[2]    = eye_z;
-        g_smooth_lookat[0] = lookat_x;
-        g_smooth_lookat[1] = lookat_y;
-        g_smooth_lookat[2] = lookat_z;
+        g_smooth_eye[0] = eye_x; g_smooth_eye[1] = eye_y; g_smooth_eye[2] = eye_z;
+        g_smooth_lookat[0] = lookat_x; g_smooth_lookat[1] = lookat_y; g_smooth_lookat[2] = lookat_z;
+    } else {
+        g_smooth_eye[0] = spill32(((long double)eye_x - g_smooth_eye[0]) * k0p2 + g_smooth_eye[0]);
+        g_smooth_eye[1] = spill32(((long double)eye_y - g_smooth_eye[1]) * k0p2 + g_smooth_eye[1]);
+        g_smooth_eye[2] = spill32(((long double)eye_z - g_smooth_eye[2]) * k0p2 + g_smooth_eye[2]);
+        g_smooth_lookat[0] = spill32(((long double)lookat_x - g_smooth_lookat[0]) * k0p2 + g_smooth_lookat[0]);
+        g_smooth_lookat[1] = spill32(((long double)lookat_y - g_smooth_lookat[1]) * k0p2 + g_smooth_lookat[1]);
+        g_smooth_lookat[2] = spill32(((long double)lookat_z - g_smooth_lookat[2]) * k0p2 + g_smooth_lookat[2]);
     }
 
     /* Block I (L205-L213) — canonical writeback.  Engine adds
@@ -375,6 +363,28 @@ void scene1_camera_pose_compute(void)
     }
     g_scene1_camera_eye[1]    = spill32((long double)g_shake_y + g_scene1_camera_eye[1]);
     g_scene1_camera_lookat[1] = spill32((long double)g_shake_y + g_scene1_camera_lookat[1]);
+}
+
+/* FUN_0048dbfb L5-17 (0x48dbfb..0x48dd15): the day end's camera — class 1
+ * with the offsets (-1.8, 36, 3.5) less DAT_005c4fd0.., the lookat x / z eased
+ * 0.2 toward 0, the eye orbiting it, then FUN_00441c3e */
+void scene1_camera_day_end_pose(void)
+{
+    static const float km1p8 = -1.7999999523162842f, k36 = 36.0f, k3p5 = 3.5f;
+    static const float k0p2 = 0.20000000298023224f;
+    g_class_off_x = spill32((long double)km1p8 - DAT_005c4fd0);
+    g_class_off_y = spill32((long double)k36 - DAT_005c4fd4);
+    g_class_off_z = spill32((long double)k3p5 - DAT_005c4fd8);
+    g_scene1_camera_stage_class = 1;                       /* DAT_0438b4e8 */
+    g_smooth_lookat[0] = spill32(-(long double)g_smooth_lookat[0] * k0p2 + g_smooth_lookat[0]);
+    g_smooth_lookat[2] = spill32(-(long double)g_smooth_lookat[2] * k0p2 + g_smooth_lookat[2]);
+    const double yaw = g_scene1_camera_yaw;
+    const float s = spill32(x87_crt_sin(yaw));
+    g_smooth_eye[0] = spill32((long double)s * ((long double)g_class_off_y + g_radius_add) + g_smooth_lookat[0]);
+    g_smooth_eye[1] = spill32(((long double)g_class_off_z + g_eyey_add) + g_smooth_lookat[1]);
+    const float c = spill32(x87_crt_cos(yaw));
+    g_smooth_eye[2] = spill32((long double)g_smooth_lookat[2] - (long double)c * ((long double)g_class_off_y + g_radius_add));
+    scene1_camera_pose_compute();                          /* FUN_00441c3e */
 }
 
 /* ─── FUN_00462403 cinematic block: the cc08==4 customer-service COUNTER camera ─

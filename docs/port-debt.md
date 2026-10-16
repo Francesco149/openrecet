@@ -152,9 +152,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048cdcc | src/dungeon_party.c:1300 | the skill states 3, 5..8 by char |
 | FUN_0048d5d6 | src/dungeon_party.c:747 | char 42's gauge refill + the random |
 | FUN_0048d5d6 | src/dungeon_party.c:754 | the skill cycle (DAT_0438b7dc, SE 326) |
-| FUN_0048e49c | src/scene_day_end.c:156 | the payment-screen 3D shop |
+| FUN_0048e49c | src/scene_day_end.c:157 | the |
 | FUN_00490c78 | src/dungeon_party.c:508 | the buff-end bubble over Tear |
-| FUN_0049da9e | src/scene_day_end.c:213 | the ending's entry + mode 7 FUN_0049db8a |
+| FUN_0049da9e | src/scene_day_end.c:215 | the ending's entry + mode 7 FUN_0049db8a |
 
 ## synthetic-data (0)
 

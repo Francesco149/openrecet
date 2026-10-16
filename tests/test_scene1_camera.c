@@ -34,6 +34,8 @@
 
 #include "math3d.h"
 #include "scene1_camera.h"
+#include "save_work.h"
+#include <string.h>
 #include "scene1_particles_tick.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
@@ -54,12 +56,21 @@ static int float_near(float a, float b, float tol)
                #a, #b, _t, _a, _b, (double)((_a-_b<0)?-(_a-_b):(_a-_b)));   \
 } while (0)
 
+/* the camera reads the char mode from the work record (+0x2ce0c) each pose */
+static void set_char_mode(int32_t m)
+{
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    if (w) memcpy(w + 0x2ce0c, &m, sizeof m);
+    g_scene1_camera_char_mode = m;
+}
+
 static void reset_camera_world(void)
 {
     /* Defaults match boot: HOUSE palette + char_mode=2 + stage view 0 +
      * z_roll=0 + camera_yaw=0. */
     stage_palette_init_house();
-    g_scene1_camera_char_mode       = 2;
+    set_char_mode(2);
+    g_scene1_camera_stage_class     = 0;   /* a day-end test leaves class 1 */
     g_scene1_camera_stage_view_mode = 0;
     g_scene1_camera_z_roll          = 0.0f;
     g_scene1_camera_yaw             = 0.0f;
@@ -138,7 +149,7 @@ int test_scene1_camera_house_groundtruth_matches_retail(void)
      * FUN_00436f97 L589).  The camera target bias is the LIVE player position
      * (g_scene1_player_pos), seeded by scene1_postload_pose_house_standing to
      * the HOUSE spawn −0.3/9.35.  Reproduce that on-HOUSE-entry state here. */
-    g_scene1_camera_char_mode = 0;
+    set_char_mode(0);
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[2] =  9.35f;
     g_scene1_camera_yaw = 3.1415927f;
@@ -160,7 +171,7 @@ int test_scene1_camera_follows_walking_player(void)
      * must pan to follow it.  view_mode 0 clamps bias_x to [−5, −1], so the
      * target goes −1.0 (player at −0.3, clamped) → −1.5 (player at −1.5). */
     reset_camera_world();
-    g_scene1_camera_char_mode = 0;
+    set_char_mode(0);
     g_scene1_camera_yaw = 3.1415927f;
 
     g_scene1_player_pos[0] = -0.3f;
@@ -194,7 +205,7 @@ int test_scene1_camera_anchor_alias_tracks_lookat(void)
 int test_scene1_camera_char_mode_below_2_collapses_offsets(void)
 {
     reset_camera_world();
-    g_scene1_camera_char_mode = 0;  /* uVar2 < 2 path */
+    set_char_mode(0);  /* uVar2 < 2 path */
     scene1_camera_init();
     scene1_camera_pose_compute();
 
