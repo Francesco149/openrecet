@@ -148,6 +148,7 @@ static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-me
  * the companion fallback ONLY on the non-walk frames (dialogue / menu / pre-
  * move).  Reset at the top of scene1_player_ctrl_tick(). */
 static int   s_companion_ticked_in_b850 = 0;
+static int   s_b850_ran = 0;              /* FUN_0048b850 ran this frame */
 
 /* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws —
@@ -337,6 +338,7 @@ void player_ctrl_emote_reset(void) { s_emote_level = 0; s_emote_type = 0; }
 int  player_ctrl_db048(void)       { return s_db048; }
 void player_ctrl_set_db048(int v)  { s_db048 = v; }
 int  player_ctrl_no_b850_this_frame(void) { return s_no_b850_frame; }
+int  player_ctrl_b850_ran(void)           { return s_b850_ran; }
 
 /* FUN_00436f97 blocks 11-15 (all.c:37155-37370), the player-controller part:
  * per actor i the walk velocity (DAT_056daabc + 3·i) = 0, the record facing
@@ -427,7 +429,7 @@ static int s_companion_from_cs;
 void player_ctrl_companion_tick_from_cs(void)
 {
     s_companion_from_cs = 1;
-    scene1_companion_ctrl_tick();
+    party_follow_tick();                 /* FUN_0048a833 (the master tick's head, 0x4624a1) */
     s_companion_from_cs = 0;
     s_companion_ticked_in_b850 = 1;
 }
@@ -622,26 +624,83 @@ static int player_ctrl_at_sell_counter(void)
  * (&DAT_0450f407)[iVar15] (NPC present) is 0 ⇒ be7c never arms ⇒ db004=0.  The
  * be7c NPC-approach path + the b928 scene-intro early branches remain
  * PORT-DEBT(emote-npc-approach) — inert with no live customer/item writer. */
+/* DAT_0438be7c / be80: Tear in reach — a 20-tick countdown re-armed while the
+ * player stands within 2 of her and faces her (|Δangle| < 0.2π or > 1.8π), once
+ * the shop is open (work +0x2bc6f) and the door not taken (+0x2bc5f); be80, the
+ * just-talked latch, holds it at 0 until she walks away or turns. */
+static int32_t s_be7c, s_be80;
+
+void player_ctrl_tear_reach_reset(void) { s_be80 = 1; s_be7c = 0; }
+int32_t player_ctrl_tear_reach(void)    { return s_be7c; }
+
+/* LABEL_497: the bubble slides in (db000 up to 10) */
+static void emote_up(void) { if (++s_emote_level > 10) s_emote_level = 10; }
+
+/* LABEL_448 (0x4885eb): no affordance — the bubble slides out, unless Tear is in
+ * reach (LABEL_495: cell 1, slide in) */
+static void player_ctrl_emote_label_448(void)
+{
+    if (s_be7c == 0) {
+        if (s_emote_level > 0) --s_emote_level;
+    } else {
+        s_emote_type = 1;
+        emote_up();
+    }
+}
+
 static void player_ctrl_cc08_proximity_detect(int *at_door_out, int *at_counter_out)
 {
-    /* Only when not carrying (the engine's `if (DAT_056db048 != 0) goto
-     * LAB_004885eb` gate at all.c:87524 — carrying suppresses the affordance). */
+    /* the whole detection sits under `DAT_056db048 == 0`; a held pose goes to
+     * LABEL_448 */
     int at_door = 0, at_counter = 0;
-    if (s_db048 == 0) {
-        const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-        int exited = (bank != NULL)
-                   ? ((const uint8_t *)bank)[PC_DOOR_EXITED_BYTE_OFF] : 0;
-        at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
-                                           g_scene1_player_pos[2], s_player_facing,
-                                           g_scene1_camera_stage_view_mode, exited);
-        /* v132 is computed whatever v59 is; v59 wins at the ramp and the Z arm */
-        at_counter = player_ctrl_at_sell_counter();
+    *at_door_out = 0;
+    *at_counter_out = 0;
+    if (s_db048 != 0) {
+        player_ctrl_emote_label_448();
+        return;
+    }
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    const uint8_t *bb = (const uint8_t *)bank;
+    int exited = bb != NULL ? bb[PC_DOOR_EXITED_BYTE_OFF] : 0;
+    at_door = player_ctrl_at_shop_door(g_scene1_player_pos[0],
+                                       g_scene1_player_pos[2], s_player_facing,
+                                       g_scene1_camera_stage_view_mode, exited);
+    /* v132 is computed whatever v59 is; v59 wins at the ramp and the Z arm */
+    at_counter = player_ctrl_at_sell_counter();
+
+    /* Tear (0x4887bc): dx / dz / the distance spilled, then the countdown */
+    {
+        static const float k_pi = 3.1415927410125732f, k2 = 2.0f;
+        static const float k0p2 = 0.20000000298023224f, k1p8 = 1.7999999523162842f;
+        const float dx = spill32((long double)g_scene1_actor_pos[2][0] - g_scene1_player_pos[0]);
+        const float dz = spill32((long double)g_scene1_actor_pos[2][2] - g_scene1_player_pos[2]);
+        const float d = spill32(spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx))));
+        if (s_be7c > 0) --s_be7c;
+        if (bb != NULL && bb[0x2bc6f] != 0 && bb[PC_DOOR_EXITED_BYTE_OFF] == 0) {
+            const float ang = spill32(x87_crt_atan2(dx, dz));
+            const float q = spill32(((long double)ang - s_player_facing) / k_pi);
+            if (d >= k2) {
+                s_be80 = 0;
+            } else if (spill32(fabsl((long double)q)) < k0p2) {
+                s_be7c = 20;
+            } else if (spill32(fabsl((long double)q)) <= k1p8) {
+                s_be80 = 0;
+            } else {
+                s_be7c = 20;
+            }
+        }
+        if (s_be80 > 0) s_be7c = 0;
     }
 
-    if (at_door)
-        player_ctrl_emote_ramp_step(1, 7, &s_emote_level, &s_emote_type);
-    else
-        player_ctrl_emote_ramp_step(at_counter, 0, &s_emote_level, &s_emote_type);
+    if (at_door) {
+        s_emote_type = 7;
+        emote_up();
+    } else if (at_counter) {
+        s_emote_type = s_be7c != 0 ? 1 : 0;
+        emote_up();
+    } else {
+        player_ctrl_emote_label_448();
+    }
     *at_door_out = at_door;
     *at_counter_out = at_counter;
 }
@@ -717,6 +776,7 @@ void player_ctrl_worldmap_exit_arm(void)
 {
     s_worldmap_exit_armed = 1;            /* DAT_074b2ec4 = 1 */
     fade_phase1_start(0, 0x11);           /* FUN_004526f5(0,0x11) — dissolve fade-out */
+    s_emote_level = 0;                    /* DAT_056db000 = 0 (asm 0x488aa8) */
 
     uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
     if (bb != NULL && bb[PC_DOOR_FIRSTEXIT_BYTE_OFF] == 0) {
@@ -734,11 +794,6 @@ void player_ctrl_worldmap_exit_arm(void)
      * merchants-guild trace (was: missing se_019_id0150 + 00re_sys09). */
     audio_play_se_file("bin/se/00re/system/00re_sys09.bin");  /* FUN_0049933c(0x5cefb8) */
     audio_play_se_by_id(0x150);                               /* FUN_00499519(0x150) */
-    /* PORT-DEBT(door-exit-reset, DAT_056db000): the engine also zeroes
-     * DAT_056db000 here (asm 0x488aa8 `andl $0x0,0x56db000`) — a player-state
-     * counter near db054, untested by the current (pre-window) trace and
-     * irrelevant to the already-1:1 world-map render; mirror it if a later
-     * door-exit scenario shows it load-bearing. */
 }
 
 /* Stage-2 of the exit (all.c:86877-86888): while armed, the engine freezes the
@@ -1062,16 +1117,20 @@ static int player_ctrl_shop_display_present(void)
  * counter) path; we take that path directly for the -1 "remove" case (retail
  * ground-truth: the removal writes the grid + returns the item; the counter
  * variant only fires when PLACING a 0x1451..0x14b3 item — PORT-DEBT below). */
+static void player_ctrl_cc04_menu_body(void);
+
+/* The cc04 == 1 arm: FUN_00469414(1)'s outcome, then FUN_004897c6 (the status +
+ * the three anim ticks) and FUN_0048a833 on every frame of it */
 static void player_ctrl_cc04_menu_arm(void)
 {
-    /* Per-frame player anim tick (all.c:88547-88560, the tail of FUN_004897c6
-     * the cc04 dispatch calls every menu frame): advance the held interact pose
-     * (anim 3, layer 0 = the DAT_056daae8 sprite record the open set).  Retail's
-     * pcnt counts 1→7 across the menu window; without this the port froze it at
-     * 1.  Layers 1/2 are -1 for the HOUSE player (no overlay anim), so only the
-     * body layer ticks.  No RNG. */
-    chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+    player_ctrl_cc04_menu_body();
+    party_status_tick();
+    party_follow_tick();
+    s_companion_ticked_in_b850 = 1;
+}
 
+static void player_ctrl_cc04_menu_body(void)
+{
     int r = display_menu_update(1);   /* FUN_00469414(1) */
 
     if (r == 2) {                     /* CANCEL (all.c:87907) */
@@ -1232,13 +1291,19 @@ static void player_ctrl_cc08_counter_menu_arm(void)
             else if (in == COUNTER_MENU_IN_CONFIRM)
                 s_cc08 = 10;
         }
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);   /* FUN_004897c6 */
+        party_status_tick();                 /* LABEL_132: FUN_004897c6 */
+        party_follow_tick();                 /* LABEL_133: FUN_0048a833 */
+        s_companion_ticked_in_b850 = 1;
         return;
     }
 
+    /* cc08 == 10: every path ends at LABEL_133 (FUN_0048a833, no anim tick) */
+    s_companion_ticked_in_b850 = 1;
     int entry = counter_menu_close_tick();                  /* ++DAT_0438b754 == 15 */
-    if (entry < 0)
+    if (entry < 0) {
+        party_follow_tick();
         return;
+    }
     if (entry == COUNTER_MENU_CANCEL) {
         s_cc08 = 1;
     } else if (entry == COUNTER_MENU_OPEN_STORE) {
@@ -1262,6 +1327,7 @@ static void player_ctrl_cc08_counter_menu_arm(void)
          * just closes. */
         s_cc08 = 1;
     }
+    party_follow_tick();                     /* LABEL_133: FUN_0048a833 */
 }
 
 static void player_ctrl_walk_and_highlight(void);
@@ -1305,12 +1371,12 @@ static void player_ctrl_cc08_freeroam_arm(void)
                 r[CHR_ACTOR_ANIM]    = 0;
             }
         }
-        scene1_companion_ctrl_tick();
+        party_follow_tick();                 /* FUN_0048a833 */
         s_companion_ticked_in_b850 = 1;
-        player_ctrl_emote_ramp_step(0, 0, &s_emote_level, &s_emote_type);
+        player_ctrl_emote_label_448();   /* goto LABEL_448 */
         if (scene1_beat_counter() < 45) {
             s_no_b850_frame = 1;
-            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+            party_status_tick();             /* LABEL_508: FUN_004897c6 */
             return;
         }
         return_beat = 1;
@@ -1346,6 +1412,7 @@ static void player_ctrl_walk_and_highlight(void)
  * db054 advance itself, so the scene1_sim companion fallback stays off */
 void player_ctrl_walk(void)
 {
+    s_b850_ran = 1;
     party_tick();
     s_companion_ticked_in_b850 = 1;
 }
@@ -1567,15 +1634,11 @@ static void player_ctrl_cc08_unported_arm(void)
                                          g_sim_buttons[0].held);
         }
 
-        /* advance the player sprite anim: retail's draw leaf FUN_0045a56f ticks
-         * every drawn actor each frame (pcnt++ + frame-by-LUT, the stool jump
-         * holding at its last frame).  UNGATED — the draw runs every frame INCLUDING
-         * the d3e bg-load (retail's pcnt climbs through the load, panim 5 from
-         * entry+2; RE §21.10), so it must NOT sit inside the master-tick gate.  The
-         * companion ticks inside the master tick (player_ctrl_companion_tick_from_cs);
-         * on frames that skip it (load, ESC-skip choice) the scene1_sim fallback
-         * advances only her anim. */
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+        /* LABEL_508: FUN_004897c6 — the status timers and the three actors' anim
+         * ticks, every frame of the arm including the d3e load; Tear's
+         * FUN_0048a833 ran (or not) in the master tick */
+        party_status_tick();
+        s_companion_ticked_in_b850 = 1;
         return;
     }
     /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by
@@ -1666,6 +1729,7 @@ void scene1_player_ctrl_tick(void)
      * path reaches player_ctrl_b850_move() this frame (engine FUN_0048a833 nested
      * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
     s_companion_ticked_in_b850 = 0;
+    s_b850_ran = 0;
 
     /* NB the RE §21.28 cc08 boundary markers are cleared at the frame top by
      * scene1_ingame_tick (player_ctrl_cc08_markers_frame_clear) — NOT here:
@@ -2086,8 +2150,8 @@ void scene1_player_ctrl_tick(void)
      * FUN_00485861) — and skips the cc08 dispatch. */
     if (day_close_machine_tick()) {
         s_no_b850_frame = 1;
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
-        scene1_companion_ctrl_tick();
+        party_status_tick();                 /* LABEL_132: FUN_004897c6 */
+        party_follow_tick();                 /* LABEL_133: FUN_0048a833 */
         s_companion_ticked_in_b850 = 1;
         player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
                                      &g_scene1_player_pos[2]);
@@ -2122,8 +2186,19 @@ void scene1_player_ctrl_tick(void)
          * still runs its head — the rank arrivals (from b924 192) and the f406
          * entry — before LABEL_448 holds the pose (rhost multiday-tutorials-
          * suggest f27643: the rank-2 lesson at b924 192). */
-        if (!player_ctrl_cc08_customer_escalate())
-            (void)player_ctrl_cc08_f406_entry();
+        if (!player_ctrl_cc08_customer_escalate() && !player_ctrl_cc08_f406_entry() &&
+            s_cc04 == 0) {
+            player_ctrl_emote_label_448();   /* b928 == 1 && b924 < 200: goto LABEL_448 */
+            /* LABEL_499: Recette faces Tear, anim 6; LABEL_416: FUN_0048a833 (Tear
+             * beside her); LABEL_508: FUN_004897c6 (the status + 3 anim ticks) */
+            PW(0x56db05cu).f = g_scene1_actor_pos[0][0] <= g_scene1_actor_pos[2][0]
+                               ? 1.5707963705062866f : -1.5707963705062866f;
+            party_anim_set(s_actor_record[0], 6);
+            party_follow_tick();
+            party_status_tick();
+            s_companion_ticked_in_b850 = 1;
+            s_no_b850_frame = 1;
+        }
     } else if (s_cc08 == 0 || s_cc08 == 10)
         player_ctrl_cc08_counter_menu_arm();
     else

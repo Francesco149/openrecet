@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 107,
+  "port_debt": 105,
   "verified": 81,
   "stubbed": 10,
   "ported": 661,
@@ -9472,7 +9472,6 @@
     "src/scene1_chr_sprite.c",
     "src/scene1_chr_sprite.h",
     "src/scene1_chr_walker.h",
-    "src/scene1_player_ctrl.c",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"
@@ -13167,6 +13166,7 @@
    "src": [
     "src/scene1_actor_say.h",
     "src/scene1_day_close.c",
+    "src/scene1_player_ctrl.h",
     "src/story_visitor.c",
     "src/story_visitor.h"
    ],
@@ -17325,10 +17325,8 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_day_close.h",
     "src/scene1_player_ctrl.h",
-    "src/scene1_postload.c",
     "src/scene1_postload.h",
     "src/scene1_sim.c",
-    "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h"
    ],
    "status": "ported"
@@ -17356,6 +17354,7 @@
     "src/scene1_conversation_pose.h",
     "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene_day_end.c",
@@ -17469,6 +17468,7 @@
     "src/dungeon_party.c",
     "src/dungeon_party.h",
     "src/record_hit.c",
+    "src/scene1_actor_say.c",
     "src/stage_post_load.c",
     "src/stage_post_load.h"
    ],
@@ -18074,10 +18074,10 @@
     "src/scene1_chr_shadow.c",
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
+    "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
-    "src/scene1_postload.c",
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c"
    ],
@@ -18181,6 +18181,7 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
+    "src/scene1_conversation_pose.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",

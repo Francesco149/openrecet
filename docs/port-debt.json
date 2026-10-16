@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 84,
+  "total": 83,
   "by_kind": {
    "stub": 60,
    "synthetic-data": 0,
@@ -15,7 +15,6 @@
    "actor-table-split": 1,
    "continue-arm": 1,
    "deferred": 1,
-   "door-exit-reset": 1,
    "focused": 1,
    "house-teardown": 1,
    "oob": 1,
@@ -23,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 66,
+  "retiring_engine_fns": 65,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -38,7 +37,6 @@
    "FUN_0048670f": 2,
    "FUN_0048d5d6": 2,
    "0x43e...": 1,
-   "DAT_056db000": 1,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
@@ -119,14 +117,6 @@
    "kind_known": false
   },
   {
-   "kind": "door-exit-reset",
-   "engine_fn": "DAT_056db000",
-   "desc": "the engine also zeroes",
-   "file": "src/scene1_player_ctrl.c",
-   "line": 737,
-   "kind_known": false
-  },
-  {
    "kind": "focused",
    "engine_fn": "FUN_0044bd0d",
    "desc": "the outer DAT_0450f454 \"all early tutorials",
@@ -139,7 +129,7 @@
    "engine_fn": "FUN_0046602e",
    "desc": "always -1 in the port \u2014 its only writer,",
    "file": "src/customer_service.c",
-   "line": 231,
+   "line": 232,
    "kind_known": true
   },
   {
@@ -155,7 +145,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 760,
+   "line": 815,
    "kind_known": false
   },
   {
@@ -195,7 +185,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1955,
+   "line": 2019,
    "kind_known": false
   },
   {
@@ -283,7 +273,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "one retail-shaped master tick.",
    "file": "src/scene1_sim.c",
-   "line": 184,
+   "line": 185,
    "kind_known": false
   },
   {
@@ -427,7 +417,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1981,
+   "line": 2045,
    "kind_known": true
   },
   {
@@ -435,7 +425,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeons 2..5's setups FUN_0044d9d3 /",
    "file": "src/scene1_postload.c",
-   "line": 308,
+   "line": 283,
    "kind_known": true
   },
   {
@@ -443,7 +433,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 342,
+   "line": 317,
    "kind_known": true
   },
   {
@@ -467,7 +457,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 445,
+   "line": 439,
    "kind_known": true
   },
   {
@@ -483,7 +473,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 373,
+   "line": 348,
    "kind_known": true
   },
   {
@@ -491,7 +481,7 @@
    "engine_fn": "FUN_0044bd0d",
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
-   "line": 409,
+   "line": 400,
    "kind_known": true
   },
   {
@@ -595,7 +585,7 @@
    "engine_fn": "FUN_0047f46a",
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
-   "line": 327,
+   "line": 321,
    "kind_known": true
   },
   {
@@ -643,7 +633,7 @@
    "engine_fn": "FUN_0048670f cc04 2",
    "desc": "the furniture-grid mode (cc04 = 2,",
    "file": "src/scene1_player_ctrl.c",
-   "line": 969,
+   "line": 1024,
    "kind_known": true
   },
   {
@@ -651,7 +641,7 @@
    "engine_fn": "FUN_0048670f cc08 50",
    "desc": "the faced stand's item",
    "file": "src/scene1_player_ctrl.c",
-   "line": 950,
+   "line": 1005,
    "kind_known": true
   },
   {

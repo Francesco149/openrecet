@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — hidden state: a portblock sweep of the house runs
+After the walk and the game over, `portblock` at the end of each long house run showed the
+splits RNG does not: multiday-tutorials-suggest now ends with **every block IDENTICAL**
+(was 75 dwords); party / Tear anim / emote state identical over day2-save-commit, multiday
+and debt-gameover-restart. Fixed, all from the disasm:
+- DAT_0438b758..b76c had two port copies (actor_say.c's house statics, dungeon_party.c's
+  floor notice): one storage now — b768 identical over multiday and dungeon1-run2;
+- the customer-service leave writes db05c = −yaw, its octant and db048 = 0 (0x4629d7);
+- FUN_00436f97's house arm writes all 5 + 10 object slots whatever the counts (the stale
+  mapcol_objs entries);
+- DAT_0438be7c / be80 is Tear in reach (within 2, facing her, once the shop is open), not a
+  customer approach: the "talk to Tear" emote (db004 = 1) and LABEL_448's decay, the door
+  arm zeroes db000; resets in FUN_00436f97 / FUN_004706ea / FUN_004852fb (the talk arm,
+  cc08 15, stays a stub — no recording talks to Tear);
+- FUN_004897c6 + FUN_0048a833 (`party_status_tick` / `party_follow_tick`) where
+  FUN_0048670f calls them: cc08 0 (LABEL_132 / 133), cc08 10 (LABEL_133), cc08 4 (the
+  master tick's head + LABEL_508), the day close, the return beat, the morning beat
+  (LABEL_499 → 416 → 508), the cc04 menu's tail — replacing actor-0-only ticks and the
+  legacy companion there;
+- the conversation pose has no release in FUN_0048407f's house branch: the pose module
+  now only drops its latch, and stands in for retail's walk (anim 0) only on frames the port
+  runs no FUN_0048b850 (the prologue's inter-script frame, the event arm);
+- iv2_5's dispatcher arm calls FUN_004852fb (the day-2 re-place latch is gone);
+- mode 2's step 5 sets DAT_06a499a8 = 2.
+`gates`: 30 rows, 0 failed. Tools: state_va rows 438be7c, 438b75c / b760.
+
 ## 2026-10-16 — the game over: debt-gameover-restart passes end to end
 After the house walk (below) the run split at f24682, the failed payment. Ported from the disasm:
 - the payment verdict scripts on Z (FUN_0048dbfb: (0, 5) broke, (1, 19) day 36, (0, 4) paid)

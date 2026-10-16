@@ -81,7 +81,7 @@ void scene1_house_morning_reseat(void)
     uint8_t *wb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
     const int32_t *w = (const int32_t *)wb;
     actor_say_stage_reset_age();                 /* DAT_0438b764 = 0 */
-    /* DAT_0438be80 = 1, DAT_0438be7c = 0: no port mirror. */
+    player_ctrl_tear_reach_reset();              /* DAT_0438be80 = 1, DAT_0438be7c = 0 */
     player_ctrl_emote_reset();                   /* DAT_056db000/004 = 0 */
     scene1_postload_place_actors(0);             /* FUN_004851e2(0): the counter spot */
     int32_t *p0 = player_ctrl_actor_record_mut(0);

@@ -74,18 +74,6 @@ void scene1_postload_pose_house_standing(void);
 void scene1_postload_place_actors(int a);
 
 /*
- * The DAY-2 in-scene actor re-place (retail FUN_0048526d → FUN_00436f97, polled
- * at the day-advance).  POSITIONS ONLY — re-seat the two live actors at the
- * house-standing spot (player -0.30/0/9.35, companion 0.6/3.0/9.35) so the day-2
- * broom no longer inherits the stale first-customer counter positions; the
- * conversation-pose beat re-derives the facing + holds the anim.  Driven as a
- * one-shot by scene1_tutorial_dispatch (armed at the iv2_5 beat, consumed on the
- * first free-roam frame).  Distinct from pose_house_standing, which ALSO resets
- * the beat/pose/bob and so must NOT be used mid-beat.
- */
-void scene1_postload_day2_actor_replace(void);
-
-/*
  * FUN_00436f97 run IN-SCENE (no asset load) — the stage-entry init as
  * FUN_0048526d (scene1_day_close.c) reaches it.  Retail order, port-mirrored
  * state only: the BSS resets (actor-say b764/b76c, counter-menu slides, news

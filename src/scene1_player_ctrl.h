@@ -87,6 +87,7 @@ int  player_ctrl_display_latch(void);
 /* The frame left FUN_0048670f through LABEL_132/133 with no FUN_0048b850
  * (the day-close exchange): the companion still ticks, db054 does not. */
 int  player_ctrl_no_b850_this_frame(void);
+int  player_ctrl_b850_ran(void);   /* FUN_0048b850 (party_tick) ran this frame */
 
 /* ── FUN_0048670f cc08 dispatch state (Chip 4, engine-quirks §78) ────────────
  * The in-game interaction state the controller dispatches on each frame
@@ -165,6 +166,11 @@ void player_ctrl_emote_ramp_step(int at_affordance, int affordance_type,
  * The cc08 == 1 arm's walk is FUN_0048b850 (party_tick) + FUN_0048619f.
  */
 void scene1_player_ctrl_tick(void);
+
+/* DAT_0438be7c / be80: Tear in reach (the countdown) and the just-talked latch.
+ * be80 = 1, be7c = 0 at FUN_00436f97 / FUN_004706ea / FUN_004852fb. */
+void    player_ctrl_tear_reach_reset(void);
+int32_t player_ctrl_tear_reach(void);
 
 /* Engine facing octant from a world facing angle + the scene camera yaw.
  * oct = (int)((angle + cam_yaw + π/8) * 8/(2π) + 8) & 7  (b850 ftol formula;

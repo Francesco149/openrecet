@@ -104,4 +104,8 @@ int scene1_conversation_pose_player_blink(void);
 /* Return to dormant (scene change / new game). */
 void scene1_conversation_pose_reset(void);
 
+/* After the house controller: the pose that ended this tick drops the actors to
+ * anim 0 unless FUN_0048b850 ran (it hands them back itself). */
+void scene1_conversation_pose_release_pending(int b850_ran);
+
 #endif /* OPENRECET_SCENE1_CONVERSATION_POSE_H */

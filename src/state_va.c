@@ -135,6 +135,7 @@ static int32_t get_camyaw(void) { return fbits(g_scene1_camera_yaw); }
 static int32_t get_go_step(void) { return scene_gameover_step(); }
 static int32_t get_go_exit(void) { return scene_gameover_exit_t(); }
 static int32_t get_b798(void)  { return g_day_end_short; }
+static int32_t get_be7c(void)  { return player_ctrl_tear_reach(); }
 static int32_t get_de_exit(void) { return day_end_exit_phase(); }
 static int32_t get_b79c(void)  { return g_day_end_ending; }
 
@@ -270,6 +271,7 @@ static const state_va_t k_map[] = {
     { 0x9643584u, "game-over step (DAT_09643584)",     get_go_step },
     { 0x964357cu, "game-over exit countdown (DAT_0964357c)", get_go_exit },
     { 0x438b798u, "day-end payment short (DAT_0438b798)", get_b798 },
+    { 0x438be7cu, "Tear in reach (DAT_0438be7c)",       get_be7c },
     { 0x74b2f08u, "day-end exit fade (DAT_074b2f08)",  get_de_exit },
     { 0x438b79cu, "day-end ending (DAT_0438b79c)",     get_b79c },
     { 0x438cbfcu, "faced display cell col (DAT_0438cbfc)", get_cbfc },
@@ -374,7 +376,7 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
     { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
     { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
-    { 0x438b768u, &g_notice_ticks },
+    { 0x438b768u, &g_notice_ticks },   { 0x438b75cu, &g_notice_kind }, { 0x438b760u, &g_notice_side },
     { 0x438b7acu, &g_cam_blend },      { 0x438b788u, &g_cut_follow },
     { 0x438beb4u, &g_dat_0438beb4 },   { 0x438bebcu, &g_dat_0438bebc }, { 0x438beb8u, &g_dat_0438beb8 },
     { 0x6a46fa4u, &g_dat_06a46fa4 },   { 0x438beccu, &g_dat_0438becc },

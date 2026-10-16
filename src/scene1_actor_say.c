@@ -7,15 +7,18 @@
 
 #include "scene1_particles_tick.h"   /* g_scene1_actor_pos (DAT_056da1d8 + 3·i) */
 #include "scene1_render.h"           /* scene1_project_world (FUN_00490c78) */
+#include "dungeon_party.h"           /* g_notice_* (DAT_0438b758..b76c) */
 #include "speech_bubble.h"
 #include "tables_item.h"             /* g_item, tables_item_find_slot_by_id (FUN_004681f6) */
 
-static int s_arg;        /* DAT_0438b758 */
-static int s_actor;      /* DAT_0438b75c */
-static int s_side;       /* DAT_0438b760 */
-static int s_age;        /* DAT_0438b764 */
-static int s_duration;   /* DAT_0438b768 */
-static int s_msg;        /* DAT_0438b76c */
+/* DAT_0438b758..b76c: one storage with the floors' accessory notice
+ * (dungeon_party.c, FUN_00485712 writes the same globals) */
+#define s_arg      g_notice_item    /* DAT_0438b758 */
+#define s_actor    g_notice_kind    /* DAT_0438b75c */
+#define s_side     g_notice_side    /* DAT_0438b760 */
+#define s_age      g_notice_on      /* DAT_0438b764 */
+#define s_duration g_notice_ticks   /* DAT_0438b768 */
+#define s_msg      g_notice_b76c    /* DAT_0438b76c */
 static char s_buf[256];  /* DAT_074b2dc0 */
 
 void actor_say_set(int msg, int arg, int actor, int side, int duration)

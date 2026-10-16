@@ -13,6 +13,7 @@
 #include "save_work.h"
 #include "scene.h"                 /* g_scene_state */
 #include "scene_day_end.h"         /* FUN_0048d954, DAT_0438b798 / b79c */
+#include "scene_pause.h"           /* DAT_06a499a8 */
 #include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "scene1_tutorial_dispatch.h" /* DAT_0438b928 */
 #include "title_save_dialog.h"     /* FUN_00435612 */
@@ -161,7 +162,7 @@ void scene_gameover_tick(void)
             }
         }
         scene_gameover_restart_reset(w, 1);                    /* FUN_0049d55c(w, 1) */
-        /* DAT_06a499a8 = 2 */
+        g_pause_saved_mode = 2;                                /* DAT_06a499a8 = 2 */
     }
     int at7 = s_step == 7;
     if (s_step < 7) at7 = ++s_step == 7;

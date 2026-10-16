@@ -70,7 +70,7 @@ void story_visitor_start(void)
     const float yaw = g_scene1_camera_yaw;
     PW(0x56db05cu).f = spill32(-(long double)yaw);
     actor_say_stage_reset_age();                     /* DAT_0438b764 = 0 */
-    /* DAT_0438be80 = 1, DAT_0438be7c = 0: no port mirror. */
+    player_ctrl_tear_reach_reset();                  /* DAT_0438be80 = 1, DAT_0438be7c = 0 */
     player_ctrl_emote_reset();                       /* DAT_056db000 / 004 = 0 */
     g_party.rec[0][6] = x87_ftol(((((long double)PW(0x56db05cu).f + yaw) + k_pi8) / k_2pi) * k8 + k8) & 7;
     scene1_postload_place_actors(0);                 /* FUN_004851e2(0) */

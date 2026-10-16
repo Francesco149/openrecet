@@ -37,6 +37,7 @@
 #include "scene1_camera.h"        /* scene1_camera_cs_counter_cam (cc08==4 counter cam) */
 #include "scene.h"                /* g_scene_state (DAT_0438b1c0) — trend head gate */
 #include "scene1_maplight.h"      /* scene1_current_stage_record (maptype) — trend gate */
+#include "party.h"
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
 #include "scene1_day_close.h"     /* day_close_begin (shop-full leave), FUN_0045e028 */
 #include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_count (DAT_0438bfb4) */
@@ -3578,6 +3579,15 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                     ((int32_t *)bank)[SAVE_BANK_FIELD_CLOCK_TARGET] = 4;
                     day_close_begin();
                 } else {
+                /* the facing up the room: db05c = −yaw, dab00 its octant
+                 * (0x4629d7: fld yaw; fchs; fstp; fld; fadd yaw; fadd π/8;
+                 * fdiv 2π; fmul 8; fadd 8; __ftol & 7) */
+                {
+                    static const float k_pi8 = 0.39269909262657166f, k_2pi = 6.2831854820251465f, k8 = 8.0f;
+                    PW(0x56db05cu).f = spill32(-(long double)g_scene1_camera_yaw);
+                    g_party.rec[0][6] = x87_ftol(((long double)PW(0x56db05cu).f + g_scene1_camera_yaw + k_pi8)
+                                                 / k_2pi * k8 + k8) & 7;
+                }
                 player_ctrl_cc08_enter_freeroam();   /* DAT_0438cc08 = 1 */
 
                 /* Recette hop-down reposition (all.c:60349-371, the fb88<4 arm).
@@ -3610,6 +3620,7 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                         g_news_ticker_timer = 1;   /* DAT_0438b92c = 1 */
                     }
                 }
+                player_ctrl_set_db048(0);            /* DAT_056db048 = 0 (0x462ac1) */
                 }
                 if (bank[CS_F406_TUTORIAL_BYTE_OFF] != 0) {    /* all.c:60381-384 */
                     bank[CS_F406_TUTORIAL_BYTE_OFF] = 0;

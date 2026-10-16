@@ -65,9 +65,27 @@ int scene1_conversation_pose_apply(int32_t *player_rec, int32_t *comp_rec,
 /* Latch: 1 while the pose is held; the release frame clears it so the actors
  * are handed back to the freeroam controllers exactly once. */
 static int s_pose_active = 0;
+static int s_release_pending = 0;
+
+/* The pose's end: FUN_0048407f's house branch has no release — the walk
+ * (FUN_0048b850: the tick, then the anim set) and FUN_0048a833 hand the actors
+ * back.  Where the port runs no FUN_0048b850 on that frame (the prologue's
+ * inter-script frame, the event arm), drop both to anim 0 as they would. */
+void scene1_conversation_pose_release_pending(int b850_ran)
+{
+    if (!s_release_pending)
+        return;
+    s_release_pending = 0;
+    if (b850_ran || player_ctrl_actor_char(0) == -1)
+        return;
+    conv_pose_enter(player_ctrl_actor_record_mut(0), 0);
+    if (player_ctrl_actor_char(2) != -1)
+        conv_pose_enter(player_ctrl_actor_record_mut(2), 0);
+}
 
 void scene1_conversation_pose_reset(void)
 {
+    s_release_pending = 0;
     s_pose_active = 0;
 }
 
@@ -162,8 +180,12 @@ void scene1_conversation_pose_tick(void)
      * drift (Residual B) + the port-only CONV_POSE_END/START blip (Residual A).
      * scene1_tutorial_dispatch owns the beat timer; the pose driver just mirrors
      * its state into the pose gate. */
-    if (!posing && scene1_tutorial_dispatch_beat_holds_this_tick())
-        posing = 1;
+    if (!posing && scene1_tutorial_dispatch_beat_holds_this_tick()) {
+        /* FUN_0048670f's beat arm (LABEL_499 → FUN_0048a833 → FUN_004897c6,
+         * scene1_player_ctrl.c) owns the actors: drop the latch, keep the records */
+        s_pose_active = 0;
+        return;
+    }
 
     /* RE §21.18 — hold the conversation pose ONE frame past the dialogue's
      * posing-drop when the f406 first-customer entry is armed THIS frame.  After
@@ -206,10 +228,15 @@ void scene1_conversation_pose_tick(void)
         return;
     }
 
-    /* Inert outside the pose window (and once released): the freeroam
-     * controllers own the actors — don't fight them every frame. */
-    if (!posing && !s_pose_active)
+    /* Outside the pose window the next owner (FUN_0048b850's walk, FUN_0048a833,
+     * the cs arrival) sets the anims: FUN_0048407f's house branch has no release,
+     * so the records are left as the pose left them */
+    if (!posing) {
+        /* the release lands after the house controller (see _release_pending) */
+        if (s_pose_active) s_release_pending = 1;
+        s_pose_active = 0;
         return;
+    }
 
     if (player_ctrl_actor_char(0) == -1)   /* no live player (pre-HOUSE) */
         return;

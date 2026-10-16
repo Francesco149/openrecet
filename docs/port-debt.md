@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **84**
-- distinct retiring engine functions: **66**
+- total open debts: **83**
+- distinct retiring engine functions: **65**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **16 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), door-exit-reset (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
+> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -43,7 +43,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
-| DAT_056db000 | 1 |
 | FUN_00409925 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
@@ -118,15 +117,15 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_player_ctrl.c:1981 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
-| FUN_00436f97 | src/scene1_postload.c:308 | dungeons 2..5's setups FUN_0044d9d3 / |
-| FUN_00436f97 | src/scene1_postload.c:342 | dungeon 5's return portal 6 beside |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2045 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_postload.c:283 | dungeons 2..5's setups FUN_0044d9d3 / |
+| FUN_00436f97 | src/scene1_postload.c:317 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:414 | the multi-part anchors |
 | FUN_004427f1 | src/dungeon_flow.c:594 | dungeons 2..5's events — the |
-| FUN_00442cef | src/scene1_sim.c:445 | the run's end (FUN_00442c86, |
+| FUN_00442cef | src/scene1_sim.c:439 | the run's end (FUN_00442c86, |
 | FUN_0044376a | src/dungeon_party.c:1601 | its 0 edge |
-| FUN_0044b219 | src/scene1_postload.c:373 | the camera shake reset, DAT_073de3a0 = 45 |
-| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:409 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_0044b219 | src/scene1_postload.c:348 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:400 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044d1e4 | src/dungeon_flow.c:558 | floor 14 — the portals by the story |
 | FUN_0044d47d | src/dungeon_flow.c:573 | the floor-14 timeline (Charme, type 25, |
 | FUN_0044f078 | src/dungeon_party.c:624 | dungeon 4 floor 99's event helper |
@@ -139,14 +138,14 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:239 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:266 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0047f46a | src/scene1_sim.c:327 | equip the bag's items |
+| FUN_0047f46a | src/scene1_sim.c:321 | equip the bag's items |
 | FUN_004802cf | src/scene_pause.c:589 | its update |
 | FUN_004855e2 | src/dungeon_party.c:500 | the accessory-break follow-up |
 | FUN_00485712 | src/dungeon_party.c:497 | the status-guard accessory 2504 (the |
 | FUN_00485c74 | src/dungeon_flow.c:184 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
-| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:969 | the furniture-grid mode (cc04 = 2, |
-| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:950 | the faced stand's item |
+| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1024 | the furniture-grid mode (cc04 = 2, |
+| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:1005 | the faced stand's item |
 | FUN_00489e66 | src/dungeon_party.c:689 | the dash (double-tap, db034 / db03c / |
 | FUN_0048a383 | src/record_hit.c:251 | the level-up of s_easydisp |
 | FUN_0048b850 | src/dungeon_party.c:1530 | the water splash after the move (hit |
@@ -181,7 +180,7 @@ _none_
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_0046602e | src/customer_service.c:231 | always -1 in the port — its only writer, |
+| FUN_0046602e | src/customer_service.c:232 | always -1 in the port — its only writer, |
 | NONE | src/scene.c:52 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
@@ -199,17 +198,16 @@ _none_
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-exit-reset | DAT_056db000 | src/scene1_player_ctrl.c:737 | the engine also zeroes |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:760 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:815 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00441c3e | src/actor_ai.c:147 | the view matrix is the render's; |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048196b | src/scene_pause.c:1782 | the dungeon's Use / Throw |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:1955 | the eye / lookat writes); the |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2019 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1457 | the results screen's assets |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:798 | the notice's side is Tear's |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:1006 | the side is Tear's screen x < 320 |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
-| structure | FUN_0048670f | src/scene1_sim.c:184 | one retail-shaped master tick. |
+| structure | FUN_0048670f | src/scene1_sim.c:185 | one retail-shaped master tick. |
 

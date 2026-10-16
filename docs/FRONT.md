@@ -171,8 +171,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - the camera pose FUN_00441c3e is still the semantic port (C floats, not the disasm);
          actor +0x450 (the view depth the kobold's FUN_0049065b reads) matched at f10736 once
          the hit-pause hold and the b7ac blend landed — re-check when a split points there;
-       - DAT_00648294 (the got-item window) is never cleared; DAT_0438b768 (the notice
-         duration) lags from the start of dungeon1-run2;
+       - DAT_00648294 (the got-item window) is never cleared; the notice side DAT_0438b760
+         (Tear's screen x < 320, FUN_00490c78) is render-coupled (dungeon1-run2 f31406);
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
        - the cinematic camera FUN_004426a7 writes the class-1 eye / lookat, but the semantic
          FUN_00441c3e has no class-1 arm (render only); DAT_0438bec4 has no port reader;
@@ -188,14 +188,19 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **The house's other FUN_0048a833 calls** (`PORT-DEBT(structure, FUN_0048a833)`):
-       FUN_0048670f's return beat (b928 2, all_ida 97278), the counter menu / cc08 50
-       (97079), LABEL_132's anim tick and the customer-service master tick (0x4624a1) still
-       run the legacy `scene1_companion_ctrl.c` with its frame-marker latches; retail calls
-       FUN_0048a833 (= `party_follow_tick`) and FUN_004897c6 (= `party_status_tick`) at
-       those sites. Move each site, verify with portstate on Tear (56da1f0 / f8, dab58,
-       dab54) + portrng over the shop scenarios, then retire the module. Known drift it may
-       explain: Tear x differs by 1 ulp from f10765 in multiday (re-check first).
+    2. ★ **The event arm's actors and the last legacy companion caller**
+       (`PORT-DEBT(structure, FUN_0048a833)`). FUN_0048a833 / FUN_004897c6 now run faithfully
+       (`party_follow_tick` / `party_status_tick`) in FUN_0048b850, the cc08 0 / 10 / 4 arms,
+       the day close, the return beat, the morning beat and the cc04 menu (PROGRESS
+       2026-10-16). Left: (a) FUN_0048407f's house branch — the event arm still runs the
+       legacy `scene1_companion_ctrl_tick` for Tear's follow (retail FUN_0048a4d1(0, 0)) and
+       the anim ticks only through the pose module (a faithful tail is drafted: all actors'
+       ticks + `party_event_follow`); Tear's height differs from multiday f5434 / debt
+       f13505 (3.0012 vs 3.0008), x / z by 1 ulp from day2 f8939 / multiday f10765;
+       (b) the scene1_sim fallback, which runs the legacy companion on default-arm frames
+       where retail goes straight to LABEL_675 (no FUN_0048a833). Then retire the module.
+       Measure with `portstate SCEN --va 56da1f0,56da1f4,56da1f8,56dab48,56dab4c` on
+       day2-save-commit / multiday / debt + `portanchors house-idle`.
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).

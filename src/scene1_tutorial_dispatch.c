@@ -8,7 +8,6 @@
 #include "audio.h"              /* the morning greetings (FUN_0049933c) */
 
 #include "scene1_intro_dialogue.h"   /* _busy / _start_single */
-#include "scene1_postload.h"         /* scene1_postload_day2_actor_replace */
 #include "save_work.h"               /* save_work_dwords_at / _active_slot  */
 #include "save_bank.h"               /* SAVE_BANK_FIELD_GAME_MODE           */
 #include "news_daily.h"              /* news_daily_update, g_news_ticker_timer */
@@ -79,11 +78,6 @@ static int g_iv2_beat_ctr    = 0;   /* DAT_0438b924       */
  * (FUN_0048670f 0x4880xx LABEL_448, FUN_0048a833 v39); the cascade gate is 0xbe. */
 #define BEAT_HOLD_FRAMES 200
 
-/* One-shot: armed when iv2_5 arms the beat, consumed on the FIRST free-roam
- * frame of the beat (the default-arm top, before the pose derives facing) to run
- * the DAY-2 actor re-place (retail's FUN_0048526d scene-entry re-seat the port's
- * dialogue-load iv2 model skips).  See scene1_postload_day2_actor_replace. */
-static int g_day2_replace_pending = 0;
 
 /* The opening-scene selector the dispatcher writes (DAT_005c7a2c = 1). */
 #define TUT_SCENE 1
@@ -332,13 +326,10 @@ void scene1_tutorial_dispatch_tick(void)
             scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 5);
             bb[TUT_IV2_5_DONE_OFF] = 1;      /* DAT_0450f411 = 1 */
             bb[TUT_IV2_6_TRIG_OFF] = 1;      /* DAT_0450f412 = 1 */
-            /* FUN_004852fb (PORT-DEBT(stub, FUN_004852fb)), then the morning
-             * beat: b928 = 1, b924 = 0 (the cascade holds for 190 ticks, the
-             * pose driver holds the actors). */
+            /* FUN_004852fb (the counter seat, Recette faces Tear, anim 6), then
+             * the morning beat: b928 = 1, b924 = 0 */
+            scene1_house_morning_reseat();
             scene1_tutorial_dispatch_arm_beat();
-            /* the DAY-2 actor re-place, consumed on the first free-roam frame
-             * of the beat (retail day2 @15470: player -0.30, companion 0.6). */
-            g_day2_replace_pending = 1;
         }
     } else if (bb[TUT_IV2_6_DONE_OFF] == 0 && bb[TUT_IV2_6_TRIG_OFF] == 1 && tut_idle()) {
         scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 6);
@@ -429,30 +420,15 @@ int scene1_tutorial_dispatch_iv2_beat_ctr(void)
     return g_iv2_beat_ctr;
 }
 
-void scene1_tutorial_dispatch_consume_day2_replace(void)
-{
-    /* Called from the INGAME default-running arm TOP (before the conversation
-     * pose derives facing, before render).  The default arm runs only on
-     * non-dialogue free-roam frames, so the pending flag armed during the iv2_5
-     * dialogue is consumed on the FIRST post-iv2_5 free-roam frame = the beat's
-     * first counting frame (retail day2 @15470).  One-shot. */
-    if (g_day2_replace_pending) {
-        g_day2_replace_pending = 0;
-        scene1_postload_day2_actor_replace();
-    }
-}
-
 void scene1_tutorial_dispatch_house_entry(void)
 {
     /* b928 survives a house load (the world-map return's 2 rides into it);
      * FUN_0049a59e clears it at a title load (scene_post_fade_init). */
     g_iv2_beat_ctr         = 0;
-    g_day2_replace_pending = 0;
 }
 
 void scene1_tutorial_dispatch_reset(void)
 {
     g_iv2_beat_active      = 0;
     g_iv2_beat_ctr         = 0;
-    g_day2_replace_pending = 0;
 }

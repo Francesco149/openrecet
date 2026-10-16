@@ -168,33 +168,6 @@ void scene1_postload_pose_house_standing(void)
     stage_load_pulse_reset();                /* the display-menu slide */
 }
 
-void scene1_postload_day2_actor_replace(void)
-{
-    /* The day-2 in-scene actor RE-PLACE (retail FUN_0048526d → FUN_00436f97 —
-     * the mini scene-entry re-place the HOUSE controller polls at the
-     * day-advance, `if (DAT_0438b4e0==1) FUN_0048526d()` all.c:86750).
-     *
-     * The port models the iv2_1..iv2_6 chain as start_single DIALOGUE-loads, not
-     * retail's scene-reload day-advance, so the scene-entry actor placement never
-     * runs: the actors keep their stale first-customer COUNTER positions (player
-     * px 0.796, companion cx -0.694 — mirror-SWAPPED vs retail) all the way into
-     * the day-2 broom.  Re-seat them at the house-standing pose here.
-     *
-     * POSITIONS ONLY, and only the two live actors — the values are the same
-     * door-placement standing seeds pose_house_standing uses (player -0.30/0/9.35,
-     * companion 0.6/3.0/9.35; ground truth = retail day2 beat @15470).  Everything
-     * else already matches retail across the beat: the record ANIM (player 6 /
-     * companion 4) is held by the conversation-pose beat, and the FACING is
-     * re-derived by scene1_conversation_pose_apply from the corrected positions
-     * (player oct6 / companion oct2, since tear_x 0.6 > player_x -0.30) — so a full
-     * pose_house_standing (which also resets the beat + pose + companion bob) is
-     * both unnecessary and wrong here (it would zero the very beat driving this).
-     * The companion then holds cx≈0.6 (free-roam law: dist 0.9 < CO_THRESHOLD 1.5);
-     * retail's cx 0.6→1.0 ease is FUN_0048a833's b928/b924 intro branch, a
-     * separate follow-up (finding cutscene-replay-anchor-drift §DAY2 #4). */
-    scene1_postload_place_actors(0);
-}
-
 /* FUN_00436f97 L706-724, the house seat: work dword +0x2cdf4 == 0 → the
  * counter spot facing +π/2; else (the world-map return) the front door, facing
  * down (octant 4, angle 0, shop tier +0x2cde0 set) or left (octant 2, −π/2). */
@@ -221,19 +194,21 @@ static void postload_seat(void)
 }
 
 /* The placed collision objects of the house arm, in retail's aliased layout:
- * phase-1 i → object i, phase-2 j → object 5+j (DAT_0438bfb8.., c008/c058/c0a8/c0f8). */
+ * phase-1 i → object i, phase-2 j → object 5+j (DAT_0438bfb8.., c008/c058/c0a8/c0f8).
+ * Retail writes all 5 phase-1 and all 10 phase-2 entries whatever the counts
+ * (the queries read only n1 / n2 of them). */
 void scene1_postload_mapcol_objs_from_walker(void)
 {
     g_mapcol_objs.n1 = g_scene1_walker_phase1_count;
     g_mapcol_objs.n2 = g_scene1_walker_phase2_count;
-    for (int i = 0; i < g_scene1_walker_phase1_count && i < 5; i++) {
+    for (int i = 1; i < 5; i++) {
         g_mapcol_objs.slot[i] = g_scene1_walker_phase1_mesh_index[i];
         g_mapcol_objs.rot[i]  = g_scene1_walker_phase1_rot_y[i];
         g_mapcol_objs.x[i]    = g_scene1_walker_phase1_pos_x[i];
         g_mapcol_objs.y[i]    = g_scene1_walker_phase1_pos_y[i];
         g_mapcol_objs.z[i]    = g_scene1_walker_phase1_pos_z[i];
     }
-    for (int j = 0; j < g_scene1_walker_phase2_count && 5 + j < MAPCOL_OBJS; j++) {
+    for (int j = 0; j < 10; j++) {
         g_mapcol_objs.slot[5 + j] = g_scene1_walker_phase2_mesh_type[j];
         g_mapcol_objs.rot[5 + j]  = g_scene1_walker_phase2_rot_y[j];
         g_mapcol_objs.x[5 + j]    = g_scene1_walker_phase2_pos_x[j];
@@ -439,6 +414,7 @@ void scene1_postload_stage_entry_init(void)
     speech_bubble_reset();
     g_title_banner = g_title_banner_len = g_title_banner_kind = 0;   /* FUN_004060ff's part */
     player_ctrl_cc08_enter_freeroam();
+    player_ctrl_tear_reach_reset();      /* DAT_0438be7c = 0, be80 = 1 */
     /* b8a0 = b8a4 = 0 (the per-dungeon event stage / counter; b8a0 was 1
      * through the init), DAT_0438ccb0 = DAT_0438b8fc = 0, FUN_0044bd03 */
     g_event_stage = 0;

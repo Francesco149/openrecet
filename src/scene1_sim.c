@@ -156,6 +156,7 @@ void scene1_ingame_transition_arm_tick(void)
     } else {
         if (!scene1_conversation_pose_story_tick())
             scene1_conversation_pose_tick();
+        scene1_conversation_pose_release_pending(0);
         scene1_event_actor_tail_tick();
     }
 
@@ -184,14 +185,6 @@ static void stage_event_tick(void);
  * PORT-DEBT(structure, FUN_0048670f): one retail-shaped master tick. */
 static void house_master_tick(void)
 {
-    /* DAY-2 actor re-place one-shot (retail FUN_0048526d scene-entry re-seat).
-     * FIRST, before the conversation-pose tick derives the face-each-other
-     * octants and before render — the default arm runs only on non-dialogue
-     * free-roam frames, so this fires on the first post-iv2_5 free-roam frame
-     * (the beat's first counting frame, retail day2 @15470).  Inert (pending
-     * flag 0) on every other frame. */
-    scene1_tutorial_dispatch_consume_day2_replace();
-
     /* cc04 (the display-stand menu sub-state) SAMPLED AT DISPATCH: the engine's
      * db054 increment sits at the FUN_0048b850 tail, reached only when the
      * frame's cc08/cc04 dispatch took a non-menu path.  On the menu-CLOSE frame
@@ -251,6 +244,7 @@ static void house_master_tick(void)
      * selects FUN_0048670f (the live HOUSE branch) over the FUN_0048b3f6
      * variant.  Both gates open in HOUSE; W1 wires the entry (stub body). */
     scene1_player_ctrl_tick();
+    scene1_conversation_pose_release_pending(player_ctrl_b850_ran());
 
     /* Companion controller (FUN_0048a833).  The engine nests it INSIDE the player
      * driver's FUN_0048b850, right before the foot-dust emit, so the fairy's
