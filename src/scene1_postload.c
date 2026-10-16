@@ -1,21 +1,10 @@
 /*
- * scene1_postload.c — see scene1_postload.h for the Cf.1 MVP scope.
+ * scene1_postload.c — see scene1_postload.h.
  *
- * Ports the tail of engine FUN_00436f97 (the scene-1 INGAME state-
- * entry init).  Only block-11 i=0 + block-23 are in scope; the other
- * 23 logical blocks are deferred (see docs/findings/scene1-postload-
- * init.md).
- *
- * PORT-DEBT(simplified, FUN_00436f97): of the 710-line state-entry init this
- * file ports block-11 i=0, block-23, and the block-21 stage-placement writer
- * (scene1_postload_walker_phase2_init — which now also feeds collision_house's
- * DAT_0438c058 object origins, retiring its hardcoded k_house_objects[]).
- * scene1_preload_house also runs, in retail order, the floor-layout generator
- * FUN_0047df4d (floor_layout.c, + the 0x438b484 clear), the actor reset
- * FUN_0041f252 (actor_spawn.c) and the bg-NPC stage reset FUN_0046f1e9 — every
- * rand() draw FUN_00436f97 makes in the house.  The remaining ~20 logical
- * blocks (the global-zeroing preamble, the cc08/event machine seed, the
- * alt-stage menu arm) are deferred. Retire = plan Step 3.4.
+ * FUN_00436f97, the stage-entry init (scene1_postload_stage_entry_init): every
+ * house entry (the INGAME loader, after FUN_00474a9a's assets), every floor, the
+ * world-map return and the day-close re-layout run this one port.  Its callee
+ * stubs carry their own PORT-DEBT tags.
  *
  * Asm reference for block-23 (verified via objdump -d at 0x438199):
  *
@@ -82,6 +71,7 @@
 #include "scene1_records.h"        /* scene1_records_reset (FUN_0040f64b) */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
+#include "stage_load_pulse.h"      /* stage_load_pulse_reset */
 #include "scene1_shop_display.h"   /* shop_display_highlight_clear (DAT_0438cbfc) */
 #include "scene1_shop_walker.h"    /* scene1_customer_npc_reset (FUN_0046f892) */
 #include "scene1_spawn.h"
@@ -170,33 +160,12 @@ static void postload_seat(void);
 
 void scene1_postload_pose_house_standing(void)
 {
-    /* The HOUSE standing pose: FUN_00436f97's alt-stage arm seats the actors via
-     * FUN_004851e2 (overriding the floor-layout spawn origin pose_player copied);
-     * the actor state (char id, scale, sprite record) is seeded in
-     * scene1_player_ctrl.  The counter spot here; the door seat (work +0x2cdf4,
-     * the world-map return) is applied below, after the record seed. */
-    scene1_postload_place_actors(0);
-
-    /* FUN_00436f97 calls FUN_004060ff (top-HUD tooltip band/counter = -1) right
-     * before FUN_004850ec (cc08 = 1, inside pose_house_standing). */
-    scene1_top_hud_tooltip_house_entry();
-    player_ctrl_pose_house_standing(stage_post_load_get_dat_056da1cc());
-
-    /* Reset the companion hover-bob phase (engine DAT_056db054) on scene entry,
-     * alongside the actor-2 seed inside pose_house_standing. */
-    scene1_companion_ctrl_reset();
-
-    /* Drop any held iv1_2 conversation pose latch on scene entry. */
-    scene1_conversation_pose_reset();
-
-    /* Clear the beat timer b924 on scene entry (b928 rides through). */
-    scene1_tutorial_dispatch_house_entry();
-
-    /* the world-map return seats the pair at the front door (rhost
-     * multiday-tutorials-suggest f20576: Tear x 2.9, not the counter's 0.6). */
-    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
-    if (w != NULL && w[0x2cdf4 / 4] != 0)
-        postload_seat();
+    /* A house entry's port-only state.  The loader's FUN_00436f97
+     * (scene1_postload_stage_entry_init) owns the party, the seat, the
+     * tooltip and cc08. */
+    scene1_conversation_pose_reset();        /* the held iv1_2 pose latch */
+    scene1_tutorial_dispatch_house_entry();  /* b924 + the day-2 re-place latch */
+    stage_load_pulse_reset();                /* the display-menu slide */
 }
 
 void scene1_postload_day2_actor_replace(void)

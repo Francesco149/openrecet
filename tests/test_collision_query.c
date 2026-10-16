@@ -83,7 +83,7 @@ int test_query_floor_miss_outside(void)
 {
     collision_object o; collision_tri t;
     make_floor(&o, &t);
-    collision_hit h;
+    collision_hit h = {0};   /* the miss path leaves *out untouched */
     T_ASSERT_EQ_I(collision_query_ground_object(&o, 5.0f, 1.0f, 2.0f, &h), 0);
     T_ASSERT_EQ_I(h.hit, 0);
     return 0;

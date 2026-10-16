@@ -57,6 +57,12 @@ int shop_display_furniture_index(int col, int row);
  * (cbf4/cbf8 = col*2-9 / row*2-7) and the occupancy indicator (bf68). */
 void shop_display_highlight_update(float px, float pz, float pang);
 
+/* FUN_0048619f: the above for the player (DAT_056da1d8 / e0, facing DAT_056db05c) */
+void shop_display_faced_cell(void);
+
+/* FUN_0048670f's arm without display fixtures: cbfc = -1 (cc00 kept) */
+void shop_display_faced_none(void);
+
 /* Force the highlight to "none" (engine all.c:87751: when the shop has no
  * display fixtures DAT_0450f3f2==0, the walk tail sets cbfc=-1 directly without
  * calling the detector). */

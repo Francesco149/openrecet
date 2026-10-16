@@ -299,25 +299,11 @@ int test_scene1_ingame_default_arm_consumes_debug_overlay_rng(void)
     unsigned long deflt_idle = rng_call_count() - c0;
     T_ASSERT_EQ_U(deflt_idle, trans + 1u);   /* overlay step fires even when idle */
 
-    /* (b) the step itself, in isolation: exactly ONE LCG step, idle... */
+    /* (b) the step itself, in isolation: exactly ONE LCG step. */
     reset_world();
-    T_ASSERT_EQ_I(player_ctrl_is_moving(), 0);
     c0 = rng_call_count();
     scene1_debug_overlay_consume_rng();
-    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);   /* idle → still 1 step */
-
-    /* ...AND when moving (unconditional — movement is irrelevant). */
-    title_save_dialog_reset();           /* clear the FUN_0048670f save-gate so the tick runs */
-    player_ctrl_pose_house_standing(0);
-    g_input_state[0].buttons = 0x0008u;
-    scene1_player_ctrl_tick();           /* sets s_player_moving from the d-pad */
-    T_ASSERT_EQ_I(player_ctrl_is_moving(), 1);
-    c0 = rng_call_count();
-    scene1_debug_overlay_consume_rng();
-    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);   /* moving → 1 step */
-
-    g_input_state[0].buttons = 0;
-    scene1_player_ctrl_tick();
+    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);
     return 0;
 }
 

@@ -1,20 +1,21 @@
 /*
- * dungeon_party.h — the party on a dungeon floor (*DAT_068dd2f0 >= 1): the
- * player controller FUN_0048b850 and the followers, on the party block
- * (party.h).
+ * dungeon_party.h — the party: the player controller FUN_0048b850 and the
+ * followers, on the party block (party.h), in the house and on a floor.
  *
- *   FUN_0048b850  dungeon_party_tick        the player controller (dungeon path)
- *   FUN_0048a833  dungeon_party_follow_tick the partner (actor 1) follows the
- *                                           player, Tear (actor 2) the partner
+ *   FUN_0048b850  party_tick                the player controller
+ *   FUN_0048a833  party_follow_tick         the partner (actor 1) follows the
+ *                                           player; Tear (actor 2) follows the
+ *                                           partner, stands beside the player
+ *                                           or wanders the shop
  *   FUN_0048a4d1  party_follow              Tear's spring-follow of an actor
  *   FUN_0048407f  dungeon_event_actor_tick  the actors during an event (dialogue)
  *   FUN_004897c6  party_status_tick         the status timers + the 3 anim ticks
  *   FUN_00483e7b  party_aura_tick           the stage's ambient particles
  *   FUN_00482a51  party_anim_set            an 11-dword record's anim
  *
- * The house runs its own reconstruction of FUN_0048b850 / FUN_0048a833
- * (scene1_player_ctrl.c, scene1_companion_ctrl.c) —
- * PORT-DEBT(structure, FUN_0048b850): one port for both.
+ * The house's other FUN_0048a833 call sites (FUN_0048670f outside
+ * FUN_0048b850, the customer-service master tick) still run the legacy
+ * scene1_companion_ctrl.c — PORT-DEBT(structure, FUN_0048a833).
  */
 #ifndef OPENRECET_DUNGEON_PARTY_H
 #define OPENRECET_DUNGEON_PARTY_H
@@ -30,8 +31,8 @@ float angle_ease(float a, float b, float step);    /* FUN_00482ae7 */
 void party_follow(int target, int set_anim);       /* FUN_0048a4d1 */
 void party_status_tick(void);                      /* FUN_004897c6(&DAT_056da1b8) */
 void party_aura_tick(void);                        /* FUN_00483e7b */
-void dungeon_party_follow_tick(void);              /* FUN_0048a833 */
-void dungeon_party_tick(void);                     /* FUN_0048b850 */
+void party_follow_tick(void);                      /* FUN_0048a833 */
+void party_tick(void);                             /* FUN_0048b850 */
 void dungeon_event_actor_tick(void);               /* FUN_0048407f */
 
 /* FUN_00436f97's party resets (the actor loop + the block's scalars) and the
@@ -43,6 +44,10 @@ void party_stage_reset(void);
 int party_accessory_proc(int32_t id, uint32_t brk, int32_t stop);
 extern int32_t g_notice_item, g_notice_kind, g_notice_side, g_notice_on, g_notice_ticks, g_notice_b76c;
 extern int32_t g_broke_on, g_broke_item;
+
+/* DAT_0438be6c / be70 / be74 / be78: Tear's house wander (state, ticks, target) */
+extern int32_t g_tear_wander, g_tear_wander_t;
+extern float   g_tear_wander_x, g_tear_wander_z;
 
 int  party_bag_full(void);                                     /* FUN_00484e45 */
 int  party_bag_add(int32_t item, int32_t cap);                 /* FUN_00484da3 */

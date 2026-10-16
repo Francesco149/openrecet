@@ -11,6 +11,7 @@
  */
 
 #include "scene1_companion_ctrl.h"
+#include "dungeon_party.h"     /* g_tear_wander (DAT_0438be6c..) */
 
 #include "party.h"
 
@@ -115,10 +116,10 @@ void scene1_companion_ctrl_reset(void)
  * for 90 ticks, and repeats.  Y lerps 0.1 toward sin(db054·0.04)·0.2 + 3.0 (no
  * ground term).  DAT_0438be6c / be70 / be74 / be78, zeroed by FUN_00436f97. */
 static void co_set_anim(int32_t *rec, int anim_id);
-static int32_t s_wander_state;   /* DAT_0438be6c */
-static int32_t s_wander_t;       /* DAT_0438be70 */
-static float   s_wander_tx;      /* DAT_0438be74 */
-static float   s_wander_tz;      /* DAT_0438be78 */
+#define s_wander_state g_tear_wander     /* DAT_0438be6c (dungeon_party.c) */
+#define s_wander_t     g_tear_wander_t   /* DAT_0438be70 */
+#define s_wander_tx    g_tear_wander_x   /* DAT_0438be74 */
+#define s_wander_tz    g_tear_wander_z   /* DAT_0438be78 */
 
 void scene1_companion_ctrl_stage_reset(void)
 {

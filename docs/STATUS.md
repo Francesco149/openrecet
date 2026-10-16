@@ -36,7 +36,7 @@ re-verification.
 9 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 111 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 109 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -87,7 +87,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     2. ✅ cs d3e load under DEFER (b1cc release order) and ✅ the tutorial .ivt bracket
        (D_TUT_LOAD now ends at the frame boundary, `99d64922`):
        `portanchors house-customer-tutorial` **64/64** frame-identical.
-    3. Port boots `cc08`=1; retail has 0 until the house init.
+    3. Port boots `cc08`=1 (and cbfc / cc00 = −1); retail has 0 until the house init.
     4. RNG: legacy traces' Frida-era `{rngseed}` pins (applied to both sides) hide long
        divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
        Re-record or strip the pins, then chase per frame (`--log-rand` retail;
@@ -206,13 +206,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        - the camera pose FUN_00441c3e is still the semantic port (C floats, not the disasm);
          actor +0x450 (the view depth the kobold's FUN_0049065b reads) matched at f10736 once
          the hit-pause hold and the b7ac blend landed — re-check when a split points there;
-       - the house loader (`scene1_preload.c`) runs its own partial copy of FUN_00436f97
-         instead of `scene1_postload_stage_entry_init`: no FUN_00435fbb(0, -1) step on a
-         home load (drop rows bef4 / bf24 one step behind), the map objects bfb0.. differ;
-         unify it (`PORT-DEBT(simplified, FUN_00436f97)`);
-       - the house walker's history ring (party +0x224) is one entry off (legacy walker,
-         item 2); DAT_00648294 (the got-item window) is never cleared; DAT_0438b768 (the
-         notice duration) lags from the start of dungeon1-run2;
+       - DAT_00648294 (the got-item window) is never cleared; DAT_0438b768 (the notice
+         duration) lags from the start of dungeon1-run2;
        - the Continue init FUN_00435c98 lands at f345 (retail f329);
        - the cinematic camera FUN_004426a7 writes the class-1 eye / lookat, but the semantic
          FUN_00441c3e has no class-1 arm (render only); DAT_0438bec4 has no port reader;
@@ -228,21 +223,23 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **debt-gameover-restart f7383** (re-diagnosed 2026-10-15; not the day-8 scene —
-       retail never sets work +0x2bcd8 in this run): retail opens the display-stand menu
-       (cc04 0 → 1, the faced cell cbfc/cc00 = 3/4 from f7359), the port faces no cell (-1).
-       Root: the legacy house walker (`scene1_player_ctrl.c`, semantic). Its facing is the exact
-       ±π/2 (0x3fc90fdb) where retail's is atan2-derived (0x3fc90fda) from f2700; the
-       position drifts by ulps from f6805. Port the house FUN_0048b850 / FUN_0048cdcc /
-       FUN_00483170 path on the party block (the dungeon's `dungeon_party.c` /
-       `party_move.c` already do it) and FUN_0048619f (the faced-cell detector) from the
-       disasm, and retire `PORT-DEBT(semantic-collision)`.
-       The day-8 visitor itself (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
+    2. ★ **debt-gameover-restart f24682** (the house walk is retail-exact to here, PROGRESS
+       2026-10-16): on Z after a failed payment retail sets the exit and runs the payment
+       script FUN_0044ba2c(0, 5, 0) — mode 9 holds while it plays (FUN_004536cb's mode-9 arm
+       ticks the dialogue FUN_0046c320 when b1c8 != 0, then FUN_00473c0c / FUN_0044baad);
+       the port stubs the script and the mode-9 dialogue tick, so it leaves at once. Then
+       the game over: b1c0 = 2 + FUN_0049d2e5 → mode 2 FUN_0049d8a4 (the scripts (0, 1|3, 0)
+       / (0, 2, 0), FUN_0049d55c — the restart reset of the work record, FUN_004808fb,
+       FUN_004905a8 the save) and the restart load (FUN_0047357c, b1c0 = 0 / 1). Port these
+       from the disasm.
+       Port-only state left on this run: the boot statics cbfc / cc00 = −1 and cc08 = 1
+       (retail 0 until the house init).
+       The day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
     3. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
-       payment screen (FUN_0048e49c + FUN_0044ba2c scripts), the week-end story /
-       game-over scenes (FUN_0049d2e5 / FUN_0049da9e), the b924 50/110/150 morning
+       payment screen's render (FUN_0048e49c), the ending (FUN_0049da9e, mode 7
+       FUN_0049db8a), the b924 50/110/150 morning
        voices (74b2ee8), b928 = 0 at a dungeon entry (FUN_0045c051). The night arm of
        the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
     4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
@@ -257,7 +254,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        latches nowloading at the tick head, before the scene arms the .ivt load (render
        only; the anchors fold the same state, so re-check portanchors when moving it).
     8. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
-       56da1f0) — not RNG-visible yet; x87 sweep candidate (FUN_0048a833/a4d1).
+       56da1f0) — not RNG-visible yet. FUN_0048a833 inside FUN_0048b850 is now the
+       x87-faithful `party_follow_tick`, but FUN_0048670f's other FUN_0048a833 calls (the
+       return beat, the counter menu, the customer-service master tick) still run the legacy
+       `scene1_companion_ctrl.c` (`PORT-DEBT(structure, FUN_0048a833)`): move them.
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line

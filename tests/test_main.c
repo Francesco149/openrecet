@@ -3543,62 +3543,8 @@ struct test_case {
     X(chr_prepass_sort_negative_keys) \
     X(chr_prepass_sort_stable_equal_keys) \
     X(chr_prepass_sort_trivial_sizes) \
-    X(player_facing_snap_horizontal_sets_sticky) \
-    X(player_facing_snap_vertical_clears_sticky) \
-    X(player_facing_snap_diagonals_sticky0) \
-    X(player_facing_snap_diagonals_sticky1) \
-    X(player_facing_snap_masks_input) \
-    X(player_cam_z_decay_step) \
-    X(player_cam_z_decay_floor) \
-    X(player_cam_shake_below_target_noop) \
-    X(player_cam_shake_above_target_scaled) \
-    X(player_cam_shake_zero_mag_no_div) \
-    X(player_pulse_down_counter) \
-    X(player_pulse_phase_idle_when_zero) \
-    X(player_pulse_level_ramps_up_then_holds) \
-    X(player_pulse_level_ramps_down_second_half) \
-    X(player_pulse_phase_wraps_at_60) \
-    X(player_trail_orbit_zero_angle) \
-    X(player_trail_orbit_radius_and_angle) \
-    X(player_trail_orbit_doubles_table) \
-    X(player_history_shift_writes_newest_to_slot0) \
-    X(player_history_shift_moves_old_samples_down) \
-    X(player_history_shift_record_lockstep) \
-    X(player_history_shift_oldest_falls_off) \
-    X(player_shake_damp_mode_nonzero) \
-    X(player_shake_damp_not_grounded) \
-    X(player_shake_damp_flag_set_not_held) \
-    X(player_shake_damp_idle_settle_0998) \
-    X(player_shake_damp_state_block) \
-    X(player_shake_damp_held_reaches_state_block) \
-    X(player_shake_target_base_passthrough) \
-    X(player_shake_target_held_adds) \
-    X(player_shake_target_boost_multiplies_after_adds) \
-    X(player_shake_target_b8b0_and_rumble) \
-    X(player_shake_target_state_overrides) \
-    X(player_shake_target_proximity_ease) \
-    X(player_trail_advance_skips_dead_records) \
-    X(player_trail_advance_copies_sprite_and_geometry) \
-    X(player_trail_advance_spawns_at_600) \
-    X(player_trail_advance_decay_alloc_order) \
-    X(player_burst_noop_when_counter_not_positive) \
-    X(player_burst_samples_every_other_slot_from_3) \
-    X(player_burst_final_frame_clears_life) \
-    X(player_gauge_rate_sums_then_scales) \
-    X(player_gauge_rises_and_clamps_with_dir1) \
-    X(player_gauge_falls_with_dir0) \
-    X(player_gauge_settled_resets_counter_keeps_dir) \
-    X(player_gauge_sp_channel_has_no_counter) \
-    X(player_ctrl_idle_animates_and_holds_position) \
-    X(player_ctrl_dpad_angle_cardinals) \
-    X(player_ctrl_dpad_angle_none_and_diagonal) \
-    X(player_ctrl_dpad_intent_opposing_pair_holds) \
-    X(player_ctrl_walk_anim_starts_at_counter_zero) \
     X(player_ctrl_facing_octant_cardinals) \
     X(player_ctrl_house_room_clamp) \
-    X(player_ctrl_walk_left_matches_retail) \
-    X(player_ctrl_walk_release_decays_and_idles) \
-    X(player_ctrl_dispatch_gates_on_cc08) \
     X(player_pose_seeds_actor0) \
     X(player_pose_seeds_companion_actor2) \
     X(companion_inside_radius_idle) \
@@ -3620,7 +3566,6 @@ struct test_case {
     X(player_pose_passes_char_id) \
     X(player_actor_accessors_out_of_range) \
     X(player_render_bank_accessor_contract) \
-    X(player_render_banks_stay_dormant_while_walking) \
     X(player_door_predicate_position_facing) \
     X(player_door_predicate_rejects_already_exited) \
     X(player_door_predicate_rejects_wrong_facing) \

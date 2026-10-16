@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 111,
+  "port_debt": 109,
   "verified": 81,
   "stubbed": 10,
   "ported": 657,
@@ -2329,7 +2329,6 @@
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
     "src/scene1_postload.c",
-    "src/scene1_preload.c",
     "src/scene_guild.c"
    ],
    "status": "ported"
@@ -2355,7 +2354,6 @@
     "src/scene1_per_frame_open.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
-    "src/scene1_preload.c",
     "src/scene1_records.c",
     "src/scene1_records.h",
     "src/scene_day_end.c",
@@ -2656,7 +2654,6 @@
     "src/dungeon_party.c",
     "src/record_hit.c",
     "src/scene1_per_frame_open.h",
-    "src/scene1_player_ctrl.h",
     "src/scene1_records_b_tick.c"
    ],
    "status": "ported"
@@ -2875,7 +2872,6 @@
    "src": [
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
-    "src/scene1_preload.c",
     "src/scene1_records.c",
     "src/scene1_records.h"
    ],
@@ -3242,8 +3238,7 @@
     "src/actor_spawn.h",
     "src/scene1_particles_tick.h",
     "src/scene1_postload.c",
-    "src/scene1_postload.h",
-    "src/scene1_preload.c"
+    "src/scene1_postload.h"
    ],
    "status": "verified"
   },
@@ -6107,8 +6102,7 @@
     "src/record_hit.c",
     "src/scene1_combat_sm.h",
     "src/scene1_hud.c",
-    "src/scene1_hud.h",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_hud.h"
    ],
    "status": "ported"
   },
@@ -6736,7 +6730,6 @@
     "src/party.h",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
     "src/scene1_records.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
@@ -12811,8 +12804,7 @@
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_postload.c",
-    "src/scene1_postload.h",
-    "src/scene1_preload.c"
+    "src/scene1_postload.h"
    ],
    "status": "verified"
   },
@@ -14967,6 +14959,7 @@
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_dungeon_clear_banner.c",
+    "src/scene1_postload.c",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene1_shop_walker.c",
@@ -16825,8 +16818,7 @@
     "src/party_move.h",
     "src/scene1_chr_shadow.c",
     "src/scene1_chr_shadow.h",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
   },
@@ -17321,7 +17313,6 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
-    "src/scene1_preload.c",
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h"
@@ -17439,8 +17430,7 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c",
-    "src/scene1_player_ctrl.h"
+    "src/dungeon_party.c"
    ],
    "status": "ported"
   },
@@ -17647,6 +17637,7 @@
    "quality_flags": [],
    "src": [
     "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_shop_display.h"
    ],
    "status": "ported"
@@ -17750,6 +17741,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.h",
+    "src/dungeon_party.h",
     "src/party_roster.h",
     "src/scene1_actor_say.h",
     "src/scene1_bg_npc.h",
@@ -17943,8 +17935,7 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c",
-    "src/scene1_player_ctrl.c"
+    "src/dungeon_party.c"
    ],
    "status": "ported"
   },
@@ -18060,6 +18051,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/collision_query.c",
     "src/customer_service.c",
     "src/customer_service.h",
     "src/dungeon_party.c",
@@ -18119,8 +18111,6 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_party.c",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
     "src/scene_pause.c"
    ],
    "status": "ported"
@@ -21656,7 +21646,6 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_day_close.c",
     "src/scene1_postload.h",
-    "src/scene1_preload.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
     "src/scene_worldmap.c",
@@ -46552,7 +46541,6 @@
    "src": [
     "src/customer_service.c",
     "src/scene1_particles_tick.c",
-    "src/scene1_player_ctrl.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h"
    ],
@@ -47196,8 +47184,6 @@
     "src/scene1_dialogue_run.c",
     "src/scene1_maplight.c",
     "src/scene1_particles_tick.c",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_spawn.c"
    ],
@@ -47264,8 +47250,6 @@
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_particles_tick.c",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
     "src/scene1_records_c_spawn.c",
     "src/scene1_spawn.c",
     "src/scene1_wide_followup_helpers.c",

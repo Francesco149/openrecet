@@ -290,72 +290,6 @@ int scene1_preload_house(void)
     if (mapcol_maptype() != 0)
         return scene1_preload_dungeon();
 
-    /* C8g.1 — engine FUN_0040f64b's 3-table preamble.  Sentinel-resets
-     * the per-record tables read by the scene-1 mesh walkers.  Called
-     * once at scene-1 entry so the counter-scan in scene1_render_meshes
-     * sees a clean sentinel state.  reset_c=1 matches the common engine
-     * call pattern (full reset on scene entry).  The full FUN_0040f64b
-     * also touches DAT_044e28fc / DAT_0695e07c / DAT_0064e818 and calls
-     * FUN_00414902 — deferred until their consumers port. */
-    scene1_records_reset(1);
-
-    /* FUN_00436f97 — the stage-entry init.  Retail runs it in this same
-     * INGAME loader (case 1: FUN_00474a9a + FUN_00436f97) on EVERY house
-     * entry, Continue included: rhost --log-rand attributes its draws to the
-     * loader thread (StartAddress 0x45293d).  Also reached from FUN_0048526d
-     * (day-advance re-place) and FUN_0049e163, both unported.  Ported here, in
-     * retail order: the floor layout, the player pose, the actor reset, the
-     * bg-NPC reset, and the 200-iter ambient spawn loop (L690-700; its gate
-     * stage_palette+0x1b28 is 0 for HOUSE).  See docs/findings/scene1-
-     * postload-init.md for the 25-block survey. */
-    scene1_preload_floor_layout();
-    scene1_postload_pose_player();
-    /* FUN_0041f252 (block 17, after FUN_0040d132 / FUN_0040f64b): actor-table
-     * reset + the 8-draw spawn-order shuffle. */
-    actor_spawn_reset();
-    scene1_companion_ctrl_stage_reset();   /* block 7: DAT_0438be6c/70/74/78 = 0 */
-    /* FUN_0046f1e9 (block 19): bg-window NPC stage reset — slot 0 static,
-     * warmup cursor 1. */
-    {
-        const uint8_t *rec = save_work_bank_at(save_work_active_slot());
-        scene1_bg_npc_stage_reset(rec ? rec[0x2bcfd] != 0 : 0);
-    }
-    scene1_postload_ambient_spawn();
-
-    /* Cf — phase-2 walker-array writer (engine FUN_00436f97 alt-stage
-     * arm, decomp L34770+).  FUN_00436f97 block 21 runs on new-game HOUSE
-     * entry (proven 2026-05-29 via the E.1 call tracer — called once at
-     * engine frame 3200, before the first scene1_render_meshes).
-     *
-     * De-MVP: source the writer's inputs from real engine state instead of
-     * the old --force-walker-phase2 0 injection.  load_house_phase2_inputs
-     * sets scene_type (0 = HOUSE), ivar8 (engine const 3), stage_positions
-     * (the save-record furniture array, seeded from the template exactly as
-     * the engine's FUN_0048ffd9 does) and the camera char_mode (record
-     * +0x2ce0c = 0).  Runs unconditionally now; HOUSE furniture renders with
-     * no flag.  (The camera target bias is no longer injected here — the pose
-     * helper reads the LIVE player position g_scene1_player_pos, seeded by
-     * scene1_postload_pose_house_standing, so the camera follows the player.) */
-    scene1_postload_load_house_phase2_inputs();
-    scene1_postload_walker_phase2_init();
-    scene1_postload_mapcol_objs_from_walker();
-
-    /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or
-     * `_spawn_world_drop_default` once per HOUSE entry when their CLI
-     * overrides are set (default: -1 / -1 → no-op).  Records then tick
-     * every INGAME frame via the C8j.3 default-arm wiring.  Pass C/D
-     * walker bodies are stubs today — this validates the populator +
-     * tick path in production. */
-    scene1_postload_smoke_c_spawn();
-
-    /* C8j.fin.b — table B smoke wiring.  Fires `scene1_record_b_spawn_npc`
-     * and/or `_entity` once per HOUSE entry with a fake-owner blob seeded
-     * with the current spawn pose + identity matrix.  Defaults (-1 / -1)
-     * → no-op.  Records sit dormant (FUN_0043ae20 table B tick still
-     * stubbed in scene1_sim) — but the allocator + preamble + per-type
-     * dispatch is exercised end-to-end. */
-    scene1_postload_smoke_b_spawn();
-
     stage_init_house();
 
     /* Engine FUN_0047281e — 24-byte texture cache clear. Drops all
@@ -464,6 +398,30 @@ int scene1_preload_house(void)
             "scene1_preload: HOUSE branch fired — loads=%d "
             "(leve_win + mood_para + walls/floor/jutan/table selectors)\n",
             loads);
+
+    /* FUN_00436f97 — the stage-entry init, after FUN_00474a9a in the same
+     * INGAME loader (StartAddress case 1), on every house entry: the full port
+     * (the party, the stage objects, the floor-flow scalars, the floor layout,
+     * the actor reset, the house arm's furniture + seat).  Its walker arm reads
+     * the furniture inputs (FUN_0048ffd9's seed). */
+    scene1_postload_load_house_phase2_inputs();
+    scene1_postload_stage_entry_init();
+
+    /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or
+     * `_spawn_world_drop_default` once per HOUSE entry when their CLI
+     * overrides are set (default: -1 / -1 → no-op).  Records then tick
+     * every INGAME frame via the C8j.3 default-arm wiring.  Pass C/D
+     * walker bodies are stubs today — this validates the populator +
+     * tick path in production. */
+    scene1_postload_smoke_c_spawn();
+
+    /* C8j.fin.b — table B smoke wiring.  Fires `scene1_record_b_spawn_npc`
+     * and/or `_entity` once per HOUSE entry with a fake-owner blob seeded
+     * with the current spawn pose + identity matrix.  Defaults (-1 / -1)
+     * → no-op.  Records sit dormant (FUN_0043ae20 table B tick still
+     * stubbed in scene1_sim) — but the allocator + preamble + per-type
+     * dispatch is exercised end-to-end. */
+    scene1_postload_smoke_b_spawn();
 
     /* C8e.smoke — post-house hook fires AFTER mesh_tex_cache_reset() and
      * the foreground asset loads so any consumer (e.g. --force-pass-d-mesh

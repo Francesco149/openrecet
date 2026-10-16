@@ -130,6 +130,7 @@ static int32_t get_psel(void) { return prec(5); }
 static int32_t get_pfac(void) { return prec(6); }
 static int32_t get_px(void)   { return fbits(g_scene1_actor_pos[0][0]); }
 static int32_t get_pz(void)   { return fbits(g_scene1_actor_pos[0][2]); }
+static int32_t get_camyaw(void) { return fbits(g_scene1_camera_yaw); }
 
 static int32_t get_cbfc(void)  { return shop_display_cbfc(); }
 static int32_t get_cc00(void)  { return shop_display_cc00(); }
@@ -258,6 +259,7 @@ static const state_va_t k_map[] = {
     { 0x56dab00u, "player facing (DAT_056dab00)",      get_pfac },
     { 0x56da1d8u, "player x bits (DAT_056da1d8)",      get_px },
     { 0x56da1e0u, "player z bits (DAT_056da1e0)",      get_pz },
+    { 0x73de39cu, "camera yaw bits (DAT_073de39c)",    get_camyaw },
     { 0x438cbfcu, "faced display cell col (DAT_0438cbfc)", get_cbfc },
     { 0x438cc00u, "faced display cell row (DAT_0438cc00)", get_cc00 },
     { 0x469a9fu,  "display menu selection (FUN_00469a9f) — rhost: none", get_dsel },

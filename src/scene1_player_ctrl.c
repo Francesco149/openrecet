@@ -16,7 +16,7 @@
 #include "scene1_records.h"        /* g_scene1_records_a — foot-dust slot-state probe */
 #include "input.h"               /* g_input_state[].buttons (held d-pad mask) */
 #include "collision_house.h"     /* collision_house_get — live room mesh */
-#include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
+#include "collision_resolve.h"   /* collision_set_player_ground_y (the cc08 == 4 ground) */
 #include "stage_palette.h"       /* g_stage_palette->mode (*DAT_068dd2f0) */
 #include "title_save_dialog.h"   /* title_save_dialog_gate_tick (FUN_00434d6a guard) */
 #include "scene1_spawn.h"        /* scene1_spawn (FUN_00447f4f) — foot-dust emit */
@@ -49,298 +49,10 @@
 #include "scene1_actor_say.h"   /* actor_say_tick (FUN_00485861, the LAB_004893ff tail) */
 #include "scene1_day_close.h"   /* the night sequence (DAT_0438b4e0) + period advance */
 
-/* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
- *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
-#define PC_CAM_Z_DECAY   0.03f
-#define PC_CAM_Z_FLOOR   (-2.0f)
-
 /* Weak default for the diagnostic grid-dump capture dir: main.c provides the
  * strong definition (g_capture_dir) in the real Windows build; the host-test
  * harness (no main.o) falls back to this NULL → the dump stays inert. */
 __attribute__((weak)) const char *openrecet_capture_dir(void) { return 0; }
-
-int player_ctrl_facing_snap(int octant, int *sticky)
-{
-    octant &= 7;
-
-    /* Pure-horizontal octants set the sticky bias; pure-vertical clear it.
-     * The diagonals (1/3/5/7) leave it as-is — that persistence is the
-     * whole point of DAT_056dae3c. */
-    if (octant == 2 || octant == 6)
-        *sticky = 1;
-    if (octant == 0 || octant == 4)
-        *sticky = 0;
-
-    if (*sticky == 0) {              /* engine: DAT_056dae3c == 0 branch */
-        if (octant == 1) octant = 0;
-        if (octant == 7) octant = 0;
-        if (octant == 3) octant = 4;
-        if (octant == 5) octant = 4;
-    } else {                         /* engine: else branch */
-        if (octant == 1) octant = 2;
-        if (octant == 7) octant = 6;
-        if (octant == 3) octant = 2;
-        if (octant == 5) octant = 6;
-    }
-    return octant;                   /* 2 and 6 fall through unchanged */
-}
-
-float player_ctrl_camera_z_decay(float z)
-{
-    z -= PC_CAM_Z_DECAY;
-    if (z < PC_CAM_Z_FLOOR)
-        z = PC_CAM_Z_FLOOR;
-    return z;
-}
-
-void player_ctrl_camera_shake_clamp(float *shake_x, float *shake_y,
-                                    float target)
-{
-    /* engine: local_10 = sqrt(daac4*daac4 + daabc*daabc) via FUN_005031e4 */
-    float mag = sqrtf((*shake_x) * (*shake_x) + (*shake_y) * (*shake_y));
-    if (target <= mag) {             /* engine: if (local_8 <= local_c) */
-        *shake_x = (*shake_x * target) / mag;  /* multiply-then-divide */
-        *shake_y = (*shake_y * target) / mag;
-    }
-}
-
-void player_ctrl_pulse_counters(int *down, int *phase, int *level)
-{
-    if (*down > 0)                   /* DAT_056db00c */
-        (*down)--;
-
-    if (*phase > 0) {                /* DAT_056db008 */
-        (*phase)++;                  /* engine pre-increments, then compares */
-        if (*phase < 0x1e) {         /* ramp the level up while in the first half */
-            if (*level < 10)         /* DAT_056db000, capped at 10 */
-                (*level)++;
-        } else {                     /* ramp it back down in the second half */
-            if (*level > 0)
-                (*level)--;
-        }
-        if (*phase > 0x3c)           /* wrap the 0..60 phase timer */
-            *phase = 0;
-    }
-}
-
-void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
-                                 float table_val, const float player[3],
-                                 float out[3])
-{
-    /* angle = 2*table[idx] + stored (engine: fld table; fadd st,st; fadd +0x3c) */
-    float angle = table_val + table_val + stored_angle;
-    float r = (float)anim_idx + 3.0f;             /* 0x519438 = 3.0 */
-
-    out[0] = sinf(angle) * r + player[0];         /* x — FUN_00503a44 = sin */
-    out[1] = player[1];                           /* y — copied straight (da1dc) */
-    out[2] = cosf(angle) * r + player[2];         /* z — FUN_00503994 = cos */
-}
-
-void player_ctrl_history_shift(float pos_hist[][3],
-                               int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
-                               const float cur_pos[3],
-                               const int32_t cur_rec[PC_ACTOR_REC_DWORDS])
-{
-    /* Shift every slot one place toward "older" (slot[i] = slot[i-1]),
-     * matching the engine's high→low pointer walk; then slot 0 takes the
-     * live sample.  The engine moves position (3 dwords) and the
-     * sprite-state record (11 dwords) in lockstep per slot. */
-    for (int i = PC_HIST_SLOTS - 1; i > 0; i--) {
-        pos_hist[i][0] = pos_hist[i - 1][0];
-        pos_hist[i][1] = pos_hist[i - 1][1];
-        pos_hist[i][2] = pos_hist[i - 1][2];
-        memcpy(rec_hist[i], rec_hist[i - 1], sizeof rec_hist[i]);
-    }
-    pos_hist[0][0] = cur_pos[0];
-    pos_hist[0][1] = cur_pos[1];
-    pos_hist[0][2] = cur_pos[2];
-    memcpy(rec_hist[0], cur_rec, sizeof rec_hist[0]);
-}
-
-float player_ctrl_shake_damp_factor(int mode_nonzero, int grounded,
-                                    int flag_6ca, int held_96b,
-                                    int edge_9, int db100, int db048)
-{
-    if (mode_nonzero)                       /* DAT_056da1bc != 0 */
-        return 0.97f;
-    if (!grounded)                          /* da1dc != daf88 */
-        return 0.99f;
-
-    /* grounded: continue only if (flag_6ca==0 || held); else damp 0.95. */
-    if (flag_6ca != 0 && !held_96b)
-        return 0.95f;
-
-    /* reach the db048 state block only if this gate holds; else 0.998. */
-    if (!(((!edge_9) && db100 < 1) || held_96b))
-        return 0.998f;
-
-    /* DAT_056db048 state block (engine L90165-90178). */
-    if (db048 != 2) {
-        if (db048 == 3)
-            return 0.95f;
-        if (!grounded)                      /* unreachable here in-engine; faithful */
-            return 0.98f;
-    }
-    return 0.82f;                           /* db048==2, or grounded fall-through */
-}
-
-float player_ctrl_shake_target(float base, int held_968, int held_969,
-                               int boost, int b8b0_is_neg1, float db074,
-                               int dae9c_active, int daeac,
-                               int db048, int da1cc,
-                               int daed8_is_1, int db07c_is_0,
-                               float daedc, float da1dc)
-{
-    float t = base;
-
-    if (held_968) t += 0.02f;        /* faddl 0x5199e8 — double in binary */
-    if (held_969) t += 0.08f;        /* faddl 0x519fb0 */
-    if (boost)    t *= 1.3f;         /* fmuls 0x519b90 */
-    if (b8b0_is_neg1) t += db074;    /* DAT_0438b8b0 == -1 → += _DAT_056db074 */
-
-    if (dae9c_active) {              /* DAT_056dae9c != 0 */
-        if (daeac & 2)        t += 0.06f;
-        else if (daeac & 1)   t += 0.03f;
-    }
-
-    if (db048 == 1)                  /* state override (later wins) */
-        t = 0.5f;
-    if (db048 == 4 || db048 == 5)
-        t = (da1cc == 0x29) ? 1.0f : 0.5f;
-
-    if (daed8_is_1 && db07c_is_0) {  /* §56: DAT_056daed8 == 1 is an INT test */
-        t = daedc - da1dc;
-        if (t > 1.0f) t = 1.0f;      /* clamp to [0,1] */
-        if (t < 0.0f) t = 0.0f;
-        t = 0.3f - t * 0.1f;         /* proximity-ease toward the target */
-    }
-    return t;
-}
-
-void player_ctrl_trail_advance(int32_t records[][PC_TRAIL_REC_DWORDS],
-                               const int32_t sprite_ring[PC_ACTOR_REC_DWORDS],
-                               const float player[3],
-                               const float angle_table[],
-                               int decay_spawn,
-                               pc_trail_events *ev)
-{
-    if (ev) { ev->alloc_count = 0; ev->spawn_count = 0; }
-
-    for (int i = 0; i < PC_TRAIL_RECORDS; i++) {
-        int32_t *rec = records[i];
-
-        /* [ebx-0x8] compared signed against 0 (`jle`): skip dead records. */
-        if (rec[PC_TRAIL_COUNTDOWN] <= 0)
-            continue;
-
-        /* The DAT_056dae14-decay alloc spawn fires per active record, before
-         * the sprite copy, when the caller's decay edge fired this frame. */
-        if (decay_spawn && ev)
-            ev->alloc_index[ev->alloc_count++] = i;
-
-        /* Snapshot the live sprite-state ring head into this record's slot. */
-        memcpy(&rec[PC_TRAIL_SPRITE], sprite_ring,
-               PC_ACTOR_REC_DWORDS * sizeof rec[0]);
-
-        /* Orbit position: angle = 2·table[idx] + stored_angle, r = idx+3.
-         * x/y/z are stored as raw float bits (engine `fstp DWORD`). */
-        int   idx = rec[PC_TRAIL_IDX];
-        float stored_angle;
-        memcpy(&stored_angle, &rec[PC_TRAIL_ANGLE], sizeof stored_angle);
-
-        float out[3];
-        player_ctrl_trail_orbit_pos(idx, stored_angle, angle_table[idx],
-                                    player, out);
-        memcpy(&rec[PC_TRAIL_X], &out[0], sizeof out[0]);
-        memcpy(&rec[PC_TRAIL_Y], &out[1], sizeof out[1]);
-        memcpy(&rec[PC_TRAIL_Z], &out[2], sizeof out[2]);
-
-        /* Spawn-at-birth: the frame the life counter is exactly 600. */
-        if (rec[PC_TRAIL_COUNTDOWN] == 600 && ev) {
-            ev->spawn_pos[ev->spawn_count][0] = out[0];
-            ev->spawn_pos[ev->spawn_count][1] = out[1];
-            ev->spawn_pos[ev->spawn_count][2] = out[2];
-            ev->spawn_count++;
-        }
-
-        rec[PC_TRAIL_COUNTDOWN]--;
-    }
-}
-
-int player_ctrl_burst_materialize(int32_t bank[][PC_TRAIL_REC_DWORDS],
-                                  const float pos_hist[][3],
-                                  const int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
-                                  int counter)
-{
-    /* engine: `if (0 < DAT_056daae0)` — nothing happens below the burst. */
-    if (counter <= 0)
-        return counter;
-
-    for (int k = 0; k < PC_BURST_RECORDS; k++) {
-        int s = 3 + 2 * k;                  /* source slot: 3, 5, 7, 9, 11 */
-        int32_t *rec = bank[k];
-
-        /* sprite-state ← history record slot (engine `rep movs`, 11 dwords). */
-        memcpy(&rec[PC_TRAIL_SPRITE], rec_hist[s],
-               PC_ACTOR_REC_DWORDS * sizeof rec[0]);
-
-        /* position ← full history position slot (x/y/z as raw float bits). */
-        memcpy(&rec[PC_TRAIL_X], &pos_hist[s][0], sizeof pos_hist[s][0]);
-        memcpy(&rec[PC_TRAIL_Y], &pos_hist[s][1], sizeof pos_hist[s][1]);
-        memcpy(&rec[PC_TRAIL_Z], &pos_hist[s][2], sizeof pos_hist[s][2]);
-
-        rec[PC_TRAIL_COUNTDOWN] = 0x14;     /* life, engine `[eax+0xc] = 0x14` */
-    }
-
-    counter--;
-    if (counter == 0) {
-        /* engine L90293-90297: zero each record's life field, nothing else. */
-        for (int k = 0; k < PC_BURST_RECORDS; k++)
-            bank[k][PC_TRAIL_COUNTDOWN] = 0;
-    }
-    return counter;
-}
-
-/* Cpop.8: the engine's gauge-rate derivation (FUN_0048b6ad, .rdata 0x5193a4
- * = 0.01f).  Both fields are sign-extended 16-bit then summed — the order is
- * immaterial, so callers may pass them in either order. */
-float player_ctrl_gauge_rate(int16_t field_lo, int16_t field_hi)
-{
-    return ((float)((int)field_lo + (int)field_hi)) * 0.01f;
-}
-
-void player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
-                             float *disp_sp, float true_sp, float sp_rate,
-                             int *counter, int *dir)
-{
-    /* Channel A — HP gauge (DAT_056db0c4 toward DAT_056db0bc).  Manages the
-     * run-length counter (db0cc) and direction flag (db0d0).  The engine
-     * branches `jae` then `jbe` so the equal case resets the counter and
-     * leaves the direction untouched (objdump 0x48b6bc-0x48b799). */
-    if (*disp_hp < true_hp) {              /* below target → rise toward it */
-        *disp_hp += hp_rate;
-        if (*disp_hp > true_hp) *disp_hp = true_hp;   /* clamp overshoot */
-        (*counter)++;
-        *dir = 1;
-    } else if (*disp_hp > true_hp) {       /* above target → fall toward it */
-        *disp_hp -= hp_rate;
-        if (*disp_hp < true_hp) *disp_hp = true_hp;
-        (*counter)++;
-        *dir = 0;
-    } else {                               /* already settled → reset counter */
-        *counter = 0;
-    }
-
-    /* Channel B — SP gauge (DAT_056db0c8 toward DAT_056db0c0).  Clamp-on-
-     * overshoot only; no counter or direction (objdump 0x48b7a0-0x48b842). */
-    if (*disp_sp < true_sp) {
-        *disp_sp += sp_rate;
-        if (*disp_sp > true_sp) *disp_sp = true_sp;
-    } else if (*disp_sp > true_sp) {
-        *disp_sp -= sp_rate;
-        if (*disp_sp < true_sp) *disp_sp = true_sp;
-    }
-}
 
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
@@ -379,9 +91,6 @@ void player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
 #define s_player_vel     (g_party.vel[0])     /* DAT_056daabc */
 #define s_player_facing  (PW(0x56db05cu).f)
 #define s_facing_sticky  (PW(0x56dae3cu).i)
-static int   s_player_moving    = 0;              /* last frame's moving state
-                                                   * (held across opposing-pair
-                                                   * d-pad frames, §69) */
 
 /* ── FUN_0048670f cc08 dispatch state (engine-quirks §78, Chip 4) ───────────
  *   s_cc08 = DAT_0438cc08 — the in-game interaction state the controller
@@ -480,7 +189,6 @@ void player_ctrl_pose_house_standing(int player_char)
     s_player_vel[0] = s_player_vel[1] = s_player_vel[2] = 0.0f;
     s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
     s_facing_sticky = 0;
-    s_player_moving = 0;
 
     /* Enter free-roam: cc08 = 1 (via the engine's FUN_004850ec), cc04 = 0
      * (walking, no interaction).  This is the HOUSE-entry state the dispatch in
@@ -595,15 +303,6 @@ void player_ctrl_phasepin(void)
     s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
 }
 
-/* This frame's player walk-intent (s_player_moving = the d-pad-derived moving
- * state set by scene1_player_ctrl_tick, §69).  Read by the §95 dev-overlay
- * RNG-consume gate in scene1_sim.c — the overlay's LCG step fires every render
- * frame ONLY while the player is moving (engine-quirks §95). */
-int player_ctrl_is_moving(void)
-{
-    return s_player_moving;
-}
-
 /* Render banks the chr-sprite walker (FUN_00456f56) reads each frame: sweep 0 =
  * the dash-trail bank (DAT_056dab6c), sweep 1 = the burst bank (DAT_056dacc0).
  * Each slot is a PC_TRAIL_REC_DWORDS (0x44-byte) record — sprite-state[0..10],
@@ -625,17 +324,6 @@ const int32_t *player_ctrl_render_bank_slot(int sweep, int idx)
 int player_ctrl_burst_count(void)
 {
     return s_burst_count;
-}
-
-/* Debug accessor for the per-frame controller state (W4.7 facing analysis):
- * the post-tick world velocity (daabc/daac4) and the stored facing db05c.
- * (engine-quirks §69). NULL-safe; any out param may be NULL. */
-void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
-{
-    if (vx)     *vx     = s_player_vel[0];
-    if (vz)     *vz     = s_player_vel[2];
-    if (facing) *facing = s_player_facing;
-    if (sticky) *sticky = s_facing_sticky;
 }
 
 /* Set the stored world facing db05c (the conversation-pose driver's ±π/2 write,
@@ -707,6 +395,7 @@ void player_ctrl_cc08_enter_freeroam(void)
      * the top of scene1_player_ctrl_tick, like the entry marker. */
     if (s_cc08 == 4)
         s_cc08_left_4_this_frame = 1;
+    s_worldmap_exit_armed = 0;   /* DAT_074b2ec4 */
     s_cc08 = 1;
 }
 
@@ -762,67 +451,6 @@ void player_ctrl_debug_set_cc08(int state)
 /* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
 
 /* input.c d-pad mask bits (input_binding_mask[0..3]). */
-#define PC_BTN_UP    0x0004u
-#define PC_BTN_RIGHT 0x0001u
-#define PC_BTN_DOWN  0x0008u
-#define PC_BTN_LEFT  0x0002u
-
-int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle)
-{
-    int dx = ((held_mask & PC_BTN_RIGHT) ? 1 : 0) - ((held_mask & PC_BTN_LEFT) ? 1 : 0);
-    int dz = ((held_mask & PC_BTN_DOWN)  ? 1 : 0) - ((held_mask & PC_BTN_UP)   ? 1 : 0);
-    if (dx == 0 && dz == 0)
-        return 0;
-    /* vx = sin(angle), vz = cos(angle)  ⇒  angle = atan2(dx, dz). */
-    float angle = atan2f((float)dx, (float)dz);
-    /* Engine convention: the pure-UP facing (-z) is stored as -π, NOT the
-     * atan2 branch-cut +π.  This is the ONE direction where the engine's facing
-     * angle and atan2(dx,dz) differ — verified against the retail save-roundtrip
-     * walk (the player walks toward the back stand at a constant pang=-π, frames
-     * 14040-14100; atan2f(0,-1) returns +π).  It was latent until the
-     * shop-display cell detector (FUN_0048619f), which classifies the facing via
-     * ftol(pang/π·10): -π→-10 reaches in -z (the back stand), +π→+10 reaches in
-     * -x (wrong cell).  Safe for the verified walk: sin/cos and the facing
-     * octant (player_ctrl_facing_octant) are sign-invariant at ±π — both ±π map
-     * to octant 0.  engine-quirks §111. */
-    if (dx == 0 && dz < 0)
-        angle = -3.1415927f;
-    if (out_angle)
-        *out_angle = angle;
-    return 1;
-}
-
-/* Decode the held d-pad into a movement intent (facing + moving flag), applying
- * the engine's OPPOSING-PAIR REJECTION (engine-quirks §69):
- *
- *   When LEFT+RIGHT (or UP+DOWN) are both held the frame's d-pad is an invalid
- *   transient — the engine discards it entirely and REPEATS the previous frame's
- *   movement: the stored facing db05c is held and the previous moving state
- *   persists, so the player keeps walking along its current heading rather than
- *   snapping to the net axis.  Verified against retail at the rel-1822 central-
- *   table corner: with LEFT+RIGHT+DOWN held for one frame, retail's velocity is
- *   *byte-identical* to the prior frame (0.14350 @ -45°, the held down-left
- *   heading), not the atan2(0,+1)=0° straight-down the raw d-pad would give.
- *
- * Otherwise (a clean cardinal / valid diagonal / empty d-pad) the facing updates
- * to atan2(dx,dz) exactly as before, so the W3 cardinal walks + wall slide are
- * unaffected (they never press an opposing pair).
- *
- * *io_facing is updated in place when a valid direction is held; held across
- * opposing-pair / idle frames.  Returns the moving flag for this frame. */
-int player_ctrl_dpad_intent(unsigned held, float *io_facing, int prev_moving)
-{
-    int both_h = (held & PC_BTN_LEFT) && (held & PC_BTN_RIGHT);
-    int both_v = (held & PC_BTN_UP)   && (held & PC_BTN_DOWN);
-    if (both_h || both_v)
-        return prev_moving;           /* hold facing + previous moving state */
-
-    float angle;
-    int moving = player_ctrl_dpad_angle(held, &angle);
-    if (moving && io_facing)
-        *io_facing = angle;
-    return moving;
-}
 
 int player_ctrl_facing_octant(float angle, float cam_yaw)
 {
@@ -834,198 +462,19 @@ int player_ctrl_facing_octant(float angle, float cam_yaw)
     return ((int)(t * 8.0f + 8.0f)) & 7;
 }
 
+/* FUN_00486435: the house bounds the room mesh lacks — the front (z) and,
+ * outside customer service, the left of the counter (small rooms, shop tier
+ * work +0x2cde0 < 3) or the doorway column (large rooms) */
 void player_ctrl_house_room_clamp(float *px, float *pz)
 {
-    /* FUN_00486435 small-room arm ((&DAT_04510578)[...] < 3).  The pz front
-     * stop (≤9.5) is unconditional, but the px left stop (≥-1.5 when pz>7) is
-     * gated on `cc08 != 4` in the engine — the cc08==4 customer-service arrival
-     * ramp (Chip 3c) deliberately slides the player past it to px=-4.5 for the
-     * counter camera view, so the clamp must let it through there. */
-    if (*pz > 9.5f)
-        *pz = 9.5f;
-    if (s_cc08 != 4 && *pz > 7.0f && *px < -1.5f)
-        *px = -1.5f;
-}
-
-/* ── FUN_0048b850 (Cpop) free-roam body ────────────────────────────────────
- *
- * The movement/effects sub-controller that FUN_0048670f's cc08==1 arm calls
- * each frame (engine-quirks §75).  Ported here = the free-roam-ACTIVE position
- * physics: velocity clamp (|v|≤0.175), facing octant dab00 + sticky-snap, the
- * integrate-and-collide call (FUN_00483170), and the damp.
- *
- * NOT here, deliberately (each ports in its own engine site / chip):
- *   - the walk IMPULSE (daabc/daac4 += sin/cos(db05c)·0.1) — that's
- *     FUN_0048670f's cc08==1 controllable code (step 1), written through
- *     *(player+0x904) so it never shows as a DAT_056daabc= literal (§61);
- *     it lives in the cc08==1 arm (player_ctrl_cc08_freeroam_arm below).
- *   - the room-bounds clamp (FUN_00486435) — the FUN_0048670f tail.
- *   - the render-slot population + after-image/particle effects (Chip 2).
- *
- * The engine's dash / da1bc stun-hop / db048-cutscene speed branches all gate
- * OFF in HOUSE free-roam (da1bc==0, *DAT_068dd2f0==0), so the cap tree collapses
- * to 0.175 and the damp tree to 0.82 — the values W3 validated (§61). */
-/* FUN_0048b850 tail (engine all.c L90242+): the per-frame motion-history ring
- * shift, the conditional after-image burst fill (DAT_056dacc0), and the
- * dash-trail advance (DAT_056dab6c) — the Cpop.3/6/7 leaves, wired here as the
- * live writer of the chr-walker render banks (engine-quirks §76).
- *
- * Engine order (must hold: burst reads the rings the shift just wrote):
- *   shift rings → burst fill → decay edge → trail advance.
- * Dormant in free-roam (see the bank-storage note): the shift runs but the
- * burst counter is 0 and no trail record is active, so the fills do nothing. */
-static void player_ctrl_b850_render_tail(void)
-{
-    const float cur_pos[3] = { g_scene1_player_pos[0],
-                               g_scene1_player_pos[1],
-                               g_scene1_player_pos[2] };
-
-    /* 1. shift both 40-slot motion-history rings; slot 0 ← live (pos, record). */
-    player_ctrl_history_shift(s_pos_hist, s_rec_hist, cur_pos,
-                              s_actor_record[0]);
-
-    /* 2. burst bank (DAT_056dacc0): materialize 5 after-images from the rings
-     *    while the burst counter is positive (egg/spell flash).  daae0 == 0 in
-     *    free-roam → no-op, returns the counter unchanged. */
-    s_burst_count = player_ctrl_burst_materialize(s_burst_bank, s_pos_hist,
-                                                  s_rec_hist, s_burst_count);
-
-    /* 3. decay-spawn edge: the DAT_056dae14 down-counter reaching 0 this frame
-     *    fires the per-record FUN_0044376a alloc inside the advance.  Stays 0
-     *    in free-roam (kicked only by the unported dash path). */
-    int decay_spawn = 0;
-    if (s_decay_spawn > 0 && --s_decay_spawn == 0)
-        decay_spawn = 1;
-
-    /* 4. trail bank (DAT_056dab6c): advance the active after-image records.  No
-     *    record is spawned in free-roam, so the advance only ever touches
-     *    countdown>0 slots — none today — and never indexes the per-anim angle
-     *    table (DAT_005ce5c0), which the dash-spawn sub-chip will source.
-     *    ev=NULL drops the (unreached) spawn callbacks. */
-    player_ctrl_trail_advance(s_trail_bank, s_actor_record[0], cur_pos,
-                              /*angle_table=*/NULL, decay_spawn, /*ev=*/NULL);
-}
-
-/* FUN_0048b850 L457-476 (asm 0x48c758-0x48c821): the grounded-walk foot dust.
- * After the integrate+damp, while the player is on the floor and moving, the
- * engine sprays a faint type-0xe records-A particle at the feet every 16th
- * frame.  The particle's spawn + age/kill are already ported (scene1_spawn,
- * scene1_particles_tick); the draw is scene1_walk_dust.c.  See
- * docs/findings/scene1-walk-dust.md + engine-quirks.
- *
- * Gates: not paused (DAT_0438b1a0==0, inert in free-roam), grounded
- * (da1dc==daf88 — always true in free-roam: no jump), horizontal speed > 0.1
- * (post-damp velocity), and (db054 & 0xf)==0.  The engine's extra running emit
- * (DAT_056db034==1) is dormant here — there is no dash in HOUSE free-roam, and
- * the measured live type-0xe count (~2/frame) matches the every-16-frame emit
- * with the 0x20-tick lifetime alone (records/walkdust-types).
- *
- * RNG: two rng_next_unit() are consumed per emit, z-jitter first then x-jitter
- * (asm order); the engine reuses these arg slots as the type(0xe)/scale(0.125)
- * args of FUN_00447f4f, which is why the decompile showed FUN_00471089(0xe,...). */
-static void player_ctrl_b850_foot_dust(void)
-{
-    float vx = s_player_vel[0], vz = s_player_vel[2];
-    if (vx * vx + vz * vz <= 0.1f * 0.1f)   /* |v| <= 0.1 → not moving enough
-                                             * (asm 0x48c746 — wraps dust AND step) */
-        return;
-
-    /* foot dust — ONLY on the (db054&0xf)==0 cadence (asm 0x48c758).  Previously
-     * an early-return; made a nested gate so the footstep below still runs on the
-     * other frames. */
-    if ((scene1_companion_db054() & 0xf) == 0) {
-        float zj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #1 → z jitter */
-        float xj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #2 → x jitter */
-        scene1_spawn(0,
-                     g_scene1_player_pos[0] + xj,
-                     g_scene1_player_pos[1] + 0.5f,
-                     g_scene1_player_pos[2] + zj,
-                     0xe, 0.125f, 1);
-    }
-
-    /* footstep SE (asm 0x48c824-0x48c843, FUN_00499519(0x166)): independent of
-     * the dust cadence — fires every walk frame where the walk anim STATE==1 and
-     * the int frame-counter low-nibble hits 0xa (~once per 16 frames = the step
-     * cadence).  RNG-neutral.  (The pause gate DAT_0438b1a0 is inert in free-roam.) */
-    if (s_actor_record[0][CHR_ACTOR_STATE] == 1 &&
-        (s_actor_record[0][CHR_ACTOR_COUNTER] & 0xf) == 0xa)
-        audio_play_se_by_id(0x166);
-}
-
-static void player_ctrl_b850_move(void)
-{
-    /* _STUB: body is the free-roam position-physics subset only; the render-slot
-     * populator + after-image/particle effects are Chip 2, so a call-trace diff
-     * should still surface this row as ≠ until those land (cf. mark-stubbed-ports). */
-    CALL_TRACE_ENTER_STUB(0x48b850u);
-
-    /* step 2: clamp |(vx,vz)| ≤ 0.175 (b850 local_8 cap @ all.c L90010; reuses
-     * the camera_shake_clamp leaf — the "shake" naming is the W1 misnomer). */
-    player_ctrl_camera_shake_clamp(&s_player_vel[0], &s_player_vel[2],
-                                   PC_WALK_SPEED_CAP);
-
-    /* step 3: facing octant dab00 from the (world) facing + HOUSE camera yaw,
-     * then the diagonal sticky-snap (identity for cardinals).  dab00 IS the
-     * actor record FACING field (daae8[0]+0x18), read by the draw side + the
-     * companion (§71/§73), so write it here. */
-    int oct = player_ctrl_facing_octant(s_player_facing, PC_HOUSE_CAM_YAW);
-    oct = player_ctrl_facing_snap(oct, &s_facing_sticky);
-    s_actor_record[0][CHR_ACTOR_FACING] = oct;
-
-    /* step 4: integrate + collide (FUN_00483170).  When the room collision mesh
-     * is built (live HOUSE via collision_house_build), run the mesh resolver: it
-     * integrates (px+=vx, pz+=vz), pushes the player out of any wall/counter
-     * face with the radial probe, snaps Y to the floor (collision_resolve_player).
-     * The radial push is the right model here because the counter has a
-     * walkable-looking TOP triangle: a pure floor-edge try-move would let the
-     * player climb onto it (the step-height gate isn't ported).  Furniture-on-
-     * floor round-table collision is deferred with its placement chip (§65).
-     * The no-mesh fallback (pre-HOUSE) just integrates. */
-    const collision_mesh *cm = collision_house_get();
-    if (cm) {
-        /* palette mode 0 = HOUSE (*DAT_068dd2f0); gates the 20-ray push. */
-        int palette_mode = g_stage_palette ? g_stage_palette->mode : 0;
-        collision_resolve_player(cm, g_scene1_player_pos, s_player_vel,
-                                 palette_mode);
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    if (w != NULL && (int32_t)w[SHOP_DISPLAY_TIER_SELECTOR] >= 3) {
+        if (*pz > 17.0f) *pz = 17.0f;
+        if (s_cc08 != 4 && *pz > 11.5f && *px > 5.0f && *px < 9.5f) *px = 9.5f;
     } else {
-        g_scene1_player_pos[0] += s_player_vel[0];
-        g_scene1_player_pos[2] += s_player_vel[2];
+        if (*pz > 9.5f) *pz = 9.5f;
+        if (s_cc08 != 4 && *pz > 7.0f && *px < -1.5f) *px = -1.5f;
     }
-
-    /* step 6: damp.  The engine's damp tree (all.c L90161-90198) collapses to
-     * ×0.82 in HOUSE free-roam (grounded da1dc==daf88, db048==0, no dash); runs
-     * every frame so velocity decays to 0 after the d-pad is released. */
-    s_player_vel[0] *= PC_WALK_DAMP;
-    s_player_vel[2] *= PC_WALK_DAMP;
-
-    /* FUN_0048b850 L90205: the companion controller (FUN_0048a833) is nested
-     * HERE — after the player's integrate+damp (so the fairy spring-follows the
-     * POST-move player) and BEFORE the foot-dust emit.  Its wing-sparkle (type
-     * 0x1f, 6 rng_next_unit() draws every 4th frame) therefore consumes the
-     * shared LCG immediately AHEAD of the dust's 2 draws — the exact order the
-     * engine reads them in.  Modelling the companion as a separate top-level tick
-     * AFTER the whole player controller (the old scene1_sim.c position) put those
-     * 6 draws AFTER the dust, so the dust read a 6-draw-shifted RNG slice and its
-     * jitter+velocity diverged from retail on every walk frame where both fire
-     * (db054 % 16 == 0 ⟹ % 4 == 0).  RNG/raw-state stay frame-aligned (same draws,
-     * reordered); only the dust's slice moved.  engine-quirks §114.
-     *   scene1_sim.c runs this on the non-walk frames; the latch tells it we did
-     * it here so it does not double-tick. */
-    scene1_companion_ctrl_tick();
-    s_companion_ticked_in_b850 = 1;
-
-    /* FUN_0048b850 L90215 (L457-476): foot dust at the feet while grounded +
-     * moving — reads this frame's db054 (pre-increment, set by advance below). */
-    player_ctrl_b850_foot_dust();
-
-    /* FUN_0048b850 L90242: db054++ — bump the companion phase clock AFTER both
-     * the companion tick and the foot dust have read it (deferred out of the
-     * companion tick for exactly this ordering). */
-    scene1_companion_ctrl_advance_phase();
-
-    /* FUN_0048b850 tail (L90243+): motion-history rings + after-image render-bank
-     * fill (engine-quirks §76).  Runs every frame; dormant in free-roam. */
-    player_ctrl_b850_render_tail();
 }
 
 /* ── FUN_0048670f structural skeleton ───────────────────────────────────────
@@ -1816,8 +1265,6 @@ static void player_ctrl_cc08_counter_menu_arm(void)
 }
 
 static void player_ctrl_walk_and_highlight(void);
-static void player_ctrl_walk_move(void);
-static void player_ctrl_walk_anim(void);
 
 static void player_ctrl_cc08_freeroam_arm(void)
 {
@@ -1883,126 +1330,24 @@ static void player_ctrl_cc08_freeroam_arm(void)
     player_ctrl_walk_and_highlight();
 }
 
-/* The FUN_0048b850 call of the cc08==1 arm: the walk (impulse, the move, the
- * anim select) with FUN_0048670f's display-cell highlight between the move and
- * the anim tail. */
+/* The FUN_0048b850 call of the cc08==1 arm (asm 0x4893c5): the walk, then the
+ * faced display cell FUN_0048619f when the shop has display fixtures (work
+ * +0x2bc5a), else cbfc = -1. */
 static void player_ctrl_walk_and_highlight(void)
 {
-    player_ctrl_walk_move();
-    /* walk tail (all.c:87749-87757): after the move, resolve which display cell
-     * the player is facing.  Gated on the shop-display-present flag DAT_0450f3f2
-     * (bank byte +0x2bc5a): when the shop has display fixtures, run the
-     * cell-highlight detector FUN_0048619f (sets cbfc/cc00); otherwise force
-     * "none".  This is what arms the cc04==1 open gate (A1). */
+    player_ctrl_walk();
     if (player_ctrl_shop_display_present())
-        shop_display_highlight_update(g_scene1_player_pos[0],
-                                      g_scene1_player_pos[2],
-                                      s_player_facing);
+        shop_display_faced_cell();
     else
-        shop_display_highlight_clear();
-    player_ctrl_walk_anim();
+        shop_display_faced_none();
 }
 
-/* FUN_0048b850 as the day-8 scene calls it (no display highlight) */
+/* FUN_0048b850 (dungeon_party.c): the controller runs FUN_0048a833 and the
+ * db054 advance itself, so the scene1_sim companion fallback stays off */
 void player_ctrl_walk(void)
 {
-    player_ctrl_walk_move();
-    player_ctrl_walk_anim();
-}
-
-static void player_ctrl_walk_move(void)
-{
-    /* ===== the validated free-roam walk (all.c:1216 + the controllable impulse) ===== */
-
-    /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
-     * rejection: a conflicting L+R / U+D frame holds the stored facing + the
-     * previous moving state instead of snapping to the net axis (§69).
-     * db048 != 0 skips the whole impulse region (all.c:87524) — facing, the
-     * moving latch and the velocity kick all freeze while the pose holds. */
-    if (s_db048 == 0) {
-        int moving = player_ctrl_dpad_intent(g_input_state[0].buttons,
-                                             &s_player_facing, s_player_moving);
-        s_player_moving = moving;
-
-        /* step 1: walk impulse.  daabc/daac4 += sin/cos(db05c)·0.1 — FUN_0048670f's
-         * cc08==1 controllable code, written through *(player+0x904) so it never
-         * shows as a DAT_056daabc= literal (§61).  Stays in the controller; the
-         * clamp/octant/integrate/damp are FUN_0048b850 (player_ctrl_b850_move). */
-        if (moving) {
-            s_player_vel[0] += sinf(s_player_facing) * PC_WALK_ACCEL; /* daabc += sin·0.1 */
-            s_player_vel[2] += cosf(s_player_facing) * PC_WALK_ACCEL; /* daac4 += cos·0.1 */
-        }
-    }
-
-    /* FUN_0048b850 free-roam body: clamp → octant(→FACING) → integrate+collide
-     * → damp (engine-quirks §75). */
-    player_ctrl_b850_move();
-}
-
-static void player_ctrl_walk_anim(void)
-{
-
-    /* ── FUN_0048cdcc db048==0xc — the carry-pose hold (all.c:90640-90652 +
-     * the shared release tail 90793-90794) ──────────────────────────────────
-     * Runs in the b850 tail every free-roam frame while the state holds:
-     * re-assert the anim-4 record if anything stole it (latch-gated, exactly
-     * retail's `DAT_056daafc != 4`), otherwise advance the pose; count
-     * db04c++ and release to free-roam (db048=0) once it reaches 0x1a — the
-     * release frame still shows the pose, the NEXT frame's db048==0 path
-     * re-selects idle/walk (FUN_00489e66).  The 0xc branch skips the normal
-     * anim select (engine goto LAB_0048d55a). */
-    if (s_db048 == 0xc) {
-        if (s_actor_record[0][CHR_ACTOR_STATE] != 4) {
-            union { float f; int32_t i; } z = { .f = 0.0f };
-            s_actor_record[0][CHR_ACTOR_ANIM]    = 4;
-            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
-            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
-            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
-            s_actor_record[0][CHR_ACTOR_STATE]   = 4;
-        } else {
-            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
-        }
-        s_db04c++;
-        if (s_db04c >= 0x1a) {
-            s_db04c = 0;
-            s_db048 = 0;
-        }
-        return;
-    }
-
-    /* actor record: anim id (0 idle / 1 walk = daae8).  The facing octant (dab00)
-     * was set by player_ctrl_b850_move above.  On an idle↔walk transition, restart
-     * the new animation at frame 0; otherwise let it continue so the idle's
-     * breathing loop keeps the phase it was seeded with.  chr_anim_tick advances
-     * the cycle EVERY frame — retail's idle animates too (a 4-frame breathing
-     * loop, ~10 ticks/frame; validated runs/w3b-anim-watch), not just the walk. */
-    int target_anim = s_player_moving ? 1 : 0;
-    if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {
-        /* idle↔walk transition: seed the new anim at frame 0 / counter 0 and do
-         * NOT advance it this frame.  Retail observes counter==0 on the
-         * transition frame, with the per-frame increment beginning the NEXT
-         * frame (runs/w3b-anim-watch: walk starts at counter 0, then 1,2,…).
-         * The old code reset counter=0 then ran chr_anim_tick unconditionally,
-         * which incremented it to 1 on the seed frame — leaving the whole
-         * walk-cycle phase 1 tick AHEAD of retail for the entire walk (the
-         * cumulative sprite drift seen at the house-table-corner cap_08, §W3b).
-         * Skipping the tick here is equivalent to suppressing only that
-         * increment: on a seed frame (frame 0, timer 0) chr_anim_tick can't
-         * advance or wrap anyway, so its sole effect would be the ++ we don't
-         * want.  Internal wraps still ++ to 1 (counter→0 then ++), matching
-         * retail's steady wrap (counter 36→1). */
-        union { float f; int32_t i; } z = { .f = 0.0f };
-        s_actor_record[0][CHR_ACTOR_ANIM]    = target_anim;
-        s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
-        s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
-        s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
-        /* the latch too (FUN_00489e66 writes DAT_056daafc with the anim) — a
-         * stale carry latch (4) would otherwise skip the next carry's
-         * re-assert. */
-        s_actor_record[0][CHR_ACTOR_STATE]   = target_anim;
-    } else {
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
-    }
+    party_tick();
+    s_companion_ticked_in_b850 = 1;
 }
 
 /* ── Chip 3c: the cc08==4 player/companion ARRIVAL anim + camera ramp ────────
@@ -2171,7 +1516,7 @@ static void player_ctrl_cc08_unported_arm(void)
 
             /* daf88: keep g_scene1_player_ground_y tracking the floor under the
              * cc08 player (the counter platform, y≈1.27).  The free-roam writer
-             * (collision_resolve_player) does NOT run while cc08==4, but the engine
+             * (FUN_0048b850, party_tick) does NOT run while cc08==4, but the engine
              * still recomputes daf88 in the cc08 block (FUN_0048b850 → FUN_00483170,
              * all.c:87749).  This is the value the post-haggle wrap-up cutscene
              * FREEZES (the tick stops running once iv1_7 routes to the EVENT arm),

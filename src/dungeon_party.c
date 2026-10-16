@@ -43,6 +43,7 @@
 #include "stage_post_load.h"     /* DAT_0438b4d0 */
 #include "stage_palette.h"
 #include "tables_chara.h"        /* DAT_073ae058 */
+#include "scene1_tutorial_dispatch.h" /* DAT_0438b928 / b924 */
 #include "x87.h"
 
 /* .rdata m32 operands */
@@ -229,11 +230,113 @@ void party_follow(int target, int set_anim)
     }
 }
 
-/* FUN_0048a833, the paths a dungeon floor takes (*DAT_068dd2f0 >= 1): the
- * partner (actor 1) follows the player at 3 (1 during the floor end), Tear
- * follows the partner and copies its facing, the wing sparkle, the 3 ground
- * probes. */
-void dungeon_party_follow_tick(void)
+/* DAT_0438be6c / be70 / be74 / be78: Tear's wander in the house (FUN_0048a833's
+ * `!v32` arm), zeroed by FUN_00436f97 */
+int32_t g_tear_wander, g_tear_wander_t;
+float   g_tear_wander_x, g_tear_wander_z;
+
+/* FUN_0048a833 0x48ace7: Tear beside actor `target` (x ± 1.3, z level, the bob
+ * height), facing it; she walks (anim 1) while 2 or more away, eases 0.1 a tick */
+static void party_tear_beside(int target)
+{
+    static const float k1p3 = 1.2999999523162842f, k2 = 2.0f;   /* 0x519b90, 0x519314 */
+    party_anim_set(g_party.rec[2], 4);
+    float gx = g_party.pos[target][0];
+    if (g_party.pos[2][0] > g_party.pos[target][0]) {
+        gx = spill32((long double)gx + k1p3);
+        g_party.rec[2][6] = 2;
+    } else {
+        gx = spill32((long double)gx - k1p3);
+        g_party.rec[2][6] = 6;
+    }
+    float b = spill32((long double)PW(0x56db054u).i);
+    b = spill32((long double)b * k0p04);
+    b = spill32(x87_crt_sin(b));
+    b = spill32((long double)b * k0p2 + k3);
+    const float gz = g_party.pos[target][2];
+    const float dx = spill32((long double)gx - g_party.pos[2][0]);
+    const float dy = spill32((long double)b - g_party.pos[2][1]);
+    const float dz = spill32((long double)gz - g_party.pos[2][2]);
+    const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+    if (d >= k2) {
+        party_anim_set(g_party.rec[2], 1);
+        const float a = spill32(crt_atan2(dx, dz));
+        g_party.rec[2][6] = octant(a);
+    } else {
+        party_anim_set(g_party.rec[2], 4);
+    }
+    g_party.pos[2][0] = spill32((long double)dx * k0p1 + g_party.pos[2][0]);
+    g_party.pos[2][1] = spill32((long double)dy * k0p1 + g_party.pos[2][1]);
+    g_party.pos[2][2] = spill32((long double)dz * k0p1 + g_party.pos[2][2]);
+}
+
+/* FUN_0048a833 0x48af6b: the house wander once the shop is open (work +0x2bc6f):
+ * idle 90 ticks (anim 0); fly 0.05 a tick per axis to a random point
+ * (2·(rand % 7) − 9, 2·(rand % 6) − 6.5) with anim 1; hold anim 2 or 3
+ * (rand & 1) 90 ticks; again.  The height eases 0.1 to the bob, no ground term. */
+static void party_tear_wander(void)
+{
+    static const float k_step = 0.05000000074505806f;   /* 0x5198f8 */
+    static const float k9 = 9.0f, k6p5 = 6.5f;           /* 0x5196b4, 0x5196b0 */
+    float *t = g_party.pos[2];
+    if (g_tear_wander == 0) {
+        party_anim_set(g_party.rec[2], 0);
+        if (++g_tear_wander_t == 90) { g_tear_wander_t = 0; g_tear_wander = 1; }
+    } else if (g_tear_wander == 1) {
+        party_anim_set(g_party.rec[2], 1);
+        if (g_tear_wander_t == 0) {
+            const int32_t cx = (int32_t)((uint32_t)rng_next15() % 7u);
+            const int32_t cz = (int32_t)((uint32_t)rng_next15() % 6u);
+            const float fx = spill32((long double)cx);
+            g_tear_wander_x = spill32((long double)fx + fx - k9);
+            const float fz = spill32((long double)cz);
+            g_tear_wander_z = spill32((long double)fz + fz - k6p5);
+        }
+        int moved = 0;
+        if ((long double)g_tear_wander_x - k_step > t[0]) {
+            g_party.rec[2][6] = 6; moved = 1;
+            t[0] = spill32((long double)t[0] + k_step);
+        }
+        if (!((long double)g_tear_wander_x + k_step >= t[0])) {
+            g_party.rec[2][6] = 2; moved = 1;
+            t[0] = spill32((long double)t[0] - k_step);
+        }
+        if ((long double)g_tear_wander_z - k_step > t[2]) {
+            moved = 1;
+            t[2] = spill32((long double)t[2] + k_step);
+        }
+        if (!((long double)g_tear_wander_z + k_step >= t[2])) {
+            moved = 1;
+            t[2] = spill32((long double)t[2] - k_step);
+        }
+        const float adx = spill32(fabsl((long double)t[0] - g_tear_wander_x));
+        const float adz = spill32(fabsl((long double)t[2] - g_tear_wander_z));
+        if (moved) {
+            if (adx > adz) g_party.rec[2][6] = t[0] >= g_tear_wander_x ? 2 : 6;
+            else g_party.rec[2][6] = t[2] >= g_tear_wander_z ? 0 : 4;
+        }
+        ++g_tear_wander_t;
+        if (!moved) {
+            g_tear_wander_t = 0;
+            g_tear_wander = (int32_t)(rng_next15() & 1) + 2;
+        }
+    } else if (g_tear_wander == 2 || g_tear_wander == 3) {
+        party_anim_set(g_party.rec[2], g_tear_wander);
+        if (++g_tear_wander_t == 90) { g_tear_wander_t = 0; g_tear_wander = 0; }
+    }
+    float b = spill32((long double)PW(0x56db054u).i);
+    b = spill32((long double)b * k0p04);
+    b = spill32(x87_crt_sin(b));
+    b = spill32((long double)b * k0p2 + k3);
+    t[1] = spill32(((long double)b - t[1]) * k0p1 + t[1]);
+}
+
+/* FUN_0048a833: the partner (actor 1) follows the player at 3 (1 during the
+ * floor end); Tear stands beside the player (db048 14 / 15, a counter sale
+ * work +0x2bc6c, the house morning beat), wanders the open shop, or follows
+ * the partner (house: the player) and copies its facing on a floor; the wing
+ * sparkle; the 3 ground probes. */
+void party_follow_tick(void)
 {
     if (PW(0x56da1c8u).i == 1)
         return;
@@ -304,18 +407,29 @@ void dungeon_party_follow_tick(void)
             party_anim_set(g_party.rec[1], 0);
         }
     }
+    const int beat = mt == 0 && scene1_beat_flag() == 1 && scene1_beat_counter() < 200 &&
+                     (rec == NULL || rec[0x2bcd8] == 0);
     int v39 = PW(0x56db048u).i == 14;
     if (rec != NULL && rec[0x2bc6c] != 0) v39 = 1;
+    if (beat) v39 = 1;
     if (PW(0x56db048u).i == 15) v39 = 1;
-    int target = v31;
+    if (scene1_beat_flag() == 2 && scene1_beat_counter() < 60) v32 = 1;
     if (v39) {
-        /* PORT-DEBT(stub, FUN_0048a833): the db048 14 / 15 / work +0x2bc6c arm
-         * (Tear beside actor v31 at ±1.3) — not reached on dungeon 0's floors. */
+        party_tear_beside(v31);
+    } else if (beat || PW(0x56db048u).i == 15) {
+        /* 0x48af03, unreachable (both set v39): anim 4, face actor v31 */
+        party_anim_set(g_party.rec[2], 4);
+        g_party.rec[2][6] = g_party.pos[2][0] > g_party.pos[v31][0] ? 2 : 6;
+    } else if (!v32) {
+        party_tear_wander();
+        goto sparkle;
     } else {
-        party_follow(target, 1);
+        party_follow(v31, 1);
     }
     if (v32 && mt >= 1)
-        g_party.rec[2][6] = g_party.rec[target][6];
+        g_party.rec[2][6] = g_party.rec[v31][6];
+sparkle:
+    /* DAT_0438b8f8 (or every tick) is only ever written 0 (FUN_00436f97) */
     if (g_floor_intro == 0 && g_party.scale_xz[2] > k0 && g_party.scale_y[2] > k0 &&
         PW(0x56db054u).i % 4 == 0) {
         const float a = spill32((long double)spill32((long double)g_party.rec[2][6]) * k_2pi / k8 - g_scene1_camera_yaw);
@@ -1087,8 +1201,12 @@ static void party_state_tick(void)
         PW(0x56daae4u).i += 64;
         if (PW(0x56daae4u).i > 255) PW(0x56daae4u).i = 255;
     }
-    (void)rec;
-    switch (PW(0x56db048u).i) {
+    if (mapcol_maptype() == 0 && scene1_beat_flag() == 1 && scene1_beat_counter() < 200 &&
+        (rec == NULL || rec[0x2bcd8] == 0)) {
+        /* the house morning beat: face Tear, anim 6 (LABEL_47), no input */
+        PW(0x56db05cu).f = g_party.pos[0][0] <= g_party.pos[2][0] ? 1.5707963705062866f : -1.5707963705062866f;
+        party_anim_set(g_party.rec[0], 6);
+    } else switch (PW(0x56db048u).i) {
     case 0:
         party_walk();                        /* FUN_00489e66 */
         if (mapcol_maptype() >= 1) party_attack_input();   /* FUN_0048d5d6 */
@@ -1246,7 +1364,7 @@ static void party_warp_random_room(void)
 }
 
 /* FUN_0048b850 on a dungeon floor */
-void dungeon_party_tick(void)
+void party_tick(void)
 {
     CALL_TRACE_ENTER_STUB(0x48b850u);
     struct sim_player_buttons *pad = &g_sim_buttons[0];
@@ -1433,7 +1551,7 @@ void dungeon_party_tick(void)
     }
     PW(0x56daac0u).f = spill32((long double)PW(0x56daac0u).f * 0.949999988079071f);
     if (PW(0x56db048u).i >= 53 && PW(0x56db048u).i <= 58) PW(0x56db0f4u).i = 5;
-    dungeon_party_follow_tick();             /* FUN_0048a833 */
+    party_follow_tick();                     /* FUN_0048a833 */
     party_aura_tick();                       /* FUN_00483e7b */
     if (g_party.pos[0][1] == g_party.ground_y[0]) {
         const float vz = g_party.vel[0][2], vx = g_party.vel[0][0];

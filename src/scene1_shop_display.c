@@ -10,6 +10,8 @@
  */
 
 #include "scene1_shop_display.h"
+#include "party.h"               /* the player DAT_056da1d8, facing DAT_056db05c */
+#include "x87.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -237,44 +239,49 @@ int shop_display_furniture_index(int col, int row)
 
 void shop_display_highlight_update(float px, float pz, float pang)
 {
-    /* facing-octant index (asm 0x4861a4-0x4861cb): ftol(pang / π * 10). */
-    int eax = (int)(pang / 3.1415927f * 10.0f);
-
-    /* facing-direction reach offset (asm 0x4861d0-0x48620e), constants
-     * 0x519314=2.0 / 0x519908=-2.0: facing ±z (eax 0 / [-11,-9]) reaches in z;
-     * facing ±x (eax 4 / else) reaches in x. */
-    float xoff = 0.0f, zoff = 0.0f;
-    if (eax == 0)                       zoff =  2.0f;
-    else if (eax >= -11 && eax <= -9)   zoff = -2.0f;
-    else if (eax == 4)                  xoff =  2.0f;
-    else                                xoff = -2.0f;
-
-    /* faced cell (asm 0x486211-0x48625e): col/row = ftol((pos + off + C) * 0.5),
-     * clamped >= 0.  C: +10@0x5194f0 (col), +8@0x519378 (row). */
-    int col = (int)((px + xoff + 10.0f) * 0.5f);
-    int row = (int)((pz + zoff +  8.0f) * 0.5f);
+    static const float k_pi = 3.1415927410125732f;   /* 0x51943c */
+    static const float k10 = 10.0f, k8 = 8.0f, k0p5 = 0.5f, k2 = 2.0f, km2 = -2.0f;
+    static const float k9 = 9.0f, k7 = 7.0f;          /* 0x5196b4, 0x5193f8 */
+    /* the facing's tenth-of-π index: fld m32; fdiv m32 π; fmul m32 10; __ftol */
+    const int32_t q = x87_ftol((long double)pang / k_pi * k10);
+    /* 2 ahead: 0 → +z, −11..−9 → −z, 4 → +x, else −x */
+    float rx = 0.0f, rz = 0.0f;
+    if (q == 0) rz = k2;
+    else if (q <= -9 && q >= -11) rz = km2;
+    else rx = q == 4 ? k2 : km2;
+    int col = x87_ftol(((long double)px + rx + k10) * k0p5);
+    int row = x87_ftol(((long double)pz + rz + k8) * k0p5);
     if (col < 0) col = 0;
     if (row < 0) row = 0;
 
     s_bf68 = 0;
-    int32_t cell = shop_display_grid_cell(col, row);
-    if (cell >= 2 && cell <= 8) {
-        /* occupancy indicator (asm 0x48627f-0x486293): if the faced furniture's
-         * suppression flag is set, store furniture+1 in bf68. */
-        int fidx = shop_display_furniture_index(col, row);
-        if (fidx >= 0) {
-            uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-            if (bank != NULL && bank[SHOP_DISPLAY_SUPPRESS_FLAGS + (uint32_t)fidx] != 0)
-                s_bf68 = fidx + 1;
-        }
-        s_cbfc = col;
-        s_cc00 = row;
-        s_render_x = (float)(col * 2) - 9.0f;   /* _DAT_0438cbf4 */
-        s_render_z = (float)(row * 2) - 7.0f;   /* _DAT_0438cbf8 */
-    } else {
+    /* retail reads DAT_074b28e8[row·20 + col] unbounded; out of the grid = 0 here */
+    const int32_t cell = shop_display_grid_cell(col, row);
+    if (cell < 2 || cell >= 9) {
         s_cbfc = -1;
         s_cc00 = -1;
+        return;
     }
+    /* FUN_004860c8: the furniture there; its work +0x2c750 flag → bf68 = index + 1 */
+    const int fidx = shop_display_furniture_index(col, row);
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (fidx >= 0 && bank != NULL && bank[SHOP_DISPLAY_SUPPRESS_FLAGS + (uint32_t)fidx] != 0)
+        s_bf68 = fidx + 1;
+    s_cbfc = col;
+    s_cc00 = row;
+    const float fc = spill32((long double)col), fr = spill32((long double)row);
+    s_render_x = spill32((long double)fc + fc - k9);   /* _DAT_0438cbf4 */
+    s_render_z = spill32((long double)fr + fr - k7);   /* _DAT_0438cbf8 */
+}
+
+void shop_display_faced_cell(void)
+{
+    shop_display_highlight_update(g_party.pos[0][0], g_party.pos[0][2], PW(0x56db05cu).f);
+}
+
+void shop_display_faced_none(void)
+{
+    s_cbfc = -1;
 }
 
 /* DIAGNOSTIC (rng-survey §21.4 ROOT 2): dump the furniture-layout grid

@@ -649,7 +649,7 @@ void dungeon_player_tick(void)
         else
             audio_play_se_file("bin/se/00re/action/00re_btl03.bin");
     }
-    dungeon_party_tick();   /* FUN_0048b850 */
+    party_tick();           /* FUN_0048b850 */
     actor_say_tick();       /* FUN_00485861 */
 }
 
