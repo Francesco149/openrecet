@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 672, discovered 1786 → 762 referenced-or-better (29.9%)
+- **inventory:** instrumented **90** (80 full + 10 stub), implemented 0, source-referenced 675, discovered 1783 → 765 referenced-or-better (30.0%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 9
 
@@ -115,7 +115,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (672) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (675) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -214,6 +214,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x42c8a5 | FUN_0042c8a5 | 270 | ✓ |  | actor_ai.c |
 | 0x42c9b3 | FUN_0042c9b3 | 1124 | ✓ |  | actor_ai.c, actor_ai.h |
 | 0x42ce17 | FUN_0042ce17 | 441 | ✓ |  | actor_ai.c |
+| 0x42d392 | FUN_0042d392 | 740 | ✓ |  | actor_ai.c |
+| 0x42d676 | FUN_0042d676 | 935 | ✓ |  | actor_ai.c |
 | 0x42da1d | FUN_0042da1d | 1336 | ✓ |  | actor_ai.c |
 | 0x42df55 | FUN_0042df55 | 593 | ✓ |  | actor_ai.c, actor_ai.h, actor_spawn.h |
 | 0x42e1a6 | FUN_0042e1a6 | 1515 | ✓ |  | actor_ai.c, record_hit.c, record_hit.h |
@@ -314,6 +316,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44d1e4 | FUN_0044d1e4 | 665 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
 | 0x44d47d | FUN_0044d47d | 1366 |  |  | dungeon_flow.c |
 | 0x44d9d3 | FUN_0044d9d3 | 361 | ✓ |  | scene1_postload.c |
+| 0x44f009 | FUN_0044f009 | 20 | ✓ |  | actor_ai.c |
 | 0x44f078 | FUN_0044f078 | 197 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ |  | scene1_postload.h, scene1_preload.c |
 | 0x450877 | FUN_00450877 | 1641 |  |  | dungeon_flow.c |

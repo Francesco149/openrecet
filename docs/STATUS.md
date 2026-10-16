@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-██████░░░░░░░░░░░░░░  29.9% referenced-or-better   (90 instrumented)
+██████░░░░░░░░░░░░░░  30.0% referenced-or-better   (90 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    90 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   672 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1786 | exists in the engine, no `src/` reference    |
+| source-referenced  |   675 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1783 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -227,8 +227,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (done: slimes
        0–5, bats 6..9, bees 10..12, mushrooms 13/14 + their burrow arms, kobold 16, fliers 17..21 /
        56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60, Charme 25, the lost girl
-       29, 44..48; FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392), not
-       yet), the
+       29, 44..48; FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392,
+       dialogue 10/3, from day 10 in dungeons 0..2), is ported but no recording meets it), the
        golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
        arms (27/28/41/61..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons

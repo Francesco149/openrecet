@@ -1073,16 +1073,64 @@ static void actor_ai_t22(actor_t *a)
     }
 }
 
+/* The dungeon NPCs' wander (types 29 / 30 / 31, state 0): on tick 1 of a cycle
+ * (+0xa58) one discarded FUN_00471089 draw, the hold +0xa60 (rand & 63), and up
+ * to 20 headings (rand & 3 quarter turns, or on rand & 1 toward the player
+ * along the larger axis) until a 5.0 ray is clear. */
+static void npc_wander_pick(actor_t *a)
+{
+    if (++AI(a, 0xa58) != 1) return;
+    (void)rng_next_unit();                               /* FUN_00471089, discarded */
+    float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+    const float adx = dx < 0.0f ? -dx : dx, adz = dz < 0.0f ? -dz : dz;
+    if (adx <= adz) dx = 0.0f;
+    else dz = 0.0f;
+    for (int i = 0; i != 20; i++) {
+        AF(a, 0x420) = spill32((long double)(float)(int32_t)(rng_next15() & 3u) * k_pi2);
+        if (rng_next15() & 1u) AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+        const double h = AF(a, 0x420);
+        const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k5);
+        const float sz = spill32((long double)spill32(x87_crt_cos(h)) * k5);
+        float frac = 0.0f;
+        mapcol_hit_t hit;
+        hit.tri = 0;
+        hit.slot = 0;
+        if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0)
+            break;
+    }
+}
+
+/* … then ticks 31..89 drift 0.02 along +0x420; the cycle restarts at 90 + hold */
+static void npc_wander_drift(actor_t *a)
+{
+    const int32_t t = AI(a, 0xa58);
+    if (t < 30) return;
+    const int32_t e = t - 30;
+    if (e >= 1 && e < 60) {
+        const double h = AF(a, 0x420);
+        AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
+        AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
+    }
+    if (e >= AI(a, 0xa60) + 60) AI(a, 0xa58) = 0;
+}
+
+/* the NPCs' tail: anim 1 while the planar speed is above 0.02 */
+static void npc_walk_anim(actor_t *a)
+{
+    const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
+    const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
+    const float d = spill32(crt_sqrt(s2));
+    actor_anim_set(a, d > k0p02 ? 1 : 0);
+}
+
 /* FUN_0042da1d: type 29, the lost girl (FUN_00431d54's special 3, room 3).
  * Within 3.0 of the player (once): the next of work +0x2bcc0..c3 is set and
  * dialogue 8/1..4 opens (FUN_0044ba2c); on success +0xa64 = 1, work +0x2bd07 = 1.
- * State 0: a wander like type 22's — on tick 1 of a cycle the hold +0xa60
- * (rand & 63) and up to 20 headings (rand & 3 quarter turns, or on rand & 1
- * toward the player along the larger axis) until a 5.0 ray is clear; ticks
- * 31..89 drift 0.02; the cycle restarts at 90 + hold.  After the dialogue
- * (state 1): a clear heading of 8 (rand & 7, 15.0 ray, ≤ 20 tries; or after
- * 120 ticks the old one), walk 0.02, from tick 90 the alpha +0x3dc -8 a tick,
- * below 0 the actor is freed. */
+ * State 0: the NPC wander; once +0xa64 is set, state 1: a clear heading of 8
+ * (rand & 7, 15.0 ray, ≤ 20 tries; or after 120 ticks the old one), walk 0.02,
+ * from tick 90 the alpha +0x3dc -8 a tick, below 0 the actor is freed. */
 static void actor_ai_t29(actor_t *a)
 {
     static const float k3 = 3.0f, k15 = 15.0f;
@@ -1131,48 +1179,70 @@ static void actor_ai_t29(actor_t *a)
             if (t >= 90 && (AI(a, 0x3dc) -= 8) < 0) AI(a, 0x428) = 0;
         }
     } else if (st == 0) {
-        if (++AI(a, 0xa58) == 1) {
-            (void)rng_next_unit();                       /* FUN_00471089, discarded */
-            float dx = spill32((long double)PX - AF(a, 0x3f0));
-            float dz = spill32((long double)PZ - AF(a, 0x3f8));
-            AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
-            const float adx = dx < 0.0f ? -dx : dx, adz = dz < 0.0f ? -dz : dz;
-            if (adx <= adz) dx = 0.0f;
-            else dz = 0.0f;
-            for (int i = 0; i != 20; i++) {
-                AF(a, 0x420) = spill32((long double)(float)(int32_t)(rng_next15() & 3u) * k_pi2);
-                if (rng_next15() & 1u) AF(a, 0x420) = spill32(crt_atan2(dx, dz));
-                const double h = AF(a, 0x420);
-                const float sx = spill32((long double)spill32(x87_crt_sin(h)) * k5);
-                const float sz = spill32((long double)spill32(x87_crt_cos(h)) * k5);
-                float frac = 0.0f;
-                mapcol_hit_t hit;
-                hit.tri = 0;
-                hit.slot = 0;
-                if (mapcol_ray(AF(a, 0x3f0), AF(a, 0x3f4), AF(a, 0x3f8), sx, 0.0f, sz, &frac, &hit) == 0)
-                    break;
-            }
-        }
+        npc_wander_pick(a);
         if (AI(a, 0xa64) != 0) {
             AI(a, 0xa54) = 1;
             AI(a, 0xa58) = 0;
         } else {
-            const int32_t t = AI(a, 0xa58);
-            if (t >= 30) {
-                const int32_t e = t - 30;
-                if (e >= 1 && e < 60) {
-                    const double h = AF(a, 0x420);
-                    AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(h)) * k0p02 + AF(a, 0x3fc));
-                    AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * k0p02 + AF(a, 0x404));
-                }
-                if (e >= AI(a, 0xa60) + 60) AI(a, 0xa58) = 0;
-            }
+            npc_wander_drift(a);
         }
     }
-    const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
-    const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
-    const float d = spill32(crt_sqrt(s2));
-    actor_anim_set(a, d > k0p02 ? 1 : 0);
+    npc_walk_anim(a);
+}
+
+/* FUN_0042d676: type 30, FUN_00431d54's special 2 (room 2: one type 30 and four
+ * type 31; from day 10 while dungeon 4 is shut (+0x2bcf3), dungeons 0..2, until
+ * met (+0x2bd3c)).  Within 3.0 (until met) it turns to the player (+0x420 the
+ * heading, +0x18 its octant on the camera yaw, anim 0) and opens dialogue 10/3;
+ * on success +0xa64 = 1, work +0x2bd3c = 1, and nothing else this tick.
+ * Otherwise state 0 wanders.  Dungeon 4 floor 99's type 30 is FUN_0044f009.
+ * Ported from the disasm; no recording meets it yet (unverified). */
+static void actor_ai_t30(actor_t *a)
+{
+    static const float k3 = 3.0f;
+    uint8_t *w = save_work_bank_at(save_work_active_slot());
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    float dist;
+    if (d2 == 0.0f) {
+        dz = k0p01;
+        dist = k0p01;
+    } else {
+        dist = spill32(crt_sqrt(d2));
+    }
+    const float ang = spill32(crt_atan2(dx, dz));
+    AI(a, 0xb04) = 0;
+    AI(a, 0xb08) = 1;
+    if (AI(a, 0xa64) == 0 && dist < k3) {
+        AF(a, 0x420) = ang;
+        AI(a, 0x18) = x87_ftol(((((long double)g_scene1_camera_yaw + ang) + k_pi8) / k_2pi) * k8 + k8) & 7;
+        actor_anim_set(a, 0);
+        if (!scene1_intro_dialogue_busy()) {
+            scene1_intro_dialogue_start_single(10, 3);   /* FUN_0044ba2c(10, 3, 0) */
+            AI(a, 0xa64) = 1;
+            if (w != NULL) w[0x2bd3c] = 1;
+            return;
+        }
+    }
+    if (AI(a, 0xa54) == 0) {
+        npc_wander_pick(a);
+        npc_wander_drift(a);
+    }
+    npc_walk_anim(a);
+}
+
+/* FUN_0042d392: type 31, special 2's four companions — state 0 wanders.  (Its
+ * distance to the player is computed and dropped.)  Unverified, as type 30. */
+static void actor_ai_t31(actor_t *a)
+{
+    AI(a, 0xb08) = 1;
+    AI(a, 0xb04) = 0;
+    if (AI(a, 0xa54) == 0) {
+        npc_wander_pick(a);
+        npc_wander_drift(a);
+    }
+    npc_walk_anim(a);
 }
 
 /* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
@@ -2388,6 +2458,10 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t25(a);                     /* FUN_0041fa6e */
         } else if (type == 29) {
             actor_ai_t29(a);                     /* FUN_0042da1d */
+        } else if (type == 30 && stage_gate_get_next() != 99) {
+            actor_ai_t30(a);                     /* FUN_0042d676 (99: FUN_0044f009, stub) */
+        } else if (type == 31) {
+            actor_ai_t31(a);                     /* FUN_0042d392 */
         } else if (type == 16 && sub != 3) {
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {
