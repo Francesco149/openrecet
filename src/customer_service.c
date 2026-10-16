@@ -2679,6 +2679,89 @@ out:
     s_b5a4 = saved_b5a4;
 }
 
+/* FUN_0046602e's item-want panel (0x46639e..0x466827): drawn for an adventurer
+ * customer (b56c 2..9) while the panel shows (b5a0 != 0 or b5d0 == 2) — and it
+ * writes sim state from the render: the upgrade-hint slot DAT_005c6c34 (read by
+ * FUN_00460b93 at the sale) and the rare bit 0x20 on that request slot.  The
+ * slot: the request slot the offered item h (bc8, else b5a4) beats with the
+ * largest stat sum — same family, some stat higher; a slot already holding h's
+ * id counts as "found" (the second pass is skipped) and is only taken at a
+ * better grade; with nothing found, the first slot (no starter item, h fits)
+ * of h's family, else the best sum gain.  Shown (the hint set) only for Louie,
+ * a hired / met adventurer (+0x2bc4a / +0x2bd16 / +0x2deae outside mode 2), when
+ * the gain · 1.5 tops the slot's current stat sum. */
+void customer_service_want_panel_tick(void)
+{
+    const int kyaku = g_scene_buy_current_page;   /* DAT_0730b56c */
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (kyaku < 2 || kyaku > 9 || bank == NULL) return;
+    const int32_t h = (s_price_bc8 != -1) ? s_price_bc8 : s_b5a4;
+    if (s_b5a0 == 0 && s_b5d0 != 2) return;
+    int32_t *req = (int32_t *)(bank + 0x2ceb4 + 0x6c * (kyaku - 2));
+    int32_t best = -1, best_gain = 0, found = 0;
+    for (int k = 0; k < 5; k++) {
+        const int32_t r = req[k];
+        if (r < 0) continue;
+        if (((r ^ h) & ~0x3f) == 0) {
+            found = 1;
+            if ((int8_t)(r & 0xf) >= (int8_t)(h & 0xf)) continue;
+        }
+        if (!item_equip_check(kyaku - 2, k, h)) continue;
+        const int hs = tables_item_find_slot_by_id(&g_item, (uint32_t)(h >> 6));
+        const int rs = tables_item_find_slot_by_id(&g_item, (uint32_t)(r >> 6));
+        if (hs < 0 || rs < 0) continue;      /* retail indexes record[-1] */
+        if (cs_categories_distinct(g_item.records[rs].equip_class, g_item.records[hs].equip_class) != 0)
+            continue;
+        int32_t a[4] = { 0 }, b[4] = { 0 };
+        chara_equip_item_stats((uint32_t)h, a);
+        found = 1;
+        chara_equip_item_stats((uint32_t)r, b);
+        if (a[0] > b[0] || a[1] > b[1] || a[2] > b[2] || a[3] > b[3]) {
+            const int32_t sum = a[0] + a[1] + a[2] + a[3];
+            if (best_gain < sum) {
+                best_gain = sum;
+                best = k;
+            }
+        }
+    }
+    if (!found) {
+        for (int k = 0; k < 5; k++) {
+            if (save_bank_starter_item(kyaku - 2, k) != -1) continue;   /* FUN_0048ff7e */
+            if (!item_equip_check(kyaku - 2, k, h)) continue;
+            int32_t a[4] = { 0 };
+            chara_equip_item_stats((uint32_t)h, a);
+            int32_t gain = a[0] + a[1] + a[2] + a[3];
+            if (req[k] >= 0) {
+                const int hs = tables_item_find_slot_by_id(&g_item, (uint32_t)(h >> 6));
+                const int rs = tables_item_find_slot_by_id(&g_item, (uint32_t)(req[k] >> 6));
+                if (hs >= 0 && rs >= 0 &&
+                    cs_categories_distinct(g_item.records[rs].equip_class, g_item.records[hs].equip_class) == 0) {
+                    best = k;
+                    break;
+                }
+                int32_t b[4] = { 0 };
+                chara_equip_item_stats((uint32_t)req[k], b);
+                gain -= b[0] + b[1] + b[2] + b[3];
+            }
+            if (best_gain < gain) {
+                best_gain = gain;
+                best = k;
+            }
+        }
+    }
+    s_equip_hint_slot = -1;
+    const int shown = bank[kyaku + 0x2bc4a] != 0 || bank[kyaku + 0x2bd16] != 0 || kyaku == 2 ||
+                      (bank[kyaku + 0x2deae] != 0 && ((const int32_t *)bank)[0x2dd64 / 4] != 2);
+    if (!shown || best < 0) return;
+    int32_t c[4] = { 0 };
+    chara_equip_item_stats((uint32_t)req[best], c);
+    const float gf = spill32((long double)best_gain);
+    const float cf = spill32((long double)(c[0] + c[1] + c[2] + c[3]));
+    if (!((long double)gf * 1.5f > cf)) return;
+    s_equip_hint_slot = best;
+    if (req[best] != -1) req[best] |= 0x20;
+}
+
 /* Popup-queue accessors for the renderer chip + host tests. */
 int32_t customer_service_popup_queue_len(void)  { return s_b5bc; }
 int32_t customer_service_popup_queue_active(void) { return s_b5c0; }

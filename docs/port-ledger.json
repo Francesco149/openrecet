@@ -8,20 +8,20 @@
   "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 670,
-  "inv_discovered": 1788,
-  "referenced_or_better": 760,
-  "pct_referenced_or_better": 29.8,
+  "inv_source_referenced": 671,
+  "inv_discovered": 1787,
+  "referenced_or_better": 761,
+  "pct_referenced_or_better": 29.9,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
-  "port_debt": 98,
+  "port_debt": 99,
   "verified": 80,
   "stubbed": 10,
-  "ported": 670,
-  "unported": 1788,
-  "touched": 760,
-  "pct_touched": 29.8,
+  "ported": 671,
+  "unported": 1787,
+  "touched": 761,
+  "pct_touched": 29.9,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -2032,6 +2032,7 @@
     "src/scene1_hud.c",
     "src/scene1_merchant_hud.c",
     "src/scene1_merchant_hud.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h"
    ],
@@ -5717,6 +5718,7 @@
    "src": [
     "src/customer_service.c",
     "src/main.c",
+    "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
@@ -5774,6 +5776,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
@@ -18647,18 +18650,22 @@
    "size": 21,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c",
+    "src/save_bank.c",
+    "src/save_bank.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48ff93",

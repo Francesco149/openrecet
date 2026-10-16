@@ -47,6 +47,7 @@
 #include "x87.h"                 /* spill32 / spill64 (the door-zone distance) */
 #include "scene1_shop_walker.h"  /* scene1_customer_npc_pump (FUN_0047019f) — chibi crowd */
 #include "scene1_actor_say.h"   /* actor_say_tick (FUN_00485861, the LAB_004893ff tail) */
+#include "speech_bubble.h"      /* FUN_00406212 */
 #include "scene1_day_close.h"   /* the night sequence (DAT_0438b4e0) + period advance */
 
 /* Weak default for the diagnostic grid-dump capture dir: main.c provides the
@@ -957,8 +958,22 @@ static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
         player_ctrl_worldmap_exit_arm();
         return 1;
     }
-    /* PORT-DEBT(emote-npc-approach): the be7c talk arm (cc08 = 15, FUN_004850fe,
-     * one rand for the voice) — be7c never arms in the port */
+    /* 0x488ae7: Tear in reach — her menu (cc08 15), "Yes? What is it?" */
+    if (s_be7c != 0) {
+        s_db048 = 14;
+        s_db04c = 0;
+        party_anim_set(s_actor_record[0], 6);
+        s_be7c = 0;
+        s_be80 = 1;
+        s_emote_level = 0;
+        s_cc08 = 15;
+        counter_menu_build(bb);                            /* FUN_004850fe */
+        counter_menu_open();                               /* b754 = cc0c = cc10 = 0 */
+        audio_play_se_file((rng_next15() & 1u) ? "bin/se/01ti/tuika/ti_nandesuka.bin"
+                                               : "bin/se/01ti/tuika/ti_whats.bin");
+        actor_say_set(ACTOR_SAY_WHAT_IS_IT, 0, 2, 0, -1);  /* b76c 3, b758 0, b75c 2, b760 0, b768 -1 */
+        return 1;
+    }
     if (at_counter) {
         player_ctrl_cc08_sell_counter_enter();
         return 1;
@@ -1456,6 +1471,133 @@ static void player_ctrl_cs_arrival_tick(void)
  * to free-roam they are dead — they would each fall through to the common tail
  * (LAB_004893ff).  Inline regions (no per-state VA), modelled as one inert no-op
  * that lands the dispatch on the tail, faithful to the engine's gotos. */
+/* LABEL_180 (0x4873c3): back to Tear's menu from a sub-window — the hand
+ * cursor off, SE 0x174 */
+static void tear_menu_back(void)
+{
+    tear_menu_set_timer(0);
+    s_cc08 = 15;
+    title_save_dialog_cursor_set_visible(0);               /* FUN_00435612 */
+    audio_play_se_by_id(0x174);
+}
+
+/* FUN_00461bf6(kind) + the session (FUN_0045edaa): open the shop for one of
+ * Tear's arrangements */
+static void tear_menu_open_shop(int32_t kind)
+{
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bb) bb[PC_F404_SELL_ACTIVE_BYTE_OFF] = 1;          /* +0x2bc6c */
+    s_cc08 = 4;
+    if (bb) bb[0x2bc6d] = 1;
+    customer_service_set_script_file(kind);                /* FUN_00461bf6 */
+    customer_service_session_init();                       /* FUN_0045edaa */
+}
+
+/* cc08 15 / 16 / 17 / 18 / 30: Tear's menu (FUN_0048670f asm 0x4877cd, 0x487621,
+ * 0x48734c, 0x487393, 0x487519).  15 the list (exits through LABEL_132: the
+ * anim tick + FUN_0048a833), 16 the 15-tick close and the entry (LABEL_133),
+ * 17 her note / 18 the lectures / 30 the shop arrangements (straight to the
+ * tail).  PORT-DEBT(render-coupled, FUN_00409925): the menu, note, lecture and
+ * arrangement windows are not drawn. */
+static void player_ctrl_cc08_tear_menu_arm(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed, held = g_sim_buttons[0].held;
+    switch (s_cc08) {
+    case 15:
+        tear_menu_window_close_tick();
+        if (g_scene1_player_pos[0] <= g_scene1_actor_pos[2][0]) {
+            s_actor_record[0][CHR_ACTOR_FACING] = 6;
+            PW(0x56db05cu).f = 1.5707963705062866f;
+        } else {
+            s_actor_record[0][CHR_ACTOR_FACING] = 2;
+            PW(0x56db05cu).f = -1.5707963705062866f;
+        }
+        if (counter_menu_slide() >= 10) {
+            const int in = tear_menu_input(pressed, held);
+            if (in == TEAR_MENU_IN_CANCEL) {
+                s_cc08 = 1;
+                s_db048 = 0;
+                s_db04c = 0;
+                speech_bubble_close(0);                    /* FUN_00406212(0) */
+            } else if (in == TEAR_MENU_IN_CONFIRM) {
+                s_cc08 = 16;
+            }
+        }
+        party_status_tick();                 /* LABEL_132: FUN_004897c6 */
+        party_follow_tick();                 /* LABEL_133: FUN_0048a833 */
+        return;
+    case 16: {
+        const int entry = tear_menu_close_tick();          /* ++b754 == 15 */
+        if (entry >= 0) {
+            uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+            switch (entry) {
+            case 0: case 8: case 9:
+                s_cc08 = 17;
+                audio_play_se_by_id(0x144);
+                break;
+            case 7:
+                s_cc08 = 30;
+                audio_play_se_by_id(0x174);
+                tear_menu_set_cursor2(0);
+                tear_menu_set_timer(0);
+                break;
+            case 5: {
+                s_cc08 = 18;
+                int32_t lv = 0;
+                if (bb) memcpy(&lv, bb + 4 * SAVE_BANK_FIELD_MERCHANT_LEVEL, 4);
+                tear_lecture_open(lv);
+                break;
+            }
+            case 6:
+                s_cc08 = 1;
+                scene1_intro_dialogue_start_single(2, 14);  /* FUN_0044ba2c(2, 14, 0) */
+                s_db048 = 0;
+                s_db04c = 0;
+                speech_bubble_close(0);
+                break;
+            case 1: case 2: case 3:
+                tear_menu_open_shop(entry - 1);
+                speech_bubble_close(0);
+                break;
+            default:
+                s_cc08 = 1;
+                s_db048 = 0;
+                s_db04c = 0;
+                speech_bubble_close(0);
+                break;
+            }
+        }
+        party_follow_tick();                 /* LABEL_133 */
+        return;
+    }
+    case 17:
+        if (tear_note_tick(pressed)) {
+            tear_menu_set_timer(0);
+            s_cc08 = 15;
+            audio_play_se_by_id(0x144);
+        }
+        return;
+    case 18:
+        if (tear_lecture_tick(pressed, held)) tear_menu_back();
+        return;
+    case 30: {
+        int choice = 0;
+        const uint8_t *bb = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        const int r = tear_open_menu_tick(bb, pressed, held, &choice);
+        if (r == TEAR_MENU_IN_CANCEL) {
+            tear_menu_back();
+        } else if (r == TEAR_MENU_IN_CONFIRM) {
+            tear_menu_open_shop(choice == 0 ? 0 : choice == 1 ? 1 : 2);
+            speech_bubble_close(0);
+            tear_menu_set_timer(0);
+        }
+        return;
+    }
+    default:
+        return;
+    }
+}
+
 static void player_ctrl_cc08_unported_arm(void)
 {
     /* ── cc08==4 customer-service / haggle arm (FUN_0048670f all.c:87366-87434) ──
@@ -2121,6 +2263,8 @@ void scene1_player_ctrl_tick(void)
         }
     } else if (s_cc08 == 0 || s_cc08 == 10)
         player_ctrl_cc08_counter_menu_arm();
+    else if ((s_cc08 >= 15 && s_cc08 <= 18) || s_cc08 == 30)
+        player_ctrl_cc08_tear_menu_arm();
     else
         player_ctrl_cc08_unported_arm();
 

@@ -11,6 +11,7 @@
 #include <stddef.h>
 
 #include "audio.h"        /* audio_play_se_by_id (FUN_00499519, no RNG) */
+#include "title_save_dialog.h" /* the shared hand cursor (FUN_00435693 / 435710) */
 #include "save_bank.h"    /* SAVE_BANK_FIELD_MERCHANT_LEVEL / _CARD_DAY */
 
 #define CM_F423_BYTE_OFF  0x2bc8b   /* DAT_0450f423 — gates list-B entry 6 */
@@ -24,6 +25,9 @@ static int s_cursor2;                    /* DAT_0438cc10 */
 static int s_slide;                      /* DAT_0438b74c */
 static int s_slide2;                     /* DAT_0438b750 */
 static int s_timer;                      /* DAT_0438b754 */
+static int s_win;                        /* DAT_0438b8c0 */
+static int s_lect;                       /* DAT_0438b8c4 */
+static int s_lect_top;                   /* DAT_0438b8c8 */
 
 /* off_0052974c — the list-A entry labels. */
 static const char *const k_labels[7] = {
@@ -38,13 +42,16 @@ void counter_menu_reset(void)
     s_count_a = s_count_b = 0;
     s_cursor = s_cursor2 = 0;
     s_slide = s_slide2 = s_timer = 0;
+    s_win = s_lect = s_lect_top = 0;
 }
 
-/* FUN_00436f97 (all.c:36981-36984): DAT_0438b74c/b750/b754 = 0 at every stage
- * entry (the cursors and lists are left alone). */
+/* FUN_00436f97 (all.c:36981-36984, all_ida 37027): DAT_0438b74c/b750/b754 and
+ * the lecture window b8c0 / b8c4 / b8c8 = 0 at every stage entry (the cursors
+ * and lists are left alone). */
 void counter_menu_stage_reset(void)
 {
     s_slide = s_slide2 = s_timer = 0;
+    s_win = s_lect = s_lect_top = 0;
 }
 
 void counter_menu_build(const uint8_t *bank)
@@ -120,6 +127,152 @@ int counter_menu_close_tick(void)
         return -1;
     return s_list_a[s_cursor];
 }
+
+/* ── Tear's menu ─────────────────────────────────────────────────────────── */
+
+/* DAT_005291c0[i].level (36-byte records): the merchant level a lecture needs */
+static const int32_t k_lecture_level[30] = {
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 30, 40, 50, 100,
+};
+
+static float lecture_cursor_y(void)
+{
+    return (float)(32 * (s_lect - s_lect_top) + 164);
+}
+
+void tear_menu_window_close_tick(void)
+{
+    if (s_win > 0) s_win--;
+}
+
+int tear_menu_input(uint16_t pressed, uint16_t held)
+{
+    if (pressed & 0x20) { audio_play_se_by_id(0x13d); return TEAR_MENU_IN_CANCEL; }
+    if (pressed & 0x10) {
+        s_timer = 0;
+        audio_play_se_by_id(0x143);
+        return TEAR_MENU_IN_CONFIRM;
+    }
+    const int n = s_count_b;
+    if (held & 0x4)
+        s_cursor = (s_cursor + n - 1) % n;
+    else if (held & 0x8)
+        s_cursor = (s_cursor + n + 1) % n;
+    else
+        return TEAR_MENU_IN_NONE;
+    audio_play_se_by_id(0x146);
+    return TEAR_MENU_IN_NONE;
+}
+
+int tear_menu_close_tick(void)
+{
+    if (++s_timer != 15)
+        return -1;
+    return s_list_b[s_cursor];
+}
+
+void tear_lecture_open(int32_t level)
+{
+    int n = 0;
+    while (n < 30 && k_lecture_level[n] <= 90 && k_lecture_level[n] <= level)
+        n++;
+    s_lect_top = 0;
+    s_lect = n;
+    if (n >= TEAR_MENU_MAX_LECTURE) s_lect = n = TEAR_MENU_MAX_LECTURE;
+    if (n >= 1) {
+        s_lect_top = n - 1;
+        if (s_lect_top >= 24) s_lect_top = 24;
+    }
+    audio_play_se_by_id(0x174);
+    title_save_dialog_cursor_snap(152.0f, lecture_cursor_y());   /* FUN_00435693 */
+}
+
+/* the window slide-in: input once it reaches 10 */
+static int window_in(void)
+{
+    return s_win >= 10 || ++s_win >= 10;
+}
+
+int tear_note_tick(uint16_t pressed)
+{
+    return window_in() && (pressed & 0x30) != 0;
+}
+
+int tear_lecture_tick(uint16_t pressed, uint16_t held)
+{
+    if (!window_in()) return 0;
+    if (pressed & 0x30) return 1;
+    int moved = 0;
+    if (held & 0x4) {
+        if (s_lect <= 0) return 0;
+        --s_lect;
+        if (s_lect - s_lect_top < 0) --s_lect_top;
+    } else if (held & 0x8) {
+        if (s_lect >= TEAR_MENU_MAX_LECTURE) return 0;
+        ++s_lect;
+        if (s_lect - s_lect_top > 4) ++s_lect_top;
+    } else if (held & 0x2) {
+        if (s_lect > 0) {
+            s_lect -= 5;
+            if (s_lect - s_lect_top < 0) s_lect_top -= 5;
+            moved = 1;
+        }
+        if (s_lect < 0) s_lect = 0;
+        if (s_lect_top < 0) s_lect_top = 0;
+        if (!moved) return 0;
+    } else if (held & 0x1) {
+        if (s_lect < 29) {
+            s_lect += 5;
+            if (s_lect - s_lect_top > 4) s_lect_top += 5;
+            moved = 1;
+        }
+        if (s_lect >= TEAR_MENU_MAX_LECTURE) s_lect = TEAR_MENU_MAX_LECTURE;
+        if (s_lect_top >= 24) s_lect_top = 24;
+        if (!moved) return 0;
+    } else {
+        return 0;
+    }
+    audio_play_se_by_id(0x146);
+    title_save_dialog_cursor_slide(152.0f, lecture_cursor_y());   /* FUN_00435710 */
+    return 0;
+}
+
+int tear_open_menu_tick(const uint8_t *bank, uint16_t pressed, uint16_t held, int *choice)
+{
+    if (s_timer > 0) {
+        if (++s_timer != 15) return TEAR_MENU_IN_NONE;
+        *choice = s_cursor2;
+        return TEAR_MENU_IN_CONFIRM;
+    }
+    if (s_slide2 != 12) return TEAR_MENU_IN_NONE;
+    if (pressed & 0x20) return TEAR_MENU_IN_CANCEL;
+    if (pressed & 0x10) {
+        s_timer = 1;
+        return TEAR_MENU_IN_NONE;
+    }
+    int n = 1;
+    if (bank && bank[0x2bc90] != 0) n = 2;
+    if (bank && bank[0x2bc91] != 0) n++;
+    if (held & 0x4) {
+        if (s_cursor2 > 0) {
+            audio_play_se_by_id(0x146);
+            --s_cursor2;
+        }
+    } else if ((held & 0x8) && s_cursor2 < n - 1) {
+        audio_play_se_by_id(0x146);
+        ++s_cursor2;
+    }
+    return TEAR_MENU_IN_NONE;
+}
+
+int  tear_menu_cursor2(void)      { return s_cursor2; }
+void tear_menu_set_cursor2(int v) { s_cursor2 = v; }
+void tear_menu_set_timer(int v)   { s_timer = v; }
+int  tear_menu_window(void)       { return s_win; }
+int  tear_lecture_cursor(void)    { return s_lect; }
+int  tear_lecture_top(void)       { return s_lect_top; }
+int  counter_menu_slide2(void)    { return s_slide2; }
 
 int counter_menu_count(void)  { return s_count_a; }
 int counter_menu_entry(int i) { return (i >= 0 && i < s_count_a) ? s_list_a[i] : -1; }

@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 81,
+  "total": 82,
   "by_kind": {
    "stub": 58,
    "synthetic-data": 0,
@@ -18,7 +18,7 @@
    "focused": 1,
    "house-teardown": 1,
    "oob": 1,
-   "render-coupled": 7,
+   "render-coupled": 8,
    "semantic-collision": 1,
    "structure": 1
   },
@@ -28,6 +28,7 @@
    "FUN_00436f97": 3,
    "FUN_00473c15": 3,
    "FUN_00490c78": 3,
+   "FUN_00409925": 2,
    "FUN_004147d5": 2,
    "FUN_004176ff": 2,
    "FUN_00434ceb": 2,
@@ -37,7 +38,6 @@
    "FUN_0048670f": 2,
    "FUN_0048d5d6": 2,
    "0x43e...": 1,
-   "FUN_00409925": 1,
    "FUN_0040cea6": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
@@ -143,7 +143,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 786,
+   "line": 787,
    "kind_known": false
   },
   {
@@ -152,6 +152,14 @@
    "desc": "types >= 64 read past DAT_005c23f0 into",
    "file": "src/scene1_records_b_tick.c",
    "line": 3173,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00409925",
+   "desc": "the menu, note, lecture and",
+   "file": "src/scene1_player_ctrl.c",
+   "line": 1500,
    "kind_known": false
   },
   {
@@ -183,7 +191,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1946,
+   "line": 2088,
    "kind_known": false
   },
   {
@@ -423,7 +431,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1970,
+   "line": 2112,
    "kind_known": true
   },
   {
@@ -615,7 +623,7 @@
    "engine_fn": "FUN_0048670f cc04 2",
    "desc": "the furniture-grid mode (cc04 = 2,",
    "file": "src/scene1_player_ctrl.c",
-   "line": 967,
+   "line": 982,
    "kind_known": true
   },
   {
@@ -623,7 +631,7 @@
    "engine_fn": "FUN_0048670f cc08 50",
    "desc": "the faced stand's item",
    "file": "src/scene1_player_ctrl.c",
-   "line": 948,
+   "line": 949,
    "kind_known": true
   },
   {

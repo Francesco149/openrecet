@@ -209,9 +209,11 @@ void customer_service_render_chars(IDirect3DDevice8 *dev)
         }
     }
 
-    /* (d) offer panel (b56c∈[2,9]) + (e) button row (b5d0!=0):
-     * PORT-DEBT(cs-render-rest) — the item-want panel + action-button list.
-     * Inert on the tutorial sell path (b56c==1); added with the haggle UI. */
+    /* (d) offer panel (b56c∈[2,9]): its sim writes (the hint slot, the rare
+     * bit) first; (e) button row (b5d0!=0):
+     * PORT-DEBT(cs-render-rest) — the item-want panel + action-button list
+     * are not drawn. */
+    customer_service_want_panel_tick();
 }
 
 /* ── FUN_00466b7b — haggle dialogue box + typewriter + BARGAIN!! price ────────

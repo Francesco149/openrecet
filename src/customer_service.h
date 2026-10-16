@@ -249,6 +249,11 @@ int32_t cs_news_price_trend(int32_t item_handle);
 /* FUN_00468ddc — can adventurer `chara` (-1 = none ⇒ 1) wear `item` in equip
  * slot `slot` (-1 = any)? */
 int item_equip_check(int chara, int slot, int item);
+
+/* FUN_0046602e's item-want panel: the upgrade-hint slot DAT_005c6c34 and the
+ * request slot's rare bit — sim state written by the render; called where the
+ * render draws the panel (customer_service_render_chars) */
+void customer_service_want_panel_tick(void);
 /* FUN_00460083: log `item` in the work record's list `type` (0 sold, 1
  * bought, 2 found in a dungeon, …, 100 each); the 9th sale queues a news pair */
 void cs_item_log_append(int32_t item, int type);

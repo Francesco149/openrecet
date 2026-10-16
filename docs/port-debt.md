@@ -11,7 +11,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **81**
+- total open debts: **82**
 - distinct retiring engine functions: **63**
 
 | kind | count | meaning |
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
+> ⚠️  **16 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (8), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -34,6 +34,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | 3 |
 | FUN_00473c15 | 3 |
 | FUN_00490c78 | 3 |
+| FUN_00409925 | 2 |
 | FUN_004147d5 | 2 |
 | FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
@@ -43,7 +44,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
-| FUN_00409925 | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
@@ -116,7 +116,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:396 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_player_ctrl.c:1970 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2112 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:283 | dungeons 2..5's setups FUN_0044d9d3 / |
 | FUN_00436f97 | src/scene1_postload.c:317 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:448 | the multi-part anchors |
@@ -140,8 +140,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00485712 | src/dungeon_party.c:497 | the status-guard accessory 2504 (the |
 | FUN_00485c74 | src/dungeon_flow.c:185 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
-| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:967 | the furniture-grid mode (cc04 = 2, |
-| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:948 | the faced stand's item |
+| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:982 | the furniture-grid mode (cc04 = 2, |
+| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:949 | the faced stand's item |
 | FUN_00489e66 | src/dungeon_party.c:696 | the dash (double-tap, db034 / db03c / |
 | FUN_0048a383 | src/record_hit.c:251 | the level-up of s_easydisp |
 | FUN_0048b850 | src/dungeon_party.c:1564 | the water splash after the move (hit |
@@ -195,12 +195,13 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:786 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:787 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1500 | the menu, note, lecture and |
 | render-coupled | FUN_00441c3e | src/actor_ai.c:147 | the view matrix is the render's; |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048196b | src/scene_pause.c:1921 | the dungeon's Use / Throw |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:1946 | the eye / lookat writes); the |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2088 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1596 | the results screen's assets |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:805 | the notice's side is Tear's |
 | render-coupled | FUN_00490c78 | src/dungeon_party.c:1040 | the side is Tear's screen x < 320 |

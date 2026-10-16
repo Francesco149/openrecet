@@ -92,6 +92,11 @@ static int32_t get_tprev(void) { return (int32_t)g_tick.prev_ms; }
 static int32_t get_b74c(void)  { return counter_menu_slide(); }
 static int32_t get_b754(void)  { return counter_menu_timer(); }
 static int32_t get_cc0c(void)  { return counter_menu_cursor(); }
+static int32_t get_cc10(void)  { return tear_menu_cursor2(); }
+static int32_t get_b750(void)  { return counter_menu_slide2(); }
+static int32_t get_b8c0(void)  { return tear_menu_window(); }
+static int32_t get_b8c4(void)  { return tear_lecture_cursor(); }
+static int32_t get_b8c8(void)  { return tear_lecture_top(); }
 static int32_t get_ttctr(void) { return scene1_top_hud_tooltip_ctr(); }
 static int32_t get_fl_w(void)  { return g_floor_w; }
 static int32_t get_fl_h(void)  { return g_floor_h; }
@@ -234,6 +239,11 @@ static const state_va_t k_map[] = {
     { 0x438b74cu, "counter-menu slide b74c (DAT_0438b74c)", get_b74c },
     { 0x438b754u, "counter-menu timer b754 (DAT_0438b754)", get_b754 },
     { 0x438cc0cu, "counter-menu cursor cc0c (DAT_0438cc0c)", get_cc0c },
+    { 0x438cc10u, "Tear-menu cursor 2 cc10 (DAT_0438cc10)", get_cc10 },
+    { 0x438b750u, "Tear-menu slide 2 b750 (DAT_0438b750)", get_b750 },
+    { 0x438b8c0u, "Tear note / lecture window b8c0 (DAT_0438b8c0)", get_b8c0 },
+    { 0x438b8c4u, "Tear lecture cursor b8c4 (DAT_0438b8c4)", get_b8c4 },
+    { 0x438b8c8u, "Tear lecture scroll b8c8 (DAT_0438b8c8)", get_b8c8 },
     { 0x529704u,  "top-HUD tooltip counter (DAT_00529704)", get_ttctr },
     { 0x5cc2e8u,  "floor layout W (DAT_005cc2e8)",    get_fl_w  },
     { 0x5cc2ecu,  "floor layout H (DAT_005cc2ec)",    get_fl_h  },

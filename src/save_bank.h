@@ -454,4 +454,7 @@ void save_bank_set_header_init_hook(save_header_init_hook_t hook);
 void save_bank_set_skip_verify(int skip);
 int  save_bank_get_skip_verify(void);
 
+/* FUN_0048ff7e: DAT_005cf788[c][k], a chara's starter item id per equip slot */
+int32_t save_bank_starter_item(int c, int k);
+
 #endif /* OPENRECET_SAVE_BANK_H */

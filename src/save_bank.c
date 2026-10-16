@@ -192,6 +192,13 @@ static const int32_t STARTER_ITEMS[SAVE_BANK_CHARA_COUNT][5] = {
     {         701,        1201,        1601,          -1,          -1 },  /* chara[7] */
 };
 
+/* FUN_0048ff7e: chara c's starter item id in equip slot k (-1 = none) */
+int32_t save_bank_starter_item(int c, int k)
+{
+    if (c < 0 || c >= SAVE_BANK_CHARA_COUNT || k < 0 || k >= 5) return -1;
+    return STARTER_ITEMS[c][k];
+}
+
 /* DAT_005cf864 — starter flag-pairs per chara. Engine reads 10 pairs
  * per chara; only the first 8 pairs for chara[0..5] + 4 pairs for
  * chara[6] are valid data (64 pairs out of 80). The trailing 16
