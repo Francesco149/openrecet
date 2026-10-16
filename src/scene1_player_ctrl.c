@@ -110,11 +110,6 @@ static int   s_cc08             = 0;              /* DAT_0438cc08 (BSS 0 until F
  * the frame's behavior on the FRAME-START cc08; these flag a mid-frame flip so
  * later-running controllers (the companion) can mirror that.  Cleared at the
  * top of scene1_player_ctrl_tick each frame. */
-static int   s_cc08_entered_this_frame = 0;       /* walk-arm entry 1→4 / 1→0 this frame */
-static int   s_companion_skip_frame   = 0;       /* arm ended at LABEL_675: no FUN_0048a833 */
-static int   s_no_b850_frame          = 0;       /* arm ended at LABEL_132/133: companion, no b850 */
-static int   s_cc08_menu_open_this_frame = 0;     /* counter menu "Open Store" 10→4 this frame */
-static int   s_cc08_left_4_this_frame  = 0;       /* 4→1 this frame */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
 static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
@@ -147,7 +142,6 @@ static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-me
  * FUN_0048b850).  scene1_sim.c reads it after scene1_player_ctrl_tick() to run
  * the companion fallback ONLY on the non-walk frames (dialogue / menu / pre-
  * move).  Reset at the top of scene1_player_ctrl_tick(). */
-static int   s_companion_ticked_in_b850 = 0;
 static int   s_b850_ran = 0;              /* FUN_0048b850 ran this frame */
 
 /* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
@@ -337,7 +331,6 @@ void player_ctrl_set_facing_angle(float angle)
 void player_ctrl_emote_reset(void) { s_emote_level = 0; s_emote_type = 0; }
 int  player_ctrl_db048(void)       { return s_db048; }
 void player_ctrl_set_db048(int v)  { s_db048 = v; }
-int  player_ctrl_no_b850_this_frame(void) { return s_no_b850_frame; }
 int  player_ctrl_b850_ran(void)           { return s_b850_ran; }
 
 /* FUN_00436f97 blocks 11-15 (all.c:37155-37370), the player-controller part:
@@ -387,16 +380,6 @@ void player_ctrl_stage_entry_reset(void)
 void player_ctrl_cc08_enter_freeroam(void)
 {
     CALL_TRACE_ENTER_STUB(0x4850ecu);
-    /* cs LEAVE frame marker (RE §21.28 chip a): when the master tick flips
-     * cc08 4→1 mid-frame (the b520 dissolve completion), retail's frame took
-     * the cc08==4 arm — the companion free-roam law never runs that frame
-     * (probe: retail ticks her counter 20→21 during 631 with NO anim write;
-     * the port's spring-follow instead saw the flipped cc08, moved her and
-     * set the WALK anim ⇒ the 632 conv-pose enter became a real reset vs
-     * retail's no-op ⇒ the +20 pose-era cycle offset).  Cleared per frame at
-     * the top of scene1_player_ctrl_tick, like the entry marker. */
-    if (s_cc08 == 4)
-        s_cc08_left_4_this_frame = 1;
     s_worldmap_exit_armed = 0;   /* DAT_074b2ec4 */
     s_cc08 = 1;
 }
@@ -420,20 +403,11 @@ int player_ctrl_cc04(void)
  * free-roam walk path).  scene1_sim.c uses it to run the companion fallback only
  * on the non-walk frames where b850 was not reached (dialogue / menu / pre-move),
  * so the companion ticks exactly once per frame. */
-int player_ctrl_companion_ticked(void)
-{
-    return s_companion_ticked_in_b850;
-}
 
-static int s_companion_from_cs;
 void player_ctrl_companion_tick_from_cs(void)
 {
-    s_companion_from_cs = 1;
     party_follow_tick();                 /* FUN_0048a833 (the master tick's head, 0x4624a1) */
-    s_companion_from_cs = 0;
-    s_companion_ticked_in_b850 = 1;
 }
-int player_ctrl_companion_from_cs(void) { return s_companion_from_cs; }
 
 /* Debug/test hook: force the cc08 state id.  Stands in for the unported
  * state-transition writers (customer-approach → 4, counter-open → 0x32, talk →
@@ -446,8 +420,6 @@ void player_ctrl_debug_set_cc08(int state)
      * markers (in live play scene1_player_ctrl_tick clears them per frame;
      * host tests drive the companion without the player tick, so a stale
      * marker from a previous test's enter_freeroam would stick). */
-    s_cc08_entered_this_frame = 0;
-    s_cc08_left_4_this_frame  = 0;
 }
 
 /* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
@@ -566,7 +538,6 @@ static int player_ctrl_cc08_customer_escalate(void)
     bb[PC_F405_ARRIVED_OFF] = 1;
     customer_service_set_script_file(file);        /* FUN_00461bf6 */
     customer_service_session_init();               /* FUN_0045edaa */
-    s_cc08_entered_this_frame = 1;
     return 1;
 }
 
@@ -844,8 +815,7 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
  *     (b5a8=2, the kind-select) on fileidx∉{1,2}.
  *   - f3ff == 0 (every ordinary shop day): open the counter menu (cc08 0 →
  *     "Open Store" → cc08 10 → 15 frames → cc08 4, scene1_counter_menu.c).
- * Both arms goto the tail, past the per-actor anim tick and the companion
- * (s_cc08_entered_this_frame). */
+ * Both arms goto the tail, past FUN_004897c6 and FUN_0048a833. */
 #define PC_F404_SELL_ACTIVE_BYTE_OFF  0x2bc6c   /* DAT_0450f404 — sell-active flag */
 
 /* cc08 flipped 1→4 THIS frame (any cs entry flavor).  The engine's entry arms
@@ -854,15 +824,7 @@ void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
  * (probe-proven RE §21.28: retail ccnt/pcnt freeze across frames 304 + 825).
  * Cleared at the top of scene1_player_ctrl_tick each frame; read by
  * scene1_companion_ctrl_tick to sit the companion out on the entry frame. */
-int player_ctrl_cc08_entered_this_frame(void)
-{
-    return s_cc08_entered_this_frame;
-}
 
-int player_ctrl_cc08_left_4_this_frame(void)
-{
-    return s_cc08_left_4_this_frame;
-}
 
 /* Frame-top clear for both boundary markers — called from scene1_ingame_tick
  * (which runs on EVERY sim frame, default AND event arms) so a marker lives
@@ -871,28 +833,12 @@ int player_ctrl_cc08_left_4_this_frame(void)
  * the rumble) — no FUN_004897c6 anim tick and no FUN_0048a833, so the companion
  * sits this frame out (rhost multiday-tutorials-suggest f1410: Tear's wander
  * timer holds). */
-int player_ctrl_companion_skip_this_frame(void)
-{
-    return s_companion_skip_frame;
-}
 
-void player_ctrl_cc08_markers_frame_clear(void)
-{
-    s_companion_skip_frame = 0;
-    s_no_b850_frame = 0;
-    s_cc08_entered_this_frame = 0;
-    s_cc08_left_4_this_frame  = 0;
-    s_cc08_menu_open_this_frame = 0;
-}
 
 /* cc08 10→4 THIS frame via the counter menu's "Open Store".  FUN_0048670f's
  * cc08==10 case ends `goto LABEL_133 → FUN_0048a833()`, so the companion still
  * runs its normal update on this tick even though session_init just spawned the
  * d3e load (b1cc 2) — unlike the 1→4 entries, which skip it. */
-int player_ctrl_cc08_menu_open_this_frame(void)
-{
-    return s_cc08_menu_open_this_frame;
-}
 
 static int player_ctrl_cc08_sell_counter_enter(void)
 {
@@ -914,7 +860,6 @@ static int player_ctrl_cc08_sell_counter_enter(void)
         audio_play_se_file("bin/se/00re/system/00re_sys06.bin");   /* FUN_0049933c */
         audio_play_se_by_id(0x174);                        /* FUN_00499519(0x174) */
     }
-    s_cc08_entered_this_frame = 1;                         /* RE §21.28 entry no-tick */
     s_emote_level = 0;   /* DAT_056db000 = 0 (asm 0x488c11): consume the counter "!"
                           * affordance on entry, so it doesn't linger frozen. */
     return 1;
@@ -952,7 +897,6 @@ int player_ctrl_cc08_f406_entry(void)
     if (((const uint8_t *)bank)[PC_F406_TUTORIAL_BYTE_OFF] == 0)
         return 0;
     s_cc08 = 4;                          /* DAT_0438cc08 = 4 */
-    s_cc08_entered_this_frame = 1;       /* RE §21.28 entry no-tick */
     customer_service_session_init();     /* FUN_0045edaa (the f406 forced-kyaku-13 branch) */
     return 1;
 }
@@ -981,7 +925,6 @@ static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
     const uint16_t pressed = g_sim_buttons[0].pressed;
     if ((pressed & 0x70u) == 0)
         return 0;
-    s_companion_skip_frame = 1;
     if (pressed & 0x20u)
         return 1;
 
@@ -1052,7 +995,6 @@ static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
     /* cc04 = 1 + the open-once latch DAT_0438cbe8 (all.c:87718-87722). */
     int first_open = (s_cbe8 == 0);
     s_cc04 = 1;
-    s_companion_skip_frame = 1;
     if (first_open)
         s_cbe8 = 1;
 
@@ -1126,7 +1068,6 @@ static void player_ctrl_cc04_menu_arm(void)
     player_ctrl_cc04_menu_body();
     party_status_tick();
     party_follow_tick();
-    s_companion_ticked_in_b850 = 1;
 }
 
 static void player_ctrl_cc04_menu_body(void)
@@ -1293,12 +1234,10 @@ static void player_ctrl_cc08_counter_menu_arm(void)
         }
         party_status_tick();                 /* LABEL_132: FUN_004897c6 */
         party_follow_tick();                 /* LABEL_133: FUN_0048a833 */
-        s_companion_ticked_in_b850 = 1;
         return;
     }
 
     /* cc08 == 10: every path ends at LABEL_133 (FUN_0048a833, no anim tick) */
-    s_companion_ticked_in_b850 = 1;
     int entry = counter_menu_close_tick();                  /* ++DAT_0438b754 == 15 */
     if (entry < 0) {
         party_follow_tick();
@@ -1308,7 +1247,6 @@ static void player_ctrl_cc08_counter_menu_arm(void)
         s_cc08 = 1;
     } else if (entry == COUNTER_MENU_OPEN_STORE) {
         s_cc08 = 4;                                         /* DAT_0438cc08 = 4 */
-        s_cc08_menu_open_this_frame = 1;
         customer_service_session_init();                    /* FUN_0045edaa */
         /* rand()%5 picks Recette's / Tear's "let's open!" voice (asm 0x4870f3). */
         static const char *const k_open_se[5] = {
@@ -1372,10 +1310,8 @@ static void player_ctrl_cc08_freeroam_arm(void)
             }
         }
         party_follow_tick();                 /* FUN_0048a833 */
-        s_companion_ticked_in_b850 = 1;
         player_ctrl_emote_label_448();   /* goto LABEL_448 */
         if (scene1_beat_counter() < 45) {
-            s_no_b850_frame = 1;
             party_status_tick();             /* LABEL_508: FUN_004897c6 */
             return;
         }
@@ -1414,7 +1350,6 @@ void player_ctrl_walk(void)
 {
     s_b850_ran = 1;
     party_tick();
-    s_companion_ticked_in_b850 = 1;
 }
 
 /* ── Chip 3c: the cc08==4 player/companion ARRIVAL anim + camera ramp ────────
@@ -1638,7 +1573,6 @@ static void player_ctrl_cc08_unported_arm(void)
          * ticks, every frame of the arm including the d3e load; Tear's
          * FUN_0048a833 ran (or not) in the master tick */
         party_status_tick();
-        s_companion_ticked_in_b850 = 1;
         return;
     }
     /* Other unported cc08 states (0/2/3/0xa/0xf/0x10/0x32/…) — reached only by
@@ -1728,14 +1662,8 @@ void scene1_player_ctrl_tick(void)
     /* Clear the inline-companion latch: set again only if the free-roam walk
      * path reaches player_ctrl_b850_move() this frame (engine FUN_0048a833 nested
      * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
-    s_companion_ticked_in_b850 = 0;
     s_b850_ran = 0;
 
-    /* NB the RE §21.28 cc08 boundary markers are cleared at the frame top by
-     * scene1_ingame_tick (player_ctrl_cc08_markers_frame_clear) — NOT here:
-     * this tick does not run on EVENT frames, and a leave marker set by the
-     * last pre-dialogue frame must not gate the companion through a whole
-     * dialogue era (the first attempt did exactly that — cz froze 632-824). */
 
     /* Per-frame ACTOR-STATE flow-trace payload (FUN_0048670f = the HOUSE
      * free-roam update, parent of both the player and companion controllers).
@@ -1997,7 +1925,6 @@ void scene1_player_ctrl_tick(void)
      * else FUN_0048b850) and the room clamp; +0x2bce8 / +0x2bce9 = 1, return */
     if (story_visitor_active()) {
         uint8_t *sb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
-        s_companion_skip_frame = 1;               /* Tear ticks only inside FUN_0048b850 */
         scene1_beat_set_counter(scene1_beat_counter() + 1);
         if (scene1_beat_counter() > 120) {
             scene1_bg_npc_tick();                 /* FUN_0046f621 */
@@ -2021,8 +1948,6 @@ void scene1_player_ctrl_tick(void)
     {
         uint8_t *sb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
         if (sb != NULL && sb[0x2bced] != 0) {
-            s_companion_skip_frame = 1;
-            s_no_b850_frame = 1;
             scene1_beat_set_counter(scene1_beat_counter() + 1);
             scene1_bg_npc_tick();                 /* FUN_0046f621 */
             party_status_tick();                  /* FUN_004897c6(&DAT_056da1b8) */
@@ -2149,10 +2074,8 @@ void scene1_player_ctrl_tick(void)
      * FUN_0048b850, so db054 holds), then the LABEL_675 tail (FUN_00486435 +
      * FUN_00485861) — and skips the cc08 dispatch. */
     if (day_close_machine_tick()) {
-        s_no_b850_frame = 1;
         party_status_tick();                 /* LABEL_132: FUN_004897c6 */
         party_follow_tick();                 /* LABEL_133: FUN_0048a833 */
-        s_companion_ticked_in_b850 = 1;
         player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
                                      &g_scene1_player_pos[2]);
         actor_say_tick();
@@ -2167,7 +2090,6 @@ void scene1_player_ctrl_tick(void)
      * world-map load, and LABEL_675 (FUN_00486435 + FUN_00485861) — no anim
      * tick, no FUN_0048a833. */
     if (player_ctrl_worldmap_exit_stage2()) {
-        s_companion_skip_frame = 1;
         player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
                                      &g_scene1_player_pos[2]);
         actor_say_tick();
@@ -2196,8 +2118,6 @@ void scene1_player_ctrl_tick(void)
             party_anim_set(s_actor_record[0], 6);
             party_follow_tick();
             party_status_tick();
-            s_companion_ticked_in_b850 = 1;
-            s_no_b850_frame = 1;
         }
     } else if (s_cc08 == 0 || s_cc08 == 10)
         player_ctrl_cc08_counter_menu_arm();

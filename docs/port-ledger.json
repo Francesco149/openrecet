@@ -4,11 +4,11 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "inv_instrumented": 91,
-  "inv_instrumented_full": 81,
+  "inv_instrumented": 90,
+  "inv_instrumented_full": 80,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 661,
+  "inv_source_referenced": 662,
   "inv_discovered": 1796,
   "referenced_or_better": 752,
   "pct_referenced_or_better": 29.5,
@@ -16,9 +16,9 @@
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 9,
   "port_debt": 105,
-  "verified": 81,
+  "verified": 80,
   "stubbed": 10,
-  "ported": 661,
+  "ported": 662,
   "unported": 1796,
   "touched": 752,
   "pct_touched": 29.5,
@@ -3087,8 +3087,6 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_companion_ctrl.c",
-    "src/scene1_companion_ctrl.h",
     "src/scene1_maplight.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
@@ -6194,7 +6192,6 @@
     "src/scene1_camera.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_counter_menu.c",
     "src/scene1_counter_menu.h",
@@ -6828,7 +6825,6 @@
     "src/main.c",
     "src/record_hit.c",
     "src/scene1_combat_sm.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.c",
     "src/scene1_pass_f.h",
@@ -16729,7 +16725,6 @@
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_chr_sprite.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
     "src/scene1_player_ctrl.c",
@@ -16855,8 +16850,8 @@
    "src": [
     "src/dungeon_party.c",
     "src/dungeon_party.h",
-    "src/scene1_companion_ctrl.c",
-    "src/scene1_conversation_pose.c"
+    "src/scene1_conversation_pose.c",
+    "src/scene1_sim.c"
    ],
    "status": "ported"
   },
@@ -16879,7 +16874,6 @@
    "src": [
     "src/dungeon_party.c",
     "src/dungeon_party.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
@@ -17322,7 +17316,6 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_day_close.h",
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.h",
@@ -17760,7 +17753,6 @@
     "src/party_roster.h",
     "src/scene1_actor_say.h",
     "src/scene1_bg_npc.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
     "src/scene1_counter_menu.c",
     "src/scene1_counter_menu.h",
@@ -17840,10 +17832,8 @@
     "src/dungeon_party.c",
     "src/dungeon_party.h",
     "src/party.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
   },
@@ -18029,13 +18019,13 @@
    "size": 866,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "instrumented",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
     "source_referenced": true,
-    "implemented": true,
-    "instrumented": true,
+    "implemented": false,
+    "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
@@ -18043,11 +18033,9 @@
     "src/customer_service.c",
     "src/dungeon_party.c",
     "src/dungeon_party.h",
-    "src/scene1_companion_ctrl.c",
-    "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c"
    ],
-   "status": "verified"
+   "status": "ported"
   },
   {
    "va": "0x48a833",
@@ -18072,13 +18060,11 @@
     "src/dungeon_party.c",
     "src/dungeon_party.h",
     "src/scene1_chr_shadow.c",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
-    "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c"
    ],
    "status": "ported"
@@ -18178,7 +18164,6 @@
     "src/main.c",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
@@ -18186,7 +18171,6 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_shop_walker.c",
-    "src/scene1_sim.c",
     "src/scene1_walk_dust.c",
     "src/scene1_walk_dust.h",
     "src/scene_pause.c"
@@ -21672,7 +21656,6 @@
    "quality_flags": [],
    "src": [
     "src/scene.h",
-    "src/scene1_companion_ctrl.c",
     "src/scene1_day_close.c",
     "src/scene1_postload.h",
     "src/scene1_tutorial_dispatch.c",

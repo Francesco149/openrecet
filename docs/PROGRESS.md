@@ -32,6 +32,13 @@ and debt-gameover-restart. Fixed, all from the disasm:
 - iv2_5's dispatcher arm calls FUN_004852fb (the day-2 re-place latch is gone);
 - mode 2's step 5 sets DAT_06a499a8 = 2.
 `gates`: 30 rows, 0 failed. Tools: state_va rows 438be7c, 438b75c / b760.
+Then the event arm: FUN_0048407f's house tail runs every live actor's anim tick (unless the
+pose / story tick did), Tear's FUN_0048a4d1(0, 0) + the wing sparkle (`party_event_follow`,
+shared with the floors) and FUN_00483e7b first — **Tear's x / y / z now IDENTICAL over
+day2-save-commit, multiday and debt-gameover-restart** (the 1-ulp drift FRONT carried since
+2026-10-14 and the 0.0004 height split were the legacy companion). With that the legacy
+`scene1_companion_ctrl_tick` had no caller left: the scene1_sim fallback, the module's
+house controller, its host tests and the seven frame-marker latches it read are removed.
 
 ## 2026-10-16 — the game over: debt-gameover-restart passes end to end
 After the house walk (below) the run split at f24682, the failed payment. Ported from the disasm:

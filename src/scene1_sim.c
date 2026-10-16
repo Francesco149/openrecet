@@ -154,6 +154,7 @@ void scene1_ingame_transition_arm_tick(void)
     if (mapcol_maptype() >= 1) {
         dungeon_event_actor_tick();          /* FUN_0048407f, *DAT_068dd2f0 >= 1 */
     } else {
+        party_aura_tick();                   /* FUN_00483e7b */
         if (!scene1_conversation_pose_story_tick())
             scene1_conversation_pose_tick();
         scene1_conversation_pose_release_pending(0);
@@ -181,48 +182,10 @@ static void stage_event_tick(void);
 
 /* FUN_0048670f's slot of FUN_00442cef on a house stage: the port's house
  * controller (the conversation-pose release, scene1_player_ctrl_tick = the
- * FUN_0048670f reconstruction, the companion fallback).
+ * FUN_0048670f reconstruction).
  * PORT-DEBT(structure, FUN_0048670f): one retail-shaped master tick. */
 static void house_master_tick(void)
 {
-    /* cc04 (the display-stand menu sub-state) SAMPLED AT DISPATCH: the engine's
-     * db054 increment sits at the FUN_0048b850 tail, reached only when the
-     * frame's cc08/cc04 dispatch took a non-menu path.  On the menu-CLOSE frame
-     * the menu arm clears cc04 MID-frame and b850 never runs → retail does NOT
-     * advance db054 that frame; the port's fallback below used to re-read cc04
-     * after the clear and advanced anyway — +1 db054 per pause vs retail, which
-     * skewed every db054-aligned diff after the first menu (the phantom
-     * house_update.px/py/dust "DRIFT @202" on item-display-2: the walk values
-     * are bit-identical under a 1-frame shift). */
-    int cc04_at_dispatch = player_ctrl_cc04();
-
-    /* cc08 SAMPLED AT DISPATCH — the cc04 story above, for the cs mode boundary
-     * (RE §21.23).  db054 advances ONLY when the engine reaches the FUN_0048b850
-     * tail (the free-roam MOVE), and retail's FUN_0048670f skips that move on
-     * BOTH cc08==4 boundary frames — so its db054 stays FROZEN across the whole
-     * cc08==4 span AND its two edge frames:
-     *   - the 4→1 LEAVE (frame 631): retail's `if (cc08==4){…master tick sets
-     *     cc08=1 when the b520 dissolve completes…} else {…walk→FUN_0048b850…}`
-     *     is an if/else on the FRAME-START cc08 — the leave frame takes the
-     *     cc08==4 branch and never reaches the walk/db054 path, even though cc08
-     *     flipped to 1 mid-frame.  ⇒ gate on cc08_at_dispatch (the dispatch value
-     *     was still 4).
-     *   - the 1→4 ENTRY (frame 304): the walk arm (cc08==1 branch) detects the
-     *     customer-service trigger, sets cc08=4, and `goto`s the tail SKIPPING
-     *     FUN_0048b850 (all.c:87485-89) ⇒ no db054++.  ⇒ gate on the LIVE cc08
-     *     (now 4), since the dispatch value was 1.
-     * The port splits that single if/else across scene1_player_ctrl_tick (the
-     * cc08==4 arm / freeroam arm flip cc08) and THIS fallback.  Gating on the
-     * LIVE cc08 alone (the pre-§21.23 code) caught the ENTRY but re-read the
-     * flipped-to-1 LEAVE value and advanced db054 a frame early — the +1 drift
-     * from CONV_POSE_START (632); gating on the DISPATCH value alone catches the
-     * leave but wrongly advances on the entry (dispatch still 1).  Require BOTH
-     * == 1 = "free-roam at dispatch and after" = FUN_0048b850 actually ran (the
-     * counter menu cc08 0/10 skips it too: switch cases, not the walk).
-     * (The +1 drift cascaded into the late 目玉 sparkle / chibi walk phase via
-     * the shared LCG — viewer notes #20/#22.) */
-    int cc08_at_dispatch = player_ctrl_cc08();
-
     /* FUN_0048407f conversation branch (the event-actor tick): hold the iv1_2
      * face-to-face pose on the freeroam chibis (Recette look-up/blink anim 6,
      * Tear talk anim 4) and advance their sprite anim.  Runs FIRST, before the
@@ -246,35 +209,6 @@ static void house_master_tick(void)
     scene1_player_ctrl_tick();
     scene1_conversation_pose_release_pending(player_ctrl_b850_ran());
 
-    /* Companion controller (FUN_0048a833).  The engine nests it INSIDE the player
-     * driver's FUN_0048b850, right before the foot-dust emit, so the fairy's
-     * wing-sparkle RNG precedes the dust's.  On a free-roam walk frame
-     * player_ctrl_b850_move() already ran it there (and advanced db054 after the
-     * dust); this fallback ticks+advances it on every OTHER frame — the
-     * display-menu / pre-move paths the engine reaches through FUN_0048b850's
-     * other callers but the port's stubbed arms do not.  (Dialogue frames no
-     * longer come through here at all — scene1_ingame_tick routes busy frames
-     * to the event arm, whose tail owns the companion + db054.)  Gated on the
-     * latch so the companion ticks exactly once per frame (engine-quirks §114);
-     * the db054 advance additionally requires the frame to have DISPATCHED
-     * outside the menu (cc04_at_dispatch — see above; advance_phase itself
-     * still re-checks the live cc04 for the menu-OPEN frame, set mid-frame). */
-    if (!player_ctrl_companion_ticked() && !player_ctrl_companion_skip_this_frame()) {
-        scene1_companion_ctrl_tick();
-        /* db054 advances ONLY in free-roam: the engine bumps it at the
-         * FUN_0048b850 tail, which does NOT run in cc08==4 (customer service) —
-         * so retail's db054 FREEZES there (verified: frozen at 156).  The
-         * companion wing-glow sparkle gate is `db054 % 4 == 0`, so a frozen db054
-         * (156 % 4 == 0) emits the type-0x1f particle EVERY frame, vs every 4th
-         * while it keeps incrementing — this is the cc08==4 ambient-particle rng
-         * the port was under-drawing (~5.5/f vs retail ~10/f).  Freeze it here to
-         * match (RE §8.8 — the resolved §8.5 rng-rate gap). */
-        /* … and not while the b928 beat holds (b924 < 200): FUN_0048670f's
-         * LABEL_448 → LABEL_416 path runs FUN_0048a833 but not FUN_0048b850. */
-        if (cc04_at_dispatch == 0 && cc08_at_dispatch == 1 &&
-            player_ctrl_cc08() == 1 && !scene1_tutorial_dispatch_iv2_beat_active())
-            scene1_companion_ctrl_advance_phase();
-    }
 
 }
 
@@ -618,11 +552,6 @@ void scene1_debug_overlay_consume_rng(void)
 
 void scene1_ingame_tick(void)
 {
-    /* RE §21.28 cc08 boundary markers live for exactly ONE frame — clear at
-     * the frame top, before any arm can set or read them (the player tick
-     * can't own this: it does not run on event frames). */
-    player_ctrl_cc08_markers_frame_clear();
-
     /* Engine FUN_004536cb L50555-50568 — state-1 sub-dispatch:
      *
      *   if (transition_flag != 0)  → transition arm

@@ -31,6 +31,7 @@ static int near_(float a, float b, float tol) { return fabsf(a - b) <= tol; }
  * facing −X (normal points toward −X, the approaching side). */
 static void make_wall(collision_object *o, collision_tri t[2])
 {
+    memset(o, 0, sizeof *o);   /* origin / rotation 0 */
     /* Art-space verts (X negated in the record).  Build a wall at world x=−2
      * spanning z∈[−5,5], y∈[0,4], normal facing +X (toward the origin). */
     float a[3] = {2, 0, -5}, b[3] = {2, 4, -5}, c[3] = {2, 0, 5};
@@ -155,6 +156,7 @@ int test_resolve_room_wall_blocks(void)
 /* up-facing floor triangle at world y=`y`, XZ ⊂ {x∈[−10,0], z∈[0,10]}. */
 static void make_floor_at(collision_object *o, collision_tri *t, float y)
 {
+    memset(o, 0, sizeof *o);   /* origin / rotation 0 */
     float a[3] = {0, y, 0};
     float b[3] = {0, y, 10};
     float c[3] = {10, y, 0};

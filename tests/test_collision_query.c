@@ -9,6 +9,7 @@
 #include "t.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "collision_mesh.h"
 #include "collision_query.h"
@@ -39,6 +40,7 @@ static char *slurp(const char *path, size_t *out_len)
  * +Y, i.e. the query's above-plane gate passes for a point above it). */
 static void make_floor(collision_object *o, collision_tri *t)
 {
+    memset(o, 0, sizeof *o);   /* origin / rotation 0 */
     float a[3] = {0, 0, 0};
     float b[3] = {0, 0, 10};
     float c[3] = {10, 0, 0};

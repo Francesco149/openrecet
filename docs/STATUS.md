@@ -8,14 +8,14 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-██████░░░░░░░░░░░░░░  29.5% referenced-or-better   (91 instrumented)
+██████░░░░░░░░░░░░░░  29.5% referenced-or-better   (90 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
-| instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
+| instrumented       |    90 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   661 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| source-referenced  |   662 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
 | discovered         |  1796 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
@@ -227,19 +227,13 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **The event arm's actors and the last legacy companion caller**
-       (`PORT-DEBT(structure, FUN_0048a833)`). FUN_0048a833 / FUN_004897c6 now run faithfully
-       (`party_follow_tick` / `party_status_tick`) in FUN_0048b850, the cc08 0 / 10 / 4 arms,
-       the day close, the return beat, the morning beat and the cc04 menu (PROGRESS
-       2026-10-16). Left: (a) FUN_0048407f's house branch — the event arm still runs the
-       legacy `scene1_companion_ctrl_tick` for Tear's follow (retail FUN_0048a4d1(0, 0)) and
-       the anim ticks only through the pose module (a faithful tail is drafted: all actors'
-       ticks + `party_event_follow`); Tear's height differs from multiday f5434 / debt
-       f13505 (3.0012 vs 3.0008), x / z by 1 ulp from day2 f8939 / multiday f10765;
-       (b) the scene1_sim fallback, which runs the legacy companion on default-arm frames
-       where retail goes straight to LABEL_675 (no FUN_0048a833). Then retire the module.
-       Measure with `portstate SCEN --va 56da1f0,56da1f4,56da1f8,56dab48,56dab4c` on
-       day2-save-commit / multiday / debt + `portanchors house-idle`.
+    2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end; multiday and
+       debt-gameover-restart's party / Tear / emote state is identical every frame):
+       buy-from-seller-guild-intro f26760 party 10 dwords; adv-guild-pack-leave f21540 the
+       pause's 74b2878 / 834 / 820 / 8a0 / 8ac + 1 work dword; dungeon0-full f44730 table B
+       27 dwords + DAT_00648294; dungeon1-deep f77120 party 90 / actors 44 / table B 16 +
+       DAT_00648294. Find each one's first frame with `portstate --va`, fix from the disasm.
+       Also open: the Tear talk arm (be7c + Z → cc08 15..18, 30; no recording talks to her).
        Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).

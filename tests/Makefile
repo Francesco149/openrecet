@@ -154,7 +154,6 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_render.c \
                  test_scene1_bg_npc.c \
                  test_scene1_player_ctrl.c \
-                 test_scene1_companion_ctrl.c \
                  test_scene1_conversation_pose.c \
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \
                  test_se_pack.c test_scene1_dialogue.c test_scene1_dialogue_run.c \

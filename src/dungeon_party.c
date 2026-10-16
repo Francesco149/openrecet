@@ -609,6 +609,24 @@ void party_stage_reset(void)
     PW(0x56db0c8u).f = PW(0x56db0c0u).f;
 }
 
+/* FUN_0048407f after the anim ticks: Tear follows (FUN_0048a4d1(v31, 0), no anim)
+ * and the wing sparkle (no floor-intro gate here) */
+void party_event_follow(void)
+{
+    if (PW(0x56da1c8u).i != 1)
+        party_follow(mapcol_maptype() >= 1, 0);
+    if (g_party.scale_xz[2] > k0 && g_party.scale_y[2] > k0 && PW(0x56db054u).i % 4 == 0) {
+        const float a = spill32((long double)spill32((long double)g_party.rec[2][6]) * k_2pi / k8 - g_scene1_camera_yaw);
+        const double ad = a;
+        const float s = spill32(x87_crt_sin(ad));
+        const float c = spill32(x87_crt_cos(ad));
+        const float z = spill32((long double)g_party.pos[2][2] - (long double)c * k0p6);
+        const float y = spill32((long double)g_party.pos[2][1] + k1p1);
+        const float x = spill32((long double)g_party.pos[2][0] - (long double)s * k0p6);
+        scene1_spawn(0, x, y, z, 0x1f, k0p1, 1);
+    }
+}
+
 /* FUN_0048407f, *DAT_068dd2f0 >= 1: the actors hold their idle anims during
  * an event; the anim ticks; Tear follows the partner (no anim); the wing
  * sparkle; FUN_004708f7; db054++ */
@@ -625,18 +643,7 @@ void dungeon_event_actor_tick(void)
     for (int i = 0; i < 3; i++)
         if (g_party.chr[i] != -1)
             chr_anim_tick(g_party.rec[i], g_party.chr[i], 1.0f);
-    if (PW(0x56da1c8u).i != 1)
-        party_follow(mapcol_maptype() >= 1, 0);
-    if (g_party.scale_xz[2] > k0 && g_party.scale_y[2] > k0 && PW(0x56db054u).i % 4 == 0) {
-        const float a = spill32((long double)spill32((long double)g_party.rec[2][6]) * k_2pi / k8 - g_scene1_camera_yaw);
-        const double ad = a;
-        const float s = spill32(x87_crt_sin(ad));
-        const float c = spill32(x87_crt_cos(ad));
-        const float z = spill32((long double)g_party.pos[2][2] - (long double)c * k0p6);
-        const float y = spill32((long double)g_party.pos[2][1] + k1p1);
-        const float x = spill32((long double)g_party.pos[2][0] - (long double)s * k0p6);
-        scene1_spawn(0, x, y, z, 0x1f, k0p1, 1);
-    }
+    party_event_follow();
     /* PORT-DEBT(stub, FUN_004708f7): the event-window pair (chars 0x2f / 0x30)
      * of work flag +0x2bcd8 — house-only */
     ++PW(0x56db054u).i;

@@ -84,9 +84,6 @@ void player_ctrl_stage_entry_reset(void);
 void player_ctrl_display_latch_reset(void);   /* DAT_0438cbe8 = 0 */
 int  player_ctrl_display_latch(void);
 
-/* The frame left FUN_0048670f through LABEL_132/133 with no FUN_0048b850
- * (the day-close exchange): the companion still ticks, db054 does not. */
-int  player_ctrl_no_b850_this_frame(void);
 int  player_ctrl_b850_ran(void);   /* FUN_0048b850 (party_tick) ran this frame */
 
 /* ── FUN_0048670f cc08 dispatch state (Chip 4, engine-quirks §78) ────────────
@@ -95,28 +92,10 @@ int  player_ctrl_b850_ran(void);   /* FUN_0048b850 (party_tick) ran this frame *
  * camera / counter / menu / dialogue arms. */
 void player_ctrl_cc08_enter_freeroam(void); /* FUN_004850ec: set cc08 = 1 (HOUSE entry) */
 int  player_ctrl_cc08(void);                /* read cc08 */
-int  player_ctrl_cc08_entered_this_frame(void); /* cc08 flipped 1→4 THIS frame — the engine
-                                             * entry arms `goto LAB_004893ff` past the
-                                             * FUN_004897c6 anim-tick loop + the companion
-                                             * ctrl, so the entry frame ticks no actor
-                                             * anim (probe-proven, RE §21.28). */
-int  player_ctrl_cc08_menu_open_this_frame(void); /* cc08 10→4 THIS frame via the counter
-                                               * menu "Open Store" (FUN_0048670f case 10
-                                               * still runs FUN_0048a833 afterwards) */
-int  player_ctrl_cc08_left_4_this_frame(void); /* cc08 flipped 4→1 THIS frame (the b520
-                                             * dissolve leave) — retail's frame took the
-                                             * cc08==4 arm, so the companion free-roam law
-                                             * must not run; tick-only (RE §21.28 chip a). */
-void player_ctrl_cc08_markers_frame_clear(void); /* frame-top clear of both markers —
-                                             * scene1_ingame_tick (every arm, every frame). */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
-int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
-/* cc08==4: the master tick (FUN_00462403) owns the companion tick — FUN_0048a833
- * at 0x4624a1, after its b1cc / ESC-skip gates and BEFORE the b534 dispatch, so
- * Tear's draws precede the machine's.  Ticks it + sets the once-per-frame latch. */
+/* cc08==4: the master tick (FUN_00462403) runs FUN_0048a833 at 0x4624a1, after
+ * its b1cc / ESC-skip gates and before the b534 dispatch. */
 void player_ctrl_companion_tick_from_cs(void);
-int  player_ctrl_companion_from_cs(void);   /* true inside that call */
-int  player_ctrl_companion_skip_this_frame(void);   /* the arm skipped FUN_0048a833 */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 int  player_ctrl_cc08_f406_pending(void);   /* pure: f406 first-customer entry armed (RE §21.18) */

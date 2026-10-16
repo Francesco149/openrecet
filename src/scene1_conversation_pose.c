@@ -66,6 +66,7 @@ int scene1_conversation_pose_apply(int32_t *player_rec, int32_t *comp_rec,
  * are handed back to the freeroam controllers exactly once. */
 static int s_pose_active = 0;
 static int s_release_pending = 0;
+static int s_anims_ticked = 0;   /* this frame's pose / story tick ran the anim ticks */
 
 /* The pose's end: FUN_0048407f's house branch has no release — the walk
  * (FUN_0048b850: the tick, then the anim set) and FUN_0048a833 hand the actors
@@ -123,6 +124,7 @@ int scene1_conversation_pose_player_blink(void)
  * (FUN_00470970), then every live actor's anim ticks.  Event frames only. */
 int scene1_conversation_pose_story_tick(void)
 {
+    s_anims_ticked = 0;
     if (!story_visitor_active() || player_ctrl_cc08() == 4)
         return 0;
     CALL_TRACE_ENTER(0x48407fu);
@@ -136,11 +138,13 @@ int scene1_conversation_pose_story_tick(void)
     for (int a = 0; a < 3; a++)
         if (player_ctrl_actor_char(a) != -1)
             chr_anim_tick(player_ctrl_actor_record_mut(a), player_ctrl_actor_char(a), 1.0f);
+    s_anims_ticked = 1;
     return 1;
 }
 
 void scene1_conversation_pose_tick(void)
 {
+    s_anims_ticked = 0;
     CALL_TRACE_ENTER(0x48407fu);
 
     /* the day-8 scene owns the actors (FUN_0048670f's block / the event arm) */
@@ -267,6 +271,7 @@ void scene1_conversation_pose_tick(void)
             if (comp_rec)
                 chr_anim_tick(comp_rec, player_ctrl_actor_char(2), 1.0f);
         }
+        s_anims_ticked = 1;
     }
 
     s_pose_active = active;
@@ -304,16 +309,20 @@ void scene1_conversation_pose_tick(void)
  * for non-event paused/transition frames where no chibi actors exist. */
 void scene1_event_actor_tail_tick(void)
 {
+    const int ticked = s_anims_ticked;
+    s_anims_ticked = 0;
     if (player_ctrl_actor_char(0) == -1)
         return;
 
     scene1_bg_npc_tick();                        /* FUN_0046f621 */
 
-    /* Direct call (no player_ctrl_companion_ticked() latch check): the event
-     * arm never runs FUN_0048b850, and the latch is only cleared by the player
-     * controller — which does not run on event frames — so it may hold a stale
-     * 1 from the last free-roam walk frame. */
-    scene1_companion_ctrl_tick();                /* FUN_0048a4d1 + wing emit */
+    /* every live actor's anim tick, unless the pose / story tick ran it */
+    if (!ticked)
+        for (int a = 0; a < 3; a++)
+            if (player_ctrl_actor_char(a) != -1)
+                chr_anim_tick(player_ctrl_actor_record_mut(a), player_ctrl_actor_char(a), 1.0f);
+
+    party_event_follow();                        /* FUN_0048a4d1(0, 0) + the wing sparkle */
 
     story_visitor_aux_tick();                    /* FUN_004708f7 */
 

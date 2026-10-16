@@ -145,7 +145,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 815,
+   "line": 786,
    "kind_known": false
   },
   {
@@ -185,7 +185,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2019,
+   "line": 1946,
    "kind_known": false
   },
   {
@@ -201,7 +201,7 @@
    "engine_fn": "FUN_00490c78",
    "desc": "the notice's side is Tear's",
    "file": "src/dungeon_party.c",
-   "line": 798,
+   "line": 805,
    "kind_known": false
   },
   {
@@ -209,7 +209,7 @@
    "engine_fn": "FUN_00490c78",
    "desc": "the side is Tear's screen x < 320",
    "file": "src/dungeon_party.c",
-   "line": 1006,
+   "line": 1013,
    "kind_known": false
   },
   {
@@ -273,7 +273,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "one retail-shaped master tick.",
    "file": "src/scene1_sim.c",
-   "line": 185,
+   "line": 186,
    "kind_known": false
   },
   {
@@ -289,7 +289,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the boost aura (types 24 / 22)",
    "file": "src/dungeon_party.c",
-   "line": 1524,
+   "line": 1531,
    "kind_known": true
   },
   {
@@ -417,7 +417,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2045,
+   "line": 1970,
    "kind_known": true
   },
   {
@@ -457,7 +457,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 439,
+   "line": 373,
    "kind_known": true
   },
   {
@@ -465,7 +465,7 @@
    "engine_fn": "FUN_0044376a",
    "desc": "its 0 edge",
    "file": "src/dungeon_party.c",
-   "line": 1601,
+   "line": 1608,
    "kind_known": true
   },
   {
@@ -505,7 +505,7 @@
    "engine_fn": "FUN_0044f078",
    "desc": "dungeon 4 floor 99's event helper",
    "file": "src/dungeon_party.c",
-   "line": 624,
+   "line": 642,
    "kind_known": true
   },
   {
@@ -553,7 +553,7 @@
    "engine_fn": "FUN_004708f7",
    "desc": "the event-window pair (chars 0x2f / 0x30)",
    "file": "src/dungeon_party.c",
-   "line": 640,
+   "line": 647,
    "kind_known": true
   },
   {
@@ -585,7 +585,7 @@
    "engine_fn": "FUN_0047f46a",
    "desc": "equip the bag's items",
    "file": "src/scene1_sim.c",
-   "line": 321,
+   "line": 255,
    "kind_known": true
   },
   {
@@ -633,7 +633,7 @@
    "engine_fn": "FUN_0048670f cc04 2",
    "desc": "the furniture-grid mode (cc04 = 2,",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1024,
+   "line": 967,
    "kind_known": true
   },
   {
@@ -641,7 +641,7 @@
    "engine_fn": "FUN_0048670f cc08 50",
    "desc": "the faced stand's item",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1005,
+   "line": 948,
    "kind_known": true
   },
   {
@@ -649,7 +649,7 @@
    "engine_fn": "FUN_00489e66",
    "desc": "the dash (double-tap, db034 / db03c /",
    "file": "src/dungeon_party.c",
-   "line": 689,
+   "line": 696,
    "kind_known": true
   },
   {
@@ -665,7 +665,7 @@
    "engine_fn": "FUN_0048b850",
    "desc": "the water splash after the move (hit",
    "file": "src/dungeon_party.c",
-   "line": 1530,
+   "line": 1537,
    "kind_known": true
   },
   {
@@ -673,7 +673,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 1527,
+   "line": 1534,
    "kind_known": true
   },
   {
@@ -681,7 +681,7 @@
    "engine_fn": "FUN_0048b850 trail",
    "desc": "the orbiting after-images",
    "file": "src/dungeon_party.c",
-   "line": 1604,
+   "line": 1611,
    "kind_known": true
   },
   {
@@ -689,7 +689,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the dash's wall bonk (a ray 1.4 ahead)",
    "file": "src/dungeon_party.c",
-   "line": 1199,
+   "line": 1206,
    "kind_known": true
   },
   {
@@ -697,7 +697,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' swings (FUN_004977df,",
    "file": "src/dungeon_party.c",
-   "line": 1244,
+   "line": 1251,
    "kind_known": true
   },
   {
@@ -705,7 +705,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the other chars' skill 4",
    "file": "src/dungeon_party.c",
-   "line": 1256,
+   "line": 1263,
    "kind_known": true
   },
   {
@@ -713,7 +713,7 @@
    "engine_fn": "FUN_0048cdcc",
    "desc": "the skill states 3, 5..8 by char",
    "file": "src/dungeon_party.c",
-   "line": 1266,
+   "line": 1273,
    "kind_known": true
   },
   {
@@ -721,7 +721,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "char 42's gauge refill + the random",
    "file": "src/dungeon_party.c",
-   "line": 740,
+   "line": 747,
    "kind_known": true
   },
   {
@@ -729,7 +729,7 @@
    "engine_fn": "FUN_0048d5d6",
    "desc": "the skill cycle (DAT_0438b7dc, SE 326)",
    "file": "src/dungeon_party.c",
-   "line": 747,
+   "line": 754,
    "kind_known": true
   },
   {

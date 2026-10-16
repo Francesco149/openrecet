@@ -3547,15 +3547,6 @@ struct test_case {
     X(player_ctrl_house_room_clamp) \
     X(player_pose_seeds_actor0) \
     X(player_pose_seeds_companion_actor2) \
-    X(companion_inside_radius_idle) \
-    X(companion_springs_and_copies_facing) \
-    X(companion_hover_bob) \
-    X(companion_velocity_clamp) \
-    X(companion_wing_sparkle_emit) \
-    X(companion_wing_sparkle_period) \
-    X(companion_at_counter_pose) \
-    X(companion_at_counter_settle) \
-    X(companion_first_customer_freeroam) \
     X(conversation_pose_faces_tear_left) \
     X(conversation_pose_faces_tear_right) \
     X(conversation_pose_equal_x_takes_left_branch) \

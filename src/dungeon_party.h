@@ -34,6 +34,7 @@ void party_aura_tick(void);                        /* FUN_00483e7b */
 void party_follow_tick(void);                      /* FUN_0048a833 */
 void party_tick(void);                             /* FUN_0048b850 */
 void dungeon_event_actor_tick(void);               /* FUN_0048407f */
+void party_event_follow(void);                     /* FUN_0048407f's FUN_0048a4d1(v31, 0) + sparkle */
 
 /* FUN_00436f97's party resets (the actor loop + the block's scalars) and the
  * spawn: the three actors at the floor origin, 1.5 apart in x; actor 0 probes
