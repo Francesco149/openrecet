@@ -48,7 +48,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     2. ✅ cs d3e load under DEFER (b1cc release order) and ✅ the tutorial .ivt bracket
        (D_TUT_LOAD now ends at the frame boundary, `99d64922`):
        `portanchors house-customer-tutorial` **64/64** frame-identical.
-    3. Port boots `cc08`=1 (and cbfc / cc00 = −1); retail has 0 until the house init.
+    3. ✅ Boot statics cc08 / cbfc / cc00 = 0 like retail (2026-10-16).
     4. RNG: legacy traces' Frida-era `{rngseed}` pins (applied to both sides) hide long
        divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
        Re-record or strip the pins, then chase per frame (`--log-rand` retail;
@@ -148,6 +148,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (FUN_00468ddc). portstate mode / guild / bag VAs identical f1–f17745; portshots 7
     frames gt8 ≤ 0.04% (residual: the hand cursor's anti-aliased outline, position
     identical — texture/sampling detail, unexplained).
+  - ✅ **The house walk + the game over** (PROGRESS 2026-10-16): FUN_0048b850 drives the
+    house too; the payment verdict scripts, mode 2 (FUN_0049d8a4, FUN_0049d55c's restart
+    reset) and the restarted house. **`debt-gameover-restart`: portrng IDENTICAL over the
+    whole run (f1–f30752)**, now in `gates`.
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
     1. **The dungeon pilot — dungeons 0 and 1 pass end to end** (PROGRESS 2026-10-15):
        dungeon0-floors-save / -full / -wipe, **dungeon1-run2 (town visits, the market,
@@ -184,25 +188,23 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **debt-gameover-restart f24682** (the house walk is retail-exact to here, PROGRESS
-       2026-10-16): on Z after a failed payment retail sets the exit and runs the payment
-       script FUN_0044ba2c(0, 5, 0) — mode 9 holds while it plays (FUN_004536cb's mode-9 arm
-       ticks the dialogue FUN_0046c320 when b1c8 != 0, then FUN_00473c0c / FUN_0044baad);
-       the port stubs the script and the mode-9 dialogue tick, so it leaves at once. Then
-       the game over: b1c0 = 2 + FUN_0049d2e5 → mode 2 FUN_0049d8a4 (the scripts (0, 1|3, 0)
-       / (0, 2, 0), FUN_0049d55c — the restart reset of the work record, FUN_004808fb,
-       FUN_004905a8 the save) and the restart load (FUN_0047357c, b1c0 = 0 / 1). Port these
-       from the disasm.
-       Port-only state left on this run: the boot statics cbfc / cc00 = −1 and cc08 = 1
-       (retail 0 until the house init).
-       The day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
+    2. ★ **The house's other FUN_0048a833 calls** (`PORT-DEBT(structure, FUN_0048a833)`):
+       FUN_0048670f's return beat (b928 2, all_ida 97278), the counter menu / cc08 50
+       (97079), LABEL_132's anim tick and the customer-service master tick (0x4624a1) still
+       run the legacy `scene1_companion_ctrl.c` with its frame-marker latches; retail calls
+       FUN_0048a833 (= `party_follow_tick`) and FUN_004897c6 (= `party_status_tick`) at
+       those sites. Move each site, verify with portstate on Tear (56da1f0 / f8, dab58,
+       dab54) + portrng over the shop scenarios, then retire the module. Known drift it may
+       explain: Tear x differs by 1 ulp from f10765 in multiday (re-check first).
+       Also: the day-8 visitor (FUN_004706ea / FUN_00470a46 / FUN_00470970 / FUN_004708f7,
        FUN_0048670f's +0x2bcd8 block, `src/story_visitor.c`) is ported from the disasm but no
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
-    3. Still `PORT-DEBT(stub, …)` around the day: FUN_004852fb's day-15 arm, the
-       payment screen's render (FUN_0048e49c), the ending (FUN_0049da9e, mode 7
-       FUN_0049db8a), the b924 50/110/150 morning
-       voices (74b2ee8), b928 = 0 at a dungeon entry (FUN_0045c051). The night arm of
-       the dungeon exit (FUN_00442cef all_ida 44950) waits for the dungeon port.
+    3. Still `PORT-DEBT(stub, …)` around the day: the day-15 camera sequence (FUN_004852fb
+       sets work +0x2bced; FUN_0048670f's +0x2bced block: b924 counts, the camera eases
+       over the shop, the fade at 301 / 302), the payment screen's render (FUN_0048e49c) and
+       the game-over screen's (mode 2, FUN_0047355d's assets), the ending (FUN_0049da9e,
+       mode 7 FUN_0049db8a; no recording reaches day 36). The night arm of the dungeon exit
+       (FUN_00442cef all_ida 44950) waits for the dungeon port.
     4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
     5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
        delivery + story customers) — no scenario reaches them yet.
@@ -214,16 +216,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        DAT_06a49960) at f11003 of buy-from-seller-guild-intro, the port does not — sim.c
        latches nowloading at the tick head, before the scene arms the .ivt load (render
        only; the anchors fold the same state, so re-check portanchors when moving it).
-    8. Known float drift: Tear x differs by 1 ulp from f10765 in multiday (portstate
-       56da1f0) — not RNG-visible yet. FUN_0048a833 inside FUN_0048b850 is now the
-       x87-faithful `party_follow_tick`, but FUN_0048670f's other FUN_0048a833 calls (the
-       return beat, the counter menu, the customer-service master tick) still run the legacy
-       `scene1_companion_ctrl.c` (`PORT-DEBT(structure, FUN_0048a833)`): move them.
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×9 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep),
-  portanchors ×2, portrng over 11 shop/day scenarios + dungeon0-floors-save / -full / -wipe,
+  portanchors ×2, portrng over 12 shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
   dungeon1-run / -run2 / -deep + adv-guild-pack-leave, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).

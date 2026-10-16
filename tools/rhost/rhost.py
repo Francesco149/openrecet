@@ -684,7 +684,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
                                       "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
-                                      "buy-from-seller-guild-intro")]
+                                      "buy-from-seller-guild-intro", "debt-gameover-restart")]
          + [("portrng", s) for s in ("dungeon0-floors-save", "adv-guild-pack-leave", "dungeon0-full",
                                       "dungeon0-wipe", "dungeon1-run", "dungeon1-run2", "dungeon1-deep")])
 

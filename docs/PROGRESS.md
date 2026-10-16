@@ -7,6 +7,26 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-16 — the game over: debt-gameover-restart passes end to end
+After the house walk (below) the run split at f24682, the failed payment. Ported from the disasm:
+- the payment verdict scripts on Z (FUN_0048dbfb: (0, 5) broke, (1, 19) day 36, (0, 4) paid)
+  and FUN_004536cb's mode-9 arm ticking the dialogue (FUN_0046c320 while DAT_0438b1c8 != 0)
+  before the pause action; the day-end tick reads the b1c8 gate itself — the port runtime's
+  one-frame settle (`busy()`) is the INGAME scheduler's order, not mode 9's;
+- the day-end exit's game-over / story / ending branch: DAT_0438b798 / b79c, FUN_00453373
+  (the pause closes), b1c0 = 2 + FUN_0049d2e5 (b1c0 = 7 + the ending is a stub), the scene
+  load;
+- mode 2 (`scene_gameover.c`): FUN_0049d8a4 under LABEL_106 (only while no dialogue runs) —
+  Tear's scripts (0, 1 | 3) and (0, 2), FUN_0049d55c (the restart reset: day 1, 1000 gold,
+  the kept flags, FUN_0049d325, FUN_0048d954), the fade and the house load with b928 = 1;
+- b928 is no longer cleared at iv2_6's start (retail clears it only at a title load or a
+  guild dungeon entry; the restart replays iv2_6 at b924 190) — b928 / b924 identical over
+  day2-save-commit and multiday-tutorials-suggest;
+- the boot statics cc08 / cbfc / cc00 are 0 like retail's BSS (were 1 / −1 / −1).
+**`debt-gameover-restart`: portrng IDENTICAL f1–f30752 (80,702 draws)**; mode, dialogue gate,
+party, Tear, the beat and the work record's exp identical every frame; added to `gates`.
+Tools: state_va rows 9643584 / 964357c (mode 2), 438b798 / b79c, 74b2f08, 438bf78.
+
 ## 2026-10-16 — the house walks on FUN_0048b850 (one player controller, house and floor)
 The house's legacy walker (`scene1_player_ctrl.c`: a semantic move on the legacy collision
 mesh, the impulse in FUN_0048670f, π/2 facings) is gone; FUN_0048670f's cc08 == 1 arm and the
