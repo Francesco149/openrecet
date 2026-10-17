@@ -796,7 +796,7 @@ PORT_BLOCKS = [("party", 0x56da1b8, 0), ("actors", 0x76b970, 0xba4), ("dobj", 0x
                ("stage-table", 0x68dd2f8, 0x1b3c), ("chara-table", 0x73ae058, 0x40),
                ("gousei-table", 0x9640650, 0x30), ("snews-names", 0x73d8ee0, 0x44),
                ("snews-sections", 0x73b2108, 0xa8), ("oder-table", 0x6a5db98, 0x4c),
-               ("news-table", 0x56e0e00, 0xbc)]
+               ("news-table", 0x56e0e00, 0xbc), ("reca", 0x69b2f80, 0x94)]
 
 
 def read_pblk(path):

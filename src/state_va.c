@@ -569,6 +569,7 @@ static const struct { uint32_t va; const void *p; uint32_t len; } k_tables[] = {
     { 0x73b2108u, g_snews.sections,      (uint32_t)sizeof g_snews.sections },
     { 0x6a5db98u, g_oder.entries,        50u * (uint32_t)sizeof g_oder.entries[0] },   /* up to the kyaku table DAT_06a5ea90 */
     { 0x56e0e00u, g_news.records,        (uint32_t)sizeof g_news.records },
+    { 0x69b2f80u, g_scene1_records_a,    (uint32_t)sizeof g_scene1_records_a },   /* table A (the particles) */
 };
 
 /* a port pointer into a retail-layout block → that block's retail VA (retail
