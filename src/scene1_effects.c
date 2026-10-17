@@ -18,6 +18,8 @@
 #include "scene1_camera.h"      /* DAT_0438cdf8 */
 #include "scene1_records.h"     /* tables A / B (DAT_069b2f80 / DAT_069324b0) */
 #include "sysassets.h"          /* effect_shot.bmp DAT_073cc940 */
+#include "scene1_wide_followup.h" /* FUN_00415f2e */
+#include "scene1_maplight.h"     /* the stage record (DAT_068dd2f0) */
 #include "x87.h"
 #include <string.h>
 
@@ -406,6 +408,252 @@ static void fx_table_a_streaks(IDirect3DDevice8 *dev)
     }
 }
 
+/* the engine's colour idiom v | ((g | ((r | 0xffffff00) << 8)) << 8) on ints
+ * (a negative component smears its high bits, as retail's does) */
+static uint32_t fx_rgb(int32_t r, int32_t g, int32_t b)
+{
+    return (uint32_t)b | (((uint32_t)g | (((uint32_t)r | 0xffffff00u) << 8)) << 8);
+}
+
+static void fx_set_col(fx_vtx q[4], uint32_t c)
+{
+    for (int k = 0; k < 4; k++) q[k].diffuse = c;
+}
+
+/* DAT_0064bf68's UVs: v0 (ua, va), v1 (ua, vb), v2 (ub, va), v3 (ub, vb) */
+static void fx_set_uv(float ua, float ub, float va, float vb)
+{
+    s_atlas_quad[0].u = ua; s_atlas_quad[0].v = va;
+    s_atlas_quad[1].u = ua; s_atlas_quad[1].v = vb;
+    s_atlas_quad[2].u = ub; s_atlas_quad[2].v = va;
+    s_atlas_quad[3].u = ub; s_atlas_quad[3].v = vb;
+}
+
+/* FUN_004176ff's table-B projectile loop (after the swing trails, ONE / ONE on
+ * effect_shot.bmp): per type a world built on the record's position (+0x5c),
+ * yaw +0x90, rotations +0x8c / +0x94, timer +0x98 and scale +0x108, then
+ * DAT_0064bf68 with the type's atlas cell or DAT_0064b488's cell 0:
+ *   88 / 102         the cell (32, 0)-(64, 120) flat on the floor along the yaw;
+ *   101 / 100 / 105 / 132 / 77..80 / 165 / 166, and 98 / 123 / 161 / 164
+ *                    a streak facing the eye along the velocity (FUN_00415f2e);
+ *   81 / 99          a flat cell along the yaw; 82 / 106, 30 / 136 / 154
+ *                    billboards (the latter fading in by the timer);
+ *   38 / 42 / 46     spinning billboards fading out past 128 / 224;
+ *   31, 90 / 152     tilted / flat discs (90 / 152 tinted blue), 107 / 108
+ *                    growing / velocity-facing cell-0 quads.
+ * Type 123 with +0x9c == 1 draws cell 0 with whatever world the loop last
+ * built (retail's stack matrix). */
+static void fx_projectiles(IDirect3DDevice8 *dev)
+{
+    static float s_w[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };   /* v438 */
+    static const float khpi = 1.5707963705062866f;
+    fx_init_quads();
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+    int n = g_scene1_records_b_count;
+    if (n > SCENE1_RECORDS_B_COUNT) n = SCENE1_RECORDS_B_COUNT;
+    for (int i = 0; i < n; i++) {
+        const int32_t *r = &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+        const float *f = (const float *)r;
+        const int32_t t = r[0];
+        if (t == 0) continue;
+        float m[16];
+        fx_vtx *q = s_atlas_quad;
+        if (t == 88 || t == 102) {
+            float sx = spill32((long double)f[66] * 0.001f);
+            const float syz = spill32((long double)f[66] * 0.01f);
+            fx_set_col(s_atlas_quad, 0xffffffffu);
+            if (t == 102) sx = spill32((long double)sx * 1.8f);
+            if (r[38] > 9) {
+                const float e = spill32((float)(r[38] - 9));
+                sx = spill32((1.0L - (long double)e / 4.0f) * sx);
+            }
+            fx_set_uv(0.12695312f, 0.24804688f, 0.001953125f, 0.47070312f);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_rotation_x(m, khpi);   mat4_mul(s_w, m, s_w);
+            mat4_rotation_z(m, -f[36]); mat4_mul(s_w, m, s_w);
+            mat4_scaling(m, sx, syz, syz); mat4_mul(s_w, m, s_w);
+        } else if (t == 101 || t == 100 || t == 105 || t == 132 || t == 77 || t == 78 ||
+                   t == 79 || t == 80 || t == 165 || t == 166 ||
+                   t == 98 || (t == 123 && r[39] != 1) || t == 161 || t == 164) {
+            const int streak = t == 98 || t == 123 || t == 161 || t == 164;
+            const float a = spill32((long double)f[66] * (streak ? 0.003 : 0.002));
+            const float b = spill32((long double)f[66] * (streak ? 0.01 : 0.02));
+            wf_pass_e_fan_billboard_matrix(s_w, r, g_scene1_camera_eye);   /* FUN_00415f2e */
+            mat4_rotation_x(m, khpi); mat4_mul(s_w, m, s_w);
+            mat4_scaling(m, a, b, b); mat4_mul(s_w, m, s_w);
+            fx_set_col(s_atlas_quad, 0xffffffffu);
+            if (streak) fx_set_uv(0.25195312f, 0.31054688f, 0.24804688f, 0.001953125f);
+            else        fx_set_uv(0.001953125f, 0.12304688f, 0.47070312f, 0.001953125f);
+        } else if (t == 123) {
+            q = s_q488[0];
+        } else if (t == 81 || t == 99) {
+            float b = spill32((long double)f[66] * 0.002f);
+            float a = spill32((long double)f[66] * 0.005f);
+            if (t == 99) {
+                a = spill32((long double)a * 1.2f);
+                fx_set_uv(0.001953125f, 0.12304688f, 0.001953125f, 0.47070312f);
+            } else {
+                b = spill32((long double)f[66] * 0.016f);
+                a = spill32((long double)f[66] * 0.01f);
+                fx_set_uv(0.25195312f, 0.74804688f, 0.25195312f, 0.49804688f);
+            }
+            fx_set_col(s_atlas_quad, 0xffffffffu);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_rotation_x(m, khpi);   mat4_mul(s_w, m, s_w);
+            mat4_rotation_z(m, -f[36]); mat4_mul(s_w, m, s_w);
+            mat4_scaling(m, b, a, a);   mat4_mul(s_w, m, s_w);
+        } else if (t == 82 || t == 106 || t == 30 || t == 136 || t == 154) {
+            const float s = spill32((long double)f[66] * 0.005f);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_scaling(m, s, s, s); mat4_mul(s_w, m, s_w);
+            mat4_mul(s_w, g_scene1_camera_orient, s_w);
+            q = s_q488[0];
+            if (t == 82 || t == 106) {
+                fx_set_col(q, 0xffffffffu);
+            } else {
+                int32_t c = 16 * r[38];
+                if (c > 255) c = 255;
+                if (c < 0) continue;
+                fx_set_col(q, fx_rgb(c, c, c));
+            }
+        } else if (t == 38 || t == 42 || t == 46) {
+            const float s = spill32((long double)f[66] * 0.004f);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_scaling(m, s, s, s); mat4_mul(s_w, m, s_w);
+            mat4_mul(s_w, g_scene1_camera_orient, s_w);
+            mat4_rotation_z(m, f[37]); mat4_mul(s_w, m, s_w);
+            int32_t c = 16 * r[38];
+            if (c > 255) c = 255;
+            const int32_t cap = t == 46 ? 224 : 128;
+            if (r[38] > cap) c += 8 * (cap - r[38]);
+            fx_set_col(s_atlas_quad, fx_rgb(c, c, c));
+            if (t == 42) fx_set_uv(0.87695312f, 0.99804688f, 0.12695312f, 0.24804688f);
+            else         fx_set_uv(0.62695312f, 0.74804688f, 0.12695312f, 0.24804688f);
+        } else if (t == 31) {
+            const float s = spill32((long double)f[66] * 0.002f);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_scaling(m, s, s, s);           mat4_mul(s_w, m, s_w);
+            mat4_rotation_x(m, 0.62831855f);   mat4_mul(s_w, m, s_w);
+            mat4_rotation_y(m, f[36]);         mat4_mul(s_w, m, s_w);
+            mat4_rotation_x(m, f[35]);         mat4_mul(s_w, m, s_w);
+            int32_t c = 255;
+            if (r[38] > 112) c = 3839 - 32 * r[38];
+            fx_set_col(s_atlas_quad, fx_rgb(c, c, c));
+            fx_set_uv(0.001953125f, 0.24804688f, 0.75195312f, 0.99804688f);
+        } else if (t == 108) {
+            const float s = spill32((long double)f[66] * 0.004);
+            wf_pass_e_fan_billboard_matrix(s_w, r, g_scene1_camera_eye);
+            mat4_rotation_x(m, khpi); mat4_mul(s_w, m, s_w);
+            mat4_scaling(m, s, s, s); mat4_mul(s_w, m, s_w);
+            q = s_q488[0];
+            fx_set_col(q, 0xffffffffu);
+        } else if (t == 107) {
+            float s = spill32((long double)spill32((float)r[38]) * 0.001f);
+            if (s > 0.004f) s = 0.004f;
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_scaling(m, s, s, s);   mat4_mul(s_w, m, s_w);
+            mat4_rotation_x(m, khpi);   mat4_mul(s_w, m, s_w);
+            int32_t c = 16 * r[38];
+            if (c > 255) c = 255;
+            if (r[38] > 60) c += 32 * (60 - r[38]);
+            if (c < 0) c = 0;
+            q = s_q488[0];
+            fx_set_col(q, fx_rgb(c, c, c));
+        } else if (t == 90 || t == 152) {
+            const float s = spill32((long double)f[66] * 0.002f);
+            mat4_translation(s_w, f[23], f[24], f[25]);
+            mat4_scaling(m, s, s, s);   mat4_mul(s_w, m, s_w);
+            mat4_rotation_x(m, khpi);   mat4_mul(s_w, m, s_w);
+            int32_t c = 255;
+            if (r[38] > 112) c = 3839 - 32 * r[38];
+            fx_set_col(s_atlas_quad, fx_rgb(c / 3, c / 3, c));
+            fx_set_uv(0.001953125f, 0.24804688f, 0.75195312f, 0.99804688f);
+        } else {
+            continue;
+        }
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)s_w);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, q, sizeof(fx_vtx));
+    }
+}
+
+/* FUN_004176ff's puff loop (0x41d6xx, after FUN_00414ee2(…, 2, 0)): table-A
+ * types 14 / 43 / 27 / 59 / 89 / 103 / 118 — a billboard T(pos) · S(z) · B ·
+ * RotZ(+0x20) on effect.bmp, z = (age · 0.0004 + 0.02) · scale · 0.8 (103:
+ * age · 0.00015), the frame min(age / 3, 4) of the cells (32k, 160)..(32k+32,
+ * 191); alpha 128 (89: 8 · age to 127) closing 8 a tick past 16 (103: 128,
+ * then 8 · (128 - age) past 112), grey (14 / 27 / 103), magenta (59),
+ * red-orange (118), blue-white (89) or the stage's smokecolor (43);
+ * SRCALPHA / INVSRCCOLOR, Z test, no Z write */
+static void fx_table_a_puffs(IDirect3DDevice8 *dev)
+{
+    if (g_sysassets.effect_bmp.tex == NULL) return;
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF, 0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    int bound = 0;
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        const int32_t t = r[12];
+        if (!(t == 14 || t == 43 || t == 27 || t == 59 || t == 89 || t == 103 || t == 118)) continue;
+        if (!bound) {   /* FUN_00415e90: the cached SetTexture */
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+            bound = 1;
+        }
+        float f[15];
+        memcpy(f, r, sizeof f);
+        const int32_t age = r[13];
+        const float fa = spill32((float)age);
+        const float z = t == 103
+            ? spill32(((long double)fa * 0.00015000001f + 0.02) * f[14] * 0.80000001f)
+            : spill32(((long double)fa * 0.00039999999f + 0.02) * f[14] * 0.80000001f);
+        float w[16], m[16];
+        mat4_translation(w, f[0], f[1], f[2]);
+        mat4_scaling(m, z, z, z);   mat4_mul(w, m, w);
+        mat4_mul(w, g_scene1_camera_orient, w);
+        mat4_rotation_z(m, f[8]);   mat4_mul(w, m, w);
+        int32_t a = 128;
+        if (t == 89) {
+            a = 8 * age;
+            if (a > 127) a = 127;
+        }
+        int32_t frame = age / 3;
+        if (frame > 4) frame = 4;
+        if (age > 16) a += 8 * (16 - age);
+        if (t == 103) {
+            a = 128;
+            if (age > 112) a = 8 * (128 - age);
+        }
+        uint32_t col;
+        if (t == 59) {
+            col = (uint32_t)a | (((uint32_t)a | 0xffffff00u) << 16);
+        } else if (t == 118) {
+            col = ((uint32_t)(a / 8) | (((uint32_t)a | 0xffffff00u) << 8)) << 8;
+        } else if (t == 89) {
+            col = fx_rgb(3 * a / 2, 3 * a / 2, 2 * a);
+        } else if (t == 43) {
+            const stage_record_t *rec = scene1_current_stage_record();   /* smokecolor: +0x1a9c */
+            const int32_t cr = rec ? a * rec->smokecolor[0] / 255 : 0,
+                          cg = rec ? a * rec->smokecolor[1] / 255 : 0,
+                          cb = rec ? a * rec->smokecolor[2] / 255 : 0;
+            col = (uint32_t)cb | (((uint32_t)cg | (((uint32_t)cr | 0xff00u) << 8)) << 8);
+        } else {
+            col = fx_rgb(a, a, a);
+        }
+        fx_set_col(s_atlas_quad, col);
+        const float cu = spill32((float)(32 * frame));
+        fx_set_uv(spill32(((long double)cu + 0.5) / 256.0), spill32(((long double)cu + 31.5) / 256.0),
+                  0.62695312f, 0.74804688f);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)w);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, s_atlas_quad, sizeof(fx_vtx));
+    }
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
+}
+
 void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -419,9 +667,9 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);
-    /* PORT-DEBT(stub, FUN_004176ff): table B's second loop (the projectiles:
-     * 88 / 102 / 100 / 105 / 132 / 77..80 / 165 / 166 / 98 / 123 / 161 / 164 …) */
+    fx_projectiles(dev);
     fx_table_a_streaks(dev);
+    fx_table_a_puffs(dev);
 }
 
 #endif /* _WIN32 */
