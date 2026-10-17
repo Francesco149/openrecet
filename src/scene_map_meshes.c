@@ -93,6 +93,15 @@ static int win32_load_fn(const char *path, int slot, void *userdata)
     return 1;
 }
 
+int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage)
+{
+    scene_map_meshes_load_with(stage, win32_load_fn, dev);
+    int loaded = 0;
+    for (int i = 0; i < SCENE_MAP_MESH_SLOTS; i++)
+        if (g_scene_map_meshes[i]) loaded++;
+    return loaded;
+}
+
 int scene_map_meshes_load_house(struct IDirect3DDevice8 *dev)
 {
     /* Mirror FUN_00474681: load every map[] mesh of the HOUSE stage.

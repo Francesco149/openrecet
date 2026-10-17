@@ -339,6 +339,10 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "scene1_emit_record.h"
 #include "scene_map_meshes.h"
 #include "sprite.h"
+#include "floor_layout.h"     /* DAT_073e03ac, DAT_0438c148 */
+#include "scene1_camera.h"    /* DAT_073de31c / 324 */
+#include "scene1_maplight.h"  /* the stage record (DAT_068dd2f0) */
+#include <math.h>
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
  * association; our mesh_t uses per-MATERIAL texture_slots[mat_i] for
@@ -503,6 +507,82 @@ static IDirect3DBaseTexture8 *pick_texture_for_action(
     }
 }
 
+/* FUN_00457714's dungeon branch (stage maptype >= 1, asm 0x45775d..): each
+ * floor cell (DAT_073e03ac, W × H) as S(-0.2, 0.2, 0.2) · RotY(-pat · π/2) ·
+ * T(-40 col, 0, -40 row) (no rotation for an empty cell, whose mesh is 11);
+ * then per texture slot: water → pass 2, ext-tga → pass 1, hikari → pass 3
+ * (not with DAT_0438b180 1), the rest → pass 0, and every cell within 60 of
+ * the eye (120 with the camera class b4e8 set; the z distance halved) draws
+ * its mesh's subsets of that slot.  DAT_0438c148 set: only cell (1, 1), no
+ * cull.  PORT-DEBT(render-coupled, FUN_00457714): the movers (DAT_0438c150,
+ * the final boss) and the DAT_0438b194 texture / lighting reset. */
+static void scene1_walker_pass_render_dungeon(IDirect3DDevice8 *dev, int param_1)
+{
+    static const float k40 = 40.0f, k_pi2 = 1.5707963705062866f, k0p2 = 0.2f, km0p2 = -0.2f;
+    static const float k0p5 = 0.5f, k60 = 60.0f, k120 = 120.0f;
+    static float cell_m[FLOOR_GRID_CELLS * 16];
+    for (int row = 0; row < g_floor_h && row < FLOOR_GRID_STRIDE; row++) {
+        for (int col = 0; col < g_floor_w && col < FLOOR_GRID_STRIDE; col++) {
+            const floor_room_t *c = &g_floor_rooms[row * FLOOR_GRID_STRIDE + col];
+            float *m = &cell_m[(row * FLOOR_GRID_STRIDE + col) * 16];
+            const float z = (float)((long double)(float)-row * k40);
+            const float x = (float)((long double)(float)-col * k40);
+            mat4_translation(m, x, 0.0f, z);
+            if (c->type != -1) {
+                float ry[16];
+                mat4_rotation_y(ry, (float)((long double)(float)-c->pat * k_pi2));
+                mat4_mul(m, ry, m);
+            }
+            float sc[16];
+            mat4_scaling(sc, km0p2, k0p2, k0p2);
+            mat4_mul(m, sc, m);
+        }
+    }
+    scene1_emit_preamble((struct IDirect3DDevice8 *)dev);
+    int slot_count = g_mesh_tex_cache.count;
+    if (slot_count > MESH_TEX_CACHE_CAP) slot_count = MESH_TEX_CACHE_CAP;
+    int animated_set = 0;
+    for (int slot = 0; slot < slot_count; slot++) {
+        const mesh_tex_flags *f = &g_mesh_tex_cache.entries[slot].flags;
+        if (f->water) {
+            if (param_1 != 2) continue;
+            if (!animated_set) {
+                animated_set = 1;
+                IDirect3DDevice8_SetTexture(dev, 0, pick_texture_for_action(slot, SCENE1_WALKER_SLOT_WATER));
+            }
+        } else if (f->ext_tga) {
+            if (param_1 != 1) continue;
+            IDirect3DDevice8_SetTexture(dev, 0, pick_texture_for_action(slot, SCENE1_WALKER_SLOT_EXT_TGA));
+        } else if (f->hikari) {
+            if (param_1 != 3) continue;
+            if (!animated_set) {
+                animated_set = 1;
+                IDirect3DDevice8_SetTexture(dev, 0, pick_texture_for_action(slot, SCENE1_WALKER_SLOT_HIKARI));
+            }
+        } else {
+            if (param_1 != 0) continue;
+            IDirect3DDevice8_SetTexture(dev, 0, pick_texture_for_action(slot, SCENE1_WALKER_SLOT_DEFAULT));
+        }
+        scene1_emit_apply_material_state((struct IDirect3DDevice8 *)dev, slot);
+        for (int row = 0; row < g_floor_h && row < FLOOR_GRID_STRIDE; row++) {
+            for (int col = 0; col < g_floor_w && col < FLOOR_GRID_STRIDE; col++) {
+                const floor_room_t *c = &g_floor_rooms[row * FLOOR_GRID_STRIDE + col];
+                const int mi = c->type == -1 ? 11 : c->type;
+                if (g_floor_c148 != 0) {
+                    if (col != 1 || row != 1) continue;
+                } else {
+                    const float dx = (float)((long double)(float)-col * k40 - g_scene1_camera_eye[0]);
+                    const float dz = (float)(((long double)(float)-row * k40 - g_scene1_camera_eye[2]) * k0p5);
+                    const float d = (float)sqrt((double)dz * dz + (double)dx * dx);
+                    if (d > (g_scene1_camera_stage_class != 0 ? k120 : k60)) continue;
+                }
+                mesh_t *m = scene_map_meshes_get(mi);
+                if (m) draw_loop_b_mesh(dev, m, slot, &cell_m[(row * FLOOR_GRID_STRIDE + col) * 16]);
+            }
+        }
+    }
+}
+
 void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
                                      int param_1)
 {
@@ -511,6 +591,13 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
 
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    {
+        const stage_record_t *rec = scene1_current_stage_record();
+        if (rec != NULL && rec->maptype >= 1) {   /* DAT_068dd2f8[stage] */
+            scene1_walker_pass_render_dungeon(dev, param_1);
+            return;
+        }
+    }
 
     /* Build phase 2 matrices into a per-call scratch buffer.  Static
      * lifetime is fine — render is single-threaded and the buffer is

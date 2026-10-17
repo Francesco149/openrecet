@@ -232,8 +232,9 @@ static void scene1_preload_house_cb(void)
 static void scene1_preload_floor_cb(void)
 {
     if (!sim_stage_load_same()) {
-        /* FUN_0047472c: the render meshes — no port twin yet */
+        scene_map_meshes_reset();           /* FUN_0047472c: the render meshes */
         stage_palette_load_for_stage();     /* FUN_00474681 */
+        (void)scene_map_meshes_load_stage(g_scene1_preload_dev, g_stage_b4dc);
     }
     /* FUN_004746fc (texture group 15, the 20 sprite records, DAT_073a96a8) and
      * PORT-DEBT(stub, FUN_00473c15): the floor's render assets (see
@@ -263,6 +264,8 @@ static int scene1_preload_dungeon(void)
 {
     mesh_tex_cache_reset();             /* FUN_0047281e */
     stage_palette_load_for_stage();     /* FUN_00474681 */
+    scene_map_meshes_reset();
+    (void)scene_map_meshes_load_stage(g_scene1_preload_dev, g_stage_b4dc);   /* FUN_00474681's map: meshes */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
      * sprites / meshes of the floor roster (FUN_00431a80), the dungeon title,
      * and FUN_00474a9a's dungeon arm (the player's chr sheet by DAT_0438b7d8, the

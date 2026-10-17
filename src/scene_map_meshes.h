@@ -77,6 +77,9 @@ extern mesh_t *g_scene_map_meshes[SCENE_MAP_MESH_SLOTS];
  * successfully loaded meshes. */
 int scene_map_meshes_load_house(struct IDirect3DDevice8 *dev);
 
+/* FUN_00474681 for any stage (a dungeon floor: its room meshes) */
+int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage);
+
 /* Free all loaded map meshes and clear the array. */
 void scene_map_meshes_reset(void);
 
