@@ -963,8 +963,19 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
     }
     render_quad_flush(dev);
 
-    /* -2 / -6 specials (Equip-optimum / fusion) are counter-menu only; -1
-     * "Nothing" draws nothing more (all.c:65604-65619). */
+    /* -2 the Equip screen's "Optimum Equipment" row, -6 an unknown fusion's
+     * product (typed by FUN_00465db4, budget 1024); -1 "Nothing" draws
+     * nothing more (all.c:65604-65619) */
+    if (s_highlight == -2) {
+        font_draw_text(dev, x0 + 80.0f, 384.0f, "Equip Optimum Items", 0xffffffffu, 1.0f);
+        return;
+    }
+    if (s_highlight == -6) {
+        font_draw_text_box(dev, x0 + 80.0f, 368.0f,
+                           "The product of this fusion will be a mystery until<BR>you attempt it.",
+                           0xffffffffu, 0.80000001f, 1024);
+        return;
+    }
     if (s_highlight < 0)
         return;
 
