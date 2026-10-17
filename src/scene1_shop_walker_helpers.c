@@ -135,7 +135,7 @@ int scene1_shop_walker_get_debug_pass_d_unlit(void)
  *     where s = LIFE_MULT * 0.05f (.rdata 0x5198f8).  Emits via
  *     FUN_00455191(&DAT_073a96f8).  Then a 4-iter spoke loop emits
  *     via FUN_00455191(&DAT_073a9720), per-spoke matrix:
- *       T(sinf(θ)·r/0.05, cosf(θ)·r/0.05, 70.0f) × outer
+ *       T(cosf(θ)·r/0.05, sinf(θ)·r/0.05, 70.0f) × outer
  *
  *   Spoke (θ, r) per-spoke computation:
  *     base_angle = spoke_idx * π/2
@@ -263,10 +263,11 @@ void sw_pass_b_compose_world_spoke(float out[16], const float outer[16],
     float radius, angle;
     sw_pass_b_spoke_pose(&radius, &angle, slot, spoke_idx);
 
-    /* Engine: T(sin(angle) * radius / 0.05f, cos(angle) * radius /
-     * 0.05f, 70.0f).  The /0.05 is equivalent to *20. */
-    float tx = sinf(angle) * radius / 0.05f;
-    float ty = cosf(angle) * radius / 0.05f;
+    /* Engine: T(cos(angle) * radius / 0.05f, sin(angle) * radius /
+     * 0.05f, 70.0f) — the x term calls FUN_00503994 (fcos), the y term
+     * FUN_00503a44 (fsin), asm @ 0x4558f5 / 0x455915. */
+    float tx = cosf(angle) * radius / 0.05f;
+    float ty = sinf(angle) * radius / 0.05f;
     float tz = 70.0f;
 
     float t_spoke[16];

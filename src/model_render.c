@@ -18,6 +18,7 @@
 #include "mesh.h"
 #include "mesh_load.h"
 #include "model_anchor.h"
+#include "scene_map_meshes.h"   /* DAT_073a96a8, the golem crystal */
 #include "sprite.h"
 #include "tables_enemy.h"
 #include "xfile.h"
@@ -128,6 +129,11 @@ void model_render_load(struct IDirect3DDevice8 *dev, const int32_t present[100])
         if (want[k]) {
             gfx_load((IDirect3DDevice8 *)dev, k);
             model_render_loader_state(dev);   /* FUN_00403b6e → FUN_00403ca7 */
+            /* the golems' crystal, DAT_073a96a8 (FUN_004552d0's pass A) */
+            if (k == 3)
+                scene_map_meshes_load_misc_slot(dev, 2, "xfile2/golem_g/golem_crystal01.x");
+            else if (k == 6)
+                scene_map_meshes_load_misc_slot(dev, 2, "xfile2/d_golem_g/golem_crystal01.x");
         }
 }
 

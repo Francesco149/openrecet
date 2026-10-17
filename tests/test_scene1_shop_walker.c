@@ -627,8 +627,8 @@ int test_scene1_pass_b_spoke_pose_radius_caps_at_2_5(void)
 int test_scene1_pass_b_spoke_compose_uses_70_z(void)
 {
     /* With outer = identity, default radius 0.1 + spoke_idx=0 ⇒
-     * angle=0; sin(0)=0, cos(0)=1; tx = 0/0.05 = 0, ty = 0.1/0.05 = 2.0,
-     * tz = 70.0.  spoke_world = T(0, 2.0, 70) × I = T(0, 2.0, 70). */
+     * angle=0; cos(0)=1, sin(0)=0; tx = 0.1/0.05 = 2.0, ty = 0,
+     * tz = 70.0.  spoke_world = T(2.0, 0, 70) × I = T(2.0, 0, 70). */
     int32_t slot[SCENE1_RECORDS_B_STRIDE];
     slot_b_init_zero(slot);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x9b;
@@ -640,8 +640,8 @@ int test_scene1_pass_b_spoke_compose_uses_70_z(void)
     float spoke[16];
     sw_pass_b_compose_world_spoke(spoke, outer, slot, 0);
 
-    T_ASSERT_NEAR_D(spoke[12], 0.0f,  1e-5f);
-    T_ASSERT_NEAR_D(spoke[13], 2.0f,  1e-5f);
+    T_ASSERT_NEAR_D(spoke[12], 2.0f,  1e-5f);
+    T_ASSERT_NEAR_D(spoke[13], 0.0f,  1e-5f);
     T_ASSERT_NEAR_D(spoke[14], 70.0f, 1e-5f);
     return 0;
 }
@@ -668,9 +668,9 @@ int test_scene1_pass_b_spoke_compose_uses_outer_matrix(void)
     float spoke[16];
     sw_pass_b_compose_world_spoke(spoke, outer, slot, 0);
 
-    /* spoke_idx 0, default: tx = 0, ty = 2.0, tz = 70.0. */
-    T_ASSERT_NEAR_D(spoke[12], 100.0f, 1e-5f);
-    T_ASSERT_NEAR_D(spoke[13], 202.0f, 1e-5f);
+    /* spoke_idx 0, default: tx = 2.0, ty = 0, tz = 70.0. */
+    T_ASSERT_NEAR_D(spoke[12], 102.0f, 1e-5f);
+    T_ASSERT_NEAR_D(spoke[13], 200.0f, 1e-5f);
     T_ASSERT_NEAR_D(spoke[14], 370.0f, 1e-5f);
     return 0;
 }

@@ -116,6 +116,38 @@ mesh_t *scene_map_meshes_dobj(int idx)
     return (idx >= 0 && idx < SCENE_DOBJ_MESH_SLOTS) ? s_dobj_meshes[idx] : NULL;
 }
 
+static mesh_t *s_misc_meshes[SCENE_MISC_MESH_SLOTS];
+
+void scene_map_meshes_load_misc_slot(struct IDirect3DDevice8 *dev, int idx,
+                                     const char *path)
+{
+    if (idx < 0 || idx >= SCENE_MISC_MESH_SLOTS) return;
+    if (s_misc_meshes[idx]) { mesh_free(s_misc_meshes[idx]); s_misc_meshes[idx] = NULL; }
+    mesh_t *m = mesh_load(path, -1);   /* FUN_00472836 */
+    if (!m) return;
+    if (m->error[0]) {
+        fprintf(stderr, "scene_map_meshes: %s: %s\n", path, m->error);
+        mesh_free(m);
+        return;
+    }
+    if (dev) (void)mesh_load_finalize_win32(m, dev);
+    s_misc_meshes[idx] = m;
+}
+
+void scene_map_meshes_load_misc(struct IDirect3DDevice8 *dev)
+{
+    scene_map_meshes_load_misc_slot(dev, 0, "xfile/etc/ice01.x");
+    scene_map_meshes_load_misc_slot(dev, 1, "xfile/etc/train_iwa.x");
+    scene_map_meshes_load_misc_slot(dev, 3, "xfile2/g_lat/yokomaguro.x");
+    scene_map_meshes_load_misc_slot(dev, 4, "xfile2/vector/vector.x");
+    scene_map_meshes_load_misc_slot(dev, 5, "xfile2/vector/vector_ring.x");
+}
+
+mesh_t *scene_map_meshes_misc(int idx)
+{
+    return (idx >= 0 && idx < SCENE_MISC_MESH_SLOTS) ? s_misc_meshes[idx] : NULL;
+}
+
 int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage)
 {
     scene_map_meshes_load_with(stage, win32_load_fn, dev);

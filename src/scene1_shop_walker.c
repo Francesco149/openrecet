@@ -37,6 +37,7 @@
 #include "tables_enemy.h"    /* DAT_005c23f0 */
 #include "scene1_maplight.h" /* the stage record */
 #include "dungeon_flow.h"    /* DAT_0438b4b4 */
+#include "scene_map_meshes.h" /* DAT_073a9658..: the dungeon's loose meshes */
 
 /* ─── engine scratch globals — module-local mirrors ────────────────────
  *
@@ -80,13 +81,22 @@ static int sw_pass_d_count(void) { return g_scene1_records_a_count; }
  * reads 0 until the populator lands. */
 static int sw_pass_bc_count(void) { return g_scene1_records_b_count; }
 
-/* DAT_0076bd94..DAT_007c8f94 — Pass A + Pass F per-stage record range
- * (128 records × stride 0x2e9 dw).  Not ported as a typed global yet;
- * the count stub returns 0 so the loop is dormant.  When the table
- * ports, replace with a real count (e.g. derived from a count global
- * or by walking until a sentinel record). */
-static int           sw_pass_af_count(void)              { return 0;    }
-static const int32_t *sw_pass_af_slot(int idx) { (void)idx; return NULL; }
+/* DAT_0076bd94..DAT_007c8f94 — Pass A + Pass F's record range: the
+ * actor table (g_actor, DAT_0076b970) biased by +0x424, 128 records ×
+ * stride 0x2e9 dw. */
+static int           sw_pass_af_count(void)              { return ACTOR_COUNT; }
+static const int32_t *sw_pass_af_slot(int idx)
+{
+    return (const int32_t *)(g_actor[idx].b + 0x424);   /* &DAT_0076bd94 + idx·0xba4 */
+}
+
+/* &DAT_073a9680, xfile/etc/train_iwa.x (passes C / D); the
+ * --force-pass-d-mesh stand-in wins when given. */
+static const mesh_t *sw_train_iwa(void)
+{
+    const mesh_t *m = scene1_shop_walker_get_pass_d_mesh();
+    return m ? m : scene_map_meshes_misc(1);
+}
 
 /* DAT_0438b89c — Pass E outer count, stored as a FLOAT (per engine
  * decomp).  BSS-zero → 0.0f. */
@@ -395,10 +405,9 @@ static void sw_pass_a(IDirect3DDevice8 *dev)
         sw_pass_a_compose_world(world, slot);
         IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                       (const D3DMATRIX *)world);
-        /* Engine: FUN_00455191(0) — null override; engine-default Pass
-         * A mesh-record slot (unidentified, unported).  HOUSE leaves
-         * it NULL → emit no-ops inside scene1_emit_record. */
-        scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+        /* Engine: FUN_00455191(&DAT_073a96a8) — the golem crystal. */
+        scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                           scene_map_meshes_misc(2));
     }
 }
 
@@ -449,15 +458,17 @@ static void sw_pass_b(IDirect3DDevice8 *dev)
             sw_pass_b_compose_world_main(world, slot);
             IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                           (const D3DMATRIX *)world);
-            /* Engine: FUN_00455191(&DAT_073a96a8) — main body mesh. */
-            scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+            /* Engine: FUN_00455191(&DAT_073a96d0) — g_lat/yokomaguro. */
+            scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                               scene_map_meshes_misc(3));
         } else if (sw_pass_b_should_emit_outer(slot)) {
             float outer[16];
             sw_pass_b_compose_world_outer(outer, slot);
             IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                           (const D3DMATRIX *)outer);
-            /* Engine: FUN_00455191(&DAT_073a96f8) — outer body mesh. */
-            scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+            /* Engine: FUN_00455191(&DAT_073a96f8) — vector/vector. */
+            scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                               scene_map_meshes_misc(4));
 
             /* 4-iter spoke loop @ engine 0x45583c..0x4559af. */
             for (int spoke_idx = 0; spoke_idx < 4; spoke_idx++) {
@@ -466,8 +477,9 @@ static void sw_pass_b(IDirect3DDevice8 *dev)
                                               spoke_idx);
                 IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                               (const D3DMATRIX *)spoke_world);
-                /* Engine: FUN_00455191(&DAT_073a9720) — spoke mesh. */
-                scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+                /* Engine: FUN_00455191(&DAT_073a9720) — vector_ring. */
+                scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                                   scene_map_meshes_misc(5));
             }
         }
     }
@@ -515,8 +527,7 @@ static void sw_pass_c(IDirect3DDevice8 *dev)
         /* Engine: FUN_00455191(&DAT_073a9680) — same mesh-record slot
          * as Pass D.  Sharing the slot means `--force-pass-d-mesh`
          * also feeds Pass C. */
-        scene1_emit_record((struct IDirect3DDevice8 *)dev,
-                           scene1_shop_walker_get_pass_d_mesh());
+        scene1_emit_record((struct IDirect3DDevice8 *)dev, sw_train_iwa());
     }
 }
 
@@ -585,8 +596,7 @@ static void sw_pass_d(IDirect3DDevice8 *dev)
          * stand-in defaults to NULL (HOUSE-dormant by design); when
          * --force-pass-d-mesh provides one, scene1_emit_record walks
          * cache slots × the mesh's submeshes and draws. */
-        scene1_emit_record((struct IDirect3DDevice8 *)dev,
-                           scene1_shop_walker_get_pass_d_mesh());
+        scene1_emit_record((struct IDirect3DDevice8 *)dev, sw_train_iwa());
     }
 }
 

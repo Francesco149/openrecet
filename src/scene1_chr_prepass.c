@@ -38,6 +38,7 @@ void chr_prepass_sort(int32_t *keys, int32_t *idx, int n)
 #include "math3d.h"
 #include "scene1_records.h"      /* g_scene1_records_a/b + counts + offsets */
 #include "scene1_emit_record.h"  /* scene1_emit_record (FUN_00455191)       */
+#include "scene_map_meshes.h"    /* DAT_073a9658: xfile/etc/ice01.x          */
 #include "scene1_chr_sprite.h"   /* scene1_chr_sprite_render (FUN_0045a56f)  */
 #include "scene1_camera.h"       /* g_scene1_camera_orient (= DAT_0438cdf8)  */
 
@@ -176,7 +177,7 @@ void scene1_chr_prepass_render(struct IDirect3DDevice8 *dev_in)
             mat4_mul(world, ident, world);
         }
         IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
-        scene1_emit_record(dev_in, NULL);              /* FUN_00455191(&DAT_073a9658) */
+        scene1_emit_record(dev_in, scene_map_meshes_misc(0));   /* FUN_00455191(&DAT_073a9658), ice01 */
     }
 
     /* ── Section B: records_a slots with TYPE == 0x97 ───────────────────── */
@@ -204,7 +205,7 @@ void scene1_chr_prepass_render(struct IDirect3DDevice8 *dev_in)
             mat4_mul(world, ident, world);
         }
         IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
-        scene1_emit_record(dev_in, NULL);              /* FUN_00455191(&DAT_073a9658) */
+        scene1_emit_record(dev_in, scene_map_meshes_misc(0));   /* FUN_00455191(&DAT_073a9658), ice01 */
     }
 
     /* ── Section C: the depth-sorted people billboards ──────────────────── */

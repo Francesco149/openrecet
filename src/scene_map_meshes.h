@@ -91,6 +91,20 @@ void scene_map_meshes_reset(void);
 void    scene_map_meshes_load_dobj(struct IDirect3DDevice8 *dev);
 mesh_t *scene_map_meshes_dobj(int idx);
 
+/* DAT_073a9658 + 0x28·k: the dungeon's loose static meshes, drawn through
+ * FUN_00455191 — 0 xfile/etc/ice01 (the frozen actors, FUN_0045a63c's
+ * prepass), 1 xfile/etc/train_iwa (the boulders: FUN_004552d0's table-B
+ * types 35 / 43 / 44 / 86 / 150 and table-A 116 / 121 / 150), 2 the golem
+ * crystal (the floor roster's golem model load), 3 xfile2/g_lat/yokomaguro
+ * (table-B 140), 4 xfile2/vector/vector and 5 vector_ring (table-B 155 /
+ * 156). FUN_00474a9a's dungeon arm loads 0, 1, 3, 4, 5 on each dungeon
+ * entry, after the takarabako / mahoujin / clear-banner loads. */
+#define SCENE_MISC_MESH_SLOTS 6
+void    scene_map_meshes_load_misc(struct IDirect3DDevice8 *dev);
+void    scene_map_meshes_load_misc_slot(struct IDirect3DDevice8 *dev, int idx,
+                                        const char *path);
+mesh_t *scene_map_meshes_misc(int idx);
+
 /* Slot accessor for draw loop A; NULL if out of range or unloaded. */
 mesh_t *scene_map_meshes_get(int idx);
 #else
