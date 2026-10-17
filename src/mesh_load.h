@@ -219,6 +219,10 @@ mesh_t *mesh_load_from_buf(const void *data, size_t len,
  */
 xfile_t *mesh_load_parse_xfile(const char *xfile_path);
 
+/* the raw bytes of a game file (the archive, else the game dir) into a
+ * malloc'd *out_buf; 0 when neither has it */
+size_t mesh_load_read_file(const char *path, void **out_buf);
+
 struct IDirect3DDevice8;
 
 /*

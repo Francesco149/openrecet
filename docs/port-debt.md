@@ -11,19 +11,19 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **77**
-- distinct retiring engine functions: **59**
+- total open debts: **75**
+- distinct retiring engine functions: **57**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 56 | wired call boundary, body incomplete |
+| stub | 55 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **14 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (6), semantic-collision (1), structure (1).
+> ⚠️  **13 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (5), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -52,14 +52,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042df55 | 1 |
 | FUN_0042e1a6 | 1 |
 | FUN_0042e791 | 1 |
-| FUN_0042ea35 | 1 |
 | FUN_0042f28c | 1 |
 | FUN_0042f7ad | 1 |
 | FUN_00430c6d | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
 | FUN_0043865e | 1 |
-| FUN_00441c3e | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044376a | 1 |
@@ -90,7 +88,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (56)
+## stub (55)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -102,12 +100,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:3321 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:3278 | the poison tick (ftol(p), 4) |
-| FUN_0042ea35 | src/actor_ai.c:3033 | the multi-part bone timers (no rand) |
+| FUN_0042e1a6 | src/actor_ai.c:3447 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:3404 | the poison tick (ftol(p), 4) |
 | FUN_0042f28c | src/actor_ai.c:3000 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:729 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:3331 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_00430c6d | src/actor_ai.c:3457 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:397 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
@@ -191,7 +188,6 @@ _none_
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:800 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1513 | the menu, note, lecture and |
-| render-coupled | FUN_00441c3e | src/actor_ai.c:173 | the view matrix is the render's; |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048196b | src/scene_pause.c:1921 | the dungeon's Use / Throw |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2093 | the eye / lookat writes); the |

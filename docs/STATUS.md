@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-██████░░░░░░░░░░░░░░  30.4% referenced-or-better   (89 instrumented)
+██████░░░░░░░░░░░░░░  30.7% referenced-or-better   (89 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    89 | `CALL_TRACE_ENTER(_STUB)` probe wired (79 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   685 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1774 | exists in the engine, no `src/` reference    |
+| source-referenced  |   694 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1765 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 10 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 94 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 91 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -240,7 +240,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        timeline FUN_0044db3c, her death arm), the pumpkin variants 1 / 2), the
        golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
-       arms (27/28/41/70..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
+       arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
        3 / 4's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f,
        FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
        on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
@@ -248,15 +248,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ★ **Hidden-state sweep** (`portblock SCEN --at F` near each run's end): the house runs
-       multiday, debt-gameover-restart, day2-save-commit, buy-from-seller-guild-intro,
-       adv-guild-pack-leave, tear-lectures-gameover and debt-week1-paid are IDENTICAL in every
-       block at their ends, and so are dungeon0-full, dungeon1-charme and dungeon1-clear. Left, all
-       on the floors:
-       - actor #0's +0x458..0x4d8 and +0x6fc..0x7dc (dungeon1-deep f77120): written while
-         drawing — the D3DX code at 0x4d1dc3 / 0x4d32e1 and FUN_00404870's anchor matrices
-         (callers 0x4552d0 / 0x456d48 / 0x459847, the draw loops); waits for the dungeon
-         renderer;
+    2. ✅ **Hidden-state sweep** (`portblock SCEN --at F`): **every block IDENTICAL** at the
+       ends of the house runs (multiday, debt-gameover-restart, day2-save-commit,
+       buy-from-seller-guild-intro, adv-guild-pack-leave, tear-lectures-gameover,
+       debt-week1-paid), dungeon0-full, dungeon1-charme / -clear / -deep, dungeon2-run / -run2 /
+       -run3, and mid-fight (dungeon2-run f22000, the rat boss on Boss Rush floor 31):
+       - ✅ actor #0's +0x454..0x4d8 / +0x6fc..0x9f4 (2026-10-17): the model enemies' draw-time
+         anchors (`src/model_anchor.c`: the SkinnedMesh frame tree from xfile2/*.x, FUN_0040150e's
+         two-slot animation, FUN_00403e33, FUN_00404870's points + ground queries, from the
+         render's FUN_00459dfd site) and their inputs, FUN_0042ea35's per-track anim times
+         (+0x74 / +0x204, the slot timers' wrap) — bit-exact on the first run. The crab /
+         golem / jellyfish AIs that read the points can now be ported against them;
        - ✅ table B (2026-10-16): the "kind 0x56 rows" were the ground query's hit struct
          (FUN_00432e50 writes into record +0x18) and the shared wall step LAB_00440dc1, whose
          Path B kills every type but 0x1f; with the D3DX axis fix (34 sites) dungeon0-full is

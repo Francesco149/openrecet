@@ -1106,3 +1106,312 @@ void xfile_free(xfile_t *x)
     free(x->textures);
     free(x);
 }
+
+/* ───── The SkinnedMesh frame tree (FUN_00402551's loader) ─────────────────
+ * The DX8 SDK SkinnedMesh sample's loader, as retail links it: every Frame /
+ * AnimationSet / Animation becomes an SFrame (FUN_004013c2: matRot, matTrans,
+ * matRotOrig identity), added to its parent as the SECOND child (a new child
+ * goes after the first); each Animation is pushed on the front of the
+ * hierarchy's animation list.  FrameTransformMatrix sets the owning frame's
+ * matRot and matRotOrig.  Meshes are not needed here (the anchor pass reads
+ * the frames only); retail loads them in the same pass. */
+
+static xfile_sframe *sframe_new(void)
+{
+    xfile_sframe *f = (xfile_sframe *)calloc(1, sizeof *f);
+    if (!f) return NULL;
+    for (int i = 0; i < 16; i++) {
+        const float v = (i % 5 == 0) ? 1.0f : 0.0f;
+        f->rot[i] = f->trans[i] = f->rot_orig[i] = v;
+    }
+    return f;
+}
+
+static void sframe_add(xfile_sframe *parent, xfile_sframe *f)
+{
+    if (parent->child) {
+        f->sibling = parent->child->sibling;
+        parent->child->sibling = f;
+    } else {
+        parent->child = f;
+    }
+}
+
+/* FUN_0040205c: own name, then the child subtree, then the sibling subtree */
+xfile_sframe *xfile_find_frame(xfile_sframe *f, const char *name)
+{
+    if (!f) return NULL;
+    if (f->name && strcmp(f->name, name) == 0) return f;
+    xfile_sframe *r = xfile_find_frame(f->child, name);
+    if (r) return r;
+    return xfile_find_frame(f->sibling, name);
+}
+
+static char *dup_name(const char *s)
+{
+    if (!s || !s[0]) return NULL;           /* GetName size 0: the name stays NULL */
+    size_t n = strlen(s) + 1;
+    char *d = (char *)malloc(n);
+    if (d) memcpy(d, s, n);
+    return d;
+}
+
+/* the next number in a data block, separators skipped */
+static int hier_num(P *p, double *out)
+{
+    for (;;) {
+        const xtok *t = peek(p);
+        if (t->kind == T_SEM || t->kind == T_COM) { advance(p); continue; }
+        if (t->kind == T_INT) { advance(p); *out = (double)t->ival; return 1; }
+        if (t->kind == T_FLT) { advance(p); *out = t->fval; return 1; }
+        set_error(p->out, t->line, "expected number");
+        return 0;
+    }
+}
+
+/* a data object's header after its type: the instance name (IDENT runs; a
+ * '-' before a digit tokenizes as a number — "Anim-1" — so number fragments
+ * are skipped too), an optional UUID, then its LBR (consumed: returns 1) */
+static int hier_obj_header(P *p, char *iname, size_t n)
+{
+    size_t used = 0;
+    iname[0] = '\0';
+    for (;;) {
+        const xtok *t = peek(p);
+        if (t->kind == T_IDENT) {
+            size_t k = t->slen;
+            if (used + k >= n) k = n - 1 - used;
+            memcpy(iname + used, t->str, k);
+            used += k;
+            iname[used] = '\0';
+            advance(p);
+            continue;
+        }
+        if (t->kind == T_INT || t->kind == T_FLT || t->kind == T_UID) { advance(p); continue; }
+        break;
+    }
+    if (peek(p)->kind != T_LBR) return 0;
+    advance(p);
+    return 1;
+}
+
+
+static int hier_load(P *p, xfile_hier *h, xfile_sframe *cur, const char *tname, size_t tlen,
+                     const char *iname);
+
+/* a data block's children (its LBR consumed), up to its RBR (left in place):
+ * each child data object → `each`; references `{ name }` → `ref` */
+typedef int (*hier_child_fn)(P *p, xfile_hier *h, xfile_sframe *f, const char *tname, size_t tlen,
+                             const char *iname);
+typedef int (*hier_ref_fn)(P *p, xfile_hier *h, xfile_sframe *f, const char *name);
+
+static int hier_children(P *p, xfile_hier *h, xfile_sframe *f, hier_child_fn each, hier_ref_fn ref)
+{
+    while (peek(p)->kind != T_RBR && peek(p)->kind != T_EOF) {
+        const xtok *t = peek(p);
+        if (t->kind == T_LBR) {             /* a reference { name [<uuid>] } */
+            advance(p);
+            char rname[XFILE_NAME_MAX] = {0};
+            read_optional_instance_name(p, rname, sizeof rname);
+            if (peek(p)->kind == T_IDENT) {     /* `{ name }`: the name ends at RBR */
+                const xtok *n = advance(p);
+                size_t k = n->slen < sizeof rname - 1 ? n->slen : sizeof rname - 1;
+                memcpy(rname, n->str, k);
+                rname[k] = '\0';
+            }
+            skip_optional_uuid(p);
+            while (peek(p)->kind != T_RBR && peek(p)->kind != T_EOF) advance(p);
+            if (!expect(p, T_RBR, "}")) return 0;
+            if (ref && !ref(p, h, f, rname)) return 0;
+            continue;
+        }
+        if (t->kind != T_IDENT) { advance(p); continue; }
+        const char *tname = t->str;
+        const size_t tlen = t->slen;
+        advance(p);
+        char iname[XFILE_NAME_MAX];
+        if (!hier_obj_header(p, iname, sizeof iname)) continue;
+        if (each) {
+            if (!each(p, h, f, tname, tlen, iname)) return 0;
+        } else {
+            skip_block_body(p);
+        }
+        if (!expect(p, T_RBR, "}")) return 0;
+    }
+    return 1;
+}
+
+#define HIS(tag) (tlen == strlen(tag) && memcmp(tname, tag, tlen) == 0)
+
+/* FUN_00402f9a's reference: the animated frame, found from the root */
+static int anim_ref(P *p, xfile_hier *h, xfile_sframe *f, const char *name)
+{
+    if (f->to_animate) { set_error(p->out, 0, "animation: second frame reference"); return 0; }
+    f->to_animate = xfile_find_frame(h->root, name);
+    if (!f->to_animate) { set_error(p->out, 0, "animation: no frame %s", name); return 0; }
+    return 1;
+}
+
+/* FUN_00402f9a's data children: a Frame (loaded under the animation frame),
+ * AnimationOptions (ignored), AnimationKey (rotation 0 / scale 1 / position
+ * 2 / matrix 4; a second key block of a kind, or another kind, fails) */
+static int anim_child(P *p, xfile_hier *h, xfile_sframe *f, const char *tname, size_t tlen,
+                      const char *iname)
+{
+    if (HIS("Frame")) return hier_load(p, h, f, tname, tlen, iname);
+    if (!HIS("AnimationKey")) { skip_block_body(p); return 1; }
+    double v;
+    if (!hier_num(p, &v)) return 0;
+    const int type = (int)v;
+    if (!hier_num(p, &v)) return 0;
+    const uint32_t n = (uint32_t)v;
+    if ((type == 0 && f->rotk) || (type == 1 && f->scale) || (type == 2 && f->pos) ||
+        (type == 4 && f->matk) || (type != 0 && type != 1 && type != 2 && type != 4)) {
+        set_error(p->out, 0, "AnimationKey: kind %d", type);
+        return 0;
+    }
+    if (type == 0) f->rotk = (xfile_keyq *)calloc(n ? n : 1, sizeof *f->rotk);
+    else if (type == 4) f->matk = (xfile_keym *)calloc(n ? n : 1, sizeof *f->matk);
+    else if (type == 1) f->scale = (xfile_key3 *)calloc(n ? n : 1, sizeof *f->scale);
+    else f->pos = (xfile_key3 *)calloc(n ? n : 1, sizeof *f->pos);
+    for (uint32_t k = 0; k < n; k++) {
+        double tv, nv;
+        if (!hier_num(p, &tv) || !hier_num(p, &nv)) return 0;
+        float vals[16] = {0};
+        const int nvals = (int)nv;
+        for (int j = 0; j < nvals; j++) {
+            if (!hier_num(p, &v)) return 0;
+            if (j < 16) vals[j] = (float)v;
+        }
+        const uint32_t t = (uint32_t)(int64_t)tv;
+        if (type == 0) {                    /* file w, x, y, z → x, y, z, w */
+            f->rotk[k].t = t;
+            f->rotk[k].q[0] = vals[1]; f->rotk[k].q[1] = vals[2];
+            f->rotk[k].q[2] = vals[3]; f->rotk[k].q[3] = vals[0];
+        } else if (type == 4) {
+            f->matk[k].t = t;
+            memcpy(f->matk[k].m, vals, sizeof f->matk[k].m);
+        } else {
+            xfile_key3 *kk = type == 1 ? &f->scale[k] : &f->pos[k];
+            kk->t = t;
+            kk->v[0] = vals[0]; kk->v[1] = vals[1]; kk->v[2] = vals[2];
+        }
+    }
+    if (type == 0) f->nrot = n;
+    else if (type == 4) f->nmat = n;
+    else if (type == 1) f->nscale = n;
+    else f->npos = n;
+    while (peek(p)->kind != T_RBR && peek(p)->kind != T_EOF) advance(p);
+    return 1;
+}
+
+/* FUN_00402e1b's children: only Animation data objects load */
+static int animset_child(P *p, xfile_hier *h, xfile_sframe *f, const char *tname, size_t tlen,
+                         const char *iname)
+{
+    if (HIS("Animation")) return hier_load(p, h, f, tname, tlen, iname);
+    skip_block_body(p);
+    return 1;
+}
+
+static int frame_child(P *p, xfile_hier *h, xfile_sframe *f, const char *tname, size_t tlen,
+                       const char *iname)
+{
+    return hier_load(p, h, f, tname, tlen, iname);
+}
+
+/* FUN_0040284f: one data object (its LBR consumed) under frame `cur` */
+static int hier_load(P *p, xfile_hier *h, xfile_sframe *cur, const char *tname, size_t tlen,
+                     const char *iname)
+{
+    if (HIS("FrameTransformMatrix")) {
+        float m[16];
+        if (!read_matrix16(p, m)) return 0;
+        memcpy(cur->rot, m, sizeof m);
+        memcpy(cur->rot_orig, m, sizeof m);
+        while (peek(p)->kind != T_RBR && peek(p)->kind != T_EOF) advance(p);
+        return 1;
+    }
+    if (HIS("Frame") || HIS("AnimationSet") || HIS("Animation")) {
+        xfile_sframe *f = sframe_new();
+        if (!f) { set_error(p->out, 0, "oom"); return 0; }
+        sframe_add(cur, f);
+        if (HIS("Frame")) {
+            f->name = dup_name(iname);
+            return hier_children(p, h, f, frame_child, NULL);
+        }
+        f->is_anim = 1;
+        if (HIS("AnimationSet")) {
+            f->name = dup_name(iname);
+            return hier_children(p, h, f, animset_child, NULL);
+        }
+        f->anim_next = h->anim_head;        /* FUN_00402f9a: pushed on the front */
+        h->anim_head = f;
+        return hier_children(p, h, f, anim_child, anim_ref);
+    }
+    skip_block_body(p);                     /* Mesh, Header, … */
+    return 1;
+}
+#undef HIS
+
+static void sframe_free(xfile_sframe *f)
+{
+    while (f) {
+        xfile_sframe *next = f->sibling;
+        sframe_free(f->child);
+        free(f->pos); free(f->rotk); free(f->scale); free(f->matk); free(f->name);
+        free(f);
+        f = next;
+    }
+}
+
+void xfile_hier_free(xfile_hier *h)
+{
+    if (!h) return;
+    sframe_free(h->root);
+    free(h);
+}
+
+xfile_hier *xfile_parse_hier(const char *data, size_t len)
+{
+    xfile_t err;
+    memset(&err, 0, sizeof err);
+    if (!parse_header(&err, data, len)) return NULL;
+    /* the tokens after the 16-byte "xof 0303txt 0032" header */
+    const size_t blen = len - 16;
+    char *work = (char *)malloc(blen + 1);
+    if (!work) return NULL;
+    memcpy(work, data + 16, blen);
+    strip_comments(work, blen);
+    xtok *toks = NULL;
+    size_t ntoks = 0;
+    if (tokenize(work, blen, &toks, &ntoks, &err) < 0) { free(work); return NULL; }
+    P p = { .out = &err, .toks = toks, .ntoks = ntoks, .pos = 0 };
+    xfile_hier *h = (xfile_hier *)calloc(1, sizeof *h);
+    int ok = h != NULL && (h->root = sframe_new()) != NULL;
+    while (ok && peek(&p)->kind != T_EOF) {
+        const xtok *t = peek(&p);
+        if (t->kind != T_IDENT) { advance(&p); continue; }
+        const char *tname = t->str;
+        const size_t tlen = t->slen;
+        advance(&p);
+        if (tlen == strlen("template") && memcmp(tname, "template", tlen) == 0) {
+            if (peek(&p)->kind == T_IDENT) advance(&p);
+            skip_optional_uuid(&p);
+            if (peek(&p)->kind == T_LBR) {
+                advance(&p);
+                skip_block_body(&p);
+                if (!expect(&p, T_RBR, "}")) ok = 0;
+            }
+            continue;
+        }
+        char iname[XFILE_NAME_MAX];
+        if (!hier_obj_header(&p, iname, sizeof iname)) continue;
+        ok = hier_load(&p, h, h->root, tname, tlen, iname) && expect(&p, T_RBR, "}");
+    }
+    if (err.error[0]) ok = 0;
+    free(toks);
+    free(work);
+    if (!ok) { xfile_hier_free(h); return NULL; }
+    return h;
+}

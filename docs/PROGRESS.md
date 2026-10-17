@@ -7,6 +7,25 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-17 — the model enemies' anchors: the last hidden split on the floors
+Every block of dungeon1-deep f77120, dungeon2-run f31460 and dungeon2-run2 f30670 differed only
+in actor #0's +0x454..+0x9f4 — written while drawing. Retail draws each in-use enemy whose type
+has a model (enemy record +0x20 == 1: the rat boss 24 / 59 / 60, golems, crabs, jellyfish, Ohm,
+the final boss) in FUN_00459dfd's two actor passes; FUN_00456d48 sets the model root (RotY(π −
+yaw) · Scale(−s, s, s), the translation), animates its frame tree (FUN_00403d79 → FUN_0040150e per
+animated frame: the actor's two anim slots' per-track times +0x74 / +0x204 at ·4.8, a matrix key,
+or scale / rotation (slerp, w negated) / position keys lerped, the two slots cross-faded by +0x2c)
+and FUN_00404870 updates the frames (FUN_00403e33) and writes each model.txt point's position
+(+0x6fc + 12i), matrix (+0x774 + 64i) and ground query (+0x454 + 68i). The trees are the DX8 SDK
+SkinnedMesh loader's (FUN_00402551: a new child goes after the first child, animations pushed on
+the front of a list), parsed from xfile2/*.x by `xfile_parse_hier`. The per-track times come from
+FUN_0042ea35 (a stub until now): per type an anim range table DAT_0052b9dc.. (loop once / loop
+until / clamp the slot timer +0x54), ftol((first + t) · 1000 / 60), the golem bodies' bob on
+track 25, the parts copying their body, 70 / 71's four track groups. Slerp (slot 35) and
+RotationQuaternion (slot 38) stay x87 c_ in the SSE2 table and are transcribed as such.
+**portblock: dungeon2-run f22000 (mid-fight), f31460, dungeon2-run2 f30670, dungeon1-deep f77120
+— every block IDENTICAL**, first run.
+
 ## 2026-10-17 — dungeon2-run / -run2 / -run3 pass end to end: the Boss Rush, Charme's visit, the guild stock
 Three native recordings (`det -n 2` PASS): dungeon2-run (from dungeon1-clear's save: Day 9 with
 Charme's shop visit, the Day-10 morning, dungeon 1's Boss Rush, the party falls at Charme),

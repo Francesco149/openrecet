@@ -1407,6 +1407,8 @@ struct test_case {
     X(scene_worldmap_z_enabled_transitions_to_dest_mode) \
     \
     X(xfile_bad_header) \
+    X(xfile_hier_tree) \
+    X(xfile_hier_bad_reference) \
     X(xfile_empty) \
     X(xfile_bare_mesh) \
     X(xfile_full_mesh) \

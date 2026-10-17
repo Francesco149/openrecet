@@ -411,3 +411,58 @@ int test_xfile_vendor_xfile2_corpus(void)
             parsed, with_meshes);
     return 0;
 }
+
+/* ── xfile_parse_hier: the SkinnedMesh frame tree (FUN_00402551) ───────── */
+
+static const char k_hier_x[] =
+    "xof 0303txt 0032\n"
+    "template Frame {\n <3d82ab46-62da-11cf-ab39-0020af71e433>\n [...]\n}\n"
+    "Frame top {\n"
+    " FrameTransformMatrix { 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,2.0,3.0,1.0;; }\n"
+    " Frame point_01 {\n"
+    "  FrameTransformMatrix { 1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,5.0,0.0,1.0;; }\n"
+    " }\n"
+    " Frame b2 { }\n"
+    " Frame b3 { Frame { } }\n"
+    "}\n"
+    "AnimationSet Anim-1 {\n"
+    " Animation Anim-a { { point_01 } AnimationKey { 2; 2; 0;3;0.0,0.0,0.0;;, 100;3;10.0,0.0,0.0;;; } }\n"
+    " Animation Anim-b { { b2 } AnimationKey { 0; 1; 0;4;1.0,0.25,0.5,0.75;;; } }\n"
+    "}\n";
+
+int test_xfile_hier_tree(void)
+{
+    xfile_hier *h = xfile_parse_hier(k_hier_x, sizeof k_hier_x - 1);
+    T_ASSERT(h != NULL);
+    T_ASSERT(h->root->name == NULL);
+    /* root: top, then the animation set (the second child) */
+    xfile_sframe *top = h->root->child;
+    T_ASSERT(top != NULL && top->name && strcmp(top->name, "top") == 0);
+    T_ASSERT(top->sibling != NULL && top->sibling->is_anim == 1);
+    T_ASSERT(top->rot[12] == 1.0f && top->rot_orig[13] == 2.0f && top->trans[12] == 0.0f);
+    /* a new child goes after the first: point_01, b3, b2 */
+    T_ASSERT(strcmp(top->child->name, "point_01") == 0);
+    T_ASSERT(strcmp(top->child->sibling->name, "b3") == 0);
+    T_ASSERT(strcmp(top->child->sibling->sibling->name, "b2") == 0);
+    T_ASSERT(top->child->sibling->child != NULL && top->child->sibling->child->name == NULL);
+    T_ASSERT(xfile_find_frame(h->root, "b2") == top->child->sibling->sibling);
+    /* the animation list: last in file first */
+    xfile_sframe *a = h->anim_head;
+    T_ASSERT(a && a->to_animate == top->child->sibling->sibling && a->nrot == 1);
+    T_ASSERT(a->rotk[0].q[0] == 0.25f && a->rotk[0].q[3] == 1.0f);   /* file w, x, y, z */
+    T_ASSERT(a->anim_next && a->anim_next->to_animate == top->child && a->anim_next->npos == 2);
+    T_ASSERT(a->anim_next->pos[1].t == 100 && a->anim_next->pos[1].v[0] == 10.0f);
+    T_ASSERT(a->anim_next->anim_next == NULL);
+    xfile_hier_free(h);
+    return 0;
+}
+
+int test_xfile_hier_bad_reference(void)
+{
+    static const char bad[] =
+        "xof 0303txt 0032\n"
+        "Frame top { }\n"
+        "AnimationSet s { Animation { { nope } AnimationKey { 2; 1; 0;3;0.0,0.0,0.0;;; } } }\n";
+    T_ASSERT(xfile_parse_hier(bad, sizeof bad - 1) == NULL);   /* FUN_00402f9a fails the load */
+    return 0;
+}

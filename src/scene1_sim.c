@@ -510,7 +510,7 @@ void scene1_ingame_default_arm_tick(void)
             trap_spots_tick();               /* FUN_00441aab */
             actor_pass();                    /* FUN_00430c6d */
             scene1_records_b_tick();         /* FUN_0043ae20 */
-            /* PORT-DEBT(stub, FUN_0042ea35) */
+            actor_bone_timers_tick();        /* FUN_0042ea35 */
             dobj_tick();                     /* FUN_0043a5d9 */
         }
     }

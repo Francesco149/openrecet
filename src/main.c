@@ -79,6 +79,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "model_anchor.h"   /* the model enemies' draw-time anchors */
 #include "scene1_camera.h"
 #include "record_hit.h"
 #include "scene1_combat_sm.h"
@@ -1370,6 +1371,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
         g_windowed = (g_ini.winmode == 1);
         mesh_load_set_easydisp(g_ini.easydisp);
+        model_anchor_set_reader(mesh_load_read_file);
         g_s_easydisp = g_ini.s_easydisp;
         scene1_bg_npc_set_toorioff(g_ini.toorioff);
         fprintf(stderr,
@@ -3255,8 +3257,10 @@ static void render_dispatch(void)
                  * class, 2a2d84d). iv1_2 (n_bg=0, over the live HOUSE map) + free-roam
                  * keep covers=0 and render the scene as before. */
                 const int covers = scene1_intro_dialogue_covers_screen();
-                if (!covers)
+                if (!covers) {
                     scene1_render_camera_setup(g_dev);
+                    model_anchor_draw_pass();   /* FUN_00459dfd's model draws: the anchors */
+                }
                 /* C7j (2026-05-29): FUN_0040a765 2D HUD aggregator,
                  * between the 3D walker and the overlay dispatcher
                  * (engine FUN_004547ab L71).  Entry shell + Passes 1-3

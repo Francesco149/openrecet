@@ -177,4 +177,32 @@ xfile_t *xfile_parse(const char *data, size_t len, const char *path_for_errors);
 
 void xfile_free(xfile_t *x);
 
+/*
+ * The DX8 SDK SkinnedMesh frame tree (retail's SFrame, 0x140 bytes; the
+ * loader FUN_00402551 / 0040284f / 00402e1b / 00402f9a): frames, animation
+ * sets and animations as one tree (a new child goes after the first child),
+ * the animations also on a list (newest first).  Meshes are not kept.
+ */
+typedef struct { uint32_t t; float v[3]; }  xfile_key3;   /* scale / position, 16 bytes */
+typedef struct { uint32_t t; float q[4]; }  xfile_keyq;   /* rotation x, y, z, w, 20 bytes */
+typedef struct { uint32_t t; float m[16]; } xfile_keym;   /* matrix, 68 bytes */
+typedef struct xfile_sframe xfile_sframe;
+struct xfile_sframe {
+    float rot[16], trans[16], rot_orig[16], combined[16];  /* +4 / +68 / +132 / +196 */
+    xfile_key3 *pos;   uint32_t npos;                        /* +264 */
+    xfile_keyq *rotk;  uint32_t nrot;                        /* +272 */
+    xfile_key3 *scale; uint32_t nscale;                      /* +280 */
+    xfile_keym *matk;  uint32_t nmat;                        /* +288 */
+    xfile_sframe *anim_next, *to_animate, *sibling, *child; /* +296 / +300 / +304 / +308 */
+    uint8_t is_anim;                                         /* +312 */
+    char *name;                                              /* +316, NULL when unnamed */
+};
+typedef struct { xfile_sframe *root, *anim_head; } xfile_hier;
+
+/* NULL when the file fails the loader (a bad frame reference, a second key
+ * block of one kind, a key kind other than 0 / 1 / 2 / 4) */
+xfile_hier   *xfile_parse_hier(const char *data, size_t len);
+void          xfile_hier_free(xfile_hier *h);
+xfile_sframe *xfile_find_frame(xfile_sframe *f, const char *name);   /* FUN_0040205c */
+
 #endif /* OPENRECET_XFILE_H */

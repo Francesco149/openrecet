@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 685, discovered 1774 → 774 referenced-or-better (30.4%)
+- **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 694, discovered 1765 → 783 referenced-or-better (30.7%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 10
 
@@ -60,9 +60,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45404b | FUN_0045404b | 326 | ✓ | stub | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+3) |
 | 0x454191 | FUN_00454191 | 1391 | ✓ |  | main.c, scene.h, scene1_fx_overlays.c (+4) |
 | 0x4547ab | FUN_004547ab | 1670 | ✓ |  | input.c, input.h, main.c (+25) |
-| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | scene1_bg_npc.h, scene1_chr_walker.h, scene1_player_ctrl.c (+7) |
+| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, scene1_bg_npc.h, scene1_chr_walker.h (+8) |
 | 0x457714 | FUN_00457714 | 5323 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+6) |
-| 0x459dfd | FUN_00459dfd | 1906 | ✓ | stub | main.c, mesh_draw.c, mesh_draw.h (+14) |
+| 0x459dfd | FUN_00459dfd | 1906 | ✓ | stub | main.c, mesh_draw.c, mesh_draw.h (+16) |
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ |  | chr_sprite_meta.h, scene1_bg_npc.c, scene1_bg_npc.h (+8) |
 | 0x45aa36 | FUN_0045aa36 | 4493 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c (+3) |
 | 0x45bbf9 | FUN_0045bbf9 | 134 | ✓ |  | main.c, mesh_draw.c, mesh_draw.h (+3) |
@@ -114,22 +114,31 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (685) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (694) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 | 0x40110f | FUN_0040110f | 27 | ✓ |  | main.c |
 | 0x40112a | FUN_0040112a | 20 | ✓ |  | main.c |
 | 0x40120c | FUN_0040120c | 116 | ✓ |  | main.c, scene1_camera.c, scene1_camera.h (+1) |
+| 0x4013c2 | FUN_004013c2 | 128 | ✓ |  | xfile.c |
+| 0x40150e | FUN_0040150e | 1561 | ✓ |  | model_anchor.c |
+| 0x40205c | FUN_0040205c | 118 | ✓ |  | xfile.c, xfile.h |
+| 0x402551 | FUN_00402551 | 619 | ✓ |  | model_anchor.c, xfile.c, xfile.h |
+| 0x40284f | FUN_0040284f | 567 | ✓ |  | xfile.c |
+| 0x402e1b | FUN_00402e1b | 383 | ✓ |  | xfile.c |
+| 0x402f9a | FUN_00402f9a | 1256 | ✓ |  | xfile.c |
 | 0x4038e4 | FUN_004038e4 | 90 | ✓ |  | layers.c, layers.h |
-| 0x403d79 | FUN_00403d79 | 186 | ✓ |  | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x403d79 | FUN_00403d79 | 186 | ✓ |  | actor_ai.c, model_anchor.c, scene1_render.c (+2) |
+| 0x403e33 | FUN_00403e33 | 84 | ✓ |  | model_anchor.c |
 | 0x403eb7 | FUN_00403eb7 | 108 | ✓ |  | scene1_render.c, scene1_render.h, scene1_shop_walker.h |
 | 0x404209 | FUN_00404209 | 759 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x404757 | FUN_00404757 | 117 | ✓ |  | scene1_render.h, scene1_shop_walker.h |
 | 0x4047df | FUN_004047df | 135 | ✓ |  | scene1_render.c, scene1_render.h, scene1_shop_walker.h |
 | 0x404866 | FUN_00404866 | 10 | ✓ |  | scene1_shop_walker.c, scene1_shop_walker.h |
-| 0x404870 | FUN_00404870 | 432 | ✓ |  | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x404870 | FUN_00404870 | 432 | ✓ |  | model_anchor.c, model_anchor.h, scene1_render.c (+2) |
 | 0x404a20 | FUN_00404a20 | 45 | ✓ |  | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
+| 0x404b81 | FUN_00404b81 | 55 | ✓ |  | model_anchor.c |
 | 0x404bb8 | FUN_00404bb8 | 84 | ✓ |  | math3d.h, scene1_camera.c, scene1_camera.h (+4) |
 | 0x404e44 | FUN_00404e44 | 29 | ✓ |  | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ |  | encyclopedia.c, render_quad.c, render_quad.h (+1) |
@@ -224,7 +233,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x42df55 | FUN_0042df55 | 593 | ✓ |  | actor_ai.c, actor_ai.h, actor_spawn.h |
 | 0x42e1a6 | FUN_0042e1a6 | 1515 | ✓ |  | actor_ai.c, record_hit.c, record_hit.h |
 | 0x42e791 | FUN_0042e791 | 676 | ✓ |  | actor_ai.c, record_hit.c, record_hit.h (+3) |
-| 0x42ea35 | FUN_0042ea35 | 2135 | ✓ |  | actor_ai.c, scene1_sim.c |
+| 0x42ea35 | FUN_0042ea35 | 2135 | ✓ |  | actor_ai.c, actor_ai.h, scene1_sim.c |
 | 0x42f28c | FUN_0042f28c | 795 | ✓ |  | actor_ai.c, actor_ai.h |
 | 0x42f685 | FUN_0042f685 | 193 | ✓ |  | actor_ai.c |
 | 0x42f746 | FUN_0042f746 | 103 | ✓ |  | actor_ai.c |
@@ -239,7 +248,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x432473 | FUN_00432473 | 1064 | ✓ |  | dungeon_objects.c, dungeon_objects.h, scene1_postload.c |
 | 0x43289b | FUN_0043289b | 555 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+1) |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ |  | collision_mesh.c, collision_mesh.h, map_collision.c (+2) |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | actor_ai.c, collision_house.c, collision_mesh.h (+24) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ |  | actor_ai.c, collision_house.c, collision_mesh.h (+25) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ |  | actor_ai.c, collision_resolve.c, collision_resolve.h (+11) |
 | 0x433fa6 | FUN_00433fa6 | 426 | ✓ |  | party_move.c, party_move.h |
 | 0x434198 | FUN_00434198 | 60 | ✓ |  | party_move.h |
@@ -363,8 +372,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45526a | FUN_0045526a | 102 | ✓ |  | encyclopedia.c, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x45672a | FUN_0045672a | 1317 | ✓ |  | chr_sprite_meta.h, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x456c4f | FUN_00456c4f | 249 | ✓ |  | scene1_chr_prepass.c, scene1_chr_prepass.h |
-| 0x456d48 | FUN_00456d48 | 526 | ✓ |  | scene1_chr_walker.c, scene1_chr_walker.h, scene1_render.c (+3) |
-| 0x456f56 | FUN_00456f56 | 1982 | ✓ |  | chr_sprite_meta.h, main.c, scene1_camera.h (+7) |
+| 0x456d48 | FUN_00456d48 | 526 | ✓ |  | model_anchor.c, model_anchor.h, scene1_chr_walker.c (+5) |
+| 0x456f56 | FUN_00456f56 | 1982 | ✓ |  | chr_sprite_meta.h, main.c, model_anchor.c (+8) |
 | 0x458bdf | FUN_00458bdf | 904 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ |  | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ |  | scene1_render.c, scene1_render.h |
@@ -538,7 +547,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4739fb | FUN_004739fb | 31 | ✓ |  | scene_town_event.c, scene_town_event.h, worker_load.h |
 | 0x473a3e | FUN_00473a3e | 453 | ✓ |  | anchor_trace.c, main.c, scene_pause.c (+2) |
 | 0x473c03 | FUN_00473c03 | 9 | ✓ |  | scene1_intro_dialogue.c, scene_pause.c |
-| 0x473c15 | FUN_00473c15 | 2476 | ✓ |  | scene1_preload.c, scene1_preload.h, scene_adv_guild.c (+1) |
+| 0x473c15 | FUN_00473c15 | 2476 | ✓ |  | model_anchor.c, scene1_preload.c, scene1_preload.h (+2) |
 | 0x4746fc | FUN_004746fc | 48 | ✓ |  | scene1_preload.c, worker_load.h |
 | 0x47472c | FUN_0047472c | 34 | ✓ |  | scene1_preload.c, worker_load.h |
 | 0x47474e | FUN_0047474e | 142 | ✓ |  | main.c, scene1_preload.c, scene_floor.c (+6) |

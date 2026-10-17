@@ -170,8 +170,8 @@ float actor_screen_x(float x, float y, float z)
 
 float actor_view_depth(float x, float y, float z)
 {
-    /* PORT-DEBT(render-coupled, FUN_00441c3e): the view matrix is the render's;
-     * the dungeon camera is not ported, so the depths follow the house pose */
+    /* the view matrix is the render's (FUN_00441c3e's pose, built where the
+     * port renders); +0x450 matches retail over dungeon1-deep */
     return (float)(((long double)g_view_mat[2] * x + (long double)g_view_mat[6] * y) +
                    (long double)g_view_mat[10] * z + g_view_mat[14]);
 }
@@ -3013,10 +3013,134 @@ void actor_ai_alive(actor_t *a)
     }
 }
 
+/* FUN_0042ea35's anim ranges, {first frame, last frame, clamp (else loop)} per
+ * anim id, DAT_0052b9dc..: rows 0 types 61 / 64, 11 the crabs 68 / 69, 26 70 /
+ * 71, 40 the rat 24 / 59 / 60, 59 73, 73 75 / 76, 77 72, 81 the rest.  An id
+ * past its table reads the next one, as retail's does. */
+static const int32_t k_anim_range[87][3] = {
+    { 20, 139, 0 }, { 200, 336, 1 }, { 500, 636, 1 }, { 360, 479, 0 }, { 700, 820, 1 },
+    { 840, 960, 1 }, { 1140, 1260, 1 }, { 980, 1100, 1 }, { 1280, 1340, 1 }, { 1360, 1420, 1 },
+    { 1500, 2100, 1 },
+    { 400, 519, 0 }, { 140, 260, 0 }, { 540, 660, 0 }, { 700, 820, 0 }, { 860, 960, 1 },
+    { 980, 1080, 1 }, { 1100, 1200, 1 }, { 1220, 1280, 1 }, { 2332, 2440, 1 }, { 1480, 1600, 0 },
+    { 1660, 1720, 1 }, { 1740, 1860, 1 }, { 1280, 1440, 1 }, { 1340, 1400, 1 }, { 1900, 2260, 1 },
+    { 140, 260, 0 }, { 1050, 1170, 1 }, { 400, 520, 1 }, { 540, 660, 1 }, { 760, 820, 1 },
+    { 830, 890, 1 }, { 2400, 2520, 1 }, { 1050, 1170, 1 }, { 1320, 1440, 0 }, { 1660, 1840, 1 },
+    { 1860, 1960, 1 }, { 680, 740, 1 }, { 1580, 1640, 1 }, { 2000, 2360, 1 },
+    { 140, 259, 0 }, { 400, 439, 0 }, { 500, 559, 1 }, { 600, 699, 1 }, { 800, 839, 1 },
+    { 880, 919, 1 }, { 960, 999, 1 }, { 1040, 1079, 1 }, { 1100, 1129, 1 }, { 1140, 1159, 0 },
+    { 1200, 1229, 1 }, { 1230, 1259, 1 }, { 1280, 1459, 1 }, { 1480, 1689, 1 }, { 1700, 1819, 1 },
+    { 1840, 1879, 1 }, { 1900, 2019, 1 }, { 2040, 2189, 1 }, { 2220, 2539, 1 },
+    { 20, 200, 0 }, { 220, 400, 1 }, { 420, 600, 0 }, { 620, 860, 1 }, { 880, 960, 1 },
+    { 980, 1160, 1 }, { 1180, 1240, 1 }, { 1260, 1350, 1 }, { 1380, 1560, 1 }, { 1560, 1620, 0 },
+    { 1620, 1800, 1 }, { 1620, 1800, 1 }, { 1820, 2120, 1 }, { 2140, 2440, 0 },
+    { 20, 200, 0 }, { 220, 280, 1 }, { 300, 400, 1 }, { 420, 520, 1 },
+    { 20, 200, 0 }, { 220, 280, 1 }, { 300, 400, 1 }, { 420, 520, 1 },
+    { 10, 130, 0 }, { 240, 300, 0 }, { 420, 480, 1 }, { 490, 520, 0 }, { 530, 620, 1 },
+    { 630, 630, 1 },
+};
+
+/* one anim slot of FUN_0042ea35: its frame timer (+0x54..) wraps (once, or
+ * `wrap_all` until below) or clamps at the range's length, then `n` track
+ * times ftol((first + t)·1000 / 60) from `dst` */
+static void bone_slot(actor_t *a, int32_t timer_off, int32_t anim_off, int base, int wrap_all,
+                      int32_t dst_off, int n)
+{
+    static const float k1000 = 1000.0f, k60 = 60.0f;   /* 0x51958c / 0x519450 */
+    const int32_t row = base + AI(a, anim_off);
+    const int32_t *r = row >= 0 && row < 87 ? k_anim_range[row] : (const int32_t[3]){ 0, 0, 0 };
+    const float first = spill32((long double)r[0]);
+    const float last = spill32((long double)r[1]);
+    const float len = spill32((long double)last - first);
+    if (r[2] != 0) {
+        if (AF(a, timer_off) >= len) AF(a, timer_off) = len;
+    } else if (wrap_all) {
+        while (AF(a, timer_off) >= len) AF(a, timer_off) = spill32((long double)AF(a, timer_off) - len);
+    } else if (AF(a, timer_off) >= len) {
+        AF(a, timer_off) = spill32((long double)AF(a, timer_off) - len);
+    }
+    for (int k = 0; k < n; k++)
+        AI(a, dst_off + 4 * k) = x87_ftol(((long double)first + AF(a, timer_off)) * k1000 / k60);
+}
+
+/* FUN_0042ea35: the model enemies' per-track anim times — for each anim
+ * slot s (+0x34 + 4s the anim, +0x54 + 4s its frame timer) 100 track times
+ * at +0x74 + 400s, which the draw's FUN_00403d79 reads (model_anchor.c).
+ * 61 / 64 (the golem bodies) also bob track 25 (+0xd8 / +0x268) with the age;
+ * the parts (62 / 63 / 65 / 66) copy their body's (+0xa04) times and blend;
+ * 70 / 71 run four track groups (100 / 22 / 6 / 8 tracks, the timers loop
+ * until below the length); 74 copies the first live 73's (else actor 0's). */
+static void actor_bone_timers(void)
+{
+    static const float k0p1 = 0.10000000149011612f, k2p5 = 2.5f, k667p5 = 667.5f;
+    static const float k1000 = 1000.0f, k60 = 60.0f;
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        actor_t *a = &g_actor[i];
+        if (AI(a, ACT_INUSE) == 0 || AI(a, 0xafc) > 0 || AI(a, 0xaf4) > 0) continue;
+        const int32_t type = AI(a, ACT_TYPE);
+        if (enemy_of(a)->flags == 0) continue;
+        switch (type) {
+        case 61: case 64:
+            for (int s = 0; s < 2; s++) {
+                bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 0, 0, 0x74 + 400 * s, 100);
+                for (int k = 0; k < 2; k++) {
+                    const float ag = spill32((long double)spill32((long double)AI(a, 0x398)) * k0p1);
+                    const float sn = spill32(x87_crt_sin((double)ag));
+                    AI(a, k == 0 ? 0xd8 : 0x268) =
+                        x87_ftol(((long double)sn * k2p5 + k667p5) * k1000 / k60);
+                }
+            }
+            break;
+        case 62: case 63: case 65: case 66: {
+            const int32_t pi = AI(a, 0xa04);
+            if (pi == -1) break;
+            const actor_t *p = &g_actor[pi];
+            AF(a, 0x2c) = AF(p, 0x2c);
+            memcpy(a->b + 0x74, p->b + 0x74, 400);
+            memcpy(a->b + 0x204, p->b + 0x204, 400);
+            break;
+        }
+        case 68: case 69:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 11, 0, 0x74 + 400 * s, 100);
+            break;
+        case 70: case 71:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 26, 1, 0x74 + 400 * s, 100);
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x5c + 4 * s, 0x3c + 4 * s, 26, 1, 0xbc + 400 * s, 22);
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x64 + 4 * s, 0x44 + 4 * s, 26, 1, 0x134 + 400 * s, 6);
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x6c + 4 * s, 0x4c + 4 * s, 26, 1, 0x114 + 400 * s, 8);
+            break;
+        case 24: case 59: case 60:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 40, 0, 0x74 + 400 * s, 100);
+            break;
+        case 74: {
+            const actor_t *src = &g_actor[0];
+            for (int j = 0; j < ACTOR_COUNT; j++)
+                if (AI(&g_actor[j], ACT_INUSE) != 0 && AI(&g_actor[j], ACT_TYPE) == 73) { src = &g_actor[j]; break; }
+            memmove(a->b + 0x74, src->b + 0x74, 800);
+            AF(a, 0x2c) = AF(src, 0x2c);
+            AI(a, 0x30) = AI(src, 0x30);
+            break;
+        }
+        case 73:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 59, 0, 0x74 + 400 * s, 100);
+            break;
+        case 75: case 76:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 73, 0, 0x74 + 400 * s, 100);
+            break;
+        case 72:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 77, 0, 0x74 + 400 * s, 100);
+            break;
+        default:
+            for (int s = 0; s < 2; s++) bone_slot(a, 0x54 + 4 * s, 0x34 + 4 * s, 81, 0, 0x74 + 400 * s, 100);
+            break;
+        }
+    }
+}
+
 /* FUN_00430c00: the actors during an event (the dialogue arm FUN_004427d3):
  * the multi-part kinds (enemy flags != 0) only advance their two anim timers
  * (+0x54 / +0x58) by 1, the rest tick their sprite anim unless knocked back
- * (+0xb18); then FUN_0042ea35 */
+ * (+0xb18); then FUN_0042ea35 (the per-track anim times) */
 void actor_event_anim_pump(void)
 {
     for (int i = 0; i < ACTOR_COUNT; i++) {
@@ -3030,8 +3154,10 @@ void actor_event_anim_pump(void)
             chr_anim_tick((int32_t *)(void *)a->b, e->unknown_24, 1.0f);   /* FUN_00482a71 */
         }
     }
-    /* PORT-DEBT(stub, FUN_0042ea35): the multi-part bone timers (no rand) */
+    actor_bone_timers();                     /* FUN_0042ea35 */
 }
+
+void actor_bone_timers_tick(void) { actor_bone_timers(); }
 
 /* FUN_004304b3 */
 void actor_physics(actor_t *a)
