@@ -17,6 +17,7 @@ python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → 
 python3 tools/rhost/rhost.py record my-scenario --from X      # … from the save scenario X ends with
 python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
+python3 tools/rhost/rhost.py portshots X --at 0:30000:3000 --rank   # a sweep, worst frames first
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first differing tick draw by draw
 python3 tools/rhost/rhost.py portstate X --va 438bef4,438bf24 --changes   # every frame a VA changes, both sides

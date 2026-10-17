@@ -553,7 +553,7 @@ def cmd_portshots(a):
     """visual port↔retail check: retail (rhost --shot-at) and port (--capture-frames) screenshots of the
     same frames on the same flat trace, joined side by side (retail | port) in the batch dir"""
     name = a.scenario
-    fs = [int(x) for x in a.at.split(",")]
+    fs = parse_frame_list(a.at)
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
@@ -579,7 +579,36 @@ def cmd_portshots(a):
             sh(["magick", r, "-resize", "1024x768!", p, "-resize", "1024x768!", "+append", dst])
             out.append(dst)
     print("\n".join(out) if out else f"shots in {bdir}")
+    if getattr(a, "rank", False) and out:
+        rank_shots(out)
     return 0 if len(out) == len(fs) else 1
+
+
+def parse_frame_list(spec):
+    """'F,F,..' or 'FROM:TO:STEP' (TO inclusive) → frame list"""
+    if ":" in spec:
+        lo, hi, st = (int(x) for x in spec.split(":"))
+        return list(range(lo, hi + 1, st))
+    return [int(x) for x in spec.split(",")]
+
+
+def rank_shots(paths):
+    """per comparison image (retail | port halves): mean abs difference and the pixels whose
+    summed channel difference exceeds 60, worst first — where to look"""
+    try:
+        import numpy as np
+        from PIL import Image
+    except ImportError:
+        print("rank: needs numpy + PIL"); return
+    rows = []
+    for p in paths:
+        im = np.asarray(Image.open(p).convert("RGB")).astype(int)
+        h = im.shape[1] // 2
+        d = np.abs(im[:, :h] - im[:, h:])
+        rows.append((d.mean(), int((d.sum(axis=2) > 60).sum()), p))
+    print("rank (mean abs, px>60):")
+    for m, n, p in sorted(rows, reverse=True):
+        print(f"  {m:7.2f} {n:8d}  {os.path.basename(p)}")
 
 
 IDA_TSV = "/mnt/ephemeral/openrecet/decompiled-ida/functions_ida.tsv"
@@ -1019,8 +1048,9 @@ def main():
     p.add_argument("--list", type=int, default=40, help="dwords listed per block"); common(p); p.set_defaults(fn=cmd_portblock)
     p = sp.add_parser("tables"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_tables)
-    p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
+    p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,.. or FROM:TO:STEP")
     p.add_argument("--port-d3d", action="store_true", help="also the port's D3D call trace of those frames (port/d3d.jsonl)")
+    p.add_argument("--rank", action="store_true", help="print each frame's port|retail difference, worst first")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("gates"); p.add_argument("--only", help="regex over 'KIND SCENARIO'"); common(p); p.set_defaults(fn=cmd_gates)

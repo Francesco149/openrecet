@@ -187,10 +187,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ |  | actor_ai.c, dungeon_party.c, party.h (+4) |
 | 0x414813 | FUN_00414813 | 239 | ✓ |  | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_records.c (+1) |
-| 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
-| 0x415e90 | FUN_00415e90 | 36 | ✓ |  | scene1_overlay.c, scene1_overlay.h |
+| 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_effects.c, scene1_overlay.c, scene1_overlay.h (+5) |
+| 0x415e90 | FUN_00415e90 | 36 | ✓ |  | scene1_effects.c, scene1_overlay.c, scene1_overlay.h |
 | 0x415eb4 | FUN_00415eb4 | 122 | ✓ |  | scene1_effects.c |
-| 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_wide_followup.h, scene1_wide_followup_helpers.c |
+| 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_effects.c, scene1_wide_followup.h, scene1_wide_followup_helpers.c |
 | 0x415fab | FUN_00415fab | 540 | ✓ |  | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+7) |
 | 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.h, scene1_render.c (+1) |
