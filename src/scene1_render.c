@@ -943,6 +943,7 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * set through the wing-glow/dust draws that follow (they're 2-sided too);
      * the next pass sets its own CULL.  ALPHATESTENABLE stays 1 (retail keeps
      * it on; effect00.bmp's star texels are opaque so alpha>0 passes). */
+    scene1_effects_tick_148();   /* FUN_004176ff's head: FUN_0040f892 */
     wf_pass_c_set_pre_matrix(g_scene1_camera_orient);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);

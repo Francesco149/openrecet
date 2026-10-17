@@ -20,6 +20,7 @@
 #include "sysassets.h"          /* effect_shot.bmp DAT_073cc940 */
 #include "scene1_wide_followup.h" /* FUN_00415f2e */
 #include "scene1_maplight.h"     /* the stage record (DAT_068dd2f0) */
+#include "actor_table.h"         /* actor #0's weapon points (+0x6fc) */
 #include "x87.h"
 #include <string.h>
 
@@ -38,6 +39,8 @@ void scene1_effects_load_dungeon(struct IDirect3DDevice8 *dev)
 
 /* FVF 0x142: xyz, diffuse, uv — 24 bytes */
 typedef struct { float x, y, z; uint32_t diffuse; float u, v; } fx_vtx;
+static uint32_t fx_rgb(int32_t r, int32_t g, int32_t b);
+static void fx_set_col(fx_vtx q[4], uint32_t c);
 
 /* DAT_0064a2c8, quad 0 of FUN_0040d132's eight: the XZ-plane ±256 strip, its
  * 128-texel cell with the half-texel inset */
@@ -294,6 +297,123 @@ static uint32_t fx_grey(int32_t c)
     return ((((uint32_t)(uint8_t)c | 0xffffff00u) << 8 | (uint32_t)(uint8_t)c) << 8) | (uint32_t)(uint8_t)c;
 }
 
+/* ── FUN_0040f892: the type-148 weapon trail (a boss's swing) ──────────────
+ * Run at the top of FUN_004176ff, so it ticks only on rendered frames: per
+ * table-A record of type 148 (all 4096), actor #0's two weapon points
+ * (+0x6fc..+0x710, its draw-written anchors) are pushed into an 8-deep
+ * history per coordinate (DAT_0064e458 + 0x20·c); from age 2 the strip
+ * DAT_0064a828 (56 vertex pairs) is rebuilt along natural cubic splines of
+ * the last min(age + 1, 8) points (FUN_0040f6cb / FUN_0040f7f3); then the
+ * record ages and dies at 18. */
+static float s_trail_hist[6][8];   /* DAT_0064e458 */
+static int32_t s_trail_n = 8;      /* DAT_0052a7f8 */
+static fx_vtx s_trail[112];        /* DAT_0064a828 */
+static int s_trail_init;
+
+static void trail_init(void)
+{
+    if (s_trail_init) return;
+    s_trail_init = 1;
+    for (int k = 0; k < 56; k++) {
+        const float v = spill32(((long double)k * 0.57407409f + 96.5L) / 256.0L);
+        const fx_vtx a = { 0.0f, -32.0f, 0.0f, 0xffffffffu, 0.13867188f, v };
+        const fx_vtx b = { 0.0f, 32.0f, 0.0f, 0xffffffffu, 0.23632812f, v };
+        s_trail[2 * k] = a;
+        s_trail[2 * k + 1] = b;
+    }
+}
+
+/* FUN_0040f6cb: the second-difference coefficients z of y (uniform spacing,
+ * diagonal 4, off-diagonals h = 1) */
+static void trail_spline(const float *y, float *z)
+{
+    static float h[8], d[8];   /* DAT_0064a2a8, DAT_0064a80c */
+    const int n = s_trail_n;
+    z[0] = 0.0f;
+    z[n - 1] = 0.0f;
+    if (n - 1 > 0)
+        for (int k = 0; k < n - 1; k++) {
+            h[k] = 1.0f;
+            d[k] = spill32((long double)y[k + 1] - y[k]);
+        }
+    z[1] = spill32((long double)d[1] - d[0] - (long double)h[0] * z[0]);
+    d[0] = 4.0f;
+    for (int k = 1; k <= n - 3; k++) {
+        const float r = spill32((long double)h[k] / d[k - 1]);
+        const long double dd = (long double)d[k + 1] - d[k];
+        z[k + 1] = spill32(dd - (long double)r * z[k]);
+        d[k] = spill32(4.0L - (long double)r * h[k]);
+    }
+    z[n - 2] = spill32((long double)z[n - 2] - (long double)h[n - 2] * z[n - 1]);
+    for (int m = n - 2; m > 0; m--)
+        z[m] = spill32(((long double)z[m] - (long double)h[m] * z[m + 1]) / d[m - 1]);
+}
+
+/* FUN_0040f7f3: y at t from the segment around t */
+static float trail_eval(float t, const float *y, const float *z)
+{
+    int lo = 0, hi = s_trail_n - 1, i = 0;
+    if (s_trail_n - 1 > 0) {
+        do {
+            const int mid = (hi + lo) / 2;
+            if ((float)mid >= t) hi = mid;
+            else lo = mid + 1;
+        } while (lo < hi);
+        i = lo;
+        if (lo > 0) i = --lo;
+    }
+    const float sg = spill32((long double)t - (float)i);
+    return spill32(((long double)y[i + 1] - y[i] - ((long double)z[i] + z[i] + z[i + 1])
+                    + (((long double)z[i + 1] - z[i]) * sg + (long double)z[i] * 3.0L) * sg) * sg + y[i]);
+}
+
+void scene1_effects_tick_148(void)
+{
+    trail_init();
+    for (int i = 0; i < SCENE1_RECORDS_A_COUNT; i++) {
+        int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        if (r[12] != 148) continue;
+        for (int c = 0; c < 6; c++) {
+            for (int k = 7; k > 0; k--) s_trail_hist[c][k] = s_trail_hist[c][k - 1];
+            s_trail_hist[c][0] = act_getf(&g_actor[0], 0x6fc + 4 * c);
+        }
+        const int32_t age = r[13];
+        if (age >= 2) {
+            s_trail_n = age + 1 > 8 ? 8 : age + 1;
+            for (int k = 0; k < 56; k++) {
+                const float t = spill32((long double)spill32((float)s_trail_n) / 7.0L / 8.0L * spill32((float)k));
+                float out[6];
+                for (int c = 0; c < 6; c++) {
+                    float z[8];
+                    trail_spline(s_trail_hist[c], z);
+                    out[c] = trail_eval(t, s_trail_hist[c], z);
+                }
+                s_trail[2 * k].x = out[0];     s_trail[2 * k].y = out[1];     s_trail[2 * k].z = out[2];
+                s_trail[2 * k + 1].x = out[3]; s_trail[2 * k + 1].y = out[4]; s_trail[2 * k + 1].z = out[5];
+            }
+        }
+        if (++r[13] >= 18) r[12] = -1;
+    }
+}
+
+/* FUN_004176ff's table-A loop, type 148: the trail strip DAT_0064a828 (110
+ * triangles) at the origin from age 3, grey (age - 2) · 64 to 255, closing
+ * 64 a tick from 14 */
+static void fx_trail_148(IDirect3DDevice8 *dev, const int32_t *r)
+{
+    const int32_t age = r[13];
+    if (age < 3) return;
+    int32_t c = (age - 2) << 6;
+    if (c > 255) c = 255;
+    if (age >= 14) c += (14 - age) << 6;
+    fx_set_col(s_trail, fx_rgb(c, c, c));
+    for (int k = 4; k < 112; k++) s_trail[k].diffuse = s_trail[0].diffuse;
+    float w[16];
+    mat4_translation(w, 0.0f, 0.0f, 0.0f);
+    IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)w);
+    IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 110, s_trail, sizeof(fx_vtx));
+}
+
 /* FUN_004176ff's table-A loop (0x41b07f..), the velocity streaks — types 1,
  * 94, 2, 3, 82, 64, 83, 93, 102, 115, 119: a quad at the particle facing the
  * eye and stretched along its velocity (FUN_00415eb4: Inverse(LookAtRH(pos,
@@ -312,6 +432,10 @@ static void fx_table_a_streaks(IDirect3DDevice8 *dev)
         const int32_t t = r[12];
         float f[15];
         memcpy(f, r, sizeof f);
+        if (t == 148) {
+            fx_trail_148(dev, r);
+            continue;
+        }
         if (t == 25 || t == 41) {
             /* the hit flash: a billboard B · S((age · 0.001 + 0.04) · scale) ·
              * T(pos) on DAT_0064e398 (the 64×64 cell (0, 0)), (age / 4, age / 3,

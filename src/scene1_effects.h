@@ -25,4 +25,8 @@ void scene1_effects_exit_circle(struct IDirect3DDevice8 *dev);
 void scene1_effects_table_b(struct IDirect3DDevice8 *dev);
 #endif
 
+/* FUN_0040f892 (top of FUN_004176ff): the type-148 trail records' history,
+ * spline strip and age (they die at 18) — render-coupled, as in retail */
+void scene1_effects_tick_148(void);
+
 #endif /* OPENRECET_SCENE1_EFFECTS_H */
