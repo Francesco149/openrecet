@@ -689,6 +689,7 @@ void sim_step_a(void)
         hud_xp_shake_money_tick();
         scene1_particles_tick();
         scene_guild_sim();
+        scene_guild_render_state_tick();  /* the render's FUN_00465db4 b55c write */
         break;
 
     case 0xb:  /* the Adventurers' Guild (engine FUN_0045c051) */

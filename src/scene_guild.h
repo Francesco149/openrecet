@@ -75,4 +75,7 @@ void scene_guild_render(struct IDirect3DDevice8 *dev);
 
 #endif /* _WIN32 */
 
+/* FUN_0049404b's bubble: the render-side b55c write (FUN_00465db4), after the tick */
+void scene_guild_render_state_tick(void);
+
 #endif /* OPENRECET_SCENE_GUILD_H */

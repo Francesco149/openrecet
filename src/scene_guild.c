@@ -53,6 +53,7 @@
 #include "scene1_records.h"            /* scene1_records_reset (FUN_0040f64b)         */
 #include "worker_load.h"               /* worker_load_spawn (FUN_00452cde)            */
 #include "x87.h"                       /* spill32 / x87_ftol                          */
+#include "customer_service.h"          /* FUN_00465db4's b55c write                    */
 
 #include <stdio.h>                     /* snprintf — the expansion prompt             */
 
@@ -867,6 +868,58 @@ void scene_guild_sim(void)
     }
 }
 
+/* ─── the guildmaster's bubble text (FUN_0049404b) ─────────────────────────────
+ * Bubble A (DAT_09642c4c < 0x78, PTR 0x5cfb28[variant]) / bubble B (≥ 0x78,
+ * 0x5cfb30[10·variant + the selected option type]); Expansion (type 6) shows
+ * its cost, DAT_005cfad4[work +0x2cde0]. */
+static const char *const k_bubble_a[2] = {
+    "Before you stock up,<BR>make sure to read up on<BR>everything you can!",
+    "We came to the market...<BR>What do we do now?",
+};
+static const char *const k_bubble_b[2][7] = {
+    { "Time to stock up a bit,<BR>eh? Step on up!",          /* 0 Buy    */
+      "Selling off excess stock?",                            /* 1 Sell   */
+      "If there's anything you<BR>don't know, just ask.",     /* 2 Talk   */
+      "Remember, you need<BR>ingredients if you want<BR>to fuse things!", /* 3 Fusion */
+      "Well, come back any time!",                            /* 4 Leave  */
+      "Well, come back any time!",                            /* 5        */
+      " " },                                                  /* 6 (the cost string) */
+    { "Let's pick up some things<BR>here!",
+      "I'll sell off a few things<BR>we don't need anymore.",
+      " ", " ", " ",
+      "Alright, let's go!",
+      "" },
+};
+static const int32_t k_expansion_cost[4] = { 10000, 30000, 100000, 500000 };   /* DAT_005cfad4 */
+
+static const char *guild_bubble_text(char *buf, size_t n)
+{
+    const int v19 = s_menu.entries[s_menu.cursor];
+    if (v19 == 6) {
+        const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        const int32_t t = w ? (int32_t)w[0x2cde0 / 4] : 0;
+        snprintf(buf, n, "Store expansion will cost<BR>%d pix.", t >= 0 && t < 4 ? k_expansion_cost[t] : 0);
+        return buf;
+    }
+    const int v = s_variant == 1 ? 1 : 0;
+    if (s_menu.text_timer >= 120)
+        return v19 >= 0 && v19 < 7 ? k_bubble_b[v][v19] : "";
+    return k_bubble_a[v];
+}
+
+/* The render's state write: FUN_0049404b's bubble (DAT_09642c40 > 0) runs
+ * FUN_00465db4 with the budget DAT_09642c48·2, which sets the cs line-revealed
+ * latch b55c once the text is out (with a stale cs b544 > 0).  FUN_00494a73
+ * draws the menu while DAT_09642c3c == 0; FUN_004547ab skips the whole guild
+ * block under a full-screen conversation.  After FUN_00490e24, as the render. */
+void scene_guild_render_state_tick(void)
+{
+    if (scene1_intro_dialogue_covers_screen() || s_menu.transition != 0 || s_menu.bubble <= 0)
+        return;
+    char buf[64];
+    customer_service_text_box_reveal(guild_bubble_text(buf, sizeof buf), s_menu.bob * 2);
+}
+
 /* ─── Win32 worker_load wiring + render ─────────────────────────────────────── */
 
 #ifdef _WIN32
@@ -905,22 +958,6 @@ g_scene_guild_assets[SCENE_GUILD_TEX_COUNT] = {
 static const char *const k_menu_labels[] = {
     "Buy", "Sell", "Talk", "Fusion", "Leave", "Leave", "Expansion",
 };
-/* Bubble B (DAT_09642c4c >= 0x78), guild variant, indexed by the selected
- * option type code (engine PTR_s_Time_to_stock_up… @0x5cfb30). */
-static const char *const k_bubble_b_guild[] = {
-    "Time to stock up a bit,<BR>eh? Step on up!",          /* 0 Buy   */
-    "Selling off excess stock?",                            /* 1 Sell  */
-    "If there's anything you<BR>don't know, just ask.",     /* 2 Talk  */
-    "Remember, you need<BR>ingredients if you want<BR>to fuse things!", /* 3 Fusion */
-    "Well, come back any time!",                            /* 4 Leave */
-    "Well, come back any time!",                            /* 5       */
-    "",                                                     /* 6 Expansion → cost string */
-};
-/* Bubble A (DAT_09642c4c < 0x78), guild variant (engine
- * PTR_s_Before_you_stock_up… @0x5cfb28). */
-static const char *const k_bubble_a_guild =
-    "Before you stock up,<BR>make sure to read up on<BR>everything you can!";
-
 /* Talk-submenu topics (engine PTR_s_What_is_the_guild_005cfb0c, 7 entries): the
  * 6 questions (cursor 0..5, each → a dialogue iv1_0a/0b/0c/0e/18/19 + a "New"
  * badge while unseen) + the "Never mind" close row (cursor 6). */
@@ -1138,20 +1175,8 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
 
         /* Bubble body text — FUN_00465db4 @ (250,348), scale 1.0, typewriter
          * budget DAT_09642c48*2. */
-        int sel_type = s_menu.entries[s_menu.cursor];
-        const char *text;
-        if (sel_type == 6) {
-            /* Expansion cost string — not reachable on the fresh menu
-             * (PORT-DEBT(guild-menu-nav): the cost-table lookup is unported). */
-            text = "";
-        } else if (s_menu.text_timer < 0x78) {
-            text = k_bubble_a_guild;
-        } else if (sel_type >= 0 &&
-                   sel_type < (int)(sizeof k_bubble_b_guild / sizeof *k_bubble_b_guild)) {
-            text = k_bubble_b_guild[sel_type];
-        } else {
-            text = "";
-        }
+        char tbuf[64];
+        const char *text = guild_bubble_text(tbuf, sizeof tbuf);
         uint32_t text_color = ((uint32_t)(tag_alpha > 0 ? tag_alpha : 0) << 24) | 0xffffffu;
         font_draw_text_box(d, 250.0f, 348.0f, text, text_color, 1.0f, s_menu.bob * 2);
     }

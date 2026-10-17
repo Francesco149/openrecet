@@ -851,8 +851,7 @@ void customer_service_session_init(void)
     s_b534 = 0;
     s_b53c = 0;
     s_b564 = 0;
-    /* DAT_0730b544 (sub-frame timer) lives in the master-tick chip; zero it via
-     * the block reset below. */
+    s_b544 = 0;                      /* 0x45ee1c */
     s_cust_active[0] = 0;            /* DAT_06a5ea70 */
     s_cust_active[1] = 0;            /* DAT_06a5ea74 */
     s_b558 = 0;
@@ -1046,6 +1045,8 @@ int32_t customer_service_round(void)       { return s_b584; }
 int32_t customer_service_b318(void)        { return s_b318; }
 int32_t customer_service_b5d8(void)        { return s_b5d8; }
 int32_t customer_service_b548(void)        { return s_b548; }
+int32_t customer_service_b55c(void)        { return s_b55c; }
+int32_t customer_service_ea70(void)        { return s_cust_active[0]; }
 int32_t customer_service_b528(void)        { return s_b528; }
 int32_t customer_service_variant(void)     { return s_cs_variant; }
 int32_t customer_service_b520(void)        { return s_b520; }
@@ -2376,17 +2377,18 @@ static void cs_dialogue_line_setup(const char *text, int idx, int32_t chr_arg)
  * Only SETS b55c (never clears — the dispatch clears it when it loads a line).
  * PORT-DEBT(cs-reveal-in-render): fold this into the Chip 3 FUN_0046602e/66b7b
  * render port so it is the same call site/glyph-walk, not a state-side replica. */
-static void cs_dialogue_reveal_tick(void)
+/* FUN_00465db4's b55c side, for any caller (the cs bubble FUN_00466b7b, the
+ * Merchants' Guild bubble FUN_0049404b): nothing unless budget > 0; the end of
+ * the text reached within the budget with b544 > 0 sets b55c — b544 is the cs
+ * state timer, stale outside the shop (the guild's bubble sets it too). */
+void customer_service_text_box_reveal(const char *text, int budget)
 {
-    if (s_cust_active[0] == 0 && s_cust_active[1] == 0)   /* no active speaker */
+    if (text == NULL || budget <= 0)
         return;
-    if (s_b270 == NULL)
-        return;
-    int budget = s_b548;
     /* FUN_00465db4 pass 1: the macros (<S>/<I>/<Y>/<D…>/<T>) are expanded first;
      * the reveal budget walks the EXPANDED text (a request's "<S>" = "a treasure"). */
     char expanded[0x100];
-    dlg_macro_expand(s_b270, expanded, sizeof expanded);
+    dlg_macro_expand(text, expanded, sizeof expanded);
     const char *p = expanded;
     int in_lead = 0;
     for (int guard = 0; guard < 0x200; guard++) {
@@ -2410,6 +2412,13 @@ static void cs_dialogue_reveal_tick(void)
         }
         p += 1;
     }
+}
+
+static void cs_dialogue_reveal_tick(void)
+{
+    if (s_cust_active[0] == 0 && s_cust_active[1] == 0)   /* no active speaker */
+        return;
+    customer_service_text_box_reveal(s_b270, s_b548);
 }
 
 /* ── FUN_00460a1a — pick + load a customer dialogue line ─────────────────────
