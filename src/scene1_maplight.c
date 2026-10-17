@@ -189,6 +189,9 @@ int scene1_maplight_compute(const stage_record_t *rec,
 /* Cached light built by scene1_build_maplight, re-applied by
  * scene1_maplight_rebind (engine keeps it at DAT_06a49a40). */
 static D3DLIGHT8 g_maplight;
+/* DAT_06a49aa8: the characters' light — the map light with its ambient
+ * raised by chrlightoffset and clamped (FUN_00458f67's tail) */
+static D3DLIGHT8 g_chrlight;
 static int       g_maplight_lit;
 
 static void fill_light(D3DLIGHT8 *L, const scene1_maplight_values_t *v)
@@ -248,6 +251,10 @@ void scene1_build_maplight(struct IDirect3DDevice8 *dev_in)
     }
     g_maplight_lit = scene1_maplight_compute(rec, shoptime, clock_phase, &v);
     fill_light(&g_maplight, &v);
+    g_chrlight = g_maplight;
+    g_chrlight.Ambient.r = v.chr_ambient[0];
+    g_chrlight.Ambient.g = v.chr_ambient[1];
+    g_chrlight.Ambient.b = v.chr_ambient[2];
 
     if (g_maplight_lit) {
         /* L53894-L53899: SetLight(0,&light) + LightEnable(0,TRUE) +
@@ -274,6 +281,16 @@ void scene1_maplight_rebind(struct IDirect3DDevice8 *dev_in, int enable)
         IDirect3DDevice8_LightEnable(dev, 0, FALSE);
     }
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, (enable && g_maplight_lit));
+}
+
+void scene1_maplight_bind_chr(struct IDirect3DDevice8 *dev_in)
+{
+    if (!dev_in) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    IDirect3DDevice8_SetLight(dev, 0, &g_chrlight);
+    IDirect3DDevice8_LightEnable(dev, 0, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT, 0xff000000u);
 }
 
 #endif /* _WIN32 */

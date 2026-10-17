@@ -62,7 +62,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45404b | FUN_0045404b | 326 | ✓ | stub | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+3) |
 | 0x454191 | FUN_00454191 | 1391 | ✓ |  | main.c, scene.h, scene1_fx_overlays.c (+4) |
 | 0x4547ab | FUN_004547ab | 1670 | ✓ |  | input.c, input.h, main.c (+25) |
-| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, model_render.c, model_render.h (+11) |
+| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, model_render.c, model_render.h (+12) |
 | 0x457714 | FUN_00457714 | 5323 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+6) |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | stub | main.c, mesh_draw.c, mesh_draw.h (+17) |
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ |  | chr_sprite_meta.h, scene1_bg_npc.c, scene1_bg_npc.h (+8) |

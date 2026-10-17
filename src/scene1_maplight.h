@@ -91,6 +91,12 @@ void scene1_build_maplight(struct IDirect3DDevice8 *dev);
  * cached) + LightEnable(0,TRUE) + LIGHTING=TRUE; else LightEnable(0,
  * FALSE) + LIGHTING=FALSE.  Mirrors decomp all.c L54534-L54544. */
 void scene1_maplight_rebind(struct IDirect3DDevice8 *dev, int enable);
+
+/* FUN_004552d0's sprite pass (the record's maplight != 0): SetLight(0,
+ * DAT_06a49aa8 — the map light, ambient + chrlightoffset clamped) +
+ * LightEnable + LIGHTING + AMBIENT black; the sprites' vertex grey is then
+ * scaled by that ambient (COLORVERTEX, ambient source COLOR1) */
+void scene1_maplight_bind_chr(struct IDirect3DDevice8 *dev);
 #endif
 
 #endif /* OPENRECET_SCENE1_MAPLIGHT_H */

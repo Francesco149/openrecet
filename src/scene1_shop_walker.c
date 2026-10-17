@@ -108,7 +108,11 @@ static int sw_light_pass_gate(void) { return 0; }
 /* DAT_068dd2f0 + 0x1ae0 — stage-palette light-enable flag.  Already
  * exposed (scene1_palette_lighting_enabled); local thunk same as
  * above.  Dormant for HOUSE (palette zeroed). */
-static int sw_palette_lighting_enabled(void) { return 0; }
+static int sw_palette_lighting_enabled(void)   /* the record's maplight (+0x1ae0) */
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->maplight : 0;
+}
 
 /* DAT_068dd2f8 + DAT_0438b4dc * 0x1b3c — the stage record's maptype (0 in
  * the house: the "first projection arm"; a floor ≥ 1: z_far 2000). */
@@ -685,12 +689,11 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
     if (sw_light_pass_gate() != 0) return;         /* DAT_0438b8bc == 0 */
 
     if (sw_palette_lighting_enabled() != 0) {
-        /* L359-363: maplight enable (HOUSE: palette+0x1ae0 == 0 → skipped).
-         * SetLight args dropped in decomp; the DAT_06a49a40 D3DLIGHT8 scratch
-         * isn't ported, so this stays a bare enable (no effect for HOUSE). */
-        IDirect3DDevice8_LightEnable(dev, 0, TRUE);
-        IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, TRUE);
-        IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT,  0xff000000u);
+        /* L359-363: SetLight(0, DAT_06a49aa8, the chr light) + LightEnable
+         * + LIGHTING + AMBIENT black — retail capture: the sprites draw lit
+         * (house ambient 1.0 leaves them as is; Boss Rush floor 31's 0.603
+         * darkens them under ADDSIGNED). */
+        scene1_maplight_bind_chr((struct IDirect3DDevice8 *)dev);
     }
 
     /* L364-367: actor count.  The engine DEFAULT is 3 (the player + 2 companion
