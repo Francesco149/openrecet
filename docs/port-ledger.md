@@ -23,7 +23,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4060ff | FUN_004060ff | 90 | ✓ |  | scene.c, scene.h, scene1_postload.c (+8) |
 | 0x406241 | FUN_00406241 | 390 | ✓ |  | render_quad.c, render_quad.h, scene1_top_hud.c (+1) |
 | 0x4063c7 | FUN_004063c7 | 394 | ✓ |  | nowloading.c, render_quad.c, render_quad.h |
-| 0x406d50 | FUN_00406d50 | 1445 | ✓ |  | main.c, scene1_hud.c, scene1_top_hud.c (+2) |
+| 0x406d50 | FUN_00406d50 | 1445 | ✓ |  | dungeon_hud.c, dungeon_hud.h, main.c (+4) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h, dungeon_hud.c, dungeon_hud.h (+1) |
 | 0x407cac | FUN_00407cac | 7289 | ✓ |  | dungeon_hud.c, dungeon_hud.h, render_quad.h (+1) |
 | 0x409925 | FUN_00409925 | 3434 | ✓ |  | customer_service.h, customer_service_render.c, dungeon_hud.h (+8) |
@@ -553,8 +553,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4739fb | FUN_004739fb | 31 | ✓ |  | scene_town_event.c, scene_town_event.h, worker_load.h |
 | 0x473a3e | FUN_00473a3e | 453 | ✓ |  | anchor_trace.c, main.c, scene_pause.c (+2) |
 | 0x473c03 | FUN_00473c03 | 9 | ✓ |  | scene1_intro_dialogue.c, scene_pause.c |
-| 0x473c15 | FUN_00473c15 | 2476 | ✓ |  | dungeon_hud.h, model_anchor.c, model_render.h (+4) |
-| 0x4746fc | FUN_004746fc | 48 | ✓ |  | scene1_preload.c, worker_load.h |
+| 0x473c15 | FUN_00473c15 | 2476 | ✓ |  | dungeon_hud.c, dungeon_hud.h, model_anchor.c (+5) |
+| 0x4746fc | FUN_004746fc | 48 | ✓ |  | dungeon_hud.c, scene1_preload.c, worker_load.h |
 | 0x47472c | FUN_0047472c | 34 | ✓ |  | scene1_preload.c, worker_load.h |
 | 0x47474e | FUN_0047474e | 142 | ✓ |  | main.c, scene1_preload.c, scene_floor.c (+6) |
 | 0x4747dc | FUN_004747dc | 142 | ✓ |  | main.c, scene1_preload.c, scene_floor.c (+3) |

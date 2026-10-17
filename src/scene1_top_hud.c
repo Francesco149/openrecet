@@ -254,6 +254,7 @@ void scene1_top_hud_tooltip_reset(void)
 #include "scene.h"                   /* g_scene_state / SCENE_STATE_WORLDMAP — tooltip gate */
 #include "customer_service.h"        /* customer_service_active — cc08==4 camera-hint gate */
 #include "call_trace.h"
+#include "dungeon_hud.h"                /* FUN_00406d50's floor-title tail */
 
 #ifndef M_PI_F
 #define M_PI_F 3.1415927f
@@ -406,8 +407,9 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
     scene1_top_hud_draw_number(dev, 244.8f, yoff + 22.4f, g_hud_money,
                                /*icon=*/1, 0xffffffffu, /*comma=*/1);
 
-    /* The DUNGEON minimap block (gated *DAT_068dd2f0 > 0) is dormant in
-     * HOUSE (maptype 0) and deferred. */
+    /* The dungeon tail: the floor-title banner (DAT_0438b1c0 == 1, the
+     * record's maptype >= 1, DAT_00648270 running). */
+    dungeon_hud_title_banner(dev_in);
 }
 
 /* The bottom-right "Button 4: Change Camera" control hint — the tail of

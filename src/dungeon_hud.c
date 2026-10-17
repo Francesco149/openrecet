@@ -19,6 +19,8 @@
 #include "chara_skills.h"        /* DAT_0438b7dc, DAT_0438b7fc */
 #include "dungeon_flow.h"         /* the floor events DAT_0438b938 / b96c, b954, b4d4 */
 #include "floor_layout.h"         /* the rooms DAT_073e03ac, the marks DAT_0438b434 */
+#include "map_collision.h"        /* the record's maptype */
+#include "scene.h"                /* DAT_0438b1c0 */
 #include "font_draw.h"            /* FUN_0047d2db */
 #include "record_hit.h"           /* DAT_0438b90c */
 #include "scene1_combat_sm.h"     /* DAT_0438b4c8, DAT_0438b904 / 908 */
@@ -239,6 +241,105 @@ void dungeon_hud_load_faces(struct IDirect3DDevice8 *dev, const int32_t present[
         snprintf(path, sizeof path, "bmp/en/%s_mini.tga", k_face_file[t]);
         (void)sprite_load((IDirect3DDevice8 *)dev, path, 64, 64, &s_face[t]);
     }
+}
+
+/* DAT_073b1ab8, texture group 15: FUN_00473c15's tail loads the floor's title
+ * card — the dungeon's title (1024 x 256), or on a boss floor the boss's name
+ * (512 x 256), by DAT_0438b4c8 / DAT_0438b4cc. */
+static sprite_t s_title;
+
+static const char *title_card(int32_t dun, int32_t flo, int *boss)
+{
+    static const char *const k_rush[29] = {   /* dungeon 5 (the Boss Rush), floors 30..58 */
+        "kingslim", "jijo", "charme", "kingahriman", "omu", "kani", "kingslim", "tiers",
+        "kabocha", "kurage", "kingahriman", "gorem", "griffe", "omu", "monster", "griffe2",
+        "kabocha", "jijo", "kingahriman", "omu", "kingslim", "kabocha", "kurage", "arma",
+        "monster", "jijo", "gorem", "kani", "arma2",
+    };
+    static const struct { int32_t dun, flo; const char *name; } k_boss[] = {
+        { 1,  4, "kingslim" }, { 1,  9, "jijo" }, { 1, 14, "charme" },
+        { 2,  4, "tiers" }, { 2,  9, "kingslim" }, { 2, 14, "kani" }, { 2, 19, "monster" },
+        { 2, 24, "omu" }, { 2, 29, "kingahriman" },
+        { 3,  4, "monster" }, { 3,  9, "gorem" }, { 3, 14, "kingahriman" }, { 3, 19, "kurage" },
+        { 3, 24, "kabocha" }, { 3, 29, "griffe" }, { 3, 34, "griffe2" }, { 3, 39, "monster" },
+        { 3, 44, "omu" }, { 3, 49, "monster" },
+        { 4,  4, "kingslim" }, { 4,  9, "omu" }, { 4, 14, "kingahriman" }, { 4, 19, "jijo" },
+        { 4, 24, "kabocha" }, { 4, 29, "monster" }, { 4, 34, "arma" }, { 4, 39, "monster" },
+        { 4, 44, "kurage" }, { 4, 49, "kabocha" }, { 4, 54, "monster" }, { 4, 59, "monster" },
+        { 4, 64, "gorem" }, { 4, 69, "monster" }, { 4, 74, "jijo" }, { 4, 79, "omu" },
+        { 4, 84, "arma2" }, { 4, 89, "monster" }, { 4, 94, "kani" }, { 4, 99, "monster" },
+    };
+    static const char *const k_title[6] = {
+        "dungeon_title1", "dungeon_title2", "dungeon_title3",
+        "dungeon_title4", "dungeon_title5", "dungeon_title6",
+    };
+    if (dun < 0 || dun > 5) return NULL;
+    *boss = 1;
+    if (dun == 5 && flo >= 30 && flo <= 58) return k_rush[flo - 30];
+    for (size_t i = 0; i < sizeof k_boss / sizeof k_boss[0]; i++)
+        if (k_boss[i].dun == dun && k_boss[i].flo == flo) return k_boss[i].name;
+    *boss = 0;
+    return k_title[dun];
+}
+
+void dungeon_hud_load_title(struct IDirect3DDevice8 *dev)
+{
+    if (s_title.tex) sprite_destroy(&s_title);   /* FUN_004746fc: group 15 */
+    int boss = 0;
+    const char *n = title_card(g_scene1_combat_stage_id, stage_gate_get_next(), &boss);
+    if (n == NULL) return;
+    char path[64];
+    snprintf(path, sizeof path, boss ? "bmp/title/bossname_%s.tga" : "bmp/title/%s.tga", n);
+    (void)sprite_load((IDirect3DDevice8 *)dev, path, boss ? 512 : 1024, boss ? 128 : 256, &s_title);
+}
+
+/* FUN_00406d50's tail (DAT_0438b1c0 == 1, a dungeon stage): the floor-title
+ * banner while DAT_00648270 runs — kind 1 (the dungeon title) first flashes
+ * white (system.bmp over the screen, opaque to tick 60 then 735 - 8t), the
+ * card zooms in from 2x (2 - t / 40, floored at 1), fades in by 4t and out over
+ * the last 64 ticks, its height closing as it fades */
+void dungeon_hud_title_banner(struct IDirect3DDevice8 *dev_in)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    if (dev == NULL || g_scene_state != SCENE_STATE_INGAME || mapcol_maptype() < 1) return;
+    const int32_t t = g_title_banner, len = g_title_banner_len;
+    if (t <= 0) return;
+    if (g_title_banner_kind == 1) {
+        int32_t a = 255;
+        if (t <= 60 || (a = 735 - 8 * t) > 0) {
+            const sprite_t *sys = &g_sysassets.system_bmp;   /* DAT_073aa188 */
+            render_quad_bind(dev, sys);
+            const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };
+            const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+            render_quad_add(dst, src, sys->width, sys->height, (uint32_t)a << 24);
+            render_quad_flush(dev);
+        }
+    }
+    int32_t a = 4 * t;
+    if (a > 255) a = 255;
+    if (t >= len - 64) a = a + 4 * (len - t) - 256;
+    if (a < 0) a = 0;
+    render_quad_bind(dev, &s_title);
+    float sy = spill32(2.0L - (long double)(float)t * 0.025f);
+    float sx = sy;
+    if (sx < 1.0f) { sx = 1.0f; sy = 1.0f; }
+    if (t >= len - 64)
+        sy = spill32((long double)sy - (long double)(float)(t - len + 64) / 64.0f);
+    const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+    if (g_title_banner_kind == 1) {
+        const float src[4] = { 0.0f, 0.0f, 640.0f, 240.0f };
+        const float dst[4] = { spill32(320.0L - (long double)sx * 320.0f),
+                               spill32(224.0L - (long double)sy * 128.0f),
+                               spill32((long double)sx * 640.0f), spill32((long double)sy * 240.0f) };
+        render_quad_add(dst, src, s_title.width, s_title.height, col);
+    } else {
+        const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
+        const float dst[4] = { spill32(320.0L - (long double)sx * 256.0f),
+                               spill32(224.0L - (long double)sy * 64.0f),
+                               spill32((long double)sx * 512.0f), spill32((long double)sy * 128.0f) };
+        render_quad_add(dst, src, s_title.width, s_title.height, col);
+    }
+    render_quad_flush(dev);
 }
 
 /* FUN_00407ab4: the "LEVEL UP!" pop at (x, y) while DAT_0438b920 runs — it

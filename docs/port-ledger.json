@@ -1991,6 +1991,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_hud.c",
+    "src/dungeon_hud.h",
     "src/main.c",
     "src/scene1_hud.c",
     "src/scene1_top_hud.c",
@@ -14849,6 +14851,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_hud.c",
     "src/dungeon_hud.h",
     "src/model_anchor.c",
     "src/model_render.h",
@@ -14905,6 +14908,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_hud.c",
     "src/scene1_preload.c",
     "src/worker_load.h"
    ],

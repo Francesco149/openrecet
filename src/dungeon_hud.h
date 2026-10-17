@@ -42,6 +42,13 @@ void dungeon_hud_levelup_pop(struct IDirect3DDevice8 *dev, float x, float y);
  * (off_005c7e2c → DAT_073ac878, 64×64).  Kept once loaded. */
 void dungeon_hud_load_map(struct IDirect3DDevice8 *dev);
 void dungeon_hud_load_faces(struct IDirect3DDevice8 *dev, const int32_t present[100]);
+
+/* DAT_073b1ab8: FUN_00473c15's tail — the floor's title card (the dungeon's
+ * title or the boss's name), reloaded per floor */
+void dungeon_hud_load_title(struct IDirect3DDevice8 *dev);
+
+/* FUN_00406d50's tail: the floor-title banner (and kind 1's white flash) */
+void dungeon_hud_title_banner(struct IDirect3DDevice8 *dev);
 #endif
 
 #endif /* OPENRECET_DUNGEON_HUD_H */

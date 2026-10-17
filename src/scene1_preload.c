@@ -266,6 +266,7 @@ static void scene1_preload_floor_sheets(void)
             scene1_preload_load_chr_sheet(g_enemy[t].unknown_24);
     dungeon_hud_load_faces((struct IDirect3DDevice8 *)g_scene1_preload_dev, present);   /* DAT_073ac878 */
     model_render_load((struct IDirect3DDevice8 *)g_scene1_preload_dev, present);     /* DAT_073da2f0 */
+    dungeon_hud_load_title((struct IDirect3DDevice8 *)g_scene1_preload_dev);         /* DAT_073b1ab8 */
 }
 
 /* LAB_00452a6b — the stage loader of a floor change (FUN_00452eed, spawned by
