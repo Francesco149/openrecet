@@ -11,11 +11,12 @@
  *      lit == 1.  HOUSE is mode 3.
  *   2. mode 2 (static dungeon): lightdir / lightcolor / lightamb pass
  *      straight through to direction / diffuse / ambient.
- *   3. mode 0 (sun): the dim sun direction is built (y = -0.5, diffuse
- *      stays 0), lit == 1 (the engine disable flag is unported → 0).
+ *   3. mode 0 (sun): the dim sun direction is built from the camera yaw
+ *      (sin(-yaw) / 2, -0.5, cos(-yaw) / 2; diffuse stays 0), lit == 1 (the
+ *      engine disable flag is unported → 0).
  *   4. mode 1 (animated): the diffuse/ambient pulse interpolates between
- *      the maplight_d/_a lo/hi pairs by cos(counter*speed); with the
- *      stubbed counter == 0 the pulse is at its hi end (c == 1).
+ *      the maplight_d/_a lo/hi pairs by (sin(counter*speed) + 1) / 2; with
+ *      the stubbed counter == 0 the pulse sits midway (c == 0.5).
  *   5. chr_ambient = clamp01(ambient + chrlightoffset).
  *   6. NULL rec → returns 0 (lighting off), type still D3DLIGHT_DIRECTIONAL.
  *   7. scene1_current_stage_record() bridges g_stage.records[HOUSE].
@@ -26,11 +27,12 @@
 #include "t.h"
 #include "scene1_maplight.h"
 #include "scene_map_meshes.h"   /* SCENE_MAP_STAGE_HOUSE */
+#include "scene1_particles_tick.h" /* g_scene1_camera_yaw */
 
 /* scene1_maplight.c mode-1 path calls scene1_render_draw_counter(); that
  * symbol lives in the Win32-only scene1_render.c, which the host test
  * suite does not link.  Provide a deterministic stub so the pulse is
- * reproducible (counter 0 → cos(0)=1 → c=1 → pulse at hi end). */
+ * reproducible (counter 0 → sin(0)=0 → c=0.5 → pulse midway). */
 uint32_t scene1_render_draw_counter(void) { return 0; }
 
 #define T_ASSERT_NEAR(a, b) do { \
@@ -221,20 +223,27 @@ int test_maplight_mode0_sun(void)
     rec.maplight = 0;
 
     scene1_maplight_values_t v;
+    g_scene1_camera_yaw = 0.0f;
     int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     /* Engine disable flag unported (→ 0): mode 0 builds the dim sun. */
     T_ASSERT_EQ_I(lit, 1);
-    /* sun angle unported → 0: dir = (cos0*0.5, -0.5, sin0*0.5). */
-    T_ASSERT_NEAR(v.direction[0], 0.5);
+    /* yaw 0: dir = (sin0*0.5, -0.5, cos0*0.5). */
+    T_ASSERT_NEAR(v.direction[0], 0.0);
     T_ASSERT_NEAR(v.direction[1], -0.5);
+    T_ASSERT_NEAR(v.direction[2], 0.5);
+    /* yaw π/2: dir = (sin(-π/2)*0.5, -0.5, cos(-π/2)*0.5). */
+    g_scene1_camera_yaw = 1.5707964f;
+    (void)scene1_maplight_compute(&rec, 0, 0.0f, &v);
+    T_ASSERT_NEAR(v.direction[0], -0.5);
     T_ASSERT_NEAR(v.direction[2], 0.0);
+    g_scene1_camera_yaw = 0.0f;
     T_ASSERT_NEAR(v.diffuse[0], 0.0);   /* diffuse stays 0 in mode 0 */
     return 0;
 }
 
 int test_maplight_mode1_animated_pulse(void)
 {
-    /* counter stub == 0 → t = 0 → cos(0)=1 → c = (1+1)/2 = 1 → hi end. */
+    /* counter stub == 0 → t = 0 → sin(0)=0 → c = (0+1)/2 → midway. */
     stage_record_t rec;
     memset(&rec, 0, sizeof(rec));
     rec.maplight = 1;
@@ -250,13 +259,13 @@ int test_maplight_mode1_animated_pulse(void)
     scene1_maplight_values_t v;
     int lit = scene1_maplight_compute(&rec, 0, 0.0f, &v);
     T_ASSERT_EQ_I(lit, 1);
-    /* c == 1 → diffuse/ambient land on the hi values. */
-    T_ASSERT_NEAR(v.diffuse[0], 0.9);
-    T_ASSERT_NEAR(v.diffuse[1], 0.8);
-    T_ASSERT_NEAR(v.diffuse[2], 0.7);
-    T_ASSERT_NEAR(v.ambient[0], 0.5);
-    T_ASSERT_NEAR(v.ambient[1], 0.4);
-    T_ASSERT_NEAR(v.ambient[2], 0.3);
+    /* c == 0.5 → diffuse/ambient land midway between lo and hi. */
+    T_ASSERT_NEAR(v.diffuse[0], 0.5);
+    T_ASSERT_NEAR(v.diffuse[1], 0.5);
+    T_ASSERT_NEAR(v.diffuse[2], 0.5);
+    T_ASSERT_NEAR(v.ambient[0], 0.25);
+    T_ASSERT_NEAR(v.ambient[1], 0.2);
+    T_ASSERT_NEAR(v.ambient[2], 0.15);
     /* sun-style direction (y = -0.5). */
     T_ASSERT_NEAR(v.direction[1], -0.5);
     return 0;

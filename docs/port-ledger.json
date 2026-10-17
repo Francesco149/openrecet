@@ -14,7 +14,7 @@
   "pct_referenced_or_better": 31.0,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
-  "orphan_refs_not_in_function_table": 11,
+  "orphan_refs_not_in_function_table": 12,
   "port_debt": 93,
   "verified": 81,
   "stubbed": 10,
@@ -30,6 +30,7 @@
   "0x431b10",
   "0x452e75",
   "0x452eb1",
+  "0x45a63c",
   "0x45e2ce",
   "0x4676d4",
   "0x46c2bc",
@@ -9275,6 +9276,7 @@
    "quality_flags": [],
    "src": [
     "src/model_anchor.c",
+    "src/model_render.c",
     "src/model_render.h",
     "src/scene1_bg_npc.h",
     "src/scene1_chr_walker.h",
@@ -9285,7 +9287,8 @@
     "src/scene1_render.h",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker_helpers.c",
+    "src/scene_map_meshes.h"
    ],
    "status": "verified"
   },
@@ -47401,6 +47404,7 @@
     "src/scene1_maplight.c",
     "src/scene1_particles_tick.c",
     "src/scene1_records_b_spawn.c",
+    "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c"
    ],
    "status": "ported"
@@ -47467,6 +47471,7 @@
     "src/scene1_overlay.h",
     "src/scene1_particles_tick.c",
     "src/scene1_records_c_spawn.c",
+    "src/scene1_shop_walker_helpers.c",
     "src/scene1_spawn.c",
     "src/scene1_wide_followup_helpers.c",
     "src/scene_worldmap.c",

@@ -13,7 +13,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 698, discovered 1759 → 789 referenced-or-better (31.0%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
-- orphan refs (in src/, not in function table): 11
+- orphan refs (in src/, not in function table): 12
 
 ## instrumented (91) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
 
@@ -62,7 +62,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45404b | FUN_0045404b | 326 | ✓ | stub | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+3) |
 | 0x454191 | FUN_00454191 | 1391 | ✓ |  | main.c, scene.h, scene1_fx_overlays.c (+4) |
 | 0x4547ab | FUN_004547ab | 1670 | ✓ |  | input.c, input.h, main.c (+25) |
-| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, model_render.h, scene1_bg_npc.h (+9) |
+| 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, model_render.c, model_render.h (+11) |
 | 0x457714 | FUN_00457714 | 5323 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+6) |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | stub | main.c, mesh_draw.c, mesh_draw.h (+17) |
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ |  | chr_sprite_meta.h, scene1_bg_npc.c, scene1_bg_npc.h (+8) |
@@ -806,8 +806,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ |  | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
 | 0x5038ff | FUN_005038ff | 82 | ✓ |  | audio.c, customer_service.c, news_daily.c (+8) |
 | 0x503954 | __ftol | 39 | ✓ |  | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
-| 0x503994 | FUN_00503994 | 9 | ✓ |  | audio_fade.c, audio_fade.h, render_quad.c (+5) |
-| 0x503a44 | FUN_00503a44 | 9 | ✓ |  | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+8) |
+| 0x503994 | FUN_00503994 | 9 | ✓ |  | audio_fade.c, audio_fade.h, render_quad.c (+6) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ |  | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+9) |
 | 0x503c2b | FUN_00503c2b | 77 | ✓ |  | scene1_dialogue.c |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ |  | scene1_dialogue.c, scene1_overlay_table.c, tables_item.c |
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ |  | scene1_overlay.h, scene1_overlay_helpers.c, scene1_records_b_spawn.c (+1) |

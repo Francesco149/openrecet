@@ -15,6 +15,7 @@
 
 #include "scene_map_meshes.h"   /* SCENE_MAP_STAGE_HOUSE */
 #include "stage_palette.h"      /* stage_palette_index (DAT_068dd2f0) */
+#include "scene1_particles_tick.h" /* g_scene1_camera_yaw (DAT_073de39c) */
 
 /* scene1_render_draw_counter (DAT_06a49b24, +=1/frame) is declared in
  * scene1_render.h, but that header's body is entirely _WIN32-guarded, so
@@ -52,8 +53,8 @@ static const float MAPLIGHT3_PRESET[3][9] = {
 
 /* ─── unported engine globals (mode-0/1 inputs) ───────────────────────── */
 
-/* _DAT_073de39c — sun angle (mode 0). Unported → 0. */
-static float ml_sun_angle(void)         { return 0.0f; }
+/* _DAT_073de39c — the camera yaw (modes 0 / 1 turn the light with it). */
+static float ml_sun_angle(void)         { return g_scene1_camera_yaw; }
 /* _DAT_0438bec8 — mode-0 "disable light" flag (== 1.0 → lighting off).
  * Unported → 0 (mode 0 builds the dim sun light rather than disabling). */
 static float ml_mode0_disable_flag(void){ return 0.0f; }
@@ -136,10 +137,11 @@ int scene1_maplight_compute(const stage_record_t *rec,
             lit = 0;
         } else {
             float a = -ml_sun_angle();
-            /* FUN_00503a44 = cos, FUN_00503994 = sin (engine trig pair). */
-            out->direction[0] = (float)cos((double)a) * 0.5f;
+            /* x = sin(-yaw) / 2 (FUN_00503a44, fsin), z = cos(-yaw) / 2
+             * (FUN_00503994, fcos). */
+            out->direction[0] = (float)sin((double)a) * 0.5f;
             out->direction[1] = -0.5f;
-            out->direction[2] = (float)sin((double)a) * 0.5f;
+            out->direction[2] = (float)cos((double)a) * 0.5f;
             /* diffuse stays 0; ambient = mode0_disable_flag * 0.75 (0 here). */
         }
     } else {
@@ -148,11 +150,11 @@ int scene1_maplight_compute(const stage_record_t *rec,
          * (and maplight_a pairs) via cos of (draw_counter * maplightspeed).
          * Direction uses the sun angle like mode 0. */
         float a = -ml_sun_angle();
-        out->direction[0] = (float)cos((double)a) * 0.5f;
+        out->direction[0] = (float)sin((double)a) * 0.5f;
         out->direction[1] = -0.5f;
-        out->direction[2] = (float)sin((double)a) * 0.5f;
+        out->direction[2] = (float)cos((double)a) * 0.5f;
         float t = (float)scene1_render_draw_counter() * rec->maplightspeed; /* +0x1ae8 */
-        float c = ((float)cos((double)t) + 1.0f) * 0.5f;  /* 0..1 pulse */
+        float c = ((float)sin((double)t) + 1.0f) * 0.5f;  /* 0..1 pulse, sin */
         /* maplight_d[ch] = {lo, hi}; maplight_a[ch] = {lo, hi}. */
         out->diffuse[0] = (rec->maplight_d[0][1] - rec->maplight_d[0][0]) * c + rec->maplight_d[0][0];
         out->diffuse[1] = (rec->maplight_d[1][1] - rec->maplight_d[1][0]) * c + rec->maplight_d[1][0];
