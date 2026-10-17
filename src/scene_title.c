@@ -38,6 +38,7 @@
 #include "save_picker.h"           /* g_save_picker_frame = _DAT_09643574 (shared breathe) */
 #include "save_io.h"               /* save_io_scan_for_title_menu (FUN_0049a324) */
 #include "save_work.h"             /* save_work_sync_from_save — populate g_work for the all-banks 図鑑 */
+#include "stage_post_load.h"       /* FUN_00435c98 */
 #include "music.h"                 /* music_clear_forced_track (FUN_00499560) */
 
 scene_title_menu_t  g_scene_title_menu;
@@ -470,11 +471,13 @@ void scene_title_sim(scene_title_anim_t *anim,
     if (anim->fade_counter > 0) {
         anim->fade_counter++;
         if (anim->fade_counter == 0x1e) {
-            /* Engine FUN_0049a59e L65: FUN_004526f5(0, 0x11). Engine
-             * also writes DAT_0438b1e0 = 0 + calls FUN_00435c98
-             * (game-state reset for scene 1) — both deferred until
-             * the destination scene lands. */
+            /* Engine FUN_0049a59e L65: FUN_004526f5(0, 0x11), DAT_0438b1e0
+             * = 0 and FUN_00435c98 (the party's stage-entry seeds: HP / SP
+             * and their gauges from the bank) — here, 17 frames before the
+             * fade-end commit runs it again. */
             fade_phase1_start(0, 0x11);
+            save_work_set_active_slot(0);
+            stage_post_load_init();
         }
         if (anim->fade_counter >= 0x1e && fade_is_done()) {
             /* Engine FUN_0049a59e L63-77: LOADING → (save-bank reset
