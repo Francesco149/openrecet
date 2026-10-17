@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 701, discovered 1756 → 792 referenced-or-better (31.1%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 704, discovered 1753 → 795 referenced-or-better (31.2%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 12
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (701) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (704) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -178,6 +178,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x40d11b | FUN_0040d11b | 23 | ✓ |  | scene1_bg_npc.c, scene1_chr_shadow.c, scene1_effects.c (+1) |
 | 0x40d132 | FUN_0040d132 | 9497 | ✓ |  | actor_spawn.h, scene1_effects.c, scene1_overlay.h (+3) |
 | 0x40f64b | FUN_0040f64b | 128 | ✓ |  | actor_ai.c, scene1_per_frame_open.h, scene1_postload.c (+5) |
+| 0x40f6cb | FUN_0040f6cb | 296 | ✓ |  | scene1_effects.c |
+| 0x40f7f3 | FUN_0040f7f3 | 159 | ✓ |  | scene1_effects.c |
+| 0x40f892 | FUN_0040f892 | 680 | ✓ |  | scene1_effects.c, scene1_effects.h, scene1_render.c |
 | 0x41276e | FUN_0041276e | 795 |  |  | scene1_per_frame_open.c, scene1_per_frame_open.h |
 | 0x412a89 | FUN_00412a89 | 490 | ✓ |  | main.c, scene1_overlay.c, scene1_overlay.h (+2) |
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ |  | customer_service.c, scene1_per_frame_open.h |

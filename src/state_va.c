@@ -403,6 +403,8 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },
     { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
     { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
+    { 0x76b960u, &g_scene1_records_a_count }, { 0x76b964u, &g_scene1_records_b_count },
+    { 0x76b968u, &g_scene1_records_c_count },
     { 0x438b4dcu, &g_stage_b4dc },      { 0x438b4d4u, &g_dat_0438b4d4 },
     { 0x438b900u, &g_orb_pick_n },      { 0x438b90cu, &g_kill_combo },
     { 0x438b910u, &g_kill_combo_type }, { 0x438b914u, &g_kill_combo_timer },
@@ -464,6 +466,13 @@ static const int32_t *layout_dword(uint32_t va)
         return &g_pause_entries[(va - 0x74b2844u) / 4];
     if (va >= 0x68dd2f8u && va < 0x68dd2f8u + (uint32_t)STAGE_KEY_COUNT * sizeof(stage_record_t))
         return (const int32_t *)(const void *)((const uint8_t *)g_stage.records + (va - 0x68dd2f8u));
+    /* the effect tables A / B / C (DAT_069b2f80 / 069324b0 / 06956cb0) */
+    if (va >= 0x69b2f80u && va < 0x69b2f80u + 4u * SCENE1_RECORDS_A_COUNT * SCENE1_RECORDS_A_STRIDE)
+        return &g_scene1_records_a[(va - 0x69b2f80u) / 4];
+    if (va >= 0x69324b0u && va < 0x69324b0u + 4u * SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE)
+        return &g_scene1_records_b[(va - 0x69324b0u) / 4];
+    if (va >= 0x6956cb0u && va < 0x6956cb0u + 4u * SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE)
+        return &g_scene1_records_c[(va - 0x6956cb0u) / 4];
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;
     return NULL;

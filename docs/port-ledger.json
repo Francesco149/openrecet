@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 701,
-  "inv_discovered": 1756,
-  "referenced_or_better": 792,
-  "pct_referenced_or_better": 31.1,
+  "inv_source_referenced": 704,
+  "inv_discovered": 1753,
+  "referenced_or_better": 795,
+  "pct_referenced_or_better": 31.2,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 12,
   "port_debt": 90,
   "verified": 81,
   "stubbed": 10,
-  "ported": 701,
-  "unported": 1756,
-  "touched": 792,
-  "pct_touched": 31.1,
+  "ported": 704,
+  "unported": 1753,
+  "touched": 795,
+  "pct_touched": 31.2,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -2452,18 +2452,20 @@
    "size": 296,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_effects.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40f7f3",
@@ -2471,18 +2473,20 @@
    "size": 159,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_effects.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40f892",
@@ -2490,18 +2494,22 @@
    "size": 680,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_effects.c",
+    "src/scene1_effects.h",
+    "src/scene1_render.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40fb3a",
