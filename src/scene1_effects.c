@@ -92,6 +92,13 @@ static fx_vtx s_atlas_quad[4] = {
 static fx_vtx s_q488[16][4], s_q6f8[5][4], s_q8d8[4], s_qa7a8[4];
 /* DAT_0064e398: the 64×64 cell (0, 0) */
 static fx_vtx s_q398[4];
+/* DAT_00648da8: the whole 128×128 texture, half-texel inset (snow.bmp) */
+static fx_vtx s_q8da8[4] = {
+    { -256.0f,  256.0f, 0.0f, 0xffffffffu, 0.00390625f, 0.00390625f },
+    { -256.0f, -256.0f, 0.0f, 0xffffffffu, 0.00390625f, 0.99609375f },
+    {  256.0f,  256.0f, 0.0f, 0xffffffffu, 0.99609375f, 0.00390625f },
+    {  256.0f, -256.0f, 0.0f, 0xffffffffu, 0.99609375f, 0.99609375f },
+};
 
 static void fx_quad(fx_vtx q[4], float x0, float y0, float x1, float y1,
                     float ul, float vt, float ur, float vb)
@@ -577,6 +584,47 @@ static void fx_projectiles(IDirect3DDevice8 *dev)
     }
 }
 
+/* FUN_004176ff 0x4189xx: table-A type 79, the snowflakes — snow.bmp
+ * (DAT_073aa178) on DAT_00648da8, T(pos) · S(scale · 0.003) · B · RotZ(+0x20),
+ * grey min(8 · age, 128) + ftol(sin(age · 0.05) · 64), closing 8 a tick past
+ * the lifetime +0x44; additive (the projectile loop's ONE / ONE) */
+static void fx_snow(IDirect3DDevice8 *dev)
+{
+    int bound = 0;
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        if (r[12] != 79) continue;
+        if (!bound) {
+            if (g_sysassets.snow_bmp.tex == NULL) return;
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.snow_bmp.tex);
+            bound = 1;
+        }
+        float f[15];
+        memcpy(f, r, sizeof f);
+        const float sz = spill32((long double)f[14] * 0.003);
+        float w[16], m[16];
+        mat4_translation(w, f[0], f[1], f[2]);
+        mat4_scaling(m, sz, sz, sz);   mat4_mul(w, m, w);
+        mat4_mul(w, g_scene1_camera_orient, w);
+        mat4_rotation_z(m, f[8]);      mat4_mul(w, m, w);
+        const int32_t age = r[13];
+        int32_t base = 8 * age;
+        if (base >= 128) base = 128;
+        float a = spill32((float)age);
+        a = spill32((long double)a * 0.050000001f);
+        a = spill32(x87_crt_sin((double)a));
+        int32_t c = x87_ftol((long double)a * 64.0L) + base;
+        if (c < 0) c = 0;
+        if (age > r[17]) {
+            c += 8 * (r[17] - age);
+            if (c < 0) c = 0;
+        }
+        fx_set_col(s_q8da8, fx_rgb(c, c, c));
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)w);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, s_q8da8, sizeof(fx_vtx));
+    }
+}
+
 /* FUN_004176ff's puff loop (0x41d6xx, after FUN_00414ee2(…, 2, 0)): table-A
  * types 14 / 43 / 27 / 59 / 89 / 103 / 118 — a billboard T(pos) · S(z) · B ·
  * RotZ(+0x20) on effect.bmp, z = (age · 0.0004 + 0.02) · scale · 0.8 (103:
@@ -668,6 +716,7 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);
     fx_projectiles(dev);
+    fx_snow(dev);
     fx_table_a_streaks(dev);
     fx_table_a_puffs(dev);
 }
