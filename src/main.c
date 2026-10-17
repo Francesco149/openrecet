@@ -79,6 +79,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "scene1_walker_pass_init.h"
 #include "model_anchor.h"   /* the model enemies' draw-time anchors */
 #include "scene1_camera.h"
 #include "record_hit.h"
@@ -1370,6 +1371,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             }
         }
         g_windowed = (g_ini.winmode == 1);
+        g_usetree = g_ini.usetree;                  /* DAT_0438b17c */
         mesh_load_set_easydisp(g_ini.easydisp);
         model_anchor_set_reader(mesh_load_read_file);
         g_s_easydisp = g_ini.s_easydisp;

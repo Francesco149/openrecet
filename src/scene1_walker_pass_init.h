@@ -233,6 +233,12 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #ifdef _WIN32
 struct IDirect3DDevice8;
 
+/* DAT_0438b17c — recet.ini `usetree` (1: the tree types 0..3 are not drawn). */
+extern int32_t g_usetree;
+
+/* FUN_00459847(pass) — the dungeon objects' meshes for this pass. */
+void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev, int pass);
+
 /* PII.3b — HOUSE branch of FUN_00457714: outer cache-slot loop +
  * draw loop B.  Walks `g_mesh_tex_cache.count` outer slots; for each
  * slot, scene1_walker_classify_slot picks a SetTexture source (gated

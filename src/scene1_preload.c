@@ -313,13 +313,14 @@ static int scene1_preload_dungeon(void)
         const int c = chara_equip_get_current_chara();
         scene1_preload_load_chr_sheet(c >= 0 && c < 8 ? k_adv_sheet[c] : 42);
     }
+    scene_map_meshes_load_dobj((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* DAT_068dcfc0: mori_dun obj_* */
     dungeon_hud_load_map((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* map.bmp, DAT_073d8768 */
     scene1_preload_floor_sheets();      /* FUN_00473c15 */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
      * meshes of the floor roster (FUN_00431a80), the dungeon title, and
-     * FUN_00474a9a's dungeon arm (the trees, the dungeon objects, the hikari
-     * frames, mahoujin, the clear banner, the ice / train / lattice / vector
-     * meshes). */
+     * FUN_00474a9a's dungeon arm (the skinned takarabako / obj_door, the
+     * hikari frames, mahoujin, the clear banner, the ice / train / lattice /
+     * vector meshes). */
     scene1_postload_stage_entry_init(); /* FUN_00436f97 */
     return 0;
 }

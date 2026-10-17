@@ -223,6 +223,7 @@ int scene1_walker_phase1_compute(float *out_matrices)
 /* ═════════════════ PII.3b — outer loop + draw loop B ════════════════ */
 
 int32_t g_scene1_walker_status_screen_open = 0;
+int32_t g_usetree;                                  /* DAT_0438b17c */
 
 static scene1_walker_stage_texture_fn s_hook_kabe_tex     = NULL;
 static scene1_walker_stage_texture_fn s_hook_yuka_tex     = NULL;
@@ -342,6 +343,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "floor_layout.h"     /* DAT_073e03ac, DAT_0438c148 */
 #include "scene1_camera.h"    /* DAT_073de31c / 324 */
 #include "scene1_maplight.h"  /* the stage record (DAT_068dd2f0) */
+#include "dungeon_objects.h"  /* DAT_0695ef78 */
 #include <math.h>
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
@@ -581,6 +583,116 @@ static void scene1_walker_pass_render_dungeon(IDirect3DDevice8 *dev, int param_1
             }
         }
     }
+}
+
+/* FUN_00459847(pass): the dungeon objects (DAT_0695ef78) whose type record
+ * (DAT_005c4c90 + 36·type) names this pass (+0x1c): the kind-0 types draw
+ * their static mesh (DAT_068dcfc0[+4]) with world RotZ(+0x78) · RotX(+0x74) ·
+ * RotY(+0x70) · S(-0.2·sx, 0.2·sy, 0.2·sz) · T(pos + (+0x18, 0, +0x20)), per
+ * texture slot; with the +0x20 cull flag only within 50 of the eye (z
+ * halved).  Pass 3 blends additively.  PORT-DEBT(stub, FUN_00459847): the
+ * kind-1 (skinned) types — takarabako / obj_door (DAT_073cba20). */
+static const int32_t k_dobj_type[23][9] = {
+    { 0, 0, -1, 0x40400000, 0x41200000, 0x3f800000, 1, 1, 1 },
+    { 0, 1, -1, 0x40000000, 0x40000000, 0x3f000000, 0, 1, 1 },
+    { 0, 2, -1, 0x3f800000, 0x41200000, 0, 1, 1, 1 },
+    { 0, 3, -1, 0x3f800000, 0x41200000, 0, 1, 1, 1 },
+    { 1, 2, 1, 0x40a00000, 0x40c00000, 0, 1, 1, 1 },
+    { 1, 2, 1, 0x40a00000, 0x40c00000, 0, 1, 1, 1 },
+    { 1, 3, 1, 0x40800000, 0x40c00000, 0, 1, 1, 1 },
+    { 1, 1, 3, 0x3e99999a, 0x40000000, 0, 1, 1, 1 },
+    { -1, 0, 5, 0x3e99999a, 0x40000000, 0, 1, 1, 1 },
+    { 0, 11, -1, 0x3f4ccccd, 0x41200000, 0, 1, 1, 1 },
+    { 0, 4, -1, 0x3f4ccccd, 0x41200000, 0, 1, 1, 1 },
+    { 0, 5, -1, 0x3f4ccccd, 0x41200000, 0, 1, 1, 1 },
+    { 0, 6, -1, 0x3f4ccccd, 0x41200000, 0, 1, 1, 1 },
+    { 0, 7, -1, 0x3f4ccccd, 0x41200000, 0, 1, 0, 0 },
+    { 0, 8, -1, 0x3f4ccccd, 0x41200000, 0, 1, 0, 0 },
+    { 0, 9, -1, 0x3f4ccccd, 0x41200000, 0, 1, 0, 0 },
+    { 0, 10, -1, 0x3f4ccccd, 0x41200000, 0, 1, 0, 0 },
+    { 0, 11, -1, 0, 0x41200000, 0, 0, 2, 0 },
+    { 0, 12, -1, 0, 0x41200000, 0, 0, 2, 0 },
+    { 0, 5, -1, 0x3f4ccccd, 0x41200000, 0, 1, 1, 1 },
+    { 0, 6, -1, 0x3f4ccccd, 0x41200000, 0, 1, 0, 0 },
+    { 0, 12, -1, 0, 0x41200000, 0, 0, 1, 1 },
+    { 0, 10, 1, 0x3f800000, 0x41200000, 0x3e99999a, 1, 3, 1 },
+};
+
+void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    if (!dev) return;
+    if (pass == 3) {
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ONE);
+    } else {
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_CCW);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
+    }
+    {
+        const stage_record_t *rec = scene1_current_stage_record();
+        const int lit = rec != NULL && rec->maplight != 0;
+        IDirect3DDevice8_LightEnable(dev, 0, lit);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, lit);
+    }
+    static float world[DOBJ_COUNT][16];
+    static uint8_t on[DOBJ_COUNT];
+    for (int i = 0; i < DOBJ_COUNT; i++) {
+        const dobj_t *o = &g_dobj[i];
+        const int32_t t = o->i[35];
+        on[i] = 0;
+        if (t == -1 || o->i[35 + 119] == 3) continue;
+        if (t < 0 || t >= 23 || k_dobj_type[t][7] != pass) continue;
+        if (g_usetree == 1 && t < 4) continue;
+        const float px = o->f[0] + o->f[6], pz = o->f[2] + o->f[8];
+        if (k_dobj_type[t][8] != 0) {
+            const float dx = px - g_scene1_camera_eye[0];
+            const float dz = (pz - g_scene1_camera_eye[2]) * 0.5f;
+            if (sqrtf(dz * dz + dx * dx) > 50.0f) continue;
+        }
+        if (k_dobj_type[t][0] != 0) continue;
+        on[i] = 1;
+        float *w = world[i], m[16];
+        mat4_translation(w, px, o->f[1], pz);
+        mat4_scaling(m, o->f[32] * -0.2f, o->f[33] * 0.2f, o->f[34] * 0.2f);
+        mat4_mul(w, m, w);
+        mat4_rotation_y(m, o->f[28]);
+        mat4_mul(w, m, w);
+        mat4_rotation_x(m, o->f[29]);
+        mat4_mul(w, m, w);
+        mat4_rotation_z(m, o->f[30]);
+        mat4_mul(w, m, w);
+    }
+    scene1_emit_preamble((struct IDirect3DDevice8 *)dev);
+    int slot_count = g_mesh_tex_cache.count;
+    if (slot_count > MESH_TEX_CACHE_CAP) slot_count = MESH_TEX_CACHE_CAP;
+    for (int slot = 0; slot < slot_count; slot++) {
+        int bound = 0;
+        for (int i = 0; i < DOBJ_COUNT; i++) {
+            if (!on[i]) continue;
+            mesh_t *mm = scene_map_meshes_dobj(k_dobj_type[g_dobj[i].i[35]][1]);
+            if (mm == NULL || mm->texture_slots == NULL) continue;
+            int any = 0;
+            for (int s = 0; s < mm->submesh_count; s++) {
+                const int mi = mm->submeshes[s].material_index;
+                if (mi >= 0 && mi < mm->material_count && mm->texture_slots[mi] == slot) { any = 1; break; }
+            }
+            if (!any) continue;
+            if (!bound) {
+                bound = 1;
+                IDirect3DDevice8_SetTexture(dev, 0, pick_texture_for_action(slot, SCENE1_WALKER_SLOT_DEFAULT));
+                scene1_emit_apply_material_state((struct IDirect3DDevice8 *)dev, slot);
+            }
+            draw_loop_b_mesh(dev, mm, slot, world[i]);
+        }
+    }
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSU, D3DTADDRESS_WRAP);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSV, D3DTADDRESS_WRAP);
 }
 
 void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,

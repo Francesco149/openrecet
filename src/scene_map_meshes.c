@@ -93,6 +93,29 @@ static int win32_load_fn(const char *path, int slot, void *userdata)
     return 1;
 }
 
+static mesh_t *s_dobj_meshes[SCENE_DOBJ_MESH_SLOTS];
+
+void scene_map_meshes_load_dobj(struct IDirect3DDevice8 *dev)
+{
+    static const char *const k_path[4] = {
+        "xfile/mori_dun/obj_tree01.x", "xfile/mori_dun/obj_tree02.x",
+        "xfile/mori_dun/obj_kusa01.x", "xfile/mori_dun/obj_kusa02.x",
+    };
+    for (int i = 0; i < 4; i++) {
+        if (s_dobj_meshes[i]) { mesh_free(s_dobj_meshes[i]); s_dobj_meshes[i] = NULL; }
+        mesh_t *m = mesh_load(k_path[i], -1);
+        if (!m) continue;
+        if (m->error[0]) { mesh_free(m); continue; }
+        if (dev) (void)mesh_load_finalize_win32(m, dev);
+        s_dobj_meshes[i] = m;
+    }
+}
+
+mesh_t *scene_map_meshes_dobj(int idx)
+{
+    return (idx >= 0 && idx < SCENE_DOBJ_MESH_SLOTS) ? s_dobj_meshes[idx] : NULL;
+}
+
 int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage)
 {
     scene_map_meshes_load_with(stage, win32_load_fn, dev);

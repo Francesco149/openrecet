@@ -295,9 +295,9 @@ static void scene1_walk_depth_prepass_TODO(void)
  *
  * For HOUSE specifically the shop interior renders as 3D room/furniture
  * via FUN_00457714 draw loops A/B (PII.3b/PII.3c), not via this walker. */
-static void scene1_walk_narrow_frustum_TODO(int pass)
+static void scene1_walk_narrow_frustum_TODO(IDirect3DDevice8 *dev, int pass)
 {
-    (void)pass;
+    scene1_walker_dobj_render((struct IDirect3DDevice8 *)dev, pass);   /* FUN_00459847 */
 }
 
 /* FUN_0045aa36 (4493 B) — the ground-shadow pass between FUN_00459847(0)
@@ -819,7 +819,7 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
 
     /* L203-L205: pre-walker → first narrow-frustum walker → followup. */
     scene1_walk_pre_pass(dev);
-    scene1_walk_narrow_frustum_TODO(0);
+    scene1_walk_narrow_frustum_TODO(dev, 0);
     /* L205: ★ FUN_0045aa36 ★ — the ground-shadow pass (4493 B).  Csh.1
      * (2026-06-01, src/scene1_chr_shadow.c) ports the render-state envelope
      * + Block A (the live player + companion ground shadow); the six dormant
@@ -832,7 +832,7 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_apply_fog_state(dev, FALSE);
 
     /* L215: second narrow-frustum walker pass. */
-    scene1_walk_narrow_frustum_TODO(1);
+    scene1_walk_narrow_frustum_TODO(dev, 1);
 
     /* L216-L217: WIDE projection (z_far = 2000.0). */
     scene1_push_projection(dev, 2000.0f);

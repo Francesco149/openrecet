@@ -83,7 +83,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47281e | FUN_0047281e | 24 | ✓ |  | mesh_load.c, scene1_preload.c, scene1_preload.h |
 | 0x473474 | FUN_00473474 | 9 | ✓ |  | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x474681 | FUN_00474681 | 123 | ✓ |  | map_collision.h, scene1_preload.c, scene1_preload.h (+5) |
-| 0x474a9a | FUN_00474a9a | 760 | ✓ |  | dungeon_hud.h, main.c, scene.c (+17) |
+| 0x474a9a | FUN_00474a9a | 760 | ✓ |  | dungeon_hud.h, main.c, scene.c (+18) |
 | 0x47a8c0 | FUN_0047a8c0 | 368 | ✓ |  | dungeon_party.c, save_bank.c, save_bank.h (+2) |
 | 0x47b73c | FUN_0047b73c | 1779 | ✓ |  | input.c, input.h, sim.c (+1) |
 | 0x47be2f | FUN_0047be2f | 99 | ✓ |  | tick.c, tick.h |
@@ -380,7 +380,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ |  | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x4597dd | FUN_004597dd | 106 | ✓ |  | scene1_render.c, scene1_render.h |
-| 0x459847 | FUN_00459847 | 1444 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+3) |
+| 0x459847 | FUN_00459847 | 1444 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+6) |
 | 0x45bcea | FUN_0045bcea | 56 | ✓ |  | scene1_sim.c, scene_adv_guild.c, scene_adv_guild.h (+1) |
 | 0x45bd22 | FUN_0045bd22 | 15 | ✓ |  | floor_layout.c, floor_layout.h |
 | 0x45bd36 | FUN_0045bd36 | 140 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h, scene_pause.c |

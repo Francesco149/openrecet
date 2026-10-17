@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 92,
+  "port_debt": 93,
   "verified": 81,
   "stubbed": 10,
   "ported": 694,
@@ -9514,7 +9514,10 @@
     "src/scene1_chr_shadow.h",
     "src/scene1_emit_record.h",
     "src/scene1_render.c",
-    "src/scene1_render.h"
+    "src/scene1_render.h",
+    "src/scene1_walker_pass_init.c",
+    "src/scene1_walker_pass_init.h",
+    "src/scene_map_meshes.h"
    ],
    "status": "ported"
   },
@@ -15109,6 +15112,7 @@
     "src/scene_adv_guild.c",
     "src/scene_floor.h",
     "src/scene_jutan.h",
+    "src/scene_map_meshes.h",
     "src/scene_table.h",
     "src/scene_walls.h",
     "src/scene_worldmap.c",

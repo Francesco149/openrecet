@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 76,
+  "total": 77,
   "by_kind": {
-   "stub": 55,
+   "stub": 56,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 58,
+  "retiring_engine_fns": 59,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -60,6 +60,7 @@
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
+   "FUN_00459847": 1,
    "FUN_004682ee": 1,
    "FUN_00469b3a": 1,
    "FUN_0046c9a2": 1,
@@ -154,7 +155,7 @@
    "engine_fn": "FUN_00457714",
    "desc": "the movers (DAT_0438c150,",
    "file": "src/scene1_walker_pass_init.c",
-   "line": 517,
+   "line": 519,
    "kind_known": false
   },
   {
@@ -487,6 +488,14 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_00459847",
+   "desc": "the",
+   "file": "src/scene1_walker_pass_init.c",
+   "line": 593,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_004682ee",
    "desc": "the tab stays where the open put it.",
    "file": "src/scene_adv_guild.c",
@@ -538,7 +547,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets \u2014 the enemy",
    "file": "src/scene1_preload.c",
-   "line": 318,
+   "line": 319,
    "kind_known": true
   },
   {

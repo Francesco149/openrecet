@@ -83,6 +83,14 @@ int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage);
 /* Free all loaded map meshes and clear the array. */
 void scene_map_meshes_reset(void);
 
+/* DAT_068dcfc0[13]: the dungeon objects' static meshes (FUN_00459847's kind-0
+ * types, by the type record's +4 index).  FUN_00474a9a's dungeon arm loads
+ * xfile/mori_dun/obj_tree01 / 02, obj_kusa01 / 02 into 0..3 on each dungeon
+ * entry (after the texture cache clear, so their slots are current). */
+#define SCENE_DOBJ_MESH_SLOTS 13
+void    scene_map_meshes_load_dobj(struct IDirect3DDevice8 *dev);
+mesh_t *scene_map_meshes_dobj(int idx);
+
 /* Slot accessor for draw loop A; NULL if out of range or unloaded. */
 mesh_t *scene_map_meshes_get(int idx);
 #else

@@ -102,18 +102,11 @@ static int aw_combiner_override(void) { return 0; }
  * = this file).  Pass-id 0 + 1 already dispatch through the
  * scene1_render.c arm. */
 
-/* FUN_00459847 (1444 B) — additive COMBAT projectile/effect billboard
- * renderer (see the long note in scene1_render.c).  The alpha walker
- * fires it with pass 2 (non-additive) and pass 3 (additive SRC=ONE/
- * DEST=ONE).  Dormant in HOUSE — the combat projectile/effect table it
- * walks (&DAT_0695f004) is empty in the shop.  NOT the walls/floor
- * walker (that earlier guess was wrong) and NOT the source of retail's
- * ~2x HOUSE brightness.  Port is combat-scene work; verify with a
- * dungeon capture. */
-static void aw_narrow_frustum_walker_TODO(int pass)
+/* FUN_00459847 (pass 2 / 3) — the dungeon objects' meshes of those passes
+ * (scene1_walker_dobj_render; pass 3 additive). */
+static void aw_narrow_frustum_walker_TODO(IDirect3DDevice8 *dev, int pass)
 {
-    /* TODO (combat scene): port FUN_00459847's projectile/effect walk. */
-    (void)pass;
+    scene1_walker_dobj_render((struct IDirect3DDevice8 *)dev, pass);
 }
 
 /* ─── public entry ─────────────────────────────────────────────────── */
@@ -290,8 +283,8 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
     }
 
     /* ─── L86-L87: narrow-frustum walker calls ─────────────────────── */
-    aw_narrow_frustum_walker_TODO(2);
-    aw_narrow_frustum_walker_TODO(3);
+    aw_narrow_frustum_walker_TODO(dev, 2);
+    aw_narrow_frustum_walker_TODO(dev, 3);
 
     /* ─── L88-L94: cleanup state writes ────────────────────────────── */
 
