@@ -1308,16 +1308,27 @@ static void scene_guild_load_cb(void)
     /* FUN_0049174e ran at the world-map exit (FUN_00490e16); the loader only
      * brings in the textures. */
 
-    /* PORT-DEBT(variant-1 ichiba): only the guild variant (DAT_0963c5f0 == 0,
-     * world-map dest 3) loads its texture set; the variant-1 (ichiba) set
-     * (01recette_04/02tear_01 + ichiba/ichiba2 bg) is not yet wired — dest 1 is
-     * not exercised by the merchant's-guild arc. */
-    if (g_scene_guild_dev == NULL || s_variant != 0)
+    /* variant 1 (the market, DAT_0963c5f0 != 0): bg_ichiba — bg_ichiba2 from
+     * the period +0x2c3f0 >= 2 — with Recette and Tear in slots 1 / 2 */
+    if (g_scene_guild_dev == NULL)
         return;
     for (int i = 0; i < SCENE_GUILD_TEX_COUNT; i++) {
-        sprite_load(g_scene_guild_dev, g_scene_guild_assets[i].path,
-                    g_scene_guild_assets[i].w, g_scene_guild_assets[i].h,
-                    &g_scene_guild[i]);
+        const char *path = g_scene_guild_assets[i].path;
+        uint32_t w = g_scene_guild_assets[i].w, h = g_scene_guild_assets[i].h;
+        if (s_variant != 0) {
+            if (i == SCENE_GUILD_TEX_BG) {
+                const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+                path = (bank != NULL && (int32_t)bank[45308] >= 2)
+                     ? "bmp/ivent/bg_ichiba2.bmp" : "bmp/ivent/bg_ichiba.bmp";
+            } else if (i == SCENE_GUILD_TEX_KEEPER) {
+                path = "bmp/ivent/01recette_04.tga";
+            } else if (i == SCENE_GUILD_TEX_BORD) {
+                path = "bmp/ivent/02tear_01.tga";
+                h = 0x200;
+            }
+        }
+        if (g_scene_guild[i].tex) sprite_destroy(&g_scene_guild[i]);   /* group 7 */
+        sprite_load(g_scene_guild_dev, path, w, h, &g_scene_guild[i]);
     }
 }
 
@@ -1372,8 +1383,20 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
     /* slot1: the guildmaster (13syounin_01), drawn H-MIRRORED (FUN_00404e61)
      * into dst (-64,32,448,448) from the full 512x512 sprite (all.c:96217-96229,
      * guild variant — DAT_0963c5f0 == 0). */
-    if (!conv_owns_bg && s_variant == 0 && g_scene_guild[SCENE_GUILD_TEX_KEEPER].tex) {
-        const float dst[4] = { -64.0f, 32.0f, 448.0f, 448.0f };
+    /* the market (variant 1): Tear (slot 2) mirrored into (-32,32,448,448)
+     * first, then Recette (slot 1) at x -160 (0x494b0b..) */
+    if (!conv_owns_bg && s_variant == 1 && g_scene_guild[SCENE_GUILD_TEX_BORD].tex) {
+        const float dst[4] = { -32.0f, 32.0f, 448.0f, 448.0f };
+        const float src[4] = { 0.0f, 0.0f, 512.0f, 512.0f };
+        render_quad_bind(d, &g_scene_guild[SCENE_GUILD_TEX_BORD]);
+        render_quad_add_mirrored(dst, src,
+                        g_scene_guild[SCENE_GUILD_TEX_BORD].width,
+                        g_scene_guild[SCENE_GUILD_TEX_BORD].height,
+                        0xffffffffu);
+        render_quad_flush(d);
+    }
+    if (!conv_owns_bg && g_scene_guild[SCENE_GUILD_TEX_KEEPER].tex) {
+        const float dst[4] = { s_variant == 1 ? -160.0f : -64.0f, 32.0f, 448.0f, 448.0f };
         const float src[4] = { 0.0f, 0.0f, 512.0f, 512.0f };
         render_quad_bind(d, &g_scene_guild[SCENE_GUILD_TEX_KEEPER]);
         render_quad_add_mirrored(dst, src,
