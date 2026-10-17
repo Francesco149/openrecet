@@ -85,6 +85,8 @@ void scene1_preload_floor_layout(void)
 #include "scene_jutan.h"
 #include "scene_map_meshes.h"
 #include "chara_equip.h"    /* DAT_0438b7d8 */
+#include "tables_enemylist.h"
+#include "tables_enemy.h"    /* DAT_005c23f0 */
 #include "collision_house.h"
 #include "scene_table.h"
 #include "scene_walls.h"
@@ -226,6 +228,41 @@ static void scene1_preload_house_cb(void)
     (void)scene1_preload_house();
 }
 
+/* FUN_00431a80: the floor's roster — the enemy ids of the enemylist section
+ * holding the floor (DAT_0438b4c8 / b4cc), ids < 100, plus 2, 29..34 and 37
+ * always (the summons and the specials). */
+static void scene1_preload_floor_roster(int32_t present[100])
+{
+    memset(present, 0, 100 * sizeof present[0]);
+    const int32_t d = g_scene1_combat_stage_id, fl = stage_gate_get_next();
+    if (d < 0 || d >= ENEMYLIST_DUNGEON_SLOTS) return;
+    for (int k = 0; k < ENEMYLIST_SECTIONS_PER_DUNGEON; k++) {
+        const enemylist_section_t *sec = &g_enemylist.sections[d][k];
+        if (sec->floor_lo == -1) return;
+        if (fl < sec->floor_lo || fl > sec->floor_hi) continue;
+        for (int j = 0; j < 31; j++) {
+            const int32_t id = sec->enemies[j].enemy_id;
+            if (id == -1 || id >= 100) break;
+            if (id >= 0) present[id] = 1;
+        }
+        static const int k_always[8] = { 2, 37, 34, 29, 30, 31, 32, 33 };
+        for (int j = 0; j < 8; j++) present[k_always[j]] = 1;
+        return;
+    }
+}
+
+/* FUN_00473c15's sprite half: each present sprite type's sheet (the enemy
+ * record's +0x24) — the model types' trees load on first draw (model_anchor.c) */
+static void scene1_preload_floor_sheets(void)
+{
+    if (mapcol_maptype() == 0) return;
+    int32_t present[100];
+    scene1_preload_floor_roster(present);
+    for (int t = 0; t < 100 && t < ENEMY_COUNT; t++)
+        if (present[t] && g_enemy[t].flags == 0)
+            scene1_preload_load_chr_sheet(g_enemy[t].unknown_24);
+}
+
 /* LAB_00452a6b — the stage loader of a floor change (FUN_00452eed, spawned by
  * FUN_004536cb's DAT_06a49964 arm): a new stage releases the stage meshes
  * FUN_0047472c and builds its record + collision slots FUN_00474681; then
@@ -240,6 +277,7 @@ static void scene1_preload_floor_cb(void)
     /* FUN_004746fc (texture group 15, the 20 sprite records, DAT_073a96a8) and
      * PORT-DEBT(stub, FUN_00473c15): the floor's render assets (see
      * scene1_preload_dungeon). */
+    scene1_preload_floor_sheets();      /* FUN_00473c15 */
     scene1_postload_stage_entry_init(); /* FUN_00436f97 */
 }
 
@@ -273,6 +311,7 @@ static int scene1_preload_dungeon(void)
         const int c = chara_equip_get_current_chara();
         scene1_preload_load_chr_sheet(c >= 0 && c < 8 ? k_adv_sheet[c] : 42);
     }
+    scene1_preload_floor_sheets();      /* FUN_00473c15 */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
      * sprites / meshes of the floor roster (FUN_00431a80), the dungeon title,
      * and FUN_00474a9a's dungeon arm (the player's chr sheet by DAT_0438b7d8, the

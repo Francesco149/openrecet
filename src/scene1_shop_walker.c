@@ -32,6 +32,10 @@
 #include "scene1_render.h"   /* scene1_render_push_projection +
                                 scene1_render_apply_palette_combiner_mode */
 #include "stage_palette.h"   /* palette accessors when they land */
+#include "actor_table.h"     /* g_actor (DAT_0076b970) */
+#include "tables_enemy.h"    /* DAT_005c23f0 */
+#include "scene1_maplight.h" /* the stage record */
+#include "dungeon_flow.h"    /* DAT_0438b4b4 */
 
 /* ─── engine scratch globals — module-local mirrors ────────────────────
  *
@@ -95,10 +99,13 @@ static int sw_light_pass_gate(void) { return 0; }
  * above.  Dormant for HOUSE (palette zeroed). */
 static int sw_palette_lighting_enabled(void) { return 0; }
 
-/* DAT_068dd2f8 + DAT_0438b4dc * 0x1b3c — per-stage record at offset
- * 0 (an int).  HOUSE record is BSS-zero from stage_palette_init_
- * house, so this reads 0 → the "first projection arm" applies. */
-static int sw_stage_record0(void) { return 0; }
+/* DAT_068dd2f8 + DAT_0438b4dc * 0x1b3c — the stage record's maptype (0 in
+ * the house: the "first projection arm"; a floor ≥ 1: z_far 2000). */
+static int sw_stage_record0(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->maptype : 0;
+}
 
 /* DAT_0438b778 — float, "elapsed-time" or similar scene-1 counter.
  * BSS-zero.  Reads as 0.0f. */
@@ -715,9 +722,10 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
         actor_count = (sw_stage_record0() != 0) ? 1 : 3;
     }
 
-    /* fade = (0x5a − DAT_0438b4b4)/30 clamp 1.0; the fade counter is stubbed
-     * 0 (no spawn-in animation ported) → fade 1.0. */
-    float fade = (float)(0x5a - 0) / 30.0f;
+    /* fade = (0x5a − DAT_0438b4b4)/30 clamp 1.0: the party fades in over a
+     * floor's first 30 intro ticks (nothing drawn while b4b4 > 90) */
+    if (g_floor_intro > 90) return;
+    float fade = (float)(0x5a - g_floor_intro) / 30.0f;
     if (fade > 1.0f) fade = 1.0f;
     float scale_f = fade * 0.03f;
 
@@ -811,21 +819,69 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 }
 
-/* Pass G walks DAT_0076bdc0..DAT_007c8fc0, stride 0x2e9 dwords.
- * Per-record gates:  [-10] != 0.0  &&  [0x1a9] < 1  &&
- *                    [-0x1d] == 3.57331e-43 (raw 0xff).  Then
- * computes a scaled alpha (saturated to 0xff), looks up
- * DAT_005c23f0 + (record[-0xb] * 0x68) for a material, builds
- * Translation × Scaling, and calls FUN_0045a56f with the world
- * matrix.  Sticky texture state across iterations via local_14
- * tracking the previous material slot.
- *
- * Dormant in HOUSE — all records BSS-zero on the active flag. */
+/* Pass G (asm after FUN_004705a3, L460-L514): the opaque sprite enemies —
+ * every actor in use with +0xaf4 <= 0, alpha +0x3dc == 255 and a sprite type
+ * (enemy record +0x20 == 0).  Its view depth +0x450 fades it out past −70
+ * (gone at −75): alpha = ftol((z + 70)·50 + 255), then ·+0xaf8.  The
+ * billboard: orient · S(s·+0xac0·+0xabc, s·+0xac4·+0xabc, …) · T(pos), s =
+ * the record's +0x44 · 0.05; sheet = the record's +0x24 (bound when it
+ * changes); colour 0x7f7f7f | alpha, or black with SRCBLEND ZERO while
+ * +0xac8 is set (the silhouette). */
 static void sw_pass_g(IDirect3DDevice8 *dev)
 {
-    /* TODO C8-followup: walk DAT_0076bdc0 stride 0x2e9 dwords with
-     * the gates above; emit via sw_pass_g_sprite_TODO per match. */
-    (void)dev;
+    static const float k75 = 75.0f, k70 = 70.0f, k50 = 50.0f, k255 = 255.0f, k0p05 = 0.05f;
+    int last_char = -1, silhouette = 0;
+    /* FUN_004552d0 sets ZENABLE / ZWRITEENABLE at its head and nothing clears
+     * them before Pass G: the enemies lay down depth (the room's alpha-tested
+     * pass 1, drawn later, must not cover them); the alpha test as for the party */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,         TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE,    TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF,        0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC,       D3DCMP_GREATER);
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        actor_t *a = &g_actor[i];
+        if (act_geti(a, ACT_INUSE) == 0 || act_geti(a, 0xaf4) > 0 || act_geti(a, 0x3dc) != 255)
+            continue;
+        const float z = act_getf(a, 0x450);
+        if (!(z >= -k75)) continue;
+        int alpha = 255;
+        if (z < -k70) alpha = (int)((z + k70) * k50 + k255);
+        alpha = (int)((float)alpha * act_getf(a, 0xaf8));
+        if (alpha <= 0) continue;
+        const int32_t type = act_geti(a, ACT_TYPE);
+        if (type < 0 || type >= ENEMY_COUNT) continue;
+        const enemy_record_t *e = &g_enemy[type];
+        if (e->flags != 0) continue;
+        const float s = e->runtime_floats[0] * k0p05;
+        const float sx = s * act_getf(a, 0xac0) * act_getf(a, 0xabc);
+        const float sy = s * act_getf(a, 0xac4) * act_getf(a, 0xabc);
+        float tmp[16], sc[16], world[16];
+        mat4_translation(tmp, act_getf(a, 0x3f0), act_getf(a, 0x3f4), act_getf(a, 0x3f8));
+        mat4_scaling(sc, sx, sy, sx);
+        mat4_mul(tmp, sc, tmp);
+        mat4_mul(world, g_scene1_camera_orient, tmp);
+        const int ch = e->unknown_24;
+        const sprite_t *sheet = scene1_preload_chr_sheet(ch);
+        if (last_char != ch) {
+            last_char = ch;
+            IDirect3DDevice8_SetTexture(dev, 0, sheet ? (IDirect3DBaseTexture8 *)sheet->tex : NULL);
+        }
+        uint32_t color = 0x7f7f7fu | ((uint32_t)alpha << 24);
+        if (act_geti(a, 0xac8) != 0) {
+            color = (uint32_t)alpha << 24;
+            if (!silhouette) IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
+            silhouette = 1;
+        } else {
+            if (silhouette) IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+            silhouette = 0;
+        }
+        scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, (const int32_t *)(const void *)a->b, ch,
+                                 world, color, sheet ? (int)sheet->width : 0,
+                                 sheet ? (int)sheet->height : 0);
+    }
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 }
 
 /* ─── public entry ─────────────────────────────────────────────────── */
