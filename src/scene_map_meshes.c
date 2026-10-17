@@ -148,9 +148,33 @@ mesh_t *scene_map_meshes_misc(int idx)
     return (idx >= 0 && idx < SCENE_MISC_MESH_SLOTS) ? s_misc_meshes[idx] : NULL;
 }
 
+/* DAT_068dcf98: the stage's `mapbg:` mesh (the sky / backdrop), loaded by
+ * FUN_00474681 after the map[] meshes when the record's +0x108 is set. */
+static mesh_t *s_mapbg;
+
+static void load_mapbg(struct IDirect3DDevice8 *dev, int stage)
+{
+    if (s_mapbg) { mesh_free(s_mapbg); s_mapbg = NULL; }
+    int s = clamp_stage(stage);
+    if (s < 0 || !g_stage.records[s].mapbg_set) return;
+    const char *path = g_stage.records[s].mapbg;
+    mesh_t *m = mesh_load(path, -1);   /* FUN_00472836(&DAT_068dcf98, +4, -1) */
+    if (!m) return;
+    if (m->error[0]) {
+        fprintf(stderr, "scene_map_meshes: %s: %s\n", path, m->error);
+        mesh_free(m);
+        return;
+    }
+    if (dev) (void)mesh_load_finalize_win32(m, dev);
+    s_mapbg = m;
+}
+
+mesh_t *scene_map_meshes_mapbg(void) { return s_mapbg; }
+
 int scene_map_meshes_load_stage(struct IDirect3DDevice8 *dev, int stage)
 {
     scene_map_meshes_load_with(stage, win32_load_fn, dev);
+    load_mapbg(dev, stage);
     int loaded = 0;
     for (int i = 0; i < SCENE_MAP_MESH_SLOTS; i++)
         if (g_scene_map_meshes[i]) loaded++;
@@ -163,6 +187,7 @@ int scene_map_meshes_load_house(struct IDirect3DDevice8 *dev)
      * load_with does the iteration; win32_load_fn does the per-slot
      * mesh_load + finalize.  Count successes (NULL slots = failures). */
     scene_map_meshes_load_with(SCENE_MAP_STAGE_HOUSE, win32_load_fn, dev);
+    load_mapbg(dev, SCENE_MAP_STAGE_HOUSE);
     int loaded = 0;
     for (int i = 0; i < SCENE_MAP_MESH_SLOTS; i++)
         if (g_scene_map_meshes[i]) loaded++;
@@ -177,6 +202,7 @@ void scene_map_meshes_reset(void)
             g_scene_map_meshes[i] = 0;
         }
     }
+    if (s_mapbg) { mesh_free(s_mapbg); s_mapbg = NULL; }
 }
 
 mesh_t *scene_map_meshes_get(int idx)

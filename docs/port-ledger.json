@@ -14879,6 +14879,7 @@
     "src/map_collision.h",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
+    "src/scene1_render.c",
     "src/scene_map_meshes.c",
     "src/scene_map_meshes.h",
     "src/stage_palette.c",

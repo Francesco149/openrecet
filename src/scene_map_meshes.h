@@ -105,6 +105,9 @@ void    scene_map_meshes_load_misc_slot(struct IDirect3DDevice8 *dev, int idx,
                                         const char *path);
 mesh_t *scene_map_meshes_misc(int idx);
 
+/* DAT_068dcf98: the stage's `mapbg:` mesh (NULL when the record has none). */
+mesh_t *scene_map_meshes_mapbg(void);
+
 /* Slot accessor for draw loop A; NULL if out of range or unloaded. */
 mesh_t *scene_map_meshes_get(int idx);
 #else

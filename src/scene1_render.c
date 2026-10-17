@@ -61,6 +61,7 @@ void scene1_project_world_mat(const float *view, const float *proj,
 #include "study_toggles.h"       /* study filming kill-switches (mod2x/fog) */
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
 #include "scene1_maplight.h"     /* FUN_00458f67 maplight builder + stage record */
+#include "scene_map_meshes.h"    /* DAT_068dcf98, the mapbg mesh */
 #include "scene1_fx_overlays.h"  /* scene1_fx_overlays — FUN_00454191 scaffold */
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
@@ -225,12 +226,12 @@ static void *scene1_initial_asset_ptr(void);
  *  this same idiom over an array of meshes — chip PII.3b.)
  *
  * Caller at L165 of scene1_render_meshes gates on palette+0x108 != 0
- * AND DAT_068dcf98 != 0 — palette+0x108 is zero for HOUSE
- * (scene1_preload.c:140), so the L165 site itself is dormant in
- * HOUSE.  Wired below as `scene1_walk_initial_asset` (PII.1, 2026-05-26):
- * composes the engine's S(-2.8, 2.8, 2.8) * T(0,0,0) world matrix
- * + SetTransform + scene1_emit_record.  Bit-exact under BSS-zero
- * gates; surfaces under any non-HOUSE scene that sets both. */
+ * (the record's `mapbg:` flag) AND DAT_068dcf98 != 0 (its mesh, loaded
+ * by FUN_00474681): the house's heigen_sora sky, mori_bg on the forest
+ * floors (retail capture: draw 0, 80 / 44 tris, Z off).  Wired as
+ * `scene1_walk_initial_asset` (PII.1, 2026-05-26): composes the engine's
+ * S(-2.8, 2.8, 2.8) * T(0,0,0) world matrix + SetTransform +
+ * scene1_emit_record. */
 static void scene1_walk_initial_asset(IDirect3DDevice8 *dev)
 {
     /* Engine FUN_00459dfd L160-L166 (decomp all.c L54474-L54479):
@@ -532,11 +533,15 @@ static int scene1_palette_lighting_enabled(void)
 
 /* palette + 0x108 (int initial-asset flag).  Non-zero → run the L160-
  * L166 initial-asset draw block (needs DAT_068dcf98 too). */
-static int scene1_palette_initial_asset_flag(void) { return 0; }
+static int scene1_palette_initial_asset_flag(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->mapbg_set : 0;
+}
 
 /* DAT_068dcf98 — initial asset pointer.  Gates L160-L166 alongside
  * the palette flag above. */
-static void *scene1_initial_asset_ptr(void) { return NULL; }
+static void *scene1_initial_asset_ptr(void) { return scene_map_meshes_mapbg(); }
 
 /* DAT_073dfcec — alpha-pass guard.  Zero = "render in normal mode" =
  * combiner-mode write proceeds.  No setter ported. */
@@ -752,10 +757,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * + initial-asset draw. */
     scene1_push_projection(dev, 2000.0f);
 
-    /* L160-L166: initial transform asset.  Gated on stage palette
-     * + 0x108 != 0 AND DAT_068dcf98 != 0.  Both BSS-zero in HOUSE
-     * (palette+0x108 documented zero in scene1_preload.c:140), so
-     * the branch is dormant; engine fidelity preserved bit-exactly.
+    /* L160-L166: the mapbg mesh.  Gated on the stage record's +0x108
+     * (`mapbg:` set) AND DAT_068dcf98 (its mesh) != 0.
      * scene1_walk_initial_asset (PII.1) composes the world matrix
      * and delegates to scene1_emit_record. */
     if (scene1_palette_initial_asset_flag() != 0
