@@ -33,6 +33,8 @@
 #include "tables_chara.h"         /* DAT_073ae058 */
 #include "tables_gousei.h"        /* DAT_09640650 */
 #include "tables_snews.h"         /* DAT_073d8ee0 / 073b2108 */
+#include "tables_oder.h"          /* DAT_06a5db98 */
+#include "tables_news.h"          /* DAT_056e0e00 */
 #include "floor_layout.h"
 #include "rng.h"
 #include "save_bank.h"
@@ -565,6 +567,8 @@ static const struct { uint32_t va; const void *p; uint32_t len; } k_tables[] = {
     { 0x9640650u, g_gousei.records,      (uint32_t)sizeof g_gousei.records },
     { 0x73d8ee0u, g_snews.names,         (uint32_t)sizeof g_snews.names },
     { 0x73b2108u, g_snews.sections,      (uint32_t)sizeof g_snews.sections },
+    { 0x6a5db98u, g_oder.entries,        50u * (uint32_t)sizeof g_oder.entries[0] },   /* up to the kyaku table DAT_06a5ea90 */
+    { 0x56e0e00u, g_news.records,        (uint32_t)sizeof g_news.records },
 };
 
 /* a port pointer into a retail-layout block → that block's retail VA (retail
