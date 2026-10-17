@@ -5229,6 +5229,20 @@ the `bgset:` count FUN_0046c869 returns) before FUN_00406584 runs, so the slide 
 covering backdrop the frame b1c8 becomes 2. DAT_073a3df0 is never reset when a dialogue ends: it
 keeps the last script's count. Recorded: `day1-tutorial-to-day2` f12737, `dungeon2-run` f14186.
 
+## 158. A merged .x load hides the Meshes without vertex colours (D3DXLoadMeshFromX)
+The static mesh loader merges a file's Meshes into one vertex format: once any Mesh has
+MeshVertexColors the FVF carries DIFFUSE, and the Meshes without them get 0x00000000 — alpha 0.
+The room files keep editor placement markers that way (single triangles `kusa01_NN_0`,
+`tree02_NN_0` … textured with 16x16 草 / 木 glyphs): they are drawn every frame (lit,
+COLORVERTEX, CULL_CCW) and vanish under SRCALPHA blending + ALPHAREF 0 GREATER. 118 room files
+mix coloured and uncoloured Meshes. Recorded: v3 capture dungeon1-charme f30000, draws 185..215.
+
+## 159. The title runs the stage-entry seed twice (FUN_0049a59e → FUN_00435c98)
+At the confirm's fade start (tick 0x1e: FUN_004526f5(0, 17), DAT_0438b1e0 = 0) and again in
+the fade-end commit. The first call already copies the loaded save's HP / SP into the party
+block (DAT_056db0bc / c0) and its gauges, 17 frames before the scene switches. Recorded:
+watch-write dungeon2-run2 f1270, eip 0x435d15 < 0x49a65e.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

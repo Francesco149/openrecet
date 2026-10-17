@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-17 — the floors render, part 2: models, effects, backdrops, banners, the expedition's end
+Checked with `portshots` (mean abs per frame, port | retail) over dungeon0-full,
+dungeon1-charme, dungeon2-run / -run2 and house-idle; retail D3D captures (`run --d3d --cap`)
+attribute each gap:
+- the model enemies (FUN_00456d48 / FUN_00404a20: retail's unlit D3DINDEXEDVS skinning done on
+  the CPU) and the dungeon objects' animated models (FUN_00459847 kind 1: takarabako /
+  obj_door), FUN_00403ca7's device states after each skinned load;
+- FUN_004176ff: the exit circle (mahoujin), table B's weapon-swing trails, table A's velocity
+  streaks and hit flashes;
+- the stage's `mapbg:` mesh DAT_068dcf98 (heigen_sora / mori_bg, S(-2.8, 2.8, 2.8), Z off):
+  the boss intros' low camera showed black sky (28.6 → 1.15);
+- the room files' placement-marker triangles (kusa01_NN_0 …, 16x16 草 / 木 textures): a merged
+  .x load zero-fills the diffuse of Meshes without MeshVertexColors (D3DX's union FVF), alpha 0;
+- FUN_00458f67 modes 0 / 1: the light turns with the camera yaw (sin / cos had been swapped);
+- the dungeon's loose meshes DAT_073a9658.. (ice01, train_iwa, yokomaguro, vector, the golem
+  crystal) for FUN_004552d0's passes A..D and the ice prepass: the Hall of Trials' boulders;
+- the floor-title banner (FUN_00473c15's card: dungeon_titleN / bossname_*, FUN_00406d50's
+  zoom / fade / white flash): kind 1 at 0.00..0.16, the boss card 1.00;
+- the expedition's end: the CLEAR! / CAME BACK ALIVE! / FAILURE... strip (FUN_0048fe43 on the
+  floor-end timer), the results screen (FUN_0048fdaf, the defeat's keep pane, the bag mode 6);
+- the market (guild variant 1: bg_ichiba, Recette, Tear): 64.8 → 0.01;
+- the dungeon pause Items: the party panel, Use / Throw Away, the typed result messages, the
+  unappraised "???" names; the pause tick eases the HP / SP gauges (FUN_0048b6ad).
+State fixes on the way: the title runs FUN_00435c98 at the fade start (HP 16 frames late);
+the shop-floor display walk was drawing on dungeon floors.
+
 ## 2026-10-17 — the floors render: rooms, objects, enemies, shadows, the HUD; the data tables match
 Checked with `portshots` against retail frames of dungeon2-run (Boss Rush floors 30 / 31) and
 dungeon2-run3 (shop days):
