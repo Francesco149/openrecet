@@ -951,7 +951,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
     scene1_overlay_render(dev, /*layer=*/0, /*mode=*/0);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
+    /* COLORARG2 stays TEXTURE (retail's FUN_004176ff never resets it; the
+     * exit circle below samples mahoujin.bmp through it) */
     /* then the exit circles (its dobj type-8 loop) */
     scene1_effects_exit_circle((struct IDirect3DDevice8 *)dev);
     /* then table B's swing trails on effect_shot.bmp */
