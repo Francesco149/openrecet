@@ -927,6 +927,8 @@ int  display_menu_full(void)    { return s_full; }
 #include "render_quad.h"   /* render_quad_add / _flush / _state_setup */
 #include "sysassets.h"     /* g_sysassets.item_win_tga / item_icons[] */
 #include "font_draw.h"     /* font_draw_text* */
+#include "dungeon_flow.h"   /* DAT_0438be94 / be98, the floor end */
+#include "dungeon_results.h" /* DAT_0438b718 / b744, the kept rows */
 
 /* ── FUN_00469b3a — the bottom description panel (C4b-4a) ──────────────────
  * Drawn at the tail of FUN_0046b00a (all.c:66837).  Ghidra prints the call as
@@ -1081,7 +1083,7 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
 
     /* category frame (mode != 6) — src y depends on tab count (all.c:66517-66532).
      * <2 tabs → src(448,813,688,890); else src(448,736,688,813). dst(xL+80,10,240,77). */
-    {
+    if (s_mode != 6) {
         const float st = (s_num_tabs < 2) ? 813.0f : 736.0f;
         const float sb = (s_num_tabs < 2) ? 890.0f : 813.0f;
         const float dst[4] = { xL + 80.0f, 10.0f, 240.0f, 77.0f };
@@ -1138,7 +1140,13 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     /* ── category header text (C4b-3) ──────────────────────────────────────
      * Centered category name on the green banner (all.c:66587 → FUN_0047d14c):
      * center_x = xL + const[0x519e54]=204, y = const[0x5194d4]=40, scale 0.8. */
-    {
+    if (s_mode == 6) {
+        /* the bag (0x46b1a4): "%d/%d" — its entries less the leading -1 over
+         * the bag size DAT_005c5a98, scale 0.9 */
+        char cnt_buf[32];
+        snprintf(cnt_buf, sizeof cnt_buf, "%d/%d", count - 1, adv_guild_bag_size());
+        font_draw_text_centered(dev, xL + 204.0f, 40.0f, cnt_buf, 0xffffffffu, 0.9f);
+    } else {
         int hcat = -1;
         int hfirst = s_tab_first_item[tab];     /* DAT_073373a0 (entry after -1) */
         /* an empty list (DAT_0731f404 <= 0) draws no name (0x46b23a LABEL_32) */
@@ -1223,8 +1231,10 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
         const float ty = (float)r * row_h + y + 12.0f;
         char buf[96];
         if (item < 0) {
-            /* the -1 "select none / remove" entry (retail EN: "Nothing"). */
-            snprintf(buf, sizeof buf, "%s", "Nothing");
+            /* the -1 "select none / remove" entry (retail EN: "Nothing"); the
+             * bag's first row reads "Rearrange" (Z sorts it, 0x46b6a1). */
+            snprintf(buf, sizeof buf, "%s",
+                     (s_mode == 6 && r == 0 && scroll == 0) ? "Rearrange" : "Nothing");
         } else {
             int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
             const char *nm = (rec >= 0) ? g_item.records[rec].singular : "?";
@@ -1295,6 +1305,42 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     /* restore COLOROP=MODULATE for the rest of the menu (description panel,
      * cursor) — the engine does this @all.c:66775, before FUN_00469b3a. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+    /* the defeat's keep pane (0x46b98d.., DAT_0438be94 >= 60 && be98 == 1):
+     * "Confirm" and the 1..3 kept slots by merchant level (+0x2c400 >= 15 /
+     * 49), item_win (400,240)-(640,304) at 240 x 38.4 per row, 36 apart from
+     * y 80; the row DAT_0438b744 opaque and pushed to x0 + 32, the rest at
+     * x 16 half-alpha */
+    if (g_floor_end_timer >= 60 && g_floor_end_kind == 1) {
+        const uint8_t *w = save_work_bank_at(save_work_active_slot());
+        const int32_t lvl = w ? *(const int32_t *)(const void *)(w + 0x2c400) : 0;
+        const int rows = 1 + (lvl >= 15) + (lvl >= 49);
+        for (int row = 0; row <= rows; row++) {
+            int a = 128;
+            float x = 16.0f;
+            const float y = spill32((long double)spill32((long double)(36 * row)) + 80.0f);
+            if (row == g_results_row) {
+                a = 255;
+                x = spill32((long double)x0 + 32.0f);
+            }
+            const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
+            {
+                const float dst[4] = { x, y, 240.0f, 38.4f };
+                const float src[4] = { 400.0f, 240.0f, 640.0f, 304.0f };
+                render_quad_add(dst, src, win->width, win->height, col);
+            }
+            render_quad_flush(dev);
+            if (row != 0) {
+                if (g_results_kept[row] != -1)
+                    item_row_draw(dev, spill32((long double)x + 32.0f),
+                                  spill32((long double)y + 2.0f), g_results_kept[row], a);
+            } else {
+                font_draw_text_centered(dev, spill32((long double)x + 120.0f),
+                                        spill32((long double)y + 10.0f), "Confirm", col, 0.8f);
+            }
+        }
+    }
 
     /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
      * highlighted item's desc/price/possessed (C4b-4a).  Rides x0 (= retail's

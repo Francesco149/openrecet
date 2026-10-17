@@ -286,3 +286,30 @@ void dungeon_results_tick(void)
 tail:
     title_save_dialog_anim_tick();             /* FUN_004356cd */
 }
+
+#ifdef _WIN32
+#define COBJMACROS
+#define CINTERFACE
+#include <d3d8.h>
+
+#include "font_draw.h"
+#include "render_quad.h"
+
+/* FUN_0048fdaf: the screen's render (pause action 2) — a defeat asks for
+ * 1..3 items by merchant level at (16, 48), then the item window
+ * FUN_0046b00a(0, 0) (its keep pane included) and the hand cursor */
+void dungeon_results_render(struct IDirect3DDevice8 *dev)
+{
+    if (dev == NULL) return;
+    render_quad_state_setup((IDirect3DDevice8 *)dev);   /* FUN_0049b425 */
+    if (g_results_kind == 1) {
+        uint8_t *w = work();
+        const int32_t lvl = w ? *wdw(w, 0x2c400) : 0;
+        const char *t = lvl >= 49 ? "Please select 3 items."
+                      : lvl >= 15 ? "Please select 2 items." : "Please select 1 item.";
+        font_draw_text(dev, 16.0f, 48.0f, t, 0xffffffffu, 0.8f);   /* FUN_0047ca05 */
+    }
+    display_menu_render(dev, 0.0f);                     /* FUN_0046b00a */
+    title_save_dialog_cursor_render((IDirect3DDevice8 *)dev);   /* FUN_00435747 */
+}
+#endif

@@ -87,6 +87,7 @@ void scene1_preload_floor_layout(void)
 #include "chara_equip.h"    /* DAT_0438b7d8 */
 #include "dungeon_hud.h"    /* map.bmp, the enemy faces */
 #include "scene1_effects.h"  /* mahoujin.bmp */
+#include "scene1_dungeon_clear_banner.h"   /* dungeon_clear.tga */
 #include "model_render.h"   /* the model enemies */
 #include "tables_enemylist.h"
 #include "tables_enemy.h"    /* DAT_005c23f0 */
@@ -321,11 +322,12 @@ static int scene1_preload_dungeon(void)
     scene1_walker_dobj_load((struct IDirect3DDevice8 *)g_scene1_preload_dev);    /* DAT_073cba20: takarabako, obj_door */
     dungeon_hud_load_map((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* map.bmp, DAT_073d8768 */
     scene1_effects_load_dungeon((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* mahoujin.bmp */
+    scene1_dungeon_clear_banner_load((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* dungeon_clear.tga */
     scene_map_meshes_load_misc((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* DAT_073a9658: ice / train_iwa / lattice / vector */
     scene1_preload_floor_sheets();      /* FUN_00473c15 */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
      * meshes of the floor roster (FUN_00431a80), the dungeon title, and
-     * FUN_00474a9a's dungeon arm (the hikari frames, the clear banner). */
+     * FUN_00474a9a's dungeon arm (the hikari frames). */
     scene1_postload_stage_entry_init(); /* FUN_00436f97 */
     return 0;
 }

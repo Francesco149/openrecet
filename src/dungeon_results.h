@@ -27,6 +27,10 @@ void dungeon_results_tick(void);
 void dungeon_results_strip(void);
 void dungeon_results_unpack(void);
 
+/* FUN_0048fdaf: the screen's render (Win32) */
+struct IDirect3DDevice8;
+void dungeon_results_render(struct IDirect3DDevice8 *dev);
+
 /* the screen's state, for the render and state_va */
 extern int32_t g_results_leaving;   /* DAT_074b2f08 */
 extern int32_t g_results_kept_all;  /* DAT_074b2f5c */

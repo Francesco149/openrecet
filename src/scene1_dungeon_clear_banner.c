@@ -11,20 +11,20 @@
 
 /* ─── state ─────────────────────────────────────────────────────────── */
 
-/* Engine DAT_0438be94 / DAT_0438be98.  Both BSS-zero by default. */
-static int32_t g_banner_counter = 0;
-static int32_t g_banner_slice   = 0;
+/* Engine DAT_0438be94 / DAT_0438be98: the floor-end sequence's timer and
+ * kind (dungeon_flow.c's g_floor_end_timer / g_floor_end_kind). */
+#include "dungeon_flow.h"
 
-int32_t scene1_dungeon_clear_banner_get_counter(void) { return g_banner_counter; }
-void    scene1_dungeon_clear_banner_set_counter(int32_t v) { g_banner_counter = v; }
+int32_t scene1_dungeon_clear_banner_get_counter(void) { return g_floor_end_timer; }
+void    scene1_dungeon_clear_banner_set_counter(int32_t v) { g_floor_end_timer = v; }
 
-int32_t scene1_dungeon_clear_banner_get_slice(void) { return g_banner_slice; }
-void    scene1_dungeon_clear_banner_set_slice(int32_t v) { g_banner_slice = v; }
+int32_t scene1_dungeon_clear_banner_get_slice(void) { return g_floor_end_kind; }
+void    scene1_dungeon_clear_banner_set_slice(int32_t v) { g_floor_end_kind = v; }
 
 void    scene1_dungeon_clear_banner_reset(void)
 {
-    g_banner_counter = 0;
-    g_banner_slice   = 0;
+    g_floor_end_timer = 0;
+    g_floor_end_kind  = 0;
 }
 
 /* ─── pure-C helpers (testable without a D3D device) ────────────────── */
@@ -58,12 +58,11 @@ float scene1_dungeon_clear_banner_compute_y(int32_t counter)
 void scene1_dungeon_clear_banner_compute_u(int32_t slice,
                                            float *u0, float *u1)
 {
-    /* Engine L92567-92578.  The slice-1 vs slice-2 u-ranges are
-     * intentionally swapped relative to numeric order:
-     *   slice 0 (or any non-1/2): u = [  0, 128]   left strip
-     *   slice 1:                   u = [256, 384]  right strip
-     *   slice 2:                   u = [128, 256]  middle strip
-     * That's the engine's literal cascade — preserved verbatim. */
+    /* Engine: the strip's rows of dungeon_clear.tga (top, bottom) — the
+     * source rect is (0, top)-(480, bottom):
+     *   kind 1 (the party fell):    rows 256..384  "FAILURE..."
+     *   kind 2 (a return portal):   rows 128..256  "CAME BACK ALIVE!"
+     *   else (3, the last floor's): rows   0..128  "CLEAR!" */
     if (slice == 1) {
         if (u0) *u0 = 256.0f;
         if (u1) *u1 = 384.0f;
@@ -87,18 +86,21 @@ void scene1_dungeon_clear_banner_compute_u(int32_t slice,
 #include "render_quad.h"
 #include "sprite.h"
 
-/* Texture is owned by the asset loader (engine DAT_073cb8e0 — populated
- * by FUN_00474a9a's INGAME branch via FUN_0047193c).  Until the
- * dungeon_clear.tga loader wires in, this stays NULL and the body's
- * draw path is skipped (engine parity: it would crash on SetTexture
- * with a NULL texture anyway, but our render_quad_add is also a no-op
- * with NULL tex_w/h so the safe path is to skip when the asset isn't
- * loaded). */
+/* DAT_073cb8e0: bmp/dungeon_clear.tga (512 x 512), loaded by
+ * FUN_00474a9a's dungeon arm (texture group 3). */
+static sprite_t s_banner_tex;
 static const sprite_t *g_banner_tex = NULL;
 
 void scene1_dungeon_clear_banner_set_texture(const struct sprite_t *spr)
 {
     g_banner_tex = (const sprite_t *)spr;
+}
+
+void scene1_dungeon_clear_banner_load(struct IDirect3DDevice8 *dev)
+{
+    if (s_banner_tex.tex == NULL)
+        (void)sprite_load((IDirect3DDevice8 *)dev, "bmp/dungeon_clear.tga", 512, 512, &s_banner_tex);
+    if (s_banner_tex.tex) g_banner_tex = &s_banner_tex;
 }
 
 void scene1_dungeon_clear_banner_render(struct IDirect3DDevice8 *dev_in)
@@ -115,15 +117,15 @@ void scene1_dungeon_clear_banner_render(struct IDirect3DDevice8 *dev_in)
      * func fires, regardless of whether the body executes). */
     render_quad_state_setup(dev);
 
-    if (g_banner_counter <= 0) return;
+    if (g_floor_end_timer <= 0) return;
 
     /* Body fires only when counter > 0.  Texture-NULL skip preserves
      * crash safety until the loader wires in. */
     if (!g_banner_tex || !g_banner_tex->tex) return;
 
-    const float y    = scene1_dungeon_clear_banner_compute_y(g_banner_counter);
+    const float y    = scene1_dungeon_clear_banner_compute_y(g_floor_end_timer);
     float u0, u1;
-    scene1_dungeon_clear_banner_compute_u(g_banner_slice, &u0, &u1);
+    scene1_dungeon_clear_banner_compute_u(g_floor_end_kind, &u0, &u1);
 
     /* L92566 — SetTexture(stage 0, dungeon_clear_tex). */
     IDirect3DDevice8_SetTexture(dev, 0,
@@ -133,10 +135,9 @@ void scene1_dungeon_clear_banner_render(struct IDirect3DDevice8 *dev_in)
      * 0x43f00000 (480) / 0x43000000 (128).  Y is the animated value. */
     const float dst[4] = { 80.0f, y, 480.0f, 128.0f };
 
-    /* Src (u0, 0, u1-u0, 480) — engine literals: v0=0, v1=480, u-range
-     * from compute_u above.  The engine packs the src rect as
-     * {x, y, w, h} in render_quad_add's calling convention. */
-    const float src[4] = { u0, 0.0f, u1 - u0, 480.0f };
+    /* Src (0, top)-(480, bottom): the engine's {0, top, 480, bottom}
+     * corner pair (FUN_00404efc), the rows from compute_u above. */
+    const float src[4] = { 0.0f, u0, 480.0f, u1 };
 
     render_quad_add(dst, src,
                     g_banner_tex->width, g_banner_tex->height,

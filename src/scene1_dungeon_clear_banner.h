@@ -81,12 +81,12 @@ struct IDirect3DDevice8;
  * SetTexture+quad emit. */
 void scene1_dungeon_clear_banner_render(struct IDirect3DDevice8 *dev);
 
-/* Texture setter — called by the HOUSE/DUNGEON preload chain when
- * `bmp/dungeon_clear.tga` loads.  Currently unwired (the asset isn't
- * in our scene1_preload_house list); the banner stays NULL-tex-skipped
- * until that loader lands. */
+/* Texture setter (test / override hook). */
 struct sprite_t;
 void scene1_dungeon_clear_banner_set_texture(const struct sprite_t *spr);
+
+/* FUN_00474a9a's dungeon arm: bmp/dungeon_clear.tga → DAT_073cb8e0. */
+void scene1_dungeon_clear_banner_load(struct IDirect3DDevice8 *dev);
 
 #endif /* _WIN32 */
 

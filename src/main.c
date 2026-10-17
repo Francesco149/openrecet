@@ -48,6 +48,7 @@
 #include "audio_mci.h"          /* audio_mci_clear (FUN_00451863) */
 #include "worker_load.h"         /* worker_load_set_cb(0, scene_title_reinit) */
 #include "scene_day_end.h"       /* day_end_render — pause action 1 */
+#include "dungeon_results.h"     /* dungeon_results_render — pause action 2 */
 #include "scene_buy.h"
 #include "scene_floor.h"
 #include "scene_jutan.h"
@@ -3507,20 +3508,23 @@ static void render_dispatch(void)
                 pause_menu_render(g_dev);
             else if (g_pause_action == 1)
                 day_end_render(g_dev);                  /* FUN_0048ef00 */
+            else
+                dungeon_results_render(g_dev);          /* FUN_0048fdaf */
         }
     }
 
     /* Engine FUN_004547ab L51237-51239: dungeon-clear banner overlay
-     * (FUN_0048fe43).  Gated on `state==INGAME || (3 < transition_counter
-     * < 0xd)`.  Transition_counter is BSS-zero in our port (the scene-
-     * transition state machine hasn't ported), so only the INGAME arm
-     * fires.  Body is a no-op when its own internal counter is 0 (= the
+     * (FUN_0048fe43).  Gated on `state==INGAME || (3 < DAT_06a4999c
+     * <= 12)` — the pause slide ramp, so the results screen keeps its
+     * "FAILURE..." / "CLEAR!" strip.  Body is a no-op when its counter is 0 (= the
      * banner isn't currently animating) but still calls
      * render_quad_state_setup as a state-write side effect — that's why
      * we call it unconditionally on INGAME frames, not gated on the
      * counter (the counter gate lives inside the function). */
-    if (g_scene_state == SCENE_STATE_INGAME) {
-        scene1_dungeon_clear_banner_render(g_dev);
+    {
+        int32_t v99c = sim_get_counter_99c();
+        if (g_scene_state == SCENE_STATE_INGAME || (v99c > 3 && v99c <= 12))
+            scene1_dungeon_clear_banner_render(g_dev);
     }
 
     /* Engine FUN_004547ab L202: scene-fade alpha quad. Runs after the

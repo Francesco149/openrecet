@@ -126,10 +126,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:440 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:943 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
+| FUN_00469b3a | src/scene1_display_menu.c:945 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:656 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:284 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:326 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:285 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0047f46a | src/scene1_sim.c:255 | equip the bag's items |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |

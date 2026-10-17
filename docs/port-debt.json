@@ -522,7 +522,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026) is unported; the scene-6 trend multipliers are live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 943,
+   "line": 945,
    "kind_known": true
   },
   {
@@ -538,7 +538,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets (see",
    "file": "src/scene1_preload.c",
-   "line": 284,
+   "line": 285,
    "kind_known": true
   },
   {
@@ -546,7 +546,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets \u2014 the enemy",
    "file": "src/scene1_preload.c",
-   "line": 326,
+   "line": 328,
    "kind_known": true
   },
   {

@@ -1362,6 +1362,7 @@
     "src/render_quad.c",
     "src/render_quad.h",
     "src/scene1_counter_menu.c",
+    "src/scene1_dungeon_clear_banner.c",
     "src/scene1_fps.c",
     "src/scene1_hud.c",
     "src/scene_town_event.c",
@@ -5901,6 +5902,7 @@
    "src": [
     "src/choice_box.c",
     "src/choice_box.h",
+    "src/dungeon_results.c",
     "src/main.c",
     "src/scene1_dialogue_draw.c",
     "src/scene1_display_menu.c",
@@ -12452,6 +12454,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/dungeon_results.c",
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
@@ -13908,7 +13911,6 @@
    "quality_flags": [],
    "src": [
     "src/d3d_tex_names.h",
-    "src/scene1_dungeon_clear_banner.c",
     "src/scene1_preload.c",
     "src/scene_buy.c",
     "src/scene_floor.c",
@@ -15140,6 +15142,7 @@
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_dungeon_clear_banner.c",
+    "src/scene1_dungeon_clear_banner.h",
     "src/scene1_effects.h",
     "src/scene1_postload.c",
     "src/scene1_preload.c",
@@ -15938,6 +15941,7 @@
    "quality_flags": [],
    "src": [
     "src/choice_box.c",
+    "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/font.h",
     "src/font_draw.c",
@@ -18764,6 +18768,9 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
+    "src/dungeon_results.h",
+    "src/main.c",
     "src/scene1_display_menu.c"
    ],
    "status": "ported"
@@ -21337,6 +21344,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_results.c",
     "src/main.c",
     "src/render_quad.c",
     "src/render_quad.h",
