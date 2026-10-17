@@ -882,6 +882,237 @@ static void dungeon2_event_tick(void)
     ++g_event_tick;
 }
 
+actor_t *g_boss_run_boss;          /* DAT_06a470c8: the boss FUN_00450ee0 places */
+
+/* FUN_00450ee0: dungeon 5's floor setup — its own floors and the boss runs
+ * (the guild's "Boss Rush": floors 30.. by DAT_0438b4d0).  09643128 = floor
+ * >= 30, b4e8 = 0.  Floors 29 / 59: the party in a row (1.5 apart) at the start,
+ * the spent return portal (kind 6) at (-48, 0, -42) and the start-floor
+ * portals (kind 4: 3, or on floor 29 by b4d8 — 10: 2, 20: 1).  Floor 58: the
+ * final boss (types 73..76, five movers), the floor's portal, the arena camera
+ * and the party column.  41 / 56: the golem parts (61..63 / 64..66) at
+ * (-40, -12, -35), then the arena.  45: type 72 at (-35, 20, -25), the arena.
+ * 37: the portal at (-45, 0, 65), the party column at x -40, type 27 at
+ * (-40, 0, -40).  Any other floor >= 30: the arena FUN_0044cc80(2). */
+static actor_t *stage5_spawn(float x, float y, float z, int32_t type)
+{
+    const uint8_t *w = save_work_bank_at(save_work_active_slot());
+    const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                               stage_post_load_get_mode_b4d0(), g_ghost_count,
+                               w ? w[0x2bc57] : 0 };
+    return actor_spawn_enemy(&st, x, y, z, type);   /* FUN_0041f903 */
+}
+
+static void stage5_floor_portal(const float p[3])
+{
+    static const float k0p35 = 0.3499999940395355f, k0p5 = 0.5f;
+    if (stage_post_load_get_mode_b4d0() >= 0 && g_dat_0438b4d4 == boss_run_floors() - 1) {
+        const float sc[3] = { k0p35, k0p35, k0p35 };
+        dobj_spawn_special(0, 6, p, sc, 0.0f);       /* FUN_0044b257 */
+    } else {
+        const float sc[3] = { k0p5, k0p5, k0p5 };
+        dobj_spawn_special(0, 8, p, sc, 0.0f);
+    }
+}
+
+void dungeon5_stage_setup(void)
+{
+    static const float k1p5 = 1.5f, km48 = -48.0f, km42 = -42.0f, k0p35 = 0.3499999940395355f;
+    static const float k0p5 = 0.5f, k2 = 2.0f, k10 = 10.0f, km53 = -53.0f, km27 = -27.0f;
+    static const float km35 = -35.0f, km40 = -40.0f, k1 = 1.0f, km32 = -32.0f, km47 = -47.0f;
+    static const float k5 = 5.0f, km73 = -73.0f, km60 = -60.0f, km12 = -12.0f, k20 = 20.0f;
+    static const float km25 = -25.0f, km45 = -45.0f, k65 = 65.0f, km54 = -54.0f, k1p3 = 1.2999999523162842f;
+    const int32_t floor = stage_gate_get_next();
+    g_dat_09643128 = floor >= 30;
+    g_scene1_camera_stage_class = 0;             /* DAT_0438b4e8 */
+    float *dp = g_scene1_stage_player_default_pos;   /* DAT_0438b1ec / f0 / f4 */
+    switch (floor) {
+    case 29:
+    case 59: {
+        PW(0x56db05cu).f = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            const float o = spill32((long double)spill32((long double)i) * k1p5);
+            g_party.pos[i][0] = spill32((long double)o + dp[0]);
+            g_party.pos[i][1] = dp[1];
+            g_party.pos[i][2] = spill32((long double)dp[2] - o);
+        }
+        const float rp[3] = { km48, 0.0f, km42 };
+        const float rs[3] = { k0p35, k0p35, k0p35 };
+        dobj_spawn(rp, rs, 0.0f, 6);             /* FUN_0044ad81 */
+        int n = 3;
+        if (floor == 29) {
+            if (g_dat_0438b4d8 == 10) n = 2;
+            if (g_dat_0438b4d8 == 20) n = 1;
+        }
+        const float ps[3] = { k0p5, k0p5, k0p5 };
+        for (int k = 0; k != n; k++) {
+            float p[3] = { dp[0], k2, spill32((long double)dp[2] + k10) };
+            if (k == 2) { p[0] = km27; p[1] = 0.0f; p[2] = km35; }
+            if (k == 1) { p[0] = km53; p[1] = 0.0f; p[2] = km35; }
+            dobj_spawn(p, ps, 0.0f, 4);
+        }
+        break;
+    }
+    case 58: {
+        g_mapcol_movers.on[0] = 5;
+        for (int i = 1; i <= 6; i++) {
+            g_mapcol_movers.x[i] = km40;
+            g_mapcol_movers.y[i] = 0.0f;
+            g_mapcol_movers.z[i] = km40;
+            g_mapcol_movers.on[i] = 1;
+            g_mapcol_movers.on[50 + i] = 100;    /* DAT_0438c218[i] */
+            g_mapcol_movers.slot[50 + i] = 0;    /* DAT_0438c3a8[i] */
+            g_mapcol_movers.slot[i] = i;
+            g_mapcol_movers.f6c8[i] = k1;
+            g_mapcol_movers.f790[i] = 0.0f;
+        }
+        actor_t *a = stage5_spawn(km40, k1, km40, 73);
+        if (a != NULL) {
+            act_seti(a, ACT_INUSE, 1);
+            act_seti(a, 0xa54, 8);
+        }
+        stage5_spawn(km40, k1, km40, 74);
+        a = stage5_spawn(km32, k1, km40, 75);
+        if (a != NULL) act_seti(a, 0xa54, 8);
+        a = stage5_spawn(km48, k1, km40, 76);
+        if (a != NULL) act_seti(a, 0xa54, 8);
+        const float pp[3] = { km40, 0.0f, km47 };
+        stage5_floor_portal(pp);
+        g_cam_blend = 1;
+        g_cam_blend_x = km40;
+        g_scene1_camera_stage_class = 2;
+        g_cam_blend_y = 0.0f;
+        g_cam_blend_z = km40;
+        PW(0x56db05cu).f = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            const float fi = spill32((float)i);
+            g_party.pos[i][0] = spill32((long double)fi + dp[0]);
+            g_party.pos[i][1] = dp[1];
+            g_party.pos[i][2] = spill32(((long double)dp[2] - k5) - fi);
+            party_anim_set(g_party.rec[i], 0);   /* FUN_00482a51 */
+            g_party.rec[i][6] = 0;
+        }
+        g_scene1_camera_stage_class = 3;
+        g_cut_follow_x = km40;
+        g_cut_follow_y = 0.0f;
+        g_cut_follow_z = km73;
+        dp[0] = km40;
+        dp[1] = 0.0f;
+        dp[2] = km60;
+        break;
+    }
+    case 41:
+    case 56:
+        for (int i = 0; i != 3; i++) {
+            actor_t *a = stage5_spawn(km40, km12, km35, i + (floor == 41 ? 61 : 64));
+            if (a == NULL) continue;             /* retail does not check */
+            if (i != 0) act_seti(a, 0xa04, 0);
+            act_seti(a, 0xa54, 8);
+        }
+        boss_floor_setup(2);                     /* FUN_0044cc80(2) */
+        break;
+    case 45: {
+        actor_t *a = stage5_spawn(km35, k20, km25, 72);
+        g_boss_run_boss = a;
+        if (a != NULL) {
+            act_seti(a, ACT_INUSE, 1);
+            act_seti(a, 0xa54, 8);
+        }
+        boss_floor_setup(2);
+        break;
+    }
+    case 37: {
+        const float pp[3] = { km45, 0.0f, k65 };
+        stage5_floor_portal(pp);
+        for (int i = 0; i < 3; i++) {
+            g_party.pos[i][0] = km40;
+            g_party.pos[i][1] = 0.0f;
+            g_party.pos[i][2] = spill32((long double)km54 - (long double)spill32((float)i) * k1p3);
+            party_anim_set(g_party.rec[i], 0);
+            g_party.rec[i][6] = 0;
+        }
+        PW(0x56db05cu).f = 0.0f;
+        g_event_stage = 0;                       /* DAT_0438b8a0 */
+        actor_t *a = stage5_spawn(km40, 0.0f, km40, 27);
+        g_boss_run_boss = a;
+        if (a != NULL) {
+            act_seti(a, ACT_INUSE, 1);
+            act_seti(a, 0xa54, 8);
+        }
+        g_dat_0438b8a8 = 0;
+        break;
+    }
+    default:
+        if (floor >= 30) boss_floor_setup(2);
+        break;
+    }
+    g_event_tick = 0;                            /* DAT_0438b8a4 */
+}
+
+/* FUN_00451546: dungeon 5's events.  Floors 29 / 59: the return portal
+ * stays down (FUN_0044b2e6(0)); for 371 ticks the controls lock, the party
+ * fades in from 350 (scale_xz 0 → 1, scale_y 2 → 1 at 0.1 a tick) and the
+ * camera swings round the player (radius 15, height 40 → 15).  58: the
+ * checkpoint event, b4e8 3 while the camera is held.  37: Tielle's timeline
+ * FUN_0044db3c(1).  Other floors >= 30: FUN_0044d0a4(1).  Then 09643128 (the
+ * floor's no-exit flag): 0 on 59; on a boss run's floors, 1 unless it is the
+ * run's last; b8a4++. */
+static void dungeon5_event_tick(void)
+{
+    static const float k0p1 = 0.10000000149011612f, k2 = 2.0f, k1 = 1.0f, k40 = 40.0f;
+    static const float k1_14 = 0.0714285746216774f, k15 = 15.0f, k5 = 5.0f;
+    static const float kpi2 = 1.5707963705062866f, k350 = 350.0f;
+    const int32_t floor = stage_gate_get_next();
+    if (floor == 29 || floor == 59) {
+        dobj_raise_special(0);                   /* FUN_0044b2e6(0) */
+        const int32_t t = g_event_tick;
+        g_ctrl_lock = -1;
+        g_scene1_camera_stage_class = 0;
+        if (t < 371) {
+            g_ctrl_lock = 0;
+            g_scene1_camera_stage_class = 1;
+            for (int i = 0; i < 3; i++) {
+                g_party.rec[i][6] = 0;
+                g_party.scale_xz[i] = 0.0f;
+                g_party.scale_y[i] = 1.0f;
+                if (t >= 350) {
+                    const float v = spill32((long double)spill32((float)(t - 350)) * k0p1);
+                    g_party.scale_xz[i] = v;
+                    g_party.scale_y[i] = spill32((long double)k2 - v);
+                    if (g_party.scale_xz[i] > k1) g_party.scale_xz[i] = 1.0f;
+                    if (g_party.scale_y[i] < k1) g_party.scale_y[i] = 1.0f;
+                }
+            }
+            const float ft = spill32((float)g_event_tick);
+            float h = spill32((long double)k40 - (long double)ft * k1_14);
+            if (h < k15) h = k15;
+            float look[3] = { g_party.pos[0][0], k5, g_party.pos[0][2] };
+            float a = spill32((long double)ft * kpi2 / k350 - kpi2);
+            if (a > 0.0f) a = 0.0f;
+            const double ad = a;
+            const float sn = spill32(x87_crt_sin(ad));
+            const float cs = spill32(x87_crt_cos(ad));
+            const float eye[3] = { spill32((long double)sn * k15 + look[0]), h,
+                                   spill32((long double)look[2] - (long double)cs * k15) };
+            scene1_camera_set_targets(eye, look);
+        }
+    } else if (floor == 58) {
+        boss_floor_event(1);                     /* FUN_0044d0a4(1) */
+        if (g_scene1_camera_stage_class != 0) g_scene1_camera_stage_class = 3;
+    } else if (floor == 37) {
+        /* PORT-DEBT(stub, FUN_0044db3c): Tielle's timeline (arg 1, the boss run) */
+    } else if (floor >= 30) {
+        boss_floor_event(1);
+    }
+    if (floor == 59) {
+        g_dat_09643128 = 0;
+    } else if (floor >= 30) {
+        if (stage_post_load_get_mode_b4d0() < 0 || g_dat_0438b4d4 != boss_run_floors() - 1)
+            g_dat_09643128 = 1;
+    }
+    ++g_event_tick;
+}
+
 /* FUN_004427f1: the house's story cascade, or the dungeon's events. */
 void dungeon_event_tick(void)
 {
@@ -895,10 +1126,14 @@ void dungeon_event_tick(void)
     case 2:
         dungeon2_event_tick();          /* inline in FUN_004427f1 */
         break;
-    default:
-        /* PORT-DEBT(stub, FUN_004427f1): dungeons 3..5's events — the
+    case 3:
+    case 4:
+        /* PORT-DEBT(stub, FUN_004427f1): dungeons 3 / 4's events — the
          * dungeon-3 arm inline in FUN_004427f1 (the b8a4 timelines on floors
-         * 29 / 49), FUN_00450877, FUN_00451546. */
+         * 29 / 49), FUN_00450877. */
+        break;
+    default:
+        dungeon5_event_tick();          /* FUN_00451546 */
         break;
     }
 }

@@ -53,6 +53,7 @@ void dobj_raise_special(int role);   /* FUN_0044b2e6 */
 void dobj_rise_tick(void);            /* FUN_0044b38c */
 void dungeon1_stage_setup(void);      /* FUN_0044d1e4 (FUN_00436f97's dungeon-1 arm) */
 void dungeon2_stage_setup(void);      /* FUN_0044d9d3 (FUN_00436f97's dungeon-2 arm) */
+void dungeon5_stage_setup(void);      /* FUN_00450ee0 (dungeon 5 + the boss runs) */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */
 extern int32_t g_dat_0438b8d4;       /* the HP-check voice countdown (FUN_0048b3f6) */

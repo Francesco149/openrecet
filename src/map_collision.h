@@ -80,13 +80,16 @@ typedef struct {
     float   z[MAPCOL_OBJS];     /* DAT_0438c0f8 */
 } mapcol_objs_t;
 
-/* DAT_0438c150..: moving collision objects (on[0] = count). */
+/* DAT_0438c150..: moving collision objects (on[0] = count); retail's arrays are
+ * 50 long, so on[50..] is DAT_0438c218 and slot[50..] DAT_0438c3a8. */
 typedef struct {
     int32_t on[100];            /* DAT_0438c150 */
     int32_t slot[100];          /* DAT_0438c2e0 */
     float   x[MAPCOL_MOVERS];   /* DAT_0438c470 */
     float   y[MAPCOL_MOVERS];   /* DAT_0438c538 */
     float   z[MAPCOL_MOVERS];   /* DAT_0438c600 */
+    float   f6c8[MAPCOL_MOVERS];   /* DAT_0438c6c8 (1.0 from FUN_00450ee0's floor 58) */
+    float   f790[MAPCOL_MOVERS];   /* DAT_0438c790 */
 } mapcol_movers_t;
 
 /* The query output (FUN_00432e50 a4 / FUN_00433674 a8), 0x44 bytes. */

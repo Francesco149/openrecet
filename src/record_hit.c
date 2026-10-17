@@ -161,11 +161,20 @@ int32_t enemy_drop_pick(int32_t type, int32_t rarity, int32_t var)
         }
         return -1;
     }
+    /* a boss run (DAT_0438b4d0 = its dungeon) reads that dungeon's tables at
+     * the boss floor of its stage DAT_0438b4d4 (DAT_005adb68 / 74 / 88 / a8) */
+    static const int32_t k_run1[3] = { 4, 9, 14 };
+    static const int32_t k_run2[5] = { 4, 9, 19, 24, 29 };
+    static const int32_t k_run3[8] = { 4, 9, 14, 19, 29, 39, 44, 49 };
+    static const int32_t k_run4[13] = { 4, 9, 14, 19, 24, 34, 39, 49, 54, 59, 69, 89, 99 };
     int32_t dg = g_scene1_combat_stage_id, fl = stage_gate_get_next();
-    if (stage_post_load_get_mode_b4d0() >= 0) {
-        dg = stage_post_load_get_mode_b4d0();
-        /* PORT-DEBT(stub, FUN_0043183e): the event floors' floor tables
-         * DAT_005adb68 / 74 / 88 / a8 by DAT_0438b4d4 */
+    const int32_t mode = stage_post_load_get_mode_b4d0(), st = g_dat_0438b4d4;
+    if (mode >= 0) {
+        dg = mode;
+        if (mode == 1 && st >= 0 && st < 3) fl = k_run1[st];
+        if (mode == 2 && st >= 0 && st < 5) fl = k_run2[st];
+        if (mode == 3 && st >= 0 && st < 8) fl = k_run3[st];
+        if (mode == 4 && st >= 0 && st < 13) fl = k_run4[st];
     }
     if (dg < 0 || dg >= ENEMYLIST_DUNGEON_SLOTS) return -1;
     for (int s = 0; s < ENEMYLIST_SECTIONS_PER_DUNGEON; s++) {
