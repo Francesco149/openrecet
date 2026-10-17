@@ -777,6 +777,48 @@ static int parse_mesh_material_list(P *p, xfile_mesh *m,
     return 1;
 }
 
+/* SkinWeights { "bone"; n; idx,…; w,…; offset16;; } — the caller consumed LBR */
+static int parse_skin_weights(P *p, xfile_mesh *m)
+{
+    skip_optional_uuid(p);
+    xfile_skin sk;
+    memset(&sk, 0, sizeof sk);
+    const xtok *t = advance(p);
+    if (t->kind != T_STR) { set_error(p->out, t->line, "SkinWeights: expected bone name"); return 0; }
+    size_t n = t->slen < XFILE_NAME_MAX - 1 ? t->slen : XFILE_NAME_MAX - 1;
+    memcpy(sk.bone, t->str, n);
+    if (!expect(p, T_SEM, ";")) return 0;
+    if (!eat_int32(p, &sk.n) || !expect(p, T_SEM, ";")) return 0;
+    if (sk.n < 0) { set_error(p->out, 0, "SkinWeights: bad count"); return 0; }
+    if (sk.n > 0) {
+        sk.idx = (int32_t *)calloc((size_t)sk.n, sizeof *sk.idx);
+        sk.w = (float *)calloc((size_t)sk.n, sizeof *sk.w);
+        if (!sk.idx || !sk.w) { free(sk.idx); free(sk.w); set_error(p->out, 0, "oom skin"); return 0; }
+        for (int32_t i = 0; i < sk.n; i++) {
+            if (!eat_int32(p, &sk.idx[i])) goto fail;
+            if (!expect(p, i < sk.n - 1 ? T_COM : T_SEM, i < sk.n - 1 ? "," : ";")) goto fail;
+        }
+        for (int32_t i = 0; i < sk.n; i++) {
+            double v;
+            if (!eat_number(p, &v)) goto fail;
+            sk.w[i] = (float)v;
+            if (!expect(p, i < sk.n - 1 ? T_COM : T_SEM, i < sk.n - 1 ? "," : ";")) goto fail;
+        }
+    }
+    if (!read_matrix16(p, sk.offset)) goto fail;
+    {
+        xfile_skin *ns = (xfile_skin *)realloc(m->skins, (size_t)(m->skin_count + 1) * sizeof *ns);
+        if (!ns) goto fail;
+        m->skins = ns;
+        m->skins[m->skin_count++] = sk;
+    }
+    return 1;
+fail:
+    free(sk.idx);
+    free(sk.w);
+    return 0;
+}
+
 static int parse_mesh_body(P *p, const char *name, const char *frame_path,
                            xfile_mesh **out_meshes, int32_t *out_n, size_t *out_cap,
                            xfile_material **gmats, int32_t *ngmats, size_t *gmats_cap,
@@ -850,6 +892,8 @@ static int parse_mesh_body(P *p, const char *name, const char *frame_path,
             if (!parse_mesh_material_list(p, m, gmats, ngmats, gmats_cap, texcap)) return 0;
         } else if (IS("MeshVertexColors")) {
             if (!parse_mesh_vertex_colors(p, m)) return 0;
+        } else if (IS("SkinWeights")) {
+            if (!parse_skin_weights(p, m)) return 0;
         } else {
             skip_block_body(p);
         }
@@ -1096,6 +1140,8 @@ void xfile_free(xfile_t *x)
         free(m->face_material_indexes);
         free(m->material_refs);
         free(m->inline_materials);
+        for (int32_t k = 0; k < m->skin_count; k++) { free(m->skins[k].idx); free(m->skins[k].w); }
+        free(m->skins);
     }
     free(x->meshes);
     for (int32_t i = 0; i < x->frame_count; i++) {

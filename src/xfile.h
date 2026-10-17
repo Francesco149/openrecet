@@ -5,10 +5,10 @@
  *
  * Mirrors the Python oracle at `tools/extract/xfile.py` — same templates
  * recognized, same skip-and-count behaviour for unknown templates.
- * Skinning (SkinWeights / XSkinMeshHeader) and animation (Animation /
- * AnimationSet / AnimationKey) are silently skipped; they ship only in
- * `xfile2/` for character meshes and land with the character-rendering
- * port months out.
+ * SkinWeights are kept per Mesh (bone name, vertices, weights, offset);
+ * XSkinMeshHeader and the animations (Animation / AnimationSet /
+ * AnimationKey) are skipped here — `xfile_parse_hier` reads the frame tree
+ * and the animations.
  *
  * Spec: docs/formats/xfile.md (includes the four exporter quirks the
  * Python oracle surfaced — vertex-color separator polymorphism, mesh
@@ -82,6 +82,16 @@ typedef struct {
  * NULL means the corresponding sub-template wasn't present (e.g.
  * `normals == NULL` for a Mesh without MeshNormals).
  */
+/* SkinWeights: one bone's influence on a Mesh — the vertices it moves, their
+ * weights, and the bone's offset matrix (mesh space → bone space) */
+typedef struct {
+    char     bone[XFILE_NAME_MAX];
+    int32_t  n;
+    int32_t *idx;
+    float   *w;
+    float    offset[16];
+} xfile_skin;
+
 typedef struct {
     char     name[XFILE_NAME_MAX];
     char     frame_path[256];        /* "/A/B/Box01"; empty for top-level meshes */
@@ -121,6 +131,10 @@ typedef struct {
     char        (*material_refs)[XFILE_NAME_MAX];
     int32_t       inline_material_count;
     xfile_material *inline_materials;
+
+    /* SkinWeights (none: a rigid Mesh in its Frame) */
+    int32_t       skin_count;
+    xfile_skin   *skins;
 } xfile_mesh;
 
 /*

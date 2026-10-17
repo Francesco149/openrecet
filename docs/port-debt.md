@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **77**
-- distinct retiring engine functions: **59**
+- total open debts: **76**
+- distinct retiring engine functions: **58**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 56 | wired call boundary, body incomplete |
+| stub | 55 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -66,7 +66,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
-| FUN_00459847 | 1 |
 | FUN_004682ee | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
@@ -90,7 +89,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (56)
+## stub (55)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -123,14 +122,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044db3c | src/dungeon_flow.c:1105 | Tielle's timeline (arg 1, the boss run) |
 | FUN_0044f078 | src/dungeon_party.c:651 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
-| FUN_00459847 | src/scene1_walker_pass_init.c:593 | the |
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:440 | the removal is unported, |
 | FUN_00469b3a | src/scene1_display_menu.c:943 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:656 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:280 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:319 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:283 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:324 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0047f46a | src/scene1_sim.c:255 | equip the bag's items |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
@@ -191,7 +189,7 @@ _none_
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:800 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1513 | the menu, note, lecture and |
-| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:519 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048196b | src/scene_pause.c:1921 | the dungeon's Use / Throw |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2093 | the eye / lookat writes); the |

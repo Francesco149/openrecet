@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 694,
-  "inv_discovered": 1763,
-  "referenced_or_better": 785,
-  "pct_referenced_or_better": 30.8,
+  "inv_source_referenced": 696,
+  "inv_discovered": 1761,
+  "referenced_or_better": 787,
+  "pct_referenced_or_better": 30.9,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 93,
+  "port_debt": 92,
   "verified": 81,
   "stubbed": 10,
-  "ported": 694,
-  "unported": 1763,
-  "touched": 785,
-  "pct_touched": 30.8,
+  "ported": 696,
+  "unported": 1761,
+  "touched": 787,
+  "pct_touched": 30.9,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -433,6 +433,7 @@
    "quality_flags": [],
    "src": [
     "src/model_anchor.c",
+    "src/model_anchor.h",
     "src/xfile.c",
     "src/xfile.h"
    ],
@@ -484,18 +485,20 @@
    "size": 917,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/mesh_load.h"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x402e1b",
@@ -681,18 +684,20 @@
    "size": 176,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_walker_pass_init.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x403c1e",
@@ -751,6 +756,7 @@
    "src": [
     "src/actor_ai.c",
     "src/model_anchor.c",
+    "src/model_anchor.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"
@@ -816,7 +822,8 @@
    "src": [
     "src/scene1_render.c",
     "src/scene1_render.h",
-    "src/scene1_shop_walker.h"
+    "src/scene1_shop_walker.h",
+    "src/scene1_walker_pass_init.c"
    ],
    "status": "ported"
   },
@@ -940,7 +947,8 @@
    "src": [
     "src/scene1_render.c",
     "src/scene1_render.h",
-    "src/scene1_shop_walker.h"
+    "src/scene1_shop_walker.h",
+    "src/scene1_walker_pass_init.c"
    ],
    "status": "ported"
   },
@@ -1008,6 +1016,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/model_render.c",
+    "src/model_render.h",
     "src/scene1_render.c",
     "src/scene1_render.h",
     "src/scene1_shop_walker.c",
@@ -2366,6 +2376,7 @@
    "src": [
     "src/scene1_bg_npc.c",
     "src/scene1_chr_shadow.c",
+    "src/scene1_effects.c",
     "src/scene1_shop_walker.c"
    ],
    "status": "ported"
@@ -2388,6 +2399,7 @@
    "quality_flags": [],
    "src": [
     "src/actor_spawn.h",
+    "src/scene1_effects.c",
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
     "src/scene1_postload.c",
@@ -3149,6 +3161,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_effects.c",
+    "src/scene1_effects.h",
     "src/scene1_maplight.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
@@ -9123,6 +9137,7 @@
    "src": [
     "src/mesh_draw.c",
     "src/mesh_draw.h",
+    "src/model_render.c",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_render.c",
@@ -9252,6 +9267,7 @@
    "quality_flags": [],
    "src": [
     "src/model_anchor.c",
+    "src/model_render.h",
     "src/scene1_bg_npc.h",
     "src/scene1_chr_walker.h",
     "src/scene1_player_ctrl.c",
@@ -9331,6 +9347,8 @@
    "src": [
     "src/model_anchor.c",
     "src/model_anchor.h",
+    "src/model_render.c",
+    "src/model_render.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_render.c",
@@ -9360,6 +9378,7 @@
     "src/chr_sprite_meta.h",
     "src/main.c",
     "src/model_anchor.c",
+    "src/model_render.h",
     "src/scene1_camera.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
@@ -9545,6 +9564,7 @@
     "src/mesh_draw.h",
     "src/model_anchor.c",
     "src/model_anchor.h",
+    "src/model_render.h",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_chr_prepass.h",
@@ -14820,6 +14840,7 @@
    "src": [
     "src/dungeon_hud.h",
     "src/model_anchor.c",
+    "src/model_render.h",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene_adv_guild.c",
@@ -15103,12 +15124,15 @@
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_dungeon_clear_banner.c",
+    "src/scene1_effects.h",
     "src/scene1_postload.c",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h",
     "src/scene1_shop_walker_helpers.c",
+    "src/scene1_walker_pass_init.c",
+    "src/scene1_walker_pass_init.h",
     "src/scene_adv_guild.c",
     "src/scene_floor.h",
     "src/scene_jutan.h",

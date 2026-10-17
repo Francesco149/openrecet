@@ -9,6 +9,7 @@
  */
 
 #include "scene1_shop_walker.h"
+#include "model_render.h"   /* FUN_00456d48 */
 
 #ifdef _WIN32
 
@@ -632,37 +633,11 @@ static void sw_pass_e(IDirect3DDevice8 *dev)
     (void)outer_count;
 }
 
-/* Pass F walks the same table as Pass A.  Per-record (after the
- * gate cascade — ACTIVE != 0, type-enable table flag == 1, STATUS_F
- * == 0xff) calls FUN_00456d48(slot - 0x109).  FUN_00456d48 is a 526-
- * byte scene-tree dispatcher we haven't ported; the walker dispatches
- * through sw_pass_f_fire_emit which routes to a host-installable
- * hook (default no-op).
- *
- * Dormant in HOUSE: count_stub returns 0; even with records populated
- * the type-enable table at DAT_005c2410 is BSS-zero so every record
- * fails the second gate. */
+/* Pass F: the opaque model enemies (in use, enemy record +0x20 == 1, +0x3dc
+ * 255) — FUN_00456d48 for each (model_render). */
 static void sw_pass_f(IDirect3DDevice8 *dev)
 {
-    (void)dev;  /* Pass F doesn't write SetTransform itself — the
-                 * scene-tree dispatcher inside FUN_00456d48 does. */
-    int count = sw_pass_af_count();
-    if (count == 0) return;
-
-    for (int i = 0; i < count; i++) {
-        const int32_t *slot = sw_pass_af_slot(i);
-        if (!slot) continue;
-
-        int32_t type = slot[SCENE1_RECORDS_SHOP_OFF_TYPE];
-        int type_enabled = sw_pass_f_type_enabled(type);
-        if (!sw_pass_f_should_emit(slot, type_enabled)) continue;
-
-        /* Engine: FUN_00456d48(slot - 0x109).  The -0x109 dw offset
-         * (= -0x424 bytes) points at the scene-tree record header
-         * embedded in the parent shop record.  HOUSE: no-op default
-         * since FUN_00456d48 isn't ported. */
-        sw_pass_f_fire_emit(slot - 0x109);
-    }
+    model_render_pass((struct IDirect3DDevice8 *)dev, 0);
 }
 
 /* ─── player/companion billboard draw (engine FUN_004552d0 L357-454) ─────

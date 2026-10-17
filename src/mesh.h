@@ -59,6 +59,8 @@ typedef struct {
     int32_t index_offset;
     int32_t index_count;
     int32_t material_index;   /* -1 if no material assigned */
+    char    frame[64];        /* the source Mesh's innermost Frame ("" top level) */
+    int32_t xmesh;            /* the source Mesh's index in the .x */
 } mesh_submesh;
 
 /*
@@ -70,6 +72,7 @@ typedef struct {
 
     int32_t        vertex_count;
     mesh_vertex   *vertices;
+    int32_t       *src_vertex;    /* per vertex: its Mesh's vertex index (skinning) */
 
     int32_t        index_count;
     uint16_t      *indices;       /* triangle-list; 16-bit (no shipping .x exceeds 65535) */
@@ -109,6 +112,11 @@ typedef struct {
  * copies everything it needs.
  */
 mesh_t *mesh_build_from_xfile(const xfile_t *xf);
+
+/* 0: leave each Mesh in its own Frame's space (a hierarchical model draws
+ * every submesh with its frame's combined matrix); 1 (default): bake the
+ * Frame transforms in, D3DXLoadMeshFromX's flattening */
+void mesh_build_set_bake_frames(int on);
 
 /*
  * Compute centroid + radius across all vertices. Idempotent.

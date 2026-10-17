@@ -162,6 +162,9 @@ static int grow_vertices(mesh_t *m, int32_t need, int32_t *cap_inout)
     mesh_vertex *nv = (mesh_vertex *)realloc(m->vertices, (size_t)nc * sizeof *nv);
     if (!nv) { mesh_set_error(m, "oom vertices"); return 0; }
     m->vertices = nv;
+    int32_t *ns = (int32_t *)realloc(m->src_vertex, (size_t)nc * sizeof *ns);
+    if (!ns) { mesh_set_error(m, "oom vertices"); return 0; }
+    m->src_vertex = ns;
     *cap_inout = nc;
     return 1;
 }
@@ -332,6 +335,11 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
     sm->vertex_offset  = m->vertex_count;
     sm->index_offset   = m->index_count;
     sm->material_index = mat_index;
+    {
+        const char *fp = xm->frame_path, *slash = strrchr(fp, '/');
+        strncpy(sm->frame, slash ? slash + 1 : fp, sizeof sm->frame - 1);
+        sm->frame[sizeof sm->frame - 1] = '\0';
+    }
 
     int32_t v0 = m->vertex_count;
     int32_t i0 = m->index_count;
@@ -356,6 +364,7 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                 int32_t vi = face->verts[corner];
                 mesh_vertex *out = &m->vertices[m->vertex_count];
                 memset(out, 0, sizeof *out);
+                m->src_vertex[m->vertex_count] = vi;
                 if (vi >= 0 && vi < xm->vertex_count) {
                     float pin[3]  = { xm->vertices[vi].x,
                                       xm->vertices[vi].y,
@@ -417,6 +426,9 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
 
 /* ───── Public API ────────────────────────────────────────────────────── */
 
+static int s_bake_frames = 1;
+void mesh_build_set_bake_frames(int on) { s_bake_frames = on ? 1 : 0; }
+
 mesh_t *mesh_build_from_xfile(const xfile_t *xf)
 {
     mesh_t *m = (mesh_t *)calloc(1, sizeof *m);
@@ -441,7 +453,7 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
          * is_identity flag. */
         float frame_M[16];
         int   frame_M_is_identity = 0;
-        if (xm->frame_path[0]) {
+        if (xm->frame_path[0] && s_bake_frames) {
             accumulate_frame_transform(xf, xm->frame_path, frame_M);
         } else {
             static const float ident[16] = {
@@ -473,6 +485,7 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
         }
 
         for (int32_t s = 0; s < nseen; s++) {
+            const int32_t before = m->submesh_count;
             if (!emit_submesh(m, xm, seen[s], face_mat_map,
                               frame_M, frame_M_is_identity,
                               &v_cap, &i_cap, &s_cap))
@@ -480,6 +493,7 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
                 free(face_mat_map);
                 return m;
             }
+            for (int32_t k = before; k < m->submesh_count; k++) m->submeshes[k].xmesh = mi;
         }
         free(face_mat_map);
     }
@@ -534,6 +548,7 @@ void mesh_free(mesh_t *m)
     mesh_release_d3d8(m);
 #endif
     free(m->vertices);
+    free(m->src_vertex);
     free(m->indices);
     free(m->submeshes);
     free(m->materials);

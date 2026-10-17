@@ -188,6 +188,10 @@ int  mesh_tex_cache_lookup_or_reserve(const char *texture_name,
  */
 mesh_t *mesh_load(const char *xfile_path, int param_3);
 
+/* mesh_load with each Mesh left in its own Frame's space (the submeshes name
+ * their frame) — the hierarchical models' containers (FUN_00402a86) */
+mesh_t *mesh_load_hier(const char *xfile_path);
+
 /*
  * Set the easydisp gate (engine DAT_0438b19c — read from recet.ini
  * [setup] easydisp at boot). When non-zero, mesh_load tries

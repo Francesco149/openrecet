@@ -3,6 +3,7 @@
  * See scene1_chr_walker.h for the chip writeup.  Engine FUN_00456f56.
  */
 
+#include "model_render.h"   /* FUN_00456d48 */
 #include "scene1_chr_walker.h"
 
 #include <stddef.h>
@@ -329,13 +330,9 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
         chr_walker_tail_blend_gate() == 1 ? D3DBLEND_INVSRCALPHA : D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_CW); /* 3 */
 
-    /* ── Pass 4: the people sub-render loop (FUN_00456d48) ───────────────
-     * Walks the people record table for ACTIVE records of type 1 with
-     * STATUS_F != 0xff and emits via FUN_00456d48 (a no-op stub in the
-     * port today, same as scene1_shop_walker Pass F).  Dormant: count 0. */
-    for (int i = 0; i < chr_walker_people_count(); i++) {
-        /* engine: FUN_00456d48(record - 0x109); stubbed (no-op) */
-    }
+    /* ── Pass 4: the model enemies that are not opaque (+0x3dc != 255) and
+     * not hidden (+0xaf4 <= 0): FUN_00456d48 each (model_render). */
+    model_render_pass((struct IDirect3DDevice8 *)dev, 1);
 
     /* ── Pass 3 (NPC billboards, char id 0x43) is folded into the people
      * walk above when populated: per-record off-screen fade via

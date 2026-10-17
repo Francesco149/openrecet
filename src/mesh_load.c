@@ -312,6 +312,14 @@ mesh_t *mesh_load(const char *xfile_path, int param_3)
     return m;
 }
 
+mesh_t *mesh_load_hier(const char *xfile_path)
+{
+    mesh_build_set_bake_frames(0);
+    mesh_t *m = mesh_load(xfile_path, -1);
+    mesh_build_set_bake_frames(1);
+    return m;
+}
+
 size_t mesh_load_read_file(const char *path, void **out_buf)
 {
     return storage_or_disk(path, out_buf);
@@ -332,6 +340,8 @@ xfile_t *mesh_load_parse_xfile(const char *xfile_path)
     return xf;
 }
 #else
+mesh_t *mesh_load_hier(const char *xfile_path) { (void)xfile_path; return NULL; }
+
 mesh_t *mesh_load(const char *xfile_path, int param_3)
 {
     (void)xfile_path; (void)param_3;

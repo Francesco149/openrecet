@@ -264,17 +264,20 @@ static void sframe_update(xfile_sframe *f, const float cur[16])
         sframe_update(c, f->combined);
 }
 
-/* FUN_00456d48's state half + FUN_00404870 */
-static void model_actor_draw(actor_t *a)
+/* FUN_00456d48's pose: the model's root Scale(-s, s, s) then RotY(π - yaw),
+ * T(pos); the frames at the actor's two slots' track times (+0x74 / +0x204,
+ * cross-faded by +0x2c); FUN_00404870's frame update */
+xfile_hier *model_anchor_pose(actor_t *a, int *model_out)
 {
     static const float k0p04 = 0.03999999910593033f;  /* 0x5198c4 */
     static const float k_pi = 3.1415927410125732f;    /* 0x51943c */
     const int32_t type = act_geti(a, ACT_TYPE);
-    if (type < 0 || type >= ENEMY_COUNT) return;
+    if (type < 0 || type >= ENEMY_COUNT) return NULL;
     const enemy_record_t *e = &g_enemy[type];
     const int model = e->unknown_24;
+    if (model_out) *model_out = model;
     xfile_hier *h = model_hier(model);
-    if (h == NULL) return;
+    if (h == NULL) return NULL;
     const float s = spill32((long double)e->runtime_floats[0] * k0p04);
     float tr[16], sc[16], ry[16], rot[16];
     mat4_translation(tr, act_getf(a, 0x3f0), act_getf(a, 0x3f4), act_getf(a, 0x3f8));
@@ -289,6 +292,20 @@ static void model_actor_draw(actor_t *a)
     float id[16];
     mat4_identity(id);
     sframe_update(h->root, id);
+    return h;
+}
+
+const char *model_anchor_file(int model)
+{
+    return (model >= 0 && model < MODEL_FILES) ? k_model_file[model] : NULL;
+}
+
+/* FUN_00456d48's state half + FUN_00404870 */
+static void model_actor_draw(actor_t *a)
+{
+    int model = -1;
+    xfile_hier *h = model_anchor_pose(a, &model);
+    if (h == NULL) return;
     if (model < 0 || model >= MODEL_DEF_COUNT) return;
     const tables_model_t *md = &g_models[model];
     for (int i = 0; i < 10; i++) {
@@ -305,6 +322,28 @@ static void model_actor_draw(actor_t *a)
         memcpy(a->b + 0x774 + 64 * i, f->combined, 64);
         mapcol_ground(x, y, z, (mapcol_hit_t *)(void *)(a->b + 0x454 + 68 * i));
     }
+}
+
+xfile_hier *model_hier_load(const char *path)
+{
+    if (s_reader == NULL || path == NULL) return NULL;
+    void *buf = NULL;
+    const size_t len = s_reader(path, &buf);
+    xfile_hier *h = len ? xfile_parse_hier((const char *)buf, len) : NULL;
+    free(buf);
+    return h;
+}
+
+void model_hier_pose(xfile_hier *h, const int32_t *tr0, const int32_t *tr1, float blend,
+                     const float rot[16], const float trans[16])
+{
+    if (h == NULL || h->root == NULL) return;
+    hier_set_times(h, tr0, tr1, blend);
+    memcpy(h->root->rot, rot, 64);
+    memcpy(h->root->trans, trans, 64);
+    float id[16];
+    mat4_identity(id);
+    sframe_update(h->root, id);
 }
 
 /* FUN_00459dfd's actor passes: FUN_004552d0 (opaque, +0x3dc 255), then
