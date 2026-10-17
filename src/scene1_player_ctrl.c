@@ -386,6 +386,19 @@ void player_ctrl_cc08_enter_freeroam(void)
 }
 
 /* Read the current cc08 dispatch state (DAT_0438cc08). */
+/* FUN_0047019f with its inputs: the f404 scripted sell spawns none; shop_tier =
+ * the bank tier selector (DAT_04510578[stage]).  The house controller's cc08 4
+ * arm and FUN_0048407f's event arm (cc08 4: a story scene mid-shop) call it. */
+void player_ctrl_crowd_pump(void)
+{
+    const int sell_inactive = !customer_service_f404();   /* f404==0 */
+    int shop_tier = 0;
+    const uint32_t *cs_bank = save_work_dwords_at(save_work_active_slot());
+    if (cs_bank != NULL)
+        shop_tier = (int)cs_bank[SHOP_DISPLAY_TIER_SELECTOR];
+    scene1_customer_npc_pump(sell_inactive, shop_tier);
+}
+
 int player_ctrl_cc08(void)
 {
     return s_cc08;
@@ -1691,15 +1704,7 @@ static void player_ctrl_cc08_unported_arm(void)
          * customer every 30th frame for a LIVE walk-in (f404==0; the scripted
          * tutorial f404==1 spawns none), then wander every active NPC.  shop_tier =
          * bank tier selector (DAT_04510578[stage]); walk grid = DAT_074b28e8. */
-        {
-            int sell_inactive = !customer_service_f404();   /* f404==0 */
-            int shop_tier = 0;
-            const uint32_t *cs_bank =
-                save_work_dwords_at(save_work_active_slot());
-            if (cs_bank != NULL)
-                shop_tier = (int)cs_bank[SHOP_DISPLAY_TIER_SELECTOR];
-            scene1_customer_npc_pump(sell_inactive, shop_tier);
-        }
+        player_ctrl_crowd_pump();               /* FUN_0047019f */
 
         if (b1cc_pre != 2) {
             /* the master tick (FUN_00462403): owns the b534 state switch + the
@@ -2122,6 +2127,20 @@ void scene1_player_ctrl_tick(void)
         }
     }
     scene1_beat_master_prologue();       /* the day-9+ morning block (b928 == 1) */
+
+    /* the day-9 morning scene (work +0x2bcf0, asm 0x486c1f, any day): b924++,
+     * the bg NPCs, FUN_0048b850, FUN_00486435, return (FUN_0044bd0d starts
+     * iv0_8 at b924 630 and clears the flag) */
+    {
+        const uint8_t *sb = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if (sb != NULL && sb[0x2bcf0] != 0) {
+            scene1_beat_set_counter(scene1_beat_counter() + 1);
+            scene1_bg_npc_tick();                 /* FUN_0046f621 */
+            player_ctrl_walk();                   /* FUN_0048b850 */
+            player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);   /* FUN_00486435 */
+            return;
+        }
+    }
 
     /* prologue: per-frame background-window-NPC pump (FUN_0046f621 → the
      * spawn/drift sim FUN_0046f2a3, ported in scene1_bg_npc.c).  The first call

@@ -19,6 +19,8 @@
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_type_to_char (DAT_005c7ce0[idx*2]) */
 #include "scene1_chr_sprite.h"   /* chr_anim_tick (FUN_00482a71) — RNG-neutral step */
 #include "scene1_records.h"
+#include "scene1_spawn.h"         /* FUN_00447f4f */
+#include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc) */
 #include "scene1_shop_display.h" /* shop_display_grid_cell (DAT_074b28e8 walk grid) */
 #include "scene1_player_ctrl.h"  /* player_ctrl_facing_octant (b850 angle→octant) */
 #include "scene1_particles_tick.h"/* g_scene1_camera_yaw (_DAT_073de39c) */
@@ -1070,13 +1072,21 @@ unsigned scene1_customer_npc_pump(int sell_inactive, int shop_tier)
         /* FUN_00482a71(slot, DAT_005c7ce0[type_idx*2], 1.0) — anim step. */
         chr_anim_tick(slot, scene1_bg_npc_type_to_char(slot[CS_NPC_OFF_TYPE_IDX]),
                       1.0f);
-        /* engine: the type-0x42 special-NPC speech-bubble particle emit
-         * (FUN_00447f4f, gated on DAT_005c7ce0[idx*2]==0x42 && DAT_0438b8cc%4==0)
-         * follows — deferred (PORT-DEBT(cs-walker-special)); the 0x42 arm never
-         * fires for the standard walk-in roster.  RNG-neutral.  The chibi SPRITE
-         * render itself is ported (scene1_shop_walker.c
-         * scene1_customer_npc_sprite_render / _shadow_render).
-         *
+        /* type 0x42's sparkle (0x470251..0x4702f7): every 4th sim frame a type-31
+         * spawn 0.6 out along the facing octant, 3.6 up (the facing as written
+         * last frame — the octant recompute below follows). */
+        if (scene1_bg_npc_type_to_char(slot[CS_NPC_OFF_TYPE_IDX]) == 0x42 && g_sim_frame_count % 4 == 0) {
+            static const float k2pi = 6.2831855f, k8 = 8.0f, k0p6 = 0.6f, k3p6 = 3.6f, k0p1 = 0.1f;
+            const float a = spill32((long double)spill32((long double)slot[CS_NPC_OFF_FACING]) * k2pi / k8);
+            const double ad = a;
+            const float sn = spill32(x87_crt_sin(ad));
+            const float cs = spill32(x87_crt_cos(ad));
+            const float z = spill32((long double)cs * k0p6 + cs_slot_f(slot, CS_NPC_OFF_POS_Z));
+            const float y = spill32((long double)cs_slot_f(slot, CS_NPC_OFF_POS_Y) + k3p6);
+            const float x = spill32((long double)sn * k0p6 + cs_slot_f(slot, CS_NPC_OFF_POS_X));
+            scene1_spawn(0, x, y, z, 0x1f, k0p1, 1);    /* FUN_00447f4f */
+        }
+        /*
          * velocity→facing-octant recompute (engine FUN_0047019f tail, asm
          * 0x470300-0x47036b): face the heading while moving; when stopped (both
          * vel == 0) skip — the wstate==2 FACE_DIR facing persists.  RNG-neutral. */

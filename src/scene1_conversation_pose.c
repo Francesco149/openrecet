@@ -301,8 +301,7 @@ void scene1_conversation_pose_tick(void)
  *
  * Unported tail pieces (all inert in the HOUSE event windows, no RNG when
  * inert):  FUN_00483e7b (status-aura emitter — fires only with a status up),
- * FUN_0047019f (cc08==4 customer pump), FUN_0044f078 (scene-4/99 cutscene
- * helper).  PORT-DEBT(focused, FUN_0048407f).
+ * FUN_0044f078 (scene-4/99 cutscene helper).  PORT-DEBT(focused, FUN_0048407f).
  *
  * Guarded on a live player actor — the engine's own driver is gated on the
  * scene's actor context (*DAT_068dd2f0 < 1), and the transition arm also runs
@@ -315,6 +314,8 @@ void scene1_event_actor_tail_tick(void)
         return;
 
     scene1_bg_npc_tick();                        /* FUN_0046f621 */
+    if (player_ctrl_cc08() == 4)
+        player_ctrl_crowd_pump();                /* FUN_0047019f: a story scene mid-shop */
 
     /* every live actor's anim tick, unless the pose / story tick ran it */
     if (!ticked)

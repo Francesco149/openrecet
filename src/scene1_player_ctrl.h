@@ -92,6 +92,7 @@ int  player_ctrl_b850_ran(void);   /* FUN_0048b850 (party_tick) ran this frame *
  * camera / counter / menu / dialogue arms. */
 void player_ctrl_cc08_enter_freeroam(void); /* FUN_004850ec: set cc08 = 1 (HOUSE entry) */
 int  player_ctrl_cc08(void);                /* read cc08 */
+void player_ctrl_crowd_pump(void);          /* FUN_0047019f, the cc08 4 crowd */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
 /* cc08==4: the master tick (FUN_00462403) runs FUN_0048a833 at 0x4624a1, after
  * its b1cc / ESC-skip gates and before the b534 dispatch. */

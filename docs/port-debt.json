@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 60,
+  "retiring_engine_fns": 59,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -32,6 +32,7 @@
    "FUN_004176ff": 2,
    "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
+   "FUN_0044db3c": 2,
    "FUN_00468fd0": 2,
    "FUN_00474d92": 2,
    "FUN_0048670f": 2,
@@ -49,7 +50,6 @@
    "FUN_0042f28c": 1,
    "FUN_0042f7ad": 1,
    "FUN_00430c6d": 1,
-   "FUN_0043183e": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
    "FUN_0043865e": 1,
@@ -58,7 +58,6 @@
    "FUN_00442cef": 1,
    "FUN_0044376a": 1,
    "FUN_0044b219": 1,
-   "FUN_0044db3c": 1,
    "FUN_0044f078": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
@@ -132,7 +131,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 787,
+   "line": 800,
    "kind_known": false
   },
   {
@@ -148,7 +147,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "the menu, note, lecture and",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1500,
+   "line": 1513,
    "kind_known": false
   },
   {
@@ -180,7 +179,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2088,
+   "line": 2093,
    "kind_known": false
   },
   {
@@ -284,7 +283,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the overlay spark (25, 1.0, -1)",
    "file": "src/record_hit.c",
-   "line": 665,
+   "line": 674,
    "kind_known": true
   },
   {
@@ -369,14 +368,6 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0043183e",
-   "desc": "the event floors' floor tables",
-   "file": "src/record_hit.c",
-   "line": 167,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_00434ceb",
    "desc": "the \"Item limit reached\" box.",
    "file": "src/scene_guild.c",
@@ -388,7 +379,7 @@
    "engine_fn": "FUN_00434ceb",
    "desc": "the message box is unported.",
    "file": "src/scene_guild.c",
-   "line": 396,
+   "line": 397,
    "kind_known": true
   },
   {
@@ -404,13 +395,13 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2112,
+   "line": 2117,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_00436f97",
-   "desc": "dungeons 3..5's setups FUN_0044e08f /",
+   "desc": "dungeons 3 / 4's setups FUN_0044e08f /",
    "file": "src/scene1_postload.c",
    "line": 285,
    "kind_known": true
@@ -420,7 +411,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 319,
+   "line": 321,
    "kind_known": true
   },
   {
@@ -428,15 +419,15 @@
    "engine_fn": "FUN_0043865e",
    "desc": "the multi-part anchors",
    "file": "src/record_hit.c",
-   "line": 448,
+   "line": 457,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_004427f1",
-   "desc": "dungeons 3..5's events \u2014 the",
+   "desc": "dungeons 3 / 4's events \u2014 the",
    "file": "src/dungeon_flow.c",
-   "line": 899,
+   "line": 1131,
    "kind_known": true
   },
   {
@@ -460,7 +451,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 350,
+   "line": 352,
    "kind_known": true
   },
   {
@@ -477,6 +468,14 @@
    "desc": "Tielle's floor-30 timeline (her",
    "file": "src/dungeon_flow.c",
    "line": 877,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0044db3c",
+   "desc": "Tielle's timeline (arg 1, the boss run)",
+   "file": "src/dungeon_flow.c",
+   "line": 1103,
    "kind_known": true
   },
   {
@@ -516,7 +515,7 @@
    "engine_fn": "FUN_00468fd0",
    "desc": "the removal is unported,",
    "file": "src/scene_guild.c",
-   "line": 439,
+   "line": 440,
    "kind_known": true
   },
   {
@@ -588,7 +587,7 @@
    "engine_fn": "FUN_0048670f cc04 2",
    "desc": "the furniture-grid mode (cc04 = 2,",
    "file": "src/scene1_player_ctrl.c",
-   "line": 982,
+   "line": 995,
    "kind_known": true
   },
   {
@@ -596,7 +595,7 @@
    "engine_fn": "FUN_0048670f cc08 50",
    "desc": "the faced stand's item",
    "file": "src/scene1_player_ctrl.c",
-   "line": 949,
+   "line": 962,
    "kind_known": true
   },
   {
@@ -612,7 +611,7 @@
    "engine_fn": "FUN_0048a383",
    "desc": "the level-up of s_easydisp",
    "file": "src/record_hit.c",
-   "line": 251,
+   "line": 260,
    "kind_known": true
   },
   {
