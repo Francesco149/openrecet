@@ -7,6 +7,8 @@
  */
 
 #include "scene1_top_hud.h"
+#include "scene1_hud.h"   /* DAT_0438b1dc */
+#include "x87.h"
 
 #include <stdint.h>
 #include "rng.h"       /* rng_next15 — the money-roll step (FUN_005041f6 / rand) */
@@ -333,10 +335,9 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
     /* L: FUN_0049065b sub-init (2D-overlay camera feed; no-op in HOUSE,
      * see scene1_hud.c) — skipped here, already a stub at the aggregator. */
 
-    /* L: letterbox offset.  Engine: local_c = DAT_0438b1dc * -128.0.  The
-     * cinema-bar animator (DAT_0438b1dc) is unported (BSS-zero), so the
-     * offset is 0 — the HUD sits at the top edge. */
-    const float yoff = 0.0f;
+    /* L: the slide offset, local_c = DAT_0438b1dc · −128 (0x519468): the HUD
+     * rises off the top edge as FUN_00406584's tail slides it away. */
+    const float yoff = spill32((long double)scene1_hud_slide() * -128.0f);
 
     /* MIN/MAGFILTER = LINEAR (engine SetTextureStageState 0x11/0x10 = 2);
      * alpha-blend state was set by the aggregator's render_quad_state_setup. */

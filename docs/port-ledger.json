@@ -14,7 +14,7 @@
   "pct_referenced_or_better": 30.8,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
-  "orphan_refs_not_in_function_table": 10,
+  "orphan_refs_not_in_function_table": 11,
   "port_debt": 93,
   "verified": 79,
   "stubbed": 10,
@@ -32,6 +32,7 @@
   "0x452eb1",
   "0x45e2ce",
   "0x4676d4",
+  "0x46c2bc",
   "0x46d885",
   "0x475040",
   "0x49de24"
@@ -1807,6 +1808,10 @@
     "src/dungeon_party.h",
     "src/main.c",
     "src/save_bank.h",
+    "src/scene1_hud.c",
+    "src/scene1_hud.h",
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_intro_dialogue.h",
     "src/scene1_top_hud.c",
     "src/scene1_top_hud.h",
     "src/scene_worldmap.c",
@@ -7231,6 +7236,7 @@
     "src/dungeon_flow.c",
     "src/dungeon_flow.h",
     "src/dungeon_party.c",
+    "src/scene1_intro_dialogue.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_sim.c",
     "src/scene_day_end.c",
@@ -12675,6 +12681,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/scene1_hud.c",
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
     "src/scene_guild.c"

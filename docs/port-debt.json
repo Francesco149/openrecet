@@ -219,7 +219,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 494,
+   "line": 496,
    "kind_known": true
   },
   {
@@ -227,7 +227,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 370,
+   "line": 383,
    "kind_known": true
   },
   {
@@ -243,7 +243,7 @@
    "engine_fn": "scene1-rng-stream-parity.md",
    "desc": "sim_loading_pump()",
    "file": "src/sim.c",
-   "line": 391,
+   "line": 393,
    "kind_known": true
   },
   {
@@ -259,7 +259,7 @@
    "engine_fn": "FUN_00407cac",
    "desc": "the dungeon",
    "file": "src/scene1_hud.c",
-   "line": 397,
+   "line": 441,
    "kind_known": true
   },
   {
@@ -427,7 +427,7 @@
    "engine_fn": "FUN_004427f1",
    "desc": "dungeons 3 / 4's events \u2014 the",
    "file": "src/dungeon_flow.c",
-   "line": 1131,
+   "line": 1133,
    "kind_known": true
   },
   {
@@ -467,7 +467,7 @@
    "engine_fn": "FUN_0044db3c",
    "desc": "Tielle's floor-30 timeline (her",
    "file": "src/dungeon_flow.c",
-   "line": 877,
+   "line": 879,
    "kind_known": true
   },
   {
@@ -475,7 +475,7 @@
    "engine_fn": "FUN_0044db3c",
    "desc": "Tielle's timeline (arg 1, the boss run)",
    "file": "src/dungeon_flow.c",
-   "line": 1103,
+   "line": 1105,
    "kind_known": true
   },
   {
@@ -571,7 +571,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 185,
+   "line": 187,
    "kind_known": true
   },
   {

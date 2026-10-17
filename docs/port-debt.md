@@ -94,7 +94,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00407cac | src/scene1_hud.c:397 | the dungeon |
+| FUN_00407cac | src/scene1_hud.c:441 | the dungeon |
 | FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
@@ -115,13 +115,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | src/scene1_postload.c:285 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:321 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:457 | the multi-part anchors |
-| FUN_004427f1 | src/dungeon_flow.c:1131 | dungeons 3 / 4's events — the |
+| FUN_004427f1 | src/dungeon_flow.c:1133 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044376a | src/dungeon_party.c:1663 | its 0 edge |
 | FUN_0044b219 | src/scene1_postload.c:352 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:400 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044db3c | src/dungeon_flow.c:877 | Tielle's floor-30 timeline (her |
-| FUN_0044db3c | src/dungeon_flow.c:1103 | Tielle's timeline (arg 1, the boss run) |
+| FUN_0044db3c | src/dungeon_flow.c:879 | Tielle's floor-30 timeline (her |
+| FUN_0044db3c | src/dungeon_flow.c:1105 | Tielle's timeline (arg 1, the boss run) |
 | FUN_0044f078 | src/dungeon_party.c:651 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
@@ -133,7 +133,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:315 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0047f46a | src/scene1_sim.c:255 | equip the bag's items |
-| FUN_00485c74 | src/dungeon_flow.c:185 | the party damage (HP bar + |
+| FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:995 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:962 | the faced stand's item |
@@ -161,10 +161,10 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
-| FUN_004536cb | src/sim.c:494 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:370 | the engine teardown also restores the |
+| FUN_004536cb | src/sim.c:496 | retail freezes the *entire |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:383 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
-| scene1-rng-stream-parity.md | src/sim.c:391 | sim_loading_pump() |
+| scene1-rng-stream-parity.md | src/sim.c:393 | sim_loading_pump() |
 
 ## hardcode (1)
 

@@ -13,7 +13,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 695, discovered 1764 → 784 referenced-or-better (30.8%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
-- orphan refs (in src/, not in function table): 10
+- orphan refs (in src/, not in function table): 11
 
 ## instrumented (89) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
 
@@ -155,7 +155,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x40622f | FUN_0040622f | 18 | ✓ |  | scene_day_end.c, speech_bubble.c, speech_bubble.h |
 | 0x406551 | FUN_00406551 | 29 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c (+1) |
 | 0x40656e | FUN_0040656e | 22 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_top_hud.c (+1) |
-| 0x406584 | FUN_00406584 | 1017 | ✓ |  | dungeon_flow.h, dungeon_party.c, dungeon_party.h (+10) |
+| 0x406584 | FUN_00406584 | 1017 | ✓ |  | dungeon_flow.h, dungeon_party.c, dungeon_party.h (+14) |
 | 0x40697d | FUN_0040697d | 19 | ✓ |  | speech_bubble.c, speech_bubble.h |
 | 0x406990 | FUN_00406990 | 11 | ✓ |  | speech_bubble.c, speech_bubble.h |
 | 0x4069a6 | FUN_004069a6 | 21 | ✓ |  | speech_bubble.c, speech_bubble.h |
@@ -313,7 +313,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44b2e6 | FUN_0044b2e6 | 85 | ✓ |  | dungeon_flow.c, dungeon_flow.h |
 | 0x44b38c | FUN_0044b38c | 681 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c |
 | 0x44b635 | FUN_0044b635 | 1015 | ✓ |  | dungeon_flow.h, scene1_sim.c |
-| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | actor_ai.c, customer_service.c, dungeon_flow.c (+10) |
+| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | actor_ai.c, customer_service.c, dungeon_flow.c (+11) |
 | 0x44baad | FUN_0044baad | 109 | ✓ |  | scene1_intro_dialogue.c |
 | 0x44bb1a | FUN_0044bb1a | 455 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c |
 | 0x44bce7 | FUN_0044bce7 | 28 | ✓ |  | scene_adv_guild.c, scene_worldmap.c |
@@ -496,7 +496,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x46c295 | FUN_0046c295 | 54 | ✓ |  | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ |  | choice_box.h, scene.h, scene1_intro_dialogue.c (+5) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ |  | save_work.h, scene1_dialogue.c, scene1_dialogue.h (+6) |
-| 0x46c869 | FUN_0046c869 | 6 | ✓ |  | main.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h (+1) |
+| 0x46c869 | FUN_0046c869 | 6 | ✓ |  | main.c, scene1_hud.c, scene1_intro_dialogue.c (+2) |
 | 0x46c86f | FUN_0046c86f | 307 | ✓ |  | customer_service_render.c, scene1_dialogue_run.c, scene1_dialogue_run.h (+2) |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ |  | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  |  | scene1_dialogue.c |

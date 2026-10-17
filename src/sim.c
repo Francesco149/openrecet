@@ -46,6 +46,7 @@
 #include "scene_adv_guild.h" /* scene_adv_guild_sim — mode-11 per-state callee (FUN_0045c051) */
 #include "scene_town_event.h" /* scene_town_event_sim — modes 13..16 (FUN_0045e3dc / 053 / 1a5 / 2dd) */
 #include "party_roster.h"   /* FUN_0047f1ce — the pause build's party count */
+#include "scene1_hud.h"      /* FUN_00406584 tail: DAT_0438b1dc */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "speech_bubble.h"  /* speech_bubble_tick — FUN_00406584 bubble block */
 #include "scene_gameover.h" /* FUN_0049d8a4 — mode 2 */
@@ -287,6 +288,7 @@ static void hud_xp_shake_money_tick(void)
     scene1_top_hud_shake_tick();
     if (wb)
         scene1_top_hud_money_tick((int)wb[SAVE_BANK_FIELD_GOLD]);
+    scene1_hud_slide_tick();             /* its tail: DAT_0438b1dc */
 }
 
 void sim_step_a(void)
@@ -642,6 +644,7 @@ void sim_step_a(void)
                  * set, not a tick: the day snaps (retail has no day-roll animator). */
                 scene1_top_hud_set_day((int)wb[SAVE_BANK_FIELD_CARD_DAY]);
             }
+            scene1_hud_slide_tick();     /* FUN_00406584's tail: DAT_0438b1dc */
         }
         break;
 

@@ -9,7 +9,8 @@
 #include "audio.h"               /* audio_play_se_file (FUN_0049933c) */
 #include "record_hit.h"          /* DAT_0438b900 / b90c..b914 */
 #include "call_trace.h"
-#include "chara_equip.h"         /* DAT_0438b7d8 */
+#include "chara_equip.h"
+#include "scene1_hud.h"            /* DAT_0438b1dc */         /* DAT_0438b7d8 */
 #include "floor_layout.h"        /* DAT_0438b1ec (the floor origin) */
 #include "map_collision.h"       /* FUN_00433674 */
 #include "dungeon_party.h"       /* FUN_0048b850 (the dungeon path) */
@@ -129,6 +130,7 @@ void dungeon_flow_stage_reset(void)
     g_dat_0438bec4 = 1.0f;
     g_fall_timer = 0;
     g_orb_pick_n = 0;
+    scene1_hud_set_letterbox_height(0.0f);   /* DAT_0438b1dc */
     g_scene1_combat_dat_0438b904 = 0;
     g_scene1_combat_dat_0438b908 = 0;
     g_kill_combo = 0;

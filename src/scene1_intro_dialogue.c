@@ -182,13 +182,21 @@ void scene1_intro_dialogue_reset(void)
 /* Load script (scene, sub) and arm the interpreter on it.  Returns 1 on success;
  * 0 (and the caller gives up) if the script is missing.  The opening prologue
  * passes IVE_OPENING_SCENE; the tutorial dispatcher passes its own (scene, sub). */
+/* FUN_0044ba2c parses the script on the arm frame itself (FUN_0046c2bc, before
+ * FUN_00406584 reads its bgset count — rhost day1-tutorial-to-day2 f12737):
+ * start_single parses here, and the bracket's lazy start reuses it.
+ * 0 none, 1 parsed, -1 missing. */
+static int g_prog_preloaded, g_pre_scene, g_pre_sub;
+
 static int start_script(int scene, int sub)
 {
 #ifdef _WIN32
     /* scene1_dialogue_load pulls the .ivt from the storage layer (Win32-only).
      * In the host test build there is no storage, so the driver stays dormant;
      * the interpreter itself is exercised directly in test_scene1_dialogue_run. */
-    if (!scene1_dialogue_load(scene, sub, &g_prog))
+    const int pre = (g_pre_scene == scene && g_pre_sub == sub) ? g_prog_preloaded : 0;
+    g_prog_preloaded = 0;
+    if (pre < 0 || (pre == 0 && !scene1_dialogue_load(scene, sub, &g_prog)))
         return 0;
     ive_runtime_init(&g_rt, &g_prog);
     g_rt.script_group = scene;   /* DAT_005c7a2c/30: what FUN_0046c320 marks viewed at END */
@@ -345,8 +353,13 @@ void scene1_intro_dialogue_start_single(int scene, int sub)
     g_tut_sub     = sub;
     g_state       = D_TUT_LOAD;   /* the load bracket first (LOADING_START) */
     g_load_ctr    = 0;
-    g_rt.active   = 0;     /* lazy-load when the bracket ends (D_TUT) */
+    g_rt.active   = 0;     /* the run starts when the bracket ends (D_TUT) */
     g_rt.complete = 0;
+#ifdef _WIN32
+    g_prog_preloaded = scene1_dialogue_load(scene, sub, &g_prog) ? 1 : -1;
+    g_pre_scene = scene;
+    g_pre_sub   = sub;
+#endif
     if (worker_load_deterministic() && g_tut_load_frames_pin <= 0)
         worker_load_defer_fn(tut_load_done);
 }
@@ -466,6 +479,13 @@ int scene1_intro_dialogue_covers_screen(void)
     if (!scene1_intro_dialogue_active() || g_rt.prog == NULL)
         return 0;
     return (g_rt.prog->n_bg > 0) ? 1 : 0;
+}
+
+int scene1_intro_dialogue_bg_count(void)
+{
+    /* FUN_0046c869 raw: DAT_073a3df0, the `bgset:` count of the last parsed
+     * script — it outlives the dialogue (reset only by the next parse). */
+    return g_prog.n_bg;
 }
 
 int scene1_intro_dialogue_skippable(void)

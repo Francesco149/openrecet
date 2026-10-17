@@ -38,8 +38,9 @@
 
 /* ─── module-local engine globals (no other owner yet) ─────────────── */
 
-/* DAT_0438b1dc — letterbox-bar height (float).  Writer is the cinema-
- * bars animator (unported); default 0 keeps Pass 2 dormant. */
+/* DAT_0438b1dc — the HUD slide, 0 shown … 1 away (float): FUN_00406584's
+ * tail eases it 0.1 a tick (scene1_hud_slide_tick).  Read by Pass 2's bars
+ * (·32), the top HUD (·−128) and the dungeon HUD (·128). */
 static float g_hud_letterbox_h = 0.0f;
 
 /* DAT_073dddb4 — status-screen-open flag.  Set to 1 only while the
@@ -64,6 +65,8 @@ float scene1_hud_letterbox_height(void)
 }
 
 void scene1_hud_set_letterbox_height(float h) { g_hud_letterbox_h = h; }
+float scene1_hud_slide(void) { return g_hud_letterbox_h; }
+
 
 int  scene1_hud_status_screen_open(void) { return g_hud_status_screen; }
 void scene1_hud_set_status_screen_open(int open) { g_hud_status_screen = open ? 1 : 0; }
@@ -81,6 +84,46 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 {
     return (scene_mode == 1) && (stage_type > 0) &&
            (pred != 0 || g_hud_dat_056db104 != 0);
+}
+
+#include "scene.h"                 /* g_scene_state (DAT_0438b1c0) */
+#include "scene1_intro_dialogue.h"  /* DAT_0438b1c8, FUN_0046c869 */
+#include "dungeon_flow.h"          /* DAT_0438b8b0, DAT_0438beb4 */
+#include "map_collision.h"         /* mapcol_maptype */
+#include "save_work.h"
+#include "x87.h"
+
+/* FUN_00406584 0x4068cb..0x40697c: the slide goes away (+0.1, ≤ 1) while the
+ * work's +0x2bce2 / +0x2bcf8 bytes are set, the scene is ingame with the
+ * player's control taken (b8b0 != -1 or beb4 > 0) and no dialogue, or a
+ * dialogue runs on a floor or over a covering backdrop (FUN_0046c869); it comes
+ * back (−0.1, ≥ 0) on the world map (b1c0 == 8) and otherwise. */
+void scene1_hud_slide_tick(void)
+{
+    static const float k0p1 = 0.10000000149011612f, k0 = 0.0f, k1 = 1.0f;   /* 0x5193a0 / 0x519320 / 0x519364 */
+    /* b1c8 as FUN_00406584 (0x453bad) reads it: retail clears it only at
+     * 0x453c44, later in the frame, so the frame a dialogue ends still counts */
+    static int s_gate_prev;
+    const int gate = scene1_intro_dialogue_gate();
+    const int dlg = gate != 0 || s_gate_prev != 0;
+    s_gate_prev = gate;
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    int away;
+    if (rec != NULL && (rec[0x2bce2] != 0 || rec[0x2bcf8] != 0))
+        away = 1;
+    else if (g_scene_state == 8)
+        away = 0;
+    else if (!dlg)
+        away = (g_ctrl_lock != -1 || g_dat_0438beb4 > 0) && g_scene_state == 1;
+    else
+        away = mapcol_maptype() >= 1 || scene1_intro_dialogue_bg_count() != 0;
+    if (away) {
+        g_hud_letterbox_h = spill32((long double)g_hud_letterbox_h + k0p1);
+        if (g_hud_letterbox_h > k1) g_hud_letterbox_h = k1;
+    } else {
+        g_hud_letterbox_h = spill32((long double)g_hud_letterbox_h - k0p1);
+        if (g_hud_letterbox_h < k0) g_hud_letterbox_h = k0;
+    }
 }
 
 /* ─── Win32 render body ────────────────────────────────────────────── */
@@ -111,6 +154,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "x87.h"
 #include "call_trace.h"
 #include <math.h>                 /* sinf */
+
 
 /* FUN_0049065b — Pass-1 sub-init (deferred; see header comment). */
 static void scene1_hud_subinit_TODO(void)
@@ -333,7 +377,7 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
     /* ── Pass 2 — letterbox / cinema bars (L74-100) ────────────────────
      * Height keyed off DAT_0438b1dc (±0.1 dead-zone).  Two 640-wide
      * bars sampling a 7x7 patch of system.bmp: top at y=0 and bottom
-     * flush against the screen edge.  Dormant (DAT_0438b1dc BSS-zero). */
+     * flush against the screen edge, black (0xff000000). */
     {
         float bar_h = scene1_hud_letterbox_height();
         if (bar_h > 0.0f) {
@@ -346,10 +390,10 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
                 const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };
                 /* top bar: dst {0, 0, 640, h} */
                 const float dst_top[4] = { 0.0f, 0.0f, 640.0f, h };
-                render_quad_add(dst_top, src, sys->width, sys->height, 0xffffffffu);
+                render_quad_add(dst_top, src, sys->width, sys->height, 0xff000000u);
                 /* bottom bar: dst {0, 480-h, 640, h} */
                 const float dst_bot[4] = { 0.0f, 480.0f - h, 640.0f, h };
-                render_quad_add(dst_bot, src, sys->width, sys->height, 0xffffffffu);
+                render_quad_add(dst_bot, src, sys->width, sys->height, 0xff000000u);
                 render_quad_flush(dev);
             }
         }

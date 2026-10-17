@@ -113,6 +113,10 @@ int     scene1_intro_dialogue_loading(void);
  * the persistent top HUD off during the opening cutscene.  Zero outside iv1_1. */
 int     scene1_intro_dialogue_covers_screen(void);
 
+/* FUN_0046c869 itself (DAT_073a3df0): the last parsed script's `bgset:` count,
+ * live or not — FUN_00406584's HUD slide reads it after a dialogue ends. */
+int     scene1_intro_dialogue_bg_count(void);
+
 /* Borrow the live interpreter state for the DRAW pass (FUN_0046c9a2 port in
  * scene1_dialogue_draw.c). Return NULL while dormant/loading/done — the draw
  * only runs when a script is active. The returned pointers are valid until the

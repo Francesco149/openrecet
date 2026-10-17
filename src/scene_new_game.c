@@ -2,6 +2,7 @@
  * scene_new_game.c — see scene_new_game.h for the chip writeup.
  */
 
+#include "scene1_hud.h"   /* DAT_0438b1dc */
 #include "scene_new_game.h"
 
 #include "call_trace.h"
@@ -38,12 +39,11 @@ void scene_new_game_save_dialog_state_set(int32_t value)
  * The engine writes 16 scattered globals here.  Two get the 0xffffffff
  * "no selection" sentinel; the rest get 0.  Without any port consumer
  * for these, storage is module-local — when subsystems referencing
- * 0x00529704 / 0x0438b1dc / 0x00648258+ port, they can either declare
+ * 0x00529704 / 0x00648258+ port, they can either declare
  * their own typed accessor or wire here.
  */
 static int32_t g_ui_scratch_dat_00529704 = 0;
 static int32_t g_ui_scratch_dat_00529708 = 0;
-static int32_t g_ui_scratch_dat_0438b1dc = 0;
 static int32_t g_ui_scratch_dat_00648258 = 0;
 static int32_t g_ui_scratch_dat_0064825c = 0;
 static int32_t g_ui_scratch_dat_0064822c = 0;
@@ -68,7 +68,7 @@ void scene_new_game_clear_ui_scratch(void)
      * then the 0x648 block).  See engine FUN_004060ff @ 4060ff. */
     g_ui_scratch_dat_00529704 = (int32_t)0xffffffff;
     g_ui_scratch_dat_00529708 = (int32_t)0xffffffff;
-    g_ui_scratch_dat_0438b1dc = 0;
+    scene1_hud_set_letterbox_height(0.0f);   /* DAT_0438b1dc */
     g_ui_scratch_dat_00648258 = 0;
     g_ui_scratch_dat_0064825c = 0;
     g_ui_scratch_dat_0064822c = 0;

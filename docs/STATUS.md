@@ -33,7 +33,7 @@ in-process retail host (`findings/in-process-retail-host.md`). Prior human
 attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
 re-verification.
 
-10 VAs are referenced in src/ but absent from the function table
+11 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
 **Port debt:** 93 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts

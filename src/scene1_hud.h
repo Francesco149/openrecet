@@ -45,9 +45,12 @@
  * only when the result is > 0. */
 float scene1_hud_letterbox_height(void);
 
-/* Setter for the letterbox height (engine DAT_0438b1dc writer is the
- * cinema-bars animator, not yet ported). */
+/* Setter for the letterbox height (tests). */
 void scene1_hud_set_letterbox_height(float h);
+
+/* DAT_0438b1dc raw (no dead-zone) and its writer, FUN_00406584's tail. */
+float scene1_hud_slide(void);
+void  scene1_hud_slide_tick(void);
 
 /* Pass 3 status-screen-open flag (DAT_073dddb4): when nonzero the HUD
  * renders the status screen and returns before any later pass. */
