@@ -24,7 +24,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x406241 | FUN_00406241 | 390 | ✓ |  | render_quad.c, render_quad.h, scene1_top_hud.c (+1) |
 | 0x4063c7 | FUN_004063c7 | 394 | ✓ |  | nowloading.c, render_quad.c, render_quad.h |
 | 0x406d50 | FUN_00406d50 | 1445 | ✓ |  | dungeon_hud.c, dungeon_hud.h, main.c (+4) |
-| 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h, dungeon_hud.c, dungeon_hud.h (+1) |
+| 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h, dungeon_hud.c, dungeon_hud.h (+2) |
 | 0x407cac | FUN_00407cac | 7289 | ✓ |  | dungeon_hud.c, dungeon_hud.h, render_quad.h (+1) |
 | 0x409925 | FUN_00409925 | 3434 | ✓ |  | customer_service.h, customer_service_render.c, dungeon_hud.h (+8) |
 | 0x40a765 | FUN_0040a765 | 7558 | ✓ |  | customer_service.h, customer_service_render.c, dungeon_hud.h (+21) |
@@ -449,7 +449,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x464af0 | FUN_00464af0 | 2178 | ✓ |  | customer_service.c |
 | 0x465372 | FUN_00465372 | 1337 | ✓ |  | customer_service.c |
 | 0x4658ab | FUN_004658ab | 1289 | ✓ |  | customer_service.c, customer_service.h, save_bank.h |
-| 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+7) |
+| 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+8) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x466a9a | FUN_00466a9a | 225 | ✓ |  | customer_service_render.c |
 | 0x466b7b | FUN_00466b7b | 5305 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
@@ -489,7 +489,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x469a83 | FUN_00469a83 | 28 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h |
 | 0x469a9f | FUN_00469a9f | 28 | ✓ |  | customer_service.c, scene1_display_menu.c, scene1_display_menu.h (+4) |
 | 0x469abb | FUN_00469abb | 127 | ✓ |  | customer_service_render.c, encyclopedia.c, scene1_display_menu.c |
-| 0x469b3a | FUN_00469b3a | 2044 | ✓ |  | scene1_display_menu.c |
+| 0x469b3a | FUN_00469b3a | 2044 | ✓ |  | scene1_display_menu.c, scene_pause.c |
 | 0x46a336 | FUN_0046a336 | 2722 | ✓ |  | chara_equip.c, chara_equip.h, encyclopedia.c (+1) |
 | 0x46add8 | FUN_0046add8 | 562 | ✓ |  | customer_service_render.c, scene1_display_menu.c, scene_adv_guild.c (+1) |
 | 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+5) |
@@ -599,7 +599,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47f46a | FUN_0047f46a | 338 | ✓ |  | scene1_sim.c, scene_pause.c |
 | 0x47f5bc | FUN_0047f5bc | 1171 | ✓ |  | anchor_trace.h, save_picker.h, scene_pause.c (+1) |
 | 0x47fa4f | FUN_0047fa4f | 39 | ✓ |  | scene_adv_guild.c, stage_palette.h |
-| 0x47fa76 | FUN_0047fa76 | 462 | ✓ |  | encyclopedia.h, scene_pause.c, scene_pause.h (+1) |
+| 0x47fa76 | FUN_0047fa76 | 462 | ✓ |  | dungeon_party.h, encyclopedia.h, scene_pause.c (+2) |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ |  | audio_fade.h, scene_pause.c, scene_pause.h |
 | 0x47fe98 | FUN_0047fe98 | 168 | ✓ |  | scene_pause.c |
 | 0x47ff40 | FUN_0047ff40 | 911 | ✓ |  | dungeon_party.c, item_use.h, scene1_display_menu.c (+2) |
@@ -662,7 +662,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48a383 | FUN_0048a383 | 334 | ✓ |  | dungeon_party.c, record_hit.c, xp_curve.h |
 | 0x48a4d1 | FUN_0048a4d1 | 866 | ✓ |  | customer_service.c, dungeon_party.c, dungeon_party.h (+1) |
 | 0x48a833 | FUN_0048a833 | 3011 | ✓ |  | collision_query.c, customer_service.c, customer_service.h (+9) |
-| 0x48b6ad | FUN_0048b6ad | 407 | ✓ |  | dungeon_party.c, scene_pause.c |
+| 0x48b6ad | FUN_0048b6ad | 407 | ✓ |  | dungeon_party.c, dungeon_party.h, scene_pause.c |
 | 0x48b844 | FUN_0048b844 | 12 | ✓ |  | scene1_sim.c |
 | 0x48cbf6 | FUN_0048cbf6 | 470 | ✓ |  | dungeon_party.c |
 | 0x48cdcc | FUN_0048cdcc | 2058 | ✓ |  | dungeon_party.c, scene1_player_ctrl.c |

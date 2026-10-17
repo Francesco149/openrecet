@@ -125,7 +125,7 @@ void party_anim_set(int32_t *rec, int32_t anim)
 }
 
 /* FUN_0048b6ad: the HP / SP gauges ease 1 % of max per tick toward the values */
-static void party_gauge_tick(void)
+void party_gauge_tick(void)
 {
     const float hp = PW(0x56db0bcu).f, sp = PW(0x56db0c0u).f;
     if (PW(0x56db0c4u).f >= hp) {

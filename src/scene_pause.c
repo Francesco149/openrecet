@@ -36,6 +36,7 @@
 #include "scene_adv_guild.h"  /* FUN_0045bd36 — the mode-11 unpause hook */
 #include "party_roster.h"       /* DAT_0741bed8 / DAT_07477e74 */
 #include "chara_skills.h"      /* FUN_004360b6 — at every pause open */
+#include "dungeon_party.h"    /* FUN_0048b6ad */
 #include "chara_equip.h"      /* FUN_004844ef — re-aggregate equip stats on unpause */
 #include "d3d_pool.h"         /* FUN_00471905 / FUN_00473c03 — release pause assets (type 0xc) */
 #include "dungeon_flow.h"     /* DAT_0438b550 / b554 — the thrown-away queue */
@@ -1377,7 +1378,7 @@ static void pause_exit_confirm_update(void)
 /* FUN_0047fa76 — the mode-9 per-frame update. */
 void pause_menu_update(void)
 {
-    /* FUN_0048b6ad() (portrait/clock per-frame) — PORT-DEBT. */
+    party_gauge_tick();                      /* FUN_0048b6ad: the HP / SP gauges */
     if (g_pause_exit_confirm < 1) {
         if (g_pause_sub_anim < 1) {
             pause_menu_nav();
@@ -1524,6 +1525,8 @@ int pause_weekly_quota(void)
 #include "title_save_dialog.h"   /* the shared cursor + save-dialog frame (tail) */
 #include "save_work.h"           /* save_work_dwords_at / save_work_active_slot (the bank) */
 #include "sysassets.h"           /* g_sysassets.item_win_tga = DAT_073d8748 (save-bar) */
+#include "dungeon_hud.h"         /* FUN_004072f5, the party panel (dungeon Items) */
+#include "font_draw.h"
 #include "settings_panel.h"      /* the shared Options config-panel render (FUN_0049c050) */
 #include "scene1_top_hud.h"      /* scene1_top_hud_draw_number = FUN_00406a60 (gold/quota) */
 #include "scene1_merchant_hud.h" /* scene1_merchant_hud_draw_level = FUN_00481ec3 (level) */
@@ -1917,11 +1920,38 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
         } else if (t == 1) {
             /* engine L83946: FUN_0048196b → FUN_0046b00a(640 - sub_anim*64, 0).
              * The house path is just the display-menu grid sliding in from the
-             * right (slide_x 640→0 as sub_anim 0→10).
-             * PORT-DEBT(render-coupled, FUN_0048196b): the dungeon's Use / Throw
-             * away choice and the result messages (DAT_074b28a8, DAT_0734b97c /
-             * b988 / b980 / b984 / b9ac) are not drawn. */
-            display_menu_render(d, 640.0f - (float)(g_pause_sub_anim << 6));
+             * right (slide_x 640→0 as sub_anim 0→10).  Paused from a dungeon
+             * floor it first draws the party panel FUN_004072f5 at y -128 and the
+             * Use / Throw Away choice: item_win (400,240)-(640,304) at 240 x 51.2,
+             * 56 apart from y 80, x slide + 16 half-alpha, the chosen one
+             * (DAT_074b28a4 up, DAT_074b28ac) opaque at x 32; labels centred at
+             * scale 14/13.  The result messages ride FUN_00469b3a. */
+            const float ix = 640.0f - (float)(g_pause_sub_anim << 6);
+            if (g_pause_saved_mode == 1 && mapcol_maptype() >= 1) {
+                static const char *const k_opt[2] = { "Use", "Throw Away" };
+                dungeon_hud_party_panel(d, ix, -128.0f, chara_equip_get_current_chara(), 0);
+                const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
+                for (int i = 0; i < 2 && win->tex; i++) {
+                    int a = 128;
+                    float ox = spill32((long double)ix + 16.0f);
+                    const float oy = spill32((long double)spill32((long double)(56 * i)) + 80.0f);
+                    if (g_pause_save_overwrite != 0 && i == g_pause_items_opt) {
+                        a = 255;
+                        ox = 32.0f;
+                    }
+                    const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+                    IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)win->tex);
+                    {
+                        const float dst[4] = { ox, oy, 240.0f, 51.2f };
+                        const float src[4] = { 400.0f, 240.0f, 640.0f, 304.0f };
+                        render_quad_add(dst, src, win->width, win->height, col);
+                    }
+                    render_quad_flush(d);
+                    font_draw_text_centered(d, spill32((long double)ox + 120.0f),
+                                            spill32((long double)oy + 12.0f), k_opt[i], col, 1.0769231f);
+                }
+            }
+            display_menu_render(d, ix);
         } else if (t == 2) {
             /* engine L83941: FUN_0048150c — slide_x = sub_anim*64-640 (≤0,
              * slides in from the left, rests at 0), base_y 48, row + the

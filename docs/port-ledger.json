@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 12,
-  "port_debt": 93,
+  "port_debt": 92,
   "verified": 81,
   "stubbed": 10,
   "ported": 698,
@@ -2022,7 +2022,8 @@
     "src/chara_skills.h",
     "src/dungeon_hud.c",
     "src/dungeon_hud.h",
-    "src/render_quad.h"
+    "src/render_quad.h",
+    "src/scene_pause.c"
    ],
    "status": "verified"
   },
@@ -11246,6 +11247,7 @@
     "src/dialogue_macros.h",
     "src/font_draw.c",
     "src/font_draw.h",
+    "src/scene1_display_menu.c",
     "src/scene_guild.c",
     "src/scene_guild.h",
     "src/sim.c"
@@ -12384,7 +12386,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_display_menu.c"
+    "src/scene1_display_menu.c",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -16389,6 +16392,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_party.h",
     "src/encyclopedia.h",
     "src/scene_pause.c",
     "src/scene_pause.h",
@@ -18301,6 +18305,7 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_party.c",
+    "src/dungeon_party.h",
     "src/scene_pause.c"
    ],
    "status": "ported"

@@ -59,6 +59,10 @@ void party_get_item(int32_t kind, int32_t rare, int32_t grade);   /* FUN_00484dd
 extern int32_t g_got_item, g_got_item_on, g_got_item_bubble;    /* DAT_00648290 / 94 / 50 */
 void party_got_item_tick(void);   /* FUN_00406584's DAT_00648294 countdown */
 
+/* FUN_0048b6ad: the HP / SP gauges (DAT_056db0c4 / c8) ease 1 % of max per
+ * tick toward the values — the player controller's and the pause's (FUN_0047fa76) */
+void party_gauge_tick(void);
+
 #ifdef __cplusplus
 }
 #endif

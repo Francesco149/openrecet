@@ -929,6 +929,8 @@ int  display_menu_full(void)    { return s_full; }
 #include "font_draw.h"     /* font_draw_text* */
 #include "dungeon_flow.h"   /* DAT_0438be94 / be98, the floor end */
 #include "dungeon_results.h" /* DAT_0438b718 / b744, the kept rows */
+#include "party.h"          /* DAT_056dae9c / ea4, berserk / dark soul */
+#include "chara_equip.h"    /* DAT_0438b7d8 */
 
 /* ── FUN_00469b3a — the bottom description panel (C4b-4a) ──────────────────
  * Drawn at the tail of FUN_0046b00a (all.c:66837).  Ghidra prints the call as
@@ -970,10 +972,80 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
     if (rec < 0)
         return;
 
-    /* PORT-DEBT: the (highlight>>4 & 1) sub-item walk-back (all.c:65635-65641)
-     * resolves a variant glyph to its base record; the displayed swords are
-     * base items, so we render the resolved record directly. */
+    /* an unappraised item (bit 4) reads as the "???" record it walks back to
+     * (price -1, 0x469c9b..); its category / id stay the item's own */
+    const int unappr = (s_highlight >> 4) & 1, adv = (s_highlight >> 5) & 1;
+    const item_record_t *own = &g_item.records[rec];
+    if (unappr)
+        while (rec > 0 && g_item.records[rec].price != -1)
+            rec--;
     const item_record_t *r = &g_item.records[rec];
+
+    /* the result messages (DAT_0734b988 discard / DAT_0734b97c use), typed out
+     * by FUN_00465db4 at (x0 + 80, 384) with the counter as the budget; the
+     * three-line food message rises 16 */
+    if (s_msg_throw != 0 || s_msg_use != 0) {
+        static const char *const k_adv_name[8] = {
+            "Louie", "Charme", "Caillou", "Tielle", "Elan", "Nagi", "Griff", "Arma",
+        };
+        int ci = chara_equip_get_current_chara();
+        const char *who = k_adv_name[(ci >= 0 && ci < 8) ? ci : 0];
+        const char *nm = r->singular;
+        const char *cat = (own->category >= 0 && own->category < ITEM_CATEGORY_COUNT)
+                        ? g_item.categories[own->category].singular : "";
+        char msg[256];
+        float yoff = 0.0f;
+        msg[0] = '\0';
+        if (s_msg_throw != 0) {
+            if (adv) snprintf(msg, sizeof msg, "Can't throw away an adventurer's possession!");
+            else     snprintf(msg, sizeof msg, "Discarded %s.", nm);
+        } else if (unappr) {
+            snprintf(msg, sizeof msg, "Can't use unidentified items!");
+        } else if (adv) {
+            snprintf(msg, sizeof msg, "Can't use an adventurer's possession!");
+        } else if (s_full != 0) {
+            snprintf(msg, sizeof msg, "Can't recover any further.");
+        } else if (PW(0x56dae9cu).i != 0) {
+            snprintf(msg, sizeof msg, "Can't use items while Berserked!");
+        } else if (PW(0x56daea4u).i != 0) {
+            snprintf(msg, sizeof msg, "Can't use items during Dark Soul!");
+        } else if (strncmp(cat, "Food", 4) == 0) {             /* FUN_0049ef78 */
+            const int hp = s_gain_hp, sp = s_gain_sp;
+            if (sp == -1) {
+                if (hp < 0) snprintf(msg, sizeof msg, "Used %s.<BR>%s LOST %d HP!", nm, who, -hp);
+                else        snprintf(msg, sizeof msg, "Used %s.<BR>%s recovered %d HP.", nm, who, hp);
+            } else if (hp == -1) {
+                if (sp < 0) snprintf(msg, sizeof msg, "Used %s.<BR>%s LOST %d SP!", nm, who, -sp);
+                else        snprintf(msg, sizeof msg, "Used %s.<BR>%s recovered %d SP.", nm, who, sp);
+            } else {
+                if (hp < 0)
+                    snprintf(msg, sizeof msg, "Used %s.<BR>%s LOST %d HP!<BR>%s recovered %d SP.", nm, who, -hp, who, sp);
+                else if (sp < 0)
+                    snprintf(msg, sizeof msg, "Used %s.<BR>%s recovered %d HP.<BR>%s LOST %d SP!", nm, who, hp, who, -sp);
+                else
+                    snprintf(msg, sizeof msg, "Used %s.<BR>%s recovered %d HP.<BR>%s recovered %d SP.", nm, who, hp, who, sp);
+                yoff = -16.0f;
+            }
+        } else if (strncmp(cat, "Medicines", 4) == 0) {
+            const int id = own->item_id;
+            if (id <= 4107)
+                snprintf(msg, sizeof msg, "Used %s.<BR>%s's maximum HP up by %d.", nm, who, s_gain_hp);
+            else if (id == 4111)
+                snprintf(msg, sizeof msg, s_gain_hp == 1 ? "Used %s.<BR>All status effects were cured!"
+                                                         : "Used %s.<BR>All attributes up!", nm);
+            else if (id == 4108)
+                snprintf(msg, sizeof msg, "Used %s.<BR>Movement speed has increased.", nm);
+            else if (id == 4109)
+                snprintf(msg, sizeof msg, "Used %s.<BR>Attack power up by %d.", nm, s_gain_hp);
+            else if (id == 4110)
+                snprintf(msg, sizeof msg, "Used %s.<BR>Defense power up by %d.", nm, s_gain_hp);
+        } else {
+            snprintf(msg, sizeof msg, "Used %s<BR>However, it had no effect.", nm);
+        }
+        font_draw_text_box(dev, x0 + 80.0f, 384.0f + yoff, msg, 0xffffffffu, 1.0f,
+                           s_msg_throw != 0 ? s_msg_throw : s_msg_use);
+        return;
+    }
 
     /* description lines (all.c:65659-65661): local_c = param_1+80, lines at
      * +368 / +394, white scale 0.8. */
@@ -981,6 +1053,10 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
         font_draw_text(dev, x0 + 80.0f, 368.0f, r->desc_line1, 0xffffffffu, 0.8f);
     if (r->desc_line2[0])
         font_draw_text(dev, x0 + 80.0f, 394.0f, r->desc_line2, 0xffffffffu, 0.8f);
+
+    /* the price and possessed lines are the appraised items' (0x469e0e) */
+    if (unappr)
+        return;
 
     /* base price = floor(DB price · _DAT_005c6ee8) → comma-formatted (FUN_00469abb)
      * → "Base Price- %s" at (80,420) (all.c:65665-65701).  The multiplier is 1.0
@@ -1237,6 +1313,15 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
                      (s_mode == 6 && r == 0 && scroll == 0) ? "Rearrange" : "Nothing");
         } else {
             int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+            /* 0x46b5d1..: an unappraised item (bit 4) shows the "???" record
+             * it walks back to (price -1) as one, no +N; else +N (low nibble) */
+            int plus = item & 0xf;
+            if ((item >> 4) & 1) {
+                plus = 0;
+                cnt = 1;
+                while (rec > 0 && g_item.records[rec].price != -1)
+                    rec--;
+            }
             const char *nm = (rec >= 0) ? g_item.records[rec].singular : "?";
             if (s_mode == 7) {
                 /* guild buy row (all.c:66668-66677): "Name - N Left" only while
@@ -1246,10 +1331,13 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
                     snprintf(buf, sizeof buf, "%s - %d Left", nm, cnt);
                 else
                     snprintf(buf, sizeof buf, "%s", nm);
-            } else if (cnt > 1) {
-                snprintf(buf, sizeof buf, "%s x%d", nm, cnt);
+            } else if (cnt == 1) {
+                if (plus > 0) snprintf(buf, sizeof buf, "%s+%d", nm, plus);
+                else          snprintf(buf, sizeof buf, "%s", nm);
+            } else if (plus > 0) {
+                snprintf(buf, sizeof buf, "%s+%d x%d", nm, plus, cnt);
             } else {
-                snprintf(buf, sizeof buf, "%s", nm);
+                snprintf(buf, sizeof buf, "%s x%d", nm, cnt);
             }
         }
         /* Row-name diffuse = the live price-trend tint (FUN_0046add8's
