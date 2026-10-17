@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 696, discovered 1761 → 787 referenced-or-better (30.9%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 697, discovered 1760 → 788 referenced-or-better (30.9%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 11
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (696) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (697) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -188,6 +188,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x414902 | FUN_00414902 | 39 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_records.c (+1) |
 | 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
 | 0x415e90 | FUN_00415e90 | 36 | ✓ |  | scene1_overlay.c, scene1_overlay.h |
+| 0x415eb4 | FUN_00415eb4 | 122 | ✓ |  | scene1_effects.c |
 | 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_wide_followup.h, scene1_wide_followup_helpers.c |
 | 0x415fab | FUN_00415fab | 540 | ✓ |  | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+7) |

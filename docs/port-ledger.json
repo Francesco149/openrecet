@@ -8,19 +8,19 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 696,
-  "inv_discovered": 1761,
-  "referenced_or_better": 787,
+  "inv_source_referenced": 697,
+  "inv_discovered": 1760,
+  "referenced_or_better": 788,
   "pct_referenced_or_better": 30.9,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 92,
+  "port_debt": 93,
   "verified": 81,
   "stubbed": 10,
-  "ported": 696,
-  "unported": 1761,
-  "touched": 787,
+  "ported": 697,
+  "unported": 1760,
+  "touched": 788,
   "pct_touched": 30.9,
   "pct_verified": 0.0
  },
@@ -3031,18 +3031,20 @@
    "size": 122,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene1_effects.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x415f2e",

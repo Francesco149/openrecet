@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **76**
+- total open debts: **77**
 - distinct retiring engine functions: **58**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 55 | wired call boundary, body incomplete |
+| stub | 56 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -31,11 +31,11 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_0048cdcc | 4 |
+| FUN_004176ff | 3 |
 | FUN_00436f97 | 3 |
 | FUN_00473c15 | 3 |
 | FUN_00409925 | 2 |
 | FUN_004147d5 | 2 |
-| FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_0044db3c | 2 |
@@ -89,7 +89,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (55)
+## stub (56)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -97,6 +97,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
 | FUN_004147d5 | src/record_hit.c:674 | the overlay spark (25, 1.0, -1) |
+| FUN_004176ff | src/scene1_effects.c:385 | table B's second loop (the projectiles: |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |

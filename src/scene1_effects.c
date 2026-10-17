@@ -16,7 +16,7 @@
 #include "sprite.h"
 #include "party.h"               /* DAT_056db093 / 094 */
 #include "scene1_camera.h"      /* DAT_0438cdf8 */
-#include "scene1_records.h"     /* table B DAT_069324b0 */
+#include "scene1_records.h"     /* tables A / B (DAT_069b2f80 / DAT_069324b0) */
 #include "sysassets.h"          /* effect_shot.bmp DAT_073cc940 */
 #include "x87.h"
 #include <string.h>
@@ -82,11 +82,42 @@ static fx_vtx s_atlas_quad[4] = {
     {  256.0f, -256.0f, 0.0f, 0xffffffffu, 0.12304688f,  0.37304688f },
 };
 
+/* FUN_0040d132's other billboard quads (XY ±256 unless noted):
+ * DAT_0064b488 + 96k: the 32×32 cell (32·(k & 7), 128 + 32·(k / 8));
+ * DAT_006486f8 + 96k: the 32×64 cell (32·k, 64);
+ * DAT_006488d8: x ±256, y 0..-512, the cell (0, 64)-(31.5, 120.5) flipped in v;
+ * DAT_0064a7a8: the 32×128 cell (192, 0) */
+static fx_vtx s_q488[16][4], s_q6f8[5][4], s_q8d8[4], s_qa7a8[4];
+
+static void fx_quad(fx_vtx q[4], float x0, float y0, float x1, float y1,
+                    float ul, float vt, float ur, float vb)
+{
+    const fx_vtx v[4] = {
+        { x0, y0, 0.0f, 0xffffffffu, ul, vt },
+        { x0, y1, 0.0f, 0xffffffffu, ul, vb },
+        { x1, y0, 0.0f, 0xffffffffu, ur, vt },
+        { x1, y1, 0.0f, 0xffffffffu, ur, vb },
+    };
+    memcpy(q, v, sizeof v);
+}
+
 static void fx_init_quads(void)
 {
     static int done;
     if (done) return;
     done = 1;
+    for (int k = 0; k < 16; k++) {
+        const float u = (float)(32 * (k & 7)), v = (float)(32 * (k / 8));
+        fx_quad(s_q488[k], -256.0f, 256.0f, 256.0f, -256.0f, (u + 0.5f) / 256.0f, (v + 128.5f) / 256.0f,
+                (u + 31.5f) / 256.0f, (v + 159.5f) / 256.0f);
+    }
+    for (int k = 0; k < 5; k++) {
+        const float u = (float)(32 * k);
+        fx_quad(s_q6f8[k], -256.0f, 256.0f, 256.0f, -256.0f, (u + 0.5f) / 256.0f, 0.25195312f,
+                (u + 31.5f) / 256.0f, 0.49804688f);
+    }
+    fx_quad(s_q8d8, -256.0f, 0.0f, 256.0f, -512.0f, 0.001953125f, 0.47070312f, 0.12304688f, 0.25195312f);
+    fx_quad(s_qa7a8, -256.0f, 256.0f, 256.0f, -256.0f, 0.75195312f, 0.001953125f, 0.87304688f, 0.49804688f);
     for (int k = 0; k < 8; k++) {
         const float u0 = ((float)(32 * k) + 0.5f) / 256.0f, u1 = ((float)(32 * k) + 31.5f) / 256.0f;
         const fx_vtx q[4] = {
@@ -246,6 +277,98 @@ static void fx_swing_trails(IDirect3DDevice8 *dev)
     }
 }
 
+static uint32_t fx_grey(int32_t c)
+{
+    return ((((uint32_t)(uint8_t)c | 0xffffff00u) << 8 | (uint32_t)(uint8_t)c) << 8) | (uint32_t)(uint8_t)c;
+}
+
+/* FUN_004176ff's table-A loop (0x41b07f..), the velocity streaks — types 1,
+ * 94, 2, 3, 82, 64, 83, 93, 102, 115, 119: a quad at the particle facing the
+ * eye and stretched along its velocity (FUN_00415eb4: Inverse(LookAtRH(pos,
+ * pos + vel, eye - pos))), RotX(π/2), S(w, l, 2l) by age and scale (+0x38),
+ * grey by age; ONE / ONE on effect.bmp */
+static void fx_table_a_streaks(IDirect3DDevice8 *dev)
+{
+    static const float khpi = 1.5707963705062866f;
+    fx_init_quads();
+    if (g_sysassets.effect_bmp.tex == NULL) return;
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        const int32_t t = r[12];
+        if (!(t == 1 || t == 94 || t == 2 || t == 3 || t == 82 || t == 64 || t == 83 || t == 93 ||
+              t == 102 || t == 115 || t == 119)) continue;
+        const int32_t age = r[13];
+        if (age < 0) continue;
+        float f[15];
+        memcpy(f, r, sizeof f);
+        float len = 0.015f, wid = 0.02f;
+        if (t == 93) {
+            if (age > 16) {
+                wid = spill32(0.02L - (long double)(float)(age - 16) * 0.001L);
+                if (wid <= 0.0f) continue;
+            }
+        } else {
+            if (t == 94) {
+                wid = 0.1f;
+                if (age > 8) {
+                    const float d = (float)(age - 8);
+                    wid = spill32(0.1L - (long double)d * 0.0099999998f);
+                    len = spill32((long double)d * 0.0099999998f + 0.015L);
+                }
+            } else if (age > 8) {
+                wid = spill32(0.02L - (long double)(float)(age - 8) * 0.001L);
+            }
+            if (wid <= 0.0f) continue;
+        }
+        wid = spill32((long double)wid * f[14] * 0.294L);
+        len = spill32((long double)len * f[14] * 6.9299998f);
+        if (t == 64) { wid = spill32((long double)wid * 1.5L); len = spill32((long double)len * 0.80000001f); }
+        if (t == 102) wid = spill32((long double)wid * 0.125L);
+        if (t == 115) { wid = spill32((long double)wid * 0.125L); len = spill32((long double)len * 0.5L); }
+        int32_t c = 255;
+        if (t == 83) {
+            c = 32 * age;
+            len = spill32((long double)len * 3.0L);
+            if (c > 255) c = 255;
+            if (age > 16) c += 32 * (16 - age);
+            if (c < 0) continue;
+        } else if (t == 93) {
+            c = 16 * age;
+            if (c > 255) c = 255;
+        } else if (age > 8) {
+            c = 511 - 32 * age;
+            if (c < 0) continue;
+        }
+        const float eye[3] = { f[0], f[1], f[2] };
+        const float at[3] = { f[3] + f[0], f[4] + f[1], f[5] + f[2] };
+        const float up[3] = { g_scene1_camera_eye[0] - f[0], g_scene1_camera_eye[1] - f[1],
+                              g_scene1_camera_eye[2] - f[2] };
+        float w[16], m[16];
+        mat4_lookat_rh(m, eye, at, up);
+        if (mat4_inverse(w, m) != 0) continue;   /* 0 = inverted */
+        mat4_rotation_x(m, khpi);
+        mat4_mul(w, m, w);
+        mat4_scaling(m, wid, len, spill32((long double)len + len));
+        mat4_mul(w, m, w);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)w);
+        fx_vtx *q;
+        switch (t) {
+        case 1: case 102: q = s_q488[2]; break;
+        case 119:         q = s_qa7a8; break;
+        case 94:          q = s_q488[(i & 1) ? 4 : 0]; break;
+        case 83: case 115: q = s_q488[0]; break;
+        case 82: case 2: case 64: q = s_q6f8[0]; break;
+        case 93:          q = s_q8d8; break;
+        default:          q = s_q6f8[1]; break;
+        }
+        for (int k = 0; k < 4; k++) q[k].diffuse = fx_grey(c);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, q, sizeof(fx_vtx));
+    }
+}
+
 void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -259,6 +382,9 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);
+    /* PORT-DEBT(stub, FUN_004176ff): table B's second loop (the projectiles:
+     * 88 / 102 / 100 / 105 / 132 / 77..80 / 165 / 166 / 98 / 123 / 161 / 164 …) */
+    fx_table_a_streaks(dev);
 }
 
 #endif /* _WIN32 */
