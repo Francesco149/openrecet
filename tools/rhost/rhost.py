@@ -312,9 +312,31 @@ def run_batch_wine(a, runs, tag):
     return batch, bdir, results, out
 
 
+PRUNE_HOURS = float(os.environ.get("RHOST_PRUNE_HOURS", "12"))
+_pruned = False
+
+
+def prune_win_runs(hours=None):
+    """delete the Windows run dirs older than `hours` (C:\\orc-rhost\\runs: each batch leaves
+    its save.dat copy, captures and state dumps there — 200 GB in four days); the
+    `record` runs (the human's raw recordings) are kept. Every result worth keeping
+    was fetched to the local batch dir (rhost-runs/), and the rest replays deterministically."""
+    h = PRUNE_HOURS if hours is None else hours
+    out = ssh_win(
+        f"$n = 0; $cut = (Get-Date).AddHours(-{h}); "
+        f"Get-ChildItem {WROOT}\\runs -Directory | Where-Object {{ $_.Name -notmatch '-record-' "
+        f"-and $_.LastWriteTime -lt $cut }} | ForEach-Object {{ Remove-Item $_.FullName -Recurse "
+        f"-Force -ErrorAction SilentlyContinue; $n++ }}; \"pruned $n\"", timeout=1800)
+    return out.strip()
+
+
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
+    global _pruned
     if getattr(a, "target", "win") == "wine":
         return run_batch_wine(a, runs, tag)
+    if not _pruned and PRUNE_HOURS > 0:   # once per command: keep C: from filling up
+        _pruned = True
+        prune_win_runs()
     ensure_staged()
     batch, bdir = make_batch(a, runs, tag)
     scp(bdir, f"{WIN}:C:/orc-rhost/runs/", recursive=True)
@@ -1054,6 +1076,9 @@ def main():
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("gates"); p.add_argument("--only", help="regex over 'KIND SCENARIO'"); common(p); p.set_defaults(fn=cmd_gates)
+    p = sp.add_parser("prune", help="delete Windows run dirs older than --hours (record runs kept)")
+    p.add_argument("--hours", type=float, default=PRUNE_HOURS)
+    p.set_defaults(fn=lambda a: print(prune_win_runs(a.hours)) or 0)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sp.add_parser("record"); p.add_argument("name")
