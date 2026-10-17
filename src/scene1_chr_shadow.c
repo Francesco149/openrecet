@@ -125,6 +125,12 @@ void chr_shadow_build_display_glow(float render_x, float render_z,
 #include "scene1_shop_display.h"    /* shop_display_cbfc/cc00/render_x/render_z/bf68 — Block G gate */
 #include "sim.h"                    /* g_sim_frame_count (DAT_0438b8cc) — glow pulse phase */
 #include "study_toggles.h"          /* study filming kill-switch (blob shadows) */
+#include "actor_table.h"            /* the actors DAT_0076b970 (Block B) */
+#include "map_collision.h"          /* mapcol_maptype */
+#include "party.h"                  /* the floor cache DAT_056daf94 / DAT_056daebc */
+#include "scene1_records.h"         /* tables A / B (Blocks C, D) */
+#include "tables_enemy.h"           /* the enemy records DAT_005c23f0 */
+#include <string.h>
 
 #define SHADOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)   /* 0x142 */
 
@@ -166,6 +172,38 @@ static const shadow_vertex GLOW_QUAD[4] = {
  * free-roam).  Slot 0 = player, slot 1 = disabled guest (char -1, skipped),
  * slot 2 = companion. */
 #define SHADOW_ACTOR_SLOTS 3
+
+/* FUN_0040d11b's colour 0xff<c><c><c> */
+static uint32_t grey_color(int32_t c)
+{
+    return ((((uint32_t)(uint8_t)c | 0xffffff00u) << 8 | (uint32_t)c) << 8) | (uint32_t)c;
+}
+
+/* the blob's world, as every block builds it: Shadow(light (0,1,0,0), plane
+ * through (0, 0.2, 0) with normal n) · Scaling(-s, s, s) · Translation */
+static void shadow_world(float out[16], float x, float y, float z, float s, const float n[3])
+{
+    float t[16], sc[16], w1[16], sh[16], plane[4];
+    mat4_translation(t, x, y, z);
+    mat4_scaling(sc, -s, s, s);
+    mat4_mul(w1, sc, t);
+    const float point[3] = { 0.0f, 0.2f, 0.0f };
+    plane_from_point_normal(plane, point, n);
+    const float light[4] = { 0.0f, 1.0f, 0.0f, 0.0f };
+    mat4_shadow(sh, light, plane);
+    mat4_mul(out, sh, w1);
+}
+
+static void shadow_blob(IDirect3DDevice8 *dev, const float world[16], uint32_t color)
+{
+    shadow_vertex quad[4];
+    for (int v = 0; v < 4; v++) {
+        quad[v] = SHADOW_QUAD[v];
+        quad[v].color = color;
+    }
+    IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
+    IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, quad, sizeof(shadow_vertex));
+}
 
 void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
 {
@@ -235,7 +273,15 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
          * pos.y, so the lift only fixes the hit, not the size/alpha. */
         collision_hit hit;
         hit.hit = 0;
-        if (i == 0) {
+        if (i != 0 || mapcol_maptype() >= 1) {
+            /* the party's floor cache, as retail reads it for every actor:
+             * DAT_056daf94[i] (-100 = none) and the normal of DAT_056daebc[i] */
+            hit.hit = g_party.ground_y2[i] != -100.0f;
+            hit.height = g_party.ground_y2[i];
+            hit.normal[0] = g_party.hit[i].n[0];
+            hit.normal[1] = g_party.hit[i].n[1];
+            hit.normal[2] = g_party.hit[i].n[2];
+        } else if (i == 0) {
             hit = g_scene1_player_floor;
         } else if (cm) {
             const float SHADOW_FLOOR_PROBE_LIFT = 1.5f;   /* == CR_HEAD_HEIGHT */
@@ -281,16 +327,90 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
     scene1_bg_npc_shadow_render(dev);
     scene1_customer_npc_shadow_render(dev);
 
+    /* ── Block B (L123): the actors' shadows (DAT_0076b970, the in-use ones
+     * not hidden by +0xaf4): on the floor normal (their own +0xa08, or the
+     * actor they ride, +0xa04), sized by the height over +0x3e0 and the enemy
+     * record's +0x44 / +0x54, faded by the view depth +0x450 past -70 and by
+     * the spawn fade +0x3dc (255 = the full shadow) */
+    for (int k = 0; k < ACTOR_COUNT; k++) {
+        const actor_t *a = &g_actor[k];
+        if (act_geti(a, ACT_INUSE) == 0 || act_geti(a, 0xaf4) > 0) continue;
+        const int32_t ride = act_geti(a, 0xa04);
+        const actor_t *na = (ride == -1 || ride < 0 || ride >= ACTOR_COUNT) ? a : &g_actor[ride];
+        float ny = act_getf(na, 0xa0c);
+        if (ny < 0.0f) ny = -ny;
+        if (!(ny >= 0.69999999f) || !(act_getf(a, 0xac0) > 0.0f)) continue;
+        const int32_t type = act_geti(a, ACT_TYPE);
+        if (type < 0 || type >= ENEMY_COUNT) continue;
+        const enemy_record_t *e = &g_enemy[type];
+        const float depth = act_getf(a, 0x450);
+        if (!(e->runtime_floats[4] > 0.0f) || !(depth >= -75.0f)) continue;
+        const float h = act_getf(a, 0x3f4) - act_getf(a, 0x3e0);
+        int32_t al = (int32_t)(h * 5.0f);
+        if (depth < -70.0f) al += (int32_t)((depth + 70.0f) * -50.0f);
+        al += 255 - act_geti(a, 0x3dc);
+        if (al < 0) al = 0;
+        if (al > 255) al = 255;
+        if (act_geti(a, 0x3dc) == 255) al = 0;
+        float sz = 0.046f - h * 0.0020000001f;
+        if (sz > 0.045000002f) sz = 0.045000002f;
+        if (sz < 0.025f) sz = 0.025f;
+        sz = act_getf(a, 0xabc) * e->runtime_floats[0] * e->runtime_floats[4] * sz;
+        const float n[3] = { -act_getf(a, 0xa08), act_getf(a, 0xa0c), -act_getf(a, 0xa10) };
+        float w[16];
+        shadow_world(w, act_getf(a, ACT_POS), act_getf(a, 0x3e0) + 0.12f, act_getf(a, ACT_POS + 8), sz, n);
+        shadow_blob(dev, w, grey_color(al));
+    }
+
+    /* ── Block C (L189): table B's grounded effects (types 0x2c / 0x56 / 0x8c /
+     * 0x96 / 0x2b), black, sized by the height over their ground +0x24 */
+    for (int k = 0; k < g_scene1_records_b_count && k < SCENE1_RECORDS_B_COUNT; k++) {
+        const int32_t *r = &g_scene1_records_b[k * SCENE1_RECORDS_B_STRIDE];
+        const int32_t t = r[0];
+        if (t == 0 || !(t == 44 || t == 86 || t == 140 || t == 150 || t == 43)) continue;
+        float f[26];
+        memcpy(f, r, sizeof f);
+        float ny = f[7];
+        if (ny < 0.0f) ny = -ny;
+        if (!(ny >= 0.69999999f)) continue;
+        float sz = 0.046f - (f[24] - f[9]) * 0.00050000002f;
+        if (sz > 0.045000002f) sz = 0.045000002f;
+        if (sz < 0.025f) sz = 0.025f;
+        sz *= 0.2f;
+        if (t == 86 || t == 150 || t == 43) sz *= 0.40000001f;
+        const float n[3] = { -f[6], f[7], -f[8] };
+        float w[16];
+        shadow_world(w, f[23], f[9] + 0.2f, f[25], sz, n);
+        shadow_blob(dev, w, 0xff000000u);
+    }
+
+    /* ── Block D (L234): table A's type-0x50 records, turned by their yaw and
+     * stretched 1.5 in z, fading out from age 80 */
+    for (int k = 0; k < g_scene1_records_a_count && k < SCENE1_RECORDS_A_COUNT; k++) {
+        const int32_t *r = &g_scene1_records_a[k * SCENE1_RECORDS_A_STRIDE];
+        if (r[12] != 80) continue;
+        float f[23];
+        memcpy(f, r, sizeof f);
+        const float sz = f[14] * 0.0015f;
+        const float n[3] = { -f[20], f[21], -f[22] };
+        float w[16], ry[16], s2[16], t1[16];
+        shadow_world(w, f[0], f[1] + 0.079999998f, f[2], sz, n);
+        mat4_rotation_y(ry, -f[7]);
+        mat4_mul(t1, ry, w);
+        mat4_scaling(s2, 1.0f, 1.0f, 1.5f);
+        mat4_mul(w, s2, t1);
+        const int32_t age = r[13];
+        int32_t c = 60;
+        if (age > 80) {
+            c = age - 20;
+            if (c > 255) continue;
+        }
+        shadow_blob(dev, w, grey_color(c));
+    }
+
     }   /* study_toggle_on(STUDY_T_BLOB) */
 
-    /* ── dormant blocks (engine L123-346), HOUSE free-roam ledger ───────────
-     * Every one of these shadow consumers walks a table HOUSE free-roam leaves
-     * empty, so none draw.  Kept as documented stubs (the scene1_shop_walker
-     * count-stub convention) until their tables are modelled:
-     *   L123 Block B       — customer / people shadows (DAT_0076c374 stride
-     *                        0x2e9): no customers in free-roam.
-     *   L189 Block C       — DAT_069324d4 effects (count DAT_0076b964 == 0).
-     *   L234 Block D       — DAT_069b2fb0 type-0x50 (count DAT_0076b960 == 0).
+    /* ── dormant blocks (engine L266-346):
      *   L266 Block E       — combat projectile shadows (DAT_0695f004); gated
      *                        DAT_0438b17c, no projectiles in HOUSE.
      *   L297 Block F       — DAT_06956cb4 (count DAT_0076b968 == 0).
