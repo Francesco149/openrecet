@@ -85,6 +85,14 @@ render_quad_vtx_t *render_quad_vbuf(void)
     return g_vbuf;
 }
 
+render_quad_vtx_t *render_quad_reserve(uint32_t n)
+{
+    if (g_vcount + n > RENDER_QUAD_MAX_VERTICES) return NULL;
+    render_quad_vtx_t *v = &g_vbuf[g_vcount];
+    g_vcount += n;
+    return v;
+}
+
 int32_t render_quad_screen_w_int(void)
 {
     return (int32_t)g_screen_w;

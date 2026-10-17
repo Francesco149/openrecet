@@ -99,6 +99,11 @@ const render_quad_vtx_t *render_quad_buffer(void);
  * specular stay as render_quad_init set them. */
 render_quad_vtx_t *render_quad_vbuf(void);
 
+/* The next `n` slots of the batch, counted as added (the engine's inline
+ * builders that write DAT_00605208 at DAT_00647e0c themselves — FUN_00407cac's
+ * minimap); NULL when the batch would overflow. */
+render_quad_vtx_t *render_quad_reserve(uint32_t n);
+
 /* DAT_005cbc04, the screen width the quads scale by. */
 int32_t render_quad_screen_w_int(void);
 

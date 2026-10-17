@@ -49,6 +49,8 @@ int scene1_merchant_hud_level(void) { return g_level; }
 #include "scene1_maplight.h"     /* scene1_current_stage_record (*068dd2f0)  */
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0)             */
 #include "tables_item.h"         /* g_item DB record + name lookup           */
+#include "dungeon_hud.h"         /* FUN_00407ab4                              */
+#include "x87.h"
 
 #ifndef M_PI_F
 #define M_PI_F 3.1415927f
@@ -318,16 +320,14 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
         if (wb) level = (int)wb[SAVE_BANK_FIELD_MERCHANT_LEVEL];
         scene1_merchant_hud_draw_level(dev, ox + 16.0f, oy, level, 0xffffffffu);
     }
+    /* the "LEVEL UP!" pop (FUN_00407ab4) above the badge */
+    dungeon_hud_levelup_pop(dev_in, spill32((long double)ox + 16.0f), spill32((long double)oy - 48.0f));
 
     /* FUN_00409925's cc08 0/10 block (after the level badge + the pop): the
      * counter-menu entry buttons + labels. */
     counter_menu_render(dev_in, player_ctrl_cc08());
 
-    /* The "LEVEL UP!" pop (FUN_00407ab4, gated 0 < DAT_0438b920): the timer
-     * is LIVE now (scene1_top_hud_levelup_timer, armed by the xp_tick level-
-     * up) but the pop render itself is still unported —
-     * PORT-DEBT(merchant-levelup-pop); not exercised in the tutorial trace
-     * (exp 10 < level_end). */
+
 }
 
 #endif /* _WIN32 */

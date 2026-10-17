@@ -13,7 +13,7 @@
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
-| instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (80 full + 11 stub) |
+| instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
 | source-referenced  |   694 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
 | discovered         |  1763 | exists in the engine, no `src/` reference    |
@@ -36,7 +36,7 @@ re-verification.
 11 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 93 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 92 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 

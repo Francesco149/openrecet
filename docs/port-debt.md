@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **77**
-- distinct retiring engine functions: **59**
+- total open debts: **76**
+- distinct retiring engine functions: **58**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 56 | wired call boundary, body incomplete |
+| stub | 55 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -44,7 +44,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
-| FUN_00407cac | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
@@ -90,12 +89,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (56)
+## stub (55)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00407cac | src/dungeon_hud.c:199 | the rest of the floor HUD — the boss bar |
-| FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
+| FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
 | FUN_004147d5 | src/record_hit.c:674 | the overlay spark (25, 1.0, -1) |
@@ -129,8 +127,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00468fd0 | src/scene_guild.c:440 | the removal is unported, |
 | FUN_00469b3a | src/scene1_display_menu.c:943 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:656 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:278 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:315 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:280 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:318 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0047f46a | src/scene1_sim.c:255 | equip the bag's items |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |

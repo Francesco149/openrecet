@@ -85,6 +85,7 @@ void scene1_preload_floor_layout(void)
 #include "scene_jutan.h"
 #include "scene_map_meshes.h"
 #include "chara_equip.h"    /* DAT_0438b7d8 */
+#include "dungeon_hud.h"    /* map.bmp, the enemy faces */
 #include "tables_enemylist.h"
 #include "tables_enemy.h"    /* DAT_005c23f0 */
 #include "collision_house.h"
@@ -261,6 +262,7 @@ static void scene1_preload_floor_sheets(void)
     for (int t = 0; t < 100 && t < ENEMY_COUNT; t++)
         if (present[t] && g_enemy[t].flags == 0)
             scene1_preload_load_chr_sheet(g_enemy[t].unknown_24);
+    dungeon_hud_load_faces((struct IDirect3DDevice8 *)g_scene1_preload_dev, present);   /* DAT_073ac878 */
 }
 
 /* LAB_00452a6b — the stage loader of a floor change (FUN_00452eed, spawned by
@@ -311,13 +313,13 @@ static int scene1_preload_dungeon(void)
         const int c = chara_equip_get_current_chara();
         scene1_preload_load_chr_sheet(c >= 0 && c < 8 ? k_adv_sheet[c] : 42);
     }
+    dungeon_hud_load_map((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* map.bmp, DAT_073d8768 */
     scene1_preload_floor_sheets();      /* FUN_00473c15 */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
-     * sprites / meshes of the floor roster (FUN_00431a80), the dungeon title,
-     * and FUN_00474a9a's dungeon arm (the player's chr sheet by DAT_0438b7d8, the
-     * trees, the dungeon objects, map.bmp, the hikari frames, mahoujin, the
-     * clear banner, the ice / train / lattice / vector meshes).  No dungeon
-     * renderer consumes them yet. */
+     * meshes of the floor roster (FUN_00431a80), the dungeon title, and
+     * FUN_00474a9a's dungeon arm (the trees, the dungeon objects, the hikari
+     * frames, mahoujin, the clear banner, the ice / train / lattice / vector
+     * meshes). */
     scene1_postload_stage_entry_init(); /* FUN_00436f97 */
     return 0;
 }
