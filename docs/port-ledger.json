@@ -19112,8 +19112,12 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
+    "src/actor_ai.h",
+    "src/record_hit.c",
     "src/scene1_records_b_tick.c",
-    "src/scene1_records_b_tick.h"
+    "src/scene1_records_b_tick.h",
+    "src/scene1_walker_pass_init.c"
    ],
    "status": "ported"
   },

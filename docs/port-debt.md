@@ -99,11 +99,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:3447 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:3404 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:3000 | the other types' AI (FUN_0042ce17, |
-| FUN_0042f7ad | src/actor_ai.c:729 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:3457 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_0042e1a6 | src/actor_ai.c:3477 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:3434 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:3030 | the other types' AI (FUN_0042ce17, |
+| FUN_0042f7ad | src/actor_ai.c:759 | the other bosses' / special enemies' |
+| FUN_00430c6d | src/actor_ai.c:3487 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:397 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
@@ -184,9 +184,9 @@ _none_
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:800 | the engine frees the shop |
-| oob | 0x43e... | src/scene1_records_b_tick.c:3173 | types >= 64 read past DAT_005c23f0 into |
+| oob | 0x43e... | src/scene1_records_b_tick.c:3175 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1513 | the menu, note, lecture and |
-| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:521 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:523 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2093 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1609 | the results screen's assets |

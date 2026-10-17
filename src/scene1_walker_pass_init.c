@@ -347,6 +347,8 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "model_anchor.h"     /* the animated models' frame trees */
 #include "model_render.h"     /* FUN_00403ca7's device states */
 #include <math.h>
+#include "actor_ai.h"         /* FUN_00490820 */
+#include "x87.h"
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
  * association; our mesh_t uses per-MATERIAL texture_slots[mat_i] for
@@ -708,6 +710,10 @@ void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
         if (t == -1 || o->i[35 + 119] == 3) continue;
         if (t < 0 || t >= 23 || k_dobj_type[t][7] != pass) continue;
         if (g_usetree == 1 && t < 4) continue;
+        if (k_dobj_type[t][8] != 0 &&
+            actor_view_cull(spill32((long double)o->f[0] + o->f[6]), o->f[1],
+                            spill32((long double)o->f[2] + o->f[8]), 10.0f) >= 0)
+            continue;   /* FUN_00490820 */
         if (k_dobj_type[t][0] != 1) continue;
         const int k = k_dobj_type[t][1];
         if (k < 0 || k >= 4 || s_dobj_model[k] == NULL || s_dobj_hier[k] == NULL) continue;
@@ -730,9 +736,9 @@ void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
         if (g_usetree == 1 && t < 4) continue;
         const float px = o->f[0] + o->f[6], pz = o->f[2] + o->f[8];
         if (k_dobj_type[t][8] != 0) {
-            const float dx = px - g_scene1_camera_eye[0];
-            const float dz = (pz - g_scene1_camera_eye[2]) * 0.5f;
-            if (sqrtf(dz * dz + dx * dx) > 50.0f) continue;
+            const float dx = spill32((long double)o->f[0] + o->f[6] - g_scene1_camera_eye[0]);
+            const float dz = spill32(((long double)o->f[2] + o->f[8] - g_scene1_camera_eye[2]) * 0.5f);
+            if (spill32(sqrt((double)dz * dz + (double)dx * dx)) > 50.0f) continue;
         }
         if (k_dobj_type[t][0] != 0) continue;
         on[i] = 1;

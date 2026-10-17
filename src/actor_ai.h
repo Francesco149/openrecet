@@ -9,6 +9,7 @@
  *   FUN_0042df55  actor_stage_spawns   the stage's static spawn list (once)
  *   FUN_0049065b  actor_view_plane     copies the camera matrices for the depths
  *   FUN_0049097c  actor_view_depth     view-space z of a point
+ *   FUN_00490820  actor_view_cull      a sphere against the frustum's side planes
  *   FUN_0042f28c  actor_ai_alive       the per-type AI dispatch + gravity
  *   FUN_0042f7ad  actor_dying          a dying actor (the regular enemies' arm)
  *   FUN_0042c9b3  actor_ai_slime       types 0..5
@@ -42,6 +43,7 @@ void  actor_bone_timers_tick(void);                       /* FUN_0042ea35 */
 void  actor_stage_spawns(void);                           /* FUN_0042df55 */
 void  actor_view_plane(void);                             /* FUN_0049065b */
 float actor_view_depth(float x, float y, float z);
+int32_t actor_view_cull(float x, float y, float z, float r);   /* FUN_00490820 */
 /* FUN_00490c78's screen x (the render's last view / projection) */
 float actor_screen_x(float x, float y, float z);        /* FUN_0049097c */
 void  actor_ai_alive(actor_t *a);                         /* FUN_0042f28c */

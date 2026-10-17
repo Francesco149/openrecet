@@ -136,7 +136,7 @@
    "engine_fn": "0x43e...",
    "desc": "types >= 64 read past DAT_005c23f0 into",
    "file": "src/scene1_records_b_tick.c",
-   "line": 3173,
+   "line": 3175,
    "kind_known": false
   },
   {
@@ -152,7 +152,7 @@
    "engine_fn": "FUN_00457714",
    "desc": "the movers (DAT_0438c150,",
    "file": "src/scene1_walker_pass_init.c",
-   "line": 521,
+   "line": 523,
    "kind_known": false
   },
   {
@@ -312,7 +312,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 3447,
+   "line": 3477,
    "kind_known": true
   },
   {
@@ -320,7 +320,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 3404,
+   "line": 3434,
    "kind_known": true
   },
   {
@@ -328,7 +328,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 3000,
+   "line": 3030,
    "kind_known": true
   },
   {
@@ -336,7 +336,7 @@
    "engine_fn": "FUN_0042f7ad",
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
-   "line": 729,
+   "line": 759,
    "kind_known": true
   },
   {
@@ -344,7 +344,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 3457,
+   "line": 3487,
    "kind_known": true
   },
   {

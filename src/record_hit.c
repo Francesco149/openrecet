@@ -1574,6 +1574,7 @@ void record_sm_install(void)
     scene1_records_b_set_wall_raycast_hook(wall_ray);
     scene1_records_b_set_wall_flag_at_hook(wall_type);
     scene1_records_b_set_state_machine_hook(record_sm_tick);
+    scene1_records_b_set_cull_query_hook(actor_view_cull);   /* FUN_00490820 */
     scene1_records_b_set_notify_queue_hook(camera_shake);   /* FUN_0044b219 */
     scene1_records_b_set_aux_4532bc_hook(sim_screen_wobble); /* FUN_004532bc */
 }

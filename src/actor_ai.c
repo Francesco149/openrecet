@@ -168,6 +168,36 @@ float actor_screen_x(float x, float y, float z)
     return spill32((long double)k320 - (long double)fx * vx / vz);
 }
 
+/* FUN_00490820: the view-space test of a sphere (x, y, z, r) against the
+ * frustum's side planes — 0 when its near side is not in front (view z - r
+ * truncates to >= 0), 1 out left / right, 2 out top / bottom, else the
+ * truncated view z - r (< 0: visible) */
+int32_t actor_view_cull(float x, float y, float z, float r)
+{
+    const float *m = g_view_mat;
+    float vz = spill32(((long double)m[2] * x + (long double)m[6] * y) + (long double)m[10] * z + m[14]);
+    vz = spill32((long double)vz - r);
+    const int32_t n = x87_ftol(vz);
+    if (n >= 0) return 0;
+    const float vx = spill32(((long double)m[0] * x + (long double)m[4] * y) + (long double)m[8] * z + m[12]);
+    if (vx > 0.0f) {
+        const float t = spill32((long double)s_screen[0] * spill32((long double)vx - r));
+        if ((long double)s_screen[2] * vz > t) return 1;
+    } else {
+        const float t = spill32((long double)s_screen[0] * spill32((long double)vx + r));
+        if (-((long double)s_screen[2] * vz) < t) return 1;
+    }
+    const float vy = spill32(((long double)m[1] * x + (long double)m[5] * y) + (long double)m[9] * z + m[13]);
+    if (vy > 0.0f) {
+        const float t = spill32((long double)s_screen[1] * spill32((long double)vy - r));
+        if (!(-((long double)s_screen[3] * vz) >= t)) return 2;
+    } else {
+        const float t = spill32((long double)s_screen[1] * spill32((long double)vy + r));
+        if ((long double)s_screen[3] * vz > t) return 2;
+    }
+    return n;
+}
+
 float actor_view_depth(float x, float y, float z)
 {
     /* the view matrix is the render's (FUN_00441c3e's pose, built where the

@@ -361,11 +361,12 @@ static inline int state_machine_call_ret(int32_t *slot)
     return g_state_machine_hook ? g_state_machine_hook(slot) : 0;
 }
 
-/* Default cull-query returns -1 ("visible") so the state machine fires
- * every loop iteration without an explicit hook installed. */
-static inline int cull_query(float x, float y)
+/* FUN_00490820 (x, y, z, r): < 0 = in view.  Production installs
+ * actor_view_cull (record_sm_install); with no hook every record is in
+ * view. */
+static inline int cull_query(float x, float y, float z, float r)
 {
-    return g_cull_query_hook ? g_cull_query_hook(x, y) : -1;
+    return g_cull_query_hook ? g_cull_query_hook(x, y, z, r) : -1;
 }
 
 /* ─── slot accessors ─────────────────────────────────────────────────── */
@@ -1157,7 +1158,8 @@ static void body_0x74_or_0x79(int i, int32_t type)
         for (int n = 0; n < 20; n++) {
             float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
             float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-            if (cull_query(px, py) < 0) {
+            float pz0 = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            if (cull_query(px, py, pz0, 1.0f) < 0) {   /* asm 0x43bef0: r = 1 */
                 state_machine_call(slot_base(i));
             }
             float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
@@ -4326,12 +4328,10 @@ static void body_0x73_or_0x78_or_0x7a(int i)
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
 
     /* asm 0x44047a-0x44049f: cull_query.  Engine pushes 4 args (POS_X,
-     * POS_Y, POS_Z, 0.0f); our 2-arg hook receives POS_X/POS_Y only — the
-     * default returns -1 ("visible") so cull behavior is preserved in
-     * production.  CULL (ret >= 0): kill + AGE-78 tail. */
+     * POS_Y, POS_Z, 0.0f).  CULL (ret >= 0): kill + AGE-78 tail. */
     float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-    if (cull_query(px, py) >= 0) {
+    if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }
@@ -5017,7 +5017,7 @@ static void body_0xa0(int i)
     /* asm 0x43fc4a-0x43fc6f: cull_query(POS_X, POS_Y, POS_Z, 0.0). */
     float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-    if (cull_query(px, py) >= 0) {
+    if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         /* asm 0x43fc88: kill + AGE==0x78 check (LAB_0043fada). */
         scene1_records_b_tick_kill_slot(i);
         return;
@@ -5056,7 +5056,7 @@ static void body_0x7e(int i)
      * (ret >= 0) → kill + AGE==0x78 check (LAB_00440741). */
     float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-    if (cull_query(px, py) >= 0) {
+    if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }
@@ -5330,12 +5330,11 @@ static void body_entity_bounce_inner(int i, int32_t type)
     }
 
     /* 3. asm 0x44047a-0x44049f: cull_query gate (skipped for 0x56/0x96).
-     * Engine pushes 4 args (POS_X, POS_Y, POS_Z, 0.0f); our 2-arg hook
-     * receives POS_X/POS_Y only — default returns -1 ("visible") so
-     * production behavior unchanged.  ret >= 0 → KILL + LAB_00440741. */
+     * Engine pushes 4 args (POS_X, POS_Y, POS_Z, 0.0f).  ret >= 0 → KILL +
+     * LAB_00440741. */
     float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
-    if (cull_query(px, py) >= 0) {
+    if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
         return;
     }

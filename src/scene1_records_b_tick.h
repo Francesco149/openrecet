@@ -550,15 +550,12 @@ typedef void (*scene1_b_aux_2arg_fn)(int32_t arg1, int32_t arg2);
 typedef void (*scene1_b_notify_queue_fn)(int32_t a, int32_t b, int32_t c,
                                          float d);
 
-/* Stand-in for engine FUN_00490820 (348 B, 0x490820) — view-frustum cull
- * / projection visibility test (vec3 × 4-row view-matrix vs radius).
- * Engine reads _DAT_095d3770..95d37bc (16-float matrix + 4 ints); returns
- * iVar3 = positive depth-bias (visible) or 0/negative (culled).  Used by
- * 0x74/0x79 shared body's iter loop to gate state-machine calls to
- * only-when-visible slots.  Default returns -1 = "always visible" — so
- * the state machine fires every iteration (same observable behavior as
- * a stub state machine that doesn't write anything). */
-typedef int (*scene1_b_cull_query_fn)(float x, float y);
+/* FUN_00490820 (x, y, z, r): the sphere against the view frustum
+ * (actor_view_cull) — < 0 in view, 0 / 1 / 2 out.  The age < 0x28 loop
+ * steps the state machine only in view (r = 1); the bodies' tails kill a
+ * record out of view (r = 0).  No hook = always in view (host tests);
+ * record_sm_install sets actor_view_cull. */
+typedef int (*scene1_b_cull_query_fn)(float x, float y, float z, float r);
 
 /* FUN_00432e50 — the ground under (x, y, z): 1 = hit, the 0x44-byte hit
  * record (mapcol_hit_t: normal, +0xc height, tri, slot, …) written to `out`.
@@ -684,7 +681,7 @@ typedef void (*scene1_b_aux_44b255_fn)(void);
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
  * `se` it's a no-op (engine helpers unported / side-effect-only); for
- * `cull_query` it's "always visible". */
+ * `cull_query` it's "always in view". */
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn);
 scene1_b_state_machine_fn scene1_records_b_set_state_machine_hook(

@@ -923,9 +923,9 @@ static void bind_owner_a_blob_as_b(int slot_idx)
 /* Cull-query hook capture. */
 static int s_cull_calls;
 static int s_cull_return;
-static int cull_stub(float x, float y)
+static int cull_stub(float x, float y, float z, float r)
 {
-    (void)x; (void)y;
+    (void)x; (void)y; (void)z; (void)r;
     s_cull_calls++;
     return s_cull_return;
 }

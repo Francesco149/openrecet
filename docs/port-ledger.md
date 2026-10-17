@@ -694,7 +694,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4902fe | FUN_004902fe | 682 | ✓ |  | audio_fade.h, main.c, save_bank.h (+2) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ |  | main.c, save_io.c, save_io.h (+5) |
 | 0x490795 | FUN_00490795 | 139 | ✓ |  | actor_ai.h |
-| 0x490820 | FUN_00490820 | 348 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x490820 | FUN_00490820 | 348 | ✓ |  | actor_ai.c, actor_ai.h, record_hit.c (+3) |
 | 0x49097c | FUN_0049097c | 41 | ✓ |  | actor_ai.h |
 | 0x490c78 | FUN_00490c78 | 77 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_hud.c (+6) |
 | 0x490cc6 | FUN_00490cc6 | 99 | ✓ |  | actor_ai.c, scene1_render.c |

@@ -130,6 +130,10 @@ void chr_shadow_build_display_glow(float render_x, float render_z,
 #include "party.h"                  /* the floor cache DAT_056daf94 / DAT_056daebc */
 #include "scene1_records.h"         /* tables A / B (Blocks C, D) */
 #include "tables_enemy.h"           /* the enemy records DAT_005c23f0 */
+#include "dungeon_objects.h"         /* the stage objects DAT_0695ef78 (Block E) */
+#include "scene1_walker_pass_init.h" /* g_usetree (DAT_0438b17c) */
+#include "scene1_camera.h"          /* the eye DAT_073de31c */
+#include "x87.h"
 #include <string.h>
 
 #define SHADOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)   /* 0x142 */
@@ -324,8 +328,10 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
      * render envelope and multiplied into the floor: the bg-NPC townsfolk (their
      * bright sprites draw in the shop-walker pass) + the wandering customers
      * (their bright billboards draw in scene1_customer_npc_sprite_render). */
-    scene1_bg_npc_shadow_render(dev);
-    scene1_customer_npc_shadow_render(dev);
+    if (mapcol_maptype() == 0) {   /* FUN_00470385: DAT_068dd2f8[stage] == 0 */
+        scene1_bg_npc_shadow_render(dev);
+        scene1_customer_npc_shadow_render(dev);
+    }
 
     /* ── Block B (L123): the actors' shadows (DAT_0076b970, the in-use ones
      * not hidden by +0xaf4): on the floor normal (their own +0xa08, or the
@@ -408,13 +414,55 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
         shadow_blob(dev, w, grey_color(c));
     }
 
-    }   /* study_toggle_on(STUDY_T_BLOB) */
+    /* ── Block E (L266): the stage objects (DAT_0695ef78) within 50 of the
+     * eye (z distance halved) whose kind casts one (.data 0x5c4ca4 + kind·0x24:
+     * tree01 1, tree02 0.5), 0xff323232, sized by the object's x scale; off
+     * with recet.ini usetree */
+    if (g_usetree == 0) {
+        static const float k_kind_shadow[22] = { 1.0f, 0.5f };
+        for (int k = 0; k < DOBJ_COUNT; k++) {
+            const dobj_t *o = &g_dobj[k];
+            const int32_t kind = o->i[DOBJ_KIND];
+            if (kind == -1 || o->i[DOBJ_STATE] == 3) continue;
+            const float dx = spill32((double)o->f[6] + o->f[DOBJ_POS] - g_scene1_camera_eye[0]);
+            const float dz = spill32(((double)o->f[8] + o->f[DOBJ_POS + 2] - g_scene1_camera_eye[2]) * 0.5f);
+            const float d = spill32(sqrt((double)dz * dz + (double)dx * dx));
+            const float ks = (kind >= 0 && kind < 22) ? k_kind_shadow[kind] : 0.0f;
+            if (d > 50.0f || !(ks > 0.0f)) continue;
+            const float sz = spill32((double)o->f[DOBJ_SCALE] * ks * 0.046f);
+            const float n[3] = { -o->f[DOBJ_HIT], o->f[DOBJ_HIT + 1], -o->f[DOBJ_HIT + 2] };
+            float w[16];
+            shadow_world(w, o->f[DOBJ_POS], o->f[DOBJ_POS + 1] + 0.079999998f, o->f[DOBJ_POS + 2], sz, n);
+            shadow_blob(dev, w, 0xff323232u);
+        }
+    }
 
-    /* ── dormant blocks (engine L266-346):
-     *   L266 Block E       — combat projectile shadows (DAT_0695f004); gated
-     *                        DAT_0438b17c, no projectiles in HOUSE.
-     *   L297 Block F       — DAT_06956cb4 (count DAT_0076b968 == 0).
-     */
+    /* ── Block F (L297): table C's records (the drops), on their ground +9 with
+     * the normal +19, grey by the height over it, ×0.04 (×0.5 more for +17) */
+    for (int k = 0; k < g_scene1_records_c_count && k < SCENE1_RECORDS_C_COUNT; k++) {
+        const int32_t *r = &g_scene1_records_c[k * SCENE1_RECORDS_C_STRIDE];
+        if (r[10] == -1) continue;
+        float f[22];
+        memcpy(f, r, sizeof f);
+        float ny = f[20];
+        if (ny < 0.0f) ny = -ny;
+        if (!(ny >= 0.69999999f)) continue;
+        const float h = spill32((double)f[1] - f[9]);
+        int32_t al = x87_ftol((double)h * 5.0f);
+        if (al < 0) al = 0;
+        if (al > 255) al = 255;
+        float sz = spill32(0.046f - (double)h * 0.0020000001f);
+        if (sz > 0.045000002f) sz = 0.045000002f;
+        if (sz < 0.025f) sz = 0.025f;
+        sz = spill32((double)sz * 0.039999999f);
+        if (r[17] != 0) sz = spill32((double)sz * 0.5f);
+        const float n[3] = { -f[19], f[20], -f[21] };
+        float w[16];
+        shadow_world(w, f[0], f[9] + 0.079999998f, f[2], sz, n);
+        shadow_blob(dev, w, grey_color(al));
+    }
+
+    }   /* study_toggle_on(STUDY_T_BLOB) */
 
     /* ── Block G: cc08==1 faced-display-cell orange glow (engine L347-364,
      * objdump 0x45b8c2-0x45b952) — C3a.  A flat item_win decal laid over the
