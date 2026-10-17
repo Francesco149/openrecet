@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 698,
-  "inv_discovered": 1759,
-  "referenced_or_better": 789,
-  "pct_referenced_or_better": 31.0,
+  "inv_source_referenced": 701,
+  "inv_discovered": 1756,
+  "referenced_or_better": 792,
+  "pct_referenced_or_better": 31.1,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 12,
-  "port_debt": 91,
+  "port_debt": 90,
   "verified": 81,
   "stubbed": 10,
-  "ported": 698,
-  "unported": 1759,
-  "touched": 789,
-  "pct_touched": 31.0,
+  "ported": 701,
+  "unported": 1756,
+  "touched": 792,
+  "pct_touched": 31.1,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -12439,7 +12439,8 @@
     "src/customer_service_render.c",
     "src/scene1_display_menu.c",
     "src/scene_adv_guild.c",
-    "src/scene_adv_guild.h"
+    "src/scene_adv_guild.h",
+    "src/scene_pause.c"
    ],
    "status": "ported"
   },
@@ -16329,7 +16330,8 @@
    "quality_flags": [],
    "src": [
     "src/scene1_sim.c",
-    "src/scene_pause.c"
+    "src/scene_pause.c",
+    "src/scene_pause.h"
    ],
    "status": "ported"
   },
@@ -16590,18 +16592,20 @@
    "size": 414,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x480b65",
@@ -16676,18 +16680,20 @@
    "size": 746,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48185d",
@@ -16695,18 +16701,20 @@
    "size": 270,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_pause.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x48196b",

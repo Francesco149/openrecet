@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **75**
-- distinct retiring engine functions: **57**
+- total open debts: **74**
+- distinct retiring engine functions: **56**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 55 | wired call boundary, body incomplete |
+| stub | 54 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -71,7 +71,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0046c9a2 | 1 |
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
-| FUN_0047f46a | 1 |
 | FUN_00485c74 | 1 |
 | FUN_004864fd | 1 |
 | FUN_0048670f cc04 2 | 1 |
@@ -88,7 +87,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (55)
+## stub (54)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -129,7 +128,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:285 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0047f46a | src/scene1_sim.c:255 | equip the bag's items |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:995 | the furniture-grid mode (cc04 = 2, |
@@ -191,7 +189,7 @@ _none_
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:521 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2093 | the eye / lookat writes); the |
-| render-coupled | FUN_0048f87c | src/scene_pause.c:1599 | the results screen's assets |
+| render-coupled | FUN_0048f87c | src/scene_pause.c:1609 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |
 

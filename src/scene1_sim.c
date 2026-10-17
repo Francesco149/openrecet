@@ -252,7 +252,7 @@ static void stage_equip_prompt(void)
     const int r = choice_box_poll(g_sim_buttons[0].pressed, 1);   /* FUN_00434ed2(1) */
     g_ctrl_lock = 0;
     if (r == CB_OPT0) {
-        /* PORT-DEBT(stub, FUN_0047f46a): equip the bag's items */
+        pause_equip_optimum();               /* FUN_0047f46a */
         chara_equip_recompute_aggregate();   /* FUN_004844ef */
     } else if (r != CB_OPT1) {
         return;

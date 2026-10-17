@@ -1038,6 +1038,16 @@ static void pause_equip_auto(int32_t *eq, int chara)
     }
 }
 
+/* FUN_0047f46a for the current chara (the floor's "Equip items in bag?" Yes) */
+void pause_equip_optimum(void)
+{
+    const int chara = chara_equip_get_current_chara();
+    uint8_t *wb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (wb == NULL || chara < 0)
+        return;
+    pause_equip_auto((int32_t *)(void *)(wb + 0x2ceb0 + 108 * chara), chara);
+}
+
 /* the Equip cursor's spot: (16, 36 · row + 80) */
 static float equip_row_y(void)
 {
@@ -1693,6 +1703,117 @@ static void pause_save_picker_render(IDirect3DDevice8 *d)
     }
 }
 
+/* FUN_004809c7(chara, x, y, all, optimum): the Equip screen's slot rows —
+ * item_win (400,240)-(640,304) at 240 x 38.4, 36 apart from y + 80, x + 16
+ * half-alpha, the row DAT_074b28ac (or all) opaque at x + 32; with `optimum`
+ * row 0 reads "Optimum Equipment" (centred, 12/13) and row k the chara's
+ * slot k, else row k its slot k + 1 (FUN_0046add8 at x + 16, y + 2) */
+static void pause_equip_slots(IDirect3DDevice8 *d, int chara, float x, float y, int all, int optimum)
+{
+    const sprite_t *win = &g_sysassets.item_win_tga;
+    const uint8_t *w = save_work_bank_at(save_work_active_slot());
+    if (win->tex == NULL || w == NULL || chara < 0) return;
+    const int32_t *rec = (const int32_t *)(const void *)(w + 0x2ceb0 + 0x6c * chara);
+    const int n = s_equip_slots + (optimum == 1);
+    for (int k = 0; k < n; k++) {
+        int a = 128;
+        float rx = spill32((long double)x + 16.0f);
+        const float ry = spill32((long double)spill32((long double)spill32((float)(36 * k)) + y) + 80.0f);
+        if (all != 0 || k == g_pause_items_opt) {
+            a = 255;
+            rx = spill32((long double)x + 32.0f);
+        }
+        const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+        IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)win->tex);
+        {
+            const float dst[4] = { rx, ry, 240.0f, 38.400002f };
+            const float src[4] = { 400.0f, 240.0f, 640.0f, 304.0f };
+            render_quad_add(dst, src, win->width, win->height, col);
+        }
+        render_quad_flush(d);
+        if (optimum == 1 && k == 0) {
+            font_draw_text_centered(d, spill32((long double)rx + 120.0f), spill32((long double)ry + 10.0f),
+                                    "Optimum Equipment", col, 0.92307699f);
+            continue;
+        }
+        const int32_t item = optimum == 1 ? rec[k] : rec[k + 1];
+        if (item != -1)
+            item_row_draw(d, spill32((long double)rx + 16.0f), spill32((long double)ry + 2.0f), item, a);
+    }
+}
+
+/* FUN_00481573(x, y, slot, chara, item): the stat comparison under the Equip
+ * slots — per stat (Attack / Defense / Magic / MDef) the slot's item or the
+ * candidate touches: base + the equipped sum ("%4d", right at x + 160), "→",
+ * and while not picking (DAT_074b28a4 0) the sum with the candidate in the
+ * slot (right at x + 226; up 0xffff9b9b, down 0xff9b9bff) when the chara can
+ * wear it and it is appraised; 4 rows tighten to 15 apart at 0.7, 3 to 20 */
+static void pause_equip_compare(IDirect3DDevice8 *d, float x, float y, int slot, int chara, int item)
+{
+    const uint8_t *w = save_work_bank_at(save_work_active_slot());
+    if (w == NULL || chara < 0) return;
+    const int32_t *rec = (const int32_t *)(const void *)(w + 0x2ceb0 + 0x6c * chara);
+    static const char *const k_stat[4] = { "Attack", "Defense", "Magic", "MDef" };
+    int32_t cur[4] = { 0 }, slot_s[4] = { 0 }, cand[4] = { 0 }, cand_s[4] = { 0 };
+    const float cx = spill32((long double)x + 24.0f);
+    float cy = spill32((long double)y + 30.0f);
+    for (int k = 0; k < 5; k++)
+        chara_equip_item_stats((uint32_t)rec[1 + k], cur);
+    chara_equip_item_stats((uint32_t)rec[1 + slot], slot_s);
+    int can = 0;
+    if (g_pause_save_overwrite == 0) {
+        for (int k = 0; k < 5; k++)
+            chara_equip_item_stats((uint32_t)(k == slot ? item : rec[1 + k]), cand);
+        if (item_equip_check(chara, slot, item) != 0) {
+            can = 1;
+            chara_equip_item_stats((uint32_t)item, cand_s);
+        }
+    }
+    int touched = 0;
+    for (int i = 0; i < 4; i++)
+        if (slot_s[i] != 0 || cand_s[i] != 0) touched++;
+    float step = 24.0f, sc = 0.80000001f;
+    if (touched == 4) { cy = spill32((long double)y + 20.0f); step = 15.0f; sc = 0.69999999f; }
+    if (touched == 3) { cy = spill32((long double)y + 20.0f); step = 20.0f; }
+    for (int i = 0; i < 4; i++) {
+        if (slot_s[i] == 0 && cand_s[i] == 0) continue;
+        char buf[32];
+        font_draw_text(d, spill32((long double)cx + 16.0f), cy, k_stat[i], 0xffffffffu, sc);
+        snprintf(buf, sizeof buf, "%4d", cur[i] + rec[11 + i]);
+        font_draw_text_right(d, spill32((long double)spill32((long double)cx + 112.0f - 8.0f) + 32.0f),
+                             cy, buf, 0xffffffffu, sc);
+        font_draw_text(d, spill32((long double)cx + 152.0f), cy, "\x81\xa8", 0xffffffffu, sc);
+        if (g_pause_save_overwrite != 1 && !(item & 0x10) && can) {
+            uint32_t col = 0xffffffffu;
+            if (cand[i] > cur[i]) col = 0xffff9b9bu;
+            if (cand[i] < cur[i]) col = 0xff9b9bffu;
+            snprintf(buf, sizeof buf, "%4d", cand[i] + rec[11 + i]);
+            font_draw_text_right(d, spill32((long double)cx + 202.0f), cy, buf, col, sc);
+        }
+        cy = spill32((long double)step + cy);
+    }
+}
+
+/* FUN_0048185d: the Equip screen — the slots (FUN_004809c7 at y -20 with
+ * the Optimum row), pause.tga's STATUS plate (720,432)-(992,512) at (x + 4,
+ * 274, 272, 76), the comparison once a slot is chosen, the item window */
+static void pause_equip_render(IDirect3DDevice8 *d)
+{
+    const float ex = spill32(640.0L - (long double)spill32((float)(g_pause_sub_anim << 6)));
+    const int chara = chara_equip_get_current_chara();
+    pause_equip_slots(d, chara, ex, -20.0f, 0, 1);
+    if (g_scene_pause_pause.tex) {
+        IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)g_scene_pause_pause.tex);
+        const float dst[4] = { spill32((long double)ex + 4.0f), 274.0f, 272.0f, 76.0f };
+        const float src[4] = { 720.0f, 432.0f, 992.0f, 512.0f };
+        render_quad_add(dst, src, g_scene_pause_pause.width, g_scene_pause_pause.height, 0xffffffffu);
+        render_quad_flush(d);
+    }
+    if (g_pause_items_opt > 0)
+        pause_equip_compare(d, ex, 262.0f, g_pause_items_opt - 1, chara, display_menu_selected());
+    display_menu_render(d, ex);
+}
+
 void pause_menu_render(struct IDirect3DDevice8 *dev)
 {
     IDirect3DDevice8 *d = (IDirect3DDevice8 *)dev;
@@ -1911,8 +2032,8 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
 
     /* ── sub_anim>0 submenu dispatch (engine L83931-83952): the open submenu
      * renders over the (fading) option list. Save (type 3), Encyclopedia
-     * (type 6), Options (type 2) and Items (type 1) are ported; the Status (0)/
-     * dungeon (5) renders stay PORT-DEBT(pause-submenu-*). ── */
+     * (type 6), Options (type 2), Items (type 1) and Equip (type 5) are
+     * ported; the Status (0) render stays PORT-DEBT(pause-submenu-status). ── */
     if (g_pause_sub_anim > 0) {
         const int t = g_pause_entries[g_pause_sel];
         if (t == 3) {
@@ -1952,6 +2073,8 @@ void pause_menu_render(struct IDirect3DDevice8 *dev)
                 }
             }
             display_menu_render(d, ix);
+        } else if (t == 5) {
+            pause_equip_render(d);           /* FUN_0048185d */
         } else if (t == 2) {
             /* engine L83941: FUN_0048150c — slide_x = sub_anim*64-640 (≤0,
              * slides in from the left, rests at 0), base_y 48, row + the

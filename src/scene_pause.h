@@ -321,4 +321,8 @@ void pause_menu_render(struct IDirect3DDevice8 *dev);
 
 #endif /* _WIN32 */
 
+/* FUN_0047f46a: equip the bag's better items on the current chara (the
+ * Equip screen's Optimum row, the floor's "Equip items in bag?" Yes) */
+void pause_equip_optimum(void);
+
 #endif /* OPENRECET_SCENE_PAUSE_H */

@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 75,
+  "total": 74,
   "by_kind": {
-   "stub": 55,
+   "stub": 54,
    "synthetic-data": 0,
    "simplified": 6,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 57,
+  "retiring_engine_fns": 56,
   "by_engine_fn": {
    "FUN_0048cdcc": 4,
    "FUN_00436f97": 3,
@@ -65,7 +65,6 @@
    "FUN_0046c9a2": 1,
    "FUN_004708f7": 1,
    "FUN_00473c03": 1,
-   "FUN_0047f46a": 1,
    "FUN_00485c74": 1,
    "FUN_004864fd": 1,
    "FUN_0048670f cc04 2": 1,
@@ -177,7 +176,7 @@
    "engine_fn": "FUN_0048f87c",
    "desc": "the results screen's assets",
    "file": "src/scene_pause.c",
-   "line": 1599,
+   "line": 1609,
    "kind_known": false
   },
   {
@@ -538,14 +537,6 @@
    "desc": "the dungeon loader arm (FUN_00474a9a's",
    "file": "src/scene_adv_guild.c",
    "line": 381,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0047f46a",
-   "desc": "equip the bag's items",
-   "file": "src/scene1_sim.c",
-   "line": 255,
    "kind_known": true
   },
   {
