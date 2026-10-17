@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-17 — the floors render: rooms, objects, enemies, shadows, the HUD; the data tables match
+Checked with `portshots` against retail frames of dungeon2-run (Boss Rush floors 30 / 31) and
+dungeon2-run3 (shop days):
+- the rooms (FUN_00457714's dungeon branch: per cell S(-0.2, 0.2, 0.2)·RotY(-pat·π/2)·T, the
+  60 / 120 eye cull, texture-slot passes), the adventurer's sheet (FUN_00474a9a's dungeon arm);
+- the sprite enemies (FUN_004552d0 Pass G: the -70 depth fade, the +0xabc / ac0 / ac4 scales, the
+  roster sheets FUN_00431a80, the +0xac8 silhouette) — needed the enemy table at 100 slots
+  (was 64: the dark golem, Ohm, crabs, jellyfish, Arma's golem, Prim had no records);
+- the dungeon objects' static meshes (FUN_00459847 from both narrow walkers and the alpha
+  walker: the type table DAT_005c4c90, RotZ·RotX·RotY·S·T, xfile/mori_dun/obj_tree / obj_kusa) —
+  the world matrices match retail's (v3 capture, `orv3_xform`);
+- the shadows on a floor (FUN_0045aa36: Block A from the party floor cache, the actors' Block B,
+  table B / A's Blocks C / D);
+- the floor HUD FUN_00407cac: the party panel (FUN_004072f5: the EXP fan built straight into
+  DAT_00605208, HP / SP bars, digits FUN_00406c64, portrait, skills, level), the struck enemy's
+  bar with its face, the word / number popups, the floor plate, the combo, the minimap, chara 30 /
+  42's gauges, the level-up pop FUN_00407ab4 (also the house's);
+- the customer's order bubble (FUN_00466b7b section 1, FUN_0046602e's pick rows).
+State fixes found on the way: the HUD slide DAT_0438b1dc (FUN_00406584's tail; reset by
+FUN_00436f97 / FUN_004060ff; the top HUD rises with it) — retail clears b1c8 only at 0x453c44,
+after FUN_00406584, and FUN_0044ba2c parses its script on the arm frame (the port parsed a frame
+later, so DAT_073a3df0 lagged); `portstate` 438b1dc / 73a3df0 / 438b1c8 / 730b5d0 / 730b5d4
+IDENTICAL over day1-tutorial-to-day2, dungeon0-full, dungeon1-charme, dungeon2-run, -run3,
+house-firstcust-cutscene-day2. Data tables (`portblock`): the parsed enemy / enemylist / item /
+model / stage / chara / fusion / snews / oder / news tables are dumped and match retail; two
+parse bugs fixed (item.txt records ran past the stripped line end; gousei.txt resolved names to
+ids where retail stores slots).
+Still missing on the floors (PORT-DEBT): the skinned meshes (the model enemies, takarabako /
+obj_door), effects and particles (table A's sprites, the slash streaks), the exit circle, the
+results screen.
+
 ## 2026-10-17 — the model enemies' anchors: the last hidden split on the floors
 Every block of dungeon1-deep f77120, dungeon2-run f31460 and dungeon2-run2 f30670 differed only
 in actor #0's +0x454..+0x9f4 — written while drawing. Retail draws each in-use enemy whose type

@@ -244,8 +244,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        3 / 4's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f,
        FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
        on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
-       stubs; render: no
-       dungeon renderer, the results screen, the pause Items choice / messages; the legacy
+       stubs; render (2026-10-17, PROGRESS): rooms, static objects, sprite enemies, shadows and
+       the floor HUD match retail frames — still missing: the skinned meshes (model enemies,
+       takarabako / obj_door, FUN_00459847 kind 1), effects / particles, the exit circle, the
+       results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
     2. ✅ **Hidden-state sweep** (`portblock SCEN --at F`): **every block IDENTICAL** at the
