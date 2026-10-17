@@ -80,6 +80,16 @@ const render_quad_vtx_t *render_quad_buffer(void)
     return g_vbuf;
 }
 
+render_quad_vtx_t *render_quad_vbuf(void)
+{
+    return g_vbuf;
+}
+
+int32_t render_quad_screen_w_int(void)
+{
+    return (int32_t)g_screen_w;
+}
+
 void render_quad_reset(void)
 {
     g_vcount = 0;

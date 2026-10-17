@@ -257,9 +257,9 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_00407cac",
-   "desc": "the dungeon",
-   "file": "src/scene1_hud.c",
-   "line": 441,
+   "desc": "the rest of the floor HUD \u2014 the boss bar",
+   "file": "src/dungeon_hud.c",
+   "line": 199,
    "kind_known": true
   },
   {

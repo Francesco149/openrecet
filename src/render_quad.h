@@ -94,6 +94,14 @@ uint32_t render_quad_vertex_count(void);
 /* Read access to the in-progress buffer for tests / debug. */
 const render_quad_vtx_t *render_quad_buffer(void);
 
+/* DAT_00605208 itself, for the engine's hand-built fans (FUN_004072f5's EXP
+ * gauge): the caller fills x / y / diffuse / u / v and draws it; z / rhw /
+ * specular stay as render_quad_init set them. */
+render_quad_vtx_t *render_quad_vbuf(void);
+
+/* DAT_005cbc04, the screen width the quads scale by. */
+int32_t render_quad_screen_w_int(void);
+
 /* Reset the vertex counter without flushing. Tests use this; engine
  * code reaches the same end-state via flush() which zeroes after the
  * DrawPrimitiveUP call. */

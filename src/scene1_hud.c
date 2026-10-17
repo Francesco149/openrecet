@@ -145,6 +145,7 @@ void scene1_hud_slide_tick(void)
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3]                           */
 #include "scene1_intro_dialogue.h" /* the dialogue-box gate (DAT_0438b1c8) */
 #include "speech_bubble.h"        /* speech_bubble_render (FUN_0040c4eb)                */
+#include "dungeon_hud.h"           /* FUN_00407cac                                      */
 #include "dungeon_flow.h"         /* the floor events (DAT_0438b938 / b96c), b954     */
 #include "font_draw.h"            /* FUN_0047ca05 / FUN_0047d0ea                      */
 #include "map_collision.h"        /* mapcol_maptype (*DAT_068dd2f0)                   */
@@ -437,11 +438,12 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * (b1d0/b1d8/bebc/be94/be9c/beb4) are 0 in the house scenes it shows in. */
     speech_bubble_render(dev_in, scene1_intro_dialogue_busy());
 
-    /* FUN_0040a765: FUN_00409925 in the house (stage maptype 0) only; a floor
-     * draws FUN_00407cac instead — PORT-DEBT(stub, FUN_00407cac): the dungeon
-     * HUD (the party panel, the boss bar, the floor name plate). */
+    /* FUN_0040a765: FUN_00409925 in the house (stage maptype 0), FUN_00407cac
+     * (the floor HUD) on a floor */
     if (mapcol_maptype() == 0)
         scene1_merchant_hud_render(dev_in);
+    if (mapcol_maptype() >= 1)
+        dungeon_hud_render(dev_in);
 
     /* The interaction-affordance emote bubble (FUN_0040a765 inline @ all.c:6900):
      * engine order is FUN_00409925 → this.  The "GO!" door tooltip lives here. */

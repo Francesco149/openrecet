@@ -11,11 +11,11 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 695, discovered 1764 → 784 referenced-or-better (30.8%)
+- **inventory:** instrumented **91** (80 full + 11 stub), implemented 0, source-referenced 694, discovered 1763 → 785 referenced-or-better (30.8%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 11
 
-## instrumented (89) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
+## instrumented (91) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -24,8 +24,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x406241 | FUN_00406241 | 390 | ✓ |  | render_quad.c, render_quad.h, scene1_top_hud.c (+1) |
 | 0x4063c7 | FUN_004063c7 | 394 | ✓ |  | nowloading.c, render_quad.c, render_quad.h |
 | 0x406d50 | FUN_00406d50 | 1445 | ✓ |  | main.c, scene1_hud.c, scene1_top_hud.c (+2) |
-| 0x409925 | FUN_00409925 | 3434 | ✓ |  | customer_service.h, customer_service_render.c, scene1_counter_menu.c (+7) |
-| 0x40a765 | FUN_0040a765 | 7558 | ✓ |  | customer_service.h, customer_service_render.c, main.c (+20) |
+| 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h, dungeon_hud.c, dungeon_hud.h (+1) |
+| 0x407cac | FUN_00407cac | 7289 | ✓ | stub | dungeon_hud.c, dungeon_hud.h, scene1_hud.c |
+| 0x409925 | FUN_00409925 | 3434 | ✓ |  | customer_service.h, customer_service_render.c, dungeon_hud.h (+8) |
+| 0x40a765 | FUN_0040a765 | 7558 | ✓ |  | customer_service.h, customer_service_render.c, dungeon_hud.h (+21) |
 | 0x40fb3a | FUN_0040fb3a | 8071 | ✓ |  | main.c, scene1_particles_tick.c, scene1_particles_tick.h (+9) |
 | 0x4141c0 | FUN_004141c0 | 389 | ✓ | stub | scene1_hud.c, scene1_hud.h |
 | 0x414929 | FUN_00414929 | 1465 | ✓ |  | scene1_particles_tick.c, scene1_particles_tick.h, scene1_per_frame_open.c (+2) |
@@ -114,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (695) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (694) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -159,10 +161,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x40697d | FUN_0040697d | 19 | ✓ |  | speech_bubble.c, speech_bubble.h |
 | 0x406990 | FUN_00406990 | 11 | ✓ |  | speech_bubble.c, speech_bubble.h |
 | 0x4069a6 | FUN_004069a6 | 21 | ✓ |  | speech_bubble.c, speech_bubble.h |
-| 0x406a60 | FUN_00406a60 | 516 | ✓ |  | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
-| 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h |
+| 0x406a60 | FUN_00406a60 | 516 | ✓ |  | dungeon_hud.c, dungeon_hud.h, save_picker.c (+4) |
+| 0x406c64 | FUN_00406c64 | 236 | ✓ |  | dungeon_hud.c, dungeon_hud.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ |  | scene1_merchant_hud.c, scene1_top_hud.c |
-| 0x407cac | FUN_00407cac | 7289 | ✓ |  | scene1_hud.c |
 | 0x40a68f | FUN_0040a68f | 214 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ |  | main.c, scene1_hud.c, speech_bubble.c (+1) |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ |  | scene1_spawn.c |

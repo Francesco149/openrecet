@@ -94,7 +94,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| FUN_00407cac | src/scene1_hud.c:441 | the dungeon |
+| FUN_00407cac | src/dungeon_hud.c:199 | the rest of the floor HUD — the boss bar |
 | FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
