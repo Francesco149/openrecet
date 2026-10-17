@@ -344,6 +344,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "scene1_camera.h"    /* DAT_073de31c / 324 */
 #include "scene1_maplight.h"  /* the stage record (DAT_068dd2f0) */
 #include "dungeon_objects.h"  /* DAT_0695ef78 */
+#include "model_anchor.h"     /* the animated models' frame trees */
 #include <math.h>
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
@@ -590,8 +591,8 @@ static void scene1_walker_pass_render_dungeon(IDirect3DDevice8 *dev, int param_1
  * their static mesh (DAT_068dcfc0[+4]) with world RotZ(+0x78) · RotX(+0x74) ·
  * RotY(+0x70) · S(-0.2·sx, 0.2·sy, 0.2·sz) · T(pos + (+0x18, 0, +0x20)), per
  * texture slot; with the +0x20 cull flag only within 50 of the eye (z
- * halved).  Pass 3 blends additively.  PORT-DEBT(stub, FUN_00459847): the
- * kind-1 (skinned) types — takarabako / obj_door (DAT_073cba20). */
+ * halved).  Pass 3 blends additively.  The kind-1 types draw an animated
+ * model (DAT_073cba20: takarabako / obj_door) first. */
 static const int32_t k_dobj_type[23][9] = {
     { 0, 0, -1, 0x40400000, 0x41200000, 0x3f800000, 1, 1, 1 },
     { 0, 1, -1, 0x40000000, 0x40000000, 0x3f000000, 0, 1, 1 },
@@ -618,6 +619,63 @@ static const int32_t k_dobj_type[23][9] = {
     { 0, 10, 1, 0x3f800000, 0x41200000, 0x3e99999a, 1, 3, 1 },
 };
 
+/* DAT_073cba20[4]: the dungeon objects' animated models (0x2f0 each) — 2
+ * xfile/tree/takarabako.x, 3 xfile/tree/obj_door.x (FUN_00474a9a's dungeon arm,
+ * FUN_00403b6e); 0 / 1 are not loaded by the paths ported so far */
+static xfile_hier *s_dobj_hier[4];
+static mesh_t     *s_dobj_model[4];
+
+void scene1_walker_dobj_load(struct IDirect3DDevice8 *dev)
+{
+    static const char *const k_path[4] = { NULL, NULL, "xfile/tree/takarabako.x", "xfile/tree/obj_door.x" };
+    for (int i = 0; i < 4; i++) {
+        if (k_path[i] == NULL) continue;
+        if (s_dobj_model[i]) { mesh_free(s_dobj_model[i]); s_dobj_model[i] = NULL; }
+        if (s_dobj_hier[i] == NULL) s_dobj_hier[i] = model_hier_load(k_path[i]);
+        mesh_t *m = mesh_load_hier(k_path[i]);
+        if (m == NULL) continue;
+        if (m->error[0]) { mesh_free(m); continue; }
+        if (dev) (void)mesh_load_finalize_win32(m, dev);
+        s_dobj_model[i] = m;
+    }
+}
+
+/* FUN_004047df / FUN_00403eb7: each frame's container drawn with WORLD = the
+ * frame's combined matrix, per material SetMaterial + SetTexture + DrawSubset */
+static void dobj_model_draw(IDirect3DDevice8 *dev, const mesh_t *m, xfile_hier *h)
+{
+    if (m == NULL || h == NULL || !m->vb || !m->ib) return;
+    IDirect3DDevice8_SetVertexShader(dev, MESH_FVF_XYZ_NORMAL_DIFFUSE_TEX1);
+    IDirect3DDevice8_SetStreamSource(dev, 0, (IDirect3DVertexBuffer8 *)m->vb, (UINT)sizeof(mesh_vertex));
+    for (int32_t s = 0; s < m->submesh_count; s++) {
+        const mesh_submesh *sm = &m->submeshes[s];
+        if (sm->vertex_count <= 0 || sm->index_count < 3) continue;
+        const xfile_sframe *f = xfile_find_frame(h->root, sm->frame);
+        if (f == NULL) f = h->root;
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)f->combined);
+        const int mat_idx = sm->material_index;
+        IDirect3DBaseTexture8 *tex = NULL;
+        if (mat_idx >= 0 && mat_idx < m->material_count) {
+            const xfile_material *mm = &m->materials[mat_idx];
+            D3DMATERIAL8 mat = {0};
+            mat.Diffuse.r = mm->diffuse.r; mat.Diffuse.g = mm->diffuse.g;
+            mat.Diffuse.b = mm->diffuse.b; mat.Diffuse.a = mm->diffuse.a;
+            mat.Ambient = mat.Diffuse;
+            mat.Specular.r = mm->specular.r; mat.Specular.g = mm->specular.g;
+            mat.Specular.b = mm->specular.b; mat.Specular.a = 1.0f;
+            mat.Emissive.r = mm->emissive.r; mat.Emissive.g = mm->emissive.g;
+            mat.Emissive.b = mm->emissive.b; mat.Emissive.a = 1.0f;
+            mat.Power = mm->power;
+            IDirect3DDevice8_SetMaterial(dev, &mat);
+            if (m->texture_slots) tex = pick_texture_for_action(m->texture_slots[mat_idx], SCENE1_WALKER_SLOT_DEFAULT);
+        }
+        IDirect3DDevice8_SetTexture(dev, 0, tex);
+        IDirect3DDevice8_SetIndices(dev, (IDirect3DIndexBuffer8 *)m->ib, (UINT)sm->vertex_offset);
+        IDirect3DDevice8_DrawIndexedPrimitive(dev, D3DPT_TRIANGLELIST, 0, (UINT)sm->vertex_count,
+                                              (UINT)sm->index_offset, (UINT)(sm->index_count / 3));
+    }
+}
+
 void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -639,6 +697,25 @@ void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
         const int lit = rec != NULL && rec->maplight != 0;
         IDirect3DDevice8_LightEnable(dev, 0, lit);
         IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, lit);
+    }
+    /* the first loop: the kind-1 types' animated models, at the dobj's
+     * per-track times (+0xd4), root RotY(yaw) · S and T(pos + offset) */
+    for (int i = 0; i < DOBJ_COUNT; i++) {
+        const dobj_t *o = &g_dobj[i];
+        const int32_t t = o->i[35];
+        if (t == -1 || o->i[35 + 119] == 3) continue;
+        if (t < 0 || t >= 23 || k_dobj_type[t][7] != pass) continue;
+        if (g_usetree == 1 && t < 4) continue;
+        if (k_dobj_type[t][0] != 1) continue;
+        const int k = k_dobj_type[t][1];
+        if (k < 0 || k >= 4 || s_dobj_model[k] == NULL || s_dobj_hier[k] == NULL) continue;
+        float tr[16], rot[16], ry[16];
+        mat4_translation(tr, o->f[0] + o->f[6], o->f[1], o->f[2] + o->f[8]);
+        mat4_scaling(rot, o->f[32] * -0.2f, o->f[33] * 0.2f, o->f[34] * 0.2f);
+        mat4_rotation_y(ry, o->f[28]);
+        mat4_mul(rot, ry, rot);
+        model_hier_pose(s_dobj_hier[k], &o->i[53], &o->i[53], 0.0f, rot, tr);
+        dobj_model_draw(dev, s_dobj_model[k], s_dobj_hier[k]);
     }
     static float world[DOBJ_COUNT][16];
     static uint8_t on[DOBJ_COUNT];

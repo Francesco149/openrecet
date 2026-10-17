@@ -1,0 +1,28 @@
+/*
+ * scene1_effects — FUN_004176ff (30 KB: the floor effects pass, under its own
+ * z_far 500 projection), ported section by section.  Earlier sections live in
+ * scene1_wing_glow.c (table A type 0x1f), scene1_walk_dust.c (type 0xe) and the
+ * overlay layer-0 dispatch (scene1_render.c).
+ *
+ *   the exit circle   the dungeon objects of type 8 (state +0x268 != 3):
+ *                     mahoujin.bmp on DAT_0064a2c8's floor quad, world
+ *                     RotY(DAT_0438b8cc · 0.02) · S(+0x80 · 0.024) · T(pos),
+ *                     SRCALPHA / INVSRCCOLOR, no Z write
+ */
+#ifndef OPENRECET_SCENE1_EFFECTS_H
+#define OPENRECET_SCENE1_EFFECTS_H
+
+#ifdef _WIN32
+struct IDirect3DDevice8;
+
+/* FUN_00474a9a's dungeon arm: bmp/mahoujin.bmp (DAT_073b18c8) */
+void scene1_effects_load_dungeon(struct IDirect3DDevice8 *dev);
+
+/* FUN_004176ff's first loop (all_ida 15160..15190) */
+void scene1_effects_exit_circle(struct IDirect3DDevice8 *dev);
+
+/* FUN_004176ff 0x417a6c..: table B's weapon-swing trails on effect_shot.bmp */
+void scene1_effects_table_b(struct IDirect3DDevice8 *dev);
+#endif
+
+#endif /* OPENRECET_SCENE1_EFFECTS_H */

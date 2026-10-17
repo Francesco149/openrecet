@@ -236,6 +236,10 @@ struct IDirect3DDevice8;
 /* DAT_0438b17c — recet.ini `usetree` (1: the tree types 0..3 are not drawn). */
 extern int32_t g_usetree;
 
+/* FUN_00474a9a's dungeon arm: the dungeon objects' animated models
+ * (takarabako, obj_door) — after the texture-cache clear */
+void scene1_walker_dobj_load(struct IDirect3DDevice8 *dev);
+
 /* FUN_00459847(pass) — the dungeon objects' meshes for this pass. */
 void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev, int pass);
 

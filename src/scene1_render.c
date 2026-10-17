@@ -66,6 +66,7 @@ void scene1_project_world_mat(const float *view, const float *proj,
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
 #include "scene1_walker_pass_init.h"  /* PII.3a/PII.3b walker pass-init */
+#include "scene1_effects.h"           /* FUN_004176ff sections */
 #include "scene1_wide_followup.h"
 #include "sim.h"
 
@@ -948,6 +949,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
     scene1_overlay_render(dev, /*layer=*/0, /*mode=*/0);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
+    /* then the exit circles (its dobj type-8 loop) */
+    scene1_effects_exit_circle((struct IDirect3DDevice8 *)dev);
 
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
     /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
