@@ -487,7 +487,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x469abb | FUN_00469abb | 127 | ✓ |  | customer_service_render.c, encyclopedia.c, scene1_display_menu.c |
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ |  | scene1_display_menu.c |
 | 0x46a336 | FUN_0046a336 | 2722 | ✓ |  | chara_equip.c, chara_equip.h, encyclopedia.c (+1) |
-| 0x46add8 | FUN_0046add8 | 562 | ✓ |  | scene1_display_menu.c, scene_adv_guild.c |
+| 0x46add8 | FUN_0046add8 | 562 | ✓ |  | customer_service_render.c, scene1_display_menu.c, scene_adv_guild.c (+1) |
 | 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | customer_service.c, main.c, scene1_display_menu.c (+4) |
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ |  | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ |  | scene_sc1.h, worker_load.c, worker_load.h |

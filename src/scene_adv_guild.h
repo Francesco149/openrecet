@@ -58,6 +58,10 @@ void adv_guild_continue_reset(int merchant_level);
 /* FUN_0045bd36 — what the unpause (FUN_00453384) restores in mode 11. */
 void scene_adv_guild_unpause(void);
 
+/* FUN_0046add8(x, y, item, alpha) — one item row: the name (+N; the "???"
+ * record's when unappraised) tinted by the price trend, then the 32×32 icon. */
+void item_row_draw(struct IDirect3DDevice8 *dev, float x, float y, int item, int alpha);
+
 /* State mirrors for --state-va (DAT_06a49b44 … DAT_005c5aa0). */
 int adv_guild_dbg(uint32_t va, int32_t *out);
 

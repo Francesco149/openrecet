@@ -1043,6 +1043,8 @@ int32_t customer_service_f404(void)
 int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
 int32_t customer_service_b318(void)        { return s_b318; }
+int32_t customer_service_b5d0(void) { return s_b5d0; }
+int32_t customer_service_b5d4(void) { return s_b5d4; }
 int32_t customer_service_b5d8(void)        { return s_b5d8; }
 int32_t customer_service_b548(void)        { return s_b548; }
 int32_t customer_service_b55c(void)        { return s_b55c; }

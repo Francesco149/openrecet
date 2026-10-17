@@ -48,6 +48,9 @@
 #include "scene_buy.h"     /* g_scene_buy_sprites/_chrname/_shopmode (texs) */
 #include "sysassets.h"     /* g_sysassets.* (item_win/data_win/item_icons[]) + g_item */
 #include "choice_box.h"    /* the cc08==4 ESC "Cancelling tutorial?" skip prompt */
+#include "scene_adv_guild.h" /* FUN_0046add8 */
+#include "tables_oder.h"   /* the oder records DAT_06a5db98 */
+#include <string.h>
 
 /* ive_box_scale == FUN_0046c86f (the open/close scale+alpha wobble) — already a
  * confirmed-1:1 port in scene1_dialogue_run.c (sin-not-cos fix applied). */
@@ -214,6 +217,47 @@ void customer_service_render_chars(IDirect3DDevice8 *dev)
      * PORT-DEBT(cs-render-rest) — the item-want panel + action-button list
      * are not drawn. */
     customer_service_want_panel_tick();
+
+    /* (e) the pick rows (b5d0 != 0): b5dc + 1 item_win bars (b5d0 2: b5dc, the
+     * list offset 128 / -64; 3: none), the cursor row lit and nudged 16; each
+     * "%2d:" + its picked item (FUN_0046add8), row 0 "All set!". */
+    if (s.b5d0 != 0) {
+        const sprite_t *iw = &g_sysassets.item_win_tga;
+        const float ox = s.b5d0 == 2 ? 128.0f : 0.0f, oy = s.b5d0 == 2 ? -64.0f : 0.0f;
+        int n = s.b5dc + 1;
+        if (s.b5d0 == 2) n = s.b5dc;
+        if (s.b5d0 == 3) n = 0;
+        if (iw->tex && n > 0) {
+            render_quad_bind(dev, iw);
+            for (int k = 0; k < n; k++) {
+                int a = 255;
+                float nudge = 16.0f;
+                if (s.b5d0 == 1 && k != s.price_cursor - s.b5c8) { a = 155; nudge = 0.0f; }
+                const float dst[4] = { ox + 16.0f + nudge, (float)(38 * k) + oy + 120.0f, 240.0f, 40.0f };
+                const float src[4] = { 400.0f, 240.0f, 640.0f, 304.0f };
+                render_quad_add(dst, src, iw->width, iw->height, 0xffffffu | ((uint32_t)a << 24));
+            }
+            render_quad_flush(dev);
+            for (int k = 0; k < n; k++) {
+                int row = k + s.b5c8, a = 255;
+                float nudge = 16.0f;
+                if (s.b5d0 == 2) row++;
+                else if (k != s.price_cursor - s.b5c8) { a = 155; nudge = 0.0f; }
+                const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+                const float y = (float)(38 * k) + oy;
+                if (row != 0) {
+                    char buf[16];
+                    snprintf(buf, sizeof buf, "%2d:", row);
+                    font_draw_text((struct IDirect3DDevice8 *)dev, nudge + ox + 20.0f, y + 132.0f, buf, col, 0.76923078f);
+                    const int item = (row >= 0 && row < 6) ? s.item_pick[3 * row] : -1;
+                    if (item != -1)
+                        item_row_draw((struct IDirect3DDevice8 *)dev, nudge + ox + 52.0f, y + 124.0f, item, a);
+                } else {
+                    font_draw_text((struct IDirect3DDevice8 *)dev, nudge + ox + 64.0f, y + 132.0f, "All set!", col, 0.92307699f);
+                }
+            }
+        }
+    }
 }
 
 /* ── FUN_00466b7b — haggle dialogue box + typewriter + BARGAIN!! price ────────
@@ -225,10 +269,56 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
 
     if (s.cs_active == 0) return;   /* 0x466b87 */
 
-    /* PORT-DEBT(cs-render-priceinput): section 1 (b5d0 != 0) — the autonomous
-     * "name a price" digit-entry panel (466b7b lines 40-130 + FUN_0046602e e).
-     * b5d0 is never set on the scripted tutorial sell path (it uses the b598
-     * BARGAIN banner below instead), so it is inert here. */
+    /* ── Section 1 — the order bubble (b5d0 != 0; 2 = the list, no bubble):
+     * item_win's "Order!" balloon popping in over 15 ticks (b5d4, sin over
+     * 0.8π normalised), and the wanted thing (the oder record b5d8: singular,
+     * plural unless b5a8 == 1) centred in pink pulsing with b5b4, split at its
+     * last space from 11 characters. */
+    if (s.b5d0 != 0) {
+        const sprite_t *iw = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
+        const float ox = s.b5d0 == 2 ? 128.0f : 0.0f, oy = s.b5d0 == 2 ? -64.0f : 0.0f;
+        if (s.b5d0 != 2) {
+            float pop = 1.0f;
+            if (s.b5d4 < 15) {
+                const float a = (float)s.b5d4 * 2.5132742f / 15.0f;
+                pop = (float)(sin((double)a) / sin(2.513274192810059));
+            }
+            const float dst[4] = { 216.0f - pop * 80.0f, 88.0f - pop * 48.0f, pop * 159.0f, pop * 95.0f };
+            const float src[4] = { 64.0f, 512.0f, 223.0f, 607.0f };
+            cs_quad(dev, iw, dst, src, 0xffffffffu, 0);
+
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+            const float w = (float)sin((double)((float)s.b5b4 * 0.2f)) * 32.0f;
+            int r = (int)(w + 255.0f), g = (int)(w + 77.0f), b = (int)(w + 155.0f), al = 255;
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            if (s.b5d4 < 15) al = 16 * s.b5d4;
+            const uint32_t col = ((uint32_t)al << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+            char buf[256] = "";
+            if (s.b5d8 >= 0 && s.b5d8 < g_oder.count) {
+                const struct oder_entry *e = &g_oder.entries[s.b5d8];
+                snprintf(buf, sizeof buf, "%s", s.b5a8 != 1 ? e->name_plural : e->name_singular);
+            }
+            const float tx = ox + 252.0f - 38.400002f;
+            float ty = oy + 132.0f - 40.0f - 7.2000003f;
+            const int len = (int)strlen(buf);
+            if (len >= 11) {
+                for (int i = len - 1; i != -1; i--) {
+                    if (buf[i] == ' ') {
+                        if (i == 0) break;
+                        font_draw_text_centered((struct IDirect3DDevice8 *)dev, tx,
+                                                oy + 140.0f - 40.0f - 7.2000003f, &buf[i + 1], col, 0.73846161f);
+                        buf[i] = 0;
+                        ty = oy + 18.0f - 8.0f + 114.0f - 40.0f - 7.2000003f;
+                        break;
+                    }
+                }
+            }
+            font_draw_text_centered((struct IDirect3DDevice8 *)dev, tx, ty, buf, col, 0.73846161f);
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        }
+    }
 
     /* ── Section 2 — the price-INFO panel (b5a0): the shopmode reference panel
      * + "Base Price NNN" + the showcase item name/icon (466b7b lines 131-250).

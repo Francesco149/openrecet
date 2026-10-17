@@ -99,6 +99,8 @@ static int32_t get_b548(void)  { return customer_service_b548(); }
 static int32_t get_b55c(void)  { return customer_service_b55c(); }
 static int32_t get_ea70(void)  { return customer_service_ea70(); }
 static int32_t get_3df0(void)  { return scene1_intro_dialogue_bg_count(); }
+static int32_t get_b5d0(void)  { return customer_service_b5d0(); }
+static int32_t get_b5d4(void)  { return customer_service_b5d4(); }
 static int32_t get_b1dc(void)  { float f = scene1_hud_slide(); int32_t v; memcpy(&v, &f, 4); return v; }
 static int32_t get_cc04(void)  { return player_ctrl_cc04(); }
 static int32_t get_b318(void)  { return customer_service_b318(); }
@@ -251,6 +253,8 @@ static const state_va_t k_map[] = {
     { 0x730b55cu, "cs line revealed b55c (DAT_0730b55c)", get_b55c },
     { 0x6a5ea70u, "cs line box held ea70 (DAT_06a5ea70)", get_ea70 },
     { 0x438b1dcu, "HUD slide b1dc, float bits (DAT_0438b1dc)", get_b1dc },
+    { 0x730b5d0u, "cs order bubble / pick list b5d0 (DAT_0730b5d0)", get_b5d0 },
+    { 0x730b5d4u, "cs order pop-in timer b5d4 (DAT_0730b5d4)", get_b5d4 },
     { 0x73a3df0u, "dialogue bgset count (DAT_073a3df0)", get_3df0 },
     { 0x438cc04u, "house sub-mode cc04 (DAT_0438cc04)", get_cc04 },
     { 0x730b318u, "cs queue head b318 (DAT_0730b318)", get_b318 },

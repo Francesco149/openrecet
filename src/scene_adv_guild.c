@@ -847,7 +847,7 @@ static void adv_hud(IDirect3DDevice8 *d)
 /* FUN_0046add8(x, y, item, alpha) — one item row: the name (+N, or the
  * unappraised record's name for bit 4) tinted by the price trend, then the
  * 32×32 category icon; both under COLOROP=ADDSIGNED. */
-static void item_row(IDirect3DDevice8 *d, float x, float y, int item, int alpha)
+void item_row_draw(struct IDirect3DDevice8 *d, float x, float y, int item, int alpha)
 {
     IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
@@ -988,7 +988,7 @@ static void adv_guild_scene_render(IDirect3DDevice8 *d)
             for (int k = 0; k < s.equipped; k++) {
                 if (rec[1 + k] != -1) {
                     rec[1 + k] |= 0x20;
-                    item_row(d, 16.0f, (float)(40 * k) + 280.0f, rec[1 + k], 255);
+                    item_row_draw(d, 16.0f, (float)(40 * k) + 280.0f, rec[1 + k], 255);
                 }
             }
         }
@@ -1037,7 +1037,7 @@ static void adv_guild_scene_render(IDirect3DDevice8 *d)
                 snprintf(buf, sizeof buf, "%2d:", row);
                 font_draw_text(d, xo + 28.0f, (float)(40 * r) + 118.0f, buf, col, 0.76923078f);
                 if (s_bag[row] != -1)
-                    item_row(d, xo + 58.0f, (float)(40 * r) + 112.0f, s_bag[row], alpha);
+                    item_row_draw(d, xo + 58.0f, (float)(40 * r) + 112.0f, s_bag[row], alpha);
             } else {
                 font_draw_text(d, xo + 64.0f, (float)(40 * r) + 118.0f, "Depart!", col, 0.92307699f);
             }

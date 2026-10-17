@@ -12391,8 +12391,10 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service_render.c",
     "src/scene1_display_menu.c",
-    "src/scene_adv_guild.c"
+    "src/scene_adv_guild.c",
+    "src/scene_adv_guild.h"
    ],
    "status": "ported"
   },
