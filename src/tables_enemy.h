@@ -29,12 +29,13 @@
 #include <stdint.h>
 
 /* Total record slots in the engine's fixed array at `&DAT_005c23f0`.
- * The array spans `&DAT_005c23f0`..`&DAT_005c4c90` (0x2a00 bytes /
- * 0x68 stride = 64 records). The parser's outer loop iterates until
+ * The array spans `&DAT_005c23f0`..`&DAT_005c4c90` (0x28a0 bytes /
+ * 0x68 stride = 100 records). The parser's outer loop iterates until
  * either reaching the end of the array OR hitting a sentinel record
- * with `flags == 2`; vendor data has no such sentinel, so all 64
- * records are walked on every line. */
-#define ENEMY_COUNT 64
+ * with `flags == 2` — record 79 (records 64..78: the dark golem, Ohm,
+ * the crabs, the jellyfish, the Arma golem's parts, Prim; was 64,
+ * which cut them off). */
+#define ENEMY_COUNT 100
 
 /* Engine name buffer width (bytes 0x00..0x1f of each record). SJIS
  * encoded, NUL-padded. Pre-baked into `.data` at link time; the
