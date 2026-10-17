@@ -561,7 +561,7 @@ def cmd_portshots(a):
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portshots-retail", fetch=("rhost.log", "trace.flat.jsonl", "shot_*.png"))
     extra = ("--capture-to", "{pw}", "--capture-frames", a.shot_at)
     if getattr(a, "port_d3d", False):
-        extra += ("--d3d-trace", "{pw}\\d3d.jsonl", "--d3d-trace-frames", a.shot_at)
+        extra += ("--d3d-trace", "{pw}\\d3d.jsonl", "--d3d-trace-frames", a.shot_at, "--d3d-trace-verts")
     run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), max(fs) + 2, extra=extra)
     pdir_l = os.path.join(bdir, "port")
     subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/port/frame_*.bmp", pdir_l], capture_output=True, text=True)

@@ -101,6 +101,22 @@ static void gfx_load(IDirect3DDevice8 *dev, int model)
     }
 }
 
+void model_render_loader_state(struct IDirect3DDevice8 *dev_in)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    if (dev == NULL) return;
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DITHERENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SPECULARENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_NORMALIZENORMALS, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_COLORVERTEX, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+}
+
 void model_render_load(struct IDirect3DDevice8 *dev, const int32_t present[100])
 {
     uint8_t want[MODEL_GFX] = {0};
@@ -109,7 +125,10 @@ void model_render_load(struct IDirect3DDevice8 *dev, const int32_t present[100])
             g_enemy[t].unknown_24 < MODEL_GFX)
             want[g_enemy[t].unknown_24] = 1;
     for (int k = 0; k < MODEL_GFX; k++)
-        if (want[k]) gfx_load((IDirect3DDevice8 *)dev, k);
+        if (want[k]) {
+            gfx_load((IDirect3DDevice8 *)dev, k);
+            model_render_loader_state(dev);   /* FUN_00403b6e → FUN_00403ca7 */
+        }
 }
 
 /* the bone / frame pointers of the tree the model is posed in */

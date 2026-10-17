@@ -20,6 +20,13 @@ struct IDirect3DDevice8;
  * texture-cache clear) */
 void model_render_load(struct IDirect3DDevice8 *dev, const int32_t present[100]);
 
+/* FUN_00403ca7, run by every skinned-model load (FUN_00403b6e): device
+ * states that stay set — dither, Z, no specular, normalised normals,
+ * COLORVERTEX off, alpha blend SRCALPHA / INVSRCALPHA, ALPHATESTENABLE on,
+ * ALPHAOP MODULATE (its projection and VS constant writes are redone every
+ * frame) */
+void model_render_loader_state(struct IDirect3DDevice8 *dev);
+
 /* FUN_00459dfd's actor passes: 0 = the opaque ones (+0x3dc 255, from
  * FUN_004552d0), 1 = the rest unless +0xaf4 > 0 (from FUN_00456f56) */
 void model_render_pass(struct IDirect3DDevice8 *dev, int pass);

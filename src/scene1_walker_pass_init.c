@@ -345,6 +345,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "scene1_maplight.h"  /* the stage record (DAT_068dd2f0) */
 #include "dungeon_objects.h"  /* DAT_0695ef78 */
 #include "model_anchor.h"     /* the animated models' frame trees */
+#include "model_render.h"     /* FUN_00403ca7's device states */
 #include <math.h>
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
@@ -637,6 +638,7 @@ void scene1_walker_dobj_load(struct IDirect3DDevice8 *dev)
         if (m->error[0]) { mesh_free(m); continue; }
         if (dev) (void)mesh_load_finalize_win32(m, dev);
         s_dobj_model[i] = m;
+        model_render_loader_state(dev);   /* FUN_00403b6e → FUN_00403ca7 */
     }
 }
 
