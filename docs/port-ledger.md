@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 697, discovered 1760 → 788 referenced-or-better (30.9%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 698, discovered 1759 → 789 referenced-or-better (31.0%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 11
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (697) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (698) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -132,7 +132,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x402e1b | FUN_00402e1b | 383 | ✓ |  | xfile.c |
 | 0x402f9a | FUN_00402f9a | 1256 | ✓ |  | xfile.c |
 | 0x4038e4 | FUN_004038e4 | 90 | ✓ |  | layers.c, layers.h |
-| 0x403b6e | FUN_00403b6e | 176 | ✓ |  | scene1_walker_pass_init.c |
+| 0x403b6e | FUN_00403b6e | 176 | ✓ |  | model_render.c, model_render.h, scene1_walker_pass_init.c |
+| 0x403ca7 | FUN_00403ca7 | 210 | ✓ |  | model_render.c, model_render.h, scene1_walker_pass_init.c |
 | 0x403d79 | FUN_00403d79 | 186 | ✓ |  | actor_ai.c, model_anchor.c, model_anchor.h (+3) |
 | 0x403e33 | FUN_00403e33 | 84 | ✓ |  | model_anchor.c |
 | 0x403eb7 | FUN_00403eb7 | 108 | ✓ |  | scene1_render.c, scene1_render.h, scene1_shop_walker.h (+1) |

@@ -319,6 +319,7 @@ static void transform_normal_into(float ox[3], const float in[3], const float M[
 static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                         int32_t mat_index, const int32_t *face_mat_map,
                         const float frame_M[16], int frame_M_is_identity,
+                        uint32_t no_vc_diffuse,
                         int32_t *v_cap, int32_t *i_cap, int32_t *s_cap)
 {
     /* Count matching faces (and total tris after triangulation). */
@@ -403,13 +404,13 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                 /* MeshVertexColors → D3DCOLOR (0xAARRGGBB). Per-vertex
                  * lookup by the position-index (vi); xfile parser
                  * defaults uncovered slots to (1,1,1,1) and leaves
-                 * the pointer NULL only when the .x file has no
-                 * MeshVertexColors block at all. */
+                 * the pointer NULL only when this Mesh has no
+                 * MeshVertexColors block at all (then no_vc_diffuse). */
                 if (xm->vertex_colors && vi >= 0 && vi < xm->vertex_count) {
                     const xfile_rgba *c = &xm->vertex_colors[vi];
                     out->diffuse = pack_rgba(c->r, c->g, c->b, c->a);
                 } else {
-                    out->diffuse = 0xFFFFFFFFu;
+                    out->diffuse = no_vc_diffuse;
                 }
                 m->indices[m->index_count] = (uint16_t)(m->vertex_count - v0);
                 m->vertex_count++;
@@ -442,6 +443,20 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
     }
 
     int32_t v_cap = 0, i_cap = 0, s_cap = 0, mat_cap = 0;
+
+    /* D3DXLoadMeshFromX merges a file's meshes into one vertex format:
+     * once any Mesh has MeshVertexColors the merged FVF carries DIFFUSE
+     * and the Meshes without them get 0x00000000 — alpha 0, so the room
+     * files' placement-marker triangles (kusa01_NN_0 / tree02_NN_0 …,
+     * the 16x16 kusa_01 / tree_02 glyph textures) never show under the
+     * SRCALPHA blend + ALPHAREF 0 GREATER test (retail capture, Jade Way
+     * f30000: their vertices read diffuse 0). Without any colour block
+     * there is no DIFFUSE and the material stands in (white here). The
+     * per-frame (hierarchy) loads are not merged and keep white. */
+    uint32_t no_vc_diffuse = 0xFFFFFFFFu;
+    if (s_bake_frames)
+        for (int32_t mi = 0; mi < xf->mesh_count; mi++)
+            if (xf->meshes[mi].vertex_colors) { no_vc_diffuse = 0; break; }
 
     /* For each Mesh{}, build a face → mesh-local material index map,
      * then emit one submesh per distinct material in that mesh. */
@@ -487,7 +502,7 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
         for (int32_t s = 0; s < nseen; s++) {
             const int32_t before = m->submesh_count;
             if (!emit_submesh(m, xm, seen[s], face_mat_map,
-                              frame_M, frame_M_is_identity,
+                              frame_M, frame_M_is_identity, no_vc_diffuse,
                               &v_cap, &i_cap, &s_cap))
             {
                 free(face_mat_map);

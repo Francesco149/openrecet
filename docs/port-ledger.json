@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 697,
-  "inv_discovered": 1760,
-  "referenced_or_better": 788,
-  "pct_referenced_or_better": 30.9,
+  "inv_source_referenced": 698,
+  "inv_discovered": 1759,
+  "referenced_or_better": 789,
+  "pct_referenced_or_better": 31.0,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
   "port_debt": 93,
   "verified": 81,
   "stubbed": 10,
-  "ported": 697,
-  "unported": 1760,
-  "touched": 788,
-  "pct_touched": 30.9,
+  "ported": 698,
+  "unported": 1759,
+  "touched": 789,
+  "pct_touched": 31.0,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -695,6 +695,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/model_render.c",
+    "src/model_render.h",
     "src/scene1_walker_pass_init.c"
    ],
    "status": "ported"
@@ -724,18 +726,22 @@
    "size": 210,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/model_render.c",
+    "src/model_render.h",
+    "src/scene1_walker_pass_init.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x403d79",
