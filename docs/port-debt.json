@@ -530,7 +530,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets (see",
    "file": "src/scene1_preload.c",
-   "line": 240,
+   "line": 241,
    "kind_known": true
   },
   {
@@ -538,7 +538,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets \u2014 the enemy",
    "file": "src/scene1_preload.c",
-   "line": 269,
+   "line": 276,
    "kind_known": true
   },
   {

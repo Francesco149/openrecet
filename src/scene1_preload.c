@@ -84,6 +84,7 @@ void scene1_preload_floor_layout(void)
 #include "scene_floor.h"
 #include "scene_jutan.h"
 #include "scene_map_meshes.h"
+#include "chara_equip.h"    /* DAT_0438b7d8 */
 #include "collision_house.h"
 #include "scene_table.h"
 #include "scene_walls.h"
@@ -266,6 +267,12 @@ static int scene1_preload_dungeon(void)
     stage_palette_load_for_stage();     /* FUN_00474681 */
     scene_map_meshes_reset();
     (void)scene_map_meshes_load_stage(g_scene1_preload_dev, g_stage_b4dc);   /* FUN_00474681's map: meshes */
+    {
+        /* FUN_00474a9a's dungeon arm: the hired adventurer's sheet by DAT_0438b7d8 */
+        static const int k_adv_sheet[8] = { 3, 27, 28, 30, 40, 31, 41, 42 };
+        const int c = chara_equip_get_current_chara();
+        scene1_preload_load_chr_sheet(c >= 0 && c < 8 ? k_adv_sheet[c] : 42);
+    }
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
      * sprites / meshes of the floor roster (FUN_00431a80), the dungeon title,
      * and FUN_00474a9a's dungeon arm (the player's chr sheet by DAT_0438b7d8, the
