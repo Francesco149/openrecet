@@ -3,7 +3,7 @@
 #include "d3d_pool.h"
 #include "fade.h"
 #include "nowloading.h"
-#include "npc_schedule.h"
+#include "guild_stock.h"
 #include "save_bank.h"
 #include "scene1_intro_dialogue.h"
 #include "scene_new_game.h"
@@ -129,11 +129,9 @@ void scene_post_fade_init(void)
      * tick state.  See src/stage_post_load.h. */
     stage_post_load_init();
 
-    /* Engine: FUN_00490e56 — per-bank NPC schedule status INIT pass
-     * (resets event_active, walks 600 NPCs writing mode-dependent
-     * status).  The NEW branch passes 0 (L232); the CONTINUE branch
-     * passes 1 (L100622).  See src/npc_schedule.h. */
-    npc_schedule_apply(continue_mode ? 1 : 0);
+    /* FUN_00490e56, the guild's item stock: the NEW branch passes 0, the
+     * CONTINUE branch 1 (all_ida 111803 / 111808).  See src/guild_stock.h. */
+    guild_stock_daily(continue_mode ? 1 : 0);
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;

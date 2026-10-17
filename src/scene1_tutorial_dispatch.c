@@ -11,7 +11,7 @@
 #include "save_work.h"               /* save_work_dwords_at / _active_slot  */
 #include "save_bank.h"               /* SAVE_BANK_FIELD_GAME_MODE           */
 #include "news_daily.h"              /* news_daily_update, g_news_ticker_timer */
-#include "npc_schedule.h"            /* npc_schedule_apply (FUN_00490e56)   */
+#include "guild_stock.h"             /* guild_stock_daily (FUN_00490e56)    */
 #include "scene.h"                   /* g_scene_state (DAT_0438b1c0)        */
 #include "scene_pause.h"             /* pause_period_end (FUN_00482059)     */
 #include "scene1_day_close.h"        /* day_close_arm (DAT_0438b4e0 = 1)    */
@@ -408,7 +408,7 @@ void scene1_beat_master_prologue(void)
         if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] != 2 &&
             (int32_t)bank[TUT_DAY_DWORD] == 9)
             bb[TUT_F488_OFF] = 1;            /* DAT_0450f488 = 1 */
-        npc_schedule_apply(0);               /* push edi(0) @486bdc */
+        guild_stock_daily(0);                /* push edi(0) @486bdc */
         news_daily_update((uint8_t *)bank);
     } else if (g_iv2_beat_ctr == 191) {
         g_news_ticker_timer = 1;             /* DAT_0438b92c = 1 (asm 0x486c09) */

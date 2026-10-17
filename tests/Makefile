@@ -66,7 +66,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/d3d_tex_names.c \
                  ../src/chara_equip.c \
                  ../src/chara_skills.c \
-                 ../src/npc_schedule.c \
+                 ../src/guild_stock.c \
                  ../src/scene1_hud.c \
                  ../src/scene1_top_hud.c \
                  ../src/chr_sprite_meta.c \
@@ -144,7 +144,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_d3d_tex_names.c \
                  test_chara_equip.c \
                  test_chara_skills.c \
-                 test_npc_schedule.c \
+                 test_guild_stock.c \
                  test_scene1_hud.c \
                  test_chr_sprite_meta.c \
                  test_scene1_chr_sprite.c \
