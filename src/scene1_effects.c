@@ -26,10 +26,7 @@ static sprite_t s_mahoujin;      /* DAT_073b18c8: bmp/mahoujin.bmp (128×128) */
 /* a byte of the party block by its retail VA */
 #define PWB(va) (((const uint8_t *)g_party.w)[(uint32_t)(va) - PARTY_VA])
 
-/* the stale arc offset (see k_arc_off) — measured from a retail capture */
-#define ARC_OFF_X 0.0f
-#define ARC_OFF_Y 0.0f
-#define ARC_OFF_Z 0.0f
+
 
 void scene1_effects_load_dungeon(struct IDirect3DDevice8 *dev)
 {
@@ -102,20 +99,29 @@ static void fx_init_quads(void)
     }
 }
 
-/* FUN_004176ff's arc translation reads [ebp-0x8c..-0x84], which only its
- * table-A type-110 arm writes (-0.25, -0.15, 0.2): otherwise the stack holds
- * what an earlier call left there (engine-quirks).  Measured in rhost. */
-static const float k_arc_off[3] = { ARC_OFF_X, ARC_OFF_Y, ARC_OFF_Z };
+/* a dword of the record a table-B owner field points at (the port keeps
+ * them as host pointers, retail as VAs) */
+static int32_t owner_i32(const int32_t *r, int field, int off)
+{
+    const uintptr_t p = (uintptr_t)(uint32_t)r[field];
+    if (p == 0) return 0;
+    int32_t v;
+    memcpy(&v, (const char *)p + off, 4);
+    return v;
+}
 
 /* FUN_004176ff 0x417a6c..0x41848b: the weapon-swing trails of table B — pass 0
  * (ZERO / INVSRCCOLOR: 111, 112, 23) then pass 1 (ONE / ONE: 16, 2, 84, 3, 4,
  * 34, 103, 109, 110, 22).  A record r draws, for k in 0..99 within the last
- * 50 of t = r[38] · 100 / n (n: 8 / 10 / 12 / 16 by type), a quad scaled by
- * its rank: (rank / count (· 0.5 for 109..112, 22, 23) + 0.2) · base · 1.8,
- * faded past k 75; world RotZ(r[38] · 0.2) · B · S · T(offset) · T(r pos).
- * The arc angle FUN_004176ff also computes per quad is unused. */
+ * 50 of t = r[38] · 100 / n (n: 8 / 10 / 12 / 16 by type), a quad on an arc:
+ * a = k / 99 over the type's sweep, the point (0, cos a · (R + 0.5), sin a · R)
+ * turned by RotZ(±π/2 by the owner's facing) · RotY(r[36]) (its translation
+ * row, [ebp-0x8c]), scaled by its rank ((rank / count (· 0.5 for 109..112,
+ * 22, 23) + 0.2) · base · 1.8, faded past k 75); world RotZ(r[38] · 0.2) · B ·
+ * S · T(arc point + r pos). */
 static void fx_swing_trails(IDirect3DDevice8 *dev)
 {
+    static const float khpi = 1.5707963705062866f;
     fx_init_quads();
     int cell = 0;          /* v445: set by some types, carried over by 3 / 4 */
     for (int pass = 0; pass < 2; pass++) {
@@ -131,8 +137,9 @@ static void fx_swing_trails(IDirect3DDevice8 *dev)
                 if (!(t == 16 || t == 2 || t == 84 || t == 3 || t == 4 || t == 34 || t == 103 ||
                       t == 109 || t == 110 || t == 22)) continue;
             } else if (!(t == 111 || t == 112 || t == 23)) continue;
-            float f66, f29, f30, f31;
-            memcpy(&f66, &r[66], 4); memcpy(&f29, &r[29], 4); memcpy(&f30, &r[30], 4); memcpy(&f31, &r[31], 4);
+            float f66, f29, f30, f31, f36;
+            memcpy(&f66, &r[66], 4); memcpy(&f29, &r[29], 4); memcpy(&f30, &r[30], 4);
+            memcpy(&f31, &r[31], 4); memcpy(&f36, &r[36], 4);
             float base = spill32((long double)f66 * 0.0018f);
             if (t == 16 || t == 2 || t == 109 || t == 111 || t == 22 || t == 23 || t == 103) cell = 0;
             if (t == 110 || t == 112 || t == 84 || t == 34) cell = 1;
@@ -143,6 +150,41 @@ static void fx_swing_trails(IDirect3DDevice8 *dev)
             if (t == 16 || t == 3) n = 8;
             if (t == 109 || t == 110 || t == 111 || t == 112 || t == 22 || t == 23) n = 12;
             if (t == 34 || t == 103) n = 16;
+            const int narrow = t == 109 || t == 110 || t == 111 || t == 112 || t == 22 || t == 23;
+            /* the arc's frame: RotZ(±π/2 by the owner's facing) · RotY(r[36]) */
+            float rz = 0.0f;
+            int has_rz = 1;
+            if (t == 16) {
+                const int32_t d = owner_i32(r, 5, 24);
+                rz = (d >= 5 && d <= 7) ? khpi : (d >= 1 && d <= 3) ? -khpi : khpi;
+            } else if (t == 2 || t == 84 || t == 109 || t == 110 || t == 111 || t == 112) {
+                const int32_t d = owner_i32(r, 4, 0x948);
+                rz = (d >= 5 && d <= 7) ? -khpi : khpi;
+            } else if (t == 22 || t == 23) {
+                const int32_t d = owner_i32(r, 5, 24);
+                rz = (d >= 5 && d <= 7) ? -khpi : khpi;
+            } else if (t == 3) {
+                const int32_t d = owner_i32(r, 4, 0x948);
+                rz = (d >= 5 && d <= 7) ? khpi : (d >= 1 && d <= 3) ? -khpi : khpi;
+            } else if (t == 34 || t == 103) {
+                rz = khpi;
+            } else {
+                has_rz = 0;
+            }
+            float arc[16], m[16];
+            mat4_rotation_y(arc, f36);
+            mat4_rotation_x(m, 0.0f);
+            mat4_mul(arc, m, arc);
+            if (has_rz) {
+                mat4_rotation_z(m, rz);
+                mat4_mul(arc, m, arc);
+            }
+            float R = 2.0f;
+            if (t == 84 || t == 2 || t == 109 || t == 110) R = 2.5f;
+            if (t == 111 || t == 112 || t == 23) R = 3.5f;
+            if (t == 109 || t == 110) R = 3.5f;
+            if (t == 34) R = 3.0f;
+            if (t == 103) R = 4.5f;
             const float per = spill32(100.0L / (float)n);
             const float hi = spill32((long double)(float)r[38] * per);
             const float lo = spill32((long double)hi - 50.0f);
@@ -154,7 +196,7 @@ static void fx_swing_trails(IDirect3DDevice8 *dev)
                 if (!(lo <= (float)k && (double)k <= (double)hi)) continue;
                 rank++;
                 float sc;
-                if (t == 109 || t == 110 || t == 111 || t == 112 || t == 22 || t == 23) {
+                if (narrow) {
                     sc = spill32((long double)(float)rank * 0.5L / (float)cnt);
                     sc = spill32(((long double)sc + 0.2f) * base * 1.8f);
                     if (k > 75) sc = spill32((25.0L - ((long double)k - 75.0f)) / 25.0f * sc);
@@ -164,10 +206,20 @@ static void fx_swing_trails(IDirect3DDevice8 *dev)
                     sc = spill32(((long double)sc + 0.2f) * base * 1.8f);
                     if (k > 75) sc = spill32((25.0L - ((long double)k - 75.0f)) / 25.0f * sc);
                 }
-                float w[16], m[16];
-                mat4_translation(w, f29, f30, f31);
-                mat4_translation(m, k_arc_off[0], k_arc_off[1], k_arc_off[2]);
-                mat4_mul(w, m, w);
+                const float u = spill32((long double)(float)k / 99.0L);
+                float ang = spill32((long double)u * 4.0840702f - 1.5707964f);
+                if (t == 3 || t == 16) ang = spill32((long double)u * 2.5132742f);
+                else if (narrow) ang = spill32((long double)u * 3.7699115f - 0.94247788f);
+                else if (t == 4) ang = spill32((long double)u * 1.8849558f - 0.31415927f);
+                else if (t == 34 || t == 103) ang = spill32((long double)u * 7.853982f - 0.31415927f);
+                const float py = spill32(x87_crt_cos((double)ang) * (R + 0.5f));
+                const float pz = spill32(x87_crt_sin((double)ang) * R);
+                /* the translation row of T(0, py, pz) · arc */
+                const float ox = py * arc[4] + pz * arc[8];
+                const float oy = py * arc[5] + pz * arc[9];
+                const float oz = py * arc[6] + pz * arc[10];
+                float w[16];
+                mat4_translation(w, f29 + ox, f30 + oy, f31 + oz);
                 mat4_scaling(m, sc, sc, sc);
                 mat4_mul(w, m, w);
                 mat4_mul(w, g_scene1_camera_orient, w);
@@ -199,6 +251,11 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
     if (dev == NULL || g_sysassets.effect_shot_bmp.tex == NULL) return;
     IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_shot_bmp.tex);
+    /* the stage args as FUN_004176ff leaves them (texture × diffuse) — the
+     * port's overlay dispatch just before sets ARG1 to DIFFUSE */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);

@@ -559,10 +559,15 @@ def cmd_portshots(a):
     a.dump_at = None
     a.shot_at = ",".join(str(f) for f in fs)
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portshots-retail", fetch=("rhost.log", "trace.flat.jsonl", "shot_*.png"))
-    run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), max(fs) + 2,
-             extra=("--capture-to", "{pw}", "--capture-frames", a.shot_at))
+    extra = ("--capture-to", "{pw}", "--capture-frames", a.shot_at)
+    if getattr(a, "port_d3d", False):
+        extra += ("--d3d-trace", "{pw}\\d3d.jsonl", "--d3d-trace-frames", a.shot_at)
+    run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), max(fs) + 2, extra=extra)
     pdir_l = os.path.join(bdir, "port")
     subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/port/frame_*.bmp", pdir_l], capture_output=True, text=True)
+    if getattr(a, "port_d3d", False):
+        subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/port/d3d.jsonl", pdir_l], capture_output=True, text=True)
+        print(f"port d3d trace: {os.path.join(pdir_l, 'd3d.jsonl')}")
     out = []
     for f in fs:
         r = os.path.join(bdir, name, f"shot_f{f:06d}.png")
@@ -1015,6 +1020,7 @@ def main():
     p = sp.add_parser("tables"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_tables)
     p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
+    p.add_argument("--port-d3d", action="store_true", help="also the port's D3D call trace of those frames (port/d3d.jsonl)")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)
     p = sp.add_parser("gates"); p.add_argument("--only", help="regex over 'KIND SCENARIO'"); common(p); p.set_defaults(fn=cmd_gates)

@@ -951,6 +951,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
     /* then the exit circles (its dobj type-8 loop) */
     scene1_effects_exit_circle((struct IDirect3DDevice8 *)dev);
+    /* then table B's swing trails on effect_shot.bmp */
+    scene1_effects_table_b((struct IDirect3DDevice8 *)dev);
 
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
     /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):

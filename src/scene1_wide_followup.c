@@ -11,6 +11,7 @@
  */
 
 #include "scene1_wide_followup.h"
+#include "map_collision.h"   /* mapcol_maptype (*DAT_068dd2f0) */
 
 #ifdef _WIN32
 
@@ -73,10 +74,9 @@ static int wf_stage_selector(void) { return save_work_active_slot(); }
  * prewindow_init / FUN_00451790). */
 static int wf_mid2_outer_gate(void) { return g_scene_state; }
 
-/* *DAT_068dd2f0 + 0 (int) — stage palette field 0.  BSS-zero → 0 →
- * mid block 2 inner gate satisfied (requires == 0), but the outer
- * gate is the dominant filter. */
-static int wf_palette_field_0(void) { return 0; }
+/* *DAT_068dd2f0 + 0 (int) — the stage record's maptype: the shop-floor
+ * display walk runs only in the house (0), never on a dungeon floor. */
+static int wf_palette_field_0(void) { return mapcol_maptype(); }
 
 /* ─── per-pass stub helpers ────────────────────────────────────────────
  *
