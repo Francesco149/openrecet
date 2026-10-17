@@ -43,6 +43,7 @@
 #include "math3d.h"
 #include "rng.h"
 #include "scene1_particles_tick.h"  /* g_scene1_camera_yaw, g_scene1_people */
+#include "actor_table.h"           /* g_actor (DAT_0076bd60 = actor +0x3f0) */
 #include "sim.h"                    /* g_sim_frame_count (engine DAT_0438b8cc) */
 #include "x87.h"
 
@@ -860,11 +861,11 @@ static int init_entity_23(int i, const void *owner, int type, int flag,
         /* L40993-40996: people-table branch.  Engine `&DAT_0076bd60` is
          * base+0x0c = people[idx].target. */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-                   g_scene1_people[people_idx].target[0]);
+                   act_getf(&g_actor[people_idx], ACT_POS));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-                   g_scene1_people[people_idx].target[1] + 20.0f);
+                   act_getf(&g_actor[people_idx], ACT_POS + 4) + 20.0f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-                   g_scene1_people[people_idx].target[2]);
+                   act_getf(&g_actor[people_idx], ACT_POS + 8));
     }
     /* OOB people_idx → preamble pos retained (engine would crash; we
      * stay safe). */

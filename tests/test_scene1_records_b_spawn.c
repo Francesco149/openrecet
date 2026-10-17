@@ -5,6 +5,7 @@
  */
 
 #include "t.h"
+#include "actor_table.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -1462,9 +1463,10 @@ int test_records_b_spawn_entity_23_people_branch_reads_target(void)
     seed_owner_a_yaw();
     owner_write_i(g_owner_a, 0xea0, 5);
     /* Engine reads &DAT_0076bd60 = people-table base+0x0c = target[0..2]. */
-    g_scene1_people[5].target[0] = 11.0f;
-    g_scene1_people[5].target[1] = 22.0f;
-    g_scene1_people[5].target[2] = 33.0f;
+    /* people[i].target is the actor table's +0x3f0 (retail's one table) */
+    act_setf(&g_actor[5], ACT_POS, 11.0f);
+    act_setf(&g_actor[5], ACT_POS + 4, 22.0f);
+    act_setf(&g_actor[5], ACT_POS + 8, 33.0f);
 
     scene1_record_b_spawn_entity(g_owner_a, 0x23, 5);
 

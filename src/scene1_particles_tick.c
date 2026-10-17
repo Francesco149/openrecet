@@ -38,6 +38,8 @@
 #include <stdint.h>
 
 #include "math3d.h"
+#include "x87.h"          /* spill32 */
+#include "actor_table.h"    /* g_actor: the people table is its +0x3e4 view */
 #include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 #include "scene1_spawn.h"
@@ -146,7 +148,7 @@ static void decay_drift_grav_pre(int i, float damp, float gravity_y, int kill_ag
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
-    vy += gravity_y;
+    vy = spill32((long double)vy + gravity_y);   /* fsub m32 then fstp to +0x10 (0x410d36) */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * damp);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * damp);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * damp);
@@ -1645,10 +1647,10 @@ static void handle_type_78(int i)
     float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
     float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
     float ax = 0.0f, ay = 0.0f, az = 0.0f;
-    if (param2 >= 0 && param2 < SCENE1_PEOPLE_COUNT) {
-        ax = g_scene1_people[param2].target[0];
-        ay = g_scene1_people[param2].target[1];
-        az = g_scene1_people[param2].target[2];
+    if (param2 >= 0 && param2 < ACTOR_COUNT) {   /* people[i].target = the actor's +0x3f0 */
+        ax = act_getf(&g_actor[param2], ACT_POS);
+        ay = act_getf(&g_actor[param2], ACT_POS + 4);
+        az = act_getf(&g_actor[param2], ACT_POS + 8);
     }
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, ax + bx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, ay + by + 2.0f);
@@ -1663,41 +1665,40 @@ static void handle_type_78(int i)
  * (player-target) — same shape, different anchor source. */
 static void handle_type_75_93(int i)
 {
-    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
-    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
-    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
-    vx *= 0.97f;
-    vy *= 0.97f;
-    vz *= 0.97f;
+    /* 0x4102cb..0x4103e0: every step is stored (fstp m32) as retail does */
+    static const float k0p97 = 0.97000002861f, k0p02 = 0.019999999553f, k2 = 2.0f, k3 = 3.0f;
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X));
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y));
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z));
+    for (int k = 0; k < 3; k++)
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k,
+                   spill32((long double)slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k) * k0p97));
 
+    /* the people table's target = the actor's position (+0x3f0) */
     int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
     float ax = 0.0f, ay = 0.0f, az = 0.0f;
-    if (param2 >= 0 && param2 < SCENE1_PEOPLE_COUNT) {
-        ax = g_scene1_people[param2].target[0];
-        ay = g_scene1_people[param2].target[1];
-        az = g_scene1_people[param2].target[2];
+    if (param2 >= 0 && param2 < ACTOR_COUNT) {
+        ax = act_getf(&g_actor[param2], ACT_POS);
+        ay = act_getf(&g_actor[param2], ACT_POS + 4);
+        az = act_getf(&g_actor[param2], ACT_POS + 8);
     }
-    float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
-    float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
-    float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
-    float dx = ax          - px;
-    float dy = (ay + 2.0f) - py;
-    float dz = az          - pz;
-    float len = sqrtf(dx * dx + dy * dy + dz * dz);
+    const float dx = spill32((long double)ax - slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X));
+    const float dy = spill32((long double)ay + k2 - slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y));
+    const float dz = spill32((long double)az - slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z));
+    const float len = spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dy * dy
+                                                        + (long double)dx * dx)));   /* 0x5031e4 */
 
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
-    if (param1 <= slot_age(i)) {
-        vx = vx * 0.97f + dx * 0.02f;
-        vy = vy * 0.97f + dy * 0.02f;
-        vz = vz * 0.97f + dz * 0.02f;
-        if (len < 3.0f) slot_kill(i);
+    if (slot_age(i) >= param1) {
+        const float d[3] = { dx, dy, dz };
+        for (int k = 0; k < 3; k++)
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k,
+                       spill32((long double)slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k) * k0p97));
+        for (int k = 0; k < 3; k++)
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k,
+                       spill32((long double)d[k] * k0p02 + slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X + k)));
+        if (len < k3) slot_kill(i);
     }
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
     slot_age_inc(i);
     if (slot_age(i) == 0x40) slot_kill(i);
 }

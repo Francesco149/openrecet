@@ -11,6 +11,7 @@
  */
 
 #include "t.h"
+#include "actor_table.h"
 
 #include <math.h>
 #include <string.h>
@@ -1612,9 +1613,10 @@ int test_particles_tick_type_78_anchors_to_target(void)
 {
     reset_world();
     int p_slot = 3;
-    g_scene1_people[p_slot].target[0] = 10.0f;
-    g_scene1_people[p_slot].target[1] = 5.0f;
-    g_scene1_people[p_slot].target[2] = -1.0f;
+    /* people[i].target is the actor table's +0x3f0 (retail's one table) */
+    act_setf(&g_actor[p_slot], ACT_POS, 10.0f);
+    act_setf(&g_actor[p_slot], ACT_POS + 4, 5.0f);
+    act_setf(&g_actor[p_slot], ACT_POS + 8, -1.0f);
 
     int slot = 0;
     int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
@@ -1670,9 +1672,10 @@ int test_particles_tick_type_93_close_distance_kill(void)
 {
     reset_world();
     int p_slot = 0;
-    g_scene1_people[p_slot].target[0] = 0.0f;
-    g_scene1_people[p_slot].target[1] = 0.0f;
-    g_scene1_people[p_slot].target[2] = 0.0f;
+    /* people[i].target is the actor table's +0x3f0 (retail's one table) */
+    act_setf(&g_actor[p_slot], ACT_POS, 0.0f);
+    act_setf(&g_actor[p_slot], ACT_POS + 4, 0.0f);
+    act_setf(&g_actor[p_slot], ACT_POS + 8, 0.0f);
     int slot = 0;
     int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
     r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x93;
