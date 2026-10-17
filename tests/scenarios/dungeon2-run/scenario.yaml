@@ -1,0 +1,11 @@
+# dungeon2-run — human recording 2026-10-17 (rhost.py record --from dungeon1-clear, Windows,
+# keyboard). Load the newest slot (dungeon1-clear's floor-15 save); home, the shop on Day 9 with
+# Charme's first visit (the b524 50 story probe, iv3_4 f2425, mid-shop: the crowd pump runs in
+# FUN_0048407f's event arm), the Day-10 morning (FUN_00490e56's guild stock pass, the work
+# +0x2bcf0 morning arm), the guild → the Boss Rush of dungeon 1 (b4c8 5, b4d0 1): floor 30
+# f16530 (the crown slime, beaten f18916), 31 f19757 (the mushroom king), 32 f25808 (Charme);
+# the party falls (f30442). 31472 frames.
+# det -n 2 PASS (205 volatile dwords). portrng IDENTICAL f1–f31472; portblock f31460: only actor
+# #0's draw-written anchors (2026-10-17).
+description: |
+  Day 9 (Charme's shop visit), the Day-10 morning, dungeon 1's Boss Rush (floors 30..32): the party falls at Charme.

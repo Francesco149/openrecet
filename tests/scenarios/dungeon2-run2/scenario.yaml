@@ -1,0 +1,8 @@
+# dungeon2-run2 — human recording 2026-10-17 (rhost.py record --from dungeon1-clear, Windows,
+# keyboard). Load the newest slot; the town (the Merchants' Guild f6256, f9823), the Adventurers'
+# Guild → dungeon 1's Boss Rush (b4c8 5, b4d0 1): floor 30 f14491, 31 f18001, 32 f24413 (Charme
+# beaten), home, the pause Save. 30684 frames.
+# det -n 2 PASS (254 volatile dwords). portrng IDENTICAL f1–f30684; portsave IDENTICAL; portblock
+# f30670: only actor #0's draw-written anchors (2026-10-17).
+description: |
+  Dungeon 1's Boss Rush passed (floors 30..32, Charme beaten), home, a save.

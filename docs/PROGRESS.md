@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-17 — dungeon2-run / -run2 / -run3 pass end to end: the Boss Rush, Charme's visit, the guild stock
+Three native recordings (`det -n 2` PASS): dungeon2-run (from dungeon1-clear's save: Day 9 with
+Charme's shop visit, the Day-10 morning, dungeon 1's Boss Rush, the party falls at Charme),
+dungeon2-run2 (the Boss Rush passed, a save) and dungeon2-run3 (from run2's save: shop days, the
+guilds, dungeon 1 trips, a save). **portrng IDENTICAL over all three** (f1–f31472 / f1–f30684 /
+f1–f66161); **portsave IDENTICAL** for run2 and run3; portblock at the ends: run3 every block
+IDENTICAL, run / run2 only actor #0's draw-written anchors. All three in `gates`. Splits closed:
+- f2435: FUN_0048407f (the event arm) runs the shop crowd pump FUN_0047019f while cc08 is 4 — a
+  story scene mid-shop (Charme's iv3_4 via the b524 50 probe, now verified); the port's event
+  tail skipped it as "inert"; and FUN_0047019f's type-0x42 walker sparkle (a type-31 spawn every
+  4th sim frame, 0.6 out along its facing, 3.6 up) was deferred;
+- f9345: FUN_00490e56 is the guild's per-item stock (quirk §156), not an "NPC schedule": the
+  kinds are the item table's stock_info[0], the counts live in the work record at +0x295f8 (the
+  guild buy list's cap). The legacy `npc_schedule.c` had all-zero kinds and private storage;
+  rewritten as `guild_stock.c` on the decompile;
+- f9346: the Day-9 morning arm (work +0x2bcf0, asm 0x486c1f): b924++, the bg NPCs,
+  FUN_0048b850, FUN_00486435, return — the port set the flag but never ran the arm;
+- f16894: FUN_00450ee0 / FUN_00451546, dungeon 5's floor setup and events, which the Boss Rush
+  runs on (b4c8 5, floors 30..): the arena FUN_0044cc80(2) and FUN_0044d0a4(1) on floors >= 30,
+  plus the other floors' arms (29 / 59 start floors, 58 the final boss with its movers, 41 / 56
+  the golem parts, 45 type 72, 37 type 27 — the AIs of 61..66 / 72..76 and FUN_0044db3c are still
+  stubs);
+- f18916: FUN_0043183e's Boss Rush drop floors (DAT_005adb68 / 74 / 88 / a8 by b4d4) — the drop
+  roll found no section at floor 30;
+- dungeon2-run3 f45297: FUN_00465db4 sets the shop's line latch b55c whenever a text box
+  finishes with the stale shop timer b544 > 0 — the Merchants' Guild bubble did it (quirk
+  §155); `customer_service_text_box_reveal` is now shared by the cs bubble and the guild
+  bubble's render-side tick (`scene_guild_render_state_tick`, the market variant's texts and the
+  expansion cost string ported with it); FUN_0045edaa zeroes b544 at the session start.
+Tools: state_va rows b55c, ea70.
+
 ## 2026-10-16 — dungeon 2's first floors ported ahead of a recording (unverified)
 From the disasm, with no recording to check them yet (dungeon 2's roster from the user's
 enemylist.txt): the bombs 37..40 (FUN_004293f0: the fuse spark while lit, the hover over the

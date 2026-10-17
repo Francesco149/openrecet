@@ -168,7 +168,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        **dungeon1-charme (the title's attract movie, floors 11..15, Charme's fight on floor 15,
        the party falls: portrng IDENTICAL f1–f70052)**, **dungeon1-clear (floors 11..15, the lost
        girl on floor 12, Charme beaten, a dungeon Save: portrng IDENTICAL f1–f71384 + portsave
-       IDENTICAL)**; all in `gates`. Next needs dungeons 2+ (Human queue).
+       IDENTICAL)**, **dungeon2-run / -run2 (Charme's shop visit, dungeon 1's Boss Rush — floors
+       30..32 on dungeon 5's setup / events — failed / passed: portrng IDENTICAL f1–f31472 /
+       f1–f30684, run2 portsave IDENTICAL)**, **dungeon2-run3 (shop days, the guilds, dungeon 1
+       trips: portrng IDENTICAL f1–f66161 + portsave IDENTICAL)**; all in `gates`. Next needs
+       dungeon 2's floors (Human queue).
        Known, not RNG-visible yet:
        - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
          the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
@@ -198,8 +202,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
        arms (27/28/41/70..74), FUN_0042ea35, FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
-       3..5's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f …,
-       FUN_00450877, FUN_00451546); render: no
+       3 / 4's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f,
+       FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
+       on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
+       stubs; render: no
        dungeon renderer, the results screen, the pause Items choice / messages; the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
@@ -228,9 +234,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
     4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
     5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
-       delivery + story customers) — no scenario reaches them yet. The b524 == 50 story probe
-       (Charme's iv3_4 visit after floor 15, the other adventurers' scenes, the item quest) is
-       ported but unverified: no recording has a story flag set yet.
+       delivery + story customers) — no scenario reaches them yet. The b524 == 50 story probe:
+       Charme's iv3_4 visit verified (dungeon2-run); the other adventurers' scenes and the item
+       quest are ported but no recording reaches them.
     6. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
        FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures,
        FUN_004682ee (bag picker's first-wearable tab); FUN_0044ba2c's `mode` argument
@@ -243,9 +249,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
   each: portsave ×11 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep,
-  debt-week1-paid, dungeon1-clear), portanchors ×2, portrng over 12 shop/day scenarios (incl.
-  debt-gameover-restart) + dungeon0-floors-save / -full / -wipe, dungeon1-run / -run2 / -deep /
-  -charme / -clear, adv-guild-pack-leave,
+  debt-week1-paid, dungeon1-clear, dungeon2-run2 / -run3), portanchors ×2, portrng over 12
+  shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
+  dungeon1-run / -run2 / -deep / -charme / -clear, dungeon2-run / -run2 / -run3, adv-guild-pack-leave,
   tear-lectures-gameover, debt-week1-paid, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
@@ -286,11 +292,14 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record dungeon 2** (unblocks the return home after Charme, dungeon 2's enemies, traps and
-  events; dungeon 1 floors 1..15 incl. Charme beaten are done end to end). On maximus, the user
-  plays on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon2-run --from
-  dungeon1-clear` (replays dungeon1-clear, ~60 s, and starts from the save it made on floor 15).
-  At the title, Load the newest slot (press a key within ~2 min, or the attract movie plays —
-  harmless). Play: take the floor-15 portal home, then guild → dungeon 2, every enemy kind, a
-  chest, an item from the pause menu (incl. the Equip entry), the exit or the boss, home, save.
+- **Record dungeon 2's floors** (unblocks dungeon 2's enemies, traps, events, Tielle; the Boss
+  Rush of dungeon 1, Charme's first shop visit and the guild stock days are done end to end).
+  dungeon2-run3 never reached dungeon 2: on the guild map it opens with Charme's third shop scene
+  (iv3_7, the b524 50 probe sets work +0x2bcb9), which needs her second (iv3_5: her friendship
+  counter, work i16 +0x2d214, above 2 — sell to her when she shops) and flag +0x2bcb8. On maximus,
+  the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon2-floors
+  --from dungeon2-run3` (replays run3, ~70 s, starts from its save). Load the newest slot; play
+  shop days until dungeon 2 opens if it is not yet, then guild → dungeon 2: every enemy kind, a
+  chest, an item from the pause menu (incl. Equip), the exit or the boss, home, save. Several
+  shorter recordings are fine (each `--from` the last).
 <!-- FRONT:END -->

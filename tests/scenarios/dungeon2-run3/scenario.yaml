@@ -1,0 +1,8 @@
+# dungeon2-run3 — human recording 2026-10-17 (rhost.py record --from dungeon2-run2, Windows,
+# keyboard). Load the newest slot; shop days, the market and the Merchants' Guild (its bubble
+# sets the cs line latch b55c through FUN_00465db4, f44790), dungeon 1 trips (b4c8 1), a save.
+# 66161 frames.
+# det -n 2 PASS (298 volatile dwords). portrng IDENTICAL f1–f66161; portsave IDENTICAL;
+# portblock f66150 every block IDENTICAL (2026-10-17).
+description: |
+  Shop days after the Boss Rush, the guilds, dungeon 1 trips, a save.

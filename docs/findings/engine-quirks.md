@@ -5195,6 +5195,29 @@ upgrade at the sale) reads the hint: with one set, the bought item goes into tha
 whatever the per-slot test says. A port that skips the panel's draw loses the upgrade.
 Recorded: `tear-lectures-gameover` f12730 (Louie's accessory slot 4).
 
+## 155. Any text box can release the next customer line (FUN_00465db4's b55c write)
+
+FUN_00465db4 is the shared typewriter text-box renderer. When it reaches the end of its
+text within the reveal budget **and DAT_0730b544 > 0** it sets **DAT_0730b55c = 1** — the
+customer-service "line revealed" latch the shop's state machines wait on before a Z press
+advances. b544 is the shop's per-state timer and is not cleared when the shop closes, so the
+Merchants' Guild's guildmaster bubble (FUN_0049404b, same renderer) sets the shop latch too.
+Nothing clears it until the next shop line is acknowledged: in the next shop session the first
+customer's greeting (b534 1) already has b55c = 1, so a Z press advances before that line has
+finished revealing. Recorded: `dungeon2-run3` (the guild bubble at f44790, the Z at f45297
+with the greeting at 17 of its characters).
+
+## 156. The guild stock is kept per item in the save, and a new day rolls it (FUN_00490e56)
+
+DAT_095d3810 (read as "NPC schedule definitions" in early notes) is the item table's
+`stock_info[0]` byte: each item's Merchants' Guild restock kind. FUN_00490e56 keeps
+{count, timer} per item in the work record (+0x295f8, the guild buy list's quantity cap):
+kind 0 = 100; 1 = 3..5, +1 every 5 days up to 10; 2 = rand % 3 a day, 1 every i % 8 + 15
+days; 4 = max(rand % 3 − 1, 0), 1 every i % 8 + 20 days (the rare stock); 5 / 6 / other =
+1 again after 1 / 2 / 3 days at 0. It runs at a new game (init), at Continue (re-init only if
+slot 0 is 0 or a kind-4 count is ≥ 2) and **every morning from day 9** (FUN_0048670f's
+morning block). Recorded: `dungeon2-run` f9345 (the Day-10 morning: 28 draws).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
