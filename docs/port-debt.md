@@ -97,7 +97,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
 | FUN_004147d5 | src/record_hit.c:674 | the overlay spark (25, 1.0, -1) |
-| FUN_004176ff | src/scene1_effects.c:385 | table B's second loop (the projectiles: |
+| FUN_004176ff | src/scene1_effects.c:422 | table B's second loop (the projectiles: |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
