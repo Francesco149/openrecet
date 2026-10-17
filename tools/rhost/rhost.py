@@ -790,7 +790,12 @@ def cmd_portstate(a):
 # the port's --block-dump blocks: name, retail VA, record stride (0 = flat)
 PORT_BLOCKS = [("party", 0x56da1b8, 0), ("actors", 0x76b970, 0xba4), ("dobj", 0x695ef78, 0x2a0),
                ("popup", 0x44e28f0, 28), ("recb", 0x69324b0, 0x124), ("recc", 0x6956cb0, 0x94),
-               ("drop", 0x438bedc, 0x18), ("mapcol_objs", 0x438bfb0, 0)]
+               ("drop", 0x438bedc, 0x18), ("mapcol_objs", 0x438bfb0, 0),
+               ("enemy-table", 0x5c23f0, 0x68), ("enemylist", 0x53f8e8, 0x2f0),
+               ("item-table", 0x95d37d0, 0x2cc), ("model-table", 0x73ae258, 0x2b8),
+               ("stage-table", 0x68dd2f8, 0x1b3c), ("chara-table", 0x73ae058, 0x40),
+               ("gousei-table", 0x9640650, 0x30), ("snews-names", 0x73d8ee0, 0x44),
+               ("snews-sections", 0x73b2108, 0xa8)]
 
 
 def read_pblk(path):

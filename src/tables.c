@@ -83,6 +83,15 @@ static int32_t resolve_via_item_state(const char *name, void *user)
     return tables_item_resolve(state, name);
 }
 
+/* gousei.txt's names resolve to the item's SLOT (retail's DAT_09640650
+ * records hold slots: id 104 → slot 20), -1 when unknown */
+static int32_t resolve_item_slot(const char *name, void *user)
+{
+    const item_state_t *state = (const item_state_t *)user;
+    const int32_t id = tables_item_resolve(state, name);
+    return id < 0 ? -1 : (int32_t)tables_item_find_slot_by_id(state, (uint32_t)id);
+}
+
 /* Each loader stub does: storage size+read, log, free. The real
  * parsers will replace the printf with the per-file parse loop. */
 #define DEFINE_STUB(fnname, path_literal)                                 \
@@ -485,7 +494,7 @@ static void load_gousei_txt(void)
     size_t sz = load_via_storage("data/gousei.txt", &buf);
     if (sz == 0) return;
     tables_parse_gousei(buf, sz, &g_gousei,
-                        resolve_via_item_state, &g_item);
+                        resolve_item_slot, &g_item);
     int max_rank = 0, outputs_resolved = 0, ingredients_resolved = 0;
     for (int i = 0; i < g_gousei.count; i++) {
         if (g_gousei.records[i].rank > max_rank) {

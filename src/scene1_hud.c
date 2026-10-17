@@ -393,13 +393,18 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * (b1d0/b1d8/bebc/be94/be9c/beb4) are 0 in the house scenes it shows in. */
     speech_bubble_render(dev_in, scene1_intro_dialogue_busy());
 
-    scene1_merchant_hud_render(dev_in);
+    /* FUN_0040a765: FUN_00409925 in the house (stage maptype 0) only; a floor
+     * draws FUN_00407cac instead — PORT-DEBT(stub, FUN_00407cac): the dungeon
+     * HUD (the party panel, the boss bar, the floor name plate). */
+    if (mapcol_maptype() == 0)
+        scene1_merchant_hud_render(dev_in);
 
     /* The interaction-affordance emote bubble (FUN_0040a765 inline @ all.c:6900):
      * engine order is FUN_00409925 → this.  The "GO!" door tooltip lives here. */
     scene1_hud_emote_bubble(dev);
 
-    scene1_top_hud_camera_hint(dev_in);
+    if (mapcol_maptype() == 0)
+        scene1_top_hud_camera_hint(dev_in);   /* FUN_00409925's tail */
 
     scene1_top_hud_render(dev_in);
 

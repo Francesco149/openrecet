@@ -596,7 +596,9 @@ static void parse_item_record(item_state_t *out, const char *line,
         }
         if (phase == 1) {
             char c = *p;
-            if (c == '\r' || c == '\n') {
+            /* the line ends at its CR/LF in retail's buffer; read_line has
+             * already cut it at a NUL (past it: the previous line's bytes) */
+            if (c == '\r' || c == '\n' || c == '\0') {
                 r->valid = 1;
                 return;
             }
@@ -616,7 +618,7 @@ static void parse_item_record(item_state_t *out, const char *line,
         }
         /* phase == 2 */
         char c = *p;
-        if (c == '/' || c == '\r' || c == '\n') {
+        if (c == '/' || c == '\r' || c == '\n' || c == '\0') {
             r->valid = 1;
             return;
         }

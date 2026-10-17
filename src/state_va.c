@@ -26,6 +26,13 @@
 #include "stage_post_load.h"
 #include "stage_palette.h"
 #include "tables_stage.h"         /* the stage table DAT_068dd2f8 */
+#include "tables_enemy.h"         /* DAT_005c23f0 */
+#include "tables_enemylist.h"     /* DAT_0053f8e8 */
+#include "tables_item.h"          /* DAT_095d37d0 */
+#include "tables_model.h"         /* DAT_073ae258 */
+#include "tables_chara.h"         /* DAT_073ae058 */
+#include "tables_gousei.h"        /* DAT_09640650 */
+#include "tables_snews.h"         /* DAT_073d8ee0 / 073b2108 */
 #include "floor_layout.h"
 #include "rng.h"
 #include "save_bank.h"
@@ -545,6 +552,21 @@ static const struct { uint32_t va, len; } k_blocks[] = {
 
 static void put32(FILE *fp, uint32_t v) { fwrite(&v, 4, 1, fp); }
 
+/* the parsed data tables, raw (their port structs keep the engine layout):
+ * the enemy records, the enemylist sections, the item records, the model
+ * definitions — static after boot, compared against retail's at any frame */
+static const struct { uint32_t va; const void *p; uint32_t len; } k_tables[] = {
+    { 0x5c23f0u,  g_enemy,               ENEMY_COUNT * 0x68u },
+    { 0x53f8e8u,  g_enemylist.sections,  (uint32_t)sizeof g_enemylist.sections },
+    { 0x95d37d0u, g_item.records,        600u * (uint32_t)sizeof(item_record_t) },
+    { 0x73ae258u, g_models,              (uint32_t)sizeof g_models },
+    { 0x68dd2f8u, g_stage.records,       (uint32_t)sizeof g_stage.records },
+    { 0x73ae058u, g_chara,               (uint32_t)sizeof g_chara },
+    { 0x9640650u, g_gousei.records,      (uint32_t)sizeof g_gousei.records },
+    { 0x73d8ee0u, g_snews.names,         (uint32_t)sizeof g_snews.names },
+    { 0x73b2108u, g_snews.sections,      (uint32_t)sizeof g_snews.sections },
+};
+
 /* a port pointer into a retail-layout block → that block's retail VA (retail
  * stores e.g. a record's owner as &DAT_056da1b8; the port as &g_party) */
 static uint32_t to_retail_ptr(uint32_t v)
@@ -569,9 +591,15 @@ void state_va_block_dump(const char *path, uint32_t frame)
     if (!fp) return;
     const uint32_t nb = (uint32_t)(sizeof k_blocks / sizeof k_blocks[0]);
     const uint32_t nf = (uint32_t)(sizeof k_flow / sizeof k_flow[0]);
+    const uint32_t nt = (uint32_t)(sizeof k_tables / sizeof k_tables[0]);
     fwrite("PBLK", 4, 1, fp);
     put32(fp, frame);
-    put32(fp, nb + nf + 1);
+    put32(fp, nb + nf + 1 + nt);
+    for (uint32_t k = 0; k < nt; k++) {
+        put32(fp, k_tables[k].va);
+        put32(fp, k_tables[k].len);
+        fwrite(k_tables[k].p, 1, k_tables[k].len, fp);
+    }
     for (uint32_t k = 0; k < nb; k++) {
         put32(fp, k_blocks[k].va);
         put32(fp, k_blocks[k].len);

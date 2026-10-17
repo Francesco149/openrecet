@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 694, discovered 1765 → 783 referenced-or-better (30.7%)
+- **inventory:** instrumented **89** (79 full + 10 stub), implemented 0, source-referenced 695, discovered 1764 → 784 referenced-or-better (30.8%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 10
 
@@ -114,7 +114,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (694) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (695) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -162,6 +162,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x406a60 | FUN_00406a60 | 516 | ✓ |  | save_picker.c, scene1_top_hud.c, scene1_top_hud.h (+2) |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ |  | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ |  | scene1_merchant_hud.c, scene1_top_hud.c |
+| 0x407cac | FUN_00407cac | 7289 | ✓ |  | scene1_hud.c |
 | 0x40a68f | FUN_0040a68f | 214 | ✓ |  | customer_roster.c, customer_roster.h, customer_service.c |
 | 0x40c4eb | FUN_0040c4eb | 1059 | ✓ |  | main.c, scene1_hud.c, speech_bubble.c (+1) |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ |  | scene1_spawn.c |

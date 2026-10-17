@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **76**
-- distinct retiring engine functions: **58**
+- total open debts: **77**
+- distinct retiring engine functions: **59**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 55 | wired call boundary, body incomplete |
+| stub | 56 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -44,6 +44,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | FUN_0048d5d6 | 2 |
 | 0x43e... | 1 |
+| FUN_00407cac | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
@@ -89,10 +90,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (55)
+## stub (56)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_00407cac | src/scene1_hud.c:397 | the dungeon |
 | FUN_00409925 | src/scene1_merchant_hud.c:186 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1586 | the boost aura (types 24 / 22) |
