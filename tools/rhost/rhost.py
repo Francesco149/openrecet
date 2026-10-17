@@ -7,6 +7,7 @@
   rhost.py det SCEN [-n N] [--calibrate] run N times, dump at end, diff (determinism gate)
   rhost.py corpus [opts]                 every scenario; summary table
   rhost.py diff A.rhs B.rhs              classify the differences between two dumps
+  rhost.py tables SCEN --at F,F          retail's live effect / object / actor type histograms
   rhost.py record NAME [--save S|--from SCEN]  HUMAN PLAY (Windows desktop, realtime) → flat trace;
                                          --save SHA[prefix]|PATH|SCEN (the save SCEN starts from),
                                          --from SCEN = the save SCEN ends with (replayed, stored in _saves)
@@ -936,6 +937,59 @@ def common(p):
     p.add_argument("--wine-timeout", type=int, default=3600)
 
 
+def cmd_tables(a):
+    """retail only: per frame, the live type histograms of the effect / object tables — table A
+    (DAT_069b2f80, +0x30), table B (DAT_069324b0, +0), table C (DAT_06956cb0, +0x28), the dungeon
+    objects (DAT_0695ef78, +0x8c) and the in-use actors (DAT_0076b970, +0x424) — to pick what a
+    render port must cover"""
+    import collections
+    name = a.scenario
+    frames = [int(x) for x in a.at.split(",")]
+    tr, save = scenario_inputs(name)
+    a.dump_at = ",".join(str(f) for f in frames)
+    if not a.frames:
+        a.frames = max(frames) + 1
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "tables",
+                                    fetch=("rhost.log", "state_*.rhs"))
+    tot = {k: collections.Counter() for k in "ABCOX"}
+    for f in frames:
+        path = os.path.join(bdir, name, f"state_f{f:06d}.rhs")
+        if not os.path.exists(path):
+            print(f"f{f}: no dump"); continue
+        R = rhs.Dump(path)
+
+        def w(va):
+            for lo, hi in R.ranges:
+                if lo <= va < hi:
+                    return R.words[lo][(va - lo) // 4]
+            return None
+
+        def s32(v):
+            return v - (1 << 32) if v is not None and v >= 0x80000000 else v
+        na, nb, nc = w(0x76b960) or 0, w(0x76b964) or 0, w(0x76b968) or 0
+        h = {k: collections.Counter() for k in "ABCOX"}
+        for i in range(na):
+            t = s32(w(0x69b2f80 + 0x94 * i + 0x30))
+            if t != -1: h["A"][t] += 1
+        for i in range(nb):
+            t = s32(w(0x69324b0 + 0x124 * i))
+            if t: h["B"][t] += 1
+        for i in range(nc):
+            t = s32(w(0x6956cb0 + 0x94 * i + 0x28))
+            if t != -1: h["C"][t] += 1
+        for i in range(512):
+            t = s32(w(0x695ef78 + 0x2a0 * i + 0x8c))
+            if t is not None and t != -1: h["O"][t] += 1
+        for i in range(128):
+            if w(0x76b970 + 0xba4 * i + 0x428):
+                h["X"][s32(w(0x76b970 + 0xba4 * i + 0x424))] += 1
+        line = "  ".join(f"{k}:{dict(sorted(v.items()))}" for k, v in h.items() if v)
+        print(f"f{f}: {line or '(empty)'}")
+        for k in h:
+            tot[k].update(h[k])
+    print("all: " + "  ".join(f"{k}:{dict(sorted(v.items()))}" for k, v in tot.items() if v))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -958,6 +1012,8 @@ def main():
     common(p); p.set_defaults(fn=cmd_portrng)
     p = sp.add_parser("portblock"); p.add_argument("scenario"); p.add_argument("--at", type=int, required=True, help="frame F")
     p.add_argument("--list", type=int, default=40, help="dwords listed per block"); common(p); p.set_defaults(fn=cmd_portblock)
+    p = sp.add_parser("tables"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
+    common(p); p.set_defaults(fn=cmd_tables)
     p = sp.add_parser("portshots"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_portshots)
     p = sp.add_parser("verify"); p.add_argument("--only"); common(p); p.set_defaults(fn=cmd_verify)

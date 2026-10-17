@@ -5218,6 +5218,17 @@ days; 4 = max(rand % 3 − 1, 0), 1 every i % 8 + 20 days (the rare stock); 5 / 
 slot 0 is 0 or a kind-4 count is ≥ 2) and **every morning from day 9** (FUN_0048670f's
 morning block). Recorded: `dungeon2-run` f9345 (the Day-10 morning: 28 draws).
 
+## 157. The HUD slide sees a dialogue one frame after it ends (DAT_0438b1dc, DAT_0438b1c8)
+
+FUN_00406584's tail eases the HUD slide DAT_0438b1dc by ±0.1 a tick (1 = the HUD off screen:
+the top HUD rises by ·128, the floor HUD sinks by ·128, the house's black bars grow by ·32). It
+reads the dialogue gate b1c8, which FUN_004536cb clears only at 0x453c44 — after its
+FUN_00406584 call (0x453bad / 0x453bbe) — so on the frame a dialogue ends the slide still counts
+it. And FUN_0044ba2c parses the script it arms on that same frame (FUN_0046c2bc: DAT_073a3df0,
+the `bgset:` count FUN_0046c869 returns) before FUN_00406584 runs, so the slide reacts to a
+covering backdrop the frame b1c8 becomes 2. DAT_073a3df0 is never reset when a dialogue ends: it
+keeps the last script's count. Recorded: `day1-tutorial-to-day2` f12737, `dungeon2-run` f14186.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory
