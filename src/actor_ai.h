@@ -46,6 +46,7 @@ float actor_view_depth(float x, float y, float z);
 int32_t actor_view_cull(float x, float y, float z, float r);   /* FUN_00490820 */
 /* FUN_00490c78's screen x (the render's last view / projection) */
 float actor_screen_x(float x, float y, float z);        /* FUN_0049097c */
+void  charme_voice(int32_t kind);                      /* FUN_004976ae: 0 attack line, 1 crit line */
 void  actor_ai_alive(actor_t *a);                         /* FUN_0042f28c */
 void  actor_dying(actor_t *a);                            /* FUN_0042f7ad */
 void  actor_ai_slime(actor_t *a);                         /* FUN_0042c9b3 */

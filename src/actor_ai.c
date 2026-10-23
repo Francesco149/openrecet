@@ -3031,7 +3031,7 @@ static void actor_ai_t44(actor_t *a)
 
 /* FUN_004976ae: Charme's voice — 0 one of eight attack lines (the 24-pick bag
  * FUN_0049a2a9), 1 one of two (FUN_00499fda) */
-static void charme_voice(int32_t kind)
+void charme_voice(int32_t kind)
 {
     static const char *const k_attack[8] = {
         "bin/se/03sy/action/03sy_01a.bin", "bin/se/03sy/action/03sy_01b.bin",
