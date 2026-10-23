@@ -297,6 +297,16 @@ void display_menu_set_compare(int chara, int b978)
 }
 int display_menu_compare_chara(void) { return s_compare_chara; }
 
+/* FUN_004682ee: open on the first tab whose first entry chara can wield
+ * (FUN_00468ddc slot 0); none → tab 0 */
+void display_menu_seek_equip_tab(int chara)
+{
+    for (s_cur_tab = 0; s_cur_tab < s_num_tabs; s_cur_tab++)
+        if (item_equip_check(chara, 0, s_list[2 * s_tab_base[s_cur_tab] + 2]))
+            return;
+    s_cur_tab = 0;
+}
+
 /* FUN_004681db / 004681e6 / 004681d3 — DAT_0734b96c, the item-detail popup
  * (row + 1 while open). */
 static int s_detail = 0;

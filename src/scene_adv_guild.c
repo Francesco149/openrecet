@@ -589,9 +589,7 @@ void scene_adv_guild_sim(void)
             audio_play_se_by_id(323);
             display_menu_open(0, 1);                         /* FUN_00468338(0,1) */
             display_menu_set_compare(id, -1);                /* FUN_00468233 */
-            /* FUN_004682ee(id): open on the first tab holding something `id`
-             * can equip (FUN_00468ddc).
-             * PORT-DEBT(stub, FUN_004682ee): the tab stays where the open put it. */
+            display_menu_seek_equip_tab(id);                 /* FUN_004682ee */
             s.bag_mode   = 1;
             s.chara_open = 0;
             s.msg        = 1;

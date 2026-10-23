@@ -125,6 +125,7 @@ void display_menu_state_restore(void);
 /* FUN_00468233(chara, b): DAT_005c6ee0 (the adventurer the list compares
  * equipment against, -1 none) and DAT_0734b978. */
 void display_menu_set_compare(int chara, int b978);
+void display_menu_seek_equip_tab(int chara);                 /* FUN_004682ee */
 int  display_menu_compare_chara(void);
 
 /* DAT_0734b96c, the item-detail popup: FUN_004681db(row) opens it (row + 1),
