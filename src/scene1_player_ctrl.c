@@ -521,13 +521,16 @@ static void player_ctrl_tail_rumble(void)
  * still up (b928==1 && b924<192), reaching shop rank 1 (DAT_0450fb98) runs the
  * scripted buy tutorial once (f428, script file 1) and rank 2 the next lesson
  * (f429, file 2; outside game mode 2): f404 = f405 = 1, cc08 = 4, the session
- * init, and FUN_00406212(0) — then FUN_0048670f returns.
- * PORT-DEBT(rank-arrival-tail): FUN_00406212(0) (DAT_00647e20 = 1) and the rank
- * ≥6 / ≥14 FUN_0044ba2c(19,1|2,0) story triggers (f4c5/f4c6). */
+ * init, and FUN_00406212(0) — then FUN_0048670f returns.  Past those, rank 6
+ * and rank 14 start the story dialogues 19/1 and 19/2 once each (FUN_0044ba2c,
+ * flags +0x2bd05 / +0x2bd06 set when it starts; asm 0x4884df..0x488535), and
+ * FUN_0048670f returns the same way. */
 #define PC_F428_RANK1_BYTE_OFF  0x2bc90   /* DAT_0450f428 — rank-1 buy lesson shown */
 #define PC_F429_RANK2_BYTE_OFF  0x2bc91   /* DAT_0450f429 — rank-2 lesson (requests on) */
 #define PC_F404_SELL_ACTIVE_OFF 0x2bc6c   /* DAT_0450f404 */
 #define PC_F405_ARRIVED_OFF     0x2bc6d   /* DAT_0450f405 */
+#define PC_RANK6_STORY_BYTE_OFF  0x2bd05  /* DAT_0450f49d — story 19/1 shown */
+#define PC_RANK14_STORY_BYTE_OFF 0x2bd06  /* DAT_0450f49e — story 19/2 shown */
 static int player_ctrl_cc08_customer_escalate(void)
 {
     uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
@@ -548,13 +551,25 @@ static int player_ctrl_cc08_customer_escalate(void)
         if (!mode2)
             file = 2;
     }
-    if (file < 0)
+    if (file < 0) {
+        if (rank >= 6 && bb[PC_RANK6_STORY_BYTE_OFF] == 0 && !scene1_intro_dialogue_busy()) {
+            scene1_intro_dialogue_start_single(19, 1);   /* FUN_0044ba2c(19, 1, 0) */
+            bb[PC_RANK6_STORY_BYTE_OFF] = 1;
+            return 1;
+        }
+        if (rank >= 14 && bb[PC_RANK14_STORY_BYTE_OFF] == 0 && !scene1_intro_dialogue_busy()) {
+            scene1_intro_dialogue_start_single(19, 2);   /* FUN_0044ba2c(19, 2, 0) */
+            bb[PC_RANK14_STORY_BYTE_OFF] = 1;
+            return 1;
+        }
         return 0;
+    }
     bb[PC_F404_SELL_ACTIVE_OFF] = 1;
     s_cc08 = 4;
     bb[PC_F405_ARRIVED_OFF] = 1;
     customer_service_set_script_file(file);        /* FUN_00461bf6 */
     customer_service_session_init();               /* FUN_0045edaa */
+    speech_bubble_close(0);                        /* FUN_00406212(0) */
     return 1;
 }
 
