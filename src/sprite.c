@@ -62,12 +62,27 @@ static void box_downsample(const uint8_t *src, uint32_t sw, uint32_t sh,
     }
 }
 
+/* A create / load into a sprite that still holds a texture releases it first.
+ * Retail's screens free their slots of the fixed texture table (FUN_0047183b,
+ * 200 slots) before loading again; the port's screens reload in place, and
+ * dropping the old reference leaked its managed-pool copy — dungeon3-floors
+ * (the world map ×23, the guild's result_bord01 ×31, …) ran the 32-bit port out
+ * of address space by ~f145000. */
+static void sprite_drop(sprite_t *s)
+{
+    if (s->tex) {
+        d3d_tex_name_forget(s->tex);
+        IDirect3DTexture8_Release(s->tex);
+    }
+    s->tex = NULL;
+    s->width = s->height = 0;
+}
+
 static int sprite_create_impl(IDirect3DDevice8 *dev,
                               const uint8_t *bgra, uint32_t w, uint32_t h,
                               int gen_mips, sprite_t *out)
 {
-    out->tex = NULL;
-    out->width = out->height = 0;
+    sprite_drop(out);
 
     /* Levels=0 lets D3D allocate the full chain (floor(log2(max))+1);
      * Levels=1 is the single-level path FUN_0047193c uses for 2D UI. */
@@ -157,8 +172,7 @@ static int sprite_load_impl(IDirect3DDevice8 *dev, const char *name,
                             uint32_t expected_w, uint32_t expected_h,
                             int gen_mips, sprite_t *out)
 {
-    out->tex = NULL;
-    out->width = out->height = 0;
+    sprite_drop(out);
     (void)expected_w;
     (void)expected_h;  /* TODO: resample to match engine's d3dx8 path. */
 

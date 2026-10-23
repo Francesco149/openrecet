@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 712, discovered 1745 → 803 referenced-or-better (31.5%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 729, discovered 1728 → 820 referenced-or-better (32.2%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 12
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (712) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (729) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -278,7 +278,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x434def | FUN_00434def | 227 | ✓ |  | choice_box.c, choice_box.h, scene.h (+6) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ |  | choice_box.c, choice_box.h, customer_service.c (+5) |
 | 0x435612 | FUN_00435612 | 8 | ✓ |  | customer_service.c, dungeon_results.c, encyclopedia.c (+14) |
-| 0x43561a | FUN_0043561a | 11 | ✓ |  | encyclopedia.c, main.c, scene1_display_menu.c (+8) |
+| 0x43561a | FUN_0043561a | 11 | ✓ |  | customer_service.c, encyclopedia.c, main.c (+9) |
 | 0x435625 | FUN_00435625 | 6 | ✓ |  | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435644 | FUN_00435644 | 79 | ✓ |  | encyclopedia.c, scene_pause.c, skip_event.c (+2) |
 | 0x435693 | FUN_00435693 | 58 | ✓ |  | customer_service.c, main.c, scene1_counter_menu.c (+9) |
@@ -316,7 +316,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44b12f | FUN_0044b12f | 61 | ✓ |  | dungeon_party.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h |
 | 0x44b16c | FUN_0044b16c | 84 | ✓ |  | record_hit.h, scene1_combat_sm.h |
 | 0x44b1c0 | FUN_0044b1c0 | 89 | ✓ |  | actor_ai.c, actor_ai.h |
-| 0x44b219 | FUN_0044b219 | 60 | ✓ |  | actor_ai.c, record_hit.c, scene1_camera.c (+4) |
+| 0x44b219 | FUN_0044b219 | 60 | ✓ |  | actor_ai.c, dungeon_party.c, record_hit.c (+5) |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b257 | FUN_0044b257 | 55 | ✓ |  | dungeon_flow.c, dungeon_objects.c, dungeon_objects.h (+1) |
 | 0x44b2e6 | FUN_0044b2e6 | 85 | ✓ |  | dungeon_flow.c, dungeon_flow.h |
@@ -473,7 +473,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_pause.c (+1) |
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ |  | scene_adv_guild.c, scene_pause.c, stage_load_pulse.h |
-| 0x4682ee | FUN_004682ee | 74 | ✓ |  | scene_adv_guild.c |
+| 0x4682ee | FUN_004682ee | 74 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_adv_guild.c |
 | 0x468338 | FUN_00468338 | 2490 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+10) |
 | 0x468cf2 | FUN_00468cf2 | 19 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h |
 | 0x468d05 | FUN_00468d05 | 7 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
@@ -481,7 +481,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x468d13 | FUN_00468d13 | 15 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
 | 0x468d22 | FUN_00468d22 | 73 | ✓ |  | customer_service.c, dungeon_results.c, encyclopedia.c (+7) |
 | 0x468d6b | FUN_00468d6b | 113 | ✓ |  | customer_service.c |
-| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, customer_service.h, scene1_display_menu.c (+1) |
+| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, customer_service.h, scene1_display_menu.c |
 | 0x468f6d | FUN_00468f6d | 99 | ✓ |  | dungeon_results.c, scene1_display_menu.c, scene1_display_menu.h (+1) |
 | 0x468fd0 | FUN_00468fd0 | 328 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c (+1) |
 | 0x469118 | FUN_00469118 | 61 | ✓ |  | guild_fusion.c, guild_fusion.h, scene_guild.c |
@@ -528,7 +528,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x470d44 | FUN_00470d44 | 292 | ✓ |  | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ |  | main.c, prewindow.h, rng.h |
 | 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_ai.c, actor_table.c, customer_haggle.c (+18) |
-| 0x47183b | FUN_0047183b | 151 | ✓ |  | d3d_pool.c, d3d_pool.h, scene.c |
+| 0x47183b | FUN_0047183b | 151 | ✓ |  | d3d_pool.c, d3d_pool.h, scene.c (+1) |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ |  | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ |  | d3d_tex_names.h, scene1_preload.c, scene_buy.c (+13) |
 | 0x471b24 | FUN_00471b24 | 467 | ✓ |  | d3d_tex_names.h, mesh_load.c, mesh_load.h (+1) |
@@ -654,7 +654,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ |  | dungeon_party.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ |  | dungeon_party.c, dungeon_party.h, record_hit.c (+3) |
 | 0x48584f | FUN_0048584f | 18 | ✓ |  | record_hit.c |
-| 0x485979 | FUN_00485979 | 731 | ✓ |  | dungeon_flow.c, record_hit.c, record_hit.h (+1) |
+| 0x485979 | FUN_00485979 | 731 | ✓ |  | dungeon_flow.c, dungeon_party.c, record_hit.c (+2) |
 | 0x485c74 | FUN_00485c74 | 333 | ✓ |  | dungeon_flow.c, dungeon_flow.h, record_hit.c (+1) |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ |  | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
@@ -733,16 +733,33 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x494ca4 | FUN_00494ca4 | 289 | ✓ |  | dungeon_party.c |
 | 0x494dc5 | FUN_00494dc5 | 450 | ✓ |  | dungeon_party.c |
 | 0x494f87 | FUN_00494f87 | 261 | ✓ |  | dungeon_party.c |
+| 0x49508c | FUN_0049508c | 145 | ✓ |  | dungeon_party.c |
+| 0x49511d | FUN_0049511d | 488 | ✓ |  | dungeon_party.c |
 | 0x495305 | FUN_00495305 | 543 | ✓ |  | dungeon_party.c |
+| 0x495524 | FUN_00495524 | 221 | ✓ |  | dungeon_party.c |
+| 0x495601 | FUN_00495601 | 845 | ✓ |  | dungeon_party.c |
+| 0x49594e | FUN_0049594e | 228 | ✓ |  | dungeon_party.c |
 | 0x495a32 | FUN_00495a32 | 522 | ✓ |  | dungeon_party.c |
+| 0x495c3c | FUN_00495c3c | 339 | ✓ |  | dungeon_party.c |
+| 0x495d8f | FUN_00495d8f | 428 | ✓ |  | dungeon_party.c |
+| 0x495f3b | FUN_00495f3b | 361 | ✓ |  | dungeon_party.c |
 | 0x4960a4 | FUN_004960a4 | 617 | ✓ |  | dungeon_party.c |
+| 0x49630d | FUN_0049630d | 434 | ✓ |  | dungeon_party.c |
 | 0x4964bf | FUN_004964bf | 240 | ✓ |  | dungeon_party.c |
+| 0x4965af | FUN_004965af | 368 | ✓ |  | dungeon_party.c |
+| 0x49671f | FUN_0049671f | 162 | ✓ |  | dungeon_party.c |
+| 0x4967c1 | FUN_004967c1 | 674 | ✓ |  | dungeon_party.c |
 | 0x496a63 | FUN_00496a63 | 517 | ✓ |  | dungeon_party.c |
+| 0x496c68 | FUN_00496c68 | 263 | ✓ |  | dungeon_party.c |
+| 0x496d6f | FUN_00496d6f | 225 | ✓ |  | dungeon_party.c |
+| 0x496e50 | FUN_00496e50 | 194 | ✓ |  | dungeon_party.c |
 | 0x496f12 | FUN_00496f12 | 184 | ✓ |  | dungeon_party.c |
 | 0x496fca | FUN_00496fca | 196 | ✓ |  | dungeon_party.c |
 | 0x49708e | FUN_0049708e | 687 | ✓ |  | dungeon_party.c |
+| 0x49733d | FUN_0049733d | 203 | ✓ |  | dungeon_party.c |
+| 0x497408 | FUN_00497408 | 340 | ✓ |  | dungeon_party.c |
 | 0x49755c | FUN_0049755c | 338 | ✓ |  | dungeon_party.c |
-| 0x4976ae | FUN_004976ae | 119 | ✓ |  | actor_ai.c |
+| 0x4976ae | FUN_004976ae | 119 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_party.c |
 | 0x4977df | FUN_004977df | 320 | ✓ |  | dungeon_party.c |
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h, dungeon_party.c |
 | 0x497c83 | FUN_00497c83 | 439 | ✓ |  | dungeon_party.c |
