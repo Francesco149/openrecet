@@ -285,8 +285,8 @@
  * customer_roster.c (FUN_0048439a). */
 #define SAVE_BANK_FIELD_DECO_WALL      0xb379   /* DAT_0451057c (sel1) */
 #define SAVE_BANK_FIELD_DECO_FLOOR     0xb37a   /* DAT_04510580 (sel0) */
-#define SAVE_BANK_FIELD_DECO_TABLE     0xb37b   /* DAT_04510584 (sel3) */
-#define SAVE_BANK_FIELD_DECO_CARPET    0xb37c   /* DAT_04510588 (sel2) */
+#define SAVE_BANK_FIELD_DECO_CARPET    0xb37b   /* DAT_04510584 — "Change Carpet", ids 5401.. */
+#define SAVE_BANK_FIELD_DECO_TABLE     0xb37c   /* DAT_04510588 — "Change Tables", ids 5301.. */
 
 /* Scene-resume state (engine FUN_0049a59e CONTINUE branch, all.c:100639-100642).
  *  - RESUME_MODE (0xb381 / DAT_0451059c): the scene the save was taken in

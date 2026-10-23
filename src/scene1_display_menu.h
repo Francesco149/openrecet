@@ -116,6 +116,9 @@ void display_menu_highlight_row(void);
 /* FUN_004681a6 / FUN_00468131: the pause (modes 6 / 11) sets the per-tab scroll
  * and cursor and the current tab aside; the unpause puts them back, snaps the
  * hand cursor onto the row and re-highlights it. */
+/* FUN_004692a4(item): walk the current tab's cursor onto `item` + snap the cursor. */
+void display_menu_seek_item(int item);
+
 void display_menu_state_save(void);
 void display_menu_state_restore(void);
 

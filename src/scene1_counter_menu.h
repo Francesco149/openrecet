@@ -56,6 +56,7 @@ int counter_menu_input(uint16_t pressed, uint16_t held);
 /* cc08 == 10 (case 10, asm 0x4870b9): ++b754; at 15 returns the selected entry
  * id (list A [cursor]), else -1. */
 int counter_menu_close_tick(void);
+void counter_menu_timer_reset(void);  /* b754 = 0 (the decor editor's close) */
 
 int counter_menu_count(void);          /* DAT_005cd0bc */
 int counter_menu_entry(int i);         /* DAT_074b2d98[i] */

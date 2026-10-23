@@ -24,6 +24,7 @@
 #include "tables_stage.h"            /* the stage table DAT_068dd2f8 */
 #include "party.h"                   /* DAT_056da1d8.. */
 #include "save_work.h"               /* work +0x2ce0c */
+#include "dungeon_party.h"           /* angle_ease (FUN_00482ae7) */
 #include <string.h>
 
 /* ─── .rdata constants (Cc.0-resolved via PE section parse) ───────────── */
@@ -389,6 +390,43 @@ void scene1_camera_day_end_pose(void)
     const float c = spill32(x87_crt_cos(yaw));
     g_smooth_eye[2] = spill32((long double)g_smooth_lookat[2] - (long double)c * ((long double)g_class_off_y + g_radius_add));
     scene1_camera_pose_compute();                          /* FUN_00441c3e */
+}
+
+/* FUN_0048670f case 3 (asm 0x487a71..0x487c5b): the decor editor's camera —
+ * class 1; Flooring (1) / Carpet (3) look 1 / 3 to the right of the room's
+ * centre, Walls (2) / Tables (4) turn the yaw (0.0628 a tick) toward the back
+ * wall with their own offsets (Tables 5 nearer); the lookat x / z eased 0.2
+ * toward the target, the eye orbiting it */
+void scene1_camera_decor_pose(int entry)
+{
+    static const float km2 = -2.0f, k1 = 1.0f, k3 = 3.0f, km5 = -5.0f, k0p2 = 0.20000000298023224f;
+    static const float k_yaw_w = 2.8274335861206055f, k_yaw_t = 2.9845130443573f;
+    static const float k_step = 0.06283185631036758f, km1p8 = -1.7999999523162842f;
+    static const float k19 = 19.0f, k11p6 = 11.600000381469727f, k20 = 20.0f, k17p6 = 17.600000381469727f;
+    float tx = km2, tz = 0.0f;
+    g_scene1_camera_stage_class = 1;                       /* DAT_0438b4e8 */
+    if (entry == 1) {
+        tx = k1;
+    } else if (entry == 2 || entry == 4) {
+        if (entry == 4) {
+            tx = 0.0f;
+            tz = km5;
+        }
+        g_scene1_camera_yaw = angle_ease(g_scene1_camera_yaw, entry == 2 ? k_yaw_w : k_yaw_t, k_step);
+        g_class_off_x = spill32((long double)km1p8 - DAT_005c4fd0);
+        g_class_off_y = spill32((long double)(entry == 2 ? k19 : k20) - DAT_005c4fd4);
+        g_class_off_z = spill32((long double)(entry == 2 ? k11p6 : k17p6) - DAT_005c4fd8);
+    } else if (entry == 3) {
+        tx = k3;
+    }
+    g_smooth_lookat[0] = spill32(((long double)tx - g_smooth_lookat[0]) * k0p2 + g_smooth_lookat[0]);
+    g_smooth_lookat[2] = spill32(((long double)tz - g_smooth_lookat[2]) * k0p2 + g_smooth_lookat[2]);
+    const double yaw = g_scene1_camera_yaw;
+    const float s = spill32(x87_crt_sin(yaw));
+    g_smooth_eye[0] = spill32((long double)s * ((long double)g_class_off_y + g_radius_add) + g_smooth_lookat[0]);
+    g_smooth_eye[1] = spill32(((long double)g_class_off_z + g_eyey_add) + g_smooth_lookat[1]);
+    const float c = spill32(x87_crt_cos(yaw));
+    g_smooth_eye[2] = spill32((long double)g_smooth_lookat[2] - (long double)c * ((long double)g_class_off_y + g_radius_add));
 }
 
 /* ─── FUN_00462403 cinematic block: the cc08==4 customer-service COUNTER camera ─

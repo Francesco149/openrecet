@@ -64,13 +64,39 @@ arms):
   - `++b754 == 15` → dispatch `A[cc0c]`:
     - 6 → cc08 1;
     - 0 → cc08 4 + FUN_0045edaa + `rand()%5` voice (00re_sys11a/b/c, 01ti_sys11a/b);
-    - 1..5 → cc08 0x17 + the decor camera (FUN_00452dc1/d85/dfd/e39), SE 00re_sys04c.
-      This is `PORT-DEBT(counter-menu-decor)`.
+    - 1..4 → the decor editor (below); 5 (Move Tables) → cc08 2, `DAT_0438bea4 = 0`,
+      FUN_0048940e(0, 1) — `PORT-DEBT(counter-menu-move-tables)`.
   - exit via LABEL_133 = FUN_0048a833 + tail (no player anim tick).
 - db054 does not advance in cc08 0/10 (FUN_0048b850 doesn't run).
 
 Measured: Z@793 → cc08 0, b74c 1..12 from f794 (input live from f803). Z@836 → cc08 10,
 b754 1..15. cc08 4 at f851.
+
+## The decor editor (cc08 0x17 / 3, asm 0x48792e..0x487e7f; ported 2026-10-23)
+The room's decor is 4 variant indices in the work bank — wall +0x2cde4, floor
++0x2cde8, carpet +0x2cdec, tables +0x2cdf0 (dwords 0xb379..0xb37c; save_bank.h had
+the carpet / tables names swapped) — and their + at +0x2deb8.. (same order). As items
+they are `((base + index) << 6) | +` with base 5101 walls, 5001 floor, 5401 carpet,
+5301 tables (index 0..29).
+- Entry 1 Flooring / 2 Walls / 3 Carpet / 4 Tables: all eight words are set aside in
+  b7b4..b7d0, cc08 0x17, the category's secondary worker FUN_00452dc1 / d85 / dfd /
+  e39(0) (every variant's asset for the preview; b1d4 2 → 1 at its end — 1 frame under
+  DEFER), SE 00re_sys04c.
+- 0x17: b1d4 != 1 → LABEL_675. Else cc08 3, the room's current decor INTO the bag
+  (FUN_00468d22, encyclopedia mark included), the item window on the category
+  (FUN_00468338(2 / 3 / 4 / 8, 1): the bag filtered to ids 5001..5099 / 5101..5199 /
+  5401..5499 / 5301..5399, no "Nothing" row), FUN_004692a4 walks the tab cursor onto it.
+  The crowd tick FUN_0047019f does not run in 0x17 / 3 (no type-0x42 sparkles).
+- 3: b1d4 != 1 → LABEL_133. FUN_00469414(1), then the camera: class 1 (b4e8),
+  lookat x / z eased 0.2 toward (1, 0) floor / (3, 0) carpet / (−2, 0) walls /
+  (0, −5) tables; walls / tables also ease the yaw (FUN_00482ae7, 0.0628) toward
+  2.8274 / 2.9845 (DAT_056db060 the same) with the class offsets (−1.8, 19 | 20,
+  11.6 | 17.6) − DAT_005c4fd0..; the eye orbits (as the day-end camera). Result 3 →
+  SE 0x143; 0 → the highlighted row IS the room's decor (preview; every band checked);
+  1 / 2 → b754 = 0, cc08 0 (the counter menu again), cursor off, window off, class 0,
+  yaw = DAT_056db060 = π; 2 restores b7b4.. + SE 0x13d; the room's (now) decor leaves
+  the bag (FUN_00469241); FUN_0048439a (the shop attribute centroid), FUN_004749a1 /
+  dd / a19 / a55 (release the other variants — render). All end at LABEL_133.
 
 ## Render (FUN_00409925 cc08 0/10 block, all.c:6860-6960)
 - COLOROP ADDSIGNED, texture item_win.tga.

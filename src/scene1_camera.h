@@ -203,4 +203,8 @@ int scene1_camera_view_mode(void);
 /* FUN_0048dbfb's camera head: the day-end class-1 pose, then FUN_00441c3e */
 void scene1_camera_day_end_pose(void);
 
+/* FUN_0048670f case 3: the decor editor's camera for counter-menu entry `entry`
+ * (1 Flooring, 2 Walls, 3 Carpet, 4 Tables) — class 1, eased toward its view */
+void scene1_camera_decor_pose(int entry);
+
 #endif /* OPENRECET_SCENE1_CAMERA_H */

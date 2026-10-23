@@ -7,6 +7,7 @@
  */
 
 #include "scene1_top_hud.h"
+#include "scene1_camera.h"   /* g_scene1_camera_stage_class (DAT_0438b4e8) */
 #include "scene1_hud.h"   /* DAT_0438b1dc */
 #include "x87.h"
 
@@ -443,6 +444,7 @@ void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev_in)
      * (camera-hint-b4e8): the OTHER b4e8 menu/transition states
      * (FUN_00423b58/FUN_004426a7) aren't tracked yet — generalise when b4e8 lands. */
     if (customer_service_active()) return;
+    if (g_scene1_camera_stage_class != 0) return;   /* DAT_0438b4e8: the decor editor, the day end */
 
     const sprite_t *tex = &g_sysassets.data_win_tga;
     if (!tex->tex) return;

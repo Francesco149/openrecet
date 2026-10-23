@@ -52,10 +52,10 @@ static const int8_t k_deco_wall[15][2] = {    /* DAT_0451057c (sel1) */
     {0,0},{-5,1},{5,-1},{4,-1},{-2,0},{-2,2},{-2,2},{-10,0},
     {0,-10},{2,4},{5,-3},{2,2},{3,-2},{5,4},{3,3},
 };
-static const int8_t k_deco_carpet[8][2] = {   /* DAT_04510588 (sel2) */
+static const int8_t k_deco_table[8][2] = {    /* 0x5cd03c, by DAT_04510588 (the tables) */
     {-2,0},{-5,-1},{0,4},{-3,0},{2,3},{3,4},{0,-10},{10,0},
 };
-static const int8_t k_deco_table[8][2] = {    /* DAT_04510584 (sel3) */
+static const int8_t k_deco_carpet[8][2] = {   /* 0x5cd07c, by DAT_04510584 (the carpet) */
     {2,0},{0,2},{5,0},{5,-3},{3,3},{10,0},{3,3},{0,-10},
 };
 

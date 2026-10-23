@@ -121,6 +121,8 @@ int counter_menu_input(uint16_t pressed, uint16_t held)
     return COUNTER_MENU_IN_NONE;
 }
 
+void counter_menu_timer_reset(void) { s_timer = 0; }   /* DAT_0438b754 = 0 */
+
 int counter_menu_close_tick(void)
 {
     if (++s_timer != 15)

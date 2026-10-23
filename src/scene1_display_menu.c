@@ -249,6 +249,25 @@ void display_menu_highlight_row(void)
     display_menu_set_highlight(display_menu_selected());
 }
 
+/* FUN_004692a4 — step the current tab's cursor down (≤ 100 rows, scrolling
+ * past a 7-row window) until it sits on `item`, then snap the hand cursor. */
+void display_menu_seek_item(int item)
+{
+    const int t = s_cur_tab;
+    const int rows = s_tab_count[t] < 7 ? s_tab_count[t] : 7;
+    for (int i = 0; i != 100; ++i) {
+        const int c = s_tab_cursor[t];
+        if (s_list[2 * c + 2 * s_tab_base[t]] == item)
+            break;
+        if (c < s_tab_count[t] - 1) {
+            s_tab_cursor[t] = c + 1;
+            if (c + 1 - s_tab_scroll[t] > rows - 1)
+                s_tab_scroll[t]++;
+        }
+    }
+    title_save_dialog_cursor_snap(280.0f, (float)(36 * (s_tab_cursor[t] - s_tab_scroll[t])) + 96.0f);
+}
+
 /* FUN_004681a6 — copy the per-tab scroll / cursor + the current tab aside. */
 void display_menu_state_save(void)
 {
@@ -376,6 +395,14 @@ void display_menu_open(int mode, int first_open)
             /* sort key (all.c:64308-64315): group by category(=id/100), then
              * rank, with the raw item value in the low bits. */
             int rec  = tables_item_find_slot_by_id(&g_item, item >> 6);
+            /* the decor lists (the counter menu's Flooring / Walls / Carpet /
+             * Tables, 0x4684xx): only their id band */
+            if (mode == 2 || mode == 3 || mode == 4 || mode == 8) {
+                const int id = (rec >= 0) ? g_item.records[rec].item_id : -1;
+                const int lo = mode == 2 ? 5001 : mode == 3 ? 5101 : mode == 4 ? 5401 : 5301;
+                if (id < lo || id >= lo + 99)
+                    continue;
+            }
             int cat100 = (rec >= 0) ? (g_item.records[rec].item_id / 100) * 100 : 0;
             int rank   = (rec >= 0) ? g_item.records[rec].rank : 0;
             uint32_t key = (uint32_t)((cat100 + 10 + rank) * 0xc80) + (uint32_t)item;
@@ -517,8 +544,10 @@ cursor_init:
         if (s_tab_count[0] > 1 && s_list[s_tab_base[0] * 2] == -1)
             s_tab_cursor[0] = 1;
     }
-    s_highlight = display_menu_selected();             /* DAT_0734b998 */
-    display_menu_recount();                             /* DAT_005c6ee4 */
+    /* DAT_0734b998 stays -1 and DAT_005c6ee4 -1 (both set at FUN_00468338's
+     * head): the first FUN_00469414 past the slide gate (LABEL_98) highlights the
+     * row — the description panel slides in blank (rhost dungeon3-run2 f36628) */
+    s_possessed = -1;
 
     /* snap the SHARED hand cursor to the highlighted row (FUN_00435693, all.c:
      * 64641): x = 280 (0x438c0000), y = (cursor - scroll)·36 + 96.  Safe in

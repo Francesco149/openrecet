@@ -74,8 +74,9 @@ int test_display_menu_open_inits_none_entry(void)
     /* cursor on the first real item, not "Nothing" (the corrected behavior). */
     T_ASSERT_EQ_I(display_menu_selected(), 64);
 
-    /* number-possessed recount picked up the one held sword. */
-    T_ASSERT_EQ_I(display_menu_possessed(), 1);
+    /* FUN_00468338 leaves DAT_005c6ee4 at -1 (recount pending) — the first
+     * FUN_00469414 past the slide gate highlights the row and recounts. */
+    T_ASSERT_EQ_I(display_menu_possessed(), -1);
 
     /* cursor-UP (held bit 4) walks onto the -1 "Nothing" removal entry. */
     stage_load_pulse_reset_counter_to_5();

@@ -49,6 +49,9 @@
 #include "scene1_actor_say.h"   /* actor_say_tick (FUN_00485861, the LAB_004893ff tail) */
 #include "speech_bubble.h"      /* FUN_00406212 */
 #include "scene1_day_close.h"   /* the night sequence (DAT_0438b4e0) + period advance */
+#include "customer_roster.h"     /* roster_compute_centroid (FUN_0048439a) */
+#include "tables_item.h"        /* g_item — the decor preview's item ids */
+#include "stage_state.h"         /* stage_init_house — the render's decor selectors */
 
 /* Weak default for the diagnostic grid-dump capture dir: main.c provides the
  * strong definition (g_capture_dir) in the real Windows build; the host-test
@@ -1235,6 +1238,13 @@ static void player_ctrl_cc04_menu_body(void)
      * companion controller is gated to the walk arm, which the menu skips. */
 }
 
+/* the room's decor: work +0x2cde4.. (wall, floor, carpet, table — the variant
+ * index) and +0x2deb8.. (each one's +); b7b4..b7d0 holds them while the
+ * editor runs */
+#define DECOR_SEL_DWORD  0xb379u
+#define DECOR_PLUS_DWORD 0xb7aeu
+static uint32_t s_decor_saved[8];   /* DAT_0438b7b4..b7d0 */
+
 /* ── cc08 0 / 10: the counter menu (FUN_0048670f case 0 asm 0x487880-0x487929,
  * case 10 asm 0x4870b9-0x487347) ──────────────────────────────────────────────
  * case 0: hold the counter pose (anim 3), wait for the slide-in (b74c >= 10),
@@ -1285,15 +1295,115 @@ static void player_ctrl_cc08_counter_menu_arm(void)
             "bin/se/01ti/system/01ti_sys11b.bin",
         };
         audio_play_se_file(k_open_se[rng_next15() % 5u]);
+    } else if (entry >= 1 && entry <= 4) {
+        /* Change Flooring / Walls / Carpet / Tables (merchant level >= 5): set
+         * the room's decor aside (b7b4..b7d0, the Cancel restore), cc08 0x17,
+         * the category's asset worker (FUN_00452dc1 / d85 / dfd / e39(0): every
+         * variant for the preview; b1d4 1 when done), SE 00re_sys04c */
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        if (bank != NULL)
+            for (int k = 0; k < 8; k++)
+                s_decor_saved[k] = bank[k < 4 ? DECOR_SEL_DWORD + k : DECOR_PLUS_DWORD + k - 4];
+        s_cc08 = 0x17;
+        if (entry == 1)      worker_load_spawn_dc1(0);
+        else if (entry == 2) worker_load_spawn_d85(0);
+        else if (entry == 3) worker_load_spawn_dfd(0);
+        else                 worker_load_spawn_e39(0);
+        audio_play_se_file("bin/se/00re/system/00re_sys04c.bin");
     } else {
-        /* PORT-DEBT(counter-menu-decor): entries 1..5 (Change Flooring / Walls /
-         * Carpet / Tables, Move Tables; merchant level >= 5) set cc08 0x17 and
-         * start the decor camera move (FUN_00452dc1/d85/dfd/e39 + the b7b4..b7d0
-         * snapshot, SE 00re_sys04c) — the decor editor is unported, so the menu
-         * just closes. */
+        /* PORT-DEBT(counter-menu-move-tables): entry 5 (Move Tables) sets cc08 2,
+         * DAT_0438bea4 = 0 and FUN_0048940e(0, 1) — the furniture-grid mode is
+         * unported, so the menu just closes. */
         s_cc08 = 1;
     }
     party_follow_tick();                     /* LABEL_133: FUN_0048a833 */
+}
+
+/* the counter menu's decor entries 1..4 → (FUN_00468338 list mode, item-id
+ * base, the bank dword of the room's selection, of its +) */
+static const struct { int list_mode, id_base, sel, plus; } k_decor[5] = {
+    { 0, 0, 0, 0 },
+    { 2, 5001, DECOR_SEL_DWORD + 1, DECOR_PLUS_DWORD + 1 },   /* Flooring (+0x2cde8 / +0x2debc) */
+    { 3, 5101, DECOR_SEL_DWORD + 0, DECOR_PLUS_DWORD + 0 },   /* Walls    (+0x2cde4 / +0x2deb8) */
+    { 4, 5401, DECOR_SEL_DWORD + 2, DECOR_PLUS_DWORD + 2 },   /* Carpet   (+0x2cdec / +0x2dec0) */
+    { 8, 5301, DECOR_SEL_DWORD + 3, DECOR_PLUS_DWORD + 3 },   /* Tables   (+0x2cdf0 / +0x2dec4) */
+};
+
+/* the decor item the room has now for entry `e`: (id_base + sel) << 6 | + */
+static int decor_current_item(const uint32_t *bank, int e)
+{
+    return (int)bank[k_decor[e].plus] + (((int)bank[k_decor[e].sel] + k_decor[e].id_base) << 6);
+}
+
+/* ── cc08 0x17 / 3: the decor editor (FUN_0048670f asm 0x48792e..0x487e7f) ──
+ * 0x17: once the asset worker is done (b1d4 1; else LABEL_675), cc08 3, the
+ * room's current decor into the bag (FUN_00468d22), the item window on the
+ * category (FUN_00468338(mode, 1)) with its cursor on that item (FUN_004692a4).
+ * 3 (b1d4 1, else LABEL_133): the window tick (FUN_00469414(1)) and the camera;
+ * a highlight moves the preview (the room's selection / + follow the row); A /
+ * B close it: cc08 0 (back to the counter menu), the camera home (class 0,
+ * yaw π), B restores the snapshot, the room's decor leaves the bag again
+ * (FUN_00469241), FUN_0048439a re-derives the shop's attributes; LABEL_133. */
+static int player_ctrl_cc08_decor_arm(void)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    const int e = counter_menu_entry(counter_menu_cursor());   /* DAT_074b2d98[cc0c] */
+    if (s_cc08 == 0x17) {
+        if (g_worker_sec_state_1d4 != 1 || bank == NULL)
+            return 1;                                          /* LABEL_675 */
+        s_cc08 = 3;
+        if (e < 1 || e > 4)
+            return 1;
+        display_menu_inventory_return(bank, decor_current_item(bank, e));   /* FUN_00468d22 */
+        display_menu_open(k_decor[e].list_mode, 1);                         /* FUN_00468338 */
+        display_menu_seek_item(decor_current_item(bank, e));                /* FUN_004692a4 */
+        return 1;
+    }
+    if (g_worker_sec_state_1d4 != 1 || bank == NULL) {
+        party_follow_tick();                                   /* LABEL_133 */
+        return 1;
+    }
+    const int r = display_menu_update(1);                      /* FUN_00469414(1) */
+    if (e == 2)
+        PW(0x56db060u).f = 2.8274335861206055f;
+    else if (e == 4)
+        PW(0x56db060u).f = 2.9845130443573f;
+    scene1_camera_decor_pose(e);
+    if (r == 3) {
+        audio_play_se_by_id(0x143);
+    } else if (r != 1 && r != 2) {
+        /* the highlighted row is the preview */
+        const int item = display_menu_selected();              /* FUN_00469a9f */
+        const int slot = tables_item_find_slot_by_id(&g_item, item >> 6);
+        const int id   = slot >= 0 ? g_item.records[slot].item_id : -1;
+        for (int k = 1; k <= 4; k++) {
+            if (id >= k_decor[k].id_base && id <= k_decor[k].id_base + 29) {
+                bank[k_decor[k].sel]  = (uint32_t)(id - k_decor[k].id_base);
+                bank[k_decor[k].plus] = (uint32_t)(item & 0xf);
+            }
+        }
+    } else {
+        counter_menu_timer_reset();                            /* b754 = 0 */
+        s_cc08 = 0;
+        title_save_dialog_cursor_set_visible(0);               /* FUN_00435612 */
+        stage_load_pulse_set_active(0);                        /* FUN_004682d0 */
+        g_scene1_camera_stage_class = 0;                       /* DAT_0438b4e8 */
+        PW(0x56db060u).f = 3.1415927410125732f;
+        g_scene1_camera_yaw = 3.1415927410125732f;
+        if (r == 2) {
+            for (int k = 0; k < 8; k++)
+                bank[k < 4 ? DECOR_SEL_DWORD + k : DECOR_PLUS_DWORD + k - 4] = s_decor_saved[k];
+            audio_play_se_by_id(0x13d);
+        }
+        if (e >= 1 && e <= 4)
+            display_menu_inventory_remove(bank, decor_current_item(bank, e));   /* FUN_00469241 */
+        /* LABEL_341: FUN_0048439a, then FUN_004749a1 / dd / a19 / a55 (release the
+         * other variants' textures / meshes — render only, the port keeps them) */
+        roster_compute_centroid((const uint8_t *)bank);
+    }
+    stage_init_house();   /* port: the render's decor selectors follow the bank */
+    party_follow_tick();                                       /* LABEL_133 */
+    return 1;
 }
 
 static void player_ctrl_walk_and_highlight(void);
@@ -2284,6 +2394,8 @@ void scene1_player_ctrl_tick(void)
         player_ctrl_cc08_counter_menu_arm();
     else if ((s_cc08 >= 15 && s_cc08 <= 18) || s_cc08 == 30)
         player_ctrl_cc08_tear_menu_arm();
+    else if (s_cc08 == 0x17 || s_cc08 == 3)
+        player_ctrl_cc08_decor_arm();
     else
         player_ctrl_cc08_unported_arm();
 
