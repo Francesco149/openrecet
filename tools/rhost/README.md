@@ -15,6 +15,8 @@ python3 tools/rhost/rhost.py corpus                    # all tests/scenarios, su
 python3 tools/rhost/rhost.py diff A.rhs B.rhs          # classify two state dumps
 python3 tools/rhost/rhost.py record my-scenario --save <sha>   # HUMAN PLAY → flat trace
 python3 tools/rhost/rhost.py record my-scenario --from X      # … from the save scenario X ends with
+python3 tools/rhost/rhost.py endsave X                      # the save.dat X commits → _saves/<sha>.sav.gz (`run` doesn't fetch it)
+python3 tools/craft_pix_save.py --base _saves/<sha>.sav.gz   # that save's newest slot with 9,999,999 pix (checksum restamped)
 python3 tools/rhost/rhost.py run X --hook shadow:haggle_decide # port vs retail on identical state
 python3 tools/rhost/rhost.py portshots X --at 800,848       # retail | port screenshots, side by side
 python3 tools/rhost/rhost.py portshots X --at 0:30000:3000 --rank   # a sweep, worst frames first

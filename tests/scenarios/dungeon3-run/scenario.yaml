@@ -1,0 +1,9 @@
+# dungeon3-run — human recording 2026-10-23 (rhost.py record --from dungeon2-run3, Windows,
+# keyboard). Load the newest slot; the Adventurers' Guild, the Merchants' Guild's Fusion list,
+# the market, the town visits (modes 13 / 14 / 15), shop days, the counter menu's decor editor
+# (cc08 0x17 f46511), day 14's week-2 payment short → the game over (mode 2, f55600). No save.
+# 55684 frames.
+# portrng IDENTICAL f1–f55984; portblock f55680 every block IDENTICAL but the enemylist parse
+# residue (2026-10-23).
+description: |
+  Town days toward dungeon 2's unlock: guilds, Fusion list, town visits, the decor editor; the week-2 payment fails.

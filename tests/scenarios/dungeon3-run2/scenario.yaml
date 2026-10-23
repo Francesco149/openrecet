@@ -1,0 +1,9 @@
+# dungeon3-run2 — human recording 2026-10-23 (rhost.py record --from dungeon2-run3, Windows,
+# keyboard). A second take of dungeon3-run from the same save: the Merchants' Guild (Fusion list
+# browsed f877–f1125, buys), the market, the Adventurers' Guild, a town visit (mode 13), shop
+# days, a pause Save into slot 17, the decor editor (f36624: Walls preview), day 14's week-2
+# payment short (VOID) → the trace ends on the payment board. 43953 frames.
+# portrng IDENTICAL f1–f44253; portsave IDENTICAL; portblock f43950 every block IDENTICAL but the
+# enemylist parse residue (2026-10-23).
+description: |
+  Second take toward dungeon 2: guild buys, Fusion list, a town visit, a save, the decor editor; the week-2 payment fails.

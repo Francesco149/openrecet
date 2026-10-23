@@ -1,0 +1,7 @@
+# dungeon3-run2-save — dungeon3-run2 cut at f39960 (day 14 afternoon, house free roam, between the
+# store sessions), then scripted: ESC, Down x4 to Save, A, Down to the empty slot 18, A (commits
+# at once, f40135). Its end save, with slot 18's pix set to 9,999,999 by tools/craft_pix_save.py,
+# is _saves/3b368d9d… — the start of the next recordings (2026-10-23).
+# portsave IDENTICAL (slot 17 = the user's mid-run save, slot 18 = the scripted one).
+description: |
+  dungeon3-run2 up to day 14's afternoon, then a scripted pause Save into slot 18.

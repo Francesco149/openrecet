@@ -8,6 +8,7 @@
   rhost.py corpus [opts]                 every scenario; summary table
   rhost.py diff A.rhs B.rhs              classify the differences between two dumps
   rhost.py tables SCEN --at F,F          retail's live effect / object / actor type histograms
+  rhost.py endsave SCEN                  replay SCEN, store the save.dat it commits in _saves → its path
   rhost.py record NAME [--save S|--from SCEN]  HUMAN PLAY (Windows desktop, realtime) → flat trace;
                                          --save SHA[prefix]|PATH|SCEN (the save SCEN starts from),
                                          --from SCEN = the save SCEN ends with (replayed, stored in _saves)
@@ -607,11 +608,15 @@ def cmd_portshots(a):
 
 
 def parse_frame_list(spec):
-    """'F,F,..' or 'FROM:TO:STEP' (TO inclusive) → frame list"""
-    if ":" in spec:
-        lo, hi, st = (int(x) for x in spec.split(":"))
-        return list(range(lo, hi + 1, st))
-    return [int(x) for x in spec.split(",")]
+    """comma-separated items, each 'F' or 'FROM:TO:STEP' (TO inclusive) → frame list"""
+    fs = []
+    for item in spec.split(","):
+        if ":" in item:
+            lo, hi, st = (int(x) for x in item.split(":"))
+            fs += range(lo, hi + 1, st)
+        else:
+            fs.append(int(item))
+    return fs
 
 
 def rank_shots(paths):
@@ -737,7 +742,8 @@ def cmd_portrng(a):
 GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save-commit-empty", "day2-save-commit",
                                       "multiday-tutorials-suggest", "buy-from-seller-guild-intro",
                                       "dungeon0-floors-save", "dungeon0-full", "dungeon1-run2", "dungeon1-deep",
-                                      "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3")]
+                                      "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3",
+                                      "dungeon3-run2-save")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
@@ -746,7 +752,8 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          + [("portrng", s) for s in ("dungeon0-floors-save", "adv-guild-pack-leave", "dungeon0-full",
                                       "dungeon0-wipe", "dungeon1-run", "dungeon1-run2", "dungeon1-deep",
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
-                                      "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3")])
+                                      "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
+                                      "dungeon3-run", "dungeon3-run2")])
 
 
 def cmd_gates(a):
@@ -1081,6 +1088,8 @@ def main():
     p.set_defaults(fn=lambda a: print(prune_win_runs(a.hours)) or 0)
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
+    p = sp.add_parser("endsave"); p.add_argument("scenario")
+    p.set_defaults(fn=lambda a: print(end_save(a.scenario)) or 0)
     p = sp.add_parser("record"); p.add_argument("name")
     p.add_argument("--save", help="SHA (unique prefix ok) | PATH | SCEN (the save scenario SCEN starts from)")
     p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")

@@ -158,6 +158,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     house too; the payment verdict scripts, mode 2 (FUN_0049d8a4, FUN_0049d55c's restart
     reset) and the restarted house. **`debt-gameover-restart`: portrng IDENTICAL over the
     whole run (f1–f30752)**, now in `gates`.
+  - ✅ **The counter menu's decor editor** (cc08 0x17 / 3, PROGRESS 2026-10-23): Change Flooring /
+    Walls / Carpet / Tables with the live preview and the camera. Move Tables (cc08 2,
+    FUN_0048940e) is still `PORT-DEBT(counter-menu-move-tables)`; the decor-mode render (the
+    item window over the room, the variant meshes) is unchecked by portshots.
   - ★ next, earliest port-side split per scenario (`portrng SCEN --window 1:end`):
     1. **The dungeon pilot — dungeons 0 and 1 pass end to end** (PROGRESS 2026-10-15):
        dungeon0-floors-save / -full / -wipe, **dungeon1-run2 (town visits, the market,
@@ -171,8 +175,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        IDENTICAL)**, **dungeon2-run / -run2 (Charme's shop visit, dungeon 1's Boss Rush — floors
        30..32 on dungeon 5's setup / events — failed / passed: portrng IDENTICAL f1–f31472 /
        f1–f30684, run2 portsave IDENTICAL)**, **dungeon2-run3 (shop days, the guilds, dungeon 1
-       trips: portrng IDENTICAL f1–f66161 + portsave IDENTICAL)**; all in `gates`. Next needs
-       dungeon 2's floors (Human queue).
+       trips: portrng IDENTICAL f1–f66161 + portsave IDENTICAL)**, **dungeon3-run / -run2 (town
+       days toward dungeon 2's unlock: Fusion, the decor editor, town visits, the week-2 payment
+       short: portrng IDENTICAL f1–f55984 / f1–f44253, run2's save IDENTICAL; PROGRESS
+       2026-10-23)**; all in `gates`. Next needs dungeon 2's floors (Human queue).
        Known, not RNG-visible yet:
        - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
          the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
@@ -196,9 +202,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3, from day 10 in
        dungeons 0..2), the bombs 37..40 (FUN_004293f0), the pumpkin 15 variant 0
        (FUN_0042a33e), the boss ahriman 54 (FUN_00426811), Ohm 67 (FUN_00422ed6), FUN_0042f7ad's
-       61 / 64 / 67 / 68 / 69 arm, dungeon 2's setup FUN_0044d9d3 + its checkpoint events; still
-       stubs for dungeon 2: the crab 68 (FUN_00422092), Tielle 27 (FUN_00423b58, her floor-30
-       timeline FUN_0044db3c, her death arm), the pumpkin variants 1 / 2), the
+       61 / 64 / 67 / 68 / 69 arm, dungeon 2's setup FUN_0044d9d3 + its checkpoint events, the
+       crabs 68 / 69 (FUN_00422092, floor 20; 2026-10-23); still stubs for dungeon 2: Tielle 27
+       (FUN_00423b58, her floor-30 timeline FUN_0044db3c, her death arm); the pumpkin variants
+       1 / 2 (not in dungeon 2's lists), the
        golem parts / multi-part anchors, FUN_0042df55's
        lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
        arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
@@ -236,8 +243,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        recording reaches it (render: `PORT-DEBT(render-coupled, FUN_00470a46)`).
     3. Still `PORT-DEBT(stub, …)` around the day: the day-15 scene's camera eases (its
        state — FUN_004852fb's +0x2bced, b924, the bg NPCs, the fade at 301 / 302 — is
-       ported, no recording reaches it), the payment screen's render (FUN_0048e49c) and
-       the game-over screen's (mode 2, FUN_0047355d's assets), the ending (FUN_0049da9e,
+       ported, no recording reaches it), the payment screen's 3D shop under its own projection
+       (FUN_004161c7 after FUN_0048e49c; the board itself is ported, 2026-10-23), the ending (FUN_0049da9e,
        mode 7 FUN_0049db8a; no recording reaches day 36). The night arm of the dungeon exit
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
     4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
@@ -245,7 +252,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        delivery + story customers) — no scenario reaches them yet. The b524 == 50 story probe:
        Charme's iv3_4 visit verified (dungeon2-run); the other adventurers' scenes and the item
        quest are ported but no recording reaches them.
-    6. Guild: `PORT-DEBT(guild-fusion)` (modes 5/6, the recipe list), the Sell commit's
+    6. Guild: Fusion's sim is ported (2026-10-23; the confirm / result modes 5 / 6 unverified —
+       no recording fuses yet), its render FUN_00493616 is not; the Sell commit's
        FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures,
        FUN_004682ee (bag picker's first-wearable tab); FUN_0044ba2c's `mode` argument
        (what runs at a dialogue's end) is not modeled.
@@ -300,14 +308,12 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record dungeon 2's floors** (unblocks dungeon 2's enemies, traps, events, Tielle; the Boss
-  Rush of dungeon 1, Charme's first shop visit and the guild stock days are done end to end).
-  dungeon2-run3 never reached dungeon 2: on the guild map it opens with Charme's third shop scene
-  (iv3_7, the b524 50 probe sets work +0x2bcb9), which needs her second (iv3_5: her friendship
-  counter, work i16 +0x2d214, above 2 — sell to her when she shops) and flag +0x2bcb8. On maximus,
-  the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon2-floors
-  --from dungeon2-run3` (replays run3, ~70 s, starts from its save). Load the newest slot; play
-  shop days until dungeon 2 opens if it is not yet, then guild → dungeon 2: every enemy kind, a
-  chest, an item from the pause menu (incl. Equip), the exit or the boss, home, save. Several
-  shorter recordings are fine (each `--from` the last).
+- **Record dungeon 2's floors from the pix save** (unblocks dungeon 2's enemies, traps, events,
+  Tielle). dungeon3-run / -run2 reached dungeon 2's unlock dialogues but failed day 14's week-2
+  payment. The new start save is dungeon3-run2's day-14 afternoon (slot 18) with 9,999,999 pix: on
+  maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record
+  dungeon3-floors --save 3b368d9d`. Load the newest slot (18, Day 15); finish the day (the payment
+  passes), buy what helps, play days until dungeon 2 opens, then guild → dungeon 2: every enemy kind, a chest, an item from the
+  pause menu (incl. Equip), a Fusion (the guild's confirm / result screens are unverified), the
+  exit or the boss, home, save. Several shorter recordings are fine (each `--from` the last).
 <!-- FRONT:END -->

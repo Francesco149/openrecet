@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-23 — dungeon3-run / -run2: the guild's Fusion, the decor editor, a pix save
+Two new human recordings from dungeon2-run3's save (town days toward dungeon 2's unlock; both end
+with day 14's week-2 payment short). Their first port splits, each ported on retail's control flow:
+- **The Merchants' Guild's Fusion** (FUN_004922c0 modes 0 / 5 / 6, FUN_004916a7 / 00469155 /
+  00469118, the recipe count in FUN_0049174e, the unpause re-highlight in FUN_0049161d): A on the
+  Fusion row opened nothing in the port; retail slides the recipe list in (merchant-guild-RE.md).
+  dungeon3-run2: every guild VA identical over the run (mode / cursors / recipe count 22 / fx).
+  Render FUN_00493616 still `PORT-DEBT(render-coupled, …)`; modes 5 / 6 not reached by a recording.
+- **The counter menu's decor editor** (cc08 0x17 / 3, FUN_0048670f asm 0x48792e..0x487e7f):
+  Change Flooring / Walls / Carpet / Tables — the snapshot, the category's asset worker, the room's
+  decor into the bag, the item window filtered to the id band (FUN_00468338 modes 2 / 3 / 4 / 8),
+  FUN_004692a4's cursor seek, the live preview, the camera (class 1, eased lookat, the walls /
+  tables yaw turn), A keeps / B restores, FUN_00469241 + FUN_0048439a (shop-counter-menu-RE.md).
+  save_bank.h had the carpet / tables dword names swapped (indices were right).
+- **The payment board's render-written period end**: FUN_0048e49c (render, s_pay_t > 30) calls
+  FUN_00482059 every frame, re-caching work +0x2c3e8 after the day advances (14 → 21); the port
+  now mirrors it after the day-end tick.
+Result: **portrng IDENTICAL over both runs** (f1–f55984 / f1–f44253), portblock at both ends every
+block IDENTICAL but the known enemylist parse residue, **portsave dungeon3-run2 IDENTICAL** (the
+user's mid-run slot-17 save). `dungeon3-run2-save` = run2 cut at day 14's afternoon + a scripted
+pause Save (slot 18); its save with slot 18's pix set to 9,999,999 (`tools/craft_pix_save.py`) is
+`_saves/3b368d9d…` (retail loads it: 9,999,999pix, Day 15) — the next recordings start there.
+Render, checked with `portshots` on the same runs:
+- the Fusion screen FUN_00493616 (recipe / ingredient columns, Req / Pos, "More required.", the
+  "Fused" banner): f905..1130 mean abs **0.00**. The guild's DAT_073da020 slot had a wrong path
+  (`bmp/result/bord01.tga`; the file is `bmp/result_bord01.tga`) and never loaded;
+- the decor editor: 2.88 → 0.24 on the open frame (FUN_00468338 opens with no highlight — the
+  description slides in blank), 0.13 → 0.09 steady (the camera hint hides while b4e8 != 0);
+- the payment board FUN_0048e49c (TERME Finance form, week strip, hand-written amount, VOID
+  stamp, money): the board identical; 2.3 left = the blurred 3D shop behind it (FUN_004161c7);
+- the game over (mode 2) drew nothing: FUN_0049da07 + the dialogue — the box-house scene now
+  draws; a uniform tone shift remains (no pixel off by > 60).
+P1 oracle `tools/oracle/p1_fusion.c`: retail FUN_00469118 / FUN_00469155 vs `src/guild_fusion.c`
+on 20000 random bags — identical (12092 consuming). Ported ahead of a recording, unverified: the
+crabs 68 / 69 (FUN_00422092, dungeon 2's floor-20 boss) from the asm.
+
 ## 2026-10-17 — the floors render, part 2: models, effects, backdrops, banners, the expedition's end
 Checked with `portshots` (mean abs per frame, port | retail) over dungeon0-full,
 dungeon1-charme, dungeon2-run / -run2 and house-idle; retail D3D captures (`run --d3d --cap`)
