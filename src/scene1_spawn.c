@@ -1554,25 +1554,27 @@ static void init_type_68(int i, float x, float y, float z, float scale)
 static void init_type_73_77(int i, float x, float y, float z, float scale,
                             int param7)
 {
-    /* Engine pre-writes vel=(0,0,-1); we go straight to the overwritten
-     * values since they fully clobber the initial set. */
-    float u1    = rng_next_unit();
-    float fVar1 = 0.2f * (u1 + 1.2f);
-    float angle = (float)param7 / 65536.0f;
-
-    float vx = -sinf(angle) * scale * fVar1;
-    float vz = -cosf(angle) * scale * fVar1;
-
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    /* asm 0x44ab06..0x44abe5 on x87: f and the angle are spilled to m32, the
+     * angle feeds sin / cos as a double, each product chain rounds once at
+     * its fstp (0x519924 = 1.2f, 0x5198d8 = 0.2f, 0x519a78 = 65536.0f,
+     * 0x51935c = 0.5f, 0x5194e4 = 15.0f). */
+    static const float k1p2 = 1.2000000476837158f, k0p2 = 0.20000000298023224f;
+    static const float k65536 = 65536.0f, k0p5 = 0.5f, k15 = 15.0f;
+    const float f = spill32(((long double)rng_next_unit() + k1p2) * k0p2);
+    const float ang = spill32((long double)spill32((long double)param7) / k65536);
+    const double a = ang;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               spill32(-((long double)spill32(x87_crt_sin(a)) * scale * f)));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               spill32(-((long double)spill32(x87_crt_cos(a)) * scale * f)));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
-               (rng_next_unit() - 0.5f) * scale * 15.0f + x);
+               spill32(((long double)rng_next_unit() - k0p5) * scale * k15 + x));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
-               (rng_next_unit() - 0.5f) * scale * 15.0f + y);
+               spill32(((long double)rng_next_unit() - k0p5) * scale * k15 + y));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
-               (rng_next_unit() - 0.5f) * scale * 15.0f + z);
+               spill32(((long double)rng_next_unit() - k0p5) * scale * k15 + z));
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;

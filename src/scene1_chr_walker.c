@@ -82,6 +82,7 @@ int chr_walker_npc_alpha(float pos, float mult)
  * banks are owned and written by FUN_0048b850's tail (Chip 2, see
  * scene1_player_ctrl.c / engine-quirks §76).  Each slot's fields: */
 #include "scene1_chr_sprite.h"     /* CHR_ACTOR_* dword indices */
+#include "party.h"                /* DAT_056da1cc */
 #include "scene1_player_ctrl.h"    /* player_ctrl_render_bank_slot/burst_count/actor_* */
 
 #define CHR_W_ACTOR_POS_X   0xb    /* dword: +0x2c */
@@ -143,7 +144,9 @@ static int            chr_walker_companion_char(void)  { return player_ctrl_acto
  * so running Pass 2 every frame would toggle z-write state outside the window
  * retail does, diverging in steady-state walk.  Opening Pass 2 = source the
  * real fade counter + have bank content (the dash-spawn chip). */
-static int            chr_walker_player_char(void)     { return -1; }
+/* the player's char id DAT_056da1cc (Pass 2's gate with the scale bases > 0):
+ * its after-image banks (Charme's skill-4 images, the dash burst) */
+static int            chr_walker_player_char(void)     { return g_party.chr[0]; }
 static const int32_t *chr_walker_companion_actor(void) { return player_ctrl_actor_record(2); }/* &DAT_056dab40 = actor[2] */
 /* sweep 0 = DAT_056dab6c trail bank (always run), sweep 1 = DAT_056dacc0 burst
  * bank (gated on the burst count below); both empty in free-roam. */
@@ -242,7 +245,8 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
             }
 
             /* ── Pass 2: the player + party billboards ─────────────────── */
-            if (chr_walker_player_char() != -1) {
+            if (chr_walker_scale_xz() > 0.0f && chr_walker_scale_y() > 0.0f &&
+                chr_walker_player_char() != -1) {
                 int player_char = chr_walker_player_char();
                 int blend_set = 0;
                 /* The player sprite sheet (engine DAT_073a9b18[char*0x10]);
