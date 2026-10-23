@@ -29,6 +29,10 @@ void day_end_init(void);
 /* FUN_0048dbfb — one summary frame.  `pressed`/`held` = DAT_073dddd4/d6. */
 void day_end_tick(uint16_t pressed, uint16_t held);
 
+/* the payment board render's state write (FUN_0048e49c → FUN_00482059), run
+ * after day_end_tick */
+void day_end_render_state_tick(void);
+
 /* Accessors (state_va / tests). */
 int day_end_frame(void);           /* DAT_074b2f58 */
 int day_end_profit_shown(void);    /* DAT_074b2f1c */

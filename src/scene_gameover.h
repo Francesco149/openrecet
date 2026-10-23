@@ -11,7 +11,8 @@
  *                                               gold), the kept flags
  *
  * The tick runs only while no dialogue is up (FUN_004536cb LABEL_106).  The
- * render (FUN_0047355d's assets, the screen) is not ported.
+ * render (FUN_0049da07: black, the choice box / cursor / message box, then the
+ * dialogue) is main.c's case 2.
  */
 #ifndef OPENRECET_SCENE_GAMEOVER_H
 #define OPENRECET_SCENE_GAMEOVER_H

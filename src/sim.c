@@ -582,8 +582,10 @@ void sim_step_a(void)
                 scene1_intro_dialogue_tick(g_input_state[0].buttons);
             if (g_pause_action == 0)
                 pause_menu_update();   /* FUN_0047fa76 */
-            else if (g_pause_action == 1)
+            else if (g_pause_action == 1) {
                 day_end_tick(g_sim_buttons[0].pressed, g_sim_buttons[0].held);   /* FUN_0048dbfb */
+                day_end_render_state_tick();     /* FUN_0048e49c's FUN_00482059 cache */
+            }
             else
                 dungeon_results_tick();          /* FUN_0048f931 */
         }

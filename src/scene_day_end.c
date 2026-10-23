@@ -77,6 +77,18 @@ int day_end_paying(void)       { return s_pay; }
 int32_t g_day_end_short;     /* DAT_0438b798 — the payment fell short (the game over) */
 int32_t g_day_end_ending;    /* DAT_0438b79c — the day-36 payment made (the ending) */
 
+/* FUN_0048ef00's payment board FUN_0048e49c (render, every drawn frame while
+ * s_pay): from s_pay_t 31, outside game modes 2 / 3, it reads FUN_00482059,
+ * which caches the period end in work +0x2c3e8 — so the cache follows the day
+ * the A press advanced (rhost dungeon3-run2 f43646: 14 → 21) */
+void day_end_render_state_tick(void)
+{
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    if (s_pay == 0 || s_pay_t <= 30 || w == NULL || w[W_MODE] == 2 || w[W_MODE] == 3)
+        return;
+    (void)pause_period_end();
+}
+
 void day_end_init(void)
 {
     int32_t *w = (int32_t *)save_work_dwords_at(save_work_active_slot());
@@ -450,6 +462,142 @@ static uint32_t argb(int a) { return 0x00ffffffu | ((uint32_t)a << 24); }
 /* ftol of an alpha the engine scales by the fade (x87 → int, truncation). */
 static int fade_alpha(int a, float fade) { return (int)((float)a * fade); }
 
+/* FUN_0048ed19 — the board's handwritten digits (choushuu.tga row 480: '-'
+ * at u 480, ',' at 440 one half-step back, '0'..'9' at (d + 1)·40), 32 apart */
+static void board_digits(float x, float y, const char *str)
+{
+    for (; *str; ++str, x += 32.0f) {
+        const char ch = *str;
+        float u = 0.0f;
+        if (ch == '-')
+            u = 480.0f;
+        if (ch == ',') {
+            u = 440.0f;
+            x -= 16.0f;
+        }
+        if (ch >= '0' && ch <= '9')
+            u = (float)(ch - '/') * 40.0f;
+        if (ch != ' ')
+            quad(&s_tex_choushuu, x, y, 40.0f, 40.0f, u, 480.0f, u + 40.0f, 520.0f, 0xffffffffu, 0);
+    }
+}
+
+/* FUN_0048e49c — the TERME Finance collection form: slides in from the right
+ * (32 a tick, the shake offsets on top), the week's strip (or "S#n" + the
+ * quota in modes 2 / 3), the amount paid in hand-written digits, the
+ * signature wipe once paid, the PAID / VOID stamp zooming in 80 ticks after
+ * the count ends, then the money bag + the gold readout sliding in */
+static void day_end_payment_board(IDirect3DDevice8 *dev, const int32_t *w)
+{
+    float bx = 640.0f, by = 80.0f;
+    char buf[64];
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)s_tex_choushuu.tex);
+    if (s_pay_t > 0) {
+        bx = 640.0f - (float)(32 * s_pay_t);
+        if (bx < 0.0f)
+            bx = 0.0f;
+        if (s_shake > 0) {
+            by = (float)s_shake_x + 80.0f;
+            bx = (float)s_shake_y + bx;
+        }
+        quad(&s_tex_choushuu, bx, by, 640.0f, 320.0f, 0.0f, 0.0f, 640.0f, 320.0f, 0xffffffffu, 0);
+    }
+    if (s_pay_t > 30) {
+        if (w[W_MODE] != 3 && w[W_MODE] != 2) {
+            const int wk = (pause_period_end() - 1) / 7 - 1;
+            quad(&s_tex_choushuu, bx + 40.0f, by + 64.0f, 560.0f, 32.0f,
+                 0.0f, (float)(32 * (wk + 10)), 560.0f, (float)(32 * (wk + 11)), 0xffffffffu, 0);
+        } else {
+            const int n = w[W_DAY] / 7;
+            snprintf(buf, sizeof buf, "S#%d", n);
+            float x = bx + 60.0f;
+            if (n >= 1000)
+                x -= 16.0f;
+            else if (n >= 100)
+                x -= 32.0f;
+            for (int i = 0; i != 10 && buf[i]; i++) {
+                const char ch = buf[i];
+                if (ch == '#') {
+                    quad(&s_tex_choushuu, x, by + 64.0f, 28.0f, 32.0f, 46.0f, 640.0f, 74.0f, 672.0f, 0xffffffffu, 0);
+                    x += 18.0f;
+                } else if (ch == 'S') {
+                    quad(&s_tex_choushuu, x, by + 64.0f, 46.0f, 32.0f, 0.0f, 640.0f, 46.0f, 672.0f, 0xffffffffu, 0);
+                    x += 64.0f;
+                } else {
+                    const int u = 32 * (ch - '.');
+                    quad(&s_tex_choushuu, x, by + 64.0f, 32.0f, 32.0f, (float)(u + 4), 640.0f, (float)(u + 36), 672.0f, 0xffffffffu, 0);
+                    x += 24.0f;
+                }
+            }
+            quad(&s_tex_choushuu, x + 24.0f, by + 64.0f, 144.0f, 32.0f, 452.0f, 640.0f, 596.0f, 672.0f, 0xffffffffu, 0);
+            x = bx + 344.0f;
+            snprintf(buf, sizeof buf, "%dP", s_quota);
+            for (int i = 0; i != 15 && buf[i]; i++) {
+                if (buf[i] == 'P') {
+                    quad(&s_tex_choushuu, x, by + 64.0f, 64.0f, 32.0f, 384.0f, 640.0f, 448.0f, 672.0f, 0xffffffffu, 0);
+                } else {
+                    const int u = 32 * (buf[i] - '.');
+                    quad(&s_tex_choushuu, x, by + 64.0f, 32.0f, 32.0f, (float)(u + 4), 640.0f, (float)(u + 36), 672.0f, 0xffffffffu, 0);
+                }
+                x += 28.0f;
+            }
+        }
+    }
+    if (s_pay_broke == 0 && s_pay_end != 0 && s_pay_t > s_pay_end) {
+        float f = (float)(s_pay_t - s_pay_end) * 0.050000001f;
+        if (f > 1.0f)
+            f = 1.0f;
+        f *= 300.0f;
+        quad(&s_tex_choushuu, bx + 320.0f, by + 216.0f, f, 80.0f, 0.0f, 528.0f, f, 608.0f, 0xffffffffu, 0);
+    }
+    if (s_pay_t > 60) {
+        for (int k = 0; k < 2; k++) {
+            /* both widths come from a comma-grouped number with a trailing '-';
+             * pass 0 measures the quota and draws only the "P" there, pass 1
+             * draws the amount paid */
+            char tmp[16] = "          -";
+            int v = k == 0 ? s_quota : s_paid, i = 9;
+            for (int g = 0; g != 10; g++) {
+                tmp[i] = (char)(v % 10 + '0');
+                v /= 10;
+                if (v == 0)
+                    break;
+                if (g % 3 == 2)
+                    tmp[--i] = ',';
+                --i;
+            }
+            const char *str = &tmp[i];
+            float x = 496.0f;
+            for (const char *c = str; *c; c++)
+                x -= *c == ',' ? 16.0f : 32.0f;
+            if (k == 0)
+                board_digits(x + bx, by + 136.0f, "P");
+            else
+                board_digits(x + bx + 32.0f, by + 136.0f, str);
+        }
+    }
+    if (s_pay_end != 0 && s_pay_t > s_pay_end + 80) {
+        const int e = s_pay_t - (s_pay_end + 80);
+        int a = 32 * e;
+        if (a > 255)
+            a = 255;
+        float sc = 3.0f - ((float)e + (float)e) / 8.0f;
+        if (sc < 1.0f)
+            sc = 1.0f;
+        quad(&s_tex_choushuu, bx + 128.0f - sc * 120.0f, by + 160.0f - sc * 160.0f, sc * 280.0f, sc * 320.0f,
+             640.0f, (float)(320 * s_pay_broke), 920.0f, (float)((5 * s_pay_broke + 5) << 6), argb(a), 0);
+    }
+    render_quad_flush(dev);
+    const sprite_t *iw = &g_sysassets.item_win_tga;
+    float mx = 640.0f - (float)(32 * (s_pay_t - 16));
+    if (mx < 0.0f)
+        mx = 0.0f;
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)iw->tex);
+    quad(iw, mx + 128.0f, 12.0f, 48.0f, 48.0f, 432.0f, 48.0f, 480.0f, 96.0f, 0xffffffffu, 0);
+    render_quad_flush(dev);
+    scene1_top_hud_draw_number((struct IDirect3DDevice8 *)dev, mx + 320.0f, 32.0f, w[W_GOLD], 1, 0xffffffffu, 1);
+}
+
 void day_end_render(struct IDirect3DDevice8 *dev_in)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -570,9 +718,10 @@ void day_end_render(struct IDirect3DDevice8 *dev_in)
             render_quad_flush(dev);
         }
     }
-    /* s_pay: FUN_0048e49c (the choushuu.tga payment board) + the 3D shop
-     * render FUN_004161c7 under its own projection —
-     * PORT-DEBT(stub, FUN_0048e49c). */
+    /* s_pay: FUN_0048e49c, then the 3D shop render FUN_004161c7 under its own
+     * projection — PORT-DEBT(render-coupled, FUN_004161c7) */
+    if (s_pay != 0)
+        day_end_payment_board(dev, w);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 }

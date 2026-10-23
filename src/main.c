@@ -45,6 +45,7 @@
 #include "scene_ingame.h"
 #include "scene_title.h"
 #include "title_save_dialog.h"   /* title_save_dialog_phasepin — cursor bob pin */
+#include "choice_box.h"          /* choice_box_draw (FUN_0043537e) — the game-over render */
 #include "audio_mci.h"          /* audio_mci_clear (FUN_00451863) */
 #include "worker_load.h"         /* worker_load_set_cb(0, scene_title_reinit) */
 #include "scene_day_end.h"       /* day_end_render — pause action 1 */
@@ -3451,6 +3452,26 @@ static void render_dispatch(void)
              * the dialogue on top (LABEL_80 → FUN_0046c090). */
             if (!scene1_intro_dialogue_covers_screen())
                 scene_adv_guild_render(g_dev);
+            scene1_dialogue_draw(g_dev);
+            break;
+        case 2:
+            /* The game over — FUN_004547ab case 2: FUN_0049da07(3, 1, 0) — a
+             * black full-screen quad (system.bmp (0,0)-(7,7) at 0xff000000;
+             * FUN_004812e4 waits on DAT_09643580, never set), FUN_0043537e (the
+             * choice box), FUN_00435747 (the hand cursor), FUN_00435117 (the
+             * message box); then LABEL_80: the dialogue on top. */
+            render_quad_state_setup(g_dev);                          /* FUN_0049b425 */
+            if (g_sysassets.system_bmp.tex) {
+                const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+                const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };
+                render_quad_bind(g_dev, &g_sysassets.system_bmp);
+                render_quad_add(dst, src, g_sysassets.system_bmp.width,
+                                g_sysassets.system_bmp.height, 0xff000000u);
+                render_quad_flush(g_dev);
+            }
+            choice_box_draw(g_dev);
+            title_save_dialog_cursor_render(g_dev);
+            title_save_dialog_render(g_dev);
             scene1_dialogue_draw(g_dev);
             break;
         case 0xd: case 0xe: case 0xf: case 0x10:
