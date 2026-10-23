@@ -33,6 +33,11 @@ starts from the save.dat X commits, stored content-addressed in `tests/scenarios
 (user data, gitignored). The new trace's `savefile` points at that blob, with a
 `# save: the one X ends with` comment line under it. This is how saves chain: dungeon 0
 starts from buy-from-seller-guild-intro's end save, dungeon 1 from dungeon0-full's.
+End saves are cached in `_saves/endsaves.json`, keyed by the trace file's sha256 (its
+`savefile` line included, so the start save too; replays are deterministic): a second
+`--from X` / `endsave X` skips the replay (`endsave X --refresh` forces one). `record`'s
+self-check replay stores the new recording's own end save there, so `record --from NEW`
+starts right away.
 
 `--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
 thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:

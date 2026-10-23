@@ -8,10 +8,12 @@
   rhost.py corpus [opts]                 every scenario; summary table
   rhost.py diff A.rhs B.rhs              classify the differences between two dumps
   rhost.py tables SCEN --at F,F          retail's live effect / object / actor type histograms
-  rhost.py endsave SCEN                  replay SCEN, store the save.dat it commits in _saves → its path
+  rhost.py endsave SCEN [--refresh]      replay SCEN, store the save.dat it commits in _saves → its path
+                                         (cached by the trace's sha256 in _saves/endsaves.json)
   rhost.py record NAME [--save S|--from SCEN]  HUMAN PLAY (Windows desktop, realtime) → flat trace;
                                          --save SHA[prefix]|PATH|SCEN (the save SCEN starts from),
-                                         --from SCEN = the save SCEN ends with (replayed, stored in _saves)
+                                         --from SCEN = the save SCEN ends with (cached, else replayed);
+                                         the self-check replay caches NAME's own end save
   rhost.py flatten SCEN                  write tests/scenarios/<SCEN>/trace.flat.jsonl
   rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
   rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
@@ -179,20 +181,55 @@ def replay_args(**over):
     return a
 
 
-def end_save(name):
-    """the save.dat scenario NAME ends with: replayed in rhost, stored content-addressed in _saves → its path"""
+# end-save cache: the sha256 of a trace file (its savefile line included, so the start save too) → the save
+# its retail replay ends with. Replays are deterministic, so a hit skips the replay. Local like the blobs.
+ENDSAVES = os.path.join(SCEN, "_saves", "endsaves.json")
+
+
+def endsave_cache(trace, put=None):
+    """the cached end-save blob of TRACE (None on a miss); put=(sha, frame, scenario) stores one"""
+    key = trace_save.sha256_file(trace)
+    try:
+        db = json.load(open(ENDSAVES))
+    except (OSError, ValueError):
+        db = {}
+    if put:
+        db[key] = {"save": put[0], "frame": put[1], "scenario": put[2]}
+        os.makedirs(os.path.dirname(ENDSAVES), exist_ok=True)
+        json.dump(db, open(ENDSAVES + ".tmp", "w"), indent=1, sort_keys=True)
+        os.replace(ENDSAVES + ".tmp", ENDSAVES)
+        return None
+    e = db.get(key)
+    blob = e and os.path.join(SCEN, "_saves", e["save"] + trace_save.SAVE_SUFFIX)
+    return (blob, e) if blob and os.path.exists(blob) else None
+
+
+def store_end_save(name, trace, start, raw, frame):
+    """RAW = the save.dat a replay of TRACE left: stored in _saves + the cache → its blob, None if it commits none"""
+    if not os.path.exists(raw) or (start and open(raw, "rb").read() == save_bytes(start)):
+        return None
+    sha, blob = trace_save.store_save(raw, os.path.join(SCEN, "_saves"))
+    endsave_cache(trace, put=(sha, frame, name))
+    return str(blob)
+
+
+def end_save(name, refresh=False):
+    """the save.dat scenario NAME ends with: replayed in rhost (or cached), stored content-addressed in _saves → its path"""
     tr, start = scenario_inputs(name)
+    hit = None if refresh else endsave_cache(tr)
+    if hit:
+        print(f"[{name} ends with save {hit[1]['save']} (f{hit[1]['frame']}, cached: {os.path.relpath(ENDSAVES, ROOT)})]")
+        return hit[0]
     print(f"[replaying {name} for the save it ends with]")
     _, bdir, res, out = run_batch(replay_args(), [(name, tr, None, start)], "endsave-" + name, fetch=("rhost.log", "save.dat"))
     r = res.get(name, {})
     if r.get("complete") != "1":
         raise SystemExit(f"replaying {name} did not complete: {r or out[-2000:]}")
-    raw = os.path.join(bdir, name, "save.dat")
-    if not os.path.exists(raw) or (start and open(raw, "rb").read() == save_bytes(start)):
+    blob = store_end_save(name, tr, start, os.path.join(bdir, name, "save.dat"), r.get("frame"))
+    if not blob:
         raise SystemExit(f"{name} commits no save: nothing to start from")
-    sha, blob = trace_save.store_save(raw, os.path.join(SCEN, "_saves"))
-    print(f"[{name} ends with save {sha} (f{r.get('frame')})]")
-    return str(blob)
+    print(f"[{name} ends with save {os.path.basename(blob).split('.')[0]} (f{r.get('frame')})]")
+    return blob
 
 
 def rhost_args(a, run_win, inputs_win):
@@ -972,12 +1009,17 @@ def cmd_record(a):
     if not m:
         print("record: no RESULT line — cannot self-check"); return 1
     a2 = replay_args(frames=int(m.group(1)), dump_at="end")
-    _, rb, res, _ = run_batch(a2, [(a.name, os.path.join(dst, "trace.jsonl"), None, save)], "recheck", fetch=("rhost.log", "state_end.rhs"))
+    _, rb, res, _ = run_batch(a2, [(a.name, os.path.join(dst, "trace.jsonl"), None, save)], "recheck",
+                              fetch=("rhost.log", "state_end.rhs", "save.dat"))
     rep = res.get(a.name, {})
     rows = rhs.diff(os.path.join(bdir, "rec", "state_end.rhs"), os.path.join(rb, a.name, "state_end.rhs"), show=20)
     real = [r for r in rows if r[3] not in ("ext-ptr(both)", "ext-ptr(stale)", "volatile-addr")]
     ok = not real and rep.get("frame") == m.group(1)
     print(f"record self-check: recorded f={m.group(1)} | replay f={rep.get('frame')} | non-pointer diffs={len(real)} → {'PASS' if ok else 'FAIL'}")
+    if ok:   # the self-check replay already ran the whole recording: keep its end save for `--from NAME`
+        blob = store_end_save(a.name, os.path.join(dst, "trace.jsonl"), save, os.path.join(rb, a.name, "save.dat"), rep.get("frame"))
+        print(f"[{a.name} ends with save {os.path.basename(blob).split('.')[0]}: `record --from {a.name}` starts from it, no replay]"
+              if blob else f"[{a.name} commits no save]")
     return 0 if ok else 1
 
 
@@ -1089,7 +1131,8 @@ def main():
     p = sp.add_parser("flatten"); p.add_argument("scenarios", nargs="+"); common(p); p.set_defaults(fn=cmd_flatten)
     p = sp.add_parser("diff"); p.add_argument("a"); p.add_argument("b"); p.add_argument("--show", type=int, default=40); p.set_defaults(fn=cmd_diff)
     p = sp.add_parser("endsave"); p.add_argument("scenario")
-    p.set_defaults(fn=lambda a: print(end_save(a.scenario)) or 0)
+    p.add_argument("--refresh", action="store_true", help="replay even when the trace's end save is cached")
+    p.set_defaults(fn=lambda a: print(end_save(a.scenario, a.refresh)) or 0)
     p = sp.add_parser("record"); p.add_argument("name")
     p.add_argument("--save", help="SHA (unique prefix ok) | PATH | SCEN (the save scenario SCEN starts from)")
     p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")
