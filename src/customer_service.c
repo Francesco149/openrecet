@@ -93,8 +93,10 @@ static uint32_t s_in_held;      /* DAT_073dddd6 */
  * kind, _, _, _}.  30 entries (span aca0..af78). */
 #define CS_QUEUE_ENTRIES 30
 #define CS_QUEUE_STRIDE  6
+#define CS_ORDERS_OFF    0x2a5f8   /* work +0x2a5f8: 10 × 20-byte orders (FUN_004639f5) */
 static int32_t s_queue[CS_QUEUE_ENTRIES * CS_QUEUE_STRIDE]; /* DAT_0730aca0 */
 static int32_t s_queue_count;                               /* DAT_0730ac98 */
+static int32_t s_queue_cur;                                 /* DAT_0730ac94 — the served entry */
 
 /* Customer-roster permutation — DAT_0730b1a8[50], filled 0,1,2,…  (the
  * eligible-sort scratch; tutorial leaves it as the identity). */
@@ -1570,7 +1572,8 @@ static void cs_queue_advance(void)
                : s_buysell_kind == 1 ? cs_seller_select()
                : cs_oder_select();
         } else {
-            const int32_t *q = &s_queue[s_roster_perm[s_b318] * CS_QUEUE_STRIDE];
+            s_queue_cur = s_roster_perm[s_b318];
+            const int32_t *q = &s_queue[s_queue_cur * CS_QUEUE_STRIDE];
             switch (q[2]) {
             case 4: cs_bind_story_entry(q, 5); break;
             case 3: cs_bind_story_entry(q, 4); break;
@@ -3633,6 +3636,129 @@ static void cs_oder_machine(void)
     /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → the item-detail card. */
 }
 
+/* ── FUN_004639f5 — the b5a8==3 machine: a customer ORDERS goods ────────────
+ * 2 → 7 the order line (<S> = the oder's plural name, <D1> the count, <DA>
+ * the days) → (Z) Recette's reply → 15 Yes / No (FUN_004622d9 poll from tick 16;
+ * the hand snaps to (192, 210) at 15): Yes → the master's 10 ("thank you") and
+ * the order into the first free of the 10 records at work +0x2a5f8 {1, oder,
+ * days, (i16) slot, (i16) kyaku, count}; No → 16 the customer's reply → 17
+ * Recette's → 13 the leave.  A detail popup open eats the tick (0x70 closes
+ * it); 0x40 on a shown item opens it.  Disasm 0x4639f5-0x463cfa. */
+static void cs_delivery_machine(void)
+{
+    uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    int rec = g_scene_buy_current_page;                   /* ebx = &ea90[b56c] */
+
+    s_b544 += 1;
+    if (display_menu_detail() != 0) {                     /* FUN_004681e6 */
+        if (s_in_pressed & 0x70) {
+            display_menu_detail_close();                  /* FUN_004681d3 */
+            if (s_b5a0 == 0) title_save_dialog_cursor_set_visible(1);   /* FUN_0043561a */
+            audio_play_se_by_id(710);
+        }
+        return;
+    }
+    switch (s_b534) {
+    case 2:
+        if (s_b544 == 1) {
+            s_b544 = 0;
+            s_b534 = 7;
+        }
+        break;
+
+    case 7:                                     /* the order */
+        if (s_b544 == 1) {
+            if (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                dlg_macro_set(DLG_MAC_S, g_oder.entries[s_b5d8].name_plural);   /* <S> */
+            cs_pick_line(rec, 15, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            cs_pick_line(0, 13, 0);
+            s_cust_active[0] = 1;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            s_b534 = 15;
+            audio_play_se_by_id(323);
+        }
+        break;
+
+    case 15:                                    /* Yes / No */
+        if (s_b544 == 15) {
+            s_b590 = 0;
+            s_b540 = 0;
+            title_save_dialog_cursor_snap(192.0f, 210.0f);   /* FUN_00435693 */
+        }
+        if (s_b544 > 15) {
+            const int r = cs_input_poll();      /* FUN_004622d9 */
+            if (r == 1) {
+                s_b544 = 0;
+                s_b534 = 10;
+                s_b5a0 = 0;
+                title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+                const int32_t *q = &s_queue[s_queue_cur * CS_QUEUE_STRIDE];
+                uint8_t *o = bank ? bank + CS_ORDERS_OFF : NULL;
+                for (int k = 0; o != NULL && k < 10; k++, o += 20) {
+                    int32_t used;
+                    memcpy(&used, o, 4);
+                    if (used != 0) continue;
+                    const int32_t one = 1;
+                    const int16_t slot = (int16_t)q[1], kyaku = (int16_t)q[0];
+                    memcpy(o, &one, 4);
+                    memcpy(o + 12, &slot, 2);
+                    memcpy(o + 14, &kyaku, 2);
+                    memcpy(o + 4, &q[3], 4);
+                    memcpy(o + 8, &q[5], 4);
+                    memcpy(o + 16, &q[4], 4);
+                    break;
+                }
+            } else if (r == 2) {
+                s_b534 = 16;
+                s_b544 = 0;
+                s_b5a0 = 0;
+                title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+                s_cust_active[0] = 0;
+            }
+        }
+        break;
+
+    case 16:                                    /* declined: the customer */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 17, 1);
+            s_cust_active[1] = 1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 17;
+            s_cust_active[1] = 0;
+            s_b55c = 0;
+            s_b544 = 0;
+        }
+        break;
+
+    case 17:                                    /* declined: Recette */
+        if (s_b544 == 1) {
+            cs_pick_line(0, 12, 0);
+            s_cust_active[0] = 1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 13;
+            s_cust_active[0] = 0;
+            s_b55c = 0;
+            s_b544 = 0;
+        }
+        break;
+
+    default:
+        break;
+    }
+    if (s_b5a0 != 0 && (s_in_pressed & 0x40) != 0) {
+        display_menu_detail_open(1);            /* FUN_004681db(1) */
+        display_menu_set_highlight(s_b5a4);     /* FUN_00468286 */
+        audio_play_se_by_id(710);
+    }
+}
+
 /* ── FUN_00414766 — a screen-space overlay particle ───────────────────────────
  * Maps a 640×480 screen point onto the overlay plane (16.5 − x/19.5,
  * 12.4 − y/19.5, z −520) and spawns `tpl` there (FUN_00414345 mode 1).
@@ -4073,7 +4199,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
              * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
              * b5a8==0 = the customer-sells machine FUN_00465372, 1 = the
              * request machine FUN_00464af0.
-             * PORT-DEBT(cs-other-kinds): 3/4/5 = FUN_004639f5/463cfb/464a26. */
+             * 3 = the order machine FUN_004639f5.
+             * PORT-DEBT(cs-other-kinds): 4/5 = FUN_00463cfb/464a26. */
             if (s_b5a8 == 2) {
                 cs_live_machine();            /* FUN_004658ab */
                 return;
@@ -4082,6 +4209,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                 cs_buy_machine();             /* FUN_00465372 */
             else if (s_b5a8 == 1)
                 cs_oder_machine();            /* FUN_00464af0 */
+            else if (s_b5a8 == 3)
+                cs_delivery_machine();        /* FUN_004639f5 */
             return;
         } else {                              /* 0xc / 0xd — closing (all.c:60590-60662) */
             int cVar1 = f404;
