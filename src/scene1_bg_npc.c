@@ -163,12 +163,15 @@ static void bg_npc_spawn(int idx)
 {
     scene1_bg_npc_t *m = &g_scene1_bg_npc[idx];
 
-    /* sprite-anim header init (engine writes +0x14 state = -1, +0x18 facing = 1,
-     * +0x1c/+0x20/+0x24 flags = 0; anim/frame/counter/timer come up via the
-     * first bg_npc_anim_set when the state changes off -1). */
-    for (int d = 0; d < BG_NPC_REC_DWORDS; d++) m->arec[d] = 0;
+    /* sprite-anim header init: the engine writes only +0x14 state = -1,
+     * +0x18 facing = 1 and +0x1c/+0x20/+0x24 = 0; anim/frame/counter/timer
+     * (+0x00..+0x10) keep the slot's last values until the first
+     * bg_npc_anim_set off state -1 resets them. */
     m->arec[CHR_ACTOR_STATE]  = -1;   /* +0x14 (was the named anim_id) */
     m->arec[CHR_ACTOR_FACING] = 1;    /* +0x18 (was the named flip) */
+    m->arec[7] = 0;                   /* +0x1c */
+    m->arec[8] = 0;                   /* +0x20 */
+    m->arec[9] = 0;                   /* +0x24 */
 
     m->visible = 0;                                   /* +0x48 */
     m->type    = BG_NPC_TYPE_TABLE[idx % SCENE1_BG_NPC_COUNT]; /* +0x4c */
@@ -200,7 +203,9 @@ static void bg_npc_spawn(int idx)
         m->mode = (r2 < m->prob) ? 1 : 0;
     }
 
-    m->pause = 0;                                     /* +0x54 (BSS-zero) */
+    /* +0x54 (the pause count) is not written: a slot re-spawned by the
+     * re-armed warmup (FUN_0046f1e9) while it was stopped and looking keeps
+     * counting to 180 (then the 1-in-2 turn draw) */
 }
 
 /* FUN_0046f2a3 respawn block (objdump 0x46f566-0x46f5ea): re-seed depth +

@@ -82,8 +82,8 @@ typedef struct {
     float y;         /* +0x30: always 0 (render lifts +0.08) */
     float z;         /* +0x34: room depth (-11 .. -15) */
     float speed;     /* +0x50: per-tick drift magnitude factor, [0.5,1.0) */
-    int   pause;     /* +0x54: pause-state counter (never set — see .c) */
-    float vthresh;   /* +0x58: mode-switch X target (feeds the dead pause path) */
+    int   pause;     /* +0x54: stop-and-look counter (leftward vthresh crossings; survives a re-spawn) */
+    float vthresh;   /* +0x58: the stop-and-look X target (mode 2, leftward) */
     int   mode;      /* +0x5c: 0/1/2 anim-mode selector */
     int   prob;      /* +0x60: rng%100 probability base (mode rolls) */
 } scene1_bg_npc_t;
