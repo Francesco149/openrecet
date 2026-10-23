@@ -465,6 +465,11 @@ static const int32_t *layout_dword(uint32_t va)
     }
     if (va >= 0x74b2844u && va < 0x74b2844u + 4u * SCENE_PAUSE_MAX_ENTRIES)
         return &g_pause_entries[(va - 0x74b2844u) / 4];
+    /* the adventurer's bag DAT_0438b5ec (+ what each slot brought, DAT_0438b684) */
+    if (va >= 0x438b5ecu && va < 0x438b5ecu + 4u * ADV_GUILD_BAG_SLOTS)
+        return adv_guild_bag() + (va - 0x438b5ecu) / 4;
+    if (va >= 0x438b684u && va < 0x438b684u + 4u * ADV_GUILD_BAG_SLOTS)
+        return adv_guild_bag_brought() + (va - 0x438b684u) / 4;
     if (va >= 0x68dd2f8u && va < 0x68dd2f8u + (uint32_t)STAGE_KEY_COUNT * sizeof(stage_record_t))
         return (const int32_t *)(const void *)((const uint8_t *)g_stage.records + (va - 0x68dd2f8u));
     /* the effect tables A / B / C (DAT_069b2f80 / 069324b0 / 06956cb0) */

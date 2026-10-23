@@ -39,6 +39,10 @@ const char *d3d_tex_name_lookup(const void *tex);
  * a recycled pointer doesn't carry a stale name). */
 void d3d_tex_name_forget(const void *tex);
 
+/* The live registered textures; the k names held by the most live textures
+ * (top[] / top_n[], NULL / 0 past the duplicates) — mem_probe's leak census. */
+int d3d_tex_name_census(const char **top, int *top_n, int k);
+
 /* Clear the whole registry (device reload / test setup). */
 void d3d_tex_name_reset(void);
 

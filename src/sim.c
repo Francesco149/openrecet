@@ -26,6 +26,7 @@
  */
 
 #include "sim.h"
+#include "mem_probe.h"
 #include "dungeon_flow.h"   /* the title banner (FUN_00406551) */
 
 #include "call_trace.h"
@@ -784,6 +785,7 @@ void sim_step_a(void)
     }
 
     g_sim_frame_count++;
+    if (g_sim_frame_count % 5000 == 0) mem_probe("tick");   /* the address-space log (port.err) */
 }
 
 /* FUN_004532bc: start the screen wobble (DAT_06a49994 = 1, its period

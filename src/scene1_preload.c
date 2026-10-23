@@ -96,6 +96,8 @@ void scene1_preload_floor_layout(void)
 #include "scene_walls.h"
 #include "scene1_walker_pass_init.h"
 #include "sprite.h"
+#include "mem_probe.h"     /* the loaders' address-space log */
+
 
 /* PII.3c texture-hook adapters — bind the selector-matched stage
  * texture for draw loop A's kabe (wall) / yuka (floor) / jutan (rug)
@@ -276,6 +278,7 @@ static void scene1_preload_floor_sheets(void)
  * FUN_004746fc (texture group 15), FUN_00473c15 and the stage-entry init. */
 static void scene1_preload_floor_cb(void)
 {
+    mem_probe("floor-load");
     if (!sim_stage_load_same()) {
         scene_map_meshes_reset();           /* FUN_0047472c: the render meshes */
         stage_palette_load_for_stage();     /* FUN_00474681 */
@@ -308,6 +311,7 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
  * stage-entry init FUN_00436f97 with its dungeon arm. */
 static int scene1_preload_dungeon(void)
 {
+    mem_probe("dungeon-load");
     mesh_tex_cache_reset();             /* FUN_0047281e */
     stage_palette_load_for_stage();     /* FUN_00474681 */
     scene_map_meshes_reset();
@@ -373,6 +377,7 @@ int scene1_preload_house(void)
      * classify→SetTexture path reads.  See scene_map_meshes.h. */
     scene_map_meshes_reset();
     {
+        mem_probe("house-load");
         int map_loaded = scene_map_meshes_load_house(g_scene1_preload_dev);
         fprintf(stderr, "scene1_preload: map meshes loaded=%d "
                 "(shop_1st.x room + shop_jutan.x carpet + furniture pool)\n",

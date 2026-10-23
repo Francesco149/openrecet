@@ -297,6 +297,7 @@ static void run_deferred_fns(void)
 #ifdef _WIN32
 
 #define WIN32_LEAN_AND_MEAN
+#include <stdio.h>
 #include <windows.h>
 
 /* Engine DAT_06a49950 + DAT_06a496cc. Only used on Win32. */
@@ -319,17 +320,23 @@ static HANDLE wl_create_thread(LPTHREAD_START_ROUTINE proc, DWORD *tid)
     if (!s_det_loads)
         return CreateThread(NULL, 0, proc, NULL, 0, tid);
     HANDLE h = CreateThread(NULL, 0, proc, NULL, CREATE_SUSPENDED, tid);
-    if (h && s_ndeferred < (int)(sizeof s_deferred / sizeof s_deferred[0])) {
+    if (!h) {
+        fprintf(stderr, "openrecet: det-loads: loader CreateThread failed (error %lu)\n", GetLastError());
+    } else if (s_ndeferred < (int)(sizeof s_deferred / sizeof s_deferred[0])) {
         HANDLE dup = NULL;   /* the thread's own cleanup closes `h` */
-        DuplicateHandle(GetCurrentProcess(), h, GetCurrentProcess(), &dup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+        if (!DuplicateHandle(GetCurrentProcess(), h, GetCurrentProcess(), &dup, 0, FALSE, DUPLICATE_SAME_ACCESS))
+            fprintf(stderr, "openrecet: det-loads: DuplicateHandle failed (error %lu)\n", GetLastError());
         s_deferred[s_ndeferred++] = dup;
+    } else {
+        fprintf(stderr, "openrecet: det-loads: deferred-loader overflow (%d queued) — this loader never runs\n", s_ndeferred);
     }
     return h;
 }
 void worker_load_run_deferred(void)
 {
     for (int i = 0; i < s_ndeferred; i++) {
-        ResumeThread(s_deferred[i]);
+        if (ResumeThread(s_deferred[i]) == (DWORD)-1)
+            fprintf(stderr, "openrecet: det-loads: ResumeThread failed (error %lu)\n", GetLastError());
         WaitForSingleObject(s_deferred[i], INFINITE);
         CloseHandle(s_deferred[i]);
     }

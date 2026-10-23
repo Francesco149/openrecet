@@ -87,3 +87,35 @@ void d3d_tex_name_reset(void)
 {
     memset(g_tab, 0, sizeof g_tab);
 }
+
+/* mem_probe's census: the live registered textures and the names held by the
+ * most live textures (a reload without a release shows up as duplicates) */
+int d3d_tex_name_census(const char **top, int *top_n, int k)
+{
+    int live = 0, nt = 0;
+    for (int i = 0; i < k; i++) { top[i] = NULL; top_n[i] = 0; }
+    for (unsigned s = 0; s < TEX_NAME_SLOTS; s++) {
+        const void *key = g_tab[s].key;
+        if (key == NULL || key == TEX_TOMBSTONE) continue;
+        ++live;
+        int dup = 0;
+        for (unsigned t = 0; t < TEX_NAME_SLOTS; t++) {
+            const void *k2 = g_tab[t].key;
+            if (k2 != NULL && k2 != TEX_TOMBSTONE && strcmp(g_tab[t].name, g_tab[s].name) == 0) {
+                if (t < s) { dup = -1; break; }   /* counted at its first slot */
+                ++dup;
+            }
+        }
+        if (dup <= 1) continue;
+        int i = nt < k ? nt++ : k - 1;
+        if (i == k - 1 && nt == k && top_n[i] >= dup) continue;
+        top[i] = g_tab[s].name;
+        top_n[i] = dup;
+        for (; i > 0 && top_n[i] > top_n[i - 1]; i--) {
+            const char *tn = top[i]; top[i] = top[i - 1]; top[i - 1] = tn;
+            const int tc = top_n[i]; top_n[i] = top_n[i - 1]; top_n[i - 1] = tc;
+        }
+    }
+    for (int i = nt; i < k; i++) { top[i] = NULL; top_n[i] = 0; }
+    return live;
+}

@@ -64,6 +64,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/stage_post_load.c \
                  ../src/d3d_pool.c \
                  ../src/d3d_tex_names.c \
+                 ../src/mem_probe.c \
                  ../src/chara_equip.c \
                  ../src/chara_skills.c \
                  ../src/guild_stock.c \
