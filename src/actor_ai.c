@@ -1532,6 +1532,309 @@ static void boss_minion_point(float *x, float *z)
     *z = sz;
 }
 
+/* the crab's two pincer points / its back point: the draw-written anchors
+ * (src/model_anchor.c) at +0x6fc + 12·k */
+static void crab_spawn_at(actor_t *a, int32_t pt, int32_t type)
+{
+    const float x0 = AF(a, 0x3f0), y0 = AF(a, 0x3f4), z0 = AF(a, 0x3f8);
+    AF(a, 0x3f0) = AF(a, 0x6fc + 12 * pt);
+    AF(a, 0x3f4) = AF(a, 0x700 + 12 * pt);
+    AF(a, 0x3f8) = AF(a, 0x704 + 12 * pt);
+    scene1_record_b_spawn_npc(a, type, 1);                  /* FUN_00445a8c */
+    AF(a, 0x3f0) = x0;
+    AF(a, 0x3f4) = y0;
+    AF(a, 0x3f8) = z0;
+}
+
+static int32_t s_crab_7c8c68;   /* DAT_007c8c68 — written here only */
+
+/* FUN_00422092: types 68 / 69, the crabs (dungeon 2's floor-20 boss).  +0xa54
+ * the state: 0 walk (forward / sideways), 1 / 2 a pincer jab (points 6 / 7,
+ * record 14 at 25..39), 3 the turn-and-slam toward the player (yaw eased by
+ * sin over 30 ticks, the shake at 75, both points 75..79), 4 the spray (record
+ * 38 from 51 on, the yaw jittered ±π/20), 5 the bubble beam (record 43 + the
+ * 0x52 overlay at point 5, 80 ticks), 6 the drop from a corner (DAT_0052b90c,
+ * the 0x4e / 0x55 bursts), 8 the floor intro (DAT_0438b8a4).  Every 60 ticks
+ * in state 0 it calls bombs (type 37; 69: 37..40) under 2 / 3 alive, at a
+ * point 2..10 around (-40, -40) at least 10 from the player.  asm 0x422092..
+ * 0x422eb5 (the FUN_00451874 KANI rows are debug text). */
+static void actor_ai_crab(actor_t *a)
+{
+    static const float k0 = 0.0f, k0p01 = 0.009999999776482582f, k2pi = 6.2831854820251465f;
+    static const float k8 = 8.0f, k2 = 2.0f, k40 = 40.0f, k10 = 10.0f;
+    static const float k_mpi = -3.1415927410125732f, k_pi = 3.1415927410125732f;
+    static const float k0p9 = 0.8999999761581421f, k5 = 5.0f, k1 = 1.0f;
+    static const float k_a01 = 0.15707963705062866f, k_ma01 = -0.15707963705062866f;
+    static const float k15 = 15.0f, k7p5 = 7.5f, k_a3 = 0.9424778819084167f, k_ma3 = -0.9424778819084167f;
+    static const float k0p02 = 0.019999999552965164f, k_pi2 = 1.5707963705062866f, k30 = 30.0f;
+    static const float k0p5 = 0.5f, k_pi10 = 0.31415927410125732f, km2 = -2.0f;
+    static const float k1p51 = 1.5099999904632568f, km1p29 = -1.2899999618530273f;
+    static const float k_drop[8] = { 28.0f, -27.0f, -28.0f, -27.0f, 28.0f, 24.0f, -28.0f, 24.0f };  /* DAT_0052b90c */
+    float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    float dist = spill32((long double)dz * dz + (long double)dx * dx);
+    if (dist == k0) {
+        dz = k0p01;
+        dist = k0p01;
+    } else {
+        dist = spill32(crt_sqrt(dist));
+    }
+    float to = spill32(crt_atan2(dx, dz));
+    AI(a, 0x9f4) = 0;
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xa54) == 0 && ++AI(a, 0xa64) >= 60) {
+        AI(a, 0xa64) = -60;
+        int32_t live = 0;
+        for (int i = 0; i < ACTOR_COUNT; i++)
+            if (AI(&g_actor[i], ACT_INUSE) != 0) ++live;
+        if (live < (AI(a, ACT_TYPE) == 69 ? 3 : 2)) {
+            float sx = 0.0f, sz = 0.0f;
+            for (int i = 0; i != 30; i++) {
+                const float ang = spill32((long double)rng_next_unit() * k2pi);
+                const float r = spill32((long double)rng_next_unit() * k8 + k2);
+                const double ad = ang;
+                sx = spill32((long double)spill32(x87_crt_sin(ad)) * r - k40);
+                sz = spill32((long double)spill32(x87_crt_cos(ad)) * r - k40);
+                const float ex = spill32((long double)PX - sx);
+                const float ez = spill32((long double)PZ - sz);
+                if (ex != k0 || ez != k0) {
+                    const float d = spill32(crt_sqrt((double)((long double)ez * ez + (long double)ex * ex)));
+                    if (d > k10) break;
+                }
+            }
+            int32_t type = 37;
+            if (AI(a, ACT_TYPE) == 69) {
+                const int32_t r = rng_next15() & 3;
+                if (r == 1) type = 39;
+                else if (r == 2) type = 38;
+                else if (r == 3) type = 40;
+            }
+            const actor_stage_t stg = stage_now();
+            actor_t *m = actor_spawn_enemy(&stg, sx, k10, sz, type);   /* FUN_0041f903 */
+            if (m) AI(m, 0xb2c) = 1;
+        }
+    }
+    while (AF(a, 0x420) < k_mpi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k2pi);
+    while (AF(a, 0x420) > k_pi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) - k2pi);
+    while (to < k_mpi) to = spill32((long double)to + k2pi);
+    while (to > k_pi) to = spill32((long double)to - k2pi);
+    float d = spill32((long double)to - AF(a, 0x420));
+    if (d < k_mpi) d = spill32((long double)d + k2pi);
+    if (d > k_pi) d = spill32((long double)d - k2pi);
+    while (d < k_mpi) d = spill32((long double)d + k2pi);
+    while (d > k_pi) d = spill32((long double)d - k2pi);
+    const int32_t st = AI(a, 0xa54);
+    if (st == 8) {
+        actor_anim_blend(a, g_event_tick < 80 ? 0 : 12);
+        ++AI(a, 0xa58);
+        if (g_event_tick >= 240) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    if (AI(a, 0x448) > 0) --AI(a, 0x448);
+    AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p9);
+    AI(a, 0xa00) = 0;
+    AI(a, 0xa98) = 0;
+    AI(a, 0x9fc) = 0;
+    int32_t flag = 0;                                          /* -0xc(%ebp) */
+    AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p9);
+    AF(a, 0xab8) = k5;
+    int decide = 0;                                            /* LABEL_161 */
+    switch (st) {
+    case 0: {
+        if (++AI(a, 0xa58) == 1) {
+            AI(a, 0xa60) = (int32_t)(rng_next15() % 3u);
+            if (rng_next15() & 1) AI(a, 0xa60) = 0;
+            AI(a, 0xa60) = 0;
+            if (d > k_a01) AI(a, 0xa60) = 2;
+            if (d < k_ma01) AI(a, 0xa60) = 1;
+        }
+        const int32_t t = AI(a, 0xa58);
+        if (t == 60 && dist < k15 && d > k_ma3 && d < k_a3) flag = 2;
+        if (t >= 120) {
+            AI(a, 0xa58) = 0;
+            flag = 1;
+            decide = 1;
+            break;
+        }
+        const int32_t side = AI(a, 0xa60);
+        if (side >= 0 && side <= 2) {
+            actor_anim_blend(a, side + 1);
+            float h = AF(a, 0x420);
+            if (side == 1) h = spill32((long double)AF(a, 0x420) - k_pi2);
+            if (side == 2) h = spill32((long double)AF(a, 0x420) + k_pi2);
+            const double hd = h;
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(hd)) * k0p02 + AF(a, 0x3fc));
+            float h2 = AF(a, 0x420);
+            if (side == 1) h2 = spill32((long double)AF(a, 0x420) - k_pi2);
+            if (side == 2) h2 = spill32((long double)AF(a, 0x420) + k_pi2);
+            const double h2d = h2;
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h2d)) * k0p02 + AF(a, 0x404));
+        }
+        decide = flag != 0;
+        break;
+    }
+    case 1:
+    case 2: {
+        actor_anim_blend(a, st == 1 ? 4 : 5);
+        if (++AI(a, 0xa58) == 20) audio_play_se_by_id(0x2be);
+        const int32_t t = AI(a, 0xa58);
+        if (t >= 25 && t < 40)
+            crab_spawn_at(a, AI(a, 0xa54) == 2 ? 7 : 6, 14);
+        if (AI(a, 0xa58) < (AI(a, ACT_TYPE) == 69 ? 110 : 130))
+            break;
+        AI(a, 0xa58) = 0;
+        if ((rng_next15() & 1) && dist < k15 && d > k_ma3 && d < k_a3) {
+            AI(a, 0xa54) = (AI(a, 0xa54) == 1) + 1;
+            break;
+        }
+        AI(a, 0xa54) = 0;
+        decide = flag != 0;
+        break;
+    }
+    case 3: {
+        actor_anim_blend(a, 6);
+        if (++AI(a, 0xa58) == 35) {
+            audio_play_se_by_id(0x175);
+            while (AF(a, 0x420) < k_mpi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k2pi);
+            while (AF(a, 0x420) > k_pi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) - k2pi);
+            while (to < k_mpi) to = spill32((long double)to + k2pi);
+            while (to > k_pi) to = spill32((long double)to - k2pi);
+            AF(a, 0xaa8) = AF(a, 0x420);
+            const float turn = spill32((long double)to - AF(a, 0x420));
+            AF(a, 0xaac) = turn;
+            if (turn < k_mpi) AF(a, 0xaac) = spill32((long double)turn + k2pi);
+            if (AF(a, 0xaac) > k_pi) AF(a, 0xaac) = spill32((long double)AF(a, 0xaac) - k2pi);
+        }
+        if (AI(a, 0xa58) == 75) {
+            camera_shake(10, 4, 4, k1);                       /* FUN_0044b219 */
+            audio_play_se_by_id(0x16d);
+        }
+        const int32_t t = AI(a, 0xa58);
+        if (t >= 35 && t < 65) {
+            const float f = spill32((long double)(t - 35));
+            const float ph = spill32((long double)f * k_pi2 / k30);
+            const double phd = ph;
+            AF(a, 0x420) = spill32((long double)spill32(x87_crt_sin(phd)) * AF(a, 0xaac) + AF(a, 0xaa8));
+        }
+        const int32_t t2 = AI(a, 0xa58);
+        if (t2 >= 75 && t2 < 80) {
+            crab_spawn_at(a, 6, 14);
+            crab_spawn_at(a, 7, 14);
+        }
+        if (AI(a, 0xa58) == 95) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa64) = 0;
+        }
+        break;
+    }
+    case 4:
+    case 5: {
+        actor_anim_blend(a, 12);
+        ++AI(a, 0xa58);
+        for (int m = 0; m != 80; m++) {
+            if (AI(a, 0xa58) != m + 20)
+                continue;
+            if (AI(a, 0xa54) == 5) {
+                crab_spawn_at(a, 5, 43);
+                scene1_overlay_spawn(NULL, AF(a, 0x738), AF(a, 0x73c), AF(a, 0x740),
+                                     0x52, k1, -1, 0, 0, 0);    /* FUN_004147d5 */
+                if (m == 0) audio_play_se_by_id(0x2bf);
+            } else {
+                const float h0 = AF(a, 0x420);
+                AF(a, 0x420) = spill32(((long double)rng_next_unit() - k0p5) * k_pi10 + AF(a, 0x420));
+                if (m > 30) {
+                    scene1_record_b_spawn_npc(a, 38, 1);         /* FUN_00445a8c */
+                    if ((m & 3) == 0) audio_play_se_by_id(0x14a);
+                }
+                AF(a, 0x420) = h0;
+            }
+        }
+        if (AI(a, 0xa58) == (AI(a, 0xa54) == 5 ? 200 : 160)) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        break;
+    }
+    case 6: {
+        ++AI(a, 0xa58);
+        AI(a, 0xb08) = 1;
+        AF(a, 0xab8) = k1;
+        if (AI(a, 0xa58) < 30) AI(a, 0xa58) = 30;
+        const int32_t sub = AI(a, 0xa5c);
+        if (sub == 0) {
+            const int32_t c = AI(a, 0xa64);
+            if (AI(a, 0xa58) >= 30 && AI(a, 0xa58) < 140)
+                scene1_spawn(0, k_drop[2 * c], km2, k_drop[2 * c + 1], 0x4e, k1, 1);   /* FUN_00447f4f */
+            if (AI(a, 0xa58) == 30) {
+                scene1_spawn(0, k_drop[2 * AI(a, 0xa64)], km2, k_drop[2 * AI(a, 0xa64) + 1], 0x55, k2, 1);
+                camera_shake(30, 4, 4, k1);
+                AF(a, 0x3fc) = k0;
+                s_crab_7c8c68 = 0;
+                AF(a, 0x400) = k1p51;
+                AF(a, 0x404) = k0;
+            }
+            if (AI(a, 0xa58) > 30) {
+                if (AF(a, 0x3f4) > km1p29) {
+                    ++s_crab_7c8c68;
+                    actor_anim_blend(a, 8);
+                }
+            } else if (AI(a, 0xa58) < 30) {
+                actor_anim_blend(a, 9);
+            }
+            if (AI(a, 0xa58) >= 30 && AI(a, 0xa58) >= 40 && AF(a, 0x3f4) <= k1) {
+                AI(a, 0xa5c) = 1;
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa60) = 0;
+                camera_shake(30, 4, 4, k1);
+                audio_play_se_by_id(0x16d);
+            }
+        } else if (sub == 1) {
+            ++AI(a, 0xa60);
+            AI(a, 0xb08) = 0;
+            if (AI(a, 0xa60) >= 60) actor_anim_blend(a, 9);
+            if (AI(a, 0xa58) == 180) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa5c) = 2;
+            }
+        } else {
+            actor_anim_blend(a, 11);
+            if (AI(a, 0xa58) == 120) {
+                AI(a, 0xb08) = 0;
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        }
+        break;
+    }
+    case 7:
+        flag = 1;
+        decide = 1;
+        break;
+    default:
+        break;
+    }
+    if (!decide)
+        return;
+    /* LABEL_161: the next move */
+    AI(a, 0xa58) = 0;
+    if ((dist < k7p5 && d > k_ma3 && d < k_a3) || flag == 2) {
+        if (rng_next15() & 3)
+            AI(a, 0xa54) = (rng_next15() & 1) ? 1 : 2;
+        else
+            AI(a, 0xa54) = 5;
+    } else if ((rng_next15() & 1) && (d > k_a3 || d < k_ma3)) {
+        AI(a, 0xa54) = 3;
+    } else if ((rng_next15() & 1) && d > k_ma3 && d < k_a3) {
+        AI(a, 0xa54) = 4;
+    } else {
+        AI(a, 0xa54) = 5;
+    }
+}
+
 /* FUN_00422ed6: type 67, Ohm (dungeon 2 floor 10; placed in state 8: 240 ticks
  * idle).  While fewer than `cap` bees (type 10; 3, dungeon 3: 5, 4+: 8) live,
  * every 120 ticks one more (+0xa68; past cap the pause is 320, past 2·cap 520,
@@ -3017,6 +3320,8 @@ void actor_ai_alive(actor_t *a)
             actor_ai_bomb(a);                    /* FUN_004293f0 */
         } else if (type == 67) {
             actor_ai_t67(a);                     /* FUN_00422ed6 */
+        } else if (type == 68 || type == 69) {
+            actor_ai_crab(a);                    /* FUN_00422092 */
         } else if (type == 54) {
             actor_ai_t54(a);                     /* FUN_00426811 */
         } else if (type == 15 && sub == 0) {
