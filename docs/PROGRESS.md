@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
+Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2
+(Amber Garden) runs up to 7F, the 5F Boss Ahriman, town days, Tielle's rank-6 visit, an order
+customer, a save. 199,626 frames — past rhost's old 120,000-frame trace cap (now 2,000,000).
+**portrng IDENTICAL f1–f199926 (806,768 draws), portsave IDENTICAL**; portblock at f199900: the
+known enemylist residue + table A (15 owner words = the port's `&g_party` vs 0x056da1b8, an
+owner-following overlay; 29 dead particle slots 1 ulp off). In `gates`. Splits closed in order:
+- f25040: Charme as the player (char 27) — FUN_004977df swing (crit roll, SE 343, hit record 3, the
+  images' strike edge 0x56dae14), skill 4 FUN_00494f87 (an after-image into the trail bank: 600
+  ticks, the facing, the lowest free orbit), 5 FUN_0049511d (the rush: kind 62, the 5 / 115 sparks),
+  6 FUN_0049508c (kind 83); the dash FUN_00489e66 (double tap, 0x40 steering, the 0x10 fade) and
+  its wall bonk in FUN_0048cdcc (ray 1.4 ahead, hurt voice, SE 319, knock-back, shake); the
+  FUN_0048b850 orbit (angle 2·DAT_005ce5c0[i] + facing, radius 3 + i, the 600 puff, kind 3 from
+  each image on the 0x56dae14 edge); FUN_0048d5d6's skill cycle (0x40, SE 326) and its pickup's
+  table-C kind check;
+- f25211 (← f24392 / f20370): the Adventurers' Guild bag picker opens on the first tab the hire
+  can wield (FUN_004682ee) — the port put item 2 in the bag, not Charme's sword 102;
+- f122580: FUN_0046f2a3's spawn writes neither the pause counter +0x54 nor anim dwords 0..4: a
+  window NPC re-armed mid-pause keeps pausing (quirk §160);
+- f128493: the rank-arrival tail — rank ≥ 6 / ≥ 14 start story 19/1 / 19/2 once (FUN_0044ba2c,
+  work +0x2bd05 / 06), and the lessons' FUN_00406212(0);
+- f135056: the b5a8 == 3 order customer FUN_004639f5 (the order line, Yes / No, the order into
+  work +0x2a5f8 — 10 × 20-byte records) — `PORT-DEBT(cs-other-kinds)` keeps 4 / 5;
+- f194743 (and a nondeterministic run racing floors 4 → 25): **the port ran out of its 2 GB address
+  space.** Screens reloaded into the same `sprite_t` without releasing (the world map's three
+  textures ×23, result_bord01 ×31, mappoint ×24, …): used address space hit 1.96 GB at ~f145000,
+  dungeon 2's map meshes failed (`oom in tokenize` = the black floors) and one run's floor loader
+  could not get a thread (CreateThread error 8). `sprite_create` / `sprite_load` now release a
+  sprite's old texture (retail frees its fixed 200-slot table, FUN_0047183b): ~810–930 MB for the
+  whole run.
+Tools: rhost fetches the port's stderr (`port.err`, failure lines printed); `src/mem_probe.c`
+(address space by kind, threads, every heap, the live-texture census by name) every 5000 frames
+and per load; det-loads logs CreateThread / ResumeThread failures; state_va rows for the bag
+DAT_0438b5ec / b684; the end-save cache (`_saves/endsaves.json`). Render: Charme's after-images
+draw (the walker's player pass gated on DAT_056da1cc, was a −1 stub); kind 0x73's init on the
+disasm. Not drawn yet (portshots f26000..27000 mean abs 3–6.5): the hit sparks / projectile
+billboards (table B 0x4180xx, FUN_004147d5) — known PORT-DEBT.
+
 ## 2026-10-23 — dungeon3-run / -run2: the guild's Fusion, the decor editor, a pix save
 Two new human recordings from dungeon2-run3's save (town days toward dungeon 2's unlock; both end
 with day 14's week-2 payment short). Their first port splits, each ported on retail's control flow:

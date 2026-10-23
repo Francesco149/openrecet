@@ -5243,6 +5243,21 @@ the fade-end commit. The first call already copies the loaded save's HP / SP int
 block (DAT_056db0bc / c0) and its gauges, 17 frames before the scene switches. Recorded:
 watch-write dungeon2-run2 f1270, eip 0x435d15 < 0x49a65e.
 
+## 160. A re-spawned window NPC keeps looking (FUN_0046f2a3's spawn skips +0x54)
+The house's window crowd is re-armed by every stage entry (FUN_0046f1e9 hides the records and
+re-runs the 180-tick warmup), and the warmup's spawn block rewrites a slot's direction, depth,
+speed, threshold and mode rolls — but not its stop-and-look counter (+0x54) nor the anim header's
+first five dwords. A walker that was mid-pause when Recette left resumes the pause in the warmup,
+counts to 180 and spends the 1-in-2 turn draw there. Recorded: dungeon3-floors f122580 (45 draws,
+not 44).
+
+## 161. Charme's after-images strike when her swing does (DAT_056dae14)
+Her skill 4 parks an image of her in a free slot of the trail bank for 600 ticks; FUN_0048b850
+orbits each at 2·DAT_005ce5c0[i] + the facing it was cast at (0, ±0.6, ±1.2 rad), 3 + i out —
+i the lowest orbit index no live image at that facing holds — with a puff on its first tick. Her swing sets 0x56dae14 = 1 at its hit tick and FUN_0048b850 decrements
+it the same frame: on the 1 → 0 edge every live image fires the swing's hit record (kind 3, from
+the image's position, at 0.5 damage scale). Recorded: dungeon3-floors f25211.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

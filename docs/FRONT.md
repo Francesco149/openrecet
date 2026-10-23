@@ -53,6 +53,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        divergences (day2-save-commit: f250–389, f445–2889, … heal only at pins).
        Re-record or strip the pins, then chase per frame (`--log-rand` retail;
        a port-side caller log is still TODO).
+  - ✅ **The port's address space** (2026-10-23): sprite reloads leaked their old texture; a
+    200k-frame session (dungeon3-floors) ran the 32-bit port out of memory at ~f145000 and one
+    run went nondeterministic (a loader thread could not be created). Fixed; `port.err` (the
+    port's stderr, fetched by rhost) carries `mem:` probes every 5000 frames (src/mem_probe.c).
   - ✅ **house-pause-save-commit: port `save.dat` byte-IDENTICAL to retail.** The port
     replays rhost's flat trace with `--det-loads` (findings §11). The trace still
     re-seeds rng at f342 (`{rngseed}` pin); -empty is the one pin-free equality.
@@ -178,7 +182,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        trips: portrng IDENTICAL f1–f66161 + portsave IDENTICAL)**, **dungeon3-run / -run2 (town
        days toward dungeon 2's unlock: Fusion, the decor editor, town visits, the week-2 payment
        short: portrng IDENTICAL f1–f55984 / f1–f44253, run2's save IDENTICAL; PROGRESS
-       2026-10-23)**; all in `gates`. Next needs dungeon 2's floors (Human queue).
+       2026-10-23)**, **dungeon3-floors (Charme leads: dungeon 2 floors 1..7 over several runs, the
+       5F Boss Ahriman, Tielle's rank-6 visit, an order customer, a save: portrng IDENTICAL
+       f1–f199926 + portsave IDENTICAL; PROGRESS 2026-10-23)**; all in `gates`. Next needs dungeon
+       2's deeper floors (Human queue).
        Known, not RNG-visible yet:
        - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
          the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
@@ -207,7 +214,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (FUN_00423b58, her floor-30 timeline FUN_0044db3c, her death arm); the pumpkin variants
        1 / 2 (not in dungeon 2's lists), the
        golem parts / multi-part anchors, FUN_0042df55's
-       lists for stages >= 20, the other chars' swings / skills, FUN_0042f7ad's other boss
+       lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
+       Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss
        arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
        3 / 4's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f,
        FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
@@ -247,15 +255,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (FUN_004161c7 after FUN_0048e49c; the board itself is ported, 2026-10-23), the ending (FUN_0049da9e,
        mode 7 FUN_0049db8a; no recording reaches day 36). The night arm of the dungeon exit
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
-    4. rank ≥6/≥14 story triggers FUN_0044ba2c(19,1|2,0) — `PORT-DEBT(rank-arrival-tail)`.
-    5. Unported machines b5a8 3/4/5 (FUN_004639f5 / 463cfb / 464a26: request
-       delivery + story customers) — no scenario reaches them yet. The b524 == 50 story probe:
+    4. Unported machines b5a8 4 / 5 (FUN_00463cfb / 464a26: the story customers) — no scenario
+       reaches them yet (3, the order customer FUN_004639f5, is ported: dungeon3-floors). Who
+       reads the orders it files (work +0x2a5f8) on a later day is unported / unreached. The b524 == 50 story probe:
        Charme's iv3_4 visit verified (dungeon2-run); the other adventurers' scenes and the item
        quest are ported but no recording reaches them.
     6. Guild: Fusion's sim is ported (2026-10-23; the confirm / result modes 5 / 6 unverified —
        no recording fuses yet), its render FUN_00493616 is not; the Sell commit's
-       FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures,
-       FUN_004682ee (bag picker's first-wearable tab); FUN_0044ba2c's `mode` argument
+       FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures; FUN_0044ba2c's `mode` argument
        (what runs at a dialogue's end) is not modeled.
     7. "Now Loading" on a dialogue's arm frame: retail draws the disc (gate 2 →
        DAT_06a49960) at f11003 of buy-from-seller-guild-intro, the port does not — sim.c
@@ -267,7 +274,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   each: portsave ×11 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep,
   debt-week1-paid, dungeon1-clear, dungeon2-run2 / -run3), portanchors ×2, portrng over 12
   shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
-  dungeon1-run / -run2 / -deep / -charme / -clear, dungeon2-run / -run2 / -run3, adv-guild-pack-leave,
+  dungeon1-run / -run2 / -deep / -charme / -clear, dungeon2-run / -run2 / -run3, dungeon3-run /
+  -run2 / -floors (+ portsave dungeon3-run2-save / -floors), adv-guild-pack-leave,
   tear-lectures-gameover, debt-week1-paid, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
@@ -308,12 +316,12 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record dungeon 2's floors from the pix save** (unblocks dungeon 2's enemies, traps, events,
-  Tielle). dungeon3-run / -run2 reached dungeon 2's unlock dialogues but failed day 14's week-2
-  payment. The new start save is dungeon3-run2's day-14 afternoon (slot 18) with 9,999,999 pix: on
-  maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record
-  dungeon3-floors --save 3b368d9d`. Load the newest slot (18, Day 15); finish the day (the payment
-  passes), buy what helps, play days until dungeon 2 opens, then guild → dungeon 2: every enemy kind, a chest, an item from the
-  pause menu (incl. Equip), a Fusion (the guild's confirm / result screens are unverified), the
-  exit or the boss, home, save. Several shorter recordings are fine (each `--from` the last).
+- **Record dungeon 2's deeper floors** (unblocks Ohm 67 on 10F, the knights / ropers / pumpkins of
+  6F..20F, the crabs 68 / 69 on 20F, Tielle 27 on 30F — all ported unverified). Start from the
+  save dungeon3-floors ends with (cached, so the game starts at once): on maximus, the user plays
+  on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon3-deep --from
+  dungeon3-floors`. Load the newest slot; guild → dungeon 2 as far as it goes (the 10F boss, then
+  15F / 20F if possible); a Fusion and the pause Equip on the way (both unverified); home, save.
+  Another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
+  start `--from` the last (cached end saves: no replay).
 <!-- FRONT:END -->

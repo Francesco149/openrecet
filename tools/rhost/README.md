@@ -62,6 +62,12 @@ and portrng counts them in tick N, as the port does. Caveat: a port caller reach
 through a sibling-call (tail) jump is reported as its caller's caller (e.g. `sim_step_a`).
 `--hook shadow:floor_layout` / `shadow:actor_spawn_reset` compare FUN_0047df4d /
 FUN_0041f252 table by table (both in `verify`).
+Every port run (portrng / portsave / portstate / portblock / portshots) also fetches the
+port's stderr as `port/port.err` and prints its failure lines (`port stderr: …`): failed asset
+loads, det-loads thread failures, and the `mem:` probe (src/mem_probe.c, every 5000 frames and
+per stage load: used address space by kind, threads, each heap, the live textures with the most
+duplicated names) — a leak shows up there long before the 32-bit port runs out of address space.
+A trace replay runs to its last op + `--tail` (the frame cap is a 2,000,000-frame backstop).
 Results land in `/mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/` (`rhost.log`, last
 line `RESULT key=value…`). The driver builds + stages automatically, rebuilding
 rhost.exe when tools/rhost or src sources change; `run --dump-at F,..` fetches the

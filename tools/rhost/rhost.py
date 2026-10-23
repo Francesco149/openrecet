@@ -542,7 +542,8 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
           f"Get-ChildItem {WROOT}\\game | % {{ if ($_.PSIsContainer) {{ cmd /c mklink /J \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} "
           f"else {{ cmd /c mklink /H \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} }} }}",
           f"Set-Location {WROOT}\\portcwd",
-          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ") -Wait -PassThru",
+          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ")"
+          f" -RedirectStandardError '{pw}\\port.err' -Wait -PassThru",
           "\"port exit=$($p.ExitCode)\"",
           f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
     open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
@@ -553,8 +554,16 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
     scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/port/recet.ini")
     scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
     print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
-    for f in ("anchors.jsonl", *fetch):
+    for f in ("anchors.jsonl", "port.err", *fetch):
         scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f))
+    # the port's stderr: surface its failure lines (a failed load / thread shows up here, not in the state)
+    err = os.path.join(pdir_l, "port.err")
+    bad = [l.rstrip() for l in open(err, errors="replace")
+           if re.search(r"(?i)fail|error|overflow|cannot|missing", l)] if os.path.exists(err) else []
+    for l in bad[:8]:
+        print("port stderr: " + l[:200])
+    if len(bad) > 8:
+        print(f"port stderr: … {len(bad) - 8} more failure lines in {err}")
     return pdir_l
 
 
@@ -780,7 +789,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "multiday-tutorials-suggest", "buy-from-seller-guild-intro",
                                       "dungeon0-floors-save", "dungeon0-full", "dungeon1-run2", "dungeon1-deep",
                                       "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3",
-                                      "dungeon3-run2-save")]
+                                      "dungeon3-run2-save", "dungeon3-floors")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
@@ -790,7 +799,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon0-wipe", "dungeon1-run", "dungeon1-run2", "dungeon1-deep",
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
                                       "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
-                                      "dungeon3-run", "dungeon3-run2")])
+                                      "dungeon3-run", "dungeon3-run2", "dungeon3-floors")])
 
 
 def cmd_gates(a):

@@ -608,7 +608,9 @@ static void parse(int argc, char **argv)
     static char rec_abs[MAX_PATH], flat_abs[MAX_PATH];
     if (O.record && !strchr(O.record, ':') && O.record[0] != '\\') { snprintf(rec_abs, sizeof rec_abs, "%s\\%s", O.rundir, O.record); O.record = rec_abs; }
     if (O.flatten && !strchr(O.flatten, ':') && O.flatten[0] != '\\') { snprintf(flat_abs, sizeof flat_abs, "%s\\%s", O.rundir, O.flatten); O.flatten = flat_abs; }
-    if (!O.frames) O.frames = O.record ? 0xfffffff0u : (O.trace || O.masks) ? 120000u : 3000u;
+    /* a flat trace / mask script ends itself (its last op + --tail); an anchor trace's wait
+     * segment stalls out (--stall-ms): the cap is only a backstop (dungeon3-floors: 199,626 f) */
+    if (!O.frames) O.frames = O.record ? 0xfffffff0u : (O.trace || O.masks) ? 2000000u : 3000u;
 }
 
 static void load_volatile(void)
