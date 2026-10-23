@@ -101,6 +101,7 @@ int display_menu_dbg_va(uint32_t va, int32_t *out);   /* state_va: DAT_0734b96c 
  * display_menu_open / _update; -1 before the first recount. */
 int display_menu_possessed(void);
 void display_menu_possessed_invalidate(void);   /* DAT_005c6ee4 = -1 */
+void display_menu_set_possessed(int n);        /* DAT_005c6ee4 = n (FUN_004916a7) */
 
 /* FUN_00468286(item): highlight `item` (DAT_0734b998) and recount the
  * "Number possessed" DAT_005c6ee4. */
@@ -182,6 +183,9 @@ struct IDirect3DDevice8;
  * sub_anim*64 for the pause Items submenu (FUN_0048196b), which slides the grid
  * in from the right as the submenu opens (sub_anim 0→10 ⇒ slide_x 640→0). */
 void display_menu_render(struct IDirect3DDevice8 *dev, float slide_x);
+/* FUN_00469b3a(x0, 0): the bottom description panel alone (the guild's Fusion
+ * screen draws it at its own slide x) */
+void display_menu_description_draw(struct IDirect3DDevice8 *dev, float x0);
 #endif
 
 #endif /* OPENRECET_SCENE1_DISPLAY_MENU_H */

@@ -42,6 +42,7 @@
 #include "save_work.h"
 #include "scene.h"
 #include "scene_adv_guild.h"
+#include "scene_guild.h"
 #include "scene_town_event.h"
 #include "scene_day_end.h"
 #include "scene_gameover.h"
@@ -473,6 +474,7 @@ static const int32_t *layout_dword(uint32_t va)
         return &g_scene1_records_b[(va - 0x69324b0u) / 4];
     if (va >= 0x6956cb0u && va < 0x6956cb0u + 4u * SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE)
         return &g_scene1_records_c[(va - 0x6956cb0u) / 4];
+    if (scene_guild_dbg_va(va)) return scene_guild_dbg_va(va);
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;
     return NULL;

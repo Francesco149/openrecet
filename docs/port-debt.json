@@ -128,7 +128,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 800,
+   "line": 803,
    "kind_known": false
   },
   {
@@ -144,7 +144,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "the menu, note, lecture and",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1513,
+   "line": 1623,
    "kind_known": false
   },
   {
@@ -168,7 +168,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2093,
+   "line": 2203,
    "kind_known": false
   },
   {
@@ -312,7 +312,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 3477,
+   "line": 3782,
    "kind_known": true
   },
   {
@@ -320,7 +320,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 3434,
+   "line": 3739,
    "kind_known": true
   },
   {
@@ -328,7 +328,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 3030,
+   "line": 3335,
    "kind_known": true
   },
   {
@@ -344,7 +344,7 @@
    "engine_fn": "FUN_00430c6d",
    "desc": "the golem parts (types 62 / 63 / 65 / 66)",
    "file": "src/actor_ai.c",
-   "line": 3487,
+   "line": 3792,
    "kind_known": true
   },
   {
@@ -360,7 +360,7 @@
    "engine_fn": "FUN_00434ceb",
    "desc": "the message box is unported.",
    "file": "src/scene_guild.c",
-   "line": 397,
+   "line": 459,
    "kind_known": true
   },
   {
@@ -376,7 +376,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the \u22642f ticker-arm skew at the iv2 beat release).",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2117,
+   "line": 2227,
    "kind_known": true
   },
   {
@@ -496,7 +496,7 @@
    "engine_fn": "FUN_00468fd0",
    "desc": "the removal is unported,",
    "file": "src/scene_guild.c",
-   "line": 440,
+   "line": 502,
    "kind_known": true
   },
   {
@@ -504,7 +504,7 @@
    "engine_fn": "FUN_00469b3a",
    "desc": "the description-panel price-status line (Price Up/Down/\u2026) is unported; the scene-6 trend multipliers are live (cs_news_price_trend).",
    "file": "src/scene1_display_menu.c",
-   "line": 947,
+   "line": 977,
    "kind_known": true
   },
   {
@@ -560,7 +560,7 @@
    "engine_fn": "FUN_0048670f cc04 2",
    "desc": "the furniture-grid mode (cc04 = 2,",
    "file": "src/scene1_player_ctrl.c",
-   "line": 995,
+   "line": 998,
    "kind_known": true
   },
   {
@@ -568,7 +568,7 @@
    "engine_fn": "FUN_0048670f cc08 50",
    "desc": "the faced stand's item",
    "file": "src/scene1_player_ctrl.c",
-   "line": 962,
+   "line": 965,
    "kind_known": true
   },
   {
@@ -664,7 +664,7 @@
    "engine_fn": "FUN_0048e49c",
    "desc": "the",
    "file": "src/scene_day_end.c",
-   "line": 157,
+   "line": 169,
    "kind_known": true
   },
   {
@@ -672,7 +672,7 @@
    "engine_fn": "FUN_0049da9e",
    "desc": "the ending's entry + mode 7 FUN_0049db8a",
    "file": "src/scene_day_end.c",
-   "line": 215,
+   "line": 227,
    "kind_known": true
   }
  ]

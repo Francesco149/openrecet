@@ -99,15 +99,15 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:3477 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:3434 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:3030 | the other types' AI (FUN_0042ce17, |
+| FUN_0042e1a6 | src/actor_ai.c:3782 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:3739 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:3335 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:759 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:3487 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_00430c6d | src/actor_ai.c:3792 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
-| FUN_00434ceb | src/scene_guild.c:397 | the message box is unported. |
+| FUN_00434ceb | src/scene_guild.c:459 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2117 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
+| FUN_00436f97 | src/scene1_player_ctrl.c:2227 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:285 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:321 | dungeon 5's return portal 6 beside |
 | FUN_0043865e | src/record_hit.c:457 | the multi-part anchors |
@@ -122,16 +122,16 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_004682ee | src/scene_adv_guild.c:594 | the tab stays where the open put it. |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
-| FUN_00468fd0 | src/scene_guild.c:440 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:947 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
+| FUN_00468fd0 | src/scene_guild.c:502 | the removal is unported, |
+| FUN_00469b3a | src/scene1_display_menu.c:977 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:656 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:285 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
-| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:995 | the furniture-grid mode (cc04 = 2, |
-| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:962 | the faced stand's item |
+| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:998 | the furniture-grid mode (cc04 = 2, |
+| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:965 | the faced stand's item |
 | FUN_00489e66 | src/dungeon_party.c:705 | the dash (double-tap, db034 / db03c / |
 | FUN_0048a383 | src/record_hit.c:260 | the level-up of s_easydisp |
 | FUN_0048b850 | src/dungeon_party.c:1592 | the water splash after the move (hit |
@@ -143,8 +143,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048cdcc | src/dungeon_party.c:1328 | the skill states 3, 5..8 by char |
 | FUN_0048d5d6 | src/dungeon_party.c:756 | char 42's gauge refill + the random |
 | FUN_0048d5d6 | src/dungeon_party.c:763 | the skill cycle (DAT_0438b7dc, SE 326) |
-| FUN_0048e49c | src/scene_day_end.c:157 | the |
-| FUN_0049da9e | src/scene_day_end.c:215 | the ending's entry + mode 7 FUN_0049db8a |
+| FUN_0048e49c | src/scene_day_end.c:169 | the |
+| FUN_0049da9e | src/scene_day_end.c:227 | the ending's entry + mode 7 FUN_0049db8a |
 
 ## synthetic-data (0)
 
@@ -183,12 +183,12 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:800 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:803 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3175 | types >= 64 read past DAT_005c23f0 into |
-| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1513 | the menu, note, lecture and |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1623 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:523 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2093 | the eye / lookat writes); the |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2203 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1609 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |

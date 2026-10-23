@@ -54,6 +54,9 @@
 #include "worker_load.h"               /* worker_load_spawn (FUN_00452cde)            */
 #include "x87.h"                       /* spill32 / x87_ftol                          */
 #include "customer_service.h"          /* FUN_00465db4's b55c write                    */
+#include "tables_gousei.h"             /* g_gousei — the fusion recipes (DAT_09640650)  */
+#include "guild_fusion.h"              /* FUN_00469118 / FUN_00469155                   */
+#include "scene1_per_frame_open.h"     /* the "Fused" sparkle (FUN_004132c1)            */
 
 #include <stdio.h>                     /* snprintf — the expansion prompt             */
 
@@ -82,6 +85,7 @@
 #define GUILD_TUT_A_OFF          0x2bc61  /* DAT_0450f3f9 — world map: the market lit  */
 #define GUILD_TUT_B_OFF          0x2bc70  /* DAT_0450f408 — world map: home lit        */
 #define W_SCORE_TODAY            0xb0f8   /* today's score (+3 per purchase)           */
+#define GUILD_FUSED_BITS_DWORD   0xb740   /* +0x2dd00 — one bit per recipe fused once  */
 #define W_PERIOD_FLAG            0xb382   /* DAT_045105a0 — the trip home costs a period */
 
 /* Market variant flag (engine DAT_0963c5f0). */
@@ -110,6 +114,9 @@ static struct {
     int c2c;          /* DAT_09642c2c — the first Leave: fade → iv1_16      */
     int f_cursor;     /* DAT_09642c30 — fusion recipe cursor               */
     int f_scroll;     /* DAT_09642c34 — fusion recipe scroll               */
+    int f_count;      /* DAT_09642bf4 — recipes listed (rank vs store level) */
+    int f_fx;         /* DAT_09642bfc — the "Fused" banner timer (mode 6)    */
+    int f_plus;       /* DAT_09642bf8 — the fused item's + (15 − FUN_00469155) */
     int entries[8];   /* _DAT_09640624 — per-row option type codes         */
     int count;        /* DAT_005cfab4  — option count                      */
 
@@ -126,6 +133,30 @@ static struct {
     int unit_price;   /* DAT_09642c60 — per-unit price                      */
     int item_rec;     /* DAT_09642c58 — item-DB record (name lookup)        */
 } s_menu;
+
+/* --state-va mirror: the DAT_09642cXX block, DAT_0963c5f0 and the overlay's
+ * Yes/No + flash words, by engine VA. */
+const int32_t *scene_guild_dbg_va(uint32_t va)
+{
+    switch (va) {
+    case 0x9642c00u: return &s_menu.mode;        case 0x9642c04u: return &s_menu.cursor;
+    case 0x9642c08u: return &s_menu.scroll;      case 0x9642c0cu: return &s_menu.item_scroll;
+    case 0x9642c10u: return &s_menu.item_cursor; case 0x9642c14u: return &s_menu.c14;
+    case 0x9642c18u: return &s_menu.c18;         case 0x9642c1cu: return &s_menu.sub_anim;
+    case 0x9642c20u: return &s_menu.scroll_anim; case 0x9642c24u: return &s_menu.c24;
+    case 0x9642c28u: return &s_menu.c28;         case 0x9642c2cu: return &s_menu.c2c;
+    case 0x9642c30u: return &s_menu.f_cursor;    case 0x9642c34u: return &s_menu.f_scroll;
+    case 0x9642c38u: return &s_menu.entry_tick;  case 0x9642c3cu: return &s_menu.transition;
+    case 0x9642c40u: return &s_menu.bubble;      case 0x9642c48u: return &s_menu.bob;
+    case 0x9642c4cu: return &s_menu.text_timer;  case 0x9642c50u: return &s_menu.ov_slide;
+    case 0x9642c5cu: return &s_menu.qty;         case 0x9642c60u: return &s_menu.unit_price;
+    case 0x9640600u: return &s_menu.yn_cursor;   case 0x96405fcu: return &s_menu.flash_ctr;
+    case 0x96405f8u: return &s_menu.flash_kind;  case 0x963c5f0u: return &s_variant;
+    case 0x9642bf4u: return &s_menu.f_count;     case 0x9642bfcu: return &s_menu.f_fx;
+    case 0x9642bf8u: return &s_menu.f_plus;
+    default:         return NULL;
+    }
+}
 
 void scene_guild_set_variant(int v) { s_variant = v; }
 int  scene_guild_variant(void)      { return s_variant; }
@@ -206,10 +237,22 @@ void scene_guild_enter_reset(void)
     s_menu.c18         = 0;
     s_menu.scroll_anim = 0;          /* DAT_09642c20 */
     s_menu.c24         = 0;
+    s_menu.f_fx        = 0;          /* DAT_09642bfc */
     scene_guild_build_table();       /* FUN_004918b0 */
-    /* DAT_09642bf4 (the fusion recipe count from DAT_09642bf0 + merchant
-     * level), DAT_005cfab8 = 1, DAT_09642c44 = 0, DAT_09642bfc = 0 —
-     * PORT-DEBT(guild-fusion). */
+    /* DAT_09642bf4: the recipes whose rank the store level allows — rank 1
+     * from level 4, <= 2 from 12, <= 3 from 18, <= 4 from 24, <= 5 from 29
+     * (the list is the table's first f_count rows; gousei.txt is in rank
+     * order).  DAT_005cfab8 = 1 / DAT_09642c44 = 0 have no port reader. */
+    s_menu.f_count = 0;
+    if (bank != NULL) {
+        const int lv = (int32_t)bank[GUILD_STORE_LEVEL_DWORD];
+        for (int k = 0; k < g_gousei.count; k++) {
+            const int r = g_gousei.records[k].rank;
+            if (lv >= 29 ? r <= 5 : lv >= 24 ? r <= 4 : lv >= 18 ? r <= 3 :
+                lv >= 12 ? r <= 2 : lv >= 4 && r == 1)
+                s_menu.f_count++;
+        }
+    }
     s_menu.qty = s_menu.max_qty = s_menu.unit_price = s_menu.item_rec = 0;
     s_menu.up_bob = s_menu.dn_bob = 0;
 
@@ -232,15 +275,34 @@ static void guild_open_item_window(int type)
     }
 }
 
+static int guild_fused(const uint32_t *bank, int r)
+{
+    return (int)((bank[GUILD_FUSED_BITS_DWORD + r / 32] >> (r % 32)) & 1u);
+}
+
+/* FUN_004916a7: the recipe under the cursor → the item window's description
+ * panel (the output item once fused, else the -6 "unknown" entry) and the
+ * "Number possessed" count of the output. */
+static void guild_fusion_highlight(const uint32_t *bank)
+{
+    const gousei_record_t *g = &g_gousei.records[s_menu.f_cursor];
+    const int id = g_item.records[g->output_id].item_id;
+    display_menu_set_highlight(guild_fused(bank, s_menu.f_cursor) ? id << 6 : -6);
+    display_menu_detail_open(1);                             /* FUN_004681db(1) */
+    display_menu_set_possessed(guild_count_item(bank, id));
+}
+
 /* FUN_0049161d — the unpause hook (FUN_00453384, mode 6): the item window's
- * scroll / cursor back (it was rebuilt by FUN_00468338), the qty overlay's
- * Yes/No cursor, the price multiplier.
- * PORT-DEBT(guild-fusion): the Fusion row's re-highlight (FUN_004916a7). */
+ * scroll / cursor back (it was rebuilt by FUN_00468338), the Fusion row's
+ * re-highlight, the qty overlay's Yes/No cursor, the price multiplier. */
 void scene_guild_unpause(void)
 {
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     if (stage_load_pulse_get_active())                       /* FUN_004682bf */
         display_menu_state_restore();                         /* FUN_00468131 */
-    if (s_menu.ov_slide > 0)                                  /* DAT_09642c50 */
+    if (s_menu.entries[s_menu.cursor] == 3 && bank != NULL)
+        guild_fusion_highlight(bank);                         /* FUN_004916a7 */
+    if (s_menu.ov_slide > 0)                                 /* DAT_09642c50 */
         title_save_dialog_cursor_snap((float)(96 * s_menu.yn_cursor) + 340.0f, 252.0f);
     display_menu_set_price_mult(s_menu.entries[s_menu.cursor] != 0 ? 0.3f : 0.7f);
 }
@@ -790,12 +852,6 @@ void scene_guild_sim(void)
             if (v73 != 4 && v73 != 5) {                  /* A: open the option */
                 if (v73 == 2) {
                     s_menu.sub_anim = 1;
-                } else if (v73 == 3) {
-                    /* Fusion — PORT-DEBT(guild-fusion): the recipe list
-                     * (FUN_004916a7 / 00469155 / 00469118, modes 5/6) is
-                     * unported; the option stays shut. */
-                    guild_cursor_tail(1, v70, v71, v69);
-                    return;
                 } else {
                     if (v73 == 6 && (int32_t)bank[SAVE_BANK_FIELD_GOLD]
                                     < k_expand_cost[(int32_t)bank[GUILD_TIER_DWORD] & 3]) {
@@ -842,17 +898,131 @@ void scene_guild_sim(void)
         title_save_dialog_cursor_set_visible(1);
         return;
     }
-    case 5:
-    case 6:
-        /* the fusion confirm / result — PORT-DEBT(guild-fusion). */
+    case 6: {   /* ── "Fused": the banner grows for 60 ticks, A, 14 ticks out ── */
+        if (s_menu.f_fx < 60 && ++s_menu.f_fx == 2) {
+            scene1_pfo_table_a_alloc_projected(304.0f, 144.0f, 7, 1.0f, -1, 4);
+            audio_play_se_by_id(0x17b);
+        }
+        if (s_menu.f_fx == 60) {
+            if ((pressed & 0x10u) == 0)
+                return;
+            s_menu.f_fx = 61;
+            audio_play_se_by_id(0x174);
+            title_save_dialog_cursor_set_visible(1);
+            title_save_dialog_cursor_snap(92.0f, (float)(s_menu.f_cursor - s_menu.f_scroll) * 32.0f + 148.0f);
+        }
+        if (s_menu.f_fx > 60 && ++s_menu.f_fx == 75) {
+            s_menu.f_fx = 0;
+            s_menu.mode = 0;
+        }
         return;
+    }
+    case 5: {   /* ── "Fusing X. Continue?" ── */
+        const int r = choice_box_poll(pressed, 0);       /* FUN_00434ed2(0) */
+        if (r == 1) {
+            s_menu.f_fx = 0;
+            s_menu.mode = 6;
+            title_save_dialog_cursor_set_visible(0);
+            const gousei_record_t *g = &g_gousei.records[s_menu.f_cursor];
+            int plus = 15;
+            for (int k = 0; k < 3; k++)
+                if (g->ingredient_id[k] != -1)
+                    plus = guild_consume_item(bank, g_item.records[g->ingredient_id[k]].item_id,
+                                              g->ingredient_count[k], plus);
+            s_menu.f_plus = 15 - plus;
+            bank[GUILD_FUSED_BITS_DWORD + s_menu.f_cursor / 32] |= 1u << (s_menu.f_cursor % 32);
+            display_menu_inventory_return(bank, s_menu.f_plus + (g_item.records[g->output_id].item_id << 6));
+            guild_fusion_highlight(bank);                /* FUN_004916a7 */
+            return;
+        }
+        if (r != 2)
+            return;
+        s_menu.mode = 0;
+        guild_cursor_tail(1, 0, 1, v69);
+        return;
+    }
     default:
         break;   /* mode 3 is never set (dead in retail) */
     }
 
+    /* ── mode 0, Fusion: the recipe list ── */
+    if (v73 == 3) {
+        if ((pressed & 0x40u) != 0) {
+            /* nothing */
+        } else if ((pressed & 0x20u) != 0) {             /* B: back to the menu */
+            s_menu.mode = 1;
+            v70 = 1;
+            s_menu.c18 = 1;
+            display_menu_detail_close();                 /* FUN_004681d3 */
+            audio_play_se_by_id(0x13d);
+        } else if ((pressed & 0x10u) != 0) {             /* A: all three ingredients held? */
+            const gousei_record_t *g = &g_gousei.records[s_menu.f_cursor];
+            int ok = 1;
+            for (int k = 0; k < 3; k++)
+                if (g->ingredient_id[k] != -1 &&
+                    guild_count_item(bank, g_item.records[g->ingredient_id[k]].item_id) < g->ingredient_count[k])
+                    ok = 0;
+            if (!ok) {
+                audio_play_se_by_id(0x16a);
+            } else {
+                /* never fused: the name of the nearest entry above with price -1 */
+                int out = g->output_id;
+                if (!guild_fused(bank, s_menu.f_cursor))
+                    while (g_item.records[out].price != -1 && (--out, out > 0)) {}
+                char msg[256];
+                snprintf(msg, sizeof msg, "Fusing %s.<BR>Continue?", g_item.records[out].singular);
+                choice_box_open(msg, 1, 0);              /* FUN_00434def */
+                s_menu.mode = 5;
+                audio_play_se_by_id(0x143);
+            }
+        } else if (held & 0x04u) {
+            if (s_menu.f_cursor > 0) {
+                audio_play_se_by_id(0x146);
+                v71 = 1;
+                if (--s_menu.f_cursor - s_menu.f_scroll < 0)
+                    s_menu.f_scroll--;
+            }
+        } else if (held & 0x08u) {
+            if (s_menu.f_cursor < s_menu.f_count - 1) {
+                audio_play_se_by_id(0x146);
+                v71 = 1;
+                if (++s_menu.f_cursor - s_menu.f_scroll > 5)
+                    s_menu.f_scroll++;
+            }
+        } else if (held & 0x02u) {                       /* a page up */
+            if (s_menu.f_cursor > 0) {
+                audio_play_se_by_id(0x146);
+                s_menu.f_cursor -= 6;
+                if (s_menu.f_cursor - s_menu.f_scroll < 0)
+                    s_menu.f_scroll -= 6;
+                v71 = 1;
+            }
+            if (s_menu.f_cursor < 0)
+                s_menu.f_cursor = 0;
+            if (s_menu.f_scroll < 0)
+                s_menu.f_scroll = 0;
+        } else if (held & 0x01u) {                       /* a page down */
+            const int last = s_menu.f_count - 1;
+            if (s_menu.f_cursor < last) {
+                audio_play_se_by_id(0x146);
+                s_menu.f_cursor += 6;
+                if (s_menu.f_cursor - s_menu.f_scroll > 5)
+                    s_menu.f_scroll += 6;
+                v71 = 1;
+            }
+            if (s_menu.f_cursor >= last)
+                s_menu.f_cursor = last;
+            if (s_menu.f_scroll >= s_menu.f_count - 6)
+                s_menu.f_scroll = s_menu.f_count - 6;
+        }
+        guild_fusion_highlight(bank);                    /* FUN_004916a7 */
+        if ((pressed & 0x20u) != 0)
+            display_menu_detail_close();
+        guild_cursor_tail(0, v70, v71, v69);
+        return;
+    }
+
     /* ── mode 0: the shared item window (Buy / Sell) ── */
-    if (v73 == 3)
-        return;   /* the fusion list — PORT-DEBT(guild-fusion) */
     display_menu_set_price_mult(v73 == 0 ? 0.7f : 0.3f); /* FUN_004682d8 */
     const int r = display_menu_update(1);                /* FUN_00469414(1) */
     if (r == 2) {                                        /* B: back to the menu */
@@ -948,7 +1118,7 @@ static const struct { const char *path; uint32_t w, h; }
 g_scene_guild_assets[SCENE_GUILD_TEX_COUNT] = {
     [SCENE_GUILD_TEX_BG]      = { "bmp/ivent/bg_guild.bmp",     0x400, 0x200 },
     [SCENE_GUILD_TEX_KEEPER]  = { "bmp/ivent/13syounin_01.tga", 0x200, 0x200 },
-    [SCENE_GUILD_TEX_BORD]    = { "bmp/result/bord01.tga",      0x200, 0x100 },
+    [SCENE_GUILD_TEX_BORD]    = { "bmp/result_bord01.tga",      0x200, 0x100 },
     [SCENE_GUILD_TEX_CHRNAME] = { "bmp/ivent/chrname.tga",      0x200, 0x200 },
     [SCENE_GUILD_TEX_LEVEWIN] = { "bmp/leve_win.tga",           0x200, 0x100 },
     [SCENE_GUILD_TEX_SHOPMODE] = { "bmp/shopmode.tga",          0x400, 0x200 },
@@ -984,10 +1154,175 @@ static void scene_guild_bind_add(IDirect3DDevice8 *d, const sprite_t *s,
     render_quad_flush(d);
 }
 
+/* FUN_0048edee / FUN_0048ee77 — the item_win scroll arrows centred on (x, y) */
+static void guild_arrow(IDirect3DDevice8 *d, float x, float y, int down)
+{
+    const float dst[4] = { x - 32.0f, y - 24.0f, 64.0f, 48.0f };
+    const float src[4] = { down ? 512.0f : 448.0f, 896.0f, down ? 576.0f : 512.0f, 944.0f };
+    scene_guild_bind_add(d, &g_sysassets.item_win_tga, dst, src, 0xff7f7f7fu, 0);
+}
+
+/* item-DB record `slot`'s category ordinal as FUN_00493616 counts it: the
+ * category runs among records [0, slot) less one */
+static int guild_cat_ordinal(int slot)
+{
+    int ord = -1, last = -1;
+    for (int i = 0; i < slot; i++)
+        if (last != g_item.records[i].category) {
+            last = g_item.records[i].category;
+            ord++;
+        }
+    return ord;
+}
+
+/* the ingredient is in the encyclopedia (bank +0x279df + 72·ordinal + subindex) */
+static int guild_ing_seen(const uint8_t *bb, int slot)
+{
+    return bb[0x279df + 72 * guild_cat_ordinal(slot) + g_item.records[slot].subindex] != 0;
+}
+
+/* the nearest record at or above `slot` with price -1 (a category placeholder) */
+static int guild_placeholder(int slot)
+{
+    while (g_item.records[slot].price != -1 && (--slot, slot > 0)) {}
+    return slot;
+}
+
+static void guild_item_icon(IDirect3DDevice8 *d, int slot, float x, float y, float w, float h, uint32_t col)
+{
+    const item_record_t *it = &g_item.records[slot];
+    if (it->category < 0 || it->category >= SYSASSETS_ITEM_CATEGORIES)
+        return;
+    const sprite_t *ic = &g_sysassets.item_icons[it->category];
+    const float u = (float)(it->subindex % 8) * 32.0f, v = (float)(it->subindex / 8) * 32.0f;
+    const float dst[4] = { x, y, w, h };
+    const float src[4] = { u, v, u + 32.0f, v + 32.0f };
+    scene_guild_bind_add(d, ic, dst, src, col, 0);
+}
+
+/* FUN_00493616 — the Fusion screen (drawn while the main cursor is on Fusion;
+ * off-screen right until c20 passes 15): the description panel, the "Fusion
+ * Result" column (6 recipes; green when every ingredient is held, grey 95 when
+ * one is not in the encyclopedia; "Rank N <placeholder>" until fused) and the
+ * "Ingredients" column for the cursor's recipe ("Req: (n) Pos: (n)", red "More
+ * required."), then the "Fused" banner while DAT_09642bfc runs */
+static void scene_guild_fusion_render(IDirect3DDevice8 *d)
+{
+    static const char *const k_col[2] = { "Fusion Result", "Ingredients" };
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || g_gousei.count == 0)
+        return;
+    const uint8_t *bb = (const uint8_t *)bank;
+    float x0 = 640.0f;
+    if (s_menu.scroll_anim > 15)
+        x0 = (float)((15 - s_menu.scroll_anim) << 6) + 640.0f;
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    display_menu_description_draw(d, x0);                        /* FUN_00469b3a(x0, 0) */
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    const sprite_t *bord = &g_scene_guild[SCENE_GUILD_TEX_BORD];
+    for (int col = 0; col < 2; col++) {
+        const float cx = (float)col * 264.0f + x0 + 88.0f;
+        {
+            const float dst[4] = { cx, 96.0f, 256.0f, 256.0f };
+            const float src[4] = { 0.0f, 0.0f, 224.0f, 224.0f };
+            scene_guild_bind_add(d, bord, dst, src, 0xff7f7f7fu, 0);
+        }
+        {
+            const float dst[4] = { cx + 34.0f, 56.0f, 188.0f, 64.0f };
+            const float src[4] = { 224.0f, 64.0f, 412.0f, 128.0f };
+            scene_guild_bind_add(d, bord, dst, src, 0xff7f7f7fu, 0);
+        }
+        font_draw_text_centered(d, cx + 128.0f, 78.0f, k_col[col], 0xff7f7f7fu, 1.0f);
+        if (col == 0) {
+            if (s_menu.f_scroll > 0)
+                guild_arrow(d, cx + 40.0f, 112.0f, 0);                   /* FUN_0048edee */
+            if (s_menu.f_scroll < s_menu.f_count - 6)
+                guild_arrow(d, cx + 40.0f, 336.0f, 1);                   /* FUN_0048ee77 */
+            for (int row = 0; row < 6; row++) {
+                const int r = row + s_menu.f_scroll;
+                const gousei_record_t *g = &g_gousei.records[r];
+                int can = 1, seen = 1;
+                for (int k = 0; k < 3; k++) {
+                    if (g->ingredient_id[k] == -1)
+                        continue;
+                    if (guild_count_item(bank, g_item.records[g->ingredient_id[k]].item_id) < g->ingredient_count[k])
+                        can = 0;
+                    if (!guild_ing_seen(bb, g->ingredient_id[k]))
+                        seen = 0;
+                }
+                uint32_t c = can ? 0xff7fdf7fu : 0xff7f7f7fu;
+                if (!seen)
+                    c = 0xff5f5f5fu;
+                char buf[256];
+                const char *name;
+                if (guild_fused(bank, r)) {
+                    name = g_item.records[g->output_id].singular;
+                } else {
+                    snprintf(buf, sizeof buf, "Rank %d %s", g->rank,
+                             g_item.records[guild_placeholder(g->output_id)].singular);
+                    name = buf;
+                }
+                font_draw_text(d, cx + 48.0f, (float)(row * 32) + 128.0f + 12.0f, name, c, 0.76923078f);
+            }
+        } else {
+            const gousei_record_t *g = &g_gousei.records[s_menu.f_cursor];
+            const float tx = cx + 56.0f;
+            float y = 120.0f;
+            for (int k = 0; k < 3; k++) {
+                int slot = g->ingredient_id[k];
+                if (slot == -1)
+                    continue;
+                const int have = guild_count_item(bank, g_item.records[slot].item_id);
+                const int grey = have < g->ingredient_count[k] ? 96 : 127;
+                if (!guild_ing_seen(bb, slot))
+                    slot = guild_placeholder(slot);
+                const uint32_t c = 0xff000000u | (uint32_t)grey * 0x10101u;
+                guild_item_icon(d, slot, tx - 28.0f, y, 32.0f, 32.0f, c);
+                font_draw_text(d, tx, y + 12.0f, g_item.records[slot].singular, c, 0.76923078f);
+                y += 20.0f;
+                char buf[64];
+                snprintf(buf, sizeof buf, "Req: (%d) Pos: (%d)", g->ingredient_count[k], have);
+                font_draw_text(d, tx, y + 12.0f, buf, c, 0.76923078f);
+                y += 20.0f;
+                if (grey != 127) {
+                    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADD);
+                    font_draw_text_centered(d, tx + 64.0f, y + 12.0f, "More required.", 0xffff0000u, 0.76923078f);
+                    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+                }
+                y += 28.0f;
+            }
+        }
+    }
+    if (s_menu.f_fx > 0) {
+        const gousei_record_t *g = &g_gousei.records[s_menu.f_cursor];
+        float s = 1.0f;
+        if (s_menu.f_fx < 15)
+            s = sinf((float)s_menu.f_fx * 1.5707964f / 15.0f);
+        float x = 320.0f;
+        if (s_menu.f_fx > 60)
+            x = 320.0f - (float)(8 * (5 * s_menu.f_fx - 300));
+        {
+            const float dst[4] = { x - s * 128.0f, 128.0f - s * 32.0f, s * 256.0f, s * 128.0f };
+            const float src[4] = { 0.0f, 0.0f, 224.0f, 224.0f };
+            scene_guild_bind_add(d, bord, dst, src, 0xff7f7f7fu, 0);
+        }
+        guild_item_icon(d, g->output_id, x - s * 16.0f, 128.0f - s * 16.0f, s * 32.0f, s * 32.0f, 0xff7f7f7fu);
+        const float ts = s * 0.76923078f, tx = x - s * 64.0f;
+        font_draw_text(d, tx, s * 32.0f + 128.0f, "Fused", 0xff7f7f7fu, ts);
+        char buf[160];
+        if (s_menu.f_plus <= 0)
+            snprintf(buf, sizeof buf, "%s!", g_item.records[g->output_id].singular);
+        else
+            snprintf(buf, sizeof buf, "%s+%d!", g_item.records[g->output_id].singular, s_menu.f_plus);
+        font_draw_text(d, tx, s * 48.0f + 128.0f, buf, 0xff7f7f7fu, ts);
+    }
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+}
+
 /* ─── the menu UI (FUN_0049404b) ────────────────────────────────────────────
  * Panel frame + option list + guildmaster speech bubble.  The buy/sell-confirm
- * overlay (FUN_00491de0, gated DAT_09642c50>0), the Talk submenu (mode 2) and
- * the Fusion sub-screen (FUN_00493616) are PORT-DEBT(guild-menu-nav). */
+ * overlay (FUN_00491de0, gated DAT_09642c50>0) is drawn by the caller; the Talk
+ * submenu (mode 2) and the Fusion screen (FUN_00493616) here. */
 static void scene_guild_menu_render(IDirect3DDevice8 *d)
 {
     /* slot: the panel-frame width origin (DAT_0734b98c-style slide); at rest
@@ -1081,8 +1416,11 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
     /* ── Talk submenu rows (DAT_09642c00 == 2, all.c:96034-96090) ───────────────
      * 6 visible topic rows sliding in from the right (rx = panel_x+280 − slide,
      * fading in by alpha=(c1c−0xf)·0x34), the cursor row larger, a per-topic "New"
-     * badge on unseen topics, and a single up/down scroll arrow (item_win.tga). */
-    if (s_menu.mode == 2) {
+     * badge on unseen topics, and a single up/down scroll arrow (item_win.tga).
+     * With the cursor on Fusion the Fusion screen draws instead (0x494267). */
+    if (s_menu.entries[s_menu.cursor] == 3) {
+        scene_guild_fusion_render(d);                    /* FUN_00493616 */
+    } else if (s_menu.mode == 2) {
         IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
 
         const int c1c = s_menu.sub_anim;

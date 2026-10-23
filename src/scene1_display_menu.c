@@ -232,6 +232,7 @@ static void display_menu_recount(void)
 
 int display_menu_possessed(void) { return s_possessed; }
 void display_menu_possessed_invalidate(void) { s_possessed = -1; }
+void display_menu_set_possessed(int n) { s_possessed = n; }
 
 /* FUN_00468286 — highlight `item` (DAT_0734b998) + recount DAT_005c6ee4. */
 void display_menu_set_highlight(int item)
@@ -945,7 +946,7 @@ int  display_menu_full(void)    { return s_full; }
  * stays 0 (no vertical slide).  All text is white (DAT_005c7184=0xffffffff) at
  * scale 0.8 (0x3f4ccccd).
  * PORT-DEBT(stub, FUN_00469b3a): the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). */
-static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
+void display_menu_description_draw(IDirect3DDevice8 *dev, float x0)
 {
     const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
     if (win->tex == NULL)
@@ -1444,7 +1445,7 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
      * highlighted item's desc/price/possessed (C4b-4a).  Rides x0 (= retail's
      * dropped param_1) so it slides with the menu on open/close. */
-    display_menu_description_render(dev, x0);
+    display_menu_description_draw(dev, x0);
 
     /* "Button 3: Item Details" control hint (FUN_0046b00a tail, all.c:66843):
      * a baked data_win.tga strip src(288,320,488,352) at fixed dst(440,440,

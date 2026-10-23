@@ -35,7 +35,7 @@ struct IDirect3DDevice8;
 enum {
     SCENE_GUILD_TEX_BG = 0,    /* DAT_073da000 — bmp/ivent/bg_guild.bmp     (1024x512) */
     SCENE_GUILD_TEX_KEEPER,    /* DAT_073da010 — bmp/ivent/13syounin_01.tga ( 512x512) */
-    SCENE_GUILD_TEX_BORD,      /* DAT_073da020 — bmp/result/bord01.tga      ( 512x256) */
+    SCENE_GUILD_TEX_BORD,      /* DAT_073da020 — bmp/result_bord01.tga      ( 512x256) */
     SCENE_GUILD_TEX_CHRNAME,   /* DAT_073cc8d0 — bmp/ivent/chrname.tga      ( 512x512) name tags */
     SCENE_GUILD_TEX_LEVEWIN,   /* DAT_073d9ff0 — bmp/leve_win.tga           ( 512x256) (level-up win) */
     SCENE_GUILD_TEX_SHOPMODE,  /* DAT_073a9580 — bmp/shopmode.tga           (1024x512) bubble/arrows */
@@ -53,6 +53,9 @@ int  scene_guild_variant(void);
  * scene-init FUN_0049174e).  Called by the worker-load cb on scene entry; the
  * first-visit cutscene fires on the 2nd tick after this. */
 void scene_guild_enter_reset(void);
+
+/* --state-va: the port field mirroring guild-state VA `va`, or NULL. */
+const int32_t *scene_guild_dbg_va(uint32_t va);
 
 /* Per-frame update — port of FUN_00490e24 → FUN_004922c0 (mode-6 event tick).
  * Pure logic (no device): advances the entry-tick counter and arms the

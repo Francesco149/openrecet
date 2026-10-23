@@ -9,6 +9,33 @@
 > update dispatch runs FUN_00406584 + FUN_0040fb3a every mode-6 frame (only the tick
 > waits for a dialogue); the buy price is `ftol(f32(f32(price·0.7f)·trend))`.
 
+> **2026-10-23 — Fusion ported** (`scene_guild.c`; rhost `dungeon3-run2`: every
+> guild VA identical over the whole run, incl. the recipe count (22) and the list
+> browse; the confirm / result modes 5 / 6 are not reached by a recording yet).
+> Retail facts:
+> - The recipe count `DAT_09642bf4` is computed in the scene init FUN_0049174e: the
+>   recipes (gousei.txt, rank order) whose rank the store level (work dword 0xb100)
+>   allows — rank 1 from level 4, ≤2 from 12, ≤3 from 18, ≤4 from 24, ≤5 from 29.
+> - A on the Fusion row = the Buy / Sell slide-out (`c24 = c20 = 1`); at c24 15
+>   `c30 = c34 = 0`, at 25 mode 0. Mode 0 on Fusion: U/D ±1, L/R ±6 (page; `c34` clamped
+>   to `bf4 − 6`, negative when fewer than 6 recipes — retail's), B back (mode 1, c18,
+>   FUN_004681d3), A checks the first THREE ingredient slots only (FUN_00469118 counts
+>   `item >> 6 == id`), then "Fusing %s.<BR>Continue?" (FUN_00434def(…, 1, 0)), mode 5.
+>   A recipe never fused shows the nearest earlier item-DB entry with price −1 (a
+>   category placeholder) instead of its name. Every tick ends with FUN_004916a7: the
+>   description panel on the output (`id << 6` once fused, else −6), detail open (1),
+>   `DAT_005c6ee4` = how many outputs the bag holds.
+> - Mode 5 Yes: each ingredient through FUN_00469155(id, qty, plus = 15) — per unit
+>   the slot whose + (low nibble) equals `plus`, else the smallest above, else the
+>   largest below; `plus −=` its +, floor 0 — the output gets `+ (15 − plus)`
+>   (`DAT_09642bf8`), the recipe's bit in work +0x2dd00 is set, FUN_00468d22 gives the
+>   item. Mode 6: `bfc` 1→60 (at 2 the table-A burst FUN_004132c1(304,144,7,1,−1,4) +
+>   SE 0x17b — RNG-visible), A at 60 → 61..75 → mode 0.
+> - Render FUN_00493616 (not ported yet: `PORT-DEBT(render-coupled, FUN_00493616)`):
+>   the recipe list ("Rank N <placeholder>" until fused, dimmed when short of
+>   ingredients or an ingredient not in the encyclopedia), the ingredient panel ("Req:
+>   (%d) Pos: (%d)"), the "Fused" banner with "%s+%d!".
+
 Status: **scene shell + first-visit cutscene + post-cutscene MAIN MENU LANDED**
 (`a998fb4` 2026-06-10, `06e9fdf`+`6ea5a3a` 2026-06-11) — the menu (panel/options/HUD/
 bubble/cursor) renders pixel-identical to retail at rest (see "Main menu UI" below). The
