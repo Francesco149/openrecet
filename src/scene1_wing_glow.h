@@ -39,6 +39,9 @@ struct IDirect3DDevice8;
  */
 void scene1_wing_glow_render(struct IDirect3DDevice8 *dev);
 
+/* FUN_004176ff's records-A type-0x75 arm: the dark orbs (scene1_wing_glow.c) */
+void scene1_dark_orbs_render(struct IDirect3DDevice8 *dev);
+
 #ifdef __cplusplus
 }
 #endif

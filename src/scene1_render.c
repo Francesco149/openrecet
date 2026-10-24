@@ -960,6 +960,7 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_effects_table_b((struct IDirect3DDevice8 *)dev);
 
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
+    scene1_dark_orbs_render((struct IDirect3DDevice8 *)dev);   /* records-A 0x75 */
     /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
      * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
      * This is the engine-faithful position (FUN_004176ff runs here); drawing it

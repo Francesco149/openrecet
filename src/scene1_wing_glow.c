@@ -52,6 +52,7 @@
 #include "scene1_records.h"
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
 #include "sysassets.h"       /* g_sysassets.effect_bmp (= engine DAT_073cc8c0) */
+#include "x87.h"
 
 #define SCENE1_WING_GLOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 #define WING_GLOW_TYPE 0x1f
@@ -167,6 +168,56 @@ void scene1_wing_glow_render(struct IDirect3DDevice8 *dev_in)
                                          g_wing_glow_vbuf,
                                          sizeof(wing_glow_vertex));
     }
+}
+
+/* FUN_004176ff's records-A type-0x75 arm (asm past the table-B 0x29 loop): the
+ * dark orbs a type-19 hit leaves (record_hit spawns 117).  The white ±256 strip
+ * of the BSS template DAT_0064b488 (effect.bmp's 32² cell at u 0.002, v 0.502 —
+ * read from a retail dump), world = billboard · S(scale · 0.005) · T(pos), under
+ * COLOROP MODULATE4X, Z off and SRCBLEND ZERO / DESTBLEND INVSRCCOLOR: it darkens
+ * what's behind.  The texture is inherited (effect.bmp, bound by the type-0x2a
+ * / table-B 0x29 loops before it and by the wing glow — dungeon3-deep f227000
+ * v3 capture: 25 draws on it); bound here.  After it retail turns Z back on. */
+static wing_glow_vertex g_orb_vbuf[4] = {
+    { -256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.001953125f, 0.501953125f },
+    { -256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.001953125f, 0.623046875f },
+    {  256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.123046875f, 0.501953125f },
+    {  256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.123046875f, 0.623046875f },
+};
+
+void scene1_dark_orbs_render(struct IDirect3DDevice8 *dev_in)
+{
+    if (!dev_in) return;
+    int count = g_scene1_records_a_count;
+    if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
+    int have = 0;
+    for (int slot = 0; slot < count && !have; slot++)
+        have = g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE + SCENE1_RECORDS_A_OFF_TYPE] == 117;
+    if (!have) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE4X);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+    IDirect3DDevice8_SetVertexShader(dev, SCENE1_WING_GLOW_FVF);
+    for (int slot = 0; slot < count; slot++) {
+        const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+        if (r[SCENE1_RECORDS_A_OFF_TYPE] != 117) continue;
+        const float sc = spill32((long double)*(const float *)&r[SCENE1_RECORDS_A_OFF_SCALE] * 0.004999999888241291f);
+        float world[16];
+        wing_glow_compose_world(world, *(const float *)&r[SCENE1_RECORDS_A_OFF_POS_X],
+                                *(const float *)&r[SCENE1_RECORDS_A_OFF_POS_Y],
+                                *(const float *)&r[SCENE1_RECORDS_A_OFF_POS_Z], sc, 0.0f);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2, g_orb_vbuf, sizeof(wing_glow_vertex));
+    }
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
 #endif /* _WIN32 */
