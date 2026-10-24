@@ -12,6 +12,7 @@
  */
 
 #include "scene1_camera.h"
+#include "render_quad.h"     /* the shake's 2D quad offset */
 #include "dungeon_flow.h"   /* DAT_0438b7ac / b7a0 / b7a8 */
 
 #include <math.h>
@@ -61,10 +62,18 @@ float g_scene1_camera_sample_smoothed  = 0.0f;  /* engine DAT_0438bfac */
 int32_t g_shake_ticks, g_shake_dx, g_shake_dz, g_shake_xr, g_shake_zr;
 float   g_shake_y, g_shake_amp;
 
+/* DAT_0438cc18 / cc1c are also FUN_00404efc's 2D quad offset: every HUD quad
+ * jitters with the shake (render_quad keeps the copy it adds) */
+static void shake_sync_quads(void)
+{
+    render_quad_set_offset((float)g_shake_dx, (float)g_shake_dz);
+}
+
 void camera_shake(int32_t ticks, int32_t xr, int32_t zr, float amp)
 {
     g_shake_dx = 0;
     g_shake_dz = 0;
+    shake_sync_quads();
     g_shake_ticks = ticks;
     g_shake_xr = xr;
     g_shake_y = 0.0f;
@@ -365,6 +374,7 @@ void scene1_camera_pose_compute(void)
             if (g_shake_amp > 0.0f)
                 g_shake_y = spill32(((long double)rng_next_unit() - 0.5f) * g_shake_amp / 2.0f);
         }
+        shake_sync_quads();
     }
     g_scene1_camera_eye[1]    = spill32((long double)g_shake_y + g_scene1_camera_eye[1]);
     g_scene1_camera_lookat[1] = spill32((long double)g_shake_y + g_scene1_camera_lookat[1]);

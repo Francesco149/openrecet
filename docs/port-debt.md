@@ -92,20 +92,20 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042f7ad | src/actor_ai.c:820 | the other bosses' / special enemies' |
 | FUN_00430c6d | src/actor_ai.c:4095 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
-| FUN_00434ceb | src/scene_guild.c:459 | the message box is unported. |
+| FUN_00434ceb | src/scene_guild.c:463 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2242 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
-| FUN_00436f97 | src/scene1_postload.c:285 | dungeons 3 / 4's setups FUN_0044e08f / |
-| FUN_00436f97 | src/scene1_postload.c:321 | dungeon 5's return portal 6 beside |
+| FUN_00436f97 | src/scene1_postload.c:286 | dungeons 3 / 4's setups FUN_0044e08f / |
+| FUN_00436f97 | src/scene1_postload.c:322 | dungeon 5's return portal 6 beside |
 | FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
-| FUN_0044b219 | src/scene1_postload.c:352 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044b219 | src/scene1_postload.c:353 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:400 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044f078 | src/dungeon_party.c:652 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
-| FUN_00468fd0 | src/scene_guild.c:502 | the removal is unported, |
+| FUN_00468fd0 | src/scene_guild.c:506 | the removal is unported, |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:323 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:369 | the floor's render assets — the enemy |

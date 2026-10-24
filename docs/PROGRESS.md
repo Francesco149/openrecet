@@ -117,6 +117,12 @@ container) and the meshes bind to those. f80500 1.63 → 0.01, f81500 1.35 → 0
 (f284915..935: retail's orange core disc) stays open — its draws, geometry (the skinned body from
 retail's frames = the port's vertices) and render state match; next: replay the retail stream with
 draws toggled. Also seen: dungeon2-run3 f40000, the town news ticker ~12 px behind.
+The crab's dive, found by diffing every vertex of the overlay draws: FUN_00414ee2's shape-10 dome
+(the lava splash, 4 strips × 40) drew with every position 0 — FUN_0040d132, the template init, was a
+stub and `scene1_overlay_init` (the shape 7 / 8 / 9 / 10 strips) was never called; now built at
+FUN_0040d132's two sites (stage post-load, the guild). And the shake's DAT_0438cc18 / cc1c is also
+FUN_00404efc's 2D offset — every HUD quad jitters with it; render_quad kept a copy nothing set.
+f284915 4.98 → 0.12, f284925 3.76 → 0.01, f284935 4.17 → 0.01.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

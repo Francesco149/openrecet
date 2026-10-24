@@ -35,6 +35,7 @@
  */
 
 #include "scene1_postload.h"
+#include "scene1_overlay.h"   /* FUN_0040d132's overlay templates */
 
 #include <stdint.h>
 #include <string.h>
@@ -409,8 +410,14 @@ void scene1_postload_stage_entry_init(void)
     /* the stage object table */
     dobj_reset();
 
-    /* L384-399: FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1),
-     * FUN_0041f252, FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
+    /* L384-399: FUN_0040d132 — the vertex templates: the overlay's shape 7 /
+     * 8 / 9 / 10 strips here (they stayed zero, so the domes and rings drew
+     * nothing: the crab's lava dome, dungeon3-deep f284915); the effect quads
+     * are built in scene1_effects.c.  FUN_0040f64b(1), FUN_0041f252,
+     * FUN_004060ff, FUN_004850ec, FUN_0046f1e9. */
+    scene1_overlay_shape_7_vbuf_init();
+    scene1_overlay_shape_89_vbuf_init();
+    scene1_overlay_shape_10_vbuf_init();
     g_dat_06a46fa0 = 0;
     scene1_records_reset(1);
     actor_spawn_reset();

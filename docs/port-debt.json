@@ -311,7 +311,7 @@
    "engine_fn": "FUN_00434ceb",
    "desc": "the message box is unported.",
    "file": "src/scene_guild.c",
-   "line": 459,
+   "line": 463,
    "kind_known": true
   },
   {
@@ -335,7 +335,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeons 3 / 4's setups FUN_0044e08f /",
    "file": "src/scene1_postload.c",
-   "line": 285,
+   "line": 286,
    "kind_known": true
   },
   {
@@ -343,7 +343,7 @@
    "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
-   "line": 321,
+   "line": 322,
    "kind_known": true
   },
   {
@@ -367,7 +367,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 352,
+   "line": 353,
    "kind_known": true
   },
   {
@@ -415,7 +415,7 @@
    "engine_fn": "FUN_00468fd0",
    "desc": "the removal is unported,",
    "file": "src/scene_guild.c",
-   "line": 502,
+   "line": 506,
    "kind_known": true
   },
   {

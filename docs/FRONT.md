@@ -229,9 +229,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        results screen, the market and the pause Items match retail frames (`portshots`, mean
        abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
        DAT_073aa198, 2026-10-24; Ohm's pose since the meshes bind to their own frames,
-       2026-10-25) — still missing: the crab's dive (dungeon3-deep f284915..935, retail's orange
-       core disc; frames / skinned vertices / state / draw list all match — replay the retail
-       stream with draws toggled), the town news ticker's scroll (dungeon2-run3 f40000), the sun /
+       2026-10-25) — still missing: the town news ticker's scroll (dungeon2-run3 f40000), the sun /
        lens flare (FUN_00405d70 / FUN_00405b1a), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;

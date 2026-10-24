@@ -31,6 +31,7 @@
  */
 
 #include "scene_guild.h"
+#include "scene1_overlay.h"   /* FUN_0040d132's overlay templates */
 
 #include <stdint.h>
 #include <stddef.h>   /* NULL */
@@ -231,7 +232,10 @@ void scene_guild_enter_reset(void)
     s_menu.bob         = 0;          /* DAT_09642c48 */
     s_menu.text_timer  = 0;          /* DAT_09642c4c */
     s_menu.sub_anim    = 0;          /* DAT_09642c1c */
-    /* FUN_0040d132 (PORT-DEBT(stub, FUN_0040d132)), FUN_0040f64b(1). */
+    /* FUN_0040d132 (the overlay's strip templates; see scene1_postload), FUN_0040f64b(1). */
+    scene1_overlay_shape_7_vbuf_init();
+    scene1_overlay_shape_89_vbuf_init();
+    scene1_overlay_shape_10_vbuf_init();
     scene1_records_reset(1);
     s_menu.c14         = 0;
     s_menu.c18         = 0;
