@@ -948,6 +948,10 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE,  D3DCULL_NONE);
+    /* Z tested, not written (retail's state through the overlay, the exit circle
+     * and effect.bmp — dungeon3-deep f144000 v3 capture): with Z-write on, the
+     * hit flashes' overlapping additive puffs occluded each other */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_MODULATE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
