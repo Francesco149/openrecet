@@ -21,6 +21,7 @@
 #include "scene1_wide_followup.h" /* FUN_00415f2e */
 #include "scene1_maplight.h"     /* the stage record (DAT_068dd2f0) */
 #include "scene1_overlay.h"      /* FUN_00414ee2 */
+#include "scene1_render.h"       /* the projection (FUN_004a3ee8) */
 #include "actor_table.h"         /* actor #0's weapon points (+0x6fc) */
 #include "x87.h"
 #include <string.h>
@@ -1515,6 +1516,75 @@ static void fx_table_a_puffs(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
 }
 
+/* DAT_0064bea8: an XZ half-quad (z −256..0) on the cell (224, 8.5)-(255.5, 55.5) */
+static fx_vtx s_qbea8[4] = {
+    { -256.0f, 0.0f, -256.0f, 0xffffffffu, 0.876953125f, 0.033203125f },
+    { -256.0f, 0.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.216796875f },
+    { 256.0f, 0.0f, -256.0f, 0xffffffffu, 0.998046875f, 0.033203125f },
+    { 256.0f, 0.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.216796875f },
+};
+
+/* FUN_004176ff 0x41e98c..0x41eda9, after the puffs: SRCBLEND ZERO for table
+ * B's 131 (a white DAT_0064b488 cell-0 billboard growing 0.0025 a tick to
+ * 0.15, shrinking 0.01 a tick past 285, · 0.1 · … — the darkening dot) and 121
+ * (DAT_0064bea8 turned along the velocity by FUN_00415f2e, S(k, k, +0x108), k
+ * 0.002 to age 40, then shrinking to 0 at 55, 0.01 after); FUN_00414ee2(3, 0);
+ * then Z off, no Z write, ONE / ONE for table A's 69 (a spinning billboard of
+ * scale · 0.005 on DAT_0064b5a8, grey 4 · age to 128, closing 2 a tick past 64) */
+static void fx_tail(IDirect3DDevice8 *dev)
+{
+    static const float k0p0025 = 0.0024999999441206455f, k0p15 = 0.15000000596046448f;
+    float w[16];
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
+    int n = g_scene1_records_b_count;
+    if (n > SCENE1_RECORDS_B_COUNT) n = SCENE1_RECORDS_B_COUNT;
+    for (int i = 0; i < n; i++) {
+        const int32_t *r = &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+        const float *f = (const float *)r;
+        const int32_t age = r[38];
+        if (r[0] == 131) {
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+            float s = spill32((long double)spill32((float)age) * k0p0025);
+            if (s > k0p15) s = k0p15;
+            if (age > 285) s = spill32((long double)s - (long double)spill32((float)(age - 285)) * 0.01f);
+            if (s < 0.0f) s = 0.0f;
+            s = spill32((long double)s * 0.1f);
+            const float pos[3] = { f[23], f[24], f[25] };
+            fx_bill(w, pos, s, 0);
+            fx_set_col(s_q488[0], 0xffffffffu);
+            fx_draw(dev, w, s_q488[0], 2);
+        } else if (r[0] == 121) {
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+            float k = 0.1f;
+            if (age < 40) k = 0.02f;
+            else if (age < 55)
+                k = spill32(0.02f - (long double)spill32((float)(age - 40)) * 0.02f / 15.0f);
+            k = spill32((long double)k * 0.1f);
+            wf_pass_e_fan_billboard_matrix(w, r, g_scene1_camera_eye);   /* FUN_00415f2e */
+            fx_scale(w, k, k, f[66]);
+            fx_draw(dev, w, s_qbea8, 2);
+        }
+    }
+    scene1_overlay_render(dev, /*layer=*/3, /*mode=*/0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        if (r[12] != 69) continue;
+        float f[15];
+        memcpy(f, r, sizeof f);
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+        fx_bill(w, f, spill32((long double)f[14] * 0.005f), 1);
+        int32_t c = 4 * r[13];
+        if (c > 128) c = 128;
+        if (r[13] > 64) c += 2 * (64 - r[13]);
+        fx_set_col(s_q488[3], fx_rgb(c, c, c));
+        fx_draw(dev, w, s_q488[3], 2);
+    }
+}
+
 void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -1529,10 +1599,15 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);
     fx_projectiles(dev);
+    /* 0x419c5c: the narrow projection (z_far 500) for the rest of the function
+     * — the overlay calls, the exit circles, the trails and the projectiles
+     * above draw under the caller's 2000 */
+    scene1_render_push_projection(dev_in, 500.0f);
     fx_snow(dev);
     fx_table_a_main(dev);
     fx_after_main(dev);
     fx_table_a_puffs(dev);
+    fx_tail(dev);
 }
 
 #endif /* _WIN32 */

@@ -5,6 +5,7 @@
  * bubble block (tick) and FUN_0040c4eb (draw).
  */
 #include "speech_bubble.h"
+#include "dungeon_party.h"   /* DAT_00648250 */
 
 #include <string.h>
 
@@ -15,7 +16,6 @@ static char  s_lines[SPEECH_BUBBLE_LINES][SPEECH_BUBBLE_LINE_LEN]; /* DAT_00647e
 static float s_x, s_y;                                           /* DAT_00648224/228 */
 static int   s_line_x[SPEECH_BUBBLE_LINES];                      /* DAT_0064822c..238 */
 static int   s_nlines;                                           /* DAT_00648244 */
-static int   s_opened;                                           /* DAT_00648250 */
 static int   s_timed;                                            /* DAT_00648254 */
 static int   s_age;                                              /* DAT_00648258 */
 static int   s_pop;                                              /* DAT_0064825c */
@@ -36,7 +36,7 @@ void speech_bubble_open(float x, float y, const char *text)
         s_pop = 1;
         audio_play_se_by_id(0x174);
     }
-    s_opened = 1;
+    g_got_item_bubble = 1;                   /* DAT_00648250 (shared with the got-item notice) */
     s_x = x;
     s_y = y;
     s_close = 0;
@@ -65,7 +65,6 @@ void speech_bubble_open(float x, float y, const char *text)
     if (line < SPEECH_BUBBLE_LINES && col < SPEECH_BUBBLE_LINE_LEN)
         s_lines[line][col] = 0;
     s_nlines = line + 1;
-    (void)s_opened;
     (void)s_unused_268;
 }
 

@@ -88,6 +88,15 @@ POINT at 0x456055 (the port set LINEAR there, then POINT / LINEAR around the par
 the party pass's chr light (DAT_06a49aa8) on through FUN_004705a3 / FUN_0046f737 (no state calls) —
 the port's customer / townsfolk envelopes turned LIGHTING off. dungeon3-deep f026000 0.50 → 0.01
 (the knight), f170000 0.42 → 0.01, f144000 0.51 → 0.16.
+The "got an item" notice FUN_0040c962 (state ported, render not): item_win's strip unrolling at the
+top right, the name ("%s+%d"; a rare one walks back to the last record priced −1) and the icon —
+drawn between the HUD and FUN_00417504 in FUN_004547ab's plain arm (after FUN_0045404b in the
+b1d0 / b1d8 arms); DAT_00648250 is one flag (speech_bubble kept its own copy). FUN_004176ff's head
+and tail: the caller's z_far 2000 holds until 0x419c5c (the port drew the whole function under
+500, so the head's hit burst lost the depth test to a table-C gem), its preamble, FUN_00414ee2(4, 0)
+under ZERO / INVSRCCOLOR before (0, 0), and after the puffs table B's 131 / 121, (3, 0), table A's
+69. dungeon3-deep f058000 0.56 → 0.01, f112000 0.10 → 0.01, f144000 0.16 → 0.10 — every swept
+frame ≤ 0.10; day2-shop / dungeon1-run2 / dungeon3-floors unchanged (≤ 0.21).
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

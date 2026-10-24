@@ -40,6 +40,8 @@
 #include "rng.h"
 #include "fade.h"
 #include "nowloading.h"
+#include "dungeon_hud.h"
+#include "scene1_sim.h"
 #include "scene.h"
 #include "esc_dispatch.h"
 #include "scene_ingame.h"
@@ -3288,6 +3290,12 @@ static void render_dispatch(void)
                      * Self-gates on the b928/b924 beat (no-op off the DAY2 transition),
                      * so safe every HOUSE free-roam frame. */
                     scene1_day_card_render(g_dev);
+                    /* FUN_004547ab's plain in-game arm (no dialogue, DAT_0438b1d0 /
+                     * b1d8 clear — free roam, the dungeon): FUN_0040c962 (the "got an
+                     * item" notice) between the HUD and FUN_00417504 */
+                    if (!scene1_intro_dialogue_active() && g_scene1_ingame_transition_flag != 1 &&
+                        g_scene1_ingame_skip_flag != 1)
+                        dungeon_hud_got_item(g_dev);
                     scene1_render_overlay(g_dev);
                     /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
                      * at the tail of the engine's FUN_0045cc85 scene render).  Self-
@@ -3513,6 +3521,11 @@ static void render_dispatch(void)
      * INGAME call; TITLE + other states missed the fallthrough.  See
      * call_trace_diff.py output. */
     scene1_render_fx_tail(g_dev);
+    /* FUN_004547ab's DAT_0438b1d0 / b1d8 arms: FUN_0040c962 (the "got an item"
+     * notice) right after FUN_0045404b while no dialogue runs (DAT_0438b1c8 == 0) */
+    if (g_scene_state == 1 && !nowloading_primary_active() && !scene1_intro_dialogue_active() &&
+        (g_scene1_ingame_transition_flag == 1 || g_scene1_ingame_skip_flag == 1))
+        dungeon_hud_got_item(g_dev);
 
     /* Engine FUN_004547ab L51223-51236: the PAUSE MENU (mode 9). Gated on the
      * slide ramp being in (3, 0xd) and not loading (DAT_06a49958 == 0); the

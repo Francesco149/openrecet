@@ -4,10 +4,8 @@
  * dispatch sits in scene1_render.c.
  *
  * PORT-DEBT(stub, FUN_004176ff): unported sections — the table-A loop on
- * effect_shot.bmp (0x41932d), the effect_mahi pass (0x419c51, where retail
- * switches to z_far 500), the table-B loops 0x41a263 (on effect.bmp, before
- * the table-A loop) and 0x41e9aa, FUN_00414ee2 at 0x41ec03 and table A's
- * 69 / 64 loop (0x41ec50).
+ * effect_shot.bmp (0x41932d), the effect_mahi pass (0x419c51) and the
+ * table-B loop 0x41a263 (on effect.bmp, before the table-A loop).
  *
  *   the exit circle   the dungeon objects of type 8 (state +0x268 != 3):
  *                     mahoujin.bmp on DAT_0064a2c8's floor quad, world

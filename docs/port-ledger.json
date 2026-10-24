@@ -8,9 +8,9 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 732,
-  "inv_discovered": 1725,
-  "referenced_or_better": 823,
+  "inv_source_referenced": 733,
+  "inv_discovered": 1724,
+  "referenced_or_better": 824,
   "pct_referenced_or_better": 32.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
@@ -18,9 +18,9 @@
   "port_debt": 78,
   "verified": 81,
   "stubbed": 10,
-  "ported": 732,
-  "unported": 1725,
-  "touched": 823,
+  "ported": 733,
+  "unported": 1724,
+  "touched": 824,
   "pct_touched": 32.3,
   "pct_verified": 0.0
  },
@@ -2253,6 +2253,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_hud.c",
     "src/dungeon_party.c"
    ],
    "status": "ported"
@@ -2263,18 +2264,22 @@
    "size": 799,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_hud.c",
+    "src/dungeon_hud.h",
+    "src/main.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x40cc87",
@@ -3013,7 +3018,6 @@
    "quality_flags": [],
    "src": [
     "src/scene1_effects.c",
-    "src/scene1_effects.h",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
@@ -9027,6 +9031,7 @@
     "stub"
    ],
    "src": [
+    "src/dungeon_hud.h",
     "src/main.c",
     "src/scene1_fx_overlays.c",
     "src/scene1_fx_overlays.h",
@@ -11545,6 +11550,7 @@
     "src/chara_equip.h",
     "src/customer_roster.c",
     "src/customer_service.c",
+    "src/dungeon_hud.c",
     "src/dungeon_party.c",
     "src/dungeon_results.c",
     "src/encyclopedia.c",
@@ -21465,6 +21471,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_hud.c",
     "src/dungeon_results.c",
     "src/main.c",
     "src/render_quad.c",
@@ -23391,6 +23398,7 @@
     "src/main.c",
     "src/math3d.h",
     "src/mesh_draw.c",
+    "src/scene1_effects.c",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ],

@@ -36,6 +36,8 @@ void dungeon_hud_party_panel(struct IDirect3DDevice8 *dev, float x, float y,
 /* FUN_00407ab4(x, y): the "LEVEL UP!" pop while DAT_0438b920 runs — the floor
  * HUD's at (16, 400), the house's FUN_00409925 above its level badge. */
 void dungeon_hud_levelup_pop(struct IDirect3DDevice8 *dev, float x, float y);
+/* FUN_0040c962: the "got an item" notice (after FUN_0045404b, no dialogue) */
+void dungeon_hud_got_item(struct IDirect3DDevice8 *dev);
 
 /* The floor's HUD textures: FUN_00474a9a's dungeon arm loads bmp/map.bmp
  * (DAT_073d8768), FUN_00473c15 the faces of the roster's kinds

@@ -36,6 +36,8 @@
 #include "scene1_top_hud.h"      /* FUN_00406a60 */
 #include "sysassets.h"
 #include "x87.h"
+#include "dungeon_party.h"       /* DAT_00648290 / 94 / 50 */
+#include "tables_item.h"         /* FUN_004681f6 */
 
 /* .rdata m32 operands */
 static const float k0 = 0.0f, k0p1 = 0.10000000149011612f, k0p5 = 0.5f, k0p8 = 0.800000011920929f;
@@ -377,6 +379,67 @@ void dungeon_hud_levelup_pop(struct IDirect3DDevice8 *dev_in, float x, float y)
          ((uint32_t)a << 24) | ((uint32_t)c << 16) | ((uint32_t)c << 8) | (uint32_t)c);
     render_quad_flush(dev);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+}
+
+/* FUN_0040c962: the "got an item" notice while DAT_00648294 runs (120 ticks,
+ * FUN_0040c923 opens it) — item_win.tga's banner strip (64, 640)-(96, 672)
+ * unrolling from the top right (x 160 + 32·t to 496, sliding off past 100,
+ * alpha 25·t closing 12 a tick past 100), the item's name ("%s+%d" with its
+ * grade; a rare one walks back to the last record priced −1) at 0.6 while
+ * DAT_00648250 is set, then its icon on the left */
+void dungeon_hud_got_item(struct IDirect3DDevice8 *dev_in)
+{
+    static const float k160 = 160.0f, k496 = 496.0f, k104 = 104.0f, k12 = 12.0f, k24 = 24.0f;
+    static const float k28 = 28.0f;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    const int32_t on = g_got_item_on;
+    if (on == 0) return;
+    float f = spill32((long double)spill32((float)on) * k0p1);
+    int32_t a = 25 * on;
+    if (f >= 1.0f) f = 1.0f;
+    if (a > 255) a = 255;
+    float x = spill32((long double)spill32((float)(32 * on)) + k160);
+    if (x > k496) x = k496;
+    if (on > 100) {
+        a += 12 * (100 - on);
+        x = spill32((long double)spill32((float)(8 * on - 800)) + x);
+    }
+    const sprite_t *win = &g_sysassets.item_win_tga;      /* DAT_073d8748 */
+    const uint32_t col = 0xffffffu | ((uint32_t)a << 24);
+    const float y = spill32(k104 - (long double)f * k12), h = spill32((long double)f * k24);
+    render_quad_bind(dev, win);
+    quad(win, spill32((long double)x - 4.0f - k24), y, 168.0f, h, 64.0f, k640, 96.0f,
+         spill32((long double)f * k32 + k640), col);
+    render_quad_flush(dev);
+    const int32_t item = g_got_item;
+    int32_t rec = tables_item_find_slot_by_id(&g_item, item >> 6);   /* FUN_004681f6 */
+    if (rec < 0) return;
+    if (g_got_item_bubble == 1) {
+        int32_t plus = item & 0xf;
+        if ((item & 0x10) != 0) {
+            plus = 0;
+            if (g_item.records[rec].price != -1)
+                while (--rec > 0 && g_item.records[rec].price != -1) {}
+        }
+        char buf[256];
+        if (plus > 0) snprintf(buf, sizeof buf, "%s+%d", g_item.records[rec].singular, plus);
+        else          snprintf(buf, sizeof buf, "%s", g_item.records[rec].singular);
+        font_draw_text(dev_in, spill32((long double)x + k28 - k24), 98.0f, buf, 0xffffffffu, 0.6f);
+        rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+    }
+    render_quad_state_setup(dev);                         /* FUN_0049b425 */
+    const int32_t cat = g_item.records[rec].category;
+    if (cat < 0 || cat >= SYSASSETS_ITEM_CATEGORIES) return;
+    const sprite_t *page = &g_sysassets.item_icons[cat];  /* DAT_073d8778 */
+    if (page->tex == NULL) return;
+    int32_t tile = g_item.records[rec].subindex;
+    if ((item & 0x10) != 0) tile = 0;
+    const float u = spill32((long double)spill32((float)(tile % 8)) * k32);
+    const float v = spill32((long double)spill32((float)(tile / 8)) * k32);
+    render_quad_bind(dev, page);
+    quad(page, spill32((long double)x - k24), y, k24, h, u, v, spill32((long double)u + k32),
+         spill32((long double)v + k32), col);
+    render_quad_flush(dev);
 }
 
 /* a pulse colour: the byte b in R, G and B over full alpha */

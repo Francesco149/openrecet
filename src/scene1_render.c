@@ -916,7 +916,9 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * Its sections are ported in scene1_effects.c (the table-A loop, the glows,
      * the orbs and the puffs, incl. the wing glow and the foot dust); the rest
      * of the 30 KB function stays in scene1_walk_chr_TODO. */
-    scene1_push_projection(dev, 500.0f);
+    /* FUN_00459dfd sets z_far 2000 before it; the function switches to 500 at
+     * 0x419c5c, after its head (scene1_effects_table_b) */
+    scene1_push_projection(dev, 2000.0f);
 
     /* FUN_004176ff also dispatches the 2D-overlay particle layers via its own
      * FUN_00414ee2 calls (objdump: calls at 0x417885/0x4178b0 early in the
@@ -943,16 +945,33 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * it on; effect00.bmp's star texels are opaque so alpha>0 passes). */
     scene1_effects_tick_148();   /* FUN_004176ff's head: FUN_0040f892 */
     wf_pass_c_set_pre_matrix(g_scene1_camera_orient);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE,  D3DCULL_NONE);
-    /* Z tested, not written (retail's state through the overlay, the exit circle
-     * and effect.bmp — dungeon3-deep f144000 v3 capture): with Z-write on, the
-     * hit flashes' overlapping additive puffs occluded each other */
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    /* its preamble (all_ida 15136..15152): fog off, blend on, bilinear,
+     * ALPHAOP / COLOROP MODULATE, COLORVERTEX off, ambient 0xff101010,
+     * Gouraud, Z tested but not written (with Z-write on, the hit flashes'
+     * overlapping additive puffs occluded each other — f144000), unlit, no
+     * culling */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_COLORVERTEX, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT, 0xff101010u);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_MODULATE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE,  D3DCULL_NONE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+    /* FUN_00414ee2(4, 0) under ZERO / INVSRCCOLOR (the darkening layer), then
+     * (0, 0) under ONE / ONE */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ZERO);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
+    scene1_overlay_render(dev, /*layer=*/4, /*mode=*/0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
     scene1_overlay_render(dev, /*layer=*/0, /*mode=*/0);
     /* COLORARG2 stays TEXTURE (retail's FUN_004176ff never resets it; the
      * exit circle below samples mahoujin.bmp through it) */

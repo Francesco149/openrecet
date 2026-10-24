@@ -441,6 +441,7 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x438bed8u, &g_scene1_combat_dat_0438bed8 },
     { 0x6a46f94u, &g_scene1_combat_dat_06a46f94 },
     { 0x648290u, &g_got_item },         { 0x648294u, &g_got_item_on },
+    { 0x648250u, &g_got_item_bubble },
     { 0x438b764u, &g_notice_on },       { 0x438b758u, &g_notice_item },
     { 0x438b768u, &g_notice_ticks },   { 0x438b75cu, &g_notice_kind }, { 0x438b760u, &g_notice_side },
     { 0x438b7acu, &g_cam_blend },      { 0x438b788u, &g_cut_follow },

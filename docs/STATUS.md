@@ -15,8 +15,8 @@
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   732 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1725 | exists in the engine, no `src/` reference    |
+| source-referenced  |   733 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1724 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -273,10 +273,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        FUN_0040150e's evaluation match the port's — compare the frame matrices next; Ohm has no
        model.txt anchors, so portblock can't see it),  FUN_004176ff's unported sections (the
        table-A loop on effect_shot.bmp 0x41932d: 88 / 147 / 90 / 32 / 86 / 66 / 8 / the rings'
-       first half …; the effect_mahi pass 0x419c51 — the z_far 500 projection belongs there,
-       not at the function's top; the table-B loop on effect.bmp 0x41a263: 48 / 33 / 37 / 49 …;
-       the table-B loop 0x41e9aa: 131 / 121 / 40 / 55; FUN_00414ee2 at 0x41ec03 and table A's
-       69 / 64 loop 0x41ec50), the hikari
+       first half …; the effect_mahi pass 0x419c51; the table-B loop on effect.bmp 0x41a263:
+       48 / 33 / 37 / 49 …), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
        the legacy
