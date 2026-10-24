@@ -127,7 +127,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x40150e | FUN_0040150e | 1561 | ✓ |  | model_anchor.c |
 | 0x40205c | FUN_0040205c | 118 | ✓ |  | xfile.c, xfile.h |
 | 0x402551 | FUN_00402551 | 619 | ✓ |  | model_anchor.c, model_anchor.h, xfile.c (+1) |
-| 0x40284f | FUN_0040284f | 567 | ✓ |  | xfile.c |
+| 0x40284f | FUN_0040284f | 567 | ✓ |  | xfile.c, xfile.h |
 | 0x402a86 | FUN_00402a86 | 917 | ✓ |  | mesh_load.h |
 | 0x402e1b | FUN_00402e1b | 383 | ✓ |  | xfile.c |
 | 0x402f9a | FUN_00402f9a | 1256 | ✓ |  | xfile.c |

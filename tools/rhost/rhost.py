@@ -950,6 +950,72 @@ def read_pblk(path):
     return frame, out
 
 
+def cmd_portframes(a):
+    """port vs retail at one frame: every loaded model's frame tree (FUN_00403e33's combined
+    matrices) — retail's from its heap (DAT_073da2f0 + 0x2f0·n → +0x204 → +4, a frame's name at
+    +0x13c, combined +0xc4, child +0x134, sibling +0x130), the port's --model-dump; frame by frame
+    in tree order, the first differing frames per model (the skinned poses: Ohm, the crab)"""
+    name, f = a.scenario, a.at
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = str(f)
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portframes-retail",
+                                    fetch=("rhost.log", "trace.flat.jsonl", "state_*.rhs"))
+    R = rhs.Dump(os.path.join(bdir, name, f"state_f{f:06d}.rhs"))
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), f + 2,
+                      extra=("--model-dump", str(f), "{pw}\\frames.txt"), fetch=("frames.txt",))
+
+    def w(va):
+        for lo, hi in R.ranges:
+            if lo <= va < hi:
+                return R.words[lo][(va - lo) // 4]
+        return None
+
+    def cstr(va):
+        out = b""
+        for k in range(0, 64, 4):
+            x = w(va + k)
+            if x is None:
+                break
+            out += struct.pack("<I", x)
+            if b"\0" in out:
+                break
+        return out.split(b"\0")[0].decode("latin-1")
+
+    def rtree(fr, depth, out, guard):
+        while fr and len(out) < 2000 and fr not in guard:
+            guard.add(fr)
+            nm = w(fr + 0x13c)
+            comb = [struct.unpack("<f", struct.pack("<I", w(fr + 0xc4 + 4 * k) or 0))[0] for k in range(16)]
+            out.append((depth, cstr(nm) if nm else "-", comb))
+            rtree(w(fr + 0x134), depth + 1, out, guard)
+            fr = w(fr + 0x130)
+
+    path = os.path.join(pdir_l, "frames.txt")
+    if not os.path.exists(path):
+        print("port wrote no frames.txt"); return 2
+    P = {}
+    for line in open(path):
+        t = line.split()
+        P.setdefault(int(t[0]), []).append((int(t[1]), t[2], [float(x) for x in t[3:19]]))
+    bad = 0
+    for n, pf in sorted(P.items()):
+        P_ = w(0x73da2f0 + 0x2f0 * n + 0x204)
+        root = w(P_ + 4) if P_ else None
+        rf = []
+        rtree(root, 0, rf, set())
+        nd = []
+        for k, (rr, pp) in enumerate(zip(rf, pf)):
+            d = max(abs(x - y) for x, y in zip(rr[2], pp[2]))
+            if rr[1] != pp[1] or d > 1e-3:
+                nd.append((k, rr, pp, d))
+        print(f"model {n}: retail {len(rf)} frames / port {len(pf)}, {len(nd)} differ")
+        for k, rr, pp, d in nd[:12]:
+            print(f"  #{k:3d} d{rr[0]} {rr[1]:<24s} | {pp[1]:<24s} max|d| {d:.4g}  t r {[round(x, 3) for x in rr[2][12:15]]} p {[round(x, 3) for x in pp[2][12:15]]}")
+        bad += len(nd)
+    return 1 if bad else 0
+
+
 def cmd_portblock(a):
     """port vs retail at one frame: every dword of the retail-layout blocks (party, actors, stage objects,
     popups, records B / C, drop rows, map objects, flow scalars, the active work bank), grouped by record"""
@@ -1141,6 +1207,7 @@ def main():
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
     p = sp.add_parser("portcensus"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portcensus)
+    p = sp.add_parser("portframes"); p.add_argument("scenario"); p.add_argument("--at", type=int, required=True); common(p); p.set_defaults(fn=cmd_portframes)
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
     p.add_argument("--context", type=int, default=4)

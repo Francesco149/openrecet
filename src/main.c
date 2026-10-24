@@ -427,6 +427,8 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                index). See src/anchor_trace.h.
  *   --block-dump F <file>        after tick F write the retail-layout blocks
  *                                (state_va_block_dump; rhost.py portblock).
+ *   --model-dump F <file>        after tick F, every loaded model's frame
+ *                                tree (rhost.py portframes).
  *   --fx-census <file>           after each tick, "F A|B type" for the
  *                                table-A / B types newly live (rhost.py
  *                                portcensus).
@@ -521,6 +523,8 @@ static int                       g_state_log_pending        = 0;
 static uint32_t                  g_state_log_frame          = 0;
 static const char               *g_block_dump_path          = NULL;   /* --block-dump F path */
 static FILE                     *g_fx_census_fp             = NULL;   /* --fx-census path */
+static const char               *g_model_dump_path          = NULL;   /* --model-dump F path */
+static uint32_t                  g_model_dump_frame         = 0;
 
 /* --fx-census: after each tick, the table-A / B types live this frame that were
  * not the frame before ("F A type" / "F B type") — which frames a render arm of
@@ -2415,6 +2419,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     state_va_log(g_state_log_fp, g_state_log_frame);
                     if (g_block_dump_path && g_state_log_frame == g_block_dump_frame)
                         state_va_block_dump(g_block_dump_path, g_state_log_frame);
+                    if (g_model_dump_path && g_state_log_frame == g_model_dump_frame) {
+                        FILE *md = fopen(g_model_dump_path, "w");
+                        if (md) { model_anchor_dump(md); fclose(md); }
+                    }
                     g_state_log_pending = 0;
                 }
 
@@ -4006,6 +4014,15 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(bd_buf, val, (int)sizeof(bd_buf));
                 g_block_dump_path  = bd_buf;
                 g_block_dump_frame = (uint32_t)strtoul(f, NULL, 10);
+            }
+        } else if (lstrcmpA(tok, "--model-dump") == 0) {
+            char *f = strtok(NULL, " ");
+            char *val = strtok(NULL, " ");
+            if (f && val) {
+                static char md_buf[MAX_PATH];
+                lstrcpynA(md_buf, val, (int)sizeof(md_buf));
+                g_model_dump_path  = md_buf;
+                g_model_dump_frame = (uint32_t)strtoul(f, NULL, 10);
             }
         } else if (lstrcmpA(tok, "--fx-census") == 0) {
             char *val = strtok(NULL, " ");

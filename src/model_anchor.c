@@ -17,6 +17,7 @@
 #include "model_anchor.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -293,6 +294,25 @@ xfile_hier *model_anchor_pose(actor_t *a, int *model_out)
     mat4_identity(id);
     sframe_update(h->root, id);
     return h;
+}
+
+/* --model-dump: every loaded model's frame tree, retail's order (the frame,
+ * its children, then its siblings): "model depth name combined[16]" — to set
+ * against retail's heap tree (DAT_073da2f0 + 0x2f0·n → +0x204 → +4) */
+static void dump_frame(FILE *fp, int model, const xfile_sframe *f, int depth)
+{
+    for (; f; f = f->sibling) {
+        fprintf(fp, "%d %d %s", model, depth, f->name ? f->name : "-");
+        for (int k = 0; k < 16; k++) fprintf(fp, " %.9g", f->combined[k]);
+        fputc('\n', fp);
+        dump_frame(fp, model, f->child, depth + 1);
+    }
+}
+
+void model_anchor_dump(FILE *fp)
+{
+    for (int n = 0; n < MODEL_FILES; n++)
+        if (s_hier[n]) dump_frame(fp, n, s_hier[n]->root, 0);
 }
 
 const char *model_anchor_file(int model)

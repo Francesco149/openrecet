@@ -6,6 +6,7 @@
 #define MODEL_ANCHOR_H
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #include "actor_table.h"
@@ -21,6 +22,8 @@ void model_anchor_draw_pass(void);
 /* FUN_00456d48's pose of an actor's model (the shared tree of its enemy
  * record's model, DAT_073da2f0 + 0x2f0 · model): NULL when it has none */
 xfile_hier *model_anchor_pose(actor_t *a, int *model_out);
+/* --model-dump: every loaded model's frame tree (names, combined matrices) */
+void model_anchor_dump(FILE *fp);
 /* the model's .x (xfile2/…) */
 const char *model_anchor_file(int model);
 

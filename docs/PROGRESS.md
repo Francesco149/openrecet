@@ -107,6 +107,16 @@ port didn't: the crab's lava crescent mirrored). A `portcensus` of dungeon3-deep
 the arms draw in; f026135 / f081885 / f182730 / f239805 / f247082 ≤ 0.53. Open: the crab's pose
 (f284915: the port's CPU-skinned parts sit ~2 units above retail's rigid ones — the Ohm class), the
 sun FUN_00405d70 and lens flare FUN_00405b1a (no swept frame shows a sun).
+Ohm's pose (the FRONT item since 2026-10-23): `rhost.py portframes` (new — retail's frame tree
+from its heap vs the port's `--model-dump`) shows Ohm's 89 frames IDENTICAL at f81500 (|Δ| ≤ 2.5e-8)
+and the crab's 159 at f284915. The meshes didn't follow them: most .x Meshes sit in unnamed frames
+(`Frame obj_body_03 { Frame { Mesh … } }`), model_render bound a mesh to a frame by its path's last
+name — empty — and fell back to the root: every rigid part drew in the rest pose (Ohm curled while
+retail's lay flat). The hier tree now records each Mesh's frame in file order (FUN_0040284f's mesh
+container) and the meshes bind to those. f80500 1.63 → 0.01, f81500 1.35 → 0.01. The crab's dive
+(f284915..935: retail's orange core disc) stays open — its draws, geometry (the skinned body from
+retail's frames = the port's vertices) and render state match; next: replay the retail stream with
+draws toggled. Also seen: dungeon2-run3 f40000, the town news ticker ~12 px behind.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

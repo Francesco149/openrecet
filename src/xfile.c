@@ -1395,6 +1395,16 @@ static int hier_load(P *p, xfile_hier *h, xfile_sframe *cur, const char *tname, 
         h->anim_head = f;
         return hier_children(p, h, f, anim_child, anim_ref);
     }
+    if (HIS("Mesh")) {                      /* its frame: the container's draw matrix */
+        if (h->nmesh == h->mesh_cap) {
+            const int32_t cap = h->mesh_cap ? 2 * h->mesh_cap : 16;
+            xfile_sframe **nf = (xfile_sframe **)realloc(h->mesh_frame, (size_t)cap * sizeof *nf);
+            if (!nf) { set_error(p->out, 0, "oom"); return 0; }
+            h->mesh_frame = nf;
+            h->mesh_cap = cap;
+        }
+        h->mesh_frame[h->nmesh++] = cur;
+    }
     skip_block_body(p);                     /* Mesh, Header, … */
     return 1;
 }
@@ -1415,6 +1425,7 @@ void xfile_hier_free(xfile_hier *h)
 {
     if (!h) return;
     sframe_free(h->root);
+    free(h->mesh_frame);
     free(h);
 }
 

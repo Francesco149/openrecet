@@ -146,9 +146,16 @@ static void gfx_bind(model_gfx_t *g, const xfile_hier *h)
         const xfile_mesh *xm = &g->xf->meshes[i];
         free(g->bones[i]);
         g->bones[i] = NULL;
-        const char *fp = xm->frame_path, *slash = strrchr(fp, '/');
-        g->frame[i] = fp[0] ? xfile_find_frame(h->root, slash ? slash + 1 : fp) : h->root;
-        if (g->frame[i] == NULL) g->frame[i] = h->root;
+        /* the frame the Mesh sits in (the tree's file order — most of the
+         * meshes sit in unnamed frames: by name they fell back to the root and
+         * drew in the rest pose, Ohm curled up while retail's lay flat) */
+        if (i < h->nmesh) {
+            g->frame[i] = h->mesh_frame[i];
+        } else {
+            const char *fp = xm->frame_path, *slash = strrchr(fp, '/');
+            g->frame[i] = fp[0] ? xfile_find_frame(h->root, slash ? slash + 1 : fp) : h->root;
+            if (g->frame[i] == NULL) g->frame[i] = h->root;
+        }
         if (xm->skin_count == 0) continue;
         g->bones[i] = (xfile_sframe **)calloc((size_t)xm->skin_count, sizeof *g->bones[i]);
         if (g->bones[i] == NULL) continue;

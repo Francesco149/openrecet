@@ -337,7 +337,8 @@ static void scene1_walk_narrow_frustum_TODO(IDirect3DDevice8 *dev, int pass)
  * DAT_0064824c > 0 and the stage's sunpos is set).
  * PORT-DEBT(stub, FUN_00405b1a): unported, with the sun sprite FUN_00405d70
  * that computes its inputs (FUN_00459dfd's head) — no swept frame shows a
- * sun yet. */
+ * sun.  DAT_073aa158 is chr-sheet slot 100 (DAT_073a9b18 + 16·100), one past
+ * the table, never loaded: retail would draw them untextured. */
 static void scene1_walk_tail_TODO(void)
 {
 }

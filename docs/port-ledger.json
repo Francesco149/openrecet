@@ -475,7 +475,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/xfile.c"
+    "src/xfile.c",
+    "src/xfile.h"
    ],
    "status": "ported"
   },

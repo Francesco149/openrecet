@@ -195,7 +195,8 @@ void xfile_free(xfile_t *x);
  * The DX8 SDK SkinnedMesh frame tree (retail's SFrame, 0x140 bytes; the
  * loader FUN_00402551 / 0040284f / 00402e1b / 00402f9a): frames, animation
  * sets and animations as one tree (a new child goes after the first child),
- * the animations also on a list (newest first).  Meshes are not kept.
+ * the animations also on a list (newest first).  Meshes are not kept, only
+ * the frame each one sits in (mesh_frame).
  */
 typedef struct { uint32_t t; float v[3]; }  xfile_key3;   /* scale / position, 16 bytes */
 typedef struct { uint32_t t; float q[4]; }  xfile_keyq;   /* rotation x, y, z, w, 20 bytes */
@@ -211,7 +212,13 @@ struct xfile_sframe {
     uint8_t is_anim;                                         /* +312 */
     char *name;                                              /* +316, NULL when unnamed */
 };
-typedef struct { xfile_sframe *root, *anim_head; } xfile_hier;
+typedef struct {
+    xfile_sframe *root, *anim_head;
+    /* the frame each Mesh sits in, file order (FUN_0040284f hands a Mesh its
+     * frame: the mesh container draws with that frame's combined matrix) */
+    xfile_sframe **mesh_frame;
+    int32_t nmesh, mesh_cap;
+} xfile_hier;
 
 /* NULL when the file fails the loader (a bad frame reference, a second key
  * block of one kind, a key kind other than 0 / 1 / 2 / 4) */
