@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **70**
-- distinct retiring engine functions: **52**
+- total open debts: **68**
+- distinct retiring engine functions: **51**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 50 | wired call boundary, body incomplete |
+| stub | 48 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -38,7 +38,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
-| FUN_0044db3c | 2 |
 | FUN_00468fd0 | 2 |
 | FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
@@ -83,7 +82,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (50)
+## stub (48)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -95,23 +94,21 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:3782 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:3739 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:3335 | the other types' AI (FUN_0042ce17, |
-| FUN_0042f7ad | src/actor_ai.c:759 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:3792 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_0042e1a6 | src/actor_ai.c:4085 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:4042 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:3638 | the other types' AI (FUN_0042ce17, |
+| FUN_0042f7ad | src/actor_ai.c:820 | the other bosses' / special enemies' |
+| FUN_00430c6d | src/actor_ai.c:4095 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:459 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_player_ctrl.c:2242 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:285 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:321 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1133 | dungeons 3 / 4's events — the |
+| FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:352 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:400 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044db3c | src/dungeon_flow.c:879 | Tielle's floor-30 timeline (her |
-| FUN_0044db3c | src/dungeon_flow.c:1105 | Tielle's timeline (arg 1, the boss run) |
 | FUN_0044f078 | src/dungeon_party.c:652 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
@@ -176,7 +173,7 @@ _none_
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:818 | the engine frees the shop |
-| oob | 0x43e... | src/scene1_records_b_tick.c:3175 | types >= 64 read past DAT_005c23f0 into |
+| oob | 0x43e... | src/scene1_records_b_tick.c:3191 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1638 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:523 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |

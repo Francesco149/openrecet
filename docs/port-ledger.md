@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 731, discovered 1726 → 822 referenced-or-better (32.3%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 732, discovered 1725 → 823 referenced-or-better (32.3%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 12
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (731) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (732) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -212,8 +212,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x422092 | FUN_00422092 | 3620 | ✓ |  | actor_ai.c |
 | 0x422ed6 | FUN_00422ed6 | 1616 | ✓ |  | actor_ai.c |
 | 0x42353c | FUN_0042353c | 330 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x423686 | FUN_00423686 | 259 | ✓ |  | actor_ai.c |
 | 0x423789 | FUN_00423789 | 975 | ✓ |  | actor_ai.c |
-| 0x423b58 | FUN_00423b58 | 2118 | ✓ |  | dungeon_flow.c, scene1_top_hud.c |
+| 0x423b58 | FUN_00423b58 | 2118 | ✓ |  | actor_ai.c, dungeon_flow.c, scene1_top_hud.c |
 | 0x42439e | FUN_0042439e | 363 | ✓ |  | actor_ai.c |
 | 0x424509 | FUN_00424509 | 257 | ✓ |  | actor_ai.c |
 | 0x42460a | FUN_0042460a | 55 | ✓ |  | record_hit.c |
@@ -339,7 +340,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44d1e4 | FUN_0044d1e4 | 665 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
 | 0x44d47d | FUN_0044d47d | 1366 |  |  | dungeon_flow.c |
 | 0x44d9d3 | FUN_0044d9d3 | 361 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
-| 0x44db3c | FUN_0044db3c | 1294 | ✓ |  | dungeon_flow.c |
+| 0x44db3c | FUN_0044db3c | 1294 | ✓ |  | actor_ai.c, dungeon_flow.c |
 | 0x44e08f | FUN_0044e08f | 873 | ✓ |  | scene1_postload.c |
 | 0x44f009 | FUN_0044f009 | 20 | ✓ |  | actor_ai.c |
 | 0x44f078 | FUN_0044f078 | 197 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c |
@@ -529,7 +530,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x470a46 | FUN_00470a46 | 766 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c (+2) |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ |  | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ |  | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_ai.c, actor_table.c, customer_haggle.c (+18) |
+| 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_ai.c, actor_table.c, customer_haggle.c (+19) |
 | 0x47183b | FUN_0047183b | 151 | ✓ |  | d3d_pool.c, d3d_pool.h, scene.c (+1) |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ |  | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ |  | d3d_tex_names.h, scene1_preload.c, scene_buy.c (+13) |

@@ -337,6 +337,19 @@ static inline int ground_query(float x, float y, float z, float *out_y)
     return r;
 }
 
+/* FUN_00432e50 into the slot's own hit record (+0x18, retail's `lea eax,
+ * [esi+0x18]`; its height lands in AUX_9) — the sites that keep it there, not
+ * in a stack temp; the height out on a hit, else 0 */
+static inline int ground_query_self(int32_t *slot, float x, float y, float z, float *out_y)
+{
+    int32_t *hit = slot + 6;
+    const int r = ground_query_into(x, y, z, hit);
+    float h = 0.0f;
+    if (r == 1) memcpy(&h, &hit[3], sizeof h);
+    *out_y = h;
+    return r;
+}
+
 static inline void aux_4532bc_call(int32_t arg1)
 {
     if (g_aux_4532bc_hook) g_aux_4532bc_hook(arg1);
@@ -1852,10 +1865,14 @@ static void body_0x5a_or_0x98(int i)
     const void *owner = slot_owner(i);
     if (!owner) return;
 
-    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
+    /* asm 0x43cca5..0x43cd4b: every step stored to m32 (fstps), so each is
+     * rounded once — the drift's add before its × 0.95 too */
+    static const float k0p03 = 0.029999999329447746f, k0p1 = 0.10000000149011612f;
+    static const float k0p003 = 0.003000000026077032f, k0p95 = 0.949999988079071f;
+    float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + k0p03);
     if (life_mult > 2.0f) life_mult = 2.0f;
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f + 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, spill32((long double)life_mult * k0p1 + 0.5f));
 
     int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
     int age      = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
@@ -1866,10 +1883,10 @@ static void body_0x5a_or_0x98(int i)
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
         float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
         float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-        vx = (g_scene1_player_pos[0] - px) * 0.003f + vx;
-        vz = (g_scene1_player_pos[2] - pz) * 0.003f + vz;
-        vx *= 0.95f;
-        vz *= 0.95f;
+        vx = spill32(((long double)g_scene1_player_pos[0] - px) * k0p003 + vx);
+        vz = spill32(((long double)g_scene1_player_pos[2] - pz) * k0p003 + vz);
+        vx = spill32((long double)vx * k0p95);
+        vz = spill32((long double)vz * k0p95);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
     }
@@ -2711,14 +2728,13 @@ static void body_0x2b(int i)
         float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.02f;
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
 
-        /* asm 0x43d8e5-0x43d903: ground_query.  Engine passes a 4-float
-         * out buffer at [esi+0x18] (= slot offset dw 6 — scratch space);
-         * we collapse to a single `float *out_y`. */
+        /* asm 0x43d8e5-0x43d903: ground_query into the slot's hit record
+         * [esi+0x18] (= slot offset dw 6). */
         float gy = 0.0f;
         float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
         float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        int hit = ground_query(pos_x, pos_y, pos_z, &gy);
+        int hit = ground_query_self(slot, pos_x, pos_y, pos_z, &gy);
 
         /* asm 0x43d904-0x43d937: hit AND VEL_Y < 0 AND POS_Y < threshold. */
         if (hit == 1 && vel_y < 0.0f) {
@@ -4000,7 +4016,7 @@ static void body_0x7b_a1_a4(int i, int32_t type)
                 float py  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
                 float pz  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
                 float hit = 0.0f;
-                if (ground_query(px, py, pz, &hit) == 1) {
+                if (ground_query_self(slot_base(i), px, py, pz, &hit) == 1) {
                     ground_y = hit;
                 }
             }
@@ -4128,13 +4144,9 @@ static void body_0x84(int i)
             float py  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
             float pz  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
             float hit = 0.0f;
-            if (ground_query(px, py, pz, &hit) == 1) {
-                /* Mirror engine: slot[AUX_9] is what the engine reads back
-                 * for the threshold (it was written via the 4-float
-                 * scratch buffer at &slot[+0x18]).  Our hook collapses to
-                 * `out_y` only; we restore the engine's observable side-
-                 * effect by writing AUX_9 explicitly. */
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, hit);
+            if (ground_query_self(slot_base(i), px, py, pz, &hit) == 1) {
+                /* the engine reads the threshold back from AUX_9, the hit
+                 * record's height */
                 float threshold = hit + 0.2f;
                 float pos_y     = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
                 if (pos_y <= threshold) {
@@ -5841,12 +5853,8 @@ static void body_0x75(int i)
             float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
             float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
             float gy = 0.0f;
-            if (ground_query(px, py, pz, &gy) == 1) {
-                /* Mirror engine: ground_y is reloaded from slot[AUX_9] (the
-                 * scratch buffer the engine passes to ground_query) for the
-                 * threshold compare.  Our hook returns out_y directly; write
-                 * AUX_9 to preserve the engine's observable side-effect. */
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, gy);
+            if (ground_query_self(slot_base(i), px, py, pz, &gy) == 1) {
+                /* the threshold compare reads AUX_9, the hit record's height */
                 if (py <= gy + 0.3f) {
                     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, gy + 1.0f);
                     float new_vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * -0.5f;
@@ -6105,11 +6113,7 @@ static void body_0x7c(int i)
         float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
         float gy = 0.0f;
-        if (ground_query(px, py, pz, &gy) == 1) {
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, gy);
-        } else {
-            gy = 0.0f;
-        }
+        (void)ground_query_self(slot_base(i), px, py, pz, &gy);
         float threshold = gy + 1.0f;
         if (py <= threshold) {
             slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);

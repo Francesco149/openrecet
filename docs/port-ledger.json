@@ -8,19 +8,19 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 731,
-  "inv_discovered": 1726,
-  "referenced_or_better": 822,
+  "inv_source_referenced": 732,
+  "inv_discovered": 1725,
+  "referenced_or_better": 823,
   "pct_referenced_or_better": 32.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 12,
-  "port_debt": 86,
+  "port_debt": 84,
   "verified": 81,
   "stubbed": 10,
-  "ported": 731,
-  "unported": 1726,
-  "touched": 822,
+  "ported": 732,
+  "unported": 1725,
+  "touched": 823,
   "pct_touched": 32.3,
   "pct_verified": 0.0
  },
@@ -3758,18 +3758,20 @@
    "size": 259,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x423789",
@@ -3809,6 +3811,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_flow.c",
     "src/scene1_top_hud.c"
    ],
@@ -7721,6 +7724,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/dungeon_flow.c"
    ],
    "status": "ported"
@@ -13586,6 +13590,7 @@
     "src/customer_haggle.c",
     "src/customer_haggle.h",
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/record_hit.c",

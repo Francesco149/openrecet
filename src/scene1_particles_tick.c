@@ -97,11 +97,12 @@ static inline void slot_add_f(int i, int off, float dv) { slot_set_f(i, off, slo
  *  decay_drift_grav_pre(damp, gravity_y, kill_age)
  *      pos += vel; vel.y += gravity_y; vel *= damp; age++; kill at K.
  *      (Gravity is applied BEFORE the damp.  Types 0x29, 0x1f, 100,
- *       0x36, 0x74, 0x4e use this.)
+ *       0x2d use this.)
  *
  *  decay_drift_grav_post(damp, gravity_y, kill_age)
  *      pos += vel; vel *= damp; vel.y += gravity_y; age++; kill at K.
- *      (Gravity is applied AFTER the damp.  Types 0x96, 0x97 use this.)
+ *      (Gravity is applied AFTER the damp.  Types 0x36, 0x74, 0x4e use
+ *       this; 0x96 / 0x97 inline it with their rot bumps.)
  *
  *  scaled_drift_uniform(damp, kill_age)
  *      pos += vel * scale; vel *= damp; age++; kill at K.
@@ -156,11 +157,24 @@ static void decay_drift_grav_pre(int i, float damp, float gravity_y, int kill_ag
     if (slot_age(i) == kill_age) slot_kill(i);
 }
 
-/* decay_drift_grav_post — not used by any landed handler yet; type
- * 0x96/0x97 (the only post-damp gravity types in C8h.2) need extra rot
- * bumps so they inline the math.  Will be useful when a later chip
- * finds a "pure" post-damp variant.  Keep the helper out of the build
- * for now (commented to avoid -Wunused-function). */
+/* decay_drift_grav_post: the same with the gravity after the damp — vel ·
+ * damp, then vel.y + g, each stored (0x410406..0x410433: types 0x36 / 0x74 /
+ * 0x4e) */
+static void decay_drift_grav_post(int i, float damp, float gravity_y, int kill_age)
+{
+    const float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    const float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    const float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, spill32((long double)vx * damp));
+    const float dy = spill32((long double)vy * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, spill32((long double)dy + gravity_y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, spill32((long double)vz * damp));
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
 
 static void scaled_drift_uniform(int i, float damp, int kill_age)
 {
@@ -476,14 +490,13 @@ static void handle_type_96_97(int i)
 
 /* ─── handler: types 0x36 / 0x74 — gravity-fall, kill at PARAM1 ─────
  *
- * Engine decomp L338-L352.  damp 0.97 pre-grav, gravity -0.02.  Kill
- * threshold is the per-record PARAM1 field.
- *
- * Type 0x4e (L353-L367) is structurally identical. */
+ * Engine 0x4103ed..0x410441: damp 0.97, then gravity -0.02 (after the damp —
+ * the port had it before, 0.0006 a tick slower).  Kill threshold is the
+ * per-record PARAM1 field.  Type 0x4e (0x41044a..) is identical. */
 static void handle_type_36_74_4e(int i)
 {
     int kill_at = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
-    decay_drift_grav_pre(i, 0.97f, -0.02f, kill_at);
+    decay_drift_grav_post(i, 0.97f, -0.02f, kill_at);
 }
 
 /* ─── handler: type 0x29 — gravity -0.002, damp 0.97, kill 0x28 ─────
@@ -1908,7 +1921,11 @@ void scene1_particles_tick(void)
         if (type == 0x5a)        { handle_type_5a(i); }
 
         type = slot_type(i);
-        if (type == 0x2d)        { decay_drift_grav_pre(i, 0.97f, 0.002f, 0x40); }
+        if (type == 0x2d) {
+            /* asm: the motion only from age 0 (a chain spawn starts below) */
+            if (slot_age(i) >= 0) decay_drift_grav_pre(i, 0.97f, 0.002f, 0x40);
+            else { slot_age_inc(i); if (slot_age(i) == 0x40) slot_kill(i); }
+        }
 
         type = slot_type(i);
         if (type == 0x24)        { age_only_kill_at(i, 0x100); }
