@@ -454,10 +454,22 @@ int record_hit_actors(int32_t *slot)
             r = AF(c, 0xabc);
             anchor = 0;
             if (t == 0x46 || t == 0x47 || m != 0) {
-                /* PORT-DEBT(stub, FUN_0043865e): the multi-part anchors
-                 * DAT_005c530c / DAT_005c5314 (+0x6fc + 12k, radius / 2;
-                 * the golem / dragon parts) */
-                continue;
+                /* the parts at the draw-written anchors +0x6fc + 12k, radius / 2:
+                 * the jellyfish's two (DAT_005c530c), the crabs' six beyond the
+                 * body (DAT_005c5314) — those take no damage */
+                static const int32_t k_jelly[2] = { 1, 2 };                 /* DAT_005c530c */
+                static const int32_t k_crab[7] = { -1, 0, 1, 2, 3, 6, 7 };  /* DAT_005c5314 */
+                int32_t k;
+                if (t == 0x46 || t == 0x47) {
+                    k = k_jelly[m];
+                } else {
+                    k = k_crab[m];
+                    anchor = 1;
+                }
+                hx = AF(c, 0x6fc + 12 * k);
+                hy = AF(c, 0x700 + 12 * k);
+                hz = AF(c, 0x704 + 12 * k);
+                r = spill32((long double)AF(c, 0xabc) * k0p5);
             }
             dx = spill32((long double)hx - px);
             dy = spill32((long double)hy - py);

@@ -789,7 +789,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "multiday-tutorials-suggest", "buy-from-seller-guild-intro",
                                       "dungeon0-floors-save", "dungeon0-full", "dungeon1-run2", "dungeon1-deep",
                                       "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3",
-                                      "dungeon3-run2-save", "dungeon3-floors")]
+                                      "dungeon3-run2-save", "dungeon3-floors", "dungeon3-deep")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
@@ -799,7 +799,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon0-wipe", "dungeon1-run", "dungeon1-run2", "dungeon1-deep",
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
                                       "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
-                                      "dungeon3-run", "dungeon3-run2", "dungeon3-floors")])
+                                      "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")])
 
 
 def cmd_gates(a):

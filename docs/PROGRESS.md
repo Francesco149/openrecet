@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-24 — dungeon3-deep passes end to end: dungeon 2's 6F..20F, Ohm, the crabs, an order's return
+Human recording from dungeon3-floors' end save (`_saves/bc9e123b…`): an order customer comes back for
+the goods (f30639), town days, dungeon-2 runs from 6F — Ohm on 10F (~f79k–82k), the knights /
+ropers / pumpkins / bombs of 6F..19F — and the last trip 6F → 20F, the crabs beaten (~f284k–293k),
+a dungeon Save. 294,268 frames. **portrng IDENTICAL f1–f294568 (1,272,829 draws), portsave
+IDENTICAL** (the save differs from the start blob: a real save). In `gates`. Two splits:
+- f30639: the queue's kind-3 entry (an order of b5a8 3 due on time) → **b5a8 4, FUN_00463cfb**:
+  the order line, the pick rows (row 0 "All set!", rows 1..b5dc at DAT_0730b274 {item, col, row};
+  held up / down move DAT_005c6bcc, Z focuses the item window, its pick leaves the bag or the shelf
+  at once), Recette's offer (the best upgrade pick → DAT_005c6bc8 for an adventurer), the ask = the
+  matching picks' price sum, the haggle with the budget × b5dc, a sale logging every pick and
+  adding their grades to the closeness; FUN_00460eba puts the picks back on every refusal. b5a8 5
+  FUN_00464a26 (the missed order) too, unreached. FUN_00468ddc for a customer index outside 0..7
+  shifts mod 32 into the 8-bit mask (an ordinary customer fails it; the port returned 1). The pick
+  cursor read the held word (0x40000 / 0x80000 of the dword = DAT_073dddd6 up / down) — f30864;
+- f284555: the crabs' six hit parts (FUN_0043865e: DAT_005c5314 → anchors +0x6fc + 12k, radius / 2,
+  no damage; the jellyfish's two from DAT_005c530c) — a swing on a claw registers a hit with the
+  41 / 42 sparks; the port skipped the parts (`PORT-DEBT(stub)` retired).
+RNG-verified by this run: Ohm 67, the crabs 68 / 69, the bombs 37..40, the knights 44 / 45, the
+ropers 17..20, the pumpkin 15 (variant 0) — all ported ahead of a recording. portblock f294500: the
+known enemylist residue, table A's 1-ulp particles, table B's ground-hit struct (+0x28 / +0x2c:
+the triangle and map-collision slot, retail slot 9 vs port 2 / 3 — positions identical) and a
+dead bomb (actor #4, type 37) a few ulps off in x / z / yaw. Tools: state_va rows for the pick
+state (DAT_005c6bcc / bc8, DAT_0730b5c8 / cc / dc, the rows).
+
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2
 (Amber Garden) runs up to 7F, the 5F Boss Ahriman, town days, Tielle's rank-6 visit, an order

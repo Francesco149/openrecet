@@ -184,8 +184,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        short: portrng IDENTICAL f1–f55984 / f1–f44253, run2's save IDENTICAL; PROGRESS
        2026-10-23)**, **dungeon3-floors (Charme leads: dungeon 2 floors 1..7 over several runs, the
        5F Boss Ahriman, Tielle's rank-6 visit, an order customer, a save: portrng IDENTICAL
-       f1–f199926 + portsave IDENTICAL; PROGRESS 2026-10-23)**; all in `gates`. Next needs dungeon
-       2's deeper floors (Human queue).
+       f1–f199926 + portsave IDENTICAL; PROGRESS 2026-10-23)**, **dungeon3-deep (dungeon 2 from
+       6F: Ohm on 10F, the knights / ropers / pumpkins / bombs of 6F..19F, the crabs on 20F beaten,
+       a dungeon Save; an order customer's return: portrng IDENTICAL f1–f294568 + portsave
+       IDENTICAL; PROGRESS 2026-10-24)**; all in `gates`. Next needs dungeon 2's 21F..30F
+       (Human queue).
        Known, not RNG-visible yet:
        - **0x4a35ef is D3DXMatrixRotationY, 0x4a3553 RotationX** (D3DX table slots 31 / 30;
          the c_ fallbacks at 0x4a35f5 / 0x4a3559 prove it). Several sites call
@@ -205,15 +208,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        Still `PORT-DEBT(stub)` on the dungeon path: the other enemy types' AI (done: slimes
        0–5, bats 6..9, bees 10..12, mushrooms 13/14 + their burrow arms, kobold 16, fliers 17..21 /
        56..58, rabbit 22, crown slime 23, the mushroom king 24 / 59 / 60, Charme 25, the lost girl
-       29, 44..48; **ported ahead of a dungeon-2 recording, unverified**: FUN_00431d54's other
-       special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3, from day 10 in
-       dungeons 0..2), the bombs 37..40 (FUN_004293f0), the pumpkin 15 variant 0
-       (FUN_0042a33e), the boss ahriman 54 (FUN_00426811), Ohm 67 (FUN_00422ed6), FUN_0042f7ad's
-       61 / 64 / 67 / 68 / 69 arm, dungeon 2's setup FUN_0044d9d3 + its checkpoint events, the
-       crabs 68 / 69 (FUN_00422092, floor 20; 2026-10-23); still stubs for dungeon 2: Tielle 27
-       (FUN_00423b58, her floor-30 timeline FUN_0044db3c, her death arm); the pumpkin variants
-       1 / 2 (not in dungeon 2's lists), the
-       golem parts / multi-part anchors, FUN_0042df55's
+       29, 44..48, the bombs 37..40 (FUN_004293f0), the pumpkin 15 variant 0 (FUN_0042a33e), the
+       boss ahriman 54 (FUN_00426811), Ohm 67 (FUN_00422ed6), the crabs 68 / 69 (FUN_00422092) and
+       their six hit parts (FUN_0043865e), dungeon 2's setup FUN_0044d9d3 + its events to 20F
+       (dungeon3-floors / -deep: RNG-verified); **ported ahead of a recording, unverified**:
+       FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3,
+       from day 10 in dungeons 0..2), FUN_0042f7ad's 61 / 64 arm, the jellyfish's 2 hit parts;
+       still stubs for dungeon 2: Tielle 27 (FUN_00423b58, her floor-30 timeline FUN_0044db3c, her
+       death arm); the pumpkin variants 1 / 2 (not in dungeon 2's lists), the golem parts,
+       FUN_0042df55's
        lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
        Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss
        arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
@@ -255,9 +258,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        (FUN_004161c7 after FUN_0048e49c; the board itself is ported, 2026-10-23), the ending (FUN_0049da9e,
        mode 7 FUN_0049db8a; no recording reaches day 36). The night arm of the dungeon exit
        (FUN_00442cef all_ida 44950) waits for the dungeon port.
-    4. Unported machines b5a8 4 / 5 (FUN_00463cfb / 464a26: the story customers) — no scenario
-       reaches them yet (3, the order customer FUN_004639f5, is ported: dungeon3-floors). Who
-       reads the orders it files (work +0x2a5f8) on a later day is unported / unreached. The b524 == 50 story probe:
+    4. ✅ The order customers: b5a8 3 FUN_004639f5 files the order (dungeon3-floors); the roster
+       scan queues it back as kind 3 (on time) / 4 (missed) and b5a8 4 FUN_00463cfb (the pick
+       rows, the picks' price sum, the haggle) / 5 FUN_00464a26 serve it (dungeon3-deep f30639:
+       the return; the missed arm is unreached). The b524 == 50 story probe:
        Charme's iv3_4 visit verified (dungeon2-run); the other adventurers' scenes and the item
        quest are ported but no recording reaches them.
     6. Guild: Fusion's sim is ported (2026-10-23; the confirm / result modes 5 / 6 unverified —
@@ -275,7 +279,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   debt-week1-paid, dungeon1-clear, dungeon2-run2 / -run3), portanchors ×2, portrng over 12
   shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
   dungeon1-run / -run2 / -deep / -charme / -clear, dungeon2-run / -run2 / -run3, dungeon3-run /
-  -run2 / -floors (+ portsave dungeon3-run2-save / -floors), adv-guild-pack-leave,
+  -run2 / -floors / -deep (+ portsave dungeon3-run2-save / -floors / -deep), adv-guild-pack-leave,
   tear-lectures-gameover, debt-week1-paid, each to the retail run's end.  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
@@ -316,12 +320,11 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Record dungeon 2's deeper floors** (unblocks Ohm 67 on 10F, the knights / ropers / pumpkins of
-  6F..20F, the crabs 68 / 69 on 20F, Tielle 27 on 30F — all ported unverified). Start from the
-  save dungeon3-floors ends with (cached, so the game starts at once): on maximus, the user plays
-  on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon3-deep --from
-  dungeon3-floors`. Load the newest slot; guild → dungeon 2 as far as it goes (the 10F boss, then
-  15F / 20F if possible); a Fusion and the pause Equip on the way (both unverified); home, save.
-  Another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
+- **Record dungeon 2's last floors** (unblocks 21F..29F's mixes, the double crown slime on 25F,
+  Tielle 27 on 30F). dungeon3-deep ends with a dungeon Save on 20F (cached, so the game starts at
+  once): on maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record
+  dungeon3-end --from dungeon3-deep`. Load the newest slot (the in-dungeon save after 20F); on to 25F and
+  30F if possible; then home, save. A Fusion and the pause Equip on the way are still unverified;
+  another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
   start `--from` the last (cached end saves: no replay).
 <!-- FRONT:END -->
