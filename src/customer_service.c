@@ -1046,6 +1046,18 @@ int32_t customer_service_arrival_anim(void){ return s_b5a0; }
 int32_t customer_service_round(void)       { return s_b584; }
 int32_t customer_service_b318(void)        { return s_b318; }
 int32_t customer_service_b5d0(void) { return s_b5d0; }
+int32_t customer_service_pick_va(uint32_t va)   /* the b5a8 == 4 pick state (state_va rows) */
+{
+    if (va >= 0x730b274u && va < 0x730b274u + 4u * 3u * CS_ITEMPICK_N) return s_item_pick[(va - 0x730b274u) / 4u];
+    switch (va) {
+    case 0x5c6bccu: return s_price_cursor;
+    case 0x5c6bc8u: return s_price_bc8;
+    case 0x730b5c8u: return s_b5c8;
+    case 0x730b5ccu: return s_b5cc;
+    case 0x730b5dcu: return s_b5dc;
+    default: return 0;
+    }
+}
 int32_t customer_service_b5d4(void) { return s_b5d4; }
 int32_t customer_service_b5d8(void)        { return s_b5d8; }
 int32_t customer_service_b548(void)        { return s_b548; }
@@ -1230,12 +1242,16 @@ static int cs_check_customer_request_category(int item_handle, int cust_idx)
  * the item window's row tint (FUN_0046b00a). ──────────────────────────────── */
 int item_equip_check(int cust_idx, int slot_idx, int item_handle)
 {
-    if (cust_idx < 0 || item_handle < 0) return 1;
-    if (cust_idx >= 8) return 1;
+    if (cust_idx == -1 || item_handle < 0) return 1;
 
     int slot = tables_item_find_slot_by_id(&g_item, item_handle >> 6);
     if (slot < 0) return 1;   /* not in the item DB (0x468e1a) */
-    if ((g_item.records[slot].aud_mask & (1u << cust_idx)) == 0) return 0;
+    /* `shl` takes the count mod 32 and the mask is 8 bits wide: an ordinary
+     * customer (b56c − 2 in 8..31, the order's return FUN_00463cfb) fails here */
+    if ((g_item.records[slot].aud_mask & (1u << (cust_idx & 31))) == 0) return 0;
+    /* PORT-DEBT(stub, FUN_00468ddc): an index < -1 or >= 32 with its mod-32 bit
+     * set reads DAT_005c6f04 / the request slots past the eight adventurers */
+    if (cust_idx < 0 || cust_idx >= 8) return 1;
     int32_t cat = g_item.records[slot].equip_class;   /* record +0x2c */
     if (slot_idx == 0 && cat != s_cust_req_cats[cust_idx][0]) return 0;
 
@@ -3759,6 +3775,471 @@ static void cs_delivery_machine(void)
     }
 }
 
+/* a dword at work + off as retail reads it (no bound: an ordinary customer's
+ * "adventurer record" lands past the bank); -1 outside the work arena */
+static int32_t cs_work_i32(const uint8_t *bank, int32_t off)
+{
+    const uint8_t *base = save_work_base();
+    if (bank == NULL || bank + off < base || bank + off + 4 > base + SAVE_BANK_ARENA_BYTES)
+        return -1;
+    int32_t v;
+    memcpy(&v, bank + off, 4);
+    return v;
+}
+
+/* a b5a8 == 4 pick row back where it came from: the bag (col -1, FUN_00468d22)
+ * or its display-grid cell (work +0x13898 + 80·row + 4·col) */
+static void cs_order_pick_put_back(uint32_t *bankw, const int32_t *p)
+{
+    if (p[1] == -1)
+        display_menu_inventory_return(bankw, p[0]);
+    else if (bankw != NULL)
+        ((int32_t *)bankw)[SAVE_BANK_FIELD_DISPLAY_GRID + p[2] * SAVE_BANK_DISPLAY_GRID_COLS + p[1]] = p[0];
+}
+
+/* FUN_00460eba: every filled pick row 1..b5dc goes back (the order refused,
+ * short or walked out on).  Rows past the 5 of DAT_0730b274 would run into the
+ * <S> macro buffer in retail; an order is never that large. */
+static void cs_order_picks_restore(void)
+{
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    for (int32_t i = 1; i <= s_b5dc && i < CS_ITEMPICK_N; i++)
+        if (s_item_pick[3 * i] != -1)
+            cs_order_pick_put_back(bankw, &s_item_pick[3 * i]);
+}
+
+/* ── FUN_00463cfb — the b5a8==4 machine: the order customer comes back ────────
+ * (a queue entry of kind 3 = an order filed by FUN_004639f5 whose days ran out
+ * on time).  2 the line (<S> = the oder's plural) → 3 the pick rows: row 0
+ * "done", rows 1..b5dc (DAT_0730b274 + 12·i {item, col, row}) — up / down
+ * (held, 0x40000 / 0x80000 of the dword) move the cursor DAT_005c6bcc, Z on a row focuses
+ * the item window (b5cc = 2); its pick leaves the bag or its stand at once
+ * (the row's old item goes back); 0x40 shows a row's detail card; Z on "done"
+ * → 4 with every row filled, else 17 (+ FUN_00460eba, the picks go back).
+ * 4: Recette's offer; the best upgrade among the picks for an adventurer
+ * (FUN_0048093f sums over the request slots it can fill) → DAT_005c6bc8; the
+ * ask = the picks' price sum (oder match per pick) → 5 (all match) / 16.
+ * 5 / 6 / 15 / 7 / 8 / 40 / 9 as the request machine, the budget × b5dc; a
+ * sale logs every pick (FUN_00460083) and adds their grades to the closeness.
+ * The hand snaps to (16, 140 + 38·(cursor − b5c8)) for 22 ticks, then slides
+ * there on a move.  Disasm 0x463cfb-0x464a25. */
+static void cs_order_pick_machine(void)
+{
+    static const float k_budget_cap = 1.2f;              /* 0x519924 */
+    static const float k_scripted_floor = 0.8f;          /* 0x519470 */
+    static const float k_hand_x = 16.0f, k_hand_y = 140.0f;   /* DAT_005c6c38 / 3c */
+    uint32_t *bankw = save_work_dwords_at(save_work_active_slot());
+    uint8_t *bank = (uint8_t *)bankw;
+    int f404 = bank && bank[CS_F404_SELL_ACTIVE_BYTE_OFF];
+    int f406 = bank && bank[CS_F406_TUTORIAL_BYTE_OFF];
+    int rec = g_scene_buy_current_page;                   /* ebx = &ea90[b56c] */
+    int slide = 0;                                        /* [ebp-8] */
+
+    s_b544 += 1;
+    if (display_menu_detail() != 0) {                     /* FUN_004681e6 */
+        if (s_in_pressed & 0x70) {
+            display_menu_detail_close();                  /* FUN_004681d3 */
+            if (s_b5a0 == 0) title_save_dialog_cursor_set_visible(1);   /* FUN_0043561a */
+            audio_play_se_by_id(710);
+        }
+        return;
+    }
+    switch (s_b534) {
+    case 2:                                     /* the order's goods */
+        if (s_b544 == 1) {
+            if (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                dlg_macro_set(DLG_MAC_S, g_oder.entries[s_b5d8].name_plural);   /* <S> */
+            cs_pick_line(rec, 16, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_b544 = 0;
+            s_cust_active[1] = 0;
+            s_b5d4 = 0;
+            s_b534 = 3;
+            s_b5b0 = 1;                         /* → the master tick opens the item window */
+            s_b5d0 = 1;
+            slide = 1;
+            for (int i = 1; i < CS_ITEMPICK_N; i++)
+                s_item_pick[3 * i] = s_item_pick[3 * i + 1] = s_item_pick[3 * i + 2] = -1;
+            s_price_cursor = 1;
+        }
+        break;
+
+    case 3:                                     /* the pick rows */
+        if (s_b5cc != 0) {                      /* the item window has the focus */
+            const int r = display_menu_update(1);           /* FUN_00469414 */
+            if (r == 3) {
+                audio_play_se_by_id(323);
+            } else if (r == 2) {
+                audio_play_se_by_id(317);
+                s_b5cc = 0;
+                slide = 1;
+            } else if (r == 1) {
+                const int32_t h = display_menu_selected();  /* FUN_00469a9f */
+                int32_t *p = &s_item_pick[3 * s_price_cursor];
+                if (p[0] != -1)
+                    cs_order_pick_put_back(bankw, p);
+                p[0] = h;
+                /* a pick from the bag leaves the row's col / row as they were: after a
+                 * shelf pick on the same row it goes back to that shelf cell */
+                if (h != -1 && display_menu_inventory_remove(bankw, h) == 0)   /* FUN_00469241 */
+                    cs_display_grid_clear(h, &p[1], &p[2]);  /* FUN_0046002a */
+                display_menu_open(1, 0);                     /* FUN_00468338 */
+                stage_load_pulse_reset_counter_to_5();       /* FUN_004682e3 */
+                s_b5cc = 0;
+                slide = 1;
+            }
+            break;
+        }
+        if (s_b544 < 23) {
+            title_save_dialog_cursor_snap(k_hand_x,
+                                          (float)(38 * (s_price_cursor - s_b5c8)) + k_hand_y);
+            break;
+        }
+        if (s_in_pressed & 0x40) {
+            if (s_price_cursor > 0 && s_item_pick[3 * s_price_cursor] != -1) {
+                display_menu_detail_open(0);                 /* FUN_004681db */
+                display_menu_set_highlight(s_item_pick[3 * s_price_cursor]);   /* FUN_00468286 */
+                title_save_dialog_cursor_set_visible(0);
+                audio_play_se_by_id(710);
+            }
+        } else if (s_in_pressed & 0x10) {
+            audio_play_se_by_id(323);
+            if (s_price_cursor != 0) {
+                s_b5cc = 2;
+                display_menu_cursor_to_row();                /* FUN_0046939a */
+            } else {
+                int32_t filled = 0;
+                for (int32_t i = 1; i <= s_b5dc && i < CS_ITEMPICK_N; i++)
+                    if (s_item_pick[3 * i] != -1) ++filled;
+                if (filled >= s_b5dc) {
+                    s_b534 = 4;
+                } else {
+                    s_b534 = 17;
+                    cs_order_picks_restore();                /* FUN_00460eba */
+                }
+                s_b544 = 0;
+                title_save_dialog_cursor_set_visible(0);
+                stage_load_pulse_set_active(0);              /* FUN_004682d0 */
+            }
+        } else {
+            const int32_t rows = s_b5dc + 1;
+            int32_t cur = s_price_cursor;
+            /* DAT_073dddd4 as a dword: 0x40000 / 0x80000 = held (DAT_073dddd6) up / down */
+            if ((s_in_held & 4u) != 0 && s_price_cursor > 0) {
+                audio_play_se_by_id(326);
+                cur = --s_price_cursor;
+                if (s_price_cursor - s_b5c8 < 0) --s_b5c8;
+                slide = 1;
+            }
+            if ((s_in_held & 8u) != 0 && cur < s_b5dc) {
+                audio_play_se_by_id(326);
+                cur = ++s_price_cursor;
+                if (s_price_cursor - s_b5c8 > rows - 1) ++s_b5c8;
+                slide = 1;
+            }
+            display_menu_set_highlight(cur + s_b5c8 != 0 ? s_item_pick[3 * cur] : -1);
+        }
+        break;
+
+    case 4:                                     /* Recette's offer */
+        if (s_b544 == 1) {
+            cs_pick_line(0, 1, 0);
+            s_b5d0 = 2;
+            s_b5d4 = 0;
+            s_cust_active[0] = 1;
+            if (s_item_pick[3] != -1) {
+                /* rows 2.. run FUN_0049ed12 against row 1's category and drop the
+                 * result (pure) — skipped.  Then the pick with the largest stat sum
+                 * that beats some request slot the customer could fill: work
+                 * +0x2ceb4 + 0x6c·(b56c − 2), read for any customer (an ordinary
+                 * one's lands past the eight adventurers) */
+                const int32_t chara = rec - 2;
+                int32_t best = 0;
+                for (int32_t i = 1; i <= s_b5dc && i < CS_ITEMPICK_N; i++) {
+                    const int32_t h = s_item_pick[3 * i];
+                    int32_t a[4] = { 0 };
+                    chara_equip_item_stats((uint32_t)h, a);
+                    const int32_t sum = a[0] + a[1] + a[2] + a[3];
+                    int better = 0;
+                    for (int k = 0; k < 5; k++) {
+                        const int32_t r = cs_work_i32(bank, 0x2ceb4 + 0x6c * chara + 4 * k);
+                        if (r < 0 || !item_equip_check(chara, k, h)) continue;
+                        int32_t b[4] = { 0 };
+                        chara_equip_item_stats((uint32_t)r, b);
+                        if (b[0] + b[1] + b[2] + b[3] < sum) better = 1;
+                    }
+                    if (better && best < sum) {
+                        best = sum;
+                        s_price_bc8 = h;
+                    }
+                }
+            }
+        }
+        title_save_dialog_cursor_set_visible(0);
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            s_b5a4 = s_item_pick[3];
+            cs_set_item_macro(s_item_pick[3]);  /* FUN_004607f3 → <I> */
+            {   char pix[DLG_MACRO_BUFSZ];
+                snprintf(pix, sizeof pix, "%dpix", s_price_ask);
+                dlg_macro_set(DLG_MAC_Y, pix); }  /* <Y> (the old ask) */
+            const struct oder_entry *o = (s_b5d8 >= 0 && s_b5d8 < g_oder.count)
+                                       ? &g_oder.entries[s_b5d8] : NULL;
+            int32_t match = 0;
+            s_price_runsum = 0;
+            for (int32_t i = 1; i <= s_b5dc && i < CS_ITEMPICK_N; i++) {
+                const int32_t h = s_item_pick[3 * i];
+                if (h == -1) continue;
+                const int slot = tables_item_find_slot_by_id(&g_item, h >> 6);
+                if (slot < 0 || o == NULL) continue;     /* retail indexes record[-1] */
+                if ((g_item.records[slot].attr_mask & o->attr_mask) != 0 ||
+                    g_item.records[slot].category == o->attr_index) {
+                    ++match;
+                    s_price_runsum += g_item.records[slot].price;
+                }
+            }
+            s_price_base = s_price_runsum;
+            s_price_ask = x87_ftol(spill32((long double)s_price_runsum));
+            if (match == s_b5dc) {
+                s_b534 = 5;
+            } else {
+                s_b534 = 16;
+                cs_order_picks_restore();       /* FUN_00460eba */
+            }
+            s_b544 = 0;
+        }
+        break;
+
+    case 5:                                     /* the customer likes them */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 2, 1);
+            s_cust_active[1] = -1;
+            title_save_dialog_cursor_set_visible(0);
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b534 = 6;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b544 = 0;
+            cs_offer_up();                      /* FUN_00460161 */
+            cs_digit_count();                   /* FUN_0045ff11 */
+        }
+        break;
+
+    case 17:                                    /* rows left empty */
+        if (s_b544 == 1) {
+            s_b5c4 = 0;
+            cs_pick_line(0, 2, 0);
+        }
+        s_cust_active[0] = 1;
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b5d0 = 0;
+            s_b55c = 0;
+            s_cust_active[0] = 0;
+            s_b534 = 18;
+            s_b544 = 0;
+        }
+        break;
+
+    case 16:                                    /* not what was ordered */
+    case 18:                                    /* (after rows left empty) */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, s_b534 == 16 ? 8 : 9, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b5d0 = 0;
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 11;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+        break;
+
+    case 0xf: {                                 /* decision */
+        int poll = cs_input_poll();             /* FUN_004622d9 */
+        if (poll != 1) {
+            if (poll == 2) s_b534 = 6;
+            break;
+        }
+        s_b538 = 0;
+        if (s_b584 == 3 && !f404 && bank)
+            *rs_close(bank, s_b570) -= 1;
+        const float ask_f = spill32((long double)s_price_ask);
+        const float budget_f = spill32((long double)(s_b5dc * cs_budget(g_scene_buy_current_page, s_b570)));
+        if (!((long double)budget_f * k_budget_cap >= (long double)ask_f)) {
+            s_b534 = 40;                        /* way over budget */
+            if (!f404 && bank)
+                *rs_close(bank, s_b570) -= 1;
+        } else if (s_price_ask <= s_b574) {
+            if ((long double)spill32((long double)s_price_base) * k_scripted_floor <
+                    (long double)spill32((long double)s_price_ask) || !f404) {
+                int16_t grades = 0;
+                for (int32_t i = 1; i <= s_b5dc && i < CS_ITEMPICK_N; i++) {
+                    if (s_item_pick[3 * i] == -1) continue;
+                    cs_item_log_append(s_item_pick[3 * i], 0);   /* FUN_00460083(h, 0) */
+                    grades = (int16_t)(grades + (s_item_pick[3 * i] & 0xf));
+                }
+                int grade = cs_accept_eval();   /* FUN_00460672 */
+                if (!f404 && bank)
+                    *rs_close(bank, s_b570) += (int16_t)(grades + (grade == 1 ? 5 : grade == 2 ? 2 : 1));
+                if (cs_loyalty_latch())         /* FUN_00460e50 */
+                    s_b53c = 1;
+                s_b534 = 7;
+            } else {
+                s_b538 = 1;
+                s_b534 = 8;
+            }
+        } else if (s_price_ask >= s_b580 && !f406) {
+            s_b534 = 9;
+            if (!f404 && bank)
+                *rs_close(bank, s_b570) -= 1;
+            cs_order_picks_restore();           /* FUN_00460eba */
+        } else {
+            s_b534 = 8;
+        }
+        if (bank && *rs_close(bank, s_b570) < 0)
+            *rs_close(bank, s_b570) = 0;
+        s_b544 = 0;
+        s_b59c = 0;
+        title_save_dialog_cursor_set_visible(0);
+        break;
+    }
+
+    case 6:                                     /* the player edits the ask */
+        s_cust_active[1] = 0;
+        if (s_b59c == 0) s_b59c = 1;
+        if (s_b544 == 1)
+            cs_pick_line(0, 9, 0);
+        title_save_dialog_cursor_set_visible(0);
+        if ((s_in_pressed & 0x10) == 0) {
+            cs_digit_edit();                    /* FUN_0045ff31 */
+            break;
+        }
+        s_cust_active[1] = 0;
+        s_b534 = 0xf;
+        s_b590 = 0;
+        s_b540 = 0;
+        audio_play_se_by_id(323);
+        title_save_dialog_cursor_snap(192.0f, (float)(s_b540 * 48) + 386.0f);
+        break;
+
+    case 7:                                     /* sold */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 5, 1);
+            s_b5d0 = 0;
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            break;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        if (!f404 && bank) {
+            bankw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
+            audio_play_se_by_id(333);
+            cs_sale_commit_stats_fx(0);         /* FUN_00460d52(0) */
+            cs_sale_popup_queue_build();        /* FUN_004606fc */
+            cs_adventurer_equip_upgrade();      /* FUN_00460b93 */
+        }
+        s_b544 = 0;
+        s_b5a0 = 0;
+        s_b534 = 10;
+        break;
+
+    case 8:
+    case 40: {                                  /* counter / over budget */
+        if (s_b544 == 1) {
+            int patience = cs_pushback_line();  /* FUN_00460f16 */
+            s_b5c4 = 0;
+            int line = (f404 && s_b538 == 1) ? 14
+                     : (s_b584 != patience || f406) ? (s_b534 == 8 ? 4 : 19) : 10;
+            cs_pick_line(rec, line, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c == 0 || (s_in_pressed & 0x10) == 0)
+            break;
+        s_b55c = 0;
+        s_cust_active[1] = 0;
+        if (s_b584 == cs_pushback_line() && !f406) {
+            cs_order_picks_restore();           /* FUN_00460eba */
+            s_b534 = 11;
+            s_b544 = 0;
+            s_b5a0 = 0;
+            s_b5d0 = 0;
+            return;
+        }
+        s_b534 = 6;
+        s_b544 = 0;
+        cs_offer_up();
+        break;
+    }
+
+    case 9:                                     /* walkout */
+        if (s_b544 == 1) {
+            cs_pick_line(rec, 6, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 11;
+            s_b544 = 0;
+            s_b5a0 = 0;
+            s_b5d0 = 0;
+            return;
+        }
+        break;
+
+    default:
+        break;
+    }
+    if (s_b5a0 != 0 && (s_in_pressed & 0x40) != 0) {
+        display_menu_detail_open(1);            /* FUN_004681db(1) */
+        display_menu_set_highlight(s_b5a4);     /* FUN_00468286 */
+        audio_play_se_by_id(710);
+    }
+    if (slide)
+        title_save_dialog_cursor_slide(k_hand_x, (float)(38 * (s_price_cursor - s_b5c8)) + k_hand_y);
+}
+
+/* ── FUN_00464a26 — the b5a8==5 machine: the order came due and was missed ──
+ * 2 → 7 the customer's line 18 → 11 the leave.  Disasm 0x464a26-0x464aef. */
+static void cs_order_late_machine(void)
+{
+    s_b544 += 1;
+    if (display_menu_detail() != 0) {                     /* FUN_004681e6 */
+        if (s_in_pressed & 0x70) {
+            display_menu_detail_close();
+            if (s_b5a0 == 0) title_save_dialog_cursor_set_visible(1);
+            audio_play_se_by_id(710);
+        }
+        return;
+    }
+    if (s_b534 == 2) {
+        if (s_b544 == 1) {
+            s_b544 = 0;
+            s_b534 = 7;
+        }
+    } else if (s_b534 == 7) {
+        if (s_b544 == 1) {
+            cs_pick_line(g_scene_buy_current_page, 18, 1);
+            s_cust_active[1] = -1;
+        }
+        if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+            s_b55c = 0;
+            s_cust_active[1] = 0;
+            s_b534 = 11;
+            s_b544 = 0;
+            s_b5a0 = 0;
+        }
+    }
+}
+
 /* ── FUN_00414766 — a screen-space overlay particle ───────────────────────────
  * Maps a 640×480 screen point onto the overlay plane (16.5 − x/19.5,
  * 12.4 − y/19.5, z −520) and spawns `tpl` there (FUN_00414345 mode 1).
@@ -4199,8 +4680,8 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
              * (2/6/0xf/7/8/9).  b5a8==2 = the SELL machine FUN_004658ab.
              * b5a8==0 = the customer-sells machine FUN_00465372, 1 = the
              * request machine FUN_00464af0.
-             * 3 = the order machine FUN_004639f5.
-             * PORT-DEBT(cs-other-kinds): 4/5 = FUN_00463cfb/464a26. */
+             * 3 = the order machine FUN_004639f5, 4 / 5 = the order's return
+             * FUN_00463cfb / the missed order FUN_00464a26. */
             if (s_b5a8 == 2) {
                 cs_live_machine();            /* FUN_004658ab */
                 return;
@@ -4211,6 +4692,10 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
                 cs_oder_machine();            /* FUN_00464af0 */
             else if (s_b5a8 == 3)
                 cs_delivery_machine();        /* FUN_004639f5 */
+            else if (s_b5a8 == 4)
+                cs_order_pick_machine();      /* FUN_00463cfb */
+            else if (s_b5a8 == 5)
+                cs_order_late_machine();      /* FUN_00464a26 */
             return;
         } else {                              /* 0xc / 0xd — closing (all.c:60590-60662) */
             int cVar1 = f404;

@@ -115,6 +115,7 @@ int32_t customer_service_b544(void);
 int32_t customer_service_b590(void);
 int32_t customer_service_b318(void);   /* DAT_0730b318 — queue head */
 int32_t customer_service_b5d0(void);   /* DAT_0730b5d0 — the order bubble / pick list (1..3) */
+int32_t customer_service_pick_va(uint32_t va);   /* DAT_005c6bcc / bc8, DAT_0730b5c8 / cc / dc, the rows DAT_0730b274.. */
 int32_t customer_service_b5d4(void);   /* DAT_0730b5d4 — its pop-in timer */
 int32_t customer_service_b5d8(void);   /* DAT_0730b5d8 — oder / want-list index */
 int32_t customer_service_b600(void);   /* DAT_0730b600 — script step phase */

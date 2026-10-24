@@ -56,7 +56,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00430c6d | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_0043865e | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
@@ -64,6 +63,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
+| FUN_00468ddc | 1 |
 | FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_004708f7 | 1 |
@@ -90,7 +90,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_004147d5 | src/dungeon_party.c:1857 | the boost aura (types 24 / 22) |
-| FUN_004147d5 | src/record_hit.c:674 | the overlay spark (25, 1.0, -1) |
+| FUN_004147d5 | src/record_hit.c:686 | the overlay spark (25, 1.0, -1) |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
@@ -106,7 +106,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | src/scene1_player_ctrl.c:2242 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:285 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:321 | dungeon 5's return portal 6 beside |
-| FUN_0043865e | src/record_hit.c:457 | the multi-part anchors |
 | FUN_004427f1 | src/dungeon_flow.c:1133 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:352 | the camera shake reset, DAT_073de3a0 = 45 |
@@ -115,6 +114,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044db3c | src/dungeon_flow.c:1105 | Tielle's timeline (arg 1, the boss run) |
 | FUN_0044f078 | src/dungeon_party.c:652 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
+| FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:502 | the removal is unported, |
 | FUN_00469b3a | src/scene1_display_menu.c:987 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |

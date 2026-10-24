@@ -50,7 +50,6 @@
    "FUN_00430c6d": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
-   "FUN_0043865e": 1,
    "FUN_004427f1": 1,
    "FUN_00442cef": 1,
    "FUN_0044b219": 1,
@@ -58,6 +57,7 @@
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
+   "FUN_00468ddc": 1,
    "FUN_00469b3a": 1,
    "FUN_0046c9a2": 1,
    "FUN_004708f7": 1,
@@ -268,7 +268,7 @@
    "engine_fn": "FUN_004147d5",
    "desc": "the overlay spark (25, 1.0, -1)",
    "file": "src/record_hit.c",
-   "line": 674,
+   "line": 686,
    "kind_known": true
   },
   {
@@ -393,14 +393,6 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0043865e",
-   "desc": "the multi-part anchors",
-   "file": "src/record_hit.c",
-   "line": 457,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_004427f1",
    "desc": "dungeons 3 / 4's events \u2014 the",
    "file": "src/dungeon_flow.c",
@@ -461,6 +453,14 @@
    "desc": "the blackout (DAT_0438bf74)",
    "file": "src/scene_adv_guild.c",
    "line": 258,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00468ddc",
+   "desc": "an index < -1 or >= 32 with its mod-32 bit",
+   "file": "src/customer_service.c",
+   "line": 1252,
    "kind_known": true
   },
   {

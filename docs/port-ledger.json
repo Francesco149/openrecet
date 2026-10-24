@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 729,
-  "inv_discovered": 1728,
-  "referenced_or_better": 820,
-  "pct_referenced_or_better": 32.2,
+  "inv_source_referenced": 731,
+  "inv_discovered": 1726,
+  "referenced_or_better": 822,
+  "pct_referenced_or_better": 32.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 12,
   "port_debt": 86,
   "verified": 81,
   "stubbed": 10,
-  "ported": 729,
-  "unported": 1728,
-  "touched": 820,
-  "pct_touched": 32.2,
+  "ported": 731,
+  "unported": 1726,
+  "touched": 822,
+  "pct_touched": 32.3,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -10835,18 +10835,20 @@
    "size": 92,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x460f16",
@@ -11164,18 +11166,20 @@
    "size": 202,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/customer_service.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x464af0",
@@ -11793,6 +11797,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/scene_adv_guild.c",
     "src/scene_pause.c",
     "src/stage_load_pulse.h"
@@ -12221,6 +12226,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/dungeon_results.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",

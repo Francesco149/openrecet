@@ -101,6 +101,16 @@ static int32_t get_b55c(void)  { return customer_service_b55c(); }
 static int32_t get_ea70(void)  { return customer_service_ea70(); }
 static int32_t get_3df0(void)  { return scene1_intro_dialogue_bg_count(); }
 static int32_t get_b5d0(void)  { return customer_service_b5d0(); }
+static int32_t get_pick_cur(void) { return customer_service_pick_va(0x5c6bccu); }
+static int32_t get_pick_bc8(void) { return customer_service_pick_va(0x5c6bc8u); }
+static int32_t get_pick_b5c8(void) { return customer_service_pick_va(0x730b5c8u); }
+static int32_t get_pick_b5cc(void) { return customer_service_pick_va(0x730b5ccu); }
+static int32_t get_pick_b5dc(void) { return customer_service_pick_va(0x730b5dcu); }
+static int32_t get_pick_r1(void) { return customer_service_pick_va(0x730b280u); }
+static int32_t get_pick_r1c(void) { return customer_service_pick_va(0x730b284u); }
+static int32_t get_pick_r1r(void) { return customer_service_pick_va(0x730b288u); }
+static int32_t get_pick_r2(void) { return customer_service_pick_va(0x730b28cu); }
+static int32_t get_pick_r3(void) { return customer_service_pick_va(0x730b298u); }
 static int32_t get_b5d4(void)  { return customer_service_b5d4(); }
 static int32_t get_b1dc(void)  { float f = scene1_hud_slide(); int32_t v; memcpy(&v, &f, 4); return v; }
 static int32_t get_cc04(void)  { return player_ctrl_cc04(); }
@@ -255,6 +265,16 @@ static const state_va_t k_map[] = {
     { 0x6a5ea70u, "cs line box held ea70 (DAT_06a5ea70)", get_ea70 },
     { 0x438b1dcu, "HUD slide b1dc, float bits (DAT_0438b1dc)", get_b1dc },
     { 0x730b5d0u, "cs order bubble / pick list b5d0 (DAT_0730b5d0)", get_b5d0 },
+    { 0x5c6bccu,  "cs pick cursor (DAT_005c6bcc)", get_pick_cur },
+    { 0x5c6bc8u,  "cs best upgrade pick bc8 (DAT_005c6bc8)", get_pick_bc8 },
+    { 0x730b5c8u, "cs pick scroll b5c8 (DAT_0730b5c8)", get_pick_b5c8 },
+    { 0x730b5ccu, "cs pick window focus b5cc (DAT_0730b5cc)", get_pick_b5cc },
+    { 0x730b5dcu, "cs order count b5dc (DAT_0730b5dc)", get_pick_b5dc },
+    { 0x730b280u, "cs pick row 1 item (DAT_0730b280)", get_pick_r1 },
+    { 0x730b284u, "cs pick row 1 col (DAT_0730b284)", get_pick_r1c },
+    { 0x730b288u, "cs pick row 1 row (DAT_0730b288)", get_pick_r1r },
+    { 0x730b28cu, "cs pick row 2 item (DAT_0730b28c)", get_pick_r2 },
+    { 0x730b298u, "cs pick row 3 item (DAT_0730b298)", get_pick_r3 },
     { 0x730b5d4u, "cs order pop-in timer b5d4 (DAT_0730b5d4)", get_b5d4 },
     { 0x73a3df0u, "dialogue bgset count (DAT_073a3df0)", get_3df0 },
     { 0x438cc04u, "house sub-mode cc04 (DAT_0438cc04)", get_cc04 },

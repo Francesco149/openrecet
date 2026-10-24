@@ -86,29 +86,30 @@ Transaction dispatch by **`DAT_0730b5a8`** (60563):
 
 | b5a8 | machine | FUN |
 |---|---|---|
-| 4 | **SELL (haggle)** | **`FUN_00463cfb`** (3371B) all.c:61269 |
-| 1 | BUY-from-customer | `FUN_00464af0` 61885 |
-| 0 | kind0 | `FUN_00465372` 62239 |
-| 2 | kind2 | `FUN_004658ab` 62461 |
-| 3 | chat | `FUN_004639f5` 61128 |
-| 5 | kind5 | `FUN_00464a26` 61840 |
+| 4 | **the order's return** (queue kind 3: an order of b5a8 3 come due on time) | **`FUN_00463cfb`** (3371B) all.c:61269 |
+| 1 | the request (customer wants one thing) | `FUN_00464af0` 61885 |
+| 0 | the customer sells | `FUN_00465372` 62239 |
+| 2 | the sell (a displayed item) | `FUN_004658ab` 62461 |
+| 3 | the order (files work +0x2a5f8) | `FUN_004639f5` 61128 |
+| 5 | the missed order (queue kind 4: timer < 0) | `FUN_00464a26` 61840 |
 
-### SELL graph — `FUN_00463cfb`, var `DAT_0730b534`
+(2026-10-24: kinds 3 / 4 of the queue are the roster scan's schedule entries — the orders —
+`(timer < 0) + 3`; the old "SELL (haggle)" label of b5a8 4 was a guess.)
+
+### The order's return — `FUN_00463cfb`, var `DAT_0730b534` (ported 2026-10-24, `cs_order_pick_machine`)
 
 | b534 | meaning | actions / transitions |
 |---|---|---|
-| 2 | greeting | first frame `FUN_00460a1a(rec,0x10,1)`; Z → init item-pick `DAT_0730b274`, `DAT_005c6bcc=1`, →3 |
-| 3 | **item-select menu** (reuses display-menu `FUN_00469414`/`469a9f`/`468338`) | nav/confirm/cancel/details; confirm computes price →4 |
-| 4 | price setup | sum base prices → `DAT_005c6bbc`→`bc0`, seed `bb8`; single-match →5 else `FUN_00460eba()` →0x10 |
-| 5 | first offer | Z: `FUN_00460161()` (haggle-up) + `FUN_0045ff11()` (digits) →6 |
-| 6 | customer reaction | `FUN_00460a1a(rec,9,0)`; Z →0xf |
-| **0xf** | **HAGGLE DECISION** | `FUN_004622d9()` input poll (1=commit/2=cancel/0=cont); `FUN_0045ecc0()` budget; `FUN_00460672()` accept/counter/reject → accept 7 / pushback 8/0x28 / reject 9 |
-| 7 | ACCEPT→sale | `DAT_044e37a4 += DAT_005c6bb8` (gold), SE 0x14d, `FUN_00460d52(0)/4606fc(10)/460b93()` →10 |
-| 8 / 0x28 | "too much" pushback | `FUN_00460f16()` line; `FUN_00460161()` →6, or accept →0xb |
-| 9 | final reject | →0xb (leave) |
-| 0x10/0x11 | customer COUNTER-OFFER | `FUN_00460a1a(rec,8/2,1)`; 0x10→`FUN_00460161`, 0x11→`FUN_004603cf` (down) →0x12 |
-| 0x12 | leave after counter | →0xb |
-| 0xb/10/0xc/0xd | closing & queue advance | in `FUN_00462403` → next customer / cc08→0/1 |
+| 2 | the line | `FUN_00460a1a(rec,16,1)`, <S> = the oder's plural; Z → rows 1..5 of `DAT_0730b274` (12 B: item, col, row) = -1, cursor `DAT_005c6bcc` = 1, b5b0 = 1 (the master tick opens the item window), b5d0 = 1 →3 |
+| 3 | the pick rows | row 0 "All set!", rows 1..b5dc; held up / down move the cursor; Z on a row: b5cc = 2 (the item window takes the focus, `FUN_00469414(1)`; its pick leaves the bag or its shelf cell at once, the row's old item goes back); 0x40 a row's detail; Z on row 0 → 4 (all filled) / 17 + `FUN_00460eba` |
+| 4 | Recette's offer | `FUN_00460a1a(0,1,0)`, b5d0 = 2; the best upgrade pick (largest stat sum beating a request slot) → bc8; Z: ask = the matching picks' price sum → 5 (all match) / 16 + `FUN_00460eba` |
+| 5 / 6 / 0xf | as the request machine | the budget × b5dc · 1.2; a sale logs every pick (`FUN_00460083`) and adds their grades (h & 0xf) to the closeness; over budget (0x28) also costs closeness |
+| 7 | sold | gold += ask, SE 333, `FUN_00460d52(0)` / `4606fc` / `460b93` →10 |
+| 8 / 0x28 / 9 | pushback / over budget / walkout | as the request machine; the leave arms run `FUN_00460eba` (the picks go back) →0xb |
+| 0x10 / 0x12 | not what was ordered / after rows left empty | the customer's line 8 / 9 →0xb |
+| 0x11 | rows left empty | Recette's line 2 →0x12 |
+
+`FUN_00464a26` (b5a8 5): 2 → 7 the customer's line 18 → 0xb.
 
 `FUN_004622d9` (all.c:60044) player input poll: patience++ ; Z→1(commit if patience spent),
 X→2(cancel), up/down→toggle `DAT_0730b540` + cursor; patience≥0xf forces 1.
