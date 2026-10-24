@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **65**
-- distinct retiring engine functions: **49**
+- total open debts: **62**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 45 | wired call boundary, body incomplete |
+| stub | 43 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 6 | reduced control flow / state machine vs retail |
+| simplified | 5 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -34,7 +34,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | 3 |
 | FUN_00473c15 | 3 |
 | FUN_00409925 | 2 |
-| FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_00468fd0 | 2 |
@@ -43,8 +42,7 @@ the answer to *"what's still faked in code that looks done?"*
 | 0x43e... | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
-| FUN_004176ff L3876 | 1 |
-| FUN_004176ff L4958 | 1 |
+| FUN_004176ff | 1 |
 | FUN_0041f4a6 | 1 |
 | FUN_0042df55 | 1 |
 | FUN_0042e1a6 | 1 |
@@ -80,15 +78,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (45)
+## stub (43)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
-| FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
-| FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
+| FUN_004176ff | src/scene1_effects.h:6 | unported sections — the table-A loop on |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
 | FUN_0042e1a6 | src/actor_ai.c:4085 | the death (EXP, drops, the kill count) |
 | FUN_0042e791 | src/actor_ai.c:4042 | the poison tick (ftol(p), 4) |
@@ -134,12 +130,11 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (6)
+## simplified (5)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
-| FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:383 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |

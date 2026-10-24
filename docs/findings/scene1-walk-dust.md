@@ -1,7 +1,9 @@
 # HOUSE free-roam walk dust (records-A type 0xe)
 
 The faint **white wispy smoke puff that kicks up at Recette's feet while she
-walks** in HOUSE free-roam. Subtle — you must zoom her feet to see it (retail
+walks** in HOUSE free-roam.  **2026-10-24:** `src/scene1_walk_dust.c` is gone — it
+drew type 14 a second time beside `fx_table_a_puffs` (`src/scene1_effects.c`, the same
+retail loop 0x41e5c0 for 14 / 43 / 27 / 59 / 89 / 103 / 118); the puffs are that loop. Subtle — you must zoom her feet to see it (retail
 ref: feed `20260601T122354_6f81`, and `runs/walkdust/verify_4965.png`). The port
 floor was bare. Identified 2026-06-01.
 

@@ -1,7 +1,9 @@
 # Tear companion wing-glow renderer (FUN_004176ff records-A type-0x1f)
 
 **Chip P0.1** (`plans/freeroam-structural-parity.md`), landed 2026-06-01.
-Ported in `src/scene1_wing_glow.c`.
+Ported in `src/scene1_wing_glow.c`; since 2026-10-24 an arm (31 / 100 / 109 /
+101 / 104 / 108) of `fx_table_a_main` in `src/scene1_effects.c`, the whole
+table-A loop in slot order (the file is gone; git history has it).
 
 ## What it is
 

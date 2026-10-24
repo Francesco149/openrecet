@@ -31,7 +31,8 @@
 #include "scene1_records_c_tick.h" /* SCENE1_RECORDS_C_OFF_* slot offsets */
 #include "scene1_render.h"   /* scene1_render_push_projection */
 #include "sysassets.h"       /* g_sysassets.magicjem_tga.tex (Pass C texture) */
-#include "tables_item.h"     /* g_item + tables_item_find_slot_by_id (resolver) */
+#include "tables_item.h"     /* g_item + tables_item_find_slot_by_id (FUN_004681f6) */
+#include "party.h"           /* DAT_056dae40 */
 
 /* ─── engine scratch globals — module-local mirrors ────────────────────
  *
@@ -455,18 +456,12 @@ static void wf_mid_block_2(IDirect3DDevice8 *dev)
 }
 
 /* Pass D — DAT_06956cd8 (same table as Pass C!), stride 0x25.
- * Type filter `*r > 6` (cardinal int > 6) — the world-pickup type range
- * (Pass C handles {0,1,2,3} = jems/coins).  Per-record alpha fade +
- * per-record texture lookup via the item-database resolver hook.
+ * Type filter `*r > 6` (cardinal int > 6) — the dropped items (Pass C
+ * handles {0,1,2,3} = jems/coins).  Per-record alpha fade + the item's
+ * icon (FUN_004681f6 into g_item, the page from the item icon sheets).
  * vbuf shared with Pass C (engine DAT_0064e5d8).  Algebraic helpers
  * live in scene1_wide_followup_helpers.c (see that TU for the engine
- * line-number map and the .rdata constants resolved via raw asm).
- *
- * HOUSE dormancy: item resolver defaults to a miss-stub, so each
- * record (when table C is populated) short-circuits before draw —
- * walker matrices + diffuse + UV are computed but no DrawPrimitiveUP
- * fires.  Real visible Pass D output requires the item-database port
- * to wire wf_pass_d_set_item_resolver(). */
+ * line-number map and the .rdata constants resolved via raw asm). */
 static void wf_pass_d(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_cd_count();
@@ -478,7 +473,7 @@ static void wf_pass_d(IDirect3DDevice8 *dev)
 
         if (!wf_pass_d_should_emit(slot)) continue;
 
-        int is_selected = (slot_idx == g_wf_pass_d_selected_slot);
+        int is_selected = (slot_idx == PW(0x56dae40u).i);   /* the pickup in reach */
 
         /* Per-record diffuse: alpha from STATE/AGE, rgb_lo from
          * pulse (0 when not selected). */
@@ -492,23 +487,20 @@ static void wf_pass_d(IDirect3DDevice8 *dev)
         float world[16];
         wf_pass_d_compose_world(world, slot, is_selected);
 
-        /* Item-database resolver — miss-stub by default. */
-        wf_pass_d_item_resolved item;
-        if (!wf_pass_d_resolve_item(
-                slot[SCENE1_RECORDS_C_OFF_TYPE] - 7, &item)) continue;
-
-        /* Force tile=0 if PICKUP_E1 is set (engine L13667-13669):
-         *
-         *   if (slot[PICKUP_E1] != 0) tile_raw = 0;
-         *
-         * PICKUP_E1 is the "extra1" field set by the spawner
-         * (slot[14]); when non-zero, the engine forces a generic
-         * tile-0 placeholder. */
-        int tile_raw = item.tile_raw;
+        /* FUN_004681f6(kind - 7): the item's icon page (DAT_095d3808, +0x38)
+         * and cell (DAT_095d380c, +0x3c); a rare one (PICKUP_E1) shows
+         * cell 0 */
+        const int rec = tables_item_find_slot_by_id(&g_item, slot[SCENE1_RECORDS_C_OFF_TYPE] - 7);
+        if (rec < 0) continue;
+        const int cat = g_item.records[rec].category;
+        if (cat < 0 || cat >= SYSASSETS_ITEM_CATEGORIES) continue;
+        const sprite_t *page = &g_sysassets.item_icons[cat];
+        if (!page->tex || page->height == 0) continue;
+        int tile_raw = g_item.records[rec].subindex;
         if (slot[SCENE1_RECORDS_C_OFF_PICKUP_E1] != 0) tile_raw = 0;
 
         /* Bind texture via the engine's L13662-13665 cache guard. */
-        IDirect3DTexture8 *tex = (IDirect3DTexture8 *)item.tex;
+        IDirect3DTexture8 *tex = page->tex;
         if (g_tex_cache_last != (uintptr_t)tex) {
             g_tex_cache_last = (uintptr_t)tex;
             IDirect3DDevice8_SetTexture(dev, 0,
@@ -520,16 +512,18 @@ static void wf_pass_d(IDirect3DDevice8 *dev)
                                       (const D3DMATRIX *)world);
 
         float u0, u1, v0, v1;
-        wf_pass_d_uv_box(tile_raw, item.tex_height, &u0, &u1, &v0, &v1);
+        wf_pass_d_uv_box(tile_raw, (float)page->height, &u0, &u1, &v0, &v1);
 
         g_wf_pass_c_vbuf[0].diffuse = diff;
         g_wf_pass_c_vbuf[1].diffuse = diff;
         g_wf_pass_c_vbuf[2].diffuse = diff;
         g_wf_pass_c_vbuf[3].diffuse = diff;
-        g_wf_pass_c_vbuf[0].u = u0; g_wf_pass_c_vbuf[0].v = v0;  /* TL */
-        g_wf_pass_c_vbuf[1].u = u0; g_wf_pass_c_vbuf[1].v = v1;  /* BL */
-        g_wf_pass_c_vbuf[2].u = u1; g_wf_pass_c_vbuf[2].v = v0;  /* TR */
-        g_wf_pass_c_vbuf[3].u = u1; g_wf_pass_c_vbuf[3].v = v1;  /* BR */
+        /* mirrored like the display items: the left geometry takes the
+         * cell's right edge (retail dungeon3-deep f26001: u 0.498 | 0.377) */
+        g_wf_pass_c_vbuf[0].u = u1; g_wf_pass_c_vbuf[0].v = v0;  /* TL */
+        g_wf_pass_c_vbuf[1].u = u1; g_wf_pass_c_vbuf[1].v = v1;  /* BL */
+        g_wf_pass_c_vbuf[2].u = u0; g_wf_pass_c_vbuf[2].v = v0;  /* TR */
+        g_wf_pass_c_vbuf[3].u = u0; g_wf_pass_c_vbuf[3].v = v1;  /* BR */
 
         IDirect3DDevice8_DrawPrimitiveUP(dev,
                                          D3DPT_TRIANGLESTRIP,
@@ -673,9 +667,8 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
 
-    /* L47: TSS COLOROP = 4 (MODULATE2X — texture × diffuse × 2).
-     * Same as the shop walker tail's pass G setup. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    /* L47: TSS COLOROP = 4 (D3DTOP_MODULATE). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* ─── L50-L92: Pass A ──────────────────────────────────────────── */
     wf_pass_a(dev);
@@ -760,10 +753,10 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
      * but completes the dispatcher hookup. */
     scene1_overlay_render(dev, /*layer=*/1, /*mode=*/0);
 
-    /* L142: TSS COLOROP = 7 (MODULATEALPHA_ADDCOLOR — α × col1 + col2).
-     * Engine sets this AFTER FUN_00414ee2 — so Pass C inherits it. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
-                                          D3DTOP_MODULATEALPHA_ADDCOLOR);
+    /* L142: TSS COLOROP = 7 (D3DTOP_ADD: the texture plus the diffuse — the
+     * pickup in reach pulses brighter).  Engine sets this AFTER
+     * FUN_00414ee2 — so Pass C inherits it. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADD);
 
     /* ─── L143-L203: Pass C ────────────────────────────────────────── */
     wf_pass_c(dev);
@@ -776,9 +769,8 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
 
     /* ─── L288-L292: pre-Pass-E state block ────────────────────────── */
 
-    /* L288: TSS COLOROP = 4 (MODULATE2X) — back from Pass C/D's
-     * MODULATEALPHA_ADDCOLOR. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    /* L288: TSS COLOROP = 4 (D3DTOP_MODULATE) — back from Pass C/D's ADD. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* L289-L292: bind Pass E shared texture DAT_073cc940 via cache. */
     /* TODO C8f-followup: once DAT_073cc940 is exposed as an engine

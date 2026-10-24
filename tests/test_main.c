@@ -2098,10 +2098,6 @@ struct test_case {
     X(wf_pass_d_uv_box_respects_custom_tex_height) \
     X(wf_pass_d_compose_world_translation_in_row_3) \
     X(wf_pass_d_compose_world_selected_has_larger_scale) \
-    X(wf_pass_d_resolver_default_misses) \
-    X(wf_pass_d_resolver_override_round_trips) \
-    X(wf_pass_d_resolver_null_out_is_safe) \
-    X(wf_pass_d_selected_slot_default_is_minus_1) \
     X(wf_display_item_world_origin_cell) \
     X(wf_display_item_world_inner_cell) \
     X(wf_display_item_uv_box_icon_0) \

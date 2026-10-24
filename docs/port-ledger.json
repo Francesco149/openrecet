@@ -14,8 +14,8 @@
   "pct_referenced_or_better": 32.3,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
-  "orphan_refs_not_in_function_table": 12,
-  "port_debt": 81,
+  "orphan_refs_not_in_function_table": 11,
+  "port_debt": 78,
   "verified": 81,
   "stubbed": 10,
   "ported": 732,
@@ -32,7 +32,6 @@
   "0x452eb1",
   "0x45a63c",
   "0x45e2ce",
-  "0x4676d4",
   "0x46c2bc",
   "0x46d885",
   "0x475040",
@@ -3014,6 +3013,7 @@
    "quality_flags": [],
    "src": [
     "src/scene1_effects.c",
+    "src/scene1_effects.h",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_overlay_helpers.c",
@@ -3190,11 +3190,7 @@
     "src/scene1_effects.h",
     "src/scene1_maplight.c",
     "src/scene1_render.c",
-    "src/scene1_render.h",
-    "src/scene1_walk_dust.c",
-    "src/scene1_walk_dust.h",
-    "src/scene1_wing_glow.c",
-    "src/scene1_wing_glow.h"
+    "src/scene1_render.h"
    ],
    "status": "ported"
   },
@@ -18439,8 +18435,6 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_shop_walker.c",
-    "src/scene1_walk_dust.c",
-    "src/scene1_walk_dust.h",
     "src/scene_pause.c"
    ],
    "status": "stubbed"

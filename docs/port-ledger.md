@@ -13,7 +13,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 732, discovered 1725 → 823 referenced-or-better (32.3%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
-- orphan refs (in src/, not in function table): 12
+- orphan refs (in src/, not in function table): 11
 
 ## instrumented (91) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
 
@@ -98,7 +98,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x485861 | FUN_00485861 | 280 | ✓ |  | customer_service.c, customer_service.h, dungeon_flow.c (+4) |
 | 0x48a331 | FUN_0048a331 | 23 | ✓ |  | dungeon_party.c, stage_post_load.h, xp_curve.c (+1) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_actor_say.h (+2) |
-| 0x48b850 | FUN_0048b850 | 5030 | ✓ | stub | collision_resolve.c, dungeon_flow.c, dungeon_flow.h (+15) |
+| 0x48b850 | FUN_0048b850 | 5030 | ✓ | stub | collision_resolve.c, dungeon_flow.c, dungeon_flow.h (+13) |
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ |  | main.c, scene1_dungeon_clear_banner.c, scene1_dungeon_clear_banner.h (+1) |
 | 0x48ff93 | FUN_0048ff93 | 70 | ✓ |  | chara_equip.h, save_bank.c |
 | 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ |  | save_bank.c, scene1_postload.c, scene1_postload.h (+1) |
@@ -190,14 +190,14 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ |  | actor_ai.c, dungeon_party.c, party.h (+4) |
 | 0x414813 | FUN_00414813 | 239 | ✓ |  | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ |  | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_records.c (+1) |
-| 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_effects.c, scene1_overlay.c, scene1_overlay.h (+5) |
+| 0x414ee2 | FUN_00414ee2 | 4006 | ✓ |  | scene1_effects.c, scene1_effects.h, scene1_overlay.c (+6) |
 | 0x415e90 | FUN_00415e90 | 36 | ✓ |  | scene1_effects.c, scene1_overlay.c, scene1_overlay.h |
 | 0x415eb4 | FUN_00415eb4 | 122 | ✓ |  | scene1_effects.c |
 | 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_effects.c, scene1_wide_followup.h, scene1_wide_followup_helpers.c |
 | 0x415fab | FUN_00415fab | 540 | ✓ |  | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+7) |
 | 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.h, scene1_render.c (+1) |
-| 0x4176ff | FUN_004176ff | 30395 | ✓ |  | scene1_effects.c, scene1_effects.h, scene1_maplight.c (+6) |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ |  | scene1_effects.c, scene1_effects.h, scene1_maplight.c (+2) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ |  | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ |  | actor_table.h, scene1_combat_sm.h |

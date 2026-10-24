@@ -52,8 +52,6 @@ void scene1_project_world_mat(const float *view, const float *proj,
 #include "scene1_alpha_walker.h"
 #include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
 #include "scene1_chr_prepass.h"  /* Cchr.2e — FUN_0045672a records/people pre-pass  */
-#include "scene1_wing_glow.h"    /* P0.1 — FUN_004176ff records-A type-0x1f arm      */
-#include "scene1_walk_dust.h"    /* FUN_004176ff records-A type-0xe arm (foot dust)  */
 #include "scene1_chr_shadow.h"   /* Csh.1 — FUN_0045aa36 player/companion ground shadow */
 #include "call_trace.h"
 #include "scene1_camera.h"
@@ -915,9 +913,9 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * under z_far=500, proven by a synced port↔retail d3d-trace (records-A sparkle
      * 0x41e165 + dust 0x41e97b both at z_far 500.00; engine-quirks §93).
      *
-     * Only the records-A type-0x1f arm (wing-glow sparkle, scene1_wing_glow.c) and
-     * type-0xe arm (foot dust, scene1_walk_dust.c) are ported; the rest of the
-     * 30 KB function stays in scene1_walk_chr_TODO. */
+     * Its sections are ported in scene1_effects.c (the table-A loop, the glows,
+     * the orbs and the puffs, incl. the wing glow and the foot dust); the rest
+     * of the 30 KB function stays in scene1_walk_chr_TODO. */
     scene1_push_projection(dev, 500.0f);
 
     /* FUN_004176ff also dispatches the 2D-overlay particle layers via its own
@@ -963,21 +961,6 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     /* then table B's swing trails on effect_shot.bmp */
     scene1_effects_table_b((struct IDirect3DDevice8 *)dev);
 
-    scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
-    scene1_dark_orbs_render((struct IDirect3DDevice8 *)dev);   /* records-A 0x75 */
-    /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
-     * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
-     * This is the engine-faithful position (FUN_004176ff runs here); drawing it
-     * earlier leaks blend state into wide_followup's counter-shadow pass.
-     * DEPTH: the dust is z-tested (ZENABLE=1, ZWRITE=0) against the char body's
-     * Z-write.  Under the correct z_far=500 the dust's NDC depth spreads so older
-     * puffs that have drifted behind the walker's feet-plane fall BEHIND her body
-     * and are occluded (matching retail) — under the old z_far=2000 every puff was
-     * compressed NEARER than the body and drew in front.  This was the long-open
-     * "dust draws in front" bug: it was the SAME per-pass z_far class as the
-     * wing-glow occlusion, not a sprite-Z-write problem (see
-     * docs/findings/scene1-walk-dust.md "Depth" + engine-quirks §93). */
-    scene1_walk_dust_render((struct IDirect3DDevice8 *)dev);
     scene1_walk_chr_TODO();
 
     /* L255-L257: project back to z_far=350 → tail. */

@@ -20,6 +20,7 @@
 #include "math3d.h"
 #include "scene1_records.h"           /* SCENE1_RECORDS_B_OFF_* slot offsets */
 #include "scene1_records_c_tick.h"    /* SCENE1_RECORDS_C_OFF_* slot offsets */
+#include "x87.h"
 
 /* ─── Pass C: per-record filter ────────────────────────────────────────
  *
@@ -692,12 +693,8 @@ void wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
  *   5. Per-tile UV box (32×32 tiles on a per-item texture atlas of
  *      width 256, custom height).
  *
- * The texture lookup is the only HOUSE-dormant piece by design: the item
- * database (DAT_095d3804 at stride 0xb3 dw, parsed from data/item.txt at
- * line 73886) is unported.  The walker exposes a resolver hook
- * `wf_pass_d_set_item_resolver()` defaulting to a miss-stub; without a
- * real resolver, every record skips emit — preserving byte-identical
- * HOUSE behavior whether table C is populated or not.
+ * The icon lookup (FUN_004681f6 into g_item, the page from the item icon
+ * sheets) sits in the walker (scene1_wide_followup.c).
  *
  * The Ghidra-dropped __ftol arg at engine L13640 was resolved via raw
  * asm (`fmul ds:0x51938c ; fadd ds:0x51937c ; call 0x503954`) — the
@@ -747,10 +744,9 @@ float wf_pass_d_per_record_scale(int is_selected)
 uint32_t wf_pass_d_pulse_rgb(int32_t age, int is_selected)
 {
     if (!is_selected) return 0;
-    float angle = (float)age * 0.3f;
-    float flash = sinf(angle);
-    float value = flash * 64.0f + 96.0f;
-    return (uint32_t)(int32_t)value;
+    const float angle = spill32((long double)spill32((float)age) * 0.3f);
+    const float flash = spill32(x87_crt_sin(angle));
+    return (uint32_t)x87_ftol((long double)flash * 64.0f + 96.0f);
 }
 
 /* Pass D alpha.  Engine L13644-13651 reads slot[STATE] (denormal-float
@@ -852,50 +848,6 @@ void wf_pass_d_compose_world(float out[16], const int32_t *slot,
 
     mat4_mul(out, wf_pass_c_get_pre_matrix(), out);
 }
-
-/* Pass D item resolver hook (stand-in for FUN_004681f6 + table walks).
- *
- * Default returns 0 (miss) → walker skips emit per record.  When the
- * item-database port lands (data/item.txt parser at all.c L73886 +
- * DAT_095d3804 + DAT_073d8778 texture-bank table), wire a real resolver
- * via wf_pass_d_set_item_resolver().  The hook is type-key driven, where
- * type_key = slot[TYPE] - 7 (engine L13660: `(int)*local_8 + -7`).  */
-static int wf_pass_d_resolver_default(int type_key,
-                                      wf_pass_d_item_resolved *out)
-{
-    (void)type_key;
-    (void)out;
-    return 0;
-}
-
-static wf_pass_d_item_resolver_fn g_wf_pass_d_resolver =
-    wf_pass_d_resolver_default;
-
-wf_pass_d_item_resolver_fn wf_pass_d_set_item_resolver(
-    wf_pass_d_item_resolver_fn fn)
-{
-    wf_pass_d_item_resolver_fn prev = g_wf_pass_d_resolver;
-    g_wf_pass_d_resolver = fn ? fn : wf_pass_d_resolver_default;
-    return prev;
-}
-
-int wf_pass_d_resolve_item(int type_key, wf_pass_d_item_resolved *out)
-{
-    if (!out) return 0;
-    out->tex = NULL;
-    out->tile_raw = 0;
-    out->tex_height = 1;
-    return g_wf_pass_d_resolver(type_key, out);
-}
-
-/* Pass D selected-slot index (engine DAT_056dae40).
- *
- * Engine writers: set to -1 at init (L34551 + L90413).  Assigned a real
- * slot index at L90463 inside an item-pickup UI path (FUN_004676d4).
- * When the player is hovering over a pickup, this points to its slot;
- * Pass D pulses that slot specifically.  Default -1 → no record matches
- * the `local_18 == DAT_056dae40` test → no pulse.  */
-int g_wf_pass_d_selected_slot = -1;
 
 /* ─── Shop "items on display" (FUN_00415fab) helpers ──────────────────
  *

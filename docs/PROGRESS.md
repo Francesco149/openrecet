@@ -66,6 +66,23 @@ the item-detail card FUN_0046a336 from the item window's render tail and the cou
 only drawn in the encyclopedia — the pause Items f286500 10.4 → 0.33), and the live / buy / request
 machines' detail-popup head and tail (FUN_004681e6 / 004681db, retiring PORT-DEBT(cs-details-overlay)
 there). Left: Ohm's pose (FRONT), table B's projectile billboards, small residues ≤ 0.6.
+FUN_004176ff's table-A loop (0x41b07f..0x41e177) whole, in slot order (`fx_table_a_main`): the port
+had the streaks, 25 / 41 and 148 in one pass, the wing glow (31) in another after the puffs, and
+nothing for the other ~45 types — the opened chest's stars (45; 34 / 60), the bursts 5 / 92 / 111 /
+10..12, the arcs 50 / 62 / 51 / 81 / 77 / 87, the rings 65 / 97 / 114 and 61, the arch 33, 110's
+motes, 30 / 46's blades, 105, 99 / 120, 53, 67, 54 / 78, 63, 52, 32, 35 / 20, 28, 4 / 112 / 152,
+19, 68 (templates DAT_006483c8 / 0064a748 / 0064e3f8 / 0064e638 / 0064a0c8 / 0064bfc8 / 0064c028
+from a retail dump). 41 had shared 25's billboard; it is its own velocity-facing XZ quad. All
+constants are float (the streaks' `0.294L`-style literals were long doubles). After it, retail's
+0x41e177..0x41e5bb: MODULATE4X with Z off for table A's 42 and table B's 41 glows, the orbs, then
+FUN_00414ee2(2, 0) before the puffs. scene1_wing_glow.c / scene1_walk_dust.c gone — the dust drew
+type 14 a second time beside the puffs (the same retail loop). The dropped items: FUN_004161c7's
+pass D (table C kinds > 6) never drew — its item resolver was a miss-stub; now FUN_004681f6 into
+g_item and the icon pages, u mirrored like the display items, the pulse on DAT_056dae40 (the
+pickup in reach; it was a dead −1), x87 sin. And that walker's COLOROPs: the engine's 4 is MODULATE
+(the port set MODULATE2X twice) and 7 is ADD (the port: MODULATEALPHA_ADDCOLOR). `portshots`
+dungeon3-deep: f026000 0.88 → 0.49 (the chest's stars and item icon), f066000 0.62 → 0.01, f076000
+0.55 → 0.01, f112000 0.52 → 0.10; day2-shop f1000..f4000 ≤ 0.21.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2
