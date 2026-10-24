@@ -3009,6 +3009,29 @@ int32_t customer_service_popup_disp(int i)
     return (i >= 0 && i < 5) ? s_popup_disp[i] : 0;
 }
 
+/* FUN_004681e6 at a machine's head: while the item-detail popup is up the tick
+ * only watches for its close (0x70: the hand back unless b5a0, SE 710) */
+static int cs_detail_popup_tick(void)
+{
+    if (display_menu_detail() == 0) return 0;
+    if (s_in_pressed & 0x70) {
+        display_menu_detail_close();                      /* FUN_004681d3 */
+        if (s_b5a0 == 0) title_save_dialog_cursor_set_visible(1);   /* FUN_0043561a */
+        audio_play_se_by_id(710);
+    }
+    return 1;
+}
+
+/* the machines' tail: with the offered item shown (b5a0), 0x40 opens its card */
+static void cs_detail_popup_open(void)
+{
+    if (s_b5a0 != 0 && (s_in_pressed & 0x40) != 0) {
+        display_menu_detail_open(1);                      /* FUN_004681db(1) */
+        display_menu_set_highlight(s_b5a4);               /* FUN_00468286 */
+        audio_play_se_by_id(710);
+    }
+}
+
 /* ── FUN_004658ab — the LIVE kind-2 sell machine (the first real customer) ────
  * Dispatched from the master tick's b5a8==2 arm for b534 ∈ {2,6,0xf,7,8,9}.
  * State graph (RE §3.5): 2 greeting → 6 reaction/price-edit → 0xf decision →
@@ -3023,8 +3046,7 @@ int32_t customer_service_popup_disp(int i)
 static void cs_live_machine(void)
 {
     s_b544 += 1;
-
-    /* FUN_004681e6 detail-card query → 0 in steady state (PORT-DEBT). */
+    if (cs_detail_popup_tick()) return;                   /* FUN_004681e6 */
 
     if (s_b534 == 2) {                          /* greeting */
         if (s_b544 == 1) {
@@ -3209,9 +3231,7 @@ static void cs_live_machine(void)
     }
 
 lab_tail:
-    /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → the item-detail
-     * card (FUN_004681db/68286 + SE 0x2c6). */
-    return;
+    cs_detail_popup_open();
 }
 
 /* ── FUN_00465372 — the b5a8==0 machine: the customer SELLS the player an item ──
@@ -3234,7 +3254,7 @@ static void cs_buy_machine(void)
     int rec = g_scene_buy_current_page;                   /* edi = &ea90[b56c] */
 
     s_b544 += 1;
-    /* FUN_004681e6 detail-card query → 0 in steady state (PORT-DEBT(cs-details-overlay)). */
+    if (cs_detail_popup_tick()) return;                   /* FUN_004681e6 */
 
     switch (s_b534) {
     case 2:                                     /* greeting */
@@ -3379,8 +3399,7 @@ static void cs_buy_machine(void)
     default:
         break;
     }
-    /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → FUN_004681db(1) +
-     * FUN_00468286(b5a4) + SE 0x2c6. */
+    cs_detail_popup_open();
 }
 
 /* ── FUN_00464af0 — the b5a8==1 machine: a customer REQUESTS an item ─────────
@@ -3402,7 +3421,7 @@ static void cs_oder_machine(void)
     int rec = g_scene_buy_current_page;                   /* ebx = &ea90[b56c] */
 
     s_b544 += 1;
-    /* FUN_004681e6 detail-card query → 0 in steady state (PORT-DEBT(cs-details-overlay)). */
+    if (cs_detail_popup_tick()) return;                   /* FUN_004681e6 */
 
     switch (s_b534) {
     case 2:                                     /* the request */
@@ -3649,7 +3668,7 @@ static void cs_oder_machine(void)
     default:
         break;
     }
-    /* PORT-DEBT(cs-details-overlay): b5a0 && (pressed&0x40) → the item-detail card. */
+    cs_detail_popup_open();
 }
 
 /* ── FUN_004639f5 — the b5a8==3 machine: a customer ORDERS goods ────────────

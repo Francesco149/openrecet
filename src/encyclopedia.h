@@ -11,7 +11,7 @@
  *   FUN_0049efb8 (0x49efb8,  90B) → encyclopedia_cursor_recompute
  *   FUN_0049f365 (0x49f365,1363B) → encyclopedia_update       — nav state machine
  *   FUN_0049f8b8 (0x49f8b8,2033B) → encyclopedia_render       — the catalog draw
- *   FUN_0046a336 (0x46a336,2722B) → encyclopedia_detail_render — item-detail overlay
+ *   FUN_0046a336 (0x46a336,2722B) → item_detail_card_render — item-detail overlay
  *
  * Dispatched from the pause menu (scene_pause.c):
  *   - pause_menu_setup       → encyclopedia_setup(0)           (engine L81616)
@@ -95,7 +95,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *dev, float px, float py,
                          sprite_t *board);
 
 /* FUN_0046a336 — the A-press item-detail overlay (gated on g_enc_detail). */
-void encyclopedia_detail_render(struct IDirect3DDevice8 *dev);
+void item_detail_card_render(struct IDirect3DDevice8 *dev, int item, int mode);   /* FUN_0046a336 */
 #endif
 
 #endif /* OPENRECET_ENCYCLOPEDIA_H */

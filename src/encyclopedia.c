@@ -581,7 +581,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py,
 
     /* item-detail overlay (A-press) — Phase 2. */
     if (g_enc_detail == 1)
-        encyclopedia_detail_render(d);
+        item_detail_card_render(d, g_enc_tooltip_item, g_enc_tooltip_mode);
 }
 
 /* ── item-detail overlay helpers (FUN_0049ef78 / FUN_004848c4 / FUN_00484948 /
@@ -617,11 +617,12 @@ static int enc_stat_append(char *buf, const char *lbl_pos, const char *lbl_neg, 
 
 /* FUN_0046a336 — the A-press item-detail overlay: an item stats card (Title /
  * Type / Effect / Base Price / Highest+Lowest Sale Price), drawn over a
- * data_win panel.  Reads the tooltip state (g_enc_tooltip_item/mode). */
-void encyclopedia_detail_render(struct IDirect3DDevice8 *d)
+ * data_win panel, for `item` (DAT_0734b998, id<<6) in popup mode `mode`
+ * (DAT_0734b96c: 1 the menus' row, 3 / 4 the encyclopedia).  Retail keeps one
+ * pair of globals; the port mirrors them in the display menu (s_highlight /
+ * s_detail) and here (g_enc_tooltip_*), so the callers pass theirs. */
+void item_detail_card_render(struct IDirect3DDevice8 *d, int item, int mode)
 {
-    const int item = g_enc_tooltip_item;   /* DAT_0734b998 (id<<6) */
-    const int mode = g_enc_tooltip_mode;   /* DAT_0734b96c (encyclopedia = 3) */
     uint8_t *bank = save_work_bank_at(save_work_active_slot());
     int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
 

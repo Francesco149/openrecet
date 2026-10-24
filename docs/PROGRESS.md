@@ -57,6 +57,15 @@ load gate DAT_06a49958 alone, the cs load (FUN_00452d3e) raises only the seconda
 port gated on the OR (with a dialogue-load exception). nowloading now keeps the primary apart: the
 counter is IDENTICAL over the whole of dungeon3-deep (294,500 frames). Lava frames: 0.00..1.02 (were
 4.0..8.4); the house after a dungeon 0.53 → 0.12.
+More from a broad `portshots` sweep (28 frames of dungeon3-deep): the dungeon popups (FUN_00407cac)
+project through FUN_00490c78's render view / projection — this frame's camera — not the sim's
+DAT_095d3730 copy (they lagged a few pixels while the camera moved: f195000 0.62 → 0.03); the
+records-A 0x75 arm (the dark orbs a type-19 hit leaves: the BSS strip DAT_0064b488, ZERO /
+INVSRCCOLOR — f227000 0.90 → 0.10); the item window's news-trend line ("Price Down" …, f124000);
+the item-detail card FUN_0046a336 from the item window's render tail and the counter overlay (it was
+only drawn in the encyclopedia — the pause Items f286500 10.4 → 0.33), and the live / buy / request
+machines' detail-popup head and tail (FUN_004681e6 / 004681db, retiring PORT-DEBT(cs-details-overlay)
+there). Left: Ohm's pose (FRONT), table B's projectile billboards, small residues ≤ 0.6.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

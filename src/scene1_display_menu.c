@@ -312,6 +312,7 @@ void display_menu_seek_equip_tab(int chara)
 static int s_detail = 0;
 void display_menu_detail_open(int row) { s_detail = row + 1; }
 int  display_menu_detail(void)         { return s_detail; }
+int  display_menu_highlight_item(void) { return s_highlight; }   /* DAT_0734b998 */
 void display_menu_detail_close(void)   { s_detail = 0; }
 
 /* FUN_004681ec — the prompt-bubble window-type flag (DAT_0734b990). */
@@ -1494,6 +1495,9 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
      * highlighted item's desc/price/possessed (C4b-4a).  Rides x0 (= retail's
      * dropped param_1) so it slides with the menu on open/close. */
     display_menu_description_draw(dev, x0);
+    /* with the detail popup open (DAT_0734b96c) the card over it (FUN_0046a336) */
+    if (s_detail != 0)
+        item_detail_card_render((struct IDirect3DDevice8 *)dev, s_highlight, s_detail);
 
     /* "Button 3: Item Details" control hint (FUN_0046b00a tail, all.c:66843):
      * a baked data_win.tga strip src(288,320,488,352) at fixed dst(440,440,

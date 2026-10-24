@@ -32,6 +32,8 @@
  */
 
 #include "customer_service.h"
+#include "scene1_display_menu.h"
+#include "encyclopedia.h"
 
 #ifdef _WIN32
 
@@ -635,6 +637,13 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             float tx = (slot == 0) ? 250.0f : 130.0f;
             font_draw_text_box(dev, tx, 346.0f, s.line, 0xffffffffu, 1.0f, s.b548);
         }
+    }
+
+    /* the item-detail popup over the counter (b5a0 and DAT_0734b96c open): the card
+     * FUN_0046a336, then the description panel FUN_00469b3a at x 0 */
+    if (s.b5a0 != 0 && display_menu_detail() != 0) {
+        item_detail_card_render(dev, display_menu_highlight_item(), display_menu_detail());
+        display_menu_description_draw(dev, 0.0f);
     }
 
     /* ── Section 7 — the sale EXP popup rows (b5c0>0; engine FUN_00466b7b

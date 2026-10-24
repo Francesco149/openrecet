@@ -132,6 +132,7 @@ int  display_menu_compare_chara(void);
  * FUN_004681e6 reads it, FUN_004681d3 closes it. */
 void display_menu_detail_open(int row);
 int  display_menu_detail(void);
+int  display_menu_highlight_item(void);   /* DAT_0734b998, the highlighted item */
 void display_menu_detail_close(void);
 
 /* FUN_00468d22(bank, item): return `item` to the first empty inventory slot of
