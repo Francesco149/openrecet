@@ -1853,8 +1853,12 @@ void party_tick(void)
         if (o == 3) g_party.rec[0][6] = o = 2;
         if (o == 5) g_party.rec[0][6] = 6;
     }
-    if (PW(0x56daea4u).i != 0) {
-        /* PORT-DEBT(stub, FUN_004147d5): the boost aura (types 24 / 22) */
+    if (PW(0x56daea4u).i != 0 && g_s_easydisp == 0) {
+        /* Dark Soul's aura on the party: overlay 24 every 3rd tick, 22 every 32nd */
+        if (PW(0x56db054u).i % 3 == 0)
+            scene1_overlay_spawn(&g_party, 0.0f, 0.0f, 0.0f, 24, 0.800000011920929f, -1, 0, 1, 0);   /* FUN_004147d5 */
+        if ((PW(0x56db054u).i & 0x1f) == 0)
+            scene1_overlay_spawn(&g_party, 0.0f, 0.0f, 0.0f, 22, 0.699999988079071f, -1, 0, 1, 0);
     }
     if (PW(0x56db048u).i != 1) {
         /* PORT-DEBT(stub, FUN_0048b850 da1bc): the attack lunge (da1bc 1..ccb8) */

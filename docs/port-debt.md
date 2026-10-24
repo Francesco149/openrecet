@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **67**
-- distinct retiring engine functions: **50**
+- total open debts: **65**
+- distinct retiring engine functions: **49**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 47 | wired call boundary, body incomplete |
+| stub | 45 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -34,7 +34,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | 3 |
 | FUN_00473c15 | 3 |
 | FUN_00409925 | 2 |
-| FUN_004147d5 | 2 |
 | FUN_004176ff | 2 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
@@ -81,14 +80,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (47)
+## stub (45)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_004147d5 | src/dungeon_party.c:1857 | the boost aura (types 24 / 22) |
-| FUN_004147d5 | src/record_hit.c:686 | the overlay spark (25, 1.0, -1) |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
@@ -121,9 +118,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1013 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:980 | the faced stand's item |
-| FUN_0048a383 | src/record_hit.c:260 | the level-up of s_easydisp |
-| FUN_0048b850 | src/dungeon_party.c:1863 | the water splash after the move (hit |
-| FUN_0048b850 da1bc | src/dungeon_party.c:1860 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
+| FUN_0048b850 | src/dungeon_party.c:1867 | the water splash after the move (hit |
+| FUN_0048b850 da1bc | src/dungeon_party.c:1864 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048cdcc | src/dungeon_party.c:1562 | the other chars' swings (FUN_00497e3a, |
 | FUN_0048cdcc | src/dungeon_party.c:1576 | the other chars' skill 4 |
 | FUN_0048cdcc | src/dungeon_party.c:1587 | skill 5 of 40 / 28 / 30 / 31 / 41 |

@@ -2,6 +2,7 @@
  * record_hit.c — see record_hit.h.  Line refs are retail VAs.
  */
 #include "record_hit.h"
+#include "scene1_overlay.h"      /* FUN_004147d5 */
 
 #include <math.h>
 #include <string.h>
@@ -683,7 +684,7 @@ int record_hit_actors(int32_t *slot)
     if (state == 0) {
         const uint8_t *oa = owner_of(RI(slot, 0x10));
         if (oa && *(const int32_t *)(const void *)(oa + 0xcec) != 0) {
-            /* PORT-DEBT(stub, FUN_004147d5): the overlay spark (25, 1.0, -1) */
+            scene1_overlay_spawn(NULL, ex, ey, ez, 25, k1, -1, 0, 0, 0);   /* FUN_004147d5 */
         } else if (nohit == 0) {
             if (RI(slot, 0xb8) != 0) {
                 scene1_spawn(0, ex, ey, ez, 3, k0p2, 1);
