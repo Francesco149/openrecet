@@ -427,6 +427,9 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                index). See src/anchor_trace.h.
  *   --block-dump F <file>        after tick F write the retail-layout blocks
  *                                (state_va_block_dump; rhost.py portblock).
+ *   --fx-census <file>           after each tick, "F A|B type" for the
+ *                                table-A / B types newly live (rhost.py
+ *                                portcensus).
  *   --state-va <va,..>           with --state-log <file>: after each
  *                                anchor evaluation write `post N va=val..`
  *                                for those retail VAs' port mirrors (the
@@ -517,6 +520,29 @@ static FILE                     *g_state_log_fp             = NULL;
 static int                       g_state_log_pending        = 0;
 static uint32_t                  g_state_log_frame          = 0;
 static const char               *g_block_dump_path          = NULL;   /* --block-dump F path */
+static FILE                     *g_fx_census_fp             = NULL;   /* --fx-census path */
+
+/* --fx-census: after each tick, the table-A / B types live this frame that were
+ * not the frame before ("F A type" / "F B type") — which frames a render arm of
+ * FUN_004176ff / FUN_004161c7 draws in (the tables match retail's, portblock) */
+static void fx_census(uint32_t frame)
+{
+    static uint8_t prev[2][1024];
+    uint8_t now[2][1024];
+    memset(now, 0, sizeof now);
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t t = g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE + 12];
+        if (t >= 0 && t < 1024) now[0][t] = 1;
+    }
+    for (int i = 0; i < g_scene1_records_b_count && i < SCENE1_RECORDS_B_COUNT; i++) {
+        const int32_t t = g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+        if (t > 0 && t < 1024) now[1][t] = 1;
+    }
+    for (int k = 0; k < 2; k++)
+        for (int t = 0; t < 1024; t++)
+            if (now[k][t] && !prev[k][t]) fprintf(g_fx_census_fp, "%u %c %d\n", frame, k ? 'B' : 'A', t);
+    memcpy(prev, now, sizeof now);
+}
 static uint32_t                  g_block_dump_frame         = 0;
 
 /* Frame label of the tick being run: tick #k (1-based) is frame k — rhost's
@@ -2385,6 +2411,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
                 }
                 if (g_state_log_pending) {
+                    if (g_fx_census_fp) fx_census(g_state_log_frame);
                     state_va_log(g_state_log_fp, g_state_log_frame);
                     if (g_block_dump_path && g_state_log_frame == g_block_dump_frame)
                         state_va_block_dump(g_block_dump_path, g_state_log_frame);
@@ -2487,6 +2514,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
     if (g_state_log_fp) { fclose(g_state_log_fp); g_state_log_fp = NULL; }
+    if (g_fx_census_fp) { fclose(g_fx_census_fp); g_fx_census_fp = NULL; }
     g_rng_trace = NULL;
     if (g_rng_log_fp) { fclose(g_rng_log_fp); g_rng_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
@@ -3979,6 +4007,9 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 g_block_dump_path  = bd_buf;
                 g_block_dump_frame = (uint32_t)strtoul(f, NULL, 10);
             }
+        } else if (lstrcmpA(tok, "--fx-census") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) g_fx_census_fp = fopen(val, "w");
         } else if (lstrcmpA(tok, "--state-log") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

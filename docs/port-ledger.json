@@ -3136,6 +3136,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/main.c",
     "src/save_bank.h",
     "src/scene1_pass_f.c",
     "src/scene1_pass_f.h",
@@ -3190,6 +3191,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/main.c",
     "src/scene1_effects.c",
     "src/scene1_effects.h",
     "src/scene1_maplight.c",

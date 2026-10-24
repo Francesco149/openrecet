@@ -34,9 +34,9 @@
    "FUN_00474d92": 2,
    "FUN_0048670f": 2,
    "0x43e...": 1,
+   "FUN_00405b1a": 1,
    "FUN_0040cea6": 1,
    "FUN_004161c7": 1,
-   "FUN_004176ff": 1,
    "FUN_0041f4a6": 1,
    "FUN_0042df55": 1,
    "FUN_0042e1a6": 1,
@@ -228,6 +228,14 @@
   },
   {
    "kind": "stub",
+   "engine_fn": "FUN_00405b1a",
+   "desc": "unported, with the sun sprite FUN_00405d70",
+   "file": "src/scene1_render.c",
+   "line": 338,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
    "engine_fn": "FUN_00409925",
    "desc": "C3b furniture-stand tooltip branch (name + \"%d/%d\" slot count) not rendered; item branch only.",
    "file": "src/scene1_merchant_hud.c",
@@ -240,14 +248,6 @@
    "desc": "the BGM stream's loop (FUN_0040cf88,",
    "file": "src/movie.c",
    "line": 102,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_004176ff",
-   "desc": "unported sections \u2014 the table-A loop on",
-   "file": "src/scene1_effects.h",
-   "line": 6,
    "kind_known": true
   },
   {

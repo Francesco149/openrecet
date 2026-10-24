@@ -275,7 +275,13 @@ def _vcount(prim_type: int, prim_count: int) -> int:
     return prim_count
 
 
-def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
+def draw_worlds(c: orv3.Container, frame_index: int) -> list[dict]:
+    """Every draw's WORLD / VIEW / PROJ in effect (indexed draws included) — the
+    per-draw transforms to line a frame's draws up against another stream's."""
+    return up_vert_probe(c, frame_index, None)
+
+
+def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int | None) -> dict:
     """Decode a UP draw's inline vertex payload + the transforms in effect at it.
 
     Rewalks the frame's call section (same record grammar as enumerate_draws),
@@ -296,6 +302,12 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
     xf: dict[int, tuple] = {}       # SetTransform state -> 16 floats (row-major)
     cur_fvf = 0
     ndraw = 0
+    worlds: list[dict] = []         # draw_index None: every draw's transforms
+
+    def note(op: str) -> None:
+        if draw_index is None:
+            worlds.append({"draw": ndraw, "op": op, "world": mat(256), "view": mat(2), "proj": mat(3),
+                           "blend": [mat(256 + k) for k in range(4)]})   # WORLDMATRIX(0..3)
 
     def mat(state: int):
         return xf.get(state)
@@ -387,6 +399,7 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
         elif t == orv3.SetVertexShader:
             cur_fvf = u(p); p += 4
         elif t in (orv3.DrawPrimitive, orv3.DrawIndexedPrimitive):
+            note(orv3.OPNAME.get(t))
             if ndraw == draw_index:
                 raise ValueError(f"draw {draw_index} is VB-based ({orv3.OPNAME.get(t)}) — "
                                  "--verts decodes UP draws only")
@@ -395,6 +408,7 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
         elif t == orv3.DrawPrimitiveUP:
             pt = u(p); pc_ = u(p + 4); stride = u(p + 8); p += 12
             dl = u(p); p += 4
+            note("DrawPrimitiveUP")
             if ndraw == draw_index:
                 out = decode(stride, bytes(d[p:p + dl]), cur_fvf)
                 out.update({"op": "DrawPrimitiveUP", "prim_type": pt, "prim_count": pc_})
@@ -407,6 +421,7 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
             p += il
             stride = u(p); p += 4
             vl = u(p); p += 4
+            note("DrawIndexedPrimitiveUP")
             if ndraw == draw_index:
                 out = decode(stride, bytes(d[p:p + vl]), cur_fvf)
                 out.update({"op": "DrawIndexedPrimitiveUP", "prim_type": pt, "prim_count": pc_})
@@ -434,6 +449,8 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int) -> dict:
             break
         else:
             raise ValueError(f"unexpected op {t} at {p - 4} in frame {frame_index}")
+    if draw_index is None:
+        return worlds
     raise IndexError(f"draw {draw_index} not found in frame {frame_index} ({ndraw} draws walked)")
 
 
@@ -681,9 +698,18 @@ def main() -> int:
                     help="decode UP draw DRAW's inline vertices + transforms in effect "
                          "(and, for untransformed FVFs, the projected screen footprint) "
                          "— answers 'the draw is issued but paints nothing: WHERE is it?'")
+    ap.add_argument("--worlds", action="store_true",
+                    help="every draw's WORLD translation (indexed draws too) — to line "
+                         "a frame's mesh draws up against the port's d3d.jsonl")
     args = ap.parse_args()
 
     pc = orv3.Container.load(args.port_container)
+    if args.worlds:
+        for w in draw_worlds(pc, args.port_frame):
+            m = w["world"]
+            t = [round(x, 3) for x in m[12:15]] if m else None
+            print(f"  [{w['draw']:3d}] {w['op']:<24s} world_t {t}")
+        return 0
     if args.verts is not None:
         probe = up_vert_probe(pc, args.port_frame, args.verts)
         print(json.dumps(probe, indent=1))

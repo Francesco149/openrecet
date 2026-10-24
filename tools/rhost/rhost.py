@@ -586,6 +586,33 @@ def cmd_portsave(a):
     return 0 if "IDENTICAL" in out else 1
 
 
+def cmd_portcensus(a):
+    """which frames exercise which render arms: the port (--fx-census) on the run's flat trace writes,
+    per frame, the table-A / B types newly live (the tables match retail's — portblock); prints each
+    type's first frames and the live spans' count (A = DAT_069b2f80 +0x30, B = DAT_069324b0 +0)"""
+    import collections
+    name = a.scenario
+    tr, save = scenario_inputs(name)
+    a.flatten_out = True
+    a.dump_at = None
+    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portcensus-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    frames = int(res.get(name, {}).get("frame", "0")) or 120000
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames,
+                      extra=("--fx-census", "{pw}\\census.txt"), fetch=("census.txt",))
+    path = os.path.join(pdir_l, "census.txt")
+    if not os.path.exists(path):
+        print("port wrote no census.txt"); return 2
+    seen = collections.defaultdict(list)
+    for line in open(path):
+        f, k, t = line.split()
+        seen[(k, int(t))].append(int(f))
+    for (k, t) in sorted(seen):
+        fs = seen[(k, t)]
+        print(f"{k} {t:4d}: {len(fs):5d} spans, first f{', f'.join(str(x) for x in fs[:6])}")
+    print(f"census: {path}")
+    return 0
+
+
 def cmd_portanchors(a):
     """port vs retail anchor timeline on the same flat trace (port --det-loads): first divergence"""
     name = a.scenario
@@ -1113,6 +1140,7 @@ def main():
     p = sp.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=2); p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)
     p = sp.add_parser("portsave"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portsave)
+    p = sp.add_parser("portcensus"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portcensus)
     p = sp.add_parser("portanchors"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_portanchors)
     p = sp.add_parser("portstate"); p.add_argument("scenario"); p.add_argument("--va", required=True, help="hex VAs, e.g. 6023a0,438cc08")
     p.add_argument("--context", type=int, default=4)

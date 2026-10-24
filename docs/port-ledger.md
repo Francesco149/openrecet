@@ -196,9 +196,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x415eb4 | FUN_00415eb4 | 122 | ✓ |  | scene1_effects.c |
 | 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_effects.c, scene1_wide_followup.h, scene1_wide_followup_helpers.c |
 | 0x415fab | FUN_00415fab | 540 | ✓ |  | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
-| 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+7) |
+| 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | main.c, save_bank.h, scene1_pass_f.c (+8) |
 | 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.h, scene1_render.c (+1) |
-| 0x4176ff | FUN_004176ff | 30395 | ✓ |  | scene1_effects.c, scene1_effects.h, scene1_maplight.c (+2) |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ |  | main.c, scene1_effects.c, scene1_effects.h (+3) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ |  | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ |  | actor_table.h, scene1_combat_sm.h |

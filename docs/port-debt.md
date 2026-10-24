@@ -40,9 +40,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
+| FUN_00405b1a | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
-| FUN_004176ff | 1 |
 | FUN_0041f4a6 | 1 |
 | FUN_0042df55 | 1 |
 | FUN_0042e1a6 | 1 |
@@ -82,9 +82,9 @@ the answer to *"what's still faked in code that looks done?"*
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_004176ff | src/scene1_effects.h:6 | unported sections — the table-A loop on |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
 | FUN_0042e1a6 | src/actor_ai.c:4085 | the death (EXP, drops, the kill count) |
 | FUN_0042e791 | src/actor_ai.c:4042 | the poison tick (ftol(p), 4) |
