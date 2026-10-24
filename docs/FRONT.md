@@ -213,9 +213,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        their six hit parts (FUN_0043865e), dungeon 2's setup FUN_0044d9d3 + its events to 20F
        (dungeon3-floors / -deep: RNG-verified); **ported ahead of a recording, unverified**:
        FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3,
-       from day 10 in dungeons 0..2), FUN_0042f7ad's 61 / 64 arm, the jellyfish's 2 hit parts;
-       still stubs for dungeon 2: Tielle 27 (FUN_00423b58, her floor-30 timeline FUN_0044db3c, her
-       death arm); the pumpkin variants 1 / 2 (not in dungeon 2's lists), the golem parts,
+       from day 10 in dungeons 0..2), FUN_0042f7ad's 61 / 64 arm, the jellyfish's 2 hit parts,
+       **Tielle 27** (FUN_00423b58, her floor-30 timeline FUN_0044db3c with the rising platforms —
+       also the Boss Rush's 37 —, FUN_0042439e, her death arm, the summoned kobolds' FUN_00423686;
+       2026-10-24); the pumpkin variants 1 / 2 (not in dungeon 2's lists), the golem parts,
        FUN_0042df55's
        lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
        Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss

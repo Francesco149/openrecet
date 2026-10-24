@@ -31,6 +31,19 @@ known enemylist residue, table A's 1-ulp particles, table B's ground-hit struct 
 the triangle and map-collision slot, retail slot 9 vs port 2 / 3 — positions identical) and a
 dead bomb (actor #4, type 37) a few ulps off in x / z / yaw. Tools: state_va rows for the pick
 state (DAT_005c6bcc / bc8, DAT_0730b5c8 / cc / dc, the rows).
+Hidden state, from those residues: table B's 0x2b / 0x7b / 0xa1 / 0x7c / 0x84 / 0x75 query the
+ground into their own hit record (+0x18, its height = AUX_9) like retail, not a stack temp; type
+0x5a's homing drift rounds after the add and again after × 0.95 (the bomb's shot was 1 ulp off,
+its knock-back moved a bomb a few ulps); table A's 0x36 / 0x74 / 0x4e take the gravity after the
+damp (the port's before: 0.0006 a tick slower — the crabs' 78 bursts), 0x2d moves only from age
+0. portblock f294500 after: the enemylist residue and 33 table-A dwords (five dead slots' z hold
+0x66834183 in retail — unexplained; #89's owner word is the port's host pointer; 1-ulp x's).
+Ported ahead of the next recording (unverified): Tielle on 30F — FUN_0044db3c (the scenes, the
+three phases' platforms rising as movers from byte_005c5734 — phase 2's last row reads the "bi"
+of the next string: two more platforms —, the player's z kept to the phase, the fight, the fade
+home), FUN_00423b58 (the walk-in, the attack cycles with her voices, the platforms giving way
+FUN_0042439e, the fight's line-up walk and two-shot burst, the kobold summons), FUN_00423686 (the
+summoned kobold on its platform), her death arm.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

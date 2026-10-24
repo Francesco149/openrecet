@@ -606,6 +606,39 @@ static void actor_anim_blend(actor_t *a, int32_t anim);   /* FUN_0041f759 */
  * tick 2 the slot frees (a 1-in-3 respawn timer of 600 off the checkpoint
  * floors), the shake, SE 337 and the burst overlay 3; a reviving one
  * (+0xadc) stands up at 60 / 90 */
+static int32_t s_tielle_used[50];   /* DAT_007c8b70: a platform's kobold is out */
+
+/* FUN_0042439e: Tielle's platforms give way at tick `t` — platform i (mover
+ * 1 + i) bursts at 10 + 4i (overlays 1 / 2 / 3 two above it, SE 318 every
+ * third, the shake) and is gone at 20 + 4i; at 30 every other live actor
+ * dies.  From her AI (event stage 6, phases 0 / 1) and her death arm. */
+static void tielle_platforms_give_way(actor_t *a, int32_t t)
+{
+    static const float k0p4 = 0.4000000059604645f;
+    for (int32_t i = 0; i != g_mapcol_movers.on[0]; i++) {
+        if (g_mapcol_movers.on[1 + i] == 0) continue;
+        if (t == 10 + 4 * i) {
+            const float x = g_mapcol_movers.x[1 + i], z = g_mapcol_movers.z[1 + i];
+            const float y = spill32((long double)g_mapcol_movers.y[1 + i] + k2);
+            scene1_overlay_spawn(NULL, x, y, z, 1, k1, -1, 0, 0, 0);     /* FUN_004147d5 */
+            scene1_overlay_spawn(NULL, x, y, z, 2, k1, -1, 0, 0, 0);
+            scene1_overlay_spawn(NULL, x, y, z, 3, k0p4, -1, 0, 0, 0);
+            if (i % 3 == 0) audio_play_se_by_id(318);
+            camera_shake(10, 4, 4, k1);                                  /* FUN_0044b219 */
+        }
+        if (t == 20 + 4 * i) g_mapcol_movers.on[1 + i] = 0;
+    }
+    if (t == 30) {
+        for (int i = 0; i < ACTOR_COUNT; i++) {
+            actor_t *o = &g_actor[i];
+            if (o != a && AI(o, ACT_INUSE) == 1) {
+                AI(o, ACT_INUSE) = 2;
+                AI(o, 0xaf0) = 0;
+            }
+        }
+    }
+}
+
 void actor_dying(actor_t *a)
 {
     static const float k0p025 = 0.02500000037252903f;
@@ -754,10 +787,38 @@ void actor_dying(actor_t *a)
         else actor_anim_blend(a, 10);
         return;
     }
-    case 27: case 28:
+    case 27: {
+        /* Tielle beaten: at 1 the slow-mo (becc 60), DAT_056db0f4 1200 and every
+         * other live actor dying; her platforms give way (FUN_0042439e) on the
+         * death tick count; from event stage 9 she stands 3 left of the start
+         * at z 55.5 facing +x and, past b8a4 60, fades (+0x3dc - 16) and frees */
+        static const float k3 = 3.0f, k55p5 = 55.5f;
+        if (t == 1) {
+            g_dat_0438becc = 60;
+            PW(0x56db0f4u).i = 1200;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                actor_t *o = &g_actor[i];
+                if (o != a && AI(o, ACT_INUSE) == 1) {
+                    AI(o, ACT_INUSE) = 2;
+                    AI(o, 0xaf0) = 0;
+                }
+            }
+        }
+        tielle_platforms_give_way(a, t);
+        if (g_event_stage >= 9) {
+            AI(a, 0x18) = 2;
+            AF(a, 0x3f0) = spill32((long double)g_scene1_stage_player_default_pos[0] - k3);
+            AF(a, 0x3f4) = g_scene1_stage_player_default_pos[1];
+            AF(a, 0x3f8) = k55p5;
+            AF(a, 0x420) = k_pi2;
+            if (g_event_tick > 60 && (AI(a, 0x3dc) -= 16) < 0) AI(a, ACT_INUSE) = 0;
+        }
+        return;
+    }
+    case 28:
     case 41: case 70: case 71: case 73: case 74:
         /* PORT-DEBT(stub, FUN_0042f7ad): the other bosses' / special enemies'
-         * death arms (the boss cut-ins, FUN_0041f759, FUN_0042439e) */
+         * death arms (the boss cut-ins, FUN_0041f759) */
         return;
     default:
         break;
@@ -3278,6 +3339,244 @@ static void actor_ai_t25(actor_t *a)
 }
 
 /* FUN_0042f28c */
+/* FUN_00423686: type 16 in sub-state 3, a kobold Tielle summoned onto a
+ * platform: while it stands 2+ up, rest (face the player 0.1 a tick) for
+ * rand & 0x3f + 80 ticks, then shoot record 150 (SE 691) at 26 of a 91-tick
+ * cycle; below 2 it drops back to sub-state 0.  Tick 1 of the rest burns one
+ * FUN_00471089 draw before the rest roll.  asm 0x423686..0x423788. */
+static void actor_ai_t16_perch(actor_t *a)
+{
+    static const float k0p1 = 0.10000000149011612f;
+    if (!(AF(a, 0x3f4) >= k2)) {
+        AI(a, 0xae4) = 0;
+        AI(a, 0xb54) = 0;
+        return;
+    }
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xa54) == 0) {
+        actor_anim_set(a, 3);
+        actor_anim_set(a, 0);
+        if (++AI(a, 0xa58) == 1) {
+            (void)rng_next_unit();                          /* FUN_00471089, dropped */
+            AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+        }
+        actor_turn_to_player(a, k0p1);                      /* FUN_0041f789 */
+        if (AI(a, 0xa58) >= AI(a, 0xa60) + 80) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 1;
+            actor_anim_set(a, 3);
+        }
+    } else if (AI(a, 0xa54) == 1) {
+        if (++AI(a, 0xa58) == 26) {
+            scene1_record_b_spawn_npc(a, 150, 1);           /* FUN_00445a8c */
+            audio_play_se_by_id(691);
+        }
+        if (AI(a, 0xa58) == 91) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    }
+}
+
+/* FUN_00423b58: type 27, Tielle on dungeon 2's 30F (her timeline FUN_0044db3c
+ * runs the event stages DAT_0438b8a0 / b8a4 and the phase DAT_0438b8a8 0..2;
+ * zb = -27 / 23.25 / 73.5 the phase's edge).  Sub-state 0 (phases 0..2):
+ * stages 3 / 4 she walks in along +z steering to x -40 (0.06), then waits
+ * facing -z (vz × 0.9) — from phase 1 on a random one of the first 11
+ * platforms (+0xa64); 4 → 5 after 60 ticks.  Stage 5 a 150-tick attack cycle
+ * (anim 4 at 10, records 132 × 5 / × 10 or 104 × 4 from 26 with SE 674 and a
+ * voice; anim 0 at 50); she is hit when the player comes within 2.5 (phase
+ * 0) or her platform is gone → stage 6 (alpha 255): the platforms give way
+ * (phases 0 / 1); from 100 she runs off along +z (phases 0 / 1) — phase 2
+ * instead, once the last platform fell, turns into the fight (sub-state 1,
+ * stage 7, the camera class 2).  Sub-state 1: the line-up walk (reach 12) and
+ * a two-shot burst (records 78 / 79 at 12 of 80, SE 674), z kept within
+ * zb - 32.2 .. zb + 1.8.  In stages 5 / 7, every 240 ticks while fewer than
+ * phase + 2 summoned kobolds stand, one (type 16, sub-state 3) on a random
+ * standing platform 5 above it.  asm 0x423b58..0x42439d (the "A4:%d" / "BD:%d"
+ * rows are debug text). */
+static void actor_ai_t27(actor_t *a)
+{
+    static const float k0p01 = 0.009999999776482582f, km27 = -27.0f, k23p25 = 23.25f;
+    static const float k50p25 = 50.25f, km41 = -41.0f, km39 = -39.0f;
+    static const float k0p06 = 0.05999999865889549f, k0p9 = 0.8999999761581421f;
+    static const float k_pi = 3.1415927410125732f, k2p5 = 2.5f, k36 = 36.0f;
+    static const float k0p025 = 0.02500000037252903f, k32p2 = 32.20000076293945f;
+    static const float k1p8 = 1.7999992370605469f;
+    static const char *const k_v0[4] = { "bin/se/05ti/attack/05ti_01.bin", "bin/se/05ti/attack/05ti_01b.bin",
+                                         "bin/se/05ti/attack/05ti_06a.bin", "bin/se/05ti/attack/05ti_06b.bin" };
+    static const char *const k_v1[3] = { "bin/se/05ti/attack/05ti_02.bin", "bin/se/05ti/attack/05ti_02b.bin",
+                                         "bin/se/05ti/attack/05ti_05.bin" };
+    static const char *const k_v2[6] = { "bin/se/05ti/skill/05ti_03a.bin", "bin/se/05ti/skill/05ti_04.bin",
+                                         "bin/se/05ti/skill/05ti_04a.bin", "bin/se/05ti/skill/05ti_07a.bin",
+                                         "bin/se/05ti/skill/05ti_08a.bin", "bin/se/05ti/skill/05ti_09.bin" };
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    const float dist = d2 == 0.0f ? k0p01 : spill32(crt_sqrt(d2));
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xa64) = -1;
+        AI(a, 0xb8c) = 0;
+        memset(s_tielle_used, 0, sizeof s_tielle_used);
+    }
+    float zb = km27;
+    if (g_dat_0438b8a8 >= 1) zb = k23p25;
+    if (g_dat_0438b8a8 >= 2) zb = spill32((long double)zb + k50p25);
+    if (AI(a, 0xae4) == 0) {
+        ++AI(a, 0xa58);
+        AI(a, 0xb08) = 1;
+        AI(a, 0xb04) = 1;
+        AI(a, 0x9fc) = 1;
+        if (g_event_stage == 3 || g_event_stage == 4) {
+            if ((long double)zb - k2 < AF(a, 0x3f8) && g_dat_0438b8a8 >= 1) AI(a, 0x3dc) = 0;
+            if (AF(a, 0x3f8) < zb && AI(a, 0xa64) == -1) {
+                if (AF(a, 0x3f0) < km41) AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) + k0p06);
+                if (AF(a, 0x3f0) > km39) AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) - k0p06);
+                AF(a, 0x404) = spill32((long double)AF(a, 0x404) + k0p06);
+                AF(a, 0x420) = 0.0f;
+            } else {
+                AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p9);
+                AF(a, 0x420) = k_pi;
+                if (g_dat_0438b8a8 >= 1) {
+                    if (AI(a, 0xa64) == -1) {
+                        const int32_t r = (int32_t)(rng_next15() % 11u);
+                        AI(a, 0xa64) = r;
+                        AF(a, 0x3f0) = g_mapcol_movers.x[1 + r];
+                        AF(a, 0x3f8) = g_mapcol_movers.z[1 + r];
+                        AF(a, 0x3fc) = 0.0f;
+                        AF(a, 0x404) = 0.0f;
+                    }
+                    if (g_mapcol_movers.y[1 + AI(a, 0xa64)] == 0.0f) AI(a, 0x3dc) = 0;
+                }
+                if (g_event_stage == 4) {
+                    if (g_event_tick <= 60) goto tail;
+                    g_event_tick = 0;
+                    g_event_stage = 5;
+                }
+            }
+        }
+        if (g_event_stage == 5) {
+            const int32_t c = AI(a, 0xa58) % 150;
+            if (c == 10) actor_anim_set(a, 4);                           /* FUN_00482a51 */
+            if (g_dat_0438b8a8 == 0) {
+                for (int i = 0; i != 5; i++) {
+                    if (c != i + 26) continue;
+                    scene1_record_b_spawn_npc(a, 132, 1);                /* FUN_00445a8c */
+                    if (i % 2 == 0) audio_play_se_by_id(674);
+                }
+                if (c == 26) audio_play_se_file(k_v0[rng_next15() & 3u]);   /* FUN_0049933c */
+            } else if (g_dat_0438b8a8 == 1) {
+                for (int i = 0; i != 10; i++) {
+                    if (c != i + 26) continue;
+                    scene1_record_b_spawn_npc(a, 132, 1);
+                    audio_play_se_by_id(674);
+                }
+                if (c == 26) {
+                    const uint32_t v = rng_next15() & 3u;
+                    if (v < 3) audio_play_se_file(k_v1[v]);
+                }
+            } else if (g_dat_0438b8a8 == 2) {
+                for (int k = 26; k != 58; k += 8)
+                    if (c == k) scene1_record_b_spawn_npc(a, 104, 1);
+                if (c == 26) audio_play_se_file(k_v2[rng_next15() % 6u]);
+            }
+            if (c == 50) actor_anim_set(a, 0);
+            const int hit = g_dat_0438b8a8 >= 1 ? g_mapcol_movers.on[1 + AI(a, 0xa64)] == 0
+                                                : !(dist >= k2p5);
+            if (hit) {
+                g_event_tick = 0;
+                AI(a, 0x3dc) = 255;
+                g_event_stage = 6;
+            }
+        }
+        if (g_event_stage == 6) {
+            PW(0x56db0f4u).i = 5;
+            if (g_dat_0438b8a8 < 2) tielle_platforms_give_way(a, g_event_tick);   /* FUN_0042439e */
+            if (g_dat_0438b8a8 == 2) {
+                if (g_event_tick >= 4 * g_mapcol_movers.on[0] + 20) {
+                    AI(a, 0xa58) = 0;
+                    AI(a, 0xa54) = 0;
+                    g_event_stage = 7;
+                    g_scene1_camera_stage_class = 2;                    /* DAT_0438b4e8 */
+                    AI(a, 0xae4) = 1;
+                    g_cam_blend = 1;                                     /* DAT_0438b7ac */
+                }
+            } else if (g_event_tick >= 100) {
+                AI(a, 0x9fc) = 0;
+                g_cam_blend = 0;
+                g_cut_follow = 0;                                        /* DAT_0438b788 */
+                actor_anim_set(a, 1);
+                if (AF(a, 0x3f0) < km41) AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) + k0p06);
+                if (AF(a, 0x3f0) > km39) AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) - k0p06);
+                if ((long double)zb + k36 > AF(a, 0x3f8)) {
+                    AF(a, 0x404) = spill32((long double)AF(a, 0x404) + k0p06);
+                    AI(a, 0xa64) = -1;
+                    AF(a, 0x420) = 0.0f;
+                }
+            }
+        }
+    }
+tail:
+    if (AI(a, 0xae4) == 1) {
+        AI(a, 0xb08) = 0;
+        AI(a, 0xb04) = 0;
+        AI(a, 0x9fc) = 0;
+        AI(a, 0xb54) = 1;
+        if (AI(a, 0xa54) == 0) {
+            if (actor_ai_line_up(a, k12, 20, k0p025, 5, 30, 0) &&           /* FUN_00423789 */
+                AF(a, 0x3f4) == AF(a, 0x3e0)) {
+                AI(a, 0xa5c) = 0;
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 1;
+                actor_anim_set(a, 3);
+            }
+        } else if (AI(a, 0xa54) == 1) {
+            actor_anim_set(a, 3);
+            if (++AI(a, 0xa58) == 12) {
+                audio_play_se_by_id(674);
+                scene1_record_b_spawn_npc(a, (rng_next15() & 1u) ? 78 : 79, 1);
+            }
+            if (AI(a, 0xa58) >= 80) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        }
+        if (AI(a, 0xa54) == 0) {
+            const float vx = AF(a, 0x3fc), vz = AF(a, 0x404);
+            const float s = spill32(crt_sqrt(spill32((long double)vx * vx + (long double)vz * vz)));
+            actor_anim_set(a, s > k0p05 ? 1 : 0);
+        }
+        const float lo = spill32((long double)zb - k32p2);
+        if (AF(a, 0x3f8) < lo) AF(a, 0x3f8) = lo;
+        const float hi = spill32((long double)zb + k1p8);
+        if (AF(a, 0x3f8) > hi) AF(a, 0x3f8) = hi;
+    }
+    ++AI(a, 0xa5c);
+    if (g_event_stage != 5 && g_event_stage != 7) return;
+    int32_t n = 0;
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        const actor_t *o = &g_actor[i];
+        if (AI(o, ACT_INUSE) != 0 && AI(o, ACT_TYPE) == 16 && AI(o, 0xae4) == 3) ++n;
+    }
+    if (n >= g_dat_0438b8a8 + 2 || ++AI(a, 0xa68) <= 240) return;
+    AI(a, 0xa68) = 0;
+    uint32_t r = rng_next15() & 7u;
+    for (int32_t i = g_mapcol_movers.on[0] - 1; i != -1; i--) {
+        if (g_mapcol_movers.on[1 + i] == 0 || s_tielle_used[i] == 1) continue;
+        if (--r != 0) continue;
+        const actor_stage_t stg = stage_now();
+        actor_t *m = actor_spawn_enemy(&stg, g_mapcol_movers.x[1 + i],
+                                       spill32((long double)g_mapcol_movers.y[1 + i] + k5),
+                                       g_mapcol_movers.z[1 + i], 16);   /* FUN_0041f903 */
+        if (m != NULL) {
+            AI(m, 0xb2c) = 1;
+            AI(m, 0xae4) = 3;
+        }
+        s_tielle_used[i] = 1;
+        return;
+    }
+}
+
 void actor_ai_alive(actor_t *a)
 {
     if (AI(a, 0xb40) == 1) {
@@ -3314,6 +3613,8 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t29(a);                     /* FUN_0042da1d */
         } else if (type == 30 && stage_gate_get_next() != 99) {
             actor_ai_t30(a);                     /* FUN_0042d676 (99: FUN_0044f009, stub) */
+        } else if (type == 27) {
+            actor_ai_t27(a);                     /* FUN_00423b58 */
         } else if (type == 31) {
             actor_ai_t31(a);                     /* FUN_0042d392 */
         } else if (type >= 37 && type <= 40) {
@@ -3327,7 +3628,9 @@ void actor_ai_alive(actor_t *a)
         } else if (type == 15 && sub == 0) {
             actor_ai_pumpkin(a);                 /* FUN_0042a33e (sub 1: FUN_0042a23c, else
                                                     FUN_00429e6f — stubs) */
-        } else if (type == 16 && sub != 3) {
+        } else if (type == 16 && sub == 3) {
+            actor_ai_t16_perch(a);               /* FUN_00423686 */
+        } else if (type == 16) {
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {
             actor_ai_flier(a);                   /* FUN_0042a74c */
