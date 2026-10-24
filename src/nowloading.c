@@ -29,6 +29,9 @@ static float g_rotation_rad  = 0.0f;
  * setter exposes only the primary; a future port of FUN_0049de24
  * (the secondary gate's producer) can grow this to two fields. */
 static int   g_active        = 0;
+/* DAT_06a49958 alone: the primary (scene) load — FUN_004547ab skips the scene
+ * render only on it, not on the secondary gate (FUN_00452d07 / 00452d3e …) */
+static int   g_primary       = 0;
 
 /* ─── accessors ──────────────────────────────────────────────────────── */
 
@@ -37,12 +40,15 @@ float nowloading_get_rotation(void)      { return g_rotation_rad;  }
 int   nowloading_is_active(void)         { return g_active != 0;   }
 
 void  nowloading_set_active(int active)  { g_active = active ? 1 : 0; }
+int   nowloading_primary_active(void)    { return g_primary != 0;  }
+void  nowloading_set_primary(int on)     { g_primary = on ? 1 : 0; }
 
 void  nowloading_reset(void)
 {
     g_alpha_counter = 0;
     g_rotation_rad  = 0.0f;
     g_active        = 0;
+    g_primary       = 0;
 }
 
 /* ─── tick ───────────────────────────────────────────────────────────── */

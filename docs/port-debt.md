@@ -116,8 +116,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00468fd0 | src/scene_guild.c:502 | the removal is unported, |
 | FUN_00469b3a | src/scene1_display_menu.c:987 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:288 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:332 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:323 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:369 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
@@ -145,7 +145,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
-| FUN_004536cb | src/sim.c:497 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:383 | the engine teardown also restores the |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |

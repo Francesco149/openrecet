@@ -44,6 +44,19 @@ of the next string: two more platforms —, the player's z kept to the phase, th
 home), FUN_00423b58 (the walk-in, the attack cycles with her voices, the platforms giving way
 FUN_0042439e, the fight's line-up walk and two-shot burst, the kobold summons), FUN_00423686 (the
 summoned kobold on its platform), her death arm.
+Render (`portshots` over 25 in-floor frames of 8F..20F): floors up to 15F at ≤ 2 mean abs; the
+lava floors (16F..20F) at 4..8.4 — the lava sea drew as flat triangles. Retail's water pass binds
+the stage's animated frames DAT_073aa198 ("<waterfile><NN>.bmp", 30 × 64² umi frames, loaded by
+FUN_00474a9a's dungeon arm) at (DAT_06a49b24 / wateranimspeed) % wateranimnum — the port bound the
+mesh's own static water.bmp (v3 capture f256000: tex#49 64×64, ADDSIGNED, over every lava cell). Now
+loaded and bound (the hikari pass shares the table); a house after a dungeon still binds none
+(dungeon1-run2 f46000 capture: the five hikari draws tex none), so the HOUSE load drops them.
+And the frame counter DAT_06a49b24 ran one behind retail from f1595: the scene render was skipped on
+the counter's customer-service load frame — retail's FUN_004547ab gates the scene on the primary
+load gate DAT_06a49958 alone, the cs load (FUN_00452d3e) raises only the secondary 06a49960; the
+port gated on the OR (with a dialogue-load exception). nowloading now keeps the primary apart: the
+counter is IDENTICAL over the whole of dungeon3-deep (294,500 frames). Lava frames: 0.00..1.02 (were
+4.0..8.4); the house after a dungeon 0.53 → 0.12.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

@@ -412,6 +412,7 @@ void sim_step_a(void)
      * live (D_LOAD / D_TUT_LOAD = the FUN_00452d07 worker; these don't set
      * worker_load_busy so they never hit the short-circuit above).  Render-only
      * (no sim/rng), so the frame-aligned cutscene is untouched. */
+    nowloading_set_primary(0);              /* DAT_06a49958 = 0 (FUN_004536cb, past the busy check) */
     nowloading_set_active(scene1_intro_dialogue_loading());
 
     /* Run the button-state ring for every player. Player N's `cur`

@@ -3186,7 +3186,7 @@ static void render_dispatch(void)
                 IDirect3DDevice8_SetTransform(g_dev, D3DTS_WORLD,
                                               (const D3DMATRIX *)ident);
                 mesh_draw_d3d8(g_dev, g_house_preview_mesh);
-            } else if (!nowloading_is_active() || scene1_intro_dialogue_loading()) {
+            } else if (!nowloading_primary_active()) {
                 /* Cr.1 (2026-05-23) + Cr.2 (2026-05-25): real scene-1
                  * mesh render chain.  Engine FUN_004547ab L70-73
                  * (DAT_0438b1c0==1 && DAT_0438b1d0==1, the most common
@@ -3229,16 +3229,15 @@ static void render_dispatch(void)
                  * 2026-05-27: gated on `!nowloading_is_active()` to mirror
                  * engine FUN_004547ab L51100, which skips the entire
                  * per-state render dispatch while the nowloading overlay
-                 * is up.  ★ 2026-07-04: refined with `|| scene1_intro_
-                 * dialogue_loading()` — L51100 keys ONLY on the PRIMARY load
-                 * gate DAT_06a49958, NOT the dialogue-load gate DAT_06a49960
-                 * (engine-quirk §129).  So retail KEEPS the scene rendered
-                 * during a DIALOGUE load (house + "Now Loading" disc, e.g.
-                 * the iv2_6 → DAY-2 advance — brightness-confirmed 104 vs the
-                 * port's blacked 1.5).  The port OR-collapses both engine gates
-                 * into nowloading's g_active, so without this exception the
-                 * disc's g_active (armed on dialogue-loads for DAY2 render gap
-                 * #3) would wrongly black the scene.  Without this gate our port
+                 * is up.  L51100 keys ONLY on the PRIMARY load gate
+                 * DAT_06a49958, NOT the secondary DAT_06a49960 (engine-quirk
+                 * §129): retail KEEPS the scene rendered during a dialogue load
+                 * (FUN_00452d07: house + "Now Loading" disc, e.g. the iv2_6 →
+                 * DAY-2 advance) and on the counter's customer-service load
+                 * (FUN_00452d3e — the frame its DAT_06a49b24 counts and the port
+                 * did not: dungeon3-deep f1595).  2026-10-24: the gate reads the
+                 * primary alone (nowloading_primary_active), no longer the OR of
+                 * both with a dialogue exception.  Without this gate our port
                  * jumps straight from
                  * the title fade-out into a fully-rendered 3D HOUSE on
                  * the first INGAME frame; retail spends the post-NEW-GAME

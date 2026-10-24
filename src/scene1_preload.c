@@ -97,6 +97,8 @@ void scene1_preload_floor_layout(void)
 #include "scene1_walker_pass_init.h"
 #include "sprite.h"
 #include "mem_probe.h"     /* the loaders' address-space log */
+#include "scene1_maplight.h"   /* scene1_current_stage_record (the water fields) */
+#include "scene1_render.h"     /* DAT_06a49b24 */
 
 
 /* PII.3c texture-hook adapters — bind the selector-matched stage
@@ -156,12 +158,45 @@ static sprite_t g_scene1_chr_portraits[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT];
  * the empty frame table and override the embedded-sprite fallback in
  * pick_texture_for_action(); the green now comes only from the mesh's own
  * lit vertex colours, matching retail's soft glow. */
-static void *house_hikari_texture(void)
+static IDirect3DDevice8 *g_scene1_preload_dev = NULL;
+
+static void *house_hikari_texture(void);
+
+/* DAT_073aa198[100]: the stage's water frames "<waterfile><NN>.bmp" at
+ * watersize², loaded by FUN_00474a9a's dungeon arm only (the HOUSE arm returns
+ * before it).  The water (pass 2) and hikari (pass 3) slots both bind frame
+ * (DAT_06a49b24 / wateranimspeed) % wateranimnum of the current record
+ * (FUN_00457714, 0x45727a / 0x4572a5).  A house after a dungeon still binds no
+ * texture in retail (dungeon1-run2 f46000, v3 capture: the five hikari draws
+ * tex none) — the frames are gone by then (the screens' texture-table frees,
+ * FUN_0047183b, unported as such): the HOUSE load drops them here. */
+#define SCENE1_WATER_FRAMES 100
+static sprite_t s_water_frames[SCENE1_WATER_FRAMES];
+
+static void scene1_preload_water_frames(void)
 {
-    return NULL;
+    const stage_record_t *r = scene1_current_stage_record();
+    if (r == NULL) return;
+    for (int32_t k = 0; k != r->wateranimnum && k < SCENE1_WATER_FRAMES; k++) {
+        char path[sizeof r->waterfile + 16];
+        snprintf(path, sizeof path, "%s%02d.bmp", r->waterfile, (int)k);
+        (void)sprite_load(g_scene1_preload_dev, path, r->watersize, r->watersize, &s_water_frames[k]);
+    }
 }
 
-static IDirect3DDevice8 *g_scene1_preload_dev = NULL;
+static void scene1_preload_water_frames_drop(void)
+{
+    for (int k = 0; k < SCENE1_WATER_FRAMES; k++) sprite_destroy(&s_water_frames[k]);
+}
+
+static void *house_hikari_texture(void)
+{
+    const stage_record_t *r = scene1_current_stage_record();
+    if (r == NULL || r->wateranimspeed == 0 || r->wateranimnum == 0) return NULL;   /* retail divides by 0 */
+    const int32_t k = ((int32_t)scene1_render_draw_counter() / r->wateranimspeed) % r->wateranimnum;
+    return k >= 0 && k < SCENE1_WATER_FRAMES ? s_water_frames[k].tex : NULL;
+}
+
 
 /* Cchr.2j — character walking sprite sheets: the engine's DAT_073a9b18[100]
  * record array (FUN_00504076(&DAT_073a9b18, 0x10, 100, …): 100 × {tex, w, h}).
@@ -325,13 +360,14 @@ static int scene1_preload_dungeon(void)
     scene_map_meshes_load_dobj((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* DAT_068dcfc0: mori_dun obj_* */
     scene1_walker_dobj_load((struct IDirect3DDevice8 *)g_scene1_preload_dev);    /* DAT_073cba20: takarabako, obj_door */
     dungeon_hud_load_map((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* map.bmp, DAT_073d8768 */
+    scene1_preload_water_frames();      /* DAT_073aa198 */
+    scene1_walker_set_animated_texture_hook(house_hikari_texture);
     scene1_effects_load_dungeon((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* mahoujin.bmp */
     scene1_dungeon_clear_banner_load((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* dungeon_clear.tga */
     scene_map_meshes_load_misc((struct IDirect3DDevice8 *)g_scene1_preload_dev);   /* DAT_073a9658: ice / train_iwa / lattice / vector */
     scene1_preload_floor_sheets();      /* FUN_00473c15 */
     /* PORT-DEBT(stub, FUN_00473c15): the floor's render assets — the enemy
-     * meshes of the floor roster (FUN_00431a80), the dungeon title, and
-     * FUN_00474a9a's dungeon arm (the hikari frames). */
+     * meshes of the floor roster (FUN_00431a80), the dungeon title. */
     scene1_postload_stage_entry_init(); /* FUN_00436f97 */
     return 0;
 }
@@ -456,6 +492,7 @@ int scene1_preload_house(void)
     scene1_walker_set_jutan_texture_hook(house_jutan_texture);
     /* Bind the real hikari/window texture (mood_para) so the hikari pass
      * stops falling back to the cyan embedded submesh sprite. */
+    scene1_preload_water_frames_drop();
     scene1_walker_set_animated_texture_hook(house_hikari_texture);
 
     fprintf(stderr,

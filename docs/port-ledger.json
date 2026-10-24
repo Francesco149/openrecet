@@ -8494,6 +8494,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/main.c",
+    "src/nowloading.c",
     "src/scene1_intro_dialogue.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
@@ -8523,6 +8525,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/main.c",
     "src/scene_buy.h",
     "src/worker_load.c"
    ],
@@ -9103,6 +9106,7 @@
     "src/input.c",
     "src/input.h",
     "src/main.c",
+    "src/nowloading.c",
     "src/nowloading.h",
     "src/scene.c",
     "src/scene.h",
@@ -13896,6 +13900,7 @@
     "src/d3d_pool.c",
     "src/d3d_pool.h",
     "src/scene.c",
+    "src/scene1_preload.c",
     "src/sprite.c"
    ],
    "status": "ported"

@@ -203,7 +203,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 497,
+   "line": 498,
    "kind_known": true
   },
   {
@@ -483,7 +483,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets (see",
    "file": "src/scene1_preload.c",
-   "line": 288,
+   "line": 323,
    "kind_known": true
   },
   {
@@ -491,7 +491,7 @@
    "engine_fn": "FUN_00473c15",
    "desc": "the floor's render assets \u2014 the enemy",
    "file": "src/scene1_preload.c",
-   "line": 332,
+   "line": 369,
    "kind_known": true
   },
   {

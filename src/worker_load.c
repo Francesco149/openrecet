@@ -119,6 +119,7 @@ void worker_load_begin(void)
 {
     g_worker_busy = 1;
     nowloading_set_active(1);
+    nowloading_set_primary(1);          /* DAT_06a49958 = 1 */
     /* {primaryloadpin}: a new primary load (Continue / scene reload) starts —
      * reset the per-load bracket counter so the pin fires N frames from HERE. */
     s_primary_hold = 0;

@@ -17,6 +17,7 @@
 #include "customer_service.h"
 #include "scene1_hud.h"
 #include "dungeon_flow.h"
+#include "scene1_render.h"     /* DAT_06a49b24 */
 #include "stage_gate.h"
 #include "scene1_camera.h"        /* the shake DAT_0438cc14.. */
 #include "dungeon_objects.h"
@@ -102,6 +103,11 @@ static int32_t get_ea70(void)  { return customer_service_ea70(); }
 static int32_t get_3df0(void)  { return scene1_intro_dialogue_bg_count(); }
 static int32_t get_b5d0(void)  { return customer_service_b5d0(); }
 static int32_t get_pick_cur(void) { return customer_service_pick_va(0x5c6bccu); }
+#ifdef _WIN32
+static int32_t get_draw_ctr(void) { return (int32_t)scene1_render_draw_counter(); }
+#else
+static int32_t get_draw_ctr(void) { return 0; }   /* the render is Win32-only */
+#endif
 static int32_t get_pick_bc8(void) { return customer_service_pick_va(0x5c6bc8u); }
 static int32_t get_pick_b5c8(void) { return customer_service_pick_va(0x730b5c8u); }
 static int32_t get_pick_b5cc(void) { return customer_service_pick_va(0x730b5ccu); }
@@ -265,6 +271,7 @@ static const state_va_t k_map[] = {
     { 0x6a5ea70u, "cs line box held ea70 (DAT_06a5ea70)", get_ea70 },
     { 0x438b1dcu, "HUD slide b1dc, float bits (DAT_0438b1dc)", get_b1dc },
     { 0x730b5d0u, "cs order bubble / pick list b5d0 (DAT_0730b5d0)", get_b5d0 },
+    { 0x6a49b24u, "render draw counter (DAT_06a49b24)", get_draw_ctr },
     { 0x5c6bccu,  "cs pick cursor (DAT_005c6bcc)", get_pick_cur },
     { 0x5c6bc8u,  "cs best upgrade pick bc8 (DAT_005c6bc8)", get_pick_bc8 },
     { 0x730b5c8u, "cs pick scroll b5c8 (DAT_0730b5c8)", get_pick_b5c8 },

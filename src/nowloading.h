@@ -45,6 +45,8 @@
 int   nowloading_get_alpha_counter(void); /* engine _DAT_06a49988 (0..255) */
 float nowloading_get_rotation(void);      /* engine _DAT_06a4998c (radians) */
 int   nowloading_is_active(void);         /* OR of the two gates */
+int   nowloading_primary_active(void);   /* DAT_06a49958 alone (the scene-render gate) */
+void  nowloading_set_primary(int on);
 
 /* Pure-C tick — advances the alpha counter / rotation per the active
  * gate, no D3D. This is what FUN_00453147 does at L17-22 (alpha

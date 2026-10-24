@@ -266,7 +266,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        stubs; render (2026-10-17, PROGRESS ×2): rooms, objects (static + skinned), model and
        sprite enemies, shadows, the floor HUD, title banners, the mapbg sky, the boulders, the
        results screen, the market and the pause Items match retail frames (`portshots`, mean
-       abs ≤ ~1.5 on the swept frames) — still missing: FUN_004176ff's other table-A arms and
+       abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
+       DAT_073aa198, 2026-10-24) — still missing: Ohm's pose (dungeon3-deep f80500: retail's
+       shell stands rolled up, the port's lies — the root matrix matches retail's),  FUN_004176ff's other table-A arms and
        table B's projectile loop (0x4180xx: types 88 / 102 / 101 / … billboards), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
