@@ -197,7 +197,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x415f2e | FUN_00415f2e | 125 | ✓ |  | scene1_effects.c, scene1_wide_followup.h, scene1_wide_followup_helpers.c |
 | 0x415fab | FUN_00415fab | 540 | ✓ |  | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | main.c, save_bank.h, scene1_pass_f.c (+8) |
-| 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.h, scene1_render.c (+1) |
+| 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.c, scene1_hud.h (+2) |
 | 0x4176ff | FUN_004176ff | 30395 | ✓ |  | main.c, scene1_effects.c, scene1_effects.h (+3) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ |  | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | sim.c |
@@ -460,7 +460,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x465db4 | FUN_00465db4 | 634 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+8) |
 | 0x46602e | FUN_0046602e | 2668 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
 | 0x466a9a | FUN_00466a9a | 225 | ✓ |  | customer_service_render.c |
-| 0x466b7b | FUN_00466b7b | 5305 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+2) |
+| 0x466b7b | FUN_00466b7b | 5305 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+3) |
 | 0x468034 | FUN_00468034 | 253 | ✓ |  | customer_service_render.c |
 | 0x468131 | FUN_00468131 | 117 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_adv_guild.c (+1) |
 | 0x4681a6 | FUN_004681a6 | 45 |  |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
@@ -503,7 +503,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ |  | customer_service_render.c, scene1_display_menu.c, scene1_display_menu.h (+2) |
 | 0x46a336 | FUN_0046a336 | 2722 | ✓ |  | chara_equip.c, chara_equip.h, customer_service_render.c (+3) |
 | 0x46add8 | FUN_0046add8 | 562 | ✓ |  | customer_service_render.c, scene1_display_menu.c, scene_adv_guild.c (+2) |
-| 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+5) |
+| 0x46b00a | FUN_0046b00a | 3640 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+6) |
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ |  | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ |  | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ |  | sim.c |

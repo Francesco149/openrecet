@@ -274,6 +274,10 @@ void scene1_emit_record(struct IDirect3DDevice8 *dev_in,
         IDirect3DDevice8_SetStreamSource(
             dev, 0, (IDirect3DVertexBuffer8 *)mesh->vb,
             (UINT)sizeof(mesh_vertex));
+        /* ID3DXMesh::DrawSubset sets the mesh's FVF too: without it the
+         * subsets drew under the last sprite pass's 0x142 (stride 24 over a
+         * stride-36 VB — dungeon3-deep f222500's g_lat a rainbow smear) */
+        IDirect3DDevice8_SetVertexShader(dev, MESH_FVF_XYZ_NORMAL_DIFFUSE_TEX1);
 
         for (int slot = 0; slot < slot_count; slot++) {
             scene1_emit_apply_material_state(

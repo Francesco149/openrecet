@@ -123,6 +123,13 @@ stub and `scene1_overlay_init` (the shape 7 / 8 / 9 / 10 strips) was never calle
 FUN_0040d132's two sites (stage post-load, the guild). And the shake's DAT_0438cc18 / cc1c is also
 FUN_00404efc's 2D offset — every HUD quad jitters with it; render_quad kept a copy nothing set.
 f284915 4.98 → 0.12, f284925 3.76 → 0.01, f284935 4.17 → 0.01.
+A 38-frame sweep of dungeon3-deep (f5000..f290000 every 7500) then: 30 frames ≤ 0.01, the rest
+≤ 0.29. Three fixes from its top residuals: FUN_00455191's meshes (the g_lat fish, the golem crystal,
+the ice) drew under the last sprite pass's FVF 0x142 over their stride-36 VB — a rainbow smear —
+ID3DXMesh::DrawSubset sets the mesh FVF (f222500 0.15 → 0.01); the item window's scroll arrows are
+64 × 48 (the port 64 × 32; f207500 0.29 → 0.02); the item window FUN_0046b00a draws inside the HUD
+aggregator FUN_0040a765 before FUN_00466b7b — the order bubble overlaps it (the port drew it after
+FUN_00417504; f5000 0.12 → 0.04).
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

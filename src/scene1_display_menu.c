@@ -1229,13 +1229,13 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     }
     /* scroll-up arrow if scrolled (all.c:66534-66544). */
     if (scroll > 0) {
-        const float dst[4] = { xL + 56.0f, 40.0f, 64.0f, 32.0f };
+        const float dst[4] = { xL + 56.0f, 40.0f, 64.0f, 48.0f };   /* 64 × 48 (0x46b1d6) */
         const float src[4] = { 448.0f, 896.0f, 512.0f, 944.0f };
         render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
     }
     /* scroll-down arrow if more rows below the window (all.c:66545-66555). */
     if (scroll + visible < count) {
-        const float dst[4] = { xL + 56.0f, 312.0f, 64.0f, 32.0f };
+        const float dst[4] = { xL + 56.0f, 312.0f, 64.0f, 48.0f };   /* 64 × 48 (0x46b1d6) */
         const float src[4] = { 512.0f, 896.0f, 576.0f, 944.0f };
         render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
     }

@@ -3170,6 +3170,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/scene1_hud.c",
     "src/scene1_hud.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
@@ -11357,6 +11358,7 @@
     "src/customer_service.c",
     "src/customer_service.h",
     "src/customer_service_render.c",
+    "src/main.c",
     "src/scene1_hud.c",
     "src/scene1_player_ctrl.c"
    ],
@@ -12522,6 +12524,7 @@
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
+    "src/scene1_hud.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c"

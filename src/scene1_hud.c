@@ -136,6 +136,7 @@ void scene1_hud_slide_tick(void)
 #include "scene1_maplight.h"  /* scene1_current_stage_record (DAT_068dd2f0) */
 #include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
 #include "scene1_merchant_hud.h"  /* FUN_00409925 body — bottom-left Merchant Level HUD */
+#include "scene1_display_menu.h"  /* display_menu_render (FUN_0046b00a) */
 #include "customer_service.h"     /* customer_service_render_overlay (FUN_00466b7b) */
 #include "choice_box.h"           /* choice_box_draw (FUN_0043537e) — HUD-tail pass */
 #include "title_save_dialog.h"    /* title_save_dialog_cursor_render (FUN_00435747) */
@@ -453,6 +454,12 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
         scene1_top_hud_camera_hint(dev_in);   /* FUN_00409925's tail */
 
     scene1_top_hud_render(dev_in);
+
+    /* FUN_0046b00a (0x40b0c3, all_ida 7402) — the item window, between the top
+     * HUD and FUN_00466b7b: the customer's order bubble overlaps it (it drew
+     * after FUN_00417504 in the port, over the bubble — dungeon3-deep f5000).
+     * Self-gated on DAT_0734b98c. */
+    display_menu_render(dev_in, 0.0f);
 
     /* FUN_00466b7b (all.c:7044) — the cc08==4 haggle dialogue box + typewriter
      * line + BARGAIN!! price.  Engine draws it AFTER the top HUD (FUN_00406d50

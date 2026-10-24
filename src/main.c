@@ -3333,15 +3333,8 @@ static void render_dispatch(void)
                         g_scene1_ingame_skip_flag != 1)
                         dungeon_hud_got_item(g_dev);
                     scene1_render_overlay(g_dev);
-                    /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
-                     * at the tail of the engine's FUN_0045cc85 scene render).  Self-
-                     * gates on the slide counter (no-op when closed), so safe to call
-                     * every HOUSE frame; draws the item_win parchment panel over the
-                     * scene while the menu is up.  Inside the same scene-block gate as
-                     * the engine (FUN_0045cc85 tail is skipped when the cutscene
-                     * covers); the cc04 menu is never up during the iv1_1 opening
-                     * anyway, so this only formalises the structure. */
-                    display_menu_render(g_dev, 0.0f);
+                    /* (the item window FUN_0046b00a draws inside the HUD aggregator,
+                     * scene1_hud_render — FUN_0040a765 calls it before FUN_00466b7b) */
                 }
                 /* Opening-prologue / iv1_2 dialogue (FUN_0046c090 → FUN_0046c9a2).
                  * Drawn LAST — AFTER the HUD + overlay — per the engine render
