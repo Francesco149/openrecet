@@ -579,11 +579,14 @@ static void kill_combo(IDirect3DDevice8 *dev, const sprite_t *win)
     render_quad_flush(dev);
 }
 
+/* FUN_00490c78: through the render's view / projection DAT_073de29c / 2dc —
+ * at the HUD's draw that is this frame's camera (the sim's DAT_095d3730 copy
+ * lags a frame: the popups sat a few pixels off while the camera moved) */
 static void project(const int32_t *p, float *sx, float *sy, float *vz)
 {
     float x, y, z;
     memcpy(&x, &p[0], 4); memcpy(&y, &p[1], 4); memcpy(&z, &p[2], 4);
-    scene1_project_world_mat(g_view_mat, g_view_proj, x, y, z, sx, sy, vz);
+    scene1_project_world_mat(scene1_render_view_matrix(), scene1_render_proj_matrix(), x, y, z, sx, sy, vz);
 }
 
 /* FUN_00407cac 0x408c56..: the word popups (kind >= 10: "Side Attack!" …,
