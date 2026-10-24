@@ -589,7 +589,9 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);  /* retail ZWR1 — far-depth, safe (see header) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
+    /* LIGHTING stays as FUN_004552d0 left it (FUN_0046f737 sets no state): on
+     * a lit stage the chr light from the party pass shades these and Pass G's
+     * enemies (dungeon3-deep f026000: unlit, the knight drew ~39 brighter) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
@@ -641,11 +643,9 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
                                  (int)sheet->width, (int)sheet->height);
     }
 
-    /* restore ZWRITE off + LINEAR filter for trailing passes (the wing-glow +
-     * foot-dust + sw_pass_g draws are ZWR0; mirrors sw_pass_light's restore). */
+    /* restore ZWRITE off for trailing passes; the filter stays POINT (retail
+     * sets none here: Pass G's sprite enemies draw point-sampled) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 }
 
 #endif /* _WIN32 */

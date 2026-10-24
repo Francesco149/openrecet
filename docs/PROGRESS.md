@@ -83,6 +83,11 @@ pickup in reach; it was a dead −1), x87 sin. And that walker's COLOROPs: the e
 (the port set MODULATE2X twice) and 7 is ADD (the port: MODULATEALPHA_ADDCOLOR). `portshots`
 dungeon3-deep: f026000 0.88 → 0.49 (the chest's stars and item icon), f066000 0.62 → 0.01, f076000
 0.55 → 0.01, f112000 0.52 → 0.10; day2-shop f1000..f4000 ≤ 0.21.
+The sprite enemies (FUN_004552d0's last loop) drew bilinear and unlit: retail sets MAG / MINFILTER
+POINT at 0x456055 (the port set LINEAR there, then POINT / LINEAR around the party only) and keeps
+the party pass's chr light (DAT_06a49aa8) on through FUN_004705a3 / FUN_0046f737 (no state calls) —
+the port's customer / townsfolk envelopes turned LIGHTING off. dungeon3-deep f026000 0.50 → 0.01
+(the knight), f170000 0.42 → 0.01, f144000 0.51 → 0.16.
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

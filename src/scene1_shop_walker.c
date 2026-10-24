@@ -295,7 +295,8 @@ void scene1_customer_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
+    /* LIGHTING stays as the party pass left it (FUN_004705a3 sets no state):
+     * the chr light on a lit stage (see scene1_bg_npc_sprite_render) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
@@ -345,8 +346,6 @@ void scene1_customer_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     }
 
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 }
 
 /* ─── walker pass bodies ───────────────────────────────────────────────
@@ -717,16 +716,9 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
     if (fade > 1.0f) fade = 1.0f;
     float scale_f = fade * 0.03f;
 
-    /* Character sprites use POINT (nearest) filtering — sharp pixel-art, no
-     * bilinear smear (the sw_pass top set LINEAR for the 3D meshes; the
-     * engine flips to POINT here for the billboards).  Engine FUN_004552d0
-     * @ 0x456055/0x456067: SetTextureStageState(0, MAG/MINFILTER, POINT)
-     * just before the actor-draw loop — objdump-confirmed, retail d3d-trace
-     * shows the prim-12 chr leaf draws at (POINT,POINT,NONE) vs the 3D
-     * meshes' (LINEAR,LINEAR,LINEAR).  Restored to LINEAR after the loop so
-     * the trailing passes (sw_pass_g etc.) keep the bilinear mesh filter. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
+    /* Character sprites use POINT (nearest) filtering — the driver's
+     * 0x456055 / 0x456067 set, before this pass (retail d3d-trace: the prim-12
+     * chr leaf draws at (POINT,POINT,NONE)). */
 
     /* Player/companion sprites WRITE depth so later z-tested billboards (the
      * foot-dust records-A 0xe and the wing-glow) read as BEHIND the walker.
@@ -795,11 +787,6 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
                                  char_id, world, 0xff808080u,
                                  (int)sheet->width, (int)sheet->height);
     }
-
-    /* Restore LINEAR for the trailing mesh/sprite passes (engine re-asserts
-     * bilinear after the character draws). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 
     /* Stop writing depth again — the player's Z footprint stays in the buffer
      * to occlude the later dust/glow billboards, but trailing transparent
@@ -1060,10 +1047,13 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     }
     scene1_render_push_projection((struct IDirect3DDevice8 *)dev, z_far);
 
-    /* L347-L348: bilinear filtering re-asserted (Pass C/D may have
-     * left MIPFILTER off; the engine resets for Pass G's RHW). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    /* L347-L348 (0x456055 / 0x456067): MAG / MINFILTER = POINT (esi = 1) for
+     * every billboard below — the party, the customers and townsfolk
+     * (FUN_004705a3 / FUN_0046f737 set no state) and Pass G's sprite enemies;
+     * nothing restores LINEAR before FUN_00456f56's mid block (dungeon3-deep
+     * f026000: the knight sampled bilinear looked washed out) */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
 
     /* L349: CULLMODE = 1 (D3DCULL_NONE).  Pass G quads are wound
      * either way. */

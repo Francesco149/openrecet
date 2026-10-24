@@ -9305,6 +9305,7 @@
     "src/model_anchor.c",
     "src/model_render.c",
     "src/model_render.h",
+    "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_chr_walker.h",
     "src/scene1_maplight.h",
