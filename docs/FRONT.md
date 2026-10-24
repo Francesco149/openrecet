@@ -228,8 +228,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        sprite enemies, shadows, the floor HUD, title banners, the mapbg sky, the boulders, the
        results screen, the market and the pause Items match retail frames (`portshots`, mean
        abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
-       DAT_073aa198, 2026-10-24) — still missing: Ohm's pose (dungeon3-deep f80500: retail's
-       shell stands rolled up, the port's lies — the root matrix matches retail's),  FUN_004176ff's other table-A arms and
+       DAT_073aa198, 2026-10-24) — still missing: Ohm's pose (dungeon3-deep f80500 / f81500, both
+       in anim 2 = slot 1 at blend 1, +0x204 7433 / 7266 ms identical both sides: retail flat at
+       frame 436 → rolled at 446, the port the reverse; the root matrix, FUN_00403d79's base 0 and
+       FUN_0040150e's evaluation match the port's — compare the frame matrices next; Ohm has no
+       model.txt anchors, so portblock can't see it),  FUN_004176ff's other table-A arms and
        table B's projectile loop (0x4180xx: types 88 / 102 / 101 / … billboards), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
