@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **68**
-- distinct retiring engine functions: **51**
+- total open debts: **67**
+- distinct retiring engine functions: **50**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 48 | wired call boundary, body incomplete |
+| stub | 47 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -63,7 +63,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
 | FUN_00468ddc | 1 |
-| FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
@@ -82,7 +81,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (48)
+## stub (47)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -114,7 +113,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:502 | the removal is unported, |
-| FUN_00469b3a | src/scene1_display_menu.c:987 | the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:323 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:369 | the floor's render assets — the enemy |

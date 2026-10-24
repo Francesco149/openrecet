@@ -984,7 +984,8 @@ int  display_menu_full(void)    { return s_full; }
  * worst frame = mid-close-slide, item-display-2 label 181, gt8≈185k).  param_2
  * stays 0 (no vertical slide).  All text is white (DAT_005c7184=0xffffffff) at
  * scale 0.8 (0x3f4ccccd).
- * PORT-DEBT(stub, FUN_00469b3a): the description-panel price-status line (Price Up/Down/…) is unported; the scene-6 trend multipliers are live (cs_news_price_trend). */
+ * The news trend line (Price Up / Down / …) and the scene-6 trend multipliers come
+ * from cs_news_price_trend (FUN_004361b2). */
 void display_menu_description_draw(IDirect3DDevice8 *dev, float x0)
 {
     const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
@@ -1151,6 +1152,14 @@ void display_menu_description_draw(IDirect3DDevice8 *dev, float x0)
                                    : "Sell Price- %s";       /* guild sell */
         snprintf(line, sizeof line, plabel, num);  /* s_…_005c75cc/75e0/75f0 */
         font_draw_text(dev, x0 + 80.0f, 420.0f, line, 0xffffffffu, 0.8f);  /* local_c */
+        /* the news trend under it, in any scene (0x469b3a's LABEL_89 tail) */
+        if (trend != 0) {
+            const char *t = trend >= 2 ? "Price Sky-high!" : trend >= 1 ? "Price Up"
+                          : trend <= -2 ? "Price Crash!" : "Price Down";
+            const uint32_t c = trend >= 2 ? 0xffff4d4du : trend >= 1 ? 0xffff7878u
+                             : trend <= -2 ? 0xff4d4dffu : 0xff7878ffu;
+            font_draw_text(dev, x0 + 80.0f, 446.0f, t, c, 0.6f);
+        }
     }
 
     /* "Number possessed: %d" at (param_1+304,420), max(possessed,0) (all.c:
