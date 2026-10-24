@@ -387,7 +387,7 @@ void scene1_overlay_shape_6_compose_world(float out[16],
     mat4_mul(out, scratch, out);
 }
 
-/* ---- Shapes 1/2/3/4/6: non-flipped UV + diffuse emit -------------- */
+/* ---- Shapes 2/3/4/6: non-flipped UV + diffuse emit (shape 1 flips like 0/5) */
 
 void scene1_overlay_shape_1346_emit_quad(scene1_overlay_vertex vbuf[4],
                                          const int32_t *shape_entry,

@@ -3,10 +3,6 @@
  * z_far 500 projection), ported section by section; its overlay layer-0
  * dispatch sits in scene1_render.c.
  *
- * PORT-DEBT(stub, FUN_004176ff): unported sections — the table-A loop on
- * effect_shot.bmp (0x41932d), the effect_mahi pass (0x419c51) and the
- * table-B loop 0x41a263 (on effect.bmp, before the table-A loop).
- *
  *   the exit circle   the dungeon objects of type 8 (state +0x268 != 3):
  *                     mahoujin.bmp on DAT_0064a2c8's floor quad, world
  *                     RotY(DAT_0438b8cc · 0.02) · S(+0x80 · 0.024) · T(pos),

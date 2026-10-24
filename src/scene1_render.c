@@ -332,17 +332,14 @@ static void scene1_walk_narrow_frustum_TODO(IDirect3DDevice8 *dev, int pass)
 /* FUN_004176ff (30395 B) — the chr (character avatar) mesh walker.
  * The biggest function in scene-1 render.  Will fan into many sub-
  * chips. */
-static void scene1_walk_chr_TODO(void)
-{
-    /* TODO C8-followup: port FUN_004176ff.  Massive — survey
-     * before any port attempt.  Almost certainly handles Recette,
-     * Tear, and the visiting NPCs' animated meshes. */
-}
-
-/* FUN_00405b1a (598 B) — tail at L257.  Small. */
+/* FUN_00405b1a (598 B) — tail at L257: the lens flare (14 sprites of
+ * DAT_073aa158 along the sun's screen ray, while DAT_0438bfac and
+ * DAT_0064824c > 0 and the stage's sunpos is set).
+ * PORT-DEBT(stub, FUN_00405b1a): unported, with the sun sprite FUN_00405d70
+ * that computes its inputs (FUN_00459dfd's head) — no swept frame shows a
+ * sun yet. */
 static void scene1_walk_tail_TODO(void)
 {
-    /* TODO C8-followup: port FUN_00405b1a. */
 }
 
 /* FUN_00454f03 (120 B) — TSS COLOROP from stage-palette mode integer.
@@ -913,9 +910,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * under z_far=500, proven by a synced port↔retail d3d-trace (records-A sparkle
      * 0x41e165 + dust 0x41e97b both at z_far 500.00; engine-quirks §93).
      *
-     * Its sections are ported in scene1_effects.c (the table-A loop, the glows,
-     * the orbs and the puffs, incl. the wing glow and the foot dust); the rest
-     * of the 30 KB function stays in scene1_walk_chr_TODO. */
+     * Its sections are ported in scene1_effects.c (all of it after the
+     * overlay / exit-circle head below). */
     /* FUN_00459dfd sets z_far 2000 before it; the function switches to 500 at
      * 0x419c5c, after its head (scene1_effects_table_b) */
     scene1_push_projection(dev, 2000.0f);
@@ -979,8 +975,6 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_effects_exit_circle((struct IDirect3DDevice8 *)dev);
     /* then table B's swing trails on effect_shot.bmp */
     scene1_effects_table_b((struct IDirect3DDevice8 *)dev);
-
-    scene1_walk_chr_TODO();
 
     /* L255-L257: project back to z_far=350 → tail. */
     scene1_push_projection(dev, 350.0f);

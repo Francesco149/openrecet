@@ -97,6 +97,16 @@ and tail: the caller's z_far 2000 holds until 0x419c5c (the port drew the whole 
 under ZERO / INVSRCCOLOR before (0, 0), and after the puffs table B's 131 / 121, (3, 0), table A's
 69. dungeon3-deep f058000 0.56 → 0.01, f112000 0.10 → 0.01, f144000 0.16 → 0.10 — every swept
 frame ≤ 0.10; day2-shop / dungeon1-run2 / dungeon3-floors unchanged (≤ 0.21).
+FUN_004176ff's last three sections: table A on effect_shot.bmp before the z_far switch (88 pushed
+1000 along its heading, 147, 90, 86, 66, the rings' flat glows 65 / 97 / 114 / 98), the effect_mahi
+paralysis sparks (over the player while DAT_056db0fc, over each actor with +0xb14), and table B on
+effect.bmp after the snow (48, 33 / 37 / 49 / 50, 51, the beams 30 / 52 / 136 / 154, 118 / 163 —
+`c += 1184 − age`, retail's own arithmetic —, 137 / 157 / 158, 104 / 116, 41's cyclone) — the
+function is whole. The overlay (FUN_00414ee2) shape 1 flips its cell by slot parity like 0 / 5 (the
+port didn't: the crab's lava crescent mirrored). A `portcensus` of dungeon3-deep picks the frames
+the arms draw in; f026135 / f081885 / f182730 / f239805 / f247082 ≤ 0.53. Open: the crab's pose
+(f284915: the port's CPU-skinned parts sit ~2 units above retail's rigid ones — the Ohm class), the
+sun FUN_00405d70 and lens flare FUN_00405b1a (no swept frame shows a sun).
 
 ## 2026-10-23 — dungeon3-floors passes end to end: Charme leads, dungeon 2's floors 1..7, a leak
 Human recording from the pix save (`_saves/3b368d9d…`, Day 15): Charme hired, several dungeon-2

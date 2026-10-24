@@ -24,6 +24,8 @@
 #include "scene1_render.h"       /* the projection (FUN_004a3ee8) */
 #include "actor_table.h"         /* actor #0's weapon points (+0x6fc) */
 #include "x87.h"
+#include "scene1_particles_tick.h"
+#include "tables_enemy.h"
 #include <string.h>
 
 static sprite_t s_mahoujin;      /* DAT_073b18c8: bmp/mahoujin.bmp (128×128) */
@@ -1585,6 +1587,389 @@ static void fx_tail(IDirect3DDevice8 *dev)
     }
 }
 
+/* more retail templates (a retail dump): DAT_0064bf08 the cell (160, 32)-(191.5,
+ * 63.5); DAT_0064b788 the cell (0, 160)-(31.5, 191.5); DAT_0064be48 an XZ
+ * half-quad on the cell (224, 160)-(255.5, 191.5); DAT_006484b8 a 32-wide
+ * 10-row strip whose positions the table-B 41 arm writes (u 224 .. 255.5, v
+ * 125.5 up to 65.5) */
+static fx_vtx s_qbf08[4] = {
+    { -256.0f, 256.0f, 0.0f, 0xffffffffu, 0.626953125f, 0.126953125f },
+    { -256.0f, -256.0f, 0.0f, 0xffffffffu, 0.626953125f, 0.248046875f },
+    { 256.0f, 256.0f, 0.0f, 0xffffffffu, 0.748046875f, 0.126953125f },
+    { 256.0f, -256.0f, 0.0f, 0xffffffffu, 0.748046875f, 0.248046875f },
+};
+static fx_vtx s_qb788[4] = {
+    { -256.0f, 256.0f, 0.0f, 0xffffffffu, 0.001953125f, 0.626953125f },
+    { -256.0f, -256.0f, 0.0f, 0xffffffffu, 0.001953125f, 0.748046875f },
+    { 256.0f, 256.0f, 0.0f, 0xffffffffu, 0.123046875f, 0.626953125f },
+    { 256.0f, -256.0f, 0.0f, 0xffffffffu, 0.123046875f, 0.748046875f },
+};
+static fx_vtx s_qbe48[4] = {
+    { -256.0f, 0.0f, -256.0f, 0xffffffffu, 0.876953125f, 0.626953125f },
+    { -256.0f, 0.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.748046875f },
+    { 256.0f, 0.0f, -256.0f, 0xffffffffu, 0.998046875f, 0.626953125f },
+    { 256.0f, 0.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.748046875f },
+};
+static fx_vtx s_q4b8[20] = {
+    { -16.0f, 0.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.490234375f },
+    { 16.0f, 0.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.490234375f },
+    { -16.0f, 20.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.464192688f },
+    { 16.0f, 20.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.464192688f },
+    { -16.0f, 40.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.438151032f },
+    { 16.0f, 40.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.438151032f },
+    { -16.0f, 60.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.412109375f },
+    { 16.0f, 60.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.412109375f },
+    { -16.0f, 80.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.386067718f },
+    { 16.0f, 80.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.386067718f },
+    { -16.0f, 100.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.360026032f },
+    { 16.0f, 100.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.360026032f },
+    { -16.0f, 120.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.333984375f },
+    { 16.0f, 120.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.333984375f },
+    { -16.0f, 140.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.307942718f },
+    { 16.0f, 140.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.307942718f },
+    { -16.0f, 160.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.281901032f },
+    { 16.0f, 160.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.281901032f },
+    { -16.0f, 180.0f, 0.0f, 0xffffffffu, 0.876953125f, 0.255859375f },
+    { 16.0f, 180.0f, 0.0f, 0xffffffffu, 0.998046875f, 0.255859375f },
+};
+
+/* FUN_004176ff 0x41932d..0x419c4b, after the projectiles, still on
+ * effect_shot.bmp under ONE / ONE: table A's
+ *   88   a billboard of scale · 0.001 pushed 1000 units along +0x1c's heading
+ *        (the whole texture, DAT_00648da8), grey 16 · age closing past +0x44 − 8;
+ *   147  a white billboard of scale · 0.005 (DAT_0064b548);
+ *   90   a tall spinning billboard (S(0.4, −4, 0.4) · scale · 0.02) on the cell
+ *        (64, 192)-(95.5, 255.5), grey 16 · age closing past 32;
+ *   86   a swaying billboard (sin(age · 0.1) · 300) of scale · 0.0005 on
+ *        DAT_0064bf08, 0xffc8c8c8;
+ *   66   a flat quad (RotX(π/2), (age · 0.002 + 0.01) · scale) on the cell
+ *        (192, 128)-(255.5, 191.5), grey closing past 8;
+ *   65 / 97 / 114 / 98  the rings' two flat glows 14 ticks apart ((phase ·
+ *        0.0005 + 0.0015) · scale, 0.2 up) on the cell (0, 128)-(31.5, 159.5),
+ *        green / yellow / orange / blue by +0x3c (the type-65 arm's fade) */
+static void fx_table_a_shot(IDirect3DDevice8 *dev)
+{
+    static const float k_hpi = 1.5707963705062866f;
+    float w[16], m[16];
+    fx_init_quads();
+    for (int i = 0; i < g_scene1_records_a_count && i < SCENE1_RECORDS_A_COUNT; i++) {
+        const int32_t *r = &g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE];
+        const int32_t t = r[12], age = r[13];
+        if (t == -1) continue;
+        float f[18];
+        memcpy(f, r, sizeof f);
+        const float sc = f[14];
+        switch (t) {
+        case 88: {
+            fx_bill(w, f, spill32((long double)sc * 0.001f), 0);
+            const float sn = spill32(x87_crt_sin(f[7])), cs = spill32(x87_crt_cos(f[7]));
+            mat4_translation(m, spill32((long double)sn * 1000.0f), 0.0f, spill32((long double)cs * 1000.0f));
+            mat4_mul(w, m, w);
+            int32_t c = 16 * age;
+            if (c > 255) c = 255;
+            if (age >= r[17] - 8 && (c = c + 8 * (r[17] - age) - 64) <= 0) break;
+            fx_set_col(s_q8da8, fx_rgb(c, c, c));
+            fx_draw(dev, w, s_q8da8, 2);
+            break;
+        }
+        case 147:
+            fx_bill(w, f, spill32((long double)sc * 0.005f), 0);
+            fx_set_col(s_q488[2], 0xffffffffu);
+            fx_draw(dev, w, s_q488[2], 2);
+            break;
+        case 90: {
+            if (age < 0) break;
+            const float s = spill32((long double)sc * 0.02f);
+            mat4_translation(w, f[0], f[1], f[2]);
+            fx_scale(w, spill32((long double)s * 0.4f), spill32((long double)s * -4.0f),
+                     spill32((long double)s * 0.4f));
+            mat4_mul(w, g_scene1_camera_orient, w);
+            mat4_rotation_z(m, f[8]);
+            mat4_mul(w, m, w);
+            int32_t c = 16 * age;
+            if (c > 255) c = 255;
+            if (age > 32) c += 16 * (32 - age);
+            if (c < 0) c = 0;
+            fx_set_uv(0.25195312f, 0.37304688f, 0.75195312f, 0.99804688f);
+            fx_set_col(s_atlas_quad, fx_rgb(c, c, c));
+            fx_draw(dev, w, s_atlas_quad, 2);
+            break;
+        }
+        case 86: {
+            fx_bill(w, f, spill32((long double)sc * 0.0005f), 0);
+            const float x = spill32((long double)spill32((float)age) * 0.1f);
+            mat4_translation(m, spill32(x87_crt_sin(x) * 300.0f), 0.0f, 0.0f);
+            mat4_mul(w, m, w);
+            fx_set_col(s_qbf08, 0xffc8c8c8u);
+            fx_draw(dev, w, s_qbf08, 2);
+            break;
+        }
+        case 66: {
+            const float s = spill32(((long double)spill32((float)age) * 0.002f + 0.01f) * sc);
+            mat4_translation(w, f[0], f[1], f[2]);
+            fx_scale(w, s, s, s);
+            mat4_rotation_x(m, k_hpi);
+            mat4_mul(w, m, w);
+            int32_t c = 255;
+            if (age > 8 && (c = 511 - 32 * age) < 0) break;
+            fx_set_col(s_atlas_quad, fx_rgb(c, c, c));
+            fx_set_uv(0.75195312f, 0.99804688f, 0.50195312f, 0.74804688f);
+            fx_draw(dev, w, s_atlas_quad, 2);
+            break;
+        }
+        case 65: case 97: case 114: case 98: {
+            fx_set_uv(0.001953125f, 0.12304688f, 0.50195312f, 0.62304688f);
+            float fade = 1.0f;
+            if (t != 98) {
+                const int32_t past = t == 97 ? 230 : 30;
+                if (age > past) fade = spill32(1.0f - (long double)spill32((float)(age - past)) * 0.05f);
+            }
+            for (int j = 0; j < 2; j++) {
+                const int32_t a = j == 0 ? age - 14 : age;
+                if (a < 0) continue;
+                int32_t c = 96;
+                const int32_t ph = a % 28;
+                if (ph > 16) c = 8 * (28 - ph);
+                c = x87_ftol((long double)spill32((float)c) * fade);
+                if (c <= 0) continue;
+                const float s = spill32(((long double)spill32((float)ph) * 0.0005f + 0.0015f) * sc);
+                mat4_translation(w, f[0], spill32((long double)f[1] + 0.2f), f[2]);
+                mat4_rotation_x(m, k_hpi);
+                mat4_mul(w, m, w);
+                fx_scale(w, s, s, s);
+                uint32_t col;
+                switch (r[15]) {
+                case 0:  col = fx_rgb(c / 4, c, c / 4); break;
+                case 1:  col = fx_rgb(c, c, c / 4); break;
+                case 2:  col = fx_rgb(c, c / 2, c / 4); break;
+                default: col = fx_rgb(c / 2, c / 2, c); break;
+                }
+                fx_set_col(s_atlas_quad, col);
+                fx_draw(dev, w, s_atlas_quad, 2);
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+/* FUN_004176ff 0x419c51.. (after the switch to z_far 500): the paralysis
+ * sparks on effect_mahi.bmp (six 32-wide frames, (DAT_056db054 or the actor's
+ * +0x398) / 4 % 6), a pair of mirrored billboards S(±0.002, 0.008, 0.002) —
+ * over the player 1.5 up while DAT_056db0fc, and over every shown actor with
+ * +0xb14 set, ±2 · its record's +0x44 across the view at +0x44 · +0x4c up */
+static void fx_mahi(IDirect3DDevice8 *dev)
+{
+    float w[16];
+    if (g_sysassets.effect_mahi_bmp.tex == NULL) return;
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_mahi_bmp.tex);
+    fx_set_col(s_atlas_quad, 0xffffffffu);
+    if (PW(0x56db0fcu).i != 0) {
+        fx_atlas_frame(PW(0x56db054u).i / 4 % 6, 0.0078125f, 0.9921875f);
+        for (int k = 0; k < 2; k++) {
+            const float d = spill32(((long double)spill32((float)k) * 4.0f - 2.0f) * 0.5f);
+            const float pos[3] = { spill32((long double)d + g_scene1_actor_pos[0][0]),
+                                   spill32((long double)g_scene1_actor_pos[0][1] + 1.5f),
+                                   g_scene1_actor_pos[0][2] };
+            mat4_translation(w, pos[0], pos[1], pos[2]);
+            fx_scale(w, spill32((long double)(k == 1 ? -1.0f : 1.0f) * 0.002f), 0.008f, 0.002f);
+            mat4_mul(w, g_scene1_camera_orient, w);
+            fx_draw(dev, w, s_atlas_quad, 2);
+        }
+    }
+    for (int i = 0; i < ACTOR_COUNT; i++) {
+        const actor_t *a = &g_actor[i];
+        if (act_geti(a, ACT_INUSE) != 1 || act_geti(a, 0xaf4) > 0 || act_geti(a, 0xb14) == 0) continue;
+        const int32_t type = act_geti(a, ACT_TYPE);
+        if (type < 0 || type >= ENEMY_COUNT) continue;
+        const enemy_record_t *e = &g_enemy[type];
+        fx_atlas_frame(act_geti(a, 0x398) / 4 % 6, 0.0078125f, 0.9921875f);
+        for (int k = 0; k < 2; k++) {
+            const float d = spill32(((long double)spill32((float)k) * 4.0f - 2.0f) * e->runtime_floats[0]);
+            const float cy = spill32(x87_crt_cos(g_scene1_camera_yaw));
+            const float x = spill32((long double)cy * d + act_getf(a, 0x3f0));
+            const float sy = spill32(x87_crt_sin(g_scene1_camera_yaw));
+            const float z = spill32((long double)sy * d + act_getf(a, 0x3f8));
+            const float y = spill32((long double)e->runtime_floats[0] * e->runtime_floats[2] + act_getf(a, 0x3f4));
+            mat4_translation(w, x, y, z);
+            fx_scale(w, spill32((long double)(k == 1 ? -1.0f : 1.0f) * 0.002f), 0.008f, 0.002f);
+            mat4_mul(w, g_scene1_camera_orient, w);
+            fx_draw(dev, w, s_atlas_quad, 2);
+        }
+    }
+}
+
+/* the table-B 30 / 52 / 136 / 154 beam width: 0.001, growing to 0.02 over 15
+ * (52: 30) ticks from 60, held, closing over 15 (52: 30) from the type's end
+ * (30: 90, 136: 135, 154: 335, 52: 120) — 0.1 after it (retail's initial) */
+static float fx_beam_width(int32_t t, int32_t age)
+{
+    const int32_t grow = t == 52 ? 30 : 15;
+    const int32_t end = t == 30 ? 90 : t == 136 ? 135 : t == 154 ? 335 : 120;
+    if (age < 60) return 0.001f;
+    if (age < 60 + grow)
+        return spill32((long double)spill32((float)(age - 60)) * 0.019f / (float)grow + 0.001f);
+    if (age < end) return 0.02f;
+    if (age < end + grow)
+        return spill32(0.02f - (long double)spill32((float)(age - end)) * 0.02f / (float)grow);
+    return 0.1f;
+}
+
+/* FUN_004176ff 0x41a263..0x41b062 (after the snow, effect.bmp bound): table
+ * B's 48 (a white DAT_0064b5a8 billboard growing with age); 33 / 37 / 49 / 50
+ * (spinning 5-frame billboards on (32k, 192), red for 33 closing past 48, else
+ * green closing past 224); 51 (white DAT_0064b788); the beams 30 / 52 / 136 /
+ * 154 (FUN_00415f2e · S(w, w, 0.6), DAT_0064bea8); 118 / 163 (spinning 8-frame
+ * billboards on (32k, 224)); 137 / 157 / 158 (DAT_0064be48 along the velocity,
+ * from 80, closing from 160); 104 / 116 (DAT_0064bea8, 104 reversed in z);
+ * 41's cyclone (ten 10-row strips DAT_006484b8 spun round the record, rising
+ * by +0xbc, then a flat DAT_0064b488 base) */
+static void fx_table_b_effect(IDirect3DDevice8 *dev)
+{
+    static const float k_hpi = 1.5707963705062866f, k_2pi = 6.2831854820251465f;
+    float w[16], m[16];
+    if (g_sysassets.effect_bmp.tex == NULL) return;
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)g_sysassets.effect_bmp.tex);
+    int n = g_scene1_records_b_count;
+    if (n > SCENE1_RECORDS_B_COUNT) n = SCENE1_RECORDS_B_COUNT;
+    for (int i = 0; i < n; i++) {
+        const int32_t *r = &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+        const float *f = (const float *)r;
+        const int32_t t = r[0], age = r[38];
+        if (t == 0) continue;
+        const float pos[3] = { f[23], f[24], f[25] };
+        if (t == 48) {
+            fx_bill(w, pos, spill32(((long double)spill32((float)age) * 0.0002f + 0.01f) * f[66]), 0);
+            fx_set_col(s_q488[3], 0xffffffffu);
+            fx_draw(dev, w, s_q488[3], 2);
+        }
+        if (t == 33 || t == 37 || t == 49 || t == 50) {
+            fx_bill(w, pos, spill32((long double)f[66] * 0.004f), 0);
+            mat4_rotation_z(m, f[37]);
+            mat4_mul(w, m, w);
+            int32_t fr = age / 3, c = 16 * age;
+            if (fr > 4) fr = 4;
+            if (c > 255) c = 255;
+            if (t == 33) {
+                if (age > 48) c += 8 * (48 - age);
+            } else if (age > 224) {
+                c += 8 * (224 - age);
+            }
+            fx_set_col(s_atlas_quad, t == 33 ? fx_rgb(c, c / 4, c / 4) : fx_rgb(c / 4, c, c / 4));
+            fx_atlas_frame(fr, 0.75195312f, 0.87304688f);
+            fx_draw(dev, w, s_atlas_quad, 2);
+        }
+        if (t == 51) {
+            fx_bill(w, pos, spill32((long double)f[66] * 0.03f), 0);
+            fx_set_col(s_qb788, 0xffffffffu);
+            fx_draw(dev, w, s_qb788, 2);
+            continue;
+        }
+        switch (t) {
+        case 30: case 52: case 136: case 154: {
+            if (t == 52 && age < 0) break;
+            const float k = spill32((long double)fx_beam_width(t, age) * f[66] * 0.1f);
+            wf_pass_e_fan_billboard_matrix(w, r, g_scene1_camera_eye);   /* FUN_00415f2e */
+            fx_scale(w, k, k, 0.6f);
+            fx_draw(dev, w, s_qbea8, 2);
+            break;
+        }
+        case 118: case 163: {
+            if (age < 0) break;
+            fx_bill(w, pos, spill32((long double)f[66] * 0.008f), 0);
+            mat4_rotation_z(m, f[37]);
+            mat4_mul(w, m, w);
+            int32_t fr = age / 8, c = 16 * age;
+            if (fr > 7) fr = 7;
+            if (c > 255) c = 255;
+            if (age > 74) c += 1184 - age;   /* retail's own arithmetic (asm 0x41ad6d) */
+            fx_set_col(s_atlas_quad, fx_rgb(c, c, c));
+            fx_atlas_frame(fr, 0.87695312f, 0.99804688f);
+            fx_draw(dev, w, s_atlas_quad, 2);
+            break;
+        }
+        case 137: case 157: case 158: {
+            if (age < 80) break;
+            float k = 0.02f;
+            if (age >= 160) k = spill32(0.02f - (long double)spill32((float)(age - 160)) * 0.02f / 15.0f);
+            k = spill32((long double)k * f[66] * 0.7f);
+            wf_pass_e_fan_billboard_matrix(w, r, g_scene1_camera_eye);
+            fx_scale(w, k, k, f[66]);
+            fx_draw(dev, w, s_qbe48, 2);
+            break;
+        }
+        case 104: case 116: {
+            float k;
+            const int32_t off = (t == 104 && r[1] == 1) ? 20 : 0, a0 = t == 104 ? 60 + off : 40;
+            if (age < a0) k = 0.02f;
+            else if (age < a0 + 15) k = spill32(0.02f - (long double)spill32((float)(age - a0)) * 0.02f / 15.0f);
+            else k = 0.1f;
+            k = spill32((long double)k * 0.1f);
+            wf_pass_e_fan_billboard_matrix(w, r, g_scene1_camera_eye);
+            fx_scale(w, k, k, t == 104 ? -f[66] : f[66]);
+            fx_draw(dev, w, s_qbea8, 2);
+            break;
+        }
+        case 41: {
+            float s = 0.05f;
+            if (age > 32) s = spill32((long double)spill32((float)(age - 32)) * 0.0005f + 0.05f);
+            int32_t c = 16 * age;
+            s = spill32((long double)s * f[66]);
+            if (c > 255) c = 255;
+            const int32_t top = x87_ftol((long double)f[47] * 136.0f - 32.0f);
+            if (age > top) {
+                c += 8 * (top - age);
+                if (c < 0) break;
+            }
+            fx_col_n(s_q4b8, 20, fx_rgb(c, c, c));
+            float spread = spill32((long double)spill32((float)(320 - age)) * 0.04f);
+            if (spread < 3.0f) spread = 3.0f;
+            const float rise = spill32((long double)spill32((float)age) * 0.1f / f[47] - 10.0f);
+            for (int seg = 0; seg < 10; seg++) {
+                const float spin = spill32((long double)spill32((float)seg) * k_2pi / 8.0f +
+                                           (long double)spill32((float)age) * 0.025f);
+                const float h = spill32((long double)spill32((float)(4 * (seg % 3))) + 25.0f);
+                for (int row = 0; row < 10; row++) {
+                    const float ph = spill32((long double)spill32((float)(age + 2 * seg + 10 * row)) * 0.62831855f / 10.0f);
+                    const float rr = spill32((long double)spill32(x87_crt_sin(ph)) * 2.5f + 50.0f);
+                    const float fm = spill32((float)row);
+                    const float b = spill32((long double)fm * spread * 0.031415928f);
+                    const float a0 = spill32(-0.40840703f - (long double)b), a1 = spill32(0.40840703f - (long double)b);
+                    fx_vtx *v = &s_q4b8[2 * row];
+                    v[0].x = spill32((long double)spill32(x87_crt_sin(a0)) * rr);
+                    v[0].z = spill32((long double)spill32(x87_crt_cos(a0)) * rr);
+                    v[1].x = spill32((long double)spill32(x87_crt_sin(a1)) * rr);
+                    v[1].z = spill32((long double)spill32(x87_crt_cos(a1)) * rr);
+                    v[0].y = v[1].y = spill32((long double)h * fm);
+                }
+                mat4_translation(w, f[23], spill32((long double)rise * f[66] + f[24]), f[25]);
+                mat4_rotation_y(m, spin);
+                mat4_mul(w, m, w);
+                fx_scale(w, s, s, s);
+                fx_draw(dev, w, s_q4b8, 18);
+            }
+            const float bs = spill32((long double)f[66] * 0.02f);
+            mat4_translation(w, f[23], spill32((long double)f[24] + 0.2f), f[25]);
+            fx_scale(w, bs, bs, bs);
+            mat4_rotation_x(m, k_hpi);
+            mat4_mul(w, m, w);
+            int32_t cb = 255;
+            if (age > top) {
+                cb = 8 * (top - age) + 255;
+                if (cb < 0) break;
+            }
+            fx_set_col(s_q488[0], fx_rgb(cb, cb, cb));
+            fx_draw(dev, w, s_q488[0], 2);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
 void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -1599,11 +1984,14 @@ void scene1_effects_table_b(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     fx_swing_trails(dev);
     fx_projectiles(dev);
+    fx_table_a_shot(dev);
     /* 0x419c5c: the narrow projection (z_far 500) for the rest of the function
-     * — the overlay calls, the exit circles, the trails and the projectiles
-     * above draw under the caller's 2000 */
+     * — the overlay calls, the exit circles, the trails, the projectiles and
+     * the effect_shot table-A loop above draw under the caller's 2000 */
     scene1_render_push_projection(dev_in, 500.0f);
+    fx_mahi(dev);
     fx_snow(dev);
+    fx_table_b_effect(dev);
     fx_table_a_main(dev);
     fx_after_main(dev);
     fx_table_a_puffs(dev);

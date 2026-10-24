@@ -232,10 +232,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        in anim 2 = slot 1 at blend 1, +0x204 7433 / 7266 ms identical both sides: retail flat at
        frame 436 → rolled at 446, the port the reverse; the root matrix, FUN_00403d79's base 0 and
        FUN_0040150e's evaluation match the port's — compare the frame matrices next; Ohm has no
-       model.txt anchors, so portblock can't see it),  FUN_004176ff's unported sections (the
-       table-A loop on effect_shot.bmp 0x41932d: 88 / 147 / 90 / 32 / 86 / 66 / 8 / the rings'
-       first half …; the effect_mahi pass 0x419c51; the table-B loop on effect.bmp 0x41a263:
-       48 / 33 / 37 / 49 …), the hikari
+       model.txt anchors, so portblock can't see it),  the crab's pose (dungeon3-deep f284915:
+       the port's CPU-skinned parts ~2 units above retail's — likely Ohm's class), the sun /
+       lens flare (FUN_00405d70 / FUN_00405b1a), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
        the legacy

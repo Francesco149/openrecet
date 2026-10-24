@@ -410,7 +410,8 @@ void scene1_overlay_shape_6_compose_world(float out[16],
                                           const int32_t *slot,
                                           float alpha_mix);
 
-/* Non-flipped UV + diffuse emit for shapes 1/2/3/4/6.  Same UV layout
+/* Non-flipped UV + diffuse emit for shapes 2/3/4/6 (shape 1 flips like
+ * 0/5: scene1_overlay_shape_05_emit_quad).  Same UV layout
  * as shape 0/5 BUT without the slot_idx&1 horizontal flip — v0/v1
  * always get u_left, v2/v3 always get u_right.  Engine asm
  * 0x41587d..0x4158be.  shape_entry NULL ok → uv_size_x/y treated as 0

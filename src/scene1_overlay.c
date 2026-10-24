@@ -659,10 +659,12 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
                 continue;
             }
 
-            /* Shapes 1/2/3/4/6 share the shape_1346_emit_quad path —
-             * non-flipped UV layout.  Shape 1 has its own per-record
-             * fade-scale skip + lookat matrix; shapes 2/3/4/6 share a
-             * uniform-scale S × T core. */
+            /* Shape 1 (the velocity-facing streak, its own fade-scale skip
+             * and lookat matrix) flips its cell by slot parity like 0/5
+             * (all_ida FUN_00414ee2 case 1: `(j & 1)` — dungeon3-deep
+             * f284915, the crab's lava crescent drew mirrored); shapes
+             * 2/3/4/6 share a uniform-scale S × T core and the unflipped
+             * shape_1346_emit_quad. */
             if (type_shape == 1) {
                 float extra = scene1_overlay_shape_1_extra_scale(slot);
                 if (extra <= 0.0f) continue;   /* age < 0 OR faded to 0 */
@@ -671,10 +673,10 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
                 IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                               (const D3DMATRIX *)world);
 
-                scene1_overlay_shape_1346_emit_quad(g_scene1_overlay_vbuf,
-                                                    shape_entry,
-                                                    uv_origin_x, uv_origin_y,
-                                                    alpha_int);
+                scene1_overlay_shape_05_emit_quad(g_scene1_overlay_vbuf,
+                                                  shape_entry,
+                                                  uv_origin_x, uv_origin_y,
+                                                  slot_idx, alpha_int);
 
                 IDirect3DDevice8_DrawPrimitiveUP(dev,
                                                  D3DPT_TRIANGLESTRIP,
