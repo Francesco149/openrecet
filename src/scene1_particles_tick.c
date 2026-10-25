@@ -459,8 +459,8 @@ static void handle_type_96_97(int i)
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.1f);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.03f);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.01f);
-    vx *= 0.995f;  vy *= 0.995f;  vz *= 0.995f;
-    vy -= 0.03f;
+    vx = spill32((long double)vx * (0.995f));  vy = spill32((long double)vy * (0.995f));  vz = spill32((long double)vz * (0.995f));
+    vy = spill32((long double)vy - (0.03f));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
@@ -639,8 +639,8 @@ static void handle_type_10_91(int i)
     slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
     slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
-    vy -= (float)param1 * 0.003f;
-    vx *= 0.92f;  vy *= 0.92f;  vz *= 0.92f;
+    vy = spill32((long double)vy - (long double)(float)param1 * 0.003f);   /* fmul, fsubr, fstp */
+    vx = spill32((long double)vx * (0.92f));  vy = spill32((long double)vy * (0.92f));  vz = spill32((long double)vz * (0.92f));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
@@ -663,7 +663,7 @@ static void handle_type_15_16(int i, int type)
     slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
     slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
     slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
-    vy -= 0.01f;
+    vy = spill32((long double)vy - (0.01f));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.92f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
@@ -855,8 +855,8 @@ static void handle_type_67(int i)
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
-        vx *= 0.95f;  vy *= 0.95f;  vz *= 0.99f;
-        vy += 0.01f;
+        vx = spill32((long double)vx * (0.95f));  vy = spill32((long double)vy * (0.95f));  vz = spill32((long double)vz * (0.99f));
+        vy = spill32((long double)vy + (0.01f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
@@ -905,7 +905,7 @@ static void handle_type_huge_group(int i)
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
         slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
-        vy -= 0.02f;
+        vy = spill32((long double)vy - (0.02f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
@@ -1294,7 +1294,7 @@ static void handle_type_22_3c(int i, float gravity_y, int kill_at)
         slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_X, vx);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Z, vz);
-        vy += gravity_y;
+        vy = spill32((long double)vy + (gravity_y));
         float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
         float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
         float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
@@ -1320,7 +1320,7 @@ static void handle_type_5a(int i)
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
-        vy += 0.004f;
+        vy = spill32((long double)vy + (0.004f));
         float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
         float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
         float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
@@ -1346,9 +1346,9 @@ static void handle_type_98(int i)
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
-    vx *= 0.97f;
-    vy *= 0.97f;
-    vz *= 0.97f;
+    vx = spill32((long double)vx * (0.97f));
+    vy = spill32((long double)vy * (0.97f));
+    vz = spill32((long double)vz * (0.97f));
     /* L285-L289: distance to (player.x, player.y+2.0, player.z).  Engine
      * uses FUN_005031e4 (a vec3 length); inlined as sqrtf here. */
     float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
@@ -1502,7 +1502,7 @@ static void handle_type_6d(int i)
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
     float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
-    vy += by;
+    vy = spill32((long double)vy + (by));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.97f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.97f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.97f);
@@ -1538,9 +1538,9 @@ static void handle_type_6c(int i)
         float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
         float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
         float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
-        vx +=  -px         / 1200.0f;
-        vy += (1.5f - py)  / 1200.0f;
-        vz += (-1.0f - pz) / 1200.0f;
+        vx = spill32((long double)vx + (-px         / 1200.0f));
+        vy = spill32((long double)vy + ((1.5f - py)  / 1200.0f));
+        vz = spill32((long double)vz + ((-1.0f - pz) / 1200.0f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.98f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.98f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.98f);

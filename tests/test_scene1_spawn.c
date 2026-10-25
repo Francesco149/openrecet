@@ -2255,7 +2255,7 @@ int test_scene1_spawn_type_58_no_age_write(void)
 
 /* 0x4f: vel.x = mag (sin(π/2)=1), vel.z ≈ 0 (cos(π/2)≈0).
  * mag = u*0.015 + 0.0125 ∈ [0.0125, 0.0275). */
-int test_scene1_spawn_type_4f_velx_equals_mag_velz_zero(void)
+int test_scene1_spawn_type_4f_velx_equals_mag_velz_residue(void)
 {
     reset_records_and_trace();
     scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4f, 1.0f, 8);
@@ -2263,7 +2263,8 @@ int test_scene1_spawn_type_4f_velx_equals_mag_velz_zero(void)
         float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vz = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
         T_ASSERT(vx >= 0.0125f && vx < 0.0276f);
-        T_ASSERT(vz == 0.0f);
+        /* cos of the float π/2 is -4.37e-8: vel.z keeps that residue (retail) */
+        T_ASSERT(vz < 0.0f && vz > -2e-9f);
         T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_PARAM2), 100);
         T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
     }

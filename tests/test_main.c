@@ -1704,7 +1704,7 @@ struct test_case {
     X(scene1_spawn_type_58_param2_400_or_200) \
     X(scene1_spawn_type_58_vy_bounded) \
     X(scene1_spawn_type_58_no_age_write) \
-    X(scene1_spawn_type_4f_velx_equals_mag_velz_zero) \
+    X(scene1_spawn_type_4f_velx_equals_mag_velz_residue) \
     X(scene1_spawn_type_4f_vy_negative) \
     X(scene1_spawn_type_3f_56_share_body) \
     X(scene1_spawn_type_3f_vel_xz_zero_vy_positive) \

@@ -307,7 +307,7 @@ static void init_type_group_a(int i, float x, float y, float z, float scale,
 {
     float u1    = rng_next_unit();
     float mag   = u1 + 1.2f;
-    if (type == 0x65) mag *= 0.5f;
+    if (type == 0x65) mag = spill32((long double)spill32(mag) * (0.5f));
 
     float angle = rng_next_unit() * TWO_PI_F;
     float vx    = crt_sinf(angle) * scale * mag;
@@ -657,8 +657,8 @@ static void init_type_96(int i, float x, float y, float z, float scale)
     float vz        = crt_cosf(azimuth) * scale * xy_radius;
 
     float camera    = (float)g_scene1_spawn_camera_counter_948 * TWO_PI_F / 8.0f;
-    vx += crt_sinf(camera) * 0.2f;
-    vz += crt_cosf(camera) * 0.2f;
+    vx = spill32((long double)spill32(vx) + (crt_sinf(camera) * 0.2f));
+    vz = spill32((long double)spill32(vz) + (crt_cosf(camera) * 0.2f));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -2136,7 +2136,7 @@ static void init_type_58(int i)
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
 
     float py = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
-    py += (rng_next_unit() - 1.0f) * 5.0f;
+    py = spill32((long double)spill32(py) + ((rng_next_unit() - 1.0f) * 5.0f));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, py);
 
     float angle = rng_next_unit() * TWO_PI_F;
@@ -2146,26 +2146,26 @@ static void init_type_58(int i)
 
     float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
-    px += sa * mag;
-    pz += ca * mag;
+    px = spill32((long double)spill32(px) + (sa * mag));
+    pz = spill32((long double)spill32(pz) + (ca * mag));
 
     /* Camera-yaw bend. */
     float yaw = g_scene1_camera_yaw;
-    px += crt_sinf(-yaw) * 15.0f;
-    pz += crt_cosf(-yaw) * 15.0f;
+    px = spill32((long double)spill32(px) + (crt_sinf(-yaw) * 15.0f));
+    pz = spill32((long double)spill32(pz) + (crt_cosf(-yaw) * 15.0f));
 
     /* Anchor-back 200×. */
-    px -= vx * 200.0f;
+    px = spill32((long double)spill32(px) - (vx * 200.0f));
     py  = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y) - vy * 200.0f;
-    pz -= vz * 200.0f;
+    pz = spill32((long double)spill32(pz) - (vz * 200.0f));
 
     /* PARAM2 = 400; rng_next15() & 1 triggers the fold-and-flip path. */
     int p2 = 400;
     uint16_t r = rng_next15();
     if (r & 1u) {
-        px += (float)p2 * vx;
-        py += (float)p2 * vy;
-        pz += (float)p2 * vz;
+        px = spill32((long double)spill32(px) + ((float)p2 * vx));
+        py = spill32((long double)spill32(py) + ((float)p2 * vy));
+        pz = spill32((long double)spill32(pz) + ((float)p2 * vz));
         vy = -vy;
         p2 = 200;
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -2189,51 +2189,40 @@ static void init_type_58(int i)
  *   pos.x += sin(angle) * mag_p
  *   pos.y += u * 10 - 5                        ; RNG draw between sin/cos
  *   pos.z += cos(angle) * mag_p                ; argless cos, same angle
- *   pos -= vel * 100                           ; anchor-back; pos.z stays
- *                                              ;   put since vel.z = 0
+ *   pos -= vel * 100                           ; anchor-back
  *   PARAM2 = 100
  *   AGE    = -count_index
  *
- * SCALE field is unused in vel math (engine's constant-angle simplifies
- * everything).  param_7-count.
- *
- * We skip the actual sin/cos calls on the engine's constant — sin(π/2)
- * = 1 and cos(π/2) ≈ -4.4e-8 (denormal); writing `vel.x = mag_v` and
- * `vel.z = 0` is functionally identical and saves two trig calls. */
+ * SCALE field is unused in vel math.  param_7-count. */
 static void init_type_4f(int i, int count_index)
 {
-    float mag_v = rng_next_unit() * 0.015f + 0.0125f;
-    float vx    = mag_v;
-    float vz    = 0.0f;
+    /* FUN_00447f4f case 79, store by store: vel = (sin, ·, cos)(π/2 as a float)
+     * · mag — cos of the float π/2 is -4.4e-8, so vel.z and the 100× anchor-back
+     * on pos.z carry a residue the port's 0 lost (dungeon1-charme f40000) */
+    const float mag_v = spill32((long double)rng_next_unit() * 0.015f + 0.0125f);
+    const float vx = spill32((long double)crt_sinf(1.5707964f) * mag_v);
+    const float vz = spill32((long double)crt_cosf(1.5707964f) * mag_v);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-
-    float vy = -0.05f - rng_next_unit() * 0.05f;
+    const float vy = spill32(-0.050000001f - (long double)rng_next_unit() * 0.050000001f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, spill32((long double)rng_next_unit() * TWO_PI_F));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, spill32((long double)rng_next_unit() * TWO_PI_F));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, spill32((long double)rng_next_unit() * TWO_PI_F));
 
-    float mag_p = (rng_next_unit() - 0.5f) * 40.0f;
-    float angle = rng_next_unit() * TWO_PI_F;
+    const float mag_p = spill32(((long double)rng_next_unit() - 0.5f) * 40.0f);
+    const float angle = spill32((long double)rng_next_unit() * TWO_PI_F);
 
     /* Same sin → u(pos.y) → cos interleave as 0x18. */
-    float sa = crt_sinf(angle);
-    float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
-    px += sa * mag_p;
+    float px = spill32((long double)crt_sinf(angle) * mag_p + slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X));
+    float py = spill32((long double)rng_next_unit() * 10.0f - 5.0f + slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y));
+    float pz = spill32((long double)crt_cosf(angle) * mag_p + slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z));
 
-    float py = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
-    py += rng_next_unit() * 10.0f - 5.0f;
-
-    float ca = crt_cosf(angle);
-    float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
-    pz += ca * mag_p;
-
-    /* Anchor-back 100×.  vel.z = 0 so pz term is no-op. */
-    px -= vx * 100.0f;
-    py -= vy * 100.0f;
-    /* pz -= 0 * 100 — no-op */
+    /* Anchor-back 100×. */
+    px = spill32((long double)px - (long double)vx * 100.0f);
+    py = spill32((long double)py - (long double)vy * 100.0f);
+    pz = spill32((long double)pz - (long double)vz * 100.0f);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, py);
@@ -2270,12 +2259,12 @@ static void init_type_3f_56(int i, int count_index)
 
     float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
-    px += (rng_next_unit() - 0.5f) * 20.0f;
-    pz += (rng_next_unit() - 0.5f) * 20.0f;
+    px = spill32((long double)spill32(px) + ((rng_next_unit() - 0.5f) * 20.0f));
+    pz = spill32((long double)spill32(pz) + ((rng_next_unit() - 0.5f) * 20.0f));
 
     float yaw = g_scene1_camera_yaw;
-    px += crt_sinf(-yaw) * 15.0f;
-    pz += crt_cosf(-yaw) * 15.0f;
+    px = spill32((long double)spill32(px) + (crt_sinf(-yaw) * 15.0f));
+    pz = spill32((long double)spill32(pz) + (crt_cosf(-yaw) * 15.0f));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pz);
@@ -2310,7 +2299,7 @@ static void init_type_10_91(int i, int count_index, int param7)
     float vy = (rng_next_unit() + 0.5f) * 0.97999996f;
     float vz = (rng_next_unit() - 0.5f) * 0.7f;
 
-    if (param7 < 10) vy *= 0.7f;
+    if (param7 < 10) vy = spill32((long double)spill32(vy) * (0.7f));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
