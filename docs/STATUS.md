@@ -271,9 +271,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        2026-10-25; the ticker, the warp flash, the fades since 2026-10-25) — still missing: the
        sun / lens flare (FUN_00405d70 / FUN_00405b1a), the kind-5 damage digits' shape
        (dungeon3-deep f108750 / f236250), a sparkle at dungeon3-deep f3750 and a white "5" popup
-       at f176250 (retail only), table A's spawn-side trig (scene1_spawn.c: 90 libm sinf / cosf
-       where retail keeps the angle in a double temp — `fstp QWORD`, then CRT sin / cos stored
-       to float; the tick side is converted, portblock reca 56 → 5 dwords), the hikari
+       at f176250 (retail only), table A's last ulps (portblock reca: 0–1 dwords per frame on
+       dungeon1-deep, 5–8 on dungeon3-deep: spawn sites whose products round differently), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
        the legacy

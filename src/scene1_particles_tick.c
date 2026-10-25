@@ -495,15 +495,11 @@ static void handle_type_1f_100(int i)
     decay_drift_grav_pre(i, 0.97f, -0.001f, 0x20);
 }
 
-/* ─── handler: type 0x45 — anchor-attached vel.y bias ───────────────
+/* ─── handler: type 0x45 — rising with a per-particle lift ──────────
  *
- * Engine decomp L594-L608.  Unusual: pre-damp gravity reads
- * BASE_Z (slot+11) and adds it to vel.y BEFORE the damp.  damp 0.97,
- * kill 0x80.
- *
- * Verbatim: `vel.y = BASE_Z + vel.y;` then the standard damp.  Used
- * for an effect where Z-position acts as a vertical force coupling
- * (perhaps water-buoyancy or wave-drag). */
+ * FUN_0040fb3a type 69: pos += vel, then vel.y = slot +0x28 + vel.y (the
+ * lift the spawn stored; the port read +0x2c, so its bubbles never rose —
+ * dungeon1-deep f77000), then the 0.97 damp, each stored.  Kill 0x80. */
 static void handle_type_45(int i)
 {
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
@@ -512,12 +508,10 @@ static void handle_type_45(int i)
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
-    float base_z = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
-    vy += base_z;
-    vx *= 0.97f;  vy *= 0.97f;  vz *= 0.97f;
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    vy = spill32((long double)slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y) + vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, spill32((long double)vx * 0.97000003f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, spill32((long double)vy * 0.97000003f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, spill32((long double)vz * 0.97000003f));
     slot_age_inc(i);
     if (slot_age(i) == 0x80) slot_kill(i);
 }
