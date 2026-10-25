@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 75,
+  "port_debt": 76,
   "verified": 81,
   "stubbed": 10,
   "ported": 733,
@@ -18684,6 +18684,7 @@
    "quality_flags": [],
    "src": [
     "src/encyclopedia.c",
+    "src/scene1_hud.c",
     "src/scene_adv_guild.c",
     "src/scene_day_end.c",
     "src/scene_guild.c"
@@ -18708,6 +18709,7 @@
    "quality_flags": [],
    "src": [
     "src/encyclopedia.c",
+    "src/scene1_hud.c",
     "src/scene_adv_guild.c",
     "src/scene_day_end.c",
     "src/scene_guild.c"

@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **61**
-- distinct retiring engine functions: **47**
+- total open debts: **62**
+- distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 41 | wired call boundary, body incomplete |
+| stub | 42 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -41,6 +41,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
 | FUN_00405b1a | 1 |
+| FUN_0040a765 | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_0041f4a6 | 1 |
@@ -78,12 +79,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (41)
+## stub (42)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
+| FUN_0040a765 | src/scene1_hud.c:362 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
 | FUN_0042e1a6 | src/actor_ai.c:4085 | the death (EXP, drops, the kill count) |
@@ -106,8 +108,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
 | FUN_00468fd0 | src/scene_guild.c:506 | the removal is unported, |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:323 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:369 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:374 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |

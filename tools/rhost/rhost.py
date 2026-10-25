@@ -748,6 +748,7 @@ def cmd_portshots(a):
     a.flatten_out = True
     a.dump_at = None
     a.shot_at = ",".join(str(f) for f in fs)
+    a.frames = a.frames or max(fs) + 2       # retail stops past the last shot, not at the trace's end
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portshots-retail", fetch=("rhost.log", "trace.flat.jsonl", "shot_*.png"))
     extra = ("--capture-to", "{pw}", "--capture-frames", a.shot_at)
     if getattr(a, "port_d3d", False):
@@ -1122,6 +1123,7 @@ def cmd_portblock(a):
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = ",".join(str(f) for f in frames)
+    a.frames = a.frames or frames[-1] + 2
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portblock-retail",
                                     fetch=("rhost.log", "trace.flat.jsonl", "state_*.rhs"))
     # the port names each dump blocks.bin.F when given several frames (blocks.bin for one)

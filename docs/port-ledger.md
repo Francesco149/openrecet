@@ -689,8 +689,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ |  | scene1_camera.c, scene1_camera.h, scene1_day_close.h (+4) |
 | 0x48e49c | FUN_0048e49c | 2173 | ✓ |  | scene_day_end.c, scene_day_end.h, sim.c |
 | 0x48ed19 | FUN_0048ed19 | 213 | ✓ |  | scene_day_end.c |
-| 0x48edee | FUN_0048edee | 137 | ✓ |  | encyclopedia.c, scene_adv_guild.c, scene_day_end.c (+1) |
-| 0x48ee77 | FUN_0048ee77 | 137 | ✓ |  | encyclopedia.c, scene_adv_guild.c, scene_day_end.c (+1) |
+| 0x48edee | FUN_0048edee | 137 | ✓ |  | encyclopedia.c, scene1_hud.c, scene_adv_guild.c (+2) |
+| 0x48ee77 | FUN_0048ee77 | 137 | ✓ |  | encyclopedia.c, scene1_hud.c, scene_adv_guild.c (+2) |
 | 0x48ef00 | FUN_0048ef00 | 2288 | ✓ |  | main.c, scene_day_end.c, scene_day_end.h |
 | 0x48f7f0 | FUN_0048f7f0 | 88 | ✓ |  | dungeon_results.c, dungeon_results.h, scene1_sim.c |
 | 0x48f848 | FUN_0048f848 | 52 | ✓ |  | dungeon_results.c, dungeon_results.h |
