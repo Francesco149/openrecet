@@ -2238,8 +2238,9 @@ void scene1_player_ctrl_tick(void)
      * dormant through the tutorial traces): the news-break ticker pump.
      * While armed (g_news_ticker_timer = DAT_0438b92c > 0) it counts every
      * free-roam frame; at 0x1e with headlines present it requests the
-     * news-jingle SE 0x2bd (FUN_00499519).
-     * PORT-DEBT(stub, FUN_00436f97): the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). */
+     * news-jingle SE 0x2bd (FUN_00499519).  The ticker's draw is
+     * news_ticker_render (scene1_hud.c, FUN_0040a765 0x40b0df); b92c is
+     * IDENTICAL to retail frame by frame (portstate). */
     {
         const uint32_t *nbank = save_work_dwords_at(save_work_active_slot());
         if (nbank != NULL &&

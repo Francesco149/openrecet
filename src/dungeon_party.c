@@ -1696,6 +1696,23 @@ static void party_warp_random_room(void)
     }
 }
 
+/* FUN_0048b850's splash: type 145, SE 322 and, unless the stage says not
+ * (+0x1b38), four drops of type 17 on the water line (z's rand first) */
+static void water_splash(void)
+{
+    scene1_spawn(0, g_party.pos[0][0], g_party.pos[0][1], g_party.pos[0][2], 145, 0.30000001192092896f, 12);
+    audio_play_se_by_id(322);
+    int32_t no_drops = 0;
+    if (g_stage_palette != NULL) memcpy(&no_drops, (const uint8_t *)g_stage_palette + 0x1b38, 4);
+    if (no_drops != 0) return;
+    for (int k = 0; k < 4; k++) {
+        const float sc = spill32((long double)spill32((float)k) * 0.30000001192092896f + 0.5f);
+        const float z = spill32((long double)rng_next_unit() - 0.5f + g_party.pos[0][2]);
+        const float x = spill32((long double)rng_next_unit() - 0.5f + g_party.pos[0][0]);
+        scene1_spawn(0, x, g_party.hit[0].slope_h, z, 17, sc, 1);
+    }
+}
+
 /* FUN_0048b850 on a dungeon floor */
 void party_tick(void)
 {
@@ -1863,9 +1880,22 @@ void party_tick(void)
     if (PW(0x56db048u).i != 1) {
         /* PORT-DEBT(stub, FUN_0048b850 da1bc): the attack lunge (da1bc 1..ccb8) */
     }
+    const int32_t was_wet = g_party.hit[0].flag;   /* DAT_056daed8 before the move */
     party_move();                            /* FUN_00483170 */
-    /* PORT-DEBT(stub, FUN_0048b850): the water splash after the move (hit
-     * flag 1: SE 322, types 145 / 17) */
+    /* the water splash (hit flag 1 = water above): leaving the surface upward
+     * off the ground, or falling in at more than 0.2 a tick (all_ida 104318;
+     * ported ahead of a recording, unverified) */
+    if (g_party.hit[0].flag == 1) {
+        if (g_party.hit[0].slope_h > g_party.pos[0][1] && g_party.vel[0][1] > 0.0f &&
+            g_party.pos[0][1] != g_party.ground_y[0] && PW(0x56da1c4u).i != 0) {
+            PW(0x56da1c4u).i = 0;
+            water_splash();
+        }
+        if (g_party.pos[0][1] == g_party.ground_y[0])
+            PW(0x56da1c4u).i = 1;
+        if (was_wet == 0 && g_party.vel[0][1] < -0.2f)
+            water_splash();
+    }
     /* damping */
     if (PW(0x56da1bcu).i != 0) {
         g_party.vel[0][0] = spill32((long double)g_party.vel[0][0] * 0.9700000286102295f);
