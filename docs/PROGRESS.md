@@ -27,6 +27,14 @@ portblock house-idle f3000 all blocks IDENTICAL; house-idle / intro-skip-prompt 
 - the fade-in alpha is ftol(255 − k·(c − 2)), not 255 − ftol(…) (one level dark each step);
 - the Now Loading disc on a dialogue's arm frame (FUN_00452d07 raises DAT_06a49960 at once):
   the disc angle IDENTICAL every frame of eight scenarios.
+**The pipeline runs without the Windows box** (it went away mid-morning): `--target wine` now
+runs the port too (retail and port under wine + Xvfb on maximus; `gates --target wine`), with the
+compared run's DirectMusic pointer byte handed to the port (quirk §163: under wine the segment
+isn't loaded, so retail's new game draws one rand fewer — the port follows). portblock takes
+several frames per run; a sweep found table A's type 0x45 reading the wrong lift field (its
+particles never rose) — fixed. The tick side of table A rounds like the x87 code now (one
+rounding per mul-add, CRT sin / cos), as do the spawns' trig calls.
+Also: the winged customer's wings (FUN_0047047b), the water splash (FUN_0048b850, unverified).
 Tools: every port run makes the port first; `run --d3d` fetches the capture;
 `trace_studio_v3/up_diff.py` (a frame's UP draws, port d3d.jsonl vs retail, value for value);
 portblock skips the enemylist's unread .data image (quirk §164); state_va rows for b930 / b8b8 /

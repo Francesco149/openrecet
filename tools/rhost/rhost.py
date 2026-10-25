@@ -606,17 +606,19 @@ def run_port_wine(a, pdir_l, args):
         for n in os.listdir(os.path.join(WINE_ROOT, "game")):
             if not os.path.lexists(os.path.join(cwd, n)):
                 os.symlink(os.path.join(WINE_ROOT, "game", n), os.path.join(cwd, n))
-    os.makedirs(os.path.join(WINE_ROOT, "port"), exist_ok=True)
-    shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(WINE_ROOT, "port", "openrecet.exe"))
-    shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(WINE_ROOT, "port", "recet.ini"))
+    # a copy of the exe per batch: concurrent local runs never overwrite a running image
+    batch = os.path.basename(os.path.dirname(pdir_l))
+    edir = os.path.join(WINE_ROOT, "port", batch)
+    os.makedirs(edir, exist_ok=True)
+    shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(edir, "openrecet.exe"))
+    shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(edir, "recet.ini"))
     env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
     with open(os.path.join(pdir_l, "port.err"), "w") as err:
         r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine",
-                            f"{WROOT}\\port\\openrecet.exe", *args],
+                            f"{WROOT}\\port\\{batch}\\openrecet.exe", *args],
                            cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=err, timeout=a.wine_timeout)
     print(f"port exit={r.returncode}")
-    for f in glob.glob(os.path.join(cwd, "openrecet-calltrace-*.jsonl")):
-        os.remove(f)
+    shutil.rmtree(edir, ignore_errors=True)
 
 
 def run_port_win(batch, pdir_l, pw, fetch):

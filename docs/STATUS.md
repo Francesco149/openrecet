@@ -323,7 +323,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        before); house-idle / intro-skip-prompt in `gates`.
 
 ### Regression gate (run before claiming a port change is safe)
-- **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
+- **`python3 tools/rhost/rhost.py gates`** (or `--target wine`: the same rows on maximus, retail and
+  port under wine + Xvfb — slower per row, but runs in parallel and needs no Windows box): the port rows below in one command, one line
   each: portsave ×11 (incl. the dungeon Save, dungeon0-full, dungeon1-run2, dungeon1-deep,
   debt-week1-paid, dungeon1-clear, dungeon2-run2 / -run3), portanchors ×2, portrng over 12
   shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
