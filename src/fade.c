@@ -13,6 +13,8 @@
 
 #include "fade.h"
 
+#include "x87.h"
+
 #include "render_quad.h"
 #include "call_trace.h"
 
@@ -154,19 +156,18 @@ void fade_render(IDirect3DDevice8 *dev)
      * Phase 1 (fade darkening in over `duration-2` ticks):
      *   alpha = (int)(256.0f / (duration - 2) * counter)
      * Phase -1 (fade-in / quad reveals back-buffer):
-     *   alpha = (int)(256.0f / (duration - 2) * (counter - 2))   ← NOTE:
-     *   ... then take 255 - alpha
-     *
-     * The decomp branches between the two paths via a separate `__ftol`
-     * + local-var rewrite at L24-26 of 453e8f.c; the formula above
-     * collapses both into one computation. */
+     *   alpha = (int)(255.0f - 256.0f / (duration - 2) * (counter - 2))
+     * Both clamp to 0..255. */
     int alpha;
     if (g_fade_duration > 2) {
-        const float scale = 256.0f / (float)(g_fade_duration - 2);
+        /* 0x453edb / 0x453f27: the quotient stays in ST0 (no float spill) and
+         * the fade-in subtracts BEFORE __ftol — ftol(255 − k·(c−2)), not
+         * 255 − ftol(k·(c−2)): one level brighter on every non-integral step */
+        const long double k = 256.0f / (long double)spill32((float)(g_fade_duration - 2));
         if (g_fade_phase == -1) {
-            alpha = 255 - (int)(scale * (float)(g_fade_counter - 2));
+            alpha = x87_ftol(255.0f - k * spill32((float)(g_fade_counter - 2)));
         } else {
-            alpha = (int)(scale * (float)g_fade_counter);
+            alpha = x87_ftol(k * spill32((float)g_fade_counter));
         }
     } else {
         /* Degenerate case — engine would divide by zero or negative.

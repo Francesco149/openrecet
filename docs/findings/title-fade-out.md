@@ -142,11 +142,15 @@ So the real formula is:
 
 ```c
 alpha_phase1 = (int)(256.0 / (duration - 2) * counter);
-alpha_phase_1_out = 255 - (int)(256.0 / (duration - 2) * (counter - 2));
+alpha_phase_1_out = (int)(255.0 - 256.0 / (duration - 2) * (counter - 2));  /* fsubr 255.0 BEFORE __ftol (0x453f55) */
 clamp(alpha, 0, 255);
 ```
 
 (`0x519390` = `0x43800000` = 256.0; `0x519630` = `0x437f0000` = 255.0.)
+
+Erratum 2026-10-25: the fade-in subtracts from 255 in ST0 and truncates the difference; the
+earlier `255 - (int)(…)` read was one level too dark on every non-integral step (rhost
+portshots dungeon3-deep f123724: max px diff 1, mean 0.49).
 
 For NEW_GAME's `(0, 0x11)`: `256/15 ≈ 17.07` per counter step.
 Counter ticks 1..18 → alpha hits 255 at counter ~15 → full black by
