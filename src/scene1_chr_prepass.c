@@ -81,7 +81,7 @@ static void chr_prepass_ab_setup(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,   D3DTOP_SELECTARG1);   /* 4=2 */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);      /* 0x10=2 */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);      /* 0x11=2 */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_MODULATE2X);   /* 1=7 */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_ADD);          /* 1=7 */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);  /* 0x13=2 */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);  /* 0x14=2 */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);        /* 0x1c=0 */

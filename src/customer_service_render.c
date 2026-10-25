@@ -289,7 +289,7 @@ void customer_service_render_overlay(IDirect3DDevice8 *dev)
             const float src[4] = { 64.0f, 512.0f, 223.0f, 607.0f };
             cs_quad(dev, iw, dst, src, 0xffffffffu, 0);
 
-            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+            IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);   /* FUN_00466b7b: 8 */
             const float w = (float)sin((double)((float)s.b5b4 * 0.2f)) * 32.0f;
             int r = (int)(w + 255.0f), g = (int)(w + 77.0f), b = (int)(w + 155.0f), al = 255;
             if (r > 255) r = 255;

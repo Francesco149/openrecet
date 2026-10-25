@@ -154,9 +154,9 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
-    /* L36: TSS COLOROP = MODULATE2X (texture × vertex × 2 — brings
-     * out highlights at the cost of overflow clipping). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    /* L36: TSS COLOROP = MODULATE (asm 0x458c5a: ebp = 4 — the old
+     * MODULATE2X read 4 as the wrong enum) */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* L37: TSS COLORARG2 = TEXTURE. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
@@ -164,8 +164,8 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
     /* L38: TSS COLORARG1 = DIFFUSE (vertex color). */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
 
-    /* L39: TSS ALPHAOP = MODULATE2X. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE2X);
+    /* L39: TSS ALPHAOP = MODULATE (ebp = 4). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
     /* L40: TSS ALPHAARG1 = TEXTURE. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
@@ -270,7 +270,7 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
 
         /* L80-L82: restore TSS alpha state — may have been reset by
          * the FUN_00457714 call above. */
-        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_MODULATE2X);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_MODULATE);
         IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1,  D3DTA_TEXTURE);
         IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2,  D3DTA_TFACTOR);
 
@@ -297,7 +297,7 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_TEXTUREFACTOR, 0xffffffffu);
 
     /* L90-L92: restore alpha state, then... */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,    D3DTOP_MODULATE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1,  D3DTA_TEXTURE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2,  D3DTA_TFACTOR);
 

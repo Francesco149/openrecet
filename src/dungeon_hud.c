@@ -106,7 +106,7 @@ void dungeon_hud_party_panel(struct IDirect3DDevice8 *dev_in, float x, float y,
     if (PW(0x56db0d0u).i != 0) g8 = b8 = r8;
     const uint32_t pulse = ((((r8 | 0xffffff00u) << 8) | g8) << 8) | b8;
 
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     render_quad_bind(dev, base);
     quad(base, x, y0, k256, k102p4, 0.0f, 0.0f, k320, k128, pulse);
     render_quad_flush(dev);
@@ -372,7 +372,7 @@ void dungeon_hud_levelup_pop(struct IDirect3DDevice8 *dev_in, float x, float y)
     const sprite_t *win = &g_sysassets.item_win_tga;      /* DAT_073d8748 */
     if (win->tex == NULL) return;
     render_quad_bind(dev, win);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     quad(win, spill32((long double)x + 8.0f),
          spill32((long double)dy + y - k48 + k40 - (long double)grow * k40), 192.0f,
          spill32((long double)grow * k39), 640.0f, 416.0f, 832.0f, 455.0f,
@@ -455,7 +455,7 @@ static int fmt_int(char *buf, size_t n, const char *f, int v) { return snprintf(
 static void gauge_chara30(IDirect3DDevice8 *dev, const sprite_t *base, float slide)
 {
     IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)base->tex);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     int32_t n = PW(0x56daff4u).i;
     if (n > 225) n = 225;
     const float y = spill32((long double)slide + 360.0f);
@@ -480,7 +480,7 @@ static void gauge_chara42(IDirect3DDevice8 *dev, const sprite_t *base, float sli
     static const float kpi = 3.1415927410125732f, k30 = 30.0f, k64f = 64.0f, k127 = 127.0f;
     const sprite_t *win = &g_sysassets.item_win_tga;
     IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)base->tex);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     const int32_t e4 = PW(0x56db0e4u).i, e0 = PW(0x56db0e0u).i, ec = PW(0x56db0ecu).i;
     const float y = spill32((long double)slide + 360.0f);
     int32_t pulse = 127;
@@ -836,7 +836,7 @@ void dungeon_hud_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
     if (PW(0x56db00cu).i != 0) {
         quad(win, 280.0f, 120.0f, 80.0f, 80.0f, 288.0f, 608.0f, 368.0f, 688.0f, DIFFUSE_HALF);
         render_quad_flush(dev);
