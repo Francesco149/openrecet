@@ -445,8 +445,9 @@ def cmd_run(a):
     if a.d3d:
         # the proxy's capture (v3cap.bin + census) stayed on Windows: fetch it next to the run
         for name, *_ in runs:
-            subprocess.run(["scp", "-q", "-r", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/v3", os.path.join(bdir, name)],
-                           capture_output=True, text=True)
+            if getattr(a, "target", "win") != "wine":   # under wine the run dir is already local
+                subprocess.run(["scp", "-q", "-r", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/v3", os.path.join(bdir, name)],
+                               capture_output=True, text=True)
             cap = os.path.join(bdir, name, "v3", "v3cap.bin")
             print(f"d3d capture: {cap}" if os.path.exists(cap) else f"d3d capture: none for {name}")
     print_results(res, [r[0] for r in runs])
