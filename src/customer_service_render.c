@@ -52,6 +52,9 @@
 #include "choice_box.h"    /* the cc08==4 ESC "Cancelling tutorial?" skip prompt */
 #include "scene_adv_guild.h" /* FUN_0046add8 */
 #include "tables_oder.h"   /* the oder records DAT_06a5db98 */
+#include "chara_equip.h"   /* chara_equip_item_stats (FUN_0048093f) */
+#include "save_work.h"     /* the work record: the party's equipment */
+#include "scene_pause.h"   /* g_pause_save_overwrite (DAT_074b28a4) */
 #include <string.h>
 
 /* ive_box_scale == FUN_0046c86f (the open/close scale+alpha wobble) — already a
@@ -136,6 +139,58 @@ static void cs_format_grouped(char *out, size_t n, int v)
                                       v / 1000000, (v / 1000) % 1000, v % 1000);
 }
 
+/* FUN_00481573(x, y, slot, chara, item) — the stat compare under the hint
+ * panel: for each stat (Attack / Defense / Magic / MDef) the slot's item or the
+ * offer carries, the member's total (base + the five slots), "→" and, when the
+ * offer fits the slot (FUN_00468ddc) and is not 0x10, the total with the offer
+ * in it — 0xffff9b9b higher, 0xff9b9bff lower.  Rows 24 apart at 0.8 from
+ * y + 30; three rows 20 apart from y + 20; four 15 apart at 0.7.  DAT_074b28a4
+ * (the equip screen's mode, 0 in the shop) 1 hides the new totals, else 0
+ * leaves them uncomputed (0). */
+static void cs_stat_compare(IDirect3DDevice8 *dev, const uint8_t *bank, float x, float y,
+                            int slot, int chara, int32_t item)
+{
+    static const char *const k_label[4] = { "Attack", "Defense", "Magic", "MDef" };
+    const int32_t *rec = (const int32_t *)(bank + 0x2ceb0 + 108 * chara);
+    const int32_t *req = rec + 1, *base = rec + 11;
+    int32_t tot[4] = { 0 }, cur[4] = { 0 }, with[4] = { 0 }, offer[4] = { 0 };
+    int fits = 0;
+    for (int k = 0; k < 5; k++)
+        chara_equip_item_stats((uint32_t)req[k], tot);
+    chara_equip_item_stats((uint32_t)req[slot], cur);
+    if (g_pause_save_overwrite == 0) {
+        for (int k = 0; k < 5; k++)
+            chara_equip_item_stats((uint32_t)(k == slot ? item : req[k]), with);
+        if (item_equip_check(chara, slot, item)) {
+            fits = 1;
+            chara_equip_item_stats((uint32_t)item, offer);
+        }
+    }
+    int rows = 0;
+    for (int i = 0; i < 4; i++)
+        if (cur[i] != 0 || offer[i] != 0) rows++;
+    const float lx = x + 24.0f;
+    float ly = y + 30.0f, step = 24.0f, sc = 0.80000001f;
+    if (rows == 4) { ly = y + 20.0f; step = 15.0f; sc = 0.69999999f; }
+    if (rows == 3) { ly = y + 20.0f; step = 20.0f; }
+    char buf[32];
+    for (int i = 0; i < 4; i++) {
+        if (cur[i] == 0 && offer[i] == 0) continue;
+        font_draw_text((struct IDirect3DDevice8 *)dev, lx + 16.0f, ly, k_label[i], 0xffffffffu, sc);
+        snprintf(buf, sizeof buf, "%d", (int)(tot[i] + base[i]));
+        font_draw_text_right((struct IDirect3DDevice8 *)dev, lx + 136.0f, ly, buf, 0xffffffffu, sc);
+        font_draw_text((struct IDirect3DDevice8 *)dev, lx + 152.0f, ly, "\x81\xa8", 0xffffffffu, sc);   /* → */
+        if (g_pause_save_overwrite != 1 && (item & 0x10) == 0 && fits) {
+            snprintf(buf, sizeof buf, "%d", (int)(with[i] + base[i]));
+            uint32_t c = 0xffffffffu;
+            if (with[i] > tot[i]) c = 0xffff9b9bu;
+            if (with[i] < tot[i]) c = 0xff9b9bffu;
+            font_draw_text_right((struct IDirect3DDevice8 *)dev, lx + 202.0f, ly, buf, c, sc);
+        }
+        ly += step;
+    }
+}
+
 /* ── FUN_0046602e — character art + letterbox + bubble + offer panel ──────────
  * all.c:62872; gate DAT_0438b1cc==1 && DAT_0438b7b0!=0. */
 void customer_service_render_chars(IDirect3DDevice8 *dev)
@@ -214,11 +269,26 @@ void customer_service_render_chars(IDirect3DDevice8 *dev)
         }
     }
 
-    /* (d) offer panel (b56c∈[2,9]): its sim writes (the hint slot, the rare
-     * bit) first; (e) button row (b5d0!=0):
-     * PORT-DEBT(cs-render-rest) — the item-want panel + action-button list
-     * are not drawn. */
-    customer_service_want_panel_tick();
+    /* (d) the upgrade hint (b56c 2..9, the offer shown): its sim writes (the
+     * hint slot, the rare bit), then shopmode's panel (480,240)-(720,354) at
+     * (x, 24, 240, 114) — x 400, sliding in from 640 over b5a0's first 15
+     * ticks (b5d4's once an order pick bc8 is set) — the slot's item
+     * (FUN_0046add8) and the stat compare (FUN_00481573; tear-lectures-gameover
+     * f4500, Louie's Leather Armor) */
+    const int32_t hint = customer_service_want_panel_tick();
+    if (hint >= 0) {
+        const uint8_t *bank = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+        const int32_t offer = s.price_bc8 != -1 ? s.price_bc8 : s.b5a4;
+        const int32_t t = s.price_bc8 == -1 ? s.b5a0 : s.b5d4;
+        const float px = t < 15 ? 640.0f - (float)(240 * t / 15) : 400.0f;
+        const float pdst[4] = { px, 24.0f, 240.0f, 114.0f };
+        const float psrc[4] = { 480.0f, 240.0f, 720.0f, 354.0f };
+        cs_quad(dev, &g_scene_buy_shopmode, pdst, psrc, 0xffffffffu, 0);
+        const int32_t *req = (const int32_t *)(bank + 0x2ceb4 + 108 * (s.b56c - 2));
+        if (req[hint] != -1)
+            item_row_draw((struct IDirect3DDevice8 *)dev, px + 16.0f, 36.0f, req[hint], 255);
+        cs_stat_compare(dev, bank, px - 16.0f, 44.0f, hint, s.b56c - 2, offer);
+    }
 
     /* (e) the pick rows (b5d0 != 0): b5dc + 1 item_win bars (b5d0 2: b5dc, the
      * list offset 128 / -64; 3: none), the cursor row lit and nudged 16; each

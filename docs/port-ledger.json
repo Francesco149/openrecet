@@ -12042,6 +12042,7 @@
    "src": [
     "src/customer_service.c",
     "src/customer_service.h",
+    "src/customer_service_render.c",
     "src/scene1_display_menu.c"
    ],
    "status": "ported"
@@ -16649,6 +16650,7 @@
     "src/chara_equip.c",
     "src/chara_equip.h",
     "src/customer_service.c",
+    "src/customer_service_render.c",
     "src/encyclopedia.c",
     "src/item_use.c",
     "src/scene_pause.c"
@@ -16761,6 +16763,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service_render.c",
     "src/scene_pause.c"
    ],
    "status": "ported"

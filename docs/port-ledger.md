@@ -91,7 +91,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47d622 | FUN_0047d622 | 1952 | ✓ |  | floor_layout.c, floor_layout.h |
 | 0x47ddc2 | FUN_0047ddc2 | 395 | ✓ |  | floor_layout.c, floor_layout.h |
 | 0x47df4d | FUN_0047df4d | 1980 | ✓ |  | floor_layout.c, floor_layout.h, scene1_postload.c (+3) |
-| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, customer_service.c (+3) |
+| 0x48093f | FUN_0048093f | 136 | ✓ |  | chara_equip.c, chara_equip.h, customer_service.c (+4) |
 | 0x48407f | FUN_0048407f | 795 | ✓ |  | dungeon_party.c, dungeon_party.h, scene1_companion_ctrl.h (+5) |
 | 0x4844ef | FUN_004844ef | 310 | ✓ |  | chara_equip.c, chara_equip.h, dungeon_party.c (+6) |
 | 0x4850ec | FUN_004850ec | 18 | ✓ | stub | anchor_trace.c, scene1_player_ctrl.c, scene1_player_ctrl.h (+2) |
@@ -485,7 +485,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x468d13 | FUN_00468d13 | 15 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
 | 0x468d22 | FUN_00468d22 | 73 | ✓ |  | customer_service.c, dungeon_results.c, encyclopedia.c (+7) |
 | 0x468d6b | FUN_00468d6b | 113 | ✓ |  | customer_service.c |
-| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, customer_service.h, scene1_display_menu.c |
+| 0x468ddc | FUN_00468ddc | 303 | ✓ |  | customer_service.c, customer_service.h, customer_service_render.c (+1) |
 | 0x468f6d | FUN_00468f6d | 99 | ✓ |  | dungeon_results.c, scene1_display_menu.c, scene1_display_menu.h (+1) |
 | 0x468fd0 | FUN_00468fd0 | 328 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c (+1) |
 | 0x469118 | FUN_00469118 | 61 | ✓ |  | guild_fusion.c, guild_fusion.h, scene_guild.c |
@@ -622,7 +622,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ |  | chara_skills.h |
 | 0x4812e4 | FUN_004812e4 | 552 | ✓ |  | main.c, save_picker.h, scene_pause.c (+2) |
 | 0x48150c | FUN_0048150c | 102 | ✓ |  | scene_pause.c, settings_panel.h |
-| 0x481573 | FUN_00481573 | 746 | ✓ |  | scene_pause.c |
+| 0x481573 | FUN_00481573 | 746 | ✓ |  | customer_service_render.c, scene_pause.c |
 | 0x48185d | FUN_0048185d | 270 | ✓ |  | scene_pause.c |
 | 0x48196b | FUN_0048196b | 415 | ✓ |  | scene1_display_menu.h, scene_pause.c |
 | 0x481ec3 | FUN_00481ec3 | 368 | ✓ |  | save_picker.c, scene1_merchant_hud.c, scene1_merchant_hud.h (+2) |

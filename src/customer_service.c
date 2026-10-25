@@ -2921,13 +2921,13 @@ out:
  * of h's family, else the best sum gain.  Shown (the hint set) only for Louie,
  * a hired / met adventurer (+0x2bc4a / +0x2bd16 / +0x2deae outside mode 2), when
  * the gain · 1.5 tops the slot's current stat sum. */
-void customer_service_want_panel_tick(void)
+int32_t customer_service_want_panel_tick(void)
 {
     const int kyaku = g_scene_buy_current_page;   /* DAT_0730b56c */
     uint8_t *bank = (uint8_t *)save_work_dwords_at(save_work_active_slot());
-    if (kyaku < 2 || kyaku > 9 || bank == NULL) return;
+    if (kyaku < 2 || kyaku > 9 || bank == NULL) return -1;
     const int32_t h = (s_price_bc8 != -1) ? s_price_bc8 : s_b5a4;
-    if (s_b5a0 == 0 && s_b5d0 != 2) return;
+    if (s_b5a0 == 0 && s_b5d0 != 2) return -1;
     int32_t *req = (int32_t *)(bank + 0x2ceb4 + 0x6c * (kyaku - 2));
     int32_t best = -1, best_gain = 0, found = 0;
     for (int k = 0; k < 5; k++) {
@@ -2983,14 +2983,15 @@ void customer_service_want_panel_tick(void)
     s_equip_hint_slot = -1;
     const int shown = bank[kyaku + 0x2bc4a] != 0 || bank[kyaku + 0x2bd16] != 0 || kyaku == 2 ||
                       (bank[kyaku + 0x2deae] != 0 && ((const int32_t *)bank)[0x2dd64 / 4] != 2);
-    if (!shown || best < 0) return;
+    if (!shown || best < 0) return -1;
     int32_t c[4] = { 0 };
     chara_equip_item_stats((uint32_t)req[best], c);
     const float gf = spill32((long double)best_gain);
     const float cf = spill32((long double)(c[0] + c[1] + c[2] + c[3]));
-    if (!((long double)gf * 1.5f > cf)) return;
+    if (!((long double)gf * 1.5f > cf)) return -1;
     s_equip_hint_slot = best;
     if (req[best] != -1) req[best] |= 0x20;
+    return best;
 }
 
 /* Popup-queue accessors for the renderer chip + host tests. */
