@@ -13,7 +13,8 @@
  *            render_dispatch / engine FUN_004547ab) — restore the backbuffer.
  *   c99c==3  build the 2-pass blur composite ONCE: downsample RT#56 into the
  *            left 640x256 of RT#57, then accumulate 12 progressively zoomed-in
- *            copies back into RT#56 (the radial smear).  Then draw [0].
+ *            copies back into RT#56 (the radial smear; DAT_06a4997c picks the
+ *            clear colour and the zoom step).  Then draw [0].
  *   c99c>3   draw [0]: sample the finished RT#56 full-screen with a fade
  *            alpha ramp (min(c99c*0x16,0xff), attenuated past 0xc on close).
  *
@@ -63,10 +64,11 @@ static void fx_build_pause_blur(IDirect3DDevice8 *d)
     IDirect3DDevice8_GetRenderState(d, D3DRS_ZENABLE, &saved_zenable);
     IDirect3DDevice8_SetRenderState(d, D3DRS_ZENABLE, D3DZB_FALSE);
 
-    /* action 0 (ESC) clears RT#56 to 0xff173c8c; the status/encyclopedia pause
-     * variants (action 1/2) use 0xff3c3c3c and are PORT-DEBT — only the ESC
-     * path is exercised, but the select is matched. */
+    /* DAT_06a4997c: action 0 (ESC) clears RT#56 to 0xff173c8c and steps the
+     * inset 4 px a tap; actions 1 / 2 (the day end, the encyclopedia) clear to
+     * 0xff3c3c3c and step 2 px — a shallower smear (dungeon2-run3 f64665). */
     const uint32_t rt56_clear = (g_pause_action == 0) ? 0xff173c8cu : 0xff3c3c3cu;
+    const int inset_step = (g_pause_action == 0) ? 4 : 2;
 
     IDirect3DSurface8 *save_rt, *save_depth;
 
@@ -100,9 +102,9 @@ static void fx_build_pause_blur(IDirect3DDevice8 *d)
     IDirect3DDevice8_Clear(d, 0, NULL, D3DCLEAR_TARGET, rt56_clear, 1.0f, 0);
     IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)blur_tex);
     for (int i = 0; i < 12; i++) {
-        /* action 0: the inset steps 4px/tap (engine local_10 = 0,4,..,44);
-         * s = i*4 + 4.  Center fixed, src shrinks inward (radial zoom). */
-        const float s = (float)(i * 4) + 4.0f;
+        /* the inset (engine v18 = 0,4,..,44 for action 0, else v19 = 0,2,..,22)
+         * + 4.  Center fixed, src shrinks inward (radial zoom). */
+        const float s = (float)(i * inset_step) + 4.0f;
         const float src[4] = { s, s * 0.5f, 640.0f - s, 256.0f - s * 0.5f };
         const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
         render_quad_add(dst, src, SCREEN_RT_BLUR_W, SCREEN_RT_BLUR_H, 0x14dcdcdcu);
