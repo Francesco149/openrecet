@@ -65,6 +65,10 @@ static inline long double x87_crt_cos(double x)
     __asm__ volatile("fldcw %0" : : "m"(cw));
     return r;
 }
+/* The engine's usual `float r = sin(a);` on a float a: the CRT call on the
+ * stored float, its result stored to a float (fstp m32). */
+static inline float crt_sinf(float a) { return spill32(x87_crt_sin(spill32(a))); }
+static inline float crt_cosf(float a) { return spill32(x87_crt_cos(spill32(a))); }
 /* MSVC6 CRT atan2 (0x503dd0): fpatan at CW 0x027F, result unrounded in ST0. */
 static inline long double x87_crt_atan2(double y, double x)
 {

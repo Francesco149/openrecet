@@ -310,7 +310,7 @@ static void init_type_group_a(int i, float x, float y, float z, float scale,
     if (type == 0x65) mag *= 0.5f;
 
     float angle = rng_next_unit() * TWO_PI_F;
-    float vx    = sinf(angle) * scale * mag;
+    float vx    = crt_sinf(angle) * scale * mag;
 
     float vy;
     if (type == 0x52) {
@@ -318,7 +318,7 @@ static void init_type_group_a(int i, float x, float y, float z, float scale,
     } else {
         vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
     }
-    float vz = cosf(angle) * scale * mag;
+    float vz = crt_cosf(angle) * scale * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -354,10 +354,10 @@ static void init_type_92(int i, float x, float y, float z, float scale)
     float fVar1 = (u1 + 1.2f) * 0.02f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * fVar1;
+    float vx = crt_sinf(angle) * scale * fVar1;
     float u3 = rng_next_unit();
     float vy = (u3 + 2.5f) * scale * -0.2f;
-    float vz = cosf(angle) * scale * fVar1;
+    float vz = crt_cosf(angle) * scale * fVar1;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -396,9 +396,9 @@ static void init_type_79(int i, int count_index, float x, float y, float z,
     float fVar1 = u1 + 0.2f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * fVar1 * 0.5f;
+    float vx = crt_sinf(angle) * scale * fVar1 * 0.5f;
     float vy = (rng_next_unit() - 0.5f) * scale;
-    float vz = (cosf(angle) * fVar1 - fVar1 * 3.0f) * scale;
+    float vz = (crt_cosf(angle) * fVar1 - fVar1 * 3.0f) * scale;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -435,9 +435,9 @@ static void init_type_5d(int i, int count_index, float x, float y, float z,
     float mag   = u1 + 1.2f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * mag;
+    float vx = crt_sinf(angle) * scale * mag;
     float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
-    float vz = cosf(angle) * scale * mag;
+    float vz = crt_cosf(angle) * scale * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -492,9 +492,9 @@ static void init_type_53(int i, float x, float y, float z, float scale)
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * scale * mag + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, crt_sinf(angle) * scale * mag + x);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * scale * mag + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, crt_cosf(angle) * scale * mag + z);
 
     set_param1_random_life_age_zero(i);
 }
@@ -523,10 +523,10 @@ static void init_type_4a(int i, int count_index, float x, float y, float z,
     float mag   = u1 + 1.2f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * scale * mag);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, crt_sinf(angle) * scale * mag);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
                (rng_next_unit() - 0.5f) * scale * 3.0f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * scale * mag);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, crt_cosf(angle) * scale * mag);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
@@ -572,9 +572,9 @@ static void init_type_43(int i, float x, float y, float z, float scale)
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, angle);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.0f);
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * fVar1 + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, crt_sinf(angle) * fVar1 + x);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y - scale * 8.0f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * fVar1 + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, crt_cosf(angle) * fVar1 + z);
 
     set_param1_random_life_age_zero(i);
 }
@@ -600,18 +600,18 @@ static void init_type_97(int i, float x, float y, float z, float scale)
     float mag       = (u1 + 0.5f) * 1.5f;
     float u2        = rng_next_unit();
     float elev      = u2 * 1.5707964f;
-    float sin_elev  = sinf(elev);
-    float cos_elev  = cosf(elev);
+    float sin_elev  = crt_sinf(elev);
+    float cos_elev  = crt_cosf(elev);
     float xy_radius = cos_elev * mag;
 
     float azimuth   = rng_next_unit() * TWO_PI_F;
-    float sin_az    = sinf(azimuth);
+    float sin_az    = crt_sinf(azimuth);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sin_az * scale * xy_radius);
     float u4 = rng_next_unit();
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
                (u4 + 1.5f) * scale * sin_elev * mag);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(azimuth) * scale * xy_radius);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, crt_cosf(azimuth) * scale * xy_radius);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
@@ -646,19 +646,19 @@ static void init_type_96(int i, float x, float y, float z, float scale)
     float mag       = (u1 + 0.5f) * 1.5f;
     float u2        = rng_next_unit();
     float elev      = u2 * 1.5707964f;
-    float sin_elev  = sinf(elev);
-    float cos_elev  = cosf(elev);
+    float sin_elev  = crt_sinf(elev);
+    float cos_elev  = crt_cosf(elev);
     float xy_radius = cos_elev * mag;
 
     float azimuth   = rng_next_unit() * TWO_PI_F;
-    float vx        = sinf(azimuth) * scale * xy_radius;
+    float vx        = crt_sinf(azimuth) * scale * xy_radius;
     float u4        = rng_next_unit();
     float vy        = (u4 + 1.0f) * scale * sin_elev * mag;
-    float vz        = cosf(azimuth) * scale * xy_radius;
+    float vz        = crt_cosf(azimuth) * scale * xy_radius;
 
     float camera    = (float)g_scene1_spawn_camera_counter_948 * TWO_PI_F / 8.0f;
-    vx += sinf(camera) * 0.2f;
-    vz += cosf(camera) * 0.2f;
+    vx += crt_sinf(camera) * 0.2f;
+    vz += crt_cosf(camera) * 0.2f;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -695,9 +695,9 @@ static void init_type_40(int i, int count_index, float x, float y, float z,
     float mag   = u1 + 1.2f;
     float angle = ((float)count_index * TWO_PI_F) / 8.0f;
 
-    float vx = sinf(angle) * scale * mag;
+    float vx = crt_sinf(angle) * scale * mag;
     float vy = rng_next_unit() * scale * 1.5f;
-    float vz = cosf(angle) * scale * mag;
+    float vz = crt_cosf(angle) * scale * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -728,10 +728,10 @@ static void init_type_36_74(int i, float x, float y, float z, float scale)
     float mag   = u1 + 0.5f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * scale * mag);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, crt_sinf(angle) * scale * mag);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
                (rng_next_unit() - 0.5f) * scale * 3.0f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * scale * mag);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, crt_cosf(angle) * scale * mag);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y);
@@ -792,8 +792,8 @@ static void init_type_4e(int i, float x, float y, float z, float scale)
     float u1    = rng_next_unit();
     float fVar1 = (u1 + 1.5f) * 3.0f;
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sa * scale * fVar1 * 0.1f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
@@ -837,7 +837,7 @@ static void init_type_34(int i, int count_index, float x, float y, float z,
      * overwritten before any other consumer reads it. */
     float u1 = rng_next_unit();
     float u2 = rng_next_unit();
-    (void)sinf(u2 * TWO_PI_F);  /* dead store to vel.x */
+    (void)crt_sinf(u2 * TWO_PI_F);  /* dead store to vel.x */
     (void)rng_next_unit();      /* u3 — dead store to vel.y */
     /* Engine also calls cosf() here with no arg.  No observable side
      * effect since the result is dead.  Skip. */
@@ -905,9 +905,9 @@ static void init_type_2c(int i, int count_index, float x, float y, float z,
     float fVar1 = 0.2f * (u1 + 1.2f);
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * fVar1;
+    float vx = crt_sinf(angle) * scale * fVar1;
     float vy = (rng_next_unit() - 0.5f) * scale * 0.5f;
-    float vz = cosf(angle) * scale * fVar1;
+    float vz = crt_cosf(angle) * scale * fVar1;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -937,9 +937,9 @@ static void init_type_29(int i)
     float fVar1 = 0.6f * (u1 + 0.2f);
     float angle = rng_next_unit() * TWO_PI_F;
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * fVar1);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, crt_sinf(angle) * fVar1);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, (rng_next_unit() - 0.2f) * 0.8f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * fVar1);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, crt_cosf(angle) * fVar1);
 }
 
 /* ─── per-type init: 0x32 — 2-spawn string at π/2 offset (engine L628-635) ─
@@ -1180,8 +1180,8 @@ static void init_camera_fountain_common(int i, float x, float y, float z,
 {
     float fVar1 = (rng_next_unit() - 0.5f) * 1.8f;
     float yaw   = g_scene1_camera_yaw_alt;
-    float sy    = sinf(yaw);
-    float cy    = cosf(yaw);
+    float sy    = crt_sinf(yaw);
+    float cy    = crt_cosf(yaw);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, (sy * 0.1f + cy) * fVar1 + x);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, rng_next_unit() + y);
@@ -1245,9 +1245,9 @@ static void init_type_6e(int i, float x, float y, float z)
     float u1    = rng_next_unit();
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float bx = sinf(angle) * u1 * 15.0f;
+    float bx = crt_sinf(angle) * u1 * 15.0f;
     float by = 1.0f;
-    float bz = cosf(angle) * u1 * 15.0f;
+    float bz = crt_cosf(angle) * u1 * 15.0f;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_X, bx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, by);
@@ -1278,24 +1278,23 @@ static void init_type_6e(int i, float x, float y, float z)
  * draws kept for sequence parity. */
 static void init_type_1f_100(int i, float x, float y, float z)
 {
-    /* Engine consumes u for the dead first write batch (u-0.5 for fVar1)
-     * — that's the kept value.  Then dead trig + extra RNG draws.  Our
-     * port skips the dead reads since they don't affect later spawns
-     * within the same call (1-particle returns immediately). */
-    float fVar1 = rng_next_unit() - 0.5f;
-    float angle = (float)g_scene1_spawn_scene_counter_dab58 * TWO_PI_F / 8.0f;
+    /* FUN_00447f4f case 31 / 100: r = rand − 0.5 and the angle (counter
+     * dab58)·2π / 8 stored to floats, the CRT sin / cos of it stored, a dead
+     * write batch (its pos.y draws), then pos = (cos·r + x, rand − 0.5 + y,
+     * sin·r + z), vel = (rand − 0.5)·0.03 each */
+    const float r = spill32((long double)rng_next_unit() - 0.5f);
+    const float angle = spill32((long double)spill32((float)g_scene1_spawn_scene_counter_dab58)
+                                * 6.2831855f / 8.0f);
+    (void)rng_next_unit();                               /* the dead pos.y */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+               spill32((long double)spill32(x87_crt_cos(angle)) * r + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)rng_next_unit() - 0.5f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+               spill32((long double)spill32(x87_crt_sin(angle)) * r + z));
 
-    /* Dead-write batch (engine lines 836-843): consume 1 u for pos.y. */
-    float dead_u_for_pos_y = rng_next_unit();   /* used in dead pos.y write */
-    (void)dead_u_for_pos_y;
-    /* Live writes (lines 844-849): */
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, cosf(angle) * fVar1 + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, (rng_next_unit() - 0.5f) + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, sinf(angle) * fVar1 + z);
-
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, (rng_next_unit() - 0.5f) * 0.03f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, (rng_next_unit() - 0.5f) * 0.03f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, (rng_next_unit() - 0.5f) * 0.03f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, spill32(((long double)rng_next_unit() - 0.5f) * 0.029999999f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, spill32(((long double)rng_next_unit() - 0.5f) * 0.029999999f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, spill32(((long double)rng_next_unit() - 0.5f) * 0.029999999f));
 
     *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
 }
@@ -1327,8 +1326,8 @@ static void init_type_22(int i, int count_index)
 {
     float u1    = rng_next_unit();
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
     float r     = u1 + 0.5f;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_X, (sa * 0.1f + ca) * r);
@@ -1359,8 +1358,8 @@ static void init_type_3c(int i, int count_index)
 {
     float fVar1 = 0.2f * (rng_next_unit() + 0.5f);
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_X, (sa * 0.1f + ca) * fVar1);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, rng_next_unit() * 0.2f + 4.0f);
@@ -1390,8 +1389,8 @@ static void init_type_5a(int i, int count_index)
 {
     float fVar1 = 0.2f * (rng_next_unit() + 0.5f);
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_X, (sa * 4.1f + ca) * fVar1);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, rng_next_unit() * 0.2f);
@@ -1423,8 +1422,8 @@ static void init_type_2d(int i, int count_index, float x, float y, float z)
 {
     float u1    = rng_next_unit();
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
     float r     = u1 + 0.5f;
 
     /* pos = preamble (= param) + offset. */
@@ -1481,9 +1480,9 @@ static void init_type_69(int i, int count_index, float x, float y, float z,
     float mag   = 2.0f * (u1 + 0.2f);
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * mag;
+    float vx = crt_sinf(angle) * scale * mag;
     float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
-    float vz = cosf(angle) * scale * mag;
+    float vz = crt_cosf(angle) * scale * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -1517,8 +1516,8 @@ static void init_type_68(int i, float x, float y, float z, float scale)
     float fVar1 = 0.2f * (u1 + 1.2f);
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * fVar1;
-    float vy = cosf(angle) * scale * fVar1;
+    float vx = crt_sinf(angle) * scale * fVar1;
+    float vy = crt_cosf(angle) * scale * fVar1;
     float vz = 2.0f * (rng_next_unit() - 0.5f) * scale * fVar1;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
@@ -1602,9 +1601,9 @@ static void init_type_63(int i, float x, float y, float z, float scale)
     float mag   = u1 + 1.2f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * scale * mag;
+    float vx = crt_sinf(angle) * scale * mag;
     float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
-    float vz = cosf(angle) * scale * mag;
+    float vz = crt_cosf(angle) * scale * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -1825,10 +1824,10 @@ static void init_type_shared_unit_half(int i, float vy_bias)
     float angle = rng_next_unit() * TWO_PI_F;
     float half  = u1 * 0.5f;
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * half);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, crt_sinf(angle) * half);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
                (rng_next_unit() + vy_bias) * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * half);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, crt_cosf(angle) * half);
 
     *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
@@ -1855,9 +1854,9 @@ static void init_type_59(int i, float x, float y, float z)
     float mag   = (u1 + 2.0f) * 0.3f;
     float angle = rng_next_unit() * TWO_PI_F;
 
-    float vx = sinf(angle) * mag;
+    float vx = crt_sinf(angle) * mag;
     float vy = (rng_next_unit() + 0.5f) * 0.2f;
-    float vz = cosf(angle) * mag;
+    float vz = crt_cosf(angle) * mag;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
@@ -1914,11 +1913,11 @@ static void init_type_71(int i, int count_index, float scale)
     float angle = rng_next_unit() * TWO_PI_F;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
-               sinf(angle) * fVar1 * scale * 0.5f);
+               crt_sinf(angle) * fVar1 * scale * 0.5f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
                rng_next_unit() * scale * 1.25f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
-               cosf(angle) * fVar1 * scale * 0.5f);
+               crt_cosf(angle) * fVar1 * scale * 0.5f);
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 0x14;
@@ -2028,8 +2027,8 @@ static void init_type_16(int i, int count_index, float scale)
 
     float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * mag + px);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * mag + pz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, crt_sinf(angle) * mag + px);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, crt_cosf(angle) * mag + pz);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
@@ -2069,7 +2068,7 @@ static void init_type_18(int i, int count_index)
     float angle = rng_next_unit() * TWO_PI_F;
 
     /* sin → u(pos.y) → cos: keep the engine's interleaved RNG order. */
-    float sa    = sinf(angle);
+    float sa    = crt_sinf(angle);
     float px    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sa * mag + px);
 
@@ -2077,7 +2076,7 @@ static void init_type_18(int i, int count_index)
     float py    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, lift + py);
 
-    float ca    = cosf(angle);
+    float ca    = crt_cosf(angle);
     float pz    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, ca * mag + pz);
 
@@ -2085,8 +2084,8 @@ static void init_type_18(int i, int count_index)
      * cos(-yaw) — argless cos resolved by pending-check #7's general
      * proof. */
     float yaw = g_scene1_camera_yaw;
-    float scy = sinf(-yaw);
-    float ccy = cosf(-yaw);
+    float scy = crt_sinf(-yaw);
+    float ccy = crt_cosf(-yaw);
     px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, scy * 5.0f + px);
     pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
@@ -2142,8 +2141,8 @@ static void init_type_58(int i)
 
     float angle = rng_next_unit() * TWO_PI_F;
     float mag   = rng_next_unit() * 30.0f;
-    float sa    = sinf(angle);
-    float ca    = cosf(angle);
+    float sa    = crt_sinf(angle);
+    float ca    = crt_cosf(angle);
 
     float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
@@ -2152,8 +2151,8 @@ static void init_type_58(int i)
 
     /* Camera-yaw bend. */
     float yaw = g_scene1_camera_yaw;
-    px += sinf(-yaw) * 15.0f;
-    pz += cosf(-yaw) * 15.0f;
+    px += crt_sinf(-yaw) * 15.0f;
+    pz += crt_cosf(-yaw) * 15.0f;
 
     /* Anchor-back 200×. */
     px -= vx * 200.0f;
@@ -2220,14 +2219,14 @@ static void init_type_4f(int i, int count_index)
     float angle = rng_next_unit() * TWO_PI_F;
 
     /* Same sin → u(pos.y) → cos interleave as 0x18. */
-    float sa = sinf(angle);
+    float sa = crt_sinf(angle);
     float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
     px += sa * mag_p;
 
     float py = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
     py += rng_next_unit() * 10.0f - 5.0f;
 
-    float ca = cosf(angle);
+    float ca = crt_cosf(angle);
     float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
     pz += ca * mag_p;
 
@@ -2275,8 +2274,8 @@ static void init_type_3f_56(int i, int count_index)
     pz += (rng_next_unit() - 0.5f) * 20.0f;
 
     float yaw = g_scene1_camera_yaw;
-    px += sinf(-yaw) * 15.0f;
-    pz += cosf(-yaw) * 15.0f;
+    px += crt_sinf(-yaw) * 15.0f;
+    pz += crt_cosf(-yaw) * 15.0f;
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pz);
@@ -2369,12 +2368,12 @@ static void init_type_mega_group(int i, int count_index, float x, float y,
 
     float amp   = (rng_next_unit() + 0.2f) * 0.5f;
     float angle = rng_next_unit() * TWO_PI_F;
-    float sa    = sinf(angle);
+    float sa    = crt_sinf(angle);
 
     /* pos is preamble-(param)+offset. */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x + sa * amp);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y + rng_next_unit() * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z + cosf(angle) * amp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z + crt_cosf(angle) * amp);
 
     /* rot.x is the raw RNG draw — engine writes u7 directly (not u7*2π). */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit());
