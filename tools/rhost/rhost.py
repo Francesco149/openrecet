@@ -639,7 +639,8 @@ def run_port_wine(a, pdir_l, args):
     os.makedirs(edir, exist_ok=True)
     shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(edir, "openrecet.exe"))
     shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(edir, "recet.ini"))
-    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+    # concurrent local runs share one wineserver: the port's singleton mutex would refuse the second
+    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", OPENRECET_NO_SINGLETON="1")
     with open(os.path.join(pdir_l, "port.err"), "w") as err:
         r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine",
                             f"{WROOT}\\port\\{batch}\\openrecet.exe", *args],
