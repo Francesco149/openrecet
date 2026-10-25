@@ -6,6 +6,7 @@
 #include "guild_stock.h"
 #include "rng.h"
 #include "save_work.h"
+#include "tables_gousei.h"
 #include "tables_item.h"
 
 #include <string.h>
@@ -17,14 +18,25 @@ static int16_t *stock(void)
 
 /* g_item is shared with later tests: each test works on a copy's slot */
 static item_state_t s_saved;
+static gousei_state_t s_saved_gousei;
 
 static void reset(void)
 {
     s_saved = g_item;
+    s_saved_gousei = g_gousei;
     memset(&g_item, 0, sizeof g_item);
+    memset(&g_gousei, 0, sizeof g_gousei);
     save_work_set_active_slot(0);
-    memset(stock(), 0, GUILD_STOCK_ITEMS * 4);
+    memset(stock(), 0, GUILD_STOCK_INIT_ITEMS * 4);
     rng_seed(1);
+}
+
+/* the bank is shared with later tests too: the init pass writes 1024 slots */
+static void done(void)
+{
+    memset(stock(), 0, GUILD_STOCK_INIT_ITEMS * 4);
+    g_item = s_saved;
+    g_gousei = s_saved_gousei;
 }
 
 int test_guild_stock_init_by_kind(void)
@@ -43,15 +55,20 @@ int test_guild_stock_init_by_kind(void)
     T_ASSERT_EQ_I(s[8], 0);
     T_ASSERT_EQ_I(s[10], 1);
     T_ASSERT_EQ_I(s[12], 100);   /* the rest: kind 0 */
-    /* kinds 1, 2, 3, 5 draw; 4 and 0 do not */
+    /* kinds 1, 2, 3, 5 draw; 4 and 0 do not.  Past the table (no exe here, the
+     * tables zeroed): the DirectMusic pointer's low byte (slot 638) and the
+     * _mbctype entry of 'b' (slot 703, 0x20) draw too */
+    T_ASSERT_EQ_I(s[2 * 638], 1);
+    T_ASSERT_EQ_I(s[2 * 703], 1);
+    T_ASSERT_EQ_I(s[2 * 1023], 100);
     rng_seed(7);
-    for (int i = 0; i < 4; i++) (void)rng_next15();
+    for (int i = 0; i < 6; i++) (void)rng_next15();
     const uint32_t want = g_rng_seed;
     rng_seed(7);
-    memset(stock(), 0, GUILD_STOCK_ITEMS * 4);
+    memset(stock(), 0, GUILD_STOCK_INIT_ITEMS * 4);
     guild_stock_daily(0);
     T_ASSERT_EQ_U(g_rng_seed, want);
-    g_item = s_saved;
+    done();
     return 0;
 }
 
@@ -71,7 +88,7 @@ int test_guild_stock_daily_kind4_and_kind1(void)
     for (int day = 5; day < 1 % 8 + 20; day++) guild_stock_daily(0);
     T_ASSERT_EQ_I(s[2], 1);               /* 1 on day i % 8 + 20 */
     T_ASSERT_EQ_I(s[3], 0);
-    g_item = s_saved;
+    done();
     return 0;
 }
 
@@ -89,6 +106,6 @@ int test_guild_stock_continue_reinit_gate(void)
     guild_stock_daily(1);                 /* re-init */
     T_ASSERT_EQ_I(s[0], 100);
     T_ASSERT_EQ_I(s[6], 0);
-    g_item = s_saved;
+    done();
     return 0;
 }

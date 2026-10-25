@@ -137,14 +137,10 @@ void scene_post_fade_init(void)
     g_scene_substate = 0;
     scene1_beat_set_flag(0);             /* DAT_0438b928 = 0 */
 
-    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2) — NEW GAME only.
-     * It drives the TEXT_ANIM anchors AND the inter-script loading
-     * bracket (the 2nd LOADING/HOUSE_FREEROAM pair the TAS segtraces
-     * wait on). A CONTINUE resumes mid-play, so the prologue must NOT
-     * replay. See src/scene1_intro_dialogue.h. */
-    if (!continue_mode) {
-        scene1_intro_dialogue_arm();
-    }
+    /* The opening prologue (iv1_1 → iv1_2) is not armed here: FUN_0044bd0d's
+     * cascade dispatches it on the first free-roam frame (work +0x2bc58 clear),
+     * so that frame still runs FUN_00442cef (b1c8 0 → 2 at its end; house-idle
+     * f72).  See scene1_tutorial_dispatch_tick. */
 
     /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
      * (FUN_004060ff) + DAT_0734b9a0 clear (FUN_004682d0).  Faithful

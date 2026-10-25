@@ -52,6 +52,11 @@ void scene1_intro_dialogue_tick(uint16_t held);
  * FREEROAM_START latch.  Only meaningful when no dialogue is already active. */
 void scene1_intro_dialogue_start_single(int scene, int sub);
 
+/* The cascade's iv1_2 dispatch (FUN_0044bd0d, work +0x2bc59 clear): the
+ * prologue's second script when the machine waits between scripts, else a
+ * lone iv1_2. */
+void scene1_intro_dialogue_start_iv1_2(void);
+
 /* Anchor sources (feed anchor_world). Report zero/inactive while dormant. */
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
 

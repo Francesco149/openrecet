@@ -57,7 +57,10 @@
  * one frame (rhost house-idle: gate 0 after f1565 + f2883; CONV_POSE_END and
  * LOADING_START @1566, CONV_POSE_END @2884). */
 enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE, D_LOAD_FIRST,
-       D_SCRIPT1_END, D_SCRIPT2_END };
+       D_SCRIPT1_END, D_SCRIPT2_END, D_SCRIPT1_WAIT };
+/* D_SCRIPT1_WAIT = between the two prologue scripts: b1c8 is 0 (not busy), the
+ * frame runs FUN_00442cef and its cascade dispatches iv1_2 (work +0x2bc59 clear)
+ * — rhost house-idle f1566 (the default arm's debug rand). */
 
 /* Tutorial load-bracket length (frames _loading() reports true).  Retail's
  * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
@@ -155,12 +158,24 @@ static void enter_interscript_load(void)
         worker_load_defer_fn(interscript_load_done);
 }
 
+/* --det-loads: the cascade's FUN_0044ba2c → FUN_00452d07 .ivt worker is DEFER'd
+ * to the frame boundary, so the arm frame holds b1c8 2 and the next tick runs
+ * iv1_1 (rhost house-idle: b1c8 0 / 2 / 1 at f71 / f72 / f73, CONV_POSE_START
+ * f73) — the same bracket as start_single's */
+static void first_load_done(void)
+{
+    if (g_state == D_LOAD_FIRST)   /* not if a skip already moved on */
+        g_state = D_SCRIPT1;
+}
+
 void scene1_intro_dialogue_arm(void)
 {
     g_state            = worker_load_deterministic() ? D_LOAD_FIRST : D_SCRIPT1;
     g_load_ctr         = 0;
-    if (g_state == D_LOAD_FIRST)
+    if (g_state == D_LOAD_FIRST) {
         nowloading_set_active(1);   /* FUN_00452d07: DAT_06a49960 = 1 */
+        worker_load_defer_fn(first_load_done);
+    }
     g_rt.active        = 0;     /* lazy-load iv1_1 on the first tick */
     g_rt.complete      = 0;
     g_freeroam_started = 0;     /* fresh prologue → FREEROAM_START not yet reached */
@@ -168,10 +183,8 @@ void scene1_intro_dialogue_arm(void)
      * retail's cascade dispatches iv1_1 then iv1_2 and sets them; this machine
      * plays both (busy throughout), so the cascade must see them done after. */
     uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
-    if (bb != NULL) {
-        bb[0x2bc58] = 1;
-        bb[0x2bc59] = 1;
-    }
+    if (bb != NULL)
+        bb[0x2bc58] = 1;   /* iv1_2's flag (0x2bc59) is the cascade's, at the dispatch */
 }
 
 void scene1_intro_dialogue_reset(void)
@@ -217,9 +230,9 @@ void scene1_intro_dialogue_tick(uint16_t held)
 {
     switch (g_state) {
     case D_LOAD_FIRST:
-        /* --det-loads only: the first prologue .ivt load bracket (1 frame). */
+        /* --det-loads only: the first prologue .ivt load bracket, ended at the
+         * frame boundary by first_load_done */
         (void)held;
-        if (++g_load_ctr >= 1) { g_state = D_SCRIPT1; g_load_ctr = 0; }
         break;
 
     case D_SCRIPT1:
@@ -239,7 +252,11 @@ void scene1_intro_dialogue_tick(uint16_t held)
 
     case D_SCRIPT1_END:
         (void)held;
-        enter_interscript_load();   /* raise the inter-script loading bracket */
+        g_state = D_SCRIPT1_WAIT;   /* gate 0: the cascade dispatches iv1_2 this frame */
+        break;
+
+    case D_SCRIPT1_WAIT:
+        (void)held;
         break;
 
     case D_LOAD:
@@ -402,8 +419,9 @@ void scene1_intro_dialogue_skip_to_end(void)
         break;
     case D_SCRIPT1_END:
     case D_SCRIPT2_END:
+    case D_SCRIPT1_WAIT:
         /* Already ending (not skippable: _active() is false) — the settle frame
-         * finishes on the next tick. */
+         * finishes on the next tick / the cascade dispatches iv1_2. */
         break;
     case D_SCRIPT2:
         /* End iv1_2 → settle frame → free-roam (natural-end transition). */
@@ -520,7 +538,17 @@ int scene1_intro_dialogue_busy(void)
      * tutorial dispatcher won't fire the next dialogue into the seam and clobber
      * the running one.  False only when dormant (D_IDLE) or the prologue is done
      * (D_DONE) — exactly the free-roam frames a tutorial may be activated. */
-    return (g_state != D_IDLE && g_state != D_DONE) ? 1 : 0;
+    return (g_state != D_IDLE && g_state != D_DONE && g_state != D_SCRIPT1_WAIT) ? 1 : 0;
+}
+
+void scene1_intro_dialogue_start_iv1_2(void)
+{
+    /* the cascade's iv1_2 branch: the prologue machine's second script (its
+     * load bracket, then D_SCRIPT2), or a lone iv1_2 when no prologue waits */
+    if (g_state == D_SCRIPT1_WAIT)
+        enter_interscript_load();
+    else
+        scene1_intro_dialogue_start_single(1, 2);
 }
 
 int scene1_intro_dialogue_gate(void)
@@ -574,6 +602,7 @@ int scene1_intro_dialogue_posing(void)
      * not at script-completion), so without it the pose would blip a frame early.
      * The prologue's D_SCRIPT1_END / D_SCRIPT2_END settle frames do the same. */
     if (g_state == D_TUT_LOAD || g_state == D_TUT || g_state == D_TUT_DONE ||
+        g_state == D_LOAD_FIRST ||   /* the prologue's dispatch frame: the cascade's FUN_0044ba2c, like D_TUT_LOAD */
         g_state == D_SCRIPT1_END || g_state == D_SCRIPT2_END)
         return 1;
     return scene1_intro_dialogue_active();

@@ -5264,6 +5264,28 @@ lookup FUN_0047cbcb, control bytes included; only the draw FUN_0047ca05 skips < 
 13's bitmap is not blank, so a news body's trailing '\r' (news.txt CRLF) measures ~7.5 px:
 the town ticker's gap between headlines is 32 + that. Seen: dungeon2-run3 f40000.
 
+## 163. The guild-stock init runs 424 records past the item table (FUN_00490e56)
+FUN_00490e56's init pass (a new game; a Continue whose stock needs re-init) walks its kind
+pointer from DAT_095d3810 to 0x9686810 — 1024 strides of 0x2cc, the item table holds 600 —
+and its count pointer along: it writes {count, timer} to work +0x295f8 .. +0x2a5f4 and draws
+rand() for every "kind" it reads past the table. Those bytes are the item category tags /
+names (DAT_0963c5f8 / 0963e5f8), the fusion table (DAT_09640650), a DirectMusic segment
+pointer (DAT_09643038[16]), the CRT's _mbctype, then the exe's own .data1 and .rsrc. A
+fresh new game: 874 draws at f71, 309 of them from the overrun (rhost house-idle).
+The pointer's low byte is heap-dependent: 8-aligned and non-zero on every sampled boot
+(0x30 / 0x50 / 0x70 / 0x78 / 0x88 / 0xa8 → one draw, count 1), but a boot that lands it on
+0x00 draws one fewer rand and stores 100 — one such rhost boot drew 873 and the whole new
+game diverged from there. Retail's own new-game RNG is therefore not run-to-run
+deterministic (~1 boot in 32). The port reads the .data1 / .rsrc bytes from the user's exe
+at run time (src/retail_image.c) and takes the pointer's common case.
+
+## 164. The enemylist table is .data with a build-time image (DAT_0053f8e8)
+The 10 × 60 × 0x2f0 enemylist sections sit in .data with initial contents; the boot parse
+scrubs only floor_lo and the enemy ids to -1, so retail keeps the image's floor_hi /
+variants / counts / drops in every slot and section it doesn't write (house-idle f100: 276
+dwords). Every reader stops at a section with floor_lo -1 and a slot with enemy_id -1, so
+none of them is read; `rhost.py portblock` skips them.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

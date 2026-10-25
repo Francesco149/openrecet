@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 76,
+  "port_debt": 77,
   "verified": 81,
   "stubbed": 10,
   "ported": 733,
@@ -6779,7 +6779,9 @@
     "src/actor_ai.h",
     "src/customer_service.c",
     "src/dungeon_flow.h",
+    "src/scene.c",
     "src/scene1_day_close.h",
+    "src/scene1_intro_dialogue.c",
     "src/scene1_particles_tick.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
@@ -7464,6 +7466,7 @@
    "src": [
     "src/dungeon_flow.h",
     "src/encyclopedia.c",
+    "src/scene.c",
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
     "src/scene1_player_ctrl.c",
@@ -19453,6 +19456,7 @@
    "src": [
     "src/guild_stock.c",
     "src/guild_stock.h",
+    "src/retail_image.h",
     "src/scene.c",
     "src/scene1_tutorial_dispatch.c"
    ],

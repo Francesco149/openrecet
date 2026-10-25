@@ -48,7 +48,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43ae20 | FUN_0043ae20 | 25750 | ✓ |  | scene1_combat_sm.h, scene1_player_ctrl.h, scene1_preload.c (+5) |
 | 0x4427d3 | FUN_004427d3 | 30 | ✓ | stub | actor_ai.c, scene1_particles_tick.h, scene1_sim.c (+4) |
 | 0x44284b | FUN_0044284b | 1083 | ✓ |  | scene1_records_c_tick.c, scene1_records_c_tick.h, scene1_sim.c (+2) |
-| 0x442cef | FUN_00442cef | 2490 | ✓ |  | actor_ai.h, customer_service.c, dungeon_flow.h (+8) |
+| 0x442cef | FUN_00442cef | 2490 | ✓ |  | actor_ai.h, customer_service.c, dungeon_flow.h (+10) |
 | 0x451874 | FUN_00451874 | 47 | ✓ |  | actor_ai.c, audio.h, audio_mci.c (+19) |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ |  | main.c, scene1_fps.c, scene1_fps.h |
 | 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+16) |
@@ -330,7 +330,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44bce7 | FUN_0044bce7 | 28 | ✓ |  | scene_adv_guild.c, scene_worldmap.c |
 | 0x44bd03 | FUN_0044bd03 | 8 | ✓ |  | scene1_postload.c |
 | 0x44bd0b | FUN_0044bd0b | 1 | ✓ |  | scene1_player_ctrl.c |
-| 0x44bd0d | FUN_0044bd0d | 2723 |  |  | dungeon_flow.h, encyclopedia.c, scene1_intro_dialogue.c (+6) |
+| 0x44bd0d | FUN_0044bd0d | 2723 |  |  | dungeon_flow.h, encyclopedia.c, scene.c (+7) |
 | 0x44c7bb | FUN_0044c7bb | 8 | ✓ |  | scene_adv_guild.c |
 | 0x44c7c3 | FUN_0044c7c3 | 204 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h |
 | 0x44c88f | FUN_0044c88f | 299 | ✓ |  | scene1_postload.c, stage_palette.h |
@@ -714,7 +714,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x490e16 | FUN_00490e16 | 14 | ✓ |  | scene.h, scene_guild.c, scene_guild.h (+1) |
 | 0x490e24 | FUN_00490e24 | 17 | ✓ |  | scene_guild.c, scene_guild.h, sim.c |
 | 0x490e35 | FUN_00490e35 | 15 | ✓ |  | main.c, scene_guild.c, scene_guild.h |
-| 0x490e56 | FUN_00490e56 | 494 | ✓ |  | guild_stock.c, guild_stock.h, scene.c (+1) |
+| 0x490e56 | FUN_00490e56 | 494 | ✓ |  | guild_stock.c, guild_stock.h, retail_image.h (+2) |
 | 0x491044 | FUN_00491044 | 81 | ✓ |  | tables.c, tables_item.c, tables_item.h |
 | 0x491095 | FUN_00491095 | 385 | ✓ |  | tables_item.c, tables_item.h |
 | 0x491216 | FUN_00491216 | 85 | ✓ |  | tables_item.c, tables_item.h |

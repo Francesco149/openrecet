@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **62**
-- distinct retiring engine functions: **47**
+- total open debts: **63**
+- distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 43 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 5 | reduced control flow / state machine vs retail |
+| simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -73,6 +73,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048d5d6 | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0048f87c | 1 |
+| FUN_00490e56 | 1 |
 | FUN_0049a59e | 1 |
 | FUN_0049da9e | 1 |
 | FUN_004cdd9f | 1 |
@@ -100,7 +101,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:353 | the camera shake reset, DAT_073de3a0 = 45 |
-| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:400 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044f078 | src/dungeon_party.c:652 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
@@ -130,13 +131,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (5)
+## simplified (6)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:391 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:408 | the engine teardown also restores the |
+| FUN_00490e56 | src/guild_stock.c:40 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |
 

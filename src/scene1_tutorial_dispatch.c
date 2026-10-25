@@ -180,15 +180,13 @@ void scene1_tutorial_dispatch_tick(void)
         return;
 
     if (bb[TUT_IV1_1_DONE_OFF] == 0) {
-        /* iv1_1, the opening: the port's prologue machine plays it
-         * (scene1_intro_dialogue_arm) and sets this flag. */
-        if (tut_idle()) {
-            scene1_intro_dialogue_start_single(1, 1);
-            bb[TUT_IV1_1_DONE_OFF] = 1;
-        }
+        /* iv1_1, the opening: the port's prologue machine plays iv1_1 → iv1_2
+         * and sets both flags (scene1_intro_dialogue_arm) */
+        if (tut_idle())
+            scene1_intro_dialogue_arm();
     } else if (bb[TUT_IV1_2_DONE_OFF] == 0) {
         if (tut_idle()) {
-            scene1_intro_dialogue_start_single(1, 2);
+            scene1_intro_dialogue_start_iv1_2();
             bb[TUT_IV1_2_DONE_OFF] = 1;
         }
     } else if (bb[TUT_IV12_1_TRIG_OFF] == 1 && tut_idle()) {

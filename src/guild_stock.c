@@ -8,13 +8,60 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "retail_image.h" /* the exe's .data1 / .rsrc bytes the init pass overruns into */
 #include "rng.h"          /* thunk_FUN_005041f6 */
 #include "save_work.h"    /* DAT_044e3798 + DAT_0438b1e0 · 0x2dfc8 */
+#include "tables_gousei.h" /* DAT_09640650 */
 #include "tables_item.h"  /* DAT_095d37d0: stock_info[0] = DAT_095d3810 */
 
 #define W_EVENT_2DDE0 (0x2dde0 / 4)   /* work +0x2dde0, zeroed by mode != 1 */
 
 static int8_t kind_of(int i) { return (int8_t)g_item.records[i].stock_info[0]; }
+
+/* the CRT's _mbctype entry for byte c under code page 932 (_SBUP 0x10, _SBLOW
+ * 0x20, lead 0x04, trail 0x08; the kana / punctuation bits are left out — no
+ * overrun index lands on them) */
+static uint8_t mbctype_932(int c)
+{
+    uint8_t f = 0;
+    if (c >= 'A' && c <= 'Z') f |= 0x10;
+    if (c >= 'a' && c <= 'z') f |= 0x20;
+    if ((c >= 0x81 && c <= 0x9f) || (c >= 0xe0 && c <= 0xfc)) f |= 0x04;
+    if ((c >= 0x40 && c <= 0x7e) || (c >= 0x80 && c <= 0xfc)) f |= 0x08;
+    return f;
+}
+
+/* the "kind" byte of record i >= 600: whatever retail holds at DAT_095d3810 +
+ * 0x2cc·i (asm 0x490ff9 reads it) — the item category tags / names
+ * (DAT_0963c5f8 / 0963e5f8), the fusion table (DAT_09640650), a DirectMusic
+ * segment pointer's low byte (DAT_09643038[16]: 8-aligned, non-zero — measured
+ * 0x30; retail draws one less rand on the rare boot where it is 0), the CRT's
+ * _mbctype (DAT_0964e5e1), then the exe's own .data1 and .rsrc bytes.
+ * PORT-DEBT(simplified, FUN_00490e56): the other runtime globals it crosses
+ * (0x9642dac..0x964d...) are taken at their fresh-boot value 0. */
+static int8_t kind_past(int i)
+{
+    const uint32_t va = 0x95d3810u + 0x2ccu * (uint32_t)i;
+    uint8_t b = 0;
+    if (va >= 0x963c5f8u && va < 0x963c5f8u + 0x2000u) {
+        const uint32_t o = va - 0x963c5f8u;
+        if (o / ITEM_CATEGORY_NAME_LEN < ITEM_CATEGORY_COUNT)
+            b = (uint8_t)g_item.categories[o / ITEM_CATEGORY_NAME_LEN].tag[o % ITEM_CATEGORY_NAME_LEN];
+    } else if (va >= 0x963e5f8u && va < 0x963e5f8u + 0x2000u) {
+        const uint32_t o = va - 0x963e5f8u;
+        if (o / ITEM_CATEGORY_NAME_LEN < ITEM_CATEGORY_COUNT)
+            b = (uint8_t)g_item.categories[o / ITEM_CATEGORY_NAME_LEN].singular[o % ITEM_CATEGORY_NAME_LEN];
+    } else if (va >= 0x9640650u && va < 0x9640650u + (uint32_t)sizeof g_gousei.records) {
+        b = ((const uint8_t *)g_gousei.records)[va - 0x9640650u];
+    } else if (va == 0x9643078u) {
+        b = 0x30;
+    } else if (va >= 0x964e5e2u && va < 0x964e5e2u + 256u) {
+        b = mbctype_932((int)(va - 0x964e5e2u));
+    } else if (va >= 0x964f000u) {
+        (void)retail_image_byte(va, &b);
+    }
+    return (int8_t)b;
+}
 
 void guild_stock_daily(int mode)
 {
@@ -30,8 +77,8 @@ void guild_stock_daily(int mode)
     }
     if (st[0] == 0 || reinit) {
         st[0] = 1;
-        for (int i = 0; i < GUILD_STOCK_ITEMS; i++) {
-            const int8_t k = kind_of(i);
+        for (int i = 0; i < GUILD_STOCK_INIT_ITEMS; i++) {
+            const int8_t k = i < GUILD_STOCK_ITEMS ? kind_of(i) : kind_past(i);
             if (k == 0) {
                 st[2 * i] = 100;
             } else if (k == 1) {

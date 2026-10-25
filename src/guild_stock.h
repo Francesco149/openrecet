@@ -12,7 +12,9 @@
  *   FUN_0049a59e): clears work +0x2dde0, then the init pass when slot 0's count
  *   is 0, else the daily pass.
  * init: kind 0 → 100; 1 → rand % 3 + 3; 2 → rand, 0; 4 → 0 (no draw);
- *   other → rand, 1.
+ *   other → rand, 1 — over 1024 slots: the pass runs 424 records past the
+ *   item table, reading kinds from the memory beyond it and writing counts
+ *   up to work +0x2a5f4 (engine quirk §163).
  * daily: kind 0 → 100; 1 → +1 every 5 days, up to 10; 2 → rand % 3, and 1
  *   after i % 8 + 15 days; 4 → max(rand % 3 - 1, 0), 1 after i % 8 + 20 days;
  *   5 / 6 / other → while 0, 1 after 1 / 2 / 3 days.
@@ -22,6 +24,9 @@
 
 #define GUILD_STOCK_ITEMS 600
 #define GUILD_STOCK_OFF   0x295f8   /* work bank: {i16 count, i16 timer} × 600 */
+/* the init pass's bound (cmp edi, 0x9686810 at 0x491037): 1024 strides of
+ * 0x2cc from DAT_095d3810 — 424 past the item table, so it writes up to +0x2a5f4 */
+#define GUILD_STOCK_INIT_ITEMS 1024
 
 void guild_stock_daily(int mode);
 

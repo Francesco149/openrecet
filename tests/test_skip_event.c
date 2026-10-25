@@ -189,14 +189,17 @@ int test_skip_to_end_forces_dormant(void)
      * confirmed: skipping iv1_1 advances to iv1_2, the 2nd dialogue over the
      * free-roam map; only skipping iv1_2 reaches free control). A skip takes the
      * natural end's path: one settle frame (pose held, retail's gate-clear lag),
-     * then iv1_1 → the inter-script load bracket, iv1_2 → free-roam. */
+     * then iv1_1 → a gate-0 frame whose cascade dispatches iv1_2 (the inter-script
+     * load bracket), iv1_2 → free-roam. */
     scene1_intro_dialogue_arm();          /* → D_SCRIPT1 */
     scene1_intro_dialogue_skip_to_end();  /* → D_SCRIPT1_END */
     T_ASSERT_EQ_I(scene1_intro_dialogue_active(), 0);
     T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 1);    /* settle frame */
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
-    scene1_intro_dialogue_tick(0);        /* → D_LOAD */
+    scene1_intro_dialogue_tick(0);        /* → D_SCRIPT1_WAIT: b1c8 0 */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 0);
     T_ASSERT_EQ_I(scene1_intro_dialogue_posing(), 0);
+    scene1_intro_dialogue_start_iv1_2();  /* the cascade → D_LOAD */
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);   /* → iv1_2, not free-roam */
 
     /* A second skip (during the load) jumps straight to iv1_2 (D_SCRIPT2). The
@@ -225,10 +228,13 @@ int test_skip_det_loads_interscript_ends_at_boundary(void)
      * next frame boundary — not on a frame counter (rhost house-idle:
      * LOADING_START @1566, LOADING_END @1567). */
     worker_load_set_deterministic(1);
-    scene1_intro_dialogue_arm();          /* → D_LOAD_FIRST */
-    scene1_intro_dialogue_tick(0);        /* → D_SCRIPT1 */
+    scene1_intro_dialogue_arm();          /* → D_LOAD_FIRST, completion queued */
+    scene1_intro_dialogue_tick(0);        /* no counter under det-loads */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    worker_load_run_deferred();           /* frame boundary → D_SCRIPT1 */
     scene1_intro_dialogue_skip_to_end();  /* → D_SCRIPT1_END */
-    scene1_intro_dialogue_tick(0);        /* → D_LOAD, completion queued */
+    scene1_intro_dialogue_tick(0);        /* → D_SCRIPT1_WAIT */
+    scene1_intro_dialogue_start_iv1_2();  /* the cascade → D_LOAD, completion queued */
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
     scene1_intro_dialogue_tick(0);        /* no counter under det-loads */
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
