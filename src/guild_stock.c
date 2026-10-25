@@ -34,11 +34,15 @@ static uint8_t mbctype_932(int c)
 /* the "kind" byte of record i >= 600: whatever retail holds at DAT_095d3810 +
  * 0x2cc·i (asm 0x490ff9 reads it) — the item category tags / names
  * (DAT_0963c5f8 / 0963e5f8), the fusion table (DAT_09640650), a DirectMusic
- * segment pointer's low byte (DAT_09643038[16]: 8-aligned, non-zero — measured
- * 0x30; retail draws one less rand on the rare boot where it is 0), the CRT's
+ * segment pointer's low byte (DAT_09643038[16]: 8-aligned, 0x30 unless rhost
+ * passes the compared run's; 0 — one rand fewer — on the rare boot where the
+ * heap lands it so, or when DirectMusic fails, as under wine), the CRT's
  * _mbctype (DAT_0964e5e1), then the exe's own .data1 and .rsrc bytes.
  * PORT-DEBT(simplified, FUN_00490e56): the other runtime globals it crosses
  * (0x9642dac..0x964d...) are taken at their fresh-boot value 0. */
+static int s_dmusic_ptr_lo = 0x30;
+void guild_stock_set_dmusic_ptr_lo(int lo) { s_dmusic_ptr_lo = lo & 0xff; }
+
 static int8_t kind_past(int i)
 {
     const uint32_t va = 0x95d3810u + 0x2ccu * (uint32_t)i;
@@ -54,7 +58,7 @@ static int8_t kind_past(int i)
     } else if (va >= 0x9640650u && va < 0x9640650u + (uint32_t)sizeof g_gousei.records) {
         b = ((const uint8_t *)g_gousei.records)[va - 0x9640650u];
     } else if (va == 0x9643078u) {
-        b = 0x30;
+        b = (uint8_t)s_dmusic_ptr_lo;
     } else if (va >= 0x964e5e2u && va < 0x964e5e2u + 256u) {
         b = mbctype_932((int)(va - 0x964e5e2u));
     } else if (va >= 0x964f000u) {

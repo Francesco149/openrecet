@@ -24,11 +24,12 @@ python3 tools/rhost/rhost.py portcensus X                  # per table-A / B typ
 python3 tools/rhost/rhost.py portframes X --at F             # every loaded model's frame tree, retail heap vs port --model-dump
 python3 tools/trace_studio_v3/orv3_draws.py CAP 0 --worlds   # every draw's WORLD (indexed too) — line a capture up against the port's d3d.jsonl
 python3 tools/trace_studio_v3/up_diff.py PORT_D3D F CAP      # the UP draws (sprites, glyphs, 2D) value for value: port d3d.jsonl (portshots --port-d3d) vs retail (run --d3d --cap F-1:1)
+python3 tools/rhost/rhost.py gates --target wine           # the whole pipeline on this host (retail AND port under wine + Xvfb; no Windows box)
 python3 tools/rhost/rhost.py prune --hours 12             # drop Windows run dirs older than 12 h (record runs kept; every batch does this once, RHOST_PRUNE_HOURS=0 disables)
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first differing tick draw by draw
 python3 tools/rhost/rhost.py portstate X --va 438bef4,438bf24 --changes   # every frame a VA changes, both sides
-python3 tools/rhost/rhost.py portblock X --at 29806          # every dword of the layout blocks + work bank
+python3 tools/rhost/rhost.py portblock X --at 29806          # every dword of the layout blocks + work bank (--at F,F,.. several in one run)
 python3 tools/rhost/rhost.py run X --extra "--watch-write 69324d8 --ww-frames 40000:50000"   # name every writer of a dword
 ```
 `record --save` takes a `_saves` sha (a unique prefix will do), a path, or a scenario name
@@ -131,6 +132,6 @@ Add a port function = one wrapper + one table row.
 
 ## Not yet
 
-wine/Linux target (works for the prototype; driver support TODO), podman container,
+podman container,
 port-side determinism knobs (same timeline as rhost ⇒ port↔retail by frame number),
 heap objects in RET-hook snapshots, D3D/file effect recording during shadow runs.

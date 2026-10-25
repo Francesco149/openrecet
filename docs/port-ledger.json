@@ -19457,6 +19457,7 @@
    "src": [
     "src/guild_stock.c",
     "src/guild_stock.h",
+    "src/main.c",
     "src/retail_image.h",
     "src/scene.c",
     "src/scene1_tutorial_dispatch.c"

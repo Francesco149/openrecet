@@ -26,6 +26,7 @@ Target: Windows native via `ssh win` + the interactive-session runner (see READM
 Results: /mnt/ephemeral/openrecet/rhost-runs/<batch>/<run>/ (rhost.log + requested files).
 """
 import argparse
+import glob
 import datetime
 import gzip
 import json
@@ -368,8 +369,15 @@ def prune_win_runs(hours=None):
     return out.strip()
 
 
+ENV_VA = 0x9643078   # DAT_09643038[16], a DirectMusic segment pointer (engine quirk §163)
+
+
 def run_batch(a, runs, tag, fetch=("rhost.log",)):
     global _pruned
+    if tag.endswith("-retail") and f"{ENV_VA:x}" not in (a.extra or ""):
+        # a port comparison: log the run's heap-dependent dword the port must reproduce
+        # (in rhost.log's `frame N` lines; run_port reads it)
+        a.extra = ((a.extra or "") + f" --watch {ENV_VA:x}").strip()
     if getattr(a, "target", "win") == "wine":
         return run_batch_wine(a, runs, tag)
     if not _pruned and PRUNE_HOURS > 0:   # once per command: keep C: from filling up
@@ -556,6 +564,11 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
     if not os.environ.get("PORT_AUDIO"):
         args.insert(args.index("--turbo") + 1, "--silent-audio")
     args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
+    log = os.path.join(bdir, name, "rhost.log")
+    m = re.search(rf"^frame (\d{{3,}}) .* {ENV_VA:x}=(-?\d+)", open(log, errors="replace").read(), re.M) \
+        if os.path.exists(log) else None
+    if m:   # the segment pointer's low byte in this retail run (loaded at boot; read at f100+)
+        args = ["--retail-dmusic-ptr", f"{int(m.group(2)) & 0xff:02x}"] + args
     args = [x.replace("{pw}", pw) for x in args]
     ps = ["$ErrorActionPreference = 'Continue'",
           # the port reads game data from its cwd and writes call traces there: give it a cwd of links
@@ -568,15 +581,10 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
           "\"port exit=$($p.ExitCode)\"",
           f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
     open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
-    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; exit 0")
-    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
-    # the port reads recet.ini next to its exe: give it retail's (rhost's canonical) one — without it
-    # the port ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame
-    scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/port/recet.ini")
-    scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
-    print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
-    for f in ("anchors.jsonl", "port.err", *fetch):
-        scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f))
+    if getattr(a, "target", "win") == "wine":
+        run_port_wine(a, pdir_l, args)
+    else:
+        run_port_win(batch, pdir_l, pw, fetch)
     # the port's stderr: surface its failure lines (a failed load / thread shows up here, not in the state)
     err = os.path.join(pdir_l, "port.err")
     bad = [l.rstrip() for l in open(err, errors="replace")
@@ -586,6 +594,41 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
     if len(bad) > 8:
         print(f"port stderr: … {len(bad) - 8} more failure lines in {err}")
     return pdir_l
+
+
+def run_port_wine(a, pdir_l, args):
+    """the port under wine + Xvfb on this host: the batch dir already sits under the wine root
+    (C:\\orc-rhost → WINE_ROOT), so the same Windows paths resolve; its cwd is a dir of links
+    to the game data, like portcwd on Windows"""
+    cwd = os.path.join(WINE_ROOT, "portcwd")
+    if not os.path.isdir(os.path.join(cwd, "bin")):
+        os.makedirs(cwd, exist_ok=True)
+        for n in os.listdir(os.path.join(WINE_ROOT, "game")):
+            if not os.path.lexists(os.path.join(cwd, n)):
+                os.symlink(os.path.join(WINE_ROOT, "game", n), os.path.join(cwd, n))
+    os.makedirs(os.path.join(WINE_ROOT, "port"), exist_ok=True)
+    shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(WINE_ROOT, "port", "openrecet.exe"))
+    shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(WINE_ROOT, "port", "recet.ini"))
+    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+    with open(os.path.join(pdir_l, "port.err"), "w") as err:
+        r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine",
+                            f"{WROOT}\\port\\openrecet.exe", *args],
+                           cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=err, timeout=a.wine_timeout)
+    print(f"port exit={r.returncode}")
+    for f in glob.glob(os.path.join(cwd, "openrecet-calltrace-*.jsonl")):
+        os.remove(f)
+
+
+def run_port_win(batch, pdir_l, pw, fetch):
+    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; exit 0")
+    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
+    # the port reads recet.ini next to its exe: give it retail's (rhost's canonical) one — without it
+    # the port ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame
+    scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/port/recet.ini")
+    scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
+    print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
+    for f in ("anchors.jsonl", "port.err", *fetch):
+        scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f))
 
 
 def cmd_portsave(a):
@@ -839,7 +882,8 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3",
                                       "dungeon3-run2-save", "dungeon3-floors", "dungeon3-deep")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
-         # a new game from the title (no save): FUN_00490e56's overrun + the prologue dispatch
+         # a new game from the title (no save): FUN_00490e56's overrun (the port takes the run's
+         # DirectMusic pointer byte, engine quirk §163) + the prologue dispatch
          + [("portrng", s) for s in ("house-idle", "intro-skip-prompt")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
@@ -850,13 +894,6 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
                                       "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
                                       "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")])
-
-
-def save_arg_of(scen):
-    try:
-        return scenario_inputs(scen)[1]
-    except BaseException:
-        return None
 
 
 def cmd_gates(a):
@@ -871,19 +908,13 @@ def cmd_gates(a):
         b = copy.copy(a)
         b.scenario = scen
         b.window, b.context = (win[0] if win else "1:end"), 3
-        for attempt in range(2 if kind == "portrng" and not save_arg_of(scen) else 1):
-            # a new game's retail RNG is heap-dependent (engine quirk §163: ~1 boot in 32
-            # lands a DirectMusic pointer's low byte on 0 and draws one rand fewer at f71) —
-            # a fresh-game RNG gate gets one retry
-            buf = io.StringIO()
-            try:
-                with contextlib.redirect_stdout(buf):
-                    r = fns[kind](b)
-            except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
-                r = 1
-                buf.write(f"error: {e}\n")
-            if not r:
-                break
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                r = fns[kind](b)
+        except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
+            r = 1
+            buf.write(f"error: {e}\n")
         out = buf.getvalue()
         keys = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
         lines = [l.strip() for l in out.splitlines() if l.strip().startswith(keys)]
@@ -1053,19 +1084,31 @@ def cmd_portframes(a):
 
 
 def cmd_portblock(a):
-    """port vs retail at one frame: every dword of the retail-layout blocks (party, actors, stage objects,
-    popups, records B / C, drop rows, map objects, flow scalars, the active work bank), grouped by record"""
-    name, f = a.scenario, a.at
+    """port vs retail at a frame (or several, --at F,F,.. in one run): every dword of the retail-layout
+    blocks (party, actors, stage objects, popups, records B / C, drop rows, map objects, flow scalars,
+    the active work bank), grouped by record"""
+    name = a.scenario
+    frames = sorted({int(x) for x in str(a.at).split(",") if x.strip()})
     tr, save = scenario_inputs(name)
     a.flatten_out = True
-    a.dump_at = str(f)
+    a.dump_at = ",".join(str(f) for f in frames)
     batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portblock-retail",
                                     fetch=("rhost.log", "trace.flat.jsonl", "state_*.rhs"))
-    rhs_path = os.path.join(bdir, name, f"state_f{f:06d}.rhs")
-    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), f + 2,
-                      extra=("--block-dump", str(f), "{pw}\\blocks.bin"), fetch=("blocks.bin",))
+    # the port names each dump blocks.bin.F when given several frames (blocks.bin for one)
+    pfiles = ["blocks.bin"] if len(frames) == 1 else [f"blocks.bin.{f}" for f in frames]
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames[-1] + 2,
+                      extra=("--block-dump", ",".join(str(f) for f in frames), "{pw}\\blocks.bin"),
+                      fetch=tuple(pfiles))
+    worst = 0
+    for f, pfile in zip(frames, pfiles):
+        worst = max(worst, block_report(a, f, os.path.join(bdir, name, f"state_f{f:06d}.rhs"),
+                                        os.path.join(pdir_l, pfile)))
+    return worst
+
+
+def block_report(a, f, rhs_path, pblk_path):
     R = rhs.Dump(rhs_path)
-    pf, P = read_pblk(os.path.join(pdir_l, "blocks.bin"))
+    pf, P = read_pblk(pblk_path)
 
     def rword(va):
         for lo, hi in R.ranges:
@@ -1280,7 +1323,7 @@ def main():
     p.add_argument("--context", type=int, default=3)
     p.add_argument("--seq", action="store_true", help="list the first differing tick's draws in order, retail | port")
     common(p); p.set_defaults(fn=cmd_portrng)
-    p = sp.add_parser("portblock"); p.add_argument("scenario"); p.add_argument("--at", type=int, required=True, help="frame F")
+    p = sp.add_parser("portblock"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F[,F..] (one run)")
     p.add_argument("--list", type=int, default=40, help="dwords listed per block"); common(p); p.set_defaults(fn=cmd_portblock)
     p = sp.add_parser("tables"); p.add_argument("scenario"); p.add_argument("--at", required=True, help="frames F,F,..")
     common(p); p.set_defaults(fn=cmd_tables)

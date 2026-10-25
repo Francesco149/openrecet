@@ -207,7 +207,7 @@
    "engine_fn": "FUN_00490e56",
    "desc": "the other runtime globals it crosses",
    "file": "src/guild_stock.c",
-   "line": 40,
+   "line": 41,
    "kind_known": true
   },
   {

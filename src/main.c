@@ -119,6 +119,7 @@
 #include "tick.h"
 #include "d3d_trace.h"
 #include "call_trace.h"
+#include "guild_stock.h"
 #include "state_va.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -425,8 +426,9 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                <file>; also echoed to stderr. Keyed on
  *                                tick_label() (== --capture-frames
  *                                index). See src/anchor_trace.h.
- *   --block-dump F <file>        after tick F write the retail-layout blocks
- *                                (state_va_block_dump; rhost.py portblock).
+ *   --block-dump F[,F..] <file>  after tick F write the retail-layout blocks
+ *                                (state_va_block_dump; rhost.py portblock);
+ *                                several frames write <file>.F each.
  *   --model-dump F <file>        after tick F, every loaded model's frame
  *                                tree (rhost.py portframes).
  *   --fx-census <file>           after each tick, "F A|B type" for the
@@ -547,7 +549,8 @@ static void fx_census(uint32_t frame)
             if (now[k][t] && !prev[k][t]) fprintf(g_fx_census_fp, "%u %c %d\n", frame, k ? 'B' : 'A', t);
     memcpy(prev, now, sizeof now);
 }
-static uint32_t                  g_block_dump_frame         = 0;
+static uint32_t                  g_block_dump_frames[32];          /* --block-dump F[,F..] */
+static int                       g_block_dump_nframes       = 0;
 
 /* Frame label of the tick being run: tick #k (1-based) is frame k — rhost's
  * convention (its `post k` = k ticks done), so a port label is the same tick as
@@ -2417,8 +2420,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 if (g_state_log_pending) {
                     if (g_fx_census_fp) fx_census(g_state_log_frame);
                     state_va_log(g_state_log_fp, g_state_log_frame);
-                    if (g_block_dump_path && g_state_log_frame == g_block_dump_frame)
-                        state_va_block_dump(g_block_dump_path, g_state_log_frame);
+                    for (int bd = 0; g_block_dump_path && bd < g_block_dump_nframes; bd++) {
+                        if (g_state_log_frame != g_block_dump_frames[bd])
+                            continue;
+                        /* one frame: the path as given; several: path.F each */
+                        char bd_path[MAX_PATH];
+                        if (g_block_dump_nframes == 1)
+                            lstrcpynA(bd_path, g_block_dump_path, (int)sizeof bd_path);
+                        else
+                            snprintf(bd_path, sizeof bd_path, "%s.%u", g_block_dump_path,
+                                     (unsigned)g_state_log_frame);
+                        state_va_block_dump(bd_path, g_state_log_frame);
+                    }
                     if (g_model_dump_path && g_state_log_frame == g_model_dump_frame) {
                         FILE *md = fopen(g_model_dump_path, "w");
                         if (md) { model_anchor_dump(md); fclose(md); }
@@ -4000,6 +4013,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 unsigned a = 0, b = 0;
                 if (sscanf(rng, "%u:%u", &a, &b) == 2) { g_rng_log_from = a; g_rng_log_to = b; }
             }
+        } else if (lstrcmpA(tok, "--retail-dmusic-ptr") == 0) {
+            /* the low byte of retail's DirectMusic segment pointer DAT_09643038[16]
+             * in the run being compared (rhost.py reads it from that run's state):
+             * FUN_00490e56's overrun reads it as a kind (engine quirk §163) */
+            char *v = strtok(NULL, " ");
+            if (v) guild_stock_set_dmusic_ptr_lo((int)strtoul(v, NULL, 16));
         } else if (lstrcmpA(tok, "--block-dump") == 0) {
             char *f = strtok(NULL, " ");
             char *val = strtok(NULL, " ");
@@ -4007,7 +4026,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char bd_buf[MAX_PATH];
                 lstrcpynA(bd_buf, val, (int)sizeof(bd_buf));
                 g_block_dump_path  = bd_buf;
-                g_block_dump_frame = (uint32_t)strtoul(f, NULL, 10);
+                g_block_dump_nframes = 0;
+                for (char *q = f; *q && g_block_dump_nframes < 32; ) {
+                    g_block_dump_frames[g_block_dump_nframes++] = (uint32_t)strtoul(q, &q, 10);
+                    if (*q == ',') q++;
+                    else break;
+                }
             }
         } else if (lstrcmpA(tok, "--model-dump") == 0) {
             char *f = strtok(NULL, " ");

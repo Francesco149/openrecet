@@ -714,7 +714,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x490e16 | FUN_00490e16 | 14 | ✓ |  | scene.h, scene_guild.c, scene_guild.h (+1) |
 | 0x490e24 | FUN_00490e24 | 17 | ✓ |  | scene_guild.c, scene_guild.h, sim.c |
 | 0x490e35 | FUN_00490e35 | 15 | ✓ |  | main.c, scene_guild.c, scene_guild.h |
-| 0x490e56 | FUN_00490e56 | 494 | ✓ |  | guild_stock.c, guild_stock.h, retail_image.h (+2) |
+| 0x490e56 | FUN_00490e56 | 494 | ✓ |  | guild_stock.c, guild_stock.h, main.c (+3) |
 | 0x491044 | FUN_00491044 | 81 | ✓ |  | tables.c, tables_item.c, tables_item.h |
 | 0x491095 | FUN_00491095 | 385 | ✓ |  | tables_item.c, tables_item.h |
 | 0x491216 | FUN_00491216 | 85 | ✓ |  | tables_item.c, tables_item.h |

@@ -30,4 +30,9 @@
 
 void guild_stock_daily(int mode);
 
+/* The low byte of retail's DirectMusic segment pointer DAT_09643038[16] that
+ * the init overrun reads as slot 638's kind: 0x30 unless told (a heap address,
+ * 8-aligned; 0 when DirectMusic failed to load the segment, e.g. under wine). */
+void guild_stock_set_dmusic_ptr_lo(int lo);
+
 #endif
