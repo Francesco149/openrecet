@@ -35,6 +35,29 @@ portblock house-idle f3000 all blocks IDENTICAL; house-idle / intro-skip-prompt 
   "???" past it, the head at the merchant level, the cursor row's three lines) — the table and
   its texts read from the user's exe (DAT_005291c0 / off_00529768, `retail_image_cstr`);
   dungeon3-floors f10000 / f10300 0 px. News Summary / Outstanding Orders stay PORT-DEBT.
+**Sweeps under wine** (tear-lectures-gameover, multiday-tutorials-suggest, dungeon1-deep / -clear,
+dungeon3-run, debt-gameover-restart) found and fixed:
+- the upgrade hint over an adventurer's offer (FUN_0046602e (d): shopmode's panel, the hinted
+  slot's item and FUN_00481573's stat compare — Louie's Leather Armor, Defense 35 → 33);
+- the pause backdrop's radial smear steps 2 px a tap for the day end / collection / results
+  (DAT_06a4997c != 0), 4 for the ESC pause — the Daily Profits backdrops;
+- the item list's confirm flash: the cursor row's name flashes with its icon, and an additive
+  item_win bar over the row (ftol(sin(b994·π/6)·32));
+- a dialogue over the pause variants (FUN_004547ab → FUN_0046c090 while DAT_0438b1c8): Tear's
+  verdict over the VOID collection form;
+- the event scripts' `lighton:` flicker (system.bmp white at (sin(++n·rate) + 1)·depth),
+  `fadein:` / `fadeout:` (the colour overlay, DAT_073a6da4 / 3e40 / 6dac / 6da8; dungeon3-run
+  f34600 is black), `skipoff` / `skipon` (DAT_073a6db0: no skip tip, and FUN_0046c2cb refuses
+  the ESC prompt — the handler 0x46d8fc falls into IDA's FUN_0046d900), and the next-line
+  arrow reading the previous frame's DAT_073a3e04 (a line that finishes shows it a frame later);
+  windowset's banner counter now steps (≤ 40); and FUN_0044ba2c's third argument (FUN_00452d07's
+  DAT_06a49980): 1 / 4 fade the screen in once the script has loaded (DAT_06a49984 →
+  FUN_0045281c(0, 17) ahead of the dialogue tick), and at its end (or a skip's "Yes") 1 / 2
+  fade in, 3 / 4 FUN_004526f5(0, 3) — the guild's cutscenes (1), iv1_16 (4), the survival
+  opener and iv7_1 (1) (dungeon3-run f33774 / f34600);
+- ported ahead of a recording: the furniture-stand tooltip (bf68 != 0, the vending machines).
+Engine quirk §165: the pause capture frame presents an undrawn back buffer. Tools: portshots /
+portblock stop retail just past the last requested frame.
 **The pipeline runs without the Windows box** (it went away mid-morning): `--target wine` now
 runs the port too (retail and port under wine + Xvfb on maximus; `gates --target wine`), with the
 compared run's DirectMusic pointer byte handed to the port (quirk §163: under wine the segment
