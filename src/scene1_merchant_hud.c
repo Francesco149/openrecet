@@ -128,8 +128,7 @@ void scene1_merchant_hud_draw_level(IDirect3DDevice8 *dev,
  * Gate (asm 0x40994a-0x4099dd): scene_state==1 (HOUSE/INGAME) && stage
  * maptype==0 (*DAT_068dd2f0) && (cc08==1 || 0x32) && cbfc!=-1 && cc00!=-1 &&
  * (grid[cell]!=-1 || bf68!=0).  Item branch (bf68==0): the name tooltip.
- * Furniture branch (bf68!=0): name + "%d/%d" slot count — deferred (the bench
- * faces a sword cell, bf68==0).
+ * Furniture branch (bf68!=0): the stand's name + its "(n/cap)" slot count.
  *
  * The faced cell is projected to screen at world (2·cbfc-9, 1.9, 2·cc00-6.5)
  * — note Z = the cell render_z + 0.5 (asm 0x4099e3-0x409a27).  Parchment
@@ -182,10 +181,26 @@ static void merchant_hud_item_tooltip(IDirect3DDevice8 *dev)
     }
 
     if (bf68 != 0) {
-        /* The bf68≠0 furniture-stand tooltip branch (name + "%d/%d" slot count,
-         * asm 0x409a9e-0x409bd6) is deferred — the item-display bench faces item
-         * cells (bf68==0).  Retire on a furniture bench.
-         * PORT-DEBT(stub, FUN_00409925): C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. */
+        /* the furniture branch (asm 0x409a9e-0x409bd6): the stand's name (its
+         * item, work +0x2c74c + 4·bf68) and "(n/cap)" — n of its 20 slots
+         * (+0x2c7a0 + 80·FUN_004860c8(cbfc, cc00)) in use, cap 6 / 8 for items
+         * 0x1451 / 0x1452, else 10 — centred at 0.6 under the bubble's state */
+        const int fidx = shop_display_furniture_index(cbfc, cc00);
+        if (bank == NULL || fidx < 0)
+            return;
+        const int32_t fitem = (int32_t)bank[(0x2c74cu >> 2) + (uint32_t)bf68];
+        const int frec = tables_item_find_slot_by_id(&g_item, fitem >> 6);
+        int n = 0;
+        for (int k = 0; k < 20; k++)
+            if ((int32_t)bank[(0x2c7a0u >> 2) + 20u * (uint32_t)fidx + (uint32_t)k] != -1)
+                n++;
+        const int32_t kind = (int32_t)bank[(0x2c750u >> 2) + (uint32_t)fidx] & ~0x3f;
+        const int cap = kind == 0x51440 ? 6 : kind == 0x51480 ? 8 : 10;
+        char fb[128];
+        snprintf(fb, sizeof fb, "%s", frec >= 0 ? g_item.records[frec].singular : "");
+        font_draw_text_centered(dev, sx + 52.0f, sy + 18.0f, fb, 0xffffffffu, 0.6f);
+        snprintf(fb, sizeof fb, "(%d/%d)", n, cap);
+        font_draw_text_centered(dev, sx + 52.0f, sy + 34.0f, fb, 0xffffffffu, 0.6f);
         return;
     }
     if (itemid == -1)

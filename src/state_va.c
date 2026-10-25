@@ -227,6 +227,7 @@ static int32_t get_wl_995c(void) { return worker_load_busy_secondary(); }
 static int32_t get_c998(void)    { return sim_get_counter_998(); }
 static int32_t get_c990(void)    { return sim_get_counter_990(); }
 static int32_t get_c99c(void)    { return sim_get_counter_99c(); }
+static int32_t get_bf68(void)    { return shop_display_bf68(); }
 static int32_t get_pact(void)    { return g_pause_action; }
 static int32_t get_fade(void)    { return g_fade_phase; }
 static int32_t get_fadec(void)   { return g_fade_counter; }
@@ -392,6 +393,7 @@ static const state_va_t k_map[] = {
     { 0x6a49998u, "pause ramp (DAT_06a49998)", get_c998 },
     { 0x6a49990u, "pause fade counter (DAT_06a49990)", get_c990 },
     { 0x6a4999cu, "pause slide ramp c99c (DAT_06a4999c)", get_c99c },
+    { 0x438bf68u, "faced stand + 1 (DAT_0438bf68)", get_bf68 },
     { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },
     { 0x438bf7cu, "fade phase (DAT_0438bf7c)", get_fade },
     { 0x438bf78u, "fade counter (DAT_0438bf78)", get_fadec },
