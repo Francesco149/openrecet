@@ -274,6 +274,8 @@ void tear_menu_set_timer(int v)   { s_timer = v; }
 int  tear_menu_window(void)       { return s_win; }
 int  tear_lecture_cursor(void)    { return s_lect; }
 int  tear_lecture_top(void)       { return s_lect_top; }
+int  tear_menu_entry_at_cursor(void) { return s_cursor >= 0 && s_cursor < COUNTER_MENU_MAX ? s_list_b[s_cursor] : 0; }
+int  tear_menu_list_b(int k)       { return k >= 0 && k < COUNTER_MENU_MAX ? s_list_b[k] : 0; }
 int  counter_menu_slide2(void)    { return s_slide2; }
 
 int counter_menu_count(void)  { return s_count_a; }
@@ -296,6 +298,8 @@ const char *counter_menu_label(int entry)
 #include "font_draw.h"     /* font_draw_text_centered (FUN_0047d14c) */
 #include "render_quad.h"   /* FUN_00404efc / FUN_00405354 */
 #include "sysassets.h"     /* item_win.tga = DAT_073d8748 */
+#include "save_work.h"
+#include "x87.h"
 
 /* FUN_00409925 asm 0x40a2b7-0x40a54f (all.c:6860-6960). */
 void counter_menu_render(struct IDirect3DDevice8 *dev_in, int cc08)
@@ -354,6 +358,74 @@ void counter_menu_render(struct IDirect3DDevice8 *dev_in, int cc08)
                                 counter_menu_label(s_list_a[i]), color, 0.8f);
     }
 
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+}
+
+/* off_00529718 (list B entries) and off_00529740 (cc08 30's "open with" rows) */
+static const char *const k_tear_labels[] = {
+    "Store Atmosphere", "Selling Lecture", "Buying Lecture", "Orders Lecture", "Never Mind",
+    "Merchant Level", "Time Lecture", "Tear's Lectures", "News Summary", "Outstanding Orders",
+};
+static const char *const k_open_labels[] = {
+    "Selling Lecture", "Buying Lecture", "Orders Lecture", "Open Store",
+};
+
+/* FUN_00409925's cc08 15 / 16 / 30 block (all_ida 6738..6836): four passes —
+ * 0 / 1 the "open with" rows (1 + work +0x2bc90 + +0x2bc91 of them, cursor
+ * cc10, slide b750), 2 / 3 list B (cursor cc0c, slide b74c, folding up while
+ * b750 runs); the even pass draws the other rows, the odd one the cursor row
+ * on top: an item_win button (400,240)-(640,304) at (x−120, y, 240, 38.4) and
+ * its label centred at 0.8, the cursor row pulsing with b754 */
+void tear_menu_render(struct IDirect3DDevice8 *dev_in, int cc08)
+{
+    if (!dev_in || (cc08 != 15 && cc08 != 16 && cc08 != 30))
+        return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+    const sprite_t *win = &g_sysassets.item_win_tga;
+    const uint8_t *bank = save_work_bank_at(save_work_active_slot());
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    for (int pass = 0; pass < 4; pass++) {
+        int n;
+        if (pass < 2)
+            n = 1 + (bank && bank[0x2bc90] != 0) + (bank && bank[0x2bc91] != 0);
+        else
+            n = s_count_b;
+        const int sel = pass < 2 ? s_cursor2 : s_cursor;
+        for (int i = 0; i < n; i++) {
+            if ((i == sel) != ((pass & 1) != 0))
+                continue;
+            float x = spill32((long double)spill32((float)(60 * (pass < 2 ? s_slide2 : s_slide)))
+                              - spill32((float)(16 * i) + 160.0f));
+            float y = spill32((float)(36 * i) + 224.0f);
+            if (x > 320.0f) x = 320.0f;
+            if (s_slide2 > 0 && pass >= 2) {
+                const int t = s_slide2 > 5 ? 5 : s_slide2;
+                y = spill32((long double)y - (float)(36 * t * (i + 1) / 5));
+                x = spill32((long double)x - (float)(32 * t / 5));
+            }
+            const uint32_t alpha = i == sel ? 255u : 128u;
+            uint32_t color = 0x7f7f7fu | alpha << 24;
+            if (i == sel) {
+                uint32_t c = 127;
+                if (pass >= 2 ? s_slide2 == 0 : s_slide2 > 0) {
+                    const float a = spill32((long double)spill32((float)s_timer) * 3.1415927f / 15.0f);
+                    c = (uint32_t)(127 - x87_ftol((long double)spill32(x87_crt_sin(a)) * -128.0f));
+                }
+                color = (alpha << 24) | ((c & 0xff) << 16) | ((c & 0xff) << 8) | (c & 0xff);
+            }
+            if (win->tex) {
+                render_quad_bind(dev, win);
+                const float dst[4] = { spill32((long double)x - 120.0f), y, 240.0f, 38.400002f };
+                const float src[4] = { 400.0f, 240.0f, 640.0f, 304.0f };
+                render_quad_add(dst, src, win->width, win->height, color);
+                render_quad_flush(dev);
+            }
+            const int e = pass < 2 ? i : s_list_b[i];
+            const char *label = pass < 2 ? (i < 4 ? k_open_labels[i] : "")
+                                         : (e >= 0 && e < 10 ? k_tear_labels[e] : "");
+            font_draw_text_centered(dev_in, x, spill32((long double)y + 12.0f), label, color, 0.80000001f);
+        }
+    }
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 

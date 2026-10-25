@@ -98,6 +98,8 @@ void tear_menu_set_timer(int v);       /* DAT_0438b754 */
 int  tear_menu_window(void);           /* DAT_0438b8c0 */
 int  tear_lecture_cursor(void);        /* DAT_0438b8c4 */
 int  tear_lecture_top(void);           /* DAT_0438b8c8 */
+int  tear_menu_entry_at_cursor(void);  /* DAT_074b28b0[DAT_0438cc0c] */
+int  tear_menu_list_b(int k);          /* DAT_074b28b0[k] */
 int  counter_menu_slide2(void);        /* DAT_0438b750 */
 
 void counter_menu_stage_reset(void);   /* FUN_00436f97: slides + timer + b8c0..b8c8 = 0 */
@@ -107,5 +109,9 @@ void counter_menu_reset(void);         /* BSS state (tests / new process) */
  * Inert for any other cc08. */
 struct IDirect3DDevice8;
 void counter_menu_render(struct IDirect3DDevice8 *dev, int cc08);
+
+/* FUN_00409925's cc08 15 / 16 / 30 block: Tear's menu (list B) and the "open
+ * with" rows (item_win.tga buttons + labels).  Inert for any other cc08. */
+void tear_menu_render(struct IDirect3DDevice8 *dev, int cc08);
 
 #endif /* OPENRECET_SCENE1_COUNTER_MENU_H */

@@ -155,6 +155,15 @@ void scene1_hud_slide_tick(void)
 #include "save_work.h"
 #include "x87.h"
 #include "call_trace.h"
+#include "actor_table.h"          /* the bombs' countdowns (DAT_0076b970) */
+#include "party.h"                /* DAT_056da1cc / 56daff4 */
+#include "scene1_counter_menu.h"   /* Tear's menu: b8c0, list B */
+#include "scene1_preload.h"        /* mood_para.tga */
+#include "customer_roster.h"       /* DAT_0438b4b8 / b4bc */
+#include "sim.h"                   /* DAT_0438b8cc */
+#include "retail_image.h"          /* the level-abilities table */
+#include <stdio.h>                 /* snprintf */
+#include <string.h>
 #include <math.h>                 /* sinf */
 
 
@@ -239,6 +248,206 @@ static void scene1_hud_emote_bubble(IDirect3DDevice8 *dev)
         render_quad_add(dst, src, hp->width, hp->height, 0xffffffffu);
         render_quad_flush(dev);
     }
+}
+
+/* DAT_005291c0[30]: Tear's level abilities — the level (dword) and its 32-byte
+ * name; off_00529768[3 * k]: the three description lines.  The user's exe's
+ * .data (retail_image), read once. */
+#define LEVEL_ABILITY_COUNT 30
+static struct { int32_t level; char name[32]; char desc[3][64]; } s_lvab[LEVEL_ABILITY_COUNT];
+static int s_lvab_loaded;
+
+static void level_abilities_load(void)
+{
+    if (s_lvab_loaded) return;
+    s_lvab_loaded = 1;
+    for (uint32_t k = 0; k < LEVEL_ABILITY_COUNT; k++) {
+        uint32_t lv = 0, ptr;
+        retail_image_u32(0x5291c0u + 36u * k, &lv);
+        s_lvab[k].level = (int32_t)lv;
+        retail_image_cstr(0x5291c4u + 36u * k, s_lvab[k].name, sizeof s_lvab[k].name);
+        for (uint32_t j = 0; j < 3; j++)
+            if (retail_image_u32(0x529768u + 12u * k + 4u * j, &ptr))
+                retail_image_cstr(ptr, s_lvab[k].desc[j], sizeof s_lvab[k].desc[j]);
+    }
+}
+
+/* FUN_0048edee / FUN_0048ee77: item_win's up / down scroll arrow centred on (x, y) */
+static void tear_page_arrow(IDirect3DDevice8 *dev, float x, float y, int down)
+{
+    const sprite_t *win = &g_sysassets.item_win_tga;
+    if (!win->tex) return;
+    render_quad_bind(dev, win);
+    const float dst[4] = { x - 32.0f, y - 24.0f, 64.0f, 48.0f };
+    const float src[4] = { down ? 512.0f : 448.0f, 896.0f, down ? 576.0f : 512.0f, 944.0f };
+    render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    render_quad_flush(dev);
+}
+
+/* LABEL_100's entry 5 (all_ida 7742..7882): leve_win.tga and item_win's lower
+ * panel, the scroll arrows, "Level Abilities", five rows from b8c8 ("Level %d"
+ * + the name, "???" past the first locked level above 9; yellow at the next
+ * level, grey once locked), Recette's head at the merchant level's row and the
+ * cursor row's (b8c4) three description lines once it is near */
+static void tear_page_level_abilities(IDirect3DDevice8 *dev, float x0)
+{
+    level_abilities_load();
+    const int32_t *bd = (const int32_t *)save_work_bank_at(save_work_active_slot());
+    const int32_t cur = bd ? bd[SAVE_BANK_FIELD_MERCHANT_LEVEL] : 0;   /* dword 45312 */
+    const int top = tear_lecture_top(), sel = tear_lecture_cursor();
+    const sprite_t *lw = scene1_preload_leve_win();
+    const sprite_t *win = &g_sysassets.item_win_tga;
+    if (lw->tex) {
+        render_quad_bind(dev, lw);
+        const float dst[4] = { x0 + 160.0f, 80.0f, 320.0f, 256.0f };
+        const float src[4] = { 0.0f, 0.0f, 320.0f, 256.0f };
+        render_quad_add(dst, src, lw->width, lw->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+    if (win->tex) {
+        render_quad_bind(dev, win);
+        const float dst[4] = { x0, 332.0f, 640.0f, 160.0f };
+        const float src[4] = { 0.0f, 320.0f, 640.0f, 480.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+    if (top > 0)
+        tear_page_arrow(dev, x0 + 190.0f, 130.0f, 0);
+    if (top < 17)
+        tear_page_arrow(dev, x0 + 190.0f, 318.0f, 1);
+    font_draw_text_centered((struct IDirect3DDevice8 *)dev, x0 + 320.0f, 122.0f, "Level Abilities",
+                            0xffffffffu, 0.89999998f);
+    int locked = 0;
+    for (int row = 0; row < 5; row++) {
+        const int k = top + row;
+        if (k < 0 || k >= LEVEL_ABILITY_COUNT) continue;
+        const int32_t lv = s_lvab[k].level;
+        uint32_t color = 0xffffffffu;
+        if (cur + 1 == lv)
+            color = 0xffffff37u;
+        char buf[32];
+        snprintf(buf, sizeof buf, "Level %d", (int)lv);
+        int shown = cur >= lv - 2;
+        if (locked > 0) shown = 0;
+        if (lv <= 9) shown = 1;
+        if (cur + 1 < lv) locked = 1;
+        if (locked) color = 0xff9b9b9bu;
+        const float y = (float)(32 * row) + 158.0f;
+        font_draw_text((struct IDirect3DDevice8 *)dev, x0 + 200.0f, y, buf, color, 0.80000001f);
+        font_draw_text((struct IDirect3DDevice8 *)dev, x0 + 312.0f, y, shown ? s_lvab[k].name : "???",
+                       color, 0.80000001f);
+    }
+    int idx = 0;
+    while (idx < LEVEL_ABILITY_COUNT && s_lvab[idx].level <= cur)
+        idx++;
+    if (idx - top <= 4 && win->tex) {
+        const int f = (int)(g_sim_frame_count / 16 % 2);
+        render_quad_bind(dev, win);
+        const float dst[4] = { x0 + 408.0f, (float)(32 * (idx - top)) + 156.0f - 48.0f, 96.0f, 96.0f };
+        const float src[4] = { (float)(96 * f + 832), 768.0f, (float)(96 * f + 928), 864.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+    if (sel >= 0 && sel < LEVEL_ABILITY_COUNT && (sel < 9 || cur + 1 >= s_lvab[sel].level))
+        for (int j = 0; j < 3; j++)
+            font_draw_text((struct IDirect3DDevice8 *)dev, x0 + 80.0f, (float)(372 + 30 * j), s_lvab[sel].desc[j],
+                           0xffffffffu, 0.85000002f);
+}
+
+/* FUN_0040a765 LABEL_100 (all_ida 7502..7924), in the shop: the page of Tear's
+ * menu entry under the cursor while cc08 is 15 / 16 / 17 (18 for entry 5).
+ * Entry 0, the store atmosphere: mood_para.tga sliding in with b8c0 (64 a
+ * step), Recette's head (item_win, two frames alternating every 16 ticks of
+ * b8cc) at the shop's attribute centroid (b4b8 / b4bc) on the chart.
+ * PORT-DEBT(stub, FUN_0040a765): the pages of entries 8 (news summary) and
+ * 9 (outstanding orders). */
+static void scene1_hud_tear_pages(IDirect3DDevice8 *dev)
+{
+    if (mapcol_maptype() != 0)
+        return;
+    const int cc08 = player_ctrl_cc08();
+    const int entry = tear_menu_entry_at_cursor();
+    const float x0 = spill32((long double)spill32((float)(tear_menu_window() << 6)) - 640.0f);
+    if (entry == 5 && (cc08 == 15 || cc08 == 16 || cc08 == 18)) {
+        tear_page_level_abilities(dev, x0);
+        return;
+    }
+    if (entry != 0 || (cc08 != 15 && cc08 != 16 && cc08 != 17))
+        return;
+    const sprite_t *mood = scene1_preload_mood_para();
+    if (mood->tex) {
+        render_quad_bind(dev, mood);
+        const float dst[4] = { spill32((long double)x0 + 64.0f), 0.0f, 512.0f, 480.0f };
+        const float src[4] = { 0.0f, 0.0f, 512.0f, 480.0f };
+        render_quad_add(dst, src, mood->width, mood->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+    const sprite_t *win = &g_sysassets.item_win_tga;
+    if (win->tex) {
+        const float hx = spill32((float)(320 - 12 * roster_centroid_x()));
+        const float hy = spill32((float)(12 * (20 - roster_centroid_y())));
+        const int f = (int)(g_sim_frame_count / 16 % 2);
+        render_quad_bind(dev, win);
+        const float dst[4] = { spill32((long double)hx + x0 - 48.0f), spill32((long double)hy - 48.0f), 96.0f, 96.0f };
+        const float src[4] = { (float)(96 * f + 832), 768.0f, (float)(96 * f + 928), 864.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+}
+
+/* FUN_0040a765, after the emote bubble (all_ida 7244..7313): under ADDSIGNED,
+ * chara 30's ammo tier (DAT_056daff4 / 45) bobbing over the player and every
+ * live bomb's countdown (types 37..40: 9 − timer/60, red at 3 or less) — 24×24
+ * digit cells of hpmp_base at u 193 + 24·n, through FUN_00490c78 (the render's
+ * view / projection); then MODULATE again (dungeon3-deep f176250's "5") */
+static void scene1_hud_countdowns(IDirect3DDevice8 *dev)
+{
+    static const float kpi = 3.1415927410125732f, k16 = 16.0f, k32 = 32.0f;
+    const sprite_t *hp = &g_sysassets.hpmp_base_tga;   /* DAT_073cc920 */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    if (hp->tex) {
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)hp->tex);
+        const int32_t ammo = PW(0x56daff4u).i;
+        if (g_party.chr[0] == 30 && ammo > 0 && ammo / 45 > 0) {
+            const int32_t n = ammo / 45;
+            float sx, sy, vz;
+            scene1_project_world_mat(scene1_render_view_matrix(), scene1_render_proj_matrix(),
+                                     g_party.pos[0][0], g_party.pos[0][1], g_party.pos[0][2], &sx, &sy, &vz);
+            if (vz < 0.0f) {
+                int32_t m = ammo % 45;
+                if (m > 16) m = 16;
+                const float sn = spill32(x87_crt_sin((double)spill32((long double)spill32((float)m) * kpi / k16)));
+                const float y = spill32((long double)sy - (long double)sn * k32 + 12.0f);
+                const float dst[4] = { spill32((long double)sx - 10.0f), spill32((long double)y - 14.0f), 20.0f, 20.0f };
+                const float src[4] = { (float)(24 * n + 193), 456.0f, (float)(24 * n + 217), 480.0f };
+                render_quad_add(dst, src, hp->width, hp->height, 0xffffbfbfu);
+                render_quad_flush(dev);
+            }
+        }
+        for (int i = 0; i < ACTOR_COUNT; i++) {
+            const uint8_t *a = g_actor[i].b;
+            int32_t type, live, timer;
+            memcpy(&type, a + ACT_TYPE, 4);
+            memcpy(&live, a + ACT_INUSE, 4);
+            memcpy(&timer, a + 0xaf0, 4);
+            if (live != 2 || type < 37 || type > 40)
+                continue;
+            const int32_t n = 9 - timer / 60;
+            if (n <= 0 || n >= 10)
+                continue;
+            float p[3], sx, sy, vz;
+            memcpy(p, a + ACT_POS, 12);
+            scene1_project_world_mat(scene1_render_view_matrix(), scene1_render_proj_matrix(),
+                                     p[0], p[1], p[2], &sx, &sy, &vz);
+            if (!(vz < 0.0f))
+                continue;
+            const float dst[4] = { spill32((long double)sx - 16.0f), spill32((long double)sy - 22.4f), 32.0f, 32.0f };
+            const float src[4] = { (float)(24 * n + 193), 456.0f, (float)(24 * n + 217), 480.0f };
+            render_quad_add(dst, src, hp->width, hp->height, n <= 3 ? 0xffff4040u : 0xff7f7f7fu);
+            render_quad_flush(dev);
+        }
+    }
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
 /* CRT sprintf(buf, str) with the text as the format and no arguments: "%%"
@@ -449,6 +658,8 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
     /* The interaction-affordance emote bubble (FUN_0040a765 inline @ all.c:6900):
      * engine order is FUN_00409925 → this.  The "GO!" door tooltip lives here. */
     scene1_hud_emote_bubble(dev);
+    if (scene_mode == 1)
+        scene1_hud_countdowns(dev);
 
     if (mapcol_maptype() == 0)
         scene1_top_hud_camera_hint(dev_in);   /* FUN_00409925's tail */
@@ -478,6 +689,8 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
 
     if (scene_mode == 1)
         news_ticker_render(dev);          /* 0x40b0df..0x40b3dd */
+    if (scene_mode == 1)
+        scene1_hud_tear_pages(dev);       /* LABEL_100 */
 
     /* FUN_00435747 (all.c:7498, LAB_0040c1e4) — the shared menu hand-cursor,
      * drawn LAST in the house aggregator (after the cc08 haggle overlay so the

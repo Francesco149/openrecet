@@ -107,6 +107,8 @@ void scene1_preload_chr_party_sheets(void);
  * — the engine's DAT_073a9b18 record (+0 tex / +4 w / +8 h).
  */
 const sprite_t *scene1_preload_chr_sheet(int char_id);
+const sprite_t *scene1_preload_mood_para(void);   /* DAT_073d8658 */
+const sprite_t *scene1_preload_leve_win(void);    /* DAT_073d9ff0 */
 
 #endif /* _WIN32 */
 

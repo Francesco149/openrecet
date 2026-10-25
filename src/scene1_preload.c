@@ -251,6 +251,11 @@ void scene1_preload_chr_party_sheets(void)
         scene1_preload_load_chr_sheet(id);
 }
 
+/* DAT_073d8658 — bmp/mood_para.tga (Tear's store-atmosphere chart) */
+const sprite_t *scene1_preload_mood_para(void) { return &g_scene1_mood_para; }
+/* DAT_073d9ff0 — bmp/leve_win.tga (the Level Abilities panel) */
+const sprite_t *scene1_preload_leve_win(void)  { return &g_scene1_leve_win; }
+
 const sprite_t *scene1_preload_chr_sheet(int char_id)
 {
     if (char_id < 0 || char_id >= CHR_SHEET_SLOTS)

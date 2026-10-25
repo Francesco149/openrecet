@@ -65,3 +65,26 @@ int retail_image_byte(uint32_t va, uint8_t *out)
     }
     return 0;
 }
+
+int retail_image_u32(uint32_t va, uint32_t *out)
+{
+    uint8_t b[4];
+    for (int i = 0; i < 4; i++)
+        if (!retail_image_byte(va + (uint32_t)i, &b[i])) return 0;
+    *out = rd32(b);
+    return 1;
+}
+
+int retail_image_cstr(uint32_t va, char *buf, size_t cap)
+{
+    if (cap == 0) return 0;
+    size_t n = 0;
+    for (; n + 1 < cap; n++) {
+        uint8_t c;
+        if (!retail_image_byte(va + (uint32_t)n, &c)) { buf[0] = 0; return 0; }
+        if (c == 0) break;
+        buf[n] = (char)c;
+    }
+    buf[n] = 0;
+    return 1;
+}

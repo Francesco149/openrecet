@@ -26,7 +26,15 @@ portblock house-idle f3000 all blocks IDENTICAL; house-idle / intro-skip-prompt 
 - the guild menu's selected-row pulse and the other rows' fade;
 - the fade-in alpha is ftol(255 − k·(c − 2)), not 255 − ftol(…) (one level dark each step);
 - the Now Loading disc on a dialogue's arm frame (FUN_00452d07 raises DAT_06a49960 at once):
-  the disc angle IDENTICAL every frame of eight scenarios.
+  the disc angle IDENTICAL every frame of eight scenarios;
+- the bombs' countdown digits and chara 30's ammo tier (FUN_0040a765 after the emote bubble,
+  ADDSIGNED hpmp_base cells; dungeon3-deep f176250 0 px);
+- Tear's menu in the shop: list B's buttons and the "open with" rows (FUN_00409925 cc08 15 / 16 /
+  30), the store-atmosphere chart (mood_para.tga + Recette's head at the attribute centroid) and
+  the Level Abilities page (leve_win.tga, five rows yellow at the next level / grey once locked /
+  "???" past it, the head at the merchant level, the cursor row's three lines) — the table and
+  its texts read from the user's exe (DAT_005291c0 / off_00529768, `retail_image_cstr`);
+  dungeon3-floors f10000 / f10300 0 px. News Summary / Outstanding Orders stay PORT-DEBT.
 **The pipeline runs without the Windows box** (it went away mid-morning): `--target wine` now
 runs the port too (retail and port under wine + Xvfb on maximus; `gates --target wine`), with the
 compared run's DirectMusic pointer byte handed to the port (quirk §163: under wine the segment

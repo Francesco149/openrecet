@@ -230,8 +230,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
        DAT_073aa198, 2026-10-24; Ohm's pose since the meshes bind to their own frames,
        2026-10-25; the ticker, the warp flash, the fades since 2026-10-25) — still missing: the
-       sun / lens flare (FUN_00405d70 / FUN_00405b1a), a white "5" popup at dungeon3-deep f176250
-       (retail only; re-checking under wine), table A's last ulps (portblock reca: 0–1 dwords per frame on
+       sun / lens flare (FUN_00405d70 / FUN_00405b1a), Tear's News Summary / Outstanding Orders
+       pages (FUN_0040a765 LABEL_100 entries 8 / 9, PORT-DEBT), the Daily Profits backdrop
+       (dungeon2-run3 f65000, mean 3.1: the blur composite's captured scene, ~f64665), table A's last ulps (portblock reca: 0–1 dwords per frame on
        dungeon1-deep, 5–8 on dungeon3-deep: spawn sites whose products round differently), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;

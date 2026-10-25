@@ -325,6 +325,7 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* FUN_00409925's cc08 0/10 block (after the level badge + the pop): the
      * counter-menu entry buttons + labels. */
+    tear_menu_render(dev_in, player_ctrl_cc08());      /* the cc08 15 / 16 / 30 block */
     counter_menu_render(dev_in, player_ctrl_cc08());
 
 
