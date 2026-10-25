@@ -839,6 +839,8 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "debt-week1-paid", "dungeon1-clear", "dungeon2-run2", "dungeon2-run3",
                                       "dungeon3-run2-save", "dungeon3-floors", "dungeon3-deep")]
          + [("portanchors", s) for s in ("house-idle", "house-customer-tutorial")]
+         # a new game from the title (no save): FUN_00490e56's overrun + the prologue dispatch
+         + [("portrng", s) for s in ("house-idle", "intro-skip-prompt")]
          + [("portrng", s) for s in ("buy-35pct-accept", "buy-40pct-accept", "buy-45pct-accept", "buy-50pct-accept",
                                       "buy-lowball-walkout", "buy-counter-raise-accept", "day2-shop",
                                       "day-end-next-morning", "day2-buy-tutorial", "multiday-tutorials-suggest",
@@ -848,6 +850,13 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
                                       "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
                                       "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")])
+
+
+def save_arg_of(scen):
+    try:
+        return scenario_inputs(scen)[1]
+    except BaseException:
+        return None
 
 
 def cmd_gates(a):
@@ -862,13 +871,19 @@ def cmd_gates(a):
         b = copy.copy(a)
         b.scenario = scen
         b.window, b.context = (win[0] if win else "1:end"), 3
-        buf = io.StringIO()
-        try:
-            with contextlib.redirect_stdout(buf):
-                r = fns[kind](b)
-        except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
-            r = 1
-            buf.write(f"error: {e}\n")
+        for attempt in range(2 if kind == "portrng" and not save_arg_of(scen) else 1):
+            # a new game's retail RNG is heap-dependent (engine quirk §163: ~1 boot in 32
+            # lands a DirectMusic pointer's low byte on 0 and draws one rand fewer at f71) —
+            # a fresh-game RNG gate gets one retry
+            buf = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(buf):
+                    r = fns[kind](b)
+            except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
+                r = 1
+                buf.write(f"error: {e}\n")
+            if not r:
+                break
         out = buf.getvalue()
         keys = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
         lines = [l.strip() for l in out.splitlines() if l.strip().startswith(keys)]
