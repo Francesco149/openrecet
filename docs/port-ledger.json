@@ -18338,7 +18338,6 @@
     "src/customer_service.h",
     "src/dungeon_party.c",
     "src/dungeon_party.h",
-    "src/scene1_chr_shadow.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.h",

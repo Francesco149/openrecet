@@ -677,7 +677,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48a348 | FUN_0048a348 | 59 | ✓ |  | record_hit.c, scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ |  | dungeon_party.c, record_hit.c, xp_curve.h |
 | 0x48a4d1 | FUN_0048a4d1 | 866 | ✓ |  | customer_service.c, dungeon_party.c, dungeon_party.h (+1) |
-| 0x48a833 | FUN_0048a833 | 3011 | ✓ |  | collision_query.c, customer_service.c, customer_service.h (+9) |
+| 0x48a833 | FUN_0048a833 | 3011 | ✓ |  | collision_query.c, customer_service.c, customer_service.h (+8) |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ |  | dungeon_party.c, dungeon_party.h, scene_pause.c |
 | 0x48b844 | FUN_0048b844 | 12 | ✓ |  | scene1_sim.c |
 | 0x48cbf6 | FUN_0048cbf6 | 470 | ✓ |  | dungeon_party.c |

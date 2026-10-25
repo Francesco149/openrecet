@@ -5258,7 +5258,7 @@ i the lowest orbit index no live image at that facing holds — with a puff on i
 it the same frame: on the 1 → 0 edge every live image fires the swing's hit record (kind 3, from
 the image's position, at 0.5 damage scale). Recorded: dungeon3-floors f25211.
 
-## Text measure counts control bytes (2026-10-25)
+## 162. Text measure counts control bytes (FUN_0047d0ea)
 The measure walks FUN_0047d0ea / FUN_0047d14c / FUN_0047d2db pass EVERY byte to the glyph
 lookup FUN_0047cbcb, control bytes included; only the draw FUN_0047ca05 skips < 0x20. Glyph
 13's bitmap is not blank, so a news body's trailing '\r' (news.txt CRLF) measures ~7.5 px:

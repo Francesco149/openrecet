@@ -117,9 +117,7 @@ void chr_shadow_build_display_glow(float render_x, float render_z,
 #include "sysassets.h"              /* g_sysassets.shade_bmp (DAT_073cc8f0) */
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos[3][3] (DAT_056da1d8..) */
 #include "scene1_player_ctrl.h"     /* player_ctrl_actor_char / _scale_xz / _scale_y */
-#include "collision_house.h"        /* collision_house_get */
 #include "collision_query.h"        /* collision_query_ground (FUN_00432e50) */
-#include "collision_resolve.h"      /* g_scene1_player_floor (cached daf94[0]) */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_shadow_render (FUN_0046f648) */
 #include "scene1_shop_walker.h"     /* scene1_customer_npc_shadow_render (FUN_00470385) */
 #include "scene1_shop_display.h"    /* shop_display_cbfc/cc00/render_x/render_z/bf68 — Block G gate */
@@ -251,7 +249,6 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
     if (study_toggle_on(STUDY_T_BLOB)) {
 
     /* ── Block A: player + companion ground shadow (engine L59-121) ──────── */
-    const collision_mesh *cm = collision_house_get();
     for (int i = 0; i < SHADOW_ACTOR_SLOTS; i++) {
         int alive = (player_ctrl_actor_char(i) != -1);
         if (!alive)
@@ -259,39 +256,17 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
 
         const float *pos = g_scene1_actor_pos[i];
 
-        /* Floor under the actor.  The engine's shadow (FUN_0045aa36) is a pure
-         * READER of the per-actor floor cache DAT_056daf94 (height) / DAT_056daebc
-         * (normal), filled by FUN_00483170 / FUN_0048a833 every house_update frame.
-         * For the PLAYER (actor 0) the port now mirrors that exactly: read the
-         * cached g_scene1_player_floor (= daf94[0], the SAME FUN_00483170 query,
-         * pre-snap +1.5 probe) instead of a live query — so during a conversation-
-         * pose cutscene (when the player tick, hence the floor writer, doesn't run)
-         * Recette's shadow rides the FROZEN floor like retail, the same value the
-         * companion hover freezes on (RE §18.4).  On flat floors the cache == a live
-         * query, so the shadow stays bit-exact in every other scene.  Other actors
-         * still live-query — the engine's FUN_0048a833 per-actor daf94 cache is
-         * unported (PORT-DEBT(cs-shadow-frozen-floor)); moot here since the companion
-         * draws no contact shadow in this scene.
-         * The engine adds +1.5 inside FUN_00432e50 (decomp L140 / CR_HEAD_HEIGHT) so
-         * a grounded actor (y == floor) still hits; `height` below uses the true
-         * pos.y, so the lift only fixes the hit, not the size/alpha. */
+        /* Floor under the actor: FUN_0045aa36 reads the party's floor cache —
+         * DAT_056daf94[i] (-100 = none) and the normal of DAT_056daebc[i] —
+         * which FUN_00483170 (party_move) fills in the house too.  The house
+         * player read a copy only the cc08==4 arrival wrote (no shadow under
+         * Recette in free roam: day2-shop f4000). */
         collision_hit hit;
-        hit.hit = 0;
-        if (i != 0 || mapcol_maptype() >= 1) {
-            /* the party's floor cache, as retail reads it for every actor:
-             * DAT_056daf94[i] (-100 = none) and the normal of DAT_056daebc[i] */
-            hit.hit = g_party.ground_y2[i] != -100.0f;
-            hit.height = g_party.ground_y2[i];
-            hit.normal[0] = g_party.hit[i].n[0];
-            hit.normal[1] = g_party.hit[i].n[1];
-            hit.normal[2] = g_party.hit[i].n[2];
-        } else if (i == 0) {
-            hit = g_scene1_player_floor;
-        } else if (cm) {
-            const float SHADOW_FLOOR_PROBE_LIFT = 1.5f;   /* == CR_HEAD_HEIGHT */
-            collision_query_ground(cm, pos[0], pos[1] + SHADOW_FLOOR_PROBE_LIFT,
-                                   pos[2], &hit);
-        }
+        hit.hit = g_party.ground_y2[i] != -100.0f;
+        hit.height = g_party.ground_y2[i];
+        hit.normal[0] = g_party.hit[i].n[0];
+        hit.normal[1] = g_party.hit[i].n[1];
+        hit.normal[2] = g_party.hit[i].n[2];
 
         chr_shadow_params p;
         chr_shadow_build_actor(i, pos,

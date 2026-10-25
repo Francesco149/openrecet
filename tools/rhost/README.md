@@ -23,6 +23,7 @@ python3 tools/rhost/rhost.py portshots X --at 0:30000:3000 --rank   # a sweep, w
 python3 tools/rhost/rhost.py portcensus X                  # per table-A / B type, the frames it goes live (which frames a render arm draws in)
 python3 tools/rhost/rhost.py portframes X --at F             # every loaded model's frame tree, retail heap vs port --model-dump
 python3 tools/trace_studio_v3/orv3_draws.py CAP 0 --worlds   # every draw's WORLD (indexed too) — line a capture up against the port's d3d.jsonl
+python3 tools/trace_studio_v3/up_diff.py PORT_D3D F CAP      # the UP draws (sprites, glyphs, 2D) value for value: port d3d.jsonl (portshots --port-d3d) vs retail (run --d3d --cap F-1:1)
 python3 tools/rhost/rhost.py prune --hours 12             # drop Windows run dirs older than 12 h (record runs kept; every batch does this once, RHOST_PRUNE_HOURS=0 disables)
 python3 tools/rhost/rhost.py portrng X --window 651:653     # LCG steps per tick + callers, port vs retail
 python3 tools/rhost/rhost.py portrng X --window 1:end --seq  # + the first differing tick draw by draw
