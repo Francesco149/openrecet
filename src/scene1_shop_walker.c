@@ -207,9 +207,8 @@ static int sw_dat_0438b1a0(void) { return 0; }
  *
  * Both mirror the bg-NPC render leaves (scene1_bg_npc.c); the chibi-only deltas
  * are the per-slot render scale (slot[0x17]·0.03, vs the bg-NPC's fixed 0.03)
- * and the char-id-0x42 +2.5 y-lift (special-customer arm — its 0x43 re-skin
- * pass FUN_0047047b stays deferred (PORT-DEBT(cs-walker-special)); 0x42 never
- * appears in the standard walk-in roster). */
+ * and the char-id-0x42 +2.5 y-lift (the winged customer — her wings, sheet
+ * 0x43, are FUN_0047047b's, drawn by the chr walker: scene1_chr_walker.c). */
 
 static float cs_npc_slot_f(const int32_t *slot, int off)
 {

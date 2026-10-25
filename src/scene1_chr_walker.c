@@ -102,6 +102,12 @@ int chr_walker_npc_alpha(float pos, float mult)
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
 #include "scene1_preload.h"  /* scene1_preload_chr_sheet — the chr sheet table; pulls sprite.h */
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos[2] = companion pos (_DAT_056da1f0/f4/f8) */
+#include "scene1_shop_walker.h"     /* the customer slots DAT_073a6e50 */
+#include "scene1_bg_npc.h"          /* DAT_005c7ce0: kyaku type → chr */
+#include "stage_palette.h"          /* g_stage_b4dc */
+#include "tables_stage.h"           /* DAT_068dd2f8 */
+#include "x87.h"
+#include <string.h>
 
 /* Engine billboard base matrix DAT_0438cdf8 — the camera orientation matrix
  * scene1_camera_angle_compute() publishes to g_scene1_camera_orient each
@@ -172,11 +178,44 @@ static float chr_walker_actor_f(const int32_t *actor, int dword)
     return f;
 }
 
-/* FUN_0047047b (296 B): a second small char-id-0x43 billboard sub-walker
- * over the DAT_073a6ea8 table (stride 0x24, count DAT_005c7dd0), gated on
- * the per-stage record at DAT_068dd2f8.  Its own (dormant) sub-chip — the
- * table is empty in HOUSE.  Stubbed here like the sibling inner walkers. */
-static void chr_walker_pre_billboards_TODO(void) { /* dormant: count 0 */ }
+/* FUN_0047047b (296 B): on a house stage, the wings of every live customer
+ * whose kyaku chr is 0x42 — sheet 0x43 (DAT_073a9f48) through FUN_0045a56f at
+ * the customer's position + 2.5 y, scale slot[0x17]·0.03, world = orient × S ×
+ * T, 0xff7f7f7f, inside the chr walker's additive envelope (dungeon3-deep
+ * f3750: the yellow wings behind the customer) */
+static void chr_walker_pre_billboards(IDirect3DDevice8 *dev)
+{
+    if (g_stage_b4dc < 0 || g_stage_b4dc >= STAGE_KEY_COUNT || g_stage.records[g_stage_b4dc].maptype != 0)
+        return;
+    const int cap = scene1_customer_npc_cap();          /* DAT_005c7dd0 */
+    for (int i = 0; i < cap; i++) {
+        int32_t *slot = scene1_customer_npc_slot(i);
+        if (slot == NULL || slot[CS_NPC_OFF_ACTIVE] == -1 ||
+            scene1_bg_npc_type_to_char(slot[CS_NPC_OFF_TYPE_IDX]) != 0x42)
+            continue;
+        const sprite_t *wing = scene1_preload_chr_sheet(0x43);
+        if (wing == NULL || wing->tex == NULL) {
+            scene1_preload_load_chr_sheet(0x43);
+            wing = scene1_preload_chr_sheet(0x43);
+        }
+        if (wing == NULL || wing->tex == NULL)
+            continue;
+        float sc, px, py, pz;
+        memcpy(&sc, &slot[CS_NPC_OFF_SCALE17], 4);
+        memcpy(&px, &slot[CS_NPC_OFF_POS_X], 4);
+        memcpy(&py, &slot[CS_NPC_OFF_POS_Y], 4);
+        memcpy(&pz, &slot[CS_NPC_OFF_POS_Z], 4);
+        const float s = spill32((long double)sc * 0.029999999f);
+        float t[16], m[16], world[16];
+        mat4_translation(t, px, spill32((long double)py + 2.5f), pz);
+        mat4_scaling(m, s, s, s);
+        mat4_mul(t, m, t);
+        mat4_mul(world, g_scene1_camera_orient, t);
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)wing->tex);
+        scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, slot, 0x43, world, 0xff7f7f7fu,
+                                 (int)wing->width, (int)wing->height);
+    }
+}
 
 void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
 {
@@ -199,7 +238,7 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
     IDirect3DDevice8_LightEnable(dev, 0, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
-    chr_walker_pre_billboards_TODO();          /* FUN_0047047b */
+    chr_walker_pre_billboards(dev);            /* FUN_0047047b */
 
     /* The companion + player passes only run while the top gate is 0 and
      * the scene-entry fade-in counter is within range (<= 0x5a). */

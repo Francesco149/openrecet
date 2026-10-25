@@ -9659,6 +9659,7 @@
     "src/scene1_chr_prepass.h",
     "src/scene1_chr_sprite.c",
     "src/scene1_chr_sprite.h",
+    "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
