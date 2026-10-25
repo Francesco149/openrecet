@@ -85,6 +85,11 @@ static inline int slot_age(int i)   { return g_scene1_records_a[i * SCENE1_RECOR
 static inline void slot_kill(int i) { *slot_int(i, SCENE1_RECORDS_A_OFF_TYPE) = -1; }
 static inline void slot_age_inc(int i) { *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) += 1; }
 static inline void slot_add_f(int i, int off, float dv) { slot_set_f(i, off, slot_get_f(i, off) + dv); }
+/* field += a · b as the x87 code does it: fld a, fmul b, fadd field, fstp — one rounding */
+static inline void slot_mad_f(int i, int off, float a, float b)
+{
+    slot_set_f(i, off, spill32((long double)a * b + slot_get_f(i, off)));
+}
 
 /* ─── shared helpers for C8h.2 cookie-cutter handlers ────────────────
  *
@@ -182,9 +187,9 @@ static void scaled_drift_uniform(int i, float damp, int kill_age)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * damp);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * damp);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * damp);
@@ -201,7 +206,7 @@ static void age_only_kill_at(int i, int kill_age)
 static void field_decay_x(int i, int field_off, float mul, int kill_age)
 {
     float v = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
-    slot_add_f(i, field_off, v * mul);
+    slot_mad_f(i, field_off, v, mul);
     slot_age_inc(i);
     if (slot_age(i) == kill_age) slot_kill(i);
 }
@@ -250,58 +255,36 @@ static void particles_per_frame_open(void)
  */
 static void handle_type_6_to_9(int i)
 {
-    float yaw      = g_scene1_camera_yaw;
-    float anchor_x = g_scene1_camera_anchor[0];
-    float anchor_z = g_scene1_camera_anchor[1];
-    float player_x = g_scene1_player_pos[0];
-    float player_y = g_scene1_player_pos[1];
-    float player_z = g_scene1_player_pos[2];
+    /* 0x41171f..0x411897: every named float below is an fstp m32 in the asm;
+     * the sin / cos are the CRT's on the stored float (0x503a44 / 0x503994) */
+    const float yaw = g_scene1_camera_yaw;                  /* DAT_073de39c */
+    const float px = g_scene1_player_pos[0], py = g_scene1_player_pos[1], pz = g_scene1_player_pos[2];
 
-    /* Anchor A — camera-orbit start.  The 2.3876104 constant is the
-     * decomp's literal at L1098/L1102 (≈ 3π/4 - some offset — likely
-     * encoding the orbit's start sector). */
-    float arg_a = 2.3876104f - yaw;
-    float ax = sinf(arg_a) * 6.0f + anchor_x;     /* DAT_073de328 */
-    float ay = player_y    + 1.0f;
-    float az = cosf(arg_a) * 6.0f + anchor_z;     /* DAT_073de330 */
+    /* anchor A, the camera-orbit start */
+    float a = spill32((long double)2.3876104f - yaw);
+    const float ax = spill32((long double)spill32(x87_crt_sin(a)) * 6.0f + g_scene1_camera_anchor[0]);
+    const float ay = spill32((long double)py + 1.0f);
+    a = spill32((long double)2.3876104f - yaw);
+    const float az = spill32((long double)spill32(x87_crt_cos(a)) * 6.0f + g_scene1_camera_anchor[1]);
 
-    /* Anchor B — per-sector orbit target.
-     *   sector = PARAM2 (int)
-     *   sector_angle = sector * 2π / 3 + π
-     */
-    int   sector = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
-    float sector_angle = ((float)sector * 6.2831855f) / 3.0f + 3.1415927f;
-    float arg_b = sector_angle - yaw;
-    float bx = sinf(arg_b) * 1.5f + player_x;
-    float by = player_y    + 0.5f;
-    float bz = cosf(arg_b) * 1.5f + player_z;
+    /* anchor B, the sector's orbit target: PARAM2 · 2π / 3 + π */
+    float sec = spill32((float)*slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2));
+    sec = spill32((long double)sec * 6.2831855f / 3.0f + 3.1415927f);
+    float b = spill32((long double)sec - yaw);
+    const float bx = spill32((long double)spill32(x87_crt_sin(b)) * 1.5f + px);
+    const float by = spill32((long double)py + 0.5f);
+    sec = spill32((long double)sec - yaw);
+    const float bz = spill32((long double)spill32(x87_crt_cos(sec)) * 1.5f + pz);
 
-    /* Interpolation factor: t = clamp(age * 0.08, 0, 1). */
-    int   age   = slot_age(i);
-    float age_f = (float)age;
-    float t     = age_f * 0.08f;
+    /* t = clamp(age · 0.08, ..1); A → B, the y with a half-cycle bob
+     * 2·sin(t·π) (the argument straight from ST0 as a double, 0x411856) */
+    float t = spill32((long double)spill32((float)slot_age(i)) * 0.079999998f);
     if (t > 1.0f) t = 1.0f;
-
-    /* L1119: pos.x = lerp(anchor_a.x, anchor_b.x, t).
-     * L1120: sin(t * π).  Engine asm at 0x411856 (`fld [ebp-0xc] ;
-     * fmul ds:0x51943c ; fstp QWORD [esp] ; call 0x503a44`) loads the
-     * just-clamped lerp factor t and multiplies by π (.rdata 0x51943c
-     * = 3.1415927) before the sinf call — Ghidra dropped the QWORD
-     * load.  Argument is a lifetime-driven half-cycle bob (peaks at
-     * t=0.5, fades to 0 at t=0 and t=1), NOT a periodic age bob.
-     * L1122-23: pos.y = lerp(a.y, b.y, t) + 2 * sin(t*π) + a.y_base.
-     *
-     * Decomp writes:
-     *   pos.y = (b.y - a.y) * t + sin_result + sin_result + a.y
-     * which simplifies to lerp(a.y, b.y, t) + 2*sin_result.  Verbatim. */
-    float pos_x = (bx - ax) * t + ax;
-    float sin_result = sinf(t * 3.1415927f);
-    float pos_y = (by - ay) * t + sin_result + sin_result + ay;
-    float pos_z = (bz - az) * t + az;
-
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, pos_x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, pos_y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pos_z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32(((long double)bx - ax) * t + ax));
+    const float sn = spill32(x87_crt_sin((double)((long double)t * 3.1415927f)));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               spill32(((long double)sn + sn) + ((long double)by - ay) * t + ay));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32(((long double)bz - az) * t + az));
 
     slot_age_inc(i);
 
@@ -384,32 +367,29 @@ static void handle_type_21(int i)
      * PARAM2 == -1, the previous pos persists. */
     if (param2 != -1) {
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_spawn_origin[0]);
-        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_spawn_origin[1] + 2.5f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)g_scene1_spawn_origin[1] + 2.5f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_spawn_origin[2]);
     }
 
     /* L483: rot.x += 0.15. */
-    float rot_x = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_X);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rot_x + 0.15f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_X) + 0.15000001f));
 
     /* L484: vel.x = 0. */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, 0.0f);
 
-    /* L485: vel.y = 0.2 - (float)age — gets overwritten at L489-91,
-     * but the intermediate write is observable (Ghidra preserves it).
-     * Skip the intermediate; only the final vel.y survives. */
+    /* 0x41086f..: vel.y = 0.2 − age (overwritten below), the angle
+     * age·π/4 / 32 and its CRT cos stored, then vel.y = cos·0.2 +
+     * (PARAM2 − 127)·0.002 − age·0.005 in one register chain */
     int age = slot_age(i);
-
-    /* L486-L488: angle = (age * π/4) / 32 = age * π / 128. */
-    float angle    = ((float)age * 0.7853982f) / 32.0f;
-    float cos_term = cosf(angle);
-
-    /* L489-491: vel.y = (param2 - 127) * 0.002 + cos_term * 0.2
-     *                   - (float)age * 0.005. */
-    float vel_y = ((float)(param2 - 0x7f)) * 0.002f
-                + cos_term * 0.2f
-                - (float)age * 0.005f;
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vel_y);
+    const float age_f = spill32((float)age);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, spill32(0.2f - (long double)age_f));
+    const float angle = spill32((long double)age_f * 0.78539819f / 32.0f);
+    const float cos_term = spill32(x87_crt_cos(angle));
+    const float pm = spill32((float)(param2 - 0x7f));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               spill32((long double)cos_term * 0.2f + (long double)pm * 0.0020000001f
+                       - (long double)age_f * 0.0049999999f));
 
     /* L492: vel.z = 0. */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
@@ -640,9 +620,9 @@ static void handle_type_71(int i)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, 2.0f * vx);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, 2.0f * vy);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, 2.0f * vz);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, 2.0f, vx);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, 2.0f, vy);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, 2.0f, vz);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.96040004f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.96040004f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.96040004f);
@@ -661,9 +641,9 @@ static void handle_type_10_91(int i)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
     vy -= (float)param1 * 0.003f;
     vx *= 0.92f;  vy *= 0.92f;  vz *= 0.92f;
@@ -686,9 +666,9 @@ static void handle_type_15_16(int i, int type)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     vy -= 0.01f;
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.92f);
@@ -718,9 +698,9 @@ static void handle_type_3f_56(int i)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, -0.05f);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, -0.03f);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.05f);
@@ -741,9 +721,9 @@ static void handle_type_4f(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.005f);
     }
     slot_age_inc(i);
@@ -762,9 +742,9 @@ static void handle_type_58(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.02f);
     }
     slot_age_inc(i);
@@ -786,9 +766,9 @@ static void handle_type_group_drift_5_5c(int i, int type)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
@@ -811,9 +791,9 @@ static void handle_type_group_drift_e_2b(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
@@ -833,9 +813,9 @@ static void handle_type_59(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 1.05f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 1.05f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 1.05f);
@@ -854,9 +834,9 @@ static void handle_type_f(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.9f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.9f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.9f);
@@ -878,15 +858,15 @@ static void handle_type_67(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         vx *= 0.95f;  vy *= 0.95f;  vz *= 0.99f;
         vy += 0.01f;
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, vz * 0.1f);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, vz, 0.1f);
     }
     slot_age_inc(i);
     if (slot_age(i) == 0x80) slot_kill(i);
@@ -928,9 +908,9 @@ static void handle_type_huge_group(int i)
         float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+        slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
         vy -= 0.02f;
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
@@ -961,11 +941,13 @@ static void handle_type_92(int i)
      * stored in PARAM1 keeps spawn-time entropy across rebirth. */
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
     int age    = slot_age(i);
-    float phase = (float)(param1 + age) * 0.05f;
-    float perturb = sinf(phase) * 0.001f;
+    /* 0x40fe0c: the phase and its CRT sin stored, then vel.x = sin·0.001 +
+     * vel.x in one chain */
+    const float phase = spill32((long double)spill32((float)(param1 + age)) * 0.050000001f);
+    const float sn = spill32(x87_crt_sin(phase));
 
     /* L175-176: vel.x += sin(phase) * 0.001. */
-    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X) + perturb;
+    const float vx = spill32((long double)sn * 0.001f + slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
 
     /* L177-181: pos += vel (using the freshly-perturbed vel.x). */
@@ -997,23 +979,19 @@ static void handle_type_92(int i)
  */
 static void handle_type_18(int i)
 {
-    float ry = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
-    float new_vy = sinf(ry) * 0.03f;
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, new_vy);
+    /* 0x41145b..: vel.y = CRT sin(rot.y) (stored) · 0.03, then the scaled drift
+     * (one rounding each) and the rot decay (0.05 / 0.03 / 0.05) */
+    const float sn = spill32(x87_crt_sin(slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y)));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, spill32((long double)sn * 0.029999999f));
 
-    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
-    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
-    float vy = new_vy;
-    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    const float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X), scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, scale, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y));
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z), scale);
 
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
-
-    /* Rot decay — matches type 0x3f/0x56's per-tick rate. */
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, -0.05f);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, -0.03f);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.05f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, -0.050000001f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, -0.029999999f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.050000001f);
 
     slot_age_inc(i);
     if (slot_age(i) == 0x4d8) slot_kill(i);
@@ -1146,7 +1124,8 @@ static void handle_type_35(int i)
  *
  * Behavior:
  *
- *   1. Build M = T(0,1,1) × RotX(ROT_Y) × RotZ(ROT_Z) × RotY(ROT_X)
+ *   1. Build M = T(0,1,1) × RotY(ROT_Y) × RotZ(ROT_Z) × RotX(ROT_X)
+ *      (0x4a3553 = RotationX on +0x18, 0x4a368c Z on +0x20, 0x4a35ef Y on +0x1c)
  *      using LEFT-multiply (D3DXMatrixMultiply, `out = A × B`,
  *      engine pushes `(M, scratch, M)`).
  *   2. ROT_X += PARAM1 * 0.0002;  ROT_Y += PARAM1 * 0.0002.
@@ -1186,9 +1165,9 @@ static void handle_type_4a(int i)
 
     /* Step 2 — advance ROT_X / ROT_Y by PARAM1 * 0.0002. */
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
-    float advance = (float)param1 * 0.0002f;
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rot_x + advance);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rot_y + advance);
+    const float p1 = spill32((float)param1);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_ROT_X, p1, 0.0002f);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, p1, 0.0002f);
 
     /* Step 3 — vel = M's translation row. */
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, M[12]);
@@ -1198,13 +1177,14 @@ static void handle_type_4a(int i)
     /* Step 4 — pos relative to spawn_origin via camera_yaw_alt.
      * The engine recomputes this even when PARAM1 != -1 (the NPC branch
      * then immediately overwrites it); mirror the wasted write. */
+    /* (each: CRT sin / cos of the stored yaw, stored, · 0.5 + the base) */
     float yaw_alt = g_scene1_camera_yaw_alt;
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
-               sinf(yaw_alt) * 0.5f + g_scene1_spawn_origin[0]);
+               spill32((long double)spill32(x87_crt_sin(yaw_alt)) * 0.5f + g_scene1_spawn_origin[0]));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
-               g_scene1_spawn_origin[1] + 1.5f);
+               spill32((long double)g_scene1_spawn_origin[1] + 1.5f));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
-               cosf(yaw_alt) * 0.5f + g_scene1_spawn_origin[2]);
+               spill32((long double)spill32(x87_crt_cos(yaw_alt)) * 0.5f + g_scene1_spawn_origin[2]));
 
     /* Step 5 — PARAM1 anchoring.  Engine reads `(&DAT_056db144)[PARAM1
      * * 0xf8]` unchecked; we bounds-check (cap = SCENE1_NPC_F8_COUNT).
@@ -1212,20 +1192,20 @@ static void handle_type_4a(int i)
      * spawn_origin formula — port verbatim (same final state). */
     if (param1 == -1) {
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
-                   sinf(yaw_alt) * 0.5f + g_scene1_spawn_origin[0]);
+                   spill32((long double)spill32(x87_crt_sin(yaw_alt)) * 0.5f + g_scene1_spawn_origin[0]));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
-                   g_scene1_spawn_origin[1] + 1.5f);
+                   spill32((long double)g_scene1_spawn_origin[1] + 1.5f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
-                   cosf(yaw_alt) * 0.5f + g_scene1_spawn_origin[2]);
+                   spill32((long double)spill32(x87_crt_cos(yaw_alt)) * 0.5f + g_scene1_spawn_origin[2]));
     } else if (param1 >= 0 && param1 < SCENE1_NPC_F8_COUNT) {
         const scene1_npc_f8_entry_t *npc = &g_scene1_npc_table_f8[param1];
         float npc_yaw = npc->yaw;
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
-                   sinf(npc_yaw) * 0.5f + npc->pos[0]);
+                   spill32((long double)spill32(x87_crt_sin(npc_yaw)) * 0.5f + npc->pos[0]));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
-                   npc->pos[1] + 1.5f);
+                   spill32((long double)npc->pos[1] + 1.5f));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
-                   cosf(npc_yaw) * 0.5f + npc->pos[2]);
+                   spill32((long double)spill32(x87_crt_cos(npc_yaw)) * 0.5f + npc->pos[2]));
     }
     /* PARAM1 out-of-bounds: spawn_origin write from step 4 sticks. */
 
@@ -1244,9 +1224,9 @@ static void handle_type_group_4_70_1c(int i, int type)
     float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
-    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy, scale);
+    slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz, scale);
     slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.1f);
     slot_age_inc(i);
     int kill_at = (type == 0x70) ? 0x20 : 0x10;
@@ -1466,20 +1446,26 @@ static void handle_type_3d(int i)
     slot_age_inc(i);
     int age = slot_age(i);
     if (age >= 0) {
+        /* 0x410a1c..: the angle (age − 2·PARAM2)·0.04 and the radius
+         * (PARAM2·0.2 + 2)·scale stored, CRT sin / cos stored, each
+         * position one chain */
         float vx     = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
         slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, vx);
         int   param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
         float scale  = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
-        float angle  = ((float)age + (float)param2 * -2.0f) * 0.04f;
-        float radius = ((float)param2 * 0.2f + 2.0f) * scale;
+        const float p2 = spill32((float)param2);
+        const float angle  = spill32((long double)spill32((float)(age - 2 * param2)) * 0.039999999f);
+        const float radius = spill32(((long double)p2 * 0.2f + 2.0f) * scale);
         float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
         float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
         float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
         float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
-        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * radius + bx);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+                   spill32((long double)spill32(x87_crt_sin(angle)) * radius + bx));
         slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
-                   ((float)param2 * 0.5f + vy) * scale + by);
-        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * radius + bz);
+                   spill32(((long double)p2 * 0.5f + vy) * scale + by));
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+                   spill32((long double)spill32(x87_crt_cos(angle)) * radius + bz));
     }
     int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
     if (slot_age(i) == (param1 * 0x10e) / 100) slot_kill(i);
@@ -1734,7 +1720,7 @@ static void handle_type_12_13_14(int i, int type)
         if (type == 0x12 || type == 0x13) {
             float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
             float vy    = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
-            slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, scale * vy);
+            slot_mad_f(i, SCENE1_RECORDS_A_OFF_POS_Y, scale, vy);
             slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy - 0.03f);
         }
         if (*param2_p == 0x3c) slot_kill(i);

@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 11,
-  "port_debt": 77,
+  "port_debt": 75,
   "verified": 81,
   "stubbed": 10,
   "ported": 733,

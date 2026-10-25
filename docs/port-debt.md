@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **63**
-- distinct retiring engine functions: **48**
+- total open debts: **61**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 43 | wired call boundary, body incomplete |
+| stub | 41 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -31,10 +31,10 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_0048cdcc | 5 |
-| FUN_00436f97 | 3 |
 | FUN_00473c15 | 3 |
 | FUN_00409925 | 2 |
 | FUN_00434ceb | 2 |
+| FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_00468fd0 | 2 |
 | FUN_00474d92 | 2 |
@@ -68,7 +68,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f cc04 2 | 1 |
 | FUN_0048670f cc08 50 | 1 |
 | FUN_0048a383 | 1 |
-| FUN_0048b850 | 1 |
 | FUN_0048b850 da1bc | 1 |
 | FUN_0048d5d6 | 1 |
 | FUN_0048e49c | 1 |
@@ -79,7 +78,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (43)
+## stub (41)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -95,7 +94,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:463 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_player_ctrl.c:2242 | the newspaper/ticker DRAW consuming b92c + the headline buffers is unported (also owns the ≤2f ticker-arm skew at the iv2 beat release). |
 | FUN_00436f97 | src/scene1_postload.c:286 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:322 | dungeon 5's return portal 6 beside |
 | FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
@@ -116,8 +114,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1013 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:980 | the faced stand's item |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
-| FUN_0048b850 | src/dungeon_party.c:1867 | the water splash after the move (hit |
-| FUN_0048b850 da1bc | src/dungeon_party.c:1864 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048b850 da1bc | src/dungeon_party.c:1881 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048cdcc | src/dungeon_party.c:1562 | the other chars' swings (FUN_00497e3a, |
 | FUN_0048cdcc | src/dungeon_party.c:1576 | the other chars' skill 4 |
 | FUN_0048cdcc | src/dungeon_party.c:1587 | skill 5 of 40 / 28 / 30 / 31 / 41 |
