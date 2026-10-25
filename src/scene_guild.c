@@ -1166,6 +1166,14 @@ static void guild_arrow(IDirect3DDevice8 *d, float x, float y, int down)
     scene_guild_bind_add(d, &g_sysassets.item_win_tga, dst, src, 0xff7f7f7fu, 0);
 }
 
+/* 127 − ftol(sin(t·π/15)·−127) (0x4941ba): each step stored to a float */
+static int guild_pulse(int t)
+{
+    const float f = spill32((long double)spill32((float)t) * 3.1415927f / 15.0f);
+    const float sn = spill32(x87_crt_sin((double)f));
+    return 127 - x87_ftol((long double)sn * -127.0f);
+}
+
 /* item-DB record `slot`'s category ordinal as FUN_00493616 counts it: the
  * category runs among records [0, slot) less one */
 static int guild_cat_ordinal(int slot)
@@ -1358,10 +1366,18 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
             float rx = label_x;
             float ry = (float)(idx * 0x22) + 64.0f;
             float scale = 1.0769231f;                      /* selected, larger */
-            int   draw  = 1;
+            int   grey  = 127;                             /* a1 */
+            int   alpha = 255;                             /* v1 */
             if (idx == s_menu.cursor) {
+                /* the selected row's brightness pulse (0x4941a8): 127 +
+                 * 127·sin(t·π/15) on the submenu anim (c14 clear) or on c24,
+                 * t in (0, 16) — c24's overrides */
+                if (s_menu.c14 == 0 && c1c > 0 && c1c < 16)
+                    grey = guild_pulse(c1c);
+                if (s_menu.c24 > 0 && s_menu.c24 < 16)
+                    grey = guild_pulse(s_menu.c24);
                 /* selected row slides up-left once the submenu opens past 0x14
-                 * (all.c:95971-95983); the brightness pulse is PORT-DEBT. */
+                 * (all.c:95971-95983) */
                 if (c1c > 0x14) {
                     int s = c1c - 0x14;
                     rx -= (float)(s * 0xc);
@@ -1371,25 +1387,31 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
                         ry -= (float)(((idx * 0x22 + 0x22) / 5) * s);
                 }
             } else {
-                /* non-selected rows slide up + cull as the submenu opens
-                 * (all.c:96011-96022). */
+                /* non-selected rows slide up as the submenu opens
+                 * (all.c:96011-96022) and fade: 735 − 32·c1c clamped while
+                 * c14 is set, else 415 − 32·c1c past c1c 5, culled below 0 */
                 scale = 0.8615385f;                        /* others, smaller */
                 if (c1c > 0 && c1c < 0x19 && s_menu.c14 == 0) {
                     ry -= (float)((c1c * idx * 0x22) / 0xf);
                     if (ry < 64.0f) ry = 64.0f;
                 }
                 ry += 2.0f;
-                draw = (s_menu.c14 != 0) || (c1c < 6) || ((c1c * -0x20 + 0x19f) >= 0);
+                if (s_menu.c14 != 0) {
+                    alpha = 735 - 32 * c1c;
+                    if (alpha < 0) alpha = 0;
+                    if (alpha > 255) alpha = 255;
+                } else if (c1c > 5) {
+                    alpha = 415 - 32 * c1c;
+                    if (alpha < 0)
+                        continue;
+                }
             }
-            if (!draw)
-                continue;
 
-            /* Color = (alpha<<24)|0x7f7f7f (grey-127 RGB modulating the dark
-             * font under ADDSIGNED; the selected-row brightness pulse is
-             * PORT-DEBT — settled to full at rest). */
+            /* grey RGB modulating the dark font under ADDSIGNED */
             if (type >= 0 && type < (int)(sizeof k_menu_labels / sizeof *k_menu_labels))
                 font_draw_text(d, rx, ry + 12.0f, k_menu_labels[type],
-                               0xff7f7f7fu, scale);
+                               ((uint32_t)alpha << 24) | ((uint32_t)grey << 16) |
+                               ((uint32_t)grey << 8) | (uint32_t)grey, scale);
 
             /* "New" badge next to Talk (type 2) when any of the 6 talk
              * dialogues is unseen (all.c:95987-96008). */
