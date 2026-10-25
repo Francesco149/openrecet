@@ -7,6 +7,7 @@
 #include "nowloading.h"   /* the secondary load gate DAT_06a49960 */
 #include "save_work.h"   /* the opening-script flags FUN_0044bd0d reads */
 #include "worker_load.h"
+#include "fade.h"   /* the scripts' start / end fades (DAT_06a49980) */
 
 #include "scene1_dialogue.h"
 #include "scene1_dialogue_run.h"
@@ -226,6 +227,8 @@ static int start_script(int scene, int sub)
 #endif
 }
 
+static void script_end_fade(void);
+
 void scene1_intro_dialogue_tick(uint16_t held)
 {
     switch (g_state) {
@@ -302,8 +305,10 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * (tut_load_done), so this case is not reached. */
         (void)held;
         if (++g_load_ctr >= (g_tut_load_frames_pin > 0 ? g_tut_load_frames_pin
-                                                       : IVE_TUT_LOAD_FRAMES))
+                                                       : IVE_TUT_LOAD_FRAMES)) {
             g_state = D_TUT;   /* next tick lazy-loads the script */
+            g_worker_sec_state_984 = 1;   /* LAB_00452aab: DAT_06a49984 */
+        }
         break;
 
     case D_TUT:
@@ -323,6 +328,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
             g_state       = D_TUT_DONE;   /* one settle frame (retail gate lag) */
             g_rt.active   = 0;
             g_rt.complete = 0;
+            script_end_fade();
         }
         break;
 
@@ -364,12 +370,40 @@ void scene1_intro_dialogue_tick(uint16_t held)
  * already runs the script: a 1-frame LOADING bracket, first step on arm+1. */
 static void tut_load_done(void)
 {
-    if (g_state == D_TUT_LOAD)   /* not if a skip already moved on */
+    if (g_state == D_TUT_LOAD) { /* not if a skip already moved on */
         g_state = D_TUT;
+        g_worker_sec_state_984 = 1;   /* LAB_00452aab: DAT_06a49984 */
+    }
 }
 
 void scene1_intro_dialogue_start_single(int scene, int sub)
 {
+    scene1_intro_dialogue_start(scene, sub, 0);
+}
+
+void scene1_intro_dialogue_fade_kick(void)
+{
+    if (scene1_intro_dialogue_gate() == 0)
+        return;
+    if (g_worker_sec_state_984 == 1) {                   /* DAT_06a49984 */
+        if (g_worker_sec_param == 1 || g_worker_sec_param == 4)
+            fade_phase_out_start(0, 0x11);               /* FUN_0045281c(0, 17) */
+        g_worker_sec_state_984 = 0;
+    }
+}
+
+/* FUN_004536cb at a script's end (FUN_0046c320 != 0): the fade DAT_06a49980 asked for */
+static void script_end_fade(void)
+{
+    if (g_worker_sec_param == 1 || g_worker_sec_param == 2)
+        fade_phase_out_start(0, 0x11);                   /* FUN_0045281c(0, 17) */
+    else if (g_worker_sec_param == 3 || g_worker_sec_param == 4)
+        fade_phase1_start(0, 3);                         /* FUN_004526f5(0, 3) */
+}
+
+void scene1_intro_dialogue_start(int scene, int sub, int fade)
+{
+    g_worker_sec_param = fade;   /* FUN_00452d07: DAT_06a49980 */
     g_tut_scene   = scene;
     g_tut_sub     = sub;
     g_state       = D_TUT_LOAD;   /* the load bracket first (LOADING_START) */
@@ -448,6 +482,7 @@ void scene1_intro_dialogue_skip_to_end(void)
         g_load_ctr    = 0;
         g_rt.active   = 0;
         g_rt.complete = 0;
+        script_end_fade();   /* "Yes": FUN_0046c320 returns 1 — the same end path */
         break;
     case D_TUT_LOAD:
     case D_TUT_DONE:
@@ -516,9 +551,11 @@ int scene1_intro_dialogue_bg_count(void)
 
 int scene1_intro_dialogue_skippable(void)
 {
-    /* FUN_0046c2cb gate: a line is up and skip_prompt (DAT_073a3e18, bumped
-     * every dialogue frame by FUN_0046c320) is past 1. */
-    return (scene1_intro_dialogue_active() && g_rt.scene.skip_prompt > 1) ? 1 : 0;
+    /* FUN_0046c2cb gate: a line is up, skip_prompt (DAT_073a3e18, bumped
+     * every dialogue frame by FUN_0046c320) is past 1 and the script has not
+     * said skipoff (DAT_073a6db0). */
+    return (scene1_intro_dialogue_active() && g_rt.scene.skip_prompt > 1 &&
+            g_rt.scene.skip_disable == 0) ? 1 : 0;
 }
 
 int scene1_intro_dialogue_loading(void)
@@ -652,6 +689,11 @@ int scene1_intro_dialogue_text_revealed(void)
 const struct ive_runtime *scene1_intro_dialogue_runtime(void)
 {
     return scene1_intro_dialogue_active() ? &g_rt : NULL;
+}
+
+struct ive_scene_state *scene1_intro_dialogue_draw_state(void)
+{
+    return scene1_intro_dialogue_active() ? &g_rt.scene : NULL;
 }
 
 /* Trace-harness `{phasepin}` for the dialogue screen-shake (rmb): zero the

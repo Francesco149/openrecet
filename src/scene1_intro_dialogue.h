@@ -52,6 +52,16 @@ void scene1_intro_dialogue_tick(uint16_t held);
  * FREEROAM_START latch.  Only meaningful when no dialogue is already active. */
 void scene1_intro_dialogue_start_single(int scene, int sub);
 
+/* FUN_0044ba2c(scene, sub, fade): as _start_single, with FUN_00452d07's param
+ * latched into DAT_06a49980 — 1 / 4 fade in once the script has loaded
+ * (DAT_06a49984, FUN_004536cb: FUN_0045281c(0, 17)); at its end 1 / 2
+ * FUN_0045281c(0, 17), 3 / 4 FUN_004526f5(0, 3).  _start_single is fade 0. */
+void scene1_intro_dialogue_start(int scene, int sub, int fade);
+
+/* FUN_004536cb ahead of the dialogue tick (LABEL_112), while DAT_0438b1c8 != 0:
+ * the script that just loaded (DAT_06a49984) fades in for DAT_06a49980 1 / 4. */
+void scene1_intro_dialogue_fade_kick(void);
+
 /* The cascade's iv1_2 dispatch (FUN_0044bd0d, work +0x2bc59 clear): the
  * prologue's second script when the machine waits between scripts, else a
  * lone iv1_2. */
@@ -129,6 +139,10 @@ int     scene1_intro_dialogue_bg_count(void);
 struct ive_runtime;
 struct ive_program;
 const struct ive_runtime *scene1_intro_dialogue_runtime(void);
+/* The scene scalars FUN_0046c9a2 itself writes (the next-line arrow's
+ * DAT_073a3e04 / DAT_073a3e0c) — the draw's mutable view; NULL when idle. */
+struct ive_scene_state;
+struct ive_scene_state *scene1_intro_dialogue_draw_state(void);
 const struct ive_program *scene1_intro_dialogue_program(void);
 
 /* Trace-harness `{phasepin}`: zero the dialogue screen-shake (rmb) countdowns so

@@ -13,7 +13,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 733, discovered 1724 → 824 referenced-or-better (32.3%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
-- orphan refs (in src/, not in function table): 11
+- orphan refs (in src/, not in function table): 13
 
 ## instrumented (91) — CALL_TRACE_ENTER(_STUB) probe wired (INVENTORY — not runtime-proven)
 
@@ -51,8 +51,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x442cef | FUN_00442cef | 2490 | ✓ |  | actor_ai.h, customer_service.c, dungeon_flow.h (+10) |
 | 0x451874 | FUN_00451874 | 47 | ✓ |  | actor_ai.c, audio.h, audio_mci.c (+19) |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ |  | main.c, scene1_fps.c, scene1_fps.h |
-| 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+16) |
-| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+16) |
+| 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+18) |
+| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+17) |
 | 0x4528b3 | FUN_004528b3 | 47 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+11) |
 | 0x452917 | FUN_00452917 | 38 | ✓ |  | customer_service.c, main.c, scene.h (+2) |
 | 0x452cde | FUN_00452cde | 41 | ✓ |  | dungeon_results.c, music.c, scene.c (+13) |
@@ -324,7 +324,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44b2e6 | FUN_0044b2e6 | 85 | ✓ |  | dungeon_flow.c, dungeon_flow.h |
 | 0x44b38c | FUN_0044b38c | 681 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c |
 | 0x44b635 | FUN_0044b635 | 1015 | ✓ |  | dungeon_flow.h, scene1_sim.c |
-| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | actor_ai.c, customer_service.c, dungeon_flow.c (+11) |
+| 0x44ba2c | FUN_0044ba2c | 63 | ✓ |  | actor_ai.c, customer_service.c, dungeon_flow.c (+12) |
 | 0x44baad | FUN_0044baad | 109 | ✓ |  | scene1_intro_dialogue.c |
 | 0x44bb1a | FUN_0044bb1a | 455 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_sim.c |
 | 0x44bce7 | FUN_0044bce7 | 28 | ✓ |  | scene_adv_guild.c, scene_worldmap.c |
@@ -358,7 +358,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x452809 | FUN_00452809 | 11 | ✓ |  | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c, scene_adv_guild.c (+1) |
 | 0x4528e2 | FUN_004528e2 | 47 | ✓ |  | fade.h, scene1_sim.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ |  | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
-| 0x452d07 | FUN_00452d07 | 55 | ✓ |  | main.c, nowloading.c, scene1_intro_dialogue.c (+7) |
+| 0x452d07 | FUN_00452d07 | 55 | ✓ |  | main.c, nowloading.c, scene1_intro_dialogue.c (+8) |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ |  | customer_service.c, main.c, scene_buy.h (+1) |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ |  | scene1_preload.h, scene_walls.h, worker_load.c |
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ |  | scene1_player_ctrl.c, scene_floor.h, worker_load.c |
@@ -374,7 +374,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+11) |
 | 0x4536b9 | FUN_004536b9 | 9 | ✓ |  | scene1_day_close.c, scene1_day_close.h, scene_day_end.c (+2) |
 | 0x4536c2 | FUN_004536c2 | 9 | ✓ |  | scene1_sim.c, scene_pause.c |
-| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | font.h, input_segtrace.h, movie.h (+16) |
+| 0x4536cb | FUN_004536cb | 1745 | ✓ |  | font.h, input_segtrace.h, movie.h (+17) |
 | 0x453d9c | FUN_00453d9c | 243 | ✓ |  | main.c, scene1_fx_overlays.c, scene1_fx_overlays.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ |  | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ |  | mesh_draw.c, mesh_draw.h, model_render.c (+6) |

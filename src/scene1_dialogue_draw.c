@@ -363,11 +363,15 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
                 render_quad_flush(dev);
             }
 
-            if (rt->revealed != 0 && g_window.tex) {  /* blinking next-line arrow */
-                static int s_blink = 0;            /* DAT_073a3e0c (draw-only cosmetic) */
-                int cell = (s_blink / 5) % 0x14;
+            /* the blinking next-line arrow: DAT_073a3e04 as the previous frame's
+             * text pass left it (this frame's pass, below, publishes the next) —
+             * a line that finishes revealing shows its arrow one frame later
+             * (debt-gameover-restart f25000); DAT_073a3e0c steps while it shows */
+            struct ive_scene_state *ds = scene1_intro_dialogue_draw_state();
+            if (ds != NULL && ds->drawn_revealed != 0 && g_window.tex) {
+                int cell = (ds->blink / 5) % 0x14;
                 if (cell > 4) cell = 0;
-                s_blink++;
+                ds->blink++;
                 float nx = local_c + 256.0f;
                 float ny = (float)(rt->scene.box_pos_off + 0x68);
                 const float dst[4] = { nx, ny, 64.0f, 64.0f };
@@ -382,6 +386,10 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
     /* ── glyph text (lines 350-388) ── */
     if (rt->line_row < 0)
         return;
+    {   /* the pass's DAT_073a3e04 (the tick's ive_completion computed it) */
+        struct ive_scene_state *ds = scene1_intro_dialogue_draw_state();
+        if (ds != NULL) ds->drawn_revealed = rt->revealed;
+    }
     float budget = (float)(rt->reveal - 4) * (float)DLG_REVEAL_SPEED / 32.0f;
     if (budget <= 0.0f)
         return;
@@ -406,15 +414,40 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
     }
 }
 
+/* ─── the script fade (FUN_0046c9a2 after the text, DAT_073a6da4) ───────────
+ * system.bmp's (1,1)-(7,7) over the screen in the fade colour, its alpha the
+ * colour's times 255·t/n rising (1 / 3) or 255 − 255·t/n falling (2 / 4),
+ * t = DAT_073a3e40, n = DAT_073a6dac (dungeon3-run f34600: black) */
+static void draw_fade(IDirect3DDevice8 *dev, const struct ive_runtime *rt)
+{
+    const int m = rt->scene.choice_fade;
+    const int n = rt->scene.fade_frames;
+    if (m == 0 || n == 0)              /* retail divides by n */
+        return;
+    int v = (m == 1 || m == 3) ? 255 * rt->scene.fade_ctr / n : 255 - 255 * rt->scene.fade_ctr / n;
+    if (v > 255) v = 255;
+    if (v < 0) v = 0;
+    const uint32_t c = rt->scene.fade_color;
+    const uint32_t a = (uint32_t)(v * (int)(c >> 24) / 255);
+    const sprite_t *sys = &g_sysassets.system_bmp;
+    if (sys->tex == NULL)
+        return;
+    const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+    const float src[4] = { 1.0f, 1.0f, 7.0f, 7.0f };
+    render_quad_bind(dev, sys);
+    render_quad_add(dst, src, sys->width, sys->height, (c & 0xffffffu) | a << 24);
+    render_quad_flush(dev);
+}
+
 /* ─── "ESC Key Event Skip" tip (FUN_0046c9a2 lines 67831-67843, the draw tail) ─
  * The very last quad of the draw: a fixed bottom strip from data_win.tga,
  * gated on `DAT_073a3e18 > 1` (≥2 dialogue frames elapsed) AND
- * `DAT_073a6db0 == 0` (the skip-disable flag, only ever 0 → always true). The
+ * `DAT_073a6db0 == 0` (no skipoff: FUN_0046d8fc, IDA's FUN_0046d900). The
  * texture is the boot-time system atlas g_sysassets.data_win_tga, so no
  * per-script load is needed. src (288,384)-(488,416) → dst (440,440) 200×32. */
 static void draw_skip_tip(IDirect3DDevice8 *dev, const struct ive_runtime *rt)
 {
-    if (rt->scene.skip_prompt <= 1)
+    if (rt->scene.skip_prompt <= 1 || rt->scene.skip_disable != 0)
         return;
     sprite_t *tip = &g_sysassets.data_win_tga;
     if (tip->tex == NULL)
@@ -441,6 +474,7 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
     draw_background(dev, rt, prog);
     draw_standees(dev, rt, prog);
     draw_box_and_text(dev, rt, prog);
+    draw_fade(dev, rt);
     draw_skip_tip(dev, rt);
 
     /* FUN_0046c090 tail: when the ESC skip prompt is open (DAT_073a3dec==1),
@@ -454,8 +488,7 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
         title_save_dialog_cursor_render(dev);
     }
 
-    /* Remaining Layer 4: rmb screen-shake RNG reads + the choice/menu fade
-     * overlay (DAT_073a6da4; no choices in the prologue). */
+    /* Remaining Layer 4: rmb screen-shake RNG reads. */
 }
 
 #endif /* _WIN32 */

@@ -136,7 +136,7 @@ void scene1_tutorial_dispatch_tick(void)
     if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] == 2) {
         if (bb[TUT_MODE2_DONE_OFF] != 0 || !tut_idle())
             return;
-        scene1_intro_dialogue_start_single(0, bank[TUT_MODE2_ALT_DWORD] != 0 ? 19 : 18);
+        scene1_intro_dialogue_start(0, bank[TUT_MODE2_ALT_DWORD] != 0 ? 19 : 18, 1);   /* FUN_00452d07(1) */
         bb[TUT_MODE2_DONE_OFF] = 1;
         return;
     }
@@ -173,7 +173,7 @@ void scene1_tutorial_dispatch_tick(void)
     /* iv7_1: the second-week morning (b924 1, before the day's first period). */
     if (bb[TUT_IV7_1_TRIG_OFF] != 0 && bb[TUT_IV7_1_DONE_OFF] == 0 && period == 0 && day != 8 &&
         g_iv2_beat_active == 1 && g_iv2_beat_ctr == 1 && tut_idle()) {
-        scene1_intro_dialogue_start_single(7, 1);
+        scene1_intro_dialogue_start(7, 1, 1);    /* FUN_00452d07(1) */
         bb[TUT_IV7_1_DONE_OFF] = 1;
     }
     if (!open)

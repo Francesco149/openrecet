@@ -121,8 +121,12 @@ void ive_scene_state_reset(struct ive_scene_state *s)
     s->shake_bg        = 0;   /* DAT_073a6d98 */
     s->shake_chr       = 0;   /* DAT_073a6d9c */
     s->choice_fade     = 0;   /* DAT_073a6da4 */
+    s->fade_ctr        = 0;   /* DAT_073a3e40 */
+    s->fade_frames     = 0;   /* DAT_073a6dac (DAT_073a6da8, the colour, is not reset) */
     s->skip_prompt     = 0;   /* DAT_073a3e18 */
+    s->skip_disable    = 0;   /* DAT_073a6db0 */
     s->blink           = 0;   /* DAT_073a3e0c */
+    s->drawn_revealed  = 0;   /* DAT_073a3e04 */
     s->window_open_ctr = -1;  /* DAT_005c797c */
     s->choice_mode     = -1;  /* DAT_073a6bcc */
     /* PORT-DEBT(deferred, FUN_0046c9a2): box_pos_mode/off (DAT_005c7984/80) are
@@ -220,6 +224,16 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
     case IVE_OP_BG:             /* bgset (0x46d912): active bg + clear scroll px */
         rt->scene.bg_index  = c->a1;   /* DAT_073a6d90 */
         rt->scene.bg_scroll = 0;       /* DAT_073a6d84 */
+        return IVE_R_CONTINUE;
+    case IVE_OP_FADEIN:         /* fadein:f:r,g,b,a (0x46dd2c): from the colour */
+    case IVE_OP_FADEOUT:        /* fadeout:f:r,g,b,a (0x46dd53): to it, held */
+        rt->scene.fade_ctr    = 0;
+        rt->scene.fade_color  = (uint32_t)c->a1;
+        rt->scene.fade_frames = c->a2;
+        rt->scene.choice_fade = c->op == IVE_OP_FADEIN ? 2 : 1;
+        return IVE_R_CONTINUE;
+    case IVE_OP_SKIP:           /* skipoff / skipon (0x46d8fc): DAT_073a6db0 = a1 */
+        rt->scene.skip_disable = c->a1;
         return IVE_R_CONTINUE;
     case IVE_OP_LIGHTON:        /* lighton:a:b (0x46dd7a): the bg flicker on */
     case IVE_OP_LIGHTOFF:       /* lightoff (0x46ddb1): off, 0 / 0 */
@@ -498,6 +512,15 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
         if (rt->scene.shake_bg > 0)  rt->scene.shake_bg--;
         if (rt->scene.shake_chr > 0) rt->scene.shake_chr--;
         ive_run_tween(rt);
+        /* the fade (FUN_0046c320, after the standees): step to its frame count;
+         * a fadein (2 / 4) ends there; then windowset's banner counter, ≤ 40 */
+        if (rt->scene.choice_fade != 0 && ++rt->scene.fade_ctr > rt->scene.fade_frames) {
+            rt->scene.fade_ctr = rt->scene.fade_frames;
+            if (rt->scene.choice_fade == 2 || rt->scene.choice_fade == 4)
+                rt->scene.choice_fade = 0;
+        }
+        if (rt->scene.window_open_ctr >= 0 && ++rt->scene.window_open_ctr > 40)
+            rt->scene.window_open_ctr = 40;
     }
 
     /* Box open/close + the `wait:` countdown — the wait only ticks down while

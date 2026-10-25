@@ -96,7 +96,7 @@
    "engine_fn": "FUN_0046c9a2",
    "desc": "box_pos_mode/off (DAT_005c7984/80) are",
    "file": "src/scene1_dialogue_run.c",
-   "line": 128,
+   "line": 132,
    "kind_known": false
   },
   {
@@ -200,7 +200,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 408,
+   "line": 442,
    "kind_known": true
   },
   {

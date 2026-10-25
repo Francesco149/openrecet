@@ -570,12 +570,12 @@ static int guild_entry_events(uint32_t *bank)
      * FUN_00452809 (PORT-DEBT(stub, FUN_00452809), as at the tutorial sites). */
     if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
         bb[GUILD_FIRSTVISIT_OFF] = 1;
-        scene1_intro_dialogue_start_single(1, 3);
+        scene1_intro_dialogue_start(1, 3, 1);
         return 1;
     }
     int grp, idx;
     if (event_probe(bank, s_variant == 0 ? 3 : 1, &grp, &idx, 1)) {
-        scene1_intro_dialogue_start_single(grp, idx);   /* FUN_0044ba2c(grp,idx,1) */
+        scene1_intro_dialogue_start(grp, idx, 1);       /* FUN_0044ba2c(grp,idx,1) */
         s_menu.transition = 1;
         return 1;
     }
@@ -586,7 +586,7 @@ static int guild_entry_events(uint32_t *bank)
         for (int k = 1; k <= 3; k++) {
             if (bb[GUILD_STORY_OFF + k] == 0) {
                 bb[GUILD_STORY_OFF + k] = 1;
-                scene1_intro_dialogue_start_single(6, k + 1);
+                scene1_intro_dialogue_start(6, k + 1, 1);   /* FUN_0044ba2c(6,k+1,1) */
                 s_menu.transition = 1;
                 s_menu.entry_tick = 1;
                 return 1;
@@ -651,14 +651,14 @@ void scene_guild_sim(void)
     s_menu.transition = 0;
 
     /* the first Leave after the first purchase: fade, then iv1_16 (Tear's
-     * "back to Recettear" scene; FUN_0044ba2c(1,16,4) — PORT-DEBT(simplified,
-     * FUN_0044ba2c): the port's spawn has no mode-4 end arm, FUN_004526f5(0,3)),
-     * the gift item 0x3ea00 into the bag, and on to the c28 exit. */
+     * "back to Recettear" scene; FUN_0044ba2c(1,16,4): faded in once loaded,
+     * FUN_004526f5(0,3) at its end), the gift item 0x3ea00 into the bag, and on
+     * to the c28 exit. */
     if (s_menu.c2c > 0) {
         if (++s_menu.c2c == 2)
             fade_phase1_start(0, 0x11);                  /* FUN_004526f5(0,17) */
         if (s_menu.c2c >= 3 && fade_is_done()) {
-            scene1_intro_dialogue_start_single(1, 16);
+            scene1_intro_dialogue_start(1, 16, 4);
             s_menu.c2c = 0;
             bb[GUILD_FIRSTLEAVE_DONE_OFF] = 1;
             s_menu.c28 = 3;

@@ -33,10 +33,10 @@ in-process retail host (`findings/in-process-retail-host.md`). Prior human
 attestations in `findings/confirmed-parity-ledger.md` are UNVERIFIED pending
 re-verification.
 
-11 VAs are referenced in src/ but absent from the function table
+13 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 75 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 74 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -268,10 +268,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        results screen, the market and the pause Items match retail frames (`portshots`, mean
        abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
        DAT_073aa198, 2026-10-24; Ohm's pose since the meshes bind to their own frames,
-       2026-10-25; the ticker, the warp flash, the fades since 2026-10-25) — still missing: the
+       2026-10-25; the ticker, the warp flash, the fades, Tear's menu pages, the countdowns, the
+       upgrade hint, the pause backdrops, the event scripts' fades / flicker / skipoff since
+       2026-10-25; swept under wine: dungeon3-floors / -deep / -run, dungeon2-run3, dungeon1-deep /
+       -clear, dungeon0-full, day2-shop, tear-lectures-gameover, multiday-tutorials-suggest,
+       debt-gameover-restart) — still missing: the
        sun / lens flare (FUN_00405d70 / FUN_00405b1a), Tear's News Summary / Outstanding Orders
-       pages (FUN_0040a765 LABEL_100 entries 8 / 9, PORT-DEBT), the Daily Profits backdrop
-       (dungeon2-run3 f65000, mean 3.1: the blur composite's captured scene, ~f64665), table A's last ulps (portblock reca: 0–1 dwords per frame on
+       pages (FUN_0040a765 LABEL_100 entries 8 / 9, PORT-DEBT; no recording opens them), the
+       furniture-stand tooltip unverified (no recording faces a vending machine), table A's last ulps (portblock reca: 0–1 dwords per frame on
        dungeon1-deep, 5–8 on dungeon3-deep: spawn sites whose products round differently), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;

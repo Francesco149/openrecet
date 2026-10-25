@@ -135,7 +135,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:408 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
 | FUN_00490e56 | src/guild_stock.c:41 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |
@@ -160,7 +160,7 @@ _none_
 |------|--------|----------|------------------|
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:128 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:818 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3191 | types >= 64 read past DAT_005c23f0 into |

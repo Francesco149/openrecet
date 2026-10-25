@@ -502,6 +502,7 @@ void sim_step_a(void)
             if (skip_event_tick(g_input_state[0].buttons) == SKIP_EVENT_CONFIRMED)
                 scene1_intro_dialogue_skip_to_end();
         } else {
+            scene1_intro_dialogue_fade_kick();   /* DAT_06a49984 → FUN_0045281c */
             scene1_intro_dialogue_tick(g_input_state[0].buttons);
         }
     }
@@ -580,6 +581,7 @@ void sim_step_a(void)
             /* a dialogue started from the pause (the payment verdict) ticks here
              * (FUN_004536cb's mode-9 arm: FUN_0046c320 while DAT_0438b1c8 != 0),
              * then the pause action runs as every frame */
+            scene1_intro_dialogue_fade_kick();
             if (scene1_intro_dialogue_busy())
                 scene1_intro_dialogue_tick(g_input_state[0].buttons);
             if (g_pause_action == 0)

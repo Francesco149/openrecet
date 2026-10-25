@@ -76,9 +76,15 @@ struct ive_scene_state {
     int32_t bg_mode;          /* DAT_073a6d94 — 0 = static, else scroll/shake    */
     int32_t shake_bg;         /* DAT_073a6d98 — rmb: bg-shake countdown          */
     int32_t shake_chr;        /* DAT_073a6d9c — rmb: chr-shake countdown         */
-    int32_t choice_fade;      /* DAT_073a6da4 — choice/menu fade state           */
+    int32_t choice_fade;      /* DAT_073a6da4 — the fade overlay: 1 fadeout (to the
+                               * colour, held), 2 fadein (from it, then 0)      */
+    int32_t fade_ctr;         /* DAT_073a3e40 — frames into the fade (≤ frames) */
+    int32_t fade_frames;      /* DAT_073a6dac                                    */
+    uint32_t fade_color;      /* DAT_073a6da8 — a<<24 | r<<16 | g<<8 | b         */
     int32_t skip_prompt;      /* DAT_073a3e18 — ESC skip-event prompt counter    */
-    int32_t blink;            /* DAT_073a3e0c — next-line arrow blink phase      */
+    int32_t skip_disable;     /* DAT_073a6db0 — skipoff (1) / skipon (0)         */
+    int32_t blink;            /* DAT_073a3e0c — next-line arrow blink phase (draw) */
+    int32_t drawn_revealed;   /* DAT_073a3e04 as the draw last published it     */
     int32_t window_open_ctr;  /* DAT_005c797c — init -1                          */
     int32_t choice_mode;      /* DAT_073a6bcc — init -1                          */
     int32_t box_pos_mode;     /* DAT_005c7984 — windowpos mode (RE gap: see .c)  */
