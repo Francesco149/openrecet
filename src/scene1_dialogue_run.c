@@ -9,6 +9,7 @@
  * §"handler bodies + runtime tick".
  */
 #include "scene1_dialogue_run.h"
+#include "x87.h"
 #include "save_work.h"
 
 #include <math.h>
@@ -185,6 +186,11 @@ static int op_msg_waitkey(const struct ive_runtime *rt, uint16_t held, uint16_t 
     return IVE_R_STOP;
 }
 
+/* flt_005c78d4 / flt_005c78d8 — the bg flicker's rate and depth (.data 0.4 /
+ * 8.0; lighton / lightoff set them, nothing resets them) */
+float g_ive_light_freq = 0.40000001f;
+float g_ive_light_amp  = 8.0f;
+
 /* Execute one command; returns the walk return code. Visual/audio handlers are
  * deferred no-ops (ret 1 / advance) — only the state model that the anchors
  * observe is driven here. */
@@ -214,6 +220,12 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
     case IVE_OP_BG:             /* bgset (0x46d912): active bg + clear scroll px */
         rt->scene.bg_index  = c->a1;   /* DAT_073a6d90 */
         rt->scene.bg_scroll = 0;       /* DAT_073a6d84 */
+        return IVE_R_CONTINUE;
+    case IVE_OP_LIGHTON:        /* lighton:a:b (0x46dd7a): the bg flicker on */
+    case IVE_OP_LIGHTOFF:       /* lightoff (0x46ddb1): off, 0 / 0 */
+        rt->scene.bg_fade = c->op == IVE_OP_LIGHTON;   /* DAT_073a3df4 */
+        g_ive_light_freq = spill32((long double)spill32((float)c->a1) / 1000.0);   /* flt_005c78d4 */
+        g_ive_light_amp  = spill32((long double)spill32((float)c->a2) / 1000.0);   /* flt_005c78d8 */
         return IVE_R_CONTINUE;
     case IVE_OP_BGSCROLL:       /* bgscroll:f (0x46d8a5): scroll mode/speed */
         rt->scene.bg_mode = c->a1;     /* DAT_073a6d94 */

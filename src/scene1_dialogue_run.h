@@ -85,6 +85,11 @@ struct ive_scene_state {
     int32_t box_pos_off;      /* DAT_005c7980 — windowpos offset (RE gap)        */
 };
 
+/* flt_005c78d4 / flt_005c78d8 — lighton:a:b's flicker rate a/1000 and depth
+ * b/1000 (FUN_0046c9a2's white overlay while bg_fade) */
+extern float g_ive_light_freq;
+extern float g_ive_light_amp;
+
 /* Reproduce FUN_0046c0ae's standee-table + scalar reset. Pure C; called from
  * ive_runtime_init (the engine runs it in the per-script loader FUN_0046c295). */
 void ive_scene_state_reset(struct ive_scene_state *s);

@@ -25,6 +25,7 @@
 #include "skip_event.h"    /* skip_event_open() — gate the choice-box draw  */
 #include "choice_box.h"    /* choice_box_draw() — the ESC skip prompt       */
 #include "title_save_dialog.h" /* title_save_dialog_cursor_render (FUN_00435747) */
+#include "x87.h"           /* spill32 / x87_crt_sin / x87_ftol — the flicker */
 #include "rng.h"           /* rng_next15() — chr/bg-shake jitter (rmb)      */
 
 #include <string.h>
@@ -94,6 +95,32 @@ static void ensure_assets(IDirect3DDevice8 *dev, const struct ive_program *prog)
 }
 
 /* ─── background (FUN_0046c9a2 lines 75-127) ─────────────────────────────── */
+/* lighton's flicker (FUN_0046c9a2, after the bg inside its DAT_073a3df0 block):
+ * system.bmp's white (1,1)-(7,7) over the screen at alpha ftol((sin(++n ·
+ * rate) + 1) · depth) clamped 0..255, n = DAT_073a3e3c — a render-side counter
+ * never reset (debt-gameover-restart f25500: the game over's spotlight) */
+static int32_t s_light_ctr;   /* DAT_073a3e3c */
+
+static void draw_light(IDirect3DDevice8 *dev, const struct ive_runtime *rt)
+{
+    if (rt->scene.bg_fade == 0)       /* DAT_073a3df4 */
+        return;
+    float a = spill32((float)++s_light_ctr);
+    a = spill32((long double)a * g_ive_light_freq);
+    a = spill32(x87_crt_sin((double)a));
+    int v = x87_ftol(((long double)a + 1.0) * g_ive_light_amp);
+    if (v > 255) v = 255;
+    if (v < 0) v = 0;
+    const sprite_t *sys = &g_sysassets.system_bmp;
+    if (sys->tex == NULL)
+        return;
+    const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+    const float src[4] = { 1.0f, 1.0f, 7.0f, 7.0f };
+    render_quad_bind(dev, sys);
+    render_quad_add(dst, src, sys->width, sys->height, 0xffffffu | ((uint32_t)v << 24));
+    render_quad_flush(dev);
+}
+
 static void draw_background(IDirect3DDevice8 *dev,
                             const struct ive_runtime *rt,
                             const struct ive_program *prog)
@@ -101,8 +128,10 @@ static void draw_background(IDirect3DDevice8 *dev,
     if (prog->n_bg <= 0)              /* DAT_073a3df0 — no bg set */
         return;
     int idx = rt->scene.bg_index;    /* DAT_073a6d90 */
-    if (idx < 0 || idx >= g_bg_count || g_bg[idx].tex == NULL)
+    if (idx < 0 || idx >= g_bg_count || g_bg[idx].tex == NULL) {
+        draw_light(dev, rt);
         return;
+    }
     const sprite_t *bg = &g_bg[idx];
     render_quad_bind(dev, bg);
 
@@ -130,6 +159,7 @@ static void draw_background(IDirect3DDevice8 *dev,
         }
     }
     render_quad_flush(dev);
+    draw_light(dev, rt);
 }
 
 /* ─── character standees (FUN_0046c9a2 lines 153-209) ────────────────────── */

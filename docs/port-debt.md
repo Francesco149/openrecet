@@ -160,7 +160,7 @@ _none_
 |------|--------|----------|------------------|
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:127 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:128 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:818 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3191 | types >= 64 read past DAT_005c23f0 into |
