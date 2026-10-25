@@ -239,7 +239,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        the legacy
        table-B bodies beyond those recordings reached are unverified (re-check each against
        the disasm: dungeon 1 found kinds 0xa / 0x10 / 0x16 / 0x17 / 0xe / 0x12 wrong).
-    2. ✅ **Hidden-state sweep** (`portblock SCEN --at F`): **every block IDENTICAL** at the
+    2. ✅ **Hidden-state sweep** (`portblock SCEN --at F,F,..`; 2026-10-25 under `--target wine`:
+       multiday-tutorials-suggest f10k/20k/30k, dungeon3-run2 f15k/30k/44k, dungeon2-run3
+       f15k..60k, dungeon1-charme f20k/40k, debt-week1-paid f10k/20k, dungeon1-deep f60k/77k,
+       dungeon0-full f10k all blocks IDENTICAL; elsewhere 1–2 dead table-A records a y / z ulp
+       off — the sweep found table A's 0x45 lift field and 0x4f's cos residue): **every block IDENTICAL** at the
        ends of the house runs (multiday, debt-gameover-restart, day2-save-commit,
        buy-from-seller-guild-intro, adv-guild-pack-leave, tear-lectures-gameover,
        debt-week1-paid), dungeon0-full, dungeon1-charme / -clear / -deep, dungeon2-run / -run2 /
