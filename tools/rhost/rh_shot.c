@@ -89,6 +89,46 @@ static int shot_from_device(const char *path, const char *tag)
     return r;
 }
 
+/* Under wine, D3D8's DISCARD backbuffer is blank once presented (Windows drivers keep the
+ * frame, which the read above relies on): capture inside Present instead. rh_shot_arm(tag)
+ * at tick F-1's start shoots that tick's Present = the picture rh_shot(tag) reads at tick F
+ * on Windows. */
+typedef HRESULT (__stdcall *present_fn)(IDirect3DDevice8 *, const RECT *, const RECT *, HWND, const RGNDATA *);
+static present_fn s_present;
+static char s_armed[32];
+
+static HRESULT __stdcall hk_present(IDirect3DDevice8 *d, const RECT *a, const RECT *b, HWND w, const RGNDATA *r)
+{
+    if (s_armed[0]) {
+        char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, s_armed);
+        if (shot_from_device(path, s_armed) != 0) rh_log("shot %s: Present readback failed\n", s_armed);
+        s_armed[0] = 0;
+    }
+    return s_present(d, a, b, w, r);
+}
+
+int rh_shot_on_present(void)
+{
+    static int wine = -1;
+    if (wine < 0) wine = GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version") != NULL;
+    return wine;
+}
+
+void rh_shot_arm(const char *tag)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)(uintptr_t)G32(DAT_D3D_DEVICE);
+    if (!dev) return;
+    void **vt = *(void ***)dev;
+    if (vt[15] != (void *)hk_present) {     /* IDirect3DDevice8::Present */
+        DWORD old;
+        VirtualProtect(&vt[15], sizeof vt[15], PAGE_READWRITE, &old);
+        s_present = (present_fn)vt[15];
+        vt[15] = (void *)hk_present;
+        VirtualProtect(&vt[15], sizeof vt[15], old, &old);
+    }
+    snprintf(s_armed, sizeof s_armed, "%s", tag);
+}
+
 void rh_shot(const char *tag)
 {
     char path[MAX_PATH]; snprintf(path, sizeof path, "%s\\shot_%s.png", O.rundir, tag);

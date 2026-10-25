@@ -110,6 +110,8 @@ void rh_dinput_install(void);
 /* rh_shot.c */
 void rh_shot(const char *tag);
 void rh_shot_warm(void);   /* first PrintWindow is blank: warm the DWM surface */
+int  rh_shot_on_present(void);        /* wine: shots come from a Present hook */
+void rh_shot_arm(const char *tag);   /* shoot the next Present as `tag` */
 
 /* rh_hooks.c */
 void rh_hooks_install(void);

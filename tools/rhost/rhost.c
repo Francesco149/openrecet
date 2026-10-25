@@ -469,9 +469,15 @@ static void __cdecl hook_tick(void)
                GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8), wb);
     }
     if (g_frame == 1 && (O.n_shot || O.shot_every)) rh_shot_warm();
-    for (int i = 0; i < O.n_shot; i++)
-        if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
-    if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+    if (rh_shot_on_present()) {   /* wine: arm tick F-1's Present for the shot of F */
+        for (int i = 0; i < O.n_shot; i++)
+            if (O.shot_at[i] != 0xffffffffu && O.shot_at[i] == g_frame + 1) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
+        if (O.shot_every && (g_frame + 1) % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
+    } else {
+        for (int i = 0; i < O.n_shot; i++)
+            if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+        if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+    }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
         rh_log("hash f%u full=%016llx sem=%016llx masked=%u\n", g_frame, (unsigned long long)h.full, (unsigned long long)h.semantic, h.masked);

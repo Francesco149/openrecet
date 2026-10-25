@@ -267,9 +267,15 @@ def rhost_args(a, run_win, inputs_win):
 
 def make_batch(a, runs, tag):
     """runs: list of (run_name, trace_path|None, masks_path|None, save_path|None)"""
-    batch = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + tag
-    bdir = os.path.join(LOCAL_RUNS, batch)
-    os.makedirs(bdir)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    for n in range(1000):   # concurrent commands in the same second get -2, -3, ..
+        batch = f"{stamp}-{tag}" if n == 0 else f"{stamp}-{n + 1}-{tag}"
+        bdir = os.path.join(LOCAL_RUNS, batch)
+        try:
+            os.makedirs(bdir)
+            break
+        except FileExistsError:
+            continue
     lines = ["$ErrorActionPreference = 'Continue'"]
     for name, trace, masks, save in runs:
         rdir = os.path.join(bdir, name)
@@ -305,7 +311,9 @@ def wine_stage():
         dst = os.path.join(WINE_ROOT, "bin", f)
         src = os.path.join(BUILD, f)
         if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
-            shutil.copy2(src, dst)
+            # copy then rename: a run still executing the old image keeps its inode
+            shutil.copy2(src, dst + ".new")
+            os.replace(dst + ".new", dst)
     link = os.path.join(WINE_PREFIX, "drive_c", "orc-rhost")
     if not os.path.islink(link):
         os.symlink(WINE_ROOT, link)
