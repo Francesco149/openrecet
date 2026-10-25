@@ -1275,7 +1275,7 @@ def common(p):
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
     p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
     p.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 4) // 2), help="wine: parallel runs")
-    p.add_argument("--wine-timeout", type=int, default=3600)
+    p.add_argument("--wine-timeout", type=int, default=14400, help="seconds per wine run (a long replay under contention takes hours)")
 
 
 def cmd_tables(a):
