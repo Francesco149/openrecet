@@ -63,4 +63,8 @@ void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev);
  * day-2 transition.  Call from the HOUSE free-roam render tail AFTER the top HUD. */
 void scene1_day_card_render(struct IDirect3DDevice8 *dev);
 
+/* FUN_0040a765's last block (LABEL_228): on a floor, the warp trap's white
+ * screen (alpha 10 * DAT_0438b8b8).  Right after the day card. */
+void scene1_dungeon_flash_render(struct IDirect3DDevice8 *dev);
+
 #endif /* OPENRECET_SCENE1_FX_OVERLAYS_H */

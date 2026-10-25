@@ -18445,6 +18445,7 @@
     "src/scene1_companion_ctrl.h",
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
+    "src/scene1_fx_overlays.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
@@ -20232,7 +20233,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c"
+    "src/dungeon_party.c",
+    "src/scene1_fx_overlays.c"
    ],
    "status": "ported"
   },

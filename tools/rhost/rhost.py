@@ -521,9 +521,23 @@ def cmd_verify(a):
     return 0 if all(tot.get(h, [0, 0])[1] == 0 for h in VERIFY_HOOKS) else 1
 
 
+_port_built = False
+
+
+def build_port():
+    """make the port exe once per invocation: a port run staged whatever build/openrecet.exe
+    last held, so an edit without a manual make compared a stale port (once, so a long batch
+    never picks up edits made while it runs)"""
+    global _port_built
+    if not _port_built:
+        sh(["nix", "develop", "--command", "make", "-s", "-C", os.path.join(ROOT, "src"), "-j16"])
+        _port_built = True
+
+
 def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
     """the port (--det-loads, turbo) on rhost's flat trace of the same run, on Windows.
     Returns the local port dir; `fetch` names files the port wrote into it."""
+    build_port()
     pdir_l = os.path.join(bdir, "port")
     os.makedirs(pdir_l)
     shutil.copy(flat, os.path.join(pdir_l, "trace.jsonl"))

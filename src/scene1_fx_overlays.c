@@ -41,6 +41,9 @@
 #include "save_bank.h"            /* SAVE_BANK_FIELD_CARD_DAY (0xb0fb)           */
 #include "font_draw.h"            /* font_draw_text_centered (FUN_0047d14c)      */
 #include <stdio.h>                /* snprintf — the "Day %d" format              */
+#include "scene.h"                /* g_scene_state (DAT_0438b1c0)                */
+#include "map_collision.h"        /* mapcol_maptype (*DAT_068dd2f0)              */
+#include "dungeon_flow.h"         /* g_dat_0438b8b8 — the warp flash             */
 
 /* The 2-pass radial-blur composite (engine FUN_00454191 c99c==3 block,
  * L50874-50943), built ONCE at pause open.  Leaves RT#56 holding the finished
@@ -255,6 +258,25 @@ void scene1_day_card_render(struct IDirect3DDevice8 *dev)
     }
 }
 
+void scene1_dungeon_flash_render(struct IDirect3DDevice8 *dev)
+{
+    /* FUN_0040a765 LABEL_228 (0x40c431, all_ida 7988): on a floor the white
+     * screen of DAT_0438b8b8 (the warp trap's ramp, FUN_0048b850 / FUN_0049630d),
+     * alpha 10 per step, capped 255 */
+    if (g_scene_state != 1 || mapcol_maptype() < 1 || g_dat_0438b8b8 <= 0)
+        return;
+    int a = g_dat_0438b8b8 * 10;
+    if (a > 0xff) a = 0xff;
+    const sprite_t *sys = &g_sysassets.system_bmp;            /* DAT_073aa188 */
+    if (sys->tex == NULL)
+        return;
+    const float dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
+    const float src[4] = { 0.0f, 0.0f, 7.0f, 7.0f };
+    render_quad_bind(dev, sys);
+    render_quad_add(dst, src, sys->width, sys->height, ((uint32_t)a << 24) | 0xffffffu);
+    render_quad_flush(dev);
+}
+
 #else  /* !_WIN32 — Linux host-test build (no d3d8) */
 
 void scene1_fx_overlays(struct IDirect3DDevice8 *dev)
@@ -276,6 +298,11 @@ void scene1_fx_screen_blackout(struct IDirect3DDevice8 *dev)
 void scene1_day_card_render(struct IDirect3DDevice8 *dev)
 {
     /* Host build: the day-transition card is Win32-only (see the _WIN32 body). */
+    (void)dev;
+}
+
+void scene1_dungeon_flash_render(struct IDirect3DDevice8 *dev)
+{
     (void)dev;
 }
 

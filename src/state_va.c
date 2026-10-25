@@ -430,6 +430,7 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x438b8a4u, &g_event_tick },      { 0x438b8a0u, &g_event_stage },
     { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },
     { 0x438b938u, &g_floor_event_n },   { 0x438b950u, &g_dat_0438b950 },
+    { 0x438b930u, &g_dat_0438b930 },   { 0x438b8b8u, &g_dat_0438b8b8 },
     { 0x438b92cu, &g_news_ticker_timer }, { 0x438b1bcu, &g_actor_alloc_n },
     { 0x76b960u, &g_scene1_records_a_count }, { 0x76b964u, &g_scene1_records_b_count },
     { 0x76b968u, &g_scene1_records_c_count },

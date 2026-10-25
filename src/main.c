@@ -3326,6 +3326,7 @@ static void render_dispatch(void)
                      * Self-gates on the b928/b924 beat (no-op off the DAY2 transition),
                      * so safe every HOUSE free-roam frame. */
                     scene1_day_card_render(g_dev);
+                    scene1_dungeon_flash_render(g_dev);   /* LABEL_228 */
                     /* FUN_004547ab's plain in-game arm (no dialogue, DAT_0438b1d0 /
                      * b1d8 clear — free roam, the dungeon): FUN_0040c962 (the "got an
                      * item" notice) between the HUD and FUN_00417504 */
