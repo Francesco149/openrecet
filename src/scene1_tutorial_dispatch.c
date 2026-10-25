@@ -16,6 +16,7 @@
 #include "scene_pause.h"             /* pause_period_end (FUN_00482059)     */
 #include "scene1_day_close.h"        /* day_close_arm (DAT_0438b4e0 = 1)    */
 #include "stage_palette.h"           /* g_stage_palette->mode (*DAT_068dd2f0) */
+#include "scene1_top_hud.h"          /* the clock phase (DAT_0438b7d4)       */
 
 #include <stdint.h>
 #include <stddef.h>   /* NULL */
@@ -190,7 +191,7 @@ void scene1_tutorial_dispatch_tick(void)
             bb[TUT_IV1_2_DONE_OFF] = 1;
         }
     } else if (bb[TUT_IV12_1_TRIG_OFF] == 1 && tut_idle()) {
-        scene1_intro_dialogue_start_single(12, 1);
+        scene1_intro_dialogue_start(12, 1, 1);          /* FUN_00452d07(1) */
         bb[TUT_IV12_1_TRIG_OFF] = 0;
     }
 
@@ -247,7 +248,7 @@ void scene1_tutorial_dispatch_tick(void)
     }
     if (bb[TUT_IV4_4_TRIG_OFF] != 0) {
         if (tut_idle()) {
-            scene1_intro_dialogue_start_single(4, 4);
+            scene1_intro_dialogue_start(4, 4, 1);           /* FUN_00452d07(1) */
             bb[TUT_IV4_4_TRIG_OFF] = 0;
             bb[TUT_IV4_5_TRIG_OFF] = 1;
             if ((int32_t)bank[TUT_SHOPTIME_DWORD] >= 4) {
@@ -285,20 +286,20 @@ void scene1_tutorial_dispatch_tick(void)
      * DAY ADVANCE) → iv2_5 → iv2_6, the day-1-evening → day-2 series. ── */
     if (bb[TUT_IV1_8_DONE_OFF] == 0) {
         if (bb[TUT_IV1_8_TRIG_OFF] == 1 && tut_idle()) {   /* f402: set at the cs LEAVE */
-            scene1_intro_dialogue_start_single(TUT_SCENE, TUT_SUB_IV1_8);
+            scene1_intro_dialogue_start(TUT_SCENE, TUT_SUB_IV1_8, 2);   /* FUN_00452d07(2) */
             bb[TUT_IV1_8_DONE_OFF] = 1;      /* DAT_0450f403 = 1 */
             bb[TUT_IV2_1_TRIG_OFF] = 1;      /* DAT_0450f409 = 1 */
             bb[TUT_F407_OFF]       = 1;      /* DAT_0450f407 = 1 */
         }
     } else if (bb[TUT_IV2_1_DONE_OFF] == 0) {
         if (bb[TUT_IV2_1_TRIG_OFF] == 1 && tut_idle()) {
-            scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 1);
+            scene1_intro_dialogue_start(TUT_SCENE_IV2, 1, 1);   /* FUN_00452d07(1) */
             bb[TUT_IV2_1_DONE_OFF] = 1;      /* DAT_0450f40a = 1 */
             bb[TUT_IV2_2_TRIG_OFF] = 1;      /* DAT_0450f40b = 1 */
         }
     } else if (bb[TUT_IV2_2_DONE_OFF] == 0) {
         if (bb[TUT_IV2_2_TRIG_OFF] == 1 && tut_idle()) {
-            scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 2);
+            scene1_intro_dialogue_start(TUT_SCENE_IV2, 2, 1);   /* FUN_00452d07(1) */
             bb[TUT_IV2_2_DONE_OFF] = 1;      /* DAT_0450f40c = 1 */
             bb[TUT_IV2_3_TRIG_OFF] = 1;      /* DAT_0450f40d = 1 */
         }
@@ -306,7 +307,7 @@ void scene1_tutorial_dispatch_tick(void)
         if (bb[TUT_IV2_3_TRIG_OFF] == 1 && tut_idle()) {
             /* iv2_3 = the DAY ADVANCE: day++ + the day-block resets that reopen
              * the shop for day 2. */
-            scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 3);
+            scene1_intro_dialogue_start(TUT_SCENE_IV2, 3, 1);   /* FUN_00452d07(1) */
             bb[TUT_IV2_3_DONE_OFF] = 1;      /* DAT_0450f40e = 1 */
             bank[TUT_DAY_DWORD] += 1;        /* DAT_0450fb84 += 1 (day counter) */
             bank[TUT_SHOPTIME_DWORD] = 0;    /* DAT_0450fb88 = 0 */
@@ -315,13 +316,12 @@ void scene1_tutorial_dispatch_tick(void)
             bb[TUT_F3F2_OFF] = 1;            /* DAT_0450f3f2 = 1 */
             bb[TUT_F3F7_OFF] = 0;            /* DAT_0450f3f7 = 0 */
             bb[TUT_IV1_7_TRIG_OFF] = 0;      /* DAT_0450f400 = 0 */
-            /* _DAT_0438b7d4 = 0 — the smoothed shop-time follower
-             * (sim-step-a L304, unported cosmetic timer). */
+            scene1_top_hud_set_clock_phase(0.0f);   /* _DAT_0438b7d4 = 0: the clock hand */
             bb[TUT_IV2_5_TRIG_OFF] = 1;      /* DAT_0450f410 = 1 */
         }
     } else if (bb[TUT_IV2_5_DONE_OFF] == 0) {
         if (bb[TUT_IV2_5_TRIG_OFF] == 1 && tut_idle()) {
-            scene1_intro_dialogue_start_single(TUT_SCENE_IV2, 5);
+            scene1_intro_dialogue_start(TUT_SCENE_IV2, 5, 1);   /* FUN_00452d07(1) */
             bb[TUT_IV2_5_DONE_OFF] = 1;      /* DAT_0450f411 = 1 */
             bb[TUT_IV2_6_TRIG_OFF] = 1;      /* DAT_0450f412 = 1 */
             /* FUN_004852fb (the counter seat, Recette faces Tear, anim 6), then

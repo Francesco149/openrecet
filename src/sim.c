@@ -767,12 +767,13 @@ void sim_step_a(void)
      * (DAT_0450fb88[slot] = working bank CLOCK_TARGET) at +0.005/frame, never
      * more than 1.0 behind, hard-capped at 3.5.  This one float feeds BOTH the
      * HUD clock dial (scene1_top_hud) AND the maplight mode-3 dusk-tint
-     * interpolation (scene1_maplight).  Gated on a live scene like the playtime
-     * tick above; on title shoptime/phase are 0 so `ph < target` is false (a
-     * no-op), matching the engine reaching this label only in-scene.  Ground
-     * truth (RE §21.32): shoptime 1→2 at the day-end customer-leave completion,
-     * clock eases 1.0→2.0 over ~200 frames (day→dusk). */
-    if (g_scene_state != 0) {
+     * interpolation (scene1_maplight).  The title reaches it too (FUN_0049a59e
+     * falls through to LABEL_143): once Continue has loaded a save the clock
+     * eases toward its shop time until the house load sets it (day1-tutorial-
+     * to-day2 f186..f230).  Ground truth (RE §21.32): shoptime 1→2 at the
+     * day-end customer-leave completion, clock eases 1.0→2.0 over ~200 frames
+     * (day→dusk). */
+    {
         const uint32_t *wb = save_work_dwords_at(save_work_active_slot());
         if (wb) {
             const float target = (float)(int)wb[SAVE_BANK_FIELD_CLOCK_TARGET];

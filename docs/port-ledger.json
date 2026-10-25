@@ -21476,6 +21476,7 @@
     "src/scene_new_game.h",
     "src/scene_title.c",
     "src/scene_title.h",
+    "src/sim.c",
     "src/sim.h",
     "src/stage_post_load.h",
     "src/title_continue_picker.c",
