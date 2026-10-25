@@ -56,6 +56,7 @@
 #include "scene1_day_close.h"
 #include "scene1_display_menu.h"
 #include "scene1_intro_dialogue.h"
+#include "scene1_dialogue_run.h"    /* struct ive_runtime (DAT_073a3e18) */
 #include "scene1_particles_tick.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_shop_display.h"
@@ -195,6 +196,7 @@ static int32_t get_b608(void)  { return customer_service_b608(); }
 static int32_t get_b928(void)  { return scene1_beat_flag(); }
 static int32_t get_b924(void)  { return scene1_beat_counter(); }
 static int32_t get_b1c8(void)  { return scene1_intro_dialogue_gate(); }
+static int32_t get_ive_skip(void) { const struct ive_runtime *rt = scene1_intro_dialogue_runtime(); return rt ? rt->scene.skip_prompt : 0; }
 static int32_t adv(uint32_t va) { int32_t v = 0; adv_guild_dbg(va, &v); return v; }
 static int32_t town(uint32_t va) { int32_t v = 0; scene_town_event_dbg(va, &v); return v; }
 static int32_t get_te_d400(void) { return town(0x6a5d400u); }
@@ -364,6 +366,7 @@ static const state_va_t k_map[] = {
     { 0x730b608u, "cs script sub-state b608 (DAT_0730b608)", get_b608 },
     { 0x438b924u, "beat counter b924 (DAT_0438b924)", get_b924 },
     { 0x438b1c8u, "dialogue gate (DAT_0438b1c8)", get_b1c8 },
+    { 0x73a3e18u, "dialogue skip-prompt counter (DAT_073a3e18)", get_ive_skip },
     { 0x438b918u, "money shown (DAT_0438b918)", get_money_disp },
     { 0x438b1e0u, "active slot (DAT_0438b1e0)", get_slot },
     { 0x6a5d400u, "town visit leaving (DAT_06a5d400)", get_te_d400 },

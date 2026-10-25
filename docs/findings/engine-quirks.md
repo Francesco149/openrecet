@@ -5286,6 +5286,15 @@ variants / counts / drops in every slot and section it doesn't write (house-idle
 dwords). Every reader stops at a section with floor_lo -1 and a slot with enemy_id -1, so
 none of them is read; `rhost.py portblock` skips them.
 
+## 165. The pause capture frame presents an undrawn back buffer (FUN_004547ab, c99c 2)
+On the frame a pause / day end / results screen opens (DAT_06a4999c == 2, DAT_0438b1b0 0),
+FUN_004547ab points the render target at the capture RT #56 and clears that instead of the
+back buffer; the scene, the HUD and the overlay draw into RT #56, and FUN_00454191 restores
+the back buffer only after them — so nothing is drawn to the back buffer that frame, and with
+D3DSWAPEFFECT_DISCARD its presented contents are undefined (one frame of black under wine:
+dungeon2-run3 f64662; the port's lockable capture buffer keeps the previous frame). portshots
+flags such a frame — a property of the engine, not the port's draw program.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

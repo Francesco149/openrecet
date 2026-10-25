@@ -3586,6 +3586,10 @@ static void render_dispatch(void)
                 day_end_render(g_dev);                  /* FUN_0048ef00 */
             else
                 dungeon_results_render(g_dev);          /* FUN_0048fdaf */
+            /* a dialogue over it (DAT_0438b1c8 == 1 → FUN_0046c090(3, 1)): Tear's
+             * verdict over the collection form (debt-gameover-restart f25000) */
+            if (scene1_intro_dialogue_gate() == 1)
+                scene1_dialogue_draw(g_dev);
         }
     }
 
