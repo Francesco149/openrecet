@@ -229,8 +229,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        results screen, the market and the pause Items match retail frames (`portshots`, mean
        abs ≤ ~1.5 on the swept frames; dungeon 2's lava floors since the water frames
        DAT_073aa198, 2026-10-24; Ohm's pose since the meshes bind to their own frames,
-       2026-10-25) — still missing: the town news ticker's scroll (dungeon2-run3 f40000), the sun /
-       lens flare (FUN_00405d70 / FUN_00405b1a), the hikari
+       2026-10-25; the ticker, the warp flash, the fades since 2026-10-25) — still missing: the
+       sun / lens flare (FUN_00405d70 / FUN_00405b1a), the kind-5 damage digits' shape
+       (dungeon3-deep f108750 / f236250), a sparkle at dungeon3-deep f3750 and a white "5" popup
+       at f176250 (retail only), table A's particle positions off in the last float bits
+       (portblock reca, ~56 dwords), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
        the legacy
@@ -271,10 +274,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        no recording fuses yet), its render FUN_00493616 is not; the Sell commit's
        FUN_00468fd0, the expansion's FUN_004864fd, the variant-1 market's textures; FUN_0044ba2c's `mode` argument
        (what runs at a dialogue's end) is not modeled.
-    7. "Now Loading" on a dialogue's arm frame: retail draws the disc (gate 2 →
-       DAT_06a49960) at f11003 of buy-from-seller-guild-intro, the port does not — sim.c
-       latches nowloading at the tick head, before the scene arms the .ivt load (render
-       only; the anchors fold the same state, so re-check portanchors when moving it).
+    7. ✅ "Now Loading" on a dialogue's arm frame (2026-10-25): the arm raises the gate on the
+       spot (FUN_00452d07); the disc angle DAT_06a4998c is IDENTICAL every frame of eight
+       scenarios.
+    8. ✅ **A new game from the title** (2026-10-25): FUN_00490e56's 1024-record overrun
+       (engine quirk §163) and the prologue dispatched by FUN_0044bd0d's cascade — portrng
+       IDENTICAL over house-idle, intro-prologue / -skip-prompt / -iv2-gap / -sigh,
+       house-walk-tables / -movement / -idle-npc-drift / -wall-collide (diverged at f71
+       before); house-idle / intro-skip-prompt in `gates`.
 
 ### Regression gate (run before claiming a port change is safe)
 - **`python3 tools/rhost/rhost.py gates`**: the port rows below in one command, one line
@@ -283,14 +290,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   shop/day scenarios (incl. debt-gameover-restart) + dungeon0-floors-save / -full / -wipe,
   dungeon1-run / -run2 / -deep / -charme / -clear, dungeon2-run / -run2 / -run3, dungeon3-run /
   -run2 / -floors / -deep (+ portsave dungeon3-run2-save / -floors / -deep), adv-guild-pack-leave,
-  tear-lectures-gameover, debt-week1-paid, each to the retail run's end.  Don't build the port while it runs (each row uploads
+  tear-lectures-gameover, debt-week1-paid, each to the retail run's end; portrng house-idle /
+  intro-skip-prompt (a new game; one retry — engine quirk §163).  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
   day2-save-commit, multiday-tutorials-suggest}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
-  Tear order + D_TUT_LOAD). NB portsave/portstate/portrng do NOT rebuild
-  `build/openrecet.exe` — `make -C src` first (a stale exe once faked a regression).
+  Tear order + D_TUT_LOAD). Every port run makes `build/openrecet.exe` first (once per
+  invocation, 2026-10-25; a stale exe once faked a regression).
   day2-save-commit's equality leans on 64 Frida-era `{rngseed}` pins.
 - `rhost.py verify` shadows floor_layout + actor_spawn_reset + seller_select.
 - `rhost.py portanchors house-idle`: 195/195; house-customer-tutorial: 64/64.

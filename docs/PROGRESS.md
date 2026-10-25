@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-10-25 — a new game is RNG-exact from the title; the render residuals of the dungeon sweeps
+**A new game.** No gate ran a fresh game's RNG, and it diverged at f71: FUN_00490e56's init pass
+walks 1024 records (to 0x9686810), 424 past the item table — reading "kinds" from the category
+names, the fusion table, a DirectMusic pointer, the CRT's _mbctype, the exe's .data1 / .rsrc —
+so retail draws 309 more rands and writes work +0x29f58..+0x2a5f4 (engine quirk §163; the
+pointer's low byte makes retail's own new-game RNG heap-dependent, ~1 boot in 32 draws one
+fewer). `src/retail_image.c` reads those exe bytes from the user's file at run time. And the
+prologue is FUN_0044bd0d's: its cascade dispatches iv1_1 on the first free-roam frame (f72 runs
+FUN_00442cef and its debug rand) and iv1_2 on the gate-0 frame after iv1_1 (f1566). portrng
+IDENTICAL over nine fresh scenarios (house-idle, intro-*, house-walk-*), anchors at offset 0,
+portblock house-idle f3000 all blocks IDENTICAL; house-idle / intro-skip-prompt in `gates`.
+**Render** (portshots on dungeon3-floors / -deep, dungeon2-run3, day2-shop):
+- the warp trap's white screen (FUN_0040a765 LABEL_228, alpha 10 × DAT_0438b8b8);
+- the ticker: the measure walks count control bytes (a news body's '\r'), each step rounded to
+  float (engine quirk §162);
+- Recette's shadow in free roam: FUN_0045aa36 reads the party's floor cache for every actor;
+- the guild menu's selected-row pulse and the other rows' fade;
+- the fade-in alpha is ftol(255 − k·(c − 2)), not 255 − ftol(…) (one level dark each step);
+- the Now Loading disc on a dialogue's arm frame (FUN_00452d07 raises DAT_06a49960 at once):
+  the disc angle IDENTICAL every frame of eight scenarios.
+Tools: every port run makes the port first; `run --d3d` fetches the capture;
+`trace_studio_v3/up_diff.py` (a frame's UP draws, port d3d.jsonl vs retail, value for value);
+portblock skips the enemylist's unread .data image (quirk §164); state_va rows for b930 / b8b8 /
+the disc angle.
+
 ## 2026-10-24 — dungeon3-deep passes end to end: dungeon 2's 6F..20F, Ohm, the crabs, an order's return
 Human recording from dungeon3-floors' end save (`_saves/bc9e123b…`): an order customer comes back for
 the goods (f30639), town days, dungeon-2 runs from 6F — Ohm on 10F (~f79k–82k), the knights /
