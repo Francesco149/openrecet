@@ -1062,17 +1062,42 @@ def cmd_portblock(a):
         fv = struct.unpack("<f", struct.pack("<I", v))[0]
         return f"{v:#010x} {struct.unpack('<i', struct.pack('<I', v))[0]:>11d} {fv:>13.7g}"
 
+    def enemylist_unread(va):
+        """the enemylist (DAT_0053f8e8) is .data with a build-time image; the boot parse
+        scrubs only floor_lo and the enemy ids, so retail keeps the image's other fields.
+        Every reader stops at a section with floor_lo -1 and at a slot with enemy_id -1
+        (the walks at all_ida 32230..32625): a dword past those is never read."""
+        rel = (va - 0x53f8e8) // 4
+        sec, d = rel // 188, rel % 188
+        for t in range(sec - sec % 60, sec):                     # an earlier sentinel section
+            if rword(0x53f8e8 + 4 * 188 * t) == 0xffffffff:
+                return True
+        if d == 0:
+            return False
+        if rword(0x53f8e8 + 4 * 188 * sec) == 0xffffffff:        # the sentinel itself: only lo is read
+            return True
+        slot = (d - 2) // 3 if d < 95 else (d - 95) // 3
+        term = next((k for k in range(31) if rword(0x53f8e8 + 4 * (188 * sec + 2 + 3 * k)) == 0xffffffff), 31)
+        if d >= 95:
+            return slot >= term
+        return slot > term or (slot == term and (d - 2) % 3 != 0)
+
     total = 0
     for va0, words in P:
         blk = next((b for b in PORT_BLOCKS if b[1] == va0), None)
         bname, stride = (blk[0], blk[2]) if blk else (("work" if 0x44e3798 <= va0 < 0x44e3798 + 8 * 0x2dfc8 else f"{va0:x}"), 0)
-        diffs = []
+        diffs, unread = [], 0
         for i, pv in enumerate(words):
             va = va0 + 4 * i
             rv = rword(va)
             if rv is None or rv == pv or va in R.vol:
                 continue
+            if bname == "enemylist" and enemylist_unread(va):
+                unread += 1
+                continue
             diffs.append((va, rv, pv))
+        if unread:
+            print(f"== {bname}: {unread} differing dwords no reader reaches (.data image leftovers) skipped")
         if not diffs:
             continue
         total += len(diffs)
