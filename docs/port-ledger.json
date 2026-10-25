@@ -16114,6 +16114,7 @@
    "quality_flags": [],
    "src": [
     "src/choice_box.c",
+    "src/font_draw.c",
     "src/font_draw.h",
     "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
@@ -16142,6 +16143,7 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_hud.c",
+    "src/font_draw.c",
     "src/font_draw.h"
    ],
    "status": "ported"

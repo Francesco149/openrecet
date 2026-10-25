@@ -24,6 +24,7 @@
 #include "font_upload.h"
 #include "render_quad.h"
 #include "dialogue_macros.h"   /* <S>/<I>/<Y>/<D…>/<T> macro expansion (pass 1) */
+#include "x87.h"
 
 float font_draw_text_fade(struct IDirect3DDevice8 *dev_,
                           float x, float y,
@@ -181,6 +182,42 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
     return font_draw_text_fade(dev_, x, y, str, argb, scale, -1);
 }
 
+/* The measure walk FUN_0047d0ea / FUN_0047d14c / FUN_0047d2db share: every
+ * byte goes through FUN_0047cbcb, control bytes included (only the draw
+ * FUN_0047ca05 skips < 0x20) — a news body's trailing '\r' adds glyph 13's
+ * width, the gap before the ticker's next headline.  k = scale·0.65·0.76 and
+ * the sum are each stored to a float (x87 fstp m32).  FUN_0047cbcb is
+ * alloc-and-upload-if-new; the upload here keeps every glyph's texture
+ * non-NULL for the follow-up draw (a glyph first seen by the measure would
+ * otherwise draw invisible). */
+static float fd_measure(IDirect3DDevice8 *dev, const char *str, float k)
+{
+    float width = 0.0f;
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        unsigned char b0 = p[0];
+        int is_double_byte = (b0 & 0x80) != 0;
+        unsigned char b1 = is_double_byte ? p[1] : 0;
+
+        int rec_id, is_new;
+        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
+        if (slot != FONT_SLOT_NONE) {
+            if (is_new) {
+                font_slot_upload(slot, dev);
+            }
+            const float eff = spill32((float)((int)g_font.slots[slot].effective_width - 3));
+            width = spill32((long double)eff * k + width);
+        }
+        p += is_double_byte ? 2 : 1;
+    }
+    return width;
+}
+
+static float fd_k(float scale)
+{
+    return spill32((long double)spill32((long double)scale * 0.64999998f) * 0.75999999f);
+}
+
 float font_draw_text_centered(struct IDirect3DDevice8 *dev_,
                               float center_x, float y,
                               const char *str,
@@ -191,39 +228,11 @@ float font_draw_text_centered(struct IDirect3DDevice8 *dev_,
     if (!dev || !str) return 0.0f;
     if (!g_font_atlas.fontidx) return 0.0f;
 
-    const float fVar2 = scale * 0.65f * 0.76f;
-    float width = 0.0f;
-
-    /* Walk the string with font_slot_alloc + immediate font_slot_upload
-     * on `is_new`. The engine's FUN_0047cbcb is atomically
-     * alloc-and-upload-if-new; our pure-C split lets the upload step
-     * lag, so doing it explicitly here keeps the measure walk's
-     * effective_width reads consistent with the follow-up draw walk's
-     * advance — and, more visibly, keeps every glyph's texture pointer
-     * non-NULL so font_draw_text actually emits the quad. Without this,
-     * glyphs first-seen by font_draw_text_centered (and not by an
-     * earlier font_draw_text caller in the same frame) render as
-     * invisible because the draw walk sees is_new=0 and skips upload. */
-    const unsigned char *p = (const unsigned char *)str;
-    while (*p) {
-        unsigned char b0 = p[0];
-        if (b0 < 0x20) { p++; continue; }
-        int is_double_byte = (b0 & 0x80) != 0;
-        unsigned char b1 = is_double_byte ? p[1] : 0;
-
-        int rec_id, is_new;
-        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
-        if (slot != FONT_SLOT_NONE) {
-            if (is_new) {
-                font_slot_upload(slot, dev);
-            }
-            uint32_t eff = g_font.slots[slot].effective_width;
-            width += ((float)(int)eff - 3.0f) * fVar2;
-        }
-        p += is_double_byte ? 2 : 1;
-    }
-
-    font_draw_text(dev_, center_x - width * 0.5f, y, str, argb, scale);
+    const float k = fd_k(scale);
+    const float width = fd_measure(dev, str, k);
+    /* the draw gets k / 0.494 back as its scale (0x47d2ae) */
+    font_draw_text(dev_, spill32(center_x - (long double)width * 0.5f), y, str, argb,
+                   spill32((long double)k / 0.49399999f));
     return width;
 }
 
@@ -234,32 +243,7 @@ float font_measure_text(struct IDirect3DDevice8 *dev_,
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_;
     if (!dev || !str) return 0.0f;
     if (!g_font_atlas.fontidx) return 0.0f;
-
-    const float fVar2 = scale * 0.65f * 0.76f;
-    float width = 0.0f;
-
-    /* Same alloc-and-upload-if-new measure walk as the centered/right variants
-     * (FUN_0047d0ea), but no draw — keeps glyphs cached so a follow-up draw of
-     * the same string lays out against identical effective widths. */
-    const unsigned char *p = (const unsigned char *)str;
-    while (*p) {
-        unsigned char b0 = p[0];
-        if (b0 < 0x20) { p++; continue; }
-        int is_double_byte = (b0 & 0x80) != 0;
-        unsigned char b1 = is_double_byte ? p[1] : 0;
-
-        int rec_id, is_new;
-        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
-        if (slot != FONT_SLOT_NONE) {
-            if (is_new) {
-                font_slot_upload(slot, dev);
-            }
-            uint32_t eff = g_font.slots[slot].effective_width;
-            width += ((float)(int)eff - 3.0f) * fVar2;
-        }
-        p += is_double_byte ? 2 : 1;
-    }
-    return width;
+    return fd_measure(dev, str, fd_k(scale));
 }
 
 float font_draw_text_right(struct IDirect3DDevice8 *dev_,
@@ -272,31 +256,10 @@ float font_draw_text_right(struct IDirect3DDevice8 *dev_,
     if (!dev || !str) return 0.0f;
     if (!g_font_atlas.fontidx) return 0.0f;
 
-    const float fVar2 = scale * 0.65f * 0.76f;
-    float width = 0.0f;
-
-    /* Same alloc-and-upload-if-new measure walk as the centered variant
-     * (keeps every glyph's texture non-NULL for the follow-up draw). */
-    const unsigned char *p = (const unsigned char *)str;
-    while (*p) {
-        unsigned char b0 = p[0];
-        if (b0 < 0x20) { p++; continue; }
-        int is_double_byte = (b0 & 0x80) != 0;
-        unsigned char b1 = is_double_byte ? p[1] : 0;
-
-        int rec_id, is_new;
-        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
-        if (slot != FONT_SLOT_NONE) {
-            if (is_new) {
-                font_slot_upload(slot, dev);
-            }
-            uint32_t eff = g_font.slots[slot].effective_width;
-            width += ((float)(int)eff - 3.0f) * fVar2;
-        }
-        p += is_double_byte ? 2 : 1;
-    }
-
-    font_draw_text(dev_, right_x - width, y, str, argb, scale);
+    const float k = fd_k(scale);
+    const float width = fd_measure(dev, str, k);
+    font_draw_text(dev_, spill32(right_x - (long double)width), y, str, argb,
+                   spill32((long double)k / 0.49399999f));
     return width;
 }
 
