@@ -661,7 +661,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x485979 | FUN_00485979 | 731 | ✓ |  | dungeon_flow.c, dungeon_party.c, record_hit.c (+2) |
 | 0x485c74 | FUN_00485c74 | 333 | ✓ |  | dungeon_flow.c, dungeon_flow.h, record_hit.c (+1) |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ |  | scene1_wide_followup.c, scene1_wide_followup.h |
-| 0x4860c8 | FUN_004860c8 | 215 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
+| 0x4860c8 | FUN_004860c8 | 215 | ✓ |  | scene1_merchant_hud.c, scene1_player_ctrl.c, scene1_shop_display.c (+1) |
 | 0x48619f | FUN_0048619f | 328 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h, scene1_shop_display.h |
 | 0x486435 | FUN_00486435 | 200 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x4864fd | FUN_004864fd | 216 | ✓ |  | scene_guild.c |

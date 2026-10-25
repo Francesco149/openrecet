@@ -1175,6 +1175,22 @@ void display_menu_description_draw(IDirect3DDevice8 *dev, float x0)
     }
 }
 
+/* FUN_0046b00a's row grey (0x46b...: v15 / v77): v·0x010101, v = 127, flashing
+ * on the cursor row while the confirm countdown runs: 127 − ftol(sin(ctr·π/6)
+ * ·−128), all float spills.  The icon of a row the compared adventurer can wear
+ * and that row's name (trend 0, or "Nothing") take it. */
+static uint32_t row_grey(int r, int tab)
+{
+    int v = 127;
+    if (r == s_tab_cursor[tab] - s_tab_scroll[tab] && s_confirm_ctr != 0) {
+        float a = spill32((float)s_confirm_ctr);
+        a = spill32(a * 3.1415927f / 6.0f);
+        a = spill32(x87_crt_sin((double)a));
+        v = 127 - x87_ftol(a * -128.0f);
+    }
+    return 0xff000000u | ((uint32_t)v & 0xff) * 0x010101u;
+}
+
 void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
 {
     if (dev_in == NULL)
@@ -1346,16 +1362,8 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
          * v·0x010101, v = 127, flashing on the cursor row while the confirm
          * countdown runs: 127 − ftol(sin(ctr·π/6)·−128), all float spills. */
         uint32_t icol = 0xff4d4d4du;
-        if (item_equip_check(s_compare_chara, s_b978, item) && !((item >> 4) & 1)) {
-            int v = 127;
-            if (r == s_tab_cursor[tab] - s_tab_scroll[tab] && s_confirm_ctr != 0) {
-                float a = spill32((float)s_confirm_ctr);
-                a = spill32(a * 3.1415927f / 6.0f);
-                a = spill32(x87_crt_sin((double)a));
-                v = 127 - x87_ftol(a * -128.0f);
-            }
-            icol = 0xff000000u | ((uint32_t)v & 0xff) * 0x010101u;
-        }
+        if (item_equip_check(s_compare_chara, s_b978, item) && !((item >> 4) & 1))
+            icol = row_grey(r, tab);
         render_quad_add(dst, src, icon->width, icon->height, icol);
         render_quad_flush(dev);
     }
@@ -1404,7 +1412,8 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
         /* Row-name diffuse = the live price-trend tint (FUN_0046add8's
          * 5-level table, all.c:66410-66430, via cs_news_price_trend —
          * retires this site's PORT-DEBT(price-trend)): ≥2 ff0000 / 1 ff4d4d
-         * / 0 7f7f7f grey (ADDSIGNED passthrough ⇒ white glyph) / -1 4d4dff
+         * / 0 the row grey (ADDSIGNED passthrough ⇒ white glyph; the cursor
+         * row flashes with the icon during the confirm countdown) / -1 4d4dff
          * / ≤-2 0000ff.  Neutral while the news list is empty (all
          * pre-day-9 traces — pixels unchanged there). */
         {
@@ -1413,8 +1422,9 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
              * tints at half strength (0x46b577 / all_ida FUN_0046b00a). */
             const int ok = item < 0
                 || (item_equip_check(s_compare_chara, s_b978, item) && !((item >> 4) & 1));
-            int trend = (int)cs_news_price_trend(item);
-            uint32_t ncol = ok ? 0xff7f7f7fu : 0xff505050u;
+            /* "Nothing" / "Rearrange" take the grey, no trend */
+            const int trend = item < 0 ? 0 : (int)cs_news_price_trend(item);
+            uint32_t ncol = ok ? row_grey(r, tab) : 0xff505050u;
             if (trend >= 2)       ncol = ok ? 0xffff0000u : 0xff7f0000u;
             else if (trend == 1)  ncol = ok ? 0xffff4d4du : 0xff7f6464u;
             else if (trend <= -2) ncol = ok ? 0xff0000ffu : 0xff00007fu;
@@ -1454,6 +1464,26 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in, float slide_x)
     /* restore COLOROP=MODULATE for the rest of the menu (description panel,
      * cursor) — the engine does this @all.c:66775, before FUN_00469b3a. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+    /* the confirm flash (FUN_0046b00a after the rows, b994 != 0): item_win
+     * (512,208)-(640,240) over the cursor row at (xL + 64, 34·row + y + 2, 280,
+     * 38), added (DESTBLEND ONE) in grey ftol(sin(b994·π/6)·32) */
+    if (s_confirm_ctr != 0 && g_sysassets.item_win_tga.tex) {
+        float a = spill32((float)s_confirm_ctr);
+        a = spill32(a * 3.1415927f / 6.0f);
+        a = spill32(x87_crt_sin((double)a));
+        const uint32_t g = (uint32_t)x87_ftol(a * 32.0f);
+        const uint32_t col = g | ((g | ((g | 0xffffff00u) << 8)) << 8);
+        const sprite_t *iw = &g_sysassets.item_win_tga;
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+        render_quad_bind(dev, iw);
+        const float fr = spill32((float)(34 * (s_tab_cursor[tab] - s_tab_scroll[tab])));
+        const float dst[4] = { spill32((long double)xL + 64.0f), spill32((long double)fr + y + 2.0f), 280.0f, 38.0f };
+        const float src[4] = { 512.0f, 208.0f, 640.0f, 240.0f };
+        render_quad_add(dst, src, iw->width, iw->height, col);
+        render_quad_flush(dev);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    }
 
     /* the defeat's keep pane (0x46b98d.., DAT_0438be94 >= 60 && be98 == 1):
      * "Confirm" and the 1..3 kept slots by merchant level (+0x2c400 >= 15 /

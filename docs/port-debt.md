@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **62**
+- total open debts: **61**
 - distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 42 | wired call boundary, body incomplete |
+| stub | 41 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -32,7 +32,6 @@ the answer to *"what's still faked in code that looks done?"*
 |-----------|-----------:|
 | FUN_0048cdcc | 5 |
 | FUN_00473c15 | 3 |
-| FUN_00409925 | 2 |
 | FUN_00434ceb | 2 |
 | FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
@@ -41,6 +40,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
 | FUN_00405b1a | 1 |
+| FUN_00409925 | 1 |
 | FUN_0040a765 | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
@@ -79,12 +79,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (42)
+## stub (41)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
-| FUN_00409925 | src/scene1_merchant_hud.c:188 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_0040a765 | src/scene1_hud.c:362 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
