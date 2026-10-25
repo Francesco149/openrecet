@@ -659,7 +659,16 @@ void state_va_block_dump(const char *path, uint32_t frame)
     for (uint32_t k = 0; k < nt; k++) {
         put32(fp, k_tables[k].va);
         put32(fp, k_tables[k].len);
-        fwrite(k_tables[k].p, 1, k_tables[k].len, fp);
+        if (k_tables[k].va == 0x69b2f80u) {
+            /* table A: +0x48 holds the particle's owner (&DAT_056da1b8 …) — the
+             * retail address, not the port's host one */
+            const int32_t *r = (const int32_t *)k_tables[k].p;
+            for (uint32_t o = 0; o < k_tables[k].len / 4; o++)
+                put32(fp, o % SCENE1_RECORDS_A_STRIDE == SCENE1_RECORDS_A_OFF_AUX_18
+                              ? to_retail_ptr((uint32_t)r[o]) : (uint32_t)r[o]);
+        } else {
+            fwrite(k_tables[k].p, 1, k_tables[k].len, fp);
+        }
     }
     for (uint32_t k = 0; k < nb; k++) {
         put32(fp, k_blocks[k].va);

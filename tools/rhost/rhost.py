@@ -337,9 +337,27 @@ def run_batch_wine(a, runs, tag):
     def one(i):
         exe, args = cmds[i]
         argv = [x.strip("'").replace("''", "'") for x in re.findall(r"'(?:[^']|'')*'", args)]
-        r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
-                           capture_output=True, text=True, env=env, timeout=a.wine_timeout)
-        return runs[i][0], r.stdout
+        log = os.path.join(bdir, runs[i][0], "rhost.log")
+        so_path = os.path.join(bdir, runs[i][0], "rhost.stdout")
+        so = open(so_path, "w")
+        p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
+                             stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
+                             start_new_session=True)
+        # a finished run can hang in wine's process teardown: the RESULT line in its log is
+        # the end — give the exit 20 s, then kill the session (xvfb-run, wine, rhost)
+        t0, done_at = time.time(), None
+        while p.poll() is None:
+            time.sleep(2)
+            if done_at is None and os.path.exists(log) and "\nRESULT " in open(log, errors="replace").read()[-4096:]:
+                done_at = time.time()
+            if (done_at and time.time() - done_at > 20) or time.time() - t0 > a.wine_timeout:
+                os.killpg(p.pid, 9)
+                break
+        so.close()
+        out = open(so_path, errors="replace").read()
+        if "RESULT" not in out and os.path.exists(log):   # killed before printing: take it from the log
+            out += "\n" + "\n".join(l for l in open(log, errors="replace").read().splitlines() if l.startswith("RESULT"))
+        return runs[i][0], out
     t0 = time.time()
     out_lines = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
