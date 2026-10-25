@@ -4,6 +4,7 @@
  * anchor state.
  */
 #include "scene1_intro_dialogue.h"
+#include "nowloading.h"   /* the secondary load gate DAT_06a49960 */
 #include "save_work.h"   /* the opening-script flags FUN_0044bd0d reads */
 #include "worker_load.h"
 
@@ -149,6 +150,7 @@ static void enter_interscript_load(void)
 {
     g_state    = D_LOAD;
     g_load_ctr = 0;
+    nowloading_set_active(1);   /* FUN_00452d07: DAT_06a49960 = 1 on the spot */
     if (worker_load_deterministic())
         worker_load_defer_fn(interscript_load_done);
 }
@@ -157,6 +159,8 @@ void scene1_intro_dialogue_arm(void)
 {
     g_state            = worker_load_deterministic() ? D_LOAD_FIRST : D_SCRIPT1;
     g_load_ctr         = 0;
+    if (g_state == D_LOAD_FIRST)
+        nowloading_set_active(1);   /* FUN_00452d07: DAT_06a49960 = 1 */
     g_rt.active        = 0;     /* lazy-load iv1_1 on the first tick */
     g_rt.complete      = 0;
     g_freeroam_started = 0;     /* fresh prologue → FREEROAM_START not yet reached */
@@ -353,6 +357,10 @@ void scene1_intro_dialogue_start_single(int scene, int sub)
     g_tut_sub     = sub;
     g_state       = D_TUT_LOAD;   /* the load bracket first (LOADING_START) */
     g_load_ctr    = 0;
+    /* FUN_00452d07 raises DAT_06a49960 on the spot: the disc shows (and turns)
+     * this frame, not from the next latch (dungeon3-deep f9405, the town
+     * square's script) */
+    nowloading_set_active(1);
     g_rt.active   = 0;     /* the run starts when the bracket ends (D_TUT) */
     g_rt.complete = 0;
 #ifdef _WIN32
