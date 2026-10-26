@@ -305,6 +305,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   tear-lectures-gameover, debt-week1-paid, each to the retail run's end; portrng house-idle /
   intro-skip-prompt (a new game; one retry — engine quirk §163).  Don't build the port while it runs (each row uploads
   build/openrecet.exe).
+  **2026-10-26, `--target wine`, at 4c69127a (the night's render / event-script / tutorial fixes):
+  50/50 ok** — 16 portsave IDENTICAL, portanchors 195/195 + 64/64, 32 portrng IDENTICAL
+  (dungeon3-deep 1,272,829 draws, dungeon3-floors 806,768). Wine rows run in parallel: split the
+  set with `--only` regexes over 3–4 processes (one process: ~10 h; four: ~6 h).
   Don't run other rhost jobs meanwhile (they share the port exe upload).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
