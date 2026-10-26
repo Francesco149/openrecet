@@ -300,6 +300,8 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int | None) -
         return struct.unpack_from("<I", d, off)[0]
 
     xf: dict[int, tuple] = {}       # SetTransform state -> 16 floats (row-major)
+    rs: dict[int, int] = {}         # SetRenderState state -> value
+    tss: dict[tuple, int] = {}      # SetTextureStageState (stage, type) -> value
     cur_fvf = 0
     ndraw = 0
     worlds: list[dict] = []         # draw_index None: every draw's transforms
@@ -307,7 +309,8 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int | None) -
     def note(op: str) -> None:
         if draw_index is None:
             worlds.append({"draw": ndraw, "op": op, "world": mat(256), "view": mat(2), "proj": mat(3),
-                           "blend": [mat(256 + k) for k in range(4)]})   # WORLDMATRIX(0..3)
+                           "blend": [mat(256 + k) for k in range(4)],   # WORLDMATRIX(0..3)
+                           "rs": dict(rs), "tss": dict(tss), "fvf": cur_fvf})
 
     def mat(state: int):
         return xf.get(state)
@@ -381,8 +384,10 @@ def up_vert_probe(c: orv3.Container, frame_index: int, draw_index: int | None) -
         elif t == orv3.RES_RT_TEX:
             p += 24
         elif t == orv3.SetRenderState:
+            rs[u(p)] = u(p + 4)
             p += 8
         elif t == orv3.SetTextureStageState:
+            tss[(u(p), u(p + 4))] = u(p + 8)
             p += 12
         elif t == orv3.SetTransform:
             st = u(p)
