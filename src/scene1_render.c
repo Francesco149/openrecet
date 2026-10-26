@@ -960,6 +960,11 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE,  D3DCULL_NONE);
+    /* 0x41785a: FVF 0x142 for every UP draw that follows — the model / object
+     * meshes before it leave 0x152 (the port) or a skinning shader (retail), and
+     * the 24-byte effect quads read through 0x152 drew nothing (dungeon2-run
+     * f25400: the green motes) */
+    IDirect3DDevice8_SetVertexShader(dev, 0x142);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
     /* FUN_00414ee2(4, 0) under ZERO / INVSRCCOLOR (the darkening layer), then
