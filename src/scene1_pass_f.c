@@ -23,6 +23,7 @@
 
 #include "math3d.h"
 #include "scene1_records.h"
+#include "x87.h"
 
 /* Vertex format: D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 = 0x142.
  * Matches the engine's wide-followup Pass F SetVertexShader at the
@@ -49,11 +50,11 @@ typedef struct {
  *
  * Triangle-strip winding: v0=TL → v1=BL → v2=TR → v3=BR.  CULLMODE=NONE
  * is set on entry so winding choice doesn't matter for visibility. */
-static pass_f_vertex g_pass_f_vbuf[4] = {
-    { -100.0f,  100.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* TL */
-    { -100.0f, -100.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 1.0f },  /* BL */
-    {  100.0f,  100.0f, 0.0f, 0xFFFFFFFFu, 1.0f, 0.0f },  /* TR */
-    {  100.0f, -100.0f, 0.0f, 0xFFFFFFFFu, 1.0f, 1.0f },  /* BR */
+static pass_f_vertex g_pass_f_vbuf[4] = {   /* DAT_00648698, built at boot (all_ida 9290) */
+    { -256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.75195312f, 0.62695312f },  /* TL */
+    { -256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.75195312f, 0.74804688f },  /* BL */
+    {  256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.87304688f, 0.62695312f },  /* TR */
+    {  256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.87304688f, 0.74804688f },  /* BR */
 };
 
 /* 9-color cycle from FUN_004161c7 L440-L467.  The engine builds three
@@ -73,7 +74,7 @@ static const uint32_t g_pass_f_color_cycle[9] = {
     0xFFFF00FFu,  /* i=4: R=0xFF G=0x00 B=0xFF — magenta*/
     0xFF00FFFFu,  /* i=5: R=0x00 G=0xFF B=0xFF — cyan   */
     0xFFFF7F00u,  /* i=6: R=0xFF G=0x7F B=0x00 — orange (local_100[6]=0xFF, c0[6]=0x7F, 80[6]=0) */
-    0xFF7FFFFFu,  /* i=7: R=0x7F G=0xFF B=0xFF — pale cyan */
+    0xFF7FFF00u,  /* i=7: R=0x7F G=0xFF B=0x00 — chartreuse */
     0xFF007FFFu,  /* i=8: R=0x00 G=0x7F B=0xFF — sky blue  */
 };
 
@@ -123,47 +124,10 @@ void scene1_pass_f_render(struct IDirect3DDevice8 *dev_in)
     int count = g_scene1_records_a_count;
     if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
 
-    /* Nothing-to-draw guard.  This MVP renders only type-0x92 quads, but it is
-     * wired LIVE into the HOUSE render path, where records_a is now populated by
-     * non-0x92 particles (e.g. the companion wing-glow, type 0x1f — §73).
-     * Writing the state preamble below (texture-stage SELECTARG1, CULLMODE=NONE,
-     * LIGHTING=FALSE) and then drawing nothing leaks that state into the rest of
-     * the frame — a scene-wide lighting regression.  The engine's full
-     * FUN_004161c7 manages state across all six passes; until that lands, treat
-     * "no drawable 0x92 slot" as a no-op and leave device state untouched. */
-    {
-        int have_drawable = 0;
-        for (int slot = 0; slot < count; slot++) {
-            const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
-            if (r[SCENE1_RECORDS_A_OFF_TYPE] == 0x92 &&
-                r[SCENE1_RECORDS_A_OFF_AGE]  >= 0) { have_drawable = 1; break; }
-        }
-        if (!have_drawable) return;
-    }
-
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
-    /* Diffuse-only texture stage: SELECTARG1 with COLORARG1 =
-     * D3DTA_DIFFUSE.  No texture binding needed.  Engine path uses
-     * MODULATE2X against the last-bound texture; we diverge here for
-     * MVP simplicity (see scene1_pass_f.h "State setup"). */
-    IDirect3DDevice8_SetTexture(dev, 0, NULL);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
-                                          D3DTOP_SELECTARG1);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1,
-                                          D3DTA_DIFFUSE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,
-                                          D3DTOP_SELECTARG1);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1,
-                                          D3DTA_DIFFUSE);
-
-    /* Engine wide-followup preamble (FUN_004161c7 L42-L45) sets
-     * CULLMODE=1 (NONE).  Replicated locally for the MVP path. */
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
-
-    IDirect3DDevice8_SetVertexShader(dev, SCENE1_PASS_F_FVF);
-
+    /* the state is FUN_004161c7's (FVF 0x142, Z off, COLOROP MODULATE, the
+     * caller's blend, effect.bmp bound through its cache) */
     for (int slot = 0; slot < count; slot++) {
         const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
 
@@ -174,9 +138,10 @@ void scene1_pass_f_render(struct IDirect3DDevice8 *dev_in)
         /* L428-L429: scale formula.  piVar11[5]=PARAM2 is int (the
          * engine treats it as int → float value-convert); piVar11[2]
          * =SCALE is float bits in an int* slot (reinterpret). */
-        float param2_f = (float)r[SCENE1_RECORDS_A_OFF_PARAM2];
-        float scale_f  = *(const float *)&r[SCENE1_RECORDS_A_OFF_SCALE];
-        float final_scale = (param2_f / 200.0f) * scale_f * 0.005f;
+        const float scale_f = *(const float *)&r[SCENE1_RECORDS_A_OFF_SCALE];
+        const float s1 = spill32((long double)scale_f * 0.0049999999f);
+        const float p2 = spill32((float)r[SCENE1_RECORDS_A_OFF_PARAM2]);
+        const float final_scale = spill32((long double)p2 / 200.0 * s1);
 
         float pos_x = *(const float *)&r[SCENE1_RECORDS_A_OFF_POS_X];
         float pos_y = *(const float *)&r[SCENE1_RECORDS_A_OFF_POS_Y];

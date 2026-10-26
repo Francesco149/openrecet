@@ -798,17 +798,15 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
     /* L418: RS 0xe = ZWRITEENABLE = FALSE. */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 
-    /* L419-L422: bind Pass F texture DAT_073cc8c0 via cache.
-     *
-     * Pass F's existing scene1_pass_f_render binds SetTexture(0, NULL)
-     * + SELECTARG1/DIFFUSE — the texture isn't sampled for the color-
-     * cycle billboards.  The engine binds DAT_073cc8c0 here for
-     * completeness even though MODULATE2X against vertex-only color
-     * means the texture sample is unused.  We skip the engine-side
-     * cache update; pass_f's own state writes take precedence. */
-    /* TODO C8f-followup: align scene1_pass_f's state setup with the
-     * engine's verbatim L419-L422 once the engine texture binding
-     * comes from a real symbol (DAT_073cc8c0). */
+    /* L419-L422: Pass F's texture, effect.bmp (DAT_073cc8c0), through the
+     * cache DAT_0076b95c */
+    {
+        IDirect3DTexture8 *tex = g_sysassets.effect_bmp.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)tex);
+        }
+    }
 
     /* ─── L423-L481: Pass F ────────────────────────────────────────── */
 

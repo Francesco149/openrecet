@@ -122,7 +122,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 |----|------|-----:|:-----------:|-------|-----|
 | 0x40110f | FUN_0040110f | 27 | ✓ |  | main.c |
 | 0x40112a | FUN_0040112a | 20 | ✓ |  | main.c |
-| 0x40120c | FUN_0040120c | 116 | ✓ |  | main.c, scene1_camera.c, scene1_camera.h (+1) |
+| 0x40120c | FUN_0040120c | 116 | ✓ |  | main.c, scene1_camera.c, scene1_camera.h (+2) |
 | 0x4013c2 | FUN_004013c2 | 128 | ✓ |  | xfile.c |
 | 0x40150e | FUN_0040150e | 1561 | ✓ |  | model_anchor.c |
 | 0x40205c | FUN_0040205c | 118 | ✓ |  | xfile.c, xfile.h |

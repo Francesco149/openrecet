@@ -417,6 +417,8 @@ tail:
 #include "sprite.h"
 #include "sysassets.h"            /* item_win.tga (DAT_073d8748) */
 #include "tables_item.h"          /* g_item, tables_item_find_slot_by_id (FUN_004681f6) */
+#include "scene1_render.h"        /* scene1_render_push_projection */
+#include "scene1_wide_followup.h" /* FUN_004161c7 */
 
 static sprite_t s_tex_choushuu;   /* DAT_073aa7d8 — the payment screen (FUN_0048e49c) */
 static sprite_t s_tex_board;      /* DAT_073da000 — result_bord01.tga */
@@ -718,10 +720,18 @@ void day_end_render(struct IDirect3DDevice8 *dev_in)
             render_quad_flush(dev);
         }
     }
-    /* s_pay: FUN_0048e49c, then the 3D shop render FUN_004161c7 under its own
-     * projection — PORT-DEBT(render-coupled, FUN_004161c7) */
-    if (s_pay != 0)
+    /* s_pay: FUN_0048e49c, then FUN_004161c7 (the coin shower's table-A 0x92
+     * confetti, Pass F) under the day end's camera — the view FUN_00441c3e's
+     * FUN_0040120c builds every tick into DAT_073de29c — and a fov / 4:3 / 1..50
+     * projection (debt-week1-paid f27800) */
+    if (s_pay != 0) {
         day_end_payment_board(dev, w);
+        float view[16];
+        scene1_camera_build_view_matrix(view);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_VIEW, (const D3DMATRIX *)view);
+        scene1_render_push_projection(dev_in, 50.0f);
+        scene1_wide_followup(dev_in);
+    }
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 }

@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 13,
-  "port_debt": 74,
+  "port_debt": 73,
   "verified": 81,
   "stubbed": 10,
   "ported": 733,
@@ -178,7 +178,8 @@
     "src/main.c",
     "src/scene1_camera.c",
     "src/scene1_camera.h",
-    "src/scene1_render.c"
+    "src/scene1_render.c",
+    "src/scene_day_end.c"
    ],
    "status": "ported"
   },
