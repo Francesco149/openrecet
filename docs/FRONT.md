@@ -235,7 +235,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        -clear, dungeon0-full, day2-shop, tear-lectures-gameover, multiday-tutorials-suggest,
        debt-gameover-restart) — still missing: the
        sun / lens flare (FUN_00405d70 / FUN_00405b1a), Tear's News Summary / Outstanding Orders
-       pages (FUN_0040a765 LABEL_100 entries 8 / 9, PORT-DEBT; no recording opens them), the
+       pages (FUN_0040a765 LABEL_100 entries 8 / 9, PORT-DEBT; no recording opens them); the
+       port's wine capture (GetBackBuffer + LockRect) sometimes reads another surface — dungeon2-run
+       f25300 (texture atlases) / f25500 (a HUD-less scene) while the frame's d3d.jsonl holds the
+       usual draws: a tool artifact (capture at Present like rh_shot, or keep the draws' trace); the
        furniture-stand tooltip unverified (no recording faces a vending machine), table A's last ulps (portblock reca: 0–1 dwords per frame on
        dungeon1-deep, 5–8 on dungeon3-deep: spawn sites whose products round differently), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
