@@ -55,7 +55,15 @@ dungeon3-run, debt-gameover-restart) found and fixed:
   FUN_0045281c(0, 17) ahead of the dialogue tick), and at its end (or a skip's "Yes") 1 / 2
   fade in, 3 / 4 FUN_004526f5(0, 3) — the guild's cutscenes (1), iv1_16 (4), the survival
   opener and iv7_1 (1) (dungeon3-run f33774 / f34600);
+- the payment's confetti (FUN_0048ef00 → FUN_004161c7 under the day end's camera; Pass F is
+  retail's now: effect.bmp, the ±256 quad DAT_00648698, retail's scale; debt-week1-paid f27800);
+- FUN_004176ff's head FVF 0x142: the effect quads after a model / object mesh read their 24-byte
+  vertices as 0x152 and drew nothing (dungeon2-run f25400, a slain enemy's green motes);
+- iv2_3 resets the HUD clock (day 2 kept day 1's dusk hand), the clock eases on the title too,
+  and the tutorial cascade's FUN_00452d07 params ride on their scripts (their load / end fades);
 - ported ahead of a recording: the furniture-stand tooltip (bf68 != 0, the vending machines).
+Tools: orv3_draws carries each retail draw's render / stage states and FVF (diff against the
+port's d3d.jsonl).
 Engine quirk §165: the pause capture frame presents an undrawn back buffer. Tools: portshots /
 portblock stop retail just past the last requested frame.
 **The pipeline runs without the Windows box** (it went away mid-morning): `--target wine` now
