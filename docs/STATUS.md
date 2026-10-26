@@ -278,7 +278,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        port's wine capture (GetBackBuffer + LockRect) sometimes reads another surface — dungeon2-run
        f25300 (texture atlases) / f25500 (a HUD-less scene) while the frame's d3d.jsonl holds the
        usual draws: a tool artifact (capture at Present like rh_shot, or keep the draws' trace); the
-       furniture-stand tooltip unverified (no recording faces a vending machine), table A's last ulps (portblock reca: 0–1 dwords per frame on
+       furniture-stand tooltip unverified (no recording faces a vending machine), table A's last ulps (2026-10-26: the spawn inits' unrounded velocity → position fixed — dungeon0-full / debt-week1-paid portblock now IDENTICAL; re-sweep the rest; earlier: portblock reca: 0–1 dwords per frame on
        dungeon1-deep, 5–8 on dungeon3-deep: spawn sites whose products round differently), the hikari
        frames of FUN_00474a9a, one minimap dot (dungeon1-charme f30000), the pause Equip
        variant; unverified for want of a recording: the golem crystal / ice / vector meshes;
@@ -386,13 +386,18 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
+- **The Windows box (cutestation) has been unreachable since ~06:52 2026-10-25** ("No route to
+  host" on `ssh win`): power / network check. Native rhost needs it; meanwhile everything runs
+  under `--target wine` on maximus (gates 50/50 there).
 - **Record dungeon 2's last floors** (unblocks 21F..29F's mixes, the double crown slime on 25F,
   Tielle 27 on 30F). dungeon3-deep ends with a dungeon Save on 20F (cached, so the game starts at
   once): on maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record
   dungeon3-end --from dungeon3-deep`. Load the newest slot (the in-dungeon save after 20F); on to 25F and
   30F if possible; then home, save. A Fusion and the pause Equip on the way are still unverified;
   another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
-  start `--from` the last (cached end saves: no replay).
+  start `--from` the last (cached end saves: no replay). In the shop on the way, open Tear's menu
+  and step onto **News Summary** and **Outstanding Orders** (their pages are PORT-DEBT, no
+  recording shows them); once vending machines are placeable (merchant level 15), face one.
 
 ## Where to read next
 

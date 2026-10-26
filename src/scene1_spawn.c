@@ -305,27 +305,26 @@ static void init_type_66(int i)
 static void init_type_group_a(int i, float x, float y, float z, float scale,
                               int type)
 {
-    float u1    = rng_next_unit();
-    float mag   = u1 + 1.2f;
-    if (type == 0x65) mag = spill32((long double)spill32(mag) * (0.5f));
-
-    float angle = rng_next_unit() * TWO_PI_F;
-    float vx    = crt_sinf(angle) * scale * mag;
-
+    /* store by store (0x44abf5..0x44acb9): each fstp rounds once, and the
+     * position re-reads the stored velocity (dungeon0-full f19219: a C float
+     * expression kept vy unrounded into y, one ulp off) */
+    float mag = spill32((long double)rng_next_unit() + 1.2f);
+    const float angle = spill32((long double)rng_next_unit() * TWO_PI_F);
+    if (type == 0x65) mag = spill32((long double)mag * (0.5f));
+    const float vx = spill32((long double)crt_sinf(angle) * scale * mag);
     float vy;
-    if (type == 0x52) {
-        vy = rng_next_unit() * scale * 1.5f;
-    } else {
-        vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
-    }
-    float vz = crt_cosf(angle) * scale * mag;
+    if (type == 0x52)
+        vy = spill32((long double)rng_next_unit() * scale * 1.5f);
+    else
+        vy = spill32(((long double)rng_next_unit() - 0.5f) * scale * 3.0f);
+    const float vz = spill32((long double)crt_cosf(angle) * scale * mag);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)vx * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)vy * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)vz * 3.0f + z));
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
@@ -350,21 +349,20 @@ static void init_type_group_a(int i, float x, float y, float z, float scale,
  * Returns after 1 particle (LAB_004480f8 → LAB_0044a985). */
 static void init_type_92(int i, float x, float y, float z, float scale)
 {
-    float u1    = rng_next_unit();
-    float fVar1 = (u1 + 1.2f) * 0.02f;
-    float angle = rng_next_unit() * TWO_PI_F;
-
-    float vx = crt_sinf(angle) * scale * fVar1;
-    float u3 = rng_next_unit();
-    float vy = (u3 + 2.5f) * scale * -0.2f;
-    float vz = crt_cosf(angle) * scale * fVar1;
+    /* store by store (0x448009..0x4480a9), as group A (debt-week1-paid
+     * f27999: the confetti's y one ulp off) */
+    const float fVar1 = spill32(((long double)rng_next_unit() + 1.2f) * 0.02f);
+    const float angle = spill32((long double)rng_next_unit() * TWO_PI_F);
+    const float vx = spill32((long double)crt_sinf(angle) * scale * fVar1);
+    const float vy = spill32(((long double)rng_next_unit() + 2.5f) * scale * -0.2f);
+    const float vz = spill32((long double)crt_cosf(angle) * scale * fVar1);
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)vx * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)vy * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)vz * 3.0f + z));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
@@ -403,9 +401,9 @@ static void init_type_79(int i, int count_index, float x, float y, float z,
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 3.0f + z));
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
@@ -442,9 +440,9 @@ static void init_type_5d(int i, int count_index, float x, float y, float z,
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 4.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 4.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 4.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 4.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 4.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 4.0f + z));
 
     *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = -count_index;
@@ -493,7 +491,7 @@ static void init_type_53(int i, float x, float y, float z, float scale)
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, crt_sinf(angle) * scale * mag + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 3.0f + y));
     slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, crt_cosf(angle) * scale * mag + z);
 
     set_param1_random_life_age_zero(i);
@@ -664,9 +662,9 @@ static void init_type_96(int i, float x, float y, float z, float scale)
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
 
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 3.0f + z));
 
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
@@ -702,9 +700,9 @@ static void init_type_40(int i, int count_index, float x, float y, float z,
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 3.0f + z));
 
     set_param1_random_life_age_zero(i);
 }
@@ -912,9 +910,9 @@ static void init_type_2c(int i, int count_index, float x, float y, float z,
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 20.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 20.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 20.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 20.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 20.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 20.0f + z));
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
@@ -1487,9 +1485,9 @@ static void init_type_69(int i, int count_index, float x, float y, float z,
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
-    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, spill32((long double)spill32(vx) * 3.0f + x));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, spill32((long double)spill32(vy) * 3.0f + y));
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, spill32((long double)spill32(vz) * 3.0f + z));
 
     uint16_t r = rng_next15();
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
