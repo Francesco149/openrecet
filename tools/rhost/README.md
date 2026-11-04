@@ -65,6 +65,36 @@ python3 tools/rhost/rhost.py triage [SCEN..|--only RE] [--refresh]   # every sce
 - `RHOST_PORT_EXTRA="…"` appends raw port args (experiments: `--retail-dmusic-ptr 00` forces the
   new-game split at f71 → `FUN_00490e56 < FUN_0049a59e < FUN_004536cb ⇄ guild_stock_daily (+1)`).
 
+### Free-play capture (`docs/plans/free-play-capture.md` FPC-4)
+```sh
+python3 tools/rhost/rhost.py session-install [--save S]   # freeze this rhost build + the Desktop shortcut "Recettear capture"
+python3 tools/rhost/rhost.py session-status               # the pieces on Windows: cut, frames, self-check
+python3 tools/rhost/rhost.py session-sync                 # finished pieces → tests/playthrough/<session>/<NNN>/ (name pt-<session>-<NNN>)
+python3 tools/rhost/rhost.py session-test SCEN            # the loop end to end, headless (C:\orc-rhost\playtest)
+```
+- The owner double-clicks the shortcut (`C:\orc-rhost\play\play.cmd` → `win/play.ps1`): retail runs in rhost with
+  real input, one **piece** per process, from `play\latest.sav` (the newest save.dat; none → New Game). rhost
+  `--record trace.jsonl --cut --dump-at end` ends a piece at the tick boundary after
+  - a save commit `FUN_004905a8(slot ≥ 0)` whose saved bank's day (dword `0xb0fb`) is past the day the piece
+    started on (exit 10, `cut-save`; dungeon / same-day saves don't cut), or
+  - a game start after the process's first: the title's start counter `dword_964351C` rising 0 → 1 (the title
+    init zeroes it) — Continue / New Game / New Game+ / survival (exit 11, `cut-start`).
+
+  The cut point is the same boundary as a plain `--frames N` replay, so the piece's trace replays to the
+  identical state. `cut.json` carries the reason + the next piece's `resume` (`CODE:BANK:TOGGLE`).
+- The next piece boots from that save.dat with `--preamble RESUME`: rh_play.c drives the title menu (cursor →
+  the item code, A; picker cursor → the bank, A), reading retail's menu state each tick; one tap per two ticks so
+  every tap is an edge; turbo until the game start, then realtime + real input. The taps are recorded like any
+  input. Window close / Exit at the title ends the session; a failed preamble hands the title to the owner.
+- Per piece: `play\sessions\<session>\<NNN>\{trace.jsonl,start.sav,save.dat,cut.json,meta.json,rhost.log}`; a
+  `selfcheck` job (queue runner, BelowNormal; `queue\priority.txt` = low while a session runs) replays the trace
+  to the recorded frame and compares frame / rng / save.dat bytes / the two state dumps (rhs.py classes, pointer
+  slots aside: a recording's `state_sem` always differs from its replay's), then deletes the dumps on PASS and
+  gzips the saves → `check.json`.
+- `session-sync` writes `tests/playthrough/<session>/<NNN>/trace.jsonl` (savefile → `_saves`, like scenarios) +
+  `meta.json`; a PASSed piece's end save goes into the end-save cache. `golden` / `triage` include the pieces
+  (`--only '^pt-'`); `corpus` / `gates` stay on `tests/scenarios`.
+
 `--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
 thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:
 `ww fN VA=newvalue eip=<after the store> < return addresses` (the EBP chain); `--ww-frames A:B`

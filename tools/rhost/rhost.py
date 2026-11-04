@@ -22,6 +22,11 @@
   rhost.py golden [SCEN..|--only RE]     cache retail's side of the port commands (rand / anchors / flat / save), once
   rhost.py triage [SCEN..|--only RE]     every scenario: the port's first RNG split vs its golden, clustered by signature
   rhost.py restart-runner [--slots N]    restart the Windows queue runner (N parallel jobs)
+  rhost.py session-install [--save S]    free-play capture (FPC-4): freeze this rhost build for the desktop
+                                         launcher (C:/orc-rhost/play/play.cmd + a Desktop shortcut)
+  rhost.py session-status                the capture pieces on Windows: cut, frames, self-check
+  rhost.py session-sync                  pull finished pieces → tests/playthrough/<session>/<NNN>/ (scenario
+                                         name pt-<session>-<NNN>; saves → _saves, end saves cached)
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --hash-every N
              --coverage FILE --d3d --cap FROM:COUNT --stall-ms N --extra "raw rhost args"
@@ -208,8 +213,27 @@ def ensure_staged():
 
 
 # ---------------------------------------------------------------- scenarios
+# free-play capture pieces (session-sync): tests/playthrough/<session>/<NNN>/trace.jsonl, named pt-<session>-<NNN>
+PLAYTHROUGH = os.path.join(ROOT, "tests", "playthrough")
+PT_RE = re.compile(r"^pt-(\d{8}-\d{6})-(\d{3})$")
+
+
+def scen_dir(name):
+    m = PT_RE.match(name)
+    return os.path.join(PLAYTHROUGH, m.group(1), m.group(2)) if m else os.path.join(SCEN, name)
+
+
+def scenario_names(pieces=False):
+    """tests/scenarios/* with a trace (+ the playthrough pieces)"""
+    names = sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    if pieces:
+        names += sorted(f"pt-{os.path.basename(os.path.dirname(t))}-{os.path.basename(t)}"
+                        for t in (os.path.dirname(x) for x in glob.glob(os.path.join(PLAYTHROUGH, "*", "*", "trace.jsonl"))))
+    return names
+
+
 def scenario_inputs(name):
-    d = os.path.join(SCEN, name)
+    d = scen_dir(name)
     tr = os.path.join(d, "trace.jsonl")
     if not os.path.exists(tr):
         raise SystemExit(f"no trace: {tr}")
@@ -233,7 +257,7 @@ def save_arg(s):
     """--save S: a path, a _saves sha (a unique prefix will do), or a scenario name (the save it starts from)"""
     if os.path.exists(s):
         return s
-    if os.path.exists(os.path.join(SCEN, s, "trace.jsonl")):
+    if os.path.exists(os.path.join(scen_dir(s), "trace.jsonl")):
         save = scenario_inputs(s)[1]
         if not save:
             raise SystemExit(f"--save {s}: that scenario starts fresh (@fresh)")
@@ -929,8 +953,9 @@ def retail_side(a, name, tr, save, tag, extra, fetch):
 
 
 def cmd_golden(a):
-    """make (or --refresh) the retail goldens of SCEN.. / --only RE / every scenario, in one parallel batch"""
-    names = a.scenarios or sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    """make (or --refresh) the retail goldens of SCEN.. / --only RE / every scenario + playthrough piece, in one
+    parallel batch"""
+    names = a.scenarios or scenario_names(pieces=True)
     if a.only:
         names = [n for n in names if re.search(a.only, n)]
     todo = []
@@ -1077,7 +1102,7 @@ def cmd_triage(a):
     """every scenario (or SCEN.. / --only RE) vs its retail golden under the current port build, -j rows at once;
     cached per (port sha, golden); a clustered report of the splits"""
     import concurrent.futures
-    names = a.scenarios or sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    names = a.scenarios or scenario_names(pieces=True)
     if a.only:
         names = [n for n in names if re.search(a.only, n)]
     prebuild(a)
@@ -1801,6 +1826,205 @@ def cmd_record(a):
     return 0 if ok else 1
 
 
+# ---------------------------------------------------------------- free-play capture (FPC-4)
+# The owner plays on the Windows desktop through C:\orc-rhost\play\play.cmd (win/play.ps1): rhost --record --cut,
+# one piece per process, auto-resumed with --preamble. See docs/plans/free-play-capture.md.
+PLAY = WROOT + "\\play"
+PLAY_FILES = [os.path.join(HERE, "win", f) for f in ("play.ps1", "play.cmd", "selfcheck.ps1", "selfcheck.py")] + \
+    [os.path.join(HERE, "rhs.py"), os.path.join(HERE, "recet.ini"), VOLATILE]
+SHORTCUT = "Recettear capture"
+
+
+def play_install(root):
+    """the current rhost build frozen in ROOT\\bin\\<sha> (never pruned, untouched by later stages) + the session
+    scripts → sha"""
+    ensure_staged()
+    bd = bin_dir()
+    sha = bd.rsplit("\\", 1)[1]
+    ssh_win(f"New-Item -ItemType Directory -Force '{root}\\bin\\{sha}','{root}\\sessions' | Out-Null; "
+            f"if (!(Test-Path '{root}\\bin\\{sha}\\rhost.exe')) {{ Copy-Item '{bd}\\rhost.exe' '{root}\\bin\\{sha}\\rhost.exe.tmp'; "
+            f"Move-Item '{root}\\bin\\{sha}\\rhost.exe.tmp' '{root}\\bin\\{sha}\\rhost.exe' }}; exit 0")
+    for f in PLAY_FILES:
+        scp(f, f"{WIN}:{root.replace(chr(92), '/')}/{os.path.basename(f)}")
+    # the launcher must not ship a syntax error: parse every script there
+    errs = ssh_win("$e = @(); foreach ($f in 'play.ps1','selfcheck.ps1') { $t = $null; $x = $null; "
+                   f"[void][System.Management.Automation.Language.Parser]::ParseFile('{root}\\' + $f, [ref]$t, [ref]$x); "
+                   "foreach ($i in $x) { $e += \"${f}:$($i.Extent.StartLineNumber): $($i.Message)\" } }; $e; exit 0").strip()
+    if errs:
+        raise SystemExit("session scripts do not parse:\n" + errs)
+    return sha
+
+
+def cmd_session_install(a):
+    """freeze the current rhost build as the launcher's, upload the session scripts, (re)create the Desktop
+    shortcut; --save seeds play\\latest.sav"""
+    sha = play_install(PLAY)
+    if a.save:
+        src = save_arg(a.save)
+        tmp = os.path.join(BUILD, "latest.sav")
+        open(tmp, "wb").write(save_bytes(src))
+        have = ssh_win(f"if (Test-Path '{PLAY}\\latest.sav') {{ 'yes' }}; exit 0").strip()
+        if have == "yes" and not a.force:
+            print(f"session-install: {PLAY}\\latest.sav exists (the playthrough's newest save) — --force to replace it")
+        else:
+            scp(tmp, f"{WIN}:{PLAY.replace(chr(92), '/')}/latest.sav")
+            print(f"seeded latest.sav from {os.path.relpath(src, ROOT)}")
+    ssh_win(f"Set-Content '{PLAY}\\current.txt' '{sha}'; "
+            "$d = [Environment]::GetFolderPath('Desktop'); $w = New-Object -ComObject WScript.Shell; "
+            f"$l = $w.CreateShortcut((Join-Path $d '{SHORTCUT}.lnk')); $l.TargetPath = '{PLAY}\\play.cmd'; "
+            f"$l.WorkingDirectory = '{PLAY}'; $l.IconLocation = '{WROOT}\\game\\recettear.unpacked.exe,0'; "
+            "$l.Description = 'Recettear free-play capture (OpenRecet rhost)'; $l.Save(); exit 0")
+    print(f"session-install: rhost {sha} frozen in {PLAY}\\bin\\{sha}; Desktop shortcut '{SHORTCUT}' → {PLAY}\\play.cmd")
+    return 0
+
+
+PS_PIECES = (
+    "Get-ChildItem '@ROOT@\\sessions' -Directory -ErrorAction SilentlyContinue | ForEach-Object { $s = $_.Name; "
+    "Get-ChildItem $_.FullName -Directory | ForEach-Object { $m = Join-Path $_.FullName 'meta.json'; "
+    "$c = Join-Path $_.FullName 'check.json'; $o = @{ session = $s; piece = $_.Name; done = (Test-Path $m) }; "
+    "if (Test-Path $m) { $o.meta = Get-Content $m -Raw | ConvertFrom-Json }; "
+    "if (Test-Path $c) { $o.check = Get-Content $c -Raw | ConvertFrom-Json }; "
+    "$o.files = @(Get-ChildItem $_.FullName -File | ForEach-Object { $_.Name }); "
+    "$o | ConvertTo-Json -Depth 6 -Compress } }")
+
+
+def win_pieces(root=PLAY):
+    out = ssh_win(PS_PIECES.replace("@ROOT@", root))
+    return [json.loads(l) for l in out.splitlines() if l.strip().startswith("{")]
+
+
+def piece_line(p):
+    m, c = p.get("meta") or {}, p.get("check") or {}
+    r = m.get("result") or {}
+    cut = m.get("cut") or {}
+    why = r.get("reason") or (f"exit {m.get('exit')}" if m else "in progress")
+    extra = f" day {cut.get('day', 0) + 1} → slot {cut.get('slot', 0) + 1}" if cut.get("reason") == "cut-save" else \
+        f" resume {cut.get('resume')}" if cut.get("reason") == "cut-start" else ""
+    return (f"pt-{p['session']}-{p['piece']}  {why:14s}{extra:22s} f={r.get('frame', '-'):>7}  "
+            f"{m.get('wall_s', '-')!s:>6}s  start_day={cut.get('start_day', '-')}  check={c.get('status', '-')}")
+
+
+def cmd_session_status(a):
+    ps = win_pieces(a.root)
+    if not ps:
+        print(f"no capture pieces under {PLAY}\\sessions"); return 0
+    for p in ps:
+        print(piece_line(p))
+    print(f"{sum(1 for p in ps if p['done'])} finished piece(s), "
+          f"{sum(1 for p in ps if (p.get('check') or {}).get('status') == 'PASS')} self-check PASS")
+    return 0
+
+
+def cmd_session_test(a):
+    """the capture loop end to end, headless: play.ps1 under the queue runner in C:\\orc-rhost\\playtest; piece 1
+    replays SCEN as its "human" (with --cut: a day-boundary save / a second game start ends it), the next pieces
+    resume through the preamble and record zero input (an off-screen window: no DInput) for --frames; then both
+    self-checks"""
+    root = WROOT + "\\playtest"
+    tr, save = scenario_inputs(a.scenario)
+    sha = play_install(root)
+    ssh_win(f"Remove-Item '{root}\\sessions\\*','{root}\\latest.sav' -Recurse -Force -ErrorAction SilentlyContinue; exit 0")
+    up = root.replace(chr(92), '/')
+    scp(tr, f"{WIN}:{up}/test-trace.jsonl")
+    if save:
+        tmp = os.path.join(BUILD, "playtest.sav")
+        open(tmp, "wb").write(save_bytes(save))
+        scp(tmp, f"{WIN}:{up}/latest.sav")
+    job = f"{datetime.datetime.now():%Y%m%d-%H%M%S}-session-test"
+    ps = (f"& '{root}\\play.ps1' -Root '{root}' -Bin '{sha}' -TestTrace '{root}\\test-trace.jsonl' "
+          f"-TestArgs '--quiet --turbo' -TestFrames '{a.frames or 2500}'")
+    loc = os.path.join(BUILD, "session-test.ps1")
+    open(loc, "w").write(ps + "\r\n")
+    scp(loc, f"{WIN}:{up}/session-test.ps1")
+    t0 = time.time()
+    print(win_job(job, f"{root}\\session-test.ps1", timeout=4 * 3600), flush=True)
+    print(f"[session loop {time.time() - t0:.0f}s; waiting for the self-checks]", flush=True)
+    t1 = time.time()
+    while True:
+        ps_ = win_pieces(root)
+        if all(p.get("check") or not (p.get("meta") or {}).get("result") for p in ps_):
+            break
+        queued = ssh_win(f"@(Get-ChildItem {WROOT}\\queue -Filter '*-selfcheck-*.ps1').Count").strip()
+        if queued == "0" and time.time() - t1 > 60:
+            print("session-test: a piece has no check.json and no self-check job is queued or running"); break
+        time.sleep(5)
+    for p in ps_:
+        print(piece_line(p))
+        c = p.get("check") or {}
+        if c.get("status") == "FAIL":
+            print("    " + json.dumps(c)[:600])
+    ok = ps_ and all((p.get("check") or {}).get("status") == "PASS" for p in ps_ if (p.get("meta") or {}).get("result"))
+    print("session-test:", "PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+
+def fetch_save(remote_dir, files, base, dst_dir):
+    """PIECE\\<base>[.gz] → a raw local file (None when the piece has neither)"""
+    name = base + ".gz" if base + ".gz" in files else base if base in files else None
+    if not name:
+        return None
+    loc = os.path.join(dst_dir, name)
+    scp(f"{WIN}:{remote_dir}/{name}", loc)
+    if name.endswith(".gz"):
+        raw = loc[:-3]
+        with gzip.open(loc, "rb") as i, open(raw, "wb") as o:
+            shutil.copyfileobj(i, o)
+        os.remove(loc)
+        return raw
+    return loc
+
+
+def cmd_session_sync(a):
+    """finished pieces → tests/playthrough/<session>/<NNN>/{trace.jsonl,meta.json}; start saves → _saves; a PASSed
+    piece's end save → the end-save cache (golden / triage / record --from start from it, no replay)"""
+    store = os.path.join(SCEN, "_saves")
+    n_new = 0
+    for p in win_pieces(a.root):
+        if not p["done"] or (a.session and p["session"] != a.session):
+            continue
+        name = f"pt-{p['session']}-{p['piece']}"
+        d = scen_dir(name)
+        tr = os.path.join(d, "trace.jsonl")
+        meta = dict(p["meta"])
+        meta["check"] = p.get("check")
+        if os.path.exists(tr) and not a.refresh:
+            old = json.load(open(os.path.join(d, "meta.json")))
+            if old.get("check") == meta["check"]:
+                continue
+        rdir = f"{a.root}\\sessions\\{p['session']}\\{p['piece']}".replace("\\", "/")
+        tmp = os.path.join(LOCAL_RUNS, "session-sync", name)
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        scp(f"{WIN}:{rdir}/trace.jsonl", os.path.join(tmp, "trace.jsonl"))
+        start = fetch_save(rdir, p["files"], "start.sav", tmp)
+        end = fetch_save(rdir, p["files"], "save.dat", tmp)
+        os.makedirs(d, exist_ok=True)
+        head = []
+        start_blob = None
+        if start:
+            _, start_blob = trace_save.store_save(start, store)
+            start_blob = str(start_blob)
+            head.append(json.dumps({"savefile": os.path.relpath(start_blob, d)}))
+        else:
+            head.append(json.dumps({"savefile": "@fresh"}))
+        r, cut = meta.get("result") or {}, meta.get("cut") or {}
+        head.append(f"# playthrough {p['session']} piece {p['piece']}: {r.get('reason', 'exit ' + str(meta.get('exit')))} "
+                    f"f{r.get('frame', '?')}" + (f", preamble {meta['preamble']}" if meta.get("preamble") else "") +
+                    (f", resume {cut['resume']}" if cut.get("resume") else ""))
+        body = open(os.path.join(tmp, "trace.jsonl")).read()
+        open(tr, "w").write("\n".join(head) + "\n" + body)
+        json.dump(meta, open(os.path.join(d, "meta.json"), "w"), indent=1, sort_keys=True)
+        cached = ""
+        if end and (meta.get("check") or {}).get("status") == "PASS":
+            blob = store_end_save(name, tr, start_blob, end, r.get("frame"))
+            cached = " end save cached" if blob else " (no save commit)"
+        print(piece_line(p) + cached)
+        n_new += 1
+        shutil.rmtree(tmp, ignore_errors=True)
+    print(f"session-sync: {n_new} piece(s) written under {os.path.relpath(PLAYTHROUGH, ROOT)}/")
+    return 0
+
+
 def common(p):
     p.add_argument("--frames", type=int)
     p.add_argument("--seed", type=int)
@@ -1926,6 +2150,19 @@ def main():
     p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--refresh", action="store_true")
     common(p); p.set_defaults(fn=cmd_triage)
     p = sp.add_parser("triage-one"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_triage_one)
+    p = sp.add_parser("session-install", help="free-play capture: freeze this rhost build + the Desktop launcher")
+    p.add_argument("--save", help="seed play\\latest.sav: SHA (prefix) | PATH | SCEN (the save SCEN starts from)")
+    p.add_argument("--force", action="store_true", help="--save replaces an existing latest.sav")
+    p.set_defaults(fn=cmd_session_install)
+    p = sp.add_parser("session-status", help="the capture pieces on Windows")
+    p.add_argument("--root", default=PLAY, help=argparse.SUPPRESS); p.set_defaults(fn=cmd_session_status)
+    p = sp.add_parser("session-test", help="the capture loop end to end, headless (piece 1 = SCEN replayed with --cut)")
+    p.add_argument("scenario"); p.add_argument("--frames", type=int, help="zero-input frames of the later pieces (2500)")
+    p.set_defaults(fn=cmd_session_test)
+    p = sp.add_parser("session-sync", help="pull finished capture pieces into tests/playthrough/")
+    p.add_argument("--session"); p.add_argument("--refresh", action="store_true")
+    p.add_argument("--root", default=PLAY, help=argparse.SUPPRESS)    # session-test's C:\\orc-rhost\\playtest
+    p.set_defaults(fn=cmd_session_sync)
     p = sp.add_parser("restart-runner", help="restart the Windows queue runner (a staged runner.ps1 takes effect)")
     p.add_argument("--slots", type=int, help="also write queue\\slots.txt (parallel jobs)")
     p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_restart_runner)

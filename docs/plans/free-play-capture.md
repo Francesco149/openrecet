@@ -95,8 +95,20 @@ rhost or be resynced after a split; offline replay gives the same data at machin
   - a human recording (buy-45pct-accept): A f1170 (menu → Continue), TITLE_PICKER_READY f1194,
     A f1224 (picker), load f1269. rhost's anchor traces can carry the preamble (resolved in
     turbo, then hand over to `--record`): wait menu → A, wait TITLE_PICKER_READY → moves → A.
-  - still open: an in-process New Game commit (FUN_0049a59e L100601 `DAT_0438b1e0 = 0`, inline:
-    no call to hook) — v1 lets it run on (the next day-boundary save cuts).
+  - ~~still open: an in-process New Game commit~~ → resolved in the built version: every start (Continue,
+    New Game, NG+, survival) bumps `dword_964351C` 0→1 (the title init FUN_0049a3a3 zeroes it), so one edge
+    cuts them all.
+- **As built** (2026-11-04; `tools/rhost/README.md` "Free-play capture"):
+  - `--cut`: save cut = after FUN_004905a8 returns (save.dat is written inside it), saved bank day > the day
+    the working bank holds once in game; start cut = the `dword_964351C` edge after the first. Both finish at
+    the next tick boundary, the point a plain `--frames N` replay ends at (no `--cut` needed to replay a piece).
+    Exit 10 / 11 + `cut.json` (`resume`: survival saves resume through code 6).
+  - `--preamble`: a state machine on the title's own variables (menu items / cursor, picker list / cursor /
+    scroll anims, survival toggle) instead of an anchor trace: robust to the picker's last-used cursor. Taps
+    alternate with release ticks; fatal after 6000 frames (the session hands the title to the owner).
+  - self-check: a recording's `state_sem` never equals its replay's (record mode's extra pointer slots), so
+    both runs dump at the end and rhs.py classifies on the box (Python 3.12 there); frame / rng / save.dat bytes
+    must match. Saves gzipped after the check (18.8 MB raw each).
 
 ### FPC-5 — overnight processing
 - `rhost.py playpass SESSION`: retail goldens for new pieces (Windows, parallel slots),
@@ -124,6 +136,12 @@ rhost or be resynced after a split; offline replay gives the same data at machin
 - Pieces sit on cutestation until synced.
 
 ## Build log
+
+- 2026-11-04: FPC-4 landed (as built above). Corpus with `--cut`: 12 scenarios cut at their day-boundary
+  save, none elsewhere; `day2-save-commit` cut run vs `--frames 33258`: dump diff = 332 volatile slots only.
+  `session-test _fpc4-cut-start` (house-pause-exit + a second Continue) and `session-test day2-save-commit`:
+  2 pieces each, self-checks PASS; preamble = 2 taps (Continue f3, the bank f28; in game f73). Synced pieces
+  → golden (2 in 23 s) → triage: IDENTICAL, save IDENTICAL. Launcher installed (rhost 6e77b70b52d9).
 
 - 2026-11-04: plan approved. FPC-1 landed: N-slot runner, content-addressed binaries, admission,
   parallel batches, `gates -j`. Found on the way: rhost's per-line log flush made 6 parallel
