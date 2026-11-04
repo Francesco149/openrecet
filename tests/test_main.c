@@ -331,6 +331,11 @@ struct test_case {
     X(rng_compute_seed_year_range_rejects) \
     X(rng_compute_seed_leap_bump_post_february) \
     X(rng_compute_seed_is_deterministic) \
+    X(rng_golden_identical_run) \
+    X(rng_golden_count_split_keeps_the_ticks_draws) \
+    X(rng_golden_same_count_other_state_splits) \
+    X(rng_golden_missing_tick_draws_split) \
+    X(rng_golden_rejects_malformed) \
     \
     X(math_vec3_normalize_3_4_0) \
     X(math_vec3_normalize_in_place) \

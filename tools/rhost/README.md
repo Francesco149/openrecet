@@ -44,6 +44,27 @@ End saves are cached in `_saves/endsaves.json`, keyed by the trace file's sha256
 self-check replay stores the new recording's own end save there, so `record --from NEW`
 starts right away.
 
+### Goldens and triage (`docs/plans/free-play-capture.md` FPC-2 / FPC-3)
+```sh
+python3 tools/rhost/rhost.py golden [SCEN..|--only RE] [--refresh]   # retail's side of the port commands, once
+python3 tools/rhost/rhost.py triage [SCEN..|--only RE] [--refresh]   # every scenario: first port split, clustered
+```
+- A **golden** = one retail replay with `--log-rand 0:end --log-anchors --flatten` (+ the DirectMusic
+  `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<target>/v<GOLDEN_VERSION>/<scen>-<trace
+  sha>-<save sha>/` with `rng.golden` (per tick: draw count + LCG state after the last draw) and
+  `meta.json` (RESULT). `portrng` / `portsave` / `portanchors` use it whenever the run is a plain replay
+  (no `--extra` / `--hook` / `--frames` / …; `--no-golden` forces a fresh retail run). Bump
+  `GOLDEN_VERSION` when rhost's deterministic core changes what retail does.
+- **triage**: per scenario the port runs `--rng-golden rng.golden split.txt` (`src/rng_golden.c`): every
+  tick from 1 is checked (count + end LCG state — stricter than portrng's counts); on the first split it
+  runs 2 more ticks and stops, `split.txt` carrying the port's draws of the split tick. A clean run's
+  save is compared to the golden's. Rows are cached in `/mnt/ephemeral/openrecet/triage/<port sha>.jsonl`;
+  the report clusters splits by signature = the split tick's first consumer run whose length differs,
+  `retail FUN chain ⇄ port function (retail−port)`, with scene context and a `portrng --seq` repro.
+  Each staged port exe is kept under `triage/port-exes/` to symbolize its callers later.
+- `RHOST_PORT_EXTRA="…"` appends raw port args (experiments: `--retail-dmusic-ptr 00` forces the
+  new-game split at f71 → `FUN_00490e56 < FUN_0049a59e < FUN_004536cb ⇄ guild_stock_daily (+1)`).
+
 `--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
 thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:
 `ww fN VA=newvalue eip=<after the store> < return addresses` (the EBP chain); `--ww-frames A:B`

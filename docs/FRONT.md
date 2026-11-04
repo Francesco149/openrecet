@@ -16,8 +16,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ FPC-1: N-slot Windows runner (`restart-runner --slots N`), content-addressed `bin\<sha>` /
     `port\<sha>`, machine-wide admission (`queue\procs.txt`, RAM floor), parallel batches, `gates -j N`;
     rhost.log buffered (a per-line flush cost ~40× wall with 6 `--log-rand` runs side by side).
-  - ★ FPC-2/3: retail goldens (`golden`), port `--rng-golden` early exit (`src/rng_golden.c`), `triage`.
-  - Then FPC-4 (the capture session: cut hooks FUN_004905a8 / FUN_00490259, restart + Continue preamble).
+  - ✅ FPC-2/3: retail goldens (`golden`; portrng / portsave / portanchors read them), the port's
+    `--rng-golden` early exit (`src/rng_golden.c`: count + end LCG per tick), `triage` (clustered by
+    signature). Corpus 2026-11-04 on Windows: 97 goldens in 528 s, 97 port runs in 394 s → 98 identical
+    (5 of them retail-stalled cad868 traces), 1 no-flat (`_probe-dayend-rngcs`), **1 split: guild-ui-flow
+    f3425** — retail `FUN_00406584 < FUN_004536cb` draws 1 rand / frame from there, the port none (scene 6;
+    a legacy Frida-era trace, not gated; repro `portrng guild-ui-flow --window 3423:3426 --seq`).
+  - ★ FPC-4: the capture session (cut hooks FUN_004905a8 / FUN_00490259, restart + Continue preamble,
+    desktop launcher, `session-sync`); RE in the plan.
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;

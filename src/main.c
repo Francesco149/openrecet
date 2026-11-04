@@ -38,6 +38,7 @@
 #include "prewindow.h"
 #include "render_quad.h"
 #include "rng.h"
+#include "rng_golden.h"
 #include "fade.h"
 #include "nowloading.h"
 #include "dungeon_hud.h"
@@ -517,6 +518,9 @@ static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
 static struct anchor_trace_state g_anchor_state             = {0};
 static char                     *g_rng_log_path             = NULL;   /* --rng-log PATH FROM:TO */
+static char                     *g_rng_golden_path          = NULL;   /* --rng-golden GOLD REPORT */
+static char                     *g_rng_golden_report        = NULL;
+static int                       g_rng_golden_reported      = 0;
 static FILE                     *g_rng_log_fp               = NULL;
 static uint32_t                  g_rng_log_from = 1, g_rng_log_to = 0;
 static char                     *g_state_log_path           = NULL;
@@ -567,10 +571,22 @@ static void segtrace_capture_cb(uint32_t frame, void *user);
 static void rng_log_trace(int is_seed, uint32_t before, uint32_t after, const void *caller)
 {
     uint32_t f = g_main_loop_started ? tick_label() : 0u;
-    if (!g_rng_log_fp || f < g_rng_log_from || f > g_rng_log_to) return;
     uint32_t rva = (uint32_t)((uintptr_t)caller - (uintptr_t)GetModuleHandleA(NULL));
+    if (rng_golden_active()) rng_golden_note(is_seed, f, before, after, rva);
+    if (!g_rng_log_fp || f < g_rng_log_from || f > g_rng_log_to) return;
     fprintf(g_rng_log_fp, "%s f%u %08x -> %08x @%06x\n", is_seed ? "seed" : "rand",
             (unsigned)f, (unsigned)before, (unsigned)after, (unsigned)rva);
+}
+
+/* --rng-golden: the split report (docs/plans/free-play-capture.md FPC-3), once */
+static void rng_golden_report_once(void)
+{
+    if (!rng_golden_active() || g_rng_golden_reported || !g_rng_golden_report) return;
+    FILE *fp = fopen(g_rng_golden_report, "w");
+    if (!fp) { fprintf(stderr, "openrecet: --rng-golden: cannot write %s\n", g_rng_golden_report); return; }
+    rng_golden_write_report(fp);
+    fclose(fp);
+    g_rng_golden_reported = 1;
 }
 
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
@@ -1888,6 +1904,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_state_log_path) g_state_log_fp = fopen(g_state_log_path, "w");
     if (g_rng_log_path && (g_rng_log_fp = fopen(g_rng_log_path, "w")) != NULL)
         g_rng_trace = rng_log_trace;
+    if (g_rng_golden_path) {
+        if (rng_golden_load(g_rng_golden_path) == 0) g_rng_trace = rng_log_trace;
+        else fprintf(stderr, "openrecet: --rng-golden: cannot load %s\n", g_rng_golden_path);
+    }
     if (g_anchor_trace_record_path) {
         g_anchor_record_fp = fopen(g_anchor_trace_record_path, "w");
         if (g_anchor_record_fp) {
@@ -2439,6 +2459,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     g_state_log_pending = 0;
                 }
 
+                /* --rng-golden: the tick that just ran (label == frame_count now) vs
+                 * retail; on the first split run two more ticks, write the report, stop */
+                if (rng_golden_active() && !g_rng_golden_reported &&
+                    rng_golden_end_tick(g_tick.frame_count)) {
+                    uint32_t stop = g_tick.frame_count + 2u;
+                    if (g_max_frames == 0 || stop < g_max_frames) g_max_frames = stop;
+                    rng_golden_report_once();
+                }
+
                 /* Frame-budget exit. Checked AFTER tick so the Nth
                  * frame actually renders + (if listed) captures
                  * before we quit. */
@@ -2536,6 +2565,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
     if (g_state_log_fp) { fclose(g_state_log_fp); g_state_log_fp = NULL; }
     if (g_fx_census_fp) { fclose(g_fx_census_fp); g_fx_census_fp = NULL; }
+    rng_golden_report_once();            /* no split: "identical N" */
     g_rng_trace = NULL;
     if (g_rng_log_fp) { fclose(g_rng_log_fp); g_rng_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
@@ -4016,6 +4046,18 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 g_rng_log_path = rl_buf;
                 unsigned a = 0, b = 0;
                 if (sscanf(rng, "%u:%u", &a, &b) == 2) { g_rng_log_from = a; g_rng_log_to = b; }
+            }
+        } else if (lstrcmpA(tok, "--rng-golden") == 0) {
+            /* --rng-golden GOLD REPORT: stop 2 ticks past the first tick whose
+             * LCG consumption differs from retail's (src/rng_golden.h) */
+            char *g = strtok(NULL, " ");
+            char *r = strtok(NULL, " ");
+            if (g && r) {
+                static char rg_buf[MAX_PATH], rr_buf[MAX_PATH];
+                lstrcpynA(rg_buf, g, (int)sizeof(rg_buf));
+                lstrcpynA(rr_buf, r, (int)sizeof(rr_buf));
+                g_rng_golden_path = rg_buf;
+                g_rng_golden_report = rr_buf;
             }
         } else if (lstrcmpA(tok, "--retail-dmusic-ptr") == 0) {
             /* the low byte of retail's DirectMusic segment pointer DAT_09643038[16]

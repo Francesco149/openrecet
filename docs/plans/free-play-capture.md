@@ -80,8 +80,23 @@ rhost or be resynced after a split; offline replay gives the same data at machin
   recording's; keep the recording dump only on a mismatch).
 - `rhost.py session-sync`: pull pieces to `tests/playthrough/<session>/NNN/` (traces
   committed like scenarios; saves to `_saves/`, gitignored), chain `savefile`s.
-- RE needed first: the save-commit function and how rhost reads the written bank; the
-  new-game commit (FUN_0049a59e L100601 `DAT_0438b1e0 = 0`); the picker's cursor moves.
+- RE so far (2026-11-04, IDA `all_ida.c`):
+  - save commit `FUN_004905a8(slot)` (cdecl, 1 arg): slot ≥ 0 from the pause / dungeon save
+    pickers (callers 0x41ee24, 0x47f5bc); −1 from 0x47fc44 / title / game over / ending (header
+    writes). The saved bank = save arena `0x56e6280 + slot·0x2dfc8`; its day = dword `0xb0fb`.
+  - load `FUN_00490259(bank)`: one caller, the Continue picker (FUN_0049a59e ~L112107), then
+    `DAT_056e578c = bank` (last-used slot, header +0x1c).
+  - title main menu: items `dword_9643358[i]` (count `dword_9643510`), cursor `dword_9643540`;
+    codes 1 / 4 open the picker (1 = Continue, the default cursor when any bank has a score);
+    input edges / repeats in `dword_73DDDD4` (0x10 A; 0x40000 / 0x80000 = held 0x4 / 0x8 repeat →
+    cursor ∓1). After 7110 title frames (`dword_9643518`) the attract movie starts.
+  - picker: cursor `dword_9643530` opens at `DAT_056e578c`; 0x40000 / 0x80000 ∓1, 0x20000 /
+    0x10000 ∓3; A on a filled bank (`bank dword 2 != 0`) loads.
+  - a human recording (buy-45pct-accept): A f1170 (menu → Continue), TITLE_PICKER_READY f1194,
+    A f1224 (picker), load f1269. rhost's anchor traces can carry the preamble (resolved in
+    turbo, then hand over to `--record`): wait menu → A, wait TITLE_PICKER_READY → moves → A.
+  - still open: an in-process New Game commit (FUN_0049a59e L100601 `DAT_0438b1e0 = 0`, inline:
+    no call to hook) — v1 lets it run on (the next day-boundary save cuts).
 
 ### FPC-5 — overnight processing
 - `rhost.py playpass SESSION`: retail goldens for new pieces (Windows, parallel slots),
@@ -114,3 +129,9 @@ rhost or be resynced after a split; offline replay gives the same data at machin
   parallel batches, `gates -j`. Found on the way: rhost's per-line log flush made 6 parallel
   `--log-rand` replays ~40× slower (buy-45pct-accept 4.5 s alone → 160 s each); buffered → 4.1 s.
   `gates -j 8` on Windows: 50/50 ok, 1000 s wall.
+- 2026-11-04: FPC-2/3 landed: `golden`, `triage`, port `--rng-golden`. Corpus on Windows: 97 goldens
+  528 s, 97 port runs 394 s; 98 identical, 1 split (guild-ui-flow f3425, FUN_00406584's draw the port
+  lacks), 1 unreplayable legacy probe. Forced divergence (`RHOST_PORT_EXTRA="--retail-dmusic-ptr 00"`,
+  house-idle) → split f71 `FUN_00490e56 < … ⇄ guild_stock_daily (+1)`: the signature names the right
+  function. Boot (frame 0) is never compared: retail draws from seed 1 then reseeds, the port seeds
+  first; both enter tick 1 at 19937. Golden of dungeon0-full (44.7k frames): 2.2 MB.

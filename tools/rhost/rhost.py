@@ -18,7 +18,10 @@
   rhost.py portshots SCEN --at F,..      retail | port screenshots of the same frames, side by side
   rhost.py portrng SCEN --window F:T     port vs retail LCG steps with callers; first diverging draw
   rhost.py portblock SCEN --at F         port vs retail, every dword of the layout blocks + work bank at frame F
-  rhost.py gates [--only RE]             the regression gate: portsave / portanchors / portrng, one line each
+  rhost.py gates [--only RE] [-j N]      the regression gate: portsave / portanchors / portrng, one line each (N rows at once)
+  rhost.py golden [SCEN..|--only RE]     cache retail's side of the port commands (rand / anchors / flat / save), once
+  rhost.py triage [SCEN..|--only RE]     every scenario: the port's first RNG split vs its golden, clustered by signature
+  rhost.py restart-runner [--slots N]    restart the Windows queue runner (N parallel jobs)
 
 Common opts: --frames N --seed S --hook SPEC --dump-at F,..|end --hash-every N
              --coverage FILE --d3d --cap FROM:COUNT --stall-ms N --extra "raw rhost args"
@@ -518,10 +521,14 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
             results[cur] = dict(kv.split("=", 1) for kv in line.split()[1:] if "=" in kv)
         elif cur and line.strip():
             results.setdefault(cur + "#notes", []).append(line.strip())
-    for name, *_ in runs:
-        for f in fetch:
-            dst = os.path.join(bdir, name) if "*" in f else os.path.join(bdir, name, f)
-            subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", dst], capture_output=True, text=True)
+    import concurrent.futures
+
+    def get(job):                  # absent files are fine: the caller checks
+        name, f = job
+        dst = os.path.join(bdir, name) if "*" in f else os.path.join(bdir, name, f)
+        subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", dst], capture_output=True, text=True)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:   # Windows sshd throttles startups past ~10
+        list(ex.map(get, [(name, f) for name, *_ in runs for f in fetch]))
     print(f"[batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s → {bdir}]")
     return batch, bdir, results, out
 
@@ -671,13 +678,16 @@ def build_port():
         _port_built = True
 
 
-def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
+def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=(), files=()):
     """the port (--det-loads, turbo) on rhost's flat trace of the same run, on Windows.
-    Returns the local port dir; `fetch` names files the port wrote into it."""
+    Returns the local port dir; `fetch` names files the port wrote into it; `files` (local paths)
+    go into it first (the port sees them as {pw}\\<basename>)."""
     build_port()
     pdir_l = os.path.join(bdir, "port")
     os.makedirs(pdir_l)
     shutil.copy(flat, os.path.join(pdir_l, "trace.jsonl"))
+    for f in files:
+        shutil.copy(f, os.path.join(pdir_l, os.path.basename(f)))
     if save:
         open(os.path.join(pdir_l, "seed.dat"), "wb").write(save_bytes(save))
     pw = f"{WROOT}\\runs\\{batch}\\port"
@@ -691,6 +701,8 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
         if os.path.exists(log) else None
     if m:   # the segment pointer's low byte in this retail run (loaded at boot; read at f100+)
         args = ["--retail-dmusic-ptr", f"{int(m.group(2)) & 0xff:02x}"] + args
+    # experiments (e.g. a forced divergence to test triage): appended last, so a repeated flag wins
+    args += shlex.split(os.environ.get("RHOST_PORT_EXTRA", ""))
     args = [x.replace("{pw}", pw) for x in args]
     ps = ["$ErrorActionPreference = 'Continue'",
           # the port reads game data from its cwd and writes call traces there: give it a cwd of links
@@ -772,10 +784,366 @@ def stage_port():
 def run_port_win(batch, pdir_l, pw, fetch):
     if not PREBUILT:
         stage_port()
+    # a golden stands in for the retail run: then runs\<batch> exists only here
+    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\runs\\{batch} | Out-Null; exit 0")
     scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
     print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
-    for f in ("anchors.jsonl", "port.err", *fetch):
-        scp(f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f))
+    for f in ("anchors.jsonl", "port.err", *fetch):    # absent = not written (no save, no split …): the caller checks
+        subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/port/{f}", os.path.join(pdir_l, f)],
+                       capture_output=True, text=True)
+
+
+# ---------------------------------------------------------------- retail goldens (docs/plans/free-play-capture.md FPC-2)
+# Retail under rhost is a pure function of (trace, start save), so the retail side of a port comparison is run
+# once per (target, trace, save) with every logger the port commands read, and cached. Keyed on behaviour, never
+# on state hashes: those carry rhost-image pointers (0x964d330 differs across rhost builds, 2026-11-04).
+# GOLDEN_VERSION: bump when rhost's deterministic core changes what retail does for a trace (virtual time,
+# DEFER, the seed, the input path) — then every golden re-runs.
+GOLDENS = os.environ.get("RHOST_GOLDENS", "/mnt/ephemeral/openrecet/goldens")
+GOLDEN_VERSION = 1
+GOLDEN_FILES = ("rhost.log", "trace.flat.jsonl", "save.dat")
+RAND_RE = re.compile(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", re.M)
+
+
+def golden_dir(a, name, tr, save):
+    key = trace_save.sha256_file(tr)[:16] + "-" + (trace_save.sha256_file(save)[:8] if save else "fresh")
+    return os.path.join(GOLDENS, getattr(a, "target", "win"), f"v{GOLDEN_VERSION}", f"{name}-{key}")
+
+
+def golden_usable(a):
+    """a plain replay: nothing the caller asked for changes or extends what retail runs / logs"""
+    return not (a.extra or a.hook or a.frames or a.dump_at or a.coverage or a.d3d or getattr(a, "shot_at", None)
+                or getattr(a, "no_golden", False))
+
+
+def rand_rows(log):
+    """retail --log-rand lines → (tick, seed, after, [stack]) — a deferred worker's draws count in the next tick,
+    as the port labels them"""
+    return [(int(m.group(1)) + (1 if m.group(5) else 0), m.group(2), m.group(3),
+             [x.strip() for x in m.group(4).split(",") if x.strip()])
+            for m in RAND_RE.finditer(open(log, errors="replace").read())]
+
+
+def rng_golden_text(rows, frames):
+    """the port's --rng-golden file (src/rng_golden.h): per tick the draw count + the LCG state after its last draw"""
+    cnt, end = {}, {}
+    for f, _, after, _ in rows:
+        cnt[f] = cnt.get(f, 0) + 1
+        end[f] = after
+    out = ["# retail per-tick LCG draws (rhost --log-rand); src/rng_golden.h", f"frames {frames}"]
+    out += [f"{f} {cnt[f]} {end[f]}" for f in sorted(cnt) if f <= frames]
+    return "\n".join(out) + "\n"
+
+
+GOLDEN_EXTRA = "--log-rand 0:100000000 --log-anchors"
+
+
+def golden_store(a, name, tr, save, g, rd, r):
+    """the retail run in RD (its RESULT r) → golden dir G: logs gzipped, the port's rng.golden, meta.json"""
+    tmp = g + f".tmp{os.getpid()}"
+    os.makedirs(tmp, exist_ok=True)
+    for f in GOLDEN_FILES:
+        if os.path.exists(os.path.join(rd, f)):
+            with open(os.path.join(rd, f), "rb") as i, gzip.open(os.path.join(tmp, f + ".gz"), "wb", compresslevel=6) as o:
+                shutil.copyfileobj(i, o)
+    frames = int(r.get("frame", "0") or 0)
+    rows = rand_rows(os.path.join(rd, "rhost.log"))
+    with gzip.open(os.path.join(tmp, "rng.golden.gz"), "wt", compresslevel=6) as o:
+        o.write(rng_golden_text(rows, frames))
+    json.dump({"scenario": name, "result": r, "draws": len(rows), "rhost_bin": bin_dir(),
+               "target": getattr(a, "target", "win"), "trace_sha256": trace_save.sha256_file(tr),
+               "start_save": os.path.basename(save) if save else None,
+               "created": datetime.datetime.now().isoformat(timespec="seconds")},
+              open(os.path.join(tmp, "meta.json"), "w"), indent=1)
+    if os.path.exists(g):          # a concurrent maker won: theirs is the same run
+        shutil.rmtree(tmp)
+    else:
+        os.makedirs(os.path.dirname(g), exist_ok=True)
+        os.replace(tmp, g)
+    return frames, len(rows)
+
+
+def golden_runs(a, todo, tag="golden-retail"):
+    """retail for every (name, trace, save, golden dir) in one batch (-j at a time on the run host) → stored"""
+    import copy
+    b = copy.copy(a)
+    b.flatten_out, b.dump_at, b.hook, b.frames, b.extra = True, None, None, None, GOLDEN_EXTRA
+    _, bd, res, out = run_batch(b, [(n, tr, None, save) for n, tr, save, _ in todo], tag, fetch=GOLDEN_FILES)
+    made = {}
+    for n, tr, save, g in todo:
+        r = res.get(n)
+        if r:
+            made[n] = (r,) + golden_store(a, n, tr, save, g, os.path.join(bd, n), r)
+    shutil.rmtree(bd, ignore_errors=True)
+    return made, out
+
+
+def new_batch_dir(tag, base):
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    for n in range(1000):
+        batch = f"{stamp}-{tag}" if n == 0 else f"{stamp}-{n + 1}-{tag}"
+        try:
+            os.makedirs(os.path.join(base, batch))
+            return batch, os.path.join(base, batch)
+        except FileExistsError:
+            continue
+    raise SystemExit("no batch dir")
+
+
+def golden_get(a, name, tr, save, tag):
+    """the golden as a local batch dir shaped like a fresh retail run (<bdir>/<name>/{rhost.log, trace.flat.jsonl,
+    save.dat}) → (batch, bdir, {name: RESULT}); made on a miss"""
+    g = golden_dir(a, name, tr, save)
+    if not os.path.exists(os.path.join(g, "meta.json")):
+        print(f"[retail golden {name}: none yet — running retail once]")
+        made, out = golden_runs(a, [(name, tr, save, g)])
+        if name not in made:
+            raise SystemExit(f"golden {name}: retail gave no RESULT\n{out[-1500:]}")
+    m = json.load(open(os.path.join(g, "meta.json")))
+    base = os.path.join(WINE_ROOT, "runs") if getattr(a, "target", "win") == "wine" else LOCAL_RUNS
+    batch, bdir = new_batch_dir(tag, base)
+    rd = os.path.join(bdir, name)
+    os.makedirs(rd)
+    for f in GOLDEN_FILES:
+        if os.path.exists(os.path.join(g, f + ".gz")):
+            with gzip.open(os.path.join(g, f + ".gz"), "rb") as i, open(os.path.join(rd, f), "wb") as o:
+                shutil.copyfileobj(i, o)
+    if os.path.exists(os.path.join(g, "rng.golden.gz")):
+        with gzip.open(os.path.join(g, "rng.golden.gz"), "rb") as i, open(os.path.join(rd, "rng.golden"), "wb") as o:
+            shutil.copyfileobj(i, o)
+    else:                          # goldens made before it was gzipped (2026-11-04)
+        shutil.copy(os.path.join(g, "rng.golden"), os.path.join(rd, "rng.golden"))
+    print(f"[retail golden {os.path.relpath(g, GOLDENS)}: f{m['result'].get('frame')}]")
+    return batch, bdir, {name: m["result"]}
+
+
+def retail_side(a, name, tr, save, tag, extra, fetch):
+    """the retail run of a port comparison → (batch, bdir, results): the cached golden for a plain replay, else a
+    fresh run with `extra` (the command's own loggers) on top of the caller's options"""
+    if golden_usable(a):
+        return golden_get(a, name, tr, save, tag)
+    a.flatten_out, a.dump_at = True, None
+    a.extra = ((a.extra or "") + " " + extra).strip()
+    b, bd, res, _ = run_batch(a, [(name, tr, None, save)], tag, fetch=fetch)
+    return b, bd, res
+
+
+def cmd_golden(a):
+    """make (or --refresh) the retail goldens of SCEN.. / --only RE / every scenario, in one parallel batch"""
+    names = a.scenarios or sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    todo = []
+    for n in names:
+        tr, save = scenario_inputs(n)
+        g = golden_dir(a, n, tr, save)
+        if a.refresh and os.path.exists(g):
+            shutil.rmtree(g)
+        if not os.path.exists(os.path.join(g, "meta.json")):
+            todo.append((n, tr, save, g))
+    print(f"goldens: {len(names) - len(todo)} cached, {len(todo)} to make")
+    if not todo:
+        return 0
+    t0 = time.time()
+    made, _ = golden_runs(a, todo)
+    for n, *_ in todo:
+        if n not in made:
+            print(f"{n:40s} NO RESULT"); continue
+        r, frames, draws = made[n]
+        print(f"{n:40s} f={frames:>7d} draws={draws:>8d} {r.get('wall_ms')}ms complete={r.get('complete', '?')}")
+    print(f"goldens: {len(made)}/{len(todo)} made in {time.time() - t0:.0f}s")
+    return 0 if len(made) == len(todo) else 1
+
+
+# ---------------------------------------------------------------- triage (docs/plans/free-play-capture.md FPC-3)
+# Every scenario × the current port build → its first RNG split from the retail golden (the port runs with
+# --rng-golden and stops 2 ticks past it), or IDENTICAL to the golden's end + the save verdict. Rows are cached
+# per (port exe sha, golden); splits cluster by signature — the split tick's first consumer run whose draw count
+# differs, retail FUN chain ⇄ port function — so one bug across many pieces is one row of the report.
+TRIAGE_DB = os.environ.get("RHOST_TRIAGE", "/mnt/ephemeral/openrecet/triage")
+PORT_EXES = os.path.join(TRIAGE_DB, "port-exes")     # each staged port exe by sha: symbolize its callers later
+
+
+def port_sha():
+    return port_dir().rsplit("\\", 1)[1]
+
+
+def keep_port_exe():
+    os.makedirs(PORT_EXES, exist_ok=True)
+    dst = os.path.join(PORT_EXES, port_sha() + ".exe")
+    if not os.path.exists(dst):
+        shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), dst + ".tmp")
+        os.replace(dst + ".tmp", dst)
+    return dst
+
+
+def retail_key(stack, rmap):
+    """consumer chain of one retail draw: up to 3 FUN names, the rand wrappers / CRT dropped"""
+    names = [rmap.get(int(x, 16), x).split("+")[0] for x in stack[:4] if re.fullmatch(r"[0-9a-f]+", x)]
+    names = [n for n in names if n.startswith("FUN_") and n not in ("FUN_00471084", "FUN_00471089")]
+    return " < ".join(dict.fromkeys(names[:3])) or "?"
+
+
+def runs_of(keys):
+    out = []
+    for k in keys:
+        if out and out[-1][0] == k:
+            out[-1][1] += 1
+        else:
+            out.append([k, 1])
+    return out
+
+
+def split_signature(rkeys, pkeys):
+    """the first consumer run whose length differs (the shared LCG chain pairs row i on both sides until the
+    extra / missing draw) → 'retail RUN ⇄ port RUN (retail-port)'"""
+    R, P = runs_of(rkeys), runs_of(pkeys)
+    for i in range(max(len(R), len(P))):
+        r = R[i] if i < len(R) else ["-", 0]
+        p = P[i] if i < len(P) else ["-", 0]
+        if r[1] != p[1]:
+            return f"{r[0]} ⇄ {p[0]} ({r[1] - p[1]:+d})", i
+    return "same runs, other LCG state", None
+
+
+def scene_context(log, f):
+    """what retail was doing around tick F: its last status line and anchor before F"""
+    scene, anchor = None, None
+    for m in re.finditer(r"^frame (\d+) scene=(\d+)|^anchor (\S+) @(\d+)", open(log, errors="replace").read(), re.M):
+        if m.group(1) and int(m.group(1)) <= f:
+            scene = m.group(2)
+        elif m.group(3) and int(m.group(4)) <= f:
+            anchor = f"{m.group(3)}@{m.group(4)}"
+    return f"scene={scene} last-anchor={anchor}"
+
+
+def triage_one(a, name):
+    tr, save = scenario_inputs(name)
+    g = golden_dir(a, name, tr, save)
+    batch, bdir, res = golden_get(a, name, tr, save, "triage-retail")
+    rd = os.path.join(bdir, name)
+    r = res[name]
+    frames = int(r.get("frame", "0") or 0)
+    row = {"scenario": name, "golden": os.path.basename(g), "frames": frames, "port": port_sha(),
+           "retail_complete": r.get("complete"), "retail_status": r.get("status")}
+    if not os.path.exists(os.path.join(rd, "trace.flat.jsonl")):
+        row.update(verdict="no-flat", sig="retail wrote no flat trace (a legacy op rhost can't replay)")
+        return row
+    pdir_l = run_port(a, batch, bdir, name, save, os.path.join(rd, "trace.flat.jsonl"), frames + 2,
+                      extra=("--rng-golden", "{pw}\\rng.golden", "{pw}\\split.txt"), fetch=("split.txt", "save.dat"),
+                      files=(os.path.join(rd, "rng.golden"),))
+    sp = os.path.join(pdir_l, "split.txt")
+    if not os.path.exists(sp):
+        row.update(verdict="no-report", sig="port wrote no split.txt (crash / no --rng-golden)")
+        return row
+    lines = open(sp).read().splitlines()
+    m = re.match(r"split (\d+) retail (\d+) (\S+) port (\d+) (\S+)", lines[0] if lines else "")
+    if not m:
+        row.update(verdict="identical", checked=int(lines[0].split()[1]) if lines and lines[0].startswith("identical") else None)
+        rs, ps = os.path.join(rd, "save.dat"), os.path.join(pdir_l, "save.dat")
+        start = save_bytes(save) if save else None
+        if os.path.exists(rs) and (start is None or open(rs, "rb").read() != start):
+            out = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "save_compare.py"), ps, rs],
+                                 capture_output=True, text=True).stdout if os.path.exists(ps) else "port wrote no save.dat"
+            row["save"] = "IDENTICAL" if "IDENTICAL" in out else (out.strip().splitlines() or ["?"])[0][:200]
+            if row["save"] != "IDENTICAL":
+                row.update(verdict="save", sig="save: " + row["save"][:80])
+        return row
+    f = int(m.group(1))
+    row.update(verdict="split", split=f, retail_draws=int(m.group(2)), port_draws=int(m.group(4)))
+    R = [x for x in rand_rows(os.path.join(rd, "rhost.log")) if x[0] == f]
+    rmap = retail_fn_of({int(x, 16) for x in sum((x[3][:4] for x in R), []) if re.fullmatch(r"[0-9a-f]+", x)})
+    rkeys = [retail_key(x[3], rmap) for x in R]
+    P = [int(l.split("@")[1], 16) for l in lines[1:] if l.startswith("rand ")]
+    pmap = port_fn_of(set(P), exe=keep_port_exe())
+    pkeys = [pmap.get(v, hex(v)).split(" (")[0] for v in P]
+    row["sig"], idx = split_signature(rkeys, pkeys)
+    row["context"] = scene_context(os.path.join(rd, "rhost.log"), f)
+    row["repro"] = f"rhost.py portrng {name} --window {max(1, f - 2)}:{f + 1} --seq"
+    return row
+
+
+def cmd_triage_one(a):
+    row = triage_one(a, a.scenario)
+    print("TRIAGE " + json.dumps(row, ensure_ascii=False))
+    return 0
+
+
+def triage_db_path():
+    return os.path.join(TRIAGE_DB, f"{port_sha()}.jsonl")
+
+
+def cmd_triage(a):
+    """every scenario (or SCEN.. / --only RE) vs its retail golden under the current port build, -j rows at once;
+    cached per (port sha, golden); a clustered report of the splits"""
+    import concurrent.futures
+    names = a.scenarios or sorted(d for d in os.listdir(SCEN) if os.path.exists(os.path.join(SCEN, d, "trace.jsonl")))
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    prebuild(a)
+    keep_port_exe()
+    # goldens first, one parallel batch (cached ones skip)
+    b = argparse.Namespace(**vars(a)); b.scenarios = names; b.only = None; b.refresh = False
+    cmd_golden(b)
+    os.makedirs(TRIAGE_DB, exist_ok=True)
+    db = {}
+    if os.path.exists(triage_db_path()):
+        for l in open(triage_db_path()):
+            if l.strip():
+                x = json.loads(l); db[(x["scenario"], x["golden"])] = x
+    keys = {n: os.path.basename(golden_dir(a, n, *scenario_inputs(n))) for n in names}
+    todo = [n for n in names if a.refresh or (n, keys[n]) not in db]
+    print(f"triage: port {port_sha()}, {len(names)} scenarios, {len(names) - len(todo)} cached rows")
+    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
+
+    def one(n):
+        cmd = [sys.executable, os.path.abspath(__file__), "triage-one", n, "--target", a.target, "-j", "1",
+               "--wine-timeout", str(a.wine_timeout)]
+        r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        m = re.search(r"^TRIAGE (\{.*\})\s*$", r.stdout, re.M)
+        if m:
+            return json.loads(m.group(1))
+        err = (r.stderr.strip().splitlines() or r.stdout.strip().splitlines() or ["?"])[-1]
+        return {"scenario": n, "golden": keys[n], "verdict": "error", "sig": "error: " + err[:160], "port": port_sha()}
+    t0 = time.time()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        for row in (f.result() for f in concurrent.futures.as_completed([ex.submit(one, n) for n in todo])):
+            db[(row["scenario"], row["golden"])] = row
+            info = (f"f{row['split']} {row['sig']}" if row["verdict"] == "split" else
+                    f"ticks 1..{row.get('checked')}" + (f", save {row['save']}" if row.get("save") else "")
+                    if row["verdict"] == "identical" else row.get("sig") or "")
+            print(f"  {row['verdict']:9s} {row['scenario']:36s} {info}", flush=True)
+    with open(triage_db_path() + ".tmp", "w") as fo:
+        for k in sorted(db):
+            fo.write(json.dumps(db[k], ensure_ascii=False) + "\n")
+    os.replace(triage_db_path() + ".tmp", triage_db_path())
+    rows = [db[(n, keys[n])] for n in names if (n, keys[n]) in db]
+    triage_report(rows)
+    print(f"triage: {len(todo)} run in {time.time() - t0:.0f}s; db {triage_db_path()}")
+    return 0
+
+
+def triage_report(rows):
+    from collections import Counter, defaultdict
+    print("\nverdicts: " + ", ".join(f"{k} {v}" for k, v in Counter(r["verdict"] for r in rows).most_common()))
+    short = [r["scenario"] for r in rows if r["verdict"] == "identical" and r.get("retail_complete") != "1"]
+    if short:   # identical as far as retail got: the trace stalls / ends early in rhost itself
+        print(f"  of the identical: {len(short)} where retail itself did not complete ({', '.join(short)[:200]})")
+    cl = defaultdict(list)
+    for r in rows:
+        if r["verdict"] != "identical":
+            cl[r.get("sig", "?")].append(r)
+    if not cl:
+        print("every scenario IDENTICAL to its golden"); return
+    print(f"{len(cl)} signature(s), most scenarios first:")
+    for sig, rs in sorted(cl.items(), key=lambda kv: (-len(kv[1]), min(x.get("split", 1 << 30) for x in kv[1]))):
+        first = min(rs, key=lambda x: x.get("split", 1 << 30))
+        print(f"  {len(rs):3d}× {sig}")
+        print(f"       first: {first['scenario']} f{first.get('split', '-')} {first.get('context', '')}")
+        if first.get("repro"):
+            print(f"       repro: python3 tools/rhost/{first['repro']}")
+        if len(rs) > 1:
+            print("       also: " + ", ".join(f"{x['scenario']}" + (f" f{x['split']}" if 'split' in x else "") for x in rs if x is not first)[:300])
 
 
 def cmd_portsave(a):
@@ -784,7 +1152,7 @@ def cmd_portsave(a):
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
-    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portsave-retail", fetch=("rhost.log", "save.dat", "trace.flat.jsonl"))
+    batch, bdir, res = retail_side(a, name, tr, save, "portsave-retail", "", ("rhost.log", "save.dat", "trace.flat.jsonl"))
     r = res.get(name, {})
     retail_save = os.path.join(bdir, name, "save.dat")
     if not os.path.exists(retail_save):
@@ -830,8 +1198,7 @@ def cmd_portanchors(a):
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
-    a.extra = ((a.extra or "") + " --log-anchors").strip()
-    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portanchors-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    batch, bdir, res = retail_side(a, name, tr, save, "portanchors-retail", "--log-anchors", ("rhost.log", "trace.flat.jsonl"))
     frames = int(res.get(name, {}).get("frame", "0")) or 120000
     retail = [(m.group(1), int(m.group(2))) for m in re.finditer(r"^anchor (\S+) @(\d+)", open(os.path.join(bdir, name, "rhost.log")).read(), re.M)]
     pdir_l = run_port(a, batch, bdir, name, save, os.path.join(bdir, name, "trace.flat.jsonl"), frames)
@@ -946,9 +1313,9 @@ def retail_fn_of(addrs):
     return out
 
 
-def port_fn_of(rvas):
-    """port caller RVA → function (file:line) via addr2line on build/openrecet.exe (image base 0x400000)"""
-    exe = os.path.join(ROOT, "build", "openrecet.exe")
+def port_fn_of(rvas, exe=None):
+    """port caller RVA → function (file:line) via addr2line on EXE (default build/openrecet.exe; image base 0x400000)"""
+    exe = exe or os.path.join(ROOT, "build", "openrecet.exe")
     rvas = sorted(set(rvas))
     if not rvas or not shutil.which("i686-w64-mingw32-addr2line"):
         return {r: f"@{r:06x}" for r in rvas}
@@ -966,8 +1333,7 @@ def cmd_portrng(a):
     tr, save = scenario_inputs(name)
     a.flatten_out = True
     a.dump_at = None
-    a.extra = ((a.extra or "") + f" --log-rand {lo - 1}:{hi}").strip()
-    batch, bdir, res, _ = run_batch(a, [(name, tr, None, save)], "portrng-retail", fetch=("rhost.log", "trace.flat.jsonl"))
+    batch, bdir, res = retail_side(a, name, tr, save, "portrng-retail", f"--log-rand {lo - 1}:{hi}", ("rhost.log", "trace.flat.jsonl"))
     # retail stops at its run end (trace end + the tail); past it every port draw would read as a diff
     rlast = int(res.get(name, {}).get("frame", "0") or 0)
     if rlast and hi > rlast:
@@ -977,8 +1343,7 @@ def cmd_portrng(a):
                       extra=("--rng-log", "{pw}\\rng.log", f"{lo}:{hi}"), fetch=("rng.log",))
     # rhost labels tick N's draws fN (= its `post N`, = the port's label); a deferred loader's draws at
     # the boundary before tick N are logged "fN-1 … worker" — the port labels those N too
-    R = [(int(m.group(1)) + (1 if m.group(5) else 0), "rand", m.group(2), m.group(3), [x.strip() for x in m.group(4).split(",") if x.strip()])
-         for m in re.finditer(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", open(os.path.join(bdir, name, "rhost.log"), errors="replace").read(), re.M)]
+    R = [(f, "rand", s0, s1, st) for f, s0, s1, st in rand_rows(os.path.join(bdir, name, "rhost.log"))]
     R = [r for r in R if lo <= r[0] <= hi]
     P = [(int(m.group(2)), m.group(1), m.group(3), m.group(4), int(m.group(5), 16))
          for m in re.finditer(r"^(rand|seed) f(\d+) ([0-9a-f]+) -> ([0-9a-f]+) @([0-9a-f]+)", open(os.path.join(pdir_l, "rng.log")).read(), re.M)]
@@ -1098,6 +1463,10 @@ def prebuild(a):
 def gates_parallel(a, rows):
     import concurrent.futures
     prebuild(a)
+    if not getattr(a, "no_golden", False) and not a.extra:
+        b = argparse.Namespace(**vars(a))
+        b.scenarios, b.only, b.refresh = sorted({r[1] for r in rows}), None, False
+        cmd_golden(b)
     # the children run exactly the binaries staged here, whatever gets built meanwhile
     env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
     t0 = time.time()
@@ -1449,6 +1818,7 @@ def common(p):
     p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
     p.add_argument("-j", "--jobs", type=int, help="parallel runs in a batch / gates rows (default: win 8, wine cores/2)")
     p.add_argument("--wine-timeout", type=int, default=14400, help="seconds per wine run (a long replay under contention takes hours)")
+    p.add_argument("--no-golden", action="store_true", help="port commands: run retail afresh instead of its cached golden")
 
 
 def cmd_tables(a):
@@ -1549,6 +1919,13 @@ def main():
     p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")
     p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
     common(p); p.set_defaults(fn=cmd_record)
+    p = sp.add_parser("golden", help="make the retail goldens (cached retail side of the port commands)")
+    p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--refresh", action="store_true")
+    common(p); p.set_defaults(fn=cmd_golden)
+    p = sp.add_parser("triage", help="every scenario vs its golden under the current port: first splits, clustered")
+    p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--refresh", action="store_true")
+    common(p); p.set_defaults(fn=cmd_triage)
+    p = sp.add_parser("triage-one"); p.add_argument("scenario"); common(p); p.set_defaults(fn=cmd_triage_one)
     p = sp.add_parser("restart-runner", help="restart the Windows queue runner (a staged runner.ps1 takes effect)")
     p.add_argument("--slots", type=int, help="also write queue\\slots.txt (parallel jobs)")
     p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_restart_runner)
