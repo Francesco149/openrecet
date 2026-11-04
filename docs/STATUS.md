@@ -49,6 +49,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Phase 0 — foundation (in progress)
+- ◐ **★ Free-play capture** (`docs/plans/free-play-capture.md`, owner-approved 2026-11-04): the owner plays
+  the whole game freely; rhost cuts a piece at each day-boundary save and each reload; cached retail
+  goldens + `triage` find and cluster the port's first splits; the Windows box processes it all natively.
+  - ✅ FPC-1: N-slot Windows runner (`restart-runner --slots N`), content-addressed `bin\<sha>` /
+    `port\<sha>`, machine-wide admission (`queue\procs.txt`, RAM floor), parallel batches, `gates -j N`;
+    rhost.log buffered (a per-line flush cost ~40× wall with 6 `--log-rand` runs side by side).
+  - ★ FPC-2/3: retail goldens (`golden`), port `--rng-golden` early exit (`src/rng_golden.c`), `triage`.
+  - Then FPC-4 (the capture session: cut hooks FUN_004905a8 / FUN_00490259, restart + Continue preamble).
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;
@@ -348,7 +356,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   50/50 ok** — 16 portsave IDENTICAL, portanchors 195/195 + 64/64, 32 portrng IDENTICAL
   (dungeon3-deep 1,272,829 draws, dungeon3-floors 806,768). Wine rows run in parallel: split the
   set with `--only` regexes over 3–4 processes (one process: ~10 h; four: ~6 h).
-  Don't run other rhost jobs meanwhile (they share the port exe upload).
+  **2026-11-04, Windows native, `gates -j 8` (FPC-1): 50/50 ok in 1000 s wall** (serial Windows was
+  ~56 min; wine ~6–10 h); the floor is dungeon3-deep's two rows (~10 min each).
 - `python3 tools/rhost/rhost.py verify`: shadow hooks over all scenarios, 0 divergences.
 - `rhost.py portsave` on {house-pause-save-commit, house-pause-save-commit-empty,
   day2-save-commit, multiday-tutorials-suggest}: all **IDENTICAL** (2026-10-14, after buy machine + shelf sales +
@@ -386,9 +395,9 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **The Windows box (cutestation) has been unreachable since ~06:52 2026-10-25** ("No route to
-  host" on `ssh win`): power / network check. Native rhost needs it; meanwhile everything runs
-  under `--target wine` on maximus (gates 50/50 there).
+- **The free-play playthrough** (once FPC-4 lands; the one-command setup comes with it): play the
+  whole game as you like; saves past a day boundary and reloads cut pieces automatically. Supersedes
+  the targeted recordings below (they stay valid if you want them sooner).
 - **Record dungeon 2's last floors** (unblocks 21F..29F's mixes, the double crown slime on 25F,
   Tielle 27 on 30F). dungeon3-deep ends with a dungeon Save on 20F (cached, so the game starts at
   once): on maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record

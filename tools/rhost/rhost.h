@@ -63,6 +63,7 @@ extern volatile uint32_t g_frame;
 extern FILE *g_log;
 void rh_log(const char *fmt, ...);
 void rh_fatal(const char *fmt, ...);
+void rh_log_flush(void);        /* rhost.log is buffered: flush (each 1000 frames, exceptions, exit) */
 void rh_finish(const char *why);   /* end the run now: hash, dumps, RESULT, ExitProcess */
 void iat_override(const char *name, void *fn);
 void *iat_lookup(const char *name);

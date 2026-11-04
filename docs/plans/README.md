@@ -15,6 +15,7 @@ done-as-scoped.
 |---|---|
 | ~~`parity-evidence-roadmap.md`~~ | RETIRED 2026-10-13 — removed with its proof tooling (`../archive/2026-10-13-agent-era-cleanup.md`); methodology now `../audits/2026-10-13-methodology-reset.md` |
 | `tas-framework.md` | VISION — deterministic full-playthrough trace/anchor framework |
+| `free-play-capture.md` | ACTIVE PLATFORM PLAN (2026-11-04) — free playthrough as the divergence corpus; goldens, triage, Windows-parallel processing |
 | `un-mvp-structural-parity.md` | STANDING — systematic `PORT-DEBT` retirement strategy |
 
 ## Active gameplay/subsystem plans

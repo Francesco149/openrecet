@@ -123,10 +123,26 @@ Add a port function = one wrapper + one table row.
   sshd sessions have no desktop (session 0 ⇒ no D3D device), so jobs go through
   **`win/runner.ps1`**, a queue runner in the interactive logon session (scheduled task
   `orc-rhost-runner`, at logon; install: `win/install-runner.ps1`). WSL is not needed.
-- `C:\orc-rhost\{bin,game,runs,queue}`; `game\` is a pristine copy of the game data.
+- `C:\orc-rhost\{bin,port,game,runs,queue}`; `game\` is a pristine copy of the game data.
+- **Parallel** (2026-11-04, `docs/plans/free-play-capture.md` FPC-1): the runner starts up to
+  `queue\slots.txt` jobs at once (default 8; `rhost.py restart-runner --slots N` installs a staged
+  runner.ps1 and sets it); `queue\priority.txt` = `low` starts new jobs BelowNormal (the owner
+  playing). Every rhost / port process a job starts is admitted machine-wide: at most
+  `queue\procs.txt` of ours (default 12) and only with ≥ 1.5 GB RAM free. A batch runs its runs `-j`
+  at a time; `gates -j N` runs N rows at once (one build + stage, children pinned to it).
+  Measured: a run is ~250–330 MB working set; 6 × buy-45pct-accept side by side = 4.0 s each, like one.
+- Binaries are content-addressed: `bin\<sha12>\{rhost.exe,v3proxy_d3d8.dll}`,
+  `port\<sha12>\{openrecet.exe,recet.ini}`. A stage never overwrites or kills a running image;
+  `prune` drops dirs unused for 3 days. Concurrent port runs set `OPENRECET_NO_SINGLETON=1`.
+- rhost.log is buffered (flushed every 1000 frames, on exceptions, at exit); stdout carries only
+  RESULT / FATAL / DIVERGE / hook-result. A flush per line ran 6 parallel `--log-rand` replays ~40×
+  slower than one.
 - Sibling projects run the same architecture in parallel (OpenSummoners `C:\oss-rhost`,
-  DioramaEngine `C:\de-rhost`). `stage` kills only `C:\orc-rhost\bin\rhost.exe`, matched
-  by full path; never kill by process name.
+  DioramaEngine `C:\de-rhost`, OpenLords2 `C:\ol2-rhost`, OpenMare `C:\om-rhost`), each with its
+  own runner; never kill by process name.
+- `state_sem` / `state_full` hash retail memory that holds a few rhost-image pointers (e.g.
+  `0x964d330`): compare hashes within one rhost build only; across builds compare behaviour
+  (RNG, saves, anchors).
 - `--d3d-proxy` + `--cap FROM:COUNT` records the D3D8 stream with the v3 proxy
   (loaded in-process; armed at an exact host tick via `OrV3PresentCount`).
 

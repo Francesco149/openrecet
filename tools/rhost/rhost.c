@@ -36,17 +36,44 @@ static char g_gamedir_abs[MAX_PATH];
 volatile LONG g_live_threads, g_threads_created;
 static int g_finished;
 
+/* rhost.log is fully buffered (flushed every 1000 frames, on any exception, at exit): a
+ * flush per line cost nothing alone but ~40x wall time with 6 --log-rand runs side by side
+ * on Windows (2026-11-04: buy-45pct-accept 4.5 s alone, 160 s each ×6). stdout carries only
+ * what the driver reads (RESULT / FATAL / DIVERGE / hook-result), and everything until the
+ * log is open. */
+static int driver_line(const char *b)
+{
+    return strstr(b, "RESULT ") || strstr(b, "FATAL") || strstr(b, "DIVERGE") || strstr(b, "hook-result");
+}
 void rh_log(const char *fmt, ...)
 {
+    char sb[1024], *b = sb;
     va_list ap;
-    va_start(ap, fmt); vfprintf(stdout, fmt, ap); va_end(ap); fflush(stdout);
-    if (g_logf) { va_start(ap, fmt); vfprintf(g_logf, fmt, ap); va_end(ap); fflush(g_logf); }
+    va_start(ap, fmt); int n = vsnprintf(sb, sizeof sb, fmt, ap); va_end(ap);
+    if (n < 0) return;
+    if (n >= (int)sizeof sb && (b = malloc((size_t)n + 1)) != NULL) {
+        va_start(ap, fmt); vsnprintf(b, (size_t)n + 1, fmt, ap); va_end(ap);
+    } else if (n >= (int)sizeof sb) b = sb;              /* truncated */
+    if (g_logf) fputs(b, g_logf);
+    if (!g_logf || driver_line(b)) { fputs(b, stdout); fflush(stdout); }
+    if (b != sb) free(b);
 }
+void rh_log_flush(void) { if (g_logf) fflush(g_logf); fflush(stdout); }
 void rh_fatal(const char *fmt, ...)
 {
     char b[512]; va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
     rh_log("FATAL %s\nRESULT status=fatal frame=%u\n", b, g_frame);
+    rh_log_flush();
     ExitProcess(3);
+}
+/* last in the VEH chain: flush the buffered log on any real exception, so a crash keeps
+ * the lines before it (the INT3 / single-step traps of --coverage / --watch-* excluded) */
+static LONG CALLBACK flush_veh(EXCEPTION_POINTERS *e)
+{
+    DWORD c = e->ExceptionRecord->ExceptionCode;
+    if (c != EXCEPTION_BREAKPOINT && c != EXCEPTION_SINGLE_STEP && c != 0x406D1388 /* thread name */)
+        rh_log_flush();
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 /* ---- IAT + call-site patching (retail image only) ---- */
@@ -503,6 +530,7 @@ static void __cdecl hook_tick(void)
         rh_log("post %u%s\n", g_frame, wb);
     }
     rh_trace_after_tick(g_frame);
+    if (g_frame % 1000 == 0) rh_log_flush();          /* a long run's log stays readable while it runs */
     if (rh_trace_done(g_frame) && O.frames > g_frame) O.frames = g_frame;
     if (rh_trace_stalled(g_frame)) finish("stalled");
 }
@@ -526,6 +554,7 @@ static void finish(const char *why)
            !strcmp(why, "stalled") ? "stalled" : "ok", why, g_frame, G32(DAT_RNG), (int)G32(DAT_SCENE), (unsigned long long)h.full, (unsigned long long)h.semantic,
            h.masked, h.bytes, (t.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart, g_threads_created, rh_trace_status());
     if (g_sbh) fclose(g_sbh);
+    rh_log_flush();
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
     ExitProcess(0);
@@ -638,6 +667,8 @@ int main(int argc, char **argv)
     CreateDirectoryA(O.rundir, NULL);
     char lp[MAX_PATH]; snprintf(lp, sizeof lp, "%s\\rhost.log", O.rundir);
     g_logf = fopen(lp, "w");
+    if (g_logf) setvbuf(g_logf, NULL, _IOFBF, 1 << 16);
+    AddVectoredExceptionHandler(0, flush_veh);
     g_log = stdout;
     if (!O.no_arena && rh_heap_init()) rh_fatal("heap arena reservation failed");
     stacks_init();

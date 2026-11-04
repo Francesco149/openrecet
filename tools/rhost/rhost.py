@@ -67,10 +67,19 @@ def sh(cmd, check=True, capture=False, timeout=None):
     return r
 
 
+# a dropped / refused connection (parallel jobs open many; Windows sshd throttles startups) is retried
+SSH_TRANSIENT = re.compile(r"(?i)connection (reset|closed|refused|timed out)|kex_exchange|banner exchange|broken pipe")
+
+
 def ssh_win(ps, timeout=3600):
     """run a PowerShell command in the sshd (session-0) context — no GUI here"""
-    r = subprocess.run(["ssh", "-o", "BatchMode=yes", WIN, ps], text=True, capture_output=True, timeout=timeout)
-    err = "\n".join(l for l in r.stderr.splitlines() if not SSH_NOISE.search(l))
+    for attempt in range(4):
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", WIN, ps], text=True, capture_output=True, timeout=timeout)
+        err = "\n".join(l for l in r.stderr.splitlines() if not SSH_NOISE.search(l))
+        if r.returncode == 255 and SSH_TRANSIENT.search(err) and attempt < 3:
+            time.sleep(2 + 3 * attempt)
+            continue
+        break
     if r.returncode != 0:
         raise SystemExit(f"ssh win failed ({r.returncode}): {ps[:200]}\n{err}")
     return r.stdout
@@ -78,9 +87,47 @@ def ssh_win(ps, timeout=3600):
 
 def scp(src, dst, recursive=False):
     cmd = ["scp", "-q"] + (["-r"] if recursive else []) + [src, dst]
-    r = subprocess.run(cmd, text=True, capture_output=True)
+    for attempt in range(4):
+        r = subprocess.run(cmd, text=True, capture_output=True)
+        if r.returncode != 0 and SSH_TRANSIENT.search(r.stderr) and attempt < 3:
+            time.sleep(2 + 3 * attempt)
+            continue
+        break
     if r.returncode != 0:
         raise SystemExit(f"scp failed: {' '.join(cmd)}\n{r.stderr}")
+
+
+def file_sha12(*paths):
+    import hashlib
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(open(p, "rb").read())
+    return h.hexdigest()[:12]
+
+
+# Binaries live content-addressed on the run host (bin\<sha>\, port\<sha>\): a stage never
+# overwrites or kills a running image, so batches (and a free-play session) run side by side.
+def bin_dir():
+    """WROOT-relative Windows dir of the current rhost build (bin\\<sha12>); a gates child takes its parent's"""
+    if os.environ.get("RHOST_BIN_DIR"):
+        return os.environ["RHOST_BIN_DIR"]
+    return f"{WROOT}\\bin\\" + file_sha12(os.path.join(BUILD, "rhost.exe"), os.path.join(BUILD, "v3proxy_d3d8.dll"))
+
+
+# Every rhost / port process a job starts waits here first: at most queue\procs.txt (default 12) of OUR
+# processes (C:\orc-rhost\...) at once, and only with >= 1.5 GB RAM free (16 GB box, sibling projects too).
+# The mutex makes check + launch atomic across the runner's parallel jobs.
+PS_ADMIT = (
+    "function Wait-Admit { $cap = 12; try { $cap = [int](Get-Content 'C:\\orc-rhost\\queue\\procs.txt' -TotalCount 1 "
+    "-ErrorAction Stop) } catch {}; while ($true) { $n = @(Get-Process rhost,openrecet -ErrorAction SilentlyContinue | "
+    "Where-Object { $_.Path -like 'C:\\orc-rhost\\*' }).Count; $free = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory; "
+    "if ($n -eq 0 -or ($n -lt $cap -and $free -gt 1500000)) { return }; Start-Sleep -Milliseconds 500 } }\r\n"
+    "$admit = New-Object System.Threading.Mutex($false, 'Local\\orc-rhost-admit')\r\n"
+    "function Start-Admitted([string]$exe, [string[]]$argv, [string]$so, [string]$se) { "
+    "try { [void]$admit.WaitOne() } catch [System.Threading.AbandonedMutexException] {}; "
+    "try { Wait-Admit; $p = Start-Process -FilePath $exe -ArgumentList $argv -NoNewWindow -PassThru "
+    "-RedirectStandardOutput $so -RedirectStandardError $se; $null = $p.Handle; Start-Sleep -Milliseconds 300; return $p } "
+    "finally { $admit.ReleaseMutex() } }")
 
 
 def win_job(job_id, ps_path_win, timeout=7200, stream=True):
@@ -98,19 +145,37 @@ def cmd_build(a):
 
 
 def cmd_stage(a):
-    # free bin\rhost.exe for the upload: kill only OUR binary, matched by full path — sibling
-    # projects (OpenSummoners C:\oss-rhost, DioramaEngine C:\de-rhost) run the same rhost
-    # architecture in parallel; a by-NAME kill once took down their in-flight batches
-    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\bin,{WROOT}\\runs,{WROOT}\\queue | Out-Null; "
-            f"Get-CimInstance Win32_Process -Filter \"Name='rhost.exe'\" | "
-            f"Where-Object {{ $_.ExecutablePath -eq '{WROOT}\\bin\\rhost.exe' }} | "
-            f"ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }}; exit 0")
-    for f in ("rhost.exe", "v3proxy_d3d8.dll"):
-        scp(os.path.join(BUILD, f), f"{WIN}:C:/orc-rhost/bin/{f}")
+    # content-addressed: bin\<sha12>\ is written once and never replaced, so nothing running is killed
+    # or overwritten (the old in-place bin\rhost.exe upload had to kill in-flight batches first)
+    bd = bin_dir()
+    present = ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\runs,{WROOT}\\queue | Out-Null; "
+                      f"if ((Test-Path '{bd}\\v3proxy_d3d8.dll') -and (Test-Path '{bd}\\rhost.exe')) {{ 'present' }}; exit 0").strip()
+    if present != "present":
+        ssh_win(f"New-Item -ItemType Directory -Force '{bd}.up' | Out-Null; exit 0")
+        for f in ("rhost.exe", "v3proxy_d3d8.dll"):
+            scp(os.path.join(BUILD, f), f"{WIN}:{bd.replace(chr(92), '/')}.up/{f}")
+        # rename into place: a concurrent stage of the same build sees all or nothing
+        ssh_win(f"if (!(Test-Path '{bd}')) {{ Rename-Item '{bd}.up' (Split-Path '{bd}' -Leaf) }} "
+                f"else {{ Copy-Item '{bd}.up\\*' '{bd}' -Force -ErrorAction SilentlyContinue; Remove-Item '{bd}.up' -Recurse -Force }}; exit 0")
     scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/recet.ini")
     for f in ("runner.ps1", "install-runner.ps1"):
         scp(os.path.join(HERE, "win", f), f"{WIN}:C:/orc-rhost/{f}")
-    print("staged", BUILD, "->", WROOT)
+    print("staged", BUILD, "->", bd)
+
+
+def cmd_restart_runner(a):
+    """restart the Windows queue runner (scheduled task) so a staged runner.ps1 takes effect;
+    refuses while jobs run (their waiting ssh sides would get a 'job lost')"""
+    ensure_staged()
+    live = ssh_win(f"@(Get-ChildItem {WROOT}\\queue -Filter '*.running.ps1' -ErrorAction SilentlyContinue).Count").strip()
+    if live not in ("", "0") and not a.force:
+        print(f"restart-runner: {live} job(s) running — wait, or --force"); return 1
+    if a.slots:
+        ssh_win(f"Set-Content {WROOT}\\queue\\slots.txt {a.slots}; exit 0")
+    print(ssh_win("Stop-ScheduledTask -TaskName orc-rhost-runner; Start-Sleep 1; Start-ScheduledTask -TaskName orc-rhost-runner; "
+                  f"Start-Sleep 2; Get-Content {WROOT}\\queue\\runner.pid; "
+                  f"if (Test-Path {WROOT}\\queue\\slots.txt) {{ 'slots ' + (Get-Content {WROOT}\\queue\\slots.txt) }}").strip())
+    return 0
 
 
 def rhost_stale():
@@ -124,14 +189,19 @@ def rhost_stale():
                if f.endswith((".c", ".h", ".sh")))
 
 
+PREBUILT = os.environ.get("RHOST_PREBUILT") == "1"   # a parent (gates -j) built + staged everything once
+
+
 def ensure_staged():
-    exe = os.path.join(BUILD, "rhost.exe")
+    if PREBUILT:
+        return
     stamp = os.path.join(BUILD, ".staged")
     if rhost_stale():
         cmd_build(None)
-    if not os.path.exists(stamp) or os.path.getmtime(stamp) < os.path.getmtime(exe):
+    bd = bin_dir()
+    if not os.path.exists(stamp) or open(stamp).read().strip() != bd:
         cmd_stage(None)
-        open(stamp, "w").close()
+        open(stamp, "w").write(bd)
 
 
 # ---------------------------------------------------------------- scenarios
@@ -249,7 +319,7 @@ def rhost_args(a, run_win, inputs_win):
     if a.coverage:
         args += ["--coverage", f"{run_win}\\coverage_in.txt"]
     if a.d3d:
-        args += ["--d3d-proxy", f"{WROOT}\\bin\\v3proxy_d3d8.dll"]
+        args += ["--d3d-proxy", f"{bin_dir()}\\v3proxy_d3d8.dll"]
         if a.cap:
             args += ["--cap", a.cap]
     if a.stall_ms:
@@ -277,6 +347,7 @@ def make_batch(a, runs, tag):
         except FileExistsError:
             continue
     lines = ["$ErrorActionPreference = 'Continue'"]
+    argv = []
     for name, trace, masks, save in runs:
         rdir = os.path.join(bdir, name)
         os.makedirs(rdir)
@@ -298,21 +369,36 @@ def make_batch(a, runs, tag):
         if a.coverage:
             shutil.copy(a.coverage, os.path.join(rdir, "coverage_in.txt"))
         args = rhost_args(a, run_win, inputs)
-        ps_args = " ".join("'" + x.replace("'", "''") + "'" for x in args)
+        json.dump(args, open(os.path.join(rdir, "argv.json"), "w"))
+        argv.append((name, run_win, args))
+    # the batch's runs in parallel (at most -j of them; Start-Admitted caps the whole box), then their
+    # result lines in run order
+    lines += [PS_ADMIT, f"$J = {max(1, getattr(a, 'jobs', 1) or 1)}", "$procs = @()"]
+    exe = f"{bin_dir()}\\rhost.exe"
+    for name, run_win, args in argv:
+        # Start-Process joins -ArgumentList with spaces: quote the elements that hold one
+        ps_args = ",".join("'" + (f'"{x}"' if " " in x else x).replace("'", "''") + "'" for x in args)
+        lines.append("while (@($procs | Where-Object { !$_.HasExited }).Count -ge $J) { Start-Sleep -Milliseconds 100 }")
+        lines.append(f"$procs += ,(Start-Admitted '{exe}' @({ps_args}) '{run_win}\\stdout.txt' '{run_win}\\stderr.txt')")
+    lines.append("$procs | ForEach-Object { $_.WaitForExit() }")
+    for name, run_win, _ in argv:
         lines.append(f"Write-Output '=== {name}'")
-        lines.append(f"& {WROOT}\\bin\\rhost.exe {ps_args} | Select-String -Pattern 'RESULT|FATAL|DIVERGE|hook-result' | ForEach-Object {{ $_.Line }}")
+        # rh_log copies every log line to stdout: once read, drop the copy (rhost.log keeps it)
+        lines.append(f"if (Test-Path '{run_win}\\stdout.txt') {{ Select-String -Path '{run_win}\\stdout.txt' "
+                     f"-Pattern 'RESULT|FATAL|DIVERGE|hook-result' | ForEach-Object {{ $_.Line }}; "
+                     f"if (Test-Path '{run_win}\\rhost.log') {{ Remove-Item '{run_win}\\stdout.txt' }} }}")
+        lines.append(f"if (Test-Path '{run_win}\\stderr.txt') {{ Get-Content '{run_win}\\stderr.txt' -TotalCount 5 }}")
     open(os.path.join(bdir, "go.ps1"), "w").write("\r\n".join(lines) + "\r\n")
     return batch, bdir
 
 
 def wine_stage():
-    os.makedirs(os.path.join(WINE_ROOT, "bin"), exist_ok=True)
+    d = os.path.join(WINE_ROOT, "bin", bin_dir().rsplit("\\", 1)[1])   # content-addressed like Windows
+    os.makedirs(d, exist_ok=True)
     for f in ("rhost.exe", "v3proxy_d3d8.dll"):
-        dst = os.path.join(WINE_ROOT, "bin", f)
-        src = os.path.join(BUILD, f)
-        if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
-            # copy then rename: a run still executing the old image keeps its inode
-            shutil.copy2(src, dst + ".new")
+        dst = os.path.join(d, f)
+        if not os.path.exists(dst):
+            shutil.copy2(os.path.join(BUILD, f), dst + ".new")
             os.replace(dst + ".new", dst)
     link = os.path.join(WINE_PREFIX, "drive_c", "orc-rhost")
     if not os.path.islink(link):
@@ -322,7 +408,7 @@ def wine_stage():
 def run_batch_wine(a, runs, tag):
     """same batch layout, executed locally under wine + Xvfb (parallel -j)"""
     import concurrent.futures
-    if rhost_stale():
+    if rhost_stale() and not PREBUILT:
         cmd_build(None)
     wine_stage()
     global LOCAL_RUNS
@@ -331,12 +417,10 @@ def run_batch_wine(a, runs, tag):
         batch, bdir = make_batch(a, runs, tag)
     finally:
         LOCAL_RUNS = saved
-    go = open(os.path.join(bdir, "go.ps1")).read()
-    cmds = re.findall(r"^& (\S+rhost\.exe) (.*?) \| Select-String", go, re.M)
+    exe = f"{bin_dir()}\\rhost.exe"
     env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
     def one(i):
-        exe, args = cmds[i]
-        argv = [x.strip("'").replace("''", "'") for x in re.findall(r"'(?:[^']|'')*'", args)]
+        argv = json.load(open(os.path.join(bdir, runs[i][0], "argv.json")))
         log = os.path.join(bdir, runs[i][0], "rhost.log")
         so_path = os.path.join(bdir, runs[i][0], "rhost.stdout")
         so = open(so_path, "w")
@@ -361,7 +445,7 @@ def run_batch_wine(a, runs, tag):
     t0 = time.time()
     out_lines = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
-        for name, out in ex.map(one, range(len(cmds))):
+        for name, out in ex.map(one, range(len(runs))):
             out_lines.append(f"=== {name}")
             out_lines += [l for l in out.splitlines() if re.search(r"RESULT|FATAL|DIVERGE|hook-result", l)]
     out = "\n".join(out_lines)
@@ -387,11 +471,22 @@ def prune_win_runs(hours=None):
     `record` runs (the human's raw recordings) are kept. Every result worth keeping
     was fetched to the local batch dir (rhost-runs/), and the rest replays deterministically."""
     h = PRUNE_HOURS if hours is None else hours
+    keep = []   # the current builds' dirs, whatever their age
+    for f in (bin_dir, port_dir):
+        try:
+            keep.append("'" + f().rsplit("\\", 1)[1] + "'")
+        except OSError:
+            pass
+    keep = ",".join(keep) or "''"
+    # + the content-addressed binaries unused for 3 days (an image still running is locked: skipped)
     out = ssh_win(
         f"$n = 0; $cut = (Get-Date).AddHours(-{h}); "
         f"Get-ChildItem {WROOT}\\runs -Directory | Where-Object {{ $_.Name -notmatch '-record-' "
         f"-and $_.LastWriteTime -lt $cut }} | ForEach-Object {{ Remove-Item $_.FullName -Recurse "
-        f"-Force -ErrorAction SilentlyContinue; $n++ }}; \"pruned $n\"", timeout=1800)
+        f"-Force -ErrorAction SilentlyContinue; $n++ }}; \"pruned $n\"; "
+        f"$old = (Get-Date).AddDays(-3); Get-ChildItem {WROOT}\\bin,{WROOT}\\port -Directory -ErrorAction SilentlyContinue | "
+        f"Where-Object {{ $_.Name -match '^[0-9a-f]{{12}}$' -and $_.Name -notin @({keep}) -and $_.LastWriteTime -lt $old }} | "
+        f"ForEach-Object {{ Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }}", timeout=1800)
     return out.strip()
 
 
@@ -406,7 +501,7 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         a.extra = ((a.extra or "") + f" --watch {ENV_VA:x}").strip()
     if getattr(a, "target", "win") == "wine":
         return run_batch_wine(a, runs, tag)
-    if not _pruned and PRUNE_HOURS > 0:   # once per command: keep C: from filling up
+    if not _pruned and PRUNE_HOURS > 0 and not PREBUILT:   # once per command: keep C: from filling up
         _pruned = True
         prune_win_runs()
     ensure_staged()
@@ -571,7 +666,7 @@ def build_port():
     last held, so an edit without a manual make compared a stale port (once, so a long batch
     never picks up edits made while it runs)"""
     global _port_built
-    if not _port_built:
+    if not _port_built and not PREBUILT:
         sh(["nix", "develop", "--command", "make", "-s", "-C", os.path.join(ROOT, "src"), "-j16"])
         _port_built = True
 
@@ -603,8 +698,12 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=()):
           f"Get-ChildItem {WROOT}\\game | % {{ if ($_.PSIsContainer) {{ cmd /c mklink /J \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} "
           f"else {{ cmd /c mklink /H \"{WROOT}\\portcwd\\$($_.Name)\" \"$($_.FullName)\" | Out-Null }} }} }}",
           f"Set-Location {WROOT}\\portcwd",
-          "$p = Start-Process -FilePath " + WROOT + "\\port\\openrecet.exe -ArgumentList @(" + ",".join("'" + x + "'" for x in args) + ")"
-          f" -RedirectStandardError '{pw}\\port.err' -Wait -PassThru",
+          # content-addressed exe (port\<sha>\, recet.ini beside it) + no singleton: port runs side by side
+          PS_ADMIT, "$env:OPENRECET_NO_SINGLETON = '1'",
+          f"$p = Start-Admitted '{port_dir()}\\openrecet.exe' @(" + ",".join("'" + (f'"{x}"' if " " in x else x) + "'" for x in args) + ")"
+          f" '{pw}\\port.out' '{pw}\\port.err'",
+          "$p.WaitForExit()",
+          f"if (Test-Path '{pw}\\port.out') {{ Get-Content '{pw}\\port.out' }}",
           "\"port exit=$($p.ExitCode)\"",
           f"Remove-Item {WROOT}\\portcwd\\openrecet-calltrace-*.jsonl -ErrorAction SilentlyContinue"]
     open(os.path.join(pdir_l, "go.ps1"), "w").write("\r\n".join(ps) + "\r\n")
@@ -649,12 +748,30 @@ def run_port_wine(a, pdir_l, args):
     shutil.rmtree(edir, ignore_errors=True)
 
 
+def port_dir():
+    """Windows dir of the current port build + recet.ini (port\\<sha12>); a gates child takes its parent's"""
+    if os.environ.get("RHOST_PORT_DIR"):
+        return os.environ["RHOST_PORT_DIR"]
+    return f"{WROOT}\\port\\" + file_sha12(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(HERE, "recet.ini"))
+
+
+def stage_port():
+    """upload build/openrecet.exe + recet.ini to port\\<sha12>\\ once (never over a running image).
+    The port reads recet.ini next to its exe: retail's (rhost's canonical) one — without it the port
+    ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame."""
+    pd = port_dir()
+    if ssh_win(f"if (Test-Path '{pd}\\recet.ini') {{ 'present' }}; exit 0").strip() == "present":
+        return
+    ssh_win(f"New-Item -ItemType Directory -Force '{pd}.up' | Out-Null; exit 0")
+    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:{pd.replace(chr(92), '/')}.up/openrecet.exe")
+    scp(os.path.join(HERE, "recet.ini"), f"{WIN}:{pd.replace(chr(92), '/')}.up/recet.ini")
+    ssh_win(f"if (!(Test-Path '{pd}')) {{ Rename-Item '{pd}.up' (Split-Path '{pd}' -Leaf) }} "
+            f"else {{ Copy-Item '{pd}.up\\*' '{pd}' -Force -ErrorAction SilentlyContinue; Remove-Item '{pd}.up' -Recurse -Force }}; exit 0")
+
+
 def run_port_win(batch, pdir_l, pw, fetch):
-    ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\port | Out-Null; exit 0")
-    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:C:/orc-rhost/port/openrecet.exe")
-    # the port reads recet.ini next to its exe: give it retail's (rhost's canonical) one — without it
-    # the port ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame
-    scp(os.path.join(HERE, "recet.ini"), f"{WIN}:C:/orc-rhost/port/recet.ini")
+    if not PREBUILT:
+        stage_port()
     scp(pdir_l, f"{WIN}:C:/orc-rhost/runs/{batch}/", recursive=True)
     print(win_job(batch + "-port", f"{pw}\\go.ps1").strip())
     for f in ("anchors.jsonl", "port.err", *fetch):
@@ -927,15 +1044,24 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")])
 
 
+GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
+
+
+def gate_rows(a):
+    only = re.compile(a.only) if a.only else None
+    return [(kind, scen, *win) for kind, scen, *win in GATES if not (only and not only.search(f"{kind} {scen}"))]
+
+
 def cmd_gates(a):
-    """the regression gate in one command: port saves, anchors and RNG streams vs retail, one line per gate"""
+    """the regression gate in one command: port saves, anchors and RNG streams vs retail, one line per gate.
+    -j N runs N rows at once (each a child `rhost.py KIND SCEN`; this process builds + stages once)"""
+    rows = gate_rows(a)
+    if a.jobs > 1 and len(rows) > 1:
+        return gates_parallel(a, rows)
     import contextlib, copy, io
     fns = {"portsave": cmd_portsave, "portanchors": cmd_portanchors, "portrng": cmd_portrng}
-    only = re.compile(a.only) if a.only else None
     fails = 0
-    for kind, scen, *win in GATES:
-        if only and not only.search(f"{kind} {scen}"):
-            continue
+    for kind, scen, *win in rows:
         b = copy.copy(a)
         b.scenario = scen
         b.window, b.context = (win[0] if win else "1:end"), 3
@@ -943,16 +1069,61 @@ def cmd_gates(a):
         try:
             with contextlib.redirect_stdout(buf):
                 r = fns[kind](b)
-        except Exception as e:      # a failed upload / run is a failed gate, not a crash of the set
+        except BaseException as e:      # a failed upload / run is a failed gate, not a crash of the set
             r = 1
             buf.write(f"error: {e}\n")
-        out = buf.getvalue()
-        keys = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
-        lines = [l.strip() for l in out.splitlines() if l.strip().startswith(keys)]
-        verdict = "ok  " if not r else "FAIL"
+        lines = [l.strip() for l in buf.getvalue().splitlines() if l.strip().startswith(GATE_KEYS)]
         fails += bool(r)
-        print(f"{verdict} {kind:<11s} {scen:<32s} " + " | ".join(lines[:3]), flush=True)
+        print(f"{'ok  ' if not r else 'FAIL'} {kind:<11s} {scen:<32s} " + " | ".join(lines[:3]), flush=True)
     print(f"gates: {fails} failed")
+    return 1 if fails else 0
+
+
+def prebuild(a):
+    """build + stage rhost and the port once, prune once: children run with RHOST_PREBUILT=1"""
+    global _pruned
+    if rhost_stale():
+        cmd_build(None)
+    build_port()
+    if getattr(a, "target", "win") == "wine":
+        wine_stage()
+    else:
+        if PRUNE_HOURS > 0 and not _pruned:
+            _pruned = True
+            print(prune_win_runs())
+        ensure_staged()
+        stage_port()
+
+
+def gates_parallel(a, rows):
+    import concurrent.futures
+    prebuild(a)
+    # the children run exactly the binaries staged here, whatever gets built meanwhile
+    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
+    t0 = time.time()
+
+    def one(row):
+        kind, scen, *win = row
+        cmd = [sys.executable, os.path.abspath(__file__), kind, scen, "--target", a.target, "-j", "1",
+               "--wine-timeout", str(a.wine_timeout)]
+        if kind == "portrng":
+            cmd += ["--window", win[0] if win else "1:end"]
+        if a.extra:
+            cmd += ["--extra", a.extra]
+        t = time.time()
+        r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        out = r.stdout + ("\nerror: " + r.stderr.strip().splitlines()[-1] if r.returncode and r.stderr.strip() else "")
+        lines = [l.strip() for l in out.splitlines() if l.strip().startswith(GATE_KEYS)]
+        return row, r.returncode, lines, time.time() - t
+    done = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        futs = [ex.submit(one, r) for r in rows]
+        for f in concurrent.futures.as_completed(futs):       # each row as it finishes
+            row, rc, lines, dt = f.result()
+            done[tuple(row)] = (rc, lines)
+            print(f"{'ok  ' if not rc else 'FAIL'} {row[0]:<11s} {row[1]:<32s} {dt:6.0f}s " + " | ".join(lines[:3]), flush=True)
+    fails = sum(1 for rc, _ in done.values() if rc)
+    print(f"gates: {fails} failed ({len(rows)} rows, -j{a.jobs}, {time.time() - t0:.0f}s wall)")
     return 1 if fails else 0
 
 
@@ -1276,7 +1447,7 @@ def common(p):
     p.add_argument("--shot-every", type=int)
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
     p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
-    p.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 4) // 2), help="wine: parallel runs")
+    p.add_argument("-j", "--jobs", type=int, help="parallel runs in a batch / gates rows (default: win 8, wine cores/2)")
     p.add_argument("--wine-timeout", type=int, default=14400, help="seconds per wine run (a long replay under contention takes hours)")
 
 
@@ -1378,7 +1549,12 @@ def main():
     p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")
     p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
     common(p); p.set_defaults(fn=cmd_record)
+    p = sp.add_parser("restart-runner", help="restart the Windows queue runner (a staged runner.ps1 takes effect)")
+    p.add_argument("--slots", type=int, help="also write queue\\slots.txt (parallel jobs)")
+    p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_restart_runner)
     a = ap.parse_args()
+    if hasattr(a, "target") and getattr(a, "jobs", 0) is None:
+        a.jobs = 8 if a.target == "win" else max(1, (os.cpu_count() or 4) // 2)
     r = a.fn(a)
     sys.exit(r or 0)
 
