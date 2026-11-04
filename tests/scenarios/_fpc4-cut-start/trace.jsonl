@@ -1,0 +1,30 @@
+# _fpc4-cut-start — probe for rhost --cut "cut-start" (docs/plans/free-play-capture.md FPC-4): house-pause-exit's
+# flat replay (Continue → house → pause → Exit to title, f1226) + A at the title (Continue) + A in the picker
+# (the same bank) = the process's second game start. With --cut it ends there (exit 11, resume 1:<bank>:0);
+# `rhost.py session-test _fpc4-cut-start` resumes it through the preamble.
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 19937]}
+{"frame": 1, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"rngseed": [342, 19937]}
+{"esc": 422}
+{"frame": 456, "buttons": "0x0008"}
+{"frame": 459, "buttons": "0x0000"}
+{"frame": 468, "buttons": "0x0008"}
+{"frame": 471, "buttons": "0x0000"}
+{"frame": 480, "buttons": "0x0008"}
+{"frame": 483, "buttons": "0x0000"}
+{"frame": 492, "buttons": "0x0008"}
+{"frame": 495, "buttons": "0x0000"}
+{"frame": 504, "buttons": "0x0010"}
+{"frame": 507, "buttons": "0x0000"}
+{"frame": 556, "buttons": "0x0010"}
+{"frame": 559, "buttons": "0x0000"}
+{"frame": 1300, "buttons": "0x0010"}
+{"frame": 1302, "buttons": "0x0000"}
+{"frame": 1400, "buttons": "0x0010"}
+{"frame": 1402, "buttons": "0x0000"}
+{"frame": 1500, "buttons": "0x0000"}

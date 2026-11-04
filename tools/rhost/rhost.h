@@ -56,6 +56,9 @@ typedef struct {
     const char *hooks;          /* hook spec, see rh_hooks.c */
     const char *log_sbh;        /* diagnostic: CRT small-block-heap call log */
     uint32_t watch[RH_MAX_WATCH]; int n_watch;   /* dwords appended to each status line */
+    int cut;                    /* free-play capture: end at a day-boundary save / a later game start (rh_play.c) */
+    const char *preamble;       /* CODE[:BANK[:TOGGLE]]: drive the title to that game start (rh_play.c) */
+    int turbo;                  /* --record without realtime pacing (headless tests of the record path) */
 } rh_opts_t;
 
 extern rh_opts_t O;
@@ -113,6 +116,17 @@ void rh_shot(const char *tag);
 void rh_shot_warm(void);   /* first PrintWindow is blank: warm the DWM surface */
 int  rh_shot_on_present(void);        /* wine: shots come from a Present hook */
 void rh_shot_arm(const char *tag);   /* shoot the next Present as `tag` */
+
+/* rh_play.c — free-play capture: cuts + the title preamble */
+void rh_play_install(void);
+int  rh_play_preamble_active(void);
+uint16_t rh_play_preamble_mask(void);
+void rh_play_after_tick(void);
+int  rh_play_cut_pending(void);          /* 0, or the exit code of the pending cut (10 save / 11 start) */
+const char *rh_play_cut_reason(void);
+void rh_play_finish(const char *why);    /* <run>\cut.json */
+const char *rh_play_status(void);
+void rh_play_handover(void);             /* rhost.c: the preamble is done — realtime + real input from here */
 
 /* rh_hooks.c */
 void rh_hooks_install(void);

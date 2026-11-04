@@ -176,15 +176,21 @@ uint16_t rh_trace_mask(uint32_t frame, int *have)
     if (g_seg_on) m = input_segtrace_tick(&g_seg, frame, NULL, NULL);
     else if (g_nm) { while (g_im < g_nm && g_m[g_im].frame <= frame) g_msticky = g_m[g_im++].mask; m = g_msticky; }
     else *have = 0;
-    if (*have && g_flat && !O.record && m != g_flat_last) { fprintf(g_flat, "{\"frame\": %u, \"buttons\": \"0x%04x\"}\n", frame, m); g_flat_last = m; }
+    /* also without a script (m = 0): after a --preamble's last tap the flat trace must release it */
+    if (g_flat && !O.record && m != g_flat_last) { fprintf(g_flat, "{\"frame\": %u, \"buttons\": \"0x%04x\"}\n", frame, m); g_flat_last = m; }
     return m;
 }
 
+/* --record (real input or the --preamble's taps) / --flatten of a --preamble: one line per change */
 void rh_trace_record(uint32_t frame, uint16_t mask)
 {
     if (!g_flat) return;
-    if (!g_orig_wp && game_hwnd()) g_orig_wp = (WNDPROC)(LONG_PTR)SetWindowLongA(g_hwnd, GWL_WNDPROC, (LONG)(LONG_PTR)rec_wndproc);
-    if (mask != g_flat_last) { fprintf(g_flat, "{\"frame\": %u, \"buttons\": \"0x%04x\"}\n", frame, mask); fflush(g_flat); g_flat_last = mask; }
+    if (O.record && !g_orig_wp && game_hwnd()) g_orig_wp = (WNDPROC)(LONG_PTR)SetWindowLongA(g_hwnd, GWL_WNDPROC, (LONG)(LONG_PTR)rec_wndproc);
+    if (mask != g_flat_last) {
+        fprintf(g_flat, "{\"frame\": %u, \"buttons\": \"0x%04x\"}\n", frame, mask);
+        if (O.record) fflush(g_flat);          /* a crash keeps every input */
+        g_flat_last = mask;
+    }
 }
 void rh_trace_record_esc(uint32_t frame) { if (g_flat) { fprintf(g_flat, "{\"esc\": %u}\n", frame); fflush(g_flat); } }
 

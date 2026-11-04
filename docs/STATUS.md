@@ -61,8 +61,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (5 of them retail-stalled cad868 traces), 1 no-flat (`_probe-dayend-rngcs`), **1 split: guild-ui-flow
     f3425** — retail `FUN_00406584 < FUN_004536cb` draws 1 rand / frame from there, the port none (scene 6;
     a legacy Frida-era trace, not gated; repro `portrng guild-ui-flow --window 3423:3426 --seq`).
-  - ★ FPC-4: the capture session (cut hooks FUN_004905a8 / FUN_00490259, restart + Continue preamble,
-    desktop launcher, `session-sync`); RE in the plan.
+  - ✅ FPC-4 (2026-11-04): the capture session. rhost `--cut` (rh_play.c) ends a piece at a save past its
+    start day (FUN_004905a8, bank dword 0xb0fb) or at a 2nd game start (`dword_964351C` 0→1: Continue / New
+    Game / NG+ / survival) — the same boundary as `--frames N`; `--preamble CODE:BANK:TOGGLE` drives the
+    title from retail's menu state (Continue at f3, in the house at f73). Launcher `C:\orc-rhost\play\play.cmd`
+    (Desktop "Recettear capture", frozen rhost copy), per-piece self-check on the box (dumps via rhs.py, PASS →
+    deleted), `session-status` / `session-sync` (→ `tests/playthrough/`, names `pt-<session>-<NNN>`),
+    `session-test SCEN` (headless loop). Verified: corpus with `--cut` (12 cut-save, the rest unchanged), cut ≡
+    `--frames N` (dump diff: volatile slots only), session-test PASS on `day2-save-commit` (cut-save → Day-2
+    resume) and the new probe `_fpc4-cut-start`; synced pieces → golden → triage IDENTICAL.
+  - ★ FPC-5: `playpass SESSION` (goldens for new pieces + triage, report) once the owner's pieces arrive;
+    `where FUN_x|anchor` (coverage index).
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;
@@ -401,9 +410,13 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **The free-play playthrough** (once FPC-4 lands; the one-command setup comes with it): play the
-  whole game as you like; saves past a day boundary and reloads cut pieces automatically. Supersedes
-  the targeted recordings below (they stay valid if you want them sooner).
+- **The free-play playthrough** (FPC-4 installed 2026-11-04; unblocks everything below + FPC-5). On the
+  Windows desktop double-click **Recettear capture** (no save yet → New Game). Play as you like; close the
+  game window to stop, re-launch to continue from the newest save. A save on a later day, or loading /
+  starting a game from the title, restarts the game in ~1 s (expected: the new piece). Watch the first
+  minutes for: the window takes the keyboard after a restart, pacing feels like normal 60 fps, no stall at
+  the title on resume (the console shows `[NNN] … resume 1:<slot>:0`). Agent side: `rhost.py session-status`.
+  Supersedes the targeted recordings below (they stay valid if you want them sooner).
 - **Record dungeon 2's last floors** (unblocks 21F..29F's mixes, the double crown slime on 25F,
   Tielle 27 on 30F). dungeon3-deep ends with a dungeon Save on 20F (cached, so the game starts at
   once): on maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record

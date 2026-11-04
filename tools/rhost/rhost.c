@@ -24,6 +24,9 @@
  *   --coverage F      first-hit coverage over the hex VAs in F → <rundir>\coverage.txt
  *   --d3d-proxy DLL   record the D3D8 stream with the v3 proxy; --cap FROM:COUNT
  *   --stall-ms N      hold the window N ms at the end (eyeballing)
+ *   --cut             free-play capture: end at a day-boundary save / a later game start (rh_play.c)
+ *   --preamble C[:B[:T]]  drive the title to that game start first (turbo; --record hands over after it)
+ *   --turbo           --record without realtime pacing (headless tests of the record path)
  * Output: <rundir>\rhost.log; last line "RESULT ..." (key=value, parsed by rhost.py). */
 #include "rhost.h"
 
@@ -243,7 +246,11 @@ static BOOL WINAPI my_SetWindowPlacement(HWND h, const WINDOWPLACEMENT *wp)
  * WM_ACTIVATE sets the gate to !minimized, so a window that is never activated
  * (--quiet) would park forever. Deterministic runs never pause: raise the gate
  * and return. (--record keeps the real behaviour.) */
-static BOOL WINAPI my_WaitMessage(void) { G32(DAT_TICKGATE) = 1; return TRUE; }
+static BOOL WINAPI my_WaitMessage(void)
+{
+    if (O.record && !O.quiet && !rh_play_preamble_active()) return WaitMessage();   /* human play: real pausing */
+    G32(DAT_TICKGATE) = 1; return TRUE;
+}
 
 /* FUN_0040110f/0040112a (from the WndProc, 47b6cf/47b6de): EnumWindows saves the
  * WINDOWPLACEMENT of every visible titled HOST window except Progman into
@@ -458,6 +465,14 @@ static uint32_t __cdecl hook_clock(void) { return g_vclock; }
 static uint16_t g_mask;
 static void __cdecl hook_input(void)
 {
+    if (rh_play_preamble_active()) {                 /* the title drive (--preamble): scripted, recorded */
+        g_mask = rh_play_preamble_mask();
+        G16(DAT_MASK) = g_mask;
+        G16(DAT_MASK + 42) = 0;
+        G32(DAT_TICKGATE) = 1;
+        rh_trace_record(g_frame, g_mask);
+        return;
+    }
     if (O.record) {                                  /* human play: real devices */
         ((void (__cdecl *)(void))VA_INPUT)();
         g_mask = G16(DAT_MASK);
@@ -475,6 +490,16 @@ static void __cdecl hook_input(void)
 static void finish(const char *why);
 void rh_finish(const char *why) { finish(why); }
 static LARGE_INTEGER g_t0, g_qf;
+/* realtime pacing runs from g_rt_t0 / tick g_rt_f0: process start, or the --preamble's handover */
+static LARGE_INTEGER g_rt_t0; static uint32_t g_rt_f0; static int g_rt_on;
+void rh_play_handover(void)
+{
+    g_rt_on = 1; g_rt_f0 = g_frame; QueryPerformanceCounter(&g_rt_t0);
+    /* the relaunched window should take the keyboard (DInput is DISCL_FOREGROUND); Windows may refuse */
+    HWND h = (HWND)(uintptr_t)G32(0x73dfc7cu);   /* the game HWND */
+    if (O.record && !O.quiet && h && GetForegroundWindow() != h) SetForegroundWindow(h);
+    rh_log_flush();
+}
 static int is_dump_frame(uint32_t f) { for (int i = 0; i < O.n_dump; i++) if (O.dump_at[i] == f) return 1; return 0; }
 static void dump_now(const char *tag)
 {
@@ -515,13 +540,15 @@ static void __cdecl hook_tick(void)
         rh_log("d3d: armed present window [%u,%u) at frame %u\n", pc, pc + O.cap_count, g_frame);
     }
     if (g_frame >= O.frames) finish("frames");
+    if (rh_play_cut_pending()) finish(rh_play_cut_reason());   /* the same boundary as `--frames N`: replays match */
     g_frame++;
-    if (O.realtime) {
+    if (O.realtime && g_rt_on) {
         LARGE_INTEGER t; QueryPerformanceCounter(&t);
-        double due = g_frame * (1000.0 / 60.0), now = (t.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
+        double due = (g_frame - g_rt_f0) * (1000.0 / 60.0), now = (t.QuadPart - g_rt_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
         if (due > now + 1) Sleep((DWORD)(due - now));
     }
     ((void (__cdecl *)(void))VA_TICK)();
+    rh_play_after_tick();
     if (O.n_watch && O.log_every && g_frame % O.log_every == 0) {
         /* the state the anchors see: after tick N, BEFORE the next boundary's
          * deferred workers (which clear e.g. a dialogue load's DAT_06a49960). */
@@ -540,6 +567,7 @@ static void finish(const char *why)
     if (g_finished) return;
     g_finished = 1;
     rh_trace_finish();
+    rh_play_finish(why);
     cov_dump();
     if (g_ww_log) { fflush(g_ww_log); rh_log("watch-write: %ld writes logged\n", g_ww_lines); }
     rh_hooks_report();
@@ -550,14 +578,15 @@ static void finish(const char *why)
     if (O.log_ext) rh_state_ext_report();
     rh_hash_t h; rh_state_hash(&h);
     LARGE_INTEGER t; QueryPerformanceCounter(&t);
-    rh_log("RESULT status=%s reason=%s frame=%u rng=%08x scene=%d state_full=%016llx state_sem=%016llx masked=%u state_bytes=%u wall_ms=%.0f threads=%ld %s\n",
+    rh_log("RESULT status=%s reason=%s frame=%u rng=%08x scene=%d state_full=%016llx state_sem=%016llx masked=%u state_bytes=%u wall_ms=%.0f threads=%ld %s%s%s\n",
            !strcmp(why, "stalled") ? "stalled" : "ok", why, g_frame, G32(DAT_RNG), (int)G32(DAT_SCENE), (unsigned long long)h.full, (unsigned long long)h.semantic,
-           h.masked, h.bytes, (t.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart, g_threads_created, rh_trace_status());
+           h.masked, h.bytes, (t.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart, g_threads_created, rh_trace_status(),
+           O.cut || O.preamble ? " " : "", O.cut || O.preamble ? rh_play_status() : "");
     if (g_sbh) fclose(g_sbh);
     rh_log_flush();
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
-    ExitProcess(0);
+    ExitProcess(rh_play_cut_pending() ? (UINT)rh_play_cut_pending() : 0);   /* 10 cut-save / 11 cut-start (the session loop) */
 }
 static VOID WINAPI my_ExitProcess(UINT code) { if (!g_finished) finish("game-exit"); ExitProcess(code); }
 
@@ -568,7 +597,8 @@ static void usage(void)
                     "  [--flatten F] [--record F] [--realtime] [--dump-at F[,F|end]] [--hash-every N] [--log-every N]\n"
                     "  [--hook SPEC] [--coverage F] [--d3d-proxy DLL --cap FROM:COUNT] [--stall-ms N] [--tail N]\n"
                     "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n"
-                    "  [--watch-write VA[,VA..] --watch-exec VA[,VA..] (<= 4 in all) [--ww-frames FROM:TO]]\n");
+                    "  [--watch-write VA[,VA..] --watch-exec VA[,VA..] (<= 4 in all) [--ww-frames FROM:TO]]\n"
+                    "  [--cut] [--preamble CODE[:BANK[:TOGGLE]]] [--turbo]\n");
     ExitProcess(2);
 }
 static void parse(int argc, char **argv)
@@ -588,6 +618,9 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--flatten")) O.flatten = ARG();
         else if (!strcmp(a, "--record")) { O.record = ARG(); O.realtime = 1; }
         else if (!strcmp(a, "--realtime")) O.realtime = 1;
+        else if (!strcmp(a, "--cut")) O.cut = 1;
+        else if (!strcmp(a, "--preamble")) O.preamble = ARG();
+        else if (!strcmp(a, "--turbo")) O.turbo = 1;
         else if (!strcmp(a, "--dump-at")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && O.n_dump < 16; t = strtok(NULL, ","))
@@ -639,6 +672,8 @@ static void parse(int argc, char **argv)
         #undef ARG
     }
     if (!O.exe || !O.gamedir || !O.rundir) usage();
+    if (O.turbo) O.realtime = 0;
+    g_rt_on = !O.preamble;           /* with a preamble, realtime starts at its handover */
     /* --record/--flatten relative paths live in the run dir */
     static char rec_abs[MAX_PATH], flat_abs[MAX_PATH];
     if (O.record && !strchr(O.record, ':') && O.record[0] != '\\') { snprintf(rec_abs, sizeof rec_abs, "%s\\%s", O.rundir, O.record); O.record = rec_abs; }
@@ -663,7 +698,7 @@ RETAIL_HOLE_DEFINE
 int main(int argc, char **argv)
 {
     parse(argc, argv);
-    QueryPerformanceFrequency(&g_qf); QueryPerformanceCounter(&g_t0);
+    QueryPerformanceFrequency(&g_qf); QueryPerformanceCounter(&g_t0); g_rt_t0 = g_t0;
     CreateDirectoryA(O.rundir, NULL);
     char lp[MAX_PATH]; snprintf(lp, sizeof lp, "%s\\rhost.log", O.rundir);
     g_logf = fopen(lp, "w");
@@ -705,7 +740,7 @@ int main(int argc, char **argv)
     if (!O.no_arena) rh_heap_install();
     if (!O.no_overlay) rh_files_install();
     rh_handles_install();                            /* after files/threads: wraps their overrides */
-    if (!O.record) iat_override("WaitMessage", my_WaitMessage);
+    iat_override("WaitMessage", my_WaitMessage);   /* --record: real pausing once a human drives (my_WaitMessage) */
     rh_dinput_install();
     if (O.quiet) {
         iat_override("CreateWindowExA", my_CreateWindowExA);
@@ -721,6 +756,7 @@ int main(int argc, char **argv)
         rh_log("log-sbh: alloc sites=%d free sites=%d\n", redirect_calls(0x5085ca, my_sbh_alloc), redirect_calls(0x50829f, my_sbh_free));
     }
     rh_trace_init();
+    rh_play_install();
     if (g_lr_to >= g_lr_from) {   /* rand is mostly reached through the thunk j__rand @0x471084 (jmp 0x5041f6) */
         int a = redirect_calls(VA_RAND, logrand), b = redirect_calls(0x471084u, logrand);
         rh_log("log-rand: %d direct + %d thunk call sites\n", a, b);

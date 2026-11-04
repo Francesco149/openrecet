@@ -16,7 +16,7 @@ for f in floor_layout actor_spawn audio_mci call_trace customer_seller map_colli
     PORT_OBJS+=("$B/$f.o")
 done
 $CC -std=gnu11 -O2 -Wall -Wno-unused-function -Wno-format-truncation -I"$S" -I"$H" "${LDF[@]}" -o "$B/rhost.exe" \
-    "$H"/rhost.c "$H"/rh_heap.c "$H"/rh_files.c "$H"/rh_state.c "$H"/rh_trace.c "$H"/rh_hooks.c "$H"/rh_handles.c "$H"/rh_shot.c "$H"/rh_dinput.c \
+    "$H"/rhost.c "$H"/rh_heap.c "$H"/rh_files.c "$H"/rh_state.c "$H"/rh_trace.c "$H"/rh_hooks.c "$H"/rh_handles.c "$H"/rh_shot.c "$H"/rh_dinput.c "$H"/rh_play.c \
     "$S/input_segtrace.c" "${PORT_OBJS[@]}" -luser32 -lgdi32
 make -s -C "$ROOT/tools/trace_studio_v3/proxy" d3d8.dll
 cp "$ROOT/tools/trace_studio_v3/proxy/d3d8.dll" "$B/v3proxy_d3d8.dll"
