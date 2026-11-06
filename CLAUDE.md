@@ -140,3 +140,13 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   - legacy trace workflow: `docs/trace-workflow.md`, `docs/flow-trace-cheatsheet.md`
 - **Docs ownership:** `docs/DOCUMENTATION.md`.
 - **Agent-era cleanup record:** `docs/archive/2026-10-13-agent-era-cleanup.md`.
+
+## Storage on maximus (2026-11-06)
+
+- **On cold, not local:** `rhost-runs/202610*` (the October batches, ~211 GB) and `rhost-wine/runs/` (~26 GB).
+  November batches and everything else under `/mnt/ephemeral/openrecet/` (staged_retail, decompiled-ida,
+  goldens, triage, prefixes, traces) stay local.
+- `/mnt/ephemeral/recettear-decomp/` is parked whole (incl. `build/funmatch.json`, the default input of
+  `tools/oracle/coverage_join.py`): `offload fetch /mnt/ephemeral/recettear-decomp/build` first.
+- **Park run output aggressively:** once a batch is no longer needed day to day (the work it was evidence for is committed), `offload park --fast <batch dirs>` — the copy in and out of cold is cheap (~100–250 MB/s), local disk is not.
+- Before recreating any of it (re-running a batch, re-extracting, re-exporting, re-downloading), check cold: the stub `OFFLOADED.md` at the old path, `offload where <path>`, `offload list`; `offload fetch <path>` brings back the whole thing or any sub-path (the cold copy stays, so re-parking is cheap). `/mnt/ephemeral` is now a symlink to `~/data` on maximus rootfs (the btrfs array is retired); cold mirrors it 1:1 at `cold:/gigavault/staging/maximus-ephemeral/<same path>`. Policy: maximus `/opt/src/maximus/AGENTS.md` "Disk space".
