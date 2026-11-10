@@ -259,6 +259,120 @@
   "event": true,
   "note": "time of day (bank dword 0xb0fc): 0 morning .. 3 evening; 4 ends the day. A town trip / an opening costs periods; the Pub opens from 2, the Adventurers' Guild closes in the evening"
  },
+ "hp": {
+  "addr": "0x56db0bc",
+  "type": "f32",
+  "note": "dungeon: the leader's HP (HUD-validated, probe dungeon2-21f-25f)"
+ },
+ "sp": {
+  "addr": "0x56db0c0",
+  "type": "f32",
+  "note": "dungeon: the leader's SP"
+ },
+ "portal": {
+  "addr": "0x438be9c",
+  "type": "s32",
+  "note": "dungeon: the exit prompt (1.. = \"Go to the next floor?\" is up)"
+ },
+ "equipq": {
+  "addr": "0x438bea0",
+  "type": "s32",
+  "note": "guild departure: the \"Equip items in bag?\" prompt"
+ },
+ "lock": {
+  "addr": "0x438b8b0",
+  "type": "s32",
+  "note": "dungeon: -1 = the player has control (a boss intro holds it at 0)"
+ },
+ "ticker": {
+  "addr": "0x438b92c",
+  "type": "s32",
+  "note": "dungeon: floor-event ticker; play is frozen while it is non-zero (A after 30 ticks speeds it up)"
+ },
+ "ex": {
+  "addr": "0x695ef78",
+  "type": "f32",
+  "note": "dungeon: the exit portal's x (object 0, kind 8 at +0x8c)"
+ },
+ "ez": {
+  "addr": "0x695ef80",
+  "type": "f32",
+  "note": "dungeon: the exit portal's z"
+ },
+ "gate": {
+  "addr": "0x695f1e0",
+  "type": "s32",
+  "note": "dungeon: the exit object's state (3 = hidden: a boss floor)"
+ },
+ "exitd": {
+  "expr": "hypot(px - ex, pz - ez)",
+  "note": "dungeon: distance to the exit portal (a search score: --score \"-exitd\")"
+ },
+ "a0hp": {
+  "addr": "0x76bd9c",
+  "type": "f32",
+  "note": "actor 0's HP. Actor table: 0x76b970 + i*0xba4; type +0x424 (s32), in use +0x428, hp +0x42c (f32), x / z +0x3f0 / +0x3f8 (f32), yaw +0x420"
+ },
+ "a1hp": {
+  "addr": "0x76c940",
+  "type": "f32",
+  "note": "actor 1's HP"
+ },
+ "wms": {
+  "expr": "s32(0x9643588)*1000000+s32(0x964358c)*100000+s32(0x9643590)*10000+s32(0x9643594)*1000+s32(0x9643598)*100+s32(0x964359c)*10+s32(0x96435a0)",
+  "note": "town map: the 7 destination states as digits \u2014 Home, Market, Town Square, Merchants' Guild, Pub, Chapel, Adventurers' Guild; 0 disabled, 1 open, 2 an event waits (a normal morning reads 1111011)"
+ },
+ "sid": {
+  "expr": "s32(0x5c7a2c)*1000 + s32(0x5c7a30)",
+  "note": "the event script running / last run: group*1000 + number (6002 = script 6/2); probes calendar-week3 / -week4"
+ },
+ "enc_cat": {
+  "addr": "0x964c428",
+  "type": "s32",
+  "note": "pause \u2192 Encyclopedia: category (count s32 0x964c42c = 33); probe pause-encyclopedia"
+ },
+ "enc_row": {
+  "addr": "0x964c410",
+  "type": "s32",
+  "note": "Encyclopedia: cursor row (rows in the category: enc_rows)"
+ },
+ "enc_col": {
+  "addr": "0x964c430",
+  "type": "s32",
+  "note": "Encyclopedia: cursor column 0..2"
+ },
+ "enc_top": {
+  "addr": "0x9646640",
+  "type": "s32",
+  "note": "Encyclopedia: the scroll window's top row (3 rows visible)"
+ },
+ "enc_rows": {
+  "addr": "0x9643690",
+  "type": "s32",
+  "note": "Encyclopedia: rows in the current category"
+ },
+ "enc_slide": {
+  "addr": "0x964c424",
+  "type": "s32",
+  "note": "Encyclopedia: category-change slide, \u00b11..\u00b110; input is blocked while it runs"
+ },
+ "enc_detail": {
+  "addr": "0x964c434",
+  "type": "s32",
+  "note": "Encyclopedia: 1 while the detail box is up (stays 1 after B closes the page)"
+ },
+ "vend0": {
+  "expr": "s32(bank + 4*0xb1d4)",
+  "note": "vending machine 0's item code (0x51440 = Old Vender; 0 = none placed); probes vending-level16 / vender-sales-l16"
+ },
+ "vstock": {
+  "expr": "(s32(bank + 4*0xb1e8) != -1) + (s32(bank + 4*0xb1e9) != -1) + (s32(bank + 4*0xb1ea) != -1) + (s32(bank + 4*0xb1eb) != -1) + (s32(bank + 4*0xb1ec) != -1) + (s32(bank + 4*0xb1ed) != -1)",
+  "note": "vending machine 0: stocked slots of 6 (bank dwords 0xb1e8..0xb1ed: an item code or -1; a sale empties one slot and pays the base price)"
+ },
+ "d_table": {
+  "expr": "s32(bank + 4*0xb37c)",
+  "note": "the shop's table kind (all tables at once): 0 Wooden, 1 Legendary, 3 Barrel = counter item id - 5301; probe change-tables-l16"
+ },
  "_cell": {
   "expr": "(scene, cc08, int(px), int(pz))"
  }

@@ -80,8 +80,35 @@ Measured (wine, maximus):
 - **`rhost.py snap-check` = 99/99 PASS** (every scenario ≥ 200 frames; savestate at 30%, at 70%
   hash + restore + replay, twice; state hash + DEV hash + RNG equal each pass; end frame / RNG /
   save.dat equal to the golden's). The save-commit scenarios exercise the file restore.
-- plain headless replay vs the same with `--snap-test`: `state_sem` and `state_dev` equal
-  (write tracking is transparent).
+  Re-run 2026-11-10 on 120 scenarios (the agent-authored ones added): see the known limit below.
+- plain headless replay vs the same with `--snap-test`: `state_sem` and `state_dev` equal at the
+  run's end.
+
+**Known limit: write tracking leaves residue on the game stack** (found by `snap-check` on
+`decor-variants`, 2026-11-10). A first write to a tracked page faults; Windows / wine build the
+exception frame (CONTEXT, record, the handler's calls) on the faulting thread's stack — the game
+stack, below ESP. Retail code that later reads an uninitialised local at that depth sees those
+bytes instead of what earlier calls left. Measured case: statically linked D3DX, a codec
+constructor (`this[11] = desc[16] ? &unk_5FF6A8 : &unk_5FF628`, all_ida.c:174706) fed a
+descriptor whose field 16 its caller never set — **one heap dword** (`0x20099c5c`) of the whole
+state differed at f749, device memory and RNG equal.
+- Which side is right: the untracked replay hashes like the RESTORED passes (no faults: the pages
+  are already dirty), not like the tracked first pass. Restore is exact; tracking is not fully
+  transparent.
+- Gate: `--snap-test` reports `RESIDUE` when the restored passes agree with each other, and with
+  the first in device memory + RNG, but not in `state_sem`; `snap-check` then replays untracked
+  to that frame and passes the row only if it hashes like the restored passes.
+- `rd verify`: frame + RNG equal but `sem` different → the session is rebuilt by a clean replay
+  (nothing tracked before the first savestate) and compared again; it says so.
+- What it cannot hide: a read of such a slot that changes behaviour (an RNG draw, a branch) would
+  make the live session diverge from the movie — `rd verify` then says MISMATCH on frame / RNG and
+  `rd check` (always a fresh replay) judges the movie, not the session. None seen in 25 accepted
+  runs + 120 gate rows.
+- A real fix needs fault-free tracking: (a) the tracker as a debugger of the process (the write
+  fault arrives as a debug event before any user-mode dispatch: flip the page, continue — no
+  stack write, on Windows and wine); or (b) `MEM_WRITE_WATCH` memory + `GetWriteWatch` for the
+  heap arena and DEV (ours to allocate), which leaves retail's `.data` / `.bss` (inside rhost's
+  image) on faults unless the image mapping moves to private memory.
 
 ## 4. Live sessions (`rh_live.c`, `--live PORT`)
 
@@ -101,11 +128,28 @@ state; `explore` = the Kirby v2 search in C on savestates.
   12%, `FUN_00459847` 9% (mesh walker, render), non-retail 2.4%. Render ≈ 70% of a tick with no
   device behind it.
 
+## 5. Skipping a render function (`--skip-fn VA,..`, `--mask-range LO:HI,..`)
+
+`--skip-fn` turns calls of a retail function (cdecl, plain `ret`) into no-ops; `--mask-range` leaves dwords out of
+`state_sem` (render scratch), in whatever mode the run is. Gate: `rhost.py skip-check FNS [--mask ..]` = per
+scenario a plain and a skipped headless replay must agree on end frame, RNG, `state_sem`, save.dat.
+
+`FUN_00414ee2` (overlay particle dispatcher, 48% of a house tick):
+- unmasked: 48/111 equal — every difference in `state_sem` only (frame, RNG, save.dat equal in all);
+- the function writes two scratch blocks and nothing else that survives: a quad at `0x76b750..0x76b7b0`, and the
+  vertex strip buffer `0x64c514..0x64d408` (480 of its 957 dwords, in the dungeon scenarios; derived by diffing
+  the plain / skip `.rhs` dumps of the five scenarios that still differed);
+- **masked `76b750:76b7b0,64c514:64d408`: 121/121 equal**, 2026-11-10, wine (summed wall 2,574 s → 1,373 s under
+  load; ×2.5 on an idle box). The sim never reads the scratch: 1.7 M frames of RNG + state agree.
+- `rd` live sessions use it by default (house 741 → 1,330 ticks/s); `rd verify` replays unskipped with the same
+  mask and must reach the session's frame / RNG / `state_sem`.
+
 ## Open
 
-- Skip render functions proven pure w.r.t. tracked memory (the write tracker can prove it per
-  call: zero dirtied pages) — `FUN_00414ee2` alone would double 3D-scene speed. Not safe wholesale:
-  render writes sim-read state (FUN_0046602e's hint slot, DAT_0438b760, the model anchors).
+- Fault-free write tracking (§3 known limit): debugger-side fault handling, or write-watch memory.
+
+- More render skips. Done: `--skip-fn 414ee2` (§5). Not safe wholesale: render writes sim-read state
+  (FUN_0046602e's hint slot, DAT_0438b760, the model anchors) — gate each candidate with `skip-check`.
 - Pictures without a movie replay: emit one tick's draw stream from the fake device in the v3
   capture format and replay it on a real device.
 - Savestates across processes (needs the remaining per-process values — HWND, GDI handles —

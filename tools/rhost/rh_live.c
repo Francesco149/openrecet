@@ -19,7 +19,7 @@
  *   text                                   the strings the last tick drew (x:y:color:budget:hex, in draw order)
  *   hash | stats | movie | dump PATH       state hashes / counters / the input movie since boot / .rhs dump
  *   explore g=P c=P,P.. [a=P] acts=A|A|.. [t=MS] [refine=MS] [seed=N] [maxlen=N] [sticky=PCT] [apply=1]
- *                                          score-free exploration (below)
+ *           [score=P] [greed=G]            exploration on savestates (below); score = a direction + "best so far"
  *   quit                                   end the run (RESULT line, exit)
  *
  * Programs are postfix: numbers (dec / 0x hex / float), `frame`, `rng`, memory reads that pop an
@@ -157,10 +157,10 @@ void rh_text_unsnap(void *blob)
 /* ---------------- programs (postfix) ---------------- */
 enum { OP_NUM, OP_R8, OP_R16, OP_R32, OP_S8, OP_S16, OP_S32, OP_F32, OP_F64, OP_FRAME, OP_RNG, OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_FDIV,
        OP_MOD, OP_AND, OP_OR, OP_XOR, OP_SHL, OP_SHR, OP_INV, OP_LT, OP_LE, OP_GT, OP_GE, OP_EQ, OP_NE, OP_LAND, OP_LOR, OP_LNOT,
-       OP_NEG, OP_ABS, OP_MIN, OP_MAX, OP_SEL };
+       OP_NEG, OP_ABS, OP_MIN, OP_MAX, OP_SEL, OP_SQRT, OP_SIN, OP_COS, OP_ATAN2, OP_HYPOT, OP_POW };
 static const char *const OPN[] = { "", "r8", "r16", "r32", "s8", "s16", "s32", "f32", "f64", "frame", "rng", "+", "-", "*", "/", "//", "%",
                                    "&", "|", "^", "<<", ">>", "~", "<", "<=", ">", ">=", "==", "!=", "and", "or", "not", "neg", "abs",
-                                   "min", "max", "sel" };
+                                   "min", "max", "sel", "sqrt", "sin", "cos", "atan2", "hypot", "pow" };
 typedef struct { uint8_t op; double v; } ins_t;
 typedef struct { int n; ins_t *c; } prog_t;
 #define NPROG 256
@@ -227,6 +227,12 @@ static double vm_eval(const prog_t *p)
         case OP_LNOT: if (sp < 1) return 0; st[sp - 1] = st[sp - 1] == 0; break;
         case OP_NEG: if (sp < 1) return 0; st[sp - 1] = -st[sp - 1]; break;
         case OP_ABS: if (sp < 1) return 0; st[sp - 1] = fabs(st[sp - 1]); break;
+        case OP_SQRT: if (sp < 1) return 0; st[sp - 1] = st[sp - 1] > 0 ? sqrt(st[sp - 1]) : 0; break;
+        case OP_SIN: if (sp < 1) return 0; st[sp - 1] = sin(st[sp - 1]); break;
+        case OP_COS: if (sp < 1) return 0; st[sp - 1] = cos(st[sp - 1]); break;
+        case OP_ATAN2: BIN(atan2(A, B)); break;
+        case OP_HYPOT: BIN(sqrt(A * A + B * B)); break;
+        case OP_POW: BIN((A < 0 && B != floor(B)) || (A == 0 && B < 0) ? 0 : pow(A, B)); break;
         case OP_SEL: if (sp < 3) return 0; { double r = st[sp - 3] != 0 ? st[sp - 2] : st[sp - 1]; sp -= 2; st[sp - 1] = r; } break;
         }
         #undef A
@@ -287,7 +293,7 @@ static double now_ms(void)
 static void tick(uint16_t mask) { g_cur_mask = mask; rh_step(); }
 
 /* ---------------- explore ---------------- */
-typedef struct { uint64_t key; int snap; uint32_t frames, chosen, born; mnode_t *head; double v[6]; } cell_t;
+typedef struct { uint64_t key; int snap; uint32_t frames, chosen, born; mnode_t *head; double v[6], score; } cell_t;
 static uint64_t g_xs;
 static uint32_t xrand(void) { g_xs ^= g_xs << 13; g_xs ^= g_xs >> 7; g_xs ^= g_xs << 17; return (uint32_t)(g_xs >> 16); }
 static double xunit(void) { return xrand() / 4294967296.0; }
@@ -314,8 +320,11 @@ static void path_segs(mnode_t *head, mnode_t *root_head, uint16_t root_mask, uin
     }
     free(v);
 }
+/* score (a program, -1 = none; higher = closer): cells are picked in proportion to e^(greed * rank-normalised
+ * score) on top of the visit-count weight, a cell keeps its best-scored arrival (ties: the shorter), and when the
+ * goal is never met the reply carries the path to the best-scored cell (bpath) — progress the client can keep. */
 static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts, const int *alen, int nact, double tlimit, double refine,
-                       int maxlen, double sticky, int apply, sb_t *out)
+                       int maxlen, double sticky, int apply, int score, double greed, sb_t *out)
 {
     if (!rh_snap_anchored() || rh_snap_dirty() > 12000) { if (rh_snap_anchor()) { sb_f(out, "err anchor failed"); return; } g_epoch++; }
     int root = rh_snap_take();
@@ -325,7 +334,10 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
     #define FIND(k, slot) do { slot = (uint32_t)((k) * 11400714819323198485ull >> 40) % (uint32_t)mapcap; \
                                while (map[slot] && cells[map[slot] - 1].key != (k)) slot = (slot + 1) % (uint32_t)mapcap; } while (0)
     double vals[6] = { 0 }; uint64_t k0 = cell_key(cp, nc, vals); uint32_t s0; FIND(k0, s0);
-    cells[0] = (cell_t){ k0, root, 0, 0, 0, root_head, { vals[0], vals[1], vals[2], vals[3], vals[4], vals[5] } }; map[s0] = 1; n = 1;
+    double sc0 = score >= 0 ? vm_eval(&g_prog[score]) : 0, smin = sc0, smax = sc0;
+    cells[0] = (cell_t){ k0, root, 0, 0, 0, root_head, { vals[0], vals[1], vals[2], vals[3], vals[4], vals[5] }, sc0 }; map[s0] = 1; n = 1;
+    #define WEIGHT(i) ((1.0 / sqrt(1.0 + cells[i].chosen)) * (it - cells[i].born <= 2 ? 3.0 : 1.0) * \
+                       (score >= 0 && smax > smin ? exp(greed * (cells[i].score - smin) / (smax - smin)) : 1.0))
     double t0 = now_ms(), tbest = 0; uint32_t best = 0, it = 0; uint64_t ticks = 0; mnode_t *best_head = NULL; long pruned = 0, evicted = 0;
     while (1) {
         double now = now_ms();
@@ -335,15 +347,13 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
         double tw = 0;
         for (int i = 0; i < n; i++) {
             if (!cells[i].snap || (best && cells[i].frames + 1 >= best)) continue;
-            double w = 1.0 / sqrt(1.0 + cells[i].chosen); if (it - cells[i].born <= 2) w *= 3.0;
-            tw += w;
+            tw += WEIGHT(i);
         }
         if (tw <= 0) break;
         double pick = xunit() * tw; int ei = -1;
         for (int i = 0; i < n; i++) {
             if (!cells[i].snap || (best && cells[i].frames + 1 >= best)) continue;
-            double w = 1.0 / sqrt(1.0 + cells[i].chosen); if (it - cells[i].born <= 2) w *= 3.0;
-            ei = i; pick -= w; if (pick <= 0) break;
+            ei = i; pick -= WEIGHT(i); if (pick <= 0) break;
         }
         cells[ei].chosen++;
         rh_snap_restore(cells[ei].snap);
@@ -360,7 +370,8 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             if (stop) break;
             uint64_t key = cell_key(cp, nc, vals); uint32_t slot; FIND(key, slot);
             cell_t *c = map[slot] ? &cells[map[slot] - 1] : NULL;
-            if (c && f >= c->frames && c->snap) continue;
+            double sc = score >= 0 ? vm_eval(&g_prog[score]) : 0;
+            if (c && c->snap && !(sc > c->score || (sc == c->score && f < c->frames))) continue;
             int id = rh_snap_take();
             if (!id) {                                  /* pool full: drop the savestates of the most-expanded cells */
                 uint64_t sum = 0; int live = 0;
@@ -370,7 +381,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
                 id = rh_snap_take();
                 if (!id) continue;
             }
-            if (c) { if (c->snap) rh_snap_free(c->snap); c->chosen /= 2; }
+            if (c) { if (c->snap && c->snap != root) rh_snap_free(c->snap); c->chosen /= 2; }   /* a better-scored arrival may replace the root's cell: its savestate stays */
             else {
                 if (n == cap) { cap *= 2; cells = realloc(cells, cap * sizeof *cells); }
                 if ((n + 1) * 2 > mapcap) {             /* rehash */
@@ -381,7 +392,9 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
                 c = &cells[n++]; map[slot] = n; c->key = key; c->chosen = 0;
                 for (int i = 0; i < 6; i++) c->v[i] = vals[i];
             }
-            c->snap = id; c->frames = f; c->born = it; c->head = g_mhead;
+            c->snap = id; c->frames = f; c->born = it; c->head = g_mhead; c->score = sc;
+            if (sc < smin) smin = sc;
+            if (sc > smax) smax = sc;
         }
     }
     double ms = now_ms() - t0;
@@ -405,12 +418,23 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             sb_f(out, "%s%u@", shown ? ";" : "", cells[i].frames);
             for (int k = 0; k < nc && k < 6; k++) sb_f(out, "%s%.6g", k ? "/" : "", cells[i].v[k]);
         }
+        if (score >= 0) {                               /* … and the best-scored one, with the way there */
+            int bi = 0;
+            for (int i = 1; i < n; i++)
+                if (cells[i].score > cells[bi].score || (cells[i].score == cells[bi].score && cells[i].frames < cells[bi].frames)) bi = i;
+            sb_f(out, " score0=%.9g bscore=%.9g bframes=%u", sc0, cells[bi].score, cells[bi].frames);
+            if (cells[bi].frames) {
+                sb_t path = { 0 }; path_segs(cells[bi].head, root_head, root_mask, root_frame, cells[bi].frames, &path);
+                sb_f(out, " bpath="); sb_put(out, path.p ? path.p : "", path.n); free(path.p);
+            }
+        }
     }
     for (int i = 0; i < n; i++) if (cells[i].snap && cells[i].snap != root) rh_snap_free(cells[i].snap);
     if (!apply || !best) rh_snap_free(root);
     else rh_snap_free(root);
     free(cells); free(map);
     #undef FIND
+    #undef WEIGHT
 }
 
 /* ---------------- the server ---------------- */
@@ -601,7 +625,11 @@ static void command(char *line, sb_t *o)
         const char *st = opt(tok, nt, "t"), *sr = opt(tok, nt, "refine"), *ssd = opt(tok, nt, "seed"), *sm = opt(tok, nt, "maxlen"), *sk = opt(tok, nt, "sticky"), *sap = opt(tok, nt, "apply");
         if (ssd) { g_xs = 0x9E3779B97F4A7C15ull ^ ((uint64_t)strtoull(ssd, 0, 10) * 0xD1B54A32D192ED03ull); if (!g_xs) g_xs = 1; }
         int maxlen = sm ? atoi(sm) : 8; if (maxlen < 2) maxlen = 2;
-        do_explore(g, a, cp, nc, acts, alen, nact, st ? atof(st) : 60000, sr ? atof(sr) : 8000, maxlen, sk ? atof(sk) / 100.0 : 0.6, sap && atoi(sap), o);
+        const char *ssc = opt(tok, nt, "score"), *sgr = opt(tok, nt, "greed");
+        int scp = ssc ? pid_of(ssc) : -1;
+        if (ssc && scp < 0) { sb_f(o, "err explore score=P (undefined program)"); for (int i = 0; i < nact; i++) free(acts[i]); return; }
+        do_explore(g, a, cp, nc, acts, alen, nact, st ? atof(st) : 60000, sr ? atof(sr) : 8000, maxlen, sk ? atof(sk) / 100.0 : 0.6, sap && atoi(sap),
+                   scp, sgr ? atof(sgr) : 3.0, o);
         for (int i = 0; i < nact; i++) free(acts[i]);
     }
     else if (!strcmp(c, "quit")) { sb_f(o, "ok bye"); send_all(o->p, o->n); send_all("\n", 1); rh_finish("live-quit"); }
@@ -641,10 +669,16 @@ void rh_live_main(void)
  * At boundary A: anchor + savestate. At boundary B: hash; restore the savestate; the replay
  * runs A..B again (the trace cursor is part of the state); hash again — K times. Every pass
  * must give the first pass's hashes, and the run's end state the plain replay's
- * (`rhost.py snap-check`). */
-static uint32_t g_st_a, g_st_b; static int g_st_k = 2, g_st_pass, g_st_id, g_st_fail, g_st_on;
-static uint64_t g_st_sem, g_st_dev; static uint32_t g_st_rng;
-static char g_st_status[96];
+ * (`rhost.py snap-check`).
+ * RESIDUE = the restored passes agree with each other (and in device memory + RNG with the
+ * first) but not with the first pass's game-state hash: the first pass ran under write
+ * tracking — a first write to a page faults, the exception frame lands on the game stack
+ * below ESP, and retail code that reads an uninitialised stack slot there sees it
+ * (docs/findings/headless-savestates.md §3). snap-check then compares the restored passes
+ * with an untracked replay. */
+static uint32_t g_st_a, g_st_b; static int g_st_k = 2, g_st_pass, g_st_id, g_st_fail, g_st_on, g_st_res;
+static uint64_t g_st_sem, g_st_dev, g_st_rsem; static uint32_t g_st_rng;
+static char g_st_status[160];
 void rh_snap_selftest(void)
 {
     if (!O.snap_test) return;
@@ -661,10 +695,12 @@ void rh_snap_selftest(void)
         uint64_t dev = rh_state_dev_hash();
         if (!g_st_pass) { g_st_sem = h.semantic; g_st_dev = dev; g_st_rng = G32(DAT_RNG); }
         else if (h.semantic != g_st_sem || dev != g_st_dev || G32(DAT_RNG) != g_st_rng) {
-            g_st_fail++;
-            rh_log("snap-test: pass %d DIFFERS at f%u: sem %016llx/%016llx dev %016llx/%016llx rng %08x/%08x\n", g_st_pass, g_frame,
-                   (unsigned long long)h.semantic, (unsigned long long)g_st_sem, (unsigned long long)dev, (unsigned long long)g_st_dev, G32(DAT_RNG), g_st_rng);
-        }
+            int residue = dev == g_st_dev && G32(DAT_RNG) == g_st_rng && (!g_st_res || h.semantic == g_st_rsem);
+            if (residue) { g_st_res++; g_st_rsem = h.semantic; } else g_st_fail++;
+            rh_log("snap-test: pass %d DIFFERS at f%u: sem %016llx/%016llx dev %016llx/%016llx rng %08x/%08x%s\n", g_st_pass, g_frame,
+                   (unsigned long long)h.semantic, (unsigned long long)g_st_sem, (unsigned long long)dev, (unsigned long long)g_st_dev, G32(DAT_RNG), g_st_rng,
+                   residue ? " (game state only: tracking residue in the first pass?)" : "");
+        } else if (g_st_res) g_st_fail++;                    /* one restored pass like the first, another not */
         if (g_st_pass < g_st_k) {
             g_st_pass++;
             rh_snap_take();                                  /* a second savestate in between: exercises parent sharing */
@@ -675,6 +711,8 @@ void rh_snap_selftest(void)
 const char *rh_snap_test_status(void)
 {
     if (!O.snap_test) return "";
-    snprintf(g_st_status, sizeof g_st_status, " snap_test=%s passes=%d", g_st_fail ? "FAIL" : g_st_pass > g_st_k ? "PASS" : "INCOMPLETE", g_st_pass > g_st_k ? g_st_k : g_st_pass);
+    int n = snprintf(g_st_status, sizeof g_st_status, " snap_test=%s passes=%d", g_st_fail ? "FAIL" : g_st_pass <= g_st_k ? "INCOMPLETE" : g_st_res ? "RESIDUE" : "PASS",
+                     g_st_pass > g_st_k ? g_st_k : g_st_pass);
+    if (g_st_res && !g_st_fail) snprintf(g_st_status + n, sizeof g_st_status - (size_t)n, " snap_at=%u snap_sem=%016llx", g_st_b, (unsigned long long)g_st_rsem);
     return g_st_status;
 }

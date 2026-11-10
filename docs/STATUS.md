@@ -77,56 +77,59 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   against them.
   - ✅ rhost `--headless` (fake D3D8 / DirectMusic / DirectShow / DirectInput; wine without X): `headless-check`
     **100/100 IDENTICAL** to the Windows real-device goldens (1,670,506 f); `--real --target win` 100/100.
-  - ✅ in-process savestates (`snap-check` **99/99**; restore 0.2 ms), `--live` sessions, screen text, native
-    exploration search; `./rd` (stateless driver); drivers = session subagents or `tools/drive/agent.sh` (API).
+  - ✅ in-process savestates (`snap-check` **126/126**, 2026-11-10; restore 0.2 ms; 1 row with write-tracking
+    residue, see next 4), `--live` sessions, screen text, native exploration search with an optional score;
+    `./rd` (stateless driver); drivers = session subagents or `tools/drive/agent.sh` (API).
   - ✅ render skip: `rd` sessions run with `--skip-fn 414ee2` (overlay particle dispatcher, 48% of a house tick):
     `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408` **121/121 equal** (frame, RNG, state_sem, save.dat);
     house 741 → 1,330 ticks/s; `rd verify` replays unskipped (`headless-savestates.md` §5).
-  - ✅ campaign 2026-11-10: **24 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
-    --real` MATCH (reports `docs/findings/probes/`, indexed in `findings/INDEX.md`; 23 API drivers ≈ $31, one
-    subscription subagent for the dungeon). Port `dfa39b94` (4bcff114e236), `triage` of the first 20:
-    **19 identical** (4 with save IDENTICAL), 1 split:
+  - ✅ campaign 2026-11-10: **27 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
+    --real` MATCH (reports `docs/findings/probes/`, indexed in `findings/INDEX.md`; start saves and their lineage
+    `tools/drive/SAVES.md`; 26 API drivers ≈ $34, one subscription subagent for the dungeon). Port `10e36b61`
+    (9c219702f87a), `triage`: **25 identical** (8 with save IDENTICAL), 2 split:
     - identical: `tear-news-summary`, `tear-outstanding-orders`, `tear-menu-pages` (Tear's pages; their render
       stays PORT-DEBT), `guild-fusion-confirm` (modes 5 / 6), `decor-defaults`, `decor-variants`,
       `market-buy-display`, `payday-week2-paid` + save, `gameover-loop-dungeon0`, `town-rounds-week3`,
-      `pub-evening-week3`, `pause-status-items`, `shop-session-week3` + save (haggling at 105 / 130%, walk-out, a
-      seller), `order-customer-week3` (an advance order to Tear's list and served), `calendar-week3` + save (days
-      15–22, 39,135 ticks), `dungeon2-21f-25f` (floors 21F–25F + one crown slime, 12,813 ticks).
+      `pub-evening-week3`, `pause-status-items`, `pause-encyclopedia`, `shop-session-week3` + save (haggling at
+      105 / 130%, walk-out, a seller), `order-customer-week3`, `calendar-week3` + save (days 15–22), `calendar-week4`
+      + save (days 22–29, 36,768 ticks), `change-tables-l16` + save, `dungeon2-21f-25f` (floors 21F–25F + one
+      crown slime).
     - splits found and ported the same day by subagents: `counter-move-tables` (f618 → 749a4e37),
-      `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94, which also closed the legacy
-      `guild-ui-flow` f3425 split (identical 1..6170).
-    - ☐ `vending-level16`: **split f5500** `FUN_00414345 < FUN_004147d5 < FUN_0048670f ⇄ init_shape_lt2 (+2)` —
-      vending machines are unported (placement from the display menu's "Venders" category, the machine menu
-      `cc04 == 2`, stocking, background sales at base price, revert). Retail facts: probes `vending-level16`,
-      `vender-sales-l16`; data: machine code bank dword 0xb1d4, 6 slots 0xb1e8..0xb1ed.
-    - ☐ not yet triaged (accepted while the port tree was being edited): `calendar-week4`, `pause-encyclopedia`,
-      `change-tables-l16`, `vender-sales-l16` (will split where the machine matters).
+      `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94 (also closed the legacy
+      `guild-ui-flow` f3425 split), `vending-level16` (f5500) + `vender-sales-l16` (save 5 bytes) → 10e36b61
+      (vending machines: `findings/vending-machines-RE.md`; `vender-revert-sell` identical + save).
+    - ☐ `ending-week5-paid`: **split f30885** `FUN_00406584 < FUN_004536cb < FUN_0047be92 ⇄ - (+1)`, scene 9 —
+      the money roll (displayed gold lags the bank after the 500,000 payment) runs in the pause scene in retail;
+      behind it: the ending scenes, credits, True Card, the "Save the game?" prompt, the title's unlocked
+      entries, Endless Mode's opening (none ported / verified). `portrng ending-week5-paid --window 30883:30886 --seq`.
+    - ☐ `newgame-plus`: **split f436** `- ⇄ floor_layout_maze (-7)` at the title's New Game + start (picker
+      `t_sub` 1 on cleared saves only; the bank reset of 86 dwords; opening script 2/6; FUN_004864fd's title arm).
+      `portrng newgame-plus --window 434:437 --seq`.
     - retail facts corrected on the way: the guild has no mode 3 (Sell = mode 0 → 8); `floor` DAT_0438b4cc is
       0-based, the stage record DAT_0438b4dc ≥ 4 = a dungeon; Outstanding Orders needs merchant level dword ≥ 6,
-      Move Tables ≥ 9; crafted level saves play a level-up event at load; a recipe's ingredients count from the
-      bag only; Change Tables restyles every table at once (bank dword 0xb37c); dungeon controls are flipped
-      against the shop; `end:dungeon3-deep` loads the shop at night on day 23, not the dungeon.
-    - saves the probes left (`tests/scenarios/_saves/`, gitignored; lineage = the played day-14 save + crafted
-      gold / level, so not pure game states): week 3 `64d43650865f`; a save per morning for days 15–29 (reports
-      `calendar-week3` / `-week4`; day 29 = `89190665bb8f`); level 16 `2afe7fb42617`; a placed + stocked vender
-      `44e9baea3987`; changed tables `dea37b7a7519`.
+      Move Tables ≥ 9, vending machines ≥ 14; crafted level saves play a level-up event at load; a recipe's
+      ingredients count from the bag only; Change Tables restyles every table at once (bank dword 0xb37c);
+      machine sales pay exactly base price; dungeon controls are flipped against the shop; `end:dungeon3-deep`
+      loads the shop at night on day 23, not the dungeon.
   - ★ next:
-    1. port the vending machine (a subagent has placement, 2026-11-10); then `triage` the four untriaged
-       scenarios and run `gates --only "tear-|guild-|decor-|counter-|market-|pause-|payday-|gameover-|town-|pub-|shop-session|order-|calendar-|dungeon2-21f"`
-       (24 agent rows were added to `GATES`, expected IDENTICAL, not yet run as a gate).
-    2. probes out: `ending-week5-paid` (crafted 900,000 pix on the day-29 save: the last payment + the ending),
-       `vender-revert-sell` — `./rd accept RUN NAME --task …` each.
-    3. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
-       25F second crown slime + 26F–30F (use `rd search --score`; the first run stalled on the survivor), Item
-       Storage (level 17: craft `--set 0xb100=16`), adventurers beyond Louie / Charme (the Girl events of day 24),
-       a move → town → return trace (`PORT-DEBT(simplified, FUN_0048ffd9)`), a week-5 game over, New Game+ (the
-       title's arm of FUN_004864fd).
+    1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
+       the pause-scene money roll first, then the ending chain; New Game +.
+    2. `gates`: 34 agent rows added to `GATES` (expected IDENTICAL at 10e36b61 by `triage`; not yet run as a gate):
+       `rhost.py gates -j 8 --only "tear-|guild-|decor-|counter-|market-|pause-|payday-|gameover-|town-|pub-|shop-session|order-|calendar-|dungeon2-21f|vend|change-tables"`.
+    3. probes out: `survival-start` (Survival Mode's start), `item-storage-l17` — `./rd accept RUN NAME --task …`.
     4. fault-free write tracking (`headless-savestates.md` §3 known limit: a write fault's exception frame on the
-       game stack is read back by retail's uninitialised locals — `snap-check` 120 rows: 1 with residue in the
-       tracked pass, restore exact): the tracker as a debugger of the process, or write-watch memory.
-    5. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
+       game stack is read back by retail's uninitialised locals — 1 of 126 `snap-check` rows, restore exact): the
+       tracker as a debugger of the process, or write-watch memory.
+    5. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
+       25F second crown slime + 26F–30F (`rd search --score`; the first run stalled on the survivor), adventurers
+       beyond Louie / Charme (none appears through day 35 without dungeon progress), a move → town → return trace
+       (`PORT-DEBT(simplified, FUN_0048ffd9)`), a week-5 game over, Endless Mode days, venders 5202 / 5203 and the
+       3-machine limit (asm-only), `PORT-DEBT(stub, FUN_0048670f cc08 50)`.
+    6. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
        (`FUN_00459847`, gate each), pictures from the headless draw stream, `--live` on the Windows box, action
-       specs that read state, the highlighted row in `rd text`, a shop-customer actor table in `vars.json`.
+       specs that read state, the highlighted row in `rd text`, a shop-customer actor table in `vars.json`;
+       triage's split signature pairs chains by position (it named retail's sparkle chain for the port's extra
+       draw); `portstate` with ≥ 64 VAs dies silently; `portblock --at` past the retail dumps tracebacks.
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;
@@ -463,9 +466,11 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
-- **Later-game saves are what the agents lack.** The played saves stop at day 14 / merchant level 6 (HUD); probes
-  beyond that run on crafted saves (`tools/craft_pix_save.py --set / --add-item`), which are not states the game
-  produced. Every free-play piece below is also a start point for `rd` tasks (`--from save:SHA`).
+- **Played later-game saves are what the agents lack.** The played saves stop at day 14 / merchant level 6 (HUD)
+  and the day-22 dungeon save; the probes beyond that (weeks 3–5, the ending, New Game +, level 10 / 16 / 17
+  features) run on saves derived from them with crafted gold / level (`tools/drive/SAVES.md`), which are not states
+  the game produced. Every free-play piece below is also a start point for `rd` tasks (`--from save:SHA`), and a
+  played save past week 3 would let the same probes be re-run on a real lineage.
 - **The free-play playthrough** (FPC-4 installed 2026-11-04; unblocks everything below + FPC-5). On the
   Windows desktop double-click **Recettear capture** (no save yet → New Game). Play as you like; close the
   game window to stop, re-launch to continue from the newest save. A save on a later day, or loading /
@@ -473,15 +478,15 @@ rhost.log: base / ask / offer / floor / acc).
   minutes for: the window takes the keyboard after a restart, pacing feels like normal 60 fps, no stall at
   the title on resume (the console shows `[NNN] … resume 1:<slot>:0`). Agent side: `rhost.py session-status`.
   Supersedes the targeted recordings below (they stay valid if you want them sooner).
-- **Record dungeon 2's last floors** (unblocks 21F..29F's mixes, the double crown slime on 25F,
-  Tielle 27 on 30F). dungeon3-deep ends with a dungeon Save on 20F (cached, so the game starts at
-  once): on maximus, the user plays on the Windows desktop: `python3 tools/rhost/rhost.py record
-  dungeon3-end --from dungeon3-deep`. Load the newest slot (the in-dungeon save after 20F); on to 25F and
-  30F if possible; then home, save. A Fusion and the pause Equip on the way are still unverified;
-  another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
-  start `--from` the last (cached end saves: no replay). In the shop on the way, open Tear's menu
-  and step onto **News Summary** and **Outstanding Orders** (their pages are PORT-DEBT, no
-  recording shows them); once vending machines are placeable (merchant level 15), face one.
+- **Record dungeon 2's last floors** (unblocks 26F..29F's mixes, the second crown slime on 25F, Tielle 27 on 30F;
+  an agent reached 21F–25F and killed one slime by search — `findings/probes/dungeon2-21f-25f.md` — and stalled
+  on the survivor: a human's fight is also the reference for what the search missed). On maximus, the user
+  plays on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon3-end --from dungeon3-deep`. The
+  newest slot loads the SHOP at night on day 23 (not the dungeon): sleep, Adventurers' Guild → Louie → dungeon 2 →
+  the "21~25" row; on to 25F and 30F if possible; then home, save. The pause Equip on the way is still
+  unverified; another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
+  start `--from` the last (cached end saves: no replay). (Done by agent probes since: Fusion, Tear's News Summary
+  and Outstanding Orders, facing / placing / stocking a vending machine.)
 
 ## Where to read next
 

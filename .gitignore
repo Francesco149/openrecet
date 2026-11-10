@@ -83,3 +83,5 @@ docs/findings/data/*.arena.bin
 
 # Claude Code agent worktrees (transient)
 .claude/worktrees/
+# `rd port` scratch scenarios
+tests/scenarios/_rd-*/

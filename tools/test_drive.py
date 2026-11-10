@@ -47,6 +47,20 @@ for bad in ("nosuch + 1", "scene.x", "__import__('os')", "scene ==", "[1, 2]"):
     else:
         raise SystemExit(f"FAIL: {bad!r} compiled")
 
+# math, constants, powers
+eq(V.compile("hypot(px - 3, 4)"), [PX, "f32", "3", "-", "4", "hypot"], "hypot")
+eq(V.compile("atan2(1, scene) * 2 ** 3"), ["1", SC, "s32", "atan2", "2", "3", "pow", "*"], "atan2 / pow")
+eq(V.compile("-sqrt(sin(pi))")[-3:], ["sin", "sqrt", "neg"], "sqrt / sin / pi / unary minus")
+
+# task files: a label may hold ": ", the expression a comment
+with tempfile.TemporaryDirectory() as d:
+    p = os.path.join(d, "t.md")
+    open(p, "w").write("---\nname: t\nstart: fresh\nsteps:\n  - in game: scene == 1\n"
+                       "  - day 22: the payment: scene >= 22   # note: late\nforbid:\n  - title: scene == 0\n---\nprose\n")
+    t = D.load_task(p)
+    eq(t["steps"], [("in game", "scene == 1"), ("day 22: the payment", "scene >= 22")], "step labels")
+    eq(t["forbid"], [("title", "scene == 0")], "forbid")
+
 # the movie: server text → file → load → run arguments
 mv = D.Movie.from_server("ok frame=20 n=6 poked=0 ops=r0:4de1,m1:0,m5:10,e7,m8:0,m12:1", None)
 eq((mv.frame, len(mv.ops)), (20, 6), "from_server")

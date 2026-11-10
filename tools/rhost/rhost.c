@@ -771,9 +771,11 @@ static int WINAPI my_MessageBoxA(HWND h, LPCSTR text, LPCSTR cap, UINT type)
 /* ---- --skip-fn VA[,VA]: drop pure-draw render functions (headless speed) ----
  * With no device behind it, a retail function that only reads game state and issues draws
  * does nothing a tick can observe. `--skip-fn` turns every call of such a function into a
- * no-op. Only for functions PROVEN pure: `rhost.py skip-check VA` runs every scenario with
- * and without the skip and demands the same frame, RNG, game-state hash (state_sem) and
- * save.dat. FUN_00414ee2 (the overlay particle dispatcher, 48% of a house tick) passes. */
+ * no-op. Only for functions PROVEN invisible: `rhost.py skip-check VA [--mask LO:HI]` runs
+ * every scenario with and without the skip and demands the same frame, RNG, save.dat and
+ * game-state hash (state_sem) — bar the render scratch named by --mask-range, which both
+ * runs leave out of the hash. FUN_00414ee2 (the overlay particle dispatcher, 48% of a house
+ * tick) writes only the static quad it draws from, 0x76b750..0x76b7b0. */
 static uint32_t g_skip[8]; static int g_nskip;
 static void __cdecl skip_stub(void) {}
 
@@ -813,6 +815,14 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--headless")) { O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--live")) { O.live = 1; O.live_port = (int)strtoul(ARG(), 0, 0); O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--live-idle")) O.live_idle = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--mask-range")) {  /* LO:HI[,LO:HI]: dwords left out of state_sem (render scratch a --skip-fn function writes) */
+            char b[256]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
+                unsigned lo, hi;
+                if (sscanf(t, "%x:%x", &lo, &hi) != 2 || hi <= lo || hi - lo > 0x4000) usage();
+                for (unsigned v = lo & ~3u; v < hi; v += 4) rh_state_volatile_add(v);
+            }
+        }
         else if (!strcmp(a, "--skip-fn")) {     /* retail functions (cdecl, plain `ret`) whose calls become no-ops: see skip_stub */
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && g_nskip < 8; t = strtok(NULL, ",")) g_skip[g_nskip++] = strtoul(t, 0, 16);

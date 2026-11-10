@@ -22,7 +22,10 @@ something.
    strings on screen), `rd eval`, `rd strip` (a contact sheet), `rd ram mark` → act → `rd ram diff`.
    Never run the same failing thing twice.
 5. **Checkpoint before anything you might redo:** `rd ck <run> save NAME`; `load NAME` returns in
-   0.2 ms. `rd undo` reverts the last state-changing command.
+   0.2 ms. **A load is a step back in time: the movie is cut there and later checkpoints are dropped.**
+   `rd undo` reverts the last state-changing command — a `ck load` or `rewind` included, 8 deep, and
+   it survives a session rebuild (then it replays instead of restoring). To only read an earlier
+   state: `rd eval <run> EXPR --at NAME` (the run does not move).
 6. **Finish:** `rd check <run> TASK.md` prints PASS (if there is a task file), `rd verify <run>`
    prints MATCH, and you have LOOKED at a strip of the moment the trace is about. Then report: run
    name, frames, what each step's frame was, state you named, game facts you learned, what the tool
@@ -36,12 +39,14 @@ above the search's `--time-limit` (default 60 s + 6 s refine; 300 s is safe).
 ```
 rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:SHA    [--force]
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
-rd tap R "A" [--n 40] [--gap 8] [--until EXPR]        # (A .*gap) x n: advance dialogue, mash a menu
-rd status R        rd text R        rd eval R EXPR [EXPR..]
+rd tap R "A" [--n 40] [--gap 8] [--until EXPR] [--text]   # (A .*gap) x n: advance dialogue, mash a menu;
+                                                          # --text = a transcript (the new rows before each press)
+rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT]
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type f32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]
 rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
 rd search R --goal EXPR [--avoid EXPR] [--cell "(a, b)"] [--actions SPEC ..] [--time-limit S] [--apply] [-j N]
+            [--score EXPR [--apply-best] [--greed G]]
 rd look R [--at F,F]        rd strip R --from F --to F [--every N]      # PNGs → Read them
 rd check R TASK.md        rd verify R [--real]        rd lint TASK.md --on RUN
 rd endsave R        rd file R NAME        rd port R        rd stop R        rd ls
@@ -55,8 +60,8 @@ between two presses of the same button.
 
 **Expressions** (goals, `--until`, `--watch`, `eval`, task steps): Python syntax over named state
 (`rd ram R list`), `frame`, `rng`, raw reads `u8(va) s8 u16 s16 u32 s32 f32 f64` (nestable:
-`s32(u32(0x73dfcbc) + 4)`), `+ - * / // % & | ^ << >> ~`, comparisons, `and or not`,
-`x in (1, 2)`, `a if c else b`, `min max abs int`.
+`s32(u32(0x73dfcbc) + 4)`), `+ - * / // % ** & | ^ << >> ~`, comparisons, `and or not`,
+`x in (1, 2)`, `a if c else b`, `min max abs int sqrt sin cos atan2(y, x) hypot(a, b) pow`, `pi`.
 
 ## Search: how to think
 
@@ -76,6 +81,12 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
 - Nothing is kept unless `--apply` (or `--save FILE`, then `rd play R "$(cat FILE)"`).
 - `found: false` lists the newest cells = how far it got. One cell = your actions change nothing the
   cell sees. Split the goal there, add the action, or change the cell.
+- **Score (`--score EXPR`, higher = closer):** gives the search a direction — cells are expanded in
+  proportion to their score (`--greed 3`: the best e³ ≈ 20× as often as the worst), and a cell keeps
+  its best-scored arrival. `--score "-exitd"` (minus the distance to the exit), `--score "-a1hp"`
+  (damage dealt). The goal stays the stop condition. **`--apply-best`: when the goal is not reached
+  in time, the path to the best-scored cell is kept** — search again from there instead of losing
+  the minute. Without a score a failed search keeps nothing.
 - `-j N` runs N independent explorations (N sessions) and applies the shortest path. Use it for
   hard goals; a single session does ~800 ticks/s in a 3D scene, ~5,000 in menus / dialogue.
 - Wall-time bounded ⇒ not reproducible: apply or save what you got.
@@ -125,6 +136,20 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
 - Loads take one tick here (deferred loader threads run at the tick boundary); never wait for a
   load by wall time, wait for state (`--until "not loading and scene == 1"`).
 - A run that was poked (`w` on the live socket) is flagged POKED and cannot be filed.
+- **Dungeons** (probe dungeon2-21f-25f): the controls are flipped against the shop — `R` = −x, `L` = +x,
+  `U` = +z, `D` = −z; walk 0.175/tick, floor cells are 40 units. `A` sword, `B` skill (5–10 SP). `floor`
+  is 0-based (21F reads 20); "in a dungeon" = `stage >= 4`. Named: `hp sp` (leader), `ex ez exitd`
+  (exit portal; walking onto it raises `portal`, `A` confirms), `lock` (−1 = control), `ticker` (≠ 0 =
+  play frozen; `A` after 30 ticks speeds it up), `gate` (3 = exit hidden: boss floor), `a0hp a1hp`;
+  the actor table is `0x76b970 + i*0xba4` (type +0x424, in use +0x428, hp +0x42c f32, x / z
+  +0x3f0 / +0x3f8 f32, yaw +0x420): `rd ram R dwords` reads a block of it in one call. What worked:
+  navigation = `--score "-exitd"` (or a route-progress expression in the cell) with 12-tick walks,
+  goals ≤ ~60 units apart; a boss = HP and the relative position in the cell, directed attacks
+  (`"U*2 A .*8"` per direction) as actions. `end:dungeon3-deep` loads the SHOP on day 23 at night:
+  burn the period, sleep, then Adventurers' Guild → Louie → dungeon 2 → row "21~25".
+- Level-15+ saves (`save:2afe7fb42617`): vending machines are bought at the Market ("Venders") and
+  placed from a table's display menu (`cc04 == 1`, `L`/`R` to "Venders"); the machine's own menu is
+  `cc04 == 2` (probe vending-level16).
 
 ## What not to do
 

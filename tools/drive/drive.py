@@ -24,6 +24,7 @@ tools/drive/DRIVER.md.
 """
 import argparse
 import ast
+import math
 import fcntl
 import glob
 import gzip
@@ -46,10 +47,18 @@ import rhost as RH  # noqa: E402
 RUNS = os.environ.get("RD_RUNS", "/mnt/ephemeral/openrecet/drive/runs")
 SESS = os.path.join(RH.WINE_ROOT, "runs", "drive")          # live sessions' rhost run dirs (C:\orc-rhost\runs\drive\..)
 VARS = os.path.join(HERE, "vars.json")
-# retail render functions whose calls are no-ops in live sessions (rhost --skip-fn): only ones that passed
-# `rhost.py skip-check` (same frame / RNG / game-state hash / save.dat with and without, whole corpus).
-# FUN_00414ee2 = the overlay particle dispatcher, ~48% of a 3D-scene tick. RD_SKIP_FN="" turns it off.
-SKIP_FN = os.environ.get("RD_SKIP_FN", "")
+# Live sessions skip retail's overlay particle dispatcher FUN_00414ee2 (~48% of a 3D-scene tick): `rhost.py skip-check
+# 414ee2 --mask …` = 121/121 scenarios end in the same frame / RNG / game state / save.dat (2026-11-10), bar two render
+# scratch blocks the function writes (masked out of the state hash in both modes). Nothing accepted rests on it:
+# `rd verify` replays the movie WITHOUT the skip and must reach the session's state. RD_SKIP_FN="" turns it off.
+SKIP_FN = os.environ.get("RD_SKIP_FN", "414ee2")
+SKIP_MASK = os.environ.get("RD_SKIP_MASK", "76b750:76b7b0,64c514:64d408")
+
+
+def skip_args():
+    return ["--skip-fn", SKIP_FN, "--mask-range", SKIP_MASK] if SKIP_FN else []
+
+
 SCEN_SAVES = os.path.join(RH.SCEN, "_saves")
 
 # ------------------------------------------------------------------ buttons / input specs
@@ -168,6 +177,8 @@ class Vars:
         if isinstance(n, ast.Name):
             if n.id in ("frame", "rng"):
                 return [n.id]
+            if n.id == "pi" and "pi" not in self.defs:
+                return [repr(math.pi)]
             if n.id not in self.defs:
                 raise SystemExit(f"unknown name {n.id!r} in {src!r} — `rd ram R list`, or define it (`rd ram R define`)")
             if depth > 12:
@@ -189,7 +200,13 @@ class Vars:
                 return c(n.args[0]) + ["abs"]
             if f == "int" and len(n.args) == 1:
                 return c(n.args[0]) + ["1", "//"]
-            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int)")
+            if f in ("sqrt", "sin", "cos") and len(n.args) == 1:
+                return c(n.args[0]) + [f]
+            if f in ("atan2", "hypot", "pow") and len(n.args) == 2:
+                return c(n.args[0]) + c(n.args[1]) + [f]
+            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow)")
+        if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Pow):
+            return c(n.left) + c(n.right) + ["pow"]
         if isinstance(n, ast.BinOp) and type(n.op) in BINOP:
             return c(n.left) + c(n.right) + [BINOP[type(n.op)]]
         if isinstance(n, ast.UnaryOp):
@@ -420,7 +437,7 @@ def spawn_live(tag, movie, upto=None, idle=1800):
         open(os.path.join(rd, "save.dat"), "wb").write(RH.save_bytes(movie.save))
     win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(rd)
     args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
-            "--live", "0", "--live-idle", str(idle)] + (["--skip-fn", SKIP_FN] if SKIP_FN else [])
+            "--live", "0", "--live-idle", str(idle)] + skip_args()
     upto = movie.frame if upto is None else upto
     seed = next((v for f, k, v in movie.ops if k == "r" and f == 0), None)
     if seed is not None:
@@ -499,12 +516,14 @@ class Run:
         self.save_meta()
 
     # ---- the session
-    def attach(self):
-        """a live session at the movie's head: the cached one if it is still there and in step, else a fresh replay"""
+    def attach(self, cached_only=False):
+        """a live session at the movie's head: the cached one if it is still there and in step, else a fresh replay
+        (cached_only: None instead of the replay)"""
         if self.live:
             return self.live
         s = json.load(open(self.sess_p)) if os.path.exists(self.sess_p) else None
-        if s and pid_alive(s["pid"]) and s.get("bin") == RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll")):
+        if s and pid_alive(s["pid"]) and s.get("skip", "") == SKIP_FN and \
+                s.get("bin") == RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll")):
             try:
                 lv = Live(s["port"])
                 if int(Live.kv(lv.cmd("ping"))["frame"]) == self.movie.frame:
@@ -513,15 +532,20 @@ class Run:
                 lv.close()
             except OSError:
                 pass
+        if cached_only:
+            return None
         if s:
             kill_session(s["pid"], s.get("rundir"))
+            if s.get("snaps") or s.get("mark") is not None:
+                print("[the session was rebuilt (it ended, or rhost was rebuilt): its savestates are gone — checkpoints load by replay, "
+                      "`ram mark` has to be taken again]")
         t0 = time.time()
         pid, port, rd = spawn_live(self.name, self.movie)
         self.live = Live(port)
         k = Live.kv(self.live.cmd("ping"))
         if int(k["frame"]) != self.movie.frame:
             raise SystemExit(f"the replayed session is at frame {k['frame']}, the movie at {self.movie.frame} (see {rd}/rhost.log)")
-        self.sess = {"pid": pid, "port": port, "rundir": rd, "epoch": int(k["epoch"]), "snaps": {}, "undo": [], "mark": None,
+        self.sess = {"pid": pid, "port": port, "rundir": rd, "epoch": int(k["epoch"]), "snaps": {}, "mark": None, "skip": SKIP_FN,
                      "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
         self.save_sess()
         if self.movie.frame > 2000:
@@ -540,22 +564,38 @@ class Run:
         """an anchor on the server (explicit, or a search's) invalidated every savestate id we hold"""
         e = Live.kv(r).get("epoch")
         if e and int(e) != self.sess["epoch"]:
-            self.sess.update(epoch=int(e), snaps={}, undo=[], mark=None)
+            if self.sess.get("mark") is not None:
+                print("[the search re-anchored the savestates: the `ram mark` is gone — mark again before the action you want to diff]")
+            self.sess.update(epoch=int(e), snaps={}, mark=None)    # undo entries name their (pid, epoch): stale ones replay
 
     def snap(self):
         r = self.live.cmd("snap")
         self.epoch_check(r)
         return int(Live.kv(r)["id"])
 
-    def push_undo(self):
-        """a savestate before every state-changing command: `rd undo` is instant"""
-        sid = self.snap()
-        self.sess["undo"].append([sid, self.movie.frame])
-        while len(self.sess["undo"]) > 6:
-            old = self.sess["undo"].pop(0)
-            keep = {v[0] for v in self.sess["snaps"].values()} | {self.sess.get("mark")}
-            if old[0] not in keep:
-                self.live.cmd(f"free {old[0]}")
+    def sid_ok(self, u):
+        """is the undo entry's savestate one of THIS session's (same process, no re-anchor since)?"""
+        return bool(self.sess and u.get("sid") is not None and u.get("pid") == self.sess["pid"] and u.get("epoch") == self.sess["epoch"])
+
+    def push_undo(self, tail=False):
+        """before every state-changing command: a savestate (instant undo while the session lives) + what a replay
+        needs when it does not — the frame, the checkpoints, and for a step back in time (ck load, rewind: tail=True)
+        a copy of the movie it cuts. The stack lives in meta.json: it survives session rebuilds."""
+        u = {"sid": self.snap() if self.live else None, "pid": self.sess and self.sess["pid"], "epoch": self.sess and self.sess["epoch"],
+             "frame": self.movie.frame, "cks": dict(self.meta.get("checkpoints", {})), "tail": None}
+        if tail:
+            os.makedirs(os.path.join(self.dir, "undo"), exist_ok=True)
+            u["tail"] = f"undo/{int(time.time() * 1000)}-f{self.movie.frame}.jsonl"
+            self.movie.write(os.path.join(self.dir, u["tail"]), comment=self.name + " (undo copy)")
+        stack = self.meta.setdefault("undo", [])
+        stack.append(u)
+        while len(stack) > 8:
+            old = stack.pop(0)
+            if self.sid_ok(old) and old["sid"] not in ({v[0] for v in self.sess["snaps"].values()} | {self.sess.get("mark")}):
+                self.live.cmd(f"free {old['sid']}", check=False)
+            if old.get("tail") and os.path.exists(os.path.join(self.dir, old["tail"])):
+                os.remove(os.path.join(self.dir, old["tail"]))
+        self.save_meta()
 
     # ---- reading state
     def ev(self, *exprs):
@@ -576,12 +616,13 @@ class Run:
         return s
 
     # ---- acting
-    def play(self, spec, until=None, avoid=None, watch=(), every=0, quiet=False, rows=40):
+    def play(self, spec, until=None, avoid=None, watch=(), every=0, quiet=False, rows=40, undo=True):
         lv = self.attach()
         segs, escs, total = spec_to_run(parse_spec(spec))
         if not total:
             raise SystemExit("empty input spec")
-        self.push_undo()
+        if undo:
+            self.push_undo()
         cmd = f"run {segs}"
         if escs:
             cmd += " esc=" + ",".join(map(str, escs))
@@ -614,10 +655,20 @@ class Run:
                 prev = evs
         if not quiet:
             print(f"ran {out['ran']} ticks ({out['stop']})  " + self.status_line())
-            for f, n, a, b in out["events"][:60]:
+            by = {}
+            for f, n, a, b in out["events"]:
+                by.setdefault(n, []).append((f, a, b))
+            busy = {n for n, v in by.items() if len(v) > 8}        # a counter / a position: one line, not one per tick
+            for n in sorted(busy):
+                v = by[n]
+                vals = [x[1] for x in v] + [v[-1][2]]
+                print(f"  {n}: {len(v)} changes f{v[0][0]}..f{v[-1][0]}, {fmt(v[0][1])} → {fmt(v[-1][2])} (range {fmt(min(vals))}..{fmt(max(vals))}); "
+                      f"first f{v[0][0]} {fmt(v[0][1])}→{fmt(v[0][2])}, last f{v[-1][0]} {fmt(v[-1][1])}→{fmt(v[-1][2])}")
+            sparse = [e for e in out["events"] if e[1] not in busy]
+            for f, n, a, b in sparse[:60]:
                 print(f"  f{f}: {n} {fmt(a)} → {fmt(b)}")
-            if len(out["events"]) > 60:
-                print(f"  … {len(out['events']) - 60} more events")
+            if len(sparse) > 60:
+                print(f"  … {len(sparse) - 60} more events")
             if watch:
                 print("  frame  " + "  ".join(watch))
                 if len(out["rows"]) > rows:
@@ -626,16 +677,19 @@ class Run:
                     print(f"  {f:6d} " + "  ".join(fmt(v) for v in vals))
         return out
 
-    def load_frame(self, frame, sid=None):
-        """go to FRAME of this movie: by savestate when one is held, else by a fresh replay of the prefix"""
+    def load_frame(self, frame, sid=None, movie=None):
+        """go to FRAME of this movie (or of MOVIE: an undo's copy): by savestate when one is held, else by a fresh
+        replay of the prefix"""
         if sid is not None and self.live:
             r = self.live.cmd(f"restore {sid}", check=False)
             if r.startswith("ok") and int(Live.kv(r)["frame"]) == frame:
                 self.sync_movie()
                 return "savestate"
+        if self.live:
+            self.live.close()
         self.stop()
         self.live = None
-        self.movie = self.movie.truncated(frame)
+        self.movie = (movie or self.movie).truncated(frame)
         self.movie.write(self.movie_p, comment=self.name, rel_to=self.dir)
         self.save_meta()
         self.attach()
@@ -753,7 +807,7 @@ def cmd_new(a):
         win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(srd)
         args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
                 "--live", "0", "--trace", win + "\\trace.jsonl"] + (["--frames", str(limit)] if limit else []) + \
-               (["--skip-fn", SKIP_FN] if SKIP_FN else [])
+               skip_args()
         p = subprocess.Popen(args, stdout=open(os.path.join(srd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
                              start_new_session=True, cwd=srd)
         pf = os.path.join(srd, "live.port")
@@ -763,7 +817,7 @@ def cmd_new(a):
             time.sleep(0.05)
         r.live = Live(int(open(pf).read().split()[0]))
         k = Live.kv(r.live.cmd("ping"))
-        r.sess = {"pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": srd, "epoch": int(k["epoch"]), "snaps": {}, "undo": [],
+        r.sess = {"pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": srd, "epoch": int(k["epoch"]), "snaps": {}, "skip": SKIP_FN,
                   "mark": None, "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
         r.sync_movie()
         r.save_sess()
@@ -784,8 +838,44 @@ def cmd_play(a):
 
 def cmd_tap(a):
     r = Run(a.run)
-    spec = f"({a.spec} .*{a.gap})x{a.n}"
-    r.play(spec, until=a.until, avoid=a.avoid)
+    if not a.text:
+        r.play(f"({a.spec} .*{a.gap})x{a.n}", until=a.until, avoid=a.avoid)
+        r.close()
+        return
+    # a transcript: the text on screen just before each press, rows new since the previous press only
+    lv = r.attach()
+    r.push_undo()
+    f0, seen, why, held = r.movie.frame, set(), "spec ended", None
+
+    def flush(now=()):
+        """print the held sample, minus the rows that were still being typed (a prefix of the row now at that spot)"""
+        nonlocal held
+        if held:
+            at = {(x, y): t for x, y, t in now}
+            keep = [(x, y, t) for x, y, t in held[1] if not (at.get((x, y), "") != t and at.get((x, y), "").startswith(t))]
+            if keep:
+                print(f"f{held[0]}:")
+                for x, y, t in keep:
+                    print(f"  {x:5d} {y:4d}  {t}")
+        held = None
+
+    def show():
+        nonlocal held
+        rows = [(x, y, t if bud < 0 else t[:bud]) for x, y, col, bud, t in screen_text(lv) if t.strip()]
+        flush(rows)
+        new = [w for w in rows if w not in seen]
+        if new:
+            held = (r.movie.frame, new)
+        seen.clear(); seen.update(rows)
+    for _ in range(a.n):
+        show()
+        o = r.play(f"{a.spec} .*{a.gap}", until=a.until, avoid=a.avoid, quiet=True, undo=False)
+        if o["stop"] != "end":
+            why = o["stop"]
+            break
+    show()
+    flush()
+    print(f"ran {r.movie.frame - f0} ticks ({why})  " + r.status_line())
     r.close()
 
 
@@ -820,7 +910,25 @@ def cmd_status(a):
 
 def cmd_eval(a):
     r = Run(a.run)
-    vals = r.ev(*a.exprs)
+    if a.at:                                   # peek: savestate here, restore the checkpoint's, evaluate, come back
+        cks = r.meta.get("checkpoints", {})
+        if a.at not in cks:
+            raise SystemExit(f"no checkpoint {a.at!r} ({', '.join(cks) or 'none'})")
+        lv = r.attach()
+        sid = (r.sess["snaps"].get(a.at) or [None])[0]
+        here = r.snap()
+        if sid is None or not lv.cmd(f"restore {sid}", check=False).startswith("ok"):
+            lv.cmd(f"free {here}")
+            raise SystemExit(f"checkpoint {a.at} has no savestate in this session (the session was rebuilt, or a search re-anchored): "
+                             f"`rd ck {a.run} load {a.at}`, eval, `rd undo {a.run}`")
+        try:
+            vals = r.ev(*a.exprs)
+        finally:
+            lv.cmd(f"restore {here}")
+            lv.cmd(f"free {here}")
+        print(f"at checkpoint {a.at} (frame {cks[a.at]['frame']}); the run stays at frame {r.movie.frame}")
+    else:
+        vals = r.ev(*a.exprs)
     for e, v in zip(a.exprs, vals):
         print(f"{e} = {fmt(v)}" + (f"  (0x{int(v) & 0xffffffff:x})" if isinstance(v, int) and abs(v) > 9 else ""))
     r.close()
@@ -933,27 +1041,36 @@ def cmd_ck(a):
         if a.name not in cks:
             raise SystemExit(f"no checkpoint {a.name!r} ({', '.join(cks) or 'none'})")
         fr = cks[a.name]["frame"]
-        r.attach()
-        if fr > r.movie.frame or any(c["frame"] > fr for c in cks.values()):
-            pass
-        how = r.load_frame(fr, (r.sess["snaps"].get(a.name) or [None])[0])
-        for n in [n for n, c in cks.items() if c["frame"] > fr]:
+        was = r.movie.frame
+        r.attach(cached_only=True)                     # no session: straight to the prefix replay
+        r.push_undo(tail=True)
+        how = r.load_frame(fr, (r.sess["snaps"].get(a.name) or [None])[0] if r.sess else None)
+        dropped = [n for n, c in cks.items() if c["frame"] > fr]
+        for n in dropped:
             del cks[n]                                 # checkpoints of the abandoned future
         r.save_meta(); r.save_sess()
         print(f"loaded {a.name} ({how})  " + r.status_line())
+        if was > fr:
+            print(f"  the movie now ends at f{fr} (was f{was})" + (f"; checkpoints dropped: {' '.join(dropped)}" if dropped else "") +
+                  f" — `rd undo {a.run}` brings it all back. To only LOOK at an earlier state: rd eval {a.run} EXPR --at {a.name}")
     r.close()
 
 
 def cmd_undo(a):
     r = Run(a.run)
-    r.attach()
-    if not r.sess["undo"]:
-        raise SystemExit("nothing to undo in this session (rd rewind R --to F replays a prefix)")
-    sid, fr = r.sess["undo"].pop()
-    how = r.load_frame(fr, sid)
-    cks = r.meta.get("checkpoints", {})
-    for n in [n for n, c in cks.items() if c["frame"] > fr]:
-        del cks[n]
+    stack = r.meta.get("undo", [])
+    if not stack:
+        raise SystemExit("nothing to undo (rd rewind R --to F replays a prefix)")
+    u = stack.pop()
+    tail = os.path.join(r.dir, u["tail"]) if u.get("tail") else None
+    movie = Movie.load(tail) if tail and os.path.exists(tail) else None
+    if u["frame"] > r.movie.frame and not movie:
+        raise SystemExit(f"the undo copy of the movie is gone ({u.get('tail')}): cannot return to f{u['frame']}")
+    r.attach(cached_only=True)
+    how = r.load_frame(u["frame"], u["sid"] if r.sid_ok(u) else None, movie=movie)
+    r.meta["checkpoints"] = {n: c for n, c in u["cks"].items() if c["frame"] <= u["frame"]}
+    if tail and os.path.exists(tail):
+        os.remove(tail)
     r.save_meta(); r.save_sess()
     print(f"undone ({how})  " + r.status_line())
     r.close()
@@ -964,7 +1081,12 @@ def cmd_rewind(a):
     fr = a.to if a.to is not None else r.movie.frame - a.frames
     if fr < 0 or fr > r.movie.frame:
         raise SystemExit(f"frame {fr} is outside the movie (0..{r.movie.frame})")
-    r.load_frame(fr)
+    r.attach(cached_only=True)
+    r.push_undo(tail=True)                             # `rd undo` brings the tail back (by savestate, or by replay)
+    # a live checkpoint exactly there = this movie's own savestate: no replay
+    sid = next((r.sess["snaps"][n][0] for n, c in r.meta.get("checkpoints", {}).items()
+                if r.sess and c["frame"] == fr and r.sess["snaps"].get(n, [None, -1])[1] == fr), None)
+    r.load_frame(fr, sid)
     cks = r.meta.get("checkpoints", {})
     for n in [n for n, c in cks.items() if c["frame"] > fr]:
         del cks[n]
@@ -995,6 +1117,8 @@ def explore_cmd(lv, V, a, seed, apply):
     cmd = f"explore g={g} c={','.join(map(str, cells))} acts={action_arg(a.actions or DEFAULT_ACTIONS)}"
     if a.avoid:
         cmd += f" a={lv.prog(V.compile(a.avoid))}"
+    if a.score:
+        cmd += f" score={lv.prog(V.compile(a.score))} greed={a.greed}"
     cmd += f" t={int(a.time_limit * 1000)} refine={int(a.refine * 1000)} seed={seed} maxlen={a.max_len} sticky={a.sticky} apply={1 if apply else 0}"
     return cmd
 
@@ -1049,7 +1173,7 @@ def cmd_search(a):
         finally:
             for i, pid, port, rd in workers:
                 kill_session(pid, rd)
-        r.sess.update(snaps={}, undo=[], mark=None)   # the main session's explore re-anchored
+        r.sess.update(snaps={}, mark=None)            # the main session's explore re-anchored
         r.sess["epoch"] = int(Live.kv(lv.cmd("ping"))["epoch"])
     found = [(int(k["frames"]), k, tag) for k, tag in results if k.get("found") == "1"]
     ticks = sum(int(k.get("ticks", 0)) for k, _ in results)
@@ -1061,6 +1185,25 @@ def cmd_search(a):
         print(f"  newest cells (frames@{a.cell}): " + "  ".join(k.get("newest", "").split(";")))
         print("  one cell only = your actions change nothing the cell sees; split the goal at where it got to, add the missing action, "
               "or put the mechanic's state in --cell")
+        if a.score:                                    # progress to keep: the best-scored cell any session reached
+            cands = [(float(k["bscore"]), -int(k["bframes"]), i) for i, (k, _) in enumerate(results) if k.get("bpath")]
+            if not cands:
+                print(f"  score: nothing scored above the start ({results[0][0].get('score0', '?')})")
+            else:
+                bs, _, i = max(cands)
+                k = results[i][0]
+                spec = segs_to_spec(k["bpath"])
+                print(f"  best score {fmt(bs)} (start {fmt(float(k['score0']))}) after {k['bframes']} frames")
+                if a.save:
+                    open(a.save, "w").write(spec + "\n")
+                if a.apply_best:
+                    lv.cmd("run " + k["bpath"])
+                    r.sync_movie()
+                    print(f"  applied the path to that cell (--apply-best): score now {fmt(r.ev(a.score)[0])}  " + r.status_line())
+                    print(f"  search again from here; `rd undo {a.run}` drops it")
+                    r.save_sess(); r.close()
+                    return 1
+                print(f"  path to it: {spec if len(spec) < 600 else spec[:600] + ' …'}\n  (--apply-best plays it, so the next search starts there)")
         r.sync_movie(); r.save_sess(); r.close()
         return 1
     frames, k, tag = min(found, key=lambda x: x[0])
@@ -1173,13 +1316,30 @@ def cmd_verify(a):
     r.movie.write(tr, comment=r.name, rel_to=r.dir)
     b = RH.replay_args(frames=r.movie.frame, target="wine")
     b.jobs, b.wine_timeout, b.headless, b.no_golden = 1, 3600, True, True
-    b.extra = f"--skip-fn {SKIP_FN}" if SKIP_FN else None          # the same device-side behaviour as the live session
+    b.extra = f"--mask-range {SKIP_MASK}" if SKIP_FN else None     # plain retail (no skip); the same scratch left out of the hash
     _, bd, res, out = RH.run_batch(b, [("verify", tr, None, r.movie.save)], "rd-verify", fetch=("rhost.log",))
     v = res.get("verify") or {}
     shutil.rmtree(bd, ignore_errors=True)
-    same = all(v.get(x) == live.get(y) for x, y in (("frame", "frame"), ("rng", "rng"), ("state_sem", "sem"), ("state_dev", "dev")))
-    print(f"fresh headless replay: frame {v.get('frame')} rng {v.get('rng')} sem {v.get('state_sem')} dev {v.get('state_dev')}")
-    print(f"live session:          frame {live['frame']} rng {live['rng']} sem {live['sem']} dev {live['dev']}")
+    # device memory is compared only without the skip: the draws / state setters of a skipped render function are missing from it
+    keys = (("frame", "frame"), ("rng", "rng"), ("state_sem", "sem")) + (() if SKIP_FN else (("state_dev", "dev"),))
+    same = all(v.get(x) == live.get(y) for x, y in keys)
+    print(f"fresh headless replay: frame {v.get('frame')} rng {v.get('rng')} sem {v.get('state_sem')} dev {v.get('state_dev')}"
+          + ("  (unskipped retail)" if SKIP_FN else ""))
+    print(f"live session:          frame {live['frame']} rng {live['rng']} sem {live['sem']} dev {live['dev']}"
+          + (f"  (skips {SKIP_FN}: dev not compared)" if SKIP_FN else ""))
+    if not same and v.get("frame") == live.get("frame") and v.get("rng") == live.get("rng") and v.get("state_sem") != live.get("sem"):
+        # same frame + RNG, another game-state hash: write-tracking residue of the live session (a write fault's exception
+        # frame on the game stack, read back by retail as an uninitialised local — headless-savestates.md §3)? A session
+        # rebuilt by a clean replay has taken no savestate yet, so nothing is tracked: it must hash like the fresh replay.
+        r.live.close(); r.live = None
+        r.stop()
+        lv = r.attach()
+        again = Live.kv(lv.cmd("hash"))
+        print(f"clean session (replay): frame {again['frame']} rng {again['rng']} sem {again['sem']} dev {again['dev']}")
+        if all(v.get(x) == again.get(y) for x, y in keys):
+            print("the first session's state differed from the movie's only by write-tracking residue (frame and RNG agreed): "
+                  "its savestates are gone, the run continues on the clean session")
+            same, live = True, again
     ok = same
     if r.meta.get("poked"):
         print("note: this run was POKED (rd ram w / live `w`): the movie cannot reproduce hand-written memory")
@@ -1209,9 +1369,19 @@ def load_task(path):
     for line in m.group(1).splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        s = re.match(r"\s+-\s*(.+?):\s+(.+?)\s*(?:#.*)?$", line)
+        s = re.match(r"\s+-\s*(.+)$", line)
         if in_list and s:
-            t[in_list].append((s.group(1).strip(), s.group(2).strip()))
+            item, hit = s.group(1), None
+            for c in re.finditer(r":\s+", item):
+                try:
+                    ast.parse(item[c.end():].strip(), mode="eval")      # Python drops a trailing "# comment" itself
+                except SyntaxError:
+                    continue
+                hit = (item[:c.start()].strip(), item[c.end():].split("#")[0].strip())
+                break
+            if not hit:
+                raise SystemExit(f"{path}: cannot read step {line.strip()!r} (\"- label: EXPRESSION\")")
+            t[in_list].append(hit)
             continue
         k = re.match(r"(\w+):\s*(.*?)\s*(?:#.*)?$", line)
         if not k:
@@ -1418,11 +1588,14 @@ def main():
     p.add_argument("--watch", help="EXPR,EXPR..: print these per sampled tick"); p.add_argument("--every", type=int, default=0)
     p.add_argument("--rows", type=int, default=40, help="watch rows shown (the last N)"); p.set_defaults(fn=cmd_play)
     p = sp.add_parser("tap"); p.add_argument("run"); p.add_argument("spec"); p.add_argument("--n", type=int, default=40); p.add_argument("--gap", type=int, default=8)
-    p.add_argument("--until"); p.add_argument("--avoid"); p.set_defaults(fn=cmd_tap)
+    p.add_argument("--until"); p.add_argument("--avoid")
+    p.add_argument("--text", action="store_true", help="a transcript: print the text on screen before each press (rows new since the last one)")
+    p.set_defaults(fn=cmd_tap)
     p = sp.add_parser("status"); p.add_argument("run"); p.set_defaults(fn=cmd_status)
     p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)
-    p = sp.add_parser("eval"); p.add_argument("run"); p.add_argument("exprs", nargs="+"); p.set_defaults(fn=cmd_eval)
+    p = sp.add_parser("eval"); p.add_argument("run"); p.add_argument("exprs", nargs="+")
+    p.add_argument("--at", help="evaluate at this checkpoint's state; the run does not move"); p.set_defaults(fn=cmd_eval)
     p = sp.add_parser("ram"); p.add_argument("run"); p.add_argument("op"); p.add_argument("args", nargs="*")
     p.add_argument("--addr"); p.add_argument("--type", default="s32"); p.add_argument("--expr"); p.add_argument("--status", action="store_true")
     p.add_argument("--event", action="store_true"); p.add_argument("--note"); p.add_argument("--shared", action="store_true", help="define in tools/drive/vars.json (all runs)")
@@ -1436,6 +1609,9 @@ def main():
     p.add_argument("--actions", nargs="+"); p.add_argument("--time-limit", type=float, default=60); p.add_argument("--refine", type=float, default=6)
     p.add_argument("--apply", action="store_true"); p.add_argument("--save"); p.add_argument("--seed", type=int, default=1); p.add_argument("--max-len", type=int, default=8)
     p.add_argument("--sticky", type=int, default=60); p.add_argument("-j", "--jobs", type=int, default=1, help="parallel sessions, one exploration each")
+    p.add_argument("--score", help="EXPR, higher = closer: cells are expanded in proportion to it (direction), and the best one is reported")
+    p.add_argument("--greed", type=float, default=3.0, help="--score: the best cell is picked e^GREED times as often as the worst (default 3)")
+    p.add_argument("--apply-best", action="store_true", help="--score: goal not reached in time → keep the path to the best-scored cell")
     p.set_defaults(fn=cmd_search)
     p = sp.add_parser("look"); p.add_argument("run"); p.add_argument("--at"); p.add_argument("--target", choices=("win", "wine")); p.add_argument("--scale", type=float, default=1.0); p.set_defaults(fn=cmd_look)
     p = sp.add_parser("strip"); p.add_argument("run"); p.add_argument("--from", dest="frm", type=int, required=True); p.add_argument("--to", type=int)
@@ -1451,7 +1627,16 @@ def main():
     p.add_argument("--no-real", action="store_true"); p.add_argument("--no-triage", action="store_true"); p.set_defaults(fn=cmd_accept)
     p = sp.add_parser("stop"); p.add_argument("run"); p.set_defaults(fn=cmd_stop)
     sp.add_parser("ls").set_defaults(fn=cmd_ls)
-    a = ap.parse_args()
+    # an expression may start with "-" (--score "-exitd"): hand it to argparse as --flag=VALUE
+    argv, i = [], 1
+    while i < len(sys.argv):
+        t = sys.argv[i]
+        if t in ("--goal", "--avoid", "--until", "--score", "--cell", "--watch", "--expr") and i + 1 < len(sys.argv) and sys.argv[i + 1].startswith("-") \
+                and not sys.argv[i + 1].startswith("--"):
+            argv.append(f"{t}={sys.argv[i + 1]}"); i += 2
+        else:
+            argv.append(t); i += 1
+    a = ap.parse_args(argv)
     try:
         sys.exit(a.fn(a) or 0)
     except SessionEnded:

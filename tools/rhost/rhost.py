@@ -170,6 +170,9 @@ def win_job(job_id, ps_path_win, timeout=7200, stream=True):
 # ---------------------------------------------------------------- build/stage
 def cmd_build(a):
     sh(["nix", "develop", "--command", "bash", os.path.join(HERE, "build.sh")])
+    exe = os.path.join(BUILD, "rhost.exe")       # a no-op rebuild (another process built it meanwhile) must not stay "stale"
+    if os.path.exists(exe):
+        os.utime(exe, None)
 
 
 def cmd_stage(a):
@@ -212,9 +215,18 @@ def rhost_stale():
     if not os.path.exists(exe):
         return True
     t = os.path.getmtime(exe)
-    src = os.path.join(ROOT, "src")   # shadow hooks link port code (build.sh)
-    return any(os.path.getmtime(os.path.join(d, f)) > t for d in (HERE, src) for f in os.listdir(d)
-               if f.endswith((".c", ".h", ".sh")) or f == "gen_dev.py")
+    src = os.path.join(ROOT, "src")   # shadow hooks link port code: the .c files build.sh names + any header
+    if any(os.path.getmtime(os.path.join(HERE, f)) > t for f in os.listdir(HERE) if f.endswith((".c", ".h", ".sh")) or f == "gen_dev.py"):
+        return True
+    return any(os.path.getmtime(os.path.join(src, f)) > t for f in os.listdir(src)
+               if f.endswith(".h") or f in PORT_LINKED)
+
+
+# the port sources rhost.exe links (tools/rhost/build.sh): an edit elsewhere in src/ does not make rhost stale —
+# with several agents at work, a port fix in progress otherwise rebuilt rhost under every rd / rhost.py call
+PORT_LINKED = {f + ".c" for f in ("customer_haggle", "rng", "floor_layout", "actor_spawn", "audio_mci", "call_trace", "customer_seller",
+                                  "map_collision", "math3d", "actor_table", "enemy_place", "party", "input_segtrace")}
+
 
 
 PREBUILT = os.environ.get("RHOST_PREBUILT") == "1"   # a parent (gates -j) built + staged everything once
@@ -1090,10 +1102,11 @@ def cmd_skip_check(a):
     for n in names:
         tr, save = scenario_inputs(n)
         runs.append((n, tr, None, save))
-    print(f"skip-check {a.fns}: {len(runs)} scenario(s), target {a.target}")
+    print(f"skip-check {a.fns}: {len(runs)} scenario(s), target {a.target}" + (f", masked {a.mask}" if a.mask else ""))
     t0 = time.time()
     res = {}
-    for tag, extra in (("plain", None), ("skip", f"--skip-fn {a.fns}")):
+    mask = f"--mask-range {a.mask}" if a.mask else ""
+    for tag, extra in (("plain", mask or None), ("skip", f"--skip-fn {a.fns} {mask}".strip())):
         b = copy.copy(a)
         b.headless, b.flatten_out, b.dump_at, b.hook, b.frames, b.extra = True, False, None, None, None, extra
         _, bd, r, out = run_batch(b, runs, "skipcheck-" + tag, fetch=("rhost.log", "save.dat"))
@@ -1158,7 +1171,22 @@ def cmd_snap_check(a):
         r = dict(kv.split("=", 1) for kv in res[-1].split()[1:] if "=" in kv) if res else {}
         m = json.load(open(os.path.join(g, "meta.json")))["result"]
         bad = [f"{k} {m.get(k)}→{r.get(k)}" for k in ("frame", "rng", "complete") if m.get(k) != r.get(k)]
-        if r.get("snap_test") != "PASS":
+        note = ""
+        if r.get("snap_test") == "RESIDUE":
+            # the restored passes agree with each other but not with the first (tracked) pass: restore is exact iff they
+            # hash like an UNTRACKED replay to that frame (the first pass then carried write-tracking residue)
+            out2 = subprocess.run([sys.executable, os.path.abspath(__file__), "run", n, "--headless", "--target", a.target, "-j", "1",
+                                   "--frames", r.get("snap_at", "0")], capture_output=True, text=True, env=child_env).stdout
+            mb2 = re.search(r"→ (\S+)\]", out2)
+            log2 = os.path.join(mb2.group(1), n, "rhost.log") if mb2 else ""
+            res2 = [l for l in open(log2, errors="replace") if l.startswith("RESULT")] if os.path.exists(log2) else []
+            r2 = dict(kv.split("=", 1) for kv in res2[-1].split()[1:] if "=" in kv) if res2 else {}
+            if r2.get("state_sem") == r.get("snap_sem") and r2.get("frame") == r.get("snap_at"):
+                note = f"restore exact (= the untracked replay at f{r.get('snap_at')}); the tracked first pass differed: write-tracking residue"
+                shutil.rmtree(mb2.group(1), ignore_errors=True)
+            else:
+                bad.append(f"snap_test=RESIDUE and the restored passes ({r.get('snap_sem')}) differ from an untracked replay ({r2.get('state_sem')})")
+        elif r.get("snap_test") != "PASS":
             bad.append(f"snap_test={r.get('snap_test')}")
         gs, hs = os.path.join(g, "save.dat.gz"), os.path.join(bd, n, "save.dat")
         if os.path.exists(gs) and (not os.path.exists(hs) or gzip.open(gs, "rb").read() != open(hs, "rb").read()):
@@ -1166,14 +1194,16 @@ def cmd_snap_check(a):
         st = next((l.strip() for l in open(log, errors="replace") if l.startswith("snap:")), "") if os.path.exists(log) else ""
         if not bad and bd:
             shutil.rmtree(bd, ignore_errors=True)
-        return n, fr, bad, st, bd
+        return n, fr, bad, st, bd, note
+    residue = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
-        for n, fr, bad, st, bd in ex.map(one, todo):
+        for n, fr, bad, st, bd, note in ex.map(one, todo):
             ok += not bad
+            residue += bool(note)
             m = re.search(r"dirty=(\d+) pages.*?faults=(\d+) touches=(\d+)", st)
             print(f"{n:42s} f={fr:>7d} [{int(fr * 0.3)}..{int(fr * 0.7)}] " + (f"dirty={m.group(1):>6s} touches={m.group(3):>5s}  " if m else "") +
-                  ("PASS" if not bad else "FAIL " + "; ".join(bad) + f"  → {bd}"))
-    print(f"snap-check: {ok}/{len(todo)} PASS ({time.time() - t0:.0f}s)")
+                  ("PASS" + (f"  [{note}]" if note else "") if not bad else "FAIL " + "; ".join(bad) + f"  → {bd}"))
+    print(f"snap-check: {ok}/{len(todo)} PASS ({time.time() - t0:.0f}s)" + (f"; {residue} with write-tracking residue in the first pass" if residue else ""))
     return 0 if ok == len(todo) else 1
 
 
@@ -1628,7 +1658,18 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "dungeon0-wipe", "dungeon1-run", "dungeon1-run2", "dungeon1-deep",
                                       "dungeon1-charme", "tear-lectures-gameover", "debt-week1-paid",
                                       "dungeon1-clear", "dungeon2-run", "dungeon2-run2", "dungeon2-run3",
-                                      "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")])
+                                      "dungeon3-run", "dungeon3-run2", "dungeon3-floors", "dungeon3-deep")]
+         # agent-authored traces (tools/drive, 2026-11-10): menus / pages / town / shop sessions / weeks 3–4 / vending
+         # machines no recording reached; all triage-identical at 10e36b61
+         + [("portsave", s) for s in ("pause-options-saved", "payday-week2-paid", "shop-session-week3", "calendar-week3",
+                                      "calendar-week4", "change-tables-l16", "vender-sales-l16", "vender-revert-sell")]
+         + [("portrng", s) for s in ("tear-news-summary", "tear-outstanding-orders", "tear-menu-pages", "guild-fusion-confirm",
+                                      "guild-sell-expansion", "guild-ui-flow", "decor-defaults", "decor-variants",
+                                      "counter-move-tables", "market-buy-display", "pause-options-saved", "pause-status-items",
+                                      "pause-encyclopedia", "payday-week2-paid", "gameover-loop-dungeon0", "town-rounds-week3",
+                                      "pub-evening-week3", "shop-session-week3", "order-customer-week3", "calendar-week3",
+                                      "calendar-week4", "dungeon2-21f-25f", "vending-level16", "vender-sales-l16",
+                                      "vender-revert-sell", "change-tables-l16")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
@@ -2348,6 +2389,7 @@ def main():
     common(p); p.set_defaults(fn=cmd_headless_check)
     p = sp.add_parser("skip-check", help="rhost --skip-fn gate: plain vs skipped headless replays must end in the same game state")
     p.add_argument("fns", help="hex VAs, comma-separated (e.g. 414ee2)"); p.add_argument("scenarios", nargs="*"); p.add_argument("--only")
+    p.add_argument("--mask", help="LO:HI[,LO:HI] hex: render scratch the functions write, left out of state_sem in both runs")
     common(p); p.set_defaults(fn=cmd_skip_check)
     p = sp.add_parser("snap-check", help="savestate self-test (rhost --snap-test) per scenario: restore + replay must reproduce the state")
     p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--passes", type=int, default=2); common(p); p.set_defaults(fn=cmd_snap_check)
