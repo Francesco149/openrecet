@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-11-10 — agents author retail traces: headless rhost, savestates, `rd`, a 35-scenario campaign
+**The target.** rhost runs retail without devices (`--headless`: fake D3D8 / DirectMusic / DirectShow / DirectInput,
+wine without X; ≡ the Windows real-device goldens over 120 scenarios, 1.8 M frames), with in-process savestates
+(restore 0.2 ms; `snap-check` 126/126) and a command server (`--live`: step, read state by expression, screen text,
+a native exploration search with an optional score). `./rd` drives it statelessly: a run = its input movie; `rd check`
+judges a task's ordered state predicates on a fresh replay, `rd verify --real` replays on Windows Direct3D 8, `rd
+accept` files the scenario, makes the golden and triages the port. Live sessions skip the overlay particle dispatcher
+(`skip-check` 121/121 with its scratch masked): 741 → 1,330 ticks/s in the house; ~5,000 in menus / dialogue.
+
+**The campaign.** 35 scenarios nobody played (34 API-billed drivers ≈ $43, one subscription subagent): Tear's pages,
+the decor / table editors, Fusion, the guild's Sell + Expansion, the Market, the pause pages, a week-3 shop session
+with haggling, orders served and missed, the Pub, weeks 3–5 day by day, both payments paid and the last one missed,
+the ending → credits → Endless Mode, New Game +, both Survival modes, vending machines end to end, Change Tables,
+the 25-slot bag, dungeon 2's floors 21–25 by search. Reports with the retail facts: `docs/findings/probes/`.
+
+**The port.** 9 divergences found; 5 ported the same day by subagents from the probe report + IDA — Move Tables
+(749a4e37), the Options page's save + the guild's Sell / Expansion (dfa39b94, which also closed the old
+`guild-ui-flow` split), vending machines + machine sales (10e36b61). 31 of 35 identical to the port (13 with save
+IDENTICAL); open: the ending (f30885, the money roll in the pause scene first) and the title's picker start (New
+Game + / Survival). `gates` grew 50 → 95 rows: 86/86 + 9/9 ok at 10e36b61.
+
+**Found on the way.** Write tracking is not fully transparent: a write fault's exception frame lands on the game
+stack and statically linked D3DX reads an uninitialised field there (one heap dword, one scenario; restore itself
+is exact) — `headless-savestates.md` §3 has the diagnosis and two fix designs.
+
 ## 2026-10-25 — a new game is RNG-exact from the title; the render residuals of the dungeon sweeps
 **A new game.** No gate ran a fresh game's RNG, and it diverged at f71: FUN_00490e56's init pass
 walks 1024 records (to 0x9686810), 424 past the item table — reading "kinds" from the category
