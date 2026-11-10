@@ -1,13 +1,51 @@
 # Merchant's Guild scene (engine mode 6 / Market) — RE + port plan
 
 > **2026-10-14:** the tick `FUN_004922c0` is now ported on retail's control flow
-> (`src/scene_guild.c` header lists the remaining debts: fusion, the Sell commit's
-> FUN_00468fd0, the expansion's FUN_004864fd, the FUN_00434ceb box). rhost
+> (`src/scene_guild.c` header lists the remaining debts: fusion, the FUN_00434ceb box;
+> the Sell commit and the expansion's FUN_004864fd landed 2026-11-10, below). rhost
 > `multiday-tutorials-suggest` (6 purchases + Leave) replays RNG- and save-identical.
 > Corrections to the notes below: the scene init `FUN_0049174e` runs in the world-map
 > exit tick (FUN_00490e16), not the loader, and sets work 0xb382 / 0xb381 = 1; the
 > update dispatch runs FUN_00406584 + FUN_0040fb3a every mode-6 frame (only the tick
 > waits for a dialogue); the buy price is `ftol(f32(f32(price·0.7f)·trend))`.
+
+> **2026-11-10 — Sell commit + store Expansion ported** (`scene_guild.c`, `scene1_shop_display.c`
+> `shop_display_relayout`; rhost `guild-sell-expansion`: triage identical 1..1400; gold / item count /
+> tier / the 10 table origins / the bag slots / shelf flags / `c00` `c04` `c5c` `c60` / option count +
+> types / `DAT_0438bfb0..` (counts, types, rot, x, z) / centroid identical per frame). Debts
+> `FUN_00468fd0` and `FUN_004864fd` retired; `FUN_00434ceb` + the fusion render remain. Retail facts:
+> - **Sell commit** (mode 8, FUN_00491bc0 returns 1, option type ≠ 0; all_ida 105247-105260): if a row
+>   is selected (FUN_00469a9f ≠ −1): `qty` × FUN_00468fd0 (one of the row's item out of the inventory
+>   via FUN_00469241; the row's count −1, an emptied row leaves the list and the cursor / scroll step
+>   back), gold += `c60`·`c5c`, `DAT_005c6ee4 = −1`, SE 333. Then (also on cancel) FUN_0046939a, mode 0,
+>   cursor up. The gold lands the same tick mode 8 → 0 (f745 in the trace; the probe's f749 is the item
+>   window settling).
+> - **The "1 rand per frame" after a Sell** is FUN_00406584's money roll, not a bubble / message box:
+>   while the displayed gold `DAT_0438b918` ≠ the bank's, `step = |d|/100 + rand() % max(|d|/25, 10)`
+>   each frame, clamped at the target. The port had the roll (every mode that runs FUN_00406584); it
+>   never fired because the Sell commit was a stub (no credit). Same cause as the legacy
+>   `guild-ui-flow` f3425 split.
+> - **Mode 3 exists in the switch but is dead**: `case 3` (all_ida 105181) is a single-item Sell
+>   confirm through the choice box FUN_00434ed2 (Yes: FUN_00468fd0 once, gold += ftol(price·0.3f) with
+>   the trend factor, SE 333). Nothing ever writes `DAT_09642c00 = 3` (writes: 0 ×5, 1 ×6, 2, 4, 5, 6,
+>   8 ×2), so the probe's "the switch has no case 3" is wrong only in the letter. Not ported.
+> - **Expansion commit** (mode 4, FUN_00434ed2 returns 1; all_ida 105017-105032): gold ≥
+>   `DAT_005cfad4[tier]` ({10000, 30000, 100000, 500000}) else nothing; gold −= cost, SE 333, mode 1,
+>   tier +1 (cap 3), **FUN_004864fd(bank)**, option count 0 + FUN_004918b0 (Expansion leaves the list
+>   until the store level allows the next tier).
+> - **FUN_004864fd(bank)** — the shop re-layout (also the title's New Game+ arm, tier forced 0):
+>   `DAT_0438bfb4` = 3 / 4 / 6 / 10 for tier 0 / 1 / 2 / 3; all 300 display-grid cells (work +0x13898,
+>   row-major) back into the inventory through FUN_00468d22 and set −1; per table `i < DAT_0438bfb4`:
+>   FUN_004865d5(i) (its footprint's cells — 2×2 for type 3, else 4 along x at rotation 0.0, else 4
+>   along z; all empty by then), the 20-slot shelf list work +0x2c7a0 + 80·i returned, the flag dword
+>   work +0x2c750 + 4·i = 0; FUN_0048ffd9 (the ten table origins work +0x2ce10 = `DAT_005cf864[tier]`)
+>   and FUN_0048439a (the attribute centroid). The probe's "+0x2ce10 3 → 4, meaning unknown" is table
+>   0's origin x: template row 1 starts (4,3) where row 0 has (3,3). No scene, no dialogue, no rand.
+> - **Home after an Expansion**: the world-map exit runs FUN_00436f97 before the house loader; its
+>   house arm reads the scene type `DAT_068dd3fc[DAT_0438b4dc]` (stage = tier) and the origins live —
+>   `DAT_0438bfb4` stays 4, table 0 moves to x 0.0 that tick (f1042). The port cached both from the
+>   previous house entry (scene type hard-coded 0); now read live (`scene1_postload.c`).
+> - `DAT_005cfab4` (option count) is .data, 7 before the first FUN_004918b0.
 
 > **2026-10-23 — Fusion ported** (`scene_guild.c`; rhost `dungeon3-run2`: every
 > guild VA identical over the whole run, incl. the recipe count (22) and the list
@@ -377,7 +415,8 @@ f475 A=buy1 · f527 A f569 Up f634 A=buy2.
   `guild-skip-dialogue-talk-leave-20260611-204101` `caprange [250,1250]`.
 - ~~**3** = sell item-pick~~ — **wrong** (probe `guild-sell-expansion`, 2026-11-10): retail never sets `c00` to 3;
   Sell uses mode 0 (the item list, entered from the Sell option: `DAT_09640624[c04] == 1`) → mode 8 ("Selling X. Are
-  you sure?") → mode 0, like Buy (FUN_00469a9f adds gold). **4** = Expansion confirm ("Expanding the store will cost
+  you sure?") → mode 0, like Buy (the mode-8 commit adds `c60·c5c` gold after `qty` × FUN_00468fd0; a `case 3` arm
+  exists in the switch but is unreachable). **4** = Expansion confirm ("Expanding the store will cost
   10000pix. Continue?"; Yes: gold −10,000, shop size `bank+183776` 0 → 1, `items` +10, back to mode 1, no scene). **5** = Fusion
   confirm. **6** = post-purchase result anim (`DAT_09642bfc` 0→0x4b). **8 = qty overlay**.
 - Transitions: mode1 --A on Buy/Sell--> slide-in (`c24=1,c20=1`; at `c20==0xf`

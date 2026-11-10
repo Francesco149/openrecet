@@ -10,11 +10,15 @@
  *     Talk / Expansion, B = Leave), the shared item window (mode 0), the qty
  *     overlay (mode 8), the Talk submenu (mode 2), the expansion Yes/No (mode
  *     4).  rhost multiday-tutorials-suggest (6 guild purchases + Leave) replays
- *     RNG- and save-identical.  PORT-DEBT(guild-fusion): the Fusion option
+ *     RNG- and save-identical; guild-sell-expansion (a Sell, the store
+ *     Expansion, Leave, home) RNG-identical with the bank / menu / table block
+ *     identical per frame.  The Sell commit = qty × FUN_00468fd0 + the gold
+ *     credit; the Expansion commit = FUN_004864fd (shop_display_relayout).
+ *     Mode 3 (the switch's single-item Sell confirm through FUN_00434ed2) is
+ *     dead in retail — nothing writes DAT_09642c00 = 3 — and not ported.
+ *     PORT-DEBT(guild-fusion): the Fusion option
  *     (modes 5/6 + the recipe list, FUN_004916a7 / 00469155 / 00469118 /
- *     004132c1); PORT-DEBT(stub, FUN_00468fd0): the Sell commit's bag removal;
- *     PORT-DEBT(stub, FUN_004864fd): the expansion's shop re-layout;
- *     PORT-DEBT(stub, FUN_00434ceb): the "Item limit reached" box.
+ *     004132c1); PORT-DEBT(stub, FUN_00434ceb): the "Item limit reached" box.
  *   FUN_0049174e @ 0x49174e  — scene init (via FUN_00490e16 at the world-map
  *     exit): the menu reset, work 0xb382/0xb381 = 1, the option table.
  *   FUN_004918b0 @ 0x4918b0  — builds the option-type table _DAT_09640624
@@ -58,6 +62,7 @@
 #include "tables_gousei.h"             /* g_gousei — the fusion recipes (DAT_09640650)  */
 #include "guild_fusion.h"              /* FUN_00469118 / FUN_00469155                   */
 #include "scene1_per_frame_open.h"     /* the "Fused" sparkle (FUN_004132c1)            */
+#include "scene1_shop_display.h"       /* shop_display_relayout (FUN_004864fd)          */
 
 #include <stdio.h>                     /* snprintf — the expansion prompt             */
 
@@ -133,7 +138,7 @@ static struct {
     int max_qty;      /* DAT_005cfae4 — quantity cap                        */
     int unit_price;   /* DAT_09642c60 — per-unit price                      */
     int item_rec;     /* DAT_09642c58 — item-DB record (name lookup)        */
-} s_menu;
+} s_menu = { .count = 7 };   /* DAT_005cfab4 is .data: 7 until the first FUN_004918b0 */
 
 /* --state-va mirror: the DAT_09642cXX block, DAT_0963c5f0 and the overlay's
  * Yes/No + flash words, by engine VA. */
@@ -155,7 +160,11 @@ const int32_t *scene_guild_dbg_va(uint32_t va)
     case 0x96405f8u: return &s_menu.flash_kind;  case 0x963c5f0u: return &s_variant;
     case 0x9642bf4u: return &s_menu.f_count;     case 0x9642bfcu: return &s_menu.f_fx;
     case 0x9642bf8u: return &s_menu.f_plus;
-    default:         return NULL;
+    case 0x5cfab4u:  return &s_menu.count;       /* the option count */
+    default:
+        if (va >= 0x9640624u && va < 0x9640624u + 4u * 8u && va % 4 == 0)
+            return &s_menu.entries[(va - 0x9640624u) / 4];   /* the option types */
+        return NULL;
     }
 }
 
@@ -502,9 +511,17 @@ static void guild_buy_commit(uint32_t *bank)
 {
     uint8_t *bb = (uint8_t *)bank;
     if (s_menu.entries[s_menu.cursor] != 0) {
-        /* Sell: qty × FUN_00468fd0 (take the row's item out of the bag), gold +=
-         * price·qty.  PORT-DEBT(stub, FUN_00468fd0): the removal is unported,
-         * so the guild Sell commit stays inert. */
+        /* Sell (all_ida 105247-105260): qty × FUN_00468fd0 (one of the row's
+         * item out of the inventory; the emptied row leaves the list), gold +=
+         * price·qty, SE 333.  The credit is what arms FUN_00406584's money
+         * roll (one LCG draw per rolling frame) from the next tick. */
+        if (display_menu_selected() == -1)                  /* FUN_00469a9f */
+            return;
+        for (int i = 0; i != s_menu.qty; i++)
+            display_menu_remove_selected(bank);             /* FUN_00468fd0 */
+        bank[SAVE_BANK_FIELD_GOLD] += (uint32_t)(s_menu.unit_price * s_menu.qty);
+        display_menu_possessed_invalidate();                /* DAT_005c6ee4 = -1 */
+        audio_play_se_by_id(0x14d);
         return;
     }
     int handle = display_menu_selected();
@@ -777,8 +794,7 @@ void scene_guild_sim(void)
             s_menu.mode = 1;
             if (tier < 3)
                 bank[GUILD_TIER_DWORD] = (uint32_t)(tier + 1);
-            /* FUN_004864fd: re-lay the shop for the new tier —
-             * PORT-DEBT(stub, FUN_004864fd). */
+            shop_display_relayout(bank);                 /* FUN_004864fd */
             s_menu.count = 0;
             scene_guild_build_table();
         } else if (r != 2) {

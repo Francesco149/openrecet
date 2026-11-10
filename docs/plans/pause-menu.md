@@ -558,10 +558,14 @@ Draw primitives all already in the port: `render_quad_add`
   house's mode 5) + the place-an-item / use-medicine / equip-readout paths (`FUN_0047ff40`
   DAT_074b28a4!=0 branch + the FUN_0048196b dungeon option loop). Gated saved_mode==1 &&
   *DAT_068dd2f0>0 — inert in the house. Needs a dungeon-pause trace.
-- `options-config-arena` — the Options exit-save (`save_io_commit_slot(-1)`) writes the save
-  arena but the port's live slider values aren't synced into the save-header config region
-  (config is module state in audio_fade/settings, not the arena buffer) — pixel-invisible,
-  only the written save bytes' config area differs; closes when the config↔arena model unifies.
+- ~~`options-config-arena`~~ **CLOSED 2026-11-10.** Retail's five config values ARE save-arena header
+  fields (`DAT_056e5774` Sound · `5778` Music · `577c` Voice · s16 `5782` Unread Text Skip · `5784`
+  Message Speed), edited in place by `FUN_0047fc44`; the port kept them as module state, so the dirty
+  exit's `FUN_004905a8(-1)` wrote the old header. Now `settings_bind_save_header()` (main.c, before the
+  arena init) points the `audio_fade` / `settings` accessors at the header: one copy. Also fixes
+  Message Speed / Unread Text Skip never being read from a loaded save.dat. Options row = Save cursor
+  (`DAT_074b2834[0]`, one variable). rhost `pause-options-saved`: triage identical, save IDENTICAL,
+  `56e5774/78/7c/84` + `74b2890` per frame IDENTICAL (719 f). `--state-va` now maps any save-arena dword.
 - ~~`settings-panel-title-adopt`~~ **✅ CLOSED 2026-06-15.** The TITLE settings render
   (`scene_title.c` `scene_title_settings_render_panel`) was a SECOND copy of `FUN_0049c050`; now a
   thin wrapper calling the verified shared `settings_panel_render` (passing its own

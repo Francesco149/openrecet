@@ -72,6 +72,7 @@
 #include "audio.h"
 #include "audio_fade.h"
 #include "save_bank.h"
+#include "settings.h"    /* settings_bind_save_header — the config lives in the save header */
 #include "save_io.h"
 #include "save_work.h"   /* segtrace_playtimepin_cb: active-slot playtime write */
 #include "sha256.h"
@@ -2144,8 +2145,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * save-load overwrites everything, and ini sliders are only
      * consulted for the "no save file" path).
      *
-     * audio_fade slider state is then synced from the save header so
-     * the per-channel apply hook draws from one source of truth. */
+     * The config (three audio sliders, Message Speed, Unread Text Skip)
+     * IS the save-arena header, as in retail (DAT_056e5774..5784): bind
+     * the audio_fade / settings accessors to it before the arena init, so
+     * the init's own FUN_00499583 already reads the header's BGM value. */
+    settings_bind_save_header();
     save_bank_set_header_init_hook(save_bank_apply_bgm_via_audio_fade);
     /* TAS recorder: capture each in-game save written during a recording (the
      * callback no-ops unless F2 recording is active). */
@@ -2208,15 +2212,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     "save_io: --save-override active — loaded %s "
                     "(on-disk save.dat ignored)\n", g_save_override_path);
         /* On a successful load, the audio sliders in the header may
-         * differ from the fresh defaults — re-sync audio_fade and
-         * re-apply the BGM volume so any music already playing picks
-         * up the loaded levels. */
-        audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,
-                              save_header_get_bgm_slider());
-        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A,
-                              save_header_get_se_slider());
-        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B,
-                              save_header_get_se_b_slider());
+         * differ from the fresh defaults (audio_fade reads the header in
+         * place) — re-apply the BGM volume so any music already playing
+         * picks up the loaded levels. */
         save_bank_apply_bgm_via_audio_fade();
     }
 
@@ -2246,19 +2244,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 loaded_save.hidden_char_unlocked);
     }
 
-    /* Sync audio_fade sliders from the save header (one source of
-     * truth). audio_fade owns the per-channel apply hook
-     * (audio_fade_apply_hook_win32) and SetVolume timing.
-     *
-     * Until save-load landed, this block also overlaid recet.ini's
-     * mu/se values on top of the engine defaults (9/5/9/1). The
-     * overlay was a stand-in for save.dat-persisted sliders. With
-     * save_io_try_load above, save.dat is now the authoritative
-     * source — its sliders win regardless of recet.ini. (The engine
-     * itself ignores recet.ini's mu/se at boot; we now match.) */
-    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  save_header_get_bgm_slider());
-    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, save_header_get_se_slider());
-    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, save_header_get_se_b_slider());
+    /* The audio_fade sliders are the save header's (bound above): save.dat
+     * is the authoritative source — its sliders win regardless of
+     * recet.ini. (The engine itself ignores recet.ini's mu/se at boot.) */
     fprintf(stderr,
             "audio: sliders seeded — bgm=%d se-a=%d se-b=%d "
             "(authoritative source: save_header)\n",

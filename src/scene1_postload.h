@@ -295,6 +295,10 @@ void scene1_postload_apply_walker_phase2_house_groundtruth(void);
  */
 void scene1_postload_seed_house_furniture(void);
 
+/* FUN_0048ffd9(rec): the same seed on a given working record (the shop
+ * re-layout FUN_004864fd passes its bank). */
+void scene1_postload_seed_furniture(uint8_t *rec);
+
 /*
  * Production HOUSE-entry input loader (de-MVP of --force-walker-phase2 0).
  * Sources the Cf walker's scene_type / ivar8 / stage_positions and the

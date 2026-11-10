@@ -73,23 +73,37 @@ int32_t audio_fade_compute(int frame_counter, int32_t target_centibel)
 
 /* ─── per-channel slider state ─────────────────────────────────────────
  *
- * Three [0..9] sliders, defaults 9. Cleared via audio_fade_reset(). */
+ * Three [0..9] sliders. Retail keeps them in the save-arena header
+ * (DAT_056e5778 / _5774 / _577c) and every reader / writer shares that one
+ * copy; audio_fade_bind_sliders points this module at it. Unbound (host
+ * tests, the diff library) the values live here, defaults 9. Cleared via
+ * audio_fade_reset(). */
 
-static int g_sliders[AUDIO_FADE_CHANNEL_COUNT] = { 9, 9, 9 };
+static int32_t g_local_sliders[AUDIO_FADE_CHANNEL_COUNT] = { 9, 9, 9 };
+static int32_t *g_sliders[AUDIO_FADE_CHANNEL_COUNT] = {
+    &g_local_sliders[0], &g_local_sliders[1], &g_local_sliders[2],
+};
 static audio_fade_apply_hook_t g_apply_hook = NULL;
+
+void audio_fade_bind_sliders(int32_t *bgm, int32_t *se_a, int32_t *se_b)
+{
+    g_sliders[AUDIO_FADE_CHANNEL_BGM]  = bgm  ? bgm  : &g_local_sliders[AUDIO_FADE_CHANNEL_BGM];
+    g_sliders[AUDIO_FADE_CHANNEL_SE_A] = se_a ? se_a : &g_local_sliders[AUDIO_FADE_CHANNEL_SE_A];
+    g_sliders[AUDIO_FADE_CHANNEL_SE_B] = se_b ? se_b : &g_local_sliders[AUDIO_FADE_CHANNEL_SE_B];
+}
 
 void audio_fade_set_slider(int channel, int value)
 {
     if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return;
     if (value < 0) value = 0;
     if (value > 9) value = 9;
-    g_sliders[channel] = value;
+    *g_sliders[channel] = value;
 }
 
 int audio_fade_get_slider(int channel)
 {
     if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
-    return g_sliders[channel];
+    return (int)*g_sliders[channel];
 }
 
 int32_t audio_fade_channel_centibel(int channel)
@@ -149,7 +163,7 @@ int32_t audio_fade_apply_progress(int channel,
 {
     if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
     int32_t centibel = audio_fade_progress_centibel(
-        phase, progress, duration, g_sliders[channel]);
+        phase, progress, duration, audio_fade_get_slider(channel));
     if (g_apply_hook) {
         g_apply_hook(channel, centibel);
     }
@@ -164,8 +178,8 @@ void audio_fade_set_apply_hook(audio_fade_apply_hook_t hook)
 int32_t audio_fade_apply(int channel)
 {
     if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
-    int32_t centibel = audio_fade_compute(g_sliders[channel], 0);
-    audio_trace_emit_fade_start(channel, g_sliders[channel], centibel);
+    int32_t centibel = audio_fade_compute(audio_fade_get_slider(channel), 0);
+    audio_trace_emit_fade_start(channel, audio_fade_get_slider(channel), centibel);
     if (g_apply_hook) {
         g_apply_hook(channel, centibel);
     }
@@ -176,7 +190,7 @@ int32_t audio_fade_apply_bgm_tick(float target_volume)
 {
     CALL_TRACE_ENTER(0x499583u);
 
-    int slider = g_sliders[AUDIO_FADE_CHANNEL_BGM];
+    int slider = audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM);
 
     /* Engine FUN_00499583 fast path (decomp L13-17): when the BGM slider
      * is 0 the engine bypasses the cos-curve math and writes -10000
@@ -207,7 +221,8 @@ int32_t audio_fade_apply_bgm_tick(float target_volume)
 void audio_fade_reset(void)
 {
     for (int i = 0; i < AUDIO_FADE_CHANNEL_COUNT; i++) {
-        g_sliders[i] = 9;
+        g_local_sliders[i] = 9;
+        g_sliders[i] = &g_local_sliders[i];      /* unbind */
     }
     g_apply_hook = NULL;
 }

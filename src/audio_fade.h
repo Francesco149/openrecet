@@ -41,14 +41,13 @@
  * re-applies the corresponding SetVolume immediately via FUN_00499583
  * (BGM) or FUN_00499c63 (SE).
  *
- * The port keeps the three slider values as module-local state with
- * `audio_fade_set_slider` / `audio_fade_get_slider` accessors. Defaults
- * are 9/9/9 (full volume); main.c overwrites BGM/SE-A from recet.ini's
- * `mu`/`se` keys immediately after audio_init. The engine's BGM=5
- * save-arena default is intentionally NOT mirrored: it only takes
- * effect on save-load (FUN_004902fe, not ported yet); until save-load
- * lands, recet.ini is the user-configurable source of truth and
- * SE-B stays at the default 9 (dormant per engine-quirks #46).
+ * The port reads / writes them through `audio_fade_set_slider` /
+ * `audio_fade_get_slider`. In the game the accessors are bound to the
+ * save-arena header (audio_fade_bind_sliders, from main.c via
+ * settings_bind_save_header), so the header dwords are the only copy — as
+ * in retail: FUN_004901c2 seeds them (9 / 5 / 9), FUN_004902fe loads them
+ * with save.dat, the Options pages edit them in place. Unbound (host
+ * tests, the diff library) they are module-local, defaults 9/9/9.
  *
  * Engine sources:
  *   docs/decompiled/by-address/499583.c  — fade dispatcher
@@ -106,6 +105,14 @@ int32_t audio_fade_compute(int frame_counter, int32_t target_centibel);
  * or returns 0 (get). Default value at first read is 9 (full target). */
 void audio_fade_set_slider(int channel, int value);
 int  audio_fade_get_slider(int channel);
+
+/* Point the three sliders at external storage: retail's are save-arena header
+ * dwords (DAT_056e5778 BGM / DAT_056e5774 SE-A / DAT_056e577c SE-B) that the two
+ * Options pages edit in place and FUN_004905a8 writes to save.dat, so the port
+ * binds them there (settings_bind_save_header) and keeps one copy. A NULL
+ * pointer leaves that channel on the module-local store; audio_fade_reset()
+ * unbinds all three. Get returns the stored value as is; set clamps to [0, 9]. */
+void audio_fade_bind_sliders(int32_t *bgm, int32_t *se_a, int32_t *se_b);
 
 /* Compute the centibel for `channel`'s current slider at full target
  * (target_centibel = 0). Equivalent to
@@ -194,9 +201,8 @@ int32_t audio_fade_apply_bgm_tick(float target_volume);
 typedef void (*audio_fade_apply_hook_t)(int channel, int32_t centibel);
 void audio_fade_set_apply_hook(audio_fade_apply_hook_t hook);
 
-/* Reset slider state + clear the apply hook. Used by tests to keep
- * each case isolated; audio_init also calls this so a re-init starts
- * from a known baseline. */
+/* Reset slider state (module-local store, 9/9/9 — any binding dropped) + clear
+ * the apply hook. Used by tests to keep each case isolated. */
 void audio_fade_reset(void);
 
 #endif /* OPENRECET_AUDIO_FADE_H */

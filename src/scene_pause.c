@@ -254,13 +254,13 @@ int32_t g_pause_status_detail = 0;  /* DAT_074b2888 — Status: the detail page 
 int32_t g_pause_items_opt  = 0;     /* DAT_074b28ac — Items: Use (0) / Throw away (1) */
 
 /* Options submenu (type 2) state — the config-panel cursor row + the dirty/exit
- * phase. Engine row = DAT_074b2834[cur] (aliases the Save cursor's slot, but only
- * one submenu is open at a time, so a distinct scalar is faithful); cur is 0.
- * Phase = DAT_074b2890: 0 clean · 1 dirty (a slider changed) · 2 exit-save ·
- * 3 exit-no-save. The slider VALUES live in the port's config model (audio_fade
- * for Music/Sound/Voice, settings for Message Speed/Unread Text Skip), so this
- * struct holds only the menu's own row + phase. */
-int32_t g_pause_options_row   = 0;  /* DAT_074b2834[0] */
+ * phase. Engine row = DAT_074b2834[DAT_074b288c] with 288c == 0 on this page:
+ * the very dword the Save page uses as its slot cursor, so g_pause_options_row
+ * is an alias of g_pause_save_cursor (scene_pause.h). Phase = DAT_074b2890:
+ * 0 clean · 1 dirty (a value changed) · 2 exit-save · 3 exit-no-save. The
+ * VALUES are the save-arena header's config fields (DAT_056e5774..5784), reached
+ * through audio_fade (Music / Sound / Voice) and settings (Message Speed /
+ * Unread Text Skip) — see settings_bind_save_header. */
 int32_t g_pause_options_phase = 0;  /* DAT_074b2890    */
 
 /* Pause-open resume snapshot (engine DAT_06a499ac/b0/b4/b8/bc) — captured when
@@ -887,25 +887,29 @@ void pause_save_submenu_update(void)
 /* FUN_0047fc44 — the Options (type 2) config-slider nav + exit/save.
  *
  * Dispatched from pause_menu_update at sub_anim==10 when Options is selected.
- * Five rows: Music / Sound / Voice (volume 0..9, audio_fade) · Message Speed
- * (0..2, settings slider3) · Unread Text Skip (0..1, settings slider4).
+ * Five rows, each a save-arena HEADER field edited in place (the change is live
+ * at once — nothing is staged, no exit discards it):
+ *   0 Music   DAT_056e5778 0..9      1 Sound   DAT_056e5774 0..9
+ *   2 Voice   DAT_056e577c 0..9      3 Message Speed  DAT_056e5784 0..2
+ *   4 Unread Text Skip  s16 DAT_056e5782 0..1
  *   L / R  — decrement / increment the current row's value (clamped). A change
- *            marks the menu DIRTY (g_pause_options_phase = 1). Per-row SE: rows
- *            1/3/4 play 0x146; row 0 (Music) re-applies the BGM volume instead;
- *            row 2 (Voice) is silent (engine FUN_0047fc44 — its filename-SE
- *            sibling FUN_0049933c is the title-only variant).
+ *            marks the page DIRTY (g_pause_options_phase = 1). Per-row SE: rows
+ *            1/3/4 play 0x146; row 0 (Music) re-applies the BGM volume instead
+ *            (FUN_00499583); row 2 (Voice) is silent (its filename-SE sibling
+ *            FUN_0049933c is the title-only variant).
  *   U / D  — move the cursor row (wrap %5); SE 0x146 + a 6-frame cursor ease to
  *            (168, row*40+168).
- *   A / B  — exit: DIRTY → exit-save (phase 2), CLEAN → exit-no-save (phase 3).
- *            The next frame the phase-2 branch writes save.dat (save_io_commit_
- *            slot(-1) = FUN_004905a8(0xffffffff)) before the submenu closes.
+ *   A / B  — exit: DIRTY → phase 2, CLEAN → phase 3. The next tick phase 2
+ *            writes the whole save arena to save.dat + _save.dat
+ *            (save_io_commit_slot(-1) = FUN_004905a8(-1): no slot copy — the
+ *            day's progress stays out of the file, the header's new config
+ *            goes in); both phases then play SE 0x143, close the page, phase 0.
  *
- * Transcribed 1:1 from objdump @0x47fc44 (the slider globals DAT_056e5778/74/7c/
- * 84/82 are the port's audio_fade/settings model). PORT-DEBT(options-config-arena):
- * the exit-save writes the arena but the port's live slider values aren't synced
- * back into the save-header config region (the port models config as module state,
- * not the arena buffer) — pixel-invisible, only the written save bytes' config
- * area differs; closes when the config-in-save-arena model is unified. */
+ * Transcribed 1:1 from objdump @0x47fc44. The port's accessors
+ * (audio_fade_*_slider, settings_*_slider3/4) are bound to those header fields
+ * (settings_bind_save_header), so the bytes FUN_004905a8 writes carry the edit.
+ * rhost: pause-options-saved — save.dat IDENTICAL, 56e5774/78/7c/84 + 74b2890
+ * per frame IDENTICAL. */
 void pause_options_submenu_update(void)
 {
     const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 */

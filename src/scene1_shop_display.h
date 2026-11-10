@@ -31,6 +31,8 @@
 #define SHOP_DISPLAY_TIER_SELECTOR     0xb378  /* DAT_04510578 (rec+0x2cde0) */
 #define SHOP_DISPLAY_FURNITURE_ORIGINS 0xb384  /* DAT_045105a8 (rec+0x2ce10) — (x,z) pairs, stride 2 */
 #define SHOP_DISPLAY_SUPPRESS_FLAGS    0xb1d4  /* DAT_0450fee8 (rec+0x2c750) — per-furniture dword */
+#define SHOP_DISPLAY_SHELF_ITEMS       0xb1e8  /* rec+0x2c7a0 — 20 item handles per furniture (-1 = empty) */
+#define SHOP_DISPLAY_SHELF_SLOTS       20
 
 /* Display-grid geometry (the layout grid is the same 15-row × 20-col shape as
  * the item grid SAVE_BANK_FIELD_DISPLAY_GRID; cell = col + row*0x14). */
@@ -119,6 +121,19 @@ int shop_display_move_tick(uint16_t pressed, uint16_t held);
  * 2 · (origin − DAT_005ce3e0[scene type][i]) for the 10 table slots — the
  * walker's placement and the collision objects 5.. (one memory in retail). */
 void shop_display_tables_place(void);
+
+/* FUN_004864fd(bank): re-lay the shop for the bank's tier (work +0x2cde0) —
+ * called by the guild's store Expansion right after the tier bump (and by the
+ * title's New Game+ arm with the tier at 0):
+ *   - the table count DAT_0438bfb4 = 3 / 4 / 6 / 10 for tier 0 / 1 / 2 / 3+;
+ *   - every item on display goes back into the inventory (FUN_00468d22, in
+ *     grid order: the 300 cells row-major), the grid is all -1;
+ *   - per table: FUN_004865d5 (its footprint's cells — already empty by then),
+ *     its 20-slot shelf list (work +0x2c7a0 + 80·i) back into the inventory,
+ *     its flag dword (work +0x2c750 + 4·i) = 0;
+ *   - FUN_0048ffd9: the ten table origins (work +0x2ce10) = the tier's template;
+ *   - FUN_0048439a: the shop's attribute centroid (now of an empty shop). */
+void shop_display_relayout(uint32_t *bank);
 
 int shop_display_move_table(void);                 /* DAT_0438bea4 */
 

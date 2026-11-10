@@ -15,6 +15,7 @@
 #include "record_hit.h"
 #include "actor_table.h"
 #include "customer_service.h"
+#include "customer_roster.h"     /* DAT_0438b4b8 / b4bc */
 #include "scene1_hud.h"
 #include "dungeon_flow.h"
 #include "scene1_render.h"     /* DAT_06a49b24 */
@@ -73,6 +74,8 @@
 #include "worker_load.h"
 
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
+static int32_t get_cent_x(void) { return roster_centroid_x(); }
+static int32_t get_cent_y(void) { return roster_centroid_y(); }
 static int32_t get_nowloading(void) { return nowloading_is_active(); }
 static int32_t get_nl_rot(void) { float f = nowloading_get_rotation(); int32_t v; memcpy(&v, &f, 4); return v; }
 static int32_t get_scene(void) { return g_scene_state; }
@@ -402,6 +405,8 @@ static const state_va_t k_map[] = {
     { 0x438bea4u, "Move Tables' carried table (DAT_0438bea4)", get_bea4 },
     { 0x438b4e8u, "camera stage class (DAT_0438b4e8)", get_b4e8 },
     { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },
+    { 0x438b4b8u, "shop attribute centroid x (DAT_0438b4b8)", get_cent_x },
+    { 0x438b4bcu, "shop attribute centroid y (DAT_0438b4bc)", get_cent_y },
     { 0x438bf7cu, "fade phase (DAT_0438bf7c)", get_fade },
     { 0x438bf78u, "fade counter (DAT_0438bf78)", get_fadec },
 };
@@ -409,6 +414,7 @@ static const state_va_t k_map[] = {
 
 /* Any dword of the working save banks (DAT_044e3798 + slot·0x2dfc8 + off) is
  * mirrored generically: the port's save_work arena has the engine layout. */
+#define SAVE_ARENA_VA  0x56e5770u
 #define WORK_BANK_VA   0x44e3798u
 #define WORK_BANK_SIZE 0x2dfc8u
 #define WORK_BANKS     8u
@@ -481,6 +487,7 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x6a499a8u, &g_pause_saved_mode }, { 0x74b2898u, &g_pause_save_vscroll },
     { 0x74b2894u, &g_pause_save_hscroll }, { 0x74b28a8u, &g_pause_items_done },
     { 0x74b28acu, &g_pause_items_opt },
+    { 0x74b2890u, &g_pause_options_phase }, { 0x74b288cu, &g_pause_value_idx },
 };
 
 /* Retail-layout blocks the port keeps byte for byte: the party block
@@ -518,6 +525,10 @@ static const int32_t *layout_dword(uint32_t va)
     }
     if (va >= 0x74b2844u && va < 0x74b2844u + 4u * SCENE_PAUSE_MAX_ENTRIES)
         return &g_pause_entries[(va - 0x74b2844u) / 4];
+    /* the save arena DAT_056e5770 (header + 100 banks = the save.dat image):
+     * the port's has the engine layout byte for byte */
+    if (va >= SAVE_ARENA_VA && va < SAVE_ARENA_VA + SAVE_BANK_ARENA_BYTES)
+        return (const int32_t *)(const void *)(save_bank_header_bytes() + (va - SAVE_ARENA_VA));
     /* the adventurer's bag DAT_0438b5ec (+ what each slot brought, DAT_0438b684) */
     if (va >= 0x438b5ecu && va < 0x438b5ecu + 4u * ADV_GUILD_BAG_SLOTS)
         return adv_guild_bag() + (va - 0x438b5ecu) / 4;
@@ -615,7 +626,7 @@ const char *state_va_known(void)
         o += (size_t)snprintf(out + o, sizeof out - o, "%s%x %s", k ? ", " : "",
                               (unsigned)k_map[k].va, k_map[k].name);
     if (o < sizeof out)
-        snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798.., bg-NPC 73a7f80+i*100+off, 73a8bb4/bb8");
+        snprintf(out + o, sizeof out - o, ", any work-bank dword 44e3798.., any save-arena dword 56e5770.., bg-NPC 73a7f80+i*100+off, 73a8bb4/bb8");
     return out;
 }
 

@@ -34,6 +34,7 @@
 #include "scene1_spawn.h"
 #include "scene1_walker_pass_init.h"
 #include "stage_palette.h"
+#include "tables_stage.h"     /* g_stage (DAT_068dd2f8) */
 
 static void reset_world(void)
 {
@@ -1061,6 +1062,43 @@ int test_scene1_postload_walker_phase2_retail_groundtruth_new_game_house(void)
     T_ASSERT(g_scene1_walker_phase2_pos_x[2] == -10.0f);
     T_ASSERT(g_scene1_walker_phase2_pos_y[2] == 0.0f);
     T_ASSERT(g_scene1_walker_phase2_pos_z[2] == -2.0f);
+    return 0;
+}
+
+/* FUN_00436f97's house arm takes the scene type from the stage table
+ * (DAT_068dd3fc[DAT_0438b4dc]; the house's rooms are stages 0..3 = the shop
+ * tier) — an expanded shop (tier 1, stage 1, scene type 1) has 4 tables and
+ * table 0 at origin (4, 3) → x 0.0 (retail guild-sell-expansion f1042:
+ * DAT_0438bfb4 = 4, DAT_0438c06c = 0.0). */
+int test_scene1_postload_load_house_inputs_expanded_shop(void)
+{
+    const uint32_t rng0 = g_rng_seed;
+    reset_world();
+    save_bank_init_all();
+    save_work_clear();
+    chara_equip_set_current_bank(0);
+    uint8_t *rec = save_work_bank_at(0);
+    const int32_t tier = 1;
+    memcpy(rec + 0x2cde0, &tier, sizeof tier);
+    const int32_t n0 = g_stage.count, b4dc0 = g_stage_b4dc, id0 = g_stage.records[1].dungeon_id;
+    g_stage.count = 2;
+    g_stage.records[1].dungeon_id = 1;                 /* DAT_068dd3fc[1] */
+    g_stage_b4dc = 1;                                  /* the tier's stage */
+
+    scene1_postload_load_house_phase2_inputs();
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 4);
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 2);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[0] == 0.0f);     /* 2·(4 − 4) */
+    T_ASSERT(g_scene1_walker_phase2_pos_z[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[3] == 10.0f);    /* 2·(9 − 4) */
+    T_ASSERT(g_scene1_walker_phase2_pos_z[3] == -2.0f);    /* 2·(1 − 2) */
+
+    g_stage.records[1].dungeon_id = id0;
+    g_stage.count = n0;
+    g_stage_b4dc = b4dc0;
+    save_work_clear();
+    g_rng_seed = rng0;
     return 0;
 }
 

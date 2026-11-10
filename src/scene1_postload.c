@@ -338,6 +338,8 @@ static void postload_dungeon_arm(void)
     }
 }
 
+static void walker_phase2_inputs_live(void);
+
 void scene1_postload_stage_entry_init(void)
 {
     /* L1-2: DAT_068dd2f0 = the DAT_0438b4dc record (a guild Leave leaves the
@@ -442,10 +444,11 @@ void scene1_postload_stage_entry_init(void)
         postload_dungeon_arm();
     } else {
         /* L607-725 the alt-stage (house) arm: camera yaw π + the furniture /
-         * room placement (walker_phase2_init, inputs unchanged since the load),
+         * room placement (walker_phase2_init on the live scene type + origins),
          * then the seat: work dword +0x2cdf4 == 0 → the counter spot facing +π/2;
          * else the front door, facing down (octant 4, +0x2cde0 set) or left
          * (octant 2, −π/2). */
+        walker_phase2_inputs_live();
         scene1_postload_walker_phase2_init();
         scene1_postload_mapcol_objs_from_walker();
         /* L668-677: qword DAT_0438cbfc = -1 (no faced display cell), DAT_0438cbe8 = 0
@@ -779,7 +782,13 @@ void scene1_postload_set_house_scene_type_override(int scene_type)
  * the four ported HOUSE tiers. */
 void scene1_postload_seed_house_furniture(void)
 {
-    uint8_t *rec = scene1_active_save_record();
+    scene1_postload_seed_furniture(scene1_active_save_record());
+}
+
+void scene1_postload_seed_furniture(uint8_t *rec)
+{
+    if (rec == NULL)
+        return;
     int32_t tier;
     memcpy(&tier, rec + SCENE1_REC_LAYOUT_SEL_OFF, sizeof tier);
     if (tier < 0 || tier >= SCENE1_HOUSE_FURNITURE_TIERS) {
@@ -789,6 +798,29 @@ void scene1_postload_seed_house_furniture(void)
     for (int i = 0; i < 10; i++) {
         furn[i * 2 + 0] = k_house_furniture_template[tier][i][0];
         furn[i * 2 + 1] = k_house_furniture_template[tier][i][1];
+    }
+}
+
+/* The house arm of FUN_00436f97 reads its inputs where they live, at every
+ * call: the scene type DAT_068dd3fc[DAT_0438b4dc] (the house's rooms are stages
+ * 0..3 = the shop tier, scene types 0..3 → 3 / 4 / 6 / 10 tables) and the ten
+ * table origins of the active work record (+0x2ce10).  The world-map exit calls
+ * it BEFORE the house loader, so a cached copy from the previous house entry is
+ * wrong once either changed in between (the guild's store Expansion: rhost
+ * guild-sell-expansion f1042, DAT_0438bfb4 4 and table 0 at x 0.0). */
+static void walker_phase2_inputs_live(void)
+{
+    const uint8_t *rec = scene1_active_save_record();
+    g_walker_scene_type = (s_house_scene_type_override >= 0)
+                              ? s_house_scene_type_override
+                              : scene1_camera_view_mode();   /* DAT_068dd3fc[stage] */
+    g_walker_ivar8      = 3;         /* engine constant (FUN_00436f97 L178) */
+    if (rec == NULL)
+        return;
+    const int32_t *furn = (const int32_t *)(const void *)(rec + SCENE1_REC_FURNITURE_OFF);
+    for (int i = 0; i < 10; i++) {
+        g_walker_stage_positions[i][0] = furn[i * 2 + 0];
+        g_walker_stage_positions[i][1] = furn[i * 2 + 1];
     }
 }
 
@@ -829,21 +861,12 @@ void scene1_postload_load_house_phase2_inputs(void)
     /* PORT-DEBT(simplified, FUN_0048ffd9): the template seed re-runs on every
      * house entry.  Retail seeds only in the bank init FUN_0049001c (done in
      * save_bank.c), the new-game seeder FUN_0049d36d and the shop re-layout
-     * FUN_004864fd (the expansion, NG+; a stub here), so tables moved in cc08 2
-     * (Move Tables) stay moved across house entries and saves there, while
-     * here the next house entry puts them back on the template. */
+     * FUN_004864fd (the expansion — shop_display_relayout — and NG+), so tables
+     * moved in cc08 2 (Move Tables) stay moved across house entries and saves
+     * there, while here the next house entry puts them back on the template. */
     scene1_postload_seed_house_furniture();
 
-    g_walker_scene_type = (s_house_scene_type_override >= 0)
-                              ? s_house_scene_type_override
-                              : 0;   /* DAT_068dd3fc[0] for HOUSE (PHC) */
-    g_walker_ivar8      = 3;         /* engine constant (FUN_00436f97 L178) */
-
-    const int32_t *furn = (const int32_t *)(rec + SCENE1_REC_FURNITURE_OFF);
-    for (int i = 0; i < 10; i++) {
-        g_walker_stage_positions[i][0] = furn[i * 2 + 0];
-        g_walker_stage_positions[i][1] = furn[i * 2 + 1];
-    }
+    walker_phase2_inputs_live();
 
     int32_t char_mode;
     memcpy(&char_mode, rec + SCENE1_REC_CHARMODE_OFF, sizeof char_mode);

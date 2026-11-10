@@ -660,6 +660,7 @@ struct test_case {
     X(settings_slider3_clamps_to_range) \
     X(settings_slider4_clamps_to_range) \
     X(settings_round_trip_each_legal_value) \
+    X(settings_bind_save_header_is_one_copy) \
     \
     X(save_bank_arena_sizing) \
     X(save_bank_bank_pointer_arithmetic) \
@@ -1332,6 +1333,7 @@ struct test_case {
     X(pause_options_voice_adjusts) \
     X(pause_options_exit_dirty_saves_then_closes) \
     X(pause_options_exit_clean_closes_no_save) \
+    X(pause_options_edits_save_header_and_dirty_exit_writes_it) \
     X(pause_options_navigable_predicate) \
     X(pause_save_nav_down_scrolls) \
     X(pause_save_nav_down_within_window_no_slide) \
@@ -1898,6 +1900,7 @@ struct test_case {
     X(scene1_postload_walker_phase2_drives_walker_compute_translation) \
     X(scene1_postload_walker_phase2_retail_groundtruth_new_game_house) \
     X(scene1_postload_load_house_inputs_from_save_record) \
+    X(scene1_postload_load_house_inputs_expanded_shop) \
     \
     X(shop_display_grid_rebuild_stamps_back_row_stand) \
     X(shop_display_grid_rebuild_footprint_shapes) \
@@ -1909,6 +1912,7 @@ struct test_case {
     X(shop_display_table_carry_shapes) \
     X(shop_display_placement_check_verdicts) \
     X(shop_display_move_tick_scenario) \
+    X(shop_display_relayout_expansion) \
     \
     X(display_menu_open_inits_none_entry) \
     X(display_menu_update_returns_0_while_sliding) \

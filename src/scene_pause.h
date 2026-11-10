@@ -208,9 +208,13 @@ extern int32_t g_pause_save_warn;    /* DAT_074b28a0 — the dungeon save warnin
 extern int32_t g_pause_save_overwrite; /* DAT_074b28a4 — "Overwriting file." up */
 extern int32_t g_pause_items_done;     /* DAT_074b28a8 — Items: the use / throw result is up */
 extern int32_t g_pause_items_opt;      /* DAT_074b28ac — Items: Use (0) / Throw away (1) */
+extern int32_t g_pause_value_idx;      /* DAT_074b288c — the page's cursor index (Status: the shown member; 0 on Save / Options) */
 
 /* Options submenu (type 2) state. */
-extern int32_t g_pause_options_row;    /* DAT_074b2834[0] — config cursor row 0..4 */
+/* DAT_074b2834[DAT_074b288c == 0] — the config cursor row 0..4: the same dword
+ * as the Save page's slot cursor (one page is open at a time; every open
+ * re-seeds it), so the two names are one variable. */
+#define g_pause_options_row g_pause_save_cursor
 extern int32_t g_pause_options_phase;  /* DAT_074b2890 — 0 clean/1 dirty/2 save/3 nosave */
 
 /* Menu-build inputs (engine DAT_0741bed8 = adventurer/party count and

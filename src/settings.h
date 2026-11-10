@@ -25,11 +25,20 @@
  *
  * Engine defaults are seeded by FUN_004901c2 ("save-arena init"):
  *   DAT_056e5784 = 1; (no save-data init for DAT_056e5782 — BSS-zero)
- * which we mirror here. The eventual save-load port will overwrite
- * these once a save file is parsed.
+ *
+ * Storage: all five config values are save-arena HEADER fields in retail
+ * (DAT_056e5774 Sound, _5778 Music, _577c Voice, s16 _5782 Unread Text
+ * Skip, _5784 Message Speed). Both Options pages (title FUN_0049a59e's
+ * tail, pause FUN_0047fc44) edit them in place and FUN_004905a8 /
+ * FUN_004902fe write / load them with save.dat. settings_bind_save_header
+ * (main.c, right after the arena init) points these accessors and
+ * audio_fade's at the header, so the port has one copy too. Unbound (host
+ * tests) the two values are module-local with the defaults above.
  */
 #ifndef OPENRECET_SETTINGS_H
 #define OPENRECET_SETTINGS_H
+
+#include <stdint.h>
 
 /* Tri-state slider. Engine range [0, 2], default 1. */
 #define SETTINGS_SLIDER3_MAX  2
@@ -39,9 +48,18 @@
 #define SETTINGS_SLIDER4_MAX  1
 #define SETTINGS_SLIDER4_DEFAULT  0
 
-/* Seed both sliders to their engine defaults. Idempotent. Called
- * from settings init and from test setup. */
+/* Back to the module-local store (any binding dropped) with both sliders
+ * at their engine defaults. Idempotent. Test setup. */
 void settings_reset(void);
+
+/* Point the two sliders at external storage (NULL → the module-local one). */
+void settings_bind(int32_t *slider3, int16_t *slider4);
+
+/* Bind the whole config — these two sliders and audio_fade's three — to
+ * the save-arena header fields (save_bank_header_bytes() + 0x04 / 0x08 /
+ * 0x0c / 0x12 / 0x14). The values then are whatever the arena holds: the
+ * init defaults, a loaded save.dat, an Options edit. */
+void settings_bind_save_header(void);
 
 /* Accessors with clamping. Out-of-range value-set is clamped to the
  * slider's [0, max] range. */

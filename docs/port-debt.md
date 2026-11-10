@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **64**
-- distinct retiring engine functions: **50**
+- total open debts: **61**
+- distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 41 | wired call boundary, body incomplete |
+| stub | 38 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -36,7 +36,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | 2 |
 | FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
-| FUN_00468fd0 | 2 |
 | FUN_00474d92 | 2 |
 | 0x43e... | 1 |
 | FUN_00405b1a | 1 |
@@ -66,7 +65,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00485c74 | 1 |
 | FUN_00485f8c | 1 |
-| FUN_004864fd | 1 |
 | FUN_0048670f cc04 2 | 1 |
 | FUN_0048670f cc08 50 | 1 |
 | FUN_0048a383 | 1 |
@@ -81,7 +79,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (41)
+## stub (38)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -94,26 +92,23 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042f28c | src/actor_ai.c:3638 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:820 | the other bosses' / special enemies' |
 | FUN_00430c6d | src/actor_ai.c:4095 | the golem parts (types 62 / 63 / 65 / 66) |
-| FUN_00434ceb | src/scene_guild.c:17 | the "Item limit reached" box. |
-| FUN_00434ceb | src/scene_guild.c:463 | the message box is unported. |
+| FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
+| FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_postload.c:286 | dungeons 3 / 4's setups FUN_0044e08f / |
 | FUN_00436f97 | src/scene1_postload.c:322 | dungeon 5's return portal 6 beside |
 | FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
-| FUN_0044b219 | src/scene1_postload.c:353 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044b219 | src/scene1_postload.c:355 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044f078 | src/dungeon_party.c:652 | dungeon 4 floor 99's event helper |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
-| FUN_00468fd0 | src/scene_guild.c:15 | the Sell commit's bag removal; |
-| FUN_00468fd0 | src/scene_guild.c:506 | the removal is unported, |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:374 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
-| FUN_004864fd | src/scene_guild.c:16 | the expansion's shop re-layout; |
 | FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1013 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:980 | the faced stand's item |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
@@ -138,8 +133,8 @@ _none_
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
-| FUN_0048670f | src/scene1_shop_display.c:362 | collision_house.c keeps its own copy of |
-| FUN_0048ffd9 | src/scene1_postload.c:829 | the template seed re-runs on every |
+| FUN_0048670f | src/scene1_shop_display.c:365 | collision_house.c keeps its own copy of |
+| FUN_0048ffd9 | src/scene1_postload.c:861 | the template seed re-runs on every |
 | FUN_00490e56 | src/guild_stock.c:41 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |
@@ -173,7 +168,7 @@ _none_
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1343 | the carried table's items (drawn |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2240 | the eye / lookat writes); the |
-| render-coupled | FUN_0048f87c | src/scene_pause.c:1609 | the results screen's assets |
+| render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |
 

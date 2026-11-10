@@ -81,15 +81,20 @@ After any successful slider change: `DAT_09643560 = 1` (mark dirty).
 
 | Row | Var           | Range | Inc/dec SE feedback         | Notes                                  |
 |-----|---------------|-------|-----------------------------|----------------------------------------|
-| 0   | `DAT_056e5778` (BGM)   | 0..8 | none (silent)  — but `FUN_00499583` re-applies BGM volume | audio_fade_apply(BGM) |
-| 1   | `DAT_056e5774` (SE-A)  | 0..8 | SE `0x146`                  | volume takes effect on next play       |
-| 2   | `DAT_056e577c` (SE-B)  | 0..8 | filename SE via FUN_0049933c (`re_sys01a_b_005d1d{48,6c}` per direction) | volume takes effect on next play |
+| 0   | `DAT_056e5778` (BGM)   | 0..9 | none (silent)  — but `FUN_00499583` re-applies BGM volume | audio_fade_apply(BGM) |
+| 1   | `DAT_056e5774` (SE-A)  | 0..9 | SE `0x146`                  | volume takes effect on next play       |
+| 2   | `DAT_056e577c` (SE-B)  | 0..9 | filename SE via FUN_0049933c (`re_sys01a_b_005d1d{48,6c}` per direction) | volume takes effect on next play |
 | 3   | `DAT_056e5784` (slider3)| 0..2 | SE `0x146`                 | default 1 (likely text-display speed)   |
 | 4   | `DAT_056e5782` (slider4)| 0..1 | SE `0x146`                 | default 0 (likely a toggle)            |
 | 5   | (button)               | n/a  | SE `0x143` on A             | "Clear all data" — opens confirm modal  |
 
 Row 5 doesn't have a numeric value — A on it opens the modal; LEFT/RIGHT
 are ignored.
+
+Ranges corrected 2026-11-10 (was 0..8): the title page increments while `< 9`
+(IDA `sub_49A59E`: `if (dword_56E5778 >= 9) skip; ++dword_56E5778`), same as the
+pause page `FUN_0047fc44`. All five are save-arena header fields edited in
+place; the port binds its accessors to the header (`settings_bind_save_header`).
 
 ## Settings → main exit (LAB_0049a5d3 + dirty-save check)
 

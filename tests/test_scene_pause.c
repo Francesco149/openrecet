@@ -12,9 +12,13 @@
  */
 #include "t.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "scene_pause.h"
+#include "rng.h"     /* g_rng_seed */
 #include "worker_load.h"
 #include "sim.h"      /* ramp counters + g_sim_buttons[0] for the SM tests */
 #include "scene.h"    /* g_scene_state */
@@ -1151,6 +1155,108 @@ int test_pause_options_exit_clean_closes_no_save(void)
     pause_options_submenu_update();             /* closes */
     T_ASSERT_EQ_I(g_pause_options_phase, 0);
     T_ASSERT_EQ_I(g_pause_sub_dir, 0);
+    return 0;
+}
+
+/* The five values ARE save-arena header fields (retail edits DAT_056e5774 /
+ * 5778 / 577c / 5784 and the s16 DAT_056e5782 in place): with the accessors
+ * bound to the header, every L / R lands in the header bytes at once, the dirty
+ * exit's FUN_004905a8(-1) writes them to save.dat, a clean exit writes nothing.
+ * Inputs + values = the retail trace pause-options-saved (f271–353, f398). */
+static void opt_tick(uint16_t held, uint16_t pressed)
+{
+    g_sim_buttons[0].held    = held;
+    g_sim_buttons[0].pressed = pressed;
+    pause_options_submenu_update();
+    g_sim_buttons[0].held    = 0;
+    g_sim_buttons[0].pressed = 0;
+}
+
+int test_pause_options_edits_save_header_and_dirty_exit_writes_it(void)
+{
+    enum { R = 0x1, L = 0x2, DOWN = 0x8, A = 0x10, B = 0x20 };
+    char dir[96], path[128];
+    snprintf(dir, sizeof dir, "/tmp/openrecet-test-pause-opts-%d", (int)getpid());
+    snprintf(path, sizeof path, "%s/save.dat", dir);
+    mkdir(dir, 0700);
+    remove(path);
+
+    opt_prep(0);
+    save_bank_arena_clear();
+    const uint32_t rng0 = g_rng_seed;           /* the bank init draws; leave the suite's stream alone */
+    save_bank_init_all();                       /* FUN_004901c2: 9 / 5 / 9 / 0 / 1 */
+    g_rng_seed = rng0;
+    settings_bind_save_header();
+    const uint32_t *h = (const uint32_t *)(const void *)save_bank_header_bytes();
+    T_ASSERT_EQ_I((int)h[1], 9);  T_ASSERT_EQ_I((int)h[2], 5);
+    T_ASSERT_EQ_I((int)h[3], 9);  T_ASSERT_EQ_I((int)h[4], 0);
+    T_ASSERT_EQ_I((int)h[5], 1);
+    const uint32_t magic = h[0];
+
+    opt_tick(R, 0); opt_tick(R, 0); opt_tick(R, 0);     /* Music 5 → 8 */
+    T_ASSERT_EQ_I((int)h[2], 8);
+    T_ASSERT_EQ_I(g_pause_options_phase, 1);            /* dirty from the first edit */
+    opt_tick(L, 0);                                     /* → 7 */
+    T_ASSERT_EQ_I((int)h[2], 7);
+    opt_tick(DOWN, 0);
+    opt_tick(L, 0); opt_tick(L, 0); opt_tick(L, 0);     /* Sound 9 → 6 */
+    T_ASSERT_EQ_I((int)h[1], 6);
+    opt_tick(DOWN, 0);
+    opt_tick(L, 0); opt_tick(L, 0);                     /* Voice 9 → 7 */
+    T_ASSERT_EQ_I((int)h[3], 7);
+    opt_tick(DOWN, 0);
+    opt_tick(R, 0);                                     /* Message Speed 1 → 2 */
+    T_ASSERT_EQ_I((int)h[5], 2);
+    opt_tick(DOWN, 0);
+    T_ASSERT_EQ_I(g_pause_options_row, 4);
+    opt_tick(R, 0);                                     /* Unread Text Skip 0 → 1 */
+    T_ASSERT_EQ_I((int)h[4], 0x00010000);               /* the HIGH u16 of dword 4 */
+    opt_tick(R, 0);                                     /* at the limit: nothing */
+    T_ASSERT_EQ_I((int)h[4], 0x00010000);
+    T_ASSERT_EQ_I((int)h[0], (int)magic);               /* dword 0 is not restamped */
+    T_ASSERT_EQ_I(g_pause_options_phase, 1);
+
+    /* B, dirty → phase 2; the next tick writes the arena and closes the page */
+    g_pause_sub_dir = 1;
+    save_io_set_write_dir(dir);
+    opt_tick(0, B);
+    T_ASSERT_EQ_I(g_pause_options_phase, 2);
+    FILE *fp = fopen(path, "rb");
+    T_ASSERT(fp == NULL);                               /* not yet */
+    opt_tick(0, 0);
+    T_ASSERT_EQ_I(g_pause_options_phase, 0);
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);
+    uint32_t disk[6] = { 0 };
+    fp = fopen(path, "rb");
+    T_ASSERT(fp != NULL);
+    T_ASSERT_EQ_I((int)fread(disk, 4, 6, fp), 6);
+    fseek(fp, 0, SEEK_END);
+    T_ASSERT_EQ_I((int)ftell(fp), (int)SAVE_BANK_ARENA_BYTES);
+    fclose(fp);
+    T_ASSERT_EQ_I((int)disk[0], (int)magic);
+    T_ASSERT_EQ_I((int)disk[1], 6);  T_ASSERT_EQ_I((int)disk[2], 7);
+    T_ASSERT_EQ_I((int)disk[3], 7);  T_ASSERT_EQ_I((int)disk[4], 0x00010000);
+    T_ASSERT_EQ_I((int)disk[5], 2);
+
+    /* re-opened and left with A, clean → phase 3: closes, writes nothing */
+    remove(path);
+    snprintf(path, sizeof path, "%s/_save.dat", dir);
+    remove(path);
+    g_pause_sub_dir = 1;
+    opt_tick(0, A);
+    T_ASSERT_EQ_I(g_pause_options_phase, 3);
+    opt_tick(0, 0);
+    T_ASSERT_EQ_I(g_pause_options_phase, 0);
+    T_ASSERT_EQ_I(g_pause_sub_dir, 0);
+    snprintf(path, sizeof path, "%s/save.dat", dir);
+    fp = fopen(path, "rb");
+    T_ASSERT(fp == NULL);
+    T_ASSERT_EQ_I((int)h[1], 6);                        /* the edit stays in memory */
+
+    save_io_set_write_dir(NULL);
+    rmdir(dir);
+    audio_fade_reset();                                 /* unbind */
+    settings_reset();
     return 0;
 }
 

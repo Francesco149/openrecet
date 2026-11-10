@@ -345,3 +345,89 @@ int test_shop_display_move_tick_scenario(void)
     g_stage_b4dc = b4dc;
     return 0;
 }
+
+/* FUN_004864fd — the shop re-layout the guild's store Expansion runs right
+ * after the tier bump (retail trace guild-sell-expansion f900: tier 0 → 1,
+ * items 31 → 41, DAT_0438bfb4 3 → 4, table 0's origin x 3 → 4): every item on
+ * display back into the inventory in grid order, the grid empty, the per-table
+ * shelf lists returned + their flags cleared, the origins = the tier's
+ * template (FUN_0048ffd9), the table count by tier. */
+int test_shop_display_relayout_expansion(void)
+{
+    seed_house_furniture(1);                       /* the tier is already the new one */
+    uint32_t *bank = save_work_dwords_at(0);
+    bank[SAVE_BANK_FIELD_DECO_WALL] = bank[SAVE_BANK_FIELD_DECO_FLOOR] = 0;
+    bank[SAVE_BANK_FIELD_DECO_CARPET] = bank[SAVE_BANK_FIELD_DECO_TABLE] = 0;
+
+    /* 31 items in the bag (handles with bit 0x10: no encyclopedia entry to mark) */
+    int32_t *items = (int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        items[i] = i < 31 ? ((100 + i) << 6 | 0x10) : -1;
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 31;
+
+    /* ten on display, scattered; the bag gets them row-major (row·20 + col) */
+    int32_t *cells = display_cells();
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        cells[i] = -1;
+    static const int at[10] = { 3 + 20 * 4, 1, 4, 20 * 2, 4 + 20 * 3, 2, 3 + 20 * 3, 20 * 3, 4 + 20 * 4, 3 };
+    for (int k = 0; k < 10; k++)
+        cells[at[k]] = (500 + k) << 6 | 0x10;
+    static const int order[10] = { 1, 5, 9, 2, 3, 7, 6, 4, 0, 8 };   /* by cell index */
+
+    /* table 1's shelf list holds one item; every table's flag dword is set */
+    int32_t *shelf = (int32_t *)(bank + SHOP_DISPLAY_SHELF_ITEMS);
+    for (int i = 0; i < 10 * SHOP_DISPLAY_SHELF_SLOTS; i++)
+        shelf[i] = -1;
+    shelf[1 * SHOP_DISPLAY_SHELF_SLOTS + 7] = 900 << 6 | 0x10;
+    for (int i = 0; i < 10; i++)
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 1;
+
+    shop_display_relayout(bank);
+
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 4);            /* tier 1: 4 tables */
+    T_ASSERT_EQ_I(g_mapcol_objs.n2, 4);
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        T_ASSERT_EQ_I(cells[i], -1);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 42);
+    T_ASSERT_EQ_I(items[30], (130 << 6) | 0x10);               /* the bag as it was */
+    for (int k = 0; k < 10; k++)
+        T_ASSERT_EQ_I(items[31 + k], ((500 + order[k]) << 6) | 0x10);
+    T_ASSERT_EQ_I(items[41], (900 << 6) | 0x10);               /* then the shelf list's */
+    T_ASSERT_EQ_I(items[42], -1);
+    T_ASSERT_EQ_I(shelf[1 * SHOP_DISPLAY_SHELF_SLOTS + 7], -1);
+    for (int i = 0; i < 4; i++)
+        T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i], 0);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 4], 1);   /* only the tier's tables */
+    /* the tier-1 template: table 0 one cell right of tier 0's, the rest as before */
+    static const int32_t tier1[10][2] = {
+        {4, 3}, {1, 0}, {0, 1}, {9, 1}, {10, 3}, {11, 0}, {3, 6}, {6, 6}, {9, 6}, {12, 6},
+    };
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(table_origin(i)[0], tier1[i][0]);
+        T_ASSERT_EQ_I(table_origin(i)[1], tier1[i][1]);
+    }
+
+    /* the count by tier: 0 → 3, 2 → 6, 3 → 10 (the template's rows 2 / 3 move table 3) */
+    bank[SHOP_DISPLAY_TIER_SELECTOR] = 0;
+    shop_display_relayout(bank);
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 3);
+    T_ASSERT_EQ_I(table_origin(0)[0], 3);
+    bank[SHOP_DISPLAY_TIER_SELECTOR] = 2;
+    shop_display_relayout(bank);
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 6);
+    T_ASSERT_EQ_I(table_origin(3)[0], 14);
+    bank[SHOP_DISPLAY_TIER_SELECTOR] = 3;
+    shop_display_relayout(bank);
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 10);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 42);  /* nothing left to return */
+
+    bank[SHOP_DISPLAY_TIER_SELECTOR] = 0;
+    shop_display_relayout(bank);
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        items[i] = -1;
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 0;
+    for (int i = 0; i < 10; i++)
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 0;
+    g_mapcol_objs.n2 = 0;
+    return 0;
+}

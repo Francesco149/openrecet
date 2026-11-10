@@ -23,6 +23,9 @@
 #include "map_collision.h"           /* g_mapcol_objs (DAT_0438bfb0.., the same memory in retail) */
 #include "scene1_camera.h"           /* scene1_camera_view_mode (DAT_068dd3fc[stage]) */
 #include "audio.h"                   /* audio_play_se_by_id / _file (FUN_00499519 / FUN_0049933c) */
+#include "scene1_display_menu.h"     /* display_menu_inventory_return (FUN_00468d22) */
+#include "scene1_postload.h"         /* scene1_postload_seed_furniture (FUN_0048ffd9) */
+#include "customer_roster.h"         /* roster_compute_centroid (FUN_0048439a) */
 
 /* DAT_005cd104 base furniture-layout templates, 4 HOUSE shop tiers x 300
  * cells (15 rows x 20 cols, row-major: cell = col + row*20).  1=wall/fixture,
@@ -377,6 +380,63 @@ void shop_display_tables_place(void)
         g_scene1_walker_phase2_pos_x[i] = g_mapcol_objs.x[5 + i] = x + x;
         g_scene1_walker_phase2_pos_z[i] = g_mapcol_objs.z[5 + i] = z + z;
     }
+}
+
+/* FUN_004865d5 (0x4865d5): what stands on table `i` goes back into the
+ * inventory (FUN_00468d22) — the display-grid cells under its footprint from
+ * its origin (work +0x2ce10 + 8·i): a type-3 table (DAT_0438bfcc) 2×2, else by
+ * its rotation (DAT_0438c01c): 0.0 → 4 cells along x, otherwise 4 along z. */
+static void shop_display_table_empty(uint32_t *bank, int i)
+{
+    const int32_t *org = (const int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS) + 2 * i;
+    int32_t *cells = (int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
+    int rows, cols;
+    if (g_scene1_walker_phase2_mesh_type[i] == 3)        { rows = 2; cols = 2; }
+    else if (g_scene1_walker_phase2_rot_y[i] == 0.0f)    { rows = 1; cols = 4; }
+    else                                                 { rows = 4; cols = 1; }
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            const int idx = org[0] + c + SHOP_DISPLAY_GRID_STRIDE * (org[1] + r);
+            if (idx < 0 || idx >= SHOP_DISPLAY_GRID_CELLS)
+                continue;   /* retail indexes unchecked (a table is always on the grid) */
+            if (cells[idx] != -1) {
+                display_menu_inventory_return(bank, cells[idx]);
+                cells[idx] = -1;
+            }
+        }
+    }
+}
+
+/* FUN_004864fd (0x4864fd). */
+void shop_display_relayout(uint32_t *bank)
+{
+    if (bank == NULL)
+        return;
+    const int32_t tier = (int32_t)bank[SHOP_DISPLAY_TIER_SELECTOR];
+    const int n = tier == 0 ? 3 : tier == 1 ? 4 : tier == 2 ? 6 : 10;
+    g_scene1_walker_phase2_count = n;                           /* DAT_0438bfb4 */
+    g_mapcol_objs.n2 = n;                                       /* (the same dword) */
+
+    int32_t *cells = (int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
+    for (int k = 0; k < SHOP_DISPLAY_GRID_CELLS; k++) {         /* 15 rows × 20 */
+        if (cells[k] != -1) {
+            display_menu_inventory_return(bank, cells[k]);      /* FUN_00468d22 */
+            cells[k] = -1;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        shop_display_table_empty(bank, i);                      /* FUN_004865d5 */
+        int32_t *shelf = (int32_t *)(bank + SHOP_DISPLAY_SHELF_ITEMS) + SHOP_DISPLAY_SHELF_SLOTS * i;
+        for (int k = 0; k < SHOP_DISPLAY_SHELF_SLOTS; k++) {
+            if (shelf[k] != -1) {
+                display_menu_inventory_return(bank, shelf[k]);
+                shelf[k] = -1;
+            }
+        }
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 0;
+    }
+    scene1_postload_seed_furniture((uint8_t *)bank);            /* FUN_0048ffd9 */
+    roster_compute_centroid((const uint8_t *)save_work_dwords_at(save_work_active_slot()));   /* FUN_0048439a */
 }
 
 void shop_display_move_begin(void)
