@@ -1,0 +1,224 @@
+{
+ "_doc": "Named retail state for rd expressions (tools/drive/README.md). Each entry: {addr, type} or {expr}; status = shown in every status line; event = changes reported by `rd play`. Only entries VALIDATED on a live run belong here (say how in `note`); a run's own experiments go to <run>/vars.json (rd ram R define without --shared).",
+ "scene": {
+  "addr": "0x438b1c0",
+  "type": "s32",
+  "status": true,
+  "event": true,
+  "note": "DAT_0438b1c0: 0 title, 1 in game (house / shop / dungeon), 2 game over, 6 market / guild, 9 pause menu, 11 adventurers' guild"
+ },
+ "loading": {
+  "expr": "s32(0x6a49958) != 0 or s32(0x6a49960) != 0",
+  "note": "a load is pending (the LOADING_* anchors)"
+ },
+ "dlg": {
+  "addr": "0x438b1c8",
+  "type": "s32",
+  "status": true,
+  "event": true,
+  "note": "1 while a dialogue / event script owns the game"
+ },
+ "cc08": {
+  "addr": "0x438cc08",
+  "type": "s32",
+  "status": true,
+  "event": true,
+  "note": "DAT_0438cc08 in-scene mode: 0 free roam, 4 customer service, 10 counter menu, 15..18/30 Tear's menu pages, 0x17/3 decor editor (docs/findings/shop-counter-menu-RE.md)"
+ },
+ "px": {
+  "addr": "0x56da1d8",
+  "type": "f32",
+  "status": true,
+  "note": "player x (left/right = -/+)"
+ },
+ "py": {
+  "addr": "0x56da1dc",
+  "type": "f32"
+ },
+ "pz": {
+  "addr": "0x56da1e0",
+  "type": "f32",
+  "status": true,
+  "note": "player z (up/down = -/+)"
+ },
+ "slot": {
+  "addr": "0x438b1e0",
+  "type": "s32",
+  "note": "active working save bank"
+ },
+ "bank": {
+  "expr": "0x44e3798 + slot * 0x2dfc8",
+  "note": "VA of the active working bank (layout: tools/save_arena_map.json, dword D at bank + 4*D)"
+ },
+ "gold": {
+  "expr": "s32(bank + 4*3)",
+  "status": true,
+  "event": true,
+  "note": "pix (bank dword 3)"
+ },
+ "day": {
+  "expr": "s32(bank + 4*0xb0fb)",
+  "status": true,
+  "event": true,
+  "note": "bank dword 0xb0fb (the --cut day)"
+ },
+ "items": {
+  "expr": "s32(bank + 4*0xaec6)",
+  "note": "inventory count (bank dword 0xaec6)"
+ },
+ "pause": {
+  "addr": "0x438b150",
+  "type": "s32",
+  "note": "non-zero while a pause overlay is up (the pause MENU is scene 9)"
+ },
+ "conv": {
+  "addr": "0x56daafc",
+  "type": "s32",
+  "note": "player pose state (6 = conversation pose)"
+ },
+ "reveal": {
+  "addr": "0x73a3e00",
+  "type": "s32",
+  "note": "dialogue text reveal state (1 while a line types out)"
+ },
+ "revdone": {
+  "addr": "0x73a3e04",
+  "type": "s32",
+  "note": "non-zero once the current line is fully shown"
+ },
+ "line": {
+  "addr": "0x73a6a38",
+  "type": "s32",
+  "note": ">= 0 while a dialogue line is on screen"
+ },
+ "t_fade": {
+  "addr": "0x9643520",
+  "type": "s32",
+  "note": "title: submenu fade (0 = main menu takes input, 10 = a submenu is fully in)"
+ },
+ "t_sub": {
+  "addr": "0x9643524",
+  "type": "s32",
+  "note": "title: open submenu (1 save picker, 2 settings, 3 encyclopedia, 4 records)"
+ },
+ "t_cur": {
+  "addr": "0x9643540",
+  "type": "s32",
+  "note": "title: main-menu cursor (index into the item list)"
+ },
+ "t_item": {
+  "expr": "s32(0x9643358 + 4 * t_cur)",
+  "note": "title: item code under the cursor (1 Continue, 0/5 New Game, 4 New Game+, 6 survival)"
+ },
+ "t_pcur": {
+  "addr": "0x9643530",
+  "type": "s32",
+  "note": "title: save-picker cursor"
+ },
+ "t_start": {
+  "addr": "0x964351c",
+  "type": "s32",
+  "note": "title: game-start counter (0 at the title, 1 once a start is chosen)"
+ },
+ "pm_sel": {
+  "addr": "0x74b2878",
+  "type": "s32",
+  "note": "pause menu (scene 9): selected entry index"
+ },
+ "pm_type": {
+  "expr": "s32(0x74b2844 + 4 * pm_sel)",
+  "note": "pause menu: type of the selected entry (1 Items, 2 Options, 3 Save, 6 Encyclopedia)"
+ },
+ "pm_state": {
+  "addr": "0x74b2880",
+  "type": "s32",
+  "note": "pause menu: 10 = an entry's page is open"
+ },
+ "mlevel": {
+  "addr": "0x450fb98",
+  "type": "s32",
+  "note": "merchant level, 0-based (HUD shows +1); bank dword 0xb100. Probes: 5 in dungeon3-run2-save, list gates match (tear-orders-l10, move-tables-l10)"
+ },
+ "tx": {
+  "addr": "0x56da1f0",
+  "type": "f32",
+  "note": "Tear x (tear-news-orders: 0.6 at the morning spot)"
+ },
+ "tz": {
+  "addr": "0x56da1f8",
+  "type": "f32",
+  "note": "Tear z"
+ },
+ "reach": {
+  "addr": "0x438be7c",
+  "type": "s32",
+  "note": "DAT_0438be7c: 20 when Tear is in reach (within 2, facing her) \u2014 A then opens her menu"
+ },
+ "cc0c": {
+  "addr": "0x438cc0c",
+  "type": "s32",
+  "note": "list cursor of the counter menu (cc08 0) and Tear's menu (cc08 15)"
+ },
+ "cc04": {
+  "addr": "0x438cc04",
+  "type": "s32",
+  "note": "house sub-mode (1 = the display menu over a table cell)"
+ },
+ "tentry": {
+  "expr": "s32(0x74b28b0 + 4*cc0c)",
+  "note": "Tear's menu: entry code under the cursor (0 Store Atmosphere, 5 Merchant Level, 7 Lectures, 8 News Summary, 9 Outstanding Orders, 6 Time Lecture, 4 Never Mind)"
+ },
+ "centry": {
+  "expr": "s32(0x74b2d98 + 4*cc0c)",
+  "note": "counter menu: entry code under the cursor (0 Open Store, 1 Flooring, 2 Walls, 3 Carpet, 4 Tables, 5 Move Tables, 6 Cancel); the list is built when the menu opens"
+ },
+ "b74c": {
+  "addr": "0x438b74c",
+  "type": "s32",
+  "note": "menu slide ramp 0..12 (input from 10)"
+ },
+ "b8c0": {
+  "addr": "0x438b8c0",
+  "type": "s32",
+  "note": "Tear page slide / input lockout 0..10 (cc08 17)"
+ },
+ "gmode": {
+  "addr": "0x9642c00",
+  "type": "s32",
+  "event": true,
+  "note": "Merchants' Guild menu mode c00: 1 main list, 0 item / fusion list, 3 sell pick, 4 expansion confirm, 5 fusion confirm, 6 result anim, 8 quantity"
+ },
+ "gcur": {
+  "addr": "0x9642c04",
+  "type": "s32",
+  "note": "guild main cursor c04 (day 14: Buy, Sell, Fusion, Talk, Leave)"
+ },
+ "fcur": {
+  "addr": "0x9642c30",
+  "type": "s32",
+  "note": "fusion list cursor c30 (scroll c34 at 0x9642c34; result anim bfc 0x9642bfc; output plus bf8 0x9642bf8; recipe count 0x9642bf4)"
+ },
+ "wm_cur": {
+  "addr": "0x9643684",
+  "type": "s32",
+  "note": "town map cursor (3 = Merchants' Guild; scene 8)"
+ },
+ "mt_sel": {
+  "addr": "0x438bea4",
+  "type": "s32",
+  "note": "Move Tables (cc08 2): the table in hand; count at 0x438bfb4; table i grid x / z at bank+183824+8i / bank+183828+8i"
+ },
+ "floor": {
+  "addr": "0x438b4cc",
+  "type": "s32",
+  "note": "DAT_0438b4cc dungeon floor (the port mirrors it as 'next floor')"
+ },
+ "dungeon": {
+  "addr": "0x438b4c8",
+  "type": "s32",
+  "note": "DAT_0438b4c8 dungeon id"
+ },
+ "_cell": {
+  "expr": "(scene, cc08, int(px), int(pz))"
+ }
+}

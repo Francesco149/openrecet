@@ -72,6 +72,31 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     resume) and the new probe `_fpc4-cut-start`; synced pieces → golden → triage IDENTICAL.
   - ★ FPC-5: `playpass SESSION` (goldens for new pieces + triage, report) once the owner's pieces arrive;
     `where FUN_x|anchor` (coverage index).
+- ◐ **★ Agent-driven probing** (`tools/drive/README.md`, card `tools/drive/DRIVER.md`; evidence
+  `docs/findings/headless-savestates.md`; 2026-11-10): agents author retail traces themselves; the port is triaged
+  against them.
+  - ✅ rhost `--headless` (fake D3D8 / DirectMusic / DirectShow / DirectInput; wine without X): `headless-check`
+    **100/100 IDENTICAL** to the Windows real-device goldens (1,670,506 f); `--real --target win` 100/100.
+  - ✅ in-process savestates (`snap-check` **99/99**; restore 0.2 ms), `--live` sessions, screen text, native
+    exploration search; `./rd` (stateless driver); drivers = session subagents or `tools/drive/agent.sh` (API).
+  - ✅ first campaign (reports: `docs/findings/probes/`; scenarios filed, goldens made):
+    - `tear-news-summary`, `tear-outstanding-orders` (Tear's menu pages 8 / 9: cc08 15 → 16 → 17): port **IDENTICAL**
+      (f1–577 / f1–1982). Render of both pages stays PORT-DEBT (FUN_0040a765 entries 8 / 9).
+    - `guild-fusion-confirm` (display table → guild → fuse recipe 15 → Knight's Helm+2, modes 5 / 6 with the
+      table-A burst): port **IDENTICAL** f1–1083 — Fusion's confirm / result are verified.
+    - `decor-defaults` (decor editor, 4 kinds, defaults only): port IDENTICAL f1–835.
+    - `counter-move-tables` (Move Tables, cc08 2): **port SPLIT f618** `- ⇄ init_type_1f_100 (-5)` — the stubbed
+      mode lets the player walk. Repro `portrng counter-move-tables --window 614:620 --seq`.
+  - ★ next:
+    1. **port Move Tables** (FUN_0048670f case 2, FUN_0048940e, FUN_0048960d; notes in
+       `docs/findings/probes/counter-move-tables.md`) until `triage counter-move-tables` is identical.
+    2. accept the probes still running / reported (payday-week2, guild-sell-expansion, tear-menu-pages,
+       decor-variants, pause-options-change, adv-guild-hires, dungeon2-21f): `rd check` / `verify --real` / strip →
+       `rd file` → golden → triage; archive each report under `docs/findings/probes/`.
+    3. more tasks from the gaps below (each "no recording reaches it" line is a task); played saves from the
+       free-play capture replace crafted ones as they arrive.
+    4. speed / ergonomics (`headless-savestates.md` §Open): skip proven-pure render functions (FUN_00414ee2 = 48%
+       of a house tick), pictures from the headless draw stream, `--live` on the Windows box.
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;
@@ -138,10 +163,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - join by frame number.
 - ◐ wine/Linux target:
   - ✅ `rhost.py --target wine -j N`;
-  - ⚠ RNG diverges from Windows at new game: retail's SE path runs only with working
-    audio (`DAT_096430fc`), and headless wine has no DirectMusic. Windows native = RNG
-    truth (findings §10);
-  - ☐ wine DirectMusic, or a fix for the audio flag;
+  - ✅ with `--headless` (fake DirectMusic: `DAT_096430fc` = 1) wine ≡ Windows: 100/100 goldens (2026-11-10).
+    Without it (wine + Xvfb, real devices) the new-game RNG still diverges: use `--headless` under wine;
   - ☐ bounded podman container.
 - ◐ **Shop days (port side)** — native recordings `day2-shop`, `day2-buy-tutorial`,
   `buy-*`, `debt-gameover-restart` (retail replays exactly, shadows 0 div).
@@ -410,6 +433,9 @@ offer_down 7 / rand 177,676, 0 div. Hooks now log every haggle call (`haggle …
 rhost.log: base / ask / offer / floor / acc).
 
 ### Human queue (report at session end; ranked by what it unblocks)
+- **Later-game saves are what the agents lack.** The played saves stop at day 14 / merchant level 6 (HUD); probes
+  beyond that run on crafted saves (`tools/craft_pix_save.py --set / --add-item`), which are not states the game
+  produced. Every free-play piece below is also a start point for `rd` tasks (`--from save:SHA`).
 - **The free-play playthrough** (FPC-4 installed 2026-11-04; unblocks everything below + FPC-5). On the
   Windows desktop double-click **Recettear capture** (no save yet → New Game). Play as you like; close the
   game window to stop, re-launch to continue from the newest save. A save on a later day, or loading /

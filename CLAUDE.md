@@ -19,6 +19,8 @@ Dense on purpose; auto-loads every session. **The repo is the source of truth**;
   `i686-w64-mingw32-gcc`/`wine`. `nix develop --command …` = the pinned devshell (build,
   tests, hooks).
 - **`ssh win`** — Windows desktop, native OpenSSH on cutestation:2222, PowerShell shell.
+  If the alias's address is stale (the box on wifi), `export RHOST_WIN=win-wifi` (or any alias of
+  `cutestation.soy:2222`): every rhost / rd command takes the host from it.
   sshd runs in session 0 (no desktop ⇒ no D3D), so GUI/D3D jobs go through the rhost
   queue runner (`tools/rhost/README.md`). IDA Pro 9.4 lives here (`C:\orc-ida\`).
 - **`ssh wslop`** — WSL NixOS on the same box. Optional now. Port 22 there is a portproxy
@@ -61,6 +63,21 @@ fps on Windows native.
 replayed from captured D3D8 streams. rhost records retail's stream with
 `--d3d --cap FROM:COUNT`. Human eyes only for visual-equivalence, feel and audio judgement.
 
+**Agent-driven probing (2026-11-10 — `tools/drive/README.md`, card `tools/drive/DRIVER.md`).**
+- `./rd` drives retail LIVE on rhost's headless devices (wine, no X, no GPU): step, read state by
+  name, screen text, in-process savestates (restore 0.2 ms), exploration search (`-j N` sessions).
+  A run = its movie (a flat trace); `rd verify [--real]`, `rd check TASK`, `rd file R NAME` →
+  `rhost.py golden / triage NAME` = the port against a trace nobody played.
+- Use it for coverage gaps (FRONT "no recording reaches", unverified PORT-DEBT): write
+  `tools/drive/tasks/NAME.md` (start save, ordered state predicates), hand DRIVER.md + the task to
+  a subagent, or `tools/drive/agent.sh` (API-billed; only when there is API credit to burn).
+  Check the task's precondition first; craft a save if no played one has it
+  (`tools/craft_pix_save.py --set`).
+- Human free-play traces stay the source for what a player does and for feel; saves from them are
+  the agents' start points.
+- Gates after touching rhost: `rhost.py headless-check --target wine` (headless ≡ real-device
+  goldens), `headless-check --real --target win` (core changes), `snap-check --target wine`.
+
 **Open Phase-0 items** (see FRONT):
 - port-side determinism, so port↔retail align by frame number;
 - `-std=gnu11` switch after the float sweep;
@@ -98,6 +115,9 @@ replayed from captured D3D8 streams. rhost records retail's stream with
 - **Python tool tests:** `python3 tools/run_python_tests.py`.
 - **rhost:** `python3 tools/rhost/rhost.py run|det|corpus|record|flatten|diff` (auto
   build + stage). Results go to `/mnt/ephemeral/openrecet/rhost-runs/`.
+- **rd:** `./rd new|play|tap|status|text|eval|ram|ck|undo|search|look|strip|verify|check|file|port`
+  (`tools/drive/drive.py`). Runs in `/mnt/ephemeral/openrecet/drive/runs/`; live sessions are wine
+  processes on maximus (~0.6 GB each, exit after 30 min idle; `./rd stop R`, `./rd ls`).
 - **Game data:** maximus `/mnt/ephemeral/openrecet/staged_retail/` (unpacked exe + data);
   Windows `C:\orc-rhost\game\` (pristine; rhost writes go to the run dir). Use
   `recettear.unpacked.exe` (Steamless); `vendor/original` is SteamStub-encrypted.
@@ -134,6 +154,7 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   `docs/findings/in-process-retail-host.md`.
 - **Tools:**
   - rhost: `tools/rhost/README.md`
+  - rd (agents drive retail): `tools/drive/README.md`, `tools/drive/DRIVER.md`
   - oracle prototypes: `tools/oracle/README.md`
   - save.dat compare: `tools/save_compare.py`
   - viewer: `docs/plans/trace-studio-v3.md`
