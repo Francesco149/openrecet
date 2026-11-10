@@ -4,7 +4,7 @@ start: save:c062daff8848
 steps:
   - at the title: scene == 0 and frame > 60
   - a title sub-page is open: scene == 0 and t_sub != 0 and frame > 60
-  - back on the title's main menu at the end: scene == 0 and t_sub == 0 and frame > 600
+  - back on the title's main menu at the end: scene == 0 and t_fade == 0 and frame > 2000
 forbid:
   - left the title: scene == 1
 ---
@@ -24,3 +24,6 @@ cursors (`rd ram mark/diff` around one move). In LOAD GAME: scroll the whole slo
 
 Report, beyond the card's list: `t_sub` per page, cursor variables, each page's text and buttons, the slot list
 as read; strips of each page.
+
+**After the first run (2026-11-10):** `t_sub` is NOT cleared when a page closes (only the title's init
+writes 0): the main menu has input again when `t_fade` (0x9643520) is back at 0 — step 3 now says so.

@@ -83,17 +83,19 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ render skip: `rd` sessions run with `--skip-fn 414ee2` (overlay particle dispatcher, 48% of a house tick):
     `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408` **121/121 equal** (frame, RNG, state_sem, save.dat);
     house 741 → 1,330 ticks/s; `rd verify` replays unskipped (`headless-savestates.md` §5).
-  - ✅ campaign 2026-11-10: **31 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
+  - ✅ campaign 2026-11-10: **35 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
     --real` MATCH (reports `docs/findings/probes/`, indexed in `findings/INDEX.md`; start saves and their lineage
-    `tools/drive/SAVES.md`; 30 API drivers ≈ $38, one subscription subagent for the dungeon). Port `10e36b61`
-    (9c219702f87a), `triage`: **27 identical** (10 with save IDENTICAL), 4 split:
+    `tools/drive/SAVES.md`; 34 API drivers ≈ $43, one subscription subagent for the dungeon). Port `10e36b61`
+    (9c219702f87a), `triage`: **31 identical** (13 with save IDENTICAL), 4 split:
     - identical: `tear-news-summary`, `tear-outstanding-orders`, `tear-menu-pages` (Tear's pages; their render
       stays PORT-DEBT), `guild-fusion-confirm` (modes 5 / 6), `decor-defaults`, `decor-variants`,
       `market-buy-display`, `payday-week2-paid` + save, `gameover-loop-dungeon0`, `town-rounds-week3`,
       `pub-evening-week3`, `pause-status-items`, `pause-encyclopedia`, `shop-session-week3` + save (haggling at
       105 / 130%, walk-out, a seller), `order-customer-week3`, `calendar-week3` + save (days 15–22), `calendar-week4`
       + save (days 22–29, 36,768 ticks), `change-tables-l16` + save, `item-storage-l17` + save (the 25-slot
-      dungeon bag), `endless-first-days` + save (Endless Mode's title card + two days), `dungeon2-21f-25f` (floors 21F–25F + one crown slime).
+      dungeon bag), `endless-first-days` + save (Endless Mode's title card + two days), `week5-gameover` + save (the last
+      payment missed → the loop back to day 1; 25,581 ticks), `order-deadline-missed` + save, `guild-talk-topics`
+      + save, `title-extras` (the title's pages after the ending), `dungeon2-21f-25f` (floors 21F–25F + one crown slime).
     - splits found and ported the same day by subagents: `counter-move-tables` (f618 → 749a4e37),
       `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94 (also closed the legacy
       `guild-ui-flow` f3425 split), `vending-level16` (f5500) + `vender-sales-l16` (save 5 bytes) → 10e36b61
@@ -117,20 +119,18 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ★ next:
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.
-    2. keep the agent rows green: `gates` has 88 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
-       (2026-11-10; 36 of them agent-authored; the 2 `endless-first-days` rows were added after, triage-identical). Add a scenario's rows when its triage is
+    2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
+       (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
-    3. probes out: `week5-gameover`, `order-deadline-missed`, `title-extras`, `guild-talk-topics` — `./rd accept
-       RUN NAME --task …` each.
-    4. fault-free write tracking (`headless-savestates.md` §3 known limit: a write fault's exception frame on the
+    3. fault-free write tracking (`headless-savestates.md` §3 known limit: a write fault's exception frame on the
        game stack is read back by retail's uninitialised locals — 1 of 126 `snap-check` rows, restore exact): the
        tracker as a debugger of the process, or write-watch memory.
-    5. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
+    4. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
        25F second crown slime + 26F–30F (`rd search --score`; the first run stalled on the survivor), adventurers
        beyond Louie / Charme (none appears through day 35 without dungeon progress), a move → town → return trace
-       (`PORT-DEBT(simplified, FUN_0048ffd9)`), a week-5 game over, Endless Mode days, venders 5202 / 5203 and the
+       (`PORT-DEBT(simplified, FUN_0048ffd9)`), venders 5202 / 5203 and the
        3-machine limit (asm-only), `PORT-DEBT(stub, FUN_0048670f cc08 50)`.
-    6. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
+    5. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
        (`FUN_00459847`, gate each), pictures from the headless draw stream, `--live` on the Windows box, action
        specs that read state, the highlighted row in `rd text`, a shop-customer actor table in `vars.json`;
        triage's split signature pairs chains by position (it named retail's sparkle chain for the port's extra

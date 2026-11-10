@@ -48,9 +48,9 @@ the next command replays the movie (800–5,000 fps).
 
 ## Measured: the first campaign (2026-11-10)
 
-31 probes accepted in one session (task files in `tasks/`, reports in `docs/findings/probes/`), each: `rd check`
+35 probes accepted in one session (task files in `tasks/`, reports in `docs/findings/probes/`), each: `rd check`
 PASS, `rd verify --real` MATCH on Windows Direct3D 8, a retail golden, the port triaged. Drivers: `agent.sh`
-(claude-opus-5-5, effort high) for 30, a subscription subagent for the dungeon.
+(claude-opus-5-5, effort high) for 34, a subscription subagent for the dungeon.
 
 | probe | frames | turns | cost | wall | port (final) |
 |---|---|---|---|---|---|
@@ -84,11 +84,15 @@ PASS, `rd verify --real` MATCH on Windows Direct3D 8, a retail golden, the port 
 | survival-start | 6,918 | 64 | $0.95 | 9 min | **split f243** (the picker start, as New Game +) |
 | endless-first-days | 10,659 | 69 | $1.07 | 11 min | identical + save |
 | survival-hell-start | 20,163 | 81 | $1.34 | 14 min | **split f212** (the picker start) |
+| week5-gameover | 25,281 | 53 | $0.88 | 12 min | identical + save |
+| order-deadline-missed | 10,716 | 144 | $2.55 | 22 min | identical + save |
+| title-extras | 2,568 | 56 | $0.87 | 9 min | identical |
+| guild-talk-topics | 3,881 | 52 | $0.77 | 8 min | identical + save |
 
 What the numbers say:
 - A menu / page probe is ~$0.5 and a few minutes; a flow with dialogue-heavy play $1–3. The driver's turns are the
-  cost; the game side is free (a probe uses seconds of CPU). 30 API probes: ~$38.
-- **9 port divergences in 31 probes**, each with a one-command repro; 5 ported the same day by subagents from the
+  cost; the game side is free (a probe uses seconds of CPU). 34 API probes: ~$43.
+- **9 port divergences in 35 probes**, each with a one-command repro; 5 ported the same day by subagents from the
   probe's report + IDA (Move Tables, the Options save, the guild's Sell + Expansion, vending machines, machine
   sales), 4 open (the ending; New Game + and both Survival starts, one cause). Probes that come back identical verify "ported ahead of a recording" code (Fusion's
   confirm / result, the paid payment night, Tear's pages, a week-3 shop session with haggling, customer orders,
