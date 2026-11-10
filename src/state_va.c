@@ -235,6 +235,13 @@ static int32_t get_c998(void)    { return sim_get_counter_998(); }
 static int32_t get_c990(void)    { return sim_get_counter_990(); }
 static int32_t get_c99c(void)    { return sim_get_counter_99c(); }
 static int32_t get_bf68(void)    { return shop_display_bf68(); }
+static int32_t get_vend_pick(void)  { return shop_vender_menu_pick(); }
+static int32_t get_vend_row(void)   { return shop_vender_menu_row(); }
+static int32_t get_vend_top(void)   { return shop_vender_menu_top(); }
+static int32_t get_vend_last(void)  { return shop_vender_menu_last(); }
+static int32_t get_vend_table(void) { return shop_vender_menu_table(); }
+static int32_t get_dm_hl(void)      { return display_menu_highlight_item(); }
+static int32_t get_dm_poss(void)    { return display_menu_possessed(); }
 static int32_t get_pact(void)    { return g_pause_action; }
 static int32_t get_fade(void)    { return g_fade_phase; }
 static int32_t get_fadec(void)   { return g_fade_counter; }
@@ -402,6 +409,13 @@ static const state_va_t k_map[] = {
     { 0x6a49990u, "pause fade counter (DAT_06a49990)", get_c990 },
     { 0x6a4999cu, "pause slide ramp c99c (DAT_06a4999c)", get_c99c },
     { 0x438bf68u, "faced stand + 1 (DAT_0438bf68)", get_bf68 },
+    { 0x74b2ed4u, "vender menu: item list picking (DAT_074b2ed4)", get_vend_pick },
+    { 0x74b2ed8u, "vender menu row (DAT_074b2ed8)", get_vend_row },
+    { 0x74b2edcu, "vender menu first row shown (DAT_074b2edc)", get_vend_top },
+    { 0x74b2ee0u, "vender menu last row (DAT_074b2ee0)", get_vend_last },
+    { 0x438bf64u, "vender menu table (DAT_0438bf64)", get_vend_table },
+    { 0x734b998u, "item window highlighted item (DAT_0734b998)", get_dm_hl },
+    { 0x5c6ee4u,  "item window number possessed (DAT_005c6ee4)", get_dm_poss },
     { 0x438bea4u, "Move Tables' carried table (DAT_0438bea4)", get_bea4 },
     { 0x438b4e8u, "camera stage class (DAT_0438b4e8)", get_b4e8 },
     { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },

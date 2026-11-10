@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **61**
-- distinct retiring engine functions: **48**
+- total open debts: **60**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 38 | wired call boundary, body incomplete |
+| stub | 37 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -65,7 +65,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00485c74 | 1 |
 | FUN_00485f8c | 1 |
-| FUN_0048670f cc04 2 | 1 |
 | FUN_0048670f cc08 50 | 1 |
 | FUN_0048a383 | 1 |
 | FUN_0048b850 da1bc | 1 |
@@ -79,12 +78,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (38)
+## stub (37)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
-| FUN_0040a765 | src/scene1_hud.c:362 | the pages of entries 8 (news summary) and |
+| FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
 | FUN_0042e1a6 | src/actor_ai.c:4085 | the death (EXP, drops, the kill count) |
@@ -105,11 +104,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1252 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:657 | the event-window pair (chars 0x2f / 0x30) |
-| FUN_00473c15 | src/scene1_preload.c:328 | the floor's render assets (see |
-| FUN_00473c15 | src/scene1_preload.c:374 | the floor's render assets — the enemy |
+| FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
+| FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
-| FUN_0048670f cc04 2 | src/scene1_player_ctrl.c:1013 | the furniture-grid mode (cc04 = 2, |
 | FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:980 | the faced stand's item |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:1881 | the attack lunge (da1bc 1..ccb8) |
@@ -133,7 +131,7 @@ _none_
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
-| FUN_0048670f | src/scene1_shop_display.c:365 | collision_house.c keeps its own copy of |
+| FUN_0048670f | src/scene1_shop_display.c:375 | collision_house.c keeps its own copy of |
 | FUN_0048ffd9 | src/scene1_postload.c:861 | the template seed re-runs on every |
 | FUN_00490e56 | src/guild_stock.c:41 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
@@ -163,11 +161,11 @@ _none_
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:818 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3191 | types >= 64 read past DAT_005c23f0 into |
-| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1660 | the menu, note, lecture and |
-| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:523 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1695 | the menu, note, lecture and |
+| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1343 | the carried table's items (drawn |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2240 | the eye / lookat writes); the |
+| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1371 | the carried table's items (drawn |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2275 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |

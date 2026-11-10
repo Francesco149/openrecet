@@ -1913,6 +1913,10 @@ struct test_case {
     X(shop_display_placement_check_verdicts) \
     X(shop_display_move_tick_scenario) \
     X(shop_display_relayout_expansion) \
+    X(shop_vender_place_level_gates) \
+    X(shop_vender_place_swaps_the_table) \
+    X(shop_vender_menu_rows_and_paging) \
+    X(shop_vender_menu_stock_detail_revert) \
     \
     X(display_menu_open_inits_none_entry) \
     X(display_menu_update_returns_0_while_sliding) \
@@ -3422,10 +3426,10 @@ struct test_case {
     X(scene1_walker_pass_init_type_4_flag_zero_no_flip) \
     X(scene1_walker_pass_init_type_4_flag_mask_fails_no_flip) \
     X(scene1_walker_pass_init_type_4_rot_zero_one_flip) \
-    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_y_small_one_flip) \
-    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_y_large_two_flips) \
-    X(scene1_walker_pass_init_type_4_other_rot_pos_y_large_one_flip) \
-    X(scene1_walker_pass_init_type_4_other_rot_pos_y_small_no_flip) \
+    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_x_small_one_flip) \
+    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_x_large_two_flips) \
+    X(scene1_walker_pass_init_type_4_other_rot_pos_x_large_one_flip) \
+    X(scene1_walker_pass_init_type_4_other_rot_pos_x_small_no_flip) \
     X(scene1_walker_pass_init_multi_mesh_per_index_hook) \
     X(scene1_walker_pass_init_flag_hook_null_treated_as_zero) \
     X(scene1_walker_pass_init_hook_getter_round_trip) \

@@ -30,8 +30,10 @@
  * All resolve as `save_work_dwords_at(save_work_active_slot()) + OFF`. */
 #define SHOP_DISPLAY_TIER_SELECTOR     0xb378  /* DAT_04510578 (rec+0x2cde0) */
 #define SHOP_DISPLAY_FURNITURE_ORIGINS 0xb384  /* DAT_045105a8 (rec+0x2ce10) — (x,z) pairs, stride 2 */
-#define SHOP_DISPLAY_SUPPRESS_FLAGS    0xb1d4  /* DAT_0450fee8 (rec+0x2c750) — per-furniture dword */
-#define SHOP_DISPLAY_SHELF_ITEMS       0xb1e8  /* rec+0x2c7a0 — 20 item handles per furniture (-1 = empty) */
+#define SHOP_DISPLAY_SUPPRESS_FLAGS    0xb1d4  /* DAT_0450fee8 (rec+0x2c750) — per table: 0, or the vender's item
+                                                * handle when the table is a vending machine */
+#define SHOP_DISPLAY_SHELF_ITEMS       0xb1e8  /* rec+0x2c7a0 — a vending machine's stock: 20 item handles per
+                                                * table (-1 = empty) */
 #define SHOP_DISPLAY_SHELF_SLOTS       20
 
 /* Display-grid geometry (the layout grid is the same 15-row × 20-col shape as
@@ -136,6 +138,75 @@ void shop_display_tables_place(void);
 void shop_display_relayout(uint32_t *bank);
 
 int shop_display_move_table(void);                 /* DAT_0438bea4 */
+
+/* FUN_004865d5(table): what stands on table `i` goes back into the inventory
+ * (FUN_00468d22) — the display-grid cells under its footprint, from its origin
+ * (work +0x2ce10 + 8·i): type 3 (DAT_0438bfcc) 2×2 row-major, else rotation 0.0
+ * (DAT_0438c01c) 4 along x, otherwise 4 along z.  i < 0 does nothing (retail
+ * reads the dwords before its arrays). */
+void shop_display_table_empty(uint32_t *bank, int i);
+
+/* ── vending machines (FUN_0048670f: the cc04 1 confirm's 5201..5299 arm, the
+ * cc04 0 gate's furniture arm, the cc04 2 arm) ─────────────────────────────
+ * A table whose flag dword (work +0x2c750 + 4·table) is not 0 IS a vending
+ * machine: the dword is the vender's item handle (id << 6: 0x51440 Old Vender
+ * 5201, 0x51480 5202, 0x514c0 5203).  Its stock is the table's 20-slot shelf
+ * list (work +0x2c7a0 + 80·table, -1 = empty); 6 / 8 / 10 slots are offered by
+ * handle 0x51440 / 0x51480 / any other. */
+
+/* The cc04 1 confirm with a 5201..5299 item (asm 0x489274..0x4892fe).  Counts
+ * the machines among the DAT_0438bfb4 tables, then by the merchant level (work
+ * +0x2c400, 0-based):
+ *   < 14                    → SHOP_VENDER_LEVEL (nothing changes);
+ *   < 21 with 3 machines    → SHOP_VENDER_LIMIT (nothing changes);
+ *   else                    → SHOP_VENDER_PLACED: the faced cell's table
+ *     (FUN_004860c8(cbfc, cc00)) is emptied into the inventory (FUN_004865d5),
+ *     its flag dword and the faced display-grid cell = `item`, `item` leaves the
+ *     inventory (FUN_00469241). */
+enum { SHOP_VENDER_PLACED = 0, SHOP_VENDER_LEVEL = 1, SHOP_VENDER_LIMIT = 2 };
+int shop_vender_place(uint32_t *bank, int item);
+
+/* The cc04 0 gate's furniture arm (asm 0x488c47..0x488cc9), after cc04 = 2 and
+ * the cbe8 latch: FUN_00468338(0, first_open), the menu state — DAT_074b2ed4 0,
+ * the row DAT_074b2ed8 2 (the first slot), the first row shown DAT_074b2edc 0,
+ * the last row DAT_074b2ee0 7 / 9 / 11, DAT_0438bf64 = `table` — SE 0x143 and
+ * the hand cursor's slide to the row (LABEL_673: x 16, y 40·(row − top) + 124). */
+void shop_vender_menu_open(int table, int first_open);
+
+/* One cc04 2 frame (asm 0x488dda..0x489153) on the edge mask `pressed`
+ * (DAT_073dddd4) and the repeat mask `held` (DAT_073dddd6).  Rows: 0 "Revert To
+ * Table", 1 "Done Stocking", 2.. slot row − 2.  Returns 1 when the menu closes
+ * (the caller: cc04 = 0).
+ *  DAT_074b2ed4 == 0 (the rows):
+ *   - an open item detail (DAT_0734b96c) closes on A / B / Y (SE 710), else waits;
+ *   - B 0x20: close — cursor off, the item window slides out, SE 0x13d;
+ *   - Y 0x40 on a stocked slot: its detail (DAT_0734b96c 1, DAT_0734b998 = the
+ *     item, no recount), cursor off, SE 710;
+ *   - A 0x10: row 0 — the table is a table again: FUN_004865d5 (the machine
+ *     itself is the item in its display cell), the 20 shelf slots back into the
+ *     inventory, the flag dword of FUN_004860c8(cbfc, cc00) = 0, close, SE 0x143;
+ *     row 1 — close, SE 0x143; a slot — DAT_074b2ed4 = 1, the hand cursor onto
+ *     the item list (FUN_0046939a), SE 0x143;
+ *   - else up 4 / down 8 a row, left 2 / right 1 six rows (SE 0x146, the window
+ *     of 6 follows), then FUN_00468286 highlights the row's item (-1 on rows 0 / 1).
+ *  DAT_074b2ed4 == 1 (the item list, FUN_00469414(1)): 2 → back to the rows (SE
+ *  0x13d); 3 → SE 0x143; 1 → the slot's item back into the inventory, the picked
+ *  one (FUN_00469a9f, -1 "Nothing") into the slot and out of the inventory, the
+ *  list rebuilt (FUN_00468338(0, 0)) and shown at once (FUN_004682e3).
+ *  Retail quirk: the pick is also written to DAT_0438b67c[row] = the dungeon
+ *  bag's "brought from the shop" list DAT_0438b684[row − 2]. */
+int shop_vender_menu_tick(uint16_t pressed, uint16_t held);
+
+/* work +0x2c750 + 4·i: table i's vender handle, 0 = an ordinary table
+ * (FUN_00457714's mesh choice and the 0x514c0 placement) */
+int32_t shop_display_table_flag(int i);
+
+/* DAT_074b2ed4 / ed8 / edc / ee0 and DAT_0438bf64 (the render, state_va) */
+int shop_vender_menu_pick(void);
+int shop_vender_menu_row(void);
+int shop_vender_menu_top(void);
+int shop_vender_menu_last(void);
+int shop_vender_menu_table(void);
 
 /* state_va: DAT_074b28d8 (the carried cells) .. DAT_074b28e8 (the layout
  * grid, 300 dwords); NULL if `va` is not one of them */

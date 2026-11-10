@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 13,
-  "port_debt": 72,
+  "port_debt": 71,
   "verified": 81,
   "stubbed": 10,
   "ported": 734,
@@ -5506,6 +5506,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/title_continue_picker.c",
@@ -5730,6 +5731,7 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
+    "src/scene1_shop_display.c",
     "src/scene1_sim.c",
     "src/scene_adv_guild.c",
     "src/scene_gameover.c",
@@ -5763,6 +5765,7 @@
     "src/encyclopedia.c",
     "src/main.c",
     "src/scene1_display_menu.c",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
@@ -5902,7 +5905,7 @@
     "src/customer_service.c",
     "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
-    "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -9477,6 +9480,7 @@
     "src/scene1_preload.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
+    "src/scene1_shop_display.h",
     "src/scene1_walker_pass_init.c",
     "src/scene1_walker_pass_init.h",
     "src/scene_map_meshes.h"
@@ -11468,6 +11472,7 @@
     "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.h",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c"
@@ -11497,6 +11502,7 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c"
@@ -11523,6 +11529,7 @@
     "src/customer_service.c",
     "src/dungeon_results.c",
     "src/scene1_display_menu.h",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_pause.c"
    ],
@@ -11658,6 +11665,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_pause.c"
    ],
@@ -11779,6 +11788,7 @@
     "src/scene.c",
     "src/scene.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_new_game.c",
@@ -11830,6 +11840,8 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_pause.c",
     "src/stage_load_pulse.h"
@@ -11883,6 +11895,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_adv_guild.h",
     "src/scene_guild.c",
@@ -12194,6 +12208,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c"
    ],
    "status": "ported"
@@ -12265,6 +12281,8 @@
     "src/dungeon_results.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c"
@@ -12343,6 +12361,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c"
@@ -12415,6 +12435,8 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
@@ -12515,6 +12537,7 @@
    "src": [
     "src/customer_service_render.c",
     "src/scene1_display_menu.c",
+    "src/scene1_hud.c",
     "src/scene_adv_guild.c",
     "src/scene_adv_guild.h",
     "src/scene_pause.c"

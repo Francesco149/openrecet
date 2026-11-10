@@ -95,6 +95,7 @@ void scene1_preload_floor_layout(void)
 #include "scene_table.h"
 #include "scene_walls.h"
 #include "scene1_walker_pass_init.h"
+#include "scene1_shop_display.h"   /* shop_display_table_flag (work +0x2c750) */
 #include "sprite.h"
 #include "mem_probe.h"     /* the loaders' address-space log */
 #include "scene1_maplight.h"   /* scene1_current_stage_record (the water fields) */
@@ -495,6 +496,9 @@ int scene1_preload_house(void)
     scene1_walker_set_kabe_texture_hook(house_kabe_texture);
     scene1_walker_set_yuka_texture_hook(house_yuka_texture);
     scene1_walker_set_jutan_texture_hook(house_jutan_texture);
+    /* FUN_00457714 reads each table's vender dword (work +0x2c750 + 4·i): a
+     * vending machine draws its own mesh (DAT_068dcca0 5..10) */
+    scene1_walker_phase2_set_flag_hook(shop_display_table_flag);
     /* Bind the real hikari/window texture (mood_para) so the hikari pass
      * stops falling back to the cyan embedded submesh sprite. */
     scene1_preload_water_frames_drop();

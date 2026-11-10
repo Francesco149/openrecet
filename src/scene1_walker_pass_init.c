@@ -94,22 +94,18 @@ void scene1_walker_phase2_reset(void)
 #define K_POINT_TWO   0.2f               /* 0x5198d8 = 0x3e4ccccd */
 #define K_NEG_PT_TWO (-0.2f)             /* 0x519a8c = 0xbe4ccccd */
 
-/* Append `T(2,0,0) × RotY(π) × world` to world, in place.
+/* Append the vender-5203 placement `RotY(π) × T(0,0,2) × world`, in place.
  *
  * Engine pattern (asm 0x457ebd..0x457f0a — repeated at 0x457f1c..0x457f65
- * and 0x457f78..0x457fc7).  Each occurrence: MatrixTranslation(t2,2,0,0);
- * Multiply(world, t2, world); MatrixRotationY(ry, π); Multiply(world, ry, world).
- *
- * Result on row-vector (D3D row-major) world matrix:
- *     world' = RotY(π) × T(2,0,0) × world
- * (composed right-to-left in our row-vector convention, so applied
- *  left-to-right to a vertex: first T(2,0,0), then RotY(π), then
- *  whatever was already there). */
+ * and 0x457f78..0x457fc7).  Each occurrence: D3DXMatrixTranslation(t, 0, 0, 2)
+ * — the 2.0 is pushed FIRST = the last argument z, exactly like the table's
+ * own T(x, y, z) at 0x457e48 pushes [esi+0xf0] (z) first — Multiply(world, t,
+ * world); MatrixRotationY(ry, π); Multiply(world, ry, world). */
 static void append_flip_chain(float world[16])
 {
     float t2[16];
     float ry_pi[16];
-    mat4_translation(t2, K_TWO, K_ZERO, K_ZERO);
+    mat4_translation(t2, K_ZERO, K_ZERO, K_TWO);
     mat4_mul(world, t2, world);
     mat4_rotation_y(ry_pi, K_PI);
     mat4_mul(world, ry_pi, world);
@@ -158,15 +154,16 @@ int scene1_walker_phase2_compute(float *out_matrices)
                     /* rot==π/2 branch (asm 0x457f1c..0x457f65 +
                      * fall-through to > 5.0 check). */
                     append_flip_chain(world);
-                    if (g_scene1_walker_phase2_pos_y[i] > K_FIVE) {
-                        /* > 5.0 branch (asm 0x457f78..0x457fc7) —
-                         * applied AGAIN after the π/2 branch's flip. */
+                    if (g_scene1_walker_phase2_pos_x[i] > K_FIVE) {
+                        /* x > 5.0 branch (asm 0x457f6a: fld [esi+0x50] =
+                         * DAT_0438c06c, the table's x) — applied AGAIN
+                         * after the π/2 branch's flip. */
                         append_flip_chain(world);
                     }
                 } else {
-                    /* Direct fall-through to > 5.0 check (rot != 0,
+                    /* Direct fall-through to the x > 5.0 check (rot != 0,
                      * rot != π/2). */
-                    if (g_scene1_walker_phase2_pos_y[i] > K_FIVE) {
+                    if (g_scene1_walker_phase2_pos_x[i] > K_FIVE) {
                         append_flip_chain(world);
                     }
                 }
@@ -902,9 +899,10 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
                 if (idx < 0) continue;
                 m = g_scene_table[idx];
             } else {
-                /* wall/floor/jutan path (DAT_068dcca0).  Mesh array
-                 * not exposed in our port today — PII.3c scope. */
-                continue;
+                /* a vending machine: DAT_068dcca0[type + 2·(flag >> 6) −
+                 * 0x28a0] — the stage's map meshes 5..10 (xfile/jihanki),
+                 * the 2×2 (type 3) and the 1×4 (type 4) of venders 5201..5203 */
+                m = scene_map_meshes_get(idx);
             }
             if (!m) continue;
 

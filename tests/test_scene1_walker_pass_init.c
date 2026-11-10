@@ -8,8 +8,9 @@
  *
  *   world = S(-0.2, 0.2, 0.2) × [optional flip×N] × RotY(rot_y) × T(pos)
  *
- * where [flip] = RotY(π) × T(2,0,0) applied 0, 1, or 2 times depending
- * on mesh_type / flag_hook / rot_y / pos_y gates.
+ * where [flip] = RotY(π) × T(0,0,2) applied 0, 1, or 2 times depending
+ * on mesh_type / flag_hook / rot_y / pos_x gates (asm 0x457ebd: the 2.0 is
+ * the translation's z; 0x457f6a: the 5.0 compare reads the table's x).
  *
  * Reference matrices are built directly via the same math3d primitives
  * the helper uses, so we're checking the COMPOSITION + GATING logic
@@ -57,11 +58,11 @@ static void ref_world_no_flip(float out[16],
     mat4_mul(out, s, out);   /* world = S × world */
 }
 
-/* Apply the flip chain in place:  world = RotY(π) × T(2,0,0) × world. */
+/* Apply the flip chain in place:  world = RotY(π) × T(0,0,2) × world. */
 static void ref_apply_flip(float world[16])
 {
     float t[16], ry[16];
-    mat4_translation(t, 2.0f, 0.0f, 0.0f);
+    mat4_translation(t, 0.0f, 0.0f, 2.0f);
     mat4_mul(world, t, world);
     mat4_rotation_y(ry, K_PI);
     mat4_mul(world, ry, world);
@@ -208,103 +209,103 @@ int test_scene1_walker_pass_init_type_4_rot_zero_one_flip(void)
     g_scene1_walker_phase2_count = 1;
     g_scene1_walker_phase2_mesh_type[0] = 4;
     g_scene1_walker_phase2_rot_y[0]     = 0.0f;
-    g_scene1_walker_phase2_pos_x[0]     = 1.0f;
-    g_scene1_walker_phase2_pos_y[0]     = 10.0f;   /* pos_y > 5 — but the
+    g_scene1_walker_phase2_pos_x[0]     = 10.0f;   /* x > 5 — but the
                                                     * rot==0 branch SKIPS
                                                     * the > 5 check (jmp
                                                     * 0x457fc5). */
+    g_scene1_walker_phase2_pos_y[0]     = 1.0f;
     g_scene1_walker_phase2_pos_z[0]     = 3.0f;
     g_test_flag_value = (int32_t)0x000514c0;
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
 
     scene1_walker_phase2_compute(out);
-    ref_world_with_flips(ref, /*flip_count=*/1, 0.0f, 1.0f, 10.0f, 3.0f);
+    ref_world_with_flips(ref, /*flip_count=*/1, 0.0f, 10.0f, 1.0f, 3.0f);
     T_ASSERT_MAT_NEAR(out, ref, 1e-6f);
     return 0;
 }
 
-int test_scene1_walker_pass_init_type_4_rot_half_pi_pos_y_small_one_flip(void)
+int test_scene1_walker_pass_init_type_4_rot_half_pi_pos_x_small_one_flip(void)
 {
-    /* rot==π/2 + pos_y ≤ 5 → one flip (the π/2 branch's own). */
+    /* rot==π/2 + x ≤ 5 → one flip (the π/2 branch's own); y is not read. */
     float out[16];
     float ref[16];
     scene1_walker_phase2_reset();
     g_scene1_walker_phase2_count = 1;
     g_scene1_walker_phase2_mesh_type[0] = 4;
     g_scene1_walker_phase2_rot_y[0]     = K_HALF_PI;
-    g_scene1_walker_phase2_pos_x[0]     = 1.0f;
-    g_scene1_walker_phase2_pos_y[0]     = 5.0f;    /* == 5.0 fails `> 5.0`
+    g_scene1_walker_phase2_pos_x[0]     = 5.0f;    /* == 5.0 fails `> 5.0`
                                                     * (asm uses jbe to skip
                                                     * the second flip). */
+    g_scene1_walker_phase2_pos_y[0]     = 9.0f;
     g_scene1_walker_phase2_pos_z[0]     = 3.0f;
     g_test_flag_value = (int32_t)0x000514c0;
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
 
     scene1_walker_phase2_compute(out);
-    ref_world_with_flips(ref, /*flip_count=*/1, K_HALF_PI, 1.0f, 5.0f, 3.0f);
+    ref_world_with_flips(ref, /*flip_count=*/1, K_HALF_PI, 5.0f, 9.0f, 3.0f);
     T_ASSERT_MAT_NEAR(out, ref, 1e-6f);
     return 0;
 }
 
-int test_scene1_walker_pass_init_type_4_rot_half_pi_pos_y_large_two_flips(void)
+int test_scene1_walker_pass_init_type_4_rot_half_pi_pos_x_large_two_flips(void)
 {
-    /* rot==π/2 + pos_y > 5 → TWO flips (π/2 branch + fall-through). */
+    /* rot==π/2 + x > 5 → TWO flips (π/2 branch + fall-through). */
     float out[16];
     float ref[16];
     scene1_walker_phase2_reset();
     g_scene1_walker_phase2_count = 1;
     g_scene1_walker_phase2_mesh_type[0] = 4;
     g_scene1_walker_phase2_rot_y[0]     = K_HALF_PI;
-    g_scene1_walker_phase2_pos_x[0]     = 1.0f;
-    g_scene1_walker_phase2_pos_y[0]     = 5.5f;
+    g_scene1_walker_phase2_pos_x[0]     = 5.5f;
+    g_scene1_walker_phase2_pos_y[0]     = 1.0f;
     g_scene1_walker_phase2_pos_z[0]     = 3.0f;
     g_test_flag_value = (int32_t)0x000514ff;  /* still passes the mask */
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
 
     scene1_walker_phase2_compute(out);
-    ref_world_with_flips(ref, /*flip_count=*/2, K_HALF_PI, 1.0f, 5.5f, 3.0f);
+    ref_world_with_flips(ref, /*flip_count=*/2, K_HALF_PI, 5.5f, 1.0f, 3.0f);
     T_ASSERT_MAT_NEAR(out, ref, 1e-6f);
     return 0;
 }
 
-int test_scene1_walker_pass_init_type_4_other_rot_pos_y_large_one_flip(void)
+int test_scene1_walker_pass_init_type_4_other_rot_pos_x_large_one_flip(void)
 {
-    /* rot != 0, rot != π/2, pos_y > 5 → one flip (size-only branch). */
+    /* rot != 0, rot != π/2, x > 5 → one flip (the x-only branch). */
     float out[16];
     float ref[16];
     scene1_walker_phase2_reset();
     g_scene1_walker_phase2_count = 1;
     g_scene1_walker_phase2_mesh_type[0] = 4;
     g_scene1_walker_phase2_rot_y[0]     = 0.5f;   /* arbitrary non-special */
-    g_scene1_walker_phase2_pos_x[0]     = 1.0f;
-    g_scene1_walker_phase2_pos_y[0]     = 6.0f;
+    g_scene1_walker_phase2_pos_x[0]     = 6.0f;
+    g_scene1_walker_phase2_pos_y[0]     = 1.0f;
     g_scene1_walker_phase2_pos_z[0]     = 3.0f;
     g_test_flag_value = (int32_t)0x000514c1;
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
 
     scene1_walker_phase2_compute(out);
-    ref_world_with_flips(ref, /*flip_count=*/1, 0.5f, 1.0f, 6.0f, 3.0f);
+    ref_world_with_flips(ref, /*flip_count=*/1, 0.5f, 6.0f, 1.0f, 3.0f);
     T_ASSERT_MAT_NEAR(out, ref, 1e-6f);
     return 0;
 }
 
-int test_scene1_walker_pass_init_type_4_other_rot_pos_y_small_no_flip(void)
+int test_scene1_walker_pass_init_type_4_other_rot_pos_x_small_no_flip(void)
 {
-    /* rot != 0, rot != π/2, pos_y ≤ 5 → no flip. */
+    /* rot != 0, rot != π/2, x ≤ 5 → no flip (a y above 5 changes nothing). */
     float out[16];
     float ref[16];
     scene1_walker_phase2_reset();
     g_scene1_walker_phase2_count = 1;
     g_scene1_walker_phase2_mesh_type[0] = 4;
     g_scene1_walker_phase2_rot_y[0]     = 0.5f;
-    g_scene1_walker_phase2_pos_x[0]     = 1.0f;
-    g_scene1_walker_phase2_pos_y[0]     = 4.99f;
+    g_scene1_walker_phase2_pos_x[0]     = 4.99f;
+    g_scene1_walker_phase2_pos_y[0]     = 7.0f;
     g_scene1_walker_phase2_pos_z[0]     = 3.0f;
     g_test_flag_value = (int32_t)0x000514c0;
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
 
     scene1_walker_phase2_compute(out);
-    ref_world_no_flip(ref, 0.5f, 1.0f, 4.99f, 3.0f);
+    ref_world_no_flip(ref, 0.5f, 4.99f, 7.0f, 3.0f);
     T_ASSERT_MAT_NEAR(out, ref, 1e-6f);
     return 0;
 }

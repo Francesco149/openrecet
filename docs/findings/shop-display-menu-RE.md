@@ -127,7 +127,8 @@ back-row col-4 stand = the sparkle's x=−1 sword.
   Cell index `cbfc + cc00*0x14` (15-wide rows; back row = row 0).
 - `DAT_0734b98c` — open/close slide counter (`FUN_004693e3`, 0↔5), gates render.
 - `DAT_0438cbe8` — open-once latch (set on first open, arg2 `bVar17` to `FUN_00468338`).
-- `DAT_0450fee8[fidx]` — furniture-suppression flag: ==0 chooses cc04==1, !=0 cc04==2.
+- `DAT_0450fee8[fidx]` — "furniture-suppression flag": ==0 chooses cc04==1, !=0 cc04==2. It is the table's
+  vender handle — a vending machine; cc04 2 is the machine's menu (`vending-machines-RE.md`, 2026-11-10).
 
 ## ⚠ A1 PREREQUISITE discovered 2026-06-06 — the open gate needs `cbfc`, which needs furniture placement (UNPORTED for loaded saves)
 

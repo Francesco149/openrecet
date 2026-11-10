@@ -2770,8 +2770,10 @@ static void cs_display_grid_clear(int32_t item_handle,
  * price of one of three random cells of the shelf's 20-slot list (0xb1e8+20k).
  * 3000-3099 items sell 1 in 10, falling-trend items 1 in 10.  At most half the
  * flagged-and-scored (d560 ≥ 65) candidates shop.  A sale adds the price to
- * gold, logs it sold (FUN_00460083 + FUN_00460f59) and empties the cell; any
- * sale plays SE 0x14d.  Disasm 0x461068-0x461302. */
+ * gold, logs it sold (FUN_00460083; FUN_00460f59 marks the counter's item
+ * DAT_0730b5a4, not the sold one) and empties the cell; any sale plays SE
+ * 0x14d.  Disasm 0x461068-0x461302.  The "shelves" are the vending machines
+ * (docs/findings/vending-machines-RE.md). */
 #define CS_SHELF_FLAGS_DWORD 0xb1d4   /* per-furniture dword (SHOP_DISPLAY_SUPPRESS_FLAGS) */
 #define CS_SHELF_ITEMS_DWORD 0xb1e8   /* 20 item handles per furniture (-1 = empty) */
 static void cs_shelf_sales(void)
@@ -2824,7 +2826,10 @@ static void cs_shelf_sales(void)
             bank[SAVE_BANK_FIELD_GOLD] += (uint32_t)it->price;
             sold = 1;
             cs_item_log_append(h, 0);                        /* FUN_00460083(h,0) */
-            cs_encyclopedia_sold_mark(h);                     /* FUN_00460f59(h) */
+            /* FUN_00460f59 takes no argument (asm 0x460f60 reads DAT_0730b5a4):
+             * the call pushes the machine's item (0x4612a4) and the callee
+             * marks the COUNTER's last item instead — engine-quirks §167 */
+            cs_encyclopedia_sold_mark(s_b5a4);
             row[cols[t]] = -1;
             break;
         }

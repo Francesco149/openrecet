@@ -5295,6 +5295,30 @@ D3DSWAPEFFECT_DISCARD its presented contents are undefined (one frame of black u
 dungeon2-run3 f64662; the port's lockable capture buffer keeps the previous frame). portshots
 flags such a frame — a property of the engine, not the port's draw program.
 
+## 166. Stocking a vending machine writes into the dungeon bag's "brought" list (FUN_0048670f, 0x48912b)
+The cc04 2 arm stores the picked item twice: into the machine's stock (work +0x2c798 + 80·table + 4·row,
+row ≥ 2) and at `DAT_0438b67c[row]` — a mis-based index: 0x438b67c + 8 is `DAT_0438b684`, the 38-entry
+list of what each dungeon bag slot brought from the shop (FUN_0048f7f0 reads it at the return: a found item
+that is not on it is registered as a dungeon find). So stocking machine slot k (row k + 2) overwrites
+brought[k] with the item (or −1 for "Nothing"). rhost: `vending-level16` f5577 0x438b688 0 → 0x3eb00; rd run
+`vendfix` f5832 0x438b698 → −1, f6187 0x438b684 → 0x30840. The arm is a copy of the Adventurers' Guild's
+bag-packing confirm (FUN_0045c051 case 1: `bag[row] = item; DAT_0438b680[row] = item`), write included; the
+guild's entry (FUN_0045bdc2) clears the list to −1, so the stray entries never reach a dungeon return. The
+port mirrors the write (`shop_vender_menu_tick`).
+
+Also in that arm: the flag read of the A press and of the sparkle prologue indexes the vender flags with
+FUN_004860c8's result unchecked — with no cell faced (−1) it reads work +0x2c74c, the dword before the
+array (0 in every save seen; non-zero would open a machine menu on any A press away from a table).
+
+## 167. A vending-machine sale marks the wrong item "sold" (FUN_00461068 → FUN_00460f59)
+FUN_00461068 (the machines' idle sales) pushes the sold item and calls FUN_00460f59 (asm 0x4612a4), but
+FUN_00460f59 takes no argument: it appends `(FUN_004681f6(DAT_0730b5a4 >> 6), 3)` to the 100-pair "sold"
+list at work +0x276b8 — the record of the COUNTER's last transaction item, whatever the machine sold (its
+other caller, the counter sale, wants exactly b5a4). FUN_00460083(item, 0) just before does log the right
+item. rhost `vender-sales-l16` f7689: the machine sells a Candy, the pair written is (211, 3) = the item of
+the counter sale before it. The port passed the machine's item (save DIFFER 5 bytes, bank/encyc_sold[130]
+493 vs 211); it now passes `s_b5a4`.
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

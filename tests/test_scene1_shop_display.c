@@ -20,6 +20,12 @@
 #include "save_bank.h"       /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "map_collision.h"   /* g_mapcol_objs */
 #include "stage_palette.h"   /* g_stage_b4dc */
+#include "scene1_display_menu.h"   /* the item window (the vender menu's list) */
+#include "scene_adv_guild.h"       /* DAT_0438b684 */
+#include "sim.h"                   /* g_sim_buttons */
+#include "stage_load_pulse.h"      /* the item window's slide */
+#include "tables_item.h"           /* g_item */
+#include "title_save_dialog.h"     /* the hand cursor */
 
 #define K_PI       3.1415927f
 #define K_HALF_PI  1.5707964f
@@ -429,5 +435,290 @@ int test_shop_display_relayout_expansion(void)
     for (int i = 0; i < 10; i++)
         bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 0;
     g_mapcol_objs.n2 = 0;
+    return 0;
+}
+
+/* ── vending machines (FUN_0048670f: the cc04 1 confirm's 5201..5299 arm, the
+ * cc04 2 menu).  Expected values = rhost retail, scenario vending-level16 (the
+ * placement on table 0 at f5465, the stock of slot 1 at f5577) and the arm's
+ * disasm 0x488dda..0x489153 for what that trace does not press. */
+
+#define VEND0  (5201 << 6)            /* 0x51440, Old Vender */
+#define IT(n)  (((n) << 6) | 0x10)    /* a handle the encyclopedia skips */
+
+static void vend_press(unsigned pressed, unsigned held)
+{
+    g_sim_buttons[0].pressed = (uint16_t)pressed;
+    g_sim_buttons[0].held    = (uint16_t)held;
+}
+
+static int vend_tick(unsigned pressed, unsigned held)
+{
+    vend_press(pressed, held);
+    const int r = shop_vender_menu_tick((uint16_t)pressed, (uint16_t)held);
+    vend_press(0, 0);
+    return r;
+}
+
+/* tier-0 house, the player facing cell (4,3) of table 0 (2×2 at (3,3)); the bag
+ * holds the vender, two of item 100 and one 101 */
+static void seed_vender_shop(int level)
+{
+    seed_house_furniture(0);
+    uint32_t *bank = save_work_dwords_at(0);
+    ((uint8_t *)bank)[0x2bd11] = 1;                /* the encyclopedia's first-entry event: done */
+    bank[SAVE_BANK_FIELD_MERCHANT_LEVEL] = (uint32_t)level;
+
+    memset(&g_item, 0, sizeof g_item);
+    static const int ids[3] = { 100, 101, 5201 };
+    g_item.count = 3;
+    for (int i = 0; i < 3; i++) {
+        g_item.records[i].valid    = 1;
+        g_item.records[i].item_id  = ids[i];
+        g_item.records[i].category = ids[i] == 5201 ? 52 : 1;
+        g_item.records[i].rank     = 1;
+        g_item.records[i].price    = 100;
+    }
+
+    int32_t *items = (int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        items[i] = -1;
+    items[0] = VEND0; items[1] = IT(100); items[2] = IT(100); items[3] = IT(101);
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 4;
+
+    int32_t *cells = display_cells();
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        cells[i] = -1;
+    int32_t *shelf = (int32_t *)(bank + SHOP_DISPLAY_SHELF_ITEMS);
+    for (int i = 0; i < 10 * SHOP_DISPLAY_SHELF_SLOTS; i++)
+        shelf[i] = -1;
+    for (int i = 0; i < 10; i++)
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 0;
+
+    shop_display_grid_rebuild();
+    shop_display_highlight_update(-1.0f, 1.0f, -K_PI);       /* 2 ahead along −z: cell (4,3) */
+    display_menu_reset();
+    title_save_dialog_reset();
+    vend_press(0, 0);
+}
+
+int test_shop_vender_place_level_gates(void)
+{
+    seed_vender_shop(13);
+    uint32_t *bank = save_work_dwords_at(0);
+    T_ASSERT_EQ_I(shop_display_cbfc(), 4);
+    T_ASSERT_EQ_I(shop_display_cc00(), 3);
+
+    /* merchant level dword < 14: refused, nothing moves */
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_LEVEL);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0], 0);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 4);
+
+    /* 14..20 with three machines among the DAT_0438bfb4 tables: the limit */
+    bank[SAVE_BANK_FIELD_MERCHANT_LEVEL] = 20;
+    for (int i = 0; i < 3; i++)
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 1;
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_LIMIT);
+    T_ASSERT_EQ_I(display_cells()[4 + 20 * 3], -1);
+    /* a machine on a table past the count is not counted */
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 2] = 0;
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 3] = 1;
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_PLACED);
+
+    /* from 21 there is no limit */
+    seed_vender_shop(21);
+    for (int i = 0; i < 3; i++)
+        bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] = 1;
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_PLACED);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0], VEND0);
+    return 0;
+}
+
+int test_shop_vender_place_swaps_the_table(void)
+{
+    seed_vender_shop(15);
+    uint32_t *bank = save_work_dwords_at(0);
+    int32_t *items = (int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
+    int32_t *cells = display_cells();
+    cells[3 + 20 * 3] = IT(200); cells[4 + 20 * 3] = IT(201);
+    cells[3 + 20 * 4] = IT(202); cells[4 + 20 * 4] = IT(203);
+    cells[1] = IT(300);                                      /* table 1's: stays */
+
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_PLACED);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0], VEND0);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 1], 0);
+    T_ASSERT_EQ_I(shop_display_table_flag(0), VEND0);
+    /* the faced cell holds the vender's handle, the rest of the table is empty */
+    T_ASSERT_EQ_I(cells[4 + 20 * 3], VEND0);
+    T_ASSERT_EQ_I(cells[3 + 20 * 3], -1);
+    T_ASSERT_EQ_I(cells[3 + 20 * 4], -1);
+    T_ASSERT_EQ_I(cells[4 + 20 * 4], -1);
+    T_ASSERT_EQ_I(cells[1], IT(300));
+    /* the four items came back row-major after the bag's, then the vender left
+     * slot 0 (retail f5465: count 33 → 36, the tail shifted down) */
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 7);
+    static const int want[8] = { IT(100), IT(100), IT(101), IT(200), IT(201), IT(202), IT(203), -1 };
+    for (int i = 0; i < 8; i++)
+        T_ASSERT_EQ_I(items[i], want[i]);
+    return 0;
+}
+
+int test_shop_vender_menu_rows_and_paging(void)
+{
+    seed_vender_shop(15);
+    uint32_t *bank = save_work_dwords_at(0);
+
+    /* the last row by the machine's kind: 6 / 8 / 10 slots after the two entries */
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0] = 0x51480 | 3;
+    shop_vender_menu_open(0, 1);
+    T_ASSERT_EQ_I(shop_vender_menu_last(), 9);
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0] = 0x514c0;
+    shop_vender_menu_open(0, 0);
+    T_ASSERT_EQ_I(shop_vender_menu_last(), 11);
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0] = VEND0;
+    shop_vender_menu_open(0, 0);
+    T_ASSERT_EQ_I(shop_vender_menu_last(), 7);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 2);                /* the first slot */
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 0);
+    T_ASSERT_EQ_I(shop_vender_menu_pick(), 0);
+    T_ASSERT_EQ_I(shop_vender_menu_table(), 0);
+
+    /* down: the window of six follows from row 6 */
+    static const int down[6][2] = { {3, 0}, {4, 0}, {5, 0}, {6, 1}, {7, 2}, {7, 2} };
+    for (int i = 0; i < 6; i++) {
+        T_ASSERT_EQ_I(vend_tick(0, 0x8), 0);
+        T_ASSERT_EQ_I(shop_vender_menu_row(), down[i][0]);
+        T_ASSERT_EQ_I(shop_vender_menu_top(), down[i][1]);
+    }
+    /* left: six rows up, both clamped at 0 */
+    vend_tick(0, 0x2);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 1);
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 0);
+    vend_tick(0, 0x2);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 0);
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 0);
+    vend_tick(0, 0x2);                                        /* at row 0: nothing */
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 0);
+    /* right: six rows down, the row clamped at the last, the top at last − 5 */
+    vend_tick(0, 0x1);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 6);
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 2);
+    vend_tick(0, 0x1);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 7);
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 2);
+    /* up keeps the window while the row is inside it */
+    vend_tick(0, 0x4);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 6);
+    T_ASSERT_EQ_I(shop_vender_menu_top(), 2);
+    /* up wins over down, down over left / right (one else-if chain) */
+    vend_tick(0, 0x4 | 0x8 | 0x1);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 5);
+
+    /* B closes: the item window slides out */
+    T_ASSERT_EQ_I(vend_tick(0x20, 0), 1);
+    T_ASSERT_EQ_I(stage_load_pulse_get_active(), 0);
+    return 0;
+}
+
+int test_shop_vender_menu_stock_detail_revert(void)
+{
+    seed_vender_shop(15);
+    uint32_t *bank = save_work_dwords_at(0);
+    int32_t *items = (int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
+    int32_t *shelf = (int32_t *)(bank + SHOP_DISPLAY_SHELF_ITEMS);
+    int32_t *cells = display_cells();
+    int *brought = adv_guild_bag_brought();
+    for (int k = 0; k < 4; k++)
+        brought[k] = 7000 + k;
+
+    T_ASSERT_EQ_I(shop_vender_place(bank, VEND0), SHOP_VENDER_PLACED);   /* bag: 100, 100, 101 */
+    shop_vender_menu_open(0, 1);
+    stage_load_pulse_reset_counter_to_5();
+
+    /* Y on an empty slot does nothing; A on slot 2 (row 3) hands over to the list */
+    vend_tick(0, 0x8);
+    T_ASSERT_EQ_I(vend_tick(0x40, 0), 0);
+    T_ASSERT_EQ_I(display_menu_detail(), 0);
+    T_ASSERT_EQ_I(vend_tick(0x10, 0), 0);
+    T_ASSERT_EQ_I(shop_vender_menu_pick(), 1);
+
+    /* the list: A arms the 6-frame confirm, then the pick lands in the slot */
+    T_ASSERT_EQ_I(display_menu_selected(), IT(100));
+    vend_tick(0x10, 0);
+    for (int i = 0; i < 6; i++) {
+        T_ASSERT_EQ_I(shelf[1], -1);
+        vend_tick(0, 0);
+    }
+    T_ASSERT_EQ_I(shelf[1], IT(100));
+    T_ASSERT_EQ_I(shop_vender_menu_pick(), 0);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 2);
+    T_ASSERT_EQ_I(items[0], IT(100));
+    T_ASSERT_EQ_I(items[1], IT(101));
+    T_ASSERT_EQ_I(stage_load_pulse_get_counter(), 5);        /* FUN_004682e3 */
+    /* retail's stray write: DAT_0438b67c[row 3] = DAT_0438b684[1] */
+    T_ASSERT_EQ_I(brought[0], 7000);
+    T_ASSERT_EQ_I(brought[1], IT(100));
+    T_ASSERT_EQ_I(brought[2], 7002);
+
+    /* the rows again: the slot's item is highlighted; Y opens its detail, which
+     * swallows everything until A / B / Y closes it */
+    vend_tick(0, 0);
+    T_ASSERT_EQ_I(display_menu_highlight_item(), IT(100));
+    vend_tick(0x40, 0);
+    T_ASSERT_EQ_I(display_menu_detail(), 1);
+    vend_tick(0, 0x8);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 3);
+    T_ASSERT_EQ_I(vend_tick(0x20, 0), 0);                    /* closes the detail, not the menu */
+    T_ASSERT_EQ_I(display_menu_detail(), 0);
+
+    /* B in the list goes back to the rows */
+    vend_tick(0x10, 0);
+    T_ASSERT_EQ_I(shop_vender_menu_pick(), 1);
+    vend_tick(0x20, 0);
+    T_ASSERT_EQ_I(shop_vender_menu_pick(), 0);
+    T_ASSERT_EQ_I(shelf[1], IT(100));
+
+    /* "Nothing" into the stocked slot: its item returns to the bag */
+    vend_tick(0x10, 0);
+    while (display_menu_selected() != -1)
+        vend_tick(0, 0x4);
+    vend_tick(0x10, 0);
+    for (int i = 0; i < 6; i++)
+        vend_tick(0, 0);
+    T_ASSERT_EQ_I(shelf[1], -1);
+    T_ASSERT_EQ_I(brought[1], -1);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 3);
+    T_ASSERT_EQ_I(items[2], IT(100));
+
+    /* row 1 "Done Stocking": closes, the machine stays */
+    shelf[4] = IT(101);
+    vend_tick(0, 0x4);
+    vend_tick(0, 0x4);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 1);
+    T_ASSERT_EQ_I(display_menu_highlight_item(), -1);
+    T_ASSERT_EQ_I(vend_tick(0x10, 0), 1);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0], VEND0);
+    T_ASSERT_EQ_I(shelf[4], IT(101));
+
+    /* row 0 "Revert To Table": the vender (the handle in its display cell) and
+     * the stock go back into the bag, the table is a table again */
+    shop_vender_menu_open(0, 0);
+    vend_tick(0, 0x2);
+    T_ASSERT_EQ_I(shop_vender_menu_row(), 0);
+    T_ASSERT_EQ_I(vend_tick(0x10, 0), 1);
+    T_ASSERT_EQ_I((int)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + 0], 0);
+    T_ASSERT_EQ_I(cells[4 + 20 * 3], -1);
+    T_ASSERT_EQ_I(shelf[4], -1);
+    T_ASSERT_EQ_I((int)bank[SAVE_BANK_FIELD_ITEM_COUNT], 5);
+    T_ASSERT_EQ_I(items[3], VEND0);
+    T_ASSERT_EQ_I(items[4], IT(101));
+
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        items[i] = -1;
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 0;
+    for (int k = 0; k < 4; k++)
+        brought[k] = -1;
+    display_menu_reset();
+    title_save_dialog_reset();
     return 0;
 }

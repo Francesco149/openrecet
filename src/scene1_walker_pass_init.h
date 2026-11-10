@@ -68,11 +68,10 @@ extern int32_t g_scene1_walker_phase2_count;
 
 /* Flag-byte source for the mesh_type==4 special-transform gate.
  *
- * Engine reads `local_24 + 0xb1d4 + i*4` (= a per-NPC scratch buffer
- * populated by code we haven't traced).  Modelled as a
- * host-installable hook so PII.3a's matrix builder stays pure-C and
- * fully host-testable; default returns 0 → gate always closed and
- * the optional T(2,0,0)×RotY(π) chain never fires.
+ * Engine reads the work bank dword 0xb1d4 + i (+0x2c750 + 4·i): table i's
+ * vender handle, 0 = an ordinary table.  Modelled as a host-installable hook
+ * so PII.3a's matrix builder stays pure-C and fully host-testable; the house
+ * preload installs shop_display_table_flag.  No hook → 0 → gate closed.
  *
  * Engine gate condition (asm 0x457e8f..0x457eaa):
  *     mesh_type[i] == 4
@@ -102,16 +101,19 @@ void scene1_walker_phase2_reset(void);
  *   if (mesh_type == 4 && flag_hook(i) != 0
  *                       && (flag_hook(i) & 0xffffffc0) == 0x514c0) {
  *       if (rot_y == 0) {
- *           world = RotY(π) × T(2, 0, 0) × world
+ *           world = RotY(π) × T(0, 0, 2) × world
  *       } else if (rot_y == π/2) {
- *           world = RotY(π) × T(2, 0, 0) × world
- *           if (pos_y > 5.0) {
- *               world = RotY(π) × T(2, 0, 0) × world  // applied AGAIN
+ *           world = RotY(π) × T(0, 0, 2) × world
+ *           if (pos_x > 5.0) {
+ *               world = RotY(π) × T(0, 0, 2) × world  // applied AGAIN
  *           }
- *       } else if (pos_y > 5.0) {
- *           world = RotY(π) × T(2, 0, 0) × world
+ *       } else if (pos_x > 5.0) {
+ *           world = RotY(π) × T(0, 0, 2) × world
  *       }
  *   }
+ *   (the 2.0 is D3DXMatrixTranslation's z — pushed first, asm 0x457ebd; the
+ *   5.0 compare reads [esi+0x50] = DAT_0438c06c, the table's x, asm 0x457f6a.
+ *   Read from the disasm; no recording places vender 5203 — unverified live.)
  *
  *   world = S(-0.2, 0.2, 0.2) × world
  *

@@ -1010,8 +1010,13 @@ static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
         return 1;
     }
     if (furn != 0) {
-        /* PORT-DEBT(stub, FUN_0048670f cc04 2): the furniture-grid mode (cc04 = 2,
-         * FUN_00468338, the 74b2ed4.. cursor, SE 323, FUN_00435710) */
+        /* asm 0x488c47: the faced table is a vending machine — its own menu
+         * (cc04 2); the same open-once latch as the display menu */
+        const int first_open = (s_cbe8 == 0);
+        s_cc04 = 2;
+        if (first_open)
+            s_cbe8 = 1;
+        shop_vender_menu_open(fidx, first_open);
         return 1;
     }
     if (bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] == 0 ||
@@ -1191,15 +1196,40 @@ static void player_ctrl_cc04_menu_body(void)
                     audio_play_se_file(k_confirm_se[rng_next15() & 1]);
                 }
 
-                /* NORMAL (sword / non-counter) removal path (all.c:87941-87977,
-                 * the sel==-1 case): blank the cell, return the old item. */
-                bank[SAVE_BANK_FIELD_DISPLAY_GRID + cell] = (uint32_t)sel;   /* = -1 */
+                /* asm 0x489245: the picked item's id (DAT_095d3804 of the record
+                 * FUN_004681f6 finds; "Nothing" = no record: retail reads the
+                 * dword before the table and lands on the ordinary path).  A
+                 * vender (5201..5299) turns the faced table into a vending
+                 * machine instead of going on display — or is refused by the
+                 * merchant level with a message box (FUN_00434ceb); neither
+                 * touches the centroid, the back-row byte or the all-filled latch. */
+                {
+                    const int vrec = (sel != -1) ? tables_item_find_slot_by_id(&g_item, sel >> 6) : -1;
+                    const int vid  = (vrec >= 0) ? g_item.records[vrec].item_id : 0;
+                    if (vid >= 0x1451 && vid < 0x14b4) {
+                        switch (shop_vender_place(bank, sel)) {
+                        case SHOP_VENDER_LEVEL:
+                            title_save_dialog_message_open(
+                                "Vending machines cannot<BR>be placed at our level.");   /* 0x5cf0f8 */
+                            break;
+                        case SHOP_VENDER_LIMIT:
+                            title_save_dialog_message_open(
+                                "We are at our level's vending machine limit.");         /* 0x5cf12c */
+                            break;
+                        default:
+                            break;
+                        }
+                        goto close;
+                    }
+                }
+
+                /* the ordinary path (asm 0x489303): the item into the cell (-1
+                 * "Nothing" blanks it), the old one back into the inventory. */
+                bank[SAVE_BANK_FIELD_DISPLAY_GRID + cell] = (uint32_t)sel;
                 display_menu_inventory_remove(bank, sel);   /* FUN_00469241(-1): no-op */
                 display_menu_inventory_return(bank, old);   /* FUN_00468d22(sword) */
                 /* FUN_0044bd0b — 1-byte no-op (stripped). */
-                /* PORT-DEBT(A3, FUN_0048439a): the live display-appeal recompute
-                 * (DAT_0438b4b8/b4bc) reads the grid + item DB but touches no
-                 * save/RNG state — deferred with the menu render. */
+                roster_compute_centroid((const uint8_t *)bank);   /* FUN_0048439a */
                 if (row == 0)
                     bb[PC_SHOP_DISPLAY_BACKROW_BYTE_OFF] = 1;   /* DAT_0450f3fb */
 
@@ -1241,16 +1271,14 @@ static void player_ctrl_cc04_menu_body(void)
             }
         }
 
+    close:
         s_cc04 = 0;                                  /* DAT_0438cc04 = 0 (close) */
         stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
         title_save_dialog_cursor_set_visible(0);     /* FUN_00435612: hide cursor */
     }
 
-    /* PORT-DEBT(A3): the menu-frame tail FUN_004897c6 (player buff/cooldown
-     * status tick — all timers 0 in HOUSE, no RNG/save effect) + FUN_0048a833
-     * (companion facing — the player is frozen, so it is a no-op here, matching
-     * retail's frozen companion under the §110 db054 freeze) are not run; the
-     * companion controller is gated to the walk arm, which the menu skips. */
+    /* the frame's tail (asm 0x4893b1: FUN_004897c6 + FUN_0048a833) is the
+     * caller's, player_ctrl_cc04_menu_arm */
 }
 
 /* the room's decor: work +0x2cde4.. (wall, floor, carpet, table — the variant
@@ -1458,9 +1486,16 @@ static void player_ctrl_cc08_freeroam_arm(void)
     if (player_ctrl_cc08_f406_entry())
         return;
 
-    /* cc04 interaction sub-state: 0 = walking; 1 = the display-stand remove-item
-     * menu is open (A2) → its per-frame arm; 2 = the furniture-grid mode
-     * (unported).  The menu arm holds the sim frozen until it closes (cc04→0). */
+    /* cc04 interaction sub-state: 0 = walking; 1 = the display-stand item menu
+     * → its per-frame arm; 2 = a vending machine's menu.  Either holds the sim
+     * frozen until it closes (cc04→0). */
+    if (s_cc04 == 2) {
+        /* the vending machine's menu (asm 0x488dda): no FUN_004897c6 /
+         * FUN_0048a833 on its frames — straight to LABEL_675 */
+        if (shop_vender_menu_tick(g_sim_buttons[0].pressed, g_sim_buttons[0].held))
+            s_cc04 = 0;
+        return;
+    }
     if (s_cc04 != 0) {
         player_ctrl_cc04_menu_arm();
         return;
@@ -1893,13 +1928,9 @@ static void player_ctrl_cc08_unported_arm(void)
  * template's fade_out_default (24) → ~3 alive per item.  Owner = &DAT_056da1b8
  * (stored only; template 0x3b's type_shape 0 + shape_mode 0 never derefs it).
  *
- * PORT-DEBT: the engine's furniture-suppression gate FUN_004860c8(col,0) →
- * DAT_0450fee8[fidx]==0 is omitted.  It only differs from the grid check during
- * display-EDITING mode (DAT_0438cc08==2 — the not-yet-ported item-placement
- * menu); in steady free-roam every grid-occupied back-row cell sits on a visible
- * stand (gate==0 → emit), so grid-only is bit-faithful here, INCLUDING RNG (it
- * emits over exactly the same cells, the only LCG consumers).  Restore the exact
- * gate when the display-management UI lands. */
+ * The gate FUN_004860c8(col, 0) → DAT_0450fee8[table] == 0: a back-row table
+ * that is a vending machine holds the vender's own handle in a display cell and
+ * does not sparkle. */
 static const int kSparkleDisplayColumns[7] = { 1, 2, 3, 4, 11, 12, 13 };
 
 static void player_ctrl_display_sparkle_emit(void)
@@ -1915,6 +1946,10 @@ static void player_ctrl_display_sparkle_emit(void)
 
     for (int i = 0; i < 7; i++) {
         int col = kSparkleDisplayColumns[i];
+        /* asm 0x486756: the cell's table (FUN_004860c8(col, 0); -1 reads the
+         * dword before the flags) is a vending machine → no sparkle */
+        if (bank[SHOP_DISPLAY_SUPPRESS_FLAGS + shop_display_furniture_index(col, 0)] != 0)
+            continue;
         if (grid[col] == -1)                 /* back-row cell empty */
             continue;
 

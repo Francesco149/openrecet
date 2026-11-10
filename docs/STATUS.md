@@ -36,7 +36,7 @@ re-verification.
 13 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 72 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 71 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -79,40 +79,54 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **100/100 IDENTICAL** to the Windows real-device goldens (1,670,506 f); `--real --target win` 100/100.
   - ✅ in-process savestates (`snap-check` **99/99**; restore 0.2 ms), `--live` sessions, screen text, native
     exploration search; `./rd` (stateless driver); drivers = session subagents or `tools/drive/agent.sh` (API).
-  - ✅ first campaign, 2026-11-10 (13 scenarios filed with real-device goldens; reports `docs/findings/probes/`;
-    drivers: claude-opus-5-5 through `agent.sh`, $0.31–2.03 and 2–11 min each). Port `699d7a195390`:
-    **11 identical**, 2 open:
-    - identical: `tear-news-summary` f1–577, `tear-outstanding-orders` f1–1982 (Tear's pages 8 / 9; their render
-      stays PORT-DEBT), `tear-menu-pages` f1–14125 (Merchant Level scroll, Store Atmosphere, a lecture, Time
-      Lecture), `guild-fusion-confirm` f1–1083 (modes 5 / 6: Fusion's confirm / result verified),
-      `decor-defaults` f1–835, `decor-variants` f1–1070 (all four kinds, preview / confirm / cancel),
-      `payday-week2-paid` f1–6683 **+ save IDENTICAL** (the week-2 payment paid, verdict script, next-morning scenes),
-      `town-rounds-week3` f1–4230 (Market, Town Square event 11/1, Chapel event 16/5, both guilds),
-      `market-buy-display` f1–1947 (Market = guild variant 1; display menu put / take / replace),
-      `gameover-loop-dungeon0` f1–9841 (payment short → loop restart with level + items kept → guild intro → Hall
-      of Trials 1F, Louie's swings + skills 1 / 2), `counter-move-tables` f1–1049 (**was a split at f618; Move
-      Tables ported 749a4e37**).
-    - ☐ `guild-sell-expansion`: **split f746** `FUN_00406584 < FUN_004536cb ⇄ - (+1)` — retail draws 1 rand /
-      frame from the Sell confirm on (the legacy `guild-ui-flow` f3425 signature, now with a clean repro:
-      `portrng guild-sell-expansion --window 744:750 --seq`); after it the Expansion commit FUN_004864fd (stub).
-    - ☐ `pause-options-saved`: RNG identical, **save DIFFER 5 bytes** (header sliders: the port's Options page
-      does not keep / save the changes; `portsave pause-options-saved`).
+  - ✅ render skip: `rd` sessions run with `--skip-fn 414ee2` (overlay particle dispatcher, 48% of a house tick):
+    `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408` **121/121 equal** (frame, RNG, state_sem, save.dat);
+    house 741 → 1,330 ticks/s; `rd verify` replays unskipped (`headless-savestates.md` §5).
+  - ✅ campaign 2026-11-10: **24 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
+    --real` MATCH (reports `docs/findings/probes/`, indexed in `findings/INDEX.md`; 23 API drivers ≈ $31, one
+    subscription subagent for the dungeon). Port `dfa39b94` (4bcff114e236), `triage` of the first 20:
+    **19 identical** (4 with save IDENTICAL), 1 split:
+    - identical: `tear-news-summary`, `tear-outstanding-orders`, `tear-menu-pages` (Tear's pages; their render
+      stays PORT-DEBT), `guild-fusion-confirm` (modes 5 / 6), `decor-defaults`, `decor-variants`,
+      `market-buy-display`, `payday-week2-paid` + save, `gameover-loop-dungeon0`, `town-rounds-week3`,
+      `pub-evening-week3`, `pause-status-items`, `shop-session-week3` + save (haggling at 105 / 130%, walk-out, a
+      seller), `order-customer-week3` (an advance order to Tear's list and served), `calendar-week3` + save (days
+      15–22, 39,135 ticks), `dungeon2-21f-25f` (floors 21F–25F + one crown slime, 12,813 ticks).
+    - splits found and ported the same day by subagents: `counter-move-tables` (f618 → 749a4e37),
+      `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94, which also closed the legacy
+      `guild-ui-flow` f3425 split (identical 1..6170).
+    - ☐ `vending-level16`: **split f5500** `FUN_00414345 < FUN_004147d5 < FUN_0048670f ⇄ init_shape_lt2 (+2)` —
+      vending machines are unported (placement from the display menu's "Venders" category, the machine menu
+      `cc04 == 2`, stocking, background sales at base price, revert). Retail facts: probes `vending-level16`,
+      `vender-sales-l16`; data: machine code bank dword 0xb1d4, 6 slots 0xb1e8..0xb1ed.
+    - ☐ not yet triaged (accepted while the port tree was being edited): `calendar-week4`, `pause-encyclopedia`,
+      `change-tables-l16`, `vender-sales-l16` (will split where the machine matters).
     - retail facts corrected on the way: the guild has no mode 3 (Sell = mode 0 → 8); `floor` DAT_0438b4cc is
       0-based, the stage record DAT_0438b4dc ≥ 4 = a dungeon; Outstanding Orders needs merchant level dword ≥ 6,
       Move Tables ≥ 9; crafted level saves play a level-up event at load; a recipe's ingredients count from the
-      bag only.
+      bag only; Change Tables restyles every table at once (bank dword 0xb37c); dungeon controls are flipped
+      against the shop; `end:dungeon3-deep` loads the shop at night on day 23, not the dungeon.
+    - saves the probes left (`tests/scenarios/_saves/`, gitignored; lineage = the played day-14 save + crafted
+      gold / level, so not pure game states): week 3 `64d43650865f`; a save per morning for days 15–29 (reports
+      `calendar-week3` / `-week4`; day 29 = `89190665bb8f`); level 16 `2afe7fb42617`; a placed + stocked vender
+      `44e9baea3987`; changed tables `dea37b7a7519`.
   - ★ next:
-    1. the two open splits above (a port-fix subagent has them, 2026-11-10; then `triage` both → identical, add
-       the 13 scenarios to `gates`).
-    2. probes still out: `shop-session-week3`, `vending-level16`, `pub-evening-week3`, `pause-status-items`,
-       `order-customer-week3` (API drivers), `dungeon2-21f` (subagent) — `./rd accept RUN NAME --task …` each.
-    3. more tasks from the gaps below (every "no recording reaches it" line is a task); played saves from the
-       free-play capture replace the crafted ones (`craft_pix_save.py --set / --add-item`) as they arrive. Known
-       wants: a save with an accepted order (Outstanding Orders rows, the missed arm), adventurers beyond Louie /
-       Charme, merchant level ≥ 15 (vending machines), a move → town → return trace (table origins re-seeded on
-       house entry: `PORT-DEBT(simplified, FUN_0048ffd9)`).
-    4. speed / ergonomics (`headless-savestates.md` §Open): `--skip-fn 414ee2` once `skip-check` passes (×1.7 in 3D
-       scenes), pictures from the headless draw stream, `--live` on the Windows box.
+    1. port the vending machine (a subagent has placement, 2026-11-10); then `triage` the four untriaged
+       scenarios and run `gates --only "tear-|guild-|decor-|counter-|market-|pause-|payday-|gameover-|town-|pub-|shop-session|order-|calendar-|dungeon2-21f"`
+       (24 agent rows were added to `GATES`, expected IDENTICAL, not yet run as a gate).
+    2. probes out: `ending-week5-paid` (crafted 900,000 pix on the day-29 save: the last payment + the ending),
+       `vender-revert-sell` — `./rd accept RUN NAME --task …` each.
+    3. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
+       25F second crown slime + 26F–30F (use `rd search --score`; the first run stalled on the survivor), Item
+       Storage (level 17: craft `--set 0xb100=16`), adventurers beyond Louie / Charme (the Girl events of day 24),
+       a move → town → return trace (`PORT-DEBT(simplified, FUN_0048ffd9)`), a week-5 game over, New Game+ (the
+       title's arm of FUN_004864fd).
+    4. fault-free write tracking (`headless-savestates.md` §3 known limit: a write fault's exception frame on the
+       game stack is read back by retail's uninitialised locals — `snap-check` 120 rows: 1 with residue in the
+       tracked pass, restore exact): the tracker as a debugger of the process, or write-watch memory.
+    5. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
+       (`FUN_00459847`, gate each), pictures from the headless draw stream, `--live` on the Windows box, action
+       specs that read state, the highlighted row in `rd text`, a shop-customer actor table in `vars.json`.
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;

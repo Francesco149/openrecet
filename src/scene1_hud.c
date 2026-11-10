@@ -162,6 +162,8 @@ void scene1_hud_slide_tick(void)
 #include "customer_roster.h"       /* DAT_0438b4b8 / b4bc */
 #include "sim.h"                   /* DAT_0438b8cc */
 #include "retail_image.h"          /* the level-abilities table */
+#include "scene1_shop_display.h"   /* the vending machine's menu (DAT_074b2ed8..) */
+#include "scene_adv_guild.h"       /* item_row_draw (FUN_0046add8) */
 #include <stdio.h>                 /* snprintf */
 #include <string.h>
 #include <math.h>                 /* sinf */
@@ -282,6 +284,54 @@ static void tear_page_arrow(IDirect3DDevice8 *dev, float x, float y, int down)
     const float src[4] = { down ? 512.0f : 448.0f, 896.0f, down ? 576.0f : 512.0f, 944.0f };
     render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
     render_quad_flush(dev);
+}
+
+/* FUN_0040a765's vending-machine menu (asm 0x40ae29..0x40b0a9; scene 1, the
+ * house, cc04 2), between the top HUD and the item window: six item_win plates
+ * (src 400,240..639,303; the cursor's row lit and 16 to the right, the others
+ * alpha 155), the scroll arrows at (16, 92) / (16, 352), then the rows from
+ * DAT_074b2edc — "Revert To Table", "Done Stocking" (scale 12/13), and per slot
+ * "%2d:" (10/13) + the stocked item's row (FUN_0046add8). */
+static void scene1_hud_vender_menu(IDirect3DDevice8 *dev)
+{
+    const sprite_t *win = &g_sysassets.item_win_tga;      /* DAT_073d8748 */
+    const int32_t *bank = (const int32_t *)save_work_dwords_at(save_work_active_slot());
+    if (!win->tex || bank == NULL)
+        return;
+    const int row = shop_vender_menu_row(), top = shop_vender_menu_top();
+    render_quad_bind(dev, win);
+    for (int r = 0; r < 6; r++) {
+        const int on = r == row - top;
+        const float dst[4] = { (on ? 16.0f : 0.0f) + 16.0f, (float)(104 + 40 * r), 240.0f, 44.0f };
+        const float src[4] = { 400.0f, 240.0f, 639.0f, 303.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffu | ((on ? 255u : 155u) << 24));
+    }
+    if (top > 0)
+        tear_page_arrow(dev, 16.0f, 92.0f, 0);            /* FUN_0048edee */
+    if (top < shop_vender_menu_last() - 5)
+        tear_page_arrow(dev, 16.0f, 352.0f, 1);           /* FUN_0048ee77 */
+    render_quad_flush(dev);
+    const int32_t *shelf = bank + SHOP_DISPLAY_SHELF_ITEMS
+                         + SHOP_DISPLAY_SHELF_SLOTS * shop_vender_menu_table();
+    for (int r = 0; r < 6; r++) {
+        const int on = r == row - top;
+        const float xo = on ? 16.0f : 0.0f;
+        const int alpha = on ? 255 : 155;
+        const uint32_t col = 0xffffffu | ((uint32_t)alpha << 24);
+        const float y = (float)(40 * r);
+        const int g = r + top;
+        if (g == 0) {
+            font_draw_text((struct IDirect3DDevice8 *)dev, xo + 64.0f, y + 118.0f, "Revert To Table", col, 0.92307699f);
+        } else if (g == 1) {
+            font_draw_text((struct IDirect3DDevice8 *)dev, xo + 64.0f, y + 118.0f, "Done Stocking", col, 0.92307699f);
+        } else {
+            char buf[16];
+            snprintf(buf, sizeof buf, "%2d:", g - 1);
+            font_draw_text((struct IDirect3DDevice8 *)dev, xo + 28.0f, y + 118.0f, buf, col, 0.76923078f);
+            if (g - 2 < SHOP_DISPLAY_SHELF_SLOTS && shelf[g - 2] != -1)
+                item_row_draw((struct IDirect3DDevice8 *)dev, xo + 56.0f, y + 110.0f, shelf[g - 2], alpha);
+        }
+    }
 }
 
 /* LABEL_100's entry 5 (all_ida 7742..7882): leve_win.tga and item_win's lower
@@ -665,6 +715,10 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
         scene1_top_hud_camera_hint(dev_in);   /* FUN_00409925's tail */
 
     scene1_top_hud_render(dev_in);
+
+    /* the vending machine's own menu (asm 0x40ae29: scene 1, the house, cc04 2) */
+    if (scene_mode == 1 && mapcol_maptype() == 0 && player_ctrl_cc04() == 2)
+        scene1_hud_vender_menu(dev);
 
     /* FUN_0046b00a (0x40b0c3, all_ida 7402) — the item window, between the top
      * HUD and FUN_00466b7b: the customer's order bubble overlaps it (it drew

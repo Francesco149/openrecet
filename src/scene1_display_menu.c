@@ -64,7 +64,7 @@ static int s_saved_cur_tab = 0;                         /* DAT_0734b99c */
 static int s_num_tabs    = 0;   /* DAT_0731f404 */
 static int s_mode        = 0;   /* DAT_0734b9a8 */
 static int s_confirm_ctr = 0;   /* DAT_0734b994 */
-static int s_highlight   = -1;  /* DAT_0734b998 */
+static int s_highlight   = 0;   /* DAT_0734b998 (BSS 0 until the first FUN_00468338 sets -1) */
 static int s_window_flag = 0;   /* DAT_0734b990 */
 static int s_possessed   = -1;  /* DAT_005c6ee4 (-1 = recount-needed sentinel) */
 /* the dungeon pause Items messages (FUN_0047ff40): the "used" / "threw away"
@@ -240,6 +240,8 @@ void display_menu_set_highlight(int item)
     s_highlight = item;
     display_menu_recount();
 }
+
+void display_menu_highlight_raw(int item) { s_highlight = item; }
 
 int display_menu_open_mode(void) { return s_open_mode; }
 

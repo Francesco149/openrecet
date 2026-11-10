@@ -107,6 +107,9 @@ void display_menu_set_possessed(int n);        /* DAT_005c6ee4 = n (FUN_004916a7
  * "Number possessed" DAT_005c6ee4. */
 void display_menu_set_highlight(int item);
 
+/* DAT_0734b998 = item, no recount (the vender menu's detail popup, asm 0x488e81) */
+void display_menu_highlight_raw(int item);
+
 /* FUN_004682b9: the mode the window was last opened with (DAT_0734b9a4). */
 int display_menu_open_mode(void);
 

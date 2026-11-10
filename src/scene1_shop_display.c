@@ -26,6 +26,9 @@
 #include "scene1_display_menu.h"     /* display_menu_inventory_return (FUN_00468d22) */
 #include "scene1_postload.h"         /* scene1_postload_seed_furniture (FUN_0048ffd9) */
 #include "customer_roster.h"         /* roster_compute_centroid (FUN_0048439a) */
+#include "title_save_dialog.h"       /* the shared hand cursor (FUN_00435710 / 00435612 / 0043561a) */
+#include "stage_load_pulse.h"        /* the item window's slide (FUN_004682d0 / 004682e3) */
+#include "scene_adv_guild.h"         /* DAT_0438b684 (the vender pick's stray write) */
 
 /* DAT_005cd104 base furniture-layout templates, 4 HOUSE shop tiers x 300
  * cells (15 rows x 20 cols, row-major: cell = col + row*20).  1=wall/fixture,
@@ -117,6 +120,11 @@ static int s_bf68 = 0;
  * table (the 4 dwords below the layout grid); DAT_0438bea4 — the carried table. */
 static int32_t s_carry[4];
 static int s_bea4;
+/* The vending machine's menu (cc04 2): DAT_074b2ed4 — 0 its rows, 1 the item
+ * list picks a slot's item; DAT_074b2ed8 — the row; DAT_074b2edc — the first
+ * row shown (6 a page); DAT_074b2ee0 — the last row; DAT_0438bf64 — the table. */
+static int s_vend_pick, s_vend_row, s_vend_top, s_vend_last;
+static int s_bf64;
 
 void shop_display_reset(void)
 {
@@ -128,6 +136,8 @@ void shop_display_reset(void)
     s_bf68 = 0;
     memset(s_carry, 0, sizeof s_carry);
     s_bea4 = 0;
+    s_vend_pick = s_vend_row = s_vend_top = s_vend_last = 0;
+    s_bf64 = 0;
 }
 
 int     shop_display_cbfc(void) { return s_cbfc; }
@@ -386,8 +396,10 @@ void shop_display_tables_place(void)
  * inventory (FUN_00468d22) — the display-grid cells under its footprint from
  * its origin (work +0x2ce10 + 8·i): a type-3 table (DAT_0438bfcc) 2×2, else by
  * its rotation (DAT_0438c01c): 0.0 → 4 cells along x, otherwise 4 along z. */
-static void shop_display_table_empty(uint32_t *bank, int i)
+void shop_display_table_empty(uint32_t *bank, int i)
 {
+    if (bank == NULL || i < 0 || i >= SCENE1_WALKER_PHASE2_MAX)
+        return;   /* retail indexes unchecked (FUN_004860c8's -1 = no table) */
     const int32_t *org = (const int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS) + 2 * i;
     int32_t *cells = (int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
     int rows, cols;
@@ -443,6 +455,207 @@ void shop_display_move_begin(void)
 {
     s_bea4 = 0;
     shop_display_table_carry(0, 1);
+}
+
+/* ── vending machines ────────────────────────────────────────────────────── */
+
+int32_t shop_display_table_flag(int i)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || i < 0 || i >= SCENE1_WALKER_PHASE2_MAX)
+        return 0;
+    return (int32_t)bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i];
+}
+
+int shop_vender_menu_pick(void)  { return s_vend_pick; }
+int shop_vender_menu_row(void)   { return s_vend_row; }
+int shop_vender_menu_top(void)   { return s_vend_top; }
+int shop_vender_menu_last(void)  { return s_vend_last; }
+int shop_vender_menu_table(void) { return s_bf64; }
+
+/* asm 0x489274..0x4892fe */
+int shop_vender_place(uint32_t *bank, int item)
+{
+    if (bank == NULL)
+        return SHOP_VENDER_LEVEL;
+    int machines = 0;
+    for (int i = 0; i < g_scene1_walker_phase2_count && i < SCENE1_WALKER_PHASE2_MAX; i++)
+        if (bank[SHOP_DISPLAY_SUPPRESS_FLAGS + i] != 0)
+            machines++;
+    const int32_t level = (int32_t)bank[SAVE_BANK_FIELD_MERCHANT_LEVEL];   /* work +0x2c400 */
+    if (level < 14)
+        return SHOP_VENDER_LEVEL;
+    if (level < 21 && machines >= 3)
+        return SHOP_VENDER_LIMIT;
+    /* retail writes the flag dword at FUN_004860c8's index unchecked (-1 = the
+     * dword before the array); a faced cell is always on a table */
+    const int table = shop_display_furniture_index(s_cbfc, s_cc00);
+    shop_display_table_empty(bank, table);                                 /* FUN_004865d5 */
+    bank[SHOP_DISPLAY_SUPPRESS_FLAGS + table] = (uint32_t)item;
+    bank[SAVE_BANK_FIELD_DISPLAY_GRID + s_cbfc + SHOP_DISPLAY_GRID_STRIDE * s_cc00] = (uint32_t)item;
+    display_menu_inventory_remove(bank, item);                             /* FUN_00469241 */
+    return SHOP_VENDER_PLACED;
+}
+
+/* LABEL_673 (asm 0x4893c7): FUN_00435710(16, 40·(row − top) + 124) */
+static void shop_vender_cursor_to_row(void)
+{
+    title_save_dialog_cursor_slide(16.0f, (float)(40 * (s_vend_row - s_vend_top)) + 124.0f);
+}
+
+/* asm 0x488c59..0x488cc9 */
+void shop_vender_menu_open(int table, int first_open)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    s_vend_pick = 0;
+    display_menu_open(0, first_open);                                      /* FUN_00468338 */
+    const uint32_t kind = bank != NULL ? bank[SHOP_DISPLAY_SUPPRESS_FLAGS + table] & 0xffffffc0u : 0;
+    s_vend_pick = 0;
+    s_vend_row  = 2;
+    s_vend_top  = 0;
+    s_vend_last = 11;
+    if (kind == 0x51440u) s_vend_last = 7;
+    if (kind == 0x51480u) s_vend_last = 9;
+    s_bf64 = table;
+    audio_play_se_by_id(0x143);
+    shop_vender_cursor_to_row();
+}
+
+/* asm 0x488dda..0x489153 */
+int shop_vender_menu_tick(uint16_t pressed, uint16_t held)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || s_bf64 < -1 || s_bf64 >= SCENE1_WALKER_PHASE2_MAX)
+        return 0;
+    /* work +0x2c798 + 80·table + 4·row: row r's slot is shelf[r − 2].  Table -1
+     * (FUN_004860c8 with no cell faced, the dword before the flags set) is not
+     * refused by retail: its "stock" is the 20 dwords before the lists = the
+     * flag dwords themselves. */
+    int32_t *shelf = (int32_t *)(bank + SHOP_DISPLAY_SHELF_ITEMS) + SHOP_DISPLAY_SHELF_SLOTS * s_bf64;
+    int moved = 0;                                                         /* [ebp-8] */
+
+    if (s_vend_pick != 0) {
+        const int r = display_menu_update(1);                              /* FUN_00469414(1) */
+        if (r == 2) {
+            s_vend_pick = 0;
+            audio_play_se_by_id(0x13d);
+            shop_vender_cursor_to_row();                                   /* jmp LABEL_673 */
+            return 0;
+        }
+        if (r == 3) {
+            audio_play_se_by_id(0x143);
+            return 0;
+        }
+        if (r != 1)
+            return 0;
+        s_vend_pick = 0;
+        const int item = display_menu_selected();                          /* FUN_00469a9f */
+        int32_t *slot = &shelf[s_vend_row - 2];
+        if (*slot != -1)
+            display_menu_inventory_return(bank, *slot);                    /* FUN_00468d22 */
+        /* DAT_0438b67c[row] (asm 0x48912b): the dungeon bag's brought list */
+        if (s_vend_row >= 2 && s_vend_row - 2 < ADV_GUILD_BAG_SLOTS)
+            adv_guild_bag_brought()[s_vend_row - 2] = item;
+        *slot = item;
+        if (item != -1)
+            display_menu_inventory_remove(bank, item);                     /* FUN_00469241 */
+        display_menu_open(0, 0);                                           /* FUN_00468338(0, 0) */
+        stage_load_pulse_reset_counter_to_5();                             /* FUN_004682e3 */
+        shop_vender_cursor_to_row();
+        return 0;
+    }
+
+    if (display_menu_detail() != 0) {                                      /* FUN_004681e6 */
+        if (pressed & 0x70) {
+            display_menu_detail_close();                                   /* FUN_004681d3 */
+            title_save_dialog_cursor_set_visible(1);                       /* FUN_0043561a */
+            audio_play_se_by_id(710);                                      /* LABEL_375 */
+        }
+        return 0;
+    }
+    if (pressed & 0x20) {
+        title_save_dialog_cursor_set_visible(0);                           /* FUN_00435612 */
+        stage_load_pulse_set_active(0);                                    /* FUN_004682d0 */
+        audio_play_se_by_id(0x13d);
+        return 1;
+    }
+    if (pressed & 0x40) {
+        if (s_vend_row > 1 && shelf[s_vend_row - 2] != -1) {
+            display_menu_detail_open(0);                                   /* FUN_004681db(0) */
+            display_menu_highlight_raw(shelf[s_vend_row - 2]);             /* DAT_0734b998 = */
+            title_save_dialog_cursor_set_visible(0);
+            audio_play_se_by_id(710);
+        }
+        return 0;
+    }
+    if (pressed & 0x10) {
+        if (s_vend_row == 0) {
+            const int table = shop_display_furniture_index(s_cbfc, s_cc00);
+            shop_display_table_empty(bank, s_bf64);                        /* FUN_004865d5 */
+            for (int k = 0; k < SHOP_DISPLAY_SHELF_SLOTS; k++) {
+                if (shelf[k] != -1) {
+                    display_menu_inventory_return(bank, shelf[k]);
+                    shelf[k] = -1;
+                }
+            }
+            bank[SHOP_DISPLAY_SUPPRESS_FLAGS + table] = 0;
+        } else if (s_vend_row != 1) {
+            s_vend_pick = 1;
+            display_menu_cursor_to_row();                                  /* FUN_0046939a */
+            audio_play_se_by_id(0x143);
+            return 0;
+        }
+        title_save_dialog_cursor_set_visible(0);
+        stage_load_pulse_set_active(0);
+        audio_play_se_by_id(0x143);
+        return 1;
+    }
+
+    const int last = s_vend_last;
+    if (held & 0x4) {
+        if (s_vend_row > 0) {
+            audio_play_se_by_id(0x146);
+            if (--s_vend_row - s_vend_top < 0)
+                s_vend_top--;
+            moved = 1;
+        }
+    } else if (held & 0x8) {
+        if (s_vend_row < last) {
+            audio_play_se_by_id(0x146);
+            if (++s_vend_row - s_vend_top > 5)
+                s_vend_top++;
+            moved = 1;
+        }
+    } else if (held & 0x2) {
+        if (s_vend_row > 0) {
+            audio_play_se_by_id(0x146);
+            s_vend_row -= 6;
+            if (s_vend_row - s_vend_top < 0)
+                s_vend_top -= 6;
+            moved = 1;
+        }
+        if (s_vend_row < 0) s_vend_row = 0;
+        if (s_vend_top < 0) s_vend_top = 0;
+    } else if (held & 0x1) {
+        if (s_vend_row < last) {
+            audio_play_se_by_id(0x146);
+            s_vend_row += 6;
+            if (s_vend_row - s_vend_top > 5)
+                s_vend_top += 6;
+            moved = 1;
+            if (s_vend_row >= last)
+                s_vend_row = last;
+        } else {
+            s_vend_row = last;
+        }
+        if (s_vend_top >= last - 5)
+            s_vend_top = last - 5;
+    }
+    /* LABEL_615: FUN_00468286 */
+    display_menu_set_highlight(s_vend_row > 1 ? shelf[s_vend_row - 2] : -1);
+    if (moved)
+        shop_vender_cursor_to_row();
+    return 0;
 }
 
 int shop_display_move_tick(uint16_t pressed, uint16_t held)
