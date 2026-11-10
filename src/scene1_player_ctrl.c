@@ -1325,13 +1325,35 @@ static void player_ctrl_cc08_counter_menu_arm(void)
         else if (entry == 3) worker_load_spawn_dfd(0);
         else                 worker_load_spawn_e39(0);
         audio_play_se_file("bin/se/00re/system/00re_sys04c.bin");
-    } else {
-        /* PORT-DEBT(counter-menu-move-tables): entry 5 (Move Tables) sets cc08 2,
-         * DAT_0438bea4 = 0 and FUN_0048940e(0, 1) — the furniture-grid mode is
-         * unported, so the menu just closes. */
-        s_cc08 = 1;
+    } else if (entry == 5) {
+        /* Move Tables (asm 0x4872f5): DAT_0438bea4 = 0, cc08 2, the first
+         * table picked up (FUN_0048940e(0, 1)) */
+        s_cc08 = 2;
+        shop_display_move_begin();
     }
     party_follow_tick();                     /* LABEL_133: FUN_0048a833 */
+}
+
+/* ── cc08 2: Move Tables (FUN_0048670f case 2, asm 0x4880f2..0x48841e) ──────
+ * The tables' lifts to 0, the camera on the room (class 1, by shop tier),
+ * then B / A / the arrows on the carried table (shop_display_move_tick: the
+ * placement check FUN_0048960d, FUN_0048940e, the world positions LABEL_414);
+ * B on a free spot leaves to the counter menu (b4e8 = cc08 = b754 = 0).  Tail:
+ * FUN_0048a833, then LABEL_508 = FUN_004897c6.  No walk, no crowd tick.
+ * PORT-DEBT(render-coupled, FUN_00485f8c): the carried table's items (drawn
+ * 0.5 up from DAT_074b28d8) and the carried table's pulse in FUN_00457714
+ * (cc08 2 && i == DAT_0438bea4) are not drawn. */
+static void player_ctrl_cc08_move_tables_arm(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    scene1_camera_move_tables_pose(bank != NULL ? (int)bank[SHOP_DISPLAY_TIER_SELECTOR] : 0);
+    if (shop_display_move_tick(g_sim_buttons[0].pressed, g_sim_buttons[0].held)) {
+        g_scene1_camera_stage_class = 0;                   /* DAT_0438b4e8 */
+        s_cc08 = 0;
+        counter_menu_timer_reset();                        /* b754 = 0 */
+    }
+    party_follow_tick();                     /* FUN_0048a833 */
+    party_status_tick();                     /* LABEL_508: FUN_004897c6 */
 }
 
 /* the counter menu's decor entries 1..4 → (FUN_00468338 list mode, item-id
@@ -2412,6 +2434,8 @@ void scene1_player_ctrl_tick(void)
         player_ctrl_cc08_tear_menu_arm();
     else if (s_cc08 == 0x17 || s_cc08 == 3)
         player_ctrl_cc08_decor_arm();
+    else if (s_cc08 == 2)
+        player_ctrl_cc08_move_tables_arm();
     else
         player_ctrl_cc08_unported_arm();
 

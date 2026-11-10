@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 13,
-  "port_debt": 73,
+  "port_debt": 76,
   "verified": 81,
   "stubbed": 10,
   "ported": 733,
@@ -9472,6 +9472,7 @@
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_emit_record.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_preload.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
@@ -17889,6 +17890,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_player_ctrl.c",
     "src/scene1_wide_followup.c",
     "src/scene1_wide_followup.h"
    ],
@@ -17999,6 +18001,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_postload.c",
     "src/scene_guild.c"
    ],
    "status": "ported"
@@ -18055,6 +18058,7 @@
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
+    "src/scene1_shop_display.c",
     "src/scene1_shop_display.h",
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
@@ -18081,7 +18085,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
+    "src/scene1_shop_display.h"
    ],
    "status": "ported"
   },
@@ -19003,6 +19009,7 @@
     "src/save_bank.h",
     "src/scene.c",
     "src/scene.h",
+    "src/scene1_postload.c",
     "src/stage_post_load.h"
    ],
    "status": "verified"
@@ -20875,6 +20882,7 @@
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_shop_display.c",
     "src/scene1_top_hud.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene_pause.c",
@@ -20940,6 +20948,7 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
+    "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
     "src/scene_pause.c",

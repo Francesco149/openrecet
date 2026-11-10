@@ -63,7 +63,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x454191 | FUN_00454191 | 1391 | ✓ |  | main.c, scene.h, scene1_fx_overlays.c (+4) |
 | 0x4547ab | FUN_004547ab | 1670 | ✓ |  | input.c, input.h, main.c (+26) |
 | 0x4552d0 | FUN_004552d0 | 5210 | ✓ |  | model_anchor.c, model_render.c, model_render.h (+13) |
-| 0x457714 | FUN_00457714 | 5323 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+6) |
+| 0x457714 | FUN_00457714 | 5323 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+7) |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | stub | main.c, mesh_draw.c, mesh_draw.h (+17) |
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ |  | chr_sprite_meta.h, scene1_bg_npc.c, scene1_bg_npc.h (+9) |
 | 0x45aa36 | FUN_0045aa36 | 4493 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_shadow.c (+3) |
@@ -102,7 +102,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ |  | main.c, scene1_dungeon_clear_banner.c, scene1_dungeon_clear_banner.h (+1) |
 | 0x48ff93 | FUN_0048ff93 | 70 | ✓ |  | chara_equip.h, save_bank.c |
 | 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ |  | save_bank.c, scene1_postload.c, scene1_postload.h (+1) |
-| 0x49001c | FUN_0049001c | 422 | ✓ |  | save_bank.c, save_bank.h, scene.c (+2) |
+| 0x49001c | FUN_0049001c | 422 | ✓ |  | save_bank.c, save_bank.h, scene.c (+3) |
 | 0x49065b | FUN_0049065b | 314 | ✓ | stub | actor_ai.c, actor_ai.h, scene1_hud.c (+3) |
 | 0x499583 | FUN_00499583 | 231 | ✓ |  | audio.c, audio.h, audio_fade.c (+11) |
 | 0x49966a | FUN_0049966a | 1412 | ✓ |  | audio.c, audio.h, audio_fade.h (+7) |
@@ -660,13 +660,13 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x48584f | FUN_0048584f | 18 | ✓ |  | record_hit.c |
 | 0x485979 | FUN_00485979 | 731 | ✓ |  | dungeon_flow.c, dungeon_party.c, record_hit.c (+2) |
 | 0x485c74 | FUN_00485c74 | 333 | ✓ |  | dungeon_flow.c, dungeon_flow.h, record_hit.c (+1) |
-| 0x485f8c | FUN_00485f8c | 316 | ✓ |  | scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x485f8c | FUN_00485f8c | 316 | ✓ |  | scene1_player_ctrl.c, scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ |  | scene1_merchant_hud.c, scene1_player_ctrl.c, scene1_shop_display.c (+1) |
 | 0x48619f | FUN_0048619f | 328 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h, scene1_shop_display.h |
 | 0x486435 | FUN_00486435 | 200 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h |
-| 0x4864fd | FUN_004864fd | 216 | ✓ |  | scene_guild.c |
-| 0x48670f | FUN_0048670f | 11519 | ✓ |  | customer_service.h, dungeon_party.h, guild_stock.h (+19) |
-| 0x48940e | FUN_0048940e | 511 | ✓ |  | scene1_player_ctrl.c |
+| 0x4864fd | FUN_004864fd | 216 | ✓ |  | scene1_postload.c, scene_guild.c |
+| 0x48670f | FUN_0048670f | 11519 | ✓ |  | customer_service.h, dungeon_party.h, guild_stock.h (+20) |
+| 0x48940e | FUN_0048940e | 511 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x48960d | FUN_0048960d | 441 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x4897c6 | FUN_004897c6 | 870 | ✓ |  | dungeon_party.c, dungeon_party.h, party.h (+2) |
 | 0x489b2c | FUN_00489b2c | 333 | ✓ |  | dungeon_party.c |
@@ -773,9 +773,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4986ee | FUN_004986ee | 1994 | ✓ |  | dungeon_party.c |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ |  | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
-| 0x49933c | FUN_0049933c | 439 | ✓ |  | actor_ai.c, audio.c, audio.h (+11) |
+| 0x49933c | FUN_0049933c | 439 | ✓ |  | actor_ai.c, audio.c, audio.h (+12) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |
-| 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+23) |
+| 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+24) |
 | 0x499538 | FUN_00499538 | 20 | ✓ |  | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ |  | music.h |
 | 0x499560 | FUN_00499560 | 15 |  |  | music.c, music.h, scene_title.c |

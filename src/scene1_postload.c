@@ -826,6 +826,12 @@ void scene1_postload_load_house_phase2_inputs(void)
     if (sel == -1) memcpy(rec + SCENE1_REC_LAYOUT_SEL_OFF, &zero, sizeof zero);
     if (cm == -1)  memcpy(rec + SCENE1_REC_CHARMODE_OFF,   &zero, sizeof zero);
 
+    /* PORT-DEBT(simplified, FUN_0048ffd9): the template seed re-runs on every
+     * house entry.  Retail seeds only in the bank init FUN_0049001c (done in
+     * save_bank.c), the new-game seeder FUN_0049d36d and the shop re-layout
+     * FUN_004864fd (the expansion, NG+; a stub here), so tables moved in cc08 2
+     * (Move Tables) stay moved across house entries and saves there, while
+     * here the next house entry puts them back on the template. */
     scene1_postload_seed_house_furniture();
 
     g_walker_scene_type = (s_house_scene_type_override >= 0)

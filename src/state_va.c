@@ -186,6 +186,8 @@ static int32_t get_de_exit(void) { return day_end_exit_phase(); }
 static int32_t get_b79c(void)  { return g_day_end_ending; }
 
 static int32_t get_cbfc(void)  { return shop_display_cbfc(); }
+static int32_t get_bea4(void)  { return shop_display_move_table(); }
+static int32_t get_b4e8(void)  { return g_scene1_camera_stage_class; }
 static int32_t get_cc00(void)  { return shop_display_cc00(); }
 static int32_t get_dsel(void)  { return display_menu_selected(); }
 static int32_t get_cbe8(void)  { return player_ctrl_display_latch(); }
@@ -397,6 +399,8 @@ static const state_va_t k_map[] = {
     { 0x6a49990u, "pause fade counter (DAT_06a49990)", get_c990 },
     { 0x6a4999cu, "pause slide ramp c99c (DAT_06a4999c)", get_c99c },
     { 0x438bf68u, "faced stand + 1 (DAT_0438bf68)", get_bf68 },
+    { 0x438bea4u, "Move Tables' carried table (DAT_0438bea4)", get_bea4 },
+    { 0x438b4e8u, "camera stage class (DAT_0438b4e8)", get_b4e8 },
     { 0x6a4997cu, "pause action (DAT_06a4997c)", get_pact },
     { 0x438bf7cu, "fade phase (DAT_0438bf7c)", get_fade },
     { 0x438bf78u, "fade counter (DAT_0438bf78)", get_fadec },
@@ -528,6 +532,8 @@ static const int32_t *layout_dword(uint32_t va)
         return &g_scene1_records_b[(va - 0x69324b0u) / 4];
     if (va >= 0x6956cb0u && va < 0x6956cb0u + 4u * SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE)
         return &g_scene1_records_c[(va - 0x6956cb0u) / 4];
+    /* Move Tables' carried cells DAT_074b28d8 + the layout grid DAT_074b28e8 */
+    if (shop_display_state_va(va)) return shop_display_state_va(va);
     if (scene_guild_dbg_va(va)) return scene_guild_dbg_va(va);
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;

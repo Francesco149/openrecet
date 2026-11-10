@@ -85,6 +85,47 @@ int32_t shop_display_grid_cell(int col, int row);
 /* Reset grid + highlight to BSS-zero / "none" (test setup, HOUSE re-entry). */
 void shop_display_reset(void);
 
+/* ── Move Tables: the counter menu's entry 5 (cc08 2, FUN_0048670f case 2) ──
+ * One table is carried at a time (DAT_0438bea4): its origin in the bank
+ * (+0x2ce10, the grid cell of its top-left) moves a cell per arrow, the items
+ * on it wait in DAT_074b28d8.  FUN_0048960d is the placement check:
+ * bit 0 = on a wall / counter cell (1 or 9), bit 1 = on another table,
+ * 4 = an origin left of / above the grid. */
+
+/* FUN_0048940e(table, pickup): the display-grid cells (work +0x13898) under
+ * table `table` — pickup: into DAT_074b28d8 and the cells to -1; else back.
+ * Footprint by DAT_0438bfcc[table]: 3 = 2×2, 4 = 1×4 (rotation 0) or 4×1,
+ * 6 = 4×1; any other type does nothing. */
+void shop_display_table_carry(int table, int pickup);
+
+/* The cc08 10 dispatch of entry 5 (asm 0x4872f5): DAT_0438bea4 = 0,
+ * FUN_0048940e(0, 1).  The caller sets cc08 = 2. */
+void shop_display_move_begin(void);
+
+/* One cc08 2 frame after the camera (asm 0x488235..0x488417): every table's
+ * lift DAT_0438c0bc to 0, then on the edge mask `pressed` (DAT_073dddd4) /
+ * the repeat mask `held` (DAT_073dddd6):
+ *   B 0x20 — check 0: put the table down, SE 00re_sys07, returns 1 (the
+ *            caller leaves: DAT_0438b4e8 = cc08 = DAT_0438b754 = 0); else SE 0x16a;
+ *   A 0x10 — check 0: put it down, the next table (wraps), pick it up, SE
+ *            0x143; else SE 0x16a;
+ *   else   — the carried table's lift 0.5; held 2 / 1 / 4 / 8 = x-1 / x+1 /
+ *            z-1 / z+1; the check; a changed origin plays SE 0x16a (refused:
+ *            bit 0 or 4) or 0x146; a refused origin is put back.
+ * Then LABEL_414: the world positions (shop_display_tables_place). */
+int shop_display_move_tick(uint16_t pressed, uint16_t held);
+
+/* LABEL_414 (asm 0x488396): DAT_0438c06c[i] / DAT_0438c10c[i] =
+ * 2 · (origin − DAT_005ce3e0[scene type][i]) for the 10 table slots — the
+ * walker's placement and the collision objects 5.. (one memory in retail). */
+void shop_display_tables_place(void);
+
+int shop_display_move_table(void);                 /* DAT_0438bea4 */
+
+/* state_va: DAT_074b28d8 (the carried cells) .. DAT_074b28e8 (the layout
+ * grid, 300 dwords); NULL if `va` is not one of them */
+const int32_t *shop_display_state_va(uint32_t va);
+
 /* DIAGNOSTIC (rng-survey §21.4 ROOT 2): one-shot dump of the layout grid +
  * inputs (tier/count/origins/mesh/rot) → <dir>\grid_dump.{bin,json}.  Used to
  * root-cause the port↔retail grid divergence behind the cs-walker retarget

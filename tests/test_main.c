@@ -1906,6 +1906,9 @@ struct test_case {
     X(shop_display_highlight_open_frame_cbfc4_cc00_0) \
     X(shop_display_highlight_no_stand_is_none) \
     X(shop_display_highlight_facing_octants) \
+    X(shop_display_table_carry_shapes) \
+    X(shop_display_placement_check_verdicts) \
+    X(shop_display_move_tick_scenario) \
     \
     X(display_menu_open_inits_none_entry) \
     X(display_menu_update_returns_0_while_sliding) \

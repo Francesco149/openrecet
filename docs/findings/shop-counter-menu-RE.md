@@ -65,7 +65,7 @@ arms):
     - 6 → cc08 1;
     - 0 → cc08 4 + FUN_0045edaa + `rand()%5` voice (00re_sys11a/b/c, 01ti_sys11a/b);
     - 1..4 → the decor editor (below); 5 (Move Tables) → cc08 2, `DAT_0438bea4 = 0`,
-      FUN_0048940e(0, 1) — `PORT-DEBT(counter-menu-move-tables)`.
+      FUN_0048940e(0, 1) (below).
   - exit via LABEL_133 = FUN_0048a833 + tail (no player anim tick).
 - db054 does not advance in cc08 0/10 (FUN_0048b850 doesn't run).
 
@@ -97,6 +97,45 @@ they are `((base + index) << 6) | +` with base 5101 walls, 5001 floor, 5401 carp
   yaw = DAT_056db060 = π; 2 restores b7b4.. + SE 0x13d; the room's (now) decor leaves
   the bag (FUN_00469241); FUN_0048439a (the shop attribute centroid), FUN_004749a1 /
   dd / a19 / a55 (release the other variants — render). All end at LABEL_133.
+
+## Move Tables (cc08 2, asm 0x4880f2..0x48841e; ported 2026-11-10)
+State: `DAT_0438bea4` the carried table (0 on entry); `DAT_074b28d8[4]` the display-grid
+cells (work +0x13898, 20 wide) under it; a table's origin = its top-left grid cell, work
++0x2ce10 + 8i (x, z); footprint by `DAT_0438bfcc[i]`: 3 = 2×2, 4 = 1×4 (rotation
+`DAT_0438c01c[i]` 0) or 4×1, 6 = 4×1 (FUN_0048940e only; the check stamps any non-3 type by
+its rotation).
+- **Per frame:** every `DAT_0438c0bc[i]` (lift) = 0. Camera: class 1 (b4e8), lookat x / z eased
+  0.2 toward (−2, 0), tier 1 (0, 0), tier 2 (5, 0), tier 3 (5, 5); tiers 2 / 3 also set the class
+  offsets b774 / b778 = 14 − `DAT_005c4fd4` / 24.6 | 29.6 − `DAT_005c4fd8`; the eye orbits (as
+  the decor editor). Then one of:
+  - **B** (edge 0x20): check 0 → b4e8 = cc08 = b754 = 0, FUN_0048940e(bea4, 0), SE file
+    `00re_sys07`; else SE 0x16a.
+  - **A** (edge 0x10): check 0 → put down, `++bea4` (wraps at `DAT_0438bfb4`), pick up, SE
+    0x143; else SE 0x16a.
+  - **else:** lift[bea4] = 0.5; the REPEAT mask `DAT_073dddd6`: 2 → x = x0 − 1, 1 → x++, 4 → z−−,
+    8 → z++ (L + R cancel); the check; origin changed → SE 0x16a (refused) or 0x146; refused
+    (bit 0 set, or the value 4) → origin restored. Bit 1 alone (on another table) is not
+    refused: a table is carried over the others, only A / B need 0.
+  - LABEL_414: the 10 slots' world x / z (`DAT_0438c06c` / `c10c`) = 2 · (origin −
+    `DAT_005ce3e0[scene type][i]`) — a second copy of FUN_00436f97's `DAT_005c5120`, rows 0..3
+    equal. Tail: FUN_0048a833, FUN_004897c6, LABEL_675. No walk, no crowd tick.
+- **FUN_0048960d** (the check; also the prologue's layout-grid rebuild at b924 0): template
+  `DAT_005cd104[tier]` → `DAT_074b28e8`, each table stamped in order (2 / 3 / 4); returns
+  bit 0 = a stamped cell held 1 / 9 (wall, counter), bit 1 = held another table's stamp; a
+  negative origin returns 4 at once (later tables unstamped).
+- **FUN_0048940e(i, pickup):** footprint cells → `DAT_074b28d8` and −1 (the items leave the
+  grid while carried), or back at the origin's current cells (the items travel).
+- Render (not ported, `PORT-DEBT(render-coupled, FUN_00485f8c)`): the carried items drawn 0.5
+  up (FUN_00485f8c → FUN_00415fab), the carried table's pulse in FUN_00457714.
+- Port: `shop_display_move_begin / _move_tick / _table_carry / _tables_place`
+  (scene1_shop_display.c), `scene1_camera_move_tables_pose`, the cc08 2 arm in
+  scene1_player_ctrl.c. Evidence: `counter-move-tables` triage identical f1–1049; portstate
+  cc08 / bea4 / b4e8 / b754 / origins / lifts / world x z / `DAT_074b28d8` / camera IDENTICAL;
+  portblock (work bank + layout blocks) IDENTICAL at f616 / 640 / 660 / 682 / 694 / 720 / 1049.
+- Open: the port re-seeds the origins from the tier template on every house entry
+  (`PORT-DEBT(simplified, FUN_0048ffd9)`, scene1_postload.c) — retail only in FUN_0049001c /
+  FUN_0049d36d / FUN_004864fd, so there a move survives re-entry and saves. No scenario
+  re-enters the house after a move yet.
 
 ## Render (FUN_00409925 cc08 0/10 block, all.c:6860-6960)
 - COLOROP ADDSIGNED, texture item_win.tga.

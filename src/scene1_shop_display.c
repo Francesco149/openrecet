@@ -18,7 +18,11 @@
 #include <string.h>
 
 #include "save_work.h"               /* save_work_active_slot / save_work_dwords_at */
+#include "save_bank.h"               /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_* (the placed furniture) */
+#include "map_collision.h"           /* g_mapcol_objs (DAT_0438bfb0.., the same memory in retail) */
+#include "scene1_camera.h"           /* scene1_camera_view_mode (DAT_068dd3fc[stage]) */
+#include "audio.h"                   /* audio_play_se_by_id / _file (FUN_00499519 / FUN_0049933c) */
 
 /* DAT_005cd104 base furniture-layout templates, 4 HOUSE shop tiers x 300
  * cells (15 rows x 20 cols, row-major: cell = col + row*20).  1=wall/fixture,
@@ -106,6 +110,10 @@ static float s_render_x = 0.0f;
 static float s_render_z = 0.0f;
 /* DAT_0438bf68 — selected-cell occupancy/furniture indicator (furniture+1). */
 static int s_bf68 = 0;
+/* Move Tables (cc08 2): DAT_074b28d8 — the display-grid cells under the carried
+ * table (the 4 dwords below the layout grid); DAT_0438bea4 — the carried table. */
+static int32_t s_carry[4];
+static int s_bea4;
 
 void shop_display_reset(void)
 {
@@ -115,6 +123,8 @@ void shop_display_reset(void)
     s_render_x = 0.0f;
     s_render_z = 0.0f;
     s_bf68 = 0;
+    memset(s_carry, 0, sizeof s_carry);
+    s_bea4 = 0;
 }
 
 int     shop_display_cbfc(void) { return s_cbfc; }
@@ -282,6 +292,148 @@ void shop_display_faced_cell(void)
 void shop_display_faced_none(void)
 {
     s_cbfc = -1;
+}
+
+/* ── Move Tables (cc08 2) ────────────────────────────────────────────────── */
+
+int shop_display_move_table(void) { return s_bea4; }
+
+const int32_t *shop_display_state_va(uint32_t va)
+{
+    if (va % 4)
+        return NULL;
+    if (va >= 0x74b28d8u && va < 0x74b28e8u)
+        return &s_carry[(va - 0x74b28d8u) / 4];
+    if (va >= 0x74b28e8u && va < 0x74b28e8u + 4u * SHOP_DISPLAY_GRID_CELLS)
+        return &s_grid[(va - 0x74b28e8u) / 4];
+    return NULL;
+}
+
+/* FUN_0048940e (0x48940e): cell = x + col + 20·(z + row); the buffer runs
+ * row-major over the footprint (2×2: row·2 + col). */
+void shop_display_table_carry(int table, int pickup)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL || table < 0 || table >= 10)
+        return;
+    const int type = g_scene1_walker_phase2_mesh_type[table];   /* DAT_0438bfcc */
+    int rows, cols;
+    if (type == 3)                                              { rows = 2; cols = 2; }
+    else if (type == 4 && g_scene1_walker_phase2_rot_y[table] == 0.0f) { rows = 1; cols = 4; }
+    else if (type == 4 || type == 6)                            { rows = 4; cols = 1; }
+    else
+        return;
+    const int32_t *org = (const int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS) + 2 * table;
+    int32_t *cells = (int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            const int idx = org[0] + c + SHOP_DISPLAY_GRID_STRIDE * (org[1] + r);
+            if (idx < 0 || idx >= SHOP_DISPLAY_GRID_CELLS)
+                continue;   /* retail trusts the check (every put-down follows a 0) */
+            int32_t *held = &s_carry[r * cols + c];
+            if (pickup) {
+                *held = cells[idx];
+                cells[idx] = -1;
+            } else {
+                cells[idx] = *held;
+            }
+        }
+    }
+}
+
+/* DAT_0438c0bc[i]: a table's lift — the walker's y and the collision object's */
+static void shop_display_table_lift(int i, float y)
+{
+    g_scene1_walker_phase2_pos_y[i] = y;
+    g_mapcol_objs.y[5 + i] = y;
+}
+
+/* DAT_005ce3e0: the cell a table slot's mesh sits at, [scene type][slot] (x, z).
+ * The house's rooms are types 0..3; row 4 is what follows in .data (retail
+ * indexes it unchecked).  FUN_00436f97 reads its own copy, DAT_005c5120. */
+static const int32_t k_table_anchor[5][10][2] = {
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    {{5,5},{5,5},{0,5},{5,5},{5,0},{5,5},{5,25},{5,4},{5,8},{10,0}},
+};
+
+/* PORT-DEBT(simplified, FUN_0048670f): collision_house.c keeps its own copy of
+ * the table origins from the house load (read only by the cc08 4 stool's
+ * ground probe, collision_set_player_ground_y) — a moved table stays at its
+ * old spot there until the next house entry. */
+void shop_display_tables_place(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    const int st = scene1_camera_view_mode();
+    if (bank == NULL || st < 0 || st > 4)
+        return;
+    const int32_t *org = (const int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS);
+    for (int i = 0; i < 10; i++) {
+        /* fild; fstp m32; fld m32; fadd st,st; fstp m32 */
+        const float x = (float)(org[2 * i + 0] - k_table_anchor[st][i][0]);
+        const float z = (float)(org[2 * i + 1] - k_table_anchor[st][i][1]);
+        g_scene1_walker_phase2_pos_x[i] = g_mapcol_objs.x[5 + i] = x + x;
+        g_scene1_walker_phase2_pos_z[i] = g_mapcol_objs.z[5 + i] = z + z;
+    }
+}
+
+void shop_display_move_begin(void)
+{
+    s_bea4 = 0;
+    shop_display_table_carry(0, 1);
+}
+
+int shop_display_move_tick(uint16_t pressed, uint16_t held)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    int count = g_scene1_walker_phase2_count;                   /* DAT_0438bfb4 */
+    if (count > 10)
+        count = 10;
+    for (int i = 0; i < count; i++)
+        shop_display_table_lift(i, 0.0f);
+    if (bank == NULL || count <= 0 || s_bea4 < 0 || s_bea4 >= count)
+        return 0;
+
+    int leave = 0;
+    if (pressed & 0x20) {
+        if (shop_display_grid_rebuild() == 0) {
+            shop_display_table_carry(s_bea4, 0);
+            audio_play_se_file("bin/se/00re/system/00re_sys07.bin");
+            leave = 1;
+        } else {
+            audio_play_se_by_id(0x16a);
+        }
+    } else if (pressed & 0x10) {
+        if (shop_display_grid_rebuild() == 0) {
+            shop_display_table_carry(s_bea4, 0);
+            if (++s_bea4 == count)
+                s_bea4 = 0;
+            shop_display_table_carry(s_bea4, 1);
+            audio_play_se_by_id(0x143);
+        } else {
+            audio_play_se_by_id(0x16a);
+        }
+    } else {
+        shop_display_table_lift(s_bea4, 0.5f);
+        int32_t *org = (int32_t *)(bank + SHOP_DISPLAY_FURNITURE_ORIGINS) + 2 * s_bea4;
+        const int32_t x0 = org[0], z0 = org[1];
+        if (held & 0x2) org[0] = x0 - 1;
+        if (held & 0x1) org[0]++;
+        if (held & 0x4) org[1]--;
+        if (held & 0x8) org[1]++;
+        const uint32_t r = shop_display_grid_rebuild();
+        const int refused = (r & 1u) != 0 || r == 4u;
+        if (org[0] != x0 || org[1] != z0)
+            audio_play_se_by_id(refused ? 0x16a : 0x146);
+        if (refused) {
+            org[0] = x0;
+            org[1] = z0;
+        }
+    }
+    shop_display_tables_place();
+    return leave;
 }
 
 /* DIAGNOSTIC (rng-survey §21.4 ROOT 2): dump the furniture-layout grid

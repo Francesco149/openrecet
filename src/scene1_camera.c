@@ -439,6 +439,36 @@ void scene1_camera_decor_pose(int entry)
     g_smooth_eye[2] = spill32((long double)g_smooth_lookat[2] - (long double)c * ((long double)g_class_off_y + g_radius_add));
 }
 
+/* FUN_0048670f case 2 (asm 0x488110..0x488246): Move Tables' camera — class 1,
+ * the lookat x / z eased 0.2 toward the room's middle by shop tier (work
+ * +0x2cde0): (-2, 0), tier 1 (0, 0), tier 2 (5, 0), tier 3 (5, 5); tiers 2 / 3
+ * also set the class offsets (14 | 24.6 / 29.6) − DAT_005c4fd4 / d8 (tiers
+ * 0 / 1 keep the free-roam ones); the eye orbits it */
+void scene1_camera_move_tables_pose(int tier)
+{
+    static const float km2 = -2.0f, k5 = 5.0f, k0p2 = 0.20000000298023224f;
+    static const float k14 = 14.0f, k24p6 = 24.600000381469727f, k29p6 = 29.600000381469727f;
+    float tx = km2, tz = 0.0f;
+    g_scene1_camera_stage_class = 1;                       /* DAT_0438b4e8 */
+    if (tier == 1) {
+        tx = 0.0f;
+    } else if (tier == 2 || tier == 3) {
+        tx = k5;
+        if (tier == 3)
+            tz = k5;
+        g_class_off_z = spill32((long double)(tier == 2 ? k24p6 : k29p6) - DAT_005c4fd8);
+        g_class_off_y = spill32((long double)k14 - DAT_005c4fd4);
+    }
+    g_smooth_lookat[0] = spill32(((long double)tx - g_smooth_lookat[0]) * k0p2 + g_smooth_lookat[0]);
+    g_smooth_lookat[2] = spill32(((long double)tz - g_smooth_lookat[2]) * k0p2 + g_smooth_lookat[2]);
+    const double yaw = g_scene1_camera_yaw;
+    const float s = spill32(x87_crt_sin(yaw));
+    g_smooth_eye[0] = spill32((long double)s * ((long double)g_class_off_y + g_radius_add) + g_smooth_lookat[0]);
+    g_smooth_eye[1] = spill32(((long double)g_class_off_z + g_eyey_add) + g_smooth_lookat[1]);
+    const float c = spill32(x87_crt_cos(yaw));
+    g_smooth_eye[2] = spill32((long double)g_smooth_lookat[2] - (long double)c * ((long double)g_class_off_y + g_radius_add));
+}
+
 /* ─── FUN_00462403 cinematic block: the cc08==4 customer-service COUNTER camera ─
  *
  * (all.c:60280-60314.)  During customer service the engine DECOUPLES the camera

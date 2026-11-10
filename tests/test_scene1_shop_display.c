@@ -17,6 +17,9 @@
 #include "scene1_shop_display.h"
 #include "scene1_walker_pass_init.h"
 #include "save_work.h"
+#include "save_bank.h"       /* SAVE_BANK_FIELD_DISPLAY_GRID */
+#include "map_collision.h"   /* g_mapcol_objs */
+#include "stage_palette.h"   /* g_stage_b4dc */
 
 #define K_PI       3.1415927f
 #define K_HALF_PI  1.5707964f
@@ -169,5 +172,176 @@ int test_shop_display_highlight_facing_octants(void)
     shop_display_highlight_update(-3.0f, 0.5f, 1.4f);
     T_ASSERT_EQ_I(shop_display_cbfc(), 4);
     T_ASSERT_EQ_I(shop_display_cc00(), 4);
+    return 0;
+}
+
+/* ── Move Tables (cc08 2): FUN_0048940e / FUN_0048960d's verdict / the case-2
+ * input arm.  Expected values = rhost retail, scenario counter-move-tables
+ * (tier 0, tables (3,3) 2×2, (1,0) 1×4, (0,1) 4×1). */
+
+static int32_t *display_cells(void)
+{
+    return (int32_t *)(save_work_dwords_at(0) + SAVE_BANK_FIELD_DISPLAY_GRID);
+}
+
+static int32_t *table_origin(int i)
+{
+    return (int32_t *)(save_work_dwords_at(0) + SHOP_DISPLAY_FURNITURE_ORIGINS) + 2 * i;
+}
+
+int test_shop_display_table_carry_shapes(void)
+{
+    seed_house_furniture(0);
+    int32_t *cells = display_cells();
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        cells[i] = 1000 + i;
+
+    /* table 0, 2×2 at (3,3): the buffer runs row-major — (3,3) (4,3) (3,4) (4,4) */
+    shop_display_table_carry(0, 1);
+    T_ASSERT_EQ_I(*shop_display_state_va(0x74b28d8u), 1000 + 3 + 20 * 3);
+    T_ASSERT_EQ_I(*shop_display_state_va(0x74b28dcu), 1000 + 4 + 20 * 3);
+    T_ASSERT_EQ_I(*shop_display_state_va(0x74b28e0u), 1000 + 3 + 20 * 4);
+    T_ASSERT_EQ_I(*shop_display_state_va(0x74b28e4u), 1000 + 4 + 20 * 4);
+    T_ASSERT_EQ_I(cells[3 + 20 * 3], -1);
+    T_ASSERT_EQ_I(cells[4 + 20 * 4], -1);
+    T_ASSERT_EQ_I(cells[5 + 20 * 3], 1000 + 5 + 20 * 3);      /* outside the footprint */
+    /* put down one cell up-left: the items travel */
+    table_origin(0)[0] = 2;
+    table_origin(0)[1] = 2;
+    shop_display_table_carry(0, 0);
+    T_ASSERT_EQ_I(cells[2 + 20 * 2], 1000 + 3 + 20 * 3);
+    T_ASSERT_EQ_I(cells[3 + 20 * 2], 1000 + 4 + 20 * 3);
+    T_ASSERT_EQ_I(cells[2 + 20 * 3], 1000 + 3 + 20 * 4);
+    T_ASSERT_EQ_I(cells[3 + 20 * 3], 1000 + 4 + 20 * 4);
+    T_ASSERT_EQ_I(cells[4 + 20 * 4], -1);                     /* the old spot stays empty */
+
+    /* table 1, type 4 rotation 0: 1×4 along x at (1,0) */
+    shop_display_table_carry(1, 1);
+    for (int k = 0; k < 4; k++) {
+        T_ASSERT_EQ_I(*shop_display_state_va(0x74b28d8u + 4u * (uint32_t)k), 1000 + 1 + k);
+        T_ASSERT_EQ_I(cells[1 + k], -1);
+    }
+    shop_display_table_carry(1, 0);
+    for (int k = 0; k < 4; k++)
+        T_ASSERT_EQ_I(cells[1 + k], 1000 + 1 + k);
+
+    /* table 2, type 4 rotated: 4×1 along z at (0,1) */
+    shop_display_table_carry(2, 1);
+    for (int k = 0; k < 4; k++) {
+        T_ASSERT_EQ_I(*shop_display_state_va(0x74b28d8u + 4u * (uint32_t)k), 1000 + 20 * (1 + k));
+        T_ASSERT_EQ_I(cells[20 * (1 + k)], -1);
+    }
+    shop_display_table_carry(2, 0);
+
+    /* type 6 is 4×1 whatever its rotation; an unknown type does nothing */
+    g_scene1_walker_phase2_mesh_type[1] = 6;
+    shop_display_table_carry(1, 1);
+    T_ASSERT_EQ_I(cells[1 + 20 * 3], -1);
+    T_ASSERT_EQ_I(cells[2], 1000 + 2);
+    shop_display_table_carry(1, 0);
+    g_scene1_walker_phase2_mesh_type[1] = 5;
+    shop_display_table_carry(1, 1);
+    T_ASSERT_EQ_I(cells[1], 1000 + 1);
+    return 0;
+}
+
+int test_shop_display_placement_check_verdicts(void)
+{
+    seed_house_furniture(0);
+    T_ASSERT_EQ_U(shop_display_grid_rebuild(), 0u);           /* the start layout is free */
+    table_origin(0)[0] = 6;                                   /* (7,3) is a wall cell */
+    T_ASSERT_EQ_U(shop_display_grid_rebuild(), 1u);
+    table_origin(0)[0] = 0;                                   /* under table 2's column */
+    T_ASSERT_EQ_U(shop_display_grid_rebuild(), 2u);
+    table_origin(0)[0] = -1;                                  /* off the grid: 4, nothing stamped */
+    T_ASSERT_EQ_U(shop_display_grid_rebuild(), 4u);
+    T_ASSERT_EQ_I(shop_display_grid_cell(1, 0), 0);
+    table_origin(0)[0] = 4;
+    table_origin(0)[1] = 0;                                   /* (5,1) is a 9; table 1 then lands on (4,0) */
+    T_ASSERT_EQ_U(shop_display_grid_rebuild(), 3u);
+    return 0;
+}
+
+int test_shop_display_move_tick_scenario(void)
+{
+    const int32_t b4dc = g_stage_b4dc;
+    g_stage_b4dc = -1;                                        /* scene type 0 */
+    seed_house_furniture(0);
+    int32_t *cells = display_cells();
+    for (int i = 0; i < SHOP_DISPLAY_GRID_CELLS; i++)
+        cells[i] = -1;
+    cells[3 + 20 * 3] = 0x6480;  cells[4 + 20 * 3] = 0x64c0;
+    cells[3 + 20 * 4] = 0x30882; cells[4 + 20 * 4] = 0x2ee80;
+    cells[2] = 0x111;
+
+    shop_display_move_begin();
+    T_ASSERT_EQ_I(shop_display_move_table(), 0);
+    T_ASSERT_EQ_I(cells[3 + 20 * 3], -1);
+
+    /* idle: the carried table is 0.5 up, the others down */
+    T_ASSERT_EQ_I(shop_display_move_tick(0, 0), 0);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[0] == 0.5f);
+    T_ASSERT(g_mapcol_objs.y[5] == 0.5f);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[1] == 0.0f);
+
+    /* R R: x 3 → 5; a third R would put (7,3) under it — refused */
+    shop_display_move_tick(0, 0x1);
+    shop_display_move_tick(0, 0x1);
+    T_ASSERT_EQ_I(table_origin(0)[0], 5);
+    shop_display_move_tick(0, 0x1);
+    T_ASSERT_EQ_I(table_origin(0)[0], 5);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[0] == 2.0f);        /* 2·(5 − 4) */
+    T_ASSERT(g_mapcol_objs.x[5] == 2.0f);
+    /* L×5 → x 0 (carried over table 2: allowed); a sixth leaves the grid */
+    for (int k = 0; k < 5; k++)
+        shop_display_move_tick(0, 0x2);
+    T_ASSERT_EQ_I(table_origin(0)[0], 0);
+    shop_display_move_tick(0, 0x2);
+    T_ASSERT_EQ_I(table_origin(0)[0], 0);
+    /* A / B on another table: refused, still carrying table 0 */
+    T_ASSERT_EQ_I(shop_display_move_tick(0x10, 0), 0);
+    T_ASSERT_EQ_I(shop_display_move_tick(0x20, 0), 0);
+    T_ASSERT_EQ_I(shop_display_move_table(), 0);
+    T_ASSERT_EQ_I(cells[0 + 20 * 3], -1);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[0] == 0.0f);        /* an A / B frame has no lift */
+    /* L + R in one frame cancel; R R U → (2,2) */
+    shop_display_move_tick(0, 0x3);
+    T_ASSERT_EQ_I(table_origin(0)[0], 0);
+    shop_display_move_tick(0, 0x1);
+    shop_display_move_tick(0, 0x1);
+    shop_display_move_tick(0, 0x4);
+    T_ASSERT_EQ_I(table_origin(0)[0], 2);
+    T_ASSERT_EQ_I(table_origin(0)[1], 2);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[0] == -4.0f);       /* 2·(2 − 4) */
+    T_ASSERT(g_scene1_walker_phase2_pos_z[0] == -2.0f);       /* 2·(2 − 3) */
+    T_ASSERT(g_mapcol_objs.z[5] == -2.0f);
+
+    /* A: down at (2,2) with its items, table 1 in hand */
+    T_ASSERT_EQ_I(shop_display_move_tick(0x10, 0), 0);
+    T_ASSERT_EQ_I(shop_display_move_table(), 1);
+    T_ASSERT_EQ_I(cells[2 + 20 * 2], 0x6480);
+    T_ASSERT_EQ_I(cells[3 + 20 * 2], 0x64c0);
+    T_ASSERT_EQ_I(cells[2 + 20 * 3], 0x30882);
+    T_ASSERT_EQ_I(cells[3 + 20 * 3], 0x2ee80);
+    T_ASSERT_EQ_I(cells[2], -1);
+    T_ASSERT_EQ_I(*shop_display_state_va(0x74b28dcu), 0x111);
+
+    /* B: table 1 down again, the mode ends */
+    T_ASSERT_EQ_I(shop_display_move_tick(0x20, 0), 1);
+    T_ASSERT_EQ_I(cells[2], 0x111);
+    T_ASSERT_EQ_I(shop_display_grid_cell(2, 2), 2);
+    T_ASSERT_EQ_I(shop_display_grid_cell(4, 4), 0);
+
+    /* A wraps from the last table to the first */
+    shop_display_move_begin();
+    shop_display_move_tick(0x10, 0);
+    shop_display_move_tick(0x10, 0);
+    T_ASSERT_EQ_I(shop_display_move_table(), 2);
+    shop_display_move_tick(0x10, 0);
+    T_ASSERT_EQ_I(shop_display_move_table(), 0);
+    T_ASSERT_EQ_I(shop_display_move_tick(0x20, 0), 1);
+    T_ASSERT_EQ_I(cells[2 + 20 * 2], 0x6480);
+
+    g_stage_b4dc = b4dc;
     return 0;
 }

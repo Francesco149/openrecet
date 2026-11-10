@@ -207,4 +207,8 @@ void scene1_camera_day_end_pose(void);
  * (1 Flooring, 2 Walls, 3 Carpet, 4 Tables) — class 1, eased toward its view */
 void scene1_camera_decor_pose(int entry);
 
+/* FUN_0048670f case 2: Move Tables' camera for shop tier `tier` (work +0x2cde0)
+ * — class 1, eased toward the room's middle */
+void scene1_camera_move_tables_pose(int tier);
+
 #endif /* OPENRECET_SCENE1_CAMERA_H */
