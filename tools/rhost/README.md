@@ -50,6 +50,7 @@ python3 tools/rhost/rhost.py run X --headless --target wine        # fake device
 python3 tools/rhost/rhost.py headless-check [SCEN..|--only RE] --target wine -j 14   # headless replays vs the Windows real-device goldens
 python3 tools/rhost/rhost.py headless-check --real --target win -j 10               # this rhost build on REAL devices vs the goldens
 python3 tools/rhost/rhost.py snap-check [SCEN..|--only RE] --target wine -j 12      # savestate self-test: restore + replay reproduces state
+python3 tools/rhost/rhost.py skip-check 414ee2 [SCEN..] --target wine -j 8           # is skipping this render function invisible to game state?
 python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe"     # re-record the real adapter's answers → gen_dev_ref.py
 ./rd …                                                              # the driver on top of --live: tools/drive/README.md
 ```
@@ -58,6 +59,12 @@ python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe" 
   the window is message-only. Gate: `headless-check` — **100/100 IDENTICAL to the real-device goldens** (per-tick
   RNG, anchors, inputs, save bytes; 2026-11-10). After a change to `rh_dev.c`: `headless-check`; after a change to
   rhost's core (tick hook, heap, files, handles): `headless-check --real` too.
+- Under wine, headless runs use their own prefix (`RHOST_WINEPREFIX_HL`, default
+  `/mnt/ephemeral/openrecet/prefix-headless`, made on first use): they start without an X display, and a wineserver's
+  first process fixes the desktop driver for all — a display-less desktop made every Xvfb run in the shared prefix
+  fail at `CreateWindowExA` (err 1400) while a headless session was alive.
+- `--skip-fn VA[,VA]`: calls of these retail functions become no-ops — for render functions proven pure by
+  `rhost.py skip-check VA` (plain vs skipped headless replays: same frame, RNG, `state_sem`, save.dat over the corpus).
 - `--live PORT` (`rh_live.c`, implies `--headless`): a command server on 127.0.0.1 (`<run>\live.port` = port + pid; 0 picks a
   port). Commands: `run`, `r` / `w`, `prog` / `eval`, `anchor` / `snap` / `restore` / `free` / `diff`, `text`, `movie`,
   `hash`, `explore`, `quit` — the file's header is the reference. With `--trace T [--frames N]` it replays first. A

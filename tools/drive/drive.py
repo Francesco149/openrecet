@@ -16,6 +16,7 @@ its MOVIE (every input since boot); a dead session is rebuilt by replaying it.
     rd verify R [--real]        rd check R TASK.md      rd lint TASK.md --on RUN..
     rd file R NAME              tests/scenarios/NAME (then: rhost.py golden / triage / portrng NAME)
     rd port R [NAME]            file + retail golden + the port's first split from it
+    rd accept R NAME [--task T] check → verify --real → file → golden → triage → report into docs/findings/probes/
     rd stop R | rd ls
 
 Method and the full reference: tools/drive/README.md; the one-page card for a driving agent:
@@ -45,6 +46,10 @@ import rhost as RH  # noqa: E402
 RUNS = os.environ.get("RD_RUNS", "/mnt/ephemeral/openrecet/drive/runs")
 SESS = os.path.join(RH.WINE_ROOT, "runs", "drive")          # live sessions' rhost run dirs (C:\orc-rhost\runs\drive\..)
 VARS = os.path.join(HERE, "vars.json")
+# retail render functions whose calls are no-ops in live sessions (rhost --skip-fn): only ones that passed
+# `rhost.py skip-check` (same frame / RNG / game-state hash / save.dat with and without, whole corpus).
+# FUN_00414ee2 = the overlay particle dispatcher, ~48% of a 3D-scene tick. RD_SKIP_FN="" turns it off.
+SKIP_FN = os.environ.get("RD_SKIP_FN", "")
 SCEN_SAVES = os.path.join(RH.SCEN, "_saves")
 
 # ------------------------------------------------------------------ buttons / input specs
@@ -384,7 +389,8 @@ class Live:
 
 
 def wine_env():
-    return {k: v for k, v in dict(os.environ, WINEPREFIX=RH.WINE_PREFIX, WINEDEBUG="-all").items()
+    """live sessions run without an X display, in the headless prefix (rhost.py wine_prefix: why it is separate)"""
+    return {k: v for k, v in dict(os.environ, WINEPREFIX=RH.wine_prefix(True), WINEDEBUG="-all").items()
             if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
 
 
@@ -414,7 +420,7 @@ def spawn_live(tag, movie, upto=None, idle=1800):
         open(os.path.join(rd, "save.dat"), "wb").write(RH.save_bytes(movie.save))
     win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(rd)
     args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
-            "--live", "0", "--live-idle", str(idle)]
+            "--live", "0", "--live-idle", str(idle)] + (["--skip-fn", SKIP_FN] if SKIP_FN else [])
     upto = movie.frame if upto is None else upto
     seed = next((v for f, k, v in movie.ops if k == "r" and f == 0), None)
     if seed is not None:
@@ -746,7 +752,8 @@ def cmd_new(a):
             open(os.path.join(srd, "save.dat"), "wb").write(RH.save_bytes(mv.save))
         win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(srd)
         args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
-                "--live", "0", "--trace", win + "\\trace.jsonl"] + (["--frames", str(limit)] if limit else [])
+                "--live", "0", "--trace", win + "\\trace.jsonl"] + (["--frames", str(limit)] if limit else []) + \
+               (["--skip-fn", SKIP_FN] if SKIP_FN else [])
         p = subprocess.Popen(args, stdout=open(os.path.join(srd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
                              start_new_session=True, cwd=srd)
         pf = os.path.join(srd, "live.port")
@@ -1166,6 +1173,7 @@ def cmd_verify(a):
     r.movie.write(tr, comment=r.name, rel_to=r.dir)
     b = RH.replay_args(frames=r.movie.frame, target="wine")
     b.jobs, b.wine_timeout, b.headless, b.no_golden = 1, 3600, True, True
+    b.extra = f"--skip-fn {SKIP_FN}" if SKIP_FN else None          # the same device-side behaviour as the live session
     _, bd, res, out = RH.run_batch(b, [("verify", tr, None, r.movie.save)], "rd-verify", fetch=("rhost.log",))
     v = res.get("verify") or {}
     shutil.rmtree(bd, ignore_errors=True)
@@ -1330,6 +1338,57 @@ def cmd_port(a):
     return subprocess.call(py + ["triage", name, "--refresh"])
 
 
+AGENTS = os.environ.get("RD_AGENTS", "/mnt/ephemeral/openrecet/drive/agents")
+
+
+def cmd_accept(a):
+    """the orchestrator's acceptance in one command: check (if a task is given) → verify --real → file as NAME →
+    retail golden → port triage → the driver's report archived under docs/findings/probes/NAME.md"""
+    import argparse as _ap
+    lines = []
+    if a.task:
+        rc = cmd_check(_ap.Namespace(run=a.run, task=a.task))
+        lines.append(f"check {'PASS' if not rc else 'FAIL'} ({os.path.relpath(os.path.abspath(a.task), ROOT)})")
+        if rc and not a.force:
+            raise SystemExit("check FAILED: not accepted (--force files it anyway — say why in the note)")
+    rc = cmd_verify(_ap.Namespace(run=a.run, real=not a.no_real))
+    lines.append(f"verify{'' if a.no_real else ' --real'} {'MATCH' if not rc else 'MISMATCH'}")
+    if rc:
+        raise SystemExit("verify MISMATCH: not accepted")
+    r = Run(a.run)
+    if r.meta.get("poked"):
+        raise SystemExit("this run was POKED: not accepted")
+    p = file_scenario(r, a.name, " ".join(a.note))
+    frames, start = r.movie.frame, r.meta.get("start", "?")
+    r.stop()
+    r.close()
+    print(f"filed {os.path.relpath(p, ROOT)} ({frames} frames)")
+    py = [sys.executable, os.path.join(RH.HERE, "rhost.py")]
+    if subprocess.call(py + ["golden", a.name]):
+        raise SystemExit("the retail golden failed (Windows box up? RHOST_WIN)")
+    lines.append("retail golden made (Windows, real device)")
+    if not a.no_triage:
+        out = subprocess.run(py + ["triage", a.name, "--refresh"], capture_output=True, text=True).stdout
+        v = next((l.strip() for l in out.splitlines() if l.strip().startswith(("identical", "split", "stalled", "error"))), "no verdict")
+        print("triage: " + v)
+        lines.append("port triage: " + v)
+    rp = os.path.join(AGENTS, a.run, "report.md")
+    if os.path.exists(rp):
+        body = open(rp).read().rstrip()
+        m = re.search(r"\n---\nmodel (.*)$", body, re.S)
+        meta = m.group(1).strip() if m else ""
+        body = body[:m.start()].rstrip() if m else body
+        os.makedirs(os.path.join(ROOT, "docs", "findings", "probes"), exist_ok=True)
+        dst = os.path.join(ROOT, "docs", "findings", "probes", a.name + ".md")
+        open(dst, "w").write(
+            f"# Probe: {a.name}\n\n- **Run:** `{a.run}` · **start:** {start}" + (f" · **task:** `{os.path.relpath(os.path.abspath(a.task), ROOT)}`" if a.task else "") +
+            f"\n- **Driver:** API harness (`tools/drive/agent.py`), {meta}\n- **Scenario:** `tests/scenarios/{a.name}/` ({frames} frames)\n"
+            f"- **Verdicts ({time.strftime('%Y-%m-%d')}):** {'; '.join(lines)}\n\nThe driver's report, as written (retail facts observed live through `rd`; "
+            f"claims read from code only are leads):\n\n---\n\n{body}\n")
+        print(f"report archived: {os.path.relpath(dst, ROOT)}")
+    print("accepted: " + "; ".join(lines))
+
+
 def cmd_stop(a):
     r = Run(a.run)
     r.stop()
@@ -1386,6 +1445,10 @@ def main():
     p = sp.add_parser("lint"); p.add_argument("task"); p.add_argument("--on", nargs="+", required=True); p.set_defaults(fn=cmd_lint)
     p = sp.add_parser("file"); p.add_argument("run"); p.add_argument("name"); p.add_argument("note", nargs="*"); p.set_defaults(fn=cmd_file)
     p = sp.add_parser("port"); p.add_argument("run"); p.add_argument("name", nargs="?"); p.set_defaults(fn=cmd_port)
+    p = sp.add_parser("accept", help="check → verify --real → file → golden → triage → archive the report")
+    p.add_argument("run"); p.add_argument("name"); p.add_argument("note", nargs="*"); p.add_argument("--task")
+    p.add_argument("--force", action="store_true", help="file even though the task check fails")
+    p.add_argument("--no-real", action="store_true"); p.add_argument("--no-triage", action="store_true"); p.set_defaults(fn=cmd_accept)
     p = sp.add_parser("stop"); p.add_argument("run"); p.set_defaults(fn=cmd_stop)
     sp.add_parser("ls").set_defaults(fn=cmd_ls)
     a = ap.parse_args()

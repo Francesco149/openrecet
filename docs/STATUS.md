@@ -79,24 +79,40 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **100/100 IDENTICAL** to the Windows real-device goldens (1,670,506 f); `--real --target win` 100/100.
   - ✅ in-process savestates (`snap-check` **99/99**; restore 0.2 ms), `--live` sessions, screen text, native
     exploration search; `./rd` (stateless driver); drivers = session subagents or `tools/drive/agent.sh` (API).
-  - ✅ first campaign (reports: `docs/findings/probes/`; scenarios filed, goldens made):
-    - `tear-news-summary`, `tear-outstanding-orders` (Tear's menu pages 8 / 9: cc08 15 → 16 → 17): port **IDENTICAL**
-      (f1–577 / f1–1982). Render of both pages stays PORT-DEBT (FUN_0040a765 entries 8 / 9).
-    - `guild-fusion-confirm` (display table → guild → fuse recipe 15 → Knight's Helm+2, modes 5 / 6 with the
-      table-A burst): port **IDENTICAL** f1–1083 — Fusion's confirm / result are verified.
-    - `decor-defaults` (decor editor, 4 kinds, defaults only): port IDENTICAL f1–835.
-    - `counter-move-tables` (Move Tables, cc08 2): **port SPLIT f618** `- ⇄ init_type_1f_100 (-5)` — the stubbed
-      mode lets the player walk. Repro `portrng counter-move-tables --window 614:620 --seq`.
+  - ✅ first campaign, 2026-11-10 (13 scenarios filed with real-device goldens; reports `docs/findings/probes/`;
+    drivers: claude-opus-5-5 through `agent.sh`, $0.31–2.03 and 2–11 min each). Port `699d7a195390`:
+    **11 identical**, 2 open:
+    - identical: `tear-news-summary` f1–577, `tear-outstanding-orders` f1–1982 (Tear's pages 8 / 9; their render
+      stays PORT-DEBT), `tear-menu-pages` f1–14125 (Merchant Level scroll, Store Atmosphere, a lecture, Time
+      Lecture), `guild-fusion-confirm` f1–1083 (modes 5 / 6: Fusion's confirm / result verified),
+      `decor-defaults` f1–835, `decor-variants` f1–1070 (all four kinds, preview / confirm / cancel),
+      `payday-week2-paid` f1–6683 **+ save IDENTICAL** (the week-2 payment paid, verdict script, next-morning scenes),
+      `town-rounds-week3` f1–4230 (Market, Town Square event 11/1, Chapel event 16/5, both guilds),
+      `market-buy-display` f1–1947 (Market = guild variant 1; display menu put / take / replace),
+      `gameover-loop-dungeon0` f1–9841 (payment short → loop restart with level + items kept → guild intro → Hall
+      of Trials 1F, Louie's swings + skills 1 / 2), `counter-move-tables` f1–1049 (**was a split at f618; Move
+      Tables ported 749a4e37**).
+    - ☐ `guild-sell-expansion`: **split f746** `FUN_00406584 < FUN_004536cb ⇄ - (+1)` — retail draws 1 rand /
+      frame from the Sell confirm on (the legacy `guild-ui-flow` f3425 signature, now with a clean repro:
+      `portrng guild-sell-expansion --window 744:750 --seq`); after it the Expansion commit FUN_004864fd (stub).
+    - ☐ `pause-options-saved`: RNG identical, **save DIFFER 5 bytes** (header sliders: the port's Options page
+      does not keep / save the changes; `portsave pause-options-saved`).
+    - retail facts corrected on the way: the guild has no mode 3 (Sell = mode 0 → 8); `floor` DAT_0438b4cc is
+      0-based, the stage record DAT_0438b4dc ≥ 4 = a dungeon; Outstanding Orders needs merchant level dword ≥ 6,
+      Move Tables ≥ 9; crafted level saves play a level-up event at load; a recipe's ingredients count from the
+      bag only.
   - ★ next:
-    1. **port Move Tables** (FUN_0048670f case 2, FUN_0048940e, FUN_0048960d; notes in
-       `docs/findings/probes/counter-move-tables.md`) until `triage counter-move-tables` is identical.
-    2. accept the probes still running / reported (payday-week2, guild-sell-expansion, tear-menu-pages,
-       decor-variants, pause-options-change, adv-guild-hires, dungeon2-21f): `rd check` / `verify --real` / strip →
-       `rd file` → golden → triage; archive each report under `docs/findings/probes/`.
-    3. more tasks from the gaps below (each "no recording reaches it" line is a task); played saves from the
-       free-play capture replace crafted ones as they arrive.
-    4. speed / ergonomics (`headless-savestates.md` §Open): skip proven-pure render functions (FUN_00414ee2 = 48%
-       of a house tick), pictures from the headless draw stream, `--live` on the Windows box.
+    1. the two open splits above (a port-fix subagent has them, 2026-11-10; then `triage` both → identical, add
+       the 13 scenarios to `gates`).
+    2. probes still out: `shop-session-week3`, `vending-level16`, `pub-evening-week3`, `pause-status-items`,
+       `order-customer-week3` (API drivers), `dungeon2-21f` (subagent) — `./rd accept RUN NAME --task …` each.
+    3. more tasks from the gaps below (every "no recording reaches it" line is a task); played saves from the
+       free-play capture replace the crafted ones (`craft_pix_save.py --set / --add-item`) as they arrive. Known
+       wants: a save with an accepted order (Outstanding Orders rows, the missed arm), adventurers beyond Louie /
+       Charme, merchant level ≥ 15 (vending machines), a move → town → return trace (table origins re-seeded on
+       house entry: `PORT-DEBT(simplified, FUN_0048ffd9)`).
+    4. speed / ergonomics (`headless-savestates.md` §Open): `--skip-fn 414ee2` once `skip-check` passes (×1.7 in 3D
+       scenes), pictures from the headless draw stream, `--live` on the Windows box.
 - ✅ `tools/rhost/` productized:
   - deterministic heap / handles / stacks / time / loads / file overlay;
   - quiet off-screen windows;

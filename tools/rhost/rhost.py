@@ -57,6 +57,26 @@ WIN = os.environ.get("RHOST_WIN", "win")             # ssh alias of the Windows 
 # Windows paths (C:\orc-rhost\game, ...\runs\<batch>\<run>) as on the Windows host
 WINE_ROOT = os.environ.get("RHOST_WINE_ROOT", "/mnt/ephemeral/openrecet/rhost-wine")
 WINE_PREFIX = os.environ.get("RHOST_WINEPREFIX", "/mnt/ephemeral/openrecet/prefix")
+# --headless runs get their OWN prefix: they start wine without an X display, and the first process of a
+# wineserver decides the desktop's driver for everyone — a display-less desktop made every Xvfb run in the
+# same prefix fail at CreateWindowExA (err 1400) for as long as one headless session was alive.
+WINE_PREFIX_HL = os.environ.get("RHOST_WINEPREFIX_HL", "/mnt/ephemeral/openrecet/prefix-headless")
+
+
+def wine_prefix(headless):
+    """the prefix for this kind of run; the headless one is made on first use"""
+    if not headless:
+        return WINE_PREFIX
+    if not os.path.exists(os.path.join(WINE_PREFIX_HL, "system.reg")):
+        print(f"[creating the headless wine prefix {WINE_PREFIX_HL} (once)]")
+        env = {k: v for k, v in dict(os.environ, WINEPREFIX=WINE_PREFIX_HL, WINEDEBUG="-all", WINEDLLOVERRIDES="mscoree,mshtml=").items()
+               if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+        subprocess.run(["wineboot", "-i"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+        subprocess.run(["wineserver", "-w"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+    link = os.path.join(WINE_PREFIX_HL, "drive_c", "orc-rhost")
+    if not os.path.islink(link):
+        os.symlink(WINE_ROOT, link)
+    return WINE_PREFIX_HL
 WROOT = "C:\\orc-rhost"
 VOLATILE = os.path.join(HERE, "volatile.txt")
 sys.path.insert(0, HERE)
@@ -447,7 +467,7 @@ def run_batch_wine(a, runs, tag):
     finally:
         LOCAL_RUNS = saved
     exe = f"{bin_dir()}\\rhost.exe"
-    env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all")
+    env = dict(os.environ, WINEPREFIX=wine_prefix(getattr(a, "headless", False)), WINEDEBUG="-all")
     def one(i):
         argv = json.load(open(os.path.join(bdir, runs[i][0], "argv.json")))
         log = os.path.join(bdir, runs[i][0], "rhost.log")
@@ -1055,6 +1075,48 @@ def cmd_headless_check(a):
         print(f"{n:42s} f={r.get('frame') or '?':>7s} anchors={na:<5d} {r.get('wall_ms') or '?':>7s}ms  " + ("IDENTICAL" if not bad else "DIFF " + "; ".join(bad)))
     print(f"headless-check: {ok}/{len(todo)} IDENTICAL to the real-device goldens ({frames} frames, {time.time() - t0:.0f}s) → {bd}")
     return 0 if ok == len(todo) else 1
+
+
+def cmd_skip_check(a):
+    """the gate of `rhost --skip-fn`: per scenario two headless replays, plain and with the functions skipped —
+    the same end frame, RNG, game-state hash (state_sem: every byte of retail's .data / .bss / heap bar the
+    volatile slots) and save.dat, or the function is not pure. Device memory (state_dev) may differ: draws and
+    device state setters are what a skipped render function consists of."""
+    import copy
+    names = a.scenarios or scenario_names(pieces=True)
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    runs = []
+    for n in names:
+        tr, save = scenario_inputs(n)
+        runs.append((n, tr, None, save))
+    print(f"skip-check {a.fns}: {len(runs)} scenario(s), target {a.target}")
+    t0 = time.time()
+    res = {}
+    for tag, extra in (("plain", None), ("skip", f"--skip-fn {a.fns}")):
+        b = copy.copy(a)
+        b.headless, b.flatten_out, b.dump_at, b.hook, b.frames, b.extra = True, False, None, None, None, extra
+        _, bd, r, out = run_batch(b, runs, "skipcheck-" + tag, fetch=("rhost.log", "save.dat"))
+        res[tag] = (bd, r)
+    ok, tp, ts = 0, 0.0, 0.0
+    for n, *_ in runs:
+        p, s = res["plain"][1].get(n) or {}, res["skip"][1].get(n) or {}
+        bad = [f"{k} {p.get(k)}→{s.get(k)}" for k in ("status", "frame", "rng", "state_sem", "complete") if p.get(k) != s.get(k)]
+        fp, fs = (os.path.join(res[t][0], n, "save.dat") for t in ("plain", "skip"))
+        if os.path.exists(fp) != os.path.exists(fs) or (os.path.exists(fp) and open(fp, "rb").read() != open(fs, "rb").read()):
+            bad.append("save.dat differs")
+        if not p or not s:
+            bad = ["no result"]
+        ok += not bad
+        tp += float(p.get("wall_ms", 0) or 0); ts += float(s.get("wall_ms", 0) or 0)
+        if bad:
+            print(f"{n:42s} DIFF " + "; ".join(bad))
+    print(f"skip-check {a.fns}: {ok}/{len(runs)} equal (frame, RNG, state_sem, save.dat); wall plain {tp / 1000:.0f}s → skip {ts / 1000:.0f}s "
+          f"(×{tp / max(ts, 1):.2f}); {time.time() - t0:.0f}s")
+    if ok == len(runs):
+        for t in ("plain", "skip"):
+            shutil.rmtree(res[t][0], ignore_errors=True)
+    return 0 if ok == len(runs) else 1
 
 
 def cmd_snap_check(a):
@@ -2284,6 +2346,9 @@ def main():
     p.add_argument("scenarios", nargs="*"); p.add_argument("--only")
     p.add_argument("--real", action="store_true", help="real devices instead: this rhost build vs the goldens (after a change to rhost's core)")
     common(p); p.set_defaults(fn=cmd_headless_check)
+    p = sp.add_parser("skip-check", help="rhost --skip-fn gate: plain vs skipped headless replays must end in the same game state")
+    p.add_argument("fns", help="hex VAs, comma-separated (e.g. 414ee2)"); p.add_argument("scenarios", nargs="*"); p.add_argument("--only")
+    common(p); p.set_defaults(fn=cmd_skip_check)
     p = sp.add_parser("snap-check", help="savestate self-test (rhost --snap-test) per scenario: restore + replay must reproduce the state")
     p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--passes", type=int, default=2); common(p); p.set_defaults(fn=cmd_snap_check)
     p = sp.add_parser("golden", help="make the retail goldens (cached retail side of the port commands)")

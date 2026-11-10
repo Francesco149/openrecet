@@ -3,7 +3,7 @@ name: adv-guild-hires
 start: end:dungeon3-run2-save
 steps:
   - in the Adventurers' Guild: scene == 11
-  - back out with someone hired, on a dungeon floor: scene == 1 and s32(0x438b4cc) >= 1 and dlg == 0
+  - back out with someone hired, on a dungeon floor: scene == 1 and s32(0x438b4dc) >= 4 and dlg == 0   # (first run: `floor` 0x438b4cc is 0-based — 0 in the shop AND on 1F; the stage record 0x438b4dc is < 4 in shop stages)
 forbid:
   - back at the title: scene == 0 and frame > 400
 ---

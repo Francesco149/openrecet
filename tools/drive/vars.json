@@ -211,12 +211,53 @@
  "floor": {
   "addr": "0x438b4cc",
   "type": "s32",
-  "note": "DAT_0438b4cc dungeon floor (the port mirrors it as 'next floor')"
+  "note": "DAT_0438b4cc dungeon floor, 0-based (0 in the shop and on 1F; the HUD plate shows +1)"
  },
  "dungeon": {
   "addr": "0x438b4c8",
   "type": "s32",
   "note": "DAT_0438b4c8 dungeon id"
+ },
+ "o_bgm": {
+  "addr": "0x56e5778",
+  "type": "s32",
+  "note": "Options: Music 0..9 (save header dword 2)"
+ },
+ "o_se": {
+  "addr": "0x56e5774",
+  "type": "s32",
+  "note": "Options: Sound 0..9 (header dword 1)"
+ },
+ "o_voice": {
+  "addr": "0x56e577c",
+  "type": "s32",
+  "note": "Options: Voice 0..9 (header dword 3)"
+ },
+ "o_speed": {
+  "addr": "0x56e5784",
+  "type": "s32",
+  "note": "Options: Message Speed 0..2 (header dword 5)"
+ },
+ "o_skip": {
+  "addr": "0x56e5782",
+  "type": "s16",
+  "note": "Options: Unread Text Skip 0 / 1"
+ },
+ "o_dirty": {
+  "addr": "0x74b2890",
+  "type": "s32",
+  "note": "pause Options page phase: 1 dirty, 2 = save on the next tick (FUN_004905a8(-1)), 3 clean exit"
+ },
+ "stage": {
+  "addr": "0x438b4dc",
+  "type": "s32",
+  "note": "DAT_0438b4dc stage record: < 4 = a shop stage (0 at home), >= 4 = a dungeon (4 = Hall of Trials)"
+ },
+ "stime": {
+  "expr": "s32(bank + 4*0xb0fc)",
+  "status": true,
+  "event": true,
+  "note": "time of day (bank dword 0xb0fc): 0 morning .. 3 evening; 4 ends the day. A town trip / an opening costs periods; the Pub opens from 2, the Adventurers' Guild closes in the evening"
  },
  "_cell": {
   "expr": "(scene, cc08, int(px), int(pz))"

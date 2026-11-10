@@ -375,7 +375,10 @@ f475 A=buy1 · f527 A f569 Up f634 A=buy2.
   1 first-visit) only gates BGM fades the port omits. **PORT-DEBT(talk-confirm-flash):** the c20
   selected-row brightness pulse (Ghidra-dropped FPU amplitude). Verify trace:
   `guild-skip-dialogue-talk-leave-20260611-204101` `caprange [250,1250]`.
-- **3** = sell item-pick (FUN_00469a9f adds gold). **4** = Expansion confirm. **5** = Fusion
+- ~~**3** = sell item-pick~~ — **wrong** (probe `guild-sell-expansion`, 2026-11-10): retail never sets `c00` to 3;
+  Sell uses mode 0 (the item list, entered from the Sell option: `DAT_09640624[c04] == 1`) → mode 8 ("Selling X. Are
+  you sure?") → mode 0, like Buy (FUN_00469a9f adds gold). **4** = Expansion confirm ("Expanding the store will cost
+  10000pix. Continue?"; Yes: gold −10,000, shop size `bank+183776` 0 → 1, `items` +10, back to mode 1, no scene). **5** = Fusion
   confirm. **6** = post-purchase result anim (`DAT_09642bfc` 0→0x4b). **8 = qty overlay**.
 - Transitions: mode1 --A on Buy/Sell--> slide-in (`c24=1,c20=1`; at `c20==0xf`
   `FUN_004682c5`+`FUN_00468338(7=buy/5=sell,1)`+`FUN_004682d8(price-mult)`; at `c24==0x19`)

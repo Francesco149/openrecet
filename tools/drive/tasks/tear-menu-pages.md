@@ -4,7 +4,7 @@ start: save:1a5a45e631b4
 steps:
   - Tear's menu is open: cc08 == 15
   - the Merchant Level page is open: cc08 == 18
-  - the Merchant Level page was scrolled: cc08 == 18 and (s32(0x438b8c4) != 0 or s32(0x438b8c8) != 0)
+  - the Merchant Level page was scrolled: cc08 == 18 and s32(0x438b8c4) > mlevel   # (the page opens with the cursor b8c4 on the current level, scroll b8c8 one above: only a move counts)
   - the Store Atmosphere page is open: cc08 == 17 and s32(0x74b28b0 + 4*s32(0x438cc0c)) == 0
   - Tear's Lectures is open: cc08 == 30
   - back in free roam: cc08 == 1 and dlg == 0

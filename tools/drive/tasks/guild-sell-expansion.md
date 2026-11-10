@@ -3,7 +3,7 @@ name: guild-sell-expansion
 start: save:175794a5f61c
 steps:
   - in the Merchants' Guild: scene == 6
-  - the Sell item list (guild mode 3): scene == 6 and s32(0x9642c00) == 3
+  - the Sell item list (mode 0 entered from the Sell option): scene == 6 and s32(0x9642c00) == 0 and s32(0x9640624 + 4*s32(0x9642c04)) == 1   # (the first run showed retail has no mode 3: Buy and Sell share modes 0 → 8)
   - an item was sold: scene == 6 and gold > 9999999
   - the Expansion confirm (guild mode 4): scene == 6 and s32(0x9642c00) == 4
   - back in the shop: scene == 1 and cc08 == 1 and dlg == 0

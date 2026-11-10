@@ -27,6 +27,8 @@
  *   --cut             free-play capture: end at a day-boundary save / a later game start (rh_play.c)
  *   --preamble C[:B[:T]]  drive the title to that game start first (turbo; --record hands over after it)
  *   --turbo           --record without realtime pacing (headless tests of the record path)
+ *   --headless        fake devices (rh_dev.c); --live PORT the command server (rh_live.c); --snap-test A:B[:K]
+ *   --skip-fn VA,..   calls of these (proven-pure render) functions become no-ops; --profile F  EIP samples from tick F
  * Output: <rundir>\rhost.log; last line "RESULT ..." (key=value, parsed by rhost.py). */
 #include "rhost.h"
 
@@ -766,6 +768,15 @@ static int WINAPI my_MessageBoxA(HWND h, LPCSTR text, LPCSTR cap, UINT type)
     return (type & 0xf) == MB_YESNO ? IDYES : IDOK;      /* a batch run never blocks on a dialog */
 }
 
+/* ---- --skip-fn VA[,VA]: drop pure-draw render functions (headless speed) ----
+ * With no device behind it, a retail function that only reads game state and issues draws
+ * does nothing a tick can observe. `--skip-fn` turns every call of such a function into a
+ * no-op. Only for functions PROVEN pure: `rhost.py skip-check VA` runs every scenario with
+ * and without the skip and demands the same frame, RNG, game-state hash (state_sem) and
+ * save.dat. FUN_00414ee2 (the overlay particle dispatcher, 48% of a house tick) passes. */
+static uint32_t g_skip[8]; static int g_nskip;
+static void __cdecl skip_stub(void) {}
+
 /* ---- CLI ---- */
 static void usage(void)
 {
@@ -802,6 +813,10 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--headless")) { O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--live")) { O.live = 1; O.live_port = (int)strtoul(ARG(), 0, 0); O.headless = 1; O.quiet = 1; }
         else if (!strcmp(a, "--live-idle")) O.live_idle = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--skip-fn")) {     /* retail functions (cdecl, plain `ret`) whose calls become no-ops: see skip_stub */
+            char b[256]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t && g_nskip < 8; t = strtok(NULL, ",")) g_skip[g_nskip++] = strtoul(t, 0, 16);
+        }
         else if (!strcmp(a, "--snap-test")) O.snap_test = ARG();
         else if (!strcmp(a, "--dump-at")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
@@ -951,6 +966,7 @@ int main(int argc, char **argv)
         rh_log("log-rand: %d direct + %d thunk call sites\n", a, b);
     }
     rh_hooks_install();
+    for (int i = 0; i < g_nskip; i++) rh_log("skip-fn %08x: %d call sites\n", g_skip[i], redirect_calls(g_skip[i], skip_stub));
     if (O.coverage) cov_install();
     if (g_ww_n) ww_install();
     if (O.d3d_proxy) d3d_proxy_install();

@@ -104,8 +104,10 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   `A` opens the slot picker with the cursor on the last-used slot, `A` again loads it (in the house
   ~190 ticks after boot). Selecting EXIT ends the game and the session (the run stays).
 - The day-14 saves (`end:dungeon3-run2-save` and the crafted ones made from it): `.*60 A .*30 A` loads the slot
-  (in the house ~f137; the day dword reads 14, the HUD says Day 15); a morning event then owns the game
-  (`dlg == 1`, ~1,100 ticks of A taps) — `~` then `A` on "Yes" skips it (`dlg == 0` ~f504). Recette then stands at
+  (in the house ~f137; the day dword reads 14, the HUD says Day 15). The played save then gives control at once.
+  The CRAFTED ones (merchant level raised) first play a level-up event (`dlg == 1`, "Recette. May I have a
+  moment?", ~1,100 ticks of A taps): `~`, wait ~40 ticks for the Yes / No box, `A` on "Yes" skips it — check
+  `dlg == 0`. Recette then stands at
   (−0.3, 9.35) in front of the counter, Tear at (0.6, 9.35) (`tx`, `tz`). `.*30 DL*16 U*8 UR*16 L*6 A .*7` walks to
   the counter and opens its menu; the shop door is at (3.0, −3.4): within 1.8 of it AND facing +x leaves to the
   town map (`scene == 8`, cursor `wm_cur`).
