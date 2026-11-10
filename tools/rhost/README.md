@@ -44,6 +44,36 @@ End saves are cached in `_saves/endsaves.json`, keyed by the trace file's sha256
 self-check replay stores the new recording's own end save there, so `record --from NEW`
 starts right away.
 
+### Headless, savestates, live sessions (`docs/findings/headless-savestates.md`)
+```sh
+python3 tools/rhost/rhost.py run X --headless --target wine        # fake devices: no GPU / desktop / audio; wine without Xvfb
+python3 tools/rhost/rhost.py headless-check [SCEN..|--only RE] --target wine -j 14   # headless replays vs the Windows real-device goldens
+python3 tools/rhost/rhost.py headless-check --real --target win -j 10               # this rhost build on REAL devices vs the goldens
+python3 tools/rhost/rhost.py snap-check [SCEN..|--only RE] --target wine -j 12      # savestate self-test: restore + replay reproduces state
+python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe"     # re-record the real adapter's answers → gen_dev_ref.py
+./rd …                                                              # the driver on top of --live: tools/drive/README.md
+```
+- `--headless` (`rh_dev.c`): retail gets fake Direct3D 8 / DirectMusic / DirectShow / DirectInput objects living in the
+  DEV region (`0x40000000..`); adapter answers come from `rh_dev_ref.h` (the reference machine's, by `--d3d-probe`);
+  the window is message-only. Gate: `headless-check` — **100/100 IDENTICAL to the real-device goldens** (per-tick
+  RNG, anchors, inputs, save bytes; 2026-11-10). After a change to `rh_dev.c`: `headless-check`; after a change to
+  rhost's core (tick hook, heap, files, handles): `headless-check --real` too.
+- `--live PORT` (`rh_live.c`, implies `--headless`): a command server on 127.0.0.1 (`<run>\live.port` = port + pid; 0 picks a
+  port). Commands: `run`, `r` / `w`, `prog` / `eval`, `anchor` / `snap` / `restore` / `free` / `diff`, `text`, `movie`,
+  `hash`, `explore`, `quit` — the file's header is the reference. With `--trace T [--frames N]` it replays first. A
+  session exits after `--live-idle` seconds (1800) without a command.
+- Savestates (`rh_snap.c`): `anchor` copies the tracked state (retail .data / .bss, heap arena, DEV: ~210 MB) and
+  write-protects it; a savestate is the pages written since, shared with its parent where equal. Gate: `snap-check`
+  (`--snap-test A:B[:K]` inside rhost) — **99/99 PASS**. An import through which the SYSTEM writes retail memory must
+  call `rh_snap_touch()` first (kernel-mode writes do not fault into the tracker): `rh_snap.c`'s wrapper list,
+  `rh_handles.c`'s ReadFile.
+- The tick hook (`rhost.c`): host work runs as a coroutine on its own stack (`rh_step()` = one tick, boundary to
+  boundary); retail's tick runs at its native stack depth with retail's registers.
+- `--profile F`: EIP samples of the main thread from tick F → `<run>\profile.txt` (bucket them with
+  `functions_ida.tsv`).
+- The game's `MessageBoxA` is logged and answered (never blocks a batch); `PostQuitMessage` / `ExitProcess` log
+  their caller; an access violation logs registers + the retail return addresses on the stack.
+
 ### Goldens and triage (`docs/plans/free-play-capture.md` FPC-2 / FPC-3)
 ```sh
 python3 tools/rhost/rhost.py golden [SCEN..|--only RE] [--refresh]   # retail's side of the port commands, once
@@ -201,4 +231,6 @@ Add a port function = one wrapper + one table row.
 
 podman container,
 port-side determinism knobs (same timeline as rhost ⇒ port↔retail by frame number),
-heap objects in RET-hook snapshots, D3D/file effect recording during shadow runs.
+heap objects in RET-hook snapshots, D3D/file effect recording during shadow runs,
+`--live` on the Windows box, savestates across processes, pictures from the headless draw stream
+(`docs/findings/headless-savestates.md` §Open).

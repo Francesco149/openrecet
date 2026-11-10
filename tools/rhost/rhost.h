@@ -59,6 +59,13 @@ typedef struct {
     int cut;                    /* free-play capture: end at a day-boundary save / a later game start (rh_play.c) */
     const char *preamble;       /* CODE[:BANK[:TOGGLE]]: drive the title to that game start (rh_play.c) */
     int turbo;                  /* --record without realtime pacing (headless tests of the record path) */
+    uint32_t live_idle;         /* --live-idle S: a live session exits after S seconds without a command (1800) */
+    uint32_t live_until;        /* --live with --trace: stop the replay at this frame (--frames) */
+    int live, live_port;        /* --live PORT: serve commands on 127.0.0.1:PORT (0 = pick one → <run>\\live.port); implies --headless */
+    const char *snap_test;      /* --snap-test A:B[:K]: savestate self-check (rh_live.c) */
+    int profile;                /* --profile FROM: sample the main thread's EIP from tick FROM */
+    int d3d_probe;              /* log the real Direct3D 8's adapter answers (rh_d3dprobe.c → rh_dev_ref.h) */
+    int headless;               /* fake D3D8 / DirectMusic / DirectShow / DirectInput (rh_dev.c): no GPU, no desktop */
 } rh_opts_t;
 
 extern rh_opts_t O;
@@ -84,10 +91,15 @@ void rh_heap_meta_free(void *m);
 
 /* rh_files.c */
 void rh_files_install(void);
+void *rh_files_snap(void);
+void rh_files_unsnap(void *s);
+void rh_files_snap_free(void *s);
 
 /* rh_handles.c */
 void rh_handles_install(void);
 long rh_handles_live(void);
+void *rh_handles_snap(void);
+void rh_handles_unsnap(void *s);
 
 /* rh_state.c */
 typedef struct { uint64_t full, semantic; uint32_t masked, ranges, bytes; } rh_hash_t;
@@ -95,6 +107,7 @@ void rh_state_hash(rh_hash_t *h);
 int  rh_state_dump(const char *path);
 void rh_state_volatile_add(uint32_t va);
 void rh_state_ext_report(void);
+uint64_t rh_state_dev_hash(void);                   /* the DEV region in use (--headless), 0 otherwise */
 int  rh_shadow(uint32_t va, const char *name, void (*port)(void), char *why, size_t whyn);
 
 /* rh_trace.c */
@@ -127,6 +140,54 @@ const char *rh_play_cut_reason(void);
 void rh_play_finish(const char *why);    /* <run>\cut.json */
 const char *rh_play_status(void);
 void rh_play_handover(void);             /* rhost.c: the preamble is done — realtime + real input from here */
+
+/* rh_dev.c — --headless devices; their memory is the DEV region (carved from the arena's
+ * address range: retail's large-block heap peaks at 50 MB of the 256 MB left to it) */
+#define RH_DEV_LO 0x40000000u
+#define RH_DEV_HI 0x50000000u
+void rh_dev_install(void);
+void rh_dev_report(void);
+int  rh_dev_range(uint32_t *lo, uint32_t *hi);   /* [DEV_LO, top) in use, page-rounded; 0 = not headless */
+uint32_t rh_dev_committed(void);
+
+/* rh_snap.c — in-process savestates (rh_dev.c's DEV region makes the state complete) */
+void rh_snap_install(void);
+void rh_snap_register(const char *name, void *p, size_t n);   /* a plain host-state block saved with every savestate */
+void rh_snap_committed(uint32_t lo, uint32_t hi);   /* a deterministic region committed fresh pages */
+int  rh_snap_fault(EXCEPTION_POINTERS *e);          /* 1 = a write-track fault, handled: continue */
+void rh_snap_touch(const void *p, size_t n);        /* before the system writes [p, p+n) of retail memory */
+int  rh_snap_anchor(void);                          /* base copy + write tracking; drops every savestate */
+int  rh_snap_take(void);                            /* → id >= 1, 0 = not anchored / pool exhausted */
+int  rh_snap_restore(int id);
+void rh_snap_free(int id);
+int  rh_snap_frame(int id);
+long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint32_t was, uint32_t now, void *u), void *u);
+int  rh_snap_anchored(void);
+uint32_t rh_snap_dirty(void);
+void rh_snap_stats(char *buf, size_t n);
+
+/* rhost.c: the tick hook's coroutine */
+void rh_step(void);                                 /* host stack: run one whole tick, boundary to boundary */
+void rh_game_stack(uint32_t *lo, uint32_t *n);      /* retail's live main-stack bytes at a boundary */
+
+/* rh_live.c — --live PORT: the command server (step / read / savestate / search) + --snap-test */
+void rh_live_install(void);
+void rh_live_main(void);
+uint16_t rh_live_mask(uint32_t frame, int *have);
+void rh_live_note_esc(uint32_t frame);
+void rh_text_begin(void);
+void *rh_text_snap(void);
+void rh_text_unsnap(void *blob);
+void rh_live_note_rngseed(uint32_t frame, uint32_t v);
+void rh_snap_selftest(void);
+const char *rh_snap_test_status(void);
+void *rh_trace_snap(void);
+void rh_trace_unsnap(void *blob);
+void rh_trace_post_esc(void);                       /* rh_trace.c: the ESC key press, as a trace's {"esc"} op posts it */
+
+/* rh_d3dprobe.c */
+void rh_d3dprobe_install(void);
+void rh_d3dprobe_device(void);
 
 /* rh_hooks.c */
 void rh_hooks_install(void);

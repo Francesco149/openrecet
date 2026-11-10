@@ -105,6 +105,15 @@ void rh_state_hash(rh_hash_t *h)
     h->full = f; h->semantic = s; h->masked = masked; h->ranges = (uint32_t)n; h->bytes = bytes;
 }
 
+uint64_t rh_state_dev_hash(void)
+{
+    uint32_t lo, hi;
+    if (!rh_dev_range(&lo, &hi)) return 0;
+    uint64_t f = 1469598103934665603ull;
+    for (const uint32_t *p = (const uint32_t *)(uintptr_t)lo; p < (const uint32_t *)(uintptr_t)hi; p++) { f ^= *p; f *= 1099511628211ull; }
+    return f;
+}
+
 int rh_state_dump(const char *path)
 {
     static uint32_t r[MAXR][2];

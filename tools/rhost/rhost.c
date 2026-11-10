@@ -74,8 +74,23 @@ void rh_fatal(const char *fmt, ...)
 static LONG CALLBACK flush_veh(EXCEPTION_POINTERS *e)
 {
     DWORD c = e->ExceptionRecord->ExceptionCode;
-    if (c != EXCEPTION_BREAKPOINT && c != EXCEPTION_SINGLE_STEP && c != 0x406D1388 /* thread name */)
+    if (c != EXCEPTION_BREAKPOINT && c != EXCEPTION_SINGLE_STEP && c != 0x406D1388 /* thread name */) {
+        static int n;
+        if (rh_snap_fault(e)) return EXCEPTION_CONTINUE_EXECUTION;   /* a savestate write-track fault (rh_snap.c) */
+        if (n++ < 8) {
+            const CONTEXT *x = e->ContextRecord; const EXCEPTION_RECORD *r = e->ExceptionRecord;
+            char st[200] = ""; size_t so = 0;
+            const uint32_t *sp = (const uint32_t *)(uintptr_t)x->Esp, *top = (const uint32_t *)((NT_TIB *)NtCurrentTeb())->StackBase;
+            for (int i = 0, k = 0; i < 400 && k < 12 && sp + i < top; i++)
+                if (sp[i] >= RT_TEXT_LO && sp[i] < RT_TEXT_LO + RT_TEXT_SZ) { so += snprintf(st + so, sizeof st - so, " %x", sp[i]); k++; }
+            rh_log("exception %08lx at eip=%08lx (f%u) %s %08lx eax=%08lx ecx=%08lx edx=%08lx ebx=%08lx esi=%08lx edi=%08lx ebp=%08lx esp=%08lx stack:%s\n",
+                   c, (unsigned long)x->Eip, g_frame, r->NumberParameters >= 2 ? (r->ExceptionInformation[0] ? "write" : "read") : "-",
+                   r->NumberParameters >= 2 ? (unsigned long)r->ExceptionInformation[1] : 0ul, (unsigned long)x->Eax, (unsigned long)x->Ecx,
+                   (unsigned long)x->Edx, (unsigned long)x->Ebx, (unsigned long)x->Esi, (unsigned long)x->Edi, (unsigned long)x->Ebp,
+                   (unsigned long)x->Esp, st);
+        }
         rh_log_flush();
+    }
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -233,7 +248,13 @@ typedef HWND (WINAPI *cwx_t)(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, H
 static HWND WINAPI my_CreateWindowExA(DWORD ex, LPCSTR cls, LPCSTR name, DWORD st, int x, int y, int w, int h, HWND p, HMENU m, HINSTANCE i, LPVOID lp)
 {
     (void)x; (void)y;
-    return CreateWindowExA(ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, cls, name, st, -8000, -8000, w, h, p, m, i, lp);
+    /* --headless: a message-only window. It needs no desktop and no display driver (wine without
+     * an X server refuses any other window), still has retail's WndProc and message queue (the
+     * ESC key posts), and is the same on every host. */
+    if (O.headless && !p) p = HWND_MESSAGE;
+    HWND hw = CreateWindowExA(ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, cls, name, st, -8000, -8000, w, h, p, m, i, lp);
+    if (!hw) rh_log("window: CreateWindowExA failed (err %lu)\n", GetLastError());
+    return hw;
 }
 static BOOL WINAPI my_ShowWindow(HWND h, int cmd) { (void)cmd; return ShowWindow(h, SW_SHOWNOACTIVATE); }
 static BOOL WINAPI my_SetWindowPlacement(HWND h, const WINDOWPLACEMENT *wp)
@@ -384,6 +405,48 @@ static void ww_install(void)
     rh_log("watch-write: %d VA(s) armed, frames %u..%u\n", g_ww_n, g_ww_from, g_ww_to);
 }
 
+/* ---- --profile: EIP samples of the main thread (a helper suspends it ~every ms) ----
+ * <rundir>\\profile.txt: "<eip> <count>" per sampled address (frames FROM.. only);
+ * tools/rhost/rhost.py profile buckets them into retail functions. */
+static HANDLE g_prof_main; static volatile int g_prof_stop; static uint32_t g_prof_from;
+static struct { uint32_t eip, n; } *g_prof; static uint32_t g_prof_cap = 1u << 16, g_prof_total;
+static DWORD WINAPI prof_thread(LPVOID p)
+{
+    (void)p;
+    while (!g_prof_stop) {
+        Sleep(1);
+        if (g_frame < g_prof_from) continue;
+        if (SuspendThread(g_prof_main) == (DWORD)-1) continue;
+        CONTEXT c; c.ContextFlags = CONTEXT_CONTROL;
+        if (GetThreadContext(g_prof_main, &c)) {
+            uint32_t e = (uint32_t)c.Eip, h = (e * 2654435761u) >> 16;
+            for (uint32_t k = 0; k < g_prof_cap; k++) {
+                uint32_t i = (h + k) & (g_prof_cap - 1);
+                if (!g_prof[i].n || g_prof[i].eip == e) { g_prof[i].eip = e; g_prof[i].n++; break; }
+            }
+            g_prof_total++;
+        }
+        ResumeThread(g_prof_main);
+    }
+    return 0;
+}
+static void prof_install(void)
+{
+    g_prof = calloc(g_prof_cap, sizeof *g_prof);
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &g_prof_main, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    CloseHandle(CreateThread(NULL, 0, prof_thread, NULL, 0, NULL));
+}
+static void prof_dump(void)
+{
+    if (!g_prof) return;
+    g_prof_stop = 1; Sleep(5);
+    char p[MAX_PATH]; snprintf(p, sizeof p, "%s\\profile.txt", O.rundir);
+    FILE *f = fopen(p, "w"); if (!f) return;
+    for (uint32_t i = 0; i < g_prof_cap; i++) if (g_prof[i].n) fprintf(f, "%08x %u\n", g_prof[i].eip, g_prof[i].n);
+    fclose(f);
+    rh_log("profile: %u samples from f%u -> profile.txt\n", g_prof_total, g_prof_from);
+}
+
 /* ---- D3D8 stream recording via the v3 proxy (loaded in-process) ---- */
 typedef void (WINAPI *arm_fn)(unsigned, unsigned);
 typedef unsigned (WINAPI *pc_fn)(void);
@@ -480,7 +543,7 @@ static void __cdecl hook_input(void)
         return;
     }
     int have;
-    uint16_t m = rh_trace_mask(g_frame, &have);
+    uint16_t m = O.live ? rh_live_mask(g_frame, &have) : rh_trace_mask(g_frame, &have);
     g_mask = have ? m : 0;
     G16(DAT_MASK) = g_mask;
     G16(DAT_MASK + 42) = 0;                          /* player-2 slot: never real devices */
@@ -506,7 +569,65 @@ static void dump_now(const char *tag)
     char p[MAX_PATH]; snprintf(p, sizeof p, "%s\\state_%s.rhs", O.rundir, tag);
     rh_state_dump(p);
 }
-static void __cdecl hook_tick(void)
+
+/* ---- the tick hook: host work on its own stack, retail's tick at its native stack depth ----
+ * Retail's main loop calls VA_TICK from one site; that call lands in hook_tick_entry. Host
+ * code never runs on the game stack:
+ *   - retail's tick runs with ESP exactly where the unhooked call would put it, so stack
+ *     addresses that end up in retail globals (CRT __NLG_Notify) do not depend on rhost's
+ *     own frames;
+ *   - a savestate restore can rewrite the game stack [g_gesp, top) while it executes.
+ * host_main() is a coroutine on the host stack: rh_step() = one whole tick, from one tick
+ * boundary to the next (tick on the game stack → post-tick work → yield to retail's
+ * message pump → resumed by the next call of the site → boundary work). */
+#define HOST_STACK_SZ 0x200000u
+uint32_t g_gesp, g_gret, g_gregs[4], g_gseh, g_tick_ret;   /* retail's side of the switch (saved in savestates) */
+uint32_t g_hesp;                                           /* the host coroutine's stack pointer */
+static uint32_t g_hstack_lo, g_hstack_hi, g_hseh = 0xffffffffu;
+void rh_game_stack(uint32_t *lo, uint32_t *n) { *lo = g_gesp; *n = MAIN_STACK_HI - g_gesp; }
+static void tib_set(uint32_t lo, uint32_t hi, uint32_t *save_seh, uint32_t seh)
+{
+    NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+    *save_seh = (uint32_t)(uintptr_t)tib->ExceptionList;
+    tib->StackBase = (void *)(uintptr_t)hi; tib->StackLimit = (void *)(uintptr_t)lo;
+    tib->ExceptionList = (void *)(uintptr_t)seh;
+}
+#define TIB_GAME() tib_set(MAIN_STACK_LO + STACK_GUARD, MAIN_STACK_HI, &g_hseh, g_gseh)
+#define TIB_HOST() tib_set(g_hstack_lo, g_hstack_hi, &g_gseh, g_hseh)
+__attribute__((naked)) static void hook_tick_entry(void)
+{
+    __asm__("popl _g_gret\n\t"                         /* retail's return address; ESP = the call site's own */
+            "movl %ebx, _g_gregs\n\t movl %esi, _g_gregs+4\n\t movl %edi, _g_gregs+8\n\t movl %ebp, _g_gregs+12\n\t"
+            "movl %esp, _g_gesp\n\t"
+            "movl _g_hesp, %esp\n\t"
+            "popl %ebp\n\t popl %edi\n\t popl %esi\n\t popl %ebx\n\t"
+            "ret");                                     /* into host_main (first time) / out of rh_yield */
+}
+__attribute__((naked)) static void rh_yield(void)      /* host → back into retail's main loop */
+{
+    __asm__("pushl %ebx\n\t pushl %esi\n\t pushl %edi\n\t pushl %ebp\n\t"
+            "movl %esp, _g_hesp\n\t"
+            "movl _g_gesp, %esp\n\t"
+            "movl _g_gregs, %ebx\n\t movl _g_gregs+4, %esi\n\t movl _g_gregs+8, %edi\n\t movl _g_gregs+12, %ebp\n\t"
+            "movl _g_tick_ret, %eax\n\t"
+            "jmp *_g_gret");
+}
+__attribute__((naked)) static void rh_call_tick(void)  /* host → retail's tick on the game stack → host */
+{
+    __asm__("pushl %ebx\n\t pushl %esi\n\t pushl %edi\n\t pushl %ebp\n\t"
+            "movl %esp, _g_hesp\n\t"
+            "movl _g_gesp, %esp\n\t"
+            "movl _g_gregs, %ebx\n\t movl _g_gregs+4, %esi\n\t movl _g_gregs+8, %edi\n\t movl _g_gregs+12, %ebp\n\t"
+            "movl $0x47be92, %eax\n\t"
+            "call *%eax\n\t"
+            "movl %eax, _g_tick_ret\n\t"
+            "movl _g_hesp, %esp\n\t"
+            "popl %ebp\n\t popl %edi\n\t popl %esi\n\t popl %ebx\n\t"
+            "ret");
+}
+
+/* everything due at the boundary before tick g_frame+1 */
+static void boundary(void)
 {
     if (g_frame == 0 && O.has_seed) G32(DAT_RNG) = O.seed;
     g_vclock += 17;
@@ -520,34 +641,44 @@ static void __cdecl hook_tick(void)
                (int)G32(DAT_SCENE), G32(DAT_RNG), g_mask, cw, g_live_threads, g_threads_created,
                GF(DAT_PLAYER_POS), GF(DAT_PLAYER_POS + 4), GF(DAT_PLAYER_POS + 8), wb);
     }
-    if (g_frame == 1 && (O.n_shot || O.shot_every)) rh_shot_warm();
-    if (rh_shot_on_present()) {   /* wine: arm tick F-1's Present for the shot of F */
-        for (int i = 0; i < O.n_shot; i++)
-            if (O.shot_at[i] != 0xffffffffu && O.shot_at[i] == g_frame + 1) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
-        if (O.shot_every && (g_frame + 1) % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
-    } else {
-        for (int i = 0; i < O.n_shot; i++)
-            if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
-        if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+    if (g_frame == 1 && O.d3d_probe) rh_d3dprobe_device();
+    if (!O.headless) {
+        if (g_frame == 1 && (O.n_shot || O.shot_every)) rh_shot_warm();
+        if (rh_shot_on_present()) {   /* wine: arm tick F-1's Present for the shot of F */
+            for (int i = 0; i < O.n_shot; i++)
+                if (O.shot_at[i] != 0xffffffffu && O.shot_at[i] == g_frame + 1) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
+            if (O.shot_every && (g_frame + 1) % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame + 1); rh_shot_arm(t); }
+        } else {
+            for (int i = 0; i < O.n_shot; i++)
+                if (O.shot_at[i] == g_frame) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+            if (O.shot_every && g_frame && g_frame % O.shot_every == 0) { char t[32]; snprintf(t, sizeof t, "f%06u", g_frame); rh_shot(t); }
+        }
     }
     if (O.hash_every && g_frame % O.hash_every == 0) {
         rh_hash_t h; rh_state_hash(&h);
-        rh_log("hash f%u full=%016llx sem=%016llx masked=%u\n", g_frame, (unsigned long long)h.full, (unsigned long long)h.semantic, h.masked);
+        rh_log("hash f%u full=%016llx sem=%016llx masked=%u dev=%016llx\n", g_frame, (unsigned long long)h.full, (unsigned long long)h.semantic, h.masked,
+               (unsigned long long)rh_state_dev_hash());
     }
     if (O.has_cap && g_frame == O.cap_from && g_arm) {
         unsigned pc = g_present_count();
         g_arm(pc, O.cap_count);
         rh_log("d3d: armed present window [%u,%u) at frame %u\n", pc, pc + O.cap_count, g_frame);
     }
+    rh_snap_selftest();                                     /* --snap-test (rh_live.c) */
     if (g_frame >= O.frames) finish("frames");
     if (rh_play_cut_pending()) finish(rh_play_cut_reason());   /* the same boundary as `--frames N`: replays match */
+}
+/* one whole tick: from the boundary before tick g_frame+1 to the boundary after it */
+void rh_step(void)
+{
     g_frame++;
     if (O.realtime && g_rt_on) {
         LARGE_INTEGER t; QueryPerformanceCounter(&t);
         double due = (g_frame - g_rt_f0) * (1000.0 / 60.0), now = (t.QuadPart - g_rt_t0.QuadPart) * 1000.0 / g_qf.QuadPart;
         if (due > now + 1) Sleep((DWORD)(due - now));
     }
-    ((void (__cdecl *)(void))VA_TICK)();
+    if (O.live) rh_text_begin();
+    TIB_GAME(); rh_call_tick(); TIB_HOST();
     rh_play_after_tick();
     if (O.n_watch && O.log_every && g_frame % O.log_every == 0) {
         /* the state the anchors see: after tick N, BEFORE the next boundary's
@@ -558,8 +689,34 @@ static void __cdecl hook_tick(void)
     }
     rh_trace_after_tick(g_frame);
     if (g_frame % 1000 == 0) rh_log_flush();          /* a long run's log stays readable while it runs */
-    if (rh_trace_done(g_frame) && O.frames > g_frame) O.frames = g_frame;
-    if (rh_trace_stalled(g_frame)) finish("stalled");
+    if (!O.live) {                                    /* a live session outlives the trace it started from */
+        if (rh_trace_done(g_frame) && O.frames > g_frame) O.frames = g_frame;
+        if (rh_trace_stalled(g_frame)) finish("stalled");
+    }
+    TIB_GAME(); rh_yield(); TIB_HOST();               /* retail pumps its messages; the next call of the site resumes here */
+    boundary();
+}
+static void host_main(void)
+{
+    TIB_HOST();
+    boundary();
+    if (O.live) rh_live_main();                       /* serves commands; calls rh_step() itself; never returns */
+    for (;;) rh_step();
+}
+static void host_stack_init(void)
+{
+    uint8_t *st = VirtualAlloc(NULL, HOST_STACK_SZ, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!st) rh_fatal("cannot allocate the host stack");
+    g_hstack_lo = (uint32_t)(uintptr_t)st; g_hstack_hi = g_hstack_lo + HOST_STACK_SZ;
+    uint32_t *sp = (uint32_t *)(uintptr_t)(g_hstack_hi - 64);
+    *--sp = 0;                                        /* host_main's (never used) return address */
+    *--sp = (uint32_t)(uintptr_t)host_main;           /* hook_tick_entry's first `ret` */
+    sp -= 4;                                          /* ebx esi edi ebp */
+    g_hesp = (uint32_t)(uintptr_t)sp;
+    rh_snap_register("tick", &g_gret, sizeof g_gret); rh_snap_register("regs", g_gregs, sizeof g_gregs);
+    rh_snap_register("seh", &g_gseh, sizeof g_gseh); rh_snap_register("tickret", &g_tick_ret, sizeof g_tick_ret);
+    rh_snap_register("frame", (void *)&g_frame, sizeof g_frame); rh_snap_register("vclock", &g_vclock, sizeof g_vclock);
+    rh_snap_register("mask", &g_mask, sizeof g_mask); rh_snap_register("threads", (void *)&g_threads_created, sizeof g_threads_created);
 }
 
 static void finish(const char *why)
@@ -569,26 +726,45 @@ static void finish(const char *why)
     rh_trace_finish();
     rh_play_finish(why);
     cov_dump();
+    prof_dump();
     if (g_ww_log) { fflush(g_ww_log); rh_log("watch-write: %ld writes logged\n", g_ww_lines); }
     rh_hooks_report();
+    rh_dev_report();
     if (is_dump_frame(0xffffffffu)) dump_now("end");
     for (int i = 0; i < O.n_shot; i++) if (O.shot_at[i] == 0xffffffffu) rh_shot("end");
     char hs[256]; rh_heap_stats(hs, sizeof hs);
     rh_log("%s\n", hs);
     if (O.log_ext) rh_state_ext_report();
+    if (rh_snap_anchored()) { char ss[320]; rh_snap_stats(ss, sizeof ss); rh_log("%s\n", ss); }
     rh_hash_t h; rh_state_hash(&h);
     LARGE_INTEGER t; QueryPerformanceCounter(&t);
-    rh_log("RESULT status=%s reason=%s frame=%u rng=%08x scene=%d state_full=%016llx state_sem=%016llx masked=%u state_bytes=%u wall_ms=%.0f threads=%ld %s%s%s\n",
+    char devs[40] = "";                               /* one rh_log call: the driver reads the RESULT line from stdout */
+    if (O.headless) snprintf(devs, sizeof devs, " state_dev=%016llx", (unsigned long long)rh_state_dev_hash());
+    rh_log("RESULT status=%s reason=%s frame=%u rng=%08x scene=%d state_full=%016llx state_sem=%016llx masked=%u state_bytes=%u wall_ms=%.0f threads=%ld %s%s%s%s%s\n",
            !strcmp(why, "stalled") ? "stalled" : "ok", why, g_frame, G32(DAT_RNG), (int)G32(DAT_SCENE), (unsigned long long)h.full, (unsigned long long)h.semantic,
            h.masked, h.bytes, (t.QuadPart - g_t0.QuadPart) * 1000.0 / g_qf.QuadPart, g_threads_created, rh_trace_status(),
-           O.cut || O.preamble ? " " : "", O.cut || O.preamble ? rh_play_status() : "");
+           O.cut || O.preamble ? " " : "", O.cut || O.preamble ? rh_play_status() : "", devs, rh_snap_test_status());
     if (g_sbh) fclose(g_sbh);
     rh_log_flush();
     if (O.stall_ms) Sleep(O.stall_ms);
     if (g_logf) fclose(g_logf);
     ExitProcess(rh_play_cut_pending() ? (UINT)rh_play_cut_pending() : 0);   /* 10 cut-save / 11 cut-start (the session loop) */
 }
-static VOID WINAPI my_ExitProcess(UINT code) { if (!g_finished) finish("game-exit"); ExitProcess(code); }
+static VOID WINAPI my_ExitProcess(UINT code)
+{
+    if (!g_finished) { rh_log("game: ExitProcess(%u) from %p (f%u)\n", code, __builtin_return_address(0), g_frame); finish("game-exit"); }
+    ExitProcess(code);
+}
+static VOID WINAPI my_PostQuitMessage(int code)
+{ rh_log("game: PostQuitMessage(%d) from %p (f%u)\n", code, __builtin_return_address(0), g_frame); PostQuitMessage(code); }
+static int WINAPI my_MessageBoxA(HWND h, LPCSTR text, LPCSTR cap, UINT type)
+{
+    rh_log("game: MessageBoxA(\"%s\", \"%s\", %x) from %p (f%u)%s\n", cap ? cap : "", text ? text : "", type, __builtin_return_address(0), g_frame,
+           O.record ? "" : " — answered without a dialog");
+    rh_log_flush();
+    if (O.record) return MessageBoxA(h, text, cap, type);
+    return (type & 0xf) == MB_YESNO ? IDYES : IDOK;      /* a batch run never blocks on a dialog */
+}
 
 /* ---- CLI ---- */
 static void usage(void)
@@ -621,6 +797,12 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--cut")) O.cut = 1;
         else if (!strcmp(a, "--preamble")) O.preamble = ARG();
         else if (!strcmp(a, "--turbo")) O.turbo = 1;
+        else if (!strcmp(a, "--d3d-probe")) O.d3d_probe = 1;
+        else if (!strcmp(a, "--profile")) { O.profile = 1; g_prof_from = strtoul(ARG(), 0, 0); }
+        else if (!strcmp(a, "--headless")) { O.headless = 1; O.quiet = 1; }
+        else if (!strcmp(a, "--live")) { O.live = 1; O.live_port = (int)strtoul(ARG(), 0, 0); O.headless = 1; O.quiet = 1; }
+        else if (!strcmp(a, "--live-idle")) O.live_idle = strtoul(ARG(), 0, 0);
+        else if (!strcmp(a, "--snap-test")) O.snap_test = ARG();
         else if (!strcmp(a, "--dump-at")) {
             char b[256]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t && O.n_dump < 16; t = strtok(NULL, ","))
@@ -680,7 +862,8 @@ static void parse(int argc, char **argv)
     if (O.flatten && !strchr(O.flatten, ':') && O.flatten[0] != '\\') { snprintf(flat_abs, sizeof flat_abs, "%s\\%s", O.rundir, O.flatten); O.flatten = flat_abs; }
     /* a flat trace / mask script ends itself (its last op + --tail); an anchor trace's wait
      * segment stalls out (--stall-ms): the cap is only a backstop (dungeon3-floors: 199,626 f) */
-    if (!O.frames) O.frames = O.record ? 0xfffffff0u : (O.trace || O.masks) ? 2000000u : 3000u;
+    if (O.live) { O.live_until = O.frames; O.frames = 0; O.tail = 0; O.log_every = 0; }   /* --frames N = where the replayed prefix ends */
+    if (!O.frames) O.frames = (O.record || O.live) ? 0xfffffff0u : (O.trace || O.masks) ? 2000000u : 3000u;
 }
 
 static void load_volatile(void)
@@ -694,6 +877,7 @@ static void load_volatile(void)
 }
 
 RETAIL_HOLE_DEFINE
+
 
 int main(int argc, char **argv)
 {
@@ -719,6 +903,8 @@ int main(int argc, char **argv)
     iat_override("GetModuleFileNameA", my_GetModuleFileNameA);
     iat_override("CreateThread", my_CreateThread);
     iat_override("ExitProcess", my_ExitProcess);
+    iat_override("PostQuitMessage", my_PostQuitMessage);
+    iat_override("MessageBoxA", my_MessageBoxA);
     snprintf(g_cmdline, sizeof g_cmdline, "\"%s\\recettear.exe\"", g_gamedir_abs);
     iat_override("GetCommandLineA", my_GetCommandLineA);
     iat_override("GetEnvironmentStrings", my_GetEnvironmentStrings);
@@ -741,13 +927,15 @@ int main(int argc, char **argv)
     if (!O.no_overlay) rh_files_install();
     rh_handles_install();                            /* after files/threads: wraps their overrides */
     iat_override("WaitMessage", my_WaitMessage);   /* --record: real pausing once a human drives (my_WaitMessage) */
-    rh_dinput_install();
+    if (O.headless) rh_dev_install(); else rh_dinput_install();
     if (O.quiet) {
         iat_override("CreateWindowExA", my_CreateWindowExA);
         iat_override("ShowWindow", my_ShowWindow);
         iat_override("SetWindowPlacement", my_SetWindowPlacement);
     }
-    int nc = redirect_calls(VA_CLOCK, hook_clock), nt = redirect_calls(VA_TICK, hook_tick), ni = redirect_calls(VA_INPUT, hook_input);
+    rh_snap_install();                               /* last of the IAT layers: touch-before-kernel-write wrappers */
+    host_stack_init();
+    int nc = redirect_calls(VA_CLOCK, hook_clock), nt = redirect_calls(VA_TICK, hook_tick_entry), ni = redirect_calls(VA_INPUT, hook_input);
     if (nc != 1 || nt != 1 || ni != 1) rh_fatal("engine call sites clock=%d tick=%d input=%d (want 1/1/1)", nc, nt, ni);
     load_volatile();
     g_main_tid = GetCurrentThreadId();
@@ -757,6 +945,7 @@ int main(int argc, char **argv)
     }
     rh_trace_init();
     rh_play_install();
+    if (O.live) rh_live_install();
     if (g_lr_to >= g_lr_from) {   /* rand is mostly reached through the thunk j__rand @0x471084 (jmp 0x5041f6) */
         int a = redirect_calls(VA_RAND, logrand), b = redirect_calls(0x471084u, logrand);
         rh_log("log-rand: %d direct + %d thunk call sites\n", a, b);
@@ -765,6 +954,8 @@ int main(int argc, char **argv)
     if (O.coverage) cov_install();
     if (g_ww_n) ww_install();
     if (O.d3d_proxy) d3d_proxy_install();
+    if (O.d3d_probe) rh_d3dprobe_install();
+    if (O.profile) prof_install();
     rh_log("rhost: det vtime=%d defer=%d arena=%d overlay=%d seed=%s%u frames<=%u realtime=%d\n",
            !O.no_vtime, !O.no_defer, !O.no_arena, !O.no_overlay, O.has_seed ? "" : "none/", O.seed, O.frames, O.realtime);
     call_on_stack((void *)(uintptr_t)img.entry, NULL, MAIN_STACK_LO, MAIN_STACK_HI);   /* WinMainCRTStartup: never returns */

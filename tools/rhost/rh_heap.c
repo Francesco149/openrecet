@@ -14,7 +14,8 @@
  *
  * Regions (reserved at startup; abort if unavailable — never silently differ):
  *   SMALL 0x20000000 +256MB  size classes ≤64KB, LIFO free list per class
- *   LARGE 0x30000000 +512MB  >64KB, 4KB-granular first-fit spans, coalescing
+ *   LARGE 0x30000000 +256MB  >64KB, 4KB-granular first-fit spans, coalescing
+ *   (DEV  0x40000000 +256MB  the --headless devices' memory, rh_dev.c: its own allocator)
  *   VREG  0x50000000 +128MB  VirtualAlloc(NULL,..) reservations (CRT SBH regions)
  * Allocator metadata for SMALL/LARGE lives in a 16-byte header before each block;
  * free spans are tracked host-side. Single lock; retail worker threads are
@@ -24,7 +25,7 @@
 #define SMALL_LO 0x20000000u
 #define SMALL_SZ 0x10000000u
 #define LARGE_LO 0x30000000u
-#define LARGE_SZ 0x20000000u
+#define LARGE_SZ 0x10000000u
 #define VREG_LO  0x50000000u
 #define VREG_SZ  0x08000000u
 #define ARENA_LO SMALL_LO
@@ -55,6 +56,7 @@ static uint32_t g_nheaps;
 static int g_active;
 static uint64_t g_nalloc, g_nfree, g_inuse, g_inuse_max;
 static uint32_t g_host_lo, g_host_hi;
+static long g_decommits;   /* VREG decommits while write-tracked: a savestate cannot bring those pages back (never seen) */
 
 static void lock(void)   { EnterCriticalSection(&g_lk); }
 static void unlock(void) { LeaveCriticalSection(&g_lk); }
@@ -83,6 +85,7 @@ static void commit_to(region_t *r, uint32_t top)
     if (want > r->hi) want = r->hi;
     if (!VirtualAlloc((void *)(uintptr_t)r->committed, want - r->committed, MEM_COMMIT, PAGE_READWRITE))
         rh_fatal("rh_heap: commit %08x..%08x failed (err %lu)", r->committed, want, GetLastError());
+    rh_snap_committed(r->committed, want);
     r->committed = want;
 }
 
@@ -252,12 +255,17 @@ static LPVOID WINAPI my_VirtualAlloc(LPVOID a, SIZE_T n, DWORD type, DWORD prot)
         if (!p) return NULL;
         if (type & MEM_COMMIT) {
             if (!VirtualAlloc((void *)(uintptr_t)p, n, MEM_COMMIT, prot)) return NULL;
+            rh_snap_committed(p, p + (uint32_t)n);
             memset((void *)(uintptr_t)p, 0, n);   /* recommitted pages may hold old data on some hosts */
         }
         return (void *)(uintptr_t)p;
     }
     if (in_region(&R_VREG, addr)) {
-        if (type & MEM_COMMIT) return VirtualAlloc(a, n, MEM_COMMIT, prot);
+        if (type & MEM_COMMIT) {
+            void *q = VirtualAlloc(a, n, MEM_COMMIT, prot);
+            if (q) rh_snap_committed(addr & ~0xfffu, addr + (uint32_t)n);   /* fresh pages, or a re-commit that reset the protection */
+            return q;
+        }
         return a;
     }
     return VirtualAlloc(a, n, type, prot);
@@ -271,6 +279,7 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         span_t *s = vlive_find(addr);
         BOOL ok = FALSE;
         if (s) {
+            if (rh_snap_anchored()) g_decommits++;
             VirtualFree(a, s->sz, MEM_DECOMMIT);
             span_free(&R_VREG, s->lo, s->sz);
             *s = g_vlive[--g_nvlive];
@@ -279,6 +288,7 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         unlock();
         return ok;
     }
+    if (rh_snap_anchored()) g_decommits++;
     return VirtualFree(a, n, MEM_DECOMMIT);
 }
 
@@ -329,10 +339,12 @@ int rh_heap_ranges(uint32_t (*out)[2], int max)
     if (!g_active) return 0;
     uint32_t a = ARENA_LO;
     while (a < ARENA_HI && n < max) {
+        if (a >= RH_DEV_LO && a < RH_DEV_HI) { a = RH_DEV_HI; continue; }   /* device memory is not retail state */
         MEMORY_BASIC_INFORMATION mi;
         if (!VirtualQuery((void *)(uintptr_t)a, &mi, sizeof mi)) break;
         uint32_t lo = (uint32_t)(uintptr_t)mi.BaseAddress, hi = lo + (uint32_t)mi.RegionSize;
         if (hi > ARENA_HI) hi = ARENA_HI;
+        if (lo < RH_DEV_LO && hi > RH_DEV_LO) hi = RH_DEV_LO;
         if (mi.State == MEM_COMMIT) {
             if (n && out[n - 1][1] == lo) out[n - 1][1] = hi;
             else { out[n][0] = lo; out[n][1] = hi; n++; }
@@ -386,8 +398,9 @@ void rh_heap_meta_free(void *p)
 
 void rh_heap_stats(char *buf, size_t n)
 {
-    snprintf(buf, n, "heap: allocs=%llu frees=%llu inuse=%lluK max=%lluK small_top=+%uK large_top=+%uK vreg_top=+%uK heaps=%u",
+    int o = snprintf(buf, n, "heap: allocs=%llu frees=%llu inuse=%lluK max=%lluK small_top=+%uK large_top=+%uK vreg_top=+%uK heaps=%u",
              (unsigned long long)g_nalloc, (unsigned long long)g_nfree, (unsigned long long)(g_inuse >> 10),
              (unsigned long long)(g_inuse_max >> 10), (R_SMALL.top - R_SMALL.lo) >> 10,
              (R_LARGE.top - R_LARGE.lo) >> 10, (R_VREG.top - R_VREG.lo) >> 10, g_nheaps);
+    if (g_decommits && o > 0 && (size_t)o < n) snprintf(buf + o, n - (size_t)o, " TRACKED-DECOMMITS=%ld", g_decommits);
 }

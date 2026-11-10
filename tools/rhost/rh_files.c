@@ -18,6 +18,8 @@ static size_t GL;
 static char g_white[16][64]; static int g_nwhite;
 static long g_nopen;
 
+static uint32_t g_gen;                   /* bumps on every overlay write-open / delete: the overlay's content version */
+
 static int is_white(const char *rel)
 {
     for (int i = 0; i < g_nwhite; i++) if (!_stricmp(g_white[i], rel)) return 1;
@@ -55,6 +57,7 @@ static const char *resolve(const char *path, int want_write, int keep, char *out
     snprintf(rp, sizeof rp, "%s\\%s", R, rel);
     snprintf(gp, sizeof gp, "%s\\%s", G, rel);
     if (want_write) {
+        g_gen++;
         mkparents(rp);
         if (keep && !exists(rp) && !is_white(rel) && exists(gp)) CopyFileA(gp, rp, TRUE);
         unwhite(rel);
@@ -96,6 +99,7 @@ static BOOL WINAPI my_DeleteFileA(LPCSTR p)
     if (!game_rel(p, rel, sizeof rel)) return DeleteFileA(p);
     char rp[MAX_PATH]; snprintf(rp, sizeof rp, "%s\\%s", R, rel);
     DeleteFileA(rp);
+    g_gen++;
     if (g_nwhite < 16 && !is_white(rel)) snprintf(g_white[g_nwhite++], 64, "%s", rel);
     if (O.log_files) rh_log("delete %s (f%u)\n", p, g_frame);
     return TRUE;
@@ -152,4 +156,58 @@ void rh_files_install(void)
     iat_override("GetTempPathA", my_GetTempPathA);
     iat_override("GetTempFileNameA", my_GetTempFileNameA);
     rh_log("overlay: game=%s run=%s save=%s\n", G, R, exists(sp) ? "run-dir" : "none (whited-out)");
+}
+
+/* savestates: the overlay is on disk, so a savestate carries its content version. The only
+ * file retail rewrites during play is save.dat (18.8 MB): its bytes are captured once per
+ * version (shared by the savestates of that version) and written back when a restore
+ * crosses a version change; whiteouts and the temp-name counter ride along. */
+typedef struct { int ref; uint32_t gen; int have; DWORD n; uint8_t *bytes; } fblob_t;
+typedef struct { fblob_t *b; char white[16][64]; int nwhite; UINT tmpseq; } fsnap_t;
+static fblob_t *g_fcur;
+static fblob_t *blob_capture(void)
+{
+    fblob_t *b = calloc(1, sizeof *b);
+    b->gen = g_gen;
+    char sp[MAX_PATH]; snprintf(sp, sizeof sp, "%s\\save.dat", R);
+    HANDLE h = CreateFileA(sp, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (h != INVALID_HANDLE_VALUE) {
+        b->n = GetFileSize(h, NULL); b->bytes = malloc(b->n ? b->n : 1);
+        DWORD got = 0; b->have = ReadFile(h, b->bytes, b->n, &got, NULL) && got == b->n;
+        CloseHandle(h);
+    }
+    return b;
+}
+void *rh_files_snap(void)
+{
+    if (!g_fcur || g_fcur->gen != g_gen) { if (g_fcur && --g_fcur->ref == 0) { free(g_fcur->bytes); free(g_fcur); } g_fcur = blob_capture(); g_fcur->ref = 1; }
+    fsnap_t *s = malloc(sizeof *s);
+    s->b = g_fcur; g_fcur->ref++;
+    memcpy(s->white, g_white, sizeof g_white); s->nwhite = g_nwhite; s->tmpseq = g_tmpseq;
+    return s;
+}
+void rh_files_unsnap(void *p)
+{
+    const fsnap_t *s = p;
+    memcpy(g_white, s->white, sizeof g_white); g_nwhite = s->nwhite; g_tmpseq = s->tmpseq;
+    if (s->b->gen == g_gen) return;
+    char sp[MAX_PATH]; snprintf(sp, sizeof sp, "%s\\save.dat", R);
+    if (!s->b->have) DeleteFileA(sp);
+    else {
+        HANDLE h = CreateFileA(sp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        DWORD put = 0;
+        if (h == INVALID_HANDLE_VALUE || !WriteFile(h, s->b->bytes, s->b->n, &put, NULL) || put != s->b->n)
+            rh_log("rh_files: could not put save.dat back for a savestate (err %lu)\n", GetLastError());
+        if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+    }
+    g_gen = s->b->gen;
+    if (g_fcur && --g_fcur->ref == 0) { free(g_fcur->bytes); free(g_fcur); }
+    g_fcur = s->b; g_fcur->ref++;
+}
+/* rh_snap.c frees a savestate's file part with free(): the blob it shares is released here */
+void rh_files_snap_free(void *p)
+{
+    fsnap_t *s = p; if (!s) return;
+    if (--s->b->ref == 0) { free(s->b->bytes); free(s->b); }
+    free(s);
 }

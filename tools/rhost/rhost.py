@@ -194,7 +194,7 @@ def rhost_stale():
     t = os.path.getmtime(exe)
     src = os.path.join(ROOT, "src")   # shadow hooks link port code (build.sh)
     return any(os.path.getmtime(os.path.join(d, f)) > t for d in (HERE, src) for f in os.listdir(d)
-               if f.endswith((".c", ".h", ".sh")))
+               if f.endswith((".c", ".h", ".sh")) or f == "gen_dev.py")
 
 
 PREBUILT = os.environ.get("RHOST_PREBUILT") == "1"   # a parent (gates -j) built + staged everything once
@@ -357,6 +357,8 @@ def rhost_args(a, run_win, inputs_win):
         args += ["--shot-every", str(a.shot_every)]
     if not getattr(a, "show", False):
         args += ["--quiet"]
+    if getattr(a, "headless", False):
+        args += ["--headless"]
     if a.extra:
         args += shlex.split(a.extra)
     return args
@@ -451,9 +453,14 @@ def run_batch_wine(a, runs, tag):
         log = os.path.join(bdir, runs[i][0], "rhost.log")
         so_path = os.path.join(bdir, runs[i][0], "rhost.stdout")
         so = open(so_path, "w")
-        p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
-                             stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
-                             start_new_session=True)
+        if getattr(a, "headless", False):   # fake devices: no X server at all (wine's null driver)
+            henv = {k: v for k, v in env.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+            p = subprocess.Popen(["wine", exe] + argv, stdout=so, stderr=subprocess.DEVNULL, text=True, env=henv,
+                                 start_new_session=True)
+        else:
+            p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
+                                 stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
+                                 start_new_session=True)
         # a finished run can hang in wine's process teardown: the RESULT line in its log is
         # the end — give the exit 20 s, then kill the session (xvfb-run, wine, rhost)
         t0, done_at = time.time(), None
@@ -978,6 +985,134 @@ def cmd_golden(a):
         print(f"{n:40s} f={frames:>7d} draws={draws:>8d} {r.get('wall_ms')}ms complete={r.get('complete', '?')}")
     print(f"goldens: {len(made)}/{len(todo)} made in {time.time() - t0:.0f}s")
     return 0 if len(made) == len(todo) else 1
+
+
+# ---------------------------------------------------------------- headless-check
+# The gate of rh_dev.c: retail on the fake devices must play out exactly as on the real ones. Per scenario a
+# headless replay (the golden's own loggers) is compared with the Windows real-device golden: end frame + RNG,
+# every tick's draw count + LCG state, every anchor's frame, the resolved input (flat trace), the save.dat bytes.
+ANCHOR_RE = re.compile(r"^anchor (\S+) @(\d+)", re.M)
+
+
+def headless_compare(g, rd, r):
+    """golden dir G vs the headless run in RD (RESULT r) → [] or the list of differences"""
+    m = json.load(open(os.path.join(g, "meta.json")))["result"]
+    bad = []
+    for k in ("frame", "rng", "complete", "status", "scene", "threads"):
+        if m.get(k) != r.get(k):
+            bad.append(f"{k} {m.get(k)}→{r.get(k)}")
+    gz = lambda f: gzip.open(os.path.join(g, f + ".gz"), "rt", errors="replace").read()
+    want = gz("rng.golden") if os.path.exists(os.path.join(g, "rng.golden.gz")) else open(os.path.join(g, "rng.golden")).read()
+    got = rng_golden_text(rand_rows(os.path.join(rd, "rhost.log")), int(r.get("frame", "0") or 0))
+    if want != got:
+        wl, gl = want.splitlines(), got.splitlines()
+        i = next((i for i, (x, y) in enumerate(zip(wl, gl)) if x != y), min(len(wl), len(gl)))
+        bad.append(f"rng tick: golden '{wl[i] if i < len(wl) else '-'}' headless '{gl[i] if i < len(gl) else '-'}'")
+    wa = ANCHOR_RE.findall(gz("rhost.log"))
+    ga = ANCHOR_RE.findall(open(os.path.join(rd, "rhost.log"), errors="replace").read())
+    if wa != ga:
+        i = next((i for i, (x, y) in enumerate(zip(wa, ga)) if x != y), min(len(wa), len(ga)))
+        bad.append(f"anchor #{i}: golden {wa[i] if i < len(wa) else '-'} headless {ga[i] if i < len(ga) else '-'}")
+    fl = os.path.join(rd, "trace.flat.jsonl")
+    ops = lambda t: [l for l in t.splitlines() if not l.startswith("#")]   # the header comment names the run dir
+    if os.path.exists(os.path.join(g, "trace.flat.jsonl.gz")) and (not os.path.exists(fl) or ops(gz("trace.flat.jsonl")) != ops(open(fl).read())):
+        bad.append("flat trace differs")
+    gs, hs = os.path.join(g, "save.dat.gz"), os.path.join(rd, "save.dat")
+    if os.path.exists(gs) != os.path.exists(hs):
+        bad.append(f"save.dat: golden {'has' if os.path.exists(gs) else 'none'}, headless {'has' if os.path.exists(hs) else 'none'}")
+    elif os.path.exists(gs) and gzip.open(gs, "rb").read() != open(hs, "rb").read():
+        bad.append("save.dat bytes differ")
+    return bad, len(wa)
+
+
+def cmd_headless_check(a):
+    """SCEN.. / --only RE / every scenario with a Windows real-device golden: a headless replay vs that golden"""
+    import copy
+    names = a.scenarios or scenario_names(pieces=True)
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    ref = copy.copy(a); ref.target = "win"
+    todo = []
+    for n in names:
+        tr, save = scenario_inputs(n)
+        g = golden_dir(ref, n, tr, save)
+        if os.path.exists(os.path.join(g, "meta.json")):
+            todo.append((n, tr, save, g))
+    print(f"headless-check: {len(todo)} scenario(s) with a win golden (of {len(names)}), target {a.target}, "
+          f"{'REAL devices (a regression check of rhost itself)' if a.real else 'headless'}")
+    b = copy.copy(a)
+    b.headless, b.flatten_out, b.dump_at, b.hook, b.frames, b.extra = not a.real, True, None, None, None, GOLDEN_EXTRA
+    t0 = time.time()
+    _, bd, res, out = run_batch(b, [(n, tr, None, save) for n, tr, save, _ in todo], "hlcheck", fetch=GOLDEN_FILES)
+    ok = frames = 0
+    for n, tr, save, g in todo:
+        r = res.get(n)
+        if not r:
+            print(f"{n:42s} NO RESULT  {' | '.join(res.get(n + '#notes', [])[:2])}"); continue
+        bad, na = headless_compare(g, os.path.join(bd, n), r)
+        frames += int(r.get("frame", "0") or 0)
+        ok += not bad
+        print(f"{n:42s} f={r.get('frame') or '?':>7s} anchors={na:<5d} {r.get('wall_ms') or '?':>7s}ms  " + ("IDENTICAL" if not bad else "DIFF " + "; ".join(bad)))
+    print(f"headless-check: {ok}/{len(todo)} IDENTICAL to the real-device goldens ({frames} frames, {time.time() - t0:.0f}s) → {bd}")
+    return 0 if ok == len(todo) else 1
+
+
+def cmd_snap_check(a):
+    """the gate of rh_snap.c. Per scenario a headless replay with `--snap-test A:B:K` (A / B at 30% / 70% of the
+    golden's length): savestate at A; at B hash, restore, replay A..B again, K times. Every pass must hash like the
+    first (state + device memory + RNG), and the run must still end on the golden's frame / RNG / save.dat bytes."""
+    import copy
+    names = a.scenarios or scenario_names(pieces=True)
+    if a.only:
+        names = [n for n in names if re.search(a.only, n)]
+    ref = copy.copy(a); ref.target = "win"
+    todo = []
+    for n in names:
+        tr, save = scenario_inputs(n)
+        g = golden_dir(ref, n, tr, save)
+        if os.path.exists(os.path.join(g, "meta.json")):
+            fr = int(json.load(open(os.path.join(g, "meta.json")))["result"].get("frame", "0") or 0)
+            if fr >= 200:
+                todo.append((n, tr, save, g, fr))
+    print(f"snap-check: {len(todo)} scenario(s), target {a.target}, {a.passes} restore(s) each")
+    t0 = time.time()
+    ok, rows = 0, []
+    import concurrent.futures
+
+    if not PREBUILT and rhost_stale():
+        cmd_build(None)
+    wine_stage() if a.target == "wine" else ensure_staged()      # once, here: the children must not race on it
+    child_env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir())   # pinned: a rebuild meanwhile changes nothing
+
+    def one(row):                                   # the window differs per scenario: a child `run` each, -j at a time
+        n, tr, save, g, fr = row
+        cmd = [sys.executable, os.path.abspath(__file__), "run", n, "--headless", "--target", a.target, "-j", "1",
+               f"--extra= --snap-test {int(fr * 0.3)}:{int(fr * 0.7)}:{a.passes}"]
+        out = subprocess.run(cmd, capture_output=True, text=True, env=child_env).stdout
+        mb = re.search(r"→ (\S+)\]", out)
+        bd = mb.group(1) if mb else ""
+        log = os.path.join(bd, n, "rhost.log")
+        res = [l for l in open(log, errors="replace") if l.startswith("RESULT")] if os.path.exists(log) else []
+        r = dict(kv.split("=", 1) for kv in res[-1].split()[1:] if "=" in kv) if res else {}
+        m = json.load(open(os.path.join(g, "meta.json")))["result"]
+        bad = [f"{k} {m.get(k)}→{r.get(k)}" for k in ("frame", "rng", "complete") if m.get(k) != r.get(k)]
+        if r.get("snap_test") != "PASS":
+            bad.append(f"snap_test={r.get('snap_test')}")
+        gs, hs = os.path.join(g, "save.dat.gz"), os.path.join(bd, n, "save.dat")
+        if os.path.exists(gs) and (not os.path.exists(hs) or gzip.open(gs, "rb").read() != open(hs, "rb").read()):
+            bad.append("save.dat differs from the golden's")
+        st = next((l.strip() for l in open(log, errors="replace") if l.startswith("snap:")), "") if os.path.exists(log) else ""
+        if not bad and bd:
+            shutil.rmtree(bd, ignore_errors=True)
+        return n, fr, bad, st, bd
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as ex:
+        for n, fr, bad, st, bd in ex.map(one, todo):
+            ok += not bad
+            m = re.search(r"dirty=(\d+) pages.*?faults=(\d+) touches=(\d+)", st)
+            print(f"{n:42s} f={fr:>7d} [{int(fr * 0.3)}..{int(fr * 0.7)}] " + (f"dirty={m.group(1):>6s} touches={m.group(3):>5s}  " if m else "") +
+                  ("PASS" if not bad else "FAIL " + "; ".join(bad) + f"  → {bd}"))
+    print(f"snap-check: {ok}/{len(todo)} PASS ({time.time() - t0:.0f}s)")
+    return 0 if ok == len(todo) else 1
 
 
 # ---------------------------------------------------------------- triage (docs/plans/free-play-capture.md FPC-3)
@@ -2040,6 +2175,8 @@ def common(p):
     p.add_argument("--shot-every", type=int)
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
     p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
+    p.add_argument("--headless", action="store_true",
+                   help="retail on rhost's fake devices (rh_dev.c): no GPU / desktop / audio; wine runs without Xvfb")
     p.add_argument("-j", "--jobs", type=int, help="parallel runs in a batch / gates rows (default: win 8, wine cores/2)")
     p.add_argument("--wine-timeout", type=int, default=14400, help="seconds per wine run (a long replay under contention takes hours)")
     p.add_argument("--no-golden", action="store_true", help="port commands: run retail afresh instead of its cached golden")
@@ -2143,6 +2280,12 @@ def main():
     p.add_argument("--from", dest="from_scen", metavar="SCEN", help="start from the save SCEN ends with (rhost replay → _saves)")
     p.add_argument("--force", action="store_true", help="overwrite an existing scenario")
     common(p); p.set_defaults(fn=cmd_record)
+    p = sp.add_parser("headless-check", help="headless (fake-device) replays vs the Windows real-device goldens")
+    p.add_argument("scenarios", nargs="*"); p.add_argument("--only")
+    p.add_argument("--real", action="store_true", help="real devices instead: this rhost build vs the goldens (after a change to rhost's core)")
+    common(p); p.set_defaults(fn=cmd_headless_check)
+    p = sp.add_parser("snap-check", help="savestate self-test (rhost --snap-test) per scenario: restore + replay must reproduce the state")
+    p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--passes", type=int, default=2); common(p); p.set_defaults(fn=cmd_snap_check)
     p = sp.add_parser("golden", help="make the retail goldens (cached retail side of the port commands)")
     p.add_argument("scenarios", nargs="*"); p.add_argument("--only"); p.add_argument("--refresh", action="store_true")
     common(p); p.set_defaults(fn=cmd_golden)

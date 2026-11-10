@@ -33,7 +33,14 @@ static void flat_open(const char *path, const char *why)
 
 static BOOL CALLBACK find_wnd(HWND h, LPARAM lp)
 { DWORD pid; GetWindowThreadProcessId(h, &pid); if (pid == GetCurrentProcessId() && IsWindowVisible(h)) { *(HWND *)lp = h; return FALSE; } return TRUE; }
-static HWND game_hwnd(void) { if (!g_hwnd) EnumWindows(find_wnd, (LPARAM)&g_hwnd); return g_hwnd; }
+/* retail's own HWND global first: without a desktop (--headless under wine's null driver, session 0) the
+ * window may not count as visible, and the ESC posts went nowhere */
+static HWND game_hwnd(void)
+{
+    if (!g_hwnd) g_hwnd = (HWND)(uintptr_t)G32(0x73dfc7cu);
+    if (!g_hwnd) EnumWindows(find_wnd, (LPARAM)&g_hwnd);
+    return g_hwnd;
+}
 
 static void seg_esc(void *u)
 {
@@ -41,11 +48,13 @@ static void seg_esc(void *u)
     HWND h = game_hwnd();
     if (h) { PostMessageA(h, WM_KEYDOWN, VK_ESCAPE, 0x00010001); PostMessageA(h, WM_KEYUP, VK_ESCAPE, 0xC0010001); }
     g_esc_count++;
+    if (O.live) rh_live_note_esc(g_frame);
     if (g_flat) fprintf(g_flat, "{\"esc\": %u}\n", g_frame);
 }
 static void seg_rngseed(uint32_t v, void *u)
 {
     (void)u; G32(DAT_RNG) = v;
+    if (O.live) rh_live_note_rngseed(g_frame, v);
     if (g_flat) fprintf(g_flat, "{\"rngseed\": [%u, %u]}\n", g_frame, v);
 }
 
@@ -148,8 +157,41 @@ static LRESULT CALLBACK rec_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     return CallWindowProcA(g_orig_wp, h, m, w, l);
 }
 
+void rh_trace_post_esc(void) { seg_esc(NULL); }
+
+/* savestates: g_seg's cursor is a plain block (rh_trace_init registers it), but each ESC /
+ * rngseed op carries its own `fired` flag in the segment arrays — a restore that goes back
+ * over one must re-arm it (--snap-test; a live session only restores past its replay) */
+void *rh_trace_snap(void)
+{
+    if (!g_seg_on) return NULL;
+    size_t n = 0;
+    for (size_t i = 0; i < g_seg.n_segs; i++) n += g_seg.segs[i].n_escs + g_seg.segs[i].n_setrngs;
+    uint8_t *b = malloc(n + 1), *p = b;
+    for (size_t i = 0; i < g_seg.n_segs; i++) {
+        struct seg_segment *sg = &g_seg.segs[i];
+        for (size_t k = 0; k < sg->n_escs; k++) *p++ = (uint8_t)sg->escs[k].fired;
+        for (size_t k = 0; k < sg->n_setrngs; k++) *p++ = (uint8_t)sg->setrngs[k].fired;
+    }
+    return b;
+}
+void rh_trace_unsnap(void *blob)
+{
+    if (!g_seg_on || !blob) return;
+    const uint8_t *p = blob;
+    for (size_t i = 0; i < g_seg.n_segs; i++) {
+        struct seg_segment *sg = &g_seg.segs[i];
+        for (size_t k = 0; k < sg->n_escs; k++) sg->escs[k].fired = *p++;
+        for (size_t k = 0; k < sg->n_setrngs; k++) sg->setrngs[k].fired = *p++;
+    }
+}
+
 void rh_trace_init(void)
 {
+    rh_snap_register("trace.seg", &g_seg, sizeof g_seg); rh_snap_register("trace.A", &A, sizeof A);
+    rh_snap_register("trace.done", &g_done_at, sizeof g_done_at); rh_snap_register("trace.lsc", &g_last_seg_change, sizeof g_last_seg_change);
+    rh_snap_register("trace.ls", &g_last_seg, sizeof g_last_seg); rh_snap_register("trace.ac", &g_anchor_count, sizeof g_anchor_count);
+    rh_snap_register("trace.ec", &g_esc_count, sizeof g_esc_count); rh_snap_register("trace.fl", &g_flat_last, sizeof g_flat_last);
     if (O.trace) {
         if (!input_segtrace_load(O.trace, &g_seg)) rh_fatal("trace parse failed: %s", O.trace);
         input_segtrace_set_rngseed_cb(&g_seg, seg_rngseed, NULL);

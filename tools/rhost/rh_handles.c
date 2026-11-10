@@ -59,13 +59,15 @@ static LPVOID WINAPI h_MapViewOfFile(HANDLE m, DWORD acc, DWORD hi, DWORD lo, SI
 { return MapViewOfFile(real_of(m), acc, hi, lo, n); }
 static BOOL WINAPI h_CloseHandle(HANDLE h)
 { BOOL r = CloseHandle(real_of(h)); forget(h); return r; }
+/* rh_snap_touch: the kernel writes these out parameters — a write-tracked (read-only) page
+ * would make the call fail instead of faulting into the tracker */
 static BOOL WINAPI h_ReadFile(HANDLE h, LPVOID b, DWORD n, LPDWORD got, LPOVERLAPPED o)
-{ return ReadFile(real_of(h), b, n, got, o); }
+{ rh_snap_touch(b, n); rh_snap_touch(got, sizeof *got); return ReadFile(real_of(h), b, n, got, o); }
 static BOOL WINAPI h_WriteFile(HANDLE h, LPCVOID b, DWORD n, LPDWORD put, LPOVERLAPPED o)
-{ return WriteFile(real_of(h), b, n, put, o); }
+{ rh_snap_touch(put, sizeof *put); return WriteFile(real_of(h), b, n, put, o); }
 static DWORD WINAPI h_SetFilePointer(HANDLE h, LONG lo, PLONG hi, DWORD m)
-{ return SetFilePointer(real_of(h), lo, hi, m); }
-static DWORD WINAPI h_GetFileSize(HANDLE h, LPDWORD hi) { return GetFileSize(real_of(h), hi); }
+{ rh_snap_touch(hi, sizeof *hi); return SetFilePointer(real_of(h), lo, hi, m); }
+static DWORD WINAPI h_GetFileSize(HANDLE h, LPDWORD hi) { rh_snap_touch(hi, sizeof *hi); return GetFileSize(real_of(h), hi); }
 static DWORD WINAPI h_GetFileType(HANDLE h) { return GetFileType(real_of(h)); }
 static BOOL WINAPI h_FlushFileBuffers(HANDLE h) { return FlushFileBuffers(real_of(h)); }
 static BOOL WINAPI h_SetEndOfFile(HANDLE h) { return SetEndOfFile(real_of(h)); }
@@ -94,3 +96,31 @@ void rh_handles_install(void)
 }
 
 long rh_handles_live(void) { return g_live; }
+
+/* savestates: the numbering (g_next) must replay, so it is saved; of the table only the live
+ * entries. A boundary normally has none open (loads finish inside their deferred worker). On
+ * restore, handles opened since are closed; one that was open then and closed since cannot
+ * be reopened here — it is dropped and logged (never seen so far). */
+typedef struct { uint32_t next, n; long live; struct { uint32_t k; HANDLE h; } e[]; } hsnap_t;
+void *rh_handles_snap(void)
+{
+    uint32_t n = 0;
+    for (uint32_t k = 0; k < g_next; k++) if (g_real[k]) n++;
+    hsnap_t *s = malloc(sizeof *s + n * sizeof s->e[0]);
+    s->next = g_next; s->live = g_live; s->n = 0;
+    for (uint32_t k = 0; k < g_next; k++) if (g_real[k]) { s->e[s->n].k = k; s->e[s->n].h = g_real[k]; s->n++; }
+    return s;
+}
+void rh_handles_unsnap(void *p)
+{
+    const hsnap_t *s = p;
+    uint32_t i = 0;
+    static int warned;
+    for (uint32_t k = 0; k < g_next; k++) {
+        HANDLE want = (i < s->n && s->e[i].k == k) ? s->e[i++].h : NULL;
+        if (g_real[k] && g_real[k] != want) CloseHandle(g_real[k]);          /* opened after the savestate */
+        if (want && g_real[k] != want && !warned++) rh_log("rh_handles: a handle open in the savestate was closed since (#%u) — dropped\n", k);
+        g_real[k] = (g_real[k] == want) ? want : NULL;
+    }
+    g_next = s->next; g_live = s->live;
+}

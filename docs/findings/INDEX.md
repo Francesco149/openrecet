@@ -23,6 +23,7 @@ that subsystem.
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
 | [parity-save-producer.md](parity-save-producer.md) | Byte-exact port↔retail `save.dat` compare, region-localized (now `tools/save_compare.py` + `tools/save_arena_map.json`, from `save_bank.h`). Caught 2 real port bugs: encyclopedia-store re-init across banks 1–99, the 0xb37d house-camera flag on continue; `occupied_playtime` = load-timing phase origin. | 2026-10-13 |
+| [headless-savestates.md](headless-savestates.md) | rhost `--headless` (fake D3D8 / DirectMusic / DirectShow / DirectInput), in-process savestates, `--live` sessions + search: design, retail facts met, the equivalence evidence (100/100 vs real-device goldens, snap-check 99/99), speed profile. | 2026-11-10 |
 | [winmain-and-bootstrap.md](winmain-and-bootstrap.md) | WinMain (`FUN_0047bfb3`) + engine bootstrap / subsystem init chain; PE entry, WndProc, window class. | 2026-05-22 |
 | [imports-and-layout.md](imports-and-layout.md) | `recettear.unpacked.exe` static DLL imports + on-disk asset layout. | 2026-05-19 |
 | [title-fade-out.md](title-fade-out.md) | Title → NEW GAME black fade-out mechanism (supersedes an earlier wrong PROGRESS entry). | 2026-05-22 |
