@@ -37,6 +37,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | days 23–29: `c5527143e016` `707a7abf3b06` `0309ff7e867a` `a58abeba37d2` `54bd221da407` `717ab3b7efd4` `89190665bb8f` | one per morning; day 29 = after the 200,000 payment, 198,930 pix | calendar-week4 (frames: its report) |
 | days 30–35: `7a7206319a8c` `d4162d20b10f` `b3c5345004f6` `3bd18e8e9a50` `9431e13ba1f0` `7705df41d668` | one per morning (900,000 pix lineage) | ending-week5-paid |
 | `c062daff8848` | the Endless save (slot 001, "Cleared", day 36, 400,000 pix) | ending-week5-paid (the save prompt, f54483) |
+| `71c8e3d35d69` `1e52630934d5` | Endless Mode, days 37 and 38 (mornings) | endless-first-days (f7043, end) |
 | `f3dd0ba9294b` | New Game + day 1 (items + level kept, 1,000 pix) | newgame-plus (end) |
 | `099af5b31445` | Normal Survival, the first morning (day dword 1, slot 007, LOOP 2) | survival-start (end) |
 | `44e9baea3987` | level 16, a placed vender with 4/6 stock, an order outstanding | vender-sales-l16 (end) |
