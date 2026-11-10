@@ -38,9 +38,11 @@ probe report says which it used. Played saves from the owner's free-play capture
 | days 30–35: `7a7206319a8c` `d4162d20b10f` `b3c5345004f6` `3bd18e8e9a50` `9431e13ba1f0` `7705df41d668` | one per morning (900,000 pix lineage) | ending-week5-paid |
 | `c062daff8848` | the Endless save (slot 001, "Cleared", day 36, 400,000 pix) | ending-week5-paid (the save prompt, f54483) |
 | `f3dd0ba9294b` | New Game + day 1 (items + level kept, 1,000 pix) | newgame-plus (end) |
+| `099af5b31445` | Normal Survival, the first morning (day dword 1, slot 007, LOOP 2) | survival-start (end) |
 | `44e9baea3987` | level 16, a placed vender with 4/6 stock, an order outstanding | vender-sales-l16 (end) |
 | `435d876bf8c8` | the same after revert + selling the machine | vender-revert-sell (end) |
 | `dea37b7a7519` | level 16, Barrel tables, Wooden + Legendary in the bag | change-tables-l16 (end) |
+| `cbb3056eeb1e` | level 17 (25-slot dungeon bag), week 3 | item-storage-l17 (end) |
 
 Check a lineage: the bank is `HEADER 0x0b10 + slot·0x2dfc8` in the unpacked save, the newest slot in header dword
 7; gold dword 3, day 0xb0fb, `stime` 0xb0fc, merchant level 0xb100, checksum 0xb7f1 (`tools/save_arena_map.json`).

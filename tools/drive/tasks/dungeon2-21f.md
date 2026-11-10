@@ -1,11 +1,12 @@
 ---
-name: dungeon2-21f
+name: dungeon2-21f-adjusted
 start: end:dungeon3-deep
 steps:
   - loaded into dungeon 2 from the 20F save: scene == 1 and s32(0x438b4c8) == 2 and dlg == 0
   - one floor below the start: s32(0x438b4c8) == 2 and s32(0x438b4cc) >= 21
   - two floors below the start: s32(0x438b4c8) == 2 and s32(0x438b4cc) >= 22
-  - floor 25 reached: s32(0x438b4c8) == 2 and s32(0x438b4cc) >= 25
+  - floor 25F reached (0x438b4cc is 0-based, 21F reads 20 and 25F reads 24): s32(0x438b4c8) == 2 and s32(0x438b4cc) >= 24
+  - one of the two 25F crown slimes (actor 1, type 23) dead: s32(0x438b4cc) == 24 and s32(0x76c938) == 23 and f32(0x76c940) <= 0
 forbid:
   - back at the title: scene == 0 and frame > 400
 ---
@@ -31,3 +32,5 @@ checkpoints per floor. Do not grind: if a floor costs more than ~15 searches, wr
 Report, beyond the card's list: per floor the frames, the enemy types met (actor type ids), HP at entry / exit, the
 search settings that worked (goal, cell, avoid, actions, time) and those that did not; ticks/s you saw; every tool
 gap that slowed you.
+
+**After the first run (2026-11-10):** `floor` is 0-based (21F reads 20, 25F reads 24): the thresholds above are the adjusted ones. `end:dungeon3-deep`'s newest slot loads the SHOP on day 23 at night, not the dungeon: burn the period, sleep, then the Adventurers' Guild → Louie → dungeon 2 → the "21~25" row. The run's notes: `docs/findings/probes/dungeon2-21f-25f.md`.

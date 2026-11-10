@@ -48,9 +48,9 @@ the next command replays the movie (800–5,000 fps).
 
 ## Measured: the first campaign (2026-11-10)
 
-27 probes accepted in one session (task files in `tasks/`, reports in `docs/findings/probes/`), each: `rd check`
+29 probes accepted in one session (task files in `tasks/`, reports in `docs/findings/probes/`), each: `rd check`
 PASS, `rd verify --real` MATCH on Windows Direct3D 8, a retail golden, the port triaged. Drivers: `agent.sh`
-(claude-opus-5-5, effort high) for 26, a subscription subagent for the dungeon.
+(claude-opus-5-5, effort high) for 28, a subscription subagent for the dungeon.
 
 | probe | frames | turns | cost | wall | port (final) |
 |---|---|---|---|---|---|
@@ -80,13 +80,15 @@ PASS, `rd verify --real` MATCH on Windows Direct3D 8, a retail golden, the port 
 | vender-revert-sell | 1,569 | 54 | $0.71 | 5 min | identical + save |
 | ending-week5-paid | 57,480 | 137 | $2.27 | 25 min | **split f30885** (the money roll in the pause scene; then the ending) |
 | newgame-plus | 1,372 | 47 | $0.63 | 5 min | **split f436** (New Game + start unported) |
+| item-storage-l17 | 2,207 | 74 | $1.03 | 8 min | identical + save |
+| survival-start | 6,918 | 64 | $0.95 | 9 min | **split f243** (the picker start, as New Game +) |
 
 What the numbers say:
 - A menu / page probe is ~$0.5 and a few minutes; a flow with dialogue-heavy play $1–3. The driver's turns are the
-  cost; the game side is free (a probe uses seconds of CPU). 26 API probes: ~$34.
-- **7 port divergences in 27 probes**, each with a one-command repro; 5 ported the same day by subagents from the
+  cost; the game side is free (a probe uses seconds of CPU). 28 API probes: ~$36.
+- **8 port divergences in 29 probes**, each with a one-command repro; 5 ported the same day by subagents from the
   probe's report + IDA (Move Tables, the Options save, the guild's Sell + Expansion, vending machines, machine
-  sales), 2 open (the ending, New Game +). Probes that come back identical verify "ported ahead of a recording" code (Fusion's
+  sales), 3 open (the ending; New Game + and Survival's start, one cause). Probes that come back identical verify "ported ahead of a recording" code (Fusion's
   confirm / result, the paid payment night, Tear's pages, a week-3 shop session with haggling, customer orders,
   dungeon 2's floors 21–25).
 - Drivers correct the task: three predicates of mine were wrong (a mode that does not exist, a 0-based floor, a

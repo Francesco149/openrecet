@@ -83,17 +83,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ render skip: `rd` sessions run with `--skip-fn 414ee2` (overlay particle dispatcher, 48% of a house tick):
     `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408` **121/121 equal** (frame, RNG, state_sem, save.dat);
     house 741 → 1,330 ticks/s; `rd verify` replays unskipped (`headless-savestates.md` §5).
-  - ✅ campaign 2026-11-10: **27 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
+  - ✅ campaign 2026-11-10: **29 scenarios** filed with real-device goldens, each `rd check` PASS + `rd verify
     --real` MATCH (reports `docs/findings/probes/`, indexed in `findings/INDEX.md`; start saves and their lineage
-    `tools/drive/SAVES.md`; 26 API drivers ≈ $34, one subscription subagent for the dungeon). Port `10e36b61`
-    (9c219702f87a), `triage`: **25 identical** (8 with save IDENTICAL), 2 split:
+    `tools/drive/SAVES.md`; 28 API drivers ≈ $36, one subscription subagent for the dungeon). Port `10e36b61`
+    (9c219702f87a), `triage`: **26 identical** (9 with save IDENTICAL), 3 split:
     - identical: `tear-news-summary`, `tear-outstanding-orders`, `tear-menu-pages` (Tear's pages; their render
       stays PORT-DEBT), `guild-fusion-confirm` (modes 5 / 6), `decor-defaults`, `decor-variants`,
       `market-buy-display`, `payday-week2-paid` + save, `gameover-loop-dungeon0`, `town-rounds-week3`,
       `pub-evening-week3`, `pause-status-items`, `pause-encyclopedia`, `shop-session-week3` + save (haggling at
       105 / 130%, walk-out, a seller), `order-customer-week3`, `calendar-week3` + save (days 15–22), `calendar-week4`
-      + save (days 22–29, 36,768 ticks), `change-tables-l16` + save, `dungeon2-21f-25f` (floors 21F–25F + one
-      crown slime).
+      + save (days 22–29, 36,768 ticks), `change-tables-l16` + save, `item-storage-l17` + save (the 25-slot
+      dungeon bag), `dungeon2-21f-25f` (floors 21F–25F + one crown slime).
     - splits found and ported the same day by subagents: `counter-move-tables` (f618 → 749a4e37),
       `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94 (also closed the legacy
       `guild-ui-flow` f3425 split), `vending-level16` (f5500) + `vender-sales-l16` (save 5 bytes) → 10e36b61
@@ -104,7 +104,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       entries, Endless Mode's opening (none ported / verified). `portrng ending-week5-paid --window 30883:30886 --seq`.
     - ☐ `newgame-plus`: **split f436** `- ⇄ floor_layout_maze (-7)` at the title's New Game + start (picker
       `t_sub` 1 on cleared saves only; the bank reset of 86 dwords; opening script 2/6; FUN_004864fd's title arm).
-      `portrng newgame-plus --window 434:437 --seq`.
+      `portrng newgame-plus --window 434:437 --seq`. Same signature: `survival-start` **split f243** (Normal
+      Survival starts through the same picker; day dword starts at 0; no item moves).
     - retail facts corrected on the way: the guild has no mode 3 (Sell = mode 0 → 8); `floor` DAT_0438b4cc is
       0-based, the stage record DAT_0438b4dc ≥ 4 = a dungeon; Outstanding Orders needs merchant level dword ≥ 6,
       Move Tables ≥ 9, vending machines ≥ 14; crafted level saves play a level-up event at load; a recipe's
@@ -114,9 +115,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ★ next:
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.
-    2. `gates`: 34 agent rows added to `GATES` (expected IDENTICAL at 10e36b61 by `triage`; not yet run as a gate):
-       `rhost.py gates -j 8 --only "tear-|guild-|decor-|counter-|market-|pause-|payday-|gameover-|town-|pub-|shop-session|order-|calendar-|dungeon2-21f|vend|change-tables"`.
-    3. probes out: `survival-start` (Survival Mode's start), `item-storage-l17` — `./rd accept RUN NAME --task …`.
+    2. `gates`: 36 agent rows added to `GATES` (expected IDENTICAL at 10e36b61 by `triage`; not yet run as a gate):
+       `rhost.py gates -j 8 --only "tear-|guild-|decor-|counter-|market-|pause-|payday-|gameover-|town-|pub-|shop-session|order-|calendar-|dungeon2-21f|vend|change-tables|item-storage"`.
+    3. probes out: `survival-hell-start` (Survival Hell to its first payment), `endless-first-days` — `./rd accept
+       RUN NAME --task …` each.
     4. fault-free write tracking (`headless-savestates.md` §3 known limit: a write fault's exception frame on the
        game stack is read back by retail's uninitialised locals — 1 of 126 `snap-check` rows, restore exact): the
        tracker as a debugger of the process, or write-watch memory.

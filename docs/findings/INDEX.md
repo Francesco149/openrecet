@@ -18,6 +18,45 @@ Freshness = last git commit that touched the file (`git log -1 --format=%cs`).
 A survey-only doc may be stale-by-date yet still current if nobody has revisited
 that subsystem.
 
+## Agent probes (retail observed live through `rd`)
+
+Reports of agent-authored traces (`tools/drive/README.md`): each has a scenario under `tests/scenarios/`, a task file under
+`tools/drive/tasks/`, `rd check` PASS, a real-device replay MATCH and a retail golden. They are the driver's words: facts
+observed in the running game; anything read from code only is a lead. Named state they validated: `tools/drive/vars.json`.
+
+| Doc | Covers |
+|-----|--------|
+| [probes/tear-news-summary.md](probes/tear-news-summary.md) | Tear's menu (`cc08` 15) → News Summary (entry 8; `cc08` 16 → 17): the page, its inputs, exit; the menu's entry list at level 6. |
+| [probes/tear-outstanding-orders.md](probes/tear-outstanding-orders.md) | Tear's menu → Outstanding Orders (entry 9, absent on the level-6 save; crafted level 10): the "Advance Order Summary" panel, empty. |
+| [probes/survival-start.md](probes/survival-start.md) | Title → SURVIVAL MODE → Normal Survival: the mode list, New Game +'s picker reused, the bank diff of the start (68 dwords; day starts at 0; candidate mode dword 0xb759), the opening, two days passed, the first-morning save. |
+| [probes/tear-menu-pages.md](probes/tear-menu-pages.md) | The rest of Tear's menu: Merchant Level page (scroll, per-level ability texts), Store Atmosphere, lectures, Time Lecture. |
+| [probes/counter-move-tables.md](probes/counter-move-tables.md) | Counter menu → Move Tables (`cc08` 2, level dword ≥ 9): pick, move, collide, confirm / cancel. First probe that split the port (ported 749a4e37). |
+| [probes/move-tables.md](probes/move-tables.md) | The first Move Tables attempt on the level-6 save: the entry is absent below level 10 (HUD). |
+| [probes/decor-defaults.md](probes/decor-defaults.md) | Counter menu → wall / floor / carpet editors with only the default items owned. |
+| [probes/decor-variants.md](probes/decor-variants.md) | The decor editor with crafted variants of all four kinds: preview, confirm, cancel, what the bank keeps. |
+| [probes/guild-fusion-confirm.md](probes/guild-fusion-confirm.md) | Merchants' Guild → Fusion: recipe list, ingredient check (bag only), confirm (mode 5), result (mode 6). |
+| [probes/guild-sell-expansion.md](probes/guild-sell-expansion.md) | Merchants' Guild → Sell (mode 0 → 8, the money roll) and the store Expansion purchase (tables re-laid, items returned). |
+| [probes/market-buy-display.md](probes/market-buy-display.md) | Market (= guild variant 1) buying, then a table's display menu: put / take / replace. |
+| [probes/payday-week2-paid.md](probes/payday-week2-paid.md) | The week-2 payment paid: the night, the collection form, the verdict script, next-morning scenes; leaves the week-3 save. |
+| [probes/item-storage-l17.md](probes/item-storage-l17.md) | Merchant level 17 "Item Storage" = the dungeon bag grows to 25 slots (`DAT_005c5a98`); L16–L18 ability texts; the guild's bag screen (rows, buttons, picker), the bag's memory (0x438b5ec + 4i, twin at 0x438b684). |
+| [probes/gameover-loop-dungeon0.md](probes/gameover-loop-dungeon0.md) | A payment missed → the loop restart (level + items kept) → guild intro → Hall of Trials 1F with Louie. |
+| [probes/pause-options-saved.md](probes/pause-options-saved.md) | Pause → Options: sliders / toggles are save-header fields edited in place; the dirty exit writes save.dat. |
+| [probes/pause-status-items.md](probes/pause-status-items.md) | Pause → Status (party list) and Items (tabs, scrolling, detail box) in week 3. |
+| [probes/town-rounds-week3.md](probes/town-rounds-week3.md) | Every town destination in week 3: Market, Town Square event 11/1, Chapel event 16/5, both guilds; map enable states. |
+| [probes/pub-evening-week3.md](probes/pub-evening-week3.md) | The Pub (scene 15; enabled in the evening, `stime` 2): the first-visit event, map states before / after, visits cost no period. |
+| [probes/shop-session-week3.md](probes/shop-session-week3.md) | A whole shop session: sales at 105% / 130% / walk-out, a customer selling, price entry, what ends the session. |
+| [probes/newgame-plus.md](probes/newgame-plus.md) | The title after the ending (8 entries: NEW GAME +, SURVIVAL MODE, SURVIVAL SCORE, …; `t_cur` / `t_item` table), the New Game + picker (cleared saves only), what the bank resets (86 dwords: gold, day, score, story flags) and keeps, the short NG+ opening (script 2/6). |
+| [probes/order-customer-week3.md](probes/order-customer-week3.md) | An advance order from the customer's request to Tear's Outstanding Orders row and the order served. |
+| [probes/calendar-week3.md](probes/calendar-week3.md) | Days 15–22 walked morning by morning (a save per day): map states per period, events met, the week-3 payment. |
+| [probes/calendar-week4.md](probes/calendar-week4.md) | Days 22–29: the guild chain 6/2–6/4, the Girl events 18/1 + 17/21, day-24 closures, the 200,000 payment paid; saves for days 23–29. |
+| [probes/change-tables-l16.md](probes/change-tables-l16.md) | Counter menu → Change Tables (level 14+): the Counters editor restyles every table at once (bank dword 0xb37c), live preview, confirm / cancel, the bag swap; Market Counters tab prices. |
+| [probes/pause-encyclopedia.md](probes/pause-encyclopedia.md) | Pause → Encyclopedia: 33 categories, the 3×3 grid, scroll / slide / detail state, every button, the detail fields, completion (seen / 538), entry-slot layout. |
+| [probes/ending-week5-paid.md](probes/ending-week5-paid.md) | Days 29–35 (events per period, a save per morning), the final 500,000 payment, the ending scenes and credits, True Card, the "Save the game?" prompt, the title afterwards, Endless Mode's first control (crafted gold). |
+| [probes/vending-level16.md](probes/vending-level16.md) | Merchant level 14–17 ability texts; vending machines: bought at the Market, placed from a table's display menu, the machine menu, stocking. Splits the port at f5500. |
+| [probes/vender-sales-l16.md](probes/vender-sales-l16.md) | A shop session with a stocked vending machine: stocking (one unit per slot, any category), the 6 slot dwords, two background sales at exactly base price, the counter customers of the session. |
+| [probes/vender-revert-sell.md](probes/vender-revert-sell.md) | "Revert To Table" with and without stock (no prompt; items + machine back to the bag; the bank diff), selling the machine at the Merchants' Guild (9,000 = 30% of base), the Venders category gone afterwards. |
+| [probes/dungeon2-21f-25f.md](probes/dungeon2-21f-25f.md) | Dungeon 2 floors 21F–25F by search: enemy mixes per floor, exit / ticker / lock state, the actor table, the double crown slime; search settings that worked and failed. |
+
 ## Boot / init
 
 | Doc | Covers | Last touched |
@@ -72,6 +111,7 @@ that subsystem.
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
 | [day-close-RE.md](day-close-RE.md) | Shop day close: the 4th-period arms (cs leave / town return), FUN_0048526d in-scene re-layout, the b4e0 night exchange + actor-say bubbles (FUN_00485861 / FUN_00406159), the day-end summary entry (pause action 1). | 2026-10-14 |
+| [vending-machines-RE.md](vending-machines-RE.md) | Vending machines: a table whose flag dword (work +0x2c750) holds a vender handle; placing (cc04 1 confirm's 5201..5299 arm, level / count limits), the machine's menu (cc04 2: Revert To Table, Done Stocking, 6 / 8 / 10 slots), stock list, render, the 0x438b67c quirk. |
 | [shop-counter-menu-RE.md](shop-counter-menu-RE.md) | Counter Z → "Open Store / Cancel" menu (cc08 0 → 10 → 4, FUN_004850fe lists, b74c/b754 timing, render, "Opening the shop…" help band); root cause of the port's early shop entry. | 2026-10-14 |
 | [esc-skip-event.md](esc-skip-event.md) | Context-sensitive ESC dispatch (WndProc `FUN_0047b2e7`) + the skip-event yes/no prompt (`FUN_00453384`/`454191`); pause-menu gate. Phase A (dispatch) landed. | 2026-06-02 |
 

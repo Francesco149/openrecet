@@ -1662,14 +1662,15 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          # agent-authored traces (tools/drive, 2026-11-10): menus / pages / town / shop sessions / weeks 3–4 / vending
          # machines no recording reached; all triage-identical at 10e36b61
          + [("portsave", s) for s in ("pause-options-saved", "payday-week2-paid", "shop-session-week3", "calendar-week3",
-                                      "calendar-week4", "change-tables-l16", "vender-sales-l16", "vender-revert-sell")]
+                                      "calendar-week4", "change-tables-l16", "vender-sales-l16", "vender-revert-sell",
+                                      "item-storage-l17")]
          + [("portrng", s) for s in ("tear-news-summary", "tear-outstanding-orders", "tear-menu-pages", "guild-fusion-confirm",
                                       "guild-sell-expansion", "guild-ui-flow", "decor-defaults", "decor-variants",
                                       "counter-move-tables", "market-buy-display", "pause-options-saved", "pause-status-items",
                                       "pause-encyclopedia", "payday-week2-paid", "gameover-loop-dungeon0", "town-rounds-week3",
                                       "pub-evening-week3", "shop-session-week3", "order-customer-week3", "calendar-week3",
                                       "calendar-week4", "dungeon2-21f-25f", "vending-level16", "vender-sales-l16",
-                                      "vender-revert-sell", "change-tables-l16")])
+                                      "vender-revert-sell", "change-tables-l16", "item-storage-l17")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
