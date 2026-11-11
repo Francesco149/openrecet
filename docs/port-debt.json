@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 56,
+  "total": 55,
   "by_kind": {
-   "stub": 34,
+   "stub": 33,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 47,
+  "retiring_engine_fns": 46,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00434ceb": 2,
@@ -44,7 +44,6 @@
    "FUN_0042e791": 1,
    "FUN_0042f28c": 1,
    "FUN_0042f7ad": 1,
-   "FUN_00430c6d": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
    "FUN_004427f1": 1,
@@ -279,7 +278,7 @@
    "engine_fn": "FUN_0042a23c",
    "desc": "the pumpkin's variant 1",
    "file": "src/actor_ai.c",
-   "line": 4339,
+   "line": 4667,
    "kind_known": true
   },
   {
@@ -295,7 +294,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 4797,
+   "line": 5127,
    "kind_known": true
   },
   {
@@ -303,7 +302,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 4754,
+   "line": 5084,
    "kind_known": true
   },
   {
@@ -311,7 +310,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 4350,
+   "line": 4680,
    "kind_known": true
   },
   {
@@ -320,14 +319,6 @@
    "desc": "the other bosses' / special enemies'",
    "file": "src/actor_ai.c",
    "line": 836,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00430c6d",
-   "desc": "the golem parts (types 62 / 63 / 65 / 66)",
-   "file": "src/actor_ai.c",
-   "line": 4807,
    "kind_known": true
   },
   {

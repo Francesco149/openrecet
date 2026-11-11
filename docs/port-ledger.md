@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 742, discovered 1715 → 833 referenced-or-better (32.7%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 743, discovered 1714 → 834 referenced-or-better (32.7%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (742) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (743) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -210,6 +210,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41fa37 | FUN_0041fa37 | 55 | ✓ |  | record_hit.c |
 | 0x41fa6e | FUN_0041fa6e | 2851 | ✓ |  | actor_ai.c |
 | 0x420591 | FUN_00420591 | 84 | ✓ |  | record_hit.c |
+| 0x420f4d | FUN_00420f4d | 2452 | ✓ |  | actor_ai.c |
 | 0x4218e1 | FUN_004218e1 | 273 | ✓ |  | actor_ai.c |
 | 0x4219f2 | FUN_004219f2 | 1696 | ✓ |  | actor_ai.c |
 | 0x422092 | FUN_00422092 | 3620 | ✓ |  | actor_ai.c |
@@ -854,7 +855,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x503a44 | FUN_00503a44 | 9 | ✓ |  | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+9) |
 | 0x503c2b | FUN_00503c2b | 77 | ✓ |  | scene1_dialogue.c |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ |  | scene1_dialogue.c, scene1_overlay_table.c, tables_item.c |
-| 0x503dd0 | FUN_00503dd0 | 10 | ✓ |  | scene1_overlay.h, scene1_overlay_helpers.c, scene1_records_b_spawn.c (+1) |
+| 0x503dd0 | FUN_00503dd0 | 10 | ✓ |  | actor_ai.c, scene1_overlay.h, scene1_overlay_helpers.c (+2) |
 | 0x503de4 | FUN_00503de4 | 344 | ✓ |  | storage.c |
 | 0x503f3c | FUN_00503f3c | 140 | ✓ |  | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ |  | scene1_preload.c |

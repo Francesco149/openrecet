@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **56**
-- distinct retiring engine functions: **47**
+- total open debts: **55**
+- distinct retiring engine functions: **46**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 34 | wired call boundary, body incomplete |
+| stub | 33 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -50,7 +50,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042e791 | 1 |
 | FUN_0042f28c | 1 |
 | FUN_0042f7ad | 1 |
-| FUN_00430c6d | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
 | FUN_004427f1 | 1 |
@@ -78,20 +77,19 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (34)
+## stub (33)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0042a23c | src/actor_ai.c:4339 | the pumpkin's variant 1 |
+| FUN_0042a23c | src/actor_ai.c:4667 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:4797 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:4754 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:4350 | the other types' AI (FUN_0042ce17, |
+| FUN_0042e1a6 | src/actor_ai.c:5127 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:5084 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:4680 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:836 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:4807 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
