@@ -1369,6 +1369,93 @@ static void actor_ai_t30(actor_t *a)
     npc_walk_anim(a);
 }
 
+/* FUN_0042cfd0: the turrets (types 35 / 36; placement kind +0xa60).  A fresh
+ * one (+0xb8c) of kind 1 with a variant > 0 brings three more of its type at
+ * its home, +0xa64 = 2 / 4 / 6.  Variant 0 turns toward the player at 0.02 a
+ * tick until it faces it (within 0.1), then fires four record-31 shots
+ * (ticks 2 / 10 / 18 / 26, SE 330) on a 60-tick burst; a variant > 0 fires on a
+ * 100-tick cycle (while +0xb14 <= 0) and, kind 1, steps its +0xa64 octant at
+ * tick 360 of a 400 cycle (every same-type actor of its home with it), sat 0.5
+ * off the home along it.  Anim 0 / 1 / 2 by HP (>= 70% / >= 30% / below).
+ * (Its distance to the player is computed and dropped.) */
+static void actor_ai_turret(actor_t *a)
+{
+    static const float k0p7 = 0.699999988079071f;       /* 0x519748 */
+    static const float k6p18 = 6.183185577392578f;      /* 0x519b74 */
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float to = spill32(crt_atan2(dx, dz));
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xb8c) != 0 && AI(a, 0xa60) == 1) {
+        AI(a, 0xb8c) = 0;
+        if (AI(a, 0xae4) > 0) {
+            for (int32_t i = 2; i != 8; i += 2) {
+                const actor_stage_t stg = stage_now();
+                actor_t *c = actor_spawn_enemy(&stg, AF(a, 0x414), AF(a, 0x418), AF(a, 0x41c),
+                                               AI(a, ACT_TYPE));       /* FUN_0041f903 */
+                if (c != NULL) {
+                    AI(c, ACT_INUSE) = 1;
+                    AI(c, 0xa64) = i;
+                    AI(c, 0xae4) = 1;
+                }
+            }
+        }
+    }
+    if (AI(a, 0xa54) == 0) {
+        if (AI(a, 0xae4) > 0) {
+            ++AI(a, 0xa58);
+            for (int32_t j = 2; j != 34; j += 8) {
+                if (AI(a, 0xa58) == j && AI(a, 0xb14) <= 0) {
+                    scene1_record_b_spawn_npc(a, 31, 1);         /* FUN_00445a8c */
+                    audio_play_se_by_id(330);                    /* FUN_00499519 */
+                }
+            }
+            if (AI(a, 0xa58) == 100) AI(a, 0xa58) = 0;
+        } else if (AI(a, 0xa5c) == 1) {
+            ++AI(a, 0xa58);
+            for (int32_t j = 2; j != 34; j += 8) {
+                if (AI(a, 0xa58) == j) {
+                    scene1_record_b_spawn_npc(a, 31, 1);         /* FUN_00445a8c */
+                    audio_play_se_by_id(330);                    /* FUN_00499519 */
+                }
+            }
+            if (AI(a, 0xa58) == 60) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa5c) = 0;
+            }
+        } else {
+            actor_turn_to_player(a, k0p02);                      /* FUN_0041f789 */
+            const float d = spill32((long double)AF(a, 0x420) - to);
+            const float ad = spill32(fabsl((long double)d));
+            if (ad < k0p1 || spill32(fabsl((long double)d)) > k6p18) AI(a, 0xa5c) = 1;
+        }
+    }
+    const float hm = AF(a, 0x434), hp = AF(a, ACT_HP);
+    if ((long double)hm * k0p3 > hp) actor_anim_set(a, 2);       /* FUN_00482a51 */
+    else if ((long double)hm * k0p7 > hp) actor_anim_set(a, 1);
+    else actor_anim_set(a, 0);
+    if (AI(a, 0xae4) <= 0) return;
+    if (++AI(a, 0xa5c) == 400 && AI(a, 0xa60) == 1) AI(a, 0xa5c) = 0;
+    if (AI(a, 0xa5c) == 360 && AI(a, 0xa60) == 1) {
+        for (int i = 0; i < ACTOR_COUNT; i++) {
+            actor_t *o = &g_actor[i];
+            if (AI(o, ACT_INUSE) == 0 || AI(a, ACT_TYPE) != AI(o, ACT_TYPE)) continue;
+            if (!(AF(a, 0x414) == AF(o, 0x414)) || !(AF(a, 0x41c) == AF(o, 0x41c))) continue;
+            const float ang = spill32((long double)(float)AI(a, 0xa64) * k_pi4);
+            ++AI(o, 0xa64);
+            AF(o, 0x420) = ang;
+            const double angd = ang;
+            AF(o, 0x3f0) = spill32((long double)spill32(x87_crt_sin(angd)) * k0p5 + AF(a, 0x414));
+            AF(o, 0x3f8) = spill32((long double)spill32(x87_crt_cos(angd)) * k0p5 + AF(a, 0x41c));
+        }
+    }
+    const float ang = spill32((long double)(float)AI(a, 0xa64) * k_pi4);
+    AF(a, 0x420) = ang;
+    const double angd = ang;
+    AF(a, 0x3f0) = spill32((long double)spill32(x87_crt_sin(angd)) * k0p5 + AF(a, 0x414));
+    AF(a, 0x3f8) = spill32((long double)spill32(x87_crt_cos(angd)) * k0p5 + AF(a, 0x41c));
+}
+
 /* FUN_0042d392: type 31, special 2's four companions — state 0 wanders.  (Its
  * distance to the player is computed and dropped.)  Unverified, as type 30. */
 static void actor_ai_t31(actor_t *a)
@@ -4229,6 +4316,8 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t27(a);                     /* FUN_00423b58 */
         } else if (type == 31) {
             actor_ai_t31(a);                     /* FUN_0042d392 */
+        } else if (type == 35 || type == 36) {
+            actor_ai_turret(a);                  /* FUN_0042cfd0 */
         } else if (type >= 37 && type <= 40) {
             actor_ai_bomb(a);                    /* FUN_004293f0 */
         } else if (type == 67) {
