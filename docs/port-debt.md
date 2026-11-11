@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **58**
+- total open debts: **59**
 - distinct retiring engine functions: **46**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 36 | wired call boundary, body incomplete |
+| stub | 37 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -30,7 +30,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 | engine fn | open debts |
 |-----------|-----------:|
-| FUN_0048cdcc | 5 |
+| FUN_0048cdcc | 6 |
 | FUN_00473c15 | 3 |
 | FUN_00434ceb | 2 |
 | FUN_00436f97 | 2 |
@@ -77,7 +77,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (36)
+## stub (37)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -108,12 +108,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
-| FUN_0048b850 da1bc | src/dungeon_party.c:1881 | the attack lunge (da1bc 1..ccb8) |
-| FUN_0048cdcc | src/dungeon_party.c:1562 | the other chars' swings (FUN_00497e3a, |
-| FUN_0048cdcc | src/dungeon_party.c:1576 | the other chars' skill 4 |
-| FUN_0048cdcc | src/dungeon_party.c:1587 | skill 5 of 40 / 28 / 30 / 31 / 41 |
-| FUN_0048cdcc | src/dungeon_party.c:1593 | skill 6 of 40 / 28 / 30 / 41 / 31 |
-| FUN_0048cdcc | src/dungeon_party.c:1598 | states 3 (char 40: FUN_00494dc5), |
+| FUN_0048b850 da1bc | src/dungeon_party.c:2174 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048cdcc | src/dungeon_party.c:1841 | the swings of chars 40 / 41 / 42 / 30 / 31 |
+| FUN_0048cdcc | src/dungeon_party.c:1852 | skill 4 of chars 40 / 30 / 31 / 41 / 42 |
+| FUN_0048cdcc | src/dungeon_party.c:1863 | skill 5 of chars 40 / 30 / 31 / 41 |
+| FUN_0048cdcc | src/dungeon_party.c:1874 | skill 6 of chars 40 / 30 / 41 / 31 |
+| FUN_0048cdcc | src/dungeon_party.c:1884 | skill 7 of chars 40 / 31 / 30 |
+| FUN_0048cdcc | src/dungeon_party.c:1893 | state 3 (char 40: FUN_00494dc5) |
 | FUN_0048d5d6 | src/dungeon_party.c:826 | char 42's gauge refill + the random |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
 | FUN_0049da9e | src/scene_day_end.c:227 | the ending's entry + mode 7 FUN_0049db8a |

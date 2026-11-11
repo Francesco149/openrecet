@@ -8,19 +8,19 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 734,
-  "inv_discovered": 1723,
-  "referenced_or_better": 825,
+  "inv_source_referenced": 735,
+  "inv_discovered": 1722,
+  "referenced_or_better": 826,
   "pct_referenced_or_better": 32.4,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 69,
+  "port_debt": 70,
   "verified": 81,
   "stubbed": 10,
-  "ported": 734,
-  "unported": 1723,
-  "touched": 825,
+  "ported": 735,
+  "unported": 1722,
+  "touched": 826,
   "pct_touched": 32.4,
   "pct_verified": 0.0
  },
@@ -21295,18 +21295,20 @@
    "size": 119,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/dungeon_party.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x49a141",

@@ -1455,6 +1455,286 @@ static void party_skill6_charme(void)
     }
 }
 
+static void water_splash(void);
+static void party_warp_random_room(void);   /* FUN_004960a4 */
+
+/* FUN_0049a0ca / 0049a141 / 0049a1b9 / 0049a231: the voice bags of 4 / 5 / 6 /
+ * 7 picks, three times each (12 / 15 / 18 / 21 entries), shuffled by rand when
+ * dealt from the top; DAT_09643284 / 09643134 / 09643170 / 096431b8 */
+static int32_t s_vbag[4][21], s_vbag_n[4];
+static int32_t voice_bag_k(int nvals)
+{
+    int32_t *bag = s_vbag[nvals - 4], *pos = &s_vbag_n[nvals - 4];
+    const int n = 3 * nvals;
+    if (*pos == 0) {
+        for (int k = 0; k < n; k++) bag[k] = k % nvals;
+        for (int k = 0; k < n; k++) {
+            const unsigned r = (unsigned)rng_next15() % (unsigned)n;
+            const int32_t t = bag[r];
+            bag[r] = bag[k];
+            bag[k] = t;
+        }
+    }
+    const int32_t v = bag[(*pos)++];
+    if (*pos == n) *pos = 0;
+    return v;
+}
+static void voice_pick(int32_t v, const char *const *tab, int n)
+{
+    if (v >= 0 && v < n && tab[v] != NULL) audio_play_se_file(tab[v]);
+}
+
+/* the crit flash every swing shares: invincible 8, hit-stop 30, SE 342, the
+ * spark 44 at +1.5 */
+static void party_crit_flash(void)
+{
+    if (PW(0x56db0f4u).i < 8) PW(0x56db0f4u).i = 8;
+    g_scene1_combat_dat_0438bed8 = 30;
+    audio_play_se_by_id(342);
+    scene1_spawn(0, g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + k1p5),
+                 g_party.pos[0][2], 44, 1.0f, 1);
+}
+/* the skill keys during a swing (FUN_00489d52 / FUN_00489c79) */
+static void party_swing_skill_keys(void)
+{
+    const uint16_t pr = g_sim_buttons[0].pressed;
+    if (pr & 0x3e00) party_skill_direct();
+    else if (pr & 0x20) party_skill_selected();
+}
+/* the cast aura of Caillou's skills: SE 381, overlays 38 (1 below) and 5 */
+static void party_cast_aura(void)
+{
+    audio_play_se_by_id(381);
+    scene1_overlay_spawn(&g_party, g_party.pos[0][0], spill32((long double)g_party.pos[0][1] - k1),
+                         g_party.pos[0][2], 38, 1.0f, -1, 0, 0, 0);          /* FUN_004147d5 */
+    scene1_overlay_spawn(&g_party, g_party.pos[0][0], g_party.pos[0][1], g_party.pos[0][2],
+                         5, 1.0f, -1, 0, 0, 0);
+}
+static void party_action_end(void)
+{
+    PW(0x56db04cu).i = 0;
+    PW(0x56db048u).i = 0;
+}
+
+/* FUN_00497e3a: Caillou's swing (attack state 2 of char 28).  While A is held
+ * and the swing has not started (daff8 0) he charges (anim 4, daff4 counts;
+ * SE 371 at 10, the mote 99 from 10, SE 353 + the ring 98 at 45; the facing
+ * follows the pad).  Released: the crit roll at 1; below 45 the short swing
+ * (daff8 / daff4 cleared at 1, the voice at 4, SE 343 + the hit record 4 at
+ * 12, the skill keys from 13, the end at 35), else the charged one (the voice
+ * at 1, the hit record 82 at 20, the end at 35).  Both splash at 1 in water. */
+static void party_attack_caillou(void)
+{
+    static const char *const k_v_crit[4] = {
+        "bin/se/04ca/action/04ca_04a.bin", "bin/se/04ca/action/04ca_04b.bin",
+        "bin/se/04ca/action/04ca_05a.bin", "bin/se/04ca/action/04ca_05c.bin" };
+    static const char *const k_v[4] = {
+        "bin/se/04ca/action/04ca_01a.bin", "bin/se/04ca/action/04ca_01b.bin",
+        "bin/se/04ca/action/04ca_02b.bin", "bin/se/04ca/action/04ca_02d.bin" };
+    static const char *const k_vc_crit[2] = {
+        "bin/se/04ca/action/04ca_06a.bin", "bin/se/04ca/action/04ca_07c.bin" };
+    static const char *const k_vc[2] = {
+        "bin/se/04ca/action/04ca_03a.bin", "bin/se/04ca/action/04ca_03b.bin" };
+    if ((g_sim_buttons[0].cur & 0x10) && PW(0x56daff8u).i == 0) {
+        party_anim_set(g_party.rec[0], 4);
+        if (++PW(0x56daff4u).i == 10) audio_play_se_by_id(371);
+        if (PW(0x56daff4u).i >= 10)
+            scene1_spawn(0, g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + 2.0f),
+                         g_party.pos[0][2], 99, 0.05000000074505806f, 1);
+        if (PW(0x56daff4u).i == 45) {
+            audio_play_se_by_id(353);
+            scene1_spawn(0, g_party.pos[0][0], PW(0x56daf88u).f, g_party.pos[0][2], 98, 1.0f, 3);
+        }
+        party_facing_from_pad();                     /* FUN_00489db8 */
+        return;
+    }
+    if (++PW(0x56db04cu).i == 1) {
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+    }
+    const int quick = PW(0x56daff4u).i < 45;
+    PW(0x56daff8u).i = 1;
+    if (quick) {
+        if (PW(0x56db04cu).i == 4) {
+            if (PW(0x56db064u).i != 0) {
+                party_crit_flash();
+                voice_pick(voice_bag_k(4), k_v_crit, 4);
+            } else {
+                voice_pick(voice_bag_k(4), k_v, 4);
+            }
+        }
+        if (PW(0x56db04cu).i == 1) {
+            PW(0x56daff8u).i = 0;
+            PW(0x56daff4u).i = 0;
+            party_anim_set(g_party.rec[0], 3);
+            if (PW(0x56daed8u).i == 1) water_splash();
+        }
+        if (PW(0x56db04cu).i == 12) {
+            audio_play_se_by_id(343);
+            scene1_record_b_spawn_entity(&g_party, 4, -1);
+        }
+        if (PW(0x56db04cu).i >= 13 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+        if (PW(0x56db04cu).i >= 35) party_action_end();
+    } else {
+        if (PW(0x56db04cu).i == 1) {
+            party_anim_set(g_party.rec[0], 3);
+            if (PW(0x56daed8u).i == 1) water_splash();
+        }
+        if (PW(0x56db04cu).i == 20) scene1_record_b_spawn_entity(&g_party, 82, -1);
+        if (PW(0x56db04cu).i >= 35) {
+            party_action_end();
+            PW(0x56daff8u).i = 0;
+            PW(0x56daff4u).i = 0;
+        }
+        if (PW(0x56db04cu).i == 1) {
+            if (PW(0x56db064u).i != 0) {
+                party_crit_flash();
+                voice_pick(voice_bag2(), k_vc_crit, 2);
+            } else {
+                voice_pick(voice_bag2(), k_vc, 2);
+            }
+        }
+    }
+}
+
+static const char *const k_caillou_skill_voice[5] = {
+    "bin/se/04ca/skill/04ca_08a.bin", "bin/se/04ca/skill/04ca_09a.bin",
+    "bin/se/04ca/skill/04ca_09c.bin", "bin/se/04ca/skill/04ca_10a.bin",
+    "bin/se/04ca/skill/04ca_10d.bin" };
+/* the head Caillou's skills 4 / 5 / 7 share: invincible while below 30, the
+ * count, at 1 his voice (bag of 5) + the cast aura */
+static void caillou_skill_head(void)
+{
+    const int32_t t0 = PW(0x56db04cu).i;
+    if (t0 < 30 && PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    PW(0x56db04cu).i = t0 + 1;
+    if (t0 + 1 == 1) {
+        voice_pick(voice_bag_k(5), k_caillou_skill_voice, 5);
+        party_cast_aura();
+    }
+}
+/* anim 0 + 4 at 1, anim 3 from `at` */
+static void caillou_skill_anim(int32_t at)
+{
+    const int32_t t = PW(0x56db04cu).i;
+    if (t >= at) {
+        party_anim_set(g_party.rec[0], 3);
+    } else if (t == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 4);
+    }
+}
+
+/* FUN_00495a32: Caillou's skill state 4 — the explosion: at 24 the hit record
+ * 96, SE 373 + 365, the shake, overlays 1 / 2 / 3; the end at 60 */
+static void party_skill4_caillou(void)
+{
+    caillou_skill_head();
+    caillou_skill_anim(16);
+    if (PW(0x56db04cu).i == 24) {
+        const float *p = g_party.pos[0];
+        scene1_record_b_spawn_entity(&g_party, 96, -1);
+        audio_play_se_by_id(373);
+        audio_play_se_by_id(365);
+        camera_shake(32, 4, 4, 1.0f);                /* FUN_0044b219 */
+        scene1_overlay_spawn(NULL, p[0], p[1], p[2], 1, 2.0f, -1, 0, 0, 0);
+        scene1_overlay_spawn(NULL, p[0], p[1], p[2], 2, 2.0f, -1, 0, 0, 0);
+        scene1_overlay_spawn(NULL, p[0], p[1], p[2], 3, 0.800000011920929f, -1, 0, 0, 0);
+    }
+    if (PW(0x56db04cu).i >= 60) party_action_end();
+}
+
+/* FUN_00495c3c: Caillou's skill state 5 — the ice block: SE 693 + the record
+ * 97 at 26; the end at 60 */
+static void party_skill5_caillou(void)
+{
+    caillou_skill_head();
+    caillou_skill_anim(10);
+    if (PW(0x56db04cu).i == 26) {
+        audio_play_se_by_id(693);
+        scene1_record_b_spawn_entity(&g_party, 97, -1);
+    }
+    if (PW(0x56db04cu).i >= 60) party_action_end();
+}
+
+/* FUN_00495d8f: Caillou's skill state 6 — the bolts: invincible 45 and a
+ * stop at 1, the facing from the pad after 4, a record 98 every other tick
+ * 16..54 (SE 682 on every second one); from 54 the skill key held (0x820)
+ * and 3 SP loop it back to 15; the end at 58 */
+static void party_skill6_caillou(void)
+{
+    if (++PW(0x56db04cu).i == 1) {
+        if (PW(0x56db0f4u).i < 45) PW(0x56db0f4u).i = 45;
+        g_party.vel[0][0] = 0.0f;
+        g_party.vel[0][2] = 0.0f;
+        voice_pick(voice_bag_k(5), k_caillou_skill_voice, 5);
+        party_cast_aura();
+    }
+    if (PW(0x56db04cu).i > 4) party_facing_from_pad();
+    if (PW(0x56db04cu).i >= 0) party_anim_set(g_party.rec[0], 3);
+    int32_t n = 0;
+    for (int32_t i = 16; i != 56; i += 2, n++) {
+        if (PW(0x56db04cu).i == i) {
+            scene1_record_b_spawn_entity(&g_party, 98, -1);
+            if ((n & 1) == 0) audio_play_se_by_id(682);
+        }
+    }
+    if (PW(0x56db04cu).i >= 54 && (g_sim_buttons[0].cur & 0x820) && party_spend_sp(3))
+        PW(0x56db04cu).i = 15;
+    if (PW(0x56db04cu).i >= 58) party_action_end();
+}
+
+/* FUN_00495f3b: Caillou's skill state 7 — the orb ring: at 1 the live
+ * records 106 die, at 32 the record 106; the end at 60 */
+static void party_skill7_caillou(void)
+{
+    caillou_skill_head();
+    caillou_skill_anim(16);
+    const int32_t t = PW(0x56db04cu).i;
+    if (t == 1) {
+        for (int k = 0; k < SCENE1_RECORDS_B_COUNT; k++)
+            if (g_scene1_records_b[k * SCENE1_RECORDS_B_STRIDE] == 106)
+                g_scene1_records_b[k * SCENE1_RECORDS_B_STRIDE] = 0;
+    }
+    if (t == 32) scene1_record_b_spawn_entity(&g_party, 106, -1);
+    if (PW(0x56db04cu).i >= 60) party_action_end();
+}
+
+/* FUN_0049630d: Caillou's skill state 8 — the teleport: invincible 60; his
+ * voice + the cast aura at 1; he rises 0.1 a tick 10..59 while the screen
+ * fades (b8b8 up to 30 from 30, down from 60), SE 709 at 20, the warp
+ * (FUN_004960a4) at 55, the party drops from 5.5 over 60..109 with the camera
+ * snapped; the end at 110 */
+static void party_skill8_caillou(void)
+{
+    static const float k5p5 = 5.5f;
+    if (PW(0x56db0f4u).i < 60) PW(0x56db0f4u).i = 60;
+    if (++PW(0x56db04cu).i == 1) {
+        audio_play_se_file("bin/se/04ca/action/04ca_07c.bin");
+        party_cast_aura();
+    }
+    caillou_skill_anim(16);
+    const int32_t t = PW(0x56db04cu).i;
+    if (t >= 10 && t < 60)
+        g_party.pos[0][1] = spill32((long double)spill32((float)(t - 10)) * k0p1);
+    if (t < 60) {
+        if (t >= 30 && g_dat_0438b8b8 < 30) ++g_dat_0438b8b8;
+    } else if (g_dat_0438b8b8 > 0) {
+        --g_dat_0438b8b8;
+    }
+    if (t >= 60 && t < 110) {
+        scene1_camera_snap_next();                   /* DAT_0438cc68 = 1 */
+        const float y = spill32(k5p5 - (long double)spill32((float)(t - 60)) * k0p1);
+        g_party.pos[0][1] = y;
+        g_party.pos[1][1] = y;
+        g_party.pos[2][1] = y;
+    }
+    if (t == 20) audio_play_se_by_id(709);
+    if (PW(0x56db04cu).i == 55) party_warp_random_room();   /* FUN_004960a4 */
+    if (PW(0x56db04cu).i >= 110) party_action_end();
+}
+
 /* FUN_0048cdcc: the player state machine */
 static void party_state_tick(void)
 {
@@ -1555,49 +1835,62 @@ static void party_state_tick(void)
         break;
     case 2:
         switch (g_party.chr[0]) {
-        case 27:
-            party_attack_charme();           /* FUN_004977df */
+        case 27: party_attack_charme(); break;      /* FUN_004977df */
+        case 28: party_attack_caillou(); break;     /* FUN_00497e3a */
+        case 40: case 41: case 42: case 30: case 31:
+            /* PORT-DEBT(stub, FUN_0048cdcc): the swings of chars 40 / 41 / 42 / 30 / 31
+             * (FUN_00494ca4, FUN_004984bf, FUN_004986ee, FUN_0049791f, FUN_00497c83) */
             break;
-        case 28: case 40: case 41: case 42: case 30: case 31:
-            /* PORT-DEBT(stub, FUN_0048cdcc): the other chars' swings (FUN_00497e3a,
-             * FUN_00494ca4, FUN_004984bf, FUN_004986ee, FUN_0049791f, FUN_00497c83) */
-            break;
-        default:
-            party_attack_louie();            /* FUN_0049831c */
-            break;
+        default: party_attack_louie(); break;       /* FUN_0049831c */
         }
         break;
     case 4:
         switch (g_party.chr[0]) {
-        case 27:
-            party_skill4_charme();           /* FUN_00494f87 */
+        case 27: party_skill4_charme(); break;      /* FUN_00494f87 */
+        case 28: party_skill4_caillou(); break;     /* FUN_00495a32 */
+        case 40: case 30: case 31: case 41: case 42:
+            /* PORT-DEBT(stub, FUN_0048cdcc): skill 4 of chars 40 / 30 / 31 / 41 / 42
+             * (FUN_00495305, FUN_004964bf, FUN_00496a63, FUN_0049708e, FUN_0049755c) */
             break;
-        case 40: case 28: case 30: case 31: case 41: case 42:
-            /* PORT-DEBT(stub, FUN_0048cdcc): the other chars' skill 4
-             * (FUN_00495305, FUN_00495a32, FUN_004964bf, FUN_00496a63,
-             * FUN_0049708e, FUN_0049755c) */
-            break;
-        default:
-            party_skill_louie();             /* FUN_00496fca */
-            break;
+        default: party_skill_louie(); break;        /* FUN_00496fca */
         }
         break;
     case 5:
-        if (g_party.chr[0] == 27) party_skill5_charme();   /* FUN_0049511d */
-        /* PORT-DEBT(stub, FUN_0048cdcc): skill 5 of 40 / 28 / 30 / 31 / 41
-         * (FUN_00495524, FUN_00495c3c, FUN_004965af, FUN_00496c68,
-         * FUN_0049733d) and the rest (FUN_00496f12) */
+        switch (g_party.chr[0]) {
+        case 27: party_skill5_charme(); break;      /* FUN_0049511d */
+        case 28: party_skill5_caillou(); break;     /* FUN_00495c3c */
+        default:
+            /* PORT-DEBT(stub, FUN_0048cdcc): skill 5 of chars 40 / 30 / 31 / 41
+             * (FUN_00495524, FUN_004965af, FUN_00496c68, FUN_0049733d) and the
+             * rest (FUN_00496f12) */
+            break;
+        }
         break;
     case 6:
-        if (g_party.chr[0] == 27) party_skill6_charme();   /* FUN_0049508c */
-        /* PORT-DEBT(stub, FUN_0048cdcc): skill 6 of 40 / 28 / 30 / 41 / 31
-         * (FUN_0049594e, FUN_00495d8f, FUN_0049671f, FUN_00497408,
-         * FUN_00496d6f); the others have none */
+        switch (g_party.chr[0]) {
+        case 27: party_skill6_charme(); break;      /* FUN_0049508c */
+        case 28: party_skill6_caillou(); break;     /* FUN_00495d8f */
+        default:
+            /* PORT-DEBT(stub, FUN_0048cdcc): skill 6 of chars 40 / 30 / 41 / 31
+             * (FUN_0049594e, FUN_0049671f, FUN_00497408, FUN_00496d6f); the
+             * others have none */
+            break;
+        }
+        break;
+    case 7:
+        switch (g_party.chr[0]) {
+        case 28: party_skill7_caillou(); break;     /* FUN_00495f3b */
+        default:
+            /* PORT-DEBT(stub, FUN_0048cdcc): skill 7 of chars 40 / 31 / 30
+             * (FUN_00495601, FUN_00496e50, FUN_004967c1); the others have none */
+            break;
+        }
+        break;
+    case 8:
+        if (g_party.chr[0] == 28) party_skill8_caillou();   /* FUN_0049630d */
         break;
     default:
-        /* PORT-DEBT(stub, FUN_0048cdcc): states 3 (char 40: FUN_00494dc5),
-         * 7 (28 / 40 / 31 / 30: FUN_00495f3b, FUN_00495601, FUN_00496e50,
-         * FUN_004967c1), 8 (28: FUN_0049630d) */
+        /* PORT-DEBT(stub, FUN_0048cdcc): state 3 (char 40: FUN_00494dc5) */
         break;
     }
     if ((floor_event_active(9) || PW(0x56db100u).i > 0) && !chara_has_item(0x96b)) {

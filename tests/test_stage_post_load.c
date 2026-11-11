@@ -16,6 +16,7 @@
 #include "t.h"
 #include "stage_gate.h"
 #include "stage_post_load.h"
+#include "tables_chara.h"
 
 /* ─── scratch triple at DAT_056da1cc/d0/d4 ─────────────────────────────── */
 
@@ -93,15 +94,20 @@ int test_stage_post_load_init_preserves_xp_value_in_range(void)
 
 int test_stage_post_load_init_carries_position_from_chara_bytes(void)
 {
-    /* Seed pos_x_lo=10, pos_x_hi=5 → X = 15
-     *      pos_y_lo=20, pos_y_hi=7 → Y = 27
-     * Both also mirrored into the backup pair DAT_056db0c4 / c8. */
+    /* HP = +0x3c (10) + +0x3e (5) = 15, SP = +0x40 (20) + +0x42 (7) = 27;
+     * both also mirrored into the shown pair DAT_056db0c4 / c8.  +0x3c / +0x40
+     * are what FUN_0047a8c0 interpolates from the chara table at init (the
+     * record's own values are overwritten), +0x3e / +0x42 carry. */
     stage_post_load_reset_for_test();
-    stage_post_load_set_chara_short(0, 0x3c, 10);
+    const chara_def_t keep = g_chara[0];
+    g_chara[0].hp_base = g_chara[0].hp_lv100 = 10;
+    g_chara[0].sp_base = g_chara[0].sp_lv100 = 20;
+    stage_post_load_set_chara_short(0, 0x3c, 99);
     stage_post_load_set_chara_short(0, 0x3e, 5);
-    stage_post_load_set_chara_short(0, 0x40, 20);
+    stage_post_load_set_chara_short(0, 0x40, 99);
     stage_post_load_set_chara_short(0, 0x42, 7);
     stage_post_load_init();
+    g_chara[0] = keep;
     T_ASSERT(stage_post_load_get_dat_056db0bc() == 15.0f);
     T_ASSERT(stage_post_load_get_dat_056db0c0() == 27.0f);
     T_ASSERT(stage_post_load_get_dat_056db0c4() == 15.0f);
@@ -113,9 +119,11 @@ int test_stage_post_load_init_carries_negative_position(void)
 {
     /* Signed-short sign-extension: lo=-100, hi=-50 → sum=-150. */
     stage_post_load_reset_for_test();
-    stage_post_load_set_chara_short(0, 0x3c, -100);
+    const chara_def_t keep = g_chara[0];
+    g_chara[0].hp_base = g_chara[0].hp_lv100 = -100;
     stage_post_load_set_chara_short(0, 0x3e, -50);
     stage_post_load_init();
+    g_chara[0] = keep;
     T_ASSERT(stage_post_load_get_dat_056db0bc() == -150.0f);
     return 0;
 }

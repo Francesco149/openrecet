@@ -400,17 +400,14 @@ void stage_post_load_init(void)
     g_dat_056da1d0 = 3;
     g_dat_056da1d4 = 1;
 
-    /* L33118: FUN_0047a8c0(stage_record) — engine fires this with
-     * &DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8 = save_bank arena for
-     * current bank.  In the engine the stage_record and save_bank
-     * arena are the same memory; in the port they're separate stores
-     * but DAT_0438b1e0 is BSS-zero on NEW GAME so chara_equip's bank
-     * 0 = save_bank's bank 0 — apply the interp against bank 0 to
-     * match retail's call count.  Body is idempotent (same level
-     * produces same writes), so re-firing after save_bank_init_one's
-     * 8 in-loop calls is a no-op on state but fires the probe (= the
-     * 9th call needed for call-count parity). */
-    save_bank_apply_chara_interp(chara_equip_get_current_bank());
+    /* L33118: FUN_0047a8c0(&DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8) — the
+     * level interpolation of all 8 charas' base stats, on the WORK record
+     * (after the aggregate above, which still sums the old base stats; the
+     * next aggregate — the equip prompt's, the level-up's — reads the new
+     * ones).  A no-op on a played save (stats already match the level); a
+     * crafted level (hire-* probes: level 40) gets its stats here. */
+    CALL_TRACE_ENTER(0x47a8c0u);
+    save_bank_apply_chara_interp_at(save_work_bank_at(save_work_active_slot()));
 
     /* L33119-33124: HP = max HP (int16 +0x3c + int16 +0x3e), SP = +0x40 + +0x42;
      * the gauges' shown values (db0c4 / db0c8) start full. */

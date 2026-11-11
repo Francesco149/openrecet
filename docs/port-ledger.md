@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 734, discovered 1723 → 825 referenced-or-better (32.4%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 735, discovered 1722 → 826 referenced-or-better (32.4%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (734) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (735) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -784,6 +784,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x499c63 | FUN_00499c63 | 477 | ✓ |  | audio.c, audio.h, audio_fade.h (+3) |
 | 0x499fda | FUN_00499fda | 120 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h |
 | 0x49a052 | FUN_0049a052 | 120 | ✓ |  | dungeon_party.c |
+| 0x49a0ca | FUN_0049a0ca | 119 | ✓ |  | dungeon_party.c |
 | 0x49a2a9 | FUN_0049a2a9 | 120 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h |
 | 0x49a324 | FUN_0049a324 | 127 | ✓ |  | save_io.c, save_io.h, scene_title.c (+1) |
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ |  | main.c, music.h, scene_pause.c (+3) |
