@@ -134,3 +134,26 @@ Flying at ground + 1..2: vertical test as for the boss ahriman (`boss-ahriman.md
   `A` → `lock` 0, f17684 `scene` 9 ("CAME BACK ALIVE!", empty bag page 0/20: **`A` leaves, `B` does not**) → f17791 town map
   (`scene` 8, `stime` 2, cursor 6). No Save prompt in the dungeon, no dialogue on the floor or after it.
 - EXP 234605 → 234899 on the floor (+294).
+
+## 10. Lapis 5F pair **[obs]** (run `lapis-10f`, 2026-11-12; probe `docs/findings/probes/lapis-1f-10f.md`; `rd verify` MATCH f40626)
+
+Louie L42, ATK 61 / DEF 68 / MATK 22 / MDEF 42, HP 206. Frames = that movie.
+
+- **Placement, count 2**: (−45, 0, −34) / (−35, 0, −34), both state 8, **HP 900 each** (150·6.0, L25) — the §1 row "90" is ×10 off.
+- **Descent in lockstep** f17451..17671 (y 13.05 at t 20 → 0.55 at t 220, `+0xb08` 1 both); both state 0 at f17671, `lock` −1 f17672.
+  Both clocks `+0xa5c` run in step (equal values all fight); the holds `+0xa60` differ (5 / 42, then 50 / 19, …), so casts and fades are
+  offset per ghost.
+- **Shared add cap = 6 (d4, floor < 10)**: ghost 0's cast f18009 (n 0) → 3 adds; ghost 1's cast f18084 (n 3) → 3 adds = 6. Every later cast
+  of either ghost while n = 6 = **record 90** (pairs f18515 / f18550 and later). The count is global (types 52 / 53 / 15), not per ghost.
+- **Ghost variant 0 seen**: slot 7, type 53, `+0xae4` 0 (f18084). (Was "not reached".)
+- **Record 90 can be dodged and expires**: two shots in flight (f18515 / f18550); closest approach 0.85 at age 75 without a hit (`p_inv` ≤ 0);
+  both **freed at age 120** with no hit (f18645 / f18675). A shot that did hit: ≈54 ticks after a search's goal frame (a doomed branch, undone).
+  Shot damage expected ftol(35·3.5/2 − 42/4) = 50, +0..10.
+- Adds' hits: record 108 (ghost 52) 24 = ftol(20·3.5/2 − 42/4) (f18398); 36 once (≈f25038, source not isolated).
+- **Death with the other alive** (ghost 0, f21397, HP 0 in state 0): hit-stop 4 frames; death tick 1 f21402: **`p_inv` = 60**, slow-mo 60;
+  tick 60 (f21501): **adds untouched** (n stays 6); tick 120 (f21561) freed. `estage` stays 0.
+- **Last death** (ghost 1, f25204, state 1): death tick 1 f25209: `p_inv` 1200, slow-mo 60; tick 60 (f25308 → 25309): all 6 adds dying → gone;
+  tick 120 (f25368): freed, `estage` 1, `gate` 0, circle at (−35, −40).
+- Damage dealt (ATK 61): sword ≈25–31, spin 53 / 58 (no labels needed); 1,800 HP took 34 searches (~7,500 frames).
+- Arms checklist updates: count 2 placement **[obs f17431]**; cap 6 **[obs f18084]**; ghost variant 0 **[obs f18084]**; death with another
+  alive **[obs f21402 / f21501]**.

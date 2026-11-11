@@ -206,3 +206,23 @@ Side run `mk-die` (`--from dungeon1-deep@56200`, not verified, not filed; it rea
 
 Port: all arms ported, no PORT-DEBT in this function. Types 59 / 60 share the code (the type-60 lunge arm has no
 recording).
+
+## 8. Type 59 **[obs]** (Lapis Ruins 10F; run `lapis-10f`, 2026-11-12; probe `docs/findings/probes/lapis-1f-10f.md`; `rd verify` MATCH f40626)
+
+Also at **dungeon 4 / floor 9** (Lapis 10F), not only d5 f47 (§1). Louie L42 ATK 61 / DEF 68 / MDEF 42.
+
+- **Stats (retail .data, `0x5c23f0 + 59*0x68`)**: flags 1, HP 150, EXP 25, **AT 26, DF 42, MA 10, MD 42**, rf 0.8 / 4 / 3 / 4.5. (Type 60
+  read too: 150 / 25 / **28 / 52 / 10 / 52**, same rf.) Level 26 → **HP 930** **[obs f31212]**.
+- **`+0xab8` = 2.0** from the tick after placement (1.0 on the entry tick f31212): DF_eff = ftol(42·4) = 168 → every hit outside state 4
+  is min 1 (+0..1) at any ATK below 84·… (ATK 61 base ftol(30.5 − 42) < 0). State 4: `+0xab8` 1, `+0xb28` 1 → base ftol(61/2) = 30.
+- **Intro** identical to 24: state 8 t 0..239 (f31212..31451), state 0 f31452, `lock` −1 f31453; `s32(0x9643128)` 1 by event tick 60.
+- **Two swings end at kt 99** (24: 114): f36028 kt 1 (`ksub` 1) → record 14 live kt 25..38 and 56..69 (**14 ticks each**, the card said 16)
+  → state 0 at f36126 (the tick after kt 98). One-swing end (60) not observed.
+- Heal (state 5) at full HP: f32434, HP stays 930 (capped). A later red meal healed 875 → 930 (cap).
+- Purple windows: 5 seen (meal tick 70 → state 4 50 ticks later). Spins from behind in state 4 (back + counter): **120, 114, 109** (f33954 /
+  33994 / 34034) = ftol(30·2·1.2·1.5) = 108, +0..21. A spin pressed at state-4 kt ≈112 lands after the window: 2.
+- Kill f36852 (state 4 kt 12, spin); death tick 1 f36857 (slow-mo 60); tick 60 f36956: 3 mushrooms dying → gone f36957; **tick 500 f37396:
+  slot freed and `estage` 0 → 2** (not 1 — d4's `FUN_00450877` floor-9 arm with bank+0x2bcf4 = 1 skips event 10/4), `gate` 3 → 0 f37397,
+  `s32(0x9643128)` 0. Circle (−35, −40), door (−45, −40).
+- Not seen on 59: spray (state 3), the stay roll, contact record, a swing hit on the player, the eat-walk timeout. What differs from 24 and
+  was seen: `+0xab8` 2, swing end 99, HP / AT / DF / MA / MD above. Mushroom planting (`rand % 3`: 0 → purple) not counted.
