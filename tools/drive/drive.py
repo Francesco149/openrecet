@@ -97,8 +97,25 @@ def parse_spec(spec):
     while i < len(spec):
         if spec[i].isspace():
             i += 1
+        elif spec[i] == "{":                    # {EXPR}*N: the mask is the expression's value, read before each tick
+            j = spec.find("}", i)
+            if j < 0:
+                raise SystemExit("unclosed { in the input spec: {pad(ex - px, ez - pz) | A}*12")
+            m = re.match(r"\*(\d+)", spec[j + 1:])
+            out.append((("expr", spec[i + 1:j]), int(m.group(1)) if m else 1, False))
+            i = j + 1 + (m.end() if m else 0)
         elif spec[i] == "(":
-            j = spec.index(")", i)
+            j, depth, brace = i, 0, 0            # the group's own ")": nested groups and {EXPR} parentheses skipped
+            while j < len(spec):
+                ch = spec[j]
+                brace += (ch == "{") - (ch == "}")
+                if not brace:
+                    depth += (ch == "(") - (ch == ")")
+                    if depth == 0:
+                        break
+                j += 1
+            if j >= len(spec):
+                raise SystemExit("unclosed ( in the input spec")
             m = re.match(r"x(\d+)", spec[j + 1:])
             if not m:
                 raise SystemExit("a group needs a repeat count: (A .*7)x12")
@@ -113,8 +130,8 @@ def parse_spec(spec):
     return out
 
 
-def spec_to_run(items):
-    """[(mask, n, esc)] → (segments "m:n,m:n", [esc ticks], total)"""
+def spec_to_run(items, prog=None):
+    """[(mask, n, esc)] → (segments "m:n,m:n", [esc ticks], total); prog(expr) → program id, for {EXPR} masks"""
     segs, escs, t = [], [], 0
     for mask, n, esc in items:
         if n <= 0:
@@ -126,7 +143,13 @@ def spec_to_run(items):
         else:
             segs.append([mask, n])
         t += n
-    return ",".join(f"{m:x}:{n}" for m, n in segs), escs, t
+    def one(m):
+        if isinstance(m, tuple):
+            if prog is None:
+                raise SystemExit("{EXPR} masks need a live session (play / tap / search actions)")
+            return f"p{prog(m[1])}"
+        return f"{m:x}"
+    return ",".join(f"{one(m)}:{n}" for m, n in segs), escs, t
 
 
 def segs_to_spec(path):
@@ -179,6 +202,8 @@ class Vars:
                 return [n.id]
             if n.id == "pi" and "pi" not in self.defs:
                 return [repr(math.pi)]
+            if n.id not in self.defs and n.id.isupper() and all(ch in BTN for ch in n.id):
+                return [str(sum({BTN[ch] for ch in n.id}))]         # a button mask: A, UR, B
             if n.id not in self.defs:
                 raise SystemExit(f"unknown name {n.id!r} in {src!r} — `rd ram R list`, or define it (`rd ram R define`)")
             if depth > 12:
@@ -204,7 +229,13 @@ class Vars:
                 return c(n.args[0]) + [f]
             if f in ("atan2", "hypot", "pow") and len(n.args) == 2:
                 return c(n.args[0]) + c(n.args[1]) + [f]
-            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow)")
+            if f in ("pad", "dpad") and len(n.args) == 2:
+                # the d-pad mask (8 directions) that walks along the world vector (dx, dz): pad = the shop's axes
+                # (R = +x, D = +z), dpad = the dungeons' (flipped). 0 when the vector is 0.
+                x, z = (f"({'-' if f == 'dpad' else ''}({ast.unparse(a)}))" for a in n.args)
+                return self.compile(f"((1 if {x} > 0 else 2) if abs({x}) > 0.41421356 * abs({z}) else 0) + "
+                                    f"((8 if {z} > 0 else 4) if abs({z}) > 0.41421356 * abs({x}) else 0)", depth + 1)
+            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow pad dpad)")
         if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Pow):
             return c(n.left) + c(n.right) + ["pow"]
         if isinstance(n, ast.BinOp) and type(n.op) in BINOP:
@@ -419,8 +450,9 @@ def staged_exe():
     return RH.bin_dir() + "\\rhost.exe"
 
 
-def spawn_live(tag, movie, upto=None, idle=1800):
-    """a live rhost under wine (no X): replays MOVIE to frame UPTO first → (pid, port, rundir)"""
+def spawn_live(tag, movie, upto=None, idle=1800, wait=300):
+    """a live rhost under wine (no X): replays MOVIE to frame UPTO first → (pid, port, rundir). Admitted through
+    rhost.py's machine-wide gate (a cap on rhost processes + a free-memory floor): WAIT seconds for a slot, else SystemExit"""
     exe = staged_exe()
     os.makedirs(SESS, exist_ok=True)
     for n in range(100000):
@@ -445,8 +477,13 @@ def spawn_live(tag, movie, upto=None, idle=1800):
     if upto > 0:
         movie.truncated(upto).write(os.path.join(rd, "trace.jsonl"))
         args += ["--trace", win + "\\trace.jsonl", "--frames", str(upto)]
-    p = subprocess.Popen(args, stdout=open(os.path.join(rd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
-                         start_new_session=True, cwd=rd)
+    try:
+        with RH.admit_local(wait=wait, what=f"live session {tag}"):
+            p = subprocess.Popen(args, stdout=open(os.path.join(rd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
+                                 start_new_session=True, cwd=rd)
+    except SystemExit:
+        shutil.rmtree(rd, ignore_errors=True)
+        raise
     pf = os.path.join(rd, "live.port")
     t0 = time.time()
     while not os.path.exists(pf):
@@ -618,7 +655,7 @@ class Run:
     # ---- acting
     def play(self, spec, until=None, avoid=None, watch=(), every=0, quiet=False, rows=40, undo=True):
         lv = self.attach()
-        segs, escs, total = spec_to_run(parse_spec(spec))
+        segs, escs, total = spec_to_run(parse_spec(spec), lambda e: lv.prog(self.vars.compile(e)))
         if not total:
             raise SystemExit("empty input spec")
         if undo:
@@ -950,6 +987,20 @@ def cmd_ram(a):
             row = h[i:i + 16]
             dw = " ".join(f"{int.from_bytes(row[j:j + 4], 'little'):08x}" for j in range(0, len(row) - 3, 4))
             print(f"{va + i:08x}  {dw}  {''.join(chr(b) if 32 <= b < 127 else '.' for b in row)}")
+    elif a.op == "actors":                     # the dungeon actor table: every slot in use
+        import struct
+        lv = r.attach()
+        px, pz = r.ev("px", "pz")
+        print("  i type use     hp       x       z    yaw  st    t  sub   pow  dist  unhit stag   (aI<field> names: `rd ram R list`)")
+        for i in range(128):
+            h = bytes.fromhex(lv.cmd(f"r {0x76b970 + i * 0xba4:x} {0xba4}").split()[1])
+            s32_ = lambda o: int.from_bytes(h[o:o + 4], "little", signed=True)
+            f32_ = lambda o: struct.unpack("<f", h[o:o + 4])[0]
+            if not s32_(0x428):
+                continue
+            x, z = f32_(0x3f0), f32_(0x3f8)
+            print(f"{i:3d} {s32_(0x424):4d} {s32_(0x428):3d} {f32_(0x42c):6.0f} {x:7.2f} {z:7.2f} {f32_(0x420):6.2f} {s32_(0xa54):3d} {s32_(0xa58):4d} {s32_(0xa5c):4d} "
+                  f"{f32_(0xab8):5.2f} {math.hypot(x - px, z - pz):5.1f} {s32_(0xb08):6d} {s32_(0x440):4d}")
     elif a.op == "dwords":                     # N dwords from VA: hex, signed, float
         import struct
         va, n = int(a.args[0], 16), int(a.args[1], 0) if len(a.args) > 1 else 16
@@ -1099,10 +1150,10 @@ def cmd_rewind(a):
 DEFAULT_ACTIONS = ["R*8", "L*8", "U*8", "D*8", "UR*8", "UL*8", "DR*8", "DL*8", "R*2", "L*2", "U*2", "D*2", "A .*7", "B .*7", ".*8"]
 
 
-def action_arg(specs):
+def action_arg(specs, prog=None):
     acts = []
     for s in specs:
-        seg, escs, total = spec_to_run(parse_spec(s))
+        seg, escs, total = spec_to_run(parse_spec(s), prog)
         if escs:
             raise SystemExit(f"action {s!r}: ESC (~) cannot be part of a search action — play it yourself")
         if not total:
@@ -1114,7 +1165,7 @@ def action_arg(specs):
 def explore_cmd(lv, V, a, seed, apply):
     g = lv.prog(V.compile(a.goal))
     cells = [lv.prog(t) for t in V.compile_tuple(a.cell)]
-    cmd = f"explore g={g} c={','.join(map(str, cells))} acts={action_arg(a.actions or DEFAULT_ACTIONS)}"
+    cmd = f"explore g={g} c={','.join(map(str, cells))} acts={action_arg(a.actions or DEFAULT_ACTIONS, lambda e: lv.prog(V.compile(e)))}"
     if a.avoid:
         cmd += f" a={lv.prog(V.compile(a.avoid))}"
     if a.score:
@@ -1147,7 +1198,7 @@ def cmd_search(a):
 
         def boot(i):
             try:
-                pid, port, rd = spawn_live(f"{r.name}-w{i}", r.movie, idle=600)
+                pid, port, rd = spawn_live(f"{r.name}-w{i}", r.movie, idle=600, wait=0)      # a search worker is optional: no slot → fewer workers
                 workers.append((i, pid, port, rd))
             except BaseException as e:      # noqa: B902 — SystemExit from spawn_live
                 errs.append(str(e))

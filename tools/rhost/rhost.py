@@ -209,6 +209,64 @@ def cmd_restart_runner(a):
     return 0
 
 
+# ---- admission on maximus: every local rhost process (a wine batch run, an `rd` live session, a search worker)
+# starts through admit_local(). 2026-11-11: seven API drivers, each with `rd search -j 4`, next to a wine batch, two
+# 200k-frame replays and a port build ran the 31 GB box out of memory (the kernel killed the desktop's processes).
+# A process is ~0.65 GB; the cap bounds the total, the floor keeps room for whatever else the box runs.
+LOCAL_MAX_PROCS = int(os.environ.get("RHOST_MAX_PROCS", "10"))
+LOCAL_MEM_FLOOR_GB = float(os.environ.get("RHOST_MEM_FLOOR_GB", "8"))
+
+
+def local_rhost_procs():
+    n = 0
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                argv = open(f"/proc/{d}/cmdline", "rb").read().split(b"\0")
+            except OSError:
+                continue
+            if any(b"rhost.exe" in x for x in argv[:3]) and not os.path.basename(argv[0]).startswith((b"xvfb", b"sh", b"bash", b"zsh")):
+                n += 1
+    return n
+
+
+def mem_avail_gb():
+    for l in open("/proc/meminfo"):
+        if l.startswith("MemAvailable:"):
+            return int(l.split()[1]) / 1048576
+    return 0.0
+
+
+class admit_local:
+    """`with admit_local(wait): Popen(..)` — holds a machine-wide lock while the caller starts ONE rhost process, after
+    waiting (up to WAIT seconds) for a free slot and for MemAvailable above the floor; SystemExit when neither comes"""
+    def __init__(self, wait=600, what="rhost"):
+        self.wait, self.what = wait, what
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(WINE_ROOT, exist_ok=True)
+        self.f = open(os.path.join(WINE_ROOT, "admit.lock"), "w")
+        t0 = time.time()
+        while True:
+            fcntl.flock(self.f, fcntl.LOCK_EX)
+            n, gb = local_rhost_procs(), mem_avail_gb()
+            if n < LOCAL_MAX_PROCS and gb >= LOCAL_MEM_FLOOR_GB:
+                return self
+            fcntl.flock(self.f, fcntl.LOCK_UN)
+            if time.time() - t0 >= self.wait:
+                self.f.close()
+                raise SystemExit(f"{self.what}: not admitted — {n} rhost processes on this box (cap {LOCAL_MAX_PROCS}), {gb:.1f} GB available "
+                                 f"(floor {LOCAL_MEM_FLOOR_GB:g}). Stop idle sessions (`./rd ls`, `./rd stop R`) or wait; "
+                                 f"RHOST_MAX_PROCS / RHOST_MEM_FLOOR_GB change the limits (do not raise them to get past this).")
+            time.sleep(2)
+
+    def __exit__(self, *exc):
+        time.sleep(0.3)             # the new process is in /proc before the next admission counts
+        self.f.close()
+        return False
+
+
 def rhost_stale():
     """rhost.exe missing or older than any tools/rhost source"""
     exe = os.path.join(BUILD, "rhost.exe")
@@ -485,14 +543,15 @@ def run_batch_wine(a, runs, tag):
         log = os.path.join(bdir, runs[i][0], "rhost.log")
         so_path = os.path.join(bdir, runs[i][0], "rhost.stdout")
         so = open(so_path, "w")
-        if getattr(a, "headless", False):   # fake devices: no X server at all (wine's null driver)
-            henv = {k: v for k, v in env.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
-            p = subprocess.Popen(["wine", exe] + argv, stdout=so, stderr=subprocess.DEVNULL, text=True, env=henv,
-                                 start_new_session=True)
-        else:
-            p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
-                                 stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
-                                 start_new_session=True)
+        with admit_local(wait=4 * 3600, what=f"wine run {runs[i][0]}"):
+            if getattr(a, "headless", False):   # fake devices: no X server at all (wine's null driver)
+                henv = {k: v for k, v in env.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+                p = subprocess.Popen(["wine", exe] + argv, stdout=so, stderr=subprocess.DEVNULL, text=True, env=henv,
+                                     start_new_session=True)
+            else:
+                p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
+                                     stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
+                                     start_new_session=True)
         # a finished run can hang in wine's process teardown: the RESULT line in its log is
         # the end — give the exit 20 s, then kill the session (xvfb-run, wine, rhost)
         t0, done_at = time.time(), None

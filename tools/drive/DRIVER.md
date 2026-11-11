@@ -41,7 +41,7 @@ rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:SHA    
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "A" [--n 40] [--gap 8] [--until EXPR] [--text]   # (A .*gap) x n: advance dialogue, mash a menu;
                                                           # --text = a transcript (the new rows before each press)
-rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT]
+rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT]        rd ram R actors   # dungeon actor table
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type f32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]
 rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
@@ -57,6 +57,15 @@ rd endsave R        rd file R NAME        rd port R        rd stop R        rd l
 `.` nothing, `~` the ESC key (pause menu; "Event Skip" in cutscenes). Combine letters (`UR`), repeat
 with `*N`, group with `( … )xN`: `A . (D .*5)x3 A*2 .*30 ~ .*60`. A press is an edge: release (`.`)
 between two presses of the same button.
+
+**Inputs that read state:** `{EXPR}*N` holds the mask EXPR evaluates to, re-read before every tick (the movie
+records the masks it gave, so replays do not depend on it). In EXPR, button letters are masks (`A`, `UR`),
+`pad(dx, dz)` is the d-pad mask (8 directions) that walks along the world vector (dx, dz) in the shop / house,
+`dpad(dx, dz)` the same in dungeons (flipped axes). Walk toward a point: `{dpad(ex - px, ez - pz)}*40`; face an
+enemy and swing: `{dpad(a1x - px, a1z - pz) | A} .*9`; back off: `{dpad(px - a1x, pz - a1z)}*8`; strafe around it:
+`{dpad(a1z - pz, px - a1x)}*8`. They work in `play`, in groups, and as `search --actions` — a search over
+"approach / attack / retreat / strafe left / strafe right / wait" needs far fewer cells than one over raw
+directions. `--watch` splits on commas: name an expression first (`rd ram R define d1 --expr "hypot(..)"`).
 
 **Expressions** (goals, `--until`, `--watch`, `eval`, task steps): Python syntax over named state
 (`rd ram R list`), `frame`, `rng`, raw reads `u8(va) s8 u16 s16 u32 s32 f32 f64` (nestable:
@@ -147,6 +156,12 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   goals ≤ ~60 units apart; a boss = HP and the relative position in the cell, directed attacks
   (`"U*2 A .*8"` per direction) as actions. `end:dungeon3-deep` loads the SHOP on day 23 at night:
   burn the period, sleep, then Adventurers' Guild → Louie → dungeon 2 → row "21~25".
+- **Combat** (`docs/findings/bosses/combat-core.md`, cards per boss in `docs/findings/bosses/`): sword = `p_act == 2`,
+  30 ticks, the hit lands at `p_actt == 9`; damage `ATK/2 − DF·pow²/4` (`aNpow`), ×1.2 from the side, ×1.5 from behind
+  (`aNrel` > pi/4 / > 3pi/4), ×1.2 while the enemy attacks (`aNst` 1..6); `aNunhit != 0` = cannot be hit. Names per
+  actor slot N = 0..5: `aNx aNz aNhp aNst aNt aNsub aNpow aNd aNrel aNtype aNuse`. Read the boss's card before a
+  boss floor: most have a damage gate (a power that must shed, a flip, a stun, a hit counter).
+- Sessions are capped machine-wide (memory): use `-j 2` at most; "not admitted" = wait or `rd stop` an idle run.
 - Level-15+ saves (`save:2afe7fb42617`): vending machines are bought at the Market ("Venders") and
   placed from a table's display menu (`cc04 == 1`, `L`/`R` to "Venders"); the machine's own menu is
   `cc04 == 2` (probe vending-level16).

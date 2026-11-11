@@ -375,5 +375,521 @@
  },
  "_cell": {
   "expr": "(scene, cc08, int(px), int(pz))"
+ },
+ "p_act": {
+  "addr": "0x56db048",
+  "type": "s32",
+  "note": "player action: 0 free, 1 hurt, 2 sword swing (30 ticks, the hit lands at p_actt 9), 4..8 skills (bcore-2)"
+ },
+ "p_actt": {
+  "addr": "0x56db04c",
+  "type": "s32",
+  "note": "tick inside the player's action"
+ },
+ "p_inv": {
+  "addr": "0x56db0f4",
+  "type": "s32",
+  "note": "player invulnerability ticks (<= 0 = hittable; 30 after a hit)"
+ },
+ "p_hurt": {
+  "addr": "0x56daeb0",
+  "type": "s32",
+  "note": "player knock-down hold (70 after a crown slime landing)"
+ },
+ "p_oct": {
+  "addr": "0x56dab00",
+  "type": "s32",
+  "note": "player facing octant; direction = (sin, cos)(p_oct*pi/4)"
+ },
+ "p_yaw": {
+  "addr": "0x56db05c",
+  "type": "f32",
+  "note": "player facing angle"
+ },
+ "atk": {
+  "addr": "0x56db0ac",
+  "type": "s32",
+  "note": "leader ATK total"
+ },
+ "pdef": {
+  "addr": "0x56db0b0",
+  "type": "s32",
+  "note": "leader DEF total"
+ },
+ "estage": {
+  "addr": "0x438b8a0",
+  "type": "s32",
+  "note": "dungeon floor event stage (generic boss floor: 1 = cleared; code-read)"
+ },
+ "etick": {
+  "addr": "0x438b8a4",
+  "type": "s32",
+  "note": "dungeon floor event tick"
+ },
+ "rx": {
+  "expr": "px + sin(p_oct * pi / 4)",
+  "note": "the sword record's x (1.0 ahead of the player): hit labels are judged from here"
+ },
+ "rz": {
+  "expr": "pz + cos(p_oct * pi / 4)",
+  "note": "the sword record's z"
+ },
+ "a0x": {
+  "addr": "0x76bd60",
+  "type": "f32",
+  "note": "actor 0: x"
+ },
+ "a0y": {
+  "addr": "0x76bd64",
+  "type": "f32",
+  "note": "actor 0: y (height)"
+ },
+ "a0z": {
+  "addr": "0x76bd68",
+  "type": "f32",
+  "note": "actor 0: z"
+ },
+ "a0yaw": {
+  "addr": "0x76bd90",
+  "type": "f32",
+  "note": "actor 0: yaw"
+ },
+ "a0type": {
+  "addr": "0x76bd94",
+  "type": "s32",
+  "note": "actor 0: type id"
+ },
+ "a0use": {
+  "addr": "0x76bd98",
+  "type": "s32",
+  "note": "actor 0: in use (2 = dying)"
+ },
+ "a0st": {
+  "addr": "0x76c3c4",
+  "type": "s32",
+  "note": "actor 0: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a0t": {
+  "addr": "0x76c3c8",
+  "type": "s32",
+  "note": "actor 0: AI state tick"
+ },
+ "a0sub": {
+  "addr": "0x76c3cc",
+  "type": "s32",
+  "note": "actor 0: AI sub-state"
+ },
+ "a0pow": {
+  "addr": "0x76c428",
+  "type": "f32",
+  "note": "actor 0: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a0unhit": {
+  "addr": "0x76c478",
+  "type": "s32",
+  "note": "actor 0: != 0 = cannot be hit"
+ },
+ "a0stag": {
+  "addr": "0x76bdb0",
+  "type": "s32",
+  "note": "actor 0: stagger ticks (AI frozen)"
+ },
+ "a0age": {
+  "addr": "0x76bd08",
+  "type": "s32",
+  "note": "actor 0: ticks alive"
+ },
+ "a0d": {
+  "expr": "hypot(a0x - px, a0z - pz)",
+  "note": "distance player - actor 0"
+ },
+ "a0rel": {
+  "expr": "abs(atan2(sin(atan2(a0x - rx, a0z - rz) - a0yaw + pi), cos(atan2(a0x - rx, a0z - rz) - a0yaw + pi)))",
+  "note": "hit-label angle on actor 0: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a1x": {
+  "addr": "0x76c904",
+  "type": "f32",
+  "note": "actor 1: x"
+ },
+ "a1y": {
+  "addr": "0x76c908",
+  "type": "f32",
+  "note": "actor 1: y (height)"
+ },
+ "a1z": {
+  "addr": "0x76c90c",
+  "type": "f32",
+  "note": "actor 1: z"
+ },
+ "a1yaw": {
+  "addr": "0x76c934",
+  "type": "f32",
+  "note": "actor 1: yaw"
+ },
+ "a1type": {
+  "addr": "0x76c938",
+  "type": "s32",
+  "note": "actor 1: type id"
+ },
+ "a1use": {
+  "addr": "0x76c93c",
+  "type": "s32",
+  "note": "actor 1: in use (2 = dying)"
+ },
+ "a1st": {
+  "addr": "0x76cf68",
+  "type": "s32",
+  "note": "actor 1: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a1t": {
+  "addr": "0x76cf6c",
+  "type": "s32",
+  "note": "actor 1: AI state tick"
+ },
+ "a1sub": {
+  "addr": "0x76cf70",
+  "type": "s32",
+  "note": "actor 1: AI sub-state"
+ },
+ "a1pow": {
+  "addr": "0x76cfcc",
+  "type": "f32",
+  "note": "actor 1: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a1unhit": {
+  "addr": "0x76d01c",
+  "type": "s32",
+  "note": "actor 1: != 0 = cannot be hit"
+ },
+ "a1stag": {
+  "addr": "0x76c954",
+  "type": "s32",
+  "note": "actor 1: stagger ticks (AI frozen)"
+ },
+ "a1age": {
+  "addr": "0x76c8ac",
+  "type": "s32",
+  "note": "actor 1: ticks alive"
+ },
+ "a1d": {
+  "expr": "hypot(a1x - px, a1z - pz)",
+  "note": "distance player - actor 1"
+ },
+ "a1rel": {
+  "expr": "abs(atan2(sin(atan2(a1x - rx, a1z - rz) - a1yaw + pi), cos(atan2(a1x - rx, a1z - rz) - a1yaw + pi)))",
+  "note": "hit-label angle on actor 1: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a2x": {
+  "addr": "0x76d4a8",
+  "type": "f32",
+  "note": "actor 2: x"
+ },
+ "a2y": {
+  "addr": "0x76d4ac",
+  "type": "f32",
+  "note": "actor 2: y (height)"
+ },
+ "a2z": {
+  "addr": "0x76d4b0",
+  "type": "f32",
+  "note": "actor 2: z"
+ },
+ "a2yaw": {
+  "addr": "0x76d4d8",
+  "type": "f32",
+  "note": "actor 2: yaw"
+ },
+ "a2type": {
+  "addr": "0x76d4dc",
+  "type": "s32",
+  "note": "actor 2: type id"
+ },
+ "a2use": {
+  "addr": "0x76d4e0",
+  "type": "s32",
+  "note": "actor 2: in use (2 = dying)"
+ },
+ "a2st": {
+  "addr": "0x76db0c",
+  "type": "s32",
+  "note": "actor 2: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a2t": {
+  "addr": "0x76db10",
+  "type": "s32",
+  "note": "actor 2: AI state tick"
+ },
+ "a2sub": {
+  "addr": "0x76db14",
+  "type": "s32",
+  "note": "actor 2: AI sub-state"
+ },
+ "a2pow": {
+  "addr": "0x76db70",
+  "type": "f32",
+  "note": "actor 2: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a2unhit": {
+  "addr": "0x76dbc0",
+  "type": "s32",
+  "note": "actor 2: != 0 = cannot be hit"
+ },
+ "a2stag": {
+  "addr": "0x76d4f8",
+  "type": "s32",
+  "note": "actor 2: stagger ticks (AI frozen)"
+ },
+ "a2age": {
+  "addr": "0x76d450",
+  "type": "s32",
+  "note": "actor 2: ticks alive"
+ },
+ "a2hp": {
+  "addr": "0x76d4e4",
+  "type": "f32",
+  "note": "actor 2's HP"
+ },
+ "a2d": {
+  "expr": "hypot(a2x - px, a2z - pz)",
+  "note": "distance player - actor 2"
+ },
+ "a2rel": {
+  "expr": "abs(atan2(sin(atan2(a2x - rx, a2z - rz) - a2yaw + pi), cos(atan2(a2x - rx, a2z - rz) - a2yaw + pi)))",
+  "note": "hit-label angle on actor 2: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a3x": {
+  "addr": "0x76e04c",
+  "type": "f32",
+  "note": "actor 3: x"
+ },
+ "a3y": {
+  "addr": "0x76e050",
+  "type": "f32",
+  "note": "actor 3: y (height)"
+ },
+ "a3z": {
+  "addr": "0x76e054",
+  "type": "f32",
+  "note": "actor 3: z"
+ },
+ "a3yaw": {
+  "addr": "0x76e07c",
+  "type": "f32",
+  "note": "actor 3: yaw"
+ },
+ "a3type": {
+  "addr": "0x76e080",
+  "type": "s32",
+  "note": "actor 3: type id"
+ },
+ "a3use": {
+  "addr": "0x76e084",
+  "type": "s32",
+  "note": "actor 3: in use (2 = dying)"
+ },
+ "a3st": {
+  "addr": "0x76e6b0",
+  "type": "s32",
+  "note": "actor 3: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a3t": {
+  "addr": "0x76e6b4",
+  "type": "s32",
+  "note": "actor 3: AI state tick"
+ },
+ "a3sub": {
+  "addr": "0x76e6b8",
+  "type": "s32",
+  "note": "actor 3: AI sub-state"
+ },
+ "a3pow": {
+  "addr": "0x76e714",
+  "type": "f32",
+  "note": "actor 3: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a3unhit": {
+  "addr": "0x76e764",
+  "type": "s32",
+  "note": "actor 3: != 0 = cannot be hit"
+ },
+ "a3stag": {
+  "addr": "0x76e09c",
+  "type": "s32",
+  "note": "actor 3: stagger ticks (AI frozen)"
+ },
+ "a3age": {
+  "addr": "0x76dff4",
+  "type": "s32",
+  "note": "actor 3: ticks alive"
+ },
+ "a3hp": {
+  "addr": "0x76e088",
+  "type": "f32",
+  "note": "actor 3's HP"
+ },
+ "a3d": {
+  "expr": "hypot(a3x - px, a3z - pz)",
+  "note": "distance player - actor 3"
+ },
+ "a3rel": {
+  "expr": "abs(atan2(sin(atan2(a3x - rx, a3z - rz) - a3yaw + pi), cos(atan2(a3x - rx, a3z - rz) - a3yaw + pi)))",
+  "note": "hit-label angle on actor 3: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a4x": {
+  "addr": "0x76ebf0",
+  "type": "f32",
+  "note": "actor 4: x"
+ },
+ "a4y": {
+  "addr": "0x76ebf4",
+  "type": "f32",
+  "note": "actor 4: y (height)"
+ },
+ "a4z": {
+  "addr": "0x76ebf8",
+  "type": "f32",
+  "note": "actor 4: z"
+ },
+ "a4yaw": {
+  "addr": "0x76ec20",
+  "type": "f32",
+  "note": "actor 4: yaw"
+ },
+ "a4type": {
+  "addr": "0x76ec24",
+  "type": "s32",
+  "note": "actor 4: type id"
+ },
+ "a4use": {
+  "addr": "0x76ec28",
+  "type": "s32",
+  "note": "actor 4: in use (2 = dying)"
+ },
+ "a4st": {
+  "addr": "0x76f254",
+  "type": "s32",
+  "note": "actor 4: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a4t": {
+  "addr": "0x76f258",
+  "type": "s32",
+  "note": "actor 4: AI state tick"
+ },
+ "a4sub": {
+  "addr": "0x76f25c",
+  "type": "s32",
+  "note": "actor 4: AI sub-state"
+ },
+ "a4pow": {
+  "addr": "0x76f2b8",
+  "type": "f32",
+  "note": "actor 4: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a4unhit": {
+  "addr": "0x76f308",
+  "type": "s32",
+  "note": "actor 4: != 0 = cannot be hit"
+ },
+ "a4stag": {
+  "addr": "0x76ec40",
+  "type": "s32",
+  "note": "actor 4: stagger ticks (AI frozen)"
+ },
+ "a4age": {
+  "addr": "0x76eb98",
+  "type": "s32",
+  "note": "actor 4: ticks alive"
+ },
+ "a4hp": {
+  "addr": "0x76ec2c",
+  "type": "f32",
+  "note": "actor 4's HP"
+ },
+ "a4d": {
+  "expr": "hypot(a4x - px, a4z - pz)",
+  "note": "distance player - actor 4"
+ },
+ "a4rel": {
+  "expr": "abs(atan2(sin(atan2(a4x - rx, a4z - rz) - a4yaw + pi), cos(atan2(a4x - rx, a4z - rz) - a4yaw + pi)))",
+  "note": "hit-label angle on actor 4: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a5x": {
+  "addr": "0x76f794",
+  "type": "f32",
+  "note": "actor 5: x"
+ },
+ "a5y": {
+  "addr": "0x76f798",
+  "type": "f32",
+  "note": "actor 5: y (height)"
+ },
+ "a5z": {
+  "addr": "0x76f79c",
+  "type": "f32",
+  "note": "actor 5: z"
+ },
+ "a5yaw": {
+  "addr": "0x76f7c4",
+  "type": "f32",
+  "note": "actor 5: yaw"
+ },
+ "a5type": {
+  "addr": "0x76f7c8",
+  "type": "s32",
+  "note": "actor 5: type id"
+ },
+ "a5use": {
+  "addr": "0x76f7cc",
+  "type": "s32",
+  "note": "actor 5: in use (2 = dying)"
+ },
+ "a5st": {
+  "addr": "0x76fdf8",
+  "type": "s32",
+  "note": "actor 5: AI state (8 = boss intro; 1..6 on most = attacking: hits then are Counter Attacks)"
+ },
+ "a5t": {
+  "addr": "0x76fdfc",
+  "type": "s32",
+  "note": "actor 5: AI state tick"
+ },
+ "a5sub": {
+  "addr": "0x76fe00",
+  "type": "s32",
+  "note": "actor 5: AI sub-state"
+ },
+ "a5pow": {
+  "addr": "0x76fe5c",
+  "type": "f32",
+  "note": "actor 5: DF scale: effective DF = DF * pow^2 (crown slime 5 -> 1; crab 5)"
+ },
+ "a5unhit": {
+  "addr": "0x76feac",
+  "type": "s32",
+  "note": "actor 5: != 0 = cannot be hit"
+ },
+ "a5stag": {
+  "addr": "0x76f7e4",
+  "type": "s32",
+  "note": "actor 5: stagger ticks (AI frozen)"
+ },
+ "a5age": {
+  "addr": "0x76f73c",
+  "type": "s32",
+  "note": "actor 5: ticks alive"
+ },
+ "a5hp": {
+  "addr": "0x76f7d0",
+  "type": "f32",
+  "note": "actor 5's HP"
+ },
+ "a5d": {
+  "expr": "hypot(a5x - px, a5z - pz)",
+  "note": "distance player - actor 5"
+ },
+ "a5rel": {
+  "expr": "abs(atan2(sin(atan2(a5x - rx, a5z - rz) - a5yaw + pi), cos(atan2(a5x - rx, a5z - rz) - a5yaw + pi)))",
+  "note": "hit-label angle on actor 5: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
  }
 }

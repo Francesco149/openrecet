@@ -129,6 +129,15 @@ More, per sub-goal:
 ./rd eval fus "atan2(a1z - pz, a1x - px) * 180 / pi" "hypot(px - ex, pz - ez)"
 ./rd ck fus load home ; ./rd undo fus               # a step back, and back again (8 deep; survives a session rebuild)
 ```
+```sh
+./rd play fus "{dpad(ex - px, ez - pz)}*200" --until "portal > 0"       # an input that reads state: walk at the exit
+./rd search fus --goal "a1hp <= 0" --score "-a1hp" --avoid "hp < 40" \
+    --actions "{dpad(a1x - px, a1z - pz)}*8" "{dpad(a1x - px, a1z - pz) | A} .*9" "{dpad(px - a1x, pz - a1z)}*8" ".*8"
+```
+`{EXPR}*N` (rh_live `pID:N` segments, 2026-11-11): the mask is a program's value per tick; `pad` / `dpad` turn a
+world vector into the d-pad mask. Measured on dungeon 2's 25F: an aimed walk closes 12 → 7 units in 30 ticks, the
+aimed swing lands; the movie verifies (`rd verify` MATCH).
+
 `./rd accept R NAME --task tasks/T.md` does the acceptance in one go: check → verify --real → file → golden →
 triage → the driver's report (if `agent.sh` made one) into `docs/findings/probes/NAME.md`. `--no-triage` while
 someone is editing the port (triage builds the working tree). `./rd port R` = file + golden + triage under a
@@ -180,7 +189,12 @@ scratch name (`_rd-<run>`).
   session are gone: `ck load` falls back to replay).
 - Headless wine runs have their own prefix (`prefix-headless`); the Xvfb prefix stays usable for real-device runs
   on maximus while sessions are alive.
-- A session is ~0.65 GB resident; maximus (31 GB) holds ~20 next to a build. `./rd ls` shows the live ones;
+- **Memory is admitted, not assumed** (2026-11-11: 7 API drivers × `search -j 4` + a wine batch + a build ran maximus
+  out of memory; the kernel killed desktop apps). Every local rhost process — a live session, a search worker, a wine
+  batch run — starts through `rhost.py` `admit_local`: at most `RHOST_MAX_PROCS` (10) on the box and ≥
+  `RHOST_MEM_FLOOR_GB` (8) available. A session waits up to 300 s for a slot; a search worker that gets none is
+  skipped (`-j 6` may run as 2). Campaign rule: **≤ 3 drivers at once, `-j 2` in task files**, no wine gates beside them.
+- A session is ~0.65 GB resident. `./rd ls` shows the live ones;
   `./rd stop R` when a probe is accepted (accept does it).
 - `triage` / `portrng` build the port from the working tree: while a port-fix agent is at work, accept with
   `--no-triage` and triage after its change is committed.
@@ -213,8 +227,7 @@ scratch name (`_rd-<run>`).
   (`docs/findings/headless-savestates.md` §3; one heap dword in one scenario so far). `rd verify` tells the case
   apart (same frame + RNG, other state hash → re-compared on a clean session); `rd check` always judges a fresh
   replay. Fix designs are in the findings doc.
-- Action specs cannot read state ("face the enemy, then attack"): write one directed action per direction.
-  `rd text` does not mark the highlighted row of a list (cursor variables: mark / diff).
+- `rd text` does not mark the highlighted row of a list (cursor variables: mark / diff).
 
 ## Live protocol
 

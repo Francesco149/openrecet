@@ -7,7 +7,9 @@
  *
  *   ping                                   frame / rng / scene / epoch
  *   run M:N[,M:N..] [u=P] [a=P] [s=P,P..] [e=K] [esc=T,T..] [rng=T:V,..]
- *                                          hold mask M (hex) for N ticks, segment by segment; stop when
+ *                                          hold mask M (hex) for N ticks, segment by segment (M = pID: the mask is
+ *                                          program ID's value, evaluated before each tick — input that reads state:
+ *                                          "walk toward", "face it, then attack"; the movie holds the masks it gave); stop when
  *                                          program u holds ("until") or a holds ("avoid"); sample the s
  *                                          programs every K ticks (default: at the end); post ESC during
  *                                          the T-th tick of this run (1-based); rng: set the LCG state to V
@@ -266,18 +268,20 @@ static int pid_list(const char *s, int *out, int max)
 }
 
 /* ---------------- stepping ---------------- */
-typedef struct { uint16_t mask; uint32_t n; } seg_t;
+typedef struct { uint16_t mask; int16_t prog; uint32_t n; } seg_t;   /* prog >= 0: the mask is that program's value per tick */
 static int parse_segs(const char *s, seg_t **out, char sep)
 {
     int n = 0, cap = 16; seg_t *v = malloc(cap * sizeof *v);
     while (*s) {
-        char *e; unsigned long m = strtoul(s, &e, 16);
-        if (e == s || *e != ':') { free(v); return -1; }
+        char *e; unsigned long m = 0; long pg = -1;
+        if (*s == 'p') { pg = strtol(s + 1, &e, 10); if (e == s + 1 || pg < 0 || pg >= NPROG || !g_prog[pg].c) { free(v); return -1; } }
+        else { m = strtoul(s, &e, 16); if (e == s) { free(v); return -1; } }
+        if (*e != ':') { free(v); return -1; }
         s = e + 1;
         unsigned long k = strtoul(s, &e, 10);
         if (e == s || (*e && *e != sep)) { free(v); return -1; }
         if (n == cap) { cap *= 2; v = realloc(v, cap * sizeof *v); }
-        v[n].mask = (uint16_t)m; v[n].n = (uint32_t)k; n++;
+        v[n].mask = (uint16_t)m; v[n].prog = (int16_t)pg; v[n].n = (uint32_t)k; n++;
         s = *e ? e + 1 : e;
     }
     *out = v;
@@ -291,6 +295,7 @@ static double now_ms(void)
     return (double)t.QuadPart * 1000.0 / (double)f.QuadPart;
 }
 static void tick(uint16_t mask) { g_cur_mask = mask; rh_step(); }
+static void tick_seg(const seg_t *s) { tick(s->prog >= 0 ? (uint16_t)(int64_t)vm_eval(&g_prog[s->prog]) & 0x3fff : s->mask); }
 
 /* ---------------- explore ---------------- */
 typedef struct { uint64_t key; int snap; uint32_t frames, chosen, born; mnode_t *head; double v[6], score; } cell_t;
@@ -362,7 +367,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             if (k && xunit() > sticky) a = (int)(xrand() % (uint32_t)nact);
             for (int s = 0; s < alen[a] && !stop; s++)
                 for (uint32_t i = 0; i < acts[a][s].n && !stop; i++) {
-                    tick(acts[a][s].mask); f++; ticks++;
+                    tick_seg(&acts[a][s]); f++; ticks++;
                     if (vm_eval(&g_prog[goal]) != 0) { if (!best || f < best) { best = f; best_head = g_mhead; tbest = now_ms(); } stop = 1; }
                     else if (avoid >= 0 && vm_eval(&g_prog[avoid]) != 0) { pruned++; stop = 1; }
                     else if (best && f + 1 >= best) stop = 1;
@@ -521,7 +526,7 @@ static void command(char *line, sb_t *o)
             for (uint32_t i = 0; i < sg[s].n; i++) {
                 for (int k = 0; k < nesc; k++) if (esc[k] == ran + 1) g_esc_pending = 1;
                 for (int k = 0; k < nrg; k++) if (rgt[k] == ran + 1) { g_rng_pending = 1; g_rng_value = rgv[k]; }
-                tick(sg[s].mask); ran++;
+                tick_seg(&sg[s]); ran++;
                 if (every && ran % every == 0) {
                     sb_f(&smp, "%s%u", smp.n ? ";" : "", g_frame);
                     for (int k = 0; k < nsp; k++) sb_f(&smp, ":%.9g", vm_eval(&g_prog[sp[k]]));
