@@ -141,11 +141,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     `mushroom-king-arms`, `charme-arms`, `dungeon2-25f-crown-kill` — all identical. `guild-roster-8`,
     `pause-equip-dungeon` identical. **`gates`: 116/116 ok at 1008c26d, Windows, `-j 8`, 559 s** (+21 rows).
     API credit used up (17 probes, ≈ $19.5 by the harness tallies); drivers are subscription subagents from here.
-    - ☐ `item-status-pause`: **split f213** `- ⇄ sim_step_a (-1)` — Y over the item-status window (cc08 50): retail's
-      tail draw stops for the 2 ticks before the pause scene opens. `portrng item-status-pause --window 211:214 --seq`.
-    - ☐ `skip-check 414ee2` DIFF state_sem on `hire-griff` only (frame + RNG equal): the render skip is not pure with
-      Griff on the floor; `skip-check --dump-at` does not reach the runs — fix that, diff, extend the mask or drop the
-      skip for his records.
+    - ✅ `item-status-pause` (was split f213): the pad's pause button (pressed 0x100 → FUN_00453384 in FUN_004536cb,
+      before the scene dispatch) was never handled, only the WndProc ESC → ced263ee, identical; gate row added.
+    - ✅ the render skip with Griff: FUN_00414ee2 case 7 animates the second strip vertex table 0x64d408..0x64da38
+      (render scratch, no other reader) → mask `76b750:76b7b0,64c514:64da38`, skip-check 17/17 on the new scenarios
+      (7616a9c0; `skip-check --dump-at` now works). ☐ re-run the full-corpus skip-check with the new mask.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`); Tielle on 30F
