@@ -1,12 +1,12 @@
 # Tielle — type 27 (FUN_00423b58), floor timeline FUN_0044db3c, platforms, perched kobolds (FUN_00423686)
 
 **code-read, corrected from retail 2026-11-11** (run `am-30f`, dungeon 2 30F, Louie L26 ATK 54 / DEF 75; `rd verify` MATCH
-at f39184; probe `docs/findings/probes/amber-26f-30f.md`; tags **[obs fNNNN]** are that run's frames). The port here is
-**unverified by any recording** (the movie is not filed / triaged yet): port `src/actor_ai.c:3341..3578` (AI, kobold),
+at f39184; probe `docs/findings/probes/amber-26f-30f.md`; tags **[obs fNNNN]** are that run's frames). The port is
+**verified on that movie** (scenario `amber-26f-30f-tielle`, triage identical ticks 1..39484 + save IDENTICAL, §7): port `src/actor_ai.c:3341..3578` (AI, kobold),
 `:605..640` (FUN_0042439e), `:790..817` (death), `src/dungeon_flow.c:821..1045` (timeline, setup) — each checked
 against IDA `sub_423B58` (all_ida.c:22548), `sub_44DB3C` (:50824), `sub_42439E` (:22950), `sub_42F7AD` case 27,
 `sub_42353C` (:22266), the mover-damage arm of `sub_43AE20` (:43134..43150). AI / timeline / death match IDA.
-**The platform-damage path is not ported** (§7). Shared rules: `boss-floor-common.md`.
+The platform-damage path is ported (§7). Shared rules: `boss-floor-common.md`.
 
 ## 1. Where
 
@@ -194,13 +194,16 @@ aimed walk / swing / spin / away / strafes as actions, 68 s at `-j 2`).
 
 ## 7. Port status
 
-- Ported ahead of a recording (FRONT): AI, timeline, FUN_0042439e, death arm, kobold — read line by line against
-  IDA, no divergence found.
-- **Block damage — ported 2026-11-11, UNVERIFIED (no recording reaches it):** the records tick's wall probe
-  (`src/scene1_records_b_tick.c`, LAB_00440dc1 tail) now works on the movers' own arrays — `g_scene1_b_wall_lifetime`
-  / `_freshness` are aliases of `g_mapcol_movers.on[50..]` / `.slot[50..]` (DAT_0438c218 / DAT_0438c3a8), the HP the
-  timeline fills with 2 — and at HP 0 calls FUN_0042353c = `mover_destroyed` (`src/record_hit.c`, installed by
-  `record_sm_install`): mover off, SE 318, overlays 1 / 2 / 3 at y + 2, shake (10, 4, 4, 1.0), then `rand & 3 == 0`
-  → `rand & 1` → enemy type 2 (odd) / 15 (even) at y + 0.2; else `rand & 7 == 0` and bag not full → chest roll
-  FUN_0043824b. Checked against IDA 43134..43150 + sub_42353C and the disasm 0x42353c. (Before: a separate BSS-0
-  array went to −1, never 0, and the destroy hook had no caller — a block could never break.)
+- **Verified 2026-11-11** on `amber-26f-30f-tielle` (39,184 played frames: 26F..29F, the three box phases, kobolds, block
+  breaks + spawns, the fight, death, stages 8 / 9 / 10, the door, the shop event, a Save): `rhost triage` identical ticks
+  1..39484, `portsave` IDENTICAL; gate rows `portrng` + `portsave`. RNG stream + end save, not pixels (render unjudged).
+- AI (type 27), timeline FUN_0044db3c, FUN_0042439e, death arm, perched kobolds, records 132 / 150 / 78 / 79, block damage
+  (wall probe on `g_mapcol_movers.on[50..]` / `.slot[50..]` → FUN_0042353c = `mover_destroyed`, `src/record_hit.c`): ported
+  ahead of the recording, no divergence on it.
+- **One bug, f27776 — record 104 (phase 2's rain):** `body_0x68` (`src/scene1_records_b_tick.c`) returned when OWNER_A was
+  NULL. Retail (sub_43AE20 `v25 == 104`) has no owner test: the NPC-side record (FUN_00445a8c(a, 104, 1): OWNER_A 0,
+  FLAG_A 1 → DRAG 0.2, offset 20) passes the NULL to FUN_004147d5. The port's record never ran: no template 5 at age 1,
+  no pos −= vel hold until age 40, no template 0 at age 50 (retail's 177 draws at f27776 = the first record, spawned
+  c 26), no state machine at ages 20..79, no kill at 95.
+- Not reached by the movie (so unverified): the replay without dialogues / the Boss Rush arm (FUN_0044db3c(1)), the chest
+  roll of a destroyed block, the kobold roll r = 0, the player's death, the north z clamp, the revisit after the win.

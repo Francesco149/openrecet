@@ -128,7 +128,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     with state machines / damage gates / kill recipes / arms checklists for every boss type (`ROSTER.md`: dungeon →
     boss floors → types → AI fn → port status), `UNLOCKS.md` (bank dwords for dungeons, floor rows, hires → crafted save
     `824053720e01`: all 8 adventurers at level 40, dungeons 0..4 open), `player-knowledge.md` (web, unverified).
-    Port defects it found: Tielle's blocks could never break (fixed from IDA, unverified), the crab drop read.
+    Port defects it found: Tielle's blocks could never break (fixed from IDA; verified by `amber-26f-30f-tielle`), the crab drop read.
   - ✅ tools: inputs that read state (`{dpad(a1x - px, a1z - pz) | A}`: aimed walk / swing / retreat / strafe, in `play`
     and as search actions), `rd ram R actors`, per-actor names (`aNst aNpow aNrel …`), **machine-wide admission**
     (`rhost.py admit_local`: ≤ 10 local rhost processes, ≥ 8 GB available — after an OOM on maximus; campaign rule ≤ 3
@@ -148,8 +148,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       (7616a9c0; `skip-check --dump-at` now works). ☐ re-run the full-corpus skip-check with the new mask.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
-       scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`); Tielle on 30F
-       from the crown-kill run's end (26F–30F). One subscription subagent at a time.
+       scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`
+       port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**

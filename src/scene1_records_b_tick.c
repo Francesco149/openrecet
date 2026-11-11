@@ -1001,8 +1001,10 @@ static void body_0x34(int i)
  */
 static void body_0x68(int i)
 {
+    /* no owner test in retail (IDA sub_43AE20 `v25 == 104`): the NPC record
+     * (Tielle's rain, FUN_00445a8c(a, 104, 1)) has OWNER_A 0 and passes that
+     * NULL to FUN_004147d5. */
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
 
     int age_off = 0;
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);

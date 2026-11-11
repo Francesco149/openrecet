@@ -149,7 +149,7 @@ _none_
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:819 | the engine frees the shop |
-| oob | 0x43e... | src/scene1_records_b_tick.c:3196 | types >= 64 read past DAT_005c23f0 into |
+| oob | 0x43e... | src/scene1_records_b_tick.c:3198 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1729 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |

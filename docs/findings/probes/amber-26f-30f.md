@@ -2,7 +2,7 @@
 
 - **Run:** `am-30f` · **start:** `dungeon2-25f-crown-kill` (f13616, 25F cleared) · no task file (goal: 26F..30F, Tielle's arms)
 - **Driver:** subscription subagent (`tools/drive/DRIVER.md`), `rd search -j 2`
-- **Movie:** 39184 frames (25F exit → 26F..29F → 30F Tielle killed → door → the shop event → Save). **Not filed.**
+- **Movie:** 39184 frames (25F exit → 26F..29F → 30F Tielle killed → door → the shop event → Save). Filed as `amber-26f-30f-tielle`; port: triage identical ticks 1..39484, save IDENTICAL (2026-11-11).
 - **Verdict (2026-11-11):** `rd verify am-30f` (headless):
   ```
   fresh headless replay: frame 39184 rng f2be29db sem ca6d2498e8f71e0e dev 13caf73e20091932  (unskipped retail)
