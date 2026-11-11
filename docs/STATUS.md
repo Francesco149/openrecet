@@ -552,15 +552,13 @@ rhost.log: base / ask / offer / floor / acc).
   minutes for: the window takes the keyboard after a restart, pacing feels like normal 60 fps, no stall at
   the title on resume (the console shows `[NNN] … resume 1:<slot>:0`). Agent side: `rhost.py session-status`.
   Supersedes the targeted recordings below (they stay valid if you want them sooner).
-- **Record dungeon 2's last floors** (unblocks 26F..29F's mixes, the second crown slime on 25F, Tielle 27 on 30F;
-  an agent reached 21F–25F and killed one slime by search — `findings/probes/dungeon2-21f-25f.md` — and stalled
-  on the survivor: a human's fight is also the reference for what the search missed). On maximus, the user
-  plays on the Windows desktop: `python3 tools/rhost/rhost.py record dungeon3-end --from dungeon3-deep`. The
-  newest slot loads the SHOP at night on day 23 (not the dungeon): sleep, Adventurers' Guild → Louie → dungeon 2 →
-  the "21~25" row; on to 25F and 30F if possible; then home, save. The pause Equip on the way is still
-  unverified; another hire (Caillou, …) on one run would unblock that char's swings. Each next recording can
-  start `--from` the last (cached end saves: no replay). (Done by agent probes since: Fusion, Tear's News Summary
-  and Outstanding Orders, facing / placing / stocking a vending machine.)
+- ~~Record dungeon 2's last floors~~ — done by agents 2026-11-11: `amber-26f-30f-tielle` (26F..30F, Tielle beaten,
+  port identical + save). A human run of the same floors stays useful as the reference for feel and for what a player
+  does that search does not (end save `fc2e4d81f26d` is a played-lineage start point).
+- **Agent dungeon coverage (2026-11-11):** Jade Way, Amber Garden end to end; Obsidian Tower 1F..20F (pumpkin ghost,
+  jellyfish, the ahriman pair, the golem) — all port-identical + saves, on a CRAFTED lineage (`824053720e01` → …
+  → `671c5819784b`). Next by agents: Obsidian 21F..30F (Griff), 31F..50F, Lapis Ruins. Human played saves that far in
+  would replace the crafted lineage.
 
 ## Where to read next
 
