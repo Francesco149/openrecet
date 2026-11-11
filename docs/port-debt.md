@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **52**
-- distinct retiring engine functions: **44**
+- total open debts: **56**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 30 | wired call boundary, body incomplete |
+| stub | 34 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -34,6 +34,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | 2 |
 | FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
+| FUN_0044e08f | 2 |
 | FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
@@ -43,6 +44,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_0041f4a6 | 1 |
+| FUN_0042a23c | 1 |
 | FUN_0042df55 | 1 |
 | FUN_0042e1a6 | 1 |
 | FUN_0042e791 | 1 |
@@ -55,6 +57,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
 | FUN_0044f078 | 1 |
+| FUN_00450877 | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
@@ -75,29 +78,33 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (30)
+## stub (34)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
+| FUN_0042a23c | src/actor_ai.c:4034 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:4269 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:4226 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:3822 | the other types' AI (FUN_0042ce17, |
+| FUN_0042e1a6 | src/actor_ai.c:4492 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:4449 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:4045 | the other types' AI (FUN_0042ce17, |
 | FUN_0042f7ad | src/actor_ai.c:820 | the other bosses' / special enemies' |
-| FUN_00430c6d | src/actor_ai.c:4279 | the golem parts (types 62 / 63 / 65 / 66) |
+| FUN_00430c6d | src/actor_ai.c:4502 | the golem parts (types 62 / 63 / 65 / 66) |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_postload.c:286 | dungeons 3 / 4's setups FUN_0044e08f / |
-| FUN_00436f97 | src/scene1_postload.c:322 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1323 | dungeons 3 / 4's events — the |
+| FUN_00436f97 | src/scene1_postload.c:288 | dungeon 4's setup FUN_00450443 |
+| FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
+| FUN_004427f1 | src/dungeon_flow.c:1114 | the +0x2bce2 / +0x2bcf8 story beats and |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
-| FUN_0044b219 | src/scene1_postload.c:355 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044b219 | src/scene1_postload.c:356 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
+| FUN_0044e08f | src/dungeon_flow.c:1090 | the +0x2bce2 story beat's setup (the |
+| FUN_0044e08f | src/dungeon_flow.c:1093 | floors 29 / 49 (type 28's floor: the |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
+| FUN_00450877 | src/dungeon_flow.c:1369 | dungeon 4's events |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:658 | the event-window pair (chars 0x2f / 0x30) |

@@ -1570,6 +1570,74 @@ static void actor_ai_pumpkin(actor_t *a)
     }
 }
 
+/* FUN_00429e6f: type 15, the variants past 1 — the pumpkin a pumpkin ghost
+ * summons (+0xae4 2).  First tick (+0xb8c): velocity x / z = 0.1 + 0.4 rnd each
+ * (two draws), each sign flipped on rand & 1 (two draws), +0xb04 = 1, record
+ * 10.  Then it bounces around at speed 0.25: over 20 from the player both
+ * components point at the player; four rays (i · π/2, reach 2 · +0x5c · scale,
+ * 0.6 up) — a wall of type 0 / 1 / 2 / 7 nearer than the reach pushes it back
+ * and flips vz (even i) or vx (odd i).  Anim 5; the heading spins 0.25 a tick.
+ * asm 0x429e6f..0x42a23b. */
+static void actor_ai_pumpkin_bounce(actor_t *a)
+{
+    static const float k0p4 = 0.4000000059604645f, k0p25 = 0.25f;
+    static const float k_pi = 3.1415927410125732f, k_mpi = -3.1415927410125732f;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AF(a, 0x3fc) = spill32((long double)rng_next_unit() * k0p4 + k0p1);
+        AF(a, 0x404) = spill32((long double)rng_next_unit() * k0p4 + k0p1);
+        if (rng_next15() & 1u) AF(a, 0x3fc) = -AF(a, 0x3fc);
+        if (rng_next15() & 1u) AF(a, 0x404) = -AF(a, 0x404);
+        AI(a, 0xb04) = 1;
+        scene1_record_b_spawn_npc(a, 10, 1);             /* FUN_00445a8c */
+    }
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    AI(a, 0xb54) = 1;
+    const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    float dist = spill32((long double)dz * dz + (long double)dx * dx);
+    if (dist > 0.0f) dist = spill32(spill32(crt_sqrt(dist)));
+    if (dist > k20) {
+        const float ax = AF(a, 0x3fc) < 0.0f ? -AF(a, 0x3fc) : AF(a, 0x3fc);
+        AF(a, 0x3fc) = dx > 0.0f ? ax : -ax;
+        const float az = AF(a, 0x404) < 0.0f ? -AF(a, 0x404) : AF(a, 0x404);
+        AF(a, 0x404) = dz > 0.0f ? az : -az;
+    }
+    {
+        const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
+        const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
+        const float sp = spill32(spill32(crt_sqrt(s2)));
+        AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p25 / sp);
+        AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p25 / sp);
+    }
+    for (int32_t i = 0; i != 4; i++) {
+        const float ang = spill32((long double)spill32((long double)(float)i) * k_2pi / k4);
+        const float *rf = enemy_of(a)->runtime_floats;
+        const long double r0 = (long double)rf[6] * rf[0];
+        const float r = spill32(r0 + r0);
+        const double ad = ang;
+        const float rx = spill32((long double)spill32(x87_crt_sin(ad)) * r);
+        const float rz = spill32((long double)spill32(x87_crt_cos(ad)) * r);
+        float frac = 0.0f;
+        mapcol_hit_t h;
+        h.tri = 0;
+        h.slot = 0;
+        if (mapcol_ray(AF(a, 0x3f0), spill32((long double)AF(a, 0x3f4) + k0p6), AF(a, 0x3f8),
+                       rx, 0.0f, rz, &frac, &h) == 0)     /* FUN_00433674 */
+            continue;
+        const int32_t ty = hit_type(h.slot, h.tri);
+        if (!(ty == 0 || ty == 1 || ty == 2 || ty == 7) || !(frac < k1)) continue;
+        const float push = spill32((long double)1.0 - frac);
+        AF(a, 0x3f0) = spill32((long double)AF(a, 0x3f0) - (long double)push * rx);
+        AF(a, 0x3f8) = spill32((long double)AF(a, 0x3f8) - (long double)push * rz);
+        if (i & 1) AF(a, 0x3fc) = -AF(a, 0x3fc);
+        else AF(a, 0x404) = -AF(a, 0x404);
+    }
+    actor_anim_set(a, 5);                                /* FUN_00482a51 */
+    AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k0p25);
+    while (AF(a, 0x420) < k_mpi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k_2pi);
+    while (AF(a, 0x420) > k_pi) AF(a, 0x420) = spill32((long double)AF(a, 0x420) - k_2pi);
+}
+
 /* the bosses' minion drop point (FUN_00426811 / FUN_00422ed6): up to 30 random
  * points 2..10 around (-40, -40) until one is over 10 from the player (the
  * last one otherwise) */
@@ -2211,6 +2279,156 @@ static void actor_ai_t54(actor_t *a)
         AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p01) * k0p95);
     if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
     if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+}
+
+/* FUN_00426eab: type 55, the pumpkin ghost (flies: +0x9f4, +0xb54 = 1).
+ * State 8 the descent (y = 15 - t/16, 240 ticks).  State 1 (anim 3, 60
+ * ticks): at 20, with fewer than cap (4; dungeon 4: 6 below floor 10, else 5)
+ * actors of types 52 / 53 / 15 alive, min(cap - n, 3) adds from the ring
+ * {52, 53, 15} (DAT_0052b96c) starting at rand % 3, each at a random point
+ * 2..10 around (-40, -40) at least 10 from the player (30 tries), y 10,
+ * +0xb2c = 1, +0xae4 = rand & 1 (type 15: 2, the draw still made) — at the cap
+ * record 90 + SE 330.  The 400-tick clock +0xa5c: at 1 the hold +0xa60 (rand &
+ * 63); at hold + 20 the fade flag +0xa64; at hold + 180 it clears and, the
+ * player within 8, up to 20 tries of (-40 + 15 (rnd - 0.5)) x / z more than 8
+ * from the player — the ghost jumps there; at hold + 300 state 1.  It circles
+ * 8 from the player as the boss ahriman does (FUN_00426811), turning to the
+ * player in every state.  Alpha +0x3dc ±4 a tick (0..255); +0xb08 = 1 on the
+ * ticks it would go below 0.  asm 0x426eab..0x4275a6. */
+static void actor_ai_t55(actor_t *a)
+{
+    static const float k15 = 15.0f, k0p0625 = 0.0625f, k10 = 10.0f, k400 = 400.0f, k50 = 50.0f;
+    static const float k3 = 3.0f, k1p5 = 1.5f, k0p2pi = 0.6283185482025146f, k0p005 = 0.004999999888241291f;
+    static const float k0p96 = 0.9599999785423279f, k0p0095 = 0.009499999694526196f;
+    static const float km0p1 = -0.10000000149011612f;
+    static const int32_t k_add[3] = { 52, 53, 15 };        /* DAT_0052b96c */
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    float dist;
+    if (d2 == 0.0f) {
+        dz = k0p01;
+        dist = k0p01;
+    } else {
+        dist = spill32(spill32(crt_sqrt(d2)));
+    }
+    const float ang = spill32(spill32(crt_atan2(dx, dz)));
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AI(a, 0xb08) = 1;
+        AI(a, 0xb04) = 1;
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st == 8) {
+        const int32_t t = ++AI(a, 0xa58);
+        AF(a, 0x3f4) = spill32((long double)k15 - (long double)spill32((long double)(float)t) * k0p0625);
+        if (t == 240) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        return;
+    }
+    if (st == 0) {
+        actor_anim_set(a, 0);                               /* FUN_00482a51 */
+    } else if (st == 1) {
+        actor_anim_set(a, 3);
+        if (++AI(a, 0xa58) == 20) {
+            int32_t n = 0;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                const actor_t *o = &g_actor[i];
+                if (AI(o, ACT_INUSE) == 0) continue;
+                const int32_t ty = AI(o, ACT_TYPE);
+                if (ty == 52 || ty == 53 || ty == 15) ++n;
+            }
+            int32_t cap = 4;
+            if (g_scene1_combat_stage_id == 4) cap = stage_gate_get_next() < 10 ? 6 : 5;
+            if (n >= cap) {
+                scene1_record_b_spawn_npc(a, 90, 1);        /* FUN_00445a8c */
+                audio_play_se_by_id(330);                   /* FUN_00499519 */
+            } else {
+                uint32_t k = (uint32_t)rng_next15() % 3u;
+                int32_t cnt = cap - n;
+                if (cnt > 3) cnt = 3;
+                for (; cnt != 0; cnt--) {
+                    float sx, sz;
+                    boss_minion_point(&sx, &sz);
+                    const actor_stage_t stg = stage_now();
+                    actor_t *m = actor_spawn_enemy(&stg, sx, k10, sz, k_add[k]);   /* FUN_0041f903 */
+                    const int32_t v = (int32_t)(rng_next15() & 1u);
+                    if (m != NULL) {
+                        AI(m, 0xb2c) = 1;
+                        AI(m, 0xae4) = k_add[k] == 15 ? 2 : v;
+                    }
+                    k = (uint32_t)((int32_t)(k + 1) % 3);
+                }
+            }
+        }
+        if (AI(a, 0xa58) == 60) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    }
+    const int32_t cyc = AI(a, 0xa5c) % 400;
+    ++AI(a, 0xa5c);
+    if (cyc == 1) AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+    if (cyc == AI(a, 0xa60) + 20) AI(a, 0xa64) = 1;
+    if (cyc == AI(a, 0xa60) + 180) {
+        AI(a, 0xa64) = 0;
+        if (dist < k8) {
+            for (int32_t i = 0; i != 20; i++) {
+                const float tx = spill32(((long double)rng_next_unit() - k0p5) * k15 - k40);
+                const float tz = spill32(((long double)rng_next_unit() - k0p5) * k15 - k40);
+                const float ex = spill32((long double)PX - tx);
+                const float ez = spill32((long double)PZ - tz);
+                const float d = spill32(spill32(crt_sqrt(spill64((long double)ez * ez + (long double)ex * ex))));
+                if (d > k8) {
+                    AF(a, 0x3f0) = tx;
+                    AF(a, 0x3f8) = tz;
+                    break;
+                }
+            }
+        }
+    }
+    if (cyc == AI(a, 0xa60) + 300) {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 1;
+    }
+    const float ph = spill32((long double)(float)(AI(a, 0xa50) & 7));
+    const float ph_t = spill32(((long double)ph * k50 + spill32((long double)(float)cyc)) * k_2pi / k400);
+    const float hov = spill32((long double)spill32(x87_crt_sin((double)((long double)ph_t * k3))) * k0p5 + k1p5);
+    const float sw = spill32((long double)spill32(x87_crt_sin(ph_t)) * k0p2pi);
+    AF(a, 0xa9c) = spill32(((long double)PX - AF(a, 0xa9c)) + AF(a, 0xa9c));
+    AF(a, 0xaa4) = spill32(((long double)PZ - AF(a, 0xaa4)) + AF(a, 0xaa4));
+    const double a2 = (double)((long double)sw + ang);
+    const float gx = spill32((long double)AF(a, 0xa9c) - (long double)spill32(x87_crt_sin(a2)) * k8);
+    const float gz = spill32((long double)AF(a, 0xaa4) - (long double)spill32(x87_crt_cos(a2)) * k8);
+    const float ex = spill32((long double)gx - AF(a, 0x3f0));
+    const float ez = spill32((long double)gz - AF(a, 0x3f8));
+    const float e2 = spill32((long double)ez * ez + (long double)ex * ex);
+    if (e2 > 0.0f) {
+        const float d = spill32(spill32(crt_sqrt(e2)));
+        actor_turn_to_player(a, k0p1);                      /* FUN_0041f789 */
+        AF(a, 0x3fc) = spill32((long double)ex * k0p005 / d + (long double)AF(a, 0x3fc) * k0p96);
+        AF(a, 0x404) = spill32((long double)ez * k0p005 / d + (long double)AF(a, 0x404) * k0p96);
+    }
+    AI(a, 0x9f4) = 1;
+    float base = AF(a, 0x3e0);
+    if (base < AF(a, 0x418)) base = AF(a, 0x418);
+    base = spill32((long double)base + hov);
+    if (AF(a, 0x3f4) < base)
+        AF(a, 0x400) = spill32((long double)AF(a, 0x400) * k0p95 + k0p0095);
+    else if ((long double)base + k1 < (long double)AF(a, 0x3f4))
+        AF(a, 0x400) = spill32(((long double)AF(a, 0x400) - k0p01) * k0p95);
+    if (AF(a, 0x400) > k0p1) AF(a, 0x400) = k0p1;
+    if (AF(a, 0x400) < km0p1) AF(a, 0x400) = km0p1;
+    AI(a, 0xb08) = 0;
+    AI(a, 0x3dc) += AI(a, 0xa64) == 0 ? 4 : -4;
+    if (AI(a, 0x3dc) < 0) {
+        AI(a, 0x3dc) = 0;
+        AI(a, 0xb08) = 1;
+    }
+    if (AI(a, 0x3dc) > 255) AI(a, 0x3dc) = 255;
 }
 
 /* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
@@ -3806,9 +4024,14 @@ void actor_ai_alive(actor_t *a)
             actor_ai_crab(a);                    /* FUN_00422092 */
         } else if (type == 54) {
             actor_ai_t54(a);                     /* FUN_00426811 */
+        } else if (type == 55) {
+            actor_ai_t55(a);                     /* FUN_00426eab */
         } else if (type == 15 && sub == 0) {
-            actor_ai_pumpkin(a);                 /* FUN_0042a33e (sub 1: FUN_0042a23c, else
-                                                    FUN_00429e6f — stubs) */
+            actor_ai_pumpkin(a);                 /* FUN_0042a33e */
+        } else if (type == 15 && sub != 1) {
+            actor_ai_pumpkin_bounce(a);          /* FUN_00429e6f */
+        } else if (type == 15) {
+            /* PORT-DEBT(stub, FUN_0042a23c): the pumpkin's variant 1 */
         } else if (type == 16 && sub == 3) {
             actor_ai_t16_perch(a);               /* FUN_00423686 */
         } else if (type == 16) {

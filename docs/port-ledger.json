@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 738,
-  "inv_discovered": 1719,
-  "referenced_or_better": 829,
-  "pct_referenced_or_better": 32.5,
+  "inv_source_referenced": 739,
+  "inv_discovered": 1718,
+  "referenced_or_better": 830,
+  "pct_referenced_or_better": 32.6,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 63,
+  "port_debt": 67,
   "verified": 81,
   "stubbed": 10,
-  "ported": 738,
-  "unported": 1719,
-  "touched": 829,
-  "pct_touched": 32.5,
+  "ported": 739,
+  "unported": 1718,
+  "touched": 830,
+  "pct_touched": 32.6,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -4018,18 +4018,20 @@
    "size": 1788,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4275a7",
@@ -7791,6 +7793,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
+    "src/dungeon_flow.h",
     "src/scene1_postload.c"
    ],
    "status": "ported"
