@@ -113,6 +113,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       added. Left: PORT-DEBT FUN_0044e08f / FUN_004427f1 (the +0x2bce2 / +0x2bcf8 story beats, floors 29 / 49),
       FUN_0042a23c (pumpkin variant 1), dungeon 4 (FUN_00450443 / FUN_00450877). Ghost 52 / 53 variant 0 on this
       floor and record 107 not reached.
+  - ✅ 2026-11-11 (night): `obsidian-6f-10f-jellyfish` filed (Obsidian 6F..9F, the 10F jellyfish type 70 killed; end
+    save `549015ff6b95`): the port's next target — FUN_004219f2 is a stub. Saves made by drivers:
+    `fc2e4d81f26d` (Tielle beaten, played lineage), `de58486d3cb9` / `549015ff6b95` (crafted lineage, Obsidian 5F / 10F done).
+    - ☐ `portblock obsidian-3f-5f-pumpkin`: `recb` differs (151 dwords, records #10 / #11) from 4F on; RNG and save equal.
+    - ☐ one live-session crash (c0000005 at eip 7aef924a, the first tick after a dungeon results page, under
+      `rd play --watch`); the replay passed the same frame. Not reproduced.
+    - ☐ driver tool gaps repeated by three drivers: state at an earlier frame (`rd eval --at FRAME`), `--watch` rows
+      on change only, a record-table view, `aN*` beyond slot 5, `--apply` keeping a doomed goal frame (goal tail),
+      run-local vars not inherited by `rd new --from RUN`.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
