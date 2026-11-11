@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 735, discovered 1722 → 826 referenced-or-better (32.4%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 736, discovered 1721 → 827 referenced-or-better (32.5%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (735) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (736) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -297,8 +297,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4385fb | FUN_004385fb | 99 | ✓ |  | record_hit.h, scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ |  | actor_ai.c, main.c, record_hit.c (+7) |
 | 0x43a5d9 | FUN_0043a5d9 | 1429 | ✓ |  | dungeon_objects.c, dungeon_objects.h, scene1_particles_tick.h (+3) |
-| 0x43ab6e | FUN_0043ab6e | 690 | ✓ |  | scene1_records_b_tick.c, scene1_records_b_tick.h |
-| 0x4412b6 | FUN_004412b6 | 2037 | ✓ |  | record_hit.c, record_hit.h, scene1_combat_sm.c (+1) |
+| 0x43ab6e | FUN_0043ab6e | 690 | ✓ |  | record_hit.c, scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x4412b6 | FUN_004412b6 | 2037 | ✓ |  | dungeon_party.c, record_hit.c, record_hit.h (+2) |
 | 0x441aab | FUN_00441aab | 403 | ✓ |  | record_hit.c, record_hit.h, scene1_render.c (+1) |
 | 0x441c3e | FUN_00441c3e | 2217 | ✓ |  | actor_ai.c, scene1_camera.c, scene1_camera.h (+3) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ |  | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
@@ -706,7 +706,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4902fe | FUN_004902fe | 682 | ✓ |  | audio_fade.h, main.c, save_bank.h (+3) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ |  | audio_fade.h, main.c, save_io.c (+7) |
 | 0x490795 | FUN_00490795 | 139 | ✓ |  | actor_ai.h |
-| 0x490820 | FUN_00490820 | 348 | ✓ |  | actor_ai.c, actor_ai.h, record_hit.c (+3) |
+| 0x490820 | FUN_00490820 | 348 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_party.c (+4) |
 | 0x49097c | FUN_0049097c | 41 | ✓ |  | actor_ai.h |
 | 0x490c78 | FUN_00490c78 | 77 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_hud.c (+6) |
 | 0x490cc6 | FUN_00490cc6 | 99 | ✓ |  | actor_ai.c, scene1_render.c |
@@ -765,6 +765,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x497408 | FUN_00497408 | 340 | ✓ |  | dungeon_party.c |
 | 0x49755c | FUN_0049755c | 338 | ✓ |  | dungeon_party.c |
 | 0x4976ae | FUN_004976ae | 119 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_party.c |
+| 0x497745 | FUN_00497745 | 154 | ✓ |  | dungeon_party.c |
 | 0x4977df | FUN_004977df | 320 | ✓ |  | dungeon_party.c |
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h, dungeon_party.c |
 | 0x497c83 | FUN_00497c83 | 439 | ✓ |  | dungeon_party.c |
