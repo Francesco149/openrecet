@@ -815,8 +815,24 @@ void actor_dying(actor_t *a)
         }
         return;
     }
+    case 70: case 71:
+        /* the jellyfish: the slow-mo (becc 60) and DAT_056db0f4 1200 at 1, the
+         * last-of-kind check at 60, the burst to 119; from 100 the alpha -8 a
+         * tick (at 0 the slot frees); the death anim 13 */
+        if (t == 1) {
+            g_dat_0438becc = 60;
+            PW(0x56db0f4u).i = 1200;
+        }
+        if (t == 60) actor_last_of_kind(a);          /* FUN_0042f746 */
+        if (AI(a, 0xaf0) > 0 && AI(a, 0xaf0) < 120) actor_boss_burst(a);   /* FUN_0042f685 */
+        if (AI(a, 0xaf0) >= 100 && (AI(a, 0x3dc) -= 8) < 0) {
+            AI(a, 0x3dc) = 0;
+            AI(a, ACT_INUSE) = 0;
+        }
+        actor_anim_blend(a, 13);                     /* FUN_0041f759 */
+        return;
     case 28:
-    case 41: case 70: case 71: case 73: case 74:
+    case 41: case 73: case 74:
         /* PORT-DEBT(stub, FUN_0042f7ad): the other bosses' / special enemies'
          * death arms (the boss cut-ins, FUN_0041f759) */
         return;
@@ -2431,6 +2447,203 @@ static void actor_ai_t55(actor_t *a)
     if (AI(a, 0x3dc) > 255) AI(a, 0x3dc) = 255;
 }
 
+/* FUN_004218e1: the jellyfish's four anim layers (+0x34 / +0x3c / +0x44 / +0x4c
+ * of the slot +0x30).  Any layer differing from the live slot's: the other slot
+ * takes all four — a kept layer with its timer (+0x54 / +0x5c / +0x64 / +0x6c),
+ * a changed one from 0 — and becomes the live one (+0x2c the blend end). */
+static void jelly_anim_set(actor_t *a, int32_t l0, int32_t l1, int32_t l2, int32_t l3)
+{
+    const int32_t s = AI(a, 0x30), o = s ^ 1;
+    const int32_t want[4] = { l0, l1, l2, l3 };
+    if (AI(a, 0x34 + 4 * s) == l0 && AI(a, 0x3c + 4 * s) == l1 && AI(a, 0x44 + 4 * s) == l2 &&
+        AI(a, 0x4c + 4 * s) == l3)
+        return;
+    for (int k = 0; k < 4; k++) {
+        const int same = AI(a, 0x34 + 8 * k + 4 * s) == want[k];
+        AI(a, 0x34 + 8 * k + 4 * o) = want[k];
+        AF(a, 0x54 + 8 * k + 4 * o) = same ? AF(a, 0x54 + 8 * k + 4 * s) : 0.0f;
+    }
+    AI(a, 0x30) = o;
+    AF(a, 0x2c) = s == 1 ? 1.0f : 0.0f;
+}
+
+/* FUN_004219f2: types 70 / 71, the jellyfish (docs/findings/bosses/jellyfish.md).
+ * Every tick: velocity 0, +0xb54 = 1, the phase +0xae4 = 0 / 1 (HP < 2/3 max) /
+ * 2 (HP < 1/3), type 71 one more.  State 8 the descent (y = 16 - 10 t / 240,
+ * 240 ticks).  Then the clock +0xa58 (c = clock % 800 after the increment): the
+ * body floats at y 6 on (-40 + 2 sin(0.01 t) + 0.5 sin(0.015 t), -40 + 2
+ * cos(0.01 t) + 0.5 sin(0.015 t)); the spin +0xa68 up on c 30..89, down on c
+ * 200..259, yaw += 0.001 spin; at c 190, under 8 live actors, phase + 1 green
+ * ropers (17, +0xb2c = 1) each at the first of 20 random points 12 from the
+ * centre that is 8 or more from the player and over ground; with the spin under
+ * 30 an arm (state +0xa88 / +0xa8c, tick +0xa90 / +0xa94) whose joint (+0x708 /
+ * +0x714, the draw-written anchors) is under 8 from the player slams (state 3:
+ * SE 373 at 44, effect 112 + record 14 at the joint on ticks 41..69, over at
+ * 120); on c 500..799 record 70 at a random point 4..8 from the centre for every
+ * k of 0..phase with 550 + k (280 / (phase + 1)) == c as floats.  Layers: +0xa70
+ * (never written), +0xa74 (10 on c 150..249 and 500..799), +0xa78 / +0xa7c the
+ * arms' (0, slam i + 2, state 2: 6).  asm 0x4219f2..0x422091. */
+static void actor_ai_jelly(actor_t *a)
+{
+    static const float k3 = 3.0f, k240 = 240.0f, k16 = 16.0f, k0p015 = 0.014999999664723873f;
+    static const float k6 = 6.0f, k280 = 280.0f, k550 = 550.0f, k0p001 = 0.0010000000474974513f;
+    /* DAT_0438bf9c = 0 here (and in FUN_00436f97); nothing reads it */
+    AF(a, 0x3fc) = 0.0f;
+    AF(a, 0x400) = 0.0f;
+    AI(a, 0xae4) = 0;
+    AF(a, 0x404) = 0.0f;
+    AI(a, 0xb54) = 1;
+    if (((long double)AF(a, 0x434) + AF(a, 0x434)) / k3 > (long double)AF(a, 0x42c)) AI(a, 0xae4) = 1;
+    if ((long double)AF(a, 0x434) / k3 > (long double)AF(a, 0x42c)) AI(a, 0xae4) = 2;
+    if (AI(a, ACT_TYPE) == 71) ++AI(a, 0xae4);
+    if (AI(a, 0xa54) == 8) {
+        const int32_t t = AI(a, 0xa58);
+        const float f = spill32((long double)(10 * t));
+        AI(a, 0xa58) = t + 1;
+        AF(a, 0x3f4) = spill32((long double)k16 - (long double)f / k240);
+        if (t + 1 >= 240) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+        return;
+    }
+    {
+        const float tf = spill32((long double)AI(a, 0xa58));
+        const float a1 = spill32((long double)tf * k0p01);
+        const float a2 = spill32((long double)tf * k0p015);
+        const float s2 = spill32(x87_crt_sin((double)a2));
+        const float s1 = spill32(x87_crt_sin((double)a1));
+        AF(a, 0x3f0) = spill32((long double)s1 + s1 + (long double)s2 * k0p5 - k40);
+    }
+    int32_t c;
+    {
+        const float tf = spill32((long double)AI(a, 0xa58));
+        const float a1 = spill32((long double)tf * k0p01);
+        const float a2 = spill32((long double)tf * k0p015);
+        const float s2 = spill32(x87_crt_sin((double)a2));
+        const long double c1x = x87_crt_cos((double)a1);
+        c = ++AI(a, 0xa58) % 800;
+        const float c1 = spill32(c1x);
+        AF(a, 0x3f8) = spill32((long double)c1 + c1 + (long double)s2 * k0p5 - k40);
+    }
+    AF(a, 0x3f4) = k6;
+    if (c >= 30 && c < 90) ++AI(a, 0xa68);
+    if (c == 190) {
+        AI(a, 0xa74) = 10;
+        int32_t n = 0;
+        for (int i = 0; i < ACTOR_COUNT; i++)
+            if (AI(&g_actor[i], ACT_INUSE) != 0) ++n;
+        if (AI(a, 0xae4) + 1 > 0 && n < 8) {
+            for (int32_t left = AI(a, 0xae4) + 1; left != 0; left--) {
+                for (int32_t i = 0; i != 20; i++) {
+                    const float r = spill32((long double)rng_next_unit() * k_2pi);
+                    const double rd = r;
+                    const float sx = spill32((long double)spill32(x87_crt_sin(rd)) * k12 - k40);
+                    const float sz = spill32((long double)spill32(x87_crt_cos(rd)) * k12 - k40);
+                    const float ex = spill32((long double)PX - sx);
+                    const float ez = spill32((long double)PZ - sz);
+                    const float d = spill32(spill32(crt_sqrt(spill64((long double)ez * ez + (long double)ex * ex))));
+                    mapcol_hit_t gh;
+                    memset(&gh, 0, sizeof gh);
+                    if (d < k8) continue;
+                    if (mapcol_ground(sx, k0p5, sz, &gh) == 0 || !(gh.height >= 0.0f)) continue;
+                    const actor_stage_t stg = stage_now();
+                    actor_t *m = actor_spawn_enemy(&stg, sx, 0.0f, sz, 17);   /* FUN_0041f903 */
+                    if (m != NULL) AI(m, 0xb2c) = 1;
+                    break;
+                }
+            }
+        }
+    }
+    if (c >= 150 && c < 250) AI(a, 0xa74) = 10;
+    else AI(a, 0xa74) = 0;
+    if (c >= 200 && c < 260) --AI(a, 0xa68);
+    if (AI(a, 0xa68) < 30) {
+        for (int i = 0; i < 2; i++) {
+            if (AI(a, 0xa88 + 4 * i) == 3) continue;
+            const float ex = spill32((long double)PX - AF(a, 0x708 + 12 * i));
+            const float ez = spill32((long double)PZ - AF(a, 0x710 + 12 * i));
+            const float d = spill32(spill32(crt_sqrt(spill64((long double)ez * ez + (long double)ex * ex))));
+            if (d < k8) {
+                AI(a, 0xa90 + 4 * i) = 0;
+                AI(a, 0xa88 + 4 * i) = 3;
+            }
+        }
+    }
+    if (c >= 500 && c < 800) {
+        const int32_t n = AI(a, 0xae4) + 1;
+        AI(a, 0xa74) = 10;
+        const float step = spill32((long double)k280 / (long double)spill32((long double)n));
+        if (n != 0) {
+            const float cf = spill32((long double)c);
+            int32_t k = 0;
+            do {
+                const float kf = spill32((long double)k);
+                if ((long double)kf * step + k550 == (long double)cf) {
+                    const float x0 = AF(a, 0x3f0), y0 = AF(a, 0x3f4), z0 = AF(a, 0x3f8);
+                    const float r = spill32((long double)rng_next_unit() * k_2pi);
+                    const float rad = spill32(((long double)rng_next_unit() + k1) * k4);
+                    const double rd = r;
+                    AF(a, 0x3f0) = spill32((long double)spill32(x87_crt_sin(rd)) * rad - k40);
+                    AF(a, 0x3f4) = 0.0f;
+                    AF(a, 0x3f8) = spill32((long double)spill32(x87_crt_cos(rd)) * rad - k40);
+                    scene1_record_b_spawn_npc(a, 70, 1);    /* FUN_00445a8c */
+                    AF(a, 0x3f0) = x0;
+                    AF(a, 0x3f4) = y0;
+                    AF(a, 0x3f8) = z0;
+                }
+                ++k;
+            } while (k != AI(a, 0xae4) + 1);
+        }
+    }
+    AF(a, 0x420) = spill32((long double)spill32((long double)AI(a, 0xa68)) * k0p001 + AF(a, 0x420));
+    for (int i = 0; i < 2; i++) {
+        const int32_t t = ++AI(a, 0xa90 + 4 * i);
+        int over = 0;
+        switch (AI(a, 0xa88 + 4 * i)) {
+        case 0:
+            AI(a, 0xa78 + 4 * i) = 0;
+            continue;
+        case 1:
+            if (t >= 30) {
+                AI(a, 0xa90 + 4 * i) = 0;
+                AI(a, 0xa88 + 4 * i) = 2;
+                AI(a, 0xa78 + 4 * i) = 6;
+            }
+            continue;
+        case 2:
+            if (AI(a, 0xa5c) >= 500) continue;
+            over = t >= 600;
+            break;
+        case 3:
+            AI(a, 0xa78 + 4 * i) = i + 2;
+            if (t == 44) audio_play_se_by_id(373);          /* FUN_00499519 */
+            if (t > 40 && t < 70) {
+                const float jx = AF(a, 0x708 + 12 * i), jy = AF(a, 0x70c + 12 * i), jz = AF(a, 0x710 + 12 * i);
+                scene1_spawn(0, jx, jy, jz, 112, k0p6, 1);  /* FUN_00447f4f */
+                const float x0 = AF(a, 0x3f0), y0 = AF(a, 0x3f4), z0 = AF(a, 0x3f8);
+                AF(a, 0x3f0) = AF(a, 0x708 + 12 * i);
+                AF(a, 0x3f4) = AF(a, 0x70c + 12 * i);
+                AF(a, 0x3f8) = AF(a, 0x710 + 12 * i);
+                scene1_record_b_spawn_npc(a, 14, 1);        /* FUN_00445a8c */
+                AF(a, 0x3f0) = x0;
+                AF(a, 0x3f4) = y0;
+                AF(a, 0x3f8) = z0;
+            }
+            over = AI(a, 0xa90 + 4 * i) >= 120;
+            break;
+        default:
+            continue;
+        }
+        if (over) {
+            AI(a, 0xa90 + 4 * i) = 0;
+            AI(a, 0xa88 + 4 * i) = 0;
+            AI(a, 0xa78 + 4 * i) = 0;
+        }
+    }
+    jelly_anim_set(a, AI(a, 0xa70), AI(a, 0xa74), AI(a, 0xa78), AI(a, 0xa7c));   /* FUN_004218e1 */
+}
+
 /* FUN_00428f0a: types 10..12 (the bees) fly (+0xa00 = 1).  State 0: bob toward
  * 2.5 + 2 sin(t·0.05) (vy eased, clamped ±0.1) and circle a drifting centre
  * (+0xa9c / +0xaa4, 5% a tick toward the player — or home when +0xa64 % 4 >= 2)
@@ -4026,6 +4239,9 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t54(a);                     /* FUN_00426811 */
         } else if (type == 55) {
             actor_ai_t55(a);                     /* FUN_00426eab */
+        } else if (type == 70 || type == 71) {
+            AI(a, 0x3dc) = 127;                  /* DAT_0438ccc4: 127 from FUN_00475270, no other writer */
+            actor_ai_jelly(a);                   /* FUN_004219f2 */
         } else if (type == 15 && sub == 0) {
             actor_ai_pumpkin(a);                 /* FUN_0042a33e */
         } else if (type == 15 && sub != 1) {

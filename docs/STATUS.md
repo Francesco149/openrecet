@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-███████░░░░░░░░░░░░░  32.6% referenced-or-better   (91 instrumented)
+███████░░░░░░░░░░░░░  32.7% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   739 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1718 | exists in the engine, no `src/` reference    |
+| source-referenced  |   741 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1716 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -153,8 +153,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       FUN_0042a23c (pumpkin variant 1), dungeon 4 (FUN_00450443 / FUN_00450877). Ghost 52 / 53 variant 0 on this
       floor and record 107 not reached.
   - ✅ 2026-11-11 (night): `obsidian-6f-10f-jellyfish` filed (Obsidian 6F..9F, the 10F jellyfish type 70 killed; end
-    save `549015ff6b95`): the port's next target — FUN_004219f2 is a stub. Saves made by drivers:
+    save `549015ff6b95`). Saves made by drivers:
     `fc2e4d81f26d` (Tielle beaten, played lineage), `de58486d3cb9` / `549015ff6b95` (crafted lineage, Obsidian 5F / 10F done).
+    - ✅ `obsidian-6f-10f-jellyfish` (was split f9483: the stub never left state 8, the control lock stayed):
+      FUN_004219f2 (types 70 / 71), FUN_004218e1 (its 4 anim layers), FUN_0042f7ad's 70 / 71 arm ported from the
+      disasm → identical + save, portblock equal at 5 fight frames; gate rows added. Not reached: type 71, the
+      ≥ 8-actor add skip, arm states 1 / 2, the tick-60 sweep with an add alive.
     - ☐ `portblock obsidian-3f-5f-pumpkin`: `recb` differs (151 dwords, records #10 / #11) from 4F on; RNG and save equal.
     - ☐ one live-session crash (c0000005 at eip 7aef924a, the first tick after a dungeon results page, under
       `rd play --watch`); the replay passed the same frame. Not reproduced.
@@ -384,7 +388,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        their six hit parts (FUN_0043865e), dungeon 2's setup FUN_0044d9d3 + its events to 20F
        (dungeon3-floors / -deep: RNG-verified); **ported ahead of a recording, unverified**:
        FUN_00431d54's other special, types 30 / 31 (FUN_0042d676 / FUN_0042d392, dialogue 10/3,
-       from day 10 in dungeons 0..2), FUN_0042f7ad's 61 / 64 arm, the jellyfish's 2 hit parts,
+       from day 10 in dungeons 0..2), FUN_0042f7ad's 61 / 64 arm,
        **Tielle 27** (FUN_00423b58, her floor-30 timeline FUN_0044db3c with the rising platforms —
        also the Boss Rush's 37 —, FUN_0042439e, her death arm, the summoned kobolds' FUN_00423686;
        2026-10-24); the pumpkin variants 1 / 2 (not in dungeon 2's lists), the golem parts,

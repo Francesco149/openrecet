@@ -1739,12 +1739,13 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          # kinds, six hires, Obsidian Tower 1F–3F, the 8-row roster, the dungeon pause) and boss "arms" movies cut from
          # played boss floors (crown slime 5F / its wipe / 25F, mushroom king, Charme)
          + [("portsave", s) for s in ("day8-visitor", "move-tables-persist", "venders-limit", "amber-26f-30f-tielle",
-                                       "obsidian-3f-5f-pumpkin")]
+                                       "obsidian-3f-5f-pumpkin", "obsidian-6f-10f-jellyfish")]
          + [("portrng", s) for s in ("day8-visitor", "stand-item-status", "move-tables-persist", "venders-limit",
                                       "hire-caillou", "hire-tielle", "hire-elan", "hire-nagi", "hire-griff", "hire-arma",
                                       "obsidian-1f", "guild-roster-8", "pause-equip-dungeon", "dungeon2-25f-crown-kill",
                                       "crown-slime-arms", "crown-slime-wipe", "mushroom-king-arms", "charme-arms",
-                                      "item-status-pause", "amber-26f-30f-tielle", "obsidian-3f-5f-pumpkin")])
+                                      "item-status-pause", "amber-26f-30f-tielle", "obsidian-3f-5f-pumpkin",
+                                      "obsidian-6f-10f-jellyfish")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")

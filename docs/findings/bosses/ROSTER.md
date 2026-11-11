@@ -56,7 +56,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | stub |
 | 67 Ohm | オーム | `FUN_00422ed6` | ported, verified |
 | 68 / 69 crabs | カニ / 黒カニ | `FUN_00422092` | ported (68 verified) |
-| **70 / 71 jellyfish** | クラゲ / 赤クラゲ | `+0x3dc = DAT_0438ccc4`, **`FUN_004219f2`** | **stub** (2 hit parts in `FUN_0043865e`: ported unverified) |
+| **70 / 71 jellyfish** | クラゲ / 赤クラゲ | `+0x3dc = DAT_0438ccc4`, **`FUN_004219f2`** | ported (`actor_ai_jelly`; 4 anim layers `FUN_004218e1`), 70 verified `obsidian-6f-10f-jellyfish` (identical + save; the 2 hit parts in `FUN_0043865e` with it); 71 no recording |
 | **72 hand** | 魔王の手 | **`FUN_00424641`** | **stub** |
 | **73 / 74 Arma golem body / core** | アルマゴーレム / コア | **`FUN_004205e5`** | **stub** |
 | **75 / 76 Arma golem hands** | アルマゴーレム右手 / 左手 | **`FUN_00420bd0`** | **stub** |
@@ -70,7 +70,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 25 | Charme | ported |
 | 27 | Tielle (`FUN_0042439e`) | ported, unverified |
 | 28, 41 | tick 1 slow-mo 60 + player invulnerable 1200; tick 60 `FUN_0042f746` (no other live one of the type → every live actor → dying); d5: from tick 60 alpha −16 → free; else event stage 5: placed beside the party, stage 7: shrinks, y = event tick·0.25 → free | **stub** |
-| 70 / 71 | tick 60 `FUN_0042f746`; explosions (`FUN_0042f685`) ticks 1..119; from 100 alpha −8 → free | **stub** |
+| 70 / 71 | tick 60 `FUN_0042f746`; explosions (`FUN_0042f685`) ticks 1..119; from 100 alpha −8 → free; anim 13 | ported, verified `obsidian-6f-10f-jellyfish` (no add alive at tick 60) |
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
 | 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | **stub** |
 | 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | **stub** |
@@ -111,7 +111,7 @@ authors.
 | floor | list `f:` | boss (HP = table·mult) | adds the AI spawns | setup / event | card |
 |---|---|---|---|---|---|
 | 4 | 5 | 55 ×1 (15·4.4 = 66) | 52 / 53 / 15, cap 4 | generic | `pumpkin-ghost.md` |
-| 9 | 10 | 70 (150·4.6 = 690) | 17 ×(phase+1) per cycle | generic (placed z −40) | `jellyfish.md` |
+| 9 | 10 | 70 (100·4.6 = 460, live) | 17 ×(phase+1) per cycle | generic (placed z −40) | `jellyfish.md` |
 | 14 | 15 | 54 ×2 (15·4.8 = 72 each) | 6 / 7 / 8 | generic | other author |
 | 19 | 20 | 61 + 62 + 63 (150·5.0 = 750 each) | 36, ≤ 4 over the fight | own: `FUN_0044e08f` case 19 | `golem.md` |
 | 24 | 25 | none (green mob list) | — | generic, no boss | — |

@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 739,
-  "inv_discovered": 1718,
-  "referenced_or_better": 830,
-  "pct_referenced_or_better": 32.6,
+  "inv_source_referenced": 741,
+  "inv_discovered": 1716,
+  "referenced_or_better": 832,
+  "pct_referenced_or_better": 32.7,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
   "port_debt": 67,
   "verified": 81,
   "stubbed": 10,
-  "ported": 739,
-  "unported": 1718,
-  "touched": 830,
-  "pct_touched": 32.6,
+  "ported": 741,
+  "unported": 1716,
+  "touched": 832,
+  "pct_touched": 32.7,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3648,18 +3648,20 @@
    "size": 273,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x4219f2",
@@ -3667,18 +3669,20 @@
    "size": 1696,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x422092",
@@ -6330,6 +6334,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/actor_spawn.h",
     "src/collision_house.c",
     "src/collision_house.h",
@@ -15409,6 +15414,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/customer_dialogue.c",
     "src/customer_dialogue.h",
     "src/main.c",

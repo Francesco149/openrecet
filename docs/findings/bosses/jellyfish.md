@@ -2,8 +2,11 @@
 
 **code-read**: IDA `sub_4219F2` (AI, 0x4219f2; the HP thirds checked in disassembly 0x421a38..0x421a60), `sub_4218E1`
 (4-layer anim set), `sub_42F28C` case 70 / 71, `sub_43865E` (IDA 38919..38945: 2 hit parts), `sub_43AE20` (record 47,
-IDA 40176..40200), `sub_42F7AD` case 70 / 71. **Port: AI stub, death arm stub; the 2 hit parts are ported,
-unverified.** Shared rules: `boss-floor-common.md`.
+IDA 40176..40200), `sub_42F7AD` case 70 / 71. **Port (2026-11-11): `actor_ai_jelly` (FUN_004219f2), `jelly_anim_set`
+(FUN_004218e1), the death arm (anim 13) in `src/actor_ai.c`, from the disasm; with the 2 hit parts (`src/record_hit.c`)
+verified on `obsidian-6f-10f-jellyfish`: portrng 46517 draws / f1..f15088, 0 divergences; portsave IDENTICAL; portblock
+f9700 / f10200 / f11400 / f12750 / f13100 all blocks equal. Type 71, the ≥ 8-actor add skip, arm states 1 / 2 and the
+tick-60 sweep: ported, no recording reaches them.** Shared rules: `boss-floor-common.md`.
 **Live (2026-11-11):** run `ob-10f` (Obsidian Tower 10F, type 70, Louie L40 ATK 56 / DEF 58 / MATK 21 / MDEF 32), `rd verify` MATCH
 f14788; probe `docs/findings/probes/obsidian-6f-10f.md`. Tags **[obs fNNNN]** = that run. Type 71 not run.
 

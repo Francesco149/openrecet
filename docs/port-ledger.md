@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 739, discovered 1718 → 830 referenced-or-better (32.6%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 741, discovered 1716 → 832 referenced-or-better (32.7%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (739) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (741) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -210,6 +210,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41fa37 | FUN_0041fa37 | 55 | ✓ |  | record_hit.c |
 | 0x41fa6e | FUN_0041fa6e | 2851 | ✓ |  | actor_ai.c |
 | 0x420591 | FUN_00420591 | 84 | ✓ |  | record_hit.c |
+| 0x4218e1 | FUN_004218e1 | 273 | ✓ |  | actor_ai.c |
+| 0x4219f2 | FUN_004219f2 | 1696 | ✓ |  | actor_ai.c |
 | 0x422092 | FUN_00422092 | 3620 | ✓ |  | actor_ai.c |
 | 0x422ed6 | FUN_00422ed6 | 1616 | ✓ |  | actor_ai.c |
 | 0x42353c | FUN_0042353c | 330 | ✓ |  | record_hit.c, scene1_records_b_tick.c, scene1_records_b_tick.h |
@@ -295,7 +297,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43647f | FUN_0043647f | 61 | ✓ |  | actor_ai.c, dungeon_flow.h, item_use.c (+5) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ |  | dungeon_flow.h, dungeon_party.c, tables_snews.h |
 | 0x436623 | FUN_00436623 | 2420 | ✓ |  | customer_service.c, news_daily.c, news_daily.h (+4) |
-| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | actor_spawn.h, collision_house.c, collision_house.h (+41) |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ |  | actor_ai.c, actor_spawn.h, collision_house.c (+42) |
 | 0x43824b | FUN_0043824b | 940 | ✓ |  | record_hit.c, scene1_combat_sm.c, scene1_combat_sm.h (+1) |
 | 0x4385fb | FUN_004385fb | 99 | ✓ |  | record_hit.h, scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ |  | actor_ai.c, main.c, record_hit.c (+7) |
@@ -579,7 +581,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x474e7a | FUN_00474e7a | 153 | ✓ |  | main.c |
 | 0x474f14 | FUN_00474f14 | 58 | ✓ |  | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
 | 0x474f4f | FUN_00474f4f | 801 | ✓ |  | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |
-| 0x475270 | FUN_00475270 | 19645 | ✓ |  | customer_dialogue.c, customer_dialogue.h, main.c (+36) |
+| 0x475270 | FUN_00475270 | 19645 | ✓ |  | actor_ai.c, customer_dialogue.c, customer_dialogue.h (+37) |
 | 0x479f4d | FUN_00479f4d | 43 | ✓ |  | item_use.c, scene1_dialogue.c, tables.c (+3) |
 | 0x479f78 | FUN_00479f78 | 1227 | ✓ |  | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+1) |
 | 0x47a474 | FUN_0047a474 | 912 | ✓ |  | main.c, recet_ini.c, recet_ini.h |
