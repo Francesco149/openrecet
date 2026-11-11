@@ -1826,6 +1826,7 @@ static void body_0x71_72_7d(int i, int32_t type)
  * up at 0.03/tick, asymptotes at 1.5; DRAG follows.  At AGE=120 the
  * slot dies (no spawn-on-death side effects).
  */
+void scene1_records_b_run_lab_00440dc1(int i);   /* LAB_00440dc1, below */
 static void body_0x1f(int i)
 {
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
@@ -1839,6 +1840,10 @@ static void body_0x1f(int i)
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* 0x43cbab..: no type test past here matches 0x1f; the ladder ends in
+     * `cmp 0x2e / 0x36; jne 0x440dc1` — the wall tail (a wall hit sets AGE
+     * 0x70: dead 8 ticks later). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* Engine 0x43cca5..0x43cde0 — types 0x5a / 0x98 shared body.
@@ -6965,7 +6970,12 @@ static void dispatch_default(int slot_idx, int32_t type)
         body_0x9d(slot_idx);
         break;
     default:
-        /* LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).
+        /* PORT-DEBT(gap, FUN_0043ae20): retail's sequential-`if` head (types
+         * up to the 0x9b chain) falls through to this tail after each body
+         * unless the body `continue`s (0x72 at AGE % 5 != 4) — only 0x1f and
+         * the bodies that call it themselves run it here; the rest are
+         * unaudited (matters only with AUX_C8 set + a wall on the ray).
+         * LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).
          * Heavily gated (TYPE != 0 + slot[AUX_C8] != 0 + per-tick flag);
          * BSS-zero defaults make it unreachable in HOUSE production.  See
          * body_lab_00440dc1 above for the full asm trace. */
