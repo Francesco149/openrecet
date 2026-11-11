@@ -116,7 +116,28 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       ingredients count from the bag only; Change Tables restyles every table at once (bank dword 0xb37c);
       machine sales pay exactly base price; dungeon controls are flipped against the shop; `end:dungeon3-deep`
       loads the shop at night on day 23, not the dungeon.
+  - ✅ 2026-11-11: **+5 scenarios (40)**, API drivers ($5.01): `day8-visitor` identical + save (the day-8 morning
+    visitor `src/story_visitor.c`, the week-1 payment night, Alouette's outdoor event — scene 2 also hosts event
+    scripts), `stand-item-status` (split f212 → cc08 50 ported, 25496473), `move-tables-persist` (split f1712 →
+    FUN_0048ffd9 seeds only at init / new game / re-layout) and `venders-limit` (venders 5202 / 5203, the level-limit
+    refusal, a 4-table shop; splits f2793 / f7358 → the shop-tier customer multiplier DAT_005c6bd0, the order line's
+    `<D1>` / `<DA>` macros) → cc17a669, all identical + saves; `dungeon2-25f-crown-kill` identical (below).
+  - ✅ **Boss study** (`docs/findings/bosses/`, indexed in `findings/INDEX.md`): `combat-core.md` (observed live: swing
+    timing, damage formula, Side / Back / Counter labels by the hit record's angle), `crown-slime.md` (the 25F blocker
+    = power `+0xab8` reset by absorbing a blue slime; the survivor killed in 703 frames by recipe), code-read cards
+    with state machines / damage gates / kill recipes / arms checklists for every boss type (`ROSTER.md`: dungeon →
+    boss floors → types → AI fn → port status), `UNLOCKS.md` (bank dwords for dungeons, floor rows, hires → crafted save
+    `824053720e01`: all 8 adventurers at level 40, dungeons 0..4 open), `player-knowledge.md` (web, unverified).
+    Port defects it found: Tielle's blocks could never break (fixed from IDA, unverified), the crab drop read.
+  - ✅ tools: inputs that read state (`{dpad(a1x - px, a1z - pz) | A}`: aimed walk / swing / retreat / strafe, in `play`
+    and as search actions), `rd ram R actors`, per-actor names (`aNst aNpow aNrel …`), **machine-wide admission**
+    (`rhost.py admit_local`: ≤ 10 local rhost processes, ≥ 8 GB available — after an OOM on maximus; campaign rule ≤ 3
+    drivers, `-j 2`). Gates: headless-check 135/135, snap-check 139/139.
   - ★ next:
+    0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
+       scenario (crown slime `dungeon1-run2@33570`, mushroom king `dungeon1-deep@56444`, Charme `dungeon1-clear@60417`,
+       boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`); Tielle on 30F
+       from the crown-kill run's end (26F–30F). One subscription subagent at a time.
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
@@ -127,12 +148,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        tracker as a debugger of the process, or write-watch memory.
     4. more tasks from the gaps below (every "no recording reaches it" line is a task). Known wants: dungeon 2's
        25F second crown slime + 26F–30F (`rd search --score`; the first run stalled on the survivor), adventurers
-       beyond Louie / Charme (none appears through day 35 without dungeon progress), a move → town → return trace
-       (`PORT-DEBT(simplified, FUN_0048ffd9)`), venders 5202 / 5203 and the
-       3-machine limit (asm-only), `PORT-DEBT(stub, FUN_0048670f cc08 50)`.
+       beyond Louie / Charme (crafted roster: `tasks/hire-*.md`, in progress), dungeons 3 / 4 (`tasks/obsidian-1f.md`),
+       the pause-over-item-status close (Y then B at cc08 50).
     5. speed / ergonomics (`headless-savestates.md` §Open, `tools/drive/README.md` §Limits): more render skips
-       (`FUN_00459847`, gate each), pictures from the headless draw stream, `--live` on the Windows box, action
-       specs that read state, the highlighted row in `rd text`, a shop-customer actor table in `vars.json`;
+       (`FUN_00459847`, gate each), pictures from the headless draw stream, `--live` on the Windows box, the
+       highlighted row in `rd text`, the search checks the goal before the avoid on the same frame, `--watch` splits on
+       commas, `rd strip --at F,F`, a shop-customer actor table in `vars.json`;
        triage's split signature pairs chains by position (it named retail's sparkle chain for the port's extra
        draw); `portstate` with ≥ 64 VAs dies silently; `portblock --at` past the retail dumps tracebacks.
 - ✅ `tools/rhost/` productized:
