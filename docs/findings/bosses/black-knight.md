@@ -3,7 +3,7 @@
 **code-read**: IDA `sub_4279CF` (AI, 0x4279cf), `sub_423789` (walk-and-align helper; described in `arma.md` §3),
 `sub_43865E` shield block (IDA 39173..39196), `sub_445A8C` case 81, `sub_42F7AD` case 23 / 49 / 55 / 54, table
 0x52b978. **Port: AI stub; death arm case 49 not in the port's list.** Shared rules: `boss-floor-common.md`
-(generic boss floor). Nothing run.
+(generic boss floor). **Run 2026-11-11 (`obs-50f`, 45F): §10 — retail stats override §2 / §5 (HP 100, AT 35, MD 20: HP 640 at L27).**
 
 ## 1. Where (HP each = 15·(1 + 0.2·lv))
 
@@ -99,3 +99,36 @@ without limit. With two black knights both run the test (same count), so still 5
 - `+0xb8c` (cleared each tick here; set elsewhere?).
 - The exact sign convention of the block angle (which of record→actor / actor→record) — taken from
   `boss-floor-common.md`; one live blocked hit settles it.
+
+## 10. Retail run (run `obs-50f`, 45F, 2026-11-11)
+
+Louie L41 → L42 (ATK 60 / DEF 68 / MDEF 41, HP 202 → 206). Probe `docs/findings/probes/obsidian-41f-50f.md`. `rd` names (run-local
+`vars.json`): `bksh` = `s32(B+0xb9c)`, `bkunt` = `s32(B+0xb08)`, `kn` = `actors(T >= 44 and T <= 48 and U == 1)`, `r81` = records of
+type 81 in table-B slots 0..47; B = actor 0 (`a0*`).
+
+**Stats (retail, `0x5c23f0 + 49*0x68`) override §2 / §5:** HP **100**, EXP 30, **AT 35**, DF 20, MA 0, **MD 20**, rf 1.2 / 1.5 / 2 / 2,
+flags 0. 45F (L27): **HP 640** (`+0x434`), not 96. The throw is not harmless: **47 per hit** (ftol(35·3.7/2 − 68/4) = 47, +0..9).
+Knights (retail): 44 HP 12 EXP 10 AT 17 DF 18 · 45 14 / 15 / 19 / 20 · 46 18 / 20 / 21 / 23 · 47 35 / 25 / 24 / 27 · 48 15 / 30 / 27 / 30
+(MD 10); MA 0, rf[0] 0.8 / 0.95 / 0.8 / 0.9 / 0.92. At L27: 77 / 90 / 115 / 224 / 96 HP.
+
+| arm | status |
+|---|---|
+| intro, no knights | **[obs f15713..15953]** placed (−40, 0, −34) state 8, party (−40, −45); `kn` 0 through the intro; 8 → 0 at t 240 = `etick` 240 (f15953), `lock` −1 the same tick |
+| knight upkeep 3 | **[obs f15954..15956]** one knight per tick (types 48, 44, 46), dropped from y ≈ 9.5 at 5..7 from the BK. **[obs f16290..16297]** knight 48 killed (dying f16290) → freed at its death tick 2 (f16296, after 4 hit-stop ticks) → a type-46 knight in slot 4 on f16297: **a dying knight still counts**, the refill comes the tick after the free. Colours seen: 44, 45, 46, 48 (47 never rolled) |
+| walk / align | **[obs]** state 0 between every attack; `+0xa5c` legs not read |
+| throw, shield drop | **[obs f16080]** state 1 (player 2.4 off-axis but on its z row, 4.3 away); `bksh` reads 1 at t 20 and **0 from t 21** (as `rd` reads it after the tick, f16105); **one** record 81 in slots 0..47 at t 25 (f16224; the 5-shot fan not seen in those slots); state 1 → 0 after t 90 (f16174 → f16175: 91 ticks) |
+| wave guarded by Louie | **[obs f16225]** facing it (octant toward the BK) at 4.3: the record spawns at t 25, next tick `p_inv` 15, no damage (Louie's projectile guard, `combat-core.md` §4) |
+| wave hit taken | **[obs f16405]** state 1 t 25, player facing away (octant 4) 4.2 from it: **168 → 121 (47)**, `p_hurt` 30, `p_inv` 30 on the spawn tick |
+| frontal block | **[obs f16008]** sword at `p_actt` 9, `a0rel` 0.56 (front), `bksh` 1: **HP 640 unchanged**, state 0 t 46 → **4 t 0**; t frozen 4 ticks (hit-stop), state 4 → 0 at t 20 (f16032; player 3.08 away, the `rand % 3` ≠ 0) |
+| side hit through the shield | **[obs f16048]** `a0rel` 1.27 (> 1.0996), `bksh` 1, state 0: 640 → 606 (34 = ftol(25·1.2) = 30, +0..6); again f16193 (`a0rel` 1.41): 606 → 571 (35). The block angle is the `aNrel` angle (record → actor vs yaw): settled |
+| frontal hit, state 1 t ≥ 20 | **[obs f16239]** state 1 t 36, `bksh` 0, `a0rel` 0.048: 571 → 538 (33 = ftol(25·1.2) counter = 30, +3) |
+| blocked → hunt | **[obs f16032]** (above) |
+| blocked → burst | **[obs f16519 → f16539]** block, player 2.29 away → state 2 at t 20; `bkunt` 1 for t 1..100, `bksh` 0; **record 14 at t 40 (f16579, gone after t 46)**; player 6.07 away → no damage; state 2 → 0 at t 101 (f16640), `bkunt` 0 |
+| frozen bypass | not reached (no freeze item) |
+| state 3 | never seen (f15713..17289) |
+| death | **[obs f17289]** dying; slow-mo, `p_inv` 1200 (1191 at f17321); **death tick 60 (f17393): `kn` 3 → 0** (all knights dying); tick 120 (f17453): freed, **`estage` 1 and `gate` 0 the same tick**. EXP: Louie L41 → L42 at f17366 (HP 121 → 206, SP 11 → 46 refilled, ATK 60 → 61) |
+| floor exit | object 0 = kind 8 at (−35, −40): **"Go to the next floor?"** (`portal` > 0 at (−35.86, −40.44), f17617); the return portal (kind 6, (−45, −40)) not visited |
+
+Damage dealt (ATK 60 vs DF 20 → sword 25): side 34 / 35, counter front 33; a spin (×2) killed knight 48, took knight 46 83 → 20 and
+the BK 538 → 477 (61) at once (f16290); spins from behind 101 (477 → 376, f16689) and 101 / 139 per later chunk. Damage taken: knight 48
+contact / lunge 202 → 168 (34 = ftol(27·3.7/2 − 17) = 32, +0..6, f16100), the wave 47. Whole fight f15713 → f17453 (1,740 frames).

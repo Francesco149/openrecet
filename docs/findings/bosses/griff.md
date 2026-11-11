@@ -165,7 +165,7 @@ B = 0x76b970 (actor 0); `est etk` = `0x438b8a0 / a4`.
 | fan | `s32(B+0xa54) == 3` | **[obs ≈f32583]** (rings' age 118 at f32701; state entry frame not read); eruption hits f32703, ≈f35700 |
 | fan beats dash | both charges over threshold → state 3 | not isolated (no frame read with both charges due) |
 | phase 1 (30F: HP < 30 %) | `s32(B+0xae4) == 1` | **[obs]** HP 340 → 317 at f36491 (< 336 = 0.3·1120); `gph` 1 by f36821 |
-| phase 2 (50F only) | `s32(B+0xae4) == 2 and s32(B+0xb54) == 1` | not reached (floor 49) |
+| phase 2 (50F only) | `s32(B+0xae4) == 2 and s32(B+0xb54) == 1` | **[obs f33085]** (run `obs-50f`, §12) |
 | swarm, side 1 / side 2 | `s32(B+0xa54) == 5`, `s32(B+0xa84)` 1 and 2; alpha 0 in sub 0 | side 2 **[obs f36820]** (`gpc` 240; player z −34.15 ≥ −40): alpha 0, spring to (−40.26, −49.47), sub 1 + yaw 0 at t 60 (f36880), alpha 255, 48 bats, state 0 f36955. Side 1 not reached |
 | the 0-flag bats | bats with `s32(+0x9fc) == 0` (2 per swarm; 5 in phase 2) | not read (slot 1 had 1) |
 | detonate with / without bats alive | `s32(B+0xa54) == 4` | **[obs f37613]** (`gpc` 660 → 0), 30 ticks, `gunt` 0 throughout; **1** bat alive → one record 151 at (−32, 1, −23.97), no damage. "Without bats": not isolated |
@@ -198,3 +198,34 @@ B = 0x76b970 (actor 0); `est etk` = `0x438b8a0 / a4`.
 - `+0x9fc` on the bats; `FUN_00497745(n)` (voice / face cut-in?) calls at slash, dash, phase 2.
 - ~~Whether the drift bats can be killed before the blast~~: no — `+0xb08 = 1`, and they expire at age 100 (§10).
 - Stage type 20 after the 50F clear (`ROSTER.md` §4).
+
+## 12. 50F (floor 49) — retail run `obs-50f` (2026-11-11)
+
+Louie L42 (ATK 61 / DEF 68 / MDEF 41, HP 206). Probe `docs/findings/probes/obsidian-41f-50f.md` (frame table, both dialogues). Bank
+0xaf39 at entry 0x00010101 (0x2bce6 = 1 → no event 7/7; 0x2bce7 = 0 → the fight). `rd verify obs-50f` MATCH at f38892.
+
+| arm (floor 49) | status |
+|---|---|
+| setup | **[obs f30170]** Griff (−40, 0, −35) state 8, **HP 1320** (L28 = 200·6.6, as computed in §2); party (−40, −56) |
+| timeline stage 0 | **[obs]** Arm spawned at `etick` 30 (f30200) in slot 1; `lock` 4 (scripted walk z −56 → −40.4) ≈ `etick` 50..130, else 0; event 7/7 skipped (0x2bce6 = 1); no banner seen (`ticker` 0); **`etick` 280 → stage 3 (f30451)** |
+| intro release | **[obs f30452]** Griff **and the Arm** 8 → 0 on stage 3's first AI tick; `lock` −1; `ghc` 282 → the first hit is fresh (f30487) |
+| counter (phase 0) | **[obs f30612]** `ghc` 55: `gctr` 1, `gstag` 40; also f30788 / f30942; no counter burst landed |
+| **phase 1 at < 70 %** | **[obs f31073]** 960 → 912 at f31068 (< 924 = 0.7·1320) → `gph` 1 |
+| **phase 2 at < 30 %** | **[obs f33085]** 443 → 382 (< 396) at f33080 → `gph` 2 and **`+0xb54` 0 → 1** the next AI tick. Effects / shake not read |
+| phase 2: no stagger, no cancel | **[obs f33146]** hit 382 → 320 during state 4: `+0x440` stays 0, state 4 runs on |
+| **slash record 23** | **[obs f33364..33376]** phase 2, state 1 at 0.98..1.75 from it; **3 records of type 23 at t 7 (f33371)**, hit at t 12 (f33376): **195 → 145 (50)** = ftol(35·3.8/2 − 68/4) = 49, +0..9. Phase-0/1 slashes (state 1 f30466, f30548, …) never hit |
+| dash | **[obs]** state 2 at f31460, f31967, f32589, f33631, f34036, f34507 (no hit taken) |
+| fan | **[obs]** state 3 at f30941, f31868, f32446, f33206, f33878, f34434; **eruption hit f32576: 206 → 131 (75)** (MA 40: ftol(40·3.8/2 − 41/4) = 66, +0..13) — rings of age 114 around the player at the start of a search = unavoidable |
+| swarm phase 1 (`gpc` 240) | **[obs f32155]** 48 bats f32226..32273 (one per tick from sub 12), state 0 f32284 (129 ticks); 46 expire at age 100 (f32368..32372), **2 stay**: the 0-flag bats (`+0x9fc` 0) do **not** expire |
+| swarm phase 2 (`gpc` 120) | **[obs f33467]** side 2 (pz −37.95 ≥ −40): Griff springs to z −50; 48 bats from f33538; state 0 f33596; **5 stay** (f33684) = the phase-2 0-flag bats (15 / 30 / 35 / 45 / 55); they have `+0xb08` 0 (**hittable**: 2 killed by swings f34328 / f34431), ages > 600 |
+| detonate | **[obs f33123]** state 4 with **`gpc` 540** — phase 2 began at `gpc` ≈ 506, so phase 1's 660 never came and the phase-2 threshold fired: 2 kept bats → record 151 → gone f33124, no damage. **[obs f34608]** phase 2 again (420 state-0 ticks after the f33467 swarm): 3 bats → 0, no damage |
+| death | **[obs f34659]** HP 0, `+0x428` 2. **Death tick 60 (f34763): the Arm goes dying → no live actor → `estage` 3 → 4 the same tick, bank+0x2bce7 = 1** (0xaf39 0x00010101 → 0x01010101). Griff stays dying (death timer 359 at f35062) |
+| stage 4 → 5 | **[obs f35062]** (stage-4 tick 180 + fade), party (−40, −45) |
+| event 7/8 | **[obs f35092..36934]** "Uwagh! / … / The Archdevil is going berserk! / … I'm going to re-seal everything left here! / … Come, Recette! We must hurry!" (full text in the probe) |
+| tick 45 beat | **[obs f36949]** stage-5 `etick` 46: **bank+0x2bcf8 = 1** (0xaf3e 0 → 1), **`floor` = 0** |
+| stage type 20 | **[obs f36965]** the stage record (`stage`, 0x438b4dc) 18 → **19** (0-based; `loading` 1), `estage` 0, party (−40, −40); **event 7/14 f37166..38228** (Recette / Tear: "Do you... think I had the right to oppose what Griff was doing?" … "Indeed. Let us go home."); **0x2bcf8 cleared at f38328**; "CLEAR!" screen (scene 9) f38331; results → town map f38499 (`stime` 1 → 2) |
+| 0xaf39 bytes after | 0x2bce4 / e5 / e6 / e7 = 1 / 1 / 1 / **1** (0x01010101); 0xaf3e back to 0 in the end save `save:3cf6ae8d5fac` |
+| already-beaten 50F (0x2bce7 = 1) | not run (the end save has it set: a new run from `save:3cf6ae8d5fac` → row "46~50" reaches it) |
+
+Damage dealt: sword ftol(61/2 − 30/4) = 23 (+0..4); most chunks were spins from the side / back. 1320 → 0 over f30452..34659 (4,207
+frames, 14 searches, `-j 4`, goal `ghp < T and hp >= H and gst == 0 and dist > 4 and not (Arm beam live)`).

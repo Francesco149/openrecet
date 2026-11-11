@@ -3,7 +3,7 @@
 **code-read**: IDA `sub_424641` (AI, 0x424641), `sub_43865E` (the hit handler: IDA 38971 `type == 72 → part hit`),
 `sub_43AE20` (record 154 follows the hand, IDA 40241), `sub_42F7AD` default arm, spawns in `sub_4427F1` (d3 floor
 49, tick 30) and `sub_450EE0` case 45. **Port: stub.** Shared rules: `boss-floor-common.md`; the fight it belongs
-to: `griff.md`. Nothing run.
+to: `griff.md`. **Run 2026-11-11 (`obs-50f`): §8 — retail stats override §2 (HP 100 → 660 at L28, MA 35).**
 
 ## 1. Where
 
@@ -79,3 +79,26 @@ It cannot be killed directly; kill Griff (`griff.md`). For the search:
 - `+0xb04` (written 1 here and on every prop actor): meaning not read.
 - Whether the idle threshold `t ≥ 60 + count` ever exceeds 200 (count would have to pass 140: no).
 - Contact damage with the hovering hand.
+
+## 8. Retail run (run `obs-50f`, Obsidian 50F, 2026-11-11)
+
+Probe `docs/findings/probes/obsidian-41f-50f.md`. H = actor 1 (0x76c514); names `hst ht hsub hcnt hsw hx hy hz hhp ha00`.
+
+**Stats (retail, `0x5c23f0 + 72*0x68`) override §2:** flags 1, HP **100**, EXP **30**, AT 20, DF **20**, **MA 35**, **MD 20**, rf 0.8 / **4 /
+3 / 4.5**. d3 f49 (L28): **HP 660** (not 990). MA 35 means the beam (magic list) is **not** 1 damage: ftol(35·3.8/2 − MDEF/4) = 56 vs MDEF 41
+(computed; no beam hit was taken).
+
+| arm | status |
+|---|---|
+| spawn | **[obs f30200]** event tick 30, slot 1, (−35, 20, −25), state 8, HP 660 |
+| descend | **[obs f30215..≈30320]** y −0.16/tick to 3.0 |
+| release d3 | **[obs f30452]** 8 → 0 on event stage 3 (with Griff) |
+| hover → sweep (count % 4 ≠ 0) | **[obs]** sweep 1 f30664 (`hcnt` 1), sweep 2 f31889, sweep 3 f33157, sweep 5 ≈f34501. Hover t ≥ 200 before each (plus hit-stop ticks) |
+| sweep toward z 0 / z −80 | **[obs]** `hsw` 1 (odd): sub 101..299 f30981..31542, z −40 → **−27** (stops); `hsw` 2 (even): sub 101 f32202, z → **−53** by f32405. Sweep length sub 0..430 + 200 ≈ 630 ticks (f30664 → hover f31681) |
+| beam spawn (record 154) | not read (no record-154 counter defined); never hit Louie (searches avoided `hst == 2 and hsub >= 10`) |
+| hover → slam (count % 4 == 0) | **[obs f33992]** `hcnt` 4 → state 1 |
+| slam rise / fall / impact / rest | **[obs]** rise to y > 15: sub 1 at f34122 (130 ticks); falling (`ha00` 0); **record 14 at y ≈ 1.1 (ground + 2), sub 2, f34149**; floor f34152 (sub 3); player 12.4 away — no damage. Rest 160 ticks not timed |
+| hit for 0 | **[obs f31068]** a sword swing aimed at Griff also hit the Arm (y 2.0, sweeping): `H+0xb5c` −1 → 323 (the swing's hit id), HP 660 unchanged. At hover height y 3 the player's vertical window (±(2.4 + 1.6) around y + 1) does not reach the Arm's hit point (3 + 2.4) — computed, so it is hittable only while sweeping (y 2) or lying after a slam |
+| death with Griff | **[obs f34763]** Griff's death tick 60: the Arm → dying (`+0x428` 2), freed the next tick (f34764) — and that emptied the table: event stage 3 → 4 on the same tick |
+| contact damage | none observed (Louie stood within 2 of the hovering Arm several times without a hit) |
+| d5 release | not reached |
