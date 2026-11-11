@@ -2,7 +2,9 @@
 
 **code-read**: IDA `sub_420F4D` (body AI, 0x420f4d), `sub_430C6D` part branch (IDA 31926.., 32040..32130),
 `sub_42F7AD` case 61 / 64, tables at 0x52b8a4. Disassembly checked at 0x420fab..0x421004 (arm scan) and
-0x42130d / 0x421316 (the side write). **Port: body AI stub, arm branch stub, death arm ported unverified.**
+0x42130d / 0x421316 (the side write). **Port (2026-11-11): body AI `actor_ai_golem`, part branch `actor_golem_part` (`src/actor_ai.c`), death arm — verified by
+`obsidian-16f-20f-golem` portrng + portsave IDENTICAL (type 61; the adds type 36). Dark golem 64 / 65 / 66, the † arm-lost /
+detached-arm branches: no recording.**
 Shared rules: `boss-floor-common.md`.
 **Run live 2026-11-11** (Obsidian 20F, Louie L40, ATK 56 / DEF 58): probe `docs/findings/probes/obsidian-16f-20f.md`, run
 `golem-20f` (15177 frames, `rd verify` MATCH). Tags **[obs fNNNN]** = that run (frames there); corrections from retail are marked

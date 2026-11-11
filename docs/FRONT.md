@@ -134,6 +134,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     - ☐ driver tool gaps repeated by three drivers: state at an earlier frame (`rd eval --at FRAME`), `--watch` rows
       on change only, a record-table view, `aN*` beyond slot 5, `--apply` keeping a doomed goal frame (goal tail),
       run-local vars not inherited by `rd new --from RUN`.
+  - ✅ 2026-11-11 (night): `obsidian-16f-20f-golem` (Obsidian 16F..19F, the 20F golem 61 / 62 / 63; was split f138) →
+    identical + save; gate rows added. Two bugs: (1) f138 the start save (pause-menu Save on the town map, work 0xb381 = 1)
+    resumed in the house: FUN_0049a59e's resume-mode dispatch (0 house, 2 gameover, 3 / 4 guild / market, else town map)
+    + DAT_0438b4dc = work +0x2cde0 ported (`src/scene.c`); (2) f10333 golem AI stub: FUN_00420f4d + FUN_00430c6d's part
+    branch ported (`src/actor_ai.c`). Only scenario with a nonzero resume mode in `_saves/`. Left: dark golem 64, the
+    arm-lost branches, resume modes 2 / 3 / 4 (ported, no recording), PORT-DEBT(continue-arm, FUN_0049a59e) sweeps.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
