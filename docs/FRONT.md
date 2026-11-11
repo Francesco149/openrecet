@@ -107,9 +107,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     - ✅ the render skip with Griff: FUN_00414ee2 case 7 animates the second strip vertex table 0x64d408..0x64da38
       (render scratch, no other reader) → mask `76b750:76b7b0,64c514:64da38`, skip-check 17/17 on the new scenarios
       (7616a9c0; `skip-check --dump-at` now works). ☐ re-run the full-corpus skip-check with the new mask.
+    - ✅ `obsidian-3f-5f-pumpkin` (was split f12652; Obsidian Tower 3F..5F, the pumpkin ghost killed, town, Save):
+      FUN_00426eab (type 55), FUN_00429e6f (the summoned pumpkin, type 15 variant 2), dungeon 3's setup FUN_0044e08f +
+      its FUN_004427f1 arm (checkpoint floors only: the arena, FUN_0044d0a4) ported → identical + save; gate rows
+      added. Left: PORT-DEBT FUN_0044e08f / FUN_004427f1 (the +0x2bce2 / +0x2bcf8 story beats, floors 29 / 49),
+      FUN_0042a23c (pumpkin variant 1), dungeon 4 (FUN_00450443 / FUN_00450877). Ghost 52 / 53 variant 0 on this
+      floor and record 107 not reached.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
-       scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`
+       scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.
@@ -338,8 +344,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
        Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss
        arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
-       3 / 4's events / setups (the dungeon-3 arm inline in FUN_004427f1, FUN_0044e08f,
-       FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
+       3 / 4's events / setups (dungeon 3: checkpoint floors ported 2026-11-11, the story beats and floors 29 / 49
+       of FUN_004427f1 / FUN_0044e08f open; dungeon 4: FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
        on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
        stubs; render (2026-10-17, PROGRESS ×2): rooms, objects (static + skinned), model and
        sprite enemies, shadows, the floor HUD, title banners, the mapbg sky, the boulders, the

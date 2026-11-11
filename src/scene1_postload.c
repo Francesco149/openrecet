@@ -282,9 +282,10 @@ static void postload_dungeon_arm(void)
         dungeon1_stage_setup();                  /* FUN_0044d1e4 */
     } else if (g_scene1_combat_stage_id == 2) {
         dungeon2_stage_setup();                  /* FUN_0044d9d3 */
-    } else if (g_scene1_combat_stage_id == 3 || g_scene1_combat_stage_id == 4) {
-        /* PORT-DEBT(stub, FUN_00436f97): dungeons 3 / 4's setups FUN_0044e08f /
-         * FUN_00450443 */
+    } else if (g_scene1_combat_stage_id == 3) {
+        dungeon3_stage_setup();                  /* FUN_0044e08f */
+    } else if (g_scene1_combat_stage_id == 4) {
+        /* PORT-DEBT(stub, FUN_00436f97): dungeon 4's setup FUN_00450443 */
     } else {
         dungeon5_stage_setup();                  /* FUN_00450ee0 */
     }

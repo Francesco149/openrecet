@@ -1,7 +1,11 @@
 # Pumpkin Ghost — type 55 (かぼちゃゴースト)
 
-**code-read**: IDA `sub_426EAB` (AI, 0x426eab), `sub_42F7AD` case 23 / 49 / 55 / 54, table 0x52b96c. **Port: AI
-stub; the death arm's 23 / 54 cases are ported, 55 is not in the port's case list.** Shared rules:
+**code-read**: IDA `sub_426EAB` (AI, 0x426eab), `sub_42F7AD` case 23 / 49 / 55 / 54, table 0x52b96c. **Port (2026-11-11): AI ported
+(`actor_ai_t55`, src/actor_ai.c; the summoned pumpkin `FUN_00429e6f` = `actor_ai_pumpkin_bounce`; dungeon 3's setup
+`FUN_0044e08f` / event arm for checkpoint floors, src/dungeon_flow.c); the death arm lists 55. `obsidian-3f-5f-pumpkin`:
+rhost portrng identical f1..f18633, portsave IDENTICAL; portblock f13900 / f16900: actors, party, objects equal.**
+Code facts vs this card: the descent writes y = **15** − 0.0625·t (asm 0x426f89; the 14.3 below = that less the
+fall clamp 0.7 the same tick, read after the move); the pumpkin variant 2 bounces at speed 0.25 off walls and spawns its record 10 on its first tick. Shared rules:
 `boss-floor-common.md` (generic boss floor: placement, `FUN_0044cc80`, `FUN_0044d0a4`).
 
 **Run 2026-11-11: `ob-5f`** (Obsidian Tower 5F, Louie L40, ATK 56 / DEF 58 / MATK 21 / MDEF 32; `rd verify` MATCH at f18333;

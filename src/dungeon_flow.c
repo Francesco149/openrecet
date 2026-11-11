@@ -1074,6 +1074,50 @@ static void dungeon2_event_tick(void)
     ++g_event_tick;
 }
 
+static actor_t *stage5_spawn(float x, float y, float z, int32_t type);
+
+/* FUN_0044e08f: dungeon 3's floor setup — a checkpoint floor's arena
+ * FUN_0044cc80(1) (floor 19: first the golem parts 61..63 at (-40, -12, -35),
+ * state 8, the 2nd / 3rd with +0xa04 = 0); b8a4 = 0. */
+void dungeon3_stage_setup(void)
+{
+    static const float km40 = -40.0f, km12 = -12.0f, km35 = -35.0f;
+    g_dat_09643128 = 0;
+    g_scene1_camera_stage_class = 0;
+    const uint8_t *rec = save_work_bank_at(save_work_active_slot());
+    const int32_t floor = stage_gate_get_next();
+    if (rec != NULL && rec[0x2bce2] != 0) {
+        /* PORT-DEBT(stub, FUN_0044e08f): the +0x2bce2 story beat's setup (the
+         * party row, the DAT_0438c148.. curtain) */
+    } else if (floor == 29 || floor == 49) {
+        /* PORT-DEBT(stub, FUN_0044e08f): floors 29 / 49 (type 28's floor: the
+         * portals, the party column, DAT_06a470a0) */
+    } else if (floor % 5 == 4) {
+        if (floor == 19) {
+            for (int32_t i = 0; i != 3; i++) {
+                actor_t *m = stage5_spawn(km40, km12, km35, i + 61);   /* FUN_0041f903 */
+                if (m == NULL) continue;
+                if (i != 0) *(int32_t *)(void *)(m->b + 0xa04) = 0;
+                *(int32_t *)(void *)(m->b + 0xa54) = 8;
+            }
+        }
+        boss_floor_setup(1);                     /* FUN_0044cc80(1) */
+    }
+    g_event_tick = 0;
+}
+
+/* FUN_004427f1's dungeon-3 arm: a checkpoint floor → FUN_0044d0a4(1); every
+ * floor counts b8a4. */
+static void dungeon3_event_tick(void)
+{
+    const int32_t floor = stage_gate_get_next();
+    /* PORT-DEBT(stub, FUN_004427f1): the +0x2bce2 / +0x2bcf8 story beats and
+     * the b8a0 timelines of floors 29 / 49 */
+    if (floor != 29 && floor != 49 && floor % 5 == 4)
+        boss_floor_event(1);
+    ++g_event_tick;
+}
+
 actor_t *g_boss_run_boss;          /* DAT_06a470c8: the boss FUN_00450ee0 places */
 
 /* FUN_00450ee0: dungeon 5's floor setup — its own floors and the boss runs
@@ -1319,10 +1363,10 @@ void dungeon_event_tick(void)
         dungeon2_event_tick();          /* inline in FUN_004427f1 */
         break;
     case 3:
+        dungeon3_event_tick();          /* inline in FUN_004427f1 */
+        break;
     case 4:
-        /* PORT-DEBT(stub, FUN_004427f1): dungeons 3 / 4's events — the
-         * dungeon-3 arm inline in FUN_004427f1 (the b8a4 timelines on floors
-         * 29 / 49), FUN_00450877. */
+        /* PORT-DEBT(stub, FUN_00450877): dungeon 4's events */
         break;
     default:
         dungeon5_event_tick();          /* FUN_00451546 */

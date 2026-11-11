@@ -29,7 +29,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 6–9 bats | アーリマン* | `FUN_0042ce17` (`+0xae4 == 3`: `FUN_00424509`) | ported, verified |
 | 10–12 bees | キラービー* | `FUN_00428f0a` | ported, verified |
 | 13 / 14 mushrooms | キノコ* | `FUN_00428ae4` (`+0xae4` 1 / 2: `FUN_00428718` / `FUN_004284e1`) | ported, verified |
-| 15 pumpkin | かぼちゃ | `+0xae4` 0 `FUN_0042a33e`; 1 `FUN_0042a23c`; else `FUN_00429e6f` | 0 ported; 1 / 2 stub |
+| 15 pumpkin | かぼちゃ | `+0xae4` 0 `FUN_0042a33e`; 1 `FUN_0042a23c`; else `FUN_00429e6f` | 0 ported; 2 (`FUN_00429e6f`) ported, verified `obsidian-3f-5f-pumpkin`; 1 stub |
 | 16 kobold | コボルド | `FUN_004262b7` (`+0xae4 == 3`: `FUN_00423686`) | ported |
 | 17–21, 56–58 ropers | ローパー* | `FUN_0042a74c` | ported |
 | 22 rabbit | 兎 | `FUN_00429962` | ported |
@@ -49,9 +49,9 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | **49 black knight** | ブラックナイト | **`FUN_004279cf`** | **stub** |
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | stub |
-| 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 / the walk variant no recording) |
+| 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified |
-| **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | **stub** |
+| **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin` (identical + save) |
 | **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | **stub** (death arm ported unverified) |
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | stub |
 | 67 Ohm | オーム | `FUN_00422ed6` | ported, verified |
@@ -74,7 +74,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
 | 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | **stub** |
 | 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | **stub** |
-| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 54 ported; 49 / 55 not listed in the port's arm |
+| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`) |
 | 24 / 59 / 60 | rat collapse (500 ticks) | ported |
 | 37–40 | bomb fuse | ported |
 | 72 and the rest | default: tick 2 free + puff (`+0xadc` revive count first) | default ported |
