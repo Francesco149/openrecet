@@ -91,7 +91,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [scene1-overlay-dispatcher.md](scene1-overlay-dispatcher.md) | `FUN_00414ee2` (O.1) — 2D screen-space overlay particle dispatcher (sparkle/smoke/hud). | 2026-05-24 |
 | [scene1-record-populators.md](scene1-record-populators.md) | Table-B / table-C render-record populators survey; base addrs + sentinels + count globals. | 2026-05-24 |
 | [scene1-table-b-allocators.md](scene1-table-b-allocators.md) | `FUN_0044376a` + `FUN_00445a8c` (C8j) — table-B initial-state allocators. | 2026-05-24 |
-| [scene1-records-b-tick.md](scene1-records-b-tick.md) | `FUN_0043ae20` — 25.7 KB table-B per-frame integrator (consumer of the C8j allocators). | 2026-05-25 |
+| [scene1-records-b-tick.md](scene1-records-b-tick.md) | `FUN_0043ae20` — 25.7 KB table-B per-frame integrator (consumer of the C8j allocators); §Wall-tail fall-through: which type bodies fall into LAB_00440dc1 (all but 9 conditional `continue`s). | 2026-11-11 |
 | [scene1-records-b-state-machine.md](scene1-records-b-state-machine.md) | `FUN_0043865e` — per-record combat state machine (NPC scan, attack input, damage, knockback, hit FX). | 2026-05-25 |
 | [scene1-walker.md](scene1-walker.md) | `FUN_0040a765` (C7i) — scene-1 HUD walker survey; corrects the "3D mesh walker" mislabel + the Pass-7 "chr render" mislabel (it's shop menus). | 2026-05-23 |
 | [scene1-chr-walker.md](scene1-chr-walker.md) | `FUN_004176ff` (30 KB, `scene1_walk_chr_TODO`) — character/entity 3D record walker. **⚠️ premise corrected by Cchr.0** — it does NOT draw the player; see scene1-char-sprite-trace.md. | 2026-05-29 |

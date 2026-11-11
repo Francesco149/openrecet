@@ -94,6 +94,65 @@ LAB_0043fbbc:
 | 53..54 | DAT_06932584..8 | aux (per-type) |
 | 0x60+ | DAT_069325b8..cc | per-type pos2/rot2 (extension fields) |
 
+## Wall-tail fall-through (2026-11-11)
+
+Retail's control flow after a type body, from the disasm (objdump of the
+unpacked exe, 0x43ae20..0x4412b6; IDA's pseudocode merges blocks here).  The
+head is plain sequential `if (type == X) {…}` blocks; the rest is an else-if
+ladder whose last arm is `cmp 0x2e / 0x36; jne 0x440dc1` (0x440005..0x44000d).
+Every body falls into the shared wall tail **LAB_00440dc1** unless it jumps to
+the loop increment 0x43fbbc (`continue`) or the kill 0x43fbb9 / 0x4411e3.
+The tail does work only with TYPE != 0, AUX_C8 (+0xc4) != 0 and the per-tick
+flag DAT_06a46f98 != 0; FUN_0043865e sets that flag at entry (unless paused),
+so any body that calls the state machine arms it.  A killed slot's tail is a
+no-op (0x440dc3 `test eax,eax; je 0x43fbbc`).
+
+Method: a per-type path search over the disasm (every type 1..0xa7; registers
+/ `[esi]` / `[ebp-N]` tracked as constants, type compares resolved, other
+branches forked), recording each exit to 0x440dc1 / 0x43fbbc / 0x43fbb9 with
+the slot's TYPE at that point.  No body writes a nonzero TYPE, and no type
+compare is ever left unresolved.
+
+| type | tail | retail `continue` with the slot alive |
+|------|------|------|
+| 0x72 | conditional | AGE % 5 != 4 (0x43cb31; after the 0xe90 != 2 kill) |
+| 0x73 0x78 0x7a | conditional | AGE < 0: POS -= VEL, kill iff owner_a +0xcf8 (0x4402c8 → 0x43fbb7) |
+| 0xa0 | conditional | AGE < 0: POS -= VEL, kill iff owner_b +0x440 (0x43fb90 → 0x43fbb7) |
+| 0x76 0xa3 | conditional | AGE < 0: POS -= VEL (0x440ab4 → 0x440ad1) |
+| 0x77 | conditional | FUN_0043865e != 0 (0x440a99; not 0xa2) |
+| 0x61 | conditional | 70 <= AGE < 290, FUN_00490820 < 0, FUN_0043865e != 0: AGE += 25 (0x43f0ce) |
+| every other type 1..0xa7 | yes | — (every path reaches 0x440dc1 or kills) |
+
+No type skips the tail unconditionally.  Entry points into the tail: the
+ladder end 0x44000d (the whole sequential head and every body-less type —
+all types not listed next), LAB_004402a2 (0x2e/0x36, 0x33, 0x3e/0x5f,
+0x4d..0x52, 0x56, 0x60, 0x62/0x63, 0x73/0x77/0x78/0x7a/0x7b/0x7e, 0x82..0x84,
+0x96, 0xa1/0xa2/0xa4..0xa6), LAB_00440dbd (0x24, 0x30, 0x58/0x66, 0x64/0x65,
+0x6a, 0x75, 0x76/0xa3), 0x43f0f8 (0x53, 0x61), 0x43e5a1 (0x9b), 0x43f734 /
+0x43fada (0x7c, 0xa0).
+
+Port (`src/scene1_records_b_tick.c`): each type body returns `rec_next_t`
+(`SCENE1_B_NEXT_TAIL` / `_CONTINUE`, scene1_records_b_tick.h);
+`scene1_records_b_run_type_body` is the switch, `dispatch_default` runs the
+tail on TAIL.  CONTINUE only at the sites above; kill exits return TAIL.
+Before: only 0x1f and the ladder-tail bodies called the tail, and early
+`return`s skipped it — 40 head bodies (the 0x2f/0x88/0x9a anchors, 0x1e,
+compass, 0x9c, 0x34, 0x68, 0x74/0x79, 0x69, 0x85, 0x8a/0x8b, 0x5b group,
+0x71/0x72/0x7d, 0x5a/0x98, 0x6c, 0x6b, 0x28, 0x38, 0x29, 0x8c, 0x2c, 0x23,
+0x3a..0x3c, 0x21/0x25/0x31/0x32, 0x2b, 0x26/0x2a, 0x27, 0x10/0x16/0x17,
+the motion bodies 0xa/0xb/0x13/0x14/0x99 and 0xc/0x11, 0x46, 0x97,
+0xe/0x12, 0xd/0x15, 0xf, 0x9b) never ran it, 0x7c's phase 2 skipped it,
+and the 0x56/0x96 bounce path ran it twice.  Pinned by host tests
+`records_b_tick_wall_tail_fallthrough_table` (every type × AGE × SM return)
+and `records_b_tick_wall_tail_continue_skips_tail`.
+
+The same search, run for side effects, found one type with a retail body
+the port's dispatch lacked: **0x30** (0x43f103..0x43f16d → 0x43f39b: ROT_Z
++= 0.05, DRAG 3, the state machine's nonzero return kills, a 0x21 particle on
+odd ages with the slot index as the last arg, dead at 0x78) — now
+`body_0x30`, unverified (no recording known to allocate it).  Every other
+type with a retail body has a port case, and every port case a retail body.
+
 ## Type dispatch overview
 
 147 type checks visible in decomp; ~86 unique TYPE values handled.

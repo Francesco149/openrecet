@@ -10004,3 +10004,126 @@ int test_records_b_tick_dc1_body_entity_bounce_falls_through(void)
     T_ASSERT_EQ_I(s_wall_ray_calls, 1);
     return 0;
 }
+
+/* ─── FUN_0043ae20 wall-tail fall-through table ─────────────────────────
+ *
+ * Retail's head is plain sequential `if (type == X)` blocks and the rest an
+ * else-if ladder ending in `jne 0x440dc1`: every body falls into the wall
+ * tail LAB_00440dc1 unless it `continue`s (jmp 0x43fbbc) with the slot
+ * alive.  A per-type path search over the disasm (all types 1..0xa7) finds
+ * live `continue`s in 9 types only (docs/findings/scene1-records-b-tick.md
+ * §"Wall-tail fall-through"):
+ *
+ *   0x72                     AGE % 5 != 4                 0x43cb31
+ *   0x73 0x78 0x7a           AGE < 0                      0x4402c8 → 0x43fbb7
+ *   0xa0                     AGE < 0                      0x43fb90 → 0x43fbb7
+ *   0x76 0xa3                AGE < 0                      0x440ab4 → 0x440ad1
+ *   0x77                     FUN_0043865e != 0            0x440a99
+ *   0x61                     70 <= AGE < 290, in view,
+ *                            FUN_0043865e != 0 (AGE += 25) 0x43f0ce
+ *
+ * Every other type, and every other path of these, reaches the tail (a
+ * killed slot's tail is a no-op: either return is fine, the port says TAIL).
+ * The port's scene1_records_b_run_type_body must return CONTINUE exactly
+ * there.  The test runs every type over a grid of AGE x state-machine
+ * returns against a zeroed owner. */
+static int s_ft_sm_ret;
+static int ft_state_machine(int32_t *slot) { (void)slot; return s_ft_sm_ret; }
+
+static int ft_expect_continue(int32_t type, int32_t age, int sm_ret)
+{
+    switch (type) {
+    case 0x72:
+        return age % 5 != 4;
+    case 0x73: case 0x78: case 0x7a: case 0xa0: case 0x76: case 0xa3:
+        return age < 0;
+    case 0x77:
+        return sm_ret != 0;
+    case 0x61:
+        return age >= 70 && age < 290 && sm_ret != 0;
+    default:
+        return 0;
+    }
+}
+
+#define FT_OWNER_SIZE 0x10000
+static uint8_t *s_ft_owner;
+
+int test_records_b_tick_wall_tail_fallthrough_table(void)
+{
+    if (!s_ft_owner) {
+        void *p = mmap(NULL, FT_OWNER_SIZE, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+        if (p == MAP_FAILED) abort();
+        s_ft_owner = (uint8_t *)p;
+    }
+    static const int32_t ages[] = { -1, 0, 4, 5, 9, 70, 71, 0x78, 289, 290 };
+    static const int sm_rets[] = { 0, 1, 2 };
+    int n_continue = 0;
+    for (int32_t type = 1; type <= 0xa7; type++) {
+        for (size_t a = 0; a < sizeof ages / sizeof ages[0]; a++) {
+            for (size_t s = 0; s < sizeof sm_rets / sizeof sm_rets[0]; s++) {
+                reset_world();
+                memset(s_ft_owner, 0, FT_OWNER_SIZE);
+                s_ft_sm_ret = sm_rets[s];
+                scene1_records_b_set_state_machine_hook(ft_state_machine);
+                const int32_t owner = (int32_t)(uintptr_t)s_ft_owner;
+                slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    type);
+                slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, owner);
+                slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_B, owner);
+                slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE,     ages[a]);
+                const scene1_b_next_t got = scene1_records_b_run_type_body(0, type);
+                const int want = ft_expect_continue(type, ages[a], sm_rets[s]);
+                if ((got == SCENE1_B_NEXT_CONTINUE) != want) {
+                    fprintf(stderr, "type 0x%x age %d sm %d: got %s, retail %s\n",
+                            (unsigned)type, ages[a], sm_rets[s],
+                            got == SCENE1_B_NEXT_CONTINUE ? "continue" : "tail",
+                            want ? "continue" : "tail");
+                    return 1;
+                }
+                n_continue += want;
+            }
+        }
+    }
+    scene1_records_b_set_state_machine_hook(NULL);
+    T_ASSERT(n_continue > 0);
+    return 0;
+}
+
+/* The whole tick: a `continue` body skips the tail (0x72 off-cadence), a
+ * fall-through body runs it (0x1f).  The tail is observed through the wall
+ * raycast with AUX_C8 + the per-tick flag (the state machine sets it, as
+ * FUN_0043865e does at entry). */
+static int ft_sm_sets_flag(int32_t *slot) { (void)slot; g_scene1_records_b_tick_flag = 1; return 0; }
+
+int test_records_b_tick_wall_tail_continue_skips_tail(void)
+{
+    reset_world();
+    lab_dc1_install_hooks();
+    owner_blob_reset();
+    scene1_records_b_set_state_machine_hook(ft_sm_sets_flag);
+    const int32_t owner = (int32_t)(uintptr_t)g_test_owner_blob;
+    owner_blob_set_i(0xe90, 2);                  /* 0x72 survives */
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0x72);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, owner);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE,     9);   /* preamble → 10: 10 % 5 != 4 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x72);
+    T_ASSERT_EQ_I(s_wall_ray_calls, 0);
+
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE, 13);      /* → 14: on cadence */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_wall_ray_calls, 1);
+
+    reset_world();
+    lab_dc1_install_hooks();
+    scene1_records_b_set_state_machine_hook(ft_sm_sets_flag);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,   0x1f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE,    9);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_wall_ray_calls, 1);
+    scene1_records_b_set_state_machine_hook(NULL);
+    return 0;
+}

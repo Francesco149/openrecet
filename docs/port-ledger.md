@@ -316,7 +316,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44376a | FUN_0044376a | 8538 | ✓ |  | dungeon_party.c, main.c, party.h (+7) |
 | 0x4458c4 | FUN_004458c4 | 456 | ✓ |  | record_hit.c |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ |  | actor_ai.c, scene1_records.h, scene1_records_b_spawn.c (+2) |
-| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | actor_ai.c, dungeon_objects.c, dungeon_party.c (+13) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | actor_ai.c, dungeon_objects.c, dungeon_party.c (+14) |
 | 0x44ad81 | FUN_0044ad81 | 367 | ✓ |  | dungeon_flow.c, dungeon_objects.c, dungeon_objects.h (+1) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ |  | record_hit.c, scene1_records.h, scene1_records_c_spawn.c (+2) |
 | 0x44af50 | FUN_0044af50 | 419 | ✓ |  | scene1_records_c_spawn.c, scene1_records_c_spawn.h |

@@ -65,6 +65,11 @@ int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 
 static void dispatch_default(int slot_idx, int32_t type);
 
+/* A type body's exit: fall into the wall tail or `continue` (scene1_b_next_t). */
+typedef scene1_b_next_t rec_next_t;
+#define REC_TAIL     SCENE1_B_NEXT_TAIL
+#define REC_CONTINUE SCENE1_B_NEXT_CONTINUE
+
 static scene1_b_per_type_body_fn g_per_type_body     = dispatch_default;
 static scene1_b_state_machine_fn g_state_machine_hook;   /* default NULL */
 static scene1_b_se_fn            g_se_hook;              /* default NULL */
@@ -605,10 +610,10 @@ static void lab_b205_tail(int i, int32_t type, float vel_z)
 
 /* Engine LAB_0043aead body (types 0x2f / 0x88 / 0x9a — joint-table
  * anchored).  Reaches LAB_0043b205 tail via vel_z fall-through. */
-static void body_anchor_joint(int i, int32_t type)
+static rec_next_t body_anchor_joint(int i, int32_t type)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* Engine L36468-73 — initial pose = owner.pose + (0, 3, 0). */
     float opx = owner_read_f(owner, 0x3f0);
@@ -631,7 +636,7 @@ static void body_anchor_joint(int i, int32_t type)
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, jpz);
 
     /* Engine L36483 — gate on per-joint enable byte at +0xa88. */
-    if (owner_read_i(owner, 0xa88 + aux_b0 * 4) != 0) return;
+    if (owner_read_i(owner, 0xa88 + aux_b0 * 4) != 0) return REC_TAIL;
 
     /* Engine L36485-98 — angle bias by joint index. */
     float bias = (aux_b0 == 1) ? 1.5707964f : -1.5707964f;
@@ -644,18 +649,19 @@ static void body_anchor_joint(int i, int32_t type)
     float velz = cosf(ang) * 2.5f;
 
     lab_b205_tail(i, type, velz);
+    return REC_TAIL;
 }
 
 /* Engine L36574-L36645 — type 0x1e else branch (gate + sub-dispatch on
  * owner+0x424 NPC motion-style ID).  Reaches LAB_0043b205 tail via
  * vel_z fall-through. */
-static void body_0x1e(int i)
+static rec_next_t body_0x1e(int i)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* Engine L36574 — gate. */
-    if (owner_read_i(owner, 0x428) != 1) return;
+    if (owner_read_i(owner, 0x428) != 1) return REC_TAIL;
 
     /* Engine L36577-81 — SE on AGE == 4 and AGE == 0x4b.  Raw asm:
      *   age == 4    → se_play(0x176)
@@ -707,14 +713,15 @@ static void body_0x1e(int i)
     }
 
     lab_b205_tail(i, 0x1e, velz);
+    return REC_TAIL;
 }
 
 /* Engine LAB_0043b325 body (types 0x89 / 0x9e — compass-direction
  * billboard around owner pose). */
-static void body_compass(int i, int32_t type)
+static rec_next_t body_compass(int i, int32_t type)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* Engine L36651 — angle = (owner+0x18 int as float) * 2π / 8. */
     float ang = (float)owner_read_i(owner, 0x18) * 6.2831855f / 8.0f;
@@ -816,6 +823,7 @@ static void body_compass(int i, int32_t type)
     if (age == 0xaf) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.3 — mid-cascade bodies (L408-L649) ────────────────────── */
@@ -849,10 +857,10 @@ static void body_compass(int i, int32_t type)
  * Asm-verified shape_mode = 6 across all three spawns (0x43b95e/9a3/9ee
  * `push 0x6` — Ghidra dropped this arg in the decompile).
  */
-static void body_0x9c(int i)
+static rec_next_t body_0x9c(int i)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int   age   = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     float scale = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
@@ -899,6 +907,7 @@ static void body_0x9c(int i)
     if (age == 0xc8) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L479-L518 / asm verified — NPC joint-target lerp.
@@ -925,10 +934,10 @@ static void body_0x9c(int i)
  * structurally the engine's joint-slot-0 x followed by joint-slot-1 x/y,
  * which is unusual but matches the decompile verbatim.
  */
-static void body_0x34(int i)
+static rec_next_t body_0x34(int i)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int joint_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_AUX_SENT1);
 
@@ -978,6 +987,7 @@ static void body_0x34(int i)
     if (age == 0x96) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L525-L568 / asm 0x43bba1..0x43bcea — three-phase NPC spawn cycle.
@@ -999,7 +1009,7 @@ static void body_0x34(int i)
  * All overlay spawns use OWNER_A as template_owner, position = slot[ALT_POS],
  * shape_mode = 0, mode = 0 (FUN_004147d5 wrapper appends mode=0).
  */
-static void body_0x68(int i)
+static rec_next_t body_0x68(int i)
 {
     /* no owner test in retail (IDA sub_43AE20 `v25 == 104`): the NPC record
      * (Tielle's rain, FUN_00445a8c(a, 104, 1)) has OWNER_A 0 and passes that
@@ -1058,6 +1068,7 @@ static void body_0x68(int i)
     if (age == age_off + 0x4b) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L519-L644 (shared body for 0x74/0x79) / asm 0x43bcef..0x43bf81.
@@ -1096,10 +1107,10 @@ static void body_0x68(int i)
  *   if owner_a+0xcf8 != 0: kill
  *   if AGE == 0x37:        kill
  */
-static void body_0x74_or_0x79(int i, int32_t type)
+static rec_next_t body_0x74_or_0x79(int i, int32_t type)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, (type == 0x74) ? 0.0f : 0.7f);
 
@@ -1205,11 +1216,12 @@ static void body_0x74_or_0x79(int i, int32_t type)
 
     if (owner_read_i(owner_a, 0xcf8) != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     if (age == 0x37) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L646-L650 / asm 0x43bb40..0x43bb81 — entity self-spawn-then-die.
@@ -1224,10 +1236,10 @@ static void body_0x74_or_0x79(int i, int32_t type)
  * survey's "FUN_0044376a is the entity allocator" matches our C8j ladder
  * port of `scene1_record_b_spawn_entity(owner, type, flag)`.
  */
-static void body_0x69(int i)
+static rec_next_t body_0x69(int i)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     int age      = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
@@ -1237,6 +1249,7 @@ static void body_0x69(int i)
         scene1_record_b_spawn_entity(owner_a, 0x68, -1);
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.4 — Body 1 (L689-L812) ────────────────────────────────── */
@@ -1301,10 +1314,10 @@ static float body1_drag_for(int32_t type)
  *   kill if owner_a+0xcf8 != 0
  *   kill if AGE == 0x14
  */
-static void body_kill_bounce(int i, int32_t type)
+static rec_next_t body_kill_bounce(int i, int32_t type)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, body1_drag_for(type));
 
@@ -1389,14 +1402,14 @@ static void body_kill_bounce(int i, int32_t type)
 
     if (owner_read_i(owner_a, 0xcf8) != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     if (age == 0x14) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     /* a live swing falls through to the shared wall test (LABEL_990) */
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.5 — Body 2 (L812-L1050) ───────────────────────────────── */
@@ -1435,10 +1448,10 @@ static void body2_state_machine_5iter_loop(int slot_idx)
  *     if (owner_a[+0xcf8] != 0): kill slot
  *     if (AGE == 0x24):          kill slot
  */
-static void body_0x85(int i)
+static rec_next_t body_0x85(int i)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
 
@@ -1461,17 +1474,18 @@ static void body_0x85(int i)
         owner_write_i(owner_a, 0xe90, 7);
         owner_write_i(owner_a, 0xe94, 0);
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     if (owner_read_i(owner_a, 0xcf8) != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     if (age == 0x24) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L36739-L36805 / asm 0x43c73d..0x43c8fe — types 0x8a / 0x8b
@@ -1520,10 +1534,10 @@ static void body_0x85(int i)
  * case (slot already TYPE=0).  When state_machine returned 0, only the
  * unconditional tail checks fire.
  */
-static void body_0x8a_or_0x8b(int i, int32_t type)
+static rec_next_t body_0x8a_or_0x8b(int i, int32_t type)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
 
@@ -1586,6 +1600,7 @@ static void body_0x8a_or_0x8b(int i, int32_t type)
     if (age == 20000) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L36805-L36870 / asm 0x43c5e9..0x43c738 — types 0x5b / 0x5c /
@@ -1609,10 +1624,10 @@ static void body_0x8a_or_0x8b(int i, int32_t type)
  *   if (owner_a[+0xcf8] != 0): kill
  *   if (AGE == 0x14):           kill
  */
-static void body_0x5b_group(int i, int32_t type)
+static rec_next_t body_0x5b_group(int i, int32_t type)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     float drag     = 1.5f;
     float y_offset = 1.0f;
@@ -1653,6 +1668,7 @@ static void body_0x5b_group(int i, int32_t type)
     if (age == 0x14) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine L36870-L36970 / asm 0x43c903..0x43cb46 — types 0x71 / 0x72 /
@@ -1707,10 +1723,10 @@ static void body_0x5b_group(int i, int32_t type)
  * lifespan kill.  Engine sets both unambiguously (asm 0x43cab0 push
  * 0x14 → edi as loop cap; 0x43cb3f cmp [esi+0x98], 0x1e → kill).
  */
-static void body_0x71_72_7d(int i, int32_t type)
+static rec_next_t body_0x71_72_7d(int i, int32_t type)
 {
     void *owner_a = slot_owner_a(i);
-    if (!owner_a) return;
+    if (!owner_a) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
 
@@ -1801,7 +1817,7 @@ static void body_0x71_72_7d(int i, int32_t type)
          * SEQ_ID write above and the previous kill checks have already
          * fired, so a return here matches the engine's outer-loop
          * advance. */
-        if (age % 5 != 4) return;
+        if (age % 5 != 4) return REC_CONTINUE;
         if (age == 20000) {
             scene1_records_b_tick_kill_slot(i);
         }
@@ -1810,6 +1826,7 @@ static void body_0x71_72_7d(int i, int32_t type)
             scene1_records_b_tick_kill_slot(i);
         }
     }
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.6 — Body 3 (L1050-L1187, asm 0x43cb4a..0x43cdef) ──────── */
@@ -1826,8 +1843,7 @@ static void body_0x71_72_7d(int i, int32_t type)
  * up at 0.03/tick, asymptotes at 1.5; DRAG follows.  At AGE=120 the
  * slot dies (no spawn-on-death side effects).
  */
-void scene1_records_b_run_lab_00440dc1(int i);   /* LAB_00440dc1, below */
-static void body_0x1f(int i)
+static rec_next_t body_0x1f(int i)
 {
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
     if (life_mult > 1.5f) life_mult = 1.5f;
@@ -1843,7 +1859,7 @@ static void body_0x1f(int i)
     /* 0x43cbab..: no type test past here matches 0x1f; the ladder ends in
      * `cmp 0x2e / 0x36; jne 0x440dc1` — the wall tail (a wall hit sets AGE
      * 0x70: dead 8 ticks later). */
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* Engine 0x43cca5..0x43cde0 — types 0x5a / 0x98 shared body.
@@ -1872,10 +1888,10 @@ static void body_0x1f(int i)
  * Notable: reads engine player position (DAT_056da1d8 / DAT_056da1e0 =
  * g_scene1_player_pos[0/2]).  Reads OWNER_B (not OWNER_A like Body 1/2).
  */
-static void body_0x5a_or_0x98(int i)
+static rec_next_t body_0x5a_or_0x98(int i)
 {
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* asm 0x43cca5..0x43cd4b: every step stored to m32 (fstps), so each is
      * rounded once — the drift's add before its × 0.95 too */
@@ -1913,13 +1929,14 @@ static void body_0x5a_or_0x98(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 1.0f);
         state_machine_call(slot_base(i));
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* Engine LAB_0043cded: kill on owner_b+0x428 != 1. */
     if (owner_read_i(owner, 0x428) != 1) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43cbc6..0x43cbef — type 0x6c body.
@@ -1930,7 +1947,7 @@ static void body_0x5a_or_0x98(int i)
  *
  * No LIFE_MULT update (unlike 0x1f).
  */
-static void body_0x6c(int i)
+static rec_next_t body_0x6c(int i)
 {
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f - 0.5f);
@@ -1941,6 +1958,7 @@ static void body_0x6c(int i)
     if (age == 0xc8) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43cbf9..0x43cc60 — type 0x6b body.
@@ -1954,7 +1972,7 @@ static void body_0x6c(int i)
  *
  * No DRAG / LIFE_MULT writes.
  */
-static void body_0x6b(int i)
+static rec_next_t body_0x6b(int i)
 {
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -1971,6 +1989,7 @@ static void body_0x6b(int i)
     if (age == 0x9b) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43cc6b..0x43cc99 — type 0x28 body.
@@ -1980,7 +1999,7 @@ static void body_0x6b(int i)
  *   state_machine(slot)
  *   if (AGE == 0x12c): kill            ; 0x12c = 300
  */
-static void body_0x28(int i)
+static rec_next_t body_0x28(int i)
 {
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f);
@@ -1994,6 +2013,7 @@ static void body_0x28(int i)
     if (age == 0x12c) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.7 — scattered post-Body-3 bodies (asm 0x43cdef..0x43d0b6) ─ */
@@ -2004,7 +2024,7 @@ static void body_0x28(int i)
  *   state_machine(slot)
  *   if (AGE == 0x12c): kill          ; 0x12c = 300
  */
-static void body_0x38(int i)
+static rec_next_t body_0x38(int i)
 {
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.0f);
     state_machine_call(slot_base(i));
@@ -2012,6 +2032,7 @@ static void body_0x38(int i)
     if (age == 0x12c) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43ce15..0x43cf5c — type 0x29 body.  Mt. Everest piece in
@@ -2040,7 +2061,7 @@ static void body_0x38(int i)
  * default 1.0 per C8j allocator preamble.  With SCALE_Y=1.0 the window
  * is AGE in (10, 90); spawn_age = 104; kill at AGE >= 136.
  */
-static void body_0x29(int i)
+static rec_next_t body_0x29(int i)
 {
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 4.0f);
@@ -2083,6 +2104,7 @@ static void body_0x29(int i)
     if (scale_y * 136.0f <= (float)age) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d0b8..0x43d0e2 — type 0x8c body.
@@ -2093,7 +2115,7 @@ static void body_0x29(int i)
  *   if (PART_IDX == 100): kill         ; engine `goto LAB_0043fc81` (kill)
  *   if (AGE > 0x4af): kill              ; 0x4af = 1199
  */
-static void body_0x8c(int i)
+static rec_next_t body_0x8c(int i)
 {
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
     float rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X) + 0.15f;
@@ -2103,12 +2125,13 @@ static void body_0x8c(int i)
     int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
     if (part_idx == 100) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     if (age > 0x4af) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43cf67..0x43d0b6 — type 0x2c body.  Physics-bounce billboard:
@@ -2142,7 +2165,7 @@ static void body_0x8c(int i)
  *   mat4_identity(MATRIX0)                 ; wipe for next user
  *   if (AGE >= 0x12c): kill                ; 0x12c = 300
  */
-static void body_0x2c(int i)
+static rec_next_t body_0x2c(int i)
 {
     static const float k0p02 = 0.019999999552965164f, k0p95 = 0.949999988079071f;
     static const float k0p05 = 0.05000000074505806f, k0p03 = 0.029999999329447746f;
@@ -2191,7 +2214,7 @@ static void body_0x2c(int i)
         slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, ++flag);
     if (flag == 0x1e) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     if (flag == 0) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,
@@ -2201,6 +2224,7 @@ static void body_0x2c(int i)
     mat4_identity(mat0);                     /* FUN_00404bb8 */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 0x12c)
         scene1_records_b_tick_kill_slot(i);
+    return REC_TAIL;
 }
 
 /* Engine 0x43d100..0x43d3f4 — type 0x23 body.  Ground-bouncer with
@@ -2243,7 +2267,7 @@ static void body_0x2c(int i)
  * and asm 0x43d362..0x43d392 verbatim — appears intentional (or a long-
  * standing engine copy-paste) and we preserve it.
  */
-static void body_0x23(int i)
+static rec_next_t body_0x23(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2335,6 +2359,7 @@ static void body_0x23(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 200) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d3f6..0x43d5f8 — type 0x3a body.  Alternate ground-bouncer:
@@ -2372,7 +2397,7 @@ static void body_0x23(int i)
  * value when ground-hit, but observable when a future caller mutates
  * POS_Y between the snap and the spawn.
  */
-static void body_0x3a(int i)
+static rec_next_t body_0x3a(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2438,6 +2463,7 @@ static void body_0x3a(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.9 — scattered post-Body-3 to Body 5 cluster ═══════════════
@@ -2500,7 +2526,7 @@ static void body_0x3a(int i)
  * (0x43d629..0x43d65c) shows 7 pushes: edi=0, POS_X, POS_Y+1.0, POS_Z,
  * 0x54, 0.1f, eax(=rng_next15()).
  */
-static void body_0x3c(int i)
+static rec_next_t body_0x3c(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2527,6 +2553,7 @@ static void body_0x3c(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d66a..0x43d7b6 — type 0x3b body.
@@ -2558,7 +2585,7 @@ static void body_0x3c(int i)
  * the NPC owner pose convention).  OWNER_B field stores owner pointer
  * (npc-allocator side).
  */
-static void body_0x3b(int i)
+static rec_next_t body_0x3b(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2629,6 +2656,7 @@ static void body_0x3b(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d7b7..0x43d845 — Body 5 (types 0x21/0x25/0x31/0x32).
@@ -2643,7 +2671,7 @@ static void body_0x3b(int i)
  *     if AGE < 0xf8: state_machine(slot)
  *     if AGE == 0x100: kill
  */
-static void body_021_to_032(int i, int32_t type)
+static rec_next_t body_021_to_032(int i, int32_t type)
 {
     int32_t *slot = slot_base(i);
 
@@ -2666,6 +2694,7 @@ static void body_021_to_032(int i, int32_t type)
         if (age < 0xf8) state_machine_call(slot);
         if (age == 0x100) scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d846..0x43d9ec — type 0x2b body.
@@ -2702,7 +2731,7 @@ static void body_021_to_032(int i, int32_t type)
  * — asm at 0x43d96f shows fldz + fstp [esp] writing 0.0f as the 8th arg
  * (since override_rot_y is `int` in the API, 0.0f bit pattern = int 0).
  */
-static void body_0x2b(int i)
+static rec_next_t body_0x2b(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2787,6 +2816,7 @@ static void body_0x2b(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x50) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43d9ed..0x43dac1 — type 0x26/0x2a shared body.
@@ -2806,7 +2836,7 @@ static void body_0x2b(int i)
  * Distinct from 0x2b: bounces (VEL_Y inverted) instead of snap-to-zero;
  * no overlay spawn cascade; no FLAG check; longer life (0xa0 vs 0x50).
  */
-static void body_0x26_or_0x2a(int i)
+static rec_next_t body_0x26_or_0x2a(int i)
 {
     int32_t *slot = slot_base(i);
 
@@ -2843,6 +2873,7 @@ static void body_0x26_or_0x2a(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0xa0) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43dac7..0x43dc02 — type 0x27 body.  Three-phase state machine
@@ -2872,7 +2903,7 @@ static void body_0x26_or_0x2a(int i)
  *
  * No AGE-based kill — the body relies on FLAG==2's LIFE_MULT-fade-to-zero.
  */
-static void body_0x27(int i)
+static rec_next_t body_0x27(int i)
 {
     int32_t *slot = slot_base(i);
     int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
@@ -2918,6 +2949,7 @@ static void body_0x27(int i)
             }
         }
     }
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.10 — Body 6 + Body 7 (motion-table-driven anchor) ═══════
@@ -2937,11 +2969,11 @@ static void body_0x27(int i)
  * owner + (sin·t, 1, cos·t)(ROT_X) with t = PART_IDX·-0.4.  Unless the owner is
  * in state 1 (+0xa54) the record dies; PART_IDX 0 at AGE 6..9 runs the hit
  * test (FUN_0043865e) up to 5 times while it reports a hit; dies at AGE 20. */
-static void body_0x10_16_17(int i)
+static rec_next_t body_0x10_16_17(int i)
 {
     static const float k1p5 = 1.5f, km0p4 = -0.4000000059604645f, k1 = 1.0f;
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k1p5);
     const float t = spill32((long double)spill32((float)slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX)) * km0p4);
     const double a = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
@@ -2957,7 +2989,7 @@ static void body_0x10_16_17(int i)
                spill32((long double)t * spill32(x87_crt_cos(a)) + owner_read_f(owner, 0x3f8)));
     if (owner_read_i(owner, 0xa54) != 1) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     const int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0 && age >= 6 && age < 10)
@@ -2965,6 +2997,7 @@ static void body_0x10_16_17(int i)
             if (state_machine_call_ret(slot_base(i)) == 0) break;
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 20)
         scene1_records_b_tick_kill_slot(i);
+    return REC_TAIL;
 }
 
 /* Engine 0x43dc03..0x43dcdb — Body 6 (types 0xa/0xb/0x14/0x13/0x99).
@@ -2983,14 +3016,14 @@ static void body_0x10_16_17(int i)
  *     owner+0xb90 = anim_drive (DAT_06a46f94)
  *     owner+0xb94 = 0x1e
  */
-static void body_motion_anchor_keep(int i, int32_t type)
+static rec_next_t body_motion_anchor_keep(int i, int32_t type)
 {
     /* asm 0x43dc24: the owner is slot+0x14 (OWNER_B, the npc allocator's) */
     void *owner = (void *)slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
     if (owner_read_i(owner, 0x428) != 1) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     const int32_t et = owner_read_i(owner, 0x424);
     const float *rf = g_enemy[et >= 0 && et < ENEMY_COUNT ? et : 0].runtime_floats;
@@ -3014,6 +3047,7 @@ static void body_motion_anchor_keep(int i, int32_t type)
         owner_write_i(owner, 0xb90, g_scene1_records_b_tick_anim_drive);
         owner_write_i(owner, 0xb94, 0x1e);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43dcdb..0x43dd79 — Body 7 (types 0x11/0xc).
@@ -3031,13 +3065,13 @@ static void body_motion_anchor_keep(int i, int32_t type)
  *   - state_machine return value is NOT checked.
  *   - Always kills on AGE == 7 (Body 6 has no AGE-kill).
  */
-static void body_motion_anchor_kill_7(int i, int32_t type)
+static rec_next_t body_motion_anchor_kill_7(int i, int32_t type)
 {
     void *owner = (void *)slot_owner(i);   /* slot+0x14 (OWNER_B) */
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
     if (owner_read_i(owner, 0x428) != 1) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     const int32_t et = owner_read_i(owner, 0x424);
     const float *rf = g_enemy[et >= 0 && et < ENEMY_COUNT ? et : 0].runtime_floats;
@@ -3056,6 +3090,7 @@ static void body_motion_anchor_kill_7(int i, int32_t type)
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
     state_machine_call(slot_base(i));
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 7) scene1_records_b_tick_kill_slot(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.11 — Body 7a (asm 0x43dd79..0x43e22b) ═══════════════════
@@ -3081,7 +3116,7 @@ static void body_motion_anchor_kill_7(int i, int32_t type)
  *   if AGE in [0x28, 0x30): state_machine
  *   if AGE == 0x3c: kill
  */
-static void body_0x46(int i)
+static rec_next_t body_0x46(int i)
 {
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
@@ -3105,6 +3140,7 @@ static void body_0x46(int i)
     if (age == 0x3c) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43debd..0x43df16 — type 0x97 body (overlay emit, kill-on-old).
@@ -3119,7 +3155,7 @@ static void body_0x46(int i)
  * passes the dword value verbatim; we surface as void* (engine treats
  * NULL same as non-NULL for the overlay system).
  */
-static void body_0x97(int i)
+static rec_next_t body_0x97(int i)
 {
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
     state_machine_call(slot_base(i));
@@ -3135,6 +3171,7 @@ static void body_0x97(int i)
     if (age >= 0x320) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43df1b..0x43e108 — types 0xe / 0x12 body (motion-id sub-
@@ -3145,11 +3182,11 @@ static void body_0x97(int i)
  * 0x3c, else}.  Each sets DRAG (per-sub formula) then calls SM then
  * tests AGE for a per-sub kill threshold.
  */
-static void body_0xe_or_0x12(int i)
+static rec_next_t body_0xe_or_0x12(int i)
 {
     /* asm 0x43df29: the owner is slot+0x14 (OWNER_B, FUN_00445a8c's) */
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int32_t motion = owner_read_i(owner, 0x424);
     int     age    = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
@@ -3161,14 +3198,14 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 3.0f);
         state_machine_call(slot);
         if (age >= 8) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0xf: {
         /* asm 0x43df5b-0x43df70: DRAG = 1.0; SM; kill AGE >= 0 (always). */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
         state_machine_call(slot);
         if (age >= 0) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x25: case 0x26: case 0x27: case 0x28: {
         /* asm 0x43e12d-0x43e158: DRAG = 4.0; up-to-20 SM iter loop with
@@ -3178,7 +3215,7 @@ static void body_0xe_or_0x12(int i)
             if (!state_machine_call_ret(slot)) break;
         }
         if (age >= 0) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x3d: case 0x3e: case 0x3f:
     case 0x40: case 0x41: case 0x42: {
@@ -3186,14 +3223,14 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 3.5f);
         state_machine_call(slot);
         if (age >= 5) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x46: case 0x47: {
         /* asm 0x43e10d-0x43e108: DRAG = 1.0; SM; kill AGE >= 1 (always). */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
         state_machine_call(slot);
         if (age >= 1) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x44: case 0x45: {
         /* asm 0x43e0e0-0x43e108: DRAG = motion_table[motion].drag_mul *
@@ -3207,7 +3244,7 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
         state_machine_call(slot);
         if (age >= 1) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x43: {
         /* asm 0x43dffc-0x43e08e: DRAG = 3.5; pose around owner; SM;
@@ -3224,7 +3261,7 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, c + c + opz);
         state_machine_call(slot);
         if (age == 0x3c) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     case 0x18: case 0x3b: case 0x3c: {
         /* asm 0x43e0aa-0x43e0db: DRAG = owner+0xa58 < 100 ? 6.5 : 8.5;
@@ -3234,7 +3271,7 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
         state_machine_call(slot);
         if (age == 0xf) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     default: {
         /* asm 0x43e0a2-0x43e0db (default else): DRAG = 2.0; SM; kill
@@ -3242,9 +3279,10 @@ static void body_0xe_or_0x12(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.0f);
         state_machine_call(slot);
         if (age == 0xf) scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43e15d..0x43e226 — types 0xd / 0x15 body (pose around owner).
@@ -3260,10 +3298,10 @@ static void body_0xe_or_0x12(int i)
  *     type 0x15: AGE in [0, 0xf)
  *   Kill AGE == 0x28.
  */
-static void body_0xd_or_0x15(int i, int32_t type)
+static rec_next_t body_0xd_or_0x15(int i, int32_t type)
 {
     const void *owner = slot_owner(i);       /* +0x14 (asm 0x43e162) */
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     float drag = 0.5f;
     if (type == 0x15 && owner_read_i(owner, 0x424) == 0x19) {
@@ -3293,6 +3331,7 @@ static void body_0xd_or_0x15(int i, int32_t type)
     if (age == 0x28) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.12 — Body 7b head (0xf-motion, 0x9b, 0x24) ═══════════════
@@ -3314,14 +3353,14 @@ static void body_0xd_or_0x15(int i, int32_t type)
  *   POS = owner pos + 0.5·(sin, ·, cos)(owner yaw), y + 1.0
  *   FUN_0043865e, kill on AGE >= 1 (edi).
  */
-static void body_0xf_motion_walker(int i)
+static rec_next_t body_0xf_motion_walker(int i)
 {
     static const float k0p5 = 0.5f, k1 = 1.0f, k1p5 = 1.5f;
     const void *owner = slot_owner(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int32_t motion = owner_read_i(owner, 0x424);
-    if (motion != 0x18 && motion != 0x3b && motion != 0x3c) return;
+    if (motion != 0x18 && motion != 0x3b && motion != 0x3c) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k1p5);
     const float s = spill32(x87_crt_sin(owner_read_f(owner, 0x420)));
@@ -3335,6 +3374,7 @@ static void body_0xf_motion_walker(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 1) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43e2ed..0x43e5ac — type 0x9b body (NPC big animation cluster).
@@ -3366,10 +3406,10 @@ static void body_0xf_motion_walker(int i)
  *   if AGE == 390: kill
  *   if owner+0xcf8 != 0: kill
  */
-static void body_0x9b(int i)
+static rec_next_t body_0x9b(int i)
 {
     void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int   age       = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
@@ -3433,6 +3473,7 @@ static void body_0x9b(int i)
     if (owner_read_i(owner, 0xcf8) != 0) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* Engine 0x43e5ac..0x43e5d0 — type 0x24 body.
@@ -3441,7 +3482,7 @@ static void body_0x9b(int i)
  *   state_machine
  *   kill on AGE == 10  (LAB_440dbd: jne 0x440dc1 — i.e. AGE != 10 skip kill).
  */
-static void body_0x24(int i)
+static rec_next_t body_0x24(int i)
 {
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 10.0f);
     state_machine_call(slot_base(i));
@@ -3449,10 +3490,8 @@ static void body_0x24(int i)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43e5cb → 0x440dbd → 0x440dc1` — fall through to the
-     * default-tail wall-bounce body.  body_0x24 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.5). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.13 — type 0x53 (drift-damping body) ═════════════════════
@@ -3482,7 +3521,7 @@ static void body_0x24(int i)
  *     state_machine
  *   kill on AGE == kill_age (LAB_43f0f8 → jl skip; else jmp 0x43f73a kill).
  */
-static void body_0x53(int i)
+static rec_next_t body_0x53(int i)
 {
     int   age   = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     int32_t fa  = slot_get_i(i, SCENE1_RECORDS_B_OFF_FLAG_A);
@@ -3556,10 +3595,8 @@ static void body_0x53(int i)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43e5cb → 0x440dbd → 0x440dc1` — fall through to the
-     * default-tail wall-bounce body.  body_0x53 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.3). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.14 — type 0x58 / 0x66 shared body (anchor rotor) ════════
@@ -3607,10 +3644,10 @@ static void body_0x53(int i)
  *   kill if AGE == 0xe                     (asm 0x440db6: cmp AGE, 0xe;
  *                                            shared LAB_00440dbd cleanup.)
  */
-static void body_0x58_or_0x66(int i, int32_t type)
+static rec_next_t body_0x58_or_0x66(int i, int32_t type)
 {
     void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* asm 0x440bb3-0x440bb9: slot[DRAG] = 1.3 */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.3f);
@@ -3688,10 +3725,8 @@ static void body_0x58_or_0x66(int i, int32_t type)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x440bae → 0x440dbd → 0x440dc1` — fall through to
-     * default-tail wall-bounce body.  body_0x58_or_0x66 doesn't set the
-     * per-tick flag, so this is a no-op in production; wired for engine
-     * fidelity (C8j-tick.16-wire.3). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15a — three trivial tail bodies ═════════════════════════
@@ -3705,11 +3740,11 @@ static void body_0x58_or_0x66(int i, int32_t type)
  *   - type 0x65  (asm 0x43f34f..0x43f3a6): late-AGE vertical drift damper
  *                with VEL_Y floor and kill AGE==0x78
  *
- * The LAB_00440dc1 default-tail body is now ported as body_lab_00440dc1
+ * The LAB_00440dc1 default-tail body is now ported as scene1_records_b_run_lab_00440dc1
  * (C8j-tick.16) and wired as the dispatch `default:` arm.  All named
  * tail types {0x75/0x83/0x84/0xa0..0xa6 etc} are landed, so the default
  * arm is now safe to wire (no risk of mis-routing).  See the body's
- * docstring near body_lab_00440dc1 for the asm trace and gate semantics.
+ * docstring near scene1_records_b_run_lab_00440dc1 for the asm trace and gate semantics.
  *
  * Constants verified via `tools/analyze/pe.py bytes <va> 4`:
  *   0x5198f8 = 0.05       (type 0x33 ROT_Z step; also type 0x65 VEL_Y step)
@@ -3720,7 +3755,7 @@ static void body_0x58_or_0x66(int i, int32_t type)
  *   0x519c2c = -0.5       (type 0x65 VEL_Y floor)
  */
 
-static void body_0x33(int i)
+static rec_next_t body_0x33(int i)
 {
     /* asm 0x43fd9e-0x43fdcd: ROT_Z += 0.05 (fadd ds:0x5198f8); DRAG =
      * LIFE_MULT * 3 (fld [esi+0x108]; fmul ds:0x519438); SM();
@@ -3734,20 +3769,18 @@ static void body_0x33(int i)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43fdcb → 0x440298 → 0x4402a2 → 0x440dc1` — fall through
-     * to default-tail wall-bounce body.  body_0x33 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.5). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * to default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
-static void body_0x60(int i)
+static rec_next_t body_0x60(int i)
 {
     /* asm 0x43fdd5-0x43fe14: read owner via [esi+0x10] (= OWNER_A slot
      * field), copy pose +0x20/+0x24/+0x28 into POS_X..Z with +0.5 on Y
      * (fadd ds:0x51935c); DRAG = 8.0 (fld ds:0x519378); SM();
      * jmp 0x4402a2 → bVar17 = (AGE == 5); shared kill at 0x440dbd. */
     void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x20));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 0.5f);
@@ -3758,13 +3791,11 @@ static void body_0x60(int i)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43fe10 → LAB_004402a2 → 0x440dc1` — fall through to
-     * default-tail wall-bounce body.  body_0x60 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.6). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
-static void body_0x65(int i)
+static rec_next_t body_0x65(int i)
 {
     /* asm 0x43f354-0x43f3a6: AGE > 0x1e → VEL_Y = (VEL_Y - 0.05) * 0.99
      * (fsub ds:0x5198f8; fmul ds:0x5198b0); if VEL_Y < -0.5 (fcomp
@@ -3778,17 +3809,15 @@ static void body_0x65(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
         if (state_machine_call_ret(slot_base(i)) != 0) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
     }
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43f3a2 → LAB_00440dbd → 0x440dc1` — fall through to
-     * default-tail wall-bounce body.  body_0x65 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.6). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15b — types 0x5f / 0x3e (shared) + 0x82 ═════════════════
@@ -3849,10 +3878,10 @@ static void shared_5f_3e_tail(int i, const void *owner, float shape_guard)
     }
 }
 
-static void body_0x5f_or_0x3e(int i, int32_t type)
+static rec_next_t body_0x5f_or_0x3e(int i, int32_t type)
 {
     void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     /* asm 0x43fe1e-0x43fe88 (0x5f) / 0x43ff85-0x43fff7 (0x3e):
      * yaw = owner+0xea4 (NPC bend angle); POS = owner.pose +
@@ -3880,19 +3909,17 @@ static void body_0x5f_or_0x3e(int i, int32_t type)
     shared_5f_3e_tail(i, owner, shape_guard);
 
     /* engine `jmp 0x43febd → LAB_004402a2 → 0x440dc1` — shared tail falls
-     * through to default-tail wall-bounce body.  body_0x5f_or_0x3e doesn't
-     * set the per-tick flag, so this is a no-op in production; wired for
-     * engine fidelity (C8j-tick.16-wire.7). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * through to default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
-static void body_0x82(int i)
+static rec_next_t body_0x82(int i)
 {
     /* asm 0x43fec2-0x43ff7b.  Owner-anchored snap-to-pose with one-shot
      * ALT_POS recording at AGE==1 and a 20-iter SM-driven lerp at
      * AGE==20.  No owner+0xe90 kill gate.  Kill on AGE == 0x23. */
     void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
 
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -3936,10 +3963,8 @@ static void body_0x82(int i)
         scene1_records_b_tick_kill_slot(i);
     }
     /* engine `jmp 0x43ff77 → LAB_004402a2 → 0x440dc1` — fall through to
-     * default-tail wall-bounce body.  body_0x82 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.7). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * default-tail wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15c — types 0x7b / 0xa1 / 0xa4 shared ground-bounce body ═══
@@ -4009,7 +4034,7 @@ static void body_0x82(int i)
  * spawn chain end-to-end.  No new hooks needed (ground_query / notify_
  * queue / SE / table_a_alloc_passthrough all wired in earlier chips).
  */
-static void body_0x7b_a1_a4(int i, int32_t type)
+static rec_next_t body_0x7b_a1_a4(int i, int32_t type)
 {
     int32_t bounce_count = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
 
@@ -4083,17 +4108,17 @@ static void body_0x7b_a1_a4(int i, int32_t type)
 
     /* Shared LAB_004402a2 tail at 0x4408a1 — kill on AGE == 0x82, else
      * fall through to LAB_00440dc1 default-tail wall-bounce body via
-     * the engine's `jne 0x440dc1` at LAB_004402a2.  body_lab_00440dc1
+     * the engine's `jne 0x440dc1` at LAB_004402a2.  scene1_records_b_run_lab_00440dc1
      * (C8j-tick.16) gates internally on slot[AUX_C8] != 0 + per-tick
      * flag != 0; this body sets the per-tick flag at line 4013 so the
      * wall-bounce body's flag-gate is open here.  AUX_C8 must be set
      * by another body (e.g. body_0x74_or_0x79) before this body fires
-     * for the wall-bounce to actually do work; otherwise body_lab_00440dc1
+     * for the wall-bounce to actually do work; otherwise scene1_records_b_run_lab_00440dc1
      * returns at its AUX_C8 gate. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15d — type 0x84 single-body ground-bounce + self-kill ════
@@ -4140,7 +4165,7 @@ static void body_0x7b_a1_a4(int i, int32_t type)
  * Dormant in HOUSE under default smoke flags — `--force-b-npc 0x84`
  * exercises the falling + ground-impact + Table A spawn + kill chain.
  */
-static void body_0x84(int i)
+static rec_next_t body_0x84(int i)
 {
     /* asm 0x43fca1-0x43fca7: DRAG = -0.15 unconditionally (both phases). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, -0.15f);
@@ -4199,7 +4224,7 @@ static void body_0x84(int i)
          * shared tail. */
         if (state_machine_call_ret(slot_base(i)) == 1) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
     } else {
         /* asm 0x43fd8b-0x43fd94: POS_Y -= VEL_Y (cancel preamble gravity).
@@ -4211,13 +4236,11 @@ static void body_0x84(int i)
     }
 
     /* LAB_0043f6c8 / shared LAB_004402a2 tail — kill on AGE == 300, else
-     * fall through to default-tail (LAB_00440dc1) wall-bounce body.
-     * body_0x84 doesn't set the per-tick flag, so wall-bounce is a
-     * no-op in production; wired for engine fidelity. */
+     * fall through to default-tail (LAB_00440dc1) wall-bounce body. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 300) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15e — types 0x73 / 0x78 / 0x7a shared trail-cull body ════
@@ -4284,7 +4307,7 @@ static void body_0x84(int i)
  * exercises the trail-emit + cull + state-machine chain.  No new hooks
  * needed.
  */
-static void body_0x73_or_0x78_or_0x7a(int i)
+static rec_next_t body_0x73_or_0x78_or_0x7a(int i)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -4309,7 +4332,7 @@ static void body_0x73_or_0x78_or_0x7a(int i)
         if (owner_a && owner_read_i(owner_a, 0xcf8) != 0) {
             scene1_records_b_tick_kill_slot(i);
         }
-        return;
+        return REC_CONTINUE;
     }
 
     /* AGE == 1: dual trail emit.  Both overlay_spawn calls pass owner_a
@@ -4357,7 +4380,7 @@ static void body_0x73_or_0x78_or_0x7a(int i)
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* asm 0x44058d-0x4405a3: clear DAT_06a46f94, state_machine(slot).
@@ -4369,17 +4392,15 @@ static void body_0x73_or_0x78_or_0x7a(int i)
     int sm_ret = state_machine_call_ret(slot_base(i));
     if (sm_ret != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* LAB_00440741 / LAB_004402a2 → 0x440dc1 — kill on AGE == 0x78, else
-     * fall through to default-tail wall-bounce body.  body_0x73_or_0x78_or_0x7a
-     * doesn't set the per-tick flag, so this is a no-op in production;
-     * wired for engine fidelity (C8j-tick.16-wire.9). */
+     * fall through to default-tail wall-bounce body. */
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15f — type 0x76 / 0xa3 shared crawl+pose-snap body ═══════
@@ -4441,7 +4462,7 @@ static void body_0x73_or_0x78_or_0x7a(int i)
  * landed C8j allocator's type set; `--force-b-npc 0x76/0xa3` exercises
  * the crawl + LIFE_MULT ramp + pose-snap chain.  No new hooks needed.
  */
-static void body_0x76_or_0xa3(int i, int32_t type)
+static rec_next_t body_0x76_or_0xa3(int i, int32_t type)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -4457,7 +4478,7 @@ static void body_0x76_or_0xa3(int i, int32_t type)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - vx);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - vy);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - vz);
-        return;
+        return REC_CONTINUE;
     }
 
     /* asm 0x440ad6-0x440aff: LIFE_MULT += 0.01, VEL_X *= 0.99, VEL_Z *= 0.99
@@ -4475,7 +4496,7 @@ static void body_0x76_or_0xa3(int i, int32_t type)
     if (part_idx == 0) {
         if (state_machine_call_ret(slot_base(i)) != 0) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
     }
 
@@ -4521,13 +4542,11 @@ static void body_0x76_or_0xa3(int i, int32_t type)
     }
 
     /* asm 0x440ba7-0x440bae: kill on AGE == 0x5a, else fall through to
-     * LAB_00440dbd → 0x440dc1 default-tail wall-bounce body.
-     * body_0x76_or_0xa3 doesn't set the per-tick flag, so this is a no-op
-     * in production; wired for engine fidelity (C8j-tick.16-wire.8). */
+     * LAB_00440dbd → 0x440dc1 default-tail wall-bounce body. */
     if (age == 0x5a) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15f — type 0x77 / 0xa2 shared owner-follow body ══════════
@@ -4601,14 +4620,14 @@ static void body_0x76_or_0xa3(int i, int32_t type)
  * landed C8j allocator's type set; `--force-b-npc 0x77/0xa2` exercises
  * the owner-follow chain.  No new hooks needed.
  */
-static void body_0x77_or_0xa2(int i, int32_t type)
+static rec_next_t body_0x77_or_0xa2(int i, int32_t type)
 {
     /* asm 0x4408b8-0x4408c2: type 0x77 specific kill. */
     if (type == 0x77) {
         const void *owner_a = slot_owner_a(i);
         if (owner_a && owner_read_i(owner_a, 0xcf8) != 0) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
     }
 
@@ -4704,18 +4723,16 @@ static void body_0x77_or_0xa2(int i, int32_t type)
         /* asm 0x440a90-0x440a99: 0x77 calls SM unconditionally.  If
          * ret != 0 → advance iter (LAB_0043fbbc; skip AGE==4000 check). */
         if (state_machine_call_ret(slot_base(i)) != 0) {
-            return;
+            return REC_CONTINUE;
         }
     }
 
     /* asm 0x440a9f-0x440aa9: `jmp 0x440aa9 → LAB_004402a2 → 0x440dc1` — kill
-     * on AGE == 4000, else fall through to default-tail wall-bounce body.
-     * body_0x77_or_0xa2 doesn't set the per-tick flag, so this is a no-op
-     * in production; wired for engine fidelity (C8j-tick.16-wire.8). */
+     * on AGE == 4000, else fall through to default-tail wall-bounce body. */
     if (age == 4000) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15g — types 0x2e / 0x36 player-homing damped drift ═══════
@@ -4785,7 +4802,7 @@ static void body_0x77_or_0xa2(int i, int32_t type)
  * Player position read from `g_scene1_player_pos[3]` (DAT_056da1d8/dc/e0).
  */
 
-static void body_0x2e_or_0x36(int i, int32_t type)
+static rec_next_t body_0x2e_or_0x36(int i, int32_t type)
 {
     int32_t *slot = slot_base(i);
 
@@ -4892,13 +4909,11 @@ static void body_0x2e_or_0x36(int i, int32_t type)
 
     /* asm 0x440298-0x4402a8: shared LAB_00440298 → LAB_004402a2 → 0x440dc1
      * tail — kill on AGE == 0x100, else fall through to default-tail wall-
-     * bounce body.  body_0x2e_or_0x36 doesn't set the per-tick flag, so
-     * this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.10). */
+     * bounce body. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15h — types 0xa0 + 0x7e cull-tail variants ═══════════════
@@ -4978,7 +4993,7 @@ static void body_0x2e_or_0x36(int i, int32_t type)
  * (PHC #14 stand-in), state_machine_call_ret (PHC #20), overlay_spawn
  * (PHC #11), scene1_records_b_tick_kill_slot.
  */
-static void body_0xa0(int i)
+static rec_next_t body_0xa0(int i)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -4999,7 +5014,7 @@ static void body_0xa0(int i)
         if (owner_b && owner_read_i(owner_b, 0x440) != 0) {
             scene1_records_b_tick_kill_slot(i);
         }
-        return;
+        return REC_CONTINUE;
     }
 
     /* asm 0x43fbd1-0x43fc43: AGE == 1 dual NULL-owner overlay_spawn. */
@@ -5044,7 +5059,7 @@ static void body_0xa0(int i)
     if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         /* asm 0x43fc88: kill + AGE==0x78 check (LAB_0043fada). */
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* asm 0x43fc76-0x43fc83: SM call; nonzero → kill+advance (skip
@@ -5052,20 +5067,18 @@ static void body_0xa0(int i)
     int sm_ret = state_machine_call_ret(slot_base(i));
     if (sm_ret != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* LAB_0043fada → 0x440dc1 — kill on AGE == 0x78; else fall through to
-     * default-tail wall-bounce body.  body_0xa0 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.9). */
+     * default-tail wall-bounce body. */
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
-static void body_0x7e(int i)
+static rec_next_t body_0x7e(int i)
 {
     /* asm 0x44036a-0x44036f: DRAG = 0 (entry via LAB_004402ad jne 0x44036a
      * — skips the 0x73-family head since 0x7e isn't in {0x73,0x78,0x7a}). */
@@ -5082,7 +5095,7 @@ static void body_0x7e(int i)
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* asm 0x44058d-0x4405a3: clear DAT_06a46f94, SM call.
@@ -5094,18 +5107,16 @@ static void body_0x7e(int i)
     int sm_ret = state_machine_call_ret(slot_base(i));
     if (sm_ret != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* LAB_00440741 / LAB_004402a2 → 0x440dc1 — kill on AGE == 0x78, else
-     * fall through to default-tail wall-bounce body.  body_0x7e doesn't
-     * set the per-tick flag, so this is a no-op in production; wired for
-     * engine fidelity (C8j-tick.16-wire.9). */
+     * fall through to default-tail wall-bounce body. */
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15i — entity-bounce shared body ═══════════════════════════
@@ -5200,22 +5211,11 @@ static void body_0x7e(int i)
  * entity} <type>` exercises end-to-end (cull-default-visible → SM →
  * AGE==0x78 kill).
  */
-static void body_entity_bounce_inner(int i, int32_t type);
-static void body_entity_bounce(int i, int32_t type)
-{
-    /* Engine-faithful tail: body_entity_bounce sets the per-tick flag
-     * via the inline 0x56/0x96 ground-bounce path (asm 0x440714) and
-     * the engine then falls through to LAB_00440dc1 default-tail wall-
-     * bounce body via the shared LAB_004402a2 / LAB_00440741 epilogue.
-     * Wrap the inner body so every early return funnels through the
-     * post-body fall-through.  body_lab_00440dc1 gates internally on
-     * slot[AUX_C8] + per-tick flag, so this is a no-op for slots that
-     * don't have AUX_C8 latched from an earlier body. */
-    body_entity_bounce_inner(i, type);
-    scene1_records_b_run_lab_00440dc1(i);
-}
-
-static void body_entity_bounce_inner(int i, int32_t type)
+/* Every exit falls into the wall tail (the 0x56/0x96 ground-bounce path sets
+ * the per-tick flag, asm 0x440714; all paths end in LAB_00440741 →
+ * LAB_004402a2 → 0x440dc1, or a kill).  The earlier wrapper ran the tail
+ * twice on the 0x56/0x96 path. */
+static rec_next_t body_entity_bounce(int i, int32_t type)
 {
     /* 1. asm 0x44036a-0x44036f: DRAG = 0 unconditionally. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
@@ -5319,7 +5319,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
                     if (bc == 1) se_play(type == 0x56 ? 0x158 : 0x168);
                     if (bc >= 2) {
                         scene1_records_b_tick_kill_slot(i);
-                        return;
+                        return REC_TAIL;
                     }
                 }
             }
@@ -5334,7 +5334,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
             int ret = state_machine_call_ret(slot_base(i));
             if (ret == 1) {
                 scene1_records_b_tick_kill_slot(i);
-                return;
+                return REC_TAIL;
             }
             if (ret == 2) {
                 slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
@@ -5349,8 +5349,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
          * once) */
         if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78)
             scene1_records_b_tick_kill_slot(i);
-        scene1_records_b_run_lab_00440dc1(i);
-        return;
+        return REC_TAIL;
     }
 
     /* 3. asm 0x44047a-0x44049f: cull_query gate (skipped for 0x56/0x96).
@@ -5360,7 +5359,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
     float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     if (cull_query(px, py, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) >= 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
 
     /* 4a. asm 0x4404a5-0x440569: type 0x51 — 3-iter SM-driven loop with
@@ -5402,7 +5401,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
         if (cur_age == 0x78) {
             scene1_records_b_tick_kill_slot(i);
         }
-        return;
+        return REC_TAIL;
     }
 
     /* 4b. asm 0x440579-0x440588: type 99 — DRAG = 1.0; SM(); LAB_00440741. */
@@ -5412,7 +5411,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
         if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
             scene1_records_b_tick_kill_slot(i);
         }
-        return;
+        return REC_TAIL;
     }
 
     /* 4c. asm 0x44058d-0x4405ee: general SM cascade for cluster +
@@ -5434,16 +5433,17 @@ static void body_entity_bounce_inner(int i, int32_t type)
             }
         }
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     if (ret != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     /* ret == 0: LAB_00440741. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.15j — body_0x83 (shop-walker velocity nudge) ──────────────
@@ -5516,7 +5516,7 @@ static void body_entity_bounce_inner(int i, int32_t type)
  *     consumption pattern.
  *   - Damage write to owner_a+0xe2c / +0xe34 (NOT +0xe30 / +0xe38) — verified
  *     asm 0x43f6b8 / 0x43f6be. */
-static void body_0x83(int i)
+static rec_next_t body_0x83(int i)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -5589,7 +5589,7 @@ static void body_0x83(int i)
         void *owner_a = slot_owner_a(i);
         if (owner_a && owner_read_i(owner_a, 0xcf8) != 0) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
     }
 
@@ -5661,10 +5661,8 @@ static void body_0x83(int i)
     /* engine `jmp 0x43f6d2 → LAB_004402a2 → LAB_00440dc1` (and also
      * `jmp 0x43f34a / 0x43f3a2 → LAB_00440dbd → LAB_00440dc1` from
      * inside this body's earlier phases) — fall through to default-tail
-     * wall-bounce body.  body_0x83 doesn't set the per-tick flag, so
-     * this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.4). */
-    scene1_records_b_run_lab_00440dc1(i);
+     * wall-bounce body. */
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15k — type 0x75 ground-cull walker body ═══════════════════
@@ -5770,7 +5768,7 @@ static float angle_step_toward(float current, float target, float max_step)
     return result;
 }
 
-static void body_0x75(int i)
+static rec_next_t body_0x75(int i)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -5817,7 +5815,7 @@ static void body_0x75(int i)
             if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
                 scene1_records_b_tick_kill_slot(i);
             }
-            return;
+            return REC_TAIL;
         }
 
         /* Phase 1 angle-step + matrix-driven pose around owner_a. */
@@ -5875,7 +5873,7 @@ static void body_0x75(int i)
                     slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc);
                     if (bc == 3) {
                         scene1_records_b_tick_kill_slot(i);
-                        return;
+                        return REC_TAIL;
                     }
                 }
             }
@@ -5886,17 +5884,15 @@ static void body_0x75(int i)
 
     /* Shared tail (LAB_0043ea5e): state_machine call, ret!=0 kills, else
      * fall to LAB_0043ed87 AGE==400 kill check + jmp 0x440dbd → 0x440dc1
-     * (default-tail wall-bounce body).  body_0x75 doesn't set the per-tick
-     * flag, so this is a no-op in production; wired for engine fidelity
-     * (C8j-tick.16-wire.10). */
+     * (default-tail wall-bounce body). */
     if (state_machine_call_ret(slot_base(i)) != 0) {
         scene1_records_b_tick_kill_slot(i);
-        return;
+        return REC_TAIL;
     }
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
         scene1_records_b_tick_kill_slot(i);
     }
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* ═══ C8j-tick.15l — type 0x7c sister-hunting projectile body ═══════════
@@ -6009,15 +6005,10 @@ static void body_0x75(int i)
  *     POS_Y is at-or-below ground+1.0 latches the impact (cascading
  *     notify+SE+3-emit then AGE→200).  In practice the body kills itself
  *     at AGE==130 well before the impact window stays open multiple ticks.
- *   - LAB_00440dc1 (the default-tail wall-bounce body, asm 0x440dc1..
- *     0x4411e3, 1058 B) is unported.  Both phases of body_0x7c end with
- *     a `jmp LAB_00440dc1` in the engine — our port simply returns,
- *     skipping any wall-bounce post-processing.  Observable effect:
- *     production HOUSE-state slots that touch a wall while AGE in
- *     [-N, 200] won't bounce off it.  Not a regression today since type
- *     0x7c isn't allocated by HOUSE-state callers.  PHC #25 tracks.
+ *   - Both phases end in the wall tail LAB_00440dc1 (Phase 2 via
+ *     0x43f734, Phase 1 via 0x43fada): both return REC_TAIL.
  */
-static void body_0x7c(int i)
+static rec_next_t body_0x7c(int i)
 {
     int32_t age_initial = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
 
@@ -6029,8 +6020,8 @@ static void body_0x7c(int i)
         if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) > 0xe6) {
             scene1_records_b_tick_kill_slot(i);
         }
-        /* engine `jmp LAB_00440dc1` — default-tail body unported. */
-        return;
+        /* 0x43f734: `jmp LAB_00440dc1` — the wall tail. */
+        return REC_TAIL;
     }
 
     /* Phase 1 (AGE <= 200).  Track hit_flag locally; engine reuses
@@ -6180,11 +6171,8 @@ static void body_0x7c(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
         scene1_records_b_tick_kill_slot(i);
     }
-    /* engine `jmp LAB_00440dc1` (direct, asm 0x43fae2) — wall-bounce tail.
-     * body_0x7c does NOT set the per-tick flag itself; this call is a
-     * no-op in production unless an upstream helper set the flag earlier
-     * in the same tick.  Wired for engine fidelity. */
-    scene1_records_b_run_lab_00440dc1(i);
+    /* engine `jmp LAB_00440dc1` (direct, asm 0x43fae2) — wall-bounce tail. */
+    return REC_TAIL;
 }
 
 /* ─── C8j-tick.16 — LAB_00440dc1 default-tail wall-bounce body ──────────
@@ -6253,7 +6241,6 @@ static void body_0x7c(int i)
  * for test observability only.
  */
 void scene1_records_b_run_lab_00440dc1(int i);
-static void body_lab_00440dc1(int i) { scene1_records_b_run_lab_00440dc1(i); }
 void scene1_records_b_run_lab_00440dc1(int i)
 {
     int32_t type = slot_get_i(i, SCENE1_RECORDS_B_OFF_TYPE);
@@ -6447,6 +6434,29 @@ static int32_t seq_next(void)                 /* FUN_0044375e */
     return g_scene1_record_b_seq_counter++;
 }
 
+/* type 0x30 (48): asm 0x43f103..0x43f16d → 0x43f39b.  ROT_Z += 0.05, DRAG 3;
+ * the state machine's nonzero return kills (0x4411e3); on odd ages a 0x21
+ * particle (FUN_00447f4f, owner 0 — ebx is 0 here, the last arg the slot
+ * index); dead at 0x78 (0x440dbd), then the wall tail.  The one type with a
+ * retail body the dispatch lacked (found by the 2026-11-11 tail audit).
+ * UNVERIFIED vs retail: no recording is known to allocate type 0x30. */
+static rec_next_t body_0x30(int i)
+{
+    static const float k0p05 = 0.05000000074505806f;   /* DAT_005198f8 */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + k0p05));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 3.0f);    /* DAT_00519438 */
+    if (state_machine_call_ret(slot_base(i)) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return REC_TAIL;
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) & 1)
+        scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                     slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0x21, 1.0f, i);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) scene1_records_b_tick_kill_slot(i);
+    return REC_TAIL;
+}
+
 /* type 0x61 (97): Caillou's ice block.  DRAG 3; it rides 5 below, slows
  * from 50, stops at 70 and rises 0.8 a tick to the floor (LIFE_MULT 1.5,
  * shrinking from 285); six shards 39..41 at 68..73 (rand: scale, z, y, x), a
@@ -6454,7 +6464,7 @@ static int32_t seq_next(void)                 /* FUN_0044375e */
  * 10 (x, z, scale); at 70 SE 696, the ring 151, the shake; 70..289 in view
  * it hits (a hit ages it 25 and skips the tail); a new SEQ every 10 ticks;
  * dead at 300. */
-static void body_0x61(int i)
+static rec_next_t body_0x61(int i)
 {
     static const float k5 = 5.0f, k0p8 = 0.800000011920929f, k1p5 = 1.5f, k15 = 15.0f;
     static const float k0p95 = 0.949999988079071f, k0p2 = 0.20000000298023224f;
@@ -6520,12 +6530,12 @@ static void body_0x61(int i)
                    slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) < 0 &&
         state_machine_call_ret(slot_base(i)) != 0) {
         slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) + 25);
-        return;
+        return REC_CONTINUE;
     }
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) % 10 == 0)
         slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq_next());
     if (!(slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) < 300)) scene1_records_b_tick_kill_slot(i);
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* type 0x64 (100): Tielle's homing arrows.  LIFE_MULT 0.2, DRAG 0.3; they
@@ -6534,7 +6544,7 @@ static void body_0x61(int i)
  * 30 (FLAG_A 0) a hit bursts 16 and, with pierces left (byte +0xc2), bounces
  * up 0.5 with the age reset — else dies; a new SEQ at every 30th tick; dead
  * at 150. */
-static void body_0x64(int i)
+static rec_next_t body_0x64(int i)
 {
     static const float k0p2 = 0.20000000298023224f, k0p3 = 0.30000001192092896f;
     static const float k0p03 = 0.029999999329447746f;
@@ -6572,7 +6582,7 @@ static void body_0x64(int i)
         int8_t *pierce = (int8_t *)slot + 0xc2;
         if (*pierce <= 0) {
             scene1_records_b_tick_kill_slot(i);
-            return;
+            return REC_TAIL;
         }
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.5f);
         slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 0);
@@ -6581,7 +6591,7 @@ static void body_0x64(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) % 30 == 29)
         slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq_next());
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 150) scene1_records_b_tick_kill_slot(i);
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* type 0x6a (106): Caillou's orbs.  Below 200 they orbit the owner (the
@@ -6591,7 +6601,7 @@ static void body_0x64(int i)
  * to 0.8 and home (0.6 / 0.03 / 0.05 / 0.96; DRAG 0.3; a new SEQ at every
  * 30th tick).  The trail 28 every tick; a hit bursts 16 and kills; dead at
  * 400. */
-static void body_0x6a(int i)
+static rec_next_t body_0x6a(int i)
 {
     static const float k0p05 = 0.05000000074505806f, k0p8 = 0.800000011920929f;
     static const float k0p3 = 0.30000001192092896f, k0p04 = 0.03999999910593033f;
@@ -6648,10 +6658,10 @@ static void body_0x6a(int i)
                  slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 16,
                  spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k0p3), 12);
     scene1_records_b_tick_kill_slot(i);
-    return;
+    return REC_TAIL;
 alive:
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) scene1_records_b_tick_kill_slot(i);
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
 /* type 0x9d (157): Arma's beam (FUN_0043ae20, the `*v0 == 157` block).  It
@@ -6659,12 +6669,12 @@ alive:
  * unit velocity along ROT_X; SE 705 and the shake at 80; DRAG 2.5; 80..159
  * it sweeps 20 unit steps a tick (the state machine at each), then steps
  * back; dead at 175 or when the owner is hurt (+0xcf8). */
-static void body_0x9d(int i)
+static rec_next_t body_0x9d(int i)
 {
     static const float k3p5 = 3.5f, k20 = 20.0f;
     int32_t *slot = slot_base(i);
     const void *owner = slot_owner_a(i);
-    if (!owner) return;
+    if (!owner) return REC_TAIL;
     const float lm = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
     const double rot = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
     const float sn = spill32(x87_crt_sin(rot));
@@ -6692,10 +6702,10 @@ static void body_0x9d(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 80) notify_queue_call(10, 4, 4, 1.0f);
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 175) scene1_records_b_tick_kill_slot(i);
     if (owner_read_i(owner, 0xcf8) != 0) scene1_records_b_tick_kill_slot(i);
-    scene1_records_b_run_lab_00440dc1(i);
+    return REC_TAIL;
 }
 
-static void dispatch_default(int slot_idx, int32_t type)
+scene1_b_next_t scene1_records_b_run_type_body(int slot_idx, int32_t type)
 {
     /* C8j-tick.2 — anchor cascade.  Per the engine's nested if/goto
      * cascade at L36464-L36732, types 0x2f/0x88/0x9a share a body and
@@ -6710,34 +6720,35 @@ static void dispatch_default(int slot_idx, int32_t type)
      * C8j-tick.4 — Body 1 (L689-L812).  Types {2, 3, 4, 0x22, 0x54, 0x67,
      * 0x6d, 0x6e, 0x6f, 0x70} — kill-on-ground + bounce particles with
      * owner_a anchored pose + per-type DRAG + state-machine loop. */
+    rec_next_t next = REC_TAIL;
     switch (type) {
     case 0x2f:
     case 0x88:
     case 0x9a:
-        body_anchor_joint(slot_idx, type);
+        next = body_anchor_joint(slot_idx, type);
         break;
     case 0x1e:
-        body_0x1e(slot_idx);
+        next = body_0x1e(slot_idx);
         break;
     case 0x89:
     case 0x9e:
-        body_compass(slot_idx, type);
+        next = body_compass(slot_idx, type);
         break;
     case 0x9c:
-        body_0x9c(slot_idx);
+        next = body_0x9c(slot_idx);
         break;
     case 0x34:
-        body_0x34(slot_idx);
+        next = body_0x34(slot_idx);
         break;
     case 0x68:
-        body_0x68(slot_idx);
+        next = body_0x68(slot_idx);
         break;
     case 0x74:
     case 0x79:
-        body_0x74_or_0x79(slot_idx, type);
+        next = body_0x74_or_0x79(slot_idx, type);
         break;
     case 0x69:
-        body_0x69(slot_idx);
+        next = body_0x69(slot_idx);
         break;
     case 2:
     case 3:
@@ -6749,87 +6760,87 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x6e:
     case 0x6f:
     case 0x70:
-        body_kill_bounce(slot_idx, type);
+        next = body_kill_bounce(slot_idx, type);
         break;
     case 0x85:
-        body_0x85(slot_idx);
+        next = body_0x85(slot_idx);
         break;
     case 0x8a:
     case 0x8b:
-        body_0x8a_or_0x8b(slot_idx, type);
+        next = body_0x8a_or_0x8b(slot_idx, type);
         break;
     case 0x5b:
     case 0x5c:
     case 0x5e:
     case 0x86:
     case 0x87:
-        body_0x5b_group(slot_idx, type);
+        next = body_0x5b_group(slot_idx, type);
         break;
     case 0x71:
     case 0x72:
     case 0x7d:
-        body_0x71_72_7d(slot_idx, type);
+        next = body_0x71_72_7d(slot_idx, type);
         break;
     case 0x1f:
-        body_0x1f(slot_idx);
+        next = body_0x1f(slot_idx);
         break;
     case 0x5a:
     case 0x98:
-        body_0x5a_or_0x98(slot_idx);
+        next = body_0x5a_or_0x98(slot_idx);
         break;
     case 0x6c:
-        body_0x6c(slot_idx);
+        next = body_0x6c(slot_idx);
         break;
     case 0x6b:
-        body_0x6b(slot_idx);
+        next = body_0x6b(slot_idx);
         break;
     case 0x28:
-        body_0x28(slot_idx);
+        next = body_0x28(slot_idx);
         break;
     case 0x38:
-        body_0x38(slot_idx);
+        next = body_0x38(slot_idx);
         break;
     case 0x29:
-        body_0x29(slot_idx);
+        next = body_0x29(slot_idx);
         break;
     case 0x2c:
-        body_0x2c(slot_idx);
+        next = body_0x2c(slot_idx);
         break;
     case 0x8c:
-        body_0x8c(slot_idx);
+        next = body_0x8c(slot_idx);
         break;
     case 0x23:
-        body_0x23(slot_idx);
+        next = body_0x23(slot_idx);
         break;
     case 0x3a:
-        body_0x3a(slot_idx);
+        next = body_0x3a(slot_idx);
         break;
     case 0x3c:
-        body_0x3c(slot_idx);
+        next = body_0x3c(slot_idx);
         break;
     case 0x3b:
-        body_0x3b(slot_idx);
+        next = body_0x3b(slot_idx);
         break;
     case 0x21:
     case 0x25:
     case 0x31:
     case 0x32:
-        body_021_to_032(slot_idx, type);
+        next = body_021_to_032(slot_idx, type);
         break;
     case 0x2b:
-        body_0x2b(slot_idx);
+        next = body_0x2b(slot_idx);
         break;
     case 0x26:
     case 0x2a:
-        body_0x26_or_0x2a(slot_idx);
+        next = body_0x26_or_0x2a(slot_idx);
         break;
     case 0x27:
-        body_0x27(slot_idx);
+        next = body_0x27(slot_idx);
         break;
     case 0x10:
     case 0x16:
     case 0x17:
-        body_0x10_16_17(slot_idx);
+        next = body_0x10_16_17(slot_idx);
         break;
     /* C8j-tick.10 — Body 6 + Body 7 (motion-table anchor). */
     case 0xa:
@@ -6837,100 +6848,100 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x14:
     case 0x13:
     case 0x99:
-        body_motion_anchor_keep(slot_idx, type);
+        next = body_motion_anchor_keep(slot_idx, type);
         break;
     case 0x11:
     case 0xc:
-        body_motion_anchor_kill_7(slot_idx, type);
+        next = body_motion_anchor_kill_7(slot_idx, type);
         break;
     /* C8j-tick.11 — Body 7a (first FUN_0043865e dispatch cluster). */
     case 0x46:
-        body_0x46(slot_idx);
+        next = body_0x46(slot_idx);
         break;
     case 0x97:
-        body_0x97(slot_idx);
+        next = body_0x97(slot_idx);
         break;
     case 0xe:
     case 0x12:
-        body_0xe_or_0x12(slot_idx);
+        next = body_0xe_or_0x12(slot_idx);
         break;
     case 0xd:
     case 0x15:
-        body_0xd_or_0x15(slot_idx, type);
+        next = body_0xd_or_0x15(slot_idx, type);
         break;
     /* C8j-tick.12 — Body 7b head (motion-gated walker + 0x9b big body + 0x24). */
     case 0xf:
-        body_0xf_motion_walker(slot_idx);
+        next = body_0xf_motion_walker(slot_idx);
         break;
     case 0x9b:
-        body_0x9b(slot_idx);
+        next = body_0x9b(slot_idx);
         break;
     case 0x24:
-        body_0x24(slot_idx);
+        next = body_0x24(slot_idx);
         break;
     /* C8j-tick.13 — type 0x53 (drift-damping body). */
     case 0x53:
-        body_0x53(slot_idx);
+        next = body_0x53(slot_idx);
         break;
     /* C8j-tick.14 — type 0x58 / 0x66 shared anchor-rotor body. */
     case 0x58:
     case 0x66:
-        body_0x58_or_0x66(slot_idx, type);
+        next = body_0x58_or_0x66(slot_idx, type);
         break;
     /* C8j-tick.15a — trivial tail bodies (0x33 / 0x60 / 0x65). */
     case 0x33:
-        body_0x33(slot_idx);
+        next = body_0x33(slot_idx);
         break;
     case 0x60:
-        body_0x60(slot_idx);
+        next = body_0x60(slot_idx);
         break;
     case 0x65:
-        body_0x65(slot_idx);
+        next = body_0x65(slot_idx);
         break;
     /* C8j-tick.15b — owner-anchored 5f/3e shared + 0x82 lerp. */
     case 0x5f:
     case 0x3e:
-        body_0x5f_or_0x3e(slot_idx, type);
+        next = body_0x5f_or_0x3e(slot_idx, type);
         break;
     case 0x82:
-        body_0x82(slot_idx);
+        next = body_0x82(slot_idx);
         break;
     /* C8j-tick.15c — three-type ground-bounce shared body. */
     case 0x7b:
     case 0xa1:
     case 0xa4:
-        body_0x7b_a1_a4(slot_idx, type);
+        next = body_0x7b_a1_a4(slot_idx, type);
         break;
     /* C8j-tick.15d — single-type 0x84 ground-bounce + Table A spawn + kill. */
     case 0x84:
-        body_0x84(slot_idx);
+        next = body_0x84(slot_idx);
         break;
     /* C8j-tick.15e — three-type trail-emit + cull + state-machine body. */
     case 0x73:
     case 0x78:
     case 0x7a:
-        body_0x73_or_0x78_or_0x7a(slot_idx);
+        next = body_0x73_or_0x78_or_0x7a(slot_idx);
         break;
     /* C8j-tick.15f — paired owner-driven tail bodies. */
     case 0x76:
     case 0xa3:
-        body_0x76_or_0xa3(slot_idx, type);
+        next = body_0x76_or_0xa3(slot_idx, type);
         break;
     case 0x77:
     case 0xa2:
-        body_0x77_or_0xa2(slot_idx, type);
+        next = body_0x77_or_0xa2(slot_idx, type);
         break;
     /* C8j-tick.15g — player-homing damped drift body. */
     case 0x2e:
     case 0x36:
-        body_0x2e_or_0x36(slot_idx, type);
+        next = body_0x2e_or_0x36(slot_idx, type);
         break;
     /* C8j-tick.15h — types 0xa0 + 0x7e cull-tail variants. */
     case 0xa0:
-        body_0xa0(slot_idx);
+        next = body_0xa0(slot_idx);
         break;
     case 0x7e:
-        body_0x7e(slot_idx);
+        next = body_0x7e(slot_idx);
         break;
     case 0x4d:
     case 0x4e:
@@ -6944,42 +6955,51 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x96:
     case 0xa5:
     case 0xa6:
-        body_entity_bounce(slot_idx, type);
+        next = body_entity_bounce(slot_idx, type);
         break;
     case 0x83:
-        body_0x83(slot_idx);
+        next = body_0x83(slot_idx);
         break;
     /* C8j-tick.15k — type 0x75 ground-cull walker. */
     case 0x75:
-        body_0x75(slot_idx);
+        next = body_0x75(slot_idx);
         break;
     /* C8j-tick.15l — type 0x7c sister-hunting projectile. */
     case 0x7c:
-        body_0x7c(slot_idx);
+        next = body_0x7c(slot_idx);
+        break;
+    case 0x30:
+        next = body_0x30(slot_idx);
         break;
     case 0x61:
-        body_0x61(slot_idx);
+        next = body_0x61(slot_idx);
         break;
     case 0x64:
-        body_0x64(slot_idx);
+        next = body_0x64(slot_idx);
         break;
     case 0x6a:
-        body_0x6a(slot_idx);
+        next = body_0x6a(slot_idx);
         break;
     case 0x9d:
-        body_0x9d(slot_idx);
+        next = body_0x9d(slot_idx);
         break;
     default:
-        /* PORT-DEBT(gap, FUN_0043ae20): retail's sequential-`if` head (types
-         * up to the 0x9b chain) falls through to this tail after each body
-         * unless the body `continue`s (0x72 at AGE % 5 != 4) — only 0x1f and
-         * the bodies that call it themselves run it here; the rest are
-         * unaudited (matters only with AUX_C8 set + a wall on the ray).
-         * LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).
-         * Heavily gated (TYPE != 0 + slot[AUX_C8] != 0 + per-tick flag);
-         * BSS-zero defaults make it unreachable in HOUSE production.  See
-         * body_lab_00440dc1 above for the full asm trace. */
-        body_lab_00440dc1(slot_idx);
+        /* No body: the type falls through every head `if` and the ladder's
+         * `cmp 0x2e / 0x36; jne 0x440dc1` straight into the tail. */
         break;
     }
+    return next;
+}
+
+/* FUN_0043ae20 per record after the preamble: the type body, then the shared
+ * wall tail LAB_00440dc1 unless the body `continue`d (table from the disasm:
+ * docs/findings/scene1-records-b-tick.md §"Wall-tail fall-through").  The
+ * tail only acts with AUX_C8 + the per-tick flag + a wall on the ray; only
+ * 0x1f's hit (obsidian-11f-15f-ahrimans) is known to be exercised by a
+ * recording — for the other bodies the tail step is UNVERIFIED vs retail
+ * (it matches the disasm; the 125 gate rows did not change). */
+static void dispatch_default(int slot_idx, int32_t type)
+{
+    if (scene1_records_b_run_type_body(slot_idx, type) == REC_TAIL)
+        scene1_records_b_run_lab_00440dc1(slot_idx);
 }

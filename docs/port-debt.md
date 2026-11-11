@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **57**
-- distinct retiring engine functions: **48**
+- total open debts: **56**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), gap (1), house-teardown (1), oob (1), render-coupled (6), semantic-collision (1), structure (1).
+> ⚠️  **14 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (6), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -53,7 +53,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00430c6d | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_0043ae20 | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
@@ -156,9 +155,8 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| gap | FUN_0043ae20 | src/scene1_records_b_tick.c:6999 | retail's sequential-`if` head (types |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:819 | the engine frees the shop |
-| oob | 0x43e... | src/scene1_records_b_tick.c:3236 | types >= 64 read past DAT_005c23f0 into |
+| oob | 0x43e... | src/scene1_records_b_tick.c:3240 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1729 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |

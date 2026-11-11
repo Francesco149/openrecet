@@ -753,15 +753,31 @@ scene1_b_aux_44b255_fn    scene1_records_b_set_aux_44b255_hook(
 #define g_scene1_b_wall_freshness (&g_mapcol_movers.slot[50])
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
- * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect
- * spawn (LAB_0043f39b 0x21 particle on age-parity) deferred to
- * C8j-tick.13. */
+ * TYPE = 0 makes the next allocator scan reclaim it. */
 void scene1_records_b_tick_kill_slot(int slot_idx);
 
+/* What FUN_0043ae20 does after a type body.  Its head is a run of plain
+ * sequential `if (type == X) {…}` blocks and the rest an else-if ladder
+ * ending in `cmp 0x2e / 0x36; jne 0x440dc1`: every body falls into the shared
+ * wall tail LAB_00440dc1 unless it jumps to the loop increment 0x43fbbc
+ * (`continue`).  A killed slot (TYPE 0) makes the tail a no-op (0x440dc3
+ * `test eax,eax; je 0x43fbbc`), so a kill exit may return either value; the
+ * port returns SCENE1_B_NEXT_TAIL for those.  Table (from the disasm, all
+ * types 1..0xa7): docs/findings/scene1-records-b-tick.md §"Wall-tail fall-through". */
+typedef enum {
+    SCENE1_B_NEXT_TAIL     = 0,   /* fall into LAB_00440dc1 */
+    SCENE1_B_NEXT_CONTINUE = 1,   /* `jmp 0x43fbbc` with the slot alive: no tail */
+} scene1_b_next_t;
+
+/* The type body alone (the dispatch switch), without the wall tail; returns
+ * whether retail falls into the tail.  The default per-type dispatch is this
+ * + scene1_records_b_run_lab_00440dc1 on SCENE1_B_NEXT_TAIL.  Exposed so
+ * tests pin the fall-through table. */
+scene1_b_next_t scene1_records_b_run_type_body(int slot_idx, int32_t type);
+
 /* Engine LAB_00440dc1 default-tail wall-bounce body.  In production this
- * runs as the dispatch `default:` arm (for types absent from the cascade)
- * and is also the target of explicit `jmp LAB_00440dc1` fall-throughs
- * from per-type body epilogues.  Exposed here so tests can directly drive
+ * runs after every type body that does not `continue` (see
+ * scene1_b_next_t) and for types absent from the cascade.  Exposed here so tests can directly drive
  * the body with pre-set slot state and a pre-set per-tick flag
  * (`g_scene1_records_b_tick_flag = 1`) — the outer tick loop clears the
  * flag at slot iter top, so testing via `scene1_records_b_tick()` only

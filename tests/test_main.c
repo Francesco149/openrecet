@@ -2737,6 +2737,8 @@ struct test_case {
     X(records_b_tick_dc1_body_7b_falls_through_to_wall_bounce) \
     X(records_b_tick_dc1_body_7b_no_aux_c8_no_wall_bounce) \
     X(records_b_tick_dc1_body_entity_bounce_falls_through) \
+    X(records_b_tick_wall_tail_fallthrough_table) \
+    X(records_b_tick_wall_tail_continue_skips_tail) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
