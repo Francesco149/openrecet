@@ -221,12 +221,10 @@ def local_rhost_procs():
     n = 0
     for d in os.listdir("/proc"):
         if d.isdigit():
-            try:
-                argv = open(f"/proc/{d}/cmdline", "rb").read().split(b"\0")
+            try:                    # the game process itself (~0.75 GB), not wine's start.exe / xvfb-run wrappers
+                n += open(f"/proc/{d}/comm").read().strip() == "rhost.exe"
             except OSError:
                 continue
-            if any(b"rhost.exe" in x for x in argv[:3]) and not os.path.basename(argv[0]).startswith((b"xvfb", b"sh", b"bash", b"zsh")):
-                n += 1
     return n
 
 
