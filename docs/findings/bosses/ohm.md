@@ -92,6 +92,8 @@ anim 5; from 100 alpha −8/tick, frees when it passes 0 (≈ tick 132).
 | player dies | `hp <= 0` |
 
 Port: fully ported, no PORT-DEBT in the AI. Death arm (anim 5, fade) unverified by recording, matches IDA.
+40F pair: verified `obsidian-31f-40f-ohms` (portrng identical ticks 1..44586 + save; shared bee cap, per-Ohm counters,
+first death without the sweep, second death's sweep) — no Ohm change needed (2026-11-11).
 
 ## 7. 40F pair (Obsidian Tower floor 39, `obs-40f`, retail-observed)
 

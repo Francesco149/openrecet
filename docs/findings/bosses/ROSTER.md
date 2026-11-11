@@ -48,13 +48,13 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | **49 black knight** | ブラックナイト | **`FUN_004279cf`** | **stub** |
-| 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | stub |
+| 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | ported (`actor_ai_skeleton`), verified `obsidian-31f-40f-ohms` (drift, lunge record 12, two revives) |
 | 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified (the 15F pair: `obsidian-11f-15f-ahrimans` identical + save) |
 | **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin` (identical + save) |
 | **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | ported; 61 verified `obsidian-16f-20f-golem` (identical + save; states 8 / 0 / 1 / 2 / 3, adds, death); 64 (dark) no recording |
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | ported; attached branch verified `obsidian-16f-20f-golem`; detached (arm lost) unreached |
-| 67 Ohm | オーム | `FUN_00422ed6` | ported, verified |
+| 67 Ohm | オーム | `FUN_00422ed6` | ported, verified (40F pair: `obsidian-31f-40f-ohms` identical + save) |
 | 68 / 69 crabs | カニ / 黒カニ | `FUN_00422092` | ported (68 verified) |
 | **70 / 71 jellyfish** | クラゲ / 赤クラゲ | `+0x3dc = DAT_0438ccc4`, **`FUN_004219f2`** | ported (`actor_ai_jelly`; 4 anim layers `FUN_004218e1`), 70 verified `obsidian-6f-10f-jellyfish` (identical + save; the 2 hit parts in `FUN_0043865e` with it); 71 no recording |
 | **72 hand** | 魔王の手 | **`FUN_00424641`** | **stub** |

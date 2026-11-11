@@ -146,6 +146,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     beaten → stage 8), the dungeon-3 arm's floor-29 timeline (stages 0 → 3 → 4 → 5 → 7, +0x2bce4 / +0x2bce5), Griff's AI
     FUN_00424b42 (`actor_ai_griff`), FUN_0042f7ad case 28 / 41; FUN_00497745 shared with the hire. Left: floor 49's
     timeline, the +0x2bce2 / +0x2bcf8 beats and the +0x2bce2 setup (PORT-DEBT); floor-49 AI arms unverified.
+  - ✅ 2026-11-11 (night): `obsidian-31f-40f-ohms` (Market food, a day burned, the guild, Obsidian 31F..39F incl. the 35F
+    slime checkpoint, the 40F Ohm pair killed, return, Save; 44,286 frames; was split f4433 on 31F) → identical + save
+    after one unit: FUN_00428213 (`actor_ai_skeleton`: drift / lunge record 12 / walk state 8) for types 50 / 51 (+0xb8c →
+    +0xadc = 2, the two revives) and FUN_0042f28c's default types; gate rows added. Ohm pair, slimes 4 / 5, bees 10,
+    35F portals needed no change.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
@@ -524,6 +529,6 @@ rhost.log: base / ask / offer / floor / acc).
   does that search does not (end save `fc2e4d81f26d` is a played-lineage start point).
 - **Agent dungeon coverage (2026-11-11):** Jade Way, Amber Garden end to end; Obsidian Tower 1F..20F (pumpkin ghost,
   jellyfish, the ahriman pair, the golem) — all port-identical + saves, on a CRAFTED lineage (`824053720e01` → …
-  → `671c5819784b`). Next by agents: Obsidian 21F..30F (Griff), 31F..50F, Lapis Ruins. Human played saves that far in
+  → `671c5819784b`), 21F..40F (Griff, the Ohm pair; end save `8d209cc3acd7`). Next by agents: Obsidian 41F..50F, Lapis Ruins. Human played saves that far in
   would replace the crafted lineage.
 <!-- FRONT:END -->

@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 744, discovered 1713 → 835 referenced-or-better (32.8%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 753, discovered 1704 → 844 referenced-or-better (33.1%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (744) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (753) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -210,6 +210,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41fa37 | FUN_0041fa37 | 55 | ✓ |  | record_hit.c |
 | 0x41fa6e | FUN_0041fa6e | 2851 | ✓ |  | actor_ai.c |
 | 0x420591 | FUN_00420591 | 84 | ✓ |  | record_hit.c |
+| 0x4205e5 | FUN_004205e5 | 1515 | ✓ |  | actor_ai.c |
+| 0x420bd0 | FUN_00420bd0 | 893 | ✓ |  | actor_ai.c |
 | 0x420f4d | FUN_00420f4d | 2452 | ✓ |  | actor_ai.c |
 | 0x4218e1 | FUN_004218e1 | 273 | ✓ |  | actor_ai.c |
 | 0x4219f2 | FUN_004219f2 | 1696 | ✓ |  | actor_ai.c |
@@ -222,15 +224,19 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x42439e | FUN_0042439e | 363 | ✓ |  | actor_ai.c |
 | 0x424509 | FUN_00424509 | 257 | ✓ |  | actor_ai.c |
 | 0x42460a | FUN_0042460a | 55 | ✓ |  | actor_ai.c, record_hit.c |
+| 0x424641 | FUN_00424641 | 1281 | ✓ |  | actor_ai.c |
 | 0x424b42 | FUN_00424b42 | 4285 | ✓ |  | actor_ai.c |
 | 0x425bff | FUN_00425bff | 64 | ✓ |  | record_hit.c |
+| 0x425c3f | FUN_00425c3f | 1656 | ✓ |  | actor_ai.c |
 | 0x4262b7 | FUN_004262b7 | 1370 | ✓ |  | actor_ai.c |
 | 0x426811 | FUN_00426811 | 1690 | ✓ |  | actor_ai.c |
 | 0x426eab | FUN_00426eab | 1788 | ✓ |  | actor_ai.c |
 | 0x4275a7 | FUN_004275a7 | 823 | ✓ |  | actor_ai.c |
 | 0x4278de | FUN_004278de | 241 | ✓ |  | actor_ai.c |
+| 0x4279cf | FUN_004279cf | 1418 | ✓ |  | actor_ai.c |
 | 0x427f59 | FUN_00427f59 | 698 | ✓ |  | actor_ai.c |
 | 0x428213 | FUN_00428213 | 679 | ✓ |  | actor_ai.c |
+| 0x4284ba | FUN_004284ba | 39 | ✓ |  | actor_ai.c |
 | 0x4284e1 | FUN_004284e1 | 567 | ✓ |  | actor_ai.c |
 | 0x428718 | FUN_00428718 | 972 | ✓ |  | actor_ai.c |
 | 0x428ae4 | FUN_00428ae4 | 1062 | ✓ |  | actor_ai.c |
@@ -241,6 +247,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x42a23c | FUN_0042a23c | 258 | ✓ |  | actor_ai.c |
 | 0x42a33e | FUN_0042a33e | 1038 | ✓ |  | actor_ai.c |
 | 0x42a74c | FUN_0042a74c | 1226 | ✓ |  | actor_ai.c |
+| 0x42ac16 | FUN_0042ac16 | 736 | ✓ |  | actor_ai.c |
 | 0x42aef7 | FUN_0042aef7 | 1984 | ✓ |  | actor_ai.c |
 | 0x42b6b7 | FUN_0042b6b7 | 4590 | ✓ |  | actor_ai.c, scene1_particles_tick.c, scene1_records_b_tick.c |
 | 0x42c8a5 | FUN_0042c8a5 | 270 | ✓ |  | actor_ai.c |
@@ -351,7 +358,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44d9d3 | FUN_0044d9d3 | 361 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
 | 0x44db3c | FUN_0044db3c | 1294 | ✓ |  | actor_ai.c, dungeon_flow.c |
 | 0x44e08f | FUN_0044e08f | 873 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
+| 0x44eff5 | FUN_0044eff5 | 20 | ✓ |  | actor_ai.c |
 | 0x44f009 | FUN_0044f009 | 20 | ✓ |  | actor_ai.c |
+| 0x44f01d | FUN_0044f01d | 26 | ✓ |  | actor_ai.c |
 | 0x44f078 | FUN_0044f078 | 197 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ |  | scene1_postload.h, scene1_preload.c |
 | 0x450443 | FUN_00450443 | 1076 | ✓ |  | scene1_postload.c |

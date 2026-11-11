@@ -278,7 +278,7 @@
    "engine_fn": "FUN_0042a23c",
    "desc": "the pumpkin's variant 1",
    "file": "src/actor_ai.c",
-   "line": 5036,
+   "line": 5098,
    "kind_known": true
   },
   {
@@ -294,7 +294,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 5498,
+   "line": 5570,
    "kind_known": true
   },
   {
@@ -302,15 +302,15 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 5455,
+   "line": 5527,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_0042f28c",
-   "desc": "the other types' AI (FUN_0042ce17,",
+   "desc": "the arms not yet ported (FUN_0042a23c,",
    "file": "src/actor_ai.c",
-   "line": 5051,
+   "line": 5122,
    "kind_known": true
   },
   {

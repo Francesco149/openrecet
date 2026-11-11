@@ -84,11 +84,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0042a23c | src/actor_ai.c:5036 | the pumpkin's variant 1 |
+| FUN_0042a23c | src/actor_ai.c:5098 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:5498 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:5455 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:5051 | the other types' AI (FUN_0042ce17, |
+| FUN_0042e1a6 | src/actor_ai.c:5570 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:5527 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:5122 | the arms not yet ported (FUN_0042a23c, |
 | FUN_0042f7ad | src/actor_ai.c:867 | the final boss's death arms (73 / 74: |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |

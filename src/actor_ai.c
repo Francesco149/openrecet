@@ -3692,6 +3692,68 @@ static void actor_ai_t44(actor_t *a)
     }
 }
 
+/* FUN_00428213: the default AI (the skeleton, types 50 / 51, and every type
+ * FUN_0042f28c names no arm for).  State 0 = drift: anim 0, at tick 1 a
+ * random point 8 around the player (rng·2π) sets the facing and a rest of
+ * rand & 63; ticks 31..69 push 0.02 along it; at 30 + rest + 30 back to 0,
+ * and grounded → state 1 (anim 3).  State 1 = the lunge: record 12 at tick
+ * 13, ticks 2..40 push 0.04, back to 0 at 91.  State 8 = the walk to
+ * +0x414 / +0x41c at 0.05 of the gap a tick, 90 ticks. */
+static void actor_ai_skeleton(actor_t *a)
+{
+    static const float k0p04 = 0.03999999910593033f;   /* 0x5198c4 */
+    const int32_t st = AI(a, 0xa54);
+    if (st == 8) {
+        const float dx = spill32((long double)AF(a, 0x414) - AF(a, 0x3f0));
+        const int32_t t = ++AI(a, 0xa58);
+        const float dz = spill32((long double)AF(a, 0x41c) - AF(a, 0x3f8));
+        AF(a, 0x3fc) = spill32((long double)dx * k0p05);
+        AF(a, 0x404) = spill32((long double)dz * k0p05);
+        if (t == 90) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    } else if (st == 1) {
+        if (++AI(a, 0xa58) == 13) scene1_record_b_spawn_npc(a, 12, 1);   /* FUN_00445a8c */
+        const int32_t t = AI(a, 0xa58);
+        if (t < 1) return;
+        const int32_t u = t - 1;
+        if (u >= 1 && u < 40) {
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(AF(a, 0x420))) * k0p04 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * k0p04 + AF(a, 0x404));
+        }
+        if (u == 90) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    } else if (st == 0) {
+        actor_anim_set(a, 0);
+        if (++AI(a, 0xa58) == 1) {
+            const double r = spill32((long double)rng_next_unit() * k_2pi);
+            const float tx = spill32((long double)spill32(x87_crt_sin(r)) * k8 + PX);
+            const float tz = spill32((long double)spill32(x87_crt_cos(r)) * k8 + PZ);
+            const float dx = spill32((long double)tx - AF(a, 0x3f0));
+            const float dz = spill32((long double)tz - AF(a, 0x3f8));
+            AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+            AI(a, 0xa60) = (int32_t)(rng_next15() & 0x3fu);
+        }
+        const int32_t t = AI(a, 0xa58);
+        if (t < 30) return;
+        const int32_t u = t - 30;
+        if (u >= 1 && u < 40) {
+            AF(a, 0x3fc) = spill32((long double)spill32(x87_crt_sin(AF(a, 0x420))) * k0p02 + AF(a, 0x3fc));
+            AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * k0p02 + AF(a, 0x404));
+        }
+        if (u >= AI(a, 0xa60) + 30) {
+            AI(a, 0xa58) = 0;
+            if (AF(a, 0x3f4) == AF(a, 0x3e0)) {
+                AI(a, 0xa54) = 1;
+                actor_anim_set(a, 3);
+            }
+        }
+    }
+}
+
 /* FUN_004976ae: Charme's voice — 0 one of eight attack lines (the 24-pick bag
  * FUN_0049a2a9), 1 one of two (FUN_00499fda) */
 void charme_voice(int32_t kind)
@@ -5047,10 +5109,20 @@ void actor_ai_alive(actor_t *a)
             actor_ai_golem(a);                   /* FUN_00420f4d */
         } else if (type == 28) {
             actor_ai_griff(a);                   /* FUN_00424b42 */
+        } else if (type == 50 || type == 51) {
+            if (AI(a, 0xb8c) != 0) {             /* a fresh skeleton revives twice */
+                AI(a, 0xb8c) = 0;
+                AI(a, 0xadc) = 2;
+            }
+            actor_ai_skeleton(a);                /* FUN_00428213 */
+        } else if (type == 26 || type == 32 || type == 33 || type == 62 || type == 63 ||
+                   type == 65 || type == 66 || type >= 78 || type < 0) {
+            actor_ai_skeleton(a);                /* FUN_0042f28c default: FUN_00428213 */
         } else {
-            /* PORT-DEBT(stub, FUN_0042f28c): the other types' AI (FUN_0042ce17,
-             * FUN_00428f0a, FUN_00428ae4, FUN_0042a33e, … FUN_00428213 for
-             * the rest) */
+            /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (FUN_0042a23c,
+             * FUN_004262b7, FUN_0042ac16, FUN_00425c3f, FUN_004284ba, FUN_004279cf,
+             * FUN_00424641, FUN_004205e5, FUN_00420bd0, FUN_0044f01d, FUN_0044eff5,
+             * FUN_0044f009) */
         }
     }
     if (AI(a, 0xa00) != 0) {
