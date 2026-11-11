@@ -34,6 +34,7 @@
 #include "stage_post_load.h"     /* DAT_0438b4d0, HP DAT_056db0bc */
 #include "scene1_spawn.h"
 #include "sim.h"
+#include "scene_adv_guild.h"     /* FUN_0045bcea */
 #include "x87.h"
 
 int32_t g_floor_intro;
@@ -1263,23 +1264,174 @@ static void griff_floor_event(uint8_t *rec)
     }
 }
 
-/* The dungeon-3 arm of FUN_004427f1 (asm 0x44e3f8..0x44ecc3): floor 29 →
- * Griff's timeline, a checkpoint floor → FUN_0044d0a4(1); every floor counts
- * b8a4. */
+/* The dungeon-3 arm's floor-49 timeline (Griff and the Archdevil's Arm).
+ *   0 (locked): before 280 the arena camera (class 1, yaw 0) pans from look z
+ *     -50 to -30 (b8a4 / 8), the eye 25 back at y 8; the first time (+0x2bce6
+ *     clear, not story mode 2) iv7_7 at 150; the pad mask 4 for 45..129; at 30
+ *     the Arm (type 72, state 8) at (-35, 20, -25) into DAT_06a470a0; at 160
+ *     +0x2bce6, the partner holds (-24, 0, -35), camera blend 2 to (-40, 0,
+ *     -40), 09643128 1, the banner; at 280 the adventurer's line → 3;
+ *   3: no actor alive → +0x2bce7, 09643128 0 → 4;
+ *   4 (locked): the fade at 180; past 60, once a fade is done, the party back
+ *     at the start (z - 1.5i - 5, anim 0, facing -π/2), the fade-in → 5;
+ *   5 (locked): iv7_8 at 30 (not story mode 2); at 45 +0x2bcf8, the deepest
+ *     floor and the floor time records, floor 0's stage (type 20) requested;
+ *     at 60 → 7;
+ *   7: unlocked; 8 (beaten before): unlocked, the town portal rises. */
+static void griff49_floor_event(uint8_t *rec)
+{
+    static const float k0p125 = 0.125f, k50 = 50.0f, km30 = -30.0f, k25 = 25.0f;
+    static const float km40 = -40.0f, k3p5 = 3.5f, k8 = 8.0f, km24 = -24.0f, km35 = -35.0f;
+    static const float k20 = 20.0f, km25 = -25.0f, k1p5 = 1.5f, k5 = 5.0f;
+    static const float km_pi2 = -1.5707963705062866f;
+    const int32_t mode = work_mode(rec);
+    g_ctrl_lock = -1;
+    switch (g_event_stage) {
+    case 0:
+        g_ctrl_lock = 0;
+        g_scene1_camera_stage_class = 0;                 /* DAT_0438b4e8 */
+        if ((uint32_t)g_event_tick < 280u) {
+            g_scene1_camera_stage_class = 1;
+            g_scene1_camera_yaw = 0.0f;                  /* DAT_073de39c */
+            const float ft = spill32((long double)g_event_tick);
+            float z = spill32((long double)ft * k0p125 - k50);
+            if (z > km30) z = km30;
+            const float look[3] = { km40, k3p5, z };
+            const float eye[3] = { km40, k8, spill32((long double)z - k25) };
+            scene1_camera_set_lookat(look);              /* DAT_0438cc50..58 */
+            scene1_camera_set_eye(eye);                  /* DAT_0438cc38..40 */
+        }
+        if ((rec == NULL || rec[0x2bce6] == 0) && mode != 2 && g_event_tick == 150)
+            scene1_intro_dialogue_start_single(7, 7);    /* FUN_0044ba2c(7, 7, 0) */
+        if (g_event_tick >= 45 && g_event_tick < 130) g_ctrl_lock = 4;
+        if (g_event_tick == 30) {
+            const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                                       stage_post_load_get_mode_b4d0(), g_ghost_count,
+                                       rec ? rec[0x2bc57] : 0 };
+            g_griff_boss = actor_spawn_enemy(&st, km35, k20, km25, 72);   /* FUN_0041f903 */
+            if (g_griff_boss != NULL) {
+                act_seti(g_griff_boss, ACT_INUSE, 1);
+                act_seti(g_griff_boss, 0xa54, 8);
+            }
+        }
+        if (g_event_tick == 160) {
+            g_cut_follow_x = km24;                       /* DAT_0438b78c */
+            if (rec) rec[0x2bce6] = 1;
+            g_cut_follow = 1;                            /* DAT_0438b788 */
+            g_cut_follow_y = 0.0f;
+            g_cam_blend = 2;                             /* DAT_0438b7ac */
+            g_dat_09643128 = 1;
+            g_cut_follow_z = km35;
+            g_cam_blend_x = km40;                        /* DAT_0438b7a0 */
+            g_cam_blend_y = 0.0f;
+            g_cam_blend_z = km40;
+            dungeon_title_banner_open(180, 0);           /* FUN_00406551 */
+        }
+        if (g_event_tick == 280) {
+            boss_intro_voice();                          /* FUN_0044cbe4 */
+            g_event_tick = 0;
+            g_event_stage = 3;
+        }
+        break;
+    case 3:
+        if (g_event_tick > 0) {
+            int n = 0;
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                const int32_t u = act_geti(&g_actor[i], ACT_INUSE);
+                if (u != 0 && u != 2) n++;
+            }
+            if (n == 0) {
+                if (rec) rec[0x2bce7] = 1;
+                g_event_stage = 4;
+                g_event_tick = 0;
+                g_dat_09643128 = 0;
+            }
+        }
+        break;
+    case 4:
+        g_ctrl_lock = 0;
+        if (g_event_tick == 180) fade_phase1_start(0, 120);    /* FUN_004526f5 */
+        if (g_event_tick > 60 && fade_is_done()) {              /* FUN_004528b3 */
+            g_cam_blend = 0;
+            g_cut_follow = 0;
+            for (int i = 0; i < 3; i++) {
+                g_party.pos[i][0] = g_scene1_stage_player_default_pos[0];
+                g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+                const float fi = spill32((long double)i);
+                g_party.pos[i][2] = spill32(((long double)g_scene1_stage_player_default_pos[2] -
+                                             (long double)fi * k1p5) - k5);
+                party_anim_set(g_party.rec[i], 0);              /* FUN_00482a51 */
+                g_party.rec[i][6] = 6;
+            }
+            PW(0x56db05cu).f = km_pi2;
+            g_event_tick = 0;
+            g_event_stage = 5;
+            fade_phase_out_start(0, 30);                        /* FUN_0045281c */
+        }
+        break;
+    case 5:
+        g_ctrl_lock = 0;
+        if (mode != 2 && g_event_tick == 30) scene1_intro_dialogue_start_single(7, 8);
+        if (g_event_tick == 45 && rec != NULL) {
+            const int32_t fl = stage_gate_get_next(), d = g_scene1_combat_stage_id;
+            rec[0x2bcf8] = 1;
+            int32_t v;
+            memcpy(&v, rec + 0x2c404 + 4 * d, 4);
+            if (v < fl) memcpy(rec + 0x2c404 + 4 * d, &fl, 4);
+            uint8_t *slot = rec + 0x2c42c + 4 * (fl / 5 + 20 * d);
+            uint32_t t;
+            memcpy(&t, slot, 4);
+            if (t == 0 || t > (uint32_t)g_floor_time) memcpy(slot, &g_floor_time, 4);
+            const int32_t cur = g_stage_b4dc;
+            stage_gate_set_next(0);
+            adv_guild_set_stage(rec);                           /* FUN_0045bcea */
+            const int32_t next = g_stage_b4dc;
+            g_stage_b4dc = cur;
+            sim_stage_load_request(next, 0, 0, stage_gate_get_next());   /* FUN_00452f16 */
+        }
+        if (g_event_tick == 60) {
+            g_event_tick = 0;
+            g_event_stage = 7;
+        }
+        break;
+    case 7:
+        g_ctrl_lock = -1;
+        break;
+    case 8:
+        g_ctrl_lock = -1;
+        dobj_raise_special(0);                                  /* FUN_0044b2e6(0) */
+        break;
+    default:
+        break;
+    }
+}
+
+/* The dungeon-3 arm of FUN_004427f1 (asm 0x44e3f8..0x44ecc3): the +0x2bcf8
+ * return beat (the type-20 stage after the 50F clear: unlocked, iv7_14 at 200
+ * unless story mode 2, at 300 the flag cleared and the last floor's return
+ * — be9c 120, bea8 1, be98 3); floor 29 / 49 → Griff's timelines, a
+ * checkpoint floor → FUN_0044d0a4(1); every floor counts b8a4. */
 static void dungeon3_event_tick(void)
 {
     uint8_t *rec = save_work_bank_at(save_work_active_slot());
     const int32_t floor = stage_gate_get_next();
     /* PORT-DEBT(stub, FUN_004427f1): the +0x2bce2 story beat (the curtain
-     * camera, iv7_6 at 200, the stage reload at 460) and the +0x2bcf8 return
-     * beat (iv7_14 at 200, DAT_0438be9c / bea8 / be98 at 300) — neither flag is
-     * set before the 50F clear */
+     * camera, iv7_6 at 200, the stage reload at 460) — no recording sets it */
+    if (rec != NULL && rec[0x2bcf8] != 0) {
+        g_ctrl_lock = 0;
+        if (g_event_tick == 200 && work_mode(rec) != 2)
+            scene1_intro_dialogue_start_single(7, 14);  /* FUN_0044ba2c(7, 14, 0) */
+        if (g_event_tick == 300) {
+            rec[0x2bcf8] = 0;
+            g_portal_prompt = 120;                      /* DAT_0438be9c */
+            g_portal_return = 1;                        /* DAT_0438bea8 */
+            g_floor_end_kind = 3;                       /* DAT_0438be98 */
+        }
+    }
     if (floor == 29) {
         griff_floor_event(rec);
     } else if (floor == 49) {
-        /* PORT-DEBT(stub, FUN_004427f1): floor 49's timeline (the camera pan,
-         * the hand 72 at tick 30, iv7_7 / iv7_8, the clear at stage 5 tick 45)
-         * — no recording reaches 50F */
+        griff49_floor_event(rec);
     } else if (floor % 5 == 4) {
         boss_floor_event(1);
     }

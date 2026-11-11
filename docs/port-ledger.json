@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 66,
+  "port_debt": 65,
   "verified": 81,
   "stubbed": 10,
   "ported": 753,
@@ -8729,6 +8729,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
     "src/scene1_sim.c",
     "src/sim.c",
     "src/sim.h",
@@ -9820,6 +9821,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/dungeon_flow.c",
     "src/scene1_sim.c",
     "src/scene_adv_guild.c",
     "src/scene_adv_guild.h",

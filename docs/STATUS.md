@@ -36,7 +36,7 @@ re-verification.
 14 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 66 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 65 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -421,9 +421,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
        Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss
        arms (73 / 74; 28 / 41 ported 2026-11-11), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
-       3 / 4's events / setups (dungeon 3: checkpoint floors and floor 29 ported 2026-11-11, the story beats and floor 49
-       of FUN_004427f1 / FUN_0044e08f open; dungeon 4: FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
-       on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
+       3 / 4's events / setups (dungeon 3: checkpoint floors, floors 29 / 49 and the +0x2bcf8 return beat ported 2026-11-11,
+       the +0x2bce2 story beat of FUN_004427f1 / FUN_0044e08f open; dungeon 4: FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
+       on them) but its bosses' AIs (golem parts 61..66, 73..76; 72 ported 2026-11-11) and Tielle's FUN_0044db3c are
        stubs; render (2026-10-17, PROGRESS ×2): rooms, objects (static + skinned), model and
        sprite enemies, shadows, the floor HUD, title banners, the mapbg sky, the boulders, the
        results screen, the market and the pause Items match retail frames (`portshots`, mean
