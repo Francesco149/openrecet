@@ -173,6 +173,8 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   code-read stats were wrong more than once. Hit records: `0x69324b0 + i*0x124` (type +0, side +4, age +0x98).
 - `rd` reads state AFTER the tick (a state entered this tick shows tick 0); wrap `--expr` defines in parentheses.
 - Sessions are capped machine-wide (memory): use `-j 2` at most; "not admitted" = wait or `rd stop` an idle run.
+- Sessions run on the Windows box when it is up (`RD_HOST=auto`; `rd ls` shows `win` / `wine`), ~3× faster than wine;
+  `rd verify` replays on the session's host. Nothing else changes for you.
 - Level-15+ saves (`save:2afe7fb42617`): vending machines are bought at the Market ("Venders") and
   placed from a table's display menu (`cc04 == 1`, `L`/`R` to "Venders"); the machine's own menu is
   `cc04 == 2` (probe vending-level16).

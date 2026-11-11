@@ -445,64 +445,236 @@ def wine_env():
             if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
 
 
-def staged_exe():
-    """build if stale, stage the build content-addressed under the wine root → its Windows path"""
+def staged_exe(host="wine"):
+    """build if stale, stage the build content-addressed (wine root, or bin\\<sha> on the Windows box) → its Windows path"""
+    if host == "win":
+        RH.ensure_staged()
+        return RH.bin_dir() + "\\rhost.exe"
     if RH.rhost_stale():
         RH.cmd_build(None)
     RH.wine_stage()
     return RH.bin_dir() + "\\rhost.exe"
 
 
-def spawn_live(tag, movie, upto=None, idle=1800, wait=300):
-    """a live rhost under wine (no X): replays MOVIE to frame UPTO first → (pid, port, rundir). Admitted through
-    rhost.py's machine-wide gate (a cap on rhost processes + a free-memory floor): WAIT seconds for a slot, else SystemExit"""
-    exe = staged_exe()
-    os.makedirs(SESS, exist_ok=True)
-    for n in range(100000):
-        rd = os.path.join(SESS, f"{tag}-{os.getpid()}-{n}")
+# ---- where live sessions run. RD_HOST=wine: under wine on this box (headless prefix, admit_local). RD_HOST=win: natively
+# on the Windows box (ssh $RHOST_WIN, session 0 — fine for the fake devices): started detached through WMI (sshd kills its
+# job's processes on disconnect; a Win32_Process.Create child is not in that job), admitted by the same machine-wide gate
+# as the queue runner's batches (rhost.py PS_ADMIT: process cap + RAM floor, one Global mutex) plus RD_WIN_MAX_SESSIONS
+# live rd sessions; reached through an ssh local forward whose remote command waits on the rhost PID (the forward ends with
+# the process). RD_HOST=auto: win when the box answers within 3 s, else wine. A session keeps the host it started on
+# (session.json "host"); a rebuilt session takes the current choice.
+RD_HOST = os.environ.get("RD_HOST", "auto")
+WIN_MAX_SESSIONS = int(os.environ.get("RD_WIN_MAX_SESSIONS", "8"))
+WIN_SESS = "C:\\orc-rhost\\runs\\drive"
+_host = None
+
+
+def pick_host():
+    global _host
+    if _host is None:
+        if RD_HOST not in ("auto", "win", "wine"):
+            raise SystemExit(f"RD_HOST={RD_HOST!r}: auto | win | wine")
+        _host = RD_HOST if RD_HOST != "auto" else ("win" if win_up(timeout=3) else "wine")
+    return _host
+
+
+def local_listening(port):
+    """is something LISTENing on 127.0.0.1:PORT here (the ssh forward is up)?"""
+    for f in ("/proc/net/tcp", "/proc/net/tcp6"):
         try:
-            os.makedirs(rd)
-            break
-        except FileExistsError:
+            for l in open(f).readlines()[1:]:
+                p = l.split()
+                if p[3] == "0A" and int(p[1].rsplit(":", 1)[1], 16) == port:
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def free_local_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
+def win_ps(ps, timeout=600, host=None):
+    """a PowerShell command on the Windows box → (rc, stdout); transient ssh failures retried (RH.ssh_win's rule)"""
+    for attempt in range(4):
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host or RH.WIN, ps], text=True, capture_output=True, timeout=timeout)
+        if r.returncode == 255 and RH.SSH_TRANSIENT.search(r.stderr) and attempt < 3:
+            time.sleep(2 + 3 * attempt)
             continue
-    shutil.copy(os.path.join(RH.HERE, "recet.ini"), rd)
+        return r.returncode, r.stdout
+    return r.returncode, r.stdout
+
+
+class NotAdmitted(SystemExit):
+    """the Windows box's admission gave no slot in time"""
+
+
+def win_spawn(name, ld, rhost_args, wait, tag):
+    """ld (a local dir with the session's files) → C:\\orc-rhost\\runs\\drive\\NAME; start rhost there detached, admitted;
+    → (windows pid, its live port)"""
+    exe = staged_exe("win")
+    rd = f"{WIN_SESS}\\{name}"
+    dst = f"{RH.WIN}:{WIN_SESS.replace(chr(92), '/')}/"
+    if subprocess.run(["scp", "-q", "-r", ld, dst], capture_output=True).returncode != 0:
+        win_ps(f"New-Item -ItemType Directory -Force '{WIN_SESS}' | Out-Null")
+        RH.scp(ld, dst, recursive=True)
+    shutil.rmtree(ld, ignore_errors=True)
+    cl = " ".join([exe] + [f'"{x}"' if " " in x else x for x in rhost_args])
+    ps = ("$ErrorActionPreference = 'Stop'\n"
+          f"$rd = '{rd}'; $cl = '{cl.replace(chr(39), chr(39) * 2)}'\n"
+          "$m = New-Object System.Threading.Mutex($false, 'Global\\orc-rhost-admit')\n"
+          f"$deadline = (Get-Date).AddSeconds({wait}); $wpid = 0\n"
+          "while ($true) {\n"
+          "  $cap = 12; try { $cap = [int](Get-Content 'C:\\orc-rhost\\queue\\procs.txt' -TotalCount 1 -ErrorAction Stop) } catch {}\n"
+          "  try { [void]$m.WaitOne() } catch [System.Threading.AbandonedMutexException] {}\n"
+          "  $ours = @(Get-CimInstance Win32_Process -Filter \"Name='rhost.exe' or Name='openrecet.exe'\" | Where-Object { $_.ExecutablePath -like 'C:\\orc-rhost\\*' })\n"
+          "  $n = $ours.Count; $mine = @($ours | Where-Object { $_.CommandLine -like '*\\runs\\drive\\*' }).Count\n"
+          "  $free = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory\n"
+          f"  if ($mine -lt {WIN_MAX_SESSIONS} -and ($n -eq 0 -or ($n -lt $cap -and $free -gt 1500000))) {{\n"
+          "    $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl; CurrentDirectory = $rd }\n"
+          "    $wpid = $r.ProcessId\n"
+          "    try { if ((Get-Content 'C:\\orc-rhost\\queue\\priority.txt' -TotalCount 1 -ErrorAction Stop).Trim() -eq 'low') { (Get-Process -Id $wpid).PriorityClass = 'BelowNormal' } } catch {}\n"
+          "    Start-Sleep -Milliseconds 300; $m.ReleaseMutex(); break }\n"
+          "  $m.ReleaseMutex()\n"
+          f"  if ((Get-Date) -gt $deadline) {{ \"NOADMIT $n rhost/port processes (cap $cap), $mine rd sessions (cap {WIN_MAX_SESSIONS}), $([int]($free / 1024)) MB free (floor 1465)\"; Remove-Item $rd -Recurse -Force -ErrorAction SilentlyContinue; exit 0 }}\n"
+          "  Start-Sleep -Milliseconds 500 }\n"
+          "$t0 = Get-Date\n"
+          "while (!(Test-Path \"$rd\\live.port\")) {\n"
+          "  if (!(Get-Process -Id $wpid -ErrorAction SilentlyContinue) -or ((Get-Date) - $t0).TotalSeconds -gt 120) {\n"
+          "    \"NOSTART pid $wpid\"; if (Test-Path \"$rd\\rhost.log\") { Get-Content \"$rd\\rhost.log\" -Tail 8 }; exit 0 }\n"
+          "  Start-Sleep -Milliseconds 50 }\n"
+          "\"LIVE $wpid \" + (Get-Content \"$rd\\live.port\" -TotalCount 1)\n")
+    rc, out = win_ps(ps, timeout=wait + 300)
+    m = re.search(r"^LIVE (\d+) (\d+) ", out, re.M)
+    if not m:
+        if "NOADMIT" in out:
+            raise NotAdmitted(f"live session {tag} on {RH.WIN}: not admitted — " + out.split("NOADMIT", 1)[1].strip() +
+                             ". Stop idle sessions (`./rd ls`, `./rd stop R`) or wait.")
+        raise SystemExit(f"the live session did not start on {RH.WIN} ({rd}, rc {rc})\n{out[-800:]}")
+    return int(m.group(1)), int(m.group(2))
+
+
+def win_forward(wpid, wport):
+    """an ssh local forward to the session's port, alive exactly as long as the Windows process → (ssh pid, local port)"""
+    for attempt in range(4):
+        lp = free_local_port()
+        f = subprocess.Popen(["ssh", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=30",
+                              "-o", "ServerAliveCountMax=4", "-L", f"127.0.0.1:{lp}:127.0.0.1:{wport}", RH.WIN,
+                              f"Wait-Process -Id {wpid} -ErrorAction SilentlyContinue"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        t0 = time.time()
+        while f.poll() is None and time.time() - t0 < 30:
+            if local_listening(lp):
+                return f.pid, lp
+            time.sleep(0.05)
+        try:
+            os.killpg(f.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        f.wait()
+        time.sleep(1 + 2 * attempt)
+    raise SystemExit(f"no ssh forward to the live session (pid {wpid}, port {wport}) on {RH.WIN}")
+
+
+def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=None, limit=None):
+    """a live rhost (headless) on HOST (pick_host()): replays MOVIE to frame UPTO first — or SRC_TRACE (any dialect) up to
+    LIMIT — → the session dict {host, pid, port, rundir[, fwd, wport]}: `port` is always a local port (wine: the session's
+    own; win: the ssh forward's). Admitted by the host's machine-wide gate: WAIT seconds for a slot, else SystemExit"""
+    if host is None and pick_host() == "win" and RD_HOST == "auto":
+        # auto: the Windows box when it has a slot within a minute (gates fill it for an hour at a time), else wine here
+        try:
+            return spawn_live(tag, movie, upto, idle, min(wait, 60), "win", src_trace, limit)
+        except NotAdmitted as e:
+            print(f"[{e} — this session runs under wine here]")
+            host, wait = "wine", max(0, wait - 60)
+    host = host or pick_host()
+    name = f"{tag}-{os.getpid()}-{int(time.time() * 1000) % 10 ** 9}"
+    if host == "win":
+        ld = os.path.join(RUNS, ".winstage", name)
+        os.makedirs(ld)
+        win = f"{WIN_SESS}\\{name}"
+    else:
+        exe = staged_exe("wine")
+        os.makedirs(SESS, exist_ok=True)
+        ld = os.path.join(SESS, name)
+        os.makedirs(ld)
+        win = "C:\\orc-rhost\\runs\\drive\\" + name
+    shutil.copy(os.path.join(RH.HERE, "recet.ini"), ld)
     if os.path.exists(RH.VOLATILE):
-        shutil.copy(RH.VOLATILE, rd)
+        shutil.copy(RH.VOLATILE, ld)
     if movie.save:
-        open(os.path.join(rd, "save.dat"), "wb").write(RH.save_bytes(movie.save))
-    win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(rd)
-    args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
+        open(os.path.join(ld, "save.dat"), "wb").write(RH.save_bytes(movie.save))
+    args = ["--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
             "--live", "0", "--live-idle", str(idle)] + skip_args()
-    upto = movie.frame if upto is None else upto
-    seed = next((v for f, k, v in movie.ops if k == "r" and f == 0), None)
-    if seed is not None:
-        args += ["--seed", str(seed)]
-    if upto > 0:
-        movie.truncated(upto).write(os.path.join(rd, "trace.jsonl"))
-        args += ["--trace", win + "\\trace.jsonl", "--frames", str(upto)]
+    if src_trace:
+        shutil.copy(src_trace, os.path.join(ld, "trace.jsonl"))
+        args += ["--trace", win + "\\trace.jsonl"] + (["--frames", str(limit)] if limit else [])
+    else:
+        upto = movie.frame if upto is None else upto
+        seed = next((v for f, k, v in movie.ops if k == "r" and f == 0), None)
+        if seed is not None:
+            args += ["--seed", str(seed)]
+        if upto > 0:
+            movie.truncated(upto).write(os.path.join(ld, "trace.jsonl"))
+            args += ["--trace", win + "\\trace.jsonl", "--frames", str(upto)]
+    if host == "win":
+        try:
+            wpid, wport = win_spawn(name, ld, args, wait, tag)
+        finally:
+            shutil.rmtree(ld, ignore_errors=True)
+        s = {"host": "win", "ssh": RH.WIN, "pid": wpid, "wport": wport, "rundir": win}
+        try:
+            s["fwd"], s["port"] = win_forward(wpid, wport)
+        except BaseException:
+            kill_session(s)
+            raise
+        return s
     try:
         with RH.admit_local(wait=wait, what=f"live session {tag}"):
-            p = subprocess.Popen(args, stdout=open(os.path.join(rd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
-                                 start_new_session=True, cwd=rd)
+            p = subprocess.Popen(["wine", exe] + args, stdout=open(os.path.join(ld, "stdout.txt"), "w"), stderr=subprocess.DEVNULL,
+                                 env=wine_env(), start_new_session=True, cwd=ld)
     except SystemExit:
-        shutil.rmtree(rd, ignore_errors=True)
+        shutil.rmtree(ld, ignore_errors=True)
         raise
-    pf = os.path.join(rd, "live.port")
+    pf = os.path.join(ld, "live.port")
     t0 = time.time()
     while not os.path.exists(pf):
         if p.poll() is not None or time.time() - t0 > 120:
-            tail = open(os.path.join(rd, "rhost.log"), errors="replace").read()[-600:] if os.path.exists(os.path.join(rd, "rhost.log")) else ""
-            raise SystemExit(f"the live session did not start ({rd})\n{tail}")
+            tail = open(os.path.join(ld, "rhost.log"), errors="replace").read()[-600:] if os.path.exists(os.path.join(ld, "rhost.log")) else ""
+            raise SystemExit(f"the live session did not start ({ld})\n{tail}")
         time.sleep(0.05)
-    return p.pid, int(open(pf).read().split()[0]), rd
+    return {"host": "wine", "pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": ld}
 
 
-def kill_session(pid, rundir=None):
-    """end OUR process group (never by name); drop its run dir"""
+def kill_session(s):
+    """end OUR session (never by name): wine — its process group; win — the ssh forward, then the Windows process by PID
+    after checking its command line is this session's; drop its run dir"""
+    if not s:
+        return
+    if s.get("host", "wine") == "win":
+        if s.get("fwd"):
+            try:
+                os.killpg(s["fwd"], signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        rd = s.get("rundir", "")
+        if not rd.startswith(WIN_SESS + "\\") or not s.get("pid"):
+            return
+        win_ps(host=s.get("ssh"), ps=f"$p = Get-CimInstance Win32_Process -Filter 'ProcessId={int(s['pid'])}'; "
+               f"if ($p -and $p.Name -eq 'rhost.exe' -and $p.CommandLine -like '*{rd}*') {{ Stop-Process -Id {int(s['pid'])} -Force; "
+               f"Wait-Process -Id {int(s['pid'])} -Timeout 10 -ErrorAction SilentlyContinue }}; "
+               f"Remove-Item '{rd}' -Recurse -Force -ErrorAction SilentlyContinue; exit 0", timeout=120)   # the box it started on
+        return
     try:
-        os.killpg(pid, signal.SIGKILL)
+        os.killpg(s["pid"], signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
+    rundir = s.get("rundir")
     if rundir and os.path.realpath(rundir).startswith(os.path.realpath(SESS) + os.sep):
         shutil.rmtree(rundir, ignore_errors=True)
 
@@ -513,6 +685,23 @@ def pid_alive(pid):
         return True
     except (ProcessLookupError, PermissionError):
         return False
+
+
+def sess_alive(s):
+    """win: the forward lives exactly as long as the Windows process (its remote command waits on it)"""
+    return bool(s) and pid_alive(s["fwd"] if s.get("host", "wine") == "win" else s["pid"])
+
+
+def sess_file(s, f, dst):
+    """copy file F of the session's run dir to DST → True when it exists"""
+    if s.get("host", "wine") == "win":
+        return subprocess.run(["scp", "-q", f"{s.get('ssh', RH.WIN)}:{s['rundir'].replace(chr(92), '/')}/{f}", dst], capture_output=True).returncode == 0 \
+            and os.path.exists(dst)
+    src = os.path.join(s["rundir"], f)
+    if not os.path.exists(src):
+        return False
+    shutil.copy(src, dst)
+    return True
 
 
 # ------------------------------------------------------------------ a run
@@ -562,7 +751,7 @@ class Run:
         if self.live:
             return self.live
         s = json.load(open(self.sess_p)) if os.path.exists(self.sess_p) else None
-        if s and pid_alive(s["pid"]) and s.get("skip", "") == SKIP_FN and \
+        if s and sess_alive(s) and s.get("skip", "") == SKIP_FN and \
                 s.get("bin") == RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll")):
             try:
                 lv = Live(s["port"])
@@ -570,23 +759,27 @@ class Run:
                     self.live, self.sess = lv, s
                     return lv
                 lv.close()
-            except OSError:
+            except (OSError, SessionEnded):
                 pass
         if cached_only:
             return None
         if s:
-            kill_session(s["pid"], s.get("rundir"))
+            kill_session(s)
             if s.get("snaps") or s.get("mark") is not None:
                 print("[the session was rebuilt (it ended, or rhost was rebuilt): its savestates are gone — checkpoints load by replay, "
                       "`ram mark` has to be taken again]")
         t0 = time.time()
-        pid, port, rd = spawn_live(self.name, self.movie)
-        self.live = Live(port)
-        k = Live.kv(self.live.cmd("ping"))
+        h = spawn_live(self.name, self.movie)
+        try:
+            self.live = Live(h["port"])
+            k = Live.kv(self.live.cmd("ping"))
+        except BaseException:
+            kill_session(h)
+            raise
         if int(k["frame"]) != self.movie.frame:
-            raise SystemExit(f"the replayed session is at frame {k['frame']}, the movie at {self.movie.frame} (see {rd}/rhost.log)")
-        self.sess = {"pid": pid, "port": port, "rundir": rd, "epoch": int(k["epoch"]), "snaps": {}, "mark": None, "skip": SKIP_FN, "mask": SKIP_MASK,
-                     "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
+            raise SystemExit(f"the replayed session is at frame {k['frame']}, the movie at {self.movie.frame} (see {h['rundir']}/rhost.log on {h['host']})")
+        self.sess = dict(h, epoch=int(k["epoch"]), snaps={}, mark=None, skip=SKIP_FN, mask=SKIP_MASK,
+                         bin=RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll")))
         self.save_sess()
         if self.movie.frame > 2000:
             print(f"[session rebuilt by replaying {self.movie.frame} frames in {time.time() - t0:.1f}s]")
@@ -595,9 +788,9 @@ class Run:
     def stop(self):
         s = json.load(open(self.sess_p)) if os.path.exists(self.sess_p) else None
         if s:
-            kill_session(s["pid"], s.get("rundir"))
+            kill_session(s)
             for w in s.get("workers", []):
-                kill_session(w["pid"], w.get("rundir"))
+                kill_session(w)
             os.remove(self.sess_p)
 
     def epoch_check(self, r):
@@ -763,7 +956,7 @@ def scenario_end_save(name):
         open(tmp, "wb").write(gzip.open(os.path.join(g, "save.dat.gz"), "rb").read())
         frame = json.load(open(os.path.join(g, "meta.json")))["result"].get("frame")
     else:
-        b = RH.replay_args(target="wine")
+        b = RH.replay_args(target=pick_host())
         b.jobs, b.wine_timeout, b.headless, b.no_golden = 1, 14400, True, True
         _, bd, res, out = RH.run_batch(b, [(name, tr, None, start)], "rd-endsave", fetch=("rhost.log", "save.dat"))
         rr = res.get(name) or {}
@@ -783,10 +976,13 @@ def cmd_endsave(a):
     """the save.dat this run's movie has committed (an in-game Save) → a _saves blob: `rd new R2 --from save:SHA` starts from it"""
     r = Run(a.run)
     r.attach()
-    sp = os.path.join(r.sess["rundir"], "save.dat")
-    if not os.path.exists(sp) or (r.movie.save and open(sp, "rb").read() == RH.save_bytes(r.movie.save)):
+    sp = os.path.join(r.dir, ".endsave.dat")
+    if os.path.exists(sp):
+        os.remove(sp)
+    if not sess_file(r.sess, "save.dat", sp) or (r.movie.save and open(sp, "rb").read() == RH.save_bytes(r.movie.save)):
         raise SystemExit("this run has not committed a save of its own (pause menu → Save, or a day-end save)")
     sha, blob = RH.trace_save.store_save(sp, SCEN_SAVES)
+    os.remove(sp)
     r.meta["endsave"] = {"sha": sha, "frame": r.movie.frame}
     r.save_meta()
     print(f"end save {sha[:12]} (at frame {r.movie.frame}): rd new NEXT --from save:{sha[:12]}")
@@ -833,32 +1029,16 @@ def cmd_new(a):
     r.movie = mv
     if trace:
         # an existing scenario (any trace dialect): replay it in a live session; its resolved inputs become our movie
-        exe = staged_exe()
         t0 = time.time()
-        os.makedirs(SESS, exist_ok=True)
-        srd = os.path.join(SESS, f"{a.run}-{os.getpid()}-new")
-        shutil.rmtree(srd, ignore_errors=True); os.makedirs(srd)
-        shutil.copy(os.path.join(RH.HERE, "recet.ini"), srd)
-        shutil.copy(trace, os.path.join(srd, "trace.jsonl"))
-        if os.path.exists(RH.VOLATILE):
-            shutil.copy(RH.VOLATILE, srd)
-        if mv.save:
-            open(os.path.join(srd, "save.dat"), "wb").write(RH.save_bytes(mv.save))
-        win = "C:\\orc-rhost\\runs\\drive\\" + os.path.basename(srd)
-        args = ["wine", exe, "--exe", f"{RH.WROOT}\\game\\recettear.unpacked.exe", "--game", f"{RH.WROOT}\\game", "--run", win,
-                "--live", "0", "--trace", win + "\\trace.jsonl"] + (["--frames", str(limit)] if limit else []) + \
-               skip_args()
-        p = subprocess.Popen(args, stdout=open(os.path.join(srd, "stdout.txt"), "w"), stderr=subprocess.DEVNULL, env=wine_env(),
-                             start_new_session=True, cwd=srd)
-        pf = os.path.join(srd, "live.port")
-        while not os.path.exists(pf):
-            if p.poll() is not None:
-                raise SystemExit(f"the live session did not start ({srd})")
-            time.sleep(0.05)
-        r.live = Live(int(open(pf).read().split()[0]))
-        k = Live.kv(r.live.cmd("ping"))
-        r.sess = {"pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": srd, "epoch": int(k["epoch"]), "snaps": {}, "skip": SKIP_FN, "mask": SKIP_MASK,
-                  "mark": None, "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
+        h = spawn_live(a.run + "-new", mv, src_trace=trace, limit=limit)
+        try:
+            r.live = Live(h["port"])
+            k = Live.kv(r.live.cmd("ping"))
+        except BaseException:
+            kill_session(h)
+            raise
+        r.sess = dict(h, epoch=int(k["epoch"]), snaps={}, skip=SKIP_FN, mask=SKIP_MASK, mark=None,
+                      bin=RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll")))
         r.sync_movie()
         r.save_sess()
         print(f"[replayed {a.src} to frame {r.movie.frame} in {time.time() - t0:.1f}s]")
@@ -1201,8 +1381,8 @@ def cmd_search(a):
 
         def boot(i):
             try:
-                pid, port, rd = spawn_live(f"{r.name}-w{i}", r.movie, idle=600, wait=0)      # a search worker is optional: no slot → fewer workers
-                workers.append((i, pid, port, rd))
+                h = spawn_live(f"{r.name}-w{i}", r.movie, idle=600, wait=0, host=r.sess.get("host", "wine"))   # optional: no slot → fewer workers
+                workers.append((i, h))
             except BaseException as e:      # noqa: B902 — SystemExit from spawn_live
                 errs.append(str(e))
         ts = [threading.Thread(target=boot, args=(i,)) for i in range(1, a.jobs)]
@@ -1218,15 +1398,16 @@ def cmd_search(a):
             print(f"[{len(workers) + 1} sessions at frame {r.movie.frame}, {time.time() - t0:.1f}s to start the extra ones]")
             ths = [threading.Thread(target=one, args=(lv, a.seed, False, "main"))]
             lvs = []
-            for i, pid, port, rd in workers:
-                lx = Live(port); lvs.append(lx)
+            for i, h in workers:
+                lx = Live(h["port"]); lvs.append(lx)
                 ths.append(threading.Thread(target=one, args=(lx, a.seed + i * 7919, False, f"w{i}")))
             [t.start() for t in ths]
             [t.join() for t in ths]
             [lx.close() for lx in lvs]
         finally:
-            for i, pid, port, rd in workers:
-                kill_session(pid, rd)
+            ks = [threading.Thread(target=kill_session, args=(h,)) for i, h in workers]
+            [t.start() for t in ks]
+            [t.join() for t in ks]
         r.sess.update(snaps={}, mark=None)            # the main session's explore re-anchored
         r.sess["epoch"] = int(Live.kv(lv.cmd("ping"))["epoch"])
     found = [(int(k["frames"]), k, tag) for k, tag in results if k.get("found") == "1"]
@@ -1308,10 +1489,10 @@ def shots(r, frames, target=None, tag="look"):
     return got
 
 
-def win_up():
+def win_up(timeout=4):
     try:
-        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", RH.WIN, "echo ok"], capture_output=True,
-                              text=True, timeout=12).stdout.strip().endswith("ok")
+        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", RH.WIN, "echo ok"], capture_output=True,
+                              text=True, timeout=timeout + 8).stdout.strip().endswith("ok")
     except (subprocess.TimeoutExpired, OSError):
         return False
 
@@ -1368,7 +1549,10 @@ def cmd_verify(a):
     live = Live.kv(lv.cmd("hash"))
     tr = os.path.join(r.dir, "verify.trace.jsonl")
     r.movie.write(tr, comment=r.name, rel_to=r.dir)
-    b = RH.replay_args(frames=r.movie.frame, target="wine")
+    host = (r.sess or {}).get("host", "wine")      # the session's host: hashes compare like for like
+    if host == "win":
+        RH.WIN = r.sess.get("ssh", RH.WIN)         # (wine vs Windows: float ulps differ — README "Where sessions run")
+    b = RH.replay_args(frames=r.movie.frame, target=host)
     b.jobs, b.wine_timeout, b.headless, b.no_golden = 1, 3600, True, True
     # plain retail (no skip); the scratch the SESSION left out of its hash (its own mask: a session outlives a mask change)
     b.extra = f"--mask-range {(r.sess or {}).get('mask', SKIP_MASK_V1)}" if SKIP_FN else None
@@ -1379,9 +1563,9 @@ def cmd_verify(a):
     keys = (("frame", "frame"), ("rng", "rng"), ("state_sem", "sem")) + (() if SKIP_FN else (("state_dev", "dev"),))
     same = all(v.get(x) == live.get(y) for x, y in keys)
     print(f"fresh headless replay: frame {v.get('frame')} rng {v.get('rng')} sem {v.get('state_sem')} dev {v.get('state_dev')}"
-          + ("  (unskipped retail)" if SKIP_FN else ""))
+          + ("  (unskipped retail)" if SKIP_FN else "") + f"  [{host}]")
     print(f"live session:          frame {live['frame']} rng {live['rng']} sem {live['sem']} dev {live['dev']}"
-          + (f"  (skips {SKIP_FN}: dev not compared)" if SKIP_FN else ""))
+          + (f"  (skips {SKIP_FN}: dev not compared)" if SKIP_FN else "") + f"  [{host}]")
     if not same and v.get("frame") == live.get("frame") and v.get("rng") == live.get("rng") and v.get("state_sem") != live.get("sem"):
         # same frame + RNG, another game-state hash: write-tracking residue of the live session (a write fault's exception
         # frame on the game stack, read back by retail as an uninitialised local — headless-savestates.md §3)? A session
@@ -1390,7 +1574,7 @@ def cmd_verify(a):
         r.stop()
         lv = r.attach()
         again = Live.kv(lv.cmd("hash"))
-        print(f"clean session (replay): frame {again['frame']} rng {again['rng']} sem {again['sem']} dev {again['dev']}")
+        print(f"clean session (replay): frame {again['frame']} rng {again['rng']} sem {again['sem']} dev {again['dev']}  [{r.sess.get('host', 'wine')}]")
         if all(v.get(x) == again.get(y) for x, y in keys):
             print("the first session's state differed from the movie's only by write-tracking residue (frame and RNG agreed): "
                   "its savestates are gone, the run continues on the clean session")
@@ -1460,9 +1644,9 @@ def start_frame(task):
 def walk_movie(movie, V, preds, after=0, stop_when=None):
     """a fresh live session fed the movie tick by tick → for each predicate the frames where it holds (first, count),
     evaluated in order: `preds` = [(name, expr)]; returns per-frame truth via sampling in chunks"""
-    pid, port, rd = spawn_live("check", movie, upto=0, idle=300)
+    h = spawn_live("check", movie, upto=0, idle=300)
     try:
-        lv = Live(port)
+        lv = Live(h["port"])
         ids = [lv.prog(V.compile(e)) for _, e in preds]
         truth = [[] for _ in preds]
         at = 0
@@ -1480,7 +1664,7 @@ def walk_movie(movie, V, preds, after=0, stop_when=None):
         lv.close()
         return truth, end
     finally:
-        kill_session(pid, rd)
+        kill_session(h)
 
 
 def cmd_check(a):
@@ -1630,8 +1814,9 @@ def cmd_ls(a):
             continue
         m = json.load(open(mp))
         sp = os.path.join(RUNS, n, "session.json")
-        live = os.path.exists(sp) and pid_alive(json.load(open(sp))["pid"])
-        print(f"{n:28s} frame {m.get('frame', 0):>7d}  from {m.get('start', '?'):28s} {'live' if live else '-':5s} "
+        s = json.load(open(sp)) if os.path.exists(sp) else None
+        live = sess_alive(s)
+        print(f"{n:28s} frame {m.get('frame', 0):>7d}  from {m.get('start', '?'):28s} {(s.get('host', 'wine') if live else '-'):5s} "
               f"{' '.join(sorted(m.get('checkpoints', {})))}")
 
 
@@ -1698,10 +1883,13 @@ def main():
         rd = os.path.join(RUNS, getattr(a, "run", "") or "", "session.json")
         log, why = "", ""
         if os.path.exists(rd):
-            log = os.path.join(json.load(open(rd)).get("rundir", ""), "rhost.log")
-            if os.path.exists(log):
+            s = json.load(open(rd))
+            log = os.path.join(os.path.dirname(rd), ".ended.log")
+            if sess_file(s, "rhost.log", log):
                 tail = open(log, errors="replace").read()[-1500:]
+                os.remove(log)
                 why = " | ".join(l[:160] for l in tail.splitlines() if l.startswith(("game:", "exception", "FATAL", "RESULT")))
+            log = f"{s.get('rundir')}\\rhost.log ({s.get('host', 'wine')})" if s.get("host") == "win" else os.path.join(s.get("rundir", ""), "rhost.log")
         print(f"the live session ended during this command: the game exited (EXIT on the title, a quit) or crashed.\n  {why or log}\n"
               "  The run is unchanged (its movie ends before this command); the next rd command replays it.", file=sys.stderr)
         sys.exit(3)

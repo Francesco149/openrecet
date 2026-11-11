@@ -144,13 +144,14 @@ def bin_dir():
 
 # Every rhost / port process a job starts waits here first: at most queue\procs.txt (default 12) of OUR
 # processes (C:\orc-rhost\...) at once, and only with >= 1.5 GB RAM free (16 GB box, sibling projects too).
-# The mutex makes check + launch atomic across the runner's parallel jobs.
+# The mutex makes check + launch atomic across the runner's parallel jobs and `rd`'s live sessions (tools/drive/drive.py
+# win_spawn: started from sshd's session 0, hence Global\, not Local\).
 PS_ADMIT = (
     "function Wait-Admit { $cap = 12; try { $cap = [int](Get-Content 'C:\\orc-rhost\\queue\\procs.txt' -TotalCount 1 "
     "-ErrorAction Stop) } catch {}; while ($true) { $n = @(Get-Process rhost,openrecet -ErrorAction SilentlyContinue | "
     "Where-Object { $_.Path -like 'C:\\orc-rhost\\*' }).Count; $free = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory; "
     "if ($n -eq 0 -or ($n -lt $cap -and $free -gt 1500000)) { return }; Start-Sleep -Milliseconds 500 } }\r\n"
-    "$admit = New-Object System.Threading.Mutex($false, 'Local\\orc-rhost-admit')\r\n"
+    "$admit = New-Object System.Threading.Mutex($false, 'Global\\orc-rhost-admit')\r\n"
     "function Start-Admitted([string]$exe, [string[]]$argv, [string]$so, [string]$se) { "
     "try { [void]$admit.WaitOne() } catch [System.Threading.AbandonedMutexException] {}; "
     "try { Wait-Admit; $p = Start-Process -FilePath $exe -ArgumentList $argv -NoNewWindow -PassThru "
@@ -604,9 +605,13 @@ def prune_win_runs(hours=None):
     # + the content-addressed binaries unused for 3 days (an image still running is locked: skipped)
     out = ssh_win(
         f"$n = 0; $cut = (Get-Date).AddHours(-{h}); "
-        f"Get-ChildItem {WROOT}\\runs -Directory | Where-Object {{ $_.Name -notmatch '-record-' "
+        f"Get-ChildItem {WROOT}\\runs -Directory | Where-Object {{ $_.Name -notmatch '-record-' -and $_.Name -ne 'drive' "
         f"-and $_.LastWriteTime -lt $cut }} | ForEach-Object {{ Remove-Item $_.FullName -Recurse "
         f"-Force -ErrorAction SilentlyContinue; $n++ }}; \"pruned $n\"; "
+        # rd's live-session dirs (runs\drive\*: a session removes its own; a crashed one's stays) — never a running one's
+        f"$busy = @(Get-CimInstance Win32_Process -Filter \"Name='rhost.exe'\" | ForEach-Object {{ $_.CommandLine }}) -join '|'; "
+        f"Get-ChildItem {WROOT}\\runs\\drive -Directory -ErrorAction SilentlyContinue | Where-Object {{ $_.LastWriteTime -lt $cut -and "
+        f"-not $busy.Contains($_.FullName) }} | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; "
         f"$old = (Get-Date).AddDays(-3); Get-ChildItem {WROOT}\\bin,{WROOT}\\port -Directory -ErrorAction SilentlyContinue | "
         f"Where-Object {{ $_.Name -match '^[0-9a-f]{{12}}$' -and $_.Name -notin @({keep}) -and $_.LastWriteTime -lt $old }} | "
         f"ForEach-Object {{ Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }}", timeout=1800)
@@ -646,7 +651,11 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
     def get(job):                  # absent files are fine: the caller checks
         name, f = job
         dst = os.path.join(bdir, name) if "*" in f else os.path.join(bdir, name, f)
-        subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", dst], capture_output=True, text=True)
+        for attempt in range(4):   # a dropped connection is retried (snap-check -j 6, 2026-11-11: one rhost.log lost)
+            r = subprocess.run(["scp", "-q", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/{f}", dst], capture_output=True, text=True)
+            if r.returncode == 0 or not SSH_TRANSIENT.search(r.stderr) or attempt == 3:
+                break
+            time.sleep(2 + 3 * attempt)
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:   # Windows sshd throttles startups past ~10
         list(ex.map(get, [(name, f) for name, *_ in runs for f in fetch]))
     print(f"[batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s → {bdir}]")
@@ -680,7 +689,8 @@ def cmd_run(a):
     else:
         runs = resolve_runs(a.scenarios)
     a.flatten_out = False
-    fetch = ("rhost.log", "coverage.txt", "shot_*.png", "watchwrite.log") + (("state_*.rhs",) if a.dump_at else ())
+    # save.dat: snap-check --target win compares it with the golden's (under wine the run dir is local anyway)
+    fetch = ("rhost.log", "coverage.txt", "shot_*.png", "watchwrite.log", "save.dat") + (("state_*.rhs",) if a.dump_at else ())
     batch, bdir, res, out = run_batch(a, runs, "run", fetch=fetch)
     if a.d3d:
         # the proxy's capture (v3cap.bin + census) stayed on Windows: fetch it next to the run

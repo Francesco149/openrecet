@@ -17,7 +17,7 @@ The agent-facing page is **`DRIVER.md`**; this file is the reference and the cam
 | L0 replay | any trace, any device mode | real D3D on Windows ~1,000 fps; headless 800–5,000 fps per process |
 | L1 step | `rhost --live PORT`: step N ticks, read memory, eval predicates per tick, screen text | ~0.1 ms per command; ~1,300 ticks/s in a 3D scene (render skip on; 740 without), ~5,000 in dialogue / menus |
 | L2 snapshot | in-process savestates (`rh_snap.c`) | restore 0.2 ms, take 0.1–3 ms; a savestate is the pages changed since the anchor (17 pages / 5 ticks idle in the house) |
-| search | `explore` inside the process (cells, goal, avoid, optional score); `-j N` sessions | ~700–5,000 ticks/s per session; maximus runs 14+ |
+| search | `explore` inside the process (cells, goal, avoid, optional score); `-j N` sessions | ~700–5,000 ticks/s per session; Windows-native ~3× wine (below) |
 
 Why it is fast: retail runs on fake devices (`rh_dev.c`, `--headless`) — no GPU, no window, no audio
 device — under wine without an X server, so a session is one cheap process and all its state is
@@ -42,9 +42,59 @@ reproduces state, device memory and RNG hashes. Evidence: `docs/findings/headles
 
 State on disk: `/mnt/ephemeral/openrecet/drive/runs/<run>/` — `movie.jsonl` (a flat rhost trace: the
 run), `meta.json` (start, checkpoints as frames), `vars.json` (the run's own names), `session.json`
-(the live process: a cache), `view/*.png`. Live sessions' rhost dirs:
-`/mnt/ephemeral/openrecet/rhost-wine/runs/drive/`. A session exits after 30 min without a command;
-the next command replays the movie (800–5,000 fps).
+(the live process: a cache — host, pid, port, rundir), `view/*.png`. Live sessions' rhost dirs:
+`C:\orc-rhost\runs\drive\` on the Windows box, `/mnt/ephemeral/openrecet/rhost-wine/runs/drive/` under wine.
+A session exits after 30 min without a command; the next command replays the movie (800–5,000 fps).
+
+## Where sessions run (`RD_HOST`, 2026-11-11)
+
+`RD_HOST=auto` (default): **natively on the Windows box** (`ssh $RHOST_WIN`; `export RHOST_WIN=win-wifi` when the
+box is on wifi) when it answers within 3 s and admits the session within 60 s, else under wine here. `RD_HOST=win` /
+`wine` force one. A session keeps its host (`rd ls` shows it); a rebuilt one takes the current choice; `-j N` workers
+start on the main session's host.
+
+How a Windows session works (`drive.py` `win_spawn` / `win_forward`): the session dir is copied to
+`C:\orc-rhost\runs\drive\<tag>-<pid>-<ms>`; rhost starts in sshd's session 0 (no desktop: fine for `--headless`)
+through WMI `Win32_Process.Create`, which is outside the job sshd kills on disconnect; admission = the queue runner's
+gate (`rhost.py` `PS_ADMIT`: ≤ `queue\procs.txt` rhost / port processes, ≥ 1.5 GB free, one `Global\orc-rhost-admit`
+mutex — gates and sessions share one budget) + ≤ `RD_WIN_MAX_SESSIONS` (8) rd sessions; `queue\priority.txt` = low →
+BelowNormal. rd talks to it through `ssh -L localport:127.0.0.1:port … "Wait-Process -Id PID"`: the forward ends when
+the process does, so a dead forward = a dead session. `rd stop` / a rebuild kill the forward, then the Windows process
+by PID after checking its command line is that session's, and remove its dir (`rhost.py` prune: crashed sessions' dirs
+after 12 h, never a running one's). A command round trip over the forward: ~2 ms (wifi; local wine 0.1 ms).
+
+Measured 2026-11-11 (rhost bin `38e396f9ea5b`; maximus at load 30–38 from other work, the Windows box running another
+agent's gates):
+
+| | Windows (Ryzen 9 5900X, native) | wine (maximus, i9-10900K) |
+|---|---|---|
+| `rd new --from griff-30f` (replay 39,676 frames, dungeon) | 15.5 s | 79 s |
+| `rd new --from shop-session-week3` (8,990 frames) | 6.0 s | 17.3 s |
+| `rd search … -j 1`, 30 s, Obsidian 30F → town | 1,582–1,912 ticks/s | 532 ticks/s |
+| `rd search … -j 4` (wine: `-j 3`, the local cap), 30 s | 4,729 ticks/s total (~1,180 each); 3.4 s to start 3 workers + 16 s replay | 1,067 total (~356 each); ~75 s worker replay |
+| spawn (stage, copy, admit, start, forward) | ~2 s | ~1 s |
+| memory per session (dungeon, after a search) | 650–780 MB working set (private 700–840 MB) | ~650 MB RSS |
+
+Equality (same movie, both hosts; each `rd verify` MATCH on its own host):
+
+| movie | frames | frame / RNG win = wine | `state_sem` win = wine |
+|---|---|---|---|
+| hire-griff | 4,276 | yes (`19da2b9b`) | **no** |
+| shop-session-week3 | 8,990 | yes (`efdbe670`) | **no** |
+| griff-30f | 39,676 | yes (`04dbfdce`) | **no** |
+
+The `state_sem` difference is float rounding: `hire-griff` replayed to its end headless on both hosts differs in 36 dwords,
+all floats 1–2 ulp apart (actor positions `0x76e0ac..`, matrices `0x438ce38`, `0x6a470d0`, camera blocks); x87 CW is
+`0x027F` on both. The Windows headless replay has the Windows real-device replay's values in every one of them
+(their remaining differences are device pointers / vertex data): **Windows-native is the retail-faithful host**;
+wine rounds differently somewhere — not root-caused; lead: retail imports `IsProcessorFeaturePresent`
+(D3DX8's CPU dispatch) and the two boxes are different CPUs. Hence `rd verify` replays on the session's host
+(hashes compare like for like) and prints it; `--real` still compares frame / RNG / scene with the real device.
+Gates on Windows: `rhost.py snap-check --target win -j 6` **159/159 PASS** (one row re-run after a lost
+`rhost.log` fetch — now retried; 1 with write-tracking residue, restore exact: `decor-variants`, as under wine);
+`skip-check 414ee2 --mask 76b750:76b7b0,64c514:64da38 --target win` on 7 rows (hire-griff, day2-shop, house-door,
+dungeon1-charme, dungeon2-21f-25f, dungeon2-25f-crown-kill, obsidian-21f-30f-griff): 7/7 equal; `rd check` /
+`rd endsave` on a Windows session: PASS / the same save as wine.
 
 ## Measured: the first campaign (2026-11-10)
 
@@ -194,6 +244,8 @@ scratch name (`_rd-<run>`).
   batch run — starts through `rhost.py` `admit_local`: at most `RHOST_MAX_PROCS` (10) on the box and ≥
   `RHOST_MEM_FLOOR_GB` (8) available. A session waits up to 300 s for a slot; a search worker that gets none is
   skipped (`-j 6` may run as 2). Campaign rule: **≤ 3 drivers at once, `-j 2` in task files**, no wine gates beside them.
+  Sessions on the Windows box (the default when it is up: "Where sessions run") go through that box's gate instead
+  (shared with the queue runner's batches, ≤ 8 rd sessions) and cost maximus nothing but an ssh forward each.
 - A session is ~0.65 GB resident. `./rd ls` shows the live ones;
   `./rd stop R` when a probe is accepted (accept does it).
 - `triage` / `portrng` build the port from the working tree: while a port-fix agent is at work, accept with
@@ -213,8 +265,8 @@ scratch name (`_rd-<run>`).
   unscored found 2/3 (5.4 s, 11.6 s), scored 3/3 (3.1 s, 10.3 s, 27.6 s) — the score is not a faster search on a
   short goal, it is a search that always returns ground gained (4 s: unscored nothing, scored at the door).
   Fights: one hit per call, HP in the cell, as in the Kirby recipe.
-- `--live` sessions run under wine on maximus only; the Windows box does goldens, triage, pictures
-  and `verify --real`.
+- Windows sessions share the box with gates (one admission budget): during a gates batch, `-j N` may get fewer workers
+  ("not admitted") and an `auto` session falls back to wine after 60 s. Idle sessions hold a slot for 30 min: `rd stop`.
 - Retail's render code runs every tick (it writes state the sim reads): ~70% of a 3D-scene tick. Live
   sessions skip the one function proven pure, the overlay particle dispatcher `FUN_00414ee2` (48% of a house
   tick): house 741 → 1,330 ticks/s. Proof = `rhost.py skip-check 414ee2 --mask 76b750:76b7b0,64c514:64da38`:

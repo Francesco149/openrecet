@@ -119,8 +119,10 @@ replayed from captured D3D8 streams. rhost records retail's stream with
 - **rhost:** `python3 tools/rhost/rhost.py run|det|corpus|record|flatten|diff` (auto
   build + stage). Results go to `/mnt/ephemeral/openrecet/rhost-runs/`.
 - **rd:** `./rd new|play|tap|status|text|eval|ram|ck|undo|search|look|strip|verify|check|file|port`
-  (`tools/drive/drive.py`). Runs in `/mnt/ephemeral/openrecet/drive/runs/`; live sessions are wine
-  processes on maximus (~0.6 GB each, exit after 30 min idle; `./rd stop R`, `./rd ls`).
+  (`tools/drive/drive.py`). Runs in `/mnt/ephemeral/openrecet/drive/runs/`; live sessions run natively on
+  the Windows box when it answers (`RD_HOST=auto|win|wine`; `RHOST_WIN`), else under wine on maximus
+  (~0.7 GB each, exit after 30 min idle; `./rd stop R`, `./rd ls`). Windows-native ≈ 3× wine and is the
+  float-faithful host (`tools/drive/README.md` "Where sessions run").
 - **Game data:** maximus `/mnt/ephemeral/openrecet/staged_retail/` (unpacked exe + data);
   Windows `C:\orc-rhost\game\` (pristine; rhost writes go to the run dir). Use
   `recettear.unpacked.exe` (Steamless); `vendor/original` is SteamStub-encrypted.

@@ -46,6 +46,15 @@ save.dat bytes.
 - `headless-check --real --target win` (the restructured rhost on real devices vs the goldens):
   **100/100 IDENTICAL** (372 s).
 - So: headless ≡ real device, wine ≡ Windows, new tick hook ≡ old.
+- **Caveat (2026-11-11): wine ≡ Windows in game progress, not in every float bit.** `hire-griff` replayed headless
+  to its end (f4576): Windows-native vs wine differ in 36 retail dwords, all floats 1–2 ulp apart (actor positions
+  `0x76e0ac..`, matrices `0x438ce38`, `0x6a470d0`, `0x73de29c`, `0x95d3770`); x87 CW `0x027F` in both. The Windows
+  headless values equal the Windows real-device replay's in every one. So `state_sem` is host-specific: compare it
+  within one host only (`rd verify` does). Three rd movies (4,276 / 8,990 / 39,676 frames): frame + RNG equal
+  across hosts, `state_sem` not. Cause not found; lead: retail's static D3DX8 dispatches on
+  `IsProcessorFeaturePresent` / CPUID, and the boxes are different CPUs (Ryzen 5900X / i9-10900K) — a wine-vs-CPU
+  split needs wine on the Windows CPU or Windows on maximus's. Live sessions now default to Windows-native
+  (`tools/drive/README.md` "Where sessions run").
 
 ## 2. The tick hook: host code off the game stack
 
