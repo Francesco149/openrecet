@@ -452,7 +452,7 @@ int test_records_b_tick_type_88_drag_1_0_kill_at_0x96(void)
 {
     reset_world();
     owner_blob_reset();
-    owner_blob_set_i(0xa88, 0);
+    owner_blob_set_i(0x428, 1);   /* 0x88 / 0x9a: the owner-alive gate (IDA 40205) */
     /* Age = 0x96 → kill. */
     stage_live(0, 0x88, 0, 0, 0, 0, 0, 0, /*age=*/0x95);
     bind_owner(0);
@@ -468,7 +468,7 @@ int test_records_b_tick_type_9a_drag_0_5_kill_at_0x15e(void)
 {
     reset_world();
     owner_blob_reset();
-    owner_blob_set_i(0xa88, 0);
+    owner_blob_set_i(0x428, 1);   /* 0x88 / 0x9a: the owner-alive gate (IDA 40205) */
     stage_live(0, 0x9a, 0, 0, 0, 0, 0, 0, 0x15d);
     bind_owner(0);
 
@@ -504,7 +504,7 @@ int test_records_b_tick_type_88_calls_state_machine_40x(void)
     /* Engine: 0x88 calls FUN_0043865e 40 times in the iter loop. */
     reset_world();
     owner_blob_reset();
-    owner_blob_set_i(0xa88, 0);
+    owner_blob_set_i(0x428, 1);   /* 0x88 / 0x9a: the owner-alive gate (IDA 40205) */
     s_sm_calls = 0;
     scene1_records_b_set_state_machine_hook(capture_state_machine);
 

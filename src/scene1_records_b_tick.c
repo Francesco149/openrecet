@@ -652,10 +652,10 @@ static rec_next_t body_anchor_joint(int i, int32_t type)
     return REC_TAIL;
 }
 
-/* Engine L36574-L36645 — type 0x1e else branch (gate + sub-dispatch on
- * owner+0x424 NPC motion-style ID).  Reaches LAB_0043b205 tail via
- * vel_z fall-through. */
-static rec_next_t body_0x1e(int i)
+/* Engine L36574-L36645 — types 0x1e / 0x88 / 0x9a (IDA 40205..40269: gate +
+ * sub-dispatch on owner+0x424 NPC motion-style ID; the SEs are 0x1e's).
+ * Reaches LAB_0043b205 tail via vel_z fall-through. */
+static rec_next_t body_0x1e(int i, int32_t type)
 {
     const void *owner = slot_owner(i);
     if (!owner) return REC_TAIL;
@@ -667,8 +667,8 @@ static rec_next_t body_0x1e(int i)
      *   age == 4    → se_play(0x176)
      *   age == 0x4b → se_play(0x2a4) */
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
-    if (age == 4)    se_play(0x176);
-    if (age == 0x4b) se_play(0x2a4);
+    if (type == 0x1e && age == 4)    se_play(0x176);
+    if (type == 0x1e && age == 0x4b) se_play(0x2a4);
 
     /* Engine L36583-41 — sub-dispatch on owner+0x424 (motion-style ID). */
     int  motion = owner_read_i(owner, 0x424);
@@ -692,10 +692,10 @@ static rec_next_t body_0x1e(int i)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x708));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x70c));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x710));
-        ang = ang_base + 0.3f;
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang));
+        ang = spill32((long double)ang_base + 0.30000001192092896f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32(x87_crt_sin(ang)));
         slot_set_i(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0);
-        velz = cosf(ang);
+        velz = spill32(x87_crt_cos(ang));
     } else {
         /* ALT_POS billboard variant: pos.x = sin(ang)*1.5 + ALT_POS_X;
          * pos.y = ALT_POS_Y; pos.z = cos(ang)*1.5 + ALT_POS_Z.  Vel
@@ -712,7 +712,7 @@ static rec_next_t body_0x1e(int i)
         velz = cosf(ang);
     }
 
-    lab_b205_tail(i, 0x1e, velz);
+    lab_b205_tail(i, type, velz);
     return REC_TAIL;
 }
 
@@ -6723,12 +6723,12 @@ scene1_b_next_t scene1_records_b_run_type_body(int slot_idx, int32_t type)
     rec_next_t next = REC_TAIL;
     switch (type) {
     case 0x2f:
-    case 0x88:
-    case 0x9a:
         next = body_anchor_joint(slot_idx, type);
         break;
     case 0x1e:
-        next = body_0x1e(slot_idx);
+    case 0x88:
+    case 0x9a:
+        next = body_0x1e(slot_idx, type);
         break;
     case 0x89:
     case 0x9e:
