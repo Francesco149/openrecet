@@ -217,9 +217,10 @@ scratch name (`_rd-<run>`).
   and `verify --real`.
 - Retail's render code runs every tick (it writes state the sim reads): ~70% of a 3D-scene tick. Live
   sessions skip the one function proven pure, the overlay particle dispatcher `FUN_00414ee2` (48% of a house
-  tick): house 741 → 1,330 ticks/s. Proof = `rhost.py skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408`:
+  tick): house 741 → 1,330 ticks/s. Proof = `rhost.py skip-check 414ee2 --mask 76b750:76b7b0,64c514:64da38`:
   121/121 scenarios end in the same frame / RNG / game state / save.dat with and without it (the two masked
-  blocks are the vertex scratch it writes). `rd verify` replays WITHOUT the skip, so no accepted movie rests on
+  blocks are the vertex scratch it writes; `64d408..64da38`, the arc strip of draw kind 7 = Griff's skill, added
+  2026-11-11 — a session keeps the mask it started with in `session.json`, `rd verify` uses that one). `rd verify` replays WITHOUT the skip, so no accepted movie rests on
   it; `RD_SKIP_FN=""` turns it off. Next candidates (`rhost --profile F`): `FUN_00459847` (mesh walker, 9%) —
   gate each with `skip-check` first.
 - Write tracking (on from a session's first savestate) is not perfectly transparent: a write fault's exception

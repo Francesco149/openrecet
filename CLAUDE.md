@@ -77,7 +77,7 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   the agents' start points.
 - Gates after touching rhost: `rhost.py headless-check --target wine` (headless ≡ real-device
   goldens), `headless-check --real --target win` (core changes), `snap-check --target wine`;
-  `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64d408 --target wine` when the render skip (default
+  `skip-check 414ee2 --mask 76b750:76b7b0,64c514:64da38 --target wine` when the render skip (default
   in `rd` sessions; `rd verify` replays unskipped) or its mask changes.
 - Probe reports (retail facts per behaviour): `docs/findings/probes/` (indexed in `docs/findings/INDEX.md`).
 

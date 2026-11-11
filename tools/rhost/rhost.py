@@ -1165,8 +1165,10 @@ def cmd_skip_check(a):
     mask = f"--mask-range {a.mask}" if a.mask else ""
     for tag, extra in (("plain", mask or None), ("skip", f"--skip-fn {a.fns} {mask}".strip())):
         b = copy.copy(a)
-        b.headless, b.flatten_out, b.dump_at, b.hook, b.frames, b.extra = True, False, None, None, None, extra
-        _, bd, r, out = run_batch(b, runs, "skipcheck-" + tag, fetch=("rhost.log", "save.dat"))
+        # --dump-at F[,F..] reaches both variants: state_F.rhs per scenario, to `rhost.py diff` a DIFF down to its dwords
+        b.headless, b.flatten_out, b.hook, b.frames, b.extra = True, False, None, None, extra
+        fetch = ("rhost.log", "save.dat") + (("state_*.rhs",) if a.dump_at else ())
+        _, bd, r, out = run_batch(b, runs, "skipcheck-" + tag, fetch=fetch)
         res[tag] = (bd, r)
     ok, tp, ts = 0, 0.0, 0.0
     for n, *_ in runs:
@@ -1181,9 +1183,12 @@ def cmd_skip_check(a):
         tp += float(p.get("wall_ms", 0) or 0); ts += float(s.get("wall_ms", 0) or 0)
         if bad:
             print(f"{n:42s} DIFF " + "; ".join(bad))
+        if a.dump_at:
+            for f in sorted(glob.glob(os.path.join(res["plain"][0], n, "state_*.rhs"))):
+                print(f"    dump: rhost.py diff {f} {os.path.join(res['skip'][0], n, os.path.basename(f))} --show 60")
     print(f"skip-check {a.fns}: {ok}/{len(runs)} equal (frame, RNG, state_sem, save.dat); wall plain {tp / 1000:.0f}s → skip {ts / 1000:.0f}s "
           f"(×{tp / max(ts, 1):.2f}); {time.time() - t0:.0f}s")
-    if ok == len(runs):
+    if ok == len(runs) and not a.dump_at:
         for t in ("plain", "skip"):
             shutil.rmtree(res[t][0], ignore_errors=True)
     return 0 if ok == len(runs) else 1

@@ -51,6 +51,7 @@ python3 tools/rhost/rhost.py headless-check [SCEN..|--only RE] --target wine -j 
 python3 tools/rhost/rhost.py headless-check --real --target win -j 10               # this rhost build on REAL devices vs the goldens
 python3 tools/rhost/rhost.py snap-check [SCEN..|--only RE] --target wine -j 12      # savestate self-test: restore + replay reproduces state
 python3 tools/rhost/rhost.py skip-check 414ee2 [SCEN..] --target wine -j 8           # is skipping this render function invisible to game state?
+python3 tools/rhost/rhost.py skip-check 414ee2 --only '^hire-griff$' --dump-at 1800  # a DIFF: state_f*.rhs of both variants kept, the `rhost.py diff` lines printed
 python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe"     # re-record the real adapter's answers → gen_dev_ref.py
 ./rd …                                                              # the driver on top of --live: tools/drive/README.md
 ```

@@ -49,10 +49,13 @@ SESS = os.path.join(RH.WINE_ROOT, "runs", "drive")          # live sessions' rho
 VARS = os.path.join(HERE, "vars.json")
 # Live sessions skip retail's overlay particle dispatcher FUN_00414ee2 (~48% of a 3D-scene tick): `rhost.py skip-check
 # 414ee2 --mask …` = 121/121 scenarios end in the same frame / RNG / game state / save.dat (2026-11-10), bar two render
-# scratch blocks the function writes (masked out of the state hash in both modes). Nothing accepted rests on it:
-# `rd verify` replays the movie WITHOUT the skip and must reach the session's state. RD_SKIP_FN="" turns it off.
+# scratch blocks the function writes (masked out of the state hash in both modes): the quad 76b750..76b7b0 and the two
+# strip vertex tables 64c514..64da38 (the second, 64d408.., is draw kind 7's arc: Griff's skill, 2026-11-11). Nothing
+# accepted rests on it: `rd verify` replays the movie WITHOUT the skip and must reach the session's state.
+# RD_SKIP_FN="" turns it off.
 SKIP_FN = os.environ.get("RD_SKIP_FN", "414ee2")
-SKIP_MASK = os.environ.get("RD_SKIP_MASK", "76b750:76b7b0,64c514:64d408")
+SKIP_MASK = os.environ.get("RD_SKIP_MASK", "76b750:76b7b0,64c514:64da38")
+SKIP_MASK_V1 = "76b750:76b7b0,64c514:64d408"     # sessions started before 2026-11-11 (no "mask" in their session.json)
 
 
 def skip_args():
@@ -582,7 +585,7 @@ class Run:
         k = Live.kv(self.live.cmd("ping"))
         if int(k["frame"]) != self.movie.frame:
             raise SystemExit(f"the replayed session is at frame {k['frame']}, the movie at {self.movie.frame} (see {rd}/rhost.log)")
-        self.sess = {"pid": pid, "port": port, "rundir": rd, "epoch": int(k["epoch"]), "snaps": {}, "mark": None, "skip": SKIP_FN,
+        self.sess = {"pid": pid, "port": port, "rundir": rd, "epoch": int(k["epoch"]), "snaps": {}, "mark": None, "skip": SKIP_FN, "mask": SKIP_MASK,
                      "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
         self.save_sess()
         if self.movie.frame > 2000:
@@ -854,7 +857,7 @@ def cmd_new(a):
             time.sleep(0.05)
         r.live = Live(int(open(pf).read().split()[0]))
         k = Live.kv(r.live.cmd("ping"))
-        r.sess = {"pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": srd, "epoch": int(k["epoch"]), "snaps": {}, "skip": SKIP_FN,
+        r.sess = {"pid": p.pid, "port": int(open(pf).read().split()[0]), "rundir": srd, "epoch": int(k["epoch"]), "snaps": {}, "skip": SKIP_FN, "mask": SKIP_MASK,
                   "mark": None, "bin": RH.file_sha12(os.path.join(RH.BUILD, "rhost.exe"), os.path.join(RH.BUILD, "v3proxy_d3d8.dll"))}
         r.sync_movie()
         r.save_sess()
@@ -1367,7 +1370,8 @@ def cmd_verify(a):
     r.movie.write(tr, comment=r.name, rel_to=r.dir)
     b = RH.replay_args(frames=r.movie.frame, target="wine")
     b.jobs, b.wine_timeout, b.headless, b.no_golden = 1, 3600, True, True
-    b.extra = f"--mask-range {SKIP_MASK}" if SKIP_FN else None     # plain retail (no skip); the same scratch left out of the hash
+    # plain retail (no skip); the scratch the SESSION left out of its hash (its own mask: a session outlives a mask change)
+    b.extra = f"--mask-range {(r.sess or {}).get('mask', SKIP_MASK_V1)}" if SKIP_FN else None
     _, bd, res, out = RH.run_batch(b, [("verify", tr, None, r.movie.save)], "rd-verify", fetch=("rhost.log",))
     v = res.get("verify") or {}
     shutil.rmtree(bd, ignore_errors=True)

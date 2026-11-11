@@ -141,6 +141,18 @@ scenario a plain and a skipped headless replay must agree on end frame, RNG, `st
   the plain / skip `.rhs` dumps of the five scenarios that still differed);
 - **masked `76b750:76b7b0,64c514:64d408`: 121/121 equal**, 2026-11-10, wine (summed wall 2,574 s → 1,373 s under
   load; ×2.5 on an idle box). The sim never reads the scratch: 1.7 M frames of RNG + state agree.
+- **2026-11-11, `hire-griff` DIFF `state_sem`** (frame, RNG, save.dat equal): a third block. `skip-check
+  --dump-at 1800,4200` + `rhost.py diff`: 106 / 108 dwords in `0x64d598..0x64da08`, plain = animated UV + diffuse,
+  skip = the init values (`3f002000 / 3e410000 / 3f0fe000 / 3e7f0000`, `ffffffff`). It is the second strip vertex
+  table `0x64d408..0x64da38` (33 pairs × 48 B, a quarter arc of radius 1024; init all_ida 9071-9096). Its only
+  other writer is `FUN_00414ee2` case 7 (all_ida 13478-13567): per vertex pair `v103..` (8..31) u, v and diffuse,
+  then DrawPrimitiveUP from `0x64d408 + 48 * v103`; positions are never rewritten. No other function references
+  the table → render scratch, not sim state. First reached by Griff's skill (f1716).
+- **mask now `76b750:76b7b0,64c514:64da38`** (both strip tables, one range): `--only
+  "hire-|obsidian|arms|crown|day8|venders|move-tables|stand-item"` **17/17 equal**, wine -j 4 (wall 312 s → 156 s).
+  The full corpus has not been re-run with this mask.
+- a live `rd` session keeps the mask it started with (`session.json` `mask`; none = the 2026-11-10 one) and
+  `rd verify` hashes with that one: a session older than the change that shows the arc still reports a mismatch.
 - `rd` live sessions use it by default (house 741 → 1,330 ticks/s); `rd verify` replays unskipped with the same
   mask and must reach the session's frame / RNG / `state_sem`.
 
