@@ -92,3 +92,43 @@ anim 5; from 100 alpha −8/tick, frees when it passes 0 (≈ tick 132).
 | player dies | `hp <= 0` |
 
 Port: fully ported, no PORT-DEBT in the AI. Death arm (anim 5, fade) unverified by recording, matches IDA.
+
+## 7. 40F pair (Obsidian Tower floor 39, `obs-40f`, retail-observed)
+
+Run `obs-40f` (`docs/findings/probes/obsidian-31f-40f.md`; `rd verify` MATCH at f44286, Windows). Louie L41: ATK 57, DEF 59, MDEF 33.
+Tags: **[obs fNNNN]** = seen live in `obs-40f` (or its read-only side run `obs-40f-scan`).
+
+**Corrections to §2 (stat table, read at `0x5c23f0 + 67*0x68`)**: HP 150, **EXP 25, AT 30, DF 25, MA 20, MD 25**, rf 1.3 / 4 / 3 / 4.5
+(not AT 20 / DF 30 / MA 0 / MD 10). So the charge does `ftol(30·mul/2 − DEF/4)` and Louie's sword `ftol(ATK/2 − 25/4)`.
+At L25 (`floor/4 + 16`): **HP 900** (150 · 6.0), mul 3.5 → charge `ftol(52.5 − 14.75)` = 37, +0..6: **taken 39, 40, 40, 42, 42**.
+Bee (type 10): HP 5, EXP 10, AT 17, DF 4, MA 0, MD 0, rf 0.4 / 1.5 / 4 / 4 → HP 30 at L25; sting = record **17** (reach 0), 15 +0..2 →
+**17 taken twice** [obs f40813 (side run), f42227].
+
+Placement: count 2 → Ohm 0 at (−45, −34), Ohm 1 read at (−36.0021, −34) when control came (f40502) [obs]. Both intro 240, both
+start state 0 on the same tick, and their bee timers (`+0xa64`) run in lock-step from 1.
+
+| arm (pair) | predicate | result |
+|---|---|---|
+| intro, both | `o0st == 8 and o1st == 8` | **[obs f40261..40501]** 240 ticks, `lock` 0; state 0 t 1 at f40502 |
+| Ohm 0 charge (facing) | `o0st == 2` | **[obs f40515]** first decision (t 11), and on most decisions after |
+| Ohm 1 charge | `o1st == 2` | **[obs f40532]** |
+| walk | `oNst == 1` | **[obs f41033 Ohm 0, f40856..40974 Ohm 1, f42803 Ohm 0]** |
+| burst | `oNst == 3`, records 33 at t 20 / 24 / 28 / 32 | **[obs f42213]** Ohm 0 t 16; 8 records 33 per volley at t 20 / 24 (reach 0.10, power 1, side 1), 6–10 from the player: no hit |
+| Ohm 0's charge hits the player | `hp` drops, `o0st == 2 and 70 <= o0t < 130` | **[obs f40597]** t 83: 202 → 163 (39), `p_hurt` 70, `p_inv` 30; again f41703 (40), f41965 (42) |
+| Ohm 1's charge hits the player | same, `o1` | **[obs f41076]** t 70 (record age 0): 163 → 123 (40); again f42286 (42) |
+| the 5.5 disc 2 ahead | hit iff `hypot(player − (ox + 2 sin yaw, oz + 2 cos yaw)) < 5.5` | **[obs f40596 / f40597]** 5.66 → no hit, 5.39 → hit (Ohm 0, t 82 / 83); f41076: 3.54 → hit |
+| burst shot hits | `hp` −1..2 in / after `ost == 3` | **not reached** (one burst in 2,800 ticks of fight; its shots spawned behind it). Note MA is 20, not 0: the "1–2" of §3 does not hold (the roll would be `ftol(20·3.5/2 − 33/4)` = 26) — unverified |
+| bee spawn | new type 10, `+0xb2c == 1`, at 2..10 from (−40, −40) | **[obs f40625]** both Ohms' `bt` hit 120 on the same tick → 2 bees at once, `bn` 1 / 1 |
+| **bee cap: shared** | 5 live type-10 in the whole table blocks **both** timers | **[obs f40865..41157, side run idle]** `bees` 4 → Ohm 0 spawns the 5th (`bn` 3); Ohm 1's `bt` stays 119, `bn` 2, while 5 live. The count is global (`FUN_00422ed6` scans all 128 slots for type 10); each Ohm keeps its own `bt` / `bn` |
+| bee slowdown | `bn > cap` → `bt = −200` (gap 320); `> 2·cap` → −400 (gap 520) | **[obs]** `bn` 6 / 6 at f41682, Ohm 0 `bt` −136 at f42885 (`bn` 8) → gaps grow; `bn` 9 / 8 at f43216 |
+| bee exhaustion | `bn >= 5·cap` = 25 per Ohm (up to 50 for the pair) | **not reached** (`bn` 9 / 8 at the end) |
+| how the two interact | — | **[obs]** they often charge together (both state 2 on 9 of 48 samples while both lived; Ohm 0 in state 2 without Ohm 1 on 11 more); bodies overlap near the player and a spin hits **both** (one search: 848 → 801 and 726 → 681, f41564..41623); the shared bee cap above; the first death's `p_inv` 1200 covers the rest of the fight (next row) |
+| first death (Ohm 1) | `o1use == 2` | **[obs f42875]** tick 1: slow-mo 60, **`p_inv` 1200** (1199 at f42885) although Ohm 0 lives; **tick 60 (≈f42978): no sweep, `bees` stays 2**; alpha −8 / tick from tick 100 (255 → 39 by f43045); freed f43050 (death timer 131) |
+| second death (Ohm 0) + sweep | `o0use == 2`; at tick 60 every live actor → dying | **[obs f43338]** slow-mo 60, `p_inv` 1200 again; 2 bees alive (idx 16 / 17) → **0 at tick 60 (f43440)**; Ohm 0 freed f43538 |
+| floor end | `estage == 1` | **[obs f43539]** `gate` 3 → 0, `0x9643128` 1 → 0; portals kind 8 (−35, −40) "Go to the next floor?", kind 6 (−45, −40) "Return to town now?" (prompt f43735) |
+| player dies | `hp <= 0` | **not reached** (lowest 50, f42306) |
+
+Kill: Ohm 1 900 → 0 over f41443..42875, Ohm 0 900 → 0 by f43338 (the last 153 under the 1200 `p_inv` of Ohm 1's death), by damage searches
+(goal `oNhp <= H − 60`, `--avoid "hp < H"`, actions approach / directed swing / spin / retreat / strafe, `-j 4`, 90–120 s). 4 searches ended
+on a frame where a charge was already unavoidable (one cell for the whole search): the hits at f41703, f41965, f42286 and the bee at
+f42227 came from those. Spins (5 SP) did most of the damage; SP 46 → 6 → 46 (Baked Yam) → 26.
