@@ -27,8 +27,8 @@
    "FUN_00473c15": 3,
    "FUN_00434ceb": 2,
    "FUN_00436f97": 2,
+   "FUN_004427f1": 2,
    "FUN_0044bd0d": 2,
-   "FUN_0044e08f": 2,
    "FUN_00474d92": 2,
    "FUN_0048670f": 2,
    "0x43e...": 1,
@@ -46,9 +46,9 @@
    "FUN_0042f7ad": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
-   "FUN_004427f1": 1,
    "FUN_00442cef": 1,
    "FUN_0044b219": 1,
+   "FUN_0044e08f": 1,
    "FUN_0044f078": 1,
    "FUN_00450877": 1,
    "FUN_00452809": 1,
@@ -278,7 +278,7 @@
    "engine_fn": "FUN_0042a23c",
    "desc": "the pumpkin's variant 1",
    "file": "src/actor_ai.c",
-   "line": 4667,
+   "line": 5036,
    "kind_known": true
   },
   {
@@ -294,7 +294,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 5127,
+   "line": 5498,
    "kind_known": true
   },
   {
@@ -302,7 +302,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 5084,
+   "line": 5455,
    "kind_known": true
   },
   {
@@ -310,15 +310,15 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the other types' AI (FUN_0042ce17,",
    "file": "src/actor_ai.c",
-   "line": 4680,
+   "line": 5051,
    "kind_known": true
   },
   {
    "kind": "stub",
    "engine_fn": "FUN_0042f7ad",
-   "desc": "the other bosses' / special enemies'",
+   "desc": "the final boss's death arms (73 / 74:",
    "file": "src/actor_ai.c",
-   "line": 836,
+   "line": 867,
    "kind_known": true
   },
   {
@@ -364,9 +364,17 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_004427f1",
-   "desc": "the +0x2bce2 / +0x2bcf8 story beats and",
+   "desc": "the +0x2bce2 story beat (the curtain",
    "file": "src/dungeon_flow.c",
-   "line": 1114,
+   "line": 1273,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004427f1",
+   "desc": "floor 49's timeline (the camera pan,",
+   "file": "src/dungeon_flow.c",
+   "line": 1280,
    "kind_known": true
   },
   {
@@ -398,15 +406,7 @@
    "engine_fn": "FUN_0044e08f",
    "desc": "the +0x2bce2 story beat's setup (the",
    "file": "src/dungeon_flow.c",
-   "line": 1090,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044e08f",
-   "desc": "floors 29 / 49 (type 28's floor: the",
-   "file": "src/dungeon_flow.c",
-   "line": 1093,
+   "line": 1143,
    "kind_known": true
   },
   {
@@ -422,7 +422,7 @@
    "engine_fn": "FUN_00450877",
    "desc": "dungeon 4's events",
    "file": "src/dungeon_flow.c",
-   "line": 1369,
+   "line": 1537,
    "kind_known": true
   },
   {

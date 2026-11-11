@@ -2,7 +2,7 @@
 
 **code-read**: IDA `sub_424B42` (AI, 0x424b42; phase compare checked in disassembly 0x424ba8..0x424bd2), `sub_42460A`
 (the on-damage hook, called by `sub_42E791`), `sub_42F7AD` case 28, `sub_44E08F` cases 29 / 49, the dungeon-3 arm
-inline in `sub_4427F1` (IDA 44146..44345). **Port: AI stub, death arm stub, d3 setup / events stub.**
+inline in `sub_4427F1` (IDA 44146..44345). **Port (2026-11-11): AI `actor_ai_griff` (`src/actor_ai.c`), death arm 28 / 41, d3 floor-29 setup / timeline (`griff_floor_setup` / `griff_floor_event`, `src/dungeon_flow.c`) — verified `obsidian-21f-30f-griff` (triage identical + save, ticks 1..39976). Floor-49 AI arms (phase 2, record 23, the 0-flag bats 15 / 35 / 55) ported UNVERIFIED; floor 49's timeline and the +0x2bce2 / +0x2bcf8 beats: PORT-DEBT.**
 Shared rules: `boss-floor-common.md`. The hand of the 50F fight: `demon-hand.md`. **Run 2026-11-11:** run `griff-30f` (probe
 `docs/findings/probes/obsidian-21f-30f.md`; Louie L40, ATK 56 / DEF 58 / MDEF 32): 30F fought and killed, `rd verify` MATCH at
 f39676. Arms marked **[obs fNNNN]** in §9; retail numbers in §10 override the code-read ones above where they differ.

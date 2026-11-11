@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 743, discovered 1714 → 834 referenced-or-better (32.7%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 744, discovered 1713 → 835 referenced-or-better (32.8%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (743) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (744) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -221,7 +221,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x423b58 | FUN_00423b58 | 2118 | ✓ |  | actor_ai.c, dungeon_flow.c, scene1_top_hud.c |
 | 0x42439e | FUN_0042439e | 363 | ✓ |  | actor_ai.c |
 | 0x424509 | FUN_00424509 | 257 | ✓ |  | actor_ai.c |
-| 0x42460a | FUN_0042460a | 55 | ✓ |  | record_hit.c |
+| 0x42460a | FUN_0042460a | 55 | ✓ |  | actor_ai.c, record_hit.c |
+| 0x424b42 | FUN_00424b42 | 4285 | ✓ |  | actor_ai.c |
 | 0x425bff | FUN_00425bff | 64 | ✓ |  | record_hit.c |
 | 0x4262b7 | FUN_004262b7 | 1370 | ✓ |  | actor_ai.c |
 | 0x426811 | FUN_00426811 | 1690 | ✓ |  | actor_ai.c |
@@ -772,7 +773,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x497408 | FUN_00497408 | 340 | ✓ |  | dungeon_party.c |
 | 0x49755c | FUN_0049755c | 338 | ✓ |  | dungeon_party.c |
 | 0x4976ae | FUN_004976ae | 119 | ✓ |  | actor_ai.c, actor_ai.h, dungeon_party.c |
-| 0x497745 | FUN_00497745 | 154 | ✓ |  | dungeon_party.c |
+| 0x497745 | FUN_00497745 | 154 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h |
 | 0x4977df | FUN_004977df | 320 | ✓ |  | dungeon_party.c |
 | 0x49791f | FUN_0049791f | 868 | ✓ |  | chara_skills.h, dungeon_party.c |
 | 0x497c83 | FUN_00497c83 | 439 | ✓ |  | dungeon_party.c |

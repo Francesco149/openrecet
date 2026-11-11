@@ -8,20 +8,20 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 743,
-  "inv_discovered": 1714,
-  "referenced_or_better": 834,
-  "pct_referenced_or_better": 32.7,
+  "inv_source_referenced": 744,
+  "inv_discovered": 1713,
+  "referenced_or_better": 835,
+  "pct_referenced_or_better": 32.8,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
   "port_debt": 66,
   "verified": 81,
   "stubbed": 10,
-  "ported": 743,
-  "unported": 1714,
-  "touched": 834,
-  "pct_touched": 32.7,
+  "ported": 744,
+  "unported": 1713,
+  "touched": 835,
+  "pct_touched": 32.8,
   "pct_verified": 0.0
  },
  "orphan_refs": [
@@ -3894,6 +3894,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/record_hit.c"
    ],
    "status": "ported"
@@ -3923,18 +3924,20 @@
    "size": 4285,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/actor_ai.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x425bff",
@@ -20680,7 +20683,9 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_party.c"
+    "src/actor_ai.c",
+    "src/dungeon_party.c",
+    "src/dungeon_party.h"
    ],
    "status": "ported"
   },

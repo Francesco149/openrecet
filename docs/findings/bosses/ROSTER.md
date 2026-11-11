@@ -37,7 +37,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 / 60 no recording) |
 | 25 Charme | シャルム | `FUN_0041fa6e` | ported, verified |
 | 27 Tielle | ティエール | `FUN_00423b58` | ported, unverified |
-| **28 Griff** | グリフ | **`FUN_00424b42`** | **stub** |
+| 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter); floor-49 phase 2 / record 23 unverified |
 | 29 lost girl | (placeholder) | `FUN_0042da1d` | ported |
 | 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 arm stub |
 | 31 | (placeholder) | `FUN_0042d392` | ported, unverified |
@@ -69,7 +69,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 |---|---|---|
 | 25 | Charme | ported |
 | 27 | Tielle (`FUN_0042439e`) | ported, unverified |
-| 28, 41 | tick 1 slow-mo 60 + player invulnerable 1200; tick 60 `FUN_0042f746` (no other live one of the type → every live actor → dying); d5: from tick 60 alpha −16 → free; else event stage 5: placed beside the party, stage 7: shrinks, y = event tick·0.25 → free | **stub** |
+| 28, 41 | tick 1 slow-mo 60 + player invulnerable 1200; tick 60 `FUN_0042f746` (no other live one of the type → every live actor → dying); d5: from tick 60 alpha −16 → free; else event stage 5: placed beside the party, stage 7: shrinks, y = event tick·0.25 → free | ported (28 verified `obsidian-21f-30f-griff`; 41 and the d5 fade unverified) |
 | 70 / 71 | tick 60 `FUN_0042f746`; explosions (`FUN_0042f685`) ticks 1..119; from 100 alpha −8 → free; anim 13 | ported, verified `obsidian-6f-10f-jellyfish` (no add alive at tick 60) |
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
 | 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | **stub** |

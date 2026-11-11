@@ -33,8 +33,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | 3 |
 | FUN_00434ceb | 2 |
 | FUN_00436f97 | 2 |
+| FUN_004427f1 | 2 |
 | FUN_0044bd0d | 2 |
-| FUN_0044e08f | 2 |
 | FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
@@ -52,9 +52,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042f7ad | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
+| FUN_0044e08f | 1 |
 | FUN_0044f078 | 1 |
 | FUN_00450877 | 1 |
 | FUN_00452809 | 1 |
@@ -84,25 +84,25 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0042a23c | src/actor_ai.c:4667 | the pumpkin's variant 1 |
+| FUN_0042a23c | src/actor_ai.c:5036 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:5127 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:5084 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:4680 | the other types' AI (FUN_0042ce17, |
-| FUN_0042f7ad | src/actor_ai.c:836 | the other bosses' / special enemies' |
+| FUN_0042e1a6 | src/actor_ai.c:5498 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:5455 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:5051 | the other types' AI (FUN_0042ce17, |
+| FUN_0042f7ad | src/actor_ai.c:867 | the final boss's death arms (73 / 74: |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_postload.c:288 | dungeon 4's setup FUN_00450443 |
 | FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1114 | the +0x2bce2 / +0x2bcf8 story beats and |
+| FUN_004427f1 | src/dungeon_flow.c:1273 | the +0x2bce2 story beat (the curtain |
+| FUN_004427f1 | src/dungeon_flow.c:1280 | floor 49's timeline (the camera pan, |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:356 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044e08f | src/dungeon_flow.c:1090 | the +0x2bce2 story beat's setup (the |
-| FUN_0044e08f | src/dungeon_flow.c:1093 | floors 29 / 49 (type 28's floor: the |
+| FUN_0044e08f | src/dungeon_flow.c:1143 | the +0x2bce2 story beat's setup (the |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
-| FUN_00450877 | src/dungeon_flow.c:1369 | dungeon 4's events |
+| FUN_00450877 | src/dungeon_flow.c:1537 | dungeon 4's events |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:658 | the event-window pair (chars 0x2f / 0x30) |

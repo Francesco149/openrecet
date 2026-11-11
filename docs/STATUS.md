@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-███████░░░░░░░░░░░░░  32.7% referenced-or-better   (91 instrumented)
+███████░░░░░░░░░░░░░  32.8% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   743 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1714 | exists in the engine, no `src/` reference    |
+| source-referenced  |   744 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1713 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -179,6 +179,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     + DAT_0438b4dc = work +0x2cde0 ported (`src/scene.c`); (2) f10333 golem AI stub: FUN_00420f4d + FUN_00430c6d's part
     branch ported (`src/actor_ai.c`). Only scenario with a nonzero resume mode in `_saves/`. Left: dark golem 64, the
     arm-lost branches, resume modes 2 / 3 / 4 (ported, no recording), PORT-DEBT(continue-arm, FUN_0049a59e) sweeps.
+  - ✅ 2026-11-11 (night): `obsidian-21f-30f-griff` (Obsidian 21F..29F incl. the 25F gauntlet, Griff type 28 beaten on 30F,
+    iv7_12, Save; 39,676 frames; was split f31615 at the 30F layout) → identical + save on the first build; gate rows
+    added. Ported from IDA + asm: FUN_0044e08f case 29 / 49 (portals, party column, Griff at (−40, 0, −35) state 8;
+    beaten → stage 8), the dungeon-3 arm's floor-29 timeline (stages 0 → 3 → 4 → 5 → 7, +0x2bce4 / +0x2bce5), Griff's AI
+    FUN_00424b42 (`actor_ai_griff`), FUN_0042f7ad case 28 / 41; FUN_00497745 shared with the hire. Left: floor 49's
+    timeline, the +0x2bce2 / +0x2bcf8 beats and the +0x2bce2 setup (PORT-DEBT); floor-49 AI arms unverified.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
@@ -409,8 +415,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        FUN_0042df55's
        lists for stages >= 20, the other hires' swings / skills (chars 28 / 30 / 31 / 40 / 41 / 42;
        Charme 27 is ported, PROGRESS 2026-10-23), FUN_0042f7ad's other boss
-       arms (27/28/41/70..74), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
-       3 / 4's events / setups (dungeon 3: checkpoint floors ported 2026-11-11, the story beats and floors 29 / 49
+       arms (73 / 74; 28 / 41 ported 2026-11-11), FUN_00474d92 (the D3D teardown), the remaining FUN_004147d5 overlay stubs, dungeons
+       3 / 4's events / setups (dungeon 3: checkpoint floors and floor 29 ported 2026-11-11, the story beats and floor 49
        of FUN_004427f1 / FUN_0044e08f open; dungeon 4: FUN_00450443, FUN_00450877); dungeon 5's setup / events are ported (the Boss Rush runs
        on them) but its bosses' AIs (golem parts 61..66, 72..76) and Tielle's FUN_0044db3c are
        stubs; render (2026-10-17, PROGRESS ×2): rooms, objects (static + skinned), model and

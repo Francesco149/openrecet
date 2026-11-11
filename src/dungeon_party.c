@@ -1969,7 +1969,7 @@ static void party_attack_tielle(void)
 
 /* FUN_00497745: Griff's voices — 0: the swing (bag of 7), 1 / 2: two skill
  * pairs (bag of 2) */
-static void griff_voice(int32_t k)
+void griff_voice(int32_t k)
 {
     static const char *const k_v[7] = {
         "bin/se/08gr/attack/08gr_01a.bin", "bin/se/08gr/attack/08gr_01c.bin",
