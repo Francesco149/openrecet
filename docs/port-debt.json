@@ -113,7 +113,7 @@
    "engine_fn": "FUN_0043ae20",
    "desc": "retail's sequential-`if` head (types",
    "file": "src/scene1_records_b_tick.c",
-   "line": 6973,
+   "line": 6999,
    "kind_known": false
   },
   {
@@ -137,7 +137,7 @@
    "engine_fn": "0x43e...",
    "desc": "types >= 64 read past DAT_005c23f0 into",
    "file": "src/scene1_records_b_tick.c",
-   "line": 3203,
+   "line": 3236,
    "kind_known": false
   },
   {
