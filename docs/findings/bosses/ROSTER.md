@@ -37,7 +37,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 / 60 no recording) |
 | 25 Charme | シャルム | `FUN_0041fa6e` | ported, verified |
 | 27 Tielle | ティエール | `FUN_00423b58` | ported, unverified |
-| 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter); floor-49 phase 2 / record 23 unverified |
+| 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter) and `obsidian-41f-50f-finale` (floor 49: phase 2, record 23, the kept bats) |
 | 29 lost girl | (placeholder) | `FUN_0042da1d` | ported |
 | 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 arm stub |
 | 31 | (placeholder) | `FUN_0042d392` | ported, unverified |
@@ -47,7 +47,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | **stub** |
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
-| **49 black knight** | ブラックナイト | **`FUN_004279cf`** | **stub** |
+| 49 black knight | ブラックナイト | `FUN_004279cf` | ported, verified `obsidian-41f-50f-finale` (identical + save) |
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | ported (`actor_ai_skeleton`), verified `obsidian-31f-40f-ohms` (drift, lunge record 12, two revives) |
 | 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified (the 15F pair: `obsidian-11f-15f-ahrimans` identical + save) |
@@ -57,7 +57,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 67 Ohm | オーム | `FUN_00422ed6` | ported, verified (40F pair: `obsidian-31f-40f-ohms` identical + save) |
 | 68 / 69 crabs | カニ / 黒カニ | `FUN_00422092` | ported (68 verified) |
 | **70 / 71 jellyfish** | クラゲ / 赤クラゲ | `+0x3dc = DAT_0438ccc4`, **`FUN_004219f2`** | ported (`actor_ai_jelly`; 4 anim layers `FUN_004218e1`), 70 verified `obsidian-6f-10f-jellyfish` (identical + save; the 2 hit parts in `FUN_0043865e` with it); 71 no recording |
-| **72 hand** | 魔王の手 | **`FUN_00424641`** | **stub** |
+| 72 hand | 魔王の手 | `FUN_00424641` | ported, verified `obsidian-41f-50f-finale` (d3 floor 49; the d5 release unverified) |
 | **73 / 74 Arma golem body / core** | アルマゴーレム / コア | **`FUN_004205e5`** | **stub** |
 | **75 / 76 Arma golem hands** | アルマゴーレム右手 / 左手 | **`FUN_00420bd0`** | **stub** |
 | 77 Prime body | プリム本体 | `FUN_0044f01d` (prop) | stub |
@@ -74,10 +74,10 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
 | 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | **stub** |
 | 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | **stub** |
-| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`) |
+| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`; 49: `obsidian-41f-50f-finale`) |
 | 24 / 59 / 60 | rat collapse (500 ticks) | ported |
 | 37–40 | bomb fuse | ported |
-| 72 and the rest | default: tick 2 free + puff (`+0xadc` revive count first) | default ported |
+| 72 and the rest | default: tick 2 free + puff (`+0xadc` revive count first) | default ported (72 verified: `obsidian-41f-50f-finale`) |
 
 ## 2. Dungeons
 

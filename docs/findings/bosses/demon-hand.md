@@ -2,7 +2,7 @@
 
 **code-read**: IDA `sub_424641` (AI, 0x424641), `sub_43865E` (the hit handler: IDA 38971 `type == 72 → part hit`),
 `sub_43AE20` (record 154 follows the hand, IDA 40241), `sub_42F7AD` default arm, spawns in `sub_4427F1` (d3 floor
-49, tick 30) and `sub_450EE0` case 45. **Port: stub.** Shared rules: `boss-floor-common.md`; the fight it belongs
+49, tick 30) and `sub_450EE0` case 45. **Port (2026-11-11): AI `actor_ai_arm` (`src/actor_ai.c`), record 154 on the owner-motion body (`src/scene1_records_b_tick.c`), d3 floor-49 spawn (`griff49_floor_event`, `src/dungeon_flow.c`) — verified `obsidian-41f-50f-finale` (triage identical + save; descend, release, sweeps, slam, death with Griff); the d5 240-tick release unverified.** Shared rules: `boss-floor-common.md`; the fight it belongs
 to: `griff.md`. **Run 2026-11-11 (`obs-50f`): §8 — retail stats override §2 (HP 100 → 660 at L28, MA 35).**
 
 ## 1. Where

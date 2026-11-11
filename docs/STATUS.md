@@ -190,6 +190,13 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     after one unit: FUN_00428213 (`actor_ai_skeleton`: drift / lunge record 12 / walk state 8) for types 50 / 51 (+0xb8c →
     +0xadc = 2, the two revives) and FUN_0042f28c's default types; gate rows added. Ohm pair, slimes 4 / 5, bees 10,
     35F portals needed no change.
+  - ✅ 2026-11-11 (night): `obsidian-41f-50f-finale` (Market food, a day burned, the guild, Obsidian 41F..49F, the 45F
+    black knight, the 50F Griff + Archdevil's Arm, event 7/8, the type-20 stage, event 7/14, CLEAR!, town map, Save;
+    38,892 frames; was split f15954) → identical + save in 3 units: (1) FUN_004279cf (`actor_ai_black_knight`) → f30201;
+    (2) FUN_00424641 (`actor_ai_arm`) + FUN_004427f1's floor-49 timeline (`griff49_floor_event`) + the +0x2bcf8 return
+    beat → f31044; (3) records 0x88 / 0x9a on the owner-motion body, not 0x2f's joint anchor (record 154 flew along the
+    yaw ±π/2 at 2.5 and hit Louie). Types 16 / 20 / 21 / 48 / 51 and the death arms 49 / 72 needed no change; gate rows
+    added. Left: the +0x2bce2 beat and its setup (PORT-DEBT), the Arm's d5 release unverified.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`

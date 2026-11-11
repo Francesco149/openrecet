@@ -2,7 +2,7 @@
 
 **code-read**: IDA `sub_4279CF` (AI, 0x4279cf), `sub_423789` (walk-and-align helper; described in `arma.md` §3),
 `sub_43865E` shield block (IDA 39173..39196), `sub_445A8C` case 81, `sub_42F7AD` case 23 / 49 / 55 / 54, table
-0x52b978. **Port: AI stub; death arm case 49 not in the port's list.** Shared rules: `boss-floor-common.md`
+0x52b978. **Port (2026-11-11): AI `actor_ai_black_knight` (`src/actor_ai.c`), death arm case 49 (shared 23 / 49 / 54 / 55) — verified `obsidian-41f-50f-finale` (triage identical + save; intro, knight upkeep, walk / throw / block / burst, death).** Shared rules: `boss-floor-common.md`
 (generic boss floor). **Run 2026-11-11 (`obs-50f`, 45F): §10 — retail stats override §2 / §5 (HP 100, AT 35, MD 20: HP 640 at L27).**
 
 ## 1. Where (HP each = 15·(1 + 0.2·lv))
