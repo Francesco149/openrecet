@@ -6424,6 +6424,221 @@ void scene1_records_b_run_lab_00440dc1(int i)
 
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
+/* ═══ the hire probes (2026-11-11): types 0x61 / 0x64 / 0x6a ═══════════
+ * FUN_0043ae20 cases 97 / 100 / 106 (IDA; asm 0x43ed96.. for 97).  The x87
+ * chains follow the asm (m32 constants, fstp m32 spills). */
+static int32_t seq_next(void)                 /* FUN_0044375e */
+{
+    return g_scene1_record_b_seq_counter++;
+}
+
+/* type 0x61 (97): Caillou's ice block.  DRAG 3; it rides 5 below, slows
+ * from 50, stops at 70 and rises 0.8 a tick to the floor (LIFE_MULT 1.5,
+ * shrinking from 285); six shards 39..41 at 68..73 (rand: scale, z, y, x), a
+ * mote 42 every tick from 70 (x, y, z, scale), a chip 43 every 4th tick from
+ * 10 (x, z, scale); at 70 SE 696, the ring 151, the shake; 70..289 in view
+ * it hits (a hit ages it 25 and skips the tail); a new SEQ every 10 ticks;
+ * dead at 300. */
+static void body_0x61(int i)
+{
+    static const float k5 = 5.0f, k0p8 = 0.800000011920929f, k1p5 = 1.5f, k15 = 15.0f;
+    static const float k0p95 = 0.949999988079071f, k0p2 = 0.20000000298023224f;
+    static const float k0p02 = 0.019999999552965164f, k0p5 = 0.5f, k4 = 4.0f, k0p1 = 0.10000000149011612f;
+    static const float k2p5 = 2.5f, k0p3 = 0.30000001192092896f;
+    const void *owner = slot_owner_a(i);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - k5));
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age < 70) {
+        if (age >= 50) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
+                       spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * k0p95));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
+                       spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * k0p95));
+        }
+    } else {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, k1p5);
+        const float y = spill32((long double)spill32((long double)(age - 70)) * k0p8 - k5);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, y);
+        if (y > 0.0f) slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, 0.0f);
+        if (age >= 285)
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT,
+                       spill32(k1p5 - (long double)spill32((long double)(age - 280)) * k1p5 / k15));
+    }
+    for (int32_t k = 0; k != 6; k++) {
+        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) != k + 68) continue;
+        const int32_t dur = (k & 1) ? 96 : -1;
+        const float kf = spill32((long double)k);
+        const float sc = spill32((long double)rng_next_unit() * k0p2 + 1.0f - (long double)kf * k0p02);
+        const float z = spill32(((long double)rng_next_unit() - k0p5) * k0p2 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
+        const long double r = rng_next_unit();
+        const float y = spill32(r + r + (long double)kf * k0p5);
+        const float x = spill32(((long double)rng_next_unit() - k0p5) * k0p2 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+        overlay_spawn(owner, x, y, z, k % 3 + 39, sc, dur, 0, 0, 0);
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 70) {
+        const float x = spill32(((long double)rng_next_unit() - k0p5) * k4 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+        const float y = spill32((long double)rng_next_unit() * k5);
+        const float z = spill32(((long double)rng_next_unit() - k0p5) * k4 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
+        const float sc = spill32((long double)rng_next_unit() * k0p1 + k0p2);
+        overlay_spawn(owner, x, y, z, 42, sc, -1, 0, 0, 0);
+    }
+    age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age >= 10 && age % 4 == 0) {
+        const float x = spill32(((long double)rng_next_unit() - k0p5) * k2p5 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+        const float z = spill32(((long double)rng_next_unit() - k0p5) * k2p5 + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
+        const float sc = spill32((long double)rng_next_unit() * k0p3 + k0p8);
+        overlay_spawn(owner, x, 0.0f, z, 43, sc, -1, 0, 0, 0);
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 70) {
+        se_play(696);
+        scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), 0.0f,
+                     slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 151, k0p2, 1);
+        notify_queue_call(10, 4, 4, 1.0f);
+    }
+    age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age >= 70 && age < 290 &&
+        cull_query(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 0.0f) < 0 &&
+        state_machine_call_ret(slot_base(i)) != 0) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) + 25);
+        return;
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) % 10 == 0)
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq_next());
+    if (!(slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) < 300)) scene1_records_b_tick_kill_slot(i);
+    scene1_records_b_run_lab_00440dc1(i);
+}
+
+/* type 0x64 (100): Tielle's homing arrows.  LIFE_MULT 0.2, DRAG 0.3; they
+ * rise 0.03 a tick until 8·PART_IDX + 30, then home (FUN_0043ab6e 0.3 / 0.03
+ * / 0.005 / 0.96) until +100; the trail 112; the speed capped at 0.3; past
+ * 30 (FLAG_A 0) a hit bursts 16 and, with pierces left (byte +0xc2), bounces
+ * up 0.5 with the age reset — else dies; a new SEQ at every 30th tick; dead
+ * at 150. */
+static void body_0x64(int i)
+{
+    static const float k0p2 = 0.20000000298023224f, k0p3 = 0.30000001192092896f;
+    static const float k0p03 = 0.029999999329447746f;
+    int32_t *slot = slot_base(i);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, k0p2);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k0p3);
+    const int32_t lim = 8 * slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) <= lim + 30)
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+                   spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) + k0p03));
+    const int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age > lim + 30 && age < lim + 100)
+        (void)aux_43ab6e_call(slot, k0p3, k0p03, 0.004999999888241291f, 0.9599999785423279f, -1);
+    scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                 slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 112, k0p2, 1);
+    {
+        const float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        const float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        const float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        const float m2 = spill32((long double)vz * vz + (long double)vy * vy + (long double)vx * vx);
+        if (m2 > 0.0f) {
+            const float m = spill32((long double)sqrt((double)m2));
+            if (m > k0p3) {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)vx * k0p3 / m));
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32((long double)vy * k0p3 / m));
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)vz * k0p3 / m));
+            }
+        }
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) > 30 && slot_get_i(i, SCENE1_RECORDS_B_OFF_FLAG_A) == 0 &&
+        state_machine_call_ret(slot) != 0) {
+        const float sc = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k0p3);
+        scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                     slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 16, sc, 12);
+        int8_t *pierce = (int8_t *)slot + 0xc2;
+        if (*pierce <= 0) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.5f);
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 0);
+        --*pierce;
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) % 30 == 29)
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq_next());
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 150) scene1_records_b_tick_kill_slot(i);
+    scene1_records_b_run_lab_00440dc1(i);
+}
+
+/* type 0x6a (106): Caillou's orbs.  Below 200 they orbit the owner (the
+ * point (0, 0, min(age·0.1, 3)) through RotY(ROT_X)·RotZ(ROT_Z)·RotX(ROT_SCR),
+ * each angle +0.04 a tick, 1.1 up; LIFE_MULT 0.5; the age holds at 100 and
+ * jumps to 200 when the owner's swing reaches tick 10); from 200 they grow
+ * to 0.8 and home (0.6 / 0.03 / 0.05 / 0.96; DRAG 0.3; a new SEQ at every
+ * 30th tick).  The trail 28 every tick; a hit bursts 16 and kills; dead at
+ * 400. */
+static void body_0x6a(int i)
+{
+    static const float k0p05 = 0.05000000074505806f, k0p8 = 0.800000011920929f;
+    static const float k0p3 = 0.30000001192092896f, k0p04 = 0.03999999910593033f;
+    static const float k0p1 = 0.10000000149011612f, k1p1 = 1.100000023841858f;
+    int32_t *slot = slot_base(i);
+    const void *owner = slot_owner_a(i);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 200) {
+        float lm = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + k0p05);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, lm);
+        if (lm > k0p8) slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, k0p8);
+        scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                     slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 28,
+                     spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k0p3), 1);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, k0p3);
+        (void)aux_43ab6e_call(slot, 0.6000000238418579f, 0.029999999329447746f, k0p05, 0.9599999785423279f, -1);
+        if (state_machine_call_ret(slot) == 0) {
+            if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) % 30 == 29)
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq_next());
+            goto alive;
+        }
+    } else {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+        const int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+        if (age > 100) slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, age - 1);
+        if (owner && owner_read_i(owner, 0xe90) == 2 && owner_read_i(owner, 0xe94) == 10)
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 200);
+        float m[16], r[16];
+        mat4_translation(m, 0.0f, 0.0f, 0.0f);                              /* FUN_004a34b0 */
+        mat4_rotation_x(r, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR));    /* FUN_004a3553 */
+        mat4_mul(m, r, m);                                                  /* FUN_004a2a10 */
+        mat4_rotation_z(r, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z));      /* FUN_004a368c */
+        mat4_mul(m, r, m);
+        mat4_rotation_y(r, slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X));      /* FUN_004a35ef */
+        mat4_mul(m, r, m);
+        float rad = spill32((long double)spill32((long double)slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE)) * k0p1);
+        if (rad > 3.0f) rad = 3.0f;
+        mat4_translation(r, 0.0f, 0.0f, rad);
+        mat4_mul(m, r, m);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + k0p04));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X) + k0p04));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + k0p04));
+        const float ox = owner ? owner_read_f(owner, 0x20) : 0.0f;
+        const float oy = owner ? owner_read_f(owner, 0x24) : 0.0f;
+        const float oz = owner ? owner_read_f(owner, 0x28) : 0.0f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)m[12] + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)m[13] + oy + k1p1));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)m[14] + oz));
+        scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                     slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 28,
+                     spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k0p3), 1);
+        if (state_machine_call_ret(slot) == 0) goto alive;
+    }
+    scene1_spawn(0, slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X), slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                 slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z), 16,
+                 spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * k0p3), 12);
+    scene1_records_b_tick_kill_slot(i);
+    return;
+alive:
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) scene1_records_b_tick_kill_slot(i);
+    scene1_records_b_run_lab_00440dc1(i);
+}
+
 static void dispatch_default(int slot_idx, int32_t type)
 {
     /* C8j-tick.2 — anchor cascade.  Per the engine's nested if/goto
@@ -6685,6 +6900,15 @@ static void dispatch_default(int slot_idx, int32_t type)
     /* C8j-tick.15l — type 0x7c sister-hunting projectile. */
     case 0x7c:
         body_0x7c(slot_idx);
+        break;
+    case 0x61:
+        body_0x61(slot_idx);
+        break;
+    case 0x64:
+        body_0x64(slot_idx);
+        break;
+    case 0x6a:
+        body_0x6a(slot_idx);
         break;
     default:
         /* LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).

@@ -45,6 +45,7 @@
 #include "stage_post_load.h"     /* DAT_0438b4d0 */
 #include "stage_palette.h"
 #include "tables_chara.h"        /* DAT_073ae058 */
+#include "tables_enemy.h"        /* DAT_005c23f0 */
 #include "scene1_tutorial_dispatch.h" /* DAT_0438b928 / b924 */
 #include "x87.h"
 
@@ -820,11 +821,58 @@ static void party_attack_input(void)
     const int32_t g = PW(0x56db0e4u).i;
     int attack_ok = 0;
     if (PW(0x56db0e0u).i >= 10 * g) PW(0x56db0e0u).i = 10 * g;
+    int pick = 0;
     if (g == 0) {
         attack_ok = 1;
+        pick = PW(0x56db114u).i == -1;
     } else {
-        /* PORT-DEBT(stub, FUN_0048d5d6): char 42's gauge refill + the random
-         * charm pick (j__rand % 13) */
+        /* char 42's gauge db0e0 (max 10·g): empty for 90 ticks of db0dc it
+         * refills (db0ec 1..10: +10 per 5 ticks of db0e8 += 2; full → db0ec
+         * 11 counts to 60 and clears); A fires only with gauge left */
+        const int32_t st = PW(0x56db0ecu).i;
+        int refill = 0;
+        if (st > 0) {
+            if (st <= 10) {
+                if (st < 10) PW(0x56db0ecu).i = st + 1;
+                const float v = spill32((long double)PW(0x56db0e8u).f + 2.0f);
+                PW(0x56db0e8u).f = v;
+                if (v >= 10.0f) {
+                    PW(0x56db0e0u).i += 10;
+                    const int below = PW(0x56db0e0u).i < 10 * g;
+                    PW(0x56db0e8u).f = 0.0f;
+                    if (!below) {
+                        PW(0x56db0e0u).i = 10 * g;
+                        PW(0x56db0ecu).i = 11;
+                    }
+                }
+                refill = 1;
+            } else {
+                PW(0x56db0ecu).i = st + 1;
+                if (st + 1 > 60) PW(0x56db0ecu).i = 0;
+            }
+        }
+        if (refill) {
+            pick = PW(0x56db114u).i == -1;
+        } else {
+            if ((g_sim_buttons[0].pressed & 0x10) && PW(0x56db0e0u).i > 0) attack_ok = 1;
+            if (PW(0x56db0e0u).i != 0 || ++PW(0x56db0dcu).i <= 90) {
+                pick = PW(0x56db114u).i == -1;
+            } else {
+                PW(0x56db0ecu).i = 1;
+                PW(0x56db0dcu).i = 0;
+                PW(0x56db0e8u).f = 0.0f;
+                pick = 1;
+            }
+        }
+    }
+    if (pick && chr == 42) {
+        /* the random charm (item 714 in her first slot): a weapon of 13 */
+        static const int32_t k_weapon[13] = { 113, 118, 120, 122, 114, 117, 119, 121, 116, 115, 126, 123, 125 };
+        const uint8_t *cr = chara_rec();
+        int32_t slot = -1;
+        if (cr) memcpy(&slot, cr + 4, 4);
+        if (slot != -1 && (slot & ~0x3f) == 45696)
+            PW(0x56db114u).i = k_weapon[(uint32_t)rng_next15() % 13u];
     }
     const uint16_t pr = g_sim_buttons[0].pressed;
     const int a_up = chr == 30 ? !(g_sim_buttons[0].cur & 0x10) : !(pr & 0x10);
@@ -1735,6 +1783,959 @@ static void party_skill8_caillou(void)
     if (PW(0x56db04cu).i >= 110) party_action_end();
 }
 
+
+/* FUN_00494ca4: Elan's swing (attack state 2 of char 40): SE 683 + his voice
+ * (bag of 6) + the hit record 91 at 7; A pressed during the swing arms the
+ * follow-up (da1b8 bit 0): past 16 with the hit landed too (da1b8 == 3) the
+ * state 3 punch starts; the skill keys from 8; the end at 25 */
+static void party_attack_elan(void)
+{
+    static const char *const k_v[6] = {
+        "bin/se/06el/attack/06el_01.bin", "bin/se/06el/attack/06el_01a.bin",
+        "bin/se/06el/attack/06el_01b.bin", "bin/se/06el/attack/06el_02a.bin",
+        "bin/se/06el/attack/06el_03.bin", "bin/se/06el/attack/06el_03b.bin" };
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 7) {
+        audio_play_se_by_id(683);
+        voice_pick(voice_bag_k(6), k_v, 6);
+        scene1_record_b_spawn_entity(&g_party, 91, -1);
+    }
+    const int32_t t = PW(0x56db04cu).i;
+    if (t > 0 && (g_sim_buttons[0].pressed & 0x10)) PW(0x56da1b8u).i |= 1;
+    if (t >= 25) party_action_end();
+    if (PW(0x56db04cu).i > 16 && PW(0x56da1b8u).i == 3) {
+        PW(0x56da1b8u).i = 0;
+        PW(0x56db064u).i = 0;
+        PW(0x56db048u).i = 3;
+        PW(0x56db04cu).i = 0;
+    }
+    if (PW(0x56db04cu).i >= 8 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+}
+
+/* FUN_00494dc5: Elan's follow-up (state 3): anim 4 and the crit roll at 1
+ * (daff8 1), at 6 the crit flash + voice (bag of 4) or the plain voice (bag
+ * of 7), at 14 SE 673 + the hit record 92 (94 on a crit), the end at 30, the
+ * skill keys from 15 */
+static void party_attack2_elan(void)
+{
+    static const char *const k_v_crit[4] = {
+        "bin/se/06el/attack/06el_07a.bin", "bin/se/06el/attack/06el_07b.bin",
+        "bin/se/06el/attack/06el_08.bin", "bin/se/06el/attack/06el_08a.bin" };
+    static const char *const k_v[7] = {
+        "bin/se/06el/attack/06el_04a.bin", "bin/se/06el/attack/06el_04b.bin",
+        "bin/se/06el/attack/06el_05.bin", "bin/se/06el/attack/06el_05a.bin",
+        "bin/se/06el/attack/06el_06.bin", "bin/se/06el/attack/06el_06a.bin",
+        "bin/se/06el/attack/06el_06b.bin" };
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 4);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        PW(0x56daff8u).i = 1;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+    }
+    if (PW(0x56db04cu).i == 6) {
+        if (PW(0x56db064u).i != 0) {
+            party_crit_flash();
+            voice_pick(voice_bag_k(4), k_v_crit, 4);
+        } else {
+            voice_pick(voice_bag_k(7), k_v, 7);
+        }
+    }
+    if (PW(0x56db04cu).i == 14) {
+        audio_play_se_by_id(673);
+        scene1_record_b_spawn_entity(&g_party, PW(0x56db064u).i != 0 ? 94 : 92, -1);
+    }
+    if (PW(0x56db04cu).i >= 30) party_action_end();
+    if (PW(0x56db04cu).i >= 15 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+}
+
+/* FUN_00497c83: Nagi's swing (attack state 2 of char 31): the crit roll at
+ * 1, the crit flash at 10, at 16 SE 682 + the hit record 88 and her voice
+ * (crit: the record first, bag of 4; else the voice first, bag of 5), the
+ * skill keys from 17, the end at 30 */
+static void party_attack_nagi(void)
+{
+    static const char *const k_v_crit[4] = {
+        "bin/se/07na/attack/n2_02.bin", "bin/se/07na/attack/n2_04.bin",
+        "bin/se/07na/attack/n2_06.bin", "bin/se/07na/attack/n2_08.bin" };
+    static const char *const k_v[5] = {
+        "bin/se/07na/attack/n2_01.bin", "bin/se/07na/attack/n2_03.bin",
+        "bin/se/07na/attack/n2_05.bin", "bin/se/07na/attack/n2_07.bin",
+        "bin/se/07na/attack/n2_10.bin" };
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+    }
+    if (PW(0x56db04cu).i == 10 && PW(0x56db064u).i != 0) party_crit_flash();
+    if (PW(0x56db04cu).i == 16) {
+        audio_play_se_by_id(682);
+        if (PW(0x56db064u).i != 0) {
+            scene1_record_b_spawn_entity(&g_party, 88, -1);
+            voice_pick(voice_bag_k(4), k_v_crit, 4);
+        } else {
+            voice_pick(voice_bag_k(5), k_v, 5);
+            scene1_record_b_spawn_entity(&g_party, 88, -1);
+        }
+    }
+    if (PW(0x56db04cu).i >= 17 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+    if (PW(0x56db04cu).i == 30) party_action_end();
+}
+
+/* FUN_0049791f: Tielle's shot (attack state 2 of char 30).  While A is held
+ * and the shot has not started (daff8 0) she walks (FUN_00489e66; anim 5
+ * when slower than 0.1) and draws: daff4 +1 a tick (+4 with daea0 up) up to
+ * 269, SE 371 at every 45, the mote 99 from 10; the skill keys clear the
+ * draw, the skill cycle works.  Released: the crit roll at 1 (anim 6, daff8
+ * back to 0), the crit flash at 5, her voice at 6 (crit: bag of 3, else bag
+ * of 4), at 12 SE 674 + the arrow by the draw (daff4 / 45: records 77 / 78 /
+ * 79 / 80 / 165 / 166), the skill keys from 20, the end at 35 */
+static void party_attack_tielle(void)
+{
+    static const char *const k_v_crit[3] = {
+        "bin/se/05ti/attack/05ti_02.bin", "bin/se/05ti/attack/05ti_02b.bin",
+        "bin/se/05ti/attack/05ti_05.bin" };
+    static const char *const k_v[4] = {
+        "bin/se/05ti/attack/05ti_01.bin", "bin/se/05ti/attack/05ti_01b.bin",
+        "bin/se/05ti/attack/05ti_06a.bin", "bin/se/05ti/attack/05ti_06b.bin" };
+    if ((g_sim_buttons[0].cur & 0x10) && PW(0x56daff8u).i == 0) {
+        party_walk();                                /* FUN_00489e66 */
+        const float v2 = spill32((long double)g_party.vel[0][0] * g_party.vel[0][0] +
+                                 (long double)g_party.vel[0][2] * g_party.vel[0][2]);
+        const float sp = spill32(crt_sqrt(v2));
+        if (sp < k0p1) party_anim_set(g_party.rec[0], 5);
+        const int32_t d = PW(0x56daff4u).i;
+        if (d < 269) {
+            PW(0x56daff4u).i = d + 1;
+            if (PW(0x56daea0u).i > 0) PW(0x56daff4u).i = d + 4;
+            if (PW(0x56daff4u).i % 45 < d % 45) audio_play_se_by_id(371);
+        }
+        if (PW(0x56daff4u).i >= 10)
+            scene1_spawn(0, g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + 2.0f),
+                         g_party.pos[0][2], 99, 0.05000000074505806f, 1);
+        const uint16_t pr = g_sim_buttons[0].pressed;
+        if (pr & 0x3e00) {
+            PW(0x56daff4u).i = 0;
+            party_skill_direct();
+        } else if (pr & 0x20) {
+            PW(0x56daff4u).i = 0;
+            party_skill_selected();
+        }
+        if (g_sim_buttons[0].pressed & 0x40) {
+            const int32_t n = chara_skills_get_count(chara_equip_get_current_chara());
+            if (n > 1) {
+                PW(0x56db0d8u).i = (PW(0x56db0d8u).i + 1) % n;
+                audio_play_se_by_id(326);
+            }
+        }
+        return;
+    }
+    if (++PW(0x56db04cu).i == 1) {
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+    }
+    const int at5 = PW(0x56db04cu).i == 5;
+    PW(0x56daff8u).i = 1;
+    if (at5 && PW(0x56db064u).i != 0) party_crit_flash();
+    if (PW(0x56db04cu).i == 6) {
+        if (PW(0x56db064u).i != 0) voice_pick(voice_bag3(), k_v_crit, 3);
+        else voice_pick(voice_bag_k(4), k_v, 4);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        PW(0x56daff8u).i = 0;
+        party_anim_set(g_party.rec[0], 6);
+    }
+    if (PW(0x56db04cu).i == 12) {
+        static const int32_t k_arrow[6] = { 77, 78, 79, 80, 165, 166 };
+        audio_play_se_by_id(674);
+        int32_t n = PW(0x56daff4u).i / 45;
+        scene1_record_b_spawn_entity(&g_party, n < 1 ? 77 : n >= 5 ? 166 : k_arrow[n], -1);
+        PW(0x56daff4u).i = 0;
+    }
+    if (PW(0x56db04cu).i >= 20 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+    if (PW(0x56db04cu).i >= 35) party_action_end();
+}
+
+/* FUN_00497745: Griff's voices — 0: the swing (bag of 7), 1 / 2: two skill
+ * pairs (bag of 2) */
+static void griff_voice(int32_t k)
+{
+    static const char *const k_v[7] = {
+        "bin/se/08gr/attack/08gr_01a.bin", "bin/se/08gr/attack/08gr_01c.bin",
+        "bin/se/08gr/attack/08gr_04.bin", "bin/se/08gr/attack/08gr_04a.bin",
+        "bin/se/08gr/attack/08gr_04b.bin", "bin/se/08gr/attack/08gr_05a.bin",
+        "bin/se/08gr/attack/08gr_05b.bin" };
+    static const char *const k_s1[2] = {
+        "bin/se/08gr/skill/08gr_08a.bin", "bin/se/08gr/skill/08gr_09a.bin" };
+    static const char *const k_s2[2] = {
+        "bin/se/08gr/skill/08gr_08.bin", "bin/se/08gr/skill/08gr_09b.bin" };
+    if (k == 0) voice_pick(voice_bag_k(7), k_v, 7);
+    else if (k == 1) voice_pick(voice_bag2(), k_s1, 2);
+    else if (k == 2) voice_pick(voice_bag2(), k_s2, 2);
+}
+
+/* FUN_004984bf: Griff's swing (attack state 2 of char 41): the crit roll at
+ * 1 (no crit: his voice), at 8 (4 with the daea4 form up) SE 343 + the hit
+ * record 109 (111 in the form), on a crit the flash, the voice (bag of 6)
+ * and the record 110 (112).  Plain: the skill keys from 5, the end at 30;
+ * in the form (daea4 held at 2 or more) the end at 15 */
+static void party_attack_griff(void)
+{
+    static const char *const k_v_crit[6] = {
+        "bin/se/08gr/attack/08gr_02.bin", "bin/se/08gr/attack/08gr_02a.bin",
+        "bin/se/08gr/attack/08gr_02b.bin", "bin/se/08gr/attack/08gr_03a.bin",
+        "bin/se/08gr/attack/08gr_06.bin", "bin/se/08gr/attack/08gr_07a.bin" };
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        int32_t c = chara_equip_get_current_chara();
+        if (c < 0 || c >= CHARA_COUNT) c = 0;
+        if (rng_next_unit() < g_chara[c].crit_rate) PW(0x56db064u).i = 1;
+        if (PW(0x56db04cu).i == 1 && PW(0x56db064u).i == 0) griff_voice(0);
+    }
+    const int form = PW(0x56daea4u).i > 0;
+    if (PW(0x56db04cu).i == (form ? 4 : 8)) {
+        audio_play_se_by_id(343);
+        if (PW(0x56db064u).i != 0) {
+            party_crit_flash();
+            voice_pick(voice_bag_k(6), k_v_crit, 6);
+            scene1_record_b_spawn_entity(&g_party, PW(0x56daea4u).i <= 0 ? 110 : 112, -1);
+        } else {
+            scene1_record_b_spawn_entity(&g_party, PW(0x56daea4u).i <= 0 ? 109 : 111, -1);
+        }
+    }
+    int going;
+    if (PW(0x56daea4u).i <= 0) {
+        if (PW(0x56db04cu).i >= 5 && (PW(0x56da1b8u).i & 2)) party_swing_skill_keys();
+        going = PW(0x56db04cu).i < 30;
+    } else {
+        if (PW(0x56daea4u).i < 2) PW(0x56daea4u).i = 2;
+        going = PW(0x56db04cu).i < 15;
+    }
+    if (!going) party_action_end();
+}
+
+/* FUN_004986ee: Arma's shot (attack state 2 of char 42).  At 1 the charm in
+ * her first slot (items 701..715) picks the weapon db110 (a record kind;
+ * 714 = the random one db114, with a 1-in-16 trap each of kinds 1 / 3) and
+ * her voice on a bag-of-8 pick of 0; daff4 clears and one rand is spent.
+ * At 10 the weapon's record, its gauge cost (db0e0) and SE (a crit, never
+ * rolled here, would fire the record 84).  The impulse decays 0.8 a tick;
+ * the rapid weapons loop back to 9 while A is held and the gauge lasts
+ * (118 from 19, 120 / 122 from 17, 115 / 126 from 14; 114 from 30 back to 20
+ * for 5 more); the end at 40 (60 for 116 / 121 / 124) */
+static void party_attack_arma(void)
+{
+    static const struct { int32_t kind; const char *voice; } k_charm[15] = {
+        { 113, "bin/se/09ar/attack/09ar_01.bin" }, { 117, "bin/se/09ar/attack/09ar_01.bin" },
+        { 119, "bin/se/09ar/attack/09ar_01.bin" }, { 118, "bin/se/09ar/attack/09ar_02.bin" },
+        { 120, "bin/se/09ar/attack/09ar_02.bin" }, { 115, "bin/se/09ar/attack/09ar_02.bin" },
+        { 114, "bin/se/09ar/attack/09ar_01.bin" }, { 126, "bin/se/09ar/attack/09ar_02.bin" },
+        { 116, "bin/se/09ar/attack/09ar_03.bin" }, { 123, NULL },
+        { 121, "bin/se/09ar/attack/09ar_03.bin" }, { 125, NULL },
+        { 122, "bin/se/09ar/attack/09ar_02.bin" }, { 0, NULL }, { 124, NULL },
+    };
+    static const float k4 = 4.0f, km0p2 = -0.20000000298023224f, k0p8 = 0.800000011920929f;
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        const uint8_t *cr = chara_rec();
+        const int quiet = voice_bag8() != 0;
+        int32_t slot = -1;
+        if (cr) memcpy(&slot, cr + 4, 4);
+        if (slot != -1) {
+            const int32_t id = slot >> 6;
+            if (id == 714) {
+                const int32_t r = (int32_t)(rng_next15() & 0xf);
+                PW(0x56db110u).i = PW(0x56db114u).i;
+                const float x = spill32((long double)spill32(x87_crt_sin(PW(0x56db05cu).f)) * k4 + g_party.pos[0][0]);
+                const float z = spill32((long double)spill32(x87_crt_cos(PW(0x56db05cu).f)) * k4 + g_party.pos[0][2]);
+                if (r == 0) {
+                    chest_trap(x, z, 1);             /* FUN_004412b6 */
+                    PW(0x56db110u).i = -1;
+                } else if (r == 1) {
+                    chest_trap(x, z, 3);
+                    PW(0x56db110u).i = -2;
+                }
+            } else if (id >= 701 && id <= 715) {
+                PW(0x56db110u).i = k_charm[id - 701].kind;
+                if (!quiet && k_charm[id - 701].voice) audio_play_se_file(k_charm[id - 701].voice);
+            }
+        }
+        if (PW(0x56db04cu).i == 1) {
+            PW(0x56daff4u).i = 0;
+            (void)rng_next15();
+        }
+    }
+    if (PW(0x56db04cu).i == 10) {
+        if (PW(0x56db064u).i != 0) {
+            party_crit_flash();
+            const int32_t v = voice_bag2();
+            if (v == 0) audio_play_se_file("bin/se/09ar/attack/09ar_04.bin");
+            else if (v == 1) audio_play_se_file("bin/se/09ar/attack/09ar_05.bin");
+            scene1_record_b_spawn_entity(&g_party, 84, -1);
+        } else {
+            const int32_t w = PW(0x56db110u).i;
+            switch (w) {
+            case 119:
+                scene1_record_b_spawn_entity(&g_party, 119, -1);
+                PW(0x56db0e0u).i -= 5;
+                audio_play_se_by_id(384);
+                break;
+            case 125: case 117:
+                scene1_record_b_spawn_entity(&g_party, w, -1);
+                PW(0x56db0e0u).i -= 10;
+                audio_play_se_by_id(684);
+                break;
+            case 113: {
+                const float o = spill32((long double)g_party.rec[0][6]);
+                const float a = spill32((long double)o * k_2pi / k8);
+                const double X = a;
+                g_party.vel[0][0] = spill32((long double)spill32(x87_crt_sin(X)) * km0p2);
+                g_party.vel[0][2] = spill32((long double)spill32(x87_crt_cos(X)) * km0p2);
+                scene1_record_b_spawn_entity(&g_party, 113, -1);
+                PW(0x56db0e0u).i -= 10;
+                audio_play_se_by_id(684);
+                break;
+            }
+            case 114:
+                scene1_record_b_spawn_entity(&g_party, 114, -1);
+                PW(0x56db0e0u).i -= 5;
+                audio_play_se_by_id(697);
+                break;
+            case 118: case 124:
+                scene1_record_b_spawn_entity(&g_party, w, -1);
+                PW(0x56daff4u).i += 4;
+                PW(0x56db0e0u).i -= 5;
+                audio_play_se_by_id(w == 118 ? 677 : 385);
+                break;
+            case 122: {
+                scene1_record_b_spawn_entity(&g_party, 122, -1);
+                ++PW(0x56daff4u).i;
+                PW(0x56db0e0u).i -= 3;
+                audio_play_se_by_id(695);
+                /* she turns to the nearest live actor in view */
+                int32_t best_i = -1;
+                float best = 10000.0f;
+                for (int32_t k = 0; k < ACTOR_COUNT; k++) {
+                    const actor_t *c = &g_actor[k];
+                    if (act_geti(c, 0xaf4) > 0 || act_geti(c, 0xb08) != 0 || act_geti(c, ACT_INUSE) != 1) continue;
+                    const float ax = act_getf(c, 0x3e4), ay = act_getf(c, 0x3e8), az = act_getf(c, 0x3ec);
+                    if (!(actor_view_cull(ax, ay, az, 0.0f) < 0)) continue;   /* FUN_00490820 */
+                    const float dx = spill32((long double)g_party.pos[0][0] - ax);
+                    const float dy = spill32((long double)g_party.pos[0][1] - ay);
+                    const float dz = spill32((long double)g_party.pos[0][2] - az);
+                    const float d2 = spill32((long double)dz * dz + (long double)dy * dy + (long double)dx * dx);
+                    if (d2 > k0) {
+                        const float d = spill32(crt_sqrt(d2));
+                        if (best > d) { best_i = k; best = d; }
+                    }
+                }
+                if (best_i != -1) {
+                    const actor_t *c = &g_actor[best_i];
+                    const float dx = spill32((long double)act_getf(c, 0x3e4) - g_party.pos[0][0]);
+                    const float dz = spill32((long double)act_getf(c, 0x3ec) - g_party.pos[0][2]);
+                    PW(0x56db05cu).f = spill32(crt_atan2(dx, dz));
+                }
+                break;
+            }
+            case 120:
+                scene1_record_b_spawn_entity(&g_party, 120, -1);
+                ++PW(0x56daff4u).i;
+                PW(0x56db0e0u).i -= 3;
+                audio_play_se_by_id(695);
+                break;
+            case 115: case 126:
+                scene1_record_b_spawn_entity(&g_party, w, -1);
+                ++PW(0x56daff4u).i;
+                PW(0x56db0e0u).i -= w == 115 ? 2 : 1;
+                audio_play_se_by_id(682);
+                break;
+            case 121:
+                scene1_record_b_spawn_entity(&g_party, 121, -1);
+                audio_play_se_by_id(385);
+                PW(0x56db0e0u).i -= 5;
+                break;
+            case 116: case 123:
+                scene1_record_b_spawn_entity(&g_party, w, -1);
+                audio_play_se_by_id(385);
+                PW(0x56db0e0u).i -= 10;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+    g_party.vel[0][0] = spill32((long double)g_party.vel[0][0] * k0p8);
+    g_party.vel[0][2] = spill32((long double)g_party.vel[0][2] * k0p8);
+    const int32_t w = PW(0x56db110u).i;
+    int32_t from = 0;
+    if (w == 118) from = 19;
+    else if (w == 120 || w == 122) from = 17;
+    else if (w == 115 || w == 126) from = 14;
+    if (from != 0) {
+        if (PW(0x56db04cu).i >= from && PW(0x56db0e0u).i > 0 && (g_sim_buttons[0].cur & 0x10))
+            PW(0x56db04cu).i = 9;
+    } else if (w == 114 && PW(0x56db04cu).i == 30 && (g_sim_buttons[0].cur & 0x10)) {
+        if (PW(0x56db0e0u).i > 0) {
+            PW(0x56db04cu).i = 20;
+            PW(0x56db0e0u).i -= 5;
+            audio_play_se_by_id(700);
+        }
+    }
+    if (PW(0x56db0e0u).i < 0) PW(0x56db0e0u).i = 0;
+    const int32_t k = PW(0x56db110u).i;
+    if (PW(0x56db04cu).i >= ((k == 116 || k == 121 || k == 124) ? 60 : 40)) party_action_end();
+}
+
+
+/* the rush sparks Charme's / Elan's / Nagi's dashes share: `reach` ahead at
+ * +`up`: kind 5 (scale `sc5`) every other tick, 115 at the facing */
+static void party_rush_sparks(float reach, float up, float sc5, int twice)
+{
+    static const float k65536 = 65536.0f;
+    const double f = PW(0x56db05cu).f;
+    const float s = spill32(x87_crt_sin(f));
+    const float x = twice ? spill32((long double)s + s + g_party.pos[0][0])
+                          : spill32((long double)s * reach + g_party.pos[0][0]);
+    const float y = spill32((long double)g_party.pos[0][1] + up);
+    const float c = spill32(x87_crt_cos(f));
+    const float z = twice ? spill32((long double)c + c + g_party.pos[0][2])
+                          : spill32((long double)c * reach + g_party.pos[0][2]);
+    if (PW(0x56db04cu).i & 1) scene1_spawn(0, x, y, z, 5, sc5, 1);
+    scene1_spawn((int)PARTY_VA, x, y, z, 115, 0.30000001192092896f,
+                 x87_ftol((long double)PW(0x56db05cu).f * k65536));
+}
+/* the impulse along the facing */
+static void party_impulse(float speed)
+{
+    const double f = PW(0x56db05cu).f;
+    g_party.vel[0][0] = spill32((long double)spill32(x87_crt_sin(f)) * speed);
+    g_party.vel[0][2] = spill32((long double)spill32(x87_crt_cos(f)) * speed);
+}
+
+/* FUN_00495305: Elan's skill state 4 — the rush: invincible below 60, db118
+ * 2 below 50; anim 5 + his voice at 1, anim 3 from 16; a hop at 22, SE 343 +
+ * the hit record 95 + SE 373 at 24; 22..45 the 0.5 impulse and the sparks 2
+ * ahead; the end at 60 */
+static void party_skill4_elan(void)
+{
+    static const char *const k_v[3] = {
+        "bin/se/06el/skill/06el_10.bin", "bin/se/06el/skill/06el_10a.bin",
+        "bin/se/06el/skill/06el_10b.bin" };
+    static const float k1p2 = 1.2000000476837158f;
+    const int32_t t0 = PW(0x56db04cu).i;
+    PW(0x56db118u).i = 0;
+    if (t0 < 60 && PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    if (t0 < 50) PW(0x56db118u).i = 2;
+    PW(0x56db04cu).i = t0 + 1;
+    if (t0 + 1 >= 16) {
+        party_anim_set(g_party.rec[0], 3);
+    } else if (t0 + 1 == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+        voice_pick(voice_bag3(), k_v, 3);
+    }
+    if (PW(0x56db04cu).i == 24) {
+        audio_play_se_by_id(343);
+        scene1_record_b_spawn_entity(&g_party, 95, -1);
+        audio_play_se_by_id(373);
+    }
+    const int32_t t = PW(0x56db04cu).i;
+    if (t == 22) g_party.vel[0][1] = 0.4000000059604645f;
+    if (t >= 22 && t < 46) {
+        party_impulse(k0p5);
+        party_rush_sparks(0.0f, k1p2, 0.30000001192092896f, 1);
+    }
+    if (PW(0x56db04cu).i >= 60) {
+        party_action_end();
+        PW(0x56db118u).i = 0;
+    }
+}
+
+/* FUN_00495524: Elan's skill state 5 — invincible; anim 5 at 1, the record
+ * 133 at 4, the 0.25 impulse (daae0 20) below 40; the end at 60 */
+static void party_skill5_elan(void)
+{
+    if (PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+    }
+    if (PW(0x56db04cu).i == 4) scene1_record_b_spawn_entity(&g_party, 133, -1);
+    if ((uint32_t)PW(0x56db04cu).i < 40u) {
+        const double f = PW(0x56db05cu).f;
+        g_party.vel[0][0] = spill32((long double)spill32(x87_crt_sin(f)) * 0.25f);
+        const float c = spill32(x87_crt_cos(f));
+        PW(0x56daae0u).i = 20;
+        g_party.vel[0][2] = spill32((long double)c * 0.25f);
+    }
+    if (PW(0x56db04cu).i >= 60) party_action_end();
+}
+
+/* FUN_00495601: Elan's skill state 7 — the flurry: invincible; anim 5 at 1;
+ * 16..89 every 10 ticks a random pose at 5 (rand & 3 → anims 6..9; 4 past
+ * 80) and a punch at 8 (SE 683 + the record 134 + his voice; at 88 SE 673 +
+ * the record 135), the flash at 87; at 90 the blast 0.3 ahead (his voice,
+ * the spark 150, SE 373 + 365, the shake, the overlay 3); no impulse 22..105;
+ * the end at 120 */
+static void party_skill7_elan(void)
+{
+    static const char *const k_v[6] = {
+        "bin/se/06el/attack/06el_01.bin", "bin/se/06el/attack/06el_01a.bin",
+        "bin/se/06el/attack/06el_01b.bin", "bin/se/06el/attack/06el_02a.bin",
+        "bin/se/06el/attack/06el_03.bin", "bin/se/06el/attack/06el_03b.bin" };
+    static const char *const k_v90[2] = {
+        "bin/se/06el/skill/06el_11.bin", "bin/se/06el/skill/06el_11a.bin" };
+    static const float k0p3 = 0.30000001192092896f, k1p4 = 1.399999976158142f;
+    static const float k1p2 = 1.2000000476837158f;
+    if (PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    const int32_t t = ++PW(0x56db04cu).i;
+    if (t >= 16) {
+        if (t < 90) {
+            const int32_t ph = t % 10;
+            if (ph == 5) {
+                party_anim_set(g_party.rec[0], 0);
+                const int32_t r = (int32_t)(rng_next15() & 3);
+                if (PW(0x56db04cu).i <= 80) party_anim_set(g_party.rec[0], 6 + r);
+                else party_anim_set(g_party.rec[0], 4);
+            }
+            if (PW(0x56db04cu).i == 87) {
+                g_scene1_combat_dat_0438bed8 = 30;
+                audio_play_se_by_id(342);
+                scene1_overlay_spawn(&g_party, g_party.pos[0][0],
+                                     spill32((long double)g_party.pos[0][1] + 2.0f),
+                                     g_party.pos[0][2], 29, k1p2, -1, 0, 0, 0);
+            }
+            if (ph == 8) {
+                if (PW(0x56db04cu).i == 88) {
+                    audio_play_se_by_id(673);
+                    scene1_record_b_spawn_entity(&g_party, 135, -1);
+                } else {
+                    audio_play_se_by_id(683);
+                    scene1_record_b_spawn_entity(&g_party, 134, -1);
+                    voice_pick(voice_bag_k(6), k_v, 6);
+                }
+            }
+        }
+    } else if (t == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+    }
+    if (PW(0x56db04cu).i == 90) {
+        const float o = spill32((long double)g_party.rec[0][6]);
+        const float a = spill32((long double)o * k_2pi / k8);
+        const double X = a;
+        const float x = spill32((long double)spill32(x87_crt_sin(X)) * k0p3 + g_party.pos[0][0]);
+        const float y = spill32((long double)g_party.pos[0][1] + k1p4);
+        const float z = spill32((long double)spill32(x87_crt_cos(X)) * k0p3 + g_party.pos[0][2]);
+        voice_pick(voice_bag2(), k_v90, 2);
+        scene1_spawn((int)PARTY_VA, x, y, z, 150, k0p2, 1);
+        audio_play_se_by_id(373);
+        audio_play_se_by_id(365);
+        camera_shake(16, 8, 8, 1.0f);
+        scene1_pfo_table_a_alloc_passthrough(0, x, y, z, 3, k1p2, -1, 0, 0);   /* FUN_0041331d */
+    }
+    const int32_t t2 = PW(0x56db04cu).i;
+    if (t2 >= 22 && t2 < 106) {
+        g_party.vel[0][0] = 0.0f;
+        g_party.vel[0][2] = 0.0f;
+    }
+    if (PW(0x56db04cu).i >= 120) party_action_end();
+}
+
+/* FUN_0049594e: Elan's skill state 6 — the focus: invincible below 20 (30
+ * at 1), anim 5 + his voice at 1; at 2 SE 381, dae9c 600, the ring 65; the
+ * end at 40 */
+static void party_skill6_elan(void)
+{
+    static const char *const k_v[3] = {
+        "bin/se/06el/skill/06el_09.bin", "bin/se/06el/skill/06el_09a.bin",
+        "bin/se/06el/skill/06el_09b.bin" };
+    const int32_t t0 = PW(0x56db04cu).i;
+    if (t0 < 20 && PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    PW(0x56db04cu).i = t0 + 1;
+    if (t0 + 1 == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+        voice_pick(voice_bag3(), k_v, 3);
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 2) {
+        audio_play_se_by_id(381);
+        PW(0x56dae9cu).i = 600;
+        scene1_spawn(0, g_party.pos[0][0], PW(0x56daf88u).f, g_party.pos[0][2], 65, 1.0f, 1);
+    }
+    if (PW(0x56db04cu).i >= 40) party_action_end();
+}
+
+/* Tielle's skill head: anim 0 + `anim`, her voice (bag of 3), invincible 30 */
+static void tielle_skill_head(int32_t anim, const char *const *tab)
+{
+    party_anim_set(g_party.rec[0], 0);
+    party_anim_set(g_party.rec[0], anim);
+    voice_pick(voice_bag3(), tab, 3);
+    if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+}
+static const char *const k_tielle_v[3] = {
+    "bin/se/05ti/skill/05ti_03a.bin", "bin/se/05ti/skill/05ti_04a.bin",
+    "bin/se/05ti/skill/05ti_04.bin" };
+
+/* FUN_004964bf: Tielle's skill state 4 — SE 677 + the record 99 at 20; the
+ * end at 25 */
+static void party_skill4_tielle(void)
+{
+    if (++PW(0x56db04cu).i == 1) tielle_skill_head(3, k_tielle_v);
+    if (PW(0x56db04cu).i == 20) {
+        audio_play_se_by_id(677);
+        scene1_record_b_spawn_entity(&g_party, 99, -1);
+    }
+    if (PW(0x56db04cu).i == 25) party_action_end();
+}
+
+/* FUN_004965af: Tielle's skill state 5 — her voice (bag of 2) at 1, the
+ * splash in water, SE 674 + the record 100 + SE 343 at 20; the end at 45 */
+static void party_skill5_tielle(void)
+{
+    static const char *const k_v[2] = {
+        "bin/se/05ti/skill/05ti_09.bin", "bin/se/05ti/skill/05ti_07a.bin" };
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+        voice_pick(voice_bag2(), k_v, 2);
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 1 && PW(0x56daed8u).i == 1) water_splash();
+    if (PW(0x56db04cu).i == 20) {
+        audio_play_se_by_id(674);
+        scene1_record_b_spawn_entity(&g_party, 100, -1);
+        if (PW(0x56db04cu).i == 20) audio_play_se_by_id(343);
+    }
+    if (PW(0x56db04cu).i == 45) party_action_end();
+}
+
+/* FUN_0049671f: Tielle's skill state 6 — SE 674 + the record 105 at 16; the
+ * end at 55 */
+static void party_skill6_tielle(void)
+{
+    if (++PW(0x56db04cu).i == 1) tielle_skill_head(4, k_tielle_v);
+    if (PW(0x56db04cu).i == 16) {
+        audio_play_se_by_id(674);
+        scene1_record_b_spawn_entity(&g_party, 105, -1);
+    }
+    if (PW(0x56db04cu).i == 55) party_action_end();
+}
+
+/* FUN_004967c1: Tielle's skill state 7 — at 2 SE 381, daea0 360, the ring
+ * 65, the shake, 16 puffs 14 on a ring of radius 3..6 (rand per puff: the
+ * radius, then z and x jitters) and every plain actor within 8 slows for 360
+ * ticks (+0xb14; not the bosses 23 / 25 / 27 / 28 / 41 / 49 / 54 / 55 nor
+ * enemy.txt +0x20 == 1); the end at 15 */
+static void party_skill7_tielle(void)
+{
+    static const char *const k_v[3] = {
+        "bin/se/05ti/skill/05ti_03a.bin", "bin/se/05ti/skill/05ti_04a.bin",
+        "bin/se/05ti/skill/05ti_09.bin" };
+    static const float k_pi4 = 0.7853981852531433f, k0p75 = 0.75f;
+    if (++PW(0x56db04cu).i == 1) tielle_skill_head(4, k_v);
+    if (PW(0x56db04cu).i == 2) {
+        audio_play_se_by_id(381);
+        PW(0x56daea0u).i = 360;
+        scene1_spawn(0, g_party.pos[0][0], PW(0x56daf88u).f, g_party.pos[0][2], 65, 1.0f, 1);
+        camera_shake(32, 4, 4, 1.0f);
+        const float px = g_party.pos[0][0], pz = g_party.pos[0][2];
+        for (int32_t k = 0; k != 16; k++) {
+            const float kf = spill32((long double)k);
+            const float a = spill32((long double)kf * k_2pi / k8 + k_pi4);
+            const float rad = spill32(((long double)rng_next_unit() + k1) * k3);
+            const double X = a;
+            const float x = spill32((long double)spill32(x87_crt_sin(X)) * rad + px);
+            const float z = spill32((long double)spill32(x87_crt_cos(X)) * rad + pz);
+            const float jz = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + z);
+            const float jx = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + x);
+            scene1_spawn(0, jx, k0p5, jz, 14, k0p75, 1);
+        }
+        for (int32_t k = 0; k < ACTOR_COUNT; k++) {
+            actor_t *c = &g_actor[k];
+            const int32_t use = act_geti(c, ACT_INUSE);
+            if (use == 0 || act_geti(c, 0xaf4) > 0 || act_geti(c, 0xb08) != 0) continue;
+            const int32_t ty = act_geti(c, ACT_TYPE);
+            if (ty >= 0 && ty < ENEMY_COUNT && g_enemy[ty].flags == 1) continue;
+            if (ty == 49 || ty == 54 || ty == 55 || ty == 41 || ty == 23 || ty == 25 ||
+                ty == 27 || ty == 28) continue;
+            if (!(use == 1 || (act_geti(c, 0xb98) != 0 && use == 2))) continue;
+            const float dx = spill32((long double)act_getf(c, 0x3f0) - px);
+            const float dz = spill32((long double)act_getf(c, 0x3f8) - pz);
+            const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+            if (d < k8) {
+                const int32_t v = 360;
+                memcpy(c->b + 0xb14, &v, 4);
+            }
+        }
+    }
+    if (PW(0x56db04cu).i == 15) party_action_end();
+}
+
+static const char *const k_nagi_v[3] = {
+    "bin/se/07na/attack/n2_09.bin", "bin/se/07na/attack/n2_11.bin", "bin/se/07na/attack/n2_13.bin" };
+
+/* FUN_00496a63: Nagi's skill state 4 — the rush (Charme's, with her voice):
+ * invincible + db118 2 below 30; at 5 SE 343 + the record 62 + SE 373; 6..29
+ * the 0.5 impulse and the sparks 3 ahead; the end at 45 */
+static void party_skill4_nagi(void)
+{
+    const int32_t t0 = PW(0x56db04cu).i;
+    PW(0x56db118u).i = 0;
+    if (t0 < 30) {
+        if (PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+        PW(0x56db118u).i = 2;
+    }
+    PW(0x56db04cu).i = t0 + 1;
+    if (t0 + 1 == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) voice_pick(voice_bag3(), k_nagi_v, 3);
+    if (PW(0x56db04cu).i == 5) {
+        audio_play_se_by_id(343);
+        scene1_record_b_spawn_entity(&g_party, 62, -1);
+        audio_play_se_by_id(373);
+    }
+    const int32_t t = PW(0x56db04cu).i;
+    if (t > 5 && t < 30) {
+        party_impulse(k0p5);
+        party_rush_sparks(k3, k1p5, k0p5, 0);
+    }
+    if (PW(0x56db04cu).i >= 45) party_action_end();
+}
+
+/* FUN_00496c68: Nagi's skill state 5 — the thrusts: invincible + db118 2
+ * below 30; every 8 ticks anim 5 at phase 1; her voice at 1; below 60 a
+ * record 102 at phases 3 (with SE 682), 5, 1 and 7; the end at 70 */
+static void party_skill5_nagi(void)
+{
+    const int32_t t = ++PW(0x56db04cu).i;
+    PW(0x56db118u).i = 0;
+    if (t < 30) {
+        if (PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+        PW(0x56db118u).i = 2;
+    }
+    const int32_t ph = t % 8;
+    if (ph == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+    }
+    if (PW(0x56db04cu).i == 1) voice_pick(voice_bag3(), k_nagi_v, 3);
+    if (PW(0x56db04cu).i < 60) {
+        if (ph == 3) {
+            audio_play_se_by_id(682);
+            scene1_record_b_spawn_entity(&g_party, 102, -1);
+        }
+        if (ph == 5) scene1_record_b_spawn_entity(&g_party, 102, -1);
+        if (ph == 1) scene1_record_b_spawn_entity(&g_party, 102, -1);
+        if (ph == 7) scene1_record_b_spawn_entity(&g_party, 102, -1);
+    }
+    if (PW(0x56db04cu).i == 70) party_action_end();
+}
+
+/* FUN_00496d6f: Nagi's skill state 6 — the sweep (Louie's spin with the
+ * record 103): her voice + invincible 10 at 1; at 5 SE 343, the record 103,
+ * SE 373 and a hop; 15 ticks of 0.419-rad turns; the end at 35 */
+static void party_skill6_nagi(void)
+{
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        voice_pick(voice_bag3(), k_nagi_v, 3);
+        if (PW(0x56db0f4u).i < 10) PW(0x56db0f4u).i = 10;
+    }
+    if (PW(0x56db04cu).i == 5) {
+        audio_play_se_by_id(343);
+        scene1_record_b_spawn_entity(&g_party, 103, -1);
+        audio_play_se_by_id(373);
+        g_party.vel[0][1] = 0.30000001192092896f;
+    }
+    const int32_t t = PW(0x56db04cu).i;
+    if (t >= 5 && t < 20)
+        PW(0x56db05cu).f = spill32((long double)PW(0x56db05cu).f + 0.41887903213500977f);
+    if (t >= 35) party_action_end();
+}
+
+/* FUN_00496e50 (Nagi's skill state 7) / FUN_00496f12 (the default skill
+ * state 5): the voice (bag of 3 / Louie's bag of 2) + invincible 30 at 1, SE
+ * 689 at 4, the record 81 at 12, no impulse, the end at 30 */
+static void party_skill_guard(int nagi)
+{
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 3);
+        if (nagi) {
+            voice_pick(voice_bag3(), k_nagi_v, 3);
+        } else {
+            const int32_t v = voice_bag2();
+            if (v == 0) audio_play_se_file("bin/se/02li/action/02li_06.bin");
+            else if (v == 1) audio_play_se_file("bin/se/02li/action/02li_07.bin");
+        }
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 4) audio_play_se_by_id(689);
+    if (PW(0x56db04cu).i == 12) scene1_record_b_spawn_entity(&g_party, 81, -1);
+    const int end = PW(0x56db04cu).i == 30;
+    g_party.vel[0][0] = 0.0f;
+    g_party.vel[0][2] = 0.0f;
+    if (end) party_action_end();
+}
+
+/* FUN_0049708e: Griff's skill state 4 — the charge: invincible + db118 2
+ * below 65; at 1 a stop, overlays 21 and 29 (2 up), his voice 2, anim 4, SE
+ * 378; anim 3 from 30; SE 675 at 20; the record 130 at 30; 30..39 the 0.8
+ * impulse (daae0 20); 30..49 every 3rd tick an overlay 30 trailing 20 behind
+ * (x, y, z jitters of ±1.5, in that order); the end at 65 */
+static void party_skill4_griff(void)
+{
+    static const float k0p8 = 0.800000011920929f, k20 = 20.0f, k1p2 = 1.2000000476837158f;
+    static const float k1p8 = 1.7999999523162842f;
+    const int32_t t = ++PW(0x56db04cu).i;
+    PW(0x56db118u).i = 0;
+    if (t < 65) {
+        if (PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+        PW(0x56db118u).i = 2;
+    }
+    if (t == 1) {
+        const float *p = g_party.pos[0];
+        g_party.vel[0][0] = 0.0f;
+        g_party.vel[0][2] = 0.0f;
+        scene1_overlay_spawn(&g_party, p[0], p[1], p[2], 21, 1.0f, -1, 0, 0, 0);
+        scene1_overlay_spawn(&g_party, p[0], spill32((long double)p[1] + 2.0f), p[2], 29, k1p2, -1, 0, 0, 0);
+        griff_voice(2);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 4);
+        audio_play_se_by_id(378);
+    }
+    if (PW(0x56db04cu).i >= 30) party_anim_set(g_party.rec[0], 3);
+    if (PW(0x56db04cu).i == 20) audio_play_se_by_id(675);
+    if (PW(0x56db04cu).i == 30) scene1_record_b_spawn_entity(&g_party, 130, -1);
+    const int32_t t2 = PW(0x56db04cu).i;
+    if (t2 >= 30 && t2 < 40) {
+        const double f = PW(0x56db05cu).f;
+        g_party.vel[0][0] = spill32((long double)spill32(x87_crt_sin(f)) * k0p8);
+        const float c = spill32(x87_crt_cos(f));
+        PW(0x56daae0u).i = 20;
+        g_party.vel[0][2] = spill32((long double)c * k0p8);
+    }
+    const int32_t t3 = PW(0x56db04cu).i;
+    if (t3 >= 30 && t3 < 50 && t3 % 3 == 0) {
+        const float sn = spill32(x87_crt_sin(PW(0x56db05cu).f));
+        const float x = spill32(((long double)rng_next_unit() - k0p5) * k3 + g_party.pos[0][0] - (long double)sn * k20);
+        const float y = spill32(((long double)rng_next_unit() - k0p5) * k3 + g_party.pos[0][1] + 2.0f);
+        const float cs = spill32(x87_crt_cos(PW(0x56db05cu).f));
+        const float z = spill32(((long double)rng_next_unit() - k0p5) * k3 + g_party.pos[0][2] - (long double)cs * k20);
+        scene1_overlay_spawn(&g_party, x, y, z, 30, k1p8, -1, 0, 2, 0);
+    }
+    if (PW(0x56db04cu).i >= 65) party_action_end();
+}
+
+/* FUN_0049733d: Griff's skill state 5 — at 1 anim 5, invincible 30, his
+ * voice, SE 698, the overlay 27 and the record 131; the end at 80 */
+static void party_skill5_griff(void)
+{
+    if (++PW(0x56db04cu).i == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 1) {
+        const float *p = g_party.pos[0];
+        audio_play_se_file("bin/se/08gr/skill/08gr_08b.bin");
+        audio_play_se_by_id(698);
+        scene1_overlay_spawn(&g_party, p[0], p[1], p[2], 27, 1.0f, -1, 0, 0, 0);
+        scene1_record_b_spawn_entity(&g_party, 131, -1);
+    }
+    if (PW(0x56db04cu).i == 80) party_action_end();
+}
+
+/* FUN_00497408: Griff's skill state 6 — the form: invincible below 20 (30
+ * at 1), anim 5 at 1; at 2 his voice 1, daea4 480, overlays 26 / 28 (3 up)
+ * and 27, the shake, SE 694; the end at 40 */
+static void party_skill6_griff(void)
+{
+    const int32_t t0 = PW(0x56db04cu).i;
+    if (t0 < 20 && PW(0x56db0f4u).i < 1) PW(0x56db0f4u).i = 1;
+    PW(0x56db04cu).i = t0 + 1;
+    if (t0 + 1 == 1) {
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 5);
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+    }
+    if (PW(0x56db04cu).i == 2) {
+        const float *p = g_party.pos[0];
+        griff_voice(1);
+        PW(0x56daea4u).i = 480;
+        scene1_overlay_spawn(&g_party, p[0], spill32((long double)p[1] + k3), p[2], 26, k1p5, -1, 0, 0, 0);
+        scene1_overlay_spawn(&g_party, p[0], spill32((long double)p[1] + k3), p[2], 28, k1p5, -1, 0, 0, 0);
+        scene1_overlay_spawn(&g_party, p[0], p[1], p[2], 27, k1p5, -1, 0, 0, 0);
+        camera_shake(32, 4, 4, 1.0f);
+        audio_play_se_by_id(694);
+    }
+    if (PW(0x56db04cu).i >= 40) party_action_end();
+}
+
+/* FUN_0049755c: Arma's skill state 4 — the cannon: at 1 invincible 30,
+ * dae9c 360, db118 2, anim 4, db0f0 0, her voice, the record 155; her second
+ * voice at 240; db0f0 counts every 20 ticks from 69; 280..299 the 0.9 recoil
+ * (daae0 20); the end at 360 */
+static void party_skill4_arma(void)
+{
+    static const float km0p9 = -0.8999999761581421f;
+    if (++PW(0x56db04cu).i == 1) {
+        if (PW(0x56db0f4u).i < 30) PW(0x56db0f4u).i = 30;
+        PW(0x56dae9cu).i = 360;
+        PW(0x56db118u).i = 2;
+        party_anim_set(g_party.rec[0], 0);
+        party_anim_set(g_party.rec[0], 4);
+    }
+    if (PW(0x56db04cu).i == 1) {
+        PW(0x56db0f0u).i = 0;
+        audio_play_se_file("bin/se/09ar/skill/09ar_11.bin");
+    }
+    if (PW(0x56db04cu).i == 240) audio_play_se_file("bin/se/09ar/skill/09ar_16.bin");
+    const int32_t t = PW(0x56db04cu).i;
+    if (t >= 60 && t % 20 == 9) ++PW(0x56db0f0u).i;
+    if (t == 1) scene1_record_b_spawn_entity(&g_party, 155, -1);
+    const int32_t t2 = PW(0x56db04cu).i;
+    if (t2 >= 280 && t2 < 300) {
+        const double f = PW(0x56db05cu).f;
+        g_party.vel[0][0] = spill32((long double)spill32(x87_crt_sin(f)) * km0p9);
+        const float c = spill32(x87_crt_cos(f));
+        PW(0x56daae0u).i = 20;
+        g_party.vel[0][2] = spill32((long double)c * km0p9);
+    }
+    if (PW(0x56db04cu).i == 360) {
+        PW(0x56db118u).i = 0;
+        PW(0x56db0f0u).i = 0;
+        party_action_end();
+    }
+}
+
 /* FUN_0048cdcc: the player state machine */
 static void party_state_tick(void)
 {
@@ -1837,60 +2838,64 @@ static void party_state_tick(void)
         switch (g_party.chr[0]) {
         case 27: party_attack_charme(); break;      /* FUN_004977df */
         case 28: party_attack_caillou(); break;     /* FUN_00497e3a */
-        case 40: case 41: case 42: case 30: case 31:
-            /* PORT-DEBT(stub, FUN_0048cdcc): the swings of chars 40 / 41 / 42 / 30 / 31
-             * (FUN_00494ca4, FUN_004984bf, FUN_004986ee, FUN_0049791f, FUN_00497c83) */
-            break;
+        case 40: party_attack_elan(); break;        /* FUN_00494ca4 */
+        case 41: party_attack_griff(); break;       /* FUN_004984bf */
+        case 42: party_attack_arma(); break;        /* FUN_004986ee */
+        case 30: party_attack_tielle(); break;      /* FUN_0049791f */
+        case 31: party_attack_nagi(); break;        /* FUN_00497c83 */
         default: party_attack_louie(); break;       /* FUN_0049831c */
         }
         break;
     case 4:
         switch (g_party.chr[0]) {
         case 27: party_skill4_charme(); break;      /* FUN_00494f87 */
+        case 40: party_skill4_elan(); break;        /* FUN_00495305 */
         case 28: party_skill4_caillou(); break;     /* FUN_00495a32 */
-        case 40: case 30: case 31: case 41: case 42:
-            /* PORT-DEBT(stub, FUN_0048cdcc): skill 4 of chars 40 / 30 / 31 / 41 / 42
-             * (FUN_00495305, FUN_004964bf, FUN_00496a63, FUN_0049708e, FUN_0049755c) */
-            break;
+        case 30: party_skill4_tielle(); break;      /* FUN_004964bf */
+        case 31: party_skill4_nagi(); break;        /* FUN_00496a63 */
+        case 41: party_skill4_griff(); break;       /* FUN_0049708e */
+        case 42: party_skill4_arma(); break;        /* FUN_0049755c */
         default: party_skill_louie(); break;        /* FUN_00496fca */
         }
         break;
     case 5:
         switch (g_party.chr[0]) {
         case 27: party_skill5_charme(); break;      /* FUN_0049511d */
+        case 40: party_skill5_elan(); break;        /* FUN_00495524 */
         case 28: party_skill5_caillou(); break;     /* FUN_00495c3c */
-        default:
-            /* PORT-DEBT(stub, FUN_0048cdcc): skill 5 of chars 40 / 30 / 31 / 41
-             * (FUN_00495524, FUN_004965af, FUN_00496c68, FUN_0049733d) and the
-             * rest (FUN_00496f12) */
-            break;
+        case 30: party_skill5_tielle(); break;      /* FUN_004965af */
+        case 31: party_skill5_nagi(); break;        /* FUN_00496c68 */
+        case 41: party_skill5_griff(); break;       /* FUN_0049733d */
+        default: party_skill_guard(0); break;       /* FUN_00496f12 */
         }
         break;
     case 6:
         switch (g_party.chr[0]) {
+        case 40: party_skill6_elan(); break;        /* FUN_0049594e */
         case 27: party_skill6_charme(); break;      /* FUN_0049508c */
         case 28: party_skill6_caillou(); break;     /* FUN_00495d8f */
-        default:
-            /* PORT-DEBT(stub, FUN_0048cdcc): skill 6 of chars 40 / 30 / 41 / 31
-             * (FUN_0049594e, FUN_0049671f, FUN_00497408, FUN_00496d6f); the
-             * others have none */
-            break;
+        case 30: party_skill6_tielle(); break;      /* FUN_0049671f */
+        case 41: party_skill6_griff(); break;       /* FUN_00497408 */
+        case 31: party_skill6_nagi(); break;        /* FUN_00496d6f */
+        default: break;
         }
         break;
     case 7:
         switch (g_party.chr[0]) {
         case 28: party_skill7_caillou(); break;     /* FUN_00495f3b */
-        default:
-            /* PORT-DEBT(stub, FUN_0048cdcc): skill 7 of chars 40 / 31 / 30
-             * (FUN_00495601, FUN_00496e50, FUN_004967c1); the others have none */
-            break;
+        case 40: party_skill7_elan(); break;        /* FUN_00495601 */
+        case 31: party_skill_guard(1); break;       /* FUN_00496e50 */
+        case 30: party_skill7_tielle(); break;      /* FUN_004967c1 */
+        default: break;
         }
         break;
     case 8:
         if (g_party.chr[0] == 28) party_skill8_caillou();   /* FUN_0049630d */
         break;
+    case 3:
+        if (g_party.chr[0] == 40) party_attack2_elan();     /* FUN_00494dc5 */
+        break;
     default:
-        /* PORT-DEBT(stub, FUN_0048cdcc): state 3 (char 40: FUN_00494dc5) */
         break;
     }
     if ((floor_event_active(9) || PW(0x56db100u).i > 0) && !chara_has_item(0x96b)) {

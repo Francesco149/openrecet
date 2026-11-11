@@ -1743,8 +1743,10 @@ int test_records_b_spawn_entity_c8j8_implemented_macro(void)
     T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x4d));
     /* 0x68 landed in C8j.9a — sister-table iteration covered. */
     T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
-    /* 0x83 still deferred — empty branch in the engine (negative-only). */
-    T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x83));
+    /* 0x83 (131, Griff's skill 5) and 0x66 (102, Nagi's thrust): IDA cases
+     * 131 / 102 of FUN_0044376a (hire probes 2026-11-11). */
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x83));
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x66));
     return 0;
 }
 

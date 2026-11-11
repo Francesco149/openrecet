@@ -125,10 +125,16 @@ void chara_skills_init_at_stage_load(void)
         }
     }
 
-    /* Tail scratch writes. */
+    /* Tail writes DAT_0438b874 / 878 / 87c = 0 / 2 / 1.  These ARE slots
+     * 0..2 of chara 6 (Griff): DAT_0438b7fc + 4·(5·6 + k) = 0x438b874 + 4k —
+     * his slot 1 is skill 2 (state 6, the form) and slot 2 skill 1 (state 5).
+     * (rhost: hire-griff f1716, key 0x800 → DAT_056db048 5.) */
     g_dat_0438b874 = 0;
     g_dat_0438b878 = 2;
     g_dat_0438b87c = 1;
+    g_dat_0438b7fc[6][0] = 0;
+    g_dat_0438b7fc[6][1] = 2;
+    g_dat_0438b7fc[6][2] = 1;
 }
 
 /* ─── Accessors ────────────────────────────────────────────────────── */

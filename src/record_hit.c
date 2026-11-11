@@ -1618,8 +1618,69 @@ static void mover_destroyed(int32_t m)
     }
 }
 
+/* FUN_0043ab6e: a record homes on an actor.  `idx` -1: the nearest live
+ * actor in view (not +0xaf4 / +0xb08) becomes the target (its +0x3e4 point
+ * copied to the record's +0x80); else the stored target point.  The velocity
+ * gains the offset · `gain` (capped at `cap`), times `keep`; then the speed
+ * is capped at `vmax`.  Returns the actor index (or -1 / `idx`). */
+static int32_t record_home(int32_t *slot, float vmax, float cap, float gain, float keep, int32_t idx)
+{
+    int32_t found = -1;
+    float tx, ty, tz;
+    if (idx != -1) {
+        found = idx;
+        tx = RF(slot, 0x80); ty = RF(slot, 0x84); tz = RF(slot, 0x88);
+    } else {
+        float best = 10000.0f;
+        for (int32_t k = 0; k < ACTOR_COUNT; k++) {
+            actor_t *c = &g_actor[k];
+            if (AI(c, 0xaf4) > 0 || AI(c, 0xb08) != 0 || AI(c, ACT_INUSE) != 1) continue;
+            if (!(actor_view_cull(AF(c, 0x3e4), AF(c, 0x3e8), AF(c, 0x3ec), 0.0f) < 0)) continue;
+            const float dx = spill32((long double)RF(slot, 0x5c) - AF(c, 0x3e4));
+            const float dy = spill32((long double)RF(slot, 0x60) - AF(c, 0x3e8));
+            const float dz = spill32((long double)RF(slot, 0x64) - AF(c, 0x3ec));
+            const float d2 = spill32((long double)dz * dz + (long double)dy * dy + (long double)dx * dx);
+            if (d2 > k0) {
+                const float d = spill32(crt_sqrt(d2));
+                if (best > d) { found = k; best = d; }
+            }
+        }
+        if (found != -1) {
+            actor_t *c = &g_actor[found];
+            tx = AF(c, 0x3e4); ty = AF(c, 0x3e8); tz = AF(c, 0x3ec);
+            RF(slot, 0x80) = tx; RF(slot, 0x84) = ty; RF(slot, 0x88) = tz;
+        }
+    }
+    if (found != -1) {
+        float ax = spill32(((long double)tx - RF(slot, 0x5c)) * gain);
+        float ay = spill32(((long double)ty - RF(slot, 0x60)) * gain);
+        float az = spill32(((long double)tz - RF(slot, 0x64)) * gain);
+        const float m = spill32(crt_sqrt(spill64((long double)az * az + (long double)ay * ay + (long double)ax * ax)));
+        if (m > cap) {
+            ax = spill32((long double)ax * cap / m);
+            ay = spill32((long double)ay * cap / m);
+            az = spill32((long double)az * cap / m);
+        }
+        RF(slot, 0x68) = spill32(((long double)ax + RF(slot, 0x68)) * keep);
+        RF(slot, 0x6c) = spill32(((long double)ay + RF(slot, 0x6c)) * keep);
+        RF(slot, 0x70) = spill32(((long double)az + RF(slot, 0x70)) * keep);
+    }
+    const float v2 = spill32((long double)RF(slot, 0x70) * RF(slot, 0x70) + (long double)RF(slot, 0x6c) * RF(slot, 0x6c) +
+                             (long double)RF(slot, 0x68) * RF(slot, 0x68));
+    if (v2 > k0) {
+        const float v = spill32(crt_sqrt(v2));
+        if (v > vmax) {
+            RF(slot, 0x68) = spill32((long double)vmax * RF(slot, 0x68) / v);
+            RF(slot, 0x6c) = spill32((long double)vmax * RF(slot, 0x6c) / v);
+            RF(slot, 0x70) = spill32((long double)vmax * RF(slot, 0x70) / v);
+        }
+    }
+    return found;
+}
+
 void record_sm_install(void)
 {
+    scene1_records_b_set_aux_43ab6e_hook(record_home);        /* FUN_0043ab6e */
     scene1_records_b_set_wall_destroy_hook(mover_destroyed);   /* FUN_0042353c */
     scene1_records_b_set_ground_query_hook(ground_hit);
     scene1_records_b_set_wall_raycast_hook(wall_ray);

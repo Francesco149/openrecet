@@ -319,7 +319,9 @@ extern "C" {
      (t) == 0x71 || (t) == 0x72 || (t) == 0x75 || (t) == 0x7d ||         \
      (t) == 8    ||                                                      \
      /* C8j.9a — single-spawn w/ people-table sister-gate iteration. */  \
-     (t) == 0x68)
+     (t) == 0x68 ||                                                      \
+     /* the hire probes: Nagi's thrust, Griff's skill 5 */                \
+     (t) == 0x66 || (t) == 0x83)
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
     ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \

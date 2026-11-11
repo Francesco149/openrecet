@@ -1865,6 +1865,62 @@ static int init_entity_68(int i, const void *owner, int type, int flag,
 /* Dispatch helper — routes a (slot, type, part_idx) to the right body
  * and returns the cap.  Used by scene1_record_b_spawn_entity's outer
  * loop to know when to stop committing slots. */
+/* Type 0x66 (102, Nagi's thrust; FUN_0044376a case 102, asm 0x443c..0x443dbe):
+ * VEL = (sin, 0, cos)(owner+0xea4); POS -= 0.5·that, y + 1; ROT_X = the
+ * owner's octant · 2π / 8; three rands: ROT_Z = r·2π (overwritten), ROT_SCR =
+ * (r − 0.5)·3.5 and ROT_X += that · 0.104, ROT_Z = r·2.5; DRAG 20, SCALE_X
+ * 0.2, AUX_C8 1; cap 1. */
+static int init_entity_66(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    static const float k3p5 = 3.5f, k0p104 = 0.10399999469518661f, k2p5 = 2.5f;
+    const double ang = owner_read_f(owner, 0xea4);
+    const float sa = spill32(x87_crt_sin(ang));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    const float ca = spill32(x87_crt_cos(ang));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - (long double)ca * 0.5f));
+    const float bend_i = spill32((long double)owner_read_i(owner, 0x948));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, spill32((long double)bend_i * B_TWO_PI_F / 8.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, spill32((long double)rng_next_unit() * B_TWO_PI_F));
+    const float t = spill32(((long double)rng_next_unit() - 0.5f) * k3p5);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, t);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,
+               spill32((long double)t * k0p104 + slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, spill32((long double)rng_next_unit() * k2p5));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.20000000298023224f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    return 1;
+}
+
+/* Type 0x83 (131, Griff's skill 5; FUN_0044376a case 131): POS = the owner's
+ * + (0, 4.7, 0), VEL 0, ROT_X = the owner's octant · 2π / 8, DRAG 0.5; cap 1. */
+static int init_entity_83(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    const float bend_i = spill32((long double)owner_read_i(owner, 0x948));
+    const float rot = spill32((long double)bend_i * B_TWO_PI_F / 8.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               spill32((long double)owner_read_f(owner, 0x24) + 4.699999809265137f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x28));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+    return 1;
+}
+
 static int run_entity_body(int slot, const void *owner, int type,
                            int flag, int part_idx)
 {
@@ -1917,6 +1973,8 @@ static int run_entity_body(int slot, const void *owner, int type,
 
     /* C8j.9a — single-spawn with people-table sister-gate iteration. */
     case 0x68: return init_entity_68(slot, owner, type, flag, part_idx);
+    case 0x66: return init_entity_66(slot, owner, type, flag, part_idx);
+    case 0x83: return init_entity_83(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */
