@@ -173,9 +173,11 @@ tick 60.
 
 - Ported ahead of a recording (FRONT): AI, timeline, FUN_0042439e, death arm, kobold — read line by line against
   IDA, no divergence found.
-- **Not ported / wrong:** the block damage. Retail decrements `DAT_0438c218[mover]` — the same memory the timeline
-  fills with 2 (`g_mapcol_movers.on[50 + m]`) — and calls FUN_0042353c at 0. The port's records tick
-  (`src/scene1_records_b_tick.c:6335..6352`) decrements a separate array `g_scene1_b_wall_lifetime[]` (BSS 0 →
-  goes to −1, never 0) and its destroy hook is never installed (`scene1_records_b_set_wall_destroy_hook` has no
-  caller; FUN_0042353c has no port). In the port a block can never break → phases 1 / 2 cannot end, and phase 0 only
-  if a walkable gap exists. No PORT-DEBT tag marks this.
+- **Block damage — ported 2026-11-11, UNVERIFIED (no recording reaches it):** the records tick's wall probe
+  (`src/scene1_records_b_tick.c`, LAB_00440dc1 tail) now works on the movers' own arrays — `g_scene1_b_wall_lifetime`
+  / `_freshness` are aliases of `g_mapcol_movers.on[50..]` / `.slot[50..]` (DAT_0438c218 / DAT_0438c3a8), the HP the
+  timeline fills with 2 — and at HP 0 calls FUN_0042353c = `mover_destroyed` (`src/record_hit.c`, installed by
+  `record_sm_install`): mover off, SE 318, overlays 1 / 2 / 3 at y + 2, shake (10, 4, 4, 1.0), then `rand & 3 == 0`
+  → `rand & 1` → enemy type 2 (odd) / 15 (even) at y + 0.2; else `rand & 7 == 0` and bag not full → chest roll
+  FUN_0043824b. Checked against IDA 43134..43150 + sub_42353C and the disasm 0x42353c. (Before: a separate BSS-0
+  array went to −1, never 0, and the destroy hook had no caller — a block could never break.)

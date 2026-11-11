@@ -1581,8 +1581,46 @@ static int ground_hit(float x, float y, float z, int32_t *out)
     return mapcol_ground(x, y, z, (mapcol_hit_t *)(void *)out);
 }
 
+/* FUN_0042353c (0x42353c): a collision mover worn to HP 0 by a record's wall
+ * ray (sub_43AE20's probe tail, DAT_0438c218[1 + m] → 0; Tielle's blocks,
+ * dungeon 2 floor 30) — mover 1 + m off, SE 318, overlays 1 / 2 / 3 two above
+ * it, the shake; then, in this RNG order (after the overlays' own draws):
+ *   rand & 3 == 0 → rand & 1: an enemy of type 2 (odd) / 15 (even) at y + 0.2
+ *                   (FUN_0041f903 draws its own);
+ *   else rand & 7 == 0 and the bag not full (FUN_00484e45) → a chest's item
+ *                   roll at the block (FUN_0043824b).
+ * UNVERIFIED vs retail: ported from IDA (all_ida.c sub_42353C) + the disasm;
+ * no recording reaches a block being destroyed. */
+static void mover_destroyed(int32_t m)
+{
+    static const float k2 = 2.0f;                          /* 0x519314 */
+    static const float k0p4 = 0.4000000059604645f;         /* 0x5195c8 */
+    static const float k0p2 = 0.20000000298023224f;        /* 0x5198d8 */
+    if (m < 0 || 1 + m >= MAPCOL_MOVERS) return;           /* retail indexes unchecked */
+    g_mapcol_movers.on[1 + m] = 0;                         /* DAT_0438c154[m] */
+    audio_play_se_by_id(318);
+    const float x = g_mapcol_movers.x[1 + m], z = g_mapcol_movers.z[1 + m];
+    const float y2 = spill32((long double)g_mapcol_movers.y[1 + m] + k2);
+    scene1_overlay_spawn(NULL, x, y2, z, 1, 1.0f, -1, 0, 0, 0);    /* FUN_004147d5 */
+    scene1_overlay_spawn(NULL, x, y2, z, 2, 1.0f, -1, 0, 0, 0);
+    scene1_overlay_spawn(NULL, x, y2, z, 3, k0p4, -1, 0, 0, 0);
+    camera_shake(10, 4, 4, 1.0f);                          /* FUN_0044b219 */
+    if ((rng_next15() & 3) == 0) {
+        const int32_t type = (rng_next15() & 1) ? 2 : 15;
+        const uint8_t *w = save_work_bank_at(save_work_active_slot());
+        const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                                   stage_post_load_get_mode_b4d0(), g_ghost_count,
+                                   w ? w[0x2bc57] : 0 };
+        (void)actor_spawn_enemy(&st, x, spill32((long double)g_mapcol_movers.y[1 + m] + k0p2),
+                                z, type);                  /* FUN_0041f903 */
+    } else if ((rng_next15() & 7) == 0 && !party_bag_full()) {
+        (void)chest_item_roll(x, g_mapcol_movers.y[1 + m], z);     /* FUN_0043824b */
+    }
+}
+
 void record_sm_install(void)
 {
+    scene1_records_b_set_wall_destroy_hook(mover_destroyed);   /* FUN_0042353c */
     scene1_records_b_set_ground_query_hook(ground_hit);
     scene1_records_b_set_wall_raycast_hook(wall_ray);
     scene1_records_b_set_wall_flag_at_hook(wall_type);

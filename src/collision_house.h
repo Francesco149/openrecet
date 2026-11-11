@@ -28,6 +28,10 @@ void collision_house_build(void);
 /* The built room collision mesh, or NULL if the build hasn't run / failed. */
 const collision_mesh *collision_house_get(void);
 
+/* Re-read the table objects' origins from the walker's live phase-2 placement
+ * (retail: the same memory) — after a table is carried / lifted / dropped. */
+void collision_house_sync_tables(void);
+
 /* Free the built mesh (called on stage teardown). */
 void collision_house_reset(void);
 

@@ -915,6 +915,17 @@ void customer_service_session_init(void)
      * exactly one customer), but the draw must still happen. */
     uint32_t r = rng_next15();
     int customer_count = (int)(r & 1u) + 1 + displayed / 4;
+    {
+        /* 0x45ef44: fild; fstp m32; fld m32; fmul DAT_005c6bd0[tier]; __ftol —
+         * the count scales by the shop tier (1.0, 6/7, 2/3, 3/7; retail indexes
+         * unchecked).  Missing until rd probe venders-limit (tier 1, f2793). */
+        static const union { uint32_t u; float f; } k_tier_mult[4] = {
+            { 0x3f800000u }, { 0x3f5b6db7u }, { 0x3f2aaaabu }, { 0x3edb6db7u },
+        };
+        if (tier >= 0 && tier < 4)
+            customer_count = x87_ftol((long double)spill32((long double)customer_count)
+                                      * k_tier_mult[tier].f);
+    }
     if (customer_count > 5)
         customer_count = 5;
     s_roster_customer_count = customer_count;   /* → cs_roster_scan pass-1 admit cap */
@@ -1551,6 +1562,14 @@ static void cs_bind_story_entry(const int32_t *q, int32_t kind_b5a8)
         s_b2fc = snprintf(s_ac80, sizeof s_ac80, "by tomorrow");
     else
         s_b2fc = snprintf(s_ac80, sizeof s_ac80, "in %d days", q[5]);
+    /* the text box's <D1> / <DA> read these buffers (FUN_00465db4: ac70 by
+     * b274, ac80 by b2fc); unset they dropped the tags and the order line
+     * revealed 8 ticks early (rd probe venders-limit f7352 vs retail f7360).
+     * PORT-DEBT(simplified, FUN_00465db4): <D1>'s length is DAT_0730b274 =
+     * the pick row 0 item (s_item_pick[0]) in retail — a later write to that
+     * row changes the expanded length there; the macro table keeps strlen. */
+    dlg_macro_set(DLG_MAC_D1, s_ac70);
+    dlg_macro_set(DLG_MAC_DA, s_ac80);
 }
 
 /* ── queue advance (FUN_00462403 b524==0x3c, 0x46324b-0x46343c) ───────────────

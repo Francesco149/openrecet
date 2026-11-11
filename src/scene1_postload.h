@@ -289,9 +289,10 @@ void scene1_postload_apply_walker_phase2_house_groundtruth(void);
 /*
  * Port of engine FUN_0048ffd9 — seed the active save-slot record's
  * furniture array (+0x2ce10) from the static template (DAT_005cf864) row
- * selected by the record's shop-tier field (+0x2cde0).  Called by the
- * new-game record seeder (engine FUN_0049d36d); here, by the HOUSE-entry
- * loader below.
+ * selected by the record's shop-tier field (+0x2cde0).  Retail callers:
+ * the bank init FUN_0049001c (save_bank.c), the new-game seeder FUN_0049d36d
+ * and the shop re-layout FUN_004864fd — never the house load (moved tables
+ * persist).
  */
 void scene1_postload_seed_house_furniture(void);
 

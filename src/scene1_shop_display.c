@@ -21,6 +21,7 @@
 #include "save_bank.h"               /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_* (the placed furniture) */
 #include "map_collision.h"           /* g_mapcol_objs (DAT_0438bfb0.., the same memory in retail) */
+#include "collision_house.h"         /* collision_house_sync_tables (the table objects follow) */
 #include "scene1_camera.h"           /* scene1_camera_view_mode (DAT_068dd3fc[stage]) */
 #include "audio.h"                   /* audio_play_se_by_id / _file (FUN_00499519 / FUN_0049933c) */
 #include "scene1_display_menu.h"     /* display_menu_inventory_return (FUN_00468d22) */
@@ -359,6 +360,7 @@ static void shop_display_table_lift(int i, float y)
 {
     g_scene1_walker_phase2_pos_y[i] = y;
     g_mapcol_objs.y[5 + i] = y;
+    collision_house_sync_tables();
 }
 
 /* DAT_005ce3e0: the cell a table slot's mesh sits at, [scene type][slot] (x, z).
@@ -372,10 +374,6 @@ static const int32_t k_table_anchor[5][10][2] = {
     {{5,5},{5,5},{0,5},{5,5},{5,0},{5,5},{5,25},{5,4},{5,8},{10,0}},
 };
 
-/* PORT-DEBT(simplified, FUN_0048670f): collision_house.c keeps its own copy of
- * the table origins from the house load (read only by the cc08 4 stool's
- * ground probe, collision_set_player_ground_y) — a moved table stays at its
- * old spot there until the next house entry. */
 void shop_display_tables_place(void)
 {
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
@@ -390,6 +388,7 @@ void shop_display_tables_place(void)
         g_scene1_walker_phase2_pos_x[i] = g_mapcol_objs.x[5 + i] = x + x;
         g_scene1_walker_phase2_pos_z[i] = g_mapcol_objs.z[5 + i] = z + z;
     }
+    collision_house_sync_tables();   /* collision_house.c's objects follow */
 }
 
 /* FUN_004865d5 (0x4865d5): what stands on table `i` goes back into the

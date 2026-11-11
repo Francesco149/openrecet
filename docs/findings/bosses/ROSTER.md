@@ -98,8 +98,8 @@ Boss Rush of d = 1..4: `0x438b4c8 = 5`, `0x438b4d0 = d`, start floor 30 / 33 / 3
 
 ### Checkpoint floors (0-based `floor`; "generic" = `FUN_0044cc80(1)` + `FUN_0044d0a4`, boss from the list's first line)
 
-**d0** — no boss. Floor 4: first clear without the fee flag (bank+0x2bc81 == 0) sets +0x2bc82 and places the big
-portal (`FUN_00436f97`, IDA 37444).
+**d0** — no boss. Floor 4 (`FUN_00436f97`, IDA 37443..37462): bank+0x2bc82 = 0, then fee flag bank+0x2bc81 ≠ 0 or
+mode 2 → portal kind 6 at the start + (0, 2, 10); else bank+0x2bc82 = 1 and portal kind 4 (the guild-intro run).
 
 **d1** — 4: 23 ×1 (+ adds 2); 9: 24 (+ 13 / 14); 14: 25 Charme (own setup). Other authors.
 
@@ -169,7 +169,7 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 46 | 55 ×2 | generic | d4's Boss Rush starts at 46 |
 | 47 | 59 | generic | |
 | 48 | 54 ×3 | generic | |
-| 49 | 67 ×3 | generic | Griff never here; `floor == 49` test irrelevant |
+| 49 | 67 ×3 | generic | |
 | 50 | 23 ×3 | generic | |
 | 51 | 55 ×3 | generic | |
 | 52 | 71 | generic | |

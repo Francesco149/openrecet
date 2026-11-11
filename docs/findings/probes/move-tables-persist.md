@@ -3,7 +3,7 @@
 - **Run:** `move-tables-persist` · **start:** save:2afe7fb42617 · **task:** `tools/drive/tasks/move-tables-persist.md`
 - **Driver:** API harness (`tools/drive/agent.py`), claude-opus-5-5, effort high, 71 turns, $1.01, 13 min
 - **Scenario:** `tests/scenarios/move-tables-persist/` (1901 frames)
-- **Verdicts (2026-11-11):** check PASS (tools/drive/tasks/move-tables-persist.md); verify --real MATCH; retail golden made (Windows, real device); port triage: split     move-tables-persist                  f1712 - ⇄ sim_step_a (-1)
+- **Verdicts (2026-11-11):** check PASS (tools/drive/tasks/move-tables-persist.md); verify --real MATCH; retail golden made (Windows, real device); port triage: split     move-tables-persist                  f1712 - ⇄ sim_step_a (-1) — **fixed 2026-11-11** (no template re-seed on house entry, FUN_0048ffd9's three retail callers only): identical, ticks 1..2201, save IDENTICAL
 
 The driver's report, as written (retail facts observed live through `rd`; claims read from code only are leads):
 

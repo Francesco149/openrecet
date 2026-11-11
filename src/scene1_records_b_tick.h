@@ -520,6 +520,7 @@ extern int32_t g_scene1_records_b_tick_flag;
  * frame counter.  Tests with a custom state_machine hook can write this
  * global to exercise the type-4 special case. */
 #include "scene1_combat_sm.h"
+#include "map_collision.h"   /* g_mapcol_movers (DAT_0438c150..) */
 #define g_scene1_records_b_tick_anim_drive g_scene1_combat_dat_06a46f94   /* DAT_06a46f94 */
 
 /* Hook signatures. */
@@ -735,24 +736,21 @@ scene1_b_wall_destroy_fn  scene1_records_b_set_wall_destroy_hook(
 scene1_b_aux_44b255_fn    scene1_records_b_set_aux_44b255_hook(
     scene1_b_aux_44b255_fn fn);
 
-/* Engine DAT_438c218 / DAT_438c3a8 — per-wall-id lifetime and freshness
- * counters read+written by the LAB_00440dc1 default-tail wall-bounce body.
+/* Engine DAT_0438c218 / DAT_0438c3a8 — a collision mover's HP and hit flash,
+ * read+written by the LAB_00440dc1 default-tail wall probe (sub_43AE20, IDA
+ * all_ida.c 43134..43150), indexed by the ray's 1-based mover id (+0x18 of
+ * the hit record): HP < 100 → flash = 30, HP--; HP != 0 → SE 361 + spark,
+ * HP == 0 → FUN_0042353c(id - 1).
  *
- * Engine references walls by 1-based `wall_id` (stored in the raycast
- * output buffer at +0x18).  The body reads/writes `[wall_id * 4 +
- * 0x438c218]` (lifetime) and `[wall_id * 4 + 0x438c3a8]` (freshness).
- * Engine size of these arrays is unknown from the body alone; the wall
- * populator that allocates wall_id assigns IDs into a bounded range —
- * sized to 256 here, sufficient for any HOUSE-stage scenario.  Sized
- * matches the engine wall record bank used by FUN_0042353c (which
- * also writes per-wall globals at DAT_438c154 / DAT_438c604).
- *
- * Default BSS-zero → lifetime starts at 0 → the very first hit destroys
- * the wall (engine: `g_wall_lifetime[wall_id] < 0x64 ⇒ decrement; if 0 ⇒
- * call wall_destroy`).  Tests preset lifetime > 0 to exercise the
- * sub-100 hit path. */
-extern int32_t g_scene1_b_wall_lifetime[256];
-extern int32_t g_scene1_b_wall_freshness[256];
+ * These are NOT separate arrays: retail's mover `on` / `slot` arrays are 50
+ * long, so DAT_0438c218 = DAT_0438c150 + 200 = g_mapcol_movers.on[50..] and
+ * DAT_0438c3a8 = g_mapcol_movers.slot[50..] (map_collision.h) — the memory
+ * Tielle's floor-30 timeline fills with HP 2 and the floor-58 one with 100.
+ * (Until 2026-11-11 the port kept a private BSS-zero pair here: a block could
+ * never be worn down by the HP its creator wrote.) */
+#define SCENE1_B_WALL_IDS 50
+#define g_scene1_b_wall_lifetime  (&g_mapcol_movers.on[50])
+#define g_scene1_b_wall_freshness (&g_mapcol_movers.slot[50])
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

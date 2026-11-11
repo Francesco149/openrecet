@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 70,
+  "port_debt": 69,
   "verified": 81,
   "stubbed": 10,
   "ported": 734,
@@ -3517,7 +3517,8 @@
     "src/actor_table.h",
     "src/dungeon_flow.c",
     "src/dungeon_party.c",
-    "src/enemy_place.h"
+    "src/enemy_place.h",
+    "src/record_hit.c"
    ],
    "status": "ported"
   },
@@ -3757,6 +3758,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/record_hit.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h"
    ],
@@ -6433,6 +6435,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/main.c",
     "src/record_hit.c",
     "src/record_hit.h",
@@ -18084,6 +18087,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/collision_house.c",
     "src/customer_service.h",
     "src/dungeon_party.h",
     "src/guild_stock.h",
@@ -18100,7 +18104,6 @@
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
-    "src/scene1_shop_display.c",
     "src/scene1_shop_display.h",
     "src/scene1_sim.c",
     "src/scene1_tutorial_dispatch.c",
@@ -19054,6 +19057,7 @@
     "src/scene.c",
     "src/scene.h",
     "src/scene1_postload.c",
+    "src/scene1_postload.h",
     "src/stage_post_load.h"
    ],
    "status": "verified"

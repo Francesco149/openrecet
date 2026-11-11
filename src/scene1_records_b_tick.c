@@ -57,11 +57,8 @@ int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
  * C8j-tick.10 (Body 6 + Body 7) and presumably deeper bodies.  PHC #19;
  * default BSS-zero. */
 
-/* Engine DAT_438c218 / DAT_438c3a8 — wall-id lifetime / freshness banks.
- * See scene1_records_b_tick.h.  Sized 256; production exercises these
- * only when a wall populator sets up a record table. */
-int32_t g_scene1_b_wall_lifetime[256];
-int32_t g_scene1_b_wall_freshness[256];
+/* DAT_0438c218 / DAT_0438c3a8 (the movers' HP / hit flash) live in
+ * g_mapcol_movers — see scene1_records_b_tick.h. */
 
 /* ─── hooks ──────────────────────────────────────────────────────────── */
 
@@ -6333,15 +6330,16 @@ void scene1_records_b_run_lab_00440dc1(int i)
     if (flag != 1 && flag != 0) return;     /* 0x440efb-0x440f01 */
 
     if (ray.wall_id > 0) {
-        /* 0x440f03-0x440f7d: lifetime tracking + destroy-on-zero.
+        /* 0x440f03-0x440f7d: the hit mover's HP (DAT_0438c218[id] =
+         * g_mapcol_movers.on[50 + id]) + destroy-on-zero.
          *
-         * Engine: if g_wall_lifetime[wall_id] < 0x64 → set
-         * g_wall_freshness[wall_id] = 0x1e + decrement lifetime.  Then
-         * if lifetime hit 0 → wall_destroy(wall_id - 1) + KILL.  Else
-         * SE 0x169 + Table-A particle at back-step pos + KILL. */
+         * Engine: HP < 0x64 → flash (DAT_0438c3a8[id]) = 0x1e, HP--.  Then
+         * HP == 0 → FUN_0042353c(id - 1) + KILL.  Else SE 0x169 + Table-A
+         * particle at back-step pos + KILL.
+         * UNVERIFIED vs retail (ported from IDA 43134..43150; no recording
+         * reaches a breakable mover — Tielle's blocks, dungeon 2 floor 30). */
         int wid = ray.wall_id;
-        if (wid > 0 && wid < (int)(sizeof g_scene1_b_wall_lifetime
-                                  / sizeof g_scene1_b_wall_lifetime[0])) {
+        if (wid > 0 && wid < SCENE1_B_WALL_IDS) {   /* retail indexes unchecked (ids 1..49) */
             if (g_scene1_b_wall_lifetime[wid] < 0x64) {
                 g_scene1_b_wall_freshness[wid] = 0x1e;
                 g_scene1_b_wall_lifetime[wid]--;

@@ -51,8 +51,8 @@ static void reset_world(void)
     scene1_records_b_set_wall_flag_at_hook(NULL);
     scene1_records_b_set_wall_destroy_hook(NULL);
     scene1_records_b_set_aux_44b255_hook(NULL);
-    memset(g_scene1_b_wall_lifetime, 0, sizeof g_scene1_b_wall_lifetime);
-    memset(g_scene1_b_wall_freshness, 0, sizeof g_scene1_b_wall_freshness);
+    memset(g_scene1_b_wall_lifetime, 0, SCENE1_B_WALL_IDS * sizeof(int32_t));
+    memset(g_scene1_b_wall_freshness, 0, SCENE1_B_WALL_IDS * sizeof(int32_t));
 }
 
 static int32_t *bslot(int i)
@@ -9656,6 +9656,10 @@ int test_records_b_tick_dc1_wall_id_lifetime_decrement_only(void)
     scene1_records_b_run_lab_00440dc1(0);
     T_ASSERT_EQ_I(g_scene1_b_wall_lifetime[5], 9);
     T_ASSERT_EQ_I(g_scene1_b_wall_freshness[5], 0x1e);
+    /* one array: DAT_0438c218 / DAT_0438c3a8 are the movers' on[50..] / slot[50..]
+     * (the HP Tielle's timeline writes) */
+    T_ASSERT_EQ_I(g_mapcol_movers.on[50 + 5], 9);
+    T_ASSERT_EQ_I(g_mapcol_movers.slot[50 + 5], 0x1e);
     T_ASSERT_EQ_I(s_wall_destroy_calls, 0);
     T_ASSERT_EQ_I(s_se_calls, 1);
     T_ASSERT_EQ_I(s_se_last_id, 0x169);

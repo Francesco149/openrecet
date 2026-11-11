@@ -1080,6 +1080,7 @@ int test_scene1_postload_load_house_inputs_expanded_shop(void)
     uint8_t *rec = save_work_bank_at(0);
     const int32_t tier = 1;
     memcpy(rec + 0x2cde0, &tier, sizeof tier);
+    scene1_postload_seed_house_furniture();            /* the expansion's re-layout (FUN_004864fd → FUN_0048ffd9) */
     const int32_t n0 = g_stage.count, b4dc0 = g_stage_b4dc, id0 = g_stage.records[1].dungeon_id;
     g_stage.count = 2;
     g_stage.records[1].dungeon_id = 1;                 /* DAT_068dd3fc[1] */
@@ -1112,7 +1113,9 @@ int test_scene1_postload_load_house_inputs_from_save_record(void)
      * (FUN_0048ffd9) + arena read replace --force-walker-phase2 0. */
     reset_world();
     save_bank_init_all();              /* clean arena: record fields all 0 */
-    save_work_clear();                 /* the ACTIVE WORKING record is what FUN_0048ffd9 seeds */
+    save_work_clear();
+    save_work_set_active_slot(0);
+    save_work_load_slot(0);            /* a new game: the work record = the bank FUN_0049001c seeded */
     chara_equip_set_current_bank(0);
     g_scene1_camera_char_mode = 7;     /* sentinel — loader must reset to 0 */
 
@@ -1148,5 +1151,21 @@ int test_scene1_postload_load_house_inputs_from_save_record(void)
 
     /* yaw=π written by the init (Cf block, FUN_00436f97 L589). */
     T_ASSERT(g_scene1_camera_yaw == 3.1415927f);
+
+    /* A table moved in cc08 2 (Move Tables) stays moved over the next house
+     * entry: the loader does not re-seed the template (retail FUN_0048ffd9 has
+     * three callers, none on the house load; rd probe move-tables-persist:
+     * t0 (3,3) → (1,2)). */
+    {
+        int32_t *w = (int32_t *)(void *)(rec + 0x2ce10);
+        w[0] = 1; w[1] = 2;
+        scene1_postload_load_house_phase2_inputs();
+        scene1_postload_walker_phase2_init();
+        T_ASSERT_EQ_I(w[0], 1);
+        T_ASSERT_EQ_I(w[1], 2);
+        T_ASSERT(g_scene1_walker_phase2_pos_x[0] == -6.0f);    /* 2·(1 − 4) */
+        T_ASSERT(g_scene1_walker_phase2_pos_z[0] == -2.0f);    /* 2·(2 − 3) */
+        w[0] = 3; w[1] = 3;
+    }
     return 0;
 }

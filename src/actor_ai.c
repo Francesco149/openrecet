@@ -1609,6 +1609,17 @@ static void crab_spawn_at(actor_t *a, int32_t pt, int32_t type)
 
 static int32_t s_crab_7c8c68;   /* DAT_007c8c68 — written here only */
 
+/* DAT_0052b90c[i] through its mirrored neighbourhood (dword 120 = the table's
+ * first); i outside -120..119 cannot come from the crab's clock — the first
+ * spot then (retail would read further .data). */
+static float drop_f(const uint32_t *bits, int32_t i)
+{
+    float f;
+    if (i < -120 || i > 119) i = 0;
+    memcpy(&f, &bits[120 + i], sizeof f);
+    return f;
+}
+
 /* FUN_00422092: types 68 / 69, the crabs (dungeon 2's floor-20 boss).  +0xa54
  * the state: 0 walk (forward / sideways), 1 / 2 a pincer jab (points 6 / 7,
  * record 14 at 25..39), 3 the turn-and-slam toward the player (yaw eased by
@@ -1630,7 +1641,49 @@ static void actor_ai_crab(actor_t *a)
     static const float k0p02 = 0.019999999552965164f, k_pi2 = 1.5707963705062866f, k30 = 30.0f;
     static const float k0p5 = 0.5f, k_pi10 = 0.31415927410125732f, km2 = -2.0f;
     static const float k1p51 = 1.5099999904632568f, km1p29 = -1.2899999618530273f;
-    static const float k_drop[8] = { 28.0f, -27.0f, -28.0f, -27.0f, 28.0f, 24.0f, -28.0f, 24.0f };  /* DAT_0052b90c */
+    /* DAT_0052b90c: the four drop spots {28,-27, -28,-27, 28,24, -28,24} — dwords
+     * 120..127 here.  State 6 indexes it by +0xa64, which for the crab is the
+     * spawn clock (-60..59; the hit that sets state 6, FUN_0043865e, does not
+     * reset it), so retail reads dwords -120..119 around the table: the
+     * neighbouring initialised .data (other AI tables, a debug string), mirrored
+     * here as bit patterns from recettear.unpacked.exe VA 0x52b72c..0x52baeb
+     * (no code writes that range: every xref in the IDA export is a read; no
+     * NaN patterns, so the x87 load/store keeps the bits).
+     * UNVERIFIED vs retail beyond c = 0..3 (no recording puts the crab in
+     * state 6 with another clock value). */
+    static const uint32_t k_drop_bits[240] = {
+        0x00000000u, 0x00000022u, 0x00000001u, 0x00000004u, 0x00000000u, 0x00000026u, 0x00000001u, 0x00000005u,
+        0x00000000u, 0x0000002au, 0x00000002u, 0x00000000u, 0x00000000u, 0x00000030u, 0x00000002u, 0x00000001u,
+        0x00000000u, 0x00000032u, 0x00000002u, 0x00000002u, 0x00000000u, 0x00000038u, 0x00000002u, 0x00000003u,
+        0x00000000u, 0x0000003au, 0x00000002u, 0x00000004u, 0x00000000u, 0x00000040u, 0x00000002u, 0x00000005u,
+        0x00000000u, 0x00000042u, 0x00000002u, 0x00000006u, 0x00000000u, 0x0000004au, 0x00000002u, 0x00000007u,
+        0x00000000u, 0x0000004cu, 0x00000003u, 0x00000000u, 0x00000000u, 0x00000052u, 0x00000003u, 0x00000001u,
+        0x00000000u, 0x00000054u, 0x00000003u, 0x00000002u, 0x00000000u, 0x00000056u, 0x00000003u, 0x00000003u,
+        0x00000000u, 0x00000058u, 0x00000003u, 0x00000004u, 0x00000000u, 0x0000005au, 0x00000004u, 0x00000000u,
+        0x00000000u, 0x00000062u, 0x00000004u, 0x00000001u, 0x00000000u, 0x00000066u, 0x00000004u, 0x00000002u,
+        0x00000000u, 0x00000068u, 0x8a834e83u, 0x66834183u, 0x5e835b81u, 0xdb95f082u, 0xb582b691u, 0xb782dc82u,
+        0x4881a982u, 0x00000000u, 0x42680000u, 0xc2980000u, 0x42e60000u, 0x41c00000u, 0xc2580000u, 0xc1200000u,
+        0xc2580000u, 0x425c0000u, 0x00000000u, 0x41c00000u, 0xc2480000u, 0xc2580000u, 0x00000024u, 0x00000023u,
+        0x0000003cu, 0x00000000u, 0x00000014u, 0x00000001u, 0x00000014u, 0x00000002u, 0x00000064u, 0x00000003u,
+        0x00000014u, 0x00000004u, 0x00000014u, 0x00000005u, 0x00000014u, 0x00000002u, 0x00000064u, 0x00000002u,
+        0x00000064u, 0x00000002u, 0x0000003cu, 0x00000004u, 0x00000014u, 0x00000004u, 0x00000014u, 0x00000005u,
+        0x41e00000u, 0xc1d80000u, 0xc1e00000u, 0xc1d80000u, 0x41e00000u, 0x41c00000u, 0xc1e00000u, 0x41c00000u,
+        0x3f19999au, 0x3f4ccccdu, 0x3f59999au, 0x3ee66666u, 0x40400000u, 0x40400000u, 0x40400000u, 0x3f000000u,
+        0x40000000u, 0x3f000000u, 0x404ccccdu, 0x40600000u, 0x00000006u, 0x00000007u, 0x00000008u, 0x00000009u,
+        0x00000034u, 0x00000035u, 0x0000000fu, 0x0000002cu, 0x0000002du, 0x0000002eu, 0x0000002fu, 0x00000030u,
+        0x00000fa8u, 0x00000fa1u, 0x00000fb9u, 0x00000fa9u, 0x00000fbau, 0x00000fa2u, 0x00000fa3u, 0x00000fbbu,
+        0x00000fa4u, 0x00000fbcu, 0x00000fb1u, 0x00000facu, 0x00000fbdu, 0x00000fa5u, 0x00000fadu, 0x00000fbfu,
+        0x00000fb2u, 0x00000faeu, 0x00000fc1u, 0x00000fa7u, 0x00000014u, 0x0000008bu, 0x00000000u, 0x000000c8u,
+        0x00000150u, 0x00000001u, 0x000001f4u, 0x0000027cu, 0x00000001u, 0x00000168u, 0x000001dfu, 0x00000000u,
+        0x000002bcu, 0x00000334u, 0x00000001u, 0x00000348u, 0x000003c0u, 0x00000001u, 0x00000474u, 0x000004ecu,
+        0x00000001u, 0x000003d4u, 0x0000044cu, 0x00000001u, 0x00000500u, 0x0000053cu, 0x00000001u, 0x00000550u,
+        0x0000058cu, 0x00000001u, 0x000005dcu, 0x00000834u, 0x00000001u, 0x00000190u, 0x00000207u, 0x00000000u,
+        0x0000008cu, 0x00000104u, 0x00000000u, 0x0000021cu, 0x00000294u, 0x00000000u, 0x000002bcu, 0x00000334u,
+        0x00000000u, 0x0000035cu, 0x000003c0u, 0x00000001u, 0x000003d4u, 0x00000438u, 0x00000001u, 0x0000044cu,
+        0x000004b0u, 0x00000001u, 0x000004c4u, 0x00000500u, 0x00000001u, 0x0000091cu, 0x00000988u, 0x00000001u,
+        0x000005c8u, 0x00000640u, 0x00000000u, 0x0000067cu, 0x000006b8u, 0x00000001u, 0x000006ccu, 0x00000744u,
+    };
+#define K_DROP(i) (drop_f(k_drop_bits, (i)))
     float dx = spill32((long double)PX - AF(a, 0x3f0));
     float dz = spill32((long double)PZ - AF(a, 0x3f8));
     float dist = spill32((long double)dz * dz + (long double)dx * dx);
@@ -1829,9 +1882,9 @@ static void actor_ai_crab(actor_t *a)
         if (sub == 0) {
             const int32_t c = AI(a, 0xa64);
             if (AI(a, 0xa58) >= 30 && AI(a, 0xa58) < 140)
-                scene1_spawn(0, k_drop[2 * c], km2, k_drop[2 * c + 1], 0x4e, k1, 1);   /* FUN_00447f4f */
+                scene1_spawn(0, K_DROP(2 * c), km2, K_DROP(2 * c + 1), 0x4e, k1, 1);   /* FUN_00447f4f */
             if (AI(a, 0xa58) == 30) {
-                scene1_spawn(0, k_drop[2 * AI(a, 0xa64)], km2, k_drop[2 * AI(a, 0xa64) + 1], 0x55, k2, 1);
+                scene1_spawn(0, K_DROP(2 * AI(a, 0xa64)), km2, K_DROP(2 * AI(a, 0xa64) + 1), 0x55, k2, 1);
                 camera_shake(30, 4, 4, k1);
                 AF(a, 0x3fc) = k0;
                 s_crab_7c8c68 = 0;

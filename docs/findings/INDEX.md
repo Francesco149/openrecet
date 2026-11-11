@@ -26,6 +26,10 @@ observed in the running game; anything read from code only is a lead. Named stat
 
 | Doc | Covers |
 |-----|--------|
+| [bosses/combat-core.md](bosses/combat-core.md) | Dungeon combat, observed live: the sword / spin timings, the damage formula (`ftol(ATK/2 − DF·power²/4)`), hit labels by the angle of the hit record to the enemy's yaw (Side ×1.2, Back ×1.5, Counter ×1.2 in the enemy's attack states), invulnerability, how to fight by search. |
+| [bosses/crown-slime.md](bosses/crown-slime.md) | Type 23: power (`+0xab8`, DF = 8·power²) sheds 5 → 1 over 900 ticks and resets on absorbing a blue slime aged ≥ 600; the leap + landing shockwave; the 25F pair; kill recipe (done live, 703 frames); arms checklist. |
+| [bosses/ROSTER.md](bosses/ROSTER.md) · [UNLOCKS.md](bosses/UNLOCKS.md) | Every dungeon's boss floors → actor types → AI fn → port status; the bank dwords that open dungeons, floor rows and hires (crafted save `824053720e01`). |
+| [bosses/](bosses/) boss cards | Code-read state machines, damage windows, kill recipes, arms checklists: mushroom-king, charme, boss-ahriman, ohm, crabs, tielle, dungeon2-15f, boss-rush, boss-floor-common; unported: golem, griff, demon-hand, jellyfish, arma, arma-golem, pumpkin-ghost, black-knight. [player-knowledge.md](bosses/player-knowledge.md) = what players document (unverified). |
 | [probes/tear-news-summary.md](probes/tear-news-summary.md) | Tear's menu (`cc08` 15) → News Summary (entry 8; `cc08` 16 → 17): the page, its inputs, exit; the menu's entry list at level 6. |
 | [probes/tear-outstanding-orders.md](probes/tear-outstanding-orders.md) | Tear's menu → Outstanding Orders (entry 9, absent on the level-6 save; crafted level 10): the "Advance Order Summary" panel, empty. |
 | [probes/survival-hell-start.md](probes/survival-hell-start.md) | Survival Hell: what differs from Normal (687-dword wipe: gold, level, items, adventurer levels; marker bank dword 0xb78d; opening script 19), the 20,000 payment on day 7 missed, the game over back to the title. |

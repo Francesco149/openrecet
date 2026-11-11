@@ -3,7 +3,7 @@
 - **Run:** `venders-limit` · **start:** save:0703ebb339bf · **task:** `tools/drive/tasks/venders-limit.md`
 - **Driver:** API harness (`tools/drive/agent.py`), claude-opus-5-5, effort high, 120 turns, $2.21, 16 min
 - **Scenario:** `tests/scenarios/venders-limit/` (9043 frames)
-- **Verdicts (2026-11-11):** check PASS (tools/drive/tasks/venders-limit.md); verify --real MATCH; retail golden made (Windows, real device); port triage: split     venders-limit                        f2793 FUN_0045edaa ⇄ customer_service_session_init (+101)
+- **Verdicts (2026-11-11):** check PASS (tools/drive/tasks/venders-limit.md); verify --real MATCH; retail golden made (Windows, real device); port triage: split     venders-limit                        f2793 FUN_0045edaa ⇄ customer_service_session_init (+101) — **fixed 2026-11-11** (f2793: the customer count's tier multiplier DAT_005c6bd0, tier 1 = 6/7; f7358: the order line's <D1> / <DA> macros were never set): identical, ticks 1..9343, save IDENTICAL
 
 The driver's report, as written (retail facts observed live through `rd`; claims read from code only are leads):
 

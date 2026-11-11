@@ -138,6 +138,7 @@ but `+0xa64` holds the bomb clock (−60..59) → retail reads neighbouring .dat
 | death + sweep | `s32(B+0x428) == 2`; others dying at `+0xaf0 == 60` |
 | player dies | `hp <= 0` |
 
-Port: AI, parts, flip, bombs ported; no PORT-DEBT tag. **Port defect:** state 6 indexes its own 8-float `k_drop`
-with `+0xa64` (actor_ai.c:1830..1834) — out of bounds for most values (retail reads .data there); needs the retail
-bytes or a bounds guard. Death arm unverified by recording, matches IDA.
+Port: AI, parts, flip, bombs ported; no PORT-DEBT tag. State 6's splash read (2026-11-11): the port
+mirrors retail's .data VA 0x52b72c..0x52baeb (240 dwords, `k_drop_bits` in `actor_ai.c`; dword 120 = the table) so
+`flt_52B90C[2c]`, c = −60..59, is in bounds and retail-valued — every IDA xref into that range is a read; unverified
+by recording for c outside 0..3. Death arm unverified by recording, matches IDA.

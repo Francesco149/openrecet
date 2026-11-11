@@ -43,6 +43,8 @@
 
 static collision_mesh g_house_collision;
 static int            g_house_collision_ready;
+/* phase-2 instance → its object in g_house_collision.objects (-1 = none built) */
+static int            s_house_p2_obj[SCENE1_WALKER_PHASE2_MAX];
 
 /* Parse `path`, build a collision object at (origin, rot_y).  Returns 0 on
  * success (obj populated), -1 on parse/build failure (obj left untouched). */
@@ -82,9 +84,50 @@ void collision_house_reset(void)
     memset(&g_house_collision, 0, sizeof g_house_collision);
 }
 
+static void house_union_aabb(void)
+{
+    const collision_object *objs = g_house_collision.objects;
+    const int n = g_house_collision.object_count;
+    /* Union AABB over the placed objects (each object's bounds + its origin). */
+    for (int k = 0; k < 3; k++) {
+        g_house_collision.aabb_min[k] =  1e30f;
+        g_house_collision.aabb_max[k] = -1e30f;
+    }
+    for (int i = 0; i < n; i++) {
+        for (int k = 0; k < 3; k++) {
+            float lo = objs[i].aabb_min[k] + objs[i].origin[k];
+            float hi = objs[i].aabb_max[k] + objs[i].origin[k];
+            if (lo < g_house_collision.aabb_min[k]) g_house_collision.aabb_min[k] = lo;
+            if (hi > g_house_collision.aabb_max[k]) g_house_collision.aabb_max[k] = hi;
+        }
+    }
+}
+
+/* Retail has no copy: the collision origins ARE the walker's placement arrays
+ * (DAT_0438c06c/0bc/10c, see the head comment), so a table carried in cc08 2
+ * (FUN_0048670f → shop_display_tables_place / the lift) moves its collision
+ * object in the same write.  Here the objects hold their own origin: re-read. */
+void collision_house_sync_tables(void)
+{
+    if (!g_house_collision_ready)
+        return;
+    for (int i = 0; i < SCENE1_WALKER_PHASE2_MAX; i++) {
+        const int k = s_house_p2_obj[i];
+        if (k < 0 || k >= g_house_collision.object_count)
+            continue;
+        collision_object *o = &g_house_collision.objects[k];
+        o->origin[0] = g_scene1_walker_phase2_pos_x[i];
+        o->origin[1] = g_scene1_walker_phase2_pos_y[i];
+        o->origin[2] = g_scene1_walker_phase2_pos_z[i];
+    }
+    house_union_aabb();
+}
+
 void collision_house_build(void)
 {
     collision_house_reset();
+    for (int i = 0; i < SCENE1_WALKER_PHASE2_MAX; i++)
+        s_house_p2_obj[i] = -1;
 
     /* Live placement instance counts (engine DAT_0438bfb0 / DAT_0438bfb4),
      * written by scene1_postload_walker_phase2_init before this runs. */
@@ -158,26 +201,14 @@ void collision_house_build(void)
         };
         if (house_add_object(&objs[n], path, origin,
                              g_scene1_walker_phase2_rot_y[i]) == 0)
-            n++;
+            s_house_p2_obj[i] = n++;
     }
 
     if (n == 0) { free(objs); return; }
 
     g_house_collision.objects      = objs;
     g_house_collision.object_count = n;
-    /* Union AABB over the placed objects (each object's bounds + its origin). */
-    for (int k = 0; k < 3; k++) {
-        g_house_collision.aabb_min[k] =  1e30f;
-        g_house_collision.aabb_max[k] = -1e30f;
-    }
-    for (int i = 0; i < n; i++) {
-        for (int k = 0; k < 3; k++) {
-            float lo = objs[i].aabb_min[k] + objs[i].origin[k];
-            float hi = objs[i].aabb_max[k] + objs[i].origin[k];
-            if (lo < g_house_collision.aabb_min[k]) g_house_collision.aabb_min[k] = lo;
-            if (hi > g_house_collision.aabb_max[k]) g_house_collision.aabb_max[k] = hi;
-        }
-    }
+    house_union_aabb();
     g_house_collision_ready = 1;
 }
 
@@ -190,6 +221,7 @@ const collision_mesh *collision_house_get(void)
 
 void                  collision_house_build(void) { }
 void                  collision_house_reset(void) { }
+void                  collision_house_sync_tables(void) { }
 const collision_mesh *collision_house_get(void)   { return 0; }
 
 #endif /* _WIN32 */
